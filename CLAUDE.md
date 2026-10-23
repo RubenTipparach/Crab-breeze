@@ -57,7 +57,17 @@ From the owner's brief, 2026-10-23. Quotes are the owner's words.
   start our game": clean code, SOLID principles, an optimisation framework, modelling and
   texturing skills, playtesting, OBS recording and Drive uploads, OpenSpec
   (https://openspec.dev) and the owner's survey system for answering questions.
-- **Bevy** (owner, 2026-10-23: "our tech stack should be bevy"). Section 2.
+- **Bevy** (owner, 2026-10-23: "our tech stack should be bevy", "because bevy is awesome").
+  Section 2.
+- **Ace Combat is the inspiration** (owner, 2026-10-23: "Game will take inspiration from ace
+  combat"). Fast, readable air and ground combat, lock-on missiles, set-piece missions against big
+  targets, all seen from the cockpit (the law still holds: no chase camera). What exactly is taken
+  from Ace Combat is a survey question (`G4`) and then an OpenSpec change.
+- **Three ways to move** (owner, 2026-10-23: "Mechs will be able to take limited flight with
+  powered jets or skate around on the ground"): walking, skating on the ground, and limited
+  powered flight on jets. Flight is limited by a resource the simulation tracks (fuel, heat or
+  both: survey `M3`), so the mech is a ground machine that can take to the air, not an aircraft.
+  Each mode is simulated, and the cockpit shows the numbers the simulation uses (section 6.1).
 
 ## 2. The stack: Rust and Bevy
 

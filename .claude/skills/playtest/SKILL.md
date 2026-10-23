@@ -26,7 +26,7 @@ what it shows, with nothing cut together.
   presses E like a player). It decides nothing a player could not, and the game checks it as it
   checks a player. It is a capture instrument (CLAUDE.md section 4).
 - **A script is a list of beats** in data (`data/playtests/<name>.ron`): walk to, board, power up,
-  stride to, turn to, look at, fire at, stop, disembark, look around. A new beat is added to the one
+  stride to, skate to, jet to (lift off, fly, land), turn to, look at, fire at, stop, disembark, look around. A new beat is added to the one
   scripted pilot, never written as a second bot.
 
 The scripted pilot, the `--playtest <name>` flag and the beats do not exist yet. They are the

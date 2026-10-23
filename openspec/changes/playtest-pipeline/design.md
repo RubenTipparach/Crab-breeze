@@ -15,6 +15,8 @@ A script is a RON list of beats:
 | `PowerUp` | press the cockpit's start sequence controls in order |
 | `StrideTo(marker)` | drive the mech to a marker with throttle and steering |
 | `LookAt(marker, s)` | turn the head toward a marker and hold for `s` seconds |
+| `SkateTo(marker)` | switch to skating and drive to a marker on the ground |
+| `JetTo(marker, altitude_m)` | lift off on the jets, fly to a marker at an altitude, and land |
 | `FireAt(marker, group, s)` | aim and fire a weapon group for `s` seconds |
 | `Disembark` | stand and climb out |
 | `Wait(s)` | do nothing for `s` seconds |
