@@ -1,0 +1,80 @@
+{
+  "breeze": {
+    "bounds_m": {
+      "x": [
+        -3.338,
+        3.338
+      ],
+      "y": [
+        0.0,
+        12.13
+      ],
+      "z": [
+        -3.335,
+        4.2
+      ]
+    },
+    "cockpit": "bubble canopy",
+    "file": "mech_breeze.glb",
+    "generator": "tools/blender/build_mechs.py",
+    "id": "breeze",
+    "legs": "digitigrade",
+    "name": "Breeze",
+    "note": "Recommended: survey M2 and C1 picks.",
+    "status": "design candidate",
+    "triangles": 24836,
+    "weapons": "rail cannon (L), gatling (R)"
+  },
+  "bulwark": {
+    "bounds_m": {
+      "x": [
+        -3.817,
+        3.817
+      ],
+      "y": [
+        0.0,
+        11.87
+      ],
+      "z": [
+        -2.829,
+        4.6
+      ]
+    },
+    "cockpit": "enclosed, vision slit and screens",
+    "file": "mech_bulwark.glb",
+    "generator": "tools/blender/build_mechs.py",
+    "id": "bulwark",
+    "legs": "human knee",
+    "name": "Bulwark",
+    "note": "Survey C1 option 2: armour over view.",
+    "status": "design candidate",
+    "triangles": 23124,
+    "weapons": "missile box (L), heavy cannon (R)"
+  },
+  "hermit": {
+    "bounds_m": {
+      "x": [
+        -3.608,
+        4.145
+      ],
+      "y": [
+        0.0,
+        9.58
+      ],
+      "z": [
+        -2.491,
+        6.901
+      ]
+    },
+    "cockpit": "low crab face canopy",
+    "file": "mech_hermit.glb",
+    "generator": "tools/blender/build_mechs.py",
+    "id": "hermit",
+    "legs": "splayed digitigrade",
+    "name": "Hermit",
+    "note": "The name's crab: low, wide, asymmetric.",
+    "status": "design candidate",
+    "triangles": 24928,
+    "weapons": "crusher claw (L), gatling (R)"
+  }
+}

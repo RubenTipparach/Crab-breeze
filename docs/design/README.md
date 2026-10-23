@@ -15,3 +15,9 @@ buildings, people), `T` tech and tools, `P` playtesting.
 | Change | State | Presents |
 | --- | --- | --- |
 | `playtest-pipeline` | proposed | The scripted pilot, output lines, OBS recording, Drive upload, reports |
+
+## Mockups
+
+| Page | Published | Built by |
+| --- | --- | --- |
+| Crab Breeze Mechs (`docs/mockups/mech_designs.html`): the three chassis candidates at true scale, cockpit view, rig test | https://claude.ai/artifact/B5tX8ycUR2tLBknKyMb8bc | `tools/mockups/gen_mech_designs.py` from `assets/models/mech_*.glb` |

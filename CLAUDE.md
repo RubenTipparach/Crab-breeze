@@ -290,6 +290,13 @@ Star Crew and Undercity, each with an "In Crab Breeze" note on what changes.
   an orbitable viewer with the pilot (1.8 m) and the mech beside it, sizes measured, never estimated.
 - **No z-fighting, ever** (Undercity). Two surfaces never share a plane while overlapping.
 - **People** are built from a table with one rig and one shared animation library (Undercity).
+- **The mech generators** are `tools/blender/build_mechs.py` on the kit `tools/blender/mech_kit.py`
+  (after Mining Mike's `mechs/tools/mech_chassis.py`), on the bones of `docs/design/mech-rig.md`.
+  A cloud session installs Blender 4.4 itself (about a minute): the official tarball from
+  `mirrors.dotsrc.org/blender/release/Blender4.4/blender-4.4.3-linux-x64.tar.xz` into `/opt/blender`.
+  Run `/opt/blender/blender --background --factory-startup --python tools/blender/build_mechs.py`,
+  then `python3 tools/mockups/gen_mech_designs.py` and look at the shots from
+  `NODE_PATH=$(npm root -g) node tools/mockups/shoot.mjs docs/mockups/mech_designs.html docs/screenshots/mechs`.
 
 ## 11. Verification
 
