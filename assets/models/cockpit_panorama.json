@@ -240,7 +240,7 @@
   },
   "meshes": {
     "CONSOLE_front_front": {
-      "tris": 8292,
+      "tris": 8280,
       "group": "front",
       "node": "CONSOLE_front"
     },
@@ -317,7 +317,7 @@
   },
   "vents": 7,
   "lights": 6,
-  "tris": 25056,
+  "tris": 25044,
   "tri_budget": 600000,
   "draw_calls": 15,
   "atlases": {
@@ -361,5 +361,5 @@
     "wall_L",
     "wall_R"
   ],
-  "bytes": 15513872
+  "bytes": 15534827
 }
