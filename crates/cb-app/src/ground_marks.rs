@@ -186,6 +186,8 @@ struct Marks {
     jolt: Jolt,
     /// Footprints laid so far (logged every tenth, for checking a take laid them).
     laid: u64,
+    /// The marks' material: touched after each upload so its bind group is rebuilt on the new buffer.
+    material: Option<Handle<GroundMarksMaterial>>,
 }
 
 /// Lays and draws the marks; plays the dirt and grit; jolts the pilot.
@@ -210,6 +212,7 @@ impl Plugin for GroundMarksPlugin {
                 any_last: false,
                 jolt: Jolt::default(),
                 laid: 0,
+                material: None,
             })
             .add_systems(
                 Update,
@@ -246,6 +249,7 @@ fn setup(
         cap * ROW_FLOATS * 4 / 1024,
         cap * cb_core::ground_marks::GRID * cb_core::ground_marks::GRID
     );
+    let material_handle = material.clone();
     commands.spawn((
         Name::new("ground marks"),
         Mesh3d(meshes.add(mesh)),
@@ -256,6 +260,7 @@ fn setup(
         NotShadowCaster,
     ));
     marks.buffer = Some(buffer);
+    marks.material = Some(material_handle);
 }
 
 /// The fx recipe a foot strike plays on `surface`.
@@ -417,6 +422,7 @@ fn age_and_upload(
     mut jolt: ResMut<ViewJolt>,
     mut crush: ResMut<PrintCrush>,
     mut buffers: ResMut<Assets<ShaderBuffer>>,
+    mut materials: ResMut<Assets<GroundMarksMaterial>>,
 ) {
     let cfg = &data.0.ground_marks;
     let dt = time.delta_secs();
@@ -444,6 +450,10 @@ fn age_and_upload(
     if let Some(mut b) = marks.buffer.as_ref().and_then(|h| buffers.get_mut(h)) {
         // The same size every time, so the GPU buffer is written in place and the bind group stays.
         *b = ShaderBuffer::new(marks.rows.clone(), RenderAssetUsages::RENDER_WORLD);
+    }
+    // A replaced buffer is a new GPU buffer: touch the material so its bind group points at it.
+    if let Some(h) = marks.material.as_ref() {
+        materials.get_mut(h);
     }
 }
 

@@ -9,7 +9,7 @@
     max_marks: 1024,
     lay_within_m: 800.0,
     draw_within_m: 450.0,
-    lift_m: 0.04,
+    lift_m: 0.15,
 
     // The stand-in's sole is 1.4 m by 2.6 m, its middle 0.4 m ahead of the ankle
     // (data/mechs/placeholder.ron, box on foot_L); the print is a little bigger than the sole.
