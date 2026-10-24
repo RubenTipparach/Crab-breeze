@@ -22,6 +22,15 @@ use std::sync::Arc;
 #[derive(Resource, Clone, Copy)]
 pub struct Seed(pub u64);
 
+/// True unless `CB_NO_SKY=1`: the pilot's view has Bevy's scattering sky (sky-atmosphere).
+pub fn scattering_sky() -> bool {
+    !crate::cli::switched_off("CB_NO_SKY")
+}
+
+/// Start in the nearest meadow instead of the city (`--start meadow`, gpu-grass).
+#[derive(Resource)]
+pub struct StartInMeadow;
+
 /// The generated world, shared with every system that walks on it.
 #[derive(Resource, Clone, Deref)]
 pub struct Plan(pub Arc<WorldPlan>);
@@ -54,7 +63,17 @@ impl Plugin for WorldPlugin {
         let seed = app.world().resource::<Seed>().0;
         let cfg = app.world().resource::<Data>().0.world.clone();
         let started = std::time::Instant::now();
-        let plan = generate(seed, &cfg);
+        let mut plan = generate(seed, &cfg);
+        if app.world().contains_resource::<StartInMeadow>() {
+            let grass = &app.world().resource::<Data>().0.grass;
+            match cb_core::grass::meadow_start(&plan, grass, 40.0, 6000.0) {
+                Some(s) => {
+                    info!("world: starting in a meadow at ({:.0}, {:.0})", s.mech_xz.x, s.mech_xz.y);
+                    plan.start = s;
+                }
+                None => warn!("world: no meadow within 6 km; starting in the city"),
+            }
+        }
         info!(
             "world seed {seed}: {} m island world, {} cities, {} buildings, {} highways, generated in {:.0} ms",
             cfg.world_size_m,
@@ -91,7 +110,14 @@ impl Plugin for WorldPlugin {
             .insert_resource(ClearColor(SKY))
             .insert_resource(GlobalAmbientLight {
                 color: Color::srgb(0.75, 0.82, 1.0),
-                brightness: 900.0,
+                // Under the scattering sky the exposure is darker by the step from Bevy's default
+                // EV100 9.7 to the view's, so the ambient rises by the same factor.
+                brightness: 900.0
+                    * if scattering_sky() {
+                        2f32.powf(cfg.view.exposure_ev100 - 9.7)
+                    } else {
+                        1.0
+                    },
                 ..default()
             })
             .add_plugins(crate::ground::GroundPlugin)
@@ -415,11 +441,21 @@ fn spawn_buildings(
     }
 }
 
-fn spawn_sun(mut commands: Commands) {
-    commands.spawn((
+fn spawn_sun(mut commands: Commands, data: Res<Data>, mut media: ResMut<Assets<bevy::light::atmosphere::ScatteringMedium>>) {
+    if scattering_sky() {
+        // Earth's air (sky-atmosphere): Rayleigh and Mie scattering through Bevy's lookup tables.
+        let air = media.add(bevy::light::atmosphere::ScatteringMedium::earth(256, 256));
+        commands.spawn((Name::new("atmosphere"), bevy::light::Atmosphere::earth(air)));
+    }
+    let mut sun = commands.spawn((
         Name::new("sun"),
         DirectionalLight {
-            illuminance: light_consts::lux::AMBIENT_DAYLIGHT,
+            // Raw sunlight under the scattering sky, which filters it; the old daylight value otherwise.
+            illuminance: if scattering_sky() {
+                light_consts::lux::RAW_SUNLIGHT
+            } else {
+                light_consts::lux::AMBIENT_DAYLIGHT
+            },
             shadow_maps_enabled: !crate::cli::switched_off("CB_NO_SHADOWS"),
             ..default()
         },
@@ -432,6 +468,13 @@ fn spawn_sun(mut commands: Commands) {
         }
         .build(),
     ));
+    if scattering_sky() {
+        let view = &data.0.world.view;
+        sun.insert(bevy::light::SunDisk {
+            angular_size: view.sun_disk_deg.to_radians(),
+            intensity: view.sun_disk_intensity,
+        });
+    }
 }
 
 /// The one water material (openspec change `water-rendering`): every river, lake and the ocean is

@@ -9,18 +9,24 @@ mod cli;
 mod combat;
 mod defence;
 mod fx;
+mod grass;
 mod ground;
+mod ground_marks;
 mod hud;
 mod input;
 mod loading;
 mod mech;
 mod particles;
+mod pbr_set;
 mod perf_hud;
 mod physics;
 mod pilot;
 mod screens_cube;
+#[cfg(test)]
+mod shader_check;
 mod showcase;
 mod sim;
+mod sun_flare;
 mod targeting;
 mod textures;
 mod units;
@@ -54,11 +60,14 @@ fn main() -> AppExit {
             .set(WindowPlugin {
                 primary_window: Some(Window {
                     title: "Crab Breeze".into(),
-                    resolution: if args.bench.is_some() {
+                    // An offscreen bench needs only a small window; a windowed one is the player's.
+                    resolution: if args.bench.is_some() && !cli::switched_off("CB_BENCH_WINDOWED") {
                         WindowResolution::new(640, 360)
                     } else {
                         WindowResolution::new(1920, 1080)
                     },
+                    // On the main display, centred, so a run is seen where the owner looks.
+                    position: bevy::window::WindowPosition::Centered(bevy::window::MonitorSelection::Primary),
                     // The capture instrument measures frame cost, so it must not wait for vsync.
                     present_mode: if args.stills.is_some() {
                         PresentMode::AutoNoVsync
@@ -76,8 +85,11 @@ fn main() -> AppExit {
     )
     .insert_resource(sim::Data(data))
     .insert_resource(world::Seed(args.seed))
-    .add_plugins(textures::TexturesPlugin)
-    .add_plugins((
+    .add_plugins(textures::TexturesPlugin);
+    if args.start.as_deref() == Some("meadow") {
+        app.insert_resource(world::StartInMeadow);
+    }
+    app.add_plugins((
         sim::SimPlugin,
         input::InputPlugin,
         world::WorldPlugin,
@@ -99,6 +111,23 @@ fn main() -> AppExit {
         perf_hud::PerfHudPlugin,
         units::UnitsPlugin,
     ));
+    // GPU grass (openspec change `gpu-grass`); `CB_NO_GRASS=1` leaves it out, so the benchmark can
+    // measure what it costs.
+    if !cli::switched_off("CB_NO_GRASS") {
+        app.add_plugins(grass::GrassPlugin);
+    }
+    // Footprints, skate trails and crater scorches (openspec change `ground-marks`);
+    // `CB_NO_GROUND_MARKS=1` draws none (the dirt, the grit and the jolt stay), so the benchmark can
+    // measure what the marks cost.
+    app.add_plugins(ground_marks::GroundMarksPlugin {
+        enabled: !cli::switched_off("CB_NO_GROUND_MARKS"),
+    });
+    // The sun's bloom and lens flare (openspec change `sun-flare`); `CB_NO_FLARE=1` and
+    // `CB_NO_BLOOM=1` leave them out, so the benchmark can measure what they cost.
+    app.add_plugins(sun_flare::SunFlarePlugin {
+        flare: !cli::switched_off("CB_NO_FLARE"),
+        bloom: !cli::switched_off("CB_NO_BLOOM"),
+    });
     if args.defending() {
         app.add_plugins(defence::DefencePlugin);
     }

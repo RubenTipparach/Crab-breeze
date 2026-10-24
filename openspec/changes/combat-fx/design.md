@@ -25,7 +25,8 @@ the file lacks stops startup with its path.
 Recipes the game asks for: `muzzle_autocannon`, `muzzle_cannon`, `muzzle_rocket`,
 `impact_mech`, `impact_building`, `impact_ground`, `impact_water`, `explosion_ground`,
 `explosion_water`, `explosion_air`, `rocket_trail`, `foot_dust`, `foot_spray`, `jet_flame`,
-`skate_grit`, `skate_spray`, `wall_smash`, `tree_fall`, `part_lost`, `burning`. Counts scale
+`skate_grit`, `skate_spray`, `wall_smash`, `tree_fall`, `part_lost`, `burning` (`foot_dust` is
+replaced by the per-surface `foot_strike_*`, `landing_*` and `skate_dirt` of change `ground-marks`). Counts scale
 with a second number, `density` (a heavy landing throws three times the dust).
 
 ## 2. Tracers and trails

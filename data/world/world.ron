@@ -79,7 +79,12 @@
     // How far the pilot sees (island-world design section 5).
     view: (
         far_m: 40000.0,
-        clear_visibility_m: 9000.0,
+        // The scattering sky hazes the distance itself (sky-atmosphere); the flat fog stays thin.
+        clear_visibility_m: 20000.0,
+        exposure_ev100: 13.4,
+        // The sun disk 2 degrees across (the real 0.53 reads as a dot), twice as bright.
+        sun_disk_deg: 2.0,
+        sun_disk_intensity: 2.0,
     ),
 
     // Rivers and lakes (openspec/changes/terrain-water/design.md section 1). Lakes are the ground

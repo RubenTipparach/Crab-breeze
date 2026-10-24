@@ -96,8 +96,30 @@
             Burst(kind: Smoke, count: 24, speed_m_s: 3.0, spread: 1.0, size_m: 5.0, life_s: 14.0),
         ],
         // The mech and the world.
-        "foot_dust": [
-            Burst(kind: Dust, count: 10, speed_m_s: 2.0, spread: 1.0, size_m: 1.4, life_s: 1.8),
+        // A foot strike (openspec/changes/ground-marks), chosen by the ground under the foot. Soil:
+        // clods thrown out of the print and a low cloud of dust rolling off the sole.
+        "foot_strike_dirt": [
+            Burst(kind: Dirt, count: 22, speed_m_s: 6.5, spread: 0.75, size_m: 0.32, life_s: 1.3),
+            Burst(kind: Dirt, count: 8, speed_m_s: 3.5, spread: 1.0, size_m: 0.55, life_s: 1.0),
+            Burst(kind: Dust, count: 14, speed_m_s: 2.6, spread: 1.0, size_m: 1.8, life_s: 2.4),
+        ],
+        // Paving: grit and chips of concrete, a few sparks off the steel sole, pale dust.
+        "foot_strike_concrete": [
+            Burst(kind: Rubble, count: 12, speed_m_s: 6.0, spread: 0.8, size_m: 0.16, life_s: 1.1),
+            Burst(kind: Spark, count: 4, speed_m_s: 7.0, spread: 0.9, size_m: 0.12, life_s: 0.35),
+            Burst(kind: Dust, count: 9, speed_m_s: 2.2, spread: 1.0, size_m: 1.5, life_s: 1.8),
+        ],
+        // Coming down from a boost: both feet at once, harder, with a ring of dust.
+        "landing_dirt": [
+            Shock(radius_m: 7.0, life_s: 0.25),
+            Burst(kind: Dirt, count: 60, speed_m_s: 9.0, spread: 0.7, size_m: 0.4, life_s: 1.6),
+            Burst(kind: Dust, count: 36, speed_m_s: 4.0, spread: 1.0, size_m: 2.4, life_s: 3.0),
+        ],
+        "landing_concrete": [
+            Shock(radius_m: 7.0, life_s: 0.25),
+            Burst(kind: Rubble, count: 34, speed_m_s: 8.0, spread: 0.8, size_m: 0.2, life_s: 1.4),
+            Burst(kind: Spark, count: 14, speed_m_s: 10.0, spread: 0.9, size_m: 0.14, life_s: 0.4),
+            Burst(kind: Dust, count: 26, speed_m_s: 3.5, spread: 1.0, size_m: 2.0, life_s: 2.4),
         ],
         "foot_spray": [
             Burst(kind: Spray, count: 70, speed_m_s: 8.0, spread: 0.55, size_m: 1.1, life_s: 1.6),
@@ -108,7 +130,12 @@
             Burst(kind: Flame, count: 6, speed_m_s: 30.0, spread: 0.15, size_m: 0.9, life_s: 0.25, along_dir: true),
             Burst(kind: Smoke, count: 1, speed_m_s: 8.0, spread: 0.4, size_m: 2.5, life_s: 2.0, offset_m: 3.0, along_dir: true),
         ],
-        // Every step a wheel skates fast; the direction is back and up from the wheel.
+        // Every step a wheel skates fast on soil; the direction is back and up from the wheel.
+        "skate_dirt": [
+            Burst(kind: Dirt, count: 3, speed_m_s: 9.0, spread: 0.35, size_m: 0.3, life_s: 0.9, along_dir: true),
+            Burst(kind: Dust, count: 1, speed_m_s: 3.0, spread: 0.6, size_m: 1.6, life_s: 1.6, along_dir: true),
+        ],
+        // The same on paving: sparks and grit.
         "skate_grit": [
             Burst(kind: Spark, count: 2, speed_m_s: 8.0, spread: 0.4, size_m: 0.2, life_s: 0.4, along_dir: true),
             Burst(kind: Dust, count: 1, speed_m_s: 3.0, spread: 0.5, size_m: 1.2, life_s: 1.2, along_dir: true),

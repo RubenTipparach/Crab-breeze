@@ -19,6 +19,7 @@ use bevy::mesh::Indices;
 use bevy::prelude::*;
 use bevy::render::render_resource::PrimitiveTopology;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
+use cb_core::grass::{GrassConfig, ground_cover, slope_of_normal};
 use cb_core::world::lod::{self, Node};
 use cb_core::world::{ChunkMesh, Deformation, WorldPlan};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -75,12 +76,38 @@ struct Ground {
     /// Crater tiles being meshed on a worker thread.
     crater_jobs: BTreeMap<(i32, i32), Task<Mesh>>,
     material: Handle<StandardMaterial>,
+    /// The grass's tuning, for the ground's colour under it.
+    grass: Arc<GrassConfig>,
+}
+
+/// How the ground takes the grass's colour (openspec change `gpu-grass`): the colour, and how far
+/// toward it the ground moves where grass grows fully.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct GrassTint {
+    colour: Vec3,
+    strength: f32,
+}
+
+impl From<&GrassConfig> for GrassTint {
+    fn from(g: &GrassConfig) -> Self {
+        Self {
+            colour: Vec3::from_array(g.ground_tint_colour),
+            strength: g.ground_tint,
+        }
+    }
+}
+
+/// How fully grass covers the ground at vertex `p` with normal `n`, `dug_m` changed by craters:
+/// the one rule the grass grows by (`cb_core::grass::ground_cover`).
+fn grass_cover(plan: &WorldPlan, grass: &GrassConfig, p: Vec3, n: Vec3, dug_m: f32) -> f32 {
+    ground_cover(plan, Vec2::new(p.x, p.z), p.y, slope_of_normal(n.y), dug_m, grass)
 }
 
 /// Ground colour: grass on the level, earth on slopes, sand on the beaches, silt under the sea,
-/// mud by rivers, scorch in craters. Vertex colours stand in until the PBR layers of
-/// `terrain-materials` arrive.
-fn ground_colour(p: Vec3, n: Vec3, sea_level_m: f32, wet: bool, scorch: f32) -> [f32; 4] {
+/// mud by rivers, scorch in craters, and the grass's own colour where grass covers it (`cover`,
+/// 0..1, gpu-grass: no pale soil between the blades). Vertex colours stand in until the PBR layers
+/// of `terrain-materials` arrive.
+fn ground_colour(p: Vec3, n: Vec3, sea_level_m: f32, wet: bool, scorch: f32, cover: f32, tint: GrassTint) -> [f32; 4] {
     let slope = ((1.0 - n.y).clamp(0.0, 1.0) * 6.0).min(1.0);
     let k = (p.y * 0.05).sin() * 0.04 + ((p.x * 0.013).sin() * (p.z * 0.011).cos()) * 0.03;
     let grass = Vec3::new(0.30 + k, 0.42 + k, 0.20);
@@ -101,14 +128,26 @@ fn ground_colour(p: Vec3, n: Vec3, sea_level_m: f32, wet: bool, scorch: f32) -> 
     if wet {
         c = c.lerp(mud, 0.8);
     }
+    c = c.lerp(tint.colour, (cover * tint.strength).clamp(0.0, 1.0));
     c = c.lerp(Vec3::new(0.10, 0.08, 0.07), scorch.clamp(0.0, 1.0) * 0.85);
     c.extend(1.0).to_array()
 }
 
 fn chunk_to_mesh(chunk: ChunkMesh, colors: Vec<[f32; 4]>) -> Mesh {
     let uvs: Vec<[f32; 2]> = chunk.positions.iter().map(|p| [p.x / 4.0, p.z / 4.0]).collect();
+    // The UVs are x and z, so the tangent is +x laid onto the ground; v runs along +z, which is
+    // minus n x t, hence the handedness -1 (for the grass set's normal map).
+    let tangents: Vec<[f32; 4]> = chunk
+        .normals
+        .iter()
+        .map(|n| {
+            let t = (Vec3::X - *n * n.x).normalize_or(Vec3::X);
+            [t.x, t.y, t.z, -1.0]
+        })
+        .collect();
     Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_TANGENT, tangents)
         .with_inserted_attribute(
             Mesh::ATTRIBUTE_POSITION,
             chunk.positions.iter().map(|p| p.to_array()).collect::<Vec<_>>(),
@@ -123,7 +162,7 @@ fn chunk_to_mesh(chunk: ChunkMesh, colors: Vec<[f32; 4]>) -> Mesh {
 
 /// The drawn mesh of a node, leaving out the cells `skip` holds (crater tiles; only a chunk has
 /// any). Runs off the main thread.
-fn node_mesh(plan: &WorldPlan, node: Node, cells: usize, skip: &HashSet<(usize, usize)>) -> Mesh {
+fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, skip: &HashSet<(usize, usize)>) -> Mesh {
     let t = &plan.terrain;
     let step = node.step();
     let chunk = t.chunk_mesh_lod(
@@ -145,7 +184,8 @@ fn node_mesh(plan: &WorldPlan, node: Node, cells: usize, skip: &HashSet<(usize, 
                 .waters
                 .water_at(Vec2::new(p.x, p.z), p.y - 3.0)
                 .is_some_and(|w| w.surface_m > sea);
-            ground_colour(*p, *n, sea, river, 0.0)
+            let cover = grass_cover(plan, grass, *p, *n, 0.0);
+            ground_colour(*p, *n, sea, river, 0.0, cover, grass.into())
         })
         .collect();
     chunk_to_mesh(chunk, colors)
@@ -230,15 +270,29 @@ fn spawn_ground(
     tex: Res<crate::textures::Textures>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
 ) {
     let cfg = &data.0.world;
+    let grass = Arc::new(data.0.grass.clone());
     let t = &plan.terrain;
     let cells = cfg.terrain_lod.chunk_cells as usize;
     let side = (t.n - 1).div_ceil(cells);
     // One material for every node, so they all share a pipeline and batch.
+    // The ground's grass: the CC0 set (ambientCG Grass001, assets/textures/ground/grass001) with
+    // its normal and packed occlusion-roughness map; the vertex colours tint it per surface. The
+    // stand-in grass texture if the set cannot be read.
+    let root = crate::cli::repo_root().join("assets");
+    let mut tiling = |path: &str, srgb: bool| crate::pbr_set::load_tiling(&root, path, srgb).map(|i| images.add(i));
+    let albedo = tiling("textures/ground/grass001/albedo.jpg", true);
+    let normal = tiling("textures/ground/grass001/normal_gl.png", false);
+    let orm = tiling("textures/ground/grass001/orm.png", false);
     let material = materials.add(StandardMaterial {
-        base_color_texture: Some(tex.grass.clone()),
-        perceptual_roughness: 0.95,
+        base_color_texture: Some(albedo.unwrap_or_else(|| tex.grass.clone())),
+        normal_map_texture: normal,
+        occlusion_texture: orm.clone(),
+        metallic_roughness_texture: orm,
+        metallic: 0.0,
+        perceptual_roughness: 1.0,
         ..default()
     });
     // The first frame's eye: the pilot's, at the start.
@@ -255,7 +309,7 @@ fn spawn_ground(
         let e = commands
             .spawn((
                 Name::new(format!("terrain {}:{},{}", n.level, n.x, n.z)),
-                Mesh3d(meshes.add(node_mesh(&plan, *n, cells, &none))),
+                Mesh3d(meshes.add(node_mesh(&plan, &grass, *n, cells, &none))),
                 MeshMaterial3d(material.clone()),
             ))
             .id();
@@ -294,6 +348,7 @@ fn spawn_ground(
         tiles: HashMap::new(),
         crater_jobs: BTreeMap::new(),
         material,
+        grass,
     });
 }
 
@@ -310,7 +365,15 @@ fn spawn_far_floor(
     let half = cfg.world_size_m * 0.5;
     let out = half + cfg.view.far_m;
     let y = cfg.island.sea_level_m - cfg.island.sea_depth_m;
-    let colour = ground_colour(Vec3::new(0.0, y, 0.0), Vec3::Y, plan.waters.sea_level_m, false, 0.0);
+    let colour = ground_colour(
+        Vec3::new(0.0, y, 0.0),
+        Vec3::Y,
+        plan.waters.sea_level_m,
+        false,
+        0.0,
+        0.0,
+        GrassTint::default(),
+    );
     let mut b = MeshBuilder::tiled(64.0, 64.0);
     // Each strip (x0, z0)-(x1, z1), wound to face up.
     for (x0, z0, x1, z1) in [
@@ -400,6 +463,7 @@ fn redraw_craters(
         // job is dropped, which cancels it).
         let dug = live.dug.around(key);
         let world = plan.0.clone();
+        let grass = ground.grass.clone();
         let task = pool.spawn(async move {
             let tile = dug.tile_mesh(&world, key);
             let sea = world.waters.sea_level_m;
@@ -410,7 +474,8 @@ fn redraw_craters(
                 .enumerate()
                 .map(|(k, (p, n))| {
                     let (i, j) = (k % cb_core::world::deform::TILE_N, k / cb_core::world::deform::TILE_N);
-                    ground_colour(*p, *n, sea, false, dug.scorch_at(key, i, j))
+                    let cover = grass_cover(&world, &grass, *p, *n, dug.delta_at(Vec2::new(p.x, p.z)));
+                    ground_colour(*p, *n, sea, false, dug.scorch_at(key, i, j), cover, (&*grass).into())
                 })
                 .collect();
             chunk_to_mesh(tile, colors)
@@ -523,7 +588,8 @@ fn stream_ground(
         };
         let p = Arc::clone(&plan.0);
         if let Some(n) = g.nodes.get_mut(&node) {
-            n.job = Some(pool.spawn(async move { node_mesh(&p, node, cells, &skip) }));
+            let grass = Arc::clone(&g.grass);
+            n.job = Some(pool.spawn(async move { node_mesh(&p, &grass, node, cells, &skip) }));
             n.stale = false;
         }
     }
@@ -596,6 +662,20 @@ mod tests {
 
     fn n(level: u32, x: u32, z: u32) -> Node {
         Node { level, x, z }
+    }
+
+    #[test]
+    fn ground_under_full_grass_takes_the_grass_tint_and_bare_ground_keeps_its_own() {
+        let grass = GrassConfig::default();
+        let tint = GrassTint::from(&grass);
+        let p = Vec3::new(0.0, 20.0, 0.0);
+        let bare = ground_colour(p, Vec3::Y, 0.0, false, 0.0, 0.0, tint);
+        let full = ground_colour(p, Vec3::Y, 0.0, false, 0.0, 1.0, tint);
+        let want = Vec3::new(bare[0], bare[1], bare[2]).lerp(tint.colour, grass.ground_tint);
+        assert!((Vec3::new(full[0], full[1], full[2]) - want).length() < 1e-5);
+        assert_ne!(bare, full);
+        let none = ground_colour(p, Vec3::Y, 0.0, false, 0.0, 1.0, GrassTint::default());
+        assert_eq!(none, bare, "no tint strength, no change");
     }
 
     #[test]

@@ -83,11 +83,7 @@ impl Deformation {
         let (u, v) = (gx - i as f32, gz - j as f32);
         let s = |a: usize, b: usize| t[b * TILE_N + a];
         // The same two triangles per cell as the tile mesh.
-        if u >= v {
-            s(i, j) + u * (s(i + 1, j) - s(i, j)) + v * (s(i + 1, j + 1) - s(i + 1, j))
-        } else {
-            s(i, j) + v * (s(i, j + 1) - s(i, j)) + u * (s(i + 1, j + 1) - s(i, j + 1))
-        }
+        super::terrain::cell_height([s(i, j), s(i + 1, j), s(i, j + 1), s(i + 1, j + 1)], u, v)
     }
 
     /// Digs a crater for `blast`. Returns the tiles it touched (to be remeshed).
@@ -97,7 +93,7 @@ impl Deformation {
         }
         self.blasts.push(blast);
         let r = cfg.radius_m_per_cbrt_mj * blast.energy_mj.cbrt();
-        let reach = r * 1.8;
+        let reach = cfg.reach_m(blast.energy_mj);
         let (k0, k1) = (
             self.tile_of(blast.centre - Vec2::splat(reach)),
             self.tile_of(blast.centre + Vec2::splat(reach)),

@@ -167,6 +167,20 @@ pub struct Heightfield {
     channels: Option<Channels>,
 }
 
+/// The height inside one lattice cell at `(u, v)` (0..1 across it, x then z) from its corners
+/// `[h00, h10, h01, h11]`, on the two triangles every ground mesh draws: the cell split along its
+/// (0,0)-(1,1) diagonal. The one copy of the rule on the CPU: the terrain, the dug ground and the
+/// grass tiles read it (the grass shader, `assets/shaders/grass.wesl`, repeats it on the GPU).
+/// Where `u >= v` the `h01` corner is not read, and otherwise `h10` is not.
+pub fn cell_height(h: [f32; 4], u: f32, v: f32) -> f32 {
+    let [h00, h10, h01, h11] = h;
+    if u >= v {
+        h00 + u * (h10 - h00) + v * (h11 - h10)
+    } else {
+        h00 + v * (h01 - h00) + u * (h11 - h01)
+    }
+}
+
 /// One chunk of the terrain mesh, in world metres.
 #[derive(Clone, Debug, Default)]
 pub struct ChunkMesh {
@@ -241,13 +255,13 @@ impl Heightfield {
         let v = gz - fz;
         let h00 = self.lattice(ix, iz);
         let h11 = self.lattice(ix + 1, iz + 1);
-        if u >= v {
-            let h10 = self.lattice(ix + 1, iz);
-            h00 + u * (h10 - h00) + v * (h11 - h10)
+        // Only the corner on the point's side of the diagonal is read.
+        let (h10, h01) = if u >= v {
+            (self.lattice(ix + 1, iz), 0.0)
         } else {
-            let h01 = self.lattice(ix, iz + 1);
-            h00 + v * (h01 - h00) + u * (h11 - h01)
-        }
+            (0.0, self.lattice(ix, iz + 1))
+        };
+        cell_height([h00, h10, h01, h11], u, v)
     }
 
     /// The full-detail mesh for the chunk of `cells` x `cells` cells starting at cell

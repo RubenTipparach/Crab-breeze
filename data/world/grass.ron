@@ -1,0 +1,119 @@
+// Grass, built on the GPU (openspec/changes/gpu-grass/design.md). Every field is the code default
+// written out (crates/cb-core/src/grass.rs); omit one to inherit it, a zero is a zero. Units are in
+// the keys or the Rust docs. Costs per level are in design.md section 3 (estimates until the
+// benchmark measures them: CB_NO_GRASS=1 turns the grass off for the comparison).
+(
+    // Tiles: 32 m squares on the terrain's 8 m lattice, drawn within 300 m of the eye (inside the
+    // ground's full-detail ring), let go 48 m past it, blades shrinking away over the last 60 m.
+    tile_m: 32.0,
+    radius_m: 300.0,
+    release_m: 48.0,
+    fade_m: 60.0,
+    // 25 blades a square metre at the nearest level; where grass grows is baked a metre a cell.
+    blade_spacing_m: 0.2,
+    density_cell_m: 1.0,
+    bakes_per_frame: 6,
+
+    // Levels of detail, by the tile's nearest point: 25, 6.25 and 1.56 blades a square metre, with
+    // 5, 3 and 2 segments a blade; farther blades are wider. Each stride divides the next, so a farther
+    // level's blades are a subset of a nearer one's, and the blades it drops shrink away over the
+    // last `crossfade_m` before its boundary.
+    lods: [
+        (until_m: 25.0, stride: 1, segments: 5, width_scale: 1.0),
+        (until_m: 110.0, stride: 2, segments: 3, width_scale: 1.7),
+        (until_m: 300.0, stride: 4, segments: 2, width_scale: 2.8),
+    ],
+    lod_hysteresis_m: 6.0,
+    crossfade_m: 15.0,
+
+    // Where grass grows: not on what is built (as the trees, with tighter margins), not on the
+    // beach (the ground's sand band is 2.5 m above the sea, crates/cb-app/src/ground.rs), not in
+    // water, thinning on steep ground, cleared by craters.
+    clearance: (
+        city_m: 3.0,
+        park_inset_m: 2.0,
+        road_m: 1.5,
+        bridge_share: 0.6,
+        building_m: 0.5,
+    ),
+    beach_m: 2.5,
+    slope_bare: (0.6, 1.1),
+    crater_clear_m: 0.05,
+
+    // A blade: a curved strip narrowing to its tip, bent along a Bezier curve. Wild meadow grass,
+    // 0.6 to 1.6 m (owner, 2026-10-24: "that seems kinda weak"; it reaches a mech's ankles and
+    // knees), the tallest drooping over at the tip.
+    height_m: (0.6, 1.6),
+    width_m: 0.06,
+    taper: 1.4,
+    lean_max: 0.45,
+    stiffness: 0.5,
+    mid_height: 0.55,
+    edge_thicken: 0.6,
+    normal_round: 0.6,
+    droop: 0.35,
+
+    // Colour, linear albedo: dark at the root, lighter at the tip, each clump's hue moved toward a
+    // second green, straw-coloured dry blades scattered through. A rich, saturated green (owner,
+    // 2026-10-24: "Grass needs a richer green. It's too faded right now").
+    root_colour: (0.015, 0.07, 0.008),
+    tip_colour: (0.05, 0.32, 0.04),
+    dry_colour: (0.30, 0.28, 0.09),
+    dry_share: 0.08,
+    hue_colour: (0.10, 0.36, 0.03),
+    hue_variety: 0.6,
+    tip_lighten: 0.06,
+
+    // Light: fake ambient occlusion at the root (deeper in dense, tall clumps), the sun glowing
+    // through a blade seen against it, a soft sheen fading out with distance, and far normals
+    // blended toward straight up so far grass does not sparkle.
+    root_light: 0.35,
+    ao_dense: 0.5,
+    ao_height_share: 0.55,
+    translucent_colour: (0.30, 0.60, 0.04),
+    // Off for now: the glow takes the sun's raw brightness, and under the scattering sky's raw
+    // sunlight even 0.05 burned the field white seen from the cockpit (0.6 did on foot too). To be
+    // put back scaled by the camera's exposure (gpu-grass open question).
+    translucency: 0.0,
+    translucency_power: 4.0,
+    roughness: 0.65,
+    reflectance: 0.2,
+    far_roughness: 0.95,
+    gloss_fade_m: (20.0, 120.0),
+    normal_up_m: (40.0, 220.0),
+
+    // Voronoi clumps that share a height, lean, facing and hue; some stand tall (to about 2 m),
+    // and each is a mound, its edge blades shorter.
+    clump_m: 2.5,
+    clump_strength: 0.5,
+    clump_tall_share: 0.18,
+    clump_tall_scale: 1.3,
+    clump_edge_shrink: 0.3,
+
+    // Layered wind, all of it weighted to the tip: a steady push, a broad sway across the field,
+    // gust waves rolling through (lighter bands where blades bend), each blade's sway and flutter.
+    wind_heading_deg: 30.0,
+    wind_speed_m_s: 5.0,
+    wind_push: 0.22,
+    gust_per_m: 0.04,
+    gust_share: 0.7,
+    sway_hz: 0.7,
+    sway: 0.05,
+    gust_sharpness: 2.0,
+    gust_brighten: 0.12,
+    flutter_hz: 3.0,
+    flutter: 0.025,
+    broad_wavelength_m: 70.0,
+    broad_hz: 0.12,
+    broad_push: 0.1,
+
+    // Bodies press the grass flat about them: the pilot's feet and each mech's feet.
+    pilot_press_m: 0.7,
+    mech_foot_press_m: 2.6,
+
+    // The ground under grass takes the grass's colour (by the same rule that grows the blades), so
+    // no pale soil shows between them, and far meadows past the grass's reach still read green.
+    // It multiplies the ground's grass texture, as every ground vertex colour does.
+    ground_tint_colour: (0.16, 0.38, 0.09),
+    ground_tint: 0.85,
+)

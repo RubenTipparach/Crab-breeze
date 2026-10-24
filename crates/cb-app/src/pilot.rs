@@ -154,6 +154,19 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
         bevy::anti_alias::fxaa::Fxaa::default(),
     ));
     camera.add_child(cockpit);
+    // The scattering sky (sky-atmosphere): Bevy's atmosphere draws the sky and hazes the distance,
+    // under raw sunlight, with the exposure to match. `CB_NO_SKY=1` keeps the old flat sky.
+    if crate::world::scattering_sky() {
+        camera.insert((
+            bevy::pbr::AtmosphereSettings::default(),
+            bevy::camera::Exposure {
+                ev100: view.exposure_ev100,
+            },
+            // ACES keeps a sunlit scene's colour where Bevy's default tonemapper washes it toward
+            // grey (owner: "Grass needs a richer green. It's too faded right now").
+            bevy::core_pipeline::tonemapping::Tonemapping::AcesFitted,
+        ));
+    }
     // Sees water the pilot's way: under it, and with drops on the glass after surfacing
     // (openspec change `water-rendering`; brings HDR, a depth prepass and transmission).
     // `CB_NO_WATER_FX=1` leaves them off, to compare frame time or if the passes misbehave.
@@ -233,6 +246,7 @@ fn place_camera(
     rigs: Query<&MechRig, With<crate::mech::Piloted>>,
     transforms: Query<&Transform, Without<PilotCamera>>,
     parents: Query<&ChildOf>,
+    jolt: Option<Res<crate::ground_marks::ViewJolt>>,
     mut camera: Single<&mut Transform, With<PilotCamera>>,
 ) {
     let cfg = &data.0.pilot;
@@ -274,13 +288,18 @@ fn place_camera(
     // blasts barely register; three unrelated sines so it never settles into a rhythm.
     let amp = data.0.fx.shake.max_deg.to_radians() * shake.trauma * shake.trauma;
     let t = shake.t_s;
-    let jolt = Quat::from_euler(
+    let shake = Quat::from_euler(
         EulerRot::YXZ,
         amp * (t * 37.0).sin() * (t * 5.3).cos(),
         amp * (t * 41.0 + 1.3).sin(),
         amp * 0.5 * (t * 29.0 + 2.1).sin(),
     );
-    **camera = Transform::from_translation(eye).with_rotation(rotation * jolt);
+    // Seated, the eye jolts on the mech's foot strikes (ground-marks): its position only.
+    let jolt = match (&curr.mode, jolt) {
+        (PilotMode::Seated, Some(j)) => j.0,
+        _ => Vec3::ZERO,
+    };
+    **camera = crate::ground_marks::jolted(Transform::from_translation(eye).with_rotation(rotation * shake), jolt);
 }
 
 /// The step-in prompt.
@@ -343,9 +362,18 @@ fn weather_and_screens(
         plan.clouds.density_at(eye.translation, time.elapsed_secs())
     };
     let clear = data.0.world.view.clear_visibility_m;
-    let vis = clear + (25.0 - clear) * density.sqrt();
+    // Under the scattering sky, clear air has no flat fog at all: the atmosphere's aerial
+    // perspective does the hazing, and a flat fog would cover the sky (sky-atmosphere).
+    let clear = if crate::world::scattering_sky() { 1.0e9 } else { clear };
+    let vis = clear + (25.0f32.min(clear) - clear) * density.sqrt();
     let inside = density.sqrt();
     fog.color = SKY.mix(&Color::srgb(0.9, 0.92, 0.95), inside);
+    // Under the scattering sky the atmosphere hazes the distance itself, and a flat fog would paint
+    // over the whole sky (it reaches full strength at infinite distance): in clear air the fog's
+    // blend factor (its alpha) is zero, and it comes in only inside a cloud (sky-atmosphere).
+    if crate::world::scattering_sky() {
+        fog.color.set_alpha(inside);
+    }
     fog.falloff = FogFalloff::from_visibility_colors(
         vis,
         Color::srgb(0.45, 0.55, 0.68).mix(&Color::srgb(0.85, 0.87, 0.9), inside),

@@ -10,12 +10,15 @@ pub mod boarding;
 pub mod cockpit;
 pub mod data;
 pub mod fx;
+pub mod grass;
+pub mod ground_marks;
 pub mod input;
 pub mod mech;
 pub mod mission;
 pub mod pilot;
 pub mod rng;
 pub mod sim;
+pub mod sun_flare;
 pub mod targeting;
 pub mod units;
 pub mod water_look;
@@ -51,6 +54,12 @@ pub struct GameData {
     pub targeting: targeting::TargetingConfig,
     /// `data/hud/cockpit_light.ron`.
     pub cockpit_light: cockpit::CockpitLightConfig,
+    /// `data/world/grass.ron`.
+    pub grass: grass::GrassConfig,
+    /// `data/fx/ground_marks.ron`.
+    pub ground_marks: ground_marks::GroundMarksConfig,
+    /// `data/world/sun_flare.ron`.
+    pub sun: sun_flare::SunLook,
     /// `data/world/units.ron`.
     pub units: units::UnitsConfig,
 }
@@ -59,9 +68,15 @@ impl GameData {
     /// Loads every data file under `root` (the `data/` directory), with the mech file `mech`
     /// (relative to `root`) and its boarding timeline beside it (`mechs/<name>/boarding.ron`). The first failure is returned, naming its file and field.
     pub fn load(root: &Path, mech: &str) -> Result<Self, data::DataError> {
+        let world: world::WorldConfig = data::load_ron(&root.join("world/world.ron"))?;
+        let grass_path = root.join("world/grass.ron");
+        let grass: grass::GrassConfig = data::load_ron(&grass_path)?;
+        grass
+            .validate_with(&world)
+            .map_err(|reason| data::DataError { path: grass_path, reason })?;
         Ok(Self {
             sim: data::load_ron(&root.join("sim.ron"))?,
-            world: data::load_ron(&root.join("world/world.ron"))?,
+            world,
             mech: data::load_ron(&root.join(mech))?,
             boarding: data::load_ron(&root.join(mech.trim_end_matches(".ron")).join("boarding.ron"))?,
             pilot: data::load_ron(&root.join("pilot/pilot.ron"))?,
@@ -72,6 +87,9 @@ impl GameData {
             fx: data::load_ron(&root.join("fx/fx.ron"))?,
             targeting: data::load_ron(&root.join("hud/targeting.ron"))?,
             cockpit_light: data::load_ron(&root.join("hud/cockpit_light.ron"))?,
+            grass,
+            ground_marks: data::load_ron(&root.join("fx/ground_marks.ron"))?,
+            sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
             units: data::load_ron(&root.join("world/units.ron"))?,
         })
     }
