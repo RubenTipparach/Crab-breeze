@@ -15,6 +15,7 @@ mod mech;
 mod particles;
 mod physics;
 mod pilot;
+mod screens_cube;
 mod showcase;
 mod sim;
 mod targeting;
@@ -85,6 +86,7 @@ fn main() -> AppExit {
         physics::DebrisPhysicsPlugin,
         hud::HudPlugin,
         targeting::TargetingPlugin,
+        screens_cube::ScreensCubePlugin,
     ));
     if args.defending() {
         app.add_plugins(defence::DefencePlugin);

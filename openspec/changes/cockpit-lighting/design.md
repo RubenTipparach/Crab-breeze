@@ -21,6 +21,18 @@
 - Cost: one 64 x 64 view a frame (about 0.1 ms), the filter pass (Bevy's, about 0.2 ms at 64 px);
   measured on the RTX 3070 with `--bench defence` before and after.
 
+## 3. As built (2026-10-24, not yet seen in a run)
+
+`cb-app::screens_cube`: six 64 px face cameras on the world layer, one active a frame in turn, each
+looking along a world axis from the pilot's eye into its own Rgba16Float image; a render-world
+system (`RenderSystems::PrepareResources`) copies the six images into the cube's six layers each
+frame; `GeneratedEnvironmentMapLight` on the cockpit camera filters the cube (Bevy adds the
+diffuse and specular maps). `screens_cube_px` and `screens_cube_cd_m2` in
+`data/hud/cockpit_light.ron`; 0 px turns it off. The screen-glow point lights stay as a floor.
+To check in the first run: that each face lands the right way round (a cube map face is mirrored
+against a camera's view by convention, so the light could arrive from the wrong side), and the
+cost of the active face's shadow cascades.
+
 ## Open questions
 
 | Id | Question | Recommendation | State |
