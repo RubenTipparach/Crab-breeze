@@ -284,7 +284,8 @@ impl AiPilot {
                 turn_axis: turn,
                 aim_delta_deg,
                 mode_request: (hop && me.mode != LocomotionMode::Jet).then_some(ModeRequest::Jet),
-                lift_axis: if hop { 0.75 } else { 0.0 },
+                // A short hop: 0.4 of the rockets' doubled thrust is a net 12 m/s2 up.
+                lift_axis: if hop { 0.4 } else { 0.0 },
                 ..Default::default()
             },
             fire: [ready, ready && err < self.skill.fire_error_deg * 0.6],

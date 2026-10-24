@@ -51,6 +51,7 @@ struct Keys {
     release_mouse: Vec<KeyCode>,
     lift: Vec<KeyCode>,
     skate: Vec<KeyCode>,
+    sink: Vec<KeyCode>,
     fire: [(Vec<KeyCode>, Vec<MouseButton>); 2],
     debug: Vec<(Vec<KeyCode>, DebugCommand)>,
     deg_per_px: f32,
@@ -111,6 +112,7 @@ fn resolve(b: &Bindings) -> Result<Keys, String> {
         release_mouse: r("release_mouse", &b.release_mouse)?,
         lift: r("lift", &b.lift)?,
         skate: r("skate", &b.skate)?,
+        sink: r("sink", &b.sink)?,
         fire: [split("fire_primary", &b.fire_primary)?, split("fire_secondary", &b.fire_secondary)?],
         debug: vec![
             (r("debug_hit_arm_l", &b.debug_hit_arm_l)?, DebugCommand::Hit(PartKind::ArmL)),
@@ -254,7 +256,7 @@ fn take_step_actions(
                     .clone()
                     .map(|(k, m)| any(&input, &k) || mouse.any_pressed(m.iter().copied())),
                 free_look: any(&input, &keys.free_look),
-                dash: any(&input, &keys.skate),
+                sink: any(&input, &keys.sink),
                 ..default()
             }
         }

@@ -10,7 +10,7 @@ use crate::sim::PresentSet;
 use crate::world::Plan;
 use bevy::prelude::*;
 use bevy::ui::UiTransform;
-use cb_core::mech::{LocomotionMode, PartKind};
+use cb_core::mech::{LocomotionMode, OnWater, PartKind};
 use cb_core::pilot::PilotMode;
 
 /// Draws the HUD.
@@ -344,15 +344,18 @@ fn update_hud(
     }
     let speed_kmh = m.vel.length() * 3.6;
     let agl = m.pos.y - plan.terrain.height_at(m.pos.x, m.pos.z);
-    let mode = match m.mode {
-        LocomotionMode::Walk => "WALK",
-        LocomotionMode::Skate => "SKATE",
-        LocomotionMode::Jet => "BOOST",
+    let mode = match (m.on_water, m.mode) {
+        (OnWater::Skimming, _) => "SKIMMING",
+        (OnWater::Hovering, _) => "ROCKETS HOLDING US UP",
+        (OnWater::Sunk, _) => "SUNK  recharging, Space to rise",
+        (OnWater::Dry, LocomotionMode::Walk) => "WALK",
+        (OnWater::Dry, LocomotionMode::Skate) => "SKATE",
+        (OnWater::Dry, LocomotionMode::Jet) => "ROCKETS",
     };
     for (r, mut t, mut c) in &mut readouts {
         let (s, colour) = match r {
             Readout::Boost => fmt_budget(
-                "BOOST [Space, Shift in air]",
+                "ROCKETS [Space up, Ctrl dive]",
                 m.boost.heat,
                 m.boost.locked,
                 jet.burn_s,
@@ -360,7 +363,7 @@ fn update_hud(
                 m.boosting,
             ),
             Readout::Skate => fmt_budget(
-                if m.skates_on { "SKATE ON [Shift]" } else { "SKATE [Shift]" },
+                if m.skates_on { "SKATES ON [Shift]" } else { "SKATES [Shift]" },
                 m.skate.heat,
                 m.skate.locked,
                 sk.burn_s,
@@ -380,7 +383,13 @@ fn update_hud(
             Readout::Nav => (fmt_nav(pilot.curr.yaw_rad, Vec2::new(m.pos.x, m.pos.z), &plan.cities), GREEN),
             Readout::Flight => (
                 format!("{mode}   {speed_kmh:.0} km/h   ALT {agl:.0} m"),
-                if m.mode == LocomotionMode::Walk { GREEN } else { AMBER },
+                if m.on_water == OnWater::Sunk {
+                    RED
+                } else if m.mode == LocomotionMode::Walk {
+                    GREEN
+                } else {
+                    AMBER
+                },
             ),
             Readout::Guns => {
                 let mut parts = vec![format!("THROTTLE {:.0}%", m.throttle * 100.0)];

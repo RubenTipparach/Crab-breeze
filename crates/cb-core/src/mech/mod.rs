@@ -9,4 +9,4 @@ pub mod rig;
 pub use config::{BoxSpec, GaitConfig, JetConfig, LocomotionConfig, MechConfig, NodeSpec, SkateConfig};
 pub use damage::{Damage, Hit, PartKind, PartSpec};
 pub use gait::{LegPose, LegRest, MechPose, RigRest, pose, solve_leg};
-pub use locomotion::{Budget, LocomotionMode, MechControls, MechState, forward};
+pub use locomotion::{Budget, BudgetUse, LocomotionMode, MechControls, MechState, OnWater, forward};

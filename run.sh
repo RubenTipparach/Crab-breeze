@@ -9,8 +9,8 @@
 #
 # Controls: WASD walk / throttle and turn, mouse look / aim the torso, E board and climb out,
 # Shift run, X throttle to zero, Alt free look, 1 walk.
-# In the mech: hold Space to boost (alone straight up, with WASD where you look), Shift toggles
-# skates on the ground and boosts level in the air,
+# In the mech: hold Space for the rockets (up only), Shift toggles the skates (wheels on the ground
+# and the water, WASD thrust in the air), hold Ctrl to dive from the air or sink on water,
 # left mouse autocannon, right mouse cannon, F5-F8 shoot off a part, F9 drop a shell,
 # Esc release the mouse (click to grab it again).
 set -euo pipefail

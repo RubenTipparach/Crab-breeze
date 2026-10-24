@@ -1,29 +1,26 @@
 ## ADDED Requirements
 
-### Requirement: Boosters for 20 seconds
-The mech SHALL fly on its boosters while the pilot holds boost, moving fast in the direction asked, for at most 20 s of burn from full, then lock out until recharged to 30 %.
+### Requirement: Rockets lift for 20 seconds
+The mech SHALL lift on its rockets while the pilot holds boost, vertically only, for at most 20 s of burn from full, then lock out until recharged to 30 %.
 
-#### Scenario: Running the boosters dry
+#### Scenario: Running the rockets dry
 - **WHEN** the pilot holds boost for 21 s from full
-- **THEN** the boosters cut out after 20 s and the mech falls
+- **THEN** the rockets cut out after 20 s and the mech falls
 
-### Requirement: Boosting flies where the pilot looks
-While the pilot holds boost and a direction, the mech SHALL fly along the pilot's view, pitch included: level when the view is level, climbing when it looks up, diving when it looks down.
+#### Scenario: Rockets never push sideways
+- **WHEN** the pilot holds boost and strafe right for 3 s with the skates off
+- **THEN** the mech climbs and moves less than 1 m sideways
 
-#### Scenario: A level dash
-- **WHEN** the pilot holds boost and forward for 5 s looking level
-- **THEN** the mech covers more than 150 m and stays within 10 m of the height it started the dash at
+### Requirement: Skates drive all costly horizontal movement
+The skate key SHALL toggle the skates on the ground and in the air. On the ground the skates SHALL drive along the legs' heading up to 120 m/s with an acceleration that fades toward top speed; in the air, with skates on, WASD SHALL push the mech relative to the view and burn the skate budget. Walking SHALL burn nothing.
 
-#### Scenario: Looking up
-- **WHEN** the pilot holds boost and forward for 5 s looking 30 degrees up
-- **THEN** the mech climbs more than 50 m
+#### Scenario: Building speed takes time
+- **WHEN** the pilot skates at full throttle from a stand
+- **THEN** the mech is between 40 and 70 m/s after 5 s and above 100 m/s after 15 s
 
-### Requirement: Shift is skates on the ground and a level boost in the air
-The skate key SHALL toggle the skates only while the mech touches the ground, and held in the air SHALL fire the boosters level along the view's heading.
-
-#### Scenario: Shift in the air
-- **WHEN** the pilot holds Shift for 4 s while airborne
-- **THEN** the skates stay off and the mech flies forward more than 100 m at a steady height
+#### Scenario: Strafing in the air on skates
+- **WHEN** the pilot, airborne with skates on, holds strafe right for 3 s
+- **THEN** the mech moves right more than 30 m and the skate budget, not the rockets', is used
 
 ### Requirement: Skates for 40 seconds
 The mech SHALL skate when the pilot turns skates on, for at most 40 s of use from full, then drop back to walking.

@@ -643,7 +643,6 @@ pub fn step_mech(
                 let mut c = MechControls::from_actions(&actions);
                 // Boost thrust goes where the pilot looks.
                 c.view_yaw_rad = pilot.curr.yaw_rad;
-                c.view_pitch_rad = pilot.curr.pitch_rad;
                 if !actions.free_look {
                     let wrap = |a: f32| (a + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
                     let twist = wrap(pilot.curr.yaw_rad - sim.curr.heading_rad);
@@ -809,11 +808,26 @@ pub fn step_mech(
                 }
             }
         }
-        // Wheel sparks and grit while skating fast.
-        if sim.curr.mode == LocomotionMode::Skate && sim.curr.vel.length() > 5.0 {
+        // Wheel sparks and grit while skating fast on the ground; a rooster tail of spray on water.
+        if sim.curr.mode == LocomotionMode::Skate && !sim.curr.airborne() && sim.curr.vel.length() > 5.0 {
+            let on_water = sim.curr.on_water == cb_core::mech::OnWater::Skimming;
             for wheel in ["WHEEL_L", "WHEEL_R"] {
                 if let Some(g) = rig.sockets.get(wheel).and_then(|e| globals.get(*e).ok()) {
                     let back = -Vec3::new(sim.curr.vel.x, 0.0, sim.curr.vel.y).normalize_or(Vec3::Z);
+                    if on_water {
+                        let fast = (sim.curr.vel.length() / 30.0).clamp(0.5, 4.0);
+                        bursts.write(Burst {
+                            kind: FxKind::Spray,
+                            at: g.translation(),
+                            dir: back + Vec3::Y * 0.8,
+                            count: (3.0 * fast) as u32,
+                            speed_m_s: 6.0 * fast,
+                            spread: 0.35,
+                            size_m: 1.0,
+                            life_s: 1.0,
+                        });
+                        continue;
+                    }
                     bursts.write(Burst {
                         kind: FxKind::Spark,
                         at: g.translation(),

@@ -10,7 +10,7 @@ use crate::mech::{Enemy, MechAccessNow, MechSim, Piloted};
 use crate::pilot::PilotSim;
 use crate::world::{Live, Plan};
 use bevy::prelude::*;
-use cb_core::input::{Actions, DebugCommand, ModeRequest};
+use cb_core::input::{Actions, DebugCommand};
 use cb_core::mech::{LocomotionMode, MechState, PartKind};
 use cb_core::pilot::{PilotMode, PilotState};
 use cb_core::world::Ground;
@@ -47,6 +47,9 @@ impl Plugin for ShowcasePlugin {
         }
     }
 }
+
+/// Rocket lift that holds the mech level: gravity over the rockets' thrust (9.81 / 56).
+const HOVER_LIFT: f32 = 0.175;
 
 /// Actions that walk the pilot toward `target` (feet), turning the view onto it as a mouse would,
 /// with the view pitched to `pitch_rad`. Shared with the capture instrument.
@@ -194,17 +197,18 @@ fn play(
             act.throttle_axis = throttle_to(m, 0.8);
             next = t > 12.0;
         }
-        // Jets: climb toward the cloud, fly into it.
+        // Rockets up, skates across: climb toward the cloud, fly into it.
         4 => {
             let cloud_xz = Vec2::new(take.cloud.x, take.cloud.z);
-            act.mode_request = (m.mode != LocomotionMode::Jet).then_some(ModeRequest::Jet);
+            act.skate_toggle = !m.skates_on;
+            act.move_xy = Vec2::new(0.0, 1.0);
             act.turn_axis = steer(m, cloud_xz);
             act.throttle_axis = throttle_to(m, 1.0);
             let climb = take.cloud.y - m.pos.y;
             act.lift_axis = if climb > 30.0 {
                 1.0
             } else {
-                (0.35 - m.vel_y_m_s * 0.05).clamp(0.0, 1.0)
+                (HOVER_LIFT - m.vel_y_m_s * 0.025).clamp(0.0, 1.0)
             };
             act.look_delta_deg = aim(m, 0.0, 0.15);
             if plan.clouds.density_at(m.pos + Vec3::Y * 9.6, now) > 0.05 {
@@ -220,13 +224,16 @@ fn play(
             let agl = m.pos.y - ground;
             act.throttle_axis = throttle_to(m, if d > 300.0 { 1.0 } else { (d / 300.0).max(0.1) });
             let want_vy = if d > 200.0 { -6.0 } else { (-agl * 0.25).clamp(-14.0, -2.0) };
-            act.lift_axis = if m.mode == LocomotionMode::Jet {
-                (0.35 + (want_vy - m.vel_y_m_s) * 0.08).clamp(0.0, 1.0)
+            act.lift_axis = if m.airborne() {
+                (HOVER_LIFT + (want_vy - m.vel_y_m_s) * 0.04).clamp(0.0, 1.0)
             } else {
                 0.0
             };
+            // Skates push across until near, then off to land in the river on the legs.
+            act.move_xy = if d > 200.0 { Vec2::new(0.0, 1.0) } else { Vec2::ZERO };
+            act.skate_toggle = m.skates_on && agl < 30.0;
             act.look_delta_deg = aim(m, 0.0, -0.25);
-            next = m.mode == LocomotionMode::Walk && t > 2.0 || t > 60.0;
+            next = !m.airborne() && m.mode == LocomotionMode::Walk && t > 2.0 || t > 60.0;
         }
         // Wade along the river: spray and rings on every stride.
         6 => {

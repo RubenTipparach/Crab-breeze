@@ -55,8 +55,8 @@ pub struct Actions {
     pub fire: [bool; 2],
     /// Skates toggled this step.
     pub skate_toggle: bool,
-    /// The skate key held: in the air it fires the boosters horizontally.
-    pub dash: bool,
+    /// Ctrl held in the mech: dive in the air, sink on water.
+    pub sink: bool,
 }
 
 impl Actions {
@@ -140,6 +140,8 @@ pub struct Bindings {
     pub fire_secondary: Vec<String>,
     /// Toggle the skates (in the mech).
     pub skate: Vec<String>,
+    /// Hold to dive from the air or sink on water (in the mech).
+    pub sink: Vec<String>,
 }
 
 impl Default for Bindings {
@@ -169,6 +171,7 @@ impl Default for Bindings {
             fire_primary: k("MouseLeft"),
             fire_secondary: k("MouseRight"),
             skate: k("ShiftLeft"),
+            sink: k("ControlLeft"),
         }
     }
 }
