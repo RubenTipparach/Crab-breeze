@@ -1,16 +1,23 @@
-// Screenshot the cockpit page headless from the pilot's eye, one PNG per named shot.
-// NODE_PATH=$(npm root -g) node tools/mockups/shoot_cockpit.mjs docs/mockups/cockpit.html docs/screenshots/cockpit
+// Screenshot the cockpit page headless: the boarding sequence from outside, then the seat.
+// NODE_PATH=$(npm root -g) node tools/mockups/shoot_cockpit.mjs docs/mockups/cockpit.html docs/screenshots/cockpit [only,names]
 import { createRequire } from "node:module";
 const { chromium } = createRequire(import.meta.url)("playwright");
 import path from "node:path";
 import fs from "node:fs";
 
-const [page_, outDir] = process.argv.slice(2);
-// name, yaw, pitch, fov (radians, radians, degrees), or a named view
+const [page_, outDir, only] = process.argv.slice(2);
+// name, timeline position (s), then a camera: ["orbit", target xyz, camera xyz] | ["hatch", camera xyz, target xyz in the pod] | ["seat", yaw, pitch, fov]
 const SHOTS = [
-  ["forward", 0, -0.12, 80], ["dash", 0, -0.42, 50], ["mfd_center", 0, -0.33, 28], ["annunciator", 0.62, -0.38, 30],
-  ["left", 0.8, -0.85, 70], ["right", -0.8, -0.85, 70], ["knees", 0, -1.0, 70], ["throttle", 0.75, -0.95, 40],
-  ["right_wall", -1.35, -0.45, 60], ["back", 2.5, -0.3, 85], ["orbit", "orbit"],
+  ["standing", 0, ["orbit", [0, 5, 1], [11, 7, 15]]],
+  ["sitting", 2.0, ["orbit", [0, 3, 1], [12, 4, 10]]],
+  ["visor_lifting", 5.3, ["hatch", [-2.6, 1.6, 4.2], [0, 0.9, 0.8]]],
+  ["open_hatch", 9, ["hatch", [-2.2, 1.4, 4.0], [0, 0.8, 0.6]]],
+  ["open_front", 9, ["hatch", [0.0, 0.9, 4.6], [0, 0.8, 0.4]]],
+  ["open_wide", 9, ["orbit", [0, 2.5, 1.5], [9, 4, 10]]],
+  ["seat_forward", 0, ["seat", 0, -0.08, 80]],
+  ["seat_left", 0, ["seat", 1.0, -0.2, 80]],
+  ["seat_up", 0, ["seat", 0.0, 0.7, 80]],
+  ["seat_dash", 0, ["seat", 0, -0.45, 55]],
 ];
 fs.mkdirSync(outDir, { recursive: true });
 const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY } : undefined;
@@ -20,14 +27,18 @@ page.on("console", m => { if (m.type() === "error") console.log("console:", m.te
 page.on("pageerror", e => console.log("pageerror:", e.message));
 await page.goto("file://" + path.resolve(page_));
 await page.locator(".stage").scrollIntoViewIfNeeded();
-await page.waitForFunction(() => window.MOCKUP_READY, null, { timeout: 180000 });
-await page.evaluate(() => window.MOCKUP.set("anim", false));
-for (const [name, a, b, c] of SHOTS) {
-  if (a === "orbit") await page.evaluate(() => window.MOCKUP.setView("orbit"));
-  else await page.evaluate(([y, p, f]) => window.MOCKUP.look(y, p, f), [a, b, c]);
-  await page.waitForTimeout(1200);
+await page.waitForFunction(() => window.MOCKUP_READY, null, { timeout: 240000 });
+for (const [name, t, c] of SHOTS) {
+  if (only && !only.split(",").includes(name)) continue;
+  await page.evaluate(([t, c]) => {
+    window.MOCKUP.set("steam", false); window.MOCKUP.setT(t);
+    if (c[0] === "orbit") window.MOCKUP.orbitTo(...c[1], ...c[2]);
+    else if (c[0] === "hatch") window.MOCKUP.hatchView(...c[1], ...c[2]);
+    else window.MOCKUP.look(c[1], c[2], c[3]);
+  }, [t, c]);
+  await page.waitForTimeout(2500);
   const box = await page.locator(".stage").boundingBox();
-  await page.screenshot({ path: path.join(outDir, name + ".png"), clip: box, timeout: 120000 });
+  await page.screenshot({ path: path.join(outDir, name + ".png"), clip: box, timeout: 180000 });
   console.log("shot", name);
 }
 await browser.close();

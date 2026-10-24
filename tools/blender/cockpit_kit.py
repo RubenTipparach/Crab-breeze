@@ -75,6 +75,12 @@ ROLES = {
     "white_lit": dict(c="#5a5a55", r=0.2, m=0.0, emit="#fff4dc"),
     "cyan":     dict(c="#0b3a44", r=0.2, m=0.0, emit="#3fe6ff"),
     "fabric":   dict(c="#2c3036", r=0.9, m=0.0, grime=0.6, weave=True),
+    # the sealed pod: its screen wall (a dim glow in the bake: the outside world lights the cabin)
+    # and the outside armour, which the game lights live (its maps are the mech plating)
+    "screen_wall": dict(c="#0a0d10", r=0.3, m=0.0, emit="#5f6f80"),
+    "ext_armor": dict(c="#c3c7cd", r=0.5, m=0.0, grime=0.6, wear=0.6),
+    "ext_frame": dict(c="#4b5059", r=0.5, m=0.3, grime=0.7, wear=0.5),
+    "ext_dark": dict(c="#23272c", r=0.55, m=0.2, grime=0.6),
     "strap":    dict(c="#4b4f3f", r=0.85, m=0.0, grime=0.4, weave=True),
 }
 

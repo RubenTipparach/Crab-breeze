@@ -14,7 +14,7 @@
         5.844
       ]
     },
-    "bytes": 919844,
+    "bytes": 798648,
     "cockpit": "bubble canopy in the chest",
     "file": "mech_breeze.glb",
     "generator": "tools/blender/build_mechs.py",
@@ -24,7 +24,7 @@
     "note": "Crab Breeze's own, built in Mining Mike's boss style. Recommended.",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 10450,
+    "triangles": 7532,
     "weapons": "rail lance (L), gatling (R)"
   },
   "bulwark": {
@@ -42,7 +42,7 @@
         7.121
       ]
     },
-    "bytes": 1068984,
+    "bytes": 1070128,
     "cockpit": "armoured head, visor band",
     "file": "mech_bulwark.glb",
     "generator": "tools/blender/build_mechs.py",
@@ -70,7 +70,7 @@
         7.094
       ]
     },
-    "bytes": 975300,
+    "bytes": 971540,
     "cockpit": "low head, visor under three eyes",
     "file": "mech_ravager.glb",
     "generator": "tools/blender/build_mechs.py",

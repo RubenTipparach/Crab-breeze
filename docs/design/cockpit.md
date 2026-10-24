@@ -6,33 +6,54 @@ circuitry."
 
 This is the cockpit you fight the whole game from (the law, CLAUDE.md). It is an art asset and a
 review page today: nothing in the game drives it yet. The review page is `docs/mockups/cockpit.html`
-(published, link in `docs/design/README.md`).
+(published, link in `docs/design/README.md`): the boarding sequence and the cockpit from the seat.
 
 ## What the pilot sees
 
-Sitting in the seat, eye 1.20 m above the tub floor, looking ahead through a bubble canopy:
+The owner, later on 2026-10-24: "The cockpit should be enclosed fully. We can view outside via
+screens like in gundam", with references (Armored Core, Titanfall, the Gundam Senjou no Kizuna pods,
+80s mecha anime cockpits): a big front screen with angled side screens, heavy dark pillars and
+frames between them, small monitors hanging from the overhead, the HUD drawn on the screens, twin
+grips at the ends of the consoles, cyan accent lights. The cockpit is a sealed armoured pod at the
+front of the chest. Sitting in the seat, eye 1.20 m above the floor:
 
 | Where | What | Size |
 | --- | --- | --- |
-| Ahead, below the sightline | The dash, tilted back 18 degrees: three MFDs in bezels with real push buttons (damage and heat, the tactical radar, weapons and jet fuel), the caution and warning panel and the master caution and warning lights on the left, reactor and jet fuel standby gauges on the right, the mode row (walk, skate, jet, hover, nav, target...) | 1.56 x 0.44 m, top edge 13 degrees below the eye |
-| On top of the dash | The glare shield, its floodlight lip, and the HUD projector with the combiner glass at eye level | 1.56 x 0.16 m |
-| At eye level | The HUD: pitch ladder, heading, speed, height, mode, missile lock, Ace Combat style | 0.20 x 0.15 m combiner |
+| Ahead | The front screen, 100 degrees wide and 45 high, in a heavy bezel; the HUD on it (pitch ladder, heading, speed, height, mode, missile lock) | 1.2 x 0.6 m |
+| Either side | An angled side screen each, 51 degrees wide; a smaller screen behind each shoulder | |
+| Between them | Pillars 90 mm wide with cyan light down their inner edges, rivet rows | |
+| Overhead | A frame ring at the screens' top, ribs, round vents, three hanging monitors (status, tactical, systems) | 0.24 x 0.18 m each |
+| Below the screens | The dash, tilted back 18 degrees: three MFDs in bezels with push buttons, the caution and warning panel and master lights, reactor and jet fuel standby gauges, the mode row (walk, skate, jet...) | 1.56 x 0.44 m |
+| On top of the dash | The glare shield and its floodlight | 1.56 x 0.16 m |
 | Under the dash | The knee panel: four standby gauges and the emergency panel in hazard stripes, reactor scram, jet cutoff and jettison arms under red and yellow guards | 1.10 x 0.30 m |
-| Left hand | The left console: throttle in its quadrant (idle, walk, run, skate, then the jet gate with its caution), reactor pumps and vent, comms keypad and radio | 0.32 x 0.80 m |
-| Right hand | The right console: the twist grip that turns the torso (120 degree limit), the guarded master arm, weapon select, station lights, countermeasures | 0.32 x 0.80 m |
-| Between the knees | The centre stick, and the yellow and black eject handle at the front of the seat | |
+| Left hand | The left console and the throttle grip in its quadrant (idle, walk, run, skate, then the jet gate), reactor pumps, comms keypad | 0.32 x 0.80 m |
+| Right hand | The right console and the flight grip (it twists to turn the torso), master arm under a red guard, weapon select, countermeasures | 0.32 x 0.80 m |
+| Between the knees | The yellow and black eject handle | |
 | Beside the legs | Circuit breaker rows on the inside faces of the consoles | 0.84 x 0.40 m each |
-| Walls above the consoles | Inspection windows onto live circuit boards (traces, chips, capacitors), the 880 V danger placard, cable troughs to the canopy sill | 0.78 x 0.26 m each |
-| Behind the seat | The main breaker board, the reactor interface board under a window, reactor coolant lines and their warning, the canopy jettison handle | 1.30 x 0.90 m |
+| Walls under the screens | Inspection windows onto live circuit boards, the 880 V danger placard, cable runs | 0.78 x 0.26 m each |
+| Behind the seat | The main breaker board, the reactor interface board, coolant lines and their warning, the canopy jettison handle, a lamp strip | 1.30 x 0.90 m |
 | Underfoot | Diamond tread plate, the pedals, a hazard strip at the footwell | 1.30 x 1.30 m |
-| Through the glass | The mech's nose and cheek armour with its hazard and livery stripes; the canopy's front and rear bows and sill ring | canopy 1.54 x 0.78 x 1.72 m |
 
 Every control is a placeholder for a simulated system: when the system exists, the control is wired
-to the number it shows (CLAUDE.md 6.1). The controls the pilot moves are their own nodes, pivots at
-the origin: `CTRL_stick`, `CTRL_throttle`, `CTRL_twist`. The screens are `SCREEN_left`,
-`SCREEN_center`, `SCREEN_right` and `HUD_combiner`, for the game to draw live. The canopy (glass
-and bows) is the `canopy` node, hinged at the back, so boarding can open it. Sockets: `EYE_pilot`,
-`SEAT_pilot`, `HATCH_entry` (docs/design/mech-rig.md).
+to the number it shows (CLAUDE.md 6.1).
+
+## Getting in and out
+
+The owner: "have the mech sit down on the ground so that pilots can enter/exit. The cockpit should
+open up with intricate doors and flaps and puffs of steam and myst coming out. I want getting in and
+out of a mech to be a beautiful cinematic event." The sequence, its timings and its nodes are
+`openspec/changes/mech-boarding`; in short: the mech sits, the latches release with a puff each, a
+ring of steam round the visor seam, the armoured visor lifts on two rams carrying the front screen,
+the side screens swing out as doors, the corner flaps fold back, the lower plate drops into a step,
+a three section stair unfolds to the ground, the front console swings clear, and cold mist rolls
+out over the sill. The pilot climbs in and sits; it all closes in reverse, a last hiss seals it,
+the screens power up one by one, and the mech stands. All of it from the pilot's eyes.
+
+The pod's nodes (pivots in `assets/models/cockpit_breeze.json`): `HATCH_upper`, `STRUT_L/R` with
+`_rod` and `_tip`, `DOOR_L/R`, `FLAP_L/R`, `HATCH_lower`, `STAIR_1..3`, `CONSOLE_front` (with
+`SCREEN_left/center/right` on it), `OVH_left/center/right`, `LATCH_1..6`, `CTRL_stick`,
+`CTRL_throttle`, and `VENT_<stage>_<n>` empties (extras: `kind` steam or mist, `stage`, `rate`,
+`dir`). Sockets: `EYE_pilot`, `SEAT_pilot`, `HATCH_entry`, `LADDER_base`.
 
 ## How it is made
 
@@ -49,11 +70,12 @@ Two stages, both committed generators, both run headless in Blender 4.4 (CLAUDE.
    `tools/textures/cockpit_contact_sheet.py` makes the contact sheet; look at it before calling a
    bake done.
 2. **The set** (`tools/blender/build_cockpit.py`). The tub, consoles, dash, seat, controls,
-   canopy and nose are built in metres around the eye, the panels laid on as real plates carrying
-   their maps. Cycles then bakes the cabin's light with occlusion into two atlases (front: dash,
-   consoles and controls; cabin: everything else): sky through the canopy, a warm floodlight
-   under the glare shield and under each canopy sill, the dome lamp, a red footwell lamp, the glow
-   of the screens and buttons, three diffuse bounces. A short contact occlusion bake is multiplied
+   pod shell, screen wall, hatch and armour are built in metres around the eye, the panels laid on
+   as real plates carrying their maps. Cycles then bakes the cabin's light with occlusion into two
+   atlases (front: dash, consoles, grips; cabin: everything else inside): the screen wall's glow,
+   a warm floodlight under the glare shield and under each screen's lower edge, a lamp strip on
+   the rear bulkhead, a red footwell lamp, the MFDs and lit buttons, three diffuse bounces. The
+   outside armour is not baked: it is lit live, with the mech plating maps. A short contact occlusion bake is multiplied
    in, the result is denoised (OIDN), tone mapped and written as JPEG. The baked surfaces export
    unlit (`KHR_materials_unlit`), so what the page shows is the bake.
 
@@ -70,7 +92,7 @@ cloud session (CLAUDE.md 7).
 | | |
 | --- | --- |
 | Triangles | see the manifest's `tris`, budget 200,000 |
-| Draw calls | one per material: 2 baked atlases, 3 screens, the HUD, the glass |
+| Draw calls | one per mesh material, about 70 (two baked atlases, the screens, the outside armour roles); merging is for the engine |
 | Texture memory | two 4096 x 4096 atlases, RGBA8 with mips: 2 x 85 MiB = 170 MiB on the GPU (JPEG on disk) |
 | Bake | about the time in the build log, on 4 CPU cores |
 
@@ -78,7 +100,10 @@ cloud session (CLAUDE.md 7).
 
 | Id | Question | Provisional answer |
 | --- | --- | --- |
-| C3 | How the baked light changes in play | A lightmap under live light (sun, flashes, alarms) |
-| C4 | Control layout | Centre stick, throttle left, twist grip right, as drawn |
+| C1 | How the pilot sees out | Decided: sealed, screens (owner, 2026-10-24) |
+| C3 | How the baked light changes in play | A lightmap under live light (screens, flashes, alarms) |
+| C4 | Control layout | Twin grips, throttle left, flight and torso right, as the references |
+| C6 | How the pilot climbs to the hatch | A stair unfolding from the lower plate |
+| C7 | How the screen wall looks | Separate screens in heavy bezels, phosphor tint, scanlines |
 | C5 | Colours | Dark gunmetal, amber, green and red lamps, hazard stripes, as drawn |
 | M6 | Which chassis first | Breeze, so this is the Breeze cockpit |

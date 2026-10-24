@@ -13,7 +13,7 @@ says so. `docs/analysis/source-repos.md` records what was taken from each, at wh
 > **THE LAW: first person, always, and the cockpit is the mech** (owner, 2026-10-23: "the game
 > will be played entirely from fps view. So when the pilot is on the mech, they are in the
 > cockpit"). The camera is the pilot's eyes. On foot it is their head; in the mech it is their
-> head in the cockpit seat, with the canopy, frame, instruments and their own hands in view. There
+> head in the cockpit seat, with the screen wall, frame, instruments and their own hands in view. There
 > is no third-person camera, no chase camera, no external "mech view" and no cut to a menu or a
 > black screen between walking and piloting: boarding is walked and climbed. Every playtest shows
 > the game this way (section 9). It outranks every other rule, design and plan here.
@@ -68,10 +68,28 @@ From the owner's brief, 2026-10-23. Quotes are the owner's words.
   powered flight on jets. Flight is limited by a resource the simulation tracks (fuel, heat or
   both: survey `M3`), so the mech is a ground machine that can take to the air, not an aircraft.
   Each mode is simulated, and the cockpit shows the numbers the simulation uses (section 6.1).
+- **Survey answers** (owner, 2026-10-23 and 24; the decided list in `docs/design/survey.html`).
+  The setting is an alternate history of 1980s industrial mechs (G1). Piloting is deep (startup,
+  torso apart from the legs, heat and power) with assists that can be turned off (G2, G5). Solo
+  first on one authoritative simulation (G3). Ace Combat's missions first: lock-on, radar, set
+  pieces, briefings, radio (G4). A 12 m digitigrade mech (M1, M2). Flight burns fuel and heat, but
+  fuel is ignored in early testing: "Mech will use very little fuel. But will require refueling
+  eventually. For now we don't have to worry about fuel for early game testing" (M3). Skating is on
+  powered wheels, Armored Core style: "Leave trails and stuff..see mining mike/godot" (M4). Skate
+  and jet are modes the pilot toggles on: "Player will need to toggle this mode on as it is limited
+  like the jet pack" (M5). Every cockpit control is clickable and bindable (C2).
 - **The cockpit** (owner, 2026-10-24: "Design the mech cockpit. Use detailed textures. Use the
   texturing skill we had on star crew bridge sim. Baked lighting with AO. Beautiful panels, warning
   labels, buttons, circuitry"). Panels are modelled and baked the Star Crew way (`panel-textures`),
   the cabin's light and occlusion are baked over them (`light-baking`). `docs/design/cockpit.md`.
+- **Sealed, with screens, and boarding is a cinematic** (owner, 2026-10-24: "The cockpit should be
+  enclosed fully. We can view outside via screens like in gundam", "have the mech sit down on the
+  ground so that pilots can enter/exit. The cockpit should open up with intricate doors and flaps
+  and puffs of steam and myst coming out. I want getting in and out of a mech to be a beautiful
+  cinematic event"). The pilot sees out through a wall of screens (big front screen, angled side
+  screens, heavy pillars, overhead monitors, the HUD on the screens: the owner's references, Armored
+  Core, Titanfall and the Gundam pods). The mech sits to be boarded and opens in stages with steam
+  and mist, all seen from the pilot's eyes. `openspec/changes/mech-boarding`.
 
 ## 2. The stack: Rust and Bevy
 

@@ -49,8 +49,13 @@ The `root` node's extras carry `legSegs` (each leg segment's length in metres an
 animation (idle, walk, turn on the spot, rocket skate, hit) is the one in
 `tools/mockups/gen_mech_designs.py`, which runs that pose layer on these bones.
 
-Cockpit controls the pilot touches are named nodes too, `CTRL_<name>` under `cockpit`
-(`CTRL_throttle`, `CTRL_stick`, `CTRL_twist`), so the game can animate and hit-test them.
+Cockpit controls the pilot touches are named nodes too, `CTRL_<name>`, so the game can animate
+and hit-test them: `CTRL_stick` (the right grip: flies the mech, twists to turn the torso) and
+`CTRL_throttle` (the left grip in its quadrant). The cockpit itself is a separate glb, the sealed
+pod (`assets/models/cockpit_breeze.glb`), mounted on the `cockpit` joint so its `EYE_pilot` is the
+mech's; its hatch nodes (`HATCH_upper`, `DOOR_L/R`, `FLAP_L/R`, `HATCH_lower`, `STAIR_1..3`,
+`CONSOLE_front`, `LATCH_*`, `STRUT_*`, `VENT_*`) are listed with their pivots in its manifest
+(`assets/models/cockpit_breeze.json`) and animated by `openspec/changes/mech-boarding`.
 
 ## Who owns what
 

@@ -452,22 +452,18 @@ def breeze(k):
         k.vent(chest, 9, 8, s * 17.3, 10, -4, 0, s * PI / 2, 4)
     k.stripes(chest, 26, 0, 22.5, 6.2, 0, hb=1.5, gap=0.8)
     k.core(chest, 0, 6, -14.6, 3.6)
-    # the cockpit: an open tub under a bubble canopy, the pilot sat at the front of the chest
+    # the cockpit: a sealed pod at the front of the chest (owner, 2026-10-24: "The cockpit should be
+    # enclosed fully"). The pod is its own glb (tools/blender/build_cockpit.py, its hatch nodes
+    # animated for boarding); this joint and its sockets are where it mounts.
     cp = k.J("cockpit", chest, 0, 6, 9)
-    W, D, t = 14, 16, 1.0
-    k.pl(W, t, D, M["frame"], cp, 0, 0, 0)
-    for s in (1, -1):
-        k.pl(t, 7, D, M["armor"], cp, s * (W / 2 - t / 2), 3.5, 0)
-    k.pl(W, 2.4, t, M["armor"], cp, 0, 1.2, D / 2 - t / 2)
-    k.pz([[-W / 2, 0], [W / 2, 0], [W / 2 - 2, 2], [-W / 2 + 2, 2]], 6, M["armor"], cp, 0, -3, D / 2 + 1, 0.15)  # chin
-    k.sph(8.6, M["glass"], cp, 0, 6.5, 1, 0.82, 0.78, 1.15, seg=32)
-    for x in (-5.4, 5.4):
-        k.tor(7.6, 0.25, M["dark"], cp, x, 5.2, 1, 0, PI / 2, 0, PI, 32)
-    k.box(10, 0.9, 0.5, M["glow"], cp, 0, 0.6, D / 2 + 0.2)
-    k.halo(cp, 0, 0.6, D / 2 + 1, 14, 0.5)
-    cockpit_interior(k, cp, 0, 6.2, 1.8)
-    k.sock("HATCH_entry", cp, 0, 12, 0)
-    ladder(k, 0, D / 2 + 4)
+    u = 1.0 / k.s if k.s else 1.0
+    k.box(16, 12, 4, M["frame"], cp, 0, 4, -8)          # the mounting cradle against the chest
+    for x in (-6, 6):
+        k.cyl(1.2, 1.2, 10, M["dark"], cp, x, 4, -6, PI / 2)
+    k.sock("EYE_pilot", cp, 0, 6.2, 1.8)
+    k.sock("SEAT_pilot", cp, 0, 6.2 - 0.78 * u, 1.8 - 0.12 * u)
+    k.sock("HATCH_entry", cp, 0, 6.2 - 0.4 * u, 1.8 + 1.2 * u)
+    k.sock("LADDER_base", k.root, 0, 0, 30)
     # jet nacelles on the back, swept fins over them
     for S, s in (("L", 1), ("R", -1)):
         x = s * 9
