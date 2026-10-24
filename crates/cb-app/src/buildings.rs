@@ -134,7 +134,7 @@ fn step_structures(time: Res<Time<Fixed>>, mut live: ResMut<Live>, mut fx: Messa
             cb_core::world::Moment::Creak(at) => crate::fx::Fx::new("creak_dust", at),
             cb_core::world::Moment::Fail(at) => crate::fx::Fx::new("member_fail", at),
             cb_core::world::Moment::Impact { at, mass_kg } => {
-                crate::fx::Fx::new("collapse_dust", at).scaled((mass_kg / 2.0e5).cbrt().clamp(0.5, 3.0))
+                crate::fx::Fx::new("collapse_dust", at).scaled((mass_kg / 2.0e5).cbrt().clamp(0.5, 2.0))
             }
         });
     }

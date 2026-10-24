@@ -66,7 +66,12 @@ fn setup(mut commands: Commands, data: Res<Data>, mut images: ResMut<Assets<Imag
     let light = &data.0.cockpit_light;
     let px = light.screens_cube_px;
     let format = TextureFormat::Rgba16Float;
-    let faces: [Handle<Image>; 6] = std::array::from_fn(|_| images.add(Image::new_target_texture(px, px, format, None)));
+    // Each face is copied into the cube (`copy_faces`), so it must allow being a copy source.
+    let faces: [Handle<Image>; 6] = std::array::from_fn(|_| {
+        let mut face = Image::new_target_texture(px, px, format, None);
+        face.texture_descriptor.usage |= TextureUsages::COPY_SRC;
+        images.add(face)
+    });
     let mut cube = Image::new_fill(
         Extent3d {
             width: px,

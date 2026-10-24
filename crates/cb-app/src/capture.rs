@@ -3,6 +3,14 @@
 //! logs frame time over a stride, then exits. It only writes input actions, as a player would,
 //! except for placing the pilot at the start of the street shot. It moves into the scripted pilot
 //! (`playtest-pipeline`) when that lands.
+//!
+//! With `CB_STILLS_BUILDINGS=1` it shoots the destructible buildings instead
+//! (`structural-destruction`): the pilot stands in the street 11 m off a mid-rise near the start, it is
+//! shot whole, then the pilot presses F9 (drop a shell at the aim point, a key every player has)
+//! at the foot of each column on that side, and it is shot as the frame creaks, falls and leaves
+//! its rubble.
+//! The pilot is placed and turned directly (as for the street shot); everything that breaks,
+//! breaks through the game's own shell.
 
 use crate::input::InputAccum;
 use crate::mech::MechAccessNow;
@@ -25,6 +33,12 @@ struct Script {
     beat: usize,
     beat_started_s: f32,
     frames_ms: Vec<f32>,
+    /// The building variant: the building, where the pilot stands, and the shells' aim points.
+    buildings: Option<(u32, Vec3, Vec<Vec3>)>,
+    shells_fired: usize,
+    /// The offscreen image the building variant draws the pilot's view into (window shots come out
+    /// black on macOS when the window is behind another; the bench's offscreen image does not).
+    offscreen: Option<Handle<Image>>,
 }
 
 impl Plugin for StillsPlugin {
@@ -35,9 +49,153 @@ impl Plugin for StillsPlugin {
             beat: 0,
             beat_started_s: 0.0,
             frames_ms: Vec::new(),
+            buildings: None,
+            shells_fired: 0,
+            offscreen: None,
         })
+        .add_systems(PostStartup, offscreen_for_buildings)
         .add_systems(Update, run_script);
     }
+}
+
+/// The building variant's beats (see the module comment).
+#[allow(clippy::too_many_arguments)]
+fn buildings_beats(
+    commands: &mut Commands,
+    script: &mut Script,
+    acc: &mut InputAccum,
+    pilot: &mut PilotSim,
+    access: &MechAccessNow,
+    plan: &crate::world::Plan,
+    live: &crate::world::Live,
+    in_beat: f32,
+    next: &mut bool,
+    exit: &mut MessageWriter<AppExit>,
+) {
+    const EYE_M: f32 = 1.7;
+    let place = |pilot: &mut PilotSim, feet: Vec3, target: Vec3| {
+        let (yaw, pitch) = look_at(feet, EYE_M, target);
+        let mut s = PilotState::standing(feet, yaw);
+        s.pitch_rad = pitch;
+        pilot.prev = s.clone();
+        pilot.curr = s;
+    };
+    match script.beat {
+        // Pick the mid-rise nearest the mech and stand 45 m off its -z face.
+        1 => {
+            if script.buildings.is_none() {
+                let Some(a) = access.0 else { return };
+                let here = Vec2::new(a.ladder_base.x, a.ladder_base.z);
+                let Some(b) = plan
+                    .0
+                    .buildings
+                    .iter()
+                    .filter(|b| (8..=20).contains(&b.storeys))
+                    .min_by(|p, q| p.footprint.centre().distance(here).total_cmp(&q.footprint.centre().distance(here)))
+                else {
+                    exit.write(AppExit::error());
+                    return;
+                };
+                let ground = plan.0.cities[b.city as usize].ground_m;
+                let c = b.footprint.centre();
+                let feet = Vec3::new(c.x, ground, b.footprint.min.y - 11.0);
+                let feet = Vec3::new(feet.x, plan.0.terrain.height_at(feet.x, feet.z).max(ground), feet.z);
+                // The foot of every column on the facing side, as a player taking out a side would aim.
+                let cells = &live.structures.buildings[b.id as usize];
+                let aims = (0..=cells.n[0])
+                    .map(|a| Vec3::new(b.footprint.min.x + cells.size.x * a as f32, ground, b.footprint.min.y + 1.0))
+                    .collect();
+                println!("STILLS_BUILDING id={} storeys={} at ({:.0}, {:.0})", b.id, b.storeys, c.x, c.y);
+                script.buildings = Some((b.id, feet, aims));
+            }
+            let (id, feet, _) = script.buildings.clone().unwrap();
+            let b = &plan.0.buildings[id as usize];
+            let ground = plan.0.cities[b.city as usize].ground_m;
+            let mid = Vec3::new(b.footprint.centre().x, ground + b.height_m * 0.45, b.footprint.min.y);
+            place(pilot, feet, mid);
+            if in_beat > 2.0 {
+                shoot_image(commands, script, "building-whole.png");
+                *next = true;
+            }
+        }
+        // F9 at the foot of each facing column, 0.5 s apart.
+        2 => {
+            let (_, feet, aims) = script.buildings.clone().unwrap();
+            let i = (in_beat / 0.5) as usize;
+            if i < aims.len() {
+                place(pilot, feet, aims[i]);
+                let fire = i >= script.shells_fired && in_beat - i as f32 * 0.5 > 0.2;
+                acc.script = Some(Actions::default());
+                if fire {
+                    // Pressed like the key: latched until the next simulation step takes it.
+                    acc.debug = Some(cb_core::input::DebugCommand::Shell);
+                    script.shells_fired += 1;
+                }
+            } else {
+                acc.script = Some(Actions::default());
+                *next = true;
+            }
+        }
+        // Look back up at it and shoot it as it creaks, falls and settles.
+        3 => {
+            let (id, feet, _) = script.buildings.clone().unwrap();
+            let b = &plan.0.buildings[id as usize];
+            let ground = plan.0.cities[b.city as usize].ground_m;
+            place(
+                pilot,
+                feet,
+                Vec3::new(b.footprint.centre().x, ground + b.height_m * 0.4, b.footprint.min.y),
+            );
+            for (t, name) in [
+                (1.0, "building-hit.png"),
+                (2.2, "building-creak.png"),
+                (5.0, "building-fall.png"),
+                (12.0, "building-rubble.png"),
+            ] {
+                if in_beat >= t && in_beat - time_step() < t {
+                    shoot_image(commands, script, name);
+                }
+            }
+            if in_beat > 13.0 {
+                *next = true;
+            }
+        }
+        // Walk up to the rubble and look down at it.
+        4 => {
+            let (id, feet, _) = script.buildings.clone().unwrap();
+            let b = &plan.0.buildings[id as usize];
+            let ground = plan.0.cities[b.city as usize].ground_m;
+            let close = Vec3::new(feet.x, feet.y, b.footprint.min.y - 6.0);
+            place(
+                pilot,
+                close,
+                Vec3::new(b.footprint.centre().x, ground + 2.0, b.footprint.min.y + 6.0),
+            );
+            if in_beat > 2.0 {
+                shoot_image(commands, script, "building-rubble-close.png");
+                *next = true;
+            }
+        }
+        5 if in_beat > 1.5 => {
+            exit.write(AppExit::Success);
+        }
+        _ => {}
+    }
+}
+
+/// About one frame, for "did we just cross this time" tests at the frame rate.
+fn time_step() -> f32 {
+    1.0 / 30.0
+}
+
+/// A still of the building variant's offscreen image.
+fn shoot_image(commands: &mut Commands, script: &Script, name: &str) {
+    let Some(img) = script.offscreen.clone() else {
+        return shoot(commands, &script.dir, name);
+    };
+    let path = script.dir.join(name);
+    info!("capture: {}", path.display());
+    commands.spawn(Screenshot::image(img)).observe(save_to_disk(path));
 }
 
 fn shoot(commands: &mut Commands, dir: &std::path::Path, name: &str) {
@@ -53,18 +211,79 @@ fn percentile(sorted: &[f32], p: f32) -> f32 {
     sorted[((sorted.len() - 1) as f32 * p).round() as usize]
 }
 
+/// The building variant draws the pilot's eye and the cockpit pass into an offscreen image.
+fn offscreen_for_buildings(
+    mut commands: Commands,
+    camera: Single<Entity, With<crate::pilot::PilotCamera>>,
+    cockpit: Single<Entity, With<crate::pilot::CockpitCamera>>,
+    mut images: ResMut<Assets<Image>>,
+    mut script: ResMut<Script>,
+) {
+    if !crate::cli::switched_off("CB_STILLS_BUILDINGS") {
+        return;
+    }
+    use bevy::camera::RenderTarget;
+    use bevy::render::render_resource::TextureFormat;
+    let image = Image::new_target_texture(1920, 1080, TextureFormat::Rgba8Unorm, Some(TextureFormat::Rgba8UnormSrgb));
+    let handle = images.add(image);
+    commands.entity(*camera).insert(RenderTarget::Image(handle.clone().into()));
+    commands.entity(*cockpit).insert(RenderTarget::Image(handle.clone().into()));
+    script.offscreen = Some(handle);
+}
+
+/// Faces the pilot standing at `feet` toward `target`: (yaw, pitch).
+fn look_at(feet: Vec3, eye_m: f32, target: Vec3) -> (f32, f32) {
+    let d = target - (feet + Vec3::Y * eye_m);
+    ((-d.x).atan2(-d.z), d.y.atan2(Vec2::new(d.x, d.z).length()))
+}
+
+#[allow(clippy::too_many_arguments)]
 fn run_script(
     mut commands: Commands,
     mut script: ResMut<Script>,
     mut acc: ResMut<InputAccum>,
     mut pilot: ResMut<PilotSim>,
     access: Res<MechAccessNow>,
+    plan: Res<crate::world::Plan>,
+    live: Res<crate::world::Live>,
     time: Res<Time<Real>>,
     mut exit: MessageWriter<AppExit>,
 ) {
     let now = time.elapsed_secs();
+    if let Some((id, _, _)) = script.buildings.as_ref()
+        && script.beat >= 2
+        && (now * 2.0) as u32 != ((now - time.delta_secs()) * 2.0) as u32
+    {
+        let c = &live.structures.buildings[*id as usize];
+        println!(
+            "STILLS_STANDING beat={} cells={}/{} frame_elements={}",
+            script.beat,
+            c.standing,
+            c.intact.len(),
+            c.frame.as_ref().map_or(0, |f| f.standing())
+        );
+    }
     let in_beat = now - script.beat_started_s;
     let mut next = false;
+    if script.beat >= 1 && crate::cli::switched_off("CB_STILLS_BUILDINGS") {
+        buildings_beats(
+            &mut commands,
+            &mut script,
+            &mut acc,
+            &mut pilot,
+            &access,
+            &plan,
+            &live,
+            in_beat,
+            &mut next,
+            &mut exit,
+        );
+        if next {
+            script.beat += 1;
+            script.beat_started_s = now;
+        }
+        return;
+    }
     match script.beat {
         // Wait for the world, the rig and shaders to settle.
         0 => next = in_beat > 6.0 && access.0.is_some(),

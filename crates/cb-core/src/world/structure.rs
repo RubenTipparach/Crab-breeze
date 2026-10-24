@@ -154,7 +154,7 @@ impl Default for StructureConfig {
             held_one_edge: 0.45,
             held_one: 0.25,
             held_hung: 0.4,
-            column_hp_mj: 2.5,
+            column_hp_mj: 2.0,
             slab_hp_mj: 3.0,
             wall_hp_mj: 0.7,
             slab_kg_m2: 600.0,
@@ -469,7 +469,9 @@ impl Frame {
     }
 
     /// Takes a blast of `energy_mj` centred at `centre` reaching `radius_m`: each standing element
-    /// within reach loses `E x (1 - d/R)^2` and breaks at zero. Returns how many broke.
+    /// within reach loses `E x (1 - d/R)^2` and breaks at zero. Returns how many broke. (A linear
+    /// falloff blew a tank shell's hole three storeys tall; the squared one keeps it to a storey,
+    /// and columns at 2 MJ still go to a 6 MJ shell at their foot.)
     pub fn blast(&mut self, centre: Vec3, radius_m: f32, energy_mj: f32) -> usize {
         if !(radius_m > 0.0 && energy_mj > 0.0 && centre.is_finite()) {
             return 0;

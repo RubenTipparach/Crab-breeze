@@ -130,7 +130,8 @@
         held_one_edge: 0.45,
         held_one: 0.25,
         held_hung: 0.4,
-        column_hp_mj: 2.5,
+        // A 6 MJ shell at a column's foot breaks the columns within about 3 m (playtest 2026-10-24).
+        column_hp_mj: 2.0,
         slab_hp_mj: 3.0,
         wall_hp_mj: 0.7,
         slab_kg_m2: 600.0,

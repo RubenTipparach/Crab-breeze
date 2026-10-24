@@ -136,9 +136,10 @@
             Burst(kind: Rubble, count: 15, speed_m_s: 4.0, spread: 0.8, size_m: 0.6, life_s: 2.0),
         ],
         // A falling part landing on a floor or the ground; scale grows with the cube root of its
-        // mass (a 200 t storey is 1).
+        // mass (a 200 t storey is 1, at most 2). Thinned after the 2026-10-24 playtest, where a
+        // collapse whited out the view from the street for over 10 s.
         "collapse_dust": [
-            Burst(kind: Dust, count: 120, speed_m_s: 9.0, spread: 1.0, size_m: 6.0, life_s: 9.0),
+            Burst(kind: Dust, count: 50, speed_m_s: 7.0, spread: 1.0, size_m: 4.0, life_s: 5.0),
             Burst(kind: Rubble, count: 40, speed_m_s: 7.0, spread: 1.0, size_m: 1.0, life_s: 2.5),
         ],
         // Every 0.1 s while a wreck or a stump burns.

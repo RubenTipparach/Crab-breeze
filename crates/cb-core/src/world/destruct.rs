@@ -315,7 +315,8 @@ impl Structures {
         (changed, chunks)
     }
 
-    /// Falling elements as chunks: one per storey per 2 x 2 cell group, the union of their boxes.
+    /// Falling elements as chunks: one per storey per cell, the union of their boxes. (2 x 2 cell
+    /// groups fell as 12 m slabs in the 2026-10-24 playtest; a cell is about 6 m.)
     fn chunks_of(&self, b: u32, fell: &[u32]) -> Vec<Chunk> {
         let Some(f) = self.buildings[b as usize].frame.as_ref() else {
             return Vec::new();
@@ -323,8 +324,8 @@ impl Structures {
         let mut groups: Vec<((u32, u32, u32), Vec3, Vec3)> = Vec::new();
         for &id in fell {
             let e = &f.elements[id as usize];
-            let i = e.at[0].min(f.n[0] as u32 - 1) / 2;
-            let j = e.at[1].min(f.n[2] as u32 - 1) / 2;
+            let i = e.at[0].min(f.n[0] as u32 - 1);
+            let j = e.at[1].min(f.n[2] as u32 - 1);
             let key = (e.storey, i, j);
             match groups.iter_mut().find(|g| g.0 == key) {
                 Some(g) => {
