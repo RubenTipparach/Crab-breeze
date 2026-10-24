@@ -1,0 +1,278 @@
+{
+  "variant": "canopy",
+  "model": "assets/models/cockpit_canopy/cockpit_canopy.gltf",
+  "frame": "glTF: +y up, the pilot faces +z, +x is the pilot's left; metres; origin on the tub floor under the eye",
+  "eye_m": [
+    0.0,
+    1.2,
+    0.0
+  ],
+  "envelope_m": {
+    "x": [
+      -1.12,
+      1.12
+    ],
+    "y": [
+      -0.07,
+      2.23
+    ],
+    "z": [
+      -0.87,
+      0.92
+    ]
+  },
+  "bounds_closed_m": {
+    "x": [
+      -1.039,
+      1.039
+    ],
+    "y": [
+      -0.055,
+      2.087
+    ],
+    "z": [
+      -0.79,
+      0.869
+    ]
+  },
+  "bounds_open_m": {
+    "x": [
+      -1.039,
+      1.039
+    ],
+    "y": [
+      -0.055,
+      2.721
+    ],
+    "z": [
+      -1.662,
+      0.869
+    ]
+  },
+  "doorway_m": {
+    "width": 1.41,
+    "height": 1.45,
+    "through": "the front face (+z)"
+  },
+  "sockets": {
+    "EYE_pilot": [
+      0.0,
+      1.2,
+      0.0
+    ],
+    "SEAT_pilot": [
+      0.0,
+      0.45,
+      -0.02
+    ],
+    "HATCH_entry": [
+      0.0,
+      0.02,
+      0.85
+    ]
+  },
+  "motions": {
+    "INNER_canopy": {
+      "value": 0.05,
+      "t0": 0.35,
+      "d": 0.3,
+      "slide": "y",
+      "pivot_m": [
+        0.0,
+        0.8,
+        -0.83
+      ]
+    },
+    "INNER_canopy_1": {
+      "value": -1.0,
+      "t0": 0.75,
+      "d": 2.0,
+      "axis": "x",
+      "pivot_m": [
+        0.0,
+        0.8,
+        -0.83
+      ]
+    }
+  },
+  "inner_opening_s": 3.0,
+  "front_screen_dir": [
+    0.0,
+    -0.062,
+    0.998
+  ],
+  "allview_material": "SCREEN_allview",
+  "nodes": {
+    "pod": {
+      "parent": null,
+      "pivot_m": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "INNER_canopy": {
+      "parent": "pod",
+      "pivot_m": [
+        0.0,
+        0.8,
+        -0.83
+      ]
+    },
+    "INNER_canopy_1": {
+      "parent": "INNER_canopy",
+      "pivot_m": [
+        0.0,
+        0.8,
+        -0.83
+      ]
+    },
+    "CTRL_stick": {
+      "parent": "pod",
+      "pivot_m": [
+        -0.49,
+        0.665,
+        0.3
+      ]
+    },
+    "CTRL_throttle": {
+      "parent": "pod",
+      "pivot_m": [
+        0.4725,
+        0.66,
+        0.24
+      ]
+    },
+    "CONSOLE_front": {
+      "parent": "pod",
+      "pivot_m": [
+        0.0,
+        0.69,
+        0.5
+      ]
+    },
+    "SCREEN_left": {
+      "parent": "CONSOLE_front",
+      "pivot_m": [
+        0.0,
+        0.69,
+        0.5
+      ]
+    },
+    "SCREEN_center": {
+      "parent": "CONSOLE_front",
+      "pivot_m": [
+        0.0,
+        0.69,
+        0.5
+      ]
+    },
+    "SCREEN_right": {
+      "parent": "CONSOLE_front",
+      "pivot_m": [
+        0.0,
+        0.69,
+        0.5
+      ]
+    }
+  },
+  "meshes": {
+    "CONSOLE_front_front": {
+      "tris": 8292,
+      "group": "front",
+      "node": "CONSOLE_front"
+    },
+    "CTRL_stick_front": {
+      "tris": 628,
+      "group": "front",
+      "node": "CTRL_stick"
+    },
+    "CTRL_throttle_front": {
+      "tris": 628,
+      "group": "front",
+      "node": "CTRL_throttle"
+    },
+    "INNER_canopy_1_allview": {
+      "tris": 14,
+      "group": "allview",
+      "node": "INNER_canopy_1"
+    },
+    "INNER_canopy_1_cabin": {
+      "tris": 8094,
+      "group": "cabin",
+      "node": "INNER_canopy_1"
+    },
+    "SCREEN_center_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "SCREEN_center"
+    },
+    "SCREEN_left_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "SCREEN_left"
+    },
+    "SCREEN_right_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "SCREEN_right"
+    },
+    "pod_cabin": {
+      "tris": 7348,
+      "group": "cabin",
+      "node": "pod"
+    },
+    "pod_front": {
+      "tris": 24,
+      "group": "front",
+      "node": "pod"
+    }
+  },
+  "vents": 9,
+  "lights": 6,
+  "tris": 25034,
+  "tri_budget": 600000,
+  "draw_calls": 10,
+  "atlases": {
+    "front": {
+      "maps": [
+        "albedo",
+        "emissive",
+        "normal",
+        "orm"
+      ],
+      "px": 256,
+      "emissive_strength": 1.0
+    },
+    "cabin": {
+      "maps": [
+        "albedo",
+        "emissive",
+        "normal",
+        "orm"
+      ],
+      "px": 256,
+      "emissive_strength": 1.0
+    }
+  },
+  "bake": {
+    "ao_samples": 1,
+    "denoised": false,
+    "maps": "base colour, tangent normal, ORM (R occlusion, G roughness, B metal), emission; light is real time"
+  },
+  "panels": [
+    "breakers_L",
+    "breakers_R",
+    "console_L",
+    "console_R",
+    "dash_main",
+    "floor",
+    "footwell",
+    "glare",
+    "knee",
+    "rear",
+    "wall_L",
+    "wall_R"
+  ],
+  "bytes": 3377476
+}
