@@ -8,6 +8,7 @@ mod capture;
 mod cli;
 mod combat;
 mod fx;
+mod hud;
 mod input;
 mod mech;
 mod physics;
@@ -78,6 +79,7 @@ fn main() -> AppExit {
         combat::CombatPlugin,
         buildings::BuildingsPlugin,
         physics::DebrisPhysicsPlugin,
+        hud::HudPlugin,
     ));
     if let Some(dir) = args.stills {
         app.add_plugins(capture::StillsPlugin { dir });

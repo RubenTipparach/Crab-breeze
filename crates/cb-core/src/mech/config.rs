@@ -136,26 +136,30 @@ impl Default for GaitConfig {
     }
 }
 
-/// Jet flight tuning (survey M3: heat limits flight; fuel is ignored in early testing).
+/// Booster tuning (openspec change `boost-and-skate`; survey M3: heat-limited, fuel ignored).
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct JetConfig {
-    /// Upward acceleration from the jets at full lift, before gravity.
+    /// Upward acceleration at full lift, before gravity.
     pub thrust_m_s2: f32,
     /// Fastest climb.
     pub climb_max_m_s: f32,
-    /// Fastest fall the jets let it reach while lifting at all.
+    /// Fastest fall while lifting at all.
     pub sink_max_m_s: f32,
-    /// Top horizontal speed in the air at full throttle.
+    /// Top horizontal speed on the boosters.
     pub speed_max_m_s: f32,
-    /// Horizontal acceleration in the air.
+    /// Horizontal thrust in the direction asked.
     pub accel_m_s2: f32,
-    /// Jet heat gained per second at full lift (1 is the limit).
-    pub heat_rise_per_s: f32,
-    /// Jet heat shed per second off the jets.
-    pub cool_per_s: f32,
-    /// After overheating, the jets relight below this heat.
-    pub relight_heat: f32,
+    /// Air drag on horizontal speed without thrust, per second.
+    pub drag_per_s: f32,
+    /// Seconds of burn from full.
+    pub burn_s: f32,
+    /// Seconds to recharge from empty.
+    pub recharge_s: f32,
+    /// Pause after burning before recharging starts.
+    pub recharge_delay_s: f32,
+    /// Emptied, they relight once this share is back.
+    pub relight_fraction: f32,
 }
 
 impl Default for JetConfig {
@@ -164,11 +168,50 @@ impl Default for JetConfig {
             thrust_m_s2: 28.0,
             climb_max_m_s: 40.0,
             sink_max_m_s: 25.0,
-            speed_max_m_s: 60.0,
-            accel_m_s2: 8.0,
-            heat_rise_per_s: 0.04,
-            cool_per_s: 0.08,
-            relight_heat: 0.6,
+            speed_max_m_s: 45.0,
+            accel_m_s2: 30.0,
+            drag_per_s: 0.3,
+            burn_s: 20.0,
+            recharge_s: 8.0,
+            recharge_delay_s: 1.5,
+            relight_fraction: 0.3,
+        }
+    }
+}
+
+/// Skate tuning (openspec change `boost-and-skate`; survey M4: foot wheels).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct SkateConfig {
+    /// Top speed at full throttle.
+    pub speed_max_m_s: f32,
+    /// Wheel drive.
+    pub accel_m_s2: f32,
+    /// How fast the velocity swings onto the heading, per second (low: drifts).
+    pub grip_per_s: f32,
+    /// Turn rate.
+    pub turn_rate_deg_s: f32,
+    /// Seconds of use from full.
+    pub burn_s: f32,
+    /// Seconds to recharge from empty.
+    pub recharge_s: f32,
+    /// Pause after skating before recharging starts.
+    pub recharge_delay_s: f32,
+    /// Emptied, they work again once this share is back.
+    pub relight_fraction: f32,
+}
+
+impl Default for SkateConfig {
+    fn default() -> Self {
+        Self {
+            speed_max_m_s: 30.0,
+            accel_m_s2: 10.0,
+            grip_per_s: 1.2,
+            turn_rate_deg_s: 90.0,
+            burn_s: 40.0,
+            recharge_s: 10.0,
+            recharge_delay_s: 1.0,
+            relight_fraction: 0.2,
         }
     }
 }
@@ -186,8 +229,10 @@ pub struct MechConfig {
     pub locomotion: LocomotionConfig,
     /// Walk tuning.
     pub gait: GaitConfig,
-    /// Jet tuning.
+    /// Booster tuning.
     pub jet: JetConfig,
+    /// Skate tuning.
+    pub skate: SkateConfig,
     /// Parts that can be shot off.
     pub parts: Vec<PartSpec>,
     /// Guns.
@@ -206,6 +251,7 @@ impl Default for MechConfig {
             locomotion: LocomotionConfig::default(),
             gait: GaitConfig::default(),
             jet: JetConfig::default(),
+            skate: SkateConfig::default(),
             parts: default_parts(),
             weapons: crate::weapons::default_weapons(),
             nodes: Vec::new(),
@@ -249,9 +295,20 @@ impl Validate for MechConfig {
         positive("jet.sink_max_m_s", j.sink_max_m_s)?;
         positive("jet.speed_max_m_s", j.speed_max_m_s)?;
         positive("jet.accel_m_s2", j.accel_m_s2)?;
-        positive("jet.heat_rise_per_s", j.heat_rise_per_s)?;
-        positive("jet.cool_per_s", j.cool_per_s)?;
-        within("jet.relight_heat", j.relight_heat, 0.0, 1.0)?;
+        crate::data::finite("jet.drag_per_s", j.drag_per_s)?;
+        positive("jet.burn_s", j.burn_s)?;
+        positive("jet.recharge_s", j.recharge_s)?;
+        crate::data::finite("jet.recharge_delay_s", j.recharge_delay_s)?;
+        within("jet.relight_fraction", j.relight_fraction, 0.0, 1.0)?;
+        let k = &self.skate;
+        positive("skate.speed_max_m_s", k.speed_max_m_s)?;
+        positive("skate.accel_m_s2", k.accel_m_s2)?;
+        positive("skate.grip_per_s", k.grip_per_s)?;
+        positive("skate.turn_rate_deg_s", k.turn_rate_deg_s)?;
+        positive("skate.burn_s", k.burn_s)?;
+        positive("skate.recharge_s", k.recharge_s)?;
+        crate::data::finite("skate.recharge_delay_s", k.recharge_delay_s)?;
+        within("skate.relight_fraction", k.relight_fraction, 0.0, 1.0)?;
         validate_parts(&self.parts)?;
         for w in &self.weapons {
             w.validate()?;

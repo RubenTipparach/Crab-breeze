@@ -210,7 +210,7 @@ fn play(
             if plan.clouds.density_at(m.pos + Vec3::Y * 9.6, now) > 0.05 {
                 take.in_cloud_s += time.delta_secs();
             }
-            next = take.in_cloud_s > 2.5 || t > 40.0 || m.jet_overheated;
+            next = take.in_cloud_s > 2.5 || t > 40.0 || m.boost.locked;
         }
         // Out of the cloud, down to the river: glide, then brake with the jets and land in it.
         5 => {

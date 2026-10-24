@@ -25,4 +25,6 @@
     debug_shell: ["F9"],
     fire_primary: ["MouseLeft"],
     fire_secondary: ["MouseRight"],
+    // In the mech: Shift toggles the skates, Space fires the boosters (WASD steers the thrust).
+    skate: ["ShiftLeft"],
 )

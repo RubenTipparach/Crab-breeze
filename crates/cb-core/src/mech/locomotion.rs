@@ -1,28 +1,71 @@
-//! The mech's movement state and its fixed step (mech-rig design sections 2 and 4): the throttle
-//! lever, ground speed, leg heading, torso twist and pitch, and the gait clock. Pure: state,
-//! controls, data, ground and `dt_s` in; state out.
+//! The mech's movement state and its fixed step (mech-rig design sections 2 and 4,
+//! `boost-and-skate`): the throttle lever, one horizontal velocity carried between walking,
+//! skating and boosting, the leg heading, torso twist and pitch, the boost and skate budgets, and
+//! the gait clock. Pure: state, controls, data, ground and `dt_s` in; state out.
 
 use super::config::{GaitConfig, LocomotionConfig, MechConfig};
 use crate::input::{Actions, ModeRequest};
 use crate::world::Ground;
 use glam::{Vec2, Vec3};
 
-/// How the mech is moving. Only `Walk` has a model yet (surveys M3, M4, M5).
+/// How the mech is moving.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum LocomotionMode {
     /// On the legs.
     #[default]
     Walk,
-    /// On the feet's wheels (not built).
+    /// On the feet's wheels.
     Skate,
-    /// On the jets (not built).
+    /// On the boosters.
     Jet,
 }
 
 impl LocomotionMode {
     /// True when this mode has a model and can be entered.
     pub fn is_built(self) -> bool {
-        matches!(self, LocomotionMode::Walk | LocomotionMode::Jet)
+        true
+    }
+}
+
+/// A limited feature's budget (boosters, skates): heat is the share used, 0 full to 1 empty.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Budget {
+    /// Share used, 0..1.
+    pub heat: f32,
+    /// Emptied: out until the relight share is back.
+    pub locked: bool,
+    /// Seconds since it was last used.
+    pub idle_s: f32,
+}
+
+impl Budget {
+    /// One step: burns while `burning`, recharges after the delay otherwise.
+    pub fn tick(&mut self, burning: bool, burn_s: f32, recharge_s: f32, delay_s: f32, relight: f32, dt_s: f32) {
+        if burning && !self.locked {
+            self.idle_s = 0.0;
+            self.heat = (self.heat + dt_s / burn_s).min(1.0);
+            if self.heat >= 1.0 {
+                self.locked = true;
+            }
+        } else {
+            self.idle_s += dt_s;
+            if self.idle_s >= delay_s {
+                self.heat = (self.heat - dt_s / recharge_s).max(0.0);
+            }
+            if self.locked && self.heat <= 1.0 - relight {
+                self.locked = false;
+            }
+        }
+    }
+
+    /// Seconds of use left.
+    pub fn left_s(&self, burn_s: f32) -> f32 {
+        (1.0 - self.heat) * burn_s
+    }
+
+    /// Seconds to recharge fully (after the delay).
+    pub fn recharge_left_s(&self, recharge_s: f32) -> f32 {
+        self.heat * recharge_s
     }
 }
 
@@ -39,13 +82,19 @@ pub struct MechControls {
     pub aim_delta_deg: Vec2,
     /// A mode change asked for.
     pub mode_request: Option<ModeRequest>,
-    /// Jet lift, 0..1.
+    /// Boost lift, 0..1 (holding boost fires the boosters).
     pub lift_axis: f32,
+    /// Boost thrust direction asked: strafe right (+x) and forward (+y), relative to the view.
+    pub move_xy: Vec2,
+    /// Where the pilot looks (world yaw): boost thrust is relative to it.
+    pub view_yaw_rad: f32,
+    /// Skates toggled this step.
+    pub skate_toggle: bool,
 }
 
 impl MechControls {
     /// The seat's controls from the pilot's actions. In free look the mouse turns the head, not
-    /// the torso.
+    /// the torso. The view yaw is the pilot's, set by the caller.
     pub fn from_actions(a: &Actions) -> Self {
         Self {
             throttle_axis: a.throttle_axis,
@@ -54,6 +103,9 @@ impl MechControls {
             aim_delta_deg: if a.free_look { Vec2::ZERO } else { a.look_delta_deg },
             mode_request: a.mode_request,
             lift_axis: a.lift_axis,
+            move_xy: a.move_xy,
+            view_yaw_rad: 0.0,
+            skate_toggle: a.skate_toggle,
         }
     }
 }
@@ -67,8 +119,10 @@ pub struct MechState {
     pub heading_rad: f32,
     /// Throttle lever, `throttle_min`..1.
     pub throttle: f32,
-    /// Ground speed along the heading, m/s (negative backing up).
+    /// Speed along the heading, m/s (negative backing up).
     pub speed_m_s: f32,
+    /// Horizontal velocity (x, z), every mode.
+    pub vel: Vec2,
     /// Current leg turn rate, rad/s.
     pub turn_rate_rad_s: f32,
     /// Torso twist from the legs, radians, left positive.
@@ -87,14 +141,18 @@ pub struct MechState {
     pub stride_m: f32,
     /// Movement mode.
     pub mode: LocomotionMode,
+    /// Skates are switched on (the mode is `Skate` on the ground).
+    pub skates_on: bool,
     /// Water depth at the root, 0 on dry ground.
     pub wading_depth_m: f32,
     /// Vertical speed, up positive.
     pub vel_y_m_s: f32,
-    /// Jet heat, 0 cold to 1 the limit.
-    pub jet_heat: f32,
-    /// The jets overheated and are out until they cool to the relight heat.
-    pub jet_overheated: bool,
+    /// The boosters' budget.
+    pub boost: Budget,
+    /// The skates' budget.
+    pub skate: Budget,
+    /// The boosters fired this step.
+    pub boosting: bool,
     /// Legs shot off: [left, right].
     pub legs_lost: [bool; 2],
 }
@@ -104,6 +162,10 @@ const G_M_S2: f32 = 9.81;
 /// World forward for a heading: 0 is -z, positive turns left.
 pub fn forward(heading_rad: f32) -> Vec3 {
     Vec3::new(-heading_rad.sin(), 0.0, -heading_rad.cos())
+}
+
+fn flat_forward(heading_rad: f32) -> Vec2 {
+    Vec2::new(-heading_rad.sin(), -heading_rad.cos())
 }
 
 fn approach(v: f32, target: f32, max_step: f32) -> f32 {
@@ -128,10 +190,10 @@ impl MechState {
 
     /// True when the mech is stopped with its throttle at zero (boarding and climbing out allowed).
     pub fn is_stopped(&self, cfg: &LocomotionConfig) -> bool {
-        self.throttle == 0.0 && self.speed_m_s.abs() < cfg.stopped_speed_m_s
+        self.throttle == 0.0 && self.vel.length() < cfg.stopped_speed_m_s && !self.airborne()
     }
 
-    /// True when the mech is off the ground (falling or on its jets).
+    /// True when the mech is off the ground (falling or on its boosters).
     pub fn airborne(&self) -> bool {
         self.vel_y_m_s.abs() > 1e-3 || self.mode == LocomotionMode::Jet
     }
@@ -141,100 +203,151 @@ impl MechState {
         if !(dt_s.is_finite() && dt_s > 0.0) {
             return;
         }
-        let (loco, gait, jet) = (&cfg.locomotion, &cfg.gait, &cfg.jet);
-        if let Some(req) = c.mode_request {
-            let want = match req {
-                ModeRequest::Walk => LocomotionMode::Walk,
-                ModeRequest::Skate => LocomotionMode::Skate,
-                ModeRequest::Jet => LocomotionMode::Jet,
-            };
-            if want.is_built() && !(want == LocomotionMode::Walk && self.mode == LocomotionMode::Jet) {
-                self.mode = want;
-            }
-        }
+        let (loco, gait, jet, sk) = (&cfg.locomotion, &cfg.gait, &cfg.jet, &cfg.skate);
         let legs_left = 2 - self.legs_lost.iter().filter(|l| **l).count();
+
+        // Skates on and off (a toggle, survey M5); they need both legs and a budget.
+        let skate_asked = c.skate_toggle || c.mode_request == Some(ModeRequest::Skate);
+        if skate_asked {
+            self.skates_on = !self.skates_on;
+        }
+        if c.mode_request == Some(ModeRequest::Walk) {
+            self.skates_on = false;
+        }
+        if self.skate.locked || legs_left < 2 {
+            self.skates_on = false;
+        }
+
+        // Boosters fire while boost is held and they are not locked out.
+        self.boosting = c.lift_axis > 0.0 && !self.boost.locked;
+        if self.boosting {
+            self.mode = LocomotionMode::Jet;
+        } else if self.mode != LocomotionMode::Jet {
+            self.mode = if self.skates_on {
+                LocomotionMode::Skate
+            } else {
+                LocomotionMode::Walk
+            };
+        }
         let flying = self.mode == LocomotionMode::Jet;
 
-        // Throttle lever and ground speed.
+        // Throttle lever.
         if c.throttle_zero {
             self.throttle = 0.0;
         }
         self.throttle = (self.throttle + c.throttle_axis * loco.throttle_rate_per_s * dt_s).clamp(loco.throttle_min, 1.0);
-        let (target, accel, brake) = if flying {
-            (self.throttle.max(0.0) * jet.speed_max_m_s, jet.accel_m_s2, jet.accel_m_s2)
-        } else {
-            // Wading drags the legs back (terrain-water design section 2); a lost leg leaves a limp
-            // (mech-damage design section 2); no legs, no walking.
-            let wade = (self.wading_depth_m / loco.hip_height_m).clamp(0.0, 1.0);
-            let limp = match legs_left {
-                2 => 1.0,
-                1 => loco.limp_speed_ratio,
-                _ => 0.0,
-            };
-            (
-                self.throttle * loco.walk_speed_max_m_s * (1.0 - loco.wade_slowdown * wade) * limp,
-                loco.accel_m_s2,
-                loco.brake_m_s2,
-            )
-        };
-        let rate = if target.abs() > self.speed_m_s.abs() && target * self.speed_m_s >= 0.0 {
-            accel
-        } else {
-            brake
-        };
-        self.speed_m_s = approach(self.speed_m_s, target, rate * dt_s);
 
-        // Legs (or jets) turn the heading.
-        let turn_scale = if legs_left == 1 && !flying { 0.5 } else { 1.0 };
-        self.turn_rate_rad_s = c.turn_axis * loco.turn_rate_deg_s.to_radians() * turn_scale;
+        // Legs (or wheels) turn the heading.
+        let turn_rate = match self.mode {
+            LocomotionMode::Skate => sk.turn_rate_deg_s,
+            _ if legs_left == 1 => loco.turn_rate_deg_s * 0.5,
+            _ => loco.turn_rate_deg_s,
+        };
+        self.turn_rate_rad_s = c.turn_axis * turn_rate.to_radians();
         self.heading_rad = (self.heading_rad + self.turn_rate_rad_s * dt_s).rem_euclid(std::f32::consts::TAU);
-        let mut moved = self.pos + forward(self.heading_rad) * self.speed_m_s * dt_s;
-        if !flying && ground.water_at(moved.x, moved.z).is_some_and(|w| w.depth_m > loco.max_wade_depth_m) {
-            // Too deep: the water stops the mech as a wall does.
-            moved = self.pos;
-            self.speed_m_s = 0.0;
-        }
-        let pushed = ground.push_out_at(Vec2::new(moved.x, moved.z), loco.body_radius_m, self.pos.y);
-        if pushed.distance(Vec2::new(moved.x, moved.z)) > 1e-4 {
-            // Walked into a wall: the legs stop where the body stopped.
-            let real = (pushed - Vec2::new(self.pos.x, self.pos.z)).length() / dt_s;
-            self.speed_m_s = self.speed_m_s.signum() * real.min(self.speed_m_s.abs());
+        let fwd = flat_forward(self.heading_rad);
+
+        // Horizontal velocity, by mode.
+        match self.mode {
+            LocomotionMode::Jet => {
+                let ask = c.move_xy.clamp_length_max(1.0);
+                if self.boosting && ask != Vec2::ZERO {
+                    let view = flat_forward(c.view_yaw_rad);
+                    let right = Vec2::new(-view.y, view.x);
+                    let dir = view * ask.y + right * ask.x;
+                    self.vel += dir * jet.accel_m_s2 * dt_s;
+                    self.vel = self.vel.clamp_length_max(jet.speed_max_m_s);
+                } else {
+                    self.vel *= (1.0 - jet.drag_per_s * dt_s).max(0.0);
+                }
+            }
+            LocomotionMode::Skate => {
+                // The wheels drive along the heading; side grip is low, so a turn slides.
+                let target = fwd * self.throttle * sk.speed_max_m_s;
+                let blend = 1.0 - (-sk.grip_per_s * dt_s).exp();
+                let dv = ((target - self.vel) * blend).clamp_length_max(sk.accel_m_s2 * dt_s * 3.0);
+                self.vel += dv;
+            }
+            LocomotionMode::Walk => {
+                // Wading drags the legs back (terrain-water); a lost leg leaves a limp
+                // (mech-damage); no legs, no walking.
+                let wade = (self.wading_depth_m / loco.hip_height_m).clamp(0.0, 1.0);
+                let limp = match legs_left {
+                    2 => 1.0,
+                    1 => loco.limp_speed_ratio,
+                    _ => 0.0,
+                };
+                let target = self.throttle * loco.walk_speed_max_m_s * (1.0 - loco.wade_slowdown * wade) * limp;
+                let along = self.vel.dot(fwd);
+                let rate = if target.abs() > along.abs() && target * along >= 0.0 {
+                    loco.accel_m_s2
+                } else {
+                    loco.brake_m_s2
+                };
+                let speed = approach(along, target, rate * dt_s);
+                // Walking legs carry no slide: what is not along the heading is braked off.
+                let side = self.vel - fwd * along;
+                let side = side * (1.0 - (loco.brake_m_s2 * dt_s / side.length().max(1e-3)).min(1.0));
+                self.vel = fwd * speed + side;
+            }
         }
 
-        // Jets: lift against gravity, limited by heat (survey M3: fuel ignored for now).
-        let lifting = flying && c.lift_axis > 0.0 && !self.jet_overheated;
-        if lifting {
-            self.jet_heat += jet.heat_rise_per_s * c.lift_axis * dt_s;
-            if self.jet_heat >= 1.0 {
-                self.jet_heat = 1.0;
-                self.jet_overheated = true;
-            }
-        } else {
-            self.jet_heat = (self.jet_heat - jet.cool_per_s * dt_s).max(0.0);
-            if self.jet_overheated && self.jet_heat <= jet.relight_heat {
-                self.jet_overheated = false;
-            }
+        let here = Vec2::new(self.pos.x, self.pos.z);
+        let mut moved = here + self.vel * dt_s;
+        if !flying && ground.water_at(moved.x, moved.y).is_some_and(|w| w.depth_m > loco.max_wade_depth_m) {
+            // Too deep: the water stops the mech as a wall does.
+            moved = here;
+            self.vel = Vec2::ZERO;
         }
-        let lift = if lifting { jet.thrust_m_s2 * c.lift_axis } else { 0.0 };
+        let pushed = ground.push_out_at(moved, loco.body_radius_m, self.pos.y);
+        if pushed.distance(moved) > 1e-4 {
+            // Into a wall: what was lost into it is gone.
+            let real = (pushed - here) / dt_s;
+            self.vel = real.clamp_length_max(self.vel.length());
+        }
+
+        // Budgets.
+        self.boost.tick(
+            self.boosting,
+            jet.burn_s,
+            jet.recharge_s,
+            jet.recharge_delay_s,
+            jet.relight_fraction,
+            dt_s,
+        );
+        let skating = self.mode == LocomotionMode::Skate;
+        self.skate
+            .tick(skating, sk.burn_s, sk.recharge_s, sk.recharge_delay_s, sk.relight_fraction, dt_s);
+        if self.skate.locked {
+            self.skates_on = false;
+        }
+
+        // Vertical: boost lift against gravity.
+        let lift = if self.boosting { jet.thrust_m_s2 * c.lift_axis } else { 0.0 };
         self.vel_y_m_s += (lift - G_M_S2) * dt_s;
-        let sink = if lifting { -jet.sink_max_m_s } else { -60.0 };
+        let sink = if self.boosting { -jet.sink_max_m_s } else { -60.0 };
         self.vel_y_m_s = self.vel_y_m_s.clamp(sink, jet.climb_max_m_s);
         let mut y = self.pos.y + self.vel_y_m_s * dt_s;
         let support = ground.support_at(pushed.x, pushed.y, self.pos.y);
         if y <= support || (!flying && self.vel_y_m_s <= 0.0 && self.pos.y - support < 1.0) {
-            // On the ground (or a roof): stand on it. Touching down ends a flight.
-            if flying && self.vel_y_m_s <= 0.0 && !lifting {
-                self.mode = LocomotionMode::Walk;
-                self.speed_m_s = self.speed_m_s.clamp(-loco.walk_speed_max_m_s, loco.walk_speed_max_m_s);
+            // On the ground (or a roof). Touching down ends a flight: back on the wheels or the legs.
+            if flying && self.vel_y_m_s <= 0.0 && !self.boosting {
+                self.mode = if self.skates_on {
+                    LocomotionMode::Skate
+                } else {
+                    LocomotionMode::Walk
+                };
             }
             y = support;
-            self.vel_y_m_s = self.vel_y_m_s.max(0.0);
-            if !lifting {
+            if !self.boosting {
                 self.vel_y_m_s = 0.0;
+            } else {
+                self.vel_y_m_s = self.vel_y_m_s.max(0.0);
             }
         }
         self.pos = Vec3::new(pushed.x, y, pushed.y);
         self.wading_depth_m = ground.water_at(pushed.x, pushed.y).map_or(0.0, |w| (w.surface_m - y).max(0.0));
+        self.speed_m_s = self.vel.dot(flat_forward(self.heading_rad));
 
         // Torso, independent of the legs: aim moves the target, the torso follows at its rate.
         let twist_max = loco.twist_max_deg.to_radians();
@@ -244,13 +357,14 @@ impl MechState {
         self.twist_rad = approach(self.twist_rad, self.aim_twist_rad, loco.twist_rate_deg_s.to_radians() * dt_s);
         self.pitch_rad = approach(self.pitch_rad, self.aim_pitch_rad, loco.pitch_rate_deg_s.to_radians() * dt_s);
 
-        // Gait clock: cycles advance by distance over stride; turning in place steps too. In the
-        // air the legs hang.
-        let v = if self.airborne() { 0.0 } else { self.speed_m_s.abs() };
-        let effective = v + if self.airborne() {
-            0.0
-        } else {
+        // Gait clock: cycles advance by distance over stride; turning in place steps too. Skating
+        // and flying, the legs do not step.
+        let stepping = self.mode == LocomotionMode::Walk && !self.airborne();
+        let v = if stepping { self.speed_m_s.abs() } else { 0.0 };
+        let effective = v + if stepping {
             self.turn_rate_rad_s.abs() * gait.turn_step_radius_m
+        } else {
+            0.0
         };
         self.stride_m = (gait.stride_max_m * v / loco.walk_speed_max_m_s).max(gait.stride_min_m);
         let dir = if self.speed_m_s < -1e-3 { -1.0 } else { 1.0 };
@@ -375,24 +489,80 @@ mod tests {
     }
 
     #[test]
-    fn jets_lift_the_mech_until_they_overheat_then_it_lands_and_walks() {
+    fn boosters_burn_for_twenty_seconds_then_lock_and_recharge() {
         let mut m = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
         let up = MechControls {
-            mode_request: Some(ModeRequest::Jet),
             lift_axis: 1.0,
             ..Default::default()
         };
         run(&mut m, up, 10.0, &FlatGround::default());
         assert!(m.pos.y > 150.0, "climbing: {}", m.pos.y);
-        let hold = MechControls {
-            lift_axis: 1.0,
-            ..Default::default()
-        };
-        run(&mut m, hold, 20.0, &FlatGround::default());
-        assert!(m.jet_overheated, "25 s of full lift overheats");
+        assert!((m.boost.left_s(20.0) - 10.0).abs() < 0.1, "half the burn left");
+        run(&mut m, up, 10.5, &FlatGround::default());
+        assert!(m.boost.locked, "20 s of burn empties them");
         run(&mut m, MechControls::default(), 60.0, &FlatGround::default());
         assert_eq!(m.pos.y, 0.0, "back on the ground");
         assert_eq!(m.mode, LocomotionMode::Walk);
+        assert!(!m.boost.locked && m.boost.heat == 0.0, "recharged");
+    }
+
+    #[test]
+    fn boosting_with_a_strafe_moves_sideways_fast() {
+        let mut m = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        let c = MechControls {
+            lift_axis: 0.4,
+            move_xy: Vec2::new(1.0, 0.0),
+            ..Default::default()
+        };
+        run(&mut m, c, 3.0, &FlatGround::default());
+        assert!(m.pos.x > 60.0, "slid right on the boosters: {}", m.pos);
+        assert!(m.vel.x > 40.0);
+    }
+
+    #[test]
+    fn skates_last_forty_seconds_then_it_walks() {
+        let mut m = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        let on = MechControls {
+            skate_toggle: true,
+            throttle_axis: 1.0,
+            ..Default::default()
+        };
+        run(&mut m, on, 1.0 / 60.0, &FlatGround::default());
+        assert_eq!(m.mode, LocomotionMode::Skate);
+        let go = MechControls {
+            throttle_axis: 1.0,
+            ..Default::default()
+        };
+        run(&mut m, go, 10.0, &FlatGround::default());
+        assert!(m.vel.length() > 25.0, "fast on wheels: {}", m.vel.length());
+        run(&mut m, go, 31.0, &FlatGround::default());
+        assert!(m.skate.locked);
+        assert_eq!(m.mode, LocomotionMode::Walk);
+    }
+
+    #[test]
+    fn a_skating_mech_slides_through_a_turn() {
+        let mut m = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        let on = MechControls {
+            skate_toggle: true,
+            throttle_axis: 1.0,
+            ..Default::default()
+        };
+        run(&mut m, on, 1.0 / 60.0, &FlatGround::default());
+        let go = MechControls {
+            throttle_axis: 1.0,
+            ..Default::default()
+        };
+        run(&mut m, go, 8.0, &FlatGround::default());
+        let turn = MechControls {
+            throttle_axis: 1.0,
+            turn_axis: 1.0,
+            ..Default::default()
+        };
+        run(&mut m, turn, 0.6, &FlatGround::default());
+        let fwd = flat_forward(m.heading_rad);
+        let side = (m.vel - fwd * m.vel.dot(fwd)).length();
+        assert!(side > 5.0, "the velocity lags the heading: slides {side} m/s sideways");
     }
 
     #[test]
@@ -412,13 +582,16 @@ mod tests {
 
     #[test]
     fn asking_for_an_unbuilt_mode_keeps_walking() {
-        let mut m = MechState::default();
+        let mut m = MechState {
+            legs_lost: [true, false],
+            ..Default::default()
+        };
         let c = MechControls {
             mode_request: Some(ModeRequest::Skate),
             ..Default::default()
         };
         run(&mut m, c, DT, &FlatGround::default());
-        assert_eq!(m.mode, LocomotionMode::Walk);
+        assert_eq!(m.mode, LocomotionMode::Walk, "skates need both legs");
     }
 
     #[test]

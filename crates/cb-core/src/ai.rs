@@ -218,7 +218,7 @@ impl AiPilot {
         if v.hit && self.evade_left_s <= 0.0 {
             self.evade_left_s = self.skill.evade_s;
             self.side = -self.side;
-            if me.jet_heat < 0.3 && self.rng.chance(self.skill.hop_chance) {
+            if me.boost.heat < 0.3 && self.rng.chance(self.skill.hop_chance) {
                 self.hop_left_s = self.skill.hop_s;
             }
             self.think_in_s = 0.0;
@@ -277,7 +277,7 @@ impl AiPilot {
             && self.line_ok
             && matches!(self.task, Task::Engage | Task::Evade);
 
-        let hop = self.hop_left_s > 0.0 && !me.jet_overheated;
+        let hop = self.hop_left_s > 0.0 && !me.boost.locked;
         Orders {
             controls: MechControls {
                 throttle_axis: ((throttle - me.throttle) * 5.0).clamp(-1.0, 1.0),

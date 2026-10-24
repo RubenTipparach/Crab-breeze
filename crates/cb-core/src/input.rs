@@ -53,6 +53,8 @@ pub struct Actions {
     pub debug: Option<DebugCommand>,
     /// Fire groups held: [primary, secondary].
     pub fire: [bool; 2],
+    /// Skates toggled this step.
+    pub skate_toggle: bool,
 }
 
 impl Actions {
@@ -134,6 +136,8 @@ pub struct Bindings {
     pub fire_primary: Vec<String>,
     /// Fire group 2.
     pub fire_secondary: Vec<String>,
+    /// Toggle the skates (in the mech).
+    pub skate: Vec<String>,
 }
 
 impl Default for Bindings {
@@ -162,6 +166,7 @@ impl Default for Bindings {
             debug_shell: k("F9"),
             fire_primary: k("MouseLeft"),
             fire_secondary: k("MouseRight"),
+            skate: k("ShiftLeft"),
         }
     }
 }
