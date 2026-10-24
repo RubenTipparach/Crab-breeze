@@ -307,7 +307,7 @@ def section(w, zf, zb, z_cut, wcut=None, sh=0.3, cb=0.3, round_back=0):
     return left + right
 
 
-def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None):
+def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None, swing=None):
     """The cockpit and the sculpted torso round it in `chest`, the interior's floor centre at `at` (kit units).
 
     torso: [(y, w, zf, zb, dict(wcut, sh, cb, round_back))] rising from the waist to the collar, heights in
@@ -320,7 +320,9 @@ def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None):
     Returns (cp, cav, out, hull): the cockpit node; the lining's box and the torso's box in kit units in the
     cockpit joint's frame (hw, y0, y1, z0, z1); and the hull: its moving joints, `at(a, y, d)` a point on the
     armour's outer face at bearing a (radians, 0 ahead, pi/2 the pilot's left) and height y (metres), d metres
-    proud of it, in kit units, and its numbers in metres. timing: {joint: (t0, d)} overrides the opening."""
+    proud of it, in kit units, and its numbers in metres. timing: {joint: (t0, d)} overrides the opening. swing: {interior
+    node: value} overrides how far a stage of a coupled part (mode inner) turns or slides in the mech, where the chest's
+    own size asks for more than the interior alone does."""
     M, u = k.M, 1.0 / k.s
     E = cockpit_env(variant)
     m = CH.measure(variant)
@@ -442,7 +444,9 @@ def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None):
     elif mode == "inner":
         _inner(k, cp, PT, solids, front, wall, mats, dict(cz=cz, y0=y0, y1=y1, y_lo=y_lo, y_hi=y_hi, Ytop=Ytop,
                                                           split=ysplit, back_r=lambda y: ro(A.index(PI), y),
-                                                          zfront=zfront, u=u, j_lo=j_lo, j_hi=j_hi), joints, timing)
+                                                          Yb=Yb, Yt=Yt, T=T,
+                                                          zfront=zfront, u=u, j_lo=j_lo, j_hi=j_hi), joints, timing,
+               swing or {})
     else:
         raise ValueError(mode)
 
@@ -610,7 +614,7 @@ def _put_obj(k, ob, joint, origin, mats):
         k._put(bm, mats[role], joint)
 
 
-def _inner(k, cp, PT, solids, front, wall, mats, g, joints, timing):
+def _inner(k, cp, PT, solids, front, wall, mats, g, joints, timing, swing):
     """The chest cut round each opening part of the interior; see the note above."""
     cz, split, u = g["cz"], g["split"], g["u"]
     # the prow is its own solid, so a part's box can take it without taking the torso behind the cut
@@ -635,9 +639,18 @@ def _inner(k, cp, PT, solids, front, wall, mats, g, joints, timing):
             ya = -BIG if low else split
             yb = BIG if high else split
             cuts = {"prow": ((-W, ya, -BIG), (W, yb, BIG))}
+            # the slabs under the floor and over the roof, ahead of the cabin's front wall, go with the part too (owner,
+            # 2026-10-24: "pieces of geometry that block the pilot from exiting, that part shouldve opened WITH the
+            # dooor"): left behind they make a sill to climb over and a lintel to duck under
+            z_in = d["z"][1] - 0.12
+            if low:
+                cuts["low"] = ((-W, g["Yb"] - g["T"] - 0.02, z_in), (W, BIG, BIG))
             if high and slides_up:                        # it rises: the roof ahead of the cut goes with it
                 cuts["high"] = ((-W, ya, cz), (W, BIG, BIG))
-            ends = [g["y_lo"] if low else split, (g["Ytop"] if slides_up else g["y_hi"]) if high else split]
+            elif high:
+                cuts["high"] = ((-W, -BIG, z_in), (W, g["Yt"] + g["T"] + 0.02, BIG))
+            ends = [g["Yb"] - g["T"] if low else split,
+                    (g["Ytop"] if slides_up else g["Yt"] + g["T"]) if high else split]
             yh = min(ends, key=lambda y: abs(y - pv[1]))
             hinge = (0.0, yh, g["zfront"](yh))
         pieces = []
@@ -654,7 +667,7 @@ def _inner(k, cp, PT, solids, front, wall, mats, g, joints, timing):
         parent, jn = cp, None
         for si, (node, mo) in enumerate(d["stages"]):
             t0, dd = timing.get(node, (mo["t0"], mo["d"]))
-            motion = (("pos_" + mo["slide"]) if "slide" in mo else mo["axis"], mo["value"])
+            motion = (("pos_" + mo["slide"]) if "slide" in mo else mo["axis"], swing.get(node, mo["value"]))
             nm_j = name if si == 0 else f"{name}_{si}"
             at = (hinge[0] * u, hinge[1] * u, hinge[2] * u) if si == 0 else (0, 0, 0)
             jn = hatch(k, nm_j, parent, *at, motion, t0, dd)

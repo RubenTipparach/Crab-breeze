@@ -72,7 +72,7 @@
         6.724
       ]
     },
-    "bytes": 1695260,
+    "bytes": 1664032,
     "cockpit": "Panorama: seated behind one wide screen and square side screens, in the chamfered prow",
     "cockpit_variant": "panorama",
     "file": "mech_foreman.glb",
@@ -84,7 +84,7 @@
     "opening": "the Panorama clamshell, chest and cockpit as one: the front under the screens drops into a step, then the front over them swings up and out on two rams with the dash",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 24084,
+    "triangles": 23940,
     "weapons": "belt-fed boom cannon (L), hydraulic breaker (R)"
   },
   "ironhorse": {
@@ -102,7 +102,7 @@
         5.452
       ]
     },
-    "bytes": 1603464,
+    "bytes": 1571708,
     "cockpit": "Excavator cab: seated, floor-to-roof screens in two rows and one in the floor",
     "cockpit_variant": "cab",
     "file": "mech_ironhorse.glb",
@@ -114,7 +114,7 @@
     "opening": "the dogs swing off, the smokebox front drops forward as a ramp with the cab's front on it",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 21256,
+    "triangles": 21180,
     "weapons": "buffer ram (L), steam cannon (R)"
   },
   "ravager": {
@@ -161,7 +161,7 @@
         4.557
       ]
     },
-    "bytes": 1685364,
+    "bytes": 1630656,
     "cockpit": "harness: standing in the octagonal prow",
     "cockpit_variant": "harness",
     "file": "mech_stevedore.glb",
@@ -173,7 +173,7 @@
     "opening": "the four lock rods turn out, the prow splits into two doors",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 20930,
+    "triangles": 20266,
     "weapons": "cargo mortar (L), crane jib with a harpoon grapple (R)"
   }
 }

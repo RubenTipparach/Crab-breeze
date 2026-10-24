@@ -51,20 +51,23 @@ hinge at the node's origin, driven by its track; `RAM_<n>` rams re-aim at their 
 
 | Chassis | Plates and motions | Rams | Then |
 | --- | --- | --- | --- |
-| Foreman (excavator) | Mode `inner` on the Panorama: `CHEST_lower` pops 0.04 m (0.35-0.65 s), then `CHEST_lower_1` drops forward 81 degrees into a step on its foot (0.6-2.0 s), the cockpit's lower front on it; `CHEST_upper` pops (0.35-0.7 s), then `CHEST_upper_1` swings up and out 83 degrees on its top front edge (1.4-2.9 s), the cockpit's upper front and dash on it | two on the upper plate | the ladder |
+| Foreman (excavator) | Mode `inner` on the Panorama: `CHEST_lower` pops 0.04 m (0.35-0.65 s), then `CHEST_lower_1` folds forward and down 155 degrees on its foot, so it hangs below the sill with its top flush with the floor (0.6-2.0 s), the cockpit's lower front and the floor's lip on it; `CHEST_upper` pops (0.35-0.7 s), then `CHEST_upper_1` swings up and over 158 degrees on its top front edge, its lowest edge 2.1 m over the floor (1.4-2.9 s), the cockpit's upper front, dash and the roof's lip on it | two on the upper plate | |
 | Stevedore (dock crane) | `CHEST_lock_L1/L2/R1/R2`, the lock rods, turn out 86 degrees (0.0-0.7 s); `CHEST_door_L/R`, the prow split down the middle, swing out 92 degrees on hinges at the cut (1.1-2.6 s) | | |
-| Ironhorse (locomotive) | `CHEST_dog_1..7`, the clamps round the seam, swing off 69 degrees (0.0-0.5 s); mode `inner` on the Excavator cab: `CHEST_ramp` pops 0.04 m (0.35-0.65 s), then `CHEST_ramp_1`, the smokebox front with the cab's front on it, drops forward 86 degrees as a ramp (0.75-2.75 s) | | the ladder |
+| Ironhorse (locomotive) | `CHEST_dog_1..7`, the clamps round the seam, swing off 69 degrees (0.0-0.5 s); mode `inner` on the Excavator cab: `CHEST_ramp` pops 0.04 m (0.35-0.65 s), then `CHEST_ramp_1`, the smokebox front with the cab's front on it, folds forward and down 152 degrees, hanging below the sill with its top flush with the floor (0.75-2.75 s) | | |
 
 Then the interior opens what is left of it (its manifest's tracks for parts no chest joint carries, from 80 % of
-the chest's time) and the chain ladder
-(`LADDER`, `LADDER_1..10`, 0.8 m a segment) drops from under the sill one segment every 0.12 s, as
-many as reach the ground. Vents are `VENT_<stage>_<n>` empties with `kind` (steam or mist), `stage`
+the chest's time). The Foreman and the Ironhorse carry no ladder (owner, 2026-10-24: "They shouldnt have a ...
+ladder. They shouldnt have these pieces of geometry that block the pilot from exiting, that part shouldve opened
+WITH the dooor"): everything in front of the doorway, the floor's and the roof's lips included, goes with the parts
+that open, and from the seat nothing stands between the floor and 2.1 m (checked from the pilot's eye with the
+page's `MOCKUP.pick`). The Stevedore keeps its chain ladder (`LADDER`, `LADDER_1..10`, 0.8 m a segment), which
+drops from under the sill one segment every 0.12 s, as many as reach the ground. Vents are `VENT_<stage>_<n>` empties with `kind` (steam or mist), `stage`
 (seam: pressure equalising as the chest starts; open: the hinges while plates move; sill: mist rolling
 out once open), `rate` and `dir`. Mist is a heavier, slower particle that falls and spreads.
 
 ## 4. The pilot's path
 
-With the ladder down, Use within 3 m of the ladder's foot walks the pilot's eyes up the ladder,
+With the chest open, Use within 3 m of the foot of the sill (the ladder's foot, where there is one) walks the pilot's eyes up the ladder,
 onto the sill (`HATCH_entry`), through the opening, turns them to face out of the bay and settles
 them at `EYE_pilot`: about 6 s, look kept free until the last second. The sequence then
 closes (section 3 in reverse, 6 s), and the screens power up. Disembarking: screens down, open,
@@ -80,6 +83,6 @@ while it plays, one draw call. The all-view screen: section 1.
 | Id | Question | Provisional answer |
 | --- | --- | --- |
 | C1 | How the pilot sees out | Decided by the owner, 2026-10-24: sealed, all-view screens |
-| C6 | How the pilot reaches the chest | A chain ladder that drops from under the sill (survey C6) |
+| C6 | How the pilot reaches the chest | The mech sits; no ladder on the Foreman or the Ironhorse (owner, 2026-10-24). How the pilot climbs to a sill about 3 m up is open: hand holds on the folded flap are the provisional answer |
 | C8 | Which cockpit first | Wall, in Foreman (survey C8, M6) |
 | C7 | All-view screen: seams and tint, or as clear as glass | Visible tile seams and a light phosphor tint (survey C7) |

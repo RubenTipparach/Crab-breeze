@@ -478,8 +478,8 @@ document.getElementById("b-leave").onclick = () => { if (current === "all") setM
 ]); };
 let sealPuff = 0;
 
-// The pilot's walk: from the ground to the ladder's foot, up the ladder, onto the sill, in, turn and settle
-// at the eye. Waypoints in world space from the mech as it stands open; yaw is about the bay's forward.
+// The pilot's walk: from the ground to the ladder's foot (or, on a chest with no ladder, the foot of the sill),
+// up, onto the sill, in, turn and settle at the eye. Waypoints in world space from the mech as it stands open; yaw is about the bay's forward.
 function walkPath(b) {
   const f = fwdOf(b), side = new T.Vector3(f.z, 0, -f.x), lad = b.board.ladder;
   const sill = nodeWorld(b, "HATCH_entry"), eye = eyeOf(current);
@@ -610,7 +610,7 @@ function loop(ms) {
     if (sealPuff > 0) sealPuff -= dt;
     let cue = ""; for (const [ct, c] of CUES) if (Tb >= ct - 1e-3) cue = c || cue;
     if (Tb > b.timeline.innerAt) cue = "Cockpit opens";
-    if (Tb > b.timeline.ladderAt) cue = "Ladder drops";
+    if (b.board.ladder && Tb > b.timeline.ladderAt) cue = "Ladder drops";
     cueEl.hidden = !(Tb > 0.01 && Tb < b.timeline.end - 0.01); cueEl.textContent = cue;
   }
   steam.step(dt, camera, renderer);
@@ -639,6 +639,13 @@ window.MOCKUP = {
     const dir = new T.Vector3(Math.sin(y0 + yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(y0 + yaw) * Math.cos(pitch));
     camera.position.copy(e); controls.target.copy(e).add(dir); camera.fov = fov || 78; camera.updateProjectionMatrix(); controls.update(); },
   orbitTo(tx, ty, tz, cx, cy, cz) { setView("orbit"); controls.target.set(tx, ty, tz); camera.position.set(cx, cy, cz); controls.update(); },
+  // what the camera sees at a point of the view (x, y from -1 to 1): the hit's node path and its height off the
+  // cockpit floor, for checking from the pilot's seat that nothing stands in the doorway
+  pick(x, y) { const rc = new T.Raycaster(); rc.setFromCamera(new T.Vector2(x, y), camera);
+    const shown = o => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
+    const h = rc.intersectObject(scene, true).find(i => !i.object.isSprite && !i.object.isPoints && !i.object.isLine && shown(i.object)); if (!h) return null;
+    const path = []; for (let o = h.object; o && o !== scene; o = o.parent) if (o.name) path.push(o.name);
+    const c = cur().nodes.cockpit.worldToLocal(h.point.clone()); return { path: path.slice(0, 6), y: +c.y.toFixed(2), z: +c.z.toFixed(2), d: +h.distance.toFixed(2) }; },
   state: () => ({ Tb, end: cur() && cur().timeline.end, interior: !!(cur() && cur().interior), walk: walk && { i: walk.i, done: walk.done } }),
 };
 

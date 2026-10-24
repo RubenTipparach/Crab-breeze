@@ -545,13 +545,13 @@ def bearing_x(k, hull, x, y):
     return best * 0.01
 
 
-def chest_bay(k, chest, variant, at, mode, torso):
+def chest_bay(k, chest, variant, at, mode, torso, swing=None):
     """The cockpit and its lofted chest (mech_boarding.pod): `at` is the interior's floor centre in the chest
-    joint (kit units), `mode` how the front opens (lift, doors, side). Adds the ladder under the sill and the
-    mist that rolls out over it. Returns cp, cav, out, hull as MB.pod does."""
-    cp, cav, out, hull = MB.pod(k, chest, variant, at, mode, torso)
+    joint (kit units), `mode` how the front opens (lift, doors, side, inner). Adds the mist that rolls out over the
+    sill. Returns cp, cav, out, hull as MB.pod does."""
+    cp, cav, out, hull = MB.pod(k, chest, variant, at, mode, torso, swing=swing)
     u = 1.0 / k.s
-    MB.ladder(k, cp, dict(cav, y0=hull["Yb"] * u, z1=hull["zfront"](hull["Yb"]) * u + 0.15 * u))
+    # no chain ladder (owner, 2026-10-24: "They shouldnt have a ... ladder"): the mech sits, the step drops
     MB.vent(k, cp, 0, cav["y0"] + 0.3 * u, cav["z1"] - 0.2 * u, (0, -0.25, 1), "sill", "mist", 1.4)
     for s in (1, -1):
         MB.vent(k, cp, s * cav["hw"] * 0.6, cav["y0"] + 0.2 * u, cav["z1"] - 0.3 * u, (s * 0.3, -0.2, 1), "sill", "mist", 1.0)
@@ -686,7 +686,7 @@ def foreman(k):
     feet; a slewing ring for a waist; the chest is the operator's cab inside a roll cage, beacons and work
     lights on it, the engine bay and a counterweight behind. Right: a hydraulic breaker on a boom. Left: a
     belt-fed cannon on an articulated boom, its ammunition drum on the back. Boarding: the visor lifts
-    on two rams, the apron under it drops forward into a step, the ladder falls. Cockpit: wall."""
+    on two rams, the apron under it drops forward into a step. Cockpit: Panorama, opening as one body with the chest."""
     M = k.M
     segs, footH = [[17, -0.62], [19, 1.15], [10, -0.53]], 4.6
     hipY = leg_height(segs, footH)
@@ -748,7 +748,11 @@ def foreman(k):
         a = i / 32 * 2 * PI
         k.box(0.8, 1.6, 1.0, M["metal"], waist, math.cos(a) * 11.9, -0.4, math.sin(a) * 11.9, 0, -a, 0)
     chest = k.J("torso", waist, 0, 2.5, 0)
-    cp, cav, out, hull = chest_bay(k, chest, "panorama", (0, 5, 3), "inner", FOREMAN_TORSO)
+    # in the mech the upper half swings on past level, so the dash it carries clears the doorway instead of hanging
+    # at chest height in front of it, and the step lies flat (owner, 2026-10-24: "pieces of geometry that block the
+    # pilot from exiting")
+    cp, cav, out, hull = chest_bay(k, chest, "panorama", (0, 5, 3), "inner", FOREMAN_TORSO,
+                                   swing={"INNER_upper_1": -2.75, "INNER_lower_1": 2.7})
     hw, y0, y1, z1 = cav["hw"], cav["y0"], cav["y1"], out["z1"]
     U = 1.0 / k.s
     Yt = hull["Yt"]
@@ -852,7 +856,7 @@ def stevedore(k):
     """The dock crane. Tall on lattice-girder legs and outrigger feet; the chest is a shipping container,
     corrugated, with container doors and their lock rods; a gantry over the shoulders with a counter-jib
     and its weights behind; the right arm carries the crane jib with a harpoon grapple on its cable, the
-    left a cargo mortar. Boarding: the four lock rods turn out, the two doors swing wide, the ladder falls.
+    left a cargo mortar. Boarding: the four lock rods turn out, the two doors swing wide.
     Cockpit: harness (the operator stands)."""
     M = k.M
     segs, footH = [[23, -0.48], [25, 1.0], [12, -0.52]], 6
@@ -998,7 +1002,7 @@ def ironhorse(k):
     a coupling rod, cow-catcher ploughs on the shins; the torso is a banded boiler, a
     smokestack, a steam dome and a whistle on its collar, the headlamp over the prow; a firebox pack behind. Right: a
     steam cannon fed by pipes from the boiler, gauges on its breech. Left: a buffer ram. Boarding: the dogs
-    round the prow's seam swing off, the prow swings open on its side hinge, the ladder falls.
+    round the prow's seam swing off, the smokebox front drops as a ramp with the cab's front on it.
     Cockpit: jockey (the driver leans into it)."""
     M = k.M
     segs, footH = [[19, -0.66], [21, 1.2], [11, -0.58]], 4.4
@@ -1045,7 +1049,7 @@ def ironhorse(k):
     waist = k.J("torso_twist", body, 0, 5.5, -1)
     k.cyl(7.5, 8.5, 4, M["dark"], waist, 0, 0, 0, 0, 0, 0, 24)
     chest = k.J("torso", waist, 0, 2.5, 0, 0.18)
-    cp, cav, out, hull = chest_bay(k, chest, "cab", (0, 4, 4), "inner", IRONHORSE_TORSO)
+    cp, cav, out, hull = chest_bay(k, chest, "cab", (0, 4, 4), "inner", IRONHORSE_TORSO, swing={"INNER_ramp_1": 2.65})
     hw, y0, y1, z1 = cav["hw"], cav["y0"], cav["y1"], out["z1"]
     # the boiler: the Excavator cab's hull (owner, 2026-10-24: "Iron horse has no seat still"; the cab is seated),
     # banded like a boiler; its front is the smokebox door, now a ramp: it drops forward on a hinge along its foot,
