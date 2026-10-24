@@ -18,6 +18,7 @@ pub mod mission;
 pub mod pilot;
 pub mod rng;
 pub mod sim;
+pub mod sun_flare;
 pub mod targeting;
 pub mod water_look;
 pub mod weapons;
@@ -56,6 +57,8 @@ pub struct GameData {
     pub grass: grass::GrassConfig,
     /// `data/fx/ground_marks.ron`.
     pub ground_marks: ground_marks::GroundMarksConfig,
+    /// `data/world/sun_flare.ron`.
+    pub sun: sun_flare::SunLook,
 }
 
 impl GameData {
@@ -83,6 +86,7 @@ impl GameData {
             cockpit_light: data::load_ron(&root.join("hud/cockpit_light.ron"))?,
             grass,
             ground_marks: data::load_ron(&root.join("fx/ground_marks.ron"))?,
+            sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
         })
     }
 

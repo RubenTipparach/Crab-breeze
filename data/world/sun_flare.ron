@@ -1,0 +1,74 @@
+// How the sun reads to the pilot's eye (openspec/changes/sun-flare/design.md): Bevy's bloom on the
+// pilot's eyes camera, and the lens flare drawn over the outside view. Every field is the code
+// default written out (crates/cb-core/src/sun_flare.rs) unless a comment says otherwise; omit one
+// to inherit it, a zero is a zero. Colours are linear RGB and multiply the flare's strength (the
+// sun's exposed illuminance times `gain`, about 0.9 under raw sunlight at EV100 13.4). Sizes ending
+// `_h` are screen heights (1 is the height of the view).
+(
+    bloom: (
+        // Energy-conserving and physically based (no threshold): bright sky and the sun glow, the
+        // sunlit ground barely softens. Bevy's own default is 0.15.
+        intensity: 0.08,
+        low_frequency_boost: 0.5,
+        low_frequency_boost_curvature: 0.9,
+        high_pass_frequency: 1.0,
+        threshold: 0.0,
+        threshold_softness: 0.0,
+        additive: false,
+    ),
+    flare: (
+        gain: 0.1,
+
+        // The warm core and its glow.
+        core_colour: (6.0, 5.0, 3.8),
+        core_radius_h: 0.012,
+        glow_colour: (1.0, 0.72, 0.45),
+        glow_radius_h: 0.05,
+        glow_power: 1.4,
+
+        // The starburst: six blade spikes and fine rays between them, turning slowly with the view,
+        // red reaching a little further than blue.
+        spike_colour: (1.4, 1.2, 0.95),
+        spike_count: 6,
+        spike_sharpness: 90.0,
+        spike_length_h: 0.16,
+        ray_count: 24,
+        ray_strength: 0.35,
+        ray_length_h: 0.07,
+        spike_turn_rad_per_h: 0.6,
+        spike_fringe: 0.08,
+
+        // The anamorphic streak: a thin cool line across the sun.
+        streak_colour: (0.30, 0.50, 1.0),
+        streak_length_h: 0.45,
+        streak_thickness_h: 0.0025,
+
+        // The halo ring round the sun, faint, its edges split red outside and blue inside.
+        halo_colour: (0.10, 0.12, 0.14),
+        halo_radius_h: 0.22,
+        halo_width_h: 0.012,
+        halo_fringe: 0.035,
+
+        // The ghosts on the line from the sun through the centre: cool tints, discs and the
+        // aperture's hexagons, small near the sun and large past the centre.
+        ghosts: [
+            (offset: 0.35, radius_h: 0.022, colour: (0.10, 0.16, 0.24), shape: Hex, softness: 0.25),
+            (offset: 0.62, radius_h: 0.010, colour: (0.20, 0.14, 0.32), shape: Disc, softness: 0.35),
+            (offset: 0.85, radius_h: 0.050, colour: (0.05, 0.10, 0.15), shape: Hex, softness: 0.30),
+            (offset: 1.18, radius_h: 0.018, colour: (0.10, 0.24, 0.20), shape: Disc, softness: 0.40),
+            (offset: 1.42, radius_h: 0.085, colour: (0.04, 0.07, 0.13), shape: Hex, softness: 0.40),
+            (offset: 1.72, radius_h: 0.032, colour: (0.16, 0.11, 0.07), shape: Disc, softness: 0.45),
+            (offset: 2.10, radius_h: 0.140, colour: (0.03, 0.05, 0.09), shape: Disc, softness: 0.60),
+        ],
+        ghost_fringe: 0.04,
+        ghost_rim: 0.6,
+        aperture_deg: 15.0,
+
+        // Fading: depth taps 0.012 screen heights round the sun (about 13 px at 1080p), gone 0.3 NDC
+        // past the edge, gone in cloud of density 0.6, following the eye in 0.15 s.
+        occlusion_radius_h: 0.012,
+        offscreen_margin_ndc: 0.3,
+        cloud_full_fade: 0.6,
+        fade_s: 0.15,
+    ),
+)
