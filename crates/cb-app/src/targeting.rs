@@ -1,11 +1,11 @@
 //! Targeting in the game (openspec change `targeting`): each fixed step, before the mechs step,
-//! the live enemies within range become targets, the selected one is kept, cycled with the
+//! the live enemies within range (mechs and vehicles, `units::Hostiles`) become targets, the selected one is kept, cycled with the
 //! `target_next` action or picked nearest the pilot's aim, and the missile lock builds on it while
 //! it is in missile range (`cb_core::targeting`). The cockpit draws this state and the missiles
 //! fired this step home on its lock.
 
 use crate::input::StepActions;
-use crate::mech::{Enemy, MechId, MechSim, Piloted};
+use crate::mech::{MechSim, Piloted};
 use crate::pilot::PilotSim;
 use crate::sim::{Data, SimSet};
 use bevy::prelude::*;
@@ -54,7 +54,7 @@ fn update_targeting(
     actions: Res<StepActions>,
     time: Res<Time<Fixed>>,
     me: Query<&MechSim, With<Piloted>>,
-    enemies: Query<(&MechSim, &MechId), With<Enemy>>,
+    hostiles: Res<crate::units::Hostiles>,
     mut state: ResMut<TargetState>,
 ) {
     let cfg = &data.0.targeting;
@@ -64,13 +64,11 @@ fn update_targeting(
     };
     let eye = m.curr.pos + Vec3::Y * EYE_M;
     let aim = aim_dir(pilot.curr.yaw_rad, pilot.curr.pitch_rad);
-    let mut targets: Vec<Target> = enemies
+    // Mechs and vehicles alike (invasion-forces).
+    let mut targets: Vec<Target> = hostiles
+        .0
         .iter()
-        .filter(|(e, _)| !e.dead)
-        .map(|(e, id)| Target {
-            id: id.0,
-            torso: e.curr.pos + Vec3::Y * cb_core::ai::TORSO_AIM_M,
-        })
+        .map(|h| Target { id: h.id, torso: h.aim })
         .filter(|t| t.torso.distance(eye) <= cfg.max_range_m)
         .collect();
     targets.sort_by_key(|t| t.id);

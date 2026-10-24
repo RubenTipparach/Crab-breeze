@@ -23,6 +23,7 @@ mod showcase;
 mod sim;
 mod targeting;
 mod textures;
+mod units;
 mod water_render;
 mod world;
 
@@ -92,7 +93,12 @@ fn main() -> AppExit {
         water_render::WaterRenderPlugin,
         targeting::TargetingPlugin,
     ))
-    .add_plugins((screens_cube::ScreensCubePlugin, loading::LoadingPlugin, perf_hud::PerfHudPlugin));
+    .add_plugins((
+        screens_cube::ScreensCubePlugin,
+        loading::LoadingPlugin,
+        perf_hud::PerfHudPlugin,
+        units::UnitsPlugin,
+    ));
     if args.defending() {
         app.add_plugins(defence::DefencePlugin);
     }

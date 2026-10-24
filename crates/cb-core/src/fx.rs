@@ -107,11 +107,11 @@ pub enum Layer {
         /// Lifetime.
         life_s: f32,
     },
-    /// A thin translucent shell that expands fast, and a dust ring on the ground.
+    /// A thin translucent shell that expands fast.
     Shock {
-        /// Final radius of the shell; the ring goes half as far again.
+        /// Final radius of the shell.
         radius_m: f32,
-        /// Lifetime of the shell; the ring lasts four times as long.
+        /// Lifetime of the shell.
         life_s: f32,
     },
     /// Three crossed glowing blades, turned at random: a muzzle flash.

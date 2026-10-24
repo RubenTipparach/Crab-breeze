@@ -110,7 +110,6 @@ struct FxAssets {
     ring: Handle<Mesh>,
     sphere: Handle<Mesh>,
     water_ring: Handle<StandardMaterial>,
-    dust_ring: Handle<StandardMaterial>,
     glow: Handle<StandardMaterial>,
     flame: Handle<StandardMaterial>,
 }
@@ -208,13 +207,12 @@ fn setup(
     mut lib: ResMut<ParticleLibrary>,
 ) {
     let disc = soft_disc(&mut images);
-    particles::set_sprite(&mut lib, disc.clone());
+    particles::set_sprite(&mut lib, disc.clone(), &mut images);
     commands.insert_resource(FxAssets {
         quad: meshes.add(Rectangle::new(1.0, 1.0)),
         ring: meshes.add(Annulus::new(0.85, 1.0)),
         sphere: meshes.add(Sphere::new(1.0).mesh().uv(32, 16)),
         water_ring: materials.add(unlit(Color::srgba(0.9, 0.96, 1.0, 0.45), None, AlphaMode::Blend, 0.0)),
-        dust_ring: materials.add(unlit(Color::srgba(0.62, 0.55, 0.44, 0.35), None, AlphaMode::Blend, 0.0)),
         glow: materials.add(unlit(Color::srgb(1.0, 0.8, 0.45), Some(disc.clone()), AlphaMode::Add, 8.0)),
         flame: materials.add(unlit(Color::srgba(0.7, 0.85, 1.0, 0.85), Some(disc), AlphaMode::Add, 6.0)),
     });
@@ -330,7 +328,8 @@ fn play(
                             mat,
                         },
                     ));
-                    spawn_ring(&mut commands, &fx, fx.dust_ring.clone(), e.at, radius_m * s * 1.5, life_s * 4.0);
+                    // No flat dust ring on the ground: a disc read as flat geometry beside the
+                    // volumetric fireball and smoke (owner, 2026-10-24); the dust bursts carry it.
                 }
                 Layer::Star { size_m, life_s, offset_m } => {
                     let size = size_m * s;

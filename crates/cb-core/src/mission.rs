@@ -75,6 +75,38 @@ pub struct DefenceConfig {
     pub facade_out_m: f32,
     /// The kinds of raider, cycled through each wave.
     pub raiders: Vec<RaiderSpec>,
+    /// Each wave's vehicles beside its raiders, by wave (openspec change `invasion-forces`); a
+    /// wave with no entry brings raiders only.
+    #[serde(default)]
+    pub forces: Vec<Vec<ForceSpec>>,
+}
+
+/// Vehicles of one kind in a wave.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ForceSpec {
+    /// The unit's name in `data/world/units.ron`.
+    pub unit: String,
+    /// How many.
+    pub count: u32,
+    /// Flown in by cargo plane and dropped by parachute, `per_plane` to a plane.
+    #[serde(default)]
+    pub by_air: bool,
+    /// Loads to a cargo plane.
+    #[serde(default = "three")]
+    pub per_plane: u32,
+}
+
+fn three() -> u32 {
+    3
+}
+
+impl DefenceConfig {
+    /// Everything a wave must lose for it to be cleared: its raiders and its vehicles (cargo
+    /// planes do not count; their loads do).
+    pub fn wave_size(&self, wave: usize) -> u32 {
+        self.raiders_per_wave + self.forces.get(wave).map_or(0, |f| f.iter().map(|u| u.count).sum())
+    }
 }
 
 impl Default for DefenceConfig {
@@ -97,6 +129,7 @@ impl Default for DefenceConfig {
             siege_pause_s: 5.0,
             facade_out_m: 2.0,
             raiders: Vec::new(),
+            forces: Vec::new(),
         }
     }
 }
@@ -125,6 +158,13 @@ impl Validate for DefenceConfig {
         positive("siege_burst_s", self.siege_burst_s)?;
         finite("siege_pause_s", self.siege_pause_s)?;
         finite("facade_out_m", self.facade_out_m)?;
+        for (w, wave) in self.forces.iter().enumerate() {
+            for (i, f) in wave.iter().enumerate() {
+                if f.per_plane == 0 {
+                    return Err(format!("`forces[{w}][{i}].per_plane` must be above zero"));
+                }
+            }
+        }
         for (i, r) in self.raiders.iter().enumerate() {
             positive(&format!("raiders[{i}].armour_scale"), r.armour_scale)?;
             positive(&format!("raiders[{i}].skill.range_m"), r.skill.range_m)?;
@@ -198,7 +238,7 @@ pub enum Event {
 pub struct Situation {
     /// The pilot is in the seat.
     pub seated: bool,
-    /// Raiders of the current wave destroyed so far.
+    /// Raiders and vehicles of the current wave destroyed so far.
     pub destroyed: u32,
     /// The attacked city's damage, 0..1 (`city_damage`).
     pub city_damage: f32,
@@ -277,7 +317,7 @@ impl Defence {
                         damage: s.city_damage,
                     }));
                 }
-                if s.destroyed >= cfg.raiders_per_wave {
+                if s.destroyed >= cfg.wave_size(wave) {
                     if wave + 1 >= cfg.cities.len() {
                         self.phase = Phase::Won;
                         return Some(Event::Won);
@@ -498,9 +538,18 @@ mod tests {
         let c = cfg();
         let mut d = Defence::default();
         fighting(&mut d, &c);
-        let all = Situation {
+        // The raiders alone are not the whole wave when it brings vehicles.
+        let raiders_only = Situation {
             seated: true,
             destroyed: c.raiders_per_wave,
+            ..Default::default()
+        };
+        if c.wave_size(0) > c.raiders_per_wave {
+            assert_eq!(d.step(&c, &raiders_only, 0.1), None);
+        }
+        let all = Situation {
+            seated: true,
+            destroyed: c.wave_size(0),
             ..Default::default()
         };
         assert_eq!(d.step(&c, &all, 0.1), Some(Event::WaveCleared(0)));
@@ -568,12 +617,12 @@ mod tests {
     fn clearing_all_three_waves_wins() {
         let c = cfg();
         let mut d = Defence::default();
-        let all = Situation {
-            seated: true,
-            destroyed: c.raiders_per_wave,
-            ..Default::default()
-        };
         for w in 0..c.cities.len() {
+            let all = Situation {
+                seated: true,
+                destroyed: c.wave_size(w),
+                ..Default::default()
+            };
             fighting(&mut d, &c);
             let e = d.step(&c, &all, 0.1);
             if w + 1 < c.cities.len() {
@@ -718,5 +767,27 @@ mod tests {
             let firing = (0..n).filter(|i| siege_fires(*i, n, t, &c)).count();
             assert!(firing <= n.div_ceil(2), "{firing} at {t}");
         }
+    }
+
+    #[test]
+    fn a_wave_with_vehicles_is_cleared_only_when_they_are_destroyed_too() {
+        let mut c = DefenceConfig {
+            raiders: vec![RaiderSpec {
+                mech: "mechs/placeholder.ron".into(),
+                tint: None,
+                weapons: None,
+                armour_scale: 1.0,
+                skill: Default::default(),
+            }],
+            ..Default::default()
+        };
+        c.forces = vec![vec![ForceSpec {
+            unit: "tank".into(),
+            count: 4,
+            by_air: true,
+            per_plane: 2,
+        }]];
+        assert_eq!(c.wave_size(0), c.raiders_per_wave + 4);
+        assert_eq!(c.wave_size(1), c.raiders_per_wave);
     }
 }

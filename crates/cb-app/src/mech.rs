@@ -142,7 +142,12 @@ impl Plugin for MechPlugin {
         app.init_resource::<MechAccessNow>()
             .add_systems(Startup, spawn_mech)
             .add_systems(FixedUpdate, (publish_access.in_set(SimSet::Input), step_mech.in_set(SimSet::Mech)))
-            .add_systems(Update, (bind_rig, cut_parts, drive_mech, burn).chain().in_set(PresentSet::Pose))
+            .add_systems(
+                Update,
+                (bind_rig, cut_parts, drive_mech, fall_wrecks, burn)
+                    .chain()
+                    .in_set(PresentSet::Pose),
+            )
             .add_systems(Update, cockpit_layer.after(PresentSet::Pose));
     }
 }
@@ -547,13 +552,16 @@ fn drive_mech(
     data: Res<Data>,
     mut roots: Query<(Entity, &MechSim, &MechSpec, Option<&MechRig>), With<MechRoot>>,
     mut transforms: Query<&mut Transform>,
+    wrecks: Query<(), With<Wreck>>,
 ) {
     let alpha = fixed.overstep_fraction();
     for (root, sim, spec, rig) in &mut roots {
         let s = lerp_state(&sim.prev, &sim.curr, alpha);
         let tl = &data.0.boarding;
         let t = sim.hatch_prev.t_s + (sim.hatch.t_s - sim.hatch_prev.t_s) * alpha;
-        if let Ok(mut t) = transforms.get_mut(root) {
+        if let Ok(mut t) = transforms.get_mut(root)
+            && !wrecks.contains(root)
+        {
             t.translation = s.pos;
             t.rotation = Quat::from_rotation_y(s.heading_rad);
         }
@@ -1057,6 +1065,47 @@ fn aim_point(camera: &GlobalTransform, plan: &cb_core::world::WorldPlan, dug: &c
     None
 }
 
+/// A destroyed mech coming down: it falls under gravity to the ground and topples from its feet
+/// like a felled tower, until it lies on its side. Presentation only: the simulation's mech is dead
+/// and still. Computed against the ground's height, so it works anywhere, not only where the
+/// physics has ground colliders (within 400 m of the eye).
+#[derive(Component)]
+pub struct Wreck {
+    vel: Vec3,
+    axis: Vec3,
+    angle_rad: f32,
+    rate_rad_s: f32,
+    heading_rad: f32,
+}
+
+/// Height of a mech's centre of mass over its feet, for the topple.
+const WRECK_CENTRE_M: f32 = 10.0;
+/// It comes to rest this far over: lying on its side.
+const WRECK_LIE_RAD: f32 = 1.45;
+
+fn fall_wrecks(time: Res<Time>, plan: Res<Plan>, mut wrecks: Query<(&mut Wreck, &mut Transform)>) {
+    let dt = time.delta_secs().min(0.05);
+    for (mut w, mut t) in &mut wrecks {
+        let ground = plan.height_at(t.translation.x, t.translation.z);
+        if t.translation.y > ground + 0.01 || w.vel.y > 0.0 {
+            w.vel.y -= 9.81 * dt;
+            t.translation += w.vel * dt;
+            if t.translation.y <= ground {
+                t.translation.y = ground;
+                w.vel = Vec3::ZERO;
+            }
+        } else {
+            t.translation.y = ground;
+            // A pole falling about its foot: angular acceleration 3 g sin(angle) / (2 L).
+            if w.angle_rad < WRECK_LIE_RAD {
+                w.rate_rad_s += 1.5 * 9.81 * w.angle_rad.sin() / WRECK_CENTRE_M * dt;
+                w.angle_rad = (w.angle_rad + w.rate_rad_s * dt).min(WRECK_LIE_RAD);
+            }
+        }
+        t.rotation = Quat::from_axis_angle(w.axis, w.angle_rad) * Quat::from_rotation_y(w.heading_rad);
+    }
+}
+
 /// Cuts lost parts off the rig: the bone and everything under it become a falling wreck; the stump
 /// burns.
 fn cut_parts(
@@ -1075,6 +1124,17 @@ fn cut_parts(
                 // The torso is gone: the mech blows up where it stands and burns.
                 let at = globals.get(root).map(|g| g.translation()).unwrap_or_default() + Vec3::Y * 9.0;
                 explosions.write(Explosion { at, energy_mj: 25.0 });
+                // The wreck falls to the ground and topples from its feet (owner, 2026-10-24: dead
+                // mechs "stuck floating in the air"), away from the side it was facing, at random.
+                let side = if root.index().index() % 2 == 0 { 1.0 } else { -1.0 };
+                let heading = sim.curr.heading_rad;
+                commands.entity(root).insert(Wreck {
+                    vel: Vec3::new(sim.curr.vel.x, sim.curr.vel_y_m_s, sim.curr.vel.y),
+                    axis: Quat::from_rotation_y(heading) * Vec3::new(0.0, 0.0, side),
+                    angle_rad: 0.05,
+                    rate_rad_s: 0.0,
+                    heading_rad: heading,
+                });
                 commands.entity(rig.bones[3].entity).insert(Burning {
                     until_s: time.elapsed_secs() + 60.0,
                 });
