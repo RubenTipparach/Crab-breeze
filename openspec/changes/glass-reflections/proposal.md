@@ -22,9 +22,10 @@ down to 35 %. A glass tower from the street should mirror the sky and, close up,
   doesnt look right, too transparent", "it should go harder on the reflections", "in real life,
   thered be less light on the inside of the building, so the reflectivity shuold be way
   stronger"): premultiplied alpha, so the reflection is added whole and only what is behind the
-  pane is dimmed (alpha 0.88: the rooms show at 12 %, as a room lit only through its windows
-  would); a reflective coating (Bevy's `metallic`, 0.9) over the building's glass tint, about
-  45 % head-on and a mirror at grazing angles; roughness 0.02. Plain glass cannot pass 16 %
+  pane is dimmed (alpha 0.92: the rooms show at 8 %, as a room lit only through its windows
+  would); a reflective coating (Bevy's `metallic`, 0.9) over a dark blue-grey and the building's
+  glass tint, about 30 % head-on and a mirror at grazing angles (owner: "Darker the my for
+  windows?"); roughness 0.02. Plain glass cannot pass 16 %
   head-on in Bevy, hence the coating. One material, tuned in `data/world/sky_light.ron`; each
   building's glass tint (blue, green, bronze, grey) still colours it.
 - **Cached street probes** (designed, not built): cube maps of the street itself, captured once

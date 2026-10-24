@@ -467,6 +467,13 @@ pub struct ViewConfig {
     pub sun_disk_deg: f32,
     /// The sun disk's brightness over its physical value.
     pub sun_disk_intensity: f32,
+    /// The colour grade on the pilot's eye (Bevy's `ColorGrading`): saturation after
+    /// tonemapping, 1 unchanged.
+    pub grade_saturation: f32,
+    /// Contrast across shadows, midtones and highlights, 1 unchanged.
+    pub grade_contrast: f32,
+    /// White balance, a CIE 1931 x offset: positive warmer, negative cooler, 0 unchanged.
+    pub grade_temperature: f32,
 }
 
 impl Default for ViewConfig {
@@ -477,6 +484,9 @@ impl Default for ViewConfig {
             exposure_ev100: 13.0,
             sun_disk_deg: 2.0,
             sun_disk_intensity: 2.0,
+            grade_saturation: 1.0,
+            grade_contrast: 1.0,
+            grade_temperature: 0.0,
         }
     }
 }
@@ -488,6 +498,9 @@ impl Validate for ViewConfig {
         within("view.exposure_ev100", self.exposure_ev100, 0.0, 20.0)?;
         within("view.sun_disk_deg", self.sun_disk_deg, 0.0, 20.0)?;
         within("view.sun_disk_intensity", self.sun_disk_intensity, 0.0, 100.0)?;
+        within("view.grade_saturation", self.grade_saturation, 0.0, 3.0)?;
+        within("view.grade_contrast", self.grade_contrast, 0.5, 2.0)?;
+        within("view.grade_temperature", self.grade_temperature, -1.0, 1.0)?;
         if self.clear_visibility_m > self.far_m {
             return Err("`view.clear_visibility_m` must not exceed `view.far_m`".into());
         }

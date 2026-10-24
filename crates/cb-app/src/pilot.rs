@@ -380,10 +380,18 @@ fn weather_and_screens(
         Color::srgb(0.80, 0.86, 0.95).mix(&Color::srgb(0.95, 0.95, 0.97), inside),
     );
     let head_lost = pilot.curr.mode == PilotMode::Seated && mechs.iter().any(|(m, spec)| m.damage.is_lost(&spec.parts, PartKind::Head));
+    // The world's colour grade from data; a lost head washes it out on top (backup cameras).
+    let view = &data.0.world.view;
     let (sat, exp, tint) = if head_lost { (0.25, -0.6, 0.15) } else { (1.0, 0.0, 0.0) };
-    if grading.global.post_saturation != sat {
+    let sat = sat * view.grade_saturation;
+    if grading.global.post_saturation != sat || grading.midtones.contrast != view.grade_contrast {
         grading.global.post_saturation = sat;
         grading.global.exposure = exp;
         grading.global.tint = tint;
+        grading.global.temperature = view.grade_temperature;
+        let g = &mut **grading;
+        for section in [&mut g.shadows, &mut g.midtones, &mut g.highlights] {
+            section.contrast = view.grade_contrast;
+        }
     }
 }

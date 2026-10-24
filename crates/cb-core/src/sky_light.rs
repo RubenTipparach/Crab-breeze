@@ -65,8 +65,8 @@ impl Default for SkyLightConfig {
 impl Default for GlassLook {
     fn default() -> Self {
         Self {
-            tint: [0.4, 0.5, 0.55],
-            alpha: 0.88,
+            tint: [0.24, 0.32, 0.38],
+            alpha: 0.92,
             roughness: 0.02,
             reflectance: 1.0,
             coating: 0.9,

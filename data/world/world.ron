@@ -85,6 +85,12 @@
         // The sun disk 2 degrees across (the real 0.53 reads as a dot), twice as bright.
         sun_disk_deg: 2.0,
         sun_disk_intensity: 2.0,
+        // The colour grade (owner, 2026-10-24: "Some colour balance maybe? ... Make scene a little
+        // more vibrant"): 15 % more saturation, a touch more contrast, and a little warmer to take
+        // the blue-grey cast off the streets.
+        grade_saturation: 1.15,
+        grade_contrast: 1.08,
+        grade_temperature: 0.06,
     ),
 
     // Rivers and lakes (openspec/changes/terrain-water/design.md section 1). Lakes are the ground

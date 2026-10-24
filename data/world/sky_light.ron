@@ -22,9 +22,12 @@
     // glass reflects at most 16 % head-on, so the coating (Bevy's metallic) carries it: about
     // 0.9 x 0.48 + 0.1 x 0.16 = 45 % head-on, blue-grey, toward a mirror at grazing angles. Alpha
     // 0.88 lets 12 % of the room through; the body colour left is 0.1 x tint, a dark blue.
+    // Darker (owner: "Darker the my for windows?"): a deeper blue-grey coating, about 0.9 x 0.31 +
+    // 0.02 = 30 % head-on, so the reflections stay strong and read darker and richer; 8 % of the
+    // room shows through.
     glass: (
-        tint: (0.4, 0.5, 0.55),
-        alpha: 0.88,
+        tint: (0.24, 0.32, 0.38),
+        alpha: 0.92,
         roughness: 0.02,
         reflectance: 1.0,
         coating: 0.9,
