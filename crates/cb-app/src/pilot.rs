@@ -65,7 +65,9 @@ pub const COCKPIT_LAYER: usize = 1;
 #[derive(Component)]
 pub struct CockpitCamera;
 
-fn spawn_camera(mut commands: Commands) {
+fn spawn_camera(mut commands: Commands, data: Res<Data>) {
+    let light = &data.0.cockpit_light;
+    let srgb = |c: [f32; 3]| Color::srgb(c[0], c[1], c[2]);
     let lens = Projection::from(PerspectiveProjection {
         fov: 75f32.to_radians(),
         near: 0.05,
@@ -87,7 +89,30 @@ fn spawn_camera(mut commands: Commands) {
             Msaa::Off,
             bevy::anti_alias::fxaa::Fxaa::default(),
             Transform::default(),
+            // The sealed cabin's own light (cockpit-lighting): its lamps, not the sky. The sun and
+            // every flash outside are on the world layer and never reach this pass.
+            AmbientLight {
+                color: srgb(light.cabin_ambient_colour),
+                brightness: light.cabin_ambient_cd_m2,
+                ..default()
+            },
         ))
+        .with_children(|eye| {
+            // The screens' glow, until their cube map lights the cabin.
+            for at in &light.screens_m {
+                eye.spawn((
+                    PointLight {
+                        intensity: light.screen_lumens,
+                        range: light.screen_range_m,
+                        color: srgb(light.screen_tint),
+                        shadow_maps_enabled: false,
+                        ..default()
+                    },
+                    Transform::from_translation(Vec3::from_array(*at)),
+                    bevy::camera::visibility::RenderLayers::layer(COCKPIT_LAYER),
+                ));
+            }
+        })
         .id();
     commands
         .spawn((

@@ -7,6 +7,7 @@
 
 pub mod ai;
 pub mod boarding;
+pub mod cockpit;
 pub mod data;
 pub mod fx;
 pub mod input;
@@ -44,6 +45,8 @@ pub struct GameData {
     pub fx: fx::FxConfig,
     /// `data/hud/targeting.ron`.
     pub targeting: targeting::TargetingConfig,
+    /// `data/hud/cockpit_light.ron`.
+    pub cockpit_light: cockpit::CockpitLightConfig,
 }
 
 impl GameData {
@@ -61,6 +64,7 @@ impl GameData {
             defence: data::load_ron(&root.join("missions/defence.ron"))?,
             fx: data::load_ron(&root.join("fx/fx.ron"))?,
             targeting: data::load_ron(&root.join("hud/targeting.ron"))?,
+            cockpit_light: data::load_ron(&root.join("hud/cockpit_light.ron"))?,
         })
     }
 

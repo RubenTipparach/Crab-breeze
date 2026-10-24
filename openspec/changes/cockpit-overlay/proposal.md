@@ -17,8 +17,8 @@ in the world's depth buffer.
 - **No jitter**: the cockpit camera is a child of the pilot's camera with the same lens, so both
   views share one transform each frame (the eye is placed from this frame's pose, `socket_now`), and
   the cockpit is drawn from exactly the eye the world is drawn from.
-- **Lit as before**: the sun and the ambient light reach both layers; effect flashes light the world
-  only.
+- **Lit on its own** (superseded by `cockpit-lighting`, owner: "cockpit lighting is independent of
+  outside world"): the cockpit pass has only the cabin's ambient and the screens' glow.
 - On foot the pilot's mech is on the world layer like everything else.
 
 ## Out of scope
