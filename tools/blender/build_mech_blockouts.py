@@ -418,6 +418,7 @@ def pod_in(layout, at):
     for o in set(bpy.data.objects) - before:
         if o.parent is None:
             o.location = o.location + G2B.to_3x3() @ V(at)
+            STATE["pods"].append(o)
         if o.type == "MESH":
             GROUPS.setdefault("pod", []).append(o)
 
@@ -434,6 +435,25 @@ def wheel_foot(name, ball, s, w=4.2, l=6.6, r=1.15):
     cyl(f"{name}_hub", hub - V((w * 0.31, 0, 0)), hub + V((w * 0.31, 0, 0)), r * 0.45, "ACCENT", "legs", 10)
 
 
+# Each mech's own proportions (owner, 2026-10-24: "All 10 mechs have roughly the same ratios. Id like more variation
+# in arm size torso size and leg shape"). legs: the knee's height (share of the hip's) and how far forward it is, the
+# hock's height and how far back, how thick the leg is, and what the thigh and shin are made of (box slabs, round
+# pistons, a lattice). torso: the upper body scaled about the top of the waist (the cockpit moves with it but keeps its
+# true size). arms: each arm scaled about its shoulder.
+VARIETY = {
+    "harrow": dict(torso=1.1, arms=0.8, legs=dict(kh=0.62, kf=3.6, hh=0.34, hb=2.6, thick=1.2)),
+    "roustabout": dict(torso=1.08, arms=1.4, legs=dict(kh=0.72, kf=2.0, hh=0.30, hb=1.3, thick=1.35, shin="cyl")),
+    "grader": dict(torso=0.85, arms=1.0, legs=dict(kh=0.64, kf=2.4, hh=0.26, hb=1.6, thick=1.45)),
+    "logger": dict(torso=0.9, arms=1.1, legs=dict(kh=0.58, kf=4.4, hh=0.42, hb=3.4, thick=0.7, shin="cyl")),
+    "lineman": dict(torso=0.85, arms=0.7, legs=dict(kh=0.68, kf=2.6, hh=0.36, hb=2.0, thick=0.72, thigh="cyl", shin="cyl")),
+    "driller": dict(torso=1.3, arms=1.5, legs=dict(kh=0.66, kf=2.8, hh=0.30, hb=1.9, thick=1.0, shin="lattice")),
+    "bowser": dict(torso=1.1, arms=0.75, legs=dict(kh=0.74, kf=2.0, hh=0.24, hb=1.3, thick=1.3)),
+    "mule": dict(torso=1.0, arms=1.3, legs=dict(kh=0.60, kf=3.0, hh=0.32, hb=2.2, thick=1.5)),
+    "pumper": dict(torso=0.9, arms=1.3, legs=dict(kh=0.64, kf=3.4, hh=0.38, hb=2.6, thick=0.82, shin="cyl")),
+    "ploughman": dict(torso=1.05, arms=0.65, legs=dict(kh=0.72, kf=2.6, hh=0.22, hb=1.4, thick=1.1, thigh="cyl")),
+}
+STATE = dict(key=None, anchor=None, pods=[])
+
 LEG_SLIM = (0.72, 0.8)    # owner, 2026-10-24: "legs a little less thick" (thigh and shin width, depth)
 WAIST_LIFT_M = 2.0        # owner, 2026-10-24: "arms clip through the leg. Perhaps torso a little higher"
 
@@ -442,29 +462,102 @@ def waist(hip_y, hx):
     """The torso stood WAIST_LIFT_M higher on a waist block over the hips, so the arms hang clear of the thighs.
     Returns the height the torso is built from."""
     box("waist", (0, hip_y + 1.2 + WAIST_LIFT_M / 2, -0.2), (max(3.0, hx * 1.1), WAIST_LIFT_M + 0.6, 2.6), "FRAME", "legs")
+    STATE["anchor"] = V((0, hip_y + 1.5 + WAIST_LIFT_M, -0.2))
     return hip_y + WAIST_LIFT_M
 
 
 def chicken_legs(hip_y, hx, scale, thigh, shin, body_mat="BODY"):
-    """Reverse-jointed legs (thigh and shin boxes, a ram down the front of each), with wheel feet."""
-    thigh = (thigh[0] * LEG_SLIM[0], thigh[1] * LEG_SLIM[1])
-    shin = (shin[0] * LEG_SLIM[0], shin[1] * LEG_SLIM[1])
+    """Reverse-jointed legs with wheel feet, shaped by the mech's VARIETY entry: the knee and hock placed by it, the
+    thigh and shin as chamfered slabs, round pistons (a sleeve with a rod out of it) or an open lattice."""
+    L = VARIETY.get(STATE["key"], {}).get("legs", {})
+    t = L.get("thick", 1.0)
+    thigh = (thigh[0] * LEG_SLIM[0] * t, thigh[1] * LEG_SLIM[1] * t)
+    shin = (shin[0] * LEG_SLIM[0] * t, shin[1] * LEG_SLIM[1] * t)
+    pts = dict(hip=V((0, hip_y, 0)), knee=V((0, hip_y * L.get("kh", 0.66), L.get("kf", 2.8) * scale)),
+               hock=V((0, hip_y * L.get("hh", 0.30), -L.get("hb", 1.9) * scale)), ball=V((0, 1.0, 0.8 * scale)))
+
+    def member(name, a, b, size, kind, mat):
+        if kind == "cyl":
+            r = min(size) / 2
+            cyl(name, a, a.lerp(b, 0.62), r, mat, "legs", 14)
+            cyl(name + "_rod", a.lerp(b, 0.5), b, r * 0.55, "METAL", "legs", 10)
+        elif kind == "lattice":
+            lattice(name, a, b, min(size) / 2, mat, "legs", bays=4, w=0.3)
+        else:
+            chamfered(name, (a + b) / 2, (size[0], (b - a).length + 0.5, size[1]), 0.5, mat, "legs", between(a, b))
+
     for s in (1, -1):
-        P = {k: v + V((s * hx, 0, 0)) for k, v in leg_points(hip_y, scale).items()}
-        chamfered(f"thigh{s}", (P["hip"] + P["knee"]) / 2, (thigh[0], (P["knee"] - P["hip"]).length + 0.6, thigh[1]), 0.55,
-                  body_mat, "legs", between(P["hip"], P["knee"]))
-        chamfered(f"shin{s}", (P["knee"] + P["hock"]) / 2, (shin[0], (P["hock"] - P["knee"]).length + 0.4, shin[1]), 0.5,
-                  body_mat, "legs", between(P["knee"], P["hock"]))
+        P = {k: v + V((s * hx, 0, 0)) for k, v in pts.items()}
+        member(f"thigh{s}", P["hip"], P["knee"], thigh, L.get("thigh", "box"), body_mat)
+        member(f"shin{s}", P["knee"], P["hock"], shin, L.get("shin", "box"), body_mat)
         chamfered(f"meta{s}", (P["hock"] + P["ball"]) / 2, (shin[0] * 0.8, (P["ball"] - P["hock"]).length + 0.3, shin[1] * 0.8),
                   0.4, "BODY2", "legs", between(P["hock"], P["ball"]))
-        cyl(f"knee{s}", P["knee"] - V((s * thigh[0] * 0.6, 0, 0)), P["knee"] + V((s * thigh[0] * 0.6, 0, 0)), 1.5, "FRAME", "legs")
-        cyl(f"hock{s}", P["hock"] - V((s * shin[0] * 0.6, 0, 0)), P["hock"] + V((s * shin[0] * 0.6, 0, 0)), 1.15, "FRAME", "legs")
-        cyl(f"ram{s}", P["hip"] + V((0, -0.6, 1.9)), P["hip"].lerp(P["knee"], 0.6) + V((0, 0, 2.0)), 0.45, "FRAME", "legs", 10)
-        cyl(f"rod{s}", P["hip"].lerp(P["knee"], 0.6) + V((0, 0, 2.0)), P["knee"] + V((0, 0.6, 1.6)), 0.24, "METAL", "legs", 8)
-        cyl(f"sram{s}", P["knee"] + V((0, -0.4, -1.7)), P["knee"].lerp(P["hock"], 0.6) + V((0, 0, -1.8)), 0.4, "FRAME", "legs", 10)
-        box(f"stencil{s}", (P["hip"] + P["knee"]) / 2 + V((s * (thigh[0] / 2 + 0.03), 0, 0)), (0.06, 1.6, 2.2), "ACCENT", "legs",
-            between(P["hip"], P["knee"]))
+        rk = 1.5 * t ** 0.5
+        kw, hw_ = thigh[0] * 0.5 + 0.3, shin[0] * 0.5 + 0.3          # the drums stand just past the leg's own sides
+        cyl(f"knee{s}", P["knee"] - V((kw, 0, 0)), P["knee"] + V((kw, 0, 0)), rk, "FRAME", "legs")
+        cyl(f"hock{s}", P["hock"] - V((hw_, 0, 0)), P["hock"] + V((hw_, 0, 0)), rk * 0.77, "FRAME", "legs")
+        fr = thigh[1] / 2 + 0.35
+        cyl(f"ram{s}", P["hip"] + V((0, -0.6, fr)), P["hip"].lerp(P["knee"], 0.6) + V((0, 0, fr + 0.1)), 0.45, "FRAME", "legs", 10)
+        cyl(f"rod{s}", P["hip"].lerp(P["knee"], 0.6) + V((0, 0, fr + 0.1)), P["knee"] + V((0, 0.6, fr - 0.3)), 0.24, "METAL", "legs", 8)
+        if L.get("shin", "box") == "box":
+            cyl(f"sram{s}", P["knee"] + V((0, -0.4, -shin[1] / 2 - 0.3)), P["knee"].lerp(P["hock"], 0.6) + V((0, 0, -shin[1] / 2 - 0.4)),
+                0.4, "FRAME", "legs", 10)
+        if L.get("thigh", "box") == "box":
+            box(f"stencil{s}", (P["hip"] + P["knee"]) / 2 + V((s * (thigh[0] / 2 + 0.03), 0, 0)), (0.06, 1.6, 2.2), "ACCENT", "legs",
+                between(P["hip"], P["knee"]))
         wheel_foot(f"foot{s}", P["ball"], s)
+
+
+def _scale_about(objs, pivot, k):
+    """Scale meshes (built in world space, identity matrices) about a point in glTF space."""
+    pb = G2B @ V(pivot) if len(pivot) == 3 and not hasattr(pivot, "blender") else pivot
+    M = Matrix.Translation(pb) @ Matrix.Scale(k, 4) @ Matrix.Translation(-pb)
+    for o in objs:
+        o.data.transform(M)
+
+
+def arm_leg_clips():
+    """Measured, not judged: every pair of an arm piece and a leg piece whose surfaces intersect (BVH overlap)."""
+    from mathutils.bvhtree import BVHTree
+    trees = {}
+
+    def tree(o):
+        if o.name not in trees:
+            bm = bmesh.new()
+            bm.from_mesh(o.data)
+            bm.transform(o.matrix_world)
+            trees[o.name] = BVHTree.FromBMesh(bm)
+            bm.free()
+        return trees[o.name]
+    legs = [o for o in GROUPS.get("legs", []) if not o.name.startswith(("waist", "hips"))]
+    out = []
+    for a in GROUPS.get("arms", []) + GROUPS.get("frame", []):     # arms, and tool frames hung off the hips
+        for g in legs:
+            if tree(a).overlap(tree(g)):
+                out.append(f"{a.name}/{g.name}")
+    return out
+
+
+def apply_variety(key):
+    """The mech's torso and arm sizes (VARIETY), after its builder has run."""
+    v = VARIETY.get(key)
+    if not v or STATE["anchor"] is None:
+        return
+    a = STATE["anchor"]
+    up = [o for g in ("torso", "head", "arms") for o in GROUPS.get(g, [])]
+    _scale_about(up, a, v["torso"])
+    ab = G2B @ a
+    for o in STATE["pods"]:                     # the cockpit rides the torso and keeps its true size
+        o.location = ab + (o.location - ab) * v["torso"]
+    for side in (1, -1):
+        arms = [o for o in GROUPS.get("arms", []) if side * (sum((vv.co.x for vv in o.data.vertices), 0.0) / max(1, len(o.data.vertices))) > 0.3]
+        if not arms:
+            continue
+        vs = [vv.co for o in arms for vv in o.data.vertices]
+        pb = V((side * min(abs(c.x) for c in vs), sum(c.y for c in vs) / len(vs), max(c.z for c in vs)))
+        M = Matrix.Translation(pb) @ Matrix.Scale(v["arms"], 4) @ Matrix.Translation(-pb)
+        for o in arms:
+            o.data.transform(M)
 
 
 def harrow():
@@ -582,11 +675,11 @@ def grader():
     pod_in("panorama", (0, yc - 1.6, 2.4))
     for s in (1, -1):
         # the push arms run outside the thighs, from the waist's sides down to the blade's ends
-        strut(f"push{s}", (s * 6.1, hip_y + 0.6, 0.6), (s * 6.1, hip_y - 4.6, 6.4), 0.8, "BODY2", "arms")
-        strut(f"push_mount{s}", (s * 1.4, hip_y + 0.6, 0.6), (s * 6.4, hip_y + 0.6, 0.6), 0.7, "FRAME", "arms")
-        cyl(f"tilt{s}", (s * 3.0, hip_y + 2.6, 2.0), (s * 3.0, hip_y - 2.8, 6.6), 0.35, "METAL", "arms", 8)
-    box("blade", (0, hip_y - 4.4, 6.9), (13.4, 3.2, 0.5), "BODY", "arms", ((1, 0, 0), (0, 1, 0.25), (0, -0.25, 1)))
-    box("blade_edge", (0, hip_y - 6.0, 7.3), (13.6, 0.4, 0.6), "METAL", "arms")
+        strut(f"push{s}", (s * 7.0, hip_y + 0.6, 0.6), (s * 7.0, hip_y - 4.6, 6.4), 0.8, "BODY2", "frame")
+        strut(f"push_mount{s}", (s * 1.4, hip_y + 0.6, 0.6), (s * 7.3, hip_y + 0.6, 0.6), 0.7, "FRAME", "frame")
+        cyl(f"tilt{s}", (s * 3.0, hip_y + 2.6, 2.0), (s * 3.0, hip_y - 2.8, 6.6), 0.35, "METAL", "frame", 8)
+    box("blade", (0, hip_y - 4.4, 6.9), (15.2, 3.2, 0.5), "BODY", "frame", ((1, 0, 0), (0, 1, 0.25), (0, -0.25, 1)))
+    box("blade_edge", (0, hip_y - 6.0, 7.3), (15.4, 0.4, 0.6), "METAL", "frame")
     box("ripper_beam", (0, hip_y - 0.6, -3.6), (5.0, 0.8, 1.0), "FRAME", "arms")
     for x in (-1.6, 0, 1.6):
         strut(f"tooth{x}", (x, hip_y - 0.6, -3.8), (x, hip_y - 4.4, -4.6), 0.5, "METAL", "arms")
@@ -745,9 +838,9 @@ def mule():
         cyl(f"hoist{s}", (s * 2.4, yc - 1.0, -2.6), (s * 2.4, yc + 1.8, -3.4), 0.4, "METAL", "torso", 8)
         sh = V((s * 4.2, yc + 0.8, 0.0))
         chamfered(f"shoulder{s}", sh, (2.0, 2.2, 2.6), 0.3, "BODY2", "arms")
-        el = sh + V((s * 0.4, -3.4, 1.2))
+        el = sh + V((s * 0.5, -2.2, 1.8))
         strut(f"upper{s}", sh, el, 1.1, "BODY2", "arms")
-        box(f"fist{s}", el + V((0, -0.2, 1.4)), (1.6, 1.6, 2.2), "BODY", "arms")
+        box(f"fist{s}", el + V((0, 0.0, 1.6)), (1.6, 1.6, 2.2), "BODY", "arms")
 
 
 def pumper():
@@ -767,7 +860,7 @@ def pumper():
         strut(f"rung{i}", (-0.6, yc + 2.2 - i * 0.75, -3.6), (0.6, yc + 2.2 - i * 0.75, -3.6), 0.12, "ACCENT", "torso")
     box("lightbar", (0, yc + 2.7, 0.6), (3.6, 0.4, 0.8), "GLOW", "head")
     for s in (1, -1):
-        cyl(f"reel{s}", (s * (hx + 0.9), hip_y - 0.6, -0.6), (s * (hx + 1.8), hip_y - 0.6, -0.6), 1.2, "ACCENT", "legs", 14)
+        cyl(f"reel{s}", (s * 0.4, hip_y - 0.4, -2.4), (s * 1.5, hip_y - 0.4, -2.4), 1.1, "ACCENT", "torso", 14)   # behind the waist
         sh = V((s * 4.1, yc + 1.4, -0.4))
         chamfered(f"shoulder{s}", sh, (1.8, 2.2, 2.6), 0.3, "BODY", "arms")
         mon = sh + V((0, 1.6, 0.4))
@@ -844,7 +937,11 @@ def main():
             bpy.data.objects.remove(o)
         GROUPS.clear()
         materials(PALETTES[key])
+        STATE.update(key=key, anchor=None, pods=[])
         fn()
+        apply_variety(key)
+        clips = arm_leg_clips()
+        print("CLIPS", key, clips, flush=True)
         bpy.context.view_layer.update()
         pts = [o.matrix_world @ v.co for o in bpy.data.objects if o.type == "MESH" for v in o.data.vertices]
         lo, hi = [min(p[i] for p in pts) for i in range(3)], [max(p[i] for p in pts) for i in range(3)]
@@ -869,7 +966,8 @@ def main():
         bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True, export_apply=True, export_yup=True)
         row = dict(id=key, name=name, what=what, file=f"mech_blockouts/{key}.glb", height_m=round(hi[2] - lo[2], 2),
                    width_m=round(hi[0] - lo[0], 2), length_m=round(hi[1] - lo[1], 2), tris=tris,
-                   legs_m3=round(legs, 1), torso_m3=round(torso, 1), legs_over_torso=round(legs / torso, 2) if torso else None)
+                   legs_m3=round(legs, 1), torso_m3=round(torso, 1), legs_over_torso=round(legs / torso, 2) if torso else None,
+                   arm_leg_clips=clips)
         rows.append(row)
         print("BUILT", row, flush=True)
     with open(MANIFEST, "w") as f:

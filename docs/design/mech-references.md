@@ -84,6 +84,29 @@ block-outs, so every cockpit has a chassis to be judged in. Contact sheet: `docs
 | Pumper | A fire engine | Tile wall | Water monitors on both shoulders, hose reels at the hips, a ladder down its back, a light bar |
 | Ploughman | A farm tractor | Excavator cab | A bonnet with a grille and stack, tractor wheels for hips, a plough share, a three-point hitch |
 
+Each of the ten has its own proportions (owner, 2026-10-24: "All 10 mechs have roughly the same ratios. Id like more
+variation in arm size torso size and leg shape"; `VARIETY` in the generator):
+
+| Mech | Torso | Arms | Legs |
+| --- | --- | --- | --- |
+| Harrow | 1.1 | 0.8 | Knee far forward, hock high and far back, heavy slabs |
+| Roustabout | 1.08 | 1.4 | Short and stocky, piston shins |
+| Grader | 0.85 | 1.0 | The thickest slabs, a low hock; its blade frame hangs off the hips |
+| Logger | 0.9 | 1.1 | Stilts: a near-flat thigh, a long thin piston shin, the hock high |
+| Lineman | 0.85 | 0.7 | Thin pistons, thigh and shin |
+| Driller | 1.3 | 1.5 | Lattice shins under a big chest and big arms |
+| Bowser | 1.1 | 0.75 | Upright and stocky, the knee high, the hock low |
+| Mule | 1.0 | 1.3 | The heaviest slabs, thighs nearly meeting |
+| Pumper | 0.9 | 1.3 | Thin piston shins, the knee forward |
+| Ploughman | 1.05 | 0.65 | Round piston thighs, the hock almost on the ground |
+
+Torso is the upper body's scale about the top of the waist (the cockpit moves with it and keeps its true size); arms
+scale about the shoulder. Every torso stands on a 2 m waist and every leg is slimmer than the first pass (owner,
+2026-10-24: "arms clip through the leg. Perhaps torso a little higher, legs a little less thick"). The generator checks
+every arm and tool frame against every leg piece with a mesh intersection test and writes what it finds to the
+manifest (`arm_leg_clips`): none on any of the thirteen. Contact sheets, front and side:
+`docs/screenshots/mechs/blockouts_new10.png`, `blockouts_new10_side.png`.
+
 The Foreman and the Ironhorse stay (owner: "I think iron and forman are solid designs"); their detailed builds now
 carry the Panorama and the Excavator cab, and their chests open as one body with them (`docs/design/cockpit.md`, "The
 four in detail"). The test for each block-out is still whether its silhouette reads as a practical machine on
