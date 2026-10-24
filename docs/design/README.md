@@ -15,6 +15,10 @@ buildings, people), `T` tech and tools, `P` playtesting.
 | Change | State | Presents |
 | --- | --- | --- |
 | `playtest-pipeline` | proposed | The scripted pilot, output lines, OBS recording, Drive upload, reports |
+| `cargo-workspace` | built | Rust workspace on Bevy 0.20.0: `cb-core`, `cb-app`, `cb-tools`; seeded RNG; data loader |
+| `procgen-world` | built, playtest pending | Seeded world: hills, cities with street grids, box buildings 2-60 storeys, highways |
+| `mech-rig` | built, playtest pending | Stand-in mech on the rig contract, digitigrade walk, torso twist, glb drop-in |
+| `pilot-boarding` | built, playtest pending | Pilot on foot in first person, boarding up the lift into `EYE_pilot`, climbing out |
 
 ## Mockups
 

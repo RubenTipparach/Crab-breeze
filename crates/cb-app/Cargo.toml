@@ -1,0 +1,18 @@
+[package]
+name = "cb-app"
+description = "Crab Breeze, the game: the Bevy adapter for cb-core."
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "crab-breeze"
+path = "src/main.rs"
+
+[dependencies]
+cb-core.workspace = true
+bevy.workspace = true
+
+[lints]
+workspace = true
