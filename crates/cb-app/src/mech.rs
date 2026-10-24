@@ -7,6 +7,7 @@
 use crate::blast::Explosion;
 use crate::combat::Shots;
 use crate::fx::Fx;
+use crate::ground_marks::{Contact, GroundContact};
 use crate::input::StepActions;
 use crate::pilot::{PilotCamera, PilotEvents, PilotSim};
 use crate::sim::{Data, PresentSet, SimSet};
@@ -19,7 +20,7 @@ use cb_core::boarding::{Hatch, HatchTarget};
 use cb_core::input::DebugCommand;
 use cb_core::mech::rig::{BONES, SOCKETS};
 use cb_core::mech::{Damage, Hit, LocomotionMode, MechConfig, PartKind};
-use cb_core::mech::{LegRest, MechControls, MechState, RigRest, pose};
+use cb_core::mech::{LegRest, MechControls, MechState, RigRest, foot_strikes, pose, stance_lead_m};
 use cb_core::pilot::{MechAccess, PilotEvent, PilotMode};
 use cb_core::rng::SimRng;
 use cb_core::weapons::{Guns, Projectile};
@@ -642,6 +643,7 @@ pub fn step_mech(
     mut explosions: MessageWriter<Explosion>,
     mut fx: MessageWriter<Fx>,
     targeting: Res<crate::targeting::TargetState>,
+    mut contacts: MessageWriter<GroundContact>,
 ) {
     let tl = &data.0.boarding;
     let locked = targeting.locked(&data.0.targeting);
@@ -874,12 +876,13 @@ pub fn step_mech(
             fx.write(Fx::new(recipe, muzzle).toward(dir));
         }
 
-        // Footfalls: spray and ripples in water, dust on dry ground; a heavy landing throws more.
+        // Footfalls: spray and ripples in water; on dry ground a contact for the ground marks, which
+        // print the foot, throw the dirt or the grit and jolt the pilot (ground-marks). A heavy
+        // landing throws more.
         let landed = was_airborne && !sim.curr.airborne();
-        for (side, offset) in [(0usize, 0.0f64), (1, 0.5)] {
-            let before = (sim.prev.gait_cycles - offset).floor();
-            let after = (sim.curr.gait_cycles - offset).floor();
-            if (before == after || sim.curr.gait_swing < 0.3 || sim.curr.legs_lost[side]) && !landed {
+        let strikes = foot_strikes(&sim.prev, &sim.curr, landed);
+        for side in [0usize, 1] {
+            if !strikes[side] {
                 continue;
             }
             let ankle = rig.rest.legs[side].ankle;
@@ -892,22 +895,44 @@ pub fn step_mech(
                     fx.write(Fx::new("foot_spray", at).dense(density).scaled(scale));
                 }
                 None => {
-                    fx.write(Fx::new("foot_dust", foot).dense(density).scaled(scale));
+                    contacts.write(GroundContact {
+                        mech: id.0,
+                        piloted,
+                        contact: Contact::Step {
+                            side,
+                            foot,
+                            heading_rad: sim.curr.heading_rad,
+                            lead_m: stance_lead_m(&sim.curr),
+                            speed_m_s: sim.curr.vel.length(),
+                            landed,
+                        },
+                    });
                 }
             }
         }
-        // Wheel sparks and grit while skating fast on the ground; a rooster tail of spray on water.
-        if sim.curr.mode == LocomotionMode::Skate && !sim.curr.airborne() && sim.curr.vel.length() > 5.0 {
+        // Skating on the ground: each wheel's contact, for its trail and its dirt or sparks
+        // (ground-marks); a rooster tail of spray on water.
+        if sim.curr.mode == LocomotionMode::Skate && !sim.curr.airborne() {
             let on_water = sim.curr.on_water == cb_core::mech::OnWater::Skimming;
-            for wheel in ["WHEEL_L", "WHEEL_R"] {
+            for (i, wheel) in ["WHEEL_L", "WHEEL_R"].into_iter().enumerate() {
                 if let Some(g) = rig.sockets.get(wheel).and_then(|e| globals.get(*e).ok()) {
-                    let back = -Vec3::new(sim.curr.vel.x, 0.0, sim.curr.vel.y).normalize_or(Vec3::Z);
                     if on_water {
-                        let fast = (sim.curr.vel.length() / 30.0).clamp(0.5, 4.0);
-                        fx.write(Fx::new("skate_spray", g.translation()).toward(back + Vec3::Y * 0.8).dense(fast));
+                        if sim.curr.vel.length() > 5.0 {
+                            let back = -Vec3::new(sim.curr.vel.x, 0.0, sim.curr.vel.y).normalize_or(Vec3::Z);
+                            let fast = (sim.curr.vel.length() / 30.0).clamp(0.5, 4.0);
+                            fx.write(Fx::new("skate_spray", g.translation()).toward(back + Vec3::Y * 0.8).dense(fast));
+                        }
                         continue;
                     }
-                    fx.write(Fx::new("skate_grit", g.translation()).toward(back + Vec3::Y * 0.3));
+                    contacts.write(GroundContact {
+                        mech: id.0,
+                        piloted,
+                        contact: Contact::Wheel {
+                            wheel: i as u8,
+                            at: g.translation(),
+                            vel: sim.curr.vel,
+                        },
+                    });
                 }
             }
         }

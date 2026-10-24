@@ -11,6 +11,7 @@ pub mod cockpit;
 pub mod data;
 pub mod fx;
 pub mod grass;
+pub mod ground_marks;
 pub mod input;
 pub mod mech;
 pub mod mission;
@@ -53,6 +54,8 @@ pub struct GameData {
     pub cockpit_light: cockpit::CockpitLightConfig,
     /// `data/world/grass.ron`.
     pub grass: grass::GrassConfig,
+    /// `data/fx/ground_marks.ron`.
+    pub ground_marks: ground_marks::GroundMarksConfig,
 }
 
 impl GameData {
@@ -79,6 +82,7 @@ impl GameData {
             targeting: data::load_ron(&root.join("hud/targeting.ron"))?,
             cockpit_light: data::load_ron(&root.join("hud/cockpit_light.ron"))?,
             grass,
+            ground_marks: data::load_ron(&root.join("fx/ground_marks.ron"))?,
         })
     }
 

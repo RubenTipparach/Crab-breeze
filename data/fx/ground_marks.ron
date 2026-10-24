@@ -1,0 +1,75 @@
+// Marks a mech leaves on the ground (openspec/changes/ground-marks): footprints, skate trails and
+// crater scorches, all drawn in one draw call from a ring of `max_marks` (the oldest replaced
+// first). Soil takes a dark pressed print with a lip; paving takes a shallow cracked scuff with no
+// lip; water takes none. Read by cb_core::ground_marks::GroundMarksConfig. CB_NO_GROUND_MARKS=1
+// turns the marks off (the effects and the jolt stay).
+(
+    // 1024 marks of 160 bytes: a 160 KiB storage buffer, one draw of 25 600 vertices.
+    max_marks: 1024,
+    lay_within_m: 800.0,
+    draw_within_m: 450.0,
+    lift_m: 0.04,
+
+    // The stand-in's sole is 1.4 m by 2.6 m, its middle 0.4 m ahead of the ankle
+    // (data/mechs/placeholder.ron, box on foot_L); the print is a little bigger than the sole.
+    foot_half_width_m: 0.8,
+    foot_half_length_m: 1.3,
+    sole_ahead_m: 0.4,
+    foot_life_s: 90.0,
+    landing_depth_scale: 1.6,
+
+    // A wheel lays a segment every 4 m it glides: at 40 m/s, 10 a second a wheel.
+    trail_half_width_m: 0.45,
+    trail_segment_m: 4.0,
+    trail_break_m: 14.0,
+    trail_life_s: 40.0,
+    trail_min_speed_m_s: 1.0,
+    skate_fx_min_m_s: 5.0,
+
+    crater_life_s: 240.0,
+
+    // The six newest footprints flatten the grass under them (as pressing spheres).
+    press_prints: 6,
+    press_m: 1.6,
+
+    dirt: (
+        foot_depth_m: 0.22,
+        foot_lip_m: 0.09,
+        trail_depth_m: 0.12,
+        trail_lip_m: 0.05,
+        crater_depth_m: 0.15,
+    ),
+    concrete: (
+        foot_depth_m: 0.03,
+        foot_lip_m: 0.0,
+        trail_depth_m: 0.0,
+        trail_lip_m: 0.0,
+        crater_depth_m: 0.05,
+    ),
+
+    // The pilot's eye drops and recovers on the piloted mech's foot strikes: position only, never
+    // the view's direction (CLAUDE.md section 8). 1 cm standing, 0.2 cm more per m/s, at most 4 cm;
+    // a landing 7 cm; over 0.15 s.
+    jolt: (
+        step_cm: 1.0,
+        per_m_s_cm: 0.2,
+        max_cm: 4.0,
+        landing_cm: 7.0,
+        duration_s: 0.15,
+        side_share: 0.25,
+    ),
+
+    // The shader's numbers. Soil: the print's bottom multiplied toward a dark brown. Paving:
+    // cracks, a scuff and a ring of pale dust.
+    look: (
+        soil_tint: (0.62, 0.5, 0.38),
+        pit_dark: 0.25,
+        crack_colour: (0.32, 0.31, 0.3),
+        crack_width_m: 0.05,
+        crack_reach: 1.6,
+        scuff: 0.85,
+        dust_brighten: 1.08,
+        ambient: 0.7,
+        pull_per_m: 0.002,
+    ),
+)

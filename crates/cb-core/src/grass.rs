@@ -21,8 +21,9 @@ use serde::Deserialize;
 
 /// The most levels of detail the shader holds.
 pub const MAX_LODS: usize = 4;
-/// The most bodies that flatten grass at once (the shader's pusher list).
-pub const MAX_PUSHERS: usize = 8;
+/// The most bodies that flatten grass at once (the shader's pusher list): the pilot's and the
+/// mechs' feet, and the newest footprints (openspec change `ground-marks`).
+pub const MAX_PUSHERS: usize = 16;
 
 /// One level of detail of the grass.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq)]

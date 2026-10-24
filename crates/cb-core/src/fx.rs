@@ -8,7 +8,7 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 
 /// Every recipe the game asks for. A file without one of these stops startup.
-pub const RECIPES: [&str; 20] = [
+pub const RECIPES: [&str; 24] = [
     "muzzle_autocannon",
     "muzzle_cannon",
     "muzzle_rocket",
@@ -20,9 +20,13 @@ pub const RECIPES: [&str; 20] = [
     "explosion_water",
     "explosion_air",
     "rocket_trail",
-    "foot_dust",
+    "foot_strike_dirt",
+    "foot_strike_concrete",
+    "landing_dirt",
+    "landing_concrete",
     "foot_spray",
     "jet_flame",
+    "skate_dirt",
     "skate_grit",
     "skate_spray",
     "wall_smash",

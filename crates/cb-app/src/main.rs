@@ -11,6 +11,7 @@ mod defence;
 mod fx;
 mod grass;
 mod ground;
+mod ground_marks;
 mod hud;
 mod input;
 mod loading;
@@ -107,6 +108,12 @@ fn main() -> AppExit {
     if !cli::switched_off("CB_NO_GRASS") {
         app.add_plugins(grass::GrassPlugin);
     }
+    // Footprints, skate trails and crater scorches (openspec change `ground-marks`);
+    // `CB_NO_GROUND_MARKS=1` draws none (the dirt, the grit and the jolt stay), so the benchmark can
+    // measure what the marks cost.
+    app.add_plugins(ground_marks::GroundMarksPlugin {
+        enabled: !cli::switched_off("CB_NO_GROUND_MARKS"),
+    });
     if args.defending() {
         app.add_plugins(defence::DefencePlugin);
     }

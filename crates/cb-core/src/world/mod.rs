@@ -21,7 +21,7 @@ pub mod water;
 pub use clouds::Clouds;
 pub use collision::BuildingGrid;
 pub use config::WorldConfig;
-pub use cover::{Clearance, Cover};
+pub use cover::{Clearance, Cover, Surface};
 pub use deform::Deformation;
 pub use destruct::{Chunk, Structures};
 pub use forest::{Body, Bump, Forest, Push, TileChanges, Tree, TreeState};

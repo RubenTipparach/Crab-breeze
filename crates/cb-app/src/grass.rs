@@ -451,9 +451,12 @@ fn pushers(eye: Vec3, bodies: impl Iterator<Item = (Vec3, f32)>) -> [[f32; 4]; M
     out
 }
 
-/// Writes the bodies pressing the grass flat.
+/// Writes the bodies pressing the grass flat, and the newest footprints (ground-marks), so the
+/// grass under a print stays flat while it is among the nearest.
+#[allow(clippy::too_many_arguments)]
 fn press(
     grass: Option<Res<Grass>>,
+    prints: Option<Res<crate::ground_marks::PrintPress>>,
     pilot: Res<PilotSim>,
     camera: Single<&Transform, With<PilotCamera>>,
     rigs: Query<&MechRig>,
@@ -471,7 +474,8 @@ fn press(
             .map(|t| (t.translation(), cfg.mech_foot_press_m))
             .collect::<Vec<_>>()
     });
-    let list = pushers(camera.translation, pilot_feet.into_iter().chain(mech_feet));
+    let printed = prints.iter().flat_map(|p| p.0.clone());
+    let list = pushers(camera.translation, pilot_feet.into_iter().chain(mech_feet).chain(printed));
     if let Some(mut b) = buffers.get_mut(&grass.push_buffer) {
         *b = ShaderBuffer::new(list.to_vec(), RenderAssetUsages::RENDER_WORLD);
     }
@@ -531,10 +535,10 @@ mod tests {
     #[test]
     fn the_nearest_bodies_press_the_grass_and_the_rest_wait() {
         let eye = Vec3::ZERO;
-        let bodies = (0..12).map(|i| (Vec3::new(i as f32 * 10.0, 0.0, 0.0), 1.0));
+        let bodies = (0..MAX_PUSHERS + 4).map(|i| (Vec3::new(i as f32 * 10.0, 0.0, 0.0), 1.0));
         let list = pushers(eye, bodies.rev());
         assert_eq!(list[0], [0.0, 0.0, 0.0, 1.0], "the nearest first");
-        assert_eq!(list[MAX_PUSHERS - 1][0], 70.0, "the eight nearest, no more");
+        assert_eq!(list[MAX_PUSHERS - 1][0], (MAX_PUSHERS - 1) as f32 * 10.0, "the nearest, no more");
         let one = pushers(eye, std::iter::once((Vec3::X, 2.0)));
         assert_eq!(one[1][3], 0.0, "an empty entry has no radius");
     }
