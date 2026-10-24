@@ -87,6 +87,24 @@ extraction). A traced build's own systems' numbers are not trusted: under `trace
 explosion handler and the frame graph read 7 ms each, and under 1 ms in a plain run. The next step
 is an A/B with the effects left out (`CB_NO_PARTICLES`, `CB_NO_FX_LIGHTS`, `CB_NO_SHADOWS`).
 
+### The effects A/B (same day, plain 110 s runs, median of the 5 s frame-time windows from the first fight)
+
+| Run | Median | Worst window |
+| --- | --- | --- |
+| everything on | 15.9 ms | 18.8 ms |
+| no particles | 8.4 ms (the 120 fps cap) | 9.1 ms |
+| no effect lights | 11.8 ms | 15.0 ms |
+| no shadows | 13.7 ms | 15.0 ms |
+| particles with shared sprites (no per-burst copy) | 10.1 ms | 25.7 ms |
+| jet flames and fires as streams, per-burst sprites for explosions only | 10.2 ms | 27.2 ms |
+| and effect lights capped at 8 (were 24) | 9.1 ms | 31.9 ms |
+
+Counting bursts by recipe over 110 s found the cause: `burning` (3,408 bursts) and `jet_flame`
+(2,728, one per jet every frame) were 72 % of all bursts, each its own effect entity. They now play
+as streams (`fx::FxStream`, rates in `stream_per_s`), one emitter per layer riding the body. The
+per-burst sprite copy (the sort fix) stopped bevy_hanabi batching every burst; it is kept for
+explosions only. The worst windows (25-32 ms) are still to be found.
+
 ## 3. Cost (to be measured)
 
 Expected: the tree entities (about 4,000-9,000 near the pilot) leave the ECS; the render world's

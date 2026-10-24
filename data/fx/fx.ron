@@ -11,11 +11,16 @@
     trail_spacing_m: 3.0,
     motor_lumens: 200000.0,
     max_particles: 5000,
-    max_lights: 24,
+    // 8, not 24: each point light is clustered on the CPU every frame; 24 cost about 1 ms of a
+    // combat frame (median 10.2 ms with 24, 9.1 ms with 8, 2026-10-24).
+    max_lights: 8,
     max_fireballs: 64,
     // Blasts nearby shake the view (owner, 2026-10-24): up to 1.2 degrees, within 60 m per cube
     // root of the blast's megajoules (120 m for an 8 MJ shell), dying away over 0.7 s.
     shake: (max_deg: 1.2, reach_m_per_cbrt_mj: 60.0, decay_s: 0.7),
+    // Recipes played as continuous streams from an emitter riding the body, bursts a second: a
+    // jet's flame while it fires, a wreck's fire while it burns.
+    stream_per_s: {"jet_flame": 60.0, "burning": 10.0},
     recipes: {
         // Guns. The effect's direction is the barrel's.
         "muzzle_autocannon": [
