@@ -8,7 +8,7 @@ no OBS.
 - Build: `building-research` with main and `pilot-controls` (PR #18) merged in.
 - Machine: Apple M4 Max, macOS; release build; OBS ScreenCaptureKit window capture, 60 fps.
 - Result: `PLAYTEST_RESULT lose defence: your mech was destroyed, city 1 5 %, city 2 0 %, city 3 0 %`
-- Drive: `dungeon-crawler-2026/crab-breeze-2026-10-24-city-combat.mp4`
+- Drive: `dungeon-crawler-2026/crab-breeze-2026-10-24-city-combat.mp4`, https://drive.google.com/file/d/1Jp5QENl66p-Xpuy1JHpfQwPuS2Oi5Mbp/view
 - Contact sheet: `2026-10-24-city-combat-mac_frames.png`
 
 | Beat | What the contact sheet shows |
