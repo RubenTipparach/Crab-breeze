@@ -8,6 +8,7 @@
 pub mod clouds;
 pub mod collision;
 pub mod config;
+pub mod cover;
 pub mod deform;
 pub mod destruct;
 pub mod forest;
@@ -20,6 +21,7 @@ pub mod water;
 pub use clouds::Clouds;
 pub use collision::BuildingGrid;
 pub use config::WorldConfig;
+pub use cover::{Clearance, Cover};
 pub use deform::Deformation;
 pub use destruct::{Chunk, Structures};
 pub use forest::{Body, Bump, Forest, Push, TileChanges, Tree, TreeState};

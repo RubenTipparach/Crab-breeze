@@ -284,6 +284,14 @@ impl Default for CraterConfig {
     }
 }
 
+impl CraterConfig {
+    /// How far from its centre a blast of `energy_mj` changes the ground, metres: 1.8 crater radii,
+    /// the bowl, its rim and the rim's fall-off.
+    pub fn reach_m(&self, energy_mj: f32) -> f32 {
+        self.radius_m_per_cbrt_mj * energy_mj.cbrt() * 1.8
+    }
+}
+
 impl Validate for CraterConfig {
     fn validate(&self) -> Result<(), String> {
         positive("craters.radius_m_per_cbrt_mj", self.radius_m_per_cbrt_mj)?;

@@ -1,0 +1,75 @@
+// Grass, built on the GPU (openspec/changes/gpu-grass/design.md). Every field is the code default
+// written out (crates/cb-core/src/grass.rs); omit one to inherit it, a zero is a zero. Units are in
+// the keys or the Rust docs. Costs per level are in design.md section 3 (estimates until the
+// benchmark measures them: CB_NO_GRASS=1 turns the grass off for the comparison).
+(
+    // Tiles: 32 m squares on the terrain's 8 m lattice, drawn within 300 m of the eye (inside the
+    // ground's full-detail ring), let go 48 m past it, blades shrinking away over the last 60 m.
+    tile_m: 32.0,
+    radius_m: 300.0,
+    release_m: 48.0,
+    fade_m: 60.0,
+    // 16 blades a square metre at the nearest level; where grass grows is baked a metre a cell.
+    blade_spacing_m: 0.25,
+    density_cell_m: 1.0,
+    bakes_per_frame: 6,
+
+    // Levels of detail, by the tile's nearest point: 16, 4 and 1 blades a square metre, with 4, 3
+    // and 2 segments a blade; farther blades are wider. Each stride divides the next, so a farther
+    // level's blades are a subset of a nearer one's, and the blades it drops shrink away over the
+    // last `crossfade_m` before its boundary.
+    lods: [
+        (until_m: 25.0, stride: 1, segments: 4, width_scale: 1.0),
+        (until_m: 110.0, stride: 2, segments: 3, width_scale: 1.7),
+        (until_m: 300.0, stride: 4, segments: 2, width_scale: 2.8),
+    ],
+    lod_hysteresis_m: 6.0,
+    crossfade_m: 15.0,
+
+    // Where grass grows: not on what is built (as the trees, with tighter margins), not on the
+    // beach (the ground's sand band is 2.5 m above the sea, crates/cb-app/src/ground.rs), not in
+    // water, thinning on steep ground, cleared by craters.
+    clearance: (
+        city_m: 3.0,
+        park_inset_m: 2.0,
+        road_m: 1.5,
+        bridge_share: 0.6,
+        building_m: 0.5,
+    ),
+    beach_m: 2.5,
+    slope_bare: (0.6, 1.1),
+    crater_clear_m: 0.05,
+
+    // A blade: a curved strip narrowing to its tip, bent along a Bezier curve.
+    height_m: (0.35, 0.85),
+    width_m: 0.045,
+    taper: 1.4,
+    lean_max: 0.45,
+    stiffness: 0.5,
+    mid_height: 0.55,
+    edge_thicken: 0.6,
+    normal_round: 0.6,
+
+    // Colour, linear albedo: dark at the root, lighter at the tip, some blades dry.
+    root_colour: (0.05, 0.09, 0.025),
+    tip_colour: (0.22, 0.33, 0.09),
+    dry_colour: (0.36, 0.33, 0.16),
+    dry_share: 0.22,
+    root_light: 0.4,
+    roughness: 0.65,
+    clump_m: 2.5,
+    clump_strength: 0.5,
+
+    // Wind: a steady push from the heading, gusts as noise scrolling with it, each blade's sway.
+    wind_heading_deg: 30.0,
+    wind_speed_m_s: 5.0,
+    wind_push: 0.22,
+    gust_per_m: 0.04,
+    gust_share: 0.7,
+    sway_hz: 0.7,
+    sway: 0.05,
+
+    // Bodies press the grass flat about them: the pilot's feet and each mech's feet.
+    pilot_press_m: 0.7,
+    mech_foot_press_m: 2.6,
+)

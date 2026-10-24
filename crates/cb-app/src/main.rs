@@ -9,6 +9,7 @@ mod cli;
 mod combat;
 mod defence;
 mod fx;
+mod grass;
 mod ground;
 mod hud;
 mod input;
@@ -19,6 +20,8 @@ mod perf_hud;
 mod physics;
 mod pilot;
 mod screens_cube;
+#[cfg(test)]
+mod shader_check;
 mod showcase;
 mod sim;
 mod targeting;
@@ -96,6 +99,11 @@ fn main() -> AppExit {
         targeting::TargetingPlugin,
     ))
     .add_plugins((screens_cube::ScreensCubePlugin, loading::LoadingPlugin, perf_hud::PerfHudPlugin));
+    // GPU grass (openspec change `gpu-grass`); `CB_NO_GRASS=1` leaves it out, so the benchmark can
+    // measure what it costs.
+    if !cli::switched_off("CB_NO_GRASS") {
+        app.add_plugins(grass::GrassPlugin);
+    }
     if args.defending() {
         app.add_plugins(defence::DefencePlugin);
     }
