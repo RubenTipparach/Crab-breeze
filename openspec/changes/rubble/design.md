@@ -28,7 +28,21 @@
 - **Dust**: a sprite cloud sized by the island, growing over 6 s. Under 0.3 ms of overdraw at the
   target (measured).
 
-## 4. Cost
+## 4. What stays live
+
+Debris is expensive only while it moves. Once it lands it becomes scenery:
+
+| State | Physics | Collision | Drawn as |
+| --- | --- | --- | --- |
+| In the air | Avian body (the first 600) or the core's kinematic step | with the ground, rubble, standing walls and resting debris | one instance |
+| Resting 0.3 s | none: the body is removed | none of its own; its top is stamped into a 0.25 m stack grid so later pieces land on it | one instance in a static per-tile batch |
+| Pool full | none | none | removed; its volume is already in the heap |
+
+The pilot and the mech walk on the **heap heightfield**, never on pieces. A resting piece costs one
+instance and a few grid cells, with no collider and no physics step. A piece is woken only when what
+it rests on breaks.
+
+## 5. Cost
 
 From the mockup (a browser; not a game measurement):
 

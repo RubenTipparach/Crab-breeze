@@ -281,7 +281,14 @@ function addCyl(b, e, mat, c, r0, r1, h, color, seg = 12) {
     g.idx.push(top, top + 2, top + 1);
   }
   const rr = Math.max(r0, r1);
-  e.boxes.push({ c: new THREE.Vector3(c[0], c[1] + h / 2, c[2]), q: new THREE.Quaternion(), s: [rr * 1.6, h, rr * 1.6], color, mat });
+  // As debris a round thing is staves round its circumference (a timber tank bursts into its boards).
+  const n = Math.max(6, Math.round(seg * 0.75)), rm = (r0 + r1) / 2, lean = Math.atan2(r0 - r1, h), slant = Math.hypot(h, r0 - r1);
+  for (let i = 0; i < n; i++) {
+    const a = (i + 0.5) / n * Math.PI * 2;
+    const m = new THREE.Matrix4().makeRotationY(Math.PI / 2 - a).multiply(new THREE.Matrix4().makeRotationX(-lean));
+    m.setPosition(c[0] + Math.cos(a) * rm, c[1] + h / 2, c[2] + Math.sin(a) * rm);
+    e.boxes.push({ c: new THREE.Vector3().setFromMatrixPosition(m), q: new THREE.Quaternion().setFromRotationMatrix(m), s: [Math.max(0.05, 2 * Math.PI * rm / n), slant, Math.min(0.12, rr * 0.3)], color, mat });
+  }
   const vol = Math.PI * rr * rr * h * 0.5;
   e.vol += vol; e.mass += vol * (T.density_kg_m3[mat] || 1000);
   growAabb(e.aabb, new THREE.Vector3(c[0], c[1] + h / 2, c[2]), [rr * 2, h, rr * 2], null);
@@ -974,6 +981,15 @@ function roofProp(b, e, name, x, y, z, rng) {
 function wire(b) {
   for (const id of b.elems) { const e = E[id]; for (const r of e.rests) if (r !== GROUND && r !== undefined) E[r].carries.push(id); }
   for (const id of b.elems) { const e = E[id]; e.rests = e.rests.filter(r => r !== undefined); }
+  // Standing solids by (storey, cell): debris is pushed out of these.
+  b.solid = new Map();
+  for (const id of b.elems) {
+    const e = E[id]; if (!['column', 'wall', 'core', 'partition'].includes(e.kind)) continue;
+    const a = e.aabb, g = T.grid_m;
+    const i0 = Math.max(0, Math.floor((a[0] - b.x0) / g)), i1 = Math.min(b.nx - 1, Math.floor((a[3] - b.x0) / g));
+    const j0 = Math.max(0, Math.floor((a[2] - b.z0) / g)), j1 = Math.min(b.nz - 1, Math.floor((a[5] - b.z0) / g));
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const key = e.storey + ',' + i + ',' + j; if (!b.solid.has(key)) b.solid.set(key, []); b.solid.get(key).push(id); }
+  }
   b.order = b.elems.filter(id => E[id].kind !== 'static').sort((p, q) => (E[q].storey - E[p].storey) || (RANK[E[p].kind] - RANK[E[q].kind]) || (p - q));
   b.aabb = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
   for (const id of b.elems) { const a = E[id].aabb; for (let i = 0; i < 3; i++) { b.aabb[i] = Math.min(b.aabb[i], a[i]); b.aabb[i + 3] = Math.max(b.aabb[i + 3], a[i + 3]); } }
@@ -1144,10 +1160,11 @@ function spawnPiece(part, v, w, cluster = null) {
   writePiece(p);
   return p;
 }
-function hidePiece(slot) { _mat4.makeScale(0, 0, 0); debrisMesh.setMatrixAt(slot, _mat4); sim.pieces[slot] = null; }
+function hidePiece(slot) { if (sim.pieces[slot]?.settled) STACK.dirty = true; _mat4.makeScale(0, 0, 0); debrisMesh.setMatrixAt(slot, _mat4); sim.pieces[slot] = null; }
 const _mat4 = new THREE.Matrix4(), _sc = new THREE.Vector3();
 function writePiece(p) { _sc.set(p.s[0], p.s[1], p.s[2]); _mat4.compose(p.c, p.q, _sc); debrisMesh.setMatrixAt(p.slot, _mat4); debrisMesh.instanceMatrix.needsUpdate = true; }
 function wake(a) {
+  STACK.dirty = true;
   for (const p of sim.pieces) if (p && p.settled && p.c.x > a[0] - 1 && p.c.x < a[3] + 1 && p.c.z > a[2] - 1 && p.c.z < a[5] + 1 && p.c.y > a[1] - 0.5) { p.settled = false; p.rest = 0; }
 }
 // Islands: union the loose elements by their bonds and drop each group as one rigid cluster.
@@ -1179,8 +1196,60 @@ function dropIslands(b, loose) {
   b.maskDirty = true;
 }
 // The highest standing floor or heap under (x, z) at or below height y.
-function supportAt(x, z, y) {
+// Resting pieces are a surface later pieces land on: the top of the stack in each 0.25 m cell.
+// A resting piece is scenery: no physics, no collision of its own, just this grid and one instance.
+const STACK = { x0: -80, z0: -70, cell: 0.25, n: 640, m: 560, top: null, dirty: false, last: 0 };
+function stackAt(x, z) {
+  const i = Math.floor((x - STACK.x0) / STACK.cell), j = Math.floor((z - STACK.z0) / STACK.cell);
+  return (i < 0 || j < 0 || i >= STACK.n || j >= STACK.m) ? 0 : STACK.top[j * STACK.n + i];
+}
+function footExt(p) {
+  const m = _mat4.makeRotationFromQuaternion(p.q).elements;
+  return [Math.abs(m[0]) * p.s[0] / 2 + Math.abs(m[4]) * p.s[1] / 2 + Math.abs(m[8]) * p.s[2] / 2,
+          Math.abs(m[2]) * p.s[0] / 2 + Math.abs(m[6]) * p.s[1] / 2 + Math.abs(m[10]) * p.s[2] / 2];
+}
+function stamp(p) {
+  const [ex, ez] = footExt(p), top = p.c.y + halfHeight(p), c = STACK.cell;
+  const i0 = Math.max(0, Math.floor((p.c.x - ex * 0.8 - STACK.x0) / c)), i1 = Math.min(STACK.n - 1, Math.floor((p.c.x + ex * 0.8 - STACK.x0) / c));
+  const j0 = Math.max(0, Math.floor((p.c.z - ez * 0.8 - STACK.z0) / c)), j1 = Math.min(STACK.m - 1, Math.floor((p.c.z + ez * 0.8 - STACK.z0) / c));
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const ix = j * STACK.n + i; if (top > STACK.top[ix]) STACK.top[ix] = top; }
+}
+function restack() { STACK.top.fill(0); for (const p of sim.pieces) if (p && p.settled) stamp(p); STACK.dirty = false; STACK.last = sim.t; }
+// The highest support under a piece: sampled at its centre and, for a wide piece, near its corners.
+// A stack top counts only if the piece's underside was above it this step (so a piece never stands on its own stamp).
+function pieceSupport(p, hh) {
+  const below = p.c.y - hh + 0.08 + Math.max(0, -p.v.y) * sim.step;
+  let s = supportAt(p.c.x, p.c.z, p.c.y, below);
+  const [ex, ez] = footExt(p);
+  if (ex > 0.35 || ez > 0.35) for (const [sx, sz] of [[-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7], [0.7, 0.7]]) s = Math.max(s, supportAt(p.c.x + sx * ex, p.c.z + sz * ez, p.c.y, below));
+  return s;
+}
+// Push a moving piece out of the standing columns and walls it has moved into.
+function pushOut(p, hh) {
+  const [ex, ez] = footExt(p);
+  for (const b of B) {
+    const g = T.grid_m;
+    if (p.c.x < b.x0 - 2 || p.c.z < b.z0 - 2 || p.c.x > b.x0 + b.nx * g + 2 || p.c.z > b.z0 + b.nz * g + 2) continue;
+    let k = 0; while (k < b.storeys - 1 && p.c.y >= b.base[k + 1]) k++;
+    const i = Math.min(b.nx - 1, Math.max(0, Math.floor((p.c.x - b.x0) / g))), j = Math.min(b.nz - 1, Math.max(0, Math.floor((p.c.z - b.z0) / g)));
+    let onTop = false;
+    for (const id of b.solid.get(k + ',' + i + ',' + j) || []) {
+      const e = E[id]; if (!e.alive) continue;
+      const a = e.aabb;
+      const ox = Math.min(p.c.x + ex - a[0], a[3] - (p.c.x - ex)), oz = Math.min(p.c.z + ez - a[2], a[5] - (p.c.z - ez));
+      const oy = Math.min(p.c.y + hh - a[1], a[4] - (p.c.y - hh));
+      if (ox <= 0 || oy <= 0 || oz <= 0) continue;
+      if (oy < Math.min(ox, oz) && p.c.y > (a[1] + a[4]) / 2) { p.c.y += oy + 0.004; onTop = true; }
+      else if (ox < oz) { p.c.x += p.c.x < (a[0] + a[3]) / 2 ? -ox : ox; p.v.x *= -0.2; }
+      else { p.c.z += p.c.z < (a[2] + a[5]) / 2 ? -oz : oz; p.v.z *= -0.2; }
+    }
+    if (onTop) return true;
+  }
+  return false;
+}
+function supportAt(x, z, y, stackBelow = y + 0.35) {
   let h = heapTop(x, z);
+  const st = stackAt(x, z); if (st > h && st <= stackBelow) h = st;
   for (const b of B) {
     if (x < b.x0 || z < b.z0 || x >= b.x0 + b.nx * T.grid_m || z >= b.z0 + b.nz * T.grid_m) continue;
     h = Math.max(h, T.plinth_m);
@@ -1212,6 +1281,7 @@ function integrateQ(q, w, dt) {
 }
 function stepSim(dt) {
   sim.t += dt;
+  if (STACK.dirty && sim.t - STACK.last > 0.25) restack();
   while (sim.events.length && sim.events[0].t <= sim.t) { const ev = sim.events.shift(); if (E[ev.id].alive) destroy(ev.id, null); }
   for (const b of B) if (b.dirty) solve(b);
   // Falling clusters: rigid until they hit something.
@@ -1247,12 +1317,13 @@ function stepSim(dt) {
   for (const p of sim.pieces) {
     if (!p || p.settled || p.cluster) continue;
     p.v.y -= 9.81 * dt; p.c.addScaledVector(p.v, dt); integrateQ(p.q, p.w, dt);
-    const hh = halfHeight(p), sup = supportAt(p.c.x, p.c.z, p.c.y);
-    if (p.c.y - hh < sup) {
-      p.c.y = sup + hh;
+    const hh = halfHeight(p), sup = pieceSupport(p, hh) + 0.003 + (p.slot % 5) * 0.002;
+    const onWall = pushOut(p, hh);
+    if (p.c.y - hh < sup || onWall) {
+      if (p.c.y - hh < sup) p.c.y = sup + hh;
       if (p.v.y < 0) p.v.y = -p.v.y * 0.18;
       p.v.x *= 0.72; p.v.z *= 0.72; p.w.multiplyScalar(0.7);
-      if (p.v.lengthSq() < 0.25) { p.rest += dt; if (p.rest > 0.3) { p.settled = true; p.v.set(0, 0, 0); p.w.set(0, 0, 0); sim.settledQ.push(p.slot); if (p.glass) { hidePiece(p.slot); sim.free.push(p.slot); continue; } } }
+      if (p.v.lengthSq() < 0.25) { p.rest += dt; if (p.rest > 0.3) { p.settled = true; p.v.set(0, 0, 0); p.w.set(0, 0, 0); sim.settledQ.push(p.slot); if (!p.glass) stamp(p); if (p.glass) { hidePiece(p.slot); sim.free.push(p.slot); continue; } } }
     }
     if (p.c.y < -20) { hidePiece(p.slot); sim.free.push(p.slot); continue; }
     writePiece(p);
@@ -1585,6 +1656,7 @@ function buildWorld(seed) {
   debrisMesh.castShadow = debrisMesh.receiveShadow = true; debrisMesh.frustumCulled = false;
   world.add(debrisMesh);
   HEAP.h = new Float32Array(HEAP.n * HEAP.m); HEAP.vol = 0;
+  STACK.top = new Float32Array(STACK.n * STACK.m); STACK.dirty = false; STACK.last = 0;
   const hg = new THREE.PlaneGeometry((HEAP.n - 1) * T.heap_cell_m, (HEAP.m - 1) * T.heap_cell_m, HEAP.n - 1, HEAP.m - 1);
   hg.rotateX(-Math.PI / 2); hg.translate(HEAP.x0 + (HEAP.n - 1) * T.heap_cell_m / 2, 0, HEAP.z0 + (HEAP.m - 1) * T.heap_cell_m / 2);
   heapMesh = new THREE.Mesh(hg, new THREE.MeshStandardMaterial({ color: 0xa49c90, map: TEX.concrete.map, normalMap: TEX.roof.normal, roughness: 1, envMapIntensity: 0.35 }));
