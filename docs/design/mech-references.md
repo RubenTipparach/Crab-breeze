@@ -71,7 +71,7 @@ block-outs first (the owner's rule: "I prefer you make low poly low textured ver
 
 Then eight more (owner, 2026-10-24: "I need like 10 mech mock ups", "it's not like something we need highres
 either"), each after a 1980s working machine on chicken legs, each carrying a different one of the ten cockpit
-block-outs, so every cockpit has a chassis to be judged in. Contact sheet: `docs/screenshots/mechs/blockouts_new10.png`.
+block-outs, so every cockpit has a chassis to be judged in. Contact sheets: `docs/screenshots/mechs/blockouts_new.png` and `blockouts_new_side.png`.
 
 | Mech | After | Cockpit | Its tell |
 | --- | --- | --- | --- |
@@ -105,7 +105,21 @@ scale about the shoulder. Every torso stands on a 2 m waist and every leg is sli
 2026-10-24: "arms clip through the leg. Perhaps torso a little higher, legs a little less thick"). The generator checks
 every arm and tool frame against every leg piece with a mesh intersection test and writes what it finds to the
 manifest (`arm_leg_clips`): none on any of the thirteen. Contact sheets, front and side:
-`docs/screenshots/mechs/blockouts_new10.png`, `blockouts_new10_side.png`.
+`docs/screenshots/mechs/blockouts_new.png`, `blockouts_new_side.png`.
+
+Bigger arms where the job needs them (owner, 2026-10-24: "larger arms on some for punching, larger arms for bigger
+guns"): the Mule's fists and the Roustabout's left hand are punching arms (`fist()`: a thick forearm with a piston,
+a fist block with a knuckle plate); the Harrow's gun pods are longer and heavier, fed from the outside; the Bowser's
+cannon is a twin-barrel autocannon with a drum magazine on a thick forearm; the Roustabout's rifle is heavier.
+
+And two Gundams (owner, 2026-10-24: "Make a couple Gundam variant", after the RX-79[G]: "if we do gundams, I'd want
+something practical looking like this"), on human-jointed legs (`human_legs()`: the knee forward, a big knee pad, a
+flared calf, a long foot with a skate-wheel well), armoured skirts, intakes on the chest, a backpack with thrusters:
+
+| Mech | After | Cockpit | Its tell |
+| --- | --- | --- | --- |
+| Picket | The Ground Type | Panorama (the upper hatch flips up, the lower folds down, as the 08th MS Team's) | A visor head with a short V fin, a box-magazine machine gun, a tall shield, a radio whip |
+| Sapper | The Guncannon | Titan | Thicker legs and chest, a long cannon over the right shoulder, a missile box over the left, punching fists, twin cameras |
 
 The Foreman and the Ironhorse stay (owner: "I think iron and forman are solid designs"); their detailed builds now
 carry the Panorama and the Excavator cab, and their chests open as one body with them (`docs/design/cockpit.md`, "The
