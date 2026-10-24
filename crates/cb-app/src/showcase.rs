@@ -151,6 +151,7 @@ fn say(line: &str) {
 fn play(
     mut take: ResMut<Take>,
     mut acc: ResMut<InputAccum>,
+    data: Res<crate::sim::Data>,
     pilot: Res<PilotSim>,
     access: Res<MechAccessNow>,
     ready: Res<crate::loading::GameReady>,
@@ -321,7 +322,7 @@ fn play(
                 (HOVER_LIFT - m.vel_y_m_s * 0.025).clamp(0.0, 1.0)
             };
             act.look_delta_deg = aim(m, 0.0, 0.15);
-            if plan.clouds.density_at(m.pos + Vec3::Y * 9.6, now) > 0.05 {
+            if plan.clouds.density_at(m.pos + Vec3::Y * data.0.mech.body.eye_height_m, now) > 0.05 {
                 take.in_cloud_s += time.delta_secs();
             }
             next = take.in_cloud_s > 2.5 || t > 40.0 || m.boost.locked;
@@ -419,6 +420,7 @@ fn aim_at(m: &MechState, eye: Vec3, point: Vec3) -> Vec2 {
 fn play_fight(
     mut take: ResMut<Take>,
     mut acc: ResMut<InputAccum>,
+    data: Res<crate::sim::Data>,
     pilot: Res<PilotSim>,
     access: Res<MechAccessNow>,
     ready: Res<crate::loading::GameReady>,
@@ -435,7 +437,7 @@ fn play_fight(
     let p = &pilot.curr;
     let Some(sim) = me.iter().next() else { return };
     let m = &sim.curr;
-    let eye = m.pos + Vec3::Y * 9.6;
+    let eye = m.pos + Vec3::Y * data.0.mech.body.eye_height_m;
     let mut act = Actions::default();
     let alive: Vec<&MechSim> = enemies.iter().filter(|e| !e.dead).collect();
     if (now * 1.0).fract() < 0.017 {
@@ -637,7 +639,7 @@ fn play_defence(
     let p = &pilot.curr;
     let Some((sim, spec)) = me.iter().next() else { return };
     let m = &sim.curr;
-    let eye = m.pos + Vec3::Y * 9.6;
+    let eye = m.pos + Vec3::Y * data.0.mech.body.eye_height_m;
     let cfg = &data.0.defence;
     let mut act = Actions::default();
     let over = matches!(run.state.phase, Phase::Won | Phase::Lost(_));

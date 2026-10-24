@@ -25,7 +25,7 @@ use cb_core::pilot::{MechAccess, PilotEvent, PilotMode};
 use cb_core::rng::SimRng;
 use cb_core::weapons::{Guns, Projectile};
 use cb_core::world::{Ground, Scene};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 /// The mech's root: on the ground, turned to its heading.
@@ -131,6 +131,28 @@ struct Burning {
 #[derive(Component)]
 struct RigRefused;
 
+/// The cockpit interior spawned beside the mech, waiting for the rig to be bound before it is hung in the chest
+/// (openspec change `mech-roster` section 2).
+#[derive(Component)]
+struct PendingInterior(Entity);
+
+/// The cockpit interior a mech carries: its meshes, drawn in the sealed cabin, and among them the screen wall,
+/// through which the world shows.
+#[derive(Component)]
+pub struct Interior {
+    meshes: HashSet<Entity>,
+    windows: HashSet<Entity>,
+}
+
+/// A layer no camera draws: the hull and the screen wall go there while the pilot sits sealed in an interior.
+const UNSEEN_LAYER: usize = 30;
+
+/// Is this an interior node of the screen wall, a window on the world (the page's `SCREEN_*` materials)? The
+/// interior generator names a screen's mesh node `SCREEN_<name>_screen` and the all-view wall's `<part>_allview`.
+fn is_window(name: &str) -> bool {
+    name.ends_with("_allview") || (name.starts_with("SCREEN_") && name.ends_with("_screen"))
+}
+
 /// The mech's boarding sockets this fixed step, for the pilot.
 #[derive(Resource, Default)]
 pub struct MechAccessNow(pub Option<MechAccess>);
@@ -145,7 +167,7 @@ impl Plugin for MechPlugin {
             .add_systems(FixedUpdate, (publish_access.in_set(SimSet::Input), step_mech.in_set(SimSet::Mech)))
             .add_systems(
                 Update,
-                (bind_rig, cut_parts, drive_mech, fall_wrecks, burn, jet_flames)
+                (bind_rig, bind_interior, cut_parts, drive_mech, fall_wrecks, burn, jet_flames)
                     .chain()
                     .in_set(PresentSet::Pose),
             )
@@ -344,6 +366,20 @@ fn spawn_mech_entity(
         info!("mech model: {path}");
         let scene = assets.load(GltfAssetLabel::Scene(0).from_asset(path.clone()));
         commands.spawn((WorldAssetRoot(scene), ChildOf(model)));
+        if let Some(i) = &cfg.interior {
+            // Beside the model, hidden, until the rig is bound and the interior can be hung on its cockpit bone.
+            let scene = assets.load(GltfAssetLabel::Scene(0).from_asset(i.model.clone()));
+            let interior = commands
+                .spawn((
+                    Name::new("cockpit interior"),
+                    Transform::default(),
+                    Visibility::Hidden,
+                    WorldAssetRoot(scene),
+                    ChildOf(root),
+                ))
+                .id();
+            commands.entity(root).insert(PendingInterior(interior));
+        }
         return root;
     }
 
@@ -532,6 +568,80 @@ fn bind_rig(
     }
 }
 
+/// Hangs a bound mech's cockpit interior in its chest, as the mockup page does (`gen_mech_designs.py`): the interior
+/// at the `cockpit` bone's origin, each riding part moved onto its chest joint keeping where it is, so the two open
+/// as one body; the interior's lamps go (the game lights the cabin itself, `cockpit-lighting`). Waits until the
+/// interior's scene has spawned.
+#[allow(clippy::too_many_arguments)]
+fn bind_interior(
+    mut commands: Commands,
+    roots: Query<(Entity, &MechRig, &MechSpec, &PendingInterior)>,
+    children: Query<&Children>,
+    names: Query<&Name>,
+    transforms: Query<&Transform>,
+    parents: Query<&ChildOf>,
+    meshes: Query<(), With<Mesh3d>>,
+    lights: Query<(), Or<(With<PointLight>, With<SpotLight>, With<DirectionalLight>)>>,
+) {
+    for (root, rig, spec, pending) in &roots {
+        let interior = pending.0;
+        let mut named: HashMap<String, Entity> = HashMap::new();
+        let (mut parts, mut windows, mut lamps) = (HashSet::new(), HashSet::new(), Vec::new());
+        for e in children.iter_descendants(interior) {
+            if let Ok(n) = names.get(e) {
+                named.entry(n.as_str().to_string()).or_insert(e);
+            }
+            if lights.contains(e) {
+                lamps.push(e);
+            }
+            if meshes.contains(e) {
+                parts.insert(e);
+                let parent = parents.get(e).ok().and_then(|p| names.get(p.parent()).ok());
+                if names.get(e).ok().into_iter().chain(parent).any(|n| is_window(n.as_str())) {
+                    windows.insert(e);
+                }
+            }
+        }
+        if parts.is_empty() {
+            continue; // The interior has not spawned yet.
+        }
+        let Some(ci) = BONES.iter().position(|b| b.name == "cockpit") else {
+            continue;
+        };
+        let cockpit = rig.bone_entity(ci);
+        commands
+            .entity(interior)
+            .insert((ChildOf(cockpit), Transform::IDENTITY, Visibility::Inherited));
+        let rides = spec.interior.as_ref().map(|i| i.rides.as_slice()).unwrap_or_default();
+        for r in rides {
+            let (Some(&part), Some(&joint)) = (named.get(&r.part), rig.named.get(&r.joint)) else {
+                warn!("interior: ride {} on {} names a node the models do not have", r.part, r.joint);
+                continue;
+            };
+            // Both measured from the cockpit bone, the interior at its origin and the chest shut (a mech is
+            // spawned standing and sealed).
+            let at = model_space(part, interior, &transforms, &parents).to_matrix();
+            let on = model_space(joint, cockpit, &transforms, &parents).to_matrix();
+            commands
+                .entity(part)
+                .insert((ChildOf(joint), Transform::from_matrix(on.inverse() * at)));
+        }
+        for l in lamps {
+            commands.entity(l).despawn();
+        }
+        info!(
+            "cockpit interior bound: {} meshes, {} of them the screen wall, {} rides",
+            parts.len(),
+            windows.len(),
+            rides.len()
+        );
+        commands
+            .entity(root)
+            .remove::<PendingInterior>()
+            .insert(Interior { meshes: parts, windows });
+    }
+}
+
 /// Lerps between two fixed steps for drawing.
 fn lerp_state(a: &MechState, b: &MechState, t: f32) -> MechState {
     use std::f32::consts::{PI, TAU};
@@ -661,7 +771,21 @@ pub fn step_mech(
     let live = &mut *live;
     // What the enemies see: the player's mech.
     // Every mech's body, for the pilot's look ray: the guns converge on what the pilot looks at.
-    let bodies: Vec<(u32, Vec3)> = roots.iter().filter(|r| !r.0.dead).map(|r| (r.2.0, r.0.curr.pos)).collect();
+    let bodies: Vec<(u32, Body)> = roots
+        .iter()
+        .filter(|r| !r.0.dead)
+        .map(|r| {
+            let l = &r.1.locomotion;
+            (
+                r.2.0,
+                Body {
+                    feet: r.0.curr.pos,
+                    radius_m: l.body_radius_m,
+                    height_m: l.body_height_m,
+                },
+            )
+        })
+        .collect();
     let player = roots.iter().find(|r| r.5).map(|r| {
         (
             r.0.curr.pos,
@@ -762,7 +886,7 @@ pub fn step_mech(
                         (pilot.curr.pitch_rad - sim.curr.aim_pitch_rad).to_degrees(),
                     );
                 }
-                let others: Vec<Vec3> = bodies.iter().filter(|b| b.0 != id.0).map(|b| b.1).collect();
+                let others: Vec<Body> = bodies.iter().filter(|b| b.0 != id.0).map(|b| b.1).collect();
                 aim_at = cam.map(|c| look_point(&c, &plan, live, &others));
                 c
             } else {
@@ -777,9 +901,9 @@ pub fn step_mech(
                 Some(p) => (p, Vec3::ZERO, false),
                 None => (player_at, player_vel, player_dead),
             };
-            let eye = sim.curr.pos + Vec3::Y * 9.6;
+            let eye = sim.curr.pos + Vec3::Y * cfg.body.eye_height_m;
             let speed = cfg.weapons.first().map_or(850.0, |w| w.speed_m_s);
-            let allies: Vec<Vec3> = bodies.iter().filter(|b| b.0 != id.0 && b.0 != 0).map(|b| b.1).collect();
+            let allies: Vec<Vec3> = bodies.iter().filter(|b| b.0 != id.0 && b.0 != 0).map(|b| b.1.feet).collect();
             let hit = std::mem::take(&mut sim.took_hit);
             let health = torso_health(&sim, cfg);
             let clear = |a: Vec3, b: Vec3| line_clear(&plan, live, a, b);
@@ -949,7 +1073,9 @@ pub fn step_mech(
         let pushed_back =
             sim.prev.speed_m_s.abs() > 2.5 && sim.curr.speed_m_s.abs() < sim.prev.speed_m_s.abs() * 0.6 && !sim.curr.airborne();
         if pushed_back {
-            let front = sim.curr.pos + cb_core::mech::forward(sim.curr.heading_rad) * (cfg.locomotion.body_radius_m + 2.5) + Vec3::Y * 5.0;
+            let front = sim.curr.pos
+                + cb_core::mech::forward(sim.curr.heading_rad) * (cfg.locomotion.body_radius_m + 2.5)
+                + Vec3::Y * cfg.body.smash_height_m;
             let p2 = Vec2::new(front.x, front.z);
             for b in plan.collision.candidates(p2, 3.0) {
                 let (broke, chunks) = live.structures.break_sphere(b, front, 4.5);
@@ -1032,9 +1158,17 @@ pub fn apply_hit(sim: &mut MechSim, cfg: &MechConfig, hit: Hit) {
     }
 }
 
+/// A mech's body for the pilot's look ray: a column from its feet, its own radius and height.
+#[derive(Clone, Copy)]
+struct Body {
+    feet: Vec3,
+    radius_m: f32,
+    height_m: f32,
+}
+
 /// Where the pilot is looking: the first mech body, ground, water or standing building cell along
 /// the view, or 1.5 km out.
-fn look_point(camera: &GlobalTransform, plan: &cb_core::world::WorldPlan, live: &Live, mechs: &[Vec3]) -> Vec3 {
+fn look_point(camera: &GlobalTransform, plan: &cb_core::world::WorldPlan, live: &Live, mechs: &[Body]) -> Vec3 {
     let ground = Scene {
         plan,
         dug: &live.dug,
@@ -1051,10 +1185,10 @@ fn look_point(camera: &GlobalTransform, plan: &cb_core::world::WorldPlan, live: 
             .candidates(p2, 0.5)
             .into_iter()
             .any(|b| live.structures.buildings[b as usize].solid_at(p));
-        // A mech: a column 3 m round from its feet to the top of its torso.
+        // A mech: a column its body's radius round, from its feet to its top.
         let mech = mechs
             .iter()
-            .any(|m| Vec2::new(m.x, m.z).distance(p2) < 3.0 && p.y > m.y && p.y < m.y + 12.5);
+            .any(|m| Vec2::new(m.feet.x, m.feet.z).distance(p2) < m.radius_m && p.y > m.feet.y && p.y < m.feet.y + m.height_m);
         if wall || mech || p.y <= ground.height_at(p.x, p.z) {
             return p;
         }
@@ -1089,6 +1223,8 @@ fn aim_point(camera: &GlobalTransform, plan: &cb_core::world::WorldPlan, dug: &c
 /// physics has ground colliders (within 400 m of the eye).
 #[derive(Component)]
 pub struct Wreck {
+    /// Height of its centre of mass over its feet, for the topple.
+    centre_m: f32,
     vel: Vec3,
     axis: Vec3,
     angle_rad: f32,
@@ -1096,8 +1232,6 @@ pub struct Wreck {
     heading_rad: f32,
 }
 
-/// Height of a mech's centre of mass over its feet, for the topple.
-const WRECK_CENTRE_M: f32 = 10.0;
 /// It comes to rest this far over: lying on its side.
 const WRECK_LIE_RAD: f32 = 1.45;
 
@@ -1116,7 +1250,7 @@ fn fall_wrecks(time: Res<Time>, plan: Res<Plan>, mut wrecks: Query<(&mut Wreck, 
             t.translation.y = ground;
             // A pole falling about its foot: angular acceleration 3 g sin(angle) / (2 L).
             if w.angle_rad < WRECK_LIE_RAD {
-                w.rate_rad_s += 1.5 * 9.81 * w.angle_rad.sin() / WRECK_CENTRE_M * dt;
+                w.rate_rad_s += 1.5 * 9.81 * w.angle_rad.sin() / w.centre_m * dt;
                 w.angle_rad = (w.angle_rad + w.rate_rad_s * dt).min(WRECK_LIE_RAD);
             }
         }
@@ -1141,13 +1275,14 @@ fn cut_parts(
             let spec = &mech.parts[part];
             if spec.kind == PartKind::Torso {
                 // The torso is gone: the mech blows up where it stands and burns.
-                let at = globals.get(root).map(|g| g.translation()).unwrap_or_default() + Vec3::Y * 9.0;
+                let at = globals.get(root).map(|g| g.translation()).unwrap_or_default() + Vec3::Y * mech.body.blast_height_m;
                 explosions.write(Explosion { at, energy_mj: 25.0 });
                 // The wreck falls to the ground and topples from its feet (owner, 2026-10-24: dead
                 // mechs "stuck floating in the air"), away from the side it was facing, at random.
                 let side = if root.index().index() % 2 == 0 { 1.0 } else { -1.0 };
                 let heading = sim.curr.heading_rad;
                 commands.entity(root).insert(Wreck {
+                    centre_m: mech.body.wreck_centre_m,
                     vel: Vec3::new(sim.curr.vel.x, sim.curr.vel_y_m_s, sim.curr.vel.y),
                     axis: Quat::from_rotation_y(heading) * Vec3::new(0.0, 0.0, side),
                     angle_rad: 0.05,
@@ -1177,7 +1312,7 @@ fn cut_parts(
             commands.entity(e).remove::<ChildOf>().insert((
                 g.compute_transform(),
                 RigidBody::Dynamic,
-                Collider::cuboid(1.6, 3.0, 1.6),
+                Collider::cuboid(mech.body.cut_box_m[0], mech.body.cut_box_m[1], mech.body.cut_box_m[2]),
                 LinearVelocity(out * 6.0 + Vec3::Y * 5.0),
                 AngularVelocity(Vec3::new(1.5, 0.7, -1.1)),
             ));
@@ -1200,25 +1335,34 @@ fn cockpit_layer(
     mut commands: Commands,
     pilot: Res<PilotSim>,
     data: Res<Data>,
-    mech: Query<(Entity, &MechSim), With<Piloted>>,
+    mech: Query<(Entity, &MechSim, Option<&Interior>), With<Piloted>>,
     children: Query<&Children>,
     meshes: Query<Option<&bevy::camera::visibility::RenderLayers>, With<Mesh3d>>,
 ) {
     use bevy::camera::visibility::RenderLayers;
-    let Some((root, sim)) = mech.iter().next() else { return };
+    let Some((root, sim, interior)) = mech.iter().next() else { return };
     let inside = pilot.curr.mode == PilotMode::Seated && sim.hatch.is_closed(&data.0.boarding);
-    let want = RenderLayers::layer(crate::pilot::COCKPIT_LAYER);
+    let cabin = RenderLayers::layer(crate::pilot::COCKPIT_LAYER);
+    let unseen = RenderLayers::layer(UNSEEN_LAYER);
     for e in children.iter_descendants(root) {
         let Ok(layers) = meshes.get(e) else { continue };
-        match (inside, layers) {
-            (true, Some(l)) if *l == want => {}
-            (true, _) => {
-                commands.entity(e).insert(want.clone());
+        // A mech with an interior shows the cabin alone from the seat (mech-roster section 2): the screen wall
+        // and the hull, which stand between the pilot and the world, are not drawn, so the world shows through.
+        let want = match (inside, interior) {
+            (false, _) => None,
+            (true, None) => Some(&cabin),
+            (true, Some(i)) if i.meshes.contains(&e) && !i.windows.contains(&e) => Some(&cabin),
+            (true, Some(_)) => Some(&unseen),
+        };
+        match (want, layers) {
+            (Some(w), Some(l)) if l == w => {}
+            (Some(w), _) => {
+                commands.entity(e).insert(w.clone());
             }
-            (false, Some(_)) => {
+            (None, Some(_)) => {
                 commands.entity(e).remove::<RenderLayers>();
             }
-            (false, None) => {}
+            (None, None) => {}
         }
     }
 }

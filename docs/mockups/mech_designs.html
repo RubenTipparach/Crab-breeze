@@ -67,9 +67,8 @@ aside { display: grid; gap: 12px; min-width: 0; }
 .boh { font: 700 24px "Saira Condensed", sans-serif; text-transform: uppercase; margin: 14px 0 6px }
 .bop { max-width: 72ch; margin: 0 0 10px }
 .borow { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px }
-.bostage { position: relative; border-radius: 6px; overflow: hidden; aspect-ratio: 16 / 8; max-width: 100%; background: #2a1f30 }
-.bostage canvas { width: 100%; height: 100%; display: block; touch-action: none }
 .bostats { overflow-x: auto; margin-top: 8px }
+[hidden] { display: none !important }
 .bostats table { border-collapse: collapse; font-size: 14px; min-width: 520px }
 .bostats th, .bostats td { text-align: left; padding: 4px 10px; border-bottom: 1px solid rgba(128,128,128,.3) }
 </style>
@@ -92,10 +91,7 @@ aside { display: grid; gap: 12px; min-width: 0; }
     RX-79[G], Panorama, machine gun and shield) and the Sapper (heavy, bolt-on armour, Titan, shoulder cannon, missile
     pod). The new ones are numbered 1 to 12, as on their contact sheets. Legs against torso is
     measured off the meshes, and no arm touches a leg (a mesh intersection check in the generator).</p>
-    <div class="borow" id="bo-pick"></div>
-    <div class="bostage"><canvas id="bo-view"></canvas></div>
-    <div class="bostats" id="bo-stats"></div>
-    <p class="hint">Drag to orbit, scroll or pinch to zoom. Beside them: a 1.8 m pilot, a 4.4 m car, a 14 m four-storey block and a rail at 24 m.</p>
+    <p class="hint">In the viewer below: Scene, Block-outs. Beside them a 1.8 m pilot, a 4.4 m car, a 14 m four-storey block and a rail at 24 m.</p>
   </section>
   <section class="bo">
     <h2 class="boh">Combat mechs, built from parts</h2>
@@ -109,10 +105,7 @@ aside { display: grid; gap: 12px; min-width: 0; }
     <p class="bop">The owner's verdict: "13,15,16,17, 19, and 21 all good. Don't build those just yet. Just note that I like
     them." The Sabre, Bulldog, Tarantula, Hatchet, Anvil and Brigand are marked <b>liked</b> below; none is built in detail
     yet.</p>
-    <div class="borow" id="cb-pick"></div>
-    <div class="bostage"><canvas id="cb-view"></canvas></div>
-    <div class="bostats" id="cb-stats"></div>
-    <p class="hint">Drag to orbit, scroll or pinch to zoom; the same pilot, car, block and 24 m rail beside them.</p>
+    <p class="hint">In the viewer below: Scene, Combat.</p>
   </section>
   <section class="bo">
     <h2 class="boh">Crab mechs</h2>
@@ -121,15 +114,26 @@ aside { display: grid; gap: 12px; min-width: 0; }
     stalks over it, three or four pairs of heavy walking legs whose knees stand over the shell, and a gun as each forearm
     where the claw would be (autocannon, howitzer, gatling, rocket box, or a claw's two jaws round a cannon). Their legs
     outweigh their shells two to four times by volume. Numbered on from the combat mechs, 23 to 28.</p>
-    <div class="borow" id="cr-pick"></div>
-    <div class="bostage"><canvas id="cr-view"></canvas></div>
-    <div class="bostats" id="cr-stats"></div>
+    <p class="hint">In the viewer below: Scene, Crabs.</p>
   </section>
   <h2 class="boh">The detailed round: the first three at 12 m, the six picked from the block-outs at 24 m</h2>
 </header>
 
 <div class="wrap">
   <section>
+    <!-- one canvas for every scene (owner, 2026-10-24: "Only one canvas with different scenes please, my phone can only
+         render so much"): a scene is built the first time it is opened, and only the one on screen is drawn -->
+    <div class="bar" role="group" aria-label="Scene">
+      <span class="lbl">Scene</span>
+      <button data-scene="detailed" aria-pressed="true">Detailed mechs</button>
+      <button data-scene="BLOCKOUTS">Block-outs 1 to 12</button>
+      <button data-scene="COMBAT">Combat 13 to 22</button>
+      <button data-scene="CRABS">Crabs 23 to 28</button>
+    </div>
+    <div class="borow" id="bo-pick" hidden></div>
+    <div class="borow" id="cb-pick" hidden></div>
+    <div class="borow" id="cr-pick" hidden></div>
+    <div id="detailed-bars">
     <div class="bar" role="group" aria-label="Mech">
       <span class="lbl">Mech</span>
       <button id="m-foreman" data-mech="foreman">Foreman</button>
@@ -171,6 +175,7 @@ aside { display: grid; gap: 12px; min-width: 0; }
       <button id="t-city" data-toggle="city" aria-pressed="true">Block</button>
       <button id="t-pilot" data-toggle="pilot" aria-pressed="true">Pilot</button>
     </div>
+    </div>
     <div class="stage">
       <canvas id="view" tabindex="0" aria-label="3D view of the selected mech"></canvas>
       <div class="mode" id="mode">Orbit</div>
@@ -179,6 +184,9 @@ aside { display: grid; gap: 12px; min-width: 0; }
       <div id="tags"></div>
     </div>
     <p class="hint">Drag to orbit, scroll or pinch to zoom, right drag to pan. In the cockpit, drag to look around; the view rides the pilot's eye through every move.</p>
+    <div class="bostats" id="bo-stats" hidden></div>
+    <div class="bostats" id="cb-stats" hidden></div>
+    <div class="bostats" id="cr-stats" hidden></div>
   </section>
   <aside id="cards"></aside>
 </div>
@@ -668,7 +676,22 @@ function setView(v) {
   controls.update();
 }
 function fwdOf(b) { const q = new T.Quaternion(); (b.nodes.cockpit || b.root).getWorldQuaternion(q); return new T.Vector3(0, 0, 1).applyQuaternion(q).setY(0).normalize(); }
+// ---------- scenes: the detailed mechs, or one of the block-out sets, on the one canvas ----------
+let sceneId = "detailed";
+const VIEWERS = {};
+function setScene(id) {
+  if (id === sceneId) return;
+  sceneId = id;
+  document.querySelectorAll("[data-scene]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.scene === id)));
+  document.getElementById("detailed-bars").hidden = id !== "detailed";
+  document.getElementById("cards").hidden = id !== "detailed";
+  for (const k in VIEWERS) VIEWERS[k].activate(k === id);
+  tagsEl.innerHTML = ""; cueEl.hidden = true;
+  if (id === "detailed") setView(view); else { controls.enabled = false; document.getElementById("mode").textContent = VIEWERS[id].label; }
+}
+document.querySelectorAll("[data-scene]").forEach(b => b.addEventListener("click", () => setScene(b.dataset.scene)));
 function setMech(id, keep) {
+  if (sceneId !== "detailed") setScene("detailed");
   current = id; script = null; walk = null; Tb = target = 0;
   document.querySelectorAll("[data-mech]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mech === id)));
   document.querySelectorAll(".card").forEach(c => c.classList.toggle("sel", c.dataset.id === id));
@@ -846,6 +869,7 @@ let last = 0, frame = 0;
 function loop(ms) {
   const dt = Math.min(0.05, (ms - last) / 1000 || 0.016); last = ms;
   resize();
+  if (sceneId !== "detailed") { VIEWERS[sceneId].render(); requestAnimationFrame(loop); return; }
   const b = cur();
   if (b) {
     stepScript(dt);
@@ -899,36 +923,44 @@ window.MOCKUP = {
 // ---------- the 24 m low-poly block-outs: their own viewers, side by side at true scale ----------
 // the combat mechs the owner picked out (2026-10-24: "13,15,16,17, 19, and 21 all good ... Just note that I like them")
 const LIKED = new Set(["sabre", "bulldog", "tarantula", "hatchet", "anvil", "brigand"]);
-function blockoutViewer(BO, view, pickId, statsId, first, gap, api, frame) {
+function blockoutViewer(BO, label, pickId, statsId, first, gap, api, frame) {
   frame = frame || { d: 1, ty: 12 };     // one mech's framing: distance scale and target height (the crabs are wide and low)
-  const cv = document.getElementById(view);
-  const r = new T.WebGLRenderer({ canvas: cv, antialias: true });
-  r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); r.outputEncoding = T.sRGBEncoding; r.toneMapping = T.ACESFilmicToneMapping;
-  r.shadowMap.enabled = true;
-  const sc = new T.Scene(); sc.background = new T.Color(0x2a1f30); sc.fog = new T.Fog(0x2a1f30, 90 * Math.max(1, gap / 24), 260 * Math.max(1, gap / 24));
-  const cam = new T.PerspectiveCamera(40, 2, 0.1, 800);
-  const oc = new T.OrbitControls(cam, cv); oc.enableDamping = true;
-  sc.add(new T.HemisphereLight(0xb9a6d8, 0x2a2018, 0.7));
-  const sunB = new T.DirectionalLight(0xffc89a, 2.2); sunB.position.set(-30, 40, 30); sunB.castShadow = true;
-  sunB.shadow.mapSize.set(2048, 2048); Object.assign(sunB.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 150 }); sc.add(sunB);
-  const gr = new T.Mesh(new T.PlaneGeometry(600, 600), new T.MeshStandardMaterial({ color: 0x1c1a1f, roughness: 0.95 }));
-  gr.rotation.x = -Math.PI / 2; gr.receiveShadow = true; sc.add(gr);
-  const gh = new T.GridHelper(200, 50, 0x4a4552, 0x3a3640); gh.position.y = 0.01; sc.add(gh);
-  const railB = new T.Mesh(new T.BoxGeometry(110, 0.12, 0.12), new T.MeshBasicMaterial({ color: 0xf0b13c })); railB.position.set(0, 24, -16); sc.add(railB);
-  const bld = new T.Mesh(new T.BoxGeometry(14, 14, 10), new T.MeshStandardMaterial({ color: 0x6a625a, roughness: 0.85 })); bld.position.set(-34, 7, -8); bld.castShadow = true; sc.add(bld);
-  const carB = new T.Mesh(new T.BoxGeometry(1.8, 1.3, 4.4), new T.MeshStandardMaterial({ color: 0x7a1f1f })); carB.position.set(-14, 0.65, 10); sc.add(carB);
-  const pil = new T.Group(); const sm = new T.MeshStandardMaterial({ color: 0x2e5ea8 });
-  [-0.13, 0.13].forEach(x => { const l = new T.Mesh(new T.CylinderGeometry(0.1, 0.07, 0.86, 8), sm); l.position.set(x, 0.43, 0); pil.add(l); });
-  const tb = new T.Mesh(new T.CylinderGeometry(0.24, 0.17, 0.62, 10), sm); tb.position.y = 1.18; pil.add(tb);
-  const hb = new T.Mesh(new T.SphereGeometry(0.12, 12, 10), new T.MeshStandardMaterial({ color: 0xd8b49a })); hb.position.y = 1.66; pil.add(hb);
-  pil.position.set(-8, 0, 9); sc.add(pil);
+  // built on the shared renderer and canvas: its own scene, camera and controls, and nothing loaded until it is opened
+  let sc = null, cam = null, oc = null, loading = null;
   const groups = {}, ids = BO.mechs.map(m => m.id);
-  const pick = document.getElementById(pickId);
+  const pick = document.getElementById(pickId), stats = document.getElementById(statsId);
   let cur = "all";
+  function build() {
+    sc = new T.Scene(); sc.background = new T.Color(0x2a1f30); sc.fog = new T.Fog(0x2a1f30, 90 * Math.max(1, gap / 24), 260 * Math.max(1, gap / 24));
+    cam = new T.PerspectiveCamera(40, 2, 0.1, 800);
+    oc = new T.OrbitControls(cam, canvas); oc.enableDamping = true; oc.enabled = false;
+    sc.add(new T.HemisphereLight(0xb9a6d8, 0x2a2018, 0.7));
+    const sunB = new T.DirectionalLight(0xffc89a, 2.2); sunB.position.set(-30, 40, 30); sunB.castShadow = true;
+    sunB.shadow.mapSize.set(2048, 2048); Object.assign(sunB.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 150 }); sc.add(sunB);
+    const gr = new T.Mesh(new T.PlaneGeometry(600, 600), new T.MeshStandardMaterial({ color: 0x1c1a1f, roughness: 0.95 }));
+    gr.rotation.x = -Math.PI / 2; gr.receiveShadow = true; sc.add(gr);
+    const gh = new T.GridHelper(200, 50, 0x4a4552, 0x3a3640); gh.position.y = 0.01; sc.add(gh);
+    const railB = new T.Mesh(new T.BoxGeometry(110, 0.12, 0.12), new T.MeshBasicMaterial({ color: 0xf0b13c })); railB.position.set(0, 24, -16); sc.add(railB);
+    const bld = new T.Mesh(new T.BoxGeometry(14, 14, 10), new T.MeshStandardMaterial({ color: 0x6a625a, roughness: 0.85 })); bld.position.set(-34, 7, -8); bld.castShadow = true; sc.add(bld);
+    const carB = new T.Mesh(new T.BoxGeometry(1.8, 1.3, 4.4), new T.MeshStandardMaterial({ color: 0x7a1f1f })); carB.position.set(-14, 0.65, 10); sc.add(carB);
+    const pil = new T.Group(); const sm = new T.MeshStandardMaterial({ color: 0x2e5ea8 });
+    [-0.13, 0.13].forEach(x => { const l = new T.Mesh(new T.CylinderGeometry(0.1, 0.07, 0.86, 8), sm); l.position.set(x, 0.43, 0); pil.add(l); });
+    const tb = new T.Mesh(new T.CylinderGeometry(0.24, 0.17, 0.62, 10), sm); tb.position.y = 1.18; pil.add(tb);
+    const hb = new T.Mesh(new T.SphereGeometry(0.12, 12, 10), new T.MeshStandardMaterial({ color: 0xd8b49a })); hb.position.y = 1.66; pil.add(hb);
+    pil.position.set(-8, 0, 9); sc.add(pil);
+    document.getElementById("mode").textContent = "Loading " + label;
+    loading = Promise.all(BO.mechs.map(m => loader.loadAsync(m.file).then(g => {
+      g.scene.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
+      groups[m.id] = g.scene; sc.add(g.scene);
+    }))).then(() => { show(cur); if (sceneId === api) document.getElementById("mode").textContent = label; })
+      .catch(e => { stats.textContent = "Could not load: " + e; });
+    show(cur);
+  }
   function show(id) {
     cur = id;
-    ids.forEach((k, i) => { const g = groups[k]; if (!g) return; g.visible = id === "all" || id === k; const row = Math.floor(i / 5), col = i % 5; g.position.x = id === "all" ? (col - 2) * gap : 0; g.position.z = id === "all" ? -row * (gap + 6) : 0; });
     pick.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.bo === id)));
+    if (!sc) return;
+    ids.forEach((k, i) => { const g = groups[k]; if (!g) return; g.visible = id === "all" || id === k; const row = Math.floor(i / 5), col = i % 5; g.position.x = id === "all" ? (col - 2) * gap : 0; g.position.z = id === "all" ? -row * (gap + 6) : 0; });
     if (id === "all") { cam.position.set(40 * gap / 16, 34, 70 * gap / 16); oc.target.set(0, 10, -20); } else { cam.position.set(22 * frame.d, 18 * frame.d, 30 * frame.d); oc.target.set(0, frame.ty, 0); }
     oc.update();
   }
@@ -938,23 +970,28 @@ function blockoutViewer(BO, view, pickId, statsId, first, gap, api, frame) {
   [...BO.mechs.map(m => [m.id, ORIGINAL.has(m.id) ? m.name : `${++num} ${m.name}${LIKED.has(m.id) ? " (liked)" : ""}`]), ["all", "Line up"]].forEach(([id, name]) => {
     const b = document.createElement("button"); b.textContent = name; b.dataset.bo = id; b.onclick = () => show(id); pick.appendChild(b);
   });
-  document.getElementById(statsId).innerHTML = "<table><tr><th>Mech</th><th>After</th><th>Height</th><th>Width</th><th>Legs : torso</th><th>Triangles</th></tr>" +
+  stats.innerHTML = "<table><tr><th>Mech</th><th>After</th><th>Height</th><th>Width</th><th>Legs : torso</th><th>Triangles</th></tr>" +
     BO.mechs.map(m => `<tr><td>${m.name}</td><td>${m.what}</td><td>${m.height_m.toFixed(1)} m</td><td>${m.width_m.toFixed(1)} m</td><td>${m.legs_over_torso.toFixed(2)} by volume</td><td>${m.tris.toLocaleString()}</td></tr>`).join("") + "</table>";
-  Promise.all(BO.mechs.map(m => loader.loadAsync(m.file).then(g => {
-    g.scene.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
-    groups[m.id] = g.scene; sc.add(g.scene);
-  }))).then(() => show("all")).catch(e => { document.getElementById(statsId).textContent = "Could not load: " + e; });
-  window[api] = { show };
-  (function loop() {
-    requestAnimationFrame(loop);
-    const w = cv.clientWidth, h = cv.clientHeight;
-    if (cv.width !== Math.floor(w * r.getPixelRatio())) { r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
-    oc.update(); r.render(sc, cam);
-  })();
+  const v = {
+    label,
+    activate(on) {
+      pick.hidden = stats.hidden = !on;
+      if (on && !sc) build();
+      if (oc) oc.enabled = on;
+    },
+    render() {
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      if (Math.abs(cam.aspect - w / h) > 1e-3) { cam.aspect = w / h; cam.updateProjectionMatrix(); }
+      oc.update(); renderer.toneMappingExposure = 1.0; renderer.render(sc, cam);
+    },
+    show, ready: () => loading,
+  };
+  VIEWERS[api] = v;
+  window[api] = { show, open: () => { setScene(api); return loading; } };
 }
-blockoutViewer({"generator": "tools/blender/build_mech_blockouts.py", "target_height_m": 24.0, "mechs": [{"id": "foreman", "name": "Foreman", "what": "the excavator", "file": "mech_blockouts/foreman.gltf.json", "height_m": 23.62, "width_m": 11.97, "length_m": 13.31, "tris": 2356, "legs_m3": 577.5, "torso_m3": 295.2, "legs_over_torso": 1.96, "arm_leg_clips": []}, {"id": "stevedore", "name": "Stevedore", "what": "the dock crane, all struts", "file": "mech_blockouts/stevedore.gltf.json", "height_m": 26.0, "width_m": 12.91, "length_m": 11.96, "tris": 3304, "legs_m3": 112.5, "torso_m3": 87.5, "legs_over_torso": 1.29, "arm_leg_clips": []}, {"id": "ironhorse", "name": "Ironhorse", "what": "the locomotive", "file": "mech_blockouts/ironhorse.gltf.json", "height_m": 23.8, "width_m": 12.58, "length_m": 11.9, "tris": 2099, "legs_m3": 432.9, "torso_m3": 247.1, "legs_over_torso": 1.75, "arm_leg_clips": []}, {"id": "harrow", "name": "Harrow", "what": "new: the Mad Cat pattern, one hull between the hips, the Canopy in its nose", "file": "mech_blockouts/harrow.gltf.json", "height_m": 26.02, "width_m": 18.48, "length_m": 20.6, "tris": 3045, "legs_m3": 736.2, "torso_m3": 460.5, "legs_over_torso": 1.6, "arm_leg_clips": []}, {"id": "roustabout", "name": "Roustabout", "what": "new: the Scopedog pattern, the Titan in its chest, the upper chest lifts", "file": "mech_blockouts/roustabout.gltf.json", "height_m": 26.57, "width_m": 15.51, "length_m": 22.17, "tris": 2765, "legs_m3": 601.6, "torso_m3": 401.0, "legs_over_torso": 1.5, "arm_leg_clips": []}, {"id": "grader", "name": "Grader", "what": "new: a road dozer, the Panorama, a blade on push arms", "file": "mech_blockouts/grader.gltf.json", "height_m": 24.23, "width_m": 15.4, "length_m": 12.48, "tris": 2098, "legs_m3": 830.0, "torso_m3": 133.4, "legs_over_torso": 6.22, "arm_leg_clips": []}, {"id": "logger", "name": "Logger", "what": "new: a forestry harvester, the Low bank in a low hull, a crane boom", "file": "mech_blockouts/logger.gltf.json", "height_m": 25.55, "width_m": 12.6, "length_m": 12.21, "tris": 2054, "legs_m3": 333.8, "torso_m3": 200.6, "legs_over_torso": 1.66, "arm_leg_clips": []}, {"id": "lineman", "name": "Lineman", "what": "new: a utility bucket truck, the Cinema door, a bucket boom", "file": "mech_blockouts/lineman.gltf.json", "height_m": 30.11, "width_m": 11.0, "length_m": 11.3, "tris": 2363, "legs_m3": 304.7, "torso_m3": 157.3, "legs_over_torso": 1.94, "arm_leg_clips": []}, {"id": "driller", "name": "Driller", "what": "new: a mine drill rig, the All-view sphere in a ring, an auger", "file": "mech_blockouts/driller.gltf.json", "height_m": 33.56, "width_m": 17.36, "length_m": 17.96, "tris": 3320, "legs_m3": 399.8, "torso_m3": 311.4, "legs_over_torso": 1.28, "arm_leg_clips": []}, {"id": "bowser", "name": "Bowser", "what": "new: a fuel tanker, the Octagon under a tank", "file": "mech_blockouts/bowser.gltf.json", "height_m": 27.03, "width_m": 13.75, "length_m": 19.58, "tris": 3070, "legs_m3": 746.4, "torso_m3": 422.6, "legs_over_torso": 1.77, "arm_leg_clips": []}, {"id": "mule", "name": "Mule", "what": "new: a mine haul truck, the Twin tier under a canopy roof, a dump bed", "file": "mech_blockouts/mule.gltf.json", "height_m": 24.71, "width_m": 15.5, "length_m": 16.61, "tris": 2824, "legs_m3": 1058.6, "torso_m3": 243.2, "legs_over_torso": 4.35, "arm_leg_clips": []}, {"id": "pumper", "name": "Pumper", "what": "new: a fire engine, the Tile wall, water monitors on the shoulders", "file": "mech_blockouts/pumper.gltf.json", "height_m": 23.0, "width_m": 11.2, "length_m": 9.57, "tris": 2582, "legs_m3": 359.5, "torso_m3": 140.6, "legs_over_torso": 2.56, "arm_leg_clips": []}, {"id": "ploughman", "name": "Ploughman", "what": "new: a farm tractor, the Excavator cab over a bonnet", "file": "mech_blockouts/ploughman.gltf.json", "height_m": 24.62, "width_m": 11.8, "length_m": 10.47, "tris": 2302, "legs_m3": 624.0, "torso_m3": 162.4, "legs_over_torso": 3.84, "arm_leg_clips": []}, {"id": "picket", "name": "Picket", "what": "humanoid, after the RX-79[G]'s build: the Panorama, machine gun and shield", "file": "mech_blockouts/picket.gltf.json", "height_m": 23.8, "width_m": 13.68, "length_m": 15.4, "tris": 2606, "legs_m3": 353.6, "torso_m3": 216.9, "legs_over_torso": 1.63, "arm_leg_clips": []}, {"id": "sapper", "name": "Sapper", "what": "humanoid, heavy, bolt-on armour: the Titan, shoulder cannon, missile pod, rifle", "file": "mech_blockouts/sapper.gltf.json", "height_m": 23.44, "width_m": 15.11, "length_m": 16.2, "tris": 2852, "legs_m3": 426.1, "torso_m3": 254.6, "legs_over_torso": 1.67, "arm_leg_clips": []}]}, "bo-view", "bo-pick", "bo-stats", 1, 16, "BLOCKOUTS");
+blockoutViewer({"generator": "tools/blender/build_mech_blockouts.py", "target_height_m": 24.0, "mechs": [{"id": "foreman", "name": "Foreman", "what": "the excavator", "file": "mech_blockouts/foreman.gltf.json", "height_m": 23.62, "width_m": 11.97, "length_m": 13.31, "tris": 2356, "legs_m3": 577.5, "torso_m3": 295.2, "legs_over_torso": 1.96, "arm_leg_clips": []}, {"id": "stevedore", "name": "Stevedore", "what": "the dock crane, all struts", "file": "mech_blockouts/stevedore.gltf.json", "height_m": 26.0, "width_m": 12.91, "length_m": 11.96, "tris": 3304, "legs_m3": 112.5, "torso_m3": 87.5, "legs_over_torso": 1.29, "arm_leg_clips": []}, {"id": "ironhorse", "name": "Ironhorse", "what": "the locomotive", "file": "mech_blockouts/ironhorse.gltf.json", "height_m": 23.8, "width_m": 12.58, "length_m": 11.9, "tris": 2099, "legs_m3": 432.9, "torso_m3": 247.1, "legs_over_torso": 1.75, "arm_leg_clips": []}, {"id": "harrow", "name": "Harrow", "what": "new: the Mad Cat pattern, one hull between the hips, the Canopy in its nose", "file": "mech_blockouts/harrow.gltf.json", "height_m": 26.02, "width_m": 18.48, "length_m": 20.6, "tris": 3045, "legs_m3": 736.2, "torso_m3": 460.5, "legs_over_torso": 1.6, "arm_leg_clips": []}, {"id": "roustabout", "name": "Roustabout", "what": "new: the Scopedog pattern, the Titan in its chest, the upper chest lifts", "file": "mech_blockouts/roustabout.gltf.json", "height_m": 26.57, "width_m": 15.51, "length_m": 22.17, "tris": 2765, "legs_m3": 601.6, "torso_m3": 401.0, "legs_over_torso": 1.5, "arm_leg_clips": []}, {"id": "grader", "name": "Grader", "what": "new: a road dozer, the Panorama, a blade on push arms", "file": "mech_blockouts/grader.gltf.json", "height_m": 24.23, "width_m": 15.4, "length_m": 12.48, "tris": 2098, "legs_m3": 830.0, "torso_m3": 133.4, "legs_over_torso": 6.22, "arm_leg_clips": []}, {"id": "logger", "name": "Logger", "what": "new: a forestry harvester, the Low bank in a low hull, a crane boom", "file": "mech_blockouts/logger.gltf.json", "height_m": 25.55, "width_m": 12.6, "length_m": 12.21, "tris": 2054, "legs_m3": 333.8, "torso_m3": 200.6, "legs_over_torso": 1.66, "arm_leg_clips": []}, {"id": "lineman", "name": "Lineman", "what": "new: a utility bucket truck, the Cinema door, a bucket boom", "file": "mech_blockouts/lineman.gltf.json", "height_m": 30.11, "width_m": 11.0, "length_m": 11.3, "tris": 2363, "legs_m3": 304.7, "torso_m3": 157.3, "legs_over_torso": 1.94, "arm_leg_clips": []}, {"id": "driller", "name": "Driller", "what": "new: a mine drill rig, the All-view sphere in a ring, an auger", "file": "mech_blockouts/driller.gltf.json", "height_m": 33.56, "width_m": 17.36, "length_m": 17.96, "tris": 3320, "legs_m3": 399.8, "torso_m3": 311.4, "legs_over_torso": 1.28, "arm_leg_clips": []}, {"id": "bowser", "name": "Bowser", "what": "new: a fuel tanker, the Octagon under a tank", "file": "mech_blockouts/bowser.gltf.json", "height_m": 27.03, "width_m": 13.75, "length_m": 19.58, "tris": 3070, "legs_m3": 746.4, "torso_m3": 422.6, "legs_over_torso": 1.77, "arm_leg_clips": []}, {"id": "mule", "name": "Mule", "what": "new: a mine haul truck, the Twin tier under a canopy roof, a dump bed", "file": "mech_blockouts/mule.gltf.json", "height_m": 24.71, "width_m": 15.5, "length_m": 16.61, "tris": 2824, "legs_m3": 1058.6, "torso_m3": 243.2, "legs_over_torso": 4.35, "arm_leg_clips": []}, {"id": "pumper", "name": "Pumper", "what": "new: a fire engine, the Tile wall, water monitors on the shoulders", "file": "mech_blockouts/pumper.gltf.json", "height_m": 23.0, "width_m": 11.2, "length_m": 9.57, "tris": 2582, "legs_m3": 359.5, "torso_m3": 140.6, "legs_over_torso": 2.56, "arm_leg_clips": []}, {"id": "ploughman", "name": "Ploughman", "what": "new: a farm tractor, the Excavator cab over a bonnet", "file": "mech_blockouts/ploughman.gltf.json", "height_m": 24.62, "width_m": 11.8, "length_m": 10.47, "tris": 2302, "legs_m3": 624.0, "torso_m3": 162.4, "legs_over_torso": 3.84, "arm_leg_clips": []}, {"id": "picket", "name": "Picket", "what": "humanoid, after the RX-79[G]'s build: the Panorama, machine gun and shield", "file": "mech_blockouts/picket.gltf.json", "height_m": 23.8, "width_m": 13.68, "length_m": 15.4, "tris": 2606, "legs_m3": 353.6, "torso_m3": 216.9, "legs_over_torso": 1.63, "arm_leg_clips": []}, {"id": "sapper", "name": "Sapper", "what": "humanoid, heavy, bolt-on armour: the Titan, shoulder cannon, missile pod, rifle", "file": "mech_blockouts/sapper.gltf.json", "height_m": 23.44, "width_m": 15.11, "length_m": 16.2, "tris": 2852, "legs_m3": 426.1, "torso_m3": 254.6, "legs_over_torso": 1.67, "arm_leg_clips": []}]}, "Block-outs", "bo-pick", "bo-stats", 1, 16, "BLOCKOUTS");
 // the combat mechs, numbered on from the working ones (owner, 2026-10-24: "I want combat mechs with guns like in armored core")
-blockoutViewer({"generator": "tools/blender/build_mech_blockouts.py", "target_height_m": 24.0, "mechs": [{"id": "sabre", "name": "Sabre", "what": "the standard: biped, rifle and shield, missile box and radar, Panorama", "file": "mech_blockouts/sabre.gltf.json", "height_m": 25.52, "width_m": 13.44, "length_m": 16.62, "tris": 3980, "legs_m3": 353.4, "torso_m3": 226.9, "legs_over_torso": 1.56, "arm_leg_clips": []}, {"id": "swift", "name": "Swift", "what": "light, reverse joint, rifle and gatling, rocket pods, wing boosters, Canopy", "file": "mech_blockouts/swift.gltf.json", "height_m": 24.49, "width_m": 12.87, "length_m": 19.02, "tris": 5492, "legs_m3": 312.7, "torso_m3": 198.7, "legs_over_torso": 1.57, "arm_leg_clips": []}, {"id": "bulldog", "name": "Bulldog", "what": "heavy, tracks, twin gatlings, two shoulder cannons, Excavator cab", "file": "mech_blockouts/bulldog.gltf.json", "height_m": 16.82, "width_m": 17.44, "length_m": 18.65, "tris": 3815, "legs_m3": 543.6, "torso_m3": 364.3, "legs_over_torso": 1.49, "arm_leg_clips": []}, {"id": "tarantula", "name": "Tarantula", "what": "artillery, four legs, rifle and gatling, cannon and vertical missiles, Low bank", "file": "mech_blockouts/tarantula.gltf.json", "height_m": 22.07, "width_m": 19.38, "length_m": 20.62, "tris": 5495, "legs_m3": 487.2, "torso_m3": 258.4, "legs_over_torso": 1.89, "arm_leg_clips": []}, {"id": "hatchet", "name": "Hatchet", "what": "brawler, reverse joint, shotgun and pile driver, rockets and missiles, Titan", "file": "mech_blockouts/hatchet.gltf.json", "height_m": 24.89, "width_m": 15.1, "length_m": 16.96, "tris": 4650, "legs_m3": 342.9, "torso_m3": 258.4, "legs_over_torso": 1.33, "arm_leg_clips": []}, {"id": "longbow", "name": "Longbow", "what": "sniper, light biped, long rifle and assault rifle, radar and missiles, Cinema", "file": "mech_blockouts/longbow.gltf.json", "height_m": 25.52, "width_m": 11.33, "length_m": 20.47, "tris": 4393, "legs_m3": 284.6, "torso_m3": 201.8, "legs_over_torso": 1.41, "arm_leg_clips": []}, {"id": "anvil", "name": "Anvil", "what": "heavy biped, gatling and grenade launcher, two missile boxes, Tile wall", "file": "mech_blockouts/anvil.gltf.json", "height_m": 26.57, "width_m": 17.6, "length_m": 17.51, "tris": 4001, "legs_m3": 459.4, "torso_m3": 324.7, "legs_over_torso": 1.42, "arm_leg_clips": []}, {"id": "skylark", "name": "Skylark", "what": "flyer, light biped, bazooka and rifle, vertical missiles, wing boosters, Twin tier", "file": "mech_blockouts/skylark.gltf.json", "height_m": 24.09, "width_m": 12.8, "length_m": 18.88, "tris": 4748, "legs_m3": 288.8, "torso_m3": 219.3, "legs_over_torso": 1.32, "arm_leg_clips": []}, {"id": "brigand", "name": "Brigand", "what": "raider, reverse joint, bazooka and gatling, railgun and missiles, Octagon", "file": "mech_blockouts/brigand.gltf.json", "height_m": 26.27, "width_m": 13.9, "length_m": 16.82, "tris": 4690, "legs_m3": 342.9, "torso_m3": 244.8, "legs_over_torso": 1.4, "arm_leg_clips": []}, {"id": "rampart", "name": "Rampart", "what": "fortress, tracks, gatling and shield, railgun and vertical missiles, All-view sphere", "file": "mech_blockouts/rampart.gltf.json", "height_m": 16.89, "width_m": 17.2, "length_m": 18.48, "tris": 4316, "legs_m3": 543.6, "torso_m3": 364.0, "legs_over_torso": 1.49, "arm_leg_clips": []}]}, "cb-view", "cb-pick", "cb-stats", 13, 24, "COMBAT");
+blockoutViewer({"generator": "tools/blender/build_mech_blockouts.py", "target_height_m": 24.0, "mechs": [{"id": "sabre", "name": "Sabre", "what": "the standard: biped, rifle and shield, missile box and radar, Panorama", "file": "mech_blockouts/sabre.gltf.json", "height_m": 25.52, "width_m": 13.44, "length_m": 16.62, "tris": 3980, "legs_m3": 353.4, "torso_m3": 226.9, "legs_over_torso": 1.56, "arm_leg_clips": []}, {"id": "swift", "name": "Swift", "what": "light, reverse joint, rifle and gatling, rocket pods, wing boosters, Canopy", "file": "mech_blockouts/swift.gltf.json", "height_m": 24.49, "width_m": 12.87, "length_m": 19.02, "tris": 5492, "legs_m3": 312.7, "torso_m3": 198.7, "legs_over_torso": 1.57, "arm_leg_clips": []}, {"id": "bulldog", "name": "Bulldog", "what": "heavy, tracks, twin gatlings, two shoulder cannons, Excavator cab", "file": "mech_blockouts/bulldog.gltf.json", "height_m": 16.82, "width_m": 17.44, "length_m": 18.65, "tris": 3815, "legs_m3": 543.6, "torso_m3": 364.3, "legs_over_torso": 1.49, "arm_leg_clips": []}, {"id": "tarantula", "name": "Tarantula", "what": "artillery, four legs, rifle and gatling, cannon and vertical missiles, Low bank", "file": "mech_blockouts/tarantula.gltf.json", "height_m": 22.07, "width_m": 19.38, "length_m": 20.62, "tris": 5495, "legs_m3": 487.2, "torso_m3": 258.4, "legs_over_torso": 1.89, "arm_leg_clips": []}, {"id": "hatchet", "name": "Hatchet", "what": "brawler, reverse joint, shotgun and pile driver, rockets and missiles, Titan", "file": "mech_blockouts/hatchet.gltf.json", "height_m": 24.89, "width_m": 15.1, "length_m": 16.96, "tris": 4650, "legs_m3": 342.9, "torso_m3": 258.4, "legs_over_torso": 1.33, "arm_leg_clips": []}, {"id": "longbow", "name": "Longbow", "what": "sniper, light biped, long rifle and assault rifle, radar and missiles, Cinema", "file": "mech_blockouts/longbow.gltf.json", "height_m": 25.52, "width_m": 11.33, "length_m": 20.47, "tris": 4393, "legs_m3": 284.6, "torso_m3": 201.8, "legs_over_torso": 1.41, "arm_leg_clips": []}, {"id": "anvil", "name": "Anvil", "what": "heavy biped, gatling and grenade launcher, two missile boxes, Tile wall", "file": "mech_blockouts/anvil.gltf.json", "height_m": 26.57, "width_m": 17.6, "length_m": 17.51, "tris": 4001, "legs_m3": 459.4, "torso_m3": 324.7, "legs_over_torso": 1.42, "arm_leg_clips": []}, {"id": "skylark", "name": "Skylark", "what": "flyer, light biped, bazooka and rifle, vertical missiles, wing boosters, Twin tier", "file": "mech_blockouts/skylark.gltf.json", "height_m": 24.09, "width_m": 12.8, "length_m": 18.88, "tris": 4748, "legs_m3": 288.8, "torso_m3": 219.3, "legs_over_torso": 1.32, "arm_leg_clips": []}, {"id": "brigand", "name": "Brigand", "what": "raider, reverse joint, bazooka and gatling, railgun and missiles, Octagon", "file": "mech_blockouts/brigand.gltf.json", "height_m": 26.27, "width_m": 13.9, "length_m": 16.82, "tris": 4690, "legs_m3": 342.9, "torso_m3": 244.8, "legs_over_torso": 1.4, "arm_leg_clips": []}, {"id": "rampart", "name": "Rampart", "what": "fortress, tracks, gatling and shield, railgun and vertical missiles, All-view sphere", "file": "mech_blockouts/rampart.gltf.json", "height_m": 16.89, "width_m": 17.2, "length_m": 18.48, "tris": 4316, "legs_m3": 543.6, "torso_m3": 364.0, "legs_over_torso": 1.49, "arm_leg_clips": []}]}, "Combat mechs", "cb-pick", "cb-stats", 13, 24, "COMBAT");
 // the crab mechs, numbered on from the combat mechs (owner, 2026-10-24: "more practical big legged crabs with guns for arms")
-blockoutViewer({"generator": "tools/blender/build_mech_blockouts.py", "target_height_m": 24.0, "mechs": [{"id": "fiddler", "name": "Fiddler", "what": "one big arm: a howitzer on the right, an autocannon on the left; radar and missiles, Panorama", "file": "mech_blockouts/fiddler.gltf.json", "height_m": 15.96, "width_m": 32.75, "length_m": 36.01, "tris": 7146, "legs_m3": 714.3, "torso_m3": 285.0, "legs_over_torso": 2.51, "arm_leg_clips": []}, {"id": "hermit", "name": "Hermit", "what": "a high shell that is a missile magazine, twin gatlings, Titan", "file": "mech_blockouts/hermit.gltf.json", "height_m": 14.64, "width_m": 32.15, "length_m": 30.45, "tris": 6898, "legs_m3": 764.6, "torso_m3": 342.9, "legs_over_torso": 2.23, "arm_leg_clips": []}, {"id": "stone", "name": "Stone", "what": "low and wide on four pairs of legs, two pincer cannons, rocket pods, Excavator cab", "file": "mech_blockouts/stone.gltf.json", "height_m": 13.13, "width_m": 36.09, "length_m": 34.08, "tris": 7148, "legs_m3": 1357.9, "torso_m3": 403.1, "legs_over_torso": 3.37, "arm_leg_clips": []}, {"id": "ghost", "name": "Ghost", "what": "light and high on long legs, two autocannons, radar and missiles, Canopy", "file": "mech_blockouts/ghost.gltf.json", "height_m": 17.97, "width_m": 34.22, "length_m": 28.43, "tris": 6495, "legs_m3": 619.0, "torso_m3": 202.1, "legs_over_torso": 3.06, "arm_leg_clips": []}, {"id": "coconut", "name": "Coconut", "what": "the biggest: four pairs of legs, a gatling and a pincer cannon, railgun and vertical missiles, All-view sphere", "file": "mech_blockouts/coconut.gltf.json", "height_m": 15.76, "width_m": 39.49, "length_m": 38.46, "tris": 8233, "legs_m3": 2049.4, "torso_m3": 510.6, "legs_over_torso": 4.01, "arm_leg_clips": []}, {"id": "mitten", "name": "Mitten", "what": "a rocket box and an autocannon for arms, a shoulder cannon and missiles, Low bank", "file": "mech_blockouts/mitten.gltf.json", "height_m": 14.07, "width_m": 32.75, "length_m": 30.98, "tris": 7055, "legs_m3": 714.3, "torso_m3": 299.8, "legs_over_torso": 2.38, "arm_leg_clips": []}]}, "cr-view", "cr-pick", "cr-stats", 23, 44, "CRABS", { d: 1.45, ty: 7 });
+blockoutViewer({"generator": "tools/blender/build_mech_blockouts.py", "target_height_m": 24.0, "mechs": [{"id": "fiddler", "name": "Fiddler", "what": "one big arm: a howitzer on the right, an autocannon on the left; radar and missiles, Panorama", "file": "mech_blockouts/fiddler.gltf.json", "height_m": 15.96, "width_m": 32.75, "length_m": 36.01, "tris": 7146, "legs_m3": 714.3, "torso_m3": 285.0, "legs_over_torso": 2.51, "arm_leg_clips": []}, {"id": "hermit", "name": "Hermit", "what": "a high shell that is a missile magazine, twin gatlings, Titan", "file": "mech_blockouts/hermit.gltf.json", "height_m": 14.64, "width_m": 32.15, "length_m": 30.45, "tris": 6898, "legs_m3": 764.6, "torso_m3": 342.9, "legs_over_torso": 2.23, "arm_leg_clips": []}, {"id": "stone", "name": "Stone", "what": "low and wide on four pairs of legs, two pincer cannons, rocket pods, Excavator cab", "file": "mech_blockouts/stone.gltf.json", "height_m": 13.13, "width_m": 36.09, "length_m": 34.08, "tris": 7148, "legs_m3": 1357.9, "torso_m3": 403.1, "legs_over_torso": 3.37, "arm_leg_clips": []}, {"id": "ghost", "name": "Ghost", "what": "light and high on long legs, two autocannons, radar and missiles, Canopy", "file": "mech_blockouts/ghost.gltf.json", "height_m": 17.97, "width_m": 34.22, "length_m": 28.43, "tris": 6495, "legs_m3": 619.0, "torso_m3": 202.1, "legs_over_torso": 3.06, "arm_leg_clips": []}, {"id": "coconut", "name": "Coconut", "what": "the biggest: four pairs of legs, a gatling and a pincer cannon, railgun and vertical missiles, All-view sphere", "file": "mech_blockouts/coconut.gltf.json", "height_m": 15.76, "width_m": 39.49, "length_m": 38.46, "tris": 8233, "legs_m3": 2049.4, "torso_m3": 510.6, "legs_over_torso": 4.01, "arm_leg_clips": []}, {"id": "mitten", "name": "Mitten", "what": "a rocket box and an autocannon for arms, a shoulder cannon and missiles, Low bank", "file": "mech_blockouts/mitten.gltf.json", "height_m": 14.07, "width_m": 32.75, "length_m": 30.98, "tris": 7055, "legs_m3": 714.3, "torso_m3": 299.8, "legs_over_torso": 2.38, "arm_leg_clips": []}]}, "Crab mechs", "cr-pick", "cr-stats", 23, 44, "CRABS", { d: 1.45, ty: 7 });
 </script>

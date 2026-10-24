@@ -382,7 +382,9 @@ Star Crew and Undercity, each with an "In Crab Breeze" note on what changes.
   A cloud session installs Blender 4.4 itself (about a minute): the official tarball from
   `mirrors.dotsrc.org/blender/release/Blender4.4/blender-4.4.3-linux-x64.tar.xz` into `/opt/blender`.
   Run `/opt/blender/blender --background --factory-startup --python tools/blender/build_mechs.py`,
-  then `python3 tools/mockups/gen_mech_designs.py` and look at the shots (below).
+  then `python3 tools/mechs/gen_mech_data.py` (each mech's game data, `data/mechs/<id>.ron` and its
+  `boarding.ron`, measured off its glb; `cb-tools validate` refuses data left stale by a rebuild), then
+  `python3 tools/mockups/gen_mech_designs.py` and look at the shots (below).
 - **The cockpit generators**: panels first (`tools/blender/bake_cockpit_panels.py`, the kit
   `cockpit_kit.py`, the panels `cockpit_panels.py`; contact sheet
   `python3 tools/textures/cockpit_contact_sheet.py`), the displays
