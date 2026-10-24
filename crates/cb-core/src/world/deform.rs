@@ -175,7 +175,12 @@ impl Deformation {
         // `volume_m3`; built in its final shape, it needs only a few slump passes to settle onto
         // any heap already there.
         let (a, bnd) = (lo - Vec2::splat(spread_m), hi + Vec2::splat(spread_m));
-        let at = |i: usize, j: usize| Vec2::new(self.origin_m + (gx0 + i as i64) as f32 * STEP_M, self.origin_m + (gz0 + j as i64) as f32 * STEP_M);
+        let at = |i: usize, j: usize| {
+            Vec2::new(
+                self.origin_m + (gx0 + i as i64) as f32 * STEP_M,
+                self.origin_m + (gz0 + j as i64) as f32 * STEP_M,
+            )
+        };
         let outside: Vec<f32> = (0..w * h)
             .map(|k| {
                 let p = at(k % w, k / w);
