@@ -1,6 +1,7 @@
 //! The one building collision query, shared by the pilot and the mech (procgen-world design
 //! section 3). Bodies are circles on the ground; buildings are their footprints.
 
+use super::grid::CellIndex;
 use super::layout::{Building, Rect};
 use glam::Vec2;
 
@@ -8,10 +9,7 @@ use glam::Vec2;
 /// the result never depends on bucket order.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BuildingGrid {
-    origin_m: f32,
-    bucket_m: f32,
-    side: usize,
-    buckets: Vec<Vec<u32>>,
+    index: CellIndex,
     footprints: Vec<Rect>,
     /// Roof height of each building; empty when unknown (then every building is a wall).
     roofs: Vec<f32>,
@@ -21,25 +19,16 @@ impl BuildingGrid {
     /// A grid over a square world `world_size_m` wide, with `bucket_m` buckets.
     pub fn new(buildings: &[Building], world_size_m: f32, bucket_m: f32) -> Self {
         let side = (world_size_m / bucket_m).ceil() as usize + 1;
-        let mut grid = Self {
-            origin_m: -world_size_m * 0.5,
-            bucket_m,
-            side,
-            buckets: vec![Vec::new(); side * side],
-            footprints: Vec::with_capacity(buildings.len()),
+        let boxes: Vec<(u32, Vec2, Vec2)> = buildings
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (i as u32, b.footprint.min, b.footprint.max))
+            .collect();
+        Self {
+            index: CellIndex::build(-world_size_m * 0.5, bucket_m, side, &boxes),
+            footprints: buildings.iter().map(|b| b.footprint).collect(),
             roofs: Vec::new(),
-        };
-        for (i, b) in buildings.iter().enumerate() {
-            grid.footprints.push(b.footprint);
-            let (x0, z0) = grid.bucket(b.footprint.min);
-            let (x1, z1) = grid.bucket(b.footprint.max);
-            for z in z0..=z1 {
-                for x in x0..=x1 {
-                    grid.buckets[z * side + x].push(i as u32);
-                }
-            }
         }
-        grid
     }
 
     /// The same grid knowing each building's roof height, so bodies can fly over and stand on them.
@@ -75,24 +64,9 @@ impl BuildingGrid {
             .reduce(f32::max)
     }
 
-    fn bucket(&self, p: Vec2) -> (usize, usize) {
-        let f = |v: f32| (((v - self.origin_m) / self.bucket_m).floor().max(0.0) as usize).min(self.side - 1);
-        (f(p.x), f(p.y))
-    }
-
     /// Indices of buildings whose footprint might be within `radius_m` of `p`, ascending.
     pub fn candidates(&self, p: Vec2, radius_m: f32) -> Vec<u32> {
-        let (x0, z0) = self.bucket(p - Vec2::splat(radius_m));
-        let (x1, z1) = self.bucket(p + Vec2::splat(radius_m));
-        let mut out = Vec::new();
-        for z in z0..=z1 {
-            for x in x0..=x1 {
-                out.extend_from_slice(&self.buckets[z * self.side + x]);
-            }
-        }
-        out.sort_unstable();
-        out.dedup();
-        out
+        self.index.within(p - Vec2::splat(radius_m), p + Vec2::splat(radius_m))
     }
 
     /// Moves a circle of `radius_m` at `p` (x, z) out of every building footprint it overlaps,

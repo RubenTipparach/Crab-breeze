@@ -13,6 +13,7 @@ pub mod mech;
 pub mod pilot;
 pub mod rng;
 pub mod sim;
+pub mod water_look;
 pub mod weapons;
 pub mod world;
 
@@ -35,6 +36,8 @@ pub struct GameData {
     pub bindings: input::Bindings,
     /// `data/world/encounters.ron`.
     pub encounters: ai::Encounters,
+    /// `data/world/water_look.ron`.
+    pub water_look: water_look::WaterLook,
 }
 
 impl GameData {
@@ -49,6 +52,7 @@ impl GameData {
             pilot: data::load_ron(&root.join("pilot/pilot.ron"))?,
             bindings: data::load_ron(&root.join("input/bindings.ron"))?,
             encounters: data::load_ron(&root.join("world/encounters.ron"))?,
+            water_look: data::load_ron(&root.join("world/water_look.ron"))?,
         })
     }
 

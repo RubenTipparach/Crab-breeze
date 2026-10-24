@@ -1,13 +1,23 @@
 //! The benchmark (`--bench`, openspec change `perf-bench`): plays the showcase take with the
 //! pilot's camera rendering into an offscreen 1920 x 1080 image, so frames never wait for a display,
 //! and reports frame time by beat. A measurement instrument (CLAUDE.md section 4).
+//!
+//! Stills of the offscreen image only with `CB_BENCH_STILLS=1`; a measured run takes none.
+//!
+//! For `tools/perf/perf_suite.py` (Pale Blue Dot's suite, ported): with `CB_FRAME_LOG=<path>` it
+//! writes one CSV row per frame (wall time, beat, entity count, the render passes' CPU time and,
+//! where the GPU has timestamp queries, their GPU time; Metal has none), and at exit a
+//! `BENCHPASS` line per render pass with its mean time, so the report can say where the time goes.
 
 use crate::pilot::PilotCamera;
 use crate::showcase::Take;
 use bevy::camera::RenderTarget;
+use bevy::diagnostic::{DiagnosticsStore, EntityCountDiagnosticsPlugin};
 use bevy::prelude::*;
+use bevy::render::diagnostic::RenderDiagnosticsPlugin;
 use bevy::render::render_resource::TextureFormat;
-use std::io::Write;
+use std::collections::BTreeMap;
+use std::io::{BufWriter, Write};
 
 /// The beats' names, for the report.
 const BEATS: [&str; 12] = [
@@ -23,11 +33,32 @@ struct Frames {
     by_beat: Vec<Vec<f32>>,
     target: Handle<Image>,
     shot_beats: Vec<usize>,
+    /// The per-frame CSV, when `CB_FRAME_LOG` names one.
+    log: Option<BufWriter<std::fs::File>>,
+    /// Per render pass: (sum of CPU ms, sum of GPU ms, frames) after the warm-up.
+    passes: BTreeMap<String, (f64, f64, u32)>,
 }
 
 impl Plugin for BenchPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Frames>()
+        if !app.is_plugin_added::<RenderDiagnosticsPlugin>() {
+            app.add_plugins(RenderDiagnosticsPlugin);
+        }
+        if !app.is_plugin_added::<EntityCountDiagnosticsPlugin>() {
+            app.add_plugins(EntityCountDiagnosticsPlugin::default());
+        }
+        let mut frames = Frames::default();
+        if let Ok(path) = std::env::var("CB_FRAME_LOG") {
+            match std::fs::File::create(&path) {
+                Ok(f) => {
+                    let mut w = BufWriter::new(f);
+                    writeln!(w, "since_start_s,wall_ms,beat,entities,render_cpu_ms,gpu_total_ms").ok();
+                    frames.log = Some(w);
+                }
+                Err(e) => warn!("bench: cannot write the frame log {path}: {e}"),
+            }
+        }
+        app.insert_resource(frames)
             .add_systems(PostStartup, offscreen)
             .add_systems(Last, (record, report).chain());
     }
@@ -46,10 +77,13 @@ fn offscreen(
     info!("bench: rendering the pilot's view offscreen at 1920 x 1080");
 }
 
-fn record(mut commands: Commands, time: Res<Time<Real>>, take: Res<Take>, mut frames: ResMut<Frames>) {
-    // A still of the offscreen image every 4 s, proof that it was really drawn and what it showed.
+fn record(mut commands: Commands, time: Res<Time<Real>>, take: Res<Take>, diagnostics: Res<DiagnosticsStore>, mut frames: ResMut<Frames>) {
+    // A still of the offscreen image every 4 s, proof that it was really drawn and what it showed,
+    // only with `CB_BENCH_STILLS=1`: each costs a frame of about 11 ms (the read-back and the
+    // write), so a measured run takes none (owner, 2026-10-24: "dont take screenshot on one run or
+    // obs, and just do pure perf measurement"). An OBS take is the proof of what was drawn.
     let slot = (time.elapsed_secs() / 4.0) as usize;
-    if !frames.shot_beats.contains(&slot) && take.beat > 0 {
+    if crate::cli::switched_off("CB_BENCH_STILLS") && !frames.shot_beats.contains(&slot) && take.beat > 0 {
         frames.shot_beats.push(slot);
         let path = crate::cli::repo_root().join(format!("output/bench/t{:03}-beat{:02}.png", slot * 4, take.beat));
         commands
@@ -59,6 +93,47 @@ fn record(mut commands: Commands, time: Res<Time<Real>>, take: Res<Take>, mut fr
     let now = time.elapsed_secs();
     if frames.started_s == 0.0 {
         frames.started_s = now;
+    }
+    // The render passes' own times: `render/<pass>/elapsed_cpu` and `.../elapsed_gpu` (top level
+    // only, so nested spans are not counted twice).
+    let (mut cpu, mut gpu, mut any_gpu) = (0.0, 0.0, false);
+    let warm = now - frames.started_s >= 10.0;
+    for d in diagnostics.iter() {
+        let path = d.path().as_str();
+        let parts: Vec<&str> = path.split('/').collect();
+        if parts.len() != 3 || parts[0] != "render" {
+            continue;
+        }
+        let Some(v) = d.measurement().map(|m| m.value) else { continue };
+        let entry = frames.passes.entry(parts[1].to_string()).or_insert((0.0, 0.0, 0));
+        match parts[2] {
+            "elapsed_cpu" => {
+                cpu += v;
+                if warm {
+                    entry.0 += v;
+                    entry.2 += 1;
+                }
+            }
+            "elapsed_gpu" => {
+                gpu += v;
+                any_gpu = true;
+                if warm {
+                    entry.1 += v;
+                }
+            }
+            _ => {}
+        }
+    }
+    let entities = diagnostics
+        .get(&EntityCountDiagnosticsPlugin::ENTITY_COUNT)
+        .and_then(|d| d.measurement())
+        .map_or(0.0, |m| m.value);
+    let since = now - frames.started_s;
+    let beat_now = take.beat;
+    let wall_ms = time.delta_secs() * 1000.0;
+    if let Some(log) = frames.log.as_mut() {
+        let gpu = if any_gpu { format!("{gpu:.3}") } else { String::new() };
+        writeln!(log, "{since:.4},{wall_ms:.3},{beat_now},{entities:.0},{cpu:.3},{gpu}").ok();
     }
     // Throw away the first 10 s (shader compilation, asset upload).
     if now - frames.started_s < 10.0 {
@@ -78,9 +153,18 @@ fn pct(sorted: &[f32], p: f32) -> f32 {
     sorted[((sorted.len() - 1) as f32 * p).round() as usize]
 }
 
-fn report(mut exit: MessageReader<AppExit>, frames: Res<Frames>) {
+fn report(mut exit: MessageReader<AppExit>, mut frames: ResMut<Frames>) {
     if exit.read().next().is_none() {
         return;
+    }
+    if let Some(log) = frames.log.as_mut() {
+        log.flush().ok();
+    }
+    let mut passes: Vec<(&String, &(f64, f64, u32))> = frames.passes.iter().filter(|p| p.1.2 > 0).collect();
+    passes.sort_by(|a, b| (b.1.0 + b.1.1).total_cmp(&(a.1.0 + a.1.1)));
+    for (name, (cpu, gpu, n)) in passes {
+        let n = f64::from(*n);
+        println!("BENCHPASS {name} cpu_ms={:.3} gpu_ms={:.3}", cpu / n, gpu / n);
     }
     let mut all: Vec<f32> = Vec::new();
     let mut json = String::from("{\"beats\":[");

@@ -27,6 +27,7 @@ ground and from inside a cloud (the worst case). Fog: free. Shadow texture: one 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | W8 | Clouds | scattered cumulus at 300-750 m, about 50 % cover, fly-through fog | provisional (survey W8); lowered 2026-10-24 from 600-1100 m so the sky has clouds in view and one boost (about 8 s of climb) reaches them (owner: "I need some cheap clouds") |
+| W9 | Clouds off | coverage 0 in data until the sprites are cheaper (fewer, smaller, faded near the eye, one instanced draw) and measured | owner, 2026-10-24: "something is quite heavy on my gpu disable clouds for now" |
 | T4 | Camera raindrops from Pale Blue Dot | port its lens-droplet effect when rain arrives; bring its source into reach | open (survey T4) |
 
 ## As built (2026-10-24)

@@ -195,8 +195,8 @@ fn solid_at(p: Vec3, shot: &Projectile, scene: &Scene, structures: &Structures, 
         }
     }
     for id in forest.near(p2, 1.5) {
-        let t = &forest.trees[id as usize];
-        if forest.states[id as usize] == TreeState::Standing
+        let Some(t) = forest.tree(id) else { continue };
+        if forest.state(id) == TreeState::Standing
             && p.y < t.base.y + t.height_m * 0.8
             && Vec2::new(t.base.x, t.base.z).distance(p2) < t.trunk_radius_m + 0.6
         {

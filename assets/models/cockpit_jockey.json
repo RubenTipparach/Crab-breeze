@@ -23,8 +23,8 @@
   },
   "bounds_closed_m": {
     "x": [
-      -0.85,
-      0.85
+      -0.87,
+      0.87
     ],
     "y": [
       -0.06,
@@ -37,8 +37,8 @@
   },
   "bounds_open_m": {
     "x": [
-      -0.85,
-      0.85
+      -0.87,
+      0.87
     ],
     "y": [
       -0.06,
@@ -201,7 +201,7 @@
       "node": "INNER_front"
     },
     "INNER_front_cabin": {
-      "tris": 2562,
+      "tris": 2570,
       "group": "cabin",
       "node": "INNER_front"
     },
@@ -226,7 +226,7 @@
       "node": "pod"
     },
     "pod_cabin": {
-      "tris": 7974,
+      "tris": 8006,
       "group": "cabin",
       "node": "pod"
     },
@@ -238,7 +238,7 @@
   },
   "vents": 5,
   "lights": 6,
-  "tris": 13084,
+  "tris": 13124,
   "tri_budget": 600000,
   "draw_calls": 11,
   "atlases": {
@@ -282,5 +282,5 @@
     "wall_L",
     "wall_R"
   ],
-  "bytes": 4482402
+  "bytes": 4523561
 }

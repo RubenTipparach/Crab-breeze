@@ -8,6 +8,7 @@ mod capture;
 mod cli;
 mod combat;
 mod fx;
+mod ground;
 mod hud;
 mod input;
 mod mech;
@@ -16,6 +17,7 @@ mod pilot;
 mod showcase;
 mod sim;
 mod textures;
+mod water_render;
 mod world;
 
 use bevy::prelude::*;
@@ -80,6 +82,7 @@ fn main() -> AppExit {
         buildings::BuildingsPlugin,
         physics::DebrisPhysicsPlugin,
         hud::HudPlugin,
+        water_render::WaterRenderPlugin,
     ));
     if let Some(dir) = args.stills {
         app.add_plugins(capture::StillsPlugin { dir });

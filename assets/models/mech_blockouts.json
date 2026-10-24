@@ -1,0 +1,45 @@
+{
+ "generator": "tools/blender/build_mech_blockouts.py",
+ "target_height_m": 24.0,
+ "mechs": [
+  {
+   "id": "foreman",
+   "name": "Foreman",
+   "what": "the excavator",
+   "file": "mech_blockouts/foreman.glb",
+   "height_m": 23.62,
+   "width_m": 11.97,
+   "length_m": 13.31,
+   "tris": 2356,
+   "legs_m3": 577.5,
+   "torso_m3": 295.2,
+   "legs_over_torso": 1.96
+  },
+  {
+   "id": "stevedore",
+   "name": "Stevedore",
+   "what": "the dock crane, all struts",
+   "file": "mech_blockouts/stevedore.glb",
+   "height_m": 26.0,
+   "width_m": 12.91,
+   "length_m": 11.96,
+   "tris": 3304,
+   "legs_m3": 112.5,
+   "torso_m3": 87.5,
+   "legs_over_torso": 1.29
+  },
+  {
+   "id": "ironhorse",
+   "name": "Ironhorse",
+   "what": "the locomotive",
+   "file": "mech_blockouts/ironhorse.glb",
+   "height_m": 23.8,
+   "width_m": 12.58,
+   "length_m": 11.9,
+   "tris": 2099,
+   "legs_m3": 432.9,
+   "torso_m3": 247.1,
+   "legs_over_torso": 1.75
+  }
+ ]
+}

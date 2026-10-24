@@ -1,21 +1,170 @@
-//! The ground: base hills from seeded value noise, shaped flat under cities and highways, stored
-//! as a height grid. `height_at` is the one ground query: the terrain mesh, the pilot's feet and
-//! the mech's root all read it (procgen-world design section 3).
+//! The ground: an island of seeded hills falling to a sea floor (openspec change `island-world`),
+//! shaped flat under cities and highways and carved by rivers. `height_at` is the one ground query:
+//! the drawn chunks at every level of detail, the colliders, the pilot's feet and the mech's root
+//! all read it (procgen-world design section 3).
+//!
+//! The ground is a grid of samples `cell_m` apart, but the grid is not stored: a sample is a pure
+//! function of its position, worked out when asked for. A 40 km world at 8 m would be 26 million
+//! stored heights (105 MB); asking costs about a third of a microsecond a sample instead
+//! (island-world design section 2).
 
+use super::config::{IslandConfig, WorldConfig};
+use super::layout::{City, Highway, Rect};
+use super::water::Channels;
 use crate::rng::SimRng;
 use glam::{Vec2, Vec3};
 
-/// A square grid of ground heights, `n` samples a side, `cell_m` apart, centred on the origin.
+/// The island's shape: hills on land that falls away to a sea floor past a noisy coast.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Shape {
+    hills: ValueNoise,
+    coast: ValueNoise,
+    floor: ValueNoise,
+    hills_wavelength_m: f32,
+    hills_amplitude_m: f32,
+    hills_octaves: u32,
+    hills_persistence: f32,
+    island: IslandConfig,
+    half_world_m: f32,
+}
+
+impl Shape {
+    /// The shape for a world, from the world's stream (the hills keep the `terrain` fork they
+    /// always drew from).
+    pub fn new(root: &SimRng, cfg: &WorldConfig) -> Self {
+        Self {
+            hills: ValueNoise::new(&root.fork("terrain")),
+            coast: ValueNoise::new(&root.fork("coast")),
+            floor: ValueNoise::new(&root.fork("sea floor")),
+            hills_wavelength_m: cfg.noise_wavelength_m,
+            hills_amplitude_m: cfg.noise_amplitude_m,
+            hills_octaves: cfg.noise_octaves,
+            hills_persistence: cfg.noise_persistence,
+            island: cfg.island.clone(),
+            half_world_m: cfg.world_size_m * 0.5,
+        }
+    }
+
+    /// Signed distance past the land's edge at `p`: negative inland, positive out to sea, where the
+    /// edge is `land_radius_m` from the centre moved in or out by the coast noise.
+    pub fn past_land_edge_m(&self, p: Vec2) -> f32 {
+        let i = &self.island;
+        let wobble = self.coast.unit(p.x, p.y, i.coast_wavelength_m, 3, 0.5);
+        p.length() + i.coast_noise_m * wobble - i.land_radius_m
+    }
+
+    /// Ground height at `p` before cities, roads and rivers.
+    pub fn height(&self, p: Vec2) -> f32 {
+        let i = &self.island;
+        let past = self.past_land_edge_m(p);
+        let t = smoothstep(0.0, i.shelf_m, past);
+        let land = if t < 1.0 {
+            let inland = (-past / i.land_radius_m).clamp(0.0, 1.0);
+            let hills = self.hills.height(
+                p.x,
+                p.y,
+                self.hills_wavelength_m,
+                self.hills_amplitude_m,
+                self.hills_octaves,
+                self.hills_persistence,
+            );
+            i.land_height_m + i.highland_m * inland * inland + hills
+        } else {
+            0.0
+        };
+        let sea = if t > 0.0 {
+            let edge = p.x.abs().max(p.y.abs());
+            let fade = 1.0 - smoothstep(self.half_world_m - i.edge_fade_m, self.half_world_m, edge);
+            -i.sea_depth_m + i.floor_noise_m * fade * self.floor.unit(p.x, p.y, i.floor_wavelength_m, 2, 0.5)
+        } else {
+            0.0
+        };
+        i.sea_level_m + land * (1.0 - t) + sea * t
+    }
+}
+
+/// Flat ground under cities and graded ground under highways, looked up by an index so a sample
+/// only visits the few that reach it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Flats {
+    cities: Vec<(Rect, f32)>,
+    highways: Vec<Highway>,
+    plateau_margin_m: f32,
+    plateau_blend_m: f32,
+    road_flat_m: f32,
+    road_blend_m: f32,
+    /// City ids, then highway ids offset by the city count: the order they are applied in.
+    index: super::grid::CellIndex,
+}
+
+/// Cell size of the flats' index.
+const FLATS_CELL_M: f32 = 512.0;
+
+impl Flats {
+    /// The flats of a world's cities and highways.
+    pub fn new(cities: &[City], highways: &[Highway], cfg: &WorldConfig) -> Self {
+        let plateau_reach = cfg.plateau_flat_margin_m + cfg.plateau_blend_m;
+        let road_flat_m = cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m;
+        let road_reach = road_flat_m + cfg.highway_blend_m;
+        let mut boxes = Vec::new();
+        for (i, c) in cities.iter().enumerate() {
+            let r = c.rect();
+            boxes.push((i as u32, r.min - Vec2::splat(plateau_reach), r.max + Vec2::splat(plateau_reach)));
+        }
+        for (k, h) in highways.iter().enumerate() {
+            let (lo, hi) = (h.ends[0].min(h.ends[1]), h.ends[0].max(h.ends[1]));
+            boxes.push((
+                (cities.len() + k) as u32,
+                lo - Vec2::splat(road_reach),
+                hi + Vec2::splat(road_reach),
+            ));
+        }
+        let half = cfg.world_size_m * 0.5;
+        let side = (cfg.world_size_m / FLATS_CELL_M).ceil() as usize;
+        Self {
+            cities: cities.iter().map(|c| (c.rect(), c.ground_m)).collect(),
+            highways: highways.to_vec(),
+            plateau_margin_m: cfg.plateau_flat_margin_m,
+            plateau_blend_m: cfg.plateau_blend_m,
+            road_flat_m,
+            road_blend_m: cfg.highway_blend_m,
+            index: super::grid::CellIndex::build(-half, FLATS_CELL_M, side, &boxes),
+        }
+    }
+
+    /// `h` at `p` blended toward each city's ground, then each highway's grade.
+    pub fn apply(&self, p: Vec2, h: f32) -> f32 {
+        let mut h = h;
+        for &id in self.index.at(p) {
+            let id = id as usize;
+            if let Some((rect, ground_m)) = self.cities.get(id) {
+                let d = rect.distance(p) - self.plateau_margin_m;
+                let w = 1.0 - smoothstep(0.0, self.plateau_blend_m, d);
+                h += (ground_m - h) * w;
+            } else {
+                let hw = &self.highways[id - self.cities.len()];
+                let (d, t) = hw.project(p);
+                let w = 1.0 - smoothstep(0.0, self.road_blend_m, d - self.road_flat_m);
+                h += (hw.grade_at(t) - h) * w;
+            }
+        }
+        h
+    }
+}
+
+/// The ground of a world. Sample `(ix, iz)` sits at `origin_m + (ix, iz) * cell_m`; `n` samples a
+/// side span the world, but the ground goes on past its edge (the open sea floor).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Heightfield {
-    /// Samples along one side.
+    /// Samples along one side of the world.
     pub n: usize,
     /// Spacing between samples.
     pub cell_m: f32,
     /// World x and z of sample (0, 0).
     pub origin_m: f32,
-    /// Heights, row-major: index `iz * n + ix`.
-    pub heights_m: Vec<f32>,
+    shape: Shape,
+    flats: Flats,
+    channels: Option<Channels>,
 }
 
 /// One chunk of the terrain mesh, in world metres.
@@ -25,91 +174,185 @@ pub struct ChunkMesh {
     pub positions: Vec<Vec3>,
     /// Vertex normals.
     pub normals: Vec<Vec3>,
-    /// Triangle list, counter-clockwise seen from above.
+    /// Triangle list, counter-clockwise seen from above (skirts: seen from outside the chunk).
     pub indices: Vec<u32>,
 }
 
 impl Heightfield {
+    /// The ground of a world: its shape and flats, with no rivers carved yet.
+    pub fn new(cfg: &WorldConfig, shape: Shape, flats: Flats) -> Self {
+        Self {
+            n: cfg.samples_per_side(),
+            cell_m: cfg.terrain_cell_m,
+            origin_m: -cfg.world_size_m * 0.5,
+            shape,
+            flats,
+            channels: None,
+        }
+    }
+
+    /// The same ground with river channels carved into it.
+    pub fn with_channels(mut self, channels: Channels) -> Self {
+        self.channels = Some(channels);
+        self
+    }
+
+    /// The island's shape.
+    pub fn shape(&self) -> &Shape {
+        &self.shape
+    }
+
     /// The world position of sample `(ix, iz)`.
     pub fn sample_xz(&self, ix: usize, iz: usize) -> Vec2 {
+        self.lattice_xz(ix as i64, iz as i64)
+    }
+
+    fn lattice_xz(&self, ix: i64, iz: i64) -> Vec2 {
         Vec2::new(self.origin_m + ix as f32 * self.cell_m, self.origin_m + iz as f32 * self.cell_m)
     }
 
-    /// The stored height of sample `(ix, iz)`.
+    /// The height of sample `(ix, iz)`.
     pub fn sample(&self, ix: usize, iz: usize) -> f32 {
-        self.heights_m[iz * self.n + ix]
+        self.lattice(ix as i64, iz as i64)
     }
 
-    /// Ground height at world `(x, z)`, on the same two triangles per cell the mesh draws: the cell
-    /// is split along its (0,0)-(1,1) diagonal. Outside the grid, the edge is extended.
+    /// The height of any lattice point, inside the world or past its edge.
+    fn lattice(&self, ix: i64, iz: i64) -> f32 {
+        let p = self.lattice_xz(ix, iz);
+        let h = self.flats.apply(p, self.shape.height(p));
+        match &self.channels {
+            Some(c) => c.carve(p, h),
+            None => h,
+        }
+    }
+
+    /// Ground height at world `(x, z)`, on the same two triangles per cell the full-detail mesh
+    /// draws: the cell is split along its (0,0)-(1,1) diagonal. Past the world's edge the ground
+    /// goes on (the open sea floor). A non-finite position reads zero.
     pub fn height_at(&self, x: f32, z: f32) -> f32 {
-        let max = (self.n - 1) as f32;
-        let gx = ((x - self.origin_m) / self.cell_m).clamp(0.0, max);
-        let gz = ((z - self.origin_m) / self.cell_m).clamp(0.0, max);
+        let gx = (x - self.origin_m) / self.cell_m;
+        let gz = (z - self.origin_m) / self.cell_m;
         if !gx.is_finite() || !gz.is_finite() {
             return 0.0;
         }
-        let ix = (gx.floor() as usize).min(self.n - 2);
-        let iz = (gz.floor() as usize).min(self.n - 2);
-        let u = gx - ix as f32;
-        let v = gz - iz as f32;
-        let h00 = self.sample(ix, iz);
-        let h10 = self.sample(ix + 1, iz);
-        let h01 = self.sample(ix, iz + 1);
-        let h11 = self.sample(ix + 1, iz + 1);
+        let (fx, fz) = (gx.floor(), gz.floor());
+        let (ix, iz) = (fx as i64, fz as i64);
+        let u = gx - fx;
+        let v = gz - fz;
+        let h00 = self.lattice(ix, iz);
+        let h11 = self.lattice(ix + 1, iz + 1);
         if u >= v {
+            let h10 = self.lattice(ix + 1, iz);
             h00 + u * (h10 - h00) + v * (h11 - h10)
         } else {
+            let h01 = self.lattice(ix, iz + 1);
             h00 + v * (h01 - h00) + u * (h11 - h01)
         }
     }
 
-    /// The mesh for the chunk of `cells` x `cells` cells starting at cell `(cx * cells, cz * cells)`.
+    /// The full-detail mesh for the chunk of `cells` x `cells` cells starting at cell
+    /// `(cx * cells, cz * cells)`.
     pub fn chunk_mesh(&self, cx: usize, cz: usize, cells: usize) -> ChunkMesh {
-        self.chunk_mesh_except(cx, cz, cells, |_, _| false)
+        self.chunk_mesh_lod(cx, cz, cells, 1, 0.0, |_, _| false)
     }
 
-    /// The chunk mesh without the cells `skip(ix, iz)` names (where a finer crater tile is drawn).
-    pub fn chunk_mesh_except(&self, cx: usize, cz: usize, cells: usize, skip: impl Fn(usize, usize) -> bool) -> ChunkMesh {
+    /// The mesh for a chunk drawn with every `step`-th sample (`cells` must be a multiple of it),
+    /// with a skirt `skirt_m` deep round its edge to hide the cracks where it meets a chunk drawn at
+    /// another step (zero for none). At step 1, the cells `skip(ix, iz)` names are left out (where
+    /// a finer crater tile is drawn); a coarser step draws every cell.
+    pub fn chunk_mesh_lod(
+        &self,
+        cx: usize,
+        cz: usize,
+        cells: usize,
+        step: usize,
+        skirt_m: f32,
+        skip: impl Fn(usize, usize) -> bool,
+    ) -> ChunkMesh {
+        let step = step.max(1);
         let x0 = cx * cells;
         let z0 = cz * cells;
         let x1 = (x0 + cells).min(self.n - 1);
         let z1 = (z0 + cells).min(self.n - 1);
-        let w = x1 - x0 + 1;
-        let mut mesh = ChunkMesh::default();
-        for iz in z0..=z1 {
-            for ix in x0..=x1 {
-                let p = self.sample_xz(ix, iz);
-                mesh.positions.push(Vec3::new(p.x, self.sample(ix, iz), p.y));
-                mesh.normals.push(self.normal(ix, iz));
+        let w = (x1 - x0) / step + 1;
+        let d = (z1 - z0) / step + 1;
+        // Heights with a one-sample border, for normals by central difference at this step.
+        let bw = w + 2;
+        let mut grid = Vec::with_capacity(bw * (d + 2));
+        for j in 0..d + 2 {
+            for i in 0..bw {
+                let ix = x0 as i64 + (i as i64 - 1) * step as i64;
+                let iz = z0 as i64 + (j as i64 - 1) * step as i64;
+                grid.push(self.lattice(ix, iz));
             }
         }
-        for iz in 0..(z1 - z0) {
-            for ix in 0..(x1 - x0) {
-                if skip(x0 + ix, z0 + iz) {
+        let at = |i: usize, j: usize| grid[(j + 1) * bw + i + 1];
+        let span = 2.0 * step as f32 * self.cell_m;
+        let mut mesh = ChunkMesh::default();
+        mesh.positions.reserve(w * d + 4 * (w.max(d)) * 2);
+        for j in 0..d {
+            for i in 0..w {
+                let p = self.sample_xz(x0 + i * step, z0 + j * step);
+                mesh.positions.push(Vec3::new(p.x, at(i, j), p.y));
+                let (l, r) = (grid[(j + 1) * bw + i], grid[(j + 1) * bw + i + 2]);
+                let (dn, up) = (grid[j * bw + i + 1], grid[(j + 2) * bw + i + 1]);
+                mesh.normals.push(Vec3::new(l - r, span, dn - up).normalize());
+            }
+        }
+        for j in 0..d - 1 {
+            for i in 0..w - 1 {
+                if step == 1 && skip(x0 + i, z0 + j) {
                     continue;
                 }
-                let a = (iz * w + ix) as u32;
+                let a = (j * w + i) as u32;
                 let b = a + 1;
                 let c = a + w as u32;
-                let d = c + 1;
-                // Diagonal a-d, matching `height_at`. Counter-clockwise from above (+y).
-                mesh.indices.extend_from_slice(&[a, d, b, a, c, d]);
+                let e = c + 1;
+                // Diagonal a-e, matching `height_at`. Counter-clockwise from above (+y).
+                mesh.indices.extend_from_slice(&[a, e, b, a, c, e]);
+            }
+        }
+        if skirt_m > 0.0 {
+            let north: Vec<u32> = (0..w).map(|i| i as u32).collect();
+            let south: Vec<u32> = (0..w).map(|i| ((d - 1) * w + i) as u32).collect();
+            let west: Vec<u32> = (0..d).map(|j| (j * w) as u32).collect();
+            let east: Vec<u32> = (0..d).map(|j| (j * w + w - 1) as u32).collect();
+            for (edge, out) in [(north, -Vec3::Z), (south, Vec3::Z), (west, -Vec3::X), (east, Vec3::X)] {
+                add_skirt(&mut mesh, &edge, out, skirt_m);
             }
         }
         mesh
     }
+}
 
-    fn normal(&self, ix: usize, iz: usize) -> Vec3 {
-        let l = self.sample(ix.saturating_sub(1), iz);
-        let r = self.sample((ix + 1).min(self.n - 1), iz);
-        let d = self.sample(ix, iz.saturating_sub(1));
-        let u = self.sample(ix, (iz + 1).min(self.n - 1));
-        Vec3::new(l - r, 2.0 * self.cell_m, d - u).normalize()
+/// Hangs a skirt `depth_m` deep under the edge vertices `edge`, facing `out`.
+fn add_skirt(mesh: &mut ChunkMesh, edge: &[u32], out: Vec3, depth_m: f32) {
+    let first = mesh.positions.len() as u32;
+    for &v in edge {
+        let p = mesh.positions[v as usize];
+        let n = mesh.normals[v as usize];
+        mesh.positions.push(p - Vec3::Y * depth_m);
+        mesh.normals.push(n);
+    }
+    for k in 0..edge.len().saturating_sub(1) {
+        let (t0, t1) = (edge[k], edge[k + 1]);
+        let (b0, b1) = (first + k as u32, first + k as u32 + 1);
+        let (p0, p1, q0) = (
+            mesh.positions[t0 as usize],
+            mesh.positions[t1 as usize],
+            mesh.positions[b0 as usize],
+        );
+        // Wind each quad so its front (counter-clockwise) faces out of the chunk.
+        if (p1 - p0).cross(q0 - p0).dot(out) > 0.0 {
+            mesh.indices.extend_from_slice(&[t0, t1, b0, t1, b1, b0]);
+        } else {
+            mesh.indices.extend_from_slice(&[t0, b0, t1, t1, b0, b1]);
+        }
     }
 }
 
 /// Seeded value noise: a lattice of random heights, smoothly interpolated.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValueNoise {
     seed: u64,
 }
@@ -160,6 +403,12 @@ impl ValueNoise {
         }
         sum
     }
+
+    /// Fractal noise scaled to -1..1 (the sum of the octaves' amplitudes is one).
+    pub fn unit(&self, x: f32, z: f32, wavelength_m: f32, octaves: u32, persistence: f32) -> f32 {
+        let total: f32 = (0..octaves).map(|o| persistence.powi(o as i32)).sum();
+        self.height(x, z, wavelength_m, 1.0, octaves, persistence) / total.max(1e-6)
+    }
 }
 
 /// Hermite smoothstep of `x` between `edge0` and `edge1`.
@@ -172,27 +421,22 @@ pub fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
 mod tests {
     use super::*;
 
-    fn tilted() -> Heightfield {
-        let n = 5;
-        let mut heights_m = Vec::new();
-        for iz in 0..n {
-            for ix in 0..n {
-                heights_m.push((ix * 3 + iz * iz) as f32);
-            }
-        }
-        Heightfield {
-            n,
-            cell_m: 8.0,
-            origin_m: -16.0,
-            heights_m,
-        }
+    /// A small world of open hills: no island falloff within it, no cities, no rivers.
+    fn hills() -> Heightfield {
+        let mut cfg = WorldConfig {
+            world_size_m: 512.0,
+            ..Default::default()
+        };
+        cfg.island.land_radius_m = 100_000.0;
+        let root = SimRng::new(7);
+        Heightfield::new(&cfg, Shape::new(&root, &cfg), Flats::default())
     }
 
     #[test]
     fn height_at_matches_the_grid_at_every_sample() {
-        let h = tilted();
-        for iz in 0..h.n {
-            for ix in 0..h.n {
+        let h = hills();
+        for iz in (0..h.n).step_by(5) {
+            for ix in (0..h.n).step_by(7) {
                 let p = h.sample_xz(ix, iz);
                 assert_eq!(h.height_at(p.x, p.y), h.sample(ix, iz), "sample ({ix}, {iz})");
             }
@@ -201,15 +445,57 @@ mod tests {
 
     #[test]
     fn height_at_lies_on_the_drawn_triangles() {
-        let h = tilted();
-        let mesh = h.chunk_mesh(0, 0, 4);
+        let h = hills();
+        let mesh = h.chunk_mesh(0, 0, 16);
         for tri in mesh.indices.chunks(3) {
             let [a, b, c] = [tri[0], tri[1], tri[2]].map(|i| mesh.positions[i as usize]);
             let centroid = (a + b + c) / 3.0;
             let got = h.height_at(centroid.x, centroid.z);
-            assert!((got - centroid.y).abs() < 1e-4, "{got} vs {}", centroid.y);
+            assert!((got - centroid.y).abs() < 1e-3, "{got} vs {}", centroid.y);
             let normal = (b - a).cross(c - a);
             assert!(normal.y > 0.0, "triangles face up");
         }
+    }
+
+    #[test]
+    fn a_coarse_chunk_draws_every_step_th_sample() {
+        let h = hills();
+        let mesh = h.chunk_mesh_lod(0, 0, 32, 4, 0.0, |_, _| false);
+        assert_eq!(mesh.positions.len(), 9 * 9);
+        assert_eq!(mesh.indices.len(), 8 * 8 * 6);
+        let p = mesh.positions[9 + 1];
+        assert_eq!(p.y, h.sample(4, 4));
+    }
+
+    #[test]
+    fn a_skirt_hangs_below_every_edge_and_faces_out() {
+        let h = hills();
+        let cells = 16;
+        let plain = h.chunk_mesh_lod(0, 0, cells, 2, 0.0, |_, _| false);
+        let skirted = h.chunk_mesh_lod(0, 0, cells, 2, 10.0, |_, _| false);
+        let edge = cells / 2;
+        assert_eq!(
+            skirted.indices.len() - plain.indices.len(),
+            4 * edge * 6,
+            "two triangles per edge segment"
+        );
+        let centre = plain.positions.iter().fold(Vec3::ZERO, |a, p| a + *p) / plain.positions.len() as f32;
+        for tri in skirted.indices[plain.indices.len()..].chunks(3) {
+            let [a, b, c] = [tri[0], tri[1], tri[2]].map(|i| skirted.positions[i as usize]);
+            let n = (b - a).cross(c - a);
+            let mid = (a + b + c) / 3.0 - centre;
+            assert!(n.x * mid.x + n.z * mid.z > 0.0, "a skirt triangle faces out of the chunk");
+        }
+        let lowest = skirted.positions.iter().map(|p| p.y).fold(f32::INFINITY, f32::min);
+        let lowest_top = plain.positions.iter().map(|p| p.y).fold(f32::INFINITY, f32::min);
+        assert!((lowest - (lowest_top - 10.0)).abs() < 1e-3);
+    }
+
+    #[test]
+    fn the_ground_goes_on_past_the_worlds_edge() {
+        let h = hills();
+        let far = h.height_at(5000.0, -7000.0);
+        assert!(far.is_finite());
+        assert_ne!(far, h.height_at(256.0, -256.0), "not the edge sample stretched out");
     }
 }

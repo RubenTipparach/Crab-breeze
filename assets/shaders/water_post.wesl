@@ -1,0 +1,214 @@
+// The water's fullscreen passes (openspec change `water-rendering`), run before tonemapping on
+// cameras with `WaterOptics`: `compose` (the view under water: murk by the distance travelled
+// through water, light lost on its way down, the wobble, the waterline while straddling, and the
+// distance softened while the glass is wet) and `lens` (drops running off the glass after
+// surfacing, refracting the real scene). Linear HDR colour, reverse-Z depth (near 1, sky 0).
+//
+// Provenance: Pale Blue Dot (`RubenTipparach/pale-blue-dot` at `db25fe2`,
+// `assets/shaders/water.wgsl`: `blur`, `compose`, `refract_through_drops`, `lens`), Tenebris's
+// `composite.fs.glsl` in WGSL. Changes: the sea sphere is the plane `y = surface` under the eye;
+// the sealed cabin (seated) is dry; the waterline while straddling is a wavy line across the view
+// rather than Pale Blue Dot's sky-only band; the mist and its probe are left out.
+
+import super::water_common::{safe_normal, water_transmittance, water_murk, rd_drops};
+
+// Matches `WaterPostUniform` in `crates/cb-app/src/water_render.rs`; a test pins the size.
+struct WaterPost {
+    world_from_clip: mat4x4<f32>,
+    camera: vec4<f32>,     // xyz the eye, world metres; w seconds
+    surface: vec4<f32>,    // x the water surface's height under the eye, m; y the eye's depth below it, m; z the band, m; w submersion 0, 0.5 or 1
+    absorption: vec4<f32>, // rgb per metre; w light falloff 0..1
+    deep: vec4<f32>,       // rgb the water body's colour (an albedo); w the wobble, uv
+    light: vec4<f32>,      // rgb the light reaching the water, times exposure; w wet blur 0..1
+    lens: vec4<f32>,       // drop density, refraction, speed, grid size
+    lens_fx: vec4<f32>,    // x drips 0..1 (surfacing), y rain on the glass 0..1, z the drops' scale, w the sealed cabin's dry radius m (0 on foot)
+}
+
+struct FullscreenVertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+}
+
+@group(0) @binding(0) var<uniform> post: WaterPost;
+@group(0) @binding(1) var scene_color: texture_2d<f32>;
+@if(MULTISAMPLED)
+@group(0) @binding(2) var scene_depth: texture_depth_multisampled_2d;
+@if(!MULTISAMPLED)
+@group(0) @binding(2) var scene_depth: texture_depth_2d;
+@group(0) @binding(3) var scene_sampler: sampler;
+
+fn load_depth(uv: vec2<f32>) -> f32 {
+    let size = vec2<i32>(textureDimensions(scene_depth));
+    let coord = clamp(vec2<i32>(uv * vec2<f32>(size)), vec2<i32>(0), size - 1);
+    return textureLoad(scene_depth, coord, 0);
+}
+
+fn sample_scene(uv: vec2<f32>) -> vec3<f32> {
+    return textureSampleLevel(scene_color, scene_sampler, clamp(uv, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0).rgb;
+}
+
+fn world_at(uv: vec2<f32>, depth: f32) -> vec3<f32> {
+    let h = post.world_from_clip * vec4<f32>(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, depth, 1.0);
+    return h.xyz / max(abs(h.w), 1e-8) * sign(h.w);
+}
+
+// Reverse-Z depth of a point far down the frustum: the direction of a pixel never comes from a sky
+// pixel's (absent) depth. Pale Blue Dot's `VIEW_RAY_DEPTH`.
+const VIEW_RAY_DEPTH: f32 = 1.0e-4;
+
+fn view_direction(uv: vec2<f32>) -> vec3<f32> {
+    return safe_normal(world_at(uv, VIEW_RAY_DEPTH) - post.camera.xyz);
+}
+
+// While straddling, the share of the view under water along `direction`: a wavy waterline across
+// the view that rises as the eye sinks through the band.
+fn waterline_wet(direction: vec3<f32>, uv: vec2<f32>) -> f32 {
+    let band = max(post.surface.z, 1e-4);
+    let sink = clamp(post.surface.y / band, -1.0, 1.0);
+    let t = post.camera.w;
+    let wave = 0.012 * sin(uv.x * 23.0 + t * 2.1) + 0.006 * sin(uv.x * 51.0 - t * 3.3);
+    return 1.0 - smoothstep(-0.015, 0.015, direction.y - 0.15 * sink - wave);
+}
+
+// How much of a pixel `distance` metres away is outside the sealed cabin (1 on foot).
+fn beyond_cabin(distance: f32, sky: bool) -> f32 {
+    let cabin = post.lens_fx.w;
+    if (cabin <= 0.0 || sky) {
+        return 1.0;
+    }
+    return smoothstep(cabin, cabin + 0.3, distance);
+}
+
+// 17-tap two-ring blur, radius growing with focus.
+fn blur(uv: vec2<f32>, focus: f32) -> vec3<f32> {
+    let r = focus * 0.0016;
+    var s = sample_scene(uv);
+    var w = 1.0;
+    let taps = array<vec2<f32>, 8>(vec2(r, 0.), vec2(0., r), vec2(r, r) * 0.707, vec2(r, -r) * 0.707,
+        vec2(r * 2.2, 0.), vec2(0., r * 2.2), vec2(r * 2.2, r * 2.2) * 0.707, vec2(r * 2.2, -r * 2.2) * 0.707);
+    for (var i = 0u; i < 8u; i++) {
+        let d = taps[i];
+        s += sample_scene(uv + d);
+        s += sample_scene(uv - d);
+        w += 2.0;
+    }
+    return s / w;
+}
+
+@fragment
+fn compose(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
+    let uv = in.uv;
+    let depth = load_depth(uv);
+    let sky = depth <= 1e-7;
+    let eye = post.camera.xyz;
+    let direction = view_direction(uv);
+    let surface = post.surface.x;
+    let under = post.surface.w > 0.75;
+    let straddle = post.surface.w > 0.25 && !under;
+    // How far the eye is below the surface (0 above it).
+    let cam_gap = max(0.0, surface - eye.y);
+    var view_dist = 1.0e5;
+    var point = eye + direction * view_dist;
+    if (!sky) {
+        point = world_at(uv, depth);
+        view_dist = length(point - eye);
+    }
+    // Wet: the whole view under water, the part below the waterline while straddling, nothing in
+    // air (the surface material shows what is under the water from above). The sealed cabin is
+    // dry.
+    var wet = select(select(0.0, waterline_wet(direction, uv), straddle), 1.0, under);
+    wet *= beyond_cabin(view_dist, sky);
+    var color = sample_scene(uv);
+    if (wet > 0.0) {
+        if (post.deep.w > 0.0) {
+            let time = post.camera.w;
+            let wobble = vec2<f32>(sin(time * 1.3 + uv.y * 32.0) + 0.5 * sin(time * 0.7 + uv.x * 47.0),
+                cos(time * 0.9 + uv.x * 28.0) + 0.5 * cos(time * 1.6 + uv.y * 41.0));
+            color = sample_scene(uv + wobble * post.deep.w * wet);
+        }
+        // Water travelled: to the pixel, starting at the cabin wall when seated; a sky pixel under
+        // water is the exit through the surface, or murk all the way for a ray that never rises.
+        var travel = max(view_dist - post.lens_fx.w, 0.0);
+        if (sky) {
+            travel = select(1.0e5, cam_gap / direction.y, direction.y > 0.0008 && cam_gap > 0.0);
+        }
+        let absorption = post.absorption.rgb;
+        // Light reaching a drowned surface crossed the water above it first.
+        var lit = color;
+        if (!sky) {
+            lit *= water_transmittance(absorption * post.absorption.w, surface - point.y);
+        }
+        let deep = water_murk(post.deep.rgb, post.light.rgb, absorption, cam_gap);
+        color = mix(color, mix(deep, lit, water_transmittance(absorption, travel)), wet);
+    }
+    // Depth blur while the glass is wet: the distance softens, the foreground stays crisp.
+    let dz_amt = max(post.lens_fx.y, post.lens_fx.x);
+    if (dz_amt > 0.001 && !under) {
+        let dz = smoothstep(28.0, 190.0, view_dist) * clamp(dz_amt, 0.0, 1.0);
+        if (dz > 0.002) {
+            color = mix(color, blur(uv, dz * 3.5), dz * clamp(post.light.w, 0.0, 1.0));
+        }
+    }
+    return vec4<f32>(color, 1.0);
+}
+
+// The drops at `drop_uv` (the reference's y-up frame), refracting the scene at `uv` (Bevy's y-down
+// frame): the refracted colour and the drops' coverage.
+fn refract_through_drops(uv: vec2<f32>, drop_uv: vec2<f32>, t: f32, l0: f32, l1: f32, l2: f32) -> vec4<f32> {
+    let density = post.lens.x;
+    let size = post.lens.w;
+    let c = rd_drops(drop_uv, t, l0, l1, l2, density, size);
+    let e = vec2<f32>(0.001, 0.0);
+    let cx = rd_drops(drop_uv + e, t, l0, l1, l2, density, size).x;
+    let cy = rd_drops(drop_uv + e.yx, t, l0, l1, l2, density, size).x;
+    // A gradient in the y-up drop frame, negated in y for the y-down sample. Divided by the drops'
+    // scale, so each drop still bends the same share of its own width however small it is drawn.
+    let n = vec2<f32>(cx - c.x, -(cy - c.x));
+    let bend = post.lens.y / max(post.lens_fx.z, 0.05);
+    let refracted = sample_scene(uv - n * bend);
+    return vec4<f32>(refracted, clamp(c.x, 0.0, 1.0));
+}
+
+@fragment
+fn lens(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
+    let uv = in.uv;
+    var color = sample_scene(uv);
+    let under = post.surface.w > 0.75;
+    if (under) {
+        return vec4<f32>(color, 1.0);
+    }
+    let depth = load_depth(uv);
+    let sky = depth <= 1e-7;
+    var view_dist = 1.0e5;
+    if (!sky) {
+        view_dist = length(world_at(uv, depth) - post.camera.xyz);
+    }
+    // Straddling, drops bead only on the view above the waterline; seated, only on what the
+    // screens show past the hull (the drops are on the external camera lenses).
+    var glass = beyond_cabin(view_dist, sky);
+    if (post.surface.w > 0.25) {
+        glass *= 1.0 - waterline_wet(view_direction(uv), uv);
+    }
+    // The drop math is the reference's, whose full-screen uv is y-up; Bevy's is y-down.
+    let size = vec2<f32>(textureDimensions(scene_color));
+    var drop_uv = vec2<f32>(uv.x - 0.5, 0.5 - uv.y);
+    drop_uv.x *= max(size.x / max(size.y, 1.0), 0.1);
+    drop_uv *= max(post.lens_fx.z, 0.05);
+    let t = post.camera.w * 0.2 * post.lens.z;
+    // Rain on the glass (gated off until weather exists).
+    let rain = clamp(post.lens_fx.y, 0.0, 1.0);
+    if (rain > 0.001) {
+        let s = smoothstep(-0.5, 1.0, rain) * 2.0;
+        let l1 = smoothstep(0.25, 0.75, rain);
+        let l2 = smoothstep(0.0, 0.5, rain);
+        let drops = refract_through_drops(uv, drop_uv, t, s, l1, l2);
+        color = mix(color, drops.rgb, drops.a * rain * glass);
+    }
+    // Surfacing: the water runs off.
+    let emerge = clamp(post.lens_fx.x, 0.0, 1.0);
+    if (emerge > 0.001) {
+        let r = refract_through_drops(uv, drop_uv, t, 0.0, 1.0, 0.6);
+        color = mix(color, r.rgb, r.a * emerge * glass);
+    }
+    return vec4<f32>(color, 1.0);
+}

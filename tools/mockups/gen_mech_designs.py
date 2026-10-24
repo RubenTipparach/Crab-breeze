@@ -96,12 +96,33 @@ aside { display: grid; gap: 12px; min-width: 0; }
 .note { font-size: 13px; color: var(--muted); margin: 0; }
 .foot { max-width: 1400px; margin: 16px auto 0; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
 .foot code { font: 12px var(--mono); overflow-wrap: anywhere; }
+.bo { margin: 8px 0 26px }
+.boh { font: 700 24px "Saira Condensed", sans-serif; text-transform: uppercase; margin: 14px 0 6px }
+.bop { max-width: 72ch; margin: 0 0 10px }
+.borow { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px }
+.bostage { position: relative; border-radius: 6px; overflow: hidden; aspect-ratio: 16 / 8; max-width: 100%; background: #2a1f30 }
+.bostage canvas { width: 100%; height: 100%; display: block; touch-action: none }
+.bostats { overflow-x: auto; margin-top: 8px }
+.bostats table { border-collapse: collapse; font-size: 14px; min-width: 520px }
+.bostats th, .bostats td { text-align: left; padding: 4px 10px; border-bottom: 1px solid rgba(128,128,128,.3) }
 </style>
 
 <header>
   <div class="eyebrow">Crab Breeze · mech design review · third pass, the cockpit in the chest</div>
   <h1>Pick a chassis and its cockpit</h1>
   <p class="lede">Three original chassis from the 1980s industrial world, finished in Mining Mike's boss style, each with its cockpit inside the chest and its own way of opening it. Each torso is broad in the shoulders and narrow at the waist, and its prow is the shape of the cockpit inside it: only the prow opens. Foreman is an excavator: the grilled visor over its chamfered cab lifts and the apron drops into a step, on a seated screen-wall cockpit. Stevedore is a dock crane: the lock rods turn and its octagonal prow splits into two doors, on a standing harness cockpit. Ironhorse is a locomotive: the dogs swing off and the whole prow, its hexagonal screen bank inside, swings open on a forward-leaning jockey cockpit. Press Kneel and open, or Board it to climb in through the pilot's eyes. All at true scale beside a 1.8 m pilot and a four-storey block.</p>
+  <section class="bo">
+    <h2 class="boh">Redesign at 24 m, low-poly first</h2>
+    <p class="bop">The owner's next round (2026-10-24): twice the size, legs heavier than the torso for balance, every
+    pilot seated, blocked out low-poly in Blender with CSG before any detail. The Stevedore keeps its struts; the Foreman
+    and the Ironhorse keep their characters. Each chest carries a seated cockpit prow whose hatch is cut as an orange
+    groove. Legs against torso is measured off the meshes.</p>
+    <div class="borow" id="bo-pick"></div>
+    <div class="bostage"><canvas id="bo-view"></canvas></div>
+    <div class="bostats" id="bo-stats"></div>
+    <p class="hint">Drag to orbit, scroll or pinch to zoom. Beside them: a 1.8 m pilot, a 4.4 m car, a 14 m four-storey block and a rail at 24 m.</p>
+  </section>
+  <h2 class="boh">The detailed round (12 m)</h2>
 </header>
 
 <div class="wrap">
@@ -604,6 +625,58 @@ window.MOCKUP = {
   orbitTo(tx, ty, tz, cx, cy, cz) { setView("orbit"); controls.target.set(tx, ty, tz); camera.position.set(cx, cy, cz); controls.update(); },
   state: () => ({ Tb, end: cur() && cur().timeline.end, interior: !!(cur() && cur().interior), walk: walk && { i: walk.i, done: walk.done } }),
 };
+
+// ---------- the 24 m low-poly block-outs: their own viewer, side by side at true scale ----------
+(function () {
+  const BO = __MECH_BLOCKOUTS__;
+  const cv = document.getElementById("bo-view");
+  const r = new T.WebGLRenderer({ canvas: cv, antialias: true });
+  r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); r.outputEncoding = T.sRGBEncoding; r.toneMapping = T.ACESFilmicToneMapping;
+  r.shadowMap.enabled = true;
+  const sc = new T.Scene(); sc.background = new T.Color(0x2a1f30); sc.fog = new T.Fog(0x2a1f30, 90, 260);
+  const cam = new T.PerspectiveCamera(40, 2, 0.1, 800);
+  const oc = new T.OrbitControls(cam, cv); oc.enableDamping = true;
+  sc.add(new T.HemisphereLight(0xb9a6d8, 0x2a2018, 0.7));
+  const sunB = new T.DirectionalLight(0xffc89a, 2.2); sunB.position.set(-30, 40, 30); sunB.castShadow = true;
+  sunB.shadow.mapSize.set(2048, 2048); Object.assign(sunB.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 150 }); sc.add(sunB);
+  const gr = new T.Mesh(new T.PlaneGeometry(600, 600), new T.MeshStandardMaterial({ color: 0x1c1a1f, roughness: 0.95 }));
+  gr.rotation.x = -Math.PI / 2; gr.receiveShadow = true; sc.add(gr);
+  const gh = new T.GridHelper(200, 50, 0x4a4552, 0x3a3640); gh.position.y = 0.01; sc.add(gh);
+  const railB = new T.Mesh(new T.BoxGeometry(110, 0.12, 0.12), new T.MeshBasicMaterial({ color: 0xf0b13c })); railB.position.set(0, 24, -16); sc.add(railB);
+  const bld = new T.Mesh(new T.BoxGeometry(14, 14, 10), new T.MeshStandardMaterial({ color: 0x6a625a, roughness: 0.85 })); bld.position.set(-34, 7, -8); bld.castShadow = true; sc.add(bld);
+  const carB = new T.Mesh(new T.BoxGeometry(1.8, 1.3, 4.4), new T.MeshStandardMaterial({ color: 0x7a1f1f })); carB.position.set(-14, 0.65, 10); sc.add(carB);
+  const pil = new T.Group(); const sm = new T.MeshStandardMaterial({ color: 0x2e5ea8 });
+  [-0.13, 0.13].forEach(x => { const l = new T.Mesh(new T.CylinderGeometry(0.1, 0.07, 0.86, 8), sm); l.position.set(x, 0.43, 0); pil.add(l); });
+  const tb = new T.Mesh(new T.CylinderGeometry(0.24, 0.17, 0.62, 10), sm); tb.position.y = 1.18; pil.add(tb);
+  const hb = new T.Mesh(new T.SphereGeometry(0.12, 12, 10), new T.MeshStandardMaterial({ color: 0xd8b49a })); hb.position.y = 1.66; pil.add(hb);
+  pil.position.set(-8, 0, 9); sc.add(pil);
+  const groups = {}, ids = BO.mechs.map(m => m.id);
+  const pick = document.getElementById("bo-pick");
+  let cur = "all";
+  function show(id) {
+    cur = id;
+    ids.forEach((k, i) => { const g = groups[k]; if (!g) return; g.visible = id === "all" || id === k; g.position.x = id === "all" ? (i - 1) * 16 : 0; });
+    pick.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.bo === id)));
+    if (id === "all") { cam.position.set(30, 22, 52); oc.target.set(0, 11, 0); } else { cam.position.set(22, 18, 30); oc.target.set(0, 12, 0); }
+    oc.update();
+  }
+  [...BO.mechs.map(m => [m.id, m.name]), ["all", "Line up"]].forEach(([id, name]) => {
+    const b = document.createElement("button"); b.textContent = name; b.dataset.bo = id; b.onclick = () => show(id); pick.appendChild(b);
+  });
+  document.getElementById("bo-stats").innerHTML = "<table><tr><th>Mech</th><th>After</th><th>Height</th><th>Width</th><th>Legs : torso</th><th>Triangles</th></tr>" +
+    BO.mechs.map(m => `<tr><td>${m.name}</td><td>${m.what}</td><td>${m.height_m.toFixed(1)} m</td><td>${m.width_m.toFixed(1)} m</td><td>${m.legs_over_torso.toFixed(2)} by volume</td><td>${m.tris.toLocaleString()}</td></tr>`).join("") + "</table>";
+  Promise.all(BO.mechs.map(m => loader.loadAsync(m.file).then(g => {
+    g.scene.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
+    groups[m.id] = g.scene; sc.add(g.scene);
+  }))).then(() => show("all")).catch(e => { document.getElementById("bo-stats").textContent = "Could not load: " + e; });
+  window.BLOCKOUTS = { show };
+  (function loop() {
+    requestAnimationFrame(loop);
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== Math.floor(w * r.getPixelRatio())) { r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+    oc.update(); r.render(sc, cam);
+  })();
+})();
 </script>
 """
 
@@ -640,6 +713,14 @@ def as_json_gltf(src, dst):
         json.dump(js, f, separators=(",", ":"))
 
 
+def blockouts_for_page():
+    """The 24 m block-outs' manifest with each model's path as published beside the page."""
+    bo = json.load(open(os.path.join(MODELS, "mech_blockouts.json")))
+    for m in bo["mechs"]:
+        m["file"] = f"mech_blockouts/{m['id']}.gltf.json"
+    return bo
+
+
 def files(meta, inside):
     """Write the page's own files into SITE and return them: published path (relative to the page) to the
     file on disk. Models become glTF JSON (as_json_gltf); textures are copied as they are."""
@@ -647,6 +728,11 @@ def files(meta, inside):
     for k in ORDER:
         rel = f"mech_{k}.gltf.json"
         as_json_gltf(os.path.join(MODELS, meta[k]["file"]), os.path.join(SITE, rel))
+        out[rel] = os.path.join(SITE, rel)
+    bo = json.load(open(os.path.join(MODELS, "mech_blockouts.json")))
+    for m in bo["mechs"]:
+        rel = f"mech_blockouts/{m['id']}.gltf.json"
+        as_json_gltf(os.path.join(MODELS, m["file"]), os.path.join(SITE, rel))
         out[rel] = os.path.join(SITE, rel)
     for v in inside:
         d = os.path.join(MODELS, f"cockpit_{v}")
@@ -674,6 +760,7 @@ def main():
     gltf_json = open(os.path.join(ROOT, "tools", "mockups", "gltf_json_loader.js")).read()
     hud = base64.b64encode(open(HUD, "rb").read()).decode("ascii")
     html = (PAGE.replace("__MECH_POSE__", pose).replace("__STEAM__", steam).replace("__SCREEN_WALL__", wall).replace("__GLTF_JSON__", gltf_json)
+            .replace("__MECH_BLOCKOUTS__", json.dumps(blockouts_for_page()))
             .replace("__META__", json.dumps({k: meta[k] for k in ORDER}))
             .replace("__INTERIOR__", json.dumps(inside)).replace("__ORDER__", json.dumps(ORDER)).replace("__HUD__", hud))
     os.makedirs(os.path.dirname(OUT), exist_ok=True)

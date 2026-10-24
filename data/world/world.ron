@@ -1,18 +1,38 @@
-// World generation tuning (openspec/changes/procgen-world/design.md). Units are in the keys.
+// World generation tuning (openspec/changes/procgen-world/design.md and
+// openspec/changes/island-world/design.md). Units are in the keys.
 // The yardstick is the 12 m mech (survey M1) and the 1.8 m pilot.
 (
-    world_size_m: 4096.0,
+    // An island in the sea, 40,960 m a side (ten times the first world's side; owner, 2026-10-24).
+    world_size_m: 40960.0,
     terrain_cell_m: 8.0,
-    noise_wavelength_m: 900.0,
+    noise_wavelength_m: 1100.0,
     noise_amplitude_m: 35.0,
     noise_octaves: 4,
     noise_persistence: 0.5,
 
-    city_count: 5,
-    city_attempts: 400,
-    city_min_spacing_m: 1100.0,
-    open_ground_min_m: 300.0,
+    // The island (island-world design section 2): land out to about 13 km from the centre, its edge
+    // moved in or out by up to 2.5 km of coast noise, falling over a 3 km shelf to a sea floor
+    // 38 m (29 to 47 m) down, shallow enough for a sunk 12 m mech to walk back ashore.
+    island: (
+        sea_level_m: 0.0,
+        land_radius_m: 13000.0,
+        coast_noise_m: 2500.0,
+        coast_wavelength_m: 6000.0,
+        land_height_m: 30.0,
+        highland_m: 90.0,
+        shelf_m: 3000.0,
+        sea_depth_m: 38.0,
+        floor_noise_m: 9.0,
+        floor_wavelength_m: 1500.0,
+        edge_fade_m: 1500.0,
+    ),
+
+    city_count: 24,
+    city_attempts: 4000,
+    city_min_spacing_m: 2600.0,
+    open_ground_min_m: 600.0,
     city_edge_margin_m: 300.0,
+    capital_within_m: 2500.0,
     city_half_size_m: (280.0, 480.0),
     plateau_flat_margin_m: 12.0,
     plateau_blend_m: 120.0,
@@ -41,13 +61,34 @@
 
     start_pilot_distance_m: 25.0,
 
-    // Rivers and lakes (openspec/changes/terrain-water/design.md section 1).
+    // Levels of detail of the drawn ground (island-world design section 1): 512 m chunks at full
+    // detail within 700 m of the eye, every 2nd sample within 1.4 km, then 4, 8, 16, and 32 past
+    // 11.2 km (about 1 degree a quad at every ring). The chunks are the leaves of a quadtree whose
+    // roots are 8 km squares (16 x 16 chunks): a node is one mesh of 64 x 64 quads at step
+    // 2^level, split only where the eye is near, so the whole island is about 90 ground meshes
+    // (owner, 2026-10-24: "make sure to lower draw calls").
+    terrain_lod: (
+        chunk_cells: 64,
+        ring_m: [700.0, 1400.0, 2800.0, 5600.0, 11200.0],
+        hysteresis_m: 64.0,
+        collider_radius_m: 400.0,
+        builds_per_frame: 6,
+        max_level: 4,
+    ),
+
+    // How far the pilot sees (island-world design section 5).
+    view: (
+        far_m: 40000.0,
+        clear_visibility_m: 9000.0,
+    ),
+
+    // Rivers and lakes (openspec/changes/terrain-water/design.md section 1). Lakes are the ground
+    // below the island's sea level.
     water: (
-        sea_level_percentile: 0.12,
         city_freeboard_m: 2.0,
-        river_count: 2,
+        river_count: 6,
         river_grid_m: 32.0,
-        river_max_steps: 400,
+        river_max_steps: 700,
         meander_m: 6.0,
         river_city_clearance_m: 80.0,
         river_width_m: 36.0,
@@ -57,15 +98,25 @@
         bank_slope: 0.45,
         flow_m_s: 1.5,
     ),
-    // Cumulus low enough to be in view and to reach on one boost (about 8 s of climb), above the
-    // 60-storey towers (openspec/changes/clouds, W8).
+
+    // Trees (openspec/changes/vegetation, grown by tile near the bodies: island-world design
+    // section 3). The woods are as dense as before; only the tiles near the pilot and the mechs exist.
+    trees: (
+        tile_sites: 24,
+        keep_radius_m: 1500.0,
+        urgent_radius_m: 400.0,
+        release_radius_m: 2000.0,
+        tiles_per_step: 2,
+        draw_radius_m: 1200.0,
+    ),
+
+    // Clouds over the island and 6 km of sea past the world's edge, drawn within 9 km of the eye.
+    // Off for now (coverage 0): the low, large alpha-blended sprites cost heavy overdraw; clouds are
+    // being redone cheaply in their own change.
     clouds: (
-        base_m: 300.0,
-        top_m: 750.0,
-        spacing_m: 700.0,
-        coverage: 0.5,
-        cluster_size_m: (220.0, 520.0),
-        beyond_world_m: 2000.0,
-        wind_m_s: (3.0, 1.0),
+        coverage: 0.0,
+        spacing_m: 1000.0,
+        beyond_world_m: 6000.0,
+        draw_radius_m: 9000.0,
     ),
 )

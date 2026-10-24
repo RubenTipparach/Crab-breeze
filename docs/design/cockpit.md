@@ -133,6 +133,50 @@ about 200k triangle count"); budget 600,000 triangles each.
 Texture memory per variant: eight maps, as BC7 with mips 8 x 5.3 MiB = 43 MiB at 2048 px, 171 MiB at
 4096 px (the game's size).
 
+## Owner review of the built three, 2026-10-24
+
+What the owner found on the Mech Cockpits page, to be fixed in whichever layout is modelled in detail next:
+
+- Harness (Stevedore): the combat view is bad, metal bars across it and no displays for health, walking
+  direction, ammunition or enemies; the MFDs up top and the way it opens are good. Standing is out: every
+  cockpit is seated.
+- Wall (Foreman): "really good". The far right window has z-fighting at its corners and extra window frames;
+  the second window from the right opens for no reason (the side windows should not open); the main HUD panel's
+  UVs are stretched and it clips the bottom plate as it opens.
+- Jockey (Ironhorse): the leaning pose "doesnt really make a lot of sense"; seated instead.
+- All: no geometry passing through other geometry, opening and closing seamless and logical, the cabin airtight
+  (underwater, the stratosphere), the windows closed shapes.
+
+The answer so far is ten seated block-outs (`tools/blender/build_cockpit_blockouts.py`): an airtight CSG shell,
+square screens cut into its inner wall, structure outside about 40 degrees, and live MFDs (status, nav, weapons,
+radar). The clear view ahead is measured on each: 74 to 95 degrees between pillars for the flat fronts, 190 and 210
+for the two round ones (their opening seams fall on the screens' own seams), all round for the sphere, against 42 to
+58 for the built three.
+
+Each one opens its own way (owner, 2026-10-24: "I want more elaborate door opening animations. Doors don't have to
+be flat walls. Top of mech could open up like a fighter jet"). The moving parts are cut off the shell by booleans,
+so they are whole pieces of the cabin, roof and bubble included, not flat plates. Every opening runs in stages: orange
+clamps on the seams slide clear, the part pops off its seal with a puff of steam, then lifts, slides and tilts on
+hydraulic rams. Every part only ever moves away from the body and the cabin, so nothing passes through anything. Each one can also
+be entered by the back (owner, 2026-10-24: "Or back of mech can open"): the same cabin with a door in its back wall,
+and the seat swivels round to face it once it is open, so the screens ahead never move and the front stays whole
+armour. The page switches between the two with Entry: Front or Back. Where the pilot climbs out through the front, the dash rides the part
+that opens, on brackets from its wall, and is sized to the cabin (owner, 2026-10-24: "cant climb out of this one",
+"control panel is in the way, you had control panel attacked to the door earlier, do that again"):
+
+| Block-out | How it opens | Or by the back |
+| --- | --- | --- |
+| Panorama | Clamshell: the top of the front swings up, the bottom drops to the deck as a step | Hatchback: the back wall and the back of the roof swing up on two rams |
+| Tile wall | Petals: the middle three tiles swing up, the two beside them swing out like doors | The back wall drops back as a ramp |
+| All-view sphere | A visor plate turns up over the ball about the eye, then the seat runs forward on its rail | A visor plate behind the ball turns up over the top |
+| Titan | The top half rises past the roof line and tilts back; the bottom half drops as a step | The back wall drops back as a ramp |
+| Cinema | A plug door pushes out 20 cm, then slides aside on rails | Hatchback on two rams |
+| Excavator cab | The whole front drops forward as a ramp | The back wall drops back as a ramp |
+| Octagon | Gull-wing side doors turn up about hinges on the roof | Hatchback on two rams |
+| Canopy | A fighter's canopy: the bubble lifts, slides back and tilts up on two rams | Two doors swing out on hinges at the back corners |
+| Twin tier | The upper ring and its bubble rise on four rams and tilt back; the lower front drops as a step | Two doors swing out on hinges at the back corners |
+| Low bank | A fighter's canopy hinged at the nose: the bubble swings up and forward on two rams | The back wall drops back as a ramp |
+
 ## Open questions
 
 | Id | Question | Provisional answer |
@@ -144,3 +188,4 @@ Texture memory per variant: eight maps, as BC7 with mips 8 x 5.3 MiB = 43 MiB at
 | C7 | How the screen wall looks | Separate screens in heavy bezels, phosphor tint, scanlines |
 | C5 | Colours | Dark gunmetal, amber, green and red lamps, hazard stripes, as drawn |
 | C8 | Which cockpit for which chassis | Provisional: chosen with the new chassis designs (build_mechs.py) |
+| C9 | Which block-outs to model in detail | A few will be picked (owner, 2026-10-24: "we're gonna pick a few"). Liked so far: Twin tier ("cool"), Canopy, Low bank ("good too"), Excavator cab ("excellent, classic") |
