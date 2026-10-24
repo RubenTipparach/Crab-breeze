@@ -62,8 +62,12 @@ pub struct LocomotionConfig {
     pub pitch_limits_deg: [f32; 2],
     /// Torso pitch rate.
     pub pitch_rate_deg_s: f32,
-    /// Radius of the body for building collision.
+    /// Radius of the body for building collision, and the legs' reach against tree trunks.
     pub body_radius_m: f32,
+    /// Reach of the hull and arms through tree crowns (vegetation design section 5).
+    pub brush_radius_m: f32,
+    /// Height from the feet to the top of the mech (survey M1: 12 m).
+    pub body_height_m: f32,
     /// Below this ground speed the mech counts as stopped (boarding allowed).
     pub stopped_speed_m_s: f32,
     /// Hip height, for wading: water this deep reaches the hips.
@@ -100,6 +104,8 @@ impl Default for LocomotionConfig {
             pitch_limits_deg: [-20.0, 25.0],
             pitch_rate_deg_s: 40.0,
             body_radius_m: 3.0,
+            brush_radius_m: 5.5,
+            body_height_m: 12.0,
             stopped_speed_m_s: 0.2,
             hip_height_m: 5.9,
             max_wade_depth_m: 8.0,
@@ -296,6 +302,8 @@ impl Validate for MechConfig {
         within("locomotion.pitch_limits_deg[1]", l.pitch_limits_deg[1], 0.0, 89.0)?;
         positive("locomotion.pitch_rate_deg_s", l.pitch_rate_deg_s)?;
         positive("locomotion.body_radius_m", l.body_radius_m)?;
+        positive("locomotion.brush_radius_m", l.brush_radius_m)?;
+        positive("locomotion.body_height_m", l.body_height_m)?;
         positive("locomotion.stopped_speed_m_s", l.stopped_speed_m_s)?;
         positive("locomotion.hip_height_m", l.hip_height_m)?;
         positive("locomotion.max_wade_depth_m", l.max_wade_depth_m)?;

@@ -29,6 +29,10 @@ pub struct Tree {
     pub break_impulse_n_s: f32,
     /// Turn about its own axis (looks only).
     pub yaw_rad: f32,
+    /// Crown radius.
+    pub crown_radius_m: f32,
+    /// Height of the crown's underside above the base.
+    pub crown_base_m: f32,
 }
 
 impl Tree {
@@ -80,6 +84,8 @@ pub struct Forest {
     buckets: Vec<Vec<u32>>,
     origin_m: f32,
     side: usize,
+    /// The widest crown, for the contact search.
+    max_crown_m: f32,
 }
 
 /// What a body bumping into trees did.
@@ -91,6 +97,32 @@ pub struct Bump {
     pub broke: Vec<u32>,
     /// True when an unbroken trunk stopped it.
     pub blocked: bool,
+    /// Share of its velocity the body keeps after the trees it snapped took theirs.
+    pub kept: f32,
+}
+
+/// The shape and heft of a body pushing through trees (a mech).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Body {
+    /// Feet height.
+    pub feet_y: f32,
+    /// Leg reach against trunks.
+    pub trunk_radius_m: f32,
+    /// Hull and arm reach through crowns.
+    pub brush_radius_m: f32,
+    /// Height from the feet to the top.
+    pub height_m: f32,
+    /// Mass.
+    pub mass_kg: f32,
+}
+
+/// How a body's push becomes a tree's (the `vegetation` design section 5 numbers).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Push {
+    /// A push in the crown counts this many times a push on the trunk.
+    pub crown_leverage: f32,
+    /// Share of the speed past a tree that still pushes it.
+    pub graze_share: f32,
 }
 
 impl Forest {
@@ -134,31 +166,50 @@ impl Forest {
         true
     }
 
-    /// A body of `radius_m` at `p` moving at `velocity` (x, z) with `mass_kg`: snaps the trees its
-    /// momentum breaks and is stopped by the ones it does not.
-    pub fn bump(&mut self, p: Vec2, radius_m: f32, velocity: Vec2, mass_kg: f32) -> Bump {
+    /// A body at `p` (x, z) moving at `velocity` (x, z): its legs snap the trunks they hit and are
+    /// stopped by the ones they do not; its hull and arms snap the crowns they pass through (a crown
+    /// that holds bends and lets it by). Each snapped tree takes some of the body's momentum.
+    pub fn bump(&mut self, p: Vec2, body: &Body, velocity: Vec2, push: &Push) -> Bump {
         let mut out = Bump {
             pos: p,
+            kept: 1.0,
             ..Default::default()
         };
-        for id in self.near(p, radius_m) {
+        if !velocity.is_finite() {
+            return out;
+        }
+        let speed = velocity.length();
+        let travel = velocity.normalize_or_zero();
+        for id in self.near(p, body.brush_radius_m.max(body.trunk_radius_m) + self.max_crown_m) {
             let t = self.trees[id as usize];
             if self.states[id as usize] != TreeState::Standing {
                 continue;
             }
             let c = Vec2::new(t.base.x, t.base.z);
-            let reach = radius_m + t.trunk_radius_m;
             let d = out.pos - c;
-            if d.length() >= reach {
-                continue;
-            }
+            let dist = d.length();
             let normal = d.normalize_or(Vec2::X);
-            let closing = (-velocity.dot(normal)).max(0.0);
-            if self.hit(id, -normal, mass_kg * closing) {
-                out.broke.push(id);
+            let into = (-velocity.dot(normal)).max(0.0) + push.graze_share * speed;
+            let fall = (travel * 0.6 - normal * 0.4).normalize_or(-normal);
+            let legs = body.feet_y < t.base.y + t.height_m * 0.4 && dist < body.trunk_radius_m + t.trunk_radius_m;
+            let crown = body.feet_y < t.base.y + t.height_m
+                && body.feet_y + body.height_m > t.base.y + t.crown_base_m
+                && dist < body.brush_radius_m + t.crown_radius_m;
+            let impulse = body.mass_kg * into;
+            let snapped = if legs {
+                let snapped = self.hit(id, fall, impulse);
+                if !snapped {
+                    out.pos = c + normal * (body.trunk_radius_m + t.trunk_radius_m);
+                    out.blocked = true;
+                }
+                snapped
             } else {
-                out.pos = c + normal * reach;
-                out.blocked = true;
+                crown && self.hit(id, fall, impulse * push.crown_leverage)
+            };
+            if snapped {
+                out.broke.push(id);
+                // The tree takes half its mass along.
+                out.kept *= body.mass_kg / (body.mass_kg + 0.5 * t.mass_kg());
             }
         }
         out
@@ -289,11 +340,14 @@ pub fn grow(rng: &SimRng, plan: &WorldPlan, cfg: &TreeConfig, world_size_m: f32)
                 trunk_radius_m,
                 break_impulse_n_s: sp.break_impulse_kn_s * 1000.0 * (0.6 + 0.8 * size),
                 yaw_rad: yaw,
+                crown_radius_m: height_m * sp.crown_radius_share,
+                crown_base_m: height_m * sp.crown_base_share,
             });
         }
     }
     let side = (world_size_m / BUCKET_M).ceil() as usize + 1;
     let mut forest = Forest {
+        max_crown_m: trees.iter().map(|t| t.crown_radius_m).fold(0.0, f32::max),
         states: vec![TreeState::Standing; trees.len()],
         buckets: vec![Vec::new(); side * side],
         origin_m: -half,
@@ -320,6 +374,8 @@ mod tests {
             trunk_radius_m: 0.3,
             break_impulse_n_s: break_kn_s * 1000.0,
             yaw_rad: 0.0,
+            crown_radius_m: 4.0,
+            crown_base_m: 4.0,
         };
         let mut f = Forest {
             trees: vec![t],
@@ -327,16 +383,49 @@ mod tests {
             buckets: vec![Vec::new(); 9],
             origin_m: -48.0,
             side: 3,
+            max_crown_m: 4.0,
         };
         let (x, z) = f.bucket(Vec2::ZERO);
         f.buckets[z * 3 + x].push(0);
         f
     }
 
+    fn mech(feet_y: f32) -> Body {
+        Body {
+            feet_y,
+            trunk_radius_m: 3.0,
+            brush_radius_m: 5.5,
+            height_m: 12.0,
+            mass_kg: 50_000.0,
+        }
+    }
+
+    const PUSH: Push = Push {
+        crown_leverage: 2.0,
+        graze_share: 0.25,
+    };
+
+    #[test]
+    fn a_skating_mech_brushing_a_crown_snaps_the_tree_and_keeps_its_speed() {
+        let mut f = one(60.0);
+        // Passing 6 m to the side at 30 m/s: the legs miss the trunk, the hull goes through the crown.
+        let b = f.bump(Vec2::new(6.0, 0.0), &mech(0.0), Vec2::new(0.0, -30.0), &PUSH);
+        assert_eq!(b.broke, vec![0]);
+        assert!(!b.blocked, "a crown does not stop a mech");
+        assert!(b.kept > 0.9 && b.kept < 1.0, "a little momentum lost: {}", b.kept);
+    }
+
+    #[test]
+    fn a_mech_flying_over_the_treetops_snaps_nothing() {
+        let mut f = one(60.0);
+        let b = f.bump(Vec2::new(0.0, 3.1), &mech(25.0), Vec2::new(0.0, -30.0), &PUSH);
+        assert!(b.broke.is_empty() && !b.blocked);
+    }
+
     #[test]
     fn a_walking_mech_snaps_a_pine_and_it_falls_the_way_it_was_pushed() {
         let mut f = one(60.0);
-        let b = f.bump(Vec2::new(0.0, 3.1), 3.0, Vec2::new(0.0, -2.0), 50_000.0);
+        let b = f.bump(Vec2::new(0.0, 3.1), &mech(0.0), Vec2::new(0.0, -2.0), &PUSH);
         assert_eq!(b.broke, vec![0]);
         let mut landed = Vec::new();
         for _ in 0..600 {
@@ -350,7 +439,7 @@ mod tests {
     #[test]
     fn a_trunk_too_strong_to_break_stops_the_mech() {
         let mut f = one(250.0);
-        let b = f.bump(Vec2::new(0.0, 3.1), 3.0, Vec2::new(0.0, -2.0), 50_000.0);
+        let b = f.bump(Vec2::new(0.0, 3.1), &mech(0.0), Vec2::new(0.0, -0.5), &PUSH);
         assert!(b.broke.is_empty() && b.blocked);
         assert!((b.pos.length() - 3.3).abs() < 1e-4);
     }

@@ -89,6 +89,10 @@ pub struct Species {
     pub trunk_radius_m: [f32; 2],
     /// Momentum that snaps a mid-sized one, kilonewton seconds (a 50 t mech at 1 m/s is 50).
     pub break_impulse_kn_s: f32,
+    /// Crown radius as a share of the height (as `tree_mesh` in cb-app draws it).
+    pub crown_radius_share: f32,
+    /// Height where the crown starts, as a share of the height.
+    pub crown_base_share: f32,
 }
 
 /// Trees (openspec change `vegetation`).
@@ -109,16 +113,22 @@ pub struct TreeConfig {
     pub park_chance: f32,
     /// Species.
     pub species: Vec<Species>,
+    /// A push high in the crown counts this many times a push on the trunk (leverage).
+    pub crown_leverage: f32,
+    /// Share of a mech's speed past a tree that still pushes it (a grazing hit).
+    pub graze_share: f32,
 }
 
 impl Default for TreeConfig {
     fn default() -> Self {
-        let sp = |name: &str, share: f32, h: [f32; 2], r: [f32; 2], b: f32| Species {
+        let sp = |name: &str, share: f32, h: [f32; 2], r: [f32; 2], b: f32, crown: [f32; 2]| Species {
             name: name.into(),
             share,
             height_m: h,
             trunk_radius_m: r,
             break_impulse_kn_s: b,
+            crown_radius_share: crown[0],
+            crown_base_share: crown[1],
         };
         Self {
             spacing_m: 11.0,
@@ -128,10 +138,12 @@ impl Default for TreeConfig {
             scatter_chance: 0.04,
             park_chance: 0.5,
             species: vec![
-                sp("pine", 0.5, [14.0, 26.0], [0.25, 0.45], 60.0),
-                sp("oak", 0.25, [10.0, 18.0], [0.4, 0.8], 240.0),
-                sp("birch", 0.25, [9.0, 16.0], [0.12, 0.25], 25.0),
+                sp("pine", 0.5, [14.0, 26.0], [0.25, 0.45], 60.0, [0.2, 0.2]),
+                sp("oak", 0.25, [10.0, 18.0], [0.4, 0.8], 240.0, [0.34, 0.38]),
+                sp("birch", 0.25, [9.0, 16.0], [0.12, 0.25], 25.0, [0.2, 0.42]),
             ],
+            crown_leverage: 2.0,
+            graze_share: 0.25,
         }
     }
 }
@@ -152,7 +164,16 @@ impl Validate for TreeConfig {
             positive_range(&format!("trees.species[{}].height_m", s.name), s.height_m)?;
             positive_range(&format!("trees.species[{}].trunk_radius_m", s.name), s.trunk_radius_m)?;
             positive(&format!("trees.species[{}].break_impulse_kn_s", s.name), s.break_impulse_kn_s)?;
+            within(
+                &format!("trees.species[{}].crown_radius_share", s.name),
+                s.crown_radius_share,
+                0.0,
+                1.0,
+            )?;
+            within(&format!("trees.species[{}].crown_base_share", s.name), s.crown_base_share, 0.0, 1.0)?;
         }
+        positive("trees.crown_leverage", self.crown_leverage)?;
+        within("trees.graze_share", self.graze_share, 0.0, 1.0)?;
         Ok(())
     }
 }

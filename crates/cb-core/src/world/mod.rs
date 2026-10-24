@@ -19,7 +19,7 @@ pub use collision::BuildingGrid;
 pub use config::WorldConfig;
 pub use deform::Deformation;
 pub use destruct::{Chunk, Structures};
-pub use forest::{Forest, Tree, TreeState};
+pub use forest::{Body, Bump, Forest, Push, Tree, TreeState};
 pub use layout::{Block, Building, City, Highway, Rect, StreetKind, StreetPiece};
 pub use terrain::{ChunkMesh, Heightfield};
 pub use water::{Bridge, River, WaterSample, Waters};
