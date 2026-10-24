@@ -1,0 +1,463 @@
+{
+ "generator": "tools/blender/build_cockpit_blockouts.py",
+ "seated": true,
+ "layouts": [
+  {
+   "id": "panorama",
+   "name": "Panorama",
+   "text": "One wide front screen, 1.9 m across, the pillars pushed out to the corners; square side screens to the shoulders. Armored Core's front.",
+   "file": "cockpit_blockouts/panorama.glb",
+   "pose": "seated",
+   "eye_m": [
+    0.0,
+    1.2000000476837158,
+    0.0
+   ],
+   "clear_deg": 93,
+   "span_deg": 231,
+   "tris": 554,
+   "hatch": {
+    "node": "HATCH",
+    "hinge_m": [
+     0.0,
+     2.0,
+     0.93
+    ],
+    "pop_m": 0.04,
+    "swing_rad": -1.6,
+    "tracks": [
+     {
+      "node": "HATCH",
+      "pos": "z",
+      "v": 0.04,
+      "t0": 0.0,
+      "d": 0.4
+     },
+     {
+      "node": "HATCH",
+      "axis": "x",
+      "v": -1.6,
+      "t0": 0.4,
+      "d": 1.6
+     }
+    ]
+   },
+   "mfd": [
+    "top",
+    "dash"
+   ]
+  },
+  {
+   "id": "tilewall",
+   "name": "Tile wall",
+   "text": "Two rows of square tiles round 210 degrees, a centimetre of wall between them and no pillar ahead: the structure is behind the pilot's shoulders.",
+   "file": "cockpit_blockouts/tilewall.glb",
+   "pose": "seated",
+   "eye_m": [
+    0.0,
+    1.2000000476837158,
+    0.0
+   ],
+   "clear_deg": 84,
+   "span_deg": 210,
+   "tris": 912,
+   "hatch": {
+    "node": "HATCH",
+    "hinge_m": [
+     0.0,
+     2.19,
+     1.0662
+    ],
+    "pop_m": 0.04,
+    "swing_rad": -1.6,
+    "tracks": [
+     {
+      "node": "HATCH",
+      "pos": "z",
+      "v": 0.04,
+      "t0": 0.0,
+      "d": 0.4
+     },
+     {
+      "node": "HATCH",
+      "axis": "x",
+      "v": -1.6,
+      "t0": 0.4,
+      "d": 1.6
+     }
+    ]
+   },
+   "mfd": [
+    "dash"
+   ]
+  },
+  {
+   "id": "allview",
+   "name": "All-view sphere",
+   "text": "The Gundam pod: a ball of flat screens all round, under the feet and overhead too; the seat on its arm in the middle, the MFDs on the armrests.",
+   "file": "cockpit_blockouts/allview.glb",
+   "pose": "seated",
+   "eye_m": [
+    0.0,
+    1.2000000476837158,
+    0.0
+   ],
+   "clear_deg": 360,
+   "span_deg": 360,
+   "tris": 828,
+   "hatch": {
+    "node": "HATCH",
+    "hinge_m": [
+     0.0,
+     1.95,
+     1.188
+    ],
+    "pop_m": 0.04,
+    "swing_rad": -1.6,
+    "tracks": [
+     {
+      "node": "HATCH",
+      "pos": "z",
+      "v": 0.04,
+      "t0": 0.0,
+      "d": 0.4
+     },
+     {
+      "node": "HATCH",
+      "axis": "x",
+      "v": -1.6,
+      "t0": 0.4,
+      "d": 1.6
+     }
+    ]
+   },
+   "mfd": [
+    "arms"
+   ]
+  },
+  {
+   "id": "titan",
+   "name": "Titan",
+   "text": "Titanfall's: a front screen 1.6 m across, side screens raked back, a heavy frame but all of it outside 45 degrees.",
+   "file": "cockpit_blockouts/titan.glb",
+   "pose": "seated",
+   "eye_m": [
+    0.0,
+    1.2000000476837158,
+    0.0
+   ],
+   "clear_deg": 91,
+   "span_deg": 228,
+   "tris": 558,
+   "hatch": {
+    "node": "HATCH",
+    "hinge_m": [
+     0.0,
+     1.92,
+     0.83
+    ],
+    "pop_m": 0.04,
+    "swing_rad": -1.6,
+    "tracks": [
+     {
+      "node": "HATCH",
+      "pos": "z",
+      "v": 0.04,
+      "t0": 0.0,
+      "d": 0.4
+     },
+     {
+      "node": "HATCH",
+      "axis": "x",
+      "v": -1.6,
+      "t0": 0.4,
+      "d": 1.6
+     }
+    ]
+   },
+   "mfd": [
+    "top",
+    "dash"
+   ]
+  },
+  {
+   "id": "cinema",
+   "name": "Cinema",
+   "text": "One huge front screen 2.2 m by 1.05 m with no seam at all, square screens beside the knees.",
+   "file": "cockpit_blockouts/cinema.glb",
+   "pose": "seated",
+   "eye_m": [
+    0.0,
+    1.2000000476837158,
+    0.0
+   ],
+   "clear_deg": 95,
+   "span_deg": 175,
+   "tris": 400,
+   "hatch": {
+    "node": "HATCH",
+    "hinge_m": [
+     0.0,
+     2.15,
+     1.03
+    ],
+    "pop_m": 0.04,
+    "swing_rad": -1.6,
+    "tracks": [
+     {
+      "node": "HATCH",
+      "pos": "z",
+      "v": 0.04,
+      "t0": 0.0,
+      "d": 0.4
+     },
+     {
+      "node": "HATCH",
+      "axis": "x",
+      "v": -1.6,
+      "t0": 0.4,
+      "d": 1.6
+     }
+    ]
+   },
+   "mfd": [
+    "dash"
+   ]
+  },
+  {
+   "id": "cab",
+   "name": "Excavator cab",
+   "text": "Floor to roof screens like a digger's glass cab, and a screen under the feet looking down at the ground ahead.",
+   "file": "cockpit_blockouts/cab.glb",
+   "pose": "seated",
+   "eye_m": [
+    0.0,
+    1.2000000476837158,
+    0.0
+   ],
+   "clear_deg": 87,
+   "span_deg": 233,
+   "tris": 538,
+   "hatch": {
+    "node": "HATCH",
+    "hinge_m": [
+     0.0,
+     2.13,
+     0.88
+    ],
+    "pop_m": 0.04,
+    "swing_rad": -1.6,
+    "tracks": [
+     {
+      "node": "HATCH",
+      "pos": "z",
+      "v": 0.04,
+      "t0": 0.0,
+      "d": 0.4
+     },
+     {
+      "node": "HATCH",
+      "axis": "x",
+      "v": -1.6,
+      "t0": 0.4,
+      "d": 1.6
+     }
+    ]
+   },
+   "mfd": [
+    "top"
+   ]
+  },
+  {
+   "id": "octagon",
+   "name": "Octagon",
+   "text": "The Stevedore's octagon, seated now and stretched so its front is 1.6 m across: pillars at 45 degrees instead of 21.",
+   "file": "cockpit_blockouts/octagon.glb",
+   "pose": "seated",
+   "eye_m": [
+    0.0,
+    1.2000000476837158,
+    0.0
+   ],
+   "clear_deg": 87,
+   "span_deg": 261,
+   "tris": 736,
+   "hatch": {
+    "node": "HATCH",
+    "hinge_m": [
+     0.0,
+     2.25,
+     0.88
+    ],
+    "pop_m": 0.04,
+    "swing_rad": -1.6,
+    "tracks": [
+     {
+      "node": "HATCH",
+      "pos": "z",
+      "v": 0.04,
+      "t0": 0.0,
+      "d": 0.4
+     },
+     {
+      "node": "HATCH",
+      "axis": "x",
+      "v": -1.6,
+      "t0": 0.4,
+      "d": 1.6
+     }
+    ]
+   },
+   "mfd": [
+    "top",
+    "dash"
+   ]
+  },
+  {
+   "id": "canopy",
+   "name": "Canopy",
+   "text": "A fighter's canopy in flat screens: the front half of the ceiling is screens too, so you see up as well as out.",
+   "file": "cockpit_blockouts/canopy.glb",
+   "pose": "seated",
+   "eye_m": [
+    0.0,
+    1.2000000476837158,
+    0.0
+   ],
+   "clear_deg": 90,
+   "span_deg": 228,
+   "tris": 504,
+   "hatch": {
+    "node": "HATCH",
+    "hinge_m": [
+     0.0,
+     1.65,
+     0.88
+    ],
+    "pop_m": 0.04,
+    "swing_rad": -1.6,
+    "tracks": [
+     {
+      "node": "HATCH",
+      "pos": "z",
+      "v": 0.04,
+      "t0": 0.0,
+      "d": 0.4
+     },
+     {
+      "node": "HATCH",
+      "axis": "x",
+      "v": -1.6,
+      "t0": 0.4,
+      "d": 1.6
+     }
+    ]
+   },
+   "mfd": [
+    "dash"
+   ]
+  },
+  {
+   "id": "twintier",
+   "name": "Twin tier",
+   "text": "Two rings of square screens round 190 degrees with one thin rail between them under the eye line.",
+   "file": "cockpit_blockouts/twintier.glb",
+   "pose": "seated",
+   "eye_m": [
+    0.0,
+    1.2000000476837158,
+    0.0
+   ],
+   "clear_deg": 80,
+   "span_deg": 190,
+   "tris": 836,
+   "hatch": {
+    "node": "HATCH",
+    "hinge_m": [
+     0.0,
+     2.1,
+     1.0139
+    ],
+    "pop_m": 0.04,
+    "swing_rad": -1.6,
+    "tracks": [
+     {
+      "node": "HATCH",
+      "pos": "z",
+      "v": 0.04,
+      "t0": 0.0,
+      "d": 0.4
+     },
+     {
+      "node": "HATCH",
+      "axis": "x",
+      "v": -1.6,
+      "t0": 0.4,
+      "d": 1.6
+     }
+    ]
+   },
+   "mfd": [
+    "dash"
+   ]
+  },
+  {
+   "id": "lowbank",
+   "name": "Low bank",
+   "text": "The Ironhorse's low screen bank, seated and widened: a front 1.5 m across, the wings swept back past the knees.",
+   "file": "cockpit_blockouts/lowbank.glb",
+   "pose": "seated",
+   "eye_m": [
+    0.0,
+    1.2000000476837158,
+    0.0
+   ],
+   "clear_deg": 71,
+   "span_deg": 226,
+   "tris": 448,
+   "hatch": {
+    "node": "HATCH",
+    "hinge_m": [
+     0.0,
+     1.62,
+     1.08
+    ],
+    "pop_m": 0.04,
+    "swing_rad": -1.6,
+    "tracks": [
+     {
+      "node": "HATCH",
+      "pos": "z",
+      "v": 0.04,
+      "t0": 0.0,
+      "d": 0.4
+     },
+     {
+      "node": "HATCH",
+      "axis": "x",
+      "v": -1.6,
+      "t0": 0.4,
+      "d": 1.6
+     }
+    ]
+   },
+   "mfd": [
+    "dash"
+   ]
+  }
+ ],
+ "built": {
+  "wall": {
+   "clear_deg": 58,
+   "span_deg": 201
+  },
+  "harness": {
+   "clear_deg": 42,
+   "span_deg": 311
+  },
+  "jockey": {
+   "clear_deg": 56,
+   "span_deg": 121
+  }
+ }
+}

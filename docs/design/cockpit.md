@@ -133,6 +133,25 @@ about 200k triangle count"); budget 600,000 triangles each.
 Texture memory per variant: eight maps, as BC7 with mips 8 x 5.3 MiB = 43 MiB at 2048 px, 171 MiB at
 4096 px (the game's size).
 
+## Owner review of the built three, 2026-10-24
+
+What the owner found on the Mech Cockpits page, to be fixed in whichever layout is modelled in detail next:
+
+- Harness (Stevedore): the combat view is bad, metal bars across it and no displays for health, walking
+  direction, ammunition or enemies; the MFDs up top and the way it opens are good. Standing is out: every
+  cockpit is seated.
+- Wall (Foreman): "really good". The far right window has z-fighting at its corners and extra window frames;
+  the second window from the right opens for no reason (the side windows should not open); the main HUD panel's
+  UVs are stretched and it clips the bottom plate as it opens.
+- Jockey (Ironhorse): the leaning pose "doesnt really make a lot of sense"; seated instead.
+- All: no geometry passing through other geometry, opening and closing seamless and logical, the cabin airtight
+  (underwater, the stratosphere), the windows closed shapes.
+
+The answer so far is ten seated block-outs (`tools/blender/build_cockpit_blockouts.py`): an airtight CSG shell,
+square screens cut into its inner wall, structure outside about 40 degrees, one front hatch cut off by a boolean
+wedge that unseals 4 cm then swings up clear, and live MFDs (status, nav, weapons, radar). The clear view ahead is
+measured on each: 71 to 95 degrees for the flat ones, all round for the sphere, against 42 to 58 for the built three.
+
 ## Open questions
 
 | Id | Question | Provisional answer |
@@ -144,3 +163,4 @@ Texture memory per variant: eight maps, as BC7 with mips 8 x 5.3 MiB = 43 MiB at
 | C7 | How the screen wall looks | Separate screens in heavy bezels, phosphor tint, scanlines |
 | C5 | Colours | Dark gunmetal, amber, green and red lamps, hazard stripes, as drawn |
 | C8 | Which cockpit for which chassis | Provisional: chosen with the new chassis designs (build_mechs.py) |
+| C9 | Which block-out to model in detail | Provisional: Panorama (a 1.9 m front, 93 degrees clear, MFDs over and under it) |

@@ -28,10 +28,10 @@ SITE = os.path.join(ROOT, "output", "cockpit_site")
 VARIANTS = [("wall", "foreman", "Wall", "Seated in a cab of flat screens: a wide front screen, chamfered corner screens, "
              "side screens, three monitors hanging from the ceiling. The front and the corner screens swing out and "
              "the sill folds down as the step."),
-            ("harness", "stevedore", "Harness", "Standing in a tall octagon of screens, strapped to a backplate on a "
+            ("harness", "stevedore", "Harness", "Set aside: every cockpit is seated now (owner, 2026-10-24). Standing in a tall octagon of screens, strapped to a backplate on a "
              "spine, forearms on two rests that end in the grips, a ring of monitors overhead. The front facet lifts, "
              "the front diagonals swing and the rests fold up to let the pilot in."),
-            ("jockey", "ironhorse", "Jockey", "Riding it like a motorbike: leaning onto a chest pad, knees in pads, "
+            ("jockey", "ironhorse", "Jockey", "Set aside: every cockpit is seated now (owner, 2026-10-24). Riding it like a motorbike: leaning onto a chest pad, knees in pads, "
              "hands on handlebar grips, looking down a low wide bank of screens with a strip overhead. The screen "
              "bank lifts like a visor and the yoke swings up.")]
 
@@ -40,11 +40,11 @@ PAGE = r"""<title>Mech Cockpits</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap">
 <style>
 :root { --bg: #e9e7ea; --panel: #f5f4f6; --ink: #1d1a21; --dim: #5f5a66; --line: #c9c4cf; --acc: #c46a12; --btn: #ffffff;
-        --on: #1d5fbf; --on-bg: #e3ecfa; --stage: #1a1620; color-scheme: light }
+        --on: #1d5fbf; --on-bg: #e3ecfa; --good: #2d7a3a; --bad: #b23a2a; --stage: #1a1620; color-scheme: light }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #16131a; --panel: #201c25; --ink: #ece8f0;
-  --dim: #a59fae; --line: #3a3442; --acc: #f0a04a; --btn: #26212c; --on: #8fb6ff; --on-bg: #24324a; --stage: #0e0c12; color-scheme: dark } }
+  --dim: #a59fae; --line: #3a3442; --acc: #f0a04a; --btn: #26212c; --on: #8fb6ff; --on-bg: #24324a; --good: #7fd08a; --bad: #ff8a78; --stage: #0e0c12; color-scheme: dark } }
 :root[data-theme="dark"] { --bg: #16131a; --panel: #201c25; --ink: #ece8f0; --dim: #a59fae; --line: #3a3442; --acc: #f0a04a;
-  --btn: #26212c; --on: #8fb6ff; --on-bg: #24324a; --stage: #0e0c12; color-scheme: dark }
+  --btn: #26212c; --on: #8fb6ff; --on-bg: #24324a; --good: #7fd08a; --bad: #ff8a78; --stage: #0e0c12; color-scheme: dark }
 body { background: var(--bg); color: var(--ink); font: 15px/1.55 "IBM Plex Sans", system-ui, sans-serif }
 .wrap { max-width: 1280px; margin: 0 auto; padding-block: 18px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px));
         padding-right: max(16px, env(safe-area-inset-right, 0px)) }
@@ -55,6 +55,11 @@ p.lede { max-width: 68ch; color: var(--dim); margin: 0 0 14px }
 @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr) } }
 .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px }
 .row .k { font: 12px "IBM Plex Mono", monospace; color: var(--dim); width: 64px }
+.big { font: 700 22px "Saira Condensed", sans-serif } .good { color: var(--good) } .bad { color: var(--bad) }
+.tablewrap { overflow-x: auto; margin-top: 18px }
+table { border-collapse: collapse; font-size: 14px; min-width: 560px }
+th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--line) }
+th { font: 12px "IBM Plex Mono", monospace; color: var(--dim); text-transform: uppercase; letter-spacing: .06em }
 button { font: 600 15px "Saira Condensed", sans-serif; letter-spacing: .05em; text-transform: uppercase; padding: 7px 12px;
          background: var(--btn); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; cursor: pointer; min-height: 36px }
 button.on { background: var(--on-bg); color: var(--on); border-color: var(--on) }
@@ -73,14 +78,17 @@ dt { color: var(--dim) } dd { margin: 0 }
 code { font: 12px "IBM Plex Mono", monospace }
 </style>
 <div class="wrap">
-  <div class="eyebrow">Crab Breeze · cockpit review · the interiors on their own</div>
-  <h1>Three cockpits, from the pilot's seat</h1>
-  <p class="lede">Each chassis carries its own interior, sealed, with the world on its screens. Sit at the pilot's eye and
-  drag to look round, open the parts that let the pilot in, or step outside and orbit the pod beside a 1.8 m pilot.
-  The chest of each mech is now shaped round these interiors.</p>
+  <div class="eyebrow">Crab Breeze · cockpit review · every cockpit, built and proposed</div>
+  <h1>Every cockpit, from the pilot's seat</h1>
+  <p class="lede">The three built interiors, fully modelled and baked, and ten new layouts of square screens blocked out to
+  choose from before the next one is built. All are sealed and see out through flat screens, with live MFDs for the
+  mech's health, heading and walking direction, ammunition and heat, and radar. Sit at the pilot's eye and drag to look
+  round, open the built ones, or step outside and orbit beside a 1.8 m pilot. "Clear ahead" is measured off each
+  layout: the angle between the nearest frame members either side of straight ahead.</p>
   <div class="grid">
     <section>
-      <div class="row"><span class="k">Cockpit</span><span id="pick"></span></div>
+      <div class="row"><span class="k">Built</span><span id="pick" class="row" style="margin:0"></span></div>
+      <div class="row"><span class="k">Concepts</span><span id="pickc" class="row" style="margin:0"></span></div>
       <div class="row"><span class="k">View</span><button data-view="eye" class="on">Pilot's eye</button><button data-view="orbit">Outside</button></div>
       <div class="row"><span class="k">Doors</span><button id="open">Open</button><button id="close" class="on">Closed</button>
         <span class="k" style="margin-left:10px">Screens</span><button id="power" class="on">On</button><button id="hud" class="on">HUD</button></div>
@@ -89,6 +97,7 @@ code { font: 12px "IBM Plex Mono", monospace }
     </section>
     <aside class="card" id="card"></aside>
   </div>
+  <div class="tablewrap"><table id="table"></table></div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -99,6 +108,8 @@ const HUD_SRC = "data:image/png;base64,__HUD__";
 const T = THREE;
 __GLTF_JSON__
 __SCREEN_WALL__
+__MFD_PAGES__
+const CONCEPTS = __BLOCKOUTS__;
 const loader = gltfJsonLoader(T);
 const canvas = document.getElementById("view"), msg = document.getElementById("msg"), tag = document.getElementById("tag");
 const renderer = new T.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
@@ -141,50 +152,75 @@ const hd = new T.Mesh(new T.SphereGeometry(0.12, 16, 12), skin); hd.position.y =
 pilot.position.set(1.9, POD_Y - 0.15, 0.6); scene.add(pilot);
 
 const wall = makeScreenWall(T, scene, HUD_SRC);
+const MFD = makeMfdPages(T);
 const CD_TO_PAGE = 1 / 260;
 const pods = {};
+
 let cur = null, view = "eye", openK = 0, openTo = 0, power = 1, hudOn = 1, yaw = 0, pitch = -0.22;
 const AX = { x: new T.Vector3(1, 0, 0), y: new T.Vector3(0, 1, 0), z: new T.Vector3(0, 0, 1) };
 
 function tracks(man) {
   return Object.entries(man.motions || {}).map(([node, m]) => ({ node, axis: m.axis, pos: m.slide, v: m.value, t0: m.t0 || 0, d: m.d || 1 }));
 }
-Promise.all(COCKPITS.map(c => loader.loadAsync(c.file).then(g => {
+Promise.all([...COCKPITS, ...CONCEPTS.layouts].map(c => loader.loadAsync(c.file).then(g => {
   const pod = g.scene;
+  let nmfd = 1;
   pod.traverse(o => {
     if (o.isLight) { o.intensity *= CD_TO_PAGE; return; }
     if (!o.isMesh) return;
     for (const m of [].concat(o.material)) {
       if (m.name === "SCREEN_allview") o.material = wall.material;
-      else if (m.name.startsWith("SCREEN_")) m.toneMapped = false;
+      else if (m.name.startsWith("SCREEN_")) {        // the monitors show the live MFD pages
+        const kind = m.name.startsWith("SCREEN_mfd_") ? m.name.slice(11) : MFD.kinds[nmfd++ % 4];
+        o.material = new T.MeshBasicMaterial({ map: MFD.page(kind), toneMapped: false });
+      }
     }
   });
   pod.position.y = POD_Y; pod.visible = false; scene.add(pod);
   const nodes = {}; pod.traverse(o => { if (o.name) nodes[o.name] = o; });
-  const tr = tracks(c.man).filter(t => nodes[t.node]);
+  const tr = (c.man ? tracks(c.man) : c.hatch.tracks.map(t => Object.assign({}, t))).filter(t => nodes[t.node]);
   tr.forEach(t => { t.o = nodes[t.node]; t.q = t.o.quaternion.clone(); t.p = t.o.position.clone(); });
-  pods[c.variant] = { c, pod, tr, end: Math.max(1, ...tr.map(t => t.t0 + t.d)) };
+  const id = c.variant || c.id;
+  pods[id] = { c, L: c.man ? null : c, pod, tr, end: Math.max(1, ...tr.map(t => t.t0 + t.d)), eye: c.man ? c.man.eye_m : c.eye_m };
 }))).then(() => { msg.textContent = ""; pick(COCKPITS[0].variant); }).catch(e => { msg.textContent = "Could not load: " + e; console.error(e); });
 
-const pickEl = document.getElementById("pick");
-COCKPITS.forEach(c => { const b = document.createElement("button"); b.textContent = c.title; b.dataset.v = c.variant; b.onclick = () => pick(c.variant); pickEl.appendChild(b); });
+const pickEl = document.getElementById("pick"), pickC = document.getElementById("pickc");
+COCKPITS.forEach(c => { const b = document.createElement("button"); b.textContent = c.title + " (" + c.mech + ")"; b.dataset.v = c.variant; b.onclick = () => pick(c.variant); pickEl.appendChild(b); });
+CONCEPTS.layouts.forEach((L, i) => { const b = document.createElement("button"); b.textContent = (i + 1) + " " + L.name; b.dataset.v = L.id; b.onclick = () => pick(L.id); pickC.appendChild(b); });
+const clearCell = (n, cls) => `<span class="${cls || (n >= 80 ? "good" : "bad")}">${n >= 360 ? "all round" : n + " degrees"}</span>`;
+document.getElementById("table").innerHTML = "<tr><th>Cockpit</th><th>Kind</th><th>Pose</th><th>Clear ahead</th><th>Screens span</th></tr>" +
+  COCKPITS.map(c => `<tr><td>${c.title}</td><td>built, in the ${c.mech}</td><td>${c.pose}</td><td>${clearCell(CONCEPTS.built[c.variant].clear_deg)}</td><td>${CONCEPTS.built[c.variant].span_deg} degrees</td></tr>`).join("") +
+  CONCEPTS.layouts.map((L, i) => `<tr><td>${i + 1} ${L.name}</td><td>block-out</td><td>${L.pose}</td><td>${clearCell(L.clear_deg)}</td><td>${L.span_deg >= 360 ? "360 degrees" : L.span_deg + " degrees"}</td></tr>`).join("");
 function pick(v) {
-  for (const k in pods) pods[k].pod.visible = k === v;
-  cur = pods[v];
-  pickEl.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
-  const c = cur.c, m = c.man, e = m.envelope_m;
-  const bc = m.bounds_closed_m;
-  document.getElementById("card").innerHTML = `<div class="sub">in the ${c.mech}</div><h2>${c.title}</h2><p>${c.text}</p><dl>
+  const P = pods[v];
+  if (!P) return;
+  for (const k in pods) if (pods[k].pod) pods[k].pod.visible = k === v;
+  cur = P; openK = 0; openTo = 0; setOpen(false);
+  [pickEl, pickC].forEach(el => el.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === v)));
+  if (P.L) {
+    const L = P.L;
+    document.getElementById("card").innerHTML = `<div class="sub">block-out · seated</div><h2>${L.name}</h2><p>${L.text}</p><dl>
+      <dt>Clear ahead</dt><dd class="big">${clearCell(L.clear_deg)}</dd>
+      <dt>Screens span</dt><dd>${L.span_deg >= 360 ? "360 degrees, up and down too" : L.span_deg + " degrees round"}</dd>
+      <dt>Eye</dt><dd>${L.eye_m[1].toFixed(2)} m over the floor, seated</dd>
+      <dt>Hatch</dt><dd>the front unseals ${Math.round(L.hatch.pop_m * 100)} cm straight out, then swings up about its top edge; the sides stay shut</dd>
+      <dt>MFDs</dt><dd>status, nav, weapons, radar: ${L.mfd.map(w => ({ top: "overhead", dash: "on the dash, riding the hatch", arms: "on the armrests" })[w]).join(" and ")}</dd>
+      <dt>Triangles</dt><dd>${L.tris.toLocaleString()}</dd></dl>
+      <p class="hint">Low-poly and flat-coloured, built the CSG way in Blender (<code>tools/blender/build_cockpit_blockouts.py</code>): an airtight shell, screens cut into its inner wall, the hatch cut off by a boolean wedge with its seal in orange. The chosen layout is then modelled and baked in detail.</p>`;
+  } else {
+    const c = P.c, m = c.man, e = m.envelope_m, bc = { clear: CONCEPTS.built[c.variant].clear_deg };
+    document.getElementById("card").innerHTML = `<div class="sub">built · in the ${c.mech}</div><h2>${c.title}</h2><p>${c.text}</p><dl>
+    <dt>Clear ahead</dt><dd class="big">${clearCell(bc.clear)}</dd>
     <dt>Eye</dt><dd>${m.eye_m[1].toFixed(2)} m over the floor</dd>
     <dt>Envelope</dt><dd>${(2 * (Array.isArray(e.x) ? e.x[1] : e.x)).toFixed(2)} wide, ${(e.y[1] - e.y[0]).toFixed(2)} tall, ${(e.z[1] - e.z[0]).toFixed(2)} deep (m)</dd>
     <dt>Doorway</dt><dd>${m.doorway_m ? m.doorway_m.width.toFixed(2) + " wide, " + m.doorway_m.height.toFixed(2) + " tall (m)" : "n/a"}</dd>
-    <dt>Opens in</dt><dd>${(m.inner_opening_s || cur.end).toFixed(1)} s, after the chest armour</dd>
-    <dt>Moving parts</dt><dd>${cur.tr.map(t => t.node.replace(/_/g, " ").toLowerCase()).join(", ")}</dd>
+    <dt>Opens in</dt><dd>${(m.inner_opening_s || P.end).toFixed(1)} s, after the chest armour</dd>
+    <dt>Moving parts</dt><dd>${P.tr.map(t => t.node.replace(/_/g, " ").toLowerCase()).join(", ")}</dd>
     <dt>Lamps</dt><dd>${(m.lights || []).length}, lit live</dd>
     <dt>Triangles</dt><dd>${(m.tris || 0).toLocaleString()} of ${(m.tri_budget || 0).toLocaleString()}</dd>
-    <dt>Draw calls</dt><dd>${m.draw_calls ?? "n/a"}</dd>
     <dt>Maps</dt><dd>base colour, normal, ORM, emission</dd></dl>
-    <p class="hint">Built by <code>tools/blender/build_cockpit.py --variant ${c.variant}</code>.</p>`;
+    <p class="hint">Built by <code>tools/blender/build_cockpit.py --variant ${c.variant}</code>; its monitors show the live MFD pages here.</p>`;
+  }
   yaw = 0; pitch = -0.22; setView(view);
 }
 function setView(v) {
@@ -213,15 +249,16 @@ function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   const w = canvas.clientWidth, h = canvas.clientHeight;
   if (canvas.width !== Math.floor(w * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+  MFD.tick(dt);
   if (cur) {
     openK += Math.sign(openTo - openK) * Math.min(Math.abs(openTo - openK), dt / cur.end);
     const t = openK * cur.end;
-    for (const tr of cur.tr) {
+    for (const tr of cur.tr || []) {
       const k = Math.max(0, Math.min(1, (t - tr.t0) / tr.d)), s = k * k * (3 - 2 * k);
       if (tr.pos) { tr.o.position.copy(tr.p); tr.o.position[tr.pos] += tr.v * s; }
       else tr.o.quaternion.copy(tr.q).multiply(new T.Quaternion().setFromAxisAngle(AX[tr.axis], tr.v * s));
     }
-    const e = cur.c.man.eye_m;
+    const e = cur.eye;
     eyeW.set(e[0], e[1] + POD_Y, e[2]);
     if (view === "eye") {
       camera.position.copy(eyeW);
@@ -258,9 +295,17 @@ def main(only=None):
             shutil.copyfile(os.path.join(d, "textures", f), os.path.join(SITE, r))
             files[r] = os.path.join(SITE, r)
         man = json.load(open(os.path.join(MD.MODELS, f"cockpit_{v}.json")))
-        cockpits.append(dict(variant=v, mech=mech.capitalize(), title=title, text=text, file=rel, man=man))
+        cockpits.append(dict(variant=v, mech=mech.capitalize(), title=title, text=text, file=rel, man=man,
+                             pose={"wall": "seated", "harness": "standing", "jockey": "leaning"}[v]))
+    blockouts = json.load(open(os.path.join(MD.MODELS, "cockpit_blockouts.json")))
+    for L in blockouts["layouts"]:
+        rel = f"blockouts/{L['id']}.gltf.json"
+        MD.as_json_gltf(os.path.join(MD.MODELS, L["file"]), os.path.join(SITE, rel))
+        files[rel] = os.path.join(SITE, rel)
+        L["file"] = rel
     js = lambda name: open(os.path.join(ROOT, "tools", "mockups", name)).read()   # noqa: E731
-    html = (PAGE.replace("__GLTF_JSON__", js("gltf_json_loader.js")).replace("__SCREEN_WALL__", js("screen_wall.js"))
+    html = (PAGE.replace("__GLTF_JSON__", js("gltf_json_loader.js")).replace("__SCREEN_WALL__", js("screen_wall.js")).replace("__MFD_PAGES__", js("mfd_pages.js"))
+            .replace("__BLOCKOUTS__", json.dumps(blockouts))
             .replace("__COCKPITS__", json.dumps(cockpits)).replace("__HUD__", hud))
     with open(OUT, "w") as f:
         f.write(html)
