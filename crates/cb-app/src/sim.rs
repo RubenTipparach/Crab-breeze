@@ -33,6 +33,43 @@ pub enum PresentSet {
 /// Fixed rate and set order.
 pub struct SimPlugin;
 
+/// Holds each frame to its slot at `frame_cap_hz` (sim.ron): sleeps to just short of the slot, then
+/// spins the last millisecond, since a Windows sleep can overshoot by that much.
+pub struct FrameCapPlugin;
+
+#[derive(Resource)]
+struct FrameCap {
+    period: std::time::Duration,
+    next: std::time::Instant,
+}
+
+impl Plugin for FrameCapPlugin {
+    fn build(&self, app: &mut App) {
+        let hz = app.world().resource::<Data>().0.sim.frame_cap_hz;
+        if hz <= 0.0 {
+            return;
+        }
+        app.insert_resource(FrameCap {
+            period: std::time::Duration::from_secs_f64(1.0 / f64::from(hz)),
+            next: std::time::Instant::now(),
+        })
+        .add_systems(Last, hold_frame);
+    }
+}
+
+fn hold_frame(mut cap: ResMut<FrameCap>) {
+    let margin = std::time::Duration::from_millis(1);
+    let now = std::time::Instant::now();
+    if cap.next > now + margin {
+        std::thread::sleep(cap.next - now - margin);
+    }
+    while std::time::Instant::now() < cap.next {
+        std::hint::spin_loop();
+    }
+    // A frame that ran long does not bank time for the next ones.
+    cap.next = cap.next.max(std::time::Instant::now() - cap.period) + cap.period;
+}
+
 impl Plugin for SimPlugin {
     fn build(&self, app: &mut App) {
         let hz = app.world().resource::<Data>().0.sim.fixed_step_hz;

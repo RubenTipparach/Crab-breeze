@@ -31,13 +31,16 @@ impl Plugin for BenchPlugin {
 fn offscreen(
     mut commands: Commands,
     camera: Single<Entity, With<PilotCamera>>,
+    cockpit: Single<Entity, With<crate::pilot::CockpitCamera>>,
     mut images: ResMut<Assets<Image>>,
     mut frames: ResMut<Frames>,
 ) {
     let image = Image::new_target_texture(1920, 1080, TextureFormat::Rgba8Unorm, Some(TextureFormat::Rgba8UnormSrgb));
     let handle = images.add(image);
     frames.target = handle.clone();
-    commands.entity(*camera).insert(RenderTarget::Image(handle.into()));
+    commands.entity(*camera).insert(RenderTarget::Image(handle.clone().into()));
+    // The cockpit pass draws into the same image (cockpit-overlay).
+    commands.entity(*cockpit).insert(RenderTarget::Image(handle.into()));
     info!("bench: rendering the pilot's view offscreen at 1920 x 1080");
 }
 

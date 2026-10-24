@@ -7,8 +7,9 @@ and depth). Tuning in the mech's `locomotion:` data.
 
 1. **At the surface** means the root is no more than `float_catch_m` (1.0 m) below the water
    surface. **Deep** means water deeper than `max_wade_depth_m` (8 m); shallower water is waded.
-2. **Skim** when at the surface, Ctrl is not held, both legs are on, the skate budget is not locked,
-   and either the skates are on or the water is deep (then they switch on by themselves). The water
+2. **Skim** when at the surface of deep water, Ctrl is not held, both legs are on and the skate budget
+   is not locked; the skates switch on by themselves. Water shallow enough to wade is waded with the
+   skates on or off (owner, 2026-10-24: "shallow water dont need autoskate"). The water
    surface is the floor; the skates drive as on land and burn their budget.
 3. **Rocket backup** when at the surface of deep water, Ctrl is not held, there is no skim, and the
    rockets are not locked: the rockets fire (they burn as boosting), the surface is the floor, and

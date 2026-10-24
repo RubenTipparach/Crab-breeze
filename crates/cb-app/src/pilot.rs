@@ -57,25 +57,62 @@ impl Plugin for PilotPlugin {
     }
 }
 
+/// The render layer the cockpit is drawn on while the pilot sits sealed in it (cockpit-overlay).
+pub const COCKPIT_LAYER: usize = 1;
+
+/// The camera that draws the cockpit after the world, on its own depth (cockpit-overlay): a child
+/// of the pilot's eyes with the same lens, so the two views share one transform each frame.
+#[derive(Component)]
+pub struct CockpitCamera;
+
 fn spawn_camera(mut commands: Commands) {
-    commands.spawn((
-        Name::new("pilot's eyes"),
-        PilotCamera,
-        Camera3d::default(),
-        Projection::from(PerspectiveProjection {
-            fov: 75f32.to_radians(),
-            near: 0.05,
-            far: 6000.0,
-            ..default()
-        }),
-        DistanceFog {
-            color: SKY,
-            falloff: FogFalloff::from_visibility_colors(3500.0, Color::srgb(0.45, 0.55, 0.68), Color::srgb(0.80, 0.86, 0.95)),
-            ..default()
-        },
-        Transform::default(),
-        ColorGrading::default(),
-    ));
+    let lens = Projection::from(PerspectiveProjection {
+        fov: 75f32.to_radians(),
+        near: 0.05,
+        far: 6000.0,
+        ..default()
+    });
+    let cockpit = commands
+        .spawn((
+            Name::new("cockpit pass"),
+            CockpitCamera,
+            Camera3d::default(),
+            Camera {
+                order: 1,
+                clear_color: ClearColorConfig::None,
+                ..default()
+            },
+            lens.clone(),
+            bevy::camera::visibility::RenderLayers::layer(COCKPIT_LAYER),
+            Msaa::Off,
+            bevy::anti_alias::fxaa::Fxaa::default(),
+            Transform::default(),
+        ))
+        .id();
+    commands
+        .spawn((
+            Name::new("pilot's eyes"),
+            PilotCamera,
+            Camera3d::default(),
+            lens,
+            DistanceFog {
+                color: SKY,
+                falloff: FogFalloff::from_visibility_colors(3500.0, Color::srgb(0.45, 0.55, 0.68), Color::srgb(0.80, 0.86, 0.95)),
+                ..default()
+            },
+            Transform::default(),
+            ColorGrading::default(),
+            // Smoke, dust and fire sorted per pixel, not per quad, so overlapping puffs never pop in
+            // front of each other (combat-fx). It needs MSAA off; FXAA smooths the edges instead.
+            bevy::core_pipeline::oit::OrderIndependentTransparencySettings {
+                sorted_fragment_max_count: 8,
+                fragments_per_pixel_average: 6.0,
+                alpha_threshold: 0.02,
+            },
+            Msaa::Off,
+            bevy::anti_alias::fxaa::Fxaa::default(),
+        ))
+        .add_child(cockpit);
 }
 
 fn step_pilot(

@@ -75,9 +75,24 @@ Particles keep the soft-disc sprite until the owner picks where flipbooks come f
 a Blender smoke and fire simulation rendered to a flipbook atlas, or Material Maker noise graphs.
 A flipbook will arrive as a new field on `Burst` layers, so the recipes keep their names.
 
+## 6. Next: GPU particles (owner, 2026-10-24: "the fx look way too rough", "is there not a package for good looking particles in bevy?")
+
+The first pass draws every particle as one entity with the same flat, unlit soft disc, so smoke
+reads as dark blobs and burning debris as strings of dots. The next pass moves the particle layers
+onto [`bevy_hanabi`](https://github.com/djeedai/bevy_hanabi) (MIT or Apache-2.0), Bevy's GPU
+particle system: colour and size gradients over a particle's life, flipbook sprites, velocity
+aligned sparks, ribbons for trails, and hundreds of thousands of particles for the cost of a few
+thousand entities today. Its 0.19 release targets Bevy 0.19; its main branch moved to Bevy 0.20 on
+2026-10-15 (commit `77630ff1eed8b104f34e91d23e9440428dc5ab01`), not yet released. The plan
+(survey T5): pin that commit as a git dependency, move to the crates.io release when 0.20 ships.
+The recipes stay the one description of every effect; each `Burst` layer becomes a hanabi effect
+asset built from its numbers, and the flipbooks (G7) feed its textures. Lights, fireballs, shells
+and stars stay Bevy entities. Measured against today's particles on the RTX 3070.
+
 ## Open questions
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | G7 | Where smoke, fire and explosion sprites come from | Blender Mantaflow smoke and fire baked and rendered to 8 x 8 flipbook atlases, with PBR-lit normal maps | provisional (survey G7); soft discs until then |
+| T5 | Particles on `bevy_hanabi` | yes, pinned to its Bevy 0.20 commit until the release | provisional (survey T5) |
 | G8 | Near blasts jolt the cockpit | A short position-only jolt of the cockpit; the view's direction stays the player's | provisional (survey G8); not built |

@@ -285,10 +285,11 @@ impl MechState {
             self.skates_on = false;
         }
         let skate_power = !self.skate.locked && legs_left == 2;
-        // Water (water-skimming): with skate power the wheels ride the surface, switching on by
-        // themselves on deep water; with the skates empty the rockets hold the mech up; Ctrl, or
-        // both empty, and it sinks.
-        let skim = at_surface && !c.sink && skate_power && (self.skates_on || deep);
+        // Water (water-skimming): with skate power the wheels ride the surface of deep water,
+        // switching on by themselves; water shallow enough to wade is waded, skates or not (owner,
+        // 2026-10-24: "shallow water dont need autoskate"); with the skates empty the rockets hold
+        // the mech up on deep water; Ctrl, or both empty, and it sinks.
+        let skim = at_surface && !c.sink && skate_power && deep;
         if skim {
             self.skates_on = true;
         }
@@ -592,6 +593,19 @@ mod tests {
             "half-hip water: {}",
             m.speed_m_s
         );
+    }
+
+    #[test]
+    fn skates_do_not_lift_the_mech_onto_shallow_water() {
+        let mut m = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        m.skates_on = true;
+        let go = MechControls {
+            throttle_axis: 1.0,
+            ..Default::default()
+        };
+        run(&mut m, go, 5.0, &Pool { depth_m: 0.8 });
+        assert_ne!(m.on_water, OnWater::Skimming, "wades in 0.8 m of water");
+        assert!(m.wading_depth_m > 0.7, "feet on the bed: {}", m.wading_depth_m);
     }
 
     #[test]

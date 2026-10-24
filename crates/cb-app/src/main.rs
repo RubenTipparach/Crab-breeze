@@ -94,6 +94,8 @@ fn main() -> AppExit {
     }
     if args.bench.is_some() {
         app.add_plugins(bench::BenchPlugin);
+    } else {
+        app.add_plugins(sim::FrameCapPlugin);
     }
     app.run()
 }

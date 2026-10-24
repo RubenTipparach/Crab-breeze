@@ -39,6 +39,8 @@ pub struct Take {
     shots: u32,
     /// The defence take is on its rockets, crossing the city by air.
     flying: bool,
+    /// The height it crosses at while flying.
+    cruise_m: f32,
 }
 
 impl Plugin for ShowcasePlugin {
@@ -487,6 +489,18 @@ fn play_fight(
     }
 }
 
+/// Fastest a scripted hand turns the view, degrees a second (a quick flick of a mouse, not a snap).
+const HAND_MAX_DEG_S: f32 = 100.0;
+/// How quickly the hand closes on where it wants to look, per second.
+const HAND_EASE_PER_S: f32 = 5.0;
+
+/// Mouse motion a person's hand would make toward a wanted correction `want_deg` this frame:
+/// eased in (a share of the error each frame) and no faster than `HAND_MAX_DEG_S`.
+fn by_hand(want_deg: Vec2, dt_s: f32) -> Vec2 {
+    let eased = want_deg * (1.0 - (-HAND_EASE_PER_S * dt_s).exp());
+    eased.clamp_length_max(HAND_MAX_DEG_S * dt_s)
+}
+
 /// The orders of an AI brain flying the player's mech, played as the player's actions.
 fn play_orders(o: &cb_core::ai::Orders, act: &mut Actions) {
     act.throttle_axis = o.controls.throttle_axis;
@@ -633,13 +647,14 @@ fn play_defence(
                     act.skate_toggle = !m.skates_on && !m.skate.locked;
                     act.move_xy = Vec2::new(0.0, 1.0);
                     let cruise = cruise_height(&plan, &live, here, goal);
+                    take.cruise_m = cruise;
                     let want_vy = ((cruise - m.pos.y) * 0.5).clamp(-8.0, 14.0);
                     act.lift_axis = (HOVER_LIFT + (want_vy - m.vel_y_m_s) * 0.05).clamp(0.0, 1.0);
                 } else {
                     let want = d > 500.0 && !m.skate.locked;
                     act.skate_toggle = want != m.skates_on;
                 }
-                act.look_delta_deg = aim(m, 0.0, -0.03);
+                act.look_delta_deg = aim(m, 0.0, -0.03) * 5.0;
                 next = !fighting && nearest.is_some() && d < 450.0;
                 if next {
                     say(&format!("PLAYTEST_BEAT fight{}", w + 1));
@@ -710,6 +725,26 @@ fn play_defence(
         }
         _ => {}
     }
+    // Seated, the view moves as a hand on a mouse would, never in a snap.
+    if take.beat >= 3 {
+        act.look_delta_deg = by_hand(act.look_delta_deg, time.delta_secs());
+        // A ceiling: never on the rockets more than 60 m over the ground (a fight is fought low),
+        // or, crossing a city by air, 15 m over the height it crosses at.
+        let ceiling = if take.flying {
+            take.cruise_m + 15.0
+        } else {
+            plan.height_at(m.pos.x, m.pos.z) + 60.0
+        };
+        if m.pos.y > ceiling {
+            act.lift_axis = 0.0;
+        }
+    }
+    if (now / 5.0).floor() != ((now - time.delta_secs()) / 5.0).floor() && take.beat >= 4 {
+        info!(
+            "take: lift {:.2} flying {} boosting {} vy {:.1}",
+            act.lift_axis, take.flying, m.boosting, m.vel_y_m_s
+        );
+    }
     acc.script = Some(act);
     if next {
         take.beat += 1;
@@ -768,4 +803,18 @@ fn damage_summary(damage: &[f32], cfg: &cb_core::mission::DefenceConfig) -> Stri
         .map(|c| format!("city {} {:.0} %", c + 1, damage.get(*c as usize).copied().unwrap_or(0.0) * 100.0))
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_scripted_hand_never_turns_faster_than_a_person() {
+        let dt = 1.0 / 60.0;
+        let flick = by_hand(Vec2::new(170.0, 0.0), dt);
+        assert!(flick.length() <= HAND_MAX_DEG_S * dt + 1e-4, "{flick}");
+        let small = by_hand(Vec2::new(2.0, 0.0), dt);
+        assert!(small.x > 0.0 && small.x < 2.0, "eases in rather than snapping: {small}");
+    }
 }

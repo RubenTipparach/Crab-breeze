@@ -602,6 +602,8 @@ fn spawn_sun(mut commands: Commands) {
             ..default()
         },
         Transform::from_rotation(Quat::from_euler(EulerRot::YXZ, 0.8, -0.75, 0.0)),
+        // It lights the world and the cockpit pass alike (cockpit-overlay).
+        bevy::camera::visibility::RenderLayers::from_layers(&[0, crate::pilot::COCKPIT_LAYER]),
         CascadeShadowConfigBuilder {
             num_cascades: 4,
             first_cascade_far_bound: 40.0,
@@ -695,11 +697,14 @@ fn spawn_water(
     // Lakes: one sheet at sea level over the whole world; the hills hide it where they rise.
     let size = plan.terrain.cell_m * (plan.terrain.n - 1) as f32 + 2000.0;
     let mut sheet = Mesh::from(Plane3d::new(Vec3::Y, Vec2::splat(size * 0.5)));
-    // One ripple tile every 24 m.
-    if let Some(bevy::mesh::VertexAttributeValues::Float32x2(uv)) = sheet.attribute_mut(Mesh::ATTRIBUTE_UV_0) {
-        for t in uv.iter_mut() {
-            *t = [t[0] * size / 24.0, t[1] * size / 24.0];
-        }
+    // One ripple tile every 24 m, in world space (the sheet is centred on the origin), so the lakes'
+    // pattern lines up with the rivers'.
+    let world_uv: Vec<[f32; 2]> = match sheet.attribute(Mesh::ATTRIBUTE_POSITION) {
+        Some(bevy::mesh::VertexAttributeValues::Float32x3(p)) => p.iter().map(|v| [v[0] / 24.0, v[2] / 24.0]).collect(),
+        _ => Vec::new(),
+    };
+    if !world_uv.is_empty() {
+        sheet.insert_attribute(Mesh::ATTRIBUTE_UV_0, world_uv);
     }
     let sheet = meshes.add(sheet.clone().with_generated_tangents().unwrap_or(sheet));
     let lake_mat = water_material(&mut materials, &normals);
@@ -718,7 +723,6 @@ fn spawn_water(
     for (ri, r) in w.rivers.iter().enumerate() {
         let mut positions = Vec::new();
         let mut uvs = Vec::new();
-        let mut along = 0.0;
         for i in 0..r.path.len() {
             let p = r.path[i];
             let d = if i + 1 < r.path.len() {
@@ -728,13 +732,12 @@ fn spawn_water(
             }
             .normalize_or(Vec2::X);
             let side = d.perp() * (r.half_width_m[i] + 2.0);
-            if i > 0 {
-                along += p.distance(r.path[i - 1]);
-            }
-            for (k, s) in [(-1.0f32, 0.0f32), (1.0, 1.0)] {
+            for k in [-1.0f32, 1.0] {
                 let q = p + side * k;
                 positions.push([q.x, r.surface_m[i], q.y]);
-                uvs.push([s * r.half_width_m[i] / 12.0, along / 24.0]);
+                // World-space ripples, one tile every 24 m like the lakes, so the pattern runs on
+                // across bends and where a river meets a lake instead of turning with each strip.
+                uvs.push([q.x / 24.0, q.y / 24.0]);
             }
         }
         let mut indices = Vec::new();
@@ -757,7 +760,8 @@ fn spawn_water(
             NotShadowCaster,
             WaterSurface {
                 material: mat,
-                flow: Vec2::new(0.0, -w.flow_m_s / 24.0),
+                // Downstream along the river's whole course, in tiles a second.
+                flow: (r.path[r.path.len() - 1] - r.path[0]).normalize_or(Vec2::Y) * w.flow_m_s / 24.0,
             },
         ));
     }

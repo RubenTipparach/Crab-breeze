@@ -142,7 +142,8 @@ impl Plugin for MechPlugin {
         app.init_resource::<MechAccessNow>()
             .add_systems(Startup, spawn_mech)
             .add_systems(FixedUpdate, (publish_access.in_set(SimSet::Input), step_mech.in_set(SimSet::Mech)))
-            .add_systems(Update, (bind_rig, cut_parts, drive_mech, burn).chain().in_set(PresentSet::Pose));
+            .add_systems(Update, (bind_rig, cut_parts, drive_mech, burn).chain().in_set(PresentSet::Pose))
+            .add_systems(Update, cockpit_layer.after(PresentSet::Pose));
     }
 }
 
@@ -667,6 +668,11 @@ pub fn step_mech(
         }
         let mut fire = [false, false, false];
         let mut aim_at: Option<Vec3> = None;
+        if piloted {
+            // The player's mech's hit flag lasts one step (its enemies' brains take theirs below);
+            // left set, a brain flying it would evade, and hop, forever.
+            sim.took_hit = false;
+        }
         let controls = if piloted {
             // The boarding sequence follows the pilot (mech-boarding design section 4).
             for e in &events.0 {
@@ -1091,6 +1097,38 @@ fn cut_parts(
                 });
             }
             fx.write(Fx::new("part_lost", at));
+        }
+    }
+}
+
+/// While the pilot sits in the mech with the hatch shut, every mesh of the mech is on the cockpit
+/// layer, drawn after the world on its own depth so nothing in the world draws through it
+/// (cockpit-overlay; owner: "only when it is closed and player is inside"). Otherwise it is drawn
+/// with the world like anything else. Walks the mech's descendants each frame, so a model that
+/// loads late is caught.
+fn cockpit_layer(
+    mut commands: Commands,
+    pilot: Res<PilotSim>,
+    data: Res<Data>,
+    mech: Query<(Entity, &MechSim), With<Piloted>>,
+    children: Query<&Children>,
+    meshes: Query<Option<&bevy::camera::visibility::RenderLayers>, With<Mesh3d>>,
+) {
+    use bevy::camera::visibility::RenderLayers;
+    let Some((root, sim)) = mech.iter().next() else { return };
+    let inside = pilot.curr.mode == PilotMode::Seated && sim.hatch.is_closed(&data.0.boarding);
+    let want = RenderLayers::layer(crate::pilot::COCKPIT_LAYER);
+    for e in children.iter_descendants(root) {
+        let Ok(layers) = meshes.get(e) else { continue };
+        match (inside, layers) {
+            (true, Some(l)) if *l == want => {}
+            (true, _) => {
+                commands.entity(e).insert(want.clone());
+            }
+            (false, Some(_)) => {
+                commands.entity(e).remove::<RenderLayers>();
+            }
+            (false, None) => {}
         }
     }
 }
