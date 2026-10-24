@@ -1,0 +1,13 @@
+[package]
+name = "cb-tools"
+description = "Crab Breeze command-line tools: data validation."
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+cb-core.workspace = true
+
+[lints]
+workspace = true

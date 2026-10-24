@@ -1,0 +1,15 @@
+schema: spec-driven
+
+# The project's rules are in CLAUDE.md (the only copy). Read it before writing any artifact.
+context: |
+  Crab Breeze: a high-detail mech simulation in Rust and Bevy, played entirely in first person
+  (the pilot is in the cockpit whenever they are in the mech). CLAUDE.md is binding: write it up
+  before code, one implementation of every rule, tuning in data with units, no em or en dashes,
+  every feature proven by a playtest.
+
+rules:
+  design:
+    - State what it costs in plain numbers (triangles, draw calls, texture memory, CPU per step)
+    - End with an "## Open questions" table whose ids also appear in docs/design/survey.html
+  tasks:
+    - Map every scenario to a unit test or a playtest beat

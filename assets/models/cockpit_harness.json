@@ -1,0 +1,425 @@
+{
+  "variant": "harness",
+  "model": "assets/models/cockpit_harness/cockpit_harness.gltf",
+  "frame": "glTF: +y up, the pilot faces +z, +x is the pilot's left; metres; origin on the tub floor under the eye",
+  "eye_m": [
+    0.0,
+    1.65,
+    0.0
+  ],
+  "envelope_m": {
+    "x": [
+      -1.05,
+      1.05
+    ],
+    "y": [
+      0.0,
+      2.4
+    ],
+    "z": [
+      -0.75,
+      0.95
+    ]
+  },
+  "bounds_closed_m": {
+    "x": [
+      -0.85,
+      0.85
+    ],
+    "y": [
+      -0.06,
+      2.29
+    ],
+    "z": [
+      -0.75,
+      0.9
+    ]
+  },
+  "bounds_open_m": {
+    "x": [
+      -0.885,
+      0.885
+    ],
+    "y": [
+      -0.06,
+      2.29
+    ],
+    "z": [
+      -0.75,
+      2.568
+    ]
+  },
+  "doorway_m": {
+    "width": 0.9,
+    "height": 1.6,
+    "through": "the front face (+z)"
+  },
+  "sockets": {
+    "EYE_pilot": [
+      0.0,
+      1.65,
+      0.0
+    ],
+    "STAND_pilot": [
+      0.0,
+      0.09,
+      0.04
+    ],
+    "HATCH_entry": [
+      0.0,
+      0.02,
+      0.88
+    ]
+  },
+  "motions": {
+    "INNER_front": {
+      "axis": "x",
+      "value": -1.5,
+      "t0": 0.0,
+      "d": 1.5,
+      "pivot_m": [
+        0.0,
+        2.21,
+        0.83
+      ]
+    },
+    "INNER_side_L": {
+      "axis": "y",
+      "value": 0.9,
+      "t0": 0.4,
+      "d": 1.2,
+      "pivot_m": [
+        0.8,
+        1.3,
+        0.4
+      ]
+    },
+    "INNER_side_R": {
+      "axis": "y",
+      "value": -0.9,
+      "t0": 0.4,
+      "d": 1.2,
+      "pivot_m": [
+        -0.8,
+        1.3,
+        0.4
+      ]
+    },
+    "INNER_arm_L": {
+      "axis": "x",
+      "value": -1.3,
+      "t0": 1.0,
+      "d": 1.0,
+      "pivot_m": [
+        0.3,
+        1.1,
+        -0.22
+      ]
+    },
+    "INNER_arm_R": {
+      "axis": "x",
+      "value": -1.3,
+      "t0": 1.0,
+      "d": 1.0,
+      "pivot_m": [
+        -0.3,
+        1.1,
+        -0.22
+      ]
+    },
+    "CONSOLE_front": {
+      "axis": "x",
+      "value": 1.3,
+      "t0": 1.6,
+      "d": 1.2,
+      "pivot_m": [
+        0.0,
+        0.02,
+        0.85
+      ]
+    }
+  },
+  "inner_opening_s": 3.0,
+  "front_screen_dir": [
+    0.0,
+    -0.369,
+    0.929
+  ],
+  "allview_material": "SCREEN_allview",
+  "nodes": {
+    "pod": {
+      "parent": null,
+      "pivot_m": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "INNER_front": {
+      "parent": "pod",
+      "pivot_m": [
+        0.0,
+        2.21,
+        0.83
+      ]
+    },
+    "INNER_side_L": {
+      "parent": "pod",
+      "pivot_m": [
+        0.8,
+        1.3,
+        0.4
+      ]
+    },
+    "INNER_side_R": {
+      "parent": "pod",
+      "pivot_m": [
+        -0.8,
+        1.3,
+        0.4
+      ]
+    },
+    "CONSOLE_front": {
+      "parent": "pod",
+      "pivot_m": [
+        0.0,
+        0.02,
+        0.85
+      ]
+    },
+    "INNER_arm_L": {
+      "parent": "pod",
+      "pivot_m": [
+        0.3,
+        1.1,
+        -0.22
+      ]
+    },
+    "INNER_arm_R": {
+      "parent": "pod",
+      "pivot_m": [
+        -0.3,
+        1.1,
+        -0.22
+      ]
+    },
+    "CTRL_stick": {
+      "parent": "INNER_arm_R",
+      "pivot_m": [
+        -0.3,
+        1.13,
+        0.3
+      ]
+    },
+    "CTRL_throttle": {
+      "parent": "INNER_arm_L",
+      "pivot_m": [
+        0.3,
+        1.13,
+        0.3
+      ]
+    },
+    "OVH_1": {
+      "parent": "pod",
+      "pivot_m": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "OVH_2": {
+      "parent": "pod",
+      "pivot_m": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "OVH_3": {
+      "parent": "pod",
+      "pivot_m": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "OVH_4": {
+      "parent": "pod",
+      "pivot_m": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "OVH_5": {
+      "parent": "pod",
+      "pivot_m": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "OVH_6": {
+      "parent": "pod",
+      "pivot_m": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "meshes": {
+    "CONSOLE_front_cabin": {
+      "tris": 2,
+      "group": "cabin",
+      "node": "CONSOLE_front"
+    },
+    "CONSOLE_front_front": {
+      "tris": 228,
+      "group": "front",
+      "node": "CONSOLE_front"
+    },
+    "CTRL_stick_front": {
+      "tris": 572,
+      "group": "front",
+      "node": "CTRL_stick"
+    },
+    "CTRL_throttle_front": {
+      "tris": 572,
+      "group": "front",
+      "node": "CTRL_throttle"
+    },
+    "INNER_arm_L_front": {
+      "tris": 368,
+      "group": "front",
+      "node": "INNER_arm_L"
+    },
+    "INNER_arm_R_front": {
+      "tris": 368,
+      "group": "front",
+      "node": "INNER_arm_R"
+    },
+    "INNER_front_allview": {
+      "tris": 2,
+      "group": "allview",
+      "node": "INNER_front"
+    },
+    "INNER_front_cabin": {
+      "tris": 662,
+      "group": "cabin",
+      "node": "INNER_front"
+    },
+    "INNER_side_L_allview": {
+      "tris": 2,
+      "group": "allview",
+      "node": "INNER_side_L"
+    },
+    "INNER_side_L_cabin": {
+      "tris": 1108,
+      "group": "cabin",
+      "node": "INNER_side_L"
+    },
+    "INNER_side_R_allview": {
+      "tris": 2,
+      "group": "allview",
+      "node": "INNER_side_R"
+    },
+    "INNER_side_R_cabin": {
+      "tris": 1108,
+      "group": "cabin",
+      "node": "INNER_side_R"
+    },
+    "OVH_1_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "OVH_1"
+    },
+    "OVH_2_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "OVH_2"
+    },
+    "OVH_3_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "OVH_3"
+    },
+    "OVH_4_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "OVH_4"
+    },
+    "OVH_5_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "OVH_5"
+    },
+    "OVH_6_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "OVH_6"
+    },
+    "pod_allview": {
+      "tris": 8,
+      "group": "allview",
+      "node": "pod"
+    },
+    "pod_cabin": {
+      "tris": 11588,
+      "group": "cabin",
+      "node": "pod"
+    },
+    "pod_front": {
+      "tris": 24,
+      "group": "front",
+      "node": "pod"
+    }
+  },
+  "vents": 5,
+  "lights": 6,
+  "tris": 16626,
+  "tri_budget": 600000,
+  "draw_calls": 21,
+  "atlases": {
+    "front": {
+      "maps": [
+        "albedo",
+        "emissive",
+        "normal",
+        "orm"
+      ],
+      "px": 2048,
+      "emissive_strength": 1.0
+    },
+    "cabin": {
+      "maps": [
+        "albedo",
+        "emissive",
+        "normal",
+        "orm"
+      ],
+      "px": 2048,
+      "emissive_strength": 1.0
+    }
+  },
+  "bake": {
+    "ao_samples": 16,
+    "denoised": true,
+    "maps": "base colour, tangent normal, ORM (R occlusion, G roughness, B metal), emission; light is real time"
+  },
+  "panels": [
+    "breakers_L",
+    "breakers_R",
+    "console_L",
+    "console_R",
+    "dash_main",
+    "floor",
+    "footwell",
+    "glare",
+    "knee",
+    "rear",
+    "wall_L",
+    "wall_R"
+  ],
+  "bytes": 5099942
+}

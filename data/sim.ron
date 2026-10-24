@@ -1,0 +1,4 @@
+// The simulation's fixed step (CLAUDE.md section 6.3). Every rule advances by 1 / fixed_step_hz s.
+(
+    fixed_step_hz: 60.0,
+)

@@ -1,0 +1,7 @@
+// Breeze, the Blender mech from tools/blender (assets/models/mech_breeze.glb), driven by the same
+// rig code as the stand-in (openspec/changes/mech-rig/design.md section 6). Play it with
+// `crab-breeze --mech mechs/breeze.ron`.
+(
+    name: "Breeze",
+    model: Some("models/mech_breeze.glb"),
+)

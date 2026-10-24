@@ -1,0 +1,60 @@
+// World generation tuning (openspec/changes/procgen-world/design.md). Units are in the keys.
+// The yardstick is the 12 m mech (survey M1) and the 1.8 m pilot.
+(
+    world_size_m: 4096.0,
+    terrain_cell_m: 8.0,
+    noise_wavelength_m: 900.0,
+    noise_amplitude_m: 35.0,
+    noise_octaves: 4,
+    noise_persistence: 0.5,
+
+    city_count: 5,
+    city_attempts: 400,
+    city_min_spacing_m: 1100.0,
+    open_ground_min_m: 300.0,
+    city_edge_margin_m: 300.0,
+    city_half_size_m: (280.0, 480.0),
+    plateau_flat_margin_m: 12.0,
+    plateau_blend_m: 120.0,
+
+    block_size_m: (70.0, 110.0),
+    street_width_m: 24.0,
+    arterial_width_m: 36.0,
+    arterial_every: 4,
+    sidewalk_m: 4.0,
+    lot_size_m: (18.0, 36.0),
+    setback_m: (1.0, 3.0),
+    park_block_chance: 0.06,
+    plaza_lot_chance: 0.08,
+
+    storey_height_m: 3.5,
+    storeys_downtown: (24.0, 60.0),
+    storeys_edge: 2,
+    storey_falloff_exponent: 0.7,
+    storey_fill: (0.35, 1.0),
+
+    highway_width_m: 28.0,
+    highway_flat_margin_m: 12.0,
+    highway_blend_m: 60.0,
+    road_lift_m: 0.1,
+    kerb_height_m: 0.2,
+
+    start_pilot_distance_m: 25.0,
+
+    // Rivers and lakes (openspec/changes/terrain-water/design.md section 1).
+    water: (
+        sea_level_percentile: 0.12,
+        city_freeboard_m: 2.0,
+        river_count: 2,
+        river_grid_m: 32.0,
+        river_max_steps: 400,
+        meander_m: 6.0,
+        river_city_clearance_m: 80.0,
+        river_width_m: 36.0,
+        river_widening: 0.4,
+        river_depth_m: 7.0,
+        freeboard_m: 2.0,
+        bank_slope: 0.45,
+        flow_m_s: 1.5,
+    ),
+)

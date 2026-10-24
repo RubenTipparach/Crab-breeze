@@ -1,0 +1,15 @@
+[package]
+name = "cb-core"
+description = "Crab Breeze simulation core: world generation, mech locomotion, the pilot. No engine."
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+glam.workspace = true
+serde.workspace = true
+ron.workspace = true
+
+[lints]
+workspace = true
