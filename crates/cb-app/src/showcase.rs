@@ -34,6 +34,9 @@ pub struct Take {
     /// The marks take (`--showcase marks`): after the stride it turns round and looks down at
     /// its own footprints, then skates and looks back at the grooves (ground-marks).
     marks: bool,
+    /// The sun take (`--showcase sun`): on foot, the view turned onto the sun and held, for the
+    /// bloom and the lens flare (sun-flare).
+    sun: bool,
     beat_started_s: f32,
     cloud: Vec3,
     landing: Vec2,
@@ -72,7 +75,14 @@ impl Plugin for ShowcasePlugin {
         } else {
             names
         };
-        app.insert_resource(Take { names, marks, ..default() });
+        let sun = self.take == "sun";
+        let names: &'static [&'static str] = if sun { &["load", "to the sun", "hold", "end"] } else { names };
+        app.insert_resource(Take {
+            names,
+            marks,
+            sun,
+            ..default()
+        });
         match self.take.as_str() {
             "fight" => app.add_systems(Update, play_fight.in_set(crate::sim::PresentSet::Input)),
             "defence" => app.add_systems(Update, play_defence.in_set(crate::sim::PresentSet::Input)),
@@ -219,6 +229,20 @@ fn play(
                 say("PLAYTEST_START showcase");
                 next = true;
             }
+        }
+        // The sun take: turn the view onto the sun (the light shines along heading 0.8 rad, 0.75 rad
+        // down, so the sun stands opposite and 0.75 rad up) and hold it there.
+        1 | 2 if take.sun => {
+            let want_yaw = 0.8 + PI;
+            let dyaw = (want_yaw - p.yaw_rad + PI).rem_euclid(TAU) - PI;
+            act.look_delta_deg = Vec2::new(-dyaw.to_degrees() * 0.08, (0.62 - p.pitch_rad).to_degrees() * 0.08);
+            next = t > if take.beat == 1 { 4.0 } else { 6.0 };
+        }
+        3 if take.sun => {
+            say("PLAYTEST_RESULT ok sun: turned to the sun and held");
+            say("PLAYTEST_END sun");
+            exit.write(AppExit::Success);
+            next = true;
         }
         // Look along the street.
         1 => {

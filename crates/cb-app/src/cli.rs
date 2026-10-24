@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 /// How to call the game.
-pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence] [--showcase world|fight|defence|marks] [--bench world|fight|defence|marks] [--start meadow]";
+pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence] [--showcase world|fight|defence|marks|sun] [--bench world|fight|defence|marks|sun] [--start meadow]";
 
 /// Parsed command line.
 #[derive(Debug, PartialEq)]
@@ -16,7 +16,7 @@ pub struct Args {
     pub stills: Option<PathBuf>,
     /// Play a mission yourself (`defence`).
     pub mission: Option<String>,
-    /// Play a showcase take (`world`, `fight`, `defence` or `marks`) for a recording.
+    /// Play a showcase take (`world`, `fight`, `defence`, `marks` or `sun`) for a recording.
     pub showcase: Option<String>,
     /// Play a showcase take offscreen and report frame time (perf-bench).
     pub bench: Option<String>,
@@ -91,7 +91,7 @@ pub fn switched_off(name: &str) -> bool {
 
 fn take_name(v: Option<String>) -> Result<String, String> {
     match v.as_deref() {
-        Some("world") | Some("fight") | Some("defence") | Some("marks") => Ok(v.unwrap_or_default()),
-        _ => Err("--showcase and --bench take `world`, `fight`, `defence` or `marks`".into()),
+        Some("world") | Some("fight") | Some("defence") | Some("marks") | Some("sun") => Ok(v.unwrap_or_default()),
+        _ => Err("--showcase and --bench take `world`, `fight`, `defence`, `marks` or `sun`".into()),
     }
 }
