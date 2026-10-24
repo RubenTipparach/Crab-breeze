@@ -61,20 +61,69 @@ impl Plugin for PilotPlugin {
     }
 }
 
+/// The render layer the cockpit is drawn on while the pilot sits sealed in it (cockpit-overlay).
+pub const COCKPIT_LAYER: usize = 1;
+
+/// The camera that draws the cockpit after the world, on its own depth (cockpit-overlay): a child
+/// of the pilot's eyes with the same lens, so the two views share one transform each frame.
+#[derive(Component)]
+pub struct CockpitCamera;
+
 fn spawn_camera(mut commands: Commands, data: Res<Data>) {
+    let light = &data.0.cockpit_light;
     // Bevy's perspective is reverse-Z with an infinite far plane, so `far` only culls: seeing 40 km
     // costs no depth precision (island-world design section 5).
     let view = &data.0.world.view;
+    let srgb = |c: [f32; 3]| Color::srgb(c[0], c[1], c[2]);
+    let lens = Projection::from(PerspectiveProjection {
+        fov: 75f32.to_radians(),
+        near: 0.05,
+        far: view.far_m,
+        ..default()
+    });
+    let cockpit = commands
+        .spawn((
+            Name::new("cockpit pass"),
+            CockpitCamera,
+            Camera3d::default(),
+            Camera {
+                order: 1,
+                clear_color: ClearColorConfig::None,
+                ..default()
+            },
+            lens.clone(),
+            bevy::camera::visibility::RenderLayers::layer(COCKPIT_LAYER),
+            Transform::default(),
+            // The sealed cabin's own light (cockpit-lighting): its lamps, not the sky. The sun and
+            // every flash outside are on the world layer and never reach this pass.
+            AmbientLight {
+                color: srgb(light.cabin_ambient_colour),
+                brightness: light.cabin_ambient_cd_m2,
+                ..default()
+            },
+        ))
+        .with_children(|eye| {
+            // The screens' glow, until their cube map lights the cabin.
+            for at in &light.screens_m {
+                eye.spawn((
+                    PointLight {
+                        intensity: light.screen_lumens,
+                        range: light.screen_range_m,
+                        color: srgb(light.screen_tint),
+                        shadow_maps_enabled: false,
+                        ..default()
+                    },
+                    Transform::from_translation(Vec3::from_array(*at)),
+                    bevy::camera::visibility::RenderLayers::layer(COCKPIT_LAYER),
+                ));
+            }
+        })
+        .id();
     let mut camera = commands.spawn((
         Name::new("pilot's eyes"),
         PilotCamera,
         Camera3d::default(),
-        Projection::from(PerspectiveProjection {
-            fov: 75f32.to_radians(),
-            near: 0.05,
-            far: view.far_m,
-            ..default()
-        }),
+        lens,
         DistanceFog {
             color: SKY,
             falloff: FogFalloff::from_visibility_colors(
@@ -87,6 +136,7 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
         Transform::default(),
         ColorGrading::default(),
     ));
+    camera.add_child(cockpit);
     // Sees water the pilot's way: under it, and with drops on the glass after surfacing
     // (openspec change `water-rendering`; brings HDR, a depth prepass and transmission).
     // `CB_NO_WATER_FX=1` leaves them off, to compare frame time or if the passes misbehave.

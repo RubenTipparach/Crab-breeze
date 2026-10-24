@@ -7,12 +7,16 @@
 
 pub mod ai;
 pub mod boarding;
+pub mod cockpit;
 pub mod data;
+pub mod fx;
 pub mod input;
 pub mod mech;
+pub mod mission;
 pub mod pilot;
 pub mod rng;
 pub mod sim;
+pub mod targeting;
 pub mod water_look;
 pub mod weapons;
 pub mod world;
@@ -38,6 +42,14 @@ pub struct GameData {
     pub encounters: ai::Encounters,
     /// `data/world/water_look.ron`.
     pub water_look: water_look::WaterLook,
+    /// `data/missions/defence.ron`.
+    pub defence: mission::DefenceConfig,
+    /// `data/fx/fx.ron`.
+    pub fx: fx::FxConfig,
+    /// `data/hud/targeting.ron`.
+    pub targeting: targeting::TargetingConfig,
+    /// `data/hud/cockpit_light.ron`.
+    pub cockpit_light: cockpit::CockpitLightConfig,
 }
 
 impl GameData {
@@ -53,6 +65,10 @@ impl GameData {
             bindings: data::load_ron(&root.join("input/bindings.ron"))?,
             encounters: data::load_ron(&root.join("world/encounters.ron"))?,
             water_look: data::load_ron(&root.join("world/water_look.ron"))?,
+            defence: data::load_ron(&root.join("missions/defence.ron"))?,
+            fx: data::load_ron(&root.join("fx/fx.ron"))?,
+            targeting: data::load_ron(&root.join("hud/targeting.ron"))?,
+            cockpit_light: data::load_ron(&root.join("hud/cockpit_light.ron"))?,
         })
     }
 

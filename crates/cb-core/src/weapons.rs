@@ -1,6 +1,7 @@
 //! Weapons (openspec change `weapons`): guns in the mech's data, fire groups with reload intervals,
 //! and ballistic projectiles that fly under gravity and stop at the first thing they meet: a mech
-//! part, a standing building cell, a tree trunk, the water or the ground. Pure.
+//! part, a standing building cell, a tree trunk, the water or the ground. Rockets (openspec change
+//! `rockets`) are the same projectiles with a motor: they fly straight. Pure.
 
 use crate::data::{Validate, positive};
 use crate::mech::PartKind;
@@ -34,6 +35,13 @@ pub struct WeaponSpec {
     pub damage: f32,
     /// Explosive energy on impact, megajoules (0 for solid shot).
     pub blast_mj: f32,
+    /// A rocket: its motor holds it straight for its whole flight, with no drop.
+    #[serde(default)]
+    pub rocket: bool,
+    /// A missile's seeker: the most it turns toward its locked target, degrees a second (0 for
+    /// guns and rockets; openspec change `targeting`).
+    #[serde(default)]
+    pub seeker_turn_deg_s: f32,
 }
 
 /// The default guns: an autocannon on the right arm, a heavy cannon on the left.
@@ -49,6 +57,8 @@ pub fn default_weapons() -> Vec<WeaponSpec> {
             penetration_mm: 90.0,
             damage: 12.0,
             blast_mj: 0.4,
+            rocket: false,
+            seeker_turn_deg_s: 0.0,
         },
         WeaponSpec {
             name: "120 mm cannon".into(),
@@ -60,6 +70,21 @@ pub fn default_weapons() -> Vec<WeaponSpec> {
             penetration_mm: 260.0,
             damage: 90.0,
             blast_mj: 6.0,
+            rocket: false,
+            seeker_turn_deg_s: 0.0,
+        },
+        WeaponSpec {
+            name: "shoulder missile".into(),
+            socket: "MISSILE_POD".into(),
+            arm: PartKind::Torso,
+            group: 2,
+            speed_m_s: 260.0,
+            interval_s: 1.2,
+            penetration_mm: 150.0,
+            damage: 45.0,
+            blast_mj: 2.5,
+            rocket: true,
+            seeker_turn_deg_s: 70.0,
         },
     ]
 }
@@ -72,8 +97,9 @@ impl Validate for WeaponSpec {
         positive(&f("penetration_mm"), self.penetration_mm)?;
         positive(&f("damage"), self.damage)?;
         crate::data::finite(&f("blast_mj"), self.blast_mj)?;
-        if self.group > 1 {
-            return Err(format!("{}: groups are 0 and 1", f("group")));
+        crate::data::finite(&f("seeker_turn_deg_s"), self.seeker_turn_deg_s)?;
+        if self.group > 2 {
+            return Err(format!("{}: groups are 0, 1 and 2 (missiles)", f("group")));
         }
         Ok(())
     }
@@ -89,7 +115,7 @@ pub struct Guns {
 impl Guns {
     /// Advances reloads by `dt_s`, and fires every ready gun of each pulled group whose arm is
     /// still on. Returns the indices of the guns that fired.
-    pub fn trigger(&mut self, specs: &[WeaponSpec], pulled: [bool; 2], arm_lost: impl Fn(PartKind) -> bool, dt_s: f32) -> Vec<usize> {
+    pub fn trigger(&mut self, specs: &[WeaponSpec], pulled: [bool; 3], arm_lost: impl Fn(PartKind) -> bool, dt_s: f32) -> Vec<usize> {
         self.cooldown_s.resize(specs.len(), 0.0);
         let mut fired = Vec::new();
         for (i, w) in specs.iter().enumerate() {
@@ -116,6 +142,10 @@ pub struct Projectile {
     pub vel: Vec3,
     /// Time in flight.
     pub age_s: f32,
+    /// A rocket (no drop).
+    pub rocket: bool,
+    /// A missile's locked target (a mech id), if any.
+    pub target: Option<u32>,
 }
 
 /// A hittable part of a mech this step: a capsule from `a` to `b`.
@@ -236,9 +266,26 @@ pub fn fly(
         }
     }
     shot.pos = to;
-    shot.vel.y -= G_M_S2 * dt_s;
+    if !shot.rocket {
+        shot.vel.y -= G_M_S2 * dt_s;
+    }
     shot.age_s += dt_s;
     None
+}
+
+/// Turns a missile's velocity toward `target` by at most `turn_deg_s * dt_s`, keeping its speed.
+pub fn home(shot: &mut Projectile, target: Vec3, turn_deg_s: f32, dt_s: f32) {
+    let speed = shot.vel.length();
+    let (from, to) = (shot.vel.normalize_or_zero(), (target - shot.pos).normalize_or_zero());
+    if speed <= 0.0 || to == Vec3::ZERO {
+        return;
+    }
+    let angle = from.angle_between(to);
+    let step = (turn_deg_s.to_radians() * dt_s).min(angle);
+    if angle > 1e-5 {
+        let axis = from.cross(to).normalize_or(Vec3::Y);
+        shot.vel = glam::Quat::from_axis_angle(axis, step) * from * speed;
+    }
 }
 
 /// True when a shot has flown too long.
@@ -247,14 +294,16 @@ pub fn spent(shot: &Projectile) -> bool {
 }
 
 /// Where to aim a shot at `speed_m_s` from `from` to meet a target at `target` moving at
-/// `target_vel` (constant velocity; gravity drop added for the flight time).
-pub fn lead(from: Vec3, target: Vec3, target_vel: Vec3, speed_m_s: f32) -> Vec3 {
+/// `target_vel` (constant velocity; with `drop`, the gravity drop for the flight time is added, as
+/// for a shell; a rocket flies straight).
+pub fn lead(from: Vec3, target: Vec3, target_vel: Vec3, speed_m_s: f32, drop: bool) -> Vec3 {
     let mut t = from.distance(target) / speed_m_s;
     for _ in 0..4 {
         let p = target + target_vel * t;
         t = from.distance(p) / speed_m_s;
     }
-    target + target_vel * t + Vec3::Y * 0.5 * G_M_S2 * t * t
+    let fall = if drop { 0.5 * G_M_S2 * t * t } else { 0.0 };
+    target + target_vel * t + Vec3::Y * fall
 }
 
 #[cfg(test)]
@@ -278,7 +327,7 @@ mod tests {
         let mut g = Guns::default();
         let mut shots = 0;
         for _ in 0..600 {
-            shots += g.trigger(&w, [false, true], |_| false, 1.0 / 60.0).len();
+            shots += g.trigger(&w, [false, true, false], |_| false, 1.0 / 60.0).len();
         }
         assert_eq!(shots, 4, "10 s at one shot per 2.5 s");
     }
@@ -288,7 +337,7 @@ mod tests {
         let w = default_weapons();
         let mut g = Guns::default();
         assert!(
-            g.trigger(&w, [true, true], |k| k == PartKind::ArmL, 0.016)
+            g.trigger(&w, [true, true, false], |k| k == PartKind::ArmL, 0.016)
                 .iter()
                 .all(|i| w[*i].arm != PartKind::ArmL)
         );
@@ -302,6 +351,8 @@ mod tests {
             pos: Vec3::new(0.0, 5000.0, 0.0),
             vel: Vec3::new(800.0, 0.0, 0.0),
             age_s: 0.0,
+            rocket: false,
+            target: None,
         };
         let dug = Deformation::new(4096.0);
         let scene = Scene {
@@ -337,6 +388,8 @@ mod tests {
             pos: from,
             vel: Vec3::new(850.0, 0.0, 0.0),
             age_s: 0.0,
+            rocket: false,
+            target: None,
         };
         let dug = Deformation::new(4096.0);
         let scene = Scene {
@@ -364,8 +417,88 @@ mod tests {
 
     #[test]
     fn leading_a_crossing_target_aims_ahead_of_it() {
-        let aim = lead(Vec3::ZERO, Vec3::new(0.0, 0.0, -500.0), Vec3::new(10.0, 0.0, 0.0), 1000.0);
+        let aim = lead(Vec3::ZERO, Vec3::new(0.0, 0.0, -500.0), Vec3::new(10.0, 0.0, 0.0), 1000.0, true);
         assert!(aim.x > 4.0 && aim.x < 6.0, "{aim}");
         assert!(aim.y > 0.0, "and above it for the drop");
+    }
+
+    #[test]
+    fn a_missile_turns_toward_its_target_no_faster_than_its_seeker() {
+        let mut m = Projectile {
+            owner: 0,
+            weapon: 2,
+            pos: Vec3::ZERO,
+            vel: Vec3::new(0.0, 0.0, -260.0),
+            age_s: 0.0,
+            rocket: true,
+            target: Some(5),
+        };
+        let target = Vec3::new(600.0, 0.0, 0.0);
+        home(&mut m, target, 70.0, 0.1);
+        let turned = Vec3::NEG_Z.angle_between(m.vel.normalize()).to_degrees();
+        assert!((turned - 7.0).abs() < 0.01, "7 degrees in 0.1 s at 70 deg/s, got {turned}");
+        assert!((m.vel.length() - 260.0).abs() < 0.01, "speed kept");
+        assert!(m.vel.x > 0.0, "toward the target");
+        for _ in 0..100 {
+            home(&mut m, target, 70.0, 0.1);
+        }
+        assert!(m.vel.normalize().dot(Vec3::X) > 0.9999, "on it, and no overshoot");
+    }
+
+    #[test]
+    fn an_unlocked_missile_flies_straight() {
+        let mut m = Projectile {
+            owner: 0,
+            weapon: 2,
+            pos: Vec3::new(0.0, 5000.0, 0.0),
+            vel: Vec3::new(260.0, 0.0, 0.0),
+            age_s: 0.0,
+            rocket: true,
+            target: None,
+        };
+        let dug = Deformation::new(4096.0);
+        let scene = Scene {
+            plan: plan(),
+            dug: &dug,
+            trees: None,
+            structures: None,
+        };
+        let st = Structures::new(plan());
+        for _ in 0..60 {
+            fly(&mut m, &scene, &st, &Forest::default(), &[], 1.0 / 60.0);
+        }
+        assert!((m.pos - Vec3::new(260.0, 5000.0, 0.0)).length() < 0.1, "{}", m.pos);
+    }
+
+    #[test]
+    fn a_rocket_is_led_without_drop() {
+        let aim = lead(Vec3::ZERO, Vec3::new(0.0, 0.0, -500.0), Vec3::ZERO, 240.0, false);
+        assert_eq!(aim, Vec3::new(0.0, 0.0, -500.0));
+    }
+
+    #[test]
+    fn a_rocket_flies_straight() {
+        let mut s = Projectile {
+            owner: 0,
+            weapon: 0,
+            pos: Vec3::new(0.0, 5000.0, 0.0),
+            vel: Vec3::new(240.0, 0.0, 0.0),
+            age_s: 0.0,
+            rocket: true,
+            target: None,
+        };
+        let dug = Deformation::new(4096.0);
+        let scene = Scene {
+            plan: plan(),
+            dug: &dug,
+            trees: None,
+            structures: None,
+        };
+        let st = Structures::new(plan());
+        for _ in 0..120 {
+            assert!(fly(&mut s, &scene, &st, &Forest::default(), &[], 1.0 / 60.0).is_none());
+        }
+        assert!((s.pos.y - 5000.0).abs() < 1e-3, "{}", s.pos);
+        assert!((s.pos.x - 480.0).abs() < 0.1, "{}", s.pos);
     }
 }

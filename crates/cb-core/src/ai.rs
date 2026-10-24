@@ -101,6 +101,8 @@ pub struct View<'a> {
     pub target_vel: Vec3,
     /// Its main gun's muzzle speed.
     pub muzzle_speed_m_s: f32,
+    /// Its main gun's shots drop under gravity (false for a rocket).
+    pub drop: bool,
     /// Its torso's structure left, 0..1.
     pub health: f32,
     /// It took a hit since the last step.
@@ -260,7 +262,7 @@ impl AiPilot {
         throttle *= (1.0 - turn_err.abs() / PI).max(0.35) * (dist / 30.0).clamp(0.3, 1.0);
 
         // Torso: on the lead point, with the hand's error.
-        let aim_point = lead(v.eye, v.target + Vec3::Y * TORSO_AIM_M, v.target_vel, v.muzzle_speed_m_s);
+        let aim_point = lead(v.eye, v.target + Vec3::Y * TORSO_AIM_M, v.target_vel, v.muzzle_speed_m_s, v.drop);
         let d = aim_point - v.eye;
         let yaw = yaw_of(d) + self.noise.x;
         let pitch = d.y.atan2(Vec2::new(d.x, d.z).length()) + self.noise.y;
@@ -318,6 +320,7 @@ mod tests {
                 target,
                 target_vel: Vec3::ZERO,
                 muzzle_speed_m_s: 850.0,
+                drop: true,
                 health,
                 hit: false,
                 allies: &[],
@@ -365,6 +368,7 @@ mod tests {
             target: Vec3::new(0.0, 0.0, -400.0),
             target_vel: Vec3::new(7.0, 0.0, 0.0),
             muzzle_speed_m_s: 850.0,
+            drop: true,
             health: 1.0,
             hit: false,
             allies: &[],
@@ -409,6 +413,7 @@ mod tests {
                 target,
                 target_vel: Vec3::ZERO,
                 muzzle_speed_m_s: 850.0,
+                drop: true,
                 health: 1.0,
                 hit: false,
                 allies: &ally,
@@ -433,6 +438,7 @@ mod tests {
             target: Vec3::new(0.0, 0.0, -200.0),
             target_vel: Vec3::ZERO,
             muzzle_speed_m_s: 850.0,
+            drop: true,
             health: 1.0,
             hit: true,
             allies: &[],

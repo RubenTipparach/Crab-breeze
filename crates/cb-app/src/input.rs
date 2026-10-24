@@ -25,6 +25,8 @@ pub struct InputAccum {
     pub debug: Option<DebugCommand>,
     /// The skates were toggled.
     pub skate_toggle: bool,
+    /// The next target was asked for.
+    pub target_next: bool,
     /// When set, a script plays instead of the keyboard (held axes and buttons); mouse look and
     /// latches above still add.
     pub script: Option<Actions>,
@@ -52,7 +54,9 @@ struct Keys {
     lift: Vec<KeyCode>,
     skate: Vec<KeyCode>,
     sink: Vec<KeyCode>,
+    target_next: Vec<KeyCode>,
     fire: [(Vec<KeyCode>, Vec<MouseButton>); 2],
+    fire_missile: (Vec<KeyCode>, Vec<MouseButton>),
     debug: Vec<(Vec<KeyCode>, DebugCommand)>,
     deg_per_px: f32,
     invert_pitch: bool,
@@ -113,7 +117,9 @@ fn resolve(b: &Bindings) -> Result<Keys, String> {
         lift: r("lift", &b.lift)?,
         skate: r("skate", &b.skate)?,
         sink: r("sink", &b.sink)?,
+        target_next: r("target_next", &b.target_next)?,
         fire: [split("fire_primary", &b.fire_primary)?, split("fire_secondary", &b.fire_secondary)?],
+        fire_missile: split("fire_missile", &b.fire_missile)?,
         debug: vec![
             (r("debug_hit_arm_l", &b.debug_hit_arm_l)?, DebugCommand::Hit(PartKind::ArmL)),
             (r("debug_hit_arm_r", &b.debug_hit_arm_r)?, DebugCommand::Hit(PartKind::ArmR)),
@@ -222,6 +228,7 @@ fn sample_devices(
         }
     }
     acc.skate_toggle |= any_just(&input, &keys.skate);
+    acc.target_next |= any_just(&input, &keys.target_next);
     for (k, cmd) in &keys.debug {
         if any_just(&input, k) {
             acc.debug = Some(*cmd);
@@ -257,6 +264,7 @@ fn take_step_actions(
                     .map(|(k, m)| any(&input, &k) || mouse.any_pressed(m.iter().copied())),
                 free_look: any(&input, &keys.free_look),
                 sink: any(&input, &keys.sink),
+                fire_missile: any(&input, &keys.fire_missile.0) || mouse.any_pressed(keys.fire_missile.1.iter().copied()),
                 ..default()
             }
         }
@@ -268,6 +276,7 @@ fn take_step_actions(
         mode_request: held.mode_request.or(acc.mode),
         debug: held.debug.or(acc.debug),
         skate_toggle: held.skate_toggle || acc.skate_toggle,
+        target_next: held.target_next || acc.target_next,
         ..held
     }
     .sanitised();
@@ -277,6 +286,7 @@ fn take_step_actions(
     acc.mode = None;
     acc.debug = None;
     acc.skate_toggle = false;
+    acc.target_next = false;
 }
 
 #[cfg(test)]
