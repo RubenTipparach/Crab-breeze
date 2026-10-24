@@ -11,4 +11,7 @@
     max_wade_depth_m: 1.2,
     board_reach_m: 25.0,
     climb_speed_m_s: 7.0,
+    // Seated, the view stays within 90 degrees of the mech's nose; past it the mech turns at its own
+    // rate. Free look (held) is unlimited (openspec/changes/seated-look; owner, 2026-10-24).
+    seated_look_limit_deg: 90.0,
 )
