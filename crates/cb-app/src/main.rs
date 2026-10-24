@@ -8,6 +8,7 @@ mod capture;
 mod cli;
 mod combat;
 mod fx;
+mod ground;
 mod hud;
 mod input;
 mod mech;

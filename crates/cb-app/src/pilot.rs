@@ -61,7 +61,10 @@ impl Plugin for PilotPlugin {
     }
 }
 
-fn spawn_camera(mut commands: Commands) {
+fn spawn_camera(mut commands: Commands, data: Res<Data>) {
+    // Bevy's perspective is reverse-Z with an infinite far plane, so `far` only culls: seeing 40 km
+    // costs no depth precision (island-world design section 5).
+    let view = &data.0.world.view;
     let mut camera = commands.spawn((
         Name::new("pilot's eyes"),
         PilotCamera,
@@ -69,12 +72,16 @@ fn spawn_camera(mut commands: Commands) {
         Projection::from(PerspectiveProjection {
             fov: 75f32.to_radians(),
             near: 0.05,
-            far: 6000.0,
+            far: view.far_m,
             ..default()
         }),
         DistanceFog {
             color: SKY,
-            falloff: FogFalloff::from_visibility_colors(3500.0, Color::srgb(0.45, 0.55, 0.68), Color::srgb(0.80, 0.86, 0.95)),
+            falloff: FogFalloff::from_visibility_colors(
+                view.clear_visibility_m,
+                Color::srgb(0.45, 0.55, 0.68),
+                Color::srgb(0.80, 0.86, 0.95),
+            ),
             ..default()
         },
         Transform::default(),
@@ -203,9 +210,6 @@ fn show_prompt(pilot: Res<PilotSim>, access: Res<MechAccessNow>, data: Res<Data>
     }
 }
 
-/// Clear-air visibility.
-const CLEAR_VISIBILITY_M: f32 = 3500.0;
-
 /// What the pilot sees through, the one place that decides the camera's fog: in a cloud the view
 /// fogs by the cloud density at the eye (the one cloud query); under water the air's fog stands
 /// back and the water's own fog (`water_render`'s compose pass, which murks every pixel by the
@@ -213,6 +217,7 @@ const CLEAR_VISIBILITY_M: f32 = 3500.0;
 /// cameras' (washed out, darker, tinted) until the all-view screen change draws them properly.
 fn weather_and_screens(
     plan: Res<Plan>,
+    data: Res<Data>,
     time: Res<Time>,
     pilot: Res<PilotSim>,
     mechs: Query<(&crate::mech::MechSim, &crate::mech::MechSpec), With<crate::mech::Piloted>>,
@@ -233,7 +238,8 @@ fn weather_and_screens(
     } else {
         plan.clouds.density_at(eye.translation, time.elapsed_secs())
     };
-    let vis = CLEAR_VISIBILITY_M + (25.0 - CLEAR_VISIBILITY_M) * density.sqrt();
+    let clear = data.0.world.view.clear_visibility_m;
+    let vis = clear + (25.0 - clear) * density.sqrt();
     let inside = density.sqrt();
     fog.color = SKY.mix(&Color::srgb(0.9, 0.92, 0.95), inside);
     fog.falloff = FogFalloff::from_visibility_colors(
