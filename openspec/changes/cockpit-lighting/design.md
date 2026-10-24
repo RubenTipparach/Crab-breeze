@@ -33,6 +33,40 @@ To check in the first run: that each face lands the right way round (a cube map 
 against a camera's view by convention, so the light could arrive from the wrong side), and the
 cost of the active face's shadow cascades.
 
+## 4. Measured (2026-10-24, RTX 3070, uncapped, the defence take; CPU-bound throughout, GPU 0.4-0.7 ms)
+
+| Variant | Frame time (5 s medians across the take) |
+| --- | --- |
+| no cube | 6.6-10.9 ms |
+| a face every frame, 3 km | about 4.7 ms more (13.0 against 8.3 ms, capped) |
+| 10 refreshes a second, 3 km faces | 13.6-21.4 ms |
+| 10 refreshes a second, 400 m faces, one face copied a frame | 9.8-19.3 ms |
+
+A face view, however small, pays Bevy's per-view, per-mesh CPU work (visibility, material
+specialization, shadow queueing) over thousands of meshes, and the generated environment map adds
+its own setup each frame. The cube map is off by default (`screens_cube_px: 0`). The cheaper route,
+next: the screens' average colours read from the frame the eye camera already drew (a few texels
+of a downsampled copy), driving the screen-glow lights' colour and strength.
+
+## 5. The guns strobed the cabin (fixed 2026-10-24)
+
+Owner: "Strobing appears to be from guns". Measured by sampling the screen ten times a second over
+the fight take: the cabin went from lit to black and back with the autocannon. Two causes:
+
+- **Outside lights reached the cockpit pass.** Bevy 0.20 clusters point lights on the GPU when it
+  can (it can on the RTX 3070), and GPU clustering ignores render layers (`bevy_light`
+  `cluster/assign.rs` filters layers only on the CPU path). Every muzzle flash and blast lit the
+  cabin. Fixed: lights are clustered on the CPU (`pilot.rs` `cpu_light_clustering`), which keeps each
+  light to its layer, and the screens' glow is one directional light on the cockpit layer
+  (`CockpitLightConfig::screen_glow`: the screens' lumens over a sphere at their distance, summed,
+  travelling from their mean position to the eye). `ClusterConfig::None` on the pass was tried first;
+  with GPU clustering on, Bevy then builds a zero-size texture and the game quits.
+- **The autocannon's flash was a strobe by itself**: 3 Mlm for 0.05 s every 0.2 s. It is now 1 Mlm
+  for 0.6 s, so a burst holds a pulsing glow (`data/fx/fx.ron`).
+
+After: the same sampling shows no frame-to-frame flashing, in the cabin or outside. Cost of CPU
+clustering not yet measured against GPU clustering (the perf readout's `render/clustering`).
+
 ## Open questions
 
 | Id | Question | Recommendation | State |

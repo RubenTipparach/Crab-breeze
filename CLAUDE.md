@@ -256,6 +256,11 @@ said out loud and kept in check, never guessed.
   (Pale Blue Dot, Mining Mike).
 - **Every design says what it costs**: triangles, draw calls, texture memory, CPU time per fixed
   step, in plain numbers.
+- **Measuring and recording are separate runs** (owner, 2026-10-24: "when doing intensive data
+  gathering obs needs to be deprioritized. Visuals only allow us to debug visual errors not perf",
+  "No obs when tracing"). A trace, a benchmark or any frame-time number comes from a run with no OBS,
+  no screenshots and no other game; an OBS take is for seeing visual errors and is never a source of
+  performance numbers. A traced build runs far slower than the game: its frame rate is not a result.
 - **Every asset has a budget** per LOD in its manifest, and the build refuses one over budget.
 - **Cloud sessions measure nothing**: no GPU. They say so in the PR and ask a session on the
   owner's hardware to measure.
@@ -313,6 +318,12 @@ The owner's first priority. The `playtest` and `obs-record` skills are the metho
   and `PLAYTEST_END` for the recorder (`openspec/changes/playtest-pipeline`).
 - **Record with OBS** between `PLAYTEST_START` and `PLAYTEST_END`, in real time, with Game Capture,
   and **look at the contact sheet** before calling a take done.
+- **A loading screen, and a ready signal for the recorder** (owner, 2026-10-24: "we need a loading
+  screen and a signal to obs when all game stuff is loaded to record..otherwise we get blank
+  screens"). The game shows a loading screen until every asset, model, texture, shader pipeline and
+  the world are ready, then prints `GAME_READY` once. A take never begins before it: the scripted
+  pilot prints `PLAYTEST_START` only after `GAME_READY`, and the recorder starts on that line, so
+  no take opens on a blank, white or half-built window.
 - **Upload every take to Google Drive**: a small H.264 share copy (`-crf 26 -preset slow`) into the
   Drive for Desktop folder `G:/My Drive/dungeon-crawler-2026/` (the folder Tom Lander's and Mining
   Mike's videos use), named `crab-breeze-<YYYY-MM-DD>-<what>.mp4`. Confirm it with the Google Drive

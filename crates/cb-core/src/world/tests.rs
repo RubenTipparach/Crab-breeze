@@ -98,7 +98,7 @@ const GOLDEN_CITIES: usize = 24;
 const GOLDEN_BUILDINGS: usize = 6100;
 const GOLDEN_HIGHWAYS: usize = 23;
 const GOLDEN_RIVERS: usize = 6;
-const GOLDEN_TREES_AT_START: usize = 14044;
+const GOLDEN_TREES_AT_START: usize = 46495;
 const GOLDEN_FINGERPRINT: u64 = 8540391024908431296;
 
 #[test]

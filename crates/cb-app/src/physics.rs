@@ -74,6 +74,7 @@ fn spawn_chunks(
     plan: Res<Plan>,
     mut n: Local<u32>,
 ) {
+    let _t = crate::perf_hud::slow("spawn_chunks");
     let chunks = std::mem::take(&mut live.new_chunks);
     for c in chunks {
         *n = n.wrapping_mul(1664525).wrapping_add(1013904223);

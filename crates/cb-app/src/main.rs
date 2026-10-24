@@ -12,8 +12,10 @@ mod fx;
 mod ground;
 mod hud;
 mod input;
+mod loading;
 mod mech;
 mod particles;
+mod perf_hud;
 mod physics;
 mod pilot;
 mod screens_cube;
@@ -21,6 +23,7 @@ mod showcase;
 mod sim;
 mod targeting;
 mod textures;
+mod units;
 mod water_render;
 mod world;
 
@@ -89,7 +92,12 @@ fn main() -> AppExit {
         hud::HudPlugin,
         water_render::WaterRenderPlugin,
         targeting::TargetingPlugin,
+    ))
+    .add_plugins((
         screens_cube::ScreensCubePlugin,
+        loading::LoadingPlugin,
+        perf_hud::PerfHudPlugin,
+        units::UnitsPlugin,
     ));
     if args.defending() {
         app.add_plugins(defence::DefencePlugin);
