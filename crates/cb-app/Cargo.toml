@@ -18,5 +18,11 @@ avian3d = "=0.8.0"
 # released; pinned to the migration commit until the 0.20 release ships.
 bevy_hanabi = { git = "https://github.com/djeedai/bevy_hanabi", rev = "77630ff1eed8b104f34e91d23e9440428dc5ab01", default-features = false, features = ["3d"] }
 
+# The water shaders are compiled and validated in `cargo test` (openspec change `water-rendering`)
+# with the same WESL compiler and naga Bevy 0.20 uses, pinned to the versions in Cargo.lock.
+[dev-dependencies]
+wesl = { version = "=0.6.0", features = ["naga-ext"] }
+naga = { version = "=30.0.1", features = ["wgsl-in"] }
+
 [lints]
 workspace = true

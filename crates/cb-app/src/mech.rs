@@ -804,21 +804,32 @@ pub fn step_mech(
         let was_airborne = sim.curr.airborne();
         sim.curr.step(&controls, cfg, &ground, dt);
 
-        // Trees in the way snap or stop it.
-        if !sim.curr.airborne() || sim.curr.pos.y - ground.height_at(sim.curr.pos.x, sim.curr.pos.z) < 15.0 {
-            let fwd = cb_core::mech::forward(sim.curr.heading_rad) * sim.curr.speed_m_s;
+        // Trees in the way: the legs snap trunks (or are stopped by them), the hull and arms snap
+        // crowns, and each snapped tree takes some momentum (vegetation design section 5).
+        {
+            let l = &cfg.locomotion;
+            let trees = &data.0.world.trees;
             let bump = live.forest.bump(
                 Vec2::new(sim.curr.pos.x, sim.curr.pos.z),
-                cfg.locomotion.body_radius_m,
-                Vec2::new(fwd.x, fwd.z),
-                cfg.locomotion.mass_kg,
+                &cb_core::world::Body {
+                    feet_y: sim.curr.pos.y,
+                    trunk_radius_m: l.body_radius_m,
+                    brush_radius_m: l.brush_radius_m,
+                    height_m: l.body_height_m,
+                    mass_kg: l.mass_kg,
+                },
+                sim.curr.vel,
+                &cb_core::world::Push {
+                    crown_leverage: trees.crown_leverage,
+                    graze_share: trees.graze_share,
+                },
             );
             if bump.blocked {
                 sim.curr.pos.x = bump.pos.x;
                 sim.curr.pos.z = bump.pos.y;
-                sim.curr.speed_m_s *= 0.5;
+                sim.curr.vel *= 0.5;
             }
-            sim.curr.speed_m_s *= 1.0 - 0.15 * (bump.broke.len() as f32).min(1.0);
+            sim.curr.vel *= bump.kept;
             live.moved_trees.extend(bump.broke);
         }
         let Some(rig) = rig else { continue };

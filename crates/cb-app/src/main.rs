@@ -9,6 +9,7 @@ mod cli;
 mod combat;
 mod defence;
 mod fx;
+mod ground;
 mod hud;
 mod input;
 mod mech;
@@ -20,6 +21,7 @@ mod showcase;
 mod sim;
 mod targeting;
 mod textures;
+mod water_render;
 mod world;
 
 use bevy::prelude::*;
@@ -85,6 +87,7 @@ fn main() -> AppExit {
         buildings::BuildingsPlugin,
         physics::DebrisPhysicsPlugin,
         hud::HudPlugin,
+        water_render::WaterRenderPlugin,
         targeting::TargetingPlugin,
         screens_cube::ScreensCubePlugin,
     ));

@@ -5,15 +5,16 @@
 use crate::pilot::PilotCamera;
 use crate::sim::Data;
 use crate::sim::{PresentSet, SimSet};
+use crate::water_render::WaterMaterial;
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::visibility::VisibilityRange;
-use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::light::{CascadeShadowConfigBuilder, NotShadowCaster};
 use bevy::mesh::Indices;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, PrimitiveTopology, TextureDimension, TextureFormat};
-use cb_core::world::{ChunkMesh, Deformation, Forest, TreeState, WorldPlan, generate};
-use std::collections::HashMap;
+use cb_core::water_look::WaterLook;
+use cb_core::world::{Deformation, Forest, TreeState, WorldPlan, generate};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 
 /// The world seed.
@@ -50,18 +51,25 @@ pub struct WorldPlugin;
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         let seed = app.world().resource::<Seed>().0;
+        let cfg = app.world().resource::<Data>().0.world.clone();
         let started = std::time::Instant::now();
-        let plan = generate(seed, &app.world().resource::<Data>().0.world);
+        let plan = generate(seed, &cfg);
         info!(
-            "world seed {seed}: {} cities, {} buildings, {} highways, generated in {:.0} ms",
+            "world seed {seed}: {} m island world, {} cities, {} buildings, {} highways, generated in {:.0} ms",
+            cfg.world_size_m,
             plan.cities.len(),
             plan.buildings.len(),
             plan.highways.len(),
             started.elapsed().as_secs_f64() * 1000.0
         );
+        // Trees grow near the bodies (island-world): round the start before the first step.
+        let mut forest = plan.forest.clone();
+        let grown = std::time::Instant::now();
+        forest.grow_around(&plan, plan.start.mech_xz, cfg.trees.keep_radius_m);
+        forest.grow_around(&plan, plan.start.pilot_xz, cfg.trees.keep_radius_m);
         let live = Live {
-            forest: plan.forest.clone(),
-            dug: Deformation::new(app.world().resource::<Data>().0.world.world_size_m),
+            forest,
+            dug: Deformation::new(cfg.world_size_m),
             dirty_tiles: Vec::new(),
             moved_trees: Vec::new(),
             structures: cb_core::world::Structures::new(&plan),
@@ -69,8 +77,9 @@ impl Plugin for WorldPlugin {
             new_chunks: Vec::new(),
         };
         info!(
-            "world: {} trees, {} rivers, {} bridges, sea level {:.1} m, {} cloud puffs",
-            plan.forest.trees.len(),
+            "world: {} trees grown round the start in {:.0} ms, {} rivers, {} bridges, sea level {:.1} m, {} cloud puffs",
+            live.forest.grown(),
+            grown.elapsed().as_secs_f64() * 1000.0,
             plan.waters.rivers.len(),
             plan.waters.bridges.len(),
             plan.waters.sea_level_m,
@@ -84,31 +93,22 @@ impl Plugin for WorldPlugin {
                 brightness: 900.0,
                 ..default()
             })
+            .add_plugins(crate::ground::GroundPlugin)
             .add_systems(
                 Startup,
-                (
-                    spawn_ground,
-                    spawn_roads,
-                    spawn_buildings,
-                    spawn_sun,
-                    spawn_water,
-                    spawn_trees,
-                    spawn_clouds,
-                ),
+                (spawn_roads, spawn_buildings, spawn_sun, spawn_water, spawn_trees, spawn_clouds),
             )
+            .add_systems(FixedUpdate, keep_trees.in_set(SimSet::World))
             .add_systems(FixedUpdate, fell_trees.in_set(SimSet::Mech).after(crate::mech::step_mech))
             .add_systems(
                 Update,
-                (redraw_craters, redraw_trees, scroll_water, face_clouds).in_set(PresentSet::Pose),
+                ((show_trees, redraw_trees).chain(), follow_ocean, (show_clouds, face_clouds).chain()).in_set(PresentSet::Pose),
             );
     }
 }
 
 /// The sky colour, also the haze colour at the horizon.
 pub const SKY: Color = Color::srgb(0.62, 0.74, 0.88);
-
-/// Terrain chunk size in cells.
-const CHUNK_CELLS: usize = 64;
 
 /// Concrete and glass tones of buildings, by id modulo the count.
 pub const BUILDING_TONES: [(f32, f32, f32); 6] = [
@@ -267,185 +267,6 @@ fn vertex_material(materials: &mut Assets<StandardMaterial>, roughness: f32) -> 
         perceptual_roughness: roughness,
         ..default()
     })
-}
-
-/// Terrain chunk entities by chunk index, and crater tile entities by tile key.
-#[derive(Resource, Default)]
-struct GroundMeshes {
-    chunks: HashMap<(usize, usize), Entity>,
-    tiles: HashMap<(i32, i32), Entity>,
-    material: Handle<StandardMaterial>,
-}
-
-/// Ground colour: grass on the level, earth on slopes, mud near water, scorch in craters. Vertex
-/// colours stand in until the PBR layers of `terrain-materials` arrive.
-fn ground_colour(p: Vec3, n: Vec3, sea_level_m: f32, wet: bool, scorch: f32) -> [f32; 4] {
-    let slope = ((1.0 - n.y).clamp(0.0, 1.0) * 6.0).min(1.0);
-    let k = (p.y * 0.05).sin() * 0.04 + ((p.x * 0.013).sin() * (p.z * 0.011).cos()) * 0.03;
-    let grass = Vec3::new(0.30 + k, 0.42 + k, 0.20);
-    let earth = Vec3::new(0.42, 0.36, 0.27);
-    let mud = Vec3::new(0.27, 0.24, 0.19);
-    let rock = Vec3::new(0.45, 0.44, 0.42);
-    let mut c = grass.lerp(earth, slope);
-    if slope > 0.9 {
-        c = c.lerp(rock, 0.6);
-    }
-    if wet || p.y < sea_level_m + 1.5 {
-        c = c.lerp(mud, 0.8);
-    }
-    c = c.lerp(Vec3::new(0.10, 0.08, 0.07), scorch.clamp(0.0, 1.0) * 0.85);
-    c.extend(1.0).to_array()
-}
-
-fn chunk_to_mesh(chunk: ChunkMesh, colors: Vec<[f32; 4]>) -> Mesh {
-    let uvs: Vec<[f32; 2]> = chunk.positions.iter().map(|p| [p.x / 4.0, p.z / 4.0]).collect();
-    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
-        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
-        .with_inserted_attribute(
-            Mesh::ATTRIBUTE_POSITION,
-            chunk.positions.iter().map(|p| p.to_array()).collect::<Vec<_>>(),
-        )
-        .with_inserted_attribute(
-            Mesh::ATTRIBUTE_NORMAL,
-            chunk.normals.iter().map(|p| p.to_array()).collect::<Vec<_>>(),
-        )
-        .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
-        .with_inserted_indices(Indices::U32(chunk.indices))
-}
-
-/// A static collider from a drawn ground mesh (debris-physics).
-fn mesh_collider(mesh: &Mesh) -> Option<(avian3d::prelude::RigidBody, avian3d::prelude::Collider)> {
-    let Some(bevy::mesh::VertexAttributeValues::Float32x3(p)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
-        return None;
-    };
-    let Some(Indices::U32(idx)) = mesh.indices() else { return None };
-    let pos: Vec<Vec3> = p.iter().map(|v| Vec3::from_array(*v)).collect();
-    crate::physics::ground_collider(&pos, idx)
-}
-
-fn build_chunk(plan: &WorldPlan, dug: &Deformation, cx: usize, cz: usize) -> Mesh {
-    let t = &plan.terrain;
-    // Leave a hole for every cell under a crater tile: the tile draws it finer.
-    let chunk = t.chunk_mesh_except(cx, cz, CHUNK_CELLS, |ix, iz| {
-        let c = t.sample_xz(ix, iz) + Vec2::splat(t.cell_m * 0.5);
-        dug.has_tile(dug.tile_of(c))
-    });
-    let colors = chunk
-        .positions
-        .iter()
-        .zip(&chunk.normals)
-        .map(|(p, n)| {
-            ground_colour(
-                *p,
-                *n,
-                plan.waters.sea_level_m,
-                plan.waters.water_at(Vec2::new(p.x, p.z), p.y - 3.0).is_some(),
-                0.0,
-            )
-        })
-        .collect();
-    chunk_to_mesh(chunk, colors)
-}
-
-fn spawn_ground(
-    mut commands: Commands,
-    world: Res<Plan>,
-    live: Res<Live>,
-    tex: Res<crate::textures::Textures>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    let t = &world.terrain;
-    let chunks = (t.n - 1).div_ceil(CHUNK_CELLS);
-    let material = materials.add(StandardMaterial {
-        base_color_texture: Some(tex.grass.clone()),
-        perceptual_roughness: 0.95,
-        ..default()
-    });
-    let mut ground = GroundMeshes {
-        material: material.clone(),
-        ..default()
-    };
-    for cz in 0..chunks {
-        for cx in 0..chunks {
-            let mesh = build_chunk(&world, &live.dug, cx, cz);
-            let e = commands
-                .spawn((
-                    Name::new(format!("terrain {cx},{cz}")),
-                    Mesh3d(meshes.add(mesh)),
-                    MeshMaterial3d(material.clone()),
-                ))
-                .id();
-            ground.chunks.insert((cx, cz), e);
-        }
-    }
-    commands.insert_resource(ground);
-}
-
-/// Rebuilds the ground where craters were dug: the chunk with its hole, and the finer tile.
-fn redraw_craters(
-    mut commands: Commands,
-    mut live: ResMut<Live>,
-    plan: Res<Plan>,
-    ground: Option<ResMut<GroundMeshes>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-) {
-    let Some(mut ground) = ground else { return };
-    if live.dirty_tiles.is_empty() {
-        return;
-    }
-    let mut keys = std::mem::take(&mut live.dirty_tiles);
-    keys.sort_unstable();
-    keys.dedup();
-    let t = &plan.terrain;
-    let chunk_m = t.cell_m * CHUNK_CELLS as f32;
-    let mut chunks = Vec::new();
-    for key in &keys {
-        let corner = live.dug.sample_xz(*key, 0, 0) + Vec2::splat(1.0);
-        let c = (
-            ((corner.x - t.origin_m) / chunk_m) as usize,
-            ((corner.y - t.origin_m) / chunk_m) as usize,
-        );
-        chunks.push(c);
-        let tile = live.dug.tile_mesh(&plan, *key);
-        let colors = tile
-            .positions
-            .iter()
-            .zip(&tile.normals)
-            .enumerate()
-            .map(|(k, (p, n))| {
-                let (i, j) = (k % cb_core::world::deform::TILE_N, k / cb_core::world::deform::TILE_N);
-                ground_colour(*p, *n, plan.waters.sea_level_m, false, live.dug.scorch_at(*key, i, j))
-            })
-            .collect();
-        let mesh = meshes.add(chunk_to_mesh(tile, colors));
-        match ground.tiles.get(key) {
-            Some(e) => {
-                commands.entity(*e).insert(Mesh3d(mesh));
-            }
-            None => {
-                let e = commands
-                    .spawn((
-                        Name::new(format!("crater tile {key:?}")),
-                        Mesh3d(mesh),
-                        MeshMaterial3d(ground.material.clone()),
-                    ))
-                    .id();
-                ground.tiles.insert(*key, e);
-            }
-        }
-    }
-    chunks.sort_unstable();
-    chunks.dedup();
-    for c in chunks {
-        if let Some(e) = ground.chunks.get(&c) {
-            let mesh = build_chunk(&plan, &live.dug, c.0, c.1);
-            if let Some(col) = mesh_collider(&mesh) {
-                commands.entity(*e).insert(col);
-            }
-            commands.entity(*e).insert(Mesh3d(meshes.add(mesh)));
-        }
-    }
 }
 
 fn spawn_roads(
@@ -612,115 +433,39 @@ fn spawn_sun(mut commands: Commands) {
     ));
 }
 
-/// Water surfaces scroll their ripple normals with time.
-#[derive(Component)]
-struct WaterSurface {
-    material: Handle<StandardMaterial>,
-    flow: Vec2,
-}
-
-/// A tiling ripple normal map from a few crossing sine waves (stands in for a Material Maker map).
-fn ripple_normals(images: &mut Assets<Image>) -> Handle<Image> {
-    const N: usize = 256;
-    let mut data = Vec::with_capacity(N * N * 4);
-    let tau = std::f32::consts::TAU;
-    let waves: [(f32, f32, f32, f32); 4] = [
-        (1.0, 0.0, 3.0, 0.5),
-        (0.3, 1.0, 5.0, 0.35),
-        (-0.7, 0.6, 7.0, 0.25),
-        (0.5, -0.8, 11.0, 0.15),
-    ];
-    for j in 0..N {
-        for i in 0..N {
-            let (u, v) = (i as f32 / N as f32, j as f32 / N as f32);
-            let (mut dx, mut dz) = (0.0, 0.0);
-            for (ax, az, f, a) in waves {
-                // Integer frequencies along whole-number directions keep the map tiling.
-                let k = (ax * f).round() * u + (az * f).round() * v;
-                let c = (tau * k).cos() * a;
-                dx += c * (ax * f).round() * 0.08;
-                dz += c * (az * f).round() * 0.08;
-            }
-            let n = Vec3::new(-dx, -dz, 1.0).normalize();
-            data.extend_from_slice(&[
-                ((n.x * 0.5 + 0.5) * 255.0) as u8,
-                ((n.y * 0.5 + 0.5) * 255.0) as u8,
-                ((n.z * 0.5 + 0.5) * 255.0) as u8,
-                255,
-            ]);
-        }
-    }
-    let mut image = Image::new(
-        Extent3d {
-            width: N as u32,
-            height: N as u32,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        data,
-        TextureFormat::Rgba8Unorm,
-        RenderAssetUsages::RENDER_WORLD,
-    );
-    image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
-        address_mode_u: ImageAddressMode::Repeat,
-        address_mode_v: ImageAddressMode::Repeat,
-        mag_filter: ImageFilterMode::Linear,
-        min_filter: ImageFilterMode::Linear,
-        mipmap_filter: ImageFilterMode::Linear,
-        ..default()
-    });
-    images.add(image)
-}
-
-fn water_material(materials: &mut Assets<StandardMaterial>, normals: &Handle<Image>) -> Handle<StandardMaterial> {
-    materials.add(StandardMaterial {
-        base_color: Color::srgba(0.10, 0.24, 0.27, 0.82),
-        perceptual_roughness: 0.06,
-        reflectance: 0.6,
-        normal_map_texture: Some(normals.clone()),
-        alpha_mode: AlphaMode::Blend,
-        ..default()
-    })
+/// The one water material (openspec change `water-rendering`): every river, lake and the ocean is
+/// drawn with a `WaterMaterial` made here. A mesh carries its water's flow, if any, in its vertex
+/// colour (rg, metres a second along x and z); without vertex colour the water is still.
+pub fn water_material(materials: &mut Assets<WaterMaterial>, look: &WaterLook) -> Handle<WaterMaterial> {
+    materials.add(WaterMaterial::new(look))
 }
 
 fn spawn_water(
     mut commands: Commands,
     plan: Res<Plan>,
+    data: Res<Data>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut images: ResMut<Assets<Image>>,
+    mut water_materials: ResMut<Assets<WaterMaterial>>,
 ) {
-    let normals = ripple_normals(&mut images);
+    let water = water_material(&mut water_materials, &data.0.water_look);
     let w = &plan.waters;
-    // Lakes: one sheet at sea level over the whole world; the hills hide it where they rise.
-    let size = plan.terrain.cell_m * (plan.terrain.n - 1) as f32 + 2000.0;
-    let mut sheet = Mesh::from(Plane3d::new(Vec3::Y, Vec2::splat(size * 0.5)));
-    // One ripple tile every 24 m, in world space (the sheet is centred on the origin), so the lakes'
-    // pattern lines up with the rivers'.
-    let world_uv: Vec<[f32; 2]> = match sheet.attribute(Mesh::ATTRIBUTE_POSITION) {
-        Some(bevy::mesh::VertexAttributeValues::Float32x3(p)) => p.iter().map(|v| [v[0] / 24.0, v[2] / 24.0]).collect(),
-        _ => Vec::new(),
-    };
-    if !world_uv.is_empty() {
-        sheet.insert_attribute(Mesh::ATTRIBUTE_UV_0, world_uv);
-    }
-    let sheet = meshes.add(sheet.clone().with_generated_tangents().unwrap_or(sheet));
-    let lake_mat = water_material(&mut materials, &normals);
+    // The sea (and the lakes at its level): one sheet out to the horizon; the land hides it where
+    // it rises. Its geometry and placement are `ocean_sheet` and `follow_ocean` (island-world).
     commands.spawn((
-        Name::new("lakes"),
-        Mesh3d(sheet),
-        MeshMaterial3d(lake_mat.clone()),
+        Name::new("sea"),
+        Mesh3d(meshes.add(ocean_sheet(data.0.world.view.far_m))),
+        MeshMaterial3d(water.clone()),
         Transform::from_xyz(0.0, w.sea_level_m, 0.0),
         NotShadowCaster,
-        WaterSurface {
-            material: lake_mat,
-            flow: Vec2::new(0.004, 0.002),
-        },
+        OceanFollow,
     ));
     // Rivers: a strip along each course at its surface, tucked 2 m into the banks.
     for (ri, r) in w.rivers.iter().enumerate() {
         let mut positions = Vec::new();
         let mut uvs = Vec::new();
+        let mut flow = Vec::new();
+        let mut along = 0.0;
         for i in 0..r.path.len() {
             let p = r.path[i];
             let d = if i + 1 < r.path.len() {
@@ -730,12 +475,15 @@ fn spawn_water(
             }
             .normalize_or(Vec2::X);
             let side = d.perp() * (r.half_width_m[i] + 2.0);
+            if i > 0 {
+                along += p.distance(r.path[i - 1]);
+            }
             for k in [-1.0f32, 1.0] {
                 let q = p + side * k;
                 positions.push([q.x, r.surface_m[i], q.y]);
-                // World-space ripples, one tile every 24 m like the lakes, so the pattern runs on
-                // across bends and where a river meets a lake instead of turning with each strip.
-                uvs.push([q.x / 24.0, q.y / 24.0]);
+                uvs.push([k * r.half_width_m[i] / 12.0, along / 24.0]);
+                // The water's flow, for the water material (rg, metres a second).
+                flow.push([d.x * w.flow_m_s, d.y * w.flow_m_s, 0.0, 1.0]);
             }
         }
         let mut indices = Vec::new();
@@ -748,19 +496,13 @@ fn spawn_water(
             .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
             .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 1.0, 0.0]; n])
             .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, flow)
             .with_inserted_indices(Indices::U32(indices));
-        let mesh = mesh.clone().with_generated_tangents().unwrap_or(mesh);
-        let mat = water_material(&mut materials, &normals);
         commands.spawn((
             Name::new(format!("river {ri}")),
             Mesh3d(meshes.add(mesh)),
-            MeshMaterial3d(mat.clone()),
+            MeshMaterial3d(water.clone()),
             NotShadowCaster,
-            WaterSurface {
-                material: mat,
-                // Downstream along the river's whole course, in tiles a second.
-                flow: (r.path[r.path.len() - 1] - r.path[0]).normalize_or(Vec2::Y) * w.flow_m_s / 24.0,
-            },
         ));
     }
     // Bridges: a deck and two piers (placeholder boxes until a blender-csg-levels model).
@@ -795,18 +537,65 @@ fn spawn_water(
     }
 }
 
-fn scroll_water(time: Res<Time>, q: Query<&WaterSurface>, mut materials: ResMut<Assets<StandardMaterial>>) {
-    let t = time.elapsed_secs();
-    for w in &q {
-        if let Some(mut m) = materials.get_mut(&w.material) {
-            m.uv_transform = bevy::math::Affine2::from_translation(w.flow * t);
+// --- The sea's geometry and placement (island-world). The water's look is `water_material`
+// (water-rendering); nothing here changes how water is shaded.
+
+/// Ripple tiles are this many metres (the UV scale the water's look is drawn at).
+const RIPPLE_TILE_M: f32 = 24.0;
+/// The sea sheet moves in steps of this, a whole number of ripple tiles, so its UVs never slide.
+const OCEAN_SNAP_M: f32 = RIPPLE_TILE_M * 100.0;
+
+/// The sea sheet, which follows the eye across the ground so the sea always reaches the horizon.
+#[derive(Component)]
+struct OceanFollow;
+
+/// The sea's surface: one flat square at height zero reaching past the far plane in every
+/// direction from wherever it is placed, its UVs one per ripple tile.
+fn ocean_sheet(far_m: f32) -> Mesh {
+    // A whole number of double ripple tiles across, so the sheet's corner lies on the tile grid.
+    let size = ((2.0 * (far_m + OCEAN_SNAP_M)) / (2.0 * RIPPLE_TILE_M)).ceil() * 2.0 * RIPPLE_TILE_M;
+    let mut sheet = Mesh::from(Plane3d::new(Vec3::Y, Vec2::splat(size * 0.5)));
+    if let Some(bevy::mesh::VertexAttributeValues::Float32x2(uv)) = sheet.attribute_mut(Mesh::ATTRIBUTE_UV_0) {
+        for t in uv.iter_mut() {
+            *t = [t[0] * size / RIPPLE_TILE_M, t[1] * size / RIPPLE_TILE_M];
+        }
+    }
+    sheet.clone().with_generated_tangents().unwrap_or(sheet)
+}
+
+/// Keeps the sea sheet centred under the eye, in whole snap steps.
+fn follow_ocean(camera: Single<&GlobalTransform, With<PilotCamera>>, mut sheets: Query<&mut Transform, With<OceanFollow>>) {
+    let eye = camera.translation();
+    let snap = |v: f32| (v / OCEAN_SNAP_M).round() * OCEAN_SNAP_M;
+    for mut t in &mut sheets {
+        let (x, z) = (snap(eye.x), snap(eye.z));
+        if t.translation.x != x || t.translation.z != z {
+            t.translation.x = x;
+            t.translation.z = z;
         }
     }
 }
 
-/// Tree entities by id.
+// --- End of the sea's geometry and placement.
+
+/// Drawn trees (island-world design section 3): the grown tiles within the draw radius of the eye,
+/// an entity per tree, by tile (with whether the tile casts shadows) and by id. Every tree of a
+/// species shares one mesh and all share one material, so Bevy draws each species as one
+/// instanced batch.
 #[derive(Resource, Default)]
-struct TreeEntities(Vec<Entity>);
+struct TreeEntities {
+    tiles: BTreeMap<(u32, u32), (Vec<u32>, bool)>,
+    by_id: HashMap<u32, Entity>,
+    species: Vec<Handle<Mesh>>,
+    material: Handle<StandardMaterial>,
+}
+
+/// Most tree tiles put on screen in one frame.
+const TREE_TILES_PER_FRAME: usize = 6;
+/// Tree tiles stay on screen this far past the draw radius before they are taken off.
+const TREE_KEEP_MARGIN_M: f32 = 150.0;
+/// Only tree tiles within this of the eye cast shadows (the shadow pass draws far fewer trees).
+const TREE_SHADOW_RADIUS_M: f32 = 300.0;
 
 /// A tree mesh, one unit tall, base at the origin: trunk and crown in vertex colours.
 fn tree_mesh(species: &str) -> Mesh {
@@ -852,50 +641,116 @@ fn tree_transform(t: &cb_core::world::Tree, s: TreeState) -> Transform {
 
 fn spawn_trees(
     mut commands: Commands,
-    plan: Res<Plan>,
     data: Res<Data>,
     tex: Res<crate::textures::Textures>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let mat = materials.add(StandardMaterial {
+    let material = materials.add(StandardMaterial {
         base_color_texture: Some(tex.foliage.clone()),
         perceptual_roughness: 0.9,
         ..default()
     });
-    let species: Vec<Handle<Mesh>> = data.0.world.trees.species.iter().map(|s| meshes.add(tree_mesh(&s.name))).collect();
-    let mut ids = Vec::with_capacity(plan.forest.trees.len());
-    for t in &plan.forest.trees {
-        let e = commands
-            .spawn((
-                Mesh3d(species[t.species as usize].clone()),
-                MeshMaterial3d(mat.clone()),
-                tree_transform(t, TreeState::Standing),
-                VisibilityRange::abrupt(0.0, 1600.0),
-            ))
-            .id();
-        ids.push(e);
+    let species = data.0.world.trees.species.iter().map(|s| meshes.add(tree_mesh(&s.name))).collect();
+    commands.insert_resource(TreeEntities {
+        species,
+        material,
+        ..default()
+    });
+}
+
+/// Grows the trees near the pilot and every mech before they move this step, and lets go of the
+/// trees far from all of them (cb-core `Forest::keep_around`; deterministic: it reads only the
+/// simulation's positions).
+fn keep_trees(mut live: ResMut<Live>, plan: Res<Plan>, pilot: Res<crate::pilot::PilotSim>, mechs: Query<&crate::mech::MechSim>) {
+    let feet = pilot.curr.feet;
+    let mut bodies = vec![Vec2::new(feet.x, feet.z)];
+    bodies.extend(mechs.iter().map(|m| Vec2::new(m.curr.pos.x, m.curr.pos.z)));
+    live.forest.keep_around(&plan, &bodies);
+}
+
+/// Puts the grown trees within the draw radius of the eye on screen, a few tiles a frame nearest
+/// first, and takes off the ones beyond it or let go.
+fn show_trees(
+    mut commands: Commands,
+    live: Res<Live>,
+    data: Res<Data>,
+    camera: Single<&GlobalTransform, With<PilotCamera>>,
+    trees: Option<ResMut<TreeEntities>>,
+) {
+    let Some(mut trees) = trees else { return };
+    let eye = camera.translation();
+    let eye = Vec2::new(eye.x, eye.z);
+    let radius = data.0.world.trees.draw_radius_m;
+    let grown: Vec<(f32, (u32, u32))> = live
+        .forest
+        .grown_tiles()
+        .map(|(k, _)| (live.forest.tile_rect(k).distance(eye), k))
+        .collect();
+    // On screen within the radius; taken off only past it by a margin, so a tile on the edge does
+    // not come and go frame by frame.
+    let keep: BTreeSet<(u32, u32)> = grown.iter().filter(|g| g.0 <= radius + TREE_KEEP_MARGIN_M).map(|g| g.1).collect();
+    let mut wanted: Vec<(f32, (u32, u32))> = grown.into_iter().filter(|g| g.0 <= radius).collect();
+    let gone: Vec<(u32, u32)> = trees.tiles.keys().filter(|k| !keep.contains(k)).copied().collect();
+    let trees = &mut *trees;
+    for key in gone {
+        for id in trees.tiles.remove(&key).map(|t| t.0).unwrap_or_default() {
+            if let Some(e) = trees.by_id.remove(&id) {
+                commands.entity(e).despawn();
+            }
+        }
     }
-    commands.insert_resource(TreeEntities(ids));
+    // Shadows from the near tiles only; a tile changes over as a whole, rarely.
+    for (key, (ids, shadows)) in trees.tiles.iter_mut() {
+        let near = live.forest.tile_rect(*key).distance(eye) <= TREE_SHADOW_RADIUS_M;
+        if near != *shadows {
+            *shadows = near;
+            for id in ids.iter() {
+                if let Some(e) = trees.by_id.get(id) {
+                    if near {
+                        commands.entity(*e).remove::<NotShadowCaster>();
+                    } else {
+                        commands.entity(*e).insert(NotShadowCaster);
+                    }
+                }
+            }
+        }
+    }
+    wanted.retain(|w| !trees.tiles.contains_key(&w.1));
+    wanted.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+    for (d, key) in wanted.into_iter().take(TREE_TILES_PER_FRAME) {
+        let Some((_, grown)) = live.forest.grown_tiles().find(|(k, _)| *k == key) else {
+            continue;
+        };
+        let near = d <= TREE_SHADOW_RADIUS_M;
+        let mut ids = Vec::with_capacity(grown.len());
+        for t in grown {
+            let mut e = commands.spawn((
+                Mesh3d(trees.species[t.species as usize].clone()),
+                MeshMaterial3d(trees.material.clone()),
+                tree_transform(t, live.forest.state(t.id)),
+                VisibilityRange::abrupt(0.0, radius),
+            ));
+            if !near {
+                e.insert(NotShadowCaster);
+            }
+            trees.by_id.insert(t.id, e.id());
+            ids.push(t.id);
+        }
+        trees.tiles.insert(key, (ids, near));
+    }
 }
 
 fn fell_trees(mut live: ResMut<Live>, time: Res<Time<Fixed>>, mut fx: MessageWriter<crate::fx::Fx>) {
     let live = &mut *live;
     let landed = live.forest.step(time.delta_secs());
     for id in &landed {
-        let t = live.forest.trees[*id as usize];
-        let (dir, _) = live.forest.states[*id as usize].tilt();
+        let Some(t) = live.forest.tree(*id).copied() else { continue };
+        let (dir, _) = live.forest.state(*id).tilt();
         let tip = t.base + Vec3::new(dir.x, 0.0, dir.y) * t.height_m * 0.7;
         fx.write(crate::fx::Fx::new("tree_fall", tip));
     }
-    let falling: Vec<u32> = live
-        .forest
-        .states
-        .iter()
-        .enumerate()
-        .filter(|(_, s)| matches!(s, TreeState::Falling { .. }))
-        .map(|(i, _)| i as u32)
-        .collect();
+    let falling = live.forest.falling();
     live.moved_trees.extend(falling);
     live.moved_trees.extend(landed);
 }
@@ -903,13 +758,12 @@ fn fell_trees(mut live: ResMut<Live>, time: Res<Time<Fixed>>, mut fx: MessageWri
 fn redraw_trees(mut live: ResMut<Live>, trees: Option<Res<TreeEntities>>, mut q: Query<&mut Transform>) {
     let Some(trees) = trees else { return };
     let moved = std::mem::take(&mut live.moved_trees);
-    if trees.0.is_empty() {
-        return;
-    }
     for id in moved {
-        let i = id as usize;
-        if let Ok(mut t) = q.get_mut(trees.0[i]) {
-            *t = tree_transform(&live.forest.trees[i], live.forest.states[i]);
+        let (Some(e), Some(tree)) = (trees.by_id.get(&id), live.forest.tree(id)) else {
+            continue;
+        };
+        if let Ok(mut t) = q.get_mut(*e) {
+            *t = tree_transform(tree, live.forest.state(id));
         }
     }
 }
@@ -945,6 +799,19 @@ fn cloud_texture(images: &mut Assets<Image>) -> Handle<Image> {
     ))
 }
 
+/// Drawn clouds (island-world): the cloud tiles near the eye, a few billboards per puff.
+#[derive(Resource)]
+struct CloudSprites {
+    quad: Handle<Mesh>,
+    shades: Vec<Handle<StandardMaterial>>,
+    /// Every tile with puffs and its centre (x, z) at time zero.
+    all: Vec<((i32, i32), Vec2)>,
+    drawn: HashMap<(i32, i32), Vec<Entity>>,
+}
+
+/// Most cloud tiles put in the sky in one frame.
+const CLOUD_TILES_PER_FRAME: usize = 2;
+
 fn spawn_clouds(
     mut commands: Commands,
     plan: Res<Plan>,
@@ -969,32 +836,91 @@ fn spawn_clouds(
             })
         })
         .collect();
-    let mut seed: u64 = plan.seed ^ 0xC10D;
+    commands.insert_resource(CloudSprites {
+        quad,
+        shades,
+        all: plan.clouds.tiles(),
+        drawn: HashMap::new(),
+    });
+}
+
+/// The billboards of one puff: seven, scattered through it, darker underneath. A pure function of
+/// the seed and the puff, so a tile drawn again looks the same.
+fn puff_sprites(seed: u64, index: u32, p: &cb_core::world::clouds::Puff) -> [(Vec3, f32, usize); 7] {
+    let mut s: u64 = (seed ^ 0xC10D).wrapping_add(u64::from(index).wrapping_mul(0x9E37_79B9_7F4A_7C15));
     let mut f = move || {
-        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-        ((seed >> 40) as f32) / (1u64 << 24) as f32
+        s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        ((s >> 40) as f32) / (1u64 << 24) as f32
     };
-    for p in &plan.clouds.puffs {
-        for _ in 0..7 {
-            let off = Vec3::new(f() - 0.5, f() - 0.5, f() - 0.5) * p.radii * 1.1;
-            let at = p.centre + off;
-            let size = p.radii.x.max(p.radii.y) * (0.9 + 0.6 * f());
-            // Darker underneath.
-            let shade = if off.y < -p.radii.y * 0.2 {
-                2
-            } else if off.y < p.radii.y * 0.2 {
-                1
-            } else {
-                0
-            };
-            commands.spawn((
-                Mesh3d(quad.clone()),
-                MeshMaterial3d(shades[shade].clone()),
-                Transform::from_translation(at).with_scale(Vec3::splat(size)),
-                NotShadowCaster,
-                CloudSprite { anchor: at },
-            ));
+    std::array::from_fn(|_| {
+        let off = Vec3::new(f() - 0.5, f() - 0.5, f() - 0.5) * p.radii * 1.1;
+        let size = p.radii.x.max(p.radii.y) * (0.9 + 0.6 * f());
+        let shade = if off.y < -p.radii.y * 0.2 {
+            2
+        } else if off.y < p.radii.y * 0.2 {
+            1
+        } else {
+            0
+        };
+        (p.centre + off, size, shade)
+    })
+}
+
+/// Puts the cloud tiles within the draw radius of the eye in the sky (as the wind has carried them),
+/// a couple a frame nearest first, and takes the ones beyond it down. Beyond the radius the haze
+/// has hidden them anyway.
+fn show_clouds(
+    mut commands: Commands,
+    plan: Res<Plan>,
+    data: Res<Data>,
+    time: Res<Time>,
+    camera: Single<&GlobalTransform, With<PilotCamera>>,
+    sprites: Option<ResMut<CloudSprites>>,
+) {
+    let Some(mut sprites) = sprites else { return };
+    let eye = camera.translation();
+    let drift = plan.clouds.wind_m_s * time.elapsed_secs();
+    let radius = data.0.world.clouds.draw_radius_m;
+    let half_diag = cb_core::world::clouds::CLOUD_TILE_M * std::f32::consts::FRAC_1_SQRT_2;
+    let dist = |c: Vec2| ((c + drift).distance(Vec2::new(eye.x, eye.z)) - half_diag).max(0.0);
+    let s = &mut *sprites;
+    let gone: Vec<(i32, i32)> = s
+        .drawn
+        .keys()
+        .copied()
+        .filter(|k| s.all.iter().find(|a| a.0 == *k).is_none_or(|a| dist(a.1) > radius + half_diag))
+        .collect();
+    for key in gone {
+        for e in s.drawn.remove(&key).unwrap_or_default() {
+            commands.entity(e).despawn();
         }
+    }
+    let mut wanted: Vec<(f32, (i32, i32))> = s
+        .all
+        .iter()
+        .filter(|a| !s.drawn.contains_key(&a.0))
+        .map(|a| (dist(a.1), a.0))
+        .filter(|w| w.0 <= radius)
+        .collect();
+    wanted.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+    for (_, key) in wanted.into_iter().take(CLOUD_TILES_PER_FRAME) {
+        let mut ents = Vec::new();
+        for i in plan.clouds.puffs_in(key) {
+            for (at, size, shade) in puff_sprites(plan.seed, i, &plan.clouds.puffs[i as usize]) {
+                ents.push(
+                    commands
+                        .spawn((
+                            Mesh3d(s.quad.clone()),
+                            MeshMaterial3d(s.shades[shade].clone()),
+                            Transform::from_translation(at).with_scale(Vec3::splat(size)),
+                            NotShadowCaster,
+                            CloudSprite { anchor: at },
+                        ))
+                        .id(),
+                );
+            }
+        }
+        s.drawn.insert(key, ents);
     }
 }
 

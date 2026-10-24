@@ -52,7 +52,11 @@ impl Plugin for PilotPlugin {
         .add_systems(Startup, spawn_prompt)
         .add_systems(
             Update,
-            ((place_camera, weather_and_screens).chain(), show_prompt).in_set(PresentSet::Camera),
+            (
+                (place_camera, crate::water_render::track_eye, weather_and_screens).chain(),
+                show_prompt,
+            )
+                .in_set(PresentSet::Camera),
         );
     }
 }
@@ -67,11 +71,14 @@ pub struct CockpitCamera;
 
 fn spawn_camera(mut commands: Commands, data: Res<Data>) {
     let light = &data.0.cockpit_light;
+    // Bevy's perspective is reverse-Z with an infinite far plane, so `far` only culls: seeing 40 km
+    // costs no depth precision (island-world design section 5).
+    let view = &data.0.world.view;
     let srgb = |c: [f32; 3]| Color::srgb(c[0], c[1], c[2]);
     let lens = Projection::from(PerspectiveProjection {
         fov: 75f32.to_radians(),
         near: 0.05,
-        far: 6000.0,
+        far: view.far_m,
         ..default()
     });
     let cockpit = commands
@@ -112,21 +119,30 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
             }
         })
         .id();
-    commands
-        .spawn((
-            Name::new("pilot's eyes"),
-            PilotCamera,
-            Camera3d::default(),
-            lens,
-            DistanceFog {
-                color: SKY,
-                falloff: FogFalloff::from_visibility_colors(3500.0, Color::srgb(0.45, 0.55, 0.68), Color::srgb(0.80, 0.86, 0.95)),
-                ..default()
-            },
-            Transform::default(),
-            ColorGrading::default(),
-        ))
-        .add_child(cockpit);
+    let mut camera = commands.spawn((
+        Name::new("pilot's eyes"),
+        PilotCamera,
+        Camera3d::default(),
+        lens,
+        DistanceFog {
+            color: SKY,
+            falloff: FogFalloff::from_visibility_colors(
+                view.clear_visibility_m,
+                Color::srgb(0.45, 0.55, 0.68),
+                Color::srgb(0.80, 0.86, 0.95),
+            ),
+            ..default()
+        },
+        Transform::default(),
+        ColorGrading::default(),
+    ));
+    camera.add_child(cockpit);
+    // Sees water the pilot's way: under it, and with drops on the glass after surfacing
+    // (openspec change `water-rendering`; brings HDR, a depth prepass and transmission).
+    // `CB_NO_WATER_FX=1` leaves them off, to compare frame time or if the passes misbehave.
+    if !crate::cli::switched_off("CB_NO_WATER_FX") {
+        camera.insert(crate::water_render::WaterOptics);
+    }
 }
 
 fn step_pilot(
@@ -244,22 +260,36 @@ fn show_prompt(pilot: Res<PilotSim>, access: Res<MechAccessNow>, data: Res<Data>
     }
 }
 
-/// Clear-air visibility.
-const CLEAR_VISIBILITY_M: f32 = 3500.0;
-
-/// What the pilot sees through: in a cloud the view fogs by the cloud density at the eye (the one
-/// cloud query); seated with the sensor head shot off, the view is the backup cameras' (washed out,
-/// darker, tinted) until the all-view screen change draws them properly.
+/// What the pilot sees through, the one place that decides the camera's fog: in a cloud the view
+/// fogs by the cloud density at the eye (the one cloud query); under water the air's fog stands
+/// back and the water's own fog (`water_render`'s compose pass, which murks every pixel by the
+/// water it crossed) is the fog; seated with the sensor head shot off, the view is the backup
+/// cameras' (washed out, darker, tinted) until the all-view screen change draws them properly.
 fn weather_and_screens(
     plan: Res<Plan>,
+    data: Res<Data>,
     time: Res<Time>,
     pilot: Res<PilotSim>,
     mechs: Query<(&crate::mech::MechSim, &crate::mech::MechSpec), With<crate::mech::Piloted>>,
-    mut camera: Single<(&GlobalTransform, &mut DistanceFog, &mut ColorGrading), With<PilotCamera>>,
+    mut camera: Single<
+        (
+            &Transform,
+            &mut DistanceFog,
+            &mut ColorGrading,
+            Option<&crate::water_render::WaterEye>,
+        ),
+        With<PilotCamera>,
+    >,
 ) {
-    let (eye, fog, grading) = &mut *camera;
-    let density = plan.clouds.density_at(eye.translation(), time.elapsed_secs());
-    let vis = CLEAR_VISIBILITY_M + (25.0 - CLEAR_VISIBILITY_M) * density.sqrt();
+    let (eye, fog, grading, water) = &mut *camera;
+    // Under water there is no cloud at the eye; the water fogs the view.
+    let density = if water.is_some_and(|w| w.under_water()) {
+        0.0
+    } else {
+        plan.clouds.density_at(eye.translation, time.elapsed_secs())
+    };
+    let clear = data.0.world.view.clear_visibility_m;
+    let vis = clear + (25.0 - clear) * density.sqrt();
     let inside = density.sqrt();
     fog.color = SKY.mix(&Color::srgb(0.9, 0.92, 0.95), inside);
     fog.falloff = FogFalloff::from_visibility_colors(

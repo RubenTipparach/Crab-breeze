@@ -1,0 +1,1366 @@
+{
+  "meta": {
+    "when": "2026-10-24 01:05",
+    "revision": "2b30a90",
+    "dirty": true,
+    "variants": [
+      {
+        "name": "before",
+        "exe": "/private/tmp/claude-501/-Users-rubentipparach-Crab-breeze/cb2c92cc-7861-5ced-87a1-fc7ef24deb55/scratchpad/old-target/release/crab-breeze",
+        "env": {},
+        "root": "/private/tmp/claude-501/-Users-rubentipparach-Crab-breeze/cb2c92cc-7861-5ced-87a1-fc7ef24deb55/scratchpad/old-main"
+      },
+      {
+        "name": "current",
+        "exe": "/Users/rubentipparach/Crab-breeze/target/release/crab-breeze",
+        "env": {},
+        "root": null
+      },
+      {
+        "name": "no-shadows",
+        "exe": "/Users/rubentipparach/Crab-breeze/target/release/crab-breeze",
+        "env": {
+          "CB_NO_SHADOWS": "1"
+        },
+        "root": null
+      },
+      {
+        "name": "no-water-fx",
+        "exe": "/Users/rubentipparach/Crab-breeze/target/release/crab-breeze",
+        "env": {
+          "CB_NO_WATER_FX": "1"
+        },
+        "root": null
+      }
+    ],
+    "args": [
+      "--out",
+      "output/perf/2026-10-24-island",
+      "--repeats",
+      "2",
+      "--variant",
+      "before|/private/tmp/claude-501/-Users-rubentipparach-Crab-breeze/cb2c92cc-7861-5ced-87a1-fc7ef24deb55/scratchpad/old-target/release/crab-breeze||/private/tmp/claude-501/-Users-rubentipparach-Crab-breeze/cb2c92cc-7861-5ced-87a1-fc7ef24deb55/scratchpad/old-main",
+      "--variant",
+      "current",
+      "--variant",
+      "no-shadows||CB_NO_SHADOWS=1",
+      "--variant",
+      "no-water-fx||CB_NO_WATER_FX=1"
+    ],
+    "machine": "Apple M4 Max",
+    "adapter": "Apple M4 Max (Metal)",
+    "gpu_preprocessing": [
+      true
+    ]
+  },
+  "results": [
+    {
+      "scenario": "world",
+      "variant": "before",
+      "exe": "/private/tmp/claude-501/-Users-rubentipparach-Crab-breeze/cb2c92cc-7861-5ced-87a1-fc7ef24deb55/scratchpad/old-target/release/crab-breeze",
+      "env": {},
+      "index": 0,
+      "seconds": 179.0,
+      "csv": "/Users/rubentipparach/Crab-breeze/output/perf/2026-10-24-island/world_before_0.csv",
+      "log": "output/perf/2026-10-24-island/world_before_0.log",
+      "frame_ms": {
+        "n": 20081,
+        "mean": 8.22,
+        "p50": 8.22,
+        "p95": 10.16,
+        "p99": 11.01,
+        "p999": NaN,
+        "max": 43.31
+      },
+      "render_cpu_ms": {},
+      "gpu_total_ms": {},
+      "entities": {},
+      "memory_mb": {
+        "peak": 2224.40625,
+        "median": 2071.078125
+      },
+      "passes": {},
+      "notes": [
+        "no frame log (a build from before it): totals from its BENCH line"
+      ],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "world",
+      "variant": "current",
+      "exe": "/Users/rubentipparach/Crab-breeze/target/release/crab-breeze",
+      "env": {},
+      "index": 0,
+      "seconds": 218.0,
+      "csv": "/Users/rubentipparach/Crab-breeze/output/perf/2026-10-24-island/world_current_0.csv",
+      "log": "output/perf/2026-10-24-island/world_current_0.log",
+      "frame_ms": {
+        "n": 83196,
+        "mean": 2.477610173566017,
+        "p50": 2.458,
+        "p95": 2.887,
+        "p99": 3.153,
+        "p999": 3.829,
+        "max": 74.36,
+        "over_want": 54,
+        "over_floor": 1
+      },
+      "render_cpu_ms": {
+        "n": 83196,
+        "mean": 0.033640066830136255,
+        "p50": 0.033,
+        "p95": 0.043,
+        "p99": 0.048,
+        "p999": 0.057,
+        "max": 0.082,
+        "over_want": 0,
+        "over_floor": 0
+      },
+      "gpu_total_ms": {},
+      "entities": {
+        "n": 83196,
+        "mean": 19009.47099620174,
+        "p50": 18999.0,
+        "p95": 22801.0,
+        "p99": 23016.0,
+        "p999": 23034.0,
+        "max": 23045.0,
+        "over_want": 83196,
+        "over_floor": 83196
+      },
+      "memory_mb": {
+        "peak": 815.5,
+        "median": 730.875
+      },
+      "passes": {
+        "clustering": {
+          "cpu_ms": 0.007,
+          "gpu_ms": 0.0
+        },
+        "main_transmissive_pass_3d": {
+          "cpu_ms": 0.004,
+          "gpu_ms": 0.0
+        },
+        "main_opaque_pass_3d": {
+          "cpu_ms": 0.004,
+          "gpu_ms": 0.0
+        },
+        "uniform_allocation": {
+          "cpu_ms": 0.003,
+          "gpu_ms": 0.0
+        },
+        "per_view_shadow_pass": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "main_transparent_pass_3d": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "bin_unpacking": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "early_mesh_preprocessing": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "upscaling": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "tonemapping": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "auxiliary_views": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        }
+      },
+      "notes": [],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "world",
+      "variant": "no-shadows",
+      "exe": "/Users/rubentipparach/Crab-breeze/target/release/crab-breeze",
+      "env": {
+        "CB_NO_SHADOWS": "1"
+      },
+      "index": 0,
+      "seconds": 216.7,
+      "csv": "/Users/rubentipparach/Crab-breeze/output/perf/2026-10-24-island/world_no-shadows_0.csv",
+      "log": "output/perf/2026-10-24-island/world_no-shadows_0.log",
+      "frame_ms": {
+        "n": 98646,
+        "mean": 2.0896303347322687,
+        "p50": 2.048,
+        "p95": 2.627,
+        "p99": 2.929,
+        "p999": 3.397,
+        "max": 14.663,
+        "over_want": 52,
+        "over_floor": 0
+      },
+      "render_cpu_ms": {
+        "n": 98646,
+        "mean": 0.025872919327721327,
+        "p50": 0.025,
+        "p95": 0.034,
+        "p99": 0.039,
+        "p999": 0.047,
+        "max": 0.509,
+        "over_want": 0,
+        "over_floor": 0
+      },
+      "gpu_total_ms": {},
+      "entities": {
+        "n": 98646,
+        "mean": 19016.747835695314,
+        "p50": 18999.0,
+        "p95": 22837.0,
+        "p99": 23016.0,
+        "p999": 23034.0,
+        "max": 23046.0,
+        "over_want": 98646,
+        "over_floor": 98646
+      },
+      "memory_mb": {
+        "peak": 772.90625,
+        "median": 704.53125
+      },
+      "passes": {
+        "clustering": {
+          "cpu_ms": 0.006,
+          "gpu_ms": 0.0
+        },
+        "main_transmissive_pass_3d": {
+          "cpu_ms": 0.004,
+          "gpu_ms": 0.0
+        },
+        "main_opaque_pass_3d": {
+          "cpu_ms": 0.003,
+          "gpu_ms": 0.0
+        },
+        "main_transparent_pass_3d": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "uniform_allocation": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "upscaling": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "tonemapping": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "bin_unpacking": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "early_mesh_preprocessing": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "auxiliary_views": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "per_view_shadow_pass": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        }
+      },
+      "notes": [],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "world",
+      "variant": "no-water-fx",
+      "exe": "/Users/rubentipparach/Crab-breeze/target/release/crab-breeze",
+      "env": {
+        "CB_NO_WATER_FX": "1"
+      },
+      "index": 0,
+      "seconds": 216.8,
+      "csv": "/Users/rubentipparach/Crab-breeze/output/perf/2026-10-24-island/world_no-water-fx_0.csv",
+      "log": "output/perf/2026-10-24-island/world_no-water-fx_0.log",
+      "frame_ms": {
+        "n": 94331,
+        "mean": 2.185144257985159,
+        "p50": 2.162,
+        "p95": 2.671,
+        "p99": 2.963,
+        "p999": 3.449,
+        "max": 15.618,
+        "over_want": 52,
+        "over_floor": 0
+      },
+      "render_cpu_ms": {
+        "n": 94331,
+        "mean": 0.022218189142467017,
+        "p50": 0.021,
+        "p95": 0.029,
+        "p99": 0.034,
+        "p999": 0.041,
+        "max": 0.134,
+        "over_want": 0,
+        "over_floor": 0
+      },
+      "gpu_total_ms": {},
+      "entities": {
+        "n": 94331,
+        "mean": 19016.639810878714,
+        "p50": 19005.0,
+        "p95": 22744.0,
+        "p99": 22934.0,
+        "p999": 22957.0,
+        "max": 22974.0,
+        "over_want": 94331,
+        "over_floor": 94331
+      },
+      "memory_mb": {
+        "peak": 837.0,
+        "median": 710.375
+      },
+      "passes": {
+        "clustering": {
+          "cpu_ms": 0.005,
+          "gpu_ms": 0.0
+        },
+        "main_opaque_pass_3d": {
+          "cpu_ms": 0.005,
+          "gpu_ms": 0.0
+        },
+        "uniform_allocation": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "per_view_shadow_pass": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "main_transparent_pass_3d": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "bin_unpacking": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "early_mesh_preprocessing": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "upscaling": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "auxiliary_views": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        }
+      },
+      "notes": [],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "world",
+      "variant": "no-water-fx",
+      "exe": "/Users/rubentipparach/Crab-breeze/target/release/crab-breeze",
+      "env": {
+        "CB_NO_WATER_FX": "1"
+      },
+      "index": 1,
+      "seconds": 216.8,
+      "csv": "/Users/rubentipparach/Crab-breeze/output/perf/2026-10-24-island/world_no-water-fx_1.csv",
+      "log": "output/perf/2026-10-24-island/world_no-water-fx_1.log",
+      "frame_ms": {
+        "n": 96439,
+        "mean": 2.1376389323821554,
+        "p50": 2.117,
+        "p95": 2.563,
+        "p99": 2.875,
+        "p999": 3.406,
+        "max": 14.389,
+        "over_want": 52,
+        "over_floor": 0
+      },
+      "render_cpu_ms": {
+        "n": 96439,
+        "mean": 0.022599861052048843,
+        "p50": 0.022,
+        "p95": 0.029,
+        "p99": 0.034,
+        "p999": 0.042,
+        "max": 0.134,
+        "over_want": 0,
+        "over_floor": 0
+      },
+      "gpu_total_ms": {},
+      "entities": {
+        "n": 96439,
+        "mean": 19015.514573979406,
+        "p50": 19007.0,
+        "p95": 22737.0,
+        "p99": 22933.0,
+        "p999": 22957.0,
+        "max": 22975.0,
+        "over_want": 96439,
+        "over_floor": 96439
+      },
+      "memory_mb": {
+        "peak": 776.671875,
+        "median": 673.625
+      },
+      "passes": {
+        "clustering": {
+          "cpu_ms": 0.006,
+          "gpu_ms": 0.0
+        },
+        "main_opaque_pass_3d": {
+          "cpu_ms": 0.005,
+          "gpu_ms": 0.0
+        },
+        "uniform_allocation": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "per_view_shadow_pass": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "main_transparent_pass_3d": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "bin_unpacking": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "early_mesh_preprocessing": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "upscaling": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "auxiliary_views": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        }
+      },
+      "notes": [],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "world",
+      "variant": "no-shadows",
+      "exe": "/Users/rubentipparach/Crab-breeze/target/release/crab-breeze",
+      "env": {
+        "CB_NO_SHADOWS": "1"
+      },
+      "index": 1,
+      "seconds": 216.8,
+      "csv": "/Users/rubentipparach/Crab-breeze/output/perf/2026-10-24-island/world_no-shadows_1.csv",
+      "log": "output/perf/2026-10-24-island/world_no-shadows_1.log",
+      "frame_ms": {
+        "n": 100924,
+        "mean": 2.042440390789115,
+        "p50": 2.015,
+        "p95": 2.488,
+        "p99": 2.815,
+        "p999": 3.254,
+        "max": 14.347,
+        "over_want": 52,
+        "over_floor": 0
+      },
+      "render_cpu_ms": {
+        "n": 100924,
+        "mean": 0.02727915064802383,
+        "p50": 0.027,
+        "p95": 0.035,
+        "p99": 0.041,
+        "p999": 0.048,
+        "max": 0.141,
+        "over_want": 0,
+        "over_floor": 0
+      },
+      "gpu_total_ms": {},
+      "entities": {
+        "n": 100924,
+        "mean": 19012.557033014942,
+        "p50": 18999.0,
+        "p95": 22833.0,
+        "p99": 23016.0,
+        "p999": 23033.0,
+        "max": 23046.0,
+        "over_want": 100924,
+        "over_floor": 100924
+      },
+      "memory_mb": {
+        "peak": 740.984375,
+        "median": 701.390625
+      },
+      "passes": {
+        "clustering": {
+          "cpu_ms": 0.006,
+          "gpu_ms": 0.0
+        },
+        "main_transmissive_pass_3d": {
+          "cpu_ms": 0.004,
+          "gpu_ms": 0.0
+        },
+        "main_opaque_pass_3d": {
+          "cpu_ms": 0.004,
+          "gpu_ms": 0.0
+        },
+        "main_transparent_pass_3d": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "uniform_allocation": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "upscaling": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "tonemapping": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "bin_unpacking": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "early_mesh_preprocessing": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "auxiliary_views": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "per_view_shadow_pass": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        }
+      },
+      "notes": [],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "world",
+      "variant": "current",
+      "exe": "/Users/rubentipparach/Crab-breeze/target/release/crab-breeze",
+      "env": {},
+      "index": 1,
+      "seconds": 216.8,
+      "csv": "/Users/rubentipparach/Crab-breeze/output/perf/2026-10-24-island/world_current_1.csv",
+      "log": "output/perf/2026-10-24-island/world_current_1.log",
+      "frame_ms": {
+        "n": 83504,
+        "mean": 2.4685208493006816,
+        "p50": 2.444,
+        "p95": 2.917,
+        "p99": 3.229,
+        "p999": 3.758,
+        "max": 14.487,
+        "over_want": 52,
+        "over_floor": 0
+      },
+      "render_cpu_ms": {
+        "n": 83504,
+        "mean": 0.03345354713546213,
+        "p50": 0.033,
+        "p95": 0.042,
+        "p99": 0.048,
+        "p999": 0.056,
+        "max": 0.149,
+        "over_want": 0,
+        "over_floor": 0
+      },
+      "gpu_total_ms": {},
+      "entities": {
+        "n": 83504,
+        "mean": 19011.683320559496,
+        "p50": 18999.0,
+        "p95": 22800.0,
+        "p99": 23016.0,
+        "p999": 23033.0,
+        "max": 23046.0,
+        "over_want": 83504,
+        "over_floor": 83504
+      },
+      "memory_mb": {
+        "peak": 777.015625,
+        "median": 714.296875
+      },
+      "passes": {
+        "clustering": {
+          "cpu_ms": 0.007,
+          "gpu_ms": 0.0
+        },
+        "main_transmissive_pass_3d": {
+          "cpu_ms": 0.004,
+          "gpu_ms": 0.0
+        },
+        "main_opaque_pass_3d": {
+          "cpu_ms": 0.004,
+          "gpu_ms": 0.0
+        },
+        "uniform_allocation": {
+          "cpu_ms": 0.003,
+          "gpu_ms": 0.0
+        },
+        "main_transparent_pass_3d": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "per_view_shadow_pass": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "bin_unpacking": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "early_mesh_preprocessing": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "upscaling": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "tonemapping": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "auxiliary_views": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        }
+      },
+      "notes": [],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "world",
+      "variant": "before",
+      "exe": "/private/tmp/claude-501/-Users-rubentipparach-Crab-breeze/cb2c92cc-7861-5ced-87a1-fc7ef24deb55/scratchpad/old-target/release/crab-breeze",
+      "env": {},
+      "index": 1,
+      "seconds": 178.7,
+      "csv": "/Users/rubentipparach/Crab-breeze/output/perf/2026-10-24-island/world_before_1.csv",
+      "log": "output/perf/2026-10-24-island/world_before_1.log",
+      "frame_ms": {
+        "n": 20494,
+        "mean": 8.21,
+        "p50": 8.21,
+        "p95": 10.71,
+        "p99": 16.83,
+        "p999": NaN,
+        "max": 44.93
+      },
+      "render_cpu_ms": {},
+      "gpu_total_ms": {},
+      "entities": {},
+      "memory_mb": {
+        "peak": 2190.546875,
+        "median": 2061.625
+      },
+      "passes": {},
+      "notes": [
+        "no frame log (a build from before it): totals from its BENCH line"
+      ],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "fight",
+      "variant": "before",
+      "exe": "/private/tmp/claude-501/-Users-rubentipparach-Crab-breeze/cb2c92cc-7861-5ced-87a1-fc7ef24deb55/scratchpad/old-target/release/crab-breeze",
+      "env": {},
+      "index": 0,
+      "seconds": 91.8,
+      "csv": "/Users/rubentipparach/Crab-breeze/output/perf/2026-10-24-island/fight_before_0.csv",
+      "log": "output/perf/2026-10-24-island/fight_before_0.log",
+      "frame_ms": {
+        "n": 9351,
+        "mean": 8.37,
+        "p50": 8.37,
+        "p95": 10.58,
+        "p99": 11.27,
+        "p999": NaN,
+        "max": 32.92
+      },
+      "render_cpu_ms": {},
+      "gpu_total_ms": {},
+      "entities": {},
+      "memory_mb": {
+        "peak": 2192.484375,
+        "median": 2054.140625
+      },
+      "passes": {},
+      "notes": [
+        "no frame log (a build from before it): totals from its BENCH line"
+      ],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "fight",
+      "variant": "current",
+      "exe": "/Users/rubentipparach/Crab-breeze/target/release/crab-breeze",
+      "env": {},
+      "index": 0,
+      "seconds": 182.2,
+      "csv": "/Users/rubentipparach/Crab-breeze/output/perf/2026-10-24-island/fight_current_0.csv",
+      "log": "output/perf/2026-10-24-island/fight_current_0.log",
+      "frame_ms": {
+        "n": 64793,
+        "mean": 2.645522895991851,
+        "p50": 2.527,
+        "p95": 3.887,
+        "p99": 5.203,
+        "p999": 6.455,
+        "max": 28.506,
+        "over_want": 49,
+        "over_floor": 5
+      },
+      "render_cpu_ms": {
+        "n": 64793,
+        "mean": 0.033323075023538276,
+        "p50": 0.032,
+        "p95": 0.042,
+        "p99": 0.048,
+        "p999": 0.057,
+        "max": 0.553,
+        "over_want": 0,
+        "over_floor": 0
+      },
+      "gpu_total_ms": {},
+      "entities": {
+        "n": 64793,
+        "mean": 16977.297578442114,
+        "p50": 16762.0,
+        "p95": 17963.0,
+        "p99": 18368.0,
+        "p999": 18693.0,
+        "max": 18715.0,
+        "over_want": 64793,
+        "over_floor": 64793
+      },
+      "memory_mb": {
+        "peak": 796.65625,
+        "median": 739.96875
+      },
+      "passes": {
+        "clustering": {
+          "cpu_ms": 0.007,
+          "gpu_ms": 0.0
+        },
+        "main_opaque_pass_3d": {
+          "cpu_ms": 0.004,
+          "gpu_ms": 0.0
+        },
+        "main_transmissive_pass_3d": {
+          "cpu_ms": 0.003,
+          "gpu_ms": 0.0
+        },
+        "uniform_allocation": {
+          "cpu_ms": 0.003,
+          "gpu_ms": 0.0
+        },
+        "main_transparent_pass_3d": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "per_view_shadow_pass": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "early_mesh_preprocessing": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "bin_unpacking": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "tonemapping": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "upscaling": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "auxiliary_views": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        }
+      },
+      "notes": [],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "fight",
+      "variant": "no-shadows",
+      "exe": "/Users/rubentipparach/Crab-breeze/target/release/crab-breeze",
+      "env": {
+        "CB_NO_SHADOWS": "1"
+      },
+      "index": 0,
+      "seconds": 182.2,
+      "csv": "/Users/rubentipparach/Crab-breeze/output/perf/2026-10-24-island/fight_no-shadows_0.csv",
+      "log": "output/perf/2026-10-24-island/fight_no-shadows_0.log",
+      "frame_ms": {
+        "n": 78253,
+        "mean": 2.1908177961228774,
+        "p50": 2.093,
+        "p95": 2.87,
+        "p99": 4.709,
+        "p999": 5.704,
+        "max": 28.134,
+        "over_want": 47,
+        "over_floor": 2
+      },
+      "render_cpu_ms": {
+        "n": 78253,
+        "mean": 0.027051793541458147,
+        "p50": 0.026,
+        "p95": 0.035,
+        "p99": 0.041,
+        "p999": 0.049,
+        "max": 0.489,
+        "over_want": 0,
+        "over_floor": 0
+      },
+      "gpu_total_ms": {},
+      "entities": {
+        "n": 78253,
+        "mean": 16956.089785695116,
+        "p50": 16768.0,
+        "p95": 17861.0,
+        "p99": 18254.0,
+        "p999": 18385.0,
+        "max": 18420.0,
+        "over_want": 78253,
+        "over_floor": 78253
+      },
+      "memory_mb": {
+        "peak": 773.140625,
+        "median": 689.953125
+      },
+      "passes": {
+        "clustering": {
+          "cpu_ms": 0.006,
+          "gpu_ms": 0.0
+        },
+        "main_opaque_pass_3d": {
+          "cpu_ms": 0.004,
+          "gpu_ms": 0.0
+        },
+        "main_transmissive_pass_3d": {
+          "cpu_ms": 0.003,
+          "gpu_ms": 0.0
+        },
+        "main_transparent_pass_3d": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "uniform_allocation": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "upscaling": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "tonemapping": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "early_mesh_preprocessing": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "bin_unpacking": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "auxiliary_views": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "per_view_shadow_pass": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        }
+      },
+      "notes": [],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "fight",
+      "variant": "no-water-fx",
+      "exe": "/Users/rubentipparach/Crab-breeze/target/release/crab-breeze",
+      "env": {
+        "CB_NO_WATER_FX": "1"
+      },
+      "index": 0,
+      "seconds": 182.2,
+      "csv": "/Users/rubentipparach/Crab-breeze/output/perf/2026-10-24-island/fight_no-water-fx_0.csv",
+      "log": "output/perf/2026-10-24-island/fight_no-water-fx_0.log",
+      "frame_ms": {
+        "n": 74746,
+        "mean": 2.2935968346131763,
+        "p50": 2.192,
+        "p95": 2.972,
+        "p99": 4.76,
+        "p999": 5.855,
+        "max": 28.428,
+        "over_want": 47,
+        "over_floor": 2
+      },
+      "render_cpu_ms": {
+        "n": 74746,
+        "mean": 0.022669346854682585,
+        "p50": 0.022,
+        "p95": 0.03,
+        "p99": 0.034,
+        "p999": 0.042,
+        "max": 0.49,
+        "over_want": 0,
+        "over_floor": 0
+      },
+      "gpu_total_ms": {},
+      "entities": {
+        "n": 74746,
+        "mean": 16946.73574505659,
+        "p50": 16757.0,
+        "p95": 17880.0,
+        "p99": 18258.0,
+        "p999": 18395.0,
+        "max": 18416.0,
+        "over_want": 74746,
+        "over_floor": 74746
+      },
+      "memory_mb": {
+        "peak": 768.9375,
+        "median": 705.65625
+      },
+      "passes": {
+        "clustering": {
+          "cpu_ms": 0.006,
+          "gpu_ms": 0.0
+        },
+        "main_opaque_pass_3d": {
+          "cpu_ms": 0.005,
+          "gpu_ms": 0.0
+        },
+        "uniform_allocation": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "main_transparent_pass_3d": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "per_view_shadow_pass": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "bin_unpacking": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "early_mesh_preprocessing": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "upscaling": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "auxiliary_views": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        }
+      },
+      "notes": [],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "fight",
+      "variant": "no-water-fx",
+      "exe": "/Users/rubentipparach/Crab-breeze/target/release/crab-breeze",
+      "env": {
+        "CB_NO_WATER_FX": "1"
+      },
+      "index": 1,
+      "seconds": 182.1,
+      "csv": "/Users/rubentipparach/Crab-breeze/output/perf/2026-10-24-island/fight_no-water-fx_1.csv",
+      "log": "output/perf/2026-10-24-island/fight_no-water-fx_1.log",
+      "frame_ms": {
+        "n": 75689,
+        "mean": 2.2649813711371545,
+        "p50": 2.154,
+        "p95": 2.946,
+        "p99": 5.037,
+        "p999": 5.944,
+        "max": 28.462,
+        "over_want": 47,
+        "over_floor": 3
+      },
+      "render_cpu_ms": {
+        "n": 75689,
+        "mean": 0.022942144829507422,
+        "p50": 0.022,
+        "p95": 0.03,
+        "p99": 0.035,
+        "p999": 0.042,
+        "max": 0.517,
+        "over_want": 0,
+        "over_floor": 0
+      },
+      "gpu_total_ms": {},
+      "entities": {
+        "n": 75689,
+        "mean": 16936.541267555393,
+        "p50": 16758.0,
+        "p95": 17866.0,
+        "p99": 18248.0,
+        "p999": 18327.0,
+        "max": 18354.0,
+        "over_want": 75689,
+        "over_floor": 75689
+      },
+      "memory_mb": {
+        "peak": 759.5,
+        "median": 711.890625
+      },
+      "passes": {
+        "clustering": {
+          "cpu_ms": 0.006,
+          "gpu_ms": 0.0
+        },
+        "main_opaque_pass_3d": {
+          "cpu_ms": 0.005,
+          "gpu_ms": 0.0
+        },
+        "uniform_allocation": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "per_view_shadow_pass": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "main_transparent_pass_3d": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "bin_unpacking": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "early_mesh_preprocessing": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "upscaling": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "auxiliary_views": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        }
+      },
+      "notes": [],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "fight",
+      "variant": "no-shadows",
+      "exe": "/Users/rubentipparach/Crab-breeze/target/release/crab-breeze",
+      "env": {
+        "CB_NO_SHADOWS": "1"
+      },
+      "index": 1,
+      "seconds": 182.1,
+      "csv": "/Users/rubentipparach/Crab-breeze/output/perf/2026-10-24-island/fight_no-shadows_1.csv",
+      "log": "output/perf/2026-10-24-island/fight_no-shadows_1.log",
+      "frame_ms": {
+        "n": 80089,
+        "mean": 2.1402219655632946,
+        "p50": 2.039,
+        "p95": 2.791,
+        "p99": 4.828,
+        "p999": 5.848,
+        "max": 28.346,
+        "over_want": 49,
+        "over_floor": 2
+      },
+      "render_cpu_ms": {
+        "n": 80089,
+        "mean": 0.02618779108242289,
+        "p50": 0.026,
+        "p95": 0.034,
+        "p99": 0.04,
+        "p999": 0.049,
+        "max": 1.446,
+        "over_want": 0,
+        "over_floor": 0
+      },
+      "gpu_total_ms": {},
+      "entities": {
+        "n": 80089,
+        "mean": 16967.738116345565,
+        "p50": 16769.0,
+        "p95": 17928.0,
+        "p99": 18301.0,
+        "p999": 18589.0,
+        "max": 18608.0,
+        "over_want": 80089,
+        "over_floor": 80089
+      },
+      "memory_mb": {
+        "peak": 752.296875,
+        "median": 684.015625
+      },
+      "passes": {
+        "clustering": {
+          "cpu_ms": 0.006,
+          "gpu_ms": 0.0
+        },
+        "main_opaque_pass_3d": {
+          "cpu_ms": 0.004,
+          "gpu_ms": 0.0
+        },
+        "main_transmissive_pass_3d": {
+          "cpu_ms": 0.003,
+          "gpu_ms": 0.0
+        },
+        "main_transparent_pass_3d": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "uniform_allocation": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "upscaling": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "tonemapping": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "early_mesh_preprocessing": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "bin_unpacking": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "auxiliary_views": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "per_view_shadow_pass": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        }
+      },
+      "notes": [],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "fight",
+      "variant": "current",
+      "exe": "/Users/rubentipparach/Crab-breeze/target/release/crab-breeze",
+      "env": {},
+      "index": 1,
+      "seconds": 182.2,
+      "csv": "/Users/rubentipparach/Crab-breeze/output/perf/2026-10-24-island/fight_current_1.csv",
+      "log": "output/perf/2026-10-24-island/fight_current_1.log",
+      "frame_ms": {
+        "n": 65086,
+        "mean": 2.633561334234722,
+        "p50": 2.522,
+        "p95": 3.794,
+        "p99": 5.13,
+        "p999": 6.145,
+        "max": 29.393,
+        "over_want": 48,
+        "over_floor": 5
+      },
+      "render_cpu_ms": {
+        "n": 65086,
+        "mean": 0.03326853701256899,
+        "p50": 0.032,
+        "p95": 0.042,
+        "p99": 0.048,
+        "p999": 0.058,
+        "max": 0.524,
+        "over_want": 0,
+        "over_floor": 0
+      },
+      "gpu_total_ms": {},
+      "entities": {
+        "n": 65086,
+        "mean": 16956.838843991027,
+        "p50": 16764.0,
+        "p95": 17902.0,
+        "p99": 18286.0,
+        "p999": 18383.0,
+        "max": 18401.0,
+        "over_want": 65086,
+        "over_floor": 65086
+      },
+      "memory_mb": {
+        "peak": 782.515625,
+        "median": 724.90625
+      },
+      "passes": {
+        "clustering": {
+          "cpu_ms": 0.007,
+          "gpu_ms": 0.0
+        },
+        "main_opaque_pass_3d": {
+          "cpu_ms": 0.004,
+          "gpu_ms": 0.0
+        },
+        "main_transmissive_pass_3d": {
+          "cpu_ms": 0.003,
+          "gpu_ms": 0.0
+        },
+        "uniform_allocation": {
+          "cpu_ms": 0.003,
+          "gpu_ms": 0.0
+        },
+        "main_transparent_pass_3d": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "per_view_shadow_pass": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "early_mesh_preprocessing": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "bin_unpacking": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "upscaling": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "tonemapping": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "auxiliary_views": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        }
+      },
+      "notes": [],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "fight",
+      "variant": "before",
+      "exe": "/private/tmp/claude-501/-Users-rubentipparach-Crab-breeze/cb2c92cc-7861-5ced-87a1-fc7ef24deb55/scratchpad/old-target/release/crab-breeze",
+      "env": {},
+      "index": 1,
+      "seconds": 183.0,
+      "csv": "/Users/rubentipparach/Crab-breeze/output/perf/2026-10-24-island/fight_before_1.csv",
+      "log": "output/perf/2026-10-24-island/fight_before_1.log",
+      "frame_ms": {
+        "n": 19949,
+        "mean": 8.38,
+        "p50": 8.38,
+        "p95": 10.53,
+        "p99": 11.64,
+        "p999": NaN,
+        "max": 42.91
+      },
+      "render_cpu_ms": {},
+      "gpu_total_ms": {},
+      "entities": {},
+      "memory_mb": {
+        "peak": 2287.109375,
+        "median": 2150.40625
+      },
+      "passes": {},
+      "notes": [
+        "no frame log (a build from before it): totals from its BENCH line"
+      ],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    }
+  ]
+}

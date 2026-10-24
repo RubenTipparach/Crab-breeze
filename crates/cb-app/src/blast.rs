@@ -71,6 +71,8 @@ fn explode(
             live.dirty_tiles.extend(touched);
         }
         if on_ground {
+            // A blast far from every body grows the trees it reaches first (island-world).
+            live.forest.grow_around(&plan, xz, r * 4.0);
             let broke = live.forest.blast(xz, r * 4.0, 400_000.0 * e.energy_mj.sqrt());
             live.moved_trees.extend(broke);
         }

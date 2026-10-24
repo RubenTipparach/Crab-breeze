@@ -156,22 +156,28 @@ fn play(
                     .unwrap_or(Vec3::new(here.x, 800.0, here.y - 800.0));
                 let cloud_xz = Vec2::new(take.cloud.x, take.cloud.z);
                 let mut best = (f32::MIN, here, here);
+                // Trees grow only near bodies (island-world), so probe a copy of the forest grown
+                // round each river point within 3 km of the cloud.
+                let mut probe = live.forest.clone();
                 for r in &plan.waters.rivers {
                     for q in r.path.iter().step_by(3) {
-                        let trees: Vec<u32> = live.forest.near(*q, 160.0);
+                        if q.distance(cloud_xz) > 3000.0 {
+                            continue;
+                        }
+                        probe.grow_around(&plan, *q, 160.0);
+                        let trees: Vec<u32> = probe.near(*q, 160.0);
                         let dry = trees
                             .iter()
-                            .filter(|id| {
-                                plan.water_at(live.forest.trees[**id as usize].base.x, live.forest.trees[**id as usize].base.z)
-                                    .is_none()
-                            })
+                            .filter_map(|id| probe.tree(*id))
+                            .filter(|t| plan.water_at(t.base.x, t.base.z).is_none())
                             .count() as f32;
                         let score = dry - q.distance(cloud_xz) / 15.0;
                         if score > best.0 {
                             // The nearest dry tree, and on into the wood beyond it.
                             let tree = trees
                                 .iter()
-                                .map(|id| live.forest.trees[*id as usize].base)
+                                .filter_map(|id| probe.tree(*id))
+                                .map(|t| t.base)
                                 .filter(|b| plan.water_at(b.x, b.z).is_none())
                                 .map(|b| Vec2::new(b.x, b.z))
                                 .min_by(|a, b| a.distance(*q).total_cmp(&b.distance(*q)))
