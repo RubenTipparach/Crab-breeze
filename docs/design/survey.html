@@ -151,9 +151,12 @@ const SECTIONS = [
   { tag: 'M', name: 'The mech',
     lead: 'The first mech is the yardstick for every building and person. Its size sets the city scale.',
     qs: [
-      { id: 'M6', q: 'Which chassis do we build first? See all three at true scale, and from their cockpits, on the Crab Breeze Mechs page.',
-        options: ['Breeze: ours, reverse knees, sealed screen cockpit, swept jet nacelles', 'Bulwark: Mining Mike\'s Uber mech, planted and square, shield and breaker cannon', 'Ravager: Mining Mike\'s rival Uber mech, hunched, twin rail lances', 'A mix (say which parts in the note)'], rec: 0,
-        why: 'Breeze fits Ace Combat best: a chest pod with a wide screen wall, jets ready for flight, back knees for skating.' },
+      { id: 'M6', q: 'Which chassis do we build first? Watch all three kneel and open their chests on the Crab Breeze Mechs page.',
+        options: ['Warden: heavy, planted, breach cannon and tower shield; the chest opens like a clamshell', 'Lancer: fast reverse knees, rail lance and twin SMGs; the chest opens in petal doors', 'Atlas: tall siege gunner, shoulder rail cannon and missile battery; the front lowers like a drawbridge', 'A mix (say which parts in the note)'], rec: 0,
+        why: 'Warden reads as a mech you can trust at a glance, fits the seated screen-wall cockpit you referenced, and its back cradle carries the flight jets.' },
+      { id: 'C8', q: 'Which cockpit do we build first? Each chassis carries one; sit in them on the Crab Breeze Mechs page.',
+        options: ['Wall: seated, twin grips, a flat screen wall (Warden)', 'Jockey: leaning forward on a saddle with handlebar grips, low wide screens (Lancer)', 'Harness: standing upright with forearm controls, a flat octagon of screens (Atlas)', 'Each chassis keeps its own'], rec: 0,
+        why: 'Seated is the most comfortable to play for long missions and matches your Armored Core, Titanfall and Gundam references; the others can follow with their chassis.' },
       { id: 'M7', q: 'A leg is blown off. What can the mech still do?',
         options: ['Limp on the good leg and the stump at under a quarter speed; with both legs gone it sits and can only twist and fire', 'Fall and stay down; it can only twist and fire', 'Hop on the jets only'], rec: 0,
         why: 'You asked for a limp; a slow, lurching retreat is a great moment in the cockpit.' },
@@ -222,6 +225,8 @@ const SECTIONS = [
 ];
 
 const DECIDED = [
+  { text: 'Breeze is retired ("Breeze me h sucks"). The cockpit is inside the mech\'s chest and the chest armour opens to board, in Mining Mike\'s boss style.', where: 'tools/blender/build_mechs.py, mech_boarding.py; docs/design/cockpit.md' },
+  { text: 'Alien crabs have no big claws: their arms are guns, swords and missile launchers ("It\'s claws are guns or swords or missile launchers").', where: 'tools/blender/build_alien_mechs.py, docs/design/alien-rig.md' },
   { text: 'C3 The cockpit is lit live with full PBR (base colour, normal, ORM, emission maps on every custom texture); occlusion is baked into the maps, light is not. Target: a high-end PC with an RTX 3070. Your words: "I want normal maps, speculat maps and ao for all our custom textures. Aim for that pbr triple a goodness that bevy provides".', where: 'CLAUDE.md sections 1, 7, 10; docs/design/cockpit.md' },
   { text: 'The cockpit is a boxy cabin of flat screens, not a curved dome. Your words: "The curved ones are just fish eye pov".', where: 'docs/design/cockpit.md' },
   { text: 'G1 Setting: alternate history, 1980s industrial mechs.', where: 'CLAUDE.md section 1; world and art changes' },
