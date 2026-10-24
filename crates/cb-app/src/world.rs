@@ -5,13 +5,14 @@
 use crate::pilot::PilotCamera;
 use crate::sim::Data;
 use crate::sim::{PresentSet, SimSet};
+use crate::water_render::WaterMaterial;
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::visibility::VisibilityRange;
-use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::light::{CascadeShadowConfigBuilder, NotShadowCaster};
 use bevy::mesh::Indices;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, PrimitiveTopology, TextureDimension, TextureFormat};
+use cb_core::water_look::WaterLook;
 use cb_core::world::{ChunkMesh, Deformation, Forest, TreeState, WorldPlan, generate};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -97,10 +98,7 @@ impl Plugin for WorldPlugin {
                 ),
             )
             .add_systems(FixedUpdate, fell_trees.in_set(SimSet::Mech).after(crate::mech::step_mech))
-            .add_systems(
-                Update,
-                (redraw_craters, redraw_trees, scroll_water, face_clouds).in_set(PresentSet::Pose),
-            );
+            .add_systems(Update, (redraw_craters, redraw_trees, face_clouds).in_set(PresentSet::Pose));
     }
 }
 
@@ -612,75 +610,11 @@ fn spawn_sun(mut commands: Commands) {
     ));
 }
 
-/// Water surfaces scroll their ripple normals with time.
-#[derive(Component)]
-struct WaterSurface {
-    material: Handle<StandardMaterial>,
-    flow: Vec2,
-}
-
-/// A tiling ripple normal map from a few crossing sine waves (stands in for a Material Maker map).
-fn ripple_normals(images: &mut Assets<Image>) -> Handle<Image> {
-    const N: usize = 256;
-    let mut data = Vec::with_capacity(N * N * 4);
-    let tau = std::f32::consts::TAU;
-    let waves: [(f32, f32, f32, f32); 4] = [
-        (1.0, 0.0, 3.0, 0.5),
-        (0.3, 1.0, 5.0, 0.35),
-        (-0.7, 0.6, 7.0, 0.25),
-        (0.5, -0.8, 11.0, 0.15),
-    ];
-    for j in 0..N {
-        for i in 0..N {
-            let (u, v) = (i as f32 / N as f32, j as f32 / N as f32);
-            let (mut dx, mut dz) = (0.0, 0.0);
-            for (ax, az, f, a) in waves {
-                // Integer frequencies along whole-number directions keep the map tiling.
-                let k = (ax * f).round() * u + (az * f).round() * v;
-                let c = (tau * k).cos() * a;
-                dx += c * (ax * f).round() * 0.08;
-                dz += c * (az * f).round() * 0.08;
-            }
-            let n = Vec3::new(-dx, -dz, 1.0).normalize();
-            data.extend_from_slice(&[
-                ((n.x * 0.5 + 0.5) * 255.0) as u8,
-                ((n.y * 0.5 + 0.5) * 255.0) as u8,
-                ((n.z * 0.5 + 0.5) * 255.0) as u8,
-                255,
-            ]);
-        }
-    }
-    let mut image = Image::new(
-        Extent3d {
-            width: N as u32,
-            height: N as u32,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        data,
-        TextureFormat::Rgba8Unorm,
-        RenderAssetUsages::RENDER_WORLD,
-    );
-    image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
-        address_mode_u: ImageAddressMode::Repeat,
-        address_mode_v: ImageAddressMode::Repeat,
-        mag_filter: ImageFilterMode::Linear,
-        min_filter: ImageFilterMode::Linear,
-        mipmap_filter: ImageFilterMode::Linear,
-        ..default()
-    });
-    images.add(image)
-}
-
-fn water_material(materials: &mut Assets<StandardMaterial>, normals: &Handle<Image>) -> Handle<StandardMaterial> {
-    materials.add(StandardMaterial {
-        base_color: Color::srgba(0.10, 0.24, 0.27, 0.82),
-        perceptual_roughness: 0.06,
-        reflectance: 0.6,
-        normal_map_texture: Some(normals.clone()),
-        alpha_mode: AlphaMode::Blend,
-        ..default()
-    })
+/// The one water material (openspec change `water-rendering`): every river, lake and the ocean is
+/// drawn with a `WaterMaterial` made here. A mesh carries its water's flow, if any, in its vertex
+/// colour (rg, metres a second along x and z); without vertex colour the water is still.
+pub fn water_material(materials: &mut Assets<WaterMaterial>, look: &WaterLook) -> Handle<WaterMaterial> {
+    materials.add(WaterMaterial::new(look))
 }
 
 fn spawn_water(
@@ -688,9 +622,10 @@ fn spawn_water(
     plan: Res<Plan>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut images: ResMut<Assets<Image>>,
+    mut water_materials: ResMut<Assets<WaterMaterial>>,
+    data: Res<Data>,
 ) {
-    let normals = ripple_normals(&mut images);
+    let water = water_material(&mut water_materials, &data.0.water_look);
     let w = &plan.waters;
     // Lakes: one sheet at sea level over the whole world; the hills hide it where they rise.
     let size = plan.terrain.cell_m * (plan.terrain.n - 1) as f32 + 2000.0;
@@ -702,22 +637,18 @@ fn spawn_water(
         }
     }
     let sheet = meshes.add(sheet.clone().with_generated_tangents().unwrap_or(sheet));
-    let lake_mat = water_material(&mut materials, &normals);
     commands.spawn((
         Name::new("lakes"),
         Mesh3d(sheet),
-        MeshMaterial3d(lake_mat.clone()),
+        MeshMaterial3d(water.clone()),
         Transform::from_xyz(0.0, w.sea_level_m, 0.0),
         NotShadowCaster,
-        WaterSurface {
-            material: lake_mat,
-            flow: Vec2::new(0.004, 0.002),
-        },
     ));
     // Rivers: a strip along each course at its surface, tucked 2 m into the banks.
     for (ri, r) in w.rivers.iter().enumerate() {
         let mut positions = Vec::new();
         let mut uvs = Vec::new();
+        let mut flow = Vec::new();
         let mut along = 0.0;
         for i in 0..r.path.len() {
             let p = r.path[i];
@@ -735,6 +666,8 @@ fn spawn_water(
                 let q = p + side * k;
                 positions.push([q.x, r.surface_m[i], q.y]);
                 uvs.push([s * r.half_width_m[i] / 12.0, along / 24.0]);
+                // The water's flow, for the water material (rg, metres a second).
+                flow.push([d.x * w.flow_m_s, d.y * w.flow_m_s, 0.0, 1.0]);
             }
         }
         let mut indices = Vec::new();
@@ -747,18 +680,13 @@ fn spawn_water(
             .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
             .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 1.0, 0.0]; n])
             .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, flow)
             .with_inserted_indices(Indices::U32(indices));
-        let mesh = mesh.clone().with_generated_tangents().unwrap_or(mesh);
-        let mat = water_material(&mut materials, &normals);
         commands.spawn((
             Name::new(format!("river {ri}")),
             Mesh3d(meshes.add(mesh)),
-            MeshMaterial3d(mat.clone()),
+            MeshMaterial3d(water.clone()),
             NotShadowCaster,
-            WaterSurface {
-                material: mat,
-                flow: Vec2::new(0.0, -w.flow_m_s / 24.0),
-            },
         ));
     }
     // Bridges: a deck and two piers (placeholder boxes until a blender-csg-levels model).
@@ -789,15 +717,6 @@ fn spawn_water(
                     .with_rotation(rot)
                     .with_scale(Vec3::new(b.width_m * 0.6, h, 2.5)),
             ));
-        }
-    }
-}
-
-fn scroll_water(time: Res<Time>, q: Query<&WaterSurface>, mut materials: ResMut<Assets<StandardMaterial>>) {
-    let t = time.elapsed_secs();
-    for w in &q {
-        if let Some(mut m) = materials.get_mut(&w.material) {
-            m.uv_transform = bevy::math::Affine2::from_translation(w.flow * t);
         }
     }
 }

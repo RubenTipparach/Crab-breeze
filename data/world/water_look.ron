@@ -1,0 +1,61 @@
+// How the water looks, above and below, and the water on the glass after surfacing
+// (openspec/changes/water-rendering/design.md section 4). Every field is the code default written
+// out (crates/cb-core/src/water_look.rs); omit one to inherit it, a zero is a zero. Units are in
+// the keys or the Rust docs. Ported from Pale Blue Dot's water.ron and weather.ron (db25fe2);
+// where a value differs the design says why.
+(
+    // The surface.
+    time_scale: 0.75,
+    ripple_scale_per_m: 0.6,
+    ripple_speed: 1.0,
+    ripple_steepness: 0.45,
+    slope_max: 0.7,
+    detail_fade: 4.0,
+    flow_period_s: 4.0,
+    // The swell, in the normals only (the surface stays at the simulation's height).
+    swell_wavelength_m: (60.0, 23.0, 9.0),
+    swell_height_m: (0.35, 0.12, 0.05),
+    swell_heading_deg: (20.0, 75.0, -40.0),
+
+    // Looking in: refraction and absorption (survey WR1: clearer than Pale Blue Dot's 0.90, 0.25, 0.08).
+    refract_amount: 0.04,
+    refract_max_uv: 0.03,
+    max_path_m: 200.0,
+    light_falloff: 1.0,
+    absorption_per_m: (0.45, 0.12, 0.06),
+    deep_color: (0.0, 0.12, 0.28),
+
+    // The sky mirrored (its horizon is the game's sky colour).
+    sky_zenith_color: (0.03, 0.18, 0.55),
+    sky_horizon_strength: 0.22,
+
+    // Foam.
+    foam_color: (0.95, 0.97, 1.0),
+    foam_intensity: 0.10,
+    foam_crest: (0.35, 0.60),
+    foam_crest_weight: 0.55,
+    foam_slope: (0.50, 1.20),
+    foam_slope_weight: 0.26,
+    shore_foam_m: 1.5,
+    shore_foam_weight: 0.6,
+
+    // The sun's glint.
+    specular_intensity: 0.06,
+    specular_power: 140.0,
+    sun_tint: (1.10, 1.15, 1.20),
+
+    // Under water and surfacing.
+    underwater_distortion: 0.0015,
+    wet_blur: 0.02,
+    partial_band_m: 0.8,
+    emerge_dry_s: 2.6,
+    cabin_dry_radius_m: 2.5,
+
+    // The drops on the glass (Pale Blue Dot's rain_lens_*). Rain stays off until weather exists.
+    lens_density: 1.4,
+    lens_refract: 1.7,
+    lens_speed: 1.0,
+    lens_size: 0.7,
+    lens_scale: 2.0,
+    lens_rain: 0.0,
+)
