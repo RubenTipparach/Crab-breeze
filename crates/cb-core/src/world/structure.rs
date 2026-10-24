@@ -15,6 +15,8 @@ use glam::Vec3;
 
 /// The ground, as a support.
 pub const GROUND: u32 = u32::MAX;
+/// `Element::side` of anything that is not a wall.
+pub const NO_SIDE: u8 = u8::MAX;
 
 /// What an element is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,6 +49,8 @@ pub struct Element {
     pub storey: u32,
     /// Cell (slab, wall) or node (column) on the grid, as (x, z) indices.
     pub at: [u32; 2],
+    /// Facade side of a wall (0 faces -z, 1 +z, 2 -x, 3 +x); `NO_SIDE` for the rest.
+    pub side: u8,
     /// Least corner of its box.
     pub min: Vec3,
     /// Greatest corner of its box.
@@ -374,6 +378,7 @@ impl Frame {
                         cfg.wall_hp_mj,
                         rests,
                     );
+                    f.elements[id as usize].side = side as u8;
                     let wi = f.wall_index(k, side, idx);
                     f.walls[wi] = id;
                 }
@@ -408,6 +413,7 @@ impl Frame {
             kind,
             storey: storey as u32,
             at: [at[0] as u32, at[1] as u32],
+            side: NO_SIDE,
             min,
             max,
             mass_kg,

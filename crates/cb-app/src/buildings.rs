@@ -1,12 +1,31 @@
 //! Building drawing and timing for `structural-destruction`: a whole building is one box; a
-//! damaged one is rebuilt from its standing cells (a face only where the cell beside it is gone),
-//! and a building with nothing standing is hidden. Each fixed step advances the frames' clock so
-//! overloaded members fail when their creak runs out.
+//! damaged one is drawn from its structural frame (facade panels in the building's facade
+//! material, floors and columns in bare concrete) in bands of four storeys, and only a band whose
+//! standing elements changed is rebuilt. Each fixed step advances the frames' clock so overloaded
+//! members fail when their creak runs out and falling parts land.
 
 use crate::sim::{PresentSet, SimSet};
 use crate::world::{Live, MeshBuilder};
 use bevy::prelude::*;
 use cb_core::world::destruct::Cells;
+use cb_core::world::structure::{Frame, Kind};
+use std::collections::HashMap;
+
+/// Storeys per drawn band of a damaged building.
+const BAND_STOREYS: u32 = 4;
+
+/// Materials buildings are drawn with: the facade tones (by id) and bare structure.
+#[derive(Resource)]
+pub struct BuildingLooks {
+    /// Facade materials, picked by building id modulo the count.
+    pub tones: Vec<Handle<StandardMaterial>>,
+    /// Exposed floors and columns.
+    pub structure: Handle<StandardMaterial>,
+}
+
+/// A damaged building's drawn bands: per band, its entities and the standing count it was drawn with.
+#[derive(Resource, Default)]
+struct DrawnBands(HashMap<u32, Vec<Option<(Vec<Entity>, usize)>>>);
 
 /// Building entities by id.
 #[derive(Resource, Default)]
@@ -18,6 +37,7 @@ pub struct BuildingsPlugin;
 impl Plugin for BuildingsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<BuildingEntities>()
+            .init_resource::<DrawnBands>()
             .add_systems(FixedUpdate, step_structures.in_set(SimSet::World))
             .add_systems(Update, redraw_buildings.in_set(PresentSet::Pose));
     }
@@ -110,20 +130,138 @@ fn step_structures(time: Res<Time<Fixed>>, mut live: ResMut<Live>) {
     }
 }
 
-fn redraw_buildings(mut commands: Commands, mut live: ResMut<Live>, ents: Res<BuildingEntities>, mut meshes: ResMut<Assets<Mesh>>) {
+/// The meshes of band `band` of a frame: (facade panels, floors and columns). Columns are drawn
+/// 1 cm thinner than they are and side walls stop short of the corner walls, so no two faces share
+/// a plane (CLAUDE.md section 10).
+fn band_meshes(f: &Frame, band: u32, wall_m: f32) -> (Mesh, Mesh, usize) {
+    let mut facade = MeshBuilder::tiled(4.0, 3.5);
+    let mut bare = MeshBuilder::tiled(4.0, 4.0);
+    let white = [1.0; 4];
+    let (k0, k1) = (band * BAND_STOREYS, (band + 1) * BAND_STOREYS);
+    let mut standing = 0;
+    for e in f.elements.iter().filter(|e| e.alive && e.storey >= k0 && e.storey < k1) {
+        standing += 1;
+        match e.kind {
+            Kind::Wall => {
+                let (mut lo, mut hi) = (e.min, e.max);
+                if e.side >= 2 {
+                    if e.at[1] == 0 {
+                        lo.z += wall_m;
+                    }
+                    if e.at[1] as usize + 1 == f.n[2] {
+                        hi.z -= wall_m;
+                    }
+                }
+                facade.block(lo, hi, white);
+            }
+            Kind::Column => bare.block(e.min + Vec3::new(0.01, 0.0, 0.01), e.max - Vec3::new(0.01, 0.0, 0.01), white),
+            Kind::Slab => bare.block(e.min, e.max, [0.85, 0.85, 0.85, 1.0]),
+        }
+    }
+    (facade.build(), bare.build(), standing)
+}
+
+fn redraw_buildings(
+    mut commands: Commands,
+    mut live: ResMut<Live>,
+    ents: Res<BuildingEntities>,
+    looks: Option<Res<BuildingLooks>>,
+    mut drawn: ResMut<DrawnBands>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
     if live.dirty_buildings.is_empty() || ents.0.is_empty() {
         return;
     }
+    let Some(looks) = looks else { return };
     let mut ids = std::mem::take(&mut live.dirty_buildings);
     ids.sort_unstable();
     ids.dedup();
+    let wall_m = live.structures.cfg.wall_m;
     for id in ids {
         let c = &live.structures.buildings[id as usize];
         let e = ents.0[id as usize];
-        if c.standing == 0 {
-            commands.entity(e).insert(Visibility::Hidden);
+        let Some(f) = c.frame.as_ref() else {
+            // No frame (an old save, a test): the cell view.
+            if c.standing == 0 {
+                commands.entity(e).insert(Visibility::Hidden);
+            } else {
+                commands.entity(e).insert((Mesh3d(meshes.add(cells_mesh(c))), Transform::IDENTITY));
+            }
             continue;
+        };
+        // The whole-building box gives way to the frame's bands.
+        commands.entity(e).insert(Visibility::Hidden);
+        let bands = (f.n[1] as u32).div_ceil(BAND_STOREYS);
+        let slots = drawn.0.entry(id).or_insert_with(|| vec![None; bands as usize]);
+        for band in 0..bands {
+            let (k0, k1) = (band * BAND_STOREYS, (band + 1) * BAND_STOREYS);
+            let now = f.elements.iter().filter(|e| e.alive && e.storey >= k0 && e.storey < k1).count();
+            let slot = &mut slots[band as usize];
+            if slot.as_ref().is_some_and(|(_, was)| *was == now) {
+                continue;
+            }
+            if let Some((old, _)) = slot.take() {
+                for o in old {
+                    commands.entity(o).despawn();
+                }
+            }
+            if now == 0 {
+                *slot = Some((Vec::new(), 0));
+                continue;
+            }
+            let (facade, bare, _) = band_meshes(f, band, wall_m);
+            let tone = looks.tones[id as usize % looks.tones.len()].clone();
+            let a = commands
+                .spawn((
+                    Name::new(format!("building {id} band {band} facade")),
+                    Mesh3d(meshes.add(facade)),
+                    MeshMaterial3d(tone),
+                    Transform::IDENTITY,
+                ))
+                .id();
+            let b = commands
+                .spawn((
+                    Name::new(format!("building {id} band {band} structure")),
+                    Mesh3d(meshes.add(bare)),
+                    MeshMaterial3d(looks.structure.clone()),
+                    Transform::IDENTITY,
+                ))
+                .id();
+            *slot = Some((vec![a, b], now));
         }
-        commands.entity(e).insert((Mesh3d(meshes.add(cells_mesh(c))), Transform::IDENTITY));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cb_core::world::StructureConfig;
+
+    fn frame() -> Frame {
+        Frame::new(3, [4, 9, 3], Vec3::ZERO, Vec3::new(6.0, 3.5, 6.0), &StructureConfig::default())
+    }
+
+    #[test]
+    fn a_band_draws_every_standing_element_of_its_storeys() {
+        let f = frame();
+        let per_storey = f.elements.iter().filter(|e| e.storey == 0).count();
+        let (_, _, n0) = band_meshes(&f, 0, 0.3);
+        let (_, _, n2) = band_meshes(&f, 2, 0.3);
+        assert_eq!(n0, per_storey * 4);
+        assert_eq!(n2, per_storey, "the last band holds the ninth storey only");
+    }
+
+    #[test]
+    fn a_broken_element_leaves_its_band() {
+        let mut f = frame();
+        let id = f.elements.iter().position(|e| e.kind == Kind::Wall && e.storey == 5).unwrap();
+        let before = band_meshes(&f, 1, 0.3).2;
+        f.elements[id].alive = false;
+        assert_eq!(band_meshes(&f, 1, 0.3).2, before - 1);
+        assert_eq!(
+            band_meshes(&f, 0, 0.3).2,
+            band_meshes(&frame(), 0, 0.3).2,
+            "other bands are untouched"
+        );
     }
 }

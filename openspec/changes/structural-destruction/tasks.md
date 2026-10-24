@@ -15,7 +15,8 @@
 - [ ] 1.7 Move `building-destruction`'s tests across; archive it as superseded
 
 ## 2. App
-- [ ] 2.1 `BuildingMask` extended material, prepass and shadow included
+- [x] 2.0 A damaged building is drawn from its frame (facade panels in its facade material, floors and columns in bare concrete) in bands of 4 storeys; only a band whose standing count changed is rebuilt (tests: `a_band_draws_every_standing_element_of_its_storeys`, `a_broken_element_leaves_its_band`)
+- [ ] 2.1 `BuildingMask` extended material, prepass and shadow included (replaces the band rebuild; needs a custom vertex attribute and vertex, prepass and shadow shaders in Bevy 0.20, so it waits until it can be looked at in the running game)
 - [ ] 2.2 Piece pool from `FRAC_` cells; Avian for the first 600
 - [ ] 2.3 Damage-stage decals and holed variants
 - [ ] 2.4 Measured in `perf-bench` during the `side` demolition

@@ -78,6 +78,26 @@ struct Ground {
 /// Ground colour: grass on the level, earth on slopes, sand on the beaches, silt under the sea,
 /// mud by rivers, scorch in craters. Vertex colours stand in until the PBR layers of
 /// `terrain-materials` arrive.
+/// Ground under a rubble heap (openspec change `rubble`): dusty broken concrete flecked with brick,
+/// blended in as the heap deepens from 0.2 m to 0.6 m (crater rims stay ground). A stand-in until
+/// the `rubble` layer of `terrain-materials` exists.
+fn rubble_colour(ground: [f32; 4], depth_m: f32, i: usize, j: usize) -> [f32; 4] {
+    let w = ((depth_m - 0.2) / 0.4).clamp(0.0, 1.0);
+    if w <= 0.0 {
+        return ground;
+    }
+    // A stable per-sample fleck: brick in about one sample in six, lighter and darker concrete.
+    let h = (i as u32).wrapping_mul(73_856_093) ^ (j as u32).wrapping_mul(19_349_663);
+    let f = (h % 1000) as f32 / 1000.0;
+    let rubble = if f < 0.16 {
+        Vec3::new(0.52, 0.30, 0.22)
+    } else {
+        Vec3::splat(0.44 + 0.18 * f) * Vec3::new(1.0, 0.97, 0.92)
+    };
+    let c = Vec3::new(ground[0], ground[1], ground[2]).lerp(rubble, w);
+    [c.x, c.y, c.z, ground[3]]
+}
+
 fn ground_colour(p: Vec3, n: Vec3, sea_level_m: f32, wet: bool, scorch: f32) -> [f32; 4] {
     let slope = ((1.0 - n.y).clamp(0.0, 1.0) * 6.0).min(1.0);
     let k = (p.y * 0.05).sin() * 0.04 + ((p.x * 0.013).sin() * (p.z * 0.011).cos()) * 0.03;
@@ -373,7 +393,8 @@ fn redraw_craters(
             .enumerate()
             .map(|(k, (p, n))| {
                 let (i, j) = (k % cb_core::world::deform::TILE_N, k / cb_core::world::deform::TILE_N);
-                ground_colour(*p, *n, sea, false, live.dug.scorch_at(*key, i, j))
+                let c = ground_colour(*p, *n, sea, false, live.dug.scorch_at(*key, i, j));
+                rubble_colour(c, live.dug.delta_sample(*key, i, j), i, j)
             })
             .collect();
         let mesh = meshes.add(chunk_to_mesh(tile, colors));

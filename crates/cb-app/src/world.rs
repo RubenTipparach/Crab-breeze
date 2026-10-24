@@ -184,6 +184,15 @@ impl MeshBuilder {
         self.quad([v(x0, y0, z0), v(x0, y0, z1), v(x0, y1, z1), v(x0, y1, z0)], color);
     }
 
+    /// A closed box, bottom face included (for pieces seen from below, as floors through a hole).
+    pub fn block(&mut self, min: Vec3, max: Vec3, color: [f32; 4]) {
+        self.cuboid(min, max, color);
+        let [x0, y0, z0] = min.to_array();
+        let [x1, _, z1] = max.to_array();
+        let v = |x, y, z| Vec3::new(x, y, z);
+        self.quad([v(x0, y0, z0), v(x1, y0, z0), v(x1, y0, z1), v(x0, y0, z1)], color);
+    }
+
     fn tri(&mut self, a: Vec3, b: Vec3, c: Vec3, n: [Vec3; 3], color: [f32; 4]) {
         let base = self.positions.len() as u32;
         let face = (b - a).cross(c - a).normalize_or(Vec3::Y);
@@ -394,6 +403,14 @@ fn spawn_buildings(
             perceptual_roughness: 0.75,
             ..default()
         })
+    });
+    commands.insert_resource(crate::buildings::BuildingLooks {
+        tones: tones.to_vec(),
+        structure: materials.add(StandardMaterial {
+            base_color: Color::srgb(0.66, 0.64, 0.6),
+            perceptual_roughness: 0.9,
+            ..default()
+        }),
     });
     for b in &world.buildings {
         let ground = world.cities[b.city as usize].ground_m;

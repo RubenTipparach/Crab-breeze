@@ -257,6 +257,11 @@ impl Deformation {
         touched
     }
 
+    /// The height change at a tile sample (rubble above zero, craters below).
+    pub fn delta_sample(&self, key: (i32, i32), i: usize, j: usize) -> f32 {
+        self.tiles.get(&key).map_or(0.0, |t| t[j * TILE_N + i])
+    }
+
     /// Scorch at a tile sample, 0..1.
     pub fn scorch_at(&self, key: (i32, i32), i: usize, j: usize) -> f32 {
         self.scorch.get(&key).map_or(0.0, |s| s[j * TILE_N + i])
