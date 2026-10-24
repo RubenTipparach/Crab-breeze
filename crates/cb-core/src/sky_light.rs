@@ -24,6 +24,8 @@ pub struct SkyLightConfig {
     pub ambient_cd_m2: f32,
     /// The flat ambient when there is no sky cube, cd/m2.
     pub ambient_without_sky_cd_m2: f32,
+    /// The flat ambient's colour, sRGB 0..1.
+    pub ambient_colour: [f32; 3],
     /// The buildings' window glass.
     pub glass: GlassLook,
 }
@@ -57,6 +59,7 @@ impl Default for SkyLightConfig {
             yaw_deg: 0.0,
             ambient_cd_m2: 250.0,
             ambient_without_sky_cd_m2: 900.0,
+            ambient_colour: [1.0, 0.96, 0.9],
             glass: GlassLook::default(),
         }
     }
@@ -81,6 +84,7 @@ impl Validate for SkyLightConfig {
         within("ambient_cd_m2", self.ambient_cd_m2, 0.0, 100_000.0)?;
         within("ambient_without_sky_cd_m2", self.ambient_without_sky_cd_m2, 0.0, 100_000.0)?;
         finite3("glass.tint", self.glass.tint)?;
+        finite3("ambient_colour", self.ambient_colour)?;
         if self.glass.tint.iter().any(|c| !(0.0..=1.0).contains(c)) {
             return Err(format!("`glass.tint` must be within 0..1, got {:?}", self.glass.tint));
         }

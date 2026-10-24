@@ -116,12 +116,14 @@ impl Plugin for WorldPlugin {
             plan.waters.sea_level_m,
             plan.clouds.puffs.len()
         );
-        let ambient_cd_m2 = crate::sky_light::ambient_cd_m2(&app.world().resource::<Data>().0.sky_light);
+        let sky = app.world().resource::<Data>().0.sky_light.clone();
+        let ambient_cd_m2 = crate::sky_light::ambient_cd_m2(&sky);
+        let [ar, ag, ab] = sky.ambient_colour;
         app.insert_resource(live)
             .insert_resource(Plan(Arc::new(plan)))
             .insert_resource(ClearColor(SKY))
             .insert_resource(GlobalAmbientLight {
-                color: Color::srgb(0.75, 0.82, 1.0),
+                color: Color::srgb(ar, ag, ab),
                 // Under the scattering sky the exposure is darker by the step from Bevy's default
                 // EV100 9.7 to the view's, so the ambient rises by the same factor.
                 brightness: ambient_cd_m2 * exposure_scale(&cfg.view),

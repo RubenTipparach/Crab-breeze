@@ -12,6 +12,10 @@
     // The flat fill kept under the sky light, and the old flat ambient used without it.
     ambient_cd_m2: 250.0,
     ambient_without_sky_cd_m2: 900.0,
+    // The flat fill's colour. It was a sky blue (0.75, 0.82, 1.0) from before the sky light; under
+    // the blue sky cube that tinted the shade twice and the streets read blue-grey (owner: "Some
+    // colour balance maybe?"), so it is a neutral warm white now.
+    ambient_colour: (1.0, 0.96, 0.9),
     // Window glass: premultiplied, so its reflections are added in full and only what is behind
     // is dimmed by alpha. Reflectance 0.9 is about 13 % at normal incidence (coated tower glass;
     // 0.5 is plain 4 % glass); Fresnel takes it toward a mirror at grazing angles. Alpha 0.55
