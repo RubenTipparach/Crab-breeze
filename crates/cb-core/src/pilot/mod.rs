@@ -31,6 +31,9 @@ pub struct PilotConfig {
     pub board_reach_m: f32,
     /// Speed of the eyes along the boarding path (climbing the stair).
     pub climb_speed_m_s: f32,
+    /// Seated, the view stays within this of the mech's nose unless free look is held
+    /// (openspec change `seated-look`).
+    pub seated_look_limit_deg: f32,
 }
 
 impl Default for PilotConfig {
@@ -45,6 +48,7 @@ impl Default for PilotConfig {
             max_wade_depth_m: 1.2,
             board_reach_m: 25.0,
             climb_speed_m_s: 7.0,
+            seated_look_limit_deg: 90.0,
         }
     }
 }
@@ -60,6 +64,7 @@ impl Validate for PilotConfig {
         positive("max_wade_depth_m", self.max_wade_depth_m)?;
         positive("board_reach_m", self.board_reach_m)?;
         positive("climb_speed_m_s", self.climb_speed_m_s)?;
+        within("seated_look_limit_deg", self.seated_look_limit_deg, 1.0, 179.0)?;
         Ok(())
     }
 }
@@ -169,6 +174,8 @@ pub struct PilotState {
     pub pitch_rad: f32,
     /// Seated: where `EYE_pilot` was at the last step.
     pub seated_eye: Vec3,
+    /// Seated: the view's yaw from the mech's nose after the last step (`coupled_look`).
+    pub seated_rel_rad: f32,
     /// Where the pilot is.
     pub mode: PilotMode,
     /// Waiting for the hatch, after pressing Use.
@@ -190,6 +197,42 @@ pub enum PilotEvent {
     Disembarked,
 }
 
+/// An angle wrapped to -pi..pi.
+pub fn wrap_rad(a: f32) -> f32 {
+    (a + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI
+}
+
+/// The seated view's yaw from the mech's nose after this step (openspec change `seated-look`).
+/// `rel` is it now, after the mech turned; `prev_rel` it after the last step; `turn` the mouse's turn
+/// this step (radians, left positive); `limit` the coupled limit. Coupled, the view may sit no
+/// further round than the larger of the limit and where it already was: the cockpit carries the
+/// view when the mech turns away, and the mouse stops at that bound but always turns back toward the
+/// nose. Free look is unlimited.
+pub fn coupled_look(rel: f32, prev_rel: f32, turn: f32, limit: f32, free_look: bool) -> f32 {
+    if free_look {
+        return wrap_rad(rel + turn);
+    }
+    let bound = limit.max(prev_rel.abs()).min(std::f32::consts::PI);
+    // The mech turned away: the seat carries the view.
+    let carried = rel.clamp(-bound, bound);
+    let moved = carried + turn;
+    if moved.abs() > bound && moved.abs() > carried.abs() {
+        moved.signum() * bound
+    } else {
+        moved
+    }
+}
+
+/// The mech's turn toward the seated view (`turn_axis`, -1..1), when the view is at the coupled
+/// limit or past it and free look is not held; `None` leaves the turn to the keys. Within 2 degrees
+/// of the limit it holds on, so the turn does not chatter at the edge.
+pub fn look_turn(rel: f32, limit: f32, free_look: bool) -> Option<f32> {
+    if free_look || rel.abs() < limit - 2f32.to_radians() {
+        return None;
+    }
+    Some(rel.signum())
+}
+
 impl PilotState {
     /// A pilot standing at `feet`, looking along `yaw_rad`.
     pub fn standing(feet: Vec3, yaw_rad: f32) -> Self {
@@ -199,6 +242,7 @@ impl PilotState {
             yaw_rad,
             pitch_rad: 0.0,
             seated_eye: Vec3::ZERO,
+            seated_rel_rad: 0.0,
             mode: PilotMode::OnFoot,
             waiting: None,
         }
@@ -302,6 +346,7 @@ impl PilotState {
                 if path.done() {
                     if let Some(m) = access {
                         self.yaw_rad = m.seat_yaw_rad.rem_euclid(std::f32::consts::TAU);
+                        self.seated_rel_rad = wrap_rad(self.yaw_rad - m.heading_rad);
                     }
                     self.pitch_rad = 0.0;
                     self.seated_eye = *path.points.last().unwrap_or(&self.seated_eye);
@@ -312,8 +357,19 @@ impl PilotState {
             PilotMode::Seated => {
                 if let Some(m) = access {
                     self.seated_eye = m.eye_pilot;
+                    // Coupled to the mech's nose unless free look is held (seated-look).
+                    let rel = coupled_look(
+                        wrap_rad(self.yaw_rad - m.heading_rad),
+                        self.seated_rel_rad,
+                        -look.x.to_radians(),
+                        cfg.seated_look_limit_deg.to_radians(),
+                        a.free_look,
+                    );
+                    self.seated_rel_rad = rel;
+                    self.yaw_rad = (m.heading_rad + rel).rem_euclid(std::f32::consts::TAU);
+                } else {
+                    self.yaw_rad = (self.yaw_rad - look.x.to_radians()).rem_euclid(std::f32::consts::TAU);
                 }
-                self.yaw_rad = (self.yaw_rad - look.x.to_radians()).rem_euclid(std::f32::consts::TAU);
                 self.pitch_rad = (self.pitch_rad + look.y.to_radians()).clamp(-pitch_limit, pitch_limit);
                 if let Some(m) = access {
                     if a.use_pressed && m.stopped && self.waiting.is_none() {
@@ -559,5 +615,59 @@ mod tests {
         run_until_settled(&mut p, &cfg, &access());
         assert_eq!(p.mode, PilotMode::OnFoot);
         assert!(p.feet.distance(access().ladder_base) < 1e-3, "{}", p.feet);
+    }
+
+    #[test]
+    fn the_view_stops_at_ninety_degrees_from_the_nose() {
+        let limit = 90f32.to_radians();
+        let mut rel = 0.0;
+        for _ in 0..100 {
+            rel = coupled_look(rel, rel, 5f32.to_radians(), limit, false);
+        }
+        assert!((rel - limit).abs() < 1e-5, "{}", rel.to_degrees());
+        // Turning back always applies.
+        let back = coupled_look(rel, rel, -10f32.to_radians(), limit, false);
+        assert!((back - (limit - 10f32.to_radians())).abs() < 1e-5);
+    }
+
+    #[test]
+    fn pushing_past_the_edge_turns_the_mech_at_its_turn_rate() {
+        let limit = 90f32.to_radians();
+        assert_eq!(look_turn(limit, limit, false), Some(1.0));
+        assert_eq!(look_turn(-limit, limit, false), Some(-1.0));
+        assert_eq!(look_turn(limit * 0.5, limit, false), None);
+        assert_eq!(look_turn(limit, limit, true), None);
+    }
+
+    #[test]
+    fn free_look_can_look_behind() {
+        let limit = 90f32.to_radians();
+        let mut rel = 0.0;
+        for _ in 0..36 {
+            rel = coupled_look(rel, rel, 5f32.to_radians(), limit, true);
+        }
+        assert!((rel.abs() - std::f32::consts::PI).abs() < 1e-3, "{}", rel.to_degrees());
+    }
+
+    #[test]
+    fn leaving_free_look_never_moves_the_view() {
+        let limit = 90f32.to_radians();
+        let behind = 150f32.to_radians();
+        // No mouse, the mech has not turned yet: the view stays where free look left it.
+        assert!((coupled_look(behind, behind, 0.0, limit, false) - behind).abs() < 1e-6);
+        // The mech turns toward it: the view keeps its world direction, so `rel` shrinks, and it
+        // cannot be pushed back out.
+        let after = coupled_look(behind - 0.05, behind, 0.0, limit, false);
+        assert!((after - (behind - 0.05)).abs() < 1e-6);
+        let pushed = coupled_look(after, after, 0.2, limit, false);
+        assert!(pushed <= after + 1e-6);
+    }
+
+    #[test]
+    fn the_cockpit_carries_the_view_when_the_mech_turns_away() {
+        let limit = 90f32.to_radians();
+        // At the edge, the mech turns 10 degrees away from the view: the view is held at the edge.
+        let rel = coupled_look(limit + 10f32.to_radians(), limit, 0.0, limit, false);
+        assert!((rel - limit).abs() < 1e-6, "{}", rel.to_degrees());
     }
 }
