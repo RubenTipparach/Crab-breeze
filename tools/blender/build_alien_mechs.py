@@ -10,21 +10,29 @@ The owner's direction (2026-10-24): "design some potentially crab looking mechs 
 with three reference sheets of hard-surface mechanical crabs. Each design follows one of them:
 
   skitter  6 m scuttler, after the four-legged spider crab: a rounded hull on four tall arched legs
-           with big joint hubs and hydraulic rods, twin missile pods on arms over the hull, a turret
-           with a sensor eye, violet hazard bands.
+           with big joint hubs and hydraulic rods, twin SMG arms at the front, twin missile pods on arms
+           over the hull, a turret with a sensor eye, violet hazard bands.
   snapper  12 m main line crab, after the slate-blue crab: a flat armoured hull with a square face,
-           twin headlight eyes and a grille, two big hooked claws raised high, two antenna masts, six
-           short folded legs on box feet.
-  bigboy   30 m siege crab, after "Big Boy": a wide flat lens shell, one giant boxy claw held forward
-           with a beam emitter in its jaws, short thick piston legs on toothed splayed feet, two masts.
+           twin headlight eyes and a grille, a heavy cannon arm and a sword arm raised high, two
+           antenna masts, six short folded legs on box feet.
+  bigboy   30 m siege crab, after "Big Boy": a wide flat lens shell, a giant boxy siege cannon held
+           forward and a missile battery, short thick piston legs on toothed splayed feet, two masts.
+
+No claws (owner, 2026-10-24: "crab should not have big claw features. It's claws are guns or swords or
+missile launchers", and "Follow design philosophy of boss mechs from mining mike"). As on Mining Mike's
+bosses (SKARN, BRISK, SHIVER, ROOK, BULWARK in tank_bosses_kit.js at 3336b88), every limb that would be
+a hand is a weapon with a role you can read from its silhouette: the cannon is a housing with a
+reactor core and cooling rings round the barrel (Skarn's breach cannon, Bulwark's breaker), the SMGs
+are Brisk's twin barrels with a drum, the sword is Shiver's blade with a glowing edge, the missile
+rack is Rook's pod of tubes with violet heads.
 
 What makes them alien rather than human: acid green glows (vents, eyes, mast tips), violet reactor
 cores and violet livery with alien glyph markings; the human mechs glow amber, cyan and red. The
 skeleton is docs/design/alien-rig.md, not the biped contract of docs/design/mech-rig.md.
 
 Coordinates are glTF style, as in the kit: +Y up, the crab faces +Z, +X is its left. The kit is
-imported unchanged; everything crab-specific (legs solved to the ground, claws, masts, lens shells,
-glyphs) is in this file.
+imported unchanged; everything crab-specific (legs solved to the ground, weapon arms, masts, lens
+shells, glyphs) is in this file.
 """
 import math
 import os
@@ -110,24 +118,6 @@ def ring(k, R, r, mat, p, x=0, y=0, z=0, zscale=1.0, seg=40):
     k._put(K._tor(R * s, r * s, K.TAU, seg), mat, p, x, y, z, PI / 2, 0, 0, scale=(1, zscale, 1), smooth=True)
 
 
-def hook(R, t0, arc, curl=1, n=12):
-    """A tapered hooked finger as a polygon in XY: it leaves (0, 0) along +X and curls toward +Y (curl 1)
-    or -Y (curl -1), thinning to a point. For pz, which extrudes it along Z."""
-    outer, inner = [], []
-    for i in range(n + 1):
-        u = i / n
-        a = u * arc
-        cx, cy = R * math.sin(a), curl * (R - R * math.cos(a))
-        nx, ny = math.sin(a), -curl * math.cos(a)  # the normal on the outside of the curl
-        t = t0 * (1 - u) ** 0.85 + 0.25
-        outer.append((cx + nx * t / 2, cy + ny * t / 2))
-        inner.append((cx - nx * t / 2, cy - ny * t / 2))
-    pts = outer + inner[::-1]
-    if curl < 0:
-        pts = pts[::-1]
-    return [[round(a, 4), round(b, 4)] for a, b in pts]
-
-
 # ----------------------------------------------------------------------------- crab parts
 
 def solve_raise(Lf, Lt, a2, target, prefer):
@@ -167,16 +157,139 @@ def leg(k, body, body_y, S, n, at, yaw, Lc, Lf, Lt, Ld, a2, prefer, style):
     k.extras.setdefault("legs", []).append(dict(id=f"{S}{n}", side=s, group=(n + (0 if s > 0 else 1)) % 2))
 
 
-def claw_chain(k, body, S, at, yaw, raise_, arm_len, wrist_len, wrist_bend, wrist_fold, claw_bend):
-    """arm_<S> (shoulder: yaw and raise at the hull), wrist_<S> (elbow), claw_<S> (the hand with the
-    fixed finger). Every segment runs along its joint's +X. The pincer is added by the caller."""
+def weapon_arm(k, body, S, at, yaw, raise_, arm_len, wrist_bend, wrist_fold):
+    """arm_<S> (shoulder: yaw and raise at the hull) and wrist_<S> (elbow: bend about Z, fold toward the
+    centre line about Y). Both run along their joint's +X. The weapon joint goes on the wrist's end."""
     s = 1 if S == "L" else -1
     ry_l = -PI / 2 + yaw
     arm = k.J(f"arm_{S}", body, s * at[0], at[1], at[2], 0, ry_l if s > 0 else PI - ry_l, raise_)
     wrist = k.J(f"wrist_{S}", arm, arm_len, 0, 0, 0, -s * wrist_fold, wrist_bend)
-    claw = k.J(f"claw_{S}", wrist, wrist_len, 0, 0, 0, 0, claw_bend)
-    k.extras.setdefault("claws", []).append(S)
-    return arm, wrist, claw
+    k.extras.setdefault("arms", []).append(S)
+    return arm, wrist
+
+
+def register(k, joint, kind, muzzles, recoil=0.0, flash=4.0, period=2.0, axis=(1, 0, 0)):
+    """Name a weapon for the engine and the review page: its joint, its kind (cannon, smg, blade, rack),
+    its fire points, how far it recoils (kit units in, metres out), its flash size and fire period."""
+    k.extras.setdefault("weapons", []).append(dict(
+        joint=joint, kind=kind, muzzles=muzzles, recoil_m=round(recoil * k.s, 4), flash_m=round(flash * k.s, 4),
+        period_s=period, axis=list(axis)))
+
+
+def cannon(k, j, S, L, r, cores=1, name=None):
+    """A heavy cannon along the joint's +X: a trunnion hub, an armoured breech housing with a reactor
+    core on top and livery down both flanks, a barrel ringed with glowing cooling rings and collars, a
+    muzzle brake with a glowing bore. MUZZLE_<name> fires along its +Z (the joint's +X)."""
+    M = k.M
+    name = name or f"gun_{S}"
+    hub(k, j, r * 1.25, r * 2.5, M["armor2"])
+    x0, hl = r * 0.4, L * 0.42
+    k.pl(hl, r * 2.8, r * 2.6, M["armor"], j, x0 + hl / 2, 0, 0)
+    k.pl(hl * 0.8, r * 0.5, r * 2.75, M["armor2"], j, x0 + hl * 0.45, r * 1.45, 0)
+    for zz, ry in ((r * 1.3 + 0.05, 0), (-(r * 1.3 + 0.05), PI)):
+        k.stripes(j, hl * 0.7, x0 + hl * 0.5, -r * 0.35, zz, ry, hb=r * 0.32, gap=r * 0.16, d=0.4)
+    for i in range(cores):
+        k.core(j, x0 + hl * (0.3 + 0.4 * i) if cores > 1 else x0 + hl * 0.55, r * 1.75, 0, r * 0.55)
+    k.vent(j, r * 1.4, r * 0.9, x0 + hl * 0.18, r * 1.42, r * 0.6, -PI / 2, 0, 3)
+    k.bolts(j, 5, x0 + hl * 0.15, -r * 1.42, r * 1.1, hl * 0.16, r * 0.12, PI / 2)
+    k.hose(j, [[x0 + hl * 0.1, -r * 1.2, -r * 1.1], [x0 + hl * 0.5, -r * 1.7, -r * 1.2], [x0 + hl * 0.9, -r * 1.2, -r * 1.1]], r * 0.16)
+    xs = x0 + hl
+    k.pl(r * 1.1, r * 2.2, r * 2.2, M["frame"], j, xs + r * 0.5, 0, 0)
+    bl = L - hl - r * 2.2
+    xb = xs + r * 1.0
+    k.cyl(r * 0.62, r * 0.72, bl, M["metal"], j, xb + bl / 2, 0, 0, 0, 0, -PI / 2, seg=18)
+    for f in (0.12, 0.3, 0.48):
+        k.tor(r * 0.92, r * 0.12, M["glowDim"], j, xb + bl * f, 0, 0, 0, PI / 2, 0, seg=24)
+    for f in (0.2, 0.39, 0.62):
+        k.cyl(r * 0.88, r * 0.88, r * 0.35, M["frame"], j, xb + bl * f, 0, 0, 0, 0, -PI / 2, seg=18)
+    xe = xb + bl
+    k.pl(r * 1.4, r * 1.7, r * 1.7, M["dark"], j, xe + r * 0.55, 0, 0)
+    for yy in (-r * 0.5, r * 0.5):
+        k.box(r * 0.9, r * 0.22, r * 1.8, M["ink"], j, xe + r * 0.6, yy, 0)
+    k.cyl(r * 0.5, r * 0.5, 0.3, M["ink"], j, xe + r * 1.27, 0, 0, 0, 0, -PI / 2, seg=16)
+    k.cyl(r * 0.34, r * 0.34, 0.3, M["glow"], j, xe + r * 1.3, 0, 0, 0, 0, -PI / 2, seg=16)
+    k.halo(j, xe + r * 1.5, 0, 0, r * 2.6, 0.7)
+    m = f"MUZZLE_{name}"
+    k.sock(m, j, xe + r * 1.45, 0, 0, 0, PI / 2)
+    return [m]
+
+
+def smg(k, j, S, L, r, name=None):
+    """Twin-barrel SMG after Brisk's: a hub, a receiver with livery, a drum under it, two barrels in a
+    shroud, glowing barrel tips. One MUZZLE_<name> between the barrels."""
+    M = k.M
+    name = name or f"gun_{S}"
+    hub(k, j, r * 1.3, r * 2.2, M["armor2"])
+    k.pl(L * 0.5, r * 2.3, r * 2.0, M["armor"], j, L * 0.3, 0, 0)
+    k.stripes(j, L * 0.36, L * 0.3, r * 0.2, r * 1.0 + 0.05, 0, hb=r * 0.3, gap=r * 0.15, d=0.3)
+    k.stripes(j, L * 0.36, L * 0.3, r * 0.2, -(r * 1.0 + 0.05), PI, hb=r * 0.3, gap=r * 0.15, d=0.3)
+    k.cyl(r * 1.15, r * 1.15, r * 1.3, M["dark"], j, L * 0.3, -r * 1.6, 0, PI / 2, seg=18)
+    k.cyl(r * 0.6, r * 0.6, r * 1.4, M["frame"], j, L * 0.3, -r * 1.6, 0, PI / 2, seg=12)
+    k.pl(L * 0.22, r * 1.9, r * 1.7, M["frame"], j, L * 0.62, 0, 0)
+    for dy in (-r * 0.42, r * 0.42):
+        k.cyl(r * 0.3, r * 0.3, L * 0.42, M["metal"], j, L * 0.75, dy, 0, 0, 0, -PI / 2, seg=10)
+        k.cyl(r * 0.36, r * 0.36, r * 0.5, M["glowDim"], j, L * 0.94, dy, 0, 0, 0, -PI / 2, seg=10)
+    k.box(r * 0.7, r * 0.35, r * 0.35, M["glow"], j, L * 0.35, r * 1.25, 0)
+    m = f"MUZZLE_{name}"
+    k.sock(m, j, L * 0.97, 0, 0, 0, PI / 2)
+    k.sock(f"EJECT_{name}", j, L * 0.38, 0, r * 1.1)
+    return [m]
+
+
+def blade(k, j, S, L, w):
+    """A sword arm after Shiver's blade: a hub and guard at the wrist, a long blade along +X in the XY
+    plane (so it swings about Z), a glowing edge on its lower side, a spine ridge along the top.
+    BLADE_tip_<S> and BLADE_mid_<S> mark the tip and the middle of the edge."""
+    M = k.M
+    hub(k, j, w * 0.5, w * 0.85, M["armor2"])
+    k.pl(w * 0.45, w * 1.25, w * 0.75, M["frame"], j, w * 0.55, 0, 0)
+    k.box(w * 0.2, w * 1.3, w * 0.8, M["red"], j, w * 0.4, 0, 0)
+    x0 = w * 0.75
+    body_pts = [[x0, -w * 0.42], [x0 + L * 0.4, -w * 0.54], [x0 + L * 0.78, -w * 0.4], [x0 + L, w * 0.04],
+                [x0 + L * 0.8, w * 0.3], [x0 + L * 0.35, w * 0.38], [x0, w * 0.3]]
+    k.pz(body_pts, w * 0.18, M["metal"], j, 0, 0, 0, bv=0.15)
+    edge = [[x0 + L * 0.04, -w * 0.33], [x0 + L * 0.4, -w * 0.45], [x0 + L * 0.78, -w * 0.32], [x0 + L * 0.95, w * 0.0],
+            [x0 + L * 0.9, -w * 0.02], [x0 + L * 0.75, -w * 0.22], [x0 + L * 0.4, -w * 0.33], [x0 + L * 0.04, -w * 0.24]]
+    k.pz(edge, w * 0.26, M["glow"], j, 0, 0, 0, bv=0.05)
+    spine = [[x0, w * 0.3], [x0 + L * 0.35, w * 0.38], [x0 + L * 0.8, w * 0.3], [x0 + L * 0.78, w * 0.2],
+             [x0 + L * 0.35, w * 0.26], [x0, w * 0.18]]
+    k.pz(spine, w * 0.32, M["armor2"], j, 0, 0, 0, bv=0.1)
+    for f in (0.3, 0.6):
+        k.halo(j, x0 + L * f, -w * 0.42, 0, w * 1.1, 0.35)
+    k.sock(f"BLADE_tip_{S}", j, x0 + L, 0, 0, 0, PI / 2)
+    k.sock(f"BLADE_mid_{S}", j, x0 + L * 0.5, -w * 0.45, 0, 0, PI / 2)
+
+
+def rack(k, j, S, rows, cols, cell, depth, name=None):
+    """A missile battery after Rook's pods along the joint's +X: an armoured box on a yoke, livery down
+    its flanks, a front frame of rows x cols tubes with violet warheads, a hazard blast plate behind.
+    One MUZZLE_<name><i> per tube, numbered from 1."""
+    M = k.M
+    name = name or f"rack_{S}"
+    W, H = cols * cell + cell * 0.8, rows * cell + cell * 0.8
+    hub(k, j, cell * 0.9, cell * 1.6, M["armor2"])
+    k.pl(cell * 1.6, H * 0.5, W * 0.4, M["frame"], j, cell * 0.8, 0, 0)
+    xc = cell * 1.5 + depth / 2
+    k.pl(depth, H, W, M["armor"], j, xc, 0, 0)
+    for zz, ry in ((W / 2 + 0.05, 0), (-(W / 2 + 0.05), PI)):
+        k.stripes(j, depth * 0.75, xc, -H * 0.15, zz, ry, hb=cell * 0.4, gap=cell * 0.2, d=0.4)
+    k.pl(depth * 0.9, cell * 0.45, W * 1.04, M["armor2"], j, xc, H / 2 + cell * 0.2, 0)
+    xf = cell * 1.5 + depth
+    k.box(cell * 0.4, H * 0.96, W * 0.96, M["frame"], j, xf + cell * 0.15, 0, 0)
+    k.box(0.4, H * 0.6, W * 0.5, M["hazard"], j, cell * 1.5 - 0.15, 0, 0)
+    muz = []
+    i = 0
+    for r_ in range(rows):
+        for c in range(cols):
+            i += 1
+            y = -H / 2 + cell * 0.4 + cell * (r_ + 0.5)
+            z = -W / 2 + cell * 0.4 + cell * (c + 0.5)
+            k.cyl(cell * 0.38, cell * 0.38, cell * 0.25, M["ink"], j, xf + cell * 0.4, y, z, 0, 0, -PI / 2, seg=12)
+            k.cyl(0, cell * 0.28, cell * 0.55, M["art"], j, xf + cell * 0.4, y, z, 0, 0, -PI / 2, seg=10)
+            m = f"MUZZLE_{name}{i}"
+            k.sock(m, j, xf + cell * 0.7, y, z, 0, PI / 2)
+            muz.append(m)
+    return muz
 
 
 def hub(k, p, r, w, cap=None, x=0, y=0, z=0):
@@ -236,8 +349,8 @@ def glyphs(k, p, x, y, z, size, count, seed, rx=0, ry=0, rz=0, mat=None):
 # ----------------------------------------------------------------------------- SKITTER (reference 3)
 
 def skitter(k):
-    """Four tall arched legs with big hubs and rods, a rounded hull, two missile pods on arms over it,
-    a sensor turret on top and a single big eye in a pale face plate."""
+    """Four tall arched legs with big hubs and rods, a rounded hull, twin SMG arms at the front, two
+    missile pods on arms over it, a sensor turret on top and a single big eye in a pale face plate."""
     M = k.M
     body_y = 30
     body = k.J("body", k.root, 0, body_y, 0)
@@ -318,26 +431,29 @@ def skitter(k):
         k.piston(N(f"leg_L{n}_femur"), [7, -3.5, 0], N(f"leg_L{n}_tibia"), [10, -3.2, 0], 1.0)
         k.piston(N(f"leg_R{n}_femur"), [7, -3.5, 0], N(f"leg_R{n}_tibia"), [10, -3.2, 0], 1.0)
 
-    # two small grabbers under the face
+    # twin SMG arms under the face, where a crab carries its claws
     for S, sx in (("L", 1), ("R", -1)):
-        arm, wrist, claw = claw_chain(k, body, S, (6, -8, 18), 0.25, -0.45, 7, 5, 0.5, 0.2, 0.3)
-        k.sph(1.8, M["frame"], arm, 0, 0, 0, seg=10)
-        k.pl(7, 2.4, 2.6, M["armor2"], arm, 3.5, 0, 0)
-        k.pl(5, 2.2, 2.4, M["frame"], wrist, 2.5, 0, 0)
-        k.pl(3, 3, 3, M["armor"], claw, 1, 0, 0)
-        k.pz([[0, -0.6], [4, -0.6], [5, 0.6], [0, 0.6]], 1.6, M["metal"], claw, 2, -0.9, 0, bv=0.15)
-        pin = k.J(f"pincer_{S}", claw, 2.2, 0.9, 0, 0, 0, 0.25)
-        k.pz([[0, -0.5], [4, -0.4], [5, -1.2], [0, 0.6]], 1.4, M["metal"], pin, 0, 0, 0, bv=0.15)
+        arm, wrist = weapon_arm(k, body, S, (12, -4, 15), 0.4, 0.1, 10, -0.1, 0.4)
+        k.sph(2.8, M["frame"], arm, 0, 0, 0, seg=12)
+        k.pl(10, 3.4, 3.8, M["armor2"], arm, 5, 0, 0)
+        k.box(5, 3.6, 4.0, M["red"], arm, 5.5, 0, 0)
+        hub(k, wrist, 2.4, 4.2)
+        k.pl(7, 3, 3.4, M["frame"], wrist, 3.5, 0, 0)
+        g = k.J(f"gun_{S}", wrist, 7, 0, 0, 0, 0, 0.0)
+        register(k, f"gun_{S}", "smg", smg(k, g, S, 22, 2.4), recoil=1.2, flash=11, period=2.4)
+    register(k, "pod_L", "rack", [f"MUZZLE_pod_L{i}" for i in range(1, 5)], recoil=0.8, flash=12, period=3.2, axis=(0, 0, 1))
+    register(k, "pod_R", "rack", [f"MUZZLE_pod_R{i}" for i in range(1, 5)], recoil=0.8, flash=12, period=3.2, axis=(0, 0, 1))
+    register(k, "turret_1", "smg", ["MUZZLE_turret_L", "MUZZLE_turret_R"], recoil=0, flash=6, period=2.4, axis=(0, 0, 1))
 
     k.extras.update(gait=dict(hz=1.9, swing=0.32, lift=0.42, scuttle_m=2.2, bob=0.12),
-                    idle=dict(scan=0.9, scanPeriod=1.4), snap=dict(hz=1.4, open=0.35, dir=1))
+                    idle=dict(scan=0.9, scanPeriod=1.4))
 
 
 # ----------------------------------------------------------------------------- SNAPPER (reference 2)
 
 def snapper(k):
-    """A flat armoured hull with a square face, twin headlight eyes and a grille, two big hooked claws
-    raised high on long arms, two antenna masts at the back, six short folded legs on box feet."""
+    """A flat armoured hull with a square face, twin headlight eyes and a grille, a heavy cannon arm and
+    a sword arm raised high, two antenna masts at the back, six short folded legs on box feet."""
     M = k.M
     body_y = 30
     body = k.J("body", k.root, 0, body_y, 0)
@@ -397,39 +513,35 @@ def snapper(k):
             leg(k, body, body_y, S, n, (30, -6, z), yaw, 7, 18, 24, 9, -2.0, 0.6, style)
             k.piston(N(f"leg_{S}{n}_femur"), [4, -3.6, 4.6], N(f"leg_{S}{n}_tibia"), [9, -2, 4.4], 1.0)
 
-    # the claws: long arms raised high, a hooked pincer on each; the left one a size bigger
-    for S, sx, f in (("L", 1, 1.15), ("R", -1, 1.0)):
-        arm, wrist, claw = claw_chain(k, body, S, (23, 8, 22), 0.45, 0.85, 26 * f, 18 * f, 0.5, 0.22, 0.2)
+    # the weapon arms, raised high where the reference carries its claws: a heavy cannon on the left,
+    # a sword on the right
+    for S, sx, raise_, bend, fold in (("L", 1, 0.75, -0.55, 0.35), ("R", -1, 0.95, -0.25, 0.3)):
+        arm, wrist = weapon_arm(k, body, S, (23, 8, 20), 0.4, raise_, 22, bend, fold)
         k.sph(6, M["frame"], arm, 0, 0, 0, seg=14)
-        k.pl(26 * f, 8 * f, 9 * f, M["armor"], arm, 13 * f, 0, 0)
-        k.pl(18 * f, 2.2, 10 * f, M["armor2"], arm, 13 * f, 4.4 * f, 0)
-        k.stripes(arm, 10 * f, 9 * f, 0, 4.8 * f, PI / 2, hb=1.1, gap=0.6, d=0.4)
-        k.cyl(4.6 * f, 4.6 * f, 10 * f, M["dark"], wrist, 0, 0, 0, PI / 2, seg=16)
-        k.pl(18 * f, 7.4 * f, 8 * f, M["armor2"], wrist, 9 * f, 0, 0)
-        k.pl(12 * f, 6, 9 * f, M["armor"], wrist, 10 * f, 1, 0)
-        k.piston(N("body"), [sx * 21, 0, 20], N(f"arm_{S}"), [12 * f, -4.5 * f, 0], 1.2)
-        k.piston(N(f"arm_{S}"), [8 * f, 4.5 * f, 0], N(f"wrist_{S}"), [8 * f, 4 * f, 0], 1.0)
-        k.cyl(4.8 * f, 4.8 * f, 10.5 * f, M["frame"], claw, 0, 0, 0, PI / 2, seg=16)
-        k.pl(14 * f, 16 * f, 12 * f, M["armor"], claw, 5 * f, 0, 0)
-        k.box(12 * f, 1.4, 12.6 * f, M["red"], claw, 5 * f, 3 * f, 0)
-        k.pz(hook(15 * f, 11 * f, 2.4, -1), 10 * f, M["armor"], claw, 10 * f, 3.5 * f, 0, bv=0.6)
-        k.pz(hook(15 * f, 4 * f, 2.2, -1), 11 * f, M["frame"], claw, 10.5 * f, 3.2 * f, 0, bv=0.3)
-        k.sph(1.5 * f, M["glow"], claw, 12 * f, -1 * f, 0, seg=10)
-        k.halo(claw, 12.5 * f, -1 * f, 0, 6 * f, 0.7)
-        k.sock(f"MUZZLE_claw_{S}", claw, 12.5 * f, -1 * f, 0, 0, PI / 2)
-        pin = k.J(f"pincer_{S}", claw, 11 * f, -5 * f, 0, 0, 0, -0.35)
-        k.pz(hook(10 * f, 8 * f, 1.9, 1), 8 * f, M["armor2"], pin, 0, 0, 0, bv=0.5)
+        k.pl(22, 8, 9, M["armor"], arm, 11, 0, 0)
+        k.pl(16, 2.2, 10, M["armor2"], arm, 11, 4.4, 0)
+        k.stripes(arm, 10, 10, 0, 4.8, PI / 2, hb=1.1, gap=0.6, d=0.4)
+        hub(k, wrist, 4.6, 10, M["armor2"])
+        k.pl(14, 7.4, 8, M["armor2"], wrist, 7, 0, 0)
+        k.pl(10, 2, 9, M["armor"], wrist, 8, 3.8, 0)
+        k.piston(N("body"), [sx * 21, 0, 20], N(f"arm_{S}"), [12, -4.5, 0], 1.2)
+        k.piston(N(f"arm_{S}"), [8, 4.5, 0], N(f"wrist_{S}"), [8, 4, 0], 1.0)
+    g = k.J("gun_L", N("wrist_L"), 14, 0, 0, 0, 0, -0.2)
+    register(k, "gun_L", "cannon", cannon(k, g, "L", 40, 3.8), recoil=4, flash=16, period=2.2)
+    bl = k.J("blade_R", N("wrist_R"), 14, 0, 0, 0, 0, 0.0)
+    blade(k, bl, "R", 44, 11)
+    register(k, "blade_R", "blade", [], period=2.0)
 
     k.extras.update(gait=dict(hz=1.1, swing=0.26, lift=0.32, scuttle_m=2.5, bob=0.08),
-                    idle=dict(scan=0.4, scanPeriod=2.4), snap=dict(hz=0.7, open=0.45, dir=-1))
+                    idle=dict(scan=0.4, scanPeriod=2.4))
 
 
 # ----------------------------------------------------------------------------- BIG BOY (reference 1)
 
 def bigboy(k):
-    """A wide flat lens shell over a heavy chassis, one giant boxy claw held forward with a beam
-    emitter between its jaws, a small claw on the other side, short thick piston legs on toothed feet,
-    two antenna masts and weak points (violet core and tanks) for lock-on."""
+    """A wide flat lens shell over a heavy chassis, a giant boxy siege cannon held forward on the left
+    and a twelve-tube missile battery on the right, short thick piston legs on toothed feet, two antenna
+    masts and weak points (violet cores, tanks, the cannon's breech) for lock-on."""
     M = k.M
     body_y = 64
     body = k.J("body", k.root, 0, body_y, 0)
@@ -531,48 +643,33 @@ def bigboy(k):
                 k.piston(N(f"leg_{S}{n}_femur"), [8, -8, zz], N(f"leg_{S}{n}_tibia"), [14, -6, zz], 2.2)
             k.piston(N(f"leg_{S}{n}_coxa"), [2, 10, 0], N(f"leg_{S}{n}_femur"), [26, 8, 0], 2.0)
 
-    # the giant claw on the left, held forward and low
-    arm, wrist, claw = claw_chain(k, body, "L", (40, -4, 44), 0.5, 0.75, 40, 26, -0.55, 0.7, -0.7)
+    # the siege cannon on the left, a giant boxy gun held forward where the reference holds its claw
+    arm, wrist = weapon_arm(k, body, "L", (40, -4, 44), 0.5, 0.6, 40, -0.45, 0.6)
     k.sph(12, M["frame"], arm, 0, 0, 0, seg=16)
     k.pl(40, 16, 18, M["armor"], arm, 20, 0, 0)
     k.pl(30, 3, 19, M["armor2"], arm, 20, 9, 0)
     k.piston(N("body"), [42, -14, 34], N("arm_L"), [24, -9, 0], 2.6)
-    k.cyl(11, 11, 21, M["dark"], wrist, 0, 0, 0, PI / 2, seg=20)
+    hub(k, wrist, 11, 21, M["armor2"])
     k.pl(26, 18, 20, M["armor2"], wrist, 13, 0, 0)
     k.piston(N("arm_L"), [26, 9, 0], N("wrist_L"), [16, 10, 0], 2.2)
-    k.cyl(13, 13, 24, M["frame"], claw, 0, 0, 0, PI / 2, seg=22)
-    k.pl(84, 46, 32, M["armor"], claw, 42, 0, 0)
-    for zz in (-16.4, 16.4):
-        k.stripes(claw, 50, 40, 8, zz, 0 if zz > 0 else PI, hb=2.4, gap=1.2, d=0.6)
-        glyphs(k, claw, 40, -8, zz + (0.35 if zz > 0 else -0.35), 6, 4, 77 if zz > 0 else 78, 0, 0 if zz > 0 else PI, 0)
-    k.vent(claw, 22, 6, 30, 23.2, 0, -PI / 2, 0, 4)
-    k.bolts(claw, 8, 6, 23.2, 12, 9, 0.9, -PI / 2)
-    k.pl(10, 50, 36, M["frame"], claw, 82, 0, 0)
-    k.pz([[0, -11], [38, -11], [48, -2], [38, 9], [0, 11]], 28, M["armor2"], claw, 86, -13, 0, bv=0.9)
-    for i in range(4):
-        k.pz([[0, 0], [5, 0], [2.5, 4.5]], 22, M["metal"], claw, 90 + i * 9, -2, 0, bv=0.2)
-    k.cyl(9, 9, 2, M["ink"], claw, 87.5, 4, 0, 0, 0, -PI / 2, seg=20)
-    k.cyl(6, 6, 2, M["glow"], claw, 88.2, 4, 0, 0, 0, -PI / 2, seg=20)
-    k.halo(claw, 90, 4, 0, 30, 0.85)
-    k.sock("MUZZLE_claw_L", claw, 89, 4, 0, 0, PI / 2)
-    pin = k.J("pincer_L", claw, 86, 15, 0, 0, 0, 0.18)
-    k.pz([[0, -10], [36, -7], [46, -1], [36, 7], [0, 10]], 26, M["armor2"], pin, 0, 0, 0, bv=0.9)
-    for i in range(4):
-        k.pz([[0, 0], [5, 0], [2.5, -4.5]], 20, M["metal"], pin, 6 + i * 9, -9, 0, bv=0.2)
-    # the small claw on the right, folded under the rim
-    arm, wrist, claw = claw_chain(k, body, "R", (38, -10, 44), 0.45, -0.1, 24, 16, -0.4, 0.6, -0.2)
-    k.sph(7, M["frame"], arm, 0, 0, 0, seg=14)
-    k.pl(24, 9, 10, M["armor"], arm, 12, 0, 0)
-    k.cyl(6, 6, 11, M["dark"], wrist, 0, 0, 0, PI / 2, seg=16)
-    k.pl(16, 9, 10, M["armor2"], wrist, 8, 0, 0)
-    k.pl(20, 13, 10, M["armor"], claw, 10, 0, 0)
-    k.pz([[0, -3], [16, -3], [20, 0], [0, 3]], 8, M["armor2"], claw, 20, -3.5, 0, bv=0.4)
-    k.sock("MUZZLE_claw_R", claw, 21, 1, 0, 0, PI / 2)
-    pin = k.J("pincer_R", claw, 20, 4, 0, 0, 0, 0.2)
-    k.pz([[0, -3], [15, -2], [19, 0.5], [0, 3]], 7, M["armor2"], pin, 0, 0, 0, bv=0.4)
+    g = k.J("gun_L", wrist, 26, 0, 0, 0, 0, -0.1)
+    register(k, "gun_L", "cannon", cannon(k, g, "L", 124, 16, cores=2), recoil=10, flash=48, period=3.0)
+    for zz, ry, seed in ((20.95, 0, 77), (-20.95, PI, 78)):
+        glyphs(k, g, 6.4 + 26, 10, zz, 5, 4, seed, 0, ry, 0)
+    k.sock("WEAK_breech", g, 30, 26, 0)
+    # the missile battery on the right, on a shorter arm, angled up
+    arm, wrist = weapon_arm(k, body, "R", (38, -6, 44), 0.45, 0.12, 38, 0.18, 0.45)
+    k.sph(8, M["frame"], arm, 0, 0, 0, seg=14)
+    k.pl(38, 11, 12, M["armor"], arm, 19, 0, 0)
+    k.pl(28, 2.5, 12.6, M["armor2"], arm, 19, 6.2, 0)
+    k.piston(N("body"), [-40, -14, 36], N("arm_R"), [16, -6, 0], 1.8)
+    hub(k, wrist, 7, 13, M["armor2"])
+    k.pl(16, 10, 11, M["armor2"], wrist, 8, 0, 0)
+    rk = k.J("rack_R", wrist, 16, 0, 0, 0, 0, 0.0)
+    register(k, "rack_R", "rack", rack(k, rk, "R", 3, 4, 7, 30), recoil=2, flash=10, period=3.4)
 
     k.extras.update(gait=dict(hz=0.42, swing=0.16, lift=0.2, scuttle_m=3.5, bob=0.3),
-                    idle=dict(scan=0.25, scanPeriod=4.0), snap=dict(hz=0.25, open=0.3, dir=1))
+                    idle=dict(scan=0.25, scanPeriod=4.0))
 
 
 # ----------------------------------------------------------------------------- run
@@ -583,27 +680,29 @@ DESIGNS = {
                 dict(role="fast scuttler and missile skirmisher",
                      reference="the four-legged spider crab sheet",
                      legs="four tall arched legs, big joint hubs, hydraulic rods",
-                     weapons="twin four-tube missile pods, twin turret guns",
-                     note="Light and quick: it runs sideways in packs, stops to loose its two pods of four "
-                          "missiles and is gone again. Its one big eye in the pale face plate and the eye in "
-                          "the turret are what it sees with; the legs are long and thin and break first.")),
+                     weapons="twin SMG arms, twin four-tube missile pods, twin turret guns",
+                     note="Light and quick: it runs sideways in packs, hosing a mech with the two SMGs it "
+                          "carries where a crab has claws, then looses its two pods of four missiles and is "
+                          "gone again. One big eye in the pale face plate and one in the turret; the long thin "
+                          "legs break first.")),
     "snapper": (snapper, 12.0, 0x7c8bb4, 0x5d6a8e, "Snapper",
                 dict(role="main line assault crab",
                      reference="the slate-blue crab sheet",
                      legs="six short folded legs on box feet",
-                     weapons="two hooked claws with short-range emitters in the palms",
+                     weapons="heavy cannon arm (L), sword arm (R)",
                      note="The invaders' line machine, the human mechs' size: a flat armoured hull on six "
-                          "stubby legs, a square face with twin headlight eyes over a grille, and two big hooked "
-                          "claws carried high to crush a mech's torso. The left claw is a size bigger.")),
+                          "stubby legs and a square face with twin headlight eyes over a grille. It carries its "
+                          "two arms high: a heavy cannon with a reactor core and cooling rings, and a long sword "
+                          "with a glowing edge for when it closes in.")),
     "bigboy": (bigboy, 30.0, 0xd89a88, 0xb87a6c, "Big Boy",
                dict(role="siege crab, a set-piece boss",
                     reference="the Big Boy sheet",
                     legs="six short thick piston legs on toothed splayed feet",
-                    weapons="beam emitter between the jaws of the giant claw, small claw",
+                    weapons="siege cannon (L), twelve-tube missile battery (R)",
                     note="A walking fortress for an Ace Combat style set piece: a 30 m lens-shelled crab "
-                         "that drags one giant boxy claw with a beam weapon in its jaws. Its weak points are "
-                         "named for lock-on: the violet core on its back, the two glowing tanks behind it and "
-                         "the core under its belly.")),
+                         "that carries a giant boxy siege cannon forward and a missile battery angled up. Its "
+                         "weak points are named for lock-on: the violet core on its back, the two glowing tanks "
+                         "behind it, the core under its belly and the cannon's breech.")),
 }
 
 

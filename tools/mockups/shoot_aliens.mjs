@@ -6,9 +6,11 @@ import path from "node:path";
 import fs from "node:fs";
 
 const [page_, outDir, ...only] = process.argv.slice(2);
+// [name, alien, view, move, hold]: hold freezes every weapon on its flash or slash frame for a still
 const ALL = [
-  ["lineup", "all", "orbit", "idle"], ["skitter", "skitter", "orbit", "idle"], ["snapper", "snapper", "orbit", "snap"],
-  ["bigboy", "bigboy", "orbit", "idle"], ["bigboy_front", "bigboy", "front", "idle"], ["snapper_scuttle", "snapper", "side", "scuttle"],
+  ["lineup", "all", "orbit", "idle"], ["skitter", "skitter", "orbit", "fire", true], ["snapper", "snapper", "orbit", "idle"],
+  ["snapper_fire", "snapper", "front", "fire", true], ["bigboy", "bigboy", "orbit", "fire", true], ["bigboy_front", "bigboy", "front", "idle"],
+  ["snapper_scuttle", "snapper", "side", "scuttle"],
 ];
 const SHOTS = only.length ? ALL.filter(s => only.includes(s[0])) : ALL;
 fs.mkdirSync(outDir, { recursive: true });
@@ -19,8 +21,8 @@ page.on("console", m => { if (m.type() === "error") console.log("console:", m.te
 page.on("pageerror", e => console.log("pageerror:", e.message));
 await page.goto("file://" + path.resolve(page_));
 await page.waitForFunction(() => window.MOCKUP_READY, null, { timeout: 180000 });
-for (const [name, mech, view, act] of SHOTS) {
-  await page.evaluate(([m, v, a]) => { window.MOCKUP.setAct(a); window.MOCKUP.setMech(m); window.MOCKUP.setView(v); }, [mech, view, act]);
+for (const [name, mech, view, act, hold] of SHOTS) {
+  await page.evaluate(([m, v, a, h]) => { window.MOCKUP.hold(h); window.MOCKUP.setAct(a); window.MOCKUP.setMech(m); window.MOCKUP.setView(v); }, [mech, view, act, !!hold]);
   await page.waitForTimeout(2500);
   await page.locator(".stage").screenshot({ path: path.join(outDir, name + ".png"), timeout: 180000 });
   console.log("shot", name);

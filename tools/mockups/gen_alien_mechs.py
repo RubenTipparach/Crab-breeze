@@ -1,9 +1,9 @@
-"""Build docs/mockups/alien_mechs.html: the alien crab mechs, animated, at true scale beside Breeze.
+"""Build docs/mockups/alien_mechs.html: the alien crab mechs, animated, at true scale beside our Warden.
 
     python3 tools/mockups/gen_alien_mechs.py
 
 Reads assets/models/alien_*.glb and assets/models/aliens.json (written by
-tools/blender/build_alien_mechs.py) and the human Breeze (assets/models/mech_breeze.glb, from
+tools/blender/build_alien_mechs.py) and our Warden (assets/models/mech_warden.glb, from
 tools/blender/build_mechs.py), and inlines them, so the page needs nothing but three.js r147 from the
 CDN. Every size on the page is measured off the glb (the manifests), never typed. Mining Mike's rule
 for model review: orbit it, at true relative scale, with a known object (the pilot, 1.8 m, and a
@@ -11,13 +11,16 @@ for model review: orbit it, at true relative scale, with a known object (the pil
 
 The animation is a reference for how cb-app can drive the alien rig (docs/design/alien-rig.md): the
 legs step in two alternating groups (coxa swings about its own Y, femur lifts about its Z, the foot
-counter-rotates so the sole stays level), the crab scuttles sideways, the pincers snap, masts sway,
-turrets scan and reactor cores spin. Legs only ever lift from the rest pose, which stands on the
+counter-rotates so the sole stays level), the crab scuttles sideways, masts sway, turrets scan and
+reactor cores spin. Fire runs every weapon the root extras name: cannons and guns recoil along their
+own axis with a muzzle flash, missile racks ripple tube by tube, a sword winds up and slashes. Legs only ever lift from the rest pose, which stands on the
 ground, so no foot goes under it.
 """
 import base64
 import json
 import os
+
+HUMAN = "warden"   # the yardstick: our recommended chassis (build_mechs.py)
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 MODELS = os.path.join(ROOT, "assets", "models")
@@ -88,7 +91,7 @@ aside { display: grid; gap: 12px; min-width: 0; }
 <header>
   <div class="eyebrow">Crab Breeze · enemy design review · the invaders</div>
   <h1>Alien crab mechs</h1>
-  <p class="lede">Three alien war machines, each after one of the owner's crab reference sheets, built in Blender with Mining Mike's boss kit: plates, pistons, hoses, vents and livery bands. Acid green glows and violet cores and glyphs mark them as not ours. All at true scale beside Breeze, our 12 m mech, and a 1.8 m pilot.</p>
+  <p class="lede">Three alien war machines, each after one of the owner's crab reference sheets, built in Blender with Mining Mike's boss kit: plates, pistons, hoses, vents and livery bands. Like Mining Mike's bosses, where a crab would have claws each one carries its weapons: guns, a sword, cannons and missile racks. Acid green glows and violet cores and glyphs mark them as not ours. All at true scale beside Warden, our 12.5 m mech, and a 1.8 m pilot.</p>
 </header>
 
 <div class="wrap">
@@ -104,7 +107,7 @@ aside { display: grid; gap: 12px; min-width: 0; }
       <span class="lbl">Move</span>
       <button data-act="idle">Idle</button>
       <button data-act="scuttle">Scuttle</button>
-      <button data-act="snap">Snap claws</button>
+      <button data-act="fire">Fire weapons</button>
     </div>
     <div class="bar" role="group" aria-label="View">
       <span class="lbl">View</span>
@@ -113,7 +116,7 @@ aside { display: grid; gap: 12px; min-width: 0; }
       <button data-view="side">Side</button>
       <button data-view="top">Top</button>
       <span class="lbl" style="margin-left:8px">Show</span>
-      <button data-toggle="breeze" aria-pressed="true">Breeze</button>
+      <button data-toggle="breeze" aria-pressed="true">Warden</button>
       <button data-toggle="pilot" aria-pressed="true">Pilot</button>
     </div>
     <div class="stage">
@@ -141,6 +144,9 @@ const GLB = __GLB__;
 const ORDER = __ORDER__;
 const LINEUP = ["bigboy", "snapper", "skitter"];
 const T = THREE, TAU = Math.PI * 2;
+const ease = x => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+// the frame each kind of weapon is held on for a still (MOCKUP.hold): a flash, a slash
+const HOLD = { cannon: 0.03, smg: 0.0, rack: 0.62, blade: 0.7 };
 
 const canvas = document.getElementById("view");
 const renderer = new T.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
@@ -214,16 +220,25 @@ function load(id) { return new Promise(res => loader.parse(b64ToBuf(GLB[id]), ""
   const x = (nodes.root && nodes.root.userData) || {};
   const rest = {};
   for (const n in nodes) rest[n] = { q: nodes[n].quaternion.clone(), p: nodes[n].position.clone() };
+  const weapons = parseX(x.weapons) || [];
+  for (const W of weapons) {
+    const r = rest[W.joint];
+    W.axisP = new T.Vector3(...W.axis).applyQuaternion(r ? r.q : new T.Quaternion());
+    W.flashes = W.muzzles.filter(m => nodes[m]).map(m => {
+      const sp = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0xeaffa8, blending: T.AdditiveBlending, depthWrite: false,
+        transparent: true, opacity: 0, toneMapped: false }));
+      sp.position.z = W.flash_m * 0.35; sp.visible = false; nodes[m].add(sp); return sp; });
+  }
   scene.add(root);
-  res({ id, root, nodes, cores, rest, legs: parseX(x.legs) || [], gait: parseX(x.gait), idle: parseX(x.idle), snap: parseX(x.snap),
-        claws: parseX(x.claws) || [], masts: parseX(x.masts) || [], t: 0, ph: 0, wS: 0, wSnap: 0, baseX: 0 });
+  res({ id, root, nodes, cores, rest, legs: parseX(x.legs) || [], gait: parseX(x.gait), idle: parseX(x.idle),
+        arms: parseX(x.arms) || [], weapons, masts: parseX(x.masts) || [], t: 0, ph: 0, wS: 0, wF: 0, fireT: 0, baseX: 0 });
 })); }
 
 const aliens = {}; let breeze = null;
 const loaded = Promise.all([...ORDER.map(id => load(id).then(a => { aliens[id] = a; })), load("breeze").then(b => { breeze = b; })]);
 
 const H = id => META[id].bounds_m.y[1], W = id => META[id].bounds_m.x[1] - META[id].bounds_m.x[0];
-let current = "snapper", view = "orbit", act = "idle", showBreeze = true, span = [-10, 10];
+let current = "snapper", view = "orbit", act = "idle", showBreeze = true, span = [-10, 10], hold = false;
 const tagsEl = document.getElementById("tags");
 function layout() {
   const all = current === "all";
@@ -301,7 +316,8 @@ function turn(a, name, rx, ry, rz) {
 function animate(a, dt) {
   a.t += dt;
   a.wS += ((act === "scuttle" ? 1 : 0) - a.wS) * Math.min(1, dt * 3);
-  a.wSnap += ((act === "snap" ? 1 : 0) - a.wSnap) * Math.min(1, dt * 4);
+  a.wF += ((act === "fire" ? 1 : 0) - a.wF) * Math.min(1, dt * 5);
+  if (!hold) a.fireT += dt;
   const g = a.gait, t = a.t;
   a.ph += dt * TAU * g.hz * a.wS;
   let lifted = 0;
@@ -318,17 +334,11 @@ function animate(a, dt) {
   // the body rides up a little as legs lift, never down (that would push the planted feet into the ground)
   const body = a.nodes.body; if (body) { body.position.copy(a.rest.body.p); body.position.y += g.bob * a.wS * Math.abs(Math.sin(a.ph * 2)) * 0.5; }
   a.root.position.x = a.baseX + g.scuttle_m * Math.sin(a.ph / 4) * Math.min(1, a.wS * 1.2);
-  // claws: idle sway, a snap that opens slowly and slams shut
-  const sn = a.snap, idle = a.idle;
-  for (const S of a.claws) {
-    const sd = S === "L" ? 1 : -1;
-    const k = (a.t * (sn.hz + 0.8 * a.wSnap) + (S === "L" ? 0 : 0.37)) % 1;
-    const snapOpen = k < 0.75 ? k / 0.75 : 1 - (k - 0.75) / 0.25;
-    const open = sn.open * (0.25 + 0.75 * snapOpen) * (0.35 + 0.65 * a.wSnap);
-    turn(a, `pincer_${S}`, 0, 0, sn.dir * open);
-    turn(a, `arm_${S}`, 0, 0, 0.05 * Math.sin(t * 0.8 + sd) + 0.08 * a.wSnap * snapOpen);
-    turn(a, `wrist_${S}`, 0, 0, 0.04 * Math.sin(t * 1.1 + sd));
-  }
+  // weapon arms: an idle sway; then every weapon at its own phase of its fire cycle
+  const idle = a.idle;
+  for (const S of a.arms) { const sd = S === "L" ? 1 : -1;
+    turn(a, `arm_${S}`, 0, 0, 0.04 * Math.sin(t * 0.8 + sd)); turn(a, `wrist_${S}`, 0, 0, 0.03 * Math.sin(t * 1.1 + sd)); }
+  a.weapons.forEach((W, wi) => fireWeapon(a, W, wi));
   for (const S of ["L", "R"]) turn(a, `mandible_${S}`, 0, (S === "L" ? 1 : -1) * 0.25 * Math.max(0, Math.sin(t * 5)), 0);
   for (const M of a.masts) turn(a, `mast_${M}`, 0.03 * Math.sin(t * 1.7 + M.length), 0, 0.04 * Math.sin(t * 1.3 + (M === "L" ? 0 : 1)));
   turn(a, "turret_1", 0, idle.scan * Math.sin(TAU * t / idle.scanPeriod), 0);
@@ -336,6 +346,28 @@ function animate(a, dt) {
   for (const c of a.cores) c.rotation.y += dt * 1.4;
 }
 
+function fireWeapon(a, W, wi) {
+  const P = W.period_s, tt = hold ? HOLD[W.kind] : (a.fireT + wi * 0.37 * P) % P, on = a.wF > 0.5 ? 1 : 0;
+  const n = W.flashes.length, flash = new Array(n).fill(0);
+  let recoil = 0, swing = 0;
+  if (W.kind === "cannon") {
+    if (tt < 0.14) flash.fill(1 - tt / 0.14);
+    recoil = tt < 0.05 ? tt / 0.05 : Math.max(0, 1 - (tt - 0.05) / 0.7);
+  } else if (W.kind === "smg") {
+    if (tt < 1.2) { const shot = Math.floor(tt * 11), k = (tt * 11) % 1, f = k < 0.4 ? 1 - k / 0.4 : 0;
+      for (let i = 0; i < n; i++) flash[i] = n === 1 || i === shot % n ? f : 0; recoil = 0.6 * f; }
+  } else if (W.kind === "rack") {
+    const slot = 1.1 / Math.max(1, n);
+    for (let i = 0; i < n; i++) { const d = tt - i * slot; flash[i] = d >= 0 && d < 0.16 ? 1 - d / 0.16 : 0; }
+    recoil = tt < 1.2 ? 0.5 * Math.max(0, ...flash) : 0;
+  } else if (W.kind === "blade") {
+    swing = tt < 0.6 ? 0.55 * ease(tt / 0.6) : tt < 0.8 ? 0.55 - 1.6 * ease((tt - 0.6) / 0.2) : -1.05 * (1 - ease((tt - 0.8) / 1.0));
+  }
+  const node = a.nodes[W.joint], rest = a.rest[W.joint];
+  if (W.kind === "blade") turn(a, W.joint, 0, 0, swing * a.wF);
+  else if (node && W.recoil_m > 0) node.position.copy(rest.p).addScaledVector(W.axisP, -W.recoil_m * recoil * a.wF);
+  W.flashes.forEach((sp, i) => { const f = flash[i] * on; sp.material.opacity = f; sp.visible = f > 0.01; sp.scale.setScalar(W.flash_m * (0.6 + 0.6 * f)); });
+}
 function placeTags() {
   tagsEl.innerHTML = "";
   const r = canvas.getBoundingClientRect();
@@ -343,7 +375,7 @@ function placeTags() {
     const d = document.createElement("div"); d.className = "tag"; d.textContent = text;
     d.style.left = ((v.x + 1) / 2 * r.width) + "px"; d.style.top = ((1 - v.y) / 2 * r.height) + "px"; tagsEl.appendChild(d); };
   if (pilot.visible) add(new T.Vector3(pilot.position.x, 2.2, pilot.position.z), "pilot 1.8 m");
-  if (breeze && breeze.root.visible) add(new T.Vector3(breeze.root.position.x, BREEZE_META.bounds_m.y[1] + 0.8, breeze.root.position.z), `Breeze ${BREEZE_META.bounds_m.y[1].toFixed(0)} m`);
+  if (breeze && breeze.root.visible) add(new T.Vector3(breeze.root.position.x, BREEZE_META.bounds_m.y[1] + 0.8, breeze.root.position.z), `Warden ${BREEZE_META.bounds_m.y[1].toFixed(0)} m`);
   ORDER.forEach(id => { const a = aliens[id]; if (a && a.root.visible) add(new T.Vector3(a.root.position.x, H(id) + 0.8, 0), `${META[id].name} ${H(id).toFixed(0)} m`); });
 }
 function resize() {
@@ -362,7 +394,7 @@ function loop(ms) {
 }
 loaded.then(() => { setMech("snapper"); setAct("idle"); setView("orbit"); window.MOCKUP_READY = true; });
 requestAnimationFrame(loop);
-window.MOCKUP = { setMech, setView, setAct };
+window.MOCKUP = { setMech, setView, setAct, hold: on => { hold = !!on; } };
 </script>
 """
 
@@ -374,10 +406,10 @@ def main():
     for key in ORDER:
         with open(os.path.join(MODELS, meta[key]["file"]), "rb") as f:
             glb[key] = base64.b64encode(f.read()).decode("ascii")
-    with open(os.path.join(MODELS, human["breeze"]["file"]), "rb") as f:
+    with open(os.path.join(MODELS, human[HUMAN]["file"]), "rb") as f:
         glb["breeze"] = base64.b64encode(f.read()).decode("ascii")
     html = (PAGE.replace("__META__", json.dumps({k: meta[k] for k in ORDER}))
-            .replace("__BREEZE_META__", json.dumps(human["breeze"]))
+            .replace("__BREEZE_META__", json.dumps(human[HUMAN]))
             .replace("__GLB__", json.dumps(glb)).replace("__ORDER__", json.dumps(ORDER)))
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w") as f:
