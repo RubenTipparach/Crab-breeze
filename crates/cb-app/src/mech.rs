@@ -640,8 +640,10 @@ pub fn step_mech(
     globals: Query<&GlobalTransform>,
     mut explosions: MessageWriter<Explosion>,
     mut fx: MessageWriter<Fx>,
+    targeting: Res<crate::targeting::TargetState>,
 ) {
     let tl = &data.0.boarding;
+    let locked = targeting.locked(&data.0.targeting);
     let dt = time.delta_secs();
     let seated = pilot.curr.mode == PilotMode::Seated;
     let live = &mut *live;
@@ -663,7 +665,7 @@ pub fn step_mech(
         if sim.dead {
             continue;
         }
-        let mut fire = [false, false];
+        let mut fire = [false, false, false];
         let mut aim_at: Option<Vec3> = None;
         let controls = if piloted {
             // The boarding sequence follows the pilot (mech-boarding design section 4).
@@ -729,7 +731,7 @@ pub fn step_mech(
                     ..default()
                 }
             } else if seated && sim.hatch.can_walk() {
-                fire = actions.fire;
+                fire = [actions.fire[0], actions.fire[1], actions.fire_missile];
                 // The torso turns to follow where the pilot looks (the view leads, the torso
                 // follows); holding free look keeps the torso where it is.
                 let mut c = MechControls::from_actions(&actions);
@@ -779,7 +781,7 @@ pub fn step_mech(
             };
             let orders = enemy.ai.orders(&sim.curr, &view, dt);
             if !target_dead && !goal.hold_fire {
-                fire = orders.fire;
+                fire = [orders.fire[0], orders.fire[1], false];
             }
             aim_at = Some(orders.aim_point);
             orders.controls
@@ -819,7 +821,12 @@ pub fn step_mech(
         let fired = sim.guns.trigger(&cfg.weapons, fire, |k| damage.is_lost(&cfg.parts, k), dt);
         for wi in fired {
             let w = &cfg.weapons[wi];
-            let socket: Option<&'static str> = ["MUZZLE_L", "MUZZLE_R"].into_iter().find(|s| *s == w.socket);
+            // A mech without a missile pod launches its missiles from the right arm.
+            let socket: Option<&'static str> = ["MUZZLE_L", "MUZZLE_R", "MISSILE_POD"].into_iter().find(|s| *s == w.socket);
+            let socket = match socket {
+                Some("MISSILE_POD") if !rig.sockets.contains_key("MISSILE_POD") => Some("MUZZLE_R"),
+                s => s,
+            };
             let Some(muzzle) = socket
                 .and_then(|s| rig.sockets.get(s))
                 .and_then(|e| globals.get(*e).ok())
@@ -837,6 +844,8 @@ pub fn step_mech(
                 vel: dir * w.speed_m_s + carry,
                 age_s: 0.0,
                 rocket: w.rocket,
+                // A missile homes on the pilot's lock (targeting); unlocked it flies straight.
+                target: (piloted && w.seeker_turn_deg_s > 0.0).then_some(locked).flatten(),
             });
             let recipe = if w.rocket {
                 "muzzle_rocket"

@@ -12,7 +12,7 @@ use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use cb_core::mech::rig::BONES;
 use cb_core::mech::{Hit, MechConfig, PartKind};
-use cb_core::weapons::{PartCapsule, Projectile, Struck, fly, spent};
+use cb_core::weapons::{PartCapsule, Projectile, Struck, fly, home, spent};
 use cb_core::world::Scene;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -94,11 +94,27 @@ pub fn fly_shots(
             parts.extend(capsules(id.0, sim, spec, rig, &globals));
         }
     }
+    // Live mechs' torsos, for missiles to home on.
+    let torsos: HashMap<u32, Vec3> = mechs
+        .iter()
+        .filter(|m| !m.0.dead)
+        .map(|m| (m.2.0, m.0.curr.pos + Vec3::Y * cb_core::ai::TORSO_AIM_M))
+        .collect();
     let live = &mut *live;
     let mut flying = Vec::with_capacity(shots.0.len());
     let spacing = data.0.fx.trail_spacing_m;
     for mut shot in std::mem::take(&mut shots.0) {
         let (from, flown_before) = (shot.pos, shot.age_s * shot.vel.length());
+        // A missile turns toward its locked target's torso first (targeting).
+        if let Some(t) = shot.target {
+            let seeker = specs
+                .get(&shot.owner)
+                .and_then(|c| c.weapons.get(shot.weapon))
+                .map_or(0.0, |w| w.seeker_turn_deg_s);
+            if let Some(torso) = torsos.get(&t) {
+                home(&mut shot, *torso, seeker, dt);
+            }
+        }
         let impact = {
             let scene = Scene {
                 plan: &plan,

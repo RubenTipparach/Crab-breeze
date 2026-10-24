@@ -37,6 +37,8 @@ pub struct Take {
     wood: Vec2,
     in_cloud_s: f32,
     shots: u32,
+    /// The defence take is on its rockets, crossing the city by air.
+    flying: bool,
 }
 
 impl Plugin for ShowcasePlugin {
@@ -512,6 +514,7 @@ fn play_defence(
     me: Query<(&MechSim, &crate::mech::MechSpec), With<Piloted>>,
     raiders: Query<(&MechSim, &crate::defence::Raider)>,
     run: Res<crate::defence::DefenceRun>,
+    targets: Res<crate::targeting::TargetState>,
     data: Res<crate::sim::Data>,
     plan: Res<Plan>,
     live: Res<Live>,
@@ -529,6 +532,33 @@ fn play_defence(
     let cfg = &data.0.defence;
     let mut act = Actions::default();
     let over = matches!(run.state.phase, Phase::Won | Phase::Lost(_));
+    // Every 5 s, where the pilot and the wave's live raiders are, for reading a stall from the log.
+    if (now / 5.0).floor() != ((now - time.delta_secs()) / 5.0).floor() && take.beat >= 4 {
+        let others: Vec<String> = raiders
+            .iter()
+            .filter(|(r, _)| !r.dead)
+            .map(|(r, x)| {
+                format!(
+                    "w{}#{} ({:.0},{:.0},{:.0})",
+                    x.wave + 1,
+                    x.index,
+                    r.curr.pos.x,
+                    r.curr.pos.y,
+                    r.curr.pos.z
+                )
+            })
+            .collect();
+        info!(
+            "take: beat {} me ({:.0},{:.0},{:.0}) {:.1} m/s mode {:?} | {}",
+            take.names.get(take.beat).copied().unwrap_or("?"),
+            m.pos.x,
+            m.pos.y,
+            m.pos.z,
+            m.vel.length(),
+            m.mode,
+            others.join(" ")
+        );
+    }
     match take.beat {
         0 => {
             if t > 5.0 && access.0.is_some() {
@@ -580,16 +610,42 @@ fn play_defence(
             let city = &plan.cities[cfg.cities[w] as usize];
             let goal = nearest.map_or(city.centre, |r| Vec2::new(r.pos.x, r.pos.z));
             let d = here.distance(goal);
-            if !fighting {
-                // Skate when far (the budget allowing), walk the last stretch, torso ahead.
-                let want = d > 500.0 && !m.skate.locked;
-                act.skate_toggle = want != m.skates_on;
-                act.turn_axis = steer(m, goal);
+            // Fighting, a raider over 600 m off is travelled to, not orbited.
+            if !fighting || d > 600.0 {
+                // Far off, up on the rockets and skate across the roofs while the rockets last
+                // (start with them under 30 % used, come down past 85 %); on the ground skate
+                // down the streets while they recharge, walking the last stretch.
+                if take.flying && (m.boost.heat > 0.85 || m.boost.locked || d < 250.0) {
+                    take.flying = false;
+                } else if !take.flying && d > 400.0 && m.boost.heat < 0.3 && !m.boost.locked {
+                    take.flying = true;
+                }
+                let yaw = if take.flying {
+                    (-(goal - here).x).atan2(-(goal - here).y)
+                } else {
+                    open_heading(&plan, &live, here, goal)
+                };
+                let toward = here + Vec2::new(-yaw.sin(), -yaw.cos()) * 50.0;
+                act.turn_axis = steer(m, toward);
                 let hold = nearest.is_none() && d < city.half_size_m * 0.5;
                 act.throttle_axis = throttle_to(m, if hold { 0.0 } else { 1.0 });
+                if take.flying {
+                    act.skate_toggle = !m.skates_on && !m.skate.locked;
+                    act.move_xy = Vec2::new(0.0, 1.0);
+                    let cruise = cruise_height(&plan, &live, here, goal);
+                    let want_vy = ((cruise - m.pos.y) * 0.5).clamp(-8.0, 14.0);
+                    act.lift_axis = (HOVER_LIFT + (want_vy - m.vel_y_m_s) * 0.05).clamp(0.0, 1.0);
+                } else {
+                    let want = d > 500.0 && !m.skate.locked;
+                    act.skate_toggle = want != m.skates_on;
+                }
                 act.look_delta_deg = aim(m, 0.0, -0.03);
-                next = nearest.is_some() && d < 450.0;
+                next = !fighting && nearest.is_some() && d < 450.0;
+                if next {
+                    say(&format!("PLAYTEST_BEAT fight{}", w + 1));
+                }
             } else if let Some(target) = nearest {
+                take.flying = false;
                 act.skate_toggle = m.skates_on;
                 let brain = take.brain.get_or_insert_with(|| {
                     cb_core::ai::AiPilot::new(
@@ -620,6 +676,8 @@ fn play_defence(
                 let o = brain.orders(m, &view, time.delta_secs());
                 play_orders(&o, &mut act);
             }
+            // A lock, travelling or fighting: missile away (as a player holding F would).
+            act.fire_missile = targets.locked(&data.0.targeting).is_some();
         }
         4..=9 => {
             take.beat = 10;
@@ -657,6 +715,50 @@ fn play_defence(
         take.beat += 1;
         take.beat_started_s = now;
     }
+}
+
+/// Height to cross at on the rockets toward `goal`: 45 m over the ground, or 15 m over the tallest
+/// standing building within 80 m of the next 200 m of the way.
+fn cruise_height(plan: &cb_core::world::WorldPlan, live: &crate::world::Live, here: Vec2, goal: Vec2) -> f32 {
+    let dir = (goal - here).normalize_or(Vec2::X);
+    let mut top = plan.height_at(here.x, here.y) + 45.0;
+    for i in 0..=5 {
+        let p = here + dir * 40.0 * i as f32;
+        top = top.max(plan.height_at(p.x, p.y) + 45.0);
+        for b in plan.collision.candidates(p, 80.0) {
+            let c = &live.structures.buildings[b as usize];
+            if c.standing > 0 {
+                top = top.max(c.origin.y + plan.buildings[b as usize].height_m + 15.0);
+            }
+        }
+    }
+    top
+}
+
+/// The heading (yaw, 0 along -z) nearest the way to `goal` whose next 40 m are clear of standing
+/// buildings at chest height, trying 15 degree turns either side; straight at the goal if none is.
+fn open_heading(plan: &cb_core::world::WorldPlan, live: &crate::world::Live, here: Vec2, goal: Vec2) -> f32 {
+    let to = goal - here;
+    let want = (-to.x).atan2(-to.y);
+    let reach = to.length().min(40.0);
+    let clear = |yaw: f32| {
+        let dir = Vec2::new(-yaw.sin(), -yaw.cos());
+        (1..=10).all(|i| {
+            let p = here + dir * reach * i as f32 / 10.0;
+            let at = Vec3::new(p.x, plan.height_at(p.x, p.y) + 6.0, p.y);
+            plan.collision
+                .candidates(p, 6.0)
+                .into_iter()
+                .all(|b| !live.structures.buildings[b as usize].solid_at(at))
+        })
+    };
+    (0..13)
+        .map(|k| {
+            let turn = (k as f32 / 2.0).ceil() * if k % 2 == 0 { 1.0 } else { -1.0 };
+            want + turn * 15f32.to_radians()
+        })
+        .find(|y| clear(*y))
+        .unwrap_or(want)
 }
 
 /// `city 1 23 %, city 2 8 %, city 3 31 %`.

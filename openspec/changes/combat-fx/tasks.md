@@ -7,4 +7,4 @@
 - [x] 1.5 Layered explosions: fireball, shock, burning debris with trails, smoke column (test: `a_fireball_cools_from_white_to_soot`)
 - [x] 1.6 Rocket motor flame, light and smoke trail
 - [ ] 2.1 Light and particle caps; measure `--bench defence` against `CB_NO_PARTICLES=1` on the RTX 3070 machine
-- [ ] 2.2 Playtest: tracers, flashes, impacts, explosions and rocket trails seen from the cockpit in the defence take
+- [x] 2.2 Playtest: tracers, flashes, impacts, explosions and rocket trails seen from the cockpit in the defence take

@@ -28,9 +28,10 @@ buildings, people), `T` tech and tools, `P` playtesting.
 | `clouds` | built (no shadows or raindrops yet) | Cheap fly-through cumulus, in-cloud fog, cloud shadows; camera raindrops later |
 
 | `jet-flight` | built | Jets limited by heat, landing on roofs, flame; for flying into clouds |
-| `combat-fx` | built, playtest pending | Effects as recipes in `data/fx/fx.ron`: one streak per shot, muzzle stars and flashes, impacts by surface, layered explosions (fireball, shock, burning debris, smoke column), rocket trails |
-| `rockets` | built, playtest pending | Dumbfire rockets: straight flight, no drop, led without drop; 3 in 10 raiders carry a pod |
-| `city-defence` | built, playtest pending | Three waves of 10 raiders on three cities; lost past 50 % city damage, 10 min a wave, or the mech; `--mission`, `--showcase`, `--bench defence` |
+| `combat-fx` | built, in the 2026-10-24 defence take | Effects as recipes in `data/fx/fx.ron`: one streak per shot, muzzle stars and flashes, impacts by surface, layered explosions (fireball, shock, burning debris, smoke column), rocket trails |
+| `rockets` | built, in the 2026-10-24 defence take | Dumbfire rockets: straight flight, no drop, led without drop; 3 in 10 raiders carry a pod |
+| `targeting` | built, in the 2026-10-24 defence take | Ace Combat targeting: boxes with range, the selected target, lead marker, edge arrow; missile lock in range (1 200 m) and lock-on missiles on F |
+| `city-defence` | built, won on take 2026-10-24 (too easy: retune next) | Three waves of 10 raiders on three cities; lost past 50 % city damage, 10 min a wave, or the mech; `--mission`, `--showcase`, `--bench defence` |
 
 | `perf-bench` | built | `--bench world|fight`: offscreen 1080p frame time by beat; baseline in docs/benchmarks |
 | `weapons` | built | Autocannon and cannon, ballistic shots, hits by part |

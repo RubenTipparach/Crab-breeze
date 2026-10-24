@@ -16,6 +16,7 @@ mod physics;
 mod pilot;
 mod showcase;
 mod sim;
+mod targeting;
 mod textures;
 mod world;
 
@@ -81,6 +82,7 @@ fn main() -> AppExit {
         buildings::BuildingsPlugin,
         physics::DebrisPhysicsPlugin,
         hud::HudPlugin,
+        targeting::TargetingPlugin,
     ));
     if args.defending() {
         app.add_plugins(defence::DefencePlugin);

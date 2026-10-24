@@ -15,6 +15,7 @@ pub mod mission;
 pub mod pilot;
 pub mod rng;
 pub mod sim;
+pub mod targeting;
 pub mod weapons;
 pub mod world;
 
@@ -41,6 +42,8 @@ pub struct GameData {
     pub defence: mission::DefenceConfig,
     /// `data/fx/fx.ron`.
     pub fx: fx::FxConfig,
+    /// `data/hud/targeting.ron`.
+    pub targeting: targeting::TargetingConfig,
 }
 
 impl GameData {
@@ -57,6 +60,7 @@ impl GameData {
             encounters: data::load_ron(&root.join("world/encounters.ron"))?,
             defence: data::load_ron(&root.join("missions/defence.ron"))?,
             fx: data::load_ron(&root.join("fx/fx.ron"))?,
+            targeting: data::load_ron(&root.join("hud/targeting.ron"))?,
         })
     }
 

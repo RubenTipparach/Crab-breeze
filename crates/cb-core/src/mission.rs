@@ -345,15 +345,32 @@ pub fn spawn_points(plan: &WorldPlan, cfg: &DefenceConfig, wave: usize, rng: &Si
             let k = if n > 1 { i as f32 / (n - 1) as f32 - 0.5 } else { 0.0 };
             let a = bearing + k * arc;
             let jitter = Vec2::new(rng.range_f32(-1.0, 1.0), rng.range_f32(-1.0, 1.0)) * cfg.spawn_jitter_m;
-            let mut p = centre + Vec2::new(a.cos(), a.sin()) * radius + jitter;
-            let toward = (centre - p).normalize_or(Vec2::X);
-            for _ in 0..200 {
-                let out = p.x.abs() > inside || p.y.abs() > inside;
-                if !out && plan.water_at(p.x, p.y).is_none() {
-                    break;
+            // Pulled toward the city until dry and inside the world, then turned along the ring
+            // (alternating sides, 3 degrees a try) if it would start inside another city.
+            let place = |a: f32| {
+                let mut p = centre + Vec2::new(a.cos(), a.sin()) * radius + jitter;
+                let toward = (centre - p).normalize_or(Vec2::X);
+                for _ in 0..200 {
+                    let out = p.x.abs() > inside || p.y.abs() > inside;
+                    if !out && plan.water_at(p.x, p.y).is_none() {
+                        break;
+                    }
+                    p += toward * 10.0;
                 }
-                p += toward * 10.0;
-            }
+                p
+            };
+            let clear = |p: Vec2| {
+                plan.cities
+                    .iter()
+                    .all(|c| c.id == city.id || (p - c.centre).abs().max_element() > c.half_size_m + cfg.edge_margin_m)
+            };
+            let p = (0..120)
+                .map(|k| {
+                    let turn = (k as f32 / 2.0).ceil() * if k % 2 == 0 { 1.0 } else { -1.0 };
+                    place(a + turn * 3f32.to_radians())
+                })
+                .find(|p| clear(*p))
+                .unwrap_or_else(|| place(a));
             (p, yaw_of(centre - p))
         })
         .collect()
@@ -617,7 +634,7 @@ mod tests {
     }
 
     #[test]
-    fn spawn_points_are_dry_and_inside_the_world() {
+    fn spawn_points_are_dry_inside_the_world_and_outside_other_cities() {
         let c = cfg();
         let p = plan();
         let inside = -p.terrain.origin_m - c.edge_margin_m + 1.0;

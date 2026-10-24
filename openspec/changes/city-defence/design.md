@@ -45,7 +45,10 @@ Tests read as sentences: `clearing_a_wave_starts_the_next_after_the_lull`,
 On an arc of `spawn_arc_deg` (100 degrees) at `spawn_distance_m` (450 m) beyond the city square's
 corner radius, centred on the bearing away from the previous city (wave 1: a bearing from the
 seed fork `defence/0`), spaced evenly with a seeded jitter of up to 30 m. A point in water or
-outside the world's 1900 m half-width is pulled toward the city until it is dry and inside. Each
+outside the world's 1900 m half-width is pulled toward the city until it is dry and inside; one
+that would start inside another city's square (plus the 150 m margin) is turned along the ring,
+3 degrees a try on alternating sides, until it is clear (the first take spawned a raider among
+city 2's buildings, where it stuck). Each
 raider faces the city centre. Seeded and stable: the same seed gives the same points.
 
 ## 4. Raiders (`cb-core::mission::raider_goal`)

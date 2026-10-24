@@ -2,7 +2,10 @@
 //! prototyping in the cockpit"): a crosshair, a leg compass (which way the legs face against the
 //! torso), booster and skate gauges (heat, seconds left, seconds to recharge), throttle, speed,
 //! altitude, mode, guns, damage, for exploring the compass heading and the nearest city, and in the
-//! defence mission (`city-defence`) the wave, its clock, the attacked city's damage and the raiders left. Shown only while seated. Every number is the simulation's own
+//! defence mission (`city-defence`) the wave, its clock, the attacked city's damage and the raiders left.
+//! Targeting (`targeting`, after Ace Combat): a box round every enemy in range with its distance, the
+//! selected one marked with its range, speed and `IN RANGE` or `LOCK`, the lead marker where the main
+//! gun must point (`weapons::lead`, the AI's own), and an arrow at the edge toward a target off screen. Shown only while seated. Every number is the simulation's own
 //! (CLAUDE.md section 6.1). A 2D overlay for now; it moves onto the cockpit's screens later.
 
 use crate::mech::{MechSim, MechSpec, Piloted};
@@ -20,7 +23,7 @@ pub struct HudPlugin;
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_hud)
-            .add_systems(Update, update_hud.in_set(PresentSet::Camera));
+            .add_systems(Update, (update_hud, draw_targets).in_set(PresentSet::Camera));
     }
 }
 
@@ -29,6 +32,25 @@ struct HudRoot;
 
 #[derive(Component)]
 struct LegArrow;
+
+/// A pooled target box, by slot.
+#[derive(Component, Clone, Copy)]
+struct TargetBox(usize);
+
+/// A target box's label, by slot.
+#[derive(Component, Clone, Copy)]
+struct TargetLabel(usize);
+
+/// The selected target's lead marker.
+#[derive(Component)]
+struct LeadRing;
+
+/// The arrow toward a selected target off screen.
+#[derive(Component)]
+struct EdgeArrow;
+
+/// Target boxes drawn at most (the nearest).
+const BOXES: usize = 32;
 
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 enum Gauge {
@@ -104,6 +126,58 @@ fn spawn_hud(mut commands: Commands) {
             Visibility::Hidden,
         ))
         .with_children(|root| {
+            // Target boxes, the lead marker and the edge arrow (targeting).
+            for slot in 0..BOXES {
+                root.spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        width: px(40.0),
+                        height: px(40.0),
+                        border: UiRect::all(px(2.0)),
+                        ..default()
+                    },
+                    BorderColor::all(AMBER),
+                    Visibility::Hidden,
+                    TargetBox(slot),
+                ))
+                .with_children(|b| {
+                    b.spawn((
+                        Node {
+                            position_type: PositionType::Absolute,
+                            top: Val::Percent(100.0),
+                            left: px(-2.0),
+                            margin: UiRect::top(px(3.0)),
+                            ..default()
+                        },
+                        text("", 13.0),
+                        TextLayout::no_wrap(),
+                        TargetLabel(slot),
+                    ));
+                });
+            }
+            root.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    width: px(16.0),
+                    height: px(16.0),
+                    border: UiRect::all(px(2.0)),
+                    border_radius: BorderRadius::MAX,
+                    ..default()
+                },
+                BorderColor::all(GREEN),
+                Visibility::Hidden,
+                LeadRing,
+            ));
+            root.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    ..default()
+                },
+                text("^", 30.0),
+                UiTransform::IDENTITY,
+                Visibility::Hidden,
+                EdgeArrow,
+            ));
             // Crosshair.
             for (w, h) in [(22.0, 2.0), (2.0, 22.0)] {
                 root.spawn((
@@ -245,6 +319,148 @@ fn spawn_hud(mut commands: Commands) {
                 c.spawn((text("", 14.0), Readout::Damage));
             });
         });
+}
+
+/// The selected target's label: `850 m  12 m/s  LOCK`.
+fn fmt_target(range_m: f32, speed_m_s: f32, in_range: bool, locked: bool) -> String {
+    let state = if locked {
+        "  LOCK"
+    } else if in_range {
+        "  IN RANGE"
+    } else {
+        ""
+    };
+    format!("{range_m:.0} m  {speed_m_s:.0} m/s{state}")
+}
+
+/// Every enemy in range boxed on the screen, the selected one marked with its lock and its lead
+/// marker, and an arrow toward it when it is off screen. The same state the missiles home on
+/// (`TargetState`) and the same lead the AI aims with (`weapons::lead`).
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn draw_targets(
+    pilot: Res<PilotSim>,
+    data: Res<crate::sim::Data>,
+    state: Res<crate::targeting::TargetState>,
+    camera: Single<(&Camera, &GlobalTransform), With<crate::pilot::PilotCamera>>,
+    me: Query<&MechSpec, With<Piloted>>,
+    enemies: Query<(&MechSim, &crate::mech::MechId, &MechSpec, Option<&crate::mech::EnemyGoal>), With<crate::mech::Enemy>>,
+    mut boxes: Query<(&TargetBox, &mut Node, &mut BorderColor, &mut Visibility), (Without<LeadRing>, Without<EdgeArrow>)>,
+    mut labels: Query<(&TargetLabel, &mut Text, &mut TextColor), Without<EdgeArrow>>,
+    mut lead: Single<(&mut Node, &mut Visibility, &mut BorderColor), (With<LeadRing>, Without<TargetBox>, Without<EdgeArrow>)>,
+    mut arrow: Single<
+        (&mut Node, &mut Visibility, &mut UiTransform, &mut TextColor),
+        (With<EdgeArrow>, Without<TargetBox>, Without<LeadRing>),
+    >,
+) {
+    let cfg = &data.0.targeting;
+    let (cam, at) = *camera;
+    let eye = at.translation();
+    let seated = pilot.curr.mode == PilotMode::Seated;
+    let size = cam.logical_viewport_size().unwrap_or(Vec2::new(1920.0, 1080.0));
+    let on_screen = |p: Vec2| p.x >= 0.0 && p.y >= 0.0 && p.x <= size.x && p.y <= size.y;
+    let locked = state.locked(cfg);
+    // The enemies in range, nearest first.
+    let mut shown: Vec<(f32, &MechSim, u32, bool)> = enemies
+        .iter()
+        .filter(|(e, ..)| !e.dead && seated)
+        .map(|(e, id, _, goal)| {
+            let torso = e.curr.pos + Vec3::Y * cb_core::ai::TORSO_AIM_M;
+            (torso.distance(eye), e, id.0, goal.is_some_and(|g| g.point.is_some()))
+        })
+        .filter(|(d, ..)| *d <= cfg.max_range_m)
+        .collect();
+    shown.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.2.cmp(&b.2)));
+    let mut texts: Vec<(String, Color)> = vec![(String::new(), GREEN); BOXES];
+    let mut placed = vec![None; BOXES];
+    let mut lead_at = None;
+    let mut arrow_dir = None;
+    for (slot, (d, e, id, shelling)) in shown.iter().take(BOXES).enumerate() {
+        let feet = e.curr.pos;
+        let torso = feet + Vec3::Y * cb_core::ai::TORSO_AIM_M;
+        let selected = state.selected == Some(*id);
+        let colour = if selected && locked == Some(*id) {
+            RED
+        } else if *shelling {
+            AMBER
+        } else {
+            RED.with_alpha(0.85)
+        };
+        let vel = Vec3::new(e.curr.vel.x, e.curr.vel_y_m_s, e.curr.vel.y);
+        if selected {
+            let w = me.iter().next().and_then(|spec| spec.weapons.first().cloned());
+            if let Some(w) = w {
+                let p = cb_core::weapons::lead(eye, torso, vel, w.speed_m_s, !w.rocket);
+                lead_at = cam.world_to_viewport(at, p).ok().filter(|p| on_screen(*p));
+            }
+            let in_range = *d <= cfg.lock_range_m;
+            texts[slot] = (fmt_target(*d, vel.length(), in_range, locked == Some(*id)), colour);
+        } else {
+            texts[slot] = (format!("{d:.0} m"), colour);
+        }
+        let (Ok(top), Ok(bottom)) = (cam.world_to_viewport(at, feet + Vec3::Y * 12.0), cam.world_to_viewport(at, feet)) else {
+            if selected {
+                arrow_dir = Some(torso);
+            }
+            continue;
+        };
+        let centre = (top + bottom) * 0.5;
+        if !on_screen(centre) {
+            if selected {
+                arrow_dir = Some(torso);
+            }
+            continue;
+        }
+        let px_size = (bottom.y - top.y).abs().clamp(cfg.box_px[0], cfg.box_px[1]);
+        placed[slot] = Some((centre, px_size, colour, selected));
+    }
+    for (b, mut node, mut border, mut vis) in &mut boxes {
+        match placed[b.0] {
+            Some((c, w, colour, selected)) => {
+                let w = if selected { w * 1.25 } else { w };
+                node.left = px(c.x - w * 0.5);
+                node.top = px(c.y - w * 0.5);
+                node.width = px(w);
+                node.height = px(w);
+                node.border = UiRect::all(px(if selected { 3.0 } else { 1.5 }));
+                *border = BorderColor::all(colour);
+                *vis = Visibility::Inherited;
+            }
+            None => *vis = Visibility::Hidden,
+        }
+    }
+    for (l, mut t, mut c) in &mut labels {
+        let (s, colour) = &texts[l.0];
+        if t.0 != *s {
+            t.0 = s.clone();
+        }
+        c.0 = *colour;
+    }
+    let (node, vis, border) = &mut *lead;
+    match lead_at {
+        Some(p) => {
+            node.left = px(p.x - 8.0);
+            node.top = px(p.y - 8.0);
+            **border = BorderColor::all(if locked.is_some() { RED } else { GREEN });
+            **vis = Visibility::Inherited;
+        }
+        None => **vis = Visibility::Hidden,
+    }
+    let (node, vis, turn, colour) = &mut *arrow;
+    match arrow_dir {
+        Some(torso) => {
+            // The way round to it on screen: its direction in the camera's frame, x right, y down.
+            let local = at.rotation().inverse() * (torso - eye);
+            let dir = Vec2::new(local.x, -local.y).normalize_or(Vec2::X);
+            let r = size * 0.5 - Vec2::splat(60.0);
+            let p = size * 0.5 + dir * r;
+            node.left = px(p.x - 10.0);
+            node.top = px(p.y - 18.0);
+            turn.rotation = Rot2::radians(dir.x.atan2(-dir.y));
+            colour.0 = RED;
+            **vis = Visibility::Inherited;
+        }
+        None => **vis = Visibility::Hidden,
+    }
 }
 
 /// Compass bearing in degrees, 0 north (-z), clockwise, of a flat direction (x, z).
@@ -464,7 +680,11 @@ fn update_hud(
                     } else {
                         "READY".to_string()
                     };
-                    let button = if w.group == 0 { "LMB" } else { "RMB" };
+                    let button = match w.group {
+                        0 => "LMB",
+                        1 => "RMB",
+                        _ => "F",
+                    };
                     parts.push(format!("{} [{button}] {state}", w.name));
                 }
                 (parts.join("\n"), GREEN)
@@ -515,6 +735,13 @@ fn update_hud(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_locked_target_reads_lock() {
+        assert_eq!(fmt_target(850.4, 12.0, true, true), "850 m  12 m/s  LOCK");
+        assert_eq!(fmt_target(850.4, 12.0, true, false), "850 m  12 m/s  IN RANGE");
+        assert_eq!(fmt_target(1500.0, 3.0, false, false), "1500 m  3 m/s");
+    }
 
     #[test]
     fn looking_along_minus_z_reads_north() {
