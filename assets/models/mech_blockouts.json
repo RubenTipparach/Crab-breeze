@@ -40,6 +40,32 @@
    "legs_m3": 432.9,
    "torso_m3": 247.1,
    "legs_over_torso": 1.75
+  },
+  {
+   "id": "harrow",
+   "name": "Harrow",
+   "what": "new: the Mad Cat pattern, one hull between the hips, the Canopy in its nose",
+   "file": "mech_blockouts/harrow.glb",
+   "height_m": 23.35,
+   "width_m": 13.32,
+   "length_m": 14.52,
+   "tris": 3103,
+   "legs_m3": 812.1,
+   "torso_m3": 346.0,
+   "legs_over_torso": 2.35
+  },
+  {
+   "id": "roustabout",
+   "name": "Roustabout",
+   "what": "new: the Scopedog pattern, the Titan in its chest, the upper chest lifts",
+   "file": "mech_blockouts/roustabout.glb",
+   "height_m": 23.75,
+   "width_m": 12.17,
+   "length_m": 14.71,
+   "tris": 2474,
+   "legs_m3": 485.5,
+   "torso_m3": 318.4,
+   "legs_over_torso": 1.52
   }
  ]
 }
