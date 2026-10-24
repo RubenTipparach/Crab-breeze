@@ -414,6 +414,10 @@ fn spawn_buildings(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut ents: ResMut<crate::buildings::BuildingEntities>,
 ) {
+    // `CB_NO_BUILDINGS=1`: no buildings drawn (perf-bench switch, to measure what they cost).
+    if crate::cli::switched_off("CB_NO_BUILDINGS") {
+        return;
+    }
     let tones = BUILDING_TONES.map(|(r, g, b)| {
         materials.add(StandardMaterial {
             base_color: Color::srgb(r, g, b),

@@ -21,6 +21,9 @@
     // Recipes played as continuous streams from an emitter riding the body, bursts a second: a
     // jet's flame while it fires, a wreck's fire while it burns.
     stream_per_s: {"jet_flame": 60.0, "burning": 10.0},
+    // Particle bursts start only within 400 m of the eye (times the effect's scale; explosions four
+    // times as far): far off they barely show and each costs an effect of its own (2026-10-24).
+    burst_range_m: 400.0,
     recipes: {
         // Guns. The effect's direction is the barrel's.
         "muzzle_autocannon": [
