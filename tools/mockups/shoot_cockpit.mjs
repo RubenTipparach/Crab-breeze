@@ -19,13 +19,15 @@ const page = await browser.newPage({ viewport: { width: 1600, height: 1100 } });
 page.on("console", m => { if (m.type() === "error") console.log("console:", m.text()); });
 page.on("pageerror", e => console.log("pageerror:", e.message));
 await page.goto("file://" + path.resolve(page_));
+await page.locator(".stage").scrollIntoViewIfNeeded();
 await page.waitForFunction(() => window.MOCKUP_READY, null, { timeout: 180000 });
 await page.evaluate(() => window.MOCKUP.set("anim", false));
 for (const [name, a, b, c] of SHOTS) {
   if (a === "orbit") await page.evaluate(() => window.MOCKUP.setView("orbit"));
   else await page.evaluate(([y, p, f]) => window.MOCKUP.look(y, p, f), [a, b, c]);
   await page.waitForTimeout(1200);
-  await page.locator(".stage").screenshot({ path: path.join(outDir, name + ".png") });
+  const box = await page.locator(".stage").boundingBox();
+  await page.screenshot({ path: path.join(outDir, name + ".png"), clip: box, timeout: 120000 });
   console.log("shot", name);
 }
 await browser.close();

@@ -1,0 +1,94 @@
+{
+  "model": "assets/models/cockpit_breeze.glb",
+  "frame": "glTF: +y up, the pilot faces +z, +x is the pilot's left; metres; origin on the tub floor under the eye",
+  "eye_m": [
+    0.0,
+    1.2000000476837158,
+    0.0
+  ],
+  "canopy_hinge_m": [
+    0.0,
+    0.9750000238418579,
+    -0.699999988079071
+  ],
+  "nodes": {
+    "CANOPY_frame": {
+      "tris": 5992,
+      "atlas": "cabin"
+    },
+    "COCKPIT_cabin": {
+      "tris": 8644,
+      "atlas": "cabin"
+    },
+    "COCKPIT_front": {
+      "tris": 8440,
+      "atlas": "front"
+    },
+    "CTRL_stick": {
+      "tris": 520,
+      "atlas": "front"
+    },
+    "CTRL_throttle": {
+      "tris": 476,
+      "atlas": "front"
+    },
+    "CTRL_twist": {
+      "tris": 472,
+      "atlas": "front"
+    },
+    "GLASS_canopy": {
+      "tris": 1856,
+      "atlas": null
+    },
+    "HUD_combiner": {
+      "tris": 2,
+      "atlas": null
+    },
+    "SCREEN_center": {
+      "tris": 2,
+      "atlas": null
+    },
+    "SCREEN_left": {
+      "tris": 2,
+      "atlas": null
+    },
+    "SCREEN_right": {
+      "tris": 2,
+      "atlas": null
+    }
+  },
+  "tris": 26408,
+  "tri_budget": 200000,
+  "draw_calls": 11,
+  "atlases": {
+    "front": {
+      "file": "assets/textures/cockpit/baked_front.jpg",
+      "px": 1024
+    },
+    "cabin": {
+      "file": "assets/textures/cockpit/baked_cabin.jpg",
+      "px": 1024
+    }
+  },
+  "bake": {
+    "samples": 16,
+    "exposure": 1.6,
+    "denoised": true,
+    "lights": "sky through the canopy, glare shield and sill floodlights, dome lamp, red footwell lamp, screen and button glow"
+  },
+  "panels": [
+    "breakers_L",
+    "breakers_R",
+    "console_L",
+    "console_R",
+    "dash_main",
+    "floor",
+    "footwell",
+    "glare",
+    "knee",
+    "rear",
+    "wall_L",
+    "wall_R"
+  ],
+  "glb_bytes": 2062716
+}

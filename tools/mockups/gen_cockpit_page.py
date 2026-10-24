@@ -80,7 +80,8 @@ td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 <header>
   <div class="eyebrow">Crab Breeze / cockpit review / Breeze chassis</div>
   <h1>The Breeze cockpit, from the pilot's seat</h1>
-  <p class="lede">This is the view you fight from. Drag to turn your head, scroll to zoom. Every panel is modelled in Blender and baked to texture the Star Crew way (plates, screws, backlit buttons, guarded switches, dials, stencilled warnings, live circuit boards behind inspection windows), then the cabin's light and occlusion are baked over it: sky through the canopy, the glare shield and sill floodlights, the dome lamp, a red footwell lamp and the glow of the screens.</p>
+  <p class="note">Work in progress, 2026-10-24: sealed, with an all-view screen wall in place of the glass (your direction). The boarding sequence (the mech sits down, hatches and flaps open, steam and mist) comes next on this page. Quick bake: 1024 px, 16 samples.</p>
+  <p class="lede">This is the view you fight from. Drag to turn your head, scroll to zoom. The cockpit is sealed: the walls above the consoles are one wall of screens (Gundam's all-view monitor) showing what the mech's cameras see, with the HUD drawn on it. Every panel is modelled in Blender and baked to texture the Star Crew way (plates, screws, backlit buttons, guarded switches, dials, stencilled warnings, live circuit boards behind inspection windows), then the cabin's light and occlusion are baked over it: sky through the canopy, the glare shield and sill floodlights, the dome lamp, a red footwell lamp and the glow of the screens.</p>
 </header>
 <main>
   <div class="bar" role="group" aria-label="Look">
@@ -96,7 +97,7 @@ td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
   <div class="bar" role="group" aria-label="Show">
     <span class="lbl">Show</span>
     <button id="hud" aria-pressed="true">HUD</button>
-    <button id="canopy" aria-pressed="false">Canopy open</button>
+    <button id="power" aria-pressed="true">Screens on</button>
     <button id="anim" aria-pressed="true">Controls moving</button>
   </div>
   <div class="stage" id="stage"><div class="load" id="load">Loading the cockpit</div><div class="hint">drag: look / scroll: zoom</div></div>
@@ -105,7 +106,7 @@ td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
       <h2>What you are looking at</h2>
       <ul>
         <li><b>Dash:</b> three MFDs (damage and heat, the tactical radar, weapons and jet fuel) in bezels with real push buttons; the caution and warning panel and master lights on the left; reactor and jet fuel standby gauges on the right; the mode row (walk, skate, jet).</li>
-        <li><b>HUD:</b> the combiner glass at eye level, Ace Combat style: pitch ladder, heading, speed, height, missile lock.</li>
+        <li><b>All-view screen:</b> the sealed shell is lined with screen tiles showing the outside; Screens on/off plays the tile by tile power-up. The HUD (pitch ladder, heading, speed, height, missile lock, Ace Combat style) is drawn on the screen ahead.</li>
         <li><b>Left console:</b> the throttle in its quadrant (idle, walk, run, skate, and the jet gate), reactor pumps, comms keypad.</li>
         <li><b>Right console:</b> the twist grip that turns the torso, the guarded master arm, weapon select, countermeasures.</li>
         <li><b>Knees:</b> standby gauges and the emergency panel in hazard stripes: reactor scram, jet cutoff, jettison arms, under red and yellow guards. The eject handle sits between your knees.</li>
@@ -121,7 +122,8 @@ td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
       <h2>What is placeholder</h2>
       <ul>
         <li>The screens and HUD show pictures of what they will show; in the game each number is the simulation's own (CLAUDE.md 6.1), drawn live on the SCREEN_* and HUD_combiner nodes.</li>
-        <li>The light is baked for a cockpit in daylight; nothing moves it yet (muzzle flash, sun through the canopy, power loss). That is a question in the survey.</li>
+        <li>The light was baked for the earlier glass canopy (sky through it); the next bake lights the sealed cabin from the screen wall and the cabin lamps.</li>
+        <li>The world on the screens is a stand-in city captured from the eye.</li>
         <li>No pilot body or hands yet, and the world outside is a stand-in.</li>
       </ul>
     </div>
@@ -192,7 +194,7 @@ function setView(v) {
   const [y, p, f] = VIEWS[v]; target.yaw = y; target.pitch = p; target.fov = f;
 }
 document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
-const toggles = { hud: true, canopy: false, anim: true };
+const toggles = { hud: true, power: true, anim: true };
 for (const id of Object.keys(toggles)) document.getElementById(id).addEventListener("click", e => {
   toggles[id] = !toggles[id]; e.currentTarget.setAttribute("aria-pressed", String(toggles[id]));
 });
@@ -214,6 +216,50 @@ window.addEventListener("keydown", e => {
 });
 function clampLook() { target.yaw = Math.max(-2.7, Math.min(2.7, target.yaw)); target.pitch = Math.max(-1.25, Math.min(1.2, target.pitch)); }
 
+// The all-view screen (Gundam's panoramic monitor): the cockpit is sealed, and the inside of the
+// shell is one wall of screens showing what the mech's cameras see. Here a cube camera at the eye
+// renders the world once; the shader shows it by direction from the eye, with tile seams,
+// scanlines, a phosphor grade, the HUD drawn on the screen ahead, and a tile by tile power-up.
+const cubeRT = new THREE.WebGLCubeRenderTarget(1536, { generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
+const cubeCam = new THREE.CubeCamera(0.5, 5000, cubeRT);
+scene.add(cubeCam);
+const allview = new THREE.ShaderMaterial({
+  side: THREE.DoubleSide,
+  uniforms: { env: { value: cubeRT.texture }, eye: { value: new THREE.Vector3() }, power: { value: 1 }, hud: { value: null },
+              hudOn: { value: 1 }, rigInv: { value: new THREE.Matrix4() }, time: { value: 0 } },
+  vertexShader: "varying vec3 wp; void main(){ vec4 w = modelMatrix * vec4(position,1.0); wp = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }",
+  fragmentShader: `
+    uniform samplerCube env; uniform sampler2D hud; uniform vec3 eye; uniform float power, hudOn, time; uniform mat4 rigInv;
+    varying vec3 wp;
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    void main(){
+      vec3 d = normalize(wp - eye);
+      vec3 ld = normalize((rigInv * vec4(d, 0.0)).xyz);          // direction in the cockpit's frame
+      float az = atan(ld.x, ld.z), el = asin(clamp(ld.y, -1.0, 1.0));
+      vec2 tile = vec2(floor(az / 0.349), floor(el / 0.262));
+      float on = smoothstep(0.0, 0.15, power * 1.3 - hash(tile) * 0.3);
+      float flick = step(0.5, fract(sin(time * 40.0 + hash(tile) * 10.0) * 7.0)) * (1.0 - step(0.999, power));
+      vec3 c = textureCube(env, d).rgb;
+      c = pow(c, vec3(0.95)) * vec3(0.94, 1.0, 0.98) * 1.08;
+      float sa = abs(fract(az / 0.349 + 0.5) - 0.5) * 0.349, se = abs(fract(el / 0.262 + 0.5) - 0.5) * 0.262;
+      float seam = 1.0 - (1.0 - smoothstep(0.0, 0.003, sa)) * 0.85 - (1.0 - smoothstep(0.0, 0.003, se)) * 0.85;
+      c *= clamp(seam, 0.0, 1.0);
+      c *= 0.93 + 0.07 * sin(gl_FragCoord.y * 1.6);
+      if (hudOn > 0.5 && abs(az) < 0.42 && el > -0.2 && el < 0.44) {
+        vec2 uv = vec2(0.5 + az / 0.84, (el + 0.2) / 0.64);
+        vec4 h = texture2D(hud, uv);
+        c = mix(c, h.rgb * 1.2, h.a * 0.9);
+      }
+      vec3 off = vec3(0.012, 0.016, 0.02);
+      c = mix(off, c, on * (1.0 - flick * 0.7));
+      gl_FragColor = vec4(c, 1.0);
+    }`
+});
+function captureWorld() {
+  rig.visible = false; cubeCam.position.copy(eye).add(rig.position); cubeCam.update(renderer, scene); rig.visible = true;
+}
+let powerT = 1;
+
 const bytes = Uint8Array.from(atob(GLB), c => c.charCodeAt(0));
 new THREE.GLTFLoader().parse(bytes.buffer, "", gltf => {
   const root = gltf.scene; rig.add(root);
@@ -229,6 +275,12 @@ new THREE.GLTFLoader().parse(bytes.buffer, "", gltf => {
   });
   const e = nodes["EYE_pilot"]; if (e) { e.updateWorldMatrix(true, false); eye = rig.worldToLocal(e.getWorldPosition(new THREE.Vector3())); }
   canopyNode = nodes["canopy"]; hudNode = nodes["HUD_combiner"];
+  if (canopyNode) canopyNode.position.set(0, 0, 0);   // this export applied the hinge twice; the sealed pod build replaces the canopy
+  const glass = nodes["GLASS_canopy"];
+  if (glass) { glass.userData.glassMat = glass.material; glass.material = allview; }
+  if (hudNode) { allview.uniforms.hud.value = hudNode.material.map; hudNode.visible = false; }
+  rig.updateMatrixWorld(true); allview.uniforms.rigInv.value.copy(rig.matrixWorld).invert();
+  captureWorld();
   for (const k of ["CTRL_stick", "CTRL_throttle", "CTRL_twist"]) if (nodes[k]) nodes[k].userData.rest = nodes[k].quaternion.clone();
   document.getElementById("load").remove();
   window.MOCKUP_READY = true;
@@ -245,7 +297,6 @@ rows.push(["glb size", (MAN.glb_bytes / 1048576).toFixed(1) + " MiB"]);
 cost.innerHTML = rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join("");
 
 const clock = new THREE.Clock();
-let canopyT = 0;
 function frame() {
   const dt = Math.min(0.05, clock.getDelta()), t = clock.elapsedTime;
   const w = stage.clientWidth, h = stage.clientHeight;
@@ -255,10 +306,14 @@ function frame() {
     look.yaw += (target.yaw - look.yaw) * k; look.pitch += (target.pitch - look.pitch) * k; look.fov += (target.fov - look.fov) * k;
     camera.fov = look.fov; camera.updateProjectionMatrix();
     camera.position.copy(eye).add(rig.position);
-    camera.rotation.set(look.pitch, look.yaw, 0, "YXZ");
+    camera.rotation.set(look.pitch, look.yaw + Math.PI, 0, "YXZ");   // the pilot faces +z; a three.js camera looks down -z
   } else orbit.update();
-  if (hudNode) hudNode.visible = toggles.hud;
-  if (canopyNode) { canopyT += ((toggles.canopy ? 1 : 0) - canopyT) * (1 - Math.exp(-dt * 3)); canopyNode.rotation.x = -0.9 * canopyT; }
+  if (hudNode) hudNode.visible = false;
+  powerT = toggles.power ? Math.min(1, powerT + dt / 2.5) : Math.max(0, powerT - dt / 0.6);
+  allview.uniforms.power.value = powerT; allview.uniforms.hudOn.value = toggles.hud && powerT > 0.95 ? 1 : 0;
+  allview.uniforms.time.value = t; allview.uniforms.eye.value.copy(eye).add(rig.position);
+  const glass = nodes["GLASS_canopy"];
+  if (glass) glass.material = mode === "orbit" ? glass.userData.glassMat : allview;
   const sway = toggles.anim ? 1 : 0;
   const st = nodes["CTRL_stick"], th = nodes["CTRL_throttle"], tw = nodes["CTRL_twist"];
   if (st && st.userData.rest) st.quaternion.copy(st.userData.rest).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0.08 * Math.sin(t * 0.9) * sway, 0, 0.06 * Math.sin(t * 1.3) * sway)));
@@ -268,7 +323,7 @@ function frame() {
   requestAnimationFrame(frame);
 }
 frame();
-window.MOCKUP = { setView, set(id, v) { toggles[id] = v; document.getElementById(id).setAttribute("aria-pressed", String(v)); },
+window.MOCKUP = { nodes: () => nodes, allview, setView, set(id, v) { toggles[id] = v; document.getElementById(id).setAttribute("aria-pressed", String(v)); },
   look(y, p, f) { mode = "eye"; orbit.enabled = false; target.yaw = look.yaw = y; target.pitch = look.pitch = p; target.fov = look.fov = f; } };
 </script>
 """

@@ -18,10 +18,12 @@ buildings, people), `T` tech and tools, `P` playtesting.
 | `cargo-workspace` | built | Rust workspace on Bevy 0.20.0: `cb-core`, `cb-app`, `cb-tools`; seeded RNG; data loader |
 | `procgen-world` | built, playtest pending | Seeded world: hills, cities with street grids, box buildings 2-60 storeys, highways |
 | `mech-rig` | built, playtest pending | Stand-in mech on the rig contract, digitigrade walk, torso twist, glb drop-in |
+| `mech-boarding` | proposed | The sealed cockpit and its all-view screen, the mech sitting down, the staged hatch with steam and mist |
 | `pilot-boarding` | built, playtest pending | Pilot on foot in first person, boarding up the lift into `EYE_pilot`, climbing out |
 
 ## Mockups
 
 | Page | Published | Built by |
 | --- | --- | --- |
+| Breeze Cockpit (`docs/mockups/cockpit.html`): the sealed cockpit from the pilot's seat, all-view screen wall, modelled panels, baked light; the boarding sequence next | https://claude.ai/artifact/AqMpKdiBjn9e1uQPT1c1aj | `tools/mockups/gen_cockpit_page.py` from `assets/models/cockpit_breeze.glb` |
 | Crab Breeze Mechs (`docs/mockups/mech_designs.html`): the three chassis candidates at true scale, cockpit view, rig test | https://claude.ai/artifact/B5tX8ycUR2tLBknKyMb8bc | `tools/mockups/gen_mech_designs.py` from `assets/models/mech_*.glb` |
