@@ -442,6 +442,11 @@ impl Frame {
         self.slabs[(k * self.n[0] + i) * self.n[2] + j]
     }
 
+    /// The facade panel of storey k on `side` at position `idx`, or `GROUND` if there is none.
+    pub fn wall(&self, k: usize, side: usize, idx: usize) -> u32 {
+        self.walls.get(self.wall_index(k, side, idx)).copied().unwrap_or(GROUND)
+    }
+
     fn wall_index(&self, k: usize, side: usize, idx: usize) -> usize {
         (k * 4 + side) * self.n[0].max(self.n[2]) + idx
     }

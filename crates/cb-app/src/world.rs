@@ -193,6 +193,21 @@ impl MeshBuilder {
         self.quad([v(x0, y0, z0), v(x1, y0, z0), v(x1, y0, z1), v(x0, y0, z1)], color);
     }
 
+    /// An upright drum or cone of `seg` sides: radius `r0` at `base`, `r1` at `base + h`, capped on top.
+    pub fn drum(&mut self, base: Vec3, r0: f32, r1: f32, h: f32, seg: u32, color: [f32; 4]) {
+        let at = |a: f32, r: f32, y: f32| base + Vec3::new(a.cos() * r, y, a.sin() * r);
+        for i in 0..seg {
+            let (a0, a1) = (
+                i as f32 / seg as f32 * std::f32::consts::TAU,
+                (i + 1) as f32 / seg as f32 * std::f32::consts::TAU,
+            );
+            self.quad([at(a0, r0, 0.0), at(a0, r1, h), at(a1, r1, h), at(a1, r0, 0.0)], color);
+            if r1 > 0.0 {
+                self.tri(base + Vec3::Y * h, at(a1, r1, h), at(a0, r1, h), [Vec3::Y; 3], color);
+            }
+        }
+    }
+
     fn tri(&mut self, a: Vec3, b: Vec3, c: Vec3, n: [Vec3; 3], color: [f32; 4]) {
         let base = self.positions.len() as u32;
         let face = (b - a).cross(c - a).normalize_or(Vec3::Y);
@@ -409,6 +424,11 @@ fn spawn_buildings(
         structure: materials.add(StandardMaterial {
             base_color: Color::srgb(0.66, 0.64, 0.6),
             perceptual_roughness: 0.9,
+            ..default()
+        }),
+        trim: materials.add(StandardMaterial {
+            base_color: Color::WHITE,
+            perceptual_roughness: 0.8,
             ..default()
         }),
     });

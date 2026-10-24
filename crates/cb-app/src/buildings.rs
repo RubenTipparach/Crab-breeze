@@ -7,8 +7,10 @@
 use crate::sim::{PresentSet, SimSet};
 use crate::world::{Live, MeshBuilder};
 use bevy::prelude::*;
+use cb_core::rng::SimRng;
 use cb_core::world::destruct::Cells;
-use cb_core::world::structure::{Frame, Kind};
+use cb_core::world::dressing::{self, Anchor, DressingConfig, Shape};
+use cb_core::world::structure::{Frame, GROUND, Kind};
 use std::collections::HashMap;
 
 /// Storeys per drawn band of a damaged building.
@@ -21,7 +23,16 @@ pub struct BuildingLooks {
     pub tones: Vec<Handle<StandardMaterial>>,
     /// Exposed floors and columns.
     pub structure: Handle<StandardMaterial>,
+    /// Dressing: pilasters, courses, parapets, roof props (coloured per vertex).
+    pub trim: Handle<StandardMaterial>,
 }
+
+/// Dressed buildings near the camera: the dressing's entity and whether it is cut per element.
+#[derive(Resource, Default)]
+struct Dressed(HashMap<u32, (Entity, bool)>);
+
+/// Most buildings dressed in one frame (each costs well under a millisecond).
+const DRESS_PER_FRAME: usize = 6;
 
 /// A damaged building's drawn bands: per band, its entities and the standing count it was drawn with.
 #[derive(Resource, Default)]
@@ -38,8 +49,9 @@ impl Plugin for BuildingsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<BuildingEntities>()
             .init_resource::<DrawnBands>()
+            .init_resource::<Dressed>()
             .add_systems(FixedUpdate, step_structures.in_set(SimSet::World))
-            .add_systems(Update, redraw_buildings.in_set(PresentSet::Pose));
+            .add_systems(Update, (redraw_buildings, dress_near_camera).chain().in_set(PresentSet::Pose));
     }
 }
 
@@ -161,12 +173,103 @@ fn band_meshes(f: &Frame, band: u32, wall_m: f32) -> (Mesh, Mesh, usize) {
     (facade.build(), bare.build(), standing)
 }
 
+/// True while the element a dressing piece hangs on stands (a whole building: always).
+fn anchored(f: Option<&Frame>, a: Anchor) -> bool {
+    let Some(f) = f else { return true };
+    let id = match a {
+        Anchor::Whole => return true,
+        Anchor::Column { k, a, c } => f.column(k as usize, a as usize, c as usize),
+        Anchor::Slab { k, i, j } => f.slab(k as usize, i as usize, j as usize),
+        Anchor::Wall { k, side, idx } => f.wall(k as usize, side as usize, idx as usize),
+    };
+    id != GROUND && f.elements[id as usize].alive
+}
+
+/// The dressing mesh of building `id`: cut per element (and filtered by what stands) once it has
+/// a frame, merged while it is whole.
+fn dressing_mesh(c: &Cells, id: u32, seed: &SimRng, cfg: &DressingConfig) -> Mesh {
+    let f = c.frame.as_deref();
+    let mut mb = MeshBuilder::tiled(4.0, 4.0);
+    for p in dressing::dress(id, c.n, c.origin, c.size, seed, f.is_some(), cfg) {
+        if !anchored(f, p.anchor) {
+            continue;
+        }
+        let col = [p.color[0], p.color[1], p.color[2], 1.0];
+        match p.shape {
+            Shape::Block { min, max } => mb.block(min, max, col),
+            Shape::Drum { base, r0, r1, height_m } => mb.drum(base, r0, r1, height_m, 14, col),
+        }
+    }
+    mb.build()
+}
+
+/// Dresses the buildings near the camera, a few a frame, and drops the dressing of those left
+/// behind.
+#[allow(clippy::too_many_arguments)]
+fn dress_near_camera(
+    mut commands: Commands,
+    live: Res<Live>,
+    plan: Res<crate::world::Plan>,
+    seed: Res<crate::world::Seed>,
+    looks: Option<Res<BuildingLooks>>,
+    cfg: Res<crate::sim::Data>,
+    camera: Query<&GlobalTransform, With<crate::pilot::PilotCamera>>,
+    mut dressed: ResMut<Dressed>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    let (Some(looks), Ok(eye)) = (looks, camera.single()) else { return };
+    let cfg = &cfg.0.world.dressing;
+    let at = eye.translation();
+    let here = Vec2::new(at.x, at.z);
+    let rng = SimRng::new(seed.0).fork("dressing");
+    let near = plan.0.collision.candidates(here, cfg.dress_radius_m);
+    let mut added = 0;
+    for b in near {
+        if added >= DRESS_PER_FRAME {
+            break;
+        }
+        if dressed.0.contains_key(&b) || plan.0.buildings[b as usize].footprint.centre().distance(here) > cfg.dress_radius_m {
+            continue;
+        }
+        let c = &live.structures.buildings[b as usize];
+        if c.standing == 0 {
+            continue;
+        }
+        let e = commands
+            .spawn((
+                Name::new(format!("building {b} dressing")),
+                Mesh3d(meshes.add(dressing_mesh(c, b, &rng, cfg))),
+                MeshMaterial3d(looks.trim.clone()),
+                Transform::IDENTITY,
+            ))
+            .id();
+        dressed.0.insert(b, (e, c.frame.is_some()));
+        added += 1;
+    }
+    let keep = cfg.dress_radius_m * 1.15;
+    let gone: Vec<u32> = dressed
+        .0
+        .keys()
+        .copied()
+        .filter(|&b| plan.0.buildings[b as usize].footprint.centre().distance(here) > keep)
+        .collect();
+    for b in gone {
+        if let Some((e, _)) = dressed.0.remove(&b) {
+            commands.entity(e).despawn();
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn redraw_buildings(
     mut commands: Commands,
     mut live: ResMut<Live>,
     ents: Res<BuildingEntities>,
     looks: Option<Res<BuildingLooks>>,
     mut drawn: ResMut<DrawnBands>,
+    mut dressed: ResMut<Dressed>,
+    seed: Res<crate::world::Seed>,
+    cfg: Res<crate::sim::Data>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     if live.dirty_buildings.is_empty() || ents.0.is_empty() {
@@ -177,9 +280,22 @@ fn redraw_buildings(
     ids.sort_unstable();
     ids.dedup();
     let wall_m = live.structures.cfg.wall_m;
+    let rng = SimRng::new(seed.0).fork("dressing");
     for id in ids {
         let c = &live.structures.buildings[id as usize];
         let e = ents.0[id as usize];
+        // A dressed building's dressing follows its elements.
+        if let Some((d, _)) = dressed.0.get(&id).copied() {
+            if c.standing == 0 {
+                commands.entity(d).despawn();
+                dressed.0.remove(&id);
+            } else {
+                commands
+                    .entity(d)
+                    .insert(Mesh3d(meshes.add(dressing_mesh(c, id, &rng, &cfg.0.world.dressing))));
+                dressed.0.insert(id, (d, c.frame.is_some()));
+            }
+        }
         let Some(f) = c.frame.as_ref() else {
             // No frame (an old save, a test): the cell view.
             if c.standing == 0 {
@@ -249,6 +365,23 @@ mod tests {
         let (_, _, n2) = band_meshes(&f, 2, 0.3);
         assert_eq!(n0, per_storey * 4);
         assert_eq!(n2, per_storey, "the last band holds the ninth storey only");
+    }
+
+    #[test]
+    fn dressing_drops_the_pieces_whose_element_fell() {
+        let f = frame();
+        let cfg = DressingConfig::default();
+        let rng = SimRng::new(1);
+        let all = dressing::dress(3, f.n, f.origin, f.size, &rng, true, &cfg);
+        let standing = |f: &Frame| all.iter().filter(|p| anchored(Some(f), p.anchor)).count();
+        assert_eq!(standing(&f), all.len(), "a frame that stands keeps every piece");
+        let mut broken = f.clone();
+        let roof = broken.slab(f.n[1] - 1, 1, 1) as usize;
+        broken.elements[roof].alive = false;
+        let col = broken.column(4, 0, 0) as usize;
+        broken.elements[col].alive = false;
+        assert!(standing(&broken) < all.len(), "the pieces on the broken roof bay and column go");
+        assert!(anchored(None, Anchor::Whole));
     }
 
     #[test]

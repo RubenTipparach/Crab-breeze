@@ -564,6 +564,8 @@ pub struct WorldConfig {
     pub craters: CraterConfig,
     /// Building frames (openspec change `structural-destruction`).
     pub structure: super::structure::StructureConfig,
+    /// Building dressing (openspec change `building-generation`).
+    pub dressing: super::dressing::DressingConfig,
 }
 
 impl Default for WorldConfig {
@@ -612,6 +614,7 @@ impl Default for WorldConfig {
             clouds: CloudConfig::default(),
             craters: CraterConfig::default(),
             structure: super::structure::StructureConfig::default(),
+            dressing: super::dressing::DressingConfig::default(),
         }
     }
 }
@@ -703,6 +706,7 @@ impl Validate for WorldConfig {
         self.clouds.validate()?;
         self.craters.validate()?;
         self.structure.validate()?;
+        self.dressing.validate()?;
         Ok(())
     }
 }
