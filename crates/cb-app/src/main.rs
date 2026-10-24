@@ -1,12 +1,16 @@
 //! Crab Breeze, the game. This file is the composition root (CLAUDE.md section 6.2): it reads the
 //! command line and the data, and wires the plugins. It holds no game logic.
 
+mod bench;
 mod blast;
+mod buildings;
 mod capture;
 mod cli;
+mod combat;
 mod fx;
 mod input;
 mod mech;
+mod physics;
 mod pilot;
 mod showcase;
 mod sim;
@@ -39,7 +43,11 @@ fn main() -> AppExit {
             .set(WindowPlugin {
                 primary_window: Some(Window {
                     title: "Crab Breeze".into(),
-                    resolution: WindowResolution::new(1920, 1080),
+                    resolution: if args.bench.is_some() {
+                        WindowResolution::new(640, 360)
+                    } else {
+                        WindowResolution::new(1920, 1080)
+                    },
                     // The capture instrument measures frame cost, so it must not wait for vsync.
                     present_mode: if args.stills.is_some() {
                         PresentMode::AutoNoVsync
@@ -65,11 +73,17 @@ fn main() -> AppExit {
         pilot::PilotPlugin,
         fx::FxPlugin,
         blast::BlastPlugin,
+        combat::CombatPlugin,
+        buildings::BuildingsPlugin,
+        physics::DebrisPhysicsPlugin,
     ));
     if let Some(dir) = args.stills {
         app.add_plugins(capture::StillsPlugin { dir });
-    } else if args.showcase {
-        app.add_plugins(showcase::ShowcasePlugin);
+    } else if let Some(take) = args.showcase.clone().or(args.bench.clone()) {
+        app.add_plugins(showcase::ShowcasePlugin { fight: take == "fight" });
+    }
+    if args.bench.is_some() {
+        app.add_plugins(bench::BenchPlugin);
     }
     app.run()
 }

@@ -81,7 +81,7 @@ impl BuildingGrid {
     }
 
     /// Indices of buildings whose footprint might be within `radius_m` of `p`, ascending.
-    fn candidates(&self, p: Vec2, radius_m: f32) -> Vec<u32> {
+    pub fn candidates(&self, p: Vec2, radius_m: f32) -> Vec<u32> {
         let (x0, z0) = self.bucket(p - Vec2::splat(radius_m));
         let (x1, z1) = self.bucket(p + Vec2::splat(radius_m));
         let mut out = Vec::new();
@@ -119,7 +119,8 @@ impl BuildingGrid {
     }
 }
 
-fn push_out_of_rect(p: Vec2, r: f32, rect: &Rect) -> Vec2 {
+/// Moves a circle of radius `r` at `p` out of `rect` by the shortest way.
+pub fn push_out_of_rect(p: Vec2, r: f32, rect: &Rect) -> Vec2 {
     let closest = p.clamp(rect.min, rect.max);
     let d = p - closest;
     if d != Vec2::ZERO {

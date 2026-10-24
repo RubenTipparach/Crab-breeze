@@ -1,24 +1,31 @@
-//! The mech in the game (`mech-rig` design sections 1, 5 and 6; `mech-boarding`): spawns the
-//! stand-in from data or a glb named in data, binds the contract's bones and sockets by name (the
-//! same code for both), steps its locomotion and boarding clock in the fixed step, and poses its
-//! bones and hatch nodes from the interpolated state.
+//! The mechs in the game (`mech-rig` sections 1, 5 and 6; `mech-boarding`; `enemy-mechs`;
+//! `weapons`): spawns the player's mech and the encounter's enemies from data (the stand-in or a
+//! glb), binds the contract's bones and sockets by name (the same code for all), steps each one's
+//! locomotion, boarding clock and guns in the fixed step (the player's from the seat's actions,
+//! enemies' from their AI pilot, through the same controls), and poses bones and hatch nodes.
 
 use crate::blast::Explosion;
-use crate::fx::{Burst, Debris, FxKind, Ripple};
+use crate::combat::Shots;
+use crate::fx::{Burst, FxKind, Ripple};
 use crate::input::StepActions;
 use crate::pilot::{PilotCamera, PilotEvents, PilotSim};
 use crate::sim::{Data, PresentSet, SimSet};
 use crate::world::{Live, Plan};
+use avian3d::prelude::{AngularVelocity, Collider, LinearVelocity, RigidBody};
 use bevy::prelude::*;
 use bevy::world_serialization::WorldAssetRoot;
+use cb_core::ai::AiPilot;
 use cb_core::boarding::{Hatch, HatchTarget};
 use cb_core::input::DebugCommand;
 use cb_core::mech::rig::{BONES, SOCKETS};
-use cb_core::mech::{Damage, Hit, LocomotionMode};
+use cb_core::mech::{Damage, Hit, LocomotionMode, MechConfig, PartKind};
 use cb_core::mech::{LegRest, MechControls, MechState, RigRest, pose};
 use cb_core::pilot::{MechAccess, PilotEvent, PilotMode};
+use cb_core::rng::SimRng;
+use cb_core::weapons::{Guns, Projectile};
 use cb_core::world::{Ground, Scene};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// The mech's root: on the ground, turned to its heading.
 #[derive(Component)]
@@ -42,6 +49,29 @@ pub struct MechSim {
     pub damage: Damage,
     /// Parts lost this step whose bones the drawing must cut off.
     pub cuts: Vec<usize>,
+    /// Gun reloads.
+    pub guns: Guns,
+    /// The torso is gone: the mech is a wreck.
+    pub dead: bool,
+}
+
+/// A mech's data.
+#[derive(Component, Clone, Deref)]
+pub struct MechSpec(pub Arc<MechConfig>);
+
+/// A mech's stable id (projectiles name their owner by it): 0 is the player's.
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
+pub struct MechId(pub u32);
+
+/// The mech the pilot boards and drives.
+#[derive(Component)]
+pub struct Piloted;
+
+/// A mech driven by an AI pilot.
+#[derive(Component)]
+pub struct Enemy {
+    /// Its pilot.
+    pub ai: AiPilot,
 }
 
 /// A hatch node found by a timeline motion's pattern.
@@ -74,6 +104,18 @@ pub struct MechRig {
     named: HashMap<String, Entity>,
     /// Contract bones no longer driven (shot off), by `BONES` index.
     cut: Vec<bool>,
+}
+
+impl MechRig {
+    /// The entity of contract bone `i` (by `BONES` index).
+    pub fn bone_entity(&self, i: usize) -> Entity {
+        self.bones[i].entity
+    }
+
+    /// The optional sensor head.
+    pub fn head(&self) -> Option<Entity> {
+        self.named.get("head").copied()
+    }
 }
 
 /// Smoke and fire rising from where a part was shot off.
@@ -114,14 +156,62 @@ fn spawn_mech(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let cfg = &data.0.mech;
     let start = world.start;
-    let ground = world.terrain.height_at(start.mech_xz.x, start.mech_xz.y);
-    let state = MechState::standing(
-        Vec3::new(start.mech_xz.x, ground, start.mech_xz.y),
+    let at = |xz: Vec2| Vec3::new(xz.x, world.terrain.height_at(xz.x, xz.y), xz.y);
+    let player = spawn_mech_entity(
+        &mut commands,
+        Arc::new(data.0.mech.clone()),
+        at(start.mech_xz),
         start.mech_heading_rad,
-        &cfg.gait,
+        None,
+        &assets,
+        &mut meshes,
+        &mut materials,
     );
+    commands.entity(player).insert((Piloted, MechId(0)));
+    let root = cli::repo_root().join("data");
+    for (i, e) in data.0.encounters.enemies.iter().enumerate() {
+        let mut cfg: MechConfig = match cb_core::data::load_ron(&root.join(&e.mech)) {
+            Ok(c) => c,
+            Err(err) => {
+                error!("encounter enemy {i}: {err}");
+                continue;
+            }
+        };
+        if let Some(w) = &e.weapons {
+            cfg.weapons = w.clone();
+        }
+        let xz = start.mech_xz + Vec2::from_array(e.offset_m);
+        let tint = e.tint.map(|c| Color::srgb(c[0], c[1], c[2]));
+        let ent = spawn_mech_entity(
+            &mut commands,
+            Arc::new(cfg),
+            at(xz),
+            e.heading_deg.to_radians(),
+            tint,
+            &assets,
+            &mut meshes,
+            &mut materials,
+        );
+        let ai = AiPilot::new(e.skill.clone(), SimRng::new(world.seed).fork(&format!("enemy/{i}")));
+        commands.entity(ent).insert((Enemy { ai }, MechId(i as u32 + 1)));
+    }
+}
+
+use crate::cli;
+
+/// Spawns one mech: its root, its model (the stand-in's boxes or a glb), standing at `pos`.
+fn spawn_mech_entity(
+    commands: &mut Commands,
+    cfg: Arc<MechConfig>,
+    pos: Vec3,
+    heading_rad: f32,
+    tint: Option<Color>,
+    assets: &AssetServer,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+) -> Entity {
+    let state = MechState::standing(pos, heading_rad, &cfg.gait);
     let model = commands
         .spawn((
             Name::new("mech model (glTF space)"),
@@ -129,7 +219,7 @@ fn spawn_mech(
             Visibility::default(),
         ))
         .id();
-    commands
+    let root = commands
         .spawn((
             Name::new(format!("mech {}", cfg.name)),
             MechRoot { model },
@@ -140,17 +230,21 @@ fn spawn_mech(
                 hatch: Hatch::default(),
                 damage: Damage::new(&cfg.parts),
                 cuts: Vec::new(),
+                guns: Guns::default(),
+                dead: false,
             },
+            MechSpec(cfg.clone()),
             Transform::from_translation(state.pos).with_rotation(Quat::from_rotation_y(state.heading_rad)),
             Visibility::default(),
         ))
-        .add_child(model);
+        .add_child(model)
+        .id();
 
     if let Some(path) = &cfg.model {
         info!("mech model: {path}");
         let scene = assets.load(GltfAssetLabel::Scene(0).from_asset(path.clone()));
         commands.spawn((WorldAssetRoot(scene), ChildOf(model)));
-        return;
+        return root;
     }
 
     // The stand-in: one entity per contract node, then boxes on the bones.
@@ -169,17 +263,18 @@ fn spawn_mech(
         let parent = if n.parent.is_empty() { model } else { nodes[n.parent.as_str()] };
         commands.entity(nodes[n.name.as_str()]).insert(ChildOf(parent));
     }
+    let hull = tint.unwrap_or(Color::srgb(0.40, 0.43, 0.36));
     let tones = [
-        (0.40, 0.43, 0.36, 0.5),
-        (0.18, 0.19, 0.20, 0.6),
-        (0.30, 0.30, 0.32, 0.4),
-        (0.12, 0.12, 0.13, 0.5),
-        (0.50, 0.60, 0.65, 0.1),
-        (0.85, 0.45, 0.10, 0.5),
+        (hull, 0.5),
+        (Color::srgb(0.18, 0.19, 0.20), 0.6),
+        (Color::srgb(0.30, 0.30, 0.32), 0.4),
+        (Color::srgb(0.12, 0.12, 0.13), 0.5),
+        (Color::srgb(0.50, 0.60, 0.65), 0.1),
+        (Color::srgb(0.85, 0.45, 0.10), 0.5),
     ]
-    .map(|(r, g, b, rough)| {
+    .map(|(c, rough)| {
         materials.add(StandardMaterial {
-            base_color: Color::srgb(r, g, b),
+            base_color: c,
             perceptual_roughness: rough,
             metallic: 0.3,
             ..default()
@@ -201,6 +296,7 @@ fn spawn_mech(
             ChildOf(nodes[b.bone.as_str()]),
         ));
     }
+    root
 }
 
 /// Composes local transforms from `e` up to (not including) `model`.
@@ -219,14 +315,14 @@ fn model_space(e: Entity, model: Entity, transforms: &Query<&Transform>, parents
 
 fn bind_rig(
     mut commands: Commands,
-    roots: Query<(Entity, &MechRoot), (Without<MechRig>, Without<RigRefused>)>,
+    roots: Query<(Entity, &MechRoot, &MechSpec), (Without<MechRig>, Without<RigRefused>)>,
     children: Query<&Children>,
     names: Query<&Name>,
     transforms: Query<&Transform>,
     parents: Query<&ChildOf>,
     data: Res<Data>,
 ) {
-    for (root, mech) in &roots {
+    for (root, mech, spec) in &roots {
         let mut found: HashMap<&'static str, Entity> = HashMap::new();
         let mut named: Vec<(String, Entity)> = Vec::new();
         for e in children.iter_descendants(mech.model) {
@@ -248,7 +344,7 @@ fn bind_rig(
             .filter(|n| !found.contains_key(n))
             .collect();
         if !missing.is_empty() {
-            let what = data.0.mech.model.clone().unwrap_or_else(|| "the stand-in".into());
+            let what = spec.model.clone().unwrap_or_else(|| "the stand-in".into());
             error!("mech rig: {what} is missing contract nodes {missing:?} (docs/design/mech-rig.md); not driving it");
             commands.entity(root).insert(RigRefused);
             continue;
@@ -322,7 +418,8 @@ fn bind_rig(
             SOCKETS.len(),
             hatch_nodes.len()
         );
-        let named = named.into_iter().collect();
+        let named: HashMap<String, Entity> = named.into_iter().collect();
+        // The optional sensor head.
         commands.entity(root).insert(MechRig {
             cut: vec![false; bones.len()],
             bones,
@@ -353,11 +450,11 @@ fn lerp_state(a: &MechState, b: &MechState, t: f32) -> MechState {
 fn drive_mech(
     fixed: Res<Time<Fixed>>,
     data: Res<Data>,
-    mut roots: Query<(Entity, &MechSim, Option<&MechRig>), With<MechRoot>>,
+    mut roots: Query<(Entity, &MechSim, &MechSpec, Option<&MechRig>), With<MechRoot>>,
     mut transforms: Query<&mut Transform>,
 ) {
     let alpha = fixed.overstep_fraction();
-    for (root, sim, rig) in &mut roots {
+    for (root, sim, spec, rig) in &mut roots {
         let s = lerp_state(&sim.prev, &sim.curr, alpha);
         let tl = &data.0.boarding;
         let t = sim.hatch_prev.t_s + (sim.hatch.t_s - sim.hatch_prev.t_s) * alpha;
@@ -368,7 +465,7 @@ fn drive_mech(
         let Some(rig) = rig else { continue };
         // No legs left: it sits (mech-damage design section 2).
         let sit_amount = if s.legs_lost == [true, true] { 1.0 } else { tl.sit_amount(t) };
-        let p = pose(&s, &data.0.mech.gait, &rig.rest, &tl.sit, sit_amount);
+        let p = pose(&s, &spec.gait, &rig.rest, &tl.sit, sit_amount);
         for n in &rig.hatch_nodes {
             let stage = &tl.stages[n.stage];
             let m = &stage.motions[n.motion];
@@ -402,7 +499,7 @@ fn drive_mech(
 }
 
 fn publish_access(
-    roots: Query<(&MechSim, &MechRig), With<MechRoot>>,
+    roots: Query<(&MechSim, &MechRig), With<Piloted>>,
     globals: Query<&GlobalTransform>,
     data: Res<Data>,
     mut out: ResMut<MechAccessNow>,
@@ -420,10 +517,11 @@ fn publish_access(
     });
 }
 
-/// Steps the mech: boarding clock, test commands, locomotion on the live ground, trees in its way,
-/// and the effects of its feet and jets.
+/// Steps every mech: boarding clock (the piloted one), test commands, the AI's or the seat's
+/// controls, locomotion on the live ground, trees and walls in its way, guns, and the effects of its
+/// feet and jets.
 pub fn step_mech(
-    mut roots: Query<(&mut MechSim, Option<&MechRig>), With<MechRoot>>,
+    mut roots: Query<(&mut MechSim, &MechSpec, &MechId, Option<&MechRig>, Option<&mut Enemy>, Has<Piloted>), With<MechRoot>>,
     actions: Res<StepActions>,
     pilot: Res<PilotSim>,
     mut events: ResMut<PilotEvents>,
@@ -431,6 +529,7 @@ pub fn step_mech(
     data: Res<Data>,
     plan: Res<Plan>,
     mut live: ResMut<Live>,
+    mut shots: ResMut<Shots>,
     time: Res<Time<Fixed>>,
     camera: Query<&GlobalTransform, With<PilotCamera>>,
     globals: Query<&GlobalTransform>,
@@ -438,72 +537,102 @@ pub fn step_mech(
     mut bursts: MessageWriter<Burst>,
     mut ripples: MessageWriter<Ripple>,
 ) {
-    let cfg = &data.0.mech;
     let tl = &data.0.boarding;
+    let dt = time.delta_secs();
     let seated = pilot.curr.mode == PilotMode::Seated;
     let live = &mut *live;
-    for (mut sim, rig) in &mut roots {
+    // What the enemies see: the player's mech.
+    // Every mech's body, for the pilot's look ray: the guns converge on what the pilot looks at.
+    let bodies: Vec<(u32, Vec3)> = roots.iter().filter(|r| !r.0.dead).map(|r| (r.2.0, r.0.curr.pos)).collect();
+    let player = roots.iter().find(|r| r.5).map(|r| {
+        (
+            r.0.curr.pos,
+            cb_core::mech::forward(r.0.curr.heading_rad) * r.0.curr.speed_m_s + Vec3::Y * r.0.curr.vel_y_m_s,
+            r.0.dead,
+        )
+    });
+    let cam = camera.iter().next().copied();
+    for (mut sim, spec, id, rig, enemy, piloted) in &mut roots {
+        let cfg: &MechConfig = spec;
         sim.prev = sim.curr;
         sim.hatch_prev = sim.hatch;
-        // The boarding sequence follows the pilot (mech-boarding design section 4).
-        for e in &events.0 {
-            match e {
-                PilotEvent::HatchWanted => sim.hatch.target = HatchTarget::Open,
-                PilotEvent::Seated => sim.hatch.target = HatchTarget::SealedSitting,
-                _ => {}
+        if sim.dead {
+            continue;
+        }
+        let mut fire = [false, false];
+        let mut aim_at: Option<Vec3> = None;
+        let controls = if piloted {
+            // The boarding sequence follows the pilot (mech-boarding design section 4).
+            for e in &events.0 {
+                match e {
+                    PilotEvent::HatchWanted => sim.hatch.target = HatchTarget::Open,
+                    PilotEvent::Seated => sim.hatch.target = HatchTarget::SealedSitting,
+                    _ => {}
+                }
             }
-        }
-        let clear = access
-            .0
-            .as_ref()
-            .is_some_and(|a| pilot.curr.mode == PilotMode::OnFoot && pilot.curr.distance_to_stair(a) > tl.clear_m);
-        if sim.hatch.target == HatchTarget::Open && clear && pilot.curr.waiting.is_none() {
-            sim.hatch.target = HatchTarget::SealedSitting;
-        }
-        if seated && sim.hatch.is_sealed_sitting(tl) && (actions.throttle_axis > 0.0 || actions.lift_axis > 0.0) {
-            sim.hatch.target = HatchTarget::Standing;
-        }
-        sim.hatch.step(tl, time.delta_secs());
-
-        // Test commands until weapons exist.
-        match actions.debug {
-            Some(DebugCommand::Hit(kind)) => {
-                if let Some(part) = cfg.parts.iter().position(|p| p.kind == kind) {
-                    let sim = &mut *sim;
-                    if let Some(lost) = sim.damage.resolve(
-                        &cfg.parts,
-                        Hit {
+            let clear = access
+                .0
+                .as_ref()
+                .is_some_and(|a| pilot.curr.mode == PilotMode::OnFoot && pilot.curr.distance_to_stair(a) > tl.clear_m);
+            if sim.hatch.target == HatchTarget::Open && clear && pilot.curr.waiting.is_none() {
+                sim.hatch.target = HatchTarget::SealedSitting;
+            }
+            if seated && sim.hatch.is_sealed_sitting(tl) && (actions.throttle_axis > 0.0 || actions.lift_axis > 0.0) {
+                sim.hatch.target = HatchTarget::Standing;
+            }
+            sim.hatch.step(tl, dt);
+            // Test commands until every weapon exists.
+            match actions.debug {
+                Some(DebugCommand::Hit(kind)) => {
+                    if let Some(part) = cfg.parts.iter().position(|p| p.kind == kind) {
+                        let hit = Hit {
                             part,
                             penetration_mm: 500.0,
                             damage: 1000.0,
-                        },
-                    ) {
-                        sim.cuts.push(lost);
-                        sim.curr.legs_lost = sim.damage.legs(&cfg.parts).map(|on| !on);
-                        info!("damage: {:?} lost", cfg.parts[lost].kind);
+                        };
+                        apply_hit(&mut sim, cfg, hit);
                     }
                 }
-            }
-            Some(DebugCommand::Shell) => {
-                if let Some(at) = camera.iter().next().and_then(|c| aim_point(c, &plan, &live.dug)) {
-                    explosions.write(Explosion { at, energy_mj: 6.0 });
+                Some(DebugCommand::Shell) => {
+                    if let Some(at) = cam.and_then(|c| aim_point(&c, &plan, &live.dug)) {
+                        let y = plan.terrain.height_at(at.x, at.y) + live.dug.delta_at(at);
+                        explosions.write(Explosion {
+                            at: Vec3::new(at.x, y, at.y),
+                            energy_mj: 6.0,
+                        });
+                    }
                 }
+                None => {}
             }
-            None => {}
-        }
-
-        let controls = if seated && sim.hatch.can_walk() {
-            MechControls::from_actions(&actions)
+            if seated && sim.hatch.can_walk() {
+                fire = actions.fire;
+                let others: Vec<Vec3> = bodies.iter().filter(|b| b.0 != id.0).map(|b| b.1).collect();
+                aim_at = cam.map(|c| look_point(&c, &plan, live, &others));
+                MechControls::from_actions(&actions)
+            } else {
+                MechControls::default()
+            }
+        } else if let (Some(mut enemy), Some((target, target_vel, target_dead))) = (enemy, player) {
+            let eye = sim.curr.pos + Vec3::Y * 9.6;
+            let speed = cfg.weapons.first().map_or(850.0, |w| w.speed_m_s);
+            let orders = enemy.ai.think(&sim.curr, eye, target, target_vel, speed, dt);
+            if !target_dead {
+                fire = orders.fire;
+            }
+            aim_at = Some(orders.aim_point);
+            orders.controls
         } else {
             MechControls::default()
         };
+
         let ground = Scene {
             plan: &plan,
             dug: &live.dug,
             trees: None,
+            structures: Some(&live.structures),
         };
         let was_airborne = sim.curr.airborne();
-        sim.curr.step(&controls, cfg, &ground, time.delta_secs());
+        sim.curr.step(&controls, cfg, &ground, dt);
 
         // Trees in the way snap or stop it.
         if !sim.curr.airborne() || sim.curr.pos.y - ground.height_at(sim.curr.pos.x, sim.curr.pos.z) < 15.0 {
@@ -522,9 +651,56 @@ pub fn step_mech(
             sim.curr.speed_m_s *= 1.0 - 0.15 * (bump.broke.len() as f32).min(1.0);
             live.moved_trees.extend(bump.broke);
         }
+        let Some(rig) = rig else { continue };
+        let damage = sim.damage.clone();
+        // Guns: fire from the muzzle toward the aim point; a lost arm's gun is gone.
+        let fired = sim.guns.trigger(&cfg.weapons, fire, |k| damage.is_lost(&cfg.parts, k), dt);
+        for wi in fired {
+            let w = &cfg.weapons[wi];
+            let socket: Option<&'static str> = ["MUZZLE_L", "MUZZLE_R"].into_iter().find(|s| *s == w.socket);
+            let Some(muzzle) = socket
+                .and_then(|s| rig.sockets.get(s))
+                .and_then(|e| globals.get(*e).ok())
+                .map(|g| g.translation())
+            else {
+                continue;
+            };
+            let target = aim_at.unwrap_or(muzzle + cb_core::mech::forward(sim.curr.heading_rad + sim.curr.twist_rad) * 500.0);
+            let dir = (target - muzzle).normalize_or(Vec3::NEG_Z);
+            let carry = cb_core::mech::forward(sim.curr.heading_rad) * sim.curr.speed_m_s;
+            shots.0.push(Projectile {
+                owner: id.0,
+                weapon: wi,
+                pos: muzzle,
+                vel: dir * w.speed_m_s + carry,
+                age_s: 0.0,
+            });
+            let heavy = w.blast_mj >= 1.0;
+            bursts.write(Burst {
+                kind: FxKind::Fire,
+                at: muzzle + dir * 1.5,
+                dir,
+                count: if heavy { 30 } else { 5 },
+                speed_m_s: if heavy { 14.0 } else { 8.0 },
+                spread: 0.3,
+                size_m: if heavy { 1.6 } else { 0.6 },
+                life_s: 0.15,
+            });
+            if heavy {
+                bursts.write(Burst {
+                    kind: FxKind::Smoke,
+                    at: muzzle + dir * 3.0,
+                    dir,
+                    count: 12,
+                    speed_m_s: 6.0,
+                    spread: 0.5,
+                    size_m: 2.0,
+                    life_s: 2.5,
+                });
+            }
+        }
 
         // Footfalls: spray and ripples in water, dust on dry ground; a heavy landing throws more.
-        let Some(rig) = rig else { continue };
         let landed = was_airborne && !sim.curr.airborne();
         for (side, offset) in [(0usize, 0.0f64), (1, 0.5)] {
             let before = (sim.prev.gait_cycles - offset).floor();
@@ -595,13 +771,92 @@ pub fn step_mech(
                 }
             }
         }
+        // A mech striding into a wall at speed smashes through it (building-destruction).
+        let pushed_back =
+            sim.prev.speed_m_s.abs() > 2.5 && sim.curr.speed_m_s.abs() < sim.prev.speed_m_s.abs() * 0.6 && !sim.curr.airborne();
+        if pushed_back {
+            let front = sim.curr.pos + cb_core::mech::forward(sim.curr.heading_rad) * (cfg.locomotion.body_radius_m + 2.5) + Vec3::Y * 5.0;
+            let p2 = Vec2::new(front.x, front.z);
+            for b in plan.collision.candidates(p2, 3.0) {
+                let (broke, chunks) = live.structures.break_sphere(b, front, 4.5);
+                if broke > 0 {
+                    live.dirty_buildings.push(b);
+                    live.new_chunks.extend(chunks);
+                    sim.curr.speed_m_s = sim.prev.speed_m_s * 0.7;
+                    bursts.write(Burst {
+                        kind: FxKind::Dust,
+                        at: front,
+                        dir: Vec3::Y,
+                        count: 60,
+                        speed_m_s: 6.0,
+                        spread: 1.0,
+                        size_m: 3.0,
+                        life_s: 4.0,
+                    });
+                }
+            }
+        }
     }
     events.0.clear();
 }
 
+/// Applies a hit to a mech's part: structure, a lost part cut off, legs lost, death by the torso.
+pub fn apply_hit(sim: &mut MechSim, cfg: &MechConfig, hit: Hit) {
+    if let Some(lost) = sim.damage.resolve(&cfg.parts, hit) {
+        sim.cuts.push(lost);
+        sim.curr.legs_lost = sim.damage.legs(&cfg.parts).map(|on| !on);
+        info!(
+            "damage: {:?} lost by the mech at ({:.0}, {:.0})",
+            cfg.parts[lost].kind, sim.curr.pos.x, sim.curr.pos.z
+        );
+        if cfg.parts[lost].kind == PartKind::Torso {
+            sim.dead = true;
+            sim.curr.legs_lost = [true, true];
+            sim.curr.throttle = 0.0;
+            sim.curr.speed_m_s = 0.0;
+        }
+    }
+}
+
+/// Where the pilot is looking: the first mech body, ground, water or standing building cell along
+/// the view, or 1.5 km out.
+fn look_point(camera: &GlobalTransform, plan: &cb_core::world::WorldPlan, live: &Live, mechs: &[Vec3]) -> Vec3 {
+    let ground = Scene {
+        plan,
+        dug: &live.dug,
+        trees: None,
+        structures: Some(&live.structures),
+    };
+    let (o, d) = (camera.translation(), camera.forward().as_vec3());
+    let mut t = 20.0;
+    while t < 1500.0 {
+        let p = o + d * t;
+        let p2 = Vec2::new(p.x, p.z);
+        let wall = plan
+            .collision
+            .candidates(p2, 0.5)
+            .into_iter()
+            .any(|b| live.structures.buildings[b as usize].solid_at(p));
+        // A mech: a column 3 m round from its feet to the top of its torso.
+        let mech = mechs
+            .iter()
+            .any(|m| Vec2::new(m.x, m.z).distance(p2) < 3.0 && p.y > m.y && p.y < m.y + 12.5);
+        if wall || mech || p.y <= ground.height_at(p.x, p.z) {
+            return p;
+        }
+        t += 2.0;
+    }
+    o + d * 1500.0
+}
+
 /// Where the pilot's view meets the ground, within 1.5 km.
 fn aim_point(camera: &GlobalTransform, plan: &cb_core::world::WorldPlan, dug: &cb_core::world::Deformation) -> Option<Vec2> {
-    let ground = Scene { plan, dug, trees: None };
+    let ground = Scene {
+        plan,
+        dug,
+        trees: None,
+        structures: None,
+    };
     let (o, d) = (camera.translation(), camera.forward().as_vec3());
     let mut t = 5.0;
     while t < 1500.0 {
@@ -618,16 +873,25 @@ fn aim_point(camera: &GlobalTransform, plan: &cb_core::world::WorldPlan, dug: &c
 /// burns.
 fn cut_parts(
     mut commands: Commands,
-    mut roots: Query<(&mut MechSim, &mut MechRig)>,
+    mut roots: Query<(Entity, &mut MechSim, &mut MechRig, &MechSpec)>,
     globals: Query<&GlobalTransform>,
     parents: Query<&ChildOf>,
-    data: Res<Data>,
     time: Res<Time>,
     mut bursts: MessageWriter<Burst>,
+    mut explosions: MessageWriter<Explosion>,
 ) {
-    for (mut sim, mut rig) in &mut roots {
+    for (root, mut sim, mut rig, mech) in &mut roots {
         for part in std::mem::take(&mut sim.cuts) {
-            let spec = &data.0.mech.parts[part];
+            let spec = &mech.parts[part];
+            if spec.kind == PartKind::Torso {
+                // The torso is gone: the mech blows up where it stands and burns.
+                let at = globals.get(root).map(|g| g.translation()).unwrap_or_default() + Vec3::Y * 9.0;
+                explosions.write(Explosion { at, energy_mj: 25.0 });
+                commands.entity(rig.bones[3].entity).insert(Burning {
+                    until_s: time.elapsed_secs() + 60.0,
+                });
+                continue;
+            }
             let Some(&e) = rig.named.get(&spec.cut_bone) else { continue };
             let Ok(g) = globals.get(e) else { continue };
             // Stop driving the cut bone and every contract bone under it.
@@ -642,12 +906,13 @@ fn cut_parts(
             let out = (at - globals.get(rig.bones[0].entity).map(|r| r.translation()).unwrap_or(at))
                 .with_y(0.0)
                 .normalize_or(Vec3::X);
+            // The wreck falls under physics (debris-physics): a box about the part's size.
             commands.entity(e).remove::<ChildOf>().insert((
                 g.compute_transform(),
-                Debris {
-                    vel: out * 6.0 + Vec3::Y * 5.0,
-                    spin: Vec3::new(1.5, 0.7, -1.1),
-                },
+                RigidBody::Dynamic,
+                Collider::cuboid(1.6, 3.0, 1.6),
+                LinearVelocity(out * 6.0 + Vec3::Y * 5.0),
+                AngularVelocity(Vec3::new(1.5, 0.7, -1.1)),
             ));
             if let Ok(stump) = parents.get(e).map(|p| p.parent()).or(Ok::<Entity, ()>(e)) {
                 commands.entity(stump).insert(Burning {

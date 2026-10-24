@@ -36,6 +36,12 @@ pub struct Live {
     pub dirty_tiles: Vec<(i32, i32)>,
     /// Trees that started falling or landed since they were last drawn.
     pub moved_trees: Vec<u32>,
+    /// Every building's cells.
+    pub structures: cb_core::world::Structures,
+    /// Buildings damaged since they were last drawn.
+    pub dirty_buildings: Vec<u32>,
+    /// Pieces of buildings that fell since the physics last took them.
+    pub new_chunks: Vec<cb_core::world::Chunk>,
 }
 
 /// Generates and draws the world.
@@ -58,6 +64,9 @@ impl Plugin for WorldPlugin {
             dug: Deformation::new(app.world().resource::<Data>().0.world.world_size_m),
             dirty_tiles: Vec::new(),
             moved_trees: Vec::new(),
+            structures: cb_core::world::Structures::new(&plan),
+            dirty_buildings: Vec::new(),
+            new_chunks: Vec::new(),
         };
         info!(
             "world: {} trees, {} rivers, {} bridges, sea level {:.1} m, {} cloud puffs",
@@ -101,9 +110,19 @@ pub const SKY: Color = Color::srgb(0.62, 0.74, 0.88);
 /// Terrain chunk size in cells.
 const CHUNK_CELLS: usize = 64;
 
+/// Concrete and glass tones of buildings, by id modulo the count.
+pub const BUILDING_TONES: [(f32, f32, f32); 6] = [
+    (0.62, 0.60, 0.56),
+    (0.48, 0.50, 0.53),
+    (0.70, 0.66, 0.58),
+    (0.36, 0.40, 0.46),
+    (0.56, 0.47, 0.40),
+    (0.78, 0.77, 0.74),
+];
+
 /// Accumulates triangles for one merged mesh.
 #[derive(Default)]
-struct MeshBuilder {
+pub struct MeshBuilder {
     positions: Vec<[f32; 3]>,
     normals: Vec<[f32; 3]>,
     colors: Vec<[f32; 4]>,
@@ -112,7 +131,7 @@ struct MeshBuilder {
 
 impl MeshBuilder {
     /// A flat quad, corners counter-clockwise around its outward normal `(c1 - c0) x (c3 - c0)`.
-    fn quad(&mut self, corners: [Vec3; 4], color: [f32; 4]) {
+    pub fn quad(&mut self, corners: [Vec3; 4], color: [f32; 4]) {
         let base = self.positions.len() as u32;
         let n = (corners[1] - corners[0]).cross(corners[3] - corners[0]).normalize_or(Vec3::Y);
         for c in corners {
@@ -202,7 +221,7 @@ impl MeshBuilder {
         }
     }
 
-    fn build(self) -> Mesh {
+    pub fn build(self) -> Mesh {
         Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
             .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, self.positions)
             .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, self.normals)
@@ -259,6 +278,16 @@ fn chunk_to_mesh(chunk: ChunkMesh, colors: Vec<[f32; 4]>) -> Mesh {
         )
         .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
         .with_inserted_indices(Indices::U32(chunk.indices))
+}
+
+/// A static collider from a drawn ground mesh (debris-physics).
+fn mesh_collider(mesh: &Mesh) -> Option<(avian3d::prelude::RigidBody, avian3d::prelude::Collider)> {
+    let Some(bevy::mesh::VertexAttributeValues::Float32x3(p)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
+        return None;
+    };
+    let Some(Indices::U32(idx)) = mesh.indices() else { return None };
+    let pos: Vec<Vec3> = p.iter().map(|v| Vec3::from_array(*v)).collect();
+    crate::physics::ground_collider(&pos, idx)
 }
 
 fn build_chunk(plan: &WorldPlan, dug: &Deformation, cx: usize, cz: usize) -> Mesh {
@@ -372,8 +401,11 @@ fn redraw_craters(
     chunks.dedup();
     for c in chunks {
         if let Some(e) = ground.chunks.get(&c) {
-            let mesh = meshes.add(build_chunk(&plan, &live.dug, c.0, c.1));
-            commands.entity(*e).insert(Mesh3d(mesh));
+            let mesh = build_chunk(&plan, &live.dug, c.0, c.1);
+            if let Some(col) = mesh_collider(&mesh) {
+                commands.entity(*e).insert(col);
+            }
+            commands.entity(*e).insert(Mesh3d(meshes.add(mesh)));
         }
     }
 }
@@ -444,17 +476,10 @@ fn spawn_buildings(
     world: Res<Plan>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut ents: ResMut<crate::buildings::BuildingEntities>,
 ) {
     let cube = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
-    let tones = [
-        (0.62, 0.60, 0.56),
-        (0.48, 0.50, 0.53),
-        (0.70, 0.66, 0.58),
-        (0.36, 0.40, 0.46),
-        (0.56, 0.47, 0.40),
-        (0.78, 0.77, 0.74),
-    ]
-    .map(|(r, g, b)| {
+    let tones = BUILDING_TONES.map(|(r, g, b)| {
         materials.add(StandardMaterial {
             base_color: Color::srgb(r, g, b),
             perceptual_roughness: 0.75,
@@ -465,15 +490,16 @@ fn spawn_buildings(
         let ground = world.cities[b.city as usize].ground_m;
         let size = b.footprint.size();
         let centre = b.footprint.centre();
-        // From a metre below the ground to the roof, so no sliver of sky shows under a wall.
-        let bottom = ground - 1.0;
-        let height = b.height_m + 1.0;
-        commands.spawn((
-            Name::new(format!("building {}", b.id)),
-            Mesh3d(cube.clone()),
-            MeshMaterial3d(tones[b.id as usize % tones.len()].clone()),
-            Transform::from_xyz(centre.x, bottom + height * 0.5, centre.y).with_scale(Vec3::new(size.x, height, size.y)),
-        ));
+        // The whole box stands on the city's ground (cells and box agree; craters do not dig cities).
+        let e = commands
+            .spawn((
+                Name::new(format!("building {}", b.id)),
+                Mesh3d(cube.clone()),
+                MeshMaterial3d(tones[b.id as usize % tones.len()].clone()),
+                Transform::from_xyz(centre.x, ground + b.height_m * 0.5, centre.y).with_scale(Vec3::new(size.x, b.height_m, size.y)),
+            ))
+            .id();
+        ents.0.push(e);
     }
 }
 
@@ -482,7 +508,7 @@ fn spawn_sun(mut commands: Commands) {
         Name::new("sun"),
         DirectionalLight {
             illuminance: light_consts::lux::AMBIENT_DAYLIGHT,
-            shadow_maps_enabled: true,
+            shadow_maps_enabled: !crate::cli::switched_off("CB_NO_SHADOWS"),
             ..default()
         },
         Transform::from_rotation(Quat::from_euler(EulerRot::YXZ, 0.8, -0.75, 0.0)),
@@ -788,6 +814,9 @@ fn fell_trees(mut live: ResMut<Live>, time: Res<Time<Fixed>>, mut bursts: Messag
 fn redraw_trees(mut live: ResMut<Live>, trees: Option<Res<TreeEntities>>, mut q: Query<&mut Transform>) {
     let Some(trees) = trees else { return };
     let moved = std::mem::take(&mut live.moved_trees);
+    if trees.0.is_empty() {
+        return;
+    }
     for id in moved {
         let i = id as usize;
         if let Ok(mut t) = q.get_mut(trees.0[i]) {

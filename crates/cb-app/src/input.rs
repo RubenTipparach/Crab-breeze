@@ -48,6 +48,7 @@ struct Keys {
     mode_jet: Vec<KeyCode>,
     release_mouse: Vec<KeyCode>,
     lift: Vec<KeyCode>,
+    fire: [(Vec<KeyCode>, Vec<MouseButton>); 2],
     debug: Vec<(Vec<KeyCode>, DebugCommand)>,
     deg_per_px: f32,
     invert_pitch: bool,
@@ -68,6 +69,21 @@ impl Plugin for InputPlugin {
             .add_systems(Update, (grab_mouse, sample_devices).chain().in_set(PresentSet::Input))
             .add_systems(FixedUpdate, take_step_actions.in_set(SimSet::Input));
     }
+}
+
+/// Key and mouse bindings from one list of names (`MouseLeft`, `MouseRight`, `MouseMiddle` or keys).
+fn split(field: &str, names: &[String]) -> Result<(Vec<KeyCode>, Vec<MouseButton>), String> {
+    let mut keys = Vec::new();
+    let mut buttons = Vec::new();
+    for n in names {
+        match n.as_str() {
+            "MouseLeft" => buttons.push(MouseButton::Left),
+            "MouseRight" => buttons.push(MouseButton::Right),
+            "MouseMiddle" => buttons.push(MouseButton::Middle),
+            other => keys.push(key_code(other).ok_or_else(|| format!("`{field}`: unknown key `{other}`"))?),
+        }
+    }
+    Ok((keys, buttons))
 }
 
 fn resolve(b: &Bindings) -> Result<Keys, String> {
@@ -91,6 +107,7 @@ fn resolve(b: &Bindings) -> Result<Keys, String> {
         mode_jet: r("mode_jet", &b.mode_jet)?,
         release_mouse: r("release_mouse", &b.release_mouse)?,
         lift: r("lift", &b.lift)?,
+        fire: [split("fire_primary", &b.fire_primary)?, split("fire_secondary", &b.fire_secondary)?],
         debug: vec![
             (r("debug_hit_arm_l", &b.debug_hit_arm_l)?, DebugCommand::Hit(PartKind::ArmL)),
             (r("debug_hit_arm_r", &b.debug_hit_arm_r)?, DebugCommand::Hit(PartKind::ArmR)),
@@ -209,7 +226,13 @@ fn axis(input: &ButtonInput<KeyCode>, pos: &[KeyCode], neg: &[KeyCode]) -> f32 {
     f32::from(u8::from(any(input, pos))) - f32::from(u8::from(any(input, neg)))
 }
 
-fn take_step_actions(input: Res<ButtonInput<KeyCode>>, keys: Res<Keys>, mut acc: ResMut<InputAccum>, mut out: ResMut<StepActions>) {
+fn take_step_actions(
+    input: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    keys: Res<Keys>,
+    mut acc: ResMut<InputAccum>,
+    mut out: ResMut<StepActions>,
+) {
     let held = match acc.script {
         Some(s) => s,
         None => {
@@ -221,6 +244,10 @@ fn take_step_actions(input: Res<ButtonInput<KeyCode>>, keys: Res<Keys>, mut acc:
                 turn_axis: -side,
                 run: any(&input, &keys.run),
                 lift_axis: f32::from(u8::from(any(&input, &keys.lift))),
+                fire: keys
+                    .fire
+                    .clone()
+                    .map(|(k, m)| any(&input, &k) || mouse.any_pressed(m.iter().copied())),
                 free_look: any(&input, &keys.free_look),
                 ..default()
             }

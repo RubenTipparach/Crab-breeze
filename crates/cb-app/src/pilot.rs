@@ -3,7 +3,6 @@
 //! out, and `EYE_pilot` in the seat. There is no other camera (CLAUDE.md, the law).
 
 use crate::input::{InputAccum, StepActions};
-use crate::mech::MechRoot;
 use crate::mech::{MechAccessNow, MechRig, socket_now};
 use crate::sim::{Data, PresentSet, SimSet};
 use crate::world::{Live, Plan, SKY};
@@ -91,6 +90,7 @@ fn step_pilot(
         plan: &plan,
         dug: &live.dug,
         trees: Some(&live.forest),
+        structures: Some(&live.structures),
     };
     let event = pilot
         .curr
@@ -115,7 +115,7 @@ fn place_camera(
     acc: Res<InputAccum>,
     fixed: Res<Time<Fixed>>,
     data: Res<Data>,
-    rigs: Query<&MechRig>,
+    rigs: Query<&MechRig, With<crate::mech::Piloted>>,
     transforms: Query<&Transform, Without<PilotCamera>>,
     parents: Query<&ChildOf>,
     mut camera: Single<&mut Transform, With<PilotCamera>>,
@@ -171,8 +171,7 @@ fn weather_and_screens(
     plan: Res<Plan>,
     time: Res<Time>,
     pilot: Res<PilotSim>,
-    data: Res<Data>,
-    mechs: Query<&crate::mech::MechSim, With<MechRoot>>,
+    mechs: Query<(&crate::mech::MechSim, &crate::mech::MechSpec), With<crate::mech::Piloted>>,
     mut camera: Single<(&GlobalTransform, &mut DistanceFog, &mut ColorGrading), With<PilotCamera>>,
 ) {
     let (eye, fog, grading) = &mut *camera;
@@ -185,7 +184,7 @@ fn weather_and_screens(
         Color::srgb(0.45, 0.55, 0.68).mix(&Color::srgb(0.85, 0.87, 0.9), inside),
         Color::srgb(0.80, 0.86, 0.95).mix(&Color::srgb(0.95, 0.95, 0.97), inside),
     );
-    let head_lost = pilot.curr.mode == PilotMode::Seated && mechs.iter().any(|m| m.damage.is_lost(&data.0.mech.parts, PartKind::Head));
+    let head_lost = pilot.curr.mode == PilotMode::Seated && mechs.iter().any(|(m, spec)| m.damage.is_lost(&spec.parts, PartKind::Head));
     let (sat, exp, tint) = if head_lost { (0.25, -0.6, 0.15) } else { (1.0, 0.0, 0.0) };
     if grading.global.post_saturation != sat {
         grading.global.post_saturation = sat;

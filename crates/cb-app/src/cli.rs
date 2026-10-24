@@ -3,7 +3,8 @@
 use std::path::{Path, PathBuf};
 
 /// How to call the game.
-pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--showcase]";
+pub const USAGE: &str =
+    "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--showcase world|fight] [--bench world|fight]";
 
 /// Parsed command line.
 #[derive(Debug, PartialEq)]
@@ -14,8 +15,10 @@ pub struct Args {
     pub mech: String,
     /// Capture instrument output directory (`pilot-boarding` design section 4).
     pub stills: Option<PathBuf>,
-    /// Play the showcase take for a recording.
-    pub showcase: bool,
+    /// Play a showcase take (`world` or `fight`) for a recording.
+    pub showcase: Option<String>,
+    /// Play a showcase take offscreen and report frame time (perf-bench).
+    pub bench: Option<String>,
 }
 
 impl Args {
@@ -25,7 +28,8 @@ impl Args {
             seed: 42,
             mech: "mechs/placeholder.ron".into(),
             stills: None,
-            showcase: false,
+            showcase: None,
+            bench: None,
         };
         let mut it = args;
         while let Some(a) = it.next() {
@@ -34,7 +38,8 @@ impl Args {
                 "--seed" => out.seed = value()?.parse().map_err(|e| format!("--seed: {e}"))?,
                 "--mech" => out.mech = value()?,
                 "--stills" => out.stills = Some(PathBuf::from(value()?)),
-                "--showcase" => out.showcase = true,
+                "--showcase" => out.showcase = Some(take_name(it.next())?),
+                "--bench" => out.bench = Some(take_name(it.next())?),
                 other => return Err(format!("unknown argument {other}")),
             }
         }
@@ -57,4 +62,16 @@ pub fn repo_root() -> PathBuf {
         }
     }
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+/// True when the environment variable `name` is set to anything but `0` (perf-bench switches).
+pub fn switched_off(name: &str) -> bool {
+    std::env::var(name).is_ok_and(|v| v != "0")
+}
+
+fn take_name(v: Option<String>) -> Result<String, String> {
+    match v.as_deref() {
+        Some("world") | Some("fight") => Ok(v.unwrap_or_default()),
+        _ => Err("--showcase and --bench take `world` or `fight`".into()),
+    }
 }

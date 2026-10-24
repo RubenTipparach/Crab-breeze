@@ -51,6 +51,8 @@ pub struct Actions {
     pub mode_request: Option<ModeRequest>,
     /// A test command this step.
     pub debug: Option<DebugCommand>,
+    /// Fire groups held: [primary, secondary].
+    pub fire: [bool; 2],
 }
 
 impl Actions {
@@ -128,6 +130,10 @@ pub struct Bindings {
     pub debug_hit_leg_l: Vec<String>,
     /// Test: drop a shell where the pilot looks.
     pub debug_shell: Vec<String>,
+    /// Fire group 1 (`MouseLeft`, `MouseRight` or key names).
+    pub fire_primary: Vec<String>,
+    /// Fire group 2.
+    pub fire_secondary: Vec<String>,
 }
 
 impl Default for Bindings {
@@ -154,6 +160,8 @@ impl Default for Bindings {
             debug_hit_head: k("F7"),
             debug_hit_leg_l: k("F8"),
             debug_shell: k("F9"),
+            fire_primary: k("MouseLeft"),
+            fire_secondary: k("MouseRight"),
         }
     }
 }

@@ -29,6 +29,12 @@ buildings, people), `T` tech and tools, `P` playtesting.
 
 | `jet-flight` | built | Jets limited by heat, landing on roofs, flame; for flying into clouds |
 
+| `perf-bench` | built | `--bench world|fight`: offscreen 1080p frame time by beat; baseline in docs/benchmarks |
+| `weapons` | built | Autocannon and cannon, ballistic shots, hits by part |
+| `enemy-mechs` | built | AI pilots through the same controls; the city fight take |
+| `building-destruction` | built | Buildings of cells that break and collapse |
+| `debris-physics` | built | Avian 0.8 for chunks and wrecks on the drawn ground |
+
 Requests between the Mac and cloud sessions: `docs/design/requests.md`.
 
 ## Mockups

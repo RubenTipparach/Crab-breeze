@@ -16,3 +16,7 @@ Cost: a few hundred projectiles a step, each a few segment tests through the buc
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | G4 | Missiles | lock-on missiles next, after guns | decided by the owner (Ace Combat first) |
+
+## As built (2026-10-24)
+
+- Guns converge on what the pilot looks at (first mech, standing cell or ground along the view). A stopped hit does 2 % of its damage (`mech-damage` CHIP).

@@ -190,6 +190,8 @@ pub struct MechConfig {
     pub jet: JetConfig,
     /// Parts that can be shot off.
     pub parts: Vec<PartSpec>,
+    /// Guns.
+    pub weapons: Vec<crate::weapons::WeaponSpec>,
     /// The stand-in's bones and sockets.
     pub nodes: Vec<NodeSpec>,
     /// The stand-in's boxes.
@@ -205,6 +207,7 @@ impl Default for MechConfig {
             gait: GaitConfig::default(),
             jet: JetConfig::default(),
             parts: default_parts(),
+            weapons: crate::weapons::default_weapons(),
             nodes: Vec::new(),
             boxes: Vec::new(),
         }
@@ -250,6 +253,9 @@ impl Validate for MechConfig {
         positive("jet.cool_per_s", j.cool_per_s)?;
         within("jet.relight_heat", j.relight_heat, 0.0, 1.0)?;
         validate_parts(&self.parts)?;
+        for w in &self.weapons {
+            w.validate()?;
+        }
         for n in &self.nodes {
             finite3(&format!("nodes[{}].offset_m", n.name), n.offset_m)?;
             let parent = (!n.parent.is_empty()).then_some(n.parent.as_str());

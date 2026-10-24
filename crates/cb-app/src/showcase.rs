@@ -6,7 +6,7 @@
 //! could see, and prints `PLAYTEST_START`, `PLAYTEST_RESULT` and `PLAYTEST_END` for the recorder.
 
 use crate::input::InputAccum;
-use crate::mech::{MechAccessNow, MechSim};
+use crate::mech::{Enemy, MechAccessNow, MechSim, Piloted};
 use crate::pilot::PilotSim;
 use crate::world::{Live, Plan};
 use bevy::prelude::*;
@@ -16,12 +16,17 @@ use cb_core::pilot::{PilotMode, PilotState};
 use cb_core::world::Ground;
 use std::f32::consts::{PI, TAU};
 
-/// Plays the showcase.
-pub struct ShowcasePlugin;
+/// Plays a showcase take: the world tour, or the city fight.
+pub struct ShowcasePlugin {
+    /// The city fight instead of the world tour.
+    pub fight: bool,
+}
 
+/// Where the take is.
 #[derive(Resource, Default)]
-struct Take {
-    beat: usize,
+pub struct Take {
+    /// The beat playing now.
+    pub beat: usize,
     beat_started_s: f32,
     cloud: Vec3,
     landing: Vec2,
@@ -32,7 +37,12 @@ struct Take {
 
 impl Plugin for ShowcasePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Take>().add_systems(Update, play);
+        app.init_resource::<Take>();
+        if self.fight {
+            app.add_systems(Update, play_fight.in_set(crate::sim::PresentSet::Input));
+        } else {
+            app.add_systems(Update, play.in_set(crate::sim::PresentSet::Input));
+        }
     }
 }
 
@@ -80,7 +90,7 @@ fn play(
     mut acc: ResMut<InputAccum>,
     pilot: Res<PilotSim>,
     access: Res<MechAccessNow>,
-    mechs: Query<&MechSim>,
+    mechs: Query<&MechSim, With<Piloted>>,
     plan: Res<Plan>,
     live: Res<Live>,
     time: Res<Time<Real>>,
@@ -261,6 +271,179 @@ fn play(
         }
         11 if t > 2.0 => {
             say("PLAYTEST_END showcase");
+            exit.write(AppExit::Success);
+            next = true;
+        }
+        _ => {}
+    }
+    acc.script = Some(act);
+    if next {
+        take.beat += 1;
+        take.beat_started_s = now;
+    }
+}
+
+/// Torso aim onto a world point from the eye, as mouse motion.
+fn aim_at(m: &MechState, eye: Vec3, point: Vec3) -> Vec2 {
+    let d = point - eye;
+    let yaw = (-d.x).atan2(-d.z);
+    let twist = (yaw - m.heading_rad + PI).rem_euclid(TAU) - PI;
+    let pitch = d.y.atan2(Vec2::new(d.x, d.z).length());
+    Vec2::new(
+        -(twist - m.aim_twist_rad).to_degrees() * 0.35,
+        (pitch - m.aim_pitch_rad).to_degrees() * 0.35,
+    )
+}
+
+/// How far the torso points from a world point, degrees.
+fn aim_error_deg(m: &MechState, eye: Vec3, point: Vec3) -> f32 {
+    let d = point - eye;
+    let yaw = (-d.x).atan2(-d.z);
+    let pitch = d.y.atan2(Vec2::new(d.x, d.z).length());
+    let dy = (m.heading_rad + m.twist_rad - yaw + PI).rem_euclid(TAU) - PI;
+    Vec2::new(dy, m.pitch_rad - pitch).length().to_degrees()
+}
+
+/// The city fight: board, walk out to meet two enemy mechs, shoot it out with the autocannon and
+/// cannon, then bring down the nearest tower by its ground floor and stride through the rubble.
+fn play_fight(
+    mut take: ResMut<Take>,
+    mut acc: ResMut<InputAccum>,
+    pilot: Res<PilotSim>,
+    access: Res<MechAccessNow>,
+    me: Query<&MechSim, With<Piloted>>,
+    enemies: Query<&MechSim, With<Enemy>>,
+    plan: Res<Plan>,
+    live: Res<Live>,
+    time: Res<Time<Real>>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    let now = time.elapsed_secs();
+    let t = now - take.beat_started_s;
+    let mut next = false;
+    let p = &pilot.curr;
+    let Some(sim) = me.iter().next() else { return };
+    let m = &sim.curr;
+    let eye = m.pos + Vec3::Y * 9.6;
+    let mut act = Actions::default();
+    let alive: Vec<&MechSim> = enemies.iter().filter(|e| !e.dead).collect();
+    match take.beat {
+        0 => {
+            if t > 5.0 && access.0.is_some() {
+                say("PLAYTEST_READY fight");
+                say("PLAYTEST_START fight");
+                next = true;
+            }
+        }
+        1 => {
+            act.look_delta_deg = Vec2::new(
+                if t < 1.5 {
+                    -0.4
+                } else if t < 3.0 {
+                    0.4
+                } else {
+                    0.0
+                },
+                0.0,
+            );
+            next = t > 3.5;
+        }
+        2 => {
+            let a = access.0.unwrap();
+            act = match p.mode {
+                PilotMode::OnFoot if p.waiting.is_none() && p.distance_to_stair(&a) < 2.5 => Actions {
+                    use_pressed: true,
+                    ..default()
+                },
+                PilotMode::OnFoot if p.waiting.is_none() => walk_to(p, a.ladder_base, 0.2),
+                PilotMode::OnFoot => walk_to(p, a.ladder_base + Vec3::Y, 0.45),
+                _ => Actions::default(),
+            };
+            next = p.mode == PilotMode::Seated;
+        }
+        // Stand and walk out toward them.
+        3 => {
+            act.throttle_axis = throttle_to(m, 0.5);
+            next = t > 8.0;
+        }
+        // The fight: nearest live enemy, lead it, fire both groups when on target.
+        4 => {
+            act.throttle_axis = throttle_to(m, 0.25);
+            if let Some(e) = alive
+                .iter()
+                .min_by(|a, b| a.curr.pos.distance(m.pos).total_cmp(&b.curr.pos.distance(m.pos)))
+            {
+                let vel = cb_core::mech::forward(e.curr.heading_rad) * e.curr.speed_m_s;
+                let point = cb_core::weapons::lead(eye, e.curr.pos + Vec3::Y * 8.5, vel, 1100.0);
+                act.look_delta_deg = aim_at(m, eye, point);
+                act.turn_axis = steer(m, Vec2::new(e.curr.pos.x, e.curr.pos.z)) * 0.5;
+                let err = aim_error_deg(m, eye, point);
+                act.fire = [err < 2.5, err < 1.5];
+                if (t * 2.0).fract() < 0.02 {
+                    debug!(
+                        "fight: enemy at {:.0} m, aim error {err:.1} deg, twist {:.0} aim {:.0} pitch {:.0}",
+                        e.curr.pos.distance(m.pos),
+                        m.twist_rad.to_degrees(),
+                        m.aim_twist_rad.to_degrees(),
+                        m.pitch_rad.to_degrees()
+                    );
+                }
+            }
+            next = alive.is_empty() && t > 2.0 || t > 90.0;
+            if next {
+                // The tower to bring down: the tallest standing within 350 m.
+                let here = Vec2::new(m.pos.x, m.pos.z);
+                take.landing = plan
+                    .buildings
+                    .iter()
+                    .filter(|b| b.footprint.centre().distance(here) < 350.0 && live.structures.buildings[b.id as usize].standing > 0)
+                    .max_by_key(|b| b.storeys)
+                    .map(|b| b.footprint.centre())
+                    .unwrap_or(here);
+                take.shots = plan
+                    .buildings
+                    .iter()
+                    .find(|b| b.footprint.centre() == take.landing)
+                    .map_or(0, |b| b.id);
+            }
+        }
+        // Shoot out the tower's ground floor, sweeping across its face.
+        5 => {
+            act.throttle_axis = throttle_to(m, 0.0);
+            let b = &plan.buildings[take.shots as usize];
+            let c = &live.structures.buildings[b.id as usize];
+            let sweep = (t * 0.5).sin();
+            let face = b.footprint.centre()
+                + (Vec2::new(m.pos.x, m.pos.z) - b.footprint.centre()).normalize_or(Vec2::X) * (b.footprint.size().max_element() * 0.5);
+            let across = (face - b.footprint.centre()).perp().normalize_or(Vec2::Y) * sweep * b.footprint.size().min_element() * 0.45;
+            let point = Vec3::new(face.x + across.x, c.origin.y + 2.0, face.y + across.y);
+            act.look_delta_deg = aim_at(m, eye, point);
+            act.turn_axis = steer(m, b.footprint.centre()) * 0.4;
+            let err = aim_error_deg(m, eye, point);
+            act.fire = [err < 4.0, err < 2.0];
+            next = c.standing == 0 || t > 30.0;
+        }
+        // Watch it come down, then stride into the dust.
+        6 => {
+            let b = &plan.buildings[take.shots as usize];
+            act.look_delta_deg = aim_at(
+                m,
+                eye,
+                Vec3::new(b.footprint.centre().x, eye.y + 20.0 - t * 2.0, b.footprint.centre().y),
+            );
+            act.throttle_axis = if t > 6.0 { throttle_to(m, 0.8) } else { throttle_to(m, 0.0) };
+            act.turn_axis = steer(m, b.footprint.centre()) * 0.6;
+            next = t > 18.0;
+        }
+        7 => {
+            act.throttle_zero = t < 0.1;
+            if t > 3.0 {
+                say("PLAYTEST_RESULT ok fight: boarded, fought two mechs, brought down a tower");
+                next = true;
+            }
+        }
+        8 if t > 2.0 => {
+            say("PLAYTEST_END fight");
             exit.write(AppExit::Success);
             next = true;
         }

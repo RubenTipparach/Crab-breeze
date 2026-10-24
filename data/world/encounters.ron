@@ -1,0 +1,29 @@
+// The first fight (openspec/changes/enemy-mechs). Offsets are from the player's mech, in metres
+// (x, z); the player's mech faces -z down its street at the start. Enemies wear a rust tint and
+// carry only the autocannon.
+(
+    enemies: [
+        (
+            mech: "mechs/placeholder.ron",
+            offset_m: (0.0, -420.0),
+            heading_deg: 180.0,
+            tint: Some((0.55, 0.20, 0.14)),
+            weapons: Some([
+                (name: "35 mm autocannon", socket: "MUZZLE_R", arm: ArmR, group: 0, speed_m_s: 1100.0,
+                 interval_s: 0.2, penetration_mm: 90.0, damage: 6.0, blast_mj: 0.4),
+            ]),
+            skill: (aim_noise_deg: 3.0, fire_error_deg: 3.0, range_m: 200.0, max_fire_range_m: 700.0),
+        ),
+        (
+            mech: "mechs/placeholder.ron",
+            offset_m: (30.0, -560.0),
+            heading_deg: 180.0,
+            tint: Some((0.45, 0.16, 0.12)),
+            weapons: Some([
+                (name: "35 mm autocannon", socket: "MUZZLE_R", arm: ArmR, group: 0, speed_m_s: 1100.0,
+                 interval_s: 0.2, penetration_mm: 90.0, damage: 6.0, blast_mj: 0.4),
+            ]),
+            skill: (aim_noise_deg: 3.5, fire_error_deg: 3.0, range_m: 260.0, max_fire_range_m: 700.0),
+        ),
+    ],
+)

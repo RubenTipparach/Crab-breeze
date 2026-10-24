@@ -23,4 +23,6 @@
     debug_hit_head: ["F7"],
     debug_hit_leg_l: ["F8"],
     debug_shell: ["F9"],
+    fire_primary: ["MouseLeft"],
+    fire_secondary: ["MouseRight"],
 )

@@ -5,6 +5,7 @@
 //! asset dependency, so it runs headless and is tested without a GPU (CLAUDE.md section 6.2).
 //! `cb-app` adapts it to Bevy.
 
+pub mod ai;
 pub mod boarding;
 pub mod data;
 pub mod input;
@@ -12,6 +13,7 @@ pub mod mech;
 pub mod pilot;
 pub mod rng;
 pub mod sim;
+pub mod weapons;
 pub mod world;
 
 use std::path::Path;
@@ -31,6 +33,8 @@ pub struct GameData {
     pub pilot: pilot::PilotConfig,
     /// `data/input/bindings.ron`.
     pub bindings: input::Bindings,
+    /// `data/world/encounters.ron`.
+    pub encounters: ai::Encounters,
 }
 
 impl GameData {
@@ -44,6 +48,7 @@ impl GameData {
             boarding: data::load_ron(&root.join(mech.trim_end_matches(".ron")).join("boarding.ron"))?,
             pilot: data::load_ron(&root.join("pilot/pilot.ron"))?,
             bindings: data::load_ron(&root.join("input/bindings.ron"))?,
+            encounters: data::load_ron(&root.join("world/encounters.ron"))?,
         })
     }
 

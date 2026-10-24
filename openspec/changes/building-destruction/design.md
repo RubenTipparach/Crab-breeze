@@ -18,3 +18,8 @@ Cost: rebuilding a 1 500-cell mesh is about 0.3 ms; chunks are Avian bodies (deb
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | W9 | How far does destruction go? | every building can be holed and brought down; roads and terrain craters as now | provisional (survey W9) |
+
+## As built (2026-10-24)
+
+- Any shot that reaches a cell breaks the cells within 3.4 m (more for a blast); a mech that is stopped by a wall at over 2.5 m/s smashes the cells in front of it.
+- Collision uses standing cells only for damaged buildings; a whole building is still one footprint.

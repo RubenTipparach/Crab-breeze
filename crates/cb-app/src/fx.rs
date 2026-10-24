@@ -4,9 +4,7 @@
 //! by writing `Burst`, `Ripple` and `Flash` messages.
 
 use crate::pilot::PilotCamera;
-use crate::world::{Live, Plan};
 use bevy::prelude::*;
-use cb_core::world::Scene;
 
 /// What a particle looks like and how it moves.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -27,6 +25,8 @@ pub enum FxKind {
     Fire,
     /// Blue-white jet flame.
     Flame,
+    /// A shot's glowing streak.
+    Tracer,
 }
 
 impl FxKind {
@@ -52,6 +52,7 @@ impl FxKind {
             FxKind::Spark => (9.81, 0.2, -0.5, Color::srgb(1.0, 0.75, 0.3), true),
             FxKind::Fire => (-4.0, 1.5, 0.4, Color::srgba(1.0, 0.45, 0.1, 0.85), true),
             FxKind::Flame => (0.0, 3.0, 2.0, Color::srgba(0.7, 0.85, 1.0, 0.85), true),
+            FxKind::Tracer => (0.0, 0.0, 0.0, Color::srgb(1.0, 0.85, 0.45), true),
         }
     }
 }
@@ -118,15 +119,6 @@ struct FlashLight {
     lumens: f32,
 }
 
-/// A piece of a mech shot off: falls, tumbles, comes to rest.
-#[derive(Component)]
-pub struct Debris {
-    /// Velocity.
-    pub vel: Vec3,
-    /// Spin, radians a second about each axis.
-    pub spin: Vec3,
-}
-
 #[derive(Resource)]
 struct FxAssets {
     quad: Handle<Mesh>,
@@ -163,15 +155,7 @@ impl Plugin for FxPlugin {
             .add_systems(Startup, setup)
             .add_systems(
                 Update,
-                (
-                    spawn_bursts,
-                    spawn_ripples,
-                    spawn_flashes,
-                    move_particles,
-                    grow_rings,
-                    fade_flashes,
-                    fall_debris,
-                ),
+                (spawn_bursts, spawn_ripples, spawn_flashes, move_particles, grow_rings, fade_flashes),
             );
     }
 }
@@ -376,34 +360,6 @@ fn fade_flashes(mut commands: Commands, time: Res<Time>, mut q: Query<(Entity, &
             commands.entity(e).despawn();
         } else {
             l.intensity = f.lumens * (1.0 - f.age / 0.6).powi(2);
-        }
-    }
-}
-
-fn fall_debris(time: Res<Time>, plan: Res<Plan>, live: Res<Live>, mut q: Query<(&mut Transform, &mut Debris)>) {
-    use cb_core::world::Ground;
-    let dt = time.delta_secs().min(0.05);
-    let ground = Scene {
-        plan: &plan,
-        dug: &live.dug,
-        trees: None,
-    };
-    for (mut t, mut d) in &mut q {
-        if d.vel == Vec3::ZERO && d.spin == Vec3::ZERO {
-            continue;
-        }
-        d.vel.y -= 9.81 * dt;
-        t.translation += d.vel * dt;
-        t.rotation = Quat::from_scaled_axis(d.spin * dt) * t.rotation;
-        let floor = ground.height_at(t.translation.x, t.translation.z) + 0.6;
-        if t.translation.y < floor {
-            t.translation.y = floor;
-            d.vel = Vec3::new(d.vel.x * 0.4, -d.vel.y * 0.2, d.vel.z * 0.4);
-            d.spin *= 0.5;
-            if d.vel.length() < 0.8 {
-                d.vel = Vec3::ZERO;
-                d.spin = Vec3::ZERO;
-            }
         }
     }
 }

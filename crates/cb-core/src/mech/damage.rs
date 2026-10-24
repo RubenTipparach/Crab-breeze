@@ -91,8 +91,9 @@ pub struct Damage {
     pub lost: Vec<bool>,
 }
 
-/// Share of damage that a hit stopped by the armour still does.
-const CHIP: f32 = 0.1;
+/// Share of damage that a hit stopped by the armour still does (spalling and shock): small, so a
+/// gun that cannot beat the armour wears a part down only over hundreds of hits.
+const CHIP: f32 = 0.02;
 
 impl Damage {
     /// A whole mech.
@@ -149,7 +150,7 @@ mod tests {
                 damage: 50.0,
             },
         );
-        assert_eq!(d.structure[0], 75.0, "only a tenth gets through");
+        assert_eq!(d.structure[0], 79.0, "only a fiftieth gets through");
     }
 
     #[test]

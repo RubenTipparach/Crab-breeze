@@ -8,6 +8,7 @@ pub mod clouds;
 pub mod collision;
 pub mod config;
 pub mod deform;
+pub mod destruct;
 pub mod forest;
 pub mod layout;
 pub mod terrain;
@@ -17,6 +18,7 @@ pub use clouds::Clouds;
 pub use collision::BuildingGrid;
 pub use config::WorldConfig;
 pub use deform::Deformation;
+pub use destruct::{Chunk, Structures};
 pub use forest::{Forest, Tree, TreeState};
 pub use layout::{Block, Building, City, Highway, Rect, StreetKind, StreetPiece};
 pub use terrain::{ChunkMesh, Heightfield};
@@ -57,6 +59,38 @@ pub struct Scene<'a> {
     pub dug: &'a Deformation,
     /// Trees as walls (the pilot); `None` for bodies that break trees themselves (the mech).
     pub trees: Option<&'a Forest>,
+    /// Buildings as they stand now; `None` means every building is whole.
+    pub structures: Option<&'a Structures>,
+}
+
+impl Scene<'_> {
+    /// Pushes a body at height `[feet_y, feet_y + 12 m]` out of standing building cells.
+    fn push_out_buildings(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
+        let Some(st) = self.structures else {
+            return self.plan.collision.push_out_at(p, radius_m, feet_y);
+        };
+        let mut p = p;
+        for _ in 0..2 {
+            for b in self.plan.collision.candidates(p, radius_m) {
+                let cells = &st.buildings[b as usize];
+                if cells.standing == 0 {
+                    continue;
+                }
+                let top = cells.origin.y + cells.size.y * cells.n[1] as f32;
+                if top <= feet_y + 0.5 {
+                    continue;
+                }
+                if cells.whole() {
+                    p = collision::push_out_of_rect(p, radius_m, &self.plan.buildings[b as usize].footprint);
+                } else {
+                    for r in st.solid_rects(b, feet_y + 0.5, feet_y + 12.0) {
+                        p = collision::push_out_of_rect(p, radius_m, &r);
+                    }
+                }
+            }
+        }
+        p
+    }
 }
 
 impl Ground for Scene<'_> {
@@ -64,21 +98,29 @@ impl Ground for Scene<'_> {
         self.plan.terrain.height_at(x, z) + self.dug.delta_at(Vec2::new(x, z))
     }
     fn push_out(&self, p: Vec2, radius_m: f32) -> Vec2 {
-        let p = self.plan.collision.push_out(p, radius_m);
-        self.trees.map_or(p, |t| t.push_out(p, radius_m))
+        let ground = self.height_at(p.x, p.y);
+        self.push_out_at(p, radius_m, ground)
     }
     fn water_at(&self, x: f32, z: f32) -> Option<WaterSample> {
         self.plan.waters.water_at(Vec2::new(x, z), self.height_at(x, z))
     }
     fn support_at(&self, x: f32, z: f32, feet_y: f32) -> f32 {
         let ground = self.height_at(x, z);
-        self.plan
-            .collision
-            .roof_under(Vec2::new(x, z), feet_y)
-            .map_or(ground, |r| r.max(ground))
+        let p = Vec2::new(x, z);
+        let roof = match self.structures {
+            None => self.plan.collision.roof_under(p, feet_y),
+            Some(st) => self
+                .plan
+                .collision
+                .candidates(p, 0.0)
+                .into_iter()
+                .filter_map(|b| st.roof_under(b, p, feet_y))
+                .reduce(f32::max),
+        };
+        roof.map_or(ground, |r| r.max(ground))
     }
     fn push_out_at(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
-        let p = self.plan.collision.push_out_at(p, radius_m, feet_y);
+        let p = self.push_out_buildings(p, radius_m, feet_y);
         self.trees.map_or(p, |t| t.push_out(p, radius_m))
     }
 }
