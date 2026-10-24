@@ -5,7 +5,7 @@ lowpoly first", "I really expect legs on these mechs to be bigger than the torso
 like how stevedore is all struts thats great", "the foreman looks good too", and for every model "use blender to
 your advantage, lots of CSG, lots of boolean meshes to get the basic idea across".
 
-Five chassis, each about 24 m tall (twice survey M1's 12 m), on digitigrade legs (survey M2) whose volume
+Thirteen chassis, each about 24 m tall (twice survey M1's 12 m), on digitigrade legs (survey M2) whose volume
 outweighs the torso's (the manifest says by how much, measured off the meshes), with a seated cockpit prow on the
 chest whose hatch is cut by a boolean groove (gasket orange, as on the cockpit block-outs):
 
@@ -22,6 +22,9 @@ chest whose hatch is cut by a boolean groove (gasket orange, as on the cockpit b
   roustabout new, the Scopedog pattern: a boxy upright chest with the Titan cockpit in its middle, the upper
              chest and its camera turret the part that lifts, a backpack with vents, a box-magazine rifle and a
              pipe grab, wheel feet; gunmetal and orange
+  grader, logger, lineman, driller, bowser, mule, pumper, ploughman: eight more after working machines (a road
+             dozer, a forestry harvester, a bucket truck, a drill rig, a fuel tanker, a haul truck, a fire engine,
+             a tractor), each with a different cockpit block-out, so all ten cockpits have a chassis
 
 Flat colours, no textures. Writes assets/models/mech_blockouts/<id>.glb and assets/models/mech_blockouts.json.
 
@@ -53,6 +56,22 @@ PALETTES = {
                    RUBBER=(0.06, 0.06, 0.06), METAL=(0.52, 0.53, 0.55), GLOW=(0.55, 1.0, 0.6)),
     "roustabout": dict(BODY=(0.36, 0.38, 0.40), BODY2=(0.22, 0.23, 0.24), FRAME=(0.08, 0.08, 0.09), ACCENT=(0.92, 0.42, 0.10),
                        RUBBER=(0.06, 0.06, 0.06), METAL=(0.55, 0.56, 0.60), GLOW=(1.0, 0.75, 0.3)),
+    "grader": dict(BODY=(0.86, 0.64, 0.10), BODY2=(0.20, 0.20, 0.21), FRAME=(0.07, 0.07, 0.08), ACCENT=(0.08, 0.08, 0.08),
+                   RUBBER=(0.06, 0.06, 0.06), METAL=(0.55, 0.56, 0.60), GLOW=(1.0, 0.65, 0.2)),
+    "logger": dict(BODY=(0.17, 0.30, 0.20), BODY2=(0.26, 0.24, 0.20), FRAME=(0.07, 0.08, 0.07), ACCENT=(0.92, 0.48, 0.10),
+                   RUBBER=(0.06, 0.06, 0.06), METAL=(0.55, 0.56, 0.60), GLOW=(1.0, 0.8, 0.4)),
+    "lineman": dict(BODY=(0.30, 0.40, 0.52), BODY2=(0.22, 0.24, 0.27), FRAME=(0.08, 0.08, 0.09), ACCENT=(0.95, 0.55, 0.10),
+                    RUBBER=(0.06, 0.06, 0.06), METAL=(0.55, 0.56, 0.60), GLOW=(1.0, 0.85, 0.4)),
+    "driller": dict(BODY=(0.48, 0.20, 0.12), BODY2=(0.30, 0.29, 0.28), FRAME=(0.08, 0.07, 0.07), ACCENT=(0.90, 0.78, 0.15),
+                    RUBBER=(0.06, 0.06, 0.06), METAL=(0.58, 0.58, 0.60), GLOW=(0.5, 0.9, 1.0)),
+    "bowser": dict(BODY=(0.62, 0.14, 0.12), BODY2=(0.58, 0.59, 0.60), FRAME=(0.08, 0.08, 0.09), ACCENT=(0.95, 0.80, 0.15),
+                   RUBBER=(0.06, 0.06, 0.06), METAL=(0.62, 0.63, 0.66), GLOW=(1.0, 0.75, 0.3)),
+    "mule": dict(BODY=(0.90, 0.72, 0.16), BODY2=(0.28, 0.27, 0.25), FRAME=(0.08, 0.08, 0.08), ACCENT=(0.80, 0.16, 0.10),
+                 RUBBER=(0.06, 0.06, 0.06), METAL=(0.55, 0.56, 0.60), GLOW=(1.0, 0.7, 0.3)),
+    "pumper": dict(BODY=(0.70, 0.10, 0.08), BODY2=(0.24, 0.24, 0.26), FRAME=(0.08, 0.08, 0.09), ACCENT=(0.92, 0.88, 0.70),
+                   RUBBER=(0.06, 0.06, 0.06), METAL=(0.62, 0.63, 0.66), GLOW=(0.4, 0.6, 1.0)),
+    "ploughman": dict(BODY=(0.16, 0.30, 0.55), BODY2=(0.24, 0.24, 0.25), FRAME=(0.07, 0.07, 0.08), ACCENT=(0.90, 0.75, 0.20),
+                      RUBBER=(0.06, 0.06, 0.06), METAL=(0.55, 0.56, 0.60), GLOW=(1.0, 0.85, 0.5)),
 }
 MATS = {}
 GROUPS = {}          # group name -> [objects]: legs, torso, arms, head, cockpit
@@ -531,10 +550,254 @@ def roustabout():
             cyl("grab_hub", hand - V((0.5, 0, 0)), hand + V((0.5, 0, 0)), 0.7, "FRAME", "arms", 10)
 
 
+# ----------------------------------------------------------------------------- eight more (owner, 2026-10-24: "I need
+# like 10 mech mock ups", "it's not like something we need highres either"): low-poly, each after a 1980s working
+# machine on chicken legs, each carrying a different cockpit block-out at true size in its body, so all ten cockpits
+# have a chassis to be judged in.
+
+def grader():
+    """A road dozer: a squat chest, the Panorama in its front, a dozer blade carried on push arms from the hips,
+    a ripper behind, a beacon bar for a head."""
+    hip_y, hx = 14.2, 3.8
+    chicken_legs(hip_y, hx, 1.05, (4.6, 4.2), (3.8, 3.4))
+    box("hips", (0, hip_y + 0.2, 0), (2 * hx + 1.2, 2.6, 3.6), "FRAME", "legs")
+    yc = hip_y + 3.6
+    chamfered("torso", (0, yc, -0.6), (7.0, 4.6, 5.6), 0.7, "BODY", "torso")
+    pod_in("panorama", (0, yc - 1.6, 2.4))
+    for s in (1, -1):
+        strut(f"push{s}", (s * 4.6, hip_y + 0.4, 0.4), (s * 4.0, hip_y - 4.6, 6.0), 0.8, "BODY2", "arms")
+        cyl(f"tilt{s}", (s * 3.4, hip_y + 2.0, 2.0), (s * 3.6, hip_y - 2.8, 6.0), 0.35, "METAL", "arms", 8)
+    box("blade", (0, hip_y - 4.4, 6.6), (11.0, 3.2, 0.5), "BODY", "arms", ((1, 0, 0), (0, 1, 0.25), (0, -0.25, 1)))
+    box("blade_edge", (0, hip_y - 6.0, 7.0), (11.2, 0.4, 0.6), "METAL", "arms")
+    box("ripper_beam", (0, hip_y - 0.6, -3.6), (5.0, 0.8, 1.0), "FRAME", "arms")
+    for x in (-1.6, 0, 1.6):
+        strut(f"tooth{x}", (x, hip_y - 0.6, -3.8), (x, hip_y - 4.4, -4.6), 0.5, "METAL", "arms")
+    chamfered("engine", (0, yc + 0.2, -4.4), (5.0, 3.6, 2.6), 0.4, "BODY2", "torso")
+    cyl("stack", (1.8, yc + 2.0, -4.4), (1.8, yc + 5.4, -4.4), 0.4, "FRAME", "torso", 10)
+    box("beacons", (0, yc + 2.6, 0.6), (3.4, 0.5, 0.8), "BODY2", "head")
+    for x in (-1.2, 1.2):
+        box(f"beacon{x}", (x, yc + 3.05, 0.6), (0.6, 0.4, 0.6), "GLOW", "head")
+    for s in (1, -1):
+        box(f"stripe{s}", (s * 3.52, yc - 1.4, -0.6), (0.06, 0.6, 4.6), "ACCENT", "torso")
+
+
+def logger():
+    """A forestry harvester: a low wide hull hung between the hips with the Low bank in its nose, a crane boom on
+    its back with a log grapple, a felling head with a saw for the right hand."""
+    hip_y, hx = 13.0, 4.2
+    chicken_legs(hip_y, hx, 1.2, (4.4, 4.4), (3.6, 3.4))
+    yc, zc = hip_y + 2.2, 0.4
+    prism_x("hull", [(zc - 5.0, yc - 1.8), (zc - 5.0, yc + 1.8), (zc + 2.6, yc + 1.8), (zc + 5.4, yc - 0.2),
+                     (zc + 5.0, yc - 1.8)], 3.6, "BODY", "torso")
+    pod_in("lowbank", (0, yc - 0.6, zc + 3.4))
+    box("hull_band", (0, yc - 1.2, zc), (7.3, 0.4, 9.6), "ACCENT", "torso")
+    base = V((0, yc + 1.8, zc - 3.0))
+    cyl("slew", base, base + V((0, 1.0, 0)), 1.4, "FRAME", "arms", 14)
+    knuckle = base + V((0, 7.0, 2.0))
+    strut("boom1", base + V((0, 1.0, 0)), knuckle, 1.0, "BODY", "arms")
+    tip = knuckle + V((0, -2.0, 8.0))
+    strut("boom2", knuckle, tip, 0.8, "BODY", "arms")
+    cyl("boom_ram", base + V((0, 1.4, 1.0)), knuckle + V((0, -1.6, 0.6)), 0.3, "METAL", "arms", 8)
+    for dx in (-0.7, 0.7):
+        strut(f"grapple{dx}", tip, tip + V((dx, -2.6, 0)), 0.35, "FRAME", "arms")
+    for s in (1, -1):
+        sh = V((s * 4.4, yc + 0.6, zc + 0.6))
+        cyl(f"drum{s}", sh - V((s * 0.8, 0, 0)), sh + V((s * 0.8, 0, 0)), 1.2, "FRAME", "arms", 12)
+        el = sh + V((s * 0.4, -3.0, 2.0))
+        strut(f"upper{s}", sh, el, 1.0, "BODY2", "arms")
+        if s < 0:
+            box("felling_head", el + V((0, -0.6, 1.4)), (1.6, 2.4, 1.4), "BODY", "arms")
+            cyl("saw", el + V((0, -2.0, 1.4)) - V((0.15, 0, 0)), el + V((0, -2.0, 1.4)) + V((0.15, 0, 0)), 1.1, "METAL", "arms", 16)
+        else:
+            strut("fore", el, el + V((0, -0.4, 2.6)), 0.8, "BODY", "arms")
+            box("claw", el + V((0, -0.4, 3.2)), (1.2, 1.0, 1.0), "ACCENT", "arms")
+
+
+def lineman():
+    """A utility bucket truck: an upright torso with the Cinema door in its chest, a telescoping boom from the left
+    shoulder with a work bucket on its end, a cable drum on the back, insulator posts on the shoulders."""
+    hip_y, hx = 14.0, 3.4
+    chicken_legs(hip_y, hx, 1.0, (4.0, 3.8), (3.2, 3.0))
+    box("hips", (0, hip_y + 0.3, 0), (2 * hx + 1.0, 2.4, 3.2), "FRAME", "legs")
+    yc = hip_y + 4.0
+    chamfered("torso", (0, yc, -0.4), (6.4, 5.4, 5.0), 0.6, "BODY", "torso")
+    pod_in("cinema", (0, yc - 2.0, 1.9))
+    cyl("drum", (-2.2, yc + 0.2, -4.0), (2.2, yc + 0.2, -4.0), 1.8, "BODY2", "torso", 18)
+    cyl("cable", (-2.0, yc + 0.2, -4.0), (2.0, yc + 0.2, -4.0), 1.95, "ACCENT", "torso", 18)
+    turret = V((3.4, yc + 2.9, -0.6))
+    cyl("turret", turret, turret + V((0, 0.8, 0)), 1.1, "FRAME", "arms", 12)
+    b1 = turret + V((0.4, 6.0, 4.0))
+    strut("boom_a", turret + V((0, 0.8, 0)), b1, 0.9, "BODY2", "arms")
+    b2 = b1 + V((0, 3.0, 5.0))
+    strut("boom_b", b1, b2, 0.6, "ACCENT", "arms")
+    box("bucket", b2 + V((0, -1.0, 0.8)), (1.4, 1.4, 1.4), "ACCENT", "arms")
+    for s in (1, -1):
+        for k in range(3):
+            cyl(f"ins{s}{k}", (s * 2.4, yc + 2.7, -1.6 + k * 1.0), (s * 2.4, yc + 3.5, -1.6 + k * 1.0), 0.18, "GLOW", "head", 8)
+        sh = V((s * 4.0, yc + 1.4, -0.4))
+        chamfered(f"shoulder{s}", sh, (1.8, 2.2, 2.6), 0.3, "BODY", "arms")
+        el = sh + V((s * 0.4, -3.4, 1.4))
+        strut(f"upper{s}", sh, el, 1.0, "BODY2", "arms")
+        strut(f"fore{s}", el, el + V((0, -0.4, 2.8)), 0.9, "BODY", "arms")
+    box("lamp_bar", (0, yc + 2.9, 1.4), (3.0, 0.4, 0.6), "GLOW", "head")
+
+
+def driller():
+    """A mine drill rig: the All-view sphere held in a ring frame at the front of the chest, an auger drill for the
+    right arm, a core grab for the left, a lattice derrick mast standing on its back."""
+    hip_y, hx = 14.4, 3.6
+    chicken_legs(hip_y, hx, 1.05, (4.4, 4.0), (3.6, 3.2))
+    box("hips", (0, hip_y + 0.3, -0.4), (2 * hx + 1.0, 2.4, 3.6), "FRAME", "legs")
+    yc = hip_y + 3.8
+    chamfered("torso", (0, yc, -1.4), (6.6, 5.0, 4.4), 0.6, "BODY", "torso")
+    pod_in("allview", (0, yc - 1.8, 1.6))
+    for k in range(8):                      # the ring frame round the ball
+        a0, a1 = k / 8 * 2 * math.pi, (k + 1) / 8 * 2 * math.pi
+        c = V((0, yc - 0.6, 1.6))
+        strut(f"ring{k}", c + V((math.cos(a0) * 1.9, math.sin(a0) * 1.9, -0.6)), c + V((math.cos(a1) * 1.9, math.sin(a1) * 1.9, -0.6)),
+              0.35, "ACCENT", "torso")
+    lattice("derrick", (0, yc + 2.5, -2.4), (0, yc + 9.5, -3.0), 0.9, "ACCENT", "torso", bays=5, w=0.2)
+    for s in (1, -1):
+        sh = V((s * 4.2, yc + 1.0, -1.0))
+        chamfered(f"shoulder{s}", sh, (2.0, 2.4, 2.8), 0.4, "BODY", "arms")
+        el = sh + V((s * 0.5, -3.4, 1.6))
+        strut(f"upper{s}", sh, el, 1.2, "BODY2", "arms")
+        if s > 0:
+            cyl("auger_motor", el, el + V((0, -0.2, 1.6)), 0.9, "BODY2", "arms", 12)
+            cyl("auger", el + V((0, -0.2, 1.6)), el + V((0, -0.6, 6.2)), 0.7, "METAL", "arms", 10, r2=0.1)
+            for i in range(5):
+                p = el + V((0, -0.2 - 0.08 * i, 2.2 + i * 0.8))
+                cyl(f"flight{i}", p - V((0, 0, 0.08)), p + V((0, 0, 0.08)), 0.95 - i * 0.12, "ACCENT", "arms", 10)
+        else:
+            strut("core_arm", el, el + V((0, -0.6, 2.6)), 0.8, "BODY", "arms")
+            cyl("core", el + V((0, -0.6, 2.6)), el + V((0, -2.4, 2.8)), 0.45, "METAL", "arms", 10)
+
+
+def bowser():
+    """A fuel tanker: a long cylindrical tank on its back over the hips, the Octagon cab low in front with its
+    gull-wing doors, a hose reel arm and a filler boom, hazard diamonds on the tank."""
+    hip_y, hx = 13.6, 3.8
+    chicken_legs(hip_y, hx, 1.1, (4.4, 4.2), (3.6, 3.3))
+    box("hips", (0, hip_y + 0.2, -0.6), (2 * hx + 1.2, 2.4, 3.8), "FRAME", "legs")
+    yc = hip_y + 2.8
+    chamfered("chassis", (0, yc, 0.4), (6.0, 3.0, 6.4), 0.5, "BODY", "torso")
+    pod_in("octagon", (0, yc - 1.0, 3.2))
+    cyl("tank", (0, yc + 3.6, -6.0), (0, yc + 3.6, 1.6), 2.8, "BODY2", "torso", 20)
+    for z in (-5.6, 1.2):
+        cyl(f"tank_end{z}", (0, yc + 3.6, z - 0.2), (0, yc + 3.6, z + 0.2), 2.95, "BODY", "torso", 20)
+    for s in (1, -1):
+        box(f"diamond{s}", (s * 2.85, yc + 3.6, -2.2), (0.08, 1.4, 1.4), "ACCENT", "torso", ((1, 0, 0), (0, 1, 1), (0, -1, 1)))
+        sh = V((s * 4.0, yc + 0.8, 0.6))
+        cyl(f"drum{s}", sh - V((s * 0.7, 0, 0)), sh + V((s * 0.7, 0, 0)), 1.1, "FRAME", "arms", 12)
+        el = sh + V((s * 0.4, -3.2, 1.6))
+        strut(f"upper{s}", sh, el, 1.0, "BODY", "arms")
+        if s > 0:
+            cyl("reel", el - V((0.6, 0, 0)), el + V((0.6, 0, 0)), 1.2, "ACCENT", "arms", 14)
+            cyl("nozzle", el + V((0, 0, 0.4)), el + V((0, -0.4, 3.6)), 0.3, "METAL", "arms", 8)
+        else:
+            strut("fore", el, el + V((0, -0.4, 2.8)), 0.9, "BODY2", "arms")
+            cyl("cannon", el + V((0, -0.4, 2.8)), el + V((0, -0.4, 5.6)), 0.35, "METAL", "arms", 10)
+    strut("filler_boom", (0, yc + 6.4, -4.0), (0, yc + 7.4, -0.6), 0.4, "FRAME", "torso")
+    box("beacon", (0, yc + 6.6, -4.4), (0.6, 0.5, 0.6), "GLOW", "head")
+
+
+def mule():
+    """A mine haul truck: the heaviest legs here, a tall cab front with the Twin tier in it under a canopy roof,
+    a dump bed tipped on its back, the radiator grille at the waist."""
+    hip_y, hx = 13.4, 4.0
+    chicken_legs(hip_y, hx, 1.15, (5.2, 4.8), (4.2, 3.8))
+    box("hips", (0, hip_y + 0.2, 0), (2 * hx + 1.4, 2.8, 4.0), "FRAME", "legs")
+    yc = hip_y + 3.4
+    chamfered("torso", (0, yc, -0.4), (6.6, 4.2, 5.4), 0.6, "BODY", "torso")
+    pod_in("twintier", (0, yc - 1.6, 2.3))
+    box("canopy_roof", (0, yc + 3.4, 1.4), (7.4, 0.4, 5.0), "BODY", "torso")
+    for s in (1, -1):
+        strut(f"roof_post{s}", (s * 3.3, yc + 2.0, 3.6), (s * 3.3, yc + 3.3, 3.6), 0.4, "FRAME", "torso")
+    box("grille", (0, yc - 1.6, 2.35), (4.6, 1.0, 0.2), "FRAME", "torso")
+    bed = box("bed", (0, yc + 3.0, -4.4), (7.6, 3.4, 7.0), "BODY", "torso", ((1, 0, 0), (0, 1, -0.35), (0, 0.35, 1)))
+    boolean(bed, box("bed_cut", (0, yc + 3.9, -4.6), (6.8, 3.0, 6.4), "BODY", "torso", ((1, 0, 0), (0, 1, -0.35), (0, 0.35, 1))),
+            "DIFFERENCE")
+    for s in (1, -1):
+        cyl(f"hoist{s}", (s * 2.4, yc - 1.0, -2.6), (s * 2.4, yc + 1.8, -3.4), 0.4, "METAL", "torso", 8)
+        sh = V((s * 4.2, yc + 0.8, 0.0))
+        chamfered(f"shoulder{s}", sh, (2.0, 2.2, 2.6), 0.3, "BODY2", "arms")
+        el = sh + V((s * 0.4, -3.4, 1.2))
+        strut(f"upper{s}", sh, el, 1.1, "BODY2", "arms")
+        box(f"fist{s}", el + V((0, -0.2, 1.4)), (1.6, 1.6, 2.2), "BODY", "arms")
+
+
+def pumper():
+    """A fire engine: the Tile wall in its chest, water monitors on both shoulders, hose reels at the hips, an
+    extension ladder along its back, a light bar for a head."""
+    hip_y, hx = 14.0, 3.5
+    chicken_legs(hip_y, hx, 1.0, (4.2, 4.0), (3.4, 3.2))
+    box("hips", (0, hip_y + 0.3, 0), (2 * hx + 1.0, 2.4, 3.2), "FRAME", "legs")
+    yc = hip_y + 3.8
+    chamfered("torso", (0, yc, -0.6), (6.8, 5.0, 5.2), 0.6, "BODY", "torso")
+    pod_in("tilewall", (0, yc - 1.8, 2.0))
+    box("chrome_band", (0, yc - 2.0, -0.6), (6.9, 0.4, 5.3), "ACCENT", "torso")
+    for k in range(2):
+        strut(f"ladder_rail{k}", (-0.6 + k * 1.2, yc + 2.6, -3.6), (-0.6 + k * 1.2, yc - 2.0, -3.6), 0.25, "ACCENT", "torso")
+    for i in range(6):
+        strut(f"rung{i}", (-0.6, yc + 2.2 - i * 0.75, -3.6), (0.6, yc + 2.2 - i * 0.75, -3.6), 0.12, "ACCENT", "torso")
+    box("lightbar", (0, yc + 2.7, 0.6), (3.6, 0.4, 0.8), "GLOW", "head")
+    for s in (1, -1):
+        cyl(f"reel{s}", (s * (hx + 0.9), hip_y - 0.6, -0.6), (s * (hx + 1.8), hip_y - 0.6, -0.6), 1.2, "ACCENT", "legs", 14)
+        sh = V((s * 4.1, yc + 1.4, -0.4))
+        chamfered(f"shoulder{s}", sh, (1.8, 2.2, 2.6), 0.3, "BODY", "arms")
+        mon = sh + V((0, 1.6, 0.4))
+        cyl(f"monitor{s}", mon, mon + V((0, 0.4, 2.4)), 0.4, "METAL", "arms", 10, r2=0.25)
+        el = sh + V((s * 0.4, -3.4, 1.4))
+        strut(f"upper{s}", sh, el, 1.0, "BODY2", "arms")
+        if s > 0:
+            box("axe_head", el + V((0, -0.6, 2.0)), (0.4, 2.2, 1.8), "METAL", "arms")
+        else:
+            strut("hook", el, el + V((0, 0.4, 4.0)), 0.3, "METAL", "arms")
+
+
+def ploughman():
+    """A farm tractor: the Excavator cab on top of a long bonnet, its exhaust stack up front, big wheel hubs for
+    hips, a plough share on one arm and a three-point hitch behind."""
+    hip_y, hx = 14.2, 3.8
+    chicken_legs(hip_y, hx, 1.05, (4.4, 4.0), (3.6, 3.3))
+    for s in (1, -1):
+        cyl(f"hub{s}", (s * (hx + 0.2), hip_y, 0), (s * (hx + 1.6), hip_y, 0), 3.0, "RUBBER", "legs", 20)
+        cyl(f"rim{s}", (s * (hx + 1.5), hip_y, 0), (s * (hx + 1.7), hip_y, 0), 1.8, "ACCENT", "legs", 16)
+    box("hips", (0, hip_y + 0.2, 0), (2 * hx, 2.4, 3.4), "FRAME", "legs")
+    yc = hip_y + 2.8
+    box("bonnet", (0, yc, 2.6), (3.8, 2.4, 6.0), "BODY", "torso")
+    for i in range(6):
+        box(f"grille{i}", (0, yc - 0.9 + i * 0.35, 5.62), (3.0, 0.12, 0.1), "FRAME", "torso")
+    cyl("stack", (1.2, yc + 1.2, 4.0), (1.2, yc + 4.4, 4.0), 0.35, "FRAME", "torso", 10)
+    chamfered("cab_base", (0, yc + 0.6, -1.6), (5.4, 3.6, 4.4), 0.5, "BODY", "torso")
+    pod_in("cab", (0, yc + 2.4, -1.4))
+    box("cab_roof", (0, yc + 5.0, -1.4), (3.2, 0.3, 2.6), "BODY", "torso")
+    box("hitch", (0, hip_y - 0.6, -3.6), (3.0, 0.6, 1.4), "FRAME", "arms")
+    for x in (-1.2, 1.2):
+        strut(f"link{x}", (x, hip_y - 0.6, -3.6), (x * 0.6, hip_y - 2.6, -5.2), 0.35, "METAL", "arms")
+    for s in (1, -1):
+        sh = V((s * 3.4, yc + 1.4, -1.6))
+        chamfered(f"shoulder{s}", sh, (1.6, 2.0, 2.4), 0.3, "BODY2", "arms")
+        el = sh + V((s * 0.6, -3.0, 1.8))
+        strut(f"upper{s}", sh, el, 0.9, "BODY2", "arms")
+        if s > 0:
+            box("share", el + V((0, -1.0, 1.8)), (0.5, 1.6, 3.0), "METAL", "arms", ((1, 0.6, 0), (-0.6, 1, 0), (0, 0, 1)))
+        else:
+            box("bale_fork", el + V((0, -0.6, 1.8)), (1.6, 0.3, 2.6), "METAL", "arms")
+
+
 CHASSIS = {"foreman": (foreman, "Foreman", "the excavator"), "stevedore": (stevedore, "Stevedore", "the dock crane, all struts"),
            "ironhorse": (ironhorse, "Ironhorse", "the locomotive"),
            "harrow": (harrow, "Harrow", "new: the Mad Cat pattern, one hull between the hips, the Canopy in its nose"),
-           "roustabout": (roustabout, "Roustabout", "new: the Scopedog pattern, the Titan in its chest, the upper chest lifts")}
+           "roustabout": (roustabout, "Roustabout", "new: the Scopedog pattern, the Titan in its chest, the upper chest lifts"),
+           "grader": (grader, "Grader", "new: a road dozer, the Panorama, a blade on push arms"),
+           "logger": (logger, "Logger", "new: a forestry harvester, the Low bank in a low hull, a crane boom"),
+           "lineman": (lineman, "Lineman", "new: a utility bucket truck, the Cinema door, a bucket boom"),
+           "driller": (driller, "Driller", "new: a mine drill rig, the All-view sphere in a ring, an auger"),
+           "bowser": (bowser, "Bowser", "new: a fuel tanker, the Octagon under a tank"),
+           "mule": (mule, "Mule", "new: a mine haul truck, the Twin tier under a canopy roof, a dump bed"),
+           "pumper": (pumper, "Pumper", "new: a fire engine, the Tile wall, water monitors on the shoulders"),
+           "ploughman": (ploughman, "Ploughman", "new: a farm tractor, the Excavator cab over a bonnet")}
 
 
 def volume(objs):

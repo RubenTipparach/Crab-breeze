@@ -69,6 +69,21 @@ block-outs first (the owner's rule: "I prefer you make low poly low textured ver
 | Harrow | The Mad Cat | Canopy, in the nose | 2: one hull slung between the hips, its nose cut to a slope, the canopy rising out of it. 1: heavy chicken legs, 2.4 times the hull's volume. 4: box missile racks on the shoulders (tube grids cut by booleans), gun-pod arms with magazines. 5: a skate wheel in a housing at each heel. 6: a camera mast, not a face. Olive drab. |
 | Roustabout | The Scopedog | Titan, in the middle of the chest | 7: the chest splits at the cockpit's seam; the upper chest, the camera turret with it, is the Titan's top half that rises and tilts back, the lower front its step. 4: a box-magazine rifle in one hand, a pipe grab in the other. 3: a backpack with vents, slab armour, gunmetal with orange hazard. 5: wheel feet. |
 
+Then eight more (owner, 2026-10-24: "I need like 10 mech mock ups", "it's not like something we need highres
+either"), each after a 1980s working machine on chicken legs, each carrying a different one of the ten cockpit
+block-outs, so every cockpit has a chassis to be judged in. Contact sheet: `docs/screenshots/mechs/blockouts_new10.png`.
+
+| Mech | After | Cockpit | Its tell |
+| --- | --- | --- | --- |
+| Grader | A road dozer | Panorama | A dozer blade on push arms from the hips, a ripper behind, a beacon bar |
+| Logger | A forestry harvester | Low bank | A low wide hull, a knuckle crane with a log grapple on its back, a felling head with a saw |
+| Lineman | A utility bucket truck | Cinema | A telescoping boom with a work bucket off the shoulder, a cable drum, insulator posts |
+| Driller | A mine drill rig | All-view sphere | The ball held in a ring frame, an auger arm, a lattice derrick on its back |
+| Bowser | A fuel tanker | Octagon | A tank across its back with hazard diamonds, a hose reel arm, a filler boom |
+| Mule | A mine haul truck | Twin tier | The heaviest legs, a canopy roof over the cab, a dump bed on its back |
+| Pumper | A fire engine | Tile wall | Water monitors on both shoulders, hose reels at the hips, a ladder down its back, a light bar |
+| Ploughman | A farm tractor | Excavator cab | A bonnet with a grille and stack, tractor wheels for hips, a plough share, a three-point hitch |
+
 The Foreman and the Ironhorse stay (owner: "I think iron and forman are solid designs"); their detailed builds now
 carry the Panorama and the Excavator cab, and their chests open as one body with them (`docs/design/cockpit.md`, "The
 four in detail"). The test for each block-out is still whether its silhouette reads as a practical machine on

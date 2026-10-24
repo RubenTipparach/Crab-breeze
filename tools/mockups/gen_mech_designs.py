@@ -115,10 +115,12 @@ aside { display: grid; gap: 12px; min-width: 0; }
     <h2 class="boh">Redesign at 24 m, low-poly first</h2>
     <p class="bop">The owner's next round (2026-10-24): twice the size, legs heavier than the torso for balance, every
     pilot seated, blocked out low-poly in Blender with CSG before any detail. The Stevedore keeps its struts; the Foreman
-    and the Ironhorse keep their characters. Two are new, from the reference study: the Harrow, after the Mad Cat, one
-    hull between the hips with the Canopy cockpit rising out of its sloped nose; and the Roustabout, after the Scopedog,
-    the Titan cockpit in the middle of a boxy chest whose upper half and camera turret lift away. Those two carry their
-    cockpit block-outs at true size. Legs against torso is measured off the meshes.</p>
+    and the Ironhorse keep their characters. Ten are new, each after a 1980s working machine and each carrying a different
+    one of the ten cockpit block-outs at true size: the Harrow (after the Mad Cat, the Canopy rising out of its nose), the
+    Roustabout (after the Scopedog, the Titan in its chest), the Grader (a dozer, Panorama), the Logger (a harvester, Low
+    bank), the Lineman (a bucket truck, Cinema), the Driller (a drill rig, the All-view sphere), the Bowser (a fuel tanker,
+    Octagon), the Mule (a haul truck, Twin tier), the Pumper (a fire engine, Tile wall) and the Ploughman (a tractor,
+    Excavator cab). Legs against torso is measured off the meshes.</p>
     <div class="borow" id="bo-pick"></div>
     <div class="bostage"><canvas id="bo-view"></canvas></div>
     <div class="bostats" id="bo-stats"></div>
@@ -665,9 +667,9 @@ window.MOCKUP = {
   let cur = "all";
   function show(id) {
     cur = id;
-    ids.forEach((k, i) => { const g = groups[k]; if (!g) return; g.visible = id === "all" || id === k; g.position.x = id === "all" ? (i - (ids.length - 1) / 2) * 16 : 0; });
+    ids.forEach((k, i) => { const g = groups[k]; if (!g) return; g.visible = id === "all" || id === k; const row = Math.floor(i / 5), col = i % 5; g.position.x = id === "all" ? (col - 2) * 16 : 0; g.position.z = id === "all" ? -row * 22 : 0; });
     pick.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.bo === id)));
-    if (id === "all") { cam.position.set(42, 26, 74); oc.target.set(0, 11, 0); } else { cam.position.set(22, 18, 30); oc.target.set(0, 12, 0); }
+    if (id === "all") { cam.position.set(40, 34, 70); oc.target.set(0, 10, -20); } else { cam.position.set(22, 18, 30); oc.target.set(0, 12, 0); }
     oc.update();
   }
   [...BO.mechs.map(m => [m.id, m.name]), ["all", "Line up"]].forEach(([id, name]) => {
