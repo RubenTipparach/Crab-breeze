@@ -58,8 +58,18 @@ Real walking machines, free to look at:
 8. **Boarding is mechanical and visible.** The Scopedog's chest hinges open and Titanfall's titans kneel: the
    staged openings on the cockpit block-outs (clamps, rams, steam) are the same idea.
 
-## Next
+## The first two built on these rules
 
-The 24 m low-poly redesign (`tools/blender/build_mech_blockouts.py`) is where these get tried. The test is
-whether each mech's silhouette reads as a practical machine on chicken legs, with its cockpit in the nose of the
-body, from the block-out alone.
+The owner, 2026-10-24: "Where's the new mechs?", "We still need those new mechs". Two new chassis, as 24 m low-poly
+block-outs first (the owner's rule: "I prefer you make low poly low textured verions before going full detail"), in
+`tools/blender/build_mech_blockouts.py`, each carrying its cockpit block-out at true size where the pilot sits:
+
+| Mech | After | Cockpit | What it takes from the rules |
+| --- | --- | --- | --- |
+| Harrow | The Mad Cat | Canopy, in the nose | 2: one hull slung between the hips, its nose cut to a slope, the canopy rising out of it. 1: heavy chicken legs, 2.4 times the hull's volume. 4: box missile racks on the shoulders (tube grids cut by booleans), gun-pod arms with magazines. 5: a skate wheel in a housing at each heel. 6: a camera mast, not a face. Olive drab. |
+| Roustabout | The Scopedog | Titan, in the middle of the chest | 7: the chest splits at the cockpit's seam; the upper chest, the camera turret with it, is the Titan's top half that rises and tilts back, the lower front its step. 4: a box-magazine rifle in one hand, a pipe grab in the other. 3: a backpack with vents, slab armour, gunmetal with orange hazard. 5: wheel feet. |
+
+The Foreman and the Ironhorse stay (owner: "I think iron and forman are solid designs"); their detailed builds now
+carry the Panorama and the Excavator cab, and their chests open as one body with them (`docs/design/cockpit.md`, "The
+four in detail"). The test for each block-out is still whether its silhouette reads as a practical machine on
+chicken legs with its cockpit in the body, from the block-out alone; the owner picks before any is detailed.

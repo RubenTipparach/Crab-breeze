@@ -532,11 +532,17 @@ def breeze(k):
 # that opens to board (mech_boarding.py).
 #
 #   foreman    the excavator: hydraulic rams everywhere, track-pad feet, a slewing ring, a cab with a roll
-#              cage; a hydraulic breaker and a belt-fed boom cannon. Visor lifts, apron drops. (wall)
+#              cage; a hydraulic breaker and a belt-fed boom cannon. The Panorama clamshell. (panorama)
 #   stevedore  the dock crane: lattice-girder legs on outrigger feet, an octagonal prow whose lock rods turn
 #              before its two doors swing, a crane jib with a harpoon grapple, a cargo mortar. (harness)
-#   ironhorse  the locomotive: a banded boiler torso whose prow swings open whole, drive-wheel knees with
-#              coupling rods, cow-catcher shins, a smokestack, a steam cannon and a buffer ram. (jockey)
+#   ironhorse  the locomotive: a banded boiler torso whose smokebox front drops as a ramp, drive-wheel knees
+#              with coupling rods, cow-catcher shins, a smokestack, a steam cannon and a buffer ram. (cab)
+
+
+def bearing_x(k, hull, x, y):
+    """The bearing (radians) at which the chest's outer face at height y (metres) stands x metres to the side."""
+    best = min(range(158), key=lambda i: abs(hull["at"](i * 0.01, y)[0] * k.s - x))
+    return best * 0.01
 
 
 def chest_bay(k, chest, variant, at, mode, torso):
@@ -742,7 +748,7 @@ def foreman(k):
         a = i / 32 * 2 * PI
         k.box(0.8, 1.6, 1.0, M["metal"], waist, math.cos(a) * 11.9, -0.4, math.sin(a) * 11.9, 0, -a, 0)
     chest = k.J("torso", waist, 0, 2.5, 0)
-    cp, cav, out, hull = chest_bay(k, chest, "wall", (0, 5, 3), "lift", FOREMAN_TORSO)
+    cp, cav, out, hull = chest_bay(k, chest, "panorama", (0, 5, 3), "inner", FOREMAN_TORSO)
     hw, y0, y1, z1 = cav["hw"], cav["y0"], cav["y1"], out["z1"]
     U = 1.0 / k.s
     Yt = hull["Yt"]
@@ -778,21 +784,22 @@ def foreman(k):
         k.cyl(3.2, 4, 6, M["dark"], cp, s * 0.8 * U, 0.2 * U, -1.7 * U - 2, PI / 2)
         k.cyl(3.4, 3.4, 0.3, M["glowDim"], cp, s * 0.8 * U, 0.2 * U, -1.7 * U - 5.1, PI / 2)
         k.sock(f"JET_{S}", cp, s * 0.8 * U, 0.2 * U, -1.7 * U - 5.4, PI)
-    # the opening, shaped by the cab inside: the visor (the front over the screens, chamfered as they are)
-    # hinges up over the roof on two rams, then the apron (the front under them) drops forward into a step
+    # the opening is the Panorama's own clamshell (owner, 2026-10-24: the Foreman's opening "needs to follow the
+    # titan style or panorama style"): the front under the screens drops forward into a step, then the front
+    # over them swings up and out on two rams, the dash riding it; the cockpit's own halves ride these plates
     Yb, Yt, ys = hull["Yb"], hull["Yt"], hull["ysplit"]
-    # the visor is a clean plate with a hazard band (owner, 2026-10-24: no grilles)
-    MB.contour(k, hull, "CHEST_visor", -0.9, 0.9, ys + 0.16, 0.11, 0.03, M["hazard"])
-    # the apron is a clean plate too, with its hazard edge, which becomes the step's nose
-    MB.contour(k, hull, "CHEST_apron", -1.1, 1.1, Yb + 0.05, 0.05, 0.04, M["hazard"])
-    MB.contour(k, hull, "CHEST_apron", -0.7, 0.7, ys - 0.12, 0.05, 0.03, M["red"])
-    ap, (ax, ay, az) = MB.on(k, hull, "CHEST_apron", hull["at"](0, (Yb + ys) / 2, 0.05))
+    # the upper plate is clean with a hazard band (owner, 2026-10-24: no grilles)
+    MB.contour(k, hull, "CHEST_upper", -0.5, 0.5, ys + 0.16, 0.11, 0.03, M["hazard"])
+    # the lower plate is clean too, with its hazard edge, which becomes the step's nose
+    MB.contour(k, hull, "CHEST_lower", -0.55, 0.55, Yb + 0.05, 0.05, 0.04, M["hazard"])
+    MB.contour(k, hull, "CHEST_lower", -0.45, 0.45, ys - 0.12, 0.05, 0.03, M["red"])
+    ap, (ax, ay, az) = MB.on(k, hull, "CHEST_lower", hull["at"](0, (Yb + ys) / 2, 0.05))
     k.box(5, 3, 0.8, M["glow"], ap, ax, ay, az)
     k.halo(ap, ax, ay, az + 0.8, 8, 0.5)
     MB.contour(k, hull, None, -1.2, 1.2, Yb - 0.22, 0.02, 0.05, M["hazard"])     # the sill's edge under the apron
     for S, s in (("L", 1), ("R", -1)):
-        base = hull["at"](s * (PI / 2 + 0.35), Yt - 0.05, 0.10)
-        vis, tip = MB.on(k, hull, "CHEST_visor", hull["at"](s * 1.15, (ys + Yt) / 2, 0.10))
+        base = hull["at"](s * 1.05, Yt + 0.05, 0.10)
+        vis, tip = MB.on(k, hull, "CHEST_upper", hull["at"](s * 0.55, (ys + Yt) / 2, 0.10))
         MB.ram(k, f"visor_{S}", cp, list(base), vis, list(tip), 0.9)
         MB.vent(k, cp, *hull["at"](s * 1.2, Yt + 0.05, 0.05), (s * 0.4, 1, 0.4), "open", rate=1.4)
         for f in (0.3, 0.7):
@@ -1038,10 +1045,11 @@ def ironhorse(k):
     waist = k.J("torso_twist", body, 0, 5.5, -1)
     k.cyl(7.5, 8.5, 4, M["dark"], waist, 0, 0, 0, 0, 0, 0, 24)
     chest = k.J("torso", waist, 0, 2.5, 0, 0.18)
-    cp, cav, out, hull = chest_bay(k, chest, "jockey", (0, 4, 4), "side", IRONHORSE_TORSO)
+    cp, cav, out, hull = chest_bay(k, chest, "cab", (0, 4, 4), "inner", IRONHORSE_TORSO)
     hw, y0, y1, z1 = cav["hw"], cav["y0"], cav["y1"], out["z1"]
-    # the boiler: the racing cabin's hull, the screen bank's hexagon showing as the visor, banded like a
-    # boiler; its whole front is the smokebox door on a side hinge, held by eight dogs round the seam
+    # the boiler: the Excavator cab's hull (owner, 2026-10-24: "Iron horse has no seat still"; the cab is seated),
+    # banded like a boiler; its front is the smokebox door, now a ramp: it drops forward on a hinge along its foot,
+    # the cab's own front riding it, held shut by dogs round the seam
     Yb, Yt = hull["Yb"], hull["Yt"]
     cy = (out["y0"] + out["y1"]) / 2
     R = max(out["hw"], (out["y1"] - out["y0"]) / 2)
@@ -1049,22 +1057,24 @@ def ironhorse(k):
     Lb = 1.0 * U                 # the collar's fittings: the stack forward, the dome and whistle behind it
     zc = -0.55 * U
     fz = hull["at"](0, Yt + 0.25, 0)[2]
+    W = MB.ride_w("cab", "INNER_ramp")          # the ramp's half width: its seam down each side
+    aw = {y: bearing_x(k, hull, W, y) for y in (Yb + 0.12, hull["sb"] - 0.10, Yt - 0.10, (Yb + Yt) / 2)}
     for y in (Yb + 0.12, hull["sb"] - 0.10, Yt - 0.10):
         MB.contour(k, hull, None, PI / 2 + 0.03, 3 * PI / 2 - 0.03, y, 0.04, 0.05, M["frame"])
-        MB.contour(k, hull, "CHEST_door", -PI / 2 + 0.03, PI / 2 - 0.03, y, 0.04, 0.05, M["frame"])
+        MB.contour(k, hull, "CHEST_ramp", -aw[y] + 0.06, aw[y] - 0.06, y, 0.04, 0.05, M["frame"])
     k.stripes(k.g(cp, *hull["at"](PI, (Yb + Yt) / 2, 0.02)), 2 * R * 0.5, 0, 0, 0, PI, hb=1.3, gap=0.7)
-    D = hull["joints"]["CHEST_door"][0]
-    _, (x, yy, zz) = MB.on(k, hull, "CHEST_door", hull["at"](0, (Yb + hull["sb"]) / 2, 0.04))
+    D = hull["joints"]["CHEST_ramp"][0]
+    _, (x, yy, zz) = MB.on(k, hull, "CHEST_ramp", hull["at"](0, (Yb + hull["sb"]) / 2, 0.04))
     k.tor(3.2, 0.5, M["metal"], D, x, yy, zz + 0.6, seg=24)                       # the handwheel
     for i in range(3):
         k.box(6.2, 0.5, 0.5, M["metal"], D, x, yy, zz + 0.6, 0, 0, i * PI / 3)
     k.cyl(1.2, 1.2, 1.2, M["frame"], D, x, yy, zz + 0.7, PI / 2)
     k.box(7, 1.8, 0.4, M["red"], D, x, yy + 5, zz + 0.3)                         # the number plate
-    H = (Yt - Yb) / k.s
-    for f in (0.15, 0.5, 0.85):
-        k.cyl(0.9, 0.9, 1.8, M["frame"], D, 0, H * f, 0, seg=10)                 # the hinge barrels
-    dogs = [(sg * (PI / 2 + 0.07), Yb + f * (Yt - Yb), sg * PI / 2) for sg in (1, -1) for f in (0.2, 0.5, 0.8)]
-    dogs += [(0, Yt + 0.08, 0), (0, Yb - 0.08, 0)]
+    for f in (-0.6, 0.0, 0.6):
+        k.cyl(0.9, 0.9, 1.8, M["frame"], D, f * W * U, 0, 0, 0, 0, PI / 2, seg=10)   # the hinge barrels, along its foot
+    am = aw[(Yb + Yt) / 2]
+    dogs = [(sg * (am + 0.05), Yb + f * (Yt - Yb), sg * PI / 2) for sg in (1, -1) for f in (0.2, 0.5, 0.8)]
+    dogs += [(0, hull["y_hi"] + 0.05, 0)]
     for i, (a, y, ry) in enumerate(dogs):
         x, yy, zz = hull["at"](a, y, 0.03)
         dog = MB.hatch(k, f"CHEST_dog_{i + 1}", cp, x, yy, zz, ("z", 1.2), 0.0, 0.5, 0, ry, 0)
@@ -1160,8 +1170,8 @@ DESIGNS = {
     # id: (builder, height m, glow, livery, core, light plate, name, card)
     "foreman": (foreman, 12.0, 0xffb02e, 0x2f6fe0, 0xffb347, False, "Foreman",
                 dict(legs="digitigrade, three segments, double hydraulic rams, track-pad feet",
-                     cockpit="wall: seated in a flat screen wall, in the chamfered prow",
-                     opening="the visor lifts on two rams, the apron drops forward into a step",
+                     cockpit="Panorama: seated behind one wide screen and square side screens, in the chamfered prow",
+                     opening="the Panorama clamshell, chest and cockpit as one: the front under the screens drops into a step, then the front over them swings up and out on two rams with the dash",
                      weapons="belt-fed boom cannon (L), hydraulic breaker (R)",
                      note="Original, after an excavator: slewing ring, broad shoulders with beacons, an engine pack and its stack. Recommended.")),
     "stevedore": (stevedore, 13.5, 0x8fe3ff, 0x2f6fe0, 0x8fb6ff, False, "Stevedore",
@@ -1171,8 +1181,8 @@ DESIGNS = {
                        note="Original, after a dock crane: gantry, counter-jib and weights, warning lamps.")),
     "ironhorse": (ironhorse, 11.0, 0xffc860, 0x2f6fe0, 0xff8a3a, False, "Ironhorse",
                   dict(legs="digitigrade, drive-wheel knees with coupling rods, cow-catcher shins",
-                       cockpit="jockey: leaning forward in the hexagonal prow",
-                       opening="the dogs swing off, the whole prow swings open on its hinge",
+                       cockpit="Excavator cab: seated, floor-to-roof screens in two rows and one in the floor",
+                       opening="the dogs swing off, the smokebox front drops forward as a ramp with the cab's front on it",
                        weapons="buffer ram (L), steam cannon (R)",
                        note="Original, after a steam locomotive: a banded boiler torso, smokestack, dome, headlamp, firebox pack.")),
     "breeze": (breeze, 12.0, 0x59f2ff, 0x2f6fe0, 0x59f2ff, True, "Breeze",

@@ -108,15 +108,17 @@ aside { display: grid; gap: 12px; min-width: 0; }
 </style>
 
 <header>
-  <div class="eyebrow">Crab Breeze · mech design review · third pass, the cockpit in the chest</div>
+  <div class="eyebrow">Crab Breeze · mech design review · fourth pass, the new cockpits in the chest</div>
   <h1>Pick a chassis and its cockpit</h1>
-  <p class="lede">Three original chassis from the 1980s industrial world, finished in Mining Mike's boss style, each with its cockpit inside the chest and its own way of opening it. Each torso is broad in the shoulders and narrow at the waist, and its prow is the shape of the cockpit inside it: only the prow opens. Foreman is an excavator: the grilled visor over its chamfered cab lifts and the apron drops into a step, on a seated screen-wall cockpit. Stevedore is a dock crane: the lock rods turn and its octagonal prow splits into two doors, on a standing harness cockpit. Ironhorse is a locomotive: the dogs swing off and the whole prow, its hexagonal screen bank inside, swings open on a forward-leaning jockey cockpit. Press Kneel and open, or Board it to climb in through the pilot's eyes. All at true scale beside a 1.8 m pilot and a four-storey block.</p>
+  <p class="lede">Original chassis from the 1980s industrial world, each with its cockpit inside the chest. The chest and the cockpit now open as one body: the armour in front of each opening part of the cockpit is cut round it and moves on that part's own stages, so nothing meets. Foreman is an excavator carrying the Panorama: the front under the screens drops into a step, then the front over them swings up and out on two rams with the dash. Ironhorse is a locomotive carrying the seated Excavator cab: the dogs swing off and the smokebox front drops forward as a ramp with the cab's front on it. Stevedore keeps its standing harness for now. Press Kneel and open, or Board it to climb in through the pilot's eyes. All at true scale beside a 1.8 m pilot and a four-storey block.</p>
   <section class="bo">
     <h2 class="boh">Redesign at 24 m, low-poly first</h2>
     <p class="bop">The owner's next round (2026-10-24): twice the size, legs heavier than the torso for balance, every
     pilot seated, blocked out low-poly in Blender with CSG before any detail. The Stevedore keeps its struts; the Foreman
-    and the Ironhorse keep their characters. Each chest carries a seated cockpit prow whose hatch is cut as an orange
-    groove. Legs against torso is measured off the meshes.</p>
+    and the Ironhorse keep their characters. Two are new, from the reference study: the Harrow, after the Mad Cat, one
+    hull between the hips with the Canopy cockpit rising out of its sloped nose; and the Roustabout, after the Scopedog,
+    the Titan cockpit in the middle of a boxy chest whose upper half and camera turret lift away. Those two carry their
+    cockpit block-outs at true size. Legs against torso is measured off the meshes.</p>
     <div class="borow" id="bo-pick"></div>
     <div class="bostage"><canvas id="bo-view"></canvas></div>
     <div class="bostats" id="bo-stats"></div>
@@ -303,7 +305,15 @@ const loadOne = (id, idx) => loader.loadAsync(`mech_${id}.gltf.json`).then(g => 
     b.interior = pod;
     const pn = {}; pod.traverse(o => { if (o.name) pn[o.name] = o; });
     b.pnodes = pn;
-    for (const tr of innerTracks(I.man)) if (pn[tr.node]) { b.inner.push(tr); b.restT["~" + tr.node] = { q: pn[tr.node].quaternion.clone(), p: pn[tr.node].position.clone() }; }
+    // a chest that opens on the interior's own parts (mech_boarding mode "inner") carries each part on its last
+    // joint, so the two open as one body: put the chest at rest, hang the part on the joint, skip its own tracks
+    const rides = b.cockpit.rides || {}, ridden = Object.keys(rides).filter(n => pn[n] && nodes[rides[n]]);
+    if (ridden.length) {
+      for (const tr of b.board.tracks) { const o = nodes[tr.node], r = b.restT[tr.node]; if (o && r) { o.position.copy(r.p); o.quaternion.copy(r.q); } }
+      root.updateMatrixWorld(true);
+      for (const n of ridden) nodes[rides[n]].attach(pn[n]);
+    }
+    for (const tr of innerTracks(I.man)) if (pn[tr.node] && !ridden.some(n => tr.node.startsWith(n))) { b.inner.push(tr); b.restT["~" + tr.node] = { q: pn[tr.node].quaternion.clone(), p: pn[tr.node].position.clone() }; }
     b.timeline = timeline(b);
   }).catch(e => console.warn("interior", v, e));
 });
@@ -655,9 +665,9 @@ window.MOCKUP = {
   let cur = "all";
   function show(id) {
     cur = id;
-    ids.forEach((k, i) => { const g = groups[k]; if (!g) return; g.visible = id === "all" || id === k; g.position.x = id === "all" ? (i - 1) * 16 : 0; });
+    ids.forEach((k, i) => { const g = groups[k]; if (!g) return; g.visible = id === "all" || id === k; g.position.x = id === "all" ? (i - (ids.length - 1) / 2) * 16 : 0; });
     pick.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.bo === id)));
-    if (id === "all") { cam.position.set(30, 22, 52); oc.target.set(0, 11, 0); } else { cam.position.set(22, 18, 30); oc.target.set(0, 12, 0); }
+    if (id === "all") { cam.position.set(42, 26, 74); oc.target.set(0, 11, 0); } else { cam.position.set(22, 18, 30); oc.target.set(0, 12, 0); }
     oc.update();
   }
   [...BO.mechs.map(m => [m.id, m.name]), ["all", "Line up"]].forEach(([id, name]) => {

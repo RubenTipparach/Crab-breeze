@@ -41,14 +41,15 @@ buildings, people), `T` tech and tools, `P` playtesting.
 
 Requests between the Mac and cloud sessions: `docs/design/requests.md`.
 
-Design notes: `cockpit.md` (the cockpit, the owner's reviews, open questions), `cockpit-blockouts.md` (the ten
-cockpit block-outs with screenshots of each opening; Panorama and Low bank are the owner's top two),
-`mech-references.md` (the mech pictures the owner showed and what to take from them), `mech-rig.md`, `alien-rig.md`.
+Design notes: `cockpit.md` (the cockpit, the owner's reviews, the four detailed from block-outs and how the chest
+opens as one body with them, open questions), `cockpit-blockouts.md` (the ten cockpit block-outs with screenshots of
+each opening), `mech-references.md` (the mech pictures the owner showed, what to take from them, and the two new mechs
+built on it), `mech-rig.md`, `alien-rig.md`.
 
 ## Mockups
 
 | Page | Published | Built by |
 | --- | --- | --- |
-| Mech Cockpits (`docs/mockups/cockpits.html`): the three built interiors (wall, harness, jockey) and the ten seated block-outs, each opening by the front or the back in stages (scrub with the slider): sit at the pilot's eye with the world on the screens, or orbit the pod beside a pilot. Was the Breeze Cockpit page | https://claude.ai/artifact/AqMpKdiBjn9e1uQPT1c1aj | `tools/mockups/gen_cockpit_page.py` from `assets/models/cockpit_<variant>/`, published with them as files |
-| Crab Breeze Mechs (`docs/mockups/mech_designs.html`): on top, the 24 m low-poly redesign (`tools/blender/build_mech_blockouts.py`, legs against torso measured); below, the detailed 12 m round: Foreman, Stevedore and Ironhorse at true scale; each kneels, opens its chest with steam and drops its ladder on its cockpit interior (wall, harness, jockey); board it in first person or sit in each cockpit | https://claude.ai/artifact/B5tX8ycUR2tLBknKyMb8bc | `tools/mockups/gen_mech_designs.py` from `assets/models/mech_<id>.glb` and `assets/models/cockpit_<variant>/`, published with them as files |
+| Mech Cockpits (`docs/mockups/cockpits.html`): the detailed Panorama, Titan, Excavator cab and Canopy, the first three built interiors (wall, harness, jockey) and the ten seated block-outs, each opening by the front or the back in stages (scrub with the slider): sit at the pilot's eye with the world on the screens, or orbit the pod beside a pilot. Was the Breeze Cockpit page | https://claude.ai/artifact/AqMpKdiBjn9e1uQPT1c1aj | `tools/mockups/gen_cockpit_page.py` from `assets/models/cockpit_<variant>/`, published with them as files |
+| Crab Breeze Mechs (`docs/mockups/mech_designs.html`): on top, the 24 m low-poly redesign (`tools/blender/build_mech_blockouts.py`, legs against torso measured), with the two new mechs, Harrow (Canopy) and Roustabout (Titan); below, the detailed 12 m round: Foreman (Panorama), Stevedore (harness) and Ironhorse (Excavator cab) at true scale; each kneels, opens its chest with steam and drops its ladder, the Foreman's and Ironhorse's chests opening as one body with their cockpits; board it in first person or sit in each cockpit | https://claude.ai/artifact/B5tX8ycUR2tLBknKyMb8bc | `tools/mockups/gen_mech_designs.py` from `assets/models/mech_<id>.glb` and `assets/models/cockpit_<variant>/`, published with them as files |
 | Alien Crab Mechs (`docs/mockups/alien_mechs.html`): the three enemy crab machines (Skitter 6 m, Snapper 12 m, Big Boy 30 m) at true scale beside the Breeze | https://claude.ai/artifact/DAdKyPWjNyjur74vQaZTA8 | `tools/mockups/gen_alien_mechs.py` from `assets/models/alien_*.glb` (`tools/blender/build_alien_mechs.py`, rig in `docs/design/alien-rig.md`) |

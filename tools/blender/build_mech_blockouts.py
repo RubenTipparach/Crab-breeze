@@ -5,7 +5,7 @@ lowpoly first", "I really expect legs on these mechs to be bigger than the torso
 like how stevedore is all struts thats great", "the foreman looks good too", and for every model "use blender to
 your advantage, lots of CSG, lots of boolean meshes to get the basic idea across".
 
-Three chassis, each about 24 m tall (twice survey M1's 12 m), on digitigrade legs (survey M2) whose volume
+Five chassis, each about 24 m tall (twice survey M1's 12 m), on digitigrade legs (survey M2) whose volume
 outweighs the torso's (the manifest says by how much, measured off the meshes), with a seated cockpit prow on the
 chest whose hatch is cut by a boolean groove (gasket orange, as on the cockpit block-outs):
 
@@ -16,6 +16,12 @@ chest whose hatch is cut by a boolean groove (gasket orange, as on the cockpit b
   ironhorse  the locomotive: a boiler torso (a cylinder minus its smokebox recess), drive-wheel knees with a
              coupling rod to the hock wheel, cow-catcher shins (a box cut to a wedge), a smokestack and dome,
              a steam cannon and a buffer ram
+  harrow     new, the Mad Cat pattern (docs/design/mech-references.md): one hull slung between the hips, its
+             nose cut to a slope with the Canopy cockpit set in it, box missile racks on the shoulders, gun-pod
+             arms, wheel feet, a camera mast for a head; olive drab
+  roustabout new, the Scopedog pattern: a boxy upright chest with the Titan cockpit in its middle, the upper
+             chest and its camera turret the part that lifts, a backpack with vents, a box-magazine rifle and a
+             pipe grab, wheel feet; gunmetal and orange
 
 Flat colours, no textures. Writes assets/models/mech_blockouts/<id>.glb and assets/models/mech_blockouts.json.
 
@@ -43,6 +49,10 @@ PALETTES = {
                       RUBBER=(0.06, 0.06, 0.06), METAL=(0.55, 0.56, 0.60), GLOW=(0.55, 0.90, 1.0)),
     "ironhorse": dict(BODY=(0.20, 0.17, 0.15), BODY2=(0.32, 0.27, 0.22), FRAME=(0.07, 0.07, 0.08), ACCENT=(0.78, 0.58, 0.25),
                       RUBBER=(0.06, 0.06, 0.06), METAL=(0.55, 0.56, 0.60), GLOW=(1.0, 0.78, 0.38)),
+    "harrow": dict(BODY=(0.30, 0.33, 0.20), BODY2=(0.24, 0.25, 0.26), FRAME=(0.08, 0.08, 0.09), ACCENT=(0.88, 0.70, 0.12),
+                   RUBBER=(0.06, 0.06, 0.06), METAL=(0.52, 0.53, 0.55), GLOW=(0.55, 1.0, 0.6)),
+    "roustabout": dict(BODY=(0.36, 0.38, 0.40), BODY2=(0.22, 0.23, 0.24), FRAME=(0.08, 0.08, 0.09), ACCENT=(0.92, 0.42, 0.10),
+                       RUBBER=(0.06, 0.06, 0.06), METAL=(0.55, 0.56, 0.60), GLOW=(1.0, 0.75, 0.3)),
 }
 MATS = {}
 GROUPS = {}          # group name -> [objects]: legs, torso, arms, head, cockpit
@@ -360,8 +370,171 @@ def ironhorse():
             cyl("buffer", hand, hand + V((0, 0, 0.5)), 1.2, "BODY", "arms", 16)
 
 
+# ----------------------------------------------------------------------------- the new two, from the reference study
+# docs/design/mech-references.md: chicken legs heavier than the body, the cockpit in the middle of the chest or in the
+# nose of one hull slung between the hips, practical slab armour in olive drab and gunmetal, weapons that look like
+# equipment, wheels in the feet, a sensor for a head. Each carries its cockpit block-out (tools/blender/
+# build_cockpit_blockouts.py) at true size where the pilot sits, so the integration is measured, not drawn.
+
+def prism_x(name, profile, hw, mat, group):
+    """A solid from a side profile [(z, y), ...] (counter-clockwise seen from +x) extruded from -hw to hw across."""
+    bm = bmesh.new()
+    L = [bm.verts.new((-hw, y, z)) for z, y in profile]
+    R = [bm.verts.new((hw, y, z)) for z, y in profile]
+    n = len(profile)
+    bm.faces.new(L)
+    bm.faces.new(list(reversed(R)))
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((L[i], L[j], R[j], R[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return obj(name, bm, mat, group)
+
+
+def pod_in(layout, at):
+    """The cockpit block-out `layout` placed with its floor centre at `at` (metres, glTF frame), facing ahead."""
+    path = os.path.join(ROOT, "assets", "models", "cockpit_blockouts", f"{layout}.glb")
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=path)
+    for o in set(bpy.data.objects) - before:
+        if o.parent is None:
+            o.location = o.location + G2B.to_3x3() @ V(at)
+        if o.type == "MESH":
+            GROUPS.setdefault("pod", []).append(o)
+
+
+def wheel_foot(name, ball, s, w=4.2, l=6.6, r=1.15):
+    """A foot with its skate wheel (survey M4) showing: a sole, a toe wedge, and the powered wheel in a housing
+    at the heel, folded up so it clears the ground until the pilot drops it."""
+    chamfered(f"{name}_sole", ball + V((0, -0.5, 0.7)), (w, 1.2, l), 0.4, "FRAME", "legs")
+    box(f"{name}_toe", ball + V((0, -0.35, 0.7 + l / 2 + 0.3)), (w * 0.8, 0.9, 1.4), "BODY2", "legs",
+        ((1, 0, 0), (0, 1, 0.5), (0, -0.5, 1)))
+    hub = ball + V((0, 0.0, 0.7 - l / 2 + 0.4))
+    box(f"{name}_housing", hub + V((0, 0.35, 0)), (w * 0.62, 1.5, 2.6), "BODY2", "legs")
+    cyl(f"{name}_wheel", hub - V((w * 0.28, 0, 0)), hub + V((w * 0.28, 0, 0)), r, "RUBBER", "legs", 16)
+    cyl(f"{name}_hub", hub - V((w * 0.31, 0, 0)), hub + V((w * 0.31, 0, 0)), r * 0.45, "ACCENT", "legs", 10)
+
+
+def chicken_legs(hip_y, hx, scale, thigh, shin, body_mat="BODY"):
+    """Heavy reverse-jointed legs (thigh and shin boxes, a ram down the front of each), with wheel feet."""
+    for s in (1, -1):
+        P = {k: v + V((s * hx, 0, 0)) for k, v in leg_points(hip_y, scale).items()}
+        chamfered(f"thigh{s}", (P["hip"] + P["knee"]) / 2, (thigh[0], (P["knee"] - P["hip"]).length + 0.6, thigh[1]), 0.55,
+                  body_mat, "legs", between(P["hip"], P["knee"]))
+        chamfered(f"shin{s}", (P["knee"] + P["hock"]) / 2, (shin[0], (P["hock"] - P["knee"]).length + 0.4, shin[1]), 0.5,
+                  body_mat, "legs", between(P["knee"], P["hock"]))
+        chamfered(f"meta{s}", (P["hock"] + P["ball"]) / 2, (shin[0] * 0.8, (P["ball"] - P["hock"]).length + 0.3, shin[1] * 0.8),
+                  0.4, "BODY2", "legs", between(P["hock"], P["ball"]))
+        cyl(f"knee{s}", P["knee"] - V((s * thigh[0] * 0.6, 0, 0)), P["knee"] + V((s * thigh[0] * 0.6, 0, 0)), 1.5, "FRAME", "legs")
+        cyl(f"hock{s}", P["hock"] - V((s * shin[0] * 0.6, 0, 0)), P["hock"] + V((s * shin[0] * 0.6, 0, 0)), 1.15, "FRAME", "legs")
+        cyl(f"ram{s}", P["hip"] + V((0, -0.6, 1.9)), P["hip"].lerp(P["knee"], 0.6) + V((0, 0, 2.0)), 0.45, "FRAME", "legs", 10)
+        cyl(f"rod{s}", P["hip"].lerp(P["knee"], 0.6) + V((0, 0, 2.0)), P["knee"] + V((0, 0.6, 1.6)), 0.24, "METAL", "legs", 8)
+        cyl(f"sram{s}", P["knee"] + V((0, -0.4, -1.7)), P["knee"].lerp(P["hock"], 0.6) + V((0, 0, -1.8)), 0.4, "FRAME", "legs", 10)
+        box(f"stencil{s}", (P["hip"] + P["knee"]) / 2 + V((s * (thigh[0] / 2 + 0.03), 0, 0)), (0.06, 1.6, 2.2), "ACCENT", "legs",
+            between(P["hip"], P["knee"]))
+        wheel_foot(f"foot{s}", P["ball"], s)
+
+
+def harrow():
+    """The Mad Cat pattern: one hull slung between the hips, its nose sloped, the Canopy cockpit set in the nose so
+    its bubble rises out of the slope; box missile racks on the shoulders, gun pods for arms, a camera mast."""
+    hip_y, hx = 15.0, 3.9
+    chicken_legs(hip_y, hx, 1.12, (4.6, 4.2), (3.6, 3.3))
+    box("hips", (0, hip_y + 0.2, -0.4), (2 * hx + 1.2, 2.4, 3.8), "FRAME", "legs")
+    # the hull: its side profile extruded across, the nose sloping down to a chin; the nose's corners cut away (CSG)
+    yc, zc = hip_y + 3.2, 0.6
+    hull = prism_x("hull", [(zc - 4.8, yc - 2.0), (zc - 4.8, yc + 2.0), (zc + 0.2, yc + 2.4), (zc + 5.2, yc - 0.1),
+                            (zc + 6.2, yc - 0.7), (zc + 5.4, yc - 2.1)], 3.3, "BODY", "torso")
+    for s_ in (1, -1):
+        boolean(hull, box(f"nose_corner{s_}", (s_ * 3.4, yc, zc + 6.0), (2.4, 6.0, 2.4), "BODY", "torso",
+                          ((1, 0, s_ * 1), (0, 1, 0), (-s_ * 1, 0, 1))), "DIFFERENCE")
+    # the Canopy sits in a well in the slope, its screens and bubble standing out of it, as the Mad Cat's does
+    floor = (0, yc + 0.2, zc + 2.4)
+    boolean(hull, box("well", V(floor) + V((0, 1.6, 0.0)), (2.5, 3.2, 2.0), "BODY2", "torso"), "DIFFERENCE")
+    pod_in("canopy", floor)
+    box("hull_band", (0, yc - 1.75, zc + 0.6), (6.7, 0.4, 8.6), "ACCENT", "torso")
+    for s in (1, -1):
+        box(f"skirt{s}", (s * 3.45, yc - 1.4, zc + 0.6), (0.4, 1.8, 7.6), "BODY2", "torso")
+    # behind: the power pack, a radiator grille, two exhaust stacks
+    chamfered("pack", (0, yc + 0.6, zc - 6.4), (5.6, 3.8, 3.2), 0.5, "BODY2", "torso")
+    for i in range(5):
+        box(f"fin{i}", (0, yc - 0.8 + i * 0.7, zc - 8.05), (4.6, 0.18, 0.15), "FRAME", "torso")
+    for s in (1, -1):
+        cyl(f"stack{s}", (s * 1.6, yc + 2.4, zc - 6.8), (s * 1.6, yc + 5.0, zc - 6.8), 0.45, "FRAME", "torso", 10)
+        # shoulders: a pivot drum, a missile rack box on top with its tube grid cut in (CSG)
+        sh = V((s * 4.6, yc + 1.0, zc - 0.8))
+        cyl(f"drum{s}", sh - V((s * 0.9, 0, 0)), sh + V((s * 0.9, 0, 0)), 1.5, "FRAME", "arms", 14)
+        rack = chamfered(f"rack{s}", sh + V((0, 2.6, 0.4)), (2.6, 2.2, 3.6), 0.3, "BODY", "arms")
+        for i in range(3):
+            for j in range(2):
+                p = sh + V((-0.75 + i * 0.75, 2.2 + j * 0.8, 2.3))
+                boolean(rack, cyl(f"tube{s}{i}{j}", p - V((0, 0, 0.6)), p + V((0, 0, 0.6)), 0.28, "FRAME", "arms", 8), "DIFFERENCE")
+        box(f"hatch{s}", sh + V((0, 3.75, 0.4)), (2.3, 0.12, 3.2), "ACCENT", "arms")
+        # the arm hangs low as a gun pod: upper strut, the pod with its magazine and barrel
+        el = sh + V((s * 0.7, -3.2, 0.8))
+        strut(f"upper{s}", sh, el, 1.2, "BODY2", "arms")
+        pod = el + V((0, -0.6, 1.8))
+        chamfered(f"gunpod{s}", pod, (1.8, 1.8, 4.2), 0.3, "BODY", "arms")
+        box(f"mag{s}", pod + V((0, -1.3, -0.6)), (1.1, 1.0, 1.4), "FRAME", "arms")
+        cyl(f"barrel{s}", pod + V((0, 0.2, 2.0)), pod + V((0, 0.2, 4.6)), 0.26 if s > 0 else 0.4, "METAL", "arms", 10)
+    # the sensor, not a face: a camera mast beside the canopy, its lens looking ahead
+    cyl("mast", (-1.9, yc + 2.0, zc + 0.6), (-1.9, yc + 3.6, zc + 0.6), 0.25, "FRAME", "head", 8)
+    box("camera", (-1.9, yc + 3.9, zc + 0.8), (0.9, 0.7, 1.2), "BODY2", "head")
+    cyl("lens", (-1.9, yc + 3.9, zc + 1.4), (-1.9, yc + 3.9, zc + 1.55), 0.25, "GLOW", "head", 10)
+
+
+def roustabout():
+    """The Scopedog pattern, at 24 m: a boxy upright chest on chicken legs, the Titan cockpit in its middle; the
+    upper chest with the camera turret on it is the Titan's top half (it rises and tilts back), the lower chest
+    front is its step. A box-magazine rifle, a pipe grab, a backpack with vents."""
+    hip_y, hx = 14.4, 3.5
+    chicken_legs(hip_y, hx, 1.0, (4.2, 4.0), (3.4, 3.2))
+    box("hips", (0, hip_y + 0.3, -0.2), (2 * hx + 1.0, 2.6, 3.4), "FRAME", "legs")
+    yb = hip_y + 1.6
+    chamfered("waist", (0, yb + 0.6, -0.2), (5.0, 1.6, 4.4), 0.4, "BODY2", "torso")
+    floor = (0, yb + 1.6, 1.4)
+    lower = chamfered("chest_lower", (0, yb + 2.5, -0.2), (7.0, 2.6, 5.8), 0.6, "BODY", "torso")
+    upper = chamfered("chest_upper", (0, yb + 5.0, -0.4), (7.4, 2.4, 6.0), 0.6, "BODY", "torso")
+    box("seam", (0, yb + 3.8, -0.2), (7.1, 0.12, 5.9), "GASKET", "torso")
+    for o in (lower, upper):
+        boolean(o, box(f"well_{o.name}", V(floor) + V((0, 1.05, 1.6)), (2.4, 2.25, 3.4), "BODY2", "torso"), "DIFFERENCE")
+    pod_in("titan", floor)
+    for s in (1, -1):
+        box(f"cheek{s}", (s * 2.6, yb + 3.3, 2.75), (1.8, 4.4, 0.5), "BODY2", "torso")
+    box("hazard", (0, yb + 1.25, 2.7), (5.6, 0.3, 0.2), "ACCENT", "torso")
+    # the camera turret on the upper chest (it goes up with it): a drum with three lenses on a slide
+    cyl("turret", (0, yb + 6.2, 0.4), (0, yb + 7.6, 0.4), 1.4, "BODY2", "head", 14)
+    for i, (dx, r) in enumerate(((-0.55, 0.32), (0.35, 0.22), (0.9, 0.16))):
+        cyl(f"lens{i}", (dx, yb + 6.9, 1.6), (dx, yb + 6.9, 2.0), r, "GLOW", "head", 10)
+    box("visor_slot", (0, yb + 6.9, 1.62), (2.6, 0.7, 0.2), "FRAME", "head")
+    # the backpack: an engine box, two vent grilles, a jet nozzle under
+    chamfered("backpack", (0, yb + 4.0, -4.6), (5.6, 5.0, 2.8), 0.5, "BODY2", "torso")
+    for s in (1, -1):
+        for i in range(4):
+            box(f"vent{s}{i}", (s * 1.4, yb + 3.0 + i * 0.6, -6.05), (1.8, 0.16, 0.12), "FRAME", "torso")
+        cyl(f"jet{s}", (s * 1.6, yb + 1.0, -4.6), (s * 1.6, yb + 0.0, -4.9), 0.7, "FRAME", "torso", 12, r2=0.9)
+        sh = V((s * 4.6, yb + 5.2, -0.4))
+        chamfered(f"shoulder{s}", sh, (2.2, 2.6, 3.0), 0.4, "BODY", "arms")
+        box(f"shstripe{s}", sh + V((s * 1.12, 0, 0)), (0.06, 1.0, 2.6), "ACCENT", "arms")
+        el = sh + V((s * 0.5, -3.6, 1.0))
+        strut(f"upper{s}", sh, el, 1.3, "BODY2", "arms")
+        hand = el + V((0, -0.4, 2.6))
+        strut(f"fore{s}", el, hand, 1.1, "BODY", "arms")
+        if s > 0:                                   # the rifle: receiver, box magazine, barrel, carried in the hand
+            rec = hand + V((0, -0.3, 1.0))
+            box("receiver", rec, (0.9, 1.1, 3.0), "FRAME", "arms")
+            box("magazine", rec + V((0, -1.2, 0.3)), (0.7, 1.4, 0.9), "BODY2", "arms")
+            cyl("rifle_barrel", rec + V((0, 0.15, 1.5)), rec + V((0, 0.15, 4.4)), 0.22, "METAL", "arms", 8)
+        else:                                       # the pipe grab: two jaws round a gap
+            for dy in (0.7, -0.7):
+                box(f"jaw{dy}", hand + V((0, dy, 1.2)), (0.8, 0.4, 2.2), "ACCENT", "arms")
+            cyl("grab_hub", hand - V((0.5, 0, 0)), hand + V((0.5, 0, 0)), 0.7, "FRAME", "arms", 10)
+
+
 CHASSIS = {"foreman": (foreman, "Foreman", "the excavator"), "stevedore": (stevedore, "Stevedore", "the dock crane, all struts"),
-           "ironhorse": (ironhorse, "Ironhorse", "the locomotive")}
+           "ironhorse": (ironhorse, "Ironhorse", "the locomotive"),
+           "harrow": (harrow, "Harrow", "new: the Mad Cat pattern, one hull between the hips, the Canopy in its nose"),
+           "roustabout": (roustabout, "Roustabout", "new: the Scopedog pattern, the Titan in its chest, the upper chest lifts")}
 
 
 def volume(objs):
@@ -388,6 +561,8 @@ def main():
         lo, hi = [min(p[i] for p in pts) for i in range(3)], [max(p[i] for p in pts) for i in range(3)]
         tris = 0
         for o in bpy.data.objects:
+            if o.type != "MESH":
+                continue
             bm = bmesh.new()
             bm.from_mesh(o.data)
             bmesh.ops.triangulate(bm, faces=bm.faces)
@@ -398,7 +573,7 @@ def main():
         root = bpy.data.objects.new(key, None)
         bpy.context.scene.collection.objects.link(root)
         for o in bpy.data.objects:
-            if o.type == "MESH":
+            if o is not root and o.parent is None:      # a cockpit block-out keeps its own nodes under its root
                 o.parent = root
         path = os.path.join(OUT, f"{key}.glb")
         bpy.ops.object.select_all(action="SELECT")

@@ -19,19 +19,24 @@ manifest (`assets/models/cockpit_<variant>.json`).
   a collar for the head) and the lining grown by 0.30 m of armour (0.36 m round the screen belt). So the
   prow of the chest is the interior's shape: the Foreman's chamfered cab, the Stevedore's octagon, the
   Ironhorse's hexagonal screen bank. The `cockpit` node sits on the tub floor under the eye, with the
-  sockets `EYE_pilot`, `SEAT_pilot`, `HATCH_entry`; the interior (`build_cockpit.py --variant wall | jockey |
-  harness`) mounts at `cockpit`.
-- Only the prow opens: everything ahead of the cut plane (`z_cut`, just behind the pivots of the interior's
-  own opening parts) from just under the lining's floor to just over its roof.
-- Three interiors: wall (seated, twin grips, a flat screen wall; Foreman), jockey (leaning forward on a
-  saddle, low wide screens; Ironhorse), harness (standing, forearm controls, a flat octagon of screens;
-  Stevedore). Every screen is flat (the owner: curved screens are "just fish eye pov").
-- The screens that look outside share the material `SCREEN_allview`. In the game it is drawn from a cube
-  render of the mech's sensor head (`SENSOR_head`) sampled by direction from the eye, so the view is
-  undistorted wherever the head turns. Scanlines, a phosphor grade, the HUD drawn ahead.
-- Cost: six extra scene renders a frame at the cube size. That is the largest cost in this design
-  and is measured on the owner's hardware before it is accepted (CLAUDE.md 7); fallbacks are a
-  lower cube size, fewer faces (the rear faces at a third of the rate) or one wide render.
+  sockets `EYE_pilot`, `SEAT_pilot`, `HATCH_entry`; the interior (`build_cockpit.py --variant panorama | cab |
+  titan | canopy | harness`) mounts at `cockpit`.
+- What opens: on a chest built in mode `inner` (the Foreman, the Ironhorse), the armour in front of each of the
+  interior's opening parts, cut round the part by a box (Exact booleans), riding that part's own stages; the part
+  itself rides the last chest joint (`cockpit.rides` in the root extras: interior node to chest joint), so the
+  chest and the cockpit open as one body (owner, 2026-10-24, on the Foreman: "it's cockpit has a problem when
+  opening. It needs to follow the titan style or panorama style"). On the older modes (the Stevedore's doors),
+  everything ahead of the cut plane (`z_cut`) from just under the lining's floor to just over its roof.
+- Interiors, all seated but the harness: Panorama (the Foreman), the Excavator cab (the Ironhorse; owner, 2026-10-24:
+  "Iron horse has no seat still"), Titan and Canopy (the new Roustabout and Harrow, block-outs first), harness
+  (standing, the Stevedore, until it gets a seated one). Every screen is flat (the owner: curved screens are "just
+  fish eye pov").
+- The screens that look outside share the material `SCREEN_allview`. They show the world as the mech's sensor head
+  (`SENSOR_head`) sees it, from the eye's direction, so the view is undistorted wherever the head turns. Scanlines, a
+  phosphor grade, the HUD drawn ahead. The cube map round the eye is not how they are drawn: it is only for the
+  cabin's light and reflections (owner, 2026-10-24: "Cube map is only for cockpit reflections";
+  `crates/cb-app/src/screens_cube.rs`). Provisional: one wide render from the head for the front screens and one for
+  each side, measured on the owner's hardware before it is accepted (CLAUDE.md 7).
 - Power: the screens power up tile by tile over 2.5 s with a flicker, and down in 0.6 s.
 
 ## 2. Sitting down
@@ -46,11 +51,12 @@ hinge at the node's origin, driven by its track; `RAM_<n>` rams re-aim at their 
 
 | Chassis | Plates and motions | Rams | Then |
 | --- | --- | --- | --- |
-| Foreman (excavator) | `CHEST_visor`, the upper prow with its bar grille, hinges up 92 degrees from its top edge at the cut (0.5-1.9 s); `CHEST_apron`, the lower prow, drops forward 86 degrees into a step (1.6-3.0 s) | two on the visor | the interior's inner tracks, the ladder |
+| Foreman (excavator) | Mode `inner` on the Panorama: `CHEST_lower` pops 0.04 m (0.35-0.65 s), then `CHEST_lower_1` drops forward 81 degrees into a step on its foot (0.6-2.0 s), the cockpit's lower front on it; `CHEST_upper` pops (0.35-0.7 s), then `CHEST_upper_1` swings up and out 83 degrees on its top front edge (1.4-2.9 s), the cockpit's upper front and dash on it | two on the upper plate | the ladder |
 | Stevedore (dock crane) | `CHEST_lock_L1/L2/R1/R2`, the lock rods, turn out 86 degrees (0.0-0.7 s); `CHEST_door_L/R`, the prow split down the middle, swing out 92 degrees on hinges at the cut (1.1-2.6 s) | | |
-| Ironhorse (locomotive) | `CHEST_dog_1..8`, the clamps round the seam, swing off 69 degrees (0.0-0.5 s); `CHEST_door`, the whole prow, swings 92 degrees on its hinge on the pilot's right (0.8-2.4 s) | | |
+| Ironhorse (locomotive) | `CHEST_dog_1..7`, the clamps round the seam, swing off 69 degrees (0.0-0.5 s); mode `inner` on the Excavator cab: `CHEST_ramp` pops 0.04 m (0.35-0.65 s), then `CHEST_ramp_1`, the smokebox front with the cab's front on it, drops forward 86 degrees as a ramp (0.75-2.75 s) | | the ladder |
 
-Then the interior opens (its manifest's tracks, from 80 % of the chest's time) and the chain ladder
+Then the interior opens what is left of it (its manifest's tracks for parts no chest joint carries, from 80 % of
+the chest's time) and the chain ladder
 (`LADDER`, `LADDER_1..10`, 0.8 m a segment) drops from under the sill one segment every 0.12 s, as
 many as reach the ground. Vents are `VENT_<stage>_<n>` empties with `kind` (steam or mist), `stage`
 (seam: pressure equalising as the chest starts; open: the hinges while plates move; sill: mist rolling

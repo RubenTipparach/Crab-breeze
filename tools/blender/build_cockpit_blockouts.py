@@ -494,6 +494,32 @@ def mechanism(L, c):
     raise ValueError(m)
 
 
+# ----------------------------------------------------------------------------- a flat-walled cabin's measures
+
+def cabin(L, mech):
+    """A flat-walled layout's measures, pure Python (no Blender): its outline (the plan closed round the back,
+    counter-clockwise), the pillars' bearings, the opening's half-angle and the measures c the mechanisms
+    read. The block-out and the detailed interior (build_cockpit.py) both build from this."""
+    rows, plan = L["rows"], L["plan"]
+    H = rows[-1][1] + 0.12
+    back = min(-0.75, min(z for _, z in plan) - 0.25)
+    outline = [plan[0]] + list(plan[1:]) + [(plan[-1][0], back), (plan[0][0], back)]
+    area = sum(outline[i][0] * outline[(i + 1) % len(outline)][1] - outline[(i + 1) % len(outline)][0] * outline[i][1]
+               for i in range(len(outline)))
+    if area < 0:
+        outline = outline[::-1]
+    tp = L.get("top", "flat")
+    pillar_angles = [bearing(*plan[i]) for i in L.get("pillars", [])]
+    deg = L.get("hatch_deg") or (min(abs(a) for a in pillar_angles) - 1.5)
+    verts_b = sorted(abs(bearing(x, z)) for x, z in plan)
+    c = dict(mech=mech, H=H, front=max(z for _, z in plan), back=back, deg=deg, outer=offset(outline, WALL_M),
+             top=H + WALL_M + (HUMP[-1][0] if tp == "hump" else 0.0),
+             vertex=lambda a_: min(verts_b, key=lambda v: abs(v - a_)),
+             seam_after_pillar=(min(abs(a) for a in pillar_angles) + 2.5) if pillar_angles else deg,
+             hinge_x=0.84, xb=min(abs(x) for x, z in outline if abs(z - back) < 1e-6))
+    return outline, pillar_angles, deg, c
+
+
 # ----------------------------------------------------------------------------- one layout
 
 def build(L, door="front"):
@@ -514,14 +540,9 @@ def build(L, door="front"):
         c.update(H=EYE_Y + r, front=r, back=-r, top=EYE_Y + r + WALL_M, deg=deg)
     else:
         rows, plan = L["rows"], L["plan"]
-        H = rows[-1][1] + 0.12
-        back = min(-0.75, min(z for _, z in plan) - 0.25)
-        outline = [plan[0]] + list(plan[1:]) + [(plan[-1][0], back), (plan[0][0], back)]
-        area = sum(outline[i][0] * outline[(i + 1) % len(outline)][1] - outline[(i + 1) % len(outline)][0] * outline[i][1]
-                   for i in range(len(outline)))
-        if area < 0:
-            outline = outline[::-1]
-        tp = L.get("top", "flat")
+        outline, pillar_angles, deg, cm = cabin(L, c["mech"])
+        c.update(cm)
+        H, tp = c["H"], L.get("top", "flat")
         shell = loft("shell", shell_keys(outline, H, WALL_M, tp), "HULL")
         boolean(shell, loft("cabin", shell_keys(outline, H, 0.0, tp), "LINING"), "DIFFERENCE")
         cutters = []
@@ -558,16 +579,8 @@ def build(L, door="front"):
                            (L.get("heavy", 0.08), H, 0.12), "FRAME"))
         if pil:
             boolean(shell, join(pil, "pillars"), "UNION")
-        pillar_angles = [bearing(*plan[i]) for i in L.get("pillars", [])]
-        deg = L.get("hatch_deg") or (min(abs(a) for a in pillar_angles) - 1.5)
         floor_y = 0.0
         inner_keep = offset(outline, -0.03)
-        verts_b = sorted(abs(bearing(x, z)) for x, z in plan)
-        c.update(H=H, front=max(z for _, z in plan), back=back, deg=deg, outer=offset(outline, WALL_M),
-                 top=H + WALL_M + (HUMP[-1][0] if tp == "hump" else 0.0),
-                 vertex=lambda a_: min(verts_b, key=lambda v: abs(v - a_)),
-                 seam_after_pillar=(min(abs(a) for a in pillar_angles) + 2.5) if pillar_angles else deg,
-                 hinge_x=0.84, xb=min(abs(x) for x, z in outline if abs(z - back) < 1e-6))
 
     def region_solid(name, reg, shrink, keep_inner):
         if reg[0] == "sector":
@@ -821,4 +834,5 @@ def main():
                        layouts=[done[L["id"]] for L in LAYOUTS if L["id"] in done], built=built), f, indent=1)
 
 
-main()
+if __name__ == "__main__":       # build_cockpit.py imports the layouts and their mechanisms
+    main()
