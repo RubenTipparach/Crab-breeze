@@ -82,6 +82,7 @@ pub fn fly_shots(
     mut fx: MessageWriter<Fx>,
     mut explosions: MessageWriter<Explosion>,
 ) {
+    let _t = crate::perf_hud::slow("fly_shots");
     if shots.0.is_empty() {
         return;
     }

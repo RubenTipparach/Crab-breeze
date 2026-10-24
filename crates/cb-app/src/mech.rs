@@ -651,6 +651,7 @@ pub fn step_mech(
     mut fx: MessageWriter<Fx>,
     targeting: Res<crate::targeting::TargetState>,
 ) {
+    let _t = crate::perf_hud::slow("step_mech");
     let tl = &data.0.boarding;
     let locked = targeting.locked(&data.0.targeting);
     let dt = time.delta_secs();
@@ -1117,6 +1118,7 @@ fn cut_parts(
     mut fx: MessageWriter<Fx>,
     mut explosions: MessageWriter<Explosion>,
 ) {
+    let _t = crate::perf_hud::slow("cut_parts");
     for (root, mut sim, mut rig, mech) in &mut roots {
         for part in std::mem::take(&mut sim.cuts) {
             let spec = &mech.parts[part];

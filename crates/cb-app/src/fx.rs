@@ -233,6 +233,7 @@ fn play(
     lights: Query<(Entity, &FlashLight)>,
     fireballs: Query<(), With<Fireball>>,
 ) {
+    let _t = crate::perf_hud::slow("play");
     let cfg: &FxConfig = &data.0.fx;
     let now = time.elapsed_secs();
     let mut room = cfg.max_particles.saturating_sub(lib.live);
@@ -241,6 +242,8 @@ fn play(
     let mut live_lights: Vec<(Entity, f32)> = lights.iter().map(|(e, l)| (e, l.age)).collect();
     live_lights.sort_by(|a, b| b.1.total_cmp(&a.1));
     let mut light_at = 0;
+    let no_particles = crate::cli::switched_off("CB_NO_PARTICLES");
+    let no_lights = crate::cli::switched_off("CB_NO_FX_LIGHTS");
     for e in asked.read() {
         let Some(layers) = cfg.recipes.get(e.recipe) else {
             warn!("fx: no recipe `{}`", e.recipe);
@@ -248,6 +251,10 @@ fn play(
         };
         let s = e.scale.max(0.01);
         for (index, layer) in layers.iter().enumerate() {
+            // Perf-bench switches: what the effects cost, measured by leaving a kind out.
+            if (no_particles && matches!(layer, Layer::Burst { .. })) || (no_lights && matches!(layer, Layer::Light { .. })) {
+                continue;
+            }
             match *layer {
                 Layer::Burst {
                     count,
@@ -315,7 +322,8 @@ fn play(
                     ));
                 }
                 Layer::Shock { radius_m, life_s } => {
-                    let mat = materials.add(unlit(Color::srgba(0.95, 0.92, 0.85, 0.25), None, AlphaMode::Blend, 0.0));
+                    // Additive like the fireball, so the two never need sorting against each other.
+                    let mat = materials.add(unlit(Color::srgb(0.24, 0.23, 0.21), None, AlphaMode::Add, 0.0));
                     commands.spawn((
                         Mesh3d(fx.sphere.clone()),
                         MeshMaterial3d(mat.clone()),
@@ -571,7 +579,9 @@ fn cool_fireballs(
             let (c, glow) = fireball_colour(k);
             m.base_color = c;
             m.emissive = c.to_linear() * glow;
-            m.alpha_mode = if k < 0.6 { AlphaMode::Add } else { AlphaMode::Blend };
+            // Additive all its life, fading through orange to nothing: a blended fireball had to be
+            // sorted against the smoke round it and flickered as the order flipped (owner,
+            // 2026-10-24: "big explosions get flickery"); switching blend mode rebuilt its pipeline.
         }
     }
 }
@@ -591,7 +601,8 @@ fn expand_shells(
         let k = s.age / s.life;
         t.scale = Vec3::splat((s.radius * k.sqrt()).max(0.1));
         if let Some(mut m) = materials.get_mut(&s.mat) {
-            m.base_color = m.base_color.with_alpha(0.25 * (1.0 - k));
+            let v = 1.0 - k;
+            m.base_color = Color::srgb(0.24 * v, 0.23 * v, 0.21 * v);
         }
     }
 }

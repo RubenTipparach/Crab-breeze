@@ -16,6 +16,24 @@ use bevy::render::diagnostic::RenderDiagnosticsPlugin;
 #[derive(Component)]
 struct PerfText;
 
+/// Times a system: logs a `slow:` line when it runs past 4 ms (a measurement instrument; put
+/// `let _t = slow("name");` first in a system under suspicion).
+pub fn slow(name: &'static str) -> SlowGuard {
+    SlowGuard(name, std::time::Instant::now())
+}
+
+/// See `slow`.
+pub struct SlowGuard(&'static str, std::time::Instant);
+
+impl Drop for SlowGuard {
+    fn drop(&mut self) {
+        let ms = self.1.elapsed().as_secs_f32() * 1000.0;
+        if ms > 4.0 {
+            info!("slow: {} took {ms:.1} ms", self.0);
+        }
+    }
+}
+
 /// Bars in the frame graph, one a frame.
 const BARS: usize = 120;
 /// The graph's height stands for this frame time.
@@ -94,6 +112,7 @@ fn graph(
     mut frame_no: Local<u64>,
     mut bars: Query<(&Bar, &mut Node, &mut BackgroundColor)>,
 ) {
+    let _t = crate::perf_hud::slow("graph");
     let ms = time.delta_secs() * 1000.0;
     *frame_no += 1;
     if ms > GRAPH_MS && *frame_no > 10 {
@@ -141,6 +160,7 @@ fn update(
     meshes: Query<&ViewVisibility, With<Mesh3d>>,
     mut text: Single<&mut Text, With<PerfText>>,
 ) {
+    let _t = crate::perf_hud::slow("update");
     let fps = store
         .get(&FrameTimeDiagnosticsPlugin::FPS)
         .and_then(|d| d.smoothed())

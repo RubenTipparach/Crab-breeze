@@ -245,6 +245,7 @@ fn step_units(
     mut shots: ResMut<Shots>,
     mut fx: MessageWriter<Fx>,
 ) {
+    let _t = crate::perf_hud::slow("step_units");
     if units.list.is_empty() {
         return;
     }
@@ -351,6 +352,7 @@ fn draw_units(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut known: Local<BTreeMap<u32, Entity>>,
 ) {
+    let _t = crate::perf_hud::slow("draw_units");
     let mut seen = std::collections::BTreeSet::new();
     for (e, d, mut t) in &mut drawn {
         let Some(p) = units.list.iter().find(|p| p.unit.id == d.id) else {

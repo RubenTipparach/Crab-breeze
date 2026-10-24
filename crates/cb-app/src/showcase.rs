@@ -546,6 +546,7 @@ fn play_defence(
     time: Res<Time<Real>>,
     mut exit: MessageWriter<AppExit>,
 ) {
+    let _t = crate::perf_hud::slow("play_defence");
     use cb_core::mission::Phase;
     let now = time.elapsed_secs();
     let t = now - take.beat_started_s;

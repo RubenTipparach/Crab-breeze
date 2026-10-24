@@ -203,6 +203,44 @@ pub struct FxConfig {
     pub max_fireballs: u32,
     /// The recipes, by name.
     pub recipes: BTreeMap<String, Vec<Layer>>,
+    /// The view's shake from blasts nearby.
+    pub shake: ShakeConfig,
+}
+
+/// How blasts nearby shake the view (owner, 2026-10-24: "screen needs to shake a bit when
+/// explosions go off nearby"). The shake rides on top of where the player looks and never moves
+/// their aim.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct ShakeConfig {
+    /// The most the view turns at full shake, degrees.
+    pub max_deg: f32,
+    /// A blast shakes the view within this far, metres, per cube root of its megajoules.
+    pub reach_m_per_cbrt_mj: f32,
+    /// A full shake dies away over this long.
+    pub decay_s: f32,
+}
+
+impl Default for ShakeConfig {
+    fn default() -> Self {
+        Self {
+            max_deg: 1.2,
+            reach_m_per_cbrt_mj: 60.0,
+            decay_s: 0.7,
+        }
+    }
+}
+
+impl ShakeConfig {
+    /// How much a blast of `energy_mj` at `distance_m` shakes the view, 0..1: full at the blast,
+    /// none at its reach, falling off with the square of the distance's share of the reach.
+    pub fn kick(&self, energy_mj: f32, distance_m: f32) -> f32 {
+        let reach = self.reach_m_per_cbrt_mj * energy_mj.max(0.0).cbrt();
+        if reach <= 0.0 || !distance_m.is_finite() {
+            return 0.0;
+        }
+        (1.0 - distance_m / reach).clamp(0.0, 1.0).powi(2)
+    }
 }
 
 impl Default for FxConfig {
@@ -217,6 +255,7 @@ impl Default for FxConfig {
             max_lights: 24,
             max_fireballs: 64,
             recipes: BTreeMap::new(),
+            shake: ShakeConfig::default(),
         }
     }
 }
@@ -224,6 +263,9 @@ impl Default for FxConfig {
 impl Validate for FxConfig {
     fn validate(&self) -> Result<(), String> {
         positive("tracer_s", self.tracer_s)?;
+        positive("shake.max_deg", self.shake.max_deg)?;
+        positive("shake.reach_m_per_cbrt_mj", self.shake.reach_m_per_cbrt_mj)?;
+        positive("shake.decay_s", self.shake.decay_s)?;
         positive("tracer_width_m", self.tracer_width_m)?;
         positive("tracer_heavy_width_m", self.tracer_heavy_width_m)?;
         positive("trail_spacing_m", self.trail_spacing_m)?;
@@ -244,6 +286,16 @@ impl Validate for FxConfig {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_blast_shakes_the_view_less_the_further_off_it_is() {
+        let s = super::ShakeConfig::default();
+        assert_eq!(s.kick(8.0, 0.0), 1.0);
+        assert!(s.kick(8.0, 30.0) > s.kick(8.0, 60.0));
+        assert_eq!(s.kick(8.0, s.reach_m_per_cbrt_mj * 2.0), 0.0);
+        // A bigger blast reaches further.
+        assert!(s.kick(27.0, 100.0) > s.kick(1.0, 100.0));
+    }
+
     use super::*;
     use crate::data::{load_ron, parse_ron};
     use std::path::Path;

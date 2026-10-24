@@ -60,6 +60,33 @@ prepass and shadow pipelines and collapses a broken element's triangles to a poi
 building needs no mesh rebuild, and frame and dressing can share one per-block mesh. Structure,
 falls and rubble stay in `cb-core` (`Structures`, `Frame`, `Deformation::pile`).
 
+## 2c. Hitches in the defence take (measured 2026-10-24, RTX 3070, plain release runs of 130 s)
+
+The frame graph and `hitch:` lines (frames over 50 ms), with `slow:` lines from systems timed past
+4 ms (`perf_hud::slow`), found two causes:
+
+- **Batched trees were invisible.** Each merged tile mesh sat at the world origin with world-space
+  vertices, so its `VisibilityRange` measured from the origin and hid every tile more than the draw
+  radius from it (the start is 2.3 km out). The 2a numbers above counted trees that were not drawn.
+  Fixed: a tile's mesh sits at its first tree, vertices relative to it.
+- **Crater tiles were meshed on the main thread**: `redraw_craters` took 56-262 ms per crater (a 129
+  x 129 tile sampled the terrain's noise five times a vertex). Fixed: heights sampled once a grid
+  point (five times fewer), and the tile meshed on a worker thread from a snapshot of its
+  neighbourhood (`Deformation::around`, tested to mesh the same). Tree tiles are merged on worker
+  threads too (`show_trees` took 37-75 ms a frame building them).
+
+| Run | Frames over 50 ms | Worst |
+| --- | --- | --- |
+| before | 74 | 435 ms |
+| crater and tree work off the main thread | 28 | 69 ms |
+
+Still open: combat runs at about 60 fps (16-18 ms) against 120 in calm stretches, CPU-bound with the
+GPU at 0.4 ms. None of the game's own systems passes 2 ms (`step_mech` is the largest at about 1.9 ms),
+so the time is in Bevy's per-frame work that grows with combat (particles, lights, render
+extraction). A traced build's own systems' numbers are not trusted: under `trace_chrome` the
+explosion handler and the frame graph read 7 ms each, and under 1 ms in a plain run. The next step
+is an A/B with the effects left out (`CB_NO_PARTICLES`, `CB_NO_FX_LIGHTS`, `CB_NO_SHADOWS`).
+
 ## 3. Cost (to be measured)
 
 Expected: the tree entities (about 4,000-9,000 near the pilot) leave the ECS; the render world's
