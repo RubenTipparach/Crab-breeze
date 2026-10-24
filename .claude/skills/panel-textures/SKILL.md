@@ -30,7 +30,7 @@ high-detail cockpit. Where this note and Star Crew's text below disagree, the no
 - **Then the light**: `tools/blender/build_cockpit.py` lays the maps on the cockpit set as real
   plates and bakes the cabin's light and occlusion over them (the `light-baking` skill's note).
 - **Judge it** on the contact sheet and then from the pilot's eye on the cockpit page
-  (`docs/mockups/cockpit.html`, shots from `tools/mockups/shoot_cockpit.mjs`): does every panel
+  (`docs/mockups/mech_designs.html`, cockpit shots from `tools/mockups/shoot.mjs`): does every panel
   read as designed, do the labels read at arm's length, is anything a plain empty plate?
 - **Labels say what the pilot needs**: the mech's systems (walk, skate, jet, reactor, coolant,
   weapons) and the warnings round what can hurt them. Every control stands for a simulated system

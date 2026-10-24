@@ -1,12 +1,34 @@
-# The Breeze cockpit
+# The cockpits
 
 The owner, 2026-10-24: "Design the mech cockpit. Use detailed textures. Use the texturing skill we
 had on star crew bridge sim. Baked lighting with AO. Beautiful panels, warning labels, buttons,
 circuitry."
 
 This is the cockpit you fight the whole game from (the law, CLAUDE.md). It is an art asset and a
-review page today: nothing in the game drives it yet. The review page is `docs/mockups/cockpit.html`
-(published, link in `docs/design/README.md`): the boarding sequence and the cockpit from the seat.
+review page today: nothing in the game drives it yet. The review page is the Crab Breeze Mechs page,
+`docs/mockups/mech_designs.html` (published, link in `docs/design/README.md`): each chassis kneels and
+opens its chest on its interior, and you can sit in each cockpit.
+
+Later the same day the owner asked for "a couple variations of cockpit designs" and set where the
+cockpit lives: "Follow design philosophy of boss mechs from mining mike. The cockpit is part of the
+mech, inside of it with the armor opening up at the chest". So there are now three interiors (below),
+each an interior only: the mech's chest armour (`tools/blender/build_mechs.py`) is the outside and
+opens first, then the interior's own front opens and the pilot steps in.
+
+## Three interiors
+
+All three are built by one generator, `tools/blender/build_cockpit.py --variant <name>`, from the
+same kit, panels, screens and bake, and promise the chest an envelope (the chest's cavity is that box
+plus 0.1 m). Every screen showing the outside is the material `SCREEN_allview`; the HUD is on the
+front screen, straight ahead of the eye in all three.
+
+| Variant | The pilot | The screens | Envelope (x, y, z, metres) | Eye |
+| --- | --- | --- | --- | --- |
+| `wall` | seated, twin grips at the console ends | a belt of flat screens round the cabin: front, chamfers, sides, three overhead monitors | +-1.05, 0 to 2.1, -0.8 to 1.25 | 0, 1.20, 0 |
+| `jockey` | rides forward on a saddle, chest on a pad, knees in pads, hands on handlebar grips | a low wide bank (a front screen and two wings) and a strip of screen overhead | +-0.85, 0 to 1.75, -1.0 to 1.3 | 0, 1.10, 0.30 |
+| `harness` | stands in a harness against a backplate, forearms on two rests ending in grips, feet in stirrups | a tall octagon of flat facets all round (seven: the spine fills the rear), a ring of six monitors overhead | +-1.05, 0 to 2.4, -0.75 to 0.95 | 0, 1.65, 0 |
+
+The floor plates sit 0.06 to 0.08 m under y = 0, inside the cavity's margin.
 
 ## What the pilot sees
 
@@ -43,20 +65,23 @@ to the number it shows (CLAUDE.md 6.1).
 
 The owner: "have the mech sit down on the ground so that pilots can enter/exit. The cockpit should
 open up with intricate doors and flaps and puffs of steam and myst coming out. I want getting in and
-out of a mech to be a beautiful cinematic event." The sequence, its timings and its nodes are
-`openspec/changes/mech-boarding`; in short: the mech sits, the latches release with a puff each, a
-ring of steam round the visor seam, the armoured visor lifts on two rams carrying the front screen,
-the side screens swing out as doors, the corner flaps fold back, the lower plate drops into a step,
-a three section stair unfolds to the ground, the front console swings clear, and cold mist rolls
-out over the sill. The pilot climbs in and sits; it all closes in reverse, a last hiss seals it,
-the screens power up one by one, and the mech stands. All of it from the pilot's eyes.
+out of a mech to be a beautiful cinematic event." The mech sits and its chest armour opens with steam
+(the mech's nodes and vents, `build_mechs.py`); then, in about 3 s, the interior opens its front, cold
+mist rolls out over the floor (`VENT_inner_open_*`), and the pilot steps in through the front face.
+Closing plays it backwards; the screens power up one by one; the mech stands. All of it from the
+pilot's eyes. The timings in each manifest's `motions` are suggestions inside that 3 s.
 
-The pod's nodes (pivots in `assets/models/cockpit_breeze.json`; the model is
-`assets/models/cockpit_breeze/cockpit_breeze.gltf`): `HATCH_upper`, `STRUT_L/R` with
-`_rod` and `_tip`, `DOOR_L/R`, `FLAP_L/R`, `HATCH_lower`, `STAIR_1..3`, `CONSOLE_front` (with
-`SCREEN_left/center/right` on it), `OVH_left/center/right`, `LATCH_1..6`, `CTRL_stick`,
-`CTRL_throttle`, and `VENT_<stage>_<n>` empties (extras: `kind` steam or mist, `stage`, `rate`,
-`dir`). Sockets: `EYE_pilot`, `SEAT_pilot`, `HATCH_entry`, `LADDER_base`.
+| Variant | What opens (node: motion, start s, length s) | Doorway |
+| --- | --- | --- |
+| `wall` | `INNER_front` (front screen, header, ceiling front, overhead monitors, and the dash `CONSOLE_front` with its MFDs riding on it): turns -1.65 rad about x, 0.0, 1.6. `INNER_side_L/R` (the chamfer screens): +-0.8 rad about y, 0.5, 1.2. `INNER_sill` (the footwell's front wall): +1.45 rad about x down to a step, 1.6, 1.0 | 1.0 m wide between the front pillars, floor to 1.74 m |
+| `jockey` | `INNER_front` (the screen bank, its frame and the roof front): -1.5 rad about x, up like a visor, 0.0, 1.4. `INNER_yoke` (chest pad and handlebars on a carriage): slides 0.45 m up its two columns, 0.9, 1.2. `CONSOLE_front` (the dash): +1.35 rad about x, down to a step, 1.5, 1.2 | 0.94 m between the yoke columns, 1.68 m at the face; the pilot ducks under the raised yoke (1.27 m) to the saddle |
+| `harness` | `INNER_front` (the front facet): -1.5 rad about x, up and out, 0.0, 1.5. `INNER_side_L/R` (the front diagonal facets and the pillars between them): +-0.9 rad about y, 0.4, 1.2. `INNER_arm_L/R` (the forearm rests and grips): -1.3 rad about x, up, 1.0, 1.0. `CONSOLE_front` (the low front console): +1.3 rad about x, down to a step, 1.6, 1.2 | 1.5 m between the hinges (0.92 m between the side pods below 0.48 m), floor to roof (2.25 m) |
+
+Nodes and sockets: `EYE_pilot`, `SEAT_pilot` (`STAND_pilot` in the harness), `HATCH_entry` at the
+front face's sill, the grips `CTRL_stick` (right hand) and `CTRL_throttle` (left hand), the picture
+screens `SCREEN_<name>` and `OVH_<n>`, and the `INNER_*` nodes above. Pivots, motions, and the bounds
+closed and open are in `assets/models/cockpit_<variant>.json`. Open, the moving parts reach out of the
+envelope (the front units lift above and out of the chest), so the chest armour has to be open first.
 
 ## How it is made
 
@@ -72,18 +97,18 @@ Two stages, both committed generators, both run headless in Blender 4.4 (CLAUDE.
    and metalness, and the emission of the lit caps. 12 panels at 900 to 2000 px per metre.
    `tools/textures/cockpit_contact_sheet.py` makes the contact sheet; look at it before calling a
    bake done.
-2. **The pod** (`tools/blender/build_cockpit.py`). The tub, consoles, dash, seat, controls, the
-   boxy cabin with its flat screens, the hatch and the armour are built in metres around the eye,
-   the panels laid on as real plates carrying their maps. Cycles then bakes the inside's materials
-   into two 4096 px atlases (front: dash, consoles, grips; cabin: everything else inside), each as
+2. **The interior** (`tools/blender/build_cockpit.py --variant wall|jockey|harness`). The cabin, its
+   consoles, seat or saddle or harness, controls and flat screens are built in metres around the
+   eye, the panels laid on as real plates carrying their maps, with Mining Mike's boss-kit hardware
+   inside (bolt rows, hoses with collars, hazard bands, glowing core lamps). Cycles then bakes the
+   inside's materials into two atlases (4096 px for the game, 2048 px for review) (front: dash, consoles, grips; cabin: everything else inside), each as
    four maps: base colour, a tangent-space normal map (the panel relief and the bevelled edges),
    ORM (R occlusion: each panel's own occlusion times a short contact occlusion bake, denoised with
    OIDN; G roughness; B metal) and emission. No light is baked (owner, 2026-10-24: "Aim for that pbr
    triple a goodness that bevy provides"): the pod exports as lit PBR with its own real-time lamps
-   (glTF `KHR_lights_punctual`): a cool wash from the front screen, warm floods under the glare
-   shield and along the sills, a lamp on the rear bulkhead, a red footwell lamp. The outside armour
-   uses the mech plating's colour, normal and ORM maps. The screens export unlit
-   (`KHR_materials_unlit`) for the game to draw live.
+   (glTF `KHR_lights_punctual`): a cool wash from the front screens, warm floods, a rear lamp, a red
+   footwell lamp. The wall cabin's plain outer shell uses the mech plating's maps. The screens export
+   unlit (`KHR_materials_unlit`) for the game to draw live.
 
 The display pictures are `tools/textures/gen_cockpit_displays.py` (PIL): pictures of what the
 screens will show, not a texture imitating a material, so CLAUDE.md 10's Material Maker rule does
@@ -92,17 +117,21 @@ is the documented exception in CLAUDE.md 13.
 
 ## What it costs
 
-Measured off the build (`assets/models/cockpit_breeze.json`); frame time is not measured in a
-cloud session (CLAUDE.md 7).
+Measured off the builds (`assets/models/cockpit_<variant>.json`, 2048 px review bake); frame time is
+not measured in a cloud session (CLAUDE.md 7). Target: an RTX 3070 (owner, 2026-10-24: "don't worry
+about 200k triangle count"); budget 600,000 triangles each.
 
-| | |
-| --- | --- |
-| Target | an RTX 3070 (owner, 2026-10-24: "don't worry about 200k triangle count") |
-| Triangles | see the manifest's `tris` (about 33,000), budget 600,000 |
-| Draw calls | one per mesh material, about 70 (two atlases, the screens, the outside armour roles); merging is for the engine |
-| Texture memory | two atlases of four 4096 x 4096 maps: 8 x 21 MiB = 171 MiB as BC7 with mips (683 MiB as RGBA8; JPEG on disk) |
-| Lights | six real-time lamps, two of them casting shadows |
-| Bake | about the time in the build log, on 4 CPU cores |
+| | `wall` | `jockey` | `harness` |
+| --- | --- | --- | --- |
+| Triangles | 27,420 | 13,084 | 16,626 |
+| Draw calls (mesh materials) | 21 | 11 | 21 |
+| Real-time lamps | 6 | 6 | 6 |
+| Atlases | two, four maps each | two, four maps each | two, four maps each |
+| On disk (glTF, bin, JPEG and PNG) | 10.1 MB | 4.5 MB | 5.1 MB |
+| Bake on 4 CPU cores, 2048 px | about 12 min | about 14 min | about 13 min |
+
+Texture memory per variant: eight maps, as BC7 with mips 8 x 5.3 MiB = 43 MiB at 2048 px, 171 MiB at
+4096 px (the game's size).
 
 ## Open questions
 
@@ -114,4 +143,4 @@ cloud session (CLAUDE.md 7).
 | C6 | How the pilot climbs to the hatch | A stair unfolding from the lower plate |
 | C7 | How the screen wall looks | Separate screens in heavy bezels, phosphor tint, scanlines |
 | C5 | Colours | Dark gunmetal, amber, green and red lamps, hazard stripes, as drawn |
-| M6 | Which chassis first | Breeze, so this is the Breeze cockpit |
+| C8 | Which cockpit for which chassis | Provisional: chosen with the new chassis designs (build_mechs.py) |

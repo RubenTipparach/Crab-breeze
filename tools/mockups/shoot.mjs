@@ -11,14 +11,16 @@ const [page_, outDir, only] = process.argv.slice(2);
 // name, mech, view, act, timeline ("end" = open, a number = seconds), [look yaw, pitch, fov] for the cockpit
 const SHOTS = [
   ["lineup", "all", "orbit", "idle", 0],
-  ["warden", "warden", "orbit", "idle", 0], ["lancer", "lancer", "orbit", "idle", 0], ["atlas", "atlas", "orbit", "idle", 0],
-  ["warden_opening", "warden", "hatch", "idle", 4.6], ["warden_open", "warden", "hatch", "idle", "end"],
-  ["lancer_opening", "lancer", "hatch", "idle", 4.3], ["lancer_open", "lancer", "hatch", "idle", "end"],
-  ["atlas_opening", "atlas", "hatch", "idle", 4.6], ["atlas_open", "atlas", "hatch", "idle", "end"],
-  ["warden_open_wide", "warden", "orbit", "idle", "end"], ["atlas_open_wide", "atlas", "orbit", "idle", "end"],
-  ["warden_cockpit", "warden", "cockpit", "idle", 0, [0, -0.1, 80]], ["lancer_cockpit", "lancer", "cockpit", "idle", 0, [0, -0.2, 80]],
-  ["atlas_cockpit", "atlas", "cockpit", "idle", 0, [0, -0.1, 80]],
+  ["foreman", "foreman", "orbit", "idle", 0], ["stevedore", "stevedore", "orbit", "idle", 0], ["ironhorse", "ironhorse", "orbit", "idle", 0],
+  ["foreman_opening", "foreman", "hatch", "idle", 4.6], ["foreman_open", "foreman", "hatch", "idle", "end"],
+  ["stevedore_opening", "stevedore", "hatch", "idle", 4.3], ["stevedore_open", "stevedore", "hatch", "idle", "end"],
+  ["ironhorse_opening", "ironhorse", "hatch", "idle", 4.6], ["ironhorse_open", "ironhorse", "hatch", "idle", "end"],
+  ["foreman_open_wide", "foreman", "orbit", "idle", "end"], ["ironhorse_open_wide", "ironhorse", "orbit", "idle", "end"],
+  ["foreman_cockpit", "foreman", "cockpit", "idle", 0, [0, -0.1, 80]], ["stevedore_cockpit", "stevedore", "cockpit", "idle", 0, [0, -0.2, 80]],
+  ["ironhorse_cockpit", "ironhorse", "cockpit", "idle", 0, [0, -0.1, 80]],
 ];
+// the opening, frame by frame, for each chassis's contact sheet (tools/mockups/opening_sheet.py)
+for (const m of ["foreman", "stevedore", "ironhorse"]) [0, 2.2, 3.9, 4.6, 5.3, "end"].forEach((t, i) => SHOTS.push([`${m}_seq${i + 1}`, m, "hatch3q", "idle", t]));
 fs.mkdirSync(outDir, { recursive: true });
 const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: "localhost,127.0.0.1" } : undefined;
 const browser = await chromium.launch({ proxy, args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });

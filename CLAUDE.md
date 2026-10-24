@@ -332,17 +332,23 @@ Star Crew and Undercity, each with an "In Crab Breeze" note on what changes.
   A cloud session installs Blender 4.4 itself (about a minute): the official tarball from
   `mirrors.dotsrc.org/blender/release/Blender4.4/blender-4.4.3-linux-x64.tar.xz` into `/opt/blender`.
   Run `/opt/blender/blender --background --factory-startup --python tools/blender/build_mechs.py`,
-  then `python3 tools/mockups/gen_mech_designs.py` and look at the shots from
-  `NODE_PATH=$(npm root -g) node tools/mockups/shoot.mjs docs/mockups/mech_designs.html docs/screenshots/mechs`.
+  then `python3 tools/mockups/gen_mech_designs.py` and look at the shots (below).
 - **The cockpit generators**: panels first (`tools/blender/bake_cockpit_panels.py`, the kit
   `cockpit_kit.py`, the panels `cockpit_panels.py`; contact sheet
   `python3 tools/textures/cockpit_contact_sheet.py`), the displays
   (`python3 tools/textures/gen_cockpit_displays.py`), then the pod and its PBR atlases
-  (`tools/blender/build_cockpit.py`, writing `assets/models/cockpit_breeze/` as glTF with its
-  textures beside it; iterate with `--size 512 --samples 8`, `--no-bake` reuses the last maps), then
-  `python3 tools/mockups/gen_cockpit_page.py`, serve `output/cockpit_site` with
-  `python3 -m http.server 8765 -d output/cockpit_site`, and shoot with
-  `NODE_PATH=$(npm root -g) node tools/mockups/shoot_cockpit.mjs http://localhost:8765/ docs/screenshots/cockpit`.
+  (`tools/blender/build_cockpit.py -- --variant wall|jockey|harness`, writing
+  `assets/models/cockpit_<variant>/` as glTF with its textures beside it; iterate with
+  `--size 512 --samples 8`, `--no-bake` reuses the last maps), then the mechs that carry them in
+  their chests (`build_mechs.py`, the chest hardware `mech_boarding.py`), then
+  `python3 tools/mockups/gen_mech_designs.py`, serve `output/mech_site` with
+  `python3 -m http.server 8766 -d output/mech_site`, shoot with
+  `NODE_PATH=$(npm root -g) node tools/mockups/shoot.mjs http://localhost:8766/ docs/screenshots/mechs` and
+  stitch the opening sheets with `python3 tools/mockups/opening_sheet.py docs/screenshots/mechs`.
+- **Original designs, not borrowed ones** (owner, 2026-10-24: "New mechs are just stolen. Those are not
+  original mechs"). Mining Mike's boss kit is the finish (plates, livery bands, hazard edges, vents,
+  hoses, rams, cores), never the source of a silhouette, a limb or a weapon: those come from Crab
+  Breeze's own setting, 1980s industrial machines (survey G1), on digitigrade legs (survey M2).
   Never shoot while a bake runs: the software renderer gets no CPU and every shot times out.
 
 ## 11. Verification

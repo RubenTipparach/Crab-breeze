@@ -1,33 +1,30 @@
-"""Crab Breeze: the Breeze cockpit pod, built to the pilot's eye, its surfaces baked to PBR maps.
+"""Crab Breeze: the cockpit interiors, built to the pilot's eye, their surfaces baked to PBR maps.
 
   /opt/blender/blender --background --factory-startup --python tools/blender/build_cockpit.py -- \
-      [--size 4096] [--samples 64] [--no-denoise] [--no-bake]
+      [--variant wall|jockey|harness] [--size 4096] [--samples 16] [--map-samples 4] [--no-denoise] [--no-bake]
 
 Run tools/blender/bake_cockpit_panels.py, tools/textures/gen_cockpit_displays.py and
-tools/textures/gen_mech_plating.mjs first: this script reads their maps. It writes the pod as glTF with
-its textures beside it (assets/models/cockpit_breeze/cockpit_breeze.gltf) and a manifest
-(assets/models/cockpit_breeze.json).
+tools/textures/gen_mech_plating.mjs first: this script reads their maps. It writes one interior as glTF
+with its textures beside it (assets/models/cockpit_<variant>/cockpit_<variant>.gltf) and a manifest
+(assets/models/cockpit_<variant>.json).
 
-What it does (the owner, 2026-10-24: "Design the mech cockpit. Use detailed textures. Use the
-texturing skill we had on star crew bridge sim", "The cockpit should be enclosed fully. We can view
-outside via screens like in gundam", "I want normal maps, speculat maps and ao for all our custom
-textures. Aim for that pbr triple a goodness that bevy provides"):
+The owner, 2026-10-24: "Design the mech cockpit. Use detailed textures. Use the texturing skill we had
+on star crew bridge sim", "The cockpit should be enclosed fully. We can view outside via screens like in
+gundam", "I want normal maps, speculat maps and ao for all our custom textures", "Id like a couple
+variations of cockpit designs please", "The cockpit is part of the mech, inside of it with the armor
+opening up at the chest". So these are interiors only: the mech's chest armour (build_mechs.py) is the
+outside and opens first; then the interior's own front opens (the INNER_* nodes) and the pilot steps in.
 
-  1. Builds the pod in metres, glTF frame (+y up, the pilot faces +z, +x is the pilot's left),
-     origin on the tub floor under the eye: a boxy cabin with flat screens (a big front screen,
-     angled side screens, overhead monitors), heavy pillars, the dash with three MFD bezels, the
-     side consoles, the seat, twin grips, pedals, and the outside armour with its boarding hatch,
-     doors, flaps and stair as animated nodes.
-  2. Lays the panel maps (cockpit_panels.py, modelled and rendered the Star Crew way) on the
-     console faces as real plates.
-  3. Bakes the inside into two atlases (front: the dash, consoles and controls; cabin: the rest),
-     each as base colour, a tangent-space normal map (the panel relief and the bevelled edges),
-     occlusion-roughness-metal (the panels' own occlusion times a baked contact occlusion), and
-     emission. Light is not baked: the game lights the pod in real time.
-  4. Exports glTF whose cabin is lit PBR, the screens unlit (SCREEN_*, OVH_*, for the game to draw
-     live), the outside armour PBR on the mech plating maps, every moving part as a node with its
-     pivot, the steam and mist vents as VENT_* empties, and the sockets EYE_pilot, SEAT_pilot,
-     HATCH_entry and LADDER_base (docs/design/mech-rig.md).
+  wall     seated in a boxy cabin under a belt of flat screens, twin grips (the references)
+  jockey   riding forward on a saddle, chest pad and handlebars, a low wide screen bank
+  harness  standing in a harness, forearm rests ending in grips, a tall octagon of flat screens
+
+Every variant: metres, glTF frame (+y up, the pilot faces +z, +x is the pilot's left), origin on the
+floor under the eye; the screens showing the outside use the material SCREEN_allview; picture screens
+are SCREEN_<name>; the panels (cockpit_panels.py) are laid on as real plates; the inside is baked into
+two atlases (front: the controls and what moves; cabin: the rest) as base colour, tangent normal, ORM
+and emission; real-time lamps export as KHR_lights_punctual; the manifest carries the envelope promised
+to the chest, the bounds closed and open, sockets and each moving node's motion.
 """
 
 import argparse
@@ -52,8 +49,7 @@ import pbr as PBR  # noqa: E402
 ROOT = K.ROOT
 PANELS = os.path.join(ROOT, "assets", "textures", "cockpit", "panels")
 DISPLAYS = os.path.join(ROOT, "assets", "textures", "cockpit", "displays")
-MODEL = os.path.join(ROOT, "assets", "models", "cockpit_breeze", "cockpit_breeze.gltf")
-MANIFEST = os.path.join(ROOT, "assets", "models", "cockpit_breeze.json")
+MODEL = MANIFEST = None   # set per variant in main(): assets/models/cockpit_<variant>/ and cockpit_<variant>.json
 RAW = os.path.join(ROOT, "output", "cockpit_raw")
 
 G2B = Matrix(((1, 0, 0, 0), (0, 0, -1, 0), (0, 1, 0, 0), (0, 0, 0, 1)))   # glTF frame to Blender
@@ -82,8 +78,9 @@ def basis(n, up):
 class Set:
     def __init__(self, mats):
         self.mats = mats
-        self.parts = []          # dicts: ob, group (front, cabin, screen, hud, glass), node
+        self.parts = []          # dicts: ob, group (front, cabin, screen, allview, shell), node
         self.n = 0
+        self.disp = {}           # picture screens: node name -> display image
 
     def _ob(self, bm, mat, group, node=None, name=None, bevel=0.0, seg=2, smooth=False, uvs=False):
         if not uvs:
@@ -169,7 +166,7 @@ class Set:
         edges taking the panel's corner texel."""
         w, h = CP.PANELS[panel][0], CP.PANELS[panel][1]
         r, u, nn = basis(n, up)
-        c = Vector(c)
+        c = Vector(c) + nn * 0.0015          # proud of the face it is laid on: never coplanar (no z-fighting)
         bm = bmesh.new()
         bmesh.ops.create_cube(bm, size=1.0)
         R = Matrix((r, u, nn)).transposed().to_4x4()
@@ -296,8 +293,8 @@ def glass_material():
 
 # ----------------------------------------------------------------------------- the pod's shape
 
-POD_C = V(0.0, 0.96, 0.08)      # the cabin's middle at the screens' foot (the page's latches retract toward it)
 D = math.radians
+MID = V(0.0, 1.2, 0.1)          # a point inside the cabin: faces and frame members turn toward it (set per variant)
 # The cabin is a box, the way the owner's references are (Titanfall, Armored Core, the Gundam pods;
 # owner, 2026-10-24: "That's not a mech cockpit", "The curved ones are just fish eye pov"). Above the
 # consoles a belt of flat screens runs round it: the front screen, two chamfered screens at the
@@ -320,7 +317,7 @@ def inward(a, b):
     """The inward normal of the wall from a to b (plan), toward the cabin's middle."""
     d = (b - a)
     n = V(-d.z, 0, d.x).normalized()
-    if n.dot(V(0, BELT[0], 0.15) - (a + b) / 2) < 0:
+    if n.dot(MID - (a + b) / 2) < 0:
         n = -n
     return n
 
@@ -332,7 +329,7 @@ def quad_ob(S, pts, mat, group, node=None, name=None, uvs=False):
     f = bm.faces.new(vs)
     bm.normal_update()
     mid = sum(pts, Vector()) / len(pts)
-    if f.normal.dot(V(0, 1.3, 0.1) - mid) < 0:
+    if f.normal.dot(MID - mid) < 0:
         bmesh.ops.reverse_faces(bm, faces=[f])
     if uvs:
         uvl = bm.loops.layers.uv.new("panel")
@@ -346,7 +343,7 @@ def bar(S, p0, p1, w, d, mat, group, node=None, bevel=0.004, n=None):
     p0, p1 = Vector(p0), Vector(p1)
     m = (p0 + p1) / 2
     a = (p1 - p0).normalized()
-    n = Vector(n) if n is not None else (V(0, 1.3, 0.1) - m)
+    n = Vector(n) if n is not None else (MID - m)
     u = n.cross(a).normalized()
     n = a.cross(u).normalized()
     return S.obox(m, (a, u, n), ((p1 - p0).length + w, w, d), mat, group, node, bevel=bevel)
@@ -357,7 +354,7 @@ def slab(S, pts, t, mat, group, node=None, bevel=0.01):
     pts = [Vector(p) for p in pts]
     mid = sum(pts, Vector()) / 4
     n = (pts[1] - pts[0]).cross(pts[3] - pts[0]).normalized()
-    if n.dot(mid - V(0, 1.0, 0.1)) < 0:
+    if n.dot(mid - MID) < 0:
         n = -n
     bm = bmesh.new()
     lo = [bm.verts.new(p) for p in pts]
@@ -371,54 +368,54 @@ def slab(S, pts, t, mat, group, node=None, bevel=0.01):
     return S._ob(bm, mat, group, node, bevel=bevel)
 
 
-def screen(S, name, b0, b1, lean, node, height=BELT[1] - BELT[0]):
-    """One flat screen whose foot runs b0 to b1, leaning in by lean at its top, in a heavy bezel
-    with a cyan strip under it. Returns its four corners."""
-    n = inward(b0, b1)
-    t0, t1 = b0 + n * lean + V(0, height, 0), b1 + n * lean + V(0, height, 0)
-    c = [b0, b1, t1, t0]
+def flat_screen(S, name, c, node, strip=True):
+    """One flat screen on the corners c (foot left, foot right, top right, top left), showing the
+    outside world (SCREEN_allview), its back plate behind it, a heavy bezel round it and a cyan strip
+    under it."""
+    n = (c[1] - c[0]).cross(c[3] - c[0]).normalized()
+    mid = sum(c, Vector()) / 4
+    if n.dot(MID - mid) < 0:
+        n = -n
     quad_ob(S, c, "screen_wall", "allview", node, name=f"SCREEN_wall_{name}")
     back = [p - n * 0.02 for p in c]
     quad_ob(S, list(reversed(back)), "paint_dk", "cabin", node)
     for k in range(4):
         bar(S, c[k] + n * 0.02, c[(k + 1) % 4] + n * 0.02, 0.05, 0.05, "bezel", "cabin", node, n=n)
-    lo0, lo1 = b0.lerp(b1, 0.1) + n * 0.05 - V(0, 0.03, 0), b0.lerp(b1, 0.9) + n * 0.05 - V(0, 0.03, 0)
-    bar(S, lo0, lo1, 0.008, 0.008, "cyan", "cabin", node, bevel=0.0, n=n)
+    if strip:
+        lo0, lo1 = c[0].lerp(c[1], 0.1) + n * 0.05 - (c[3] - c[0]).normalized() * 0.03, c[0].lerp(c[1], 0.9) + n * 0.05 - (c[3] - c[0]).normalized() * 0.03
+        bar(S, lo0, lo1, 0.008, 0.008, "cyan", "cabin", node, bevel=0.0, n=n)
     return c
+
+
+def screen(S, name, b0, b1, lean, node, height=BELT[1] - BELT[0]):
+    """A flat screen whose foot runs b0 to b1, leaning in by lean at its top (flat_screen)."""
+    n = inward(b0, b1)
+    t0, t1 = b0 + n * lean + V(0, height, 0), b1 + n * lean + V(0, height, 0)
+    return flat_screen(S, name, [b0, b1, t1, t0], node)
 
 
 # The nodes the game animates: name -> (parent, pivot in the cockpit frame). Every mesh hangs off
 # one of these, its pivot at the node's origin, so turning the node about its origin is the motion.
-NODES = {
+NODES = {}      # set per variant: name -> (parent, pivot in the cockpit frame)
+WALL_NODES = {
     "pod": (None, V(0, 0, 0)),
-    "HATCH_upper": ("pod", V(0, CEIL + 0.12, 0.40)),
-    "DOOR_L": ("pod", V(0.95, 1.30, 0.45)),
-    "DOOR_R": ("pod", V(-0.95, 1.30, 0.45)),
-    "FLAP_L": ("pod", V(0.88, 0.45, 0.55)),
-    "FLAP_R": ("pod", V(-0.88, 0.45, 0.55)),
-    "HATCH_lower": ("pod", V(0, 0.58, 1.08)),
-    "STAIR_1": ("pod", V(0, 0.56, 1.14)),
-    "STAIR_2": ("STAIR_1", V(0, -0.06, 1.14)),
-    "STAIR_3": ("STAIR_2", V(0, -0.06, 1.18)),
-    "CONSOLE_front": ("pod", V(0, 1.04, 0.80)),
+    "INNER_front": ("pod", V(0, CEIL + 0.12, 0.40)),
+    "INNER_side_L": ("pod", V(0.95, 1.30, 0.45)),
+    "INNER_side_R": ("pod", V(-0.95, 1.30, 0.45)),
+    "INNER_sill": ("pod", V(0, 0.0, 0.98)),
+    "CONSOLE_front": ("INNER_front", V(0, 1.04, 0.80)),     # the dash rides up with the front unit
     "SCREEN_left": ("CONSOLE_front", None),
     "SCREEN_center": ("CONSOLE_front", None),
     "SCREEN_right": ("CONSOLE_front", None),
     "CTRL_stick": ("pod", V(-0.49, 0.665, 0.30)),
     "CTRL_throttle": ("pod", V(0.4725, 0.66, 0.24)),
-    "STRUT_L": ("pod", V(0.97, 1.82, 0.25)),
-    "STRUT_R": ("pod", V(-0.97, 1.82, 0.25)),
-    "STRUT_L_rod": ("STRUT_L", None),
-    "STRUT_R_rod": ("STRUT_R", None),
-    "STRUT_L_tip": ("HATCH_upper", V(0.62, 1.70, 1.02)),
-    "STRUT_R_tip": ("HATCH_upper", V(-0.62, 1.70, 1.02)),
 }
-LATCHES = [V(x, 0.93, 1.13) for x in (-0.42, -0.15, 0.15, 0.42)] + [V(0.80, CEIL + 0.10, 0.72), V(-0.80, CEIL + 0.10, 0.72)]
 
 
 # ----------------------------------------------------------------------------- the cockpit
 
-def build(S):
+def build_wall(S):
+    """The seated cabin of flat screens (the owner's references): a belt of screens over the consoles."""
     X, Y, Z = V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)
     I3 = (X, Y, Z)
     S.vents = []
@@ -429,8 +426,10 @@ def build(S):
     # --- the tub: floor, footwell, walls, rear bulkhead, sill rails
     S.plate("floor", (0, 0.0, 0.05), Y, Z, t=0.02, group="cabin")
     S.box((-0.72, -0.04, 0.70), (0.72, 0.0, 0.94), "steel", bevel=0.004)
-    S.plate("footwell", (0, 0.27, 0.92), -Z, Y, t=0.02, group="cabin")
-    S.box((-0.76, 0.0, 0.92), (0.76, 0.62, 0.98), "paint")
+    S.plate("footwell", (0, 0.27, 0.92), -Z, Y, t=0.02, group="cabin", node="INNER_sill")
+    S.box((-0.76, 0.0, 0.92), (0.76, 0.62, 0.98), "paint", node="INNER_sill")
+    S.box((-0.70, 0.56, 0.975), (0.70, 0.60, 0.99), "hazard", node="INNER_sill")       # its outer face: the step
+    S.cyl(V(-0.7, 0.0, 0.98), V(0.7, 0.0, 0.98), 0.025, "steel", seg=16)
     for s in (1, -1):
         S.box((s * 0.72 if s > 0 else -0.78, -0.04, -0.66), (0.78 if s > 0 else -0.72, 0.96, 0.98), "paint")
         S.plate(f"wall_{'L' if s > 0 else 'R'}", (s * 0.72, 0.80, 0.05), -s * X, Y, t=0.012, group="cabin")
@@ -490,6 +489,7 @@ def build(S):
                    ((O - I) * 0.55, (O - I) * 0.55, 0.01), "steel", group="front", node=cn, bevel=0.003)
         S.quad(c + nd2 * 0.0105, nd2, ud2, 2 * I * 0.97, 2 * I * 0.97,
                emission_material(name, os.path.join(DISPLAYS, f"{disp[name]}.png"), 2.5), "screen", name, node=name)
+        S.disp[name] = disp[name]
     S.plate("glare", (0, 1.05, 0.70), Y, Z, t=0.012, node=cn)
     S.box((-0.79, 1.01, 0.60), (0.79, 1.038, 0.80), "paint_dk", group="front", node=cn, bevel=0.01)
     S.box((-0.78, 1.0, 0.605), (0.78, 1.012, 0.625), "bezel", group="front", node=cn, bevel=0.002)
@@ -557,14 +557,14 @@ def build(S):
         S.obox(V(s * 0.365, 0.664, 0.05), I3, (0.006, 0.004, 0.86), "cyan")
 
     # --- the screen belt: front screen on the visor, chamfer screens on the doors, side screens
-    hn = "HATCH_upper"
+    hn = "INNER_front"
     cnr = {}
     for s in (1, -1):
         cnr[s] = {k: plan(k, s) for k in CORNERS}
     inset = lambda a, b, d: (a + (b - a).normalized() * d, b + (a - b).normalized() * d)
     f0, f1 = inset(cnr[1]["F"], cnr[-1]["F"], 0.06)
     screen(S, "front", f0, f1, LEAN, hn)
-    for s, door in ((1, "DOOR_L"), (-1, "DOOR_R")):
+    for s, door in ((1, "INNER_side_L"), (-1, "INNER_side_R")):
         a, b = inset(cnr[s]["S"], cnr[s]["F"], 0.06)
         screen(S, f"chamfer_{'L' if s > 0 else 'R'}", a, b, LEAN, door)
         a, b = inset(cnr[s]["R"], cnr[s]["S"], 0.06)
@@ -590,11 +590,12 @@ def build(S):
     # the header beam over the screens, the sill under them, the shelf out to the tub walls
     ring = [top_of[(1, "R")], top_of[(1, "S")], top_of[(1, "F")], top_of[(-1, "F")], top_of[(-1, "S")], top_of[(-1, "R")]]
     for i, (p0, p1) in enumerate(zip(ring, ring[1:])):
-        node = hn if i == 2 else (("DOOR_L" if i == 1 else "DOOR_R") if i in (1, 3) else None)
-        bar(S, p0 - V(0, 0.03, 0), p1 - V(0, 0.03, 0), 0.10, 0.09, "paint", "cabin", None if node in ("DOOR_L", "DOOR_R") else node, bevel=0.012)
+        node = hn if i == 2 else None
+        bar(S, p0 - V(0, 0.03, 0), p1 - V(0, 0.03, 0), 0.10, 0.09, "paint", "cabin", node, bevel=0.012)
     floor_ring = [cnr[1]["R"], cnr[1]["S"], cnr[1]["F"], cnr[-1]["F"], cnr[-1]["S"], cnr[-1]["R"]]
-    for p0, p1 in zip(floor_ring, floor_ring[1:]):
-        bar(S, p0 - V(0, 0.05, 0), p1 - V(0, 0.05, 0), 0.10, 0.06, "paint_dk", "cabin", bevel=0.008, n=V(0, 1, 0))
+    sill_node = [None, "INNER_side_L", hn, "INNER_side_R", None]     # the sill under each screen rides it
+    for i, (p0, p1) in enumerate(zip(floor_ring, floor_ring[1:])):
+        bar(S, p0 - V(0, 0.05, 0), p1 - V(0, 0.05, 0), 0.10, 0.06, "paint_dk", "cabin", sill_node[i], bevel=0.008, n=V(0, 1, 0))
     for s in (1, -1):
         x0, x1 = sorted((s * 0.72, s * 0.90))
         S.box((x0, 0.93, -0.72), (x1, 0.97, 0.47), "paint_dk", bevel=0.004)
@@ -607,11 +608,13 @@ def build(S):
             S.tube([V(s * 0.83, y, -0.72), V(s * 0.83, y, -0.18)], 0.012, ("red", "rubber", "yellow")[k])
     S.box((-0.90, 1.20, -0.76), (0.90, CEIL, -0.70), "paint_dk")
     # the ceiling: plate, beams across, conduits, round vents, a grab handle, a lamp
-    S.box((-0.92, CEIL, -0.76), (0.92, CEIL + 0.03, 1.02), "paint_dk")
+    S.box((-0.92, CEIL, -0.76), (0.92, CEIL + 0.03, 0.395), "paint_dk")
+    S.box((-0.92, CEIL, 0.405), (0.92, CEIL + 0.03, 1.02), "paint_dk", node=hn)
     for z in (0.62, 0.20, -0.25, -0.62):
-        S.box((-0.88, CEIL - 0.07, z - 0.04), (0.88, CEIL, z + 0.04), "paint", bevel=0.01)
+        S.box((-0.88, CEIL - 0.07, z - 0.04), (0.88, CEIL, z + 0.04), "paint", node=hn if z > 0.4 else None, bevel=0.01)
     for x in (-0.3, 0.3):
-        S.tube([V(x, CEIL - 0.04, -0.7), V(x, CEIL - 0.04, 0.95)], 0.02, "steel")
+        S.tube([V(x, CEIL - 0.04, -0.7), V(x, CEIL - 0.04, 0.37)], 0.02, "steel")
+        S.tube([V(x, CEIL - 0.04, 0.43), V(x, CEIL - 0.04, 0.95)], 0.02, "steel", node=hn)
     for x, z in ((0.55, 0.0), (-0.55, 0.0), (0.0, -0.45)):
         for k in range(3):
             S.cyl(V(x, CEIL - 0.004 * (k + 1), z), V(x, CEIL - 0.004 * k, z), 0.09 - 0.025 * k, ("bezel", "paint_dk", "steel")[k], seg=32)
@@ -626,120 +629,415 @@ def build(S):
         c = V(x, y, z)
         nn = (EYE - c).normalized()
         r, u, nn = basis(nn, V(0, 1, 0))
-        S.obox(c - nn * 0.02, (r, u, nn), (0.24, 0.17, 0.04), "bezel", "cabin", bevel=0.006)
-        S.cyl(c - nn * 0.03 + u * 0.05, V(x, CEIL, z - 0.05), 0.012, "steel", "cabin", seg=12)
-        S.obox(c + nn * 0.001 - u * 0.072, (r, u, nn), (0.2, 0.006, 0.004), "cyan", "cabin")
+        S.obox(c - nn * 0.02, (r, u, nn), (0.24, 0.17, 0.04), "bezel", "cabin", hn, bevel=0.006)
+        S.cyl(c - nn * 0.03 + u * 0.05, V(x, CEIL, z - 0.05), 0.012, "steel", "cabin", hn, seg=12)
+        S.obox(c + nn * 0.001 - u * 0.072, (r, u, nn), (0.2, 0.006, 0.004), "cyan", "cabin", hn)
         S.quad(c + nn * 0.0015, nn, u, 0.205, 0.145, emission_material(name, os.path.join(DISPLAYS, f"{img}.png"), 2.0), "screen", name, node=name)
-        NODES[name] = ("pod", None)
+        NODES[name] = (hn, None)
+        S.disp[name] = img
 
-    # --- the armour outside: the visor over the front screen and the roof's front, the doors over
-    # the chamfers, the fixed sides, roof and rear
-    T0, T1 = 0.07, 0.07
-    out = lambda p, n, d: p - n * d
-    nF = inward(cnr[1]["F"], cnr[-1]["F"])
-    vb0, vb1 = out(cnr[1]["F"], nF, 0.08) - V(0, 0.08, 0), out(cnr[-1]["F"], nF, 0.08) - V(0, 0.08, 0)
-    vt0, vt1 = vb0 + nF * (LEAN * 0.9) + V(0, CEIL - BELT[0] + 0.12, 0), vb1 + nF * (LEAN * 0.9) + V(0, CEIL - BELT[0] + 0.12, 0)
-    slab(S, [vb0, vb1, vt1, vt0], 0.07, "ext_armor", "ext", hn)
-    slab(S, [vt0 + V(0, 0.0, 0), vt1, V(vt1.x, vt1.y, 0.40), V(vt0.x, vt0.y, 0.40)], 0.07, "ext_armor", "ext", hn)
-    slab(S, [vb0.lerp(vb1, 0.15) - nF * 0.075, vb0.lerp(vb1, 0.85) - nF * 0.075, vb0.lerp(vb1, 0.85) - nF * 0.075 + V(0, 0.07, 0),
-             vb0.lerp(vb1, 0.15) - nF * 0.075 + V(0, 0.07, 0)], 0.02, "hazard", "ext", hn, bevel=0.0)
-    for x in (-0.3, 0.3):           # a raised spine on the visor and two vent grilles
-        S.obox(V(x, 1.45, 1.10) - nF * 0.02, (V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)), (0.16, 0.36, 0.03), "ext_dark", "ext", hn, bevel=0.006)
-        for k in range(6):
-            S.cyl(V(x - 0.07, 1.30 + k * 0.055, 1.13), V(x + 0.07, 1.30 + k * 0.055, 1.13), 0.008, "steel", "ext", hn, seg=8)
-    S.obox(V(0, 1.42, 1.12), (V(1, 0, 0), V(0, 0.99, -0.1).normalized(), V(0, 0.1, 0.99).normalized()), (0.12, 0.85, 0.05), "ext_frame", "ext", hn, bevel=0.01)
-    for x in (-0.12, 0.12):
-        S.cyl(V(x, 1.92, 1.0), V(x, 1.95, 1.04), 0.022, "amber", "ext", hn, seg=16)
-    S.cyl(V(-0.45, CEIL + 0.12, 0.40), V(0.45, CEIL + 0.12, 0.40), 0.04, "steel", "ext")
-    for s, door in ((1, "DOOR_L"), (-1, "DOOR_R")):
-        n = inward(cnr[s]["S"], cnr[s]["F"])
-        a, b = out(cnr[s]["S"], n, 0.08) - V(0, 0.08, 0), out(cnr[s]["F"], n, 0.08) - V(0, 0.08, 0)
-        a, b = a + (b - a).normalized() * 0.07, b + (a - b).normalized() * 0.07
-        top = V(0, CEIL - BELT[0] + 0.08, 0)
-        slab(S, [a, b, b + n * LEAN * 0.8 + top, a + n * LEAN * 0.8 + top], 0.07, "ext_armor", "ext", door)
-        for y in (1.15, 1.45):
-            S.tube([a + V(0, y - BELT[0], 0) - n * 0.075, b + V(0, y - BELT[0], 0) - n * 0.075], 0.014, "ext_dark", "ext", door)
-        S.tube([b - n * 0.04 + V(0, 0.0, 0), b - n * 0.04 + top], 0.012, "rubber", "ext", door)
-        for k in range(5):
-            vent(door, b - n * 0.09 + V(0, 0.1 + 0.18 * k, 0), tuple(-n * 0.6 + V(0, 0.1, 0.6)), "steam", "doors", 0.7)
-        vent(door, (a + b) / 2 + top - n * 0.05, (0, 1, 0), "steam", "doors", 0.7)
-        # fixed side armour aft of the door, and the fixed front pillar cap between visor and door
-        x0, x1 = sorted((s * 0.90, s * 0.97))
-        S.box((x0, 0.90, -0.80), (x1, CEIL + 0.14, 0.42), "ext_armor", "ext", bevel=0.012)
-        pf = out(cnr[s]["F"], (nF + n).normalized(), 0.10)
-        S.box((pf.x - 0.07, 0.90, pf.z - 0.07), (pf.x + 0.07, CEIL + 0.14, pf.z + 0.07), "ext_frame", "ext", bevel=0.015)
-        for k in range(3):
-            vent("pod", V(s * 0.98, 1.2 + 0.25 * k, 0.40), (s, 0.2, 0.4), "steam", "doors", 0.5)
-    S.box((-0.97, CEIL + 0.07, -0.80), (0.97, CEIL + 0.14, 0.40), "ext_armor", "ext", bevel=0.012)
-    S.box((-0.97, 0.90, -0.86), (0.97, CEIL + 0.14, -0.78), "ext_armor", "ext", bevel=0.012)
-    for x in (-0.6, -0.2, 0.2, 0.6):                         # roof ribs
-        S.box((x - 0.03, CEIL + 0.14, -0.78), (x + 0.03, CEIL + 0.18, 0.38), "ext_frame", "ext", bevel=0.008)
+    # --- the shell: plain structure closing the cabin, seen only through the opened chest (the
+    # mech's chest armour is the outside, tools/blender/build_mechs.py)
     for s in (1, -1):
-        vent("pod", V(s * 0.40, CEIL + 0.18, 0.40), (0, 1, -0.3), "steam", "visor", 1.0)
-    for i in range(11):
-        x = -0.55 + 1.1 * (i + 0.5) / 11
-        vent("pod", V(x, 0.92, 1.14), (0, -0.3, 1), "steam", "seam", 0.6)
-    # latches round the visor and doors
-    for i, p in enumerate(LATCHES):
-        d = V(0, 0, 1) if p.y < 1.2 else V(0, 1, 0)
-        S.cyl(p - d * 0.01, p + d * 0.05, 0.028, "steel", "ext", node=f"LATCH_{i + 1}", seg=16)
-        S.cyl(p + d * 0.05, p + d * 0.065, 0.014, "amber", "ext", node=f"LATCH_{i + 1}", seg=16)
-        NODES[f"LATCH_{i + 1}"] = ("pod", p)
-        vent("pod", p + d * 0.06, tuple(d), "steam", "latch", 0.5)
-    # struts that lift the visor
-    for S_, s in (("L", 1), ("R", -1)):
-        b, t = NODES[f"STRUT_{S_}"][1], NODES[f"STRUT_{S_}_tip"][1]
-        L = (t - b).length
-        S.cyl(b, b + V(0, 0, L * 0.55), 0.035, "ext_dark", "ext", node=f"STRUT_{S_}", seg=16)
-        rod0 = b + V(0, 0, L * 0.45)
-        NODES[f"STRUT_{S_}_rod"] = (f"STRUT_{S_}", rod0)
-        S.cyl(rod0, rod0 + V(0, 0, L * 0.55), 0.018, "metal", "ext", node=f"STRUT_{S_}_rod", seg=16)
-        S.cyl(b - V(0.04 * s, 0, 0), b + V(0.04 * s, 0, 0), 0.03, "steel", "ext", seg=16)
-        vent("pod", b, (s * 0.5, 0.3, 0.2), "steam", "visor", 0.6)
-    # the sides, rear and belly of the pod; the flaps at its front corners
-    for s, side in ((1, "L"), (-1, "R")):
-        x0, x1 = sorted((s * 0.80, s * 0.88))
-        S.box((x0, -0.12, -0.80), (x1, 0.96, 0.55), "ext_armor", "ext", bevel=0.01)
-        fn = f"FLAP_{side}"
-        S.box((x0, -0.12, 0.55), (x1, 0.96, 1.10), "ext_armor", "ext", node=fn, bevel=0.01)
-        fx0, fx1 = (x1, x1 + 0.025) if s > 0 else (x0 - 0.025, x0)
-        S.box((fx0, 0.10, 0.62), (fx1, 0.80, 1.04), "ext_frame", "ext", node=fn, bevel=0.006)
-        S.box((x0 - 0.01, 0.84, 0.58), (x1 + 0.01, 0.9, 1.08), "hazard", "ext", node=fn)
-        S.cyl(V(s * 0.88, -0.1, 0.55), V(s * 0.88, 0.94, 0.55), 0.03, "steel", "ext", seg=16)
-        for k in range(4):
-            vent("pod", V(s * 0.89, 0.1 + 0.25 * k, 1.09), (s, 0.1, 0.3), "steam", "flaps", 0.6)
-    S.box((-0.88, -0.18, -0.86), (0.88, 0.96, -0.80), "ext_armor", "ext", bevel=0.01)
-    S.box((-0.88, -0.18, -0.80), (0.88, -0.12, 1.10), "ext_frame", "ext", bevel=0.01)
-    # the lower front: fixed armour under the lower plate, the plate itself, the stair stowed on it
-    S.box((-0.80, -0.12, 0.98), (0.80, 0.58, 1.10), "ext_armor", "ext", bevel=0.01)
-    ln = "HATCH_lower"
-    S.box((-0.80, 0.585, 0.98), (0.80, 0.97, 1.08), "ext_armor", "ext", node=ln, bevel=0.01)
-    S.box((-0.74, 0.62, 0.975), (0.74, 0.94, 0.985), "steel", "ext", node=ln)          # its inner face: the step plate
-    S.box((-0.74, 0.92, 0.97), (0.74, 0.95, 0.98), "hazard", "ext", node=ln)
-    S.box((-0.6, 0.66, 1.08), (0.6, 0.70, 1.10), "red", "ext", node=ln)
-    S.cyl(V(-0.7, 0.58, 1.08), V(0.7, 0.58, 1.08), 0.03, "steel", "ext", seg=16)
-    for st_, (y0, y1, z0, zr) in (("STAIR_1", (-0.06, 0.56, 1.11, 1.17)), ("STAIR_2", (-0.06, 0.52, 1.17, 1.23)), ("STAIR_3", (-0.02, 0.50, 1.18, 1.22))):
-        w = 0.5 if st_ != "STAIR_3" else 0.44
-        for sx in (-1, 1):
-            S.box((sx * w / 2 - 0.025, y0, z0), (sx * w / 2 + 0.025, y1, zr), "ext_dark", "ext", node=st_, bevel=0.004)
-        n = 4
-        for k in range(n):
-            y = y0 + 0.05 + (y1 - y0 - 0.1) * k / (n - 1)
-            S.box((-w / 2, y - 0.012, z0 + 0.005), (w / 2, y + 0.012, zr - 0.005), "steel", "ext", node=st_)
-            S.box((-w / 2, y + 0.008, zr - 0.012), (w / 2, y + 0.014, zr - 0.004), "hazard", "ext", node=st_)
-    # mist: cold air pouring out over the sill
+        x0, x1 = sorted((s * 0.98, s * 1.00))
+        S.box((x0, -0.06, -0.78), (x1, 1.97, 0.40), "ext_dark", "shell")
+    S.box((-1.0, -0.06, -0.80), (1.0, 1.97, -0.78), "ext_dark", "shell")
+    S.box((-1.0, 1.95, -0.78), (1.0, 1.97, 0.40), "ext_dark", "shell")
+    S.box((-1.0, -0.08, -0.80), (1.0, -0.06, 0.98), "ext_dark", "shell")
+    for s in (1, -1):                                    # posts tying the screen belt to the shell
+        S.box((s * 0.90 - 0.04, 0.90, -0.18), (s * 0.90 + 0.04, 1.95, -0.10), "ext_frame", "shell")
+    # cold mist pouring out over the floor once the sill drops
     for i in range(6):
-        vent("pod", V(-0.5 + 0.2 * i, 0.70, 0.98), (0, -0.2, 1), "mist", "open", 1.0)
+        vent("pod", V(-0.5 + 0.2 * i, 0.15, 0.95), (0, -0.2, 1), "mist", "inner_open", 1.0)
+
+
+
+# ----------------------------------------------------------------------------- shared hardware
+# Mining Mike's boss-kit vocabulary, inside the cabin: bolt rows, hoses with collars, hazard bands,
+# glowing core lamps (godot-sandbox tank_bosses_kit.js: bolts, hose, stripes, core).
+
+def bolt_row(S, p0, p1, n, nrm, node=None, group="cabin", r=0.009):
+    """n bolt heads from p0 to p1 standing out of a face along nrm."""
+    p0, p1, nrm = Vector(p0), Vector(p1), Vector(nrm).normalized()
+    for i in range(n):
+        q = p0.lerp(p1, (i + 0.5) / n)
+        S.cyl(q - nrm * 0.004, q + nrm * 0.007, r, "steel", group, node, seg=10)
+
+
+def hose(S, pts, r, node=None, mat="rubber"):
+    """A hose along pts with a steel collar at each end."""
+    pts = [Vector(p) for p in pts]
+    S.tube(pts, r, mat, "cabin", node)
+    for a, b in ((pts[0], pts[1]), (pts[-1], pts[-2])):
+        d = (b - a).normalized()
+        S.cyl(a - d * 0.01, a + d * 0.035, r * 1.45, "steel", "cabin", node, seg=16)
+
+
+def core_lamp(S, c, n, r, node=None, mat="cyan"):
+    """A round lamp in a stepped bezel facing n (the kit's glowing cores)."""
+    c, n = Vector(c), Vector(n).normalized()
+    S.cyl(c - n * 0.02, c + n * 0.012, r * 1.35, "bezel", "cabin", node, seg=32)
+    S.cyl(c, c + n * 0.016, r * 1.1, "steel", "cabin", node, seg=32)
+    S.cyl(c, c + n * 0.02, r, mat, "cabin", node, seg=32)
+
+
+def monitor(S, name, img, c, look_at, w, h, node, rod_to=None):
+    """A small picture monitor (an MFD or an overhead monitor) at c, turned to look_at."""
+    c = Vector(c)
+    nn = (Vector(look_at) - c).normalized()
+    r, u, nn = basis(nn, V(0, 1, 0))
+    S.obox(c - nn * 0.02, (r, u, nn), (w + 0.035, h + 0.025, 0.04), "bezel", "cabin", node, bevel=0.006)
+    S.obox(c + nn * 0.001 - u * (h / 2 + 0.002), (r, u, nn), (w * 0.85, 0.006, 0.004), "cyan", "cabin", node)
+    if rod_to is not None:
+        S.cyl(c - nn * 0.03 + u * 0.03, Vector(rod_to), 0.012, "steel", "cabin", node, seg=12)
+    S.quad(c + nn * 0.0015, nn, u, w, h, emission_material(name, os.path.join(DISPLAYS, f"{img}.png"), 2.0), "screen", name, node=name)
+    NODES[name] = (node or "pod", None)
+    S.disp[name] = img
+
+
+def grip(S, node, gp, axis, side):
+    """A hand grip on its node at gp whose barrel runs along axis, with its buttons and switches.
+    side +1 is the pilot's left hand."""
+    a = Vector(axis).normalized()
+    up = V(0, 1, 0) if abs(a.y) < 0.9 else V(0, 0, 1)
+    r, u, n = basis(a, up)
+    S.cyl(gp - a * 0.02, gp + a * 0.05, 0.026, "steel", "front", node, seg=16)
+    S.obox(gp + a * 0.12, (r, u, a), (0.055, 0.06, 0.14), "rubber", "front", node, bevel=0.02, seg=3)
+    S.obox(gp + a * 0.19 + u * 0.03, (r, u, a), (0.03, 0.02, 0.025), "red_lit" if side < 0 else "amber", "front", node, bevel=0.004)
+    S.obox(gp + a * 0.16 + u * 0.035, (r, u, a), (0.012, 0.012, 0.012), "green", "front", node, bevel=0.003)
+    S.obox(gp + a * 0.09 - u * 0.035, (r, u, a), (0.03, 0.02, 0.04), "steel", "front", node, bevel=0.005)
+
+
+def walls(S, x, y0, y1, z0, z1, mat="paint_dk", t=0.03, group="cabin"):
+    """Side walls at +-x (inner face), from y0 to y1 and z0 to z1, t thick, outward."""
+    for s in (1, -1):
+        a, b = sorted((s * x, s * (x + t)))
+        S.box((a, y0, z0), (b, y1, z1), mat, group)
+
+
+# ----------------------------------------------------------------------------- the jockey
+
+JOCKEY_NODES = {
+    "pod": (None, V(0, 0, 0)),
+    "INNER_front": ("pod", V(0, 1.70, 0.74)),
+    "INNER_yoke": ("pod", V(0, 0.78, 0.75)),
+    "CONSOLE_front": ("pod", V(0, 0.02, 1.16)),
+    "CTRL_stick": ("INNER_yoke", V(-0.40, 0.86, 0.44)),
+    "CTRL_throttle": ("INNER_yoke", V(0.40, 0.86, 0.44)),
+}
+
+
+def build_jockey(S):
+    """The racing cabin: the pilot rides it like a motorbike, leaning onto a chest pad, knees in
+    pads, hands on handlebar grips, looking down a low wide bank of flat screens with a strip of
+    screen overhead. A slim cabin for a slim chest."""
+    X, Y, Z = V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)
+    I3 = (X, Y, Z)
+    S.vents = []
+    W, RO, ZB, ZF = 0.82, 1.68, -0.95, 1.16
+    fn, yk, cn = "INNER_front", "INNER_yoke", "CONSOLE_front"
+    # --- the tub: floor, walls, rear bulkhead, roof
+    S.plate("floor", (0, 0.0, -0.05), Y, Z, t=0.02, group="cabin")
+    S.box((-W, -0.06, ZB), (W, -0.025, ZF), "paint_dk")
+    walls(S, W, -0.06, 0.80, ZB, ZF)
+    walls(S, W, 0.80, RO + 0.04, ZB, 0.74)
+    S.box((-W - 0.03, -0.06, ZB - 0.03), (W + 0.03, RO + 0.04, ZB), "paint")
+    S.plate("rear", (0, 0.80, ZB), Z, Y, t=0.012, group="cabin")
+    S.box((-W - 0.03, RO, ZB), (W + 0.03, RO + 0.04, 0.735), "paint_dk")
+    for z in (-0.70, -0.30, 0.10, 0.50):
+        S.box((-W, RO - 0.06, z - 0.035), (W, RO, z + 0.035), "paint", bevel=0.008)
+    for s in (1, -1):
+        hose(S, [V(s * 0.70, RO - 0.05, ZB + 0.02), V(s * 0.72, RO - 0.10, -0.40), V(s * 0.74, RO - 0.06, 0.20), V(s * 0.70, RO - 0.12, 0.68)], 0.022)
+        hose(S, [V(s * 0.62, RO - 0.04, ZB + 0.02), V(s * 0.62, RO - 0.05, 0.66)], 0.014, mat="red")
+        S.plate(f"wall_{'L' if s > 0 else 'R'}", (s * W, 1.02, -0.30), -s * X, Y, t=0.012, group="cabin")
+        bolt_row(S, V(s * W, 1.30, ZB + 0.05), V(s * W, 1.30, 0.70), 14, -s * X)
+        bolt_row(S, V(s * W, 0.75, ZB + 0.05), V(s * W, 0.75, 0.70), 14, -s * X)
+    S.box((-0.30, RO - 0.03, -0.62), (0.30, RO, -0.56), "bezel", bevel=0.004)
+    S.box((-0.27, RO - 0.034, -0.61), (0.27, RO - 0.03, -0.57), "white_lit")
+    core_lamp(S, V(0, 1.42, ZB), Z, 0.07)
+    S.box((-0.40, 1.30, ZB), (0.40, 1.33, ZB + 0.008), "hazard")
+
+    # --- the saddle on its pedestal, the foot pegs and the knee pads
+    S.box((-0.13, 0.0, -0.58), (0.13, 0.60, -0.18), "paint_dk", bevel=0.01)
+    bolt_row(S, V(0.135, 0.08, -0.56), V(0.135, 0.08, -0.20), 6, X)
+    bolt_row(S, V(-0.135, 0.08, -0.56), V(-0.135, 0.08, -0.20), 6, -X)
+    n_s = V(0, 0.99, 0.12).normalized()
+    rs, us, ns = basis(n_s, Z)
+    S.obox(V(0, 0.66, -0.38), (rs, us, ns), (0.30, 0.46, 0.10), "fabric", bevel=0.035, seg=3)
+    S.obox(V(0, 0.75, -0.62), I3, (0.30, 0.10, 0.10), "fabric", bevel=0.035, seg=3)       # the rear hump
+    S.obox(V(0, 0.60, -0.38), I3, (0.32, 0.03, 0.50), "paint_dk", bevel=0.006)
+    for s in (1, -1):
+        # foot pegs with pedal plates, behind and under the knees
+        S.cyl(V(s * 0.12, 0.16, -0.24), V(s * 0.30, 0.16, -0.24), 0.02, "steel", seg=12)
+        S.obox(V(s * 0.24, 0.17, -0.22), I3, (0.10, 0.02, 0.22), "steel", bevel=0.004)
+        S.obox(V(s * 0.24, 0.185, -0.22), I3, (0.09, 0.006, 0.05), "hazard")
+        # knee pads on a frame from the floor, facing back at the knees
+        nk = V(0, 0.35, -0.94).normalized()
+        S.obox(V(s * 0.20, 0.46, 0.14), basis(nk, Y), (0.14, 0.20, 0.07), "fabric", bevel=0.03, seg=3)
+        S.obox(V(s * 0.20, 0.46, 0.18), basis(nk, Y), (0.16, 0.22, 0.03), "paint_dk", bevel=0.006)
+        S.cyl(V(s * 0.20, 0.0, 0.26), V(s * 0.20, 0.40, 0.20), 0.025, "steel", seg=16)
+    # --- side consoles: the console panels on top, breakers on their inner faces, MFDs at their fronts
+    for s, side in ((1, "L"), (-1, "R")):
+        x0, x1 = sorted((s * 0.50, s * 0.80))
+        S.box((x0, 0.0, -0.55), (x1, 0.55, 0.45), "paint", bevel=0.004)
+        S.plate(f"console_{side}", (s * 0.65, 0.562, -0.05), Y, Z, t=0.012)
+        S.plate(f"breakers_{side}", (s * 0.50, 0.30, -0.05), -s * X, Y, t=0.01, group="cabin")
+        S.obox(V(s * 0.507, 0.556, -0.05), I3, (0.006, 0.004, 0.92), "cyan")
+        monitor(S, f"SCREEN_{'left' if s > 0 else 'right'}", "mfd_left" if s > 0 else "mfd_right",
+                V(s * 0.64, 0.72, 0.38), EYE, 0.21, 0.15, None)
+        S.obox(V(s * 0.64, 0.60, 0.40), I3, (0.06, 0.10, 0.06), "steel", bevel=0.006)
+    # --- the yoke: a carriage on two columns behind the dash carrying the chest pad and handlebars.
+    # It rises clear for boarding.
+    for s in (1, -1):
+        S.box((s * 0.50 - 0.03, 0.0, 0.72), (s * 0.50 + 0.03, RO, 0.78), "steel", bevel=0.006)
+        S.box((s * 0.50 - 0.045, 0.70, 0.705), (s * 0.50 + 0.045, 0.73, 0.795), "hazard")
+    S.box((-0.53, 0.74, 0.71), (0.53, 0.82, 0.79), "paint", group="front", node=yk, bevel=0.01)
+    bolt_row(S, V(-0.45, 0.78, 0.79), V(0.45, 0.78, 0.79), 10, Z, node=yk, group="front")
+    for s in (1, -1):
+        bar(S, V(s * 0.46, 0.79, 0.73), V(s * 0.20, 0.93, 0.16), 0.06, 0.05, "paint", "front", yk, n=V(0, 1, 0))
+        S.cyl(V(s * 0.40, 0.84, 0.55), V(s * 0.40, 0.87, 0.47), 0.02, "steel", "front", yk, seg=12)
+    n_p = V(0, 0.55, -0.83).normalized()
+    rp, up_, np_ = basis(n_p, Y)
+    S.obox(V(0, 0.98, 0.06), (rp, up_, np_), (0.36, 0.36, 0.08), "fabric", "front", yk, bevel=0.035, seg=3)
+    S.obox(V(0, 0.98, 0.06) - np_ * 0.06, (rp, up_, np_), (0.40, 0.40, 0.05), "paint_dk", "front", yk, bevel=0.008)
+    S.cyl(V(-0.42, 0.86, 0.44), V(0.42, 0.86, 0.44), 0.018, "steel", "front", yk, seg=16)
+    grip(S, "CTRL_stick", V(-0.40, 0.86, 0.44), -X, -1)
+    grip(S, "CTRL_throttle", V(0.40, 0.86, 0.44), X, 1)
+    hose(S, [V(0.47, 0.70, 0.74), V(0.62, 0.62, 0.70), V(0.74, 0.58, 0.60)], 0.016)
+    # --- the dash: the knee panel tilted at the pilot, on a block that folds down as the step
+    S.box((-0.78, 0.05, 0.86), (0.78, 0.68, 1.14), "paint_dk", group="front", node=cn, bevel=0.01)
+    nd = V(0, 0.80, -0.60).normalized()
+    rd, ud, nd = basis(nd, Y)
+    S.obox(V(0, 0.72, 0.99) - nd * 0.05, (rd, ud, nd), (1.16, 0.36, 0.10), "paint_dk", group="front", node=cn, bevel=0.006)
+    S.plate("knee", V(0, 0.72, 0.99), nd, Y, t=0.012, node=cn)
+    S.box((-0.76, 0.66, 1.14), (0.76, 0.68, 1.16), "hazard", group="front", node=cn)
+    S.cyl(V(-0.78, 0.02, 1.16), V(0.78, 0.02, 1.16), 0.025, "steel", seg=16)
+    # --- the screen bank: a low wide front screen and two wings, pillars and a header, on the
+    # front unit that lifts like a visor; the overhead strip stays
+    yb, hb, lean = 0.80, 0.50, 0.12
+    c0 = screen(S, "front", V(0.40, yb, 1.06), V(-0.40, yb, 1.06), lean, fn, height=hb)
+    cL = screen(S, "wing_L", V(0.77, yb, 0.74), V(0.40, yb, 1.06), lean, fn, height=hb)
+    cR = screen(S, "wing_R", V(-0.40, yb, 1.06), V(-0.77, yb, 0.74), lean, fn, height=hb)
+    for b, t in ((cL[0], cL[3]), (c0[0], c0[3]), (c0[1], c0[2]), (cR[1], cR[2])):
+        bar(S, b - V(0, 0.04, 0), t + V(0, 0.08, 0), 0.08, 0.08, "paint", "cabin", fn, bevel=0.01)
+    for a, b in ((cL[3], cL[2]), (c0[3], c0[2]), (cR[3], cR[2])):
+        bar(S, a + V(0, 0.07, 0), b + V(0, 0.07, 0), 0.08, 0.07, "paint", "cabin", fn, bevel=0.01)
+    for a, b in ((cL[0], cL[1]), (c0[0], c0[1]), (cR[0], cR[1])):
+        bar(S, a - V(0, 0.03, 0), b - V(0, 0.03, 0), 0.07, 0.06, "paint_dk", "cabin", fn, bevel=0.008, n=V(0, 1, 0))
+    S.box((-W - 0.03, RO, 0.745), (W + 0.03, RO + 0.04, ZF), "paint_dk", node=fn)
+    for s in (1, -1):        # the front unit's cheeks: from the wing screens to the side walls
+        x0, x1 = sorted((s * 0.75, s * 0.845))
+        S.box((x0, yb - 0.04, 0.745), (x1, RO, 0.80), "paint", node=fn)
+        S.box((s * 0.40 - 0.05, RO - 0.30, 0.95), (s * 0.40 + 0.05, RO, 1.08), "paint", node=fn)
+        S.cyl(V(s * 0.20, RO - 0.01, 0.76), V(s * 0.20, RO - 0.01, 1.10), 0.012, "steel", "cabin", fn, seg=10)
+    S.box((-0.70, 1.33, 1.00), (0.70, 1.36, 1.16), "paint_dk", node=fn)
+    # overhead strip, hanging from the fixed roof: tilted down at the eye
+    strip = [V(0.42, 1.38, 0.70), V(-0.42, 1.38, 0.70), V(-0.42, 1.60, 0.36), V(0.42, 1.60, 0.36)]
+    flat_screen(S, "overhead", strip, None, strip=False)
+    for s in (1, -1):
+        S.cyl(V(s * 0.36, 1.62, 0.40), V(s * 0.36, RO, 0.40), 0.014, "steel", seg=10)
+    for i in range(5):
+        S.vents.append(dict(node="pod", p=V(-0.4 + 0.2 * i, 0.12, 1.10), d=V(0, -0.2, 1).normalized(), kind="mist", stage="inner_open", rate=1.0))
+
+
+# ----------------------------------------------------------------------------- the harness
+
+HC, HA, HY = 0.07, 0.76, (0.55, 2.10)       # the octagon's centre z, its apothem, the screens' foot and top
+HROOF = 2.25
+HARNESS_NODES = {
+    "pod": (None, V(0, 0, 0)),
+    "INNER_front": ("pod", V(0, HROOF - 0.04, HC + HA)),
+    "INNER_side_L": ("pod", V(0.80, 1.30, HC + 0.33)),
+    "INNER_side_R": ("pod", V(-0.80, 1.30, HC + 0.33)),
+    "CONSOLE_front": ("pod", V(0, 0.02, HC + HA + 0.02)),
+    "INNER_arm_L": ("pod", V(0.30, 1.10, -0.22)),
+    "INNER_arm_R": ("pod", V(-0.30, 1.10, -0.22)),
+    "CTRL_stick": ("INNER_arm_R", V(-0.30, 1.13, 0.30)),
+    "CTRL_throttle": ("INNER_arm_L", V(0.30, 1.13, 0.30)),
+}
+
+
+def oct_vertex(phi):
+    """The octagon's vertex at bearing phi (radians from +z toward +x), on the screens' foot plane."""
+    R = HA / math.cos(math.pi / 8)
+    return V(R * math.sin(phi), 0.0, HC + R * math.cos(phi))
+
+
+def build_harness(S):
+    """The standing cabin: the pilot stands in a harness against a backplate, forearms on two rests
+    that end in grips, feet in stirrups, inside a tall octagon of flat screens with a ring of
+    monitors overhead."""
+    X, Y, Z = V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)
+    I3 = (X, Y, Z)
+    S.vents = []
+    fn, cn = "INNER_front", "CONSOLE_front"
+    y0, y1 = HY
+    side_of = {1: "INNER_side_L", -1: "INNER_side_R"}
+    # --- facets: k = 0 front, +-1 front diagonals, +-2 sides, +-3 rear diagonals (the rear is the spine)
+    tops = {}
+    for k in (-3, -2, -1, 0, 1, 2, 3):
+        a0, a1 = (k - 0.5) * math.pi / 4, (k + 0.5) * math.pi / 4
+        p0, p1 = oct_vertex(a1), oct_vertex(a0)                  # foot left, foot right (seen from inside)
+        d = (p1 - p0).normalized()
+        p0, p1 = p0 + d * 0.05, p1 - d * 0.05
+        node = fn if k == 0 else (side_of[1] if k == 1 else side_of[-1] if k == -1 else None)
+        c = [p0 + V(0, y0, 0), p1 + V(0, y0, 0), p1 + V(0, y1, 0), p0 + V(0, y1, 0)]
+        flat_screen(S, f"facet_{k:+d}".replace("+", "p").replace("-", "m"), c, node)
+        # the low wall under each facet
+        n = inward(c[0], c[1])
+        q0, q1 = oct_vertex(a1), oct_vertex(a0)
+        lo = [q0, q1, q1 + V(0, y0 - 0.03, 0), q0 + V(0, y0 - 0.03, 0)]
+        quad_ob(S, lo, "paint", "cabin", node if k != 0 else cn)
+        tops[k] = (c, node)
+    # pillars at the vertices that do not move, rivets and cyan lines; the header and sill rings
+    for j in range(-3, 5):
+        phi = (j - 0.5) * math.pi / 4
+        q = oct_vertex(phi)
+        node = side_of[1] if j == 1 else side_of[-1] if j == 0 else None   # the front corners swing with the diagonals
+        b, t = q + V(0, y0 - 0.05, 0), q + V(0, y1 + 0.05, 0)
+        bar(S, b, t, 0.07, 0.08, "paint", "cabin", node, bevel=0.01)
+        n_in = (V(0, 1.3, HC) - q)
+        n_in.y = 0
+        n_in.normalize()
+        bar(S, b + n_in * 0.05, t + n_in * 0.05, 0.012, 0.012, "cyan", "cabin", node, bevel=0.0)
+        bolt_row(S, b + n_in * 0.045, t + n_in * 0.045, 9, n_in, node=node)
+    for k, (c, node) in tops.items():
+        bar(S, c[3] + V(0, 0.08, 0), c[2] + V(0, 0.08, 0), 0.08, 0.08, "paint", "cabin", node, bevel=0.01)
+        bar(S, c[0] - V(0, 0.05, 0), c[1] - V(0, 0.05, 0), 0.07, 0.06, "paint_dk", "cabin", node, bevel=0.008, n=V(0, 1, 0))
+    # --- the rear: a bulkhead between the rear diagonals, the spine column and the harness on it
+    qa, qb = oct_vertex(math.pi * 3.5 / 4), oct_vertex(-math.pi * 3.5 / 4)
+    S.box((qb.x - 0.05, -0.04, qa.z), (qa.x + 0.05, HROOF, qa.z + 0.06), "paint")
+    S.plate("wall_L", (0, 1.95, qa.z + 0.06), Z, Y, t=0.012, group="cabin")
+    core_lamp(S, V(0, 0.45, qa.z + 0.06), Z, 0.08)
+    S.cyl(V(0, 0.0, -0.55), V(0, HROOF, -0.55), 0.07, "steel", seg=24)
+    S.box((-0.10, 0.85, -0.52), (0.10, 1.70, -0.44), "paint_dk", bevel=0.01)            # the carriage on the spine
+    for x in (-0.06, 0.06):
+        S.cyl(V(x, 0.10, -0.50), V(x, 0.84, -0.50), 0.025, "metal", seg=16)              # its rams
+        S.cyl(V(x, 0.0, -0.50), V(x, 0.45, -0.50), 0.04, "paint", seg=16)
+    S.obox(V(0, 1.30, -0.36), I3, (0.42, 0.66, 0.06), "paint", bevel=0.012)            # the backplate
+    S.obox(V(0, 1.30, -0.32), I3, (0.36, 0.60, 0.04), "fabric", bevel=0.02, seg=3)
+    S.obox(V(0, 1.68, -0.33), I3, (0.24, 0.14, 0.06), "fabric", bevel=0.025, seg=3)    # the head pad
+    S.obox(V(0, 1.68, -0.37), I3, (0.28, 0.17, 0.03), "paint_dk", bevel=0.006)
+    bolt_row(S, V(-0.19, 1.62, -0.33), V(-0.19, 0.99, -0.33), 6, Z)
+    bolt_row(S, V(0.19, 1.62, -0.33), V(0.19, 0.99, -0.33), 6, Z)
+    for s in (1, -1):        # shoulder straps over the top, the waist belt's clasps
+        S.tube([V(s * 0.12, 1.56, -0.30), V(s * 0.13, 1.60, -0.22), V(s * 0.13, 1.52, -0.15)], 0.012, "strap")
+        S.obox(V(s * 0.13, 1.50, -0.15), I3, (0.05, 0.05, 0.015), "steel", bevel=0.004)
+        S.obox(V(s * 0.20, 1.00, -0.28), I3, (0.08, 0.06, 0.06), "steel", bevel=0.006)
+        S.obox(V(s * 0.20, 1.00, -0.25), I3, (0.04, 0.03, 0.01), "red")
+        hose(S, [V(s * 0.08, 1.60, -0.50), V(s * 0.25, 1.80, -0.55), V(s * 0.45, 2.15, -0.55)], 0.018)
+    # --- the forearm rests: a padded rest on each side ending in a vertical grip; they lift clear
+    for s, side in ((1, "L"), (-1, "R")):
+        an = f"INNER_arm_{side}"
+        piv = HARNESS_NODES[an][1]
+        S.cyl(piv - V(s * 0.05, 0, 0), piv + V(s * 0.05, 0, 0), 0.04, "steel", "front", an, seg=16)
+        S.obox(V(s * 0.30, 1.08, 0.04), I3, (0.10, 0.04, 0.48), "paint", "front", an, bevel=0.008)
+        S.obox(V(s * 0.30, 1.115, 0.02), I3, (0.09, 0.03, 0.36), "fabric", "front", an, bevel=0.012, seg=3)
+        S.obox(V(s * 0.355, 1.06, 0.06), I3, (0.006, 0.02, 0.30), "cyan", "front", an)
+        bar(S, V(s * 0.30, 1.10, -0.18), V(s * 0.16, 1.18, -0.38), 0.05, 0.05, "paint_dk", "cabin", None, n=Y)
+        grip(S, "CTRL_throttle" if s > 0 else "CTRL_stick", V(s * 0.30, 1.10, 0.30), Y, s)
+    # --- the stirrups on a raised foot plate, the floor
+    S.plate("floor", (0, 0.0, HC), Y, Z, t=0.02, group="cabin")
+    S.box((-0.82, -0.06, -0.75), (0.82, -0.025, 0.90), "paint_dk")
+    S.box((-0.30, 0.0, -0.18), (0.30, 0.05, 0.22), "steel", bevel=0.006)
+    for s in (1, -1):
+        S.obox(V(s * 0.14, 0.075, 0.04), I3, (0.12, 0.03, 0.30), "steel", bevel=0.006)
+        S.obox(V(s * 0.14, 0.092, 0.04), I3, (0.10, 0.006, 0.22), "hazard")
+        S.tube([V(s * 0.20, 0.09, 0.10), V(s * 0.14, 0.17, 0.10), V(s * 0.08, 0.09, 0.10)], 0.012, "strap")
+        S.cyl(V(s * 0.14, 0.05, -0.12), V(s * 0.14, 0.12, -0.10), 0.03, "metal", seg=12)
+    # --- side pods under the side facets: console panels on top, wall panels on their inner faces
+    for s, side in ((1, "L"), (-1, "R")):
+        x0, x1 = sorted((s * 0.46, s * 0.77))
+        S.box((x0, 0.0, -0.37), (x1, 0.48, 0.47), "paint", bevel=0.004)
+        S.plate(f"console_{side}", (s * 0.615, 0.492, 0.05), Y, Z, t=0.012)
+        S.plate(f"breakers_{side}", (s * 0.46, 0.24, 0.05), -s * X, Y, t=0.01, group="cabin")
+    # --- the low front console: the knee panel tilted up at the pilot, folding down as the step
+    nk = V(0, 0.75, -0.66).normalized()
+    rk, uk, nk = basis(nk, Y)
+    ck = V(0, 0.46, HC + HA - 0.20)
+    S.box((-0.34, 0.02, HC + HA - 0.30), (0.34, 0.40, HC + HA - 0.02), "paint_dk", group="front", node=cn, bevel=0.008)
+    S.obox(ck - nk * 0.06, (rk, uk, nk), (1.14, 0.34, 0.10), "paint_dk", group="front", node=cn, bevel=0.006)
+    S.plate("knee", ck, nk, Y, t=0.012, node=cn)
+    S.cyl(V(-0.34, 0.02, HC + HA + 0.02), V(0.34, 0.02, HC + HA + 0.02), 0.025, "steel", seg=16)
+    # --- the roof and its ring of monitors
+    S.box((-0.85, HROOF, -0.75), (0.85, HROOF + 0.04, HC + HA + 0.05), "paint_dk")
+    ring = []
+    for i, deg in enumerate((-75, -45, -15, 15, 45, 75)):
+        a = math.radians(deg)
+        p = V(0.58 * math.sin(a), 2.00, 0.0 + 0.58 * math.cos(a))
+        ring.append(p)
+        monitor(S, f"OVH_{i + 1}", ("mfd_right", "mfd_center", "mfd_left")[i % 3], p, EYE, 0.20, 0.145, None, rod_to=V(p.x, HROOF, p.z))
+    S.tube([V(0.62 * math.sin(math.radians(d)), 2.16, 0.62 * math.cos(math.radians(d))) for d in range(-90, 91, 15)], 0.018, "steel")
+    S.box((-0.25, HROOF - 0.03, -0.30), (0.25, HROOF, -0.24), "bezel", bevel=0.004)
+    S.box((-0.22, HROOF - 0.034, -0.29), (0.22, HROOF - 0.03, -0.25), "white_lit")
+    for i in range(5):
+        S.vents.append(dict(node="pod", p=V(-0.3 + 0.15 * i, 0.10, HC + HA), d=V(0, -0.2, 1).normalized(), kind="mist",
+                            stage="inner_open", rate=1.0))
+
+
+# ----------------------------------------------------------------------------- the variants
+# Each variant: its builder, nodes, the pilot's eye, the cabin middle, the envelope it promises the
+# chest, sockets, the inner opening (each moving node's motion within a 3 s opening, after the
+# mech's chest armour has opened) and its real-time lamps (name, kind, at, aim, watts, colour,
+# radius, cone in degrees).
+
+WARM, COOL = (1.0, 0.86, 0.68), (0.62, 0.78, 1.0)
+VARIANTS = {
+    "wall": dict(
+        build="build_wall", nodes=WALL_NODES, eye=V(0.0, 1.20, 0.0), mid=V(0.0, 1.2, 0.1),
+        envelope=((-1.05, 1.05), (0.0, 2.1), (-0.8, 1.25)), doorway=(0.9, 1.6),
+        sockets={"SEAT_pilot": V(0, 0.45, -0.02), "HATCH_entry": V(0, 0.02, 1.02)},
+        motions={"INNER_front": dict(axis="x", value=-1.65, t0=0.0, d=1.6),
+                 "INNER_side_L": dict(axis="y", value=0.8, t0=0.5, d=1.2),
+                 "INNER_side_R": dict(axis="y", value=-0.8, t0=0.5, d=1.2),
+                 "INNER_sill": dict(axis="x", value=1.45, t0=1.6, d=1.0)},
+        lights=[("LIGHT_screen", "SPOT", V(0, 1.30, 0.90), V(0, 0.9, -0.2), 30.0, COOL, 0.4, 120),
+                ("LIGHT_glare", "SPOT", V(0, 0.99, 0.62), V(0, 0.4, 0.66), 6.0, WARM, 0.1, 110),
+                ("LIGHT_sill_L", "SPOT", V(0.70, 1.00, 0.10), V(0.48, 0.55, 0.10), 4.0, WARM, 0.05, 100),
+                ("LIGHT_sill_R", "SPOT", V(-0.70, 1.00, 0.10), V(-0.48, 0.55, 0.10), 4.0, WARM, 0.05, 100),
+                ("LIGHT_rear", "POINT", V(0, 1.30, -0.50), None, 5.0, (1.0, 0.9, 0.78), 0.05, None),
+                ("LIGHT_footwell", "POINT", V(0, 0.25, 0.80), None, 1.2, (1.0, 0.18, 0.12), 0.03, None)],
+        front_screen="SCREEN_wall_front", front_screen_c=V(0, 1.32, 1.05)),
+    "jockey": dict(
+        build="build_jockey", nodes=JOCKEY_NODES, eye=V(0.0, 1.10, 0.30), mid=V(0.0, 1.0, 0.3),
+        envelope=((-0.85, 0.85), (0.0, 1.75), (-1.0, 1.3)), doorway=(0.9, 1.3),
+        sockets={"SEAT_pilot": V(0, 0.72, -0.38), "HATCH_entry": V(0, 0.02, 1.16)},
+        motions={"INNER_front": dict(axis="x", value=-1.5, t0=0.0, d=1.4),
+                 "INNER_yoke": dict(slide="y", value=0.45, t0=0.9, d=1.2),
+                 "CONSOLE_front": dict(axis="x", value=1.35, t0=1.5, d=1.2)},
+        lights=[("LIGHT_screen", "SPOT", V(0, 1.25, 1.00), V(0, 0.8, -0.3), 18.0, COOL, 0.3, 120),
+                ("LIGHT_overhead", "SPOT", V(0, 1.62, 0.20), V(0, 0.6, 0.0), 5.0, WARM, 0.1, 110),
+                ("LIGHT_sill_L", "SPOT", V(0.78, 1.10, -0.10), V(0.55, 0.55, -0.10), 3.0, WARM, 0.05, 100),
+                ("LIGHT_sill_R", "SPOT", V(-0.78, 1.10, -0.10), V(-0.55, 0.55, -0.10), 3.0, WARM, 0.05, 100),
+                ("LIGHT_rear", "POINT", V(0, 1.45, -0.80), None, 3.5, (1.0, 0.9, 0.78), 0.05, None),
+                ("LIGHT_footwell", "POINT", V(0, 0.20, 0.55), None, 1.0, (1.0, 0.18, 0.12), 0.03, None)],
+        front_screen="SCREEN_wall_front", front_screen_c=V(0, 1.05, 1.0)),
+    "harness": dict(
+        build="build_harness", nodes=HARNESS_NODES, eye=V(0.0, 1.65, 0.0), mid=V(0.0, 1.4, 0.05),
+        envelope=((-1.05, 1.05), (0.0, 2.4), (-0.75, 0.95)), doorway=(0.9, 1.6),
+        sockets={"STAND_pilot": V(0, 0.09, 0.04), "HATCH_entry": V(0, 0.02, HC + HA + 0.05)},
+        motions={"INNER_front": dict(axis="x", value=-1.5, t0=0.0, d=1.5),
+                 "INNER_side_L": dict(axis="y", value=0.9, t0=0.4, d=1.2),
+                 "INNER_side_R": dict(axis="y", value=-0.9, t0=0.4, d=1.2),
+                 "INNER_arm_L": dict(axis="x", value=-1.3, t0=1.0, d=1.0),
+                 "INNER_arm_R": dict(axis="x", value=-1.3, t0=1.0, d=1.0),
+                 "CONSOLE_front": dict(axis="x", value=1.3, t0=1.6, d=1.2)},
+        lights=[("LIGHT_screen", "SPOT", V(0, 1.70, 0.80), V(0, 1.2, -0.3), 22.0, COOL, 0.4, 120),
+                ("LIGHT_ring", "POINT", V(0, 2.12, 0.0), None, 6.0, WARM, 0.1, None),
+                ("LIGHT_sill_L", "SPOT", V(0.70, 0.62, 0.0), V(0.30, 1.2, 0.0), 3.0, WARM, 0.05, 100),
+                ("LIGHT_sill_R", "SPOT", V(-0.70, 0.62, 0.0), V(-0.30, 1.2, 0.0), 3.0, WARM, 0.05, 100),
+                ("LIGHT_rear", "POINT", V(0, 1.90, -0.62), None, 3.0, (1.0, 0.9, 0.78), 0.05, None),
+                ("LIGHT_footwell", "POINT", V(0, 0.15, 0.30), None, 1.0, (1.0, 0.18, 0.12), 0.03, None)],
+        front_screen="SCREEN_wall_facet_p0", front_screen_c=V(0, 1.32, HC + HA)),
+}
 
 
 # ----------------------------------------------------------------------------- lights
 
-def lights():
-    """The sealed cabin's real-time light rig, exported as glTF punctual lights (Bevy and the review
-    page light the pod with them): a cool wash from the front screen (the outside seen through it),
-    warm floods under the glare shield and along the sills, a lamp on the rear bulkhead, a red
-    footwell lamp. The world is dark: the cabin is sealed. Lights are not baked; the bake keeps
-    only the maps and the contact occlusion."""
+def lights(spec):
+    """The cabin's real-time lamps, exported as glTF punctual lights (Bevy and the review page light
+    the cockpit with them). The world is dark: the cabin is sealed. Lights are not baked; the bake
+    keeps only the maps and the contact occlusion."""
     sc = bpy.context.scene
     w = bpy.data.worlds.new("Dark")
     w.use_nodes = True
@@ -747,8 +1045,7 @@ def lights():
     w.light_settings.distance = 0.08
     sc.world = w
     out = []
-
-    def light(name, kind, loc, aim, watts, colour, radius=0.03, cone=None):
+    for name, kind, loc, aim, watts, colour, radius, cone in spec:
         ld = bpy.data.lights.new(name, kind)
         ld.energy = watts
         ld.color = colour
@@ -763,15 +1060,6 @@ def lights():
             ob.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
         sc.collection.objects.link(ob)
         out.append((ob, loc))
-
-    warm = (1.0, 0.86, 0.68)
-    light("LIGHT_screen", "SPOT", V(0, 1.30, 0.90), V(0, 0.9, -0.2), 30.0, (0.62, 0.78, 1.0), radius=0.4, cone=120)
-    light("LIGHT_glare", "SPOT", V(0, 0.99, 0.62), V(0, 0.4, 0.66), 6.0, warm, radius=0.1, cone=110)
-    for sd in (1, -1):
-        light(f"LIGHT_sill_{'L' if sd > 0 else 'R'}", "SPOT", V(sd * 0.70, 1.00, 0.10), V(sd * 0.48, 0.55, 0.10), 4.0, warm,
-              radius=0.05, cone=100)
-    light("LIGHT_rear", "POINT", V(0, 1.30, -0.50), None, 5.0, (1.0, 0.9, 0.78), radius=0.05)
-    light("LIGHT_footwell", "POINT", V(0, 0.25, 0.80), None, 1.2, (1.0, 0.18, 0.12), radius=0.03)
     return out
 
 
@@ -1064,6 +1352,7 @@ def cube_uvs(ob, size=1.2):
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ap = argparse.ArgumentParser()
+    ap.add_argument("--variant", choices=sorted(VARIANTS), default="wall")
     ap.add_argument("--size", type=int, default=4096)
     ap.add_argument("--samples", type=int, default=16, help="contact occlusion samples (denoised after)")
     ap.add_argument("--map-samples", type=int, default=4, help="samples for the colour, normal, roughness, metal and emission passes")
@@ -1071,13 +1360,20 @@ def main():
     ap.add_argument("--no-bake", action="store_true", help="geometry only: skip the bake, keep the last atlases")
     a = ap.parse_args(argv)
     t0 = time.time()
+    global EYE, MID, MODEL, MANIFEST
+    VAR = VARIANTS[a.variant]
+    EYE, MID = VAR["eye"], VAR["mid"]
+    NODES.clear()
+    NODES.update(VAR["nodes"])
+    MODEL = os.path.join(ROOT, "assets", "models", f"cockpit_{a.variant}", f"cockpit_{a.variant}.gltf")
+    MANIFEST = os.path.join(ROOT, "assets", "models", f"cockpit_{a.variant}.json")
     os.makedirs(RAW, exist_ok=True)
     bpy.ops.wm.read_factory_settings(use_empty=True)
     sc = bpy.context.scene
     mats = K.make_materials()
     S = Set(mats)
-    build(S)
-    rig = lights()
+    globals()[VAR["build"]](S)
+    rig = lights(VAR["lights"])
 
     # realize, then join: one mesh per node and group, its origin at the node's pivot
     for p in S.parts:
@@ -1098,9 +1394,9 @@ def main():
         lightmap_uvs(obs)
     print(f"BUILT in {time.time() - t0:.0f} s: " + ", ".join(f"{k} {tris(v[0])}" for k, v in sorted(meshes.items())), flush=True)
 
-    tex_dir = os.path.join(RAW, "pbr")
+    tex_dir = os.path.join(RAW, f"pbr_{a.variant}")
     os.makedirs(tex_dir, exist_ok=True)
-    maps = {g: {k: os.path.join(tex_dir, f"cockpit_{g}_{k}.jpg") for k in ("albedo", "normal", "orm", "emissive")}
+    maps = {g: {k: os.path.join(tex_dir, f"cockpit_{a.variant}_{g}_{k}.jpg") for k in ("albedo", "normal", "orm", "emissive")}
             for g in atlases}
     emit_k = {}
     scale_file = os.path.join(tex_dir, "emissive_scale.json")
@@ -1159,8 +1455,7 @@ def main():
         json.dump(emit_k, open(scale_file, "w"))
 
     # export materials: the baked atlases lit PBR on their light UV, the screens unlit, the outside lit PBR
-    disp = {"SCREEN_left": "mfd_left", "SCREEN_center": "mfd_center", "SCREEN_right": "mfd_right",
-            "OVH_left": "mfd_right", "OVH_center": "mfd_center", "OVH_right": "mfd_left"}
+    disp = S.disp
     for name, (ob, group, node) in meshes.items():
         if group in ("front", "cabin"):
             only_uv(ob, "light")
@@ -1169,8 +1464,11 @@ def main():
         elif group == "screen":
             only_uv(ob, "panel")
             ob.data.materials.clear()
-            ob.data.materials.append(export_material(f"SCREEN_{node.split('_', 1)[1].lower()}" if node.startswith("SCREEN") else f"SCREEN_{node.lower()}",
-                                                     os.path.join(DISPLAYS, f"{disp[node]}.png")))
+            mname = f"SCREEN_{node.split('_', 1)[1].lower()}" if node.startswith("SCREEN") else f"SCREEN_{node.lower()}"
+            old = bpy.data.materials.get(mname)
+            if old is not None:                          # the bake's emission material had the name
+                old.name = "bake_" + mname
+            ob.data.materials.append(export_material(mname, os.path.join(DISPLAYS, f"{disp[node]}.png")))
         elif group == "allview":
             for l in [l.name for l in ob.data.uv_layers if not l.name.startswith(".")]:
                 ob.data.uv_layers.remove(ob.data.uv_layers[l])
@@ -1179,13 +1477,47 @@ def main():
             m.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.01, 0.012, 0.014, 1)
             ob.data.materials.clear()
             ob.data.materials.append(m)
-        elif group == "ext":
+        elif group in ("ext", "shell"):
             for l in [l.name for l in ob.data.uv_layers if not l.name.startswith(".")]:
                 ob.data.uv_layers.remove(ob.data.uv_layers[l])
             cube_uvs(ob)
             for i, slot in enumerate(ob.material_slots):
                 role = slot.material.name.split(".")[0] if slot.material else "ext_dark"
                 ob.material_slots[i].material = ext_material(role if role in K.ROLES else "ext_dark")
+
+    # the envelope check: every vertex of every mesh, closed and open (glTF frame, metres)
+    def motion_matrix(node):
+        m = Matrix.Identity(4)
+        while node is not None:
+            mo = VAR["motions"].get(node)
+            if mo:
+                pv = pivot(node)
+                if "axis" in mo:
+                    R = Matrix.Rotation(mo["value"], 4, mo["axis"].upper())
+                    m = Matrix.Translation(pv) @ R @ Matrix.Translation(-pv) @ m
+                else:
+                    off = V(0, 0, 0)
+                    setattr(off, mo["slide"], mo["value"])
+                    m = Matrix.Translation(off) @ m
+            node = NODES[node][0]
+        return m
+
+    def bounds(open_):
+        lo, hi = V(1e9, 1e9, 1e9), V(-1e9, -1e9, -1e9)
+        for ob, group, node in meshes.values():
+            M = motion_matrix(node) if open_ else Matrix.Identity(4)
+            for v in ob.data.vertices:
+                w = ob.matrix_world @ v.co
+                g = M @ Vector((w.x, w.z, -w.y))
+                for i in range(3):
+                    lo[i], hi[i] = min(lo[i], g[i]), max(hi[i], g[i])
+        return [[round(lo[i], 3), round(hi[i], 3)] for i in range(3)]
+
+    bpy.context.view_layer.update()
+    closed_b, open_b = bounds(False), bounds(True)
+    env = VAR["envelope"]
+    over = [("xyz"[i], closed_b[i], env[i]) for i in range(3) if closed_b[i][0] < env[i][0] - 1e-3 or closed_b[i][1] > env[i][1] + 1e-3]
+    print(f"BOUNDS closed {closed_b} open {open_b} envelope {env}" + (f" OVER {over}" if over else ""), flush=True)
 
     # the node tree: an empty at each node's pivot, the meshes under their nodes
     empties = {}
@@ -1217,8 +1549,7 @@ def main():
         e["kind"], e["stage"], e["rate"] = v["kind"], v["stage"], v["rate"]
         e["dir"] = [round(c, 4) for c in v["d"]]
     root = empties["pod"]
-    for name, p in {"EYE_pilot": EYE, "SEAT_pilot": V(0, 0.45, -0.02), "HATCH_entry": V(0, 0.80, 1.20),
-                    "LADDER_base": V(0, -1.9, 2.3)}.items():
+    for name, p in dict({"EYE_pilot": EYE}, **VAR["sockets"]).items():
         e = bpy.data.objects.new(name, None)
         e.location = B(p)
         sc.collection.objects.link(e)
@@ -1243,10 +1574,21 @@ def main():
                               export_cameras=False, use_selection=False)
     patch_unlit(MODEL)
     total = sum(tris(ob) for ob, _, _ in meshes.values())
+    front_dir = [round(c, 3) for c in (VAR["front_screen_c"] - EYE).normalized()]   # where the HUD screen is
     man = {
-        "model": "assets/models/cockpit_breeze/cockpit_breeze.gltf",
+        "variant": a.variant,
+        "model": f"assets/models/cockpit_{a.variant}/cockpit_{a.variant}.gltf",
         "frame": "glTF: +y up, the pilot faces +z, +x is the pilot's left; metres; origin on the tub floor under the eye",
-        "eye_m": list(EYE),
+        "eye_m": [round(c, 4) for c in EYE],
+        "envelope_m": {"x": list(env[0]), "y": list(env[1]), "z": list(env[2])},
+        "bounds_closed_m": dict(zip("xyz", closed_b)),
+        "bounds_open_m": dict(zip("xyz", open_b)),
+        "doorway_m": {"width": VAR["doorway"][0], "height": VAR["doorway"][1], "through": "the front face (+z)"},
+        "sockets": {k: [round(c, 4) for c in v] for k, v in dict({"EYE_pilot": EYE}, **VAR["sockets"]).items()},
+        "motions": {n: dict(m, pivot_m=[round(c, 4) for c in pivot(n)]) for n, m in VAR["motions"].items()},
+        "inner_opening_s": 3.0,
+        "front_screen_dir": front_dir,
+        "allview_material": "SCREEN_allview",
         "nodes": {n: {"parent": NODES[n][0], "pivot_m": [round(c, 4) for c in pivot(n)]} for n in NODES},
         "meshes": {k: {"tris": tris(v[0]), "group": v[1], "node": v[2]} for k, v in sorted(meshes.items())},
         "vents": len(S.vents),

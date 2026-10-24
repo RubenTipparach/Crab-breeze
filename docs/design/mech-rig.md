@@ -51,11 +51,16 @@ animation (idle, walk, turn on the spot, rocket skate, hit) is the one in
 
 Cockpit controls the pilot touches are named nodes too, `CTRL_<name>`, so the game can animate
 and hit-test them: `CTRL_stick` (the right grip: flies the mech, twists to turn the torso) and
-`CTRL_throttle` (the left grip in its quadrant). The cockpit itself is a separate glb, the sealed
-pod (`assets/models/cockpit_breeze.glb`), mounted on the `cockpit` joint so its `EYE_pilot` is the
-mech's; its hatch nodes (`HATCH_upper`, `DOOR_L/R`, `FLAP_L/R`, `HATCH_lower`, `STAIR_1..3`,
-`CONSOLE_front`, `LATCH_*`, `STRUT_*`, `VENT_*`) are listed with their pivots in its manifest
-(`assets/models/cockpit_breeze.json`) and animated by `openspec/changes/mech-boarding`.
+`CTRL_throttle` (the left grip in its quadrant). The cockpit is an interior in a bay in the chest
+(the owner, 2026-10-24: "The cockpit is part of the mech, inside of it with the armor opening up at
+the chest"): its glTF (`assets/models/cockpit_<variant>/`) mounts on the mech's `cockpit` joint (the
+bay's floor under the eye), its inner moving parts (`INNER_*`, `CONSOLE_front`) are in its manifest
+(`assets/models/cockpit_<variant>.json`, `motions`). The mech's own chest armour opens to board:
+`CHEST_*` plates (origin on the hinge), `RAM_<n>` rams (aimed at `RAM_<n>_tip` each frame, the rod
+`RAM_<n>_rod` slides along its z), `LADDER` and `LADDER_1..10`, `VENT_<stage>_<n>` empties, the
+timeline in the root's `boarding` extras (`tools/blender/mech_boarding.py`), played by
+`openspec/changes/mech-boarding`. The sensor head is `head` under `torso`, with `CAM_main` (what the
+screens show) and `SENSOR_head`.
 
 ## Who owns what
 

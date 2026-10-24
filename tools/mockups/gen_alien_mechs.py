@@ -1,9 +1,9 @@
-"""Build docs/mockups/alien_mechs.html: the alien crab mechs, animated, at true scale beside our Warden.
+"""Build docs/mockups/alien_mechs.html: the alien crab mechs, animated, at true scale beside our Foreman.
 
     python3 tools/mockups/gen_alien_mechs.py
 
 Reads assets/models/alien_*.glb and assets/models/aliens.json (written by
-tools/blender/build_alien_mechs.py) and our Warden (assets/models/mech_warden.glb, from
+tools/blender/build_alien_mechs.py) and our Foreman (assets/models/mech_foreman.glb, from
 tools/blender/build_mechs.py), and inlines them, so the page needs nothing but three.js r147 from the
 CDN. Every size on the page is measured off the glb (the manifests), never typed. Mining Mike's rule
 for model review: orbit it, at true relative scale, with a known object (the pilot, 1.8 m, and a
@@ -20,7 +20,7 @@ import base64
 import json
 import os
 
-HUMAN = "warden"   # the yardstick: our recommended chassis (build_mechs.py)
+HUMAN = "foreman"   # the yardstick: our recommended chassis (build_mechs.py)
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 MODELS = os.path.join(ROOT, "assets", "models")
@@ -91,7 +91,7 @@ aside { display: grid; gap: 12px; min-width: 0; }
 <header>
   <div class="eyebrow">Crab Breeze · enemy design review · the invaders</div>
   <h1>Alien crab mechs</h1>
-  <p class="lede">Three alien war machines, each after one of the owner's crab reference sheets, built in Blender with Mining Mike's boss kit: plates, pistons, hoses, vents and livery bands. Like Mining Mike's bosses, where a crab would have claws each one carries its weapons: guns, a sword, cannons and missile racks. Acid green glows and violet cores and glyphs mark them as not ours. All at true scale beside Warden, our 12.5 m mech, and a 1.8 m pilot.</p>
+  <p class="lede">Three alien war machines, each after one of the owner's crab reference sheets, built in Blender with Mining Mike's boss kit: plates, pistons, hoses, vents and livery bands. Like Mining Mike's bosses, where a crab would have claws each one carries its weapons: guns, a sword, cannons and missile racks. Acid green glows and violet cores and glyphs mark them as not ours. All at true scale beside Foreman, our 12 m mech, and a 1.8 m pilot.</p>
 </header>
 
 <div class="wrap">
@@ -116,7 +116,7 @@ aside { display: grid; gap: 12px; min-width: 0; }
       <button data-view="side">Side</button>
       <button data-view="top">Top</button>
       <span class="lbl" style="margin-left:8px">Show</span>
-      <button data-toggle="breeze" aria-pressed="true">Warden</button>
+      <button data-toggle="breeze" aria-pressed="true">Foreman</button>
       <button data-toggle="pilot" aria-pressed="true">Pilot</button>
     </div>
     <div class="stage">
@@ -375,7 +375,7 @@ function placeTags() {
     const d = document.createElement("div"); d.className = "tag"; d.textContent = text;
     d.style.left = ((v.x + 1) / 2 * r.width) + "px"; d.style.top = ((1 - v.y) / 2 * r.height) + "px"; tagsEl.appendChild(d); };
   if (pilot.visible) add(new T.Vector3(pilot.position.x, 2.2, pilot.position.z), "pilot 1.8 m");
-  if (breeze && breeze.root.visible) add(new T.Vector3(breeze.root.position.x, BREEZE_META.bounds_m.y[1] + 0.8, breeze.root.position.z), `Warden ${BREEZE_META.bounds_m.y[1].toFixed(0)} m`);
+  if (breeze && breeze.root.visible) add(new T.Vector3(breeze.root.position.x, BREEZE_META.bounds_m.y[1] + 0.8, breeze.root.position.z), `Foreman ${BREEZE_META.bounds_m.y[1].toFixed(0)} m`);
   ORDER.forEach(id => { const a = aliens[id]; if (a && a.root.visible) add(new T.Vector3(a.root.position.x, H(id) + 0.8, 0), `${META[id].name} ${H(id).toFixed(0)} m`); });
 }
 function resize() {

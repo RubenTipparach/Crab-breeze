@@ -1,34 +1,4 @@
 {
-  "atlas": {
-    "bounds_m": {
-      "x": [
-        -4.169,
-        4.169
-      ],
-      "y": [
-        -0.0,
-        13.5
-      ],
-      "z": [
-        -2.839,
-        5.263
-      ]
-    },
-    "bytes": 1231692,
-    "cockpit": "harness: standing upright, a tall bay",
-    "cockpit_variant": "harness",
-    "file": "mech_atlas.glb",
-    "generator": "tools/blender/build_mechs.py",
-    "id": "atlas",
-    "legs": "human knee, long and straight",
-    "name": "Atlas",
-    "note": "Siege gunner, after Vanta and Hex. Reactor ring on its back.",
-    "opening": "drawbridge: the collars fold up, the whole front lowers on two rams into a ramp",
-    "status": "design candidate",
-    "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 11964,
-    "weapons": "missile battery forearm (L), shoulder rail cannon (R)"
-  },
   "breeze": {
     "bounds_m": {
       "x": [
@@ -85,35 +55,65 @@
     "triangles": 12930,
     "weapons": "slab shield and siege fist (L), breaker cannon (R)"
   },
-  "lancer": {
+  "foreman": {
     "bounds_m": {
       "x": [
-        -3.243,
-        3.243
+        -4.003,
+        4.003
       ],
       "y": [
-        -0.129,
-        11.033
+        -0.038,
+        11.962
       ],
       "z": [
-        -2.417,
-        5.368
+        -4.136,
+        6.36
       ]
     },
-    "bytes": 1199052,
-    "cockpit": "jockey: leaning forward on a saddle, in a slim chest",
-    "cockpit_variant": "jockey",
-    "file": "mech_lancer.glb",
+    "bytes": 1387332,
+    "cockpit": "wall: seated in a flat screen wall, in the cab",
+    "cockpit_variant": "wall",
+    "file": "mech_foreman.glb",
     "generator": "tools/blender/build_mechs.py",
-    "id": "lancer",
-    "legs": "reverse knee, three segments",
-    "name": "Lancer",
-    "note": "Fast skirmisher, after Brisk and Ravager. Big jets, heel skates.",
-    "opening": "petals: the brow lifts, two front doors swing apart, the step slides out and folds down",
+    "id": "foreman",
+    "legs": "digitigrade, three segments, double hydraulic rams, track-pad feet",
+    "name": "Foreman",
+    "note": "Original, after an excavator: slewing ring, roll cage, beacons, counterweight. Recommended.",
+    "opening": "the bar grille lifts on two rams, the armour shutter drops into the belly",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 11032,
-    "weapons": "rail lance (L), twin SMGs (R)"
+    "triangles": 16520,
+    "weapons": "belt-fed boom cannon (L), hydraulic breaker (R)"
+  },
+  "ironhorse": {
+    "bounds_m": {
+      "x": [
+        -3.048,
+        3.048
+      ],
+      "y": [
+        0.068,
+        11.071
+      ],
+      "z": [
+        -3.745,
+        5.351
+      ]
+    },
+    "bytes": 1305028,
+    "cockpit": "jockey: leaning forward in the boiler",
+    "cockpit_variant": "jockey",
+    "file": "mech_ironhorse.glb",
+    "generator": "tools/blender/build_mechs.py",
+    "id": "ironhorse",
+    "legs": "digitigrade, drive-wheel knees with coupling rods, cow-catcher shins",
+    "name": "Ironhorse",
+    "note": "Original, after a steam locomotive: boiler chest, smokestack, dome, headlamp, tender.",
+    "opening": "the dogs swing off, the round smokebox door swings open",
+    "status": "design candidate",
+    "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
+    "triangles": 15276,
+    "weapons": "buffer ram (L), steam cannon (R)"
   },
   "ravager": {
     "bounds_m": {
@@ -143,34 +143,34 @@
     "triangles": 10692,
     "weapons": "twin rail lances (L and R)"
   },
-  "warden": {
+  "stevedore": {
     "bounds_m": {
       "x": [
-        -4.798,
-        4.846
+        -2.602,
+        2.795
       ],
       "y": [
-        0.0,
-        12.5
+        -0.0,
+        13.5
       ],
       "z": [
-        -4.131,
-        7.531
+        -2.667,
+        4.481
       ]
     },
-    "bytes": 1378836,
-    "cockpit": "wall: seated in a flat screen wall, in the chest",
-    "cockpit_variant": "wall",
-    "file": "mech_warden.glb",
+    "bytes": 1290340,
+    "cockpit": "harness: standing in a container chest",
+    "cockpit_variant": "harness",
+    "file": "mech_stevedore.glb",
     "generator": "tools/blender/build_mechs.py",
-    "id": "warden",
-    "legs": "human knee, two segments",
-    "name": "Warden",
-    "note": "Heavy assault, after Skarn and Bulwark. Recommended: the classic seated cockpit.",
-    "opening": "clamshell: cheek guards swing out, the upper plate lifts on rams, the lower drops into a platform",
+    "id": "stevedore",
+    "legs": "digitigrade, lattice girders, outrigger feet",
+    "name": "Stevedore",
+    "note": "Original, after a dock crane: gantry, counter-jib and weights, warning lamps.",
+    "opening": "the four lock rods turn out, the container doors swing wide",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 14574,
-    "weapons": "tower shield and shoulder missile box (L), breach cannon (R)"
+    "triangles": 11638,
+    "weapons": "cargo mortar (L), crane jib with a harpoon grapple (R)"
   }
 }

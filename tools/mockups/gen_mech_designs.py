@@ -2,6 +2,7 @@
 
     python3 tools/mockups/gen_mech_designs.py
     python3 -m http.server 8766 -d output/mech_site      # to look at it or shoot it locally
+    (output/mech_site/files.json is the map to publish its files with)
 
 The owner, 2026-10-24: "Show me mech designs with the animation of the cockpit opening up", "Id like a couple
 variations of cockpit designs please", "Breeze me h sucks", "Follow design philosophy of boss mechs from mining
@@ -21,13 +22,14 @@ import base64
 import json
 import os
 import shutil
+import struct
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 MODELS = os.path.join(ROOT, "assets", "models")
 OUT = os.path.join(ROOT, "docs", "mockups", "mech_designs.html")
 SITE = os.path.join(ROOT, "output", "mech_site")
 HUD = os.path.join(ROOT, "assets", "textures", "cockpit", "displays", "hud.png")
-ORDER = ["warden", "lancer", "atlas"]
+ORDER = ["foreman", "stevedore", "ironhorse"]
 
 PAGE = r"""<title>Crab Breeze Mechs</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -99,16 +101,16 @@ aside { display: grid; gap: 12px; min-width: 0; }
 <header>
   <div class="eyebrow">Crab Breeze · mech design review · third pass, the cockpit in the chest</div>
   <h1>Pick a chassis and its cockpit</h1>
-  <p class="lede">Three new chassis in Mining Mike's boss style, each with its cockpit inside the chest and a different way of opening it. Warden opens like a clamshell over a seated screen-wall cockpit; Lancer opens in petals over a forward-leaning jockey cockpit; Atlas lowers its whole front like a drawbridge over a standing harness cockpit. Press Open to watch the mech kneel, vent and open, or Board it to climb in through the pilot's eyes. All at true scale beside a 1.8 m pilot and a four-storey block.</p>
+  <p class="lede">Three original chassis from the 1980s industrial world, finished in Mining Mike's boss style, each with its cockpit inside the chest and its own way of opening it. Foreman is an excavator: its cab's bar grille lifts and the shutter drops into the belly over a seated screen-wall cockpit. Stevedore is a dock crane: the container chest's lock rods turn and its doors swing wide on a standing harness cockpit. Ironhorse is a locomotive: the dogs swing off and the round smokebox door opens on a forward-leaning jockey cockpit. Press Kneel and open, or Board it to climb in through the pilot's eyes. All at true scale beside a 1.8 m pilot and a four-storey block.</p>
 </header>
 
 <div class="wrap">
   <section>
     <div class="bar" role="group" aria-label="Mech">
       <span class="lbl">Mech</span>
-      <button id="m-warden" data-mech="warden">Warden</button>
-      <button id="m-lancer" data-mech="lancer">Lancer</button>
-      <button id="m-atlas" data-mech="atlas">Atlas</button>
+      <button id="m-foreman" data-mech="foreman">Foreman</button>
+      <button id="m-stevedore" data-mech="stevedore">Stevedore</button>
+      <button id="m-ironhorse" data-mech="ironhorse">Ironhorse</button>
       <button id="m-all" data-mech="all">Line up</button>
     </div>
     <div class="bar" role="group" aria-label="Move">
@@ -236,13 +238,13 @@ const steam = makeSteam(T, scene, 3000);
 const wall = makeScreenWall(T, scene, HUD_SRC);
 // The interiors' lamps are physical (candela, KHR_lights_punctual); this page is not, so they are scaled to
 // sit under the dusk sun, and the exposure opens up inside the bay as an eye adapts.
-const CD_TO_PAGE = 1 / 260, EXPOSURE_OUT = 1.0, EXPOSURE_IN = 2.6;
+const CD_TO_PAGE = 1 / 260, EXPOSURE_OUT = 1.0, EXPOSURE_IN = 1.7;
 
 // ---------- load every mech and its interior ----------
 const loader = new T.GLTFLoader();
 const mechs = {};
 const parseX = v => (typeof v === "string" ? JSON.parse(v) : v);
-const loadOne = (id, idx) => loader.loadAsync(META[id].file).then(g => {
+const loadOne = (id, idx) => loader.loadAsync(`mech_${id}.gltf.json`).then(g => {
   const root = g.scene, nodes = {}, halos = [], cores = [];
   root.traverse(o => {
     if (o.name) nodes[o.name] = o;
@@ -292,7 +294,8 @@ function innerTracks(man) {
     out.push(t); };
   if (Array.isArray(man.tracks)) man.tracks.forEach(t => push(t.node, t));
   if (Array.isArray(man.open)) man.open.forEach(t => push(t.node, t));
-  for (const [n, d] of Object.entries(man.nodes || {})) push(n, d.open || d.motion);
+  for (const [n, d] of Object.entries(man.motions || {})) push(n, d);
+  if (!man.motions) for (const [n, d] of Object.entries(man.nodes || {})) push(n, d.open || d.motion);
   return out;
 }
 
@@ -343,7 +346,7 @@ function dropLadder(b, Tb) {
   }
 }
 
-let current = "warden", view = "orbit", act = "idle";
+let current = "foreman", view = "orbit", act = "idle";
 let Tb = 0, target = 0, rate = 1, script = null, walk = null, powerOn = true;
 const tagsEl = document.getElementById("tags"), cueEl = document.getElementById("cue");
 const scrub = document.getElementById("scrub"), tlabel = document.getElementById("tlabel");
@@ -358,8 +361,8 @@ function eyeOf(id) { return nodeWorld(mechs[id], "EYE_pilot"); }
 function setView(v) {
   view = v;
   document.querySelectorAll("[data-view]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.view === v)));
-  document.getElementById("mode").textContent = { orbit: "Orbit", hatch: "Chest close up", cockpit: "Cockpit, pilot's eye", eyes: "The pilot's eyes", front: "Front", side: "Side", back: "Back" }[v];
-  if ((v === "cockpit" || v === "hatch") && current === "all") setMech(ORDER[0], true);
+  document.getElementById("mode").textContent = { orbit: "Orbit", hatch: "Chest close up", hatch3q: "Three quarter", cockpit: "Cockpit, pilot's eye", eyes: "The pilot's eyes", front: "Front", side: "Side", back: "Back" }[v];
+  if ((v === "cockpit" || v === "hatch" || v === "hatch3q") && current === "all") setMech(ORDER[0], true);
   if (v === "cockpit" || v === "eyes") {
     const e = eyeOf(current);
     camera.fov = 78; camera.near = 0.02; camera.updateProjectionMatrix();
@@ -370,9 +373,10 @@ function setView(v) {
     Object.assign(controls, { minDistance: 2, maxDistance: 140, enablePan: true, enableZoom: true, rotateSpeed: 1, enabled: true });
     const d = current === "all" ? 50 : 26;
     controls.target.set(0, 6.2, 0);
-    if (v === "hatch") { const h = nodeWorld(cur(), "HATCH_entry"), f = fwdOf(cur()), sd = new T.Vector3(f.z, 0, -f.x);
-      controls.target.copy(h).add(new T.Vector3(0, 0.8, 0));
-      camera.position.copy(h).addScaledVector(f, 7.0).addScaledVector(sd, 2.2).add(new T.Vector3(0, 1.4, 0)); }
+    if (v === "hatch" || v === "hatch3q") { const h = nodeWorld(cur(), "HATCH_entry"), f = fwdOf(cur()), sd = new T.Vector3(f.z, 0, -f.x);
+      const far = v === "hatch3q";
+      controls.target.copy(far ? new T.Vector3(h.x, h.y * 0.6, h.z) : h.clone().add(new T.Vector3(0, 0.8, 0)));
+      camera.position.copy(h).addScaledVector(f, far ? 15 : 7.0).addScaledVector(sd, far ? 8 : 2.2).add(new T.Vector3(0, far ? 1.5 : 1.4, 0)); }
     else if (v === "front") camera.position.set(0, 7, d); else if (v === "side") camera.position.set(d, 7, 0);
     else if (v === "back") camera.position.set(-d * 0.5, 9, -d * 0.85); else camera.position.set(d * 0.7, 9, d * 0.8);
   }
@@ -484,7 +488,7 @@ const cards = document.getElementById("cards");
 ORDER.forEach(id => {
   const m = META[id], b = m.bounds_m, el = document.createElement("article");
   el.className = "card"; el.dataset.id = id;
-  el.innerHTML = `<h2>${m.name}${id === "warden" ? " <small>RECOMMENDED</small>" : ""}</h2>
+  el.innerHTML = `<h2>${m.name}${id === "foreman" ? " <small>RECOMMENDED</small>" : ""}</h2>
     <dl class="kv"><dt>Height</dt><dd>${b.y[1].toFixed(1)} m</dd><dt>Width</dt><dd>${(b.x[1] - b.x[0]).toFixed(1)} m</dd>
     <dt>Length</dt><dd>${(b.z[1] - b.z[0]).toFixed(1)} m</dd><dt>Legs</dt><dd>${m.legs}</dd><dt>Cockpit</dt><dd>${m.cockpit}</dd>
     <dt>Opens</dt><dd>${m.opening || ""}</dd>
@@ -587,7 +591,7 @@ function loop(ms) {
   requestAnimationFrame(loop);
 }
 const loaded = Promise.all(ORDER.map(loadOne)).catch(e => { document.getElementById("load").textContent = "Could not load: " + e; throw e; });
-loaded.then(() => { document.getElementById("load").remove(); setMech("warden"); setAct("idle"); setView("orbit"); window.MOCKUP_READY = true; });
+loaded.then(() => { document.getElementById("load").remove(); setMech("foreman"); setAct("idle"); setView("orbit"); window.MOCKUP_READY = true; });
 requestAnimationFrame(loop);
 window.MOCKUP = {
   setMech, setView, setAct,
@@ -610,19 +614,49 @@ def interiors(meta):
         v = meta[key].get("cockpit_variant")
         man = os.path.join(MODELS, f"cockpit_{v}.json")
         if v and os.path.exists(man) and os.path.exists(os.path.join(MODELS, f"cockpit_{v}", f"cockpit_{v}.gltf")):
-            out[v] = dict(file=f"cockpit_{v}/cockpit_{v}.gltf", man=json.load(open(man)))
+            out[v] = dict(file=f"cockpit_{v}/cockpit_{v}.gltf.json", man=json.load(open(man)))
     return out
 
 
+def as_json_gltf(src, dst):
+    """A glb or a .gltf (with its .bin) as one glTF JSON file with the buffer embedded as a data URI. The
+    artifact host serves .json but not .glb, .gltf or .bin; GLTFLoader reads glTF JSON whatever the name.
+    Images stay where they were: inside the buffer for a glb, beside the file for a .gltf."""
+    if src.endswith(".glb"):
+        data = open(src, "rb").read()
+        jlen = struct.unpack_from("<I", data, 12)[0]
+        js = json.loads(data[20:20 + jlen])
+        rest = data[20 + jlen:]
+        blen = struct.unpack_from("<I", rest, 0)[0]
+        js["buffers"][0]["uri"] = "data:application/octet-stream;base64," + base64.b64encode(rest[8:8 + blen]).decode("ascii")
+    else:
+        js = json.load(open(src))
+        for b in js["buffers"]:
+            raw = open(os.path.join(os.path.dirname(src), b["uri"]), "rb").read()
+            b["uri"] = "data:application/octet-stream;base64," + base64.b64encode(raw).decode("ascii")
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    with open(dst, "w") as f:
+        json.dump(js, f, separators=(",", ":"))
+
+
 def files(meta, inside):
-    """The page's own files: published path (relative to the page) to the source in the repository."""
-    out = {meta[k]["file"]: os.path.join(MODELS, meta[k]["file"]) for k in ORDER}
+    """Write the page's own files into SITE and return them: published path (relative to the page) to the
+    file on disk. Models become glTF JSON (as_json_gltf); textures are copied as they are."""
+    out = {}
+    for k in ORDER:
+        rel = f"mech_{k}.gltf.json"
+        as_json_gltf(os.path.join(MODELS, meta[k]["file"]), os.path.join(SITE, rel))
+        out[rel] = os.path.join(SITE, rel)
     for v in inside:
         d = os.path.join(MODELS, f"cockpit_{v}")
-        for dp, _, fs in os.walk(d):
-            for f in sorted(fs):
-                src = os.path.join(dp, f)
-                out[f"cockpit_{v}/" + os.path.relpath(src, d)] = src
+        rel = f"cockpit_{v}/cockpit_{v}.gltf.json"
+        as_json_gltf(os.path.join(d, f"cockpit_{v}.gltf"), os.path.join(SITE, rel))
+        out[rel] = os.path.join(SITE, rel)
+        for f in sorted(os.listdir(os.path.join(d, "textures"))):
+            r = f"cockpit_{v}/textures/{f}"
+            os.makedirs(os.path.dirname(os.path.join(SITE, r)), exist_ok=True)
+            shutil.copyfile(os.path.join(d, "textures", f), os.path.join(SITE, r))
+            out[r] = os.path.join(SITE, r)
     return out
 
 
@@ -647,10 +681,8 @@ def main():
     os.makedirs(SITE)
     os.symlink(OUT, os.path.join(SITE, "index.html"))
     fs = files(meta, inside)
-    for rel, src in fs.items():
-        dst = os.path.join(SITE, rel)
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        os.symlink(src, dst)
+    with open(os.path.join(SITE, "files.json"), "w") as f:      # the publish map, paths from the repository root
+        json.dump({k: os.path.relpath(v, ROOT) for k, v in fs.items()}, f, indent=1)
     print(f"wrote {OUT} ({len(html) / 1e6:.1f} MB), {len(fs)} files beside it "
           f"({sum(os.path.getsize(p) for p in fs.values()) / 1e6:.1f} MB), interiors: {sorted(inside) or 'none yet'}")
 

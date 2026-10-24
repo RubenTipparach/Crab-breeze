@@ -15,9 +15,9 @@ manifest (`assets/models/cockpit_<variant>.json`).
   interior's envelope plus 0.1 m, the `cockpit` node on the tub floor under the eye, the sockets
   `EYE_pilot`, `SEAT_pilot`, `HATCH_entry`. The interior (`build_cockpit.py --variant wall | jockey |
   harness`) mounts at `cockpit`.
-- Three interiors: wall (seated, twin grips, a flat screen wall; Warden), jockey (leaning forward on a
-  saddle, low wide screens; Lancer), harness (standing, forearm controls, a flat octagon of screens;
-  Atlas). Every screen is flat (the owner: curved screens are "just fish eye pov").
+- Three interiors: wall (seated, twin grips, a flat screen wall; Foreman), jockey (leaning forward on a
+  saddle, low wide screens; Ironhorse), harness (standing, forearm controls, a flat octagon of screens;
+  Stevedore). Every screen is flat (the owner: curved screens are "just fish eye pov").
 - The screens that look outside share the material `SCREEN_allview`. In the game it is drawn from a cube
   render of the mech's sensor head (`SENSOR_head`) sampled by direction from the eye, so the view is
   undistorted wherever the head turns. Scanlines, a phosphor grade, the HUD drawn ahead.
@@ -38,9 +38,9 @@ hinge at the node's origin, driven by its track; `RAM_<n>` rams re-aim at their 
 
 | Chassis | Plates and motions | Rams | Then |
 | --- | --- | --- | --- |
-| Warden (clamshell) | `CHEST_side_L/R` swing out 77 degrees (0.6-1.7 s); `CHEST_upper` lifts 112 degrees on its top hinge, the visor slit on it (1.2-2.9 s); `CHEST_lower` drops 93 degrees forward into a platform (1.6-3.0 s) | two on the upper plate, two on the lower | the interior's inner tracks, the ladder |
-| Lancer (petals) | `CHEST_brow` lifts 43 degrees (0.4-1.3 s); `CHEST_door_L/R` swing apart 86 degrees (1.0-2.3 s); `CHEST_step` slides out 0.6 m (1.9-2.5 s) and `CHEST_step_fold` folds down 86 degrees (2.4-3.2 s) | one on each door | |
-| Atlas (drawbridge) | `CHEST_collar_L/R` fold up and out 57 degrees (0.6-1.6 s); `CHEST_front`, the whole front, lowers 81 degrees on its sill hinge into a ramp (1.4-3.6 s) | two heavy rams on the front | |
+| Foreman (excavator cab) | `CHEST_grille`, the bar grille, lifts 100 degrees on its top hinge (0.5-1.9 s); `CHEST_shutter`, the armour shutter behind it, drops into a housing in the belly (1.6-3.2 s) | two on the grille | the interior's inner tracks, the ladder |
+| Stevedore (container) | `CHEST_lock_L1/L2/R1/R2`, the lock rods, turn out 86 degrees (0.0-0.7 s); `CHEST_door_L/R` swing wide 112 degrees (1.1-2.6 s) | | |
+| Ironhorse (smokebox) | `CHEST_dog_1..8`, the clamps round the door, swing off 69 degrees (0.0-0.5 s); `CHEST_door`, the round smokebox door, swings 115 degrees on its side hinge (0.8-2.4 s) | | |
 
 Then the interior opens (its manifest's tracks, from 80 % of the chest's time) and the chain ladder
 (`LADDER`, `LADDER_1..10`, 0.8 m a segment) drops from under the sill one segment every 0.12 s, as
@@ -67,5 +67,5 @@ while it plays, one draw call. The all-view screen: section 1.
 | --- | --- | --- |
 | C1 | How the pilot sees out | Decided by the owner, 2026-10-24: sealed, all-view screens |
 | C6 | How the pilot reaches the chest | A chain ladder that drops from under the sill (survey C6) |
-| C8 | Which cockpit first | Wall, in Warden (survey C8, M6) |
+| C8 | Which cockpit first | Wall, in Foreman (survey C8, M6) |
 | C7 | All-view screen: seams and tint, or as clear as glass | Visible tile seams and a light phosphor tint (survey C7) |

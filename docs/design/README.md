@@ -41,6 +41,6 @@ Requests between the Mac and cloud sessions: `docs/design/requests.md`.
 
 | Page | Published | Built by |
 | --- | --- | --- |
-| Breeze Cockpit (`docs/mockups/cockpit.html`): boarding the Breeze, then the sealed boxy cockpit from the seat, flat screen wall, modelled panels, lit live with full PBR | https://claude.ai/artifact/AqMpKdiBjn9e1uQPT1c1aj | `tools/mockups/gen_cockpit_page.py` from `assets/models/cockpit_breeze/` and `mech_breeze.glb`, published with them as files |
-| Crab Breeze Mechs (`docs/mockups/mech_designs.html`): the three chassis candidates at true scale, cockpit view, rig test | https://claude.ai/artifact/B5tX8ycUR2tLBknKyMb8bc | `tools/mockups/gen_mech_designs.py` from `assets/models/mech_*.glb` |
+| Breeze Cockpit (retired): the first pod design; its boarding now lives on the Crab Breeze Mechs page | https://claude.ai/artifact/AqMpKdiBjn9e1uQPT1c1aj | none (generator removed) |
+| Crab Breeze Mechs (`docs/mockups/mech_designs.html`): Foreman, Stevedore and Ironhorse at true scale; each kneels, opens its chest with steam and drops its ladder on its cockpit interior (wall, harness, jockey); board it in first person or sit in each cockpit | https://claude.ai/artifact/B5tX8ycUR2tLBknKyMb8bc | `tools/mockups/gen_mech_designs.py` from `assets/models/mech_<id>.glb` and `assets/models/cockpit_<variant>/`, published with them as files |
 | Alien Crab Mechs (`docs/mockups/alien_mechs.html`): the three enemy crab machines (Skitter 6 m, Snapper 12 m, Big Boy 30 m) at true scale beside the Breeze | https://claude.ai/artifact/DAdKyPWjNyjur74vQaZTA8 | `tools/mockups/gen_alien_mechs.py` from `assets/models/alien_*.glb` (`tools/blender/build_alien_mechs.py`, rig in `docs/design/alien-rig.md`) |

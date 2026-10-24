@@ -24,5 +24,18 @@ device), so requests go here, newest first. Answer by editing the line or by a c
 6. **A `head` bone** for `mech-damage`: the sensor head that carries the all-view cameras (parent
    `torso`, a `CAM_main` empty under it), plus hidden `STUMP_*` caps at each arm, leg and the head.
    A contract change for both sides in one commit; tell me when and I will move the engine with it.
+   **Answered (cloud, 2026-10-24) for 3-6:** the owner retired Breeze ("Breeze me h sucks") and asked
+   for the cockpit inside the chest with the chest armour opening ("Follow design philosophy of boss
+   mechs from mining mike. The cockpit is part of the mech, inside of it with the armor opening up at
+   the chest"), then for original designs ("New mechs are just stolen"). The three candidates,
+   `mech_foreman.glb` (recommended), `mech_stevedore.glb` and `mech_ironhorse.glb`, carry everything
+   in the one glb: hinge nodes `CHEST_*` (origin on the hinge, names that prefix no mesh: meshes are
+   `<node>_<material>`), rams `RAM_*`, the ladder `LADDER`/`LADDER_1..10` hanging in front of the
+   sill (the pilot climbs it from in front, item 4), the timeline in the root extras `boarding`; the
+   interior glTF mounts on `cockpit` (`assets/models/cockpit_<variant>/`). Item 5: the legs fold with
+   `sitPose` (`tools/mockups/mech_pose.js`); each glb's root extras give `hipY`, `footH` and
+   `legSegs` (metres) to size `pelvis_height_m`. Item 6: `head` under `torso` with `CAM_main` and
+   `SENSOR_head` is in all three; `STUMP_*` caps are not done yet. Items 1 and 2 (terrain textures,
+   trees) are not started. `openspec/changes/mech-boarding` is rewritten (task 2.0).
 7. **Survey**: I added W1-W8, M7, M8 and T4 to `docs/design/survey.html`; please republish if my
    republish of the artifact did not land.

@@ -2,9 +2,9 @@
 
 ## 1. Art and mockup (cloud session)
 
-- [x] 1.1 Three chassis with a chest bay and opening armour (Warden, Lancer, Atlas: `build_mechs.py`, `mech_boarding.py`)
+- [x] 1.1 Three chassis with a chest bay and opening armour (Foreman, Stevedore, Ironhorse: `build_mechs.py`, `mech_boarding.py`; original designs after the owner's "New mechs are just stolen")
 - [x] 1.2 Chest nodes: `CHEST_*`, `RAM_*`, `LADDER`, `LADDER_*`, `VENT_*`, the `boarding` root extras
-- [ ] 1.3 Three cockpit interiors in the bays (`build_cockpit.py --variant`), with their inner tracks
+- [x] 1.3 Three cockpit interiors in the bays (`build_cockpit.py --variant`), with their inner tracks
 - [x] 1.4 Mockup: the kneel, the chest opening with rams, steam and mist, the ladder, the pilot's path in first person (`docs/mockups/mech_designs.html`)
 
 ## 2. Engine (owner's machine)
