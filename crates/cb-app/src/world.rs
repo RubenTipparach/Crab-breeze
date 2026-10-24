@@ -639,9 +639,11 @@ struct TreeEntities {
     moving: HashMap<u32, Entity>,
     species: Vec<Handle<Mesh>>,
     geometry: Arc<Vec<TreeGeometry>>,
+    /// The far version of each species (`tree_mesh(.., true)`), for tiles past `TREE_FAR_M`.
+    geometry_far: Arc<Vec<TreeGeometry>>,
     material: Handle<StandardMaterial>,
-    /// Tiles whose meshes are being merged on a worker thread.
-    building: BTreeMap<(u32, u32), Task<Vec<(Mesh, Vec3)>>>,
+    /// Tiles whose meshes are being merged on a worker thread, and whether in the far version.
+    building: BTreeMap<(u32, u32), (Task<Vec<(Mesh, Vec3)>>, bool)>,
 }
 
 /// One drawn tile: its merged species meshes, whether they cast shadows, whether to rebuild.
@@ -649,6 +651,8 @@ struct TileDraw {
     meshes: Vec<Entity>,
     shadows: bool,
     dirty: bool,
+    /// Built from the far version of the trees.
+    far: bool,
 }
 
 /// A species' mesh on the CPU, one unit tall, to be merged per tile.
@@ -751,7 +755,26 @@ const TREE_KEEP_MARGIN_M: f32 = 150.0;
 const TREE_SHADOW_RADIUS_M: f32 = 300.0;
 
 /// A tree mesh, one unit tall, base at the origin: trunk and crown in vertex colours.
-fn tree_mesh(species: &str) -> Mesh {
+/// Past this, a tree tile is built from the far version of its trees (a fraction of the vertices):
+/// with trees drawn to 2 km most tiles are far, and their full-detail meshes were most of the
+/// upload behind the frame spikes (2026-10-24). A tile changes version 60 m past the line.
+const TREE_FAR_M: f32 = 600.0;
+const TREE_FAR_SLACK_M: f32 = 60.0;
+
+/// Whether a tile at `d` metres from the eye should be the far version, given what it is now.
+fn tile_far(d: f32, now_far: Option<bool>) -> bool {
+    // `CB_NO_TREE_LOD=1`: every tile at full detail (perf-bench switch).
+    if crate::cli::switched_off("CB_NO_TREE_LOD") {
+        return false;
+    }
+    match now_far {
+        Some(true) => d > TREE_FAR_M - TREE_FAR_SLACK_M,
+        Some(false) => d > TREE_FAR_M + TREE_FAR_SLACK_M,
+        None => d > TREE_FAR_M,
+    }
+}
+
+fn tree_mesh(species: &str, far: bool) -> Mesh {
     // The mesh is one unit tall: a foliage tile every 5 cm of it, about a metre of a real tree.
     let mut b = MeshBuilder::tiled(0.05, 0.05);
     let bark = [0.30, 0.22, 0.15, 1.0];
@@ -764,9 +787,18 @@ fn tree_mesh(species: &str) -> Mesh {
         Vec3::ZERO,
         trunk_r,
         trunk_top,
-        7,
+        if far { 4 } else { 7 },
         if species == "birch" { [0.85, 0.83, 0.78, 1.0] } else { bark },
     );
+    // The far version: one coarse crown in the same place and size, a few dozen vertices.
+    if far {
+        match species {
+            "oak" => b.blob(Vec3::new(0.04, 0.66, 0.03), Vec3::new(0.36, 0.32, 0.36), 3, [0.21, 0.34, 0.14, 1.0]),
+            "birch" => b.blob(Vec3::new(0.0, 0.72, 0.0), Vec3::new(0.2, 0.3, 0.2), 3, [0.36, 0.48, 0.20, 1.0]),
+            _ => b.cone(Vec3::new(0.0, 0.2, 0.0), 0.2, 0.8, 5, [0.13, 0.26, 0.12, 1.0]),
+        }
+        return b.build();
+    }
     match species {
         "oak" => {
             b.blob(Vec3::new(0.0, 0.68, 0.0), Vec3::new(0.34, 0.3, 0.34), 9, [0.20, 0.33, 0.13, 1.0]);
@@ -804,12 +836,31 @@ fn spawn_trees(
         perceptual_roughness: 0.9,
         ..default()
     });
-    let built: Vec<Mesh> = data.0.world.trees.species.iter().map(|s| tree_mesh(&s.name)).collect();
+    let built: Vec<Mesh> = data.0.world.trees.species.iter().map(|s| tree_mesh(&s.name, false)).collect();
     let geometry = built.iter().map(TreeGeometry::of).collect();
+    let geometry_far: Vec<TreeGeometry> = data
+        .0
+        .world
+        .trees
+        .species
+        .iter()
+        .map(|s| TreeGeometry::of(&tree_mesh(&s.name, true)))
+        .collect();
+    let counts: Vec<String> = data
+        .0
+        .world
+        .trees
+        .species
+        .iter()
+        .zip(built.iter().zip(geometry_far.iter()))
+        .map(|(s, (n, f)): (_, (&Mesh, &TreeGeometry))| format!("{} {}/{}", s.name, n.count_vertices(), f.positions.len()))
+        .collect();
+    info!("trees: vertices a tree, full/far: {}", counts.join(", "));
     let species = built.into_iter().map(|m| meshes.add(m)).collect();
     commands.insert_resource(TreeEntities {
         species,
         geometry: Arc::new(geometry),
+        geometry_far: Arc::new(geometry_far),
         material,
         ..default()
     });
@@ -880,15 +931,15 @@ fn show_trees(
     }
     // Tiles built off the main thread go on screen a couple a frame (each is a GPU upload).
     let mut done = Vec::new();
-    for (key, task) in trees.building.iter_mut() {
+    for (key, (task, far)) in trees.building.iter_mut() {
         if done.len() >= TREE_TILES_SHOWN_PER_FRAME {
             break;
         }
         if let Some(built) = check_ready(task) {
-            done.push((*key, built));
+            done.push((*key, built, *far));
         }
     }
-    for (key, built) in done {
+    for (key, built, far) in done {
         trees.building.remove(&key);
         if !keep.contains(&key) {
             continue;
@@ -924,6 +975,7 @@ fn show_trees(
                 meshes: entities,
                 shadows,
                 dirty,
+                far,
             },
         );
     }
@@ -931,12 +983,16 @@ fn show_trees(
     // merge of a tile's few hundred trees took 40-75 ms a frame on the main thread, 2026-10-24).
     let mut todo: Vec<(f32, (u32, u32))> = grown
         .into_iter()
-        .filter(|g| g.0 <= radius && !trees.building.contains_key(&g.1) && trees.tiles.get(&g.1).is_none_or(|t| t.dirty))
+        .filter(|g| {
+            g.0 <= radius
+                && !trees.building.contains_key(&g.1)
+                && trees.tiles.get(&g.1).is_none_or(|t| t.dirty || t.far != tile_far(g.0, Some(t.far)))
+        })
         .collect();
     todo.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
     let room = TREE_TILES_BUILDING.saturating_sub(trees.building.len());
     let pool = AsyncComputeTaskPool::get();
-    for (_, key) in todo.into_iter().take(TREE_TILES_PER_FRAME.min(room)) {
+    for (d, key) in todo.into_iter().take(TREE_TILES_PER_FRAME.min(room)) {
         let Some((_, grown)) = live.forest.grown_tiles().find(|(k, _)| *k == key) else {
             continue;
         };
@@ -952,7 +1008,8 @@ fn show_trees(
                 by_species[t.species as usize].push((*t, live.forest.state(t.id)));
             }
         }
-        let geometry = trees.geometry.clone();
+        let far = tile_far(d, trees.tiles.get(&key).map(|t| t.far));
+        let geometry = if far { trees.geometry_far.clone() } else { trees.geometry.clone() };
         let task = pool.spawn(async move {
             geometry
                 .iter()
@@ -960,7 +1017,7 @@ fn show_trees(
                 .filter_map(|(g, list)| merge_trees(g, list.iter().map(|(t, st)| (t, *st))))
                 .collect::<Vec<(Mesh, Vec3)>>()
         });
-        trees.building.insert(key, task);
+        trees.building.insert(key, (task, far));
     }
     // Shadows from the near tiles only; a tile changes over as a whole, rarely.
     for (key, tile) in trees.tiles.iter_mut() {
