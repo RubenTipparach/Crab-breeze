@@ -2,7 +2,8 @@
 # Run Crab Breeze. Builds the release game if needed, then starts it.
 #
 #   ./run.sh                      play (seed 42, the stand-in mech)
-#   ./run.sh --mech mechs/breeze.ron
+#   ./run.sh --mech mechs/foreman.ron   the detailed mechs (mech-roster): foreman, ironhorse, harrow,
+#                                       roustabout, driller, mule, picket, sapper
 #   ./run.sh --seed 7
 #   ./run.sh --showcase fight     watch the scripted fight
 #   ./run.sh --showcase world     watch the scripted world tour

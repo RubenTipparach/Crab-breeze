@@ -12,9 +12,6 @@ use bevy::prelude::*;
 use cb_core::pilot::PilotMode;
 use cb_core::targeting::{Lock, Target, TargetingConfig, nearest_to_aim, next, off_aim_deg};
 
-/// Height of the pilot's eye over the mech's feet.
-const EYE_M: f32 = 9.6;
-
 /// What the pilot has targeted.
 #[derive(Resource, Default)]
 pub struct TargetState {
@@ -62,7 +59,7 @@ fn update_targeting(
         *state = TargetState::default();
         return;
     };
-    let eye = m.curr.pos + Vec3::Y * EYE_M;
+    let eye = m.curr.pos + Vec3::Y * data.0.mech.body.eye_height_m;
     let aim = aim_dir(pilot.curr.yaw_rad, pilot.curr.pitch_rad);
     // Mechs and vehicles alike (invasion-forces).
     let mut targets: Vec<Target> = hostiles

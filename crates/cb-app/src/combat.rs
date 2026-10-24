@@ -40,21 +40,25 @@ fn capsules(id: u32, sim: &MechSim, cfg: &MechConfig, rig: &MechRig, globals: &Q
             .and_then(|i| globals.get(rig.bone_entity(i)).ok())
             .map(|g| g.translation())
     };
+    let b = &cfg.body;
     let mut out = Vec::new();
     for (pi, p) in cfg.parts.iter().enumerate() {
         if sim.damage.lost[pi] {
             continue;
         }
         let ends = match p.kind {
-            PartKind::ArmL => at("shoulder_L").zip(at("hand_L")).map(|(a, b)| (a, b, 1.0)),
-            PartKind::ArmR => at("shoulder_R").zip(at("hand_R")).map(|(a, b)| (a, b, 1.0)),
-            PartKind::LegL => at("thigh_L").zip(at("foot_L")).map(|(a, b)| (a, b, 1.1)),
-            PartKind::LegR => at("thigh_R").zip(at("foot_R")).map(|(a, b)| (a, b, 1.1)),
-            PartKind::Head => rig
-                .head()
-                .and_then(|e| globals.get(e).ok())
-                .map(|g| (g.translation() + Vec3::Y * 0.5, g.translation() + Vec3::Y * 0.6, 1.1)),
-            PartKind::Torso => at("torso").map(|t| (t + Vec3::Y * 0.5, t + Vec3::Y * 3.9, 2.4)),
+            PartKind::ArmL => at("shoulder_L").zip(at("hand_L")).map(|(a, c)| (a, c, b.arm_hit_radius_m)),
+            PartKind::ArmR => at("shoulder_R").zip(at("hand_R")).map(|(a, c)| (a, c, b.arm_hit_radius_m)),
+            PartKind::LegL => at("thigh_L").zip(at("foot_L")).map(|(a, c)| (a, c, b.leg_hit_radius_m)),
+            PartKind::LegR => at("thigh_R").zip(at("foot_R")).map(|(a, c)| (a, c, b.leg_hit_radius_m)),
+            PartKind::Head => rig.head().and_then(|e| globals.get(e).ok()).map(|g| {
+                (
+                    g.translation() + Vec3::Y * 0.5,
+                    g.translation() + Vec3::Y * 0.6,
+                    b.head_hit_radius_m,
+                )
+            }),
+            PartKind::Torso => at("torso").map(|t| (t + Vec3::Y * b.torso_hit_m[0], t + Vec3::Y * b.torso_hit_m[1], b.torso_hit_radius_m)),
         };
         if let Some((a, b, radius_m)) = ends {
             out.push(PartCapsule {
