@@ -6,10 +6,10 @@
 - [ ] 0.3 Owner tries it (click to fire) and answers W12 and W15
 
 ## 1. Core (`cb-core::world::structure`, replacing `destruct.rs`)
-- [ ] 1.1 Elements and bonds from `building-generation` (test: `a_new_building_stands_with_every_member_under_half_its_capacity`)
-- [ ] 1.2 Blasts (test: `a_120mm_shell_holes_a_wall_and_leaves_the_columns`)
-- [ ] 1.3 Connectivity and islands (test: `cutting_a_corner_column_line_drops_nothing_by_itself`)
-- [ ] 1.4 Load pass, cantilever rule, creak (test: `taking_a_whole_ground_side_peels_the_bays_above_it`)
+- [x] 1.1 Elements and bonds: columns, floor bays and facade panels on the building's cell grid, built on first hit (test: `a_new_frame_stands_with_every_member_at_half_its_capacity`); facade modules and interiors join when `building-generation` and `building-interiors` land
+- [x] 1.2 Blasts (test: `a_120mm_shell_holes_a_wall_and_leaves_the_columns`)
+- [x] 1.3 Connectivity and islands (tests: `losing_one_ground_column_brings_nothing_else_down`, `losing_every_ground_column_brings_the_building_down`)
+- [x] 1.4 Load pass, cantilever rule, creak (tests: `losing_a_whole_ground_side_peels_off_the_bays_above_it`, `the_creak_comes_before_the_fall`, `the_same_hits_break_the_same_elements`)
 - [ ] 1.5 Falling islands and impact (test: `a_falling_storey_punches_through_the_floor_below`)
 - [ ] 1.6 Golden demolition: seed 42, the `side` script, the same broken set at the same steps
 - [ ] 1.7 Move `building-destruction`'s tests across; archive it as superseded

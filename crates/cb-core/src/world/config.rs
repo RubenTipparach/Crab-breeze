@@ -562,6 +562,8 @@ pub struct WorldConfig {
     pub clouds: CloudConfig,
     /// Craters.
     pub craters: CraterConfig,
+    /// Building frames (openspec change `structural-destruction`).
+    pub structure: super::structure::StructureConfig,
 }
 
 impl Default for WorldConfig {
@@ -609,6 +611,7 @@ impl Default for WorldConfig {
             trees: TreeConfig::default(),
             clouds: CloudConfig::default(),
             craters: CraterConfig::default(),
+            structure: super::structure::StructureConfig::default(),
         }
     }
 }
@@ -699,6 +702,7 @@ impl Validate for WorldConfig {
         self.trees.validate()?;
         self.clouds.validate()?;
         self.craters.validate()?;
+        self.structure.validate()?;
         Ok(())
     }
 }

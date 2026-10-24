@@ -119,4 +119,25 @@
         beyond_world_m: 6000.0,
         draw_radius_m: 9000.0,
     ),
+    // Building frames (openspec/changes/structural-destruction): a member fails past
+    // safety_factor x its intact load, after a creak; a floor bay held on one edge keeps 45 %.
+    structure: (
+        safety_factor: 2.0,
+        creak_s: (0.5, 1.6),
+        held_four: 1.0,
+        held_three: 0.85,
+        held_diagonal: 0.7,
+        held_one_edge: 0.45,
+        held_one: 0.25,
+        held_hung: 0.4,
+        column_hp_mj: 2.5,
+        slab_hp_mj: 3.0,
+        wall_hp_mj: 0.7,
+        slab_kg_m2: 600.0,
+        column_kg_m: 864.0,
+        wall_kg_m2: 400.0,
+        slab_m: 0.25,
+        column_m: 0.6,
+        wall_m: 0.3,
+    ),
 )

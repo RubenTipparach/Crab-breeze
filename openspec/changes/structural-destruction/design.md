@@ -127,3 +127,21 @@ comparison.
 | --- | --- | --- | --- |
 | W12 | How deep does destruction go? | structural: columns and floors carry load, overloaded members creak then fail, storeys pancake | provisional (survey W12) |
 | W15 | Creak before a collapse | 0.5-1.6 s of dust and groaning, shown on the target readout | provisional (survey W15) |
+
+## As built (2026-10-24, step 1)
+
+- `cb-core/src/world/structure.rs` holds the frame: columns on the building's cell grid (the plan's
+  boxes, about 6 m cells, storeys of `height / storeys`), a floor bay per cell per storey and a facade
+  panel per outer cell face per storey. Tuning is the `structure:` section of
+  `data/world/world.ron`.
+- The frame sits behind the existing cell API (`destruct.rs`), so weapons, mechs, missions, collision
+  and the debris read buildings exactly as before.
+  - `break_sphere(b, centre, r)` is now a blast with the crater rule's energy for that reach.
+  - A cell is closed while its floor bay and its outer facade panels stand.
+  - `Structures::step(dt)` fails creaking members on time. `cb-app::buildings` calls it every fixed
+    step.
+- A building gets its frame on its first hit; whole buildings cost nothing.
+- Falling islands become chunks, one per storey per 2 x 2 cells, as before. Not built yet: the core's
+  falling-cluster model with impact (pancaking), drawing from the frame with the element mask, the
+  Game debris tier and the facade modules.
+

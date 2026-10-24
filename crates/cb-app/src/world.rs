@@ -37,7 +37,7 @@ pub struct Live {
     pub dirty_tiles: Vec<(i32, i32)>,
     /// Trees that started falling or landed since they were last drawn.
     pub moved_trees: Vec<u32>,
-    /// Every building's cells.
+    /// Every building's cells and, once hit, its structural frame.
     pub structures: cb_core::world::Structures,
     /// Buildings damaged since they were last drawn.
     pub dirty_buildings: Vec<u32>,
@@ -72,7 +72,7 @@ impl Plugin for WorldPlugin {
             dug: Deformation::new(cfg.world_size_m),
             dirty_tiles: Vec::new(),
             moved_trees: Vec::new(),
-            structures: cb_core::world::Structures::new(&plan),
+            structures: cb_core::world::Structures::with_config(&plan, cfg.structure.clone(), cfg.craters.radius_m_per_cbrt_mj),
             dirty_buildings: Vec::new(),
             new_chunks: Vec::new(),
         };

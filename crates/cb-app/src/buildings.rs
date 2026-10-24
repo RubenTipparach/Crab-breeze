@@ -1,8 +1,9 @@
-//! Building drawing for `building-destruction`: a whole building is one box; a damaged one is
-//! rebuilt from its standing cells (a face only where the cell beside it is gone), and a building
-//! with nothing standing is hidden.
+//! Building drawing and timing for `structural-destruction`: a whole building is one box; a
+//! damaged one is rebuilt from its standing cells (a face only where the cell beside it is gone),
+//! and a building with nothing standing is hidden. Each fixed step advances the frames' clock so
+//! overloaded members fail when their creak runs out.
 
-use crate::sim::PresentSet;
+use crate::sim::{PresentSet, SimSet};
 use crate::world::{Live, MeshBuilder};
 use bevy::prelude::*;
 use cb_core::world::destruct::Cells;
@@ -17,6 +18,7 @@ pub struct BuildingsPlugin;
 impl Plugin for BuildingsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<BuildingEntities>()
+            .add_systems(FixedUpdate, step_structures.in_set(SimSet::World))
             .add_systems(Update, redraw_buildings.in_set(PresentSet::Pose));
     }
 }
@@ -85,6 +87,13 @@ fn cells_mesh(c: &Cells) -> Mesh {
         }
     }
     b.build()
+}
+
+/// Creaking members fail on time; what falls goes to the debris like any other chunk.
+fn step_structures(time: Res<Time<Fixed>>, mut live: ResMut<Live>) {
+    let (changed, chunks) = live.structures.step(time.delta_secs());
+    live.dirty_buildings.extend(changed);
+    live.new_chunks.extend(chunks);
 }
 
 fn redraw_buildings(mut commands: Commands, mut live: ResMut<Live>, ents: Res<BuildingEntities>, mut meshes: ResMut<Assets<Mesh>>) {
