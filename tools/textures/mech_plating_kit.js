@@ -152,6 +152,178 @@ function ormOf(colC, bmpC, o) {
   }
   g.putImageData(im, 0, 0); return out;
 }
+
+// Crab Breeze: modern plating (owner, 2026-10-24: "rivets are kinda old school, I want more modern looking armor", with
+// references of Armored Core VI frames, the Yokohama Gundam and weathered kit builds). Large smooth panels in a neutral
+// light paint that each mech's palette tints, their seams engraved (a groove with a lit lip), clipped corners and
+// inset panel lines, flush access hatches with pull slots and vent slots (no rivets anywhere), stencils (CAUTION,
+// NO STEP, lift points, unit numbers), small hazard ticks, chipped edges and light grime. Seeded, so the same every run.
+function modern(seed, o) {
+  const S = 1024, col = mkCanvas(S), bmp = mkCanvas(S);
+  const g = col.getContext("2d"), b = bmp.getContext("2d"), r = rng(seed);
+  g.fillStyle = o.base; g.fillRect(0, 0, S, S);
+  b.fillStyle = "#808080"; b.fillRect(0, 0, S, S);
+  const blot = (ctx, x, y, rad, rgba) => {
+    for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) {
+      const X = x + ox, Y = y + oy; if (X + rad < 0 || X - rad > S || Y + rad < 0 || Y - rad > S) continue;
+      const gr = ctx.createRadialGradient(X, Y, 0, X, Y, rad); gr.addColorStop(0, rgba); gr.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = gr; ctx.fillRect(X - rad, Y - rad, 2 * rad, 2 * rad);
+    }
+  };
+  for (let i = 0; i < 50; i++) blot(g, r() * S, r() * S, 90 + r() * 200, r() < 0.5 ? `rgba(0,0,0,${0.02 + r() * 0.03})` : `rgba(255,255,255,${0.02 + r() * 0.03})`);
+  // the seam: a dark engraved groove, a lit lip on its far side, a dip in the bump
+  const seam = (pts, wd) => {
+    for (const [ctx, st, lw] of [[b, "#2a2a2a", wd + 1.5], [g, "rgba(16,17,19,0.8)", wd], [g, "rgba(255,255,255,0.28)", 1]]) {
+      ctx.strokeStyle = st; ctx.lineWidth = lw; ctx.lineJoin = "miter"; ctx.beginPath();
+      const off = st.startsWith("rgba(255") ? wd * 0.9 : 0;
+      pts.forEach(([x, y], i) => i ? ctx.lineTo(x + off, y + off) : ctx.moveTo(x + off, y + off)); ctx.stroke();
+    }
+  };
+  const clipped = (x, y, w, h, c) => [[x + c, y], [x + w - c, y], [x + w, y + c], [x + w, y + h - c], [x + w - c, y + h], [x + c, y + h], [x, y + h - c], [x, y + c], [x + c, y]];
+  const rects = [];
+  (function split(x, y, w, h, d) {
+    if (d > 3 || (w < 260 && h < 260) || (d > 1 && r() < 0.25)) { rects.push([x, y, w, h]); return; }
+    if (w > h ? r() < 0.75 : r() < 0.25) { const k = Math.round(w * (0.3 + r() * 0.4) / 16) * 16; split(x, y, k, h, d + 1); split(x + k, y, w - k, h, d + 1); }
+    else { const k = Math.round(h * (0.3 + r() * 0.4) / 16) * 16; split(x, y, w, k, d + 1); split(x, y + k, w, h - k, d + 1); }
+  })(0, 0, S, S, 0);
+  // working stencils, mixed so none repeats across a plate (owner, 2026-10-24: "instead of \"danger\" plastered everywhere
+  // it should say \"no step\", company logo, \"warning flamable\" etc")
+  const words = o.words || ["NO STEP", "WARNING FLAMMABLE", "HYD FLUID 3000 PSI", "LIFT POINT", "TOW HERE", "GROUND POINT",
+    "FUEL", "NO PUSH", "RESCUE", "EJECT", "LUBE WEEKLY", "07", "24", "A-12", "LOT 4417"];
+  let wi = Math.floor(r() * words.length), logos = 0;
+  // the maker's mark: Halverd Heavy Industries, Crab Breeze's own invented firm, a split chevron in a ring and its name
+  const logo = (lx, ly) => {
+    g.strokeStyle = "rgba(20,20,22,0.7)"; g.lineWidth = 3; g.beginPath(); g.arc(lx + 22, ly + 22, 20, 0, TAU); g.stroke();
+    g.fillStyle = "rgba(20,20,22,0.7)";
+    for (const d of [-1, 1]) { g.beginPath(); g.moveTo(lx + 22, ly + 8); g.lineTo(lx + 22 + d * 13, ly + 30); g.lineTo(lx + 22 + d * 8, ly + 30); g.lineTo(lx + 22 + d * 1.5, ly + 18); g.fill(); }
+    g.font = "bold 18px Arial, sans-serif"; g.fillText("HALVERD", lx + 50, ly + 20);
+    g.font = "bold 10px Arial, sans-serif"; g.fillText("HEAVY INDUSTRIES", lx + 50, ly + 36);
+  };
+  for (const [x, y, w, h] of rects) {
+    g.fillStyle = r() < 0.5 ? `rgba(0,0,0,${0.02 + r() * 0.05})` : `rgba(255,255,255,${0.02 + r() * 0.04})`; g.fillRect(x, y, w, h);
+    seam([[x, y + h], [x, y], [x + w, y]], 2.5);
+    if (r() < 0.55 && w > 160 && h > 160) {                          // an inset plate with clipped corners
+      const m = 18 + r() * 22, c = 14 + r() * 26;
+      seam(clipped(x + m, y + m, w - 2 * m, h - 2 * m, c), 1.6);
+      if (r() < 0.5) { b.fillStyle = "rgba(160,160,160,0.35)"; b.fillRect(x + m + 4, y + m + 4, w - 2 * m - 8, h - 2 * m - 8); }   // raised a touch
+    }
+    if (r() < 0.3 && w > 140 && h > 110) {                          // a flush access hatch with two pull slots
+      const hw = 70 + r() * 60, hh = 46 + r() * 40, hx = x + 24 + r() * (w - hw - 48), hy = y + 24 + r() * (h - hh - 48);
+      seam(clipped(hx, hy, hw, hh, 8), 1.4);
+      for (const sx of [hx + 12, hx + hw - 28]) { g.fillStyle = "rgba(10,10,12,0.85)"; g.fillRect(sx, hy + hh / 2 - 3, 16, 6); b.fillStyle = "#202020"; b.fillRect(sx, hy + hh / 2 - 3, 16, 6); }
+    }
+    if (r() < 0.2 && w > 150 && h > 90) {                           // vent slots
+      const n = 5 + Math.floor(r() * 5), vx = x + 26 + r() * (w - 140), vy = y + 26 + r() * (h - 80);
+      for (let k = 0; k < n; k++) { g.fillStyle = "rgba(12,12,14,0.9)"; g.fillRect(vx + k * 12, vy, 6, 42); b.fillStyle = "#1c1c1c"; b.fillRect(vx + k * 12, vy, 6, 42); }
+    }
+    if (o.stencils && logos < 2 && r() < 0.18 && w > 220 && h > 90) { logo(x + 20 + r() * (w - 220), y + 20 + r() * (h - 80)); logos++; }
+    else if (o.stencils && r() < 0.28 && w > 120) {                 // a stencil, the next word in turn (off: decals carry them)
+      const t = words[wi++ % words.length], big = /^\d+$/.test(t);
+      g.font = big ? "bold 64px Arial, sans-serif" : `bold ${14 + Math.floor(r() * 6)}px Arial, sans-serif`;
+      g.fillStyle = big ? "rgba(20,20,22,0.55)" : "rgba(20,20,22,0.6)";
+      g.fillText(t, x + 16 + r() * Math.max(1, w * 0.3), y + h - 18 - r() * Math.max(1, h * 0.4));
+      if (!big && r() < 0.5) { g.fillRect(x + 16, y + h - 14, Math.min(w - 32, 90), 2); }
+    }
+    if (r() < 0.12 && w > 120 && h > 60) {                          // hazard ticks
+      const tx = x + 16, ty = y + 18;
+      for (let k = 0; k < 7; k++) { g.fillStyle = k % 2 ? "rgba(18,16,14,0.8)" : "rgba(230,170,40,0.85)"; g.beginPath(); g.moveTo(tx + k * 10, ty + 14); g.lineTo(tx + k * 10 + 10, ty + 14); g.lineTo(tx + k * 10 + 16, ty); g.lineTo(tx + k * 10 + 6, ty); g.fill(); }
+    }
+    for (let k = 0; k < 10; k++) {                                  // chips along the seams: paint gone to steel
+      const along = r(), onTop = r() < 0.5, cx = onTop ? x + along * w : x + 2 + r() * 6, cy = onTop ? y + 2 + r() * 6 : y + along * h, s = 1.5 + r() * 5;
+      g.fillStyle = o.chip || "rgba(200,200,205,0.55)"; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + s, cy + s * 0.3); g.lineTo(cx + s * 0.5, cy + s); g.lineTo(cx - s * 0.3, cy + s * 0.6); g.fill();
+      b.fillStyle = "#6a6a6a"; b.fillRect(cx, cy, s * 0.7, s * 0.7);
+    }
+  }
+  for (let i = 0; i < 140; i++) {                                    // fine scratches
+    const x = r() * S, y = r() * S, a = r() * TAU, l = 6 + r() * 30;
+    g.strokeStyle = "rgba(230,230,235,0.25)"; g.lineWidth = 0.6 + r() * 0.6; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+  }
+  for (let i = 0; i < 70; i++) {                                     // grime run down from the seams
+    const x = r() * S, y = r() * S, l = 40 + r() * 160, w = 2 + r() * 6;
+    const gr = g.createLinearGradient(0, y, 0, y + l); gr.addColorStop(0, `rgba(30,26,22,${0.12 + r() * 0.12})`); gr.addColorStop(1, "rgba(30,26,22,0)");
+    g.fillStyle = gr; g.fillRect(x, y, w, l);
+  }
+  for (let i = 0; i < 18; i++) blot(g, r() * S, r() * S, 30 + r() * 80, `rgba(40,34,28,${0.08 + r() * 0.1})`);
+  for (const [ctx, amp] of [[g, 6], [b, 4]]) {
+    const im = ctx.getImageData(0, 0, S, S), d = im.data;
+    for (let i = 0; i < d.length; i += 4) { const n = (r() - 0.5) * amp; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+    ctx.putImageData(im, 0, 0);
+  }
+  return { map: col, bump: bmp };
+}
+
+
+// Crab Breeze: the decal sheet (owner, 2026-10-24, with water-slide decal sheets for reference: "instead of \"danger\"
+// plastered everywhere it should say \"no step\", company logo, \"warning flamable\" etc"). Crab Breeze's own markings on
+// an 8 by 8 grid of 128 px cells, transparent between them; DECALS names each one's cells (col, row, cols, rows), and
+// gen_mech_plating.mjs writes that table beside the image for the Blender kit. Dark and white variants, so a light
+// scheme carries dark markings and a dark one white.
+const DECALS = {};
+function decalSheet() {
+  const C = 128, S = 1024, cv = mkCanvas(S), g = cv.getContext("2d");
+  g.clearRect(0, 0, S, S);
+  const DK = "#16171a", WH = "#f2f0ea", YL = "#f2b21c", RD = "#c8281e";
+  const cell = (name, c, r, w, h, draw) => { DECALS[name] = [c, r, w, h]; g.save(); g.translate(c * C, r * C); draw(w * C, h * C); g.restore(); };
+  const text = (t, x, y, px, col, align = "center", weight = "bold") => { g.font = `${weight} ${px}px Arial, sans-serif`; g.textAlign = align; g.textBaseline = "middle"; g.fillStyle = col; g.fillText(t, x, y); };
+  const box = (x, y, w, h, col, lw = 4) => { g.strokeStyle = col; g.lineWidth = lw; g.strokeRect(x, y, w, h); };
+  for (const [nm, col, cx] of [["nostep_d", DK, 0], ["nostep_w", WH, 2]])
+    cell(nm, cx, 0, 2, 1, (w, h) => { box(10, 22, w - 20, h - 44, col); text("NO STEP", w / 2, h / 2, 40, col); g.fillStyle = col; g.fillRect(16, 30, 8, h - 60); g.fillRect(w - 24, 30, 8, h - 60); });
+  cell("flammable", 4, 0, 2, 1, (w, h) => { g.fillStyle = RD; g.fillRect(8, 18, w - 16, h - 36); text("WARNING", w / 2, h / 2 - 16, 28, WH); text("FLAMMABLE", w / 2, h / 2 + 18, 30, WH); });
+  cell("caution_hyd", 6, 0, 2, 1, (w, h) => { g.fillStyle = YL; g.fillRect(8, 18, w - 16, h - 36); text("CAUTION", w / 2, h / 2 - 16, 28, DK); text("HYD FLUID 3000 PSI", w / 2, h / 2 + 16, 18, DK); });
+  for (const [nm, col, cx] of [["logo_d", DK, 0], ["logo_w", WH, 2]])
+    cell(nm, cx, 1, 2, 1, (w, h) => {
+      g.strokeStyle = col; g.lineWidth = 6; g.beginPath(); g.arc(60, h / 2, 40, 0, TAU); g.stroke(); g.fillStyle = col;
+      for (const d of [-1, 1]) { g.beginPath(); g.moveTo(60, h / 2 - 28); g.lineTo(60 + d * 26, h / 2 + 18); g.lineTo(60 + d * 16, h / 2 + 18); g.lineTo(60 + d * 3, h / 2 - 6); g.fill(); }
+      text("HALVERD", 110, h / 2 - 12, 32, col, "left"); text("HEAVY INDUSTRIES", 111, h / 2 + 20, 14, col, "left");
+    });
+  cell("lift", 4, 1, 1, 1, (w, h) => { g.strokeStyle = DK; g.lineWidth = 6; g.beginPath(); g.arc(w / 2, 46, 26, 0, TAU); g.stroke(); g.fillStyle = DK; g.beginPath(); g.moveTo(w / 2 - 16, 80); g.lineTo(w / 2 + 16, 80); g.lineTo(w / 2, 100); g.fill(); text("LIFT", w / 2, 115, 20, DK); });
+  cell("tow", 5, 1, 1, 1, (w, h) => { g.strokeStyle = YL; g.lineWidth = 10; g.beginPath(); g.arc(w / 2, 52, 30, 0, TAU); g.stroke(); text("TOW", w / 2, 110, 24, YL); });
+  cell("ground", 6, 1, 1, 1, (w, h) => { g.fillStyle = DK; for (let i = 0; i < 3; i++) g.fillRect(w / 2 - 34 + i * 12, 60 + i * 14, 68 - i * 24, 6); g.fillRect(w / 2 - 3, 24, 6, 36); text("GND", w / 2, 116, 20, DK); });
+  cell("eject", 7, 1, 1, 1, (w, h) => { g.fillStyle = RD; g.beginPath(); g.moveTo(w / 2, 12); g.lineTo(w - 12, h - 30); g.lineTo(12, h - 30); g.fill(); text("EJECT", w / 2, h - 14, 22, RD); text("!", w / 2, 64, 52, WH); });
+  for (const [nm, col, cx] of [["chevron_d", DK, 0], ["chevron_w", WH, 1]])
+    cell(nm, cx, 2, 1, 1, (w, h) => { g.fillStyle = col; for (let i = 0; i < 3; i++) { const y = 20 + i * 30; g.beginPath(); g.moveTo(14, y); g.lineTo(w / 2, y + 26); g.lineTo(w - 14, y); g.lineTo(w - 14, y + 14); g.lineTo(w / 2, y + 40); g.lineTo(14, y + 14); g.fill(); } });
+  for (const [nm, col, cx] of [["emblem_d", DK, 2], ["emblem_w", WH, 4]])
+    cell(nm, cx, 2, 2, 2, (w, h) => {       // Breakwater squadron: a shield, a crab's claw closing, the name on a scroll
+      g.strokeStyle = col; g.lineWidth = 8; g.beginPath(); g.moveTo(w / 2, 14); g.lineTo(w - 30, 40); g.lineTo(w - 40, 150); g.lineTo(w / 2, 210); g.lineTo(40, 150); g.lineTo(30, 40); g.closePath(); g.stroke();
+      g.fillStyle = col; const cx = w / 2, cy = 120;           // a crab's claw: the palm, the fixed finger and the closing dactyl
+      g.beginPath(); g.ellipse(cx - 18, cy + 30, 34, 26, -0.5, 0, TAU); g.fill();
+      g.beginPath(); g.moveTo(cx - 30, cy + 10); g.quadraticCurveTo(cx - 20, cy - 60, cx + 40, cy - 66); g.quadraticCurveTo(cx + 10, cy - 40, cx + 2, cy + 6); g.fill();
+      g.beginPath(); g.moveTo(cx + 4, cy + 30); g.quadraticCurveTo(cx + 50, cy + 10, cx + 58, cy - 40); g.quadraticCurveTo(cx + 36, cy - 4, cx - 4, cy + 4); g.fill();
+      text("BREAKWATER", w / 2, 236, 24, col);
+    });
+  cell("rescue", 6, 2, 2, 1, (w, h) => { g.fillStyle = YL; g.fillRect(8, 26, w - 16, h - 52); text("RESCUE", w / 2 - 20, h / 2, 34, DK); g.fillStyle = DK; g.beginPath(); g.moveTo(w - 70, h / 2 - 16); g.lineTo(w - 30, h / 2); g.lineTo(w - 70, h / 2 + 16); g.fill(); });
+  cell("fuel", 0, 3, 1, 1, (w, h) => { box(10, 30, w - 20, h - 60, RD, 6); text("FUEL", w / 2, h / 2, 30, RD); });
+  cell("marks", 1, 3, 1, 1, (w, h) => {                      // red marker boxes and a ring-and-tail
+    g.fillStyle = RD; g.fillRect(10, 14, 46, 16); g.fillRect(64, 14, 24, 16); g.fillRect(10, 40, 24, 8);
+    g.strokeStyle = RD; g.lineWidth = 5; g.beginPath(); g.arc(24, 84, 12, 0, TAU); g.stroke(); g.fillRect(36, 82, 70, 5);
+    g.fillRect(10, 108, 90, 6);
+  });
+  cell("keepclear", 6, 3, 2, 1, (w, h) => { g.strokeStyle = RD; g.lineWidth = 4; g.strokeRect(10, 28, w - 20, h - 56); text("KEEP CLEAR", w / 2, h / 2 - 8, 30, RD); text("JET BLAST", w / 2, h / 2 + 20, 16, RD); });
+  for (const [nm, col, cx] of [["data_d", DK, 0], ["data_w", WH, 2]])
+    cell(nm, cx, 4, 2, 1, (w, h) => { box(8, 12, w - 16, h - 24, col, 3); text("HALVERD H.I.  MODEL HV-24", 18, 34, 13, col, "left"); text("SERIAL 0417-B  MASS 380 T", 18, 58, 13, col, "left"); text("INSPECTED 10-86  SVC 500 H", 18, 82, 13, col, "left"); g.fillStyle = col; g.fillRect(18, 98, w - 36, 3); });
+  cell("hazard", 4, 4, 2, 1, (w, h) => { g.save(); g.beginPath(); g.rect(6, 34, w - 12, h - 68); g.clip(); g.fillStyle = DK; g.fillRect(6, 34, w - 12, h - 68); g.fillStyle = YL; for (let x = -60; x < w; x += 36) { g.beginPath(); g.moveTo(x, 34); g.lineTo(x + 18, 34); g.lineTo(x + 78, h - 34); g.lineTo(x + 60, h - 34); g.fill(); } g.restore(); });
+  cell("arrow_w", 6, 4, 1, 1, (w, h) => { g.fillStyle = WH; g.fillRect(20, h / 2 - 8, 60, 16); g.beginPath(); g.moveTo(76, h / 2 - 26); g.lineTo(112, h / 2); g.lineTo(76, h / 2 + 26); g.fill(); });
+  cell("cross_d", 7, 4, 1, 1, (w, h) => { g.strokeStyle = DK; g.lineWidth = 5; g.beginPath(); g.arc(w / 2, h / 2, 40, 0, TAU); g.stroke(); g.fillStyle = DK; g.fillRect(w / 2 - 2, 10, 4, h - 20); g.fillRect(10, h / 2 - 2, w - 20, 4); });
+  // line decals after a kit builder's panel lines (owner's references, 2026-10-24): brackets and dashes that follow a
+  // plate's edge, white and dark; small red marker boxes and ring-and-tail markers
+  for (const [nm, col, cx] of [["lines_w", WH, 4], ["lines_d", DK, 6]])
+    cell(nm, cx, 7, 2, 1, (w, h) => {
+      g.fillStyle = col;
+      g.fillRect(10, 14, 90, 6); g.fillRect(10, 14, 6, 40);                       // an L bracket
+      g.fillRect(w - 100, h - 20, 90, 6); g.fillRect(w - 16, h - 54, 6, 40);      // its partner, the far corner
+      for (let i = 0; i < 4; i++) g.fillRect(120 + i * 22, 14, 14, 6);           // a dash run
+      g.beginPath(); g.moveTo(30, h - 30); g.lineTo(80, h - 30); g.lineTo(96, h - 46); g.lineTo(150, h - 46); g.lineTo(150, h - 40); g.lineTo(99, h - 40); g.lineTo(83, h - 24); g.lineTo(30, h - 24); g.fill();
+      g.fillRect(w / 2 - 20, h / 2 - 3, 40, 6);
+    });
+  // the digits, white in rows 5 and 6, dark in 6 and 7, stencil weight
+  for (let d = 0; d < 10; d++) {
+    const iw = d, id = d + 10;
+    cell(`dw${d}`, iw % 8, 5 + Math.floor(iw / 8), 1, 1, (w, h) => text(String(d), w / 2, h / 2 + 4, 116, WH));
+    cell(`dd${d}`, id % 8, 5 + Math.floor(id / 8), 1, 1, (w, h) => text(String(d), w / 2, h / 2 + 4, 116, DK));
+  }
+  return cv;
+}
+
 window.__out = (() => {
   const X = textures(), png = c => c.toDataURL("image/png");
   // plating() is seeded, so calling it again gives the same canvases; wear's bump is not kept in TEX.
@@ -166,5 +338,17 @@ window.__out = (() => {
     armorL: png(L.map), armorL_n: png(normalOf(L.bump, 2.5)), armorL_orm: png(ormOf(L.map, L.bump, { base: "#c3c7cd", rough: 0.5, metal0: 0, light: true })),
     wear: png(X.wear), wear_n: png(normalOf(W.bump, 2.0)), wear_orm: png(ormOf(W.map, W.bump, { base: "#ddd6d3", rough: 0.55, metal0: 0, light: true })),
     hazard: png(X.hazard), hazard_orm: png(flat(128, 1, 0.6, 0)),
+    // Crab Breeze: the modern set, neutral so a palette tints it (plate and plateB the armour, frameM the structure)
+    ...(() => {
+      const A = modern(101, { base: "#dcdcdc" }), B = modern(131, { base: "#d2d2d2" });
+      const F = modern(151, { base: "#4a4b4f", chip: "rgba(150,150,155,0.5)", words: ["HYD", "03", "SERVICE", "LUBE 4", "B-07"] });
+      return {
+        plate: png(A.map), plate_n: png(normalOf(A.bump, 2.0)), plate_orm: png(ormOf(A.map, A.bump, { base: "#dcdcdc", rough: 0.42, metal0: 0 })),
+        plateB: png(B.map), plateB_n: png(normalOf(B.bump, 2.0)), plateB_orm: png(ormOf(B.map, B.bump, { base: "#d2d2d2", rough: 0.5, metal0: 0 })),
+        frameM: png(F.map), frameM_n: png(normalOf(F.bump, 2.0)), frameM_orm: png(ormOf(F.map, F.bump, { base: "#4a4b4f", rough: 0.4, metal0: 0.7 })),
+        decals: png(decalSheet()),
+      };
+    })(),
   };
 })();
+window.__decals = DECALS;

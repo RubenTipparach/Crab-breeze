@@ -29,6 +29,7 @@ mod sim;
 mod sun_flare;
 mod targeting;
 mod textures;
+mod units;
 mod water_render;
 mod world;
 
@@ -104,7 +105,12 @@ fn main() -> AppExit {
         water_render::WaterRenderPlugin,
         targeting::TargetingPlugin,
     ))
-    .add_plugins((screens_cube::ScreensCubePlugin, loading::LoadingPlugin, perf_hud::PerfHudPlugin));
+    .add_plugins((
+        screens_cube::ScreensCubePlugin,
+        loading::LoadingPlugin,
+        perf_hud::PerfHudPlugin,
+        units::UnitsPlugin,
+    ));
     // GPU grass (openspec change `gpu-grass`); `CB_NO_GRASS=1` leaves it out, so the benchmark can
     // measure what it costs.
     if !cli::switched_off("CB_NO_GRASS") {

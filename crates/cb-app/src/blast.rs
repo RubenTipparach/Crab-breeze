@@ -39,6 +39,7 @@ fn explode(
     mut fx: MessageWriter<Fx>,
     mut mechs: Query<(&mut MechSim, &MechSpec)>,
 ) {
+    let _t = crate::perf_hud::slow("explode");
     let live = &mut *live;
     for e in explosions.read() {
         let cfg = &data.0.world.craters;

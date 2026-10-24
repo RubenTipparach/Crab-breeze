@@ -20,6 +20,7 @@ pub mod rng;
 pub mod sim;
 pub mod sun_flare;
 pub mod targeting;
+pub mod units;
 pub mod water_look;
 pub mod weapons;
 pub mod world;
@@ -59,6 +60,8 @@ pub struct GameData {
     pub ground_marks: ground_marks::GroundMarksConfig,
     /// `data/world/sun_flare.ron`.
     pub sun: sun_flare::SunLook,
+    /// `data/world/units.ron`.
+    pub units: units::UnitsConfig,
 }
 
 impl GameData {
@@ -87,6 +90,7 @@ impl GameData {
             grass,
             ground_marks: data::load_ron(&root.join("fx/ground_marks.ron"))?,
             sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
+            units: data::load_ron(&root.join("world/units.ron"))?,
         })
     }
 
@@ -114,6 +118,20 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
         for mech in GameData::mech_files(&root) {
             GameData::load(&root, &mech).unwrap_or_else(|e| panic!("{e}"));
+        }
+    }
+
+    #[test]
+    fn every_defence_wave_names_units_that_exist() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let d = GameData::load(&root, "mechs/placeholder.ron").unwrap();
+        for (w, wave) in d.defence.forces.iter().enumerate() {
+            for f in wave {
+                assert!(d.units.units.contains_key(&f.unit), "wave {w}: no unit `{}`", f.unit);
+                if f.by_air {
+                    assert!(d.units.units.contains_key("cargo_plane"), "wave {w}: drops need `cargo_plane`");
+                }
+            }
         }
     }
 }

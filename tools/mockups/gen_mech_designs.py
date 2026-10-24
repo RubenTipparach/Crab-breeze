@@ -29,7 +29,9 @@ MODELS = os.path.join(ROOT, "assets", "models")
 OUT = os.path.join(ROOT, "docs", "mockups", "mech_designs.html")
 SITE = os.path.join(ROOT, "output", "mech_site")
 HUD = os.path.join(ROOT, "assets", "textures", "cockpit", "displays", "hud.png")
-ORDER = ["foreman", "stevedore", "ironhorse"]
+ORDER = ["foreman", "stevedore", "ironhorse", "harrow", "roustabout", "driller", "mule", "picket", "sapper"]
+# the block-outs the owner picked to build (2026-10-24: "1,2,6,8,11,12 start building them") keep their numbers
+NUMBERS = dict(harrow=1, roustabout=2, driller=6, mule=8, picket=11, sapper=12)
 
 PAGE = r"""<title>Crab Breeze Mechs</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -58,7 +60,7 @@ PAGE = r"""<title>Crab Breeze Mechs</title>
 * { box-sizing: border-box; }
 body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); margin: 0;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 32px; }
-header { display: grid; gap: 4px; margin: 0 auto 14px; max-width: 1400px; }
+header { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; margin: 0 auto 14px; max-width: 1400px; }
 .eyebrow { font: 500 12px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
 h1 { font: 700 34px/1 var(--display); letter-spacing: 0.03em; text-transform: uppercase; margin: 0; text-wrap: balance; }
 .lede { margin: 0; color: var(--muted); max-width: 76ch; }
@@ -96,7 +98,7 @@ aside { display: grid; gap: 12px; min-width: 0; }
 .note { font-size: 13px; color: var(--muted); margin: 0; }
 .foot { max-width: 1400px; margin: 16px auto 0; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
 .foot code { font: 12px var(--mono); overflow-wrap: anywhere; }
-.bo { margin: 8px 0 26px }
+.bo { margin: 8px 0 26px; min-width: 0 }
 .boh { font: 700 24px "Saira Condensed", sans-serif; text-transform: uppercase; margin: 14px 0 6px }
 .bop { max-width: 72ch; margin: 0 0 10px }
 .borow { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px }
@@ -108,30 +110,64 @@ aside { display: grid; gap: 12px; min-width: 0; }
 </style>
 
 <header>
-  <div class="eyebrow">Crab Breeze · mech design review · third pass, the cockpit in the chest</div>
+  <div class="eyebrow">Crab Breeze · mech design review · fourth pass, the new cockpits in the chest</div>
   <h1>Pick a chassis and its cockpit</h1>
-  <p class="lede">Three original chassis from the 1980s industrial world, finished in Mining Mike's boss style, each with its cockpit inside the chest and its own way of opening it. Each torso is broad in the shoulders and narrow at the waist, and its prow is the shape of the cockpit inside it: only the prow opens. Foreman is an excavator: the grilled visor over its chamfered cab lifts and the apron drops into a step, on a seated screen-wall cockpit. Stevedore is a dock crane: the lock rods turn and its octagonal prow splits into two doors, on a standing harness cockpit. Ironhorse is a locomotive: the dogs swing off and the whole prow, its hexagonal screen bank inside, swings open on a forward-leaning jockey cockpit. Press Kneel and open, or Board it to climb in through the pilot's eyes. All at true scale beside a 1.8 m pilot and a four-storey block.</p>
+  <p class="lede">Original chassis from the 1980s industrial world, each with its cockpit inside the chest. The chest and the cockpit now open as one body: the armour in front of each opening part of the cockpit is cut round it and moves on that part's own stages, so nothing meets. Foreman is an excavator carrying the Panorama: the front under the screens drops into a step, then the front over them swings up and out on two rams with the dash. Ironhorse is a locomotive carrying the seated Excavator cab: the dogs swing off and the smokebox front drops forward as a ramp with the cab's front on it. Stevedore keeps its standing harness for now. Press Kneel and open, or Board it to climb in through the pilot's eyes. All at true scale beside a 1.8 m pilot and a four-storey block.</p>
   <section class="bo">
     <h2 class="boh">Redesign at 24 m, low-poly first</h2>
     <p class="bop">The owner's next round (2026-10-24): twice the size, legs heavier than the torso for balance, every
     pilot seated, blocked out low-poly in Blender with CSG before any detail. The Stevedore keeps its struts; the Foreman
-    and the Ironhorse keep their characters. Each chest carries a seated cockpit prow whose hatch is cut as an orange
-    groove. Legs against torso is measured off the meshes.</p>
+    and the Ironhorse keep their characters. Ten are new, each after a 1980s working machine and each carrying a different
+    one of the ten cockpit block-outs at true size: the Harrow (after the Mad Cat, the Canopy rising out of its nose), the
+    Roustabout (after the Scopedog, the Titan in its chest), the Grader (a dozer, Panorama), the Logger (a harvester, Low
+    bank), the Lineman (a bucket truck, Cinema), the Driller (a drill rig, the All-view sphere), the Bowser (a fuel tanker,
+    Octagon), the Mule (a haul truck, Twin tier), the Pumper (a fire engine, Tile wall) and the Ploughman (a tractor,
+    Excavator cab). Some carry bigger arms: punching fists on the Mule and the Roustabout, heavier guns on the Harrow, the
+    Bowser and the Roustabout. Two are humanoids with a Gundam's build but none of its badges: the Picket (after the
+    RX-79[G], Panorama, machine gun and shield) and the Sapper (heavy, bolt-on armour, Titan, shoulder cannon, missile
+    pod). The new ones are numbered 1 to 12, as on their contact sheets. Legs against torso is
+    measured off the meshes, and no arm touches a leg (a mesh intersection check in the generator).</p>
     <div class="borow" id="bo-pick"></div>
     <div class="bostage"><canvas id="bo-view"></canvas></div>
     <div class="bostats" id="bo-stats"></div>
     <p class="hint">Drag to orbit, scroll or pinch to zoom. Beside them: a 1.8 m pilot, a 4.4 m car, a 14 m four-storey block and a rail at 24 m.</p>
   </section>
-  <h2 class="boh">The detailed round (12 m)</h2>
+  <section class="bo">
+    <h2 class="boh">Combat mechs, built from parts</h2>
+    <p class="bop">The owner (2026-10-24): "I need more combat mech mockups ... I want combat mechs with guns like in armored
+    core". So these are built the way Armored Core builds them, from interchangeable parts: legs (reverse joint, biped, tracks
+    or four legs), a core with a cockpit block-out in it at true size, a head, two arms each holding a weapon (rifle, gatling,
+    bazooka, sniper rifle, shotgun, pile driver, shield, grenade launcher), two back units (missile box, vertical missiles,
+    shoulder cannon, railgun, radar, rocket pod) and boosters (a back pack, swept wing vanes for the flyers, side jets), a
+    skate wheel in each foot. Every mech is one line of parts in the generator, so a new one is a new combination. They are
+    numbered on from the twelve above, 13 to 22.</p>
+    <p class="bop">The owner's verdict: "13,15,16,17, 19, and 21 all good. Don't build those just yet. Just note that I like
+    them." The Sabre, Bulldog, Tarantula, Hatchet, Anvil and Brigand are marked <b>liked</b> below; none is built in detail
+    yet.</p>
+    <div class="borow" id="cb-pick"></div>
+    <div class="bostage"><canvas id="cb-view"></canvas></div>
+    <div class="bostats" id="cb-stats"></div>
+    <p class="hint">Drag to orbit, scroll or pinch to zoom; the same pilot, car, block and 24 m rail beside them.</p>
+  </section>
+  <section class="bo">
+    <h2 class="boh">Crab mechs</h2>
+    <p class="bop">The owner (2026-10-24): "We need more crab designs, more practical big legged crabs with guns for arms". So
+    these are built from their own parts: a wide carapace with the cockpit block-out in its face, the sensors on two eye
+    stalks over it, three or four pairs of heavy walking legs whose knees stand over the shell, and a gun as each forearm
+    where the claw would be (autocannon, howitzer, gatling, rocket box, or a claw's two jaws round a cannon). Their legs
+    outweigh their shells two to four times by volume. Numbered on from the combat mechs, 23 to 28.</p>
+    <div class="borow" id="cr-pick"></div>
+    <div class="bostage"><canvas id="cr-view"></canvas></div>
+    <div class="bostats" id="cr-stats"></div>
+  </section>
+  <h2 class="boh">The detailed round: the first three at 12 m, the six picked from the block-outs at 24 m</h2>
 </header>
 
 <div class="wrap">
   <section>
     <div class="bar" role="group" aria-label="Mech">
       <span class="lbl">Mech</span>
-      <button id="m-foreman" data-mech="foreman">Foreman</button>
-      <button id="m-stevedore" data-mech="stevedore">Stevedore</button>
-      <button id="m-ironhorse" data-mech="ironhorse">Ironhorse</button>
+__MECH_BUTTONS__
       <button id="m-all" data-mech="all">Line up</button>
     </div>
     <div class="bar" role="group" aria-label="Move">
@@ -303,7 +339,15 @@ const loadOne = (id, idx) => loader.loadAsync(`mech_${id}.gltf.json`).then(g => 
     b.interior = pod;
     const pn = {}; pod.traverse(o => { if (o.name) pn[o.name] = o; });
     b.pnodes = pn;
-    for (const tr of innerTracks(I.man)) if (pn[tr.node]) { b.inner.push(tr); b.restT["~" + tr.node] = { q: pn[tr.node].quaternion.clone(), p: pn[tr.node].position.clone() }; }
+    // a chest that opens on the interior's own parts (mech_boarding mode "inner") carries each part on its last
+    // joint, so the two open as one body: put the chest at rest, hang the part on the joint, skip its own tracks
+    const rides = b.cockpit.rides || {}, ridden = Object.keys(rides).filter(n => pn[n] && nodes[rides[n]]);
+    if (ridden.length) {
+      for (const tr of b.board.tracks) { const o = nodes[tr.node], r = b.restT[tr.node]; if (o && r) { o.position.copy(r.p); o.quaternion.copy(r.q); } }
+      root.updateMatrixWorld(true);
+      for (const n of ridden) nodes[rides[n]].attach(pn[n]);
+    }
+    for (const tr of innerTracks(I.man)) if (pn[tr.node] && !ridden.some(n => tr.node.startsWith(n))) { b.inner.push(tr); b.restT["~" + tr.node] = { q: pn[tr.node].quaternion.clone(), p: pn[tr.node].position.clone() }; }
     b.timeline = timeline(b);
   }).catch(e => console.warn("interior", v, e));
 });
@@ -374,7 +418,7 @@ const tagsEl = document.getElementById("tags"), cueEl = document.getElementById(
 const scrub = document.getElementById("scrub"), tlabel = document.getElementById("tlabel");
 function layout() {
   const spread = current === "all";
-  ORDER.forEach((id, i) => { const m = mechs[id]; if (!m) return; m.root.visible = spread || id === current; m.root.position.set(spread ? (i - 1) * 17 : 0, 0, 0); });
+  ORDER.forEach((id, i) => { const m = mechs[id]; if (!m) return; m.root.visible = spread || id === current; m.root.position.set(spread ? (i - 1) * 17 + Math.max(0, i - 2) * 4 : 0, 0, 0); });
   pilot.position.set(spread ? -9 : 5.5, 0, 7); pilot.rotation.y = -0.6;
 }
 const cur = () => mechs[current === "all" ? ORDER[0] : current];
@@ -393,14 +437,15 @@ function setView(v) {
   } else {
     camera.fov = 42; camera.near = 0.05; camera.updateProjectionMatrix();
     Object.assign(controls, { minDistance: 2, maxDistance: 140, enablePan: true, enableZoom: true, rotateSpeed: 1, enabled: true });
-    const d = current === "all" ? 50 : 26;
-    controls.target.set(0, 6.2, 0);
+    const d = current === "all" ? 70 : 40;            // the mechs stand 22 to 26 m: frame all of one
+    controls.target.set(0, 11, 0);
     if (v === "hatch" || v === "hatch3q") { const h = nodeWorld(cur(), "HATCH_entry"), f = fwdOf(cur()), sd = new T.Vector3(f.z, 0, -f.x);
       const far = v === "hatch3q";
-      controls.target.copy(far ? new T.Vector3(h.x, h.y * 0.6, h.z) : h.clone().add(new T.Vector3(0, 0.8, 0)));
-      camera.position.copy(h).addScaledVector(f, far ? 15 : 7.0).addScaledVector(sd, far ? 8 : 2.2).add(new T.Vector3(0, far ? 1.5 : 1.4, 0)); }
-    else if (v === "front") camera.position.set(0, 7, d); else if (v === "side") camera.position.set(d, 7, 0);
-    else if (v === "back") camera.position.set(-d * 0.5, 9, -d * 0.85); else camera.position.set(d * 0.7, 9, d * 0.8);
+      // the three-quarter view takes in the whole chest and its armour swinging clear, at 24 m scale
+      controls.target.copy(far ? new T.Vector3(h.x, h.y + 0.5, h.z) : h.clone().add(new T.Vector3(0, 0.8, 0)));
+      camera.position.copy(h).addScaledVector(f, far ? 17 : 7.0).addScaledVector(sd, far ? 10 : 2.2).add(new T.Vector3(0, far ? 3.0 : 1.4, 0)); }
+    else if (v === "front") camera.position.set(0, 12, d); else if (v === "side") camera.position.set(d, 12, 0);
+    else if (v === "back") camera.position.set(-d * 0.5, 15, -d * 0.85); else camera.position.set(d * 0.7, 15, d * 0.8);
   }
   controls.update();
 }
@@ -462,8 +507,8 @@ document.getElementById("b-leave").onclick = () => { if (current === "all") setM
 ]); };
 let sealPuff = 0;
 
-// The pilot's walk: from the ground to the ladder's foot, up the ladder, onto the sill, in, turn and settle
-// at the eye. Waypoints in world space from the mech as it stands open; yaw is about the bay's forward.
+// The pilot's walk: from the ground to the ladder's foot (or, on a chest with no ladder, the foot of the sill),
+// up, onto the sill, in, turn and settle at the eye. Waypoints in world space from the mech as it stands open; yaw is about the bay's forward.
 function walkPath(b) {
   const f = fwdOf(b), side = new T.Vector3(f.z, 0, -f.x), lad = b.board.ladder;
   const sill = nodeWorld(b, "HATCH_entry"), eye = eyeOf(current);
@@ -594,7 +639,7 @@ function loop(ms) {
     if (sealPuff > 0) sealPuff -= dt;
     let cue = ""; for (const [ct, c] of CUES) if (Tb >= ct - 1e-3) cue = c || cue;
     if (Tb > b.timeline.innerAt) cue = "Cockpit opens";
-    if (Tb > b.timeline.ladderAt) cue = "Ladder drops";
+    if (b.board.ladder && Tb > b.timeline.ladderAt) cue = "Ladder drops";
     cueEl.hidden = !(Tb > 0.01 && Tb < b.timeline.end - 0.01); cueEl.textContent = cue;
   }
   steam.step(dt, camera, renderer);
@@ -623,17 +668,26 @@ window.MOCKUP = {
     const dir = new T.Vector3(Math.sin(y0 + yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(y0 + yaw) * Math.cos(pitch));
     camera.position.copy(e); controls.target.copy(e).add(dir); camera.fov = fov || 78; camera.updateProjectionMatrix(); controls.update(); },
   orbitTo(tx, ty, tz, cx, cy, cz) { setView("orbit"); controls.target.set(tx, ty, tz); camera.position.set(cx, cy, cz); controls.update(); },
+  // what the camera sees at a point of the view (x, y from -1 to 1): the hit's node path and its height off the
+  // cockpit floor, for checking from the pilot's seat that nothing stands in the doorway
+  pick(x, y) { const rc = new T.Raycaster(); rc.setFromCamera(new T.Vector2(x, y), camera);
+    const shown = o => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
+    const h = rc.intersectObject(scene, true).find(i => !i.object.isSprite && !i.object.isPoints && !i.object.isLine && shown(i.object)); if (!h) return null;
+    const path = []; for (let o = h.object; o && o !== scene; o = o.parent) if (o.name) path.push(o.name);
+    const c = cur().nodes.cockpit.worldToLocal(h.point.clone()); return { path: path.slice(0, 6), y: +c.y.toFixed(2), z: +c.z.toFixed(2), d: +h.distance.toFixed(2) }; },
   state: () => ({ Tb, end: cur() && cur().timeline.end, interior: !!(cur() && cur().interior), walk: walk && { i: walk.i, done: walk.done } }),
 };
 
-// ---------- the 24 m low-poly block-outs: their own viewer, side by side at true scale ----------
-(function () {
-  const BO = __MECH_BLOCKOUTS__;
-  const cv = document.getElementById("bo-view");
+// ---------- the 24 m low-poly block-outs: their own viewers, side by side at true scale ----------
+// the combat mechs the owner picked out (2026-10-24: "13,15,16,17, 19, and 21 all good ... Just note that I like them")
+const LIKED = new Set(["sabre", "bulldog", "tarantula", "hatchet", "anvil", "brigand"]);
+function blockoutViewer(BO, view, pickId, statsId, first, gap, api, frame) {
+  frame = frame || { d: 1, ty: 12 };     // one mech's framing: distance scale and target height (the crabs are wide and low)
+  const cv = document.getElementById(view);
   const r = new T.WebGLRenderer({ canvas: cv, antialias: true });
   r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); r.outputEncoding = T.sRGBEncoding; r.toneMapping = T.ACESFilmicToneMapping;
   r.shadowMap.enabled = true;
-  const sc = new T.Scene(); sc.background = new T.Color(0x2a1f30); sc.fog = new T.Fog(0x2a1f30, 90, 260);
+  const sc = new T.Scene(); sc.background = new T.Color(0x2a1f30); sc.fog = new T.Fog(0x2a1f30, 90 * Math.max(1, gap / 24), 260 * Math.max(1, gap / 24));
   const cam = new T.PerspectiveCamera(40, 2, 0.1, 800);
   const oc = new T.OrbitControls(cam, cv); oc.enableDamping = true;
   sc.add(new T.HemisphereLight(0xb9a6d8, 0x2a2018, 0.7));
@@ -651,32 +705,40 @@ window.MOCKUP = {
   const hb = new T.Mesh(new T.SphereGeometry(0.12, 12, 10), new T.MeshStandardMaterial({ color: 0xd8b49a })); hb.position.y = 1.66; pil.add(hb);
   pil.position.set(-8, 0, 9); sc.add(pil);
   const groups = {}, ids = BO.mechs.map(m => m.id);
-  const pick = document.getElementById("bo-pick");
+  const pick = document.getElementById(pickId);
   let cur = "all";
   function show(id) {
     cur = id;
-    ids.forEach((k, i) => { const g = groups[k]; if (!g) return; g.visible = id === "all" || id === k; g.position.x = id === "all" ? (i - 1) * 16 : 0; });
+    ids.forEach((k, i) => { const g = groups[k]; if (!g) return; g.visible = id === "all" || id === k; const row = Math.floor(i / 5), col = i % 5; g.position.x = id === "all" ? (col - 2) * gap : 0; g.position.z = id === "all" ? -row * (gap + 6) : 0; });
     pick.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.bo === id)));
-    if (id === "all") { cam.position.set(30, 22, 52); oc.target.set(0, 11, 0); } else { cam.position.set(22, 18, 30); oc.target.set(0, 12, 0); }
+    if (id === "all") { cam.position.set(40 * gap / 16, 34, 70 * gap / 16); oc.target.set(0, 10, -20); } else { cam.position.set(22 * frame.d, 18 * frame.d, 30 * frame.d); oc.target.set(0, frame.ty, 0); }
     oc.update();
   }
-  [...BO.mechs.map(m => [m.id, m.name]), ["all", "Line up"]].forEach(([id, name]) => {
+  // the new mechs carry the numbers on their contact sheets (owner, 2026-10-24: "can you add numbers to those mechs")
+  const ORIGINAL = new Set(["foreman", "stevedore", "ironhorse"]);
+  let num = first - 1;
+  [...BO.mechs.map(m => [m.id, ORIGINAL.has(m.id) ? m.name : `${++num} ${m.name}${LIKED.has(m.id) ? " (liked)" : ""}`]), ["all", "Line up"]].forEach(([id, name]) => {
     const b = document.createElement("button"); b.textContent = name; b.dataset.bo = id; b.onclick = () => show(id); pick.appendChild(b);
   });
-  document.getElementById("bo-stats").innerHTML = "<table><tr><th>Mech</th><th>After</th><th>Height</th><th>Width</th><th>Legs : torso</th><th>Triangles</th></tr>" +
+  document.getElementById(statsId).innerHTML = "<table><tr><th>Mech</th><th>After</th><th>Height</th><th>Width</th><th>Legs : torso</th><th>Triangles</th></tr>" +
     BO.mechs.map(m => `<tr><td>${m.name}</td><td>${m.what}</td><td>${m.height_m.toFixed(1)} m</td><td>${m.width_m.toFixed(1)} m</td><td>${m.legs_over_torso.toFixed(2)} by volume</td><td>${m.tris.toLocaleString()}</td></tr>`).join("") + "</table>";
   Promise.all(BO.mechs.map(m => loader.loadAsync(m.file).then(g => {
     g.scene.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
     groups[m.id] = g.scene; sc.add(g.scene);
-  }))).then(() => show("all")).catch(e => { document.getElementById("bo-stats").textContent = "Could not load: " + e; });
-  window.BLOCKOUTS = { show };
+  }))).then(() => show("all")).catch(e => { document.getElementById(statsId).textContent = "Could not load: " + e; });
+  window[api] = { show };
   (function loop() {
     requestAnimationFrame(loop);
     const w = cv.clientWidth, h = cv.clientHeight;
     if (cv.width !== Math.floor(w * r.getPixelRatio())) { r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
     oc.update(); r.render(sc, cam);
   })();
-})();
+}
+blockoutViewer(__MECH_BLOCKOUTS__, "bo-view", "bo-pick", "bo-stats", 1, 16, "BLOCKOUTS");
+// the combat mechs, numbered on from the working ones (owner, 2026-10-24: "I want combat mechs with guns like in armored core")
+blockoutViewer(__MECH_COMBAT__, "cb-view", "cb-pick", "cb-stats", 13, 24, "COMBAT");
+// the crab mechs, numbered on from the combat mechs (owner, 2026-10-24: "more practical big legged crabs with guns for arms")
+blockoutViewer(__MECH_CRABS__, "cr-view", "cr-pick", "cr-stats", 23, 44, "CRABS", { d: 1.45, ty: 7 });
 </script>
 """
 
@@ -713,9 +775,9 @@ def as_json_gltf(src, dst):
         json.dump(js, f, separators=(",", ":"))
 
 
-def blockouts_for_page():
-    """The 24 m block-outs' manifest with each model's path as published beside the page."""
-    bo = json.load(open(os.path.join(MODELS, "mech_blockouts.json")))
+def blockouts_for_page(manifest="mech_blockouts.json"):
+    """A block-out manifest (the working mechs, or mech_combat.json) with each model's path as published beside the page."""
+    bo = json.load(open(os.path.join(MODELS, manifest)))
     for m in bo["mechs"]:
         m["file"] = f"mech_blockouts/{m['id']}.gltf.json"
     return bo
@@ -729,8 +791,8 @@ def files(meta, inside):
         rel = f"mech_{k}.gltf.json"
         as_json_gltf(os.path.join(MODELS, meta[k]["file"]), os.path.join(SITE, rel))
         out[rel] = os.path.join(SITE, rel)
-    bo = json.load(open(os.path.join(MODELS, "mech_blockouts.json")))
-    for m in bo["mechs"]:
+    for m in json.load(open(os.path.join(MODELS, "mech_blockouts.json")))["mechs"] + json.load(open(os.path.join(MODELS, "mech_combat.json")))["mechs"] + \
+            json.load(open(os.path.join(MODELS, "mech_crabs.json")))["mechs"]:
         rel = f"mech_blockouts/{m['id']}.gltf.json"
         as_json_gltf(os.path.join(MODELS, m["file"]), os.path.join(SITE, rel))
         out[rel] = os.path.join(SITE, rel)
@@ -761,6 +823,9 @@ def main():
     hud = base64.b64encode(open(HUD, "rb").read()).decode("ascii")
     html = (PAGE.replace("__MECH_POSE__", pose).replace("__STEAM__", steam).replace("__SCREEN_WALL__", wall).replace("__GLTF_JSON__", gltf_json)
             .replace("__MECH_BLOCKOUTS__", json.dumps(blockouts_for_page()))
+            .replace("__MECH_BUTTONS__", "\n".join(f'      <button id="m-{k}" data-mech="{k}">{(str(NUMBERS[k]) + " ") if k in NUMBERS else ""}{meta[k]["name"]}</button>' for k in ORDER))
+            .replace("__MECH_COMBAT__", json.dumps(blockouts_for_page("mech_combat.json")))
+            .replace("__MECH_CRABS__", json.dumps(blockouts_for_page("mech_crabs.json")))
             .replace("__META__", json.dumps({k: meta[k] for k in ORDER}))
             .replace("__INTERIOR__", json.dumps(inside)).replace("__ORDER__", json.dumps(ORDER)).replace("__HUD__", hud))
     os.makedirs(os.path.dirname(OUT), exist_ok=True)

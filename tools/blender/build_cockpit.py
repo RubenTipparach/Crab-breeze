@@ -176,10 +176,10 @@ class Set:
             bm.loops.layers.uv.remove(lay)
         return self._ob(bm, mat, group, node, smooth=True)
 
-    def plate(self, panel, c, n, up, t=0.012, group="front", node=None):
+    def plate(self, panel, c, n, up, t=0.012, group="front", node=None, scale=1.0):
         """A panel's plate: front face through c facing n, its maps UV'd across the front face, the
-        edges taking the panel's corner texel."""
-        w, h = CP.PANELS[panel][0], CP.PANELS[panel][1]
+        edges taking the panel's corner texel. scale shrinks the plate and its picture together."""
+        w, h = CP.PANELS[panel][0] * scale, CP.PANELS[panel][1] * scale
         r, u, nn = basis(n, up)
         c = Vector(c) + nn * 0.0015          # proud of the face it is laid on: never coplanar (no z-fighting)
         bm = bmesh.new()
@@ -455,60 +455,11 @@ def build_wall(S):
     S.box((-0.6, 1.14, -0.64), (0.6, 1.20, -0.58), "bezel", bevel=0.004)
     S.box((-0.5, 1.13, -0.585), (0.5, 1.137, -0.578), "white_lit")
 
-    # --- side consoles: bodies, tops (the console panels), inner faces (breakers), front blocks
-    for s, side in ((1, "L"), (-1, "R")):
-        x0, x1 = sorted((s * 0.36, s * 0.72))
-        S.box((x0, 0.0, -0.42), (x1, 0.645, 0.52), "paint", bevel=0.004)
-        S.plate(f"console_{side}", (s * 0.53, 0.657, 0.05), Y, Z, t=0.012)
-        S.plate(f"breakers_{side}", (s * 0.36, 0.38, 0.05), -s * X, Y, t=0.01, group="cabin")
-        S.box((x0 - (0.02 if s < 0 else 0), 0.0, 0.52), (x1 + (0.02 if s > 0 else 0), 0.62, 0.94), "paint_dk", bevel=0.006)
-        S.box((x0, 0.645, -0.43), (x1, 0.663, -0.39), "paint_dk", bevel=0.003)
-        S.obox(V(s * 0.66, 0.925, 0.05), I3, (0.03, 0.012, 0.6), "bezel", bevel=0.002)
-        S.obox(V(s * 0.66, 0.917, 0.05), I3, (0.016, 0.004, 0.56), "white_lit")
-        for i, (r, mat) in enumerate(((0.012, "rubber"), (0.009, "red"), (0.01, "rubber"), (0.007, "yellow"))):
-            y = 0.905 - i * 0.022
-            S.tube([V(s * 0.70, y, -0.66), V(s * 0.70, y, -0.36), V(s * 0.695, y - 0.01, 0.0), V(s * 0.70, y, 0.46),
-                    V(s * 0.70, y + 0.02, 0.84)], r, mat)
-        for z in (-0.5, -0.3, 0.5, 0.75):
-            S.obox(V(s * 0.70, 0.872, z), I3, (0.03, 0.09, 0.025), "steel", bevel=0.003)
+    side_consoles(S)
 
     # --- the front console: dash, MFDs, glare shield, knee panel, on one node that swings clear
     cn = "CONSOLE_front"
-    a = math.radians(18)
-    nd, ud = V(0, math.sin(a), -math.cos(a)), V(0, math.cos(a), math.sin(a))
-    cd = V(0, 0.80, 0.70)
-    S.plate("dash_main", cd, nd, ud, t=0.014, node=cn)
-    rd, ud2, nd2 = basis(nd, ud)
-    S.obox(cd - nd * 0.15, (rd, ud2, nd2), (1.58, 0.47, 0.28), "paint_dk", group="front", node=cn)
-    disp = {"SCREEN_left": "mfd_left", "SCREEN_center": "mfd_center", "SCREEN_right": "mfd_right"}
-    for name, px, py, s in CP.MFDS:
-        c = cd + rd * px + ud2 * py + nd2 * 0.002
-        O, I, t = (s + 0.06) / 2, s / 2, 0.03
-        for (cx, cy, w, h) in ((0, (O + I) / 2, 2 * O, O - I), (0, -(O + I) / 2, 2 * O, O - I),
-                               ((O + I) / 2, 0, O - I, 2 * I), (-(O + I) / 2, 0, O - I, 2 * I)):
-            S.obox(c + rd * cx + ud2 * cy + nd2 * t / 2, (rd, ud2, nd2), (w, h, t), "bezel", group="front", node=cn, bevel=0.003)
-        S.obox(c + nd2 * 0.004, (rd, ud2, nd2), (2 * I, 2 * I, 0.008), "glass", group="front", node=cn)
-        for side in range(4):
-            k = 5 if side < 2 else 4
-            for i in range(k):
-                tt = (i + 0.5) / k * 2 - 1
-                if side < 2:
-                    p = c + rd * (tt * I * 0.92) + ud2 * ((1 if side == 0 else -1) * (O + I) / 2)
-                    sz = (s * 0.11, (O - I) * 0.5, 0.012)
-                else:
-                    p = c + ud2 * (tt * I * 0.85) + rd * ((1 if side == 2 else -1) * (O + I) / 2)
-                    sz = ((O - I) * 0.5, s * 0.1, 0.012)
-                S.obox(p + nd2 * (t + 0.005), (rd, ud2, nd2), sz, "paint_lt", group="front", node=cn, bevel=0.0025)
-        for cx in (-1, 1):
-            S.obox(c + rd * cx * (O - (O - I) / 2) + ud2 * (O - (O - I) / 2) + nd2 * (t + 0.004), (rd, ud2, nd2),
-                   ((O - I) * 0.55, (O - I) * 0.55, 0.01), "steel", group="front", node=cn, bevel=0.003)
-        S.quad(c + nd2 * 0.0105, nd2, ud2, 2 * I * 0.97, 2 * I * 0.97,
-               emission_material(name, os.path.join(DISPLAYS, f"{disp[name]}.png"), 2.5), "screen", name, node=name)
-        S.disp[name] = disp[name]
-    S.plate("glare", (0, 1.05, 0.70), Y, Z, t=0.012, node=cn)
-    S.box((-0.79, 1.01, 0.60), (0.79, 1.038, 0.80), "paint_dk", group="front", node=cn, bevel=0.01)
-    S.box((-0.78, 1.0, 0.605), (0.78, 1.012, 0.625), "bezel", group="front", node=cn, bevel=0.002)
-    S.box((-0.60, 0.996, 0.611), (0.60, 1.0, 0.62), "white_lit", group="front", node=cn)
+    dash_unit(S, cn, V(0, 0.80, 0.70))
     b = math.radians(10)
     nk, uk = V(0, math.sin(b), -math.cos(b)), V(0, math.cos(b), math.sin(b))
     ck = V(0, 0.43, 0.64)
@@ -519,57 +470,8 @@ def build_wall(S):
         S.obox(V(s * 0.70, 0.86, 0.86), I3, (0.04, 0.38, 0.06), "steel", group="front", node=cn, bevel=0.006)
         S.cyl(V(s * 0.70, 1.04, 0.80), V(s * 0.74, 1.04, 0.80), 0.04, "metal", group="front", node=cn)
 
-    # --- the seat: pedestal, cushion, bolsters, back, headrest, harness, eject handle
-    S.box((-0.18, 0.0, -0.22), (0.18, 0.34, 0.18), "paint_dk", bevel=0.01)
-    S.box((-0.25, 0.34, -0.24), (0.25, 0.45, 0.22), "fabric", bevel=0.03, seg=3)
-    for s in (1, -1):
-        S.box((s * 0.22 - 0.035, 0.38, -0.24), (s * 0.22 + 0.035, 0.53, 0.2), "fabric", bevel=0.025, seg=3)
-    bot, top = V(0, 0.45, -0.22), V(0, 1.14, -0.32)
-    ub = (top - bot).normalized()
-    nb = X.cross(ub).normalized()
-    rb, ub2, nb2 = basis(nb, ub)
-    S.obox((bot + top) / 2, (rb, ub2, nb2), (0.50, 0.70, 0.11), "fabric", bevel=0.03, seg=3)
-    S.obox((bot + top) / 2 - nb2 * 0.08, (rb, ub2, nb2), (0.56, 0.76, 0.06), "paint_dk", bevel=0.01)
-    for s in (1, -1):
-        S.obox((bot + top) / 2 + rb * s * 0.27 + nb2 * 0.03, (rb, ub2, nb2), (0.07, 0.62, 0.13), "fabric", bevel=0.025, seg=3)
-    S.obox(top + ub2 * 0.14 + nb2 * 0.01, (rb, ub2, nb2), (0.30, 0.20, 0.10), "fabric", bevel=0.03, seg=3)
-    S.obox(top + ub2 * 0.14 - nb2 * 0.06, (rb, ub2, nb2), (0.34, 0.24, 0.05), "paint_dk", bevel=0.008)
-    for s in (1, -1):
-        p0 = top + rb * s * 0.09 + nb2 * 0.062
-        p1 = bot + rb * s * 0.11 + nb2 * 0.062 + ub2 * 0.05
-        S.obox((p0 + p1) / 2, (rb, ub2, nb2), (0.05, (p0 - p1).length, 0.008), "strap")
-        S.obox(V(s * 0.13, 0.456, -0.02), I3, (0.17, 0.008, 0.05), "strap")
-        S.obox(V(s * 0.21, 0.5, -0.02), I3, (0.008, 0.09, 0.05), "strap")
-    S.cyl(V(0, 0.452, -0.02), V(0, 0.468, -0.02), 0.04, "metal", seg=32)
-    S.cyl(V(0, 0.468, -0.02), V(0, 0.471, -0.02), 0.022, "red", seg=32)
-    loop = [V(0.07 * math.cos(t), 0.36 + 0.05 * math.sin(t), 0.235) for t in [i * 2 * math.pi / 12 for i in range(12)]]
-    S.tube(loop, 0.011, "hazard", closed=True)
-    S.box((-0.05, 0.33, 0.215), (0.05, 0.36, 0.23), "bezel", bevel=0.004)
-
-    # --- the controls: a grip at the end of each console (the references' twin side sticks).
-    # The right grip flies the mech and turns the torso (it twists); the left is the throttle,
-    # riding its quadrant through idle, walk, run, skate and the jet gate.
-    for node, side in (("CTRL_stick", -1), ("CTRL_throttle", 1)):
-        gp = NODES[node][1]
-        if node == "CTRL_stick":
-            S.cyl(gp - V(0, 0.01, 0), gp + V(0, 0.045, 0), 0.06, "rubber", r1=0.03, seg=24)
-        S.cyl(gp, gp + V(0, 0.15, 0.01), 0.014, "steel", node=node, group="front", seg=16)
-        up, fw = V(0, 0.96, 0.27).normalized(), V(0, -0.27, 0.96).normalized()
-        S.obox(gp + V(0, 0.22, 0.03), (V(1, 0, 0), up, fw), (0.055, 0.14, 0.07), "rubber", node=node, group="front", bevel=0.02, seg=3)
-        S.obox(gp + V(0, 0.21, 0.075), (V(1, 0, 0), up, fw), (0.022, 0.04, 0.02), "metal", node=node, group="front", bevel=0.006)
-        S.obox(gp + V(side * 0.03, 0.235, 0.02), (V(1, 0, 0), up, fw), (0.012, 0.05, 0.04), "paint_dk", node=node, group="front", bevel=0.004)
-        top = gp + V(0, 0.295, 0.05)
-        S.cyl(top, top + V(0, 0.012, 0.004), 0.011, "steel", node=node, group="front", seg=16)
-        S.cyl(top + V(-side * 0.018, -0.006, -0.02), top + V(-side * 0.018, 0.006, -0.02), 0.008, "red_lit" if node == "CTRL_stick" else "amber",
-              node=node, group="front", seg=16)
-        S.cyl(top + V(side * 0.02, -0.01, -0.005), top + V(side * 0.024, 0.0, -0.005), 0.006, "green", node=node, group="front", seg=12)
-    for s in (1, -1):
-        S.cyl(V(s * 0.15, 0.2, 0.92), V(s * 0.15, 0.16, 0.80), 0.014, "steel", seg=12)
-        n_p = V(0, 0.7, -0.71).normalized()
-        S.obox(V(s * 0.15, 0.13, 0.78), basis(n_p, Y), (0.11, 0.2, 0.025), "steel", bevel=0.005)
-        S.obox(V(s * 0.15, 0.135, 0.775), basis(n_p, Y), (0.1, 0.03, 0.03), "hazard", bevel=0.003)
-        # cyan accent strips along the consoles' inner edges
-        S.obox(V(s * 0.365, 0.664, 0.05), I3, (0.006, 0.004, 0.86), "cyan")
+    seat(S)
+    controls(S)
 
     # --- the screen belt: front screen on the visor, chamfer screens on the doors, side screens
     hn = "INNER_front"
@@ -662,6 +564,144 @@ def build_wall(S):
     for i in range(6):
         vent("pod", V(-0.5 + 0.2 * i, 0.15, 0.95), (0, -0.2, 1), "mist", "inner_open", 1.0)
 
+
+
+# ----------------------------------------------------------------------------- the dash
+
+def dash_unit(S, cn, cd, scale=1.0):
+    """The dash on node cn: the dash panel tilted 18 degrees at the eye through cd, its body, the three MFDs
+    (CP.MFDS) in bezels with their clips and glass, and the glare shield over them; scale shrinks the whole
+    unit for a narrower cabin. Shared by the wall and the layouts."""
+    k = scale
+    a = math.radians(18)
+    nd, ud = V(0, math.sin(a), -math.cos(a)), V(0, math.cos(a), math.sin(a))
+    S.plate("dash_main", cd, nd, ud, t=0.014, node=cn, scale=k)
+    rd, ud2, nd2 = basis(nd, ud)
+    S.obox(cd - nd * 0.15, (rd, ud2, nd2), (1.58 * k, 0.47 * k, 0.28), "paint_dk", group="front", node=cn)
+    disp = {"SCREEN_left": "mfd_left", "SCREEN_center": "mfd_center", "SCREEN_right": "mfd_right"}
+    for name, px, py, s in CP.MFDS:
+        px, py, s = px * k, py * k, s * k
+        c = cd + rd * px + ud2 * py + nd2 * 0.002
+        O, I, t = (s + 0.06 * k) / 2, s / 2, 0.03
+        for (cx, cy, w, h) in ((0, (O + I) / 2, 2 * O, O - I), (0, -(O + I) / 2, 2 * O, O - I),
+                               ((O + I) / 2, 0, O - I, 2 * I), (-(O + I) / 2, 0, O - I, 2 * I)):
+            S.obox(c + rd * cx + ud2 * cy + nd2 * t / 2, (rd, ud2, nd2), (w, h, t), "bezel", group="front", node=cn, bevel=0.003)
+        S.obox(c + nd2 * 0.004, (rd, ud2, nd2), (2 * I, 2 * I, 0.008), "glass", group="front", node=cn)
+        for side in range(4):
+            n_ = 5 if side < 2 else 4
+            for i in range(n_):
+                tt = (i + 0.5) / n_ * 2 - 1
+                if side < 2:
+                    p = c + rd * (tt * I * 0.92) + ud2 * ((1 if side == 0 else -1) * (O + I) / 2)
+                    sz = (s * 0.11, (O - I) * 0.5, 0.012)
+                else:
+                    p = c + ud2 * (tt * I * 0.85) + rd * ((1 if side == 2 else -1) * (O + I) / 2)
+                    sz = ((O - I) * 0.5, s * 0.1, 0.012)
+                S.obox(p + nd2 * (t + 0.005), (rd, ud2, nd2), sz, "paint_lt", group="front", node=cn, bevel=0.0025)
+        for cx in (-1, 1):
+            S.obox(c + rd * cx * (O - (O - I) / 2) + ud2 * (O - (O - I) / 2) + nd2 * (t + 0.004), (rd, ud2, nd2),
+                   ((O - I) * 0.55, (O - I) * 0.55, 0.01), "steel", group="front", node=cn, bevel=0.003)
+        S.quad(c + nd2 * 0.0105, nd2, ud2, 2 * I * 0.97, 2 * I * 0.97,
+               emission_material(name, os.path.join(DISPLAYS, f"{disp[name]}.png"), 2.5), "screen", name, node=name)
+        S.disp[name] = disp[name]
+        NODES.setdefault(name, (cn, None))
+    g = cd + V(0, 0.25, 0)                   # the glare shield over the MFDs
+    S.plate("glare", g, V(0, 1, 0), V(0, 0, 1), t=0.012, node=cn, scale=k)
+    S.box((-0.79 * k, g.y - 0.04, g.z - 0.10), (0.79 * k, g.y - 0.012, g.z + 0.10), "paint_dk", group="front", node=cn, bevel=0.01)
+    S.box((-0.78 * k, g.y - 0.05, g.z - 0.095), (0.78 * k, g.y - 0.038, g.z - 0.075), "bezel", group="front", node=cn, bevel=0.002)
+    S.box((-0.60 * k, g.y - 0.054, g.z - 0.089), (0.60 * k, g.y - 0.05, g.z - 0.08), "white_lit", group="front", node=cn)
+
+
+# ----------------------------------------------------------------------------- the seated kit
+# The seat, the side consoles and the grips, the same in every seated cabin (the wall and the layouts).
+
+def side_consoles(S, z_front=0.94, z_body=0.52):
+    """The side consoles either side of the seat: bodies, the console panels on top, breakers on their inner
+    faces, front blocks running forward to z_front, conduit along the walls. Shared by every seated cabin."""
+    X, Y, Z = V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)
+    I3 = (X, Y, Z)
+    # --- side consoles: bodies, tops (the console panels), inner faces (breakers), front blocks
+    for s, side in ((1, "L"), (-1, "R")):
+        x0, x1 = sorted((s * 0.36, s * 0.72))
+        S.box((x0, 0.0, -0.42), (x1, 0.645, z_body), "paint", bevel=0.004)
+        S.plate(f"console_{side}", (s * 0.53, 0.657, 0.05), Y, Z, t=0.012)
+        S.plate(f"breakers_{side}", (s * 0.36, 0.38, 0.05), -s * X, Y, t=0.01, group="cabin")
+        if z_front > z_body + 0.04:
+            S.box((x0 - (0.02 if s < 0 else 0), 0.0, z_body), (x1 + (0.02 if s > 0 else 0), 0.62, z_front), "paint_dk", bevel=0.006)
+        S.box((x0, 0.645, -0.43), (x1, 0.663, -0.39), "paint_dk", bevel=0.003)
+        S.obox(V(s * 0.66, 0.925, 0.05), I3, (0.03, 0.012, 0.6), "bezel", bevel=0.002)
+        S.obox(V(s * 0.66, 0.917, 0.05), I3, (0.016, 0.004, 0.56), "white_lit")
+        for i, (r, mat) in enumerate(((0.012, "rubber"), (0.009, "red"), (0.01, "rubber"), (0.007, "yellow"))):
+            y = 0.905 - i * 0.022
+            S.tube([V(s * 0.70, y, -0.66), V(s * 0.70, y, -0.36), V(s * 0.695, y - 0.01, 0.0), V(s * 0.70, y, min(0.46, z_front - 0.2)),
+                    V(s * 0.70, y + 0.02, z_front - 0.10)], r, mat)
+        for z in (-0.5, -0.3, 0.5, 0.75):
+            if z > z_front - 0.12:
+                continue
+            S.obox(V(s * 0.70, 0.872, z), I3, (0.03, 0.09, 0.025), "steel", bevel=0.003)
+
+
+def seat(S):
+    """The seat: pedestal, cushion, bolsters, back, headrest, harness, eject handle."""
+    X, Y, Z = V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)
+    I3 = (X, Y, Z)
+    # --- the seat: pedestal, cushion, bolsters, back, headrest, harness, eject handle
+    S.box((-0.18, 0.0, -0.22), (0.18, 0.34, 0.18), "paint_dk", bevel=0.01)
+    S.box((-0.25, 0.34, -0.24), (0.25, 0.45, 0.22), "fabric", bevel=0.03, seg=3)
+    for s in (1, -1):
+        S.box((s * 0.22 - 0.035, 0.38, -0.24), (s * 0.22 + 0.035, 0.53, 0.2), "fabric", bevel=0.025, seg=3)
+    bot, top = V(0, 0.45, -0.22), V(0, 1.14, -0.32)
+    ub = (top - bot).normalized()
+    nb = X.cross(ub).normalized()
+    rb, ub2, nb2 = basis(nb, ub)
+    S.obox((bot + top) / 2, (rb, ub2, nb2), (0.50, 0.70, 0.11), "fabric", bevel=0.03, seg=3)
+    S.obox((bot + top) / 2 - nb2 * 0.08, (rb, ub2, nb2), (0.56, 0.76, 0.06), "paint_dk", bevel=0.01)
+    for s in (1, -1):
+        S.obox((bot + top) / 2 + rb * s * 0.27 + nb2 * 0.03, (rb, ub2, nb2), (0.07, 0.62, 0.13), "fabric", bevel=0.025, seg=3)
+    S.obox(top + ub2 * 0.14 + nb2 * 0.01, (rb, ub2, nb2), (0.30, 0.20, 0.10), "fabric", bevel=0.03, seg=3)
+    S.obox(top + ub2 * 0.14 - nb2 * 0.06, (rb, ub2, nb2), (0.34, 0.24, 0.05), "paint_dk", bevel=0.008)
+    for s in (1, -1):
+        p0 = top + rb * s * 0.09 + nb2 * 0.062
+        p1 = bot + rb * s * 0.11 + nb2 * 0.062 + ub2 * 0.05
+        S.obox((p0 + p1) / 2, (rb, ub2, nb2), (0.05, (p0 - p1).length, 0.008), "strap")
+        S.obox(V(s * 0.13, 0.456, -0.02), I3, (0.17, 0.008, 0.05), "strap")
+        S.obox(V(s * 0.21, 0.5, -0.02), I3, (0.008, 0.09, 0.05), "strap")
+    S.cyl(V(0, 0.452, -0.02), V(0, 0.468, -0.02), 0.04, "metal", seg=32)
+    S.cyl(V(0, 0.468, -0.02), V(0, 0.471, -0.02), 0.022, "red", seg=32)
+    loop = [V(0.07 * math.cos(t), 0.36 + 0.05 * math.sin(t), 0.235) for t in [i * 2 * math.pi / 12 for i in range(12)]]
+    S.tube(loop, 0.011, "hazard", closed=True)
+    S.box((-0.05, 0.33, 0.215), (0.05, 0.36, 0.23), "bezel", bevel=0.004)
+
+
+def controls(S, z_pedal=0.80):
+    """The twin grips at the consoles' ends (CTRL_stick, CTRL_throttle), the pedals (their plates at z_pedal),
+    the consoles' cyan edges."""
+    X, Y, Z = V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)
+    I3 = (X, Y, Z)
+    # --- the controls: a grip at the end of each console (the references' twin side sticks).
+    # The right grip flies the mech and turns the torso (it twists); the left is the throttle,
+    # riding its quadrant through idle, walk, run, skate and the jet gate.
+    for node, side in (("CTRL_stick", -1), ("CTRL_throttle", 1)):
+        gp = NODES[node][1]
+        if node == "CTRL_stick":
+            S.cyl(gp - V(0, 0.01, 0), gp + V(0, 0.045, 0), 0.06, "rubber", r1=0.03, seg=24)
+        S.cyl(gp, gp + V(0, 0.15, 0.01), 0.014, "steel", node=node, group="front", seg=16)
+        up, fw = V(0, 0.96, 0.27).normalized(), V(0, -0.27, 0.96).normalized()
+        S.obox(gp + V(0, 0.22, 0.03), (V(1, 0, 0), up, fw), (0.055, 0.14, 0.07), "rubber", node=node, group="front", bevel=0.02, seg=3)
+        S.obox(gp + V(0, 0.21, 0.075), (V(1, 0, 0), up, fw), (0.022, 0.04, 0.02), "metal", node=node, group="front", bevel=0.006)
+        S.obox(gp + V(side * 0.03, 0.235, 0.02), (V(1, 0, 0), up, fw), (0.012, 0.05, 0.04), "paint_dk", node=node, group="front", bevel=0.004)
+        top = gp + V(0, 0.295, 0.05)
+        S.cyl(top, top + V(0, 0.012, 0.004), 0.011, "steel", node=node, group="front", seg=16)
+        S.cyl(top + V(-side * 0.018, -0.006, -0.02), top + V(-side * 0.018, 0.006, -0.02), 0.008, "red_lit" if node == "CTRL_stick" else "amber",
+              node=node, group="front", seg=16)
+        S.cyl(top + V(side * 0.02, -0.01, -0.005), top + V(side * 0.024, 0.0, -0.005), 0.006, "green", node=node, group="front", seg=12)
+    for s in (1, -1):
+        S.cyl(V(s * 0.15, 0.2, z_pedal + 0.12), V(s * 0.15, 0.16, z_pedal), 0.014, "steel", seg=12)
+        n_p = V(0, 0.7, -0.71).normalized()
+        S.obox(V(s * 0.15, 0.13, z_pedal - 0.02), basis(n_p, Y), (0.11, 0.2, 0.025), "steel", bevel=0.005)
+        S.obox(V(s * 0.15, 0.135, z_pedal - 0.025), basis(n_p, Y), (0.1, 0.03, 0.03), "hazard", bevel=0.003)
+        # cyan accent strips along the consoles' inner edges
+        S.obox(V(s * 0.365, 0.664, 0.05), I3, (0.006, 0.004, 0.86), "cyan")
 
 
 # ----------------------------------------------------------------------------- shared hardware
@@ -998,6 +1038,289 @@ def build_harness(S):
                             stage="inner_open", rate=1.0))
 
 
+
+# ----------------------------------------------------------------------------- the layouts, in detail
+# The owner, 2026-10-24: "Please make detailed versions of panorama, titan, excavator can, and canopy". The
+# layout and its opening come from the block-outs (tools/blender/build_cockpit_blockouts.py: LAYOUTS, cabin(),
+# mechanism()), the one place each is defined; this builds the same cabin in detail: square screens in heavy
+# bezels on a backing wall, pillars with rivets and a cyan line down each, rails round the rows, a ceiling
+# with beams, vents and conduit (or the canopy's bubble), the seat, side consoles and grips, the dash, the
+# MFDs on the viewscreen. Every piece rides the moving part whose region holds its centre (the same regions
+# the block-out cuts with), so the cabin opens the block-out's way; the opening's stages are nested nodes,
+# one motion each.
+
+import build_cockpit_blockouts as BO      # noqa: E402
+
+PILLAR_W = 0.11          # a pillar's width; walls, screens and rails stop this far short of a pillar's centre line
+
+
+def _inside(poly, x, z):
+    """Is (x, z) inside the convex plan polygon poly (counter-clockwise)?"""
+    for i in range(len(poly)):
+        (x0, z0), (x1, z1) = poly[i], poly[(i + 1) % len(poly)]
+        if (x1 - x0) * (z - z0) - (z1 - z0) * (x - x0) < 0:
+            return False
+    return True
+
+
+def build_layout(S, VAR):
+    L = next(l for l in BO.LAYOUTS if l["id"] == VAR["layout"])
+    outline, pillar_angles, deg, c = BO.cabin(L, L["mech"])
+    parts = BO.mechanism(L, c)
+    rows, plan = L["rows"], L["plan"]
+    H, F, BK = c["H"], c["front"], c["back"]
+    X, Y, Z = V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)
+    hump = L.get("top") == "hump"
+    keep = offset_plan(outline, -0.03)
+    S.vents = []
+
+    # the opening's nodes: each part a chain, one motion per stage, its pieces on the last
+    owner = {}
+    for P in parts:
+        parent, base = "pod", f"INNER_{P['name'].lower()}"
+        piv = next((V(*st["pivot"]) for st in P["stages"] if st.get("pivot")), V(0, 1.0, F))
+        for k, st in enumerate(P["stages"]):
+            nm = base if k == 0 else f"{base}_{k}"
+            NODES[nm] = (parent, V(*st["pivot"]) if st.get("pivot") else piv)
+            mo = dict(value=st["v"], t0=st["t0"], d=st["d"])
+            mo["axis" if st["kind"] == "rot" else "slide"] = st["axis"]
+            VAR["motions"][nm] = mo
+            parent = nm
+        owner[P["name"]] = parent
+    for nm, pv in (("CTRL_stick", V(-0.49, 0.665, 0.30)), ("CTRL_throttle", V(0.4725, 0.66, 0.24))):
+        NODES[nm] = ("pod", pv)
+
+    def node_at(p):
+        """The moving part whose region holds the point p (glTF frame), or None: the pod."""
+        for P in parts:
+            reg = P.get("hole", P["region"])      # the hole a part leaves, which overlaps its neighbour's: no strip left between
+            if reg in ("seat", "visor", "visor_rear"):
+                continue
+            if reg[0] == "sector":
+                _, a0, a1, y0, y1 = reg
+                if a0 <= BO.bearing(p.x, p.z) <= a1 and y0 <= p.y <= y1 and not (P.get("keep_inner") and _inside(keep, p.x, p.z)):
+                    return owner[P["name"]]
+            else:
+                _, x0, x1, y0, y1, z0, z1 = reg
+                if x0 <= p.x <= x1 and y0 <= p.y <= y1 and z0 <= p.z <= z1:
+                    return owner[P["name"]]
+        return None
+
+    # the heights the walls are cut at: the rows' edges and every horizontal seam of the opening
+    cuts = {0.0, H}
+    for y0, y1 in rows:
+        cuts |= {y0, y1}
+    for P in parts:
+        for reg in (P["region"], P.get("hole")):
+            if isinstance(reg, tuple):
+                cuts |= {y for y in reg[3:5] if 0.0 < y < H}
+    cuts = sorted(cuts)
+    pil = {tuple(plan[i]) for i in L.get("pillars", [])}
+
+    def trim(a, b):
+        """A wall run a to b (plan points) stopped short of any pillar at its ends."""
+        d = (b - a).normalized()
+        if (round(a.x, 4), round(a.z, 4)) in {(round(x, 4), round(z, 4)) for x, z in pil}:
+            a = a + d * PILLAR_W * 0.6
+        if (round(b.x, 4), round(b.z, 4)) in {(round(x, 4), round(z, 4)) for x, z in pil}:
+            b = b - d * PILLAR_W * 0.6
+        return a, b
+
+    # --- the walls: per side of the outline, a backing wall in bands, the screens on it, rails round the rows
+    segs = [(V(outline[i][0], 0, outline[i][1]), V(outline[(i + 1) % len(outline)][0], 0, outline[(i + 1) % len(outline)][1]))
+            for i in range(len(outline))]
+    rk = lambda x, z: (round(x, 4), round(z, 4))      # noqa: E731   plan points as keys (Blender vectors are 32-bit)
+    screened = {(rk(*plan[i]), rk(*plan[i + 1])) for i in range(len(plan) - 1)}
+    n_screen = 0
+    front_screen = None
+    for a0, b0 in segs:
+        key = (rk(a0.x, a0.z), rk(b0.x, b0.z))
+        has_screens = key in screened or (key[1], key[0]) in screened
+        a, b = trim(a0, b0)
+        t = (b - a).normalized()
+        n_in = V(-t.z, 0, t.x)
+        if n_in.dot(MID - (a + b) / 2) < 0:
+            n_in = -n_in
+        for y0, y1 in zip(cuts, cuts[1:]):
+            if y1 - y0 < 0.005:
+                continue
+            q = [a + V(0, y0, 0), b + V(0, y0, 0), b + V(0, y1, 0), a + V(0, y1, 0)]
+            mid = (a + b) / 2 + V(0, (y0 + y1) / 2, 0)
+            slab(S, q, 0.04, "paint_dk", "cabin", node_at(mid), bevel=0.0)
+        if not has_screens:
+            # a plain wall: a ribbed panel at shoulder height, conduit along it
+            mid = (a + b) / 2
+            if (b - a).length > 0.5:
+                for z_ in (0.25, 0.5, 0.75):
+                    p_ = a.lerp(b, z_)
+                    bar(S, p_ + V(0, 0.15, 0) + n_in * 0.02, p_ + V(0, H - 0.1, 0) + n_in * 0.02, 0.05, 0.03, "paint", "cabin", node_at(p_ + V(0, 1, 0)), bevel=0.006)
+                hose(S, [a + n_in * 0.05 + V(0, 1.30, 0), b + n_in * 0.05 + V(0, 1.30, 0)], 0.014, node=node_at(mid + V(0, 1.3, 0)))
+            continue
+        for r, (y0, y1) in enumerate(rows):
+            h = y1 - y0
+            ahead = (BO.bearing(a0.x, a0.z) < 0) != (BO.bearing(b0.x, b0.z) < 0) and a0.z + b0.z > 0
+            n = 1 if ahead else max(1, round((b - a).length / h))
+            for k in range(n):
+                p0, p1 = a.lerp(b, k / n) + t * 0.03, a.lerp(b, (k + 1) / n) - t * 0.03
+                cnr = [p0 + V(0, y0 + 0.03, 0) + n_in * 0.002, p1 + V(0, y0 + 0.03, 0) + n_in * 0.002,
+                       p1 + V(0, y1 - 0.03, 0) + n_in * 0.002, p0 + V(0, y1 - 0.03, 0) + n_in * 0.002]
+                centre = (p0 + p1) / 2 + V(0, (y0 + y1) / 2, 0)
+                nm = f"r{r}_{n_screen}"
+                n_screen += 1
+                flat_screen(S, nm, cnr, node_at(centre), strip=(r == 0))
+                if ahead and front_screen is None or (ahead and abs(EYE.y + 0.3 - (y0 + y1) / 2) < abs(EYE.y + 0.3 - front_screen[1])):
+                    front_screen = (f"SCREEN_wall_{nm}", (y0 + y1) / 2, centre, n_in, node_at(centre), (y0, y1))
+        # rails: under the first row, over the last, between rows
+        levels = [rows[0][0] - 0.03] + [(rows[i][1] + rows[i + 1][0]) / 2 for i in range(len(rows) - 1)] + [rows[-1][1] + 0.04]
+        for y in levels:
+            m_ = (a + b) / 2 + V(0, y, 0)
+            bar(S, a + V(0, y, 0) + n_in * 0.03, b + V(0, y, 0) + n_in * 0.03, 0.06, 0.06, "paint", "cabin", node_at(m_), bevel=0.008, n=n_in)
+
+    # --- pillars at the plan's corners: heavy, riveted, a cyan line down each; split at the horizontal seams
+    for (x, z) in pil:
+        p = V(x, 0, z)
+        n_in = V(-x, 0, -z).normalized()
+        for y0, y1 in zip(cuts, cuts[1:]):
+            if y1 - y0 < 0.005:
+                continue
+            nd = node_at(p + V(0, (y0 + y1) / 2, 0))
+            bar(S, p + V(0, y0, 0), p + V(0, y1, 0), L.get("heavy", PILLAR_W), 0.10, "paint", "cabin", nd, bevel=0.012, n=n_in)
+            bar(S, p + V(0, y0 + 0.02, 0) + n_in * 0.055, p + V(0, y1 - 0.02, 0) + n_in * 0.055, 0.012, 0.012, "cyan", "cabin", nd, bevel=0.0, n=n_in)
+            for i in range(max(1, int((y1 - y0) / 0.2))):
+                q = p + V(0, y0 + (i + 0.5) * (y1 - y0) / max(1, int((y1 - y0) / 0.2)), 0) + n_in * 0.052
+                S.cyl(q - n_in * 0.01, q + n_in * 0.006, 0.009, "steel", "cabin", nd, seg=10)
+
+    # --- the floor and the ceiling (or the canopy's bubble)
+    S.prism(keep, -0.03, 0.0, "steel")
+    S.plate("floor", (0, 0.0, 0.05), Y, Z, t=0.02, group="cabin")
+    if node_at(V(0, 1.15, BK)) is None:      # the rear panel, under the seam if the back wall moves (the canopy)
+        S.plate("rear", (0, 0.70, BK + 0.002), Z, Y, t=0.012, group="cabin")
+    else:
+        S.plate("rear", (0, 0.48, BK + 0.002), Z, Y, t=0.012, group="cabin", scale=0.6)
+    if L.get("floor"):                        # the cab: a screen in the floor ahead, looking down at the ground
+        flat_screen(S, "floor", [V(0.62, 0.004, 0.22), V(-0.62, 0.004, 0.22), V(-0.62, 0.004, 0.68), V(0.62, 0.004, 0.68)], None, strip=False)
+    if not hump:
+        # the ceiling stops short of the front; the strip over the front rides the part that opens there, so a
+        # front that rises (the Titan) clears it
+        ring = offset_plan(outline, -0.005)
+        S.prism(clip_below(ring, F - 0.095), H, H + 0.03, "paint_dk")
+        front_part = next((owner[P["name"]] for P in parts if isinstance(P["region"], tuple) and P["region"][0] == "sector"
+                           and P["region"][1] < 0 < P["region"][2] and P["region"][3] <= H <= P["region"][4]), None)
+        S.prism(clip_above(ring, F - 0.09), H, H + 0.03, "paint_dk", node=front_part)
+        zs = [z for _, z in ring]
+        for z in [min(zs) + (max(zs) - min(zs)) * f for f in (0.2, 0.45, 0.7)]:
+            xs = max(abs(x) for x in cross_x(ring, z))
+            S.box((-xs + 0.04, H - 0.07, z - 0.04), (xs - 0.04, H, z + 0.04), "paint", bevel=0.01)
+        for x in (-0.3, 0.3):
+            S.tube([V(x, H - 0.04, min(zs) + 0.1), V(x, H - 0.04, max(zs) - 0.25)], 0.02, "steel")
+        for x, z in ((0.45, -0.1), (-0.45, -0.1), (0.0, -0.45)):
+            for k in range(3):
+                S.cyl(V(x, H - 0.004 * (k + 1), z), V(x, H - 0.004 * k, z), 0.09 - 0.025 * k, ("bezel", "paint_dk", "steel")[k], seg=32)
+    else:
+        keys = BO.shell_keys(outline, H, 0.0, "hump")[1:]
+        cn = node_at(V(0, H + 0.2, 0))
+        for (ya, pa), (yb, pb) in zip(keys, keys[1:]):
+            for i in range(len(pa)):
+                j = (i + 1) % len(pa)
+                q = [V(pa[i][0], ya, pa[i][1]), V(pa[j][0], ya, pa[j][1]), V(pb[j][0], yb, pb[j][1]), V(pb[i][0], yb, pb[i][1])]
+                slab(S, q, 0.04, "paint_dk", "cabin", cn, bevel=0.0)
+                bar(S, q[0], q[3], 0.05, 0.05, "paint", "cabin", cn, bevel=0.006)
+        lid_y, lid = keys[-1][0], keys[-1][1]
+        S.prism(lid, lid_y, lid_y + 0.03, "paint_dk", node=cn)
+        if L.get("ceiling"):
+            for x0, x1 in ((-0.52, -0.02), (0.02, 0.52)):
+                cnr = [V(x1, lid_y - 0.003, -0.25), V(x0, lid_y - 0.003, -0.25), V(x0, lid_y - 0.003, 0.29), V(x1, lid_y - 0.003, 0.29)]
+                flat_screen(S, f"lid_{'L' if x0 > 0 else 'R'}", cnr, cn, strip=False)
+        for x in ((-0.56, 0.56) if L.get("ceiling") else (-0.3, 0.3)):     # grab rails, off the lid's screens
+            S.tube([V(x, lid_y - 0.04, -0.3), V(x, lid_y - 0.04, 0.3)], 0.02, "steel", node=cn)
+
+    # --- the seat, side consoles and grips; the dash on the part the pilot leaves through
+    zf = F - 0.30
+    side_consoles(S, z_front=zf - 0.12, z_body=min(0.52, zf - 0.08) if "dash" in L["mfd"] else min(0.52, F - 0.30))
+    seat(S)
+    controls(S, z_pedal=min(0.80, F - 0.22))
+    if "dash" in L["mfd"]:
+        carrier = next((P for P in parts if P.get("dash")), None)
+        cn = owner[carrier["name"]] if carrier else None
+        half = min(abs(x) for x in cross_x(outline, zf + 0.1)) - 0.08
+        if carrier and carrier["region"][0] == "sector":
+            half = min(half, F * math.tan(max(abs(carrier["region"][1]), abs(carrier["region"][2])) * D(1)) - 0.17)
+        k = min(1.0, 2 * half / 1.58)
+        name = "CONSOLE_front"
+        NODES[name] = (cn or "pod", V(0, rows[0][0] - 0.16, zf))
+        dash_unit(S, name, V(0, rows[0][0] - 0.16, zf), k)
+        for s_ in (1, -1):                   # brackets from the dash to its wall
+            x_ = s_ * 0.3 * 1.58 * k
+            S.obox(V(x_, rows[0][0] - 0.30, (zf + F) / 2), (X, Y, Z), (0.05, 0.05, F - zf), "steel", "front", name, bevel=0.005)
+    if "top" in L["mfd"] and front_screen:
+        nm, yc_, centre, n_in, nd, (ry0, ry1) = front_screen
+        size = 0.30
+        yc = min(max(EYE.y + 0.3, ry0 + size / 2 + 0.06), ry1 - size / 2 - 0.06)
+        for i, (x, img) in enumerate(((0.36, "mfd_left"), (0.0, "mfd_center"), (-0.36, "mfd_right"))):
+            c_ = V(x, yc, centre.z) + n_in * 0.012
+            S.obox(c_ - n_in * 0.004, basis(n_in, Y), (size + 0.04, size + 0.04, 0.008), "bezel", "cabin", nd, bevel=0.002)
+            sn = f"HUD_mfd_{i}"
+            NODES[sn] = (nd or "pod", None)
+            S.quad(c_ + n_in * 0.001, n_in, Y, size, size, emission_material(sn, os.path.join(DISPLAYS, f"{img}.png"), 2.0), "screen", sn, node=sn)
+            S.disp[sn] = img
+    VAR["front_screen"] = front_screen[0] if front_screen else "SCREEN_wall_r0_0"
+    VAR["front_screen_c"] = front_screen[2] if front_screen else V(0, 1.3, F)
+    # mist over the floor and steam at the seals as the cabin opens
+    for i in range(5):
+        S.vents.append(dict(node="pod", p=V(-0.4 + 0.2 * i, 0.12, F - 0.1), d=V(0, -0.2, 1).normalized(), kind="mist", stage="inner_open", rate=1.0))
+    for P in parts:
+        for pt, dv in P.get("vents", []):
+            S.vents.append(dict(node="pod", p=V(*pt), d=V(*dv).normalized(), kind="steam", stage="inner_open", rate=1.2))
+
+
+def offset_plan(poly, d):
+    return BO.offset(poly, d)
+
+
+def clip_below(poly, z0):
+    """The part of a convex plan polygon at depth z <= z0."""
+    return [(x, -z) for x, z in clip_above([(x, -z) for x, z in poly][::-1], -z0)][::-1]
+
+
+def clip_above(poly, z0):
+    """The part of a convex plan polygon at depth z >= z0 (Sutherland-Hodgman against one line)."""
+    out = []
+    for i in range(len(poly)):
+        (x0, za), (x1, zb) = poly[i], poly[(i + 1) % len(poly)]
+        ia, ib = za >= z0, zb >= z0
+        if ia:
+            out.append((x0, za))
+        if ia != ib:
+            t = (z0 - za) / (zb - za)
+            out.append((x0 + (x1 - x0) * t, z0))
+    return out
+
+
+def cross_x(poly, z):
+    return BO.cross_x(poly, z)
+
+
+def layout_variant(lid):
+    """The variant entry for a block-out layout built in detail: its nodes and motions are filled by the builder."""
+    L = next(l for l in BO.LAYOUTS if l["id"] == lid)
+    outline, _, deg, c = BO.cabin(L, L["mech"])
+    xs, zs = [x for x, _ in outline], [z for _, z in outline]
+    top = c["top"] + 0.1
+    F = c["front"]
+    return dict(build="build_layout", layout=lid, nodes={"pod": (None, V(0, 0, 0))}, motions={},
+                eye=V(0.0, 1.20, 0.0), mid=V(0.0, 1.2, 0.1),
+                envelope=((min(xs) - 0.12, max(xs) + 0.12), (-0.07, top), (min(zs) - 0.12, max(zs) + 0.12)),
+                doorway=(round(2 * F * math.tan(math.radians(deg)) - 0.2, 2), round(L["rows"][-1][1], 2)),
+                sockets={"SEAT_pilot": V(0, 0.45, -0.02), "HATCH_entry": V(0, 0.02, F + 0.05)},
+                lights=[("LIGHT_screen", "SPOT", V(0, 1.30, F - 0.05), V(0, 0.9, -0.2), 30.0, COOL, 0.4, 120),
+                        ("LIGHT_overhead", "SPOT", V(0, c["H"] - 0.1, 0.10), V(0, 0.6, 0.0), 6.0, WARM, 0.1, 110),
+                        ("LIGHT_sill_L", "SPOT", V(0.70, 1.00, 0.10), V(0.48, 0.55, 0.10), 4.0, WARM, 0.05, 100),
+                        ("LIGHT_sill_R", "SPOT", V(-0.70, 1.00, 0.10), V(-0.48, 0.55, 0.10), 4.0, WARM, 0.05, 100),
+                        ("LIGHT_rear", "POINT", V(0, 1.30, c["back"] + 0.25), None, 5.0, (1.0, 0.9, 0.78), 0.05, None),
+                        ("LIGHT_footwell", "POINT", V(0, 0.25, F - 0.2), None, 1.2, (1.0, 0.18, 0.12), 0.03, None)],
+                front_screen="SCREEN_wall_r0_0", front_screen_c=V(0, 1.3, F))
+
+
 # ----------------------------------------------------------------------------- the variants
 # Each variant: its builder, nodes, the pilot's eye, the cabin middle, the envelope it promises the
 # chest, sockets, the inner opening (each moving node's motion within a 3 s opening, after the
@@ -1053,6 +1376,8 @@ VARIANTS = {
                 ("LIGHT_footwell", "POINT", V(0, 0.15, 0.30), None, 1.0, (1.0, 0.18, 0.12), 0.03, None)],
         front_screen="SCREEN_wall_facet_p0", front_screen_c=V(0, 1.32, HC + HA)),
 }
+for _lid in ("panorama", "titan", "cab", "canopy"):     # the owner's picks, built in detail from their block-outs
+    VARIANTS[_lid] = layout_variant(_lid)
 
 
 # ----------------------------------------------------------------------------- lights
@@ -1395,7 +1720,8 @@ def main():
     sc = bpy.context.scene
     mats = K.make_materials()
     S = Set(mats)
-    globals()[VAR["build"]](S)
+    builder = globals()[VAR["build"]]
+    builder(S, VAR) if VAR.get("layout") else builder(S)
     rig = lights(VAR["lights"])
 
     # realize, then join: one mesh per node and group, its origin at the node's pivot

@@ -69,8 +69,11 @@ fn capsules(id: u32, sim: &MechSim, cfg: &MechConfig, rig: &MechRig, globals: &Q
     out
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn fly_shots(
     mut shots: ResMut<Shots>,
+    mut units: ResMut<crate::units::Units>,
+    data: Res<crate::sim::Data>,
     plan: Res<Plan>,
     mut live: ResMut<Live>,
     mut mechs: Query<(&mut MechSim, &MechSpec, &MechId, Option<&MechRig>)>,
@@ -79,6 +82,7 @@ pub fn fly_shots(
     mut fx: MessageWriter<Fx>,
     mut explosions: MessageWriter<Explosion>,
 ) {
+    let _t = crate::perf_hud::slow("fly_shots");
     if shots.0.is_empty() {
         return;
     }
@@ -93,21 +97,40 @@ pub fn fly_shots(
             parts.extend(capsules(id.0, sim, spec, rig, &globals));
         }
     }
-    // Live mechs' torsos, for missiles to home on.
-    let torsos: HashMap<u32, Vec3> = mechs
+    // Vehicles are hit like mechs, one capsule each (invasion-forces).
+    parts.extend(crate::units::unit_capsules(&units, &data));
+    // Live mechs' torsos and vehicles' centres, for missiles to home on.
+    let mut torsos: HashMap<u32, Vec3> = mechs
         .iter()
         .filter(|m| !m.0.dead)
         .map(|m| (m.2.0, m.0.curr.pos + Vec3::Y * cb_core::ai::TORSO_AIM_M))
         .collect();
+    torsos.extend(
+        units
+            .list
+            .iter()
+            .filter(|p| p.unit.alive() && !p.gone)
+            .map(|p| (p.unit.id, p.unit.pos)),
+    );
+    // A shot's gun: its mech's, or its vehicle's one weapon.
+    let unit_guns: HashMap<u32, cb_core::weapons::WeaponSpec> = units
+        .list
+        .iter()
+        .filter_map(|p| Some((p.unit.id, data.0.units.units.get(&p.unit.kind)?.weapon.clone()?)))
+        .collect();
+    let weapon_of = |owner: u32, weapon: usize| -> Option<cb_core::weapons::WeaponSpec> {
+        specs
+            .get(&owner)
+            .and_then(|c| c.weapons.get(weapon))
+            .or_else(|| unit_guns.get(&owner))
+            .cloned()
+    };
     let live = &mut *live;
     let mut flying = Vec::with_capacity(shots.0.len());
     for mut shot in std::mem::take(&mut shots.0) {
         // A missile turns toward its locked target's torso first (targeting).
         if let Some(t) = shot.target {
-            let seeker = specs
-                .get(&shot.owner)
-                .and_then(|c| c.weapons.get(shot.weapon))
-                .map_or(0.0, |w| w.seeker_turn_deg_s);
+            let seeker = weapon_of(shot.owner, shot.weapon).map_or(0.0, |w| w.seeker_turn_deg_s);
             if let Some(torso) = torsos.get(&t) {
                 home(&mut shot, *torso, seeker, dt);
             }
@@ -121,7 +144,7 @@ pub fn fly_shots(
             };
             fly(&mut shot, &scene, &live.structures, &live.forest, &parts, dt)
         };
-        let Some(w) = specs.get(&shot.owner).and_then(|c| c.weapons.get(shot.weapon)).cloned() else {
+        let Some(w) = weapon_of(shot.owner, shot.weapon) else {
             continue;
         };
         let Some(hit) = impact else {
@@ -136,6 +159,15 @@ pub fn fly_shots(
             shot.owner, w.name, hit.struck, hit.at
         );
         match hit.struck {
+            Struck::Mech { mech, .. } if mech >= crate::units::UNIT_ID_BASE => {
+                if let Some(p) = units.get_mut(mech) {
+                    let armour = data.0.units.units.get(&p.unit.kind).map_or(0.0, |s| s.armour_mm);
+                    if p.unit.hit(w.penetration_mm, w.damage, armour) {
+                        crate::units::unit_destroyed(p, &data, &mut fx, &mut explosions);
+                    }
+                }
+                fx.write(Fx::new("impact_mech", hit.at).toward(-dir));
+            }
             Struck::Mech { mech, part } => {
                 if let Some((mut sim, spec, _, _)) = mechs.iter_mut().find(|m| m.2.0 == mech) {
                     apply_hit(

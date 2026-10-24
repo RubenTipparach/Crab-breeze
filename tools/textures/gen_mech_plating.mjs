@@ -28,4 +28,7 @@ for (const [name, url] of Object.entries(out)) {
   fs.writeFileSync(path.join(OUT, name + ".png"), Buffer.from(url.split(",")[1], "base64"));
   console.log("wrote", name);
 }
+// the decal sheet's table, for the Blender kit (mech_kit.Kit.decal): name -> [col, row, cols, rows] on an 8 by 8 grid
+fs.writeFileSync(path.join(OUT, "decals.json"), JSON.stringify({ grid: 8, cells: await page.evaluate(() => window.__decals) }, null, 1) + "\n");
+console.log("wrote decals.json");
 await browser.close();

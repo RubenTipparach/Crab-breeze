@@ -73,6 +73,8 @@ struct Ground {
     /// Terrain cells along a chunk's side.
     cells: usize,
     tiles: HashMap<(i32, i32), Entity>,
+    /// Crater tiles being meshed on a worker thread.
+    crater_jobs: BTreeMap<(i32, i32), Task<Mesh>>,
     material: Handle<StandardMaterial>,
     /// The grass's tuning, for the ground's colour under it.
     grass: Arc<GrassConfig>,
@@ -344,6 +346,7 @@ fn spawn_ground(
         side,
         cells,
         tiles: HashMap::new(),
+        crater_jobs: BTreeMap::new(),
         material,
         grass,
     });
@@ -396,8 +399,9 @@ fn spawn_far_floor(
     ));
 }
 
-/// Rebuilds the ground where craters were dug: the finer tile now, and its chunk (mesh and
-/// collider) through the stream.
+/// Rebuilds the ground where craters were dug: the finer tile on a worker thread (meshing a tile
+/// on the main thread took 56-260 ms a crater, 2026-10-24) and on screen when it is ready; its
+/// chunk (mesh and collider) through the stream.
 fn redraw_craters(
     mut commands: Commands,
     mut live: ResMut<Live>,
@@ -405,7 +409,34 @@ fn redraw_craters(
     ground: Option<ResMut<Ground>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
+    let _t = crate::perf_hud::slow("redraw_craters");
     let Some(mut ground) = ground else { return };
+    let ground = &mut *ground;
+    // Finished tiles on screen.
+    let ready: Vec<((i32, i32), Mesh)> = ground
+        .crater_jobs
+        .iter_mut()
+        .filter_map(|(k, task)| check_ready(task).map(|m| (*k, m)))
+        .collect();
+    for (key, mesh) in ready {
+        ground.crater_jobs.remove(&key);
+        let mesh = meshes.add(mesh);
+        match ground.tiles.get(&key) {
+            Some(e) => {
+                commands.entity(*e).insert(Mesh3d(mesh));
+            }
+            None => {
+                let e = commands
+                    .spawn((
+                        Name::new(format!("crater tile {key:?}")),
+                        Mesh3d(mesh),
+                        MeshMaterial3d(ground.material.clone()),
+                    ))
+                    .id();
+                ground.tiles.insert(key, e);
+            }
+        }
+    }
     if live.dirty_tiles.is_empty() {
         return;
     }
@@ -413,8 +444,9 @@ fn redraw_craters(
     keys.sort_unstable();
     keys.dedup();
     let (cells, side) = (ground.cells, ground.side);
-    for key in &keys {
-        if let Some((cx, cz)) = chunk_of(&plan, cells, side, live.dug.sample_xz(*key, 0, 0) + Vec2::splat(1.0)) {
+    let pool = AsyncComputeTaskPool::get();
+    for key in keys {
+        if let Some((cx, cz)) = chunk_of(&plan, cells, side, live.dug.sample_xz(key, 0, 0) + Vec2::splat(1.0)) {
             let chunk = Node {
                 level: 0,
                 x: cx as u32,
@@ -427,35 +459,28 @@ fn redraw_craters(
                 c.stale = true;
             }
         }
-        let tile = live.dug.tile_mesh(&plan, *key);
-        let sea = plan.waters.sea_level_m;
-        let colors = tile
-            .positions
-            .iter()
-            .zip(&tile.normals)
-            .enumerate()
-            .map(|(k, (p, n))| {
-                let (i, j) = (k % cb_core::world::deform::TILE_N, k / cb_core::world::deform::TILE_N);
-                let cover = grass_cover(&plan, &ground.grass, *p, *n, live.dug.delta_at(Vec2::new(p.x, p.z)));
-                ground_colour(*p, *n, sea, false, live.dug.scorch_at(*key, i, j), cover, (&*ground.grass).into())
-            })
-            .collect();
-        let mesh = meshes.add(chunk_to_mesh(tile, colors));
-        match ground.tiles.get(key) {
-            Some(e) => {
-                commands.entity(*e).insert(Mesh3d(mesh));
-            }
-            None => {
-                let e = commands
-                    .spawn((
-                        Name::new(format!("crater tile {key:?}")),
-                        Mesh3d(mesh),
-                        MeshMaterial3d(ground.material.clone()),
-                    ))
-                    .id();
-                ground.tiles.insert(*key, e);
-            }
-        }
+        // A tile dug again while it is being meshed starts over from the newer ground (the old
+        // job is dropped, which cancels it).
+        let dug = live.dug.around(key);
+        let world = plan.0.clone();
+        let grass = ground.grass.clone();
+        let task = pool.spawn(async move {
+            let tile = dug.tile_mesh(&world, key);
+            let sea = world.waters.sea_level_m;
+            let colors = tile
+                .positions
+                .iter()
+                .zip(&tile.normals)
+                .enumerate()
+                .map(|(k, (p, n))| {
+                    let (i, j) = (k % cb_core::world::deform::TILE_N, k / cb_core::world::deform::TILE_N);
+                    let cover = grass_cover(&world, &grass, *p, *n, dug.delta_at(Vec2::new(p.x, p.z)));
+                    ground_colour(*p, *n, sea, false, dug.scorch_at(key, i, j), cover, (&*grass).into())
+                })
+                .collect();
+            chunk_to_mesh(tile, colors)
+        });
+        ground.crater_jobs.insert(key, task);
     }
 }
 
@@ -504,6 +529,7 @@ fn stream_ground(
     bodies: Query<(&GlobalTransform, &RigidBody)>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
+    let _t = crate::perf_hud::slow("stream_ground");
     let cfg = &data.0.world.terrain_lod;
     let sea = plan.waters.sea_level_m;
     let eye = camera.translation();

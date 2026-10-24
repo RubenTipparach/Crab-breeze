@@ -88,6 +88,7 @@ fn cells_mesh(c: &Cells) -> Mesh {
 }
 
 fn redraw_buildings(mut commands: Commands, mut live: ResMut<Live>, ents: Res<BuildingEntities>, mut meshes: ResMut<Assets<Mesh>>) {
+    let _t = crate::perf_hud::slow("redraw_buildings");
     if live.dirty_buildings.is_empty() || ents.0.is_empty() {
         return;
     }

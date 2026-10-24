@@ -47,13 +47,14 @@ impl Plugin for PilotPlugin {
             curr: state,
         })
         .init_resource::<PilotEvents>()
-        .add_systems(Startup, spawn_camera)
+        .init_resource::<Shake>()
+        .add_systems(Startup, (cpu_light_clustering, spawn_camera))
         .add_systems(FixedUpdate, step_pilot.in_set(SimSet::Pilot))
         .add_systems(Startup, spawn_prompt)
         .add_systems(
             Update,
             (
-                (place_camera, crate::water_render::track_eye, weather_and_screens).chain(),
+                (shake_on_blasts, place_camera, crate::water_render::track_eye, weather_and_screens).chain(),
                 show_prompt,
             )
                 .in_set(PresentSet::Camera),
@@ -68,6 +69,13 @@ pub const COCKPIT_LAYER: usize = 1;
 /// of the pilot's eyes with the same lens, so the two views share one transform each frame.
 #[derive(Component)]
 pub struct CockpitCamera;
+
+/// Lights are clustered on the CPU. Bevy 0.20's GPU clustering ignores render layers, so every gun
+/// flash and blast outside lit the cockpit pass too and the cabin strobed with the guns (owner,
+/// 2026-10-24: "Strobing appears to be from guns"). CPU clustering keeps each light to its layer.
+fn cpu_light_clustering(mut settings: ResMut<bevy::light::cluster::GlobalClusterSettings>) {
+    settings.gpu_clustering = None;
+}
 
 fn spawn_camera(mut commands: Commands, data: Res<Data>) {
     let light = &data.0.cockpit_light;
@@ -110,17 +118,17 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
             },
         ))
         .with_children(|eye| {
-            // The screens' glow, until their cube map lights the cabin.
-            for at in &light.screens_m {
+            // The screens' glow, as one directional light kept to the cockpit layer (cb-core
+            // `screen_glow`).
+            if let Some((travel, lux)) = light.screen_glow() {
                 eye.spawn((
-                    PointLight {
-                        intensity: light.screen_lumens,
-                        range: light.screen_range_m,
+                    DirectionalLight {
+                        illuminance: lux,
                         color: srgb(light.screen_tint),
                         shadow_maps_enabled: false,
                         ..default()
                     },
-                    Transform::from_translation(Vec3::from_array(*at)),
+                    Transform::default().looking_to(travel, Vec3::Y),
                     bevy::camera::visibility::RenderLayers::layer(COCKPIT_LAYER),
                 ));
             }
@@ -203,7 +211,33 @@ fn view(yaw: f32, pitch: f32) -> Quat {
     Quat::from_rotation_y(yaw) * Quat::from_rotation_x(pitch)
 }
 
+/// The view's shake from blasts nearby, 0..1, and its clock.
+#[derive(Resource, Default)]
+struct Shake {
+    trauma: f32,
+    t_s: f32,
+}
+
+/// Blasts this frame kick the shake by how near and big they are; it dies away by itself.
+fn shake_on_blasts(
+    mut blasts: MessageReader<crate::blast::Explosion>,
+    data: Res<Data>,
+    time: Res<Time>,
+    camera: Single<&Transform, With<PilotCamera>>,
+    mut shake: ResMut<Shake>,
+) {
+    let cfg = &data.0.fx.shake;
+    let dt = time.delta_secs();
+    shake.t_s += dt;
+    shake.trauma = (shake.trauma - dt / cfg.decay_s).max(0.0);
+    for b in blasts.read() {
+        let kick = cfg.kick(b.energy_mj, b.at.distance(camera.translation));
+        shake.trauma = (shake.trauma + kick).min(1.0);
+    }
+}
+
 fn place_camera(
+    shake: Res<Shake>,
     pilot: Res<PilotSim>,
     acc: Res<InputAccum>,
     access: Res<MechAccessNow>,
@@ -249,12 +283,23 @@ fn place_camera(
         }
         _ => walking_view(),
     };
+    // The shake rides on top of the player's view and is never written into their aim: the look
+    // they steer is unchanged (CLAUDE.md section 8). Felt as the square of the trauma, so small
+    // blasts barely register; three unrelated sines so it never settles into a rhythm.
+    let amp = data.0.fx.shake.max_deg.to_radians() * shake.trauma * shake.trauma;
+    let t = shake.t_s;
+    let shake = Quat::from_euler(
+        EulerRot::YXZ,
+        amp * (t * 37.0).sin() * (t * 5.3).cos(),
+        amp * (t * 41.0 + 1.3).sin(),
+        amp * 0.5 * (t * 29.0 + 2.1).sin(),
+    );
     // Seated, the eye jolts on the mech's foot strikes (ground-marks): its position only.
     let jolt = match (&curr.mode, jolt) {
         (PilotMode::Seated, Some(j)) => j.0,
         _ => Vec3::ZERO,
     };
-    **camera = crate::ground_marks::jolted(Transform::from_translation(eye).with_rotation(rotation), jolt);
+    **camera = crate::ground_marks::jolted(Transform::from_translation(eye).with_rotation(rotation * shake), jolt);
 }
 
 /// The step-in prompt.

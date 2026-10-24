@@ -1,8 +1,13 @@
 //! The cockpit's own light (openspec change `cockpit-lighting`): the sealed cabin is lit by its
 //! lamps and its screens, never by the world outside. Data only, loaded from
 //! `data/hud/cockpit_light.ron`; `cb-app` places the lights on the cockpit pass.
+//!
+//! The screens light the cabin as one directional light, not a point light each: Bevy 0.20's GPU
+//! light clustering ignores render layers, so a clustered cockpit pass picked up every gun flash
+//! and blast outside and strobed with the guns. Directional lights are kept to their layer.
 
 use crate::data::{Validate, finite3, positive, within};
+use glam::Vec3;
 use serde::Deserialize;
 
 /// `data/hud/cockpit_light.ron`.
@@ -45,6 +50,25 @@ impl Default for CockpitLightConfig {
     }
 }
 
+impl CockpitLightConfig {
+    /// The screens' glow as one light: the direction it travels in camera space (from the screens'
+    /// mean position towards the eye) and its illuminance at the eye, lux (each screen's lumens
+    /// spread over a sphere at its distance, summed). `None` with no screens.
+    pub fn screen_glow(&self) -> Option<(Vec3, f32)> {
+        let at: Vec<Vec3> = self.screens_m.iter().map(|p| Vec3::from_array(*p)).collect();
+        if at.is_empty() {
+            return None;
+        }
+        let mean = at.iter().copied().sum::<Vec3>() / at.len() as f32;
+        let travel = (-mean).try_normalize().unwrap_or(Vec3::Z);
+        let lux = at
+            .iter()
+            .map(|p| self.screen_lumens / (4.0 * std::f32::consts::PI * p.length_squared().max(0.25)))
+            .sum();
+        Some((travel, lux))
+    }
+}
+
 impl Validate for CockpitLightConfig {
     fn validate(&self) -> Result<(), String> {
         finite3("cabin_ambient_colour", self.cabin_ambient_colour)?;
@@ -64,5 +88,28 @@ impl Validate for CockpitLightConfig {
             finite3(&format!("screens_m[{i}]"), *p)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_screens_glow_travels_from_the_screens_towards_the_eye() {
+        let cfg = CockpitLightConfig::default();
+        let (travel, lux) = cfg.screen_glow().unwrap();
+        // The screens are ahead (-z), so their light travels back (+z) to the pilot.
+        assert!(travel.z > 0.9, "{travel:?}");
+        assert!(lux > 0.0 && lux.is_finite());
+    }
+
+    #[test]
+    fn no_screens_give_no_glow() {
+        let cfg = CockpitLightConfig {
+            screens_m: vec![],
+            ..Default::default()
+        };
+        assert!(cfg.screen_glow().is_none());
     }
 }
