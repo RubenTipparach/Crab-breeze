@@ -96,6 +96,10 @@ dt { color: var(--muted); } dd { margin: 0; text-align: right; }
         <button data-demo="warehouse">Drop the warehouse</button>
         <button data-demo="walkup">Missile volley</button>
       </div>
+      <div class="row"><label>Debris</label>
+        <button id="tierGame" class="on">Game</button>
+        <button id="tierFull">Full</button>
+      </div>
       <div class="row">
         <label>Seed <input type="number" id="seed" value="42" style="width:90px"></label>
         <button id="regen">Generate</button>
@@ -187,7 +191,12 @@ const T = {
   slab_support_factor: { four: 1.0, three: 0.85, diagonal: 0.7, one_edge: 0.45, one: 0.25, hung: 0.4 },
   hp_mj: { column: 2.5, slab: 3.0, wall: 0.7, glass: 0.02, partition: 0.15, core: 1.2, furniture: 0.05, prop: 0.35, parapet: 0.5, escape: 0.25 },
   blast_m_per_cbrt_mj: 2.2,
-  debris_pool: 9000, rubble_fines: 0.5, repose_slope: 0.75, heap_cell_m: 1.0,
+  debris_pool: 9000, rubble_fines: 0.5,
+  // Debris detail. Game: only the biggest boxes of a member become pieces (a column 1, a wall 2, a
+  // tank 6), at most 2 parts each, glass, partitions and furniture go straight to dust and heap, and
+  // pieces never perch on column or wall tops. Full: every box, up to 6 parts each (the first mockup).
+  debris_keep: { column: 1, slab: 1, wall: 2, parapet: 1, core: 3, escape: 2, prop: 6, glass: 0, partition: 0, furniture: 0 },
+  debris_pool_game: 2500, repose_slope: 0.75, heap_cell_m: 1.0,
 };
 const WEAPONS = [['35 mm', 0.25], ['120 mm', 4], ['Missile', 12], ['Demolition', 50]];
 const blastRadius = e => T.blast_m_per_cbrt_mj * Math.cbrt(e);   // the crater rule from terrain-deformation
@@ -1103,14 +1112,28 @@ function blast(p, energy) {
   puff(p, R * 1.4, 0x8a8278, 3.5, 0.9);
   puff(p, R * 0.9, 0xffa040, 0.35, 1.0);
 }
+let DEBRIS_TIER = 'game';
+// The boxes of an element that become pieces, and the volume that goes straight to the heap.
+function pieceBoxes(e) {
+  if (DEBRIS_TIER === 'full') return { boxes: e.boxes, fines: 0 };
+  const keep = T.debris_keep[e.kind] ?? 1;
+  const sorted = e.boxes.slice().sort((a, c) => c.s[0] * c.s[1] * c.s[2] - a.s[0] * a.s[1] * a.s[2]);
+  const boxes = sorted.slice(0, keep);
+  const fines = sorted.slice(keep).reduce((v, bx) => v + bx.s[0] * bx.s[1] * bx.s[2], 0);
+  return { boxes, fines };
+}
+const poolSize = () => DEBRIS_TIER === 'full' ? T.debris_pool : T.debris_pool_game;
 function destroy(id, cause) {
   const e = E[id]; if (!e.alive) return;
   e.alive = false; sim.broken++;
   const b = B[e.b]; b.dirty = true; b.maskDirty = true;
   const r = sim.rng;
   // The pieces: each box breaks into a few (in the game, the module's pre-fractured cells).
-  for (const bx of e.boxes) {
-    const n = bx.mat === 'glass' ? 4 : Math.max(1, Math.min(6, Math.round(bx.s[0] * bx.s[1] * bx.s[2] / 0.5)));
+  const { boxes, fines } = pieceBoxes(e);
+  if (fines > 0) heapDeposit((e.aabb[0] + e.aabb[3]) / 2, (e.aabb[2] + e.aabb[5]) / 2, fines * T.rubble_fines, 1.5);
+  for (const bx of boxes) {
+    const most = DEBRIS_TIER === 'full' ? 6 : 2;
+    const n = bx.mat === 'glass' ? 4 : Math.max(1, Math.min(most, Math.round(bx.s[0] * bx.s[1] * bx.s[2] / 0.5)));
     for (const part of fracture(bx, n, r)) {
       let v;
       if (cause) {
@@ -1144,7 +1167,7 @@ const MAT_TINT = { brick: 0x9a4a36, roof: 0x55524d };
 function spawnPiece(part, v, w, cluster = null) {
   let slot = sim.free.pop();
   if (slot === undefined) {
-    if (sim.pieces.length < T.debris_pool) slot = sim.pieces.length;
+    if (sim.pieces.length < poolSize()) slot = sim.pieces.length;
     else {    // the pool is full: the oldest resting piece becomes heap
       while (sim.settledQ.length && !(sim.pieces[sim.settledQ[0]]?.settled)) sim.settledQ.shift();
       slot = sim.settledQ.shift();
@@ -1186,11 +1209,12 @@ function dropIslands(b, loose) {
     cl.c.multiplyScalar(1 / m); cl.mass = m;
     // It tips away from whatever it last stood on.
     if (ns) { sup.multiplyScalar(1 / ns); const away = new THREE.Vector3(cl.c.x - sup.x, 0, cl.c.z - sup.z); if (away.lengthSq() > 0.01) { away.normalize(); cl.w.set(away.z, 0, -away.x).multiplyScalar(-0.35); } }
-    for (const id of ids) for (const bx of E[id].boxes) {
+    cl.fines = 0;
+    for (const id of ids) { const pb = pieceBoxes(E[id]); cl.fines += pb.fines; for (const bx of pb.boxes) {
       const p = spawnPiece({ c: bx.c, s: bx.s, q: bx.q, color: bx.color, mat: bx.mat }, new THREE.Vector3(), new THREE.Vector3(), cl);
       if (!p) continue;
       p.local = bx.c.clone().sub(cl.c); p.lq = bx.q.clone(); cl.pieces.push(p);
-    }
+    } }
     sim.clusters.push(cl);
   }
   b.maskDirty = true;
@@ -1239,7 +1263,7 @@ function pushOut(p, hh) {
       const ox = Math.min(p.c.x + ex - a[0], a[3] - (p.c.x - ex)), oz = Math.min(p.c.z + ez - a[2], a[5] - (p.c.z - ez));
       const oy = Math.min(p.c.y + hh - a[1], a[4] - (p.c.y - hh));
       if (ox <= 0 || oy <= 0 || oz <= 0) continue;
-      if (oy < Math.min(ox, oz) && p.c.y > (a[1] + a[4]) / 2) { p.c.y += oy + 0.004; onTop = true; }
+      if (DEBRIS_TIER === 'full' && oy < Math.min(ox, oz) && p.c.y > (a[1] + a[4]) / 2) { p.c.y += oy + 0.004; onTop = true; }
       else if (ox < oz) { p.c.x += p.c.x < (a[0] + a[3]) / 2 ? -ox : ox; p.v.x *= -0.2; }
       else { p.c.z += p.c.z < (a[2] + a[5]) / 2 ? -oz : oz; p.v.z *= -0.2; }
     }
@@ -1353,7 +1377,7 @@ function shatter(cl, contact) {
   const cx = cl.pieces.reduce((s, p) => s + p.c.x, 0) / Math.max(1, cl.pieces.length);
   const cz = cl.pieces.reduce((s, p) => s + p.c.z, 0) / Math.max(1, cl.pieces.length);
   const spread = Math.sqrt(Math.max(4, cl.pieces.length)) * 0.9;
-  heapDeposit(cx, cz, vol * T.rubble_fines, Math.min(14, 2 + spread));
+  heapDeposit(cx, cz, (vol + (cl.fines || 0)) * T.rubble_fines, Math.min(14, 2 + spread));
   puff(new THREE.Vector3(contact.x, contact.y, contact.z), Math.min(30, 6 + spread * 1.5), 0x9e968a, 6, 0.9);
 }
 
@@ -1717,6 +1741,9 @@ const toggle = (id, fn) => { const el = document.getElementById(id); el.onclick 
 toggle('tFacade', on => { ui.skin = on; B[ui.sel].u.skin.value = on ? 1 : 0; });
 toggle('tStress', on => { U.stress.value = on ? 1 : 0; });
 toggle('tPause', on => { sim.paused = on; });
+function setTier(t) { DEBRIS_TIER = t; document.getElementById('tierGame').classList.toggle('on', t === 'game'); document.getElementById('tierFull').classList.toggle('on', t === 'full'); }
+document.getElementById('tierGame').onclick = () => setTier('game');
+document.getElementById('tierFull').onclick = () => setTier('full');
 document.getElementById('regen').onclick = () => buildWorld(+document.getElementById('seed').value || 0);
 document.getElementById('reset').onclick = () => buildWorld(SEED);
 document.querySelectorAll('[data-view]').forEach(bt => bt.onclick = () => setView(bt.dataset.view));
@@ -1912,6 +1939,7 @@ window.MOCKUP = {
     buildWorld(seed ?? SEED);
   },
   pause: on => { sim.paused = on; },
+  tier: setTier,
 };
 buildWorld(42);
 resize();

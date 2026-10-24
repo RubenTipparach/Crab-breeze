@@ -26,6 +26,8 @@ const SHOTS = [
   ["side_12s", [[-95, 55, -110], [-33, 25, -23]], [["demo", "side"], ["run", 12.0]]],
   ["warehouse_drop", [[-100, 35, 85], [-33, 6, 23]], [["demo", "warehouse"], ["run", 8.0]]],
   ["volley", [[30, 30, 85], [-2, 8, 26]], [["demo", "walkup"], ["run", 6.0]]],
+  ["side_12s_full", [[-95, 55, -110], [-33, 25, -23]], [["tier", "full"], ["demo", "side"], ["run", 12.0]]],
+  ["warehouse_drop_full", [[-100, 35, 85], [-33, 6, 23]], [["tier", "full"], ["demo", "warehouse"], ["run", 8.0]]],
 ];
 fs.mkdirSync(outDir, { recursive: true });
 const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: "localhost,127.0.0.1" } : undefined;
@@ -40,7 +42,7 @@ for (const [name, view, steps] of SHOTS) {
   if (only && !only.split(",").includes(name)) continue;
   await page.evaluate(([view, steps, orbit]) => {
     const M = window.MOCKUP;
-    M.reset(42); M.pause(true); M.stress(false);
+    M.reset(42); M.pause(true); M.stress(false); M.tier("game");
     if (typeof view === "string") M.setView(view); else M.look(view[0], view[1]);
     for (const [fn, arg] of steps) M[fn](arg);
   }, [view, steps, ORBIT]);
@@ -48,7 +50,7 @@ for (const [name, view, steps] of SHOTS) {
   const box = await page.locator(".stage").boundingBox();
   await page.screenshot({ path: path.join(outDir, name + ".png"), clip: box, timeout: 180000 });
   if (name.includes("cutaway") || name.includes("plan") || name.includes("stress")) await page.locator("#plan").screenshot({ path: path.join(outDir, name + "_floorplan.png") });
-  console.log("shot", name);
+  console.log("shot", name, await page.evaluate(() => { const p = sim.pieces.filter(Boolean); return `pieces ${p.length}, moving ${p.filter(q => !q.settled).length}, heap ${HEAP.vol.toFixed(0)} m3, tris ${renderer.info.render.triangles}, calls ${renderer.info.render.calls}`; }));
 }
 const stats = await page.evaluate(() => document.getElementById("stats").innerText);
 console.log(stats.replace(/\n/g, " | "));

@@ -91,6 +91,23 @@ Expected in Rust, measured in `perf-bench` with the `side` demolition in view:
 - City-wide, graphs exist only for buildings within the interior radius or damaged. The rest are
   regenerated from the seed when needed.
 
+## 5a. Measured on the CPU, and the debris tier
+
+`docs/benchmarks/2026-10-24-structure-cpu/` (Rust port of the mockup, one core, indicative). A solve
+is 0.06 ms for a 19-storey tower (3 751 elements) and 0.18 ms for a 60-storey one (10 680). The
+debris step is 0.35 ms for 9 000 moving pieces.
+
+The structure is cheap. The pieces are the cost, so the game uses the **Game debris tier** (owner,
+2026-10-24: "might have to bring down the realism a bit"):
+- only the biggest boxes of a member become pieces (column 1, floor bay 1, wall 2, core 3, roof prop 6);
+- at most 2 parts each;
+- glass, partitions and furniture go straight to dust and heap;
+- pieces never perch on column or wall tops;
+- a pool of 2 500 pieces.
+
+The warehouse collapse drops from 7 556 pieces to 1 387. The mockup keeps Full as a switch for
+comparison.
+
 ## 6. Tuning (data, `data/world/buildings.ron`)
 
 | Key | Default | Unit |
@@ -101,7 +118,8 @@ Expected in Rust, measured in `perf-bench` with the `side` demolition in view:
 | `hang_hops` | 1 | bays |
 | `slab_support_factor` | four 1.0, three 0.85, diagonal 0.7, one_edge 0.45, one 0.25, hung 0.4 | ratio |
 | `hp_mj` | column 2.5, slab 3.0, wall 0.7, glass 0.02, partition 0.15, core 1.2, furniture 0.05, prop 0.35, parapet 0.5, escape 0.25 | MJ |
-| `debris_pool` | 9 000 | pieces |
+| `debris_pool` | 2 500 (Game tier; 9 000 in the mockup's Full) | pieces |
+| `debris_keep` | column 1, slab 1, wall 2, parapet 1, core 3, escape 2, prop 6, glass 0, partition 0, furniture 0 | boxes per member |
 
 ## Open questions
 
