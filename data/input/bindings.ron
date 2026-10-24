@@ -30,4 +30,7 @@
     // WASD thrust in the air), Ctrl dives from the air or sinks on water.
     skate: ["ShiftLeft"],
     sink: ["ControlLeft"],
+    // Targeting (openspec targeting): F fires a missile at the lock, Q selects the next target.
+    fire_missile: ["KeyF"],
+    target_next: ["KeyQ"],
 )

@@ -276,6 +276,13 @@ impl Hatch {
         self.target == HatchTarget::Open && self.t_s >= tl.ready_s
     }
 
+    /// True when the hatch is shut: not heading open, and no further along the timeline than sat
+    /// and sealed (standing, standing up, sitting down, or sat sealed). The cockpit pass draws only
+    /// then (cockpit-overlay).
+    pub fn is_closed(&self, tl: &BoardingTimeline) -> bool {
+        self.target != HatchTarget::Open && self.t_s <= tl.sealed_sitting_s() + 1e-3
+    }
+
     /// True when sat and sealed (no stage under way).
     pub fn is_sealed_sitting(&self, tl: &BoardingTimeline) -> bool {
         self.target == HatchTarget::SealedSitting && (self.t_s - tl.sealed_sitting_s()).abs() < 1e-6
@@ -321,6 +328,21 @@ mod tests {
         run(&mut h, &tl, tl.ready_s);
         assert!(h.is_open(&tl));
         assert!(!h.can_walk());
+    }
+
+    #[test]
+    fn the_hatch_is_closed_only_while_shut() {
+        let tl = shipped("breeze");
+        let mut h = Hatch::default();
+        assert!(h.is_closed(&tl), "standing, sealed");
+        h.target = HatchTarget::Open;
+        h.step(&tl, DT);
+        assert!(!h.is_closed(&tl), "opening");
+        run(&mut h, &tl, tl.ready_s + 1.0);
+        assert!(!h.is_closed(&tl), "open");
+        h.target = HatchTarget::SealedSitting;
+        run(&mut h, &tl, tl.ready_s + 1.0);
+        assert!(h.is_closed(&tl), "sat and sealed again");
     }
 
     #[test]

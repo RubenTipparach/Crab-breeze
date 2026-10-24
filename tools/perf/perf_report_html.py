@@ -264,10 +264,11 @@ pre{background:var(--panel);border:1px solid var(--rule);border-radius:8px;paddi
 <script>
 const DATA=%%DATA%%;
 const VARIANT_ENV=JSON.parse(`%%VARIANTS%%`.replace(/&quot;/g,'"'));
-const NAMES={world:"The world take",fight:"The city fight"};
+const NAMES={world:"The world take",fight:"The city fight",defence:"The city defence"};
 const BLURB={
   world:"`--bench world`: walk to the mech and board, stride the street, rockets and skates, the river, the wood, shells and damage.",
-  fight:"`--bench fight`: the player's mech against the raiders in a city, guns, debris and collapsing buildings."};
+  fight:"`--bench fight`: the player's mech against the raiders in a city, guns, debris and collapsing buildings.",
+  defence:"`--bench defence`: the combat test, defending a city against waves of enemies in three fights."};
 const PALETTE=["var(--on)","var(--off)","var(--want)","#8a63c8","#b8952a"];
 const colour=v=>PALETTE[Math.max(0,DATA.variants.indexOf(v))%PALETTE.length];
 const f=(x,d=2)=>x==null||isNaN(x)?"-":Number(x).toFixed(d);

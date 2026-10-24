@@ -1,0 +1,11 @@
+// Targeting and missile lock (openspec/changes/targeting), after Ace Combat: every enemy within
+// `max_range_m` is boxed; the one nearest the crosshair (within `pick_cone_deg`) or picked with Q is
+// selected; it locks after `lock_s` inside `lock_range_m` (missile range) and `lock_cone_deg`.
+(
+    max_range_m: 2000.0,
+    pick_cone_deg: 30.0,
+    lock_range_m: 1200.0,
+    lock_cone_deg: 12.0,
+    lock_s: 1.0,
+    box_px: (18.0, 160.0),
+)

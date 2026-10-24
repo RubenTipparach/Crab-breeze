@@ -478,10 +478,10 @@ fn spawn_water(
             if i > 0 {
                 along += p.distance(r.path[i - 1]);
             }
-            for (k, s) in [(-1.0f32, 0.0f32), (1.0, 1.0)] {
+            for k in [-1.0f32, 1.0] {
                 let q = p + side * k;
                 positions.push([q.x, r.surface_m[i], q.y]);
-                uvs.push([s * r.half_width_m[i] / 12.0, along / 24.0]);
+                uvs.push([k * r.half_width_m[i] / 12.0, along / 24.0]);
                 // The water's flow, for the water material (rg, metres a second).
                 flow.push([d.x * w.flow_m_s, d.y * w.flow_m_s, 0.0, 1.0]);
             }
@@ -741,23 +741,14 @@ fn show_trees(
     }
 }
 
-fn fell_trees(mut live: ResMut<Live>, time: Res<Time<Fixed>>, mut bursts: MessageWriter<crate::fx::Burst>) {
+fn fell_trees(mut live: ResMut<Live>, time: Res<Time<Fixed>>, mut fx: MessageWriter<crate::fx::Fx>) {
     let live = &mut *live;
     let landed = live.forest.step(time.delta_secs());
     for id in &landed {
         let Some(t) = live.forest.tree(*id).copied() else { continue };
         let (dir, _) = live.forest.state(*id).tilt();
         let tip = t.base + Vec3::new(dir.x, 0.0, dir.y) * t.height_m * 0.7;
-        bursts.write(crate::fx::Burst {
-            kind: crate::fx::FxKind::Dust,
-            at: tip,
-            dir: Vec3::Y,
-            count: 25,
-            speed_m_s: 3.0,
-            spread: 0.9,
-            size_m: 2.5,
-            life_s: 2.5,
-        });
+        fx.write(crate::fx::Fx::new("tree_fall", tip));
     }
     let falling = live.forest.falling();
     live.moved_trees.extend(falling);

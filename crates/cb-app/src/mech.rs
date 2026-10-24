@@ -6,7 +6,7 @@
 
 use crate::blast::Explosion;
 use crate::combat::Shots;
-use crate::fx::{Burst, FxKind, Ripple};
+use crate::fx::Fx;
 use crate::input::StepActions;
 use crate::pilot::{PilotCamera, PilotEvents, PilotSim};
 use crate::sim::{Data, PresentSet, SimSet};
@@ -142,7 +142,8 @@ impl Plugin for MechPlugin {
         app.init_resource::<MechAccessNow>()
             .add_systems(Startup, spawn_mech)
             .add_systems(FixedUpdate, (publish_access.in_set(SimSet::Input), step_mech.in_set(SimSet::Mech)))
-            .add_systems(Update, (bind_rig, cut_parts, drive_mech, burn).chain().in_set(PresentSet::Pose));
+            .add_systems(Update, (bind_rig, cut_parts, drive_mech, burn).chain().in_set(PresentSet::Pose))
+            .add_systems(Update, cockpit_layer.after(PresentSet::Pose));
     }
 }
 
@@ -150,10 +151,12 @@ fn v3(a: [f32; 3]) -> Vec3 {
     Vec3::from_array(a)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn spawn_mech(
     mut commands: Commands,
     data: Res<Data>,
     world: Res<Plan>,
+    defending: Option<Res<crate::defence::Defending>>,
     tex: Res<crate::textures::Textures>,
     assets: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -173,37 +176,118 @@ fn spawn_mech(
         &mut materials,
     );
     commands.entity(player).insert((Piloted, MechId(0)));
-    let root = cli::repo_root().join("data");
-    for (i, e) in data.0.encounters.enemies.iter().enumerate() {
-        let mut cfg: MechConfig = match cb_core::data::load_ron(&root.join(&e.mech)) {
-            Ok(c) => c,
-            Err(err) => {
-                error!("encounter enemy {i}: {err}");
-                continue;
-            }
-        };
-        if let Some(w) = &e.weapons {
-            cfg.weapons = w.clone();
-        }
-        for p in &mut cfg.parts {
-            p.armour_mm *= e.armour_scale;
-        }
-        let xz = start.mech_xz + Vec2::from_array(e.offset_m);
-        let tint = e.tint.map(|c| Color::srgb(c[0], c[1], c[2]));
-        let ent = spawn_mech_entity(
-            &mut commands,
-            Arc::new(cfg),
-            at(xz),
-            e.heading_deg.to_radians(),
-            tint,
-            &tex.metal,
-            &assets,
-            &mut meshes,
-            &mut materials,
-        );
-        let ai = AiPilot::new(e.skill.clone(), SimRng::new(world.seed).fork(&format!("enemy/{i}")));
-        commands.entity(ent).insert((Enemy { ai }, MechId(i as u32 + 1)));
+    // The defence mission brings its own enemies, wave by wave (city-defence).
+    if defending.is_some() {
+        return;
     }
+    for (i, e) in data.0.encounters.enemies.iter().enumerate() {
+        let xz = start.mech_xz + Vec2::from_array(e.offset_m);
+        let loadout = Loadout {
+            mech: &e.mech,
+            weapons: e.weapons.as_deref(),
+            armour_scale: e.armour_scale,
+            tint: e.tint,
+            skill: &e.skill,
+        };
+        let rng = SimRng::new(world.seed).fork(&format!("enemy/{i}"));
+        let mut sa = SpawnAssets {
+            tex: &tex,
+            assets: &assets,
+            meshes: &mut meshes,
+            materials: &mut materials,
+        };
+        spawn_enemy(
+            &mut commands,
+            &world,
+            &loadout,
+            xz,
+            e.heading_deg.to_radians(),
+            rng,
+            MechId(i as u32 + 1),
+            &mut sa,
+        );
+    }
+}
+
+/// What an enemy is: its mech, guns, armour, colour and pilot (from an encounter or a mission).
+pub struct Loadout<'a> {
+    /// Its mech's data file, relative to `data/`.
+    pub mech: &'a str,
+    /// Gun override.
+    pub weapons: Option<&'a [cb_core::weapons::WeaponSpec]>,
+    /// Scales every part's armour.
+    pub armour_scale: f32,
+    /// Hull colour override.
+    pub tint: Option<[f32; 3]>,
+    /// Its pilot.
+    pub skill: &'a cb_core::ai::Skill,
+}
+
+/// The assets a spawned mech draws with.
+pub struct SpawnAssets<'a> {
+    /// The metal texture.
+    pub tex: &'a crate::textures::Textures,
+    /// The asset server (glb models).
+    pub assets: &'a AssetServer,
+    /// Meshes.
+    pub meshes: &'a mut Assets<Mesh>,
+    /// Materials.
+    pub materials: &'a mut Assets<StandardMaterial>,
+}
+
+/// Spawns an enemy mech flown by an AI pilot, standing on the ground at `xz`: the one way enemies
+/// enter the world, for the encounter and the defence waves alike.
+#[allow(clippy::too_many_arguments)]
+pub fn spawn_enemy(
+    commands: &mut Commands,
+    world: &cb_core::world::WorldPlan,
+    l: &Loadout,
+    xz: Vec2,
+    heading_rad: f32,
+    rng: SimRng,
+    id: MechId,
+    a: &mut SpawnAssets,
+) -> Option<Entity> {
+    let root = cli::repo_root().join("data");
+    let mut cfg: MechConfig = match cb_core::data::load_ron(&root.join(l.mech)) {
+        Ok(c) => c,
+        Err(err) => {
+            error!("enemy {}: {err}", id.0);
+            return None;
+        }
+    };
+    if let Some(w) = l.weapons {
+        cfg.weapons = w.to_vec();
+    }
+    for p in &mut cfg.parts {
+        p.armour_mm *= l.armour_scale;
+    }
+    let at = Vec3::new(xz.x, world.terrain.height_at(xz.x, xz.y), xz.y);
+    let tint = l.tint.map(|c| Color::srgb(c[0], c[1], c[2]));
+    let ent = spawn_mech_entity(
+        commands,
+        Arc::new(cfg),
+        at,
+        heading_rad,
+        tint,
+        &a.tex.metal,
+        a.assets,
+        a.meshes,
+        a.materials,
+    );
+    let ai = AiPilot::new(l.skill.clone(), rng);
+    commands.entity(ent).insert((Enemy { ai }, id, EnemyGoal::default()));
+    Some(ent)
+}
+
+/// What an enemy goes for this step, when something other than the player's mech (a mission's
+/// target); `None` is the player. Written before the mechs step.
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct EnemyGoal {
+    /// The point to fight round and aim at, instead of the player's mech.
+    pub point: Option<Vec3>,
+    /// Hold fire this step.
+    pub hold_fire: bool,
 }
 
 use crate::cli;
@@ -533,7 +617,17 @@ fn publish_access(
 /// controls, locomotion on the live ground, trees and walls in its way, guns, and the effects of its
 /// feet and jets.
 pub fn step_mech(
-    mut roots: Query<(&mut MechSim, &MechSpec, &MechId, Option<&MechRig>, Option<&mut Enemy>, Has<Piloted>), With<MechRoot>>,
+    mut roots: Query<
+        (
+            &mut MechSim,
+            &MechSpec,
+            &MechId,
+            Option<&MechRig>,
+            Option<(&mut Enemy, &EnemyGoal)>,
+            Has<Piloted>,
+        ),
+        With<MechRoot>,
+    >,
     actions: Res<StepActions>,
     pilot: Res<PilotSim>,
     mut events: ResMut<PilotEvents>,
@@ -546,10 +640,11 @@ pub fn step_mech(
     camera: Query<&GlobalTransform, With<PilotCamera>>,
     globals: Query<&GlobalTransform>,
     mut explosions: MessageWriter<Explosion>,
-    mut bursts: MessageWriter<Burst>,
-    mut ripples: MessageWriter<Ripple>,
+    mut fx: MessageWriter<Fx>,
+    targeting: Res<crate::targeting::TargetState>,
 ) {
     let tl = &data.0.boarding;
+    let locked = targeting.locked(&data.0.targeting);
     let dt = time.delta_secs();
     let seated = pilot.curr.mode == PilotMode::Seated;
     let live = &mut *live;
@@ -571,8 +666,13 @@ pub fn step_mech(
         if sim.dead {
             continue;
         }
-        let mut fire = [false, false];
+        let mut fire = [false, false, false];
         let mut aim_at: Option<Vec3> = None;
+        if piloted {
+            // The player's mech's hit flag lasts one step (its enemies' brains take theirs below);
+            // left set, a brain flying it would evade, and hop, forever.
+            sim.took_hit = false;
+        }
         let controls = if piloted {
             // The boarding sequence follows the pilot (mech-boarding design section 4).
             for e in &events.0 {
@@ -637,7 +737,7 @@ pub fn step_mech(
                     ..default()
                 }
             } else if seated && sim.hatch.can_walk() {
-                fire = actions.fire;
+                fire = [actions.fire[0], actions.fire[1], actions.fire_missile];
                 // The torso turns to follow where the pilot looks (the view leads, the torso
                 // follows); holding free look keeps the torso where it is.
                 let mut c = MechControls::from_actions(&actions);
@@ -660,7 +760,12 @@ pub fn step_mech(
         } else if !seated {
             // The enemies wait until the pilot is in the seat: no one fights an empty mech.
             MechControls::default()
-        } else if let (Some(mut enemy), Some((target, target_vel, target_dead))) = (enemy, player) {
+        } else if let (Some((mut enemy, goal)), Some((player_at, player_vel, player_dead))) = (enemy, player) {
+            // A mission may send it at something else (city-defence: a building to shell).
+            let (target, target_vel, target_dead) = match goal.point {
+                Some(p) => (p, Vec3::ZERO, false),
+                None => (player_at, player_vel, player_dead),
+            };
             let eye = sim.curr.pos + Vec3::Y * 9.6;
             let speed = cfg.weapons.first().map_or(850.0, |w| w.speed_m_s);
             let allies: Vec<Vec3> = bodies.iter().filter(|b| b.0 != id.0 && b.0 != 0).map(|b| b.1).collect();
@@ -673,6 +778,7 @@ pub fn step_mech(
                 target,
                 target_vel,
                 muzzle_speed_m_s: speed,
+                drop: !cfg.weapons.first().is_some_and(|w| w.rocket),
                 health,
                 hit,
                 allies: &allies,
@@ -680,8 +786,8 @@ pub fn step_mech(
                 cover: &cover,
             };
             let orders = enemy.ai.orders(&sim.curr, &view, dt);
-            if !target_dead {
-                fire = orders.fire;
+            if !target_dead && !goal.hold_fire {
+                fire = [orders.fire[0], orders.fire[1], false];
             }
             aim_at = Some(orders.aim_point);
             orders.controls
@@ -732,7 +838,12 @@ pub fn step_mech(
         let fired = sim.guns.trigger(&cfg.weapons, fire, |k| damage.is_lost(&cfg.parts, k), dt);
         for wi in fired {
             let w = &cfg.weapons[wi];
-            let socket: Option<&'static str> = ["MUZZLE_L", "MUZZLE_R"].into_iter().find(|s| *s == w.socket);
+            // A mech without a missile pod launches its missiles from the right arm.
+            let socket: Option<&'static str> = ["MUZZLE_L", "MUZZLE_R", "MISSILE_POD"].into_iter().find(|s| *s == w.socket);
+            let socket = match socket {
+                Some("MISSILE_POD") if !rig.sockets.contains_key("MISSILE_POD") => Some("MUZZLE_R"),
+                s => s,
+            };
             let Some(muzzle) = socket
                 .and_then(|s| rig.sockets.get(s))
                 .and_then(|e| globals.get(*e).ok())
@@ -749,30 +860,18 @@ pub fn step_mech(
                 pos: muzzle,
                 vel: dir * w.speed_m_s + carry,
                 age_s: 0.0,
+                rocket: w.rocket,
+                // A missile homes on the pilot's lock (targeting); unlocked it flies straight.
+                target: (piloted && w.seeker_turn_deg_s > 0.0).then_some(locked).flatten(),
             });
-            let heavy = w.blast_mj >= 1.0;
-            bursts.write(Burst {
-                kind: FxKind::Fire,
-                at: muzzle + dir * 1.5,
-                dir,
-                count: if heavy { 30 } else { 5 },
-                speed_m_s: if heavy { 14.0 } else { 8.0 },
-                spread: 0.3,
-                size_m: if heavy { 1.6 } else { 0.6 },
-                life_s: 0.15,
-            });
-            if heavy {
-                bursts.write(Burst {
-                    kind: FxKind::Smoke,
-                    at: muzzle + dir * 3.0,
-                    dir,
-                    count: 12,
-                    speed_m_s: 6.0,
-                    spread: 0.5,
-                    size_m: 2.0,
-                    life_s: 2.5,
-                });
-            }
+            let recipe = if w.rocket {
+                "muzzle_rocket"
+            } else if w.blast_mj >= 1.0 {
+                "muzzle_cannon"
+            } else {
+                "muzzle_autocannon"
+            };
+            fx.write(Fx::new(recipe, muzzle).toward(dir));
         }
 
         // Footfalls: spray and ripples in water, dust on dry ground; a heavy landing throws more.
@@ -786,36 +885,14 @@ pub fn step_mech(
             let ankle = rig.rest.legs[side].ankle;
             let turn = Quat::from_rotation_y(sim.curr.heading_rad + std::f32::consts::PI);
             let foot = sim.curr.pos + turn * Vec3::new(ankle.x, 0.0, ankle.z);
-            let heavy = if landed { 3 } else { 1 };
+            let (density, scale) = if landed { (3.0, 1.3) } else { (1.0, 1.0) };
             match ground.water_at(foot.x, foot.z) {
                 Some(w) => {
                     let at = Vec3::new(foot.x, w.surface_m, foot.z);
-                    bursts.write(Burst {
-                        kind: FxKind::Spray,
-                        at,
-                        dir: Vec3::Y,
-                        count: 70 * heavy,
-                        speed_m_s: 7.0 + w.depth_m.min(4.0),
-                        spread: 0.55,
-                        size_m: 1.1,
-                        life_s: 1.6,
-                    });
-                    ripples.write(Ripple {
-                        at,
-                        radius_m: 9.0 + 4.0 * heavy as f32,
-                    });
+                    fx.write(Fx::new("foot_spray", at).dense(density).scaled(scale));
                 }
                 None => {
-                    bursts.write(Burst {
-                        kind: FxKind::Dust,
-                        at: foot,
-                        dir: Vec3::Y,
-                        count: 10 * heavy,
-                        speed_m_s: 2.0 * heavy as f32,
-                        spread: 1.0,
-                        size_m: 1.4,
-                        life_s: 1.8,
-                    });
+                    fx.write(Fx::new("foot_dust", foot).dense(density).scaled(scale));
                 }
             }
         }
@@ -827,38 +904,10 @@ pub fn step_mech(
                     let back = -Vec3::new(sim.curr.vel.x, 0.0, sim.curr.vel.y).normalize_or(Vec3::Z);
                     if on_water {
                         let fast = (sim.curr.vel.length() / 30.0).clamp(0.5, 4.0);
-                        bursts.write(Burst {
-                            kind: FxKind::Spray,
-                            at: g.translation(),
-                            dir: back + Vec3::Y * 0.8,
-                            count: (3.0 * fast) as u32,
-                            speed_m_s: 6.0 * fast,
-                            spread: 0.35,
-                            size_m: 1.0,
-                            life_s: 1.0,
-                        });
+                        fx.write(Fx::new("skate_spray", g.translation()).toward(back + Vec3::Y * 0.8).dense(fast));
                         continue;
                     }
-                    bursts.write(Burst {
-                        kind: FxKind::Spark,
-                        at: g.translation(),
-                        dir: back + Vec3::Y * 0.3,
-                        count: 2,
-                        speed_m_s: 8.0,
-                        spread: 0.4,
-                        size_m: 0.2,
-                        life_s: 0.4,
-                    });
-                    bursts.write(Burst {
-                        kind: FxKind::Dust,
-                        at: g.translation(),
-                        dir: back + Vec3::Y * 0.5,
-                        count: 1,
-                        speed_m_s: 3.0,
-                        spread: 0.5,
-                        size_m: 1.2,
-                        life_s: 1.2,
-                    });
+                    fx.write(Fx::new("skate_grit", g.translation()).toward(back + Vec3::Y * 0.3));
                 }
             }
         }
@@ -866,26 +915,7 @@ pub fn step_mech(
         if sim.curr.boosting {
             for jet in ["JET_L", "JET_R"] {
                 if let Some(g) = rig.sockets.get(jet).and_then(|e| globals.get(*e).ok()) {
-                    bursts.write(Burst {
-                        kind: FxKind::Flame,
-                        at: g.translation(),
-                        dir: Vec3::NEG_Y,
-                        count: 6,
-                        speed_m_s: 30.0,
-                        spread: 0.15,
-                        size_m: 0.9,
-                        life_s: 0.25,
-                    });
-                    bursts.write(Burst {
-                        kind: FxKind::Smoke,
-                        at: g.translation() - Vec3::Y * 3.0,
-                        dir: Vec3::NEG_Y,
-                        count: 1,
-                        speed_m_s: 8.0,
-                        spread: 0.4,
-                        size_m: 2.5,
-                        life_s: 2.0,
-                    });
+                    fx.write(Fx::new("jet_flame", g.translation()).toward(Vec3::NEG_Y));
                 }
             }
         }
@@ -901,16 +931,7 @@ pub fn step_mech(
                     live.dirty_buildings.push(b);
                     live.new_chunks.extend(chunks);
                     sim.curr.speed_m_s = sim.prev.speed_m_s * 0.7;
-                    bursts.write(Burst {
-                        kind: FxKind::Dust,
-                        at: front,
-                        dir: Vec3::Y,
-                        count: 60,
-                        speed_m_s: 6.0,
-                        spread: 1.0,
-                        size_m: 3.0,
-                        life_s: 4.0,
-                    });
+                    fx.write(Fx::new("wall_smash", front));
                 }
             }
         }
@@ -1044,7 +1065,7 @@ fn cut_parts(
     globals: Query<&GlobalTransform>,
     parents: Query<&ChildOf>,
     time: Res<Time>,
-    mut bursts: MessageWriter<Burst>,
+    mut fx: MessageWriter<Fx>,
     mut explosions: MessageWriter<Explosion>,
 ) {
     for (root, mut sim, mut rig, mech) in &mut roots {
@@ -1086,22 +1107,39 @@ fn cut_parts(
                     until_s: time.elapsed_secs() + 25.0,
                 });
             }
-            for (kind, count, speed, size, life) in [
-                (FxKind::Spark, 90, 18.0, 0.25, 1.2),
-                (FxKind::Fire, 30, 6.0, 1.6, 0.8),
-                (FxKind::Smoke, 30, 3.0, 3.0, 6.0),
-            ] {
-                bursts.write(Burst {
-                    kind,
-                    at,
-                    dir: Vec3::Y,
-                    count,
-                    speed_m_s: speed,
-                    spread: 0.8,
-                    size_m: size,
-                    life_s: life,
-                });
+            fx.write(Fx::new("part_lost", at));
+        }
+    }
+}
+
+/// While the pilot sits in the mech with the hatch shut, every mesh of the mech is on the cockpit
+/// layer, drawn after the world on its own depth so nothing in the world draws through it
+/// (cockpit-overlay; owner: "only when it is closed and player is inside"). Otherwise it is drawn
+/// with the world like anything else. Walks the mech's descendants each frame, so a model that
+/// loads late is caught.
+fn cockpit_layer(
+    mut commands: Commands,
+    pilot: Res<PilotSim>,
+    data: Res<Data>,
+    mech: Query<(Entity, &MechSim), With<Piloted>>,
+    children: Query<&Children>,
+    meshes: Query<Option<&bevy::camera::visibility::RenderLayers>, With<Mesh3d>>,
+) {
+    use bevy::camera::visibility::RenderLayers;
+    let Some((root, sim)) = mech.iter().next() else { return };
+    let inside = pilot.curr.mode == PilotMode::Seated && sim.hatch.is_closed(&data.0.boarding);
+    let want = RenderLayers::layer(crate::pilot::COCKPIT_LAYER);
+    for e in children.iter_descendants(root) {
+        let Ok(layers) = meshes.get(e) else { continue };
+        match (inside, layers) {
+            (true, Some(l)) if *l == want => {}
+            (true, _) => {
+                commands.entity(e).insert(want.clone());
             }
+            (false, Some(_)) => {
+                commands.entity(e).remove::<RenderLayers>();
+            }
+            (false, None) => {}
         }
     }
 }
@@ -1110,7 +1148,7 @@ fn burn(
     mut commands: Commands,
     q: Query<(Entity, &GlobalTransform, &Burning)>,
     time: Res<Time>,
-    mut bursts: MessageWriter<Burst>,
+    mut fx: MessageWriter<Fx>,
     mut tick: Local<f32>,
 ) {
     *tick += time.delta_secs();
@@ -1123,26 +1161,7 @@ fn burn(
             commands.entity(e).remove::<Burning>();
             continue;
         }
-        bursts.write(Burst {
-            kind: FxKind::Smoke,
-            at: g.translation(),
-            dir: Vec3::Y,
-            count: 2,
-            speed_m_s: 3.0,
-            spread: 0.3,
-            size_m: 1.8,
-            life_s: 5.0,
-        });
-        bursts.write(Burst {
-            kind: FxKind::Fire,
-            at: g.translation(),
-            dir: Vec3::Y,
-            count: 1,
-            speed_m_s: 2.0,
-            spread: 0.4,
-            size_m: 0.9,
-            life_s: 0.5,
-        });
+        fx.write(Fx::new("burning", g.translation()));
     }
 }
 

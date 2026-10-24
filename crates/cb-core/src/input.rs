@@ -57,6 +57,10 @@ pub struct Actions {
     pub skate_toggle: bool,
     /// Ctrl held in the mech: dive in the air, sink on water.
     pub sink: bool,
+    /// Missile trigger held (fire group 2, at the lock: `targeting`).
+    pub fire_missile: bool,
+    /// Select the next target this step.
+    pub target_next: bool,
 }
 
 impl Actions {
@@ -142,6 +146,10 @@ pub struct Bindings {
     pub skate: Vec<String>,
     /// Hold to dive from the air or sink on water (in the mech).
     pub sink: Vec<String>,
+    /// Fire a missile at the lock (in the mech).
+    pub fire_missile: Vec<String>,
+    /// Select the next target (in the mech).
+    pub target_next: Vec<String>,
 }
 
 impl Default for Bindings {
@@ -172,6 +180,8 @@ impl Default for Bindings {
             fire_secondary: k("MouseRight"),
             skate: k("ShiftLeft"),
             sink: k("ControlLeft"),
+            fire_missile: k("KeyF"),
+            target_next: k("KeyQ"),
         }
     }
 }

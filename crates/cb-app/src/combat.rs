@@ -1,17 +1,18 @@
 //! Shots in flight (openspec change `weapons`): every fixed step each projectile flies through
 //! `cb_core::weapons::fly` against the mechs' part capsules, standing building cells, trees, water
 //! and ground; what it hits takes the hit (a part through `mech-damage`, a cell through
-//! `building-destruction`, a tree snaps) and heavy shells explode. Tracers are effects.
+//! `building-destruction`, a tree snaps) and heavy shells explode. Tracers, rocket motors and
+//! their smoke trails are effects (`fx`).
 
 use crate::blast::Explosion;
-use crate::fx::{Burst, FxKind};
+use crate::fx::Fx;
 use crate::mech::{MechId, MechRig, MechSim, MechSpec, apply_hit};
 use crate::sim::SimSet;
 use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use cb_core::mech::rig::BONES;
 use cb_core::mech::{Hit, MechConfig, PartKind};
-use cb_core::weapons::{PartCapsule, Projectile, Struck, fly, spent};
+use cb_core::weapons::{PartCapsule, Projectile, Struck, fly, home, spent};
 use cb_core::world::Scene;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -75,7 +76,7 @@ pub fn fly_shots(
     mut mechs: Query<(&mut MechSim, &MechSpec, &MechId, Option<&MechRig>)>,
     globals: Query<&GlobalTransform>,
     time: Res<Time<Fixed>>,
-    mut bursts: MessageWriter<Burst>,
+    mut fx: MessageWriter<Fx>,
     mut explosions: MessageWriter<Explosion>,
 ) {
     if shots.0.is_empty() {
@@ -92,9 +93,25 @@ pub fn fly_shots(
             parts.extend(capsules(id.0, sim, spec, rig, &globals));
         }
     }
+    // Live mechs' torsos, for missiles to home on.
+    let torsos: HashMap<u32, Vec3> = mechs
+        .iter()
+        .filter(|m| !m.0.dead)
+        .map(|m| (m.2.0, m.0.curr.pos + Vec3::Y * cb_core::ai::TORSO_AIM_M))
+        .collect();
     let live = &mut *live;
     let mut flying = Vec::with_capacity(shots.0.len());
     for mut shot in std::mem::take(&mut shots.0) {
+        // A missile turns toward its locked target's torso first (targeting).
+        if let Some(t) = shot.target {
+            let seeker = specs
+                .get(&shot.owner)
+                .and_then(|c| c.weapons.get(shot.weapon))
+                .map_or(0.0, |w| w.seeker_turn_deg_s);
+            if let Some(torso) = torsos.get(&t) {
+                home(&mut shot, *torso, seeker, dt);
+            }
+        }
         let impact = {
             let scene = Scene {
                 plan: &plan,
@@ -108,17 +125,6 @@ pub fn fly_shots(
             continue;
         };
         let Some(hit) = impact else {
-            // Tracer: a bright streak every step along the path.
-            bursts.write(Burst {
-                kind: FxKind::Tracer,
-                at: shot.pos,
-                dir: shot.vel.normalize_or(Vec3::Y),
-                count: 1,
-                speed_m_s: 0.0,
-                spread: 0.0,
-                size_m: if w.blast_mj >= 1.0 { 0.9 } else { 0.5 },
-                life_s: 0.06,
-            });
             if !spent(&shot) {
                 flying.push(shot);
             }
@@ -142,16 +148,7 @@ pub fn fly_shots(
                         },
                     );
                 }
-                bursts.write(Burst {
-                    kind: FxKind::Spark,
-                    at: hit.at,
-                    dir: -dir,
-                    count: 25,
-                    speed_m_s: 14.0,
-                    spread: 0.7,
-                    size_m: 0.3,
-                    life_s: 0.6,
-                });
+                fx.write(Fx::new("impact_mech", hit.at).toward(-dir));
             }
             Struck::Building(b) => {
                 let r = 3.4f32.max(1.2 * 2.2 * w.blast_mj.max(0.01).cbrt());
@@ -160,16 +157,7 @@ pub fn fly_shots(
                     live.dirty_buildings.push(b);
                     live.new_chunks.extend(chunks);
                 }
-                bursts.write(Burst {
-                    kind: FxKind::Dust,
-                    at: hit.at,
-                    dir: -dir,
-                    count: 18,
-                    speed_m_s: 5.0,
-                    spread: 0.8,
-                    size_m: 2.5,
-                    life_s: 3.0,
-                });
+                fx.write(Fx::new("impact_building", hit.at).toward(-dir));
             }
             Struck::Tree(id) => {
                 if live.forest.hit(id, Vec2::new(dir.x, dir.z), f32::MAX) {
@@ -177,28 +165,10 @@ pub fn fly_shots(
                 }
             }
             Struck::Water => {
-                bursts.write(Burst {
-                    kind: FxKind::Spray,
-                    at: hit.at,
-                    dir: Vec3::Y,
-                    count: 15,
-                    speed_m_s: 8.0,
-                    spread: 0.3,
-                    size_m: 0.8,
-                    life_s: 1.2,
-                });
+                fx.write(Fx::new("impact_water", hit.at));
             }
             Struck::Ground => {
-                bursts.write(Burst {
-                    kind: FxKind::Dirt,
-                    at: hit.at,
-                    dir: Vec3::Y,
-                    count: 12,
-                    speed_m_s: 8.0,
-                    spread: 0.5,
-                    size_m: 0.4,
-                    life_s: 1.5,
-                });
+                fx.write(Fx::new("impact_ground", hit.at).toward(-dir));
             }
         }
         if w.blast_mj >= 1.0 {
