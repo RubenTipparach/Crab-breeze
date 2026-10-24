@@ -68,6 +68,10 @@ From the owner's brief, 2026-10-23. Quotes are the owner's words.
   powered flight on jets. Flight is limited by a resource the simulation tracks (fuel, heat or
   both: survey `M3`), so the mech is a ground machine that can take to the air, not an aircraft.
   Each mode is simulated, and the cockpit shows the numbers the simulation uses (section 6.1).
+- **The cockpit** (owner, 2026-10-24: "Design the mech cockpit. Use detailed textures. Use the
+  texturing skill we had on star crew bridge sim. Baked lighting with AO. Beautiful panels, warning
+  labels, buttons, circuitry"). Panels are modelled and baked the Star Crew way (`panel-textures`),
+  the cabin's light and occlusion are baked over them (`light-baking`). `docs/design/cockpit.md`.
 
 ## 2. The stack: Rust and Bevy
 
@@ -299,6 +303,13 @@ Star Crew and Undercity, each with an "In Crab Breeze" note on what changes.
   Run `/opt/blender/blender --background --factory-startup --python tools/blender/build_mechs.py`,
   then `python3 tools/mockups/gen_mech_designs.py` and look at the shots from
   `NODE_PATH=$(npm root -g) node tools/mockups/shoot.mjs docs/mockups/mech_designs.html docs/screenshots/mechs`.
+- **The cockpit generators**: panels first (`tools/blender/bake_cockpit_panels.py`, the kit
+  `cockpit_kit.py`, the panels `cockpit_panels.py`; contact sheet
+  `python3 tools/textures/cockpit_contact_sheet.py`), the displays
+  (`python3 tools/textures/gen_cockpit_displays.py`), then the set and its light bake
+  (`tools/blender/build_cockpit.py`, about two hours on 4 cloud cores at full size; iterate with
+  `--size 1024 --samples 16`), then `python3 tools/mockups/gen_cockpit_page.py` and the shots from
+  `NODE_PATH=$(npm root -g) node tools/mockups/shoot_cockpit.mjs docs/mockups/cockpit.html docs/screenshots/cockpit`.
 
 ## 11. Verification
 
@@ -337,6 +348,8 @@ Before claiming anything is done, run what applies:
 | `material-maker` | Making and judging materials from Material Maker graphs (section 10). |
 | `material-maker-headless` | Running Material Maker with no GPU in a cloud session (section 10). |
 | `threejs-mockups` | Orbitable model and cockpit mockups as artifact pages (section 10). |
+| `panel-textures` | Star Crew's textures skill: cockpit panels modelled in Blender and baked to PBR maps (section 10). |
+| `light-baking` | Star Crew's light baking: the cockpit's lamps, sky and occlusion baked into atlases (section 10). |
 
 Provenance for every skill is in `.claude/skills/PROVENANCE.md`.
 
@@ -349,6 +362,12 @@ Nothing is an exception until it is listed here with its reason.
   mech boss and Uber mech stuff are some of the best in mining mike"). `tools/textures/` runs Mining
   Mike's `plating()` canvas code verbatim to make the mech textures, so the mechs carry the look of
   its bosses and Uber mechs. Material Maker stays the source of every other material.
+- **Cockpit panels are modelled and baked, not Material Maker graphs, and the cockpit's light is
+  baked** (owner, 2026-10-24: "Use the texturing skill we had on star crew bridge sim. Baked
+  lighting with AO"). A panel's maps come from a face-on Cycles render of the modelled panel
+  (`panel-textures`), and the cockpit set exports its baked light unlit until survey `C3` decides
+  how live light goes on top. Section 10's Material Maker and real-time lighting rules hold
+  everywhere else.
 - **Copied skills keep their source's text** below their "In Crab Breeze" note (and its front
   matter description, retargeted), so a later copy from the source can be diffed. Where the source
   and the note disagree, the note and this file win.

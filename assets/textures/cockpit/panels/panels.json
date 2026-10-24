@@ -1,0 +1,86 @@
+{
+  "breakers_L": {
+    "width_m": 0.84,
+    "height_m": 0.4,
+    "px_per_m": 700.0,
+    "width_px": 588,
+    "height_px": 280
+  },
+  "breakers_R": {
+    "width_m": 0.84,
+    "height_m": 0.4,
+    "px_per_m": 700.0,
+    "width_px": 588,
+    "height_px": 280
+  },
+  "console_L": {
+    "width_m": 0.32,
+    "height_m": 0.8,
+    "px_per_m": 1000.0,
+    "width_px": 320,
+    "height_px": 800
+  },
+  "console_R": {
+    "width_m": 0.32,
+    "height_m": 0.8,
+    "px_per_m": 1000.0,
+    "width_px": 320,
+    "height_px": 800
+  },
+  "dash_main": {
+    "width_m": 1.56,
+    "height_m": 0.44,
+    "px_per_m": 1000.0,
+    "width_px": 1560,
+    "height_px": 440
+  },
+  "floor": {
+    "width_m": 1.3,
+    "height_m": 1.3,
+    "px_per_m": 450.0,
+    "width_px": 585,
+    "height_px": 585
+  },
+  "footwell": {
+    "width_m": 1.1,
+    "height_m": 0.5,
+    "px_per_m": 500.0,
+    "width_px": 550,
+    "height_px": 250
+  },
+  "glare": {
+    "width_m": 1.56,
+    "height_m": 0.16,
+    "px_per_m": 700.0,
+    "width_px": 1092,
+    "height_px": 112
+  },
+  "knee": {
+    "width_m": 1.1,
+    "height_m": 0.3,
+    "px_per_m": 900.0,
+    "width_px": 990,
+    "height_px": 270
+  },
+  "rear": {
+    "width_m": 1.3,
+    "height_m": 0.9,
+    "px_per_m": 650.0,
+    "width_px": 845,
+    "height_px": 585
+  },
+  "wall_L": {
+    "width_m": 0.78,
+    "height_m": 0.26,
+    "px_per_m": 750.0,
+    "width_px": 585,
+    "height_px": 195
+  },
+  "wall_R": {
+    "width_m": 0.78,
+    "height_m": 0.26,
+    "px_per_m": 750.0,
+    "width_px": 585,
+    "height_px": 195
+  }
+}

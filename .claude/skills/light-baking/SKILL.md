@@ -1,0 +1,236 @@
+---
+name: light-baking
+description: Bake Crab Breeze's cockpit light and occlusion with Star Crew's light-baking method (read the In Crab Breeze note first) - fixtures placed where real cockpit lamps sit, the sky through the canopy, the glow of screens and buttons, baked with occlusion and bounce in Cycles into texture atlases, denoised, and exported unlit. Use whenever placing or tuning a cockpit lamp, rebaking the cockpit, judging a bake, or asking why the cockpit is too dark, noisy or flat ("bake lighting", "AO", "ambient occlusion", "lightmap", "cockpit too dark", "rebake").
+metadata:
+  author: Star Crew (Claude Code)
+  version: "1.0"
+---
+
+## In Crab Breeze
+
+The owner, 2026-10-24: "Baked lighting with AO". Star Crew bakes its rooms into vertex colours for
+a low-poly look; Crab Breeze bakes its cockpit into texture atlases for a high-detail one. Where
+this note and Star Crew's text below disagree, the note wins.
+
+- **Kept**: light comes from fixtures a pilot could point at (the glare shield floodlight, the
+  sill floodlights, the dome lamp, the footwell lamp) and from emissive surfaces (screens, lit
+  buttons); occlusion and bounce are baked; bakes are deterministic (fixed seed); every bake states
+  what it costs.
+- **Changed**: storage is two texture atlases (front and cabin), not vertex colours; the bake is
+  Cycles' own (`bpy.ops.object.bake`: diffuse direct, indirect and emission, no glossy, so it is
+  view independent), denoised with OIDN through the compositor, a short contact occlusion bake
+  multiplied in, tone mapped with a soft shoulder, saved as JPEG.
+- **Where it lives**: `tools/blender/build_cockpit.py` (`lights()` for the fixtures and the sky;
+  `--size`, `--samples`, `--exposure`, `--no-denoise`). The baked surfaces export with
+  `KHR_materials_unlit`, so the review page shows the bake as it is.
+- **Cost of a bake** on 4 cloud CPU cores: about 70 s per atlas at 1024 px and 16 samples; time
+  grows with pixels times samples. Iterate small (`--size 1024 --samples 16`), commit the full bake.
+- **Open**: whether the game keeps the bake fully unlit or uses it as a lightmap under live light
+  (the sun, muzzle flashes, alarms) is survey question C3.
+
+---
+
+*Star Crew's text, verbatim, below.*
+
+
+# Light baking
+
+The owner, 2026-10-04: "Some sort of tool or skill for light mapping/static light baking would be
+nice too", and "this game doesn't need high end graphics". CLAUDE.md section 9 has the rule (light
+is baked offline into vertex colours, one set per lighting state, from fixtures that are data);
+`openspec/changes/light-baking` is the design and has every number quoted here; `deck-pipeline`
+owns where the result lives. This skill is how to work with it.
+
+## What is baked, and why
+
+| Term | From | Why it matters on this look |
+| --- | --- | --- |
+| Direct light with soft shadows | Ceiling panels, high-bay lamps (point lights with a radius, a beam) | Light pools on the floor and shadows under consoles and seats are what make a flat-shaded room read as lit |
+| Emissive surfaces as area lights | Screens, cove strips, the viewscreen, the reactor's glow, indicator panels | Coloured spill on desks and walls; screens still light a room on emergency power |
+| Ambient occlusion on a small fill | Every surface | Dark corners and contact shadows; nothing goes pure black |
+| One bounce | Every surface, from a filtered 0.5 m irradiance cache | Light under desks and colour bleed; a second bounce adds nothing visible |
+
+All three states come from one set of rays (light is linear in its sources), so red alert and
+emergency power cost nothing extra to bake. Stored as three `RGBA8` vertex colours: gamma 2.2,
+2x overbright (byte 128 is the palette colour at 100 lx), ambient occlusion in alpha.
+
+## The rules
+
+- **Fixtures are data.** A fixture type (`data/lighting/fixtures.json`) has units in its keys:
+  `intensity_cd`, `luminance_cd_m2`, `radius_m`, `range_m`, `beam_exponent`, `drop_m`; its colour per
+  state comes from `light` (lamp or strip: `ShipKit.LIGHTING`, the one state palette; role; fixed with
+  `color_srgb`), its emergency-power behaviour from `emergency` (bus or always) and `emergency_scale`.
+  The bake settings are `data/lighting/bake.json`. `python3 tools/lighting_check.py` validates both;
+  the pages read them through `ShipKit.lightingData()`, `fixtureStates()`, `bakeSettings()`,
+  `ambientLux()` and `bakeCap()` (design section 15). A fixture record (deckgen's placement or a deck detail file, `deck-pipeline`
+  section 7) names its type, position and `emergency_bus`. **The layout holds no lights**; never add
+  them to `layout.json`.
+- **Every light has a visible fixture** (CLAUDE.md 11, `deck-pipeline`'s check) and a colour for each
+  of the three states. A lamp off the emergency bus is dark in the emergency set.
+- **Each compartment is baked alone, doors closed.** Light through an open door is a runtime spill
+  light, not a bake.
+- **Vertex colours with adaptive subdivision** is the recommended storage (question G1): a 2 m base
+  grid split to 0.25 m where the light changes by more than 5 display levels, within a cap per
+  compartment. Lightmaps are the measured fallback, not the plan, until the owner says otherwise.
+- **No shadows at run time.** Up to four runtime lights per compartment, per vertex, darkened by the
+  baked occlusion: muzzle flashes, sparks, beacons, fire, door spill.
+- **Moving things use probes**: ambient cubes on a 1 m grid, from the same bake.
+- **Bakes are deterministic**: seeded quasi-random samples keyed by stable ids, never `Math.random`
+  or thread order; a digest proves it.
+- **Every bake states its cost** (CLAUDE.md 2, information, not a gate): triangles added, bytes, and the residual if a
+  cap was reached.
+- **Numbers say what they are**: a bake time from the mockup is this machine's CPU in one browser
+  thread, not the engine baker.
+
+## The whole ship (the deck plan)
+
+The deck plan bakes every compartment with `lightbake.js` (design section 15): each alone, doors
+closed, the kit's lamps, a cove strip along every cove, each station's `console_glow`, the shell
+split to `bake.json` `mockup.cell_m` (1 m) and lit per vertex, bounce from the cache. The room the
+viewer stands in or has selected goes first; a badge at the top counts the rooms baked; `?bake=0`
+keeps the quick light (`ShipKit.bakeDirect`) for fast checks. A face under 0.1 m^2 is `cheap`: it
+casts shadows but neither sends nor gathers bounce (the bridge bakes 3.4 times faster for it).
+
+`node tools/mockups/bake_ship.mjs` waits for the whole ship, writes
+`docs/benchmarks/<date>-tern-bake/report.{json,md}` (per room: lamps, strips, triangles against the
+ceiling, vertices, rays, time, digest) and shoots fixed views in the three states beside the quick
+light into `docs/screenshots/mockups/bake/` (`<view>-compare.png`). Look at every strip.
+
+
+**The cache.** The deck plan opens lit from `docs/mockups/cache/deck-plan-bake.bin`. After changing
+anything a room's bake reads (geometry, props, fixtures, `bake.json`, `lightbake.js`), run
+`node tools/mockups/bake_ship.mjs --write-cache` (about 5 minutes here) and commit the cache with the
+change; `python3 tools/mockups/inline.py --check` fails when the cache was baked by another
+`lightbake.js`. A room the cache does not match bakes live, so a forgotten rewrite costs time, not
+correctness. `?bake=fresh` ignores the cache; `--rooms bridge` bakes one room for a quick look.
+
+## Every page's rooms (roombake.js)
+
+Every mockup that draws the Tern's rooms (or a concept ship's) bakes them with the deck plan's own room bake, moved
+into `docs/mockups/lib/roombake.js` (design section 15a). A page makes `RoomBake.page({ name, THREE, K, LBK, L, DET,
+pmats })` and calls `relight(geo, lamps, { id, comp, openings, onBaked })` for each room mesh; `ShipKit.bakeDirect`
+then writes the baked light instead of its quick light, and `onBaked` re-runs the page's own lighting step. A page
+carries `lib:lightbake`, `lib:roombake`, `data:lighting/*` and `bakecache:<name>-bake` markers. After changing anything
+a page's rooms bake from, run `node tools/mockups/bake_pages.mjs docs/mockups/<page>.html` (it bakes the rooms
+fresh, runs every shot so the rooms they build are baked too, writes `docs/mockups/cache/<name>-bake.bin` and inlines
+it). `?bake=0` keeps the quick light, `?bake=rooms` bakes the rooms fresh; `shoot.mjs` waits for the bakes. A mesh
+that is not a room (furniture of its own, console faces) keeps the quick light.
+
+## A station's bay (spacedock)
+
+`docs/mockups/spacedock.html` bakes all five versions' bays (E's round bay 540 m across, A's hall 1.7 km) with the
+same baker and the `station` preset of `bake.json` (spacedock design 8a): fixture types `bay_ring`, `spine_flood`,
+`bay_flood`, `hall_flood`, `ring_flood`, `axis_lamp`, `berth_work`, `window_tier`; cells from `bake.json` `station`
+(wall 10 m, A's and D's 20 m, ribs 30 m, berths 8 m); `gather_range_m` 1,200 so bounce reads across the bay.
+The ships are not in the scene: the bay's probe grids light them (20 m through the air, 5 m round each berth, `bake.json`
+`station`), every hull at each vertex by `sc-core`'s `probes.rs` rule, mirrored in `lightbake.js` as `sampleProbes` and
+`cubeLight`; `bakeProbeGrid` bakes a grid, for the deck plan's rooms too. The page opens lit from
+`docs/mockups/cache/spacedock-bake.bin`: after changing anything the bay's bake reads, run
+`node tools/mockups/bake_spacedock.mjs` (about 10 minutes here for the five) and commit the cache. `?bake=fresh` bakes live,
+`?bake=0` keeps the stand-in. Its shots wait for the bake (`spacedock-E-bay*`, `-E-window*`, `-E-crossing*`).
+
+**In the engine** (spacedock design 8b): `node tools/stations/export_bays.mjs` (all five by default, `--versions` to
+choose) carries the baked insides, their fixtures' faces, the probes, A-D's outsides with their doors shut and their
+docked ships, and the texture layers into `build/stations/`, and `cargo run --release -p sc-tools -- bayc` packs them
+into `compiled/stations.bays` (gitignored). The client draws every station from it and lights the Tern's hull and the
+docked ships at each vertex from their bay's probes; without the file it shows the stand-ins and says so.
+`sc-client --headless --station-shots DIR` draws all five from the mockup's cameras. After rebaking the bay, run both again before judging the game. The patrol's headless shots
+(`sc-client --headless --solo --bot --mission patrol-shoals --station helm --shots DIR`) include `p3b-bay-docked-ship`
+and `p3c-bay-tern-hull`, taken from out in the bay; run them once without the file to compare with the stand-in.
+
+## Bake and compare today (the mockup baker)
+
+`docs/mockups/lib/lightbake.js` is a small CPU baker in the design's method; `docs/mockups/lighting.html`
+uses it on the Tern's bridge and engineering. It is documentation tooling, not engine code.
+
+1. **Open** `docs/mockups/lighting.html` (from disk or the published artifact). It bakes on load
+   (a few seconds per room) and caches every bake.
+2. **Compare** with the controls: Compartment; Camera (Cutaway drops the ceiling and near walls by
+   back-face culling, so the floor's light is readable; Close; Eye level); Mode (Unlit, Dynamic
+   runtime lights, Baked vertex on the deck mesh, Baked vertex adaptive, Adaptive with no cap, Baked
+   lightmap, Split with any two); State (Normal, Red alert, Emergency power, Power loss); Bounces;
+   Texel size; Toggles (AO in the bake on or off, Debug: occlusion only, Debug: vertex wireframe
+   or lightmap texel checker, the probe-lit crew figure). The panel on the right gives triangles, vertices, bytes, atlas size, bake time,
+   rays, residual and digest; the meter gives what it draws (there is no Pi budget, CLAUDE.md 2).
+3. **Place or tune a lamp**: fixture types and their photometry are `data/lighting/fixtures.json`
+   (a ceiling panel 850 cd, a high-bay lamp 2,200 cd); placement is the kit's lamp rule
+   (`ShipKit.lampsFor`, from `data/ships/tern/detailing.json` `lamps`: a panel in every frame bay,
+   one per 8 m^2 of floor, high-bay lamps in rooms taller than 3.6 m, every third lamp on the
+   emergency bus), turned into lights by `addLamps()`, with cove strips along every cove the kit
+   builds (`coveStrip()`): 21 lamps on the bridge and 56 in engineering (the level under its
+   mezzanine included) on layout v2. Quality and caps are `data/lighting/bake.json`. The shell and detail are the
+   kit's `buildCompartment()`; props and emissive faces are added in `compartmentScene()`,
+   `bridgeProps()` and `engineeringProps()`.
+4. **Change the baker** only in `docs/mockups/lib/lightbake.js`, then
+   `python3 tools/mockups/inline.py docs/mockups/lighting.html`. Never edit between the INLINE
+   markers.
+5. **Shoot** `node tools/mockups/shoot.mjs docs/mockups/lighting.html`, or one shot with
+   `--only bridge-vertex-subdivided --out <scratch dir>` while iterating (a full run is about 4
+   minutes). If a run fails with `ERR_TOO_MANY_RETRIES` and no `MOCKUP_READY`, the CDN fetch
+   failed; run it again.
+6. **Look at every PNG** before calling a bake done (section below). Shots worth knowing:
+   `lighting-split-vertex-vs-lightmap.png`, `lighting-split-deck-mesh-vs-adaptive.png`,
+   `lighting-engineering-cap-vs-no-cap.png`, `lighting-bridge-red-alert-baked.png`,
+   `lighting-engineering-emergency-baked.png`, `lighting-bridge-vertex-density.png`.
+
+**The library**, for a new page or a measurement: `LightBake.scene({ patches, occluders, lights,
+emitters, ambient_lux, settings })`, `await LightBake.prepare(S)` (the irradiance cache), then
+`bakeVertices(S, LightBake.tessellate(patches, Infinity))`, `bakeAdaptive(S, { base_m, min_m,
+max_error_levels, max_added_triangles })` or `bakeLightmap(S, { texel_m })`; `probeCube(S, point,
+key)` for an ambient cube; `digest(arrays)` to prove two bakes match. Each returns `stats` (time,
+rays, triangles, residual). To measure without the page's UI, copy the page to the scratchpad,
+expose `compartmentData` on `window`, and drive it with a short Playwright script; never commit
+that copy.
+
+## Once `sc-tools bake` exists (planned, not built)
+
+The engine baker is designed in `light-baking` design.md section 10; none of this runs yet.
+
+- `deckc` calls it per compartment as compile step 4; alone it runs as
+  `sc-tools bake --ship tern [--compartment bridge] [--preset preview|final] [--threads N] [--report <file>]`.
+- It reads `data/lighting/fixtures.json`, `data/lighting/bake.json` and the fixture records, and
+  writes colours per vertex, probes, portal spill records and a report per compartment
+  (triangles before and after, residual, cap reached, rays, time, digest).
+- Use `--preset preview` while placing lamps, `final` before committing. A pinned-digest test fails
+  when a bake changes; update the digests in the same commit as the change that moved them, and
+  say why.
+- The client's debug views (lighting only, occlusion only, a state alone, vertex density, residual
+  heat map, probe cubes, fixture ranges, leak view) are the engine's versions of the mockup's
+  toggles.
+
+## Judge a bake
+
+| Artefact | Looks like | Usual cause | Fix |
+| --- | --- | --- | --- |
+| Leak | Light on a floor under a wall or prop, a bright line along a wall's foot, a lit patch inside a closed cupboard | A sample point inside solid or on a seam; a missing occluder; a neighbour baked into the scene | Each compartment alone, doors closed; inset and ray bias; back-face hits read black; check the occluder list |
+| Banding | Steps in a smooth gradient on a big wall | 8-bit storage of a slow ramp | Keep the dither on; never turn `reference_lux` so low that rooms sit near byte 0 |
+| Acne | Speckled self-shadow on lit faces | Ray bias too small | `ray_bias_m` 4 mm; never 0 |
+| Dark corners | Corners black, rooms gloomy at the edges | Ambient occlusion too strong or too long, or no bounce | `ao_radius_m` 0.8 m, one bounce; raise the fill per state, not the radius |
+| Hot spot | A blown-out blob where a lamp meets a surface | A lamp nearly touching a face | Move the lamp; the 0.04 m^2 distance floor only limits it |
+| Splotches | Cloudy blobs about 1 m across on walls lit mostly by bounce | Too few gather rays seeing bright pools | Bounce from the cache: `cache_gather_rays` 128 and one filter pass |
+| Strip-end mottling | Grain near the end of a long light strip | Too few samples along the emitter | `emitter_sample_spacing_m` 0.25 m |
+| Pinholes | One-pixel cracks along a seam between faces | T-junctions where a face split at a door meets an unsplit one | `deckc`'s T-junction pass after subdivision (the mockup does not weld; seen on engineering's aft wall) |
+| Zig-zags | Saw-tooth steps along a shadow edge, triangles visible in the light | Vertex light on cells too large for the edge | Lower `max_error_levels` or `min_m` there, or accept it; it is the look at a distance |
+| Flat room | No pools, no shadows, every face one colour | Vertex light on the deck mesh with no subdivision | Adaptive subdivision (`lighting-split-deck-mesh-vs-adaptive.png`) |
+| Capped room | The report says "cap reached" and a residual over 5 levels | The room needs more triangles than its cap | Look at it first (`lighting-engineering-cap-vs-no-cap.png`): often invisible; else raise the cap within the compartment's ceiling, or ask (G2) |
+
+**"Why is this room dark?"** In order: is the compartment's state or dimmer what you think (red
+alert, emergency bus, a dead bus is dimmer 0)? Is each lamp on the emergency bus in the emergency
+state? Is the lamp inside the room's air box and above its lens, not inside the ceiling? Does the
+beam point down (`beam_exponent` too high makes a spotlight)? Is `range_m` long enough to reach the
+floor? Is the palette colour itself dark (the bridge floor is `0x3a404a`)? Then check the bake's
+residual and the AO-only view.
+
+## Do not
+
+- Do not put lights in `layout.json`; the layout is the plan, fixtures belong to `deck-pipeline`'s
+  placement and detail files.
+- Do not bake neighbouring compartments into one scene or bake doors open.
+- Do not add shadow maps, per-pixel fixture lighting or a post-processing pass for interiors; they
+  are out of the style.
+- Do not use `Math.random`, time or thread order in a bake; seed from stable ids.
+- Do not hand-edit between INLINE markers; edit `lib/lightbake.js` and run the inliner.
+- Do not quote a mockup bake time as an engine number.
+- Do not adopt lightmaps, change the vertex format or change CLAUDE.md section 9 without the owner's
+  answer to G1.
+- No em or en dashes in pages, data or docs (CLAUDE.md 5).
