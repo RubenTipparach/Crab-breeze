@@ -38,6 +38,10 @@ struct Script {
     shells_fired: usize,
     /// The street tour before the demolition: how many of its shots are taken.
     tour_done: usize,
+    /// When the current tour shot's dressing settled (seconds into the beat), if it has.
+    tour_settled_s: Option<f32>,
+    /// The column the pilot aimed at last frame, so a shell is dropped only on an aim held a frame.
+    aimed_at: Option<usize>,
     /// How many of the fall's timed shots are taken (each once its time has passed, so a slow
     /// renderer's long frames cannot step over one).
     fall_shots: usize,
@@ -57,6 +61,8 @@ impl Plugin for StillsPlugin {
             buildings: None,
             shells_fired: 0,
             tour_done: 0,
+            tour_settled_s: None,
+            aimed_at: None,
             fall_shots: 0,
             offscreen: None,
         })
@@ -75,6 +81,7 @@ fn buildings_beats(
     access: &MechAccessNow,
     plan: &crate::world::Plan,
     live: &crate::world::Live,
+    settled: bool,
     in_beat: f32,
     next: &mut bool,
     exit: &mut MessageWriter<AppExit>,
@@ -127,11 +134,17 @@ fn buildings_beats(
         let feet = Vec3::new(c.x, ground + eye_up, street_z);
         let target = Vec3::new(c.x, ground + (b.height_m * 0.35).min(14.0), b.footprint.min.y);
         place(pilot, feet, target);
-        // Each shot 3 s after the last (the pilot is placed every frame, so the high one stays up).
-        if in_beat > 3.0 * (script.tour_done + 1) as f32 {
+        // Each shot once the street around the pilot is dressed and has drawn for 3 s more (the
+        // pilot is placed every frame, so the high one stays up). Dressing goes one building a
+        // frame, so a slow renderer takes many seconds before the street is all there.
+        if settled && script.tour_settled_s.is_none() {
+            script.tour_settled_s = Some(in_beat);
+        }
+        if script.tour_settled_s.is_some_and(|t| in_beat > t + 3.0) {
             shoot_image(commands, script, &format!("tour-{}-{name}.png", script.tour_done));
             println!("STILLS_TOUR {name} building={} storeys={}", b.id, b.storeys);
             script.tour_done += 1;
+            script.tour_settled_s = None;
         }
         return;
     }
@@ -173,13 +186,15 @@ fn buildings_beats(
                 *next = true;
             }
         }
-        // F9 at the foot of each facing column, 0.5 s apart.
+        // F9 at the foot of each facing column in turn, at least 0.5 s apart, each on an aim held
+        // since the frame before (so long frames never skip a column).
         2 => {
             let (_, feet, aims) = script.buildings.clone().unwrap();
-            let i = (in_beat / 0.5) as usize;
+            let i = script.shells_fired;
             if i < aims.len() {
                 place(pilot, feet, aims[i]);
-                let fire = i >= script.shells_fired && in_beat - i as f32 * 0.5 > 0.2;
+                let fire = script.aimed_at == Some(i) && in_beat > i as f32 * 0.5 + 0.2;
+                script.aimed_at = Some(i);
                 acc.script = Some(Actions::default());
                 if fire {
                     // Pressed like the key: latched until the next simulation step takes it.
@@ -299,13 +314,22 @@ fn run_script(
     plan: Res<crate::world::Plan>,
     live: Res<crate::world::Live>,
     ready: Res<crate::loading::GameReady>,
+    settled: Res<crate::buildings::DressingSettled>,
     time: Res<Time<Real>>,
+    game_time: Res<Time<Virtual>>,
     mut exit: MessageWriter<AppExit>,
 ) {
-    let now = time.elapsed_secs();
+    // The building variant keeps the game's clock, so its beats keep pace with the fall however
+    // slow the frames (a software renderer's frames are longer than the clock's 0.25 s cap).
+    let buildings = crate::cli::switched_off("CB_STILLS_BUILDINGS");
+    let (now, dt) = if buildings {
+        (game_time.elapsed_secs(), game_time.delta_secs())
+    } else {
+        (time.elapsed_secs(), time.delta_secs())
+    };
     if let Some((id, _, _)) = script.buildings.as_ref()
         && script.beat >= 2
-        && (now * 2.0) as u32 != ((now - time.delta_secs()) * 2.0) as u32
+        && (now * 2.0) as u32 != ((now - dt) * 2.0) as u32
     {
         let c = &live.structures.buildings[*id as usize];
         println!(
@@ -318,7 +342,7 @@ fn run_script(
     }
     let in_beat = now - script.beat_started_s;
     let mut next = false;
-    if script.beat >= 1 && crate::cli::switched_off("CB_STILLS_BUILDINGS") {
+    if script.beat >= 1 && buildings {
         buildings_beats(
             &mut commands,
             &mut script,
@@ -327,6 +351,7 @@ fn run_script(
             &access,
             &plan,
             &live,
+            settled.0,
             in_beat,
             &mut next,
             &mut exit,

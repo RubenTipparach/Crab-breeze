@@ -50,6 +50,11 @@ struct Dressing(BTreeMap<Mat, Drawn>);
 #[derive(Resource, Default)]
 struct Dressed(HashMap<u32, Dressing>);
 
+/// Set when every building near the player is dressed (none waits for its turn), so a capture
+/// can wait for the street to finish dressing on a slow renderer.
+#[derive(Resource, Default)]
+pub struct DressingSettled(pub bool);
+
 /// Most buildings dressed in one frame (a 60-storey tower's skin and rooms are a few milliseconds).
 const DRESS_PER_FRAME: usize = 1;
 
@@ -77,6 +82,7 @@ impl Plugin for BuildingsPlugin {
         app.init_resource::<BuildingEntities>()
             .init_resource::<DrawnBands>()
             .init_resource::<Dressed>()
+            .init_resource::<DressingSettled>()
             .add_systems(FixedUpdate, step_structures.in_set(SimSet::World))
             .add_systems(Update, (dress_near_player, redraw_buildings).chain().in_set(PresentSet::Pose));
     }
@@ -343,8 +349,10 @@ fn dress_near_player(
     ents: Res<BuildingEntities>,
     camera: Query<&GlobalTransform, With<crate::pilot::PilotCamera>>,
     mut dressed: ResMut<Dressed>,
+    mut settled: ResMut<DressingSettled>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
+    settled.0 = false;
     let (Some(looks), Some(here)) = (looks, player_xz(&camera)) else {
         return;
     };
@@ -368,6 +376,7 @@ fn dress_near_player(
         );
         da.total_cmp(&db).then(a.cmp(&b))
     });
+    settled.0 = near.len() <= DRESS_PER_FRAME;
     for b in near.into_iter().take(DRESS_PER_FRAME) {
         let c = &live.structures.buildings[b as usize];
         if c.standing == 0 {
