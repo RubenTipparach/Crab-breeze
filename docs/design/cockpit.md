@@ -157,20 +157,23 @@ Each one opens its own way (owner, 2026-10-24: "I want more elaborate door openi
 be flat walls. Top of mech could open up like a fighter jet"). The moving parts are cut off the shell by booleans,
 so they are whole pieces of the cabin, roof and bubble included, not flat plates. Every opening runs in stages: orange
 clamps on the seams slide clear, the part pops off its seal with a puff of steam, then lifts, slides and tilts on
-hydraulic rams. Every part only ever moves away from the body and the cabin, so nothing passes through anything:
+hydraulic rams. Every part only ever moves away from the body and the cabin, so nothing passes through anything. Each one can also
+be entered by the back (owner, 2026-10-24: "Or back of mech can open"): the same cabin with a door in its back wall,
+and the seat swivels round to face it once it is open, so the screens ahead never move and the front stays whole
+armour. The page switches between the two with Entry: Front or Back:
 
-| Block-out | How it opens |
-| --- | --- |
-| Panorama | Clamshell: the top of the front swings up, the bottom drops to the deck as a step |
-| Tile wall | Petals: the middle three tiles swing up, the two beside them swing out like doors |
-| All-view sphere | A visor plate turns up over the ball about the eye, then the seat runs forward on its rail |
-| Titan | The top half rises past the roof line and tilts back; the bottom half drops as a step |
-| Cinema | A plug door pushes out 20 cm, then slides aside on rails |
-| Excavator cab | The whole front drops forward as a ramp |
-| Octagon | Gull-wing side doors turn up about hinges on the roof |
-| Canopy | A fighter's canopy: the bubble lifts, slides back and tilts up on two rams |
-| Twin tier | The upper ring and its bubble rise on four rams and tilt back; the lower front drops as a step |
-| Low bank | A fighter's canopy hinged at the nose: the bubble swings up and forward on two rams |
+| Block-out | How it opens | Or by the back |
+| --- | --- | --- |
+| Panorama | Clamshell: the top of the front swings up, the bottom drops to the deck as a step | Hatchback: the back wall and the back of the roof swing up on two rams |
+| Tile wall | Petals: the middle three tiles swing up, the two beside them swing out like doors | The back wall drops back as a ramp |
+| All-view sphere | A visor plate turns up over the ball about the eye, then the seat runs forward on its rail | A visor plate behind the ball turns up over the top |
+| Titan | The top half rises past the roof line and tilts back; the bottom half drops as a step | The back wall drops back as a ramp |
+| Cinema | A plug door pushes out 20 cm, then slides aside on rails | Hatchback on two rams |
+| Excavator cab | The whole front drops forward as a ramp | The back wall drops back as a ramp |
+| Octagon | Gull-wing side doors turn up about hinges on the roof | Hatchback on two rams |
+| Canopy | A fighter's canopy: the bubble lifts, slides back and tilts up on two rams | Two doors swing out on hinges at the back corners |
+| Twin tier | The upper ring and its bubble rise on four rams and tilt back; the lower front drops as a step | Two doors swing out on hinges at the back corners |
+| Low bank | A fighter's canopy hinged at the nose: the bubble swings up and forward on two rams | The back wall drops back as a ramp |
 
 ## Open questions
 

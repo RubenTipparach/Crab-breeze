@@ -123,7 +123,118 @@
    "mfd": [
     "top",
     "dash"
-   ]
+   ],
+   "rear": {
+    "file": "cockpit_blockouts/panorama_rear.glb",
+    "clear_deg": 96,
+    "tris": 598,
+    "mech": "rear_hatch",
+    "opening": "by the back: a hatchback, the back wall and the back of the roof swinging up on two rams, then the seat swivels round to face it; the screens ahead never move",
+    "open_s": 4.1,
+    "parts": [
+     "HATCH",
+     "SEAT"
+    ],
+    "tracks": [
+     {
+      "node": "HATCH_0",
+      "t0": 0.35,
+      "d": 0.3,
+      "v": 0.03,
+      "pos": "y"
+     },
+     {
+      "node": "HATCH_1",
+      "t0": 0.7,
+      "d": 2.0,
+      "v": 1.6,
+      "axis": "x"
+     },
+     {
+      "node": "SEAT_0",
+      "t0": 2.5,
+      "d": 1.6,
+      "v": 3.141592653589793,
+      "axis": "y"
+     },
+     {
+      "node": "CLAMP_HATCH_0",
+      "dir": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_HATCH_1",
+      "dir": [
+       -1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_HATCH_2",
+      "dir": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_HATCH_3",
+      "dir": [
+       -1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     }
+    ],
+    "rams": [
+     {
+      "base": "RAMB_HATCH_0",
+      "tip": "RAMT_HATCH_0"
+     },
+     {
+      "base": "RAMB_HATCH_1",
+      "tip": "RAMT_HATCH_1"
+     }
+    ],
+    "vents": [
+     {
+      "node": "VENT_HATCH_0",
+      "dir": [
+       0,
+       1,
+       0.2
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     },
+     {
+      "node": "VENT_HATCH_1",
+      "dir": [
+       0,
+       -0.2,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     }
+    ]
+   }
   },
   {
    "id": "tilewall",
@@ -212,7 +323,119 @@
    ],
    "mfd": [
     "dash"
-   ]
+   ],
+   "rear": {
+    "file": "cockpit_blockouts/tilewall_rear.glb",
+    "clear_deg": 210,
+    "tris": 800,
+    "mech": "rear_ramp",
+    "opening": "by the back: the back wall unclamps and drops back to the deck as a ramp, then the seat swivels round to face it; the screens ahead never move",
+    "open_s": 4.1,
+    "parts": [
+     "RAMP",
+     "SEAT"
+    ],
+    "tracks": [
+     {
+      "node": "RAMP_0",
+      "t0": 0.35,
+      "d": 0.3,
+      "v": -0.04,
+      "pos": "z"
+     },
+     {
+      "node": "RAMP_1",
+      "t0": 0.75,
+      "d": 2.0,
+      "v": -1.5,
+      "axis": "x"
+     },
+     {
+      "node": "SEAT_0",
+      "t0": 2.5,
+      "d": 1.6,
+      "v": 3.141592653589793,
+      "axis": "y"
+     },
+     {
+      "node": "CLAMP_RAMP_0",
+      "dir": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_RAMP_1",
+      "dir": [
+       -1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_RAMP_2",
+      "dir": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_RAMP_3",
+      "dir": [
+       -1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     }
+    ],
+    "rams": [],
+    "vents": [
+     {
+      "node": "VENT_RAMP_0",
+      "dir": [
+       0,
+       0.3,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     },
+     {
+      "node": "VENT_RAMP_1",
+      "dir": [
+       0.3,
+       0,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     },
+     {
+      "node": "VENT_RAMP_2",
+      "dir": [
+       -0.3,
+       0,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     }
+    ]
+   }
   },
   {
    "id": "allview",
@@ -309,7 +532,91 @@
    ],
    "mfd": [
     "arms"
-   ]
+   ],
+   "rear": {
+    "file": "cockpit_blockouts/allview_rear.glb",
+    "clear_deg": 360,
+    "tris": 936,
+    "mech": "rear_visor",
+    "opening": "by the back: a visor plate behind the ball turns up over the top about the pilot's eye, then the seat swivels round to face the opening",
+    "open_s": 4.1,
+    "parts": [
+     "VISOR",
+     "SEAT"
+    ],
+    "tracks": [
+     {
+      "node": "VISOR_0",
+      "t0": 0.5,
+      "d": 2.0,
+      "v": 1.95,
+      "axis": "x"
+     },
+     {
+      "node": "SEAT_0",
+      "t0": 2.5,
+      "d": 1.6,
+      "v": 3.141592653589793,
+      "axis": "y"
+     },
+     {
+      "node": "CLAMP_VISOR_0",
+      "dir": [
+       -0.5878,
+       0.0,
+       0.809
+      ],
+      "v": 0.06,
+      "t0": 0.15000000000000002,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_VISOR_1",
+      "dir": [
+       0.5878,
+       -0.0,
+       0.809
+      ],
+      "v": 0.06,
+      "t0": 0.15000000000000002,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_VISOR_2",
+      "dir": [
+       -0.0,
+       -0.682,
+       0.7314
+      ],
+      "v": 0.06,
+      "t0": 0.15000000000000002,
+      "d": 0.3
+     }
+    ],
+    "rams": [],
+    "vents": [
+     {
+      "node": "VENT_VISOR_0",
+      "dir": [
+       1,
+       0.1,
+       -0.6
+      ],
+      "t0": 0.5,
+      "d": 0.9
+     },
+     {
+      "node": "VENT_VISOR_1",
+      "dir": [
+       -1,
+       0.1,
+       -0.6
+      ],
+      "t0": 0.5,
+      "d": 0.9
+     }
+    ]
+   }
   },
   {
    "id": "titan",
@@ -439,7 +746,119 @@
    "mfd": [
     "top",
     "dash"
-   ]
+   ],
+   "rear": {
+    "file": "cockpit_blockouts/titan_rear.glb",
+    "clear_deg": 94,
+    "tris": 582,
+    "mech": "rear_ramp",
+    "opening": "by the back: the back wall unclamps and drops back to the deck as a ramp, then the seat swivels round to face it; the screens ahead never move",
+    "open_s": 4.1,
+    "parts": [
+     "RAMP",
+     "SEAT"
+    ],
+    "tracks": [
+     {
+      "node": "RAMP_0",
+      "t0": 0.35,
+      "d": 0.3,
+      "v": -0.04,
+      "pos": "z"
+     },
+     {
+      "node": "RAMP_1",
+      "t0": 0.75,
+      "d": 2.0,
+      "v": -1.5,
+      "axis": "x"
+     },
+     {
+      "node": "SEAT_0",
+      "t0": 2.5,
+      "d": 1.6,
+      "v": 3.141592653589793,
+      "axis": "y"
+     },
+     {
+      "node": "CLAMP_RAMP_0",
+      "dir": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_RAMP_1",
+      "dir": [
+       -1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_RAMP_2",
+      "dir": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_RAMP_3",
+      "dir": [
+       -1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     }
+    ],
+    "rams": [],
+    "vents": [
+     {
+      "node": "VENT_RAMP_0",
+      "dir": [
+       0,
+       0.3,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     },
+     {
+      "node": "VENT_RAMP_1",
+      "dir": [
+       0.3,
+       0,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     },
+     {
+      "node": "VENT_RAMP_2",
+      "dir": [
+       -0.3,
+       0,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     }
+    ]
+   }
   },
   {
    "id": "cinema",
@@ -546,7 +965,118 @@
    ],
    "mfd": [
     "dash"
-   ]
+   ],
+   "rear": {
+    "file": "cockpit_blockouts/cinema_rear.glb",
+    "clear_deg": 98,
+    "tris": 448,
+    "mech": "rear_hatch",
+    "opening": "by the back: a hatchback, the back wall and the back of the roof swinging up on two rams, then the seat swivels round to face it; the screens ahead never move",
+    "open_s": 4.1,
+    "parts": [
+     "HATCH",
+     "SEAT"
+    ],
+    "tracks": [
+     {
+      "node": "HATCH_0",
+      "t0": 0.35,
+      "d": 0.3,
+      "v": 0.03,
+      "pos": "y"
+     },
+     {
+      "node": "HATCH_1",
+      "t0": 0.7,
+      "d": 2.0,
+      "v": 1.6,
+      "axis": "x"
+     },
+     {
+      "node": "SEAT_0",
+      "t0": 2.5,
+      "d": 1.6,
+      "v": 3.141592653589793,
+      "axis": "y"
+     },
+     {
+      "node": "CLAMP_HATCH_0",
+      "dir": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_HATCH_1",
+      "dir": [
+       -1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_HATCH_2",
+      "dir": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_HATCH_3",
+      "dir": [
+       -1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     }
+    ],
+    "rams": [
+     {
+      "base": "RAMB_HATCH_0",
+      "tip": "RAMT_HATCH_0"
+     },
+     {
+      "base": "RAMB_HATCH_1",
+      "tip": "RAMT_HATCH_1"
+     }
+    ],
+    "vents": [
+     {
+      "node": "VENT_HATCH_0",
+      "dir": [
+       0,
+       1,
+       0.2
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     },
+     {
+      "node": "VENT_HATCH_1",
+      "dir": [
+       0,
+       -0.2,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     }
+    ]
+   }
   },
   {
    "id": "cab",
@@ -643,7 +1173,119 @@
    ],
    "mfd": [
     "top"
-   ]
+   ],
+   "rear": {
+    "file": "cockpit_blockouts/cab_rear.glb",
+    "clear_deg": 90,
+    "tris": 526,
+    "mech": "rear_ramp",
+    "opening": "by the back: the back wall unclamps and drops back to the deck as a ramp, then the seat swivels round to face it; the screens ahead never move",
+    "open_s": 4.1,
+    "parts": [
+     "RAMP",
+     "SEAT"
+    ],
+    "tracks": [
+     {
+      "node": "RAMP_0",
+      "t0": 0.35,
+      "d": 0.3,
+      "v": -0.04,
+      "pos": "z"
+     },
+     {
+      "node": "RAMP_1",
+      "t0": 0.75,
+      "d": 2.0,
+      "v": -1.5,
+      "axis": "x"
+     },
+     {
+      "node": "SEAT_0",
+      "t0": 2.5,
+      "d": 1.6,
+      "v": 3.141592653589793,
+      "axis": "y"
+     },
+     {
+      "node": "CLAMP_RAMP_0",
+      "dir": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_RAMP_1",
+      "dir": [
+       -1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_RAMP_2",
+      "dir": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_RAMP_3",
+      "dir": [
+       -1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     }
+    ],
+    "rams": [],
+    "vents": [
+     {
+      "node": "VENT_RAMP_0",
+      "dir": [
+       0,
+       0.3,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     },
+     {
+      "node": "VENT_RAMP_1",
+      "dir": [
+       0.3,
+       0,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     },
+     {
+      "node": "VENT_RAMP_2",
+      "dir": [
+       -0.3,
+       0,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     }
+    ]
+   }
   },
   {
    "id": "octagon",
@@ -742,7 +1384,118 @@
    "mfd": [
     "top",
     "dash"
-   ]
+   ],
+   "rear": {
+    "file": "cockpit_blockouts/octagon_rear.glb",
+    "clear_deg": 90,
+    "tris": 762,
+    "mech": "rear_hatch",
+    "opening": "by the back: a hatchback, the back wall and the back of the roof swinging up on two rams, then the seat swivels round to face it; the screens ahead never move",
+    "open_s": 4.1,
+    "parts": [
+     "HATCH",
+     "SEAT"
+    ],
+    "tracks": [
+     {
+      "node": "HATCH_0",
+      "t0": 0.35,
+      "d": 0.3,
+      "v": 0.03,
+      "pos": "y"
+     },
+     {
+      "node": "HATCH_1",
+      "t0": 0.7,
+      "d": 2.0,
+      "v": 1.6,
+      "axis": "x"
+     },
+     {
+      "node": "SEAT_0",
+      "t0": 2.5,
+      "d": 1.6,
+      "v": 3.141592653589793,
+      "axis": "y"
+     },
+     {
+      "node": "CLAMP_HATCH_0",
+      "dir": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_HATCH_1",
+      "dir": [
+       -1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_HATCH_2",
+      "dir": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_HATCH_3",
+      "dir": [
+       -1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     }
+    ],
+    "rams": [
+     {
+      "base": "RAMB_HATCH_0",
+      "tip": "RAMT_HATCH_0"
+     },
+     {
+      "base": "RAMB_HATCH_1",
+      "tip": "RAMT_HATCH_1"
+     }
+    ],
+    "vents": [
+     {
+      "node": "VENT_HATCH_0",
+      "dir": [
+       0,
+       1,
+       0.2
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     },
+     {
+      "node": "VENT_HATCH_1",
+      "dir": [
+       0,
+       -0.2,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     }
+    ]
+   }
   },
   {
    "id": "canopy",
@@ -885,7 +1638,124 @@
    ],
    "mfd": [
     "dash"
-   ]
+   ],
+   "rear": {
+    "file": "cockpit_blockouts/canopy_rear.glb",
+    "clear_deg": 93,
+    "tris": 608,
+    "mech": "rear_barn",
+    "opening": "by the back: two doors swing out on hinges at the back corners, then the seat swivels round to face them; the screens ahead never move",
+    "open_s": 4.1,
+    "parts": [
+     "DOOR_L",
+     "DOOR_R",
+     "SEAT"
+    ],
+    "tracks": [
+     {
+      "node": "DOOR_L_0",
+      "t0": 0.35,
+      "d": 0.3,
+      "v": -0.03,
+      "pos": "z"
+     },
+     {
+      "node": "DOOR_L_1",
+      "t0": 0.7,
+      "d": 1.8,
+      "v": -1.65,
+      "axis": "y"
+     },
+     {
+      "node": "DOOR_R_0",
+      "t0": 0.35,
+      "d": 0.3,
+      "v": -0.03,
+      "pos": "z"
+     },
+     {
+      "node": "DOOR_R_1",
+      "t0": 0.85,
+      "d": 1.8,
+      "v": 1.65,
+      "axis": "y"
+     },
+     {
+      "node": "SEAT_0",
+      "t0": 2.5,
+      "d": 1.6,
+      "v": 3.141592653589793,
+      "axis": "y"
+     },
+     {
+      "node": "CLAMP_DOOR_L_0",
+      "dir": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_DOOR_L_1",
+      "dir": [
+       0.0,
+       -1.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_DOOR_R_0",
+      "dir": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_DOOR_R_1",
+      "dir": [
+       0.0,
+       -1.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     }
+    ],
+    "rams": [],
+    "vents": [
+     {
+      "node": "VENT_DOOR_L_0",
+      "dir": [
+       0.3,
+       0,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     },
+     {
+      "node": "VENT_DOOR_R_0",
+      "dir": [
+       -0.3,
+       0,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     }
+    ]
+   }
   },
   {
    "id": "twintier",
@@ -1044,7 +1914,124 @@
    ],
    "mfd": [
     "dash"
-   ]
+   ],
+   "rear": {
+    "file": "cockpit_blockouts/twintier_rear.glb",
+    "clear_deg": 190,
+    "tris": 848,
+    "mech": "rear_barn",
+    "opening": "by the back: two doors swing out on hinges at the back corners, then the seat swivels round to face them; the screens ahead never move",
+    "open_s": 4.1,
+    "parts": [
+     "DOOR_L",
+     "DOOR_R",
+     "SEAT"
+    ],
+    "tracks": [
+     {
+      "node": "DOOR_L_0",
+      "t0": 0.35,
+      "d": 0.3,
+      "v": -0.03,
+      "pos": "z"
+     },
+     {
+      "node": "DOOR_L_1",
+      "t0": 0.7,
+      "d": 1.8,
+      "v": -1.65,
+      "axis": "y"
+     },
+     {
+      "node": "DOOR_R_0",
+      "t0": 0.35,
+      "d": 0.3,
+      "v": -0.03,
+      "pos": "z"
+     },
+     {
+      "node": "DOOR_R_1",
+      "t0": 0.85,
+      "d": 1.8,
+      "v": 1.65,
+      "axis": "y"
+     },
+     {
+      "node": "SEAT_0",
+      "t0": 2.5,
+      "d": 1.6,
+      "v": 3.141592653589793,
+      "axis": "y"
+     },
+     {
+      "node": "CLAMP_DOOR_L_0",
+      "dir": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_DOOR_L_1",
+      "dir": [
+       0.0,
+       -1.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_DOOR_R_0",
+      "dir": [
+       0.0,
+       1.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_DOOR_R_1",
+      "dir": [
+       0.0,
+       -1.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     }
+    ],
+    "rams": [],
+    "vents": [
+     {
+      "node": "VENT_DOOR_L_0",
+      "dir": [
+       0.3,
+       0,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     },
+     {
+      "node": "VENT_DOOR_R_0",
+      "dir": [
+       -0.3,
+       0,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     }
+    ]
+   }
   },
   {
    "id": "lowbank",
@@ -1180,7 +2167,119 @@
    ],
    "mfd": [
     "dash"
-   ]
+   ],
+   "rear": {
+    "file": "cockpit_blockouts/lowbank_rear.glb",
+    "clear_deg": 74,
+    "tris": 548,
+    "mech": "rear_ramp",
+    "opening": "by the back: the back wall unclamps and drops back to the deck as a ramp, then the seat swivels round to face it; the screens ahead never move",
+    "open_s": 4.1,
+    "parts": [
+     "RAMP",
+     "SEAT"
+    ],
+    "tracks": [
+     {
+      "node": "RAMP_0",
+      "t0": 0.35,
+      "d": 0.3,
+      "v": -0.04,
+      "pos": "z"
+     },
+     {
+      "node": "RAMP_1",
+      "t0": 0.75,
+      "d": 2.0,
+      "v": -1.5,
+      "axis": "x"
+     },
+     {
+      "node": "SEAT_0",
+      "t0": 2.5,
+      "d": 1.6,
+      "v": 3.141592653589793,
+      "axis": "y"
+     },
+     {
+      "node": "CLAMP_RAMP_0",
+      "dir": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_RAMP_1",
+      "dir": [
+       -1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_RAMP_2",
+      "dir": [
+       1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     },
+     {
+      "node": "CLAMP_RAMP_3",
+      "dir": [
+       -1.0,
+       0.0,
+       0.0
+      ],
+      "v": 0.06,
+      "t0": 0.0,
+      "d": 0.3
+     }
+    ],
+    "rams": [],
+    "vents": [
+     {
+      "node": "VENT_RAMP_0",
+      "dir": [
+       0,
+       0.3,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     },
+     {
+      "node": "VENT_RAMP_1",
+      "dir": [
+       0.3,
+       0,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     },
+     {
+      "node": "VENT_RAMP_2",
+      "dir": [
+       -0.3,
+       0,
+       -1
+      ],
+      "t0": 0.35,
+      "d": 0.9
+     }
+    ]
+   }
   }
  ],
  "built": {

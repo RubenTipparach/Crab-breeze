@@ -91,6 +91,7 @@ code { font: 12px "IBM Plex Mono", monospace }
     <section>
       <div class="row"><span class="k">Built</span><span id="pick" class="row" style="margin:0"></span></div>
       <div class="row"><span class="k">Concepts</span><span id="pickc" class="row" style="margin:0"></span></div>
+      <div class="row"><span class="k">Entry</span><button data-door="front" class="on">Front</button><button data-door="back">Back</button></div>
       <div class="row"><span class="k">View</span><button data-view="eye" class="on">Pilot's eye</button><button data-view="orbit">Outside</button></div>
       <div class="row"><span class="k">Doors</span><button id="open">Open</button><button id="close" class="on">Closed</button>
         <span class="k" style="margin-left:10px">Screens</span><button id="power" class="on">On</button><button id="hud" class="on">HUD</button></div>
@@ -154,7 +155,7 @@ const suit = new T.MeshStandardMaterial({ color: 0x2e5ea8, roughness: 0.7 }), sk
 [-0.13, 0.13].forEach(x => { const l = new T.Mesh(new T.CylinderGeometry(0.1, 0.07, 0.86, 8), suit); l.position.set(x, 0.43, 0); pilot.add(l); });
 const tm = new T.Mesh(new T.CylinderGeometry(0.24, 0.17, 0.62, 10), suit); tm.position.y = 1.18; pilot.add(tm);
 const hd = new T.Mesh(new T.SphereGeometry(0.12, 16, 12), skin); hd.position.y = 1.66; hd.scale.set(1, 1.15, 1); pilot.add(hd);
-pilot.position.set(1.9, POD_Y - 0.15, -1.5); scene.add(pilot);
+pilot.position.set(2.3, POD_Y - 0.15, -1.0); scene.add(pilot);
 
 const wall = makeScreenWall(T, scene, HUD_SRC);
 const MFD = makeMfdPages(T);
@@ -174,13 +175,15 @@ function pose(P, t) {
   }
 }
 
-let cur = null, view = "eye", openK = 0, openTo = 0, power = 1, hudOn = 1, yaw = 0, pitch = -0.22;
+let cur = null, door = "front", view = "eye", openK = 0, openTo = 0, power = 1, hudOn = 1, yaw = 0, pitch = -0.22;
 const AX = { x: new T.Vector3(1, 0, 0), y: new T.Vector3(0, 1, 0), z: new T.Vector3(0, 0, 1) };
 
 function tracks(man) {
   return Object.entries(man.motions || {}).map(([node, m]) => ({ node, axis: m.axis, pos: m.slide, v: m.value, t0: m.t0 || 0, d: m.d || 1 }));
 }
-Promise.all([...COCKPITS, ...CONCEPTS.layouts].map(c => loader.loadAsync(c.file).then(g => {
+// each block-out twice: entered by the front, and the same cabin entered by the back
+const REARS = CONCEPTS.layouts.map(L => Object.assign({}, L, L.rear, { id: L.id + "_rear", door: "back" }));
+Promise.all([...COCKPITS, ...CONCEPTS.layouts, ...REARS].map(c => loader.loadAsync(c.file).then(g => {
   const pod = g.scene;
   let nmfd = 1;
   pod.traverse(o => {
@@ -218,18 +221,20 @@ const pickEl = document.getElementById("pick"), pickC = document.getElementById(
 COCKPITS.forEach(c => { const b = document.createElement("button"); b.textContent = c.title + " (" + c.mech + ")"; b.dataset.v = c.variant; b.onclick = () => pick(c.variant); pickEl.appendChild(b); });
 CONCEPTS.layouts.forEach((L, i) => { const b = document.createElement("button"); b.textContent = (i + 1) + " " + L.name; b.dataset.v = L.id; b.onclick = () => pick(L.id); pickC.appendChild(b); });
 const clearCell = (n, cls) => `<span class="${cls || (n >= 80 ? "good" : "bad")}">${n >= 360 ? "all round" : n + " degrees"}</span>`;
-document.getElementById("table").innerHTML = "<tr><th>Cockpit</th><th>Kind</th><th>Pose</th><th>Clear ahead</th><th>Screens span</th></tr>" +
-  COCKPITS.map(c => `<tr><td>${c.title}</td><td>built, in the ${c.mech}</td><td>${c.pose}</td><td>${clearCell(CONCEPTS.built[c.variant].clear_deg)}</td><td>${CONCEPTS.built[c.variant].span_deg} degrees</td></tr>`).join("") +
-  CONCEPTS.layouts.map((L, i) => `<tr><td>${i + 1} ${L.name}</td><td>block-out</td><td>${L.pose}</td><td>${clearCell(L.clear_deg)}</td><td>${L.span_deg >= 360 ? "360 degrees" : L.span_deg + " degrees"}</td></tr>`).join("");
+document.getElementById("table").innerHTML = "<tr><th>Cockpit</th><th>Kind</th><th>Pose</th><th>Clear ahead</th><th>Back door, clear ahead</th><th>Screens span</th></tr>" +
+  COCKPITS.map(c => `<tr><td>${c.title}</td><td>built, in the ${c.mech}</td><td>${c.pose}</td><td>${clearCell(CONCEPTS.built[c.variant].clear_deg)}</td><td>n/a</td><td>${CONCEPTS.built[c.variant].span_deg} degrees</td></tr>`).join("") +
+  CONCEPTS.layouts.map((L, i) => `<tr><td>${i + 1} ${L.name}</td><td>block-out</td><td>${L.pose}</td><td>${clearCell(L.clear_deg)}</td><td>${clearCell(L.rear.clear_deg)}</td><td>${L.span_deg >= 360 ? "360 degrees" : L.span_deg + " degrees"}</td></tr>`).join("");
 function pick(v) {
-  const P = pods[v];
+  v = v.replace(/_rear$/, "");
+  const P = pods[!pods[v].c.man && door === "back" ? v + "_rear" : v];
   if (!P) return;
+  v = P.c.variant || P.c.id;
   for (const k in pods) { pods[k].pod.visible = k === v; pods[k].rams.forEach(r => { r.barrel.visible = r.rod.visible = k === v; }); }
   cur = P; openK = 0; openTo = 0; setOpen(false);
-  [pickEl, pickC].forEach(el => el.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === v)));
+  [pickEl, pickC].forEach(el => el.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === v.replace(/_rear$/, ""))));
   if (P.L) {
     const L = P.L;
-    document.getElementById("card").innerHTML = `<div class="sub">block-out · seated</div><h2>${L.name}</h2><p>${L.text}</p><dl>
+    document.getElementById("card").innerHTML = `<div class="sub">block-out · seated · ${L.door === "back" ? "back door" : "front door"}</div><h2>${L.name}</h2><p>${L.text}</p><dl>
       <dt>Clear ahead</dt><dd class="big">${clearCell(L.clear_deg)}</dd>
       <dt>Screens span</dt><dd>${L.span_deg >= 360 ? "360 degrees, up and down too" : L.span_deg + " degrees round"}</dd>
       <dt>Eye</dt><dd>${L.eye_m[1].toFixed(2)} m over the floor, seated</dd>
@@ -260,9 +265,15 @@ function setView(v) {
   controls.enabled = v === "orbit";
   tag.textContent = v === "eye" ? "pilot's eye" : "outside";
   camera.fov = v === "eye" ? 85 : 40; camera.updateProjectionMatrix();
-  if (v === "orbit") { camera.position.set(4.2, POD_Y + 2.8, 5.2); controls.target.set(0, POD_Y + 1.0, 0.1); controls.update(); }
+  if (v === "orbit") { camera.position.set(4.2, POD_Y + 2.8, door === "back" ? -5.2 : 5.2); controls.target.set(0, POD_Y + 1.0, 0.1); controls.update(); }
 }
 document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => setView(b.dataset.view));
+document.querySelectorAll("[data-door]").forEach(b => b.onclick = () => {
+  door = b.dataset.door;
+  document.querySelectorAll("[data-door]").forEach(x => x.classList.toggle("on", x === b));
+  if (cur) pick(cur.c.variant || cur.c.id);
+  setView(view);
+});
 // the opening slider: drag it to scrub through the opening and hold any moment of it; Open and Closed play to
 // either end from wherever it is
 const scrub = document.getElementById("scrub"), scrubT = document.getElementById("scrubT");
@@ -279,7 +290,7 @@ let drag = null;
 canvas.addEventListener("pointerdown", e => { if (view === "eye") { drag = [e.clientX, e.clientY]; canvas.setPointerCapture(e.pointerId); } });
 canvas.addEventListener("pointermove", e => { if (!drag) return; yaw -= (e.clientX - drag[0]) * 0.005; pitch = Math.max(-1.2, Math.min(1.1, pitch - (e.clientY - drag[1]) * 0.005)); drag = [e.clientX, e.clientY]; });
 canvas.addEventListener("pointerup", () => { drag = null; });
-window.MOCKUP = { pick, setView, setOpen, look: (y, p) => { yaw = y; pitch = p; }, ready: () => !!cur };
+window.MOCKUP = { pick, setView, setOpen, setDoor: d => document.querySelector(`[data-door="${d}"]`).click(), look: (y, p) => { yaw = y; pitch = p; }, ready: () => !!cur };
 
 const clock = new T.Clock(), eyeW = new T.Vector3();
 function frame() {
@@ -311,6 +322,7 @@ function frame() {
     if (view === "eye") {
       camera.position.copy(eyeW);
       camera.quaternion.setFromEuler(new T.Euler(pitch, yaw + Math.PI, 0, "YXZ"));     // the pilot faces +z, a camera -z
+      if (cur.eyeNode) camera.quaternion.premultiply(cur.eyeNode.getWorldQuaternion(new T.Quaternion()));   // a seat that swivels turns the pilot
       renderer.toneMappingExposure = 1.7;
     } else { controls.update(); renderer.toneMappingExposure = 1.0; }
     steam.step(dt, camera, renderer);
@@ -348,10 +360,11 @@ def main(only=None):
                              pose={"wall": "seated", "harness": "standing", "jockey": "leaning"}[v]))
     blockouts = json.load(open(os.path.join(MD.MODELS, "cockpit_blockouts.json")))
     for L in blockouts["layouts"]:
-        rel = f"blockouts/{L['id']}.gltf.json"
-        MD.as_json_gltf(os.path.join(MD.MODELS, L["file"]), os.path.join(SITE, rel))
-        files[rel] = os.path.join(SITE, rel)
-        L["file"] = rel
+        for d in (L, L["rear"]):
+            rel = "blockouts/" + os.path.basename(d["file"]).replace(".glb", ".gltf.json")
+            MD.as_json_gltf(os.path.join(MD.MODELS, d["file"]), os.path.join(SITE, rel))
+            files[rel] = os.path.join(SITE, rel)
+            d["file"] = rel
     js = lambda name: open(os.path.join(ROOT, "tools", "mockups", name)).read()   # noqa: E731
     html = (PAGE.replace("__GLTF_JSON__", js("gltf_json_loader.js")).replace("__SCREEN_WALL__", js("screen_wall.js")).replace("__MFD_PAGES__", js("mfd_pages.js"))
             .replace("__STEAM__", js("steam.js"))

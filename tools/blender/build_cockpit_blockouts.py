@@ -20,7 +20,9 @@ Every block-out is the same few booleans, so how each one works can be read off 
             chain of nodes, one motion each (pop off the seal, lift, slide back, tilt), so a canopy can rise, run
             back and tip up; clamps on the seams slide clear first, rams join the body to the part, vents puff
             steam as the seal breaks. Every part only ever moves away from the body and the cabin, so nothing
-            passes through anything
+            passes through anything. Each layout is also built entered by the back (<id>_rear.glb: a ramp,
+            a hatchback, two doors or a rear visor in the back wall, then the seat swivels round to face it), so the
+            front need never move (the owner: "Or back of mech can open")
   inside    a seat with armrests and grips, a dash with four MFDs, three MFDs hanging from the roof; MFD bezels
             are boxes with a recess cut for the display (SCREEN_mfd_<page>)
 
@@ -63,39 +65,39 @@ def mirror(half):
 
 
 LAYOUTS = [
-    dict(id="panorama", mech="clamshell", name="Panorama", rows=[(0.95, 1.80)], plan=mirror([(0.95, 0.85), (1.05, 0.15), (0.95, -0.45)]),
+    dict(id="panorama", rear="hatch", mech="clamshell", name="Panorama", rows=[(0.95, 1.80)], plan=mirror([(0.95, 0.85), (1.05, 0.15), (0.95, -0.45)]),
          pillars=[2, 3], mfd=("top", "dash"),
          text="One wide front screen, 1.9 m across, the pillars pushed out to the corners; square side screens to the "
               "shoulders. Armored Core's front."),
-    dict(id="tilewall", mech="petals", name="Tile wall", rows=[(0.80, 1.38), (1.41, 1.99)], plan=arc(1.0, -105, 105, 11), pillars=[0, 11],
+    dict(id="tilewall", rear="ramp", mech="petals", name="Tile wall", rows=[(0.80, 1.38), (1.41, 1.99)], plan=arc(1.0, -105, 105, 11), pillars=[0, 11],
          hatch_deg=42, mfd=("dash",),
          text="Two rows of square tiles round 210 degrees, a centimetre of wall between them and no pillar ahead: the "
               "structure is behind the pilot's shoulders."),
-    dict(id="allview", mech="visor", name="All-view sphere", dome=dict(r=1.15, segs=16, rings=9), hatch_deg=46, mfd=("arms",),
+    dict(id="allview", rear="visor", mech="visor", name="All-view sphere", dome=dict(r=1.15, segs=16, rings=9), hatch_deg=46, mfd=("arms",),
          text="The Gundam pod: a ball of flat screens all round, under the feet and overhead too; the seat on its arm in "
               "the middle, the MFDs on the armrests."),
-    dict(id="titan", mech="lift", name="Titan", rows=[(0.92, 1.72)], plan=mirror([(0.80, 0.75), (1.00, 0.10), (0.90, -0.40)]), pillars=[2, 3],
+    dict(id="titan", rear="ramp", mech="lift", name="Titan", rows=[(0.92, 1.72)], plan=mirror([(0.80, 0.75), (1.00, 0.10), (0.90, -0.40)]), pillars=[2, 3],
          heavy=0.12, mfd=("top", "dash"),
          text="Titanfall's: a front screen 1.6 m across, side screens raked back, a heavy frame but all of it outside 45 "
               "degrees."),
-    dict(id="cinema", mech="plug", name="Cinema", rows=[(0.90, 1.95)], plan=mirror([(1.10, 0.95), (1.15, 0.05)]), pillars=[1, 2], mfd=("dash",),
+    dict(id="cinema", rear="hatch", mech="plug", name="Cinema", rows=[(0.90, 1.95)], plan=mirror([(1.10, 0.95), (1.15, 0.05)]), pillars=[1, 2], mfd=("dash",),
          text="One huge front screen 2.2 m by 1.05 m with no seam at all, square screens beside the knees."),
-    dict(id="cab", mech="ramp", name="Excavator cab", rows=[(0.30, 1.10), (1.13, 1.93)], plan=mirror([(0.80, 0.80), (0.95, 0.10), (0.90, -0.45)]),
+    dict(id="cab", rear="ramp", mech="ramp", name="Excavator cab", rows=[(0.30, 1.10), (1.13, 1.93)], plan=mirror([(0.80, 0.80), (0.95, 0.10), (0.90, -0.45)]),
          pillars=[2, 3], floor=True, mfd=("top",),
          text="Floor to roof screens like a digger's glass cab, and a screen under the feet looking down at the ground "
               "ahead."),
-    dict(id="octagon", mech="gullwing", name="Octagon", rows=[(0.75, 1.40), (1.43, 2.05)],
+    dict(id="octagon", rear="hatch", mech="gullwing", name="Octagon", rows=[(0.75, 1.40), (1.43, 2.05)],
          plan=mirror([(0.80, 0.80), (1.05, 0.45), (1.05, -0.20), (0.70, -0.60)]), pillars=[3, 4], mfd=("top", "dash"),
          text="The Stevedore's octagon, seated now and stretched so its front is 1.6 m across: pillars at 45 degrees "
               "instead of 21."),
-    dict(id="canopy", mech="canopy_rear", top="hump", name="Canopy", rows=[(0.85, 1.45)], plan=mirror([(0.85, 0.80), (1.00, 0.10), (0.90, -0.40)]), pillars=[2, 3],
+    dict(id="canopy", rear="barn", mech="canopy_rear", top="hump", name="Canopy", rows=[(0.85, 1.45)], plan=mirror([(0.85, 0.80), (1.00, 0.10), (0.90, -0.40)]), pillars=[2, 3],
          ceiling=True, mfd=("dash",),
          text="A fighter's canopy in flat screens: the front half of the ceiling is screens too, so you see up as well "
               "as out."),
-    dict(id="twintier", mech="elevator", top="hump", name="Twin tier", rows=[(0.78, 1.24), (1.30, 1.90)], plan=arc(0.95, -95, 95, 9), pillars=[0, 9],
+    dict(id="twintier", rear="barn", mech="elevator", top="hump", name="Twin tier", rows=[(0.78, 1.24), (1.30, 1.90)], plan=arc(0.95, -95, 95, 9), pillars=[0, 9],
          hatch_deg=40, mfd=("dash",),
          text="Two rings of square screens round 190 degrees with one thin rail between them under the eye line."),
-    dict(id="lowbank", mech="canopy_front", top="hump", name="Low bank", rows=[(0.80, 1.42)], plan=mirror([(0.75, 1.00), (0.98, 0.50), (0.95, -0.40)]), pillars=[2, 3],
+    dict(id="lowbank", rear="ramp", mech="canopy_front", top="hump", name="Low bank", rows=[(0.80, 1.42)], plan=mirror([(0.75, 1.00), (0.98, 0.50), (0.95, -0.40)]), pillars=[2, 3],
          mfd=("dash",),
          text="The Ironhorse's low screen bank, seated and widened: a front 1.5 m across, the wings swept back past the "
               "knees."),
@@ -323,6 +325,14 @@ MECH_TEXT = dict(
                  "forward over the nose on two rams",
     elevator="the upper ring of screens and the bubble rise straight up on four rams and tilt back, then the front of "
              "the lower ring drops as a step",
+    rear_ramp="by the back: the back wall unclamps and drops back to the deck as a ramp, then the seat swivels round to "
+              "face it; the screens ahead never move",
+    rear_hatch="by the back: a hatchback, the back wall and the back of the roof swinging up on two rams, then the seat "
+               "swivels round to face it; the screens ahead never move",
+    rear_barn="by the back: two doors swing out on hinges at the back corners, then the seat swivels round to face them; "
+              "the screens ahead never move",
+    rear_visor="by the back: a visor plate behind the ball turns up over the top about the pilot's eye, then the seat "
+               "swivels round to face the opening",
 )
 
 
@@ -332,7 +342,7 @@ def stage(kind, axis, v, t0, d, pivot=None):
 
 def mechanism(L, c):
     """The parts that open this layout, from its mechanism and the cabin's measures c."""
-    m, H, F, B, top, deg, W = L["mech"], c["H"], c["front"], c["back"], c["top"], c["deg"], WALL_M
+    m, H, F, B, top, deg, W = c["mech"], c["H"], c["front"], c["back"], c["top"], c["deg"], WALL_M
     y_lo, y_hi = -W - 0.2, top + 0.2
     out = lambda b, y: (b, y, "out")      # noqa: E731   a clamp on a bearing seam, sliding away from the part
     down = lambda b, y: (b, y, "down")    # noqa: E731   a clamp on a horizontal seam, sliding down onto the body
@@ -356,6 +366,39 @@ def mechanism(L, c):
                               keep_inner=True, stages=[stage("rot", "y", sg * 1.75, 1.4, 1.5, (p.x, 0, p.y))],
                               vents=[((p.x - sg * 0.02, H * 0.5, p.y + 0.02), (sg, 0.1, 0.4))]))
         return parts
+    swivel = dict(name="SEAT", region="seat", stages=[stage("rot", "y", math.pi, 2.5, 1.6, (0, 0, -0.12))])
+    if m in ("rear_ramp", "rear_hatch", "rear_barn"):     # by the back, so nothing ahead of the pilot ever moves
+        xe, zb = c["xb"] - 0.12, B - W
+        side = lambda y: [dict(at=(s * xe, y, zb - 0.022), axes=((1, 0, 0), (0, 1, 0), (0, 0, -1)), slide=(s, 0, 0))  # noqa: E731
+                          for s in (1, -1)]
+        if m == "rear_ramp":
+            return [dict(name="RAMP", region=("box", -xe, xe, 0.04, H - 0.04, zb - 0.3, B + 0.03),
+                         stages=[stage("pos", "z", -0.04, 0.35, 0.3), stage("rot", "x", -1.5, 0.75, 2.0, (0, 0.04, zb))],
+                         clamps=side(0.5) + side(H - 0.5),
+                         vents=[((0, H - 0.1, zb), (0, 0.3, -1))] + [((s * xe, 0.3, zb), (s * 0.3, 0, -1)) for s in (1, -1)]),
+                    swivel]
+        if m == "rear_hatch":
+            rx = min(0.5, xe - 0.12)
+            return [dict(name="HATCH", region=("box", -xe, xe, 0.30, top + 0.2, zb - 0.3, B + 0.45),
+                         stages=[stage("pos", "y", 0.03, 0.35, 0.3), stage("rot", "x", 1.6, 0.7, 2.0, (0, top, B + 0.45))],
+                         rams=[((s * rx, top + 0.04, B + 0.85), (s * rx, top + 0.04, B + 0.2)) for s in (1, -1)],
+                         clamps=side(0.7) + side(H - 0.4),
+                         vents=[((0, top, B + 0.45), (0, 1, 0.2)), ((0, 0.3, zb), (0, -0.2, -1))]),
+                    swivel]
+        doors = []
+        for sg, nm in ((1, "DOOR_L"), (-1, "DOOR_R")):
+            doors.append(dict(name=nm, region=("box", 0.0, xe, 0.04, H - 0.04, zb - 0.3, B + 0.03) if sg > 0 else
+                              ("box", -xe, 0.0, 0.04, H - 0.04, zb - 0.3, B + 0.03),
+                              stages=[stage("pos", "z", -0.03, 0.35, 0.3),
+                                      stage("rot", "y", -sg * 1.65, 0.7 + (0.15 if sg < 0 else 0), 1.8, (sg * xe, 0, zb))],
+                              clamps=[dict(at=(sg * 0.3, y, zb - 0.022), axes=((1, 0, 0), (0, 1, 0), (0, 0, -1)), slide=(0, d, 0))
+                                      for y, d in ((H - 0.04, 1), (0.04, -1))],
+                              vents=[((sg * 0.02, H * 0.5, zb), (sg * 0.3, 0, -1))]))
+        return doors + [swivel]
+    if m == "rear_visor":
+        return [dict(name="VISOR", region="visor_rear", stages=[stage("rot", "x", 1.95, 0.5, 2.0, (0, EYE_Y, 0))],
+                     clamps="dome_back", vents=[((s * 0.95, EYE_Y, -0.75), (s, 0.1, -0.6)) for s in (1, -1)]),
+                swivel]
     if m == "visor":
         return [dict(name="VISOR", region="visor", stages=[stage("rot", "x", -1.95, 0.5, 2.0, (0, EYE_Y, 0))],
                      clamps="dome", vents=[((s * 0.95, EYE_Y, 0.75), (s, 0.1, 0.6)) for s in (1, -1)]),
@@ -425,13 +468,14 @@ def mechanism(L, c):
 
 # ----------------------------------------------------------------------------- one layout
 
-def build(L):
+def build(L, door="front"):
     for o in list(bpy.data.objects):
         bpy.data.objects.remove(o)
     eye = Vector((0.0, EYE_Y, 0.0))
     is_dome = "dome" in L
     statics = []                       # meshes that stay on the pod
-    c = {}
+    c = dict(mech=L["mech"] if door == "front" else "rear_" + L["rear"])
+    oid = L["id"] if door == "front" else L["id"] + "_rear"
     if is_dome:
         dm = L["dome"]
         r, segs, rings = dm["r"], dm["segs"], dm["rings"]
@@ -495,7 +539,7 @@ def build(L):
                  top=H + WALL_M + (HUMP[-1][0] if tp == "hump" else 0.0),
                  vertex=lambda a_: min(verts_b, key=lambda v: abs(v - a_)),
                  seam_after_pillar=(min(abs(a) for a in pillar_angles) + 2.5) if pillar_angles else deg,
-                 hinge_x=0.84)
+                 hinge_x=0.84, xb=min(abs(x) for x, z in outline if abs(z - back) < 1e-6))
 
     def region_solid(name, reg, shrink, keep_inner):
         if reg[0] == "sector":
@@ -517,19 +561,21 @@ def build(L):
     parts = mechanism(L, c)
     objs = {P["name"]: [] for P in parts}
     for P in parts:                     # every part is cut from the whole shell before any hole is made in it
-        if P["region"] == "visor":
+        if P["region"] in ("visor", "visor_rear"):
             rr, sg_, rg_ = L["dome"]["r"], L["dome"]["segs"], L["dome"]["rings"]
+            cb_, lo_ = (180, 0.80) if P["region"] == "visor_rear" else (0, 0.88)     # behind, clear of the seat's boom
             plate = sphere("visor", rr + 2 * WALL_M + 0.01, eye, sg_, rg_, "HULL")
             boolean(plate, sphere("visor_in", rr + WALL_M + 0.01, eye, sg_, rg_, "SCREEN_allview"), "DIFFERENCE")   # screens inside
-            boolean(plate, region_solid("visor_cut", ("sector", -deg - 5, deg + 5, EYE_Y - 0.88, EYE_Y + 0.83), 0, False), "INTERSECT")
+            boolean(plate, region_solid("visor_cut", ("sector", cb_ - deg - 5, cb_ + deg + 5, EYE_Y - lo_, EYE_Y + 0.83), 0, False), "INTERSECT")
             objs["VISOR"].append(plate)
         elif P["region"] != "seat":
             piece = copy(shell, P["name"].lower())
             boolean(piece, region_solid(P["name"] + "_cut", P["region"], G, P.get("keep_inner")), "INTERSECT")
             objs[P["name"]].append(piece)
     for P in parts:
-        if P["region"] == "visor":
-            boolean(shell, region_solid("hole", ("sector", -deg, deg, EYE_Y - 0.8, EYE_Y + 0.75), 0, False), "DIFFERENCE")
+        if P["region"] in ("visor", "visor_rear"):
+            cb_, lo_ = (180, 0.72) if P["region"] == "visor_rear" else (0, 0.8)
+            boolean(shell, region_solid("hole", ("sector", cb_ - deg, cb_ + deg, EYE_Y - lo_, EYE_Y + 0.75), 0, False), "DIFFERENCE")
         elif P["region"] != "seat":
             boolean(shell, region_solid(P["name"] + "_hole", P["region"], 0, P.get("keep_inner")), "DIFFERENCE")
     statics.append(shell)
@@ -597,19 +643,26 @@ def build(L):
     for P in parts:
         t_first = min(st["t0"] for st in P["stages"])
         spec = P.get("clamps") or []
-        if spec == "dome":
+        if spec in ("dome", "dome_back"):
             rr = L["dome"]["r"] + WALL_M + 0.002 + CLAMP[2] / 2
+            back_ = spec == "dome_back"
             for k, s in enumerate((1, -1)):
-                b = s * (deg + 8) * D
+                b = (180 * back_ + s * (deg + 8)) * D
                 n = Vector((math.sin(b), 0, math.cos(b)))
                 tg = Vector((math.cos(b), 0, -math.sin(b))) * s
                 clamps.append((f"CLAMP_{P['name']}_{k}", eye + n * rr, (tg, Vector((0, 1, 0)), n), tg, t_first))
             e_ = -47 * D
-            n = Vector((0, math.sin(e_), math.cos(e_)))
-            tg = Vector((0, math.cos(e_), -math.sin(e_)))
+            zs = -1 if back_ else 1
+            n = Vector((0, math.sin(e_), zs * math.cos(e_)))
+            tg = Vector((0, math.cos(e_), -zs * math.sin(e_)))
             clamps.append((f"CLAMP_{P['name']}_2", eye + n * rr, (Vector((1, 0, 0)), tg, n), -tg, t_first))
             continue
-        for k, (b, y, how) in enumerate(spec):
+        for k, item in enumerate(spec):
+            if isinstance(item, dict):           # given outright: centre, axes (along, up, out) and the way it slides
+                ax_ = tuple(Vector(a_) for a_ in item["axes"])
+                clamps.append((f"CLAMP_{P['name']}_{k}", Vector(item["at"]), ax_, Vector(item["slide"]), t_first))
+                continue
+            b, y, how = item
             p, tg, n = ray_poly(c["outer"], b)
             tg = Vector((tg.x, 0, tg.y))
             n = Vector((n.x, 0, n.y))
@@ -677,7 +730,7 @@ def build(L):
         bm.free()
     os.makedirs(OUT, exist_ok=True)
     bpy.ops.object.select_all(action="SELECT")
-    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, f"{L['id']}.glb"), export_format="GLB", use_selection=True,
+    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, f"{oid}.glb"), export_format="GLB", use_selection=True,
                               export_apply=True, export_yup=True, export_extras=True)
     # the clear view ahead: between the nearest pillars, or seams of the opening that do not fall on screen seams
     if is_dome:
@@ -687,8 +740,8 @@ def build(L):
         seams = [a_ for P in parts if P["region"][0] == "sector" for a_ in P["region"][1:3] if not on_seam(a_)]
         b = [bearing(x, z) for x, z in L["plan"]]
         clear, span = clear_deg(pillar_angles + seams), round(max(b) - min(b))
-    return dict(id=L["id"], name=L["name"], text=L["text"], file=f"cockpit_blockouts/{L['id']}.glb", pose="seated",
-                eye_m=list(eye), clear_deg=clear, span_deg=span, tris=tris, mech=L["mech"], opening=MECH_TEXT[L["mech"]],
+    return dict(id=L["id"], name=L["name"], text=L["text"], file=f"cockpit_blockouts/{oid}.glb", pose="seated",
+                eye_m=list(eye), clear_deg=clear, span_deg=span, tris=tris, mech=c["mech"], opening=MECH_TEXT[c["mech"]],
                 open_s=round(max(t["t0"] + t["d"] for t in tracks), 2),
                 parts=[P["name"] for P in parts], tracks=tracks, rams=rams, vents=vents, mfd=list(L["mfd"]))
 
@@ -702,7 +755,9 @@ def main():
         if argv and L["id"] not in argv:
             continue
         done[L["id"]] = build(L)
-        print("BUILT", L["id"], done[L["id"]]["tris"], "tris, clear", done[L["id"]]["clear_deg"], flush=True)
+        rear = build(L, "back")                  # the same cabin entered by the back (owner, 2026-10-24: "Or back of mech can open")
+        done[L["id"]]["rear"] = {k: rear[k] for k in ("file", "clear_deg", "tris", "mech", "opening", "open_s", "parts", "tracks", "rams", "vents")}
+        print("BUILT", L["id"], done[L["id"]]["tris"], "tris, clear", done[L["id"]]["clear_deg"], "| back door", rear["clear_deg"], flush=True)
     built = {k: dict(clear_deg=clear_deg([bearing(x, z, v["eye"][2]) for x, z in v["plan"]]),
                      span_deg=round(max(bearing(x, z, v["eye"][2]) for x, z in v["plan"]) - min(bearing(x, z, v["eye"][2]) for x, z in v["plan"])))
              for k, v in BUILT.items()}
