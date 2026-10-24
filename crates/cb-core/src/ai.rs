@@ -113,6 +113,28 @@ pub struct View<'a> {
     pub clear: &'a dyn Fn(Vec3, Vec3) -> bool,
     /// The nearest point behind cover from a threat at `from`, near `me`, if any.
     pub cover: &'a dyn Fn(Vec3, Vec3) -> Option<Vec3>,
+    /// True when a mech can walk the straight line between two points (x, z) without meeting a
+    /// building: the legs look ahead with it instead of walking into walls.
+    pub open: &'a dyn Fn(Vec2, Vec2) -> bool,
+}
+
+/// The heading to walk: `want` if the way is open for `look_m`, else the nearest open heading up to
+/// 80 degrees either side (the side it was already favouring first); `None` when every way ahead is
+/// shut and it should back off.
+pub fn avoid(here: Vec2, want: f32, look_m: f32, favour: f32, open: &dyn Fn(Vec2, Vec2) -> bool) -> Option<f32> {
+    let ahead = |h: f32| here + Vec2::new(-h.sin(), -h.cos()) * look_m;
+    if open(here, ahead(want)) {
+        return Some(want);
+    }
+    for deg in [20.0f32, 40.0, 60.0, 80.0] {
+        for side in [favour, -favour] {
+            let h = want + side * deg.to_radians();
+            if open(here, ahead(h)) {
+                return Some(h);
+            }
+        }
+    }
+    None
 }
 
 /// An AI pilot.
@@ -132,6 +154,8 @@ pub struct AiPilot {
     evade_left_s: f32,
     hop_left_s: f32,
     stall_s: f32,
+    /// Backing away from what stopped it, seconds left.
+    backoff_s: f32,
     /// The line to the target was clear (no wall, no ally) at the last think.
     line_ok: bool,
 }
@@ -168,6 +192,7 @@ impl AiPilot {
             evade_left_s: 0.0,
             hop_left_s: 0.0,
             stall_s: 0.0,
+            backoff_s: 0.0,
             line_ok: true,
         }
     }
@@ -234,10 +259,13 @@ impl AiPilot {
             self.stall_s = 0.0;
         }
         if self.stall_s > 1.0 {
+            // Stuck against something: back away from it for a moment, then try the other way.
             self.side = -self.side;
             self.stall_s = 0.0;
+            self.backoff_s = 1.2;
             self.think_in_s = 0.0;
         }
+        self.backoff_s = (self.backoff_s - dt_s).max(0.0);
         self.think_in_s -= dt_s;
         if self.think_in_s <= 0.0 {
             self.think_in_s = self.skill.think_s;
@@ -250,8 +278,16 @@ impl AiPilot {
         let here = flat(me.pos);
         let to_goal = self.goal - here;
         let want_heading = (-to_goal.x).atan2(-to_goal.y);
+        // Look ahead along the way it wants to go (further the faster it goes) and swing to the
+        // nearest open heading; every way shut, back off.
+        let look_m = (25.0 + me.speed_m_s.abs() * 1.5).min(to_goal.length().max(8.0));
+        let steer = avoid(here, want_heading, look_m, self.side, v.open);
+        if steer.is_none() && self.backoff_s <= 0.0 {
+            self.backoff_s = 1.0;
+        }
+        let want_heading = steer.unwrap_or(want_heading);
         let turn_err = wrap(want_heading - me.heading_rad);
-        let turn = (turn_err * 2.5).clamp(-1.0, 1.0);
+        let mut turn = (turn_err * 2.5).clamp(-1.0, 1.0);
         let dist = to_goal.length();
         let mut throttle = match self.task {
             Task::Retreat => 1.0,
@@ -260,6 +296,11 @@ impl AiPilot {
         };
         // Slow for tight turns, ease in at the goal.
         throttle *= (1.0 - turn_err.abs() / PI).max(0.35) * (dist / 30.0).clamp(0.3, 1.0);
+        if self.backoff_s > 0.0 {
+            // Reversing out, turning toward the side it will try next.
+            throttle = -0.6;
+            turn = self.side;
+        }
 
         // Torso: on the lead point, with the hand's error.
         let aim_point = lead(v.eye, v.target + Vec3::Y * TORSO_AIM_M, v.target_vel, v.muzzle_speed_m_s, v.drop);
@@ -298,6 +339,20 @@ impl AiPilot {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_legs_steer_round_a_wall_ahead() {
+        // A wall across x = 0..40, z = -20 (straight ahead is -z): ahead is shut, to the right open.
+        let open = |a: Vec2, b: Vec2| {
+            let blocked = |p: Vec2| p.x > -10.0 && p.x < 40.0 && (p.y + 20.0).abs() < 2.0;
+            (0..=20).all(|k| !blocked(a.lerp(b, k as f32 / 20.0)))
+        };
+        assert_eq!(avoid(Vec2::ZERO, 0.0, 30.0, 1.0, &|_, _| true), Some(0.0));
+        let h = avoid(Vec2::ZERO, 0.0, 30.0, 1.0, &open).expect("a way round");
+        let dir = Vec2::new(-h.sin(), -h.cos());
+        assert!(dir.x < 0.0, "it should swing toward the open side (-x), went {dir:?}");
+        assert_eq!(avoid(Vec2::ZERO, 0.0, 30.0, 1.0, &|_, _| false), None);
+    }
+
     use super::*;
     use crate::mech::{GaitConfig, MechConfig};
     use crate::world::FlatGround;
@@ -326,6 +381,7 @@ mod tests {
                 allies: &[],
                 clear: &open,
                 cover: &no_cover,
+                open: &|_, _| true,
             };
             o = ai.orders(me, &v, 1.0 / 60.0);
             me.step(&o.controls, &cfg, &FlatGround::default(), 1.0 / 60.0);
@@ -374,6 +430,7 @@ mod tests {
             allies: &[],
             clear: &open,
             cover: &no_cover,
+            open: &|_, _| true,
         };
         let o = ai.orders(&me, &v, 0.016);
         assert!(o.aim_point.x > 2.0, "aims ahead: {}", o.aim_point);
@@ -419,6 +476,7 @@ mod tests {
                 allies: &ally,
                 clear: &open,
                 cover: &no_cover,
+                open: &|_, _| true,
             };
             let o = ai.orders(&me, &v, 1.0 / 60.0);
             fired |= o.fire[0];
@@ -444,6 +502,7 @@ mod tests {
             allies: &[],
             clear: &open,
             cover: &no_cover,
+            open: &|_, _| true,
         };
         ai.orders(&me, &v, 0.016);
         assert_eq!(ai.task, Task::Evade);

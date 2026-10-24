@@ -914,6 +914,8 @@ pub fn step_mech(
             let health = torso_health(&sim, cfg);
             let clear = |a: Vec3, b: Vec3| line_clear(&plan, live, a, b);
             let cover = |me: Vec3, threat: Vec3| cover_point(&plan, live, me, threat);
+            let radius = cfg.locomotion.body_radius_m;
+            let open = |a: Vec2, b: Vec2| path_open(&plan, a, b, radius);
             let view = cb_core::ai::View {
                 eye,
                 target,
@@ -925,6 +927,7 @@ pub fn step_mech(
                 allies: &allies,
                 clear: &clear,
                 cover: &cover,
+                open: &open,
             };
             let orders = enemy.ai.orders(&sim.curr, &view, dt);
             if !target_dead && !goal.hold_fire {
@@ -1106,6 +1109,18 @@ pub fn torso_health(sim: &MechSim, cfg: &MechConfig) -> f32 {
 }
 
 /// True when the straight line from `a` to `b` is clear of standing building cells and the ground.
+/// True when a mech `radius_m` across its middle can walk the straight line from `a` to `b` (x, z)
+/// without meeting a building: sampled every 3 m against the buildings' footprints, as the legs
+/// collide (`push_out_at`). What the AI's legs look ahead with.
+pub fn path_open(plan: &cb_core::world::WorldPlan, a: Vec2, b: Vec2, radius_m: f32) -> bool {
+    let steps = (a.distance(b) / 3.0).ceil().max(1.0) as usize;
+    (1..=steps).all(|s| {
+        let p = a.lerp(b, s as f32 / steps as f32);
+        let y = plan.terrain.height_at(p.x, p.y);
+        plan.collision.push_out_at(p, radius_m, y).distance(p) < 1e-3
+    })
+}
+
 pub fn line_clear(plan: &cb_core::world::WorldPlan, live: &Live, a: Vec3, b: Vec3) -> bool {
     let len = a.distance(b);
     let steps = (len / 4.0).ceil().max(1.0) as usize;
