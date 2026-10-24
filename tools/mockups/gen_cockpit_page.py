@@ -11,7 +11,7 @@ or orbit the pod beside a 1.8 m pilot. Every number on it is read off the interi
 
 writes docs/mockups/cockpits.html and output/cockpit_site (the page, the glTF JSON and its textures, and
 files.json, the publish map). The models load through tools/mockups/gltf_json_loader.js and the screens are
-tools/mockups/screen_wall.js, both shared with the mech page.
+tools/mockups/screen_wall.js, both shared with the mech page; the steam at the seals is tools/mockups/steam.js.
 """
 import base64
 import json
@@ -113,6 +113,7 @@ const T = THREE;
 __GLTF_JSON__
 __SCREEN_WALL__
 __MFD_PAGES__
+__STEAM__
 const CONCEPTS = __BLOCKOUTS__;
 const loader = gltfJsonLoader(T);
 const canvas = document.getElementById("view"), msg = document.getElementById("msg"), tag = document.getElementById("tag");
@@ -153,12 +154,25 @@ const suit = new T.MeshStandardMaterial({ color: 0x2e5ea8, roughness: 0.7 }), sk
 [-0.13, 0.13].forEach(x => { const l = new T.Mesh(new T.CylinderGeometry(0.1, 0.07, 0.86, 8), suit); l.position.set(x, 0.43, 0); pilot.add(l); });
 const tm = new T.Mesh(new T.CylinderGeometry(0.24, 0.17, 0.62, 10), suit); tm.position.y = 1.18; pilot.add(tm);
 const hd = new T.Mesh(new T.SphereGeometry(0.12, 16, 12), skin); hd.position.y = 1.66; hd.scale.set(1, 1.15, 1); pilot.add(hd);
-pilot.position.set(1.9, POD_Y - 0.15, 0.6); scene.add(pilot);
+pilot.position.set(1.9, POD_Y - 0.15, -1.5); scene.add(pilot);
 
 const wall = makeScreenWall(T, scene, HUD_SRC);
 const MFD = makeMfdPages(T);
 const CD_TO_PAGE = 1 / 260;
 const pods = {};
+const steam = makeSteam(T, scene, 2400);
+const RAM_BODY = new T.MeshStandardMaterial({ color: 0x2b2c31, roughness: 0.5, metalness: 0.6 });
+const RAM_ROD = new T.MeshStandardMaterial({ color: 0xd8dade, roughness: 0.2, metalness: 0.9 });
+const UP = new T.Vector3(0, 1, 0);
+// every track at time t: a slide along an axis or a direction, or a turn about an axis, eased in and out
+function pose(P, t) {
+  for (const tr of P.tr) {
+    const k = Math.max(0, Math.min(1, (t - tr.t0) / tr.d)), s = k * k * (3 - 2 * k);
+    if (tr.dir) tr.o.position.copy(tr.p).addScaledVector(tr.dir, tr.v * s);
+    else if (tr.pos) { tr.o.position.copy(tr.p); tr.o.position[tr.pos] += tr.v * s; }
+    else tr.o.quaternion.copy(tr.q).multiply(new T.Quaternion().setFromAxisAngle(AX[tr.axis], tr.v * s));
+  }
+}
 
 let cur = null, view = "eye", openK = 0, openTo = 0, power = 1, hudOn = 1, yaw = 0, pitch = -0.22;
 const AX = { x: new T.Vector3(1, 0, 0), y: new T.Vector3(0, 1, 0), z: new T.Vector3(0, 0, 1) };
@@ -182,10 +196,22 @@ Promise.all([...COCKPITS, ...CONCEPTS.layouts].map(c => loader.loadAsync(c.file)
   });
   pod.position.y = POD_Y; pod.visible = false; scene.add(pod);
   const nodes = {}; pod.traverse(o => { if (o.name) nodes[o.name] = o; });
-  const tr = (c.man ? tracks(c.man) : c.hatch.tracks.map(t => Object.assign({}, t))).filter(t => nodes[t.node]);
-  tr.forEach(t => { t.o = nodes[t.node]; t.q = t.o.quaternion.clone(); t.p = t.o.position.clone(); });
+  const tr = (c.man ? tracks(c.man) : c.tracks.map(t => Object.assign({}, t))).filter(t => nodes[t.node]);
+  tr.forEach(t => { t.o = nodes[t.node]; t.q = t.o.quaternion.clone(); t.p = t.o.position.clone(); if (t.dir) t.dir = new T.Vector3(...t.dir); });
+  // a ram is a barrel on the body and a rod on the part, laid each frame between their two nodes; both long enough
+  // to meet at full stretch and short enough not to poke past the other end when shut
+  const rams = (c.rams || []).filter(r => nodes[r.base] && nodes[r.tip]).map(r => ({ b: nodes[r.base], t: nodes[r.tip] }));
+  const vents = (c.vents || []).filter(v => nodes[v.node]).map(v => ({ o: nodes[v.node], dir: new T.Vector3(...v.dir).normalize(), t0: v.t0, d: v.d }));
   const id = c.variant || c.id;
-  pods[id] = { c, L: c.man ? null : c, pod, tr, end: Math.max(1, ...tr.map(t => t.t0 + t.d)), eye: c.man ? c.man.eye_m : c.eye_m };
+  const P = pods[id] = { c, L: c.man ? null : c, pod, tr, rams, vents, end: Math.max(1, ...tr.map(t => t.t0 + t.d)), eye: c.man ? c.man.eye_m : c.eye_m, eyeNode: c.man ? null : nodes.EYE_pilot };
+  if (rams.length) {
+    const len = () => rams.map(r => r.b.getWorldPosition(new T.Vector3()).distanceTo(r.t.getWorldPosition(new T.Vector3())));
+    pod.updateMatrixWorld(true); const d0 = len(); pose(P, P.end); pod.updateMatrixWorld(true); const d1 = len(); pose(P, 0);
+    rams.forEach((r, i) => { const l = Math.min(d0[i] * 0.98, Math.max(d1[i] * 0.55, d0[i] * 0.6));
+      r.barrel = new T.Mesh(new T.CylinderGeometry(0.035, 0.035, l, 10).translate(0, l / 2, 0), RAM_BODY);
+      r.rod = new T.Mesh(new T.CylinderGeometry(0.018, 0.018, l, 8).translate(0, l / 2, 0), RAM_ROD);
+      scene.add(r.barrel, r.rod); r.barrel.visible = r.rod.visible = false; });
+  }
 }))).then(() => { msg.textContent = ""; pick(COCKPITS[0].variant); }).catch(e => { msg.textContent = "Could not load: " + e; console.error(e); });
 
 const pickEl = document.getElementById("pick"), pickC = document.getElementById("pickc");
@@ -198,7 +224,7 @@ document.getElementById("table").innerHTML = "<tr><th>Cockpit</th><th>Kind</th><
 function pick(v) {
   const P = pods[v];
   if (!P) return;
-  for (const k in pods) if (pods[k].pod) pods[k].pod.visible = k === v;
+  for (const k in pods) { pods[k].pod.visible = k === v; pods[k].rams.forEach(r => { r.barrel.visible = r.rod.visible = k === v; }); }
   cur = P; openK = 0; openTo = 0; setOpen(false);
   [pickEl, pickC].forEach(el => el.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === v)));
   if (P.L) {
@@ -207,10 +233,11 @@ function pick(v) {
       <dt>Clear ahead</dt><dd class="big">${clearCell(L.clear_deg)}</dd>
       <dt>Screens span</dt><dd>${L.span_deg >= 360 ? "360 degrees, up and down too" : L.span_deg + " degrees round"}</dd>
       <dt>Eye</dt><dd>${L.eye_m[1].toFixed(2)} m over the floor, seated</dd>
-      <dt>Hatch</dt><dd>the front unseals ${Math.round(L.hatch.pop_m * 100)} cm straight out, then swings up about its top edge; the sides stay shut</dd>
-      <dt>MFDs</dt><dd>status, nav, weapons, radar: ${L.mfd.map(w => ({ top: "overhead", dash: "on the dash, riding the hatch", arms: "on the armrests" })[w]).join(" and ")}</dd>
+      <dt>Opening</dt><dd>${L.opening}; ${L.open_s.toFixed(1)} s</dd>
+      <dt>Moving parts</dt><dd>${L.parts.map(n => n.replace(/_/g, " ").toLowerCase()).join(", ")}, ${L.tracks.filter(t => t.dir).length} clamps, ${L.rams.length} rams, ${L.vents.length} vents</dd>
+      <dt>MFDs</dt><dd>status, nav, weapons, radar: ${L.mfd.map(w => ({ top: "overhead", dash: "on the dash", arms: "on the armrests, riding with the seat" })[w]).join(" and ")}</dd>
       <dt>Triangles</dt><dd>${L.tris.toLocaleString()}</dd></dl>
-      <p class="hint">Low-poly and flat-coloured, built the CSG way in Blender (<code>tools/blender/build_cockpit_blockouts.py</code>): an airtight shell, screens cut into its inner wall, the hatch cut off by a boolean wedge with its seal in orange. The chosen layout is then modelled and baked in detail.</p>`;
+      <p class="hint">Low-poly and flat-coloured, built the CSG way in Blender (<code>tools/blender/build_cockpit_blockouts.py</code>): an airtight shell, screens cut into its inner wall, the opening parts cut off it by booleans with their seals and clamps in orange. The chosen layout is then modelled and baked in detail.</p>`;
   } else {
     const c = P.c, m = c.man, e = m.envelope_m, bc = { clear: CONCEPTS.built[c.variant].clear_deg };
     document.getElementById("card").innerHTML = `<div class="sub">built · in the ${c.mech}</div><h2>${c.title}</h2><p>${c.text}</p><dl>
@@ -266,18 +293,27 @@ function frame() {
     const t = openK * cur.end;
     if (!scrubbing) scrub.value = Math.round(openK * 1000);
     scrubT.textContent = `${t.toFixed(1)} of ${cur.end.toFixed(1)} s`;
-    for (const tr of cur.tr || []) {
-      const k = Math.max(0, Math.min(1, (t - tr.t0) / tr.d)), s = k * k * (3 - 2 * k);
-      if (tr.pos) { tr.o.position.copy(tr.p); tr.o.position[tr.pos] += tr.v * s; }
-      else tr.o.quaternion.copy(tr.q).multiply(new T.Quaternion().setFromAxisAngle(AX[tr.axis], tr.v * s));
+    const tPrev = cur.t === undefined ? t : cur.t; cur.t = t;
+    pose(cur, t);
+    cur.pod.updateMatrixWorld(true);
+    for (const r of cur.rams) {
+      const a = r.b.getWorldPosition(new T.Vector3()), b = r.t.getWorldPosition(new T.Vector3()), d = b.clone().sub(a).normalize();
+      r.barrel.position.copy(a); r.barrel.quaternion.setFromUnitVectors(UP, d);
+      r.rod.position.copy(b); r.rod.quaternion.setFromUnitVectors(UP, d.clone().negate());
+    }
+    // steam where a seal breaks, while the opening plays forward through it
+    if (t > tPrev) for (const v of cur.vents) if (t >= v.t0 && t <= v.t0 + v.d) {
+      const pw = v.o.getWorldPosition(new T.Vector3());
+      for (let i = 0; i < 3; i++) steam.emit(pw, v.dir, i === 0, 1, 0.5);
     }
     const e = cur.eye;
-    eyeW.set(e[0], e[1] + POD_Y, e[2]);
+    if (cur.eyeNode) cur.eyeNode.getWorldPosition(eyeW); else eyeW.set(e[0], e[1] + POD_Y, e[2]);
     if (view === "eye") {
       camera.position.copy(eyeW);
       camera.quaternion.setFromEuler(new T.Euler(pitch, yaw + Math.PI, 0, "YXZ"));     // the pilot faces +z, a camera -z
       renderer.toneMappingExposure = 1.7;
     } else { controls.update(); renderer.toneMappingExposure = 1.0; }
+    steam.step(dt, camera, renderer);
     wall.update(dt, eyeW, cur.pod, power, hudOn);
     wall.capture(renderer, eyeW, [cur.pod, pilot, deck]);
   }
@@ -318,6 +354,7 @@ def main(only=None):
         L["file"] = rel
     js = lambda name: open(os.path.join(ROOT, "tools", "mockups", name)).read()   # noqa: E731
     html = (PAGE.replace("__GLTF_JSON__", js("gltf_json_loader.js")).replace("__SCREEN_WALL__", js("screen_wall.js")).replace("__MFD_PAGES__", js("mfd_pages.js"))
+            .replace("__STEAM__", js("steam.js"))
             .replace("__BLOCKOUTS__", json.dumps(blockouts))
             .replace("__COCKPITS__", json.dumps(cockpits)).replace("__HUD__", hud))
     with open(OUT, "w") as f:

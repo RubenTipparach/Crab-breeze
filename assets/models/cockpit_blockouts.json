@@ -15,33 +15,111 @@
    ],
    "clear_deg": 93,
    "span_deg": 231,
-   "tris": 554,
-   "hatch": {
-    "node": "HATCH",
-    "hinge_m": [
-     0.0,
-     2.0,
-     0.93
-    ],
-    "pop_m": 0.04,
-    "swing_rad": -1.6,
-    "tracks": [
-     {
-      "node": "HATCH",
-      "pos": "z",
-      "v": 0.04,
-      "t0": 0.0,
-      "d": 0.4
-     },
-     {
-      "node": "HATCH",
-      "axis": "x",
-      "v": -1.6,
-      "t0": 0.4,
-      "d": 1.6
-     }
-    ]
-   },
+   "tris": 646,
+   "mech": "clamshell",
+   "opening": "the front splits at the screens' foot: clamps slide off the seams, both halves pop off their seals, the top swings up about the roof edge and the bottom drops to the deck as a step",
+   "open_s": 2.45,
+   "parts": [
+    "UPPER",
+    "LOWER"
+   ],
+   "tracks": [
+    {
+     "node": "UPPER_0",
+     "t0": 0.35,
+     "d": 0.35,
+     "v": 0.04,
+     "pos": "z"
+    },
+    {
+     "node": "UPPER_1",
+     "t0": 0.75,
+     "d": 1.5,
+     "v": -1.45,
+     "axis": "x"
+    },
+    {
+     "node": "LOWER_0",
+     "t0": 0.55,
+     "d": 0.3,
+     "v": 0.04,
+     "pos": "z"
+    },
+    {
+     "node": "LOWER_1",
+     "t0": 0.95,
+     "d": 1.5,
+     "v": 1.42,
+     "axis": "x"
+    },
+    {
+     "node": "CLAMP_UPPER_0",
+     "dir": [
+      1.0,
+      -0.0,
+      -0.0
+     ],
+     "v": 0.06,
+     "t0": 0.0,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_UPPER_1",
+     "dir": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.0,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_LOWER_0",
+     "dir": [
+      1.0,
+      -0.0,
+      -0.0
+     ],
+     "v": 0.06,
+     "t0": 0.20000000000000007,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_LOWER_1",
+     "dir": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.20000000000000007,
+     "d": 0.3
+    }
+   ],
+   "rams": [],
+   "vents": [
+    {
+     "node": "VENT_UPPER_0",
+     "dir": [
+      0.3,
+      -0.3,
+      1
+     ],
+     "t0": 0.35,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_UPPER_1",
+     "dir": [
+      -0.3,
+      -0.3,
+      1
+     ],
+     "t0": 0.35,
+     "d": 0.9
+    }
+   ],
    "mfd": [
     "top",
     "dash"
@@ -58,35 +136,80 @@
     1.2000000476837158,
     0.0
    ],
-   "clear_deg": 84,
+   "clear_deg": 210,
    "span_deg": 210,
-   "tris": 912,
-   "hatch": {
-    "node": "HATCH",
-    "hinge_m": [
-     0.0,
-     2.19,
-     1.0662
-    ],
-    "pop_m": 0.04,
-    "swing_rad": -1.6,
-    "tracks": [
-     {
-      "node": "HATCH",
-      "pos": "z",
-      "v": 0.04,
-      "t0": 0.0,
-      "d": 0.4
-     },
-     {
-      "node": "HATCH",
-      "axis": "x",
-      "v": -1.6,
-      "t0": 0.4,
-      "d": 1.6
-     }
-    ]
-   },
+   "tris": 934,
+   "mech": "petals",
+   "opening": "three petals: the middle one pops and swings up, then the two beside it swing out on their outer edges like doors; the seams fall on the screens' own seams",
+   "open_s": 2.9,
+   "parts": [
+    "PETAL_M",
+    "PETAL_L",
+    "PETAL_R"
+   ],
+   "tracks": [
+    {
+     "node": "PETAL_M_0",
+     "t0": 0.3,
+     "d": 0.3,
+     "v": 0.04,
+     "pos": "z"
+    },
+    {
+     "node": "PETAL_M_1",
+     "t0": 0.6,
+     "d": 1.4,
+     "v": -1.5,
+     "axis": "x"
+    },
+    {
+     "node": "PETAL_L_0",
+     "t0": 1.4,
+     "d": 1.5,
+     "v": 1.75,
+     "axis": "y"
+    },
+    {
+     "node": "PETAL_R_0",
+     "t0": 1.4,
+     "d": 1.5,
+     "v": -1.75,
+     "axis": "y"
+    }
+   ],
+   "rams": [],
+   "vents": [
+    {
+     "node": "VENT_PETAL_M_0",
+     "dir": [
+      0,
+      0.2,
+      1
+     ],
+     "t0": 0.3,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_PETAL_L_0",
+     "dir": [
+      1,
+      0.1,
+      0.4
+     ],
+     "t0": 1.4,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_PETAL_R_0",
+     "dir": [
+      -1,
+      0.1,
+      0.4
+     ],
+     "t0": 1.4,
+     "d": 0.9
+    }
+   ],
    "mfd": [
     "dash"
    ]
@@ -104,33 +227,86 @@
    ],
    "clear_deg": 360,
    "span_deg": 360,
-   "tris": 828,
-   "hatch": {
-    "node": "HATCH",
-    "hinge_m": [
-     0.0,
-     1.95,
-     1.188
-    ],
-    "pop_m": 0.04,
-    "swing_rad": -1.6,
-    "tracks": [
-     {
-      "node": "HATCH",
-      "pos": "z",
-      "v": 0.04,
-      "t0": 0.0,
-      "d": 0.4
-     },
-     {
-      "node": "HATCH",
-      "axis": "x",
-      "v": -1.6,
-      "t0": 0.4,
-      "d": 1.6
-     }
-    ]
-   },
+   "tris": 936,
+   "mech": "visor",
+   "opening": "a curved visor plate, outside the ball, turns up over the top about the pilot's eye; then the seat runs forward on its rail to the opening",
+   "open_s": 4.0,
+   "parts": [
+    "VISOR",
+    "SEAT"
+   ],
+   "tracks": [
+    {
+     "node": "VISOR_0",
+     "t0": 0.5,
+     "d": 2.0,
+     "v": -1.95,
+     "axis": "x"
+    },
+    {
+     "node": "SEAT_0",
+     "t0": 2.6,
+     "d": 1.4,
+     "v": 0.6,
+     "pos": "z"
+    },
+    {
+     "node": "CLAMP_VISOR_0",
+     "dir": [
+      0.5878,
+      0.0,
+      -0.809
+     ],
+     "v": 0.06,
+     "t0": 0.15000000000000002,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_VISOR_1",
+     "dir": [
+      -0.5878,
+      -0.0,
+      -0.809
+     ],
+     "v": 0.06,
+     "t0": 0.15000000000000002,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_VISOR_2",
+     "dir": [
+      -0.0,
+      -0.682,
+      -0.7314
+     ],
+     "v": 0.06,
+     "t0": 0.15000000000000002,
+     "d": 0.3
+    }
+   ],
+   "rams": [],
+   "vents": [
+    {
+     "node": "VENT_VISOR_0",
+     "dir": [
+      1,
+      0.1,
+      0.6
+     ],
+     "t0": 0.5,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_VISOR_1",
+     "dir": [
+      -1,
+      0.1,
+      0.6
+     ],
+     "t0": 0.5,
+     "d": 0.9
+    }
+   ],
    "mfd": [
     "arms"
    ]
@@ -148,33 +324,118 @@
    ],
    "clear_deg": 91,
    "span_deg": 228,
-   "tris": 558,
-   "hatch": {
-    "node": "HATCH",
-    "hinge_m": [
-     0.0,
-     1.92,
-     0.83
-    ],
-    "pop_m": 0.04,
-    "swing_rad": -1.6,
-    "tracks": [
-     {
-      "node": "HATCH",
-      "pos": "z",
-      "v": 0.04,
-      "t0": 0.0,
-      "d": 0.4
-     },
-     {
-      "node": "HATCH",
-      "axis": "x",
-      "v": -1.6,
-      "t0": 0.4,
-      "d": 1.6
-     }
-    ]
-   },
+   "tris": 678,
+   "mech": "lift",
+   "opening": "the top half rises clear of the roof line, then tilts back; the bottom half drops as a step",
+   "open_s": 3.2,
+   "parts": [
+    "UPPER",
+    "LOWER"
+   ],
+   "tracks": [
+    {
+     "node": "UPPER_0",
+     "t0": 0.3,
+     "d": 0.3,
+     "v": 0.04,
+     "pos": "z"
+    },
+    {
+     "node": "UPPER_1",
+     "t0": 0.7,
+     "d": 1.4,
+     "v": 1.14,
+     "pos": "y"
+    },
+    {
+     "node": "UPPER_2",
+     "t0": 2.2,
+     "d": 0.9,
+     "v": -0.55,
+     "axis": "x"
+    },
+    {
+     "node": "LOWER_0",
+     "t0": 1.6,
+     "d": 0.3,
+     "v": 0.04,
+     "pos": "z"
+    },
+    {
+     "node": "LOWER_1",
+     "t0": 1.9,
+     "d": 1.3,
+     "v": 1.42,
+     "axis": "x"
+    },
+    {
+     "node": "CLAMP_UPPER_0",
+     "dir": [
+      1.0,
+      -0.0,
+      -0.0
+     ],
+     "v": 0.06,
+     "t0": 0.0,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_UPPER_1",
+     "dir": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.0,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_LOWER_0",
+     "dir": [
+      1.0,
+      -0.0,
+      -0.0
+     ],
+     "v": 0.06,
+     "t0": 1.25,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_LOWER_1",
+     "dir": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 1.25,
+     "d": 0.3
+    }
+   ],
+   "rams": [],
+   "vents": [
+    {
+     "node": "VENT_UPPER_0",
+     "dir": [
+      0.3,
+      -0.2,
+      1
+     ],
+     "t0": 0.3,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_UPPER_1",
+     "dir": [
+      -0.3,
+      -0.2,
+      1
+     ],
+     "t0": 0.3,
+     "d": 0.9
+    }
+   ],
    "mfd": [
     "top",
     "dash"
@@ -193,33 +454,96 @@
    ],
    "clear_deg": 95,
    "span_deg": 175,
-   "tris": 400,
-   "hatch": {
-    "node": "HATCH",
-    "hinge_m": [
-     0.0,
-     2.15,
-     1.03
-    ],
-    "pop_m": 0.04,
-    "swing_rad": -1.6,
-    "tracks": [
-     {
-      "node": "HATCH",
-      "pos": "z",
-      "v": 0.04,
-      "t0": 0.0,
-      "d": 0.4
-     },
-     {
-      "node": "HATCH",
-      "axis": "x",
-      "v": -1.6,
-      "t0": 0.4,
-      "d": 1.6
-     }
-    ]
-   },
+   "tris": 520,
+   "mech": "plug",
+   "opening": "a plug door: clamps slide off, it pushes 20 cm out off its seal, then slides aside on rails past the corner",
+   "open_s": 3.0,
+   "parts": [
+    "PLUG"
+   ],
+   "tracks": [
+    {
+     "node": "PLUG_0",
+     "t0": 0.4,
+     "d": 0.6,
+     "v": 0.2,
+     "pos": "z"
+    },
+    {
+     "node": "PLUG_1",
+     "t0": 1.1,
+     "d": 1.9,
+     "v": -2.562713463649643,
+     "pos": "x"
+    },
+    {
+     "node": "CLAMP_PLUG_0",
+     "dir": [
+      1.0,
+      -0.0,
+      -0.0
+     ],
+     "v": 0.06,
+     "t0": 0.050000000000000044,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_PLUG_1",
+     "dir": [
+      1.0,
+      -0.0,
+      -0.0
+     ],
+     "v": 0.06,
+     "t0": 0.050000000000000044,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_PLUG_2",
+     "dir": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.050000000000000044,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_PLUG_3",
+     "dir": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.050000000000000044,
+     "d": 0.3
+    }
+   ],
+   "rams": [],
+   "vents": [
+    {
+     "node": "VENT_PLUG_0",
+     "dir": [
+      0.5,
+      0,
+      1
+     ],
+     "t0": 0.4,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_PLUG_1",
+     "dir": [
+      -0.5,
+      0,
+      1
+     ],
+     "t0": 0.4,
+     "d": 0.9
+    }
+   ],
    "mfd": [
     "dash"
    ]
@@ -237,33 +561,86 @@
    ],
    "clear_deg": 87,
    "span_deg": 233,
-   "tris": 538,
-   "hatch": {
-    "node": "HATCH",
-    "hinge_m": [
-     0.0,
-     2.13,
-     0.88
-    ],
-    "pop_m": 0.04,
-    "swing_rad": -1.6,
-    "tracks": [
-     {
-      "node": "HATCH",
-      "pos": "z",
-      "v": 0.04,
-      "t0": 0.0,
-      "d": 0.4
-     },
-     {
-      "node": "HATCH",
-      "axis": "x",
-      "v": -1.6,
-      "t0": 0.4,
-      "d": 1.6
-     }
-    ]
-   },
+   "tris": 570,
+   "mech": "ramp",
+   "opening": "the whole front, floor to roof, unclamps and drops forward on its bottom edge to the deck as a ramp",
+   "open_s": 2.75,
+   "parts": [
+    "RAMP"
+   ],
+   "tracks": [
+    {
+     "node": "RAMP_0",
+     "t0": 0.35,
+     "d": 0.3,
+     "v": 0.04,
+     "pos": "z"
+    },
+    {
+     "node": "RAMP_1",
+     "t0": 0.75,
+     "d": 2.0,
+     "v": 1.5,
+     "axis": "x"
+    },
+    {
+     "node": "CLAMP_RAMP_0",
+     "dir": [
+      1.0,
+      -0.0,
+      -0.0
+     ],
+     "v": 0.06,
+     "t0": 0.0,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_RAMP_1",
+     "dir": [
+      1.0,
+      -0.0,
+      -0.0
+     ],
+     "v": 0.06,
+     "t0": 0.0,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_RAMP_2",
+     "dir": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.0,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_RAMP_3",
+     "dir": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.0,
+     "d": 0.3
+    }
+   ],
+   "rams": [],
+   "vents": [
+    {
+     "node": "VENT_RAMP_0",
+     "dir": [
+      0,
+      0.4,
+      1
+     ],
+     "t0": 0.35,
+     "d": 0.9
+    }
+   ],
    "mfd": [
     "top"
    ]
@@ -279,35 +656,89 @@
     1.2000000476837158,
     0.0
    ],
-   "clear_deg": 87,
+   "clear_deg": 90,
    "span_deg": 261,
-   "tris": 736,
-   "hatch": {
-    "node": "HATCH",
-    "hinge_m": [
-     0.0,
-     2.25,
-     0.88
-    ],
-    "pop_m": 0.04,
-    "swing_rad": -1.6,
-    "tracks": [
-     {
-      "node": "HATCH",
-      "pos": "z",
-      "v": 0.04,
-      "t0": 0.0,
-      "d": 0.4
-     },
-     {
-      "node": "HATCH",
-      "axis": "x",
-      "v": -1.6,
-      "t0": 0.4,
-      "d": 1.6
-     }
-    ]
-   },
+   "tris": 906,
+   "mech": "gullwing",
+   "opening": "gull-wing doors: each side, roof edge and all, turns up about a hinge on the roof",
+   "open_s": 2.45,
+   "parts": [
+    "WING_L",
+    "WING_R"
+   ],
+   "tracks": [
+    {
+     "node": "WING_L_0",
+     "t0": 0.3,
+     "d": 0.3,
+     "v": 0.03,
+     "pos": "y"
+    },
+    {
+     "node": "WING_L_1",
+     "t0": 0.65,
+     "d": 1.8,
+     "v": 1.75,
+     "axis": "z"
+    },
+    {
+     "node": "WING_R_0",
+     "t0": 0.3,
+     "d": 0.3,
+     "v": 0.03,
+     "pos": "y"
+    },
+    {
+     "node": "WING_R_1",
+     "t0": 0.65,
+     "d": 1.8,
+     "v": -1.75,
+     "axis": "z"
+    }
+   ],
+   "rams": [],
+   "vents": [
+    {
+     "node": "VENT_WING_L_0",
+     "dir": [
+      0.3,
+      1,
+      0.1
+     ],
+     "t0": 0.3,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_WING_L_1",
+     "dir": [
+      1,
+      -0.2,
+      0.2
+     ],
+     "t0": 0.3,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_WING_R_0",
+     "dir": [
+      -0.3,
+      1,
+      0.1
+     ],
+     "t0": 0.3,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_WING_R_1",
+     "dir": [
+      -1,
+      -0.2,
+      0.2
+     ],
+     "t0": 0.3,
+     "d": 0.9
+    }
+   ],
    "mfd": [
     "top",
     "dash"
@@ -324,35 +755,134 @@
     1.2000000476837158,
     0.0
    ],
-   "clear_deg": 90,
+   "clear_deg": 93,
    "span_deg": 228,
-   "tris": 504,
-   "hatch": {
-    "node": "HATCH",
-    "hinge_m": [
-     0.0,
-     1.65,
-     0.88
-    ],
-    "pop_m": 0.04,
-    "swing_rad": -1.6,
-    "tracks": [
-     {
-      "node": "HATCH",
-      "pos": "z",
-      "v": 0.04,
-      "t0": 0.0,
-      "d": 0.4
-     },
-     {
-      "node": "HATCH",
-      "axis": "x",
-      "v": -1.6,
-      "t0": 0.4,
-      "d": 1.6
-     }
-    ]
-   },
+   "tris": 652,
+   "mech": "canopy_rear",
+   "opening": "a fighter's canopy: everything above the sill, screens, roof and bubble, lifts, slides back, then tilts up on its back edge, on two rams",
+   "open_s": 3.2,
+   "parts": [
+    "CANOPY"
+   ],
+   "tracks": [
+    {
+     "node": "CANOPY_0",
+     "t0": 0.35,
+     "d": 0.3,
+     "v": 0.12,
+     "pos": "y"
+    },
+    {
+     "node": "CANOPY_1",
+     "t0": 0.7,
+     "d": 0.9,
+     "v": -0.3,
+     "pos": "z"
+    },
+    {
+     "node": "CANOPY_2",
+     "t0": 1.6,
+     "d": 1.6,
+     "v": -0.85,
+     "axis": "x"
+    },
+    {
+     "node": "CLAMP_CANOPY_0",
+     "dir": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.0,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_CANOPY_1",
+     "dir": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.0,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_CANOPY_2",
+     "dir": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.0,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_CANOPY_3",
+     "dir": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.0,
+     "d": 0.3
+    }
+   ],
+   "rams": [
+    {
+     "base": "RAMB_CANOPY_0",
+     "tip": "RAMT_CANOPY_0"
+    },
+    {
+     "base": "RAMB_CANOPY_1",
+     "tip": "RAMT_CANOPY_1"
+    }
+   ],
+   "vents": [
+    {
+     "node": "VENT_CANOPY_0",
+     "dir": [
+      1,
+      0.2,
+      0
+     ],
+     "t0": 0.35,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_CANOPY_1",
+     "dir": [
+      1,
+      0.2,
+      0
+     ],
+     "t0": 0.35,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_CANOPY_2",
+     "dir": [
+      -1,
+      0.2,
+      0
+     ],
+     "t0": 0.35,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_CANOPY_3",
+     "dir": [
+      -1,
+      0.2,
+      0
+     ],
+     "t0": 0.35,
+     "d": 0.9
+    }
+   ],
    "mfd": [
     "dash"
    ]
@@ -368,35 +898,150 @@
     1.2000000476837158,
     0.0
    ],
-   "clear_deg": 80,
+   "clear_deg": 190,
    "span_deg": 190,
-   "tris": 836,
-   "hatch": {
-    "node": "HATCH",
-    "hinge_m": [
-     0.0,
-     2.1,
-     1.0139
-    ],
-    "pop_m": 0.04,
-    "swing_rad": -1.6,
-    "tracks": [
-     {
-      "node": "HATCH",
-      "pos": "z",
-      "v": 0.04,
-      "t0": 0.0,
-      "d": 0.4
-     },
-     {
-      "node": "HATCH",
-      "axis": "x",
-      "v": -1.6,
-      "t0": 0.4,
-      "d": 1.6
-     }
-    ]
-   },
+   "tris": 1136,
+   "mech": "elevator",
+   "opening": "the upper ring of screens and the bubble rise straight up on four rams and tilt back, then the front of the lower ring drops as a step",
+   "open_s": 3.5,
+   "parts": [
+    "TOP",
+    "LOWER"
+   ],
+   "tracks": [
+    {
+     "node": "TOP_0",
+     "t0": 0.4,
+     "d": 1.6,
+     "v": 0.7,
+     "pos": "y"
+    },
+    {
+     "node": "TOP_1",
+     "t0": 2.1,
+     "d": 1.0,
+     "v": -0.45,
+     "axis": "x"
+    },
+    {
+     "node": "LOWER_0",
+     "t0": 1.8,
+     "d": 0.3,
+     "v": 0.04,
+     "pos": "z"
+    },
+    {
+     "node": "LOWER_1",
+     "t0": 2.1,
+     "d": 1.4,
+     "v": 1.42,
+     "axis": "x"
+    },
+    {
+     "node": "CLAMP_TOP_0",
+     "dir": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.050000000000000044,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_TOP_1",
+     "dir": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.050000000000000044,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_TOP_2",
+     "dir": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.050000000000000044,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_TOP_3",
+     "dir": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.050000000000000044,
+     "d": 0.3
+    }
+   ],
+   "rams": [
+    {
+     "base": "RAMB_TOP_0",
+     "tip": "RAMT_TOP_0"
+    },
+    {
+     "base": "RAMB_TOP_1",
+     "tip": "RAMT_TOP_1"
+    },
+    {
+     "base": "RAMB_TOP_2",
+     "tip": "RAMT_TOP_2"
+    },
+    {
+     "base": "RAMB_TOP_3",
+     "tip": "RAMT_TOP_3"
+    }
+   ],
+   "vents": [
+    {
+     "node": "VENT_TOP_0",
+     "dir": [
+      1,
+      0.1,
+      0
+     ],
+     "t0": 0.4,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_TOP_1",
+     "dir": [
+      1,
+      0.1,
+      0
+     ],
+     "t0": 0.4,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_TOP_2",
+     "dir": [
+      -1,
+      0.1,
+      0
+     ],
+     "t0": 0.4,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_TOP_3",
+     "dir": [
+      -1,
+      0.1,
+      0
+     ],
+     "t0": 0.4,
+     "d": 0.9
+    }
+   ],
    "mfd": [
     "dash"
    ]
@@ -412,35 +1057,127 @@
     1.2000000476837158,
     0.0
    ],
-   "clear_deg": 71,
+   "clear_deg": 74,
    "span_deg": 226,
-   "tris": 448,
-   "hatch": {
-    "node": "HATCH",
-    "hinge_m": [
-     0.0,
-     1.62,
-     1.08
-    ],
-    "pop_m": 0.04,
-    "swing_rad": -1.6,
-    "tracks": [
-     {
-      "node": "HATCH",
-      "pos": "z",
-      "v": 0.04,
-      "t0": 0.0,
-      "d": 0.4
-     },
-     {
-      "node": "HATCH",
-      "axis": "x",
-      "v": -1.6,
-      "t0": 0.4,
-      "d": 1.6
-     }
-    ]
-   },
+   "tris": 608,
+   "mech": "canopy_front",
+   "opening": "a fighter's canopy hinged at the front: the whole bubble above the sill lifts and swings up and forward over the nose on two rams",
+   "open_s": 2.75,
+   "parts": [
+    "CANOPY"
+   ],
+   "tracks": [
+    {
+     "node": "CANOPY_0",
+     "t0": 0.35,
+     "d": 0.3,
+     "v": 0.05,
+     "pos": "y"
+    },
+    {
+     "node": "CANOPY_1",
+     "t0": 0.75,
+     "d": 2.0,
+     "v": 1.25,
+     "axis": "x"
+    },
+    {
+     "node": "CLAMP_CANOPY_0",
+     "dir": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.0,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_CANOPY_1",
+     "dir": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.0,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_CANOPY_2",
+     "dir": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.0,
+     "d": 0.3
+    },
+    {
+     "node": "CLAMP_CANOPY_3",
+     "dir": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "v": 0.06,
+     "t0": 0.0,
+     "d": 0.3
+    }
+   ],
+   "rams": [
+    {
+     "base": "RAMB_CANOPY_0",
+     "tip": "RAMT_CANOPY_0"
+    },
+    {
+     "base": "RAMB_CANOPY_1",
+     "tip": "RAMT_CANOPY_1"
+    }
+   ],
+   "vents": [
+    {
+     "node": "VENT_CANOPY_0",
+     "dir": [
+      1,
+      0.2,
+      0
+     ],
+     "t0": 0.35,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_CANOPY_1",
+     "dir": [
+      1,
+      0.2,
+      0
+     ],
+     "t0": 0.35,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_CANOPY_2",
+     "dir": [
+      -1,
+      0.2,
+      0
+     ],
+     "t0": 0.35,
+     "d": 0.9
+    },
+    {
+     "node": "VENT_CANOPY_3",
+     "dir": [
+      -1,
+      0.2,
+      0
+     ],
+     "t0": 0.35,
+     "d": 0.9
+    }
+   ],
    "mfd": [
     "dash"
    ]

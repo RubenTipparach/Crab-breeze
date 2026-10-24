@@ -148,9 +148,29 @@ What the owner found on the Mech Cockpits page, to be fixed in whichever layout 
   (underwater, the stratosphere), the windows closed shapes.
 
 The answer so far is ten seated block-outs (`tools/blender/build_cockpit_blockouts.py`): an airtight CSG shell,
-square screens cut into its inner wall, structure outside about 40 degrees, one front hatch cut off by a boolean
-wedge that unseals 4 cm then swings up clear, and live MFDs (status, nav, weapons, radar). The clear view ahead is
-measured on each: 71 to 95 degrees for the flat ones, all round for the sphere, against 42 to 58 for the built three.
+square screens cut into its inner wall, structure outside about 40 degrees, and live MFDs (status, nav, weapons,
+radar). The clear view ahead is measured on each: 74 to 95 degrees between pillars for the flat fronts, 190 and 210
+for the two round ones (their opening seams fall on the screens' own seams), all round for the sphere, against 42 to
+58 for the built three.
+
+Each one opens its own way (owner, 2026-10-24: "I want more elaborate door opening animations. Doors don't have to
+be flat walls. Top of mech could open up like a fighter jet"). The moving parts are cut off the shell by booleans,
+so they are whole pieces of the cabin, roof and bubble included, not flat plates. Every opening runs in stages: orange
+clamps on the seams slide clear, the part pops off its seal with a puff of steam, then lifts, slides and tilts on
+hydraulic rams. Every part only ever moves away from the body and the cabin, so nothing passes through anything:
+
+| Block-out | How it opens |
+| --- | --- |
+| Panorama | Clamshell: the top of the front swings up, the bottom drops to the deck as a step |
+| Tile wall | Petals: the middle three tiles swing up, the two beside them swing out like doors |
+| All-view sphere | A visor plate turns up over the ball about the eye, then the seat runs forward on its rail |
+| Titan | The top half rises past the roof line and tilts back; the bottom half drops as a step |
+| Cinema | A plug door pushes out 20 cm, then slides aside on rails |
+| Excavator cab | The whole front drops forward as a ramp |
+| Octagon | Gull-wing side doors turn up about hinges on the roof |
+| Canopy | A fighter's canopy: the bubble lifts, slides back and tilts up on two rams |
+| Twin tier | The upper ring and its bubble rise on four rams and tilt back; the lower front drops as a step |
+| Low bank | A fighter's canopy hinged at the nose: the bubble swings up and forward on two rams |
 
 ## Open questions
 

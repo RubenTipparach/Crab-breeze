@@ -14,18 +14,21 @@ Every block-out is the same few booleans, so how each one works can be read off 
             screen is the floor of its recess and the seams between screens are the wall left between cutters;
             the screen straight ahead is one panel with nothing down its middle
   pillars   structural pillars are boxes unioned onto the wall where the plan turns, outside the clear view
-  hatch     the front is split off the shell by a wedge cutter (Intersect for the hatch, Difference for the body,
-            the hatch's wedge SEAM_DEG narrower so the two never share a face); the cut faces carry GASKET, the
-            seal the hatch closes on. The hatch first pops POP_M straight out, then swings up about its top front
-            edge: every point of it stays ahead of that edge and below it, so it never passes through the cabin
-  inside    a seat with armrests and grips, a dash carried on the hatch with four MFDs, three MFDs hanging from the
-            roof; MFD bezels are boxes with a recess cut for the display (SCREEN_mfd_<page>)
+  opening   each layout opens its own way (MECH_TEXT): a part is the shell cut by a region (a sector round the
+            eye's axis, or a box) with Intersect, and the body keeps the shell minus that region, the part's region
+            G smaller so the two never share a face; the cut faces carry GASKET, the seal. A part's motions are a
+            chain of nodes, one motion each (pop off the seal, lift, slide back, tilt), so a canopy can rise, run
+            back and tip up; clamps on the seams slide clear first, rams join the body to the part, vents puff
+            steam as the seal breaks. Every part only ever moves away from the body and the cabin, so nothing
+            passes through anything
+  inside    a seat with armrests and grips, a dash with four MFDs, three MFDs hanging from the roof; MFD bezels
+            are boxes with a recess cut for the display (SCREEN_mfd_<page>)
 
 Everyone sits (the owner: standing "takes a lot of room, and the pilot could get seriously injured in a fight").
 Flat colours, no textures. Writes assets/models/cockpit_blockouts/<id>.glb and assets/models/cockpit_blockouts.json
-(per layout: name, text, eye, the clear view ahead measured from the eye, the screens' span, the hatch's motion,
-triangles). The clear view is the angle between the nearest structural pillars or hatch seams either side of
-straight ahead.
+(per layout: name, text, eye, the clear view ahead measured from the eye, the screens' span, the opening's
+tracks, rams and vents, triangles). The clear view is the angle between the nearest structural pillars or
+opening seams either side of straight ahead that are not themselves screen seams.
 
     /opt/blender/blender --background --factory-startup --python tools/blender/build_cockpit_blockouts.py [-- id ...]
 """
@@ -46,9 +49,7 @@ D = math.pi / 180
 WALL_M = 0.08        # the shell's wall
 RECESS_M = 0.02      # how deep a screen sits in the wall
 SEAM_M = 0.012       # the wall left between two screens
-SEAM_DEG = 0.6       # the hatch's wedge is this much narrower each side than the hole it closes
-POP_M = 0.04         # the hatch first moves straight out by this, off its seal
-SWING = -1.6         # then swings up about its top front edge (radians about x)
+SEAM_DEG = 0.6       # a sector part is this much narrower each side than the hole it closes
 EYE_Y = 1.20         # seated
 
 
@@ -62,39 +63,39 @@ def mirror(half):
 
 
 LAYOUTS = [
-    dict(id="panorama", name="Panorama", rows=[(0.95, 1.80)], plan=mirror([(0.95, 0.85), (1.05, 0.15), (0.95, -0.45)]),
+    dict(id="panorama", mech="clamshell", name="Panorama", rows=[(0.95, 1.80)], plan=mirror([(0.95, 0.85), (1.05, 0.15), (0.95, -0.45)]),
          pillars=[2, 3], mfd=("top", "dash"),
          text="One wide front screen, 1.9 m across, the pillars pushed out to the corners; square side screens to the "
               "shoulders. Armored Core's front."),
-    dict(id="tilewall", name="Tile wall", rows=[(0.80, 1.38), (1.41, 1.99)], plan=arc(1.0, -105, 105, 11), pillars=[0, 11],
+    dict(id="tilewall", mech="petals", name="Tile wall", rows=[(0.80, 1.38), (1.41, 1.99)], plan=arc(1.0, -105, 105, 11), pillars=[0, 11],
          hatch_deg=42, mfd=("dash",),
          text="Two rows of square tiles round 210 degrees, a centimetre of wall between them and no pillar ahead: the "
               "structure is behind the pilot's shoulders."),
-    dict(id="allview", name="All-view sphere", dome=dict(r=1.15, segs=16, rings=9), hatch_deg=46, mfd=("arms",),
+    dict(id="allview", mech="visor", name="All-view sphere", dome=dict(r=1.15, segs=16, rings=9), hatch_deg=46, mfd=("arms",),
          text="The Gundam pod: a ball of flat screens all round, under the feet and overhead too; the seat on its arm in "
               "the middle, the MFDs on the armrests."),
-    dict(id="titan", name="Titan", rows=[(0.92, 1.72)], plan=mirror([(0.80, 0.75), (1.00, 0.10), (0.90, -0.40)]), pillars=[2, 3],
+    dict(id="titan", mech="lift", name="Titan", rows=[(0.92, 1.72)], plan=mirror([(0.80, 0.75), (1.00, 0.10), (0.90, -0.40)]), pillars=[2, 3],
          heavy=0.12, mfd=("top", "dash"),
          text="Titanfall's: a front screen 1.6 m across, side screens raked back, a heavy frame but all of it outside 45 "
               "degrees."),
-    dict(id="cinema", name="Cinema", rows=[(0.90, 1.95)], plan=mirror([(1.10, 0.95), (1.15, 0.05)]), pillars=[1, 2], mfd=("dash",),
+    dict(id="cinema", mech="plug", name="Cinema", rows=[(0.90, 1.95)], plan=mirror([(1.10, 0.95), (1.15, 0.05)]), pillars=[1, 2], mfd=("dash",),
          text="One huge front screen 2.2 m by 1.05 m with no seam at all, square screens beside the knees."),
-    dict(id="cab", name="Excavator cab", rows=[(0.30, 1.10), (1.13, 1.93)], plan=mirror([(0.80, 0.80), (0.95, 0.10), (0.90, -0.45)]),
+    dict(id="cab", mech="ramp", name="Excavator cab", rows=[(0.30, 1.10), (1.13, 1.93)], plan=mirror([(0.80, 0.80), (0.95, 0.10), (0.90, -0.45)]),
          pillars=[2, 3], floor=True, mfd=("top",),
          text="Floor to roof screens like a digger's glass cab, and a screen under the feet looking down at the ground "
               "ahead."),
-    dict(id="octagon", name="Octagon", rows=[(0.75, 1.40), (1.43, 2.05)],
+    dict(id="octagon", mech="gullwing", name="Octagon", rows=[(0.75, 1.40), (1.43, 2.05)],
          plan=mirror([(0.80, 0.80), (1.05, 0.45), (1.05, -0.20), (0.70, -0.60)]), pillars=[3, 4], mfd=("top", "dash"),
          text="The Stevedore's octagon, seated now and stretched so its front is 1.6 m across: pillars at 45 degrees "
               "instead of 21."),
-    dict(id="canopy", name="Canopy", rows=[(0.85, 1.45)], plan=mirror([(0.85, 0.80), (1.00, 0.10), (0.90, -0.40)]), pillars=[2, 3],
+    dict(id="canopy", mech="canopy_rear", top="hump", name="Canopy", rows=[(0.85, 1.45)], plan=mirror([(0.85, 0.80), (1.00, 0.10), (0.90, -0.40)]), pillars=[2, 3],
          ceiling=True, mfd=("dash",),
          text="A fighter's canopy in flat screens: the front half of the ceiling is screens too, so you see up as well "
               "as out."),
-    dict(id="twintier", name="Twin tier", rows=[(0.78, 1.24), (1.30, 1.90)], plan=arc(0.95, -95, 95, 9), pillars=[0, 9],
+    dict(id="twintier", mech="elevator", top="hump", name="Twin tier", rows=[(0.78, 1.24), (1.30, 1.90)], plan=arc(0.95, -95, 95, 9), pillars=[0, 9],
          hatch_deg=40, mfd=("dash",),
          text="Two rings of square screens round 190 degrees with one thin rail between them under the eye line."),
-    dict(id="lowbank", name="Low bank", rows=[(0.80, 1.42)], plan=mirror([(0.75, 1.00), (0.98, 0.50), (0.95, -0.40)]), pillars=[2, 3],
+    dict(id="lowbank", mech="canopy_front", top="hump", name="Low bank", rows=[(0.80, 1.42)], plan=mirror([(0.75, 1.00), (0.98, 0.50), (0.95, -0.40)]), pillars=[2, 3],
          mfd=("dash",),
          text="The Ironhorse's low screen bank, seated and widened: a front 1.5 m across, the wings swept back past the "
               "knees."),
@@ -241,12 +242,6 @@ def offset(poly, d):
     return cockpit_hull.offset(poly, d)
 
 
-def wedge(a_deg, ez, y0, y1, r=6.0):
-    """The region within a_deg of straight ahead from the eye's axis, as a prism."""
-    pts = [(0.0, ez)] + [(r * math.sin(a * D), ez + r * math.cos(a * D)) for a in (-a_deg, -a_deg / 2, 0, a_deg / 2, a_deg)]
-    return pts, y0, y1
-
-
 def facing(c, look):
     """Axes (r, u, n) of a panel at c turned to look at a point (glTF frame)."""
     n = (Vector(look) - Vector(c)).normalized()
@@ -255,37 +250,208 @@ def facing(c, look):
     return r, u, n
 
 
+# ----------------------------------------------------------------------------- the shell
+
+def loft(name, keys, material):
+    """A closed solid through plan rings [(y, [(x, z), ...])], each with the same number of points (glTF frame)."""
+    bm = bmesh.new()
+    rings = [[bm.verts.new((x, y, z)) for x, z in poly] for y, poly in keys]
+    n = len(rings[0])
+    bm.faces.new(rings[0])
+    bm.faces.new(rings[-1])
+    for r0, r1 in zip(rings, rings[1:]):
+        for i in range(n):
+            bm.faces.new((r0[i], r0[(i + 1) % n], r1[(i + 1) % n], r1[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return new_obj(name, bm, material)
+
+
+HUMP = ((0.30, 0.20), (0.48, 0.42))       # a canopy bubble over the walls: (rise, how far in) for each ring
+
+
+def shell_keys(outline, H, grow, top):
+    """The rings of a cabin's solid: straight walls to H, then for a "hump" top a faceted bubble that rises and
+    narrows, the way a fighter's canopy does. grow is how far the rings stand outside the cabin."""
+    if top != "hump":
+        return [(-grow, offset(outline, grow)), (H + grow, offset(outline, grow))]
+    return [(-grow, offset(outline, grow)), (H, offset(outline, grow))] + \
+        [(H + dy + grow, offset(outline, grow - inset)) for dy, inset in HUMP]
+
+
+def ray_poly(poly, b_deg):
+    """Where a ray from the eye's axis at bearing b meets a polygon: the point, the edge's tangent, its normal out."""
+    d = Vector((math.sin(b_deg * D), math.cos(b_deg * D)))
+    for i in range(len(poly)):
+        p, q = Vector(poly[i]), Vector(poly[(i + 1) % len(poly)])
+        e = q - p
+        den = d.x * (-e.y) - d.y * (-e.x)
+        if abs(den) < 1e-9:
+            continue
+        t = (p.x * (-e.y) - p.y * (-e.x)) / den
+        s = (d.x * p.y - d.y * p.x) / den
+        if t > 0 and -1e-6 <= s <= 1 + 1e-6:
+            tg = e.normalized()
+            n = Vector((tg.y, -tg.x))
+            if n.dot(p + e / 2) < 0:
+                n = -n
+            return d * t, tg, n
+    raise ValueError(b_deg)
+
+
+# ----------------------------------------------------------------------------- the mechanisms
+# A part is a region of the shell cut free (a sector round the eye's axis, or a box), the motions that open it (each a
+# slide along an axis or a turn about an axis through a pivot, with its start and length in seconds; each motion rides
+# on the ones before it, so a canopy can lift, then slide back, then tilt), and its hardware: hydraulic rams from the
+# body to the part, clamps on the seam that slide clear before anything moves, and vents that puff as the seal breaks.
+G = 0.006          # a part's region is this much smaller all round than the hole cut for it: the seam
+CLAMP = (0.08, 0.06, 0.04)
+
+MECH_TEXT = dict(
+    clamshell="the front splits at the screens' foot: clamps slide off the seams, both halves pop off their seals, the "
+              "top swings up about the roof edge and the bottom drops to the deck as a step",
+    petals="three petals: the middle one pops and swings up, then the two beside it swing out on their outer edges "
+           "like doors; the seams fall on the screens' own seams",
+    visor="a curved visor plate, outside the ball, turns up over the top about the pilot's eye; then the seat runs "
+          "forward on its rail to the opening",
+    lift="the top half rises clear of the roof line, then tilts back; the bottom half drops as a step",
+    plug="a plug door: clamps slide off, it pushes 20 cm out off its seal, then slides aside on rails past the corner",
+    ramp="the whole front, floor to roof, unclamps and drops forward on its bottom edge to the deck as a ramp",
+    gullwing="gull-wing doors: each side, roof edge and all, turns up about a hinge on the roof",
+    canopy_rear="a fighter's canopy: everything above the sill, screens, roof and bubble, lifts, slides back, then "
+                "tilts up on its back edge, on two rams",
+    canopy_front="a fighter's canopy hinged at the front: the whole bubble above the sill lifts and swings up and "
+                 "forward over the nose on two rams",
+    elevator="the upper ring of screens and the bubble rise straight up on four rams and tilt back, then the front of "
+             "the lower ring drops as a step",
+)
+
+
+def stage(kind, axis, v, t0, d, pivot=None):
+    return dict(kind=kind, axis=axis, v=v, t0=t0, d=d, pivot=pivot)
+
+
+def mechanism(L, c):
+    """The parts that open this layout, from its mechanism and the cabin's measures c."""
+    m, H, F, B, top, deg, W = L["mech"], c["H"], c["front"], c["back"], c["top"], c["deg"], WALL_M
+    y_lo, y_hi = -W - 0.2, top + 0.2
+    out = lambda b, y: (b, y, "out")      # noqa: E731   a clamp on a bearing seam, sliding away from the part
+    down = lambda b, y: (b, y, "down")    # noqa: E731   a clamp on a horizontal seam, sliding down onto the body
+    if m == "clamshell":
+        ys = L["rows"][0][0] - 0.06
+        return [dict(name="UPPER", region=("sector", -deg, deg, ys, y_hi), keep_inner=True,
+                     stages=[stage("pos", "z", 0.04, 0.35, 0.35), stage("rot", "x", -1.45, 0.75, 1.5, (0, top, F + W))],
+                     clamps=[out(s * deg, (ys + H) / 2) for s in (1, -1)],
+                     vents=[((s * 0.5, ys + 0.02, F + W), (s * 0.3, -0.3, 1)) for s in (1, -1)]),
+                dict(name="LOWER", region=("sector", -deg, deg, y_lo, ys - 0.02), keep_inner=True,
+                     stages=[stage("pos", "z", 0.04, 0.55, 0.3), stage("rot", "x", 1.42, 0.95, 1.5, (0, -W, F + W))],
+                     clamps=[out(s * deg, ys / 2) for s in (1, -1)])]
+    if m == "petals":
+        a, b = c["vertex"](28), c["vertex"](67)
+        parts = [dict(name="PETAL_M", region=("sector", -a, a, y_lo, y_hi), keep_inner=True,
+                      stages=[stage("pos", "z", 0.04, 0.3, 0.3), stage("rot", "x", -1.5, 0.6, 1.4, (0, top, F + W))],
+                      vents=[((0, H * 0.5, F + W), (0, 0.2, 1))])]
+        for sg, nm in ((1, "PETAL_L"), (-1, "PETAL_R")):
+            p, _, _ = ray_poly(c["outer"], sg * b)
+            parts.append(dict(name=nm, region=("sector", a, b, y_lo, y_hi) if sg > 0 else ("sector", -b, -a, y_lo, y_hi),
+                              keep_inner=True, stages=[stage("rot", "y", sg * 1.75, 1.4, 1.5, (p.x, 0, p.y))],
+                              vents=[((p.x - sg * 0.02, H * 0.5, p.y + 0.02), (sg, 0.1, 0.4))]))
+        return parts
+    if m == "visor":
+        return [dict(name="VISOR", region="visor", stages=[stage("rot", "x", -1.95, 0.5, 2.0, (0, EYE_Y, 0))],
+                     clamps="dome", vents=[((s * 0.95, EYE_Y, 0.75), (s, 0.1, 0.6)) for s in (1, -1)]),
+                dict(name="SEAT", region="seat", stages=[stage("pos", "z", 0.6, 2.6, 1.4)])]
+    if m == "lift":
+        ys = L["rows"][0][0] - 0.06
+        return [dict(name="UPPER", region=("sector", -deg, deg, ys, y_hi), keep_inner=True,
+                     stages=[stage("pos", "z", 0.04, 0.3, 0.3), stage("pos", "y", top - ys + 0.08, 0.7, 1.4),
+                             stage("rot", "x", -0.55, 2.2, 0.9, (0, ys, F - 0.1))],
+                     clamps=[out(s * deg, (ys + H) / 2) for s in (1, -1)],
+                     vents=[((s * 0.55, ys + 0.02, F + W), (s * 0.3, -0.2, 1)) for s in (1, -1)]),
+                dict(name="LOWER", region=("sector", -deg, deg, y_lo, ys - 0.02), keep_inner=True,
+                     stages=[stage("pos", "z", 0.04, 1.6, 0.3), stage("rot", "x", 1.42, 1.9, 1.3, (0, -W, F + W))],
+                     clamps=[out(s * deg, ys / 2) for s in (1, -1)])]
+    if m == "plug":
+        wd = (F + W) * math.tan(deg * D)
+        return [dict(name="PLUG", region=("sector", -deg, deg, y_lo, y_hi), keep_inner=True,
+                     stages=[stage("pos", "z", 0.20, 0.4, 0.6), stage("pos", "x", -(2 * wd + 0.3), 1.1, 1.9)],
+                     clamps=[out(s * deg, y) for s in (1, -1) for y in (0.45, H - 0.45)],
+                     vents=[((s * wd, H * 0.5, F + W), (s * 0.5, 0, 1)) for s in (1, -1)], rails=wd)]
+    if m == "ramp":
+        return [dict(name="RAMP", region=("sector", -deg, deg, y_lo, y_hi), keep_inner=True,
+                     stages=[stage("pos", "z", 0.04, 0.35, 0.3), stage("rot", "x", 1.5, 0.75, 2.0, (0, -W, F + W))],
+                     clamps=[out(s * deg, y) for s in (1, -1) for y in (0.5, H - 0.5)],
+                     vents=[((0, top - 0.05, F + W), (0, 0.4, 1))])]
+    if m == "gullwing":
+        b0, b1 = c["seam_after_pillar"], c["vertex"](101) - 0.5
+        parts = []
+        for sg, nm in ((1, "WING_L"), (-1, "WING_R")):
+            hx = sg * c["hinge_x"]
+            parts.append(dict(name=nm, region=("sector", b0, b1, 0.06, y_hi) if sg > 0 else ("sector", -b1, -b0, 0.06, y_hi),
+                              keep_inner=True,
+                              stages=[stage("pos", "y", 0.03, 0.3, 0.3), stage("rot", "z", sg * 1.75, 0.65, 1.8, (hx, top, 0))],
+                              vents=[((hx, top, 0.2), (sg * 0.3, 1, 0.1)), ((sg * 1.1, 0.1, 0.2), (sg, -0.2, 0.2))]))
+        return parts
+    if m == "canopy_rear":
+        ys = L["rows"][0][0] - 0.05
+        rams = []
+        for s in (1, -1):
+            p, _, n = ray_poly(c["outer"], s * 95)
+            q = p + n * 0.09
+            rams.append(((q.x, ys - 0.6, q.y), (q.x, ys + 0.15, q.y)))
+        return [dict(name="CANOPY", region=("box", -3, 3, ys, y_hi, -3, 3),
+                     stages=[stage("pos", "y", 0.12, 0.35, 0.3), stage("pos", "z", -0.30, 0.7, 0.9),
+                             stage("rot", "x", -0.85, 1.6, 1.6, (0, ys, B - W))],
+                     rams=rams, clamps=[down(s * b, ys) for s in (1, -1) for b in (85, 110)],
+                     vents=[((s * 1.0, ys, z), (s, 0.2, 0)) for s in (1, -1) for z in (0.4, -0.3)])]
+    if m == "canopy_front":
+        ys = L["rows"][0][0] - 0.05
+        return [dict(name="CANOPY", region=("box", -3, 3, ys, y_hi, -3, 3),
+                     stages=[stage("pos", "y", 0.05, 0.35, 0.3), stage("rot", "x", 1.25, 0.75, 2.0, (0, ys, F + W))],
+                     rams=[((s * 1.13, ys - 0.55, 0.55), (s * 1.13, ys + 0.15, -0.2)) for s in (1, -1)],
+                     clamps=[down(s * b, ys) for s in (1, -1) for b in (75, 105)],
+                     vents=[((s * 1.0, ys, z), (s, 0.2, 0)) for s in (1, -1) for z in (0.3, -0.3)])]
+    if m == "elevator":
+        ys = L["rows"][1][0] - 0.03
+        lo = c["vertex"](53)
+        return [dict(name="TOP", region=("box", -3, 3, ys, y_hi, -3, 3),
+                     stages=[stage("pos", "y", 0.7, 0.4, 1.6), stage("rot", "x", -0.45, 2.1, 1.0, (0, ys, B - W))],
+                     rams=[((sx * 1.08, ys - 0.6, z), (sx * 1.08, ys + 0.2, z)) for sx in (1, -1) for z in (-0.25, -0.6)],
+                     clamps=[down(s * b, ys) for s in (1, -1) for b in (70, 112)],
+                     vents=[((s * 0.95, ys, z), (s, 0.1, 0)) for s in (1, -1) for z in (0.3, -0.4)]),
+                dict(name="LOWER", region=("sector", -lo, lo, y_lo, ys), keep_inner=True,
+                     stages=[stage("pos", "z", 0.04, 1.8, 0.3), stage("rot", "x", 1.42, 2.1, 1.4, (0, -W, F + W))])]
+    raise ValueError(m)
+
+
 # ----------------------------------------------------------------------------- one layout
 
 def build(L):
     for o in list(bpy.data.objects):
         bpy.data.objects.remove(o)
-    ez, eye = 0.0, Vector((0.0, EYE_Y, 0.0))
+    eye = Vector((0.0, EYE_Y, 0.0))
     is_dome = "dome" in L
-    parts = []                        # (object, node) to export: node "pod" or "HATCH"
+    statics = []                       # meshes that stay on the pod
+    c = {}
     if is_dome:
         dm = L["dome"]
         r, segs, rings = dm["r"], dm["segs"], dm["rings"]
         shell = sphere("shell", r + WALL_M, eye, segs, rings, "HULL")
         boolean(shell, sphere("inner", r, eye, segs, rings, "SCREEN_allview"), "DIFFERENCE")
-        top_y, bot_y, front_z = EYE_Y + r + WALL_M, EYE_Y - r - WALL_M, r + WALL_M
-        hatch_deg = L["hatch_deg"]
-        cut_y = (EYE_Y - 0.62, EYE_Y + 0.75)
-        floor_y = EYE_Y - r
-        pillar_angles = []
+        deg = L["hatch_deg"]
+        floor_y, inner_keep, pillar_angles = EYE_Y - r, None, []
+        c.update(H=EYE_Y + r, front=r, back=-r, top=EYE_Y + r + WALL_M, deg=deg)
     else:
         rows, plan = L["rows"], L["plan"]
         H = rows[-1][1] + 0.12
         back = min(-0.75, min(z for _, z in plan) - 0.25)
         outline = [plan[0]] + list(plan[1:]) + [(plan[-1][0], back), (plan[0][0], back)]
-        # make the outline counter-clockwise from above for offset()
         area = sum(outline[i][0] * outline[(i + 1) % len(outline)][1] - outline[(i + 1) % len(outline)][0] * outline[i][1]
                    for i in range(len(outline)))
         if area < 0:
             outline = outline[::-1]
-        shell = prism("shell", offset(outline, WALL_M), -WALL_M, H + WALL_M, "HULL")
-        boolean(shell, prism("cabin", outline, 0.0, H, "LINING"), "DIFFERENCE")
-        # the screens: recesses cut into the inner wall, square, the one straight ahead whole
+        tp = L.get("top", "flat")
+        shell = loft("shell", shell_keys(outline, H, WALL_M, tp), "HULL")
+        boolean(shell, loft("cabin", shell_keys(outline, H, 0.0, tp), "LINING"), "DIFFERENCE")
         cutters = []
         for y0, y1 in rows:
             h = y1 - y0
@@ -295,82 +461,104 @@ def build(L):
                 n = 1 if ahead else max(1, round((b - a).length / h))
                 t = (b - a).normalized()
                 inward = Vector((-t.z, 0, t.x))
-                if inward.dot(Vector((0, 0, 0)) - (a + b) / 2) < 0:
+                if inward.dot(-(a + b) / 2) < 0:
                     inward = -inward
                 for k in range(n):
-                    c = a.lerp(b, (k + 0.5) / n)
+                    cc = a.lerp(b, (k + 0.5) / n)
                     w = (b - a).length / n - SEAM_M
-                    cc = Vector((c.x, (y0 + y1) / 2, c.z)) - inward * 0.0
-                    cutters.append(box(f"rec{len(cutters)}", cc, (t, Vector((0, 1, 0)), inward), (w, h, 2 * RECESS_M), "SCREEN_allview"))
-        if L.get("ceiling"):           # the canopy: the front half of the ceiling is screens
-            for k, (x0, x1) in enumerate(((-0.75, -0.02), (0.02, 0.75))):
-                cutters.append(box(f"ceil{k}", ((x0 + x1) / 2, H, 0.35), (Vector((1, 0, 0)), Vector((0, 0, 1)), Vector((0, -1, 0))),
-                                   (x1 - x0, 0.75, 2 * RECESS_M), "SCREEN_allview"))
+                    cutters.append(box(f"rec{len(cutters)}", (cc.x, (y0 + y1) / 2, cc.z), (t, Vector((0, 1, 0)), inward),
+                                       (w, h, 2 * RECESS_M), "SCREEN_allview"))
+        if L.get("ceiling"):           # screens overhead, in the bubble's lid or the flat roof
+            hy = H + (HUMP[-1][0] if tp == "hump" else 0.0)
+            for k, (x0, x1) in enumerate(((-0.52, -0.02), (0.02, 0.52))):
+                cutters.append(box(f"ceil{k}", ((x0 + x1) / 2, hy, 0.02), (Vector((1, 0, 0)), Vector((0, 0, 1)), Vector((0, -1, 0))),
+                                   (x1 - x0, 0.55, 2 * RECESS_M), "SCREEN_allview"))
         if L.get("floor"):             # the cab: a screen under the feet, ahead
-            cutters.append(box("floorscreen", (0, 0, 0.5), (Vector((1, 0, 0)), Vector((0, 0, 1)), Vector((0, 1, 0))),
-                               (1.3, 0.55, 2 * RECESS_M), "SCREEN_allview"))
+            cutters.append(box("floorscreen", (0, 0, 0.45), (Vector((1, 0, 0)), Vector((0, 0, 1)), Vector((0, 1, 0))),
+                               (1.3, 0.5, 2 * RECESS_M), "SCREEN_allview"))
         boolean(shell, join(cutters, "recesses"), "DIFFERENCE")
-        # structural pillars where the plan turns, outside the clear view
         pil = []
         for i in L.get("pillars", []):
             x, z = plan[i]
             p = Vector((x, H / 2, z))
-            inward = (Vector((0, H / 2, 0)) - p)
-            inward.y = 0
-            inward.normalize()
-            w = L.get("heavy", 0.08)
-            r_, u_, n_ = Vector((0, 1, 0)).cross(inward).normalized(), Vector((0, 1, 0)), inward
-            pil.append(box(f"pillar{i}", p + inward * 0.04, (r_, u_, n_), (w, H, 0.12), "FRAME"))
+            inward = Vector((-x, 0, -z)).normalized()
+            pil.append(box(f"pillar{i}", p + inward * 0.04, (Vector((0, 1, 0)).cross(inward), Vector((0, 1, 0)), inward),
+                           (L.get("heavy", 0.08), H, 0.12), "FRAME"))
         if pil:
             boolean(shell, join(pil, "pillars"), "UNION")
         pillar_angles = [bearing(*plan[i]) for i in L.get("pillars", [])]
-        hatch_deg = L.get("hatch_deg") or (min(abs(a) for a in pillar_angles) - 1.5)
-        top_y, bot_y = H + WALL_M, -WALL_M
-        front_z = max(z for _, z in plan) + WALL_M
-        cut_y = (-WALL_M - 0.1, H + WALL_M + 0.1)
+        deg = L.get("hatch_deg") or (min(abs(a) for a in pillar_angles) - 1.5)
         floor_y = 0.0
-    # the hatch: the front of the shell inside the wedge, its own wedge a hair narrower; the cabin's inside is not cut
-    inner_keep = None
-    if not is_dome:
         inner_keep = offset(outline, -0.03)
-    def wedge_cutter(name, a_deg):
-        pts, y0, y1 = wedge(a_deg, ez, *cut_y)
-        c = prism(name, pts, y0, y1, "GASKET")
-        if inner_keep:
-            boolean(c, prism(name + "_in", inner_keep, -1.0, 9.0, "GASKET"), "DIFFERENCE")
-        else:
-            boolean(c, sphere(name + "_in", 0.6, eye, 12, 6, "GASKET"), "DIFFERENCE")
-        return c
-    hatch = copy(shell, "hatch")
-    boolean(shell, wedge_cutter("cutA", hatch_deg), "DIFFERENCE")
-    boolean(hatch, wedge_cutter("cutB", hatch_deg - SEAM_DEG), "INTERSECT")
-    parts += [(shell, "pod"), (hatch, "HATCH")]
-    # the hinge: the hatch's top front edge
-    hv = [hatch.matrix_world @ v.co for v in hatch.data.vertices]
-    hinge_b = Vector((0.0, min(v.y for v in hv), max(v.z for v in hv)))           # Blender: -y ahead, z up
-    hinge = (0.0, hinge_b.z, -hinge_b.y)                                         # glTF
-    # inside: the seat with armrests and grips
-    seat = [box("seat_pan", (0, floor_y + 0.45, -0.10), (Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))), (0.52, 0.12, 0.52), "SEAT"),
-            box("seat_back", (0, floor_y + 0.92, -0.40), facing((0, floor_y + 0.92, -0.40), (0, floor_y + 1.0, 1.0)), (0.52, 0.85, 0.12), "SEAT"),
-            box("seat_post", (0, floor_y + 0.2, -0.12), (Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))), (0.18, 0.42, 0.18), "CONSOLE")]
-    for s in (1, -1):
-        seat.append(box(f"arm{s}", (s * 0.34, floor_y + 0.62, 0.0), (Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))), (0.12, 0.08, 0.62), "CONSOLE"))
-        seat.append(box(f"grip{s}", (s * 0.34, floor_y + 0.72, 0.26), (Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))), (0.05, 0.16, 0.06), "GRIP"))
+        verts_b = sorted(abs(bearing(x, z)) for x, z in plan)
+        c.update(H=H, front=max(z for _, z in plan), back=back, deg=deg, outer=offset(outline, WALL_M),
+                 top=H + WALL_M + (HUMP[-1][0] if tp == "hump" else 0.0),
+                 vertex=lambda a_: min(verts_b, key=lambda v: abs(v - a_)),
+                 seam_after_pillar=(min(abs(a) for a in pillar_angles) + 2.5) if pillar_angles else deg,
+                 hinge_x=0.84)
+
+    def region_solid(name, reg, shrink, keep_inner):
+        if reg[0] == "sector":
+            _, a0, a1, y0, y1 = reg
+            da = SEAM_DEG * shrink / G
+            a0, a1, y0, y1 = a0 + da, a1 - da, y0 + shrink, y1 - shrink
+            pts = [(0.0, 0.0)] + [(6.0 * math.sin(a * D), 6.0 * math.cos(a * D)) for a in
+                                  (a0, a0 + (a1 - a0) / 4, (a0 + a1) / 2, a1 - (a1 - a0) / 4, a1)]
+            cut = prism(name, pts, y0, y1, "GASKET")
+            if keep_inner and inner_keep:
+                boolean(cut, prism(name + "_in", inner_keep, -1.0, 9.0, "GASKET"), "DIFFERENCE")
+            elif is_dome:
+                boolean(cut, sphere(name + "_in", 0.6, eye, 12, 6, "GASKET"), "DIFFERENCE")
+            return cut
+        _, x0, x1, y0, y1, z0, z1 = reg
+        return box(name, ((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), ((1, 0, 0), (0, 1, 0), (0, 0, 1)),
+                   (x1 - x0 - 2 * shrink, y1 - y0 - 2 * shrink, z1 - z0 - 2 * shrink), "GASKET")
+
+    parts = mechanism(L, c)
+    objs = {P["name"]: [] for P in parts}
+    for P in parts:                     # every part is cut from the whole shell before any hole is made in it
+        if P["region"] == "visor":
+            rr, sg_, rg_ = L["dome"]["r"], L["dome"]["segs"], L["dome"]["rings"]
+            plate = sphere("visor", rr + 2 * WALL_M + 0.01, eye, sg_, rg_, "HULL")
+            boolean(plate, sphere("visor_in", rr + WALL_M + 0.01, eye, sg_, rg_, "SCREEN_allview"), "DIFFERENCE")   # screens inside
+            boolean(plate, region_solid("visor_cut", ("sector", -deg - 5, deg + 5, EYE_Y - 0.88, EYE_Y + 0.83), 0, False), "INTERSECT")
+            objs["VISOR"].append(plate)
+        elif P["region"] != "seat":
+            piece = copy(shell, P["name"].lower())
+            boolean(piece, region_solid(P["name"] + "_cut", P["region"], G, P.get("keep_inner")), "INTERSECT")
+            objs[P["name"]].append(piece)
+    for P in parts:
+        if P["region"] == "visor":
+            boolean(shell, region_solid("hole", ("sector", -deg, deg, EYE_Y - 0.8, EYE_Y + 0.75), 0, False), "DIFFERENCE")
+        elif P["region"] != "seat":
+            boolean(shell, region_solid(P["name"] + "_hole", P["region"], 0, P.get("keep_inner")), "DIFFERENCE")
+    statics.append(shell)
+    # inside: the seat with armrests and grips, on its post (in the sphere, a boom from the back of the ball)
+    I3 = ((1, 0, 0), (0, 1, 0), (0, 0, 1))
+    seat = [box("seat_pan", (0, floor_y + 0.45, -0.10), I3, (0.52, 0.12, 0.52), "SEAT"),
+            box("seat_back", (0, floor_y + 0.92, -0.40), facing((0, floor_y + 0.92, -0.40), (0, floor_y + 1.0, 1.0)), (0.52, 0.85, 0.12), "SEAT")]
+    for sg in (1, -1):
+        seat.append(box(f"arm{sg}", (sg * 0.34, floor_y + 0.62, 0.0), I3, (0.12, 0.08, 0.62), "CONSOLE"))
+        seat.append(box(f"grip{sg}", (sg * 0.34, floor_y + 0.72, 0.26), I3, (0.05, 0.16, 0.06), "GRIP"))
     seat_o = join(seat, "seat")
+    post_top = floor_y + 0.388          # 2 mm under the pan, so the seat can run off it
+    post = box("seat_post", (0, (floor_y + post_top) / 2, -0.12), I3, (0.18, post_top - floor_y, 0.18), "CONSOLE")
     if is_dome:
-        boolean(seat_o, box("boom", (0, EYE_Y - 0.9, -0.75), facing((0, EYE_Y - 0.9, -0.75), (0, EYE_Y - 0.3, 0.6)), (0.16, 0.16, 1.0), "CONSOLE"), "UNION")
-    parts.append((seat_o, "pod"))
-    # MFDs: a bezel box with a recess cut for the display
+        boolean(post, box("boom", (0, 0.24, -0.75), facing((0, 0.24, -0.75), (0, 0.33, -0.25)), (0.16, 0.16, 1.05), "CONSOLE"), "UNION")
+        statics.append(box("seat_rail", (0, post_top - 0.015, 0.25), I3, (0.10, 0.03, 0.95), "FRAME"))
+    statics.append(post)
+    (objs["SEAT"] if "SEAT" in objs else statics).append(seat_o)
+    # the MFDs: a bezel box with a recess cut for the display, which is a quad with its own UVs
     kinds = ["status", "nav", "weapons", "radar"]
-    def mfd(name, c, size, kind):
-        ax = facing(c, eye)
-        b_ = box(name, c, ax, (size + 0.05, size + 0.05, 0.05), "BEZEL")
-        boolean(b_, box(name + "_rec", Vector(c) + ax[2] * 0.025, ax, (size, size, 0.016), "BEZEL"), "DIFFERENCE")
-        # the display: a quad with its own UVs a millimetre proud of the recess floor
+
+    def mfd(name, cc, size, kind):
+        ax = facing(cc, eye)
+        b_ = box(name, cc, ax, (size + 0.05, size + 0.05, 0.05), "BEZEL")
+        boolean(b_, box(name + "_rec", Vector(cc) + ax[2] * 0.025, ax, (size, size, 0.016), "BEZEL"), "DIFFERENCE")
         bm = bmesh.new()
         r_, u_, n_ = ax
-        cc = Vector(c) + n_ * (0.025 - 0.008 + 0.001)
-        vs = [bm.verts.new(cc + r_ * sx * size / 2 + u_ * sy * size / 2) for sx, sy in ((1, -1), (-1, -1), (-1, 1), (1, 1))]
+        q0 = Vector(cc) + n_ * (0.025 - 0.008 + 0.001)
+        vs = [bm.verts.new(q0 + r_ * sx * size / 2 + u_ * sy * size / 2) for sx, sy in ((1, -1), (-1, -1), (-1, 1), (1, 1))]
         f = bm.faces.new(vs)
         uv = bm.loops.layers.uv.new("UVMap")
         for lp, t in zip(f.loops, ((1, 1), (0, 1), (0, 0), (1, 0))):      # glTF's v runs down the image
@@ -378,50 +566,109 @@ def build(L):
         bm.normal_update()
         if f.normal.dot(n_) < 0:
             f.normal_flip()
-        q = new_obj(name + "_screen", bm, f"SCREEN_mfd_{kind}")
-        return [b_, q]
+        return [b_, new_obj(name + "_screen", bm, f"SCREEN_mfd_{kind}")]
     where = L["mfd"]
-    if "dash" in where:                # the dash rides on the hatch
+    if "dash" in where:
         y0 = L["rows"][0][0]
-        zf = max(z for _, z in L["plan"]) - 0.30
+        zf = c["front"] - 0.30
         dash = box("dash", (0, y0 - 0.16, zf), facing((0, y0 - 0.16, zf), (0, y0 + 0.6, -0.4)), (1.5, 0.30, 0.10), "CONSOLE")
-        strut = [box(f"dash_strut{s}", (s * 0.6, (y0 - 0.16) / 2, zf + 0.1), (Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))),
-                     (0.06, y0 - 0.16, 0.06), "FRAME") for s in (1, -1)]
-        d = join([dash] + strut, "dash")
-        parts.append((d, "HATCH"))
+        strut = [box(f"dash_strut{sg}", (sg * 0.6, (y0 - 0.16) / 2, zf - 0.05), I3, (0.06, y0 - 0.16, 0.06), "FRAME") for sg in (1, -1)]
+        statics.append(join([dash] + strut, "dash"))
         for i, x in enumerate((-0.51, -0.17, 0.17, 0.51)):
-            for o in mfd(f"mfd_dash{i}", (x, y0 - 0.08, zf - 0.08), 0.24, kinds[i]):
-                parts.append((o, "HATCH"))
-    if "top" in where:                 # hanging from the roof, in the upper edge of the view
+            statics += mfd(f"mfd_dash{i}", (x, y0 - 0.08, zf - 0.08), 0.24, kinds[i])
+    if "top" in where:
         y1 = L["rows"][-1][1]
-        zf = max(z for _, z in L["plan"]) - 0.45
+        zf = c["front"] - 0.45
         for i, x in enumerate((-0.34, 0.0, 0.34)):
-            for o in mfd(f"mfd_top{i}", (x, y1 - 0.02, zf), 0.26, kinds[(i + 2) % 4 if i != 1 else 3]):
-                parts.append((o, "pod"))
-        parts.append((box("mfd_rail", (0, y1 + 0.13, zf - 0.02), (Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))), (1.1, 0.04, 0.05), "FRAME"), "pod"))
-    if "arms" in where:                # on the armrests
+            statics += mfd(f"mfd_top{i}", (x, y1 - 0.02, zf), 0.26, kinds[(i + 2) % 4 if i != 1 else 3])
+        statics.append(box("mfd_rail", (0, y1 + 0.13, zf - 0.02), I3, (1.1, 0.04, 0.05), "FRAME"))
+    if "arms" in where:
         for i, (x, z) in enumerate(((0.34, 0.16), (-0.34, 0.16), (0.34, 0.42), (-0.34, 0.42))):
-            for o in mfd(f"mfd_arm{i}", (x, floor_y + 0.78 + 0.05 * (i // 2), z), 0.2, kinds[i]):
-                parts.append((o, "pod"))
-    # nodes: the pod and the hatch (its origin on the hinge), then export
+            (objs["SEAT"] if "SEAT" in objs else statics).extend(mfd(f"mfd_arm{i}", (x, floor_y + 0.78 + 0.05 * (i // 2), z), 0.2, kinds[i]))
+    for P in parts:                     # a plug door's rails, on brackets from the front corners
+        if P.get("rails"):
+            wd, zr = P["rails"], c["front"] + WALL_M + 0.25
+            for k, y in enumerate((0.02, c["H"] - 0.02)):
+                statics.append(box(f"rail{k}", (-wd - 0.15, y, zr), I3, (4 * wd + 0.6, 0.08, 0.06), "FRAME"))
+                for sx in (1, -1):
+                    statics.append(box(f"bracket{k}{sx}", (sx * (wd + 0.06), y, zr - 0.13), I3, (0.06, 0.06, 0.2), "FRAME"))
+    # the clamps: blocks on the seam, outside, that slide clear before the part moves
+    clamps = []                         # (name, centre, axes, slide direction, start)
+    for P in parts:
+        t_first = min(st["t0"] for st in P["stages"])
+        spec = P.get("clamps") or []
+        if spec == "dome":
+            rr = L["dome"]["r"] + WALL_M + 0.002 + CLAMP[2] / 2
+            for k, s in enumerate((1, -1)):
+                b = s * (deg + 8) * D
+                n = Vector((math.sin(b), 0, math.cos(b)))
+                tg = Vector((math.cos(b), 0, -math.sin(b))) * s
+                clamps.append((f"CLAMP_{P['name']}_{k}", eye + n * rr, (tg, Vector((0, 1, 0)), n), tg, t_first))
+            e_ = -47 * D
+            n = Vector((0, math.sin(e_), math.cos(e_)))
+            tg = Vector((0, math.cos(e_), -math.sin(e_)))
+            clamps.append((f"CLAMP_{P['name']}_2", eye + n * rr, (Vector((1, 0, 0)), tg, n), -tg, t_first))
+            continue
+        for k, (b, y, how) in enumerate(spec):
+            p, tg, n = ray_poly(c["outer"], b)
+            tg = Vector((tg.x, 0, tg.y))
+            n = Vector((n.x, 0, n.y))
+            grow = Vector((math.cos(b * D), 0, -math.sin(b * D))) * (1 if b > 0 else -1)
+            if tg.dot(grow) < 0:
+                tg = -tg
+            at = Vector((p.x, y, p.y)) + n * (0.002 + CLAMP[2] / 2)
+            clamps.append((f"CLAMP_{P['name']}_{k}", at, (tg, Vector((0, 1, 0)), n),
+                           tg if how == "out" else Vector((0, -1, 0)), t_first))
+    # the node tree: the pod; each part a chain of nodes, one motion each, its meshes on the last
     pod = bpy.data.objects.new("pod", None)
     bpy.context.scene.collection.objects.link(pod)
-    hn = bpy.data.objects.new("HATCH", None)
-    bpy.context.scene.collection.objects.link(hn)
-    hn.parent = pod
-    hn.location = G2B @ Vector(hinge)
-    bpy.context.view_layer.update()          # the hinge's world matrix before anything is parented to it
-    for ob, node in parts:
+
+    def empty(name, parent, at):
+        e = bpy.data.objects.new(name, None)
+        bpy.context.scene.collection.objects.link(e)
+        e.parent = parent
+        bpy.context.view_layer.update()
+        e.matrix_world = Matrix.Translation(G2B @ Vector(at))
+        bpy.context.view_layer.update()
+        return e
+
+    def adopt(ob, parent):
         mw = ob.matrix_world.copy()
-        ob.parent = pod if node == "pod" else hn
+        ob.parent = parent
+        bpy.context.view_layer.update()
         ob.matrix_world = mw
-    sock = bpy.data.objects.new("EYE_pilot", None)
-    bpy.context.scene.collection.objects.link(sock)
-    sock.parent = pod
-    sock.location = G2B @ eye
-    # every boolean result triangulated, so the count is honest
+
+    tracks, rams, vents, last = [], [], [], {}
+    for P in parts:
+        parent, at = pod, Vector((0, 0, 0))
+        for k, st in enumerate(P["stages"]):
+            at = Vector(st["pivot"]) if st.get("pivot") else at
+            node = f"{P['name']}_{k}"
+            parent = empty(node, parent, at)
+            tr = dict(node=node, t0=st["t0"], d=st["d"], v=st["v"])
+            tr.update({"pos": st["axis"]} if st["kind"] == "pos" else {"axis": st["axis"]})
+            tracks.append(tr)
+        last[P["name"]] = parent
+        for ob in objs[P["name"]]:
+            adopt(ob, parent)
+        for k, (base, tip) in enumerate(P.get("rams", [])):
+            empty(f"RAMB_{P['name']}_{k}", pod, base)
+            empty(f"RAMT_{P['name']}_{k}", parent, tip)
+            rams.append(dict(base=f"RAMB_{P['name']}_{k}", tip=f"RAMT_{P['name']}_{k}"))
+        t_first = min(st["t0"] for st in P["stages"])
+        for k, (pt, dirv) in enumerate(P.get("vents", [])):
+            empty(f"VENT_{P['name']}_{k}", pod, pt)
+            vents.append(dict(node=f"VENT_{P['name']}_{k}", dir=list(dirv), t0=t_first, d=0.9))
+    for name, at, axes, slide, t_first in clamps:
+        e = empty(name, pod, at)
+        cb = box(name.lower(), at, axes, CLAMP, "GASKET")
+        adopt(cb, e)
+        tracks.append(dict(node=name, dir=[round(v, 4) for v in slide], v=0.06, t0=max(0.0, t_first - 0.35), d=0.3))
+    for ob in statics:
+        adopt(ob, pod)
+    empty("EYE_pilot", last.get("SEAT", pod), eye)      # the eye rides with the seat where the seat moves
     tris = 0
-    for ob, _ in parts:
+    for ob in [o for o in bpy.data.objects if o.type == "MESH"]:
         bm = bmesh.new()
         bm.from_mesh(ob.data)
         bmesh.ops.triangulate(bm, faces=bm.faces)
@@ -429,22 +676,21 @@ def build(L):
         tris += len(ob.data.polygons)
         bm.free()
     os.makedirs(OUT, exist_ok=True)
-    path = os.path.join(OUT, f"{L['id']}.glb")
     bpy.ops.object.select_all(action="SELECT")
-    bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True, export_apply=True, export_yup=True,
-                              export_extras=True)
+    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, f"{L['id']}.glb"), export_format="GLB", use_selection=True,
+                              export_apply=True, export_yup=True, export_extras=True)
+    # the clear view ahead: between the nearest pillars, or seams of the opening that do not fall on screen seams
     if is_dome:
-        angles, span = [], 360
+        clear, span = 360, 360
     else:
-        angles = pillar_angles + [hatch_deg, -hatch_deg]
+        on_seam = lambda a_: any(abs(abs(a_) - abs(bearing(x, z))) < 0.6 for x, z in L["plan"])   # noqa: E731
+        seams = [a_ for P in parts if P["region"][0] == "sector" for a_ in P["region"][1:3] if not on_seam(a_)]
         b = [bearing(x, z) for x, z in L["plan"]]
-        span = round(max(b) - min(b))
+        clear, span = clear_deg(pillar_angles + seams), round(max(b) - min(b))
     return dict(id=L["id"], name=L["name"], text=L["text"], file=f"cockpit_blockouts/{L['id']}.glb", pose="seated",
-                eye_m=list(eye), clear_deg=360 if is_dome else clear_deg(angles), span_deg=span, tris=tris,
-                hatch=dict(node="HATCH", hinge_m=[round(v, 4) for v in hinge], pop_m=POP_M, swing_rad=SWING,
-                           tracks=[dict(node="HATCH", pos="z", v=POP_M, t0=0.0, d=0.4),
-                                   dict(node="HATCH", axis="x", v=SWING, t0=0.4, d=1.6)]),
-                mfd=list(L["mfd"]))
+                eye_m=list(eye), clear_deg=clear, span_deg=span, tris=tris, mech=L["mech"], opening=MECH_TEXT[L["mech"]],
+                open_s=round(max(t["t0"] + t["d"] for t in tracks), 2),
+                parts=[P["name"] for P in parts], tracks=tracks, rams=rams, vents=vents, mfd=list(L["mfd"]))
 
 
 def main():
