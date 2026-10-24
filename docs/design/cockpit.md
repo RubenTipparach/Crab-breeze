@@ -160,7 +160,9 @@ clamps on the seams slide clear, the part pops off its seal with a puff of steam
 hydraulic rams. Every part only ever moves away from the body and the cabin, so nothing passes through anything. Each one can also
 be entered by the back (owner, 2026-10-24: "Or back of mech can open"): the same cabin with a door in its back wall,
 and the seat swivels round to face it once it is open, so the screens ahead never move and the front stays whole
-armour. The page switches between the two with Entry: Front or Back:
+armour. The page switches between the two with Entry: Front or Back. Where the pilot climbs out through the front, the dash rides the part
+that opens, on brackets from its wall, and is sized to the cabin (owner, 2026-10-24: "cant climb out of this one",
+"control panel is in the way, you had control panel attacked to the door earlier, do that again"):
 
 | Block-out | How it opens | Or by the back |
 | --- | --- | --- |
@@ -186,4 +188,4 @@ armour. The page switches between the two with Entry: Front or Back:
 | C7 | How the screen wall looks | Separate screens in heavy bezels, phosphor tint, scanlines |
 | C5 | Colours | Dark gunmetal, amber, green and red lamps, hazard stripes, as drawn |
 | C8 | Which cockpit for which chassis | Provisional: chosen with the new chassis designs (build_mechs.py) |
-| C9 | Which block-out to model in detail | Provisional: Panorama (a 1.9 m front, 93 degrees clear, MFDs over and under it) |
+| C9 | Which block-outs to model in detail | A few will be picked (owner, 2026-10-24: "we're gonna pick a few"). Liked so far: Twin tier ("cool"), Canopy, Low bank ("good too"), Excavator cab ("excellent, classic") |

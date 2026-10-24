@@ -290,7 +290,7 @@ let drag = null;
 canvas.addEventListener("pointerdown", e => { if (view === "eye") { drag = [e.clientX, e.clientY]; canvas.setPointerCapture(e.pointerId); } });
 canvas.addEventListener("pointermove", e => { if (!drag) return; yaw -= (e.clientX - drag[0]) * 0.005; pitch = Math.max(-1.2, Math.min(1.1, pitch - (e.clientY - drag[1]) * 0.005)); drag = [e.clientX, e.clientY]; });
 canvas.addEventListener("pointerup", () => { drag = null; });
-window.MOCKUP = { pick, setView, setOpen, setDoor: d => document.querySelector(`[data-door="${d}"]`).click(), look: (y, p) => { yaw = y; pitch = p; }, ready: () => !!cur };
+window.MOCKUP = { camAt: (x, y, z) => { camera.position.set(x, POD_Y + y, z); controls.update(); }, pick, setView, setOpen, setDoor: d => document.querySelector(`[data-door="${d}"]`).click(), look: (y, p) => { yaw = y; pitch = p; }, ready: () => !!cur };
 
 const clock = new T.Clock(), eyeW = new T.Vector3();
 function frame() {

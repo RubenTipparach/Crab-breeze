@@ -300,6 +300,26 @@ def ray_poly(poly, b_deg):
     raise ValueError(b_deg)
 
 
+def cross_x(poly, z):
+    """Where a plan polygon crosses the line at depth z: the x of each crossing."""
+    xs = []
+    for i in range(len(poly)):
+        (x0, z0), (x1, z1) = poly[i], poly[(i + 1) % len(poly)]
+        if (z0 - z) * (z1 - z) <= 0 and z0 != z1:
+            xs.append(x0 + (x1 - x0) * (z - z0) / (z1 - z0))
+    return xs
+
+
+def wall_z(poly, x):
+    """How far ahead the cabin's wall is at a given x: the furthest crossing of the plan with the line at x."""
+    zs = []
+    for i in range(len(poly)):
+        (x0, z0), (x1, z1) = poly[i], poly[(i + 1) % len(poly)]
+        if (x0 - x) * (x1 - x) <= 0 and x0 != x1:
+            zs.append(z0 + (z1 - z0) * (x - x0) / (x1 - x0))
+    return max(zs)
+
+
 # ----------------------------------------------------------------------------- the mechanisms
 # A part is a region of the shell cut free (a sector round the eye's axis, or a box), the motions that open it (each a
 # slide along an axis or a turn about an axis through a pivot, with its start and length in seconds; each motion rides
@@ -316,7 +336,8 @@ MECH_TEXT = dict(
     visor="a curved visor plate, outside the ball, turns up over the top about the pilot's eye; then the seat runs "
           "forward on its rail to the opening",
     lift="the top half rises clear of the roof line, then tilts back; the bottom half drops as a step",
-    plug="a plug door: clamps slide off, it pushes 20 cm out off its seal, then slides aside on rails past the corner",
+    plug="a plug door: clamps slide off, it pushes 60 cm out off its seal with the dash on it, then slides aside on "
+         "rails past the corner",
     ramp="the whole front, floor to roof, unclamps and drops forward on its bottom edge to the deck as a ramp",
     gullwing="gull-wing doors: each side, roof edge and all, turns up about a hinge on the roof",
     canopy_rear="a fighter's canopy: everything above the sill, screens, roof and bubble, lifts, slides back, then "
@@ -349,21 +370,21 @@ def mechanism(L, c):
     if m == "clamshell":
         ys = L["rows"][0][0] - 0.06
         return [dict(name="UPPER", region=("sector", -deg, deg, ys, y_hi), keep_inner=True,
-                     stages=[stage("pos", "z", 0.04, 0.35, 0.35), stage("rot", "x", -1.45, 0.75, 1.5, (0, top, F + W))],
-                     clamps=[out(s * deg, (ys + H) / 2) for s in (1, -1)],
+                     stages=[stage("pos", "z", 0.04, 0.35, 0.35), stage("rot", "x", -1.45, 1.4, 1.5, (0, top, F + W))],
+                     clamps=[out(s * deg, (ys + H) / 2) for s in (1, -1)], dash=True,
                      vents=[((s * 0.5, ys + 0.02, F + W), (s * 0.3, -0.3, 1)) for s in (1, -1)]),
                 dict(name="LOWER", region=("sector", -deg, deg, y_lo, ys - 0.02), keep_inner=True,
-                     stages=[stage("pos", "z", 0.04, 0.55, 0.3), stage("rot", "x", 1.42, 0.95, 1.5, (0, -W, F + W))],
+                     stages=[stage("pos", "z", 0.04, 0.35, 0.3), stage("rot", "x", 1.42, 0.6, 1.4, (0, -W, F + W))],
                      clamps=[out(s * deg, ys / 2) for s in (1, -1)])]
     if m == "petals":
         a, b = c["vertex"](28), c["vertex"](67)
         parts = [dict(name="PETAL_M", region=("sector", -a, a, y_lo, y_hi), keep_inner=True,
-                      stages=[stage("pos", "z", 0.04, 0.3, 0.3), stage("rot", "x", -1.5, 0.6, 1.4, (0, top, F + W))],
-                      vents=[((0, H * 0.5, F + W), (0, 0.2, 1))])]
+                      stages=[stage("pos", "z", 0.04, 1.5, 0.3), stage("rot", "x", -1.5, 1.8, 1.4, (0, top, F + W))],
+                      dash=True, vents=[((0, H * 0.5, F + W), (0, 0.2, 1))])]
         for sg, nm in ((1, "PETAL_L"), (-1, "PETAL_R")):
             p, _, _ = ray_poly(c["outer"], sg * b)
             parts.append(dict(name=nm, region=("sector", a, b, y_lo, y_hi) if sg > 0 else ("sector", -b, -a, y_lo, y_hi),
-                              keep_inner=True, stages=[stage("rot", "y", sg * 1.75, 1.4, 1.5, (p.x, 0, p.y))],
+                              keep_inner=True, stages=[stage("rot", "y", sg * 1.75, 0.3, 1.5, (p.x, 0, p.y))],
                               vents=[((p.x - sg * 0.02, H * 0.5, p.y + 0.02), (sg, 0.1, 0.4))]))
         return parts
     swivel = dict(name="SEAT", region="seat", stages=[stage("rot", "y", math.pi, 2.5, 1.6, (0, 0, -0.12))])
@@ -410,13 +431,13 @@ def mechanism(L, c):
                              stage("rot", "x", -0.55, 2.2, 0.9, (0, ys, F - 0.1))],
                      clamps=[out(s * deg, (ys + H) / 2) for s in (1, -1)],
                      vents=[((s * 0.55, ys + 0.02, F + W), (s * 0.3, -0.2, 1)) for s in (1, -1)]),
-                dict(name="LOWER", region=("sector", -deg, deg, y_lo, ys - 0.02), keep_inner=True,
+                dict(name="LOWER", region=("sector", -deg, deg, y_lo, ys - 0.02), keep_inner=True, dash=True,
                      stages=[stage("pos", "z", 0.04, 1.6, 0.3), stage("rot", "x", 1.42, 1.9, 1.3, (0, -W, F + W))],
                      clamps=[out(s * deg, ys / 2) for s in (1, -1)])]
     if m == "plug":
         wd = (F + W) * math.tan(deg * D)
         return [dict(name="PLUG", region=("sector", -deg, deg, y_lo, y_hi), keep_inner=True,
-                     stages=[stage("pos", "z", 0.20, 0.4, 0.6), stage("pos", "x", -(2 * wd + 0.3), 1.1, 1.9)],
+                     stages=[stage("pos", "z", 0.60, 0.4, 0.9), stage("pos", "x", -(2 * wd + 0.3), 1.4, 1.9)], dash=True,
                      clamps=[out(s * deg, y) for s in (1, -1) for y in (0.45, H - 0.45)],
                      vents=[((s * wd, H * 0.5, F + W), (s * 0.5, 0, 1)) for s in (1, -1)], rails=wd)]
     if m == "ramp":
@@ -461,7 +482,7 @@ def mechanism(L, c):
                      rams=[((sx * 1.08, ys - 0.6, z), (sx * 1.08, ys + 0.2, z)) for sx in (1, -1) for z in (-0.25, -0.6)],
                      clamps=[down(s * b, ys) for s in (1, -1) for b in (70, 112)],
                      vents=[((s * 0.95, ys, z), (s, 0.1, 0)) for s in (1, -1) for z in (0.3, -0.4)]),
-                dict(name="LOWER", region=("sector", -lo, lo, y_lo, ys), keep_inner=True,
+                dict(name="LOWER", region=("sector", -lo, lo, y_lo, ys), keep_inner=True, dash=True,
                      stages=[stage("pos", "z", 0.04, 1.8, 0.3), stage("rot", "x", 1.42, 2.1, 1.4, (0, -W, F + W))])]
     raise ValueError(m)
 
@@ -617,11 +638,25 @@ def build(L, door="front"):
     if "dash" in where:
         y0 = L["rows"][0][0]
         zf = c["front"] - 0.30
-        dash = box("dash", (0, y0 - 0.16, zf), facing((0, y0 - 0.16, zf), (0, y0 + 0.6, -0.4)), (1.5, 0.30, 0.10), "CONSOLE")
-        strut = [box(f"dash_strut{sg}", (sg * 0.6, (y0 - 0.16) / 2, zf - 0.05), I3, (0.06, y0 - 0.16, 0.06), "FRAME") for sg in (1, -1)]
-        statics.append(join([dash] + strut, "dash"))
-        for i, x in enumerate((-0.51, -0.17, 0.17, 0.51)):
-            statics += mfd(f"mfd_dash{i}", (x, y0 - 0.08, zf - 0.08), 0.24, kinds[i])
+        carrier = next((P for P in parts if P.get("dash")), None)
+        # never wider than the cabin where it stands, nor than the doorway it rides out through (the owner: the
+        # control panel was in the way of climbing out, "you had control panel attacked to the door earlier")
+        half = min(abs(x) for x in cross_x(outline, zf + 0.1)) - 0.08
+        if carrier and carrier["region"][0] == "sector" and carrier["name"] != "PETAL_M":
+            half = min(half, c["front"] * math.tan(max(abs(carrier["region"][1]), abs(carrier["region"][2])) * D) - 0.17)
+        w = min(1.5, 2 * half)
+        step = (w - 0.06) / 4
+        size = min(0.24, step - 0.06)
+        dash = box("dash", (0, y0 - 0.16, zf), facing((0, y0 - 0.16, zf), (0, y0 + 0.6, -0.4)), (w, 0.30, 0.10), "CONSOLE")
+        if carrier:                      # brackets from the dash to the opening part's own wall
+            legs = [box(f"dash_bracket{sg}", (sg * w * 0.3, y0 - 0.2, (zf + wall_z(outline, sg * w * 0.3)) / 2), I3,
+                        (0.06, 0.06, wall_z(outline, sg * w * 0.3) - zf + 0.01), "FRAME") for sg in (1, -1)]
+        else:
+            legs = [box(f"dash_strut{sg}", (sg * w * 0.4, (y0 - 0.16) / 2, zf - 0.05), I3, (0.06, y0 - 0.16, 0.06), "FRAME") for sg in (1, -1)]
+        home = objs[carrier["name"]] if carrier else statics
+        home.append(join([dash] + legs, "dash"))
+        for i in range(4):
+            home.extend(mfd(f"mfd_dash{i}", ((i - 1.5) * step, y0 - 0.08, zf - 0.08), size, kinds[i]))
     if "top" in where:
         y1 = L["rows"][-1][1]
         zf = c["front"] - 0.45
@@ -633,11 +668,12 @@ def build(L, door="front"):
             (objs["SEAT"] if "SEAT" in objs else statics).extend(mfd(f"mfd_arm{i}", (x, floor_y + 0.78 + 0.05 * (i // 2), z), 0.2, kinds[i]))
     for P in parts:                     # a plug door's rails, on brackets from the front corners
         if P.get("rails"):
-            wd, zr = P["rails"], c["front"] + WALL_M + 0.25
+            wd, zr = P["rails"], c["front"] + WALL_M + 0.75
             for k, y in enumerate((0.02, c["H"] - 0.02)):
                 statics.append(box(f"rail{k}", (-wd - 0.15, y, zr), I3, (4 * wd + 0.6, 0.08, 0.06), "FRAME"))
                 for sx in (1, -1):
-                    statics.append(box(f"bracket{k}{sx}", (sx * (wd + 0.06), y, zr - 0.13), I3, (0.06, 0.06, 0.2), "FRAME"))
+                    statics.append(box(f"bracket{k}{sx}", (sx * (wd + 0.06), y, (zr + c["front"] + WALL_M) / 2), I3,
+                                       (0.06, 0.06, zr - c["front"] - WALL_M), "FRAME"))
     # the clamps: blocks on the seam, outside, that slide clear before the part moves
     clamps = []                         # (name, centre, axes, slide direction, start)
     for P in parts:
