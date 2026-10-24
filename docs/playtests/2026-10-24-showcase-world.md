@@ -8,7 +8,7 @@ come through the F5-F9 test actions until weapons exist.
   60 fps capture (OBS ScreenCaptureKit window capture). Frame cost not measured in this take
   (recording runs beside it).
 - Result: `PLAYTEST_RESULT ok showcase: boarded, strode, flew, waded, felled trees, shelled, limped`
-- Drive: `dungeon-crawler-2026/crab-breeze-2026-10-24-showcase-world.mp4`
+- Drive: `dungeon-crawler-2026/crab-breeze-2026-10-24-showcase-world.mp4`, https://drive.google.com/file/d/1o4yncCYexhNpEyIBHTBDrIuEq4vP2JEp/view
 - Contact sheet: `2026-10-24-showcase-world_frames.png`
 
 | Beat | What it shows |
