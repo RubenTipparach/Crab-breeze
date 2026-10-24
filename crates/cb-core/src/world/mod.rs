@@ -2,7 +2,8 @@
 //! `data/world/world.ron` (openspec change `procgen-world`).
 //!
 //! `generate` is pure: the same seed and config always give the same `WorldPlan`. `cb-app::world`
-//! draws the plan; the pilot and the mech walk on it through `height_at` and `push_out`.
+//! draws the plan; the pilot and the mech walk on it through `height_at` and `push_out`. The world
+//! is an island in the sea (openspec change `island-world`).
 
 pub mod clouds;
 pub mod collision;
@@ -10,7 +11,9 @@ pub mod config;
 pub mod deform;
 pub mod destruct;
 pub mod forest;
+pub mod grid;
 pub mod layout;
+pub mod lod;
 pub mod terrain;
 pub mod water;
 
@@ -19,14 +22,14 @@ pub use collision::BuildingGrid;
 pub use config::WorldConfig;
 pub use deform::Deformation;
 pub use destruct::{Chunk, Structures};
-pub use forest::{Forest, Tree, TreeState};
+pub use forest::{Body, Bump, Forest, Push, TileChanges, Tree, TreeState};
 pub use layout::{Block, Building, City, Highway, Rect, StreetKind, StreetPiece};
 pub use terrain::{ChunkMesh, Heightfield};
 pub use water::{Bridge, River, WaterSample, Waters};
 
 use crate::rng::{SimRng, label_hash};
 use glam::Vec2;
-use terrain::{ValueNoise, smoothstep};
+use terrain::{Flats, Shape};
 
 /// What a body walking on the world needs from it. The world plan implements it; tests use
 /// `FlatGround`. Bodies take this rather than the plan, so the rules do not depend on how the
@@ -231,9 +234,12 @@ impl WorldPlan {
                 put(*s);
             }
         }
-        for h in self.terrain.heights_m.iter().step_by(97) {
-            put(*h);
+        for iz in (0..self.terrain.n).step_by(97) {
+            for ix in (0..self.terrain.n).step_by(97) {
+                put(self.terrain.sample(ix, iz));
+            }
         }
+        put(self.clouds.puffs.len() as f32);
         let mut text = String::with_capacity(words.len() * 8);
         for w in words {
             text.push_str(&w.to_string());
@@ -243,26 +249,30 @@ impl WorldPlan {
     }
 }
 
-/// Builds the world for `seed` (procgen-world design section 2).
+/// Builds the world for `seed` (procgen-world design section 2, island-world design section 2).
+/// Nothing here walks the whole ground: heights are asked for where they are needed, and trees
+/// grow later, by tile, near the bodies in the world (`Forest::keep_around`).
 pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
     let root = SimRng::new(seed).fork("world");
-    let noise = ValueNoise::new(&root.fork("terrain"));
-    let base = |p: Vec2| {
-        noise.height(
-            p.x,
-            p.y,
-            cfg.noise_wavelength_m,
-            cfg.noise_amplitude_m,
-            cfg.noise_octaves,
-            cfg.noise_persistence,
-        )
-    };
+    let shape = Shape::new(&root, cfg);
+    let sea_level_m = cfg.island.sea_level_m;
 
-    let placed = layout::place_cities(&mut root.fork("cities"), cfg);
+    // A city stands inland, on ground above the sea, its square and blend clear of the shelf.
+    let on_land = |c: Vec2, half: f32| {
+        let reach = half + cfg.plateau_flat_margin_m + cfg.plateau_blend_m;
+        let corners = [
+            Vec2::new(-1.0, -1.0),
+            Vec2::new(1.0, -1.0),
+            Vec2::new(1.0, 1.0),
+            Vec2::new(-1.0, 1.0),
+        ];
+        shape.height(c) >= sea_level_m + cfg.water.city_freeboard_m && corners.iter().all(|k| shape.past_land_edge_m(c + *k * reach) < 0.0)
+    };
+    let placed = layout::place_cities(&mut root.fork("cities"), cfg, &on_land);
     let cities: Vec<City> = placed
         .iter()
         .enumerate()
-        .map(|(i, &(c, half))| layout::lay_out_city(&mut root.fork(&format!("city/{i}")), i as u32, c, half, base(c), cfg))
+        .map(|(i, &(c, half))| layout::lay_out_city(&mut root.fork(&format!("city/{i}")), i as u32, c, half, shape.height(c), cfg))
         .collect();
     let highways = layout::connect_cities(&cities, cfg);
 
@@ -274,47 +284,23 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         buildings.extend(layout::build_city(&mut rng, city, &highways, first, largest, cfg));
     }
 
-    let n = cfg.samples_per_side();
-    let mut terrain = Heightfield {
-        n,
-        cell_m: cfg.terrain_cell_m,
-        origin_m: -cfg.world_size_m * 0.5,
-        heights_m: Vec::with_capacity(n * n),
+    let flats = Flats::new(&cities, &highways, cfg);
+    let terrain = Heightfield::new(cfg, shape, flats);
+    let bounds = water::RiverBounds {
+        world_size_m: cfg.world_size_m,
+        sea_level_m,
+        source_within_m: cfg.island.land_radius_m * 0.7,
     };
-    let flat_m = cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m;
-    for iz in 0..n {
-        for ix in 0..n {
-            let p = terrain.sample_xz(ix, iz);
-            let mut h = base(p);
-            for c in &cities {
-                let d = c.rect().distance(p) - cfg.plateau_flat_margin_m;
-                let w = 1.0 - smoothstep(0.0, cfg.plateau_blend_m, d);
-                h += (c.ground_m - h) * w;
-            }
-            for hw in &highways {
-                let (d, t) = hw.project(p);
-                let w = 1.0 - smoothstep(0.0, cfg.highway_blend_m, d - flat_m);
-                h += (hw.grade_at(t) - h) * w;
-            }
-            terrain.heights_m.push(h);
-        }
-    }
-
-    let waters = water::make_waters(
-        &root.fork("water"),
-        &mut terrain,
-        &cities,
-        &highways,
-        &cfg.water,
-        cfg.world_size_m,
-        cfg.plateau_flat_margin_m,
-    );
+    let waters = water::make_waters(&root.fork("water"), &terrain, &cities, &highways, &cfg.water, &bounds);
+    let road_flat_m = cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m;
+    let channels = waters.channels(&cfg.water, &cities, cfg.plateau_flat_margin_m, &highways, road_flat_m);
+    let terrain = terrain.with_channels(channels);
 
     let start = start_point(&cities, cfg);
     let roofs = buildings.iter().map(|b| cities[b.city as usize].ground_m + b.height_m).collect();
     let collision = BuildingGrid::new(&buildings, cfg.world_size_m, 64.0).with_roofs(roofs);
     let clouds = clouds::make_clouds(&root.fork("clouds"), &cfg.clouds, cfg.world_size_m);
-    let mut plan = WorldPlan {
+    WorldPlan {
         seed,
         terrain,
         cities,
@@ -323,11 +309,9 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         start,
         collision,
         waters,
-        forest: Forest::default(),
+        forest: Forest::new(&root.fork("trees"), &cfg.trees, cfg.world_size_m),
         clouds,
-    };
-    plan.forest = forest::grow(&root.fork("trees"), &plan, &cfg.trees, cfg.world_size_m);
-    plan
+    }
 }
 
 /// The street piece running along z nearest the largest city's centre (ties to the first).

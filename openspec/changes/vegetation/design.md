@@ -32,6 +32,26 @@ the oldest settle where they are.
 | Physics | up to 64 bodies while falling, then sleeping |
 | Memory | 120 k x 32 bytes instance data = about 4 MB |
 
+## 5. Mech contact, legs and crown (owner, 2026-10-24: "I feel like more trees should fallover when I hit them with my mech")
+
+Measured against the code: a tree counted as hit only when its trunk came within the mech's 3 m
+body radius plus the trunk, and only the speed along the legs' heading counted, so a skating
+slide, an air push or a crown brushed by the hull did nothing, and a broken tree did not slow the
+mech. Now:
+
+- **Legs against the trunk** (feet below 40 % of the tree's height): within `body_radius_m` (3 m)
+  plus the trunk radius. A tree that does not snap stops the mech, as before.
+- **Hull and arms through the crown**: the mech's body (feet to `body_height_m`, 12 m) overlapping
+  the crown (from `crown_base_share` of the height to the top) within `brush_radius_m` (5.5 m) plus
+  the crown radius (`crown_radius_share` of the height: pine 0.2, oak 0.34, birch 0.2, as drawn).
+  The push lands high, so it counts `crown_leverage` (2) times; a crown that does not snap bends
+  and lets the mech through.
+- **The push** is the mech's mass times its real horizontal velocity into the tree plus
+  `graze_share` (0.25) of its speed past it, so a fast mech brushing a tree still snaps it. The tree
+  falls mostly the way the mech is going (0.6 of the travel, 0.4 away from the mech).
+- **Momentum**: each snapped tree takes half its mass along: the mech keeps
+  `m / (m + 0.5 * m_tree)` of its velocity (a 20 m pine, about 4.6 t, costs a 50 t mech 4 %).
+
 ## Open questions
 
 | Id | Question | Recommendation | State |
