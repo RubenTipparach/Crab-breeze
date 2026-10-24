@@ -61,6 +61,15 @@ pub const SOCKETS: &[BoneSpec] = &[
     bone("WHEEL_R", "foot_R"),
 ];
 
+/// Optional bones a mech may carry; the engine uses them when present (`head`: the sensor head
+/// with the main cameras, openspec change `mech-damage`).
+pub const OPTIONAL: &[BoneSpec] = &[bone("head", "torso")];
+
+/// The parent an optional node must have, or `None` if the name is not an optional node.
+pub fn optional_parent(name: &str) -> Option<Option<&'static str>> {
+    OPTIONAL.iter().find(|b| b.name == name).map(|b| b.parent)
+}
+
 /// The legs' bone names, outward from the hip, for one side (`"L"` or `"R"`).
 pub fn leg_bones(side: &str) -> [String; 5] {
     ["thigh", "shin", "hock", "foot", "toe"].map(|b| format!("{b}_{side}"))

@@ -55,3 +55,9 @@ cockpit can show (kW removed), computed but unused.
 | --- | --- | --- | --- |
 | W3 | How deep can a mech wade? | to the cockpit floor (about 8 m); deeper is refused | provisional (survey W3) |
 | W4 | Water in the first world | 2 rivers and lakes below sea level | provisional (survey W4) |
+
+## As built (2026-10-24)
+
+- Water tuning is the `water:` section of `data/world/world.ron`, not a separate file.
+- Wading is a speed cap by depth (`wade_slowdown`, 0.6 at the hips), not per-leg drag yet; ripples are expanding rings plus a scrolling ripple normal map (a wave-equation texture is still to do).
+- Seed 42 has 2 rivers and no highway crossing, so no bridge stands yet; the bridge code is tested by its own rule.

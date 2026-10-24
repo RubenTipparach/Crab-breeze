@@ -7,7 +7,8 @@ use crate::sim::{Data, PresentSet, SimSet};
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions};
-use cb_core::input::{Actions, Bindings, ModeRequest};
+use cb_core::input::{Actions, Bindings, DebugCommand, ModeRequest};
+use cb_core::mech::PartKind;
 
 /// Device input gathered since the last fixed step.
 #[derive(Resource, Default)]
@@ -20,6 +21,8 @@ pub struct InputAccum {
     pub throttle_zero: bool,
     /// A mode was asked for.
     pub mode: Option<ModeRequest>,
+    /// A test command was asked for.
+    pub debug: Option<DebugCommand>,
     /// When set, a script plays instead of the keyboard (held axes and buttons); mouse look and
     /// latches above still add.
     pub script: Option<Actions>,
@@ -44,6 +47,8 @@ struct Keys {
     mode_skate: Vec<KeyCode>,
     mode_jet: Vec<KeyCode>,
     release_mouse: Vec<KeyCode>,
+    lift: Vec<KeyCode>,
+    debug: Vec<(Vec<KeyCode>, DebugCommand)>,
     deg_per_px: f32,
     invert_pitch: bool,
 }
@@ -85,6 +90,14 @@ fn resolve(b: &Bindings) -> Result<Keys, String> {
         mode_skate: r("mode_skate", &b.mode_skate)?,
         mode_jet: r("mode_jet", &b.mode_jet)?,
         release_mouse: r("release_mouse", &b.release_mouse)?,
+        lift: r("lift", &b.lift)?,
+        debug: vec![
+            (r("debug_hit_arm_l", &b.debug_hit_arm_l)?, DebugCommand::Hit(PartKind::ArmL)),
+            (r("debug_hit_arm_r", &b.debug_hit_arm_r)?, DebugCommand::Hit(PartKind::ArmR)),
+            (r("debug_hit_head", &b.debug_hit_head)?, DebugCommand::Hit(PartKind::Head)),
+            (r("debug_hit_leg_l", &b.debug_hit_leg_l)?, DebugCommand::Hit(PartKind::LegL)),
+            (r("debug_shell", &b.debug_shell)?, DebugCommand::Shell),
+        ],
         deg_per_px: b.mouse_deg_per_px,
         invert_pitch: b.invert_pitch,
     })
@@ -121,6 +134,18 @@ fn key_code(name: &str) -> Option<KeyCode> {
         "ArrowDown" => ArrowDown,
         "ArrowLeft" => ArrowLeft,
         "ArrowRight" => ArrowRight,
+        "F1" => F1,
+        "F2" => F2,
+        "F3" => F3,
+        "F4" => F4,
+        "F5" => F5,
+        "F6" => F6,
+        "F7" => F7,
+        "F8" => F8,
+        "F9" => F9,
+        "F10" => F10,
+        "F11" => F11,
+        "F12" => F12,
         _ => return None,
     })
 }
@@ -173,6 +198,11 @@ fn sample_devices(
             acc.mode = Some(m);
         }
     }
+    for (k, cmd) in &keys.debug {
+        if any_just(&input, k) {
+            acc.debug = Some(*cmd);
+        }
+    }
 }
 
 fn axis(input: &ButtonInput<KeyCode>, pos: &[KeyCode], neg: &[KeyCode]) -> f32 {
@@ -190,6 +220,7 @@ fn take_step_actions(input: Res<ButtonInput<KeyCode>>, keys: Res<Keys>, mut acc:
                 throttle_axis: fwd,
                 turn_axis: -side,
                 run: any(&input, &keys.run),
+                lift_axis: f32::from(u8::from(any(&input, &keys.lift))),
                 free_look: any(&input, &keys.free_look),
                 ..default()
             }
@@ -200,6 +231,7 @@ fn take_step_actions(input: Res<ButtonInput<KeyCode>>, keys: Res<Keys>, mut acc:
         use_pressed: held.use_pressed || acc.use_pressed,
         throttle_zero: held.throttle_zero || acc.throttle_zero,
         mode_request: held.mode_request.or(acc.mode),
+        debug: held.debug.or(acc.debug),
         ..held
     }
     .sanitised();
@@ -207,6 +239,7 @@ fn take_step_actions(input: Res<ButtonInput<KeyCode>>, keys: Res<Keys>, mut acc:
     acc.use_pressed = false;
     acc.throttle_zero = false;
     acc.mode = None;
+    acc.debug = None;
 }
 
 #[cfg(test)]

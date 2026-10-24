@@ -28,3 +28,7 @@ ground and from inside a cloud (the worst case). Fog: free. Shadow texture: one 
 | --- | --- | --- | --- |
 | W8 | Clouds | scattered cumulus at 600-1100 m, about 40 % cover, fly-through fog | provisional (survey W8) |
 | T4 | Camera raindrops from Pale Blue Dot | port its lens-droplet effect when rain arrives; bring its source into reach | open (survey T4) |
+
+## As built (2026-10-24)
+
+- Puffs are 7 unlit soft billboards each (288 puffs for seed 42, about 2 000 quads); fly-through fog is the camera's distance fog driven by `density_at` at the eye. Cloud shadows and camera raindrops are still to do.

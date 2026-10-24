@@ -16,4 +16,11 @@
     mode_skate: ["Digit2"],
     mode_jet: ["Digit3"],
     release_mouse: ["Escape"],
+    lift: ["Space"],
+    // Test keys until weapons exist.
+    debug_hit_arm_l: ["F5"],
+    debug_hit_arm_r: ["F6"],
+    debug_hit_head: ["F7"],
+    debug_hit_leg_l: ["F8"],
+    debug_shell: ["F9"],
 )

@@ -39,20 +39,27 @@ fn a_different_seed_builds_a_different_world() {
 #[test]
 fn seed_42_builds_the_golden_world() {
     let plan = seed_42();
-    let summary = (plan.cities.len(), plan.buildings.len(), plan.highways.len(), plan.fingerprint());
+    let summary = (
+        plan.cities.len(),
+        plan.buildings.len(),
+        plan.highways.len(),
+        plan.forest.trees.len(),
+        plan.fingerprint(),
+    );
     assert_eq!(
         summary,
-        (GOLDEN_CITIES, GOLDEN_BUILDINGS, GOLDEN_HIGHWAYS, GOLDEN_FINGERPRINT),
+        (GOLDEN_CITIES, GOLDEN_BUILDINGS, GOLDEN_HIGHWAYS, GOLDEN_TREES, GOLDEN_FINGERPRINT),
         "the seed-42 world changed; if that was intended, update the golden values"
     );
 }
 
-// Pinned 2026-10-23 on the owner's Mac (aarch64). The generator uses only IEEE arithmetic plus
+// Pinned 2026-10-24 (with water and trees) on the owner's Mac (aarch64). The generator uses only IEEE arithmetic plus
 // `powf` for storeys; if another platform disagrees, the difference is in that one call.
 const GOLDEN_CITIES: usize = 4;
 const GOLDEN_BUILDINGS: usize = 1226;
 const GOLDEN_HIGHWAYS: usize = 3;
-const GOLDEN_FINGERPRINT: u64 = 5918053884793661017;
+const GOLDEN_TREES: usize = 41571;
+const GOLDEN_FINGERPRINT: u64 = 13446694087906155705;
 
 #[test]
 fn cities_keep_their_minimum_spacing() {
@@ -157,6 +164,9 @@ fn the_ground_under_a_highway_is_the_road_grade() {
             let t = k as f32 / steps as f32;
             for side in [-0.5, -0.25, 0.0, 0.25, 0.5] {
                 let p = h.ends[0] + (h.ends[1] - h.ends[0]) * t + across * h.width_m * side;
+                if plan.waters.bridges.iter().any(|b| b.centre.distance(p) < b.length_m * 0.5 + 2.0) {
+                    continue; // On a bridge: the river runs under the deck.
+                }
                 let (_, tt) = h.project(p);
                 let got = plan.height_at(p.x, p.y);
                 // The drawn road sits `road_lift_m` (0.1 m) above the grade; the ground's straight
@@ -177,4 +187,102 @@ fn the_start_is_on_a_street_clear_of_buildings() {
     let plan = seed_42();
     assert!(!plan.collision.overlaps(plan.start.mech_xz, 3.0));
     assert!(!plan.collision.overlaps(plan.start.pilot_xz, 0.35));
+}
+
+#[test]
+fn seed_42_has_rivers_and_lakes() {
+    let w = &seed_42().waters;
+    assert!(!w.rivers.is_empty(), "rivers");
+    let wet = seed_42().terrain.heights_m.iter().filter(|h| **h < w.sea_level_m).count();
+    assert!(wet > 0, "some ground lies under the lakes");
+}
+
+#[test]
+fn a_river_always_runs_downhill() {
+    for r in &seed_42().waters.rivers {
+        for w in r.surface_m.windows(2) {
+            assert!(w[1] <= w[0], "the surface rose from {} to {}", w[0], w[1]);
+        }
+    }
+}
+
+#[test]
+fn no_city_square_is_under_water() {
+    let plan = seed_42();
+    for c in &plan.cities {
+        let r = c.rect();
+        for k in 0..400 {
+            let t = Vec2::new((k % 20) as f32 / 19.0, (k / 20) as f32 / 19.0);
+            let p = r.min + r.size() * t;
+            assert!(plan.water_at(p.x, p.y).is_none(), "city {} is wet at {p}", c.id);
+        }
+    }
+}
+
+#[test]
+fn rivers_keep_clear_of_cities() {
+    let plan = seed_42();
+    for r in &plan.waters.rivers {
+        for p in &r.path {
+            for c in &plan.cities {
+                assert!(
+                    c.rect().distance(*p) >= plan_cfg().water.river_city_clearance_m - plan_cfg().water.river_grid_m,
+                    "river at {p} near city {}",
+                    c.id
+                );
+            }
+        }
+    }
+}
+
+fn plan_cfg() -> WorldConfig {
+    shipped()
+}
+
+#[test]
+fn a_river_centre_is_under_water_and_its_depth_is_surface_minus_ground() {
+    let plan = seed_42();
+    for r in &plan.waters.rivers {
+        let mid = r.path.len() / 2;
+        let p = r.path[mid];
+        let w = plan.water_at(p.x, p.y).expect("water at a river's centre");
+        assert!((w.surface_m - w.depth_m - plan.height_at(p.x, p.y)).abs() < 1e-3);
+        assert!(w.depth_m > 2.0, "a river is deep at its centre: {}", w.depth_m);
+    }
+}
+
+#[test]
+fn every_highway_crossing_has_a_bridge_at_road_grade() {
+    let plan = seed_42();
+    for b in &plan.waters.bridges {
+        let h = plan
+            .highways
+            .iter()
+            .find(|h| h.project(b.centre).0 < 1.0)
+            .expect("a bridge is on a highway");
+        let (_, t) = h.project(b.centre);
+        assert!((b.deck_m - h.grade_at(t)).abs() < 1e-3);
+    }
+}
+
+#[test]
+fn seed_42_grows_woods_clear_of_roads_water_and_buildings() {
+    let plan = seed_42();
+    let f = &plan.forest;
+    assert!(f.trees.len() > 5000, "woods: {} trees", f.trees.len());
+    for t in f.trees.iter().step_by(7) {
+        let p = Vec2::new(t.base.x, t.base.z);
+        assert!(plan.water_at(p.x, p.y).is_none(), "tree {} in water", t.id);
+        assert!(
+            plan.highways.iter().all(|h| h.project(p).0 > h.width_m * 0.5),
+            "tree {} on a highway",
+            t.id
+        );
+        assert!(!plan.collision.overlaps(p, 1.0), "tree {} in a building", t.id);
+        for c in &plan.cities {
+            for st in &c.streets {
+                assert!(st.rect.distance(p) > 0.0, "tree {} on a street", t.id);
+            }
+        }
+    }
 }

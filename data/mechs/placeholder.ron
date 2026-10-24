@@ -20,6 +20,11 @@
         pitch_rate_deg_s: 40.0,
         body_radius_m: 3.0,
         stopped_speed_m_s: 0.2,
+        hip_height_m: 5.9,
+        max_wade_depth_m: 8.0,
+        wade_slowdown: 0.6,
+        mass_kg: 50000.0,
+        limp_speed_ratio: 0.22,
     ),
     gait: (
         stride_max_m: 9.0,
@@ -36,6 +41,8 @@
         (name: "torso_twist", parent: "pelvis", offset_m: (0.0, 0.8, 0.0)),
         (name: "torso", parent: "torso_twist", offset_m: (0.0, 0.6, 0.0)),
         (name: "cockpit", parent: "torso", offset_m: (0.0, 1.6, 1.4)),
+        // The sensor head (optional contract bone; openspec change mech-damage).
+        (name: "head", parent: "torso", offset_m: (0.0, 4.4, -1.2)),
         (name: "EYE_pilot", parent: "cockpit", offset_m: (0.0, 0.4, 0.6)),
         (name: "SEAT_pilot", parent: "cockpit", offset_m: (0.0, -0.3, 0.3)),
         (name: "HATCH_entry", parent: "cockpit", offset_m: (0.0, 1.4, 0.0)),
@@ -75,6 +82,8 @@
         (bone: "torso_twist", centre_m: (0.0, 0.2, 0.0), size_m: (2.0, 0.8, 2.0), tone: 2),
         (bone: "torso", centre_m: (0.0, 2.2, -0.9), size_m: (5.0, 4.4, 3.6), tone: 0),
         (bone: "torso", centre_m: (1.6, 2.6, -3.1), size_m: (1.0, 1.6, 0.8), tone: 1),
+        (bone: "head", centre_m: (0.0, 0.55, 0.2), size_m: (1.6, 1.1, 1.8), tone: 2),
+        (bone: "head", centre_m: (0.0, 0.6, 1.15), size_m: (1.0, 0.4, 0.15), tone: 5),
         (bone: "torso", centre_m: (-1.6, 2.6, -3.1), size_m: (1.0, 1.6, 0.8), tone: 1),
 
         // The cockpit: a frame around EYE_pilot, open glass between, a hatch gap in the roof.

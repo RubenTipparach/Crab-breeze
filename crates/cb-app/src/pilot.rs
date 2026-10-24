@@ -3,12 +3,16 @@
 //! out, and `EYE_pilot` in the seat. There is no other camera (CLAUDE.md, the law).
 
 use crate::input::{InputAccum, StepActions};
+use crate::mech::MechRoot;
 use crate::mech::{MechAccessNow, MechRig, socket_now};
 use crate::sim::{Data, PresentSet, SimSet};
-use crate::world::{Plan, SKY};
+use crate::world::{Live, Plan, SKY};
 use bevy::pbr::{DistanceFog, FogFalloff};
 use bevy::prelude::*;
+use bevy::render::view::ColorGrading;
+use cb_core::mech::PartKind;
 use cb_core::pilot::{PilotEvent, PilotMode, PilotState};
+use cb_core::world::Scene;
 
 /// The pilot's state at the last two fixed steps, for interpolation.
 #[derive(Resource)]
@@ -46,7 +50,7 @@ impl Plugin for PilotPlugin {
         .init_resource::<PilotEvents>()
         .add_systems(Startup, spawn_camera)
         .add_systems(FixedUpdate, step_pilot.in_set(SimSet::Pilot))
-        .add_systems(Update, place_camera.in_set(PresentSet::Camera));
+        .add_systems(Update, (place_camera, weather_and_screens).chain().in_set(PresentSet::Camera));
     }
 }
 
@@ -67,6 +71,7 @@ fn spawn_camera(mut commands: Commands) {
             ..default()
         },
         Transform::default(),
+        ColorGrading::default(),
     ));
 }
 
@@ -77,14 +82,19 @@ fn step_pilot(
     access: Res<MechAccessNow>,
     data: Res<Data>,
     plan: Res<Plan>,
+    live: Res<Live>,
     time: Res<Time<Fixed>>,
 ) {
     let pilot = &mut *pilot;
     pilot.prev = pilot.curr.clone();
-    let ground: &cb_core::world::WorldPlan = &plan;
+    let ground = Scene {
+        plan: &plan,
+        dug: &live.dug,
+        trees: Some(&live.forest),
+    };
     let event = pilot
         .curr
-        .step(&actions, &data.0.pilot, ground, access.0.as_ref(), time.delta_secs());
+        .step(&actions, &data.0.pilot, &ground, access.0.as_ref(), time.delta_secs());
     events.0.extend(event);
     match event {
         Some(PilotEvent::HatchWanted) => info!("pilot: asked the mech to sit and open"),
@@ -149,4 +159,37 @@ fn place_camera(
             None => Transform::from_translation(eye).with_rotation(walking_view()),
         },
     };
+}
+
+/// Clear-air visibility.
+const CLEAR_VISIBILITY_M: f32 = 3500.0;
+
+/// What the pilot sees through: in a cloud the view fogs by the cloud density at the eye (the one
+/// cloud query); seated with the sensor head shot off, the view is the backup cameras' (washed out,
+/// darker, tinted) until the all-view screen change draws them properly.
+fn weather_and_screens(
+    plan: Res<Plan>,
+    time: Res<Time>,
+    pilot: Res<PilotSim>,
+    data: Res<Data>,
+    mechs: Query<&crate::mech::MechSim, With<MechRoot>>,
+    mut camera: Single<(&GlobalTransform, &mut DistanceFog, &mut ColorGrading), With<PilotCamera>>,
+) {
+    let (eye, fog, grading) = &mut *camera;
+    let density = plan.clouds.density_at(eye.translation(), time.elapsed_secs());
+    let vis = CLEAR_VISIBILITY_M + (25.0 - CLEAR_VISIBILITY_M) * density.sqrt();
+    let inside = density.sqrt();
+    fog.color = SKY.mix(&Color::srgb(0.9, 0.92, 0.95), inside);
+    fog.falloff = FogFalloff::from_visibility_colors(
+        vis,
+        Color::srgb(0.45, 0.55, 0.68).mix(&Color::srgb(0.85, 0.87, 0.9), inside),
+        Color::srgb(0.80, 0.86, 0.95).mix(&Color::srgb(0.95, 0.95, 0.97), inside),
+    );
+    let head_lost = pilot.curr.mode == PilotMode::Seated && mechs.iter().any(|m| m.damage.is_lost(&data.0.mech.parts, PartKind::Head));
+    let (sat, exp, tint) = if head_lost { (0.25, -0.6, 0.15) } else { (1.0, 0.0, 0.0) };
+    if grading.global.post_saturation != sat {
+        grading.global.post_saturation = sat;
+        grading.global.exposure = exp;
+        grading.global.tint = tint;
+    }
 }

@@ -6,6 +6,242 @@
 use crate::data::{Validate, finite, positive, positive_range, within};
 use serde::Deserialize;
 
+/// Rivers and lakes (openspec change `terrain-water`).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct WaterConfig {
+    /// Lakes fill the ground below this share of all terrain heights, 0..1.
+    pub sea_level_percentile: f32,
+    /// Sea level stays at least this far below every city's ground.
+    pub city_freeboard_m: f32,
+    /// Rivers to run.
+    pub river_count: u32,
+    /// Grid a river's course is chosen on.
+    pub river_grid_m: f32,
+    /// Most grid steps a river takes.
+    pub river_max_steps: u32,
+    /// Random height added to each step's choice: larger meanders more.
+    pub meander_m: f32,
+    /// Least distance between a river and a city square.
+    pub river_city_clearance_m: f32,
+    /// Water surface width at the source.
+    pub river_width_m: f32,
+    /// Width grows by this share from source to mouth.
+    pub river_widening: f32,
+    /// Depth at the channel's centre.
+    pub river_depth_m: f32,
+    /// Water surface below the surrounding ground.
+    pub freeboard_m: f32,
+    /// Rise of a riverbank per metre outward (0.5 is about 27 degrees).
+    pub bank_slope: f32,
+    /// River flow speed.
+    pub flow_m_s: f32,
+}
+
+impl Default for WaterConfig {
+    fn default() -> Self {
+        Self {
+            sea_level_percentile: 0.12,
+            city_freeboard_m: 2.0,
+            river_count: 2,
+            river_grid_m: 32.0,
+            river_max_steps: 400,
+            meander_m: 6.0,
+            river_city_clearance_m: 80.0,
+            river_width_m: 36.0,
+            river_widening: 0.4,
+            river_depth_m: 7.0,
+            freeboard_m: 2.0,
+            bank_slope: 0.45,
+            flow_m_s: 1.5,
+        }
+    }
+}
+
+impl Validate for WaterConfig {
+    fn validate(&self) -> Result<(), String> {
+        within("water.sea_level_percentile", self.sea_level_percentile, 0.0, 1.0)?;
+        finite("water.city_freeboard_m", self.city_freeboard_m)?;
+        positive("water.river_grid_m", self.river_grid_m)?;
+        finite("water.meander_m", self.meander_m)?;
+        finite("water.river_city_clearance_m", self.river_city_clearance_m)?;
+        positive("water.river_width_m", self.river_width_m)?;
+        finite("water.river_widening", self.river_widening)?;
+        positive("water.river_depth_m", self.river_depth_m)?;
+        finite("water.freeboard_m", self.freeboard_m)?;
+        positive("water.bank_slope", self.bank_slope)?;
+        finite("water.flow_m_s", self.flow_m_s)?;
+        Ok(())
+    }
+}
+
+/// A tree species (openspec change `vegetation`).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Species {
+    /// Name (`pine`, `oak`, `birch`).
+    pub name: String,
+    /// Share of trees, relative to the others.
+    pub share: f32,
+    /// Height range.
+    pub height_m: [f32; 2],
+    /// Trunk radius range at the base.
+    pub trunk_radius_m: [f32; 2],
+    /// Momentum that snaps a mid-sized one, kilonewton seconds (a 50 t mech at 1 m/s is 50).
+    pub break_impulse_kn_s: f32,
+}
+
+/// Trees (openspec change `vegetation`).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct TreeConfig {
+    /// Grid spacing of tree sites.
+    pub spacing_m: f32,
+    /// Wavelength of the forest mask noise.
+    pub mask_wavelength_m: f32,
+    /// Mask value above which the ground is forest.
+    pub forest_threshold: f32,
+    /// Chance a site in forest has a tree.
+    pub forest_chance: f32,
+    /// Chance a site in open country has a tree.
+    pub scatter_chance: f32,
+    /// Chance a site in a park block has a tree.
+    pub park_chance: f32,
+    /// Species.
+    pub species: Vec<Species>,
+}
+
+impl Default for TreeConfig {
+    fn default() -> Self {
+        let sp = |name: &str, share: f32, h: [f32; 2], r: [f32; 2], b: f32| Species {
+            name: name.into(),
+            share,
+            height_m: h,
+            trunk_radius_m: r,
+            break_impulse_kn_s: b,
+        };
+        Self {
+            spacing_m: 11.0,
+            mask_wavelength_m: 700.0,
+            forest_threshold: 0.12,
+            forest_chance: 0.85,
+            scatter_chance: 0.04,
+            park_chance: 0.5,
+            species: vec![
+                sp("pine", 0.5, [14.0, 26.0], [0.25, 0.45], 60.0),
+                sp("oak", 0.25, [10.0, 18.0], [0.4, 0.8], 240.0),
+                sp("birch", 0.25, [9.0, 16.0], [0.12, 0.25], 25.0),
+            ],
+        }
+    }
+}
+
+impl Validate for TreeConfig {
+    fn validate(&self) -> Result<(), String> {
+        positive("trees.spacing_m", self.spacing_m)?;
+        positive("trees.mask_wavelength_m", self.mask_wavelength_m)?;
+        finite("trees.forest_threshold", self.forest_threshold)?;
+        within("trees.forest_chance", self.forest_chance, 0.0, 1.0)?;
+        within("trees.scatter_chance", self.scatter_chance, 0.0, 1.0)?;
+        within("trees.park_chance", self.park_chance, 0.0, 1.0)?;
+        if self.species.is_empty() || self.species.len() > 255 {
+            return Err("`trees.species` must list 1 to 255 species".into());
+        }
+        for s in &self.species {
+            positive(&format!("trees.species[{}].share", s.name), s.share)?;
+            positive_range(&format!("trees.species[{}].height_m", s.name), s.height_m)?;
+            positive_range(&format!("trees.species[{}].trunk_radius_m", s.name), s.trunk_radius_m)?;
+            positive(&format!("trees.species[{}].break_impulse_kn_s", s.name), s.break_impulse_kn_s)?;
+        }
+        Ok(())
+    }
+}
+
+/// Clouds (openspec change `clouds`).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct CloudConfig {
+    /// Cloud base height.
+    pub base_m: f32,
+    /// Highest cloud top.
+    pub top_m: f32,
+    /// Grid spacing of cluster sites.
+    pub spacing_m: f32,
+    /// Share of sites with a cluster, 0..1.
+    pub coverage: f32,
+    /// Cluster width range.
+    pub cluster_size_m: [f32; 2],
+    /// Clouds continue this far past the world's edge.
+    pub beyond_world_m: f32,
+    /// Wind drift (x, z).
+    pub wind_m_s: [f32; 2],
+}
+
+impl Default for CloudConfig {
+    fn default() -> Self {
+        Self {
+            base_m: 600.0,
+            top_m: 1100.0,
+            spacing_m: 700.0,
+            coverage: 0.45,
+            cluster_size_m: [220.0, 520.0],
+            beyond_world_m: 2000.0,
+            wind_m_s: [3.0, 1.0],
+        }
+    }
+}
+
+impl Validate for CloudConfig {
+    fn validate(&self) -> Result<(), String> {
+        finite("clouds.base_m", self.base_m)?;
+        if self.top_m <= self.base_m {
+            return Err("`clouds.top_m` must be above `clouds.base_m`".into());
+        }
+        positive("clouds.spacing_m", self.spacing_m)?;
+        within("clouds.coverage", self.coverage, 0.0, 1.0)?;
+        positive_range("clouds.cluster_size_m", self.cluster_size_m)?;
+        finite("clouds.beyond_world_m", self.beyond_world_m)?;
+        finite("clouds.wind_m_s", self.wind_m_s[0])?;
+        finite("clouds.wind_m_s", self.wind_m_s[1])?;
+        Ok(())
+    }
+}
+
+/// Craters (openspec change `terrain-deformation`).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct CraterConfig {
+    /// Crater radius per cube root of the blast energy in megajoules.
+    pub radius_m_per_cbrt_mj: f32,
+    /// Bowl depth as a share of the radius.
+    pub depth_ratio: f32,
+    /// Rim height as a share of the radius.
+    pub rim_ratio: f32,
+    /// Deepest the ground can be dug below where it was.
+    pub max_dig_m: f32,
+}
+
+impl Default for CraterConfig {
+    fn default() -> Self {
+        Self {
+            radius_m_per_cbrt_mj: 2.2,
+            depth_ratio: 0.35,
+            rim_ratio: 0.08,
+            max_dig_m: 6.0,
+        }
+    }
+}
+
+impl Validate for CraterConfig {
+    fn validate(&self) -> Result<(), String> {
+        positive("craters.radius_m_per_cbrt_mj", self.radius_m_per_cbrt_mj)?;
+        within("craters.depth_ratio", self.depth_ratio, 0.0, 2.0)?;
+        within("craters.rim_ratio", self.rim_ratio, 0.0, 1.0)?;
+        positive("craters.max_dig_m", self.max_dig_m)?;
+        Ok(())
+    }
+}
+
 /// Everything the world generator is tuned by.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
@@ -79,6 +315,14 @@ pub struct WorldConfig {
     pub kerb_height_m: f32,
     /// How far behind the mech the pilot starts.
     pub start_pilot_distance_m: f32,
+    /// Rivers and lakes.
+    pub water: WaterConfig,
+    /// Trees.
+    pub trees: TreeConfig,
+    /// Clouds.
+    pub clouds: CloudConfig,
+    /// Craters.
+    pub craters: CraterConfig,
 }
 
 impl Default for WorldConfig {
@@ -118,6 +362,10 @@ impl Default for WorldConfig {
             road_lift_m: 0.1,
             kerb_height_m: 0.2,
             start_pilot_distance_m: 25.0,
+            water: WaterConfig::default(),
+            trees: TreeConfig::default(),
+            clouds: CloudConfig::default(),
+            craters: CraterConfig::default(),
         }
     }
 }
@@ -180,6 +428,10 @@ impl Validate for WorldConfig {
             return Err("`kerb_height_m` must be above `road_lift_m`".into());
         }
         positive("start_pilot_distance_m", self.start_pilot_distance_m)?;
+        self.water.validate()?;
+        self.trees.validate()?;
+        self.clouds.validate()?;
+        self.craters.validate()?;
         Ok(())
     }
 }

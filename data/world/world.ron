@@ -40,4 +40,21 @@
     kerb_height_m: 0.2,
 
     start_pilot_distance_m: 25.0,
+
+    // Rivers and lakes (openspec/changes/terrain-water/design.md section 1).
+    water: (
+        sea_level_percentile: 0.12,
+        city_freeboard_m: 2.0,
+        river_count: 2,
+        river_grid_m: 32.0,
+        river_max_steps: 400,
+        meander_m: 6.0,
+        river_city_clearance_m: 80.0,
+        river_width_m: 36.0,
+        river_widening: 0.4,
+        river_depth_m: 7.0,
+        freeboard_m: 2.0,
+        bank_slope: 0.45,
+        flow_m_s: 1.5,
+    ),
 )

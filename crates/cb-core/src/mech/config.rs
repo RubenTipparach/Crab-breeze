@@ -1,6 +1,7 @@
 //! A mech's data: its stand-in skeleton and boxes, an optional glb, and its locomotion and gait
 //! tuning (`data/mechs/<name>.ron`, openspec change `mech-rig`).
 
+use super::damage::{PartSpec, default_parts, validate_parts};
 use super::rig::{BONES, SOCKETS, contract_parent};
 use crate::data::{Validate, finite, finite3, positive, within};
 use serde::Deserialize;
@@ -65,6 +66,16 @@ pub struct LocomotionConfig {
     pub body_radius_m: f32,
     /// Below this ground speed the mech counts as stopped (boarding allowed).
     pub stopped_speed_m_s: f32,
+    /// Hip height, for wading: water this deep reaches the hips.
+    pub hip_height_m: f32,
+    /// Deepest water the mech walks into (the cockpit floor).
+    pub max_wade_depth_m: f32,
+    /// Share of top speed lost with water at the hips (terrain-water design section 2).
+    pub wade_slowdown: f32,
+    /// Mass, for knocking things over.
+    pub mass_kg: f32,
+    /// Share of walking speed left with one leg (mech-damage design section 2).
+    pub limp_speed_ratio: f32,
 }
 
 impl Default for LocomotionConfig {
@@ -82,6 +93,11 @@ impl Default for LocomotionConfig {
             pitch_rate_deg_s: 40.0,
             body_radius_m: 3.0,
             stopped_speed_m_s: 0.2,
+            hip_height_m: 5.9,
+            max_wade_depth_m: 8.0,
+            wade_slowdown: 0.6,
+            mass_kg: 50_000.0,
+            limp_speed_ratio: 0.22,
         }
     }
 }
@@ -120,6 +136,43 @@ impl Default for GaitConfig {
     }
 }
 
+/// Jet flight tuning (survey M3: heat limits flight; fuel is ignored in early testing).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct JetConfig {
+    /// Upward acceleration from the jets at full lift, before gravity.
+    pub thrust_m_s2: f32,
+    /// Fastest climb.
+    pub climb_max_m_s: f32,
+    /// Fastest fall the jets let it reach while lifting at all.
+    pub sink_max_m_s: f32,
+    /// Top horizontal speed in the air at full throttle.
+    pub speed_max_m_s: f32,
+    /// Horizontal acceleration in the air.
+    pub accel_m_s2: f32,
+    /// Jet heat gained per second at full lift (1 is the limit).
+    pub heat_rise_per_s: f32,
+    /// Jet heat shed per second off the jets.
+    pub cool_per_s: f32,
+    /// After overheating, the jets relight below this heat.
+    pub relight_heat: f32,
+}
+
+impl Default for JetConfig {
+    fn default() -> Self {
+        Self {
+            thrust_m_s2: 28.0,
+            climb_max_m_s: 40.0,
+            sink_max_m_s: 25.0,
+            speed_max_m_s: 60.0,
+            accel_m_s2: 8.0,
+            heat_rise_per_s: 0.04,
+            cool_per_s: 0.08,
+            relight_heat: 0.6,
+        }
+    }
+}
+
 /// A mech: its model, its stand-in, and its tuning.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
@@ -133,6 +186,10 @@ pub struct MechConfig {
     pub locomotion: LocomotionConfig,
     /// Walk tuning.
     pub gait: GaitConfig,
+    /// Jet tuning.
+    pub jet: JetConfig,
+    /// Parts that can be shot off.
+    pub parts: Vec<PartSpec>,
     /// The stand-in's bones and sockets.
     pub nodes: Vec<NodeSpec>,
     /// The stand-in's boxes.
@@ -146,6 +203,8 @@ impl Default for MechConfig {
             model: None,
             locomotion: LocomotionConfig::default(),
             gait: GaitConfig::default(),
+            jet: JetConfig::default(),
+            parts: default_parts(),
             nodes: Vec::new(),
             boxes: Vec::new(),
         }
@@ -168,6 +227,11 @@ impl Validate for MechConfig {
         positive("locomotion.pitch_rate_deg_s", l.pitch_rate_deg_s)?;
         positive("locomotion.body_radius_m", l.body_radius_m)?;
         positive("locomotion.stopped_speed_m_s", l.stopped_speed_m_s)?;
+        positive("locomotion.hip_height_m", l.hip_height_m)?;
+        positive("locomotion.max_wade_depth_m", l.max_wade_depth_m)?;
+        within("locomotion.wade_slowdown", l.wade_slowdown, 0.0, 0.95)?;
+        positive("locomotion.mass_kg", l.mass_kg)?;
+        within("locomotion.limp_speed_ratio", l.limp_speed_ratio, 0.0, 1.0)?;
         let g = &self.gait;
         positive("gait.stride_max_m", g.stride_max_m)?;
         positive("gait.stride_min_m", g.stride_min_m)?;
@@ -176,10 +240,20 @@ impl Validate for MechConfig {
         finite("gait.sway_m", g.sway_m)?;
         finite("gait.turn_step_radius_m", g.turn_step_radius_m)?;
         positive("gait.settle_speed_m_s", g.settle_speed_m_s)?;
+        let j = &self.jet;
+        positive("jet.thrust_m_s2", j.thrust_m_s2)?;
+        positive("jet.climb_max_m_s", j.climb_max_m_s)?;
+        positive("jet.sink_max_m_s", j.sink_max_m_s)?;
+        positive("jet.speed_max_m_s", j.speed_max_m_s)?;
+        positive("jet.accel_m_s2", j.accel_m_s2)?;
+        positive("jet.heat_rise_per_s", j.heat_rise_per_s)?;
+        positive("jet.cool_per_s", j.cool_per_s)?;
+        within("jet.relight_heat", j.relight_heat, 0.0, 1.0)?;
+        validate_parts(&self.parts)?;
         for n in &self.nodes {
             finite3(&format!("nodes[{}].offset_m", n.name), n.offset_m)?;
             let parent = (!n.parent.is_empty()).then_some(n.parent.as_str());
-            match contract_parent(&n.name) {
+            match contract_parent(&n.name).or_else(|| super::rig::optional_parent(&n.name)) {
                 None => return Err(format!("nodes: `{}` is not a contract bone or socket", n.name)),
                 Some(p) if p != parent => {
                     return Err(format!(

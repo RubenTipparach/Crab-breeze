@@ -13,6 +13,8 @@ pub struct BuildingGrid {
     side: usize,
     buckets: Vec<Vec<u32>>,
     footprints: Vec<Rect>,
+    /// Roof height of each building; empty when unknown (then every building is a wall).
+    roofs: Vec<f32>,
 }
 
 impl BuildingGrid {
@@ -25,6 +27,7 @@ impl BuildingGrid {
             side,
             buckets: vec![Vec::new(); side * side],
             footprints: Vec::with_capacity(buildings.len()),
+            roofs: Vec::new(),
         };
         for (i, b) in buildings.iter().enumerate() {
             grid.footprints.push(b.footprint);
@@ -37,6 +40,39 @@ impl BuildingGrid {
             }
         }
         grid
+    }
+
+    /// The same grid knowing each building's roof height, so bodies can fly over and stand on them.
+    pub fn with_roofs(mut self, roofs: Vec<f32>) -> Self {
+        self.roofs = roofs;
+        self
+    }
+
+    /// Like `push_out`, but only buildings whose roof is above `feet_y` are walls.
+    pub fn push_out_at(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
+        if !p.is_finite() {
+            return p;
+        }
+        let mut p = p;
+        for _ in 0..2 {
+            for i in self.candidates(p, radius_m) {
+                if self.roofs.get(i as usize).is_some_and(|top| *top <= feet_y + 0.5) {
+                    continue;
+                }
+                p = push_out_of_rect(p, radius_m, &self.footprints[i as usize]);
+            }
+        }
+        p
+    }
+
+    /// The highest roof under `p` that is no higher than `feet_y + 1 m`, if any.
+    pub fn roof_under(&self, p: Vec2, feet_y: f32) -> Option<f32> {
+        self.candidates(p, 0.0)
+            .iter()
+            .filter(|&&i| self.footprints[i as usize].distance(p) == 0.0)
+            .filter_map(|&i| self.roofs.get(i as usize).copied())
+            .filter(|top| *top <= feet_y + 1.0)
+            .reduce(f32::max)
     }
 
     fn bucket(&self, p: Vec2) -> (usize, usize) {

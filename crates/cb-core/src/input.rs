@@ -17,6 +17,15 @@ pub enum ModeRequest {
     Jet,
 }
 
+/// A test command, until weapons exist (openspec changes `mech-damage`, `terrain-deformation`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DebugCommand {
+    /// Shoot off a part of the pilot's own mech.
+    Hit(crate::mech::PartKind),
+    /// Drop a shell where the pilot is looking.
+    Shell,
+}
+
 /// The action state for one fixed step.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Actions {
@@ -28,6 +37,8 @@ pub struct Actions {
     pub throttle_axis: f32,
     /// In the mech: turn the legs left (+) or right (-), -1..1.
     pub turn_axis: f32,
+    /// In the mech: jet lift, 0..1.
+    pub lift_axis: f32,
     /// Use was pressed this step (board, climb out).
     pub use_pressed: bool,
     /// Run on foot.
@@ -38,6 +49,8 @@ pub struct Actions {
     pub throttle_zero: bool,
     /// A movement mode was asked for this step.
     pub mode_request: Option<ModeRequest>,
+    /// A test command this step.
+    pub debug: Option<DebugCommand>,
 }
 
 impl Actions {
@@ -48,6 +61,7 @@ impl Actions {
         self.look_delta_deg = Vec2::new(clean(self.look_delta_deg.x, 360.0), clean(self.look_delta_deg.y, 360.0));
         self.throttle_axis = clean(self.throttle_axis, 1.0);
         self.turn_axis = clean(self.turn_axis, 1.0);
+        self.lift_axis = clean(self.lift_axis, 1.0).max(0.0);
         self
     }
 }
@@ -102,6 +116,18 @@ pub struct Bindings {
     pub mode_jet: Vec<String>,
     /// Release the mouse.
     pub release_mouse: Vec<String>,
+    /// Jet lift (hold).
+    pub lift: Vec<String>,
+    /// Test: shoot off the left arm.
+    pub debug_hit_arm_l: Vec<String>,
+    /// Test: shoot off the right arm.
+    pub debug_hit_arm_r: Vec<String>,
+    /// Test: shoot off the head.
+    pub debug_hit_head: Vec<String>,
+    /// Test: shoot off the left leg.
+    pub debug_hit_leg_l: Vec<String>,
+    /// Test: drop a shell where the pilot looks.
+    pub debug_shell: Vec<String>,
 }
 
 impl Default for Bindings {
@@ -122,6 +148,12 @@ impl Default for Bindings {
             mode_skate: k("Digit2"),
             mode_jet: k("Digit3"),
             release_mouse: k("Escape"),
+            lift: k("Space"),
+            debug_hit_arm_l: k("F5"),
+            debug_hit_arm_r: k("F6"),
+            debug_hit_head: k("F7"),
+            debug_hit_leg_l: k("F8"),
+            debug_shell: k("F9"),
         }
     }
 }

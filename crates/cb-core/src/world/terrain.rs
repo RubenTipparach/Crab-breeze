@@ -66,6 +66,11 @@ impl Heightfield {
 
     /// The mesh for the chunk of `cells` x `cells` cells starting at cell `(cx * cells, cz * cells)`.
     pub fn chunk_mesh(&self, cx: usize, cz: usize, cells: usize) -> ChunkMesh {
+        self.chunk_mesh_except(cx, cz, cells, |_, _| false)
+    }
+
+    /// The chunk mesh without the cells `skip(ix, iz)` names (where a finer crater tile is drawn).
+    pub fn chunk_mesh_except(&self, cx: usize, cz: usize, cells: usize, skip: impl Fn(usize, usize) -> bool) -> ChunkMesh {
         let x0 = cx * cells;
         let z0 = cz * cells;
         let x1 = (x0 + cells).min(self.n - 1);
@@ -81,6 +86,9 @@ impl Heightfield {
         }
         for iz in 0..(z1 - z0) {
             for ix in 0..(x1 - x0) {
+                if skip(x0 + ix, z0 + iz) {
+                    continue;
+                }
                 let a = (iz * w + ix) as u32;
                 let b = a + 1;
                 let c = a + w as u32;

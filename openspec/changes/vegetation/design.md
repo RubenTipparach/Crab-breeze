@@ -37,3 +37,9 @@ the oldest settle where they are.
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | W6 | Trees in the first world | conifer and broadleaf woods between cities, river rows, park trees | provisional (survey W6) |
+
+## As built (2026-10-24)
+
+- Trees are procedural meshes (cone pines, blob oaks and birches) until the art side's models arrive; one entity each, culled at 1.6 km. Seed 42 grows 41 571.
+- A broken tree falls as a rigid rod pivoting on its stump (`theta'' = 3 g sin(theta) / 2 L`) in `cb-core`, deterministic, instead of an Avian body.
+- Tuning is the `trees:` section of `data/world/world.ron`.

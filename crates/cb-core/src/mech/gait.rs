@@ -157,30 +157,58 @@ pub fn pose(state: &MechState, gait: &GaitConfig, rest: &RigRest, sit: &SitPose,
         -gait.bob_m * swing * 0.5 * (1.0 - (2.0 * TAU * p).cos()),
         0.0,
     );
-    let pelvis_offset = walk_offset + Vec3::Y * (sit.pelvis_height_m - rest.pelvis.y) * s;
-    let solve = |leg: &LegRest, ph: f64| {
+    let mut pelvis_offset = walk_offset + Vec3::Y * (sit.pelvis_height_m - rest.pelvis.y) * s;
+    // A lost leg leaves its thigh as a crutch (mech-damage design section 2): the stump points
+    // down and a little forward, the hips drop onto it, and the body hops on the good leg.
+    let lost = state.legs_lost;
+    let limping = lost.iter().any(|l| *l);
+    let stump_angle = (0.35f32).atan2(-1.0);
+    if limping {
+        let leg = if lost[0] { &rest.legs[0] } else { &rest.legs[1] };
+        let thigh = plane(leg.knee - leg.hip).length();
+        let hip_y = thigh * stump_angle.cos().abs() + 0.3;
+        let hop = -0.35 * swing * (TAU * p).sin().abs();
+        pelvis_offset.y = (hip_y - leg.hip.y) + hop;
+        pelvis_offset.x = 0.0;
+    }
+    let solve = |leg: &LegRest, ph: f64, gone: bool| {
+        if gone {
+            let turn = wrap(stump_angle - plane_angle(leg.knee - leg.hip));
+            return LegPose {
+                thigh: Quat::from_rotation_x(turn),
+                shin: Quat::IDENTITY,
+                hock: Quat::IDENTITY,
+                foot: Quat::IDENTITY,
+                ankle: leg.hip + pelvis_offset,
+            };
+        }
         // The sat hock lies `hock_angle_deg` back from straight down: plane angle pi - angle.
         let hock_rest = plane_angle(leg.ankle - leg.hock);
         let hock_sat = PI - sit.hock_angle_deg.to_radians();
         let turn = wrap(hock_sat - hock_rest) * s;
         solve_leg(leg, leg.hip + pelvis_offset, leg.ankle + foot_offset(ph, a, lift), turn)
     };
-    let twist = Quat::from_rotation_y(state.twist_rad);
+    // The torso rolls toward the stump (+x is the mech's left; rolling left is about -z).
+    let roll = match lost {
+        [true, false] => -12f32.to_radians(),
+        [false, true] => 12f32.to_radians(),
+        _ => 0.0,
+    };
+    let twist = Quat::from_rotation_z(roll) * Quat::from_rotation_y(state.twist_rad);
     // Pitch up turns +z toward +y: a negative rotation about +x. A bow is a positive one.
     let pitch = -state.pitch_rad + sit.torso_bow_deg.to_radians() * s;
     MechPose {
         pelvis_offset,
         torso_twist: twist,
         torso: twist * Quat::from_rotation_x(pitch),
-        left: solve(&rest.legs[0], phase),
-        right: solve(&rest.legs[1], phase + 0.5),
+        left: solve(&rest.legs[0], phase, lost[0]),
+        right: solve(&rest.legs[1], phase + 0.5, lost[1]),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mech::config::LocomotionConfig;
     use crate::mech::locomotion::MechControls;
     use crate::world::FlatGround;
 
@@ -204,6 +232,22 @@ mod tests {
             pelvis: Vec3::new(0.0, 6.2, 0.0),
             legs: [l, r],
         }
+    }
+
+    #[test]
+    fn a_mech_without_its_left_leg_stands_on_its_stump_and_its_good_foot() {
+        let mut s = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        s.legs_lost = [true, false];
+        let p = pose(&s, &GaitConfig::default(), &rig(), &SitPose::default(), 0.0);
+        let r = rig();
+        let (l, rr) = (r.legs[0], r.legs[1]);
+        let stump_tip = l.hip + p.pelvis_offset + p.left.thigh * (l.knee - l.hip);
+        assert!(
+            (stump_tip.y - 0.3).abs() < 0.05,
+            "the stump reaches down to the ground: {stump_tip}"
+        );
+        let foot = ankle_of(&rr, rr.hip + p.pelvis_offset, &p.right);
+        assert!(foot.distance(rr.ankle) < 1e-2, "the good foot stays planted: {foot}");
     }
 
     #[test]
@@ -279,7 +323,8 @@ mod tests {
 
     #[test]
     fn a_stance_foot_does_not_slide_at_steady_speed() {
-        let (l, g) = (LocomotionConfig::default(), GaitConfig::default());
+        let cfg = crate::mech::MechConfig::default();
+        let g = cfg.gait.clone();
         let mut s = MechState::standing(Vec3::ZERO, 0.0, &g);
         let go = MechControls {
             throttle_axis: 1.0,
@@ -287,7 +332,7 @@ mod tests {
         };
         let dt = 1.0 / 60.0;
         for _ in 0..600 {
-            s.step(&go, &l, &g, &FlatGround::default(), dt);
+            s.step(&go, &cfg, &FlatGround::default(), dt);
         }
         let rig = rig();
         // World z of the left foot: body position plus the foot's model offset (model +z is
@@ -296,7 +341,7 @@ mod tests {
         let mut slide: f32 = 0.0;
         let mut start = None;
         for _ in 0..240 {
-            s.step(&go, &l, &g, &FlatGround::default(), dt);
+            s.step(&go, &cfg, &FlatGround::default(), dt);
             let p = s.gait_cycles.rem_euclid(1.0);
             if (0.05..0.45).contains(&p) {
                 let z = foot_world(&s);

@@ -41,3 +41,10 @@ stump while burning.
 | --- | --- | --- | --- |
 | M7 | Losing a leg | limp on the stump at under 25 % speed; both legs gone, it sits and fights | provisional (survey M7) |
 | M8 | Head destroyed | screens fall back to torso backup cameras: lower resolution, narrower, static | provisional (survey M8) |
+
+## As built (2026-10-24)
+
+- `head` is an optional contract bone (`rig::OPTIONAL`); the stand-in has one, Breeze not yet.
+- A lost part's bones become a tumbling wreck (`fx::Debris`, no Avian yet) and the stump burns for 25 s.
+- Head lost: the view is graded as the backup cameras (desaturated, darker) until the all-view screen exists.
+- Test keys F5-F8 (or the scripted pilot) shoot off left arm, right arm, head, left leg.

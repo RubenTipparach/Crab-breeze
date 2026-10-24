@@ -25,6 +25,8 @@ pub struct PilotConfig {
     pub body_radius_m: f32,
     /// Look pitch limit up and down.
     pub pitch_limit_deg: f32,
+    /// Deepest water the pilot walks into (no swimming yet).
+    pub max_wade_depth_m: f32,
     /// Use reaches `LADDER_base` (the stair's foot) from this far (horizontal).
     pub board_reach_m: f32,
     /// Speed of the eyes along the boarding path (climbing the stair).
@@ -46,6 +48,7 @@ impl Default for PilotConfig {
             eye_height_m: 1.7,
             body_radius_m: 0.35,
             pitch_limit_deg: 85.0,
+            max_wade_depth_m: 1.2,
             board_reach_m: 3.0,
             climb_speed_m_s: 1.2,
             free_look_yaw_deg: 120.0,
@@ -63,6 +66,7 @@ impl Validate for PilotConfig {
         positive("eye_height_m", self.eye_height_m)?;
         positive("body_radius_m", self.body_radius_m)?;
         within("pitch_limit_deg", self.pitch_limit_deg, 0.0, 89.9)?;
+        positive("max_wade_depth_m", self.max_wade_depth_m)?;
         positive("board_reach_m", self.board_reach_m)?;
         positive("climb_speed_m_s", self.climb_speed_m_s)?;
         within("free_look_yaw_deg", self.free_look_yaw_deg, 0.0, 180.0)?;
@@ -279,7 +283,11 @@ impl PilotState {
                 let wish = (fwd * a.move_xy.y + right * a.move_xy.x).clamp_length_max(1.0) * speed;
                 let dv = (wish - self.velocity).clamp_length_max(cfg.accel_m_s2 * dt_s);
                 self.velocity += dv;
-                let moved = Vec2::new(self.feet.x, self.feet.z) + self.velocity * dt_s;
+                let mut moved = Vec2::new(self.feet.x, self.feet.z) + self.velocity * dt_s;
+                if ground.water_at(moved.x, moved.y).is_some_and(|w| w.depth_m > cfg.max_wade_depth_m) {
+                    moved = Vec2::new(self.feet.x, self.feet.z);
+                    self.velocity = Vec2::ZERO;
+                }
                 let p = ground.push_out(moved, cfg.body_radius_m);
                 self.feet = Vec3::new(p.x, ground.height_at(p.x, p.y), p.y);
                 if let Some(m) = access {

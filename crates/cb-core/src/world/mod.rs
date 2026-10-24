@@ -4,15 +4,23 @@
 //! `generate` is pure: the same seed and config always give the same `WorldPlan`. `cb-app::world`
 //! draws the plan; the pilot and the mech walk on it through `height_at` and `push_out`.
 
+pub mod clouds;
 pub mod collision;
 pub mod config;
+pub mod deform;
+pub mod forest;
 pub mod layout;
 pub mod terrain;
+pub mod water;
 
+pub use clouds::Clouds;
 pub use collision::BuildingGrid;
 pub use config::WorldConfig;
+pub use deform::Deformation;
+pub use forest::{Forest, Tree, TreeState};
 pub use layout::{Block, Building, City, Highway, Rect, StreetKind, StreetPiece};
 pub use terrain::{ChunkMesh, Heightfield};
+pub use water::{Bridge, River, WaterSample, Waters};
 
 use crate::rng::{SimRng, label_hash};
 use glam::Vec2;
@@ -26,6 +34,53 @@ pub trait Ground {
     fn height_at(&self, x: f32, z: f32) -> f32;
     /// A body of `radius_m` at `p` (x, z), moved out of walls.
     fn push_out(&self, p: Vec2, radius_m: f32) -> Vec2;
+    /// Water at `(x, z)`, if any. Dry ground by default.
+    fn water_at(&self, _x: f32, _z: f32) -> Option<WaterSample> {
+        None
+    }
+    /// What a body with its feet at `feet_y` stands on at `(x, z)`: the ground, or a roof below it.
+    fn support_at(&self, x: f32, z: f32, _feet_y: f32) -> f32 {
+        self.height_at(x, z)
+    }
+    /// Like `push_out`, for a body with its feet at `feet_y` (it clears lower roofs).
+    fn push_out_at(&self, p: Vec2, radius_m: f32, _feet_y: f32) -> Vec2 {
+        self.push_out(p, radius_m)
+    }
+}
+
+/// The world as it is now: the generated plan plus the ground dug since, and optionally the trees
+/// standing now (as walls). The one `Ground` the game's bodies walk on.
+pub struct Scene<'a> {
+    /// The generated world.
+    pub plan: &'a WorldPlan,
+    /// Craters dug since.
+    pub dug: &'a Deformation,
+    /// Trees as walls (the pilot); `None` for bodies that break trees themselves (the mech).
+    pub trees: Option<&'a Forest>,
+}
+
+impl Ground for Scene<'_> {
+    fn height_at(&self, x: f32, z: f32) -> f32 {
+        self.plan.terrain.height_at(x, z) + self.dug.delta_at(Vec2::new(x, z))
+    }
+    fn push_out(&self, p: Vec2, radius_m: f32) -> Vec2 {
+        let p = self.plan.collision.push_out(p, radius_m);
+        self.trees.map_or(p, |t| t.push_out(p, radius_m))
+    }
+    fn water_at(&self, x: f32, z: f32) -> Option<WaterSample> {
+        self.plan.waters.water_at(Vec2::new(x, z), self.height_at(x, z))
+    }
+    fn support_at(&self, x: f32, z: f32, feet_y: f32) -> f32 {
+        let ground = self.height_at(x, z);
+        self.plan
+            .collision
+            .roof_under(Vec2::new(x, z), feet_y)
+            .map_or(ground, |r| r.max(ground))
+    }
+    fn push_out_at(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
+        let p = self.plan.collision.push_out_at(p, radius_m, feet_y);
+        self.trees.map_or(p, |t| t.push_out(p, radius_m))
+    }
 }
 
 impl Ground for WorldPlan {
@@ -34,6 +89,9 @@ impl Ground for WorldPlan {
     }
     fn push_out(&self, p: Vec2, radius_m: f32) -> Vec2 {
         self.collision.push_out(p, radius_m)
+    }
+    fn water_at(&self, x: f32, z: f32) -> Option<WaterSample> {
+        self.waters.water_at(Vec2::new(x, z), self.terrain.height_at(x, z))
     }
 }
 
@@ -85,6 +143,12 @@ pub struct WorldPlan {
     pub start: Start,
     /// Building collision.
     pub collision: BuildingGrid,
+    /// Rivers, lakes and bridges.
+    pub waters: Waters,
+    /// The trees as grown (their state as the game goes on is a copy the game keeps).
+    pub forest: Forest,
+    /// The sky's clouds.
+    pub clouds: Clouds,
 }
 
 impl WorldPlan {
@@ -116,6 +180,14 @@ impl WorldPlan {
             put(b.footprint.max.x);
             put(b.footprint.max.y);
             put(b.storeys as f32);
+        }
+        put(self.waters.sea_level_m);
+        for r in &self.waters.rivers {
+            for (p, s) in r.path.iter().zip(&r.surface_m) {
+                put(p.x);
+                put(p.y);
+                put(*s);
+            }
         }
         for h in self.terrain.heights_m.iter().step_by(97) {
             put(*h);
@@ -186,9 +258,21 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         }
     }
 
+    let waters = water::make_waters(
+        &root.fork("water"),
+        &mut terrain,
+        &cities,
+        &highways,
+        &cfg.water,
+        cfg.world_size_m,
+        cfg.plateau_flat_margin_m,
+    );
+
     let start = start_point(&cities, cfg);
-    let collision = BuildingGrid::new(&buildings, cfg.world_size_m, 64.0);
-    WorldPlan {
+    let roofs = buildings.iter().map(|b| cities[b.city as usize].ground_m + b.height_m).collect();
+    let collision = BuildingGrid::new(&buildings, cfg.world_size_m, 64.0).with_roofs(roofs);
+    let clouds = clouds::make_clouds(&root.fork("clouds"), &cfg.clouds, cfg.world_size_m);
+    let mut plan = WorldPlan {
         seed,
         terrain,
         cities,
@@ -196,7 +280,12 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         buildings,
         start,
         collision,
-    }
+        waters,
+        forest: Forest::default(),
+        clouds,
+    };
+    plan.forest = forest::grow(&root.fork("trees"), &plan, &cfg.trees, cfg.world_size_m);
+    plan
 }
 
 /// The street piece running along z nearest the largest city's centre (ties to the first).

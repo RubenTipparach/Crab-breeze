@@ -3,16 +3,21 @@
 //! same code for both), steps its locomotion and boarding clock in the fixed step, and poses its
 //! bones and hatch nodes from the interpolated state.
 
+use crate::blast::Explosion;
+use crate::fx::{Burst, Debris, FxKind, Ripple};
 use crate::input::StepActions;
-use crate::pilot::{PilotEvents, PilotSim};
+use crate::pilot::{PilotCamera, PilotEvents, PilotSim};
 use crate::sim::{Data, PresentSet, SimSet};
-use crate::world::Plan;
+use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use bevy::world_serialization::WorldAssetRoot;
 use cb_core::boarding::{Hatch, HatchTarget};
+use cb_core::input::DebugCommand;
 use cb_core::mech::rig::{BONES, SOCKETS};
+use cb_core::mech::{Damage, Hit, LocomotionMode};
 use cb_core::mech::{LegRest, MechControls, MechState, RigRest, pose};
 use cb_core::pilot::{MechAccess, PilotEvent, PilotMode};
+use cb_core::world::{Ground, Scene};
 use std::collections::HashMap;
 
 /// The mech's root: on the ground, turned to its heading.
@@ -23,7 +28,7 @@ pub struct MechRoot {
 }
 
 /// Simulation state at the last two fixed steps, for interpolation.
-#[derive(Component, Clone, Copy)]
+#[derive(Component, Clone)]
 pub struct MechSim {
     /// The step before.
     pub prev: MechState,
@@ -33,6 +38,10 @@ pub struct MechSim {
     pub hatch_prev: Hatch,
     /// Boarding clock at the latest step.
     pub hatch: Hatch,
+    /// Damage by part.
+    pub damage: Damage,
+    /// Parts lost this step whose bones the drawing must cut off.
+    pub cuts: Vec<usize>,
 }
 
 /// A hatch node found by a timeline motion's pattern.
@@ -61,6 +70,16 @@ pub struct MechRig {
     sockets: HashMap<&'static str, Entity>,
     rest: RigRest,
     hatch_nodes: Vec<HatchNode>,
+    /// Every named node under the model, for cutting parts off by bone name.
+    named: HashMap<String, Entity>,
+    /// Contract bones no longer driven (shot off), by `BONES` index.
+    cut: Vec<bool>,
+}
+
+/// Smoke and fire rising from where a part was shot off.
+#[derive(Component)]
+struct Burning {
+    until_s: f32,
 }
 
 /// The model lacks contract bones; it is shown but not driven.
@@ -79,7 +98,7 @@ impl Plugin for MechPlugin {
         app.init_resource::<MechAccessNow>()
             .add_systems(Startup, spawn_mech)
             .add_systems(FixedUpdate, (publish_access.in_set(SimSet::Input), step_mech.in_set(SimSet::Mech)))
-            .add_systems(Update, (bind_rig, drive_mech).chain().in_set(PresentSet::Pose));
+            .add_systems(Update, (bind_rig, cut_parts, drive_mech, burn).chain().in_set(PresentSet::Pose));
     }
 }
 
@@ -119,6 +138,8 @@ fn spawn_mech(
                 curr: state,
                 hatch_prev: Hatch::default(),
                 hatch: Hatch::default(),
+                damage: Damage::new(&cfg.parts),
+                cuts: Vec::new(),
             },
             Transform::from_translation(state.pos).with_rotation(Quat::from_rotation_y(state.heading_rad)),
             Visibility::default(),
@@ -301,11 +322,14 @@ fn bind_rig(
             SOCKETS.len(),
             hatch_nodes.len()
         );
+        let named = named.into_iter().collect();
         commands.entity(root).insert(MechRig {
+            cut: vec![false; bones.len()],
             bones,
             sockets,
             rest,
             hatch_nodes,
+            named,
         });
     }
 }
@@ -342,7 +366,9 @@ fn drive_mech(
             t.rotation = Quat::from_rotation_y(s.heading_rad);
         }
         let Some(rig) = rig else { continue };
-        let p = pose(&s, &data.0.mech.gait, &rig.rest, &tl.sit, tl.sit_amount(t));
+        // No legs left: it sits (mech-damage design section 2).
+        let sit_amount = if s.legs_lost == [true, true] { 1.0 } else { tl.sit_amount(t) };
+        let p = pose(&s, &data.0.mech.gait, &rig.rest, &tl.sit, sit_amount);
         for n in &rig.hatch_nodes {
             let stage = &tl.stages[n.stage];
             let m = &stage.motions[n.motion];
@@ -361,6 +387,9 @@ fn drive_mech(
             let own = rotations.iter().find(|(n, _)| *n == spec.name).map(|(_, q)| *q);
             d[i] = own.unwrap_or(inherited);
             let bind = &rig.bones[i];
+            if rig.cut[i] {
+                continue;
+            }
             let Ok(mut t) = transforms.get_mut(bind.entity) else { continue };
             let d_parent = inherited;
             t.rotation = (d_parent * bind.parent_rest_model_rot).inverse() * d[i] * bind.rest_model_rot;
@@ -391,20 +420,29 @@ fn publish_access(
     });
 }
 
-fn step_mech(
-    mut roots: Query<&mut MechSim, With<MechRoot>>,
+/// Steps the mech: boarding clock, test commands, locomotion on the live ground, trees in its way,
+/// and the effects of its feet and jets.
+pub fn step_mech(
+    mut roots: Query<(&mut MechSim, Option<&MechRig>), With<MechRoot>>,
     actions: Res<StepActions>,
     pilot: Res<PilotSim>,
     mut events: ResMut<PilotEvents>,
     access: Res<MechAccessNow>,
     data: Res<Data>,
     plan: Res<Plan>,
+    mut live: ResMut<Live>,
     time: Res<Time<Fixed>>,
+    camera: Query<&GlobalTransform, With<PilotCamera>>,
+    globals: Query<&GlobalTransform>,
+    mut explosions: MessageWriter<Explosion>,
+    mut bursts: MessageWriter<Burst>,
+    mut ripples: MessageWriter<Ripple>,
 ) {
     let cfg = &data.0.mech;
     let tl = &data.0.boarding;
     let seated = pilot.curr.mode == PilotMode::Seated;
-    for mut sim in &mut roots {
+    let live = &mut *live;
+    for (mut sim, rig) in &mut roots {
         sim.prev = sim.curr;
         sim.hatch_prev = sim.hatch;
         // The boarding sequence follows the pilot (mech-boarding design section 4).
@@ -422,19 +460,258 @@ fn step_mech(
         if sim.hatch.target == HatchTarget::Open && clear && pilot.curr.waiting.is_none() {
             sim.hatch.target = HatchTarget::SealedSitting;
         }
-        if seated && sim.hatch.is_sealed_sitting(tl) && actions.throttle_axis > 0.0 {
+        if seated && sim.hatch.is_sealed_sitting(tl) && (actions.throttle_axis > 0.0 || actions.lift_axis > 0.0) {
             sim.hatch.target = HatchTarget::Standing;
         }
         sim.hatch.step(tl, time.delta_secs());
+
+        // Test commands until weapons exist.
+        match actions.debug {
+            Some(DebugCommand::Hit(kind)) => {
+                if let Some(part) = cfg.parts.iter().position(|p| p.kind == kind) {
+                    let sim = &mut *sim;
+                    if let Some(lost) = sim.damage.resolve(
+                        &cfg.parts,
+                        Hit {
+                            part,
+                            penetration_mm: 500.0,
+                            damage: 1000.0,
+                        },
+                    ) {
+                        sim.cuts.push(lost);
+                        sim.curr.legs_lost = sim.damage.legs(&cfg.parts).map(|on| !on);
+                        info!("damage: {:?} lost", cfg.parts[lost].kind);
+                    }
+                }
+            }
+            Some(DebugCommand::Shell) => {
+                if let Some(at) = camera.iter().next().and_then(|c| aim_point(c, &plan, &live.dug)) {
+                    explosions.write(Explosion { at, energy_mj: 6.0 });
+                }
+            }
+            None => {}
+        }
+
         let controls = if seated && sim.hatch.can_walk() {
             MechControls::from_actions(&actions)
         } else {
             MechControls::default()
         };
-        let ground: &cb_core::world::WorldPlan = &plan;
-        sim.curr.step(&controls, &cfg.locomotion, &cfg.gait, ground, time.delta_secs());
+        let ground = Scene {
+            plan: &plan,
+            dug: &live.dug,
+            trees: None,
+        };
+        let was_airborne = sim.curr.airborne();
+        sim.curr.step(&controls, cfg, &ground, time.delta_secs());
+
+        // Trees in the way snap or stop it.
+        if !sim.curr.airborne() || sim.curr.pos.y - ground.height_at(sim.curr.pos.x, sim.curr.pos.z) < 15.0 {
+            let fwd = cb_core::mech::forward(sim.curr.heading_rad) * sim.curr.speed_m_s;
+            let bump = live.forest.bump(
+                Vec2::new(sim.curr.pos.x, sim.curr.pos.z),
+                cfg.locomotion.body_radius_m,
+                Vec2::new(fwd.x, fwd.z),
+                cfg.locomotion.mass_kg,
+            );
+            if bump.blocked {
+                sim.curr.pos.x = bump.pos.x;
+                sim.curr.pos.z = bump.pos.y;
+                sim.curr.speed_m_s *= 0.5;
+            }
+            sim.curr.speed_m_s *= 1.0 - 0.15 * (bump.broke.len() as f32).min(1.0);
+            live.moved_trees.extend(bump.broke);
+        }
+
+        // Footfalls: spray and ripples in water, dust on dry ground; a heavy landing throws more.
+        let Some(rig) = rig else { continue };
+        let landed = was_airborne && !sim.curr.airborne();
+        for (side, offset) in [(0usize, 0.0f64), (1, 0.5)] {
+            let before = (sim.prev.gait_cycles - offset).floor();
+            let after = (sim.curr.gait_cycles - offset).floor();
+            if (before == after || sim.curr.gait_swing < 0.3 || sim.curr.legs_lost[side]) && !landed {
+                continue;
+            }
+            let ankle = rig.rest.legs[side].ankle;
+            let turn = Quat::from_rotation_y(sim.curr.heading_rad + std::f32::consts::PI);
+            let foot = sim.curr.pos + turn * Vec3::new(ankle.x, 0.0, ankle.z);
+            let heavy = if landed { 3 } else { 1 };
+            match ground.water_at(foot.x, foot.z) {
+                Some(w) => {
+                    let at = Vec3::new(foot.x, w.surface_m, foot.z);
+                    bursts.write(Burst {
+                        kind: FxKind::Spray,
+                        at,
+                        dir: Vec3::Y,
+                        count: 70 * heavy,
+                        speed_m_s: 7.0 + w.depth_m.min(4.0),
+                        spread: 0.55,
+                        size_m: 1.1,
+                        life_s: 1.6,
+                    });
+                    ripples.write(Ripple {
+                        at,
+                        radius_m: 9.0 + 4.0 * heavy as f32,
+                    });
+                }
+                None => {
+                    bursts.write(Burst {
+                        kind: FxKind::Dust,
+                        at: foot,
+                        dir: Vec3::Y,
+                        count: 10 * heavy,
+                        speed_m_s: 2.0 * heavy as f32,
+                        spread: 1.0,
+                        size_m: 1.4,
+                        life_s: 1.8,
+                    });
+                }
+            }
+        }
+        // Jet flame while lifting.
+        if sim.curr.mode == LocomotionMode::Jet && controls.lift_axis > 0.0 && !sim.curr.jet_overheated {
+            for jet in ["JET_L", "JET_R"] {
+                if let Some(g) = rig.sockets.get(jet).and_then(|e| globals.get(*e).ok()) {
+                    bursts.write(Burst {
+                        kind: FxKind::Flame,
+                        at: g.translation(),
+                        dir: Vec3::NEG_Y,
+                        count: 6,
+                        speed_m_s: 30.0,
+                        spread: 0.15,
+                        size_m: 0.9,
+                        life_s: 0.25,
+                    });
+                    bursts.write(Burst {
+                        kind: FxKind::Smoke,
+                        at: g.translation() - Vec3::Y * 3.0,
+                        dir: Vec3::NEG_Y,
+                        count: 1,
+                        speed_m_s: 8.0,
+                        spread: 0.4,
+                        size_m: 2.5,
+                        life_s: 2.0,
+                    });
+                }
+            }
+        }
     }
     events.0.clear();
+}
+
+/// Where the pilot's view meets the ground, within 1.5 km.
+fn aim_point(camera: &GlobalTransform, plan: &cb_core::world::WorldPlan, dug: &cb_core::world::Deformation) -> Option<Vec2> {
+    let ground = Scene { plan, dug, trees: None };
+    let (o, d) = (camera.translation(), camera.forward().as_vec3());
+    let mut t = 5.0;
+    while t < 1500.0 {
+        let p = o + d * t;
+        if p.y <= ground.height_at(p.x, p.z) || ground.water_at(p.x, p.z).is_some_and(|w| p.y <= w.surface_m) {
+            return Some(Vec2::new(p.x, p.z));
+        }
+        t += 2.0;
+    }
+    None
+}
+
+/// Cuts lost parts off the rig: the bone and everything under it become a falling wreck; the stump
+/// burns.
+fn cut_parts(
+    mut commands: Commands,
+    mut roots: Query<(&mut MechSim, &mut MechRig)>,
+    globals: Query<&GlobalTransform>,
+    parents: Query<&ChildOf>,
+    data: Res<Data>,
+    time: Res<Time>,
+    mut bursts: MessageWriter<Burst>,
+) {
+    for (mut sim, mut rig) in &mut roots {
+        for part in std::mem::take(&mut sim.cuts) {
+            let spec = &data.0.mech.parts[part];
+            let Some(&e) = rig.named.get(&spec.cut_bone) else { continue };
+            let Ok(g) = globals.get(e) else { continue };
+            // Stop driving the cut bone and every contract bone under it.
+            let mut under = vec![spec.cut_bone.as_str()];
+            for (i, b) in BONES.iter().enumerate() {
+                if b.name == spec.cut_bone || b.parent.is_some_and(|p| under.contains(&p)) {
+                    under.push(b.name);
+                    rig.cut[i] = true;
+                }
+            }
+            let at = g.translation();
+            let out = (at - globals.get(rig.bones[0].entity).map(|r| r.translation()).unwrap_or(at))
+                .with_y(0.0)
+                .normalize_or(Vec3::X);
+            commands.entity(e).remove::<ChildOf>().insert((
+                g.compute_transform(),
+                Debris {
+                    vel: out * 6.0 + Vec3::Y * 5.0,
+                    spin: Vec3::new(1.5, 0.7, -1.1),
+                },
+            ));
+            if let Ok(stump) = parents.get(e).map(|p| p.parent()).or(Ok::<Entity, ()>(e)) {
+                commands.entity(stump).insert(Burning {
+                    until_s: time.elapsed_secs() + 25.0,
+                });
+            }
+            for (kind, count, speed, size, life) in [
+                (FxKind::Spark, 90, 18.0, 0.25, 1.2),
+                (FxKind::Fire, 30, 6.0, 1.6, 0.8),
+                (FxKind::Smoke, 30, 3.0, 3.0, 6.0),
+            ] {
+                bursts.write(Burst {
+                    kind,
+                    at,
+                    dir: Vec3::Y,
+                    count,
+                    speed_m_s: speed,
+                    spread: 0.8,
+                    size_m: size,
+                    life_s: life,
+                });
+            }
+        }
+    }
+}
+
+fn burn(
+    mut commands: Commands,
+    q: Query<(Entity, &GlobalTransform, &Burning)>,
+    time: Res<Time>,
+    mut bursts: MessageWriter<Burst>,
+    mut tick: Local<f32>,
+) {
+    *tick += time.delta_secs();
+    if *tick < 0.1 {
+        return;
+    }
+    *tick = 0.0;
+    for (e, g, b) in &q {
+        if time.elapsed_secs() > b.until_s {
+            commands.entity(e).remove::<Burning>();
+            continue;
+        }
+        bursts.write(Burst {
+            kind: FxKind::Smoke,
+            at: g.translation(),
+            dir: Vec3::Y,
+            count: 2,
+            speed_m_s: 3.0,
+            spread: 0.3,
+            size_m: 1.8,
+            life_s: 5.0,
+        });
+        bursts.write(Burst {
+            kind: FxKind::Fire,
+            at: g.translation(),
+            dir: Vec3::Y,
+            count: 1,
+            speed_m_s: 2.0,
+            spread: 0.4,
+            size_m: 0.9,
+            life_s: 0.5,
+        });
+    }
 }
 
 /// The world transform of a rig socket this frame, composed from local transforms (so it already
