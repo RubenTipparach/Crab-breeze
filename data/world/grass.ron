@@ -54,14 +54,15 @@
     droop: 0.35,
 
     // Colour, linear albedo: dark at the root, lighter at the tip, each clump's hue moved toward a
-    // second green, straw-coloured dry blades scattered through.
-    root_colour: (0.05, 0.09, 0.025),
-    tip_colour: (0.22, 0.33, 0.09),
-    dry_colour: (0.36, 0.33, 0.16),
-    dry_share: 0.22,
-    hue_colour: (0.30, 0.34, 0.07),
+    // second green, straw-coloured dry blades scattered through. A rich, saturated green (owner,
+    // 2026-10-24: "Grass needs a richer green. It's too faded right now").
+    root_colour: (0.015, 0.07, 0.008),
+    tip_colour: (0.05, 0.32, 0.04),
+    dry_colour: (0.30, 0.28, 0.09),
+    dry_share: 0.08,
+    hue_colour: (0.10, 0.36, 0.03),
     hue_variety: 0.6,
-    tip_lighten: 0.12,
+    tip_lighten: 0.06,
 
     // Light: fake ambient occlusion at the root (deeper in dense, tall clumps), the sun glowing
     // through a blade seen against it, a soft sheen fading out with distance, and far normals
@@ -69,11 +70,11 @@
     root_light: 0.35,
     ao_dense: 0.5,
     ao_height_share: 0.55,
-    translucent_colour: (0.55, 0.62, 0.12),
+    translucent_colour: (0.30, 0.60, 0.04),
     translucency: 0.6,
     translucency_power: 4.0,
     roughness: 0.65,
-    reflectance: 0.35,
+    reflectance: 0.2,
     far_roughness: 0.95,
     gloss_fade_m: (20.0, 120.0),
     normal_up_m: (40.0, 220.0),
@@ -96,7 +97,7 @@
     sway_hz: 0.7,
     sway: 0.05,
     gust_sharpness: 2.0,
-    gust_brighten: 0.25,
+    gust_brighten: 0.12,
     flutter_hz: 3.0,
     flutter: 0.025,
     broad_wavelength_m: 70.0,
@@ -110,6 +111,6 @@
     // The ground under grass takes the grass's colour (by the same rule that grows the blades), so
     // no pale soil shows between them, and far meadows past the grass's reach still read green.
     // It multiplies the ground's grass texture, as every ground vertex colour does.
-    ground_tint_colour: (0.40, 0.52, 0.20),
+    ground_tint_colour: (0.16, 0.38, 0.09),
     ground_tint: 0.85,
 )

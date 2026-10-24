@@ -21,6 +21,11 @@ use std::sync::Arc;
 #[derive(Resource, Clone, Copy)]
 pub struct Seed(pub u64);
 
+/// True unless `CB_NO_SKY=1`: the pilot's view has Bevy's scattering sky (sky-atmosphere).
+pub fn scattering_sky() -> bool {
+    !crate::cli::switched_off("CB_NO_SKY")
+}
+
 /// Start in the nearest meadow instead of the city (`--start meadow`, gpu-grass).
 #[derive(Resource)]
 pub struct StartInMeadow;
@@ -104,7 +109,14 @@ impl Plugin for WorldPlugin {
             .insert_resource(ClearColor(SKY))
             .insert_resource(GlobalAmbientLight {
                 color: Color::srgb(0.75, 0.82, 1.0),
-                brightness: 900.0,
+                // Under the scattering sky the exposure is darker by the step from Bevy's default
+                // EV100 9.7 to the view's, so the ambient rises by the same factor.
+                brightness: 900.0
+                    * if scattering_sky() {
+                        2f32.powf(cfg.view.exposure_ev100 - 9.7)
+                    } else {
+                        1.0
+                    },
                 ..default()
             })
             .add_plugins(crate::ground::GroundPlugin)
@@ -428,11 +440,21 @@ fn spawn_buildings(
     }
 }
 
-fn spawn_sun(mut commands: Commands) {
-    commands.spawn((
+fn spawn_sun(mut commands: Commands, mut media: ResMut<Assets<bevy::light::atmosphere::ScatteringMedium>>) {
+    if scattering_sky() {
+        // Earth's air (sky-atmosphere): Rayleigh and Mie scattering through Bevy's lookup tables.
+        let air = media.add(bevy::light::atmosphere::ScatteringMedium::earth(256, 256));
+        commands.spawn((Name::new("atmosphere"), bevy::light::Atmosphere::earth(air)));
+    }
+    let mut sun = commands.spawn((
         Name::new("sun"),
         DirectionalLight {
-            illuminance: light_consts::lux::AMBIENT_DAYLIGHT,
+            // Raw sunlight under the scattering sky, which filters it; the old daylight value otherwise.
+            illuminance: if scattering_sky() {
+                light_consts::lux::RAW_SUNLIGHT
+            } else {
+                light_consts::lux::AMBIENT_DAYLIGHT
+            },
             shadow_maps_enabled: !crate::cli::switched_off("CB_NO_SHADOWS"),
             ..default()
         },
@@ -445,6 +467,9 @@ fn spawn_sun(mut commands: Commands) {
         }
         .build(),
     ));
+    if scattering_sky() {
+        sun.insert(bevy::light::SunDisk::EARTH);
+    }
 }
 
 /// The one water material (openspec change `water-rendering`): every river, lake and the ocean is
