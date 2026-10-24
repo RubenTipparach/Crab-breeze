@@ -68,8 +68,8 @@ The sky alone reflects no buildings. The owner's "cache some cube maps" is the r
 Owner, 2026-10-24: "Some colour balance maybe? ... Make scene a little more vibrant". The pilot's
 eye camera already carries Bevy's `ColorGrading`, set each frame in `pilot.rs` (where a lost head
 washes it out). Its base now comes from `data/world/world.ron`'s `view`: `grade_saturation` 1.15,
-`grade_contrast` 1.08 on shadows, midtones and highlights, `grade_temperature` 0.06 (warmer, against
-the blue-grey cast the streets had). The lost-head look multiplies the saturation. It adds
+`grade_contrast` 1.08 on shadows, midtones and highlights, `grade_temperature` 0 (0.06 was tried
+first, to warm the blue-grey streets, and turned the whole view pink and the glass purple). The lost-head look multiplies the saturation. It adds
 no pass: Bevy applies the grade in the tonemapping pass the camera already runs (not measured).
 
 ## 5. Data
