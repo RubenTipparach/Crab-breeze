@@ -13,6 +13,8 @@ pub struct Data(pub GameData);
 pub enum SimSet {
     /// Turn sampled input into this step's actions.
     Input,
+    /// The world grows what the bodies in it will touch this step (trees near them).
+    World,
     /// The pilot moves, boards or climbs out.
     Pilot,
     /// The mech moves.
@@ -37,7 +39,7 @@ impl Plugin for SimPlugin {
     fn build(&self, app: &mut App) {
         let hz = app.world().resource::<Data>().0.sim.fixed_step_hz;
         app.insert_resource(Time::<Fixed>::from_hz(f64::from(hz)))
-            .configure_sets(FixedUpdate, (SimSet::Input, SimSet::Pilot, SimSet::Mech).chain())
+            .configure_sets(FixedUpdate, (SimSet::Input, SimSet::World, SimSet::Pilot, SimSet::Mech).chain())
             .configure_sets(Update, (PresentSet::Input, PresentSet::Pose, PresentSet::Camera).chain());
     }
 }

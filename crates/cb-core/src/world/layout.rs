@@ -164,25 +164,39 @@ impl Highway {
 }
 
 /// Places city squares: centres far enough apart, squares separated by open ground, clear of the
-/// world's edge. Returned largest first (ties by placement order), ids assigned in that order.
-pub fn place_cities(rng: &mut SimRng, cfg: &WorldConfig) -> Vec<(Vec2, f32)> {
+/// world's edge, and only where `on_land(centre, half_size)` says the square stands on dry land.
+/// The first is the capital: the largest size, its centre within `capital_within_m` of the
+/// island's centre (it is drawn until it fits, up to `city_attempts` times). Returned largest
+/// first (ties by placement order), ids assigned in that order.
+pub fn place_cities(rng: &mut SimRng, cfg: &WorldConfig, on_land: &dyn Fn(Vec2, f32) -> bool) -> Vec<(Vec2, f32)> {
     let mut placed: Vec<(Vec2, f32)> = Vec::new();
     let half_world = cfg.world_size_m * 0.5;
     for _ in 0..cfg.city_attempts {
         if placed.len() >= cfg.city_count as usize {
             break;
         }
-        let half = rng.range_f32(cfg.city_half_size_m[0], cfg.city_half_size_m[1]);
-        let reach = half_world - cfg.city_edge_margin_m - half - cfg.plateau_flat_margin_m - cfg.plateau_blend_m;
+        let capital = placed.is_empty();
+        let half = if capital {
+            cfg.city_half_size_m[1]
+        } else {
+            rng.range_f32(cfg.city_half_size_m[0], cfg.city_half_size_m[1])
+        };
+        let mut reach = half_world - cfg.city_edge_margin_m - half - cfg.plateau_flat_margin_m - cfg.plateau_blend_m;
+        if capital {
+            reach = reach.min(cfg.capital_within_m);
+        }
         if reach <= 0.0 {
             continue;
         }
         let c = Vec2::new(rng.range_f32(-reach, reach), rng.range_f32(-reach, reach));
+        if capital && c.length() > cfg.capital_within_m {
+            continue;
+        }
         let fits = placed.iter().all(|&(o, oh)| {
             let gap = (c - o).abs() - Vec2::splat(half + oh);
             c.distance(o) >= cfg.city_min_spacing_m && gap.max_element() >= cfg.open_ground_min_m
         });
-        if fits {
+        if fits && on_land(c, half) {
             placed.push((c, half));
         }
     }

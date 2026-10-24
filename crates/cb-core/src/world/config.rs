@@ -10,9 +10,7 @@ use serde::Deserialize;
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct WaterConfig {
-    /// Lakes fill the ground below this share of all terrain heights, 0..1.
-    pub sea_level_percentile: f32,
-    /// Sea level stays at least this far below every city's ground.
+    /// Every city's ground stands at least this far above sea level.
     pub city_freeboard_m: f32,
     /// Rivers to run.
     pub river_count: u32,
@@ -41,11 +39,10 @@ pub struct WaterConfig {
 impl Default for WaterConfig {
     fn default() -> Self {
         Self {
-            sea_level_percentile: 0.12,
             city_freeboard_m: 2.0,
-            river_count: 2,
+            river_count: 6,
             river_grid_m: 32.0,
-            river_max_steps: 400,
+            river_max_steps: 700,
             meander_m: 6.0,
             river_city_clearance_m: 80.0,
             river_width_m: 36.0,
@@ -60,7 +57,6 @@ impl Default for WaterConfig {
 
 impl Validate for WaterConfig {
     fn validate(&self) -> Result<(), String> {
-        within("water.sea_level_percentile", self.sea_level_percentile, 0.0, 1.0)?;
         finite("water.city_freeboard_m", self.city_freeboard_m)?;
         positive("water.river_grid_m", self.river_grid_m)?;
         finite("water.meander_m", self.meander_m)?;
@@ -109,6 +105,18 @@ pub struct TreeConfig {
     pub park_chance: f32,
     /// Species.
     pub species: Vec<Species>,
+    /// Sites along one side of a tree tile, the unit trees are grown and kept in (island-world).
+    pub tile_sites: u32,
+    /// Tiles within this of a body (the pilot, every mech) are grown and kept.
+    pub keep_radius_m: f32,
+    /// Tiles within this of a body are grown at once, whatever the per-step budget.
+    pub urgent_radius_m: f32,
+    /// Tiles farther than this from every body are let go (their felled trees remembered).
+    pub release_radius_m: f32,
+    /// Most tiles grown in one fixed step beyond the urgent ones.
+    pub tiles_per_step: u32,
+    /// Trees are drawn within this of the eye.
+    pub draw_radius_m: f32,
 }
 
 impl Default for TreeConfig {
@@ -132,6 +140,12 @@ impl Default for TreeConfig {
                 sp("oak", 0.25, [10.0, 18.0], [0.4, 0.8], 240.0),
                 sp("birch", 0.25, [9.0, 16.0], [0.12, 0.25], 25.0),
             ],
+            tile_sites: 24,
+            keep_radius_m: 1500.0,
+            urgent_radius_m: 400.0,
+            release_radius_m: 2000.0,
+            tiles_per_step: 2,
+            draw_radius_m: 1200.0,
         }
     }
 }
@@ -152,6 +166,19 @@ impl Validate for TreeConfig {
             positive_range(&format!("trees.species[{}].height_m", s.name), s.height_m)?;
             positive_range(&format!("trees.species[{}].trunk_radius_m", s.name), s.trunk_radius_m)?;
             positive(&format!("trees.species[{}].break_impulse_kn_s", s.name), s.break_impulse_kn_s)?;
+        }
+        if self.tile_sites == 0 || self.tile_sites > 64 {
+            return Err("`trees.tile_sites` must be 1 to 64 (a tile's site index is 12 bits)".into());
+        }
+        positive("trees.urgent_radius_m", self.urgent_radius_m)?;
+        positive("trees.keep_radius_m", self.keep_radius_m)?;
+        positive("trees.release_radius_m", self.release_radius_m)?;
+        positive("trees.draw_radius_m", self.draw_radius_m)?;
+        if !(self.urgent_radius_m <= self.keep_radius_m && self.keep_radius_m < self.release_radius_m) {
+            return Err("trees: need `urgent_radius_m` <= `keep_radius_m` < `release_radius_m`".into());
+        }
+        if self.draw_radius_m > self.keep_radius_m {
+            return Err("`trees.draw_radius_m` must not exceed `trees.keep_radius_m`: only kept trees are drawn".into());
         }
         Ok(())
     }
@@ -175,6 +202,8 @@ pub struct CloudConfig {
     pub beyond_world_m: f32,
     /// Wind drift (x, z).
     pub wind_m_s: [f32; 2],
+    /// Cloud puffs are drawn within this of the eye (beyond it the haze has hidden them).
+    pub draw_radius_m: f32,
 }
 
 impl Default for CloudConfig {
@@ -182,11 +211,12 @@ impl Default for CloudConfig {
         Self {
             base_m: 600.0,
             top_m: 1100.0,
-            spacing_m: 700.0,
+            spacing_m: 1000.0,
             coverage: 0.45,
             cluster_size_m: [220.0, 520.0],
-            beyond_world_m: 2000.0,
+            beyond_world_m: 6000.0,
             wind_m_s: [3.0, 1.0],
+            draw_radius_m: 9000.0,
         }
     }
 }
@@ -203,6 +233,7 @@ impl Validate for CloudConfig {
         finite("clouds.beyond_world_m", self.beyond_world_m)?;
         finite("clouds.wind_m_s", self.wind_m_s[0])?;
         finite("clouds.wind_m_s", self.wind_m_s[1])?;
+        positive("clouds.draw_radius_m", self.draw_radius_m)?;
         Ok(())
     }
 }
@@ -242,6 +273,184 @@ impl Validate for CraterConfig {
     }
 }
 
+/// The island and the sea round it (openspec change `island-world`).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct IslandConfig {
+    /// Height of the sea's surface. Ground below it is under the sea or a lake.
+    pub sea_level_m: f32,
+    /// Distance from the island's centre at which the land starts to fall to the sea, before the
+    /// coast noise moves it in or out.
+    pub land_radius_m: f32,
+    /// Most the coast noise moves the land's edge in or out.
+    pub coast_noise_m: f32,
+    /// Wavelength of the coast noise's first octave (bays and headlands).
+    pub coast_wavelength_m: f32,
+    /// Land height above sea level where the land starts to fall to the sea (the hills ride on it).
+    pub land_height_m: f32,
+    /// Extra height at the island's middle, falling off toward the coast.
+    pub highland_m: f32,
+    /// Width over which the land falls to the open sea floor (beaches, shallows, the shelf).
+    pub shelf_m: f32,
+    /// Depth of the open sea floor below sea level.
+    pub sea_depth_m: f32,
+    /// Most the sea floor's own noise moves it up or down.
+    pub floor_noise_m: f32,
+    /// Wavelength of the sea floor noise.
+    pub floor_wavelength_m: f32,
+    /// The sea floor noise fades out over this width inside the world's edge, so the floor meets the
+    /// flat floor drawn beyond it exactly.
+    pub edge_fade_m: f32,
+}
+
+impl Default for IslandConfig {
+    fn default() -> Self {
+        Self {
+            sea_level_m: 0.0,
+            land_radius_m: 13000.0,
+            coast_noise_m: 2500.0,
+            coast_wavelength_m: 6000.0,
+            land_height_m: 30.0,
+            highland_m: 90.0,
+            shelf_m: 3000.0,
+            sea_depth_m: 38.0,
+            floor_noise_m: 9.0,
+            floor_wavelength_m: 1500.0,
+            edge_fade_m: 1500.0,
+        }
+    }
+}
+
+impl Validate for IslandConfig {
+    fn validate(&self) -> Result<(), String> {
+        finite("island.sea_level_m", self.sea_level_m)?;
+        positive("island.land_radius_m", self.land_radius_m)?;
+        finite("island.coast_noise_m", self.coast_noise_m)?;
+        positive("island.coast_wavelength_m", self.coast_wavelength_m)?;
+        finite("island.land_height_m", self.land_height_m)?;
+        finite("island.highland_m", self.highland_m)?;
+        positive("island.shelf_m", self.shelf_m)?;
+        positive("island.sea_depth_m", self.sea_depth_m)?;
+        finite("island.floor_noise_m", self.floor_noise_m)?;
+        positive("island.floor_wavelength_m", self.floor_wavelength_m)?;
+        positive("island.edge_fade_m", self.edge_fade_m)?;
+        if self.floor_noise_m.abs() >= self.sea_depth_m {
+            return Err("`island.floor_noise_m` must be less than `island.sea_depth_m`, or the floor breaks the surface".into());
+        }
+        Ok(())
+    }
+}
+
+/// Levels of detail of the drawn ground (openspec change `island-world`). The ground is drawn in
+/// square chunks; a chunk farther from the eye is drawn with every `step`-th sample.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct LodConfig {
+    /// Terrain cells along a chunk's side.
+    pub chunk_cells: u32,
+    /// Outer distance of each ring: within `ring_m[0]` a chunk is drawn at step 1, within
+    /// `ring_m[1]` at step 2, and so on; beyond the last ring at step `2^len`.
+    pub ring_m: Vec<f32>,
+    /// A chunk changes step only when it is this far past a ring's edge, so a body standing on the
+    /// edge does not make it flicker between two steps.
+    pub hysteresis_m: f32,
+    /// Chunks within this of the eye or of a loose physics body get a collider (step-1 triangles).
+    pub collider_radius_m: f32,
+    /// Most chunk meshes started in one frame (they are built off the main thread).
+    pub builds_per_frame: u32,
+    /// Levels of the ground's quadtree above the chunk: a root covers `2^max_level` chunks a side
+    /// and is drawn as one mesh at step `2^max_level` until the eye comes near enough to split it,
+    /// so the far island is a handful of meshes, not thousands (owner, 2026-10-24: "make sure to
+    /// lower draw calls").
+    pub max_level: u32,
+}
+
+impl Default for LodConfig {
+    fn default() -> Self {
+        Self {
+            chunk_cells: 64,
+            ring_m: vec![700.0, 1400.0, 2800.0, 5600.0, 11200.0],
+            hysteresis_m: 64.0,
+            collider_radius_m: 400.0,
+            builds_per_frame: 6,
+            max_level: 4,
+        }
+    }
+}
+
+impl LodConfig {
+    /// The coarsest step, past the last ring.
+    pub fn max_step(&self) -> usize {
+        1 << self.ring_m.len()
+    }
+}
+
+impl Validate for LodConfig {
+    fn validate(&self) -> Result<(), String> {
+        if self.ring_m.is_empty() || self.ring_m.len() > 6 {
+            return Err("`terrain_lod.ring_m` must list 1 to 6 rings".into());
+        }
+        let mut last = 0.0;
+        for (i, r) in self.ring_m.iter().enumerate() {
+            positive(&format!("terrain_lod.ring_m[{i}]"), *r)?;
+            if *r <= last {
+                return Err("`terrain_lod.ring_m` must rise ring by ring".into());
+            }
+            last = *r;
+        }
+        if self.chunk_cells == 0 || !(self.chunk_cells as usize).is_multiple_of(self.max_step()) {
+            return Err(format!(
+                "`terrain_lod.chunk_cells` ({}) must be a multiple of the coarsest step ({})",
+                self.chunk_cells,
+                self.max_step()
+            ));
+        }
+        finite("terrain_lod.hysteresis_m", self.hysteresis_m)?;
+        if self.hysteresis_m < 0.0 {
+            return Err("`terrain_lod.hysteresis_m` must not be negative".into());
+        }
+        positive("terrain_lod.collider_radius_m", self.collider_radius_m)?;
+        if self.builds_per_frame == 0 {
+            return Err("`terrain_lod.builds_per_frame` must be at least 1".into());
+        }
+        if self.max_level > 8 {
+            return Err("`terrain_lod.max_level` must be 8 or less".into());
+        }
+        Ok(())
+    }
+}
+
+/// How far the pilot sees (openspec change `island-world`).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct ViewConfig {
+    /// The camera's far plane: nothing farther is drawn (Bevy's projection is reverse-Z infinite,
+    /// so this only culls; it costs no depth precision).
+    pub far_m: f32,
+    /// Distance at which clear air has hidden things in haze.
+    pub clear_visibility_m: f32,
+}
+
+impl Default for ViewConfig {
+    fn default() -> Self {
+        Self {
+            far_m: 40000.0,
+            clear_visibility_m: 9000.0,
+        }
+    }
+}
+
+impl Validate for ViewConfig {
+    fn validate(&self) -> Result<(), String> {
+        positive("view.far_m", self.far_m)?;
+        positive("view.clear_visibility_m", self.clear_visibility_m)?;
+        if self.clear_visibility_m > self.far_m {
+            return Err("`view.clear_visibility_m` must not exceed `view.far_m`".into());
+        }
+        Ok(())
+    }
+}
+
 /// Everything the world generator is tuned by.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
@@ -268,6 +477,9 @@ pub struct WorldConfig {
     pub open_ground_min_m: f32,
     /// Least distance from a city square to the world's edge.
     pub city_edge_margin_m: f32,
+    /// The first city placed, the largest (where the game starts), has its centre within this of
+    /// the island's centre, where f32 positions are finest (island-world design section 5).
+    pub capital_within_m: f32,
     /// Half the side of a city square, [smallest, largest].
     pub city_half_size_m: [f32; 2],
     /// Flat ground kept beyond a city's square, so its edge streets never meet a slope inside one
@@ -315,6 +527,12 @@ pub struct WorldConfig {
     pub kerb_height_m: f32,
     /// How far behind the mech the pilot starts.
     pub start_pilot_distance_m: f32,
+    /// The island and the sea.
+    pub island: IslandConfig,
+    /// Levels of detail of the drawn ground.
+    pub terrain_lod: LodConfig,
+    /// How far the pilot sees.
+    pub view: ViewConfig,
     /// Rivers and lakes.
     pub water: WaterConfig,
     /// Trees.
@@ -328,17 +546,18 @@ pub struct WorldConfig {
 impl Default for WorldConfig {
     fn default() -> Self {
         Self {
-            world_size_m: 4096.0,
+            world_size_m: 40960.0,
             terrain_cell_m: 8.0,
-            noise_wavelength_m: 900.0,
+            noise_wavelength_m: 1100.0,
             noise_amplitude_m: 35.0,
             noise_octaves: 4,
             noise_persistence: 0.5,
-            city_count: 5,
-            city_attempts: 400,
-            city_min_spacing_m: 1100.0,
-            open_ground_min_m: 300.0,
+            city_count: 24,
+            city_attempts: 4000,
+            city_min_spacing_m: 2600.0,
+            open_ground_min_m: 600.0,
             city_edge_margin_m: 300.0,
+            capital_within_m: 2500.0,
             city_half_size_m: [280.0, 480.0],
             plateau_flat_margin_m: 12.0,
             plateau_blend_m: 120.0,
@@ -362,6 +581,9 @@ impl Default for WorldConfig {
             road_lift_m: 0.1,
             kerb_height_m: 0.2,
             start_pilot_distance_m: 25.0,
+            island: IslandConfig::default(),
+            terrain_lod: LodConfig::default(),
+            view: ViewConfig::default(),
             water: WaterConfig::default(),
             trees: TreeConfig::default(),
             clouds: CloudConfig::default(),
@@ -387,6 +609,7 @@ impl Validate for WorldConfig {
         positive("city_min_spacing_m", self.city_min_spacing_m)?;
         finite("open_ground_min_m", self.open_ground_min_m)?;
         finite("city_edge_margin_m", self.city_edge_margin_m)?;
+        positive("capital_within_m", self.capital_within_m)?;
         positive_range("city_half_size_m", self.city_half_size_m)?;
         positive("plateau_blend_m", self.plateau_blend_m)?;
         let diagonal = self.terrain_cell_m * std::f32::consts::SQRT_2;
@@ -428,6 +651,29 @@ impl Validate for WorldConfig {
             return Err("`kerb_height_m` must be above `road_lift_m`".into());
         }
         positive("start_pilot_distance_m", self.start_pilot_distance_m)?;
+        self.island.validate()?;
+        let i = &self.island;
+        let reach = i.land_radius_m + i.coast_noise_m.abs() + i.shelf_m;
+        let flat_from = self.world_size_m * 0.5 - i.edge_fade_m;
+        if reach > flat_from {
+            return Err(format!(
+                "the island's shelf reaches {reach} m from the centre, past {flat_from} m where the sea floor \
+                 must already be flat (`world_size_m` / 2 - `island.edge_fade_m`)"
+            ));
+        }
+        self.terrain_lod.validate()?;
+        let chunk_m = self.terrain_lod.chunk_cells as f32 * self.terrain_cell_m;
+        let chunks = self.world_size_m / chunk_m;
+        if (chunks - chunks.round()).abs() > 1e-3 {
+            return Err(format!(
+                "`world_size_m` ({}) must be a whole number of terrain chunks ({chunk_m} m)",
+                self.world_size_m
+            ));
+        }
+        if !(chunks.round() as u32).is_multiple_of(1 << self.terrain_lod.max_level) {
+            return Err("`2^terrain_lod.max_level` must divide the chunks along the world's side".into());
+        }
+        self.view.validate()?;
         self.water.validate()?;
         self.trees.validate()?;
         self.clouds.validate()?;
