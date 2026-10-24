@@ -97,6 +97,22 @@ pub struct Landing {
     pub volume_m3: f32,
 }
 
+/// A moment worth seeing or hearing, for the effects.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Moment {
+    /// A member is overloaded and will fail soon (dust trickles, it groans).
+    Creak(Vec3),
+    /// A member gave way.
+    Fail(Vec3),
+    /// A falling part hit a floor or the ground.
+    Impact {
+        /// Where it hit.
+        at: Vec3,
+        /// Its mass.
+        mass_kg: f32,
+    },
+}
+
 /// Every building's cells.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Structures {
@@ -112,6 +128,8 @@ pub struct Structures {
     pub falls: Vec<Fall>,
     /// Heaps waiting to be raised on the ground (taken by `take_landings`).
     pub landings: Vec<Landing>,
+    /// Moments since the last `take_moments`.
+    pub moments: Vec<Moment>,
 }
 
 impl Structures {
@@ -151,6 +169,7 @@ impl Structures {
             time_s: 0.0,
             falls: Vec::new(),
             landings: Vec::new(),
+            moments: Vec::new(),
         }
     }
 
@@ -180,6 +199,10 @@ impl Structures {
     pub fn settle(&mut self, b: u32) -> Vec<Chunk> {
         let (now, cfg) = (self.time_s, self.cfg.clone());
         let settled = self.frame_mut(b as usize).settle(now, &cfg);
+        if let Some(f) = self.buildings[b as usize].frame.as_ref() {
+            self.moments
+                .extend(settled.creaking.iter().map(|&id| Moment::Creak(f.elements[id as usize].centre())));
+        }
         let chunks = self.chunks_of(b, &settled.fell);
         if let Some(part) = self.buildings[b as usize].frame.as_ref().and_then(|f| f.footprint(&settled.fell)) {
             self.drop_part(b, part, now);
@@ -212,6 +235,12 @@ impl Structures {
             .frame
             .as_ref()
             .and_then(|f| f.floor_below(&part.cells, part.bottom_m));
+        let ground = self.buildings[b as usize].origin.y;
+        let centre = (part.lo + part.hi) * 0.5;
+        self.moments.push(Moment::Impact {
+            at: Vec3::new(centre.x, below.as_ref().map_or(ground, |(top, _)| *top), centre.y),
+            mass_kg: part.mass_kg,
+        });
         let Some((top, slabs)) = below else {
             self.landings.push(Landing {
                 lo: part.lo,
@@ -241,6 +270,11 @@ impl Structures {
         chunks
     }
 
+    /// Moments since the last call, for the effects.
+    pub fn take_moments(&mut self) -> Vec<Moment> {
+        std::mem::take(&mut self.moments)
+    }
+
     /// Heaps that reached the ground since the last call, for the ground to raise.
     pub fn take_landings(&mut self) -> Vec<Landing> {
         std::mem::take(&mut self.landings)
@@ -264,7 +298,9 @@ impl Structures {
         let mut chunks = Vec::new();
         for &b in &due {
             if let Some(f) = self.buildings[b as usize].frame.as_mut() {
-                f.fail_due(now);
+                let failed = f.fail_due(now);
+                let at: Vec<Vec3> = failed.iter().map(|&id| f.elements[id as usize].centre()).collect();
+                self.moments.extend(at.into_iter().map(Moment::Fail));
             }
             chunks.extend(self.settle(b));
         }
@@ -489,6 +525,11 @@ mod tests {
         run(&mut s, 12.0);
         let heaps = s.take_landings();
         assert!(!heaps.is_empty(), "rubble reached the ground");
+        let moments = s.take_moments();
+        assert!(
+            moments.iter().any(|m| matches!(m, Moment::Impact { .. })),
+            "the landing is a moment for the effects"
+        );
         assert!(heaps.iter().map(|h| h.volume_m3).sum::<f32>() > 1000.0, "a tower makes a big heap");
     }
 

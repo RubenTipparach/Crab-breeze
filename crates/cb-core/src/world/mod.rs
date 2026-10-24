@@ -23,7 +23,7 @@ pub use clouds::Clouds;
 pub use collision::BuildingGrid;
 pub use config::WorldConfig;
 pub use deform::Deformation;
-pub use destruct::{Chunk, Structures};
+pub use destruct::{Chunk, Moment, Structures};
 pub use dressing::DressingConfig;
 pub use forest::{Body, Bump, Forest, Push, TileChanges, Tree, TreeState};
 pub use layout::{Block, Building, City, Highway, Rect, StreetKind, StreetPiece};

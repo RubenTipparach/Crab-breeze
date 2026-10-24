@@ -258,6 +258,8 @@ pub struct Settled {
     pub fell: Vec<u32>,
     /// Elements broken on the spot (a floor bay with nothing left to hang from).
     pub broke: usize,
+    /// Members that started to creak (overloaded, failing soon).
+    pub creaking: Vec<u32>,
 }
 
 impl Frame {
@@ -511,6 +513,7 @@ impl Frame {
             if e.alive && e.stress > 1.0 && e.due_s.is_none() {
                 let mut r = SimRng::new(((building as u64) << 32) | id as u64).fork("creak");
                 e.due_s = Some(now_s + lo + (hi - lo) * r.next_f32());
+                out.creaking.push(id as u32);
             } else if e.stress <= 1.0 {
                 e.due_s = None;
             }
@@ -523,14 +526,14 @@ impl Frame {
         self.elements.iter().filter(|e| e.alive).filter_map(|e| e.due_s).reduce(f32::min)
     }
 
-    /// Breaks every member whose creak has run out by `now_s`. Returns how many broke.
-    pub fn fail_due(&mut self, now_s: f32) -> usize {
-        let mut broke = 0;
-        for e in &mut self.elements {
+    /// Breaks every member whose creak has run out by `now_s`. Returns the ones that broke.
+    pub fn fail_due(&mut self, now_s: f32) -> Vec<u32> {
+        let mut broke = Vec::new();
+        for (id, e) in self.elements.iter_mut().enumerate() {
             if e.alive && e.due_s.is_some_and(|t| t <= now_s) {
                 e.alive = false;
                 e.due_s = None;
-                broke += 1;
+                broke.push(id as u32);
             }
         }
         broke
@@ -773,7 +776,7 @@ mod tests {
         let mut t = from_s;
         while t < to_s {
             t += 1.0 / 60.0;
-            if f.fail_due(t) > 0 {
+            if !f.fail_due(t).is_empty() {
                 let s = f.settle(t, &cfg);
                 out.fell.extend(s.fell);
                 out.broke += s.broke;

@@ -12,5 +12,5 @@
 ## 2. App
 - [x] 2.0 Heaps drawn with a rubble vertex colour (broken concrete with brick flecks, blended in from 0.2 m to 0.6 m deep) until the material layer exists
 - [ ] 2.1 Rubble material layer and instanced dressing
-- [ ] 2.2 Dust clouds
+- [x] 2.2 Dust: the core reports creaks, failures and impacts (`Moment`); the app plays `creak_dust`, `member_fail` and `collapse_dust` (scaled by the cube root of the landing mass) from `data/fx/fx.ron`
 - [ ] 2.3 Playtest: climb the warehouse's rubble on foot, stride over it in the mech; on Drive

@@ -124,8 +124,17 @@ fn cells_mesh(c: &Cells) -> Mesh {
 /// Creaking members fail on time and falling parts land; what falls goes to the debris like any
 /// other chunk, and what reaches the ground is raised as a heap in the crater layer (`rubble`), so
 /// the pilot, the mech and the debris stand on it.
-fn step_structures(time: Res<Time<Fixed>>, mut live: ResMut<Live>) {
+fn step_structures(time: Res<Time<Fixed>>, mut live: ResMut<Live>, mut fx: MessageWriter<crate::fx::Fx>) {
     let (changed, chunks) = live.structures.step(time.delta_secs());
+    for m in live.structures.take_moments() {
+        fx.write(match m {
+            cb_core::world::Moment::Creak(at) => crate::fx::Fx::new("creak_dust", at),
+            cb_core::world::Moment::Fail(at) => crate::fx::Fx::new("member_fail", at),
+            cb_core::world::Moment::Impact { at, mass_kg } => {
+                crate::fx::Fx::new("collapse_dust", at).scaled((mass_kg / 2.0e5).cbrt().clamp(0.5, 3.0))
+            }
+        });
+    }
     live.dirty_buildings.extend(changed);
     live.new_chunks.extend(chunks);
     let cfg = live.structures.cfg.clone();
