@@ -1,6 +1,6 @@
 //! Building drawing and timing for `structural-destruction`: a whole building is one box; a
 //! damaged one is drawn from its structural frame (facade panels in the building's facade
-//! material, floors and columns in bare concrete) in bands of four storeys, and only a band whose
+//! material, floors and columns in bare concrete) in bands of twelve storeys, and only a band whose
 //! standing elements changed is rebuilt. Each fixed step advances the frames' clock so overloaded
 //! members fail when their creak runs out and falling parts land.
 
@@ -13,8 +13,10 @@ use cb_core::world::dressing::{self, Anchor, DressingConfig, Shape};
 use cb_core::world::structure::{Frame, GROUND, Kind};
 use std::collections::HashMap;
 
-/// Storeys per drawn band of a damaged building.
-const BAND_STOREYS: u32 = 4;
+/// Storeys per drawn band of a damaged building. Bands keep a rebuild small; few of them keep the
+/// mesh entity count low (the game is CPU-bound on entities per view, measured on the RTX 3070,
+/// openspec change `gpu-instancing`): a 60-storey tower is 5 bands, 10 entities.
+const BAND_STOREYS: u32 = 12;
 
 /// Materials buildings are drawn with: the facade tones (by id) and bare structure.
 #[derive(Resource)]
@@ -370,10 +372,11 @@ mod tests {
     fn a_band_draws_every_standing_element_of_its_storeys() {
         let f = frame();
         let per_storey = f.elements.iter().filter(|e| e.storey == 0).count();
+        let f = Frame::new(3, [4, 13, 3], Vec3::ZERO, Vec3::new(6.0, 3.5, 6.0), &StructureConfig::default());
         let (_, _, n0) = band_meshes(&f, 0, 0.3);
-        let (_, _, n2) = band_meshes(&f, 2, 0.3);
-        assert_eq!(n0, per_storey * 4);
-        assert_eq!(n2, per_storey, "the last band holds the ninth storey only");
+        let (_, _, n1) = band_meshes(&f, 1, 0.3);
+        assert_eq!(n0, per_storey * 12);
+        assert_eq!(n1, per_storey, "the last band holds the thirteenth storey only");
     }
 
     #[test]
