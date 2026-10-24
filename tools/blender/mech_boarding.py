@@ -307,7 +307,7 @@ def section(w, zf, zb, z_cut, wcut=None, sh=0.3, cb=0.3, round_back=0):
     return left + right
 
 
-def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None, swing=None):
+def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None, swing=None, wrap_z=None):
     """The cockpit and the sculpted torso round it in `chest`, the interior's floor centre at `at` (kit units).
 
     torso: [(y, w, zf, zb, dict(wcut, sh, cb, round_back))] rising from the waist to the collar, heights in
@@ -322,7 +322,9 @@ def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None, 
     armour's outer face at bearing a (radians, 0 ahead, pi/2 the pilot's left) and height y (metres), d metres
     proud of it, in kit units, and its numbers in metres. timing: {joint: (t0, d)} overrides the opening. swing: {interior
     node: value} overrides how far a stage of a coupled part (mode inner) turns or slides in the mech, where the chest's
-    own size asks for more than the interior alone does."""
+    own size asks for more than the interior alone does. wrap_z (metres): for a part that wraps round the cabin (the
+    canopy), only the chest ahead of this depth lifts with it, hinged on the torso's top there, so a long hull behind the
+    cockpit (the Harrow's) stays put."""
     M, u = k.M, 1.0 / k.s
     E = cockpit_env(variant)
     m = CH.measure(variant)
@@ -445,7 +447,7 @@ def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None, 
         _inner(k, cp, PT, solids, front, wall, mats, dict(cz=cz, y0=y0, y1=y1, y_lo=y_lo, y_hi=y_hi, Ytop=Ytop,
                                                           split=ysplit, back_r=lambda y: ro(A.index(PI), y),
                                                           Yb=Yb, Yt=Yt, T=T,
-                                                          zfront=zfront, u=u, j_lo=j_lo, j_hi=j_hi), joints, timing,
+                                                          zfront=zfront, u=u, j_lo=j_lo, j_hi=j_hi, wrap_z=wrap_z), joints, timing,
                swing or {})
     else:
         raise ValueError(mode)
@@ -630,8 +632,12 @@ def _inner(k, cp, PT, solids, front, wall, mats, g, joints, timing, swing):
         pv = d["stages"][0][1]["pivot_m"]
         slides_up = any(m.get("slide") == "y" for _, m in d["stages"])
         if d["z"][0] < cz:                                   # it wraps round the cabin: all of the chest above the seam
-            cuts = {nm: ((-BIG, split, -BIG), (BIG, BIG, BIG)) for nm in objs}
-            hinge = (0.0, split, cz - g["back_r"](split))
+            if g.get("wrap_z") is None:
+                cuts = {nm: ((-BIG, split, -BIG), (BIG, BIG, BIG)) for nm in objs}
+                hinge = (0.0, split, cz - g["back_r"](split))
+            else:
+                cuts = {nm: ((-BIG, split, g["wrap_z"]), (BIG, BIG, BIG)) for nm in objs}
+                hinge = (0.0, g["Ytop"], g["wrap_z"])
         else:
             W = ride_w_of(d)
             low = d["front_y"][0] <= g["y0"] + 0.12

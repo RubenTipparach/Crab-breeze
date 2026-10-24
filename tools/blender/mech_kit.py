@@ -68,26 +68,27 @@ def _image(name):
     return img
 
 
-def _mat(name, color=0xffffff, tex=None, normal=None, rough=0.5, metal=0.0, emit=None, emit_k=0.0, alpha=1.0, orm=None):
+def _mat(name, color=0xffffff, tex=None, normal=None, rough=0.5, metal=0.0, emit=None, emit_k=0.0, alpha=1.0, orm=None, rgb=None):
     """A PBR material. `orm` names a plating ORM map (occlusion, roughness, metal), which then decides
-    roughness and metal in place of `rough` and `metal` (those stay for untextured parts)."""
+    roughness and metal in place of `rough` and `metal` (those stay for untextured parts). `rgb` is a flat linear
+    base colour in place of `color`: a palette colour over the plating's normal and ORM maps."""
     m = bpy.data.materials.new(name)
     m.use_nodes = True
     nt = m.node_tree
     b = nt.nodes["Principled BSDF"]
-    b.inputs["Base Color"].default_value = srgb(color) + [1.0]
+    b.inputs["Base Color"].default_value = (list(rgb) if rgb else srgb(color)) + [1.0]
     b.inputs["Roughness"].default_value = rough
     b.inputs["Metallic"].default_value = metal
     if tex:
         it = nt.nodes.new("ShaderNodeTexImage")
         it.image = _image(tex)
-        if color != 0xffffff:  # a tinted map: multiply, which glTF exports as baseColorFactor
+        if rgb or color != 0xffffff:  # a tinted map: multiply, which glTF exports as baseColorFactor
             mix = nt.nodes.new("ShaderNodeMix")
             mix.data_type = "RGBA"
             mix.blend_type = "MULTIPLY"
             mix.inputs["Factor"].default_value = 1.0
             nt.links.new(it.outputs["Color"], mix.inputs[6])
-            mix.inputs[7].default_value = srgb(color) + [1.0]
+            mix.inputs[7].default_value = (list(rgb) if rgb else srgb(color)) + [1.0]
             nt.links.new(mix.outputs[2], b.inputs["Base Color"])
         else:
             nt.links.new(it.outputs["Color"], b.inputs["Base Color"])
@@ -109,9 +110,20 @@ def scale_hex(hexv, k):
     return (min(255, int(r * k)) << 16) | (min(255, int(g * k)) << 8) | min(255, int(b * k))
 
 
-def make_mats(prefix, glow, livery, core, light=False):
-    """makeMats from the kit, one set per mech. `light` swaps the dark armour for the pale plate."""
+def make_mats(prefix, glow, livery, core, light=False, palette=None):
+    """makeMats from the kit, one set per mech. `light` swaps the dark armour for the pale plate. `palette` (a
+    mech_palettes entry) paints the modern plating (plate, plateB, frameM: engraved seams, no rivets; owner,
+    2026-10-24: "rivets are kinda old school, I want more modern looking armor") in its colours, so the detailed mech
+    wears its block-out's scheme."""
     a = "armorL" if light else "armor"
+    if palette:
+        P = palette
+        return dict(make_mats(prefix, glow, livery, core, light),
+                    armor=_mat(f"{prefix}_armor", rgb=P["BODY"], tex="plate", normal="plate_n", orm="plate_orm"),
+                    armor2=_mat(f"{prefix}_armor2", rgb=P["BODY2"], tex="plateB", normal="plateB_n", orm="plateB_orm"),
+                    frame=_mat(f"{prefix}_frame", tex="frameM", normal="frameM_n", orm="frameM_orm"),
+                    red=_mat(f"{prefix}_livery", rgb=P["ACCENT"], tex="plateB", normal="plateB_n", orm="plateB_orm"),
+                    dark=_mat(f"{prefix}_dark", rgb=(0.5, 0.5, 0.52), tex="frameM", normal="frameM_n", orm="frameM_orm"))
     return {
         "armor": _mat(f"{prefix}_armor", tex=a, normal=a + "_n", orm=a + "_orm"),
         "armor2": _mat(f"{prefix}_armor2", tex="armorB", normal="armorB_n", orm="armorB_orm"),

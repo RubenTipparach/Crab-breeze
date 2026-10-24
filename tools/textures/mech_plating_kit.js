@@ -152,6 +152,93 @@ function ormOf(colC, bmpC, o) {
   }
   g.putImageData(im, 0, 0); return out;
 }
+
+// Crab Breeze: modern plating (owner, 2026-10-24: "rivets are kinda old school, I want more modern looking armor", with
+// references of Armored Core VI frames, the Yokohama Gundam and weathered kit builds). Large smooth panels in a neutral
+// light paint that each mech's palette tints, their seams engraved (a groove with a lit lip), clipped corners and
+// inset panel lines, flush access hatches with pull slots and vent slots (no rivets anywhere), stencils (CAUTION,
+// NO STEP, lift points, unit numbers), small hazard ticks, chipped edges and light grime. Seeded, so the same every run.
+function modern(seed, o) {
+  const S = 1024, col = mkCanvas(S), bmp = mkCanvas(S);
+  const g = col.getContext("2d"), b = bmp.getContext("2d"), r = rng(seed);
+  g.fillStyle = o.base; g.fillRect(0, 0, S, S);
+  b.fillStyle = "#808080"; b.fillRect(0, 0, S, S);
+  const blot = (ctx, x, y, rad, rgba) => {
+    for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) {
+      const X = x + ox, Y = y + oy; if (X + rad < 0 || X - rad > S || Y + rad < 0 || Y - rad > S) continue;
+      const gr = ctx.createRadialGradient(X, Y, 0, X, Y, rad); gr.addColorStop(0, rgba); gr.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = gr; ctx.fillRect(X - rad, Y - rad, 2 * rad, 2 * rad);
+    }
+  };
+  for (let i = 0; i < 50; i++) blot(g, r() * S, r() * S, 90 + r() * 200, r() < 0.5 ? `rgba(0,0,0,${0.02 + r() * 0.03})` : `rgba(255,255,255,${0.02 + r() * 0.03})`);
+  // the seam: a dark engraved groove, a lit lip on its far side, a dip in the bump
+  const seam = (pts, wd) => {
+    for (const [ctx, st, lw] of [[b, "#2a2a2a", wd + 1.5], [g, "rgba(16,17,19,0.8)", wd], [g, "rgba(255,255,255,0.28)", 1]]) {
+      ctx.strokeStyle = st; ctx.lineWidth = lw; ctx.lineJoin = "miter"; ctx.beginPath();
+      const off = st.startsWith("rgba(255") ? wd * 0.9 : 0;
+      pts.forEach(([x, y], i) => i ? ctx.lineTo(x + off, y + off) : ctx.moveTo(x + off, y + off)); ctx.stroke();
+    }
+  };
+  const clipped = (x, y, w, h, c) => [[x + c, y], [x + w - c, y], [x + w, y + c], [x + w, y + h - c], [x + w - c, y + h], [x + c, y + h], [x, y + h - c], [x, y + c], [x + c, y]];
+  const rects = [];
+  (function split(x, y, w, h, d) {
+    if (d > 3 || (w < 260 && h < 260) || (d > 1 && r() < 0.25)) { rects.push([x, y, w, h]); return; }
+    if (w > h ? r() < 0.75 : r() < 0.25) { const k = Math.round(w * (0.3 + r() * 0.4) / 16) * 16; split(x, y, k, h, d + 1); split(x + k, y, w - k, h, d + 1); }
+    else { const k = Math.round(h * (0.3 + r() * 0.4) / 16) * 16; split(x, y, w, k, d + 1); split(x, y + k, w, h - k, d + 1); }
+  })(0, 0, S, S, 0);
+  const words = o.words || ["CAUTION", "NO STEP", "LIFT POINT", "HYD 3000 PSI", "CB-24", "LOT 4417", "DANGER", "KEEP CLEAR", "JACK HERE", "07", "24", "A-12"];
+  for (const [x, y, w, h] of rects) {
+    g.fillStyle = r() < 0.5 ? `rgba(0,0,0,${0.02 + r() * 0.05})` : `rgba(255,255,255,${0.02 + r() * 0.04})`; g.fillRect(x, y, w, h);
+    seam([[x, y + h], [x, y], [x + w, y]], 2.5);
+    if (r() < 0.55 && w > 160 && h > 160) {                          // an inset plate with clipped corners
+      const m = 18 + r() * 22, c = 14 + r() * 26;
+      seam(clipped(x + m, y + m, w - 2 * m, h - 2 * m, c), 1.6);
+      if (r() < 0.5) { b.fillStyle = "rgba(160,160,160,0.35)"; b.fillRect(x + m + 4, y + m + 4, w - 2 * m - 8, h - 2 * m - 8); }   // raised a touch
+    }
+    if (r() < 0.3 && w > 140 && h > 110) {                          // a flush access hatch with two pull slots
+      const hw = 70 + r() * 60, hh = 46 + r() * 40, hx = x + 24 + r() * (w - hw - 48), hy = y + 24 + r() * (h - hh - 48);
+      seam(clipped(hx, hy, hw, hh, 8), 1.4);
+      for (const sx of [hx + 12, hx + hw - 28]) { g.fillStyle = "rgba(10,10,12,0.85)"; g.fillRect(sx, hy + hh / 2 - 3, 16, 6); b.fillStyle = "#202020"; b.fillRect(sx, hy + hh / 2 - 3, 16, 6); }
+    }
+    if (r() < 0.2 && w > 150 && h > 90) {                           // vent slots
+      const n = 5 + Math.floor(r() * 5), vx = x + 26 + r() * (w - 140), vy = y + 26 + r() * (h - 80);
+      for (let k = 0; k < n; k++) { g.fillStyle = "rgba(12,12,14,0.9)"; g.fillRect(vx + k * 12, vy, 6, 42); b.fillStyle = "#1c1c1c"; b.fillRect(vx + k * 12, vy, 6, 42); }
+    }
+    if (r() < 0.35 && w > 120) {                                    // a stencil
+      const t = words[Math.floor(r() * words.length)], big = /^\d+$/.test(t);
+      g.font = big ? "bold 64px Arial, sans-serif" : `bold ${14 + Math.floor(r() * 6)}px Arial, sans-serif`;
+      g.fillStyle = big ? "rgba(20,20,22,0.55)" : "rgba(20,20,22,0.6)";
+      g.fillText(t, x + 16 + r() * Math.max(1, w * 0.3), y + h - 18 - r() * Math.max(1, h * 0.4));
+      if (!big && r() < 0.5) { g.fillRect(x + 16, y + h - 14, Math.min(w - 32, 90), 2); }
+    }
+    if (r() < 0.12 && w > 120 && h > 60) {                          // hazard ticks
+      const tx = x + 16, ty = y + 18;
+      for (let k = 0; k < 7; k++) { g.fillStyle = k % 2 ? "rgba(18,16,14,0.8)" : "rgba(230,170,40,0.85)"; g.beginPath(); g.moveTo(tx + k * 10, ty + 14); g.lineTo(tx + k * 10 + 10, ty + 14); g.lineTo(tx + k * 10 + 16, ty); g.lineTo(tx + k * 10 + 6, ty); g.fill(); }
+    }
+    for (let k = 0; k < 10; k++) {                                  // chips along the seams: paint gone to steel
+      const along = r(), onTop = r() < 0.5, cx = onTop ? x + along * w : x + 2 + r() * 6, cy = onTop ? y + 2 + r() * 6 : y + along * h, s = 1.5 + r() * 5;
+      g.fillStyle = o.chip || "rgba(200,200,205,0.55)"; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + s, cy + s * 0.3); g.lineTo(cx + s * 0.5, cy + s); g.lineTo(cx - s * 0.3, cy + s * 0.6); g.fill();
+      b.fillStyle = "#6a6a6a"; b.fillRect(cx, cy, s * 0.7, s * 0.7);
+    }
+  }
+  for (let i = 0; i < 140; i++) {                                    // fine scratches
+    const x = r() * S, y = r() * S, a = r() * TAU, l = 6 + r() * 30;
+    g.strokeStyle = "rgba(230,230,235,0.25)"; g.lineWidth = 0.6 + r() * 0.6; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+  }
+  for (let i = 0; i < 70; i++) {                                     // grime run down from the seams
+    const x = r() * S, y = r() * S, l = 40 + r() * 160, w = 2 + r() * 6;
+    const gr = g.createLinearGradient(0, y, 0, y + l); gr.addColorStop(0, `rgba(30,26,22,${0.12 + r() * 0.12})`); gr.addColorStop(1, "rgba(30,26,22,0)");
+    g.fillStyle = gr; g.fillRect(x, y, w, l);
+  }
+  for (let i = 0; i < 18; i++) blot(g, r() * S, r() * S, 30 + r() * 80, `rgba(40,34,28,${0.08 + r() * 0.1})`);
+  for (const [ctx, amp] of [[g, 6], [b, 4]]) {
+    const im = ctx.getImageData(0, 0, S, S), d = im.data;
+    for (let i = 0; i < d.length; i += 4) { const n = (r() - 0.5) * amp; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+    ctx.putImageData(im, 0, 0);
+  }
+  return { map: col, bump: bmp };
+}
+
 window.__out = (() => {
   const X = textures(), png = c => c.toDataURL("image/png");
   // plating() is seeded, so calling it again gives the same canvases; wear's bump is not kept in TEX.
@@ -166,5 +253,15 @@ window.__out = (() => {
     armorL: png(L.map), armorL_n: png(normalOf(L.bump, 2.5)), armorL_orm: png(ormOf(L.map, L.bump, { base: "#c3c7cd", rough: 0.5, metal0: 0, light: true })),
     wear: png(X.wear), wear_n: png(normalOf(W.bump, 2.0)), wear_orm: png(ormOf(W.map, W.bump, { base: "#ddd6d3", rough: 0.55, metal0: 0, light: true })),
     hazard: png(X.hazard), hazard_orm: png(flat(128, 1, 0.6, 0)),
+    // Crab Breeze: the modern set, neutral so a palette tints it (plate and plateB the armour, frameM the structure)
+    ...(() => {
+      const A = modern(101, { base: "#dcdcdc" }), B = modern(131, { base: "#d2d2d2" });
+      const F = modern(151, { base: "#4a4b4f", chip: "rgba(150,150,155,0.5)", words: ["HYD", "03", "SERVICE", "LUBE 4", "B-07"] });
+      return {
+        plate: png(A.map), plate_n: png(normalOf(A.bump, 2.0)), plate_orm: png(ormOf(A.map, A.bump, { base: "#dcdcdc", rough: 0.42, metal0: 0 })),
+        plateB: png(B.map), plateB_n: png(normalOf(B.bump, 2.0)), plateB_orm: png(ormOf(B.map, B.bump, { base: "#d2d2d2", rough: 0.5, metal0: 0 })),
+        frameM: png(F.map), frameM_n: png(normalOf(F.bump, 2.0)), frameM_orm: png(ormOf(F.map, F.bump, { base: "#4a4b4f", rough: 0.4, metal0: 0.7 })),
+      };
+    })(),
   };
 })();

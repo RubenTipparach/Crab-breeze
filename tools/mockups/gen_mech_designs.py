@@ -29,7 +29,9 @@ MODELS = os.path.join(ROOT, "assets", "models")
 OUT = os.path.join(ROOT, "docs", "mockups", "mech_designs.html")
 SITE = os.path.join(ROOT, "output", "mech_site")
 HUD = os.path.join(ROOT, "assets", "textures", "cockpit", "displays", "hud.png")
-ORDER = ["foreman", "stevedore", "ironhorse"]
+ORDER = ["foreman", "stevedore", "ironhorse", "harrow", "roustabout", "driller", "mule", "picket", "sapper"]
+# the block-outs the owner picked to build (2026-10-24: "1,2,6,8,11,12 start building them") keep their numbers
+NUMBERS = dict(harrow=1, roustabout=2, driller=6, mule=8, picket=11, sapper=12)
 
 PAGE = r"""<title>Crab Breeze Mechs</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -144,16 +146,14 @@ aside { display: grid; gap: 12px; min-width: 0; }
     <div class="bostats" id="cb-stats"></div>
     <p class="hint">Drag to orbit, scroll or pinch to zoom; the same pilot, car, block and 24 m rail beside them.</p>
   </section>
-  <h2 class="boh">The detailed round (12 m)</h2>
+  <h2 class="boh">The detailed round: the first three at 12 m, the six picked from the block-outs at 24 m</h2>
 </header>
 
 <div class="wrap">
   <section>
     <div class="bar" role="group" aria-label="Mech">
       <span class="lbl">Mech</span>
-      <button id="m-foreman" data-mech="foreman">Foreman</button>
-      <button id="m-stevedore" data-mech="stevedore">Stevedore</button>
-      <button id="m-ironhorse" data-mech="ironhorse">Ironhorse</button>
+__MECH_BUTTONS__
       <button id="m-all" data-mech="all">Line up</button>
     </div>
     <div class="bar" role="group" aria-label="Move">
@@ -404,7 +404,7 @@ const tagsEl = document.getElementById("tags"), cueEl = document.getElementById(
 const scrub = document.getElementById("scrub"), tlabel = document.getElementById("tlabel");
 function layout() {
   const spread = current === "all";
-  ORDER.forEach((id, i) => { const m = mechs[id]; if (!m) return; m.root.visible = spread || id === current; m.root.position.set(spread ? (i - 1) * 17 : 0, 0, 0); });
+  ORDER.forEach((id, i) => { const m = mechs[id]; if (!m) return; m.root.visible = spread || id === current; m.root.position.set(spread ? (i - 1) * 17 + Math.max(0, i - 2) * 4 : 0, 0, 0); });
   pilot.position.set(spread ? -9 : 5.5, 0, 7); pilot.rotation.y = -0.6;
 }
 const cur = () => mechs[current === "all" ? ORDER[0] : current];
@@ -802,6 +802,7 @@ def main():
     hud = base64.b64encode(open(HUD, "rb").read()).decode("ascii")
     html = (PAGE.replace("__MECH_POSE__", pose).replace("__STEAM__", steam).replace("__SCREEN_WALL__", wall).replace("__GLTF_JSON__", gltf_json)
             .replace("__MECH_BLOCKOUTS__", json.dumps(blockouts_for_page()))
+            .replace("__MECH_BUTTONS__", "\n".join(f'      <button id="m-{k}" data-mech="{k}">{(str(NUMBERS[k]) + " ") if k in NUMBERS else ""}{meta[k]["name"]}</button>' for k in ORDER))
             .replace("__MECH_COMBAT__", json.dumps(blockouts_for_page("mech_combat.json")))
             .replace("__META__", json.dumps({k: meta[k] for k in ORDER}))
             .replace("__INTERIOR__", json.dumps(inside)).replace("__ORDER__", json.dumps(ORDER)).replace("__HUD__", hud))

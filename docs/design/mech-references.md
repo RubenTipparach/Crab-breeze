@@ -174,3 +174,27 @@ intersection check).
 
 Tracks and four legs stand outside survey M2's digitigrade rule and the owner's "legs bigger than the torso": they are
 here because the owner asked for Armored Core's range, and the survey decides whether they stay.
+
+## The six picked, built in detail at 24 m
+
+The owner, 2026-10-24: "1,2,6,8,11,12 start building them. Any cockpit style should do", then of the first renders "the
+coloring is bad, why dont you use the cool color scheme from your mockup?" and, with references (Armored Core VI frames,
+the Yokohama Gundam, weathered kit builds), "rivets are kinda old school, I want more modern looking armor". So the
+Harrow (1), Roustabout (2), Driller (6), Mule (8), Picket (11) and Sapper (12) are built in `tools/blender/build_mechs.py`
+at 24 m on shared parts (`walker_legs`, `walker_arm`, `autocannon`, `rifle`, `fist`, `missile_rack`, `shield`,
+`walker_head`), each with a detailed seated cockpit whose chest opens as one body with it (mode inner), each armed, each
+in its block-out's palette (`tools/blender/mech_palettes.py`, the one source for both) over the modern plating: large
+panels with engraved seams, clipped-corner insets, flush hatches with pull slots, vent slots, stencils and chipped edges,
+no rivets (`tools/textures/mech_plating_kit.js`, `modern()`).
+
+| No. | Mech | Cockpit | How it opens | Weapons |
+| --- | --- | --- | --- | --- |
+| 1 | Harrow | Canopy | The canopy and the hull's nose over it lift back; the long hull behind stays | Autocannon pod (L), heavy cannon pod (R), a six-cell missile rack on each shoulder |
+| 2 | Roustabout | Titan | The chest over the screens rises and tilts back; the front under them folds down below the sill | Piston fist (L), heavy rifle (R) |
+| 6 | Driller | Panorama | The lower flap folds down below the sill, the hood swings up and over | Heavy autocannon (L), auger drill (R) |
+| 8 | Mule | Excavator cab | The cab's front folds down below the sill | Two piston fists, a rocket pod on each shoulder |
+| 11 | Picket | Panorama | As the Driller | Machine gun (R), tall shield (L) |
+| 12 | Sapper | Titan | As the Roustabout | Rifle (R), missile pod on the forearm (L), cannon over the right shoulder |
+
+From the seat, with the chest open, nothing stands in any of the six doorways (checked with the page's
+`MOCKUP.pick`). The Foreman, Stevedore and Ironhorse keep Mining Mike's plating for now.
