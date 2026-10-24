@@ -144,11 +144,14 @@ aside { display: grid; gap: 12px; min-width: 0; }
   </section>
   <section class="bo">
     <h2 class="boh">Crab mechs</h2>
-    <p class="bop">The owner (2026-10-24): "We need more crab designs, more practical big legged crabs with guns for arms". So
-    these are built from their own parts: a wide carapace with the cockpit block-out in its face, the sensors on two eye
-    stalks over it, three or four pairs of heavy walking legs whose knees stand over the shell, and a gun as each forearm
-    where the claw would be (autocannon, howitzer, gatling, rocket box, or a claw's two jaws round a cannon). Their legs
-    outweigh their shells two to four times by volume. Numbered on from the combat mechs, 23 to 28.</p>
+    <p class="bop">The owner (2026-10-24): "make crab mechs more alien like ... they definitely work with two hind legs, and
+    meaty claws dangling in the front ... a variation on leg count would be cool, 1,2,3 pairs, 3 pairs would probably have to
+    be shorter and thinner", with the CET-OPS crab, a pincer crab sheet, the King Crab and two hunched brutes as references.
+    So a crab is a hunched carapace, low at the face and humped at the back, on hind legs only (one, two or three pairs,
+    arching over the shell to spurred knees), its weight carried forward on two heavy claws that hang to the ground, a gun
+    riding each forearm or sitting in the claw's palm. Alien in the shapes: spines down the hump, mandibles and fangs, a
+    toothed maw on the two King Crab types, clustered eyes. Tyrant and Bruiser stand on one pair, Shrike and Pincher on two,
+    Skitter and Mite on three short thin pairs. Numbered on from the combat mechs, 23 to 28.</p>
     <p class="hint">In the viewer below: Scene, Crabs.</p>
   </section>
   <h2 class="boh">The detailed round: the first three at 12 m, the six picked from the block-outs at 24 m</h2>
