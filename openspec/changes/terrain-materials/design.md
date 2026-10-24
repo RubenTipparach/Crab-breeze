@@ -73,4 +73,4 @@ A `StandardMaterial` extension (WESL), per pixel:
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | W5 | Terrain texture resolution | 2048 px tiles, 1024 px for far-only layers | provisional (survey W5) |
-| W22 | The ground material list | the twenty layers above, Material Maker graphs; CC0 scans (ambientCG) as references only | proposed (survey W22) |
+| I5 | The ground material list | the twenty layers above, Material Maker graphs; CC0 scans (ambientCG) as references only | proposed (survey I5) |

@@ -48,5 +48,5 @@ All six numbers live in `data/world/world.ron` under `clouds:` (`look_*`).
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | W8 | Clouds | scattered cumulus at 600-1100 m, about 35 % cover, fly-through fog | provisional (survey W8) |
-| W17 | How clouds are made | lit blob meshes now; far impostors later if the haze needs more | provisional (survey W17, owner 2026-10-24 "tight budget") |
-| W24 | Cloud shadows on the ground | a scrolling 2 km shadow texture, one sample a pixel | proposed (survey W24) |
+| W17 | How clouds are made | lit blob meshes now; far impostors later if the haze needs more | decided (owner 2026-10-24: "tight budget"; survey W17 moved to decided) |
+| I7 | Cloud shadows on the ground | a scrolling 2 km shadow texture, one sample a pixel | proposed (survey I7) |

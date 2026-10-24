@@ -40,7 +40,7 @@ grid, as today):
 
 Cities, highways and rivers keep their rules but read the new ground: cities only on gentle ground
 below 300 m. The capital moves off the range to the northern plain, so the start is no longer
-within 2.5 km of the centre (survey W19).
+within 2.5 km of the centre (survey I2).
 
 ## Presented by
 

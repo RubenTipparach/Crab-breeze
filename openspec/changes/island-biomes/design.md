@@ -14,6 +14,8 @@ with land out to about 13 km. All numbers would go in `data/world/world.ron` und
      octaves weighted by the slope so far (Quilez's derivative fBm), so valleys stay smooth and
      peaks sharp: an eroded look without simulation.
    - Peaks reach 1,400-2,200 m.
+   - Above 250 m the range is 40 % terraced into 210 m cliff bands with short risers, so rivers
+     come off it in falls rather than steady slopes.
 3. **Passes:** where a highway crosses the spine, the range is pressed down to 500-700 m over a
    1.5 km width.
 4. **Rain shadow:** east of the spine (signed distance positive), a plateau rises to 250-400 m,
@@ -95,9 +97,9 @@ oasis city at a canyon mouth, and the jungle a river city.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| W18 | The range | 16 km spine NNE, peaks 1.4-2.2 km through the clouds, passes for highways | proposed (survey W18) |
-| W19 | Where the capital goes | the northern plain within 6 km of the centre (the range takes the middle) | proposed (survey W19) |
-| W20 | Which side is desert | east (the rain shadow), jungle west and south-west | proposed (survey W20) |
-| W21 | Archipelago | 20-40 islets off the south-west, 0.2-2 km across | proposed (survey W21) |
-| W23 | Jungle density against frame time | 30-45 m canopy, grown only near the bodies like today's trees; measured | proposed (survey W23) |
-| W25 | Waterfalls | 20-40 from the terrain, 40-200 m, spray, mist and plunge pools | proposed (survey W25) |
+| I1 | The range | 16 km spine NNE, peaks 1.4-2.2 km through the clouds, passes for highways | proposed (survey I1) |
+| I2 | Where the capital goes | the northern plain within 6 km of the centre (the range takes the middle) | proposed (survey I2) |
+| I3 | Which side is desert | east (the rain shadow), jungle west and south-west | proposed (survey I3) |
+| I4 | Archipelago | 20-40 islets off the south-west, 0.2-2 km across | proposed (survey I4) |
+| I6 | Jungle density against frame time | 30-45 m canopy, grown only near the bodies like today's trees; measured | proposed (survey I6) |
+| I8 | Waterfalls | 20-40 from the terrain, 40-200 m, spray, mist and plunge pools | proposed (survey I8) |
