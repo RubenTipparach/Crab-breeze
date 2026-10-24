@@ -13,6 +13,9 @@
     spawn_distance_m: 450.0,
     spawn_arc_deg: 100.0,
     spawn_jitter_m: 30.0,
+    // Inside the city, in its streets (owner, 2026-10-24: "Make sure enemies spawn in the city").
+    spawn_inside_fraction: 0.5,
+    spawn_clearance_m: 8.0,
     edge_margin_m: 150.0,
     max_on_player: 3,
     engage_player_m: 300.0,

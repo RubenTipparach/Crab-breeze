@@ -1,49 +1,66 @@
-# Demolition benchmark on the Mac, 2026-10-24
+# Buildings under fire on the Mac, 2026-10-24
 
-`--bench demolition` (structural-destruction task 2.4): on foot, shell every column on one face of
-the building nearest the start, watch it fall and settle, walk up to the rubble. Revision `c85d1de`
-(`building-research`), release build, run with `tools/perf/perf_suite.py`.
+Two takes on the owner's Mac (Apple M4 Max, Metal), release builds, run with
+`tools/perf/perf_suite.py`, windowed at 1920 x 1080 on the 120 Hz built-in display, nothing else
+running. **This is not the RTX 3070 target.**
 
-**This is the owner's Mac (Apple M4 Max, Metal), not the RTX 3070 target.** It also turned out to be
-held to 60 fps for the whole sitting (below), so it cannot say whether the buildings fit the 8.3 ms
-budget. It does say where the freezes and slow systems are.
+- **Demolition** (`--bench demolition`, revision `c85d1de`): on foot, shell every column on one face
+  of the building nearest the start, watch it fall and settle, walk up to the rubble. 3 runs.
+- **City combat** (`--bench defence`, `building-research` with main and `pilot-controls` merged in,
+  raiders spawning inside the city): board, then fight the first wave (10 raiders and 6 vehicles)
+  in the city's streets. 2 runs, 12 and 7 minutes of fighting.
+
+## How to read the numbers
+
+The window is held to the display's refresh, 120 Hz, so a frame either makes the 8.3 ms slot or
+waits for the next at 16.7 ms. A p50 of 16.6 ms therefore means most frames cost between 8.3 and
+16.7 ms. (An earlier version of this report said the Mac was capped at 60 fps; the combat runs,
+with 29 % of their frames at 5-10 ms, show it is not.)
 
 ## Findings
 
-1. **The game held about 60 fps through the whole take, the fall included.** Windowed, 3 valid runs:
-   p50 16.65 ms, p95 18.65 ms, p99 20.90 ms, p95 spread 0.12 ms between runs, peak memory 1222 MB.
-   The fall beat alone: p50 16.64, p95 18.48, p99 19.53, worst frame 23.3 ms.
-2. **Every frame over 50 ms is in the shelling beat**: one a run, 78-86 ms, and once 773 ms (run 0).
-   No system the perf HUD watches was slow at those moments (`step_structures` and `spawn_chunks`
-   never logged a slow line), so the freeze is outside them: a first-use pipeline compile or the
-   rubble's physics bodies are the suspects. Not proven.
-3. **`dress_near_player` is the one slow building system.** Over the 3 windowed runs it logged 164
-   slow frames (median 7.3 ms, worst 29.0 ms); 130 of them while the world loads before the take,
-   34 during it (worst 15.4 ms). `redraw_buildings` logged one slow frame a run (5.1-7.7 ms).
-4. **The demolition does not end the same way twice.** Same seed, same script, three outcomes: 176,
-   144 and 208 of 216 cells left standing (`PLAYTEST_RESULT`). The collapse depends on frame timing,
-   which breaks the determinism rule (CLAUDE.md section 6.3) and makes beat-by-beat comparisons
-   between builds unreliable until it is fixed.
+1. **The demolition misses 120 fps almost every frame.** Only 1 % of its frames made the 8.3 ms
+   slot. p50 16.65 ms, p95 18.65 ms, p99 20.90 ms (spread 0.12 ms over 3 runs), peak memory
+   1222 MB. Over the p95 budget (8.3 ms); the p99 budget (16.7 ms) is missed by 4 ms.
+2. **The fall itself is steady**: p95 18.48 ms, p99 19.53 ms, worst frame 23.3 ms over 780 frames.
+   The structure step and chunk spawning never logged a slow frame.
+3. **Shelling a building freezes the game once**: one frame a run of 78-86 ms, once 773 ms. No
+   watched system was slow at that moment; a first-use shader compile or the debris bodies are
+   the suspects. Not proven.
+4. **City combat sits on the 120 fps line.** 29 % of frames made 8.3 ms, rising from about 20 % in
+   the first minutes to 45-50 % later. p50 16.34 ms, p95 18.07 ms, p99 26.75 ms (spread 0.17 ms),
+   21 freezes over 50 ms in the two runs, worst 280 ms, peak memory 1459 MB.
+5. **`redraw_buildings` is the cost in combat.** Every hit rebuilds that building's mesh on the
+   main thread: 1899 slow frames in run 0 (median 8.6 ms, p95 21.4, worst 33.9 ms) and 1324 in
+   run 1 (median 10.8, p95 25.6, worst 49.1 ms). That alone fills the 8.3 ms budget.
+6. **`dress_near_player` is slow while the city loads** (about 100 slow frames a run, worst 29 ms),
+   rarely after.
+7. **The building falls differently every run**: 176, 144 and 208 of 216 cells standing, same seed.
+   The collapse depends on frame timing, against the determinism rule (CLAUDE.md section 6.3).
+8. **The scripted pilot loses in the city.** Run 0: the 600 s clock ran out with 9 of 16 enemies
+   left; run 1: the pilot's mech was destroyed. The bot's wall avoidance and unsticking are a
+   pending desktop PR; city 1 took 6-8 % damage.
 
-| beat | p50 ms | p95 ms | p99 ms | worst ms (any run) |
-| --- | ---: | ---: | ---: | ---: |
-| whole building | 16.67 | 21.26 | 24.37 | 25.9 |
-| shelling | 16.55 | 20.94 | 46.91 | 772.9 |
-| fall | 16.64 | 18.48 | 19.53 | 23.3 |
-| close (walk up to the rubble) | 16.62 | 18.08 | 19.04 | 19.7 |
+| take | beat | p50 ms | p95 ms | p99 ms | worst ms |
+| --- | --- | ---: | ---: | ---: | ---: |
+| demolition | whole building | 16.67 | 21.26 | 24.37 | 25.9 |
+| demolition | shelling | 16.55 | 20.94 | 46.91 | 772.9 |
+| demolition | fall | 16.64 | 18.48 | 19.53 | 23.3 |
+| demolition | close | 16.62 | 18.08 | 19.04 | 19.7 |
+| city combat | fight, run 0 | 16.16 | 18.08 | 22.36 | 93.3 |
+| city combat | fight, run 1 | 16.34 | 17.96 | 27.21 | 126.6 |
 
-Windowed, median over 3 runs, first 10 s thrown away. Offscreen runs (pilot's view rendered to an
-image, no vsync) gave the same picture: p50 16.64, p95 18.86, p99 21.83 ms.
+## What to fix, in order
+
+1. `redraw_buildings`: rebuild a hit building's mesh off the main thread (the craters already
+   mesh off-thread on main), or rebuild only the damaged band.
+2. The shelling freeze: find it with a trace on a run with no OBS.
+3. Make the collapse step-deterministic, so builds can be compared on the same fall.
+4. Then measure on the RTX 3070, windowed: `python3 tools/perf/perf_suite.py --scenarios demolition,defence --repeats 3`.
 
 ## Limits
 
-- **The Mac was capped at 60 fps for the whole sitting.** Main's own `world` take, which measured
-  2.46 ms p50 offscreen earlier today, measured 16.67 ms p50 right after these runs. Every build and
-  every switch lands on 16.6 ms, so this sitting can't measure cost under 16.7 ms. Likely causes: the
-  4K display at 60 Hz, or the display being off or locked (it was black when checked at 17:10).
-- **The 8.3 ms verdict needs the RTX 3070.** Run the same suite there, windowed:
-  `python3 tools/perf/perf_suite.py --scenarios demolition --repeats 3 --windowed`.
-- A comparison with shadows, grass and water effects switched off was spoiled: another session's
-  `cargo test` took every CPU core partway through. Its first runs showed no change in p50.
-- The plain run asked for was not done separately: the suite's own run logs are the same command
-  and carry the `slow:` lines counted above.
+- Apple M4 Max, not the RTX 3070.
+- A comparison with shadows, grass and water effects switched off was spoiled by another
+  session's `cargo test` taking every CPU core.
+- Videos come from separate runs and carry no numbers.

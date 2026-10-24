@@ -53,19 +53,20 @@ footer { color: var(--muted); font-size: 13px; }
 
 <main>
   <header>
-    <div class="eyebrow">Crab Breeze · building-research · c85d1de · 2026-10-24</div>
-    <h1>Demolition benchmark on the Mac</h1>
-    <p class="sub">The pilot, on foot, shells every column on one face of a 8-20 storey building, watches it fall and settle, then walks up to the rubble. Three windowed runs at 1920 x 1080 on the Apple M4 Max, nothing else running.</p>
+    <div class="eyebrow">Crab Breeze · building-research · 2026-10-24</div>
+    <h1>Buildings under fire on the Mac</h1>
+    <p class="sub">Two takes, windowed at 1920 x 1080 on the M4 Max's 120 Hz display, nothing else running. <strong>Demolition:</strong> on foot, shell one face of a tower, watch it fall (3 runs). <strong>City combat:</strong> in the cockpit against the first wave, 10 raiders and 6 vehicles spawning in the city's streets (2 runs, 7 and 12 minutes).</p>
   </header>
 
   <div class="strip">
-    <div class="tile"><span class="pill good">holds 60 fps</span><b>16.65 ms</b><span>p50, whole take (59.9 fps)</span></div>
-    <div class="tile"><span class="pill good">fall is smooth</span><b>19.5 ms</b><span>p99 while the building falls</span></div>
+    <div class="tile"><span class="pill bad">misses 120 fps</span><b>1 %</b><span>of demolition frames under 8.3 ms</span></div>
+    <div class="tile"><span class="pill warn">on the line</span><b>29 %</b><span>of city combat frames under 8.3 ms</span></div>
+    <div class="tile"><span class="pill bad">combat cost</span><b>8.6-10.8 ms</b><span>median slow <code>redraw_buildings</code>, 1300-1900 a run</span></div>
     <div class="tile"><span class="pill bad">freeze</span><b>773 ms</b><span>worst frame, shelling (others 78-86 ms)</span></div>
     <div class="tile"><span class="pill warn">not deterministic</span><b>144-208</b><span>cells left standing, same seed</span></div>
   </div>
 
-  <div class="callout"><p><strong>This Mac can't answer the 8.3 ms question today.</strong> It held every run to 60 fps: main's own world take, 2.46 ms a frame earlier today, measured 16.67 ms right after these runs. Smoothness and freezes are real; whether the buildings fit the 120 fps budget needs the RTX 3070.</p></div>
+  <div class="callout"><p><strong>Corrected.</strong> The first version said this Mac was capped at 60 fps. It is not: the window waits for the 120 Hz display, so a frame either makes 8.3 ms or waits until 16.7 ms, and the combat runs put 29 % of frames under 8.3 ms. A 16.6 ms median means most frames cost between 8.3 and 16.7 ms: <strong>over the 120 fps budget on the Mac</strong>. The RTX 3070 verdict still needs its own run.</p></div>
 
   <section>
     <h2>Frame time by beat</h2>
@@ -102,15 +103,25 @@ footer { color: var(--muted); font-size: 13px; }
         <tr><td>Close (walk up to the rubble)</td><td>16.62</td><td class="over">18.08</td><td class="over">19.04</td><td>19.7</td></tr>
       </tbody>
     </table></div>
-    <p class="sub">Median over 3 windowed runs, first 10 s thrown away. "Over" is against the budgets, and on a machine capped at 60 fps everything is over the 8.3 ms line by construction. Offscreen runs agree: p50 16.64, p95 18.86, p99 21.83 ms. Peak memory 1.2 GB.</p>
+    <p class="sub">Demolition, median over 3 windowed runs, first 10 s thrown away. Peak memory 1.2 GB.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>City combat</th><th>p50 ms</th><th>p95 ms</th><th>p99 ms</th><th>Worst ms</th></tr></thead>
+      <tbody>
+        <tr><td>Fight, run 0 (12 min, clock ran out)</td><td>16.16</td><td class="over">18.08</td><td class="over">22.36</td><td>93.3</td></tr>
+        <tr><td>Fight, run 1 (7 min, mech destroyed)</td><td>16.34</td><td class="over">17.96</td><td class="over">27.21</td><td>126.6</td></tr>
+      </tbody>
+    </table></div>
+    <p class="sub">21 freezes over 50 ms across both runs (worst 280 ms), peak memory 1.46 GB.</p>
   </section>
 
   <section>
     <h2>What was found</h2>
     <ol>
-      <li><strong>The fall itself is smooth.</strong> 780 frames of collapse with the worst at 23 ms. The structure simulation (<code>step_structures</code>) and the chunk spawning never logged a slow frame.</li>
+      <li><strong><code>redraw_buildings</code> is what combat costs.</strong> Every hit rebuilds that building's whole mesh on the main thread: 1899 slow frames in run 0 (median 8.6 ms, worst 34 ms) and 1324 in run 1 (median 10.8 ms, worst 49 ms). That alone fills the 8.3 ms budget.</li>
+      <li><strong>The fall itself is steady.</strong> 780 frames of collapse with the worst at 23 ms. The structure simulation and the chunk spawning never logged a slow frame.</li>
       <li><strong>The freezes are when the shelling starts.</strong> One frame a run of 78-86 ms, once 773 ms. No watched system was slow at that moment, so it is outside them: a first-use shader compile or the rubble's physics bodies are the suspects. Not proven yet.</li>
       <li><strong><code>dress_near_player</code> is the slow building system.</strong> 164 slow frames over 3 runs (median 7.3 ms, worst 29 ms), 130 of them while the city loads, 34 during the take (worst 15.4 ms). <code>redraw_buildings</code> was slow once a run (5-8 ms).</li>
+      <li><strong>The bot loses in the city.</strong> The clock ran out with 9 of 16 enemies left in one run; the pilot's mech was destroyed in the other. In the video it spends about 1.5 minutes with its nose in a broken building; wall avoidance is a pending desktop PR.</li>
       <li><strong>The building falls differently every run.</strong> Same seed, same script: 176, 144 and 208 of 216 cells left standing. The collapse depends on frame timing, which breaks the determinism rule and makes build-to-build comparison of the fall unreliable.</li>
     </ol>
   </section>
@@ -118,8 +129,8 @@ footer { color: var(--muted); font-size: 13px; }
   <section>
     <h2>Decision</h2>
     <div class="decide">
-      <div class="option rec"><span class="pill good">recommended</span><h3>Keep the buildings, fix three things</h3><p>Spread the dressing over more frames, find and kill the shelling freeze, make the collapse step-deterministic. Then measure on the RTX 3070 for the 8.3 ms verdict.</p></div>
-      <div class="option"><h3>Measure on the 3070 first</h3><p>Run <code>perf_suite.py --scenarios demolition --repeats 3 --windowed</code> on the desktop before any fix, to see the real headroom.</p></div>
+      <div class="option rec"><span class="pill good">recommended</span><h3>Keep the buildings, fix the redraw</h3><p>Rebuild a hit building's mesh off the main thread (the craters already do), or only its damaged band. Then the shelling freeze and a deterministic collapse, then measure on the RTX 3070.</p></div>
+      <div class="option"><h3>Measure on the 3070 first</h3><p>Run <code>perf_suite.py --scenarios demolition,defence --repeats 3</code> on the desktop before any fix, to see the real headroom.</p></div>
       <div class="option"><h3>Cut detail</h3><p>Shrink the 250 m dressing radius or the building count. Not supported by these numbers yet: nothing here shows the buildings' draw cost.</p></div>
     </div>
   </section>
@@ -127,11 +138,11 @@ footer { color: var(--muted); font-size: 13px; }
   <section>
     <h2>Limits</h2>
     <ul>
-      <li>Apple M4 Max, not the RTX 3070 target, and capped at 60 fps for the sitting (the display was black when checked at 17:10; a 60 Hz external 4K is attached).</li>
+      <li>Apple M4 Max, not the RTX 3070 target.</li>
       <li>A shadows, grass and water-effects switch comparison was spoiled by another session's compile taking every core. Its clean early runs showed no change.</li>
-      <li>Video of the take (separate run, not measured): <a href="https://drive.google.com/file/d/1D1ktYjDBEJ04VrsXpjU17mZC36SIxTkT/view">crab-breeze-2026-10-24-demolition.mp4</a> on Drive.</li>
+      <li>Videos (separate runs, no numbers taken from them): <a href="https://drive.google.com/file/d/1D1ktYjDBEJ04VrsXpjU17mZC36SIxTkT/view">demolition</a> and <a href="DRIVE_COMBAT">city combat</a> on Drive.</li>
     </ul>
   </section>
 
-  <footer>Files: <code>docs/benchmarks/2026-10-24-demolition-mac/</code> (report.md, suite-windowed.json, suite-offscreen.json, beats-windowed.json) on <code>building-research</code>.</footer>
+  <footer>Files: <code>docs/benchmarks/2026-10-24-demolition-mac/</code> (report.md, suite-windowed.json, suite-city-combat.json, beats-windowed.json) on <code>building-research</code>.</footer>
 </main>
