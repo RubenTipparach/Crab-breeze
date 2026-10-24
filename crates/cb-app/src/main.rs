@@ -16,6 +16,7 @@ mod pilot;
 mod showcase;
 mod sim;
 mod textures;
+mod water_render;
 mod world;
 
 use bevy::prelude::*;
@@ -80,6 +81,7 @@ fn main() -> AppExit {
         buildings::BuildingsPlugin,
         physics::DebrisPhysicsPlugin,
         hud::HudPlugin,
+        water_render::WaterRenderPlugin,
     ));
     if let Some(dir) = args.stills {
         app.add_plugins(capture::StillsPlugin { dir });

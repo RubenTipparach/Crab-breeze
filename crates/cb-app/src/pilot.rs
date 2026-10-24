@@ -52,13 +52,17 @@ impl Plugin for PilotPlugin {
         .add_systems(Startup, spawn_prompt)
         .add_systems(
             Update,
-            ((place_camera, weather_and_screens).chain(), show_prompt).in_set(PresentSet::Camera),
+            (
+                (place_camera, crate::water_render::track_eye, weather_and_screens).chain(),
+                show_prompt,
+            )
+                .in_set(PresentSet::Camera),
         );
     }
 }
 
 fn spawn_camera(mut commands: Commands) {
-    commands.spawn((
+    let mut camera = commands.spawn((
         Name::new("pilot's eyes"),
         PilotCamera,
         Camera3d::default(),
@@ -76,6 +80,12 @@ fn spawn_camera(mut commands: Commands) {
         Transform::default(),
         ColorGrading::default(),
     ));
+    // Sees water the pilot's way: under it, and with drops on the glass after surfacing
+    // (openspec change `water-rendering`; brings HDR, a depth prepass and transmission).
+    // `CB_NO_WATER_FX=1` leaves them off, to compare frame time or if the passes misbehave.
+    if !crate::cli::switched_off("CB_NO_WATER_FX") {
+        camera.insert(crate::water_render::WaterOptics);
+    }
 }
 
 fn step_pilot(
@@ -196,18 +206,33 @@ fn show_prompt(pilot: Res<PilotSim>, access: Res<MechAccessNow>, data: Res<Data>
 /// Clear-air visibility.
 const CLEAR_VISIBILITY_M: f32 = 3500.0;
 
-/// What the pilot sees through: in a cloud the view fogs by the cloud density at the eye (the one
-/// cloud query); seated with the sensor head shot off, the view is the backup cameras' (washed out,
-/// darker, tinted) until the all-view screen change draws them properly.
+/// What the pilot sees through, the one place that decides the camera's fog: in a cloud the view
+/// fogs by the cloud density at the eye (the one cloud query); under water the air's fog stands
+/// back and the water's own fog (`water_render`'s compose pass, which murks every pixel by the
+/// water it crossed) is the fog; seated with the sensor head shot off, the view is the backup
+/// cameras' (washed out, darker, tinted) until the all-view screen change draws them properly.
 fn weather_and_screens(
     plan: Res<Plan>,
     time: Res<Time>,
     pilot: Res<PilotSim>,
     mechs: Query<(&crate::mech::MechSim, &crate::mech::MechSpec), With<crate::mech::Piloted>>,
-    mut camera: Single<(&GlobalTransform, &mut DistanceFog, &mut ColorGrading), With<PilotCamera>>,
+    mut camera: Single<
+        (
+            &Transform,
+            &mut DistanceFog,
+            &mut ColorGrading,
+            Option<&crate::water_render::WaterEye>,
+        ),
+        With<PilotCamera>,
+    >,
 ) {
-    let (eye, fog, grading) = &mut *camera;
-    let density = plan.clouds.density_at(eye.translation(), time.elapsed_secs());
+    let (eye, fog, grading, water) = &mut *camera;
+    // Under water there is no cloud at the eye; the water fogs the view.
+    let density = if water.is_some_and(|w| w.under_water()) {
+        0.0
+    } else {
+        plan.clouds.density_at(eye.translation, time.elapsed_secs())
+    };
     let vis = CLEAR_VISIBILITY_M + (25.0 - CLEAR_VISIBILITY_M) * density.sqrt();
     let inside = density.sqrt();
     fog.color = SKY.mix(&Color::srgb(0.9, 0.92, 0.95), inside);

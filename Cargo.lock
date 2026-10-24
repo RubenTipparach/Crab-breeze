@@ -2232,6 +2232,8 @@ dependencies = [
  "avian3d",
  "bevy",
  "cb-core",
+ "naga",
+ "wesl",
 ]
 
 [[package]]
