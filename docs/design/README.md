@@ -34,6 +34,10 @@ buildings, people), `T` tech and tools, `P` playtesting.
 | `enemy-mechs` | built | AI pilots through the same controls; the city fight take |
 | `building-destruction` | built | Buildings of cells that break and collapse |
 | `debris-physics` | built | Avian 0.8 for chunks and wrecks on the drawn ground |
+| `building-generation` | proposed, mockup | Facades, storeys, setbacks and roof clutter from a split grammar on the 6 m grid; four 1980s archetypes |
+| `building-interiors` | proposed, mockup | Floorplans round a core, flats, offices, shops; furniture placed by interior rules; walkable on foot |
+| `structural-destruction` | proposed, mockup | Replaces the cells: a structural graph where load decides what gives, creaks, pancakes; breaks cost no remesh |
+| `rubble` | proposed, mockup | Rubble as ground (the crater layer), angle of repose, pieces settling on top, dust |
 
 Requests between the Mac and cloud sessions: `docs/design/requests.md`.
 
@@ -43,4 +47,5 @@ Requests between the Mac and cloud sessions: `docs/design/requests.md`.
 | --- | --- | --- |
 | Mech Cockpits (`docs/mockups/cockpits.html`): the three interiors (wall, harness, jockey) on their own: sit at the pilot's eye with the world on the screens, open the inner doors, orbit the pod beside a pilot. Was the Breeze Cockpit page | https://claude.ai/artifact/AqMpKdiBjn9e1uQPT1c1aj | `tools/mockups/gen_cockpit_page.py` from `assets/models/cockpit_<variant>/`, published with them as files |
 | Crab Breeze Mechs (`docs/mockups/mech_designs.html`): Foreman, Stevedore and Ironhorse at true scale; each kneels, opens its chest with steam and drops its ladder on its cockpit interior (wall, harness, jockey); board it in first person or sit in each cockpit | https://claude.ai/artifact/B5tX8ycUR2tLBknKyMb8bc | `tools/mockups/gen_mech_designs.py` from `assets/models/mech_<id>.glb` and `assets/models/cockpit_<variant>/`, published with them as files |
+| Crab Breeze Buildings (`docs/mockups/buildings.html`): a seeded city block with facades, roofs, floorplans and furniture; click to fire, demolition scripts, stress view, falling storeys and rubble piles; the pilot and a 12 m mech for scale. Research in `docs/analysis/buildings-research.md` | https://claude.ai/artifact/FhoXXPFzGMvrmqea9SYaRS | hand-written page; shots by `tools/mockups/shoot_buildings.mjs` into `docs/screenshots/buildings/` |
 | Alien Crab Mechs (`docs/mockups/alien_mechs.html`): the three enemy crab machines (Skitter 6 m, Snapper 12 m, Big Boy 30 m) at true scale beside the Breeze | https://claude.ai/artifact/DAdKyPWjNyjur74vQaZTA8 | `tools/mockups/gen_alien_mechs.py` from `assets/models/alien_*.glb` (`tools/blender/build_alien_mechs.py`, rig in `docs/design/alien-rig.md`) |

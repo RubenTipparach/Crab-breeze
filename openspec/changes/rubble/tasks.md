@@ -1,0 +1,15 @@
+# Tasks: rubble
+
+## 0. Mockup
+- [x] 0.1 Heap heightfield with repose, pieces settling on it, pool overflow into the heap, dust
+- [ ] 0.2 Owner answers W13
+
+## 1. Core
+- [ ] 1.1 Positive deltas in the deformation tiles, `max_rubble_m` (test: `rubble_raises_the_ground_under_it`)
+- [ ] 1.2 Deposit and repose (test: `a_heap_never_stands_steeper_than_its_angle_of_repose`)
+- [ ] 1.3 Determinism (test: `the_same_demolition_grows_the_same_heap`)
+
+## 2. App
+- [ ] 2.1 Rubble material layer and instanced dressing
+- [ ] 2.2 Dust clouds
+- [ ] 2.3 Playtest: climb the warehouse's rubble on foot, stride over it in the mech; on Drive
