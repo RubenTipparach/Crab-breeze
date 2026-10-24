@@ -218,7 +218,7 @@ impl AiPilot {
         if v.hit && self.evade_left_s <= 0.0 {
             self.evade_left_s = self.skill.evade_s;
             self.side = -self.side;
-            if me.jet_heat < 0.3 && self.rng.chance(self.skill.hop_chance) {
+            if me.boost.heat < 0.3 && self.rng.chance(self.skill.hop_chance) {
                 self.hop_left_s = self.skill.hop_s;
             }
             self.think_in_s = 0.0;
@@ -277,14 +277,15 @@ impl AiPilot {
             && self.line_ok
             && matches!(self.task, Task::Engage | Task::Evade);
 
-        let hop = self.hop_left_s > 0.0 && !me.jet_overheated;
+        let hop = self.hop_left_s > 0.0 && !me.boost.locked;
         Orders {
             controls: MechControls {
                 throttle_axis: ((throttle - me.throttle) * 5.0).clamp(-1.0, 1.0),
                 turn_axis: turn,
                 aim_delta_deg,
                 mode_request: (hop && me.mode != LocomotionMode::Jet).then_some(ModeRequest::Jet),
-                lift_axis: if hop { 0.75 } else { 0.0 },
+                // A short hop: 0.4 of the rockets' doubled thrust is a net 12 m/s2 up.
+                lift_axis: if hop { 0.4 } else { 0.0 },
                 ..Default::default()
             },
             fire: [ready, ready && err < self.skill.fire_error_deg * 0.6],

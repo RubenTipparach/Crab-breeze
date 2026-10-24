@@ -3,7 +3,7 @@
 ## 1. Layer (cb-core::world::clouds)
 
 Clusters by Poisson-disc on the world at `cloud_spacing_m` (default 700 m) with coverage noise
-(`coverage` 0.4 default): each cluster 3-8 ellipsoids, 80-300 m across, flat bottoms at cloud
+(`coverage` 0.5 in `data/world/world.ron`, base 300 m, top 750 m, above the 60-storey towers): each cluster 3-8 ellipsoids, 80-300 m across, flat bottoms at cloud
 base. Pure; `cloud_density_at(p) -> f32` is the one query (fogging, shadows, radar later).
 
 ## 2. Drawing
@@ -26,7 +26,7 @@ ground and from inside a cloud (the worst case). Fog: free. Shadow texture: one 
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| W8 | Clouds | scattered cumulus at 600-1100 m, about 40 % cover, fly-through fog | provisional (survey W8) |
+| W8 | Clouds | scattered cumulus at 300-750 m, about 50 % cover, fly-through fog | provisional (survey W8); lowered 2026-10-24 from 600-1100 m so the sky has clouds in view and one boost (about 8 s of climb) reaches them (owner: "I need some cheap clouds") |
 | T4 | Camera raindrops from Pale Blue Dot | port its lens-droplet effect when rain arrives; bring its source into reach | open (survey T4) |
 
 ## As built (2026-10-24)

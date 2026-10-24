@@ -23,6 +23,8 @@ pub struct InputAccum {
     pub mode: Option<ModeRequest>,
     /// A test command was asked for.
     pub debug: Option<DebugCommand>,
+    /// The skates were toggled.
+    pub skate_toggle: bool,
     /// When set, a script plays instead of the keyboard (held axes and buttons); mouse look and
     /// latches above still add.
     pub script: Option<Actions>,
@@ -48,6 +50,8 @@ struct Keys {
     mode_jet: Vec<KeyCode>,
     release_mouse: Vec<KeyCode>,
     lift: Vec<KeyCode>,
+    skate: Vec<KeyCode>,
+    sink: Vec<KeyCode>,
     fire: [(Vec<KeyCode>, Vec<MouseButton>); 2],
     debug: Vec<(Vec<KeyCode>, DebugCommand)>,
     deg_per_px: f32,
@@ -107,6 +111,8 @@ fn resolve(b: &Bindings) -> Result<Keys, String> {
         mode_jet: r("mode_jet", &b.mode_jet)?,
         release_mouse: r("release_mouse", &b.release_mouse)?,
         lift: r("lift", &b.lift)?,
+        skate: r("skate", &b.skate)?,
+        sink: r("sink", &b.sink)?,
         fire: [split("fire_primary", &b.fire_primary)?, split("fire_secondary", &b.fire_secondary)?],
         debug: vec![
             (r("debug_hit_arm_l", &b.debug_hit_arm_l)?, DebugCommand::Hit(PartKind::ArmL)),
@@ -215,6 +221,7 @@ fn sample_devices(
             acc.mode = Some(m);
         }
     }
+    acc.skate_toggle |= any_just(&input, &keys.skate);
     for (k, cmd) in &keys.debug {
         if any_just(&input, k) {
             acc.debug = Some(*cmd);
@@ -249,6 +256,7 @@ fn take_step_actions(
                     .clone()
                     .map(|(k, m)| any(&input, &k) || mouse.any_pressed(m.iter().copied())),
                 free_look: any(&input, &keys.free_look),
+                sink: any(&input, &keys.sink),
                 ..default()
             }
         }
@@ -259,6 +267,7 @@ fn take_step_actions(
         throttle_zero: held.throttle_zero || acc.throttle_zero,
         mode_request: held.mode_request.or(acc.mode),
         debug: held.debug.or(acc.debug),
+        skate_toggle: held.skate_toggle || acc.skate_toggle,
         ..held
     }
     .sanitised();
@@ -267,6 +276,7 @@ fn take_step_actions(
     acc.throttle_zero = false;
     acc.mode = None;
     acc.debug = None;
+    acc.skate_toggle = false;
 }
 
 #[cfg(test)]
