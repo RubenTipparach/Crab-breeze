@@ -121,8 +121,9 @@ aside { display: grid; gap: 12px; min-width: 0; }
     bank), the Lineman (a bucket truck, Cinema), the Driller (a drill rig, the All-view sphere), the Bowser (a fuel tanker,
     Octagon), the Mule (a haul truck, Twin tier), the Pumper (a fire engine, Tile wall) and the Ploughman (a tractor,
     Excavator cab). Some carry bigger arms: punching fists on the Mule and the Roustabout, heavier guns on the Harrow, the
-    Bowser and the Roustabout. Two are Gundams, on human-jointed legs: the Picket (the Ground Type pattern, Panorama,
-    machine gun and shield) and the Sapper (after the Guncannon, Titan, shoulder cannon and fists). Legs against torso is
+    Bowser and the Roustabout. Two are Gundams, with the V fin, the blue chest and yellow vents, the skirts and flared
+    shins: the Picket (the RX-79[G] Ground Type, Panorama, machine gun and shield) and the Sapper (Full Armor, Titan,
+    shoulder cannon, missile pod, beam rifle). Legs against torso is
     measured off the meshes, and no arm touches a leg (a mesh intersection check in the generator).</p>
     <div class="borow" id="bo-pick"></div>
     <div class="bostage"><canvas id="bo-view"></canvas></div>

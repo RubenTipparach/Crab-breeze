@@ -72,10 +72,13 @@ PALETTES = {
                    RUBBER=(0.06, 0.06, 0.06), METAL=(0.62, 0.63, 0.66), GLOW=(0.4, 0.6, 1.0)),
     "ploughman": dict(BODY=(0.16, 0.30, 0.55), BODY2=(0.24, 0.24, 0.25), FRAME=(0.07, 0.07, 0.08), ACCENT=(0.90, 0.75, 0.20),
                       RUBBER=(0.06, 0.06, 0.06), METAL=(0.55, 0.56, 0.60), GLOW=(1.0, 0.85, 0.5)),
-    "picket": dict(BODY=(0.44, 0.46, 0.42), BODY2=(0.17, 0.21, 0.31), FRAME=(0.08, 0.08, 0.09), ACCENT=(0.70, 0.14, 0.10),
-                   RUBBER=(0.06, 0.06, 0.06), METAL=(0.52, 0.53, 0.55), GLOW=(0.4, 1.0, 0.55)),
-    "sapper": dict(BODY=(0.54, 0.47, 0.33), BODY2=(0.30, 0.25, 0.19), FRAME=(0.08, 0.08, 0.08), ACCENT=(0.90, 0.50, 0.12),
-                   RUBBER=(0.06, 0.06, 0.06), METAL=(0.55, 0.55, 0.56), GLOW=(1.0, 0.35, 0.25)),
+    # Gundams keep their colours (white, blue, red, yellow): they are what makes one read as a Gundam. Weathered, not show
+    # paint: an off-white with grime in it, as the Ground Type wears in the jungle.
+    "picket": dict(BODY=(0.74, 0.74, 0.70), BODY2=(0.16, 0.26, 0.56), FRAME=(0.16, 0.16, 0.18), ACCENT=(0.72, 0.12, 0.10),
+                   YELLOW=(0.92, 0.70, 0.10), RUBBER=(0.06, 0.06, 0.06), METAL=(0.45, 0.46, 0.48), GLOW=(0.3, 1.0, 0.45)),
+    "sapper": dict(BODY=(0.72, 0.72, 0.68), BODY2=(0.20, 0.27, 0.42), FRAME=(0.15, 0.15, 0.16), ACCENT=(0.68, 0.14, 0.10),
+                   YELLOW=(0.90, 0.68, 0.12), ARMOR=(0.30, 0.34, 0.30), RUBBER=(0.06, 0.06, 0.06), METAL=(0.45, 0.46, 0.48),
+                   GLOW=(0.3, 1.0, 0.45)),
 }
 MATS = {}
 GROUPS = {}          # group name -> [objects]: legs, torso, arms, head, cockpit
@@ -927,114 +930,138 @@ def ploughman():
 
 # ----------------------------------------------------------------------------- two Gundams (owner, 2026-10-24: "Make a
 # couple Gundam variant", after "if we do gundams, I'd want something practical looking like this" of the RX-79[G]
-# Ground Type): human-jointed legs with big knee pads, armoured skirts, a chest with the cockpit in it opening in two
-# parts, a backpack with thrusters, a sensor head; field-worn paint, no white.
+# Ground Type; then "None of those look like gundams"). What makes one read as a Gundam, all of it here: a small helmet
+# head with a big yellow V fin, two green eyes and a red chin; a broad blue chest with yellow slatted vents either side
+# over a red abdomen and a white waist with a V buckle; front skirts; big rounded shoulder pads; long legs, knee pads,
+# shins flaring wide at the ankle; two beam saber hilts over the shoulders; white, blue, red and yellow.
 
-def human_legs(hip_y, hx, t=1.0):
-    """Gundam legs: the knee forward of the hip, a straight shin with a flared calf, a knee pad, a long foot."""
+def octa(cx, cz, w, d, c):
+    """A plan octagon (x, z): a w by d rectangle centred on (cx, cz) with its corners cut by c."""
+    hw, hd = w / 2, d / 2
+    return [(cx + hw - c, cz + hd), (cx + hw, cz + hd - c), (cx + hw, cz - hd + c), (cx + hw - c, cz - hd),
+            (cx - hw + c, cz - hd), (cx - hw, cz - hd + c), (cx - hw, cz + hd - c), (cx - hw + c, cz + hd)]
+
+
+def gundam(layout, bulk=1.0):
+    """A Gundam, about 24 m to the tip of its V fin. bulk thickens the limbs. Returns useful points for its kit."""
+    hx = 1.95 * bulk
     for s in (1, -1):
-        hip, knee, ankle = V((s * hx, hip_y, 0)), V((s * hx, hip_y * 0.52, 0.7)), V((s * hx, 1.9, 0.0))
-        chamfered(f"thigh{s}", (hip + knee) / 2, (2.9 * t, (knee - hip).length + 0.6, 3.0 * t), 0.4, "BODY2", "legs", between(hip, knee))
-        chamfered(f"shin{s}", (knee + ankle) / 2, (3.3 * t, (ankle - knee).length + 0.4, 3.6 * t), 0.5, "BODY", "legs",
-                  between(knee, ankle))
-        box(f"calf{s}", (knee + ankle) / 2 + V((0, 0.3, -1.6 * t)), (3.0 * t, 3.6, 1.2 * t), "BODY", "legs",
-            ((1, 0, 0), (0, 1, 0.25), (0, -0.25, 1)))
-        chamfered(f"kneepad{s}", knee + V((0, 0.2, 1.4 * t)), (2.6 * t, 2.4, 1.2 * t), 0.3, "BODY", "legs")
-        box(f"kneebolt{s}", knee + V((0, 0.2, 2.05 * t)), (1.0, 0.5, 0.2), "ACCENT", "legs")
-        cyl(f"knee{s}", knee - V((1.6 * t, 0, 0)), knee + V((1.6 * t, 0, 0)), 1.1 * t, "FRAME", "legs", 14)
-        cyl(f"ankle{s}", ankle - V((1.2 * t, 0, 0)), ankle + V((1.2 * t, 0, 0)), 0.9 * t, "FRAME", "legs", 12)
-        chamfered(f"foot{s}", V((s * hx, 0.75, 1.0)), (3.0 * t, 1.5, 6.4 * t), 0.4, "BODY2", "legs")
-        box(f"toe{s}", V((s * hx, 0.6, 1.0 + 3.4 * t)), (2.8 * t, 1.0, 1.0), "BODY", "legs", ((1, 0, 0), (0, 1, 0.6), (0, -0.6, 1)))
-        box(f"heel_wheel{s}", V((s * hx, 0.7, 1.0 - 3.3 * t)), (1.6, 1.2, 0.8), "RUBBER", "legs")      # the skate wheel's well
-
-
-def gundam_body(hip_y, hx, layout, w=6.6, t=1.0):
-    """The waist, skirts, chest with the cockpit, collar and backpack; returns the shoulder height and half width."""
-    box("hips", (0, hip_y + 0.3, 0), (2 * hx + 1.2, 2.0, 3.0), "FRAME", "legs")
-    for s in (1, -1):                                 # side skirts and the front skirt plates
-        box(f"sskirt{s}", (s * (hx + 1.0), hip_y - 0.4, 0.0), (0.4, 3.0, 3.0), "BODY", "torso", ((1, 0, 0), (0.2 * s, 1, 0), (0, 0, 1)))
-        box(f"fskirt{s}", (s * 1.2, hip_y - 0.6, 1.8), (2.0, 2.8, 0.4), "BODY", "torso", ((1, 0, 0), (0, 1, -0.15), (0, 0.15, 1)))
-    chamfered("abdomen", (0, hip_y + 2.0, 0), (3.6, 2.4, 3.2), 0.3, "FRAME", "torso")
-    yc = hip_y + 5.0
-    chest = chamfered("chest", (0, yc, -0.3), (w * t, 4.4, 4.6), 0.6, "BODY2", "torso")
-    boolean(chest, box("cockpit_well", (0, yc - 0.4, 2.2), (2.6, 2.6, 2.2), "BODY2", "torso"), "DIFFERENCE")
-    pod_in(layout, (0, yc - 1.7, 1.4))
+        x = s * hx
+        # the foot: a long sole, a toe wedge, the heel, the ankle guard (red)
+        chamfered(f"foot{s}", (x, 0.6, 0.8), (3.1 * bulk, 1.2, 6.6), 0.35, "ACCENT", "legs")
+        box(f"toe{s}", (x, 0.85, 4.4), (2.8 * bulk, 0.9, 1.4), "ACCENT", "legs", ((1, 0, 0), (0, 1, 0.7), (0, -0.7, 1)))
+        chamfered(f"ankle{s}", (x, 1.7, 0.4), (2.2 * bulk, 1.4, 2.4), 0.3, "FRAME", "legs")
+        # the shin: lofted, flaring wide over the ankle, narrower under the knee (white), a red-trimmed front plate
+        loft(f"shin{s}", [(1.4, octa(x, 0.2, 4.4 * bulk, 5.0, 0.8)), (2.4, octa(x, 0.2, 4.3 * bulk, 4.8, 0.8)),
+                          (4.6, octa(x, 0.1, 3.3 * bulk, 3.7, 0.6)), (7.0, octa(x, 0.0, 2.7 * bulk, 3.0, 0.5))], "BODY", "legs")
+        box(f"shin_vent{s}", (x, 2.6, -2.25), (1.6 * bulk, 1.4, 0.2), "FRAME", "legs")
+        # the knee: joint, then the big pad standing proud of the knee's front
+        cyl(f"knee{s}", (x - 1.3 * bulk, 7.3, 0.0), (x + 1.3 * bulk, 7.3, 0.0), 1.1 * bulk, "FRAME", "legs", 14)
+        chamfered(f"kneepad{s}", (x, 7.6, 1.6), (2.9 * bulk, 3.2, 1.6), 0.4, "BODY", "legs")
+        box(f"kneebar{s}", (x, 7.6, 2.42), (1.6 * bulk, 0.4, 0.1), "ACCENT", "legs")
+        # the thigh, white, and the hip ball
+        chamfered(f"thigh{s}", (x, 9.8, 0.0), (2.3 * bulk, 4.6, 2.6 * bulk), 0.35, "BODY", "legs")
+        cyl(f"hipjoint{s}", (x - 1.0, 12.0, 0.0), (x + 1.0, 12.0, 0.0), 1.15 * bulk, "FRAME", "legs", 14)
+    # the waist: the crotch block (red), the white waist band and its yellow V buckle, the skirts
+    box("hips", (0, 12.1, 0.0), (2 * hx + 0.4, 1.6, 2.8), "FRAME", "legs")
+    box("crotch", (0, 11.6, 0.9), (1.7, 1.9, 1.6), "ACCENT", "torso", ((1, 0, 0), (0, 1, -0.2), (0, 0.2, 1)))
+    chamfered("waist", (0, 13.3, 0.0), (5.2 * bulk, 1.3, 3.6), 0.3, "BODY", "torso")
     for s in (1, -1):
-        for i in range(3):                            # the chest intakes
-            box(f"intake{s}{i}", (s * (w * t / 2 - 0.9), yc + 0.9 - i * 0.45, 1.95), (1.2, 0.18, 0.2), "FRAME", "torso")
-    box("collar", (0, yc + 2.4, -0.2), (3.8, 0.6, 3.2), "BODY", "torso")
-    chamfered("backpack", (0, yc + 0.4, -3.5), (4.4, 4.0, 2.2), 0.4, "BODY", "torso")
+        strut(f"buckle{s}", (0, 12.9, 1.85), (s * 0.9, 13.75, 1.85), 0.35, "YELLOW", "torso")
+        box(f"fskirt{s}", (s * 1.45, 11.9, 1.75), (2.3 * bulk, 2.6, 0.35), "BODY", "torso", ((1, 0, 0), (0, 1, -0.22), (0, 0.22, 1)))
+        box(f"fskirt_trim{s}", (s * 1.45, 10.8, 2.0), (2.0 * bulk, 0.35, 0.1), "ACCENT", "torso")
+        box(f"sskirt{s}", (s * (2.6 * bulk + 0.5), 12.2, 0.0), (0.35, 2.6, 3.0), "BODY", "torso", ((1, 0, 0), (0.18 * s, 1, 0), (0, 0, 1)))
+    box("rskirt", (0, 12.3, -1.95), (4.4 * bulk, 2.4, 0.35), "BODY", "torso")
+    # the abdomen (red) and the chest (blue), the cockpit in the chest's middle, the yellow slatted vents either side
+    chamfered("abdomen", (0, 14.6, 0.1), (3.8 * bulk, 1.6, 3.2), 0.3, "ACCENT", "torso")
+    yc = 17.2
+    chest = chamfered("chest", (0, yc, -0.1), (7.4 * bulk, 3.6, 4.6), 0.6, "BODY2", "torso")
+    boolean(chest, box("cockpit_well", (0, yc - 0.5, 2.0), (2.5, 2.4, 1.8), "BODY2", "torso"), "DIFFERENCE")
+    pod_in(layout, (0, yc - 1.6, 1.15))
     for s in (1, -1):
-        cyl(f"thruster{s}", (s * 1.1, yc - 1.2, -3.8), (s * 1.1, yc - 2.6, -4.4), 0.6, "FRAME", "torso", 12, r2=0.9)
-    return yc + 1.6, w * t / 2
-
-
-def gundam_arm(s, sh, upper_k=1.0, fore_k=1.0):
-    """A humanoid arm: shoulder armour, upper arm, elbow, forearm armour, a hand; returns the hand point."""
-    chamfered(f"shoulder{s}", sh + V((s * 0.4, 0.4, 0)), (2.6 * upper_k, 2.4, 3.0 * upper_k), 0.4, "BODY", "arms")
-    el = sh + V((s * 0.5, -3.6, 0.4))
-    strut(f"upper{s}", sh, el, 1.3 * upper_k, "BODY2", "arms")
-    cyl(f"elbow{s}", el - V((0.8, 0, 0)), el + V((0.8, 0, 0)), 0.8 * upper_k, "FRAME", "arms", 12)
-    wr = el + V((0, -0.6, 3.0))
-    chamfered(f"forearm{s}", (el + wr) / 2, (1.9 * fore_k, (wr - el).length + 0.4, 1.9 * fore_k), 0.3, "BODY", "arms", between(el, wr))
-    box(f"hand{s}", wr + V((0, 0, 0.6)), (1.0 * fore_k, 1.3 * fore_k, 1.2 * fore_k), "FRAME", "arms")
-    return wr + V((0, 0, 0.6))
+        vx = s * 2.45 * bulk
+        box(f"vent{s}", (vx, yc + 0.6, 2.2), (1.7, 1.5, 0.3), "YELLOW", "torso")
+        for i in range(4):
+            box(f"slat{s}{i}", (vx, yc + 0.08 + i * 0.36, 2.38), (1.5, 0.12, 0.08), "FRAME", "torso")
+    chamfered("collar", (0, yc + 2.05, -0.3), (3.6, 0.7, 3.0), 0.2, "BODY", "torso")
+    # the head: neck, white helmet, face, eyes, red chin, vulcans, the yellow V fin and its red crest
+    hy = yc + 3.4
+    cyl("neck", (0, yc + 2.2, -0.2), (0, hy - 0.6, -0.2), 0.55, "FRAME", "head", 10)
+    hy += 0.2
+    chamfered("helmet", (0, hy, -0.15), (2.4, 2.2, 2.6), 0.45, "BODY", "head")
+    box("face", (0, hy - 0.4, 1.1), (1.4, 1.2, 0.4), "BODY", "head")
+    box("chin", (0, hy - 1.05, 1.2), (0.75, 0.42, 0.4), "ACCENT", "head")
+    for s in (1, -1):
+        box(f"eye{s}", (s * 0.37, hy - 0.08, 1.33), (0.52, 0.2, 0.08), "GLOW", "head", ((1, -0.18 * s, 0), (0.18 * s, 1, 0), (0, 0, 1)))
+        cyl(f"vulcan{s}", (s * 0.95, hy + 0.45, 0.9), (s * 0.95, hy + 0.45, 1.3), 0.15, "FRAME", "head", 8)
+        strut(f"vfin{s}", (s * 0.15, hy + 0.7, 1.3), (s * 1.9, hy + 2.8, 1.4), 0.24, "YELLOW", "head", d=0.14)
+    box("crest", (0, hy + 0.7, 1.3), (0.5, 0.6, 0.3), "ACCENT", "head")
+    # the backpack, its two thrusters, the beam saber hilts over the shoulders
+    chamfered("backpack", (0, yc + 0.2, -3.2), (4.6, 3.8, 1.9), 0.4, "BODY", "torso")
+    for s in (1, -1):
+        cyl(f"thruster{s}", (s * 1.2, yc - 1.6, -3.5), (s * 1.2, yc - 3.0, -4.0), 0.55, "FRAME", "torso", 12, r2=0.85)
+        cyl(f"saber{s}", (s * 1.5, yc + 1.6, -3.2), (s * 2.2, yc + 3.8, -3.4), 0.2, "BODY", "torso", 10)
+    # the arms: a big rounded shoulder pad, the upper arm, the elbow, a white forearm, a grey fist
+    hands = {}
+    for s in (1, -1):
+        sh = V((s * (3.7 * bulk + 1.3), yc + 0.9, -0.2))
+        chamfered(f"shoulder{s}", sh + V((s * 0.3, 0.4, 0)), (2.8 * bulk, 2.8, 3.4), 0.7, "BODY", "arms")
+        box(f"shoulder_band{s}", sh + V((s * 0.3, -0.95, 0)), (2.9 * bulk, 0.3, 3.5), "BODY2", "arms")
+        el = sh + V((s * 0.3, -3.5, 0.6))
+        strut(f"upper{s}", sh, el, 1.3 * bulk, "FRAME", "arms")
+        cyl(f"elbow{s}", el - V((0.8, 0, 0)), el + V((0.8, 0, 0)), 0.75 * bulk, "FRAME", "arms", 12)
+        wr = el + V((0, -0.5, 3.0))
+        chamfered(f"forearm{s}", (el + wr) / 2, (2.0 * bulk, (wr - el).length + 0.5, 2.1 * bulk), 0.35, "BODY", "arms", between(el, wr))
+        box(f"hand{s}", wr + V((0, -0.1, 0.6)), (1.1, 1.3, 1.2), "FRAME", "arms")
+        hands[s] = wr + V((0, -0.1, 0.6))
+    return dict(hands=hands, yc=yc, hy=hy)
 
 
 def picket():
-    """The Ground Type pattern: a practical infantry Gundam. Box-magazine machine gun in the right hand, a tall
-    shield on the left forearm, a visor head with a short V fin, the Panorama in its chest (the upper hatch flips
-    up, the lower folds down, as the 08th MS Team's does)."""
-    hip_y, hx = 12.2, 2.2
-    human_legs(hip_y, hx, 1.0)
-    top, hw = gundam_body(hip_y, hx, "panorama")
-    head = V((0, top + 1.6, 0.2))
-    chamfered("head", head, (1.6, 1.5, 1.8), 0.3, "BODY", "head")
-    box("visor", head + V((0, 0.05, 0.92)), (1.2, 0.35, 0.1), "GLOW", "head")
-    for s in (1, -1):
-        strut(f"vfin{s}", head + V((s * 0.15, 0.6, 0.85)), head + V((s * 1.0, 1.5, 0.8)), 0.16, "ACCENT", "head")
-    cyl("antenna", head + V((-0.7, 0.6, -0.6)), head + V((-0.7, 2.6, -0.8)), 0.06, "METAL", "head", 6)
-    for s in (1, -1):
-        hand = gundam_arm(s, V((s * (hw + 1.3), top - 0.4, -0.3)))
-        if s > 0:                                     # the machine gun: receiver, box magazine, barrel, a sight
-            box("mg_receiver", hand + V((0, 0.2, 1.0)), (0.9, 1.2, 3.6), "FRAME", "arms")
-            box("mg_magazine", hand + V((0, -1.2, 0.8)), (0.7, 1.6, 1.2), "BODY2", "arms")
-            cyl("mg_barrel", hand + V((0, 0.4, 2.8)), hand + V((0, 0.4, 6.4)), 0.25, "METAL", "arms", 10)
-            box("mg_sight", hand + V((0, 1.0, 0.6)), (0.3, 0.4, 1.0), "FRAME", "arms")
-        else:                                         # the shield, on the forearm's outside
-            box("shield", hand + V((-1.3, 0.4, -1.4)), (0.35, 6.4, 3.0), "BODY2", "arms")
-            box("shield_mark", hand + V((-1.5, 1.6, -1.4)), (0.06, 1.2, 1.2), "ACCENT", "arms")
-    box("backpack_radio", (1.4, top + 0.2, -4.3), (0.8, 1.4, 0.8), "FRAME", "torso")
-    cyl("radio_whip", (1.4, top + 0.9, -4.3), (1.4, top + 4.4, -4.4), 0.05, "METAL", "torso", 6)
+    """The RX-79[G] Ground Type, the owner's "practical" Gundam: weathered white, blue and red, a 100 mm machine gun
+    with a box magazine in the right hand, the tall shield on the left forearm, a radio antenna on the backpack, the
+    Panorama in its chest (the upper hatch flips up and the lower folds down, as the 08th MS Team's does)."""
+    g = gundam("panorama")
+    h = g["hands"][1]
+    box("mg_receiver", h + V((0, 0.3, 1.0)), (0.9, 1.2, 3.8), "FRAME", "arms")
+    box("mg_magazine", h + V((0, -1.25, 0.9)), (0.7, 1.7, 1.2), "BODY2", "arms")
+    cyl("mg_barrel", h + V((0, 0.45, 2.9)), h + V((0, 0.45, 6.6)), 0.25, "METAL", "arms", 10)
+    box("mg_shroud", h + V((0, 0.45, 3.5)), (0.6, 0.6, 1.4), "FRAME", "arms")
+    l = g["hands"][-1]
+    box("shield", l + V((-1.4, 0.2, -1.6)), (0.35, 6.6, 3.2), "BODY", "arms")
+    box("shield_band", l + V((-1.6, 1.6, -1.6)), (0.06, 0.6, 3.0), "ACCENT", "arms")
+    box("shield_mark", l + V((-1.6, -0.4, -1.6)), (0.06, 1.4, 1.4), "BODY2", "arms")
+    box("radio", (1.5, g["yc"] + 1.8, -3.9), (0.8, 1.2, 0.8), "FRAME", "torso")
+    cyl("radio_whip", (1.5, g["yc"] + 2.4, -3.9), (1.6, g["yc"] + 6.6, -4.2), 0.05, "METAL", "torso", 6)
 
 
 def sapper():
-    """A heavy Gundam, after the Guncannon: thicker legs and chest, a long cannon over the right shoulder and a
-    missile box over the left, big fists for close work, a twin-camera head, the Titan in its chest."""
-    hip_y, hx = 13.4, 2.6
-    human_legs(hip_y, hx, 1.25)
-    top, hw = gundam_body(hip_y, hx, "titan", w=7.2, t=1.1)
-    head = V((0, top + 1.4, 0.0))
-    chamfered("head", head, (2.2, 1.4, 2.0), 0.3, "BODY", "head")
-    for x in (-0.45, 0.45):
-        cyl(f"camera{x}", head + V((x, 0.1, 0.95)), head + V((x, 0.1, 1.25)), 0.28, "GLOW", "head", 10)
+    """A heavy Gundam, Full Armor style: the same Gundam under bolt-on armour plates (chest, shoulders, thighs, shins),
+    a long cannon over the right shoulder, a missile pod on the left forearm, a beam rifle in the right hand, the Titan
+    in its chest."""
+    g = gundam("titan", bulk=1.12)
+    yc = g["yc"]
+    for nm, c, sz in (("armor_chest", (0, yc - 0.4, 2.5), (6.4, 1.4, 0.35)),
+                      ("armor_belly", (0, 14.5, 1.85), (3.6, 1.2, 0.3))):
+        box(nm, c, sz, "ARMOR", "torso")
     for s in (1, -1):
-        sh = V((s * (hw + 1.5), top - 0.4, -0.3))
-        chamfered(f"shoulder{s}", sh + V((s * 0.4, 0.5, 0)), (3.0, 2.8, 3.4), 0.4, "BODY", "arms")
-        el = sh + V((s * 0.6, -3.4, 0.6))
-        strut(f"upper{s}", sh, el, 1.6, "BODY2", "arms")
-        fist(f"fist{s}", el, 1.15, ahead=2.0)
-    # the shoulder cannon on its mount, and the missile box, over the backpack
-    mount = V((2.6, top + 1.4, -2.2))
-    box("cannon_mount", mount, (1.6, 1.2, 2.4), "FRAME", "torso")
-    cyl("cannon", mount + V((0, 0.5, -1.4)), mount + V((0, 1.4, 9.0)), 0.55, "METAL", "torso", 12)
-    cyl("cannon_brake", mount + V((0, 1.35, 8.4)), mount + V((0, 1.45, 9.6)), 0.8, "FRAME", "torso", 12)
-    mis = chamfered("missiles", (-2.6, top + 2.0, -2.2), (2.4, 2.2, 3.2), 0.3, "BODY", "torso")
+        x = s * 1.95 * 1.12
+        box(f"armor_thigh{s}", (x, 9.8, 1.75), (2.6, 3.6, 0.35), "ARMOR", "legs")
+        box(f"armor_shin{s}", (x, 3.8, 2.45), (3.0, 3.2, 0.35), "ARMOR", "legs", ((1, 0, 0), (0, 1, 0.12), (0, -0.12, 1)))
+        box(f"armor_pauldron{s}", (s * (3.7 * 1.12 + 1.6), yc + 2.6, -0.2), (3.2, 0.5, 3.6), "ARMOR", "arms")
+    mount = V((2.4, yc + 2.6, -2.8))
+    box("cannon_mount", mount, (1.4, 1.2, 2.2), "FRAME", "torso")
+    cyl("cannon", mount + V((0, 0.7, -1.0)), mount + V((0, 1.5, 9.4)), 0.5, "METAL", "torso", 12)
+    cyl("cannon_brake", mount + V((0, 1.42, 8.8)), mount + V((0, 1.55, 10.0)), 0.75, "FRAME", "torso", 12)
+    l = g["hands"][-1]
+    pod = box("missile_pod", l + V((-1.4, 0.8, -1.6)), (1.2, 1.8, 3.2), "ARMOR", "arms")
     for i in range(3):
-        for j in range(2):
-            p = V((-3.3 + i * 0.7, top + 1.6 + j * 0.8, -0.6))
-            boolean(mis, cyl(f"cell{i}{j}", p - V((0, 0, 0.5)), p + V((0, 0, 0.5)), 0.25, "FRAME", "torso", 8), "DIFFERENCE")
-
+        p = l + V((-1.4, 0.3 + i * 0.5, 0.0))
+        boolean(pod, cyl(f"cell{i}", p - V((0, 0, 0.4)), p + V((0, 0, 0.4)), 0.18, "FRAME", "arms", 8), "DIFFERENCE")
+    h = g["hands"][1]
+    box("rifle_body", h + V((0, 0.3, 1.2)), (0.8, 1.1, 4.4), "FRAME", "arms")
+    cyl("rifle_barrel", h + V((0, 0.45, 3.4)), h + V((0, 0.45, 7.4)), 0.3, "BODY", "arms", 10)
+    box("rifle_scope", h + V((0, 1.15, 1.4)), (0.4, 0.4, 1.6), "BODY2", "arms")
 
 CHASSIS = {"foreman": (foreman, "Foreman", "the excavator"), "stevedore": (stevedore, "Stevedore", "the dock crane, all struts"),
            "ironhorse": (ironhorse, "Ironhorse", "the locomotive"),
@@ -1048,8 +1075,8 @@ CHASSIS = {"foreman": (foreman, "Foreman", "the excavator"), "stevedore": (steve
            "mule": (mule, "Mule", "new: a mine haul truck, the Twin tier under a canopy roof, a dump bed"),
            "pumper": (pumper, "Pumper", "new: a fire engine, the Tile wall, water monitors on the shoulders"),
            "ploughman": (ploughman, "Ploughman", "new: a farm tractor, the Excavator cab over a bonnet"),
-           "picket": (picket, "Picket", "Gundam: the Ground Type pattern, the Panorama, machine gun and shield"),
-           "sapper": (sapper, "Sapper", "Gundam: a heavy one after the Guncannon, the Titan, shoulder cannon and fists")}
+           "picket": (picket, "Picket", "Gundam: the RX-79[G] Ground Type, the Panorama, machine gun and shield"),
+           "sapper": (sapper, "Sapper", "Gundam: Full Armor style, the Titan, shoulder cannon, missile pod, beam rifle")}
 
 
 def volume(objs):

@@ -113,13 +113,18 @@ a fist block with a knuckle plate); the Harrow's gun pods are longer and heavier
 cannon is a twin-barrel autocannon with a drum magazine on a thick forearm; the Roustabout's rifle is heavier.
 
 And two Gundams (owner, 2026-10-24: "Make a couple Gundam variant", after the RX-79[G]: "if we do gundams, I'd want
-something practical looking like this"), on human-jointed legs (`human_legs()`: the knee forward, a big knee pad, a
-flared calf, a long foot with a skate-wheel well), armoured skirts, intakes on the chest, a backpack with thrusters:
+something practical looking like this"; then, of a first pass of generic humanoids, "None of those look like
+gundams"). `gundam()` builds what makes one read as a Gundam: a helmet head with a big yellow V fin, two green eyes
+and a red chin; a broad blue chest with yellow slatted vents either side over a red abdomen and a white waist with a V
+buckle; front and side skirts; big rounded shoulder pads; long legs with knee pads and shins flaring wide at the
+ankle; red feet; two beam saber hilts over the shoulders. They keep the Gundam colours, white, blue, red and yellow,
+weathered: the one place the "no white paint" note does not apply, since the colours are the identity. Close-up:
+`docs/screenshots/mechs/gundams.png`.
 
 | Mech | After | Cockpit | Its tell |
 | --- | --- | --- | --- |
-| Picket | The Ground Type | Panorama (the upper hatch flips up, the lower folds down, as the 08th MS Team's) | A visor head with a short V fin, a box-magazine machine gun, a tall shield, a radio whip |
-| Sapper | The Guncannon | Titan | Thicker legs and chest, a long cannon over the right shoulder, a missile box over the left, punching fists, twin cameras |
+| Picket | The RX-79[G] Ground Type | Panorama (the upper hatch flips up, the lower folds down, as the 08th MS Team's) | A 100 mm machine gun with a box magazine, the tall shield, a radio whip on the backpack |
+| Sapper | A Full Armor Gundam | Titan | The same Gundam under bolt-on armour plates, a long cannon over the right shoulder, a missile pod on the left forearm, a beam rifle |
 
 The Foreman and the Ironhorse stay (owner: "I think iron and forman are solid designs"); their detailed builds now
 carry the Panorama and the Excavator cab, and their chests open as one body with them (`docs/design/cockpit.md`, "The
