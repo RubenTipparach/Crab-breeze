@@ -587,3 +587,31 @@ fn the_lod_rings_keep_the_ground_to_a_few_hundred_thousand_triangles() {
         assert!(meshes < 200, "{what}: {meshes} ground meshes before culling");
     }
 }
+
+#[test]
+fn only_the_seen_body_grows_trees_out_to_the_keep_radius() {
+    let plan = seed_42();
+    let cfg = shipped().trees;
+    let mut f = plan.forest.clone();
+    let here = plan.start.mech_xz;
+    let other = here + Vec2::new(cfg.keep_radius_m * 3.0, 0.0);
+    for _ in 0..2000 {
+        f.keep_around_seen(plan, &[here, other], 1);
+    }
+    let far_of = |p: Vec2| {
+        f.grown_tiles()
+            .map(|(k, _)| f.tile_rect(k).distance(p))
+            .filter(|d| *d < cfg.keep_radius_m * 1.5)
+            .fold(0.0f32, f32::max)
+    };
+    assert!(
+        far_of(here) > cfg.urgent_radius_m * 2.0,
+        "the seen body's woods stop at {}",
+        far_of(here)
+    );
+    assert!(
+        far_of(other) <= cfg.urgent_radius_m + 1.0,
+        "the other body's woods reach {}",
+        far_of(other)
+    );
+}

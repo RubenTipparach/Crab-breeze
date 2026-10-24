@@ -72,7 +72,7 @@
         9.131
       ]
     },
-    "bytes": 1968992,
+    "bytes": 1972132,
     "cockpit": "Panorama, as the Foreman's",
     "cockpit_variant": "panorama",
     "file": "mech_driller.glb",
@@ -102,7 +102,7 @@
         14.667
       ]
     },
-    "bytes": 2184384,
+    "bytes": 2184872,
     "cockpit": "Panorama: seated behind one wide screen and square side screens, in the chamfered prow",
     "cockpit_variant": "panorama",
     "file": "mech_foreman.glb",
@@ -132,7 +132,7 @@
         11.635
       ]
     },
-    "bytes": 1885928,
+    "bytes": 1886020,
     "cockpit": "Canopy: seated under a bubble in the hull's nose",
     "cockpit_variant": "canopy",
     "file": "mech_harrow.glb",
@@ -162,7 +162,7 @@
         10.92
       ]
     },
-    "bytes": 2120404,
+    "bytes": 2120964,
     "cockpit": "Excavator cab: seated, floor-to-roof screens in two rows and one in the floor",
     "cockpit_variant": "cab",
     "file": "mech_ironhorse.glb",
@@ -192,7 +192,7 @@
         7.346
       ]
     },
-    "bytes": 1795152,
+    "bytes": 1794144,
     "cockpit": "Excavator cab, under a canopy roof",
     "cockpit_variant": "cab",
     "file": "mech_mule.glb",
@@ -222,7 +222,7 @@
         9.934
       ]
     },
-    "bytes": 1764544,
+    "bytes": 1778856,
     "cockpit": "Panorama, in the chest",
     "cockpit_variant": "panorama",
     "file": "mech_picket.glb",
@@ -234,7 +234,7 @@
     "opening": "the Panorama clamshell: the lower flap folds down, the hood swings up",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 12842,
+    "triangles": 13038,
     "weapons": "machine gun with a box magazine (R), tall shield (L)"
   },
   "ravager": {
@@ -281,7 +281,7 @@
         13.485
       ]
     },
-    "bytes": 1873120,
+    "bytes": 1873616,
     "cockpit": "Titan: seated, the upper front rises and tilts back",
     "cockpit_variant": "titan",
     "file": "mech_roustabout.glb",
@@ -311,7 +311,7 @@
         13.037
       ]
     },
-    "bytes": 1762960,
+    "bytes": 1763200,
     "cockpit": "Titan, in the chest",
     "cockpit_variant": "titan",
     "file": "mech_sapper.glb",

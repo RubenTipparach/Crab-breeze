@@ -48,7 +48,8 @@ struct FrameCap {
 impl Plugin for FrameCapPlugin {
     fn build(&self, app: &mut App) {
         let hz = app.world().resource::<Data>().0.sim.frame_cap_hz;
-        if hz <= 0.0 {
+        // `CB_UNCAPPED=1`: measure the headroom under the cap (perf-bench switch).
+        if hz <= 0.0 || crate::cli::switched_off("CB_UNCAPPED") {
             return;
         }
         app.insert_resource(FrameCap {

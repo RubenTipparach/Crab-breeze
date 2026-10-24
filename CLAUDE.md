@@ -264,6 +264,12 @@ said out loud and kept in check, never guessed.
   "No obs when tracing"). A trace, a benchmark or any frame-time number comes from a run with no OBS,
   no screenshots and no other game; an OBS take is for seeing visual errors and is never a source of
   performance numbers. A traced build runs far slower than the game: its frame rate is not a result.
+- **Performance runs render on screen; offscreen perf rendering is forbidden** (owner, 2026-10-24:
+  "you need to render on screen, it needs to go through gpu like a player playing it", "perf
+  rendering off screen is forbidden"). A benchmark plays the game in its window, drawn and presented
+  through the GPU as a player sees it (`tools/perf/perf_suite.py`, `CB_BENCH_WINDOWED=1`), so the
+  cockpit pass, the HUD and presenting each frame are counted. No number from an offscreen render
+  is a result, headroom included. Say the display's refresh rate with every windowed result.
 - **Every asset has a budget** per LOD in its manifest, and the build refuses one over budget.
 - **Cloud sessions measure nothing**: no GPU. They say so in the PR and ask a session on the
   owner's hardware to measure.
@@ -379,7 +385,9 @@ Star Crew and Undercity, each with an "In Crab Breeze" note on what changes.
   A cloud session installs Blender 4.4 itself (about a minute): the official tarball from
   `mirrors.dotsrc.org/blender/release/Blender4.4/blender-4.4.3-linux-x64.tar.xz` into `/opt/blender`.
   Run `/opt/blender/blender --background --factory-startup --python tools/blender/build_mechs.py`,
-  then `python3 tools/mockups/gen_mech_designs.py` and look at the shots (below).
+  then `python3 tools/mechs/gen_mech_data.py` (each mech's game data, `data/mechs/<id>.ron` and its
+  `boarding.ron`, measured off its glb; `cb-tools validate` refuses data left stale by a rebuild), then
+  `python3 tools/mockups/gen_mech_designs.py` and look at the shots (below).
 - **The cockpit generators**: panels first (`tools/blender/bake_cockpit_panels.py`, the kit
   `cockpit_kit.py`, the panels `cockpit_panels.py`; contact sheet
   `python3 tools/textures/cockpit_contact_sheet.py`), the displays

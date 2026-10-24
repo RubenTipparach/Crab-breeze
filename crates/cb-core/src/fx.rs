@@ -212,6 +212,11 @@ pub struct FxConfig {
     pub recipes: BTreeMap<String, Vec<Layer>>,
     /// The view's shake from blasts nearby.
     pub shake: ShakeConfig,
+    /// Recipes played as a continuous stream from an emitter that rides its body (a jet's flame,
+    /// a wreck's fire), by name: its bursts' particle counts, this many times a second. One stream
+    /// per layer instead of a burst entity per frame (2,700 jet bursts and 3,400 fire bursts in 110
+    /// s of combat cost about 6 ms a frame, 2026-10-24).
+    pub stream_per_s: BTreeMap<String, f32>,
 }
 
 /// How blasts nearby shake the view (owner, 2026-10-24: "screen needs to shake a bit when
@@ -263,6 +268,7 @@ impl Default for FxConfig {
             max_fireballs: 64,
             recipes: BTreeMap::new(),
             shake: ShakeConfig::default(),
+            stream_per_s: BTreeMap::new(),
         }
     }
 }
@@ -273,6 +279,12 @@ impl Validate for FxConfig {
         positive("shake.max_deg", self.shake.max_deg)?;
         positive("shake.reach_m_per_cbrt_mj", self.shake.reach_m_per_cbrt_mj)?;
         positive("shake.decay_s", self.shake.decay_s)?;
+        for (name, per_s) in &self.stream_per_s {
+            positive(&format!("stream_per_s.{name}"), *per_s)?;
+            if !self.recipes.contains_key(name) {
+                return Err(format!("`stream_per_s.{name}` names no recipe"));
+            }
+        }
         positive("tracer_width_m", self.tracer_width_m)?;
         positive("tracer_heavy_width_m", self.tracer_heavy_width_m)?;
         positive("trail_spacing_m", self.trail_spacing_m)?;

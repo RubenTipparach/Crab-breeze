@@ -279,6 +279,50 @@ impl Default for RamConfig {
     }
 }
 
+/// The sizes the game reads that the rig does not carry, per mech (openspec change `mech-roster` section 3). The
+/// defaults are the 12 m stand-in's, so a mech file that leaves them out flies as it always did.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct BodyConfig {
+    /// Height of the pilot's eye over the feet at rest: where the AI and the targeting look from.
+    pub eye_height_m: f32,
+    /// The torso's hit capsule, from and to this far over the `torso` bone.
+    pub torso_hit_m: [f32; 2],
+    /// The torso's hit capsule radius.
+    pub torso_hit_radius_m: f32,
+    /// An arm's hit capsule radius, shoulder to hand.
+    pub arm_hit_radius_m: f32,
+    /// A leg's hit capsule radius, thigh to foot.
+    pub leg_hit_radius_m: f32,
+    /// The head's hit capsule radius.
+    pub head_hit_radius_m: f32,
+    /// Height of the centre of mass over the feet, for the wreck's topple.
+    pub wreck_centre_m: f32,
+    /// Height over the feet of the blast when the torso goes.
+    pub blast_height_m: f32,
+    /// Height over the feet of the point that breaks a wall the mech strides into.
+    pub smash_height_m: f32,
+    /// Half extents of the physics box a shot-off part falls as.
+    pub cut_box_m: [f32; 3],
+}
+
+impl Default for BodyConfig {
+    fn default() -> Self {
+        Self {
+            eye_height_m: 9.6,
+            torso_hit_m: [0.5, 3.9],
+            torso_hit_radius_m: 2.4,
+            arm_hit_radius_m: 1.0,
+            leg_hit_radius_m: 1.1,
+            head_hit_radius_m: 1.1,
+            wreck_centre_m: 10.0,
+            blast_height_m: 9.0,
+            smash_height_m: 5.0,
+            cut_box_m: [1.6, 3.0, 1.6],
+        }
+    }
+}
+
 impl RamConfig {
     /// The radius of the hole a mech breaks when its speed went from `before_m_s` to `after_m_s`
     /// in one step against a building: none unless it was ramming (at or above the ram speed) and
@@ -293,6 +337,27 @@ impl RamConfig {
     }
 }
 
+/// An interior part that opens on a chest joint: the two open as one body (`mech_boarding.pod`, mode "inner").
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RideSpec {
+    /// The interior's node, moved with everything under it.
+    pub part: String,
+    /// The mech's chest joint it rides.
+    pub joint: String,
+}
+
+/// The cockpit interior a mech carries in its chest (openspec change `mech-roster` section 2).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct InteriorConfig {
+    /// A glTF under `assets/`, hung on the `cockpit` bone at its origin.
+    pub model: String,
+    /// The interior parts that ride chest joints.
+    #[serde(default)]
+    pub rides: Vec<RideSpec>,
+}
+
 /// A mech: its model, its stand-in, and its tuning.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
@@ -302,6 +367,10 @@ pub struct MechConfig {
     /// A glb under `assets/` following the rig contract (`models/mech_<name>.glb`). When set it
     /// replaces the stand-in's boxes; the stand-in skeleton is then unused.
     pub model: Option<String>,
+    /// The cockpit interior hung in its chest, for a glb whose bay is empty.
+    pub interior: Option<InteriorConfig>,
+    /// Sizes the game reads that the rig does not carry.
+    pub body: BodyConfig,
     /// Locomotion tuning.
     pub locomotion: LocomotionConfig,
     /// Walk tuning.
@@ -327,6 +396,8 @@ impl Default for MechConfig {
         Self {
             name: "stand-in".into(),
             model: None,
+            interior: None,
+            body: BodyConfig::default(),
             locomotion: LocomotionConfig::default(),
             gait: GaitConfig::default(),
             jet: JetConfig::default(),
@@ -408,6 +479,36 @@ impl Validate for MechConfig {
         positive("skate.recharge_s", k.recharge_s)?;
         crate::data::finite("skate.recharge_delay_s", k.recharge_delay_s)?;
         within("skate.relight_fraction", k.relight_fraction, 0.0, 1.0)?;
+        let b = &self.body;
+        positive("body.eye_height_m", b.eye_height_m)?;
+        finite("body.torso_hit_m[0]", b.torso_hit_m[0])?;
+        positive("body.torso_hit_m[1]", b.torso_hit_m[1])?;
+        if b.torso_hit_m[1] <= b.torso_hit_m[0] {
+            return Err("body.torso_hit_m: the capsule must end above where it starts".into());
+        }
+        positive("body.torso_hit_radius_m", b.torso_hit_radius_m)?;
+        positive("body.arm_hit_radius_m", b.arm_hit_radius_m)?;
+        positive("body.leg_hit_radius_m", b.leg_hit_radius_m)?;
+        positive("body.head_hit_radius_m", b.head_hit_radius_m)?;
+        positive("body.wreck_centre_m", b.wreck_centre_m)?;
+        finite("body.blast_height_m", b.blast_height_m)?;
+        finite("body.smash_height_m", b.smash_height_m)?;
+        for (i, v) in b.cut_box_m.iter().enumerate() {
+            positive(&format!("body.cut_box_m[{i}]"), *v)?;
+        }
+        if let Some(i) = &self.interior {
+            if self.model.is_none() {
+                return Err("interior: only a glb mech carries an interior".into());
+            }
+            if !(i.model.ends_with(".glb") || i.model.ends_with(".gltf")) {
+                return Err(format!("interior.model: `{}` must be a .glb or .gltf under assets/", i.model));
+            }
+            for r in &i.rides {
+                if r.part.is_empty() || r.joint.is_empty() {
+                    return Err("interior.rides: a ride needs a part and a joint".into());
+                }
+            }
+        }
         validate_parts(&self.parts)?;
         for w in &self.weapons {
             w.validate()?;
@@ -523,6 +624,21 @@ mod tests {
         assert!((world_y("EYE_pilot") - 9.6).abs() < 1e-3);
         let torso_top = world_y("torso") + 2.2 + 2.2;
         assert!((torso_top - 12.0).abs() < 1e-3, "{torso_top}");
+    }
+
+    #[test]
+    fn a_mech_without_a_body_section_keeps_the_stand_ins_sizes() {
+        let m = parse_ron::<MechConfig>(r#"(name: "x")"#, Path::new("m.ron")).unwrap();
+        assert_eq!(m.body.eye_height_m, 9.6);
+        assert_eq!(m.body.torso_hit_m, [0.5, 3.9]);
+    }
+
+    #[test]
+    fn an_interior_without_a_model_is_refused() {
+        let e = parse_ron::<MechConfig>(r#"(interior: Some((model: "models/c.gltf")))"#, Path::new("m.ron"))
+            .unwrap_err()
+            .to_string();
+        assert!(e.contains("interior"), "{e}");
     }
 
     #[test]

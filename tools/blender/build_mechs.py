@@ -11,7 +11,7 @@ measure it and again at the scale that makes it its height in metres.
   ravager  Mining Mike's Uber mech "Ravager", ported: hunched on reverse knees, twin rail lances,
            a crest of blades. The low three-eyed head is the cockpit.
   foreman    the excavator, the wall cockpit in its chamfered prow behind a visor and an apron (the recommendation).
-  stevedore  the dock crane, the harness cockpit in an octagonal prow split into two locked doors.
+  stevedore  retired (owner, 2026-10-24: "Stevedore sucks"); its generator is in git history.
   ironhorse  the locomotive, the jockey cockpit in a hexagonal prow that swings open whole.
              Original designs in the boss kit's finish (the owner, 2026-10-24: "Follow design philosophy of
              boss mechs from mining mike. The cockpit is part of the mech, inside of it with the armor
@@ -534,8 +534,6 @@ def breeze(k):
 #
 #   foreman    the excavator: hydraulic rams everywhere, track-pad feet, a slewing ring, a cab with a roll
 #              cage; a hydraulic breaker and a belt-fed boom cannon. The Panorama clamshell. (panorama)
-#   stevedore  the dock crane: lattice-girder legs on outrigger feet, an octagonal prow whose lock rods turn
-#              before its two doors swing, a crane jib with a harpoon grapple, a cargo mortar. (harness)
 #   ironhorse  the locomotive: a banded boiler torso whose smokebox front drops as a ramp, drive-wheel knees
 #              with coupling rods, cow-catcher shins, a smokestack, a steam cannon and a buffer ram. (cab)
 
@@ -552,6 +550,10 @@ def chest_bay(k, chest, variant, at, mode, torso, swing=None, wrap_z=None, timin
     sill. Returns cp, cav, out, hull as MB.pod does."""
     cp, cav, out, hull = MB.pod(k, chest, variant, at, mode, torso, swing=swing, wrap_z=wrap_z, timing=timing)
     chest_markings(k, cp, hull)
+    # the contract's LADDER_base (cb_core::mech::rig): no ladder now (the mech sits), but the game still walks the pilot
+    # to this spot to board and sets them down on it to leave, so it stands on the ground 3 m in front of the hatch
+    hatch = k.world["HATCH_entry"].translation
+    k.sock("LADDER_base", k.root, hatch.x / k.s, 0, (hatch.z + 3.0) / k.s)
     u = 1.0 / k.s
     # no chain ladder (owner, 2026-10-24: "They shouldnt have a ... ladder"): the mech sits, the step drops
     MB.vent(k, cp, 0, cav["y0"] + 0.3 * u, cav["z1"] - 0.2 * u, (0, -0.25, 1), "sill", "mist", 1.4)
@@ -649,15 +651,6 @@ FOREMAN_TORSO = [
     (2.05, 2.35, 0.70, -1.20, dict(wcut=0.9, sh=0.50, cb=0.45)),
     (2.45, 1.90, 0.50, -1.05, dict(wcut=0.7, sh=0.40, cb=0.40)),
     (2.75, 1.00, 0.38, -0.80, dict(wcut=0.5, sh=0.20, cb=0.30)),
-]
-STEVEDORE_TORSO = [
-    (-0.50, 0.95, 0.80, -0.60, dict(wcut=0.8, sh=0.05, cb=0.25)),
-    (-0.20, 1.25, 0.90, -0.80, dict(wcut=0.9, sh=0.20, cb=0.30)),
-    (0.80, 1.60, 0.90, -0.95, dict(wcut=0.95, sh=0.35, cb=0.35)),
-    (1.90, 2.15, 0.90, -1.05, dict(wcut=0.95, sh=0.50, cb=0.30)),
-    (2.55, 2.20, 0.60, -1.05, dict(wcut=0.8, sh=0.50, cb=0.30)),
-    (2.85, 1.70, 0.45, -0.95, dict(wcut=0.6, sh=0.40, cb=0.30)),
-    (3.05, 0.90, 0.38, -0.70, dict(wcut=0.5, sh=0.20, cb=0.25)),
 ]
 def doubled(torso, k=2.0):
     """A torso of the first round at 24 m: its height, width, back and shoulder flare scaled round the true-size cockpit,
@@ -857,7 +850,7 @@ def foreman(k):
     for S, s in (("L", 1), ("R", -1)):
         k.cyl(2.4, 3.0, 6, M["dark"], cp, s * 1.5 * U, 0.2 * U, -1.7 * U - 2, PI / 2)       # apart: no overlapping caps
         k.cyl(2.6, 2.6, 0.3, M["glowDim"], cp, s * 1.5 * U, 0.2 * U, -1.7 * U - 5.1, PI / 2)
-        k.sock(f"JET_{S}", cp, s * 1.5 * U, 0.2 * U, -1.7 * U - 5.4, PI)
+        k.sock(f"JET_{S}", on_torso(k, cp), s * 1.5 * U, 0.2 * U, -1.7 * U - 5.4, PI)
     # the opening is the Panorama's own clamshell (owner, 2026-10-24: the Foreman's opening "needs to follow the
     # titan style or panorama style"): the front under the screens drops forward into a step, then the front
     # over them swings up and out on two rams, the dash riding it; the cockpit's own halves ride these plates
@@ -918,142 +911,6 @@ def foreman(k):
     k.extras.update(footH=footH * k.s, hipY=hipY * k.s,
                     walk=dict(hz=0.8, A=0.36, lift=0.45, bob=2.4 * k.s, roll=0.035, yaw=0.05, arm=0.07, lean=0.06, liftK=[0.5, 1, 0.9]),
                     idle=dict(scan=0.3, scanPeriod=3.0, breathHz=0.8))
-
-
-# ----------------------------------------------------------------------------- STEVEDORE
-
-def stevedore(k):
-    """The dock crane. Tall on lattice-girder legs and outrigger feet; the chest is a shipping container,
-    corrugated, with container doors and their lock rods; a gantry over the shoulders with a counter-jib
-    and its weights behind; the right arm carries the crane jib with a harpoon grapple on its cable, the
-    left a cargo mortar. Boarding: the four lock rods turn out, the two doors swing wide.
-    Cockpit: harness (the operator stands)."""
-    M = k.M
-    segs, footH = [[23, -0.48], [25, 1.0], [12, -0.52]], 6
-    hipY = leg_height(segs, footH)
-    body = k.J("pelvis", k.root, 0, hipY, 0)
-    k.pl(26, 6, 14, M["frame"], body, 0, 0, 0)
-    k.cyl(3.6, 3.6, 30, M["dark"], body, 0, -1, 0, 0, 0, PI / 2)
-    for s in (1, -1):
-        k.box(3, 12, 3, M["hazard"], body, s * 6, -6, 6, 0, 0, s * 0.3)
-
-    def seg0(k, g, s, L):
-        k.cyl(3.4, 3.4, 7, M["frame"], g, 0, 0, 0, 0, 0, PI / 2)
-        lattice(k, g, 6, 6, L, M["red"], n=4)
-        k.box(1.2, L * 0.9, 1.2, M["rubber"], g, s * 4.2, -L / 2, 0)
-
-    def seg1(k, g, s, L):
-        k.cyl(3.0, 3.0, 7, M["dark"], g, 0, 0, 0, 0, 0, PI / 2)
-        lattice(k, g, 5, 5, L, M["red"], n=5)
-        k.pl(6.5, 6, 2, M["armor"], g, 0, -L * 0.15, 3.6, -0.1)
-        k.box(5, 0.8, 0.4, M["hazard"], g, 0, -L * 0.15 - 2.5, 4.7)
-
-    def seg2(k, g, s, L):
-        k.cyl(2.6, 2.6, 6, M["dark"], g, 0, 0, 0, 0, 0, PI / 2)
-        lattice(k, g, 4, 4, L, M["red"], n=2)
-
-    def foot(k, g, s, S):            # outriggers: a cross of beams, a jack pad on each end
-        k.sph(2.6, M["dark"], g, 0, 0, 0)
-        k.box(5, 3, 5, M["frame"], g, 0, -2, 0)
-        for a, h in ((0, 2.0), (PI / 2, 1.8)):                         # the cross beams of two depths: no shared faces
-            k.box(3, h, 20, M["armor"], g, 0, -3.4, 2, 0, a, 0)
-            k.box(2.6, 0.5 - (h < 2) * 0.06, 18, M["hazard"], g, 0, -2.3 - (h < 2) * 0.14, 2, 0, a, 0)
-        for x, z in ((0, 11.5), (0, -7.5), (s * 9.5, 2), (-s * 8.0, 2)):  # the inner jack short of the other foot's
-            k.cyl(1.0, 1.0, 2.5, M["metal"], g, x, -4.4, z, seg=10)
-            k.cyl(2.2, 2.6, 1, M["rubber"], g, x, -5.5, z, seg=16)
-        k.J(f"toe_{S}", g, 0, -4, 11)
-        heel_jet(k, g, -8, 1.2)
-        k.sock(f"WHEEL_{S}", g, 0, -5.5, 2)
-
-    k.legs(body, 11, segs, [seg0, seg1, seg2], foot)
-    waist = k.J("torso_twist", body, 0, 5, -1)
-    k.cyl(7, 8, 4, M["dark"], waist, 0, 0, 0, 0, 0, 0, 24)
-    k.tor(7.6, 0.6, M["frame"], waist, 0, 0, 0, PI / 2)
-    chest = k.J("torso", waist, 0, 2.5, 0)
-    cp, cav, out, hull = chest_bay(k, chest, "titan", (0, 4, 2), "inner", doubled(STEVEDORE_TORSO), swing={"INNER_lower_1": 2.7})
-    hw, y0, y1, z1 = cav["hw"], cav["y0"], cav["y1"], out["z1"]
-    # the octagon of the operator's screens, outside: corrugated like a container round its fixed half and
-    # its two doors, corner castings at the rear corners, the lock rods across the doors
-    Yb, Yt = hull["Yb"], hull["Yt"]
-    zc = (out["z0"] + z1) / 2
-    for a in (2.35, 2.75, 3.53, 3.93):        # a few ribs down the back, the shoulders left clean
-        MB.rib(k, hull, None, a, Yb + 0.06, Yt - 0.06, 0.03, 0.045, M["armor2"])
-    for s in (1, -1):                          # a red band round each shoulder, the crane's colour
-        MB.contour(k, hull, None, s * (PI / 2 + 0.08), s * (PI - 0.3), 2.0, 0.03, 0.07, M["red"])
-    for a in (3 * PI / 4, 5 * PI / 4):
-        for y in (Yb - 0.05, Yt + 0.05):
-            x, yy, zz = hull["at"](a, y, 0.02)
-            k.box(2.6, 2.6, 2.6, M["frame"], cp, x, yy, zz)
-    MB.contour(k, hull, None, -1.2, 1.2, Yt + 0.22, 0.02, 0.05, M["hazard"])
-    MB.contour(k, hull, None, -1.2, 1.2, Yb - 0.22, 0.02, 0.05, M["hazard"])
-    # the Titan's front, seated (owner, 2026-10-24: "all mechs should be sitting"; "Get those other mechs up to spec"):
-    # the upper chest rises and tilts back, the front under it folds down below the sill
-    ys = hull["ysplit"]
-    MB.contour(k, hull, "CHEST_upper", -0.5, 0.5, ys + 0.18, 0.08, 0.03, M["hazard"])
-    MB.contour(k, hull, "CHEST_lower", -0.5, 0.5, Yb + 0.05, 0.05, 0.04, M["hazard"])
-    for s_ in (1, -1):
-        MB.vent(k, cp, *hull["at"](s_ * PI / 2, (Yb + Yt) / 2, 0.08), (s_ * 0.6, 0.2, 0.6), "seam", rate=1.6)
-        MB.vent(k, cp, *hull["at"](s_ * PI / 2, Yt, 0.1), (s_ * 0.6, 0.6, 0.4), "open")
-    # the gantry: two A-frames over the shoulders, the counter-jib and its weights behind
-    gy = out["y1"]
-    for s in (1, -1):
-        k.box(1.6, 12, 1.6, M["red"], cp, s * (out["hw"] - 2), gy + 6, zc + 4, 0.35, 0, 0)
-        k.box(1.6, 12, 1.6, M["red"], cp, s * (out["hw"] - 2), gy + 6, zc - 4, -0.35, 0, 0)
-    k.box(2 * out["hw"] - 2, 2, 2, M["frame"], cp, 0, gy + 11.5, zc)
-    k.box(3, 2.8, 26, M["red"], cp, 0, gy + 12.1, zc - 10)
-    for i in range(3):
-        k.pl(12, 4, 4, M["armor2"], cp, 0, gy + 9 - i * 4.4, zc - 22)
-        k.box(12.4, 1.2, 0.4, M["hazard"], cp, 0, gy + 9 - i * 4.4, zc - 24.1)
-    k.lamp(cp, 0, gy + 14, zc + 2, 0.7, 5, red=True)
-    floodlight(k, cp, out["hw"] - 4, gy + 3, z1 + 1, -0.35, 0.2)
-    floodlight(k, cp, -out["hw"] + 4, gy + 3, z1 + 1, -0.35, -0.2)
-    # the crow's nest: the sensor pod on the gantry
-    nest = k.J("head", chest, 0, 4 + gy + 13, 2 + zc + 3)
-    k.box(6, 4, 5, M["armor"], nest, 0, 2, 0)
-    k.box(2.6, 3.2, 2.6, M["frame"], nest, 0, -1.4, 0)                 # its pedestal, down onto the jib
-    k.box(5, 1.2, 0.4, M["glow"], nest, 0, 2.6, 2.6)
-    k.halo(nest, 0, 2.6, 3.2, 9, 0.6)
-    k.ant(nest, 2.4, 4, -1.6, 6, -0.1, 0.1)
-    k.sock("SENSOR_head", nest, 0, 2.6, 3)
-    k.sock("CAM_main", nest, 0, 2.6, 3)
-    for S, s in (("L", 1), ("R", -1)):
-        k.cyl(2.2, 3, 5, M["dark"], chest, s * 7, 2 + y0 - 1, 2 + out["z0"] - 1.5, PI / 2)
-        k.cyl(2.4, 2.4, 0.3, M["glowDim"], chest, s * 7, 2 + y0 - 1, 2 + out["z0"] - 4.2, PI / 2)
-        k.sock(f"JET_{S}", chest, s * 7, 2 + y0 - 1, 2 + out["z0"] - 4.5, PI)
-    sy = 4 + out["y1"] - 6
-    for S, s in (("L", 1), ("R", -1)):
-        sh_, elb = contract_arm(k, chest, S, s * (out["hw"] + 4.5), sy, 1, -0.05, -15, -1.1 if s < 0 else -1.3)
-        k.cyl(3.6, 3.6, 6, M["frame"], sh_, 0, 0, 0, 0, 0, PI / 2, 18)
-        lattice(k, sh_, 4, 4, 15, M["red"], n=3)
-        k.cyl(3, 3, 6, M["dark"], elb, 0, 0, 0, 0, 0, PI / 2)
-        hand = k.J(f"hand_{S}", elb, 0, -15, 0)
-        if s < 0:   # the jib: a long lattice boom, a sheave at its head, the cable and the harpoon grapple
-            lattice(k, elb, 3.6, 3.6, 30, M["red"], n=6)
-            k.cyl(2.2, 2.2, 3, M["frame"], elb, 0, -30, 0, 0, 0, PI / 2, 18)
-            k.lamp(elb, 0, -32.4, 0, 0.6, 4, red=True)
-            k.cyl(0.25, 0.25, 8, M["metal"], elb, 0, -34, 0, seg=6)
-            g = k.g(elb, 0, -38, 0)
-            k.box(3, 3, 3, M["frame"], g, 0, 0, 0)
-            for a in (0, 2 * PI / 3, 4 * PI / 3):
-                k.pz([[0, 0], [1, 0], [3, -4], [2.2, -4.6]], 0.8, M["metal"], g, math.cos(a) * 1.2, -1, math.sin(a) * 1.2, 0, -a, 0)
-            k.cyl(0, 1.0, 3.5, M["metal"], g, 0, -3.5, 0, PI, seg=10)
-            k.sock("MUZZLE_R", g, 0, -5, 0, PI / 2)
-        else:       # the cargo mortar on its forearm (owner, 2026-10-24: "stevedore is missing an arm joint")
-            lattice(k, elb, 3.6, 3.6, 15, M["red"], n=3)
-            k.cyl(2.6, 2.6, 5.4, M["dark"], hand, 0, 0, 0, 0, 0, PI / 2)      # the wrist
-            g = k.g(hand, 0, -2, 1)
-            k.pl(9, 9, 11, M["armor"], g, 0, 0, 0)
-            for i in range(4):
-                k.box(9.4, 0.6, 0.8, M["armor2"], g, 0, -3 + i * 2, 5.7)
-            for x in (-2, 2):
-                for y in (-2, 2):
-                    k.cyl(1.4, 1.4, 1.2, M["ink"], g, x, y + 4.5, 0, seg=12)
-                    k.cyl(0.8, 0.8, 0.4, M["tip"], g, x, y + 5.0, 0, seg=8)       # proud of the tube's mouth
-            k.box(9.6, 1.2, 0.4, M["hazard"], g, 0, -4.2, 5.8)
-            k.sock("MUZZLE_L", g, 0, 6, 0, 0)
-    k.extras.update(footH=footH * k.s, hipY=hipY * k.s,
-                    walk=dict(hz=0.7, A=0.38, lift=0.5, bob=2.2 * k.s, roll=0.03, yaw=0.04, arm=0.05, lean=0.05, liftK=[0.5, 1, 0.9]),
-                    idle=dict(scan=0.25, scanPeriod=3.4, breathHz=0.7))
 
 
 # ----------------------------------------------------------------------------- IRONHORSE
@@ -1178,7 +1035,7 @@ def ironhorse(k):
     for S, s in (("L", 1), ("R", -1)):
         k.cyl(2.4, 3.2, 5, M["dark"], cp, s * 1.4 * U, 0.0, -2.2 * U - 2, PI / 2)          # apart: no overlapping caps
         k.cyl(2.6, 2.6, 0.3, M["glowDim"], cp, s * 1.4 * U, 0.0, -2.2 * U - 4.7, PI / 2)
-        k.sock(f"JET_{S}", cp, s * 1.4 * U, 0.0, -2.2 * U - 5, PI)
+        k.sock(f"JET_{S}", on_torso(k, cp), s * 1.4 * U, 0.0, -2.2 * U - 5, PI)
     sy = 4 + cy + R * 0.35
     for S, s in (("L", 1), ("R", -1)):
         sh_, elb = contract_arm(k, chest, S, s * (R + 4.5), sy, 3, -0.08, -13, -1.35)
@@ -1411,13 +1268,19 @@ def walker_head(k, chest, x, y, z, kind, a=1.0):
     return head
 
 
+def on_torso(k, p):
+    """The place p (any joint and offset) as seen from the torso joint: for the contract's sockets that must hang from
+    the torso (cb_core::mech::rig::SOCKETS, the jets) but are laid out in the cockpit's frame."""
+    return K.Node("torso", k.world["torso"].inverted() @ k.world[p.joint] @ p.M)
+
+
 def back_jets(k, cp, xs, y, z, r=2.4):
     """The jets under a back pack (survey M3), pointing down and back, their sockets for the game."""
     M = k.M
     for S, x in zip(("L", "R"), xs):
         k.cyl(r, r * 1.3, r * 2.2, M["dark"], cp, x, y, z, PI / 2 + 0.6)
         k.cyl(r * 1.05, r * 1.05, 0.3, M["glowDim"], cp, x, y - r * 0.9, z - r * 0.6, PI / 2 + 0.6)
-        k.sock(f"JET_{S}", cp, x, y - r, z - r * 0.7, PI)
+        k.sock(f"JET_{S}", on_torso(k, cp), x, y - r, z - r * 0.7, PI)
 
 
 def walker_extras(k, hipY, footH, hz=0.8, lean=0.08):
@@ -1726,6 +1589,7 @@ def picket(k):
     rifle(k, hand, S, 15, 1.1)
     sh_, elb, hand, S = arms[1]
     shield(k, elb, 1, 1.0)
+    rifle(k, hand, S, 7, 0.7)          # a short gun in the hand behind the shield: the contract's MUZZLE_L
     k.box(1.6, 3.6, 1.6, k.M["frame"], cp, 1.5 * U, 3.4 * U, -3.9 * U)
     k.ant(cp, 1.5 * U, 3.4 * U + 1.8, -3.9 * U, 16, -0.15, 0.05)
     walker_extras(k, hipY, footH, 0.9, 0.05)
@@ -1745,6 +1609,9 @@ def sapper(k):
     k.pl(7.4, 1.2, 8.4, M["armor2"], sh_, -1.2, 5.2, 0)                 # a pauldron plate over the pad
     sh_, elb, hand, S = arms[1]
     missile_rack(k, elb, 3.8, -4.0, -0.8, 2, 3, 1.8, -PI / 2, 0, "MISSILE_L")
+    # the contract's MUZZLE_L hangs from the hand: the pod's mouth, placed in the hand's frame
+    pod = k.g(elb, 3.8, -4.0, -0.8, -PI / 2, 0, 0)
+    k.sock("MUZZLE_L", K.Node(hand.joint, k.world[hand.joint].inverted() @ k.world[elb.joint] @ pod.M), 0, 0, 4.1, PI / 2)
     k.pl(7.4, 1.2, 8.4, M["armor2"], sh_, 1.2, 5.2, 0)
     # the shoulder cannon: a breech on the back, the barrel over the right shoulder
     g = k.g(cp, -2.2 * U, 3.6 * U, -3.0 * U)
@@ -1782,11 +1649,6 @@ DESIGNS = {
                      opening="the Panorama clamshell, chest and cockpit as one: the front under the screens drops into a step, then the front over them swings up and out on two rams with the dash",
                      weapons="belt-fed boom cannon (L), hydraulic breaker (R)",
                      note="Original, after an excavator: slewing ring, broad shoulders with beacons, an engine pack and its stack. Recommended.")),
-    "stevedore": (stevedore, 26.0, 0x8fe3ff, 0x2f6fe0, 0x8fb6ff, False, "Stevedore",
-                  dict(legs="digitigrade, lattice girders, outrigger feet", cockpit="Titan: seated in the container chest",
-                       opening="the upper chest rises and tilts back, the front under it folds down below the sill",
-                       weapons="cargo mortar (L), crane jib with a harpoon grapple (R)",
-                       note="Original, after a dock crane: gantry, counter-jib and weights, warning lamps.")),
     "ironhorse": (ironhorse, 22.0, 0xffc860, 0x2f6fe0, 0xff8a3a, False, "Ironhorse",
                   dict(legs="digitigrade, drive-wheel knees with coupling rods, cow-catcher shins",
                        cockpit="Excavator cab: seated, floor-to-roof screens in two rows and one in the floor",
@@ -1835,8 +1697,8 @@ DESIGNS = {
 }
 
 UNIT_NUMBERS = dict(harrow="01", roustabout="02", driller="06", mule="08", picket="11", sapper="12",
-                    foreman="31", stevedore="32", ironhorse="33")
-PAINTED = ("foreman", "stevedore", "ironhorse", "harrow", "roustabout", "driller", "mule", "picket", "sapper")
+                    foreman="31", ironhorse="33")
+PAINTED = ("foreman", "ironhorse", "harrow", "roustabout", "driller", "mule", "picket", "sapper")
 
 
 def build(key, s):

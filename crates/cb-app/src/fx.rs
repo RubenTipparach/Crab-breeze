@@ -153,8 +153,111 @@ impl Plugin for FxPlugin {
                     cool_fireballs,
                     expand_shells,
                     fade_stars,
+                    attach_streams,
+                    switch_streams,
+                    warm_up,
                 ),
             );
+    }
+}
+
+/// Plays every recipe once behind the loading screen, in view but under the ground, so each
+/// effect's shaders and pipelines are built before the take starts instead of at the first
+/// explosion of its kind mid-fight.
+fn warm_up(
+    ready: Res<crate::loading::GameReady>,
+    data: Res<Data>,
+    camera: Query<&GlobalTransform, With<PilotCamera>>,
+    mut fx: MessageWriter<Fx>,
+    mut frames: Local<u32>,
+) {
+    if ready.0 || *frames > 30 {
+        return;
+    }
+    *frames += 1;
+    if *frames != 30 {
+        return;
+    }
+    let Ok(eye) = camera.single() else { return };
+    // 200 m out and 100 m down: inside the view, hidden by the ground.
+    let at = eye.translation() + eye.forward().with_y(0.0).normalize_or(Vec3::NEG_Z) * 200.0 - Vec3::Y * 100.0;
+    let names: Vec<&'static str> = cb_core::fx::RECIPES.to_vec();
+    for name in names {
+        if data.0.fx.recipes.contains_key(name) {
+            fx.write(Fx::new(name, at));
+        }
+    }
+    info!("fx: warmed up {} recipes behind the loading screen", data.0.fx.recipes.len());
+}
+
+/// A body that plays a recipe as a continuous stream (`FxConfig::stream_per_s`): one emitter per
+/// burst layer, children of this entity, emitting while `on`. `dir` is the way the layers marked
+/// `along_dir` throw, in this entity's frame.
+#[derive(Component)]
+pub struct FxStream {
+    /// The recipe.
+    pub recipe: &'static str,
+    /// The direction of throw, local.
+    pub dir: Vec3,
+    /// Emitting now.
+    pub on: bool,
+}
+
+/// The emitters a stream put under its body.
+#[derive(Component)]
+struct StreamEmitters(Vec<Entity>);
+
+fn attach_streams(
+    mut commands: Commands,
+    data: Res<Data>,
+    mut lib: ResMut<ParticleLibrary>,
+    mut effects: ResMut<Assets<EffectAsset>>,
+    added: Query<(Entity, &FxStream), Without<StreamEmitters>>,
+) {
+    let cfg = &data.0.fx;
+    for (e, s) in &added {
+        let (Some(layers), Some(per_s)) = (cfg.recipes.get(s.recipe), cfg.stream_per_s.get(s.recipe)) else {
+            commands.entity(e).insert(StreamEmitters(Vec::new()));
+            continue;
+        };
+        let mut kids = Vec::new();
+        for (i, layer) in layers.iter().enumerate() {
+            let Layer::Burst {
+                count,
+                offset_m,
+                along_dir,
+                ..
+            } = *layer
+            else {
+                continue;
+            };
+            let Some(effect) = particles::stream(&mut lib, &mut effects, s.recipe, i, layer, count as f32 * per_s) else {
+                continue;
+            };
+            let dir = if along_dir { s.dir.normalize_or(Vec3::Y) } else { Vec3::Y };
+            let kid = commands
+                .spawn((
+                    Name::new(format!("fx stream {}", s.recipe)),
+                    effect,
+                    Transform::from_translation(dir * offset_m).with_rotation(Quat::from_rotation_arc(Vec3::Y, dir)),
+                    ChildOf(e),
+                ))
+                .id();
+            kids.push(kid);
+        }
+        commands.entity(e).insert(StreamEmitters(kids));
+    }
+}
+
+fn switch_streams(streams: Query<(&FxStream, &StreamEmitters)>, mut spawners: Query<&mut EffectSpawner>) {
+    for (s, kids) in &streams {
+        for k in &kids.0 {
+            if let Ok(mut sp) = spawners.get_mut(*k)
+                && sp.active != s.on
+            {
+                sp.active = s.on;
+            }
+        }
     }
 }
 
