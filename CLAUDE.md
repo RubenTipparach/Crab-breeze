@@ -360,7 +360,9 @@ Star Crew and Undercity, each with an "In Crab Breeze" note on what changes.
   `python3 tools/mockups/gen_mech_designs.py`, serve `output/mech_site` with
   `python3 -m http.server 8766 -d output/mech_site`, shoot with
   `NODE_PATH=$(npm root -g) node tools/mockups/shoot.mjs http://localhost:8766/ docs/screenshots/mechs` and
-  stitch the opening sheets with `python3 tools/mockups/opening_sheet.py docs/screenshots/mechs`.
+  stitch the opening sheets with `python3 tools/mockups/opening_sheet.py docs/screenshots/mechs`. The interiors alone:
+  `python3 tools/mockups/gen_cockpit_page.py` (writes `output/cockpit_site`). Both pages load glTF JSON through
+  `tools/mockups/gltf_json_loader.js`: the artifact host refuses `fetch()` of `data:` and `blob:` URLs.
 - **Original designs, not borrowed ones** (owner, 2026-10-24: "New mechs are just stolen. Those are not
   original mechs"). Mining Mike's boss kit is the finish (plates, livery bands, hazard edges, vents,
   hoses, rams, cores), never the source of a silhouette, a limb or a weapon: those come from Crab

@@ -123,6 +123,21 @@ class Set:
         lo, hi = Vector(lo), Vector(hi)
         return self.obox((lo + hi) / 2, (V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)), hi - lo, mat, group, node, bevel, seg, name)
 
+    def prism(self, poly, y0, y1, mat, group="cabin", node=None, bevel=0.0, name=None):
+        """A slab from y0 to y1 over a convex plan polygon [(x, z), ...], glTF frame: the roofs and floors
+        that follow a cabin's screen outline rather than a rectangle."""
+        bm = bmesh.new()
+        lo = [bm.verts.new(V(x, y0, z)) for x, z in poly]
+        hi = [bm.verts.new(V(x, y1, z)) for x, z in poly]
+        n = len(poly)
+        bm.faces.new(lo)
+        bm.faces.new(hi)
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((lo[i], lo[j], hi[j], hi[i]))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        return self._ob(bm, mat, group, node, name, bevel)
+
     def cyl(self, p0, p1, r, mat, group="cabin", node=None, r1=None, seg=24, name=None):
         p0, p1 = Vector(p0), Vector(p1)
         d = p1 - p0
@@ -609,9 +624,11 @@ def build_wall(S):
     S.box((-0.90, 1.20, -0.76), (0.90, CEIL, -0.70), "paint_dk")
     # the ceiling: plate, beams across, conduits, round vents, a grab handle, a lamp
     S.box((-0.92, CEIL, -0.76), (0.92, CEIL + 0.03, 0.395), "paint_dk")
-    S.box((-0.92, CEIL, 0.405), (0.92, CEIL + 0.03, 1.02), "paint_dk", node=hn)
+    front = [(0.92, 0.405), (0.92, 0.44), (0.80, 0.80), (0.65, 1.0), (0.52, 1.07)]
+    S.prism(front + [(-x, z) for x, z in reversed(front)], CEIL, CEIL + 0.03, "paint_dk", node=hn)   # follows the chamfers
     for z in (0.62, 0.20, -0.25, -0.62):
-        S.box((-0.88, CEIL - 0.07, z - 0.04), (0.88, CEIL, z + 0.04), "paint", node=hn if z > 0.4 else None, bevel=0.01)
+        w = 0.82 if z > 0.4 else 0.88
+        S.box((-w, CEIL - 0.07, z - 0.04), (w, CEIL, z + 0.04), "paint", node=hn if z > 0.4 else None, bevel=0.01)
     for x in (-0.3, 0.3):
         S.tube([V(x, CEIL - 0.04, -0.7), V(x, CEIL - 0.04, 0.37)], 0.02, "steel")
         S.tube([V(x, CEIL - 0.04, 0.43), V(x, CEIL - 0.04, 0.95)], 0.02, "steel", node=hn)
@@ -636,14 +653,9 @@ def build_wall(S):
         NODES[name] = (hn, None)
         S.disp[name] = img
 
-    # --- the shell: plain structure closing the cabin, seen only through the opened chest (the
-    # mech's chest armour is the outside, tools/blender/build_mechs.py)
-    for s in (1, -1):
-        x0, x1 = sorted((s * 0.98, s * 1.00))
-        S.box((x0, -0.06, -0.78), (x1, 1.97, 0.40), "ext_dark", "shell")
-    S.box((-1.0, -0.06, -0.80), (1.0, 1.97, -0.78), "ext_dark", "shell")
-    S.box((-1.0, 1.95, -0.78), (1.0, 1.97, 0.40), "ext_dark", "shell")
-    S.box((-1.0, -0.08, -0.80), (1.0, -0.06, 0.98), "ext_dark", "shell")
+    # --- no shell of its own: the mech's chest is lofted round this interior's outline and lined
+    # (tools/blender/mech_boarding.py pod(), owner 2026-10-24: "The geometry of the cockpit must match
+    # the interiors that we just designed"); only the posts tying the screen belt to the structure
     for s in (1, -1):                                    # posts tying the screen belt to the shell
         S.box((s * 0.90 - 0.04, 0.90, -0.18), (s * 0.90 + 0.04, 1.95, -0.10), "ext_frame", "shell")
     # cold mist pouring out over the floor once the sill drops
@@ -738,8 +750,12 @@ def build_jockey(S):
     fn, yk, cn = "INNER_front", "INNER_yoke", "CONSOLE_front"
     # --- the tub: floor, walls, rear bulkhead, roof
     S.plate("floor", (0, 0.0, -0.05), Y, Z, t=0.02, group="cabin")
-    S.box((-W, -0.06, ZB), (W, -0.025, ZF), "paint_dk")
-    walls(S, W, -0.06, 0.80, ZB, ZF)
+    CH = [(W, 0.80), (0.64, ZF)]      # the front corners chamfered along the wing screens
+    S.prism([(W, ZB), (W, 0.80), (0.64, ZF), (-0.64, ZF), (-W, 0.80), (-W, ZB)], -0.06, -0.025, "paint_dk")
+    walls(S, W, -0.06, 0.80, ZB, 0.80)
+    for s in (1, -1):
+        (ax, az), (bx, bz) = CH
+        S.prism([(s * ax, az), (s * bx, bz), (s * (bx + 0.022), bz + 0.02), (s * (ax + 0.03), az)], -0.06, 0.80, "paint_dk")
     walls(S, W, 0.80, RO + 0.04, ZB, 0.74)
     S.box((-W - 0.03, -0.06, ZB - 0.03), (W + 0.03, RO + 0.04, ZB), "paint")
     S.plate("rear", (0, 0.80, ZB), Z, Y, t=0.012, group="cabin")
@@ -810,8 +826,8 @@ def build_jockey(S):
     rd, ud, nd = basis(nd, Y)
     S.obox(V(0, 0.72, 0.99) - nd * 0.05, (rd, ud, nd), (1.16, 0.36, 0.10), "paint_dk", group="front", node=cn, bevel=0.006)
     S.plate("knee", V(0, 0.72, 0.99), nd, Y, t=0.012, node=cn)
-    S.box((-0.76, 0.66, 1.14), (0.76, 0.68, 1.16), "hazard", group="front", node=cn)
-    S.cyl(V(-0.78, 0.02, 1.16), V(0.78, 0.02, 1.16), 0.025, "steel", seg=16)
+    S.box((-0.60, 0.66, 1.14), (0.60, 0.68, 1.16), "hazard", group="front", node=cn)
+    S.cyl(V(-0.62, 0.02, 1.16), V(0.62, 0.02, 1.16), 0.025, "steel", seg=16)
     # --- the screen bank: a low wide front screen and two wings, pillars and a header, on the
     # front unit that lifts like a visor; the overhead strip stays
     yb, hb, lean = 0.80, 0.50, 0.12
@@ -824,7 +840,8 @@ def build_jockey(S):
         bar(S, a + V(0, 0.07, 0), b + V(0, 0.07, 0), 0.08, 0.07, "paint", "cabin", fn, bevel=0.01)
     for a, b in ((cL[0], cL[1]), (c0[0], c0[1]), (cR[0], cR[1])):
         bar(S, a - V(0, 0.03, 0), b - V(0, 0.03, 0), 0.07, 0.06, "paint_dk", "cabin", fn, bevel=0.008, n=V(0, 1, 0))
-    S.box((-W - 0.03, RO, 0.745), (W + 0.03, RO + 0.04, ZF), "paint_dk", node=fn)
+    S.prism([(W + 0.03, 0.745), (W + 0.05, 0.75), (0.70, ZF), (-0.70, ZF), (-W - 0.05, 0.75), (-W - 0.03, 0.745)],
+            RO, RO + 0.04, "paint_dk", node=fn)                                    # follows the wing screens
     for s in (1, -1):        # the front unit's cheeks: from the wing screens to the side walls
         x0, x1 = sorted((s * 0.75, s * 0.845))
         S.box((x0, yb - 0.04, 0.745), (x1, RO, 0.80), "paint", node=fn)
@@ -861,6 +878,12 @@ def oct_vertex(phi):
     """The octagon's vertex at bearing phi (radians from +z toward +x), on the screens' foot plane."""
     R = HA / math.cos(math.pi / 8)
     return V(R * math.sin(phi), 0.0, HC + R * math.cos(phi))
+
+
+def octagon(apothem):
+    """The octagon's plan at an apothem, [(x, z), ...] counter-clockwise from above: floors and roofs."""
+    R = apothem / math.cos(math.pi / 8)
+    return [(R * math.sin((j - 0.5) * math.pi / 4), HC + R * math.cos((j - 0.5) * math.pi / 4)) for j in range(8)]
 
 
 def build_harness(S):
@@ -938,7 +961,7 @@ def build_harness(S):
         grip(S, "CTRL_throttle" if s > 0 else "CTRL_stick", V(s * 0.30, 1.10, 0.30), Y, s)
     # --- the stirrups on a raised foot plate, the floor
     S.plate("floor", (0, 0.0, HC), Y, Z, t=0.02, group="cabin")
-    S.box((-0.82, -0.06, -0.75), (0.82, -0.025, 0.90), "paint_dk")
+    S.prism(octagon(HA + 0.06), -0.06, -0.025, "paint_dk")
     S.box((-0.30, 0.0, -0.18), (0.30, 0.05, 0.22), "steel", bevel=0.006)
     for s in (1, -1):
         S.obox(V(s * 0.14, 0.075, 0.04), I3, (0.12, 0.03, 0.30), "steel", bevel=0.006)
@@ -947,8 +970,8 @@ def build_harness(S):
         S.cyl(V(s * 0.14, 0.05, -0.12), V(s * 0.14, 0.12, -0.10), 0.03, "metal", seg=12)
     # --- side pods under the side facets: console panels on top, wall panels on their inner faces
     for s, side in ((1, "L"), (-1, "R")):
-        x0, x1 = sorted((s * 0.46, s * 0.77))
-        S.box((x0, 0.0, -0.37), (x1, 0.48, 0.47), "paint", bevel=0.004)
+        pod = [(0.46, -0.37), (0.63, -0.37), (0.755, -0.245), (0.755, 0.385), (0.67, 0.47), (0.46, 0.47)]
+        S.prism([(s * x, z) for x, z in pod], 0.0, 0.48, "paint", bevel=0.004)     # trimmed to the octagon
         S.plate(f"console_{side}", (s * 0.615, 0.492, 0.05), Y, Z, t=0.012)
         S.plate(f"breakers_{side}", (s * 0.46, 0.24, 0.05), -s * X, Y, t=0.01, group="cabin")
     # --- the low front console: the knee panel tilted up at the pilot, folding down as the step
@@ -960,7 +983,7 @@ def build_harness(S):
     S.plate("knee", ck, nk, Y, t=0.012, node=cn)
     S.cyl(V(-0.34, 0.02, HC + HA + 0.02), V(0.34, 0.02, HC + HA + 0.02), 0.025, "steel", seg=16)
     # --- the roof and its ring of monitors
-    S.box((-0.85, HROOF, -0.75), (0.85, HROOF + 0.04, HC + HA + 0.05), "paint_dk")
+    S.prism(octagon(HA + 0.06), HROOF, HROOF + 0.04, "paint_dk")
     ring = []
     for i, deg in enumerate((-75, -45, -15, 15, 45, 75)):
         a = math.radians(deg)

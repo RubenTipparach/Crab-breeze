@@ -23,15 +23,15 @@
   },
   "bounds_closed_m": {
     "x": [
-      -1.0,
-      1.0
+      -0.94,
+      0.94
     ],
     "y": [
-      -0.08,
-      1.97
+      -0.04,
+      1.95
     ],
     "z": [
-      -0.8,
+      -0.76,
       1.071
     ]
   },
@@ -41,11 +41,11 @@
       1.133
     ],
     "y": [
-      -0.08,
+      -0.04,
       2.711
     ],
     "z": [
-      -0.8,
+      -0.76,
       2.11
     ]
   },
@@ -260,7 +260,7 @@
       "node": "INNER_front"
     },
     "INNER_front_cabin": {
-      "tris": 1426,
+      "tris": 1450,
       "group": "cabin",
       "node": "INNER_front"
     },
@@ -335,16 +335,16 @@
       "node": "pod"
     },
     "pod_shell": {
-      "tris": 84,
+      "tris": 24,
       "group": "shell",
       "node": "pod"
     }
   },
   "vents": 6,
   "lights": 6,
-  "tris": 27420,
+  "tris": 27384,
   "tri_budget": 600000,
-  "draw_calls": 21,
+  "draw_calls": 20,
   "atlases": {
     "front": {
       "maps": [
@@ -386,5 +386,5 @@
     "wall_L",
     "wall_R"
   ],
-  "bytes": 10111135
+  "bytes": 9470567
 }
