@@ -1,0 +1,95 @@
+{
+  "bigboy": {
+    "bounds_m": {
+      "x": [
+        -21.042,
+        21.042
+      ],
+      "y": [
+        -0.0,
+        30.0
+      ],
+      "z": [
+        -13.608,
+        33.942
+      ]
+    },
+    "bytes": 1843768,
+    "file": "alien_bigboy.glb",
+    "generator": "tools/blender/build_alien_mechs.py",
+    "id": "bigboy",
+    "legs": "six short thick piston legs on toothed splayed feet",
+    "name": "Big Boy",
+    "note": "A walking fortress for an Ace Combat style set piece: a 30 m lens-shelled crab that drags one giant boxy claw with a beam weapon in its jaws. Its weak points are named for lock-on: the violet core on its back, the two glowing tanks behind it and the core under its belly.",
+    "reference": "the Big Boy sheet",
+    "rig": "docs/design/alien-rig.md",
+    "role": "siege crab, a set-piece boss",
+    "status": "design candidate",
+    "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88), alien glows",
+    "target_height_m": 30.0,
+    "triangles": 25368,
+    "weapons": "beam emitter between the jaws of the giant claw, small claw"
+  },
+  "skitter": {
+    "bounds_m": {
+      "x": [
+        -4.031,
+        4.031
+      ],
+      "y": [
+        -0.0,
+        6.0
+      ],
+      "z": [
+        -3.728,
+        3.728
+      ]
+    },
+    "bytes": 1189412,
+    "file": "alien_skitter.glb",
+    "generator": "tools/blender/build_alien_mechs.py",
+    "id": "skitter",
+    "legs": "four tall arched legs, big joint hubs, hydraulic rods",
+    "name": "Skitter",
+    "note": "Light and quick: it runs sideways in packs, stops to loose its two pods of four missiles and is gone again. Its one big eye in the pale face plate and the eye in the turret are what it sees with; the legs are long and thin and break first.",
+    "reference": "the four-legged spider crab sheet",
+    "rig": "docs/design/alien-rig.md",
+    "role": "fast scuttler and missile skirmisher",
+    "status": "design candidate",
+    "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88), alien glows",
+    "target_height_m": 6.0,
+    "triangles": 13808,
+    "weapons": "twin four-tube missile pods, twin turret guns"
+  },
+  "snapper": {
+    "bounds_m": {
+      "x": [
+        -6.712,
+        6.712
+      ],
+      "y": [
+        -0.0,
+        12.0
+      ],
+      "z": [
+        -4.032,
+        7.878
+      ]
+    },
+    "bytes": 1422344,
+    "file": "alien_snapper.glb",
+    "generator": "tools/blender/build_alien_mechs.py",
+    "id": "snapper",
+    "legs": "six short folded legs on box feet",
+    "name": "Snapper",
+    "note": "The invaders' line machine, the human mechs' size: a flat armoured hull on six stubby legs, a square face with twin headlight eyes over a grille, and two big hooked claws carried high to crush a mech's torso. The left claw is a size bigger.",
+    "reference": "the slate-blue crab sheet",
+    "rig": "docs/design/alien-rig.md",
+    "role": "main line assault crab",
+    "status": "design candidate",
+    "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88), alien glows",
+    "target_height_m": 12.0,
+    "triangles": 16136,
+    "weapons": "two hooked claws with short-range emitters in the palms"
+  }
+}
