@@ -23,6 +23,8 @@ p.lede { max-width: 68ch; color: var(--dim); margin: 0 0 14px }
 table { border-collapse: collapse; font-size: 14px; min-width: 560px }
 th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--line) }
 th { font: 12px "IBM Plex Mono", monospace; color: var(--dim); text-transform: uppercase; letter-spacing: .06em }
+#scrub { flex: 1 1 220px; min-width: 0; accent-color: var(--on); min-height: 36px }
+.tnum { font: 13px "IBM Plex Mono", monospace; color: var(--dim); min-width: 92px; font-variant-numeric: tabular-nums }
 button { font: 600 15px "Saira Condensed", sans-serif; letter-spacing: .05em; text-transform: uppercase; padding: 7px 12px;
          background: var(--btn); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; cursor: pointer; min-height: 36px }
 button.on { background: var(--on-bg); color: var(--on); border-color: var(--on) }
@@ -55,6 +57,8 @@ code { font: 12px "IBM Plex Mono", monospace }
       <div class="row"><span class="k">View</span><button data-view="eye" class="on">Pilot's eye</button><button data-view="orbit">Outside</button></div>
       <div class="row"><span class="k">Doors</span><button id="open">Open</button><button id="close" class="on">Closed</button>
         <span class="k" style="margin-left:10px">Screens</span><button id="power" class="on">On</button><button id="hud" class="on">HUD</button></div>
+      <div class="row"><span class="k">Opening</span><input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Opening, scrub through it">
+        <span id="scrubT" class="tnum">0.0 s</span></div>
       <div class="stage"><canvas id="view"></canvas><div class="tag" id="tag">pilot's eye</div><div class="msg" id="msg">loading the interiors…</div></div>
       <p class="hint">Drag to look round from the seat; outside, drag to orbit, scroll or pinch to zoom.</p>
     </section>
@@ -372,6 +376,13 @@ function setView(v) {
   if (v === "orbit") { camera.position.set(4.2, POD_Y + 2.8, 5.2); controls.target.set(0, POD_Y + 1.0, 0.1); controls.update(); }
 }
 document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => setView(b.dataset.view));
+// the opening slider: drag it to scrub through the opening and hold any moment of it; Open and Closed play to
+// either end from wherever it is
+const scrub = document.getElementById("scrub"), scrubT = document.getElementById("scrubT");
+let scrubbing = false;
+scrub.addEventListener("input", () => { scrubbing = true; openK = openTo = scrub.value / 1000;
+  document.getElementById("open").classList.toggle("on", openTo === 1); document.getElementById("close").classList.toggle("on", openTo === 0); });
+scrub.addEventListener("change", () => { scrubbing = false; });
 const setOpen = o => { openTo = o ? 1 : 0; document.getElementById("open").classList.toggle("on", o); document.getElementById("close").classList.toggle("on", !o); };
 document.getElementById("open").onclick = () => setOpen(true);
 document.getElementById("close").onclick = () => setOpen(false);
@@ -393,6 +404,8 @@ function frame() {
   if (cur) {
     openK += Math.sign(openTo - openK) * Math.min(Math.abs(openTo - openK), dt / cur.end);
     const t = openK * cur.end;
+    if (!scrubbing) scrub.value = Math.round(openK * 1000);
+    scrubT.textContent = `${t.toFixed(1)} of ${cur.end.toFixed(1)} s`;
     for (const tr of cur.tr || []) {
       const k = Math.max(0, Math.min(1, (t - tr.t0) / tr.d)), s = k * k * (3 - 2 * k);
       if (tr.pos) { tr.o.position.copy(tr.p); tr.o.position[tr.pos] += tr.v * s; }
