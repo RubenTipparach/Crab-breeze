@@ -47,7 +47,7 @@ impl Plugin for PilotPlugin {
             curr: state,
         })
         .init_resource::<PilotEvents>()
-        .add_systems(Startup, spawn_camera)
+        .add_systems(Startup, (cpu_light_clustering, spawn_camera))
         .add_systems(FixedUpdate, step_pilot.in_set(SimSet::Pilot))
         .add_systems(Startup, spawn_prompt)
         .add_systems(
@@ -68,6 +68,13 @@ pub const COCKPIT_LAYER: usize = 1;
 /// of the pilot's eyes with the same lens, so the two views share one transform each frame.
 #[derive(Component)]
 pub struct CockpitCamera;
+
+/// Lights are clustered on the CPU. Bevy 0.20's GPU clustering ignores render layers, so every gun
+/// flash and blast outside lit the cockpit pass too and the cabin strobed with the guns (owner,
+/// 2026-10-24: "Strobing appears to be from guns"). CPU clustering keeps each light to its layer.
+fn cpu_light_clustering(mut settings: ResMut<bevy::light::cluster::GlobalClusterSettings>) {
+    settings.gpu_clustering = None;
+}
 
 fn spawn_camera(mut commands: Commands, data: Res<Data>) {
     let light = &data.0.cockpit_light;
@@ -110,17 +117,17 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
             },
         ))
         .with_children(|eye| {
-            // The screens' glow, until their cube map lights the cabin.
-            for at in &light.screens_m {
+            // The screens' glow, as one directional light kept to the cockpit layer (cb-core
+            // `screen_glow`).
+            if let Some((travel, lux)) = light.screen_glow() {
                 eye.spawn((
-                    PointLight {
-                        intensity: light.screen_lumens,
-                        range: light.screen_range_m,
+                    DirectionalLight {
+                        illuminance: lux,
                         color: srgb(light.screen_tint),
                         shadow_maps_enabled: false,
                         ..default()
                     },
-                    Transform::from_translation(Vec3::from_array(*at)),
+                    Transform::default().looking_to(travel, Vec3::Y),
                     bevy::camera::visibility::RenderLayers::layer(COCKPIT_LAYER),
                 ));
             }
