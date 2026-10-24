@@ -243,6 +243,56 @@ impl Default for SkateConfig {
     }
 }
 
+/// Ramming a building (openspec change `mech-ramming`; owner, 2026-10-24: "the mech has to hit a
+/// biulding with a weapon or ram into it at a significant speed to actually caause damage").
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct RamConfig {
+    /// Least speed that damages a building; a slower mech is only stopped by it.
+    pub speed_m_s: f32,
+    /// The building must take the speed below this fraction of itself in one step.
+    pub stopped_fraction: f32,
+    /// The hole's radius at the ram speed.
+    pub radius_m: f32,
+    /// The biggest hole's radius.
+    pub radius_max_m: f32,
+    /// The fraction of its speed the mech keeps after smashing through.
+    pub kept_fraction: f32,
+    /// The hole's centre ahead of the body's front.
+    pub reach_m: f32,
+    /// The hole's centre over the ground.
+    pub height_m: f32,
+}
+
+impl Default for RamConfig {
+    fn default() -> Self {
+        Self {
+            // Above the placeholder's 12 m/s walk: reached in under 2 s of skating, or on jets.
+            speed_m_s: 20.0,
+            stopped_fraction: 0.6,
+            radius_m: 4.5,
+            radius_max_m: 9.0,
+            kept_fraction: 0.7,
+            reach_m: 2.5,
+            height_m: 5.0,
+        }
+    }
+}
+
+impl RamConfig {
+    /// The radius of the hole a mech breaks when its speed went from `before_m_s` to `after_m_s`
+    /// in one step against a building: none unless it was ramming (at or above the ram speed) and
+    /// the building stopped it. The hole grows as (speed / ram speed)^(2/3), the cube root of
+    /// the impact energy over the threshold's, up to `radius_max_m`.
+    pub fn hole_radius_m(&self, before_m_s: f32, after_m_s: f32) -> Option<f32> {
+        let (before, after) = (before_m_s.abs(), after_m_s.abs());
+        if !before.is_finite() || !after.is_finite() || before < self.speed_m_s || after >= before * self.stopped_fraction {
+            return None;
+        }
+        Some((self.radius_m * (before / self.speed_m_s).powf(2.0 / 3.0)).min(self.radius_max_m))
+    }
+}
+
 /// A mech: its model, its stand-in, and its tuning.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
@@ -260,6 +310,8 @@ pub struct MechConfig {
     pub jet: JetConfig,
     /// Skate tuning.
     pub skate: SkateConfig,
+    /// Ramming buildings.
+    pub ram: RamConfig,
     /// Parts that can be shot off.
     pub parts: Vec<PartSpec>,
     /// Guns.
@@ -279,6 +331,7 @@ impl Default for MechConfig {
             gait: GaitConfig::default(),
             jet: JetConfig::default(),
             skate: SkateConfig::default(),
+            ram: RamConfig::default(),
             parts: default_parts(),
             weapons: crate::weapons::default_weapons(),
             nodes: Vec::new(),
@@ -289,6 +342,17 @@ impl Default for MechConfig {
 
 impl Validate for MechConfig {
     fn validate(&self) -> Result<(), String> {
+        let r = &self.ram;
+        positive("ram.speed_m_s", r.speed_m_s)?;
+        within("ram.stopped_fraction", r.stopped_fraction, 0.0, 1.0)?;
+        positive("ram.radius_m", r.radius_m)?;
+        positive("ram.radius_max_m", r.radius_max_m)?;
+        if r.radius_max_m < r.radius_m {
+            return Err("`ram.radius_max_m` must not be less than `ram.radius_m`".into());
+        }
+        within("ram.kept_fraction", r.kept_fraction, 0.0, 1.0)?;
+        within("ram.reach_m", r.reach_m, 0.0, 50.0)?;
+        within("ram.height_m", r.height_m, 0.0, 100.0)?;
         let l = &self.locomotion;
         positive("locomotion.walk_speed_max_m_s", l.walk_speed_max_m_s)?;
         within("locomotion.throttle_min", l.throttle_min, -1.0, 0.0)?;
@@ -399,6 +463,36 @@ mod tests {
     fn shipped() -> MechConfig {
         let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/mechs/placeholder.ron");
         load_ron(&p).expect("placeholder mech data loads")
+    }
+
+    #[test]
+    fn walking_into_a_building_at_full_walk_breaks_nothing() {
+        let m = shipped();
+        let walk = m.locomotion.walk_speed_max_m_s;
+        assert!(walk < m.ram.speed_m_s, "the walk must be slower than a ram");
+        assert_eq!(m.ram.hole_radius_m(walk, 0.0), None);
+    }
+
+    #[test]
+    fn a_ram_that_the_wall_stops_breaks_a_hole_that_grows_with_speed() {
+        let r = RamConfig::default();
+        assert_eq!(r.hole_radius_m(20.0, 0.0), Some(4.5));
+        let at_55 = r.hole_radius_m(55.0, 10.0).unwrap();
+        assert!((at_55 - 8.83).abs() < 0.02, "{at_55}");
+        assert_eq!(r.hole_radius_m(120.0, 0.0), Some(9.0), "capped");
+    }
+
+    #[test]
+    fn a_ram_the_wall_does_not_stop_breaks_nothing() {
+        let r = RamConfig::default();
+        assert_eq!(r.hole_radius_m(30.0, 25.0), None);
+        assert_eq!(r.hole_radius_m(f32::NAN, 0.0), None);
+    }
+
+    #[test]
+    fn a_ram_hole_smaller_than_its_cap_is_refused() {
+        let e = parse_ron::<MechConfig>("(ram: (radius_m: 10.0, radius_max_m: 9.0))", Path::new("m.ron")).unwrap_err();
+        assert!(e.to_string().contains("ram.radius_max_m"), "{e}");
     }
 
     #[test]
