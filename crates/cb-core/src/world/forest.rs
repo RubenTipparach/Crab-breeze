@@ -294,21 +294,38 @@ impl Forest {
     /// more within `keep_radius_m`, nearest first; tiles beyond `release_radius_m` of every body
     /// are let go. The result depends only on the bodies' positions and what was grown before.
     pub fn keep_around(&mut self, plan: &WorldPlan, bodies: &[Vec2]) -> TileChanges {
+        self.keep_around_seen(plan, bodies, bodies.len())
+    }
+
+    /// As `keep_around`, but only the first `seen` bodies (the pilot, whose eye sees the woods to
+    /// the draw radius) keep tiles out to `keep_radius_m`; every other body (a mech that only has
+    /// to collide with the trees near it) keeps just its `urgent_radius_m`. Growing the full radius
+    /// round ten raiders grew woods nobody saw and cost about 8 ms a frame (2026-10-24).
+    pub fn keep_around_seen(&mut self, plan: &WorldPlan, bodies: &[Vec2], seen: usize) -> TileChanges {
         let Some(g) = self.grower.clone() else {
             return TileChanges::default();
         };
         let cfg = &g.cfg;
+        // How far round body `i` tiles are kept, and let go past.
+        let reach = |i: usize| {
+            if i < seen {
+                (cfg.keep_radius_m, cfg.release_radius_m)
+            } else {
+                let margin = (cfg.release_radius_m - cfg.keep_radius_m).max(0.0);
+                (cfg.urgent_radius_m, cfg.urgent_radius_m + margin)
+            }
+        };
+        // A tile's distance to the nearest body, for growing nearest first.
         let nearest = |f: &Forest, key: (u32, u32)| {
             let r = f.tile_rect(key);
             bodies.iter().map(|b| r.distance(*b)).fold(f32::INFINITY, f32::min)
         };
+        let released = |f: &Forest, key: (u32, u32)| {
+            let r = f.tile_rect(key);
+            bodies.iter().enumerate().all(|(i, b)| r.distance(*b) > reach(i).1)
+        };
         let mut changes = TileChanges::default();
-        let far: Vec<(u32, u32)> = self
-            .tiles
-            .keys()
-            .copied()
-            .filter(|k| nearest(self, *k) > cfg.release_radius_m)
-            .collect();
+        let far: Vec<(u32, u32)> = self.tiles.keys().copied().filter(|k| released(self, *k)).collect();
         for key in far {
             if let Some(tile) = self.tiles.remove(&key) {
                 for (t, s) in tile.trees.iter().zip(&tile.states) {
@@ -321,8 +338,8 @@ impl Forest {
             }
         }
         let mut wanted: Vec<(f32, (u32, u32))> = Vec::new();
-        for b in bodies {
-            for key in self.tiles_within(*b, cfg.keep_radius_m) {
+        for (i, b) in bodies.iter().enumerate() {
+            for key in self.tiles_within(*b, reach(i).0) {
                 if !self.tiles.contains_key(&key) {
                     wanted.push((nearest(self, key), key));
                 }

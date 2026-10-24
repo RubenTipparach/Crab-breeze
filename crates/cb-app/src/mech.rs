@@ -167,7 +167,7 @@ impl Plugin for MechPlugin {
             .add_systems(FixedUpdate, (publish_access.in_set(SimSet::Input), step_mech.in_set(SimSet::Mech)))
             .add_systems(
                 Update,
-                (bind_rig, bind_interior, cut_parts, drive_mech, fall_wrecks, burn)
+                (bind_rig, bind_interior, cut_parts, drive_mech, fall_wrecks, burn, jet_flames)
                     .chain()
                     .in_set(PresentSet::Pose),
             )
@@ -1069,14 +1069,6 @@ pub fn step_mech(
                 }
             }
         }
-        // Booster flame while boosting.
-        if sim.curr.boosting {
-            for jet in ["JET_L", "JET_R"] {
-                if let Some(g) = rig.sockets.get(jet).and_then(|e| globals.get(*e).ok()) {
-                    fx.write(Fx::new("jet_flame", g.translation()).toward(Vec3::NEG_Y));
-                }
-            }
-        }
         // A mech striding into a wall at speed smashes through it (building-destruction).
         let pushed_back =
             sim.prev.speed_m_s.abs() > 2.5 && sim.curr.speed_m_s.abs() < sim.prev.speed_m_s.abs() * 0.6 && !sim.curr.airborne();
@@ -1375,24 +1367,48 @@ fn cockpit_layer(
     }
 }
 
-fn burn(
-    mut commands: Commands,
-    q: Query<(Entity, &GlobalTransform, &Burning)>,
-    time: Res<Time>,
-    mut fx: MessageWriter<Fx>,
-    mut tick: Local<f32>,
-) {
+/// The booster flame while boosting: a stream on each jet socket (`FxStream`), switched with the
+/// boost.
+fn jet_flames(mut commands: Commands, mechs: Query<(&MechSim, &MechRig)>, mut streams: Query<&mut crate::fx::FxStream>) {
+    for (sim, rig) in &mechs {
+        for jet in ["JET_L", "JET_R"] {
+            let Some(&e) = rig.sockets.get(jet) else { continue };
+            let on = sim.curr.boosting && !sim.dead;
+            match streams.get_mut(e) {
+                Ok(mut s) => {
+                    if s.on != on {
+                        s.on = on;
+                    }
+                }
+                Err(_) => {
+                    commands.entity(e).insert(crate::fx::FxStream {
+                        recipe: "jet_flame",
+                        dir: Vec3::NEG_Y,
+                        on,
+                    });
+                }
+            }
+        }
+    }
+}
+
+fn burn(mut commands: Commands, q: Query<(Entity, &GlobalTransform, &Burning)>, time: Res<Time>, mut tick: Local<f32>) {
     *tick += time.delta_secs();
     if *tick < 0.1 {
         return;
     }
     *tick = 0.0;
-    for (e, g, b) in &q {
-        if time.elapsed_secs() > b.until_s {
+    // A fire is a stream riding what burns (`FxStream`), lit while it burns.
+    for (e, _, b) in &q {
+        let on = time.elapsed_secs() <= b.until_s;
+        commands.entity(e).insert(crate::fx::FxStream {
+            recipe: "burning",
+            dir: Vec3::Y,
+            on,
+        });
+        if !on {
             commands.entity(e).remove::<Burning>();
-            continue;
         }
-        fx.write(Fx::new("burning", g.translation()));
     }
 }
 

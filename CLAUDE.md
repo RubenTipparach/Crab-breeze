@@ -261,6 +261,12 @@ said out loud and kept in check, never guessed.
   "No obs when tracing"). A trace, a benchmark or any frame-time number comes from a run with no OBS,
   no screenshots and no other game; an OBS take is for seeing visual errors and is never a source of
   performance numbers. A traced build runs far slower than the game: its frame rate is not a result.
+- **Performance runs render on screen; offscreen perf rendering is forbidden** (owner, 2026-10-24:
+  "you need to render on screen, it needs to go through gpu like a player playing it", "perf
+  rendering off screen is forbidden"). A benchmark plays the game in its window, drawn and presented
+  through the GPU as a player sees it (`tools/perf/perf_suite.py`, `CB_BENCH_WINDOWED=1`), so the
+  cockpit pass, the HUD and presenting each frame are counted. No number from an offscreen render
+  is a result, headroom included. Say the display's refresh rate with every windowed result.
 - **Every asset has a budget** per LOD in its manifest, and the build refuses one over budget.
 - **Cloud sessions measure nothing**: no GPU. They say so in the PR and ask a session on the
   owner's hardware to measure.

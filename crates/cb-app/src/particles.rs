@@ -279,7 +279,10 @@ pub fn burst(
     let mut props = EffectProperties::default();
     props.set("size_scale", scale.into());
     lib.live += count;
-    let blended = !motion(spec.kind).3;
+    // Only an explosion's smoke gets a sprite of its own: per-burst sprites stop bevy_hanabi
+    // batching, and for every burst they cost about 6 ms a frame in combat (2026-10-24). The big
+    // blended clouds are what showed the wrong order.
+    let blended = !motion(spec.kind).3 && recipe.starts_with("explosion");
     let sprite = lib.sprite(blended);
     commands.spawn((
         Name::new(format!("fx {recipe}")),
