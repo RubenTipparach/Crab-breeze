@@ -1479,17 +1479,24 @@ def crab_eyes(C):
             cyl(f"eye{sd}{j}", e, e + V((0, 0, 0.25)), r, "GLOW", "head", 12)
 
 
-def crab_member(name, a, b, size):
-    """A leg segment in the body colour (a crab's legs are shell, not frame): the armoured member, a darker plate along
-    its top."""
+def ball(name, c, r, mat, group, seg=10):
+    """A low-poly sphere: a joint as wide as the members meeting at it, so a limb reads as one solid."""
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=seg, v_segments=max(4, seg // 2 + 1), radius=r)
+    bmesh.ops.translate(bm, verts=bm.verts, vec=V(c))
+    return obj(name, bm, mat, group)
+
+
+def crab_member(name, a, b, r1, r2):
+    """A leg segment in the body colour (a crab's legs are shell, not frame): an octagonal tube tapering from r1 at a to
+    r2 at b, and a darker armour plate along its top, laid on with no boolean. Joints are balls of at least the tube's
+    radius (`ball`), so the leg is one closed chain whatever angle it takes."""
     a, b = V(a), V(b)
-    L = (b - a).length
+    cyl(name, a, b, r1, "BODY", "legs", 8, r2=r2)
     ax = between(a, b)
-    m = (a + b) / 2
-    chamfered(name, m, (size[0], L + 0.3, size[1]), min(0.5, min(size) * 0.25), "BODY", "legs", ax)
     up = ax[2] if ax[2].y >= 0 else -ax[2]
-    chamfered(name + "_top", m + up * (size[1] / 2 + 0.15), (size[0] * 0.7, L * 0.72, 0.4 * min(1, size[0] / 2)), 0.12,
-              "BODY2", "legs", ax)
+    L = (b - a).length
+    box(name + "_top", (a + b) / 2 + up * ((r1 + r2) / 2 * 0.85), (r1 * 1.2, L * 0.7, 0.3 * (r1 + r2)), "BODY2", "legs", ax)
 
 
 # Where the hind legs root along the shell (fractions of its length, + ahead) and which way they splay (radians from
@@ -1499,8 +1506,9 @@ HIND = {1: ([-0.18], [-0.35]), 2: ([-0.08, -0.36], [-0.1, -0.85]), 3: ([0.02, -0
 
 def crab_legs(C, pairs=2, reach=11.0, rise=4.5, k=1.0):
     """Hind legs, out of the shell's back half: a thigh arching up over the shell to a spurred knee, a shin down and
-    back to the hock, a long cannon bone forward to the foot, which grips with a toe ahead and two behind. One pair is
-    thick and carries the shell over itself; three are short and thin."""
+    back to the hock, a long cannon bone forward to the ankle over the foot, which grips with a toe ahead and two
+    behind. Tapering octagonal tubes between balls at the hip, knee, hock and ankle: one closed chain from the shell to
+    the ground. One pair is thick and carries the shell over itself; three are short and thin."""
     hip_y, bw, bl = C["hip_y"], C["w"], C["l"]
     zs, angles = HIND[pairs]
     for i, (fz, a) in enumerate(zip(zs, angles)):
@@ -1511,23 +1519,24 @@ def crab_legs(C, pairs=2, reach=11.0, rise=4.5, k=1.0):
             K = P + d * reach * 0.36 + V((0, rise, 0))
             A = P + d * reach * 0.8 + V((0, rise * 0.25 + 1.6 * k, -1.4 * k))
             F = P + d * reach
-            F.y = 0.9 * k
-            t = V((0, 1, 0)).cross(d).normalized()
-            cyl(f"coxa{n}", P - V((0, 1.0 * k, 0)), P + V((0, 1.0 * k, 0)), 1.0 * k, "FRAME", "legs", 14)
-            crab_member(f"femur{n}", P, K, (2.6 * k, 3.0 * k))
-            cyl(f"knee{n}", K - t * 1.2 * k, K + t * 1.2 * k, 0.95 * k, "FRAME", "legs", 14)
-            cyl(f"spur{n}", K + V((0, 0.6 * k, 0)), K + V((0, 2.6 * k, -1.4 * k)) + d * 0.6, 0.6 * k, "FRAME", "legs", 8, r2=0.05)
-            crab_member(f"tibia{n}", K, A, (2.1 * k, 2.4 * k))
-            cyl(f"hock{n}", A - t * 0.9 * k, A + t * 0.9 * k, 0.7 * k, "FRAME", "legs", 12)
-            crab_member(f"tarsus{n}", A, F + V((0, 0.1 * k, 0)), (1.4 * k, 1.6 * k))
-            cyl(f"ram{n}", P + V((0, 1.5 * k, 0)) + d * 0.6, P.lerp(K, 0.6) + V((0, 1.7 * k, 0)), 0.36 * k, "METAL", "legs", 8)
-            chamfered(f"heel{n}", (F.x, 0.5 * k, F.z), (2.0 * k, 1.0 * k, 2.0 * k), 0.35 * k, "BODY2", "legs")
+            F.y = 0.95 * k                                       # the ankle, over the foot
+            ball(f"hip{n}", P, 1.3 * k, "FRAME", "legs")
+            crab_member(f"femur{n}", P, K, 1.2 * k, 1.0 * k)
+            ball(f"knee{n}", K, 1.05 * k, "FRAME", "legs")
+            cyl(f"spur{n}", K + V((0, 0.5 * k, 0)), K + V((0, 2.6 * k, -1.4 * k)) + d * 0.6, 0.55 * k, "FRAME", "legs", 8, r2=0.05)
+            crab_member(f"tibia{n}", K, A, 0.95 * k, 0.75 * k)
+            ball(f"hock{n}", A, 0.8 * k, "FRAME", "legs")
+            crab_member(f"tarsus{n}", A, F, 0.65 * k, 0.5 * k)
+            ball(f"ankle{n}", F, 0.62 * k, "FRAME", "legs")
+            cyl(f"ram{n}", P + V((0, 1.2 * k, 0)) + d * 0.6, P.lerp(K, 0.6) + V((0, 1.3 * k, 0)), 0.32 * k, "METAL", "legs", 8)
+            chamfered(f"heel{n}", (F.x, 0.45 * k, F.z), (1.8 * k, 0.9 * k, 1.8 * k), 0.3 * k, "BODY2", "legs")
             fwd = V((d.x * 0.4, 0, 1.0)).normalized()
-            cyl(f"toe{n}", (F.x, 0.5 * k, F.z), V((F.x, 0.15, F.z)) + fwd * 2.6 * k, 0.45 * k, "FRAME", "legs", 8, r2=0.06)
+            cyl(f"toe{n}", (F.x, 0.45 * k, F.z), V((F.x, 0.12, F.z)) + fwd * 2.6 * k, 0.45 * k, "FRAME", "legs", 8, r2=0.06)
             for j, s2 in enumerate((1, -1)):
                 back = V((-fwd.x + s2 * 0.6 * fwd.z, 0, -fwd.z - s2 * 0.6 * fwd.x)).normalized()
-                cyl(f"heelclaw{n}{j}", (F.x, 0.5 * k, F.z), V((F.x, 0.15, F.z)) + back * 1.7 * k, 0.35 * k, "FRAME", "legs", 8, r2=0.05)
-            box(f"band{n}", K.lerp(A, 0.3) + V((0, 0.2, 0)), (0.3, 0.35 * k, 0.3), "ACCENT", "legs")
+                cyl(f"heelclaw{n}{j}", (F.x, 0.45 * k, F.z), V((F.x, 0.12, F.z)) + back * 1.7 * k, 0.35 * k, "FRAME", "legs", 8,
+                    r2=0.05)
+            box(f"band{n}", K.lerp(A, 0.3) + V((0, 0.95 * k, 0)), (0.3, 0.25 * k, 0.3), "ACCENT", "legs")
 
 
 def crab_gun(kind, n, G, sd, k):
