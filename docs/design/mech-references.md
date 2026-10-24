@@ -239,30 +239,38 @@ in its chest by the game, its data (`data/mechs/<id>.ron`, `boarding.ron`) is ge
 
 ## Crab mechs, built from parts (23 to 28)
 
-The owner, 2026-10-24: "We need more crab designs, more practical big legged crabs with guns for arms". So the crabs have
-their own parts in `tools/blender/build_mech_blockouts.py` (`crab_body`, `crab_eyes`, `crab_legs`, `gun_arm`; `-- crabs`
-writes `assets/models/mech_crabs.json`), each one line of `CRABS`:
+The owner, 2026-10-24, first: "We need more crab designs, more practical big legged crabs with guns for arms"; then, with
+the CET-OPS crab, a pincer crab sheet, a hunched fist mech, a spiked green brute and the King Crab as references: "make
+crab mechs more alien like? they definitely work with two hind legs, and meaty claws dangling in the front, I would say a
+variation on leg count would be cool, 1,2,3 pairs, 3 pairs wouold probably have to be shorter and thiner". The parts are
+in `tools/blender/build_mech_blockouts.py` (`crab_body`, `crab_eyes`, `crab_legs`, `gun_arm`, `crab_gun`; `-- crabs`
+writes `assets/models/mech_crabs.json`), each crab one line of `CRABS`:
 
-- **Carapace**: a wide, low shell lofted through plan octagons, widest at the leg roots, rising to a hump; the cockpit
-  block-out sits in a well cut in its face, a chin under it.
-- **Eyes**: the sensors on two stalks over the cockpit, each a hooded lens box.
-- **Legs**: three or four pairs from the shell's sides, each rising to a knee over the shell and coming down far out to a
-  pad and a tip, a ram on the thigh, in the shell's own colour. The front pair splays forward and the rest back, behind
-  the gun arms' shoulders, so no arm touches a leg (the mesh intersection check reads 0 on all six).
-- **Gun arms**: a shoulder at the shell's front corner, an upper arm out and forward, an upright elbow, then the gun as
-  the forearm: autocannon (two barrels and a box magazine), howitzer, gatling, rocket box, or pincer (a claw's two jaws
-  round a cannon).
-- **Back**: the combat mechs' back units on the hump (missile box, vertical missiles, cannon, railgun, radar, rockets).
+- **Carapace**: hunched, lofted through plan octagons, widest at the rim, low at the face and humped at the back; the
+  cockpit block-out in a well under a brow, mandibles and fangs under the chin, spines down the hump. Saucer (Shrike): a
+  flatter, wider shell with an intake pod at each cheek. Maw (Tyrant, Bruiser, after the King Crab): a toothed slot across
+  the face under the cockpit, glowing at the back.
+- **Eyes**: clustered, not on stalks: three lenses each side of the cockpit in a sensor housing.
+- **Hind legs only**, rooted in the shell's back half: a thigh arching up over the shell to a spurred knee, a shin down
+  and back to the hock, a long cannon bone forward to a foot gripping with a toe ahead and two behind. One pair is thick
+  (k 1.4 to 1.5) and carries the shell over itself; two pairs are medium; three pairs are short and thin (k 0.6 to 0.66).
+- **Claws hanging in front**: a shoulder low at the shell's front corner, an upper arm forward, a heavy elbow, then a
+  meaty forearm down to a crab's claw, its fixed finger reaching the ground and its moving finger open over it, teeth
+  along it. The gun rides the forearm's outside, pointing ahead (autocannon, howitzer, gatling, rocket box), or sits in the
+  claw's palm (`pincer`: a cannon; `clawgat`: a gatling).
+- **Back**: the combat mechs' back units on the hump.
 
-| No. | Mech | Legs | Right arm | Left arm | Back | Cockpit | Legs over shell |
+| No. | Mech | Hind legs | Right claw | Left claw | Back | Cockpit | Height, width |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 23 | Fiddler | 3 pairs | Howitzer (big) | Autocannon (small) | Radar, missile box | Panorama | 2.2 |
-| 24 | Hermit | 3 pairs, heavy | Gatling | Gatling | Two vertical launchers in a high shell | Titan | 2.8 |
-| 25 | Stone | 4 pairs, low and wide | Pincer cannon | Pincer cannon | Two rocket pods | Excavator cab | 3.2 |
-| 26 | Ghost | 3 pairs, long and light | Autocannon | Autocannon | Radar, missile box | Canopy | 3.2 |
-| 27 | Coconut | 4 pairs, the biggest | Gatling | Pincer cannon | Railgun, vertical missiles | All-view sphere | 4.2 |
-| 28 | Mitten | 3 pairs | Autocannon | Rocket box | Cannon, missile box | Low bank | 2.1 |
+| 23 | Tyrant | 1 pair, thick; maw, spined hump | Crusher, howitzer | Crusher, autocannon | Missile box, radar | Titan | 18.0 m, 28.5 m |
+| 24 | Bruiser | 1 pair; flat wide shell, maw | Gatling in the palm | Gatling in the palm | Cannon, missile box | Excavator cab | 16.4 m, 29.5 m |
+| 25 | Shrike | 2 pairs, arching; saucer, cheek intakes | Autocannon | Autocannon | Two vertical launchers | Panorama | 16.2 m, 36.2 m |
+| 26 | Pincher | 2 pairs; great pincers | Cannon in the palm | Cannon in the palm | Two rocket pods | All-view sphere | 15.1 m, 33.4 m |
+| 27 | Scuttler | 3 pairs, short and thin | Gatling | Rocket box | Railgun, missile box | Canopy | 11.1 m, 24.7 m |
+| 28 | Mite | 3 pairs, short and thin, the smallest | Cannon in the palm | Autocannon | Cannon, radar | Low bank | 13.7 m, 22.4 m |
 
-They stand 13 to 19 m to the top of their back units and 32 to 41 m across their feet: a crab is wide and low where the
-walkers are tall. Legs over shell is by volume, measured off the meshes. Contact sheet: `docs/screenshots/mechs/crabs.png`.
+Heights run to the top of the back units, widths across the feet; no claw touches a leg (the mesh intersection check
+reads 0 on all six). With the legs now behind and the claws carrying the front, legs over shell by volume falls to 0.5
+(three thin pairs) to 1.2 (Tyrant), against the walkers' rule of legs heavier than the torso: a crab's claws are its
+front legs. Contact sheet: `docs/screenshots/mechs/crabs.png`.
 

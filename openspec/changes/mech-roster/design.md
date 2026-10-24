@@ -54,8 +54,17 @@ world. A mech with an interior instead:
 | Mesh | Seated and sealed |
 | --- | --- |
 | the interior (seat, dash, frame, MFDs, sticks) | cockpit layer |
-| the screen wall: interior nodes named `SCREEN_*_screen` or ending `_allview` | not drawn: the world shows through, as the page's screens show it |
+| the screen wall: interior nodes ending `_allview` (the `SCREEN_*_screen` nodes are console monitors and stay) | not drawn: the world shows through, as the page's screens show it |
 | the rest of the mech (hull, chest armour, arms, legs) | not drawn (a layer no camera renders): it would stand between the screens and the world |
+
+**The openings cut into the cabin** (`cb-app::screen_cut`). An interior is a closed box: each window quad has a back
+plate 2 cm behind it, the pod's inner wall 4.2 cm behind, and a backing face in its own plane, so hiding the quads alone
+left the screens black. When the interior binds, every cabin mesh loses the geometry inside the pyramid the eye sees
+through each window triangle, from 2 mm in front of the window's plane back (triangles crossing an edge are split, their
+UVs and normals interpolated); the window MFDs, hung 16 cm out, are untouched. Measured on the Foreman's Panorama: three
+meshes cut (`pod_cabin` 14,392 to 15,708 triangles, `INNER_upper_1_cabin` 1,046 to 1,269, the console 8,292 to 8,296),
+once per mesh asset, at load. The same cabin seen from outside with the hatch open still shows its window quads over the
+openings.
 
 Out of the seat, or with the hatch open, everything is drawn with the world as now. The stand-in and the Breeze, with
 no interior, keep today's behaviour.

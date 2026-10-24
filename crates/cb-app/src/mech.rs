@@ -147,10 +147,11 @@ pub struct Interior {
 /// A layer no camera draws: the hull and the screen wall go there while the pilot sits sealed in an interior.
 const UNSEEN_LAYER: usize = 30;
 
-/// Is this an interior node of the screen wall, a window on the world (the page's `SCREEN_*` materials)? The
-/// interior generator names a screen's mesh node `SCREEN_<name>_screen` and the all-view wall's `<part>_allview`.
+/// Is this an interior node of the screen wall, a window on the world (material `SCREEN_allview`)? The interior
+/// generator names the wall's mesh nodes `<part>_allview`; its `SCREEN_<name>_screen` nodes are the console's
+/// monitors, which stay in the cabin.
 fn is_window(name: &str) -> bool {
-    name.ends_with("_allview") || (name.starts_with("SCREEN_") && name.ends_with("_screen"))
+    name.ends_with("_allview")
 }
 
 /// The mech's boarding sockets this fixed step, for the pilot.
@@ -580,8 +581,10 @@ fn bind_interior(
     names: Query<&Name>,
     transforms: Query<&Transform>,
     parents: Query<&ChildOf>,
-    meshes: Query<(), With<Mesh3d>>,
+    meshes: Query<&Mesh3d>,
     lights: Query<(), Or<(With<PointLight>, With<SpotLight>, With<DirectionalLight>)>>,
+    mut assets: ResMut<Assets<Mesh>>,
+    mut cut_done: Local<HashSet<AssetId<Mesh>>>,
 ) {
     for (root, rig, spec, pending) in &roots {
         let interior = pending.0;
@@ -608,6 +611,49 @@ fn bind_interior(
         let Some(ci) = BONES.iter().position(|b| b.name == "cockpit") else {
             continue;
         };
+        // The screen wall's openings cut into the cabin behind it, as the eye sees them (`screen_cut`).
+        let eye = named
+            .get("EYE_pilot")
+            .map(|&e| model_space(e, interior, &transforms, &parents).translation);
+        let in_space = |e: Entity| model_space(e, interior, &transforms, &parents).to_matrix();
+        let mut glass: Vec<[Vec3; 3]> = Vec::new();
+        for &w in &windows {
+            let Some(mesh) = meshes.get(w).ok().and_then(|m| assets.get(&m.0)) else {
+                continue;
+            };
+            glass.extend(crate::screen_cut::triangles(mesh, in_space(w)));
+        }
+        let mut cut = 0;
+        if let Some(eye) = eye {
+            for &e in parts.difference(&windows) {
+                let Ok(handle) = meshes.get(e) else { continue };
+                if !cut_done.insert(handle.0.id()) {
+                    continue;
+                }
+                let Some(new) = assets
+                    .get(&handle.0)
+                    .and_then(|m| crate::screen_cut::cut(m, in_space(e), eye, &glass))
+                else {
+                    continue;
+                };
+                let name = parents
+                    .get(e)
+                    .ok()
+                    .and_then(|p| names.get(p.parent()).ok())
+                    .map(|n| n.as_str().to_string());
+                let before = assets.get(&handle.0).and_then(|m| m.indices()).map(|i| i.len() / 3).unwrap_or(0);
+                debug!(
+                    "screen wall cut: {name:?} {before} -> {} triangles",
+                    new.indices().map(|i| i.len() / 3).unwrap_or(0)
+                );
+                if let Some(mut m) = assets.get_mut(&handle.0) {
+                    *m = new;
+                    cut += 1;
+                }
+            }
+        } else {
+            warn!("interior: no EYE_pilot, so the screen wall is not cut into the cabin");
+        }
         let cockpit = rig.bone_entity(ci);
         commands
             .entity(interior)
@@ -630,9 +676,11 @@ fn bind_interior(
             commands.entity(l).despawn();
         }
         info!(
-            "cockpit interior bound: {} meshes, {} of them the screen wall, {} rides",
+            "cockpit interior bound: {} meshes, {} of them the screen wall ({} triangles, cut into {} meshes), {} rides",
             parts.len(),
             windows.len(),
+            glass.len(),
+            cut,
             rides.len()
         );
         commands

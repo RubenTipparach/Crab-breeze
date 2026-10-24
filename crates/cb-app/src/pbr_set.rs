@@ -43,14 +43,15 @@ pub fn load_tiling(assets_root: &Path, path: &str, srgb: bool) -> Option<Image> 
     };
     let (w, h) = decoded.dimensions();
     let (data, levels) = mip_chain(decoded);
-    let mut img = Image::new(
+    // Uninitialised, then the whole mip chain as its data: `Image::new` checks the data against the top level
+    // alone, and a debug build stopped on the empty data it was given here.
+    let mut img = Image::new_uninit(
         Extent3d {
             width: w,
             height: h,
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
-        Vec::new(),
         if srgb {
             TextureFormat::Rgba8UnormSrgb
         } else {
@@ -75,6 +76,19 @@ pub fn load_tiling(assets_root: &Path, path: &str, srgb: bool) -> Option<Image> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_tiling_texture_loads_with_its_whole_mip_chain() {
+        let dir = std::env::temp_dir().join(format!("cb-pbr-set-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        image::RgbaImage::from_pixel(8, 8, image::Rgba([10, 200, 30, 255]))
+            .save(dir.join("t.png"))
+            .unwrap();
+        let img = load_tiling(&dir, "t.png", true).expect("loads");
+        assert_eq!(img.texture_descriptor.mip_level_count, 4);
+        assert_eq!(img.data.as_ref().map(Vec::len), Some((64 + 16 + 4 + 1) * 4));
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     #[test]
     fn a_2k_texture_has_twelve_levels_down_to_one_pixel() {
