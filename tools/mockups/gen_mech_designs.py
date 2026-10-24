@@ -151,7 +151,7 @@ aside { display: grid; gap: 12px; min-width: 0; }
     arching over the shell to spurred knees), its weight carried forward on two heavy claws that hang to the ground, a gun
     riding each forearm or sitting in the claw's palm. Alien in the shapes: spines down the hump, mandibles and fangs, a
     toothed maw on the two King Crab types, clustered eyes. Tyrant and Bruiser stand on one pair, Shrike and Pincher on two,
-    Skitter and Mite on three short thin pairs. Numbered on from the combat mechs, 23 to 28.</p>
+    Scuttler and Mite on three short thin pairs. Numbered on from the combat mechs, 23 to 28.</p>
     <p class="hint">In the viewer below: Scene, Crabs.</p>
   </section>
   <h2 class="boh">The detailed round: the first three at 12 m, the six picked from the block-outs at 24 m</h2>

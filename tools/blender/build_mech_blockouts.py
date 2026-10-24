@@ -1643,7 +1643,7 @@ CRABS = {
                 dict(layout="allview", R="pincer", L="pincer", back_R="rockets", back_L="rockets", pairs=2, bw=10.0,
                      bl=10.0, hip_y=7.8, hump=2.4, reach=11.5, rise=5.0, k=1.05, kR=1.1, kL=1.1, clawR=1.6, clawL=1.6,
                      spines=4)),
-    "skitter": ("Skitter", "three pairs of short thin legs, low and quick, a gatling and a rocket box, railgun and missiles, "
+    "scuttler": ("Scuttler", "three pairs of short thin legs, low and quick, a gatling and a rocket box, railgun and missiles, "
                 "Canopy",
                 dict(BODY=(0.70, 0.36, 0.14), BODY2=(0.20, 0.19, 0.18), ACCENT=(0.95, 0.85, 0.30)),
                 dict(layout="canopy", R="gatling", L="rockets", back_R="railgun", back_L="missiles", pairs=3, bw=9.0,

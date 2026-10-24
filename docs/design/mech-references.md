@@ -266,7 +266,7 @@ writes `assets/models/mech_crabs.json`), each crab one line of `CRABS`:
 | 24 | Bruiser | 1 pair; flat wide shell, maw | Gatling in the palm | Gatling in the palm | Cannon, missile box | Excavator cab | 16.4 m, 29.5 m |
 | 25 | Shrike | 2 pairs, arching; saucer, cheek intakes | Autocannon | Autocannon | Two vertical launchers | Panorama | 16.2 m, 36.2 m |
 | 26 | Pincher | 2 pairs; great pincers | Cannon in the palm | Cannon in the palm | Two rocket pods | All-view sphere | 15.1 m, 33.4 m |
-| 27 | Skitter | 3 pairs, short and thin | Gatling | Rocket box | Railgun, missile box | Canopy | 11.1 m, 24.7 m |
+| 27 | Scuttler | 3 pairs, short and thin | Gatling | Rocket box | Railgun, missile box | Canopy | 11.1 m, 24.7 m |
 | 28 | Mite | 3 pairs, short and thin, the smallest | Cannon in the palm | Autocannon | Cannon, radar | Low bank | 13.7 m, 22.4 m |
 
 Heights run to the top of the back units, widths across the feet; no claw touches a leg (the mesh intersection check

@@ -59,10 +59,10 @@
    "arm_leg_clips": []
   },
   {
-   "id": "skitter",
-   "name": "Skitter",
+   "id": "scuttler",
+   "name": "Scuttler",
    "what": "three pairs of short thin legs, low and quick, a gatling and a rocket box, railgun and missiles, Canopy",
-   "file": "mech_blockouts/skitter.glb",
+   "file": "mech_blockouts/scuttler.glb",
    "height_m": 11.05,
    "width_m": 24.72,
    "length_m": 24.19,
