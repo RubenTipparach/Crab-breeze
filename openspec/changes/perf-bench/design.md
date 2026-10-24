@@ -23,6 +23,8 @@ report (revision db25fe2), pointed at `--bench world|fight`. What they measure, 
 - **Variants** interleaved A, B, then B, A: an old build with its own `data/` (`CB_ROOT`), or the
   same build with a system switched off (`CB_NO_SHADOWS=1`, `CB_NO_WATER_FX=1`).
 
+No screenshot and no recording during a measured run (owner, 2026-10-24: "dont take screenshot on one run or obs, and just do pure perf measurement"): the bench's stills cost about 11 ms a frame each and are off unless `CB_BENCH_STILLS=1`; an OBS take is a separate pass.
+
 A run is invalid if it crashes, times out, never prints `BENCH all`, or logs fewer than 300 frames.
 A build from before the frame log reports totals from its `BENCH all` line.
 

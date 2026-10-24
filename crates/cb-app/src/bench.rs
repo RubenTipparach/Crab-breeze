@@ -2,6 +2,8 @@
 //! pilot's camera rendering into an offscreen 1920 x 1080 image, so frames never wait for a display,
 //! and reports frame time by beat. A measurement instrument (CLAUDE.md section 4).
 //!
+//! Stills of the offscreen image only with `CB_BENCH_STILLS=1`; a measured run takes none.
+//!
 //! For `tools/perf/perf_suite.py` (Pale Blue Dot's suite, ported): with `CB_FRAME_LOG=<path>` it
 //! writes one CSV row per frame (wall time, beat, entity count, the render passes' CPU time and,
 //! where the GPU has timestamp queries, their GPU time; Metal has none), and at exit a
@@ -76,9 +78,12 @@ fn offscreen(
 }
 
 fn record(mut commands: Commands, time: Res<Time<Real>>, take: Res<Take>, diagnostics: Res<DiagnosticsStore>, mut frames: ResMut<Frames>) {
-    // A still of the offscreen image every 4 s, proof that it was really drawn and what it showed.
+    // A still of the offscreen image every 4 s, proof that it was really drawn and what it showed,
+    // only with `CB_BENCH_STILLS=1`: each costs a frame of about 11 ms (the read-back and the
+    // write), so a measured run takes none (owner, 2026-10-24: "dont take screenshot on one run or
+    // obs, and just do pure perf measurement"). An OBS take is the proof of what was drawn.
     let slot = (time.elapsed_secs() / 4.0) as usize;
-    if !frames.shot_beats.contains(&slot) && take.beat > 0 {
+    if crate::cli::switched_off("CB_BENCH_STILLS") && !frames.shot_beats.contains(&slot) && take.beat > 0 {
         frames.shot_beats.push(slot);
         let path = crate::cli::repo_root().join(format!("output/bench/t{:03}-beat{:02}.png", slot * 4, take.beat));
         commands
