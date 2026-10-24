@@ -25,6 +25,8 @@ pub struct CockpitLightConfig {
     pub screens_cube_px: u32,
     /// How strongly the screens' cube map lights the cabin, cd/m2.
     pub screens_cube_cd_m2: f32,
+    /// Whole refreshes of the cube a second (six faces each), drawn one face at a time.
+    pub screens_cube_hz: f32,
 }
 
 impl Default for CockpitLightConfig {
@@ -38,6 +40,7 @@ impl Default for CockpitLightConfig {
             screens_m: vec![[0.0, 0.0, -1.2], [-1.0, 0.0, -0.6], [1.0, 0.0, -0.6]],
             screens_cube_px: 64,
             screens_cube_cd_m2: 400.0,
+            screens_cube_hz: 10.0,
         }
     }
 }
@@ -56,6 +59,7 @@ impl Validate for CockpitLightConfig {
             ));
         }
         within("screens_cube_cd_m2", self.screens_cube_cd_m2, 0.0, 100_000.0)?;
+        positive("screens_cube_hz", self.screens_cube_hz)?;
         for (i, p) in self.screens_m.iter().enumerate() {
             finite3(&format!("screens_m[{i}]"), *p)?;
         }
