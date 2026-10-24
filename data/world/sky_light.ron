@@ -1,0 +1,28 @@
+// The sky's light and the window glass (openspec/changes/glass-reflections). Every field is the
+// code default written out (crates/cb-core/src/sky_light.rs); omit one to inherit it, a zero is a
+// zero.
+(
+    // The cached sky: Poly Haven's kloofendal_48d_partly_cloudy_puresky (CC0), sun clamped out and
+    // a ground tone below the horizon, baked to a cube by tools/textures/gen_sky_cube.py. Its mean
+    // sky radiance is 0.453 and its ground 0.104 (the tool prints them), so 2000 cd/m2 a unit puts
+    // the open sky near 900 cd/m2, the flat ambient's old brightness. Empty turns it off.
+    cube: "textures/sky/sky_cube.hdr",
+    sky_cd_m2: 2000.0,
+    yaw_deg: 0.0,
+    // The flat fill kept under the sky light, and the old flat ambient used without it.
+    ambient_cd_m2: 250.0,
+    ambient_without_sky_cd_m2: 900.0,
+    // Window glass: premultiplied, so its reflections are added in full and only what is behind
+    // is dimmed by alpha. Reflectance 0.9 is about 13 % at normal incidence (coated tower glass;
+    // 0.5 is plain 4 % glass); Fresnel takes it toward a mirror at grazing angles. Alpha 0.55
+    // shows the rooms at 45 %: glass reads as a mirror only where what is behind it is darker
+    // than the street (alpha 0.3 first: the rooms, lit like the street, drowned the reflection).
+    // Tinted (owner, 2026-10-24: "usually glass is tinted"): alpha 0.7 lets 30 % of the room
+    // through, as tinted office glass does (20-50 %), and the body is a dark blue-green.
+    glass: (
+        tint: (0.02, 0.05, 0.055),
+        alpha: 0.7,
+        roughness: 0.04,
+        reflectance: 0.9,
+    ),
+)

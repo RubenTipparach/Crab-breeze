@@ -21,6 +21,7 @@ mod pilot;
 mod screens_cube;
 mod showcase;
 mod sim;
+mod sky_light;
 mod targeting;
 mod textures;
 mod water_render;
@@ -92,7 +93,12 @@ fn main() -> AppExit {
         water_render::WaterRenderPlugin,
         targeting::TargetingPlugin,
     ))
-    .add_plugins((screens_cube::ScreensCubePlugin, loading::LoadingPlugin, perf_hud::PerfHudPlugin));
+    .add_plugins((
+        screens_cube::ScreensCubePlugin,
+        sky_light::SkyLightPlugin,
+        loading::LoadingPlugin,
+        perf_hud::PerfHudPlugin,
+    ));
     if args.defending() {
         app.add_plugins(defence::DefencePlugin);
     }

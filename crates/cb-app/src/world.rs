@@ -85,12 +85,13 @@ impl Plugin for WorldPlugin {
             plan.waters.sea_level_m,
             plan.clouds.puffs.len()
         );
+        let ambient_cd_m2 = crate::sky_light::ambient_cd_m2(&app.world().resource::<Data>().0.sky_light);
         app.insert_resource(live)
             .insert_resource(Plan(Arc::new(plan)))
             .insert_resource(ClearColor(SKY))
             .insert_resource(GlobalAmbientLight {
                 color: Color::srgb(0.75, 0.82, 1.0),
-                brightness: 900.0,
+                brightness: ambient_cd_m2,
                 ..default()
             })
             .add_plugins(crate::ground::GroundPlugin)
@@ -407,6 +408,7 @@ fn spawn_buildings(
     mut commands: Commands,
     world: Res<Plan>,
     tex: Res<crate::textures::Textures>,
+    data: Res<Data>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut ents: ResMut<crate::buildings::BuildingEntities>,
@@ -451,18 +453,9 @@ fn spawn_buildings(
                     ..default()
                 }),
             );
-            // See-through glass: the rooms behind show (the mockup's windows).
-            m.insert(
-                Mat::Glass,
-                materials.add(StandardMaterial {
-                    base_color: Color::srgba(1.0, 1.0, 1.0, 0.35),
-                    alpha_mode: AlphaMode::Blend,
-                    perceptual_roughness: 0.05,
-                    metallic: 0.2,
-                    reflectance: 0.7,
-                    ..default()
-                }),
-            );
+            // See-through glass: the rooms behind show (the mockup's windows), and it reflects the
+            // sky at full strength (glass-reflections).
+            m.insert(Mat::Glass, materials.add(crate::sky_light::glass_material(&data.0.sky_light.glass)));
             m
         },
     });

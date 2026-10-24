@@ -16,6 +16,7 @@ pub mod mission;
 pub mod pilot;
 pub mod rng;
 pub mod sim;
+pub mod sky_light;
 pub mod targeting;
 pub mod water_look;
 pub mod weapons;
@@ -50,6 +51,8 @@ pub struct GameData {
     pub targeting: targeting::TargetingConfig,
     /// `data/hud/cockpit_light.ron`.
     pub cockpit_light: cockpit::CockpitLightConfig,
+    /// `data/world/sky_light.ron`.
+    pub sky_light: sky_light::SkyLightConfig,
 }
 
 impl GameData {
@@ -69,6 +72,7 @@ impl GameData {
             fx: data::load_ron(&root.join("fx/fx.ron"))?,
             targeting: data::load_ron(&root.join("hud/targeting.ron"))?,
             cockpit_light: data::load_ron(&root.join("hud/cockpit_light.ron"))?,
+            sky_light: data::load_ron(&root.join("world/sky_light.ron"))?,
         })
     }
 

@@ -2,7 +2,7 @@
 //! loading screen and a signal to obs when all game stuff is loaded to record..otherwise we get
 //! blank screens"). A full-screen panel covers the view until the game is ready: the pilot's mech
 //! is bound to its model (so its glb and the world have loaded and spawned) and the boarding access
-//! is published, then the frames hold steady for `STEADY_S` (shader pipelines compile on their first
+//! is published, and the sky light is on the eye camera, then the frames hold steady for `STEADY_S` (shader pipelines compile on their first
 //! frames and show as long hitches). Then it prints `GAME_READY` once and lifts the panel. The
 //! scripted takes begin only after it, so a recording never opens on a blank or half-built window.
 
@@ -69,6 +69,7 @@ fn watch(
     time: Res<Time<Real>>,
     rig: Query<(), (With<Piloted>, With<MechRig>)>,
     access: Res<MechAccessNow>,
+    sky: Res<crate::sky_light::SkyLight>,
     screen: Query<Entity, With<LoadingScreen>>,
 ) {
     let dt = time.delta_secs();
@@ -89,7 +90,7 @@ fn watch(
         }
         return;
     }
-    let loaded = !rig.is_empty() && access.0.is_some();
+    let loaded = !rig.is_empty() && access.0.is_some() && sky.ready;
     *steady_s = if loaded && dt < HITCH_S { *steady_s + dt } else { 0.0 };
     *log_in_s -= dt;
     if *log_in_s <= 0.0 {
