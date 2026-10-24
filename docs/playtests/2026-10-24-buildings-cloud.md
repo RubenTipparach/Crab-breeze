@@ -160,3 +160,23 @@ down: the facing side's bays peeled off, as structural destruction designs; the 
 3. A shot from above to check roofs, parapets and props.
 4. Fire escapes and cornices on walk-ups, and warehouses near the start, both missing here.
 5. Textures on falling debris.
+
+## After merging main: colour grade and darker windows
+
+Main brought Bevy's scattering sky, ACES tonemapping, grass and bloom (lavapipe frames now about
+5.5 s). The sky light's brightness now follows main's exposure step, through one function
+(`world::exposure_scale`). Then the owner: "Some colour balance maybe? Darker the my for windows?
+Make scene a little more vibrant?"
+
+- `grade-before-after.jpg`: merged main on the left, the grade and darker glass on the right
+  (walk-up street above, office street below). Saturation 1.15 and contrast 1.08 from
+  `data/world/world.ron`; the windows are a darker blue-grey coating (about 30 % head-on, 8 % of
+  the room through); the flat ambient is a neutral warm white instead of sky blue. The brick is
+  richer and the glass a deep, dark blue mirror.
+- `grade-rejected-warm-0.06.jpg`: white balance 0.06 warmer turned the whole street pink and the
+  glass purple; it is back to neutral.
+- Still cool: the road in the buildings' shade reads slate blue, lit mostly by the blue sky
+  light. Warming the sky cube's fill (or less sky light in the shade) is the next step if wanted.
+- The tour stills `tour-0` to `tour-2` are from this build; `tour-3` and the demolition are from
+  before the merge.
+
