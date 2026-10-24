@@ -120,10 +120,17 @@
     ),
 
     // Clouds over the island and 6 km of sea past the world's edge, drawn within 9 km of the eye.
-    // Off for now (coverage 0): the low, large alpha-blended sprites cost heavy overdraw; clouds are
-    // being redone cheaply in their own change.
+    // Back on as lumpy lit blobs, one mesh per 2 km tile (openspec/changes/cloud-puffs): one blended
+    // layer per blob instead of the sprite stacks that cost heavy overdraw. To be measured on the
+    // owner's hardware with CB_NO_CLOUDS against the same take.
     clouds: (
-        coverage: 0.0,
+        coverage: 0.35,
+        look_wrap: 0.6,
+        look_silver: 1.6,
+        look_albedo: 0.9,
+        look_base_shade: 0.45,
+        look_near_fade_m: 160.0,
+        look_edge_softness: 0.45,
         spacing_m: 1000.0,
         beyond_world_m: 6000.0,
         draw_radius_m: 9000.0,

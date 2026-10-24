@@ -6,6 +6,7 @@ mod blast;
 mod buildings;
 mod capture;
 mod cli;
+mod clouds_render;
 mod combat;
 mod defence;
 mod fx;
@@ -111,6 +112,11 @@ fn main() -> AppExit {
         perf_hud::PerfHudPlugin,
         units::UnitsPlugin,
     ));
+    // Cheap, correctly lit clouds (openspec change `cloud-puffs`); `CB_NO_CLOUDS=1` leaves them
+    // out, so the benchmark can measure what they cost.
+    if !cli::switched_off("CB_NO_CLOUDS") {
+        app.add_plugins(clouds_render::CloudsRenderPlugin);
+    }
     // GPU grass (openspec change `gpu-grass`); `CB_NO_GRASS=1` leaves it out, so the benchmark can
     // measure what it costs.
     if !cli::switched_off("CB_NO_GRASS") {

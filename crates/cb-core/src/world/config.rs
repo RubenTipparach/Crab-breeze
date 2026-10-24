@@ -225,6 +225,18 @@ pub struct CloudConfig {
     pub wind_m_s: [f32; 2],
     /// Cloud puffs are drawn within this of the eye (beyond it the haze has hidden them).
     pub draw_radius_m: f32,
+    /// How far the sun wraps round a puff, 0 (hard) to 1 (soft) (`cloud-puffs`).
+    pub look_wrap: f32,
+    /// The silver lining's strength toward the sun.
+    pub look_silver: f32,
+    /// How white a cloud is (its albedo, 0..1).
+    pub look_albedo: f32,
+    /// How much darker a cloud's base is than its top, 0..1.
+    pub look_base_shade: f32,
+    /// A puff fades in from this distance from the eye (closer, the cloud fog takes over).
+    pub look_near_fade_m: f32,
+    /// How soft a puff's silhouette is (0 hard, 1 very soft).
+    pub look_edge_softness: f32,
 }
 
 impl Default for CloudConfig {
@@ -238,6 +250,12 @@ impl Default for CloudConfig {
             beyond_world_m: 6000.0,
             wind_m_s: [3.0, 1.0],
             draw_radius_m: 9000.0,
+            look_wrap: 0.6,
+            look_silver: 1.6,
+            look_albedo: 0.9,
+            look_base_shade: 0.45,
+            look_near_fade_m: 160.0,
+            look_edge_softness: 0.45,
         }
     }
 }
@@ -255,6 +273,12 @@ impl Validate for CloudConfig {
         finite("clouds.wind_m_s", self.wind_m_s[0])?;
         finite("clouds.wind_m_s", self.wind_m_s[1])?;
         positive("clouds.draw_radius_m", self.draw_radius_m)?;
+        within("clouds.look_wrap", self.look_wrap, 0.0, 1.0)?;
+        within("clouds.look_silver", self.look_silver, 0.0, 10.0)?;
+        within("clouds.look_albedo", self.look_albedo, 0.0, 1.0)?;
+        within("clouds.look_base_shade", self.look_base_shade, 0.0, 1.0)?;
+        positive("clouds.look_near_fade_m", self.look_near_fade_m)?;
+        within("clouds.look_edge_softness", self.look_edge_softness, 0.0, 1.0)?;
         Ok(())
     }
 }

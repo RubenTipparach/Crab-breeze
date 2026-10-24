@@ -99,7 +99,9 @@ const GOLDEN_BUILDINGS: usize = 6100;
 const GOLDEN_HIGHWAYS: usize = 23;
 const GOLDEN_RIVERS: usize = 6;
 const GOLDEN_TREES_AT_START: usize = 46495;
-const GOLDEN_FINGERPRINT: u64 = 8540391024908431296;
+// Changed 2026-10-24 when clouds came back on (coverage 0.35, openspec change `cloud-puffs`): the
+// fingerprint includes the cloud puffs; cities, buildings, highways, rivers and trees are unchanged.
+const GOLDEN_FINGERPRINT: u64 = 2898287396453381879;
 
 #[test]
 fn seed_42_census_for_the_design() {

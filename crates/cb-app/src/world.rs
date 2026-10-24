@@ -11,7 +11,7 @@ use bevy::camera::visibility::VisibilityRange;
 use bevy::light::{CascadeShadowConfigBuilder, NotShadowCaster};
 use bevy::mesh::Indices;
 use bevy::prelude::*;
-use bevy::render::render_resource::{Extent3d, PrimitiveTopology, TextureDimension, TextureFormat};
+use bevy::render::render_resource::PrimitiveTopology;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use cb_core::water_look::WaterLook;
 use cb_core::world::{Deformation, Forest, TreeState, WorldPlan, generate};
@@ -121,16 +121,10 @@ impl Plugin for WorldPlugin {
                 ..default()
             })
             .add_plugins(crate::ground::GroundPlugin)
-            .add_systems(
-                Startup,
-                (spawn_roads, spawn_buildings, spawn_sun, spawn_water, spawn_trees, spawn_clouds),
-            )
+            .add_systems(Startup, (spawn_roads, spawn_buildings, spawn_sun, spawn_water, spawn_trees))
             .add_systems(FixedUpdate, keep_trees.in_set(SimSet::World))
             .add_systems(FixedUpdate, fell_trees.in_set(SimSet::Mech).after(crate::mech::step_mech))
-            .add_systems(
-                Update,
-                ((show_trees, redraw_trees).chain(), follow_ocean, (show_clouds, face_clouds).chain()).in_set(PresentSet::Pose),
-            );
+            .add_systems(Update, ((show_trees, redraw_trees).chain(), follow_ocean).in_set(PresentSet::Pose));
     }
 }
 
@@ -1015,175 +1009,5 @@ fn redraw_trees(mut commands: Commands, mut live: ResMut<Live>, trees: Option<Re
                 }
             }
         }
-    }
-}
-
-/// A cloud billboard.
-#[derive(Component)]
-struct CloudSprite {
-    anchor: Vec3,
-}
-
-fn cloud_texture(images: &mut Assets<Image>) -> Handle<Image> {
-    const N: usize = 128;
-    let mut data = Vec::with_capacity(N * N * 4);
-    for j in 0..N {
-        for i in 0..N {
-            let (u, v) = (i as f32 / (N - 1) as f32 * 2.0 - 1.0, j as f32 / (N - 1) as f32 * 2.0 - 1.0);
-            let r = (u * u + v * v).sqrt();
-            let n = ((u * 9.0).sin() * (v * 7.0).cos() * 0.08 + (u * 17.0 + v * 13.0).sin() * 0.05).abs();
-            let a = ((1.0 - r).clamp(0.0, 1.0).powf(1.4) - n).clamp(0.0, 1.0);
-            data.extend_from_slice(&[255, 255, 255, (a * 255.0) as u8]);
-        }
-    }
-    images.add(Image::new(
-        Extent3d {
-            width: N as u32,
-            height: N as u32,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        data,
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::RENDER_WORLD,
-    ))
-}
-
-/// Drawn clouds (island-world): the cloud tiles near the eye, a few billboards per puff.
-#[derive(Resource)]
-struct CloudSprites {
-    quad: Handle<Mesh>,
-    shades: Vec<Handle<StandardMaterial>>,
-    /// Every tile with puffs and its centre (x, z) at time zero.
-    all: Vec<((i32, i32), Vec2)>,
-    drawn: HashMap<(i32, i32), Vec<Entity>>,
-}
-
-/// Most cloud tiles put in the sky in one frame.
-const CLOUD_TILES_PER_FRAME: usize = 2;
-
-fn spawn_clouds(
-    mut commands: Commands,
-    plan: Res<Plan>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut images: ResMut<Assets<Image>>,
-) {
-    let tex = cloud_texture(&mut images);
-    let quad = meshes.add(Rectangle::new(1.0, 1.0));
-    let shades: Vec<Handle<StandardMaterial>> = [0.98, 0.9, 0.8]
-        .iter()
-        .map(|g| {
-            materials.add(StandardMaterial {
-                base_color: Color::srgba(*g, *g, *g * 1.02, 0.85),
-                base_color_texture: Some(tex.clone()),
-                alpha_mode: AlphaMode::Blend,
-                unlit: true,
-                double_sided: true,
-                cull_mode: None,
-                fog_enabled: true,
-                ..default()
-            })
-        })
-        .collect();
-    commands.insert_resource(CloudSprites {
-        quad,
-        shades,
-        all: plan.clouds.tiles(),
-        drawn: HashMap::new(),
-    });
-}
-
-/// The billboards of one puff: seven, scattered through it, darker underneath. A pure function of
-/// the seed and the puff, so a tile drawn again looks the same.
-fn puff_sprites(seed: u64, index: u32, p: &cb_core::world::clouds::Puff) -> [(Vec3, f32, usize); 7] {
-    let mut s: u64 = (seed ^ 0xC10D).wrapping_add(u64::from(index).wrapping_mul(0x9E37_79B9_7F4A_7C15));
-    let mut f = move || {
-        s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-        ((s >> 40) as f32) / (1u64 << 24) as f32
-    };
-    std::array::from_fn(|_| {
-        let off = Vec3::new(f() - 0.5, f() - 0.5, f() - 0.5) * p.radii * 1.1;
-        let size = p.radii.x.max(p.radii.y) * (0.9 + 0.6 * f());
-        let shade = if off.y < -p.radii.y * 0.2 {
-            2
-        } else if off.y < p.radii.y * 0.2 {
-            1
-        } else {
-            0
-        };
-        (p.centre + off, size, shade)
-    })
-}
-
-/// Puts the cloud tiles within the draw radius of the eye in the sky (as the wind has carried them),
-/// a couple a frame nearest first, and takes the ones beyond it down. Beyond the radius the haze
-/// has hidden them anyway.
-fn show_clouds(
-    mut commands: Commands,
-    plan: Res<Plan>,
-    data: Res<Data>,
-    time: Res<Time>,
-    camera: Single<&GlobalTransform, With<PilotCamera>>,
-    sprites: Option<ResMut<CloudSprites>>,
-) {
-    let Some(mut sprites) = sprites else { return };
-    let eye = camera.translation();
-    let drift = plan.clouds.wind_m_s * time.elapsed_secs();
-    let radius = data.0.world.clouds.draw_radius_m;
-    let half_diag = cb_core::world::clouds::CLOUD_TILE_M * std::f32::consts::FRAC_1_SQRT_2;
-    let dist = |c: Vec2| ((c + drift).distance(Vec2::new(eye.x, eye.z)) - half_diag).max(0.0);
-    let s = &mut *sprites;
-    let gone: Vec<(i32, i32)> = s
-        .drawn
-        .keys()
-        .copied()
-        .filter(|k| s.all.iter().find(|a| a.0 == *k).is_none_or(|a| dist(a.1) > radius + half_diag))
-        .collect();
-    for key in gone {
-        for e in s.drawn.remove(&key).unwrap_or_default() {
-            commands.entity(e).despawn();
-        }
-    }
-    let mut wanted: Vec<(f32, (i32, i32))> = s
-        .all
-        .iter()
-        .filter(|a| !s.drawn.contains_key(&a.0))
-        .map(|a| (dist(a.1), a.0))
-        .filter(|w| w.0 <= radius)
-        .collect();
-    wanted.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-    for (_, key) in wanted.into_iter().take(CLOUD_TILES_PER_FRAME) {
-        let mut ents = Vec::new();
-        for i in plan.clouds.puffs_in(key) {
-            for (at, size, shade) in puff_sprites(plan.seed, i, &plan.clouds.puffs[i as usize]) {
-                ents.push(
-                    commands
-                        .spawn((
-                            Mesh3d(s.quad.clone()),
-                            MeshMaterial3d(s.shades[shade].clone()),
-                            Transform::from_translation(at).with_scale(Vec3::splat(size)),
-                            NotShadowCaster,
-                            CloudSprite { anchor: at },
-                        ))
-                        .id(),
-                );
-            }
-        }
-        s.drawn.insert(key, ents);
-    }
-}
-
-fn face_clouds(
-    time: Res<Time>,
-    plan: Res<Plan>,
-    camera: Single<&GlobalTransform, With<PilotCamera>>,
-    mut q: Query<(&mut Transform, &CloudSprite)>,
-) {
-    let drift = Vec3::new(plan.clouds.wind_m_s.x, 0.0, plan.clouds.wind_m_s.y) * time.elapsed_secs();
-    let rot = camera.rotation();
-    for (mut t, c) in &mut q {
-        t.translation = c.anchor + drift;
-        t.rotation = rot;
     }
 }
