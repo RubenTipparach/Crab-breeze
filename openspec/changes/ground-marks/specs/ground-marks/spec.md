@@ -29,6 +29,13 @@ Every mark SHALL live in a ring of `max_marks` slots: a new mark SHALL take the 
 - **WHEN** a 90 s footprint is 59 s, 75 s and 90 s old
 - **THEN** it shows fully, at half strength, and not at all
 
+### Requirement: A paving print is bold
+A footprint on paving SHALL be at least 0.08 m deep, and its quad SHALL reach `look.crack_reach` half sole lengths from its middle every way, so its cracks reach about 1.5 times the sole, while the sole keeps its size.
+
+#### Scenario: A paving print and a soil print
+- **WHEN** a paving and a soil footprint are made from the shipped data
+- **THEN** the paving one is 0.08 to 0.12 m deep, its quad reaches at least 1.5 sole half lengths along and across, and both have the same sole size
+
 ### Requirement: Marks lie on the ground
 A mark SHALL be laid at the ground's height as the one height query gives it, with the heights of the drawn grid's vertices sampled from the same query, so it follows the slope; a footprint's toe SHALL point along the mech's heading, and a landing SHALL press deeper than a step; paving SHALL have no lip.
 
@@ -70,3 +77,21 @@ Every number SHALL come from `data/fx/ground_marks.ron`, loaded and validated th
 #### Scenario: A bad file
 - **WHEN** the file sets `trail_break_m` shorter than `trail_segment_m`, or names an unknown jolt key
 - **THEN** loading fails naming the file and the field
+
+### Requirement: Soil prints and skate grooves clear the grass for their life
+Every live soil footprint and soil skate segment SHALL clear the grass under it: a grass tile SHALL pack zero density in every cell whose middle lies inside the mark's crush rectangle (the sole grown by `crush_margin_m`, or the trail's width), and the cell SHALL grow again once the mark has faded out. Paving marks clear nothing.
+
+#### Scenario: A print in a meadow
+- **WHEN** a tile is packed with a footprint's crush rectangle over it
+- **THEN** the cells under the sole pack zero, a cell 3 m away keeps its density, and with no rectangle the tile packs as baked
+
+#### Scenario: The ring tells the grass what changed
+- **WHEN** a soil print is laid, a paving print is laid, and the soil print fades out
+- **THEN** the crush version moves on the first and the third, and the crush list holds the soil print only while it lives
+
+### Requirement: No vertex stage reads the view's lights
+No game shader SHALL read Bevy's view `lights` binding in a vertex stage, since Bevy binds it to fragments only.
+
+#### Scenario: The game's shaders
+- **WHEN** every game shader is compiled
+- **THEN** no vertex entry point reaches the `lights` global

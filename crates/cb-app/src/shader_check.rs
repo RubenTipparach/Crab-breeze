@@ -158,3 +158,113 @@ pub fn with_bevy() -> Option<Resolver> {
     .collect();
     Some(Resolver { packages, constants })
 }
+
+/// True if an entry point of `stage` in `module` reaches the global variable named `name` (the
+/// shader's own, or Bevy's view binding of that name), directly or through a function it calls. Bevy binds the view's `lights` to the fragment stage
+/// only, so a vertex stage that reads it fails wgpu's validation when the pipeline is made (the
+/// first marks take crashed so at startup, openspec change `ground-marks`).
+pub fn stage_reads(module: &naga::Module, stage: naga::ShaderStage, name: &str) -> bool {
+    use naga::{Block, Expression, Function, Handle, Statement};
+    fn calls(block: &Block, out: &mut Vec<Handle<Function>>) {
+        for s in block.iter() {
+            match s {
+                Statement::Call { function, .. } => out.push(*function),
+                Statement::Block(b) => calls(b, out),
+                Statement::If { accept, reject, .. } => {
+                    calls(accept, out);
+                    calls(reject, out);
+                }
+                Statement::Switch { cases, .. } => cases.iter().for_each(|c| calls(&c.body, out)),
+                Statement::Loop { body, continuing, .. } => {
+                    calls(body, out);
+                    calls(continuing, out);
+                }
+                _ => {}
+            }
+        }
+    }
+    let targets: Vec<_> = module
+        .global_variables
+        .iter()
+        // Imported globals carry their module's path, mangled (`..._mesh_view_bindings_lights`).
+        .filter(|(_, g)| {
+            g.name
+                .as_deref()
+                .is_some_and(|n| n == name || n.ends_with(&format!("mesh_view_bindings_{name}")))
+        })
+        .map(|(h, _)| h)
+        .collect();
+    let reads = |f: &Function, todo: &mut Vec<Handle<Function>>| {
+        calls(&f.body, todo);
+        let mut hit = false;
+        for (_, e) in f.expressions.iter() {
+            match e {
+                Expression::GlobalVariable(g) if targets.contains(g) => hit = true,
+                Expression::CallResult(c) => todo.push(*c),
+                _ => {}
+            }
+        }
+        hit
+    };
+    for ep in module.entry_points.iter().filter(|e| e.stage == stage) {
+        let mut todo = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        if reads(&ep.function, &mut todo) {
+            return true;
+        }
+        while let Some(h) = todo.pop() {
+            if seen.insert(h) && reads(&module.functions[h], &mut todo) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use naga::ShaderStage;
+
+    #[test]
+    fn no_game_shader_reads_the_view_lights_in_a_vertex_stage() {
+        let Some(resolver) = with_bevy() else {
+            eprintln!("skipped: Bevy 0.20's sources are not in the Cargo registry");
+            return;
+        };
+        let flags = [
+            ("VERTEX_POSITIONS", true),
+            ("CLUSTERED_FORWARD_STORAGE_BUFFER", true),
+            ("DISTANCE_FOG", true),
+        ];
+        let mut checked = Vec::new();
+        for entry in std::fs::read_dir(shader_dir()).unwrap().flatten() {
+            let path = entry.path();
+            let text = std::fs::read_to_string(&path).unwrap_or_default();
+            if path.extension().and_then(|e| e.to_str()) != Some("wesl") || !text.contains("@vertex") {
+                continue;
+            }
+            let name = path.file_stem().unwrap().to_string_lossy().into_owned();
+            let module = compile(&resolver, &name, &flags);
+            assert!(
+                !stage_reads(&module, ShaderStage::Vertex, "lights"),
+                "{name}: a vertex stage reads `lights`"
+            );
+            // ...while the same walk does see the vertex stage's read of the view (bound to both).
+            assert!(
+                stage_reads(&module, ShaderStage::Vertex, "view"),
+                "{name}: the vertex's read of `view` is seen"
+            );
+            // The walk sees a read where there is one: both shaders light in their fragments.
+            let globals: Vec<_> = module.global_variables.iter().map(|(_, g)| g.name.clone()).collect();
+            assert!(
+                stage_reads(&module, ShaderStage::Fragment, "lights"),
+                "{name}: the fragment's read is seen; globals {globals:?}"
+            );
+            checked.push(name);
+        }
+        for name in ["grass", "ground_marks"] {
+            assert!(checked.iter().any(|c| c == name), "{name} has its own vertex stage and was checked");
+        }
+    }
+}

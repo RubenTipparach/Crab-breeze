@@ -26,7 +26,7 @@ use bevy::render::render_resource::{AsBindGroup, PrimitiveTopology, RenderPipeli
 use bevy::render::storage::ShaderBuffer;
 use bevy::shader::ShaderRef;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
-use cb_core::grass::{BladeMesh, GrassConfig, GrassLayout, MAX_LODS, MAX_PUSHERS, TileBake, TileGrid, TileKey, bake_tile};
+use cb_core::grass::{BladeMesh, CrushRect, GrassConfig, GrassLayout, MAX_LODS, MAX_PUSHERS, TileBake, TileGrid, TileKey, bake_tile};
 use cb_core::pilot::PilotMode;
 use cb_core::world::Ground;
 use std::collections::BTreeMap;
@@ -198,6 +198,10 @@ struct Grass {
     push_buffer: Handle<ShaderBuffer>,
     /// Blasts already masked out of the grass.
     blasts_seen: usize,
+    /// Where mech prints and skate grooves crush the grass now (ground-marks), and the version of
+    /// that set already packed.
+    crush: Vec<CrushRect>,
+    crush_version: u64,
 }
 
 /// The Bevy mesh of a level's blades: one position per vertex holding (blade, vertex, level).
@@ -259,6 +263,8 @@ fn setup(
         tile_buffer,
         push_buffer,
         blasts_seen: 0,
+        crush: Vec::new(),
+        crush_version: 0,
     });
 }
 
@@ -299,7 +305,14 @@ impl Grass {
         }
         let Some(slot) = tile.slot else { return };
         let w = self.layout.words_per_slot as usize;
-        bake.pack(&mut self.words[slot as usize * w..(slot as usize + 1) * w]);
+        let rect = self.grid.rect(key);
+        let crush: Vec<CrushRect> = self.crush.iter().filter(|c| c.touches(&rect)).copied().collect();
+        bake.pack_crushed(
+            &mut self.words[slot as usize * w..(slot as usize + 1) * w],
+            &crush,
+            rect.min,
+            &self.cfg,
+        );
         self.dirty = true;
         let aabb = tile_aabb(bake, &self.cfg);
         match tile.entity {
@@ -342,9 +355,11 @@ impl Grass {
 /// Keeps grass on the tiles near the eye at the level each calls for: takes finished bakes, masks
 /// new craters out, starts a few bakes nearest first, lets far tiles go, and rewrites the tile
 /// buffer when anything in it changed.
+#[allow(clippy::too_many_arguments)]
 fn stream_tiles(
     mut commands: Commands,
     grass: Option<ResMut<Grass>>,
+    crush: Option<Res<crate::ground_marks::PrintCrush>>,
     plan: Res<Plan>,
     live: Res<Live>,
     data: Res<Data>,
@@ -390,6 +405,29 @@ fn stream_tiles(
         }
     }
     g.blasts_seen = blasts.len();
+
+    // Prints and grooves laid or faded since: repack the tiles the old or the new set touches.
+    if let Some(c) = crush
+        && c.version != g.crush_version
+    {
+        let touched = |rects: &[CrushRect], g: &Grass| -> std::collections::BTreeSet<TileKey> {
+            g.tiles
+                .keys()
+                .filter(|k| {
+                    let r = g.grid.rect(**k);
+                    rects.iter().any(|c| c.touches(&r))
+                })
+                .copied()
+                .collect()
+        };
+        let mut redo = touched(&g.crush, g);
+        redo.extend(touched(&c.rects, g));
+        g.crush.clone_from(&c.rects);
+        g.crush_version = c.version;
+        for key in redo {
+            g.place(&mut commands, key);
+        }
+    }
 
     // What the eye wants, its level, and the bakes to start.
     let wanted = g.grid.within(eye, ground, cfg.radius_m);
@@ -451,12 +489,9 @@ fn pushers(eye: Vec3, bodies: impl Iterator<Item = (Vec3, f32)>) -> [[f32; 4]; M
     out
 }
 
-/// Writes the bodies pressing the grass flat, and the newest footprints (ground-marks), so the
-/// grass under a print stays flat while it is among the nearest.
-#[allow(clippy::too_many_arguments)]
+/// Writes the bodies pressing the grass flat.
 fn press(
     grass: Option<Res<Grass>>,
-    prints: Option<Res<crate::ground_marks::PrintPress>>,
     pilot: Res<PilotSim>,
     camera: Single<&Transform, With<PilotCamera>>,
     rigs: Query<&MechRig>,
@@ -474,8 +509,7 @@ fn press(
             .map(|t| (t.translation(), cfg.mech_foot_press_m))
             .collect::<Vec<_>>()
     });
-    let printed = prints.iter().flat_map(|p| p.0.clone());
-    let list = pushers(camera.translation, pilot_feet.into_iter().chain(mech_feet).chain(printed));
+    let list = pushers(camera.translation, pilot_feet.into_iter().chain(mech_feet));
     if let Some(mut b) = buffers.get_mut(&grass.push_buffer) {
         *b = ShaderBuffer::new(list.to_vec(), RenderAssetUsages::RENDER_WORLD);
     }

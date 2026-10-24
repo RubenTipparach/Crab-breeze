@@ -30,7 +30,7 @@ print looks pressed in while the ground's own texture and light show through.
 - **The pilot feels it**: a short drop and recovery of the pilot's eye on the piloted mech's foot
   strikes, a centimetre standing to 4 cm at speed, 7 cm on a landing, over 0.15 s. Position only,
   never the view's direction (CLAUDE.md section 8).
-- **Grass under a print stays flat**: the six newest footprints join the grass's pressing spheres.
+- **Grass under a print is crushed**: no blade stands on a soil print or skate groove for its life, so the dirt shows (design section 10).
 - **One foot-strike rule**: the gait's stance start (`cb_core::mech::foot_strikes`) is the one
   place a strike is decided; the footfall spray, the print, the effect and the jolt all ask it.
 - **Measurable**: `CB_NO_GROUND_MARKS=1` lays and draws no mark (the effects and the jolt stay), so

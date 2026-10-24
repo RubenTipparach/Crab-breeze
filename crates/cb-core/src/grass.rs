@@ -21,9 +21,8 @@ use serde::Deserialize;
 
 /// The most levels of detail the shader holds.
 pub const MAX_LODS: usize = 4;
-/// The most bodies that flatten grass at once (the shader's pusher list): the pilot's and the
-/// mechs' feet, and the newest footprints (openspec change `ground-marks`).
-pub const MAX_PUSHERS: usize = 16;
+/// The most bodies that flatten grass at once (the shader's pusher list).
+pub const MAX_PUSHERS: usize = 8;
 
 /// One level of detail of the grass.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
@@ -659,6 +658,27 @@ impl TileBake {
         }
     }
 
+    /// `pack`, with every density cell whose middle lies inside one of `crush` packed as zero (a
+    /// mech's print or skate groove, openspec change `ground-marks`); the bake itself is kept, so a
+    /// cell grows again when its mark is gone. `corner` is the tile's corner (x, z).
+    pub fn pack_crushed(&self, out: &mut [u32], crush: &[CrushRect], corner: Vec2, cfg: &GrassConfig) {
+        if crush.is_empty() {
+            self.pack(out);
+            return;
+        }
+        let d = cfg.density_cells() as usize;
+        let mut copy = self.clone();
+        for j in 0..d {
+            for i in 0..d {
+                let p = corner + (Vec2::new(i as f32, j as f32) + 0.5) * cfg.density_cell_m;
+                if crush.iter().any(|c| c.contains(p)) {
+                    copy.density[j * d + i] = 0;
+                }
+            }
+        }
+        copy.pack(out);
+    }
+
     /// The words the shader reads for this tile: the lattice heights (f32 bits), then the
     /// density, four cells a word, low byte first. `GrassLayout::words_per_slot` long.
     pub fn pack(&self, out: &mut [u32]) {
@@ -670,6 +690,37 @@ impl TileBake {
         for (i, d) in self.density.iter().enumerate() {
             density[i / 4] |= u32::from(*d) << (8 * (i % 4));
         }
+    }
+}
+
+/// A rectangle on the ground where the grass is crushed (a mech's print or skate groove, openspec
+/// change `ground-marks`): no blade stands in a density cell whose middle lies inside it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CrushRect {
+    /// Its middle (x, z).
+    pub centre: Vec2,
+    /// Its long axis, a unit vector (x, z).
+    pub along: Vec2,
+    /// Half its size across and along, metres.
+    pub half_m: Vec2,
+}
+
+impl CrushRect {
+    /// True if `p` (x, z) lies inside.
+    pub fn contains(&self, p: Vec2) -> bool {
+        let d = p - self.centre;
+        let across = Vec2::new(self.along.y, -self.along.x);
+        d.dot(self.along).abs() <= self.half_m.y && d.dot(across).abs() <= self.half_m.x
+    }
+
+    /// The radius of the circle round its middle that holds it, metres.
+    pub fn reach_m(&self) -> f32 {
+        self.half_m.length()
+    }
+
+    /// True if it may touch the axis-aligned `rect`.
+    pub fn touches(&self, rect: &Rect) -> bool {
+        rect.distance(self.centre) <= self.reach_m()
     }
 }
 
@@ -845,6 +896,38 @@ mod tests {
         let h = plan().height_at(p.x, p.y);
         assert!(grows_at(plan(), p, h, 0.0, &cfg) >= 0.8);
         assert!((m.pilot_xz - m.mech_xz).length() > 25.0, "the pilot starts a walk away");
+    }
+
+    #[test]
+    fn a_crushed_cell_packs_zero_and_the_rest_packs_as_baked() {
+        let cfg = GrassConfig::default();
+        let d = cfg.density_cells() as usize;
+        let bake = TileBake {
+            heights: vec![0.0; 4],
+            n: 2,
+            open: vec![200; d * d],
+            density: vec![200; d * d],
+            ground_m: [0.0, 0.0],
+        };
+        let words = |crush: &[CrushRect]| {
+            let mut out = vec![0u32; 4 + (d * d).div_ceil(4)];
+            bake.pack_crushed(&mut out, crush, Vec2::ZERO, &cfg);
+            out
+        };
+        let cell = |out: &[u32], i: usize, j: usize| (out[4 + (j * d + i) / 4] >> (8 * ((j * d + i) % 4))) & 0xff;
+        let print = CrushRect {
+            centre: Vec2::new(10.0, 10.0),
+            along: Vec2::new(0.0, 1.0),
+            half_m: Vec2::new(1.0, 1.6),
+        };
+        let crushed = words(&[print]);
+        assert_eq!(cell(&crushed, 10, 10), 0, "under the sole");
+        assert_eq!(cell(&crushed, 9, 11), 0, "under the sole");
+        assert_eq!(cell(&crushed, 13, 10), 200, "3 m away");
+        let mut plain = vec![0u32; 4 + (d * d).div_ceil(4)];
+        bake.pack(&mut plain);
+        assert_eq!(words(&[]), plain, "no rectangle: packed as baked");
+        assert_eq!(bake.density[10 * d + 10], 200, "the bake is kept");
     }
 
     #[test]

@@ -91,6 +91,7 @@ keys refused, ranges checked, `trail_break_m` longer than `trail_segment_m`.
 
 ## 7. Grass
 
+(Superseded by section 10: prints now crush the grass through its density; this was the first pass.)
 `cb_core::grass::MAX_PUSHERS` goes from 8 to 16. The grass's pressing list is the bodies (the pilot's
 feet, every mech's feet) and the six newest footprints at their middles with a 1.6 m radius, sorted
 nearest the eye, the nearest 16 kept. A print's grass stands up again once newer prints or nearer
@@ -118,18 +119,72 @@ compares `CB_NO_GROUND_MARKS=1` against the default on the owner's machine.
 - `cb-core::world::cover`: `Surface`, `Clearance::NONE`, `WorldPlan::surface_at`.
 - `cb-core::mech::gait`: `foot_strikes`, `stance_lead_m` (the pose uses it too).
 - `cb-app::ground_marks`: the `GroundContact` message, the plugin, the material, `ViewJolt`,
-  `PrintPress`, `jolted`.
+  `PrintCrush`, `jolted`.
 - `assets/shaders/ground_marks.wesl`, compiled with naga in `cargo test`.
 - Touched outside: `mech.rs` (calls `foot_strikes`, writes `GroundContact` instead of the dry-ground
-  dust and the grit), `pilot.rs` (adds the jolt to the seated eye), `grass.rs` (reads `PrintPress`),
+  dust and the grit), `pilot.rs` (adds the jolt to the seated eye), `grass.rs` (packs its tiles with `PrintCrush`),
   `main.rs` (the plugin and the switch), `fx.rs`/`fx.ron` (recipes).
+
+## 10. Second pass: marks that read (after the first screenshots, 2026-10-24)
+
+The first take (`--showcase marks`, `output/playtests/marks4-on`, `marks3-meadow`) laid 181 prints,
+and they barely read: on asphalt a 3 cm dent and hairline cracks are lost in the texture's own dark
+stains, and in the meadow the 0.6 to 1.6 m grass hides every print. From the pilot's eye 1.8 m up
+neither reads as a mech's foot. What changes:
+
+**Paving, bold.** A print is 0.10 m deep (a landing 0.16 m), so the parallax shows a dent. Its quad
+is no longer tied to the sole: the sole's size is stored with the mark (`Mark::shape_scale`, the
+quad's half size over the sole's), so a paving print's quad reaches `look.crack_reach` (1.7) half
+sole lengths, 2.4 m, every way, room for:
+- the crushed sole: multiplied down to `look.scuff` (0.5) with pale dusty speckle;
+- broken slabs inside the sole: Voronoi cells about 0.35 m across, dark seams between them
+  and each slab a little lighter or darker (`look.slab_m`);
+- the sole's outline (toes included) as a dark crushed edge 6 cm wide;
+- nine radial cracks reaching up to 1.7 half lengths (about 1.5 times the sole), 8 cm wide at the
+  root, multiplied by `look.crack_colour` (0.22);
+- a pale ring of concrete dust out to 1 m past the sole, brightening by `look.dust_brighten`
+  (1.35, the multiply runs on the HDR target so above 1 lightens).
+
+**Soil, deep.** A print is 0.32 m deep with a 0.14 m lip (a landing 1.6 times that); the lip and the
+bottom are broken into clods (value noise in the height field, so the parallax and the relief light
+show them); the bottom is multiplied toward a dark brown that turns the green-tinted meadow ground
+brown (`soil_tint` 0.8, 0.42, 0.36, `pit_dark` 0.45). Meant to read as a line from 30 m.
+
+**Grass, crushed for the print's life.** The pressing spheres are not enough (16 at most, nearest
+the eye). Instead every live soil footprint and soil skate segment is a crush rectangle
+(`cb_core::grass::CrushRect`: middle, long axis, half size), and a grass tile packs its density with
+every cell (1 m) whose middle lies inside one set to zero (`TileBake::pack_crushed`): no blade
+stands on a print and the dirt shows. The rectangles are the sole grown by `crush_margin_m` (0.3 m)
+and a trail's width. When a crushing mark is laid or fades out the ring's crush version moves, and
+the grass repacks only the tiles the old or new rectangles touch (about one 1.1 KiB slot a print,
+then the whole tile buffer, about 450 KiB, is uploaded that frame: a footstep is about two uploads a
+second while walking). The grass stays one draw a level; `MAX_PUSHERS` goes back to 8 (the live
+feet only), and `press_prints` and `press_m` are gone. Blades are removed rather than laid flat:
+the density is the grass's one where-grass-grows rule (CLAUDE.md 6.1), and a crushed-to-stubble
+blade would need a second per-cell value in the tile format; open question 6.
+
+**Skate grooves.** On soil each wheel's line is a 0.22 m deep channel with a broken lip, dark at the
+bottom: the two wheels, 3.2 m apart, leave two clear grooves; the grass under them is crushed like
+a print's. On paving a line is a dark rubber streak (multiplied to 0.3) with a faint scuff, 1 cm of
+relief.
+
+**Costs.** Paving print quads grow from 2.5 by 4.0 m to 4.8 by 5.2 m, so a paving print shades
+about 2.5 times the pixels; with the Voronoi slab search (9 cells) and the cracks a paving pixel costs
+about twice a soil pixel. Estimated about 0.1 ms with thirty paving prints in view, 0.4 ms for one
+filling a quarter of the screen. Still one draw call, 1 024 marks, 160 KiB. Grass: no per-vertex
+cost added (8 pushers again, down from 16).
+
+**A shader rule.** Bevy binds the view's lights to the fragment stage only: a vertex stage that reads
+`lights` fails wgpu validation at startup (the first take crashed so). The marks shader reads the sun
+in its fragment, and a test checks that no game shader's vertex stage reads `lights`.
 
 ## Open questions
 
 | # | Question | Provisional answer | Who decides |
 | --- | --- | --- | --- |
 | M9 | How long do footprints and trails stay? | Prints 90 s, trails 40 s, craters 240 s, 1 024 marks at most (survey `M9`). | owner (survey) |
-| M10 | Should walked ground stay trampled for good (a per-tile texture)? | Not now; the ring fades. Grass is held flat by the six newest prints only (survey `M10`). | owner (survey) |
+| M10 | Should walked ground stay trampled for good (a per-tile texture)? | Not now; the ring fades, and the grass grows back on a print when it fades (survey `M10`). | owner (survey) |
 | M11 | How strong is the jolt in the seat? | 1 to 4 cm a step by speed, 7 cm on landing, 0.15 s (survey `M11`). | owner (survey), after a playtest |
 | 4 | Do the soil tint, crack colour and dust brightness read right against the ground textures? | Set by reasoning, not by eye: tune in the screenshot pass. | playtest |
 | 5 | Should the crater scorch follow the dug bowl more closely? | The 5 by 5 grid follows it coarsely; the pull toward the eye keeps it visible. Revisit after screenshots. | playtest |
+| 6 | Grass on a print: removed, or crushed to stubble? | Removed (density 0 under the sole); stubble needs a second value per cell in the tile format. | playtest |

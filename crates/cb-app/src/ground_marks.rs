@@ -7,8 +7,8 @@
 //! `cb_core::ground_marks`), the dirt or the grit thrown up (an `Fx` recipe chosen by the ground
 //! under the foot), and, for the piloted mech, a jolt of the pilot's eye. Every mark is drawn by one
 //! entity with one mesh and one material (`assets/shaders/ground_marks.wesl`) from one storage
-//! buffer: one draw call. Craters dug by blasts get a scorch mark too. The newest footprints press
-//! the grass flat (`PrintPress`, read by `grass`).
+//! buffer: one draw call. Craters dug by blasts get a scorch mark too. Soil prints and skate
+//! grooves clear the grass under them for their life (`PrintCrush`, read by `grass`).
 //!
 //! A port of Mining Mike's GroundDents (`godot-sandbox`, branch `origin/claude/long-haul-playtest`,
 //! commit 74e1412c: `scripts/fx/ground_dents.gd`, `scenes/fx/ground_dents.tscn`,
@@ -85,9 +85,15 @@ pub enum Contact {
 #[derive(Resource, Default, Clone, Copy, Debug)]
 pub struct ViewJolt(pub Vec3);
 
-/// The newest footprints pressing the grass flat: (middle, radius m).
+/// Where the live soil prints and skate grooves crush the grass, and a version that moves when the
+/// set changes (the grass repacks the tiles they touch only then).
 #[derive(Resource, Default, Clone, Debug)]
-pub struct PrintPress(pub Vec<(Vec3, f32)>);
+pub struct PrintCrush {
+    /// Moves on when a crushing mark is laid or fades out.
+    pub version: u64,
+    /// Every live crush rectangle.
+    pub rects: Vec<cb_core::grass::CrushRect>,
+}
 
 /// `MarksLook` in `ground_marks.wesl`, field for field.
 #[derive(Clone, Copy, Debug, Default, ShaderType)]
@@ -106,7 +112,7 @@ impl MarksUniform {
             reach: Vec4::new(cfg.draw_within_m, cfg.lift_m, l.pull_per_m, l.ambient),
             soil: Vec3::from_array(l.soil_tint).extend(l.pit_dark),
             paving: Vec3::from_array(l.crack_colour).extend(l.dust_brighten),
-            crack: Vec4::new(l.crack_width_m, l.crack_reach, l.scuff, 0.0),
+            crack: Vec4::new(l.crack_width_m, l.crack_reach, l.scuff, l.slab_m),
         }
     }
 }
@@ -193,7 +199,7 @@ impl Plugin for GroundMarksPlugin {
         let cap = app.world().resource::<Data>().0.ground_marks.max_marks as usize;
         app.add_message::<GroundContact>()
             .init_resource::<ViewJolt>()
-            .init_resource::<PrintPress>()
+            .init_resource::<PrintCrush>()
             .insert_resource(Marks {
                 ring: MarkRing::new(cap),
                 trails: TrailLayer::default(),
@@ -401,7 +407,7 @@ fn scorch_craters(mut marks: ResMut<Marks>, data: Res<Data>, plan: Res<Plan>, li
 }
 
 /// Ages the marks and the jolt, writes the GPU rows while any mark lives, and publishes the jolt
-/// and the footprints pressing the grass.
+/// and the grass the soil marks crush.
 #[allow(clippy::too_many_arguments)]
 fn age_and_upload(
     mut marks: ResMut<Marks>,
@@ -409,7 +415,7 @@ fn age_and_upload(
     time: Res<Time>,
     pilot: Res<PilotSim>,
     mut jolt: ResMut<ViewJolt>,
-    mut press: ResMut<PrintPress>,
+    mut crush: ResMut<PrintCrush>,
     mut buffers: ResMut<Assets<ShaderBuffer>>,
 ) {
     let cfg = &data.0.ground_marks;
@@ -426,12 +432,10 @@ fn age_and_upload(
         return;
     }
     let any = marks.ring.advance(dt);
-    press.0 = marks
-        .ring
-        .newest_prints(cfg.press_prints as usize)
-        .iter()
-        .map(|m| (m.centre, cfg.press_m))
-        .collect();
+    if marks.ring.crush_version() != crush.version {
+        crush.version = marks.ring.crush_version();
+        crush.rects = marks.ring.crushes(cfg.crush_margin_m);
+    }
     if !(any || marks.any_last) {
         return;
     }

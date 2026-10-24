@@ -7,9 +7,12 @@
 - [x] 1.5 Skate trails end to end (test: `trail_segments_butt_end_to_end`)
 - [x] 1.6 The jolt (tests: `the_jolt_drops_fast_recovers_and_ends`, `the_jolt_moves_the_eye_and_never_turns_it`, `the_left_foot_is_on_the_mechs_left`)
 - [x] 2.1 `assets/shaders/ground_marks.wesl`, Mining Mike's dent shader ported with the soil and paving looks; compiled with naga against Bevy 0.20 (test: `the_marks_shader_compiles_against_bevy_pbr_and_its_uniform_and_rows_match`); the mesh (test: `the_mesh_is_a_five_by_five_grid_a_slot_and_nothing_else`)
-- [x] 2.2 `cb-app::ground_marks`: the `GroundContact` message from `mech.rs`, marks laid per surface, crater scorches, one entity and one draw, the buffer rewritten only while marks live, `ViewJolt` into `pilot::place_camera`, `PrintPress` into the grass (MAX_PUSHERS 8 to 16)
+- [x] 2.2 `cb-app::ground_marks`: the `GroundContact` message from `mech.rs`, marks laid per surface, crater scorches, one entity and one draw, the buffer rewritten only while marks live, `ViewJolt` into `pilot::place_camera`, the prints into the grass (first as pressing spheres; section 10 replaced them with `PrintCrush`)
 - [x] 2.3 Effects per surface in `data/fx/fx.ron` (`foot_strike_*`, `landing_*`, `skate_dirt`; `foot_dust` replaced) (test: `the_ground_picks_the_effect`)
 - [x] 2.4 `CB_NO_GROUND_MARKS=1` lays and draws no mark
+- [x] 2.5 Second pass (design section 10): bold paving prints (crushed sole, slabs, outline, long cracks, dust ring, 0.10 m), deep broken soil prints, the sole's size apart from the quad (test: `a_paving_print_is_deep_and_its_quad_reaches_past_the_sole`)
+- [x] 2.6 Soil prints and grooves crush the grass through its density for their life (tests: `a_crushed_cell_packs_zero_and_the_rest_packs_as_baked`, `the_crush_version_moves_when_a_soil_mark_comes_or_goes`); `MAX_PUSHERS` back to 8
+- [x] 2.7 No vertex stage reads `lights` (test: `no_game_shader_reads_the_view_lights_in_a_vertex_stage`)
 - [ ] 3.1 Screenshots (main session): prints in a meadow and on a city street, a skate trail on both, a crater, from the pilot's eye on foot and from the cockpit; tune the look (open question 4)
 - [ ] 3.2 Benchmark on the owner's hardware with and without `CB_NO_GROUND_MARKS=1`, interleaved; replace design section 8's estimates
 - [ ] 3.3 Playtest: walk, skate and land on soil and on paving from the cockpit; judge the jolt (survey M11)

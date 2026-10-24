@@ -16,6 +16,7 @@
 //! last segment ended, every so many metres it glides). Rewritten in Rust for Crab Breeze.
 
 use crate::data::{Validate, finite, positive, within};
+use crate::grass::CrushRect;
 use crate::world::{Ground, Surface, WorldPlan};
 use glam::{Vec2, Vec3};
 use serde::Deserialize;
@@ -45,7 +46,7 @@ pub const CRATER_SHARE: f32 = 0.6;
 pub const GRID: usize = 5;
 
 /// The floats one mark takes in the GPU buffer: ten `vec4<f32>` (`Mark` in `ground_marks.wesl`):
-/// three of header, then the 25 ground heights and three spare zeros.
+/// three of header, then the 25 ground heights, the shape scale (two floats) and a spare zero.
 pub const ROW_FLOATS: usize = 40;
 
 /// One mark on the ground.
@@ -71,6 +72,9 @@ pub struct Mark {
     pub age_s: f32,
     /// A number in 0..1 that varies its cracks and grain.
     pub seed: f32,
+    /// The quad's half size over the shape's own (1 when the shape fills the quad as Mining Mike
+    /// drew it; more for a paving print, whose cracks and dust reach past the sole).
+    pub shape_scale: Vec2,
     /// The ground's height on a `GRID` by `GRID` grid over the quad (across then along, from
     /// -extent to +extent), relative to `centre.y`: the drawn grid's vertices lie on it, so the
     /// mark bends over the slope.
@@ -90,6 +94,7 @@ impl Mark {
             life_s: 1.0,
             age_s: 0.0,
             seed: 0.0,
+            shape_scale: Vec2::ONE,
             heights_m: [0.0; GRID * GRID],
         }
     }
@@ -151,7 +156,32 @@ impl Mark {
             self.seed,
         ]);
         out[12..12 + GRID * GRID].copy_from_slice(&self.heights_m);
+        out[12 + GRID * GRID] = self.shape_scale.x;
+        out[13 + GRID * GRID] = self.shape_scale.y;
         out
+    }
+
+    /// True for a mark that crushes the grass under it: a print or a skate line in soil.
+    pub fn crushes(&self) -> bool {
+        self.surface == Surface::Dirt && matches!(self.shape, MarkShape::Foot | MarkShape::Trail)
+    }
+
+    /// The grass this mark crushes, if it crushes any: the sole (or the trail's width) grown by
+    /// `margin_m` each way.
+    pub fn crush(&self, margin_m: f32) -> Option<CrushRect> {
+        if !self.crushes() {
+            return None;
+        }
+        let (_, along) = self.axes();
+        let half = match self.shape {
+            MarkShape::Trail => Vec2::new(self.extent_m.x / QUAD_MARGIN, self.extent_m.y),
+            _ => self.extent_m / (self.shape_scale * QUAD_MARGIN),
+        };
+        Some(CrushRect {
+            centre: Vec2::new(self.centre.x, self.centre.z),
+            along: Vec2::new(along.x, along.z),
+            half_m: half + Vec2::splat(margin_m.max(0.0)),
+        })
     }
 }
 
@@ -180,6 +210,7 @@ pub struct MarkRing {
     slots: Vec<Option<Mark>>,
     next: usize,
     laid: u64,
+    crush_version: u64,
 }
 
 impl MarkRing {
@@ -189,6 +220,7 @@ impl MarkRing {
             slots: vec![None; capacity.max(1)],
             next: 0,
             laid: 0,
+            crush_version: 0,
         }
     }
 
@@ -207,6 +239,9 @@ impl MarkRing {
         mark.age_s = 0.0;
         // A golden-ratio walk: neighbouring prints get different cracks.
         mark.seed = (self.laid as f32 * 0.618_034).fract();
+        if mark.crushes() || self.slots[slot].is_some_and(|m| m.crushes()) {
+            self.crush_version += 1;
+        }
         self.slots[slot] = Some(mark);
         self.next = (slot + 1) % self.slots.len();
         self.laid += 1;
@@ -226,6 +261,9 @@ impl MarkRing {
             if let Some(m) = slot {
                 m.age_s += dt;
                 if m.age_s >= m.life_s {
+                    if m.crushes() {
+                        self.crush_version += 1;
+                    }
                     *slot = None;
                 } else {
                     any = true;
@@ -252,15 +290,15 @@ impl MarkRing {
         }
     }
 
-    /// The `n` newest footprints, newest first: where the grass is pressed flat.
-    pub fn newest_prints(&self, n: usize) -> Vec<Mark> {
-        let cap = self.slots.len();
-        (1..=cap)
-            .map(|k| (self.next + cap - k) % cap)
-            .filter_map(|i| self.slots[i])
-            .filter(|m| m.shape == MarkShape::Foot)
-            .take(n)
-            .collect()
+    /// Moves on every time a mark that crushes grass is laid, replaced or fades out: the grass
+    /// repacks its tiles only when it changes.
+    pub fn crush_version(&self) -> u64 {
+        self.crush_version
+    }
+
+    /// The grass every live mark crushes, slot by slot.
+    pub fn crushes(&self, margin_m: f32) -> Vec<CrushRect> {
+        self.slots.iter().flatten().filter_map(|m| m.crush(margin_m)).collect()
     }
 }
 
@@ -352,10 +390,10 @@ pub struct SurfaceMarks {
 impl Default for SurfaceMarks {
     fn default() -> Self {
         Self {
-            foot_depth_m: 0.22,
-            foot_lip_m: 0.09,
-            trail_depth_m: 0.12,
-            trail_lip_m: 0.05,
+            foot_depth_m: 0.32,
+            foot_lip_m: 0.14,
+            trail_depth_m: 0.22,
+            trail_lip_m: 0.08,
             crater_depth_m: 0.15,
         }
     }
@@ -384,10 +422,13 @@ pub struct MarkLook {
     pub crack_colour: [f32; 3],
     /// A crack's width at its root, metres.
     pub crack_width_m: f32,
-    /// The longest crack runs this many half print lengths from the middle.
+    /// The longest crack runs this many sole half lengths from the middle; a paving print's quad
+    /// reaches this far every way.
     pub crack_reach: f32,
-    /// Inside a print on paving the ground is multiplied by this (the scuff).
+    /// Inside a print on paving the ground is multiplied by this (the crushed sole).
     pub scuff: f32,
+    /// The broken slabs inside a paving print are about this wide, metres.
+    pub slab_m: f32,
     /// The dust round a print on paving brightens the ground by this factor.
     pub dust_brighten: f32,
     /// The ambient share in a mark's own relief lighting (Mining Mike's 0.7).
@@ -400,13 +441,14 @@ pub struct MarkLook {
 impl Default for MarkLook {
     fn default() -> Self {
         Self {
-            soil_tint: [0.62, 0.5, 0.38],
-            pit_dark: 0.25,
-            crack_colour: [0.32, 0.31, 0.3],
-            crack_width_m: 0.05,
-            crack_reach: 1.6,
-            scuff: 0.85,
-            dust_brighten: 1.08,
+            soil_tint: [0.8, 0.42, 0.36],
+            pit_dark: 0.45,
+            crack_colour: [0.22, 0.21, 0.2],
+            crack_width_m: 0.08,
+            crack_reach: 1.7,
+            scuff: 0.5,
+            slab_m: 0.35,
+            dust_brighten: 1.35,
             ambient: 0.7,
             pull_per_m: 0.002,
         }
@@ -424,6 +466,7 @@ impl MarkLook {
         within("look.crack_width_m", self.crack_width_m, 0.0, 1.0)?;
         within("look.crack_reach", self.crack_reach, 0.0, 5.0)?;
         within("look.scuff", self.scuff, 0.0, 1.0)?;
+        positive("look.slab_m", self.slab_m)?;
         within("look.dust_brighten", self.dust_brighten, 1.0, 2.0)?;
         within("look.ambient", self.ambient, 0.0, 4.0)?;
         within("look.pull_per_m", self.pull_per_m, 0.0, 0.05)
@@ -586,10 +629,8 @@ pub struct GroundMarksConfig {
     pub skate_fx_min_m_s: f32,
     /// A crater's scorch lasts this long, seconds.
     pub crater_life_s: f32,
-    /// The newest footprints flatten the grass under them, this many of them.
-    pub press_prints: u32,
-    /// A footprint flattens grass this far from its middle, metres.
-    pub press_m: f32,
+    /// A soil print or skate line clears the grass this far past its sole or its width, metres.
+    pub crush_margin_m: f32,
     /// Marks in soil.
     pub dirt: SurfaceMarks,
     /// Marks on paving.
@@ -619,13 +660,12 @@ impl Default for GroundMarksConfig {
             trail_min_speed_m_s: 1.0,
             skate_fx_min_m_s: 5.0,
             crater_life_s: 240.0,
-            press_prints: 6,
-            press_m: 1.6,
+            crush_margin_m: 0.3,
             dirt: SurfaceMarks::default(),
             concrete: SurfaceMarks {
-                foot_depth_m: 0.03,
+                foot_depth_m: 0.1,
                 foot_lip_m: 0.0,
-                trail_depth_m: 0.0,
+                trail_depth_m: 0.01,
                 trail_lip_m: 0.0,
                 crater_depth_m: 0.05,
             },
@@ -649,13 +689,14 @@ impl GroundMarksConfig {
     pub fn footprint(&self, surface: Surface, at: Vec3, heading_rad: f32, landed: bool) -> Mark {
         let s = self.on(surface);
         let deeper = if landed { self.landing_depth_scale } else { 1.0 };
-        let mut m = Mark::new(
-            at,
-            heading_rad + std::f32::consts::PI,
-            Vec2::new(self.foot_half_width_m, self.foot_half_length_m) * QUAD_MARGIN,
-            MarkShape::Foot,
-            surface,
-        );
+        let sole = Vec2::new(self.foot_half_width_m, self.foot_half_length_m) * QUAD_MARGIN;
+        // On paving the cracks and the dust reach past the sole: the quad grows, the sole does not.
+        let extent = match surface {
+            Surface::Dirt => sole,
+            Surface::Concrete => sole.max(Vec2::splat(self.foot_half_length_m * self.look.crack_reach * 1.1)),
+        };
+        let mut m = Mark::new(at, heading_rad + std::f32::consts::PI, extent, MarkShape::Foot, surface);
+        m.shape_scale = extent / sole;
         m.depth_m = s.foot_depth_m * deeper;
         m.lip_m = s.foot_lip_m * deeper;
         m.life_s = self.foot_life_s;
@@ -716,10 +757,7 @@ impl Validate for GroundMarksConfig {
         within("trail_min_speed_m_s", self.trail_min_speed_m_s, 0.0, 100.0)?;
         within("skate_fx_min_m_s", self.skate_fx_min_m_s, 0.0, 100.0)?;
         positive("crater_life_s", self.crater_life_s)?;
-        if self.press_prints > 8 {
-            return Err(format!("`press_prints` must be 8 or fewer, got {}", self.press_prints));
-        }
-        within("press_m", self.press_m, 0.0, 10.0)?;
+        within("crush_margin_m", self.crush_margin_m, 0.0, 5.0)?;
         self.dirt.validate("dirt")?;
         self.concrete.validate("concrete")?;
         self.look.validate()?;
@@ -795,8 +833,6 @@ mod tests {
         assert_eq!(ring.get(1).unwrap().centre.x, 1.0, "the second is still there");
         assert_eq!(ring.add(print_at(4.0)), Some(1), "then the second goes");
         assert_eq!(ring.live(), 3);
-        let newest: Vec<f32> = ring.newest_prints(2).iter().map(|m| m.centre.x).collect();
-        assert_eq!(newest, vec![4.0, 3.0], "newest first");
     }
 
     #[test]
@@ -870,6 +906,43 @@ mod tests {
         assert_eq!(i.len() / 3, 32_768, "32 triangles a slot");
         assert_eq!(v[25], [1.0, 0.0, 0.0], "the second slot starts at its own grid's corner");
         assert!(i.iter().all(|k| (*k as usize) < v.len()));
+    }
+
+    #[test]
+    fn a_paving_print_is_deep_and_its_quad_reaches_past_the_sole() {
+        let c = cfg();
+        let paved = c.footprint(Surface::Concrete, Vec3::ZERO, 0.0, false);
+        let soil = c.footprint(Surface::Dirt, Vec3::ZERO, 0.0, false);
+        assert!((0.08..=0.12).contains(&paved.depth_m), "{}", paved.depth_m);
+        assert!(paved.extent_m.min_element() >= 1.5 * c.foot_half_length_m, "{}", paved.extent_m);
+        let sole = |m: &Mark| m.extent_m / m.shape_scale;
+        assert!(sole(&paved).distance(sole(&soil)) < 1e-5, "the same sole");
+        assert_eq!(soil.shape_scale, Vec2::ONE);
+        let row = paved.pack();
+        assert_eq!((row[37], row[38]), (paved.shape_scale.x, paved.shape_scale.y));
+    }
+
+    #[test]
+    fn the_crush_version_moves_when_a_soil_mark_comes_or_goes() {
+        let c = cfg();
+        let mut ring = MarkRing::new(8);
+        let v0 = ring.crush_version();
+        ring.add(c.footprint(Surface::Dirt, Vec3::new(10.0, 0.0, 0.0), 0.0, false));
+        let v1 = ring.crush_version();
+        assert!(v1 > v0, "a soil print crushes");
+        ring.add(c.footprint(Surface::Concrete, Vec3::ZERO, 0.0, false));
+        assert_eq!(ring.crush_version(), v1, "a paving print does not");
+        let rects = ring.crushes(c.crush_margin_m);
+        assert_eq!(rects.len(), 1);
+        let r = rects[0];
+        assert!(
+            r.contains(Vec2::new(10.0, 0.0)) && r.contains(Vec2::new(10.0, -1.4)),
+            "the sole's length"
+        );
+        assert!(!r.contains(Vec2::new(10.0, 2.5)) && !r.contains(Vec2::new(11.5, 0.0)));
+        ring.advance(c.foot_life_s + 1.0);
+        assert!(ring.crush_version() > v1, "it faded out");
+        assert!(ring.crushes(c.crush_margin_m).is_empty());
     }
 
     #[test]

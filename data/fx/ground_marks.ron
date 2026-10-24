@@ -1,8 +1,9 @@
 // Marks a mech leaves on the ground (openspec/changes/ground-marks): footprints, skate trails and
 // crater scorches, all drawn in one draw call from a ring of `max_marks` (the oldest replaced
-// first). Soil takes a dark pressed print with a lip; paving takes a shallow cracked scuff with no
-// lip; water takes none. Read by cb_core::ground_marks::GroundMarksConfig. CB_NO_GROUND_MARKS=1
-// turns the marks off (the effects and the jolt stay).
+// first). Soil takes a deep, dark, broken print with a lip and clears the grass under it; paving
+// takes a crushed, cracked print ringed with dust, no lip; water takes none. Read by
+// cb_core::ground_marks::GroundMarksConfig. CB_NO_GROUND_MARKS=1 turns the marks off (the effects
+// and the jolt stay).
 (
     // 1024 marks of 160 bytes: a 160 KiB storage buffer, one draw of 25 600 vertices.
     max_marks: 1024,
@@ -28,21 +29,23 @@
 
     crater_life_s: 240.0,
 
-    // The six newest footprints flatten the grass under them (as pressing spheres).
-    press_prints: 6,
-    press_m: 1.6,
+    // No grass stands on a soil print or skate groove for its life: every 1 m grass cell whose
+    // middle lies within the sole (or the groove's width) and this margin is cleared.
+    crush_margin_m: 0.3,
 
+    // Deep enough to read as a line of prints across a meadow from 30 m.
     dirt: (
-        foot_depth_m: 0.22,
-        foot_lip_m: 0.09,
-        trail_depth_m: 0.12,
-        trail_lip_m: 0.05,
+        foot_depth_m: 0.32,
+        foot_lip_m: 0.14,
+        trail_depth_m: 0.22,
+        trail_lip_m: 0.08,
         crater_depth_m: 0.15,
     ),
+    // A 10 cm dent, so the parallax shows it; skate lines are rubber, 1 cm of scuff.
     concrete: (
-        foot_depth_m: 0.03,
+        foot_depth_m: 0.1,
         foot_lip_m: 0.0,
-        trail_depth_m: 0.0,
+        trail_depth_m: 0.01,
         trail_lip_m: 0.0,
         crater_depth_m: 0.05,
     ),
@@ -59,16 +62,19 @@
         side_share: 0.25,
     ),
 
-    // The shader's numbers. Soil: the print's bottom multiplied toward a dark brown. Paving:
-    // cracks, a scuff and a ring of pale dust.
+    // The shader's numbers (all multiply the ground; above 1 lightens). Soil: the bottom of a print
+    // toward a dark brown that turns the green-tinted meadow ground brown. Paving: the sole crushed
+    // to half, broken into slabs about 0.35 m across, cracks 8 cm wide at the root reaching 1.7 sole
+    // half lengths (about 1.5 times the sole), and a ring of pale dust.
     look: (
-        soil_tint: (0.62, 0.5, 0.38),
-        pit_dark: 0.25,
-        crack_colour: (0.32, 0.31, 0.3),
-        crack_width_m: 0.05,
-        crack_reach: 1.6,
-        scuff: 0.85,
-        dust_brighten: 1.08,
+        soil_tint: (0.8, 0.42, 0.36),
+        pit_dark: 0.45,
+        crack_colour: (0.22, 0.21, 0.2),
+        crack_width_m: 0.08,
+        crack_reach: 1.7,
+        scuff: 0.5,
+        slab_m: 0.35,
+        dust_brighten: 1.35,
         ambient: 0.7,
         pull_per_m: 0.002,
     ),
