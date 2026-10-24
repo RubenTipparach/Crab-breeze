@@ -103,6 +103,15 @@
             Burst(kind: Flame, count: 6, speed_m_s: 30.0, spread: 0.15, size_m: 0.9, life_s: 0.25, along_dir: true),
             Burst(kind: Smoke, count: 1, speed_m_s: 8.0, spread: 0.4, size_m: 2.5, life_s: 2.0, offset_m: 3.0, along_dir: true),
         ],
+        // Every step a wheel skates fast; the direction is back and up from the wheel.
+        "skate_grit": [
+            Burst(kind: Spark, count: 2, speed_m_s: 8.0, spread: 0.4, size_m: 0.2, life_s: 0.4, along_dir: true),
+            Burst(kind: Dust, count: 1, speed_m_s: 3.0, spread: 0.5, size_m: 1.2, life_s: 1.2, along_dir: true),
+        ],
+        // A rooster tail on water; density grows with speed.
+        "skate_spray": [
+            Burst(kind: Spray, count: 3, speed_m_s: 9.0, spread: 0.35, size_m: 1.0, life_s: 1.0, along_dir: true),
+        ],
         "wall_smash": [
             Burst(kind: Dust, count: 60, speed_m_s: 6.0, spread: 1.0, size_m: 3.0, life_s: 4.0),
             Burst(kind: Rubble, count: 30, speed_m_s: 6.0, spread: 1.0, size_m: 0.8, life_s: 2.5),

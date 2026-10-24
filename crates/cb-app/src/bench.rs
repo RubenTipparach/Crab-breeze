@@ -9,11 +9,6 @@ use bevy::prelude::*;
 use bevy::render::render_resource::TextureFormat;
 use std::io::Write;
 
-/// The beats' names, for the report.
-const BEATS: [&str; 12] = [
-    "load", "look", "board", "beat3", "beat4", "beat5", "beat6", "beat7", "beat8", "beat9", "beat10", "end",
-];
-
 /// Measures.
 pub struct BenchPlugin;
 
@@ -64,7 +59,7 @@ fn record(mut commands: Commands, time: Res<Time<Real>>, take: Res<Take>, mut fr
     if now - frames.started_s < 10.0 {
         return;
     }
-    let beat = take.beat.min(BEATS.len() - 1);
+    let beat = take.beat.min(take.names.len().saturating_sub(1));
     if frames.by_beat.len() <= beat {
         frames.by_beat.resize(beat + 1, Vec::new());
     }
@@ -78,7 +73,8 @@ fn pct(sorted: &[f32], p: f32) -> f32 {
     sorted[((sorted.len() - 1) as f32 * p).round() as usize]
 }
 
-fn report(mut exit: MessageReader<AppExit>, frames: Res<Frames>) {
+fn report(mut exit: MessageReader<AppExit>, frames: Res<Frames>, take: Res<Take>) {
+    let name = |i: usize| take.names.get(i).copied().unwrap_or("beat");
     if exit.read().next().is_none() {
         return;
     }
@@ -93,7 +89,7 @@ fn report(mut exit: MessageReader<AppExit>, frames: Res<Frames>) {
         all.extend_from_slice(&s);
         let line = format!(
             "BENCH {:<8} frames={:>5} p50={:6.2} p95={:6.2} p99={:6.2} max={:7.2}",
-            BEATS[i],
+            name(i),
             s.len(),
             pct(&s, 0.5),
             pct(&s, 0.95),
@@ -103,7 +99,7 @@ fn report(mut exit: MessageReader<AppExit>, frames: Res<Frames>) {
         println!("{line}");
         json.push_str(&format!(
             "{{\"beat\":\"{}\",\"frames\":{},\"p50\":{:.3},\"p95\":{:.3},\"p99\":{:.3},\"max\":{:.3}}},",
-            BEATS[i],
+            name(i),
             s.len(),
             pct(&s, 0.5),
             pct(&s, 0.95),

@@ -1,7 +1,8 @@
 //! The cockpit HUD prototype (openspec change `cockpit-hud`; owner, 2026-10-24: "quick rapid ui
 //! prototyping in the cockpit"): a crosshair, a leg compass (which way the legs face against the
 //! torso), booster and skate gauges (heat, seconds left, seconds to recharge), throttle, speed,
-//! altitude, mode, guns, damage, and for exploring the compass heading and the nearest city. Shown only while seated. Every number is the simulation's own
+//! altitude, mode, guns, damage, for exploring the compass heading and the nearest city, and in the
+//! defence mission (`city-defence`) the wave, its clock, the attacked city's damage and the raiders left. Shown only while seated. Every number is the simulation's own
 //! (CLAUDE.md section 6.1). A 2D overlay for now; it moves onto the cockpit's screens later.
 
 use crate::mech::{MechSim, MechSpec, Piloted};
@@ -45,6 +46,7 @@ enum Readout {
     Guns,
     Damage,
     Nav,
+    Mission,
 }
 
 const GREEN: Color = Color::srgb(0.55, 0.95, 0.6);
@@ -131,6 +133,17 @@ fn spawn_hud(mut commands: Commands) {
             })
             .with_children(|c| {
                 c.spawn((text("", 18.0), Readout::Nav));
+            });
+            // The mission, under it.
+            root.spawn(Node {
+                position_type: PositionType::Absolute,
+                top: px(52.0),
+                width: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                ..default()
+            })
+            .with_children(|c| {
+                c.spawn((text("", 22.0), Readout::Mission));
             });
             // Leg compass, bottom centre: the torso is straight up; the arrow is the legs.
             root.spawn(Node {
@@ -290,8 +303,55 @@ fn fmt_budget(name: &str, heat: f32, locked: bool, burn_s: f32, recharge_s: f32,
     }
 }
 
+/// `WAVE 2/3   CITY 2  DAMAGE 23 %   RAIDERS 6/10   7:41`, coloured by how close the city or the
+/// clock is to losing. Empty outside the mission.
+fn fmt_mission(run: Option<&crate::defence::DefenceRun>, cfg: &cb_core::mission::DefenceConfig) -> (String, Color) {
+    use cb_core::mission::Phase;
+    let Some(run) = run else { return (String::new(), GREEN) };
+    let waves = cfg.cities.len();
+    match run.state.phase {
+        Phase::Briefing => ("DEFEND THE CITIES: board your mech".into(), GREEN),
+        Phase::Lull { wave, left_s } => (
+            format!(
+                "WAVE {}/{waves} IN {:.0} s   ON CITY {}",
+                wave + 1,
+                left_s.ceil(),
+                cfg.cities[wave] + 1
+            ),
+            AMBER,
+        ),
+        Phase::Wave { wave, .. } => {
+            let damage = run.city_damage(cfg);
+            let left = run.state.time_left_s(cfg).unwrap_or(0.0);
+            let s = format!(
+                "WAVE {}/{waves}   CITY {}  DAMAGE {:.0} %   RAIDERS {}/{}   {}:{:02}",
+                wave + 1,
+                cfg.cities[wave] + 1,
+                damage * 100.0,
+                run.alive,
+                cfg.raiders_per_wave,
+                (left / 60.0) as u32,
+                (left % 60.0) as u32
+            );
+            let colour = if damage > 0.45 || left < 60.0 {
+                RED
+            } else if damage > 0.35 || left < 120.0 {
+                AMBER
+            } else {
+                GREEN
+            };
+            (s, colour)
+        }
+        Phase::Won => ("ALL WAVES DESTROYED: THE CITIES STAND".into(), GREEN),
+        Phase::Lost(why) => (format!("MISSION LOST: {}", crate::defence::loss_text(why)), RED),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn update_hud(
     pilot: Res<PilotSim>,
+    data: Res<crate::sim::Data>,
+    run: Option<Res<crate::defence::DefenceRun>>,
     plan: Res<Plan>,
     mech: Query<(&MechSim, &MechSpec), With<Piloted>>,
     mut root: Single<&mut Visibility, With<HudRoot>>,
@@ -381,6 +441,7 @@ fn update_hud(
                 (format!("LEGS {:+.0} deg{turn}", -m.twist_rad.to_degrees()), GREEN)
             }
             Readout::Nav => (fmt_nav(pilot.curr.yaw_rad, Vec2::new(m.pos.x, m.pos.z), &plan.cities), GREEN),
+            Readout::Mission => fmt_mission(run.as_deref(), &data.0.defence),
             Readout::Flight => (
                 format!("{mode}   {speed_kmh:.0} km/h   ALT {agl:.0} m"),
                 if m.on_water == OnWater::Sunk {

@@ -14,7 +14,8 @@ says what happened (a shot flew, hit a surface, a blast went off); the effect is
 | `Light` | `lumens`, `range_m`, `life_s`, `colour`, `lift_m` | a point light fading as (1 - t)^2 |
 | `Fireball` | `radius_m`, `grow_s`, `life_s` | an emissive sphere that grows, then cools white, orange, soot, and fades |
 | `Shock` | `radius_m`, `life_s` | a thin translucent shell expanding fast, and a ground ring |
-| `Star` | `size_m`, `life_s` | three crossed quads, emissive, turned randomly: the muzzle flash shape |
+| `Star` | `size_m`, `life_s`, `offset_m` | three glowing blades round the barrel's axis and a glow across it, turned randomly: the muzzle flash shape |
+| `Ripple` | `radius_m` | a ring spreading on water |
 
 A recipe's numbers scale with the message's `scale` (a 6 MJ blast is `scale` 1.82, the cube root
 of energy over 1 MJ, since a fireball's radius grows with the cube root of yield). Loaded and
@@ -23,8 +24,9 @@ the file lacks stops startup with its path.
 
 Recipes the game asks for: `muzzle_autocannon`, `muzzle_cannon`, `muzzle_rocket`,
 `impact_mech`, `impact_building`, `impact_ground`, `impact_water`, `explosion_ground`,
-`explosion_water`, `explosion_air`, `foot_dust`, `foot_spray`, `jet_flame`, `wall_smash`,
-`tree_fall`.
+`explosion_water`, `explosion_air`, `rocket_trail`, `foot_dust`, `foot_spray`, `jet_flame`,
+`skate_grit`, `skate_spray`, `wall_smash`, `tree_fall`, `part_lost`, `burning`. Counts scale
+with a second number, `density` (a heavy landing throws three times the dust).
 
 ## 2. Tracers and trails
 
@@ -71,7 +73,7 @@ Layers, at `scale` 1 (1 MJ), seconds and metres:
 
 Particles keep the soft-disc sprite until the owner picks where flipbooks come from (survey `G7`):
 a Blender smoke and fire simulation rendered to a flipbook atlas, or Material Maker noise graphs.
-The recipe format already carries `sprite` (default `disc`) so a flipbook drops in as data.
+A flipbook will arrive as a new field on `Burst` layers, so the recipes keep their names.
 
 ## Open questions
 

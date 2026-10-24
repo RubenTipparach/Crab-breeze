@@ -1,8 +1,9 @@
 //! Explosions (openspec change `terrain-deformation`): an `Explosion` message digs a crater, snaps
-//! trees, throws dirt, smoke and sparks (or spray on water) and flashes. The crater and the trees
-//! are simulation (`cb-core`); the rest is effects.
+//! trees, breaks building cells and hurts mechs nearby, then plays the ground, water or air blast
+//! recipe (`combat-fx`) at the cube root of its energy. The crater and the trees are simulation
+//! (`cb-core`); the rest is effects.
 
-use crate::fx::{Burst, Flash, FxKind, Ripple};
+use crate::fx::Fx;
 use crate::mech::{MechSim, MechSpec, apply_hit};
 use crate::sim::{Data, SimSet};
 use crate::world::{Live, Plan};
@@ -35,9 +36,7 @@ fn explode(
     mut live: ResMut<Live>,
     plan: Res<Plan>,
     data: Res<Data>,
-    mut bursts: MessageWriter<Burst>,
-    mut flashes: MessageWriter<Flash>,
-    mut ripples: MessageWriter<Ripple>,
+    mut fx: MessageWriter<Fx>,
     mut mechs: Query<(&mut MechSim, &MechSpec)>,
 ) {
     let live = &mut *live;
@@ -107,31 +106,12 @@ fn explode(
                 }
             }
         }
-        flashes.write(Flash {
-            at,
-            lumens: 4.0e8 * e.energy_mj,
-        });
-        let burst = |kind, count, speed_m_s, spread, size_m, life_s| Burst {
-            kind,
-            at,
-            dir: Vec3::Y,
-            count,
-            speed_m_s,
-            spread,
-            size_m,
-            life_s,
+        let recipe = match (wet.is_some(), on_ground) {
+            (true, true) => "explosion_water",
+            (false, true) => "explosion_ground",
+            (_, false) => "explosion_air",
         };
-        if wet.is_some() {
-            bursts.write(burst(FxKind::Spray, 220, 22.0, 0.35, 1.6, 2.5));
-            bursts.write(burst(FxKind::Steam, 40, 4.0, 0.8, 4.0, 4.0));
-            ripples.write(Ripple { at, radius_m: r * 6.0 });
-        } else {
-            bursts.write(burst(FxKind::Dirt, 160, 20.0, 0.6, 0.5, 3.0));
-            bursts.write(burst(FxKind::Dust, 60, 6.0, 0.9, 4.0, 5.0));
-            bursts.write(burst(FxKind::Smoke, 40, 4.0, 0.5, 5.0, 8.0));
-        }
-        bursts.write(burst(FxKind::Fire, 50, 9.0, 0.8, 2.2, 0.7));
-        bursts.write(burst(FxKind::Spark, 80, 26.0, 0.9, 0.25, 1.2));
+        fx.write(Fx::new(recipe, at).scaled(e.energy_mj.max(0.01).cbrt()));
         info!(
             "explosion: {:.1} MJ at ({:.0}, {:.0}), crater radius {r:.1} m",
             e.energy_mj, e.at.x, e.at.y

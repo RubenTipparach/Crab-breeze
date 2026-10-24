@@ -877,23 +877,14 @@ fn spawn_trees(
     commands.insert_resource(TreeEntities(ids));
 }
 
-fn fell_trees(mut live: ResMut<Live>, time: Res<Time<Fixed>>, mut bursts: MessageWriter<crate::fx::Burst>) {
+fn fell_trees(mut live: ResMut<Live>, time: Res<Time<Fixed>>, mut fx: MessageWriter<crate::fx::Fx>) {
     let live = &mut *live;
     let landed = live.forest.step(time.delta_secs());
     for id in &landed {
         let t = live.forest.trees[*id as usize];
         let (dir, _) = live.forest.states[*id as usize].tilt();
         let tip = t.base + Vec3::new(dir.x, 0.0, dir.y) * t.height_m * 0.7;
-        bursts.write(crate::fx::Burst {
-            kind: crate::fx::FxKind::Dust,
-            at: tip,
-            dir: Vec3::Y,
-            count: 25,
-            speed_m_s: 3.0,
-            spread: 0.9,
-            size_m: 2.5,
-            life_s: 2.5,
-        });
+        fx.write(crate::fx::Fx::new("tree_fall", tip));
     }
     let falling: Vec<u32> = live
         .forest

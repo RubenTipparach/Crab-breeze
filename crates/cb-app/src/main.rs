@@ -7,6 +7,7 @@ mod buildings;
 mod capture;
 mod cli;
 mod combat;
+mod defence;
 mod fx;
 mod hud;
 mod input;
@@ -81,10 +82,13 @@ fn main() -> AppExit {
         physics::DebrisPhysicsPlugin,
         hud::HudPlugin,
     ));
+    if args.defending() {
+        app.add_plugins(defence::DefencePlugin);
+    }
     if let Some(dir) = args.stills {
         app.add_plugins(capture::StillsPlugin { dir });
     } else if let Some(take) = args.showcase.clone().or(args.bench.clone()) {
-        app.add_plugins(showcase::ShowcasePlugin { fight: take == "fight" });
+        app.add_plugins(showcase::ShowcasePlugin { take });
     }
     if args.bench.is_some() {
         app.add_plugins(bench::BenchPlugin);

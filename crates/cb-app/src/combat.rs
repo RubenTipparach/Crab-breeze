@@ -1,12 +1,13 @@
 //! Shots in flight (openspec change `weapons`): every fixed step each projectile flies through
 //! `cb_core::weapons::fly` against the mechs' part capsules, standing building cells, trees, water
 //! and ground; what it hits takes the hit (a part through `mech-damage`, a cell through
-//! `building-destruction`, a tree snaps) and heavy shells explode. Tracers are effects.
+//! `building-destruction`, a tree snaps) and heavy shells explode. Tracers are effects (`fx`);
+//! a rocket lays its smoke trail here, every `trail_spacing_m` of the path it flew this step.
 
 use crate::blast::Explosion;
-use crate::fx::{Burst, FxKind};
+use crate::fx::Fx;
 use crate::mech::{MechId, MechRig, MechSim, MechSpec, apply_hit};
-use crate::sim::SimSet;
+use crate::sim::{Data, SimSet};
 use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use cb_core::mech::rig::BONES;
@@ -75,7 +76,8 @@ pub fn fly_shots(
     mut mechs: Query<(&mut MechSim, &MechSpec, &MechId, Option<&MechRig>)>,
     globals: Query<&GlobalTransform>,
     time: Res<Time<Fixed>>,
-    mut bursts: MessageWriter<Burst>,
+    data: Res<Data>,
+    mut fx: MessageWriter<Fx>,
     mut explosions: MessageWriter<Explosion>,
 ) {
     if shots.0.is_empty() {
@@ -94,7 +96,9 @@ pub fn fly_shots(
     }
     let live = &mut *live;
     let mut flying = Vec::with_capacity(shots.0.len());
+    let spacing = data.0.fx.trail_spacing_m;
     for mut shot in std::mem::take(&mut shots.0) {
+        let (from, flown_before) = (shot.pos, shot.age_s * shot.vel.length());
         let impact = {
             let scene = Scene {
                 plan: &plan,
@@ -107,18 +111,16 @@ pub fn fly_shots(
         let Some(w) = specs.get(&shot.owner).and_then(|c| c.weapons.get(shot.weapon)).cloned() else {
             continue;
         };
+        if shot.rocket {
+            // The trail: a puff at every multiple of the spacing passed this step.
+            let flown = shot.age_s * shot.vel.length();
+            let (first, last) = ((flown_before / spacing).floor() as i64 + 1, (flown / spacing).floor() as i64);
+            for k in first..=last {
+                let t = ((k as f32 * spacing - flown_before) / (flown - flown_before).max(1e-3)).clamp(0.0, 1.0);
+                fx.write(Fx::new("rocket_trail", from.lerp(shot.pos, t)).toward(shot.vel));
+            }
+        }
         let Some(hit) = impact else {
-            // Tracer: a bright streak every step along the path.
-            bursts.write(Burst {
-                kind: FxKind::Tracer,
-                at: shot.pos,
-                dir: shot.vel.normalize_or(Vec3::Y),
-                count: 1,
-                speed_m_s: 0.0,
-                spread: 0.0,
-                size_m: if w.blast_mj >= 1.0 { 0.9 } else { 0.5 },
-                life_s: 0.06,
-            });
             if !spent(&shot) {
                 flying.push(shot);
             }
@@ -142,16 +144,7 @@ pub fn fly_shots(
                         },
                     );
                 }
-                bursts.write(Burst {
-                    kind: FxKind::Spark,
-                    at: hit.at,
-                    dir: -dir,
-                    count: 25,
-                    speed_m_s: 14.0,
-                    spread: 0.7,
-                    size_m: 0.3,
-                    life_s: 0.6,
-                });
+                fx.write(Fx::new("impact_mech", hit.at).toward(-dir));
             }
             Struck::Building(b) => {
                 let r = 3.4f32.max(1.2 * 2.2 * w.blast_mj.max(0.01).cbrt());
@@ -160,16 +153,7 @@ pub fn fly_shots(
                     live.dirty_buildings.push(b);
                     live.new_chunks.extend(chunks);
                 }
-                bursts.write(Burst {
-                    kind: FxKind::Dust,
-                    at: hit.at,
-                    dir: -dir,
-                    count: 18,
-                    speed_m_s: 5.0,
-                    spread: 0.8,
-                    size_m: 2.5,
-                    life_s: 3.0,
-                });
+                fx.write(Fx::new("impact_building", hit.at).toward(-dir));
             }
             Struck::Tree(id) => {
                 if live.forest.hit(id, Vec2::new(dir.x, dir.z), f32::MAX) {
@@ -177,28 +161,10 @@ pub fn fly_shots(
                 }
             }
             Struck::Water => {
-                bursts.write(Burst {
-                    kind: FxKind::Spray,
-                    at: hit.at,
-                    dir: Vec3::Y,
-                    count: 15,
-                    speed_m_s: 8.0,
-                    spread: 0.3,
-                    size_m: 0.8,
-                    life_s: 1.2,
-                });
+                fx.write(Fx::new("impact_water", hit.at));
             }
             Struck::Ground => {
-                bursts.write(Burst {
-                    kind: FxKind::Dirt,
-                    at: hit.at,
-                    dir: Vec3::Y,
-                    count: 12,
-                    speed_m_s: 8.0,
-                    spread: 0.5,
-                    size_m: 0.4,
-                    life_s: 1.5,
-                });
+                fx.write(Fx::new("impact_ground", hit.at).toward(-dir));
             }
         }
         if w.blast_mj >= 1.0 {

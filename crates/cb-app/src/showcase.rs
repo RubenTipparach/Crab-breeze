@@ -16,15 +16,17 @@ use cb_core::pilot::{PilotMode, PilotState};
 use cb_core::world::Ground;
 use std::f32::consts::{PI, TAU};
 
-/// Plays a showcase take: the world tour, or the city fight.
+/// Plays a showcase take: the world tour, the city fight, or the city defence.
 pub struct ShowcasePlugin {
-    /// The city fight instead of the world tour.
-    pub fight: bool,
+    /// `world`, `fight` or `defence`.
+    pub take: String,
 }
 
 /// Where the take is.
 #[derive(Resource, Default)]
 pub struct Take {
+    /// The beats' names, for the benchmark's report.
+    pub names: &'static [&'static str],
     /// The player's brain in the fight: the enemies' brain, its orders played as actions.
     brain: Option<cb_core::ai::AiPilot>,
     /// The beat playing now.
@@ -39,12 +41,19 @@ pub struct Take {
 
 impl Plugin for ShowcasePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Take>();
-        if self.fight {
-            app.add_systems(Update, play_fight.in_set(crate::sim::PresentSet::Input));
-        } else {
-            app.add_systems(Update, play.in_set(crate::sim::PresentSet::Input));
-        }
+        let names: &'static [&'static str] = match self.take.as_str() {
+            "fight" => &["load", "look", "board", "stand", "fight", "tower", "charge", "result", "end"],
+            "defence" => &DEFENCE_BEATS,
+            _ => &[
+                "load", "look", "board", "stride", "rockets", "landing", "wade", "wood", "shells", "damage", "result", "end",
+            ],
+        };
+        app.insert_resource(Take { names, ..default() });
+        match self.take.as_str() {
+            "fight" => app.add_systems(Update, play_fight.in_set(crate::sim::PresentSet::Input)),
+            "defence" => app.add_systems(Update, play_defence.in_set(crate::sim::PresentSet::Input)),
+            _ => app.add_systems(Update, play.in_set(crate::sim::PresentSet::Input)),
+        };
     }
 }
 
@@ -62,6 +71,21 @@ pub fn walk_to(pilot: &PilotState, target: Vec3, pitch_rad: f32) -> Actions {
         move_xy: if near { Vec2::ZERO } else { Vec2::new(0.0, 1.0) },
         look_delta_deg: Vec2::new(-turn.to_degrees() * 0.15, (pitch_rad - pilot.pitch_rad).to_degrees() * 0.1),
         ..default()
+    }
+}
+
+/// The boarding beat every take shares: walk to the stair, press Use once, look up as the mech
+/// kneels and opens, and be carried into the seat.
+fn board(p: &PilotState, access: Option<&cb_core::pilot::MechAccess>) -> Actions {
+    let Some(a) = access else { return Actions::default() };
+    match p.mode {
+        PilotMode::OnFoot if p.waiting.is_none() && p.distance_to_stair(a) < 2.5 => Actions {
+            use_pressed: true,
+            ..default()
+        },
+        PilotMode::OnFoot if p.waiting.is_none() => walk_to(p, a.ladder_base, 0.2),
+        PilotMode::OnFoot => walk_to(p, a.ladder_base + Vec3::Y, 0.45),
+        _ => Actions::default(),
     }
 }
 
@@ -180,16 +204,7 @@ fn play(
         }
         // Walk to the stair, Use once, look up as the mech sits and opens, climb in.
         2 => {
-            let a = access.0.unwrap();
-            act = match p.mode {
-                PilotMode::OnFoot if p.waiting.is_none() && p.distance_to_stair(&a) < 2.5 => Actions {
-                    use_pressed: true,
-                    ..default()
-                },
-                PilotMode::OnFoot if p.waiting.is_none() => walk_to(p, a.ladder_base, 0.2),
-                PilotMode::OnFoot => walk_to(p, a.ladder_base + Vec3::Y, 0.45),
-                _ => Actions::default(),
-            };
+            act = board(p, access.0.as_ref());
             next = p.mode == PilotMode::Seated;
         }
         // Stand up and stride down the street.
@@ -364,16 +379,7 @@ fn play_fight(
             next = t > 3.5;
         }
         2 => {
-            let a = access.0.unwrap();
-            act = match p.mode {
-                PilotMode::OnFoot if p.waiting.is_none() && p.distance_to_stair(&a) < 2.5 => Actions {
-                    use_pressed: true,
-                    ..default()
-                },
-                PilotMode::OnFoot if p.waiting.is_none() => walk_to(p, a.ladder_base, 0.2),
-                PilotMode::OnFoot => walk_to(p, a.ladder_base + Vec3::Y, 0.45),
-                _ => Actions::default(),
-            };
+            act = board(p, access.0.as_ref());
             next = p.mode == PilotMode::Seated;
         }
         // Stand and walk out toward them.
@@ -426,6 +432,7 @@ fn play_fight(
                 target,
                 target_vel,
                 muzzle_speed_m_s: 1100.0,
+                drop: true,
                 health: 1.0,
                 hit,
                 allies: &[],
@@ -433,12 +440,7 @@ fn play_fight(
                 cover: &cover,
             };
             let o = brain.orders(m, &view, time.delta_secs());
-            act.throttle_axis = o.controls.throttle_axis;
-            act.turn_axis = o.controls.turn_axis;
-            act.look_delta_deg = o.controls.aim_delta_deg;
-            act.lift_axis = o.controls.lift_axis;
-            act.mode_request = o.controls.mode_request;
-            act.fire = o.fire;
+            play_orders(&o, &mut act);
             if beat == 4 && alive.is_empty() && t > 2.0 || t > 100.0 {
                 next = true;
                 take.brain = None;
@@ -481,4 +483,187 @@ fn play_fight(
         take.beat += 1;
         take.beat_started_s = now;
     }
+}
+
+/// The orders of an AI brain flying the player's mech, played as the player's actions.
+fn play_orders(o: &cb_core::ai::Orders, act: &mut Actions) {
+    act.throttle_axis = o.controls.throttle_axis;
+    act.turn_axis = o.controls.turn_axis;
+    act.look_delta_deg = o.controls.aim_delta_deg;
+    act.lift_axis = o.controls.lift_axis;
+    act.mode_request = o.controls.mode_request;
+    act.fire = o.fire;
+}
+
+/// The defence take's beats: travel to each wave and fight it.
+const DEFENCE_BEATS: [&str; 12] = [
+    "load", "look", "board", "stand", "travel1", "fight1", "travel2", "fight2", "travel3", "fight3", "result", "end",
+];
+
+/// The city defence (openspec change `city-defence`): board, then for each wave skate out to the
+/// attacked city and fight the raiders one by one, the nearest first, with the enemies' own brain
+/// played as the player's actions, until the mission is won or lost.
+#[allow(clippy::too_many_arguments)]
+fn play_defence(
+    mut take: ResMut<Take>,
+    mut acc: ResMut<InputAccum>,
+    pilot: Res<PilotSim>,
+    access: Res<MechAccessNow>,
+    me: Query<(&MechSim, &crate::mech::MechSpec), With<Piloted>>,
+    raiders: Query<(&MechSim, &crate::defence::Raider)>,
+    run: Res<crate::defence::DefenceRun>,
+    data: Res<crate::sim::Data>,
+    plan: Res<Plan>,
+    live: Res<Live>,
+    time: Res<Time<Real>>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    use cb_core::mission::Phase;
+    let now = time.elapsed_secs();
+    let t = now - take.beat_started_s;
+    let mut next = false;
+    let p = &pilot.curr;
+    let Some((sim, spec)) = me.iter().next() else { return };
+    let m = &sim.curr;
+    let eye = m.pos + Vec3::Y * 9.6;
+    let cfg = &data.0.defence;
+    let mut act = Actions::default();
+    let over = matches!(run.state.phase, Phase::Won | Phase::Lost(_));
+    match take.beat {
+        0 => {
+            if t > 5.0 && access.0.is_some() {
+                say("PLAYTEST_READY defence");
+                say("PLAYTEST_START defence");
+                next = true;
+            }
+        }
+        1 => {
+            act.look_delta_deg = Vec2::new(
+                if t < 1.5 {
+                    -0.4
+                } else if t < 3.0 {
+                    0.4
+                } else {
+                    0.0
+                },
+                0.0,
+            );
+            next = t > 3.5;
+        }
+        2 => {
+            act = board(p, access.0.as_ref());
+            next = p.mode == PilotMode::Seated;
+        }
+        3 => {
+            act.throttle_axis = throttle_to(m, 0.5);
+            next = t > 4.0;
+        }
+        // Travel to wave w (beat 4 + 2w), then fight it (beat 5 + 2w).
+        4..=9 if !over => {
+            let w = (take.beat - 4) / 2;
+            let fighting = (take.beat - 4) % 2 == 1;
+            let wave = run.state.wave().unwrap_or(w);
+            if wave > w {
+                // The wave is cleared: on to the next city.
+                take.beat = 4 + 2 * wave;
+                take.beat_started_s = now;
+                take.brain = None;
+                acc.script = Some(act);
+                return;
+            }
+            let here = Vec2::new(m.pos.x, m.pos.z);
+            let nearest = raiders
+                .iter()
+                .filter(|(r, x)| x.wave == w && !r.dead)
+                .min_by(|a, b| a.0.curr.pos.distance(m.pos).total_cmp(&b.0.curr.pos.distance(m.pos)))
+                .map(|(r, _)| r.curr);
+            let city = &plan.cities[cfg.cities[w] as usize];
+            let goal = nearest.map_or(city.centre, |r| Vec2::new(r.pos.x, r.pos.z));
+            let d = here.distance(goal);
+            if !fighting {
+                // Skate when far (the budget allowing), walk the last stretch, torso ahead.
+                let want = d > 500.0 && !m.skate.locked;
+                act.skate_toggle = want != m.skates_on;
+                act.turn_axis = steer(m, goal);
+                let hold = nearest.is_none() && d < city.half_size_m * 0.5;
+                act.throttle_axis = throttle_to(m, if hold { 0.0 } else { 1.0 });
+                act.look_delta_deg = aim(m, 0.0, -0.03);
+                next = nearest.is_some() && d < 450.0;
+            } else if let Some(target) = nearest {
+                act.skate_toggle = m.skates_on;
+                let brain = take.brain.get_or_insert_with(|| {
+                    cb_core::ai::AiPilot::new(
+                        cb_core::ai::Skill {
+                            aim_noise_deg: 0.3,
+                            fire_error_deg: 3.5,
+                            range_m: 140.0,
+                            hop_chance: 0.3,
+                            ..Default::default()
+                        },
+                        cb_core::rng::SimRng::new(plan.seed).fork("player"),
+                    )
+                });
+                let clear = |a: Vec3, b: Vec3| crate::mech::line_clear(&plan, &live, a, b);
+                let cover = |me: Vec3, threat: Vec3| crate::mech::cover_point(&plan, &live, me, threat);
+                let view = cb_core::ai::View {
+                    eye,
+                    target: target.pos,
+                    target_vel: Vec3::new(target.vel.x, target.vel_y_m_s, target.vel.y),
+                    muzzle_speed_m_s: spec.weapons.first().map_or(1100.0, |w| w.speed_m_s),
+                    drop: true,
+                    health: crate::mech::torso_health(sim, spec),
+                    hit: sim.took_hit,
+                    allies: &[],
+                    clear: &clear,
+                    cover: &cover,
+                };
+                let o = brain.orders(m, &view, time.delta_secs());
+                play_orders(&o, &mut act);
+            }
+        }
+        4..=9 => {
+            take.beat = 10;
+            take.beat_started_s = now;
+        }
+        10 => {
+            act.throttle_zero = t < 0.1;
+            if t > 3.0 {
+                let line = match run.state.phase {
+                    Phase::Won => format!(
+                        "PLAYTEST_RESULT win defence: all {} raiders destroyed, {}",
+                        cfg.raiders_per_wave as usize * cfg.cities.len(),
+                        damage_summary(&run.damage, cfg)
+                    ),
+                    Phase::Lost(why) => format!(
+                        "PLAYTEST_RESULT lose defence: {}, {}",
+                        crate::defence::loss_text(why),
+                        damage_summary(&run.damage, cfg)
+                    ),
+                    _ => "PLAYTEST_RESULT lose defence: the take ended early".into(),
+                };
+                say(&line);
+                next = true;
+            }
+        }
+        11 if t > 2.0 => {
+            say("PLAYTEST_END defence");
+            exit.write(AppExit::Success);
+            next = true;
+        }
+        _ => {}
+    }
+    acc.script = Some(act);
+    if next {
+        take.beat += 1;
+        take.beat_started_s = now;
+    }
+}
+
+/// `city 1 23 %, city 2 8 %, city 3 31 %`.
+fn damage_summary(damage: &[f32], cfg: &cb_core::mission::DefenceConfig) -> String {
+    cfg.cities
+        .iter()
+        .map(|c| format!("city {} {:.0} %", c + 1, damage.get(*c as usize).copied().unwrap_or(0.0) * 100.0))
+        .collect::<Vec<_>>()
+        .join(", ")
 }

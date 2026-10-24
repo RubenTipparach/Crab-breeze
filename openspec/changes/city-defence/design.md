@@ -13,8 +13,8 @@ All numbers are the defaults in `data/missions/defence.ron`; the code holds none
 | 3 | 2 | (-1020, -1260) | 338 m | 243 | 37 744 | 1 563 m |
 
 A cell is 6 m x 6 m x one storey (`building-destruction`). At the mech's top walking speed
-(7 m/s) the 1.3-1.6 km between cities is 3-4 minutes; on jets (60 m/s, limited by heat) under a
-minute of flying in hops.
+(12 m/s since `boost-and-skate`) the 1.3-1.6 km between cities is about 2 minutes; the skates
+(40 s of drive, then a recharge) cover most of it faster.
 
 ## 2. The rules (`cb-core::mission::Defence`)
 
@@ -92,9 +92,11 @@ It plays fair, through the player's actions only. Beats:
 | `load` | waits 5 s for shaders |
 | `look` | looks along the street |
 | `board` | walks to the stair, presses Use, is carried in, is seated (the one shared boarding beat) |
-| `travel` | heads for the attacked city's spawn side: on jets in hops while their heat is under 0.85, walking between hops; within 500 m of the nearest raider, on to `fight` |
-| `fight` | the enemies' brain on the nearest live raider of the wave, its orders as actions (as in the city fight take); when the wave is cleared, `travel` to the next |
-| `end` | prints `PLAYTEST_RESULT win` or `PLAYTEST_RESULT lose <why>`, then `PLAYTEST_END` |
+| `travel1-3` | heads for the nearest raider of the wave (or the attacked city before it appears): skates on while it is over 500 m away and the skates have budget, walking otherwise; within 450 m, on to `fight` |
+| `fight1-3` | the enemies' brain on the nearest live raider of the wave, its orders as actions (as in the city fight take); when the wave is cleared, on to the next `travel` |
+| `result`, `end` | prints `PLAYTEST_RESULT win` or `PLAYTEST_RESULT lose <why>`, then `PLAYTEST_END` |
+
+`--bench defence` reports frame time by these beats.
 
 ## 6. The cockpit readout
 

@@ -395,7 +395,11 @@ pub fn raider_goal(i: usize, raiders: &[RaiderView], pilot: Vec3, cfg: &DefenceC
         .enumerate()
         .filter(|(j, r)| *j != i && d(r) < cfg.engage_player_m && (d(r) < d(&me) || (d(r) == d(&me) && *j < i)))
         .count();
-    if closer < cfg.max_on_player as usize { Goal::Pilot } else { Goal::City }
+    if closer < cfg.max_on_player as usize {
+        Goal::Pilot
+    } else {
+        Goal::City
+    }
 }
 
 /// Where a raider shelling city `city` aims from `from`: the nearest standing building's wall point
@@ -447,10 +451,24 @@ mod tests {
     }
 
     fn fighting(d: &mut Defence, c: &DefenceConfig) {
-        d.step(c, &Situation { seated: true, ..Default::default() }, 0.1);
+        d.step(
+            c,
+            &Situation {
+                seated: true,
+                ..Default::default()
+            },
+            0.1,
+        );
         let mut started = None;
         for _ in 0..1000 {
-            if let Some(e) = d.step(c, &Situation { seated: true, ..Default::default() }, 0.1) {
+            if let Some(e) = d.step(
+                c,
+                &Situation {
+                    seated: true,
+                    ..Default::default()
+                },
+                0.1,
+            ) {
                 started = Some(e);
                 break;
             }
@@ -470,7 +488,10 @@ mod tests {
         };
         assert_eq!(d.step(&c, &all, 0.1), Some(Event::WaveCleared(0)));
         assert!(matches!(d.phase, Phase::Lull { wave: 1, .. }));
-        let quiet = Situation { seated: true, ..Default::default() };
+        let quiet = Situation {
+            seated: true,
+            ..Default::default()
+        };
         let mut t = 0.0;
         loop {
             t += 0.1;
@@ -579,7 +600,10 @@ mod tests {
         let want = cells as f32 / total as f32;
         assert!((city_damage(p, &s, 0) - want).abs() < 1e-6);
         let buildings = p.buildings.iter().filter(|x| x.city == 0).count();
-        assert!(want > 1.0 / buildings as f32, "the tallest tower counts more than one building's share");
+        assert!(
+            want > 1.0 / buildings as f32,
+            "the tallest tower counts more than one building's share"
+        );
         assert_eq!(city_damage(p, &s, 1), 0.0, "other cities are untouched");
     }
 
@@ -604,7 +628,10 @@ mod tests {
             for (pt, heading) in pts {
                 assert!(pt.x.abs() <= inside && pt.y.abs() <= inside, "wave {w}: {pt}");
                 assert!(p.water_at(pt.x, pt.y).is_none(), "wave {w}: {pt} is wet");
-                assert!(pt.distance(city.centre) > city.half_size_m, "wave {w}: {pt} starts outside the city");
+                assert!(
+                    pt.distance(city.centre) > city.half_size_m,
+                    "wave {w}: {pt} starts outside the city"
+                );
                 let facing = Vec2::new(-heading.sin(), -heading.cos());
                 assert!(facing.dot((city.centre - pt).normalize()) > 0.99, "faces the city");
             }
@@ -639,7 +666,10 @@ mod tests {
             })
             .unwrap();
         let wall = Vec2::new(aim.x, aim.z).clamp(b.footprint.min, b.footprint.max);
-        assert!((wall.distance(Vec2::new(aim.x, aim.z)) - c.facade_out_m).abs() < 0.01, "just outside its wall");
+        assert!(
+            (wall.distance(Vec2::new(aim.x, aim.z)) - c.facade_out_m).abs() < 0.01,
+            "just outside its wall"
+        );
     }
 
     #[test]

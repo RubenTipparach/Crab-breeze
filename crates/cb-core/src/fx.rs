@@ -8,7 +8,7 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 
 /// Every recipe the game asks for. A file without one of these stops startup.
-pub const RECIPES: [&str; 18] = [
+pub const RECIPES: [&str; 20] = [
     "muzzle_autocannon",
     "muzzle_cannon",
     "muzzle_rocket",
@@ -23,6 +23,8 @@ pub const RECIPES: [&str; 18] = [
     "foot_dust",
     "foot_spray",
     "jet_flame",
+    "skate_grit",
+    "skate_spray",
     "wall_smash",
     "tree_fall",
     "part_lost",
@@ -257,7 +259,9 @@ mod tests {
 
     #[test]
     fn a_missing_recipe_stops_startup_naming_it() {
-        let e = parse_ron::<FxConfig>("(recipes: {})", Path::new("data/fx/fx.ron")).unwrap_err().to_string();
+        let e = parse_ron::<FxConfig>("(recipes: {})", Path::new("data/fx/fx.ron"))
+            .unwrap_err()
+            .to_string();
         assert!(e.contains("data/fx/fx.ron") && e.contains("muzzle_autocannon"), "{e}");
     }
 
