@@ -19,6 +19,11 @@ with 29 % of their frames at 5-10 ms, show it is not.)
 
 ## Findings
 
+0. **60 fps: yes on average, not on every frame.** City combat averaged 66 fps and the demolition
+   59.9 fps. The median frame is 16.2-16.7 ms (60 fps). The slowest 5 % of frames take about 18 ms
+   (55 fps), the slowest 1 % 21-27 ms (37-48 fps), and there are freezes: one a run of about 80 ms
+   while shelling (once 773 ms), and 21 over 50 ms across the two combat runs. The 120 fps target
+   is missed: only 1 % of demolition frames and 29 % of combat frames are under 8.3 ms.
 1. **The demolition misses 120 fps almost every frame.** Only 1 % of its frames made the 8.3 ms
    slot. p50 16.65 ms, p95 18.65 ms, p99 20.90 ms (spread 0.12 ms over 3 runs), peak memory
    1222 MB. Over the p95 budget (8.3 ms); the p99 budget (16.7 ms) is missed by 4 ms.
