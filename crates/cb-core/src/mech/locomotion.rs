@@ -28,6 +28,9 @@ impl LocomotionMode {
     }
 }
 
+/// Height above the ground or a roof within which the mech counts as touching it.
+const GROUND_TOUCH_M: f32 = 0.5;
+
 /// A limited feature's budget (boosters, skates): heat is the share used, 0 full to 1 empty.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Budget {
@@ -91,8 +94,10 @@ pub struct MechControls {
     pub view_yaw_rad: f32,
     /// How far up the pilot looks (radians, up positive): boosting forward climbs or dives with it.
     pub view_pitch_rad: f32,
-    /// Skates toggled this step.
+    /// Skates toggled this step (taken only on the ground).
     pub skate_toggle: bool,
+    /// The skate key held: in the air, a horizontal boost along the view (WASD, forward if none).
+    pub dash: bool,
 }
 
 impl MechControls {
@@ -110,6 +115,7 @@ impl MechControls {
             view_yaw_rad: 0.0,
             view_pitch_rad: 0.0,
             skate_toggle: a.skate_toggle,
+            dash: a.dash,
         }
     }
 }
@@ -210,9 +216,11 @@ impl MechState {
         let (loco, gait, jet, sk) = (&cfg.locomotion, &cfg.gait, &cfg.jet, &cfg.skate);
         let legs_left = 2 - self.legs_lost.iter().filter(|l| **l).count();
 
-        // Skates on and off (a toggle, survey M5); they need both legs and a budget.
+        // Skates on and off (a toggle, survey M5), on the ground only; they need both legs and a
+        // budget. In the air the same key is a horizontal boost.
+        let on_ground = self.pos.y - ground.support_at(self.pos.x, self.pos.z, self.pos.y) < GROUND_TOUCH_M;
         let skate_asked = c.skate_toggle || c.mode_request == Some(ModeRequest::Skate);
-        if skate_asked {
+        if skate_asked && on_ground {
             self.skates_on = !self.skates_on;
         }
         if c.mode_request == Some(ModeRequest::Walk) {
@@ -222,8 +230,9 @@ impl MechState {
             self.skates_on = false;
         }
 
-        // Boosters fire while boost is held and they are not locked out.
-        self.boosting = c.lift_axis > 0.0 && !self.boost.locked;
+        // Boosters fire while boost is held, or the skate key in the air, and they are not locked out.
+        let dash = c.dash && !on_ground;
+        self.boosting = (c.lift_axis > 0.0 || dash) && !self.boost.locked;
         if self.boosting {
             self.mode = LocomotionMode::Jet;
         } else if self.mode != LocomotionMode::Jet {
@@ -251,10 +260,16 @@ impl MechState {
         self.heading_rad = (self.heading_rad + self.turn_rate_rad_s * dt_s).rem_euclid(std::f32::consts::TAU);
         let fwd = flat_forward(self.heading_rad);
 
-        // Boosting in a direction flies along the view, pitch included.
-        let ask = c.move_xy.clamp_length_max(1.0);
+        // Boosting in a direction flies along the view, pitch included; a dash is level, forward
+        // unless a direction is asked.
+        let mut ask = c.move_xy.clamp_length_max(1.0);
+        if dash && ask == Vec2::ZERO {
+            ask = Vec2::Y;
+        }
         let thrusting = self.boosting && ask != Vec2::ZERO;
-        let pitch = if c.view_pitch_rad.is_finite() {
+        let pitch = if dash {
+            0.0
+        } else if c.view_pitch_rad.is_finite() {
             c.view_pitch_rad.clamp(-FRAC_PI_2, FRAC_PI_2)
         } else {
             0.0
@@ -572,6 +587,50 @@ mod tests {
         run(&mut m, c, 5.0, &FlatGround::default());
         assert!(m.pos.y > 50.0, "climbed: {}", m.pos.y);
         assert!(m.pos.z < -100.0, "and went forward: {}", m.pos);
+    }
+
+    #[test]
+    fn the_skate_key_in_the_air_dashes_level_and_does_not_toggle_skates() {
+        let mut m = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        let hop = MechControls {
+            lift_axis: 1.0,
+            ..Default::default()
+        };
+        run(&mut m, hop, 2.0, &FlatGround::default());
+        let start = m.pos;
+        let dash = MechControls {
+            dash: true,
+            skate_toggle: true,
+            ..Default::default()
+        };
+        run(&mut m, dash, 1.0 / 60.0, &FlatGround::default());
+        assert!(!m.skates_on, "no skates in the air");
+        let dash = MechControls {
+            dash: true,
+            ..Default::default()
+        };
+        run(&mut m, dash, 4.0, &FlatGround::default());
+        assert!(m.pos.z < start.z - 100.0, "dashed forward: {} from {start}", m.pos);
+        assert!(m.pos.y > start.y, "held up by the boosters: {} from {start}", m.pos);
+        assert!(m.vel_y_m_s.abs() < 1.0, "level: {}", m.vel_y_m_s);
+    }
+
+    #[test]
+    fn the_skate_key_on_the_ground_toggles_skates_and_does_not_boost() {
+        let mut m = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        let press = MechControls {
+            dash: true,
+            skate_toggle: true,
+            ..Default::default()
+        };
+        run(&mut m, press, 1.0 / 60.0, &FlatGround::default());
+        assert!(m.skates_on);
+        let held = MechControls {
+            dash: true,
+            ..Default::default()
+        };
+        run(&mut m, held, 2.0, &FlatGround::default());
+        assert!(!m.boosting && m.boost.heat == 0.0, "holding it on the ground burns no boost");
     }
 
     #[test]

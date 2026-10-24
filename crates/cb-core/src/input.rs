@@ -55,6 +55,8 @@ pub struct Actions {
     pub fire: [bool; 2],
     /// Skates toggled this step.
     pub skate_toggle: bool,
+    /// The skate key held: in the air it fires the boosters horizontally.
+    pub dash: bool,
 }
 
 impl Actions {

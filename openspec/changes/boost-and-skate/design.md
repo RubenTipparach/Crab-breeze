@@ -14,7 +14,11 @@ staggered 1.6 m, no stepping. Boosters: Space alone rises (lift 28 m/s2 against 
 looks, pitch included (owner, 2026-10-24: "I need some mobility so I can explore the world around
 me"): the jets carry the mech's weight, the horizontal part of the view pushes at 30 m/s2 up to
 45 m/s, and the climb rate eases toward `sin(pitch) x 40 m/s` at 30 m/s2. A level look flies level
-(a fast dash along the ground), a look up climbs, a look down dives. Air drag 0.3 per second
+(a fast dash along the ground), a look up climbs, a look down dives. The skate key (Shift) toggles
+the skates only while touching the ground or a roof (within 0.5 m); held in the air it fires the
+boosters level, along WASD on the view's heading or forward without a direction (owner,
+2026-10-24: "skates dont activate unless I'm touching ground, otherwise shift should give me
+horizontal boost"). Air drag 0.3 per second
 without thrust.
 
 ## Open questions

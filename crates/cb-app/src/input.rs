@@ -254,6 +254,7 @@ fn take_step_actions(
                     .clone()
                     .map(|(k, m)| any(&input, &k) || mouse.any_pressed(m.iter().copied())),
                 free_look: any(&input, &keys.free_look),
+                dash: any(&input, &keys.skate),
                 ..default()
             }
         }

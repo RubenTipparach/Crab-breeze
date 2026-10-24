@@ -352,7 +352,7 @@ fn update_hud(
     for (r, mut t, mut c) in &mut readouts {
         let (s, colour) = match r {
             Readout::Boost => fmt_budget(
-                "BOOST [Space]",
+                "BOOST [Space, Shift in air]",
                 m.boost.heat,
                 m.boost.locked,
                 jet.burn_s,
