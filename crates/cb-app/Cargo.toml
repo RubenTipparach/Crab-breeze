@@ -12,7 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 cb-core.workspace = true
-bevy.workspace = true
+bevy = { workspace = true, features = ["jpeg"] }
 
 [lints]
 workspace = true
