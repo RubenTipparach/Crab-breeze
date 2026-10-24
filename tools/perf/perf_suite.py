@@ -15,6 +15,8 @@ Scenarios (each ends itself):
     world   the world take: walk to the mech, board, the street, rockets and skates, the river,
             the wood, shells, damage
     fight   the city fight: the player's mech against the raiders
+    defence the combat test from the desktop session (`--showcase defence`): defend a city against
+            waves of enemies, three fights
 
 Variants are `name|exe|ENV=1;ENV2=2|root` (all but the name optional). `root` is the checkout
 whose `data/` and `assets/` that exe reads (`CB_ROOT`): an old build runs with its own data. For
@@ -42,7 +44,7 @@ import sys
 import time
 from pathlib import Path
 
-SCENARIOS = {"world": ["--bench", "world"], "fight": ["--bench", "fight"]}
+SCENARIOS = {"world": ["--bench", "world"], "fight": ["--bench", "fight"], "defence": ["--bench", "defence"]}
 DONE = "BENCH all"
 WANT_MS = 1000 / 120
 FLOOR_MS = 1000 / 60
@@ -306,7 +308,7 @@ def plot(results: list[dict], a) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--scenarios", default="world,fight")
+    ap.add_argument("--scenarios", default="world,fight,defence")
     ap.add_argument("--variant", action="append", help="name|exe|ENV=1;ENV2=2|root (repeatable)")
     ap.add_argument("--exe", default="target/release/crab-breeze", help="the exe of a variant that names none")
     ap.add_argument("--repeats", type=int, default=2)

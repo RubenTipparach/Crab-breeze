@@ -1,0 +1,15 @@
+// The sealed cockpit's own light (openspec/changes/cockpit-lighting): its lamps and its screens,
+// never the sun or a flash outside. Screen positions are from the pilot's eye: x right, y up,
+// z back (so -1.2 is 1.2 m ahead).
+(
+    cabin_ambient_colour: (0.9, 0.82, 0.72),
+    cabin_ambient_cd_m2: 120.0,
+    screen_lumens: 200.0,
+    screen_range_m: 4.0,
+    screen_tint: (0.75, 0.88, 1.0),
+    screens_m: [(0.0, 0.0, -1.2), (-1.0, 0.0, -0.6), (1.0, 0.0, -0.6)],
+    // The screens' cube map (task 2.1): the world drawn round the eye, one face a frame, filtered
+    // into the cabin's light. 0 px turns it off.
+    screens_cube_px: 64,
+    screens_cube_cd_m2: 400.0,
+)

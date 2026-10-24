@@ -7,15 +7,19 @@ mod buildings;
 mod capture;
 mod cli;
 mod combat;
+mod defence;
 mod fx;
 mod ground;
 mod hud;
 mod input;
 mod mech;
+mod particles;
 mod physics;
 mod pilot;
+mod screens_cube;
 mod showcase;
 mod sim;
+mod targeting;
 mod textures;
 mod water_render;
 mod world;
@@ -76,6 +80,7 @@ fn main() -> AppExit {
         world::WorldPlugin,
         mech::MechPlugin,
         pilot::PilotPlugin,
+        particles::ParticlesPlugin,
         fx::FxPlugin,
         blast::BlastPlugin,
         combat::CombatPlugin,
@@ -83,14 +88,21 @@ fn main() -> AppExit {
         physics::DebrisPhysicsPlugin,
         hud::HudPlugin,
         water_render::WaterRenderPlugin,
+        targeting::TargetingPlugin,
+        screens_cube::ScreensCubePlugin,
     ));
+    if args.defending() {
+        app.add_plugins(defence::DefencePlugin);
+    }
     if let Some(dir) = args.stills {
         app.add_plugins(capture::StillsPlugin { dir });
     } else if let Some(take) = args.showcase.clone().or(args.bench.clone()) {
-        app.add_plugins(showcase::ShowcasePlugin { fight: take == "fight" });
+        app.add_plugins(showcase::ShowcasePlugin { take });
     }
     if args.bench.is_some() {
         app.add_plugins(bench::BenchPlugin);
+    } else {
+        app.add_plugins(sim::FrameCapPlugin);
     }
     app.run()
 }
