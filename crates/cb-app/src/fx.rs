@@ -155,9 +155,39 @@ impl Plugin for FxPlugin {
                     fade_stars,
                     attach_streams,
                     switch_streams,
+                    warm_up,
                 ),
             );
     }
+}
+
+/// Plays every recipe once behind the loading screen, in view but under the ground, so each
+/// effect's shaders and pipelines are built before the take starts instead of at the first
+/// explosion of its kind mid-fight.
+fn warm_up(
+    ready: Res<crate::loading::GameReady>,
+    data: Res<Data>,
+    camera: Query<&GlobalTransform, With<PilotCamera>>,
+    mut fx: MessageWriter<Fx>,
+    mut frames: Local<u32>,
+) {
+    if ready.0 || *frames > 30 {
+        return;
+    }
+    *frames += 1;
+    if *frames != 30 {
+        return;
+    }
+    let Ok(eye) = camera.single() else { return };
+    // 200 m out and 100 m down: inside the view, hidden by the ground.
+    let at = eye.translation() + eye.forward().with_y(0.0).normalize_or(Vec3::NEG_Z) * 200.0 - Vec3::Y * 100.0;
+    let names: Vec<&'static str> = cb_core::fx::RECIPES.to_vec();
+    for name in names {
+        if data.0.fx.recipes.contains_key(name) {
+            fx.write(Fx::new(name, at));
+        }
+    }
+    info!("fx: warmed up {} recipes behind the loading screen", data.0.fx.recipes.len());
 }
 
 /// A body that plays a recipe as a continuous stream (`FxConfig::stream_per_s`): one emitter per

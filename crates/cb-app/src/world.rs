@@ -460,10 +460,12 @@ fn spawn_sun(mut commands: Commands, data: Res<Data>, mut media: ResMut<Assets<b
             ..default()
         },
         Transform::from_rotation(Quat::from_euler(EulerRot::YXZ, 0.8, -0.75, 0.0)),
+        // Three cascades to 500 m (were four to 900 m): shadows cost about 2 ms of a combat frame
+        // (2026-10-24), and past 500 m the fog and haze carry the depth.
         CascadeShadowConfigBuilder {
-            num_cascades: 4,
+            num_cascades: 3,
             first_cascade_far_bound: 40.0,
-            maximum_distance: 900.0,
+            maximum_distance: 500.0,
             ..default()
         }
         .build(),
@@ -633,7 +635,7 @@ struct TreeEntities {
     tiles: BTreeMap<(u32, u32), TileDraw>,
     /// The tile each drawn tree belongs to.
     tile_of: HashMap<u32, (u32, u32)>,
-    /// Falling trees, drawn one entity each until they land.
+    /// Felled trees, falling or lying, drawn one entity each (left out of their tile's mesh).
     moving: HashMap<u32, Entity>,
     species: Vec<Handle<Mesh>>,
     geometry: Arc<Vec<TreeGeometry>>,
@@ -821,7 +823,8 @@ fn keep_trees(mut live: ResMut<Live>, plan: Res<Plan>, pilot: Res<crate::pilot::
     let feet = pilot.curr.feet;
     let mut bodies = vec![Vec2::new(feet.x, feet.z)];
     bodies.extend(mechs.iter().map(|m| Vec2::new(m.curr.pos.x, m.curr.pos.z)));
-    live.forest.keep_around(&plan, &bodies);
+    // The pilot first: only their eye sees the woods out to the draw radius (`keep_around_seen`).
+    live.forest.keep_around_seen(&plan, &bodies, 1);
 }
 
 /// Puts the grown tiles within the draw radius of the eye on screen as merged meshes, a few tiles a
@@ -835,6 +838,10 @@ fn show_trees(
     trees: Option<ResMut<TreeEntities>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
+    // `CB_NO_TREES=1`: no trees drawn (perf-bench switch, to measure what they cost).
+    if crate::cli::switched_off("CB_NO_TREES") {
+        return;
+    }
     let _t = crate::perf_hud::slow("show_trees");
     let Some(mut trees) = trees else { return };
     let trees = &mut *trees;
@@ -857,6 +864,18 @@ fn show_trees(
             }
         }
         trees.building.remove(&key);
+        // Fallen and falling trees drawn on their own go with their tile.
+        let loose: Vec<u32> = trees
+            .moving
+            .keys()
+            .copied()
+            .filter(|id| trees.tile_of.get(id) == Some(&key))
+            .collect();
+        for id in loose {
+            if let Some(e) = trees.moving.remove(&id) {
+                commands.entity(e).despawn();
+            }
+        }
         trees.tile_of.retain(|_, k| *k != key);
     }
     // Tiles built off the main thread go on screen a couple a frame (each is a GPU upload).
@@ -974,8 +993,8 @@ fn fell_trees(mut live: ResMut<Live>, time: Res<Time<Fixed>>, mut fx: MessageWri
     live.moved_trees.extend(landed);
 }
 
-/// A tree that starts falling leaves its tile's mesh and is drawn on its own as it falls; when it
-/// lands it goes back into its tile, which is rebuilt with it lying down.
+/// A tree that starts falling leaves its tile's mesh (one rebuild) and is drawn on its own as it
+/// falls and where it lies; it joins a tile's mesh again only when the tile is grown afresh.
 fn redraw_trees(mut commands: Commands, mut live: ResMut<Live>, trees: Option<ResMut<TreeEntities>>, mut q: Query<&mut Transform>) {
     let _t = crate::perf_hud::slow("redraw_trees");
     let Some(mut trees) = trees else { return };
@@ -1006,14 +1025,21 @@ fn redraw_trees(mut commands: Commands, mut live: ResMut<Live>, trees: Option<Re
                     }
                 }
             },
-            _ => {
-                if let Some(e) = trees.moving.remove(&id) {
-                    commands.entity(e).despawn();
+            // Landed: it stays drawn on its own where it lies, and its tile is not rebuilt again.
+            // In a fight mechs fell about 200 trees in two minutes, and rebuilding and uploading a
+            // whole tile's mesh for each landing made frames over 50 ms (2026-10-24).
+            _ => match trees.moving.get(&id) {
+                Some(e) => {
+                    if let Ok(mut t) = q.get_mut(*e) {
+                        *t = tree_transform(tree, state);
+                    }
                 }
-                if let Some(tile) = trees.tiles.get_mut(&key) {
-                    tile.dirty = true;
+                None => {
+                    if let Some(tile) = trees.tiles.get_mut(&key) {
+                        tile.dirty = true;
+                    }
                 }
-            }
+            },
         }
     }
 }

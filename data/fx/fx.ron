@@ -25,9 +25,9 @@
         // Guns. The effect's direction is the barrel's.
         "muzzle_autocannon": [
             Star(size_m: 1.4, life_s: 0.05, offset_m: 0.8),
-            // The light outlasts the 0.2 s between rounds, so a burst holds a pulsing glow instead
-            // of 50 ms flashes with dark between them, which strobed (owner, 2026-10-24).
-            Light(lumens: 1.0e6, range_m: 40.0, life_s: 0.6, colour: (1.0, 0.75, 0.45)),
+            // No point light: every gun firing kept up to 8 lights alive for the CPU to cluster each
+            // frame (2026-10-24, frame time); the flash and fire carry the muzzle. Heavy guns and
+            // blasts keep theirs.
             Burst(kind: Fire, count: 5, speed_m_s: 8.0, spread: 0.3, size_m: 0.6, life_s: 0.15, offset_m: 1.5, along_dir: true),
             Burst(kind: Smoke, count: 1, speed_m_s: 3.0, spread: 0.4, size_m: 0.8, life_s: 1.2, offset_m: 2.0, along_dir: true),
         ],
