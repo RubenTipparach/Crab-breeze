@@ -140,7 +140,10 @@ fn flare_at(uv: vec2<f32>) -> vec3<f32> {
 
     // The core and the glow.
     let core_r = flare.core.w;
-    c += flare.core.rgb * exp(-(r * r) / (core_r * core_r));
+    // The disk itself: a solid circle with a soft rim (owner: "sun should be a sizable circle like
+    // in real life"), and a little bleed past it.
+    c += flare.core.rgb * (1.0 - smoothstep(core_r * 0.82, core_r, r));
+    c += flare.core.rgb * 0.25 * exp(-(r * r) / (4.0 * core_r * core_r));
     let g = r / flare.glow.w;
     c += flare.glow.rgb * pow(1.0 / (1.0 + g * g), flare.rays.z);
 

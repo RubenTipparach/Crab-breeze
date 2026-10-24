@@ -20,8 +20,10 @@
         gain: 0.1,
 
         // The warm core and its glow.
-        core_colour: (6.0, 5.0, 3.8),
-        core_radius_h: 0.012,
+        core_colour: (60.0, 52.0, 40.0),
+        // The sun disk's radius: 0.021 screen heights is about 45 px across at 1080p, the sun as
+        // the eye reads it through glare (owner: "sun should be a sizable circle like in real life").
+        core_radius_h: 0.021,
         glow_colour: (1.0, 0.72, 0.45),
         glow_radius_h: 0.05,
         glow_power: 1.4,

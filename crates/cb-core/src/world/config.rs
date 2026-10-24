@@ -461,6 +461,12 @@ pub struct ViewConfig {
     /// The pilot's camera exposure (EV100) under the scattering sky's raw sunlight
     /// (sky-atmosphere); Bevy's default is 9.7.
     pub exposure_ev100: f32,
+    /// The sun disk's apparent diameter in degrees (sky-atmosphere). The real sun is 0.53, about
+    /// 8 px across at 1080p; it reads bigger to the eye through glare (owner, 2026-10-24: "sun
+    /// should be a sizable circle like in real life").
+    pub sun_disk_deg: f32,
+    /// The sun disk's brightness over its physical value.
+    pub sun_disk_intensity: f32,
 }
 
 impl Default for ViewConfig {
@@ -469,6 +475,8 @@ impl Default for ViewConfig {
             far_m: 40000.0,
             clear_visibility_m: 9000.0,
             exposure_ev100: 13.0,
+            sun_disk_deg: 2.0,
+            sun_disk_intensity: 2.0,
         }
     }
 }
@@ -478,6 +486,8 @@ impl Validate for ViewConfig {
         positive("view.far_m", self.far_m)?;
         positive("view.clear_visibility_m", self.clear_visibility_m)?;
         within("view.exposure_ev100", self.exposure_ev100, 0.0, 20.0)?;
+        within("view.sun_disk_deg", self.sun_disk_deg, 0.0, 20.0)?;
+        within("view.sun_disk_intensity", self.sun_disk_intensity, 0.0, 100.0)?;
         if self.clear_visibility_m > self.far_m {
             return Err("`view.clear_visibility_m` must not exceed `view.far_m`".into());
         }

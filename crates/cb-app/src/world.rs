@@ -440,7 +440,7 @@ fn spawn_buildings(
     }
 }
 
-fn spawn_sun(mut commands: Commands, mut media: ResMut<Assets<bevy::light::atmosphere::ScatteringMedium>>) {
+fn spawn_sun(mut commands: Commands, data: Res<Data>, mut media: ResMut<Assets<bevy::light::atmosphere::ScatteringMedium>>) {
     if scattering_sky() {
         // Earth's air (sky-atmosphere): Rayleigh and Mie scattering through Bevy's lookup tables.
         let air = media.add(bevy::light::atmosphere::ScatteringMedium::earth(256, 256));
@@ -468,7 +468,11 @@ fn spawn_sun(mut commands: Commands, mut media: ResMut<Assets<bevy::light::atmos
         .build(),
     ));
     if scattering_sky() {
-        sun.insert(bevy::light::SunDisk::EARTH);
+        let view = &data.0.world.view;
+        sun.insert(bevy::light::SunDisk {
+            angular_size: view.sun_disk_deg.to_radians(),
+            intensity: view.sun_disk_intensity,
+        });
     }
 }
 
