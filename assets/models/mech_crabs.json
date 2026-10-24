@@ -1,0 +1,90 @@
+{
+ "generator": "tools/blender/build_mech_blockouts.py",
+ "target_height_m": 24.0,
+ "mechs": [
+  {
+   "id": "fiddler",
+   "name": "Fiddler",
+   "what": "one big arm: a howitzer on the right, an autocannon on the left; radar and missiles, Panorama",
+   "file": "mech_blockouts/fiddler.glb",
+   "height_m": 15.96,
+   "width_m": 32.75,
+   "length_m": 36.01,
+   "tris": 7146,
+   "legs_m3": 714.3,
+   "torso_m3": 285.0,
+   "legs_over_torso": 2.51,
+   "arm_leg_clips": []
+  },
+  {
+   "id": "hermit",
+   "name": "Hermit",
+   "what": "a high shell that is a missile magazine, twin gatlings, Titan",
+   "file": "mech_blockouts/hermit.glb",
+   "height_m": 14.64,
+   "width_m": 32.15,
+   "length_m": 30.45,
+   "tris": 6898,
+   "legs_m3": 764.6,
+   "torso_m3": 342.9,
+   "legs_over_torso": 2.23,
+   "arm_leg_clips": []
+  },
+  {
+   "id": "stone",
+   "name": "Stone",
+   "what": "low and wide on four pairs of legs, two pincer cannons, rocket pods, Excavator cab",
+   "file": "mech_blockouts/stone.glb",
+   "height_m": 13.13,
+   "width_m": 36.09,
+   "length_m": 34.08,
+   "tris": 7148,
+   "legs_m3": 1357.9,
+   "torso_m3": 403.1,
+   "legs_over_torso": 3.37,
+   "arm_leg_clips": []
+  },
+  {
+   "id": "ghost",
+   "name": "Ghost",
+   "what": "light and high on long legs, two autocannons, radar and missiles, Canopy",
+   "file": "mech_blockouts/ghost.glb",
+   "height_m": 17.97,
+   "width_m": 34.22,
+   "length_m": 28.43,
+   "tris": 6495,
+   "legs_m3": 619.0,
+   "torso_m3": 202.1,
+   "legs_over_torso": 3.06,
+   "arm_leg_clips": []
+  },
+  {
+   "id": "coconut",
+   "name": "Coconut",
+   "what": "the biggest: four pairs of legs, a gatling and a pincer cannon, railgun and vertical missiles, All-view sphere",
+   "file": "mech_blockouts/coconut.glb",
+   "height_m": 15.76,
+   "width_m": 39.49,
+   "length_m": 38.46,
+   "tris": 8233,
+   "legs_m3": 2049.4,
+   "torso_m3": 510.6,
+   "legs_over_torso": 4.01,
+   "arm_leg_clips": []
+  },
+  {
+   "id": "mitten",
+   "name": "Mitten",
+   "what": "a rocket box and an autocannon for arms, a shoulder cannon and missiles, Low bank",
+   "file": "mech_blockouts/mitten.glb",
+   "height_m": 14.07,
+   "width_m": 32.75,
+   "length_m": 30.98,
+   "tris": 7055,
+   "legs_m3": 714.3,
+   "torso_m3": 299.8,
+   "legs_over_torso": 2.38,
+   "arm_leg_clips": []
+  }
+ ]
+}

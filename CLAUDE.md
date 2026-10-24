@@ -448,7 +448,11 @@ Nothing is an exception until it is listed here with its reason.
   mech boss and Uber mech stuff are some of the best in mining mike"). `tools/textures/` runs Mining
   Mike's `plating()` canvas code verbatim to make the mech textures, so the mechs carry the look of
   its bosses and Uber mechs; its normal and ORM maps are Crab Breeze's additions, derived from the
-  same canvases. Material Maker stays the source of every other material.
+  same canvases. The same generator also draws Crab Breeze's modern set, `plate`, `plateB` and `frameM` (owner,
+  2026-10-24: "rivets are kinda old school, I want more modern looking armor"): engraved seams, no rivets,
+  neutral so each mech's palette (`tools/blender/mech_palettes.py`) tints it, and the decal sheet `decals.png` (owner,
+  2026-10-24: "it should say "no step", company logo, "warning flamable" etc"): stencil markings and digits laid on
+  the mechs as quads by `Kit.decal`. Material Maker stays the source of every other material.
 - **Cockpit panels are modelled and rendered, not Material Maker graphs, and the pod's surfaces are
   baked to atlases** (owner, 2026-10-24: "Use the texturing skill we had on star crew bridge sim.
   Baked lighting with AO", then "Aim for that pbr triple a goodness that bevy provides"). A panel's

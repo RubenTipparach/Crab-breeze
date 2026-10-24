@@ -68,26 +68,27 @@ def _image(name):
     return img
 
 
-def _mat(name, color=0xffffff, tex=None, normal=None, rough=0.5, metal=0.0, emit=None, emit_k=0.0, alpha=1.0, orm=None):
+def _mat(name, color=0xffffff, tex=None, normal=None, rough=0.5, metal=0.0, emit=None, emit_k=0.0, alpha=1.0, orm=None, rgb=None):
     """A PBR material. `orm` names a plating ORM map (occlusion, roughness, metal), which then decides
-    roughness and metal in place of `rough` and `metal` (those stay for untextured parts)."""
+    roughness and metal in place of `rough` and `metal` (those stay for untextured parts). `rgb` is a flat linear
+    base colour in place of `color`: a palette colour over the plating's normal and ORM maps."""
     m = bpy.data.materials.new(name)
     m.use_nodes = True
     nt = m.node_tree
     b = nt.nodes["Principled BSDF"]
-    b.inputs["Base Color"].default_value = srgb(color) + [1.0]
+    b.inputs["Base Color"].default_value = (list(rgb) if rgb else srgb(color)) + [1.0]
     b.inputs["Roughness"].default_value = rough
     b.inputs["Metallic"].default_value = metal
     if tex:
         it = nt.nodes.new("ShaderNodeTexImage")
         it.image = _image(tex)
-        if color != 0xffffff:  # a tinted map: multiply, which glTF exports as baseColorFactor
+        if rgb or color != 0xffffff:  # a tinted map: multiply, which glTF exports as baseColorFactor
             mix = nt.nodes.new("ShaderNodeMix")
             mix.data_type = "RGBA"
             mix.blend_type = "MULTIPLY"
             mix.inputs["Factor"].default_value = 1.0
             nt.links.new(it.outputs["Color"], mix.inputs[6])
-            mix.inputs[7].default_value = srgb(color) + [1.0]
+            mix.inputs[7].default_value = (list(rgb) if rgb else srgb(color)) + [1.0]
             nt.links.new(mix.outputs[2], b.inputs["Base Color"])
         else:
             nt.links.new(it.outputs["Color"], b.inputs["Base Color"])
@@ -109,9 +110,42 @@ def scale_hex(hexv, k):
     return (min(255, int(r * k)) << 16) | (min(255, int(g * k)) << 8) | min(255, int(b * k))
 
 
-def make_mats(prefix, glow, livery, core, light=False):
-    """makeMats from the kit, one set per mech. `light` swaps the dark armour for the pale plate."""
+_DECALS = {}
+
+
+def _decal_table():
+    if not _DECALS:
+        import json
+        _DECALS.update(json.load(open(os.path.join(TEXDIR, "decals.json"))))
+    return _DECALS
+
+
+def _decal_mat(name):
+    """The decal sheet as a material: its colour, its alpha cut out (glTF MASK), single sided."""
+    m = _mat(name, tex="decals", rough=0.45)
+    nt = m.node_tree
+    b = nt.nodes["Principled BSDF"]
+    it = [n for n in nt.nodes if n.type == "TEX_IMAGE"][0]
+    nt.links.new(it.outputs["Alpha"], b.inputs["Alpha"])
+    m.surface_render_method = "DITHERED"
+    m.use_backface_culling = True
+    return m
+
+
+def make_mats(prefix, glow, livery, core, light=False, palette=None):
+    """makeMats from the kit, one set per mech. `light` swaps the dark armour for the pale plate. `palette` (a
+    mech_palettes entry) paints the modern plating (plate, plateB, frameM: engraved seams, no rivets; owner,
+    2026-10-24: "rivets are kinda old school, I want more modern looking armor") in its colours, so the detailed mech
+    wears its block-out's scheme."""
     a = "armorL" if light else "armor"
+    if palette:
+        P = palette
+        return dict(make_mats(prefix, glow, livery, core, light), decal=_decal_mat(f"{prefix}_decal"),
+                    armor=_mat(f"{prefix}_armor", rgb=P["BODY"], tex="plate", normal="plate_n", orm="plate_orm"),
+                    armor2=_mat(f"{prefix}_armor2", rgb=P["BODY2"], tex="plateB", normal="plateB_n", orm="plateB_orm"),
+                    frame=_mat(f"{prefix}_frame", tex="frameM", normal="frameM_n", orm="frameM_orm"),
+                    red=_mat(f"{prefix}_livery", rgb=P["ACCENT"], tex="plateB", normal="plateB_n", orm="plateB_orm"),
+                    dark=_mat(f"{prefix}_dark", rgb=(0.5, 0.5, 0.52), tex="frameM", normal="frameM_n", orm="frameM_orm"))
     return {
         "armor": _mat(f"{prefix}_armor", tex=a, normal=a + "_n", orm=a + "_orm"),
         "armor2": _mat(f"{prefix}_armor2", tex="armorB", normal="armorB_n", orm="armorB_orm"),
@@ -305,8 +339,9 @@ class Kit:
                     u, v = p.x, p.y
                 lp[uv].uv = ((u + ox) / S, (v + oy) / S)
 
-    def _put(self, bm, mat, p, x=0, y=0, z=0, rx=0, ry=0, rz=0, scale=None, smooth=False, own=None):
-        self._uv(bm)
+    def _put(self, bm, mat, p, x=0, y=0, z=0, rx=0, ry=0, rz=0, scale=None, smooth=False, own=None, keep_uv=False):
+        if not keep_uv:
+            self._uv(bm)
         for f in bm.faces:
             f.smooth = smooth
         L = self._T(p, x, y, z, rx, ry, rz)
@@ -370,6 +405,23 @@ class Kit:
         self._put(_tube([(a * s, b * s, c * s) for a, b, c in pts], r * s), mat or self.M["rubber"], p, 0, 0, 0, 0, 0, 0,
                   smooth=True)
 
+    def decal(self, name, p, x=0, y=0, z=0, rx=0, ry=0, rz=0, width=4.0):
+        """Crab Breeze: a water-slide decal from the decal sheet (assets/textures/mech/decals.png and its decals.json): a
+        quad facing +z, `width` kit units across, its height from its cells' shape. Place it a hair (0.05 to 0.1 units)
+        off the face it sits on, never in its plane (CLAUDE.md: no z-fighting)."""
+        D = _decal_table()
+        n = D["grid"]
+        c, r, wc, hc = D["cells"][name]
+        w = width * self.s
+        h = w * hc / wc
+        bm = bmesh.new()
+        uv = bm.loops.layers.uv.verify()
+        f = bm.faces.new([bm.verts.new(v) for v in ((-w / 2, -h / 2, 0), (w / 2, -h / 2, 0), (w / 2, h / 2, 0), (-w / 2, h / 2, 0))])
+        u0, u1, v0, v1 = c / n, (c + wc) / n, 1 - (r + hc) / n, 1 - r / n
+        for lp, q in zip(f.loops, ((u0, v0), (u1, v0), (u1, v1), (u0, v1))):
+            lp[uv].uv = q
+        self._put(bm, self.M["decal"], p, x, y, z, rx, ry, rz, keep_uv=True)
+
     # --- compositions, as in the kit
     def stripes(self, p, w, x, y, z, ry=0, hb=1.4, gap=0.75, d=0.45, rx=0, rz=0):
         g = self.g(p, x, y, z, rx, ry, rz)
@@ -384,8 +436,9 @@ class Kit:
         self.box(w * 0.86, h * 0.8, 0.2, M["glowDim"], g, 0, 0, 0.35)
         for i in range(n):
             self.box(w * 0.94, (h / n) * 0.42, 0.7, M["frame"], g, 0, -h / 2 + (i + 0.5) * h / n, 0.7, -0.55)
-        self.box(w + 0.8, 0.6, 1.2, M["frame"], g, 0, h / 2 + 0.2, 0.3)
-        self.box(w + 0.8, 0.6, 1.2, M["frame"], g, 0, -h / 2 - 0.2, 0.3)
+        # Crab Breeze: the bars stand 0.05 off the back plate's back face (CLAUDE.md: no z-fighting, ever)
+        self.box(w + 0.8, 0.6, 1.2, M["frame"], g, 0, h / 2 + 0.2, 0.35)
+        self.box(w + 0.8, 0.6, 1.2, M["frame"], g, 0, -h / 2 - 0.2, 0.35)
         return g
 
     def halo(self, p, x, y, z, size, op=0.8, color=None):
