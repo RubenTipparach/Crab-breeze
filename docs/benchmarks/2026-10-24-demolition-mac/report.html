@@ -1,0 +1,137 @@
+<title>Demolition Benchmark (Mac)</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column, a verdict strip, a per-beat chart against the two budget lines, then findings and limits. */
+:root {
+  --bg: #f3f2ee; --panel: #ffffff; --fg: #1d1f22; --muted: #5d636b; --rule: #d9d6cf;
+  --accent: #c7701a; --good: #2f7d4a; --warn: #b8860b; --bad: #b3362b; --bar: #3c5a7a; --bar2: #8aa3bd;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #16181b; --panel: #1f2226; --fg: #e7e5e0; --muted: #9aa1a9; --rule: #33373d;
+  --accent: #e8913c; --good: #5bbd7c; --warn: #e0b341; --bad: #e46a5c; --bar: #7ea3c9; --bar2: #4b6584; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #16181b; --panel: #1f2226; --fg: #e7e5e0; --muted: #9aa1a9; --rule: #33373d;
+  --accent: #e8913c; --good: #5bbd7c; --warn: #e0b341; --bad: #e46a5c; --bar: #7ea3c9; --bar2: #4b6584; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 48px; }
+main { max-width: 860px; margin: 0 auto; display: grid; gap: 28px; }
+h1, h2 { font-family: var(--display); letter-spacing: .01em; text-wrap: balance; margin: 0; }
+h1 { font-size: 2.4rem; line-height: 1.05; }
+h2 { font-size: 1.45rem; text-transform: uppercase; letter-spacing: .06em; }
+.eyebrow { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.sub { color: var(--muted); margin: 6px 0 0; max-width: 68ch; }
+.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.tile { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; display: grid; gap: 4px; }
+.tile b { font: 700 1.7rem var(--display); font-variant-numeric: tabular-nums; }
+.tile span { color: var(--muted); font-size: 13px; }
+.pill { justify-self: start; font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; color: var(--panel); }
+.pill.good { background: var(--good); } .pill.warn { background: var(--warn); } .pill.bad { background: var(--bad); }
+.callout { border-left: 4px solid var(--warn); background: var(--panel); padding: 12px 16px; border-radius: 0 6px 6px 0; }
+.callout p { margin: 0; max-width: 72ch; }
+section { display: grid; gap: 12px; }
+.chart { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; overflow-x: auto; }
+svg text { fill: var(--muted); font: 12px var(--mono); }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font: 600 12px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+td.over { color: var(--bad); font-weight: 600; }
+ol, ul { margin: 0; padding-left: 1.3em; display: grid; gap: 8px; max-width: 72ch; }
+code { font: 13px var(--mono); background: var(--rule); padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+.decide { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.option { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 14px; display: grid; gap: 6px; align-content: start; }
+.option.rec { border-color: var(--accent); }
+.option h3 { margin: 0; font: 700 1.1rem var(--display); letter-spacing: .02em; }
+.option p { margin: 0; color: var(--muted); font-size: 14px; }
+footer { color: var(--muted); font-size: 13px; }
+</style>
+
+<main>
+  <header>
+    <div class="eyebrow">Crab Breeze · building-research · c85d1de · 2026-10-24</div>
+    <h1>Demolition benchmark on the Mac</h1>
+    <p class="sub">The pilot, on foot, shells every column on one face of a 8-20 storey building, watches it fall and settle, then walks up to the rubble. Three windowed runs at 1920 x 1080 on the Apple M4 Max, nothing else running.</p>
+  </header>
+
+  <div class="strip">
+    <div class="tile"><span class="pill good">holds 60 fps</span><b>16.65 ms</b><span>p50, whole take (59.9 fps)</span></div>
+    <div class="tile"><span class="pill good">fall is smooth</span><b>19.5 ms</b><span>p99 while the building falls</span></div>
+    <div class="tile"><span class="pill bad">freeze</span><b>773 ms</b><span>worst frame, shelling (others 78-86 ms)</span></div>
+    <div class="tile"><span class="pill warn">not deterministic</span><b>144-208</b><span>cells left standing, same seed</span></div>
+  </div>
+
+  <div class="callout"><p><strong>This Mac can't answer the 8.3 ms question today.</strong> It held every run to 60 fps: main's own world take, 2.46 ms a frame earlier today, measured 16.67 ms right after these runs. Smoothness and freezes are real; whether the buildings fit the 120 fps budget needs the RTX 3070.</p></div>
+
+  <section>
+    <h2>Frame time by beat</h2>
+    <div class="chart">
+      <svg viewBox="0 0 640 260" width="100%" role="img" aria-label="p95 and p99 frame time for each beat against the 8.3 and 16.7 ms budgets">
+        <!-- scale: 0-50 ms over y 220..20 (4 px per ms) -->
+        <g stroke="var(--rule)" stroke-width="1">
+          <line x1="60" y1="220" x2="630" y2="220"/><line x1="60" y1="180" x2="630" y2="180"/><line x1="60" y1="140" x2="630" y2="140"/>
+          <line x1="60" y1="100" x2="630" y2="100"/><line x1="60" y1="60" x2="630" y2="60"/><line x1="60" y1="20" x2="630" y2="20"/>
+        </g>
+        <g text-anchor="end"><text x="52" y="224">0</text><text x="52" y="184">10</text><text x="52" y="144">20</text><text x="52" y="104">30</text><text x="52" y="64">40</text><text x="52" y="24">50 ms</text></g>
+        <line x1="60" y1="186.8" x2="630" y2="186.8" stroke="var(--good)" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <text x="628" y="200" text-anchor="end" style="fill: var(--good)">8.3 ms budget (p95)</text>
+        <line x1="60" y1="153.2" x2="630" y2="153.2" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <text x="628" y="166" text-anchor="end" style="fill: var(--warn)">16.7 ms budget (p99)</text>
+        <!-- beats: whole 21.26/24.37, shelling 20.94/46.91, fall 18.48/19.53, close 18.08/19.04 -->
+        <g>
+          <rect x="95" y="134.96" width="44" height="85.04" fill="var(--bar)"/><rect x="141" y="122.52" width="44" height="97.48" fill="var(--bar2)"/>
+          <rect x="235" y="136.24" width="44" height="83.76" fill="var(--bar)"/><rect x="281" y="32.36" width="44" height="187.64" fill="var(--bar2)"/>
+          <rect x="375" y="146.08" width="44" height="73.92" fill="var(--bar)"/><rect x="421" y="141.88" width="44" height="78.12" fill="var(--bar2)"/>
+          <rect x="515" y="147.68" width="44" height="72.32" fill="var(--bar)"/><rect x="561" y="143.84" width="44" height="76.16" fill="var(--bar2)"/>
+        </g>
+        <g text-anchor="middle"><text x="140" y="240">whole</text><text x="280" y="240">shelling</text><text x="420" y="240">fall</text><text x="560" y="240">close</text>
+          <text x="303" y="26">46.9</text></g>
+        <g><rect x="70" y="248" width="10" height="10" fill="var(--bar)"/><text x="84" y="257">p95</text><rect x="120" y="248" width="10" height="10" fill="var(--bar2)"/><text x="134" y="257">p99</text></g>
+      </svg>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Beat</th><th>p50 ms</th><th>p95 ms</th><th>p99 ms</th><th>Worst ms</th></tr></thead>
+      <tbody>
+        <tr><td>Whole building</td><td>16.67</td><td class="over">21.26</td><td class="over">24.37</td><td>25.9</td></tr>
+        <tr><td>Shelling</td><td>16.55</td><td class="over">20.94</td><td class="over">46.91</td><td class="over">772.9</td></tr>
+        <tr><td>Fall</td><td>16.64</td><td class="over">18.48</td><td class="over">19.53</td><td>23.3</td></tr>
+        <tr><td>Close (walk up to the rubble)</td><td>16.62</td><td class="over">18.08</td><td class="over">19.04</td><td>19.7</td></tr>
+      </tbody>
+    </table></div>
+    <p class="sub">Median over 3 windowed runs, first 10 s thrown away. "Over" is against the budgets, and on a machine capped at 60 fps everything is over the 8.3 ms line by construction. Offscreen runs agree: p50 16.64, p95 18.86, p99 21.83 ms. Peak memory 1.2 GB.</p>
+  </section>
+
+  <section>
+    <h2>What was found</h2>
+    <ol>
+      <li><strong>The fall itself is smooth.</strong> 780 frames of collapse with the worst at 23 ms. The structure simulation (<code>step_structures</code>) and the chunk spawning never logged a slow frame.</li>
+      <li><strong>The freezes are when the shelling starts.</strong> One frame a run of 78-86 ms, once 773 ms. No watched system was slow at that moment, so it is outside them: a first-use shader compile or the rubble's physics bodies are the suspects. Not proven yet.</li>
+      <li><strong><code>dress_near_player</code> is the slow building system.</strong> 164 slow frames over 3 runs (median 7.3 ms, worst 29 ms), 130 of them while the city loads, 34 during the take (worst 15.4 ms). <code>redraw_buildings</code> was slow once a run (5-8 ms).</li>
+      <li><strong>The building falls differently every run.</strong> Same seed, same script: 176, 144 and 208 of 216 cells left standing. The collapse depends on frame timing, which breaks the determinism rule and makes build-to-build comparison of the fall unreliable.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Decision</h2>
+    <div class="decide">
+      <div class="option rec"><span class="pill good">recommended</span><h3>Keep the buildings, fix three things</h3><p>Spread the dressing over more frames, find and kill the shelling freeze, make the collapse step-deterministic. Then measure on the RTX 3070 for the 8.3 ms verdict.</p></div>
+      <div class="option"><h3>Measure on the 3070 first</h3><p>Run <code>perf_suite.py --scenarios demolition --repeats 3 --windowed</code> on the desktop before any fix, to see the real headroom.</p></div>
+      <div class="option"><h3>Cut detail</h3><p>Shrink the 250 m dressing radius or the building count. Not supported by these numbers yet: nothing here shows the buildings' draw cost.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Limits</h2>
+    <ul>
+      <li>Apple M4 Max, not the RTX 3070 target, and capped at 60 fps for the sitting (the display was black when checked at 17:10; a 60 Hz external 4K is attached).</li>
+      <li>A shadows, grass and water-effects switch comparison was spoiled by another session's compile taking every core. Its clean early runs showed no change.</li>
+      <li>No video yet: the screen was black and two old OBS instances (open since 01:55) were still running, so the recorder never saw the game.</li>
+    </ul>
+  </section>
+
+  <footer>Files: <code>docs/benchmarks/2026-10-24-demolition-mac/</code> (report.md, suite-windowed.json, suite-offscreen.json, beats-windowed.json) on <code>building-research</code>.</footer>
+</main>
