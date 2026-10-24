@@ -133,8 +133,19 @@ fn ground_colour(p: Vec3, n: Vec3, sea_level_m: f32, wet: bool, scorch: f32, cov
 
 fn chunk_to_mesh(chunk: ChunkMesh, colors: Vec<[f32; 4]>) -> Mesh {
     let uvs: Vec<[f32; 2]> = chunk.positions.iter().map(|p| [p.x / 4.0, p.z / 4.0]).collect();
+    // The UVs are x and z, so the tangent is +x laid onto the ground; v runs along +z, which is
+    // minus n x t, hence the handedness -1 (for the grass set's normal map).
+    let tangents: Vec<[f32; 4]> = chunk
+        .normals
+        .iter()
+        .map(|n| {
+            let t = (Vec3::X - *n * n.x).normalize_or(Vec3::X);
+            [t.x, t.y, t.z, -1.0]
+        })
+        .collect();
     Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_TANGENT, tangents)
         .with_inserted_attribute(
             Mesh::ATTRIBUTE_POSITION,
             chunk.positions.iter().map(|p| p.to_array()).collect::<Vec<_>>(),
@@ -257,6 +268,7 @@ fn spawn_ground(
     tex: Res<crate::textures::Textures>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
 ) {
     let cfg = &data.0.world;
     let grass = Arc::new(data.0.grass.clone());
@@ -264,9 +276,21 @@ fn spawn_ground(
     let cells = cfg.terrain_lod.chunk_cells as usize;
     let side = (t.n - 1).div_ceil(cells);
     // One material for every node, so they all share a pipeline and batch.
+    // The ground's grass: the CC0 set (ambientCG Grass001, assets/textures/ground/grass001) with
+    // its normal and packed occlusion-roughness map; the vertex colours tint it per surface. The
+    // stand-in grass texture if the set cannot be read.
+    let root = crate::cli::repo_root().join("assets");
+    let mut tiling = |path: &str, srgb: bool| crate::pbr_set::load_tiling(&root, path, srgb).map(|i| images.add(i));
+    let albedo = tiling("textures/ground/grass001/albedo.jpg", true);
+    let normal = tiling("textures/ground/grass001/normal_gl.png", false);
+    let orm = tiling("textures/ground/grass001/orm.png", false);
     let material = materials.add(StandardMaterial {
-        base_color_texture: Some(tex.grass.clone()),
-        perceptual_roughness: 0.95,
+        base_color_texture: Some(albedo.unwrap_or_else(|| tex.grass.clone())),
+        normal_map_texture: normal,
+        occlusion_texture: orm.clone(),
+        metallic_roughness_texture: orm,
+        metallic: 0.0,
+        perceptual_roughness: 1.0,
         ..default()
     });
     // The first frame's eye: the pilot's, at the start.

@@ -17,6 +17,7 @@ mod input;
 mod loading;
 mod mech;
 mod particles;
+mod pbr_set;
 mod perf_hud;
 mod physics;
 mod pilot;

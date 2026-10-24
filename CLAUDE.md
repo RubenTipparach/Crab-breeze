@@ -450,6 +450,13 @@ Nothing is an exception until it is listed here with its reason.
   maps come from a face-on Cycles render of the modelled panel (`panel-textures`); the pod bakes its
   materials into PBR atlases with a contact occlusion pass in the ORM map, and is lit live like
   everything else. Section 10's Material Maker rule holds everywhere else.
+- **CC0 texture sets from the web, where the owner asks for them** (owner, 2026-10-24: "we need
+  better grass textures, find some online thats free and cc0", "and fully tileable"). A set from a
+  CC0 library (ambientCG, Poly Haven) may stand in for a Material Maker graph: it is checked
+  seamless by tiling 2 x 2, packed the glTF way (`orm`), loaded with a full mip chain
+  (`crates/cb-app/src/pbr_set.rs`), and its folder carries a `SOURCE.md` with the URL, the licence
+  and every change made to it. The ground's grass is ambientCG Grass001
+  (`assets/textures/ground/grass001/`).
 - **Copied skills keep their source's text** below their "In Crab Breeze" note (and its front
   matter description, retargeted), so a later copy from the source can be diffed. Where the source
   and the note disagree, the note and this file win.

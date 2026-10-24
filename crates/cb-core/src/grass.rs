@@ -758,6 +758,11 @@ pub fn meadow_start(plan: &WorldPlan, cfg: &GrassConfig, half_m: f32, reach_m: f
         for i in 0..steps {
             let a = i as f32 / steps as f32 * std::f32::consts::TAU;
             let c = origin + Vec2::new(a.cos(), a.sin()) * r;
+            // Open country, not a city park: the parks are the city's own paved and planted lots,
+            // and the terrain's grass ground is what the meadow is for.
+            if plan.cities.iter().any(|city| city.rect().distance(c) < half_m * 2.0 + 60.0) {
+                continue;
+            }
             let all = (-2..=2).all(|j| (-2..=2).all(|k| thick_at(c + Vec2::new(j as f32, k as f32) * (half_m / 2.0))));
             if all {
                 let ahead = crate::mech::forward(plan.start.mech_heading_rad);
@@ -896,6 +901,10 @@ mod tests {
         let h = plan().height_at(p.x, p.y);
         assert!(grows_at(plan(), p, h, 0.0, &cfg) >= 0.8);
         assert!((m.pilot_xz - m.mech_xz).length() > 25.0, "the pilot starts a walk away");
+        assert!(
+            plan().cities.iter().all(|c| c.rect().distance(p) > 100.0),
+            "in open country, not a city park"
+        );
     }
 
     #[test]

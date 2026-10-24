@@ -71,7 +71,10 @@
     ao_dense: 0.5,
     ao_height_share: 0.55,
     translucent_colour: (0.30, 0.60, 0.04),
-    translucency: 0.6,
+    // Off for now: the glow takes the sun's raw brightness, and under the scattering sky's raw
+    // sunlight even 0.05 burned the field white seen from the cockpit (0.6 did on foot too). To be
+    // put back scaled by the camera's exposure (gpu-grass open question).
+    translucency: 0.0,
     translucency_power: 4.0,
     roughness: 0.65,
     reflectance: 0.2,

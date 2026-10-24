@@ -14,6 +14,9 @@ path = "src/main.rs"
 cb-core.workspace = true
 bevy = { workspace = true, features = ["jpeg"] }
 avian3d = "=0.8.0"
+# Decodes the ground's CC0 texture set to build its mip chain at load (Bevy 0.20 makes none for a
+# PNG or JPEG); the same version Bevy itself uses (Cargo.lock).
+image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg"] }
 # GPU particles (openspec combat-fx section 6, survey T5): its Bevy 0.20 support is on main, not yet
 # released; pinned to the migration commit until the 0.20 release ships.
 bevy_hanabi = { git = "https://github.com/djeedai/bevy_hanabi", rev = "77630ff1eed8b104f34e91d23e9440428dc5ab01", default-features = false, features = ["3d"] }
