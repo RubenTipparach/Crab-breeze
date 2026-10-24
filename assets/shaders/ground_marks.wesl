@@ -187,17 +187,19 @@ fn vertex(in: MarkVertex) -> MarkFragment {
     out.slot = slot;
     // Into the mark's frame (the inverse of an orthonormal frame is its transpose).
     out.to_eye = transpose(f) * (eye - world);
-    var sun_dir = vec3<f32>(0.35, 0.8, 0.45);
-    if lights.n_directional_lights > 0u {
-        sun_dir = lights.directional_lights[0].direction_to_light;
-    }
-    out.sun = transpose(f) * normalize(sun_dir);
+    // The sun is read in the fragment stage: Bevy's view lights are bound for fragments only.
+    out.sun = vec3<f32>(0.0, 1.0, 0.0);
     return out;
 }
 
 @fragment
 fn fragment(in: MarkFragment) -> @location(0) vec4<f32> {
     let m = marks[in.slot];
+    var sun_dir = vec3<f32>(0.35, 0.8, 0.45);
+    if lights.n_directional_lights > 0u {
+        sun_dir = lights.directional_lights[0].direction_to_light;
+    }
+    let sun = transpose(frame(in.slot, m)) * normalize(sun_dir);
     let shape = m.kind.x;
     let paved = m.kind.y > 0.5;
     let fade = m.kind.z;
@@ -244,7 +246,7 @@ fn fragment(in: MarkFragment) -> @location(0) vec4<f32> {
     let hx = (field(uv + vec2<f32>(e, 0.0), shape, depth, lip) - field(uv - vec2<f32>(e, 0.0), shape, depth, lip)) / (2.0 * e * scl.x);
     let hz = (field(uv + vec2<f32>(0.0, e), shape, depth, lip) - field(uv - vec2<f32>(0.0, e), shape, depth, lip)) / (2.0 * e * scl.y);
     let n = normalize(vec3<f32>(-hx, 1.0, -hz));
-    let L = normalize(in.sun);
+    let L = normalize(sun);
     var shadow = 1.0;
     if L.y > 0.05 && depth + lip > 0.005 {
         let per_s = L.xz / L.y / scl;

@@ -31,6 +31,9 @@ pub struct Take {
     brain: Option<cb_core::ai::AiPilot>,
     /// The beat playing now.
     pub beat: usize,
+    /// The marks take (`--showcase marks`): after the stride it turns round and looks down at
+    /// its own footprints, then skates and looks back at the grooves (ground-marks).
+    marks: bool,
     beat_started_s: f32,
     cloud: Vec3,
     landing: Vec2,
@@ -52,7 +55,24 @@ impl Plugin for ShowcasePlugin {
                 "load", "look", "board", "stride", "rockets", "landing", "wade", "wood", "shells", "damage", "result", "end",
             ],
         };
-        app.insert_resource(Take { names, ..default() });
+        let marks = self.take == "marks";
+        let names: &'static [&'static str] = if marks {
+            &[
+                "load",
+                "look",
+                "board",
+                "stride",
+                "turn",
+                "prints",
+                "skate",
+                "turn back",
+                "grooves",
+                "end",
+            ]
+        } else {
+            names
+        };
+        app.insert_resource(Take { names, marks, ..default() });
         match self.take.as_str() {
             "fight" => app.add_systems(Update, play_fight.in_set(crate::sim::PresentSet::Input)),
             "defence" => app.add_systems(Update, play_defence.in_set(crate::sim::PresentSet::Input)),
@@ -221,8 +241,47 @@ fn play(
         }
         // Stand up and stride down the street.
         3 => {
+            if t < 0.05 {
+                take.wood = Vec2::new(m.pos.x, m.pos.z);
+            }
             act.throttle_axis = throttle_to(m, 0.8);
             next = t > 12.0;
+        }
+        // The marks take (ground-marks). The cockpit's floor hides the ground under the mech, so the
+        // pilot looks at the marks the player's way: stride, skate, stop, climb out, and walk back
+        // along the track looking down. The stride starts where beat 3 began (`take.wood`).
+        4 if take.marks => {
+            act.skate_toggle = !m.skates_on && t < 0.2;
+            act.throttle_axis = throttle_to(m, 0.7);
+            next = t > 6.0;
+        }
+        // Stop: skates off, throttle to zero, wait for the mech to stand still.
+        5 if take.marks => {
+            act.skate_toggle = m.skates_on && t < 0.2;
+            act.throttle_zero = true;
+            next = t > 2.0 && access.0.as_ref().is_some_and(|a| a.stopped);
+        }
+        // Climb out.
+        6 if take.marks => {
+            act.use_pressed = p.mode == PilotMode::Seated && t < 0.3;
+            next = p.mode == PilotMode::OnFoot && t > 1.0;
+        }
+        // Walk back along the track, looking down at the grooves and then the prints.
+        7 if take.marks => {
+            let start = Vec3::new(take.wood.x, plan.height_at(take.wood.x, take.wood.y), take.wood.y);
+            act = walk_to(p, start, -0.6);
+            act.run = true;
+            next = t > 18.0 || Vec2::new(p.feet.x, p.feet.z).distance(take.wood) < 4.0;
+        }
+        8 if take.marks => {
+            act.look_delta_deg = Vec2::new(0.0, (-0.7 - p.pitch_rad).to_degrees() * 0.1);
+            next = t > 3.0;
+        }
+        9 if take.marks => {
+            say("PLAYTEST_RESULT ok marks: strode, skated, climbed out, walked the track");
+            say("PLAYTEST_END marks");
+            exit.write(AppExit::Success);
+            next = true;
         }
         // Rockets up, skates across: climb toward the cloud, fly into it.
         4 => {

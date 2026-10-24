@@ -178,6 +178,8 @@ struct Marks {
     any_last: bool,
     /// The piloted mech's jolts.
     jolt: Jolt,
+    /// Footprints laid so far (logged every tenth, for checking a take laid them).
+    laid: u64,
 }
 
 /// Lays and draws the marks; plays the dirt and grit; jolts the pilot.
@@ -201,6 +203,7 @@ impl Plugin for GroundMarksPlugin {
                 blasts_seen: 0,
                 any_last: false,
                 jolt: Jolt::default(),
+                laid: 0,
             })
             .add_systems(
                 Update,
@@ -327,6 +330,13 @@ fn take_contacts(
                 if marks.enabled && sole.distance(eye) < cfg.lay_within_m {
                     let m = cfg.footprint(surface, sole, heading_rad, landed).on_ground(&scene);
                     marks.ring.add(m);
+                    marks.laid += 1;
+                    if marks.laid % 10 == 1 {
+                        info!(
+                            "ground marks: {} laid, the last a {surface:?} print at ({:.0}, {:.0})",
+                            marks.laid, sole.x, sole.z
+                        );
+                    }
                 }
             }
             Contact::Wheel { wheel, at, vel } => {
