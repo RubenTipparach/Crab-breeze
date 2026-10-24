@@ -33,6 +33,7 @@ Flat colours, no textures. Writes assets/models/mech_blockouts/<id>.glb and asse
 import json
 import math
 import os
+import sys
 
 import bmesh
 import bpy
@@ -41,6 +42,7 @@ from mathutils import Matrix, Vector
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(ROOT, "assets", "models", "mech_blockouts")
 MANIFEST = os.path.join(ROOT, "assets", "models", "mech_blockouts.json")
+COMBAT_MANIFEST = os.path.join(ROOT, "assets", "models", "mech_combat.json")
 G2B = Matrix(((1, 0, 0, 0), (0, 0, -1, 0), (0, 1, 0, 0), (0, 0, 0, 1)))   # glTF frame (y up, z ahead) to Blender
 V = Vector
 HEIGHT_M = 24.0
@@ -1062,6 +1064,388 @@ def sapper():
     cyl("rifle_barrel", h + V((0, 0.45, 3.4)), h + V((0, 0.45, 7.4)), 0.3, "BODY", "arms", 10)
     box("rifle_scope", h + V((0, 1.15, 1.4)), (0.4, 0.4, 1.6), "BODY2", "arms")
 
+# ----------------------------------------------------------------------------- combat mechs, built from parts
+# The owner, 2026-10-24: "I need more combat mech mockups. Your 12 mechs are mostly trash because they are random farm
+# trucks doing stuff..I want combat mechs with guns like in armored core". So these are built Armored Core's way, from
+# interchangeable parts: a pair of legs (reverse joint, biped, tracks or four legs), a core with the cockpit block-out
+# in it, a head, two arms each holding a weapon, two back units, and boosters for the skate and the jets (survey M3,
+# M4). Every part is one function and a mech is one line of COMBAT, so a new mech is a new combination, not new code.
+# The silhouettes are Crab Breeze's own: angular slab armour in field colours with a hazard accent, 1980s hardware
+# (box magazines, belt drums, missile boxes), no part copied from a game.
+
+def plate(name, c, size, mat, group, rake=0.0, yaw=0.0, roll=0.0, ch=None):
+    """An armour plate: a chamfered slab turned by rake (about x, top back), yaw (about y) and roll (about z)."""
+    R = Matrix.Rotation(yaw, 3, "Y") @ Matrix.Rotation(-rake, 3, "X") @ Matrix.Rotation(roll, 3, "Z")
+    axes = (R @ V((1, 0, 0)), R @ V((0, 1, 0)), R @ V((0, 0, 1)))
+    return chamfered(name, c, size, ch or min(0.45, min(size[0], size[2]) * 0.3), mat, group, axes)
+
+
+def nozzle(name, a, b, r, group):
+    """A booster nozzle from a (its throat) to b (its bell), the bell lit inside."""
+    a, b = V(a), V(b)
+    cyl(name, a, b, r * 0.7, "FRAME", group, 12, r2=r)
+    cyl(name + "_fire", b - (b - a).normalized() * 0.08, b, r * 0.8, "GLOW", group, 12)
+
+
+def front_of(a, b):
+    """The unit vector across a member from a to b that points ahead (+z) or, for a level one, up."""
+    _, _, n = between(a, b)
+    return n if (n.z > 0.05 or (abs(n.z) <= 0.05 and n.y > 0)) else -n
+
+
+def armoured(name, a, b, size, mat, group, outer=None, front=None):
+    """A limb member a to b with its own armour: the member, an outer side plate, and a front plate."""
+    a, b = V(a), V(b)
+    L = (b - a).length
+    ax = between(a, b)
+    chamfered(name, (a + b) / 2, (size[0], L + 0.4, size[1]), min(0.45, min(size) * 0.25), "FRAME", group, ax)
+    m = (a + b) / 2
+    if outer:
+        side = ax[0] if ax[0].x * outer > 0 else -ax[0]
+        chamfered(name + "_out", m + side * (size[0] / 2 + 0.2), (0.45, L * 0.86, size[1] * 1.12), 0.15, mat, group, ax)
+    f = front_of(a, b)
+    chamfered(name + "_front", m + f * (size[1] / 2 + 0.2), (size[0] * 1.08, L * 0.8, 0.45), 0.15, front or mat, group, ax)
+
+
+def legs_reverse(hip_y, hx, k=1.0):
+    """Reverse joint: a thigh raked forward to a high knee, a long shin back to the hock, a short foot of three claws;
+    a booster on the back of each shin (the skate's push), a skate wheel at the heel (survey M4)."""
+    hip, knee = V((0, hip_y, 0)), V((0, hip_y * 0.66, 2.5 * k))
+    hock, ball = V((0, hip_y * 0.36, -2.4 * k)), V((0, 1.2, 0.6))
+    for s in (1, -1):
+        o = V((s * hx, 0, 0))
+        H, Kn, Hk, B = hip + o, knee + o, hock + o, ball + o
+        armoured(f"thigh{s}", H, Kn, (2.5 * k, 3.0 * k), "BODY", "legs", outer=s)
+        cyl(f"hipball{s}", H - V((1.3 * k, 0, 0)), H + V((1.3 * k, 0, 0)), 1.4 * k, "FRAME", "legs", 14)
+        cyl(f"knee{s}", Kn - V((1.5 * k, 0, 0)), Kn + V((1.5 * k, 0, 0)), 1.35 * k, "FRAME", "legs", 14)
+        plate(f"kneeguard{s}", Kn + V((0, 0.9, 1.0 * k)), (2.8 * k, 3.0, 0.5), "BODY", "legs", rake=-0.35)
+        armoured(f"shin{s}", Kn, Hk, (2.1 * k, 2.5 * k), "BODY", "legs", outer=s)
+        mid = Kn.lerp(Hk, 0.55)
+        nozzle(f"calfjet{s}", mid + V((0, 0.4, -1.6 * k)), mid + V((0, -0.8, -3.0 * k)), 0.75 * k, "legs")
+        cyl(f"hock{s}", Hk - V((1.25 * k, 0, 0)), Hk + V((1.25 * k, 0, 0)), 1.05 * k, "FRAME", "legs", 12)
+        chamfered(f"meta{s}", (Hk + B) / 2, (2.1 * k, (B - Hk).length + 0.6, 2.3 * k), 0.4, "BODY", "legs", between(Hk, B))
+        for i, (dx, dz, L) in enumerate(((0.85, 1.0, 4.2), (-0.85, 1.0, 4.2), (0.0, -1.0, 2.8))):
+            d = V((dx * 0.35, 0, dz)).normalized()
+            p = B + V((dx * k, -0.6, 0)) + d * L / 2
+            box(f"claw{s}{i}", p, (1.15 * k, 1.1, L), "BODY2", "legs", ((d.z, 0, -d.x), (0, 1, 0), (d.x, 0, d.z)))
+        cyl(f"wheel{s}", B + V((-0.5, -0.25, -0.4)), B + V((0.5, -0.25, -0.4)), 0.85, "RUBBER", "legs", 14)
+
+
+def legs_biped(hip_y, hx, k=1.0):
+    """A biped: thigh, a big knee guard, a shin that flares over the ankle with a booster in its calf, a long foot with
+    the skate wheel under its heel."""
+    hip, knee, ankle = V((0, hip_y, 0)), V((0, hip_y * 0.52, 0.8)), V((0, 2.1, -0.2))
+    for s in (1, -1):
+        x = s * hx
+        o = V((x, 0, 0))
+        H, Kn, A = hip + o, knee + o, ankle + o
+        armoured(f"thigh{s}", H, Kn, (2.4 * k, 2.8 * k), "BODY", "legs", outer=s)
+        cyl(f"hipball{s}", H - V((1.3 * k, 0, 0)), H + V((1.3 * k, 0, 0)), 1.3 * k, "FRAME", "legs", 14)
+        cyl(f"knee{s}", Kn - V((1.4 * k, 0, 0)), Kn + V((1.4 * k, 0, 0)), 1.25 * k, "FRAME", "legs", 14)
+        plate(f"kneeguard{s}", Kn + V((0, 0.4, 1.5 * k)), (2.9 * k, 3.4, 0.6), "BODY", "legs", rake=0.15)
+        loft(f"shin{s}", [(A.y + 0.2, octa(x, A.z, 3.4 * k, 4.4 * k, 0.8 * k)), (A.y + 2.2, octa(x, A.z + 0.1, 3.2 * k, 4.2 * k, 0.8 * k)),
+                          (Kn.y - 1.0, octa(x, Kn.z - 0.1, 2.4 * k, 3.0 * k, 0.6 * k))], "BODY", "legs")
+        nozzle(f"calfjet{s}", V((x, A.y + 3.6, A.z - 1.9 * k)), V((x, A.y + 2.4, A.z - 3.0 * k)), 0.7 * k, "legs")
+        cyl(f"ankle{s}", A - V((1.2 * k, 0, 0)), A + V((1.2 * k, 0, 0)), 0.95 * k, "FRAME", "legs", 12)
+        chamfered(f"foot{s}", V((x, 0.6, 0.9)), (3.0 * k, 1.2, 6.4), 0.35, "BODY2", "legs")
+        box(f"toe{s}", V((x, 0.8, 4.4)), (2.7 * k, 0.9, 1.6), "BODY2", "legs", ((1, 0, 0), (0, 1, 0.6), (0, -0.6, 1)))
+        cyl(f"wheel{s}", V((x - 0.5, 0.75, -1.6)), V((x + 0.5, 0.75, -1.6)), 0.8, "RUBBER", "legs", 14)
+
+
+def legs_tank(hip_y, hx, k=1.0):
+    """Tracks: two track units under a hull, road wheels and sprockets on their outsides, skirts over them, the core
+    stood on a turret ring. hip_y is the hull's top."""
+    for s in (1, -1):
+        x = s * hx
+        chamfered(f"track{s}", (x, 1.9, 0), (2.9 * k, 3.6, 12.0), 1.2, "RUBBER", "legs", top=False)
+        for i in range(5):
+            z = -4.0 + i * 2.0
+            cyl(f"road{s}{i}", (x + s * 1.2 * k, 1.5, z), (x + s * 1.55 * k, 1.5, z), 0.85, "METAL", "legs", 12)
+        for z in (-5.2, 5.2):
+            cyl(f"sprocket{s}{z}", (x - 1.55 * k, 2.0, z), (x + 1.55 * k, 2.0, z), 1.45, "FRAME", "legs", 14)
+        plate(f"skirt{s}", (x + s * 1.75 * k, 3.0, 0), (0.4, 1.8, 10.4), "BODY", "legs")
+        box(f"skirt_band{s}", (x + s * 2.0 * k, 3.4, 3.0), (0.06, 0.5, 3.0), "ACCENT", "legs")
+    chamfered("hull", (0, hip_y - 1.5, -0.2), (2 * hx - 1.0, 3.0, 9.4), 0.6, "BODY2", "legs")
+    plate("glacis", (0, hip_y - 1.6, 4.7), (2 * hx - 1.6, 2.6, 0.5), "BODY", "legs", rake=0.9)
+    cyl("ring", (0, hip_y, -0.3), (0, hip_y + 0.8, -0.3), 3.0, "FRAME", "legs", 20)
+    for s in (1, -1):
+        nozzle(f"hulljet{s}", (s * 1.8, hip_y - 1.2, -4.8), (s * 1.8, hip_y - 1.6, -6.0), 0.8, "legs")
+
+
+def legs_quad(hip_y, hx, k=1.0):
+    """Four legs from a hull: each rises out to a high knee and comes down far out to a pad; a booster under the hull."""
+    chamfered("hull", (0, hip_y, -0.3), (2 * hx + 1.4, 3.0, 7.0), 0.6, "BODY2", "legs")
+    for sx in (1, -1):
+        for sz in (1, -1):
+            P = V((sx * hx, hip_y, sz * 2.4 - 0.3))
+            Kn = V((sx * (hx + 3.8), hip_y + 0.4, sz * 5.0 - 0.3))
+            F = V((sx * (hx + 5.0), 1.0, sz * 6.8 - 0.3))
+            n = f"{sx}{sz}"
+            cyl(f"hipball{n}", P - V((0, 1.4, 0)), P + V((0, 1.4, 0)), 1.3 * k, "FRAME", "legs", 12)
+            armoured(f"upper{n}", P, Kn, (2.4 * k, 2.6 * k), "BODY", "legs")
+            cyl(f"knee{n}", Kn - V((0, 0, 1.2)), Kn + V((0, 0, 1.2)), 1.2 * k, "FRAME", "legs", 12)
+            plate(f"kneeguard{n}", Kn + V((sx * 0.6, 1.2, 0)), (2.4, 0.5, 2.6), "BODY", "legs", roll=-sx * 0.4)
+            armoured(f"lower{n}", Kn, F, (2.3 * k, 2.5 * k), "BODY", "legs")
+            chamfered(f"pad{n}", F + V((0, -0.4, 0)), (2.8, 0.9, 2.8), 0.4, "BODY2", "legs")
+    nozzle("bellyjet", (0, hip_y - 1.4, -0.3), (0, hip_y - 2.6, -0.3), 1.0, "legs")
+
+
+def core(base_y, layout, w=6.6, h=5.2, d=5.6, rake=1.4):
+    """The core: a waist block, then the chest as a side profile extruded across, its front raked back over the
+    cockpit, the cockpit block-out in a well cut in the front so its screens show, armour layered either side of it.
+    Returns the core's measures for the parts that mount on it."""
+    chamfered("waist_c", (0, base_y + 0.8, -0.4), (w * 0.5, 1.8, d * 0.55), 0.3, "FRAME", "torso")
+    y0, zf, zb = base_y + 1.6, d / 2, -d / 2
+    prof = [(zb, y0 + 0.4), (zb + 0.4, y0), (zf - 0.5, y0), (zf + 0.2, y0 + h * 0.35), (zf - rake, y0 + h),
+            (zb + 0.6, y0 + h), (zb, y0 + h - 0.6)]
+    c = prism_x("core", prof, w / 2, "BODY", "torso")
+    for s in (1, -1):
+        boolean(c, box(f"core_corner{s}", (s * w / 2, y0 + h / 2, zf), (1.8, h * 1.4, 1.8), "BODY", "torso",
+                       ((1, 0, s), (0, 1, 0), (-s, 0, 1))), "DIFFERENCE")
+    floor = V((0, y0 + 0.55, zf - 1.15))
+    boolean(c, box("well", floor + V((0, 1.15, 1.35)), (2.7, 2.5, 2.4), "BODY2", "torso"), "DIFFERENCE")
+    pod_in(layout, tuple(floor))
+    box("sill", floor + V((0, -0.2, 1.2)), (2.9, 0.25, 0.3), "ACCENT", "torso")
+    for s in (1, -1):
+        plate(f"pec{s}", (s * w * 0.33, y0 + h * 0.5, zf - 0.35), (w * 0.3, h * 0.62, 0.55), "BODY2", "torso", rake=0.25, yaw=s * 0.3)
+        box(f"pec_band{s}", (s * w * 0.36, y0 + h * 0.24, zf - 0.02), (w * 0.24, 0.3, 0.1), "ACCENT", "torso")
+    chamfered("collar", (0, y0 + h + 0.35, -0.6), (w * 0.42, 0.8, d * 0.45), 0.25, "FRAME", "torso")
+    return dict(y0=y0, top=y0 + h, zf=zf, zb=zb, w=w, d=d, h=h, sh_y=y0 + h - 1.3)
+
+
+def head(kind, C):
+    """A sensor head on the collar: mono (one lens in a raked helmet), visor (a wedge with a lit band), crest (a box
+    with swept antennas), sensor (wide and flat, three lenses and rangefinder ears) or dome (low, a lens ring)."""
+    y, z = C["top"] + 1.1, C["zf"] - 1.9
+    cyl("neck", (0, C["top"], z - 0.2), (0, y + 0.3, z - 0.2), 0.6, "FRAME", "head", 10)
+    if kind == "mono":
+        plate("helm", (0, y + 0.9, z), (2.0, 1.6, 2.6), "BODY", "head", rake=0.25)
+        cyl("eye", (0, y + 0.9, z + 1.2), (0, y + 0.9, z + 1.45), 0.42, "GLOW", "head", 14)
+        for s in (1, -1):
+            plate(f"fin{s}", (s * 1.15, y + 1.2, z - 0.4), (0.25, 1.6, 2.2), "BODY2", "head", rake=0.5)
+    elif kind == "visor":
+        prism_x("helm", [(z - 1.3, y + 0.2), (z + 1.5, y + 0.2), (z + 1.2, y + 0.9), (z - 0.2, y + 1.7), (z - 1.3, y + 1.5)], 1.1, "BODY", "head")
+        box("visor", (0, y + 0.75, z + 1.3), (2.0, 0.3, 0.3), "GLOW", "head", ((1, 0, 0), (0, 1, 0.4), (0, -0.4, 1)))
+    elif kind == "crest":
+        chamfered("helm", (0, y + 0.9, z), (2.0, 1.7, 2.4), 0.35, "BODY", "head")
+        box("visor", (0, y + 1.0, z + 1.22), (1.5, 0.22, 0.12), "GLOW", "head")
+        for s in (1, -1):
+            strut(f"antenna{s}", (s * 0.7, y + 1.7, z - 0.4), (s * 1.4, y + 3.4, z - 2.0), 0.14, "METAL", "head")
+    elif kind == "sensor":
+        chamfered("helm", (0, y + 0.7, z), (2.8, 1.2, 2.2), 0.3, "BODY", "head")
+        for i, (dx, r) in enumerate(((-0.75, 0.32), (0.0, 0.24), (0.7, 0.18))):
+            cyl(f"lens{i}", (dx, y + 0.75, z + 1.05), (dx, y + 0.75, z + 1.3), r, "GLOW", "head", 10)
+        for s in (1, -1):
+            box(f"ear{s}", (s * 1.75, y + 0.8, z - 0.2), (0.5, 0.5, 2.6), "BODY2", "head")
+    else:
+        cyl("helm", (0, y, z), (0, y + 1.2, z), 1.4, "BODY", "head", 12, r2=0.9)
+        for i in range(5):
+            a = -0.9 + i * 0.45
+            cyl(f"lens{i}", (math.sin(a) * 1.15, y + 0.55, z + math.cos(a) * 1.15),
+                (math.sin(a) * 1.35, y + 0.55, z + math.cos(a) * 1.35), 0.16, "GLOW", "head", 8)
+    _scale_about(GROUPS["head"], (0, C["top"], z), 1.3)     # a head that reads at 24 m, over the back units
+    return V((0, y + 1.0, z))
+
+
+def arm(s, C, k=1.0):
+    """An arm on the core: an angular shoulder block, the upper arm, the elbow, an armoured forearm held forward, the
+    hand. Returns the grip a weapon is held at and the forearm's outer side."""
+    sh = V((s * (C["w"] / 2 + 1.4 * k), C["sh_y"], -0.3))
+    plate(f"shoulder{s}", sh + V((s * 0.4 * k, 0.5 * k, 0)), (2.8 * k, 2.4 * k, 3.4 * k), "BODY", "arms", roll=-s * 0.15)
+    box(f"shoulder_band{s}", sh + V((s * (1.85 * k), 0.5 * k, 0)), (0.08, 0.5, 2.8 * k), "ACCENT", "arms")
+    el = sh + V((s * 0.35, -3.3 * k, 0.6))
+    chamfered(f"upperarm{s}", (sh + el) / 2, (1.5 * k, (el - sh).length + 0.3, 1.6 * k), 0.3, "FRAME", "arms", between(sh, el))
+    cyl(f"elbow{s}", el - V((0.85 * k, 0, 0)), el + V((0.85 * k, 0, 0)), 0.85 * k, "FRAME", "arms", 12)
+    wr = el + V((0, -0.3 * k, 2.9 * k))
+    chamfered(f"forearm{s}", (el + wr) / 2, (2.0 * k, (wr - el).length + 0.6, 2.2 * k), 0.4, "BODY", "arms", between(el, wr))
+    g = wr + V((0, -0.2, 0.55 * k))
+    box(f"hand{s}", g, (1.0 * k, 1.2 * k, 1.1 * k), "FRAME", "arms")
+    return g, el
+
+
+def weapon(kind, g, s, el, k=1.0):
+    """A hand weapon held at g, pointing ahead (+z): rifle, gatling, bazooka, sniper, shotgun, pile (a pile driver on
+    the forearm), shield (on the forearm's outside, with a short gun in the hand) or grenade (a drum-fed launcher)."""
+    n = f"{kind}{s}"
+    if kind == "rifle":
+        box(n + "_rec", g + V((0, 0.35, 1.0)), (0.9, 1.3, 4.0), "FRAME", "arms")
+        box(n + "_mag", g + V((0, -1.1, 1.4)), (0.7, 1.6, 1.0), "BODY2", "arms", ((1, 0, 0), (0, 1, 0.2), (0, -0.2, 1)))
+        cyl(n + "_barrel", g + V((0, 0.5, 3.0)), g + V((0, 0.5, 7.0)), 0.26, "METAL", "arms", 10)
+        cyl(n + "_brake", g + V((0, 0.5, 6.6)), g + V((0, 0.5, 7.4)), 0.4, "FRAME", "arms", 10)
+        box(n + "_sight", g + V((0, 1.2, 0.8)), (0.4, 0.4, 1.4), "BODY2", "arms")
+    elif kind == "gatling":
+        cyl(n + "_body", g + V((0, 0.3, -0.6)), g + V((0, 0.3, 2.6)), 1.0, "FRAME", "arms", 14)
+        for i in range(6):
+            a = i / 6 * math.tau
+            o = V((math.cos(a) * 0.5, 0.3 + math.sin(a) * 0.5, 0))
+            cyl(n + f"_b{i}", g + o + V((0, 0, 2.6)), g + o + V((0, 0, 7.6)), 0.15, "METAL", "arms", 8)
+        cyl(n + "_clamp", g + V((0, 0.3, 6.2)), g + V((0, 0.3, 6.6)), 0.8, "FRAME", "arms", 12)
+        box(n + "_drum", g + V((s * 1.5, 0.0, 0.4)), (1.4, 2.2, 2.6), "BODY2", "arms")
+        box(n + "_band", g + V((s * 2.22, 0.0, 0.4)), (0.06, 0.4, 2.4), "ACCENT", "arms")
+    elif kind == "bazooka":
+        cyl(n + "_tube", g + V((0, 1.2, -3.2)), g + V((0, 1.2, 5.4)), 0.75, "BODY2", "arms", 14)
+        cyl(n + "_bell", g + V((0, 1.2, -4.2)), g + V((0, 1.2, -3.2)), 1.1, "FRAME", "arms", 14, r2=0.75)
+        cyl(n + "_ring", g + V((0, 1.2, 4.9)), g + V((0, 1.2, 5.6)), 0.95, "ACCENT", "arms", 14)
+        box(n + "_grip", g + V((0, 0.4, 0)), (0.6, 1.2, 0.8), "FRAME", "arms")
+    elif kind == "sniper":
+        box(n + "_rec", g + V((0, 0.35, 0.6)), (0.8, 1.1, 5.0), "FRAME", "arms")
+        cyl(n + "_barrel", g + V((0, 0.45, 3.0)), g + V((0, 0.45, 11.0)), 0.22, "METAL", "arms", 10)
+        cyl(n + "_brake", g + V((0, 0.45, 10.6)), g + V((0, 0.45, 11.6)), 0.38, "FRAME", "arms", 10)
+        cyl(n + "_scope", g + V((0, 1.35, -0.6)), g + V((0, 1.35, 2.2)), 0.32, "BODY2", "arms", 10)
+        cyl(n + "_lens", g + V((0, 1.35, 2.2)), g + V((0, 1.35, 2.3)), 0.28, "GLOW", "arms", 10)
+    elif kind == "shotgun":
+        box(n + "_rec", g + V((0, 0.35, 0.8)), (1.2, 1.4, 3.0), "FRAME", "arms")
+        for dx in (-0.3, 0.3):
+            cyl(n + f"_barrel{dx}", g + V((dx, 0.55, 2.2)), g + V((dx, 0.55, 5.4)), 0.32, "METAL", "arms", 10)
+        box(n + "_pump", g + V((0, -0.1, 3.2)), (1.1, 0.6, 1.6), "BODY2", "arms")
+    elif kind == "pile":
+        box(n + "_housing", g + V((0, 0.2, 1.0)), (2.0, 2.0, 4.6), "ARMOR", "arms")
+        box(n + "_band", g + V((0, 0.2, 3.0)), (2.06, 2.06, 0.4), "ACCENT", "arms")
+        cyl(n + "_ram", g + V((0, 0.2, 3.3)), g + V((0, 0.2, 5.0)), 0.55, "METAL", "arms", 10)
+        cyl(n + "_spike", g + V((0, 0.2, 5.0)), g + V((0, 0.2, 7.4)), 0.55, "METAL", "arms", 10, r2=0.05)
+    elif kind == "shield":
+        plate(n + "_slab", el + V((s * 1.5 * k, -0.6, 1.2)), (0.45, 6.4 * k, 3.8 * k), "ARMOR", "arms", rake=0.1)
+        box(n + "_band", el + V((s * 1.76 * k, 1.4, 1.2)), (0.06, 0.6, 3.4 * k), "ACCENT", "arms")
+        box(n + "_smg", g + V((0, 0.35, 1.0)), (0.8, 1.0, 2.6), "FRAME", "arms")
+        cyl(n + "_smg_barrel", g + V((0, 0.45, 2.2)), g + V((0, 0.45, 4.0)), 0.2, "METAL", "arms", 8)
+    elif kind == "grenade":
+        cyl(n + "_drum", g + V((-s * 0.1, 0.4, 0.0)), g + V((-s * 0.1, 0.4, 1.6)), 1.3, "BODY2", "arms", 14)
+        cyl(n + "_barrel", g + V((0, 0.6, 1.6)), g + V((0, 0.6, 5.2)), 0.6, "METAL", "arms", 12)
+        cyl(n + "_muzzle", g + V((0, 0.6, 4.8)), g + V((0, 0.6, 5.5)), 0.8, "FRAME", "arms", 12)
+
+
+def back_unit(kind, s, C):
+    """A unit on the back, over one shoulder: missiles (a box of cells raised to fire ahead), vmissile (cells on top,
+    for a vertical launch), cannon (a long barrel that lies over the shoulder), railgun (two rails and coil rings),
+    radar (a dish on a mast) or rockets (a drum pod of tubes)."""
+    m = V((s * C["w"] * 0.32, C["top"] + 0.2, C["zb"] + 1.0))
+    n = f"{kind}{s}"
+    cyl(n + "_mount", m + V((0, -0.2, 0)), m + V((0, 0.5, 0)), 0.8, "FRAME", "torso", 10)
+    if kind == "missiles":
+        b = plate(n, m + V((0, 1.6, 0.4)), (2.6, 2.2, 3.0), "BODY2", "torso", rake=-0.35)
+        R = Matrix.Rotation(0.35, 3, "X")
+        for i in range(3):
+            for j in range(2):
+                p = m + V((0, 1.6, 0.4)) + R @ V((-0.75 + i * 0.75, -0.45 + j * 0.9, 1.5))
+                boolean(b, cyl(n + f"_c{i}{j}", p - R @ V((0, 0, 0.5)), p + R @ V((0, 0, 0.5)), 0.27, "FRAME", "torso", 8), "DIFFERENCE")
+        box(n + "_band", m + V((s * 1.33, 1.6, 0.4)), (0.06, 0.4, 2.8), "ACCENT", "torso")
+    elif kind == "vmissile":
+        b = chamfered(n, m + V((0, 1.5, 0)), (2.4, 2.2, 2.8), 0.3, "BODY2", "torso", top=False)
+        for i in range(2):
+            for j in range(3):
+                p = m + V((-0.55 + i * 1.1, 2.6, -0.85 + j * 0.85))
+                boolean(b, cyl(n + f"_c{i}{j}", p - V((0, 0.5, 0)), p + V((0, 0.5, 0)), 0.3, "FRAME", "torso", 8), "DIFFERENCE")
+        box(n + "_band", m + V((0, 1.0, 1.42)), (2.2, 0.3, 0.06), "ACCENT", "torso")
+    elif kind == "cannon":
+        box(n + "_breech", m + V((0, 1.0, -0.4)), (1.6, 1.4, 2.6), "FRAME", "torso")
+        cyl(n + "_barrel", m + V((0, 1.2, 0.8)), m + V((0, 1.8, 10.5)), 0.5, "METAL", "torso", 12)
+        cyl(n + "_jacket", m + V((0, 1.2, 0.8)), m + V((0, 1.4, 4.0)), 0.75, "BODY2", "torso", 12)
+        cyl(n + "_brake", m + V((0, 1.74, 9.9)), m + V((0, 1.84, 11.2)), 0.75, "FRAME", "torso", 12)
+    elif kind == "railgun":
+        box(n + "_breech", m + V((0, 1.0, -0.6)), (1.8, 1.6, 2.4), "BODY2", "torso")
+        for dx in (-0.45, 0.45):
+            box(n + f"_rail{dx}", m + V((dx, 1.3, 5.0)), (0.45, 1.1, 11.0), "METAL", "torso")
+        for i in range(4):
+            box(n + f"_coil{i}", m + V((0, 1.3, 1.6 + i * 2.2)), (1.5, 1.5, 0.35), "BODY2", "torso")
+        box(n + "_glow", m + V((0, 1.3, 5.0)), (0.3, 0.3, 9.4), "GLOW", "torso")
+    elif kind == "radar":
+        cyl(n + "_mast", m + V((0, 0.4, 0)), m + V((0, 3.4, 0)), 0.22, "METAL", "torso", 8)
+        cyl(n + "_dish", m + V((0, 3.6, 0.2)), m + V((0, 3.9, 0.9)), 1.6, "BODY2", "torso", 16, r2=0.5)
+        cyl(n + "_feed", m + V((0, 3.75, 0.6)), m + V((0, 4.0, 1.7)), 0.08, "METAL", "torso", 6)
+        box(n + "_box", m + V((0, 1.0, 0)), (1.4, 1.2, 1.6), "FRAME", "torso")
+    elif kind == "rockets":
+        b = cyl(n, m + V((0, 1.5, -1.2)), m + V((0, 1.7, 2.2)), 1.2, "BODY2", "torso", 14)
+        for i in range(7):
+            a = i / 6 * math.tau
+            o = V((math.cos(a) * 0.65, math.sin(a) * 0.65, 0)) if i < 6 else V((0, 0, 0))
+            p = m + V((0, 1.7, 2.2)) + o
+            boolean(b, cyl(n + f"_t{i}", p - V((0, 0, 0.6)), p + V((0, 0, 0.6)), 0.24, "FRAME", "torso", 8), "DIFFERENCE")
+        box(n + "_band", m + V((0, 1.6, 0.2)), (2.5, 0.3, 0.5), "ACCENT", "torso")
+
+
+def boosters(kind, C):
+    """The back pack that holds the main boosters: std (two nozzles down and back), wings (swept vanes with a nozzle at
+    each tip, for the flyers), side (std, and a small one on each side of the core)."""
+    zb, y0, h, w = C["zb"], C["y0"], C["h"], C["w"]
+    chamfered("pack", (0, y0 + h * 0.45, zb - 0.9), (w * 0.55, h * 0.75, 1.8), 0.4, "BODY2", "torso")
+    for s in (1, -1):
+        nozzle(f"main{s}", (s * 1.0, y0 + 0.4, zb - 1.2), (s * 1.2, y0 - 0.8, zb - 1.9), 0.9, "torso")
+    if kind == "wings":
+        for s in (1, -1):
+            a, b = V((s * 1.2, y0 + h * 0.7, zb - 1.2)), V((s * 5.8, y0 + h * 0.95, zb - 4.0))
+            strut(f"vane{s}", a, b, 1.1, "BODY", "torso", d=0.35)
+            nozzle(f"vanejet{s}", b + V((0, 0, 0.3)), b + V((0, -0.2, -1.2)), 0.6, "torso")
+    if kind == "side":
+        for s in (1, -1):
+            nozzle(f"sidejet{s}", (s * (w / 2 - 0.2), y0 + h * 0.4, zb + 1.2), (s * (w / 2 + 0.9), y0 + h * 0.4, zb + 0.8), 0.55, "torso")
+
+
+LEGS = dict(reverse=(legs_reverse, 12.6, 3.0), biped=(legs_biped, 12.4, 2.4), tank=(legs_tank, 5.6, 3.8), quad=(legs_quad, 8.6, 2.6))
+
+
+def combat(legs, layout, hd, R, L, back_R, back_L, boost="std", k=1.0, armk=1.0, w=6.6, h=5.2):
+    """A combat mech from parts. R and L are the right and left hand weapons (the pilot's right is -x)."""
+    fn, hip_y, hx = LEGS[legs]
+    fn(hip_y, hx * k, k)
+    if legs in ("reverse", "biped"):
+        box("hips", (0, hip_y + 0.2, -0.3), (2 * hx * k + 0.6, 2.4, 3.4), "FRAME", "legs")
+    C = core(hip_y + (3.2 if legs == "quad" else 1.0), layout, w=w * armk, h=h)
+    STATE["anchor"] = V((0, hip_y + 2.0, -0.4))
+    head(hd, C)
+    for s, wpn in ((-1, R), (1, L)):
+        g, el = arm(s, C, armk)
+        weapon(wpn, g, s, el, armk)
+    back_unit(back_R, -1, C)
+    back_unit(back_L, 1, C)
+    boosters(boost, C)
+
+
+COMBAT = {
+    # id: (name, what, palette, parts)
+    "sabre": ("Sabre", "the standard: biped, rifle and shield, missile box and radar, Panorama",
+              dict(BODY=(0.34, 0.40, 0.48), BODY2=(0.20, 0.22, 0.26), ACCENT=(0.95, 0.52, 0.12)),
+              dict(legs="biped", layout="panorama", hd="visor", R="rifle", L="shield", back_R="missiles", back_L="radar")),
+    "swift": ("Swift", "light, reverse joint, rifle and gatling, rocket pods, wing boosters, Canopy",
+              dict(BODY=(0.74, 0.74, 0.72), BODY2=(0.18, 0.19, 0.21), ACCENT=(0.82, 0.14, 0.10)),
+              dict(legs="reverse", layout="canopy", hd="mono", R="rifle", L="gatling", back_R="rockets", back_L="rockets",
+                   boost="wings", k=0.9, armk=0.88, w=6.0, h=4.8)),
+    "bulldog": ("Bulldog", "heavy, tracks, twin gatlings, two shoulder cannons, Excavator cab",
+                dict(BODY=(0.33, 0.35, 0.22), BODY2=(0.22, 0.22, 0.20), ACCENT=(0.92, 0.74, 0.12)),
+                dict(legs="tank", layout="cab", hd="sensor", R="gatling", L="gatling", back_R="cannon", back_L="cannon",
+                     armk=1.2, w=7.4, h=5.6)),
+    "tarantula": ("Tarantula", "artillery, four legs, rifle and gatling, cannon and vertical missiles, Low bank",
+                  dict(BODY=(0.62, 0.52, 0.36), BODY2=(0.30, 0.25, 0.20), ACCENT=(0.90, 0.40, 0.10)),
+                  dict(legs="quad", layout="lowbank", hd="dome", R="rifle", L="gatling", back_R="cannon", back_L="vmissile")),
+    "hatchet": ("Hatchet", "brawler, reverse joint, shotgun and pile driver, rockets and missiles, Titan",
+                dict(BODY=(0.13, 0.13, 0.14), BODY2=(0.27, 0.28, 0.30), ACCENT=(0.96, 0.76, 0.12)),
+                dict(legs="reverse", layout="titan", hd="mono", R="shotgun", L="pile", back_R="rockets", back_L="missiles",
+                     boost="side", armk=1.1)),
+    "longbow": ("Longbow", "sniper, light biped, long rifle and assault rifle, radar and missiles, Cinema",
+                dict(BODY=(0.24, 0.33, 0.25), BODY2=(0.30, 0.31, 0.28), ACCENT=(0.86, 0.86, 0.80)),
+                dict(legs="biped", layout="cinema", hd="sensor", R="sniper", L="rifle", back_R="radar", back_L="missiles",
+                     k=0.9, armk=0.9, w=6.0)),
+    "anvil": ("Anvil", "heavy biped, gatling and grenade launcher, two missile boxes, Tile wall",
+              dict(BODY=(0.44, 0.11, 0.09), BODY2=(0.24, 0.25, 0.27), ACCENT=(0.70, 0.72, 0.74)),
+              dict(legs="biped", layout="tilewall", hd="crest", R="gatling", L="grenade", back_R="missiles", back_L="missiles",
+                   k=1.15, armk=1.2, w=7.4, h=5.6)),
+    "skylark": ("Skylark", "flyer, light biped, bazooka and rifle, vertical missiles, wing boosters, Twin tier",
+                dict(BODY=(0.64, 0.71, 0.78), BODY2=(0.24, 0.26, 0.30), ACCENT=(0.95, 0.48, 0.10)),
+                dict(legs="biped", layout="twintier", hd="visor", R="bazooka", L="rifle", back_R="vmissile", back_L="vmissile",
+                     boost="wings", k=0.88, armk=0.9, w=6.0, h=5.4)),
+    "brigand": ("Brigand", "raider, reverse joint, bazooka and gatling, railgun and missiles, Octagon",
+                dict(BODY=(0.36, 0.31, 0.40), BODY2=(0.20, 0.20, 0.22), ACCENT=(0.62, 0.86, 0.20)),
+                dict(legs="reverse", layout="octagon", hd="crest", R="bazooka", L="gatling", back_R="railgun", back_L="missiles",
+                     boost="side")),
+    "rampart": ("Rampart", "fortress, tracks, gatling and shield, railgun and vertical missiles, All-view sphere",
+                dict(BODY=(0.80, 0.81, 0.80), BODY2=(0.36, 0.37, 0.38), ACCENT=(0.88, 0.30, 0.10)),
+                dict(legs="tank", layout="allview", hd="dome", R="gatling", L="shield", back_R="railgun", back_L="vmissile",
+                     armk=1.15, w=7.6, h=5.8)),
+}
+COMBAT_BASE = dict(FRAME=(0.09, 0.09, 0.10), RUBBER=(0.06, 0.06, 0.06), METAL=(0.50, 0.51, 0.54), GLOW=(1.0, 0.62, 0.22))
+for _id, (_n, _w, _pal, _parts) in COMBAT.items():
+    PALETTES[_id] = dict(COMBAT_BASE, ARMOR=tuple(c * 0.8 for c in _pal["BODY"]), **_pal)
+
+
 CHASSIS = {"foreman": (foreman, "Foreman", "the excavator"), "stevedore": (stevedore, "Stevedore", "the dock crane, all struts"),
            "ironhorse": (ironhorse, "Ironhorse", "the locomotive"),
            "harrow": (harrow, "Harrow", "new: the Mad Cat pattern, one hull between the hips, the Canopy in its nose"),
@@ -1088,10 +1472,19 @@ def volume(objs):
     return v
 
 
+def builds():
+    """What to build: the working chassis (default), or with `-- combat` the combat mechs, each from its parts line."""
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    if "combat" in argv:
+        return COMBAT_MANIFEST, {k: ((lambda p=parts: combat(**p)), name, what) for k, (name, what, _, parts) in COMBAT.items()}
+    return MANIFEST, CHASSIS
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     rows = []
-    for key, (fn, name, what) in CHASSIS.items():
+    manifest, chassis = builds()
+    for key, (fn, name, what) in chassis.items():
         for o in list(bpy.data.objects):
             bpy.data.objects.remove(o)
         GROUPS.clear()
@@ -1129,7 +1522,7 @@ def main():
                    arm_leg_clips=clips)
         rows.append(row)
         print("BUILT", row, flush=True)
-    with open(MANIFEST, "w") as f:
+    with open(manifest, "w") as f:
         json.dump(dict(generator="tools/blender/build_mech_blockouts.py", target_height_m=HEIGHT_M, mechs=rows), f, indent=1)
 
 

@@ -133,3 +133,44 @@ The Foreman and the Ironhorse stay (owner: "I think iron and forman are solid de
 carry the Panorama and the Excavator cab, and their chests open as one body with them (`docs/design/cockpit.md`, "The
 four in detail"). The test for each block-out is still whether its silhouette reads as a practical machine on
 chicken legs with its cockpit in the body, from the block-out alone; the owner picks before any is detailed.
+
+## Combat mechs, built from parts (13 to 22)
+
+The owner, 2026-10-24, picking 1, 2, 6, 8, 11 and 12 to build in detail ("Any cockpit style should do. They all are
+pretty standard"), then: "I need more combat mech mockups. Your 12 mechs are mostly trash because they are random farm
+trucks doing stuff..I want combat mechs with guns like in armored core". So the next ten are built the way Armored Core
+builds its machines, from interchangeable parts, each part one function in `tools/blender/build_mech_blockouts.py` and
+each mech one line of `COMBAT` (`--combat` writes `assets/models/mech_combat.json`):
+
+- **Legs**: reverse joint (a high forward knee, a long shin back to the hock, three claws, a calf booster, a heel skate
+  wheel), biped (a big knee guard, a shin flaring over the ankle with a booster in its calf, a long foot), tracks (two
+  track units, road wheels and sprockets, skirts, a turret ring) and four legs (high knees, far-out pads, a belly jet).
+- **Core**: a side profile extruded across with its front raked back, the cockpit block-out in a well cut in the front
+  at true size, armour layered either side, a collar.
+- **Heads**: mono (one lens in a raked helmet), visor, crest (swept antennas), sensor (three lenses, rangefinder ears),
+  dome (a lens ring).
+- **Hand weapons**: rifle, gatling (six barrels and a drum), bazooka, sniper rifle, shotgun, pile driver, shield (with a
+  short gun in the hand), grenade launcher.
+- **Back units**: missile box, vertical missile cells, shoulder cannon, railgun, radar dish, rocket pod.
+- **Boosters**: a back pack with two main nozzles, swept wing vanes for the flyers, side jets.
+
+The silhouettes and the parts are Crab Breeze's own: angular slab armour in field colours with a hazard accent, 1980s
+hardware (box magazines, belt drums, missile boxes); nothing is copied from a game. Contact sheets, three-quarter and
+side: `docs/screenshots/mechs/combat.png`, `combat_side.png`. No arm touches a leg on any of the ten (the same mesh
+intersection check).
+
+| No. | Mech | Role | Legs | Right hand | Left hand | Back | Cockpit |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 13 | Sabre | The standard | Biped | Rifle | Shield | Missile box, radar | Panorama |
+| 14 | Swift | Light, fast | Reverse joint | Rifle | Gatling | Two rocket pods, wing vanes | Canopy |
+| 15 | Bulldog | Heavy | Tracks | Gatling | Gatling | Two shoulder cannons | Excavator cab |
+| 16 | Tarantula | Artillery | Four legs | Rifle | Gatling | Cannon, vertical missiles | Low bank |
+| 17 | Hatchet | Brawler | Reverse joint | Shotgun | Pile driver | Rocket pod, missile box, side jets | Titan |
+| 18 | Longbow | Sniper | Light biped | Sniper rifle | Rifle | Radar, missile box | Cinema |
+| 19 | Anvil | Heavy assault | Heavy biped | Gatling | Grenade launcher | Two missile boxes | Tile wall |
+| 20 | Skylark | Flyer | Light biped | Bazooka | Rifle | Two vertical launchers, wing vanes | Twin tier |
+| 21 | Brigand | Raider | Reverse joint | Bazooka | Gatling | Railgun, missile box, side jets | Octagon |
+| 22 | Rampart | Fortress | Tracks | Gatling | Shield | Railgun, vertical missiles | All-view sphere |
+
+Tracks and four legs stand outside survey M2's digitigrade rule and the owner's "legs bigger than the torso": they are
+here because the owner asked for Armored Core's range, and the survey decides whether they stay.

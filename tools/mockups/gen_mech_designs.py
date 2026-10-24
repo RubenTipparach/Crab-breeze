@@ -130,6 +130,20 @@ aside { display: grid; gap: 12px; min-width: 0; }
     <div class="bostats" id="bo-stats"></div>
     <p class="hint">Drag to orbit, scroll or pinch to zoom. Beside them: a 1.8 m pilot, a 4.4 m car, a 14 m four-storey block and a rail at 24 m.</p>
   </section>
+  <section class="bo">
+    <h2 class="boh">Combat mechs, built from parts</h2>
+    <p class="bop">The owner (2026-10-24): "I need more combat mech mockups ... I want combat mechs with guns like in armored
+    core". So these are built the way Armored Core builds them, from interchangeable parts: legs (reverse joint, biped, tracks
+    or four legs), a core with a cockpit block-out in it at true size, a head, two arms each holding a weapon (rifle, gatling,
+    bazooka, sniper rifle, shotgun, pile driver, shield, grenade launcher), two back units (missile box, vertical missiles,
+    shoulder cannon, railgun, radar, rocket pod) and boosters (a back pack, swept wing vanes for the flyers, side jets), a
+    skate wheel in each foot. Every mech is one line of parts in the generator, so a new one is a new combination. They are
+    numbered on from the twelve above, 13 to 22.</p>
+    <div class="borow" id="cb-pick"></div>
+    <div class="bostage"><canvas id="cb-view"></canvas></div>
+    <div class="bostats" id="cb-stats"></div>
+    <p class="hint">Drag to orbit, scroll or pinch to zoom; the same pilot, car, block and 24 m rail beside them.</p>
+  </section>
   <h2 class="boh">The detailed round (12 m)</h2>
 </header>
 
@@ -649,10 +663,9 @@ window.MOCKUP = {
   state: () => ({ Tb, end: cur() && cur().timeline.end, interior: !!(cur() && cur().interior), walk: walk && { i: walk.i, done: walk.done } }),
 };
 
-// ---------- the 24 m low-poly block-outs: their own viewer, side by side at true scale ----------
-(function () {
-  const BO = __MECH_BLOCKOUTS__;
-  const cv = document.getElementById("bo-view");
+// ---------- the 24 m low-poly block-outs: their own viewers, side by side at true scale ----------
+function blockoutViewer(BO, view, pickId, statsId, first, gap, api) {
+  const cv = document.getElementById(view);
   const r = new T.WebGLRenderer({ canvas: cv, antialias: true });
   r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); r.outputEncoding = T.sRGBEncoding; r.toneMapping = T.ACESFilmicToneMapping;
   r.shadowMap.enabled = true;
@@ -674,35 +687,38 @@ window.MOCKUP = {
   const hb = new T.Mesh(new T.SphereGeometry(0.12, 12, 10), new T.MeshStandardMaterial({ color: 0xd8b49a })); hb.position.y = 1.66; pil.add(hb);
   pil.position.set(-8, 0, 9); sc.add(pil);
   const groups = {}, ids = BO.mechs.map(m => m.id);
-  const pick = document.getElementById("bo-pick");
+  const pick = document.getElementById(pickId);
   let cur = "all";
   function show(id) {
     cur = id;
-    ids.forEach((k, i) => { const g = groups[k]; if (!g) return; g.visible = id === "all" || id === k; const row = Math.floor(i / 5), col = i % 5; g.position.x = id === "all" ? (col - 2) * 16 : 0; g.position.z = id === "all" ? -row * 22 : 0; });
+    ids.forEach((k, i) => { const g = groups[k]; if (!g) return; g.visible = id === "all" || id === k; const row = Math.floor(i / 5), col = i % 5; g.position.x = id === "all" ? (col - 2) * gap : 0; g.position.z = id === "all" ? -row * (gap + 6) : 0; });
     pick.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.bo === id)));
-    if (id === "all") { cam.position.set(40, 34, 70); oc.target.set(0, 10, -20); } else { cam.position.set(22, 18, 30); oc.target.set(0, 12, 0); }
+    if (id === "all") { cam.position.set(40 * gap / 16, 34, 70 * gap / 16); oc.target.set(0, 10, -20); } else { cam.position.set(22, 18, 30); oc.target.set(0, 12, 0); }
     oc.update();
   }
   // the new mechs carry the numbers on their contact sheets (owner, 2026-10-24: "can you add numbers to those mechs")
   const ORIGINAL = new Set(["foreman", "stevedore", "ironhorse"]);
-  let num = 0;
+  let num = first - 1;
   [...BO.mechs.map(m => [m.id, ORIGINAL.has(m.id) ? m.name : `${++num} ${m.name}`]), ["all", "Line up"]].forEach(([id, name]) => {
     const b = document.createElement("button"); b.textContent = name; b.dataset.bo = id; b.onclick = () => show(id); pick.appendChild(b);
   });
-  document.getElementById("bo-stats").innerHTML = "<table><tr><th>Mech</th><th>After</th><th>Height</th><th>Width</th><th>Legs : torso</th><th>Triangles</th></tr>" +
+  document.getElementById(statsId).innerHTML = "<table><tr><th>Mech</th><th>After</th><th>Height</th><th>Width</th><th>Legs : torso</th><th>Triangles</th></tr>" +
     BO.mechs.map(m => `<tr><td>${m.name}</td><td>${m.what}</td><td>${m.height_m.toFixed(1)} m</td><td>${m.width_m.toFixed(1)} m</td><td>${m.legs_over_torso.toFixed(2)} by volume</td><td>${m.tris.toLocaleString()}</td></tr>`).join("") + "</table>";
   Promise.all(BO.mechs.map(m => loader.loadAsync(m.file).then(g => {
     g.scene.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
     groups[m.id] = g.scene; sc.add(g.scene);
-  }))).then(() => show("all")).catch(e => { document.getElementById("bo-stats").textContent = "Could not load: " + e; });
-  window.BLOCKOUTS = { show };
+  }))).then(() => show("all")).catch(e => { document.getElementById(statsId).textContent = "Could not load: " + e; });
+  window[api] = { show };
   (function loop() {
     requestAnimationFrame(loop);
     const w = cv.clientWidth, h = cv.clientHeight;
     if (cv.width !== Math.floor(w * r.getPixelRatio())) { r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
     oc.update(); r.render(sc, cam);
   })();
-})();
+}
+blockoutViewer(__MECH_BLOCKOUTS__, "bo-view", "bo-pick", "bo-stats", 1, 16, "BLOCKOUTS");
+// the combat mechs, numbered on from the working ones (owner, 2026-10-24: "I want combat mechs with guns like in armored core")
+blockoutViewer(__MECH_COMBAT__, "cb-view", "cb-pick", "cb-stats", 13, 24, "COMBAT");
 </script>
 """
 
@@ -739,9 +755,9 @@ def as_json_gltf(src, dst):
         json.dump(js, f, separators=(",", ":"))
 
 
-def blockouts_for_page():
-    """The 24 m block-outs' manifest with each model's path as published beside the page."""
-    bo = json.load(open(os.path.join(MODELS, "mech_blockouts.json")))
+def blockouts_for_page(manifest="mech_blockouts.json"):
+    """A block-out manifest (the working mechs, or mech_combat.json) with each model's path as published beside the page."""
+    bo = json.load(open(os.path.join(MODELS, manifest)))
     for m in bo["mechs"]:
         m["file"] = f"mech_blockouts/{m['id']}.gltf.json"
     return bo
@@ -755,8 +771,7 @@ def files(meta, inside):
         rel = f"mech_{k}.gltf.json"
         as_json_gltf(os.path.join(MODELS, meta[k]["file"]), os.path.join(SITE, rel))
         out[rel] = os.path.join(SITE, rel)
-    bo = json.load(open(os.path.join(MODELS, "mech_blockouts.json")))
-    for m in bo["mechs"]:
+    for m in json.load(open(os.path.join(MODELS, "mech_blockouts.json")))["mechs"] + json.load(open(os.path.join(MODELS, "mech_combat.json")))["mechs"]:
         rel = f"mech_blockouts/{m['id']}.gltf.json"
         as_json_gltf(os.path.join(MODELS, m["file"]), os.path.join(SITE, rel))
         out[rel] = os.path.join(SITE, rel)
@@ -787,6 +802,7 @@ def main():
     hud = base64.b64encode(open(HUD, "rb").read()).decode("ascii")
     html = (PAGE.replace("__MECH_POSE__", pose).replace("__STEAM__", steam).replace("__SCREEN_WALL__", wall).replace("__GLTF_JSON__", gltf_json)
             .replace("__MECH_BLOCKOUTS__", json.dumps(blockouts_for_page()))
+            .replace("__MECH_COMBAT__", json.dumps(blockouts_for_page("mech_combat.json")))
             .replace("__META__", json.dumps({k: meta[k] for k in ORDER}))
             .replace("__INTERIOR__", json.dumps(inside)).replace("__ORDER__", json.dumps(ORDER)).replace("__HUD__", hud))
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
