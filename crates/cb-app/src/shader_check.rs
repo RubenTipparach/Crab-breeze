@@ -250,6 +250,12 @@ mod tests {
                 !stage_reads(&module, ShaderStage::Vertex, "lights"),
                 "{name}: a vertex stage reads `lights`"
             );
+            // The walk's own checks need a shader that reads the mesh view bindings (a fullscreen
+            // pass such as the sun flare has its own bindings and reads neither).
+            if !text.contains("mesh_view_bindings") {
+                checked.push(name);
+                continue;
+            }
             // ...while the same walk does see the vertex stage's read of the view (bound to both).
             assert!(
                 stage_reads(&module, ShaderStage::Vertex, "view"),
