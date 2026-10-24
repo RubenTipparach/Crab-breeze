@@ -878,6 +878,12 @@ pub fn step_mech(
                 let mut c = MechControls::from_actions(&actions);
                 // Boost thrust goes where the pilot looks.
                 c.view_yaw_rad = pilot.curr.yaw_rad;
+                // At the coupled look's edge the mech turns toward the view at its own rate
+                // (seated-look): the view comes round no faster than the mech can turn.
+                let limit = data.0.pilot.seated_look_limit_deg.to_radians();
+                if let Some(t) = cb_core::pilot::look_turn(pilot.curr.seated_rel_rad, limit, actions.free_look) {
+                    c.turn_axis = t;
+                }
                 if !actions.free_look {
                     let wrap = |a: f32| (a + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
                     let twist = wrap(pilot.curr.yaw_rad - sim.curr.heading_rad);
