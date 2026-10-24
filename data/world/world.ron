@@ -57,4 +57,15 @@
         bank_slope: 0.45,
         flow_m_s: 1.5,
     ),
+    // Cumulus low enough to be in view and to reach on one boost (about 8 s of climb), above the
+    // 60-storey towers (openspec/changes/clouds, W8).
+    clouds: (
+        base_m: 300.0,
+        top_m: 750.0,
+        spacing_m: 700.0,
+        coverage: 0.5,
+        cluster_size_m: (220.0, 520.0),
+        beyond_world_m: 2000.0,
+        wind_m_s: (3.0, 1.0),
+    ),
 )

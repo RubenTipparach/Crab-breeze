@@ -8,7 +8,9 @@
 #   ./run.sh --showcase world     watch the scripted world tour
 #
 # Controls: WASD walk / throttle and turn, mouse look / aim the torso, E board and climb out,
-# Shift run, X throttle to zero, Alt free look, Space jets (switch with 3), 1 walk,
+# Shift run, X throttle to zero, Alt free look, 1 walk.
+# In the mech: hold Space for the rockets (up only), Shift toggles the skates (wheels on the ground
+# and the water, WASD thrust in the air), hold Ctrl to dive from the air or sink on water,
 # left mouse autocannon, right mouse cannon, F5-F8 shoot off a part, F9 drop a shell,
 # Esc release the mouse (click to grab it again).
 set -euo pipefail

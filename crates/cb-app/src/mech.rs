@@ -641,6 +641,8 @@ pub fn step_mech(
                 // The torso turns to follow where the pilot looks (the view leads, the torso
                 // follows); holding free look keeps the torso where it is.
                 let mut c = MechControls::from_actions(&actions);
+                // Boost thrust goes where the pilot looks.
+                c.view_yaw_rad = pilot.curr.yaw_rad;
                 if !actions.free_look {
                     let wrap = |a: f32| (a + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
                     let twist = wrap(pilot.curr.yaw_rad - sim.curr.heading_rad);
@@ -806,8 +808,51 @@ pub fn step_mech(
                 }
             }
         }
-        // Jet flame while lifting.
-        if sim.curr.mode == LocomotionMode::Jet && controls.lift_axis > 0.0 && !sim.curr.jet_overheated {
+        // Wheel sparks and grit while skating fast on the ground; a rooster tail of spray on water.
+        if sim.curr.mode == LocomotionMode::Skate && !sim.curr.airborne() && sim.curr.vel.length() > 5.0 {
+            let on_water = sim.curr.on_water == cb_core::mech::OnWater::Skimming;
+            for wheel in ["WHEEL_L", "WHEEL_R"] {
+                if let Some(g) = rig.sockets.get(wheel).and_then(|e| globals.get(*e).ok()) {
+                    let back = -Vec3::new(sim.curr.vel.x, 0.0, sim.curr.vel.y).normalize_or(Vec3::Z);
+                    if on_water {
+                        let fast = (sim.curr.vel.length() / 30.0).clamp(0.5, 4.0);
+                        bursts.write(Burst {
+                            kind: FxKind::Spray,
+                            at: g.translation(),
+                            dir: back + Vec3::Y * 0.8,
+                            count: (3.0 * fast) as u32,
+                            speed_m_s: 6.0 * fast,
+                            spread: 0.35,
+                            size_m: 1.0,
+                            life_s: 1.0,
+                        });
+                        continue;
+                    }
+                    bursts.write(Burst {
+                        kind: FxKind::Spark,
+                        at: g.translation(),
+                        dir: back + Vec3::Y * 0.3,
+                        count: 2,
+                        speed_m_s: 8.0,
+                        spread: 0.4,
+                        size_m: 0.2,
+                        life_s: 0.4,
+                    });
+                    bursts.write(Burst {
+                        kind: FxKind::Dust,
+                        at: g.translation(),
+                        dir: back + Vec3::Y * 0.5,
+                        count: 1,
+                        speed_m_s: 3.0,
+                        spread: 0.5,
+                        size_m: 1.2,
+                        life_s: 1.2,
+                    });
+                }
+            }
+        }
+        // Booster flame while boosting.
+        if sim.curr.boosting {
             for jet in ["JET_L", "JET_R"] {
                 if let Some(g) = rig.sockets.get(jet).and_then(|e| globals.get(*e).ok()) {
                     bursts.write(Burst {

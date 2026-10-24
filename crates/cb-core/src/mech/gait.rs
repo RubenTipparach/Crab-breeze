@@ -171,6 +171,11 @@ pub fn pose(state: &MechState, gait: &GaitConfig, rest: &RigRest, sit: &SitPose,
         pelvis_offset.y = (hip_y - leg.hip.y) + hop;
         pelvis_offset.x = 0.0;
     }
+    // Skating: crouched on the wheels, one foot ahead of the other (boost-and-skate).
+    let skating = state.mode == super::locomotion::LocomotionMode::Skate;
+    if skating {
+        pelvis_offset.y -= 0.6;
+    }
     let solve = |leg: &LegRest, ph: f64, gone: bool| {
         if gone {
             let turn = wrap(stump_angle - plane_angle(leg.knee - leg.hip));
@@ -186,7 +191,12 @@ pub fn pose(state: &MechState, gait: &GaitConfig, rest: &RigRest, sit: &SitPose,
         let hock_rest = plane_angle(leg.ankle - leg.hock);
         let hock_sat = PI - sit.hock_angle_deg.to_radians();
         let turn = wrap(hock_sat - hock_rest) * s;
-        solve_leg(leg, leg.hip + pelvis_offset, leg.ankle + foot_offset(ph, a, lift), turn)
+        let stagger = if skating {
+            Vec3::Z * if leg.hip.x > 0.0 { 0.8 } else { -0.8 }
+        } else {
+            Vec3::ZERO
+        };
+        solve_leg(leg, leg.hip + pelvis_offset, leg.ankle + foot_offset(ph, a, lift) + stagger, turn)
     };
     // The torso rolls toward the stump (+x is the mech's left; rolling left is about -z).
     let roll = match lost {

@@ -9,7 +9,7 @@ rain right now, but will need to borrow the rain drops on camera from Pale Blue 
 ## What changes
 
 - A cloud layer from the seed: cumulus clusters between `cloud_base_m` and `cloud_top_m` (data,
-  default 600-1100 m), drawn as soft lit billboard puffs (instanced, a few hundred clusters of
+  in data, 300-750 m), drawn as soft lit billboard puffs (instanced, a few hundred clusters of
   about 20 puffs), with soft-particle depth fade so they never cut hard edges into terrain or
   mechs.
 - Flying into a cloud: each cluster is a set of ellipsoids; when the camera (the sensor head) is
