@@ -2,3 +2,4 @@
 /output
 *.mkv
 *.mp4
+__pycache__/

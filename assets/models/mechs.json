@@ -2,79 +2,85 @@
   "breeze": {
     "bounds_m": {
       "x": [
-        -3.338,
-        3.338
+        -3.895,
+        3.895
       ],
       "y": [
-        0.0,
-        12.13
+        -0.184,
+        11.816
       ],
       "z": [
-        -3.335,
-        4.2
+        -2.905,
+        5.844
       ]
     },
-    "cockpit": "bubble canopy",
+    "bytes": 919844,
+    "cockpit": "bubble canopy in the chest",
     "file": "mech_breeze.glb",
     "generator": "tools/blender/build_mechs.py",
     "id": "breeze",
-    "legs": "digitigrade",
+    "legs": "reverse knee, three segments",
     "name": "Breeze",
-    "note": "Recommended: survey M2 and C1 picks.",
+    "note": "Crab Breeze's own, built in Mining Mike's boss style. Recommended.",
     "status": "design candidate",
-    "triangles": 24836,
-    "weapons": "rail cannon (L), gatling (R)"
+    "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
+    "triangles": 10450,
+    "weapons": "rail lance (L), gatling (R)"
   },
   "bulwark": {
     "bounds_m": {
       "x": [
-        -3.817,
-        3.817
+        -4.278,
+        4.278
       ],
       "y": [
-        0.0,
-        11.87
+        -0.021,
+        11.979
       ],
       "z": [
-        -2.829,
-        4.6
+        -3.38,
+        7.121
       ]
     },
-    "cockpit": "enclosed, vision slit and screens",
+    "bytes": 1068984,
+    "cockpit": "armoured head, visor band",
     "file": "mech_bulwark.glb",
     "generator": "tools/blender/build_mechs.py",
     "id": "bulwark",
-    "legs": "human knee",
+    "legs": "human knee, two segments",
     "name": "Bulwark",
-    "note": "Survey C1 option 2: armour over view.",
+    "note": "Mining Mike's Uber mech, ported. Its back cradle now holds the jets.",
     "status": "design candidate",
-    "triangles": 23124,
-    "weapons": "missile box (L), heavy cannon (R)"
+    "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
+    "triangles": 12930,
+    "weapons": "slab shield and siege fist (L), breaker cannon (R)"
   },
-  "hermit": {
+  "ravager": {
     "bounds_m": {
       "x": [
-        -3.608,
-        4.145
+        -4.39,
+        4.39
       ],
       "y": [
-        0.0,
-        9.58
+        -0.06,
+        12.44
       ],
       "z": [
-        -2.491,
-        6.901
+        -3.208,
+        7.094
       ]
     },
-    "cockpit": "low crab face canopy",
-    "file": "mech_hermit.glb",
+    "bytes": 975300,
+    "cockpit": "low head, visor under three eyes",
+    "file": "mech_ravager.glb",
     "generator": "tools/blender/build_mechs.py",
-    "id": "hermit",
-    "legs": "splayed digitigrade",
-    "name": "Hermit",
-    "note": "The name's crab: low, wide, asymmetric.",
+    "id": "ravager",
+    "legs": "reverse knee, three segments",
+    "name": "Ravager",
+    "note": "Mining Mike's rival Uber mech, ported. Hunched, a crest of blades.",
     "status": "design candidate",
-    "triangles": 24928,
-    "weapons": "crusher claw (L), gatling (R)"
+    "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
+    "triangles": 10692,
+    "weapons": "twin rail lances (L and R)"
   }
 }

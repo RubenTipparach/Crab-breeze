@@ -41,6 +41,14 @@ Suffix `_L` is the mech's own left (+X in glTF, because it faces +Z).
 | `JET_L`, `JET_R` | `torso` | flight thrusters, thrust along -Y at rest (survey M3) |
 | `WHEEL_L`, `WHEEL_R` | `foot_L`, `foot_R` | skate wheels or treads (survey M4) |
 
+Other nodes a mech may carry, all optional: `ladder` (under `root`; stowed whenever the mech moves),
+`spine`, `crest`, `clamp_L`/`clamp_R` (jet cradle arms), `toe_*`, `HALO_*` (a glow sprite: extras
+`halo_size_m`, `halo_color`, `halo_opacity`) and `CORE_*` (a reactor core that spins about Y).
+The `root` node's extras carry `legSegs` (each leg segment's length in metres and rest angle),
+`footH`, `hipY`, `walk` and `idle`: the numbers Mining Mike's pose layer needs. The reference
+animation (idle, walk, turn on the spot, rocket skate, hit) is the one in
+`tools/mockups/gen_mech_designs.py`, which runs that pose layer on these bones.
+
 Cockpit controls the pilot touches are named nodes too, `CTRL_<name>` under `cockpit`
 (`CTRL_throttle`, `CTRL_stick`, `CTRL_twist`), so the game can animate and hit-test them.
 

@@ -290,8 +290,10 @@ Star Crew and Undercity, each with an "In Crab Breeze" note on what changes.
   an orbitable viewer with the pilot (1.8 m) and the mech beside it, sizes measured, never estimated.
 - **No z-fighting, ever** (Undercity). Two surfaces never share a plane while overlapping.
 - **People** are built from a table with one rig and one shared animation library (Undercity).
-- **The mech generators** are `tools/blender/build_mechs.py` on the kit `tools/blender/mech_kit.py`
-  (after Mining Mike's `mechs/tools/mech_chassis.py`), on the bones of `docs/design/mech-rig.md`.
+- **The mech generators** are `tools/blender/build_mechs.py` on the kit `tools/blender/mech_kit.py`, a
+  port of Mining Mike's boss mech kit (`godot-sandbox/docs/mockups/tank_bosses_kit.js`: its plates,
+  livery bands, vents, hoses, pistons and walk), on the bones of `docs/design/mech-rig.md`. Plating
+  textures first: `NODE_PATH=$(npm root -g) node tools/textures/gen_mech_plating.mjs`.
   A cloud session installs Blender 4.4 itself (about a minute): the official tarball from
   `mirrors.dotsrc.org/blender/release/Blender4.4/blender-4.4.3-linux-x64.tar.xz` into `/opt/blender`.
   Run `/opt/blender/blender --background --factory-startup --python tools/blender/build_mechs.py`,
@@ -343,6 +345,10 @@ Provenance for every skill is in `.claude/skills/PROVENANCE.md`.
 Nothing is an exception until it is listed here with its reason.
 - **Tool-owned files keep their tool's text.** The OpenSpec CLI writes `.claude/skills/openspec-*`
   and `.claude/commands/opsx/*`. Don't hand-edit them. The dash check excludes `.claude/`.
+- **Mech plating is Mining Mike's generator, not a Material Maker graph** (owner, 2026-10-24: "The
+  mech boss and Uber mech stuff are some of the best in mining mike"). `tools/textures/` runs Mining
+  Mike's `plating()` canvas code verbatim to make the mech textures, so the mechs carry the look of
+  its bosses and Uber mechs. Material Maker stays the source of every other material.
 - **Copied skills keep their source's text** below their "In Crab Breeze" note (and its front
   matter description, retargeted), so a later copy from the source can be diffed. Where the source
   and the note disagree, the note and this file win.
