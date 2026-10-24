@@ -148,6 +148,28 @@ const ART_IMG = '';
 
 // The questions. Answers live in the db collection `answers`, one document per question id.
 const SECTIONS = [
+  { tag: 'G', name: 'Combat effects and the city defence',
+    lead: 'New on 2026-10-23: weapon effects (openspec/changes/combat-fx), dumbfire rockets (rockets) and the three-city defence mission (city-defence).',
+    qs: [
+      { id: 'G9', q: 'A city loses when it is "damaged more than 50 %". What counts as damage?',
+        options: ['The share of the city\'s building structure destroyed, so a fallen 40-storey tower counts far more than a shed', 'The share of buildings destroyed, each building counting the same', 'Only a few landmark buildings per city count'], rec: 0,
+        why: 'It matches what you see: a skyline with its towers down looks half gone even if the suburbs stand.' },
+      { id: 'G10', q: 'Each wave must be cleared in 10 minutes. When does the clock start?',
+        options: ['When the wave appears, so getting to the next city (3-4 minutes on foot, under 1 on jets) is part of the race', 'When you reach the attacked city', 'When the first raider fires on the city'], rec: 0,
+        why: 'It makes the jets matter and keeps the pressure on between cities.' },
+      { id: 'G12', q: 'How many raiders turn to fight you at once?',
+        options: ['The 3 nearest within 300 m, plus any you have just hit; the rest keep shelling the city', 'All 10 come for you', 'None: they only shell the city and shoot back when hit'], rec: 0,
+        why: 'You stay under fire without being swarmed, and every minute you spend on one raider the city keeps burning.' },
+      { id: 'G11', q: 'Who carries rockets first?',
+        options: ['3 of every 10 raiders carry a 90 mm rocket pod; your lock-on missiles come with radar later', 'Your mech gets a rocket pod now too', 'Rockets only for later enemy types'], rec: 0,
+        why: 'Slow rockets with smoke trails coming at you are something to see and dodge; your missiles want a seeker and radar first (G4).' },
+      { id: 'G7', q: 'Smoke, fire and explosion sprites are soft discs today. Where do the real ones come from?',
+        options: ['Blender smoke and fire simulations rendered to flipbook atlases, with normal maps so they light properly', 'Material Maker noise graphs animated into flipbooks', 'Keep the soft discs'], rec: 0,
+        why: 'A real simulation billows and curls in a way noise does not, and Blender is already how every asset here is made.' },
+      { id: 'G8', q: 'A shell lands next to you. Does the cockpit jolt?',
+        options: ['A short jolt of the cockpit\'s position; where you look stays yours', 'No jolt at all', 'A jolt that also kicks the view'], rec: 0,
+        why: 'You feel the hit without ever losing control of the camera (your rule: never take the camera away).' },
+    ] },
   { tag: 'M', name: 'The mech',
     lead: 'The first mech is the yardstick for every building and person. Its size sets the city scale.',
     qs: [

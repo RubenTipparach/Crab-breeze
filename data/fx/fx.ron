@@ -1,0 +1,125 @@
+// Every effect the game plays (openspec/changes/combat-fx), as layers. A caller asks for a recipe
+// by name with a `scale` and a `density`: sizes, radii, offsets and speeds are multiplied by
+// `scale`, counts by `density`, lumens by `scale` cubed. An explosion's scale is the cube root of
+// its energy in megajoules (a 6 MJ shell is 1.82), as a fireball's size grows with the cube root
+// of its yield. Particle kinds: Spray, Steam, Dirt, Dust, Smoke, Spark, Fire, Flame, Debris,
+// Rubble, Trail.
+(
+    tracer_s: 0.008,
+    tracer_width_m: 0.25,
+    tracer_heavy_width_m: 0.5,
+    trail_spacing_m: 3.0,
+    motor_lumens: 200000.0,
+    max_particles: 5000,
+    max_lights: 24,
+    max_fireballs: 64,
+    recipes: {
+        // Guns. The effect's direction is the barrel's.
+        "muzzle_autocannon": [
+            Star(size_m: 1.4, life_s: 0.05, offset_m: 0.8),
+            Light(lumens: 3.0e6, range_m: 40.0, life_s: 0.05, colour: (1.0, 0.75, 0.45)),
+            Burst(kind: Fire, count: 5, speed_m_s: 8.0, spread: 0.3, size_m: 0.6, life_s: 0.15, offset_m: 1.5, along_dir: true),
+            Burst(kind: Smoke, count: 1, speed_m_s: 3.0, spread: 0.4, size_m: 0.8, life_s: 1.2, offset_m: 2.0, along_dir: true),
+        ],
+        "muzzle_cannon": [
+            Star(size_m: 4.0, life_s: 0.12, offset_m: 1.5),
+            Light(lumens: 4.0e7, range_m: 120.0, life_s: 0.12, colour: (1.0, 0.7, 0.4)),
+            Burst(kind: Fire, count: 30, speed_m_s: 14.0, spread: 0.3, size_m: 1.6, life_s: 0.15, offset_m: 1.5, along_dir: true),
+            // The muzzle brake throws the gas out sideways, and it hangs as a ring.
+            Burst(kind: Fire, count: 16, speed_m_s: 10.0, spread: 1.6, size_m: 0.9, life_s: 0.12, offset_m: 0.6, along_dir: true),
+            Burst(kind: Smoke, count: 18, speed_m_s: 5.0, spread: 1.4, size_m: 2.0, life_s: 3.5, offset_m: 1.0, along_dir: true),
+            Burst(kind: Smoke, count: 12, speed_m_s: 6.0, spread: 0.5, size_m: 2.0, life_s: 2.5, offset_m: 3.0, along_dir: true),
+        ],
+        "muzzle_rocket": [
+            Light(lumens: 1.0e7, range_m: 60.0, life_s: 0.2, colour: (1.0, 0.8, 0.55)),
+            Burst(kind: Flame, count: 12, speed_m_s: 18.0, spread: 0.5, size_m: 1.2, life_s: 0.2, offset_m: -1.0, along_dir: true),
+            Burst(kind: Smoke, count: 14, speed_m_s: 6.0, spread: 0.9, size_m: 2.2, life_s: 4.0, offset_m: -2.0, along_dir: true),
+        ],
+        // A rocket in flight, every `trail_spacing_m`. The direction is its flight.
+        "rocket_trail": [
+            Burst(kind: Trail, count: 1, speed_m_s: 0.4, spread: 0.5, size_m: 1.1, life_s: 12.0),
+            Burst(kind: Flame, count: 1, speed_m_s: 30.0, spread: 0.1, size_m: 0.8, life_s: 0.06, offset_m: -1.0, along_dir: true),
+        ],
+        // Impacts. The direction points back the way the shot came.
+        "impact_mech": [
+            Star(size_m: 1.2, life_s: 0.04),
+            Light(lumens: 2.0e6, range_m: 30.0, life_s: 0.06, colour: (1.0, 0.9, 0.7)),
+            Burst(kind: Spark, count: 25, speed_m_s: 14.0, spread: 0.7, size_m: 0.3, life_s: 0.6, along_dir: true),
+            Burst(kind: Smoke, count: 2, speed_m_s: 2.0, spread: 0.6, size_m: 1.0, life_s: 2.0, along_dir: true),
+        ],
+        "impact_building": [
+            Burst(kind: Dust, count: 18, speed_m_s: 5.0, spread: 0.8, size_m: 2.5, life_s: 3.0, along_dir: true),
+            Burst(kind: Rubble, count: 10, speed_m_s: 7.0, spread: 0.7, size_m: 0.5, life_s: 2.0, along_dir: true),
+            Burst(kind: Smoke, count: 3, speed_m_s: 1.5, spread: 0.7, size_m: 3.0, life_s: 6.0, along_dir: true),
+        ],
+        "impact_ground": [
+            Burst(kind: Dirt, count: 12, speed_m_s: 8.0, spread: 0.5, size_m: 0.4, life_s: 1.5),
+            Burst(kind: Dust, count: 4, speed_m_s: 2.0, spread: 0.9, size_m: 1.8, life_s: 2.5),
+        ],
+        "impact_water": [
+            Burst(kind: Spray, count: 15, speed_m_s: 8.0, spread: 0.3, size_m: 0.8, life_s: 1.2),
+            Ripple(radius_m: 4.0),
+        ],
+        // Explosions, at 1 MJ.
+        "explosion_ground": [
+            Light(lumens: 4.0e8, range_m: 300.0, life_s: 0.6, colour: (1.0, 0.7, 0.4), lift_m: 3.0),
+            Fireball(radius_m: 4.5, grow_s: 0.15, life_s: 0.9),
+            Shock(radius_m: 22.0, life_s: 0.35),
+            Burst(kind: Dirt, count: 160, speed_m_s: 20.0, spread: 0.6, size_m: 0.5, life_s: 3.0),
+            Burst(kind: Dust, count: 60, speed_m_s: 6.0, spread: 0.9, size_m: 4.0, life_s: 5.0),
+            Burst(kind: Debris, count: 24, speed_m_s: 25.0, spread: 0.9, size_m: 0.6, life_s: 2.5),
+            Burst(kind: Spark, count: 80, speed_m_s: 26.0, spread: 0.9, size_m: 0.25, life_s: 1.2),
+            Burst(kind: Fire, count: 50, speed_m_s: 9.0, spread: 0.8, size_m: 2.2, life_s: 0.7),
+            // The column: rises and spreads for 20 s.
+            Burst(kind: Smoke, count: 30, speed_m_s: 3.0, spread: 0.35, size_m: 5.0, life_s: 20.0),
+        ],
+        "explosion_water": [
+            Light(lumens: 4.0e8, range_m: 300.0, life_s: 0.6, colour: (1.0, 0.7, 0.4), lift_m: 3.0),
+            Fireball(radius_m: 3.0, grow_s: 0.12, life_s: 0.5),
+            Burst(kind: Spray, count: 220, speed_m_s: 22.0, spread: 0.35, size_m: 1.6, life_s: 2.5),
+            Burst(kind: Steam, count: 40, speed_m_s: 4.0, spread: 0.8, size_m: 4.0, life_s: 4.0),
+            Burst(kind: Spark, count: 40, speed_m_s: 20.0, spread: 0.9, size_m: 0.25, life_s: 1.0),
+            Ripple(radius_m: 13.0),
+        ],
+        "explosion_air": [
+            Light(lumens: 4.0e8, range_m: 300.0, life_s: 0.6, colour: (1.0, 0.7, 0.4)),
+            Fireball(radius_m: 5.0, grow_s: 0.15, life_s: 1.0),
+            Shock(radius_m: 22.0, life_s: 0.35),
+            Burst(kind: Debris, count: 24, speed_m_s: 25.0, spread: 1.0, size_m: 0.6, life_s: 2.5),
+            Burst(kind: Spark, count: 80, speed_m_s: 26.0, spread: 1.0, size_m: 0.25, life_s: 1.2),
+            Burst(kind: Fire, count: 50, speed_m_s: 9.0, spread: 1.0, size_m: 2.2, life_s: 0.7),
+            Burst(kind: Smoke, count: 24, speed_m_s: 3.0, spread: 1.0, size_m: 5.0, life_s: 14.0),
+        ],
+        // The mech and the world.
+        "foot_dust": [
+            Burst(kind: Dust, count: 10, speed_m_s: 2.0, spread: 1.0, size_m: 1.4, life_s: 1.8),
+        ],
+        "foot_spray": [
+            Burst(kind: Spray, count: 70, speed_m_s: 8.0, spread: 0.55, size_m: 1.1, life_s: 1.6),
+            Ripple(radius_m: 13.0),
+        ],
+        // Every frame a jet lifts; the direction is the thrust's (down).
+        "jet_flame": [
+            Burst(kind: Flame, count: 6, speed_m_s: 30.0, spread: 0.15, size_m: 0.9, life_s: 0.25, along_dir: true),
+            Burst(kind: Smoke, count: 1, speed_m_s: 8.0, spread: 0.4, size_m: 2.5, life_s: 2.0, offset_m: 3.0, along_dir: true),
+        ],
+        "wall_smash": [
+            Burst(kind: Dust, count: 60, speed_m_s: 6.0, spread: 1.0, size_m: 3.0, life_s: 4.0),
+            Burst(kind: Rubble, count: 30, speed_m_s: 6.0, spread: 1.0, size_m: 0.8, life_s: 2.5),
+        ],
+        "tree_fall": [
+            Burst(kind: Dust, count: 25, speed_m_s: 3.0, spread: 0.9, size_m: 2.5, life_s: 2.5),
+        ],
+        "part_lost": [
+            Light(lumens: 3.0e7, range_m: 80.0, life_s: 0.3, colour: (1.0, 0.75, 0.5)),
+            Burst(kind: Spark, count: 90, speed_m_s: 18.0, spread: 0.8, size_m: 0.25, life_s: 1.2),
+            Burst(kind: Fire, count: 30, speed_m_s: 6.0, spread: 0.8, size_m: 1.6, life_s: 0.8),
+            Burst(kind: Smoke, count: 30, speed_m_s: 3.0, spread: 0.8, size_m: 3.0, life_s: 6.0),
+        ],
+        // Every 0.1 s while a wreck or a stump burns.
+        "burning": [
+            Burst(kind: Smoke, count: 2, speed_m_s: 3.0, spread: 0.3, size_m: 1.8, life_s: 5.0),
+            Burst(kind: Fire, count: 1, speed_m_s: 2.0, spread: 0.4, size_m: 0.9, life_s: 0.5),
+        ],
+    },
+)

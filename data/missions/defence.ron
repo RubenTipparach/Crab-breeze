@@ -1,0 +1,57 @@
+// The city defence mission (openspec/changes/city-defence). Three waves of 10 raiders, one wave
+// per city (largest first: wave 1 attacks the city the pilot starts in). Destroy every raider of a
+// wave within `wave_time_s` of it appearing; the mission is lost if the attacked city's damage
+// (the share of its building cells destroyed) passes `lose_damage`, or if the pilot's mech falls.
+// The siege bursts are a first estimate (design section 4): retune them from a run's
+// `MISSION status` log, not by guesswork.
+(
+    cities: [0, 1, 2],
+    raiders_per_wave: 10,
+    wave_time_s: 600.0,
+    lose_damage: 0.5,
+    lull_s: 20.0,
+    spawn_distance_m: 450.0,
+    spawn_arc_deg: 100.0,
+    spawn_jitter_m: 30.0,
+    edge_margin_m: 150.0,
+    max_on_player: 3,
+    engage_player_m: 300.0,
+    grudge_s: 8.0,
+    grudge_range_m: 700.0,
+    siege_burst_s: 1.0,
+    siege_pause_s: 5.0,
+    facade_out_m: 2.0,
+    // Cycled through each wave in order: of 10 raiders, numbers 3, 6 and 9 carry rockets.
+    raiders: [
+        (
+            mech: "mechs/placeholder.ron",
+            tint: Some((0.55, 0.20, 0.14)),
+            armour_scale: 0.55,
+            weapons: Some([
+                (name: "25 mm autocannon", socket: "MUZZLE_R", arm: ArmR, group: 0, speed_m_s: 1100.0,
+                 interval_s: 0.2, penetration_mm: 55.0, damage: 6.0, blast_mj: 0.3),
+            ]),
+            skill: (aim_noise_deg: 3.0, fire_error_deg: 3.0, range_m: 200.0, max_fire_range_m: 700.0),
+        ),
+        (
+            mech: "mechs/placeholder.ron",
+            tint: Some((0.45, 0.16, 0.12)),
+            armour_scale: 0.55,
+            weapons: Some([
+                (name: "25 mm autocannon", socket: "MUZZLE_R", arm: ArmR, group: 0, speed_m_s: 1100.0,
+                 interval_s: 0.2, penetration_mm: 55.0, damage: 6.0, blast_mj: 0.3),
+            ]),
+            skill: (aim_noise_deg: 3.5, fire_error_deg: 3.0, range_m: 240.0, max_fire_range_m: 700.0),
+        ),
+        (
+            mech: "mechs/placeholder.ron",
+            tint: Some((0.35, 0.30, 0.16)),
+            armour_scale: 0.55,
+            weapons: Some([
+                (name: "90 mm rocket pod", socket: "MUZZLE_R", arm: ArmR, group: 0, speed_m_s: 240.0,
+                 interval_s: 1.6, penetration_mm: 120.0, damage: 30.0, blast_mj: 2.0, rocket: true),
+            ]),
+            skill: (aim_noise_deg: 2.0, fire_error_deg: 2.5, range_m: 320.0, max_fire_range_m: 800.0, hop_chance: 0.2),
+        ),
+    ],
+)

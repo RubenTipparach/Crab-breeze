@@ -8,8 +8,10 @@
 pub mod ai;
 pub mod boarding;
 pub mod data;
+pub mod fx;
 pub mod input;
 pub mod mech;
+pub mod mission;
 pub mod pilot;
 pub mod rng;
 pub mod sim;
@@ -35,6 +37,10 @@ pub struct GameData {
     pub bindings: input::Bindings,
     /// `data/world/encounters.ron`.
     pub encounters: ai::Encounters,
+    /// `data/missions/defence.ron`.
+    pub defence: mission::DefenceConfig,
+    /// `data/fx/fx.ron`.
+    pub fx: fx::FxConfig,
 }
 
 impl GameData {
@@ -49,6 +55,8 @@ impl GameData {
             pilot: data::load_ron(&root.join("pilot/pilot.ron"))?,
             bindings: data::load_ron(&root.join("input/bindings.ron"))?,
             encounters: data::load_ron(&root.join("world/encounters.ron"))?,
+            defence: data::load_ron(&root.join("missions/defence.ron"))?,
+            fx: data::load_ron(&root.join("fx/fx.ron"))?,
         })
     }
 
