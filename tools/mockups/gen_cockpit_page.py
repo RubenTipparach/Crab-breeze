@@ -2,10 +2,18 @@
 
     python3 tools/mockups/gen_cockpit_page.py
 
-Reads assets/models/cockpit_breeze.glb (tools/blender/build_cockpit.py), assets/models/mech_breeze.glb
-(tools/blender/build_mechs.py), the cockpit manifest and the panel contact sheet, and inlines them,
-so the page needs nothing but three.js r147 from the CDN. The pose layer is tools/mockups/mech_pose.js
+Loads the pod (assets/models/cockpit_breeze/, glTF with its PBR textures beside it, from
+tools/blender/build_cockpit.py) and the mech (assets/models/mech_breeze.glb, tools/blender/build_mechs.py)
+by relative path: they are published as the page's own files (files() below), too big to inline.
+The manifest, the HUD and the panel contact sheet are inlined. The pose layer is tools/mockups/mech_pose.js
 (Mining Mike's, plus the sit pose), inlined: the same file the mech page uses.
+
+The script also writes output/cockpit_site/ (the page and links to its files) to serve over HTTP for local
+shots: fetch() does not work from file://.
+
+The pod is lit in real time with physical PBR (owner, 2026-10-24: "Aim for that pbr triple a goodness
+that bevy provides"): its own lamps come from the glTF (KHR_lights_punctual), scaled from candela to the
+page's light units, and the exposure adapts between outside and the seat as an eye would.
 
 The owner, 2026-10-24: "The cockpit should be enclosed fully. We can view outside via screens like in
 gundam. For the mockups have the mech sit down on the ground so that pilots can enter/exit. The cockpit
@@ -22,17 +30,29 @@ import base64
 import io
 import json
 import os
+import shutil
 
 from PIL import Image
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-GLB = os.path.join(ROOT, "assets", "models", "cockpit_breeze.glb")
+POD_DIR = os.path.join(ROOT, "assets", "models", "cockpit_breeze")
 MAN = os.path.join(ROOT, "assets", "models", "cockpit_breeze.json")
 MECH = os.path.join(ROOT, "assets", "models", "mech_breeze.glb")
 POSE = os.path.join(ROOT, "tools", "mockups", "mech_pose.js")
 HUD = os.path.join(ROOT, "assets", "textures", "cockpit", "displays", "hud.png")
 SHEET = os.path.join(ROOT, "docs", "screenshots", "cockpit", "panels-contact-sheet.png")
 OUT = os.path.join(ROOT, "docs", "mockups", "cockpit.html")
+SITE = os.path.join(ROOT, "output", "cockpit_site")
+
+
+def files():
+    """The page's own files: published path (relative to the page) to the source in the repository."""
+    out = {"mech_breeze.glb": MECH}
+    for dp, _, fs in os.walk(POD_DIR):
+        for f in sorted(fs):
+            src = os.path.join(dp, f)
+            out["cockpit_breeze/" + os.path.relpath(src, POD_DIR)] = src
+    return out
 
 PAGE = r"""<title>Breeze Cockpit</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -141,28 +161,32 @@ td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
     <div class="card">
       <h2>What it costs</h2>
       <table id="cost"></table>
-      <p class="note" style="margin-top:8px">Measured off the glb and the bake. A cloud session has no GPU, so frame time is not measured here (CLAUDE.md 7). The screens cost extra renders of the world in the game: measure on your PC first.</p>
+      <p class="note" style="margin-top:8px">Measured off the glTF and the bake. Target: an RTX 3070. A cloud session has no GPU, so frame time is not measured here (CLAUDE.md 7). The screens cost extra renders of the world in the game: measure on your PC first.</p>
     </div>
     <div class="card">
       <h2>Placeholder for now</h2>
       <ul>
         <li>The screens show pictures of what they will show; in the game each number is the simulation's own.</li>
         <li>No pilot body or hands, no sound, a stand-in city.</li>
-        <li>The cabin's light is baked from its own lamps and the screens' glow; the outside armour is lit live.</li>
+        <li>Lit live, as the game will be: physical PBR (base colour, normal, occlusion-roughness-metal and emission maps on every surface) under the pod's own lamps. The cabin's bounce light is a stand-in until the game lights it from the screens.</li>
       </ul>
     </div>
   </div>
   <div class="sheet">
     <h2>The panels, as modelled</h2>
-    <p class="lede">Each panel rendered under a fixed key light at one scale. The cockpit uses its albedo, normal, occlusion and emission maps, not this picture.</p>
+    <p class="lede">Each panel rendered under a fixed key light at one scale. The cockpit uses its base colour, normal, occlusion-roughness-metal and emission maps, not this picture.</p>
     <img alt="Contact sheet of every cockpit panel" src="data:image/jpeg;base64,__SHEET__">
   </div>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/environments/RoomEnvironment.js"></script>
 <script>
-const POD_GLB = "__GLB__", MECH_GLB = "__MECH__";
+const POD_URL = "cockpit_breeze/cockpit_breeze.gltf", MECH_URL = "mech_breeze.glb";
+// Light units: the stand-in sun is 4.7 page units for about 100 000 lux, so the pod's lamps (candela,
+// from the glTF) are divided by about 21 000. Inside, the exposure opens up as an eye adapts.
+const CD_TO_PAGE = 1 / 21000, EXPOSURE_OUT = 1.0, EXPOSURE_IN = 38;
 const MAN = __MAN__;
 const WIP = __WIP__;
 __MECH_POSE__
@@ -195,6 +219,9 @@ if (WIP) document.getElementById("wip").textContent = WIP;
 const stage = document.getElementById("stage");
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.physicallyCorrectLights = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = EXPOSURE_OUT;
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 renderer.shadowMap.enabled = true;
 stage.appendChild(renderer.domElement);
@@ -207,8 +234,8 @@ scene.add(new THREE.Mesh(new THREE.SphereGeometry(3000, 32, 16), new THREE.Shade
   vertexShader: "varying vec3 v; void main(){ v = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
   fragmentShader: "varying vec3 v; void main(){ float h = v.y; vec3 hor = vec3(0.86,0.78,0.70); vec3 zen = vec3(0.30,0.42,0.66); vec3 c = mix(hor, zen, smoothstep(0.0,0.55,h)); if (h < 0.0) c = mix(hor, vec3(0.30,0.28,0.26), smoothstep(0.0,0.05,-h)); gl_FragColor = vec4(c,1.0); }"
 })));
-scene.add(new THREE.HemisphereLight(0xc6d2e6, 0x4a4238, 0.75));
-const sun = new THREE.DirectionalLight(0xffe2bf, 1.5);
+scene.add(new THREE.HemisphereLight(0xc6d2e6, 0x4a4238, 0.75 * Math.PI));
+const sun = new THREE.DirectionalLight(0xffe2bf, 1.5 * Math.PI);
 sun.position.set(-30, 26, 22); sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 120 });
 scene.add(sun);
@@ -317,20 +344,32 @@ const allview = new THREE.ShaderMaterial({
 })();
 
 // ---------- load the mech and the pod ----------
-const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0)).buffer;
 const loader = new THREE.GLTFLoader();
+const pmrem = new THREE.PMREMGenerator(renderer);
+const cabinEnv = pmrem.fromScene(new THREE.RoomEnvironment(), 0.04).texture;   // a stand-in for the screens' bounce light
+const podLights = [];
 const N = {}, P = {};   // the mech's nodes, the pod's nodes
 let mech = null, pod = null, B = null;
 const rest = {}, latches = [], vents = [];
-const parse = buf => new Promise((res, rej) => loader.parse(buf, "", res, rej));
-Promise.all([parse(b64(MECH_GLB)), parse(b64(POD_GLB))]).then(([gm, gp]) => {
+Promise.all([loader.loadAsync(MECH_URL), loader.loadAsync(POD_URL)]).then(([gm, gp]) => {
   mech = gm.scene; pod = gp.scene;
   mech.traverse(o => { if (o.name) N[o.name] = o; if (o.isMesh) o.castShadow = o.receiveShadow = true; });
   pod.traverse(o => {
     if (o.name) P[o.name] = o;
+    if (o.isLight) {
+      o.intensity *= CD_TO_PAGE; podLights.push(o);
+      if (o.isSpotLight && /screen|glare/.test(o.name + (o.parent ? o.parent.name : ""))) {
+        o.castShadow = true; o.shadow.mapSize.set(1024, 1024); o.shadow.bias = -0.0004; o.shadow.camera.near = 0.05;
+      }
+      return;
+    }
     if (!o.isMesh) return;
     o.castShadow = o.receiveShadow = true;
-    for (const m of [].concat(o.material)) if (m.map) m.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    for (const m of [].concat(o.material)) {
+      for (const k of ["map", "normalMap", "roughnessMap", "aoMap", "emissiveMap"]) if (m[k]) m[k].anisotropy = renderer.capabilities.getMaxAnisotropy();
+      if (m.name.startsWith("SCREEN_")) m.toneMapped = false;
+      else if (m.name.startsWith("COCKPIT_")) { m.envMap = cabinEnv; m.envMapIntensity = 0.02; }
+    }
     if ([].concat(o.material).some(m => m.name === "SCREEN_allview")) { o.material = allview; o.castShadow = false; }
   });
   scene.add(mech);
@@ -433,7 +472,7 @@ function walkPath() {
     { p: podPoint(...MAN.eye_m), yaw: 0, pitch: -0.08, d: 1.6 },
   ];
 }
-let walk = null;
+let walk = null, eyeInside = false;
 function stepWalk(dt) {
   if (!walk) return;
   if (walk.hold) { placeEye(podPoint(...MAN.eye_m), look.yaw, look.pitch, look.fov); return; }
@@ -456,6 +495,7 @@ function placeEye(p, yaw, pitch, fov) {
   const q = new THREE.Quaternion(); pod.getWorldQuaternion(q);
   const e = new THREE.Euler().setFromQuaternion(q, "YXZ");
   camera.position.copy(p);
+  eyeInside = true;
   camera.quaternion.setFromEuler(new THREE.Euler(pitch + (yaw === 0 ? e.x : 0), e.y + yaw + Math.PI, 0, "YXZ"));
   camera.fov = fov; camera.updateProjectionMatrix();
 }
@@ -545,6 +585,7 @@ function frame() {
     stepParticles(dt);
     let cue = ""; for (const [ct, c] of CUES) if (T >= ct - 1e-3) cue = c;
     cueEl.hidden = !(T > 0.01 && T < OPEN_END - 0.01); cueEl.textContent = cue;
+    eyeInside = false;
     if (cam === "eyes") stepWalk(dt);
     else if (cam === "seat") placeEye(podPoint(...MAN.eye_m), look.yaw, look.pitch, look.fov);
     else orbit.update();
@@ -562,6 +603,9 @@ function frame() {
       lastEye.copy(eye); capTimer = 0.1;
     }
   }
+  // the eye adapts: inside the sealed pod the exposure opens up
+  const want = eyeInside && pod && camera.position.distanceTo(podPoint(...MAN.eye_m)) < 1.4 ? EXPOSURE_IN : EXPOSURE_OUT;
+  renderer.toneMappingExposure += (want - renderer.toneMappingExposure) * Math.min(1, dt * 3);
   pMat.uniforms.scale.value = renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
@@ -569,14 +613,16 @@ function frame() {
 frame();
 
 const rows = [["Triangles (pod)", MAN.tris.toLocaleString("en-GB") + " / " + MAN.tri_budget.toLocaleString("en-GB")]];
-for (const [g, a] of Object.entries(MAN.atlases)) rows.push([`Baked atlas, ${g}`, `${a.px} x ${a.px}`]);
-rows.push(["Baked texture memory (RGBA8, mips)", (Object.values(MAN.atlases).reduce((s, a) => s + a.px * a.px * 4 * 4 / 3, 0) / 1048576).toFixed(0) + " MiB"]);
+for (const [g, a] of Object.entries(MAN.atlases)) rows.push([`PBR atlas, ${g} (${a.maps.length} maps)`, `${a.px} x ${a.px}`]);
+const texMiB = Object.values(MAN.atlases).reduce((s, a) => s + a.px * a.px * a.maps.length * 4 / 3, 0) / 1048576;
+rows.push(["Atlas memory (BC7 or RGBA8 at a byte a texel, mips)", texMiB.toFixed(0) + " MiB"]);
+rows.push(["Real-time lamps", String(MAN.lights)]);
 rows.push(["Draw calls (mesh materials)", String(MAN.draw_calls)]);
 rows.push(["Moving nodes", String(Object.keys(MAN.nodes).length)]);
 rows.push(["Steam and mist vents", String(MAN.vents)]);
 rows.push(["Panels modelled", String(MAN.panels.length)]);
-rows.push(["Bake samples", String(MAN.bake.samples) + (MAN.bake.denoised ? ", denoised" : "")]);
-rows.push(["glb size", (MAN.glb_bytes / 1048576).toFixed(1) + " MiB"]);
+rows.push(["Occlusion samples", String(MAN.bake.ao_samples) + (MAN.bake.denoised ? ", denoised" : "")]);
+rows.push(["Files on disk", (MAN.bytes / 1048576).toFixed(1) + " MiB"]);
 document.getElementById("cost").innerHTML = rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join("");
 
 window.MOCKUP = {
@@ -593,19 +639,28 @@ window.MOCKUP = {
 
 def main():
     man = json.load(open(MAN))
-    b64 = lambda p: base64.b64encode(open(p, "rb").read()).decode("ascii")
+    b64 = lambda p: base64.b64encode(open(p, "rb").read()).decode("ascii")  # noqa: E731
     im = Image.open(SHEET).convert("RGB")
     im = im.resize((1600, int(im.size[1] * 1600 / im.size[0])), Image.LANCZOS)
     buf = io.BytesIO()
     im.save(buf, "JPEG", quality=82, optimize=True)
-    html = (PAGE.replace("__MECH_POSE__", open(POSE).read()).replace("__GLB__", b64(GLB)).replace("__MECH__", b64(MECH))
+    html = (PAGE.replace("__MECH_POSE__", open(POSE).read())
             .replace("__HUD__", b64(HUD)).replace("__MAN__", json.dumps(man))
             .replace("__SHEET__", base64.b64encode(buf.getvalue()).decode("ascii"))
             .replace("__WIP__", json.dumps(os.environ.get("COCKPIT_WIP", ""))))
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w") as f:
         f.write(html)
-    print(OUT, f"{len(html) / 1e6:.1f} MB")
+    shutil.rmtree(SITE, ignore_errors=True)
+    os.makedirs(SITE)
+    os.symlink(OUT, os.path.join(SITE, "index.html"))
+    fs = files()
+    for rel, src in fs.items():
+        dst = os.path.join(SITE, rel)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        os.symlink(src, dst)
+    print(OUT, f"{len(html) / 1e6:.1f} MB, {len(fs)} files beside it, {sum(os.path.getsize(p) for p in fs.values()) / 1e6:.1f} MB")
 
 
-main()
+if __name__ == "__main__":
+    main()

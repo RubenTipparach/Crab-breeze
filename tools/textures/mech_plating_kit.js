@@ -127,14 +127,44 @@ function normalOf(c, strength) {
   }
   o.putImageData(im, 0, 0); return out;
 }
+// Crab Breeze: an occlusion-roughness-metal map (glTF packing: R occlusion, G roughness, B metal) from the
+// same two canvases, so the plating is full PBR. Occlusion is the bump's cavity against its blurred self
+// (seams, rivet rings, dents read dark); roughness is the paint's, rougher where it is grimy and darker
+// than its base, smoother where it is worn through; metal is the bare steel showing through the paint.
+// metal0 is the plate's own metalness (paint 0, knurled steel high).
+function ormOf(colC, bmpC, o) {
+  const S = colC.width;
+  const blur = document.createElement("canvas"); blur.width = blur.height = S;
+  const q = blur.getContext("2d"); q.filter = "blur(5px)";
+  for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) q.drawImage(bmpC, ox, oy);
+  const hb = q.getImageData(0, 0, S, S).data, h = bmpC.getContext("2d").getImageData(0, 0, S, S).data;
+  const c = colC.getContext("2d").getImageData(0, 0, S, S).data;
+  const base = parseInt(o.base.slice(1), 16), bl = (((base >> 16) & 255) * 0.3 + ((base >> 8) & 255) * 0.59 + (base & 255) * 0.11) / 255;
+  const out = document.createElement("canvas"); out.width = out.height = S;
+  const g = out.getContext("2d"), im = g.createImageData(S, S), d = im.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const cav = Math.max(0, hb[i] - h[i]) / 255, lum = (c[i] * 0.3 + c[i + 1] * 0.59 + c[i + 2] * 0.11) / 255;
+    const ao = Math.min(1, Math.max(0.25, 1 - cav * 3.2));
+    const dirt = Math.min(1, Math.max(0, (bl - lum) * 2.2)), worn = Math.min(1, Math.max(0, (lum - bl) * (o.light ? 0 : 4)));
+    const rough = Math.min(0.95, Math.max(0.18, o.rough + dirt * 0.3 - worn * 0.35));
+    const metal = Math.min(1, Math.max(0, o.metal0 + worn * 0.8));
+    d[i] = ao * 255; d[i + 1] = rough * 255; d[i + 2] = metal * 255; d[i + 3] = 255;
+  }
+  g.putImageData(im, 0, 0); return out;
+}
 window.__out = (() => {
   const X = textures(), png = c => c.toDataURL("image/png");
+  // plating() is seeded, so calling it again gives the same canvases; wear's bump is not kept in TEX.
+  const W = plating(63, { base: "#ddd6d3", light: true });
+  const L = plating(71, { base: "#c3c7cd", panels: true, light: true });
+  const flat = (S, ao, rough, metal) => { const c = document.createElement("canvas"); c.width = c.height = S; const g = c.getContext("2d"); g.fillStyle = `rgb(${ao * 255},${rough * 255},${metal * 255})`; g.fillRect(0, 0, S, S); return c; };
   return {
-    armor: png(X.armor), armor_n: png(normalOf(X.armorBump, 2.5)),
-    armorB: png(X.armorB), armorB_n: png(normalOf(X.armorBBump, 2.5)),
-    frame: png(X.frame), frame_n: png(normalOf(X.frameBump, 2.0)),
+    armor: png(X.armor), armor_n: png(normalOf(X.armorBump, 2.5)), armor_orm: png(ormOf(X.armor, X.armorBump, { base: "#4d4042", rough: 0.55, metal0: 0 })),
+    armorB: png(X.armorB), armorB_n: png(normalOf(X.armorBBump, 2.5)), armorB_orm: png(ormOf(X.armorB, X.armorBBump, { base: "#453739", rough: 0.6, metal0: 0 })),
+    frame: png(X.frame), frame_n: png(normalOf(X.frameBump, 2.0)), frame_orm: png(ormOf(X.frame, X.frameBump, { base: "#38363a", rough: 0.42, metal0: 0.85 })),
     // Crab Breeze's one addition: a light panelled plate for white liveries, the same plating() call with a pale base.
-    ...(() => { const L = plating(71, { base: "#c3c7cd", panels: true, light: true }); return { armorL: png(L.map), armorL_n: png(normalOf(L.bump, 2.5)) }; })(),
-    wear: png(X.wear), hazard: png(X.hazard),
+    armorL: png(L.map), armorL_n: png(normalOf(L.bump, 2.5)), armorL_orm: png(ormOf(L.map, L.bump, { base: "#c3c7cd", rough: 0.5, metal0: 0, light: true })),
+    wear: png(X.wear), wear_n: png(normalOf(W.bump, 2.0)), wear_orm: png(ormOf(W.map, W.bump, { base: "#ddd6d3", rough: 0.55, metal0: 0, light: true })),
+    hazard: png(X.hazard), hazard_orm: png(flat(128, 1, 0.6, 0)),
   };
 })();

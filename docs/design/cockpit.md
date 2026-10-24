@@ -15,7 +15,9 @@ screens like in gundam", with references (Armored Core, Titanfall, the Gundam Se
 80s mecha anime cockpits): a big front screen with angled side screens, heavy dark pillars and
 frames between them, small monitors hanging from the overhead, the HUD drawn on the screens, twin
 grips at the ends of the consoles, cyan accent lights. The cockpit is a sealed armoured pod at the
-front of the chest. Sitting in the seat, eye 1.20 m above the floor:
+front of the chest, and a boxy cabin: every screen is flat, set in a straight frame between straight
+pillars (the owner, on a curved first draft: "That's not a mech cockpit", "The curved ones are just
+fish eye pov"). Sitting in the seat, eye 1.20 m above the floor:
 
 | Where | What | Size |
 | --- | --- | --- |
@@ -49,7 +51,8 @@ a three section stair unfolds to the ground, the front console swings clear, and
 out over the sill. The pilot climbs in and sits; it all closes in reverse, a last hiss seals it,
 the screens power up one by one, and the mech stands. All of it from the pilot's eyes.
 
-The pod's nodes (pivots in `assets/models/cockpit_breeze.json`): `HATCH_upper`, `STRUT_L/R` with
+The pod's nodes (pivots in `assets/models/cockpit_breeze.json`; the model is
+`assets/models/cockpit_breeze/cockpit_breeze.gltf`): `HATCH_upper`, `STRUT_L/R` with
 `_rod` and `_tip`, `DOOR_L/R`, `FLAP_L/R`, `HATCH_lower`, `STAIR_1..3`, `CONSOLE_front` (with
 `SCREEN_left/center/right` on it), `OVH_left/center/right`, `LATCH_1..6`, `CTRL_stick`,
 `CTRL_throttle`, and `VENT_<stage>_<n>` empties (extras: `kind` steam or mist, `stage`, `rate`,
@@ -69,19 +72,22 @@ Two stages, both committed generators, both run headless in Blender 4.4 (CLAUDE.
    and metalness, and the emission of the lit caps. 12 panels at 900 to 2000 px per metre.
    `tools/textures/cockpit_contact_sheet.py` makes the contact sheet; look at it before calling a
    bake done.
-2. **The set** (`tools/blender/build_cockpit.py`). The tub, consoles, dash, seat, controls,
-   pod shell, screen wall, hatch and armour are built in metres around the eye, the panels laid on
-   as real plates carrying their maps. Cycles then bakes the cabin's light with occlusion into two
-   atlases (front: dash, consoles, grips; cabin: everything else inside): the screen wall's glow,
-   a warm floodlight under the glare shield and under each screen's lower edge, a lamp strip on
-   the rear bulkhead, a red footwell lamp, the MFDs and lit buttons, three diffuse bounces. The
-   outside armour is not baked: it is lit live, with the mech plating maps. A short contact occlusion bake is multiplied
-   in, the result is denoised (OIDN), tone mapped and written as JPEG. The baked surfaces export
-   unlit (`KHR_materials_unlit`), so what the page shows is the bake.
+2. **The pod** (`tools/blender/build_cockpit.py`). The tub, consoles, dash, seat, controls, the
+   boxy cabin with its flat screens, the hatch and the armour are built in metres around the eye,
+   the panels laid on as real plates carrying their maps. Cycles then bakes the inside's materials
+   into two 4096 px atlases (front: dash, consoles, grips; cabin: everything else inside), each as
+   four maps: base colour, a tangent-space normal map (the panel relief and the bevelled edges),
+   ORM (R occlusion: each panel's own occlusion times a short contact occlusion bake, denoised with
+   OIDN; G roughness; B metal) and emission. No light is baked (owner, 2026-10-24: "Aim for that pbr
+   triple a goodness that bevy provides"): the pod exports as lit PBR with its own real-time lamps
+   (glTF `KHR_lights_punctual`): a cool wash from the front screen, warm floods under the glare
+   shield and along the sills, a lamp on the rear bulkhead, a red footwell lamp. The outside armour
+   uses the mech plating's colour, normal and ORM maps. The screens export unlit
+   (`KHR_materials_unlit`) for the game to draw live.
 
 The display pictures are `tools/textures/gen_cockpit_displays.py` (PIL): pictures of what the
 screens will show, not a texture imitating a material, so CLAUDE.md 10's Material Maker rule does
-not apply. The panel textures are modelled and baked, the Star Crew way the owner asked for, which
+not apply. The panel textures are modelled and rendered, the Star Crew way the owner asked for, which
 is the documented exception in CLAUDE.md 13.
 
 ## What it costs
@@ -91,9 +97,11 @@ cloud session (CLAUDE.md 7).
 
 | | |
 | --- | --- |
-| Triangles | see the manifest's `tris`, budget 200,000 |
-| Draw calls | one per mesh material, about 70 (two baked atlases, the screens, the outside armour roles); merging is for the engine |
-| Texture memory | two 4096 x 4096 atlases, RGBA8 with mips: 2 x 85 MiB = 170 MiB on the GPU (JPEG on disk) |
+| Target | an RTX 3070 (owner, 2026-10-24: "don't worry about 200k triangle count") |
+| Triangles | see the manifest's `tris` (about 33,000), budget 600,000 |
+| Draw calls | one per mesh material, about 70 (two atlases, the screens, the outside armour roles); merging is for the engine |
+| Texture memory | two atlases of four 4096 x 4096 maps: 8 x 21 MiB = 171 MiB as BC7 with mips (683 MiB as RGBA8; JPEG on disk) |
+| Lights | six real-time lamps, two of them casting shadows |
 | Bake | about the time in the build log, on 4 CPU cores |
 
 ## Open questions
@@ -101,7 +109,7 @@ cloud session (CLAUDE.md 7).
 | Id | Question | Provisional answer |
 | --- | --- | --- |
 | C1 | How the pilot sees out | Decided: sealed, screens (owner, 2026-10-24) |
-| C3 | How the baked light changes in play | A lightmap under live light (screens, flashes, alarms) |
+| C3 | How the cabin is lit | Decided: live PBR light, baked occlusion (owner, 2026-10-24) |
 | C4 | Control layout | Twin grips, throttle left, flight and torso right, as the references |
 | C6 | How the pilot climbs to the hatch | A stair unfolding from the lower plate |
 | C7 | How the screen wall looks | Separate screens in heavy bezels, phosphor tint, scanlines |

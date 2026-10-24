@@ -19,10 +19,14 @@ into one object per material.
 import json
 import math
 import os
+import sys
 
 import bmesh
 import bpy
 from mathutils import Matrix, Vector
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import pbr as PBR  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 TEXDIR = os.path.join(ROOT, "assets", "textures", "mech")
@@ -64,7 +68,9 @@ def _image(name):
     return img
 
 
-def _mat(name, color=0xffffff, tex=None, normal=None, rough=0.5, metal=0.0, emit=None, emit_k=0.0, alpha=1.0):
+def _mat(name, color=0xffffff, tex=None, normal=None, rough=0.5, metal=0.0, emit=None, emit_k=0.0, alpha=1.0, orm=None):
+    """A PBR material. `orm` names a plating ORM map (occlusion, roughness, metal), which then decides
+    roughness and metal in place of `rough` and `metal` (those stay for untextured parts)."""
     m = bpy.data.materials.new(name)
     m.use_nodes = True
     nt = m.node_tree
@@ -86,12 +92,9 @@ def _mat(name, color=0xffffff, tex=None, normal=None, rough=0.5, metal=0.0, emit
         else:
             nt.links.new(it.outputs["Color"], b.inputs["Base Color"])
     if normal:
-        nimg = nt.nodes.new("ShaderNodeTexImage")
-        nimg.image = _image(normal)
-        nimg.image.colorspace_settings.name = "Non-Color"
-        nm = nt.nodes.new("ShaderNodeNormalMap")
-        nt.links.new(nimg.outputs["Color"], nm.inputs["Color"])
-        nt.links.new(nm.outputs["Normal"], b.inputs["Normal"])
+        PBR.normal(nt, b, _image(normal))
+    if orm:
+        PBR.orm(nt, b, _image(orm))
     if emit is not None:
         b.inputs["Emission Color"].default_value = srgb(emit) + [1.0]
         b.inputs["Emission Strength"].default_value = emit_k
@@ -110,16 +113,16 @@ def make_mats(prefix, glow, livery, core, light=False):
     """makeMats from the kit, one set per mech. `light` swaps the dark armour for the pale plate."""
     a = "armorL" if light else "armor"
     return {
-        "armor": _mat(f"{prefix}_armor", tex=a, normal=a + "_n", rough=0.56, metal=0.45),
-        "armor2": _mat(f"{prefix}_armor2", tex="armorB", normal="armorB_n", rough=0.64, metal=0.4),
-        "frame": _mat(f"{prefix}_frame", tex="frame", normal="frame_n", rough=0.48, metal=0.7),
-        "red": _mat(f"{prefix}_livery", color=livery, tex="wear", rough=0.42, metal=0.25),
+        "armor": _mat(f"{prefix}_armor", tex=a, normal=a + "_n", orm=a + "_orm"),
+        "armor2": _mat(f"{prefix}_armor2", tex="armorB", normal="armorB_n", orm="armorB_orm"),
+        "frame": _mat(f"{prefix}_frame", tex="frame", normal="frame_n", orm="frame_orm"),
+        "red": _mat(f"{prefix}_livery", color=livery, tex="wear", normal="wear_n", orm="wear_orm"),
         "art": _mat(f"{prefix}_core", color=core, emit=core, emit_k=2.5, rough=0.25, metal=0.2),
         "ink": _mat(f"{prefix}_ink", color=0x170d0f, rough=0.6, metal=0.3),
-        "metal": _mat(f"{prefix}_metal", color=0xa9aeb5, tex="wear", rough=0.26, metal=0.95),
-        "dark": _mat(f"{prefix}_dark", color=0x232126, tex="frame", rough=0.7, metal=0.45),
+        "metal": _mat(f"{prefix}_metal", color=0xa9aeb5, tex="wear", normal="wear_n", rough=0.26, metal=0.95),
+        "dark": _mat(f"{prefix}_dark", color=0x232126, tex="frame", normal="frame_n", rough=0.7, metal=0.45),
         "rubber": _mat(f"{prefix}_rubber", color=0x141313, rough=0.92),
-        "hazard": _mat(f"{prefix}_hazard", tex="hazard", rough=0.6, metal=0.2),
+        "hazard": _mat(f"{prefix}_hazard", tex="hazard", orm="hazard_orm"),
         "lens": _mat(f"{prefix}_lens", color=0x060608, emit=glow, emit_k=1.6, rough=0.08, metal=0.6),
         "glow": _mat(f"{prefix}_glow", color=glow, emit=glow, emit_k=4.0),
         "glowDim": _mat(f"{prefix}_glowdim", color=scale_hex(glow, 0.45), emit=glow, emit_k=1.2),

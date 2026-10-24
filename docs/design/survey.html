@@ -119,7 +119,7 @@ code { font: 500 0.9em var(--mono); }
     <div class="eyebrow">Owner survey · opened 2026-10-23 · cleaned up 2026-10-24</div>
     <h1>Crab Breeze Survey</h1>
     <div class="suits" aria-hidden="true"><span style="background:var(--sun)"></span><span style="background:var(--crescent)"></span><span style="background:var(--star)"></span><span style="background:var(--eagle)"></span></div>
-    <p class="lede">Only the questions still open. Your 16 answers so far are under Already decided at the bottom. Each open question has a recommendation that gets built if you leave it blank: pick an option, add a note, or leave it.</p>
+    <p class="lede">Only the questions still open. Everything you have answered is in the Answered section at the bottom, with where it went. Each open question has a recommendation that gets built if you leave it blank: pick an option, add a note, or leave it.</p>
   </header>
 
   <div class="tally">
@@ -136,8 +136,8 @@ code { font: 500 0.9em var(--mono); }
 
   <main id="sections" class="wrap" style="gap:36px"></main>
 
-  <details class="decided" id="decided">
-    <summary>Already decided</summary>
+  <details class="decided" id="decided" open>
+    <summary id="dec-sum">Answered</summary>
     <ul class="dec-list" id="dec-list"></ul>
   </details>
 </div>
@@ -152,8 +152,8 @@ const SECTIONS = [
     lead: 'The first mech is the yardstick for every building and person. Its size sets the city scale.',
     qs: [
       { id: 'M6', q: 'Which chassis do we build first? See all three at true scale, and from their cockpits, on the Crab Breeze Mechs page.',
-        options: ['Breeze: ours, reverse knees, bubble canopy, swept jet nacelles', 'Bulwark: Mining Mike\'s Uber mech, planted and square, shield and breaker cannon', 'Ravager: Mining Mike\'s rival Uber mech, hunched, twin rail lances', 'A mix (say which parts in the note)'], rec: 0,
-        why: 'Breeze fits Ace Combat best: open canopy view, jets ready for flight, back knees for skating.' },
+        options: ['Breeze: ours, reverse knees, sealed screen cockpit, swept jet nacelles', 'Bulwark: Mining Mike\'s Uber mech, planted and square, shield and breaker cannon', 'Ravager: Mining Mike\'s rival Uber mech, hunched, twin rail lances', 'A mix (say which parts in the note)'], rec: 0,
+        why: 'Breeze fits Ace Combat best: a chest pod with a wide screen wall, jets ready for flight, back knees for skating.' },
       { id: 'M7', q: 'A leg is blown off. What can the mech still do?',
         options: ['Limp on the good leg and the stump at under a quarter speed; with both legs gone it sits and can only twist and fire', 'Fall and stay down; it can only twist and fire', 'Hop on the jets only'], rec: 0,
         why: 'You asked for a limp; a slow, lurching retreat is a great moment in the cockpit.' },
@@ -192,9 +192,6 @@ const SECTIONS = [
   { tag: 'C', name: 'The cockpit',
     lead: 'The cockpit is where the whole game is played, so it is designed before the exterior.',
     qs: [
-      { id: 'C3', q: 'The cockpit light is baked (see the Breeze Cockpit page). How should it change while you play?',
-        options: ['A baked lightmap under live light: the bake keeps the occlusion and the cabin lamps, while the glow of the screens, muzzle flashes and alarm lamps are real-time lights on top', 'Fully baked and unlit, as the review page shows: cheapest, but nothing in the cockpit reacts to light', 'A few baked sets switched by state (day, night, red alert, power loss), Star Crew style, plus a few live lights'], rec: 0,
-        why: 'The bake gives the depth and the soft shadows; live light lets the screens throw the outside colour into the cabin and the cabin flash when you are hit.' },
       { id: 'C6', q: 'How does the pilot climb up to the open hatch (about 3 m with the mech sat down)?',
         options: ['A stair that unfolds from under the lower hatch plate (as drawn)', 'The mech lowers a hand and lifts the pilot, Gundam style', 'A winch cable the pilot rides up'], rec: 0,
         why: 'The stair is walked and climbed in first person, the law, and needs no hands on the mech.' },
@@ -206,7 +203,7 @@ const SECTIONS = [
         why: 'Twin grips are what your references show and keep the space between the knees clear for the emergency panel and the eject handle.' },
       { id: 'C5', q: 'The cockpit\'s colours?',
         options: ['Dark gunmetal panels, amber, green and red lamps, yellow and black hazard (as drawn)', 'Light grey panels, airliner style', 'Olive drab, military vehicle style'], rec: 0,
-        why: 'Dark panels let the screens and lamps carry the eye, and keep the canopy view bright by contrast.' },
+        why: 'Dark panels let the screens and lamps carry the eye, and keep the screen wall bright by contrast.' },
     ] },
   { tag: 'T', name: 'Tech and tools',
     lead: 'Things this session cannot reach on its own.',
@@ -225,6 +222,8 @@ const SECTIONS = [
 ];
 
 const DECIDED = [
+  { text: 'C3 The cockpit is lit live with full PBR (base colour, normal, ORM, emission maps on every custom texture); occlusion is baked into the maps, light is not. Target: a high-end PC with an RTX 3070. Your words: "I want normal maps, speculat maps and ao for all our custom textures. Aim for that pbr triple a goodness that bevy provides".', where: 'CLAUDE.md sections 1, 7, 10; docs/design/cockpit.md' },
+  { text: 'The cockpit is a boxy cabin of flat screens, not a curved dome. Your words: "The curved ones are just fish eye pov".', where: 'docs/design/cockpit.md' },
   { text: 'G1 Setting: alternate history, 1980s industrial mechs.', where: 'CLAUDE.md section 1; world and art changes' },
   { text: 'G2 Piloting is deep: startup sequence, torso independent of legs, heat and power managed by the pilot.', where: 'CLAUDE.md section 1; the systems changes' },
   { text: 'G3 Solo first, with one authoritative simulation so multiplayer can follow.', where: 'cargo-workspace (cb-core is the authority)' },
@@ -283,6 +282,7 @@ function render() {
     root.append(sec);
   }
   const list = document.getElementById('dec-list');
+  document.getElementById('dec-sum').textContent = `Answered and decided (${DECIDED.length})`;
   for (const d of DECIDED) {
     list.append(el('li', {},
       d.replaced ? el('span', { class: 'replaced', text: 'Replaced' }) : null,
@@ -423,7 +423,7 @@ function snapshotHtml() {
     + `.q p{margin:4px 0}.h{font-weight:600}.id{font-family:ui-monospace,monospace;color:#94621a}.o,.r{color:#6e5f4c;font-size:14px}`
     + `.a{background:#dcebd5;padding:6px 10px;border-radius:6px}</style></head><body>`
     + `<h1>Crab Breeze Survey</h1><p>Answers as of ${date}.</p>${rows}`
-    + `<h2>Already decided</h2><ul>${DECIDED.map((d) => `<li>${d.replaced ? '<b>Replaced:</b> ' : ''}${esc(d.text)} <small>(${esc(d.where)})</small></li>`).join('')}</ul>`
+    + `<h2>Answered and decided</h2><ul>${DECIDED.map((d) => `<li>${d.replaced ? '<b>Replaced:</b> ' : ''}${esc(d.text)} <small>(${esc(d.where)})</small></li>`).join('')}</ul>`
     + `</body></html>`;
 }
 

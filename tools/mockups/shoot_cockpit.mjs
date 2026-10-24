@@ -1,5 +1,7 @@
 // Screenshot the cockpit page headless: the boarding sequence from outside, then the seat.
-// NODE_PATH=$(npm root -g) node tools/mockups/shoot_cockpit.mjs docs/mockups/cockpit.html docs/screenshots/cockpit [only,names]
+// NODE_PATH=$(npm root -g) node tools/mockups/shoot_cockpit.mjs http://localhost:8765/ docs/screenshots/cockpit [only,names]
+// The page fetches its model files, so serve output/cockpit_site (written by gen_cockpit_page.py) first:
+//   python3 -m http.server 8765 -d output/cockpit_site
 import { createRequire } from "node:module";
 const { chromium } = createRequire(import.meta.url)("playwright");
 import path from "node:path";
@@ -21,11 +23,11 @@ const SHOTS = [
 ];
 fs.mkdirSync(outDir, { recursive: true });
 const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY } : undefined;
-const browser = await chromium.launch({ proxy, args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+const browser = await chromium.launch({ proxy: proxy && { ...proxy, bypass: "localhost,127.0.0.1" }, args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 const page = await browser.newPage({ viewport: { width: 1600, height: 1100 } });
 page.on("console", m => { if (m.type() === "error") console.log("console:", m.text()); });
 page.on("pageerror", e => console.log("pageerror:", e.message));
-await page.goto("file://" + path.resolve(page_));
+await page.goto(/^https?:/.test(page_) ? page_ : "file://" + path.resolve(page_));
 await page.locator(".stage").scrollIntoViewIfNeeded();
 await page.waitForFunction(() => window.MOCKUP_READY, null, { timeout: 240000 });
 for (const [name, t, c] of SHOTS) {

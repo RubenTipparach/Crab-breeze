@@ -90,6 +90,12 @@ From the owner's brief, 2026-10-23. Quotes are the owner's words.
   screens, heavy pillars, overhead monitors, the HUD on the screens: the owner's references, Armored
   Core, Titanfall and the Gundam pods). The mech sits to be boarded and opens in stages with steam
   and mist, all seen from the pilot's eyes. `openspec/changes/mech-boarding`.
+- **PBR on everything, for a high-end PC** (owner, 2026-10-24: "Target hardware is highend PC 3070
+  rtx. So don't worry about 200k triangle count. I want normal maps, speculat maps and ao for all our
+  custom textures. Aim for that pbr triple a goodness that bevy provides"). Every custom texture ships
+  as full PBR maps (section 10), the target machine has an RTX 3070 (section 7), and the cockpit is
+  lit live rather than baked. The owner also called the curved screen wall "just fish eye pov": the
+  cockpit is a boxy cabin of flat screens, as in the references.
 
 ## 2. The stack: Rust and Bevy
 
@@ -224,7 +230,9 @@ an unknown key is an error; a file that fails to load stops startup with its pat
 The `perf-measure` skill is the method. High detail is the point of the game, so cost is measured,
 said out loud and kept in check, never guessed.
 - **Targets** until the owner sets others: on the owner's most powerful machine at 1920 x 1080,
-  p95 within 8.3 ms and p99 within 16.7 ms, in the cockpit, in the densest scene.
+  p95 within 8.3 ms and p99 within 16.7 ms, in the cockpit, in the densest scene. **The target
+  hardware is a high-end PC with an RTX 3070** (owner, 2026-10-24): triangle counts in the hundreds
+  of thousands and 4096 px map sets are fine; budgets still exist and are still measured.
 - **A claim is a measurement**: release build, real time, windowed, nothing else running, a scripted
   scene, old against new interleaved in one sitting, p50/p95/p99 and the spread reported. A
   difference smaller than the spread is not a result. Never call an unmeasured design a speedup
@@ -292,6 +300,11 @@ Star Crew and Undercity, each with an "In Crab Breeze" note on what changes.
 - **High detail, not low poly.** This is the opposite of Star Crew's style: PBR materials (base
   colour, normal, occlusion-roughness-metallic, emission), normal maps baked from the full-detail
   model, real-time lighting and shadows.
+- **Every custom texture is a full PBR set** (owner, 2026-10-24: "normal maps, speculat maps and ao
+  for all our custom textures"): base colour, a tangent-space normal map, an ORM map packed the glTF
+  way (R occlusion, G roughness, B metal; Bevy reads it as `occlusion_texture` and
+  `metallic_roughness_texture`) and emission where it glows. A colour map alone is not done.
+  `tools/blender/pbr.py` is the one place a Blender material is wired to these maps for export.
 - **Meshes are files built by committed generators** (star-crew-64, Undercity, Star Crew): a Blender
   script writes the source deterministically and exports a byte-reproducible glb with a manifest.
   Hand-sculpted sources, if the owner adds them, are committed with their export script.
@@ -324,10 +337,13 @@ Star Crew and Undercity, each with an "In Crab Breeze" note on what changes.
 - **The cockpit generators**: panels first (`tools/blender/bake_cockpit_panels.py`, the kit
   `cockpit_kit.py`, the panels `cockpit_panels.py`; contact sheet
   `python3 tools/textures/cockpit_contact_sheet.py`), the displays
-  (`python3 tools/textures/gen_cockpit_displays.py`), then the set and its light bake
-  (`tools/blender/build_cockpit.py`, about two hours on 4 cloud cores at full size; iterate with
-  `--size 1024 --samples 16`), then `python3 tools/mockups/gen_cockpit_page.py` and the shots from
-  `NODE_PATH=$(npm root -g) node tools/mockups/shoot_cockpit.mjs docs/mockups/cockpit.html docs/screenshots/cockpit`.
+  (`python3 tools/textures/gen_cockpit_displays.py`), then the pod and its PBR atlases
+  (`tools/blender/build_cockpit.py`, writing `assets/models/cockpit_breeze/` as glTF with its
+  textures beside it; iterate with `--size 512 --samples 8`, `--no-bake` reuses the last maps), then
+  `python3 tools/mockups/gen_cockpit_page.py`, serve `output/cockpit_site` with
+  `python3 -m http.server 8765 -d output/cockpit_site`, and shoot with
+  `NODE_PATH=$(npm root -g) node tools/mockups/shoot_cockpit.mjs http://localhost:8765/ docs/screenshots/cockpit`.
+  Never shoot while a bake runs: the software renderer gets no CPU and every shot times out.
 
 ## 11. Verification
 
@@ -379,13 +395,14 @@ Nothing is an exception until it is listed here with its reason.
 - **Mech plating is Mining Mike's generator, not a Material Maker graph** (owner, 2026-10-24: "The
   mech boss and Uber mech stuff are some of the best in mining mike"). `tools/textures/` runs Mining
   Mike's `plating()` canvas code verbatim to make the mech textures, so the mechs carry the look of
-  its bosses and Uber mechs. Material Maker stays the source of every other material.
-- **Cockpit panels are modelled and baked, not Material Maker graphs, and the cockpit's light is
-  baked** (owner, 2026-10-24: "Use the texturing skill we had on star crew bridge sim. Baked
-  lighting with AO"). A panel's maps come from a face-on Cycles render of the modelled panel
-  (`panel-textures`), and the cockpit set exports its baked light unlit until survey `C3` decides
-  how live light goes on top. Section 10's Material Maker and real-time lighting rules hold
-  everywhere else.
+  its bosses and Uber mechs; its normal and ORM maps are Crab Breeze's additions, derived from the
+  same canvases. Material Maker stays the source of every other material.
+- **Cockpit panels are modelled and rendered, not Material Maker graphs, and the pod's surfaces are
+  baked to atlases** (owner, 2026-10-24: "Use the texturing skill we had on star crew bridge sim.
+  Baked lighting with AO", then "Aim for that pbr triple a goodness that bevy provides"). A panel's
+  maps come from a face-on Cycles render of the modelled panel (`panel-textures`); the pod bakes its
+  materials into PBR atlases with a contact occlusion pass in the ORM map, and is lit live like
+  everything else. Section 10's Material Maker rule holds everywhere else.
 - **Copied skills keep their source's text** below their "In Crab Breeze" note (and its front
   matter description, retargeted), so a later copy from the source can be diffed. Where the source
   and the note disagree, the note and this file win.

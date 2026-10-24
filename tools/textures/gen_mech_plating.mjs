@@ -2,7 +2,7 @@
 //
 //   NODE_PATH=$(npm root -g) node tools/textures/gen_mech_plating.mjs
 //
-// Writes assets/textures/mech/<name>.png (base colour) and <name>_n.png (a tangent space normal map
+// Writes assets/textures/mech/<name>.png (base colour), <name>_orm.png (occlusion, roughness, metal) and <name>_n.png (a tangent space normal map
 // derived from the kit's bump canvas, because glTF has normal maps and no bump maps).
 //
 // Provenance: RubenTipparach/godot-sandbox godot-sandbox/docs/mockups/tank_bosses_kit.js at 3336b88,

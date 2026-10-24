@@ -225,6 +225,13 @@ def make_material(name, spec):
         o = N.new("ShaderNodeOutputAOV")
         o.aov_name = aov
         o.inputs["Value"].default_value = v
+    # sources the PBR bake reads through an emission swap (build_cockpit.bake_swap)
+    mv = N.new("ShaderNodeValue")
+    mv.name = "METAL_SRC"
+    mv.outputs[0].default_value = spec["m"]
+    av = N.new("ShaderNodeValue")
+    av.name = "AO_SRC"
+    av.outputs[0].default_value = 1.0
     return mat
 
 

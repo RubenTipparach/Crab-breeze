@@ -14,7 +14,7 @@
         5.844
       ]
     },
-    "bytes": 798648,
+    "bytes": 965868,
     "cockpit": "bubble canopy in the chest",
     "file": "mech_breeze.glb",
     "generator": "tools/blender/build_mechs.py",
@@ -42,7 +42,7 @@
         7.121
       ]
     },
-    "bytes": 1070128,
+    "bytes": 1241948,
     "cockpit": "armoured head, visor band",
     "file": "mech_bulwark.glb",
     "generator": "tools/blender/build_mechs.py",
@@ -70,7 +70,7 @@
         7.094
       ]
     },
-    "bytes": 971540,
+    "bytes": 1148312,
     "cockpit": "low head, visor under three eyes",
     "file": "mech_ravager.glb",
     "generator": "tools/blender/build_mechs.py",

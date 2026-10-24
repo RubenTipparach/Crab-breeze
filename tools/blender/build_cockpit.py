@@ -1,38 +1,40 @@
-"""Crab Breeze: the Breeze cockpit set, built to the pilot's eye, its light and occlusion baked.
+"""Crab Breeze: the Breeze cockpit pod, built to the pilot's eye, its surfaces baked to PBR maps.
 
   /opt/blender/blender --background --factory-startup --python tools/blender/build_cockpit.py -- \
-      [--size 4096] [--samples 96] [--no-denoise]
+      [--size 4096] [--samples 64] [--no-denoise] [--no-bake]
 
-Run tools/blender/bake_cockpit_panels.py and tools/textures/gen_cockpit_displays.py first: this
-script reads their maps. It writes assets/models/cockpit_breeze.glb, its baked atlases
-(assets/textures/cockpit/baked_{front,cabin}.jpg) and a manifest (cockpit_breeze.json).
+Run tools/blender/bake_cockpit_panels.py, tools/textures/gen_cockpit_displays.py and
+tools/textures/gen_mech_plating.mjs first: this script reads their maps. It writes the pod as glTF with
+its textures beside it (assets/models/cockpit_breeze/cockpit_breeze.gltf) and a manifest
+(assets/models/cockpit_breeze.json).
 
 What it does (the owner, 2026-10-24: "Design the mech cockpit. Use detailed textures. Use the
-texturing skill we had on star crew bridge sim. Baked lighting with AO. Beautiful panels, warning
-labels, buttons, circuitry"):
+texturing skill we had on star crew bridge sim", "The cockpit should be enclosed fully. We can view
+outside via screens like in gundam", "I want normal maps, speculat maps and ao for all our custom
+textures. Aim for that pbr triple a goodness that bevy provides"):
 
-  1. Builds the set in metres, glTF frame (+y up, the pilot faces +z, +x is the pilot's left),
-     origin on the tub floor under the eye: the tub, the dash with three MFD bezels and the HUD,
-     the glare shield, the knee panel, two side consoles, the seat with its harness and eject
-     handle, the stick, throttle and twist grip, pedals, cable runs, the bubble canopy and its
-     bows, and the mech's nose and cheeks seen through the glass.
-  2. Lays the panel maps (cockpit_panels.py, modelled and baked the Star Crew way) on the console
-     faces as real plates, with their albedo, occlusion, normal map and backlit buttons.
-  3. Lights the cabin: the sky through the canopy, floodlights under the glare shield and the
-     canopy sill, the dome lamp, a red footwell lamp, and the glow of the screens and buttons.
-  4. Bakes that light, with occlusion, in Cycles into two atlases (front: the dash, consoles and
-     controls; cabin: everything else), denoises them, and multiplies a contact occlusion pass in.
-  5. Exports a glb whose baked surfaces are unlit (KHR_materials_unlit), the screens and HUD as
-     their own unlit nodes (SCREEN_*, HUD_combiner) for the game to draw live, the canopy glass
-     as a transparent node, the controls as CTRL_* nodes with their pivots at the origin, and the
-     sockets EYE_pilot and SEAT_pilot (docs/design/mech-rig.md).
+  1. Builds the pod in metres, glTF frame (+y up, the pilot faces +z, +x is the pilot's left),
+     origin on the tub floor under the eye: a boxy cabin with flat screens (a big front screen,
+     angled side screens, overhead monitors), heavy pillars, the dash with three MFD bezels, the
+     side consoles, the seat, twin grips, pedals, and the outside armour with its boarding hatch,
+     doors, flaps and stair as animated nodes.
+  2. Lays the panel maps (cockpit_panels.py, modelled and rendered the Star Crew way) on the
+     console faces as real plates.
+  3. Bakes the inside into two atlases (front: the dash, consoles and controls; cabin: the rest),
+     each as base colour, a tangent-space normal map (the panel relief and the bevelled edges),
+     occlusion-roughness-metal (the panels' own occlusion times a baked contact occlusion), and
+     emission. Light is not baked: the game lights the pod in real time.
+  4. Exports glTF whose cabin is lit PBR, the screens unlit (SCREEN_*, OVH_*, for the game to draw
+     live), the outside armour PBR on the mech plating maps, every moving part as a node with its
+     pivot, the steam and mist vents as VENT_* empties, and the sockets EYE_pilot, SEAT_pilot,
+     HATCH_entry and LADDER_base (docs/design/mech-rig.md).
 """
 
 import argparse
 import json
 import math
 import os
-import struct
+import shutil
 import sys
 import time
 
@@ -45,17 +47,18 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import cockpit_kit as K  # noqa: E402
 import cockpit_panels as CP  # noqa: E402
+import pbr as PBR  # noqa: E402
 
 ROOT = K.ROOT
 PANELS = os.path.join(ROOT, "assets", "textures", "cockpit", "panels")
 DISPLAYS = os.path.join(ROOT, "assets", "textures", "cockpit", "displays")
-BAKED = os.path.join(ROOT, "assets", "textures", "cockpit")
-MODEL = os.path.join(ROOT, "assets", "models", "cockpit_breeze.glb")
+MODEL = os.path.join(ROOT, "assets", "models", "cockpit_breeze", "cockpit_breeze.gltf")
+MANIFEST = os.path.join(ROOT, "assets", "models", "cockpit_breeze.json")
 RAW = os.path.join(ROOT, "output", "cockpit_raw")
 
 G2B = Matrix(((1, 0, 0, 0), (0, 0, -1, 0), (0, 1, 0, 0), (0, 0, 0, 1)))   # glTF frame to Blender
 EYE = Vector((0.0, 1.20, 0.0))
-TRI_BUDGET = 200_000
+TRI_BUDGET = 600_000  # an RTX 3070 (owner, 2026-10-24: "don't worry about 200k triangle count")
 
 
 def B(v):
@@ -235,23 +238,21 @@ def panel_material(name):
     alb, orm, nor, emi = tex("albedo", True), tex("orm", False), tex("normal", False), tex("emit", True)
     sep = N.new("ShaderNodeSeparateColor")
     L.new(orm.outputs[0], sep.inputs[0])
-    aom = N.new("ShaderNodeMapRange")          # the panel's own occlusion, 85 percent strength
-    aom.inputs["To Min"].default_value = 0.15
-    L.new(sep.outputs[0], aom.inputs["Value"])
-    mul = N.new("ShaderNodeMix")
-    mul.data_type = "RGBA"
-    mul.blend_type = "MULTIPLY"
-    mul.inputs["Factor"].default_value = 1.0
-    L.new(alb.outputs[0], mul.inputs[6])
-    L.new(aom.outputs[0], mul.inputs[7])
-    L.new(mul.outputs[2], bsdf.inputs["Base Color"])
+    L.new(alb.outputs[0], bsdf.inputs["Base Color"])
+    L.new(sep.outputs[1], bsdf.inputs["Roughness"])
+    # the panel's own occlusion and metalness, read by the PBR bake through an emission swap
+    for nm, out in (("AO_SRC", 0), ("METAL_SRC", 2)):
+        m = N.new("ShaderNodeMath")
+        m.name = nm
+        m.operation = "ADD"
+        m.inputs[1].default_value = 0.0
+        L.new(sep.outputs[out], m.inputs[0])
     nm = N.new("ShaderNodeNormalMap")
     nm.uv_map = "panel"
     L.new(nor.outputs[0], nm.inputs["Color"])
     L.new(nm.outputs[0], bsdf.inputs["Normal"])
     L.new(emi.outputs[0], bsdf.inputs["Emission Color"])
-    bsdf.inputs["Emission Strength"].default_value = 4.0
-    bsdf.inputs["Roughness"].default_value = 0.6
+    bsdf.inputs["Emission Strength"].default_value = 1.0
     return mat
 
 
@@ -295,112 +296,104 @@ def glass_material():
 
 # ----------------------------------------------------------------------------- the pod's shape
 
-# The all-view screen is an ellipsoid round the cabin: centre, radii (x, y, z), metres. E() is a
-# point on it at azimuth az (0 ahead, positive to the pilot's left) and elevation el (radians),
-# scaled by s (1 is the screen surface, larger is the armour outside it).
-POD_C, POD_R = V(0.0, 0.96, 0.08), (0.77, 0.78, 0.86)
+POD_C = V(0.0, 0.96, 0.08)      # the cabin's middle at the screens' foot (the page's latches retract toward it)
 D = math.radians
-# The layout of the screen wall (owner's references, 2026-10-24: Armored Core, Titanfall, the
-# Gundam pods): one big front screen, an angled screen each side, a smaller one each side behind
-# the shoulders, heavy pillars between them, a dark overhead with small monitors hanging from it.
-# (name, az0, az1, el0, el1, node): degrees; the front rides on the visor, the sides on the doors.
-SCREENS = [("front", -50, 50, 0, 45, "HATCH_upper"), ("side_L", 53, 104, 0, 45, "DOOR_L"), ("side_R", -104, -53, 0, 45, "DOOR_R"),
-           ("rear_L", 113, 150, 4, 38, "pod"), ("rear_R", -150, -113, 4, 38, "pod")]
-VISOR_AZ, VISOR_EL, DOOR_AZ1, DOOR_EL = D(51.5), D(76), D(106), D(47)
-ARMOUR = (1.06, 1.13)
+# The cabin is a box, the way the owner's references are (Titanfall, Armored Core, the Gundam pods;
+# owner, 2026-10-24: "That's not a mech cockpit", "The curved ones are just fish eye pov"). Above the
+# consoles a belt of flat screens runs round it: the front screen, two chamfered screens at the
+# front corners, a screen on each side wall, heavy pillars at the corners, a header beam over
+# them and a flat ceiling with three monitors hanging from it. Plan corners (x, z) at the screens'
+# foot, y = BELT[0]; the front and chamfer screens lean in LEAN metres at the top.
+BELT = (1.00, 1.64)
+CEIL = 1.86
+LEAN = 0.10
+CORNERS = {"F": (0.56, 1.00), "S": (0.86, 0.45), "R": (0.86, -0.16)}
 
 
-def E(az, el, s=1.0):
-    return V(POD_R[0] * s * math.cos(el) * math.sin(az), POD_C.y + POD_R[1] * s * math.sin(el),
-             POD_C.z + POD_R[2] * s * math.cos(el) * math.cos(az))
+def plan(c, s):
+    """A plan corner (x, z) on side s (+1 the pilot's left), at the screens' foot."""
+    x, z = CORNERS[c]
+    return V(s * x, BELT[0], z)
 
 
-def patch(S, az0, az1, el0, el1, s, mat, group, node=None, name=None, inward=True, nu=None, nv=None):
-    """A piece of the ellipsoid surface between two azimuths and two elevations, facing in or out."""
-    nu = nu or max(2, int(abs(az1 - az0) / math.radians(4)))
-    nv = nv or max(2, int(abs(el1 - el0) / math.radians(4)))
+def inward(a, b):
+    """The inward normal of the wall from a to b (plan), toward the cabin's middle."""
+    d = (b - a)
+    n = V(-d.z, 0, d.x).normalized()
+    if n.dot(V(0, BELT[0], 0.15) - (a + b) / 2) < 0:
+        n = -n
+    return n
+
+
+def quad_ob(S, pts, mat, group, node=None, name=None, uvs=False):
+    """A flat quad (or a strip of quads) facing the cabin's middle, UVs 0..1 if uvs."""
     bm = bmesh.new()
-    grid = [[bm.verts.new(E(az0 + (az1 - az0) * i / nu, el0 + (el1 - el0) * j / nv, s)) for j in range(nv + 1)] for i in range(nu + 1)]
-    for i in range(nu):
-        for j in range(nv):
-            q = (grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1])
-            bm.faces.new(q if not inward else tuple(reversed(q)))
+    vs = [bm.verts.new(p) for p in pts]
+    f = bm.faces.new(vs)
     bm.normal_update()
-    c = sum((f.calc_center_median() for f in bm.faces), Vector()) / len(bm.faces)
-    if (sum((f.normal for f in bm.faces), Vector()).dot(c - POD_C) > 0) == inward:
-        bmesh.ops.reverse_faces(bm, faces=bm.faces)
-    return S._ob(bm, mat, group, node, name, smooth=True)
+    mid = sum(pts, Vector()) / len(pts)
+    if f.normal.dot(V(0, 1.3, 0.1) - mid) < 0:
+        bmesh.ops.reverse_faces(bm, faces=[f])
+    if uvs:
+        uvl = bm.loops.layers.uv.new("panel")
+        for lp, uv in zip(f.loops, ((0, 0), (1, 0), (1, 1), (0, 1))):
+            lp[uvl].uv = uv
+    return S._ob(bm, mat, group, node, name, uvs=uvs)
 
 
-def shell(S, az0, az1, el0, el1, s0, s1, mat, group, node=None, bevel=0.0):
-    """A solid curved plate: the ellipsoid between two scales, closed at its edges."""
-    nu = max(2, int(abs(az1 - az0) / math.radians(4)))
-    nv = max(2, int(abs(el1 - el0) / math.radians(4)))
+def bar(S, p0, p1, w, d, mat, group, node=None, bevel=0.004, n=None):
+    """A frame member from p0 to p1, w wide, d deep, its face toward the cabin's middle (or n)."""
+    p0, p1 = Vector(p0), Vector(p1)
+    m = (p0 + p1) / 2
+    a = (p1 - p0).normalized()
+    n = Vector(n) if n is not None else (V(0, 1.3, 0.1) - m)
+    u = n.cross(a).normalized()
+    n = a.cross(u).normalized()
+    return S.obox(m, (a, u, n), ((p1 - p0).length + w, w, d), mat, group, node, bevel=bevel)
+
+
+def slab(S, pts, t, mat, group, node=None, bevel=0.01):
+    """Armour: the quad pts (in order) pushed out by t, away from the cabin's middle."""
+    pts = [Vector(p) for p in pts]
+    mid = sum(pts, Vector()) / 4
+    n = (pts[1] - pts[0]).cross(pts[3] - pts[0]).normalized()
+    if n.dot(mid - V(0, 1.0, 0.1)) < 0:
+        n = -n
     bm = bmesh.new()
-    G = {}
-    for k, s in enumerate((s0, s1)):
-        G[k] = [[bm.verts.new(E(az0 + (az1 - az0) * i / nu, el0 + (el1 - el0) * j / nv, s)) for j in range(nv + 1)] for i in range(nu + 1)]
-    for i in range(nu):
-        for j in range(nv):
-            bm.faces.new((G[1][i][j], G[1][i + 1][j], G[1][i + 1][j + 1], G[1][i][j + 1]))
-            bm.faces.new((G[0][i][j + 1], G[0][i + 1][j + 1], G[0][i + 1][j], G[0][i][j]))
-    for i in range(nu):
-        for j in (0, nv):
-            bm.faces.new((G[0][i][j], G[0][i + 1][j], G[1][i + 1][j], G[1][i][j]))
-    for i in (0, nu):
-        for j in range(nv):
-            bm.faces.new((G[0][i][j], G[0][i][j + 1], G[1][i][j + 1], G[1][i][j]))
+    lo = [bm.verts.new(p) for p in pts]
+    hi = [bm.verts.new(p + n * t) for p in pts]
+    bm.faces.new(lo)
+    bm.faces.new(list(reversed(hi)))
+    for i in range(4):
+        j = (i + 1) % 4
+        bm.faces.new((lo[i], lo[j], hi[j], hi[i]))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     return S._ob(bm, mat, group, node, bevel=bevel)
 
 
-def bar(S, p0, p1, w, d, mat, group, node=None, bevel=0.004, out=0.0):
-    """A straight frame member from p0 to p1 on the inside of the shell: w wide along the surface,
-    d deep, its face turned toward the pod's centre; out pushes it outward."""
-    p0, p1 = Vector(p0), Vector(p1)
-    m = (p0 + p1) / 2
-    n = (POD_C - m).normalized()
-    a = (p1 - p0).normalized()
-    u = n.cross(a).normalized()
-    n = a.cross(u).normalized()
-    if n.dot(POD_C - m) < 0:
-        n = -n
-    return S.obox(m - n * out, (a, u, n), ((p1 - p0).length + w, w, d), mat, group, node, bevel=bevel)
-
-
-def screen(S, name, az0, az1, el0, el1, node):
-    """One flat screen between four points on the shell, in a heavy bezel, with a cyan glow strip
-    along its lower edge."""
-    a0, a1, e0, e1 = D(az0), D(az1), D(el0), D(el1)
-    c = [E(a0, e0, 0.985), E(a1, e0, 0.985), E(a1, e1, 0.985), E(a0, e1, 0.985)]
-    bm = bmesh.new()
-    n = 8
-    g = [[bm.verts.new(c[0].lerp(c[1], i / n).lerp(c[3].lerp(c[2], i / n), j / n)) for j in range(n + 1)] for i in range(n + 1)]
-    for i in range(n):
-        for j in range(n):
-            bm.faces.new((g[i][j], g[i + 1][j], g[i + 1][j + 1], g[i][j + 1]))
-    bm.normal_update()
-    mid = sum(c, Vector()) / 4
-    if sum((f.normal for f in bm.faces), Vector()).dot(POD_C - mid) < 0:
-        bmesh.ops.reverse_faces(bm, faces=bm.faces)
-    S._ob(bm, "screen_wall", "allview", None if node == "pod" else node, name=f"SCREEN_wall_{name}")
-    grp = "cabin"
-    nd = None if node == "pod" else node
+def screen(S, name, b0, b1, lean, node, height=BELT[1] - BELT[0]):
+    """One flat screen whose foot runs b0 to b1, leaning in by lean at its top, in a heavy bezel
+    with a cyan strip under it. Returns its four corners."""
+    n = inward(b0, b1)
+    t0, t1 = b0 + n * lean + V(0, height, 0), b1 + n * lean + V(0, height, 0)
+    c = [b0, b1, t1, t0]
+    quad_ob(S, c, "screen_wall", "allview", node, name=f"SCREEN_wall_{name}")
+    back = [p - n * 0.02 for p in c]
+    quad_ob(S, list(reversed(back)), "paint_dk", "cabin", node)
     for k in range(4):
-        bar(S, c[k], c[(k + 1) % 4], 0.05, 0.05, "bezel", grp, nd)
-    for p in c:
-        S.obox(p + (POD_C - p).normalized() * 0.02, (V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)), (0.06, 0.06, 0.06), "paint_dk", grp, nd, bevel=0.01)
-    lo0, lo1 = c[0].lerp(c[1], 0.08), c[0].lerp(c[1], 0.92)
-    bar(S, lo0 + (POD_C - mid).normalized() * 0.03, lo1 + (POD_C - mid).normalized() * 0.03, 0.008, 0.008, "cyan", grp, nd, bevel=0.0)
+        bar(S, c[k] + n * 0.02, c[(k + 1) % 4] + n * 0.02, 0.05, 0.05, "bezel", "cabin", node, n=n)
+    lo0, lo1 = b0.lerp(b1, 0.1) + n * 0.05 - V(0, 0.03, 0), b0.lerp(b1, 0.9) + n * 0.05 - V(0, 0.03, 0)
+    bar(S, lo0, lo1, 0.008, 0.008, "cyan", "cabin", node, bevel=0.0, n=n)
+    return c
 
 
 # The nodes the game animates: name -> (parent, pivot in the cockpit frame). Every mesh hangs off
 # one of these, its pivot at the node's origin, so turning the node about its origin is the motion.
 NODES = {
     "pod": (None, V(0, 0, 0)),
-    "HATCH_upper": ("pod", E(0, VISOR_EL, ARMOUR[1])),
-    "DOOR_L": ("pod", E(DOOR_AZ1, D(22), 1.06)),
-    "DOOR_R": ("pod", E(-DOOR_AZ1, D(22), 1.06)),
+    "HATCH_upper": ("pod", V(0, CEIL + 0.12, 0.40)),
+    "DOOR_L": ("pod", V(0.95, 1.30, 0.45)),
+    "DOOR_R": ("pod", V(-0.95, 1.30, 0.45)),
     "FLAP_L": ("pod", V(0.88, 0.45, 0.55)),
     "FLAP_R": ("pod", V(-0.88, 0.45, 0.55)),
     "HATCH_lower": ("pod", V(0, 0.58, 1.08)),
@@ -413,14 +406,14 @@ NODES = {
     "SCREEN_right": ("CONSOLE_front", None),
     "CTRL_stick": ("pod", V(-0.49, 0.665, 0.30)),
     "CTRL_throttle": ("pod", V(0.4725, 0.66, 0.24)),
-    "STRUT_L": ("pod", E(D(62), D(58), ARMOUR[1] + 0.02)),
-    "STRUT_R": ("pod", E(-D(62), D(58), ARMOUR[1] + 0.02)),
+    "STRUT_L": ("pod", V(0.97, 1.82, 0.25)),
+    "STRUT_R": ("pod", V(-0.97, 1.82, 0.25)),
     "STRUT_L_rod": ("STRUT_L", None),
     "STRUT_R_rod": ("STRUT_R", None),
-    "STRUT_L_tip": ("HATCH_upper", E(D(32), D(40), ARMOUR[1] + 0.02)),
-    "STRUT_R_tip": ("HATCH_upper", E(-D(32), D(40), ARMOUR[1] + 0.02)),
+    "STRUT_L_tip": ("HATCH_upper", V(0.62, 1.70, 1.02)),
+    "STRUT_R_tip": ("HATCH_upper", V(-0.62, 1.70, 1.02)),
 }
-LATCHES = [(-38, -1), (-13, -1), (13, -1), (38, -1), (80, 47), (-80, 47)]
+LATCHES = [V(x, 0.93, 1.13) for x in (-0.42, -0.15, 0.15, 0.42)] + [V(0.80, CEIL + 0.10, 0.72), V(-0.80, CEIL + 0.10, 0.72)]
 
 
 # ----------------------------------------------------------------------------- the cockpit
@@ -563,80 +556,132 @@ def build(S):
         # cyan accent strips along the consoles' inner edges
         S.obox(V(s * 0.365, 0.664, 0.05), I3, (0.006, 0.004, 0.86), "cyan")
 
-    # --- the screen wall: five screens in heavy bezels, the pillars between them, the overhead
-    for name, az0, az1, el0, el1, node in SCREENS:
-        screen(S, name, az0, az1, el0, el1, node)
-    # the inner faces behind the moving screens ride with them; the rest of the shell is fixed
+    # --- the screen belt: front screen on the visor, chamfer screens on the doors, side screens
     hn = "HATCH_upper"
-    shell(S, -VISOR_AZ, VISOR_AZ, D(-2), DOOR_EL, 1.0, 1.06, "paint_dk", "cabin", node=hn)
-    for door, a0, a1 in (("DOOR_L", VISOR_AZ, DOOR_AZ1), ("DOOR_R", -DOOR_AZ1, -VISOR_AZ)):
-        shell(S, a0, a1, D(-2), DOOR_EL, 1.0, 1.06, "paint_dk", "cabin", node=door)
-        shell(S, a0, a1, D(-2), DOOR_EL, *ARMOUR, "ext_armor", "ext", node=door, bevel=0.008)
-        for el in (D(12), D(30)):
-            S.tube([E(a0 + (a1 - a0) * t / 8, el, ARMOUR[1] + 0.012) for t in range(9)], 0.012, "ext_dark", "ext", door)
-        front = a0 if door == "DOOR_L" else a1
-        S.tube([E(front, el, ARMOUR[0] - 0.005) for el in [DOOR_EL * t / 8 for t in range(9)]], 0.012, "rubber", "ext", door)
-        for k in range(5):
-            vent(door, E(front, DOOR_EL * (k + 0.5) / 5, ARMOUR[1]), (0, 0.2, 1), "steam", "doors", 0.7)
-        vent(door, E((a0 + a1) / 2, DOOR_EL, ARMOUR[1]), (0, 1, 0), "steam", "doors", 0.7)
-    for (a0, a1, e0, e1) in ((DOOR_AZ1, 2 * math.pi - DOOR_AZ1, D(-2), D(89)), (VISOR_AZ, DOOR_AZ1, DOOR_EL, D(89)),
-                             (-DOOR_AZ1, -VISOR_AZ, DOOR_EL, D(89)), (-VISOR_AZ, VISOR_AZ, DOOR_EL, D(89))):
-        shell(S, a0, a1, e0, e1, 1.0, 1.06, "paint_dk", "cabin")
-    # pillars: the frame between the screens, with cyan light down their inner edges
-    for az in (51.5, -51.5, 108.5, -108.5):
-        p0, p1 = E(D(az), D(-2), 0.97), E(D(az), D(DOOR_EL / D(1) - 1), 0.97)
-        bar(S, p0, p1, 0.09, 0.08, "paint", "cabin", None if abs(az) > 100 else ("DOOR_L" if az > 0 else "DOOR_R"), bevel=0.01)
-        bar(S, p0, p1, 0.012, 0.012, "cyan", "cabin", None if abs(az) > 100 else ("DOOR_L" if az > 0 else "DOOR_R"), bevel=0.0, out=-0.05)
-        for k in range(6):
-            q = p0.lerp(p1, (k + 0.5) / 6)
-            S.cyl(q, q + (POD_C - q).normalized() * 0.05, 0.008, "steel", "cabin", None if abs(az) > 100 else ("DOOR_L" if az > 0 else "DOOR_R"), seg=10)
-    # the overhead: a frame ring at the screens' top, ribs, round vents, and three hanging monitors
-    ring_pts = [E(D(a), DOOR_EL, 0.975) for a in range(-180, 181, 10)]
-    for p0, p1 in zip(ring_pts, ring_pts[1:]):
-        bar(S, p0, p1, 0.07, 0.06, "paint", "cabin", bevel=0.006)
-    for a in range(0, 360, 45):
-        S.tube([E(D(a), DOOR_EL + D(2), 0.97), E(D(a), D(70), 0.96), E(D(a), D(86), 0.96)], 0.018, "paint", "cabin")
-    for a, el in ((150, 62), (-150, 62), (90, 64), (-90, 64), (0, 80)):
-        c = E(D(a), D(el), 0.995)
-        n = (POD_C - c).normalized()
-        r, u, nn = basis(n, V(0, 0, 1) if abs(n.y) > 0.9 else V(0, 1, 0))
+    cnr = {}
+    for s in (1, -1):
+        cnr[s] = {k: plan(k, s) for k in CORNERS}
+    inset = lambda a, b, d: (a + (b - a).normalized() * d, b + (a - b).normalized() * d)
+    f0, f1 = inset(cnr[1]["F"], cnr[-1]["F"], 0.06)
+    screen(S, "front", f0, f1, LEAN, hn)
+    for s, door in ((1, "DOOR_L"), (-1, "DOOR_R")):
+        a, b = inset(cnr[s]["S"], cnr[s]["F"], 0.06)
+        screen(S, f"chamfer_{'L' if s > 0 else 'R'}", a, b, LEAN, door)
+        a, b = inset(cnr[s]["R"], cnr[s]["S"], 0.06)
+        screen(S, f"side_{'L' if s > 0 else 'R'}", a, b, 0.0, None, height=0.56)
+    # pillars at the corners, leaning with the screens, rivets and a cyan line down each
+    top_of = {}
+    for s in (1, -1):
+        nF = inward(cnr[1]["F"], cnr[-1]["F"])
+        nC = inward(cnr[s]["S"], cnr[s]["F"])
+        for k, lean_n in (("F", (nF + nC).normalized() * LEAN), ("S", nC * LEAN * 0.5), ("R", V(0, 0, 0))):
+            b = cnr[s][k] - V(0, 0.04, 0)
+            t = cnr[s][k] + lean_n + V(0, BELT[1] - BELT[0] + 0.1, 0)
+            top_of[(s, k)] = t
+            node = None
+            bar(S, b, t, 0.11, 0.10, "paint", "cabin", node, bevel=0.012)
+            n_in = (V(0, 1.3, 0.1) - (b + t) / 2)
+            n_in.y = 0
+            n_in.normalize()
+            bar(S, b + n_in * 0.06, t + n_in * 0.06, 0.012, 0.012, "cyan", "cabin", node, bevel=0.0)
+            for i in range(7):
+                q = b.lerp(t, (i + 0.5) / 7) + n_in * 0.055
+                S.cyl(q - n_in * 0.01, q + n_in * 0.006, 0.009, "steel", "cabin", node, seg=10)
+    # the header beam over the screens, the sill under them, the shelf out to the tub walls
+    ring = [top_of[(1, "R")], top_of[(1, "S")], top_of[(1, "F")], top_of[(-1, "F")], top_of[(-1, "S")], top_of[(-1, "R")]]
+    for i, (p0, p1) in enumerate(zip(ring, ring[1:])):
+        node = hn if i == 2 else (("DOOR_L" if i == 1 else "DOOR_R") if i in (1, 3) else None)
+        bar(S, p0 - V(0, 0.03, 0), p1 - V(0, 0.03, 0), 0.10, 0.09, "paint", "cabin", None if node in ("DOOR_L", "DOOR_R") else node, bevel=0.012)
+    floor_ring = [cnr[1]["R"], cnr[1]["S"], cnr[1]["F"], cnr[-1]["F"], cnr[-1]["S"], cnr[-1]["R"]]
+    for p0, p1 in zip(floor_ring, floor_ring[1:]):
+        bar(S, p0 - V(0, 0.05, 0), p1 - V(0, 0.05, 0), 0.10, 0.06, "paint_dk", "cabin", bevel=0.008, n=V(0, 1, 0))
+    for s in (1, -1):
+        x0, x1 = sorted((s * 0.72, s * 0.90))
+        S.box((x0, 0.93, -0.72), (x1, 0.97, 0.47), "paint_dk", bevel=0.004)
+        # the wall behind the side screen, aft of it: ribbed, with a vent and conduit
+        x0, x1 = sorted((s * 0.86, s * 0.90))
+        S.box((x0, 0.96, -0.74), (x1, CEIL, -0.16), "paint_dk")
+        for z in (-0.30, -0.45, -0.60):
+            S.box((s * 0.86 - 0.03 if s > 0 else -0.86, 0.98, z - 0.02), (s * 0.86 if s > 0 else -0.83, CEIL - 0.02, z + 0.02), "paint", bevel=0.006)
+        for k, y in enumerate((1.25, 1.31, 1.37)):
+            S.tube([V(s * 0.83, y, -0.72), V(s * 0.83, y, -0.18)], 0.012, ("red", "rubber", "yellow")[k])
+    S.box((-0.90, 1.20, -0.76), (0.90, CEIL, -0.70), "paint_dk")
+    # the ceiling: plate, beams across, conduits, round vents, a grab handle, a lamp
+    S.box((-0.92, CEIL, -0.76), (0.92, CEIL + 0.03, 1.02), "paint_dk")
+    for z in (0.62, 0.20, -0.25, -0.62):
+        S.box((-0.88, CEIL - 0.07, z - 0.04), (0.88, CEIL, z + 0.04), "paint", bevel=0.01)
+    for x in (-0.3, 0.3):
+        S.tube([V(x, CEIL - 0.04, -0.7), V(x, CEIL - 0.04, 0.95)], 0.02, "steel")
+    for x, z in ((0.55, 0.0), (-0.55, 0.0), (0.0, -0.45)):
         for k in range(3):
-            S.obox(c + n * (0.004 + k * 0.004), (r, u, nn), (0.16 - 0.04 * k, 0.16 - 0.04 * k, 0.006), ("bezel", "paint_dk", "steel")[k], "cabin", bevel=0.004)
-    disp = {"OVH_left": ("mfd_right", 34, 63), "OVH_center": ("mfd_center", 0, 67), "OVH_right": ("mfd_left", -34, 63)}
-    for name, (img, a, el) in disp.items():
-        c = E(D(a), D(el), 0.9)
-        n = (EYE - c).normalized()
-        r, u, nn = basis(n, V(0, 1, 0))
-        S.obox(c - nn * 0.02, (r, u, nn), (0.21, 0.16, 0.04), "bezel", "cabin", bevel=0.006)
-        S.cyl(c - nn * 0.03, E(D(a), D(el + 6), 0.97), 0.012, "steel", "cabin", seg=12)
-        S.obox(c + nn * 0.001 - u * 0.068, (r, u, nn), (0.18, 0.006, 0.004), "cyan", "cabin")
-        S.quad(c + nn * 0.0015, nn, u, 0.185, 0.135, emission_material(name, os.path.join(DISPLAYS, f"{img}.png"), 2.0), "screen", name, node=name)
+            S.cyl(V(x, CEIL - 0.004 * (k + 1), z), V(x, CEIL - 0.004 * k, z), 0.09 - 0.025 * k, ("bezel", "paint_dk", "steel")[k], seg=32)
+    S.cyl(V(-0.18, CEIL - 0.1, 0.0), V(0.18, CEIL - 0.1, 0.0), 0.012, "yellow", seg=12)
+    for x in (-0.18, 0.18):
+        S.cyl(V(x, CEIL - 0.1, 0.0), V(x, CEIL, 0.0), 0.012, "steel", seg=12)
+    S.box((-0.25, CEIL - 0.03, -0.62), (0.25, CEIL, -0.56), "bezel", bevel=0.004)
+    S.box((-0.22, CEIL - 0.034, -0.61), (0.22, CEIL - 0.03, -0.57), "white_lit")
+    # three monitors hanging from the front header, tilted at the eye
+    for name, img, x, y, z in (("OVH_left", "mfd_right", 0.40, 1.74, 0.70), ("OVH_center", "mfd_center", 0.0, 1.76, 0.78),
+                               ("OVH_right", "mfd_left", -0.40, 1.74, 0.70)):
+        c = V(x, y, z)
+        nn = (EYE - c).normalized()
+        r, u, nn = basis(nn, V(0, 1, 0))
+        S.obox(c - nn * 0.02, (r, u, nn), (0.24, 0.17, 0.04), "bezel", "cabin", bevel=0.006)
+        S.cyl(c - nn * 0.03 + u * 0.05, V(x, CEIL, z - 0.05), 0.012, "steel", "cabin", seg=12)
+        S.obox(c + nn * 0.001 - u * 0.072, (r, u, nn), (0.2, 0.006, 0.004), "cyan", "cabin")
+        S.quad(c + nn * 0.0015, nn, u, 0.205, 0.145, emission_material(name, os.path.join(DISPLAYS, f"{img}.png"), 2.0), "screen", name, node=name)
         NODES[name] = ("pod", None)
 
-    # --- the pod's armour: the fixed rear and top, the visor, the flaps, the lower plate
-    shell(S, DOOR_AZ1, 2 * math.pi - DOOR_AZ1, D(-3), D(89.5), *ARMOUR, "ext_armor", "ext", bevel=0.008)
-    for (a0, a1, e0) in ((VISOR_AZ, DOOR_AZ1, DOOR_EL), (-DOOR_AZ1, -VISOR_AZ, DOOR_EL), (-VISOR_AZ, VISOR_AZ, VISOR_EL)):
-        shell(S, a0, a1, e0 + D(0.5), D(89.5), *ARMOUR, "ext_armor", "ext", bevel=0.008)
-    shell(S, -VISOR_AZ + D(0.5), VISOR_AZ - D(0.5), D(-3), VISOR_EL, *ARMOUR, "ext_armor", "ext", node=hn, bevel=0.008)
-    shell(S, D(-7), D(7), D(3), VISOR_EL - D(2), ARMOUR[1], ARMOUR[1] + 0.035, "ext_frame", "ext", node=hn, bevel=0.006)
-    shell(S, -VISOR_AZ + D(3), VISOR_AZ - D(3), D(-3), D(3), ARMOUR[1], ARMOUR[1] + 0.02, "hazard", "ext", node=hn)
-    for s in (1, -1):
-        shell(S, s * D(20) - D(7), s * D(20) + D(7), D(20), D(36), ARMOUR[1], ARMOUR[1] + 0.025, "ext_dark", "ext", node=hn, bevel=0.004)
+    # --- the armour outside: the visor over the front screen and the roof's front, the doors over
+    # the chamfers, the fixed sides, roof and rear
+    T0, T1 = 0.07, 0.07
+    out = lambda p, n, d: p - n * d
+    nF = inward(cnr[1]["F"], cnr[-1]["F"])
+    vb0, vb1 = out(cnr[1]["F"], nF, 0.08) - V(0, 0.08, 0), out(cnr[-1]["F"], nF, 0.08) - V(0, 0.08, 0)
+    vt0, vt1 = vb0 + nF * (LEAN * 0.9) + V(0, CEIL - BELT[0] + 0.12, 0), vb1 + nF * (LEAN * 0.9) + V(0, CEIL - BELT[0] + 0.12, 0)
+    slab(S, [vb0, vb1, vt1, vt0], 0.07, "ext_armor", "ext", hn)
+    slab(S, [vt0 + V(0, 0.0, 0), vt1, V(vt1.x, vt1.y, 0.40), V(vt0.x, vt0.y, 0.40)], 0.07, "ext_armor", "ext", hn)
+    slab(S, [vb0.lerp(vb1, 0.15) - nF * 0.075, vb0.lerp(vb1, 0.85) - nF * 0.075, vb0.lerp(vb1, 0.85) - nF * 0.075 + V(0, 0.07, 0),
+             vb0.lerp(vb1, 0.15) - nF * 0.075 + V(0, 0.07, 0)], 0.02, "hazard", "ext", hn, bevel=0.0)
+    for x in (-0.3, 0.3):           # a raised spine on the visor and two vent grilles
+        S.obox(V(x, 1.45, 1.10) - nF * 0.02, (V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)), (0.16, 0.36, 0.03), "ext_dark", "ext", hn, bevel=0.006)
+        for k in range(6):
+            S.cyl(V(x - 0.07, 1.30 + k * 0.055, 1.13), V(x + 0.07, 1.30 + k * 0.055, 1.13), 0.008, "steel", "ext", hn, seg=8)
+    S.obox(V(0, 1.42, 1.12), (V(1, 0, 0), V(0, 0.99, -0.1).normalized(), V(0, 0.1, 0.99).normalized()), (0.12, 0.85, 0.05), "ext_frame", "ext", hn, bevel=0.01)
+    for x in (-0.12, 0.12):
+        S.cyl(V(x, 1.92, 1.0), V(x, 1.95, 1.04), 0.022, "amber", "ext", hn, seg=16)
+    S.cyl(V(-0.45, CEIL + 0.12, 0.40), V(0.45, CEIL + 0.12, 0.40), 0.04, "steel", "ext")
+    for s, door in ((1, "DOOR_L"), (-1, "DOOR_R")):
+        n = inward(cnr[s]["S"], cnr[s]["F"])
+        a, b = out(cnr[s]["S"], n, 0.08) - V(0, 0.08, 0), out(cnr[s]["F"], n, 0.08) - V(0, 0.08, 0)
+        a, b = a + (b - a).normalized() * 0.07, b + (a - b).normalized() * 0.07
+        top = V(0, CEIL - BELT[0] + 0.08, 0)
+        slab(S, [a, b, b + n * LEAN * 0.8 + top, a + n * LEAN * 0.8 + top], 0.07, "ext_armor", "ext", door)
+        for y in (1.15, 1.45):
+            S.tube([a + V(0, y - BELT[0], 0) - n * 0.075, b + V(0, y - BELT[0], 0) - n * 0.075], 0.014, "ext_dark", "ext", door)
+        S.tube([b - n * 0.04 + V(0, 0.0, 0), b - n * 0.04 + top], 0.012, "rubber", "ext", door)
         for k in range(5):
-            el = D(22) + k * D(3)
-            S.tube([E(s * D(20) - D(6), el, ARMOUR[1] + 0.03), E(s * D(20) + D(6), el, ARMOUR[1] + 0.03)], 0.006, "steel", "ext", hn)
-        p = E(s * D(11), VISOR_EL - D(6), ARMOUR[1] + 0.03)
-        S.cyl(p, p + (p - POD_C).normalized() * 0.03, 0.022, "amber", "ext", hn, seg=16)
-    S.cyl(E(D(-17), VISOR_EL, ARMOUR[1] + 0.01), E(D(17), VISOR_EL, ARMOUR[1] + 0.01), 0.035, "steel", "ext")
+            vent(door, b - n * 0.09 + V(0, 0.1 + 0.18 * k, 0), tuple(-n * 0.6 + V(0, 0.1, 0.6)), "steam", "doors", 0.7)
+        vent(door, (a + b) / 2 + top - n * 0.05, (0, 1, 0), "steam", "doors", 0.7)
+        # fixed side armour aft of the door, and the fixed front pillar cap between visor and door
+        x0, x1 = sorted((s * 0.90, s * 0.97))
+        S.box((x0, 0.90, -0.80), (x1, CEIL + 0.14, 0.42), "ext_armor", "ext", bevel=0.012)
+        pf = out(cnr[s]["F"], (nF + n).normalized(), 0.10)
+        S.box((pf.x - 0.07, 0.90, pf.z - 0.07), (pf.x + 0.07, CEIL + 0.14, pf.z + 0.07), "ext_frame", "ext", bevel=0.015)
+        for k in range(3):
+            vent("pod", V(s * 0.98, 1.2 + 0.25 * k, 0.40), (s, 0.2, 0.4), "steam", "doors", 0.5)
+    S.box((-0.97, CEIL + 0.07, -0.80), (0.97, CEIL + 0.14, 0.40), "ext_armor", "ext", bevel=0.012)
+    S.box((-0.97, 0.90, -0.86), (0.97, CEIL + 0.14, -0.78), "ext_armor", "ext", bevel=0.012)
+    for x in (-0.6, -0.2, 0.2, 0.6):                         # roof ribs
+        S.box((x - 0.03, CEIL + 0.14, -0.78), (x + 0.03, CEIL + 0.18, 0.38), "ext_frame", "ext", bevel=0.008)
     for s in (1, -1):
-        vent("pod", E(s * D(14), VISOR_EL, ARMOUR[1] + 0.04), (0, 1, -0.3), "steam", "visor", 1.0)
+        vent("pod", V(s * 0.40, CEIL + 0.18, 0.40), (0, 1, -0.3), "steam", "visor", 1.0)
     for i in range(11):
-        az = -VISOR_AZ + 2 * VISOR_AZ * (i + 0.5) / 11
-        vent("pod", E(az, D(-2), ARMOUR[1] + 0.01), (math.sin(az), -0.3, math.cos(az)), "steam", "seam", 0.6)
+        x = -0.55 + 1.1 * (i + 0.5) / 11
+        vent("pod", V(x, 0.92, 1.14), (0, -0.3, 1), "steam", "seam", 0.6)
     # latches round the visor and doors
-    for i, (az, el) in enumerate(LATCHES):
-        p = E(math.radians(az), math.radians(el), ARMOUR[1])
-        d = (p - POD_C).normalized()
+    for i, p in enumerate(LATCHES):
+        d = V(0, 0, 1) if p.y < 1.2 else V(0, 1, 0)
         S.cyl(p - d * 0.01, p + d * 0.05, 0.028, "steel", "ext", node=f"LATCH_{i + 1}", seg=16)
         S.cyl(p + d * 0.05, p + d * 0.065, 0.014, "amber", "ext", node=f"LATCH_{i + 1}", seg=16)
         NODES[f"LATCH_{i + 1}"] = ("pod", p)
@@ -690,38 +735,44 @@ def build(S):
 # ----------------------------------------------------------------------------- lights
 
 def lights():
-    """The sealed cabin's light: no sky. The screen wall glows (role screen_wall: the outside seen
-    through it lights the cabin), floodlights under the glare shield and the screen's lower edge,
-    a lamp strip on the rear bulkhead, a red footwell lamp, and the MFDs and lit buttons."""
+    """The sealed cabin's real-time light rig, exported as glTF punctual lights (Bevy and the review
+    page light the pod with them): a cool wash from the front screen (the outside seen through it),
+    warm floods under the glare shield and along the sills, a lamp on the rear bulkhead, a red
+    footwell lamp. The world is dark: the cabin is sealed. Lights are not baked; the bake keeps
+    only the maps and the contact occlusion."""
     sc = bpy.context.scene
     w = bpy.data.worlds.new("Dark")
     w.use_nodes = True
     w.node_tree.nodes["Background"].inputs["Color"].default_value = (0.005, 0.005, 0.006, 1)
-    w.light_settings.distance = 0.06
+    w.light_settings.distance = 0.08
     sc.world = w
+    out = []
 
-    def light(name, kind, loc, rot_to, energy, colour, size=0.05, sx=None, sy=None):
+    def light(name, kind, loc, aim, watts, colour, radius=0.03, cone=None):
         ld = bpy.data.lights.new(name, kind)
-        ld.energy = energy
+        ld.energy = watts
         ld.color = colour
-        if kind == "AREA":
-            ld.shape = "RECTANGLE"
-            ld.size, ld.size_y = sx, sy
-        else:
-            ld.shadow_soft_size = size
+        ld.shadow_soft_size = radius
+        if kind == "SPOT":
+            ld.spot_size = math.radians(cone)
+            ld.spot_blend = 0.6
         ob = bpy.data.objects.new(name, ld)
         ob.location = B(loc)
-        if rot_to is not None:
-            d = (B(rot_to) - B(loc)).normalized()
+        if aim is not None:
+            d = (B(aim) - B(loc)).normalized()
             ob.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
         sc.collection.objects.link(ob)
+        out.append((ob, loc))
 
     warm = (1.0, 0.86, 0.68)
-    light("Flood_glare", "AREA", V(0, 0.99, 0.616), V(0, 0.4, 0.66), 7.0, warm, sx=1.2, sy=0.02)
-    for s in (1, -1):
-        light(f"Flood_sill_{s}", "AREA", V(s * 0.66, 0.912, 0.05), V(s * 0.5, 0.4, 0.05), 3.5, warm, sx=0.02, sy=0.56)
-    light("Rear_strip", "AREA", V(0, 1.125, -0.575), V(0, 0.5, 0.3), 5.0, (1.0, 0.9, 0.78), sx=1.0, sy=0.02)
-    light("Footwell", "POINT", V(0, 0.25, 0.80), None, 1.5, (1.0, 0.18, 0.12), size=0.05)
+    light("LIGHT_screen", "SPOT", V(0, 1.30, 0.90), V(0, 0.9, -0.2), 30.0, (0.62, 0.78, 1.0), radius=0.4, cone=120)
+    light("LIGHT_glare", "SPOT", V(0, 0.99, 0.62), V(0, 0.4, 0.66), 6.0, warm, radius=0.1, cone=110)
+    for sd in (1, -1):
+        light(f"LIGHT_sill_{'L' if sd > 0 else 'R'}", "SPOT", V(sd * 0.70, 1.00, 0.10), V(sd * 0.48, 0.55, 0.10), 4.0, warm,
+              radius=0.05, cone=100)
+    light("LIGHT_rear", "POINT", V(0, 1.30, -0.50), None, 5.0, (1.0, 0.9, 0.78), radius=0.05)
+    light("LIGHT_footwell", "POINT", V(0, 0.25, 0.80), None, 1.2, (1.0, 0.18, 0.12), radius=0.03)
+    return out
 
 
 # ----------------------------------------------------------------------------- finishing
@@ -749,6 +800,11 @@ def join(obs, name, origin=None):
     return t
 
 
+UV_ANGLE = 60      # degrees: smart project splits islands at sharper creases than this
+UV_SHAPE = "AABB"  # pack shape; CONCAVE measured no better on this set
+UV_LONG = 0.25     # thin islands longer than this (in pre-pack UV units) are shrunk before packing
+
+
 def lightmap_uvs(obs):
     """A 'light' UV layer on every object of an atlas: smart projected, then packed together."""
     for ob in obs:
@@ -760,10 +816,36 @@ def lightmap_uvs(obs):
     bpy.context.view_layer.objects.active = obs[0]
     bpy.ops.object.mode_set(mode="EDIT")
     bpy.ops.mesh.select_all(action="SELECT")
-    bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=0.0015, area_weight=0.0, scale_to_bounds=False)
-    bpy.ops.uv.select_all(action="SELECT")
-    bpy.ops.uv.pack_islands(rotate=True, margin=0.0015, shape_method="AABB")
+    bpy.ops.uv.smart_project(angle_limit=math.radians(UV_ANGLE), island_margin=0.0015, area_weight=0.0, scale_to_bounds=False)
+    # Long hair-thin islands (trim strips a few millimetres wide and 1.5 m long) cap how far the packer
+    # can scale everything else up, since none may exceed the unit square. Shrink just those: they are
+    # baked into this UV, so they only lose texels along a length nobody inspects.
     bpy.ops.object.mode_set(mode="OBJECT")
+    from bpy_extras.bmesh_utils import bmesh_linked_uv_islands
+    shrunk = 0
+    for ob in obs:
+        bm = bmesh.new()
+        bm.from_mesh(ob.data)
+        lay = bm.loops.layers.uv["light"]
+        for isl in bmesh_linked_uv_islands(bm, lay):
+            loops = [l for f in isl for l in f.loops]
+            uvs = np.array([l[lay].uv[:] for l in loops])
+            lo, hi = uvs.min(0), uvs.max(0)
+            ext = hi - lo
+            if ext.max() > UV_LONG and ext.min() < ext.max() * 0.15:
+                c, k = (lo + hi) / 2, UV_LONG / ext.max()
+                for l in loops:
+                    l[lay].uv = Vector(c + (np.array(l[lay].uv[:]) - c) * k)
+                shrunk += 1
+        bm.to_mesh(ob.data)
+        bm.free()
+    print(f"UV shrank {shrunk} thin islands", flush=True)
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.uv.select_all(action="SELECT")
+    bpy.ops.uv.pack_islands(rotate=True, margin=0.0015, shape_method=UV_SHAPE)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    u = np.concatenate([np.array([d.uv[:] for d in ob.data.uv_layers["light"].data]) for ob in obs])
+    print(f"UV PACK {obs[0].name}..: u {u[:, 0].min():.3f}-{u[:, 0].max():.3f} v {u[:, 1].min():.3f}-{u[:, 1].max():.3f}", flush=True)
 
 
 def bake_target(img):
@@ -829,13 +911,6 @@ def denoise(rgb):
     return r
 
 
-def tonemap(x, exposure):
-    """Linear radiance to display: exposure, a soft shoulder (white at 6), sRGB."""
-    x = np.maximum(x * exposure, 0.0)
-    y = x * (1.0 + x / 36.0) / (1.0 + x)
-    return K.to_srgb(y)
-
-
 def save_jpeg(path, rgb, quality=90):
     h, w = rgb.shape[:2]
     img = bpy.data.images.new(os.path.basename(path), w, h, alpha=False)
@@ -878,21 +953,16 @@ def only_uv(ob, keep):
 
 
 def patch_unlit(path):
-    """Mark the baked, screen and HUD materials KHR_materials_unlit in the exported glb."""
-    data = open(path, "rb").read()
-    jlen = struct.unpack_from("<I", data, 12)[0]
-    js = json.loads(data[20:20 + jlen])
-    rest = data[20 + jlen:]
+    """Mark the screen materials KHR_materials_unlit in the exported glTF: the game draws them live."""
+    js = json.load(open(path))
     for m in js.get("materials", []):
-        if m["name"].startswith(("BAKED_", "SCREEN_", "HUD_")):
+        if m["name"].startswith(("SCREEN_", "HUD_")):
             m.setdefault("extensions", {})["KHR_materials_unlit"] = {}
     used = js.setdefault("extensionsUsed", [])
     if "KHR_materials_unlit" not in used:
         used.append("KHR_materials_unlit")
-    jb = json.dumps(js, separators=(",", ":")).encode()
-    jb += b" " * ((4 - len(jb) % 4) % 4)
-    out = struct.pack("<III", 0x46546C67, 2, 12 + 8 + len(jb) + len(rest)) + struct.pack("<II", len(jb), 0x4E4F534A) + jb + rest
-    open(path, "wb").write(out)
+    with open(path, "w") as f:
+        json.dump(js, f, indent=1)
 
 
 def tris(ob):
@@ -902,7 +972,7 @@ def tris(ob):
 # ----------------------------------------------------------------------------- main
 
 def ext_material(role, cache={}):
-    """The pod's outside as a lit PBR material: the mech's plating maps where the role has them."""
+    """The pod's outside as a lit PBR material: the mech's plating maps (colour, normal, ORM)."""
     if role in cache:
         return cache[role]
     tex = {"ext_armor": "armorL", "ext_frame": "frame", "hazard": "hazard"}.get(role)
@@ -910,8 +980,7 @@ def ext_material(role, cache={}):
     mat = bpy.data.materials.new(f"EXT_{role}")
     mat.use_nodes = True
     nt = mat.node_tree
-    N, L = nt.nodes, nt.links
-    bsdf = N["Principled BSDF"]
+    bsdf = nt.nodes["Principled BSDF"]
     bsdf.inputs["Roughness"].default_value = spec["r"]
     bsdf.inputs["Metallic"].default_value = spec["m"]
     bsdf.inputs["Base Color"].default_value = list(K.srgb(spec["c"])) + [1.0]
@@ -919,29 +988,65 @@ def ext_material(role, cache={}):
         bsdf.inputs["Emission Color"].default_value = list(K.srgb(spec["emit"])) + [1.0]
         bsdf.inputs["Emission Strength"].default_value = 3.0
     if tex:
-        uv = N.new("ShaderNodeUVMap")
-        uv.uv_map = "UVMap"
-        t = N.new("ShaderNodeTexImage")
-        jpg = os.path.join(RAW, f"ext_{tex}.jpg")          # JPEG in the glb: the review page has a size limit
-        src = bpy.data.images.load(os.path.join(ROOT, "assets", "textures", "mech", f"{tex}.png"), check_existing=True)
-        _ = src.pixels[0]                                   # load it before saving it again
-        src.filepath_raw = jpg
-        src.file_format = "JPEG"
-        src.save(quality=85)
-        t.image = bpy.data.images.load(jpg, check_existing=True)
-        L.new(uv.outputs[0], t.inputs[0])
-        L.new(t.outputs[0], bsdf.inputs["Base Color"])
-        npath = os.path.join(ROOT, "assets", "textures", "mech", f"{tex}_n.png")
-        if os.path.exists(npath):
-            tn = N.new("ShaderNodeTexImage")
-            tn.image = bpy.data.images.load(npath, check_existing=True)
-            tn.image.colorspace_settings.name = "Non-Color"
-            L.new(uv.outputs[0], tn.inputs[0])
-            nm = N.new("ShaderNodeNormalMap")
-            L.new(tn.outputs[0], nm.inputs["Color"])
-            L.new(nm.outputs[0], bsdf.inputs["Normal"])
+        mech = os.path.join(ROOT, "assets", "textures", "mech")
+        load = lambda n: bpy.data.images.load(os.path.join(mech, f"{n}.png"), check_existing=True)  # noqa: E731
+        nt.links.new(PBR.image(nt, load(tex), colour=True).outputs[0], bsdf.inputs["Base Color"])
+        if os.path.exists(os.path.join(mech, f"{tex}_n.png")):
+            PBR.normal(nt, bsdf, load(f"{tex}_n"))
+        PBR.orm(nt, bsdf, load(f"{tex}_orm"))
+    elif role not in ("rubber",) and not spec.get("emit"):
+        # flat painted and bare parts still carry the plating's scratches in their relief
+        mech = os.path.join(ROOT, "assets", "textures", "mech")
+        PBR.normal(nt, bsdf, bpy.data.images.load(os.path.join(mech, "wear_n.png"), check_existing=True), strength=0.6)
     cache[role] = mat
     return mat
+
+
+def atlas_material(g, maps, emit_k):
+    """An atlas's baked maps as one lit PBR material on its UV map."""
+    mat = bpy.data.materials.new(f"COCKPIT_{g}")
+    mat.use_nodes = True
+    nt = mat.node_tree
+    bsdf = nt.nodes["Principled BSDF"]
+    load = lambda k: bpy.data.images.load(maps[k], check_existing=True)  # noqa: E731
+    nt.links.new(PBR.image(nt, load("albedo"), colour=True).outputs[0], bsdf.inputs["Base Color"])
+    PBR.normal(nt, bsdf, load("normal"))
+    PBR.orm(nt, bsdf, load("orm"))
+    if emit_k > 0:
+        nt.links.new(PBR.image(nt, load("emissive"), colour=True).outputs[0], bsdf.inputs["Emission Color"])
+        bsdf.inputs["Emission Strength"].default_value = emit_k
+    return mat
+
+
+class swap_surface:
+    """Bake a material value through emission: each material's output shows the named node's value
+    as emission (or `default` where the material has no such node), and is put back after."""
+
+    def __init__(self, mats, node_name, default):
+        self.mats, self.node_name, self.default, self.saved = mats, node_name, default, []
+
+    def __enter__(self):
+        for m in self.mats:
+            nt = m.node_tree
+            out = next((n for n in nt.nodes if n.type == "OUTPUT_MATERIAL" and n.is_active_output), None)
+            if out is None:
+                continue
+            old = out.inputs["Surface"].links[0].from_socket if out.inputs["Surface"].links else None
+            em = nt.nodes.new("ShaderNodeEmission")
+            src = nt.nodes.get(self.node_name)
+            if src is not None:
+                nt.links.new(src.outputs[0], em.inputs["Color"])
+            else:
+                em.inputs["Color"].default_value = (self.default,) * 3 + (1.0,)
+            nt.links.new(em.outputs[0], out.inputs["Surface"])
+            self.saved.append((nt, out, old, em))
+        return self
+
+    def __exit__(self, *exc):
+        for nt, out, old, em in self.saved:
+            if old is not None:
+                nt.links.new(old, out.inputs["Surface"])
+            nt.nodes.remove(em)
 
 
 def cube_uvs(ob, size=1.2):
@@ -960,8 +1065,7 @@ def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ap = argparse.ArgumentParser()
     ap.add_argument("--size", type=int, default=4096)
-    ap.add_argument("--samples", type=int, default=96)
-    ap.add_argument("--exposure", type=float, default=1.6)
+    ap.add_argument("--samples", type=int, default=64, help="contact occlusion samples")
     ap.add_argument("--no-denoise", action="store_true")
     ap.add_argument("--no-bake", action="store_true", help="geometry only: skip the bake, keep the last atlases")
     a = ap.parse_args(argv)
@@ -972,7 +1076,7 @@ def main():
     mats = K.make_materials()
     S = Set(mats)
     build(S)
-    lights()
+    rig = lights()
 
     # realize, then join: one mesh per node and group, its origin at the node's pivot
     for p in S.parts:
@@ -993,65 +1097,74 @@ def main():
         lightmap_uvs(obs)
     print(f"BUILT in {time.time() - t0:.0f} s: " + ", ".join(f"{k} {tris(v[0])}" for k, v in sorted(meshes.items())), flush=True)
 
-    results = {g: os.path.join(BAKED, f"baked_{g}.jpg") for g in atlases}
+    tex_dir = os.path.join(RAW, "pbr")
+    os.makedirs(tex_dir, exist_ok=True)
+    maps = {g: {k: os.path.join(tex_dir, f"cockpit_{g}_{k}.jpg") for k in ("albedo", "normal", "orm", "emissive")}
+            for g in atlases}
+    emit_k = {}
+    scale_file = os.path.join(tex_dir, "emissive_scale.json")
+    if os.path.exists(scale_file):
+        emit_k = json.load(open(scale_file))
     if not a.no_bake:
         sc.render.engine = "CYCLES"
         cy = sc.cycles
         cy.device = "CPU"
-        cy.samples = a.samples
         cy.use_denoising = False
-        cy.max_bounces = 4
-        cy.diffuse_bounces = 3
-        cy.glossy_bounces = 0
-        cy.transmission_bounces = 0
-        cy.transparent_max_bounces = 2
-        cy.sample_clamp_indirect = 3.0
         cy.seed = 0
         bk = sc.render.bake
-        bk.margin = 12
+        bk.margin = 16
         bk.margin_type = "EXTEND"
-        bk.use_pass_direct = bk.use_pass_indirect = True
-        bk.use_pass_diffuse = bk.use_pass_emit = True
-        bk.use_pass_glossy = bk.use_pass_transmission = False
         for g, obs in atlases.items():
             bpy.ops.object.select_all(action="DESELECT")
             for ob in obs:
                 ob.select_set(True)
                 ob.data.uv_layers.active = ob.data.uv_layers["light"]
+                ob.data.uv_layers["light"].active_render = True     # the tangent frame the normal map is baked in
             bpy.context.view_layer.objects.active = obs[0]
-            imgs = {}
-            for kind in ("COMBINED", "AO"):
+            mats = list({s.material for ob in obs for s in ob.material_slots if s.material and s.material.use_nodes})
+
+            def bake(kind, samples, **kw):
                 t = time.time()
                 img = bpy.data.images.new(f"bake_{g}_{kind}", a.size, a.size, float_buffer=True, alpha=False)
                 bake_target(img)
-                if kind == "COMBINED":
-                    bpy.ops.object.bake(type="COMBINED", pass_filter={"DIRECT", "INDIRECT", "DIFFUSE", "EMIT"}, margin=12,
-                                        use_clear=True)
-                else:
-                    sc.world.light_settings.distance = 0.06
-                    cy.samples = max(16, a.samples // 3)
-                    bpy.ops.object.bake(type="AO", margin=12, use_clear=True)
-                    cy.samples = a.samples
-                imgs[kind] = pixels(img)[:, :, :3].copy()
+                cy.samples = samples
+                bpy.ops.object.bake(type=kind, margin=16, use_clear=True, **kw)
+                px = pixels(img)[:, :, :3].copy()
+                bpy.data.images.remove(img)
                 print(f"BAKED {g} {kind} in {time.time() - t:.0f} s", flush=True)
-            rgb, ao = imgs["COMBINED"], imgs["AO"][:, :, :1]
-            if not a.no_denoise:
-                t = time.time()
-                rgb = denoise(rgb)
-                ao = denoise(np.repeat(ao, 3, axis=2))[:, :, :1]
-                print(f"DENOISED {g} in {time.time() - t:.0f} s", flush=True)
-            lit = rgb * (0.55 + 0.45 * np.clip(ao, 0, 1))
-            save_jpeg(results[g], tonemap(lit, a.exposure))
-            np.save(os.path.join(RAW, f"baked_{g}_linear.npy"), lit.astype(np.float16))
+                return px
 
-    # export materials: baked surfaces unlit on their light UV, the screens unlit, the outside lit
+            albedo = bake("DIFFUSE", 8, pass_filter={"COLOR"})
+            normal = bake("NORMAL", 8, normal_space="TANGENT")
+            rough = bake("ROUGHNESS", 8)[:, :, 0]
+            emit = bake("EMIT", 8)
+            with swap_surface(mats, "METAL_SRC", 0.0):
+                metal = bake("EMIT", 8)[:, :, 0]
+            with swap_surface(mats, "AO_SRC", 1.0):
+                ao_src = bake("EMIT", 8)[:, :, 0]
+            sc.world.light_settings.distance = 0.08
+            ao = bake("AO", a.samples)
+            if not a.no_denoise:
+                ao = denoise(ao)
+            occl = np.clip(ao[:, :, 0], 0, 1) * np.clip(ao_src, 0, 1)
+            k = float(max(1.0, np.percentile(emit.max(axis=2), 99.95)))
+            emit_k[g] = round(k, 3)
+            save_jpeg(maps[g]["albedo"], K.to_srgb(np.clip(albedo, 0, 1)), 92)
+            save_jpeg(maps[g]["normal"], normal, 95)
+            save_jpeg(maps[g]["orm"], np.dstack([occl, rough, metal]), 92)
+            save_jpeg(maps[g]["emissive"], K.to_srgb(np.clip(emit / k, 0, 1)), 90)
+            print(f"MAPS {g}: occlusion mean {occl.mean():.2f}, roughness {rough.mean():.2f}, metal {metal.mean():.2f}, "
+                  f"emission scale {k:.2f}", flush=True)
+        json.dump(emit_k, open(scale_file, "w"))
+
+    # export materials: the baked atlases lit PBR on their light UV, the screens unlit, the outside lit PBR
     disp = {"SCREEN_left": "mfd_left", "SCREEN_center": "mfd_center", "SCREEN_right": "mfd_right",
             "OVH_left": "mfd_right", "OVH_center": "mfd_center", "OVH_right": "mfd_left"}
     for name, (ob, group, node) in meshes.items():
         if group in ("front", "cabin"):
             only_uv(ob, "light")
             ob.data.materials.clear()
-            ob.data.materials.append(bpy.data.materials.get(f"BAKED_{group}") or export_material(f"BAKED_{group}", results[group]))
+            ob.data.materials.append(bpy.data.materials.get(f"COCKPIT_{group}") or atlas_material(group, maps[group], emit_k.get(group, 1.0)))
         elif group == "screen":
             only_uv(ob, "panel")
             ob.data.materials.clear()
@@ -1072,8 +1185,6 @@ def main():
             for i, slot in enumerate(ob.material_slots):
                 role = slot.material.name.split(".")[0] if slot.material else "ext_dark"
                 ob.material_slots[i].material = ext_material(role if role in K.ROLES else "ext_dark")
-    for o in [o for o in sc.objects if o.type == "LIGHT"]:
-        bpy.data.objects.remove(o)
 
     # the node tree: an empty at each node's pivot, the meshes under their nodes
     empties = {}
@@ -1111,35 +1222,48 @@ def main():
         e.location = B(p)
         sc.collection.objects.link(e)
         e.parent = root
+    for ob, loc in rig:                                   # the light rig rides the pod
+        ob.parent = root
+        ob.location = B(loc)
     root["eye_m"] = list(EYE)
     bpy.context.view_layer.update()
-    os.makedirs(os.path.dirname(MODEL), exist_ok=True)
-    bpy.ops.export_scene.gltf(filepath=MODEL, export_format="GLB", export_extras=True, export_yup=True, export_apply=False,
-                              export_image_format="AUTO", export_texcoords=True, export_normals=True, export_lights=False,
+    out_dir = os.path.dirname(MODEL)
+    shutil.rmtree(out_dir, ignore_errors=True)          # no stale textures beside a new export
+    os.makedirs(out_dir, exist_ok=True)
+    for ob, _, _ in meshes.values():                     # triangles, so the exporter can write tangents
+        bm = bmesh.new()
+        bm.from_mesh(ob.data)
+        bmesh.ops.triangulate(bm, faces=bm.faces[:])
+        bm.to_mesh(ob.data)
+        bm.free()
+    bpy.ops.export_scene.gltf(filepath=MODEL, export_format="GLTF_SEPARATE", export_texture_dir="textures",
+                              export_extras=True, export_yup=True, export_apply=False, export_image_format="AUTO",
+                              export_texcoords=True, export_normals=True, export_tangents=True, export_lights=True,
                               export_cameras=False, use_selection=False)
     patch_unlit(MODEL)
     total = sum(tris(ob) for ob, _, _ in meshes.values())
     man = {
-        "model": "assets/models/cockpit_breeze.glb",
+        "model": "assets/models/cockpit_breeze/cockpit_breeze.gltf",
         "frame": "glTF: +y up, the pilot faces +z, +x is the pilot's left; metres; origin on the tub floor under the eye",
         "eye_m": list(EYE),
         "nodes": {n: {"parent": NODES[n][0], "pivot_m": [round(c, 4) for c in pivot(n)]} for n in NODES},
         "meshes": {k: {"tris": tris(v[0]), "group": v[1], "node": v[2]} for k, v in sorted(meshes.items())},
         "vents": len(S.vents),
+        "lights": len(rig),
         "tris": total, "tri_budget": TRI_BUDGET,
         "draw_calls": sum(len(ob.data.materials) for ob, _, _ in meshes.values()),
-        "atlases": {g: {"file": os.path.relpath(p, ROOT), "px": a.size} for g, p in results.items()},
-        "bake": {"samples": a.samples, "exposure": a.exposure, "denoised": not a.no_denoise,
-                 "lights": "the screen wall's glow, glare shield and sill floodlights, the rear lamp strip, a red footwell lamp, the MFDs and lit buttons"},
+        "atlases": {g: {"maps": sorted(maps[g]), "px": a.size, "emissive_strength": emit_k.get(g, 1.0)} for g in atlases},
+        "bake": {"ao_samples": a.samples, "denoised": not a.no_denoise,
+                 "maps": "base colour, tangent normal, ORM (R occlusion, G roughness, B metal), emission; light is real time"},
         "panels": sorted(CP.PANELS),
-        "glb_bytes": os.path.getsize(MODEL),
+        "bytes": sum(os.path.getsize(os.path.join(dp, f)) for dp, _, fs in os.walk(out_dir) for f in fs),
     }
-    with open(MODEL.replace(".glb", ".json"), "w") as f:
+    with open(MANIFEST, "w") as f:
         json.dump(man, f, indent=2)
         f.write("\n")
     if total > TRI_BUDGET:
         raise SystemExit(f"cockpit is {total} triangles, over the budget of {TRI_BUDGET}")
-    print(f"EXPORTED {MODEL}: {total} triangles, {os.path.getsize(MODEL) / 1e6:.1f} MB in {time.time() - t0:.0f} s", flush=True)
+    print(f"EXPORTED {MODEL}: {total} triangles, {man['bytes'] / 1e6:.1f} MB in {time.time() - t0:.0f} s", flush=True)
 
 
 main()
