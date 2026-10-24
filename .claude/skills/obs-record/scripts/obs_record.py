@@ -325,9 +325,12 @@ def find_window(c, pattern_exe: str | None, pattern_title: str | None, timeout: 
         items = c.get_input_properties_list_property_items(SOURCE, "window").property_items
         for item in items:
             value = item["itemValue"]
-            if pattern_exe and value.lower().endswith(":" + pattern_exe.lower()):
+            # macOS (ScreenCaptureKit) lists a window id as the value and "[App] Title" as the name.
+            label = f"{item.get('itemName', '')} {value}".lower()
+            if pattern_exe and (str(value).lower().endswith(":" + pattern_exe.lower())
+                                or (sys.platform == "darwin" and pattern_exe.lower() in label)):
                 return value
-            if pattern_title and pattern_title.lower() in value.lower():
+            if pattern_title and pattern_title.lower() in label:
                 return value
         time.sleep(0.5)
     sys.exit("target window never appeared")
@@ -426,11 +429,17 @@ def main():
             if not a.start_on:
                 start_evt.set()
 
-            c.create_input(SCENE, SOURCE, "window_capture", {"method": 2, "cursor": False}, True)
-            window = find_window(c, a.window_exe, a.window_title, 120)
-            c.set_input_settings(SOURCE, {"window": window, "method": 2, "cursor": False}, True)
+            if sys.platform == "darwin":
+                # macOS: ScreenCaptureKit window capture (type 1). There is no Game Capture.
+                c.create_input(SCENE, SOURCE, "screen_capture", {"type": 1, "show_cursor": False}, True)
+                window = find_window(c, a.window_exe, a.window_title, 120)
+                c.set_input_settings(SOURCE, {"type": 1, "window": window, "show_cursor": False}, True)
+            else:
+                c.create_input(SCENE, SOURCE, "window_capture", {"method": 2, "cursor": False}, True)
+                window = find_window(c, a.window_exe, a.window_title, 120)
+                c.set_input_settings(SOURCE, {"window": window, "method": 2, "cursor": False}, True)
             src = SOURCE
-            if a.capture == "game":
+            if a.capture == "game" and sys.platform != "darwin":
                 # Found through Window Capture's list, then captured by hooking the
                 # game's own frames on its GPU, which skips the compositor.
                 # A new name: OBS takes a moment to let go of a removed one.

@@ -87,23 +87,14 @@ fn run_script(
         // Walk to the ladder by input, then press Use.
         2 => {
             let a = access.0.unwrap();
-            let feet = pilot.curr.feet;
-            let to = a.ladder_base - feet;
-            let flat = Vec2::new(to.x, to.z);
-            if pilot.curr.mode == PilotMode::OnFoot && flat.length() > 2.0 {
-                let want = (-to.x).atan2(-to.z);
-                let turn = (want - pilot.curr.yaw_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
-                acc.script = Some(Actions {
-                    move_xy: Vec2::new(0.0, 1.0),
-                    look_delta_deg: Vec2::new(-turn.to_degrees(), 0.0),
-                    ..default()
-                });
+            acc.script = Some(if pilot.curr.mode == PilotMode::OnFoot && pilot.curr.distance_to_stair(&a) > 2.0 {
+                crate::showcase::walk_to(&pilot.curr, a.ladder_base, 0.0)
             } else {
-                acc.script = Some(Actions {
+                Actions {
                     use_pressed: pilot.curr.mode == PilotMode::OnFoot,
                     ..default()
-                });
-            }
+                }
+            });
             if matches!(pilot.curr.mode, PilotMode::Boarding(_)) {
                 // The stair is down and the climb begins: the open hatch from the stair's foot.
                 acc.script = Some(Actions::default());

@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 /// How to call the game.
-pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>]";
+pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--showcase]";
 
 /// Parsed command line.
 #[derive(Debug, PartialEq)]
@@ -14,6 +14,8 @@ pub struct Args {
     pub mech: String,
     /// Capture instrument output directory (`pilot-boarding` design section 4).
     pub stills: Option<PathBuf>,
+    /// Play the showcase take for a recording.
+    pub showcase: bool,
 }
 
 impl Args {
@@ -23,6 +25,7 @@ impl Args {
             seed: 42,
             mech: "mechs/placeholder.ron".into(),
             stills: None,
+            showcase: false,
         };
         let mut it = args;
         while let Some(a) = it.next() {
@@ -31,6 +34,7 @@ impl Args {
                 "--seed" => out.seed = value()?.parse().map_err(|e| format!("--seed: {e}"))?,
                 "--mech" => out.mech = value()?,
                 "--stills" => out.stills = Some(PathBuf::from(value()?)),
+                "--showcase" => out.showcase = true,
                 other => return Err(format!("unknown argument {other}")),
             }
         }

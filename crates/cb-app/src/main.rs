@@ -6,6 +6,7 @@ mod cli;
 mod input;
 mod mech;
 mod pilot;
+mod showcase;
 mod sim;
 mod world;
 
@@ -63,6 +64,8 @@ fn main() -> AppExit {
     ));
     if let Some(dir) = args.stills {
         app.add_plugins(capture::StillsPlugin { dir });
+    } else if args.showcase {
+        app.add_plugins(showcase::ShowcasePlugin);
     }
     app.run()
 }
