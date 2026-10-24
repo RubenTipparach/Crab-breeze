@@ -245,6 +245,7 @@ const groundMat = new THREE.ShaderMaterial({
     uShowBiome: { value: 0 },
   },
   vertexShader: `
+    #include <common>
     #include <logdepthbuf_pars_vertex>
     attribute vec4 bw0; attribute vec4 bw1; attribute vec2 bw2; attribute vec4 aux;
     varying vec4 vW0; varying vec4 vW1; varying vec2 vW2; varying vec4 vAux; varying vec3 vWorld; varying vec3 vN;
@@ -393,6 +394,7 @@ const waterMat = new THREE.ShaderMaterial({
     uDepth: { value: null }, uTime: time,
   },
   vertexShader: `
+    #include <common>
     #include <logdepthbuf_pars_vertex>
     attribute float murk; varying float vMurk; varying vec3 vWorld;
     void main(){ vMurk = murk; vec4 wp = modelMatrix * vec4(position, 1.0); vWorld = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp;
@@ -451,7 +453,8 @@ const fallMat = new THREE.ShaderMaterial({
   transparent: true, depthWrite: false, side: THREE.DoubleSide,
   uniforms: { uTime: time, uFogCol: { value: SKY_HORIZON.clone().convertSRGBToLinear() }, uFogDensity: { value: FOG_DENSITY },
     uSunDir: { value: sunDir }, uSunCol: { value: new THREE.Color(1, 1, 1) }, uSkyCol: { value: new THREE.Color() }, uGroundCol: { value: new THREE.Color() } },
-  vertexShader: `#include <logdepthbuf_pars_vertex>
+  vertexShader: `#include <common>
+    #include <logdepthbuf_pars_vertex>
     varying vec2 vUv; varying vec3 vWorld;
     void main(){ vUv = uv; vec4 wp = modelMatrix * vec4(position, 1.0); vWorld = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp;
       #include <logdepthbuf_vertex>
@@ -473,7 +476,8 @@ const fallMat = new THREE.ShaderMaterial({
 const sprayMat = new THREE.ShaderMaterial({
   transparent: true, depthWrite: false,
   uniforms: { uTime: time, uScale: { value: 600 } },
-  vertexShader: `#include <logdepthbuf_pars_vertex>
+  vertexShader: `#include <common>
+    #include <logdepthbuf_pars_vertex>
     uniform float uTime; uniform float uScale; attribute float seed; varying float vA;
     void main(){
       vec3 p = position;
@@ -671,7 +675,8 @@ const cloudMat = new THREE.ShaderMaterial({
     uBase: { value: G.CLOUD_BASE_M }, uTop: { value: G.CLOUD_TOP_M },
     uWrap: { value: 0.6 }, uSilver: { value: 1.6 }, uAlbedo: { value: 0.9 }, uBaseShade: { value: 0.45 }, uNear: { value: 160 }, uSoft: { value: 0.45 },
   },
-  vertexShader: `#include <logdepthbuf_pars_vertex>
+  vertexShader: `#include <common>
+    #include <logdepthbuf_pars_vertex>
     varying vec3 vWorld; varying vec3 vN;
     void main(){ vec4 wp = modelMatrix * vec4(position, 1.0); vWorld = wp.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * wp;
       #include <logdepthbuf_vertex>
@@ -745,7 +750,8 @@ function buildSky() {
   const g = new THREE.SphereGeometry(100000, 32, 16);
   const m = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false,
     uniforms: { uZen: { value: SKY_ZENITH.clone().convertSRGBToLinear() }, uHor: { value: SKY_HORIZON.clone().convertSRGBToLinear() }, uSunDir: { value: sunDir } },
-    vertexShader: `#include <logdepthbuf_pars_vertex>
+    vertexShader: `#include <common>
+    #include <logdepthbuf_pars_vertex>
     varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * viewMatrix * vec4(position + cameraPosition, 1.0);
       #include <logdepthbuf_vertex>
     }`,
