@@ -14,14 +14,15 @@
         5.844
       ]
     },
-    "bytes": 965868,
-    "cockpit": "bubble canopy in the chest",
+    "bytes": 964656,
+    "cockpit": "the pod at the front of the chest",
+    "cockpit_variant": null,
     "file": "mech_breeze.glb",
     "generator": "tools/blender/build_mechs.py",
     "id": "breeze",
     "legs": "reverse knee, three segments",
     "name": "Breeze",
-    "note": "Crab Breeze's own, built in Mining Mike's boss style. Recommended.",
+    "note": "Retired (owner, 2026-10-24: \"Breeze me h sucks\"); kept while the game still loads it.",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
     "triangles": 7532,
@@ -42,14 +43,15 @@
         7.121
       ]
     },
-    "bytes": 1241948,
+    "bytes": 1243096,
     "cockpit": "armoured head, visor band",
+    "cockpit_variant": null,
     "file": "mech_bulwark.glb",
     "generator": "tools/blender/build_mechs.py",
     "id": "bulwark",
     "legs": "human knee, two segments",
     "name": "Bulwark",
-    "note": "Mining Mike's Uber mech, ported. Its back cradle now holds the jets.",
+    "note": "Mining Mike's Uber mech, ported: the reference.",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
     "triangles": 12930,
@@ -58,19 +60,19 @@
   "foreman": {
     "bounds_m": {
       "x": [
-        -4.003,
-        4.003
+        -4.037,
+        4.037
       ],
       "y": [
-        -0.038,
-        11.962
+        -0.04,
+        12.031
       ],
       "z": [
-        -4.136,
-        6.36
+        -2.861,
+        6.724
       ]
     },
-    "bytes": 1387332,
+    "bytes": 1827880,
     "cockpit": "wall: seated in a flat screen wall, in the cab",
     "cockpit_variant": "wall",
     "file": "mech_foreman.glb",
@@ -82,25 +84,25 @@
     "opening": "the bar grille lifts on two rams, the armour shutter drops into the belly",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 16520,
+    "triangles": 28492,
     "weapons": "belt-fed boom cannon (L), hydraulic breaker (R)"
   },
   "ironhorse": {
     "bounds_m": {
       "x": [
-        -3.048,
-        3.048
+        -3.434,
+        3.434
       ],
       "y": [
-        0.068,
-        11.071
+        0.069,
+        11.149
       ],
       "z": [
-        -3.745,
-        5.351
+        -2.363,
+        5.452
       ]
     },
-    "bytes": 1305028,
+    "bytes": 1632352,
     "cockpit": "jockey: leaning forward in the boiler",
     "cockpit_variant": "jockey",
     "file": "mech_ironhorse.glb",
@@ -112,7 +114,7 @@
     "opening": "the dogs swing off, the round smokebox door swings open",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 15276,
+    "triangles": 21140,
     "weapons": "buffer ram (L), steam cannon (R)"
   },
   "ravager": {
@@ -130,14 +132,15 @@
         7.094
       ]
     },
-    "bytes": 1148312,
+    "bytes": 1148048,
     "cockpit": "low head, visor under three eyes",
+    "cockpit_variant": null,
     "file": "mech_ravager.glb",
     "generator": "tools/blender/build_mechs.py",
     "id": "ravager",
     "legs": "reverse knee, three segments",
     "name": "Ravager",
-    "note": "Mining Mike's rival Uber mech, ported. Hunched, a crest of blades.",
+    "note": "Mining Mike's rival Uber mech, ported: the reference.",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
     "triangles": 10692,
@@ -146,19 +149,19 @@
   "stevedore": {
     "bounds_m": {
       "x": [
-        -2.602,
-        2.795
+        -3.02,
+        3.217
       ],
       "y": [
-        -0.0,
-        13.5
+        0.0,
+        13.609
       ],
       "z": [
-        -2.667,
-        4.481
+        -2.461,
+        4.557
       ]
     },
-    "bytes": 1290340,
+    "bytes": 1653904,
     "cockpit": "harness: standing in a container chest",
     "cockpit_variant": "harness",
     "file": "mech_stevedore.glb",
@@ -170,7 +173,7 @@
     "opening": "the four lock rods turn out, the container doors swing wide",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 11638,
+    "triangles": 20486,
     "weapons": "cargo mortar (L), crane jib with a harpoon grapple (R)"
   }
 }

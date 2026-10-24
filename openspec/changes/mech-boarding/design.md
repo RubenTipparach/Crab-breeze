@@ -11,10 +11,18 @@ manifest (`assets/models/cockpit_<variant>.json`).
 
 ## 1. The bay, the interior and the screen wall
 
-- Each chassis has a bay in its chest (`tools/blender/mech_boarding.py`): a lined cavity sized to its
-  interior's envelope plus 0.1 m, the `cockpit` node on the tub floor under the eye, the sockets
-  `EYE_pilot`, `SEAT_pilot`, `HATCH_entry`. The interior (`build_cockpit.py --variant wall | jockey |
+- Each chassis's torso is lofted round its interior (`tools/blender/mech_boarding.py` `pod()`, the outline
+  measured off the interior's glTF by `tools/blender/cockpit_hull.py`; owner, 2026-10-24: "The geometry of
+  the cockpit must match the interiors that we just designed", then "I would want a mech more mech shape").
+  Inside, a dark lining 0.05 m off the interior in three bands (under the screens, the screen belt, the
+  roof); outside, the larger of the chassis's own torso silhouette (broad shoulders behind the cut, a waist,
+  a collar for the head) and the lining grown by 0.30 m of armour (0.36 m round the screen belt). So the
+  prow of the chest is the interior's shape: the Foreman's chamfered cab, the Stevedore's octagon, the
+  Ironhorse's hexagonal screen bank. The `cockpit` node sits on the tub floor under the eye, with the
+  sockets `EYE_pilot`, `SEAT_pilot`, `HATCH_entry`; the interior (`build_cockpit.py --variant wall | jockey |
   harness`) mounts at `cockpit`.
+- Only the prow opens: everything ahead of the cut plane (`z_cut`, just behind the pivots of the interior's
+  own opening parts) from just under the lining's floor to just over its roof.
 - Three interiors: wall (seated, twin grips, a flat screen wall; Foreman), jockey (leaning forward on a
   saddle, low wide screens; Ironhorse), harness (standing, forearm controls, a flat octagon of screens;
   Stevedore). Every screen is flat (the owner: curved screens are "just fish eye pov").
@@ -38,9 +46,9 @@ hinge at the node's origin, driven by its track; `RAM_<n>` rams re-aim at their 
 
 | Chassis | Plates and motions | Rams | Then |
 | --- | --- | --- | --- |
-| Foreman (excavator cab) | `CHEST_grille`, the bar grille, lifts 100 degrees on its top hinge (0.5-1.9 s); `CHEST_shutter`, the armour shutter behind it, drops into a housing in the belly (1.6-3.2 s) | two on the grille | the interior's inner tracks, the ladder |
-| Stevedore (container) | `CHEST_lock_L1/L2/R1/R2`, the lock rods, turn out 86 degrees (0.0-0.7 s); `CHEST_door_L/R` swing wide 112 degrees (1.1-2.6 s) | | |
-| Ironhorse (smokebox) | `CHEST_dog_1..8`, the clamps round the door, swing off 69 degrees (0.0-0.5 s); `CHEST_door`, the round smokebox door, swings 115 degrees on its side hinge (0.8-2.4 s) | | |
+| Foreman (excavator) | `CHEST_visor`, the upper prow with its bar grille, hinges up 92 degrees from its top edge at the cut (0.5-1.9 s); `CHEST_apron`, the lower prow, drops forward 86 degrees into a step (1.6-3.0 s) | two on the visor | the interior's inner tracks, the ladder |
+| Stevedore (dock crane) | `CHEST_lock_L1/L2/R1/R2`, the lock rods, turn out 86 degrees (0.0-0.7 s); `CHEST_door_L/R`, the prow split down the middle, swing out 92 degrees on hinges at the cut (1.1-2.6 s) | | |
+| Ironhorse (locomotive) | `CHEST_dog_1..8`, the clamps round the seam, swing off 69 degrees (0.0-0.5 s); `CHEST_door`, the whole prow, swings 92 degrees on its hinge on the pilot's right (0.8-2.4 s) | | |
 
 Then the interior opens (its manifest's tracks, from 80 % of the chest's time) and the chain ladder
 (`LADDER`, `LADDER_1..10`, 0.8 m a segment) drops from under the sill one segment every 0.12 s, as
