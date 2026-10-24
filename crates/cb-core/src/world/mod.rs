@@ -13,6 +13,7 @@ pub mod destruct;
 pub mod dressing;
 pub mod forest;
 pub mod grid;
+pub mod interior;
 pub mod layout;
 pub mod lod;
 pub mod structure;

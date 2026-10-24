@@ -10,6 +10,7 @@ use bevy::prelude::*;
 use cb_core::rng::SimRng;
 use cb_core::world::destruct::Cells;
 use cb_core::world::dressing::{self, Anchor, DressingConfig, Shape};
+use cb_core::world::interior::{self, Rest};
 use cb_core::world::structure::{Frame, GROUND, Kind};
 use std::collections::HashMap;
 
@@ -153,13 +154,16 @@ fn step_structures(time: Res<Time<Fixed>>, mut live: ResMut<Live>, mut fx: Messa
     }
 }
 
-/// The meshes of band `band` of a frame: (facade panels, floors and columns). Columns are drawn
-/// 1 cm thinner than they are and side walls stop short of the corner walls, so no two faces share
-/// a plane (CLAUDE.md section 10).
-fn band_meshes(f: &Frame, band: u32, wall_m: f32) -> (Mesh, Mesh, usize) {
+/// The meshes of band `band` of a frame: (facade panels; floors, columns and the interiors behind
+/// them). Columns are drawn 1 cm thinner than they are and side walls stop short of the corner
+/// walls, so no two faces share a plane (CLAUDE.md section 10). Partitions and furniture
+/// (`building-interiors`) are drawn while the floor bay under them stands. Returns the standing
+/// element count with the meshes.
+fn band_meshes(f: &Frame, band: u32, wall_m: f32, seed: &SimRng) -> (Mesh, Mesh, usize) {
     let mut facade = MeshBuilder::tiled(4.0, 3.5);
     let mut bare = MeshBuilder::tiled(4.0, 4.0);
     let white = [1.0; 4];
+    let concrete = [0.66, 0.64, 0.6, 1.0];
     let (k0, k1) = (band * BAND_STOREYS, (band + 1) * BAND_STOREYS);
     let mut standing = 0;
     for e in f.elements.iter().filter(|e| e.alive && e.storey >= k0 && e.storey < k1) {
@@ -177,8 +181,23 @@ fn band_meshes(f: &Frame, band: u32, wall_m: f32) -> (Mesh, Mesh, usize) {
                 }
                 facade.block(lo, hi, white);
             }
-            Kind::Column => bare.block(e.min + Vec3::new(0.01, 0.0, 0.01), e.max - Vec3::new(0.01, 0.0, 0.01), white),
-            Kind::Slab => bare.block(e.min, e.max, [0.85, 0.85, 0.85, 1.0]),
+            Kind::Column => bare.block(e.min + Vec3::new(0.01, 0.0, 0.01), e.max - Vec3::new(0.01, 0.0, 0.01), concrete),
+            Kind::Slab => bare.block(e.min, e.max, [0.56, 0.55, 0.52, 1.0]),
+        }
+    }
+    let holds = |r: Rest| match r {
+        Rest::Ground => true,
+        Rest::Slab { k, i, j } => f.elements[f.slab(k as usize, i as usize, j as usize) as usize].alive,
+    };
+    for k in k0..k1.min(f.n[1] as u32) {
+        let plan = interior::plan_storey(f.building, k as usize, f.n, f.origin, f.size, seed);
+        for w in plan.walls.iter().filter(|w| holds(w.rest)) {
+            bare.block(w.min, w.max, if w.core { concrete } else { [0.86, 0.84, 0.78, 1.0] });
+        }
+        for it in plan.items.iter().filter(|it| holds(it.rest)) {
+            for (lo, hi, c) in &it.boxes {
+                bare.block(*lo, *hi, [c[0], c[1], c[2], 1.0]);
+            }
         }
     }
     (facade.build(), bare.build(), standing)
@@ -336,7 +355,7 @@ fn redraw_buildings(
                 *slot = Some((Vec::new(), 0));
                 continue;
             }
-            let (facade, bare, _) = band_meshes(f, band, wall_m);
+            let (facade, bare, _) = band_meshes(f, band, wall_m, &rng);
             let tone = looks.tones[id as usize % looks.tones.len()].clone();
             let a = commands
                 .spawn((
@@ -373,8 +392,8 @@ mod tests {
         let f = frame();
         let per_storey = f.elements.iter().filter(|e| e.storey == 0).count();
         let f = Frame::new(3, [4, 13, 3], Vec3::ZERO, Vec3::new(6.0, 3.5, 6.0), &StructureConfig::default());
-        let (_, _, n0) = band_meshes(&f, 0, 0.3);
-        let (_, _, n1) = band_meshes(&f, 1, 0.3);
+        let (_, _, n0) = band_meshes(&f, 0, 0.3, &SimRng::new(1));
+        let (_, _, n1) = band_meshes(&f, 1, 0.3, &SimRng::new(1));
         assert_eq!(n0, per_storey * 12);
         assert_eq!(n1, per_storey, "the last band holds the thirteenth storey only");
     }
@@ -400,9 +419,12 @@ mod tests {
     fn a_broken_element_leaves_its_band() {
         let mut f = Frame::new(3, [4, 13, 3], Vec3::ZERO, Vec3::new(6.0, 3.5, 6.0), &StructureConfig::default());
         let id = f.elements.iter().position(|e| e.kind == Kind::Wall && e.storey == 12).unwrap();
-        let (b0, b1) = (band_meshes(&f, 0, 0.3).2, band_meshes(&f, 1, 0.3).2);
+        let (b0, b1) = (
+            band_meshes(&f, 0, 0.3, &SimRng::new(1)).2,
+            band_meshes(&f, 1, 0.3, &SimRng::new(1)).2,
+        );
         f.elements[id].alive = false;
-        assert_eq!(band_meshes(&f, 1, 0.3).2, b1 - 1);
-        assert_eq!(band_meshes(&f, 0, 0.3).2, b0, "other bands are untouched");
+        assert_eq!(band_meshes(&f, 1, 0.3, &SimRng::new(1)).2, b1 - 1);
+        assert_eq!(band_meshes(&f, 0, 0.3, &SimRng::new(1)).2, b0, "other bands are untouched");
     }
 }

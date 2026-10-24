@@ -422,7 +422,7 @@ fn spawn_buildings(
     commands.insert_resource(crate::buildings::BuildingLooks {
         tones: tones.to_vec(),
         structure: materials.add(StandardMaterial {
-            base_color: Color::srgb(0.66, 0.64, 0.6),
+            base_color: Color::WHITE,
             perceptual_roughness: 0.9,
             ..default()
         }),
