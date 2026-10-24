@@ -25,6 +25,7 @@ mod screens_cube;
 mod shader_check;
 mod showcase;
 mod sim;
+mod sun_flare;
 mod targeting;
 mod textures;
 mod water_render;
@@ -113,6 +114,12 @@ fn main() -> AppExit {
     // measure what the marks cost.
     app.add_plugins(ground_marks::GroundMarksPlugin {
         enabled: !cli::switched_off("CB_NO_GROUND_MARKS"),
+    });
+    // The sun's bloom and lens flare (openspec change `sun-flare`); `CB_NO_FLARE=1` and
+    // `CB_NO_BLOOM=1` leave them out, so the benchmark can measure what they cost.
+    app.add_plugins(sun_flare::SunFlarePlugin {
+        flare: !cli::switched_off("CB_NO_FLARE"),
+        bloom: !cli::switched_off("CB_NO_BLOOM"),
     });
     if args.defending() {
         app.add_plugins(defence::DefencePlugin);
