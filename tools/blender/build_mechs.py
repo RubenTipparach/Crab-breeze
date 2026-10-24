@@ -10,7 +10,7 @@ measure it and again at the scale that makes it its height in metres.
            The back cradle now holds the flight jets; the head is the cockpit, a visor across it.
   ravager  Mining Mike's Uber mech "Ravager", ported: hunched on reverse knees, twin rail lances,
            a crest of blades. The low three-eyed head is the cockpit.
-  foreman    the excavator, the wall cockpit in its chamfered prow behind a grilled visor and an apron (the recommendation).
+  foreman    the excavator, the wall cockpit in its chamfered prow behind a visor and an apron (the recommendation).
   stevedore  the dock crane, the harness cockpit in an octagonal prow split into two locked doors.
   ironhorse  the locomotive, the jockey cockpit in a hexagonal prow that swings open whole.
              Original designs in the boss kit's finish (the owner, 2026-10-24: "Follow design philosophy of
@@ -679,7 +679,7 @@ def foreman(k):
     """The excavator. Heavy and low on digitigrade legs driven by exposed double rams, standing on track-pad
     feet; a slewing ring for a waist; the chest is the operator's cab inside a roll cage, beacons and work
     lights on it, the engine bay and a counterweight behind. Right: a hydraulic breaker on a boom. Left: a
-    belt-fed cannon on an articulated boom, its ammunition drum on the back. Boarding: the grilled visor lifts
+    belt-fed cannon on an articulated boom, its ammunition drum on the back. Boarding: the visor lifts
     on two rams, the apron under it drops forward into a step, the ladder falls. Cockpit: wall."""
     M = k.M
     segs, footH = [[17, -0.62], [19, 1.15], [10, -0.53]], 4.6
@@ -754,8 +754,9 @@ def foreman(k):
         floodlight(k, cp, *hull["at"](s * 0.55, Yt + 0.30, 0.12), -0.25, s * 0.15)
     MB.contour(k, hull, None, -1.3, 1.3, Yt + 0.22, 0.02, 0.05, M["hazard"])     # the hood's edge over the visor
     # the head on the collar: a low armoured block, two lenses and a rangefinder bar
-    mast = k.J("head", chest, 0, 5 + 2.75 * U, 3 + (hull["z_cut"] - 0.2) * U)
-    k.cyl(1.6, 2.0, 1.6, M["frame"], mast, 0, 0.8, 0)
+    top = FOREMAN_TORSO[-1]
+    mast = k.J("head", chest, 0, 5 + (top[0] - 0.05) * U, 3 + (top[2] + top[3]) / 2 * U)
+    k.cyl(2.6, 3.2, 2.4, M["frame"], mast, 0, 0.6, 0)      # the neck, sunk into the hood
     k.pz([[-3.6, 0], [3.6, 0], [3.0, 3.4], [-3.0, 3.4]], 5, M["armor"], mast, 0, 1.4, 0, 0, PI / 2, 0)
     for x in (-1.8, 1.8):
         k.cyl(1.0, 1.0, 1.2, M["dark"], mast, x, 3.0, 2.4, PI / 2)
@@ -780,13 +781,9 @@ def foreman(k):
     # the opening, shaped by the cab inside: the visor (the front over the screens, chamfered as they are)
     # hinges up over the roof on two rams, then the apron (the front under them) drops forward into a step
     Yb, Yt, ys = hull["Yb"], hull["Yt"], hull["ysplit"]
-    for i in range(9):                     # the grille: bars down the visor, following its chamfers
-        MB.rib(k, hull, "CHEST_visor", -1.3 + i * 2.6 / 8, ys + 0.05, Yt - 0.04, 0.05, 0.035, M["frame"])
-    for y in (ys + 0.07, (ys + Yt) / 2, Yt - 0.06):
-        MB.contour(k, hull, "CHEST_visor", -1.45, 1.45, y, 0.08, 0.05, M["frame"])
+    # the visor is a clean plate with a hazard band (owner, 2026-10-24: no grilles)
     MB.contour(k, hull, "CHEST_visor", -0.9, 0.9, ys + 0.16, 0.11, 0.03, M["hazard"])
-    for i in range(5):                     # the apron's ribs, and its hazard edge, which becomes the step's nose
-        MB.contour(k, hull, "CHEST_apron", -1.4, 1.4, Yb + 0.12 + i * (ys - Yb - 0.24) / 4, 0.03, 0.03, M["armor2"])
+    # the apron is a clean plate too, with its hazard edge, which becomes the step's nose
     MB.contour(k, hull, "CHEST_apron", -1.1, 1.1, Yb + 0.05, 0.05, 0.04, M["hazard"])
     MB.contour(k, hull, "CHEST_apron", -0.7, 0.7, ys - 0.12, 0.05, 0.03, M["red"])
     ap, (ax, ay, az) = MB.on(k, hull, "CHEST_apron", hull["at"](0, (Yb + ys) / 2, 0.05))
@@ -796,7 +793,7 @@ def foreman(k):
     for S, s in (("L", 1), ("R", -1)):
         base = hull["at"](s * (PI / 2 + 0.35), Yt - 0.05, 0.10)
         vis, tip = MB.on(k, hull, "CHEST_visor", hull["at"](s * 1.15, (ys + Yt) / 2, 0.10))
-        MB.ram(k, f"grille_{S}", cp, list(base), vis, list(tip), 0.9)
+        MB.ram(k, f"visor_{S}", cp, list(base), vis, list(tip), 0.9)
         MB.vent(k, cp, *hull["at"](s * 1.2, Yt + 0.05, 0.05), (s * 0.4, 1, 0.4), "open", rate=1.4)
         for f in (0.3, 0.7):
             MB.vent(k, cp, *hull["at"](s * PI / 2, Yb + f * (Yt - Yb), 0.03), (s, 0.1, 0.6), "seam")
@@ -969,7 +966,9 @@ def stevedore(k):
                 k.pz([[0, 0], [1, 0], [3, -4], [2.2, -4.6]], 0.8, M["metal"], g, math.cos(a) * 1.2, -1, math.sin(a) * 1.2, 0, -a, 0)
             k.cyl(0, 1.0, 3.5, M["metal"], g, 0, -3.5, 0, PI, seg=10)
             k.sock("MUZZLE_R", g, 0, -5, 0, PI / 2)
-        else:       # the cargo mortar: a corrugated box with a hinged front and a tube cluster
+        else:       # the cargo mortar on its forearm (owner, 2026-10-24: "stevedore is missing an arm joint")
+            lattice(k, elb, 3.6, 3.6, 15, M["red"], n=3)
+            k.cyl(2.6, 2.6, 5.4, M["dark"], hand, 0, 0, 0, 0, 0, PI / 2)      # the wrist
             g = k.g(hand, 0, -2, 1)
             k.pl(9, 9, 11, M["armor"], g, 0, 0, 0)
             for i in range(4):
@@ -1159,10 +1158,10 @@ def plate_face(k, j, W, H, y_dir, z_off, glow_slit=False, livery=True):
 
 DESIGNS = {
     # id: (builder, height m, glow, livery, core, light plate, name, card)
-    "foreman": (foreman, 12.0, 0xffb02e, 0x2f6fe0, 0xffb347, True, "Foreman",
+    "foreman": (foreman, 12.0, 0xffb02e, 0x2f6fe0, 0xffb347, False, "Foreman",
                 dict(legs="digitigrade, three segments, double hydraulic rams, track-pad feet",
                      cockpit="wall: seated in a flat screen wall, in the chamfered prow",
-                     opening="the grilled visor lifts on two rams, the apron drops forward into a step",
+                     opening="the visor lifts on two rams, the apron drops forward into a step",
                      weapons="belt-fed boom cannon (L), hydraulic breaker (R)",
                      note="Original, after an excavator: slewing ring, broad shoulders with beacons, an engine pack and its stack. Recommended.")),
     "stevedore": (stevedore, 13.5, 0x8fe3ff, 0x2f6fe0, 0x8fb6ff, False, "Stevedore",

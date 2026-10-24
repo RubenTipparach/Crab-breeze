@@ -72,19 +72,19 @@
         6.724
       ]
     },
-    "bytes": 1827880,
-    "cockpit": "wall: seated in a flat screen wall, in the cab",
+    "bytes": 1676892,
+    "cockpit": "wall: seated in a flat screen wall, in the chamfered prow",
     "cockpit_variant": "wall",
     "file": "mech_foreman.glb",
     "generator": "tools/blender/build_mechs.py",
     "id": "foreman",
     "legs": "digitigrade, three segments, double hydraulic rams, track-pad feet",
     "name": "Foreman",
-    "note": "Original, after an excavator: slewing ring, roll cage, beacons, counterweight. Recommended.",
-    "opening": "the bar grille lifts on two rams, the armour shutter drops into the belly",
+    "note": "Original, after an excavator: slewing ring, broad shoulders with beacons, an engine pack and its stack. Recommended.",
+    "opening": "the visor lifts on two rams, the apron drops forward into a step",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 28492,
+    "triangles": 23732,
     "weapons": "belt-fed boom cannon (L), hydraulic breaker (R)"
   },
   "ironhorse": {
@@ -161,8 +161,8 @@
         4.557
       ]
     },
-    "bytes": 1653904,
-    "cockpit": "harness: standing in a container chest",
+    "bytes": 1685364,
+    "cockpit": "harness: standing in the octagonal prow",
     "cockpit_variant": "harness",
     "file": "mech_stevedore.glb",
     "generator": "tools/blender/build_mechs.py",
@@ -170,10 +170,10 @@
     "legs": "digitigrade, lattice girders, outrigger feet",
     "name": "Stevedore",
     "note": "Original, after a dock crane: gantry, counter-jib and weights, warning lamps.",
-    "opening": "the four lock rods turn out, the container doors swing wide",
+    "opening": "the four lock rods turn out, the prow splits into two doors",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 20486,
+    "triangles": 20930,
     "weapons": "cargo mortar (L), crane jib with a harpoon grapple (R)"
   }
 }
