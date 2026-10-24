@@ -96,6 +96,23 @@ From the owner's brief, 2026-10-23. Quotes are the owner's words.
   as full PBR maps (section 10), the target machine has an RTX 3070 (section 7), and the cockpit is
   lit live rather than baked. The owner also called the curved screen wall "just fish eye pov": the
   cockpit is a boxy cabin of flat screens, as in the references.
+- **Cockpits: seated, sealed, wide, and blocked out first** (owner, 2026-10-24, on the built three: "the view
+  is too narrow, the metal struts need to be farther appart", "these long thin vertical panels are terrible for
+  combat view", "with more square panels", "no displays for me to view mech health, walking direciton,
+  amunition, enemies", "all mechs should be sitting. Standing takes a lot of room, and the pilot could get
+  seriously injured in a fight", "Windows shoul be a closed shape. What if mech sinks underwater, what if mech
+  goes into the stratos pehjre, you have to keep pilot safe, air tight, and geometry has to make logical sense
+  when opening and closing, no cliping", "I prefer you make low poly low textured verions before going full
+  detail", "use blender to your advantage, lots of CSG, lots of boolean meshes"). Every pilot sits; the cabin is
+  airtight; screens are square-ish panels with no frame member within about 40 degrees of straight ahead;
+  MFDs show health, heading and walking direction, ammunition and heat, and radar; an opening part closes on a
+  seal and moves without passing through anything. A cockpit is chosen from low-poly CSG block-outs
+  (`tools/blender/build_cockpit_blockouts.py`, on the Mech Cockpits page) before it is modelled and baked.
+- **Mechs twice the size, legs heavier than the torso, low-poly first** (owner, 2026-10-24: "2x mech size
+  please, they dont seem very big right now, redesign mechs, start with lowpoly first", "I really expect legs
+  on these mechs to be bigger than the torso, just for balance", "I really like how stevedore is all struts",
+  "the foreman looks good too"). About 24 m tall, replacing survey M1's 12 m; redesigned as low-poly block-outs
+  before detail.
 
 ## 2. The stack: Rust and Bevy
 
