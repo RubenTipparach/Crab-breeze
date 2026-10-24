@@ -6,7 +6,7 @@ The scripted pilot writes only input actions (aim by mouse motion, fire by the f
 
 - Machine: Apple M4 Max, release build, 1920 x 1080 window, vsync, 60 fps capture.
 - Result: `PLAYTEST_RESULT ok fight: boarded, fought two mechs, brought down a tower`
-- Drive: `dungeon-crawler-2026/crab-breeze-2026-10-24-city-fight.mp4`
+- Drive: `dungeon-crawler-2026/crab-breeze-2026-10-24-city-fight.mp4`, https://drive.google.com/file/d/1txvPYqD8xYsMGjcU7IYoZAYOyfszxn8H/view
 - Contact sheet: `2026-10-24-city-fight_frames.png`; frame cost: `docs/benchmarks/2026-10-24-baseline`
 
 | Beat | What it shows |
