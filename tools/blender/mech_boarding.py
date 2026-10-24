@@ -176,3 +176,335 @@ def ladder(k, cp, cav, segs=10, seg_m=0.8):
         for f in (0.25, 0.75):                                           # two rungs a segment, 0.4 m apart
             k.cyl(0.025 * u, 0.025 * u, 0.6 * u, M["dark"], g, 0, -f * sl, 0, 0, 0, PI / 2, 6)
     k.extras.setdefault("boarding", {})["ladder"] = dict(node="LADDER", segs=segs, seg_m=seg_m)
+
+
+# ----------------------------------------------------------------------------- the lofted chest
+# The owner, 2026-10-24: "Cockpit doesn't have the cockpit shape we just made. It's a square box", "The
+# geometry of the cockpit must match the interiors that we just designed". pod() replaces bay() and
+# shell(): the chest is lofted round the interior's own outline, measured off its glTF by cockpit_hull.py,
+# in three bands (under the screens, the screen belt, the roof). Inside, a dark lining 0.05 m off the
+# interior; outside, armour POD_ARMOUR_M thick that stands POD_BELT_M prouder round the screen belt, so the
+# shape of the screens inside shows on the chest: the Foreman's chamfered cab, the Stevedore's octagon, the
+# Ironhorse's hexagonal visor bank. Everything ahead of the cut (z_cut, just behind the pivots of the
+# interior's own opening parts) opens; everything behind it, the floor and the roof stay.
+#
+#   mode "lift"   the front splits at the screens' foot: the upper part hinges up over the roof, the lower
+#                 part drops forward into a step (the Foreman)
+#   mode "doors"  the front splits down the middle into two doors hinged at the sides (the Stevedore)
+#   mode "side"   the whole front is one door hinged on the pilot's right (the Ironhorse)
+
+import bmesh                     # noqa: E402
+
+import cockpit_hull as CH        # noqa: E402
+
+POD_MARGIN_M = 0.05     # the lining stands this far off the interior's outline
+POD_ARMOUR_M = 0.30     # the armour's thickness outside the lining
+POD_BELT_M = 0.06       # how much prouder the armour stands round the screen belt
+POD_CHAMFER_M = 0.08    # the chamfer round the floor and roof slabs
+
+
+def _angles(polys, centre, n=36):
+    """The loft's angles in [-pi/2, 3pi/2): uniform ones, every polygon corner, and the four cut angles
+    (-pi/2, 0, pi/2, pi) exactly, so the pieces split on a ring of vertices."""
+    cx, cz = centre
+    forced = [-PI / 2, 0.0, PI / 2, PI]
+    cand = [-PI / 2 + 2 * PI * i / n for i in range(n)]
+    for p in polys:
+        for x, z in p:
+            cand.append(math.atan2(x - cx, z - cz))
+    out = list(forced)
+    for a in cand:
+        a = (a + PI / 2) % (2 * PI) - PI / 2
+        if all(abs(a - b) > 0.025 for b in out):
+            out.append(a)
+    return sorted(out)
+
+
+def _radii(poly, angles, centre):
+    cx, cz = centre
+    return [math.hypot(x - cx, z - cz) for x, z in CH.ring(poly, angles, centre)]
+
+
+def _surface(keys, angles, centre):
+    """keys [(y, poly)] rising: returns r(i, y), the surface's distance from the axis at angle i, height y."""
+    R = [(y, _radii(p, angles, centre)) for y, p in keys]
+
+    def r(i, y):
+        if y <= R[0][0]:
+            return R[0][1][i]
+        for (ya, ra), (yb, rb) in zip(R, R[1:]):
+            if y <= yb:
+                t = 0.0 if yb - ya < 1e-9 else (y - ya) / (yb - ya)
+                return ra[i] + (rb[i] - ra[i]) * t
+        return R[-1][1][i]
+    return r
+
+
+def _newell(pts):
+    n = Vector((0, 0, 0))
+    for a, b in zip(pts, pts[1:] + pts[:1]):
+        n += Vector(((a.y - b.y) * (a.z + b.z), (a.z - b.z) * (a.x + b.x), (a.x - b.x) * (a.y + b.y)))
+    return n
+
+
+class _Faces:
+    """Faces sorted by material, each wound so its normal agrees with the direction it was asked for."""
+    def __init__(self):
+        self.by = {}
+
+    def add(self, role, pts, want):
+        pts = [Vector(p) for p in pts]
+        if _newell(pts).dot(Vector(want)) < 0:
+            pts.reverse()
+        self.by.setdefault(role, []).append(pts)
+
+    def put(self, k, joint, origin, mats):
+        """Into the kit on `joint`, the points (metres, cockpit frame) taken relative to `origin`."""
+        o = Vector(origin)
+        for role, faces in self.by.items():
+            bm = bmesh.new()
+            vs = {}
+            for f in faces:
+                loop = []
+                for p in f:
+                    q = p - o
+                    key = (round(q.x, 5), round(q.y, 5), round(q.z, 5))
+                    if key not in vs:
+                        vs[key] = bm.verts.new(q)
+                    if not loop or loop[-1] is not vs[key]:
+                        loop.append(vs[key])
+                if len(loop) >= 3 and len(set(loop)) == len(loop):
+                    try:
+                        bm.faces.new(loop)
+                    except ValueError:
+                        pass
+            k._put(bm, mats[role], joint)
+
+
+def section(w, zf, zb, z_cut, wcut=None, sh=0.3, cb=0.3, round_back=0):
+    """A torso cross-section in plan (metres, the cockpit's frame): half width w, front zf, back zb. Ahead of
+    the cut plane z_cut it is no wider than wcut, so the front of the chest is the cockpit's prow and only the
+    prow opens; behind the cut it flares to w over sh metres (the shoulders' front face), and its back corners
+    are chamfered by cb, or rounded with round_back points (the Ironhorse's boiler)."""
+    wcut = w if wcut is None else min(w, wcut)
+    zf = max(zf, z_cut + 0.04)
+    half = [(0.0, zf), (wcut * 0.8, zf), (wcut, z_cut), (w, z_cut - sh)]
+    if round_back:
+        zm, rz = (z_cut - sh + zb) / 2, (z_cut - sh - zb) / 2
+        for q in range(1, round_back + 1):
+            t = q / (round_back + 1) * PI / 2
+            half.append((w * math.cos(t), zm - rz * math.sin(t)))
+        half.append((0.0, zb))
+    else:
+        half += [(w, zb + cb), (w - cb, zb), (0.0, zb)]
+    left = [(x, z) for x, z in half]
+    right = [(-x, z) for x, z in reversed(half[1:-1])]
+    return left + right
+
+
+def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None):
+    """The cockpit and the sculpted torso round it in `chest`, the interior's floor centre at `at` (kit units).
+
+    torso: [(y, w, zf, zb, dict(wcut, sh, cb, round_back))] rising from the waist to the collar, heights in
+    metres from the interior's floor: the chest's own silhouette (section()). Between the lining's floor and
+    roof the armour is the larger of that silhouette and the lining grown by armour_m (POD_BELT_M more round the
+    screen belt), so the prow ahead of the cut keeps the interior's shape: the Foreman's chamfers, the
+    Stevedore's octagon, the Ironhorse's hexagonal visor bank. The prow, from just under the lining's floor to
+    just over its roof and ahead of z_cut, is the part that opens (mode lift, doors or side).
+
+    Returns (cp, cav, out, hull): the cockpit node; the lining's box and the torso's box in kit units in the
+    cockpit joint's frame (hw, y0, y1, z0, z1); and the hull: its moving joints, `at(a, y, d)` a point on the
+    armour's outer face at bearing a (radians, 0 ahead, pi/2 the pilot's left) and height y (metres), d metres
+    proud of it, in kit units, and its numbers in metres. timing: {joint: (t0, d)} overrides the opening."""
+    M, u = k.M, 1.0 / k.s
+    E = cockpit_env(variant)
+    m = CH.measure(variant)
+    cp = k.J("cockpit", chest, *at)
+    centre = m["centre"]
+    cx, cz = centre
+    (y0, sb, P0), (_, st, P1), (_, y1, P2) = m["bands"]
+    mg, T, bt = POD_MARGIN_M, armour_m, POD_BELT_M
+    Yb, Yt = y0 - mg, y1 + mg
+    eps = 0.004
+    inner_keys = [(Yb, CH.offset(P0, mg)), (sb - 0.015, CH.offset(P0, mg)), (sb + 0.015, CH.offset(P1, mg)),
+                  (st - 0.015, CH.offset(P1, mg)), (st + 0.015, CH.offset(P2, mg)), (Yt, CH.offset(P2, mg))]
+    cock_keys = [(Yb, CH.offset(P0, mg + T)), (sb - 0.06, CH.offset(P0, mg + T)), (sb + 0.06, CH.offset(P1, mg + T + bt)),
+                 (st - 0.06, CH.offset(P1, mg + T + bt)), (st + 0.06, CH.offset(P2, mg + T)), (Yt, CH.offset(P2, mg + T))]
+    design = [(y, section(w, zf, zb, cz, **kw)) for y, w, zf, zb, kw in torso]
+    A = _angles([p for _, p in inner_keys + cock_keys + design], centre, n=40)
+    n = len(A)
+    r_in, r_ck, r_ds = _surface(inner_keys, A, centre), _surface(cock_keys, A, centre), _surface(design, A, centre)
+    y_lo, y_hi = Yb - 0.5 * T, Yt + 0.5 * T            # the opening prow, top and bottom
+    ysplit = sb
+    Ybot, Ytop = design[0][0], design[-1][0]
+
+    def ri(i, y):                       # the lining; solid (radius 0) outside it
+        return r_in(i, y) if Yb <= y <= Yt else 0.0
+
+    def ro(i, y):
+        r = r_ds(i, y)
+        if Yb - T <= y <= Yt + T:       # the cockpit's own armour, with its floor and roof slabs
+            r = max(r, r_ck(i, min(max(y, Yb), Yt)) - (0.0 if Yb <= y <= Yt else 0.06 * abs(y - min(max(y, Yb), Yt)) / T))
+        return r
+
+    H = sorted({y for y, _ in inner_keys + cock_keys + design} | {Yb - eps, Yt + eps, Yb - T, Yt + T, y_lo, y_hi, ysplit})
+    H = [y for y in H if Ybot <= y <= Ytop]
+
+    def P(i, y, r):
+        a = A[i]
+        return (cx + math.sin(a) * r, y, cz + math.cos(a) * r)
+
+    def radial(q):
+        c = [sum(v[t] for v in q) / len(q) for t in range(3)]
+        return (c[0] - cx, 0.0, c[2] - cz)
+
+    def tangent(i):
+        return (math.cos(A[i]), 0.0, -math.sin(A[i]))
+
+    def wall(F, idx, ja, jb, loop=False):
+        """The solid between the lining and the armour at angles idx (in order) and heights H[ja..jb], closed
+        top, bottom and at its cut ends. Where there is no lining the inner face shrinks to the axis."""
+        segs = list(zip(idx, idx[1:] + idx[:1])) if loop else list(zip(idx, idx[1:]))
+        for j in range(ja, jb):
+            ya, yb = H[j], H[j + 1]
+            for i, i2 in segs:
+                q = [P(i, ya, ro(i, ya)), P(i2, ya, ro(i2, ya)), P(i2, yb, ro(i2, yb)), P(i, yb, ro(i, yb))]
+                F.add("armor", q, radial(q))
+                if ri(i, ya) + ri(i2, ya) + ri(i, yb) + ri(i2, yb) > 0:
+                    q = [P(i, ya, ri(i, ya)), P(i2, ya, ri(i2, ya)), P(i2, yb, ri(i2, yb)), P(i, yb, ri(i, yb))]
+                    w = radial(q)
+                    F.add("dark", q, (-w[0], -1e-3 if yb <= Yb + eps else (1e-3 if ya >= Yt - eps else 0), -w[2]))
+        for j, up in ((ja, -1), (jb, 1)):
+            y = H[j]
+            role = "armor" if y in (Ybot, Ytop) else "frame"
+            for i, i2 in segs:
+                F.add(role, [P(i, y, ri(i, y)), P(i2, y, ri(i2, y)), P(i2, y, ro(i2, y)), P(i, y, ro(i, y))], (0, up, 0))
+        if not loop:
+            for i, sg in ((idx[0], -1), (idx[-1], 1)):
+                t = tangent(i)
+                for j in range(ja, jb):
+                    ya, yb = H[j], H[j + 1]
+                    F.add("frame", [P(i, ya, ri(i, ya)), P(i, ya, ro(i, ya)), P(i, yb, ro(i, yb)), P(i, yb, ri(i, yb))],
+                          (sg * t[0], 0, sg * t[2]))
+
+    mats = dict(armor=M["armor"], dark=M["dark"], frame=M["frame"])
+    i_neg, i_0, i_pos = A.index(-PI / 2), A.index(0.0), A.index(PI / 2)
+    front = list(range(i_neg, i_pos + 1))
+    back = list(range(i_pos, n)) + [i_neg]
+    allr = list(range(n))
+    j_bot, j_top, j_lo, j_hi, j_s = 0, len(H) - 1, H.index(y_lo), H.index(y_hi), H.index(ysplit)
+    F = _Faces()
+    wall(F, back, j_lo, j_hi)
+    wall(F, allr, j_bot, j_lo, loop=True)
+    wall(F, allr, j_hi, j_top, loop=True)
+    F.put(k, cp, (0, 0, 0), mats)
+
+    def zfront(y):
+        return cz + ro(i_0, y)
+
+    def xside(sg):
+        i = i_pos if sg > 0 else i_neg
+        return max(ro(i, y) for y in H if y_lo <= y <= y_hi) * sg
+
+    timing = timing or {}
+    joints = {}
+
+    def piece(name, idx, ja, jb, hinge, motion, t0, d):
+        t0, d = timing.get(name, (t0, d))
+        jn = hatch(k, name, cp, hinge[0] * u, hinge[1] * u, hinge[2] * u, motion, t0, d)
+        Fp = _Faces()
+        wall(Fp, idx, ja, jb)
+        Fp.put(k, jn, hinge, mats)
+        joints[name] = (jn, hinge)
+        return jn
+
+    if mode == "lift":
+        piece("CHEST_visor", front, j_s, j_hi, (0.0, y_hi, cz), ("x", -1.6), 0.5, 1.4)
+        piece("CHEST_apron", front, j_lo, j_s, (0.0, y_lo, zfront(y_lo)), ("x", 1.5), 1.6, 1.4)
+    elif mode == "doors":
+        piece("CHEST_door_L", list(range(i_0, i_pos + 1)), j_lo, j_hi, (xside(1), y_lo, cz), ("y", 1.6), 1.1, 1.5)
+        piece("CHEST_door_R", list(range(i_neg, i_0 + 1)), j_lo, j_hi, (xside(-1), y_lo, cz), ("y", -1.6), 1.1, 1.5)
+    elif mode == "side":
+        piece("CHEST_door", front, j_lo, j_hi, (xside(-1), y_lo, cz), ("y", -1.6), 0.8, 1.6)
+    else:
+        raise ValueError(mode)
+
+    # sockets and the interior's contract, as bay() wrote them
+    E_eye = E["eye"]
+    k.sock("EYE_pilot", cp, E_eye[0] * u, E_eye[1] * u, E_eye[2] * u)
+    k.sock("SEAT_pilot", cp, 0, 0.45 * u, E_eye[2] * u - 0.02 * u)
+    k.sock("HATCH_entry", cp, 0, Yb * u, (cz + r_in(i_0, Yb)) * u)
+    k.extras["cockpit"] = dict(variant=variant, eye_m=list(E_eye), envelope_m=dict(x=E["x"], y=list(E["y"]), z=list(E["z"])),
+                               door_m=list(E["door"]), hull=dict(mode=mode, z_cut_m=round(cz, 4), armour_m=T, belt_m=bt,
+                                                                 margin_m=mg, lining_y_m=[round(Yb, 4), round(Yt, 4)],
+                                                                 prow_y_m=[round(y_lo, 4), round(y_hi, 4)]))
+
+    def bbox(r, lo, hi, ys):
+        xs, zs = [], []
+        for y in ys:
+            for i in range(n):
+                q = P(i, y, r(i, y))
+                xs.append(abs(q[0]))
+                zs.append(q[2])
+        return dict(hw=max(xs) * u, y0=lo * u, y1=hi * u, z0=min(zs) * u, z1=max(zs) * u)
+
+    cav = bbox(r_in, Yb, Yt, [y for y in H if Yb <= y <= Yt])
+    out = bbox(ro, Ybot, Ytop, H)
+
+    def at(a, y, d=0.0):
+        a = (a + PI / 2) % (2 * PI) - PI / 2
+        i = min(range(n), key=lambda q: abs(A[q] - a))
+        r = ro(i, y) + d
+        return (cx + math.sin(A[i]) * r) * u, y * u, (cz + math.cos(A[i]) * r) * u
+
+    hull = dict(cp=cp, joints=joints, at=at, Yb=Yb, Yt=Yt, y_lo=y_lo, y_hi=y_hi, Ybot=Ybot, Ytop=Ytop, z_cut=cz, sb=sb,
+                st=st, ysplit=ysplit, zfront=zfront, xside=xside, ro=ro, angles=A)
+    return cp, cav, out, hull
+
+
+def solid(k, node, keys, mat, centre=(0.0, 0.0), n=24):
+    """A closed loft through plan sections at rising heights, [(y, [(x, z), ...])] in kit units in the node's
+    frame, each star-shaped round centre: backpacks, pauldrons, skirts that follow a designed silhouette."""
+    s = k.s
+    keys = [(y * s, [(x * s, z * s) for x, z in poly]) for y, poly in keys]
+    c = (centre[0] * s, centre[1] * s)
+    A = _angles([p for _, p in keys], c, n=n)
+    R = [(y, _radii(p, A, c)) for y, p in keys]
+    F = _Faces()
+
+    def P(i, y, r):
+        return (c[0] + math.sin(A[i]) * r, y, c[1] + math.cos(A[i]) * r)
+    m = len(A)
+    for (ya, ra), (yb, rb) in zip(R, R[1:]):
+        for i in range(m):
+            i2 = (i + 1) % m
+            q = [P(i, ya, ra[i]), P(i2, ya, ra[i2]), P(i2, yb, rb[i2]), P(i, yb, rb[i])]
+            cc = [sum(v[t] for v in q) / 4 for t in range(3)]
+            F.add("m", q, (cc[0] - c[0], 0, cc[2] - c[1]))
+    F.add("m", [P(i, R[0][0], R[0][1][i]) for i in range(m)], (0, -1, 0))
+    F.add("m", [P(i, R[-1][0], R[-1][1][i]) for i in range(m)], (0, 1, 0))
+    F.put(k, node, (0, 0, 0), dict(m=mat))
+
+
+# --- dressing on the lofted chest: everything a chassis hangs on it follows the hull's own surface
+
+def on(k, hull, name, p):
+    """The node a dressing goes on (a moving piece by name, or the cockpit for None) and the point p
+    (kit units, cockpit frame) in that node's frame."""
+    if name:
+        j, h = hull["joints"][name]
+        u = 1.0 / k.s
+        return j, (p[0] - h[0] * u, p[1] - h[1] * u, p[2] - h[2] * u)
+    return hull["cp"], tuple(p)
+
+
+def contour(k, hull, name, a0, a1, y, d, r, mat, steps=24):
+    """A bar r metres thick round the armour at height y (metres), from bearing a0 to a1, d metres proud."""
+    pts = [on(k, hull, name, hull["at"](a0 + (a1 - a0) * i / steps, y, d))[1] for i in range(steps + 1)]
+    k.hose(on(k, hull, name, (0, 0, 0))[0], pts, r / k.s, mat)
+
+
+def rib(k, hull, name, a, ya, yb, d, r, mat, steps=8):
+    """A bar r metres thick up the armour at bearing a, from ya to yb (metres), d metres proud."""
+    pts = [on(k, hull, name, hull["at"](a, ya + (yb - ya) * i / steps, d))[1] for i in range(steps + 1)]
+    k.hose(on(k, hull, name, (0, 0, 0))[0], pts, r / k.s, mat)

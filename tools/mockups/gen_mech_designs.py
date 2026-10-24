@@ -101,7 +101,7 @@ aside { display: grid; gap: 12px; min-width: 0; }
 <header>
   <div class="eyebrow">Crab Breeze · mech design review · third pass, the cockpit in the chest</div>
   <h1>Pick a chassis and its cockpit</h1>
-  <p class="lede">Three original chassis from the 1980s industrial world, finished in Mining Mike's boss style, each with its cockpit inside the chest and its own way of opening it. Foreman is an excavator: its cab's bar grille lifts and the shutter drops into the belly over a seated screen-wall cockpit. Stevedore is a dock crane: the container chest's lock rods turn and its doors swing wide on a standing harness cockpit. Ironhorse is a locomotive: the dogs swing off and the round smokebox door opens on a forward-leaning jockey cockpit. Press Kneel and open, or Board it to climb in through the pilot's eyes. All at true scale beside a 1.8 m pilot and a four-storey block.</p>
+  <p class="lede">Three original chassis from the 1980s industrial world, finished in Mining Mike's boss style, each with its cockpit inside the chest and its own way of opening it. Each torso is broad in the shoulders and narrow at the waist, and its prow is the shape of the cockpit inside it: only the prow opens. Foreman is an excavator: the grilled visor over its chamfered cab lifts and the apron drops into a step, on a seated screen-wall cockpit. Stevedore is a dock crane: the lock rods turn and its octagonal prow splits into two doors, on a standing harness cockpit. Ironhorse is a locomotive: the dogs swing off and the whole prow, its hexagonal screen bank inside, swings open on a forward-leaning jockey cockpit. Press Kneel and open, or Board it to climb in through the pilot's eyes. All at true scale beside a 1.8 m pilot and a four-storey block.</p>
 </header>
 
 <div class="wrap">
@@ -241,7 +241,8 @@ const wall = makeScreenWall(T, scene, HUD_SRC);
 const CD_TO_PAGE = 1 / 260, EXPOSURE_OUT = 1.0, EXPOSURE_IN = 1.7;
 
 // ---------- load every mech and its interior ----------
-const loader = new T.GLTFLoader();
+__GLTF_JSON__
+const loader = gltfJsonLoader(T);
 const mechs = {};
 const parseX = v => (typeof v === "string" ? JSON.parse(v) : v);
 const loadOne = (id, idx) => loader.loadAsync(`mech_${id}.gltf.json`).then(g => {
@@ -670,8 +671,9 @@ def main():
     pose = open(os.path.join(ROOT, "tools", "mockups", "mech_pose.js")).read()
     steam = open(os.path.join(ROOT, "tools", "mockups", "steam.js")).read()
     wall = open(os.path.join(ROOT, "tools", "mockups", "screen_wall.js")).read()
+    gltf_json = open(os.path.join(ROOT, "tools", "mockups", "gltf_json_loader.js")).read()
     hud = base64.b64encode(open(HUD, "rb").read()).decode("ascii")
-    html = (PAGE.replace("__MECH_POSE__", pose).replace("__STEAM__", steam).replace("__SCREEN_WALL__", wall)
+    html = (PAGE.replace("__MECH_POSE__", pose).replace("__STEAM__", steam).replace("__SCREEN_WALL__", wall).replace("__GLTF_JSON__", gltf_json)
             .replace("__META__", json.dumps({k: meta[k] for k in ORDER}))
             .replace("__INTERIOR__", json.dumps(inside)).replace("__ORDER__", json.dumps(ORDER)).replace("__HUD__", hud))
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
