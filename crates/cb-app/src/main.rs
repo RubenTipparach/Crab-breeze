@@ -53,11 +53,14 @@ fn main() -> AppExit {
             .set(WindowPlugin {
                 primary_window: Some(Window {
                     title: "Crab Breeze".into(),
-                    resolution: if args.bench.is_some() {
+                    // An offscreen bench needs only a small window; a windowed one is the player's.
+                    resolution: if args.bench.is_some() && !cli::switched_off("CB_BENCH_WINDOWED") {
                         WindowResolution::new(640, 360)
                     } else {
                         WindowResolution::new(1920, 1080)
                     },
+                    // On the main display, centred, so a run is seen where the owner looks.
+                    position: bevy::window::WindowPosition::Centered(bevy::window::MonitorSelection::Primary),
                     // The capture instrument measures frame cost, so it must not wait for vsync.
                     present_mode: if args.stills.is_some() {
                         PresentMode::AutoNoVsync

@@ -25,6 +25,8 @@ report (revision db25fe2), pointed at `--bench world|fight`. What they measure, 
 
 No screenshot and no recording during a measured run (owner, 2026-10-24: "dont take screenshot on one run or obs, and just do pure perf measurement"): the bench's stills cost about 11 ms a frame each and are off unless `CB_BENCH_STILLS=1`; an OBS take is a separate pass.
 
+**Windowed runs** (owner, 2026-10-24: a benchmark with no window "doesn't tell us anything"): `perf_suite.py --windowed` sets `CB_BENCH_WINDOWED=1`, and the game plays full size (1920 x 1080) centred on the main display, held to its refresh. Those runs report what a player feels: the share of frames that missed a refresh (over 1.5 times the median), and freezes over 50 ms. Offscreen runs still measure what each system costs.
+
 A run is invalid if it crashes, times out, never prints `BENCH all`, or logs fewer than 300 frames.
 A build from before the frame log reports totals from its `BENCH all` line.
 
