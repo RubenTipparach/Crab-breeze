@@ -141,10 +141,24 @@ aside { display: grid; gap: 12px; min-width: 0; }
     shoulder cannon, railgun, radar, rocket pod) and boosters (a back pack, swept wing vanes for the flyers, side jets), a
     skate wheel in each foot. Every mech is one line of parts in the generator, so a new one is a new combination. They are
     numbered on from the twelve above, 13 to 22.</p>
+    <p class="bop">The owner's verdict: "13,15,16,17, 19, and 21 all good. Don't build those just yet. Just note that I like
+    them." The Sabre, Bulldog, Tarantula, Hatchet, Anvil and Brigand are marked <b>liked</b> below; none is built in detail
+    yet.</p>
     <div class="borow" id="cb-pick"></div>
     <div class="bostage"><canvas id="cb-view"></canvas></div>
     <div class="bostats" id="cb-stats"></div>
     <p class="hint">Drag to orbit, scroll or pinch to zoom; the same pilot, car, block and 24 m rail beside them.</p>
+  </section>
+  <section class="bo">
+    <h2 class="boh">Crab mechs</h2>
+    <p class="bop">The owner (2026-10-24): "We need more crab designs, more practical big legged crabs with guns for arms". So
+    these are built from their own parts: a wide carapace with the cockpit block-out in its face, the sensors on two eye
+    stalks over it, three or four pairs of heavy walking legs whose knees stand over the shell, and a gun as each forearm
+    where the claw would be (autocannon, howitzer, gatling, rocket box, or a claw's two jaws round a cannon). Their legs
+    outweigh their shells two to four times by volume. Numbered on from the combat mechs, 23 to 28.</p>
+    <div class="borow" id="cr-pick"></div>
+    <div class="bostage"><canvas id="cr-view"></canvas></div>
+    <div class="bostats" id="cr-stats"></div>
   </section>
   <h2 class="boh">The detailed round: the first three at 12 m, the six picked from the block-outs at 24 m</h2>
 </header>
@@ -423,14 +437,15 @@ function setView(v) {
   } else {
     camera.fov = 42; camera.near = 0.05; camera.updateProjectionMatrix();
     Object.assign(controls, { minDistance: 2, maxDistance: 140, enablePan: true, enableZoom: true, rotateSpeed: 1, enabled: true });
-    const d = current === "all" ? 50 : 26;
-    controls.target.set(0, 6.2, 0);
+    const d = current === "all" ? 70 : 40;            // the mechs stand 22 to 26 m: frame all of one
+    controls.target.set(0, 11, 0);
     if (v === "hatch" || v === "hatch3q") { const h = nodeWorld(cur(), "HATCH_entry"), f = fwdOf(cur()), sd = new T.Vector3(f.z, 0, -f.x);
       const far = v === "hatch3q";
-      controls.target.copy(far ? new T.Vector3(h.x, h.y * 0.6, h.z) : h.clone().add(new T.Vector3(0, 0.8, 0)));
-      camera.position.copy(h).addScaledVector(f, far ? 15 : 7.0).addScaledVector(sd, far ? 8 : 2.2).add(new T.Vector3(0, far ? 1.5 : 1.4, 0)); }
-    else if (v === "front") camera.position.set(0, 7, d); else if (v === "side") camera.position.set(d, 7, 0);
-    else if (v === "back") camera.position.set(-d * 0.5, 9, -d * 0.85); else camera.position.set(d * 0.7, 9, d * 0.8);
+      // the three-quarter view takes in the whole chest and its armour swinging clear, at 24 m scale
+      controls.target.copy(far ? new T.Vector3(h.x, h.y + 0.5, h.z) : h.clone().add(new T.Vector3(0, 0.8, 0)));
+      camera.position.copy(h).addScaledVector(f, far ? 17 : 7.0).addScaledVector(sd, far ? 10 : 2.2).add(new T.Vector3(0, far ? 3.0 : 1.4, 0)); }
+    else if (v === "front") camera.position.set(0, 12, d); else if (v === "side") camera.position.set(d, 12, 0);
+    else if (v === "back") camera.position.set(-d * 0.5, 15, -d * 0.85); else camera.position.set(d * 0.7, 15, d * 0.8);
   }
   controls.update();
 }
@@ -664,12 +679,15 @@ window.MOCKUP = {
 };
 
 // ---------- the 24 m low-poly block-outs: their own viewers, side by side at true scale ----------
-function blockoutViewer(BO, view, pickId, statsId, first, gap, api) {
+// the combat mechs the owner picked out (2026-10-24: "13,15,16,17, 19, and 21 all good ... Just note that I like them")
+const LIKED = new Set(["sabre", "bulldog", "tarantula", "hatchet", "anvil", "brigand"]);
+function blockoutViewer(BO, view, pickId, statsId, first, gap, api, frame) {
+  frame = frame || { d: 1, ty: 12 };     // one mech's framing: distance scale and target height (the crabs are wide and low)
   const cv = document.getElementById(view);
   const r = new T.WebGLRenderer({ canvas: cv, antialias: true });
   r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); r.outputEncoding = T.sRGBEncoding; r.toneMapping = T.ACESFilmicToneMapping;
   r.shadowMap.enabled = true;
-  const sc = new T.Scene(); sc.background = new T.Color(0x2a1f30); sc.fog = new T.Fog(0x2a1f30, 90, 260);
+  const sc = new T.Scene(); sc.background = new T.Color(0x2a1f30); sc.fog = new T.Fog(0x2a1f30, 90 * Math.max(1, gap / 24), 260 * Math.max(1, gap / 24));
   const cam = new T.PerspectiveCamera(40, 2, 0.1, 800);
   const oc = new T.OrbitControls(cam, cv); oc.enableDamping = true;
   sc.add(new T.HemisphereLight(0xb9a6d8, 0x2a2018, 0.7));
@@ -693,13 +711,13 @@ function blockoutViewer(BO, view, pickId, statsId, first, gap, api) {
     cur = id;
     ids.forEach((k, i) => { const g = groups[k]; if (!g) return; g.visible = id === "all" || id === k; const row = Math.floor(i / 5), col = i % 5; g.position.x = id === "all" ? (col - 2) * gap : 0; g.position.z = id === "all" ? -row * (gap + 6) : 0; });
     pick.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.bo === id)));
-    if (id === "all") { cam.position.set(40 * gap / 16, 34, 70 * gap / 16); oc.target.set(0, 10, -20); } else { cam.position.set(22, 18, 30); oc.target.set(0, 12, 0); }
+    if (id === "all") { cam.position.set(40 * gap / 16, 34, 70 * gap / 16); oc.target.set(0, 10, -20); } else { cam.position.set(22 * frame.d, 18 * frame.d, 30 * frame.d); oc.target.set(0, frame.ty, 0); }
     oc.update();
   }
   // the new mechs carry the numbers on their contact sheets (owner, 2026-10-24: "can you add numbers to those mechs")
   const ORIGINAL = new Set(["foreman", "stevedore", "ironhorse"]);
   let num = first - 1;
-  [...BO.mechs.map(m => [m.id, ORIGINAL.has(m.id) ? m.name : `${++num} ${m.name}`]), ["all", "Line up"]].forEach(([id, name]) => {
+  [...BO.mechs.map(m => [m.id, ORIGINAL.has(m.id) ? m.name : `${++num} ${m.name}${LIKED.has(m.id) ? " (liked)" : ""}`]), ["all", "Line up"]].forEach(([id, name]) => {
     const b = document.createElement("button"); b.textContent = name; b.dataset.bo = id; b.onclick = () => show(id); pick.appendChild(b);
   });
   document.getElementById(statsId).innerHTML = "<table><tr><th>Mech</th><th>After</th><th>Height</th><th>Width</th><th>Legs : torso</th><th>Triangles</th></tr>" +
@@ -719,6 +737,8 @@ function blockoutViewer(BO, view, pickId, statsId, first, gap, api) {
 blockoutViewer(__MECH_BLOCKOUTS__, "bo-view", "bo-pick", "bo-stats", 1, 16, "BLOCKOUTS");
 // the combat mechs, numbered on from the working ones (owner, 2026-10-24: "I want combat mechs with guns like in armored core")
 blockoutViewer(__MECH_COMBAT__, "cb-view", "cb-pick", "cb-stats", 13, 24, "COMBAT");
+// the crab mechs, numbered on from the combat mechs (owner, 2026-10-24: "more practical big legged crabs with guns for arms")
+blockoutViewer(__MECH_CRABS__, "cr-view", "cr-pick", "cr-stats", 23, 44, "CRABS", { d: 1.45, ty: 7 });
 </script>
 """
 
@@ -771,7 +791,8 @@ def files(meta, inside):
         rel = f"mech_{k}.gltf.json"
         as_json_gltf(os.path.join(MODELS, meta[k]["file"]), os.path.join(SITE, rel))
         out[rel] = os.path.join(SITE, rel)
-    for m in json.load(open(os.path.join(MODELS, "mech_blockouts.json")))["mechs"] + json.load(open(os.path.join(MODELS, "mech_combat.json")))["mechs"]:
+    for m in json.load(open(os.path.join(MODELS, "mech_blockouts.json")))["mechs"] + json.load(open(os.path.join(MODELS, "mech_combat.json")))["mechs"] + \
+            json.load(open(os.path.join(MODELS, "mech_crabs.json")))["mechs"]:
         rel = f"mech_blockouts/{m['id']}.gltf.json"
         as_json_gltf(os.path.join(MODELS, m["file"]), os.path.join(SITE, rel))
         out[rel] = os.path.join(SITE, rel)
@@ -804,6 +825,7 @@ def main():
             .replace("__MECH_BLOCKOUTS__", json.dumps(blockouts_for_page()))
             .replace("__MECH_BUTTONS__", "\n".join(f'      <button id="m-{k}" data-mech="{k}">{(str(NUMBERS[k]) + " ") if k in NUMBERS else ""}{meta[k]["name"]}</button>' for k in ORDER))
             .replace("__MECH_COMBAT__", json.dumps(blockouts_for_page("mech_combat.json")))
+            .replace("__MECH_CRABS__", json.dumps(blockouts_for_page("mech_crabs.json")))
             .replace("__META__", json.dumps({k: meta[k] for k in ORDER}))
             .replace("__INTERIOR__", json.dumps(inside)).replace("__ORDER__", json.dumps(ORDER)).replace("__HUD__", hud))
     os.makedirs(os.path.dirname(OUT), exist_ok=True)

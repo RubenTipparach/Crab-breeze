@@ -145,7 +145,7 @@ def ram(k, name, A, a, B, b, r):
     base = k.J(f"RAM_{name}", A, a[0], a[1], a[2], e.x, e.y, e.z)
     sl, rl = L * 0.58, L * 0.62
     k.cyl(r, r, sl, M["dark"], base, 0, 0, sl / 2, PI / 2, seg=12)
-    k.cyl(r * 1.15, r * 1.15, sl * 0.12, M["frame"], base, 0, 0, sl - sl * 0.06, PI / 2, seg=12)
+    k.cyl(r * 1.15, r * 1.15, sl * 0.12, M["frame"], base, 0, 0, sl - sl * 0.08, PI / 2, seg=12)   # short of the barrel's end
     k.sph(r * 1.3, M["frame"], base, 0, 0, 0, seg=8)
     rod = k.J(f"RAM_{name}_rod", base, 0, 0, L - rl)
     k.cyl(r * 0.55, r * 0.55, rl, M["metal"], rod, 0, 0, rl / 2, PI / 2, seg=10)
@@ -323,8 +323,8 @@ def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None, 
     proud of it, in kit units, and its numbers in metres. timing: {joint: (t0, d)} overrides the opening. swing: {interior
     node: value} overrides how far a stage of a coupled part (mode inner) turns or slides in the mech, where the chest's
     own size asks for more than the interior alone does. wrap_z (metres): for a part that wraps round the cabin (the
-    canopy), only the chest ahead of this depth lifts with it, hinged on the torso's top there, so a long hull behind the
-    cockpit (the Harrow's) stays put."""
+    canopy), only the chest ahead of this depth opens with it, hinged on its back bottom edge, so a long hull behind the
+    cockpit (the Harrow's) stays put; give the part's first stage a lift in `swing` that clears that hull."""
     M, u = k.M, 1.0 / k.s
     E = cockpit_env(variant)
     m = CH.measure(variant)
@@ -425,6 +425,7 @@ def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None, 
 
     timing = timing or {}
     joints = {}
+    cutlog = []         # inner mode: (piece name, {solid: (lo, hi)}) in the order the cuts took the chest
 
     def piece(name, idx, ja, jb, hinge, motion, t0, d):
         t0, d = timing.get(name, (t0, d))
@@ -447,7 +448,8 @@ def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None, 
         _inner(k, cp, PT, solids, front, wall, mats, dict(cz=cz, y0=y0, y1=y1, y_lo=y_lo, y_hi=y_hi, Ytop=Ytop,
                                                           split=ysplit, back_r=lambda y: ro(A.index(PI), y),
                                                           Yb=Yb, Yt=Yt, T=T,
-                                                          zfront=zfront, u=u, j_lo=j_lo, j_hi=j_hi, wrap_z=wrap_z), joints, timing,
+                                                          zfront=zfront, u=u, j_lo=j_lo, j_hi=j_hi, wrap_z=wrap_z,
+                                                          cutlog=cutlog), joints, timing,
                swing or {})
     else:
         raise ValueError(mode)
@@ -482,7 +484,29 @@ def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None, 
         r = ro(i, y) + d
         return (cx + math.sin(A[i]) * r) * u, y * u, (cz + math.cos(A[i]) * r) * u
 
-    hull = dict(cp=cp, joints=joints, at=at, Yb=Yb, Yt=Yt, y_lo=y_lo, y_hi=y_hi, Ybot=Ybot, Ytop=Ytop, z_cut=cz, sb=sb,
+    def piece_of(a, y):
+        """The moving piece (a joints name) whose armour holds the point at bearing a and height y (metres), or None
+        for the hull that stays: a marking painted there has to ride that piece, or it hangs in the air when the
+        piece swings away."""
+        a = (a + PI) % (2 * PI) - PI
+        if mode != "inner":
+            return None
+        if y < y_lo:
+            solid_ = "low"
+        elif y > y_hi:
+            solid_ = "high"
+        else:
+            solid_ = "prow" if abs(a) <= PI / 2 else "back"
+        q = at(a, y)
+        q = (q[0] / u, q[1] / u, q[2] / u)
+        for name, cuts in cutlog:
+            if solid_ in cuts:
+                lo, hi = cuts[solid_]
+                if all(lo[i] <= q[i] <= hi[i] for i in range(3)):
+                    return name
+        return None
+
+    hull = dict(cp=cp, joints=joints, at=at, piece_of=piece_of, Yb=Yb, Yt=Yt, y_lo=y_lo, y_hi=y_hi, Ybot=Ybot, Ytop=Ytop, z_cut=cz, sb=sb,
                 st=st, ysplit=ysplit, zfront=zfront, xside=xside, ro=ro, angles=A)
     return cp, cav, out, hull
 
@@ -636,8 +660,11 @@ def _inner(k, cp, PT, solids, front, wall, mats, g, joints, timing, swing):
                 cuts = {nm: ((-BIG, split, -BIG), (BIG, BIG, BIG)) for nm in objs}
                 hinge = (0.0, split, cz - g["back_r"](split))
             else:
+                # it lifts straight up clear of the hull behind, then tilts back on its back bottom edge (owner,
+                # 2026-10-24: "it should have a hinge on the back or lift straight up then tilt back, other wise its
+                # gonna hit the seat"); the lift is the part's first stage, sized by the caller's swing
                 cuts = {nm: ((-BIG, split, g["wrap_z"]), (BIG, BIG, BIG)) for nm in objs}
-                hinge = (0.0, g["Ytop"], g["wrap_z"])
+                hinge = (0.0, split, g["wrap_z"])
         else:
             W = ride_w_of(d)
             low = d["front_y"][0] <= g["y0"] + 0.12
@@ -682,6 +709,7 @@ def _inner(k, cp, PT, solids, front, wall, mats, g, joints, timing, swing):
             _put_obj(k, pc, jn, hinge, mats)
             _drop(pc)
         joints[name] = (jn, hinge)
+        g["cutlog"].append((name, cuts))
     for nm, ob in rest.items():
         _put_obj(k, ob, cp, (0, 0, 0), mats)
         if ob is not objs[nm]:

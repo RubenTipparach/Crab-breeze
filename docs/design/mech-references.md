@@ -175,6 +175,12 @@ intersection check).
 Tracks and four legs stand outside survey M2's digitigrade rule and the owner's "legs bigger than the torso": they are
 here because the owner asked for Armored Core's range, and the survey decides whether they stay.
 
+**The owner's verdict** (2026-10-24): "Yes those new mechs are all awesome. 4 legged mech, tank mech, all solid", then
+"13,15,16,17, 19, and 21 all good. Don't build those just yet. Just note that I like them." So the **Sabre (13), Bulldog
+(15), Tarantula (16), Hatchet (17), Anvil (19) and Brigand (21)** are the liked ones, and the four-legged and tracked
+chassis are kept. None of them is built in detail until the owner says so; they stay block-outs on the page, marked
+as liked.
+
 ## The six picked, built in detail at 24 m
 
 The owner, 2026-10-24: "1,2,6,8,11,12 start building them. Any cockpit style should do", then of the first renders "the
@@ -197,4 +203,60 @@ no rivets (`tools/textures/mech_plating_kit.js`, `modern()`).
 | 12 | Sapper | Titan | As the Roustabout | Rifle (R), missile pod on the forearm (L), cannon over the right shoulder |
 
 From the seat, with the chest open, nothing stands in any of the six doorways (checked with the page's
-`MOCKUP.pick`). The Foreman, Stevedore and Ironhorse keep Mining Mike's plating for now.
+`MOCKUP.pick`).
+
+The owner then: "looksngood. Get those other mechs up to spec". So the **Foreman (31), Stevedore (32) and Ironhorse
+(33)** are rebuilt to the same standard: the Foreman and Ironhorse at 24 m and 22 m, the Stevedore at 26 m (its jib
+needs the height), in their palettes over the modern plating, every pilot seated (the Stevedore now in a Titan, its
+lower chest folding down), their torsos doubled to carry the bigger cockpits.
+
+### Fixes the owner asked for along the way
+
+- **The Harrow's canopy** ("it should have a hinge on the back or lift straight up then tilt back, other wise its gonna
+  hit the seat"): it lifts 2.6 m clear first, then tilts back on its rear bottom edge (`mech_boarding.pod`'s
+  `wrap_z`).
+- **Heads** ("mech heads tend to not be attached", "make sure its bone structure is parented to the torso", "I think its
+  that subtle torso sway that breaks the immersion"): every head has a neck sunk into its collar, the `head` joint is a
+  child of `torso` in all nine glbs (checked in the exported node tree), and the page's lean moves the torso and the
+  head together.
+- **Z-fighting** ("z fighting"): `tools/blender/check_zfight.py` loads each glb and reports any two faces of different
+  pieces closer than 6 mm along a shared normal whose outlines overlap by more than 0.01 m2. All nine read 0.
+- **Markings, not DANGER** ("instead of "danger" plastered everywhere it should say "no step", company logo, "warning
+  flamable" etc", with decal sheets and finished kits as reference): a decal sheet
+  (`assets/textures/mech/decals.png`, made by `tools/textures/mech_plating_kit.js`) of NO STEP, WARNING FLAMMABLE,
+  CAUTION HYDRAULIC, KEEP CLEAR, LIFT, TOW, GROUND, EJECT, RESCUE, FUEL, data plates, edge lines, chevrons, the Breakwater
+  Heavy Industries logo (a crab claw, the setting's own maker) and stencil digits. Each mech carries its unit number on
+  the chest flanks and the shoulder, the logo across the back, NO STEP on the shoulders and thighs, EJECT by the
+  cockpit, WARNING FLAMMABLE and KEEP CLEAR over the jets. A marking rides the armour piece it is painted on, and slides
+  along the hull until all of it sits on one piece and over no other marking, so nothing hangs in the doorway when the
+  chest opens.
+
+## Crab mechs, built from parts (23 to 28)
+
+The owner, 2026-10-24: "We need more crab designs, more practical big legged crabs with guns for arms". So the crabs have
+their own parts in `tools/blender/build_mech_blockouts.py` (`crab_body`, `crab_eyes`, `crab_legs`, `gun_arm`; `-- crabs`
+writes `assets/models/mech_crabs.json`), each one line of `CRABS`:
+
+- **Carapace**: a wide, low shell lofted through plan octagons, widest at the leg roots, rising to a hump; the cockpit
+  block-out sits in a well cut in its face, a chin under it.
+- **Eyes**: the sensors on two stalks over the cockpit, each a hooded lens box.
+- **Legs**: three or four pairs from the shell's sides, each rising to a knee over the shell and coming down far out to a
+  pad and a tip, a ram on the thigh, in the shell's own colour. The front pair splays forward and the rest back, behind
+  the gun arms' shoulders, so no arm touches a leg (the mesh intersection check reads 0 on all six).
+- **Gun arms**: a shoulder at the shell's front corner, an upper arm out and forward, an upright elbow, then the gun as
+  the forearm: autocannon (two barrels and a box magazine), howitzer, gatling, rocket box, or pincer (a claw's two jaws
+  round a cannon).
+- **Back**: the combat mechs' back units on the hump (missile box, vertical missiles, cannon, railgun, radar, rockets).
+
+| No. | Mech | Legs | Right arm | Left arm | Back | Cockpit | Legs over shell |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 23 | Fiddler | 3 pairs | Howitzer (big) | Autocannon (small) | Radar, missile box | Panorama | 2.2 |
+| 24 | Hermit | 3 pairs, heavy | Gatling | Gatling | Two vertical launchers in a high shell | Titan | 2.8 |
+| 25 | Stone | 4 pairs, low and wide | Pincer cannon | Pincer cannon | Two rocket pods | Excavator cab | 3.2 |
+| 26 | Ghost | 3 pairs, long and light | Autocannon | Autocannon | Radar, missile box | Canopy | 3.2 |
+| 27 | Coconut | 4 pairs, the biggest | Gatling | Pincer cannon | Railgun, vertical missiles | All-view sphere | 4.2 |
+| 28 | Mitten | 3 pairs | Autocannon | Rocket box | Cannon, missile box | Low bank | 2.1 |
+
+They stand 13 to 19 m to the top of their back units and 32 to 41 m across their feet: a crab is wide and low where the
+walkers are tall. Legs over shell is by volume, measured off the meshes. Contact sheet: `docs/screenshots/mechs/crabs.png`.
+

@@ -43,6 +43,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(ROOT, "assets", "models", "mech_blockouts")
 MANIFEST = os.path.join(ROOT, "assets", "models", "mech_blockouts.json")
 COMBAT_MANIFEST = os.path.join(ROOT, "assets", "models", "mech_combat.json")
+CRAB_MANIFEST = os.path.join(ROOT, "assets", "models", "mech_crabs.json")
 G2B = Matrix(((1, 0, 0, 0), (0, 0, -1, 0), (0, 1, 0, 0), (0, 0, 0, 1)))   # glTF frame (y up, z ahead) to Blender
 V = Vector
 HEIGHT_M = 24.0
@@ -1414,6 +1415,174 @@ for _id, (_n, _w, _pal, _parts) in COMBAT.items():
     PALETTES[_id] = dict(COMBAT_BASE, ARMOR=tuple(c * 0.8 for c in _pal["BODY"]), **_pal)
 
 
+
+# ----------------------------------------------------------------------------- crab mechs (23 on)
+# The owner, 2026-10-24: "We need more crab designs, more practical big legged crabs with guns for arms". Built from
+# their own parts, the way the combat mechs are: a carapace with the cockpit block-out in its face, eye stalks for the
+# sensors, three or four pairs of heavy walking legs whose knees stand over the shell (a crab's stance, and legs that
+# outweigh the body), and gun forearms where the claws would be. Each is one line of CRABS.
+
+def crab_body(hip_y, bw, bl, layout, hump=2.6):
+    """The carapace: a wide, low shell lofted through plan octagons, its widest at the leg roots, rising to a hump.
+    The cockpit block-out sits in a well cut in its face. Returns the measures the other parts hang off."""
+    loft("carapace", [(hip_y - 1.7, octa(0, -0.4, bw * 0.62, bl * 0.72, 1.4)), (hip_y - 0.4, octa(0, 0, bw, bl, 2.4)),
+                      (hip_y + 0.9, octa(0, -0.2, bw * 0.96, bl * 0.94, 2.4)),
+                      (hip_y + hump, octa(0, -0.8, bw * 0.55, bl * 0.6, 1.4))], "BODY", "torso")
+    c = GROUPS["torso"][-1]
+    zf = bl / 2 - 0.1
+    floor = V((0, hip_y - 1.15, zf - 1.15))
+    boolean(c, box("well", floor + V((0, 1.15, 1.35)), (2.7, 2.5, 2.4), "BODY2", "torso"), "DIFFERENCE")
+    pod_in(layout, tuple(floor))
+    chamfered("chin", (0, hip_y - 1.9, zf - 1.4), (3.4, 0.6, 2.4), 0.25, "FRAME", "torso")     # the cabin's floor under the shell
+    box("sill", floor + V((0, -0.2, 1.2)), (2.9, 0.25, 0.3), "ACCENT", "torso")
+    for sd in (1, -1):                                        # a band of the accent round the shell's rim, each side
+        box(f"rim{sd}", (sd * (bw / 2 - 0.9), hip_y - 0.4, zf - 2.2), (1.4, 0.3, 0.12), "ACCENT", "torso",
+            ((1, 0, 0), (0, 1, 0), (0, 0, 1)))
+    chamfered("belly", (0, hip_y - 2.2, -0.6), (bw * 0.45, 1.0, bl * 0.5), 0.3, "FRAME", "torso")
+    top = hip_y + hump
+    return dict(hip_y=hip_y, w=bw, l=bl, zf=zf, top=top, zb=-0.8 - 0.3 * bl, y0=hip_y - 1.7, h=hump + 1.7)
+
+
+def crab_eyes(C, tall=1.8):
+    """The sensors on two stalks over the cockpit, as a crab's eyes: a stalk each side, a hooded lens box on top."""
+    for sd in (1, -1):
+        b = V((sd * 1.7, C["hip_y"] + 1.2, 0.38 * C["l"] - 0.6))
+        t = b + V((sd * 0.2, tall + 1.2, 0.3))
+        cyl(f"stalk{sd}", b, t, 0.42, "FRAME", "head", 10)
+        cyl(f"stalk_collar{sd}", b - V((0, 0.2, 0)), b + V((0, 0.5, 0)), 0.7, "FRAME", "head", 12)
+        chamfered(f"eyebox{sd}", t + V((0, 0.45, 0.2)), (1.1, 0.9, 1.5), 0.2, "BODY2", "head")
+        cyl(f"lens{sd}", t + V((0, 0.45, 0.95)), t + V((0, 0.45, 1.1)), 0.32, "GLOW", "head", 12)
+        plate(f"hood{sd}", t + V((0, 1.05, 0.25)), (1.3, 0.25, 1.8), "BODY", "head", rake=-0.1)
+
+
+def crab_member(name, a, b, size):
+    """A leg segment in the body colour (a crab's legs are shell, not frame): the armoured member, a darker plate along
+    its top, the accent's narrow band across it."""
+    a, b = V(a), V(b)
+    L = (b - a).length
+    ax = between(a, b)
+    m = (a + b) / 2
+    chamfered(name, m, (size[0], L + 0.4, size[1]), min(0.5, min(size) * 0.25), "BODY", "legs", ax)
+    up = ax[2] if ax[2].y >= 0 else -ax[2]
+    chamfered(name + "_top", m + up * (size[1] / 2 + 0.2), (size[0] * 0.7, L * 0.72, 0.45), 0.15, "BODY2", "legs", ax)
+
+
+def crab_legs(C, pairs=3, reach=11.0, rise=4.5, k=1.0):
+    """Walking legs from the shell's sides: each rises out to a knee over the shell and comes down far out to a pad
+    and a tip, a ram on the thigh. The front pair splays forward, the back pairs back."""
+    hip_y, bw, bl = C["hip_y"], C["w"], C["l"]
+    zs = [bl * (-0.02 - 0.55 * i / max(1, pairs - 1)) for i in range(pairs)]      # behind the gun arms' shoulders
+    for i, z in enumerate(zs):
+        a = 0.2 - 0.95 * i / max(1, pairs - 1)                  # splay: + ahead, - behind
+        for sd in (1, -1):
+            n = f"{i}{sd}"
+            P = V((sd * (bw / 2 - 0.8), hip_y - 0.3, z))
+            d = V((sd * math.cos(a), 0, math.sin(a)))
+            K = P + d * reach * 0.42 + V((0, rise, 0))
+            F = P + d * reach
+            F.y = 1.3
+            t = V((0, 1, 0)).cross(d).normalized()
+            cyl(f"coxa{n}", P - V((0, 1.4 * k, 0)), P + V((0, 1.4 * k, 0)), 1.5 * k, "FRAME", "legs", 14)
+            crab_member(f"femur{n}", P, K, (2.6 * k, 3.0 * k))
+            cyl(f"knee{n}", K - t * 1.6 * k, K + t * 1.6 * k, 1.45 * k, "FRAME", "legs", 14)
+            crab_member(f"tibia{n}", K, F, (2.3 * k, 2.6 * k))
+            cyl(f"ram{n}", P + V((0, 1.6 * k, 0)) + d * 0.6, P.lerp(K, 0.6) + V((0, 1.9 * k, 0)), 0.38 * k, "METAL", "legs", 8)
+            chamfered(f"pad{n}", (F.x, 0.55, F.z), (2.9 * k, 1.1, 2.9 * k), 0.4, "BODY2", "legs")
+            cyl(f"tip{n}", F + V((0, 0.4, 0)), F + V((0, -0.9, 0)), 0.9 * k, "FRAME", "legs", 10, r2=1.2 * k)
+            box(f"band{n}", K.lerp(F, 0.3) + V((0, 0.2, 0)), (0.3, 0.35, 0.3), "ACCENT", "legs")
+
+
+def gun_arm(kind, sd, C, k=1.0):
+    """A cheliped whose forearm is a gun: shoulder at the shell's front corner, an upper arm out and forward, a
+    vertical elbow, then the weapon as the forearm, pointing ahead: autocannon (two barrels and a box magazine),
+    howitzer (one fat barrel and a muzzle brake), gatling, pincer (a claw's two jaws round a cannon) or rockets
+    (a box of tubes)."""
+    S = V((sd * (C["w"] / 2 - 1.2), C["hip_y"] + 0.6, C["zf"] - 0.9))
+    E = S + V((sd * 2.8 * k, 0.6, 2.2 * k))
+    cyl(f"shoulder{sd}", S - V((sd * 0.2, 0, 0)), S + V((sd * 1.6 * k, 0, 0)), 1.3 * k, "FRAME", "arms", 14)
+    armoured(f"upper{sd}", S, E, (1.9 * k, 2.1 * k), "BODY", "arms")
+    cyl(f"elbow{sd}", E - V((0, 1.2 * k, 0)), E + V((0, 1.2 * k, 0)), 1.15 * k, "FRAME", "arms", 14)
+    W = E + V((-sd * 0.5 * k, 0.1, 6.0 * k))
+    ax = between(E, W)
+    d = (W - E).normalized()
+    n = f"{kind}{sd}"
+    if kind == "autocannon":
+        chamfered(n + "_rec", E.lerp(W, 0.35), (1.9 * k, 4.2 * k, 1.7 * k), 0.3, "BODY2", "arms", ax)
+        box(n + "_mag", E.lerp(W, 0.3) + V((sd * 1.4 * k, -0.2, 0)), (0.9 * k, 1.6 * k, 2.2 * k), "FRAME", "arms")
+        for dx in (-0.45, 0.45):
+            o = V((dx * k, 0.15, 0))
+            cyl(n + f"_barrel{dx}", E.lerp(W, 0.6) + o, W + d * 3.0 * k + o, 0.24 * k, "METAL", "arms", 10)
+    elif kind == "howitzer":
+        chamfered(n + "_rec", E.lerp(W, 0.35), (2.4 * k, 4.4 * k, 2.4 * k), 0.4, "BODY2", "arms", ax)
+        cyl(n + "_barrel", E.lerp(W, 0.6), W + d * 4.0 * k, 0.6 * k, "METAL", "arms", 14)
+        cyl(n + "_jacket", E.lerp(W, 0.6), E.lerp(W, 0.95), 0.9 * k, "FRAME", "arms", 14)
+        cyl(n + "_brake", W + d * 3.4 * k, W + d * 4.6 * k, 0.9 * k, "FRAME", "arms", 14)
+        box(n + "_band", E.lerp(W, 0.2) + V((0, 1.25 * k, 0)), (2.0 * k, 0.12, 0.6), "ACCENT", "arms")
+    elif kind == "gatling":
+        cyl(n + "_body", E.lerp(W, 0.1), E.lerp(W, 0.55), 1.1 * k, "BODY2", "arms", 14)
+        for i in range(6):
+            a = i / 6 * math.tau
+            o = V((math.cos(a) * 0.55 * k, math.sin(a) * 0.55 * k, 0))
+            cyl(n + f"_b{i}", E.lerp(W, 0.55) + o, W + d * 2.4 * k + o, 0.16 * k, "METAL", "arms", 8)
+        cyl(n + "_clamp", W + d * 1.6 * k, W + d * 2.0 * k, 0.85 * k, "FRAME", "arms", 12)
+        box(n + "_drum", E.lerp(W, 0.3) + V((sd * 1.5 * k, 0, 0)), (1.2 * k, 2.0 * k, 2.4 * k), "FRAME", "arms")
+    elif kind == "pincer":
+        chamfered(n + "_palm", E.lerp(W, 0.3), (2.6 * k, 3.6 * k, 2.4 * k), 0.4, "BODY", "arms", ax)
+        for j, (dy, rk) in enumerate(((1.0, 0.16), (-1.0, -0.16))):       # the jaws, open a little round the gun
+            plate(n + f"_jaw{j}", E.lerp(W, 0.85) + V((0, dy * 1.05 * k, 0)), (2.0 * k, 0.6 * k, 4.4 * k), "BODY", "arms", rake=rk)
+        cyl(n + "_barrel", E.lerp(W, 0.5), W + d * 2.6 * k, 0.42 * k, "METAL", "arms", 12)
+        cyl(n + "_brake", W + d * 2.2 * k, W + d * 3.0 * k, 0.6 * k, "FRAME", "arms", 12)
+    elif kind == "rockets":
+        b = chamfered(n + "_box", E.lerp(W, 0.5), (2.4 * k, 6.0 * k, 2.2 * k), 0.3, "BODY2", "arms", ax)
+        for i in range(3):
+            for j in range(2):
+                p = W + d * 0.2 + V(((-0.7 + i * 0.7) * k, (-0.45 + j * 0.9) * k, 0))
+                boolean(b, cyl(n + f"_t{i}{j}", p - d * 0.7, p + d * 0.7, 0.26 * k, "FRAME", "arms", 8), "DIFFERENCE")
+        box(n + "_band", E.lerp(W, 0.25) + V((0, 1.12 * k, 0)), (2.2 * k, 0.06, 0.5), "ACCENT", "arms")
+
+
+def crab(layout, R, L, back_R, back_L, pairs=3, bw=9.0, bl=10.0, hip_y=8.0, hump=2.6, reach=11.0, rise=4.5, k=1.0,
+         kR=1.0, kL=1.0):
+    """A crab mech from parts. R and L are the right and left gun arms (the pilot's right is -x)."""
+    C = crab_body(hip_y, bw, bl, layout, hump)
+    STATE["anchor"] = V((0, hip_y, 0))
+    crab_eyes(C)
+    crab_legs(C, pairs, reach, rise, k)
+    gun_arm(R, -1, C, kR)
+    gun_arm(L, 1, C, kL)
+    U = dict(C, w=bw * 0.7)
+    back_unit(back_R, -1, U)
+    back_unit(back_L, 1, U)
+
+
+CRABS = {
+    # id: (name, what, palette, parts)
+    "fiddler": ("Fiddler", "one big arm: a howitzer on the right, an autocannon on the left; radar and missiles, Panorama",
+                dict(BODY=(0.78, 0.40, 0.14), BODY2=(0.20, 0.20, 0.22), ACCENT=(0.95, 0.85, 0.20)),
+                dict(layout="panorama", R="howitzer", L="autocannon", back_R="radar", back_L="missiles", kR=1.35, kL=0.8)),
+    "hermit": ("Hermit", "a high shell that is a missile magazine, twin gatlings, Titan",
+               dict(BODY=(0.30, 0.38, 0.42), BODY2=(0.16, 0.17, 0.19), ACCENT=(0.92, 0.48, 0.12)),
+               dict(layout="titan", R="gatling", L="gatling", back_R="vmissile", back_L="vmissile", hump=3.6, k=1.1)),
+    "stone": ("Stone", "low and wide on four pairs of legs, two pincer cannons, rocket pods, Excavator cab",
+              dict(BODY=(0.46, 0.42, 0.36), BODY2=(0.22, 0.21, 0.20), ACCENT=(0.80, 0.15, 0.10)),
+              dict(layout="cab", R="pincer", L="pincer", back_R="rockets", back_L="rockets", pairs=4, bw=10.5, bl=11.5,
+                   hip_y=6.8, reach=12.0, rise=4.0, k=1.15, kR=1.15, kL=1.15)),
+    "ghost": ("Ghost", "light and high on long legs, two autocannons, radar and missiles, Canopy",
+              dict(BODY=(0.80, 0.78, 0.70), BODY2=(0.24, 0.26, 0.28), ACCENT=(0.10, 0.55, 0.75)),
+              dict(layout="canopy", R="autocannon", L="autocannon", back_R="radar", back_L="missiles", bw=8.0, bl=9.0,
+                   hip_y=10.5, hump=2.2, reach=12.5, rise=5.5, k=0.82, kR=0.9, kL=0.9)),
+    "coconut": ("Coconut", "the biggest: four pairs of legs, a gatling and a pincer cannon, railgun and vertical missiles, All-view sphere",
+                dict(BODY=(0.40, 0.26, 0.16), BODY2=(0.18, 0.16, 0.14), ACCENT=(0.90, 0.72, 0.20)),
+                dict(layout="allview", R="gatling", L="pincer", back_R="railgun", back_L="vmissile", pairs=4, bw=11.0,
+                     bl=12.5, hip_y=8.6, hump=3.2, reach=13.0, rise=5.0, k=1.25, kR=1.2, kL=1.3)),
+    "mitten": ("Mitten", "a rocket box and an autocannon for arms, a shoulder cannon and missiles, Low bank",
+               dict(BODY=(0.28, 0.34, 0.24), BODY2=(0.20, 0.21, 0.19), ACCENT=(0.95, 0.60, 0.10)),
+               dict(layout="lowbank", R="autocannon", L="rockets", back_R="cannon", back_L="missiles", kR=1.1, kL=1.1)),
+}
+for _id, (_n, _w, _pal, _parts) in CRABS.items():
+    PALETTES[_id] = dict(COMBAT_BASE, ARMOR=tuple(c * 0.8 for c in _pal["BODY"]), **_pal)
+
+
 CHASSIS = {"foreman": (foreman, "Foreman", "the excavator"), "stevedore": (stevedore, "Stevedore", "the dock crane, all struts"),
            "ironhorse": (ironhorse, "Ironhorse", "the locomotive"),
            "harrow": (harrow, "Harrow", "new: the Mad Cat pattern, one hull between the hips, the Canopy in its nose"),
@@ -1445,6 +1614,8 @@ def builds():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     if "combat" in argv:
         return COMBAT_MANIFEST, {k: ((lambda p=parts: combat(**p)), name, what) for k, (name, what, _, parts) in COMBAT.items()}
+    if "crabs" in argv:
+        return CRAB_MANIFEST, {k: ((lambda p=parts: crab(**p)), name, what) for k, (name, what, _, parts) in CRABS.items()}
     return MANIFEST, CHASSIS
 
 

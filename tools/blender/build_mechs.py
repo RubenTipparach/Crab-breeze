@@ -546,17 +546,78 @@ def bearing_x(k, hull, x, y):
     return best * 0.01
 
 
-def chest_bay(k, chest, variant, at, mode, torso, swing=None, wrap_z=None):
+def chest_bay(k, chest, variant, at, mode, torso, swing=None, wrap_z=None, timing=None):
     """The cockpit and its lofted chest (mech_boarding.pod): `at` is the interior's floor centre in the chest
     joint (kit units), `mode` how the front opens (lift, doors, side, inner). Adds the mist that rolls out over the
     sill. Returns cp, cav, out, hull as MB.pod does."""
-    cp, cav, out, hull = MB.pod(k, chest, variant, at, mode, torso, swing=swing, wrap_z=wrap_z)
+    cp, cav, out, hull = MB.pod(k, chest, variant, at, mode, torso, swing=swing, wrap_z=wrap_z, timing=timing)
+    chest_markings(k, cp, hull)
     u = 1.0 / k.s
     # no chain ladder (owner, 2026-10-24: "They shouldnt have a ... ladder"): the mech sits, the step drops
     MB.vent(k, cp, 0, cav["y0"] + 0.3 * u, cav["z1"] - 0.2 * u, (0, -0.25, 1), "sill", "mist", 1.4)
     for s in (1, -1):
         MB.vent(k, cp, s * cav["hw"] * 0.6, cav["y0"] + 0.2 * u, cav["z1"] - 0.3 * u, (s * 0.3, -0.2, 1), "sill", "mist", 1.0)
     return cp, cav, out, hull
+
+
+def _mk(k, kind):
+    """The decal variant that reads on this mech: dark markings on a light scheme, white on a dark one."""
+    return f"{kind}_{'d' if k.mark['dark'] else 'w'}"
+
+
+def unit_number(k, p, x, y, z, ry, size):
+    """The unit number, two stencil digits side by side on a face turned by ry (0 faces ahead)."""
+    pre = "dd" if k.mark["dark"] else "dw"
+    g = k.g(p, x, y, z, 0, ry, 0)
+    for i, ch in enumerate(k.mark["number"]):
+        k.decal(f"{pre}{ch}", g, (i - 0.5) * size * 0.78, 0, i * 0.04, width=size)    # the second a hair proud: no shared plane
+
+
+def chest_markings(k, cp, hull):
+    """A mech's markings on its chest, as a kit builder lays them from a decal sheet (owner, 2026-10-24: "instead of
+    \"danger\" plastered everywhere it should say \"no step\", company logo, \"warning flamable\" etc", with decal sheets and
+    finished kits for reference): the unit number on both flanks, the maker's logo across the back, a data plate and
+    edge lines by the hatch, EJECT by the cockpit, WARNING FLAMMABLE and KEEP CLEAR over the jets. Each sits 0.06 m off
+    the armour."""
+    if not getattr(k, "mark", None):
+        return
+    U = 1.0 / k.s
+    Yb, Yt = hull["Yb"], hull["Yt"]
+    ym = (Yb + Yt) / 2
+
+    u = 1.0 / k.s
+    taken = []            # (bearing from, to, height from, to) of the markings laid so far
+
+    def put(a, y, w):
+        """The node, point and bearing for a marking w metres wide at bearing a and height y (metres). It goes on the
+        armour piece that holds it, so it rides that piece when the chest opens rather than hanging where the armour
+        was, and it slides back along the hull until all of it is on one piece: one straddling a seam has an end over
+        the doorway once the door swings."""
+        piece = hull["piece_of"]
+        sg = 1 if math.sin(a) >= 0 else -1
+        for i in range(40):
+            b = a + sg * 0.05 * i
+            x, _, z = hull["at"](b, y)
+            h = (w / 2) / max(0.3, math.hypot(x / u, z / u - hull["z_cut"]))
+            ends = {piece(b + d, y + e) for d in (-h, 0, h) for e in (-w * 0.35, w * 0.35)}
+            box = (b - h, b + h, y - w * 0.35, y + w * 0.35)
+            clear = all(box[1] < t[0] or box[0] > t[1] or box[3] < t[2] or box[2] > t[3] for t in taken)
+            if len(ends) == 1 and clear:          # all on one piece, and over no other marking
+                taken.append(box)
+                return (*MB.on(k, hull, ends.pop(), hull["at"](b, y, 0.06)), b)
+        return (*MB.on(k, hull, piece(a, y), hull["at"](a, y, 0.06 + 0.02 * len(taken))), a)
+
+    for s in (1, -1):
+        n, q, b = put(s * 1.0, ym + 0.3, 1.4 * 1.8)          # two digits 0.78 of a digit apart
+        unit_number(k, n, *q, b, 1.4 * U)
+        for kind, a, y, w in ((_mk(k, "lines"), s * 1.25, Yt + 0.05, 3.0), ("marks", s * 1.8, Yb + 0.3, 1.0)):
+            n, q, b = put(a, y, w)
+            k.decal(kind, n, *q, 0, b, 0, w * U)
+    for kind, a, y, w in ((_mk(k, "logo"), PI, Yt - 0.1, 4.0), (_mk(k, "data"), 1.2, Yb + 0.35, 2.0),
+                          ("eject", -1.2, Yt - 0.25, 0.9), ("flammable", PI - 0.55, Yb + 0.3, 1.6),
+                          ("keepclear", PI + 0.55, Yb + 0.3, 1.6)):
+        n, q, b = put(a, y, w)
+        k.decal(kind, n, *q, 0, b, 0, w * U)
 
 
 def chamfered(w, zf, zb, c=0.25):
@@ -598,6 +659,13 @@ STEVEDORE_TORSO = [
     (2.85, 1.70, 0.45, -0.95, dict(wcut=0.6, sh=0.40, cb=0.30)),
     (3.05, 0.90, 0.38, -0.70, dict(wcut=0.5, sh=0.20, cb=0.25)),
 ]
+def doubled(torso, k=2.0):
+    """A torso of the first round at 24 m: its height, width, back and shoulder flare scaled round the true-size cockpit,
+    its prow (zf, wcut) kept, as the cockpit inside it does not grow."""
+    return [(y * k, w * k, zf, zb * k, dict(kw, sh=kw.get("sh", 0.3) * k, **({"cb": kw["cb"] * k} if "cb" in kw else {})))
+            for y, w, zf, zb, kw in torso]
+
+
 IRONHORSE_TORSO = [
     (-0.60, 1.20, 1.00, -0.90, dict(wcut=0.9, sh=0.05, round_back=4)),
     (-0.25, 1.60, 1.10, -1.30, dict(wcut=0.95, sh=0.25, round_back=5)),
@@ -618,7 +686,7 @@ def ram_pair(k, g, a, b, r, rod_mat=None):
     e = Vector((0, 1, 0)).rotation_difference(d.normalized()).to_euler("ZYX")
     bl = L * 0.6
     k.cyl(r, r, bl, M["dark"], g, *(A + d.normalized() * bl / 2), e.x, e.y, e.z, seg=12)
-    k.cyl(r * 1.18, r * 1.18, bl * 0.1, M["frame"], g, *(A + d.normalized() * bl * 0.95), e.x, e.y, e.z, seg=12)
+    k.cyl(r * 1.18, r * 1.18, bl * 0.1, M["frame"], g, *(A + d.normalized() * bl * 0.93), e.x, e.y, e.z, seg=12)   # short of the barrel's end: no shared cap
     k.cyl(r * 0.55, r * 0.55, L * 0.45, rod_mat or M["metal"], g, *(A + d.normalized() * L * 0.77), e.x, e.y, e.z, seg=10)
     for p in (A, B):
         k.box(r * 2.2, r * 2.2, r * 1.6, M["frame"], g, *p)
@@ -637,17 +705,17 @@ def lattice(k, g, w, d, L, mat, n=4, y0=0.0):
         k.box(w, 0.9, 0.9, M["frame"], g, 0, y, d / 2)
         k.box(w, 0.9, 0.9, M["frame"], g, 0, y, -d / 2)
         for sx in (1, -1):
-            k.box(0.9, 0.9, d, M["frame"], g, sx * w / 2, y, 0)
+            k.box(0.76, 0.84, d - 0.2, M["frame"], g, sx * w / 2, y, 0)      # inside the front and back rungs: no shared faces
     diag_f = math.atan2(w, step)
     diag_s = math.atan2(d, step)
     for i in range(n):
         y = y0 - (i + 0.5) * step
         lf, ls = math.hypot(w, step), math.hypot(d, step)
         sg = 1 if i % 2 else -1
-        k.box(0.6, lf, 0.6, mat, g, 0, y, d / 2 + 0.1, 0, 0, sg * diag_f)
-        k.box(0.6, lf, 0.6, mat, g, 0, y, -d / 2 - 0.1, 0, 0, -sg * diag_f)
+        k.box(0.6, lf, 0.6, mat, g, 0, y, d / 2 + 0.2, 0, 0, sg * diag_f)     # 0.05 clear of every rung and chord face
+        k.box(0.6, lf, 0.6, mat, g, 0, y, -d / 2 - 0.2, 0, 0, -sg * diag_f)
         for sx in (1, -1):
-            k.box(0.6, ls, 0.6, mat, g, sx * (w / 2 + 0.1), y, 0, sg * diag_s, 0, 0)
+            k.box(0.6, ls, 0.6, mat, g, sx * (w / 2 + 0.15), y, 0, sg * diag_s, 0, 0)   # clear of the side rungs and a joint drum's cap
 
 
 def wheel(k, g, x, y, z, r, w, spokes=8):
@@ -657,7 +725,8 @@ def wheel(k, g, x, y, z, r, w, spokes=8):
     k.tor(r * 0.86, r * 0.07, M["frame"], g, x + w / 2 + 0.1, y, z, 0, PI / 2, 0)
     for i in range(spokes):
         a = i / spokes * 2 * PI
-        k.box(w * 0.5, r * 0.8, r * 0.12, M["frame"], g, x + w / 2 + 0.2, y + math.cos(a) * r * 0.45, z + math.sin(a) * r * 0.45, a, 0, 0)
+        # from the hub out, so neighbouring spokes never meet (they share their side planes)
+        k.box(w * 0.5, r * 0.6, r * 0.12, M["frame"], g, x + w / 2 + 0.2, y + math.cos(a) * r * 0.55, z + math.sin(a) * r * 0.55, a, 0, 0)
     k.cyl(r * 0.22, r * 0.22, w + 1.2, M["metal"], g, x, y, z, 0, 0, PI / 2, 14)
     k.pz([[-r * 0.5, 0], [r * 0.5, 0], [r * 0.3, r * 0.42], [-r * 0.3, r * 0.42]], 0.8, M["armor2"], g, x + w / 2 + 0.4, y - r * 0.82, z, 0, PI / 2, 0)
 
@@ -702,7 +771,7 @@ def foreman(k):
     k.box(13, 1.4, 0.5, M["hazard"], body, 0, -5.4, 8.6, -0.3)
 
     def seg0(k, g, s, L):            # thigh: a box girder, a double ram up its front
-        k.cyl(4.8, 4.8, 8, M["frame"], g, 0, 0, 0, 0, 0, PI / 2)
+        k.cyl(4.8, 4.8, 7.6, M["frame"], g, 0, 0, 0, 0, 0, PI / 2)            # short of the axle's end: no shared cap
         k.box(6, L, 6, M["frame"], g, 0, -L / 2, -1)
         k.pl(4, L * 0.8, 9, M["armor"], g, s * 4.4, -L * 0.48, -1)
         k.stripes(k.g(g, s * 6.5, -L * 0.48, -1, 0, PI / 2, 0), 6, 0, 0, 0, 0, hb=1.0, gap=0.5)
@@ -752,7 +821,7 @@ def foreman(k):
     # in the mech the upper half swings on past level, so the dash it carries clears the doorway instead of hanging
     # at chest height in front of it, and the step lies flat (owner, 2026-10-24: "pieces of geometry that block the
     # pilot from exiting")
-    cp, cav, out, hull = chest_bay(k, chest, "panorama", (0, 5, 3), "inner", FOREMAN_TORSO,
+    cp, cav, out, hull = chest_bay(k, chest, "panorama", (0, 5, 3), "inner", doubled(FOREMAN_TORSO),
                                    swing={"INNER_upper_1": -2.75, "INNER_lower_1": 2.7})
     hw, y0, y1, z1 = cav["hw"], cav["y0"], cav["y1"], out["z1"]
     U = 1.0 / k.s
@@ -765,14 +834,14 @@ def foreman(k):
         floodlight(k, cp, *hull["at"](s * 0.55, Yt + 0.30, 0.12), -0.25, s * 0.15)
     MB.contour(k, hull, None, -1.3, 1.3, Yt + 0.22, 0.02, 0.05, M["hazard"])     # the hood's edge over the visor
     # the head on the collar: a low armoured block, two lenses and a rangefinder bar
-    top = FOREMAN_TORSO[-1]
+    top = doubled(FOREMAN_TORSO)[-1]
     mast = k.J("head", chest, 0, 5 + (top[0] - 0.05) * U, 3 + (top[2] + top[3]) / 2 * U)
-    k.cyl(2.6, 3.2, 2.4, M["frame"], mast, 0, 0.6, 0)      # the neck, sunk into the hood
+    k.cyl(2.6, 3.2, 5.0, M["frame"], mast, 0, -0.7, 0)     # the neck, sunk into the hood
     k.pz([[-3.6, 0], [3.6, 0], [3.0, 3.4], [-3.0, 3.4]], 5, M["armor"], mast, 0, 1.4, 0, 0, PI / 2, 0)
     for x in (-1.8, 1.8):
         k.cyl(1.0, 1.0, 1.2, M["dark"], mast, x, 3.0, 2.4, PI / 2)
         k.sph(0.75, M["lens"], mast, x, 3.0, 3.0)
-    k.box(5, 0.6, 0.4, M["glow"], mast, 0, 4.2, 2.3)
+    k.box(4.6, 0.6, 0.4, M["glow"], mast, 0, 4.2, 2.45)      # narrower than the block: its ends not on its sides
     k.sock("SENSOR_head", mast, 0, 3, 3.2)
     k.sock("CAM_main", mast, 0, 3, 3.2)
     # behind: the engine pack lofted onto the back, its radiator, the exhaust stack, the jets under it
@@ -786,9 +855,9 @@ def foreman(k):
     k.sock("ex_stack", cp, 1.0 * U, 2.45 * U + 11.4, -1.3 * U)
     k.pl(4.4, 0.4, 4.4, M["frame"], cp, 1.0 * U, 2.45 * U + 12, -1.3 * U, 0.3)
     for S, s in (("L", 1), ("R", -1)):
-        k.cyl(3.2, 4, 6, M["dark"], cp, s * 0.8 * U, 0.2 * U, -1.7 * U - 2, PI / 2)
-        k.cyl(3.4, 3.4, 0.3, M["glowDim"], cp, s * 0.8 * U, 0.2 * U, -1.7 * U - 5.1, PI / 2)
-        k.sock(f"JET_{S}", cp, s * 0.8 * U, 0.2 * U, -1.7 * U - 5.4, PI)
+        k.cyl(2.4, 3.0, 6, M["dark"], cp, s * 1.5 * U, 0.2 * U, -1.7 * U - 2, PI / 2)       # apart: no overlapping caps
+        k.cyl(2.6, 2.6, 0.3, M["glowDim"], cp, s * 1.5 * U, 0.2 * U, -1.7 * U - 5.1, PI / 2)
+        k.sock(f"JET_{S}", cp, s * 1.5 * U, 0.2 * U, -1.7 * U - 5.4, PI)
     # the opening is the Panorama's own clamshell (owner, 2026-10-24: the Foreman's opening "needs to follow the
     # titan style or panorama style"): the front under the screens drops forward into a step, then the front
     # over them swings up and out on two rams, the dash riding it; the cockpit's own halves ride these plates
@@ -886,10 +955,10 @@ def stevedore(k):
     def foot(k, g, s, S):            # outriggers: a cross of beams, a jack pad on each end
         k.sph(2.6, M["dark"], g, 0, 0, 0)
         k.box(5, 3, 5, M["frame"], g, 0, -2, 0)
-        for a in (0, PI / 2):
-            k.box(3, 2, 20, M["armor"], g, 0, -3.4, 2, 0, a, 0)
-            k.box(2.6, 0.5, 18, M["hazard"], g, 0, -2.3, 2, 0, a, 0)
-        for x, z in ((0, 11.5), (0, -7.5), (9.5, 2), (-9.5, 2)):
+        for a, h in ((0, 2.0), (PI / 2, 1.8)):                         # the cross beams of two depths: no shared faces
+            k.box(3, h, 20, M["armor"], g, 0, -3.4, 2, 0, a, 0)
+            k.box(2.6, 0.5 - (h < 2) * 0.06, 18, M["hazard"], g, 0, -2.3 - (h < 2) * 0.14, 2, 0, a, 0)
+        for x, z in ((0, 11.5), (0, -7.5), (s * 9.5, 2), (-s * 8.0, 2)):  # the inner jack short of the other foot's
             k.cyl(1.0, 1.0, 2.5, M["metal"], g, x, -4.4, z, seg=10)
             k.cyl(2.2, 2.6, 1, M["rubber"], g, x, -5.5, z, seg=16)
         k.J(f"toe_{S}", g, 0, -4, 11)
@@ -901,7 +970,7 @@ def stevedore(k):
     k.cyl(7, 8, 4, M["dark"], waist, 0, 0, 0, 0, 0, 0, 24)
     k.tor(7.6, 0.6, M["frame"], waist, 0, 0, 0, PI / 2)
     chest = k.J("torso", waist, 0, 2.5, 0)
-    cp, cav, out, hull = chest_bay(k, chest, "harness", (0, 4, 2), "doors", STEVEDORE_TORSO)
+    cp, cav, out, hull = chest_bay(k, chest, "titan", (0, 4, 2), "inner", doubled(STEVEDORE_TORSO), swing={"INNER_lower_1": 2.7})
     hw, y0, y1, z1 = cav["hw"], cav["y0"], cav["y1"], out["z1"]
     # the octagon of the operator's screens, outside: corrugated like a container round its fixed half and
     # its two doors, corner castings at the rear corners, the lock rods across the doors
@@ -917,31 +986,21 @@ def stevedore(k):
             k.box(2.6, 2.6, 2.6, M["frame"], cp, x, yy, zz)
     MB.contour(k, hull, None, -1.2, 1.2, Yt + 0.22, 0.02, 0.05, M["hazard"])
     MB.contour(k, hull, None, -1.2, 1.2, Yb - 0.22, 0.02, 0.05, M["hazard"])
-    H = (Yt - Yb) / k.s
-    for S, s in (("L", 1), ("R", -1)):
-        dn = f"CHEST_door_{S}"
-        d = hull["joints"][dn][0]
-        for a in (0.55, 1.15):
-            MB.rib(k, hull, dn, s * a, Yb + 0.06, Yt - 0.06, 0.03, 0.045, M["armor2"])
-        MB.contour(k, hull, dn, s * 0.12, s * 1.3, Yb + 0.72 * (Yt - Yb), 0.06, 0.05, M["red"])
-        for i in range(3):                                                    # the hinge barrels
-            k.cyl(0.9, 0.9, 1.6, M["frame"], d, 0, H * (0.12 + 0.38 * i), 0, seg=10)
-        for j, af in enumerate((0.30, 1.05)):
-            _, (x, yy, zz) = MB.on(k, hull, dn, hull["at"](s * af, (Yb + Yt) / 2, 0.11))
-            rod = MB.hatch(k, f"CHEST_lock_{S}{j + 1}", d, x, yy, zz, ("y", s * 1.5), 0.0, 0.7)
-            k.cyl(0.55, 0.55, H * 0.92, M["metal"], rod, 0, 0, 0, seg=10)
-            for y2 in (-H * 0.25, H * 0.2):
-                k.box(3.2, 0.7, 0.8, M["frame"], rod, s * 1.4, y2, 0.3)
-            k.box(0.8, 1.6, 0.8, M["hazard"], rod, 0, H * 0.46 + 0.6, 0)
-        MB.vent(k, cp, *hull["at"](s * 0.05, (Yb + Yt) / 2, 0.08), (s * 0.15, 0.2, 1), "seam", rate=1.6)
-        MB.vent(k, cp, *hull["at"](s * PI / 2, Yt, 0.1), (s * 0.6, 0.6, 0.4), "open")
+    # the Titan's front, seated (owner, 2026-10-24: "all mechs should be sitting"; "Get those other mechs up to spec"):
+    # the upper chest rises and tilts back, the front under it folds down below the sill
+    ys = hull["ysplit"]
+    MB.contour(k, hull, "CHEST_upper", -0.5, 0.5, ys + 0.18, 0.08, 0.03, M["hazard"])
+    MB.contour(k, hull, "CHEST_lower", -0.5, 0.5, Yb + 0.05, 0.05, 0.04, M["hazard"])
+    for s_ in (1, -1):
+        MB.vent(k, cp, *hull["at"](s_ * PI / 2, (Yb + Yt) / 2, 0.08), (s_ * 0.6, 0.2, 0.6), "seam", rate=1.6)
+        MB.vent(k, cp, *hull["at"](s_ * PI / 2, Yt, 0.1), (s_ * 0.6, 0.6, 0.4), "open")
     # the gantry: two A-frames over the shoulders, the counter-jib and its weights behind
     gy = out["y1"]
     for s in (1, -1):
         k.box(1.6, 12, 1.6, M["red"], cp, s * (out["hw"] - 2), gy + 6, zc + 4, 0.35, 0, 0)
         k.box(1.6, 12, 1.6, M["red"], cp, s * (out["hw"] - 2), gy + 6, zc - 4, -0.35, 0, 0)
     k.box(2 * out["hw"] - 2, 2, 2, M["frame"], cp, 0, gy + 11.5, zc)
-    k.box(3, 3, 26, M["red"], cp, 0, gy + 12, zc - 10)
+    k.box(3, 2.8, 26, M["red"], cp, 0, gy + 12.1, zc - 10)
     for i in range(3):
         k.pl(12, 4, 4, M["armor2"], cp, 0, gy + 9 - i * 4.4, zc - 22)
         k.box(12.4, 1.2, 0.4, M["hazard"], cp, 0, gy + 9 - i * 4.4, zc - 24.1)
@@ -951,6 +1010,7 @@ def stevedore(k):
     # the crow's nest: the sensor pod on the gantry
     nest = k.J("head", chest, 0, 4 + gy + 13, 2 + zc + 3)
     k.box(6, 4, 5, M["armor"], nest, 0, 2, 0)
+    k.box(2.6, 3.2, 2.6, M["frame"], nest, 0, -1.4, 0)                 # its pedestal, down onto the jib
     k.box(5, 1.2, 0.4, M["glow"], nest, 0, 2.6, 2.6)
     k.halo(nest, 0, 2.6, 3.2, 9, 0.6)
     k.ant(nest, 2.4, 4, -1.6, 6, -0.1, 0.1)
@@ -988,7 +1048,7 @@ def stevedore(k):
             for x in (-2, 2):
                 for y in (-2, 2):
                     k.cyl(1.4, 1.4, 1.2, M["ink"], g, x, y + 4.5, 0, seg=12)
-                    k.cyl(0.8, 0.8, 0.4, M["tip"], g, x, y + 4.9, 0, seg=8)
+                    k.cyl(0.8, 0.8, 0.4, M["tip"], g, x, y + 5.0, 0, seg=8)       # proud of the tube's mouth
             k.box(9.6, 1.2, 0.4, M["hazard"], g, 0, -4.2, 5.8)
             k.sock("MUZZLE_L", g, 0, 6, 0, 0)
     k.extras.update(footH=footH * k.s, hipY=hipY * k.s,
@@ -1039,8 +1099,8 @@ def ironhorse(k):
     def foot(k, g, s, S):
         k.sph(2.8, M["dark"], g, 0, 0, 0)
         k.pl(9, 3, 12, M["armor"], g, 0, -1.8, 2.5)
-        toe = k.J(f"toe_{S}", g, 0, -1.8, 8.5)
-        k.pz([[-4.5, 0], [4.5, 0], [2.5, 4], [-2.5, 4]], 3, M["armor2"], toe, 0, 0, 0, -PI / 2)
+        toe = k.J(f"toe_{S}", g, 0, -1.9, 8.6)
+        k.pz([[-4.3, 0], [4.3, 0], [2.4, 4], [-2.4, 4]], 2.7, M["armor2"], toe, 0, 0, 0, -PI / 2)
         k.box(9.4, 0.9, 13, M["rubber"], g, 0, -3.4, 2.5)
         k.box(8, 1, 0.4, M["hazard"], g, 0, -1.2, 8.7)
         heel_jet(k, g, -6.5, 1.2)
@@ -1050,7 +1110,7 @@ def ironhorse(k):
     waist = k.J("torso_twist", body, 0, 5.5, -1)
     k.cyl(7.5, 8.5, 4, M["dark"], waist, 0, 0, 0, 0, 0, 0, 24)
     chest = k.J("torso", waist, 0, 2.5, 0, 0.18)
-    cp, cav, out, hull = chest_bay(k, chest, "cab", (0, 4, 4), "inner", IRONHORSE_TORSO, swing={"INNER_ramp_1": 2.65})
+    cp, cav, out, hull = chest_bay(k, chest, "cab", (0, 4, 4), "inner", doubled(IRONHORSE_TORSO), swing={"INNER_ramp_1": 2.65})
     hw, y0, y1, z1 = cav["hw"], cav["y0"], cav["y1"], out["z1"]
     # the boiler: the Excavator cab's hull (owner, 2026-10-24: "Iron horse has no seat still"; the cab is seated),
     # banded like a boiler; its front is the smokebox door, now a ramp: it drops forward on a hinge along its foot,
@@ -1099,6 +1159,7 @@ def ironhorse(k):
     k.cyl(0.7, 0.7, 1.2, M["metal"], cp, 2, ty + 3.8, zc - Lb * 0.2, seg=10)
     # the sensor: a cab-roof turret with twin lenses, ahead of the dome
     head = k.J("head", chest, 0, 4 + ty + 0.4, 4 + 0.35 * U)
+    k.cyl(2.0, 2.4, 3.4, M["frame"], head, 0, -0.8, 0, seg=16)            # its neck, down into the roof
     k.box(6, 3, 4.5, M["armor"], head, 0, 1.5, 0)
     for x in (-1.4, 1.4):
         k.sph(0.8, M["lens"], head, x, 1.6, 2.3)
@@ -1115,9 +1176,9 @@ def ironhorse(k):
                  (1.95, rounded(0.80, -1.20, -2.05))], M["armor2"], -1.75)
     k.stripes(cp, 1.4 * U, 0, 0.75 * U, -2.55 * U - 0.3, PI, hb=1.3, gap=0.7)
     for S, s in (("L", 1), ("R", -1)):
-        k.cyl(2.4, 3.2, 5, M["dark"], cp, s * 0.7 * U, 0.0, -2.2 * U - 2, PI / 2)
-        k.cyl(2.6, 2.6, 0.3, M["glowDim"], cp, s * 0.7 * U, 0.0, -2.2 * U - 4.7, PI / 2)
-        k.sock(f"JET_{S}", cp, s * 0.7 * U, 0.0, -2.2 * U - 5, PI)
+        k.cyl(2.4, 3.2, 5, M["dark"], cp, s * 1.4 * U, 0.0, -2.2 * U - 2, PI / 2)          # apart: no overlapping caps
+        k.cyl(2.6, 2.6, 0.3, M["glowDim"], cp, s * 1.4 * U, 0.0, -2.2 * U - 4.7, PI / 2)
+        k.sock(f"JET_{S}", cp, s * 1.4 * U, 0.0, -2.2 * U - 5, PI)
     sy = 4 + cy + R * 0.35
     for S, s in (("L", 1), ("R", -1)):
         sh_, elb = contract_arm(k, chest, S, s * (R + 4.5), sy, 3, -0.08, -13, -1.35)
@@ -1172,6 +1233,11 @@ def walker_legs(k, body, hip_w, segs, look):
         k.pl(5.0 * t, L * 0.78, 2.0, M["armor"], g, 0, -L * 0.48, 2.8 * t)
         k.pl(1.8, L * 0.72, 5.2 * t, M["armor2"], g, s * 3.0 * t, -L * 0.48, 0)
         k.stripes(k.g(g, s * 3.95 * t, -L * 0.45, 0, 0, PI / 2, 0), 4.0 * t, 0, 0, 0, 0, hb=0.8, gap=0.4)
+        if getattr(k, "mark", None):                 # chevrons and a hydraulics plate on the thigh's front, the squadron outside
+            k.decal(_mk(k, "chevron"), g, 0, -L * 0.3, 2.8 * t + 1.08, 0, 0, 0, 2.6 * t)
+            k.decal("caution_hyd", g, 0, -L * 0.62, 2.8 * t + 1.08, 0, 0, 0, 4.6 * t)
+            if s > 0:
+                k.decal(_mk(k, "emblem"), g, s * (3.0 * t + 0.98), -L * 0.62, 0, 0, PI / 2, 0, 3.6 * t)
         if look.get("rams", True):
             ram_pair(k, g, (0, -1.5, -3.2 * t), (0, -L + 2, -2.9 * t), 0.75 * t)
 
@@ -1179,7 +1245,7 @@ def walker_legs(k, body, hip_w, segs, look):
         k.cyl(2.3 * t, 2.3 * t, 6.2 * t, M["dark"], g, 0, 0, 0, 0, 0, PI / 2, 18)
         kind = look.get("shin", "slab")
         if kind == "lattice":
-            lattice(k, g, 4.2 * t, 4.2 * t, L - 1.2, M["armor2"], n=4, y0=-0.6)
+            lattice(k, g, 3.9 * t, 3.9 * t, L - 1.2, M["armor2"], n=4, y0=-0.6)   # narrower than the thigh: no shared sides
         elif kind == "piston":
             k.cyl(2.3 * t, 2.5 * t, L * 0.62, M["armor"], g, 0, -L * 0.33, 0, seg=18)
             k.cyl(1.25 * t, 1.25 * t, L * 0.5, M["metal"], g, 0, -L * 0.72, 0, seg=12)
@@ -1193,12 +1259,12 @@ def walker_legs(k, body, hip_w, segs, look):
         if look.get("knee") == "pad":
             k.pl(5.4 * t, 5.2, 2.2, M["armor"], g, 0, -1.2, 3.4 * t, 0.15)
             k.box(3.2 * t, 0.6, 0.3, M["hazard"], g, 0, -1.0, 4.6 * t)
-        k.box(4.0 * t, 0.9, 0.3, M["hazard"], g, 0, -L * 0.82, 2.35 * t)
+        k.box(4.0 * t, 0.9, 0.3, M["hazard"], g, 0, -L * 0.82, 2.45 * t)
         k.cyl(1.0 * t, 1.3 * t, 2.6 * t, M["dark"], g, 0, -L * 0.45, -2.8 * t, PI / 2 + 0.5)        # the calf booster
         k.cyl(1.0 * t, 1.0 * t, 0.2, M["glowDim"], g, 0, -L * 0.45 + 0.6, -4.0 * t, PI / 2 + 0.5)
 
     def hock(k, g, s, L):
-        k.cyl(1.9 * t, 1.9 * t, 5.0 * t, M["dark"], g, 0, 0, 0, 0, 0, PI / 2, 16)
+        k.cyl(1.9 * t, 1.9 * t, 5.6 * t, M["dark"], g, 0, 0, 0, 0, 0, PI / 2, 16)
         k.pl(3.6 * t, L, 3.8 * t, M["armor2"], g, 0, -L / 2, 0)
         k.pl(4.0 * t, L * 0.5, 1.0, M["armor"], g, 0, -L * 0.45, 2.2 * t)
         ram_pair(k, g, (0, -0.8, -2.4 * t), (0, -L + 0.8, -2.2 * t), 0.6 * t)
@@ -1226,10 +1292,16 @@ def walker_arm(k, chest, S, s, x, y, z, a=1.0, upper=9.0, elb_rx=-1.3):
     k.sph(3.0 * a, M["frame"], sh, 0, 0, 0)
     k.pl(6.2 * a, 4.4 * a, 7.4 * a, M["armor"], sh, s * 1.6 * a, 2.2 * a, 0, 0, 0, s * 0.2)
     k.box(0.6, 3.2 * a, 6.2 * a, M["hazard"], sh, s * 4.75 * a, 1.9 * a, 0, 0, 0, s * 0.2)
+    if getattr(k, "mark", None):                     # the unit number on the pauldron, NO STEP on its top, lines on the forearm
+        pg = k.g(sh, s * 1.6 * a, 2.2 * a, 0, 0, 0, s * 0.2)
+        unit_number(k, pg, 0, 0.1 * a, 3.7 * a + 0.08, 0, 3.0 * a)
+        k.decal(_mk(k, "nostep"), pg, 0, 2.2 * a + 0.08, 0, -PI / 2, 0, 0, 4.0 * a)
     k.box(3.4 * a, upper * a, 3.4 * a, M["frame"], sh, 0, -upper * a / 2, 0)
-    k.cyl(2.4 * a, 2.4 * a, 4.8 * a, M["dark"], elb, 0, 0, 0, 0, 0, PI / 2, 16)
+    k.cyl(2.4 * a, 2.4 * a, 5.4 * a, M["dark"], elb, 0, 0, 0, 0, 0, PI / 2, 16)
     k.pl(4.8 * a, 8 * a, 5.0 * a, M["armor2"], elb, 0, -4.4 * a, 0)
     k.box(5.0 * a, 0.7, 0.3, M["hazard"], elb, 0, -7.6 * a, 2.55 * a)
+    if getattr(k, "mark", None):
+        k.decal(_mk(k, "lines"), elb, s * (2.4 * a + 0.08), -4.4 * a, 0, 0, s * PI / 2, PI / 2, 5.6 * a)
     hand = k.J(f"hand_{S}", elb, 0, -8.8 * a, 0)
     return sh, elb, hand
 
@@ -1299,6 +1371,9 @@ def shield(k, elb, s, a=1.0):
     k.pl(0.8, 20 * a, 10 * a, M["armor2"], g, s * 0.9, 0, 0)
     k.stripes(k.g(g, s * 1.4, 3 * a, 0, 0, s * PI / 2, 0), 8 * a, 0, 0, 0, 0, hb=1.2, gap=0.6)
     k.box(1.6, 1.0, 12.6 * a, M["hazard"], g, 0, -11.6 * a, 0)
+    if getattr(k, "mark", None):                     # the squadron's emblem and the unit number on the shield's face
+        k.decal(_mk(k, "emblem"), g, s * 1.36, -2.6 * a, 0, 0, s * PI / 2, 0, 7.4 * a)
+        unit_number(k, g, s * 1.36, -8.0 * a, 0, s * PI / 2, 3.4 * a)
 
 
 def walker_head(k, chest, x, y, z, kind, a=1.0):
@@ -1306,6 +1381,10 @@ def walker_head(k, chest, x, y, z, kind, a=1.0):
     lenses on a slide) or "mast" (a camera on a post)."""
     M = k.M
     head = k.J("head", chest, x, y, z)
+    # the neck runs down into the torso, so the head is seated on it whatever the collar's shape (owner, 2026-10-24:
+    # "mech heads tend to not be attached")
+    k.cyl(1.6 * a, 2.0 * a, 4.0 * a, M["frame"], head, 0, -1.2 * a, 0, seg=16)
+    k.tor(2.1 * a, 0.35 * a, M["dark"], head, 0, -0.2 * a, 0, PI / 2, seg=20)
     if kind == "visor":
         k.cyl(1.8 * a, 2.2 * a, 2.0 * a, M["frame"], head, 0, 1.0 * a, 0)
         k.pz([[-3.2 * a, 0], [3.2 * a, 0], [2.6 * a, 4.6 * a], [-2.6 * a, 4.6 * a]], 5.6 * a, M["armor"], head, 0, 1.8 * a, -0.2, 0, PI / 2, 0)
@@ -1435,7 +1514,10 @@ def harrow(k):
     body, hipY = _body(k, segs, footH, dict(t=1.05), 9.5, 22)
     chest = _waist(k, body)
     at = (0, 3.0, 1.0)
-    cp, cav, out, hull = chest_bay(k, chest, "canopy", at, "inner", HARROW_TORSO, wrap_z=-1.4)
+    # the canopy and the nose over it rise 2.6 m, clear of the hull behind, then tilt back 57 degrees on their back edge
+    cp, cav, out, hull = chest_bay(k, chest, "canopy", at, "inner", HARROW_TORSO, wrap_z=-1.4,
+                                   swing={"INNER_canopy": 2.6, "INNER_canopy_1": -1.0},
+                                   timing={"INNER_canopy": (0.35, 1.3), "INNER_canopy_1": (1.7, 1.4)})
     hull["cp"] = cp
     U, Yb, Yt = 1.0 / k.s, hull["Yb"], hull["Yt"]
     frame_contours(k, hull, Yb, Yt)
@@ -1483,7 +1565,7 @@ def roustabout(k):
     for s in (1, -1):
         k.stripes(k.g(cp, *hull["at"](s * 1.6, 2.6, 0.03)), 3.0 * U, 0, 0, 0, s * 1.6, hb=1.1, gap=0.6)
         MB.contour(k, hull, None, s * (PI / 2 + 0.1), s * (PI - 0.3), 3.6, 0.03, 0.05, M["hazard"])
-    walker_head(k, chest, 0, at[1] + 4.5 * U, at[2] - 0.9 * U, "turret", 1.15)
+    walker_head(k, chest, 0, at[1] + 4.35 * U, at[2] - 0.9 * U, "turret", 1.15)
     pack(k, cp, [(-0.6, chamfered(2.2, -2.6, -4.0)), (1.2, chamfered(2.6, -2.6, -4.4, 0.4)), (3.4, chamfered(2.3, -2.6, -4.2))],
          M["armor2"], -3.3)
     for s in (1, -1):
@@ -1518,12 +1600,12 @@ def driller(k):
     for s in (1, -1):
         k.stripes(k.g(cp, *hull["at"](s * 1.5, 3.2, 0.03)), 3.2 * U, 0, 0, 0, s * 1.5, hb=1.2, gap=0.6)
         beacon(k, cp, *hull["at"](s * (PI / 2 + 0.6), 4.3, 0.02))
-    walker_head(k, chest, 0, at[1] + 4.6 * U, at[2] - 0.6 * U, "visor", 1.0)
+    walker_head(k, chest, 0, at[1] + 4.55 * U, at[2] - 0.6 * U, "visor", 1.0)
     # the derrick: a lattice standing on the back, the drill string down its middle, a crown block on top
     der = k.g(cp, 0, 3.6 * U, -3.6 * U, PI, 0, 0)
     lattice(k, der, 4.0, 4.0, 22, M["red"], n=6, y0=0)
     k.cyl(0.6, 0.6, 20, M["metal"], cp, 0, 3.6 * U + 11, -3.6 * U)
-    k.pl(6, 2, 6, M["frame"], cp, 0, 3.6 * U + 22.6, -3.6 * U)
+    k.pl(6.4, 2, 6.4, M["frame"], cp, 0, 3.6 * U + 23.2, -3.6 * U)
     k.lamp(cp, 0, 3.6 * U + 24, -3.6 * U, 0.7, red=True)
     pack(k, cp, [(-0.8, rounded(1.6, -3.0, -4.6)), (1.6, rounded(1.9, -3.0, -4.9)), (3.0, rounded(1.4, -3.0, -4.5))], M["armor2"], -3.8)
     back_jets(k, cp, (1.5 * U, -1.5 * U), -1.4 * U, -4.0 * U, 2.2)
@@ -1566,10 +1648,10 @@ def mule(k):
     k.box(8.4 * U, 0.3 * U, 0.2 * U, M["hazard"], cp, 0, ry - 0.2 * U, 2.3 * U)
     # the dump bed, tipped on its back: floor, two sides and a headboard, on two hoist rams
     bed = k.g(cp, 0, (hull["Ytop"] - 0.6) * U, -3.4 * U, -0.35, 0, 0)
-    k.pl(8.6 * U, 0.4 * U, 7.2 * U, M["red"], bed, 0, 0, -3.4 * U)
+    k.pl(8.0 * U, 0.4 * U, 7.0 * U, M["red"], bed, 0, 0, -3.6 * U)          # its front edge behind the headboard's face
     for s in (1, -1):
         k.pl(0.4 * U, 2.8 * U, 7.2 * U, M["red"], bed, s * 4.1 * U, 1.4 * U, -3.4 * U)
-    k.pl(8.6 * U, 3.4 * U, 0.4 * U, M["red"], bed, 0, 1.7 * U, 0)
+    k.pl(8.0 * U, 3.4 * U, 0.4 * U, M["red"], bed, 0, 1.7 * U, 0)
     for s in (1, -1):
         ram_pair(k, cp, (s * 2.6 * U, -1.0 * U, -3.0 * U), (s * 2.6 * U, (hull["Ytop"] - 1.2) * U, -6.0 * U), 1.2)
     back_jets(k, cp, (1.6 * U, -1.6 * U), -1.2 * U, -3.4 * U, 2.4)
@@ -1619,7 +1701,7 @@ def humanoid(k, variant, torso, swing, look_t=1.0, a=1.0):
     frame_contours(k, hull, Yb, Yt)
     for s in (1, -1):                                                  # the slatted intakes either side of the cockpit
         k.vent(cp, 1.4 * U, 1.2 * U, *hull["at"](s * 0.95, 2.6, 0.05), 0, s * 0.95, 4)
-    walker_head(k, chest, 0, at[1] + hull["Ytop"] * U + 0.2, at[2] - 0.5 * U, "visor", 0.9)
+    walker_head(k, chest, 0, at[1] + (hull["Ytop"] - 0.1) * U, at[2] - 0.5 * U, "visor", 0.9)
     pack(k, cp, [(0.0, chamfered(1.8, -2.4, -3.6)), (1.6, chamfered(2.1, -2.4, -3.9, 0.35)), (3.0, chamfered(1.7, -2.4, -3.6))],
          M["armor2"], -3.0)
     back_jets(k, cp, (1.2 * U, -1.2 * U), 0.2 * U, -3.4 * U, 2.0)
@@ -1668,7 +1750,7 @@ def sapper(k):
     g = k.g(cp, -2.2 * U, 3.6 * U, -3.0 * U)
     k.pl(4.2, 4.0, 7, M["armor"], g, 0, 0, 0)
     k.cyl(1.0, 1.1, 30, M["metal"], g, 0, 1.6, 15, PI / 2 - 0.05, seg=14)
-    k.cyl(1.7, 1.7, 9, M["dark"], g, 0, 1.4, 4.5, PI / 2 - 0.05, seg=14)
+    k.cyl(1.7, 1.7, 9, M["dark"], g, 0, 1.4, 4.9, PI / 2 - 0.05, seg=14)
     k.cyl(1.9, 1.5, 3, M["frame"], g, 0, 2.4, 30, PI / 2 - 0.05, seg=14)
     k.sock("CANNON_R", g, 0, 2.5, 32, PI / 2)
     walker_extras(k, hipY, footH, 0.8, 0.05)
@@ -1694,18 +1776,18 @@ def plate_face(k, j, W, H, y_dir, z_off, glow_slit=False, livery=True):
 
 DESIGNS = {
     # id: (builder, height m, glow, livery, core, light plate, name, card)
-    "foreman": (foreman, 12.0, 0xffb02e, 0x2f6fe0, 0xffb347, False, "Foreman",
+    "foreman": (foreman, 24.0, 0xffb02e, 0x2f6fe0, 0xffb347, False, "Foreman",
                 dict(legs="digitigrade, three segments, double hydraulic rams, track-pad feet",
                      cockpit="Panorama: seated behind one wide screen and square side screens, in the chamfered prow",
                      opening="the Panorama clamshell, chest and cockpit as one: the front under the screens drops into a step, then the front over them swings up and out on two rams with the dash",
                      weapons="belt-fed boom cannon (L), hydraulic breaker (R)",
                      note="Original, after an excavator: slewing ring, broad shoulders with beacons, an engine pack and its stack. Recommended.")),
-    "stevedore": (stevedore, 13.5, 0x8fe3ff, 0x2f6fe0, 0x8fb6ff, False, "Stevedore",
-                  dict(legs="digitigrade, lattice girders, outrigger feet", cockpit="harness: standing in the octagonal prow",
-                       opening="the four lock rods turn out, the prow splits into two doors",
+    "stevedore": (stevedore, 26.0, 0x8fe3ff, 0x2f6fe0, 0x8fb6ff, False, "Stevedore",
+                  dict(legs="digitigrade, lattice girders, outrigger feet", cockpit="Titan: seated in the container chest",
+                       opening="the upper chest rises and tilts back, the front under it folds down below the sill",
                        weapons="cargo mortar (L), crane jib with a harpoon grapple (R)",
                        note="Original, after a dock crane: gantry, counter-jib and weights, warning lamps.")),
-    "ironhorse": (ironhorse, 11.0, 0xffc860, 0x2f6fe0, 0xff8a3a, False, "Ironhorse",
+    "ironhorse": (ironhorse, 22.0, 0xffc860, 0x2f6fe0, 0xff8a3a, False, "Ironhorse",
                   dict(legs="digitigrade, drive-wheel knees with coupling rods, cow-catcher shins",
                        cockpit="Excavator cab: seated, floor-to-roof screens in two rows and one in the floor",
                        opening="the dogs swing off, the smokebox front drops forward as a ramp with the cab's front on it",
@@ -1752,7 +1834,9 @@ DESIGNS = {
                      weapons="twin rail lances (L and R)", note="Mining Mike's rival Uber mech, ported: the reference.")),
 }
 
-PAINTED = ("harrow", "roustabout", "driller", "mule", "picket", "sapper")
+UNIT_NUMBERS = dict(harrow="01", roustabout="02", driller="06", mule="08", picket="11", sapper="12",
+                    foreman="31", stevedore="32", ironhorse="33")
+PAINTED = ("foreman", "stevedore", "ironhorse", "harrow", "roustabout", "driller", "mule", "picket", "sapper")
 
 
 def build(key, s):
@@ -1762,6 +1846,9 @@ def build(key, s):
     mats = K.make_mats(f"mech_{key}", glow, livery, core, light, PALETTES.get(key) if key in PAINTED else None)
     k = Kit(mats, s, key)
     k.extras.update(glow=glow, core=core)
+    if key in PAINTED:                               # its markings: the unit number, light or dark for its scheme
+        P = PALETTES[key]["BODY"]
+        k.mark = dict(number=UNIT_NUMBERS[key], dark=(0.3 * P[0] + 0.59 * P[1] + 0.11 * P[2]) > 0.28)
     fn(k)
     K.finish(k)
     return k

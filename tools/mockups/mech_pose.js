@@ -9,7 +9,10 @@ const lerp = (a, b, u) => a + (b - a) * u, ease = u => { u = sat(u); return u * 
 const scan = (t, period, amp, seed) => { const i = Math.floor(t / period), f = t / period - i; return lerp((hash(i + seed) - 0.5) * 2 * amp, (hash(i + 1 + seed) - 0.5) * 2 * amp, ease(f * 2.6)); };
 
 // ---------- Mining Mike's pose layer, on the contract's bone names ----------
-const MAP = { body: "pelvis", waist: "torso_twist", chest: "torso", head: "cockpit", shL: "shoulder_L", shR: "shoulder_R", elbL: "forearm_L", elbR: "forearm_R",
+// "head" is the sensor head on its neck, a child of the torso: the cockpit is part of the chest now and moves only with
+// it (owner, 2026-10-24: "head moves when mech leans ... that subtle torso sway ... breaks the immersion that the head is
+// connected"; Mining Mike's kit had the cockpit for a head)
+const MAP = { body: "pelvis", waist: "torso_twist", chest: "torso", head: "head", shL: "shoulder_L", shR: "shoulder_R", elbL: "forearm_L", elbR: "forearm_R",
   hipL: "thigh_L", hipR: "thigh_R", kneeL: "shin_L", kneeR: "shin_R", tarL: "hock_L", tarR: "hock_R", ankL: "foot_L", ankR: "foot_R" };
 const MAPPED = new Set(Object.values(MAP));
 const SEG = ["hip", "knee", "tar"];
