@@ -398,15 +398,11 @@ mod tests {
 
     #[test]
     fn a_broken_element_leaves_its_band() {
-        let mut f = frame();
-        let id = f.elements.iter().position(|e| e.kind == Kind::Wall && e.storey == 5).unwrap();
-        let before = band_meshes(&f, 1, 0.3).2;
+        let mut f = Frame::new(3, [4, 13, 3], Vec3::ZERO, Vec3::new(6.0, 3.5, 6.0), &StructureConfig::default());
+        let id = f.elements.iter().position(|e| e.kind == Kind::Wall && e.storey == 12).unwrap();
+        let (b0, b1) = (band_meshes(&f, 0, 0.3).2, band_meshes(&f, 1, 0.3).2);
         f.elements[id].alive = false;
-        assert_eq!(band_meshes(&f, 1, 0.3).2, before - 1);
-        assert_eq!(
-            band_meshes(&f, 0, 0.3).2,
-            band_meshes(&frame(), 0, 0.3).2,
-            "other bands are untouched"
-        );
+        assert_eq!(band_meshes(&f, 1, 0.3).2, b1 - 1);
+        assert_eq!(band_meshes(&f, 0, 0.3).2, b0, "other bands are untouched");
     }
 }
