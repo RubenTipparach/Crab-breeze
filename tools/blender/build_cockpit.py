@@ -1065,7 +1065,8 @@ def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ap = argparse.ArgumentParser()
     ap.add_argument("--size", type=int, default=4096)
-    ap.add_argument("--samples", type=int, default=64, help="contact occlusion samples")
+    ap.add_argument("--samples", type=int, default=16, help="contact occlusion samples (denoised after)")
+    ap.add_argument("--map-samples", type=int, default=4, help="samples for the colour, normal, roughness, metal and emission passes")
     ap.add_argument("--no-denoise", action="store_true")
     ap.add_argument("--no-bake", action="store_true", help="geometry only: skip the bake, keep the last atlases")
     a = ap.parse_args(argv)
@@ -1134,14 +1135,14 @@ def main():
                 print(f"BAKED {g} {kind} in {time.time() - t:.0f} s", flush=True)
                 return px
 
-            albedo = bake("DIFFUSE", 8, pass_filter={"COLOR"})
-            normal = bake("NORMAL", 8, normal_space="TANGENT")
-            rough = bake("ROUGHNESS", 8)[:, :, 0]
-            emit = bake("EMIT", 8)
+            albedo = bake("DIFFUSE", a.map_samples, pass_filter={"COLOR"})
+            normal = bake("NORMAL", a.map_samples, normal_space="TANGENT")
+            rough = bake("ROUGHNESS", a.map_samples)[:, :, 0]
+            emit = bake("EMIT", a.map_samples)
             with swap_surface(mats, "METAL_SRC", 0.0):
-                metal = bake("EMIT", 8)[:, :, 0]
+                metal = bake("EMIT", a.map_samples)[:, :, 0]
             with swap_surface(mats, "AO_SRC", 1.0):
-                ao_src = bake("EMIT", 8)[:, :, 0]
+                ao_src = bake("EMIT", a.map_samples)[:, :, 0]
             sc.world.light_settings.distance = 0.08
             ao = bake("AO", a.samples)
             if not a.no_denoise:
