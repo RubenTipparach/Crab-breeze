@@ -27,16 +27,10 @@ pub struct PilotConfig {
     pub pitch_limit_deg: f32,
     /// Deepest water the pilot walks into (no swimming yet).
     pub max_wade_depth_m: f32,
-    /// Use reaches `LADDER_base` (the stair's foot) from this far (horizontal).
+    /// Use reaches the mech from this far from `LADDER_base` (its boarding spot, horizontal).
     pub board_reach_m: f32,
     /// Speed of the eyes along the boarding path (climbing the stair).
     pub climb_speed_m_s: f32,
-    /// Free look limit, yaw either side, seated.
-    pub free_look_yaw_deg: f32,
-    /// Free look limit, pitch up and down, seated.
-    pub free_look_pitch_deg: f32,
-    /// How fast the head returns to the front when free look is released.
-    pub free_look_return_deg_s: f32,
 }
 
 impl Default for PilotConfig {
@@ -49,11 +43,8 @@ impl Default for PilotConfig {
             body_radius_m: 0.35,
             pitch_limit_deg: 85.0,
             max_wade_depth_m: 1.2,
-            board_reach_m: 3.0,
-            climb_speed_m_s: 1.2,
-            free_look_yaw_deg: 120.0,
-            free_look_pitch_deg: 70.0,
-            free_look_return_deg_s: 180.0,
+            board_reach_m: 25.0,
+            climb_speed_m_s: 7.0,
         }
     }
 }
@@ -69,9 +60,6 @@ impl Validate for PilotConfig {
         positive("max_wade_depth_m", self.max_wade_depth_m)?;
         positive("board_reach_m", self.board_reach_m)?;
         positive("climb_speed_m_s", self.climb_speed_m_s)?;
-        within("free_look_yaw_deg", self.free_look_yaw_deg, 0.0, 180.0)?;
-        within("free_look_pitch_deg", self.free_look_pitch_deg, 0.0, 89.9)?;
-        positive("free_look_return_deg_s", self.free_look_return_deg_s)?;
         Ok(())
     }
 }
@@ -149,6 +137,8 @@ pub struct MechAccess {
     pub eye_pilot: Vec3,
     /// The mech's heading (radians; 0 faces -z), for standing up facing the same way.
     pub heading_rad: f32,
+    /// The way the seat faces (heading plus torso twist): the view comes to rest here on boarding.
+    pub seat_yaw_rad: f32,
     /// True when the mech is stopped with its throttle at zero.
     pub stopped: bool,
     /// True when the mech sits with its hatch open and stair down.
@@ -171,16 +161,14 @@ pub struct PilotState {
     pub feet: Vec3,
     /// Horizontal velocity on foot (x, z).
     pub velocity: Vec2,
-    /// View yaw, radians; 0 faces -z, positive turns left. On foot it is also the body's heading.
+    /// View yaw in the world, radians; 0 faces -z, positive turns left. The player's own, in every
+    /// state: only the mouse moves it (owner, 2026-10-24: "never take camera control away from the
+    /// player"). On foot it is also the body's heading; seated, the torso turns to follow it.
     pub yaw_rad: f32,
     /// View pitch, radians, up positive.
     pub pitch_rad: f32,
     /// Seated: where `EYE_pilot` was at the last step.
     pub seated_eye: Vec3,
-    /// Seated free look yaw from the seat's forward.
-    pub head_yaw_rad: f32,
-    /// Seated free look pitch.
-    pub head_pitch_rad: f32,
     /// Where the pilot is.
     pub mode: PilotMode,
     /// Waiting for the hatch, after pressing Use.
@@ -202,10 +190,6 @@ pub enum PilotEvent {
     Disembarked,
 }
 
-fn approach(v: f32, target: f32, step: f32) -> f32 {
-    v + (target - v).clamp(-step, step)
-}
-
 impl PilotState {
     /// A pilot standing at `feet`, looking along `yaw_rad`.
     pub fn standing(feet: Vec3, yaw_rad: f32) -> Self {
@@ -215,8 +199,6 @@ impl PilotState {
             yaw_rad,
             pitch_rad: 0.0,
             seated_eye: Vec3::ZERO,
-            head_yaw_rad: 0.0,
-            head_pitch_rad: 0.0,
             mode: PilotMode::OnFoot,
             waiting: None,
         }
@@ -242,10 +224,14 @@ impl PilotState {
         self.mode == PilotMode::OnFoot && access.stopped && self.distance_to_stair(access) <= cfg.board_reach_m
     }
 
+    /// A hop from where the pilot stands, up in an arc onto the hatch's sill, then in to the seat.
     fn board_path(&self, m: &MechAccess, cfg: &PilotConfig) -> EyePath {
         let up = Vec3::Y * cfg.eye_height_m;
+        let eye = self.feet + up;
+        let sill = m.hatch_entry + up;
+        let top = eye.lerp(sill, 0.6) + Vec3::Y * 2.0;
         EyePath {
-            points: vec![self.feet + up, m.ladder_base + up, m.hatch_entry + up, m.eye_pilot],
+            points: vec![eye, top, sill, m.eye_pilot],
             travelled_m: 0.0,
         }
     }
@@ -310,14 +296,16 @@ impl PilotState {
                 }
             }
             PilotMode::Boarding(path) => {
-                self.yaw_rad = (self.yaw_rad - look.x.to_radians()).rem_euclid(std::f32::consts::TAU);
-                self.pitch_rad = (self.pitch_rad + look.y.to_radians()).clamp(-pitch_limit, pitch_limit);
+                // Stepping in: look input pauses while the view is carried into the seat (the
+                // owner's design, CLAUDE.md section 8); seated, it faces out of the cockpit.
                 path.travelled_m += cfg.climb_speed_m_s * dt_s;
                 if path.done() {
+                    if let Some(m) = access {
+                        self.yaw_rad = m.seat_yaw_rad.rem_euclid(std::f32::consts::TAU);
+                    }
+                    self.pitch_rad = 0.0;
                     self.seated_eye = *path.points.last().unwrap_or(&self.seated_eye);
                     self.mode = PilotMode::Seated;
-                    self.head_yaw_rad = 0.0;
-                    self.head_pitch_rad = 0.0;
                     event = Some(PilotEvent::Seated);
                 }
             }
@@ -325,15 +313,8 @@ impl PilotState {
                 if let Some(m) = access {
                     self.seated_eye = m.eye_pilot;
                 }
-                if a.free_look {
-                    let (ly, lp) = (cfg.free_look_yaw_deg.to_radians(), cfg.free_look_pitch_deg.to_radians());
-                    self.head_yaw_rad = (self.head_yaw_rad - look.x.to_radians()).clamp(-ly, ly);
-                    self.head_pitch_rad = (self.head_pitch_rad + look.y.to_radians()).clamp(-lp, lp);
-                } else {
-                    let step = cfg.free_look_return_deg_s.to_radians() * dt_s;
-                    self.head_yaw_rad = approach(self.head_yaw_rad, 0.0, step);
-                    self.head_pitch_rad = approach(self.head_pitch_rad, 0.0, step);
-                }
+                self.yaw_rad = (self.yaw_rad - look.x.to_radians()).rem_euclid(std::f32::consts::TAU);
+                self.pitch_rad = (self.pitch_rad + look.y.to_radians()).clamp(-pitch_limit, pitch_limit);
                 if let Some(m) = access {
                     if a.use_pressed && m.stopped && self.waiting.is_none() {
                         self.waiting = Some(Waiting::ToLeave);
@@ -344,8 +325,6 @@ impl PilotState {
                     if self.waiting == Some(Waiting::ToLeave) && m.hatch_open {
                         self.waiting = None;
                         self.mode = PilotMode::Disembarking(Self::leave_path(m, cfg));
-                        self.yaw_rad = m.heading_rad + self.head_yaw_rad;
-                        self.pitch_rad = self.head_pitch_rad;
                         event = Some(PilotEvent::DisembarkStarted);
                     }
                 }
@@ -381,6 +360,7 @@ mod tests {
             hatch_entry: Vec3::new(0.0, 10.6, -1.4),
             eye_pilot: Vec3::new(0.0, 9.6, -2.0),
             heading_rad: 0.0,
+            seat_yaw_rad: 0.0,
             stopped: true,
             hatch_open: true,
         }
@@ -458,7 +438,7 @@ mod tests {
     #[test]
     fn use_far_from_the_ladder_does_nothing() {
         let cfg = PilotConfig::default();
-        let mut p = PilotState::standing(Vec3::new(0.0, 0.0, 13.5), 0.0);
+        let mut p = PilotState::standing(Vec3::new(0.0, 0.0, 63.5), 0.0);
         p.step(&press_use(), &cfg, &FlatGround::default(), Some(&access()), DT);
         assert_eq!(p.mode, PilotMode::OnFoot);
     }
@@ -507,7 +487,7 @@ mod tests {
             run: true,
             ..Default::default()
         };
-        for _ in 0..120 {
+        for _ in 0..600 {
             p.step(&back, &cfg, &FlatGround::default(), Some(&closed), DT);
         }
         assert_eq!(p.waiting, None);
@@ -524,6 +504,30 @@ mod tests {
         let eyes = run_until_settled(&mut p, &cfg, &access());
         assert_eq!(p.mode, PilotMode::Seated);
         assert!(eyes.last().unwrap().distance(access().eye_pilot) < 1e-4);
+    }
+
+    #[test]
+    fn stepping_in_ignores_look_and_seats_the_view_facing_out() {
+        let cfg = PilotConfig::default();
+        let mut p = PilotState::standing(Vec3::new(0.0, 0.0, 5.5), 1.0);
+        p.step(&press_use(), &cfg, &FlatGround::default(), Some(&access()), DT);
+        let spin = Actions {
+            look_delta_deg: Vec2::new(30.0, 10.0),
+            ..Default::default()
+        };
+        for _ in 0..600 {
+            p.step(&spin, &cfg, &FlatGround::default(), Some(&access()), DT);
+            if p.mode == PilotMode::Seated {
+                break;
+            }
+        }
+        assert_eq!(p.mode, PilotMode::Seated);
+        assert!(
+            p.yaw_rad.abs() < 1e-4 || (p.yaw_rad - std::f32::consts::TAU).abs() < 1e-4,
+            "faces the seat's way: {}",
+            p.yaw_rad
+        );
+        assert_eq!(p.pitch_rad, 0.0);
     }
 
     #[test]

@@ -23,7 +23,7 @@ impl Plugin for BuildingsPlugin {
 
 /// The mesh of a building's standing cells, in world space.
 fn cells_mesh(c: &Cells) -> Mesh {
-    let mut b = MeshBuilder::default();
+    let mut b = MeshBuilder::tiled(4.0, 3.5);
     let white = [1.0, 1.0, 1.0, 1.0];
     let solid = |i: isize, k: isize, j: isize| {
         i >= 0

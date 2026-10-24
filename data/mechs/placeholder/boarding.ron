@@ -1,7 +1,8 @@
-// The stand-in's boarding: it sits, and its open frame needs no hatch, so it has no stages.
+// The stand-in's boarding: it kneels in a second, and its open frame needs no hatch, so it has no
+// stages (owner, 2026-10-24: "getting into the mech was super slow").
 (
-    sit: (duration_s: 3.5, pelvis_height_m: 2.4, hock_angle_deg: 90.0, torso_bow_deg: 20.0),
+    sit: (duration_s: 1.0, pelvis_height_m: 1.8, hock_angle_deg: 90.0, torso_bow_deg: 10.0),
     stages: [],
-    ready_s: 3.5,
-    clear_m: 3.0,
+    ready_s: 1.0,
+    clear_m: 30.0,
 )

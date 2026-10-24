@@ -126,7 +126,34 @@ pub struct MeshBuilder {
     positions: Vec<[f32; 3]>,
     normals: Vec<[f32; 3]>,
     colors: Vec<[f32; 4]>,
+    uvs: Vec<[f32; 2]>,
     indices: Vec<u32>,
+    /// Metres per texture tile along u and v; zero means 4 m by 4 m.
+    pub tile_m: Vec2,
+}
+
+impl MeshBuilder {
+    /// A builder whose texture tiles every `u` by `v` metres.
+    pub fn tiled(u: f32, v: f32) -> Self {
+        Self {
+            tile_m: Vec2::new(u, v),
+            ..default()
+        }
+    }
+
+    /// Planar UV for a point on a face with normal `n`: walls run u along the wall, v up.
+    fn uv(&self, p: Vec3, n: Vec3) -> [f32; 2] {
+        let t = if self.tile_m == Vec2::ZERO { Vec2::splat(4.0) } else { self.tile_m };
+        let a = n.abs();
+        let (u, v) = if a.y >= a.x && a.y >= a.z {
+            (p.x, p.z)
+        } else if a.x >= a.z {
+            (p.z, -p.y)
+        } else {
+            (p.x, -p.y)
+        };
+        [u / t.x, v / t.y]
+    }
 }
 
 impl MeshBuilder {
@@ -138,6 +165,7 @@ impl MeshBuilder {
             self.positions.push(c.into());
             self.normals.push(n.into());
             self.colors.push(color);
+            self.uvs.push(self.uv(c, n));
         }
         self.indices
             .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
@@ -158,10 +186,12 @@ impl MeshBuilder {
 
     fn tri(&mut self, a: Vec3, b: Vec3, c: Vec3, n: [Vec3; 3], color: [f32; 4]) {
         let base = self.positions.len() as u32;
+        let face = (b - a).cross(c - a).normalize_or(Vec3::Y);
         for (p, n) in [(a, n[0]), (b, n[1]), (c, n[2])] {
             self.positions.push(p.into());
             self.normals.push(n.into());
             self.colors.push(color);
+            self.uvs.push(self.uv(p, face));
         }
         self.indices.extend_from_slice(&[base, base + 1, base + 2]);
     }
@@ -226,6 +256,7 @@ impl MeshBuilder {
             .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, self.positions)
             .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, self.normals)
             .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, self.colors)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, self.uvs)
             .with_inserted_indices(Indices::U32(self.indices))
     }
 }
@@ -267,7 +298,9 @@ fn ground_colour(p: Vec3, n: Vec3, sea_level_m: f32, wet: bool, scorch: f32) -> 
 }
 
 fn chunk_to_mesh(chunk: ChunkMesh, colors: Vec<[f32; 4]>) -> Mesh {
+    let uvs: Vec<[f32; 2]> = chunk.positions.iter().map(|p| [p.x / 4.0, p.z / 4.0]).collect();
     Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
         .with_inserted_attribute(
             Mesh::ATTRIBUTE_POSITION,
             chunk.positions.iter().map(|p| p.to_array()).collect::<Vec<_>>(),
@@ -318,12 +351,17 @@ fn spawn_ground(
     mut commands: Commands,
     world: Res<Plan>,
     live: Res<Live>,
+    tex: Res<crate::textures::Textures>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let t = &world.terrain;
     let chunks = (t.n - 1).div_ceil(CHUNK_CELLS);
-    let material = vertex_material(&mut materials, 0.95);
+    let material = materials.add(StandardMaterial {
+        base_color_texture: Some(tex.grass.clone()),
+        perceptual_roughness: 0.95,
+        ..default()
+    });
     let mut ground = GroundMeshes {
         material: material.clone(),
         ..default()
@@ -414,6 +452,7 @@ fn spawn_roads(
     mut commands: Commands,
     world: Res<Plan>,
     data: Res<Data>,
+    tex: Res<crate::textures::Textures>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -424,6 +463,29 @@ fn spawn_roads(
     let park = [0.26, 0.40, 0.19, 1.0];
     let mut roads = MeshBuilder::default();
     let mut kerbs = MeshBuilder::default();
+    // Lane dashes down the middle of every street and highway: 3 m painted, 6 m gap.
+    let mut marks = MeshBuilder::default();
+    let white = [0.92, 0.92, 0.88, 1.0];
+    let mut dashes = |from: Vec2, to: Vec2, y: &dyn Fn(f32) -> f32| {
+        let len = from.distance(to);
+        let dir = (to - from).normalize_or(Vec2::X);
+        let side = dir.perp() * 0.15;
+        let mut s = 4.0;
+        while s + 3.0 < len - 4.0 {
+            let (a, b) = (from + dir * s, from + dir * (s + 3.0));
+            let (ya, yb) = (y(s / len), y((s + 3.0) / len));
+            marks.quad(
+                [
+                    Vec3::new(a.x + side.x, ya, a.y + side.y),
+                    Vec3::new(b.x + side.x, yb, b.y + side.y),
+                    Vec3::new(b.x - side.x, yb, b.y - side.y),
+                    Vec3::new(a.x - side.x, ya, a.y - side.y),
+                ],
+                white,
+            );
+            s += 9.0;
+        }
+    };
     for city in &world.cities {
         let y = city.ground_m + cfg.road_lift_m;
         for s in &city.streets {
@@ -442,6 +504,14 @@ fn spawn_roads(
                 ],
                 colour,
             );
+            let c = s.rect.centre();
+            let half = s.rect.size() * 0.5;
+            let yy = y + 0.04;
+            if half.x > half.y {
+                dashes(Vec2::new(a.x, c.y), Vec2::new(b.x, c.y), &|_| yy);
+            } else {
+                dashes(Vec2::new(c.x, a.y), Vec2::new(c.x, b.y), &|_| yy);
+            }
         }
         for block in &city.blocks {
             let (a, b) = (block.rect.min, block.rect.max);
@@ -464,39 +534,59 @@ fn spawn_roads(
             };
             roads.quad([p(t0, 1.0), p(t1, 1.0), p(t1, -1.0), p(t0, -1.0)], asphalt);
         }
+        let lift = cfg.road_lift_m + 0.04;
+        dashes(h.ends[0], h.ends[1], &|t| h.grade_at(t) + lift);
     }
-    let road_mat = vertex_material(&mut materials, 0.9);
+    let road_mat = materials.add(StandardMaterial {
+        base_color_texture: Some(tex.asphalt.clone()),
+        perceptual_roughness: 0.9,
+        ..default()
+    });
     commands.spawn((Name::new("roads"), Mesh3d(meshes.add(roads.build())), MeshMaterial3d(road_mat)));
-    let kerb_mat = vertex_material(&mut materials, 0.85);
+    let mark_mat = vertex_material(&mut materials, 0.6);
+    commands.spawn((
+        Name::new("lane marks"),
+        Mesh3d(meshes.add(marks.build())),
+        MeshMaterial3d(mark_mat),
+        NotShadowCaster,
+    ));
+    let kerb_mat = materials.add(StandardMaterial {
+        base_color_texture: Some(tex.concrete.clone()),
+        perceptual_roughness: 0.85,
+        ..default()
+    });
     commands.spawn((Name::new("blocks"), Mesh3d(meshes.add(kerbs.build())), MeshMaterial3d(kerb_mat)));
 }
 
 fn spawn_buildings(
     mut commands: Commands,
     world: Res<Plan>,
+    tex: Res<crate::textures::Textures>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut ents: ResMut<crate::buildings::BuildingEntities>,
 ) {
-    let cube = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
     let tones = BUILDING_TONES.map(|(r, g, b)| {
         materials.add(StandardMaterial {
             base_color: Color::srgb(r, g, b),
+            base_color_texture: Some(tex.facade.clone()),
             perceptual_roughness: 0.75,
             ..default()
         })
     });
     for b in &world.buildings {
         let ground = world.cities[b.city as usize].ground_m;
-        let size = b.footprint.size();
-        let centre = b.footprint.centre();
-        // The whole box stands on the city's ground (cells and box agree; craters do not dig cities).
+        // The whole box stands on the city's ground (cells and box agree; craters do not dig cities),
+        // its facade tiled one window bay (4 m) by one storey (3.5 m).
+        let mut mb = MeshBuilder::tiled(4.0, 3.5);
+        let (a, z) = (b.footprint.min, b.footprint.max);
+        mb.cuboid(Vec3::new(a.x, ground, a.y), Vec3::new(z.x, ground + b.height_m, z.y), [1.0; 4]);
         let e = commands
             .spawn((
                 Name::new(format!("building {}", b.id)),
-                Mesh3d(cube.clone()),
+                Mesh3d(meshes.add(mb.build())),
                 MeshMaterial3d(tones[b.id as usize % tones.len()].clone()),
-                Transform::from_xyz(centre.x, ground + b.height_m * 0.5, centre.y).with_scale(Vec3::new(size.x, b.height_m, size.y)),
+                Transform::IDENTITY,
             ))
             .id();
         ents.0.push(e);
@@ -718,7 +808,8 @@ struct TreeEntities(Vec<Entity>);
 
 /// A tree mesh, one unit tall, base at the origin: trunk and crown in vertex colours.
 fn tree_mesh(species: &str) -> Mesh {
-    let mut b = MeshBuilder::default();
+    // The mesh is one unit tall: a foliage tile every 5 cm of it, about a metre of a real tree.
+    let mut b = MeshBuilder::tiled(0.05, 0.05);
     let bark = [0.30, 0.22, 0.15, 1.0];
     let (trunk_r, trunk_top) = match species {
         "birch" => (0.018, 0.55),
@@ -761,10 +852,15 @@ fn spawn_trees(
     mut commands: Commands,
     plan: Res<Plan>,
     data: Res<Data>,
+    tex: Res<crate::textures::Textures>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let mat = vertex_material(&mut materials, 0.9);
+    let mat = materials.add(StandardMaterial {
+        base_color_texture: Some(tex.foliage.clone()),
+        perceptual_roughness: 0.9,
+        ..default()
+    });
     let species: Vec<Handle<Mesh>> = data.0.world.trees.species.iter().map(|s| meshes.add(tree_mesh(&s.name))).collect();
     let mut ids = Vec::with_capacity(plan.forest.trees.len());
     for t in &plan.forest.trees {

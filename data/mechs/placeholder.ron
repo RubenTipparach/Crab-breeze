@@ -7,17 +7,19 @@
 (
     name: "stand-in",
     model: None,
+    // Snappier than a real 50 t walker (owner, 2026-10-24: "slow and sluggish"): 12 m/s top speed,
+    // full throttle in under a second, a torso that tracks at 160 degrees a second.
     locomotion: (
-        walk_speed_max_m_s: 7.0,
+        walk_speed_max_m_s: 12.0,
         throttle_min: -0.4,
-        throttle_rate_per_s: 0.6,
-        accel_m_s2: 2.5,
-        brake_m_s2: 4.0,
-        turn_rate_deg_s: 30.0,
+        throttle_rate_per_s: 1.5,
+        accel_m_s2: 6.0,
+        brake_m_s2: 9.0,
+        turn_rate_deg_s: 60.0,
         twist_max_deg: 100.0,
-        twist_rate_deg_s: 70.0,
+        twist_rate_deg_s: 160.0,
         pitch_limits_deg: (-20.0, 25.0),
-        pitch_rate_deg_s: 40.0,
+        pitch_rate_deg_s: 100.0,
         body_radius_m: 3.0,
         stopped_speed_m_s: 0.2,
         hip_height_m: 5.9,
@@ -27,7 +29,7 @@
         limp_speed_ratio: 0.22,
     ),
     gait: (
-        stride_max_m: 9.0,
+        stride_max_m: 13.0,
         stride_min_m: 2.0,
         step_height_m: 0.9,
         bob_m: 0.25,
@@ -45,8 +47,10 @@
         (name: "head", parent: "torso", offset_m: (0.0, 4.4, -1.2)),
         (name: "EYE_pilot", parent: "cockpit", offset_m: (0.0, 0.4, 0.6)),
         (name: "SEAT_pilot", parent: "cockpit", offset_m: (0.0, -0.3, 0.3)),
-        (name: "HATCH_entry", parent: "cockpit", offset_m: (0.0, 1.4, 0.0)),
-        (name: "LADDER_base", parent: "root", offset_m: (0.0, 0.0, -3.8)),
+        // Boarding from the front (owner, 2026-10-24: "the mech should turn around and let me hop
+        // inside"): the mech faces the pilot, kneels, and the pilot hops onto the sill and in.
+        (name: "HATCH_entry", parent: "cockpit", offset_m: (0.0, -0.5, 2.7)),
+        (name: "LADDER_base", parent: "root", offset_m: (0.0, 0.0, 9.0)),
 
         (name: "shoulder_L", parent: "torso", offset_m: (3.0, 3.4, -0.6)),
         (name: "upper_arm_L", parent: "shoulder_L", offset_m: (0.5, 0.0, 0.0)),
@@ -76,8 +80,6 @@
     ],
     // Tones: 0 hull, 1 dark, 2 joint, 3 cockpit frame, 5 accent.
     boxes: [
-        (bone: "root", centre_m: (1.1, 6.0, -3.8), size_m: (0.3, 12.0, 0.3), tone: 1),
-        (bone: "root", centre_m: (-1.1, 6.0, -3.8), size_m: (0.3, 12.0, 0.3), tone: 1),
         (bone: "pelvis", centre_m: (0.0, 0.0, 0.0), size_m: (3.6, 1.2, 2.2), tone: 1),
         (bone: "torso_twist", centre_m: (0.0, 0.2, 0.0), size_m: (2.0, 0.8, 2.0), tone: 2),
         (bone: "torso", centre_m: (0.0, 2.2, -0.9), size_m: (5.0, 4.4, 3.6), tone: 0),

@@ -53,6 +53,8 @@ pub struct MechSim {
     pub guns: Guns,
     /// The torso is gone: the mech is a wreck.
     pub dead: bool,
+    /// It took a hit since its last step (its AI evades).
+    pub took_hit: bool,
 }
 
 /// A mech's data.
@@ -152,6 +154,7 @@ fn spawn_mech(
     mut commands: Commands,
     data: Res<Data>,
     world: Res<Plan>,
+    tex: Res<crate::textures::Textures>,
     assets: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -164,6 +167,7 @@ fn spawn_mech(
         at(start.mech_xz),
         start.mech_heading_rad,
         None,
+        &tex.metal,
         &assets,
         &mut meshes,
         &mut materials,
@@ -181,6 +185,9 @@ fn spawn_mech(
         if let Some(w) = &e.weapons {
             cfg.weapons = w.clone();
         }
+        for p in &mut cfg.parts {
+            p.armour_mm *= e.armour_scale;
+        }
         let xz = start.mech_xz + Vec2::from_array(e.offset_m);
         let tint = e.tint.map(|c| Color::srgb(c[0], c[1], c[2]));
         let ent = spawn_mech_entity(
@@ -189,6 +196,7 @@ fn spawn_mech(
             at(xz),
             e.heading_deg.to_radians(),
             tint,
+            &tex.metal,
             &assets,
             &mut meshes,
             &mut materials,
@@ -207,6 +215,7 @@ fn spawn_mech_entity(
     pos: Vec3,
     heading_rad: f32,
     tint: Option<Color>,
+    metal: &Handle<Image>,
     assets: &AssetServer,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
@@ -232,6 +241,7 @@ fn spawn_mech_entity(
                 cuts: Vec::new(),
                 guns: Guns::default(),
                 dead: false,
+                took_hit: false,
             },
             MechSpec(cfg.clone()),
             Transform::from_translation(state.pos).with_rotation(Quat::from_rotation_y(state.heading_rad)),
@@ -275,6 +285,7 @@ fn spawn_mech_entity(
     .map(|(c, rough)| {
         materials.add(StandardMaterial {
             base_color: c,
+            base_color_texture: Some(metal.clone()),
             perceptual_roughness: rough,
             metallic: 0.3,
             ..default()
@@ -511,6 +522,7 @@ fn publish_access(
             hatch_entry: at("HATCH_entry")?,
             eye_pilot: at("EYE_pilot")?,
             heading_rad: sim.curr.heading_rad,
+            seat_yaw_rad: sim.curr.heading_rad + sim.curr.twist_rad,
             stopped: sim.curr.is_stopped(&data.0.mech.locomotion),
             hatch_open: sim.hatch.is_open(&data.0.boarding),
         })
@@ -566,7 +578,9 @@ pub fn step_mech(
             for e in &events.0 {
                 match e {
                     PilotEvent::HatchWanted => sim.hatch.target = HatchTarget::Open,
-                    PilotEvent::Seated => sim.hatch.target = HatchTarget::SealedSitting,
+                    // Seated: the hatch closes and the mech stands up, ready to go (the owner's flow:
+                    // approach, it kneels, step in, it stands).
+                    PilotEvent::Seated => sim.hatch.target = HatchTarget::Standing,
                     _ => {}
                 }
             }
@@ -576,6 +590,15 @@ pub fn step_mech(
                 .is_some_and(|a| pilot.curr.mode == PilotMode::OnFoot && pilot.curr.distance_to_stair(a) > tl.clear_m);
             if sim.hatch.target == HatchTarget::Open && clear && pilot.curr.waiting.is_none() {
                 sim.hatch.target = HatchTarget::SealedSitting;
+            }
+            // It is the pilot's own mech: when they walk up to it, it turns to them and kneels,
+            // ready to board (owner, 2026-10-24: "when I approach it, I expect it to crouch down").
+            let near = access
+                .0
+                .as_ref()
+                .is_some_and(|a| pilot.curr.mode == PilotMode::OnFoot && pilot.curr.distance_to_stair(a) < data.0.pilot.board_reach_m);
+            if near && sim.curr.is_stopped(&cfg.locomotion) {
+                sim.hatch.target = HatchTarget::Open;
             }
             if seated && sim.hatch.is_sealed_sitting(tl) && (actions.throttle_axis > 0.0 || actions.lift_axis > 0.0) {
                 sim.hatch.target = HatchTarget::Standing;
@@ -604,18 +627,57 @@ pub fn step_mech(
                 }
                 None => {}
             }
-            if seated && sim.hatch.can_walk() {
+            if !seated && sim.hatch.target == HatchTarget::Open && pilot.curr.mode == PilotMode::OnFoot {
+                // Asked to board: turn to face the pilot while kneeling, so the hatch is toward them.
+                let to = pilot.curr.feet - sim.curr.pos;
+                let want = (-to.x).atan2(-to.z);
+                let err = (want - sim.curr.heading_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+                MechControls {
+                    turn_axis: (err * 3.0).clamp(-1.0, 1.0),
+                    ..default()
+                }
+            } else if seated && sim.hatch.can_walk() {
                 fire = actions.fire;
+                // The torso turns to follow where the pilot looks (the view leads, the torso
+                // follows); holding free look keeps the torso where it is.
+                let mut c = MechControls::from_actions(&actions);
+                if !actions.free_look {
+                    let wrap = |a: f32| (a + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+                    let twist = wrap(pilot.curr.yaw_rad - sim.curr.heading_rad);
+                    c.aim_delta_deg = Vec2::new(
+                        -(twist - sim.curr.aim_twist_rad).to_degrees(),
+                        (pilot.curr.pitch_rad - sim.curr.aim_pitch_rad).to_degrees(),
+                    );
+                }
                 let others: Vec<Vec3> = bodies.iter().filter(|b| b.0 != id.0).map(|b| b.1).collect();
                 aim_at = cam.map(|c| look_point(&c, &plan, live, &others));
-                MechControls::from_actions(&actions)
+                c
             } else {
                 MechControls::default()
             }
+        } else if !seated {
+            // The enemies wait until the pilot is in the seat: no one fights an empty mech.
+            MechControls::default()
         } else if let (Some(mut enemy), Some((target, target_vel, target_dead))) = (enemy, player) {
             let eye = sim.curr.pos + Vec3::Y * 9.6;
             let speed = cfg.weapons.first().map_or(850.0, |w| w.speed_m_s);
-            let orders = enemy.ai.think(&sim.curr, eye, target, target_vel, speed, dt);
+            let allies: Vec<Vec3> = bodies.iter().filter(|b| b.0 != id.0 && b.0 != 0).map(|b| b.1).collect();
+            let hit = std::mem::take(&mut sim.took_hit);
+            let health = torso_health(&sim, cfg);
+            let clear = |a: Vec3, b: Vec3| line_clear(&plan, live, a, b);
+            let cover = |me: Vec3, threat: Vec3| cover_point(&plan, live, me, threat);
+            let view = cb_core::ai::View {
+                eye,
+                target,
+                target_vel,
+                muzzle_speed_m_s: speed,
+                health,
+                hit,
+                allies: &allies,
+                clear: &clear,
+                cover: &cover,
+            };
+            let orders = enemy.ai.orders(&sim.curr, &view, dt);
             if !target_dead {
                 fire = orders.fire;
             }
@@ -800,8 +862,57 @@ pub fn step_mech(
     events.0.clear();
 }
 
+/// A mech's torso structure left, 0..1.
+pub fn torso_health(sim: &MechSim, cfg: &MechConfig) -> f32 {
+    cfg.parts
+        .iter()
+        .position(|p| p.kind == PartKind::Torso)
+        .map_or(1.0, |i| sim.damage.structure[i] / cfg.parts[i].structure.max(1.0))
+}
+
+/// True when the straight line from `a` to `b` is clear of standing building cells and the ground.
+pub fn line_clear(plan: &cb_core::world::WorldPlan, live: &Live, a: Vec3, b: Vec3) -> bool {
+    let len = a.distance(b);
+    let steps = (len / 4.0).ceil().max(1.0) as usize;
+    for s in 1..steps {
+        let p = a.lerp(b, s as f32 / steps as f32);
+        let p2 = Vec2::new(p.x, p.z);
+        if p.y <= plan.terrain.height_at(p.x, p.z) + live.dug.delta_at(p2) {
+            return false;
+        }
+        if plan
+            .collision
+            .candidates(p2, 0.5)
+            .into_iter()
+            .any(|bi| live.structures.buildings[bi as usize].solid_at(p))
+        {
+            return false;
+        }
+    }
+    true
+}
+
+/// A spot behind the nearest standing building within 200 m, on its far side from `threat`.
+pub fn cover_point(plan: &cb_core::world::WorldPlan, live: &Live, me: Vec3, threat: Vec3) -> Option<Vec3> {
+    let here = Vec2::new(me.x, me.z);
+    let from = Vec2::new(threat.x, threat.z);
+    plan.collision
+        .candidates(here, 200.0)
+        .into_iter()
+        .filter(|b| live.structures.buildings[*b as usize].standing > 0)
+        .map(|b| &plan.buildings[b as usize])
+        .min_by(|a, b| a.footprint.centre().distance(here).total_cmp(&b.footprint.centre().distance(here)))
+        .map(|b| {
+            let c = b.footprint.centre();
+            let away = (c - from).normalize_or(Vec2::X);
+            let p = c + away * (b.footprint.size().max_element() * 0.5 + 14.0);
+            Vec3::new(p.x, me.y, p.y)
+        })
+}
+
 /// Applies a hit to a mech's part: structure, a lost part cut off, legs lost, death by the torso.
 pub fn apply_hit(sim: &mut MechSim, cfg: &MechConfig, hit: Hit) {
+    sim.took_hit = true;
     if let Some(lost) = sim.damage.resolve(&cfg.parts, hit) {
         sim.cuts.push(lost);
         sim.curr.legs_lost = sim.damage.legs(&cfg.parts).map(|on| !on);

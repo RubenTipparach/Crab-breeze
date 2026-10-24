@@ -245,6 +245,22 @@ said out loud and kept in check, never guessed.
 
 ## 8. Working with the owner
 
+- **When the owner is using the computer, do not playtest. Ever.** (owner, 2026-10-24: "When I
+  use the computer, you do not playtest", "I will verbally tell you when you can playtest".) On the
+  owner's machine, no scripted run, no stills or capture run, no benchmark, no recording and no
+  launch of the game for testing unless the owner has said, in words, in this conversation, that
+  Claude may playtest now. Make the updates, build, and tell the owner how to run it
+  (`./run.sh`). Permission to playtest lasts until the owner says they are using the computer
+  again. A cloud session's headless tests and builds are not playtests.
+- **Never take camera or input control away from the player** (owner, 2026-10-24: "never take
+  camera control away from the player. NEVER"). The view's direction is the player's in every
+  state: no camera snapping, easing, aim assist or scripted turn of the view outside a scripted
+  take the owner asked for. Things the view rides on (the cockpit, a boarding path) may carry its
+  position; only the player turns it. **The one exception is the owner's own design for stepping
+  in** (2026-10-24: "pause input for camera, and open up the cockpit, and place my character camera
+  inside the cockpit pointed outwards"): after the player presses Use at the prompt, look input
+  pauses while the view is carried into the seat and turned to face out of the cockpit, and the
+  mouse is the player's again the moment they are seated.
 - **Ask with the survey, never in chat** (Star Crew, Pale Blue Dot, Tactical Airsuite). Open
   questions go into the survey page `docs/design/survey.html`, published as an HTML artifact whose
   database holds the answers, with options, a recommendation and a place to answer. The

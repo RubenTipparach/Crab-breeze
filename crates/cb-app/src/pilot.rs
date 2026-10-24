@@ -49,7 +49,11 @@ impl Plugin for PilotPlugin {
         .init_resource::<PilotEvents>()
         .add_systems(Startup, spawn_camera)
         .add_systems(FixedUpdate, step_pilot.in_set(SimSet::Pilot))
-        .add_systems(Update, (place_camera, weather_and_screens).chain().in_set(PresentSet::Camera));
+        .add_systems(Startup, spawn_prompt)
+        .add_systems(
+            Update,
+            ((place_camera, weather_and_screens).chain(), show_prompt).in_set(PresentSet::Camera),
+        );
     }
 }
 
@@ -113,6 +117,7 @@ fn view(yaw: f32, pitch: f32) -> Quat {
 fn place_camera(
     pilot: Res<PilotSim>,
     acc: Res<InputAccum>,
+    access: Res<MechAccessNow>,
     fixed: Res<Time<Fixed>>,
     data: Res<Data>,
     rigs: Query<&MechRig, With<crate::mech::Piloted>>,
@@ -128,8 +133,7 @@ fn place_camera(
     let seat = || {
         let rig = rigs.iter().next()?;
         let eye = socket_now(rig, "EYE_pilot", &transforms, &parents)?;
-        // EYE_pilot looks along its +z; a camera looks along its -z.
-        Some(Transform::from_translation(eye.translation).with_rotation(eye.rotation * Quat::from_rotation_y(std::f32::consts::PI)))
+        Some(eye)
     };
     let walking_view = || {
         let pitch_limit = cfg.pitch_limit_deg.to_radians();
@@ -138,27 +142,55 @@ fn place_camera(
             (curr.pitch_rad + pending.y.to_radians()).clamp(-pitch_limit, pitch_limit),
         )
     };
-    let eye = prev.eye(cfg).lerp(curr.eye(cfg), alpha);
-    **camera = match &curr.mode {
-        PilotMode::OnFoot | PilotMode::Disembarking(_) => Transform::from_translation(eye).with_rotation(walking_view()),
-        PilotMode::Boarding(path) => {
-            // On the last leg, into the seat, the view turns to the seat's forward.
-            let mut rot = walking_view();
-            if let Some(s) = seat() {
-                let t = path.last_leg_progress();
-                rot = rot.slerp(s.rotation, t * t * (3.0 - 2.0 * t));
-            }
-            Transform::from_translation(eye).with_rotation(rot)
-        }
-        PilotMode::Seated => match seat() {
-            Some(s) => {
-                let yaw = curr.head_yaw_rad;
-                let pitch = curr.head_pitch_rad;
-                s.with_rotation(s.rotation * view(yaw, pitch))
-            }
-            None => Transform::from_translation(eye).with_rotation(walking_view()),
-        },
+    // The view's direction is the player's, always: only the mouse turns it. Seated, the eyes ride
+    // at EYE_pilot; boarding and climbing out, they ride the path.
+    let eye = match &curr.mode {
+        PilotMode::Seated => seat().map_or(prev.eye(cfg).lerp(curr.eye(cfg), alpha), |s| s.translation),
+        _ => prev.eye(cfg).lerp(curr.eye(cfg), alpha),
     };
+    let rotation = match &curr.mode {
+        // Stepping in (the owner's design): look input is paused; the view turns from where the
+        // player was looking to face out of the seat over the climb.
+        PilotMode::Boarding(path) => {
+            let k = (path.travelled_m / path.length_m().max(0.01)).clamp(0.0, 1.0);
+            let k = k * k * (3.0 - 2.0 * k);
+            let seat_yaw = access.0.as_ref().map_or(curr.yaw_rad, |a| a.seat_yaw_rad);
+            view(curr.yaw_rad, curr.pitch_rad).slerp(view(seat_yaw, 0.0), k)
+        }
+        _ => walking_view(),
+    };
+    **camera = Transform::from_translation(eye).with_rotation(rotation);
+}
+
+/// The step-in prompt.
+#[derive(Component)]
+struct Prompt;
+
+fn spawn_prompt(mut commands: Commands) {
+    commands.spawn((
+        Prompt,
+        Text::new(""),
+        TextFont::from_font_size(28.0),
+        TextColor(Color::srgb(0.95, 0.95, 0.9)),
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: percent(30.0),
+            width: percent(100.0),
+            justify_content: JustifyContent::Center,
+            ..default()
+        },
+        TextLayout::justify(Justify::Center),
+    ));
+}
+
+/// Shows "E: step into the cockpit" when the kneeling mech is ready and the pilot is near.
+fn show_prompt(pilot: Res<PilotSim>, access: Res<MechAccessNow>, data: Res<Data>, mut prompt: Single<&mut Text, With<Prompt>>) {
+    let p = &pilot.curr;
+    let ready = access.0.as_ref().is_some_and(|a| a.hatch_open && p.can_board(a, &data.0.pilot));
+    let want = if ready { "[E]  Step into the cockpit" } else { "" };
+    if prompt.0 != want {
+        prompt.0 = want.into();
+    }
 }
 
 /// Clear-air visibility.

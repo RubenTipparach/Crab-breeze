@@ -25,6 +25,8 @@ pub struct ShowcasePlugin {
 /// Where the take is.
 #[derive(Resource, Default)]
 pub struct Take {
+    /// The player's brain in the fight: the enemies' brain, its orders played as actions.
+    brain: Option<cb_core::ai::AiPilot>,
     /// The beat playing now.
     pub beat: usize,
     beat_started_s: f32,
@@ -295,15 +297,6 @@ fn aim_at(m: &MechState, eye: Vec3, point: Vec3) -> Vec2 {
     )
 }
 
-/// How far the torso points from a world point, degrees.
-fn aim_error_deg(m: &MechState, eye: Vec3, point: Vec3) -> f32 {
-    let d = point - eye;
-    let yaw = (-d.x).atan2(-d.z);
-    let pitch = d.y.atan2(Vec2::new(d.x, d.z).length());
-    let dy = (m.heading_rad + m.twist_rad - yaw + PI).rem_euclid(TAU) - PI;
-    Vec2::new(dy, m.pitch_rad - pitch).length().to_degrees()
-}
-
 /// The city fight: board, walk out to meet two enemy mechs, shoot it out with the autocannon and
 /// cannon, then bring down the nearest tower by its ground floor and stride through the rubble.
 fn play_fight(
@@ -327,6 +320,21 @@ fn play_fight(
     let eye = m.pos + Vec3::Y * 9.6;
     let mut act = Actions::default();
     let alive: Vec<&MechSim> = enemies.iter().filter(|e| !e.dead).collect();
+    if (now * 1.0).fract() < 0.017 {
+        let es: Vec<String> = enemies
+            .iter()
+            .map(|e| format!("({:.0},{:.0}) v{:.1}", e.curr.pos.x, e.curr.pos.z, e.curr.speed_m_s))
+            .collect();
+        info!(
+            "track: beat {} me ({:.0},{:.0}) v{:.1} throttle {:.2} | enemies {}",
+            take.beat,
+            m.pos.x,
+            m.pos.z,
+            m.speed_m_s,
+            m.throttle,
+            es.join(" ")
+        );
+    }
     match take.beat {
         0 => {
             if t > 5.0 && access.0.is_some() {
@@ -366,74 +374,86 @@ fn play_fight(
             act.throttle_axis = throttle_to(m, 0.5);
             next = t > 8.0;
         }
-        // The fight: nearest live enemy, lead it, fire both groups when on target.
-        4 => {
-            act.throttle_axis = throttle_to(m, 0.25);
-            if let Some(e) = alive
-                .iter()
-                .min_by(|a, b| a.curr.pos.distance(m.pos).total_cmp(&b.curr.pos.distance(m.pos)))
-            {
-                let vel = cb_core::mech::forward(e.curr.heading_rad) * e.curr.speed_m_s;
-                let point = cb_core::weapons::lead(eye, e.curr.pos + Vec3::Y * 8.5, vel, 1100.0);
-                act.look_delta_deg = aim_at(m, eye, point);
-                act.turn_axis = steer(m, Vec2::new(e.curr.pos.x, e.curr.pos.z)) * 0.5;
-                let err = aim_error_deg(m, eye, point);
-                act.fire = [err < 2.5, err < 1.5];
-                if (t * 2.0).fract() < 0.02 {
-                    debug!(
-                        "fight: enemy at {:.0} m, aim error {err:.1} deg, twist {:.0} aim {:.0} pitch {:.0}",
-                        e.curr.pos.distance(m.pos),
-                        m.twist_rad.to_degrees(),
-                        m.aim_twist_rad.to_degrees(),
-                        m.pitch_rad.to_degrees()
-                    );
-                }
-            }
-            next = alive.is_empty() && t > 2.0 || t > 90.0;
-            if next {
-                // The tower to bring down: the tallest standing within 350 m.
-                let here = Vec2::new(m.pos.x, m.pos.z);
-                take.landing = plan
-                    .buildings
+        // The fight: the enemies' own brain flies the player's mech (orbit the nearest at a
+        // stand-off, evade when hit, hop, find a firing line), its orders played as actions.
+        4 | 5 => {
+            let (beat, tower) = (take.beat, take.shots);
+            let brain = take.brain.get_or_insert_with(|| {
+                cb_core::ai::AiPilot::new(
+                    cb_core::ai::Skill {
+                        aim_noise_deg: 0.3,
+                        fire_error_deg: 3.5,
+                        range_m: if beat == 4 { 130.0 } else { 120.0 },
+                        hop_chance: 0.3,
+                        ..Default::default()
+                    },
+                    cb_core::rng::SimRng::new(plan.seed).fork("player"),
+                )
+            });
+            let (target, target_vel, wall) = if beat == 4 {
+                match alive
                     .iter()
-                    .filter(|b| b.footprint.centre().distance(here) < 350.0 && live.structures.buildings[b.id as usize].standing > 0)
-                    .max_by_key(|b| b.storeys)
-                    .map(|b| b.footprint.centre())
-                    .unwrap_or(here);
+                    .min_by(|a, b| a.curr.pos.distance(m.pos).total_cmp(&b.curr.pos.distance(m.pos)))
+                {
+                    Some(e) => (e.curr.pos, cb_core::mech::forward(e.curr.heading_rad) * e.curr.speed_m_s, false),
+                    None => (m.pos, Vec3::ZERO, false),
+                }
+            } else {
+                let b = &plan.buildings[tower as usize];
+                let c = &live.structures.buildings[b.id as usize];
+                (
+                    Vec3::new(
+                        b.footprint.centre().x,
+                        c.origin.y + 2.0 - cb_core::ai::TORSO_AIM_M,
+                        b.footprint.centre().y,
+                    ),
+                    Vec3::ZERO,
+                    true,
+                )
+            };
+            let hit = sim.took_hit;
+            let clear = |a: Vec3, b: Vec3| wall || crate::mech::line_clear(&plan, &live, a, b);
+            let cover = |me: Vec3, threat: Vec3| crate::mech::cover_point(&plan, &live, me, threat);
+            let view = cb_core::ai::View {
+                eye,
+                target,
+                target_vel,
+                muzzle_speed_m_s: 1100.0,
+                health: 1.0,
+                hit,
+                allies: &[],
+                clear: &clear,
+                cover: &cover,
+            };
+            let o = brain.orders(m, &view, time.delta_secs());
+            act.throttle_axis = o.controls.throttle_axis;
+            act.turn_axis = o.controls.turn_axis;
+            act.look_delta_deg = o.controls.aim_delta_deg;
+            act.lift_axis = o.controls.lift_axis;
+            act.mode_request = o.controls.mode_request;
+            act.fire = o.fire;
+            if beat == 4 && alive.is_empty() && t > 2.0 || t > 100.0 {
+                next = true;
+                take.brain = None;
+                // The tower to bring down: the tallest standing within 400 m.
+                let here = Vec2::new(m.pos.x, m.pos.z);
                 take.shots = plan
                     .buildings
                     .iter()
-                    .find(|b| b.footprint.centre() == take.landing)
+                    .filter(|b| b.footprint.centre().distance(here) < 400.0 && live.structures.buildings[b.id as usize].standing > 0)
+                    .max_by_key(|b| b.storeys)
                     .map_or(0, |b| b.id);
+            } else if beat == 5 && (live.structures.buildings[tower as usize].standing == 0 || t > 40.0) {
+                next = true;
             }
         }
-        // Shoot out the tower's ground floor, sweeping across its face.
-        5 => {
-            act.throttle_axis = throttle_to(m, 0.0);
-            let b = &plan.buildings[take.shots as usize];
-            let c = &live.structures.buildings[b.id as usize];
-            let sweep = (t * 0.5).sin();
-            let face = b.footprint.centre()
-                + (Vec2::new(m.pos.x, m.pos.z) - b.footprint.centre()).normalize_or(Vec2::X) * (b.footprint.size().max_element() * 0.5);
-            let across = (face - b.footprint.centre()).perp().normalize_or(Vec2::Y) * sweep * b.footprint.size().min_element() * 0.45;
-            let point = Vec3::new(face.x + across.x, c.origin.y + 2.0, face.y + across.y);
-            act.look_delta_deg = aim_at(m, eye, point);
-            act.turn_axis = steer(m, b.footprint.centre()) * 0.4;
-            let err = aim_error_deg(m, eye, point);
-            act.fire = [err < 4.0, err < 2.0];
-            next = c.standing == 0 || t > 30.0;
-        }
-        // Watch it come down, then stride into the dust.
+        // Charge into the ruin and through the dust.
         6 => {
             let b = &plan.buildings[take.shots as usize];
-            act.look_delta_deg = aim_at(
-                m,
-                eye,
-                Vec3::new(b.footprint.centre().x, eye.y + 20.0 - t * 2.0, b.footprint.centre().y),
-            );
-            act.throttle_axis = if t > 6.0 { throttle_to(m, 0.8) } else { throttle_to(m, 0.0) };
-            act.turn_axis = steer(m, b.footprint.centre()) * 0.6;
-            next = t > 18.0;
+            act.look_delta_deg = aim_at(m, eye, Vec3::new(b.footprint.centre().x, eye.y + 10.0, b.footprint.centre().y));
+            act.throttle_axis = throttle_to(m, 1.0);
+            act.turn_axis = steer(m, b.footprint.centre());
+            next = t > 14.0;
         }
         7 => {
             act.throttle_zero = t < 0.1;

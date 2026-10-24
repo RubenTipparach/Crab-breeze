@@ -14,6 +14,7 @@ mod physics;
 mod pilot;
 mod showcase;
 mod sim;
+mod textures;
 mod world;
 
 use bevy::prelude::*;
@@ -65,6 +66,7 @@ fn main() -> AppExit {
     )
     .insert_resource(sim::Data(data))
     .insert_resource(world::Seed(args.seed))
+    .add_plugins(textures::TexturesPlugin)
     .add_plugins((
         sim::SimPlugin,
         input::InputPlugin,
