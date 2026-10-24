@@ -75,5 +75,5 @@ The sky alone reflects no buildings. The owner's "cache some cube maps" is the r
 |---|---|---|---|
 | GR1 | Show the HDRI as the visible sky (a skybox) too, or keep the flat sky colour and fog? (survey W19) | Keep the flat sky for now: the fog and clouds are tuned to it, and the reflections carry the HDRI's clouds | provisional |
 | GR2 | Which sky, and one or several (time of day, weather)? (survey W19) | One midday partly cloudy sky now; a sky per mission later | provisional |
-| GR3 | Glass colour and strength (survey W20; owner, 2026-10-24: "usually glass is tinted", "so it reflects more light, and interiors appear darker than the world around it") | Tinted blue-green: alpha 0.7 (30 % of the room shows), reflectance 0.9 (about 13 % head-on) | provisional |
+| GR3 | Glass colour and strength (survey W20; owner, 2026-10-24: "usually glass is tinted", "so it reflects more light, and interiors appear darker than the world around it", "too transparent", "go harder on the reflections") | Mirror-coated: alpha 0.88 (12 % of the room shows), coating 0.9 over a blue-grey tint (about 45 % head-on), each building's tint on top | provisional |
 | GR4 | Build the cached street probes (section 3) next? (survey W21; the owner's reference photos show towers mirroring the street) | Yes | open |

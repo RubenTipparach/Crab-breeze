@@ -17,12 +17,16 @@
     // 0.5 is plain 4 % glass); Fresnel takes it toward a mirror at grazing angles. Alpha 0.55
     // shows the rooms at 45 %: glass reads as a mirror only where what is behind it is darker
     // than the street (alpha 0.3 first: the rooms, lit like the street, drowned the reflection).
-    // Tinted (owner, 2026-10-24: "usually glass is tinted"): alpha 0.7 lets 30 % of the room
-    // through, as tinted office glass does (20-50 %), and the body is a dark blue-green.
+    // Tinted (owner, 2026-10-24: "usually glass is tinted"); then mirror-coated (owner: "glass
+    // still doesnt look right, too transparent", "it should go harder on the reflections"). Plain
+    // glass reflects at most 16 % head-on, so the coating (Bevy's metallic) carries it: about
+    // 0.9 x 0.48 + 0.1 x 0.16 = 45 % head-on, blue-grey, toward a mirror at grazing angles. Alpha
+    // 0.88 lets 12 % of the room through; the body colour left is 0.1 x tint, a dark blue.
     glass: (
-        tint: (0.02, 0.05, 0.055),
-        alpha: 0.7,
-        roughness: 0.04,
-        reflectance: 0.9,
+        tint: (0.4, 0.5, 0.55),
+        alpha: 0.88,
+        roughness: 0.02,
+        reflectance: 1.0,
+        coating: 0.9,
     ),
 )

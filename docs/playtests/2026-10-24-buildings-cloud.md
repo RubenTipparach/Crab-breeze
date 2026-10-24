@@ -82,7 +82,18 @@ Measured on seed 42 with a throwaway test: 6 100 buildings, 2 903 walk-ups and w
 brick (40 %). Brick is used, but **only on buildings of 6 storeys or fewer**
 (`dressing::style_of`), and height falls with distance from the centre (24 to 60 storeys
 downtown, exponent 0.7), so brick sits in a ring at the city's edge and downtown, where you
-start, has none. Survey W18 recommends picking the material per building: brick on about 40 % of
+start, has none.
+
+The style itself is drawn per building (`dressing::look_of`), and measured with a throwaway test
+over the same seed it gives, within 500 m of the start (393 buildings): 150 curtain-wall towers
+(38 %), 81 ribbon-window offices, 50 punched-grid concrete offices, 79 brick walk-ups and 33 brick
+warehouses (28 % brick). Over the world: 1 655 towers, 1 148 + 730 offices, 2 057 walk-ups, 510
+warehouses. Five facade kinds in all, each varied by colour (6 brick tints, 4 concrete, 4 glass,
+3 mullion), frame colour and window rhythm; brick, concrete, roofing and wood carry normal maps,
+glass and trim (frames, mullions, sills) do not. The owner: "are we using all kinds of
+buildings? all i see in screenshots is the one glass type, there should be many other tpyes, with
+buyildings that have normal maps". Five kinds is too few, and downtown is dominated by one of
+them: OpenSpec change `building-variety` proposes more. Survey W18 recommends picking the material per building: brick on about 40 % of
 7-14 storey buildings (pre-war lofts and offices) and brick podiums under some towers.
 
 ## The glass (owner, 2026-10-24)
@@ -101,6 +112,18 @@ appear darker than the world around it". OpenSpec change `glass-reflections`:
   `building-whole.jpg` shows the clouds along the tower from its foot.
 - **Not yet**: the reference photos' towers mirror the buildings across the street. The sky cube
   reflects only sky. Cached street cube maps at each crossing are designed (survey W21).
+- **Second pass, mirror glass** (owner: "glass still doesnt look right, too transparent", "it should
+  go harder on the reflections", "in real life, thered be less light on the inside of the
+  building, so the reflectivity shuold be way stronger"). Plain glass in Bevy reflects at most
+  16 % head-on, so the pane now has a reflective coating (Bevy's `metallic` 0.9 over a blue-grey
+  tint: about 45 % head-on) and lets 12 % of the room through (alpha 0.88), as a room lit only
+  through its windows would look. `glass-mirror-before-after-tower.jpg` and
+  `-office.jpg` (first pass left, mirror right): the curtain walls now read as mirrors full of
+  cloud, the office windows reflect the sky, the rooms are a faint shadow behind. The tour stills
+  and the four comparison sheets are from this build (the demolition stills are from the first
+  pass; the glass does not change the fall).
+- **Seen in the mirror pass**: light triangular shards along the towers' side edges, in every run
+  since the first; to look at on a GPU machine.
 - Two runs went wrong on the way and are left out: a 20-frame cache (run 4) was taken before the
   filter pipelines compiled and lit the world from a black map (street brightness 49 against
   109); the cache now waits for frames the render world saw filtered.

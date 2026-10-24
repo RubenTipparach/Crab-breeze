@@ -17,12 +17,16 @@ down to 35 %. A glass tower from the street should mirror the sky and, close up,
   `GeneratedEnvironmentMapLight` on the pilot's eye camera, once, and the result kept: every PBR surface in the world
   reflects that sky and is filled by its light. The flat ambient drops from 900 to 250 cd/m2 to
   make room for it.
-- **Tinted glass that reflects at full strength** (built; owner, 2026-10-24: "usually glass is
-  tinted", "so it reflects more light, and interiors appear darker than the world around it"):
-  premultiplied alpha, so the reflection is added whole and only what is behind the pane is
-  dimmed (alpha 0.7: the rooms show at 30 %); a dark blue-green body; roughness 0.04; reflectance
-  0.9 (about 13 % head-on, coated tower glass), with Fresnel taking it toward a mirror at grazing
-  angles. One material, tuned in `data/world/sky_light.ron`.
+- **Mirror-coated tinted glass** (built; owner, 2026-10-24: "usually glass is tinted", "so it
+  reflects more light, and interiors appear darker than the world around it", then "glass still
+  doesnt look right, too transparent", "it should go harder on the reflections", "in real life,
+  thered be less light on the inside of the building, so the reflectivity shuold be way
+  stronger"): premultiplied alpha, so the reflection is added whole and only what is behind the
+  pane is dimmed (alpha 0.88: the rooms show at 12 %, as a room lit only through its windows
+  would); a reflective coating (Bevy's `metallic`, 0.9) over the building's glass tint, about
+  45 % head-on and a mirror at grazing angles; roughness 0.02. Plain glass cannot pass 16 %
+  head-on in Bevy, hence the coating. One material, tuned in `data/world/sky_light.ron`; each
+  building's glass tint (blue, green, bronze, grey) still colours it.
 - **Cached street probes** (designed, not built): cube maps of the street itself, captured once
   near the player with the existing face-camera rig and kept as light probes, so glass across the
   street mirrors the buildings opposite, not only the sky. Section 3 of the design.

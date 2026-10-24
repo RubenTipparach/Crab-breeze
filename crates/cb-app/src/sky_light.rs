@@ -74,13 +74,14 @@ pub fn ambient_cd_m2(cfg: &SkyLightConfig) -> f32 {
 
 /// Window glass: premultiplied alpha, so what it reflects is added in full and what is behind it
 /// is dimmed by `alpha` only (plain alpha blending would scale the reflection down by alpha too).
+/// Its coating is Bevy's `metallic`, the one way past a dielectric's 16 % head-on reflection.
 pub fn glass_material(look: &GlassLook) -> StandardMaterial {
     let [r, g, b] = look.tint;
     StandardMaterial {
         base_color: Color::linear_rgba(r, g, b, look.alpha),
         alpha_mode: AlphaMode::Premultiplied,
         perceptual_roughness: look.roughness,
-        metallic: 0.0,
+        metallic: look.coating,
         reflectance: look.reflectance,
         ..default()
     }

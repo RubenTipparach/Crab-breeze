@@ -16,8 +16,8 @@ named in `data/world/sky_light.ron`, and the loading screen SHALL stay up until 
 Window glass SHALL add the light it reflects in full and dim what is behind it by its `alpha` only.
 
 #### Scenario: A clear pane
-- **WHEN** a pane with alpha 0.7 faces the sky
-- **THEN** its reflection is as bright as an opaque surface of the same reflectance, and the room behind shows through at 30 %
+- **WHEN** a pane with alpha 0.88 faces the sky
+- **THEN** its reflection is as bright as an opaque surface of the same reflectance, and the room behind shows through at 12 %
 
 ### Requirement: Sky light tuning is validated
 `data/world/sky_light.ron` SHALL be refused on load when a glass value is outside 0..1 or a

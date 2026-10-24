@@ -33,16 +33,20 @@ pub struct SkyLightConfig {
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct GlassLook {
-    /// The glass's own body colour, linear 0..1, already multiplied by `alpha` (a tinted pane is a
-    /// small number here: it adds this much diffuse colour over what is behind).
+    /// The pane's colour, linear 0..1: its body colour (scaled by `1 - coating`, added over what is
+    /// behind) and the colour of what its coating reflects.
     pub tint: [f32; 3],
     /// How much of what is behind the pane it hides, 0 clear to 1 opaque.
     pub alpha: f32,
     /// Perceptual roughness, 0 mirror to 1 matte.
     pub roughness: f32,
     /// Specular reflectance at normal incidence, Bevy's 0..1 scale (0.5 is 4 %, plain glass;
-    /// higher is a coated pane).
+    /// higher is a coated pane). Plain glass tops out at 16 % here; the coating goes past it.
     pub reflectance: f32,
+    /// The reflective coating, 0 plain glass to 1 a mirror: Bevy's `metallic`, so the head-on
+    /// reflection becomes `coating x tint` (plus what is left of `reflectance`) and the body
+    /// colour fades by `1 - coating`.
+    pub coating: f32,
 }
 
 impl Default for SkyLightConfig {
@@ -61,10 +65,11 @@ impl Default for SkyLightConfig {
 impl Default for GlassLook {
     fn default() -> Self {
         Self {
-            tint: [0.02, 0.05, 0.055],
-            alpha: 0.7,
-            roughness: 0.04,
-            reflectance: 0.9,
+            tint: [0.4, 0.5, 0.55],
+            alpha: 0.88,
+            roughness: 0.02,
+            reflectance: 1.0,
+            coating: 0.9,
         }
     }
 }
@@ -82,6 +87,7 @@ impl Validate for SkyLightConfig {
         within("glass.alpha", self.glass.alpha, 0.0, 1.0)?;
         within("glass.roughness", self.glass.roughness, 0.0, 1.0)?;
         within("glass.reflectance", self.glass.reflectance, 0.0, 1.0)?;
+        within("glass.coating", self.glass.coating, 0.0, 1.0)?;
         Ok(())
     }
 }
