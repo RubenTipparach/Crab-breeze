@@ -240,7 +240,7 @@ function pick(v) {
       <dt>Eye</dt><dd>${L.eye_m[1].toFixed(2)} m over the floor, seated</dd>
       <dt>Opening</dt><dd>${L.opening}; ${L.open_s.toFixed(1)} s</dd>
       <dt>Moving parts</dt><dd>${L.parts.map(n => n.replace(/_/g, " ").toLowerCase()).join(", ")}, ${L.tracks.filter(t => t.dir).length} clamps, ${L.rams.length} rams, ${L.vents.length} vents</dd>
-      <dt>MFDs</dt><dd>status, nav, weapons, radar: ${L.mfd.map(w => ({ top: "overhead", dash: "on the dash", arms: "on the armrests, riding with the seat" })[w]).join(" and ")}</dd>
+      <dt>MFDs</dt><dd>status, nav, weapons, radar: ${L.mfd.map(w => ({ top: "on the viewscreen, along the top of the front screen, as a HUD", dash: "on the dash", arms: "on the armrests, riding with the seat" })[w]).join(" and ")}</dd>
       <dt>Triangles</dt><dd>${L.tris.toLocaleString()}</dd></dl>
       <p class="hint">Low-poly and flat-coloured, built the CSG way in Blender (<code>tools/blender/build_cockpit_blockouts.py</code>): an airtight shell, screens cut into its inner wall, the opening parts cut off it by booleans with their seals and clamps in orange. The chosen layout is then modelled and baked in detail.</p>`;
   } else {

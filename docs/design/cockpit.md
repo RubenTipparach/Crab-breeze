@@ -170,10 +170,10 @@ that opens, on brackets from its wall, and is sized to the cabin (owner, 2026-10
 | Tile wall | Petals: the middle three tiles swing up, the two beside them swing out like doors | The back wall drops back as a ramp |
 | All-view sphere | A visor plate turns up over the ball about the eye, then the seat runs forward on its rail | A visor plate behind the ball turns up over the top |
 | Titan | The top half rises past the roof line and tilts back; the bottom half drops as a step | The back wall drops back as a ramp |
-| Cinema | A plug door pushes out 20 cm, then slides aside on rails | Hatchback on two rams |
+| Cinema | A heavy door swings out on three hinges at its right edge, the dash on it | Hatchback on two rams |
 | Excavator cab | The whole front drops forward as a ramp | The back wall drops back as a ramp |
-| Octagon | Gull-wing side doors turn up about hinges on the roof | Hatchback on two rams |
-| Canopy | A fighter's canopy: the bubble lifts, slides back and tilts up on two rams | Two doors swing out on hinges at the back corners |
+| Octagon | Gull-wing side doors turn up about hinges on the roof, and the front drops forward as a step | Hatchback on two rams |
+| Canopy | A fighter's canopy: the bubble lifts off its seal and tilts up on its back edge on two rams | Two doors swing out on hinges at the back corners |
 | Twin tier | The upper ring and its bubble rise on four rams and tilt back; the lower front drops as a step | Two doors swing out on hinges at the back corners |
 | Low bank | A fighter's canopy hinged at the nose: the bubble swings up and forward on two rams | The back wall drops back as a ramp |
 
@@ -188,4 +188,4 @@ that opens, on brackets from its wall, and is sized to the cabin (owner, 2026-10
 | C7 | How the screen wall looks | Separate screens in heavy bezels, phosphor tint, scanlines |
 | C5 | Colours | Dark gunmetal, amber, green and red lamps, hazard stripes, as drawn |
 | C8 | Which cockpit for which chassis | Provisional: chosen with the new chassis designs (build_mechs.py) |
-| C9 | Which block-outs to model in detail | A few will be picked (owner, 2026-10-24: "we're gonna pick a few"). Liked so far: Twin tier ("cool"), Canopy, Low bank ("good too"), Excavator cab ("excellent, classic") |
+| C9 | Which block-outs to model in detail | Decided: Panorama and Low bank are the top two (owner, 2026-10-24: "Panorama and lowbank I think are my top two"); the other eight are documented for later in `docs/design/cockpit-blockouts.md`, and "with these changes, all these cockpits are viable candidates" |
