@@ -2258,6 +2258,7 @@ dependencies = [
  "bevy",
  "bevy_hanabi",
  "cb-core",
+ "image",
  "naga",
  "wesl",
 ]

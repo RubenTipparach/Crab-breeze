@@ -170,12 +170,44 @@ that opens, on brackets from its wall, and is sized to the cabin (owner, 2026-10
 | Tile wall | Petals: the middle three tiles swing up, the two beside them swing out like doors | The back wall drops back as a ramp |
 | All-view sphere | A visor plate turns up over the ball about the eye, then the seat runs forward on its rail | A visor plate behind the ball turns up over the top |
 | Titan | The top half rises past the roof line and tilts back; the bottom half drops as a step | The back wall drops back as a ramp |
-| Cinema | A plug door pushes out 20 cm, then slides aside on rails | Hatchback on two rams |
+| Cinema | A heavy door swings out on three hinges at its right edge, the dash on it | Hatchback on two rams |
 | Excavator cab | The whole front drops forward as a ramp | The back wall drops back as a ramp |
-| Octagon | Gull-wing side doors turn up about hinges on the roof | Hatchback on two rams |
-| Canopy | A fighter's canopy: the bubble lifts, slides back and tilts up on two rams | Two doors swing out on hinges at the back corners |
+| Octagon | Gull-wing side doors turn up about hinges on the roof, and the front drops forward as a step | Hatchback on two rams |
+| Canopy | A fighter's canopy: the bubble lifts off its seal and tilts up on its back edge on two rams | Two doors swing out on hinges at the back corners |
 | Twin tier | The upper ring and its bubble rise on four rams and tilt back; the lower front drops as a step | Two doors swing out on hinges at the back corners |
 | Low bank | A fighter's canopy hinged at the nose: the bubble swings up and forward on two rams | The back wall drops back as a ramp |
+
+## The four in detail, 2026-10-24
+
+The owner: "Please make detailed versions of panorama, titan, excavator can, and canopy", and of the chassis: "iron
+and forman are solid designs. Just need to fix their cockpits with our new ones". Each is built by
+`tools/blender/build_cockpit.py --variant panorama|titan|cab|canopy` (`build_layout`), straight from its block-out:
+the plan, the screen rows, the pillars and the opening come from `build_cockpit_blockouts.py` (`cabin()` and the
+mechanism stages), so the detailed pod and its block-out cannot drift apart. On that plan it builds the same pieces as
+the wall: square flat screens in heavy bezels on a backing wall, pillars split where the opening cuts them, rails, the
+seat, the side consoles and grips (`side_consoles`, `seat`, `controls`, shared with the wall), the dash on the part the
+pilot climbs out through, sized to the cabin, and the MFDs inset on the viewscreen as HUD panels. Every part that moves
+is a chain of `INNER_<part>` nodes, one a stage, with the block-out's pivots and timings in the manifest's `motions`.
+
+| Variant | For | Triangles | How it opens |
+| --- | --- | --- | --- |
+| `panorama` | Foreman | 25,056 | Clamshell: the lower front drops to a step, then the upper front swings up and out with the dash |
+| `titan` | Roustabout (new) | 24,984 | The top half rises past the roof and tilts back; the bottom half drops as a step with the dash |
+| `cab` | Ironhorse | 19,506 | The whole front drops forward as a ramp; screens floor to roof in two rows and one in the floor |
+| `canopy` | Harrow (new) | 25,034 | A fighter's canopy: everything above the sill lifts off its seal and tilts up on its back edge; screens overhead too |
+
+**The chest and the cockpit open as one body** (owner, 2026-10-24, on the Foreman: "it's cockpit has a problem when
+opening. It needs to follow the titan style or panorama style"). Before, the chest armour opened on its own hinges
+and then the interior opened on different ones, and their pieces met. Now `mech_boarding.pod(..., "inner")` measures
+each opening part of the interior (`cockpit_hull.parts`), cuts the armour in front of it with a box (Exact booleans),
+and hangs that piece on a chain of joints with the part's own stages, hinged on the armour's outer edge. The interior
+part rides the last joint (`cockpit.rides` in the mech's extras), so armour and cabin wall move together. The box's
+sides are planes across the hinge, so a piece swinging on it never passes through what stays.
+
+**The cube map is only for the cockpit's reflections** (owner, 2026-10-24: "Cube map is only for cockpit reflections
+btw"). `crates/cb-app/src/screens_cube.rs` renders the outside round the eye into a cube that lights the cabin and
+reflects off its metal. It is never what the screens show: they show the world itself. (The mockup pages paint their
+screens from a cube camera only because a web page has no second view to spare; that is a stand-in, not the design.)
 
 ## Open questions
 
@@ -187,5 +219,5 @@ that opens, on brackets from its wall, and is sized to the cabin (owner, 2026-10
 | C6 | How the pilot climbs to the hatch | A stair unfolding from the lower plate |
 | C7 | How the screen wall looks | Separate screens in heavy bezels, phosphor tint, scanlines |
 | C5 | Colours | Dark gunmetal, amber, green and red lamps, hazard stripes, as drawn |
-| C8 | Which cockpit for which chassis | Provisional: chosen with the new chassis designs (build_mechs.py) |
-| C9 | Which block-outs to model in detail | A few will be picked (owner, 2026-10-24: "we're gonna pick a few"). Liked so far: Twin tier ("cool"), Canopy, Low bank ("good too"), Excavator cab ("excellent, classic") |
+| C8 | Which cockpit for which chassis | Provisional: Panorama in the Foreman, the Excavator cab in the Ironhorse (seated, owner, 2026-10-24: "Iron horse has no seat still"), the Titan in the new Roustabout, the Canopy in the new Harrow |
+| C9 | Which block-outs to model in detail | Decided: Panorama, Titan, Excavator cab and Canopy (owner, 2026-10-24: "Please make detailed versions of panorama, titan, excavator can, and canopy"), after "Panorama and lowbank I think are my top two"; the other six are documented for later in `docs/design/cockpit-blockouts.md` |

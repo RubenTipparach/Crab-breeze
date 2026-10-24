@@ -79,7 +79,12 @@
     // How far the pilot sees (island-world design section 5).
     view: (
         far_m: 40000.0,
-        clear_visibility_m: 9000.0,
+        // The scattering sky hazes the distance itself (sky-atmosphere); the flat fog stays thin.
+        clear_visibility_m: 20000.0,
+        exposure_ev100: 13.4,
+        // The sun disk 2 degrees across (the real 0.53 reads as a dot), twice as bright.
+        sun_disk_deg: 2.0,
+        sun_disk_intensity: 2.0,
     ),
 
     // Rivers and lakes (openspec/changes/terrain-water/design.md section 1). Lakes are the ground
@@ -103,13 +108,15 @@
     // section 3). The woods are as dense as before; only the tiles near the pilot and the mechs exist.
     // Denser, farther woods (owner, 2026-10-24: "More trees please", but "100k is probably a bit
     // much" as entities) wait for GPU-driven trees, placed and culled in a compute shader.
+    // Drawn to 2 km (owner, 2026-10-24: "Trees should have max distance of 2km"): grown to 2.2 km,
+    // let go past 2.7 km.
     trees: (
         tile_sites: 24,
-        keep_radius_m: 1500.0,
+        keep_radius_m: 2200.0,
         urgent_radius_m: 400.0,
-        release_radius_m: 2000.0,
+        release_radius_m: 2700.0,
         tiles_per_step: 2,
-        draw_radius_m: 1200.0,
+        draw_radius_m: 2000.0,
     ),
 
     // Clouds over the island and 6 km of sea past the world's edge, drawn within 9 km of the eye.

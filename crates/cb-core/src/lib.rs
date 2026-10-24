@@ -10,6 +10,8 @@ pub mod boarding;
 pub mod cockpit;
 pub mod data;
 pub mod fx;
+pub mod grass;
+pub mod ground_marks;
 pub mod input;
 pub mod mech;
 pub mod mission;
@@ -17,7 +19,9 @@ pub mod pilot;
 pub mod rng;
 pub mod sim;
 pub mod sky_light;
+pub mod sun_flare;
 pub mod targeting;
+pub mod units;
 pub mod water_look;
 pub mod weapons;
 pub mod world;
@@ -53,15 +57,29 @@ pub struct GameData {
     pub cockpit_light: cockpit::CockpitLightConfig,
     /// `data/world/sky_light.ron`.
     pub sky_light: sky_light::SkyLightConfig,
+    /// `data/world/grass.ron`.
+    pub grass: grass::GrassConfig,
+    /// `data/fx/ground_marks.ron`.
+    pub ground_marks: ground_marks::GroundMarksConfig,
+    /// `data/world/sun_flare.ron`.
+    pub sun: sun_flare::SunLook,
+    /// `data/world/units.ron`.
+    pub units: units::UnitsConfig,
 }
 
 impl GameData {
     /// Loads every data file under `root` (the `data/` directory), with the mech file `mech`
     /// (relative to `root`) and its boarding timeline beside it (`mechs/<name>/boarding.ron`). The first failure is returned, naming its file and field.
     pub fn load(root: &Path, mech: &str) -> Result<Self, data::DataError> {
+        let world: world::WorldConfig = data::load_ron(&root.join("world/world.ron"))?;
+        let grass_path = root.join("world/grass.ron");
+        let grass: grass::GrassConfig = data::load_ron(&grass_path)?;
+        grass
+            .validate_with(&world)
+            .map_err(|reason| data::DataError { path: grass_path, reason })?;
         Ok(Self {
             sim: data::load_ron(&root.join("sim.ron"))?,
-            world: data::load_ron(&root.join("world/world.ron"))?,
+            world,
             mech: data::load_ron(&root.join(mech))?,
             boarding: data::load_ron(&root.join(mech.trim_end_matches(".ron")).join("boarding.ron"))?,
             pilot: data::load_ron(&root.join("pilot/pilot.ron"))?,
@@ -73,6 +91,10 @@ impl GameData {
             targeting: data::load_ron(&root.join("hud/targeting.ron"))?,
             cockpit_light: data::load_ron(&root.join("hud/cockpit_light.ron"))?,
             sky_light: data::load_ron(&root.join("world/sky_light.ron"))?,
+            grass,
+            ground_marks: data::load_ron(&root.join("fx/ground_marks.ron"))?,
+            sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
+            units: data::load_ron(&root.join("world/units.ron"))?,
         })
     }
 
@@ -100,6 +122,20 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
         for mech in GameData::mech_files(&root) {
             GameData::load(&root, &mech).unwrap_or_else(|e| panic!("{e}"));
+        }
+    }
+
+    #[test]
+    fn every_defence_wave_names_units_that_exist() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let d = GameData::load(&root, "mechs/placeholder.ron").unwrap();
+        for (w, wave) in d.defence.forces.iter().enumerate() {
+            for f in wave {
+                assert!(d.units.units.contains_key(&f.unit), "wave {w}: no unit `{}`", f.unit);
+                if f.by_air {
+                    assert!(d.units.units.contains_key("cargo_plane"), "wave {w}: drops need `cargo_plane`");
+                }
+            }
         }
     }
 }

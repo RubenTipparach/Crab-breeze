@@ -203,10 +203,20 @@ impl WaterMaterial {
 /// The water's look and the view under and coming out of it.
 pub struct WaterRenderPlugin;
 
+/// The water's fullscreen passes in the `Core3d` schedule, for other passes to order against (the
+/// sun flare draws before them, so drops on the glass refract it).
+#[derive(SystemSet, Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct WaterPasses;
+
 impl Plugin for WaterRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(MaterialPlugin::<WaterMaterial>::default())
-            .add_systems(Update, (samplable_depth, refresh_materials.after(crate::sim::PresentSet::Camera)));
+        app.add_plugins(MaterialPlugin::<WaterMaterial>::default()).add_systems(
+            Update,
+            (
+                samplable_depth::<WaterOptics>,
+                refresh_materials.after(crate::sim::PresentSet::Camera),
+            ),
+        );
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
@@ -215,12 +225,19 @@ impl Plugin for WaterRenderPlugin {
             .add_systems(RenderStartup, init_post_pipeline)
             .add_systems(ExtractSchedule, extract_water_eye)
             .add_systems(Render, prepare_water_post.in_set(RenderSystems::Prepare))
-            .add_systems(Core3d, water_post.in_set(Core3dSystems::PostProcess).before(tonemapping));
+            .add_systems(
+                Core3d,
+                water_post
+                    .in_set(Core3dSystems::PostProcess)
+                    .in_set(WaterPasses)
+                    .before(tonemapping),
+            );
     }
 }
 
-/// The compose pass reads the main depth: a `WaterOptics` camera's depth buffer must be samplable.
-fn samplable_depth(mut cameras: Query<&mut Camera3d, Added<WaterOptics>>) {
+/// A pass that reads the main depth needs it samplable: makes the depth buffer of every camera
+/// that gains `M` samplable (`WaterOptics` for the compose pass; the sun flare's cameras too).
+pub fn samplable_depth<M: Component>(mut cameras: Query<&mut Camera3d, Added<M>>) {
     for mut camera in &mut cameras {
         let usages = TextureUsages::from(camera.depth_texture_usages) | TextureUsages::TEXTURE_BINDING;
         camera.depth_texture_usages = usages.into();

@@ -15,9 +15,9 @@
    ],
    "clear_deg": 93,
    "span_deg": 231,
-   "tris": 646,
+   "tris": 544,
    "mech": "clamshell",
-   "opening": "the front splits at the screens' foot: clamps slide off the seams, both halves pop off their seals, the top swings up about the roof edge and the bottom drops to the deck as a step",
+   "opening": "the front splits at the screens' foot: clamps slide off the seams, both halves pop off their seals, the bottom drops to the deck as a step, then the top swings up about the roof edge carrying the dash",
    "open_s": 2.9,
    "parts": [
     "UPPER",
@@ -127,7 +127,7 @@
    "rear": {
     "file": "cockpit_blockouts/panorama_rear.glb",
     "clear_deg": 96,
-    "tris": 598,
+    "tris": 508,
     "mech": "rear_hatch",
     "opening": "by the back: a hatchback, the back wall and the back of the roof swinging up on two rams, then the seat swivels round to face it; the screens ahead never move",
     "open_s": 4.1,
@@ -251,7 +251,7 @@
    "span_deg": 210,
    "tris": 934,
    "mech": "petals",
-   "opening": "three petals: the middle one pops and swings up, then the two beside it swing out on their outer edges like doors; the seams fall on the screens' own seams",
+   "opening": "three petals: the two side ones swing out on their outer edges like doors, then the middle one pops and swings up carrying the dash; the seams fall on the screens' own seams",
    "open_s": 3.2,
    "parts": [
     "PETAL_M",
@@ -631,7 +631,7 @@
    ],
    "clear_deg": 91,
    "span_deg": 228,
-   "tris": 678,
+   "tris": 572,
    "mech": "lift",
    "opening": "the top half rises clear of the roof line, then tilts back; the bottom half drops as a step",
    "open_s": 3.2,
@@ -750,7 +750,7 @@
    "rear": {
     "file": "cockpit_blockouts/titan_rear.glb",
     "clear_deg": 94,
-    "tris": 582,
+    "tris": 492,
     "mech": "rear_ramp",
     "opening": "by the back: the back wall unclamps and drops back to the deck as a ramp, then the seat swivels round to face it; the screens ahead never move",
     "open_s": 4.1,
@@ -873,93 +873,82 @@
    ],
    "clear_deg": 95,
    "span_deg": 175,
-   "tris": 520,
-   "mech": "plug",
-   "opening": "a plug door: clamps slide off, it pushes 60 cm out off its seal with the dash on it, then slides aside on rails past the corner",
-   "open_s": 3.3,
+   "tris": 544,
+   "mech": "door",
+   "opening": "a heavy door: clamps slide off the free edge, it pops off its seal, then swings out on three hinges at its right edge with the dash on it",
+   "open_s": 2.95,
    "parts": [
-    "PLUG"
+    "DOOR"
    ],
    "tracks": [
     {
-     "node": "PLUG_0",
-     "t0": 0.4,
-     "d": 0.9,
-     "v": 0.6,
+     "node": "DOOR_0",
+     "t0": 0.35,
+     "d": 0.3,
+     "v": 0.04,
      "pos": "z"
     },
     {
-     "node": "PLUG_1",
-     "t0": 1.4,
-     "d": 1.9,
-     "v": -2.562713463649643,
-     "pos": "x"
+     "node": "DOOR_1",
+     "t0": 0.75,
+     "d": 2.2,
+     "v": -1.75,
+     "axis": "y"
     },
     {
-     "node": "CLAMP_PLUG_0",
+     "node": "CLAMP_DOOR_0",
      "dir": [
       1.0,
       -0.0,
       -0.0
      ],
      "v": 0.06,
-     "t0": 0.050000000000000044,
+     "t0": 0.0,
      "d": 0.3
     },
     {
-     "node": "CLAMP_PLUG_1",
+     "node": "CLAMP_DOOR_1",
      "dir": [
       1.0,
       -0.0,
       -0.0
      ],
      "v": 0.06,
-     "t0": 0.050000000000000044,
+     "t0": 0.0,
      "d": 0.3
     },
     {
-     "node": "CLAMP_PLUG_2",
+     "node": "CLAMP_DOOR_2",
      "dir": [
-      -1.0,
-      0.0,
-      0.0
+      1.0,
+      -0.0,
+      -0.0
      ],
      "v": 0.06,
-     "t0": 0.050000000000000044,
-     "d": 0.3
-    },
-    {
-     "node": "CLAMP_PLUG_3",
-     "dir": [
-      -1.0,
-      0.0,
-      0.0
-     ],
-     "v": 0.06,
-     "t0": 0.050000000000000044,
+     "t0": 0.0,
      "d": 0.3
     }
    ],
    "rams": [],
    "vents": [
     {
-     "node": "VENT_PLUG_0",
+     "node": "VENT_DOOR_0",
      "dir": [
       0.5,
       0,
       1
      ],
-     "t0": 0.4,
+     "t0": 0.35,
      "d": 0.9
     },
     {
-     "node": "VENT_PLUG_1",
+     "node": "VENT_DOOR_1",
      "dir": [
       -0.5,
       0,
       1
      ],
-     "t0": 0.4,
+     "t0": 0.35,
      "d": 0.9
     }
    ],
@@ -1091,7 +1080,7 @@
    ],
    "clear_deg": 87,
    "span_deg": 233,
-   "tris": 570,
+   "tris": 480,
    "mech": "ramp",
    "opening": "the whole front, floor to roof, unclamps and drops forward on its bottom edge to the deck as a ramp",
    "open_s": 2.75,
@@ -1177,7 +1166,7 @@
    "rear": {
     "file": "cockpit_blockouts/cab_rear.glb",
     "clear_deg": 90,
-    "tris": 526,
+    "tris": 436,
     "mech": "rear_ramp",
     "opening": "by the back: the back wall unclamps and drops back to the deck as a ramp, then the seat swivels round to face it; the screens ahead never move",
     "open_s": 4.1,
@@ -1298,15 +1287,16 @@
     1.2000000476837158,
     0.0
    ],
-   "clear_deg": 90,
+   "clear_deg": 87,
    "span_deg": 261,
-   "tris": 906,
+   "tris": 884,
    "mech": "gullwing",
-   "opening": "gull-wing doors: each side, roof edge and all, turns up about a hinge on the roof",
-   "open_s": 2.45,
+   "opening": "gull-wing doors: each side, roof edge and all, turns up about a hinge on the roof, and the front drops forward as a step with the dash on it",
+   "open_s": 2.9,
    "parts": [
     "WING_L",
-    "WING_R"
+    "WING_R",
+    "FRONT"
    ],
    "tracks": [
     {
@@ -1336,6 +1326,20 @@
      "d": 1.8,
      "v": -1.75,
      "axis": "z"
+    },
+    {
+     "node": "FRONT_0",
+     "t0": 0.35,
+     "d": 0.3,
+     "v": 0.04,
+     "pos": "z"
+    },
+    {
+     "node": "FRONT_1",
+     "t0": 0.9,
+     "d": 2.0,
+     "v": 1.5,
+     "axis": "x"
     }
    ],
    "rams": [],
@@ -1379,6 +1383,16 @@
      ],
      "t0": 0.3,
      "d": 0.9
+    },
+    {
+     "node": "VENT_FRONT_0",
+     "dir": [
+      0,
+      0.4,
+      1
+     ],
+     "t0": 0.35,
+     "d": 0.9
     }
    ],
    "mfd": [
@@ -1388,7 +1402,7 @@
    "rear": {
     "file": "cockpit_blockouts/octagon_rear.glb",
     "clear_deg": 90,
-    "tris": 762,
+    "tris": 672,
     "mech": "rear_hatch",
     "opening": "by the back: a hatchback, the back wall and the back of the roof swinging up on two rams, then the seat swivels round to face it; the screens ahead never move",
     "open_s": 4.1,
@@ -1512,8 +1526,8 @@
    "span_deg": 228,
    "tris": 652,
    "mech": "canopy_rear",
-   "opening": "a fighter's canopy: everything above the sill, screens, roof and bubble, lifts, slides back, then tilts up on its back edge, on two rams",
-   "open_s": 3.2,
+   "opening": "a fighter's canopy: everything above the sill, screens, roof and bubble, lifts off its seal and tilts up on its back edge on two rams",
+   "open_s": 2.75,
    "parts": [
     "CANOPY"
    ],
@@ -1522,21 +1536,14 @@
      "node": "CANOPY_0",
      "t0": 0.35,
      "d": 0.3,
-     "v": 0.12,
+     "v": 0.05,
      "pos": "y"
     },
     {
      "node": "CANOPY_1",
-     "t0": 0.7,
-     "d": 0.9,
-     "v": -0.3,
-     "pos": "z"
-    },
-    {
-     "node": "CANOPY_2",
-     "t0": 1.6,
-     "d": 1.6,
-     "v": -0.85,
+     "t0": 0.75,
+     "d": 2.0,
+     "v": -1.0,
      "axis": "x"
     },
     {
@@ -1770,7 +1777,7 @@
    ],
    "clear_deg": 190,
    "span_deg": 190,
-   "tris": 1136,
+   "tris": 1050,
    "mech": "elevator",
    "opening": "the upper ring of screens and the bubble rise straight up on four rams and tilt back, then the front of the lower ring drops as a step",
    "open_s": 3.5,

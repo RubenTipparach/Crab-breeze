@@ -46,7 +46,8 @@ def _matrix(n):
 
 
 def _points(path):
-    """Every vertex of the interior at rest, in its frame, and which material it carries."""
+    """Every vertex of the interior at rest, in its frame, which material it carries, and the opening part it
+    rides (the top INNER_ node above it, or None)."""
     js = json.load(open(path))
     base = os.path.dirname(path)
     bufs = [open(os.path.join(base, b["uri"]), "rb").read() for b in js["buffers"]]
@@ -64,19 +65,21 @@ def _points(path):
 
     out = []
 
-    def walk(i, M):
+    def walk(i, M, part):
         n = js["nodes"][i]
         W = M @ _matrix(n)
+        if part is None and n.get("name", "").startswith("INNER_"):
+            part = n["name"]
         if "mesh" in n:
             for p in js["meshes"][n["mesh"]]["primitives"]:
                 P = acc(p["attributes"]["POSITION"])
                 mat = js["materials"][p["material"]]["name"] if "material" in p else ""
-                out.append(((np.c_[P, np.ones(len(P))] @ W.T)[:, :3], mat))
+                out.append(((np.c_[P, np.ones(len(P))] @ W.T)[:, :3], mat, part))
         for c in n.get("children", []):
-            walk(c, W)
+            walk(c, W, part)
 
     for r in js["scenes"][js.get("scene", 0)]["nodes"]:
-        walk(r, np.eye(4))
+        walk(r, np.eye(4), None)
     return out
 
 
@@ -192,7 +195,7 @@ def measure(variant):
     the chest is the shell now."""
     path = os.path.join(ROOT, "assets", "models", f"cockpit_{variant}", f"cockpit_{variant}.gltf")
     man = json.load(open(os.path.join(ROOT, "assets", "models", f"cockpit_{variant}.json")))
-    parts = [(P, m) for P, m in _points(path) if not m.startswith("EXT_")]
+    parts = [(P, m) for P, m, _ in _points(path) if not m.startswith("EXT_")]
     P = np.vstack([q for q, _ in parts])
     A = np.vstack([q for q, m in parts if m == "SCREEN_allview"])
     y0, y1 = float(P[:, 1].min()), float(P[:, 1].max())
@@ -206,6 +209,34 @@ def measure(variant):
            if n.startswith(("INNER_front", "INNER_side")) and "pivot_m" in m]
     z_cut = (min(piv) - 0.06) if piv else 0.3
     return dict(y0=y0, y1=y1, sb=sb, st=st, bands=bands, z_cut=z_cut, centre=(0.0, z_cut))
+
+
+def parts(variant):
+    """The interior's opening parts, measured: for each top INNER_ node that its manifest moves, its box at rest
+    (x, y, z ranges in metres, the interior's frame), the height its front face spans (front_y), and its
+    stages in order, [(node, motion)], each motion as
+    the manifest writes it (slide or axis, value, t0, d, pivot_m). The chest that houses the interior opens
+    the same parts on the same stages (mech_boarding.pod, mode "inner"), so the two are one body."""
+    path = os.path.join(ROOT, "assets", "models", f"cockpit_{variant}", f"cockpit_{variant}.gltf")
+    man = json.load(open(os.path.join(ROOT, "assets", "models", f"cockpit_{variant}.json")))
+    mo = man.get("motions", {})
+    out = {}
+    for P, _, part in _points(path):
+        if part and part in mo:
+            out.setdefault(part, []).append(P)
+    res = {}
+    for part, Ps in out.items():
+        A = np.vstack(Ps)
+        stages = [(part, mo[part])]
+        k = 1
+        while f"{part}_{k}" in mo:
+            stages.append((f"{part}_{k}", mo[f"{part}_{k}"]))
+            k += 1
+        F = A[A[:, 2] > A[:, 2].max() - 0.08]          # its face: the wall it carries at the front
+        res[part] = dict(x=(float(A[:, 0].min()), float(A[:, 0].max())), y=(float(A[:, 1].min()), float(A[:, 1].max())),
+                         z=(float(A[:, 2].min()), float(A[:, 2].max())), front_y=(float(F[:, 1].min()), float(F[:, 1].max())),
+                         stages=stages)
+    return res
 
 
 if __name__ == "__main__":

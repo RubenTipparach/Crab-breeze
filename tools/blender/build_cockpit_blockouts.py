@@ -80,7 +80,7 @@ LAYOUTS = [
          heavy=0.12, mfd=("top", "dash"),
          text="Titanfall's: a front screen 1.6 m across, side screens raked back, a heavy frame but all of it outside 45 "
               "degrees."),
-    dict(id="cinema", rear="hatch", mech="plug", name="Cinema", rows=[(0.90, 1.95)], plan=mirror([(1.10, 0.95), (1.15, 0.05)]), pillars=[1, 2], mfd=("dash",),
+    dict(id="cinema", rear="hatch", mech="door", name="Cinema", rows=[(0.90, 1.95)], plan=mirror([(1.10, 0.95), (1.15, 0.05)]), pillars=[1, 2], mfd=("dash",),
          text="One huge front screen 2.2 m by 1.05 m with no seam at all, square screens beside the knees."),
     dict(id="cab", rear="ramp", mech="ramp", name="Excavator cab", rows=[(0.30, 1.10), (1.13, 1.93)], plan=mirror([(0.80, 0.80), (0.95, 0.10), (0.90, -0.45)]),
          pillars=[2, 3], floor=True, mfd=("top",),
@@ -330,18 +330,19 @@ CLAMP = (0.08, 0.06, 0.04)
 
 MECH_TEXT = dict(
     clamshell="the front splits at the screens' foot: clamps slide off the seams, both halves pop off their seals, the "
-              "top swings up about the roof edge and the bottom drops to the deck as a step",
-    petals="three petals: the middle one pops and swings up, then the two beside it swing out on their outer edges "
-           "like doors; the seams fall on the screens' own seams",
+              "bottom drops to the deck as a step, then the top swings up about the roof edge carrying the dash",
+    petals="three petals: the two side ones swing out on their outer edges like doors, then the middle one pops and "
+           "swings up carrying the dash; the seams fall on the screens' own seams",
     visor="a curved visor plate, outside the ball, turns up over the top about the pilot's eye; then the seat runs "
           "forward on its rail to the opening",
     lift="the top half rises clear of the roof line, then tilts back; the bottom half drops as a step",
-    plug="a plug door: clamps slide off, it pushes 60 cm out off its seal with the dash on it, then slides aside on "
-         "rails past the corner",
+    door="a heavy door: clamps slide off the free edge, it pops off its seal, then swings out on three hinges at its "
+         "right edge with the dash on it",
     ramp="the whole front, floor to roof, unclamps and drops forward on its bottom edge to the deck as a ramp",
-    gullwing="gull-wing doors: each side, roof edge and all, turns up about a hinge on the roof",
-    canopy_rear="a fighter's canopy: everything above the sill, screens, roof and bubble, lifts, slides back, then "
-                "tilts up on its back edge, on two rams",
+    gullwing="gull-wing doors: each side, roof edge and all, turns up about a hinge on the roof, and the front drops "
+             "forward as a step with the dash on it",
+    canopy_rear="a fighter's canopy: everything above the sill, screens, roof and bubble, lifts off its seal and "
+                "tilts up on its back edge on two rams",
     canopy_front="a fighter's canopy hinged at the front: the whole bubble above the sill lifts and swings up and "
                  "forward over the nose on two rams",
     elevator="the upper ring of screens and the bubble rise straight up on four rams and tilt back, then the front of "
@@ -374,6 +375,7 @@ def mechanism(L, c):
                      clamps=[out(s * deg, (ys + H) / 2) for s in (1, -1)], dash=True,
                      vents=[((s * 0.5, ys + 0.02, F + W), (s * 0.3, -0.3, 1)) for s in (1, -1)]),
                 dict(name="LOWER", region=("sector", -deg, deg, y_lo, ys - 0.02), keep_inner=True,
+                     hole=("sector", -deg, deg, y_lo, ys + 0.005),
                      stages=[stage("pos", "z", 0.04, 0.35, 0.3), stage("rot", "x", 1.42, 0.6, 1.4, (0, -W, F + W))],
                      clamps=[out(s * deg, ys / 2) for s in (1, -1)])]
     if m == "petals":
@@ -432,14 +434,16 @@ def mechanism(L, c):
                      clamps=[out(s * deg, (ys + H) / 2) for s in (1, -1)],
                      vents=[((s * 0.55, ys + 0.02, F + W), (s * 0.3, -0.2, 1)) for s in (1, -1)]),
                 dict(name="LOWER", region=("sector", -deg, deg, y_lo, ys - 0.02), keep_inner=True, dash=True,
+                     hole=("sector", -deg, deg, y_lo, ys + 0.005),
                      stages=[stage("pos", "z", 0.04, 1.6, 0.3), stage("rot", "x", 1.42, 1.9, 1.3, (0, -W, F + W))],
                      clamps=[out(s * deg, ys / 2) for s in (1, -1)])]
-    if m == "plug":
+    if m == "door":
         wd = (F + W) * math.tan(deg * D)
-        return [dict(name="PLUG", region=("sector", -deg, deg, y_lo, y_hi), keep_inner=True,
-                     stages=[stage("pos", "z", 0.60, 0.4, 0.9), stage("pos", "x", -(2 * wd + 0.3), 1.4, 1.9)], dash=True,
-                     clamps=[out(s * deg, y) for s in (1, -1) for y in (0.45, H - 0.45)],
-                     vents=[((s * wd, H * 0.5, F + W), (s * 0.5, 0, 1)) for s in (1, -1)], rails=wd)]
+        return [dict(name="DOOR", region=("sector", -deg, deg, y_lo, y_hi), keep_inner=True, dash=True,
+                     stages=[stage("pos", "z", 0.04, 0.35, 0.3), stage("rot", "y", -1.75, 0.75, 2.2, (-wd, 0, F + W))],
+                     clamps=[out(deg, y) for y in (0.45, H * 0.5, H - 0.45)],
+                     hinges=[(-wd, y, F + W) for y in (0.35, H * 0.5, H - 0.35)],
+                     vents=[((s * wd, H * 0.5, F + W), (s * 0.5, 0, 1)) for s in (1, -1)])]
     if m == "ramp":
         return [dict(name="RAMP", region=("sector", -deg, deg, y_lo, y_hi), keep_inner=True,
                      stages=[stage("pos", "z", 0.04, 0.35, 0.3), stage("rot", "x", 1.5, 0.75, 2.0, (0, -W, F + W))],
@@ -454,7 +458,10 @@ def mechanism(L, c):
                               keep_inner=True,
                               stages=[stage("pos", "y", 0.03, 0.3, 0.3), stage("rot", "z", sg * 1.75, 0.65, 1.8, (hx, top, 0))],
                               vents=[((hx, top, 0.2), (sg * 0.3, 1, 0.1)), ((sg * 1.1, 0.1, 0.2), (sg, -0.2, 0.2))]))
-        return parts
+        return parts + [dict(name="FRONT", region=("sector", -deg, deg, y_lo, y_hi), keep_inner=True, dash=True,
+                             stages=[stage("pos", "z", 0.04, 0.35, 0.3), stage("rot", "x", 1.5, 0.9, 2.0, (0, -W, F + W))],
+                             vents=[((0, top - 0.05, F + W), (0, 0.4, 1))])]
+        # the owner: "octagon front I think still needs to open"
     if m == "canopy_rear":
         ys = L["rows"][0][0] - 0.05
         rams = []
@@ -463,8 +470,7 @@ def mechanism(L, c):
             q = p + n * 0.09
             rams.append(((q.x, ys - 0.6, q.y), (q.x, ys + 0.15, q.y)))
         return [dict(name="CANOPY", region=("box", -3, 3, ys, y_hi, -3, 3),
-                     stages=[stage("pos", "y", 0.12, 0.35, 0.3), stage("pos", "z", -0.30, 0.7, 0.9),
-                             stage("rot", "x", -0.85, 1.6, 1.6, (0, ys, B - W))],
+                     stages=[stage("pos", "y", 0.05, 0.35, 0.3), stage("rot", "x", -1.0, 0.75, 2.0, (0, ys, B - W))],
                      rams=rams, clamps=[down(s * b, ys) for s in (1, -1) for b in (85, 110)],
                      vents=[((s * 1.0, ys, z), (s, 0.2, 0)) for s in (1, -1) for z in (0.4, -0.3)])]
     if m == "canopy_front":
@@ -483,8 +489,35 @@ def mechanism(L, c):
                      clamps=[down(s * b, ys) for s in (1, -1) for b in (70, 112)],
                      vents=[((s * 0.95, ys, z), (s, 0.1, 0)) for s in (1, -1) for z in (0.3, -0.4)]),
                 dict(name="LOWER", region=("sector", -lo, lo, y_lo, ys), keep_inner=True, dash=True,
+                     hole=("sector", -lo, lo, y_lo, ys + 0.005),
                      stages=[stage("pos", "z", 0.04, 1.8, 0.3), stage("rot", "x", 1.42, 2.1, 1.4, (0, -W, F + W))])]
     raise ValueError(m)
+
+
+# ----------------------------------------------------------------------------- a flat-walled cabin's measures
+
+def cabin(L, mech):
+    """A flat-walled layout's measures, pure Python (no Blender): its outline (the plan closed round the back,
+    counter-clockwise), the pillars' bearings, the opening's half-angle and the measures c the mechanisms
+    read. The block-out and the detailed interior (build_cockpit.py) both build from this."""
+    rows, plan = L["rows"], L["plan"]
+    H = rows[-1][1] + 0.12
+    back = min(-0.75, min(z for _, z in plan) - 0.25)
+    outline = [plan[0]] + list(plan[1:]) + [(plan[-1][0], back), (plan[0][0], back)]
+    area = sum(outline[i][0] * outline[(i + 1) % len(outline)][1] - outline[(i + 1) % len(outline)][0] * outline[i][1]
+               for i in range(len(outline)))
+    if area < 0:
+        outline = outline[::-1]
+    tp = L.get("top", "flat")
+    pillar_angles = [bearing(*plan[i]) for i in L.get("pillars", [])]
+    deg = L.get("hatch_deg") or (min(abs(a) for a in pillar_angles) - 1.5)
+    verts_b = sorted(abs(bearing(x, z)) for x, z in plan)
+    c = dict(mech=mech, H=H, front=max(z for _, z in plan), back=back, deg=deg, outer=offset(outline, WALL_M),
+             top=H + WALL_M + (HUMP[-1][0] if tp == "hump" else 0.0),
+             vertex=lambda a_: min(verts_b, key=lambda v: abs(v - a_)),
+             seam_after_pillar=(min(abs(a) for a in pillar_angles) + 2.5) if pillar_angles else deg,
+             hinge_x=0.84, xb=min(abs(x) for x, z in outline if abs(z - back) < 1e-6))
+    return outline, pillar_angles, deg, c
 
 
 # ----------------------------------------------------------------------------- one layout
@@ -507,14 +540,9 @@ def build(L, door="front"):
         c.update(H=EYE_Y + r, front=r, back=-r, top=EYE_Y + r + WALL_M, deg=deg)
     else:
         rows, plan = L["rows"], L["plan"]
-        H = rows[-1][1] + 0.12
-        back = min(-0.75, min(z for _, z in plan) - 0.25)
-        outline = [plan[0]] + list(plan[1:]) + [(plan[-1][0], back), (plan[0][0], back)]
-        area = sum(outline[i][0] * outline[(i + 1) % len(outline)][1] - outline[(i + 1) % len(outline)][0] * outline[i][1]
-                   for i in range(len(outline)))
-        if area < 0:
-            outline = outline[::-1]
-        tp = L.get("top", "flat")
+        outline, pillar_angles, deg, cm = cabin(L, c["mech"])
+        c.update(cm)
+        H, tp = c["H"], L.get("top", "flat")
         shell = loft("shell", shell_keys(outline, H, WALL_M, tp), "HULL")
         boolean(shell, loft("cabin", shell_keys(outline, H, 0.0, tp), "LINING"), "DIFFERENCE")
         cutters = []
@@ -551,16 +579,8 @@ def build(L, door="front"):
                            (L.get("heavy", 0.08), H, 0.12), "FRAME"))
         if pil:
             boolean(shell, join(pil, "pillars"), "UNION")
-        pillar_angles = [bearing(*plan[i]) for i in L.get("pillars", [])]
-        deg = L.get("hatch_deg") or (min(abs(a) for a in pillar_angles) - 1.5)
         floor_y = 0.0
         inner_keep = offset(outline, -0.03)
-        verts_b = sorted(abs(bearing(x, z)) for x, z in plan)
-        c.update(H=H, front=max(z for _, z in plan), back=back, deg=deg, outer=offset(outline, WALL_M),
-                 top=H + WALL_M + (HUMP[-1][0] if tp == "hump" else 0.0),
-                 vertex=lambda a_: min(verts_b, key=lambda v: abs(v - a_)),
-                 seam_after_pillar=(min(abs(a) for a in pillar_angles) + 2.5) if pillar_angles else deg,
-                 hinge_x=0.84, xb=min(abs(x) for x, z in outline if abs(z - back) < 1e-6))
 
     def region_solid(name, reg, shrink, keep_inner):
         if reg[0] == "sector":
@@ -598,7 +618,7 @@ def build(L, door="front"):
             cb_, lo_ = (180, 0.72) if P["region"] == "visor_rear" else (0, 0.8)
             boolean(shell, region_solid("hole", ("sector", cb_ - deg, cb_ + deg, EYE_Y - lo_, EYE_Y + 0.75), 0, False), "DIFFERENCE")
         elif P["region"] != "seat":
-            boolean(shell, region_solid(P["name"] + "_hole", P["region"], 0, P.get("keep_inner")), "DIFFERENCE")
+            boolean(shell, region_solid(P["name"] + "_hole", P.get("hole", P["region"]), 0, P.get("keep_inner")), "DIFFERENCE")
     statics.append(shell)
     # inside: the seat with armrests and grips, on its post (in the sphere, a boom from the back of the ball)
     I3 = ((1, 0, 0), (0, 1, 0), (0, 0, 1))
@@ -657,23 +677,35 @@ def build(L, door="front"):
         home.append(join([dash] + legs, "dash"))
         for i in range(4):
             home.extend(mfd(f"mfd_dash{i}", ((i - 1.5) * step, y0 - 0.08, zf - 0.08), size, kinds[i]))
-    if "top" in where:
-        y1 = L["rows"][-1][1]
-        zf = c["front"] - 0.45
-        for i, x in enumerate((-0.34, 0.0, 0.34)):
-            statics += mfd(f"mfd_top{i}", (x, y1 - 0.02, zf), 0.26, kinds[(i + 2) % 4 if i != 1 else 3])
-        statics.append(box("mfd_rail", (0, y1 + 0.13, zf - 0.02), I3, (1.1, 0.04, 0.05), "FRAME"))
+    if "top" in where:                  # on the viewscreen itself, along the top of the front screen, as a HUD (the owner:
+        y1 = L["rows"][-1][1]           # "this upper mfd, should take up some realestate on teh viewscreen")
+        size = 0.30                     # about 20 degrees over the eye line, kept inside one row of screens
+        row = next((r for r in L["rows"] if r[0] <= EYE_Y + 0.3 <= r[1]), L["rows"][-1])
+        yc = min(max(EYE_Y + 0.3, row[0] + size / 2 + 0.03), row[1] - size / 2 - 0.03)
+        zs = c["front"] + RECESS_M      # the floor of the front screen's recess
+        home = next((objs[P["name"]] for P in parts if P["region"][0] == "sector" and P["region"][1] < 0 < P["region"][2]
+                     and P["region"][3] <= yc <= P["region"][4]), statics)
+        for i, x in enumerate((-0.36, 0.0, 0.36)):
+            for nm, sz, dz, mt in (("frame", size + 0.03, 0.0015, "BEZEL"), ("screen", size, 0.003, f"SCREEN_mfd_{kinds[(i + 2) % 4 if i != 1 else 3]}")):
+                bm = bmesh.new()
+                # the panel's right is the pilot's right, -x (as facing() gives for a panel looking back at the eye)
+                vs = [bm.verts.new((x - sx * sz / 2, yc + sy * sz / 2, zs - dz)) for sx, sy in ((1, -1), (-1, -1), (-1, 1), (1, 1))]
+                f = bm.faces.new(vs)
+                uv = bm.loops.layers.uv.new("UVMap")
+                for lp, t in zip(f.loops, ((1, 1), (0, 1), (0, 0), (1, 0))):
+                    lp[uv].uv = t
+                bm.normal_update()
+                if f.normal.z > 0:
+                    f.normal_flip()
+                home.append(new_obj(f"mfd_inset_{nm}{i}", bm, mt))
     if "arms" in where:
         for i, (x, z) in enumerate(((0.34, 0.16), (-0.34, 0.16), (0.34, 0.42), (-0.34, 0.42))):
             (objs["SEAT"] if "SEAT" in objs else statics).extend(mfd(f"mfd_arm{i}", (x, floor_y + 0.78 + 0.05 * (i // 2), z), 0.2, kinds[i]))
-    for P in parts:                     # a plug door's rails, on brackets from the front corners
-        if P.get("rails"):
-            wd, zr = P["rails"], c["front"] + WALL_M + 0.75
-            for k, y in enumerate((0.02, c["H"] - 0.02)):
-                statics.append(box(f"rail{k}", (-wd - 0.15, y, zr), I3, (4 * wd + 0.6, 0.08, 0.06), "FRAME"))
-                for sx in (1, -1):
-                    statics.append(box(f"bracket{k}{sx}", (sx * (wd + 0.06), y, (zr + c["front"] + WALL_M) / 2), I3,
-                                       (0.06, 0.06, zr - c["front"] - WALL_M), "FRAME"))
+    for P in parts:                     # a door's hinge knuckles: a pin on the body, a knuckle above and below it on the door
+        for k, (x, y, z) in enumerate(P.get("hinges", [])):
+            statics.append(box(f"hinge_pin{k}", (x - 0.02, y, z + 0.035), I3, (0.05, 0.12, 0.07), "FRAME"))
+            for dy in (-0.13, 0.13):
+                objs[P["name"]].append(box(f"hinge_knuckle{k}{dy > 0}", (x + 0.035, y + dy, z + 0.035), I3, (0.07, 0.12, 0.07), "FRAME"))
     # the clamps: blocks on the seam, outside, that slide clear before the part moves
     clamps = []                         # (name, centre, axes, slide direction, start)
     for P in parts:
@@ -802,4 +834,5 @@ def main():
                        layouts=[done[L["id"]] for L in LAYOUTS if L["id"] in done], built=built), f, indent=1)
 
 
-main()
+if __name__ == "__main__":       # build_cockpit.py imports the layouts and their mechanisms
+    main()

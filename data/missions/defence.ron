@@ -54,4 +54,22 @@
             skill: (aim_noise_deg: 2.0, fire_error_deg: 2.5, range_m: 320.0, max_fire_range_m: 800.0, hop_chance: 0.2),
         ),
     ],
+    // Each wave's vehicles beside its raiders (openspec/changes/invasion-forces, survey G16,
+    // provisional): tanks come by cargo plane and parachute. The crab airship joins wave 3 when it
+    // is built. A wave is cleared when its raiders and these are all destroyed.
+    forces: [
+        [
+            (unit: "tank", count: 4, by_air: true, per_plane: 2),
+            (unit: "helicopter", count: 2),
+        ],
+        [
+            (unit: "tank", count: 2, by_air: true, per_plane: 2),
+            (unit: "helicopter", count: 2),
+            (unit: "fighter", count: 2),
+        ],
+        [
+            (unit: "helicopter", count: 2),
+            (unit: "fighter", count: 4),
+        ],
+    ],
 )

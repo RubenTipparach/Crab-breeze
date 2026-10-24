@@ -83,11 +83,7 @@ impl Deformation {
         let (u, v) = (gx - i as f32, gz - j as f32);
         let s = |a: usize, b: usize| t[b * TILE_N + a];
         // The same two triangles per cell as the tile mesh.
-        if u >= v {
-            s(i, j) + u * (s(i + 1, j) - s(i, j)) + v * (s(i + 1, j + 1) - s(i + 1, j))
-        } else {
-            s(i, j) + v * (s(i, j + 1) - s(i, j)) + u * (s(i + 1, j + 1) - s(i, j + 1))
-        }
+        super::terrain::cell_height([s(i, j), s(i + 1, j), s(i, j + 1), s(i + 1, j + 1)], u, v)
     }
 
     /// Digs a crater for `blast`. Returns the tiles it touched (to be remeshed).
@@ -97,7 +93,7 @@ impl Deformation {
         }
         self.blasts.push(blast);
         let r = cfg.radius_m_per_cbrt_mj * blast.energy_mj.cbrt();
-        let reach = r * 1.8;
+        let reach = cfg.reach_m(blast.energy_mj);
         let (k0, k1) = (
             self.tile_of(blast.centre - Vec2::splat(reach)),
             self.tile_of(blast.centre + Vec2::splat(reach)),
@@ -267,21 +263,63 @@ impl Deformation {
         self.scorch.get(&key).map_or(0.0, |s| s[j * TILE_N + i])
     }
 
+    /// Only a tile and its eight neighbours (what `tile_mesh` and `scorch_at` read for that tile),
+    /// to hand to a worker thread without copying every dug tile.
+    pub fn around(&self, key: (i32, i32)) -> Self {
+        let mut out = Self {
+            origin_m: self.origin_m,
+            ..Default::default()
+        };
+        for dz in -1..=1 {
+            for dx in -1..=1 {
+                let k = (key.0 + dx, key.1 + dz);
+                if let Some(t) = self.tiles.get(&k) {
+                    out.tiles.insert(k, t.clone());
+                }
+                if let Some(t) = self.scorch.get(&k) {
+                    out.scorch.insert(k, t.clone());
+                }
+            }
+        }
+        out
+    }
+
     /// The fine mesh of a touched tile, on the base ground plus the deltas.
     pub fn tile_mesh(&self, plan: &WorldPlan, key: (i32, i32)) -> ChunkMesh {
-        let h = |p: Vec2| plan.terrain.height_at(p.x, p.y) + self.delta_at(p);
+        // Every grid point's height once, with a one-point border for the normals: the terrain's
+        // height is costly (noise), and sampling it five times a vertex took 56-260 ms a crater.
+        let g = TILE_N + 2;
+        let tile = self.tiles.get(&key);
+        let at = |ii: usize, jj: usize| {
+            Vec2::new(
+                self.origin_m + key.0 as f32 * TILE_M + (ii as f32 - 1.0) * STEP_M,
+                self.origin_m + key.1 as f32 * TILE_M + (jj as f32 - 1.0) * STEP_M,
+            )
+        };
+        let mut h = vec![0.0f32; g * g];
+        for jj in 0..g {
+            for ii in 0..g {
+                let p = at(ii, jj);
+                let inside = (1..=TILE_N).contains(&ii) && (1..=TILE_N).contains(&jj);
+                // Inside, the delta exactly at the grid point (no interpolation error at edges).
+                let d = match (inside, tile) {
+                    (true, Some(t)) => t[(jj - 1) * TILE_N + (ii - 1)],
+                    (true, None) => 0.0,
+                    (false, _) => self.delta_at(p),
+                };
+                h[jj * g + ii] = plan.terrain.height_at(p.x, p.y) + d;
+            }
+        }
         let mut m = ChunkMesh::default();
         for j in 0..TILE_N {
             for i in 0..TILE_N {
-                let p = self.sample_xz(key, i, j);
-                // Sample the delta exactly at the grid point (no interpolation error at edges).
-                let y = plan.terrain.height_at(p.x, p.y) + self.tiles.get(&key).map_or(0.0, |t| t[j * TILE_N + i]);
-                m.positions.push(Vec3::new(p.x, y, p.y));
-                let e = STEP_M;
+                let (ii, jj) = (i + 1, j + 1);
+                let p = at(ii, jj);
+                m.positions.push(Vec3::new(p.x, h[jj * g + ii], p.y));
                 let n = Vec3::new(
-                    h(p - Vec2::X * e) - h(p + Vec2::X * e),
-                    2.0 * e,
-                    h(p - Vec2::Y * e) - h(p + Vec2::Y * e),
+                    h[jj * g + ii - 1] - h[jj * g + ii + 1],
+                    2.0 * STEP_M,
+                    h[(jj - 1) * g + ii] - h[(jj + 1) * g + ii],
                 )
                 .normalize();
                 m.normals.push(n);
@@ -435,5 +473,41 @@ mod tests {
         }
         assert!(worst <= 0.75 + 0.02, "steepest {worst}");
         assert!(d.delta_at(Vec2::ZERO) <= 18.0 + 1e-3);
+    }
+
+    #[test]
+    fn a_tile_meshes_the_same_from_its_neighbourhood_alone() {
+        let mut d = Deformation::new(4096.0);
+        let cfg = CraterConfig::default();
+        let c = open_ground();
+        // Two craters near each other (one may spill into a neighbour) and one far off.
+        d.dig(
+            plan(),
+            Blast {
+                centre: c,
+                energy_mj: 25.0,
+            },
+            &cfg,
+        );
+        d.dig(
+            plan(),
+            Blast {
+                centre: c + Vec2::new(40.0, 0.0),
+                energy_mj: 25.0,
+            },
+            &cfg,
+        );
+        d.dig(
+            plan(),
+            Blast {
+                centre: c + Vec2::new(900.0, 0.0),
+                energy_mj: 25.0,
+            },
+            &cfg,
+        );
+        let key = d.tile_of(c);
+        let (a, b) = (d.tile_mesh(plan(), key), d.around(key).tile_mesh(plan(), key));
+        assert_eq!(a.positions, b.positions);
+        assert_eq!(a.normals, b.normals);
     }
 }

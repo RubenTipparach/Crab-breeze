@@ -7,6 +7,7 @@
 use crate::blast::Explosion;
 use crate::combat::Shots;
 use crate::fx::Fx;
+use crate::ground_marks::{Contact, GroundContact};
 use crate::input::StepActions;
 use crate::pilot::{PilotCamera, PilotEvents, PilotSim};
 use crate::sim::{Data, PresentSet, SimSet};
@@ -19,7 +20,7 @@ use cb_core::boarding::{Hatch, HatchTarget};
 use cb_core::input::DebugCommand;
 use cb_core::mech::rig::{BONES, SOCKETS};
 use cb_core::mech::{Damage, Hit, LocomotionMode, MechConfig, PartKind};
-use cb_core::mech::{LegRest, MechControls, MechState, RigRest, pose};
+use cb_core::mech::{LegRest, MechControls, MechState, RigRest, foot_strikes, pose, stance_lead_m};
 use cb_core::pilot::{MechAccess, PilotEvent, PilotMode};
 use cb_core::rng::SimRng;
 use cb_core::weapons::{Guns, Projectile};
@@ -142,7 +143,12 @@ impl Plugin for MechPlugin {
         app.init_resource::<MechAccessNow>()
             .add_systems(Startup, spawn_mech)
             .add_systems(FixedUpdate, (publish_access.in_set(SimSet::Input), step_mech.in_set(SimSet::Mech)))
-            .add_systems(Update, (bind_rig, cut_parts, drive_mech, burn).chain().in_set(PresentSet::Pose))
+            .add_systems(
+                Update,
+                (bind_rig, cut_parts, drive_mech, fall_wrecks, burn)
+                    .chain()
+                    .in_set(PresentSet::Pose),
+            )
             .add_systems(Update, cockpit_layer.after(PresentSet::Pose));
     }
 }
@@ -547,13 +553,16 @@ fn drive_mech(
     data: Res<Data>,
     mut roots: Query<(Entity, &MechSim, &MechSpec, Option<&MechRig>), With<MechRoot>>,
     mut transforms: Query<&mut Transform>,
+    wrecks: Query<(), With<Wreck>>,
 ) {
     let alpha = fixed.overstep_fraction();
     for (root, sim, spec, rig) in &mut roots {
         let s = lerp_state(&sim.prev, &sim.curr, alpha);
         let tl = &data.0.boarding;
         let t = sim.hatch_prev.t_s + (sim.hatch.t_s - sim.hatch_prev.t_s) * alpha;
-        if let Ok(mut t) = transforms.get_mut(root) {
+        if let Ok(mut t) = transforms.get_mut(root)
+            && !wrecks.contains(root)
+        {
             t.translation = s.pos;
             t.rotation = Quat::from_rotation_y(s.heading_rad);
         }
@@ -642,7 +651,9 @@ pub fn step_mech(
     mut explosions: MessageWriter<Explosion>,
     mut fx: MessageWriter<Fx>,
     targeting: Res<crate::targeting::TargetState>,
+    mut contacts: MessageWriter<GroundContact>,
 ) {
+    let _t = crate::perf_hud::slow("step_mech");
     let tl = &data.0.boarding;
     let locked = targeting.locked(&data.0.targeting);
     let dt = time.delta_secs();
@@ -874,12 +885,13 @@ pub fn step_mech(
             fx.write(Fx::new(recipe, muzzle).toward(dir));
         }
 
-        // Footfalls: spray and ripples in water, dust on dry ground; a heavy landing throws more.
+        // Footfalls: spray and ripples in water; on dry ground a contact for the ground marks, which
+        // print the foot, throw the dirt or the grit and jolt the pilot (ground-marks). A heavy
+        // landing throws more.
         let landed = was_airborne && !sim.curr.airborne();
-        for (side, offset) in [(0usize, 0.0f64), (1, 0.5)] {
-            let before = (sim.prev.gait_cycles - offset).floor();
-            let after = (sim.curr.gait_cycles - offset).floor();
-            if (before == after || sim.curr.gait_swing < 0.3 || sim.curr.legs_lost[side]) && !landed {
+        let strikes = foot_strikes(&sim.prev, &sim.curr, landed);
+        for side in [0usize, 1] {
+            if !strikes[side] {
                 continue;
             }
             let ankle = rig.rest.legs[side].ankle;
@@ -892,22 +904,44 @@ pub fn step_mech(
                     fx.write(Fx::new("foot_spray", at).dense(density).scaled(scale));
                 }
                 None => {
-                    fx.write(Fx::new("foot_dust", foot).dense(density).scaled(scale));
+                    contacts.write(GroundContact {
+                        mech: id.0,
+                        piloted,
+                        contact: Contact::Step {
+                            side,
+                            foot,
+                            heading_rad: sim.curr.heading_rad,
+                            lead_m: stance_lead_m(&sim.curr),
+                            speed_m_s: sim.curr.vel.length(),
+                            landed,
+                        },
+                    });
                 }
             }
         }
-        // Wheel sparks and grit while skating fast on the ground; a rooster tail of spray on water.
-        if sim.curr.mode == LocomotionMode::Skate && !sim.curr.airborne() && sim.curr.vel.length() > 5.0 {
+        // Skating on the ground: each wheel's contact, for its trail and its dirt or sparks
+        // (ground-marks); a rooster tail of spray on water.
+        if sim.curr.mode == LocomotionMode::Skate && !sim.curr.airborne() {
             let on_water = sim.curr.on_water == cb_core::mech::OnWater::Skimming;
-            for wheel in ["WHEEL_L", "WHEEL_R"] {
+            for (i, wheel) in ["WHEEL_L", "WHEEL_R"].into_iter().enumerate() {
                 if let Some(g) = rig.sockets.get(wheel).and_then(|e| globals.get(*e).ok()) {
-                    let back = -Vec3::new(sim.curr.vel.x, 0.0, sim.curr.vel.y).normalize_or(Vec3::Z);
                     if on_water {
-                        let fast = (sim.curr.vel.length() / 30.0).clamp(0.5, 4.0);
-                        fx.write(Fx::new("skate_spray", g.translation()).toward(back + Vec3::Y * 0.8).dense(fast));
+                        if sim.curr.vel.length() > 5.0 {
+                            let back = -Vec3::new(sim.curr.vel.x, 0.0, sim.curr.vel.y).normalize_or(Vec3::Z);
+                            let fast = (sim.curr.vel.length() / 30.0).clamp(0.5, 4.0);
+                            fx.write(Fx::new("skate_spray", g.translation()).toward(back + Vec3::Y * 0.8).dense(fast));
+                        }
                         continue;
                     }
-                    fx.write(Fx::new("skate_grit", g.translation()).toward(back + Vec3::Y * 0.3));
+                    contacts.write(GroundContact {
+                        mech: id.0,
+                        piloted,
+                        contact: Contact::Wheel {
+                            wheel: i as u8,
+                            at: g.translation(),
+                            vel: sim.curr.vel,
+                        },
+                    });
                 }
             }
         }
@@ -1057,6 +1091,47 @@ fn aim_point(camera: &GlobalTransform, plan: &cb_core::world::WorldPlan, dug: &c
     None
 }
 
+/// A destroyed mech coming down: it falls under gravity to the ground and topples from its feet
+/// like a felled tower, until it lies on its side. Presentation only: the simulation's mech is dead
+/// and still. Computed against the ground's height, so it works anywhere, not only where the
+/// physics has ground colliders (within 400 m of the eye).
+#[derive(Component)]
+pub struct Wreck {
+    vel: Vec3,
+    axis: Vec3,
+    angle_rad: f32,
+    rate_rad_s: f32,
+    heading_rad: f32,
+}
+
+/// Height of a mech's centre of mass over its feet, for the topple.
+const WRECK_CENTRE_M: f32 = 10.0;
+/// It comes to rest this far over: lying on its side.
+const WRECK_LIE_RAD: f32 = 1.45;
+
+fn fall_wrecks(time: Res<Time>, plan: Res<Plan>, mut wrecks: Query<(&mut Wreck, &mut Transform)>) {
+    let dt = time.delta_secs().min(0.05);
+    for (mut w, mut t) in &mut wrecks {
+        let ground = plan.height_at(t.translation.x, t.translation.z);
+        if t.translation.y > ground + 0.01 || w.vel.y > 0.0 {
+            w.vel.y -= 9.81 * dt;
+            t.translation += w.vel * dt;
+            if t.translation.y <= ground {
+                t.translation.y = ground;
+                w.vel = Vec3::ZERO;
+            }
+        } else {
+            t.translation.y = ground;
+            // A pole falling about its foot: angular acceleration 3 g sin(angle) / (2 L).
+            if w.angle_rad < WRECK_LIE_RAD {
+                w.rate_rad_s += 1.5 * 9.81 * w.angle_rad.sin() / WRECK_CENTRE_M * dt;
+                w.angle_rad = (w.angle_rad + w.rate_rad_s * dt).min(WRECK_LIE_RAD);
+            }
+        }
+        t.rotation = Quat::from_axis_angle(w.axis, w.angle_rad) * Quat::from_rotation_y(w.heading_rad);
+    }
+}
+
 /// Cuts lost parts off the rig: the bone and everything under it become a falling wreck; the stump
 /// burns.
 fn cut_parts(
@@ -1068,6 +1143,7 @@ fn cut_parts(
     mut fx: MessageWriter<Fx>,
     mut explosions: MessageWriter<Explosion>,
 ) {
+    let _t = crate::perf_hud::slow("cut_parts");
     for (root, mut sim, mut rig, mech) in &mut roots {
         for part in std::mem::take(&mut sim.cuts) {
             let spec = &mech.parts[part];
@@ -1075,6 +1151,17 @@ fn cut_parts(
                 // The torso is gone: the mech blows up where it stands and burns.
                 let at = globals.get(root).map(|g| g.translation()).unwrap_or_default() + Vec3::Y * 9.0;
                 explosions.write(Explosion { at, energy_mj: 25.0 });
+                // The wreck falls to the ground and topples from its feet (owner, 2026-10-24: dead
+                // mechs "stuck floating in the air"), away from the side it was facing, at random.
+                let side = if root.index().index() % 2 == 0 { 1.0 } else { -1.0 };
+                let heading = sim.curr.heading_rad;
+                commands.entity(root).insert(Wreck {
+                    vel: Vec3::new(sim.curr.vel.x, sim.curr.vel_y_m_s, sim.curr.vel.y),
+                    axis: Quat::from_rotation_y(heading) * Vec3::new(0.0, 0.0, side),
+                    angle_rad: 0.05,
+                    rate_rad_s: 0.0,
+                    heading_rad: heading,
+                });
                 commands.entity(rig.bones[3].entity).insert(Burning {
                     until_s: time.elapsed_secs() + 60.0,
                 });

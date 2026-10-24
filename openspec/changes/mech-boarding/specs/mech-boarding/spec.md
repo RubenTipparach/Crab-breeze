@@ -27,7 +27,7 @@ timeline names.
 - **THEN** that stage's nodes move to their open angles over its duration and its vents emit
 
 ### Requirement: Boarding and disembarking stay in first person
-The pilot's eyes SHALL be the camera through the whole sequence: climbing the ladder, stepping
+The pilot's eyes SHALL be the camera through the whole sequence: climbing to the sill, stepping
 in, settling at the eye, the chest sealing and the screens powering up, and the reverse when leaving.
 
 #### Scenario: No cut

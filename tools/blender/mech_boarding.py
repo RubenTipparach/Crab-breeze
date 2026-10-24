@@ -44,10 +44,13 @@ LINING_M = 0.12     # the lining's thickness
 
 def cockpit_env(variant):
     """The interior's envelope: its manifest when it has been built, the contract otherwise."""
-    e = dict(COCKPITS[variant])
+    e = dict(COCKPITS.get(variant, COCKPITS["wall"]))
     path = os.path.join(K.ROOT, "assets", "models", f"cockpit_{variant}.json")
     if os.path.exists(path):
         man = json.load(open(path))
+        dw = man.get("doorway_m")
+        if isinstance(dw, dict):
+            e["door"] = (dw["width"], dw["height"])
         env = man.get("envelope_m")
         if env:
             e.update(x=env["x"][1] if isinstance(env["x"], list) else env["x"], y=tuple(env["y"]), z=tuple(env["z"]))
@@ -142,7 +145,7 @@ def ram(k, name, A, a, B, b, r):
     base = k.J(f"RAM_{name}", A, a[0], a[1], a[2], e.x, e.y, e.z)
     sl, rl = L * 0.58, L * 0.62
     k.cyl(r, r, sl, M["dark"], base, 0, 0, sl / 2, PI / 2, seg=12)
-    k.cyl(r * 1.15, r * 1.15, sl * 0.12, M["frame"], base, 0, 0, sl - sl * 0.06, PI / 2, seg=12)
+    k.cyl(r * 1.15, r * 1.15, sl * 0.12, M["frame"], base, 0, 0, sl - sl * 0.08, PI / 2, seg=12)   # short of the barrel's end
     k.sph(r * 1.3, M["frame"], base, 0, 0, 0, seg=8)
     rod = k.J(f"RAM_{name}_rod", base, 0, 0, L - rl)
     k.cyl(r * 0.55, r * 0.55, rl, M["metal"], rod, 0, 0, rl / 2, PI / 2, seg=10)
@@ -191,7 +194,9 @@ def ladder(k, cp, cav, segs=10, seg_m=0.8):
 #   mode "lift"   the front splits at the screens' foot: the upper part hinges up over the roof, the lower
 #                 part drops forward into a step (the Foreman)
 #   mode "doors"  the front splits down the middle into two doors hinged at the sides (the Stevedore)
-#   mode "side"   the whole front is one door hinged on the pilot's right (the Ironhorse)
+#   mode "side"   the whole front is one door hinged on the pilot's right
+#   mode "inner"  the chest opens on the interior's own parts, as one body with them (_inner, below): the
+#                 Foreman's Panorama clamshell, the Ironhorse's Excavator cab ramp
 
 import bmesh                     # noqa: E402
 
@@ -302,7 +307,7 @@ def section(w, zf, zb, z_cut, wcut=None, sh=0.3, cb=0.3, round_back=0):
     return left + right
 
 
-def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None):
+def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None, swing=None, wrap_z=None):
     """The cockpit and the sculpted torso round it in `chest`, the interior's floor centre at `at` (kit units).
 
     torso: [(y, w, zf, zb, dict(wcut, sh, cb, round_back))] rising from the waist to the collar, heights in
@@ -315,7 +320,11 @@ def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None):
     Returns (cp, cav, out, hull): the cockpit node; the lining's box and the torso's box in kit units in the
     cockpit joint's frame (hw, y0, y1, z0, z1); and the hull: its moving joints, `at(a, y, d)` a point on the
     armour's outer face at bearing a (radians, 0 ahead, pi/2 the pilot's left) and height y (metres), d metres
-    proud of it, in kit units, and its numbers in metres. timing: {joint: (t0, d)} overrides the opening."""
+    proud of it, in kit units, and its numbers in metres. timing: {joint: (t0, d)} overrides the opening. swing: {interior
+    node: value} overrides how far a stage of a coupled part (mode inner) turns or slides in the mech, where the chest's
+    own size asks for more than the interior alone does. wrap_z (metres): for a part that wraps round the cabin (the
+    canopy), only the chest ahead of this depth opens with it, hinged on its back bottom edge, so a long hull behind the
+    cockpit (the Harrow's) stays put; give the part's first stage a lift in `swing` that clears that hull."""
     M, u = k.M, 1.0 / k.s
     E = cockpit_env(variant)
     m = CH.measure(variant)
@@ -336,6 +345,13 @@ def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None):
     r_in, r_ck, r_ds = _surface(inner_keys, A, centre), _surface(cock_keys, A, centre), _surface(design, A, centre)
     y_lo, y_hi = Yb - 0.5 * T, Yt + 0.5 * T            # the opening prow, top and bottom
     ysplit = sb
+    PT = CH.parts(variant) if mode == "inner" else {}
+    if PT:                                               # the seam between a part from the floor and one above it
+        lows = [d["front_y"][1] for d in PT.values() if d["front_y"][0] <= y0 + 0.12 and d["front_y"][1] < y1 - 0.15]
+        wrap = [d["stages"][0][1]["pivot_m"][1] for d in PT.values() if d["z"][0] < cz]
+        ysplit = max(lows) if lows else (wrap[0] if wrap else sb)
+        if any(abs(ysplit - y) < 0.004 for y in (sb, st, Yb, Yt)):
+            ysplit += 0.006
     Ybot, Ytop = design[0][0], design[-1][0]
 
     def ri(i, y):                       # the lining; solid (radius 0) outside it
@@ -393,11 +409,12 @@ def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None):
     back = list(range(i_pos, n)) + [i_neg]
     allr = list(range(n))
     j_bot, j_top, j_lo, j_hi, j_s = 0, len(H) - 1, H.index(y_lo), H.index(y_hi), H.index(ysplit)
-    F = _Faces()
-    wall(F, back, j_lo, j_hi)
-    wall(F, allr, j_bot, j_lo, loop=True)
-    wall(F, allr, j_hi, j_top, loop=True)
-    F.put(k, cp, (0, 0, 0), mats)
+    solids = dict(back=(back, j_lo, j_hi, False), low=(allr, j_bot, j_lo, True), high=(allr, j_hi, j_top, True))
+    if mode != "inner":
+        F = _Faces()
+        for idx, ja, jb, lp in solids.values():
+            wall(F, idx, ja, jb, loop=lp)
+        F.put(k, cp, (0, 0, 0), mats)
 
     def zfront(y):
         return cz + ro(i_0, y)
@@ -408,6 +425,7 @@ def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None):
 
     timing = timing or {}
     joints = {}
+    cutlog = []         # inner mode: (piece name, {solid: (lo, hi)}) in the order the cuts took the chest
 
     def piece(name, idx, ja, jb, hinge, motion, t0, d):
         t0, d = timing.get(name, (t0, d))
@@ -426,6 +444,13 @@ def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None):
         piece("CHEST_door_R", list(range(i_neg, i_0 + 1)), j_lo, j_hi, (xside(-1), y_lo, cz), ("y", -1.6), 1.1, 1.5)
     elif mode == "side":
         piece("CHEST_door", front, j_lo, j_hi, (xside(-1), y_lo, cz), ("y", -1.6), 0.8, 1.6)
+    elif mode == "inner":
+        _inner(k, cp, PT, solids, front, wall, mats, dict(cz=cz, y0=y0, y1=y1, y_lo=y_lo, y_hi=y_hi, Ytop=Ytop,
+                                                          split=ysplit, back_r=lambda y: ro(A.index(PI), y),
+                                                          Yb=Yb, Yt=Yt, T=T,
+                                                          zfront=zfront, u=u, j_lo=j_lo, j_hi=j_hi, wrap_z=wrap_z,
+                                                          cutlog=cutlog), joints, timing,
+               swing or {})
     else:
         raise ValueError(mode)
 
@@ -438,6 +463,8 @@ def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None):
                                door_m=list(E["door"]), hull=dict(mode=mode, z_cut_m=round(cz, 4), armour_m=T, belt_m=bt,
                                                                  margin_m=mg, lining_y_m=[round(Yb, 4), round(Yt, 4)],
                                                                  prow_y_m=[round(y_lo, 4), round(y_hi, 4)]))
+    if mode == "inner":     # which interior part rides which chest joint: the two open as one body
+        k.extras["cockpit"]["rides"] = {part: joints[_chest_name(part)][0].joint for part in PT}
 
     def bbox(r, lo, hi, ys):
         xs, zs = [], []
@@ -457,9 +484,238 @@ def pod(k, chest, variant, at, mode, torso, armour_m=POD_ARMOUR_M, timing=None):
         r = ro(i, y) + d
         return (cx + math.sin(A[i]) * r) * u, y * u, (cz + math.cos(A[i]) * r) * u
 
-    hull = dict(cp=cp, joints=joints, at=at, Yb=Yb, Yt=Yt, y_lo=y_lo, y_hi=y_hi, Ybot=Ybot, Ytop=Ytop, z_cut=cz, sb=sb,
+    def piece_of(a, y):
+        """The moving piece (a joints name) whose armour holds the point at bearing a and height y (metres), or None
+        for the hull that stays: a marking painted there has to ride that piece, or it hangs in the air when the
+        piece swings away."""
+        a = (a + PI) % (2 * PI) - PI
+        if mode != "inner":
+            return None
+        if y < y_lo:
+            solid_ = "low"
+        elif y > y_hi:
+            solid_ = "high"
+        else:
+            solid_ = "prow" if abs(a) <= PI / 2 else "back"
+        q = at(a, y)
+        q = (q[0] / u, q[1] / u, q[2] / u)
+        for name, cuts in cutlog:
+            if solid_ in cuts:
+                lo, hi = cuts[solid_]
+                if all(lo[i] <= q[i] <= hi[i] for i in range(3)):
+                    return name
+        return None
+
+    hull = dict(cp=cp, joints=joints, at=at, piece_of=piece_of, Yb=Yb, Yt=Yt, y_lo=y_lo, y_hi=y_hi, Ybot=Ybot, Ytop=Ytop, z_cut=cz, sb=sb,
                 st=st, ysplit=ysplit, zfront=zfront, xside=xside, ro=ro, angles=A)
     return cp, cav, out, hull
+
+
+# --- mode "inner": the chest opens on the interior's own parts
+# The owner, 2026-10-24, on the Foreman: "it's cockpit has a problem when opening. It needs to follow the titan
+# style or panorama style". The chest and the interior used to open twice, on different hinges, and their
+# pieces met. Now each part of the interior that opens (its INNER_ nodes, measured by cockpit_hull.parts) takes
+# the armour in front of it: the chest is cut with a box round the part (Exact booleans, the CSG way), that
+# piece rides a chain of joints with the part's own stages, hinged on the armour's outer edge nearest the
+# part's own hinge, and the interior part is carried on the last joint (extras cockpit.rides). One body, one
+# opening. A box's sides are planes across the hinge, so a piece swinging on it never passes through what stays.
+
+BIG = 50.0      # metres: a box face that is "no limit"
+
+
+def ride_w_of(d):
+    return max(abs(d["x"][0]), abs(d["x"][1])) + POD_MARGIN_M
+
+
+def ride_w(variant, part):
+    """The half width (metres) of the chest piece cut round an interior part: its seam down each side."""
+    return ride_w_of(CH.parts(variant)[part])
+
+
+def _chest_name(part):
+    return "CHEST_" + part[len("INNER_"):]
+
+
+def _solid_obj(F, name):
+    """A Blender object from faces sorted by role, one material slot a role (armor, dark, frame)."""
+    import bpy
+    roles = ("armor", "dark", "frame")
+    bm = bmesh.new()
+    vs = {}
+    for ri, role in enumerate(roles):
+        for f in F.by.get(role, []):
+            loop = []
+            for p in f:
+                key = (round(p.x, 5), round(p.y, 5), round(p.z, 5))
+                if key not in vs:
+                    vs[key] = bm.verts.new(p)
+                if not loop or loop[-1] is not vs[key]:
+                    loop.append(vs[key])
+            if len(loop) >= 3 and len(set(loop)) == len(loop):
+                try:
+                    bm.faces.new(loop).material_index = ri
+                except ValueError:
+                    pass
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    for role in roles:
+        me.materials.append(_role_mat(role))
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(ob)
+    return ob
+
+
+def _role_mat(role):
+    import bpy
+    nm = f"__pod_{role}"
+    return bpy.data.materials.get(nm) or bpy.data.materials.new(nm)
+
+
+def _box_obj(name, lo, hi):
+    """A cutter box from lo to hi (metres), all its faces the frame role: what a cut leaves is the seam's face."""
+    import bpy
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    for v in bm.verts:
+        v.co = Vector([lo[i] if v.co[i] < 0 else hi[i] for i in range(3)])
+    for f in bm.faces:
+        f.material_index = 2
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    for role in ("armor", "dark", "frame"):
+        me.materials.append(_role_mat(role))
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(ob)
+    return ob
+
+
+def _boolean(ob, cutter, op):
+    """A new object: ob op cutter (INTERSECT or DIFFERENCE), Exact, materials kept by slot."""
+    import bpy
+    res = bpy.data.objects.new(ob.name + "_" + op[:3].lower(), ob.data.copy())
+    bpy.context.scene.collection.objects.link(res)
+    md = res.modifiers.new("b", "BOOLEAN")
+    md.operation, md.solver, md.object = op, "EXACT", cutter
+    md.material_mode = "INDEX"
+    dg = bpy.context.evaluated_depsgraph_get()
+    me = bpy.data.meshes.new_from_object(res.evaluated_get(dg))
+    res.modifiers.clear()
+    old = res.data
+    res.data = me
+    bpy.data.meshes.remove(old)
+    return res
+
+
+def _drop(ob):
+    import bpy
+    me = ob.data
+    bpy.data.objects.remove(ob)
+    if me.users == 0:
+        bpy.data.meshes.remove(me)
+
+
+def _put_obj(k, ob, joint, origin, mats):
+    """An object's faces into the kit on `joint`, by role, its points taken relative to `origin` (metres)."""
+    roles = ("armor", "dark", "frame")
+    o = Vector(origin)
+    me = ob.data
+    for ri, role in enumerate(roles):
+        faces = [f for f in me.polygons if f.material_index == ri]
+        if not faces:
+            continue
+        bm = bmesh.new()
+        vs = {}
+        for f in faces:
+            loop = []
+            for vi in f.vertices:
+                if vi not in vs:
+                    vs[vi] = bm.verts.new(me.vertices[vi].co - o)
+                loop.append(vs[vi])
+            try:
+                bm.faces.new(loop)
+            except ValueError:
+                pass
+        k._put(bm, mats[role], joint)
+
+
+def _inner(k, cp, PT, solids, front, wall, mats, g, joints, timing, swing):
+    """The chest cut round each opening part of the interior; see the note above."""
+    cz, split, u = g["cz"], g["split"], g["u"]
+    # the prow is its own solid, so a part's box can take it without taking the torso behind the cut
+    idx, ja, jb, lp = solids["back"]
+    solids = dict(solids, prow=(front, ja, jb, False))
+    objs = {}
+    for nm, (idx, ja, jb, lp) in solids.items():
+        F = _Faces()
+        wall(F, idx, ja, jb, loop=lp)
+        objs[nm] = _solid_obj(F, f"__pod_{nm}")
+    rest = dict(objs)
+    for part, d in sorted(PT.items()):
+        pv = d["stages"][0][1]["pivot_m"]
+        slides_up = any(m.get("slide") == "y" for _, m in d["stages"])
+        if d["z"][0] < cz:                                   # it wraps round the cabin: all of the chest above the seam
+            if g.get("wrap_z") is None:
+                cuts = {nm: ((-BIG, split, -BIG), (BIG, BIG, BIG)) for nm in objs}
+                hinge = (0.0, split, cz - g["back_r"](split))
+            else:
+                # it lifts straight up clear of the hull behind, then tilts back on its back bottom edge (owner,
+                # 2026-10-24: "it should have a hinge on the back or lift straight up then tilt back, other wise its
+                # gonna hit the seat"); the lift is the part's first stage, sized by the caller's swing
+                cuts = {nm: ((-BIG, split, g["wrap_z"]), (BIG, BIG, BIG)) for nm in objs}
+                hinge = (0.0, split, g["wrap_z"])
+        else:
+            W = ride_w_of(d)
+            low = d["front_y"][0] <= g["y0"] + 0.12
+            high = d["front_y"][1] >= g["y1"] - 0.15
+            ya = -BIG if low else split
+            yb = BIG if high else split
+            cuts = {"prow": ((-W, ya, -BIG), (W, yb, BIG))}
+            # the slabs under the floor and over the roof, ahead of the cabin's front wall, go with the part too (owner,
+            # 2026-10-24: "pieces of geometry that block the pilot from exiting, that part shouldve opened WITH the
+            # dooor"): left behind they make a sill to climb over and a lintel to duck under
+            z_in = d["z"][1] - 0.12
+            if low:
+                cuts["low"] = ((-W, g["Yb"] - g["T"] - 0.02, z_in), (W, BIG, BIG))
+            if high and slides_up:                        # it rises: the roof ahead of the cut goes with it
+                cuts["high"] = ((-W, ya, cz), (W, BIG, BIG))
+            elif high:
+                cuts["high"] = ((-W, -BIG, z_in), (W, g["Yt"] + g["T"] + 0.02, BIG))
+            ends = [g["Yb"] - g["T"] if low else split,
+                    (g["Ytop"] if slides_up else g["Yt"] + g["T"]) if high else split]
+            yh = min(ends, key=lambda y: abs(y - pv[1]))
+            hinge = (0.0, yh, g["zfront"](yh))
+        pieces = []
+        for nm, (lo, hi) in cuts.items():
+            box = _box_obj(f"__cut_{part}_{nm}", lo, hi)
+            pieces.append(_boolean(rest[nm], box, "INTERSECT"))
+            left = _boolean(rest[nm], box, "DIFFERENCE")
+            if rest[nm] is not objs[nm]:
+                _drop(rest[nm])
+            rest[nm] = left
+            _drop(box)
+        # the joints: one a stage, as the interior moves the part, on the armour's hinge
+        name = _chest_name(part)
+        parent, jn = cp, None
+        for si, (node, mo) in enumerate(d["stages"]):
+            t0, dd = timing.get(node, (mo["t0"], mo["d"]))
+            motion = (("pos_" + mo["slide"]) if "slide" in mo else mo["axis"], swing.get(node, mo["value"]))
+            nm_j = name if si == 0 else f"{name}_{si}"
+            at = (hinge[0] * u, hinge[1] * u, hinge[2] * u) if si == 0 else (0, 0, 0)
+            jn = hatch(k, nm_j, parent, *at, motion, t0, dd)
+            parent = jn
+        for pc in pieces:
+            _put_obj(k, pc, jn, hinge, mats)
+            _drop(pc)
+        joints[name] = (jn, hinge)
+        g["cutlog"].append((name, cuts))
+    for nm, ob in rest.items():
+        _put_obj(k, ob, cp, (0, 0, 0), mats)
+        if ob is not objs[nm]:
+            _drop(ob)
+    for ob in objs.values():
+        _drop(ob)
 
 
 def solid(k, node, keys, mat, centre=(0.0, 0.0), n=24):

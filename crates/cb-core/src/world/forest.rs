@@ -10,6 +10,7 @@
 //! Trees felled in a tile that is let go are remembered, and lie felled when it grows again.
 
 use super::config::TreeConfig;
+use super::cover::{Clearance, Cover};
 use super::layout::Rect;
 use super::{Ground, WorldPlan};
 use crate::rng::SimRng;
@@ -18,6 +19,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::f32::consts::FRAC_PI_2;
 
 const G_M_S2: f32 = 9.81;
+/// How far trees keep from what is built: 20 m round a city, 6 m inside a park's edge, 6 m off a
+/// highway's paved edge, 0.6 of a bridge's length from its centre, 2 m from a building.
+const TREE_CLEARANCE: Clearance = Clearance {
+    city_m: 20.0,
+    park_inset_m: 6.0,
+    road_m: 6.0,
+    bridge_share: 0.6,
+    building_m: 2.0,
+};
 /// Marks a tile site with no tree.
 const NO_TREE: u16 = u16::MAX;
 
@@ -543,10 +553,6 @@ impl Grower {
         let cfg = &self.cfg;
         let ts = cfg.tile_sites;
         let total_share: f32 = cfg.species.iter().map(|s| s.share).sum();
-        let flat_highway = |p: Vec2| {
-            plan.highways.iter().any(|h| h.project(p).0 < h.width_m * 0.5 + 6.0)
-                || plan.waters.bridges.iter().any(|b| b.centre.distance(p) < b.length_m * 0.6)
-        };
         let mut trees = Vec::new();
         for iz in key.1 * ts..((key.1 + 1) * ts).min(self.sites_per_side) {
             for ix in key.0 * ts..((key.0 + 1) * ts).min(self.sites_per_side) {
@@ -559,24 +565,15 @@ impl Grower {
                 let roll = r.next_f32() * total_share;
                 let size = r.next_f32();
                 let yaw = r.next_f32() * std::f32::consts::TAU;
-                let in_city = plan.cities.iter().find(|c| c.rect().distance(p) < 1e-3);
-                let chance = match in_city {
-                    Some(c) => {
-                        let park = c
-                            .blocks
-                            .iter()
-                            .any(|b| b.park && b.rect.inset(6.0).is_some_and(|i| i.distance(p) < 1e-3));
-                        if park { cfg.park_chance } else { 0.0 }
-                    }
-                    None => {
+                let chance = match plan.cover_at(p, &TREE_CLEARANCE) {
+                    Cover::Bare => continue,
+                    Cover::Park => cfg.park_chance,
+                    Cover::Open => {
                         let forest = self.mask.height(p.x, p.y, cfg.mask_wavelength_m, 1.0, 3, 0.5) > cfg.forest_threshold;
                         if forest { cfg.forest_chance } else { cfg.scatter_chance }
                     }
                 };
-                if pick >= chance || in_city.is_none() && plan.cities.iter().any(|c| c.rect().distance(p) < 20.0) {
-                    continue;
-                }
-                if flat_highway(p) || plan.collision.overlaps(p, 2.0) {
+                if pick >= chance {
                     continue;
                 }
                 let ground = plan.height_at(p.x, p.y);

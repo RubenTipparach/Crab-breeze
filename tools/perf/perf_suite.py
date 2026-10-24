@@ -66,7 +66,13 @@ def stats(values: list[float]) -> dict:
     v = sorted(x for x in values if not math.isnan(x))
     if not v:
         return {}
+    refresh = pct(v, 0.5)
     return {
+        # Windowed, frames are held to the display, so the median is one refresh; a frame over
+        # 1.5 refreshes missed one (a stutter), and one over 50 ms is a freeze anyone sees.
+        "missed": sum(x > 1.5 * refresh for x in v),
+        "missed_share": sum(x > 1.5 * refresh for x in v) / len(v),
+        "freezes": sum(x > 50.0 for x in v),
         "n": len(v),
         "mean": sum(v) / len(v),
         "p50": pct(v, 0.5),
@@ -133,6 +139,8 @@ def run_once(scenario: str, variant: dict, index: int, a) -> dict:
     log_path = a.out / f"{tag}.log"
     cmd = [variant["exe"], *SCENARIOS[scenario]]
     env = {**os.environ, **variant["env"], "CB_FRAME_LOG": str(csv_path), "CB_BENCH_NAME": f"suite-{tag}"}
+    if a.windowed:
+        env["CB_BENCH_WINDOWED"] = "1"
     if variant.get("root"):
         env["CB_ROOT"] = variant["root"]
     print(f"[{dt.datetime.now():%H:%M:%S}] {tag}: {' '.join(cmd)} {variant['env'] or ''}", flush=True)
@@ -221,7 +229,7 @@ def fmt(x: float, want: float | None = None) -> str:
 def report(results: list[dict], a, meta: dict) -> str:
     lines = [f"# Performance suite, {meta['when']}", ""]
     lines.append(f"- revision: `{meta['revision']}`{' (uncommitted changes)' if meta['dirty'] else ''}")
-    lines.append(f"- adapter: {meta.get('adapter', 'unknown')}; offscreen 1920 x 1080, uncapped (`--bench`)")
+    lines.append(f"- adapter: {meta.get('adapter', 'unknown')}; " + ("in the window, held to the display (`CB_BENCH_WINDOWED=1`)" if a.windowed else "offscreen 1920 x 1080, uncapped (`--bench`)"))
     lines.append(f"- first {a.skip_s} s of each run thrown away; {a.repeats} run(s) per variant, interleaved")
     lines.append(f"- budgets: p95 within {WANT_MS:.1f} ms (120 fps), p99 within {FLOOR_MS:.1f} ms (60 fps); "
                  "**over** marks a miss. Each cell is the median over the valid runs; spread is the "
@@ -230,7 +238,7 @@ def report(results: list[dict], a, meta: dict) -> str:
     for scenario in a.scenarios:
         lines.append(f"## {scenario}")
         lines.append("")
-        lines.append("| variant | valid runs | fps | p50 | p95 | p95 spread | p99 | p99.9 | max | render CPU p50 | GPU p50 | entities | peak memory MB |")
+        lines.append("| variant | valid runs | fps | p50 | p95 | p95 spread | p99 | p99.9 | max | missed refreshes | freezes over 50 ms | entities | peak memory MB |")
         lines.append("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
         for variant in a.variant_names:
             rs = [r for r in results if r["scenario"] == scenario and r["variant"] == variant]
@@ -240,8 +248,9 @@ def report(results: list[dict], a, meta: dict) -> str:
             lines.append(
                 f"| {variant} | {len(ok)}/{len(rs)} | {fmt(fps)} | {fmt(m('p50'))} | {fmt(m('p95'), WANT_MS)} | "
                 f"{fmt(spread([r['frame_ms'].get('p95', math.nan) for r in ok]))} | "
-                f"{fmt(m('p99'), FLOOR_MS)} | {fmt(m('p999'))} | {fmt(m('max'))} | {fmt(m('p50', 'render_cpu_ms'))} | "
-                f"{fmt(m('p50', 'gpu_total_ms'))} | {fmt(m('p50', 'entities'))} | {fmt(m('peak', 'memory_mb'))} |")
+                f"{fmt(m('p99'), FLOOR_MS)} | {fmt(m('p999'))} | {fmt(m('max'))} | "
+                f"{fmt(m('missed_share') * 100)} % ({fmt(m('missed'))}) | {fmt(m('freezes'))} | "
+                f"{fmt(m('p50', 'entities'))} | {fmt(m('peak', 'memory_mb'))} |")
         for r in results:
             if r["scenario"] == scenario and r.get("notes"):
                 lines.append(f"- {r['variant']} run {r['index']}: {'; '.join(r['notes'])} (its fps column is 1000 / p50)")
@@ -312,6 +321,8 @@ def main() -> None:
     ap.add_argument("--variant", action="append", help="name|exe|ENV=1;ENV2=2|root (repeatable)")
     ap.add_argument("--exe", default="target/release/crab-breeze", help="the exe of a variant that names none")
     ap.add_argument("--repeats", type=int, default=2)
+    ap.add_argument("--windowed", action="store_true",
+                    help="play in the window, held to the display: report missed refreshes and freezes")
     ap.add_argument("--skip-s", type=float, default=10.0)
     ap.add_argument("--timeout", type=float, default=600.0)
     ap.add_argument("--out", type=Path, default=Path("output/perf") / dt.datetime.now().strftime("%Y%m%d-%H%M"))

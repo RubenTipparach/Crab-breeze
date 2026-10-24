@@ -25,13 +25,24 @@ import gen_mech_designs as MD  # noqa: E402
 ROOT = MD.ROOT
 OUT = os.path.join(ROOT, "docs", "mockups", "cockpits.html")
 SITE = os.path.join(ROOT, "output", "cockpit_site")
-VARIANTS = [("wall", "foreman", "Wall", "Seated in a cab of flat screens: a wide front screen, chamfered corner screens, "
+VARIANTS = [("panorama", "Foreman", "Panorama", "Detailed from its block-out (owner, 2026-10-24: \"Please make detailed versions of panorama, "
+             "titan, excavator can, and canopy\"; Panorama is one of the top two). One wide front screen, square side screens, "
+             "the MFDs on the viewscreen and on the dash; the front splits: the bottom drops as a step, the top swings up "
+             "with the dash on it. For the Foreman."),
+            ("titan", "a new mech", "Titan", "Detailed from its block-out. A square front screen between heavy pillars; the top "
+             "half rises past the roof and tilts back, the bottom drops as a step carrying the dash."),
+            ("cab", "Ironhorse", "Excavator cab", "Detailed from its block-out (\"excellent, classic\"). Floor to roof screens "
+             "in two rows and a screen in the floor; the MFDs on the viewscreen; the whole front drops forward as a ramp. "
+             "For the Ironhorse, seated."),
+            ("canopy", "a new mech", "Canopy", "Detailed from its block-out. A fighter's canopy: screens round the sill and in "
+             "the bubble overhead; the whole bubble lifts off its seal and tilts up on its back edge."),
+            ("wall", "Foreman", "Wall", "Seated in a cab of flat screens: a wide front screen, chamfered corner screens, "
              "side screens, three monitors hanging from the ceiling. The front and the corner screens swing out and "
              "the sill folds down as the step."),
-            ("harness", "stevedore", "Harness", "Set aside: every cockpit is seated now (owner, 2026-10-24). Standing in a tall octagon of screens, strapped to a backplate on a "
+            ("harness", "Stevedore", "Harness", "Set aside: every cockpit is seated now (owner, 2026-10-24). Standing in a tall octagon of screens, strapped to a backplate on a "
              "spine, forearms on two rests that end in the grips, a ring of monitors overhead. The front facet lifts, "
              "the front diagonals swing and the rests fold up to let the pilot in."),
-            ("jockey", "ironhorse", "Jockey", "Set aside: every cockpit is seated now (owner, 2026-10-24). Riding it like a motorbike: leaning onto a chest pad, knees in pads, "
+            ("jockey", "Ironhorse", "Jockey", "Set aside: every cockpit is seated now (owner, 2026-10-24). Riding it like a motorbike: leaning onto a chest pad, knees in pads, "
              "hands on handlebar grips, looking down a low wide bank of screens with a strip overhead. The screen "
              "bank lifts like a visor and the yoke swings up.")]
 
@@ -89,7 +100,7 @@ code { font: 12px "IBM Plex Mono", monospace }
   layout: the angle between the nearest frame members either side of straight ahead.</p>
   <div class="grid">
     <section>
-      <div class="row"><span class="k">Built</span><span id="pick" class="row" style="margin:0"></span></div>
+      <div class="row"><span class="k">Detailed</span><span id="pick" class="row" style="margin:0"></span></div>
       <div class="row"><span class="k">Concepts</span><span id="pickc" class="row" style="margin:0"></span></div>
       <div class="row"><span class="k">Entry</span><button data-door="front" class="on">Front</button><button data-door="back">Back</button></div>
       <div class="row"><span class="k">View</span><button data-view="eye" class="on">Pilot's eye</button><button data-view="orbit">Outside</button></div>
@@ -181,6 +192,7 @@ const AX = { x: new T.Vector3(1, 0, 0), y: new T.Vector3(0, 1, 0), z: new T.Vect
 function tracks(man) {
   return Object.entries(man.motions || {}).map(([node, m]) => ({ node, axis: m.axis, pos: m.slide, v: m.value, t0: m.t0 || 0, d: m.d || 1 }));
 }
+const KEY = c => c.man ? "d_" + c.variant : c.id;     // a detailed cockpit and its block-out share a name
 // each block-out twice: entered by the front, and the same cabin entered by the back
 const REARS = CONCEPTS.layouts.map(L => Object.assign({}, L, L.rear, { id: L.id + "_rear", door: "back" }));
 Promise.all([...COCKPITS, ...CONCEPTS.layouts, ...REARS].map(c => loader.loadAsync(c.file).then(g => {
@@ -205,7 +217,7 @@ Promise.all([...COCKPITS, ...CONCEPTS.layouts, ...REARS].map(c => loader.loadAsy
   // to meet at full stretch and short enough not to poke past the other end when shut
   const rams = (c.rams || []).filter(r => nodes[r.base] && nodes[r.tip]).map(r => ({ b: nodes[r.base], t: nodes[r.tip] }));
   const vents = (c.vents || []).filter(v => nodes[v.node]).map(v => ({ o: nodes[v.node], dir: new T.Vector3(...v.dir).normalize(), t0: v.t0, d: v.d }));
-  const id = c.variant || c.id;
+  const id = KEY(c);
   const P = pods[id] = { c, L: c.man ? null : c, pod, tr, rams, vents, end: Math.max(1, ...tr.map(t => t.t0 + t.d)), eye: c.man ? c.man.eye_m : c.eye_m, eyeNode: c.man ? null : nodes.EYE_pilot };
   if (rams.length) {
     const len = () => rams.map(r => r.b.getWorldPosition(new T.Vector3()).distanceTo(r.t.getWorldPosition(new T.Vector3())));
@@ -215,20 +227,22 @@ Promise.all([...COCKPITS, ...CONCEPTS.layouts, ...REARS].map(c => loader.loadAsy
       r.rod = new T.Mesh(new T.CylinderGeometry(0.018, 0.018, l, 8).translate(0, l / 2, 0), RAM_ROD);
       scene.add(r.barrel, r.rod); r.barrel.visible = r.rod.visible = false; });
   }
-}))).then(() => { msg.textContent = ""; pick(COCKPITS[0].variant); }).catch(e => { msg.textContent = "Could not load: " + e; console.error(e); });
+}))).then(() => { msg.textContent = ""; pick("d_" + COCKPITS[0].variant); }).catch(e => { msg.textContent = "Could not load: " + e; console.error(e); });
 
 const pickEl = document.getElementById("pick"), pickC = document.getElementById("pickc");
-COCKPITS.forEach(c => { const b = document.createElement("button"); b.textContent = c.title + " (" + c.mech + ")"; b.dataset.v = c.variant; b.onclick = () => pick(c.variant); pickEl.appendChild(b); });
+COCKPITS.forEach(c => { const b = document.createElement("button"); b.textContent = c.title + " (" + c.mech + ")"; b.dataset.v = "d_" + c.variant; b.onclick = () => pick("d_" + c.variant); pickEl.appendChild(b); });
 CONCEPTS.layouts.forEach((L, i) => { const b = document.createElement("button"); b.textContent = (i + 1) + " " + L.name; b.dataset.v = L.id; b.onclick = () => pick(L.id); pickC.appendChild(b); });
+// a detailed cockpit's measures: the built three's own, or its block-out's
+const builtOf = v => CONCEPTS.built[v] || CONCEPTS.layouts.find(l => l.id === v);
 const clearCell = (n, cls) => `<span class="${cls || (n >= 80 ? "good" : "bad")}">${n >= 360 ? "all round" : n + " degrees"}</span>`;
 document.getElementById("table").innerHTML = "<tr><th>Cockpit</th><th>Kind</th><th>Pose</th><th>Clear ahead</th><th>Back door, clear ahead</th><th>Screens span</th></tr>" +
-  COCKPITS.map(c => `<tr><td>${c.title}</td><td>built, in the ${c.mech}</td><td>${c.pose}</td><td>${clearCell(CONCEPTS.built[c.variant].clear_deg)}</td><td>n/a</td><td>${CONCEPTS.built[c.variant].span_deg} degrees</td></tr>`).join("") +
+  COCKPITS.map(c => `<tr><td>${c.title}</td><td>detailed, for ${c.mech}</td><td>${c.pose}</td><td>${clearCell(builtOf(c.variant).clear_deg)}</td><td>n/a</td><td>${builtOf(c.variant).span_deg} degrees</td></tr>`).join("") +
   CONCEPTS.layouts.map((L, i) => `<tr><td>${i + 1} ${L.name}</td><td>block-out</td><td>${L.pose}</td><td>${clearCell(L.clear_deg)}</td><td>${clearCell(L.rear.clear_deg)}</td><td>${L.span_deg >= 360 ? "360 degrees" : L.span_deg + " degrees"}</td></tr>`).join("");
 function pick(v) {
   v = v.replace(/_rear$/, "");
   const P = pods[!pods[v].c.man && door === "back" ? v + "_rear" : v];
   if (!P) return;
-  v = P.c.variant || P.c.id;
+  v = KEY(P.c);
   for (const k in pods) { pods[k].pod.visible = k === v; pods[k].rams.forEach(r => { r.barrel.visible = r.rod.visible = k === v; }); }
   cur = P; openK = 0; openTo = 0; setOpen(false);
   [pickEl, pickC].forEach(el => el.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === v.replace(/_rear$/, ""))));
@@ -240,12 +254,12 @@ function pick(v) {
       <dt>Eye</dt><dd>${L.eye_m[1].toFixed(2)} m over the floor, seated</dd>
       <dt>Opening</dt><dd>${L.opening}; ${L.open_s.toFixed(1)} s</dd>
       <dt>Moving parts</dt><dd>${L.parts.map(n => n.replace(/_/g, " ").toLowerCase()).join(", ")}, ${L.tracks.filter(t => t.dir).length} clamps, ${L.rams.length} rams, ${L.vents.length} vents</dd>
-      <dt>MFDs</dt><dd>status, nav, weapons, radar: ${L.mfd.map(w => ({ top: "overhead", dash: "on the dash", arms: "on the armrests, riding with the seat" })[w]).join(" and ")}</dd>
+      <dt>MFDs</dt><dd>status, nav, weapons, radar: ${L.mfd.map(w => ({ top: "on the viewscreen, along the top of the front screen, as a HUD", dash: "on the dash", arms: "on the armrests, riding with the seat" })[w]).join(" and ")}</dd>
       <dt>Triangles</dt><dd>${L.tris.toLocaleString()}</dd></dl>
       <p class="hint">Low-poly and flat-coloured, built the CSG way in Blender (<code>tools/blender/build_cockpit_blockouts.py</code>): an airtight shell, screens cut into its inner wall, the opening parts cut off it by booleans with their seals and clamps in orange. The chosen layout is then modelled and baked in detail.</p>`;
   } else {
-    const c = P.c, m = c.man, e = m.envelope_m, bc = { clear: CONCEPTS.built[c.variant].clear_deg };
-    document.getElementById("card").innerHTML = `<div class="sub">built · in the ${c.mech}</div><h2>${c.title}</h2><p>${c.text}</p><dl>
+    const c = P.c, m = c.man, e = m.envelope_m, bc = { clear: builtOf(c.variant).clear_deg };
+    document.getElementById("card").innerHTML = `<div class="sub">detailed · for ${c.mech}</div><h2>${c.title}</h2><p>${c.text}</p><dl>
     <dt>Clear ahead</dt><dd class="big">${clearCell(bc.clear)}</dd>
     <dt>Eye</dt><dd>${m.eye_m[1].toFixed(2)} m over the floor</dd>
     <dt>Envelope</dt><dd>${(2 * (Array.isArray(e.x) ? e.x[1] : e.x)).toFixed(2)} wide, ${(e.y[1] - e.y[0]).toFixed(2)} tall, ${(e.z[1] - e.z[0]).toFixed(2)} deep (m)</dd>
@@ -271,7 +285,7 @@ document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => setView(
 document.querySelectorAll("[data-door]").forEach(b => b.onclick = () => {
   door = b.dataset.door;
   document.querySelectorAll("[data-door]").forEach(x => x.classList.toggle("on", x === b));
-  if (cur) pick(cur.c.variant || cur.c.id);
+  if (cur) pick(KEY(cur.c));
   setView(view);
 });
 // the opening slider: drag it to scrub through the opening and hold any moment of it; Open and Closed play to
@@ -356,8 +370,8 @@ def main(only=None):
             shutil.copyfile(os.path.join(d, "textures", f), os.path.join(SITE, r))
             files[r] = os.path.join(SITE, r)
         man = json.load(open(os.path.join(MD.MODELS, f"cockpit_{v}.json")))
-        cockpits.append(dict(variant=v, mech=mech.capitalize(), title=title, text=text, file=rel, man=man,
-                             pose={"wall": "seated", "harness": "standing", "jockey": "leaning"}[v]))
+        cockpits.append(dict(variant=v, mech=mech, title=title, text=text, file=rel, man=man,
+                             pose={"harness": "standing", "jockey": "leaning"}.get(v, "seated")))
     blockouts = json.load(open(os.path.join(MD.MODELS, "cockpit_blockouts.json")))
     for L in blockouts["layouts"]:
         for d in (L, L["rear"]):

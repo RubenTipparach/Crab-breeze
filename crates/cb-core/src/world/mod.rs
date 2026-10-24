@@ -8,6 +8,7 @@
 pub mod clouds;
 pub mod collision;
 pub mod config;
+pub mod cover;
 pub mod deform;
 pub mod destruct;
 pub mod dressing;
@@ -23,6 +24,7 @@ pub mod water;
 pub use clouds::Clouds;
 pub use collision::BuildingGrid;
 pub use config::WorldConfig;
+pub use cover::{Clearance, Cover, Surface};
 pub use deform::Deformation;
 pub use destruct::{Chunk, Moment, Structures};
 pub use dressing::DressingConfig;

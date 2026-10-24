@@ -2,7 +2,7 @@
 //! pilot's camera rendering into an offscreen 1920 x 1080 image, so frames never wait for a display,
 //! and reports frame time by beat. A measurement instrument (CLAUDE.md section 4).
 //!
-//! Stills of the offscreen image only with `CB_BENCH_STILLS=1`; a measured run takes none.
+//! `CB_BENCH_WINDOWED=1` keeps the window instead, as a player sees it. Stills of the offscreen image only with `CB_BENCH_STILLS=1`; a measured run takes none.
 //!
 //! For `tools/perf/perf_suite.py` (Pale Blue Dot's suite, ported): with `CB_FRAME_LOG=<path>` it
 //! writes one CSV row per frame (wall time, beat, entity count, the render passes' CPU time and,
@@ -66,6 +66,13 @@ fn offscreen(
     mut images: ResMut<Assets<Image>>,
     mut frames: ResMut<Frames>,
 ) {
+    // `CB_BENCH_WINDOWED=1` plays in the window as a player sees it, held to the display's refresh:
+    // what it measures is missed refreshes and freezes, not headroom (owner, 2026-10-24: a
+    // benchmark with no window "doesn't tell us anything").
+    if crate::cli::switched_off("CB_BENCH_WINDOWED") {
+        info!("bench: rendering in the window, held to the display");
+        return;
+    }
     let image = Image::new_target_texture(1920, 1080, TextureFormat::Rgba8Unorm, Some(TextureFormat::Rgba8UnormSrgb));
     let handle = images.add(image);
     frames.target = handle.clone();

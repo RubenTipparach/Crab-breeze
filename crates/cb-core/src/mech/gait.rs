@@ -149,7 +149,7 @@ pub fn pose(state: &MechState, gait: &GaitConfig, rest: &RigRest, sit: &SitPose,
     let s = sit_amount.clamp(0.0, 1.0);
     let phase = state.gait_cycles;
     let swing = state.gait_swing * (1.0 - s);
-    let a = state.stride_m * 0.25 * swing;
+    let a = stance_lead_m(state) * (1.0 - s);
     let lift = gait.step_height_m * swing;
     let p = phase.rem_euclid(1.0) as f32;
     let walk_offset = Vec3::new(
@@ -214,6 +214,24 @@ pub fn pose(state: &MechState, gait: &GaitConfig, rest: &RigRest, sit: &SitPose,
         left: solve(&rest.legs[0], phase, lost[0]),
         right: solve(&rest.legs[1], phase + 0.5, lost[1]),
     }
+}
+
+/// How far ahead of its rest ankle a foot comes down at the start of its stance (the swing ends at
+/// `foot_offset(1.0) = +a`), metres along the mech's heading. The pose and the footprints both read
+/// it, so a print lies where the drawn foot lands (openspec change `ground-marks`).
+pub fn stance_lead_m(state: &MechState) -> f32 {
+    state.stride_m * 0.25 * state.gait_swing
+}
+
+/// Which feet (left, right) start their stance between two steps: the left at each whole gait
+/// cycle, the right half a cycle later, while the stride swings (at least 0.3) and the leg is
+/// there; both on the step the mech lands from the air (`landed`, a stump included). The one foot-strike rule: the
+/// footfall dust, the footprints and the pilot's jolt all ask here (openspec change `ground-marks`).
+pub fn foot_strikes(prev: &MechState, curr: &MechState, landed: bool) -> [bool; 2] {
+    [(0usize, 0.0f64), (1, 0.5)].map(|(side, offset)| {
+        let crossed = (prev.gait_cycles - offset).floor() != (curr.gait_cycles - offset).floor();
+        landed || (crossed && curr.gait_swing >= 0.3 && !curr.legs_lost[side])
+    })
 }
 
 #[cfg(test)]
@@ -362,5 +380,46 @@ mod tests {
             }
         }
         assert!(slide < 0.05 * s.stride_m, "stance foot slid {slide} m of a {} m stride", s.stride_m);
+    }
+
+    fn walking(cycles: f64) -> MechState {
+        MechState {
+            gait_cycles: cycles,
+            gait_swing: 1.0,
+            stride_m: 8.0,
+            ..MechState::default()
+        }
+    }
+
+    #[test]
+    fn the_left_foot_strikes_at_each_whole_cycle_and_the_right_half_a_cycle_later() {
+        assert_eq!(foot_strikes(&walking(0.98), &walking(1.02), false), [true, false]);
+        assert_eq!(foot_strikes(&walking(1.48), &walking(1.52), false), [false, true]);
+        assert_eq!(
+            foot_strikes(&walking(1.10), &walking(1.20), false),
+            [false, false],
+            "mid-stance: none"
+        );
+    }
+
+    #[test]
+    fn a_settled_stride_or_a_lost_leg_strikes_nothing_but_a_landing_strikes_both() {
+        let mut still = walking(1.02);
+        still.gait_swing = 0.1;
+        assert_eq!(foot_strikes(&walking(0.98), &still, false), [false, false], "shuffling in place");
+        let mut limping = walking(1.02);
+        limping.legs_lost = [true, false];
+        assert_eq!(foot_strikes(&walking(0.98), &limping, false), [false, false]);
+        assert_eq!(foot_strikes(&walking(1.1), &walking(1.2), true), [true, true]);
+    }
+
+    #[test]
+    fn a_foot_comes_down_a_quarter_stride_ahead_of_its_rest_ankle() {
+        let s = walking(1.0);
+        assert!((stance_lead_m(&s) - 2.0).abs() < 1e-6);
+        assert!(
+            (foot_offset(1.0, stance_lead_m(&s), 1.0).z - 2.0).abs() < 1e-5,
+            "where the swing ends"
+        );
     }
 }

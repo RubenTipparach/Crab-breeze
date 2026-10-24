@@ -1,0 +1,78 @@
+// The invasion's vehicles (openspec/changes/invasion-forces, design section 1). Placeholder
+// numbers, first estimates to be retuned from a run's MISSION log. First run (2026-10-24): with
+// a 35 hp tank shell every 4 s and 20 hp rockets the pilot fell 90 s into wave 1; halved. Armour is one value per unit
+// for now (no front or side): the pilot's 35 mm autocannon (90 mm) beats everything but a tank's
+// hull slowly, the 120 mm cannon (260 mm) beats all of them. Weapons are `WeaponSpec`s, as a
+// mech's: `socket` and `arm` are unused on a unit (it fires from its nose).
+(
+    units: {
+        "tank": (
+            kind: Tank,
+            size_m: (3.6, 2.6, 7.0),
+            speed_m_s: 12.0,
+            turn_deg_s: 30.0,
+            hp: 220.0,
+            armour_mm: 80.0,
+            weapon: Some((name: "120 mm tank gun", socket: "NOSE", arm: Torso, group: 0, speed_m_s: 900.0,
+                interval_s: 6.0, penetration_mm: 200.0, damage: 18.0, blast_mj: 3.0)),
+            fire_range_m: 1200.0,
+            fire_cone_deg: 3.0,
+            standoff_m: 450.0,
+            tint: (0.42, 0.40, 0.30),
+        ),
+        "helicopter": (
+            kind: Helicopter,
+            size_m: (3.0, 4.0, 16.0),
+            speed_m_s: 45.0,
+            turn_deg_s: 60.0,
+            hp: 120.0,
+            armour_mm: 20.0,
+            weapon: Some((name: "70 mm rockets", socket: "NOSE", arm: Torso, group: 0, speed_m_s: 220.0,
+                interval_s: 0.25, penetration_mm: 120.0, damage: 8.0, blast_mj: 2.0, rocket: true)),
+            salvo: 4,
+            salvo_pause_s: 10.0,
+            fire_range_m: 900.0,
+            fire_cone_deg: 8.0,
+            standoff_m: 300.0,
+            altitude_m: (70.0, 110.0),
+            tint: (0.30, 0.34, 0.26),
+        ),
+        "fighter": (
+            kind: Fighter,
+            size_m: (12.0, 3.0, 15.0),
+            speed_m_s: 200.0,
+            turn_deg_s: 20.0,
+            hp: 80.0,
+            armour_mm: 10.0,
+            weapon: Some((name: "25 mm aircraft cannon", socket: "NOSE", arm: Torso, group: 0, speed_m_s: 1000.0,
+                interval_s: 0.1, penetration_mm: 55.0, damage: 3.0, blast_mj: 0.3)),
+            salvo: 15,
+            salvo_pause_s: 2.0,
+            fire_range_m: 1200.0,
+            fire_cone_deg: 4.0,
+            standoff_m: 350.0,
+            altitude_m: (120.0, 600.0),
+            extend_s: 8.0,
+            tint: (0.50, 0.52, 0.55),
+        ),
+        "cargo_plane": (
+            kind: CargoPlane,
+            size_m: (40.0, 8.0, 30.0),
+            speed_m_s: 90.0,
+            turn_deg_s: 10.0,
+            hp: 400.0,
+            armour_mm: 20.0,
+            fire_range_m: 1.0,
+            fire_cone_deg: 1.0,
+            standoff_m: 1.0,
+            altitude_m: (400.0, 450.0),
+            tint: (0.36, 0.38, 0.34),
+        ),
+    },
+    drop: (
+        chute_open_s: 2.0,
+        descent_m_s: 8.0,
+        carry: 0.15,
+        release_spread_s: 3.0,
+    ),
+)
