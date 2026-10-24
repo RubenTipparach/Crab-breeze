@@ -602,15 +602,15 @@ def build(S):
         r, u, nn = basis(n, V(0, 0, 1) if abs(n.y) > 0.9 else V(0, 1, 0))
         for k in range(3):
             S.obox(c + n * (0.004 + k * 0.004), (r, u, nn), (0.16 - 0.04 * k, 0.16 - 0.04 * k, 0.006), ("bezel", "paint_dk", "steel")[k], "cabin", bevel=0.004)
-    disp = {"OVH_left": ("mfd_right", 30, 56), "OVH_center": ("mfd_center", 0, 60), "OVH_right": ("mfd_left", -30, 56)}
+    disp = {"OVH_left": ("mfd_right", 34, 63), "OVH_center": ("mfd_center", 0, 67), "OVH_right": ("mfd_left", -34, 63)}
     for name, (img, a, el) in disp.items():
-        c = E(D(a), D(el), 0.86)
+        c = E(D(a), D(el), 0.9)
         n = (EYE - c).normalized()
         r, u, nn = basis(n, V(0, 1, 0))
-        S.obox(c - nn * 0.02, (r, u, nn), (0.24, 0.18, 0.04), "bezel", "cabin", bevel=0.006)
+        S.obox(c - nn * 0.02, (r, u, nn), (0.21, 0.16, 0.04), "bezel", "cabin", bevel=0.006)
         S.cyl(c - nn * 0.03, E(D(a), D(el + 6), 0.97), 0.012, "steel", "cabin", seg=12)
-        S.obox(c + nn * 0.001 - u * 0.075, (r, u, nn), (0.2, 0.008, 0.004), "cyan", "cabin")
-        S.quad(c + nn * 0.0015, nn, u, 0.21, 0.155, emission_material(name, os.path.join(DISPLAYS, f"{img}.png"), 2.0), "screen", name, node=name)
+        S.obox(c + nn * 0.001 - u * 0.068, (r, u, nn), (0.18, 0.006, 0.004), "cyan", "cabin")
+        S.quad(c + nn * 0.0015, nn, u, 0.185, 0.135, emission_material(name, os.path.join(DISPLAYS, f"{img}.png"), 2.0), "screen", name, node=name)
         NODES[name] = ("pod", None)
 
     # --- the pod's armour: the fixed rear and top, the visor, the flaps, the lower plate
@@ -922,7 +922,13 @@ def ext_material(role, cache={}):
         uv = N.new("ShaderNodeUVMap")
         uv.uv_map = "UVMap"
         t = N.new("ShaderNodeTexImage")
-        t.image = bpy.data.images.load(os.path.join(ROOT, "assets", "textures", "mech", f"{tex}.png"), check_existing=True)
+        jpg = os.path.join(RAW, f"ext_{tex}.jpg")          # JPEG in the glb: the review page has a size limit
+        src = bpy.data.images.load(os.path.join(ROOT, "assets", "textures", "mech", f"{tex}.png"), check_existing=True)
+        _ = src.pixels[0]                                   # load it before saving it again
+        src.filepath_raw = jpg
+        src.file_format = "JPEG"
+        src.save(quality=85)
+        t.image = bpy.data.images.load(jpg, check_existing=True)
         L.new(uv.outputs[0], t.inputs[0])
         L.new(t.outputs[0], bsdf.inputs["Base Color"])
         npath = os.path.join(ROOT, "assets", "textures", "mech", f"{tex}_n.png")

@@ -30,8 +30,9 @@ await page.locator(".stage").scrollIntoViewIfNeeded();
 await page.waitForFunction(() => window.MOCKUP_READY, null, { timeout: 240000 });
 for (const [name, t, c] of SHOTS) {
   if (only && !only.split(",").includes(name)) continue;
+  await page.evaluate((t) => { window.MOCKUP.set("steam", false); window.MOCKUP.setT(t); }, t);
+  await page.waitForTimeout(1500);
   await page.evaluate(([t, c]) => {
-    window.MOCKUP.set("steam", false); window.MOCKUP.setT(t);
     if (c[0] === "orbit") window.MOCKUP.orbitTo(...c[1], ...c[2]);
     else if (c[0] === "hatch") window.MOCKUP.hatchView(...c[1], ...c[2]);
     else window.MOCKUP.look(c[1], c[2], c[3]);

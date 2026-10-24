@@ -301,7 +301,7 @@ const allview = new THREE.ShaderMaterial({
       c *= 0.93 + 0.07 * sin(gl_FragCoord.y * 1.6);
       float az = atan(ld.x, ld.z), el = asin(clamp(ld.y, -1.0, 1.0));
       if (hudOn > 0.5 && abs(az) < 0.42 && el > -0.2 && el < 0.44) {
-        vec2 uv = vec2(0.5 + az / 0.84, (el + 0.2) / 0.64);
+        vec2 uv = vec2(0.5 - az / 0.84, (el + 0.2) / 0.64);
         vec4 h = texture2D(hud, uv);
         c = mix(c, h.rgb * 1.2, h.a * 0.9);
       }
