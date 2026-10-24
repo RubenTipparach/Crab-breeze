@@ -101,6 +101,8 @@
 
     // Trees (openspec/changes/vegetation, grown by tile near the bodies: island-world design
     // section 3). The woods are as dense as before; only the tiles near the pilot and the mechs exist.
+    // Denser, farther woods (owner, 2026-10-24: "More trees please", but "100k is probably a bit
+    // much" as entities) wait for GPU-driven trees, placed and culled in a compute shader.
     trees: (
         tile_sites: 24,
         keep_radius_m: 1500.0,

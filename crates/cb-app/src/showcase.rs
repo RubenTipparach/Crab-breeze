@@ -123,6 +123,7 @@ fn play(
     mut acc: ResMut<InputAccum>,
     pilot: Res<PilotSim>,
     access: Res<MechAccessNow>,
+    ready: Res<crate::loading::GameReady>,
     mechs: Query<&MechSim, With<Piloted>>,
     plan: Res<Plan>,
     live: Res<Live>,
@@ -140,7 +141,8 @@ fn play(
         // The world and rig are up and shaders have settled. Pick the cloud to fly into, a river
         // landing by the thickest wood, and that wood.
         0 => {
-            if t > 5.0 && access.0.is_some() {
+            // The game is loaded and its pipelines compiled (GAME_READY): only then does a take begin.
+            if ready.0 && access.0.is_some() {
                 let here = Vec2::new(m.pos.x, m.pos.z);
                 take.cloud = plan
                     .clouds
@@ -336,6 +338,7 @@ fn play_fight(
     mut acc: ResMut<InputAccum>,
     pilot: Res<PilotSim>,
     access: Res<MechAccessNow>,
+    ready: Res<crate::loading::GameReady>,
     me: Query<&MechSim, With<Piloted>>,
     enemies: Query<&MechSim, With<Enemy>>,
     plan: Res<Plan>,
@@ -369,7 +372,8 @@ fn play_fight(
     }
     match take.beat {
         0 => {
-            if t > 5.0 && access.0.is_some() {
+            // The game is loaded and its pipelines compiled (GAME_READY): only then does a take begin.
+            if ready.0 && access.0.is_some() {
                 say("PLAYTEST_READY fight");
                 say("PLAYTEST_START fight");
                 next = true;
@@ -531,6 +535,7 @@ fn play_defence(
     mut acc: ResMut<InputAccum>,
     pilot: Res<PilotSim>,
     access: Res<MechAccessNow>,
+    ready: Res<crate::loading::GameReady>,
     me: Query<(&MechSim, &crate::mech::MechSpec), With<Piloted>>,
     raiders: Query<(&MechSim, &crate::defence::Raider)>,
     run: Res<crate::defence::DefenceRun>,
@@ -581,7 +586,8 @@ fn play_defence(
     }
     match take.beat {
         0 => {
-            if t > 5.0 && access.0.is_some() {
+            // The game is loaded and its pipelines compiled (GAME_READY): only then does a take begin.
+            if ready.0 && access.0.is_some() {
                 say("PLAYTEST_READY defence");
                 say("PLAYTEST_START defence");
                 next = true;

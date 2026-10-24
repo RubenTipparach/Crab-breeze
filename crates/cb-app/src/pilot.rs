@@ -93,6 +93,13 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
             },
             lens.clone(),
             bevy::camera::visibility::RenderLayers::layer(COCKPIT_LAYER),
+            // It draws over the eye camera's frame without clearing, so the two must share one
+            // target texture: the same HDR (the water makes the eye camera HDR) and no MSAA. Left
+            // LDR, it drew into a texture of its own that never cleared: the HUD smeared, the
+            // loading screen and an old prompt stuck, and the world vanished behind it.
+            bevy::camera::Hdr,
+            Msaa::Off,
+            bevy::anti_alias::fxaa::Fxaa::default(),
             Transform::default(),
             // The sealed cabin's own light (cockpit-lighting): its lamps, not the sky. The sun and
             // every flash outside are on the world layer and never reach this pass.
@@ -135,6 +142,8 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
         },
         Transform::default(),
         ColorGrading::default(),
+        Msaa::Off,
+        bevy::anti_alias::fxaa::Fxaa::default(),
     ));
     camera.add_child(cockpit);
     // Sees water the pilot's way: under it, and with drops on the glass after surfacing

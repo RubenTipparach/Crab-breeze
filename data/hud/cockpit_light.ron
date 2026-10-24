@@ -10,6 +10,11 @@
     screens_m: [(0.0, 0.0, -1.2), (-1.0, 0.0, -0.6), (1.0, 0.0, -0.6)],
     // The screens' cube map (task 2.1): the world drawn round the eye, one face a frame, filtered
     // into the cabin's light. 0 px turns it off.
-    screens_cube_px: 64,
+    // Owner, 2026-10-24: "Cube map should update like 10fps". Measured uncapped on the RTX 3070,
+    // CPU-bound: a face every frame cost 4.7 ms; at 10 refreshes a second with 3 km faces 7-9 ms
+    // (each face visits every mesh in the world); with 400 m faces still 3-8 ms in the fight. Off
+    // (0 px) until the cheaper route: the screens' average colours from the frame already drawn.
+    screens_cube_px: 0,
     screens_cube_cd_m2: 400.0,
+    screens_cube_hz: 10.0,
 )

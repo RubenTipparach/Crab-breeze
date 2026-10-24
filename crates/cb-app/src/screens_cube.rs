@@ -28,6 +28,8 @@ struct ScreensCube {
     faces: [Handle<Image>; 6],
     cube: Handle<Image>,
     px: u32,
+    /// The face drawn the frame before, to copy into the cube this frame (none: nothing to copy).
+    fresh: Option<usize>,
 }
 
 /// A face camera, by face index (+X, -X, +Y, -Y, +Z, -Z).
@@ -66,7 +68,12 @@ fn setup(mut commands: Commands, data: Res<Data>, mut images: ResMut<Assets<Imag
     let light = &data.0.cockpit_light;
     let px = light.screens_cube_px;
     let format = TextureFormat::Rgba16Float;
-    let faces: [Handle<Image>; 6] = std::array::from_fn(|_| images.add(Image::new_target_texture(px, px, format, None)));
+    // Each face is drawn into, then copied out of into the cube.
+    let faces: [Handle<Image>; 6] = std::array::from_fn(|_| {
+        let mut face = Image::new_target_texture(px, px, format, None);
+        face.texture_descriptor.usage |= TextureUsages::COPY_SRC;
+        images.add(face)
+    });
     let mut cube = Image::new_fill(
         Extent3d {
             width: px,
@@ -99,7 +106,9 @@ fn setup(mut commands: Commands, data: Res<Data>, mut images: ResMut<Assets<Imag
                 fov: std::f32::consts::FRAC_PI_2,
                 aspect_ratio: 1.0,
                 near: 0.5,
-                far: 3000.0,
+                // Near surroundings and the sky light the cabin; far geometry would only cost the
+                // CPU a visit to every mesh in the world for each face.
+                far: 400.0,
                 ..default()
             }),
             Transform::default(),
@@ -111,19 +120,39 @@ fn setup(mut commands: Commands, data: Res<Data>, mut images: ResMut<Assets<Imag
         rotation: Quat::IDENTITY,
         affects_lightmapped_mesh_diffuse: true,
     });
-    commands.insert_resource(ScreensCube { faces, cube, px });
+    commands.insert_resource(ScreensCube {
+        faces,
+        cube,
+        px,
+        fresh: None,
+    });
 }
 
-/// One face a frame, in turn, drawn from where the pilot's eye is now.
+/// One face at a time, `6 * screens_cube_hz` faces a second, drawn from where the pilot's eye is
+/// now; no face on the frames between.
 fn turn_faces(
-    mut frame: Local<usize>,
+    mut next: Local<usize>,
+    mut due_s: Local<f32>,
+    mut drawn: Local<Option<usize>>,
+    mut cube: ResMut<ScreensCube>,
+    time: Res<Time>,
+    data: Res<Data>,
     eye: Single<&GlobalTransform, With<PilotCamera>>,
     mut faces: Query<(&FaceCamera, &mut Camera, &mut Transform)>,
 ) {
-    *frame = (*frame + 1) % 6;
+    // The face drawn last frame is in its image now: that one, and only it, goes into the cube.
+    cube.fresh = drawn.take();
+    *due_s -= time.delta_secs();
+    let draw = *due_s <= 0.0;
+    if draw {
+        *due_s += 1.0 / (6.0 * data.0.cockpit_light.screens_cube_hz);
+        *due_s = due_s.max(0.0);
+        *next = (*next + 1) % 6;
+        *drawn = Some(*next);
+    }
     let at = eye.translation();
     for (f, mut cam, mut t) in &mut faces {
-        cam.is_active = f.0 == *frame;
+        cam.is_active = draw && f.0 == *next;
         let (dir, up) = FACES[f.0];
         *t = Transform::from_translation(at).looking_to(dir, up);
     }
@@ -135,15 +164,17 @@ fn extract(mut commands: Commands, cube: Extract<Option<Res<ScreensCube>>>) {
     }
 }
 
-/// Copies the six faces into the cube's six layers (the newest face is a frame old by then).
+/// Copies the face drawn last frame into its layer of the cube; nothing on frames with none.
 fn copy_faces(cube: Option<Res<ScreensCube>>, images: Res<RenderAssets<GpuImage>>, device: Res<RenderDevice>, queue: Res<RenderQueue>) {
     let Some(c) = cube else { return };
-    let Some(dst) = images.get(&c.cube) else { return };
+    let Some(i) = c.fresh else { return };
+    let (Some(dst), Some(src)) = (images.get(&c.cube), images.get(&c.faces[i])) else {
+        return;
+    };
     let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
         label: Some("screens cube faces"),
     });
-    for (i, face) in c.faces.iter().enumerate() {
-        let Some(src) = images.get(face) else { continue };
+    {
         encoder.copy_texture_to_texture(
             src.texture.as_image_copy(),
             TexelCopyTextureInfo {
