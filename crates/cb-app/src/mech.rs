@@ -643,6 +643,7 @@ pub fn step_mech(
                 let mut c = MechControls::from_actions(&actions);
                 // Boost thrust goes where the pilot looks.
                 c.view_yaw_rad = pilot.curr.yaw_rad;
+                c.view_pitch_rad = pilot.curr.pitch_rad;
                 if !actions.free_look {
                     let wrap = |a: f32| (a + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
                     let twist = wrap(pilot.curr.yaw_rad - sim.curr.heading_rad);

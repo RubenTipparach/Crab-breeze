@@ -1,7 +1,7 @@
 //! The cockpit HUD prototype (openspec change `cockpit-hud`; owner, 2026-10-24: "quick rapid ui
 //! prototyping in the cockpit"): a crosshair, a leg compass (which way the legs face against the
 //! torso), booster and skate gauges (heat, seconds left, seconds to recharge), throttle, speed,
-//! altitude, mode, guns and damage. Shown only while seated. Every number is the simulation's own
+//! altitude, mode, guns, damage, and for exploring the compass heading and the nearest city. Shown only while seated. Every number is the simulation's own
 //! (CLAUDE.md section 6.1). A 2D overlay for now; it moves onto the cockpit's screens later.
 
 use crate::mech::{MechSim, MechSpec, Piloted};
@@ -44,6 +44,7 @@ enum Readout {
     Flight,
     Guns,
     Damage,
+    Nav,
 }
 
 const GREEN: Color = Color::srgb(0.55, 0.95, 0.6);
@@ -120,6 +121,17 @@ fn spawn_hud(mut commands: Commands) {
                     BackgroundColor(GREEN.with_alpha(0.8)),
                 ));
             }
+            // Navigation, top centre: heading and the nearest city.
+            root.spawn(Node {
+                position_type: PositionType::Absolute,
+                top: px(24.0),
+                width: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                ..default()
+            })
+            .with_children(|c| {
+                c.spawn((text("", 18.0), Readout::Nav));
+            });
             // Leg compass, bottom centre: the torso is straight up; the arrow is the legs.
             root.spawn(Node {
                 position_type: PositionType::Absolute,
@@ -220,6 +232,48 @@ fn spawn_hud(mut commands: Commands) {
                 c.spawn((text("", 14.0), Readout::Damage));
             });
         });
+}
+
+/// Compass bearing in degrees, 0 north (-z), clockwise, of a flat direction (x, z).
+fn bearing_deg(dir: Vec2) -> f32 {
+    dir.x.atan2(-dir.y).to_degrees().rem_euclid(360.0)
+}
+
+/// A bearing as the compass shows it, whole degrees 0..359.
+fn whole_deg(deg: f32) -> i32 {
+    (deg.round() as i32).rem_euclid(360)
+}
+
+/// The compass point for a bearing.
+fn point(deg: f32) -> &'static str {
+    const POINTS: [&str; 8] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+    POINTS[((deg / 45.0).round() as usize) % 8]
+}
+
+/// `HDG 274 W   CITY 2  1.8 km  040 NE`: where the view points and the way to the nearest city.
+fn fmt_nav(view_yaw_rad: f32, at: Vec2, cities: &[cb_core::world::City]) -> String {
+    // A yaw of zero looks along -z (north); yaw turns left, the compass turns right.
+    let heading = bearing_deg(Vec2::new(-view_yaw_rad.sin(), -view_yaw_rad.cos()));
+    let mut s = format!("HDG {:03} {}", whole_deg(heading), point(heading));
+    let nearest = cities
+        .iter()
+        .min_by(|a, b| a.centre.distance_squared(at).total_cmp(&b.centre.distance_squared(at)));
+    if let Some(c) = nearest {
+        let to = c.centre - at;
+        if to.abs().max_element() <= c.half_size_m {
+            s += &format!("   IN CITY {}", c.id + 1);
+        } else {
+            let b = bearing_deg(to);
+            s += &format!(
+                "   CITY {}  {:.1} km  {:03} {}",
+                c.id + 1,
+                to.length() / 1000.0,
+                whole_deg(b),
+                point(b)
+            );
+        }
+    }
+    s
 }
 
 fn fmt_budget(name: &str, heat: f32, locked: bool, burn_s: f32, recharge_s: f32, active: bool) -> (String, Color) {
@@ -323,6 +377,7 @@ fn update_hud(
                 };
                 (format!("LEGS {:+.0} deg{turn}", -m.twist_rad.to_degrees()), GREEN)
             }
+            Readout::Nav => (fmt_nav(pilot.curr.yaw_rad, Vec2::new(m.pos.x, m.pos.z), &plan.cities), GREEN),
             Readout::Flight => (
                 format!("{mode}   {speed_kmh:.0} km/h   ALT {agl:.0} m"),
                 if m.mode == LocomotionMode::Walk { GREEN } else { AMBER },
@@ -384,5 +439,21 @@ fn update_hud(
             t.0 = s;
         }
         c.0 = colour;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn looking_along_minus_z_reads_north() {
+        assert!(fmt_nav(0.0, Vec2::ZERO, &[]).starts_with("HDG 000 N"));
+    }
+
+    #[test]
+    fn turning_right_reads_east() {
+        // The yaw turns left: a quarter turn right is minus a quarter turn of yaw.
+        assert!(fmt_nav(-std::f32::consts::FRAC_PI_2, Vec2::ZERO, &[]).starts_with("HDG 090 E"));
     }
 }

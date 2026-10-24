@@ -7,6 +7,7 @@ use super::config::{GaitConfig, LocomotionConfig, MechConfig};
 use crate::input::{Actions, ModeRequest};
 use crate::world::Ground;
 use glam::{Vec2, Vec3};
+use std::f32::consts::FRAC_PI_2;
 
 /// How the mech is moving.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -88,6 +89,8 @@ pub struct MechControls {
     pub move_xy: Vec2,
     /// Where the pilot looks (world yaw): boost thrust is relative to it.
     pub view_yaw_rad: f32,
+    /// How far up the pilot looks (radians, up positive): boosting forward climbs or dives with it.
+    pub view_pitch_rad: f32,
     /// Skates toggled this step.
     pub skate_toggle: bool,
 }
@@ -105,6 +108,7 @@ impl MechControls {
             lift_axis: a.lift_axis,
             move_xy: a.move_xy,
             view_yaw_rad: 0.0,
+            view_pitch_rad: 0.0,
             skate_toggle: a.skate_toggle,
         }
     }
@@ -247,14 +251,22 @@ impl MechState {
         self.heading_rad = (self.heading_rad + self.turn_rate_rad_s * dt_s).rem_euclid(std::f32::consts::TAU);
         let fwd = flat_forward(self.heading_rad);
 
+        // Boosting in a direction flies along the view, pitch included.
+        let ask = c.move_xy.clamp_length_max(1.0);
+        let thrusting = self.boosting && ask != Vec2::ZERO;
+        let pitch = if c.view_pitch_rad.is_finite() {
+            c.view_pitch_rad.clamp(-FRAC_PI_2, FRAC_PI_2)
+        } else {
+            0.0
+        };
+
         // Horizontal velocity, by mode.
         match self.mode {
             LocomotionMode::Jet => {
-                let ask = c.move_xy.clamp_length_max(1.0);
-                if self.boosting && ask != Vec2::ZERO {
+                if thrusting {
                     let view = flat_forward(c.view_yaw_rad);
                     let right = Vec2::new(-view.y, view.x);
-                    let dir = view * ask.y + right * ask.x;
+                    let dir = view * ask.y * pitch.cos() + right * ask.x;
                     self.vel += dir * jet.accel_m_s2 * dt_s;
                     self.vel = self.vel.clamp_length_max(jet.speed_max_m_s);
                 } else {
@@ -322,9 +334,15 @@ impl MechState {
             self.skates_on = false;
         }
 
-        // Vertical: boost lift against gravity.
-        let lift = if self.boosting { jet.thrust_m_s2 * c.lift_axis } else { 0.0 };
-        self.vel_y_m_s += (lift - G_M_S2) * dt_s;
+        // Vertical. Thrusting in a direction, the jets carry the mech's weight and the climb rate
+        // follows the view's pitch (level flies level); boost alone lifts against gravity.
+        if thrusting {
+            let want = ask.y * pitch.sin() * jet.climb_max_m_s;
+            self.vel_y_m_s = approach(self.vel_y_m_s, want, jet.accel_m_s2 * dt_s);
+        } else {
+            let lift = if self.boosting { jet.thrust_m_s2 * c.lift_axis } else { 0.0 };
+            self.vel_y_m_s += (lift - G_M_S2) * dt_s;
+        }
         let sink = if self.boosting { -jet.sink_max_m_s } else { -60.0 };
         self.vel_y_m_s = self.vel_y_m_s.clamp(sink, jet.climb_max_m_s);
         let mut y = self.pos.y + self.vel_y_m_s * dt_s;
@@ -517,6 +535,43 @@ mod tests {
         run(&mut m, c, 3.0, &FlatGround::default());
         assert!(m.pos.x > 60.0, "slid right on the boosters: {}", m.pos);
         assert!(m.vel.x > 40.0);
+    }
+
+    #[test]
+    fn boosting_forward_while_looking_level_dashes_at_height() {
+        let mut m = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        let hop = MechControls {
+            lift_axis: 1.0,
+            ..Default::default()
+        };
+        run(&mut m, hop, 1.0, &FlatGround::default());
+        let start_y = m.pos.y;
+        let dash = MechControls {
+            lift_axis: 1.0,
+            move_xy: Vec2::new(0.0, 1.0),
+            ..Default::default()
+        };
+        run(&mut m, dash, 5.0, &FlatGround::default());
+        assert!(m.pos.z < -150.0, "dashed forward: {}", m.pos);
+        assert!((m.pos.y - start_y).abs() < 10.0, "held near its height: {} from {start_y}", m.pos.y);
+        run(&mut m, dash, 3.0, &FlatGround::default());
+        let y = m.pos.y;
+        run(&mut m, dash, 2.0, &FlatGround::default());
+        assert!((m.pos.y - y).abs() < 1.0, "level once settled: {} from {y}", m.pos.y);
+    }
+
+    #[test]
+    fn boosting_forward_while_looking_up_climbs() {
+        let mut m = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        let c = MechControls {
+            lift_axis: 1.0,
+            move_xy: Vec2::new(0.0, 1.0),
+            view_pitch_rad: 30f32.to_radians(),
+            ..Default::default()
+        };
+        run(&mut m, c, 5.0, &FlatGround::default());
+        assert!(m.pos.y > 50.0, "climbed: {}", m.pos.y);
+        assert!(m.pos.z < -100.0, "and went forward: {}", m.pos);
     }
 
     #[test]
