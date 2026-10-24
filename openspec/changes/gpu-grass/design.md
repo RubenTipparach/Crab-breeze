@@ -158,6 +158,15 @@ about 30 m/s) needs a row of about 20 tiles every 1 to 20 s.
 suite runs it as a variant against the default, the way it runs `CB_NO_SHADOWS` and
 `CB_NO_WATER_FX`.
 
+## Seeing it: `--start meadow` (owner, 2026-10-24: "Screenshots with grass?")
+
+The takes start in a city, where no grass grows, and fly high, beyond its reach. `--start meadow`
+moves the start to the nearest open grassland: rings searched out from the city start every 50 m
+to 6 km, the first spot where grass grows thick (density at least 0.8) at every point of a 5 x 5
+grid across 80 m. The mech stands there and the pilot 30 m behind it, so any take (`--showcase
+world --start meadow`) walks, boards and strides through grass. `cb_core::grass::meadow_start`,
+tested on seed 42.
+
 ## Open questions
 
 | # | Question | Provisional answer | Who decides |

@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 /// How to call the game.
-pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence] [--showcase world|fight|defence] [--bench world|fight|defence]";
+pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence] [--showcase world|fight|defence] [--bench world|fight|defence] [--start meadow]";
 
 /// Parsed command line.
 #[derive(Debug, PartialEq)]
@@ -20,6 +20,8 @@ pub struct Args {
     pub showcase: Option<String>,
     /// Play a showcase take offscreen and report frame time (perf-bench).
     pub bench: Option<String>,
+    /// Start somewhere other than the city: `meadow`, the nearest open grassland (gpu-grass).
+    pub start: Option<String>,
 }
 
 impl Args {
@@ -39,6 +41,7 @@ impl Args {
             mission: None,
             showcase: None,
             bench: None,
+            start: None,
         };
         let mut it = args;
         while let Some(a) = it.next() {
@@ -53,6 +56,10 @@ impl Args {
                 },
                 "--showcase" => out.showcase = Some(take_name(it.next())?),
                 "--bench" => out.bench = Some(take_name(it.next())?),
+                "--start" => match it.next().as_deref() {
+                    Some("meadow") => out.start = Some("meadow".into()),
+                    _ => return Err("--start takes `meadow`".into()),
+                },
                 other => return Err(format!("unknown argument {other}")),
             }
         }

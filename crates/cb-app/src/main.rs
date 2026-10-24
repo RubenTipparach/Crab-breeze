@@ -81,8 +81,11 @@ fn main() -> AppExit {
     )
     .insert_resource(sim::Data(data))
     .insert_resource(world::Seed(args.seed))
-    .add_plugins(textures::TexturesPlugin)
-    .add_plugins((
+    .add_plugins(textures::TexturesPlugin);
+    if args.start.as_deref() == Some("meadow") {
+        app.insert_resource(world::StartInMeadow);
+    }
+    app.add_plugins((
         sim::SimPlugin,
         input::InputPlugin,
         world::WorldPlugin,

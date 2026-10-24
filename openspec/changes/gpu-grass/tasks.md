@@ -11,3 +11,4 @@
 - [ ] 3.1 Benchmark on the owner's hardware: `--bench world` and `--bench fight` with and without `CB_NO_GRASS=1`, interleaved; report in `docs/benchmarks/`; replace design section 6's estimates
 - [ ] 3.2 Playtest: grass seen from the pilot's eyes on foot and from the cockpit, pressed by the mech's feet, cleared by a crater; tune colours against the ground (open question 6)
 - [ ] 3.3 Move the requirements into `openspec/specs/gpu-grass/spec.md` once the playtest and the benchmark pass
+- [ ] `--start meadow`: start in the nearest grassland for screenshots and takes (test: `seed_42_has_a_meadow_near_the_start_where_grass_grows_thick`)

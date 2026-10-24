@@ -572,6 +572,41 @@ pub fn grows_at(plan: &WorldPlan, p: Vec2, ground_m: f32, slope: f32, cfg: &Gras
     1.0 - crate::world::terrain::smoothstep(lo, hi, slope)
 }
 
+/// The nearest open meadow to the usual start (owner, 2026-10-24: "Screenshots with grass?"): a
+/// spot where grass grows thick across a square of `2 * half_m`, searched in rings out from the
+/// city start, with the mech there and the pilot 30 m behind it. For takes and screenshots that
+/// need grass in view; `None` if the island has no such meadow within `reach_m`.
+pub fn meadow_start(plan: &WorldPlan, cfg: &GrassConfig, half_m: f32, reach_m: f32) -> Option<crate::world::Start> {
+    use crate::world::Ground;
+    let origin = plan.start.mech_xz;
+    let thick_at = |p: Vec2| {
+        let h = plan.height_at(p.x, p.y);
+        let dx = plan.height_at(p.x + 2.0, p.y) - plan.height_at(p.x - 2.0, p.y);
+        let dz = plan.height_at(p.x, p.y + 2.0) - plan.height_at(p.x, p.y - 2.0);
+        let slope = Vec2::new(dx, dz).length() / 4.0;
+        grows_at(plan, p, h, slope, cfg) >= 0.8
+    };
+    let mut r = 100.0;
+    while r <= reach_m {
+        let steps = ((std::f32::consts::TAU * r) / 50.0).ceil().max(8.0) as u32;
+        for i in 0..steps {
+            let a = i as f32 / steps as f32 * std::f32::consts::TAU;
+            let c = origin + Vec2::new(a.cos(), a.sin()) * r;
+            let all = (-2..=2).all(|j| (-2..=2).all(|k| thick_at(c + Vec2::new(j as f32, k as f32) * (half_m / 2.0))));
+            if all {
+                let ahead = crate::mech::forward(plan.start.mech_heading_rad);
+                return Some(crate::world::Start {
+                    mech_xz: c,
+                    mech_heading_rad: plan.start.mech_heading_rad,
+                    pilot_xz: c - Vec2::new(ahead.x, ahead.z) * 30.0,
+                });
+            }
+        }
+        r += 50.0;
+    }
+    None
+}
+
 /// How the tiles are laid out in the shader's buffer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GrassLayout {
@@ -661,6 +696,16 @@ mod tests {
             ((p.x - g.origin_m) / g.tile_m).floor() as u32,
             ((p.y - g.origin_m) / g.tile_m).floor() as u32,
         )
+    }
+
+    #[test]
+    fn seed_42_has_a_meadow_near_the_start_where_grass_grows_thick() {
+        let cfg = GrassConfig::default();
+        let m = meadow_start(plan(), &cfg, 40.0, 6000.0).expect("a meadow within 6 km");
+        let p = m.mech_xz;
+        let h = plan().height_at(p.x, p.y);
+        assert!(grows_at(plan(), p, h, 0.0, &cfg) >= 0.8);
+        assert!((m.pilot_xz - m.mech_xz).length() > 25.0, "the pilot starts a walk away");
     }
 
     #[test]

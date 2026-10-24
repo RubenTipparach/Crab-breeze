@@ -21,6 +21,10 @@ use std::sync::Arc;
 #[derive(Resource, Clone, Copy)]
 pub struct Seed(pub u64);
 
+/// Start in the nearest meadow instead of the city (`--start meadow`, gpu-grass).
+#[derive(Resource)]
+pub struct StartInMeadow;
+
 /// The generated world, shared with every system that walks on it.
 #[derive(Resource, Clone, Deref)]
 pub struct Plan(pub Arc<WorldPlan>);
@@ -53,7 +57,17 @@ impl Plugin for WorldPlugin {
         let seed = app.world().resource::<Seed>().0;
         let cfg = app.world().resource::<Data>().0.world.clone();
         let started = std::time::Instant::now();
-        let plan = generate(seed, &cfg);
+        let mut plan = generate(seed, &cfg);
+        if app.world().contains_resource::<StartInMeadow>() {
+            let grass = &app.world().resource::<Data>().0.grass;
+            match cb_core::grass::meadow_start(&plan, grass, 40.0, 6000.0) {
+                Some(s) => {
+                    info!("world: starting in a meadow at ({:.0}, {:.0})", s.mech_xz.x, s.mech_xz.y);
+                    plan.start = s;
+                }
+                None => warn!("world: no meadow within 6 km; starting in the city"),
+            }
+        }
         info!(
             "world seed {seed}: {} m island world, {} cities, {} buildings, {} highways, generated in {:.0} ms",
             cfg.world_size_m,
