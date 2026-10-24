@@ -212,7 +212,9 @@ lower chest folding down), their torsos doubled to carry the bigger cockpits.
 
 **The Stevedore is retired** (owner, 2026-10-24: "Stevedore sucks..all these other mechs 10/10 let's get them integrated
 with the game"). It is off the build list and the Mechs page; its generator stays in git history. The other eight go
-into the game (`openspec/changes/mech-roster`).
+into the game (`openspec/changes/mech-roster`): each carries the rig contract's sockets, its cockpit interior is hung
+in its chest by the game, its data (`data/mechs/<id>.ron`, `boarding.ron`) is generated from its glb by
+`tools/mechs/gen_mech_data.py`, and it flies with `./run.sh --mech mechs/<id>.ron`.
 
 ### Fixes the owner asked for along the way
 

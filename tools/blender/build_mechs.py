@@ -550,6 +550,10 @@ def chest_bay(k, chest, variant, at, mode, torso, swing=None, wrap_z=None, timin
     sill. Returns cp, cav, out, hull as MB.pod does."""
     cp, cav, out, hull = MB.pod(k, chest, variant, at, mode, torso, swing=swing, wrap_z=wrap_z, timing=timing)
     chest_markings(k, cp, hull)
+    # the contract's LADDER_base (cb_core::mech::rig): no ladder now (the mech sits), but the game still walks the pilot
+    # to this spot to board and sets them down on it to leave, so it stands on the ground 3 m in front of the hatch
+    hatch = k.world["HATCH_entry"].translation
+    k.sock("LADDER_base", k.root, hatch.x / k.s, 0, (hatch.z + 3.0) / k.s)
     u = 1.0 / k.s
     # no chain ladder (owner, 2026-10-24: "They shouldnt have a ... ladder"): the mech sits, the step drops
     MB.vent(k, cp, 0, cav["y0"] + 0.3 * u, cav["z1"] - 0.2 * u, (0, -0.25, 1), "sill", "mist", 1.4)
@@ -846,7 +850,7 @@ def foreman(k):
     for S, s in (("L", 1), ("R", -1)):
         k.cyl(2.4, 3.0, 6, M["dark"], cp, s * 1.5 * U, 0.2 * U, -1.7 * U - 2, PI / 2)       # apart: no overlapping caps
         k.cyl(2.6, 2.6, 0.3, M["glowDim"], cp, s * 1.5 * U, 0.2 * U, -1.7 * U - 5.1, PI / 2)
-        k.sock(f"JET_{S}", cp, s * 1.5 * U, 0.2 * U, -1.7 * U - 5.4, PI)
+        k.sock(f"JET_{S}", on_torso(k, cp), s * 1.5 * U, 0.2 * U, -1.7 * U - 5.4, PI)
     # the opening is the Panorama's own clamshell (owner, 2026-10-24: the Foreman's opening "needs to follow the
     # titan style or panorama style"): the front under the screens drops forward into a step, then the front
     # over them swings up and out on two rams, the dash riding it; the cockpit's own halves ride these plates
@@ -1031,7 +1035,7 @@ def ironhorse(k):
     for S, s in (("L", 1), ("R", -1)):
         k.cyl(2.4, 3.2, 5, M["dark"], cp, s * 1.4 * U, 0.0, -2.2 * U - 2, PI / 2)          # apart: no overlapping caps
         k.cyl(2.6, 2.6, 0.3, M["glowDim"], cp, s * 1.4 * U, 0.0, -2.2 * U - 4.7, PI / 2)
-        k.sock(f"JET_{S}", cp, s * 1.4 * U, 0.0, -2.2 * U - 5, PI)
+        k.sock(f"JET_{S}", on_torso(k, cp), s * 1.4 * U, 0.0, -2.2 * U - 5, PI)
     sy = 4 + cy + R * 0.35
     for S, s in (("L", 1), ("R", -1)):
         sh_, elb = contract_arm(k, chest, S, s * (R + 4.5), sy, 3, -0.08, -13, -1.35)
@@ -1264,15 +1268,19 @@ def walker_head(k, chest, x, y, z, kind, a=1.0):
     return head
 
 
+def on_torso(k, p):
+    """The place p (any joint and offset) as seen from the torso joint: for the contract's sockets that must hang from
+    the torso (cb_core::mech::rig::SOCKETS, the jets) but are laid out in the cockpit's frame."""
+    return K.Node("torso", k.world["torso"].inverted() @ k.world[p.joint] @ p.M)
+
+
 def back_jets(k, cp, xs, y, z, r=2.4):
     """The jets under a back pack (survey M3), pointing down and back, their sockets for the game."""
     M = k.M
     for S, x in zip(("L", "R"), xs):
         k.cyl(r, r * 1.3, r * 2.2, M["dark"], cp, x, y, z, PI / 2 + 0.6)
         k.cyl(r * 1.05, r * 1.05, 0.3, M["glowDim"], cp, x, y - r * 0.9, z - r * 0.6, PI / 2 + 0.6)
-        # the contract hangs the jets on the torso (cb_core::mech::rig::SOCKETS), so the socket is placed in the torso's
-        # frame at the point it marks in the cockpit's
-        k.sock(f"JET_{S}", K.Node("torso", k.world["torso"].inverted() @ k.world[cp.joint] @ cp.M), x, y - r, z - r * 0.7, PI)
+        k.sock(f"JET_{S}", on_torso(k, cp), x, y - r, z - r * 0.7, PI)
 
 
 def walker_extras(k, hipY, footH, hz=0.8, lean=0.08):
@@ -1581,6 +1589,7 @@ def picket(k):
     rifle(k, hand, S, 15, 1.1)
     sh_, elb, hand, S = arms[1]
     shield(k, elb, 1, 1.0)
+    rifle(k, hand, S, 7, 0.7)          # a short gun in the hand behind the shield: the contract's MUZZLE_L
     k.box(1.6, 3.6, 1.6, k.M["frame"], cp, 1.5 * U, 3.4 * U, -3.9 * U)
     k.ant(cp, 1.5 * U, 3.4 * U + 1.8, -3.9 * U, 16, -0.15, 0.05)
     walker_extras(k, hipY, footH, 0.9, 0.05)
@@ -1600,6 +1609,9 @@ def sapper(k):
     k.pl(7.4, 1.2, 8.4, M["armor2"], sh_, -1.2, 5.2, 0)                 # a pauldron plate over the pad
     sh_, elb, hand, S = arms[1]
     missile_rack(k, elb, 3.8, -4.0, -0.8, 2, 3, 1.8, -PI / 2, 0, "MISSILE_L")
+    # the contract's MUZZLE_L hangs from the hand: the pod's mouth, placed in the hand's frame
+    pod = k.g(elb, 3.8, -4.0, -0.8, -PI / 2, 0, 0)
+    k.sock("MUZZLE_L", K.Node(hand.joint, k.world[hand.joint].inverted() @ k.world[elb.joint] @ pod.M), 0, 0, 4.1, PI / 2)
     k.pl(7.4, 1.2, 8.4, M["armor2"], sh_, 1.2, 5.2, 0)
     # the shoulder cannon: a breech on the back, the barrel over the right shoulder
     g = k.g(cp, -2.2 * U, 3.6 * U, -3.0 * U)
