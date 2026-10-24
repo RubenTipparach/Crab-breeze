@@ -139,5 +139,12 @@
         slab_m: 0.25,
         column_m: 0.6,
         wall_m: 0.3,
+        // Falling parts and rubble (openspec/changes/rubble).
+        impact_factor: 2.0,
+        rubble_fines: 0.5,
+        rubble_bulking: 1.4,
+        repose_slope: 0.75,
+        max_rubble_m: 18.0,
+        rubble_spread_m: 4.0,
     ),
 )

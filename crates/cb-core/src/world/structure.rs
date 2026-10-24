@@ -124,6 +124,19 @@ pub struct StructureConfig {
     pub column_m: f32,
     /// Facade thickness.
     pub wall_m: f32,
+    /// A falling part loads the floor it lands on with its weight times this (up to twice that
+    /// again for a long drop).
+    pub impact_factor: f32,
+    /// Share of a fallen part's volume that becomes heap (the rest is the loose pieces).
+    pub rubble_fines: f32,
+    /// Crushed volume over solid volume.
+    pub rubble_bulking: f32,
+    /// Steepest a heap stands: rise per metre (0.75 is about 37 degrees).
+    pub repose_slope: f32,
+    /// Highest a heap stands above the ground it fell on.
+    pub max_rubble_m: f32,
+    /// How far past a fallen part's footprint its heap spreads.
+    pub rubble_spread_m: f32,
 }
 
 impl Default for StructureConfig {
@@ -146,6 +159,12 @@ impl Default for StructureConfig {
             slab_m: 0.25,
             column_m: 0.6,
             wall_m: 0.3,
+            impact_factor: 2.0,
+            rubble_fines: 0.5,
+            rubble_bulking: 1.4,
+            repose_slope: 0.75,
+            max_rubble_m: 18.0,
+            rubble_spread_m: 4.0,
         }
     }
 }
@@ -165,6 +184,7 @@ impl crate::data::Validate for StructureConfig {
         ] {
             within(name, v, 0.0, 1.0)?;
         }
+        within("structure.rubble_fines", self.rubble_fines, 0.0, 1.0)?;
         for (name, v) in [
             ("structure.column_hp_mj", self.column_hp_mj),
             ("structure.slab_hp_mj", self.slab_hp_mj),
@@ -175,6 +195,11 @@ impl crate::data::Validate for StructureConfig {
             ("structure.slab_m", self.slab_m),
             ("structure.column_m", self.column_m),
             ("structure.wall_m", self.wall_m),
+            ("structure.impact_factor", self.impact_factor),
+            ("structure.rubble_bulking", self.rubble_bulking),
+            ("structure.repose_slope", self.repose_slope),
+            ("structure.max_rubble_m", self.max_rubble_m),
+            ("structure.rubble_spread_m", self.rubble_spread_m),
         ] {
             positive(name, v)?;
         }
@@ -203,6 +228,23 @@ pub struct Frame {
     slabs: Vec<u32>,
     /// Element index per facade side, position and storey (`GROUND` where a cell is not on that side).
     walls: Vec<u32>,
+}
+
+/// Where a fallen part is (see `Frame::footprint`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Footprint {
+    /// Grid cells under it, sorted.
+    pub cells: Vec<[u32; 2]>,
+    /// Its lowest point.
+    pub bottom_m: f32,
+    /// Its mass.
+    pub mass_kg: f32,
+    /// Its solid volume.
+    pub volume_m3: f32,
+    /// Least (x, z).
+    pub lo: glam::Vec2,
+    /// Greatest (x, z).
+    pub hi: glam::Vec2,
 }
 
 /// What a settle did.
@@ -481,6 +523,78 @@ impl Frame {
             }
         }
         broke
+    }
+
+    /// Where a set of fallen elements is: the grid cells under them, the lowest point, their mass
+    /// and solid volume, and their (x, z) extent.
+    pub fn footprint(&self, ids: &[u32]) -> Option<Footprint> {
+        let mut out = Footprint {
+            cells: Vec::new(),
+            bottom_m: f32::MAX,
+            mass_kg: 0.0,
+            volume_m3: 0.0,
+            lo: glam::Vec2::splat(f32::MAX),
+            hi: glam::Vec2::splat(f32::MIN),
+        };
+        for &id in ids {
+            let e = &self.elements[id as usize];
+            let cell = [e.at[0].min(self.n[0] as u32 - 1), e.at[1].min(self.n[2] as u32 - 1)];
+            if !out.cells.contains(&cell) {
+                out.cells.push(cell);
+            }
+            out.bottom_m = out.bottom_m.min(e.min.y);
+            out.mass_kg += e.mass_kg;
+            let d = e.max - e.min;
+            out.volume_m3 += d.x * d.y * d.z;
+            out.lo = out.lo.min(glam::Vec2::new(e.min.x, e.min.z));
+            out.hi = out.hi.max(glam::Vec2::new(e.max.x, e.max.z));
+        }
+        out.cells.sort_unstable();
+        (!ids.is_empty()).then_some(out)
+    }
+
+    /// The highest standing floor under any of `cells` whose top is at or below `y_m`: its height
+    /// and the standing floor bays at that level under `cells`.
+    pub fn floor_below(&self, cells: &[[u32; 2]], y_m: f32) -> Option<(f32, Vec<u32>)> {
+        let mut best: Option<usize> = None;
+        for &[i, j] in cells {
+            for k in (0..self.n[1]).rev() {
+                let e = &self.elements[self.slab(k, i as usize, j as usize) as usize];
+                if e.alive && e.max.y <= y_m + 0.1 {
+                    if best.is_none_or(|b| k > b) {
+                        best = Some(k);
+                    }
+                    break;
+                }
+            }
+        }
+        let k = best?;
+        let slabs: Vec<u32> = cells
+            .iter()
+            .map(|&[i, j]| self.slab(k, i as usize, j as usize))
+            .filter(|&s| self.elements[s as usize].alive)
+            .collect();
+        Some((self.origin.y + self.size.y * (k + 1) as f32, slabs))
+    }
+
+    /// A falling part lands on `slabs`, loading each with `kn_each` on top of what it carries.
+    /// Returns the bays that give way (they are broken; settle afterwards).
+    pub fn impact(&mut self, slabs: &[u32], kn_each: f32, cfg: &StructureConfig) -> Vec<u32> {
+        let mut gave = Vec::new();
+        for &s in slabs {
+            let e = &self.elements[s as usize];
+            if !e.alive || !kn_each.is_finite() {
+                continue;
+            }
+            let cap = e.cap_kn * held_share(&self.elements, s as usize, cfg);
+            if e.load_kn + kn_each > cap {
+                gave.push(s);
+            }
+        }
+        for &s in &gave {
+            self.elements[s as usize].alive = false;
+        }
+        gave
     }
 
     /// Standing elements.

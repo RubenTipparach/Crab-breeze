@@ -66,3 +66,19 @@ Expected in the game:
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | W13 | How long does rubble last? | all mission: piles you can climb; loose pieces past the budget settle into the pile | provisional (survey W13) |
+
+## As built (2026-10-24)
+
+- `Deformation::pile` raises a heap in the crater tiles. It builds the heap in its final shape (flat
+  over the footprint grown by `rubble_spread_m`, falling away at `repose_slope`, capped at
+  `max_rubble_m`, top height found by bisection so it holds the volume), then runs up to 24 slump
+  passes where it meets an older heap.
+  - A first version slumped a flat layer over 400 passes and took about 9 ms for a tower's heap.
+  - The shaped heap takes about 0.7 ms (release, one M4 Max core, the owner using the Mac: indicative).
+- Heaps come from the core: `Structures` lands each falling part after its free-fall time, and what
+  reaches the ground becomes a `Landing` (fines x bulking of its solid volume).
+  `cb-app::buildings` raises it and marks the tiles for remeshing, so collision, debris colliders and
+  drawing follow the existing crater path.
+- Unlike craters, heaps raise city ground: rubble lies in the streets.
+- Not built yet: the rubble material layer, the instanced dressing and the dust clouds.
+

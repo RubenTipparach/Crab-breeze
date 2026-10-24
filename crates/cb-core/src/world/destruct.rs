@@ -6,7 +6,7 @@
 
 use super::WorldPlan;
 use super::layout::Rect;
-use super::structure::{Frame, StructureConfig};
+use super::structure::{Footprint, Frame, StructureConfig};
 use glam::{Vec2, Vec3};
 
 /// Target cell width.
@@ -75,6 +75,28 @@ pub struct Chunk {
     pub size: Vec3,
 }
 
+/// A part of a building on its way down: it lands at `at_s` on the floor below it or the ground.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Fall {
+    /// The building it fell from.
+    pub building: u32,
+    /// When it lands.
+    pub at_s: f32,
+    /// Where it is.
+    pub part: Footprint,
+}
+
+/// Rubble that reached the ground: a heap to raise over `lo..hi` (x, z).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Landing {
+    /// Least (x, z) of the fallen part.
+    pub lo: Vec2,
+    /// Greatest (x, z).
+    pub hi: Vec2,
+    /// Heap volume (crushed, fines only).
+    pub volume_m3: f32,
+}
+
 /// Every building's cells.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Structures {
@@ -84,8 +106,12 @@ pub struct Structures {
     pub cfg: StructureConfig,
     /// Blast radius per cube root of energy (the crater rule), to turn a reach into an energy.
     pub radius_m_per_cbrt_mj: f32,
-    /// Simulation time, for creaks.
+    /// Simulation time, for creaks and falls.
     pub time_s: f32,
+    /// Parts on their way down, by landing time.
+    pub falls: Vec<Fall>,
+    /// Heaps waiting to be raised on the ground (taken by `take_landings`).
+    pub landings: Vec<Landing>,
 }
 
 impl Structures {
@@ -123,6 +149,8 @@ impl Structures {
             cfg,
             radius_m_per_cbrt_mj,
             time_s: 0.0,
+            falls: Vec::new(),
+            landings: Vec::new(),
         }
     }
 
@@ -147,13 +175,75 @@ impl Structures {
         (broke, chunks)
     }
 
-    /// Lets building `b`'s frame find its balance now; returns the chunks that fell.
+    /// Lets building `b`'s frame find its balance now; returns the chunks that fell. What fell is
+    /// dropped: it lands later on the floor below or the ground.
     pub fn settle(&mut self, b: u32) -> Vec<Chunk> {
         let (now, cfg) = (self.time_s, self.cfg.clone());
         let settled = self.frame_mut(b as usize).settle(now, &cfg);
         let chunks = self.chunks_of(b, &settled.fell);
+        if let Some(part) = self.buildings[b as usize].frame.as_ref().and_then(|f| f.footprint(&settled.fell)) {
+            self.drop_part(b, part, now);
+        }
         self.sync(b as usize);
         chunks
+    }
+
+    /// Schedules a falling part's landing: on the highest standing floor under it, or the ground.
+    fn drop_part(&mut self, b: u32, part: Footprint, from_s: f32) {
+        let c = &self.buildings[b as usize];
+        let target = c
+            .frame
+            .as_ref()
+            .and_then(|f| f.floor_below(&part.cells, part.bottom_m))
+            .map_or(c.origin.y, |(top, _)| top);
+        let drop = (part.bottom_m - target).max(0.0);
+        let at_s = from_s + (2.0 * drop / 9.81).sqrt();
+        let i = self.falls.partition_point(|f| f.at_s <= at_s);
+        self.falls.insert(i, Fall { building: b, at_s, part });
+    }
+
+    /// A part lands. On a floor it loads the bays under it; if any give way it keeps falling
+    /// through them. On the ground its fines become a heap.
+    fn land(&mut self, fall: Fall) -> Vec<Chunk> {
+        let b = fall.building;
+        let cfg = self.cfg.clone();
+        let mut part = fall.part;
+        let below = self.buildings[b as usize]
+            .frame
+            .as_ref()
+            .and_then(|f| f.floor_below(&part.cells, part.bottom_m));
+        let Some((top, slabs)) = below else {
+            self.landings.push(Landing {
+                lo: part.lo,
+                hi: part.hi,
+                volume_m3: part.volume_m3 * cfg.rubble_fines * cfg.rubble_bulking,
+            });
+            return Vec::new();
+        };
+        let drop = (part.bottom_m - top).max(0.0);
+        let kn = part.mass_kg * 9.81e-3 * cfg.impact_factor * (1.0 + drop / 3.5).min(2.0) / slabs.len().max(1) as f32;
+        let gave = self.frame_mut(b as usize).impact(&slabs, kn, &cfg);
+        if gave.is_empty() {
+            return Vec::new();
+        }
+        // It punches through: what stood on the broken bays falls too, and the part goes on down
+        // over the bays that gave.
+        let mut chunks = self.chunks_of(b, &gave);
+        chunks.extend(self.settle(b));
+        if let Some(f) = self.buildings[b as usize].frame.as_ref() {
+            part.cells.retain(|c| gave.iter().any(|&s| f.elements[s as usize].at == *c));
+            part.bottom_m = top - cfg.slab_m;
+        }
+        if !part.cells.is_empty() {
+            self.drop_part(b, part, self.time_s);
+        }
+        self.sync(b as usize);
+        chunks
+    }
+
+    /// Heaps that reached the ground since the last call, for the ground to raise.
+    pub fn take_landings(&mut self) -> Vec<Landing> {
+        std::mem::take(&mut self.landings)
     }
 
     /// Advances time by `dt_s`: every creaking member whose time is up fails, and its building
@@ -178,7 +268,15 @@ impl Structures {
             }
             chunks.extend(self.settle(b));
         }
-        (due, chunks)
+        let mut changed = due;
+        while self.falls.first().is_some_and(|f| f.at_s <= now) {
+            let fall = self.falls.remove(0);
+            changed.push(fall.building);
+            chunks.extend(self.land(fall));
+        }
+        changed.sort_unstable();
+        changed.dedup();
+        (changed, chunks)
     }
 
     /// Falling elements as chunks: one per storey per 2 x 2 cell group, the union of their boxes.
@@ -346,6 +444,68 @@ mod tests {
         let full = s.solid_rects(b, c.origin.y, c.origin.y + 3.0).len();
         s.break_sphere(b, on_face(&c, 0, 0), 4.5);
         assert!(s.solid_rects(b, c.origin.y, c.origin.y + 3.0).len() < full);
+    }
+
+    #[test]
+    fn a_falling_top_punches_down_through_the_floors_below() {
+        let mut s = Structures::new(plan());
+        let b = tallest();
+        let c = s.buildings[b as usize].clone();
+        let k = c.n[1] / 2;
+        // Every column of the middle storey goes: the top half falls onto the storey below.
+        let cfg = s.cfg.clone();
+        {
+            let f = s.frame_mut(b as usize);
+            for a in 0..=c.n[0] {
+                for cc in 0..=c.n[2] {
+                    let id = f.column(k, a, cc) as usize;
+                    f.elements[id].alive = false;
+                }
+            }
+            let _ = cfg;
+        }
+        s.settle(b);
+        run(&mut s, 12.0);
+        let closed_below = (0..k)
+            .filter(|&kk| (0..c.n[0]).any(|i| (0..c.n[2]).any(|j| s.buildings[b as usize].intact[(kk * c.n[2] + j) * c.n[0] + i])))
+            .count();
+        assert!(
+            closed_below < k,
+            "the falling top crushed storeys below the cut ({closed_below} of {k} left)"
+        );
+    }
+
+    #[test]
+    fn a_collapse_leaves_a_heap_on_the_ground() {
+        let mut s = Structures::new(plan());
+        let b = tallest();
+        let c = s.buildings[b as usize].clone();
+        for j in 0..=c.n[2] {
+            for i in 0..=c.n[0] {
+                let node = c.origin + Vec3::new(c.size.x * i as f32, 1.5, c.size.z * j as f32);
+                s.break_sphere(b, node, 3.0);
+            }
+        }
+        run(&mut s, 12.0);
+        let heaps = s.take_landings();
+        assert!(!heaps.is_empty(), "rubble reached the ground");
+        assert!(heaps.iter().map(|h| h.volume_m3).sum::<f32>() > 1000.0, "a tower makes a big heap");
+    }
+
+    #[test]
+    fn the_same_collapse_lands_the_same_heaps() {
+        let go = || {
+            let mut s = Structures::new(plan());
+            let b = tallest();
+            let c = s.buildings[b as usize].clone();
+            for i in 0..=c.n[0] {
+                let node = c.origin + Vec3::new(c.size.x * i as f32, 1.5, 0.0);
+                s.break_sphere(b, node, 3.0);
+            }
+            run(&mut s, 10.0);
+            (s.take_landings(), s.buildings[b as usize].intact.clone())
+        };
+        assert_eq!(go(), go());
     }
 
     #[test]

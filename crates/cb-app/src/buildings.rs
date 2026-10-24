@@ -89,11 +89,25 @@ fn cells_mesh(c: &Cells) -> Mesh {
     b.build()
 }
 
-/// Creaking members fail on time; what falls goes to the debris like any other chunk.
+/// Creaking members fail on time and falling parts land; what falls goes to the debris like any
+/// other chunk, and what reaches the ground is raised as a heap in the crater layer (`rubble`), so
+/// the pilot, the mech and the debris stand on it.
 fn step_structures(time: Res<Time<Fixed>>, mut live: ResMut<Live>) {
     let (changed, chunks) = live.structures.step(time.delta_secs());
     live.dirty_buildings.extend(changed);
     live.new_chunks.extend(chunks);
+    let cfg = live.structures.cfg.clone();
+    for heap in live.structures.take_landings() {
+        let touched = live.dug.pile(
+            heap.lo,
+            heap.hi,
+            heap.volume_m3,
+            cfg.rubble_spread_m,
+            cfg.repose_slope,
+            cfg.max_rubble_m,
+        );
+        live.dirty_tiles.extend(touched);
+    }
 }
 
 fn redraw_buildings(mut commands: Commands, mut live: ResMut<Live>, ents: Res<BuildingEntities>, mut meshes: ResMut<Assets<Mesh>>) {
