@@ -8,6 +8,6 @@
 - [x] 1.6 Rocket motor flame, light and smoke trail
 - [ ] 2.1 Light and particle caps; measure `--bench defence` against `CB_NO_PARTICLES=1` on the RTX 3070 machine
 - [x] 2.2 Playtest: tracers, flashes, impacts, explosions and rocket trails seen from the cockpit in the defence take
-- [ ] 3.1 Particle layers on `bevy_hanabi` (pinned to its Bevy 0.20 commit): gradients, velocity-aligned sparks, ribbon trails (T5)
+- [x] 3.1 Particle layers on `bevy_hanabi` (pinned to its Bevy 0.20 commit): gradients, velocity-aligned sparks, ribbon trails (T5)
 - [ ] 3.2 Flipbook smoke, fire and dust from Blender simulations (G7)
 - [ ] 3.3 Measure against the entity particles; playtest

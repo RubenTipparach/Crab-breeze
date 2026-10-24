@@ -86,8 +86,6 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
             },
             lens.clone(),
             bevy::camera::visibility::RenderLayers::layer(COCKPIT_LAYER),
-            Msaa::Off,
-            bevy::anti_alias::fxaa::Fxaa::default(),
             Transform::default(),
             // The sealed cabin's own light (cockpit-lighting): its lamps, not the sky. The sun and
             // every flash outside are on the world layer and never reach this pass.
@@ -127,15 +125,6 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
             },
             Transform::default(),
             ColorGrading::default(),
-            // Smoke, dust and fire sorted per pixel, not per quad, so overlapping puffs never pop in
-            // front of each other (combat-fx). It needs MSAA off; FXAA smooths the edges instead.
-            bevy::core_pipeline::oit::OrderIndependentTransparencySettings {
-                sorted_fragment_max_count: 8,
-                fragments_per_pixel_average: 6.0,
-                alpha_threshold: 0.02,
-            },
-            Msaa::Off,
-            bevy::anti_alias::fxaa::Fxaa::default(),
         ))
         .add_child(cockpit);
 }

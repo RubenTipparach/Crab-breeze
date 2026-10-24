@@ -89,6 +89,15 @@ The recipes stay the one description of every effect; each `Burst` layer becomes
 asset built from its numbers, and the flipbooks (G7) feed its textures. Lights, fireballs, shells
 and stars stay Bevy entities. Measured against today's particles on the RTX 3070.
 
+As built (2026-10-24): `cb-app::particles` builds one effect asset per recipe layer and particle
+count (cached), spawned as a one-shot effect entity at the burst; colour over life per particle
+kind (fire white-hot to orange to soot, burning debris cooling to a smoking cinder, smoke fading in
+and out), size growing with age, sparks oriented along their velocity, the soft disc as the sprite.
+A rocket's trail is a continuous effect on its own entity beside the motor, switched off when the
+rocket stops so its smoke hangs on. Order-independent transparency is gone with it: hanabi draws
+outside it, and the OIT resolve would have composited water and clouds over the particles; the
+cameras are back on MSAA. Not yet seen in a run.
+
 ## Open questions
 
 | Id | Question | Recommendation | State |

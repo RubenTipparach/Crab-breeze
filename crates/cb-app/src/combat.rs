@@ -1,13 +1,13 @@
 //! Shots in flight (openspec change `weapons`): every fixed step each projectile flies through
 //! `cb_core::weapons::fly` against the mechs' part capsules, standing building cells, trees, water
 //! and ground; what it hits takes the hit (a part through `mech-damage`, a cell through
-//! `building-destruction`, a tree snaps) and heavy shells explode. Tracers are effects (`fx`);
-//! a rocket lays its smoke trail here, every `trail_spacing_m` of the path it flew this step.
+//! `building-destruction`, a tree snaps) and heavy shells explode. Tracers, rocket motors and
+//! their smoke trails are effects (`fx`).
 
 use crate::blast::Explosion;
 use crate::fx::Fx;
 use crate::mech::{MechId, MechRig, MechSim, MechSpec, apply_hit};
-use crate::sim::{Data, SimSet};
+use crate::sim::SimSet;
 use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use cb_core::mech::rig::BONES;
@@ -76,7 +76,6 @@ pub fn fly_shots(
     mut mechs: Query<(&mut MechSim, &MechSpec, &MechId, Option<&MechRig>)>,
     globals: Query<&GlobalTransform>,
     time: Res<Time<Fixed>>,
-    data: Res<Data>,
     mut fx: MessageWriter<Fx>,
     mut explosions: MessageWriter<Explosion>,
 ) {
@@ -102,9 +101,7 @@ pub fn fly_shots(
         .collect();
     let live = &mut *live;
     let mut flying = Vec::with_capacity(shots.0.len());
-    let spacing = data.0.fx.trail_spacing_m;
     for mut shot in std::mem::take(&mut shots.0) {
-        let (from, flown_before) = (shot.pos, shot.age_s * shot.vel.length());
         // A missile turns toward its locked target's torso first (targeting).
         if let Some(t) = shot.target {
             let seeker = specs
@@ -127,15 +124,6 @@ pub fn fly_shots(
         let Some(w) = specs.get(&shot.owner).and_then(|c| c.weapons.get(shot.weapon)).cloned() else {
             continue;
         };
-        if shot.rocket {
-            // The trail: a puff at every multiple of the spacing passed this step.
-            let flown = shot.age_s * shot.vel.length();
-            let (first, last) = ((flown_before / spacing).floor() as i64 + 1, (flown / spacing).floor() as i64);
-            for k in first..=last {
-                let t = ((k as f32 * spacing - flown_before) / (flown - flown_before).max(1e-3)).clamp(0.0, 1.0);
-                fx.write(Fx::new("rocket_trail", from.lerp(shot.pos, t)).toward(shot.vel));
-            }
-        }
         let Some(hit) = impact else {
             if !spent(&shot) {
                 flying.push(shot);

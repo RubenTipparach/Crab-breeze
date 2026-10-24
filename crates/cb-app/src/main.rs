@@ -12,6 +12,7 @@ mod fx;
 mod hud;
 mod input;
 mod mech;
+mod particles;
 mod physics;
 mod pilot;
 mod showcase;
@@ -76,6 +77,7 @@ fn main() -> AppExit {
         world::WorldPlugin,
         mech::MechPlugin,
         pilot::PilotPlugin,
+        particles::ParticlesPlugin,
         fx::FxPlugin,
         blast::BlastPlugin,
         combat::CombatPlugin,

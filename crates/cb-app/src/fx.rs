@@ -1,14 +1,17 @@
-//! Visual effects (openspec change `combat-fx`): billboard particles, point-light flashes,
-//! fireballs, shock shells, muzzle stars and water rings, played from the recipes in
-//! `data/fx/fx.ron`; one glowing streak per shot in flight; a motor flame and light on every rocket.
+//! Visual effects (openspec change `combat-fx`): GPU particles (`particles`, on bevy_hanabi),
+//! point-light flashes, fireballs, shock shells, muzzle stars and water rings, played from the
+//! recipes in `data/fx/fx.ron`; one glowing streak per shot in flight; a motor flame, light and
+//! smoke trail on every rocket.
 //! Presentation only: nothing here decides an outcome, so it may use its own cheap random numbers.
 //! Other plugins ask for an effect by name with an `Fx` message; tracers read `Shots` directly.
 
 use crate::combat::Shots;
+use crate::particles::{self, ParticleLibrary};
 use crate::pilot::PilotCamera;
 use crate::sim::Data;
 use bevy::prelude::*;
-use cb_core::fx::{FxConfig, Layer, ParticleKind};
+use bevy_hanabi::prelude::{EffectAsset, EffectSpawner};
+use cb_core::fx::{FxConfig, Layer};
 
 /// Play the recipe `recipe` at `at`.
 #[derive(Message, Clone, Copy, Debug)]
@@ -54,51 +57,6 @@ impl Fx {
     pub fn dense(self, density: f32) -> Self {
         Self { density, ..self }
     }
-}
-
-/// (gravity m/s2, drag per s, growth per s as a share of size, colour, glow).
-fn motion(kind: ParticleKind) -> (f32, f32, f32, Color, f32) {
-    match kind {
-        ParticleKind::Spray => (9.81, 0.6, 0.8, Color::srgba(0.85, 0.92, 0.95, 0.75), 0.0),
-        ParticleKind::Steam => (-1.5, 1.2, 1.6, Color::srgba(0.95, 0.95, 0.95, 0.45), 0.0),
-        ParticleKind::Dirt => (9.81, 0.3, 0.0, Color::srgb(0.30, 0.22, 0.14), 0.0),
-        ParticleKind::Dust => (-0.3, 1.5, 1.2, Color::srgba(0.62, 0.55, 0.44, 0.5), 0.0),
-        ParticleKind::Smoke => (-2.5, 0.8, 0.9, Color::srgba(0.16, 0.15, 0.15, 0.7), 0.0),
-        ParticleKind::Spark => (9.81, 0.2, -0.5, Color::srgb(1.0, 0.75, 0.3), 6.0),
-        ParticleKind::Fire => (-4.0, 1.5, 0.4, Color::srgba(1.0, 0.45, 0.1, 0.85), 6.0),
-        ParticleKind::Flame => (0.0, 3.0, 2.0, Color::srgba(0.7, 0.85, 1.0, 0.85), 6.0),
-        ParticleKind::Debris => (9.81, 0.3, -0.2, Color::srgb(1.0, 0.55, 0.2), 8.0),
-        ParticleKind::Rubble => (9.81, 0.2, 0.0, Color::srgb(0.42, 0.41, 0.39), 0.0),
-        ParticleKind::Trail => (-0.1, 0.6, 0.3, Color::srgba(0.78, 0.77, 0.75, 0.55), 0.0),
-    }
-}
-
-const KINDS: [ParticleKind; 11] = [
-    ParticleKind::Spray,
-    ParticleKind::Steam,
-    ParticleKind::Dirt,
-    ParticleKind::Dust,
-    ParticleKind::Smoke,
-    ParticleKind::Spark,
-    ParticleKind::Fire,
-    ParticleKind::Flame,
-    ParticleKind::Debris,
-    ParticleKind::Rubble,
-    ParticleKind::Trail,
-];
-
-#[derive(Component)]
-struct Particle {
-    vel: Vec3,
-    age: f32,
-    life: f32,
-    gravity: f32,
-    drag: f32,
-    grow: f32,
-    size: f32,
-    /// Burning debris drops a smoke puff every this long.
-    smokes_every_s: Option<f32>,
-    smoke_in_s: f32,
 }
 
 #[derive(Component)]
@@ -154,7 +112,7 @@ struct FxAssets {
     water_ring: Handle<StandardMaterial>,
     dust_ring: Handle<StandardMaterial>,
     glow: Handle<StandardMaterial>,
-    mats: Vec<(ParticleKind, Handle<StandardMaterial>)>,
+    flame: Handle<StandardMaterial>,
 }
 
 #[derive(Resource, Default)]
@@ -165,9 +123,6 @@ impl Rand {
         self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
         ((self.0 >> 40) as f32) / (1u64 << 24) as f32
     }
-    fn signed(&mut self) -> f32 {
-        self.f() * 2.0 - 1.0
-    }
 }
 
 /// The tracer and motor pools, in `Shots` order.
@@ -175,6 +130,9 @@ impl Rand {
 struct Pools {
     tracers: Vec<Entity>,
     motors: Vec<Entity>,
+    /// Each motor's smoke trail: its own entity, always drawn, so the smoke it laid hangs on
+    /// after the rocket is gone; only its spawner turns off.
+    trails: Vec<Entity>,
 }
 
 /// Effects.
@@ -191,7 +149,6 @@ impl Plugin for FxPlugin {
                 (
                     play,
                     draw_shots,
-                    move_particles,
                     grow_rings,
                     fade_flashes,
                     cool_fireballs,
@@ -248,16 +205,10 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
+    mut lib: ResMut<ParticleLibrary>,
 ) {
     let disc = soft_disc(&mut images);
-    let mats = KINDS
-        .iter()
-        .map(|k| {
-            let (_, _, _, color, glow) = motion(*k);
-            let mode = if glow > 0.0 { AlphaMode::Add } else { AlphaMode::Blend };
-            (*k, materials.add(unlit(color, Some(disc.clone()), mode, glow)))
-        })
-        .collect();
+    particles::set_sprite(&mut lib, disc.clone());
     commands.insert_resource(FxAssets {
         quad: meshes.add(Rectangle::new(1.0, 1.0)),
         ring: meshes.add(Annulus::new(0.85, 1.0)),
@@ -265,57 +216,8 @@ fn setup(
         water_ring: materials.add(unlit(Color::srgba(0.9, 0.96, 1.0, 0.45), None, AlphaMode::Blend, 0.0)),
         dust_ring: materials.add(unlit(Color::srgba(0.62, 0.55, 0.44, 0.35), None, AlphaMode::Blend, 0.0)),
         glow: materials.add(unlit(Color::srgb(1.0, 0.8, 0.45), Some(disc.clone()), AlphaMode::Add, 8.0)),
-        mats,
+        flame: materials.add(unlit(Color::srgba(0.7, 0.85, 1.0, 0.85), Some(disc), AlphaMode::Add, 6.0)),
     });
-}
-
-fn kind_mat(fx: &FxAssets, kind: ParticleKind) -> Handle<StandardMaterial> {
-    fx.mats
-        .iter()
-        .find(|(k, _)| *k == kind)
-        .map(|(_, m)| m.clone())
-        .unwrap_or_else(|| fx.glow.clone())
-}
-
-/// Spawns `n` particles of `kind` (cut to the room left).
-#[allow(clippy::too_many_arguments)]
-fn spawn_particles(
-    commands: &mut Commands,
-    fx: &FxAssets,
-    rng: &mut Rand,
-    kind: ParticleKind,
-    at: Vec3,
-    dir: Vec3,
-    n: usize,
-    speed_m_s: f32,
-    spread: f32,
-    size_m: f32,
-    life_s: f32,
-) {
-    let (gravity, drag, grow, _, _) = motion(kind);
-    let mat = kind_mat(fx, kind);
-    for _ in 0..n {
-        let jitter = Vec3::new(rng.signed(), rng.signed(), rng.signed()) * spread;
-        let d = (dir + jitter).normalize_or(Vec3::Y);
-        let size = size_m * (0.6 + 0.8 * rng.f());
-        commands.spawn((
-            Mesh3d(fx.quad.clone()),
-            MeshMaterial3d(mat.clone()),
-            Transform::from_translation(at + jitter * 0.5 * size_m.min(1.0)).with_scale(Vec3::splat(size)),
-            bevy::light::NotShadowCaster,
-            Particle {
-                vel: d * speed_m_s * (0.5 + rng.f()),
-                age: 0.0,
-                life: life_s * (0.6 + 0.8 * rng.f()),
-                gravity,
-                drag,
-                grow,
-                size,
-                smokes_every_s: (kind == ParticleKind::Debris).then_some(0.08),
-                smoke_in_s: 0.0,
-            },
-        ));
-    }
 }
 
 /// Plays every recipe asked for this frame, layer by layer, within the caps.
@@ -327,12 +229,15 @@ fn play(
     fx: Res<FxAssets>,
     mut rng: ResMut<Rand>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    particles: Query<(), With<Particle>>,
+    mut lib: ResMut<ParticleLibrary>,
+    mut effects: ResMut<Assets<EffectAsset>>,
+    time: Res<Time>,
     lights: Query<(Entity, &FlashLight)>,
     fireballs: Query<(), With<Fireball>>,
 ) {
     let cfg: &FxConfig = &data.0.fx;
-    let mut room = (cfg.max_particles as usize).saturating_sub(particles.iter().count());
+    let now = time.elapsed_secs();
+    let mut room = cfg.max_particles.saturating_sub(lib.live);
     let mut fireball_room = (cfg.max_fireballs as usize).saturating_sub(fireballs.iter().count());
     // Lights alive, oldest first: a new light past the cap puts out the oldest.
     let mut live_lights: Vec<(Entity, f32)> = lights.iter().map(|(e, l)| (e, l.age)).collect();
@@ -344,35 +249,19 @@ fn play(
             continue;
         };
         let s = e.scale.max(0.01);
-        for layer in layers {
+        for (index, layer) in layers.iter().enumerate() {
             match *layer {
                 Layer::Burst {
-                    kind,
                     count,
-                    speed_m_s,
-                    spread,
-                    size_m,
-                    life_s,
                     offset_m,
                     along_dir,
+                    ..
                 } => {
-                    let n = ((count as f32 * e.density).round() as usize).min(room);
+                    let n = ((count as f32 * e.density).round() as u32).min(room);
                     room -= n;
                     let dir = if along_dir { e.dir } else { Vec3::Y };
                     let at = e.at + e.dir * offset_m * s;
-                    spawn_particles(
-                        &mut commands,
-                        &fx,
-                        &mut rng,
-                        kind,
-                        at,
-                        dir,
-                        n,
-                        speed_m_s * s,
-                        spread,
-                        size_m * s,
-                        life_s,
-                    );
+                    particles::burst(&mut commands, &mut lib, &mut effects, e.recipe, index, layer, n, at, dir, s, now);
                 }
                 Layer::Light {
                     lumens,
@@ -514,8 +403,13 @@ fn draw_shots(
     mut q: Query<(&mut Transform, &mut Visibility), Or<(With<Tracer>, With<Motor>)>>,
     mechs: Query<(&crate::mech::MechId, &crate::mech::MechSpec)>,
     mut rng: ResMut<Rand>,
+    mut lib: ResMut<ParticleLibrary>,
+    mut effects: ResMut<Assets<EffectAsset>>,
+    mut trails: Query<(&mut Transform, Option<&mut EffectSpawner>), (Without<Tracer>, Without<Motor>)>,
 ) {
     let cfg = &data.0.fx;
+    // A rocket lays a smoke puff every `trail_spacing_m` at about 240 m/s.
+    let trail_rate = 240.0 / cfg.trail_spacing_m;
     // A heavy shell (1 MJ or more) draws a wider streak.
     let heavy = |owner: u32, weapon: usize| {
         mechs
@@ -535,7 +429,7 @@ fn draw_shots(
                 let e = commands
                     .spawn((
                         Mesh3d(fx.quad.clone()),
-                        MeshMaterial3d(kind_mat(&fx, ParticleKind::Flame)),
+                        MeshMaterial3d(fx.flame.clone()),
                         Transform::default(),
                         Visibility::Hidden,
                         bevy::light::NotShadowCaster,
@@ -549,6 +443,15 @@ fn draw_shots(
                     ))
                     .id();
                 pools.motors.push(e);
+                let trail = cfg
+                    .recipes
+                    .get("rocket_trail")
+                    .and_then(|layers| particles::stream(&mut lib, &mut effects, "rocket_trail", 0, &layers[0], trail_rate));
+                let mut t = commands.spawn((Name::new("rocket trail"), Transform::from_translation(pos)));
+                if let Some(effect) = trail {
+                    t.insert(effect);
+                }
+                pools.trails.push(t.id());
             } else if let Ok((mut t, mut v)) = q.get_mut(pools.motors[mi]) {
                 let tail = pos - dir * 1.2;
                 let flicker = 1.6 + 0.6 * rng.f();
@@ -556,6 +459,12 @@ fn draw_shots(
                     .looking_at(eye, Vec3::Y)
                     .with_scale(Vec3::splat(flicker));
                 *v = Visibility::Inherited;
+                if let Some(Ok((mut tt, spawner))) = pools.trails.get(mi).map(|e| trails.get_mut(*e)) {
+                    tt.translation = tail;
+                    if let Some(mut sp) = spawner {
+                        sp.active = true;
+                    }
+                }
             }
             mi += 1;
             continue;
@@ -598,62 +507,10 @@ fn draw_shots(
             *v = Visibility::Hidden;
         }
     }
-}
-
-fn move_particles(
-    mut commands: Commands,
-    time: Res<Time>,
-    fx: Res<FxAssets>,
-    mut rng: ResMut<Rand>,
-    camera: Single<&GlobalTransform, With<PilotCamera>>,
-    mut q: Query<(Entity, &mut Transform, &mut Particle)>,
-) {
-    let dt = time.delta_secs();
-    let face = camera.rotation();
-    let eye = camera.translation();
-    let mut smoke = Vec::new();
-    for (e, mut t, mut p) in &mut q {
-        p.age += dt;
-        if p.age >= p.life {
-            commands.entity(e).despawn();
-            continue;
+    for e in pools.trails.iter().skip(mi) {
+        if let Ok((_, Some(mut sp))) = trails.get_mut(*e) {
+            sp.active = false;
         }
-        let drag = p.drag;
-        p.vel.y -= p.gravity * dt;
-        p.vel *= (1.0 - drag * dt).max(0.0);
-        t.translation += p.vel * dt;
-        if let Some(every) = p.smokes_every_s {
-            p.smoke_in_s -= dt;
-            if p.smoke_in_s <= 0.0 {
-                p.smoke_in_s = every;
-                smoke.push(t.translation);
-            }
-        }
-        let k = p.age / p.life;
-        // Grow, then shrink away over the last third of life.
-        let fade = if k > 0.66 { 1.0 - (k - 0.66) / 0.34 } else { 1.0 };
-        let size = (p.size * (1.0 + p.grow * p.age)).max(0.01) * fade.max(0.02);
-        // A particle about to swallow the eye is hidden: smoke or dust against the camera would
-        // blank the whole view (the stump burns beside the cockpit).
-        let clear = ((t.translation.distance(eye) - size * 0.5) / 4.0).clamp(0.0, 1.0);
-        t.scale = Vec3::splat(size * clear.max(0.001));
-        t.rotation = face;
-    }
-    // Burning debris trails smoke (a few dozen pieces at most, so no cap check).
-    for at in smoke {
-        spawn_particles(
-            &mut commands,
-            &fx,
-            &mut rng,
-            ParticleKind::Smoke,
-            at,
-            Vec3::Y,
-            1,
-            0.5,
-            0.3,
-            0.9,
-            1.8,
-        );
     }
 }
 

@@ -47,24 +47,8 @@ pub struct Live {
 /// Generates and draws the world.
 pub struct WorldPlugin;
 
-/// A material extension that adds nothing but opts out of order-independent transparency: big,
-/// many-layered sprites (clouds, stacked a dozen deep across the sky) overflow its per-pixel
-/// budget and come out holed and blotched, and sort well enough by distance on their own.
-#[derive(Asset, bevy::render::render_resource::AsBindGroup, Reflect, Debug, Clone, Default)]
-pub struct NoOit {}
-
-impl bevy::pbr::MaterialExtension for NoOit {
-    fn enable_oit() -> bool {
-        false
-    }
-}
-
-/// A standard material drawn in the ordinary sorted transparent pass.
-pub type SortedMaterial = bevy::pbr::ExtendedMaterial<StandardMaterial, NoOit>;
-
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(MaterialPlugin::<SortedMaterial>::default());
         let seed = app.world().resource::<Seed>().0;
         let started = std::time::Instant::now();
         let plan = generate(seed, &app.world().resource::<Data>().0.world);
@@ -965,27 +949,23 @@ fn spawn_clouds(
     mut commands: Commands,
     plan: Res<Plan>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<SortedMaterial>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
 ) {
     let tex = cloud_texture(&mut images);
     let quad = meshes.add(Rectangle::new(1.0, 1.0));
-    // Out of the per-pixel sort (NoOit): it blotched and holed the clouds.
-    let shades: Vec<Handle<SortedMaterial>> = [0.98, 0.9, 0.8]
+    let shades: Vec<Handle<StandardMaterial>> = [0.98, 0.9, 0.8]
         .iter()
         .map(|g| {
-            materials.add(SortedMaterial {
-                base: StandardMaterial {
-                    base_color: Color::srgba(*g, *g, *g * 1.02, 0.85),
-                    base_color_texture: Some(tex.clone()),
-                    alpha_mode: AlphaMode::Blend,
-                    unlit: true,
-                    double_sided: true,
-                    cull_mode: None,
-                    fog_enabled: true,
-                    ..default()
-                },
-                extension: NoOit {},
+            materials.add(StandardMaterial {
+                base_color: Color::srgba(*g, *g, *g * 1.02, 0.85),
+                base_color_texture: Some(tex.clone()),
+                alpha_mode: AlphaMode::Blend,
+                unlit: true,
+                double_sided: true,
+                cull_mode: None,
+                fog_enabled: true,
+                ..default()
             })
         })
         .collect();
