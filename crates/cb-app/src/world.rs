@@ -578,19 +578,114 @@ fn follow_ocean(camera: Single<&GlobalTransform, With<PilotCamera>>, mut sheets:
 
 // --- End of the sea's geometry and placement.
 
-/// Drawn trees (island-world design section 3): the grown tiles within the draw radius of the eye,
-/// an entity per tree, by tile (with whether the tile casts shadows) and by id. Every tree of a
-/// species shares one mesh and all share one material, so Bevy draws each species as one
-/// instanced batch.
+/// Drawn trees (island-world design section 3; batched by `gpu-instancing` step 1): the grown tiles
+/// within the draw radius of the eye, each drawn as ONE merged mesh per species instead of an entity
+/// per tree (the render world's CPU cost is per mesh entity per view, and trees were thousands of
+/// them). A tree that is falling leaves its tile's mesh and is drawn on its own while it moves; when
+/// it lands its tile is rebuilt with it lying down. Collision never reads any of this: it is
+/// `cb-core`'s forest.
 #[derive(Resource, Default)]
 struct TreeEntities {
-    tiles: BTreeMap<(u32, u32), (Vec<u32>, bool)>,
-    by_id: HashMap<u32, Entity>,
+    tiles: BTreeMap<(u32, u32), TileDraw>,
+    /// The tile each drawn tree belongs to.
+    tile_of: HashMap<u32, (u32, u32)>,
+    /// Falling trees, drawn one entity each until they land.
+    moving: HashMap<u32, Entity>,
     species: Vec<Handle<Mesh>>,
+    geometry: Vec<TreeGeometry>,
     material: Handle<StandardMaterial>,
 }
 
-/// Most tree tiles put on screen in one frame.
+/// One drawn tile: its merged species meshes, whether they cast shadows, whether to rebuild.
+struct TileDraw {
+    meshes: Vec<Entity>,
+    shadows: bool,
+    dirty: bool,
+}
+
+/// A species' mesh on the CPU, one unit tall, to be merged per tile.
+struct TreeGeometry {
+    positions: Vec<[f32; 3]>,
+    normals: Vec<[f32; 3]>,
+    colors: Vec<[f32; 4]>,
+    uvs: Vec<[f32; 2]>,
+    indices: Vec<u32>,
+}
+
+impl TreeGeometry {
+    fn of(mesh: &Mesh) -> Self {
+        use bevy::mesh::VertexAttributeValues as V;
+        let positions = match mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
+            Some(V::Float32x3(v)) => v.clone(),
+            _ => Vec::new(),
+        };
+        let normals = match mesh.attribute(Mesh::ATTRIBUTE_NORMAL) {
+            Some(V::Float32x3(v)) => v.clone(),
+            _ => vec![[0.0, 1.0, 0.0]; positions.len()],
+        };
+        let colors = match mesh.attribute(Mesh::ATTRIBUTE_COLOR) {
+            Some(V::Float32x4(v)) => v.clone(),
+            _ => vec![[1.0; 4]; positions.len()],
+        };
+        let uvs = match mesh.attribute(Mesh::ATTRIBUTE_UV_0) {
+            Some(V::Float32x2(v)) => v.clone(),
+            _ => vec![[0.0; 2]; positions.len()],
+        };
+        let indices = match mesh.indices() {
+            Some(Indices::U32(i)) => i.clone(),
+            Some(Indices::U16(i)) => i.iter().map(|x| *x as u32).collect(),
+            None => (0..positions.len() as u32).collect(),
+        };
+        Self {
+            positions,
+            normals,
+            colors,
+            uvs,
+            indices,
+        }
+    }
+}
+
+/// The trees of one species in a tile, merged into one mesh in world space.
+fn merge_trees<'a>(geometry: &TreeGeometry, trees: impl Iterator<Item = (&'a cb_core::world::Tree, TreeState)>) -> Option<Mesh> {
+    let mut positions = Vec::new();
+    let mut normals = Vec::new();
+    let mut colors = Vec::new();
+    let mut uvs = Vec::new();
+    let mut indices = Vec::new();
+    for (t, s) in trees {
+        let m = tree_transform(t, s).to_matrix();
+        let base = positions.len() as u32;
+        positions.extend(
+            geometry
+                .positions
+                .iter()
+                .map(|p| m.transform_point3(Vec3::from_array(*p)).to_array()),
+        );
+        normals.extend(
+            geometry
+                .normals
+                .iter()
+                .map(|n| m.transform_vector3(Vec3::from_array(*n)).normalize_or(Vec3::Y).to_array()),
+        );
+        colors.extend_from_slice(&geometry.colors);
+        uvs.extend_from_slice(&geometry.uvs);
+        indices.extend(geometry.indices.iter().map(|i| i + base));
+    }
+    if positions.is_empty() {
+        return None;
+    }
+    Some(
+        Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+            .with_inserted_indices(Indices::U32(indices)),
+    )
+}
+
+/// Most tree tiles built (put on screen or rebuilt) in one frame.
 const TREE_TILES_PER_FRAME: usize = 6;
 /// Tree tiles stay on screen this far past the draw radius before they are taken off.
 const TREE_KEEP_MARGIN_M: f32 = 150.0;
@@ -651,9 +746,12 @@ fn spawn_trees(
         perceptual_roughness: 0.9,
         ..default()
     });
-    let species = data.0.world.trees.species.iter().map(|s| meshes.add(tree_mesh(&s.name))).collect();
+    let built: Vec<Mesh> = data.0.world.trees.species.iter().map(|s| tree_mesh(&s.name)).collect();
+    let geometry = built.iter().map(TreeGeometry::of).collect();
+    let species = built.into_iter().map(|m| meshes.add(m)).collect();
     commands.insert_resource(TreeEntities {
         species,
+        geometry,
         material,
         ..default()
     });
@@ -669,16 +767,19 @@ fn keep_trees(mut live: ResMut<Live>, plan: Res<Plan>, pilot: Res<crate::pilot::
     live.forest.keep_around(&plan, &bodies);
 }
 
-/// Puts the grown trees within the draw radius of the eye on screen, a few tiles a frame nearest
-/// first, and takes off the ones beyond it or let go.
+/// Puts the grown tiles within the draw radius of the eye on screen as merged meshes, a few tiles a
+/// frame nearest first (new ones, then ones a fallen tree changed), and takes off the ones beyond
+/// it or let go.
 fn show_trees(
     mut commands: Commands,
     live: Res<Live>,
     data: Res<Data>,
     camera: Single<&GlobalTransform, With<PilotCamera>>,
     trees: Option<ResMut<TreeEntities>>,
+    mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let Some(mut trees) = trees else { return };
+    let trees = &mut *trees;
     let eye = camera.translation();
     let eye = Vec2::new(eye.x, eye.z);
     let radius = data.0.world.trees.draw_radius_m;
@@ -690,54 +791,76 @@ fn show_trees(
     // On screen within the radius; taken off only past it by a margin, so a tile on the edge does
     // not come and go frame by frame.
     let keep: BTreeSet<(u32, u32)> = grown.iter().filter(|g| g.0 <= radius + TREE_KEEP_MARGIN_M).map(|g| g.1).collect();
-    let mut wanted: Vec<(f32, (u32, u32))> = grown.into_iter().filter(|g| g.0 <= radius).collect();
     let gone: Vec<(u32, u32)> = trees.tiles.keys().filter(|k| !keep.contains(k)).copied().collect();
-    let trees = &mut *trees;
     for key in gone {
-        for id in trees.tiles.remove(&key).map(|t| t.0).unwrap_or_default() {
-            if let Some(e) = trees.by_id.remove(&id) {
+        if let Some(tile) = trees.tiles.remove(&key) {
+            for e in tile.meshes {
                 commands.entity(e).despawn();
             }
         }
+        trees.tile_of.retain(|_, k| *k != key);
     }
-    // Shadows from the near tiles only; a tile changes over as a whole, rarely.
-    for (key, (ids, shadows)) in trees.tiles.iter_mut() {
-        let near = live.forest.tile_rect(*key).distance(eye) <= TREE_SHADOW_RADIUS_M;
-        if near != *shadows {
-            *shadows = near;
-            for id in ids.iter() {
-                if let Some(e) = trees.by_id.get(id) {
-                    if near {
-                        commands.entity(*e).remove::<NotShadowCaster>();
-                    } else {
-                        commands.entity(*e).insert(NotShadowCaster);
-                    }
-                }
-            }
-        }
-    }
-    wanted.retain(|w| !trees.tiles.contains_key(&w.1));
-    wanted.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-    for (d, key) in wanted.into_iter().take(TREE_TILES_PER_FRAME) {
+    // New tiles and changed ones, nearest first, a few a frame.
+    let mut todo: Vec<(f32, (u32, u32))> = grown
+        .into_iter()
+        .filter(|g| g.0 <= radius && trees.tiles.get(&g.1).is_none_or(|t| t.dirty))
+        .collect();
+    todo.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+    for (d, key) in todo.into_iter().take(TREE_TILES_PER_FRAME) {
         let Some((_, grown)) = live.forest.grown_tiles().find(|(k, _)| *k == key) else {
             continue;
         };
-        let near = d <= TREE_SHADOW_RADIUS_M;
-        let mut ids = Vec::with_capacity(grown.len());
-        for t in grown {
+        if let Some(old) = trees.tiles.remove(&key) {
+            for e in old.meshes {
+                commands.entity(e).despawn();
+            }
+        }
+        let shadows = d <= TREE_SHADOW_RADIUS_M;
+        let mut entities = Vec::new();
+        for (sp, geometry) in trees.geometry.iter().enumerate() {
+            // Falling trees are drawn on their own (`redraw_trees`), not in the tile.
+            let these = grown
+                .iter()
+                .filter(|t| t.species as usize == sp && !trees.moving.contains_key(&t.id))
+                .map(|t| (t, live.forest.state(t.id)));
+            let Some(mesh) = merge_trees(geometry, these) else { continue };
             let mut e = commands.spawn((
-                Mesh3d(trees.species[t.species as usize].clone()),
+                Name::new("tree tile"),
+                Mesh3d(meshes.add(mesh)),
                 MeshMaterial3d(trees.material.clone()),
-                tree_transform(t, live.forest.state(t.id)),
-                VisibilityRange::abrupt(0.0, radius),
+                Transform::IDENTITY,
+                VisibilityRange::abrupt(0.0, radius + TREE_KEEP_MARGIN_M),
             ));
-            if !near {
+            if !shadows {
                 e.insert(NotShadowCaster);
             }
-            trees.by_id.insert(t.id, e.id());
-            ids.push(t.id);
+            entities.push(e.id());
         }
-        trees.tiles.insert(key, (ids, near));
+        for t in grown {
+            trees.tile_of.insert(t.id, key);
+        }
+        trees.tiles.insert(
+            key,
+            TileDraw {
+                meshes: entities,
+                shadows,
+                dirty: false,
+            },
+        );
+    }
+    // Shadows from the near tiles only; a tile changes over as a whole, rarely.
+    for (key, tile) in trees.tiles.iter_mut() {
+        let near = live.forest.tile_rect(*key).distance(eye) <= TREE_SHADOW_RADIUS_M;
+        if near != tile.shadows {
+            tile.shadows = near;
+            for e in &tile.meshes {
+                if near {
+                    commands.entity(*e).remove::<NotShadowCaster>();
+                } else {
+                    commands.entity(*e).insert(NotShadowCaster);
+                }
+            }
+        }
     }
 }
 
@@ -755,15 +878,45 @@ fn fell_trees(mut live: ResMut<Live>, time: Res<Time<Fixed>>, mut fx: MessageWri
     live.moved_trees.extend(landed);
 }
 
-fn redraw_trees(mut live: ResMut<Live>, trees: Option<Res<TreeEntities>>, mut q: Query<&mut Transform>) {
-    let Some(trees) = trees else { return };
+/// A tree that starts falling leaves its tile's mesh and is drawn on its own as it falls; when it
+/// lands it goes back into its tile, which is rebuilt with it lying down.
+fn redraw_trees(mut commands: Commands, mut live: ResMut<Live>, trees: Option<ResMut<TreeEntities>>, mut q: Query<&mut Transform>) {
+    let Some(mut trees) = trees else { return };
+    let trees = &mut *trees;
     let moved = std::mem::take(&mut live.moved_trees);
     for id in moved {
-        let (Some(e), Some(tree)) = (trees.by_id.get(&id), live.forest.tree(id)) else {
-            continue;
-        };
-        if let Ok(mut t) = q.get_mut(*e) {
-            *t = tree_transform(tree, live.forest.state(id));
+        let Some(tree) = live.forest.tree(id) else { continue };
+        let state = live.forest.state(id);
+        let Some(key) = trees.tile_of.get(&id).copied() else { continue };
+        match state {
+            TreeState::Falling { .. } => match trees.moving.get(&id) {
+                Some(e) => {
+                    if let Ok(mut t) = q.get_mut(*e) {
+                        *t = tree_transform(tree, state);
+                    }
+                }
+                None => {
+                    let e = commands
+                        .spawn((
+                            Mesh3d(trees.species[tree.species as usize].clone()),
+                            MeshMaterial3d(trees.material.clone()),
+                            tree_transform(tree, state),
+                        ))
+                        .id();
+                    trees.moving.insert(id, e);
+                    if let Some(tile) = trees.tiles.get_mut(&key) {
+                        tile.dirty = true;
+                    }
+                }
+            },
+            _ => {
+                if let Some(e) = trees.moving.remove(&id) {
+                    commands.entity(e).despawn();
+                }
+                if let Some(tile) = trees.tiles.get_mut(&key) {
+                    tile.dirty = true;
+                }
+            }
         }
     }
 }

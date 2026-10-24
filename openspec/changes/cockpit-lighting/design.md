@@ -33,6 +33,21 @@ To check in the first run: that each face lands the right way round (a cube map 
 against a camera's view by convention, so the light could arrive from the wrong side), and the
 cost of the active face's shadow cascades.
 
+## 4. Measured (2026-10-24, RTX 3070, uncapped, the defence take; CPU-bound throughout, GPU 0.4-0.7 ms)
+
+| Variant | Frame time (5 s medians across the take) |
+| --- | --- |
+| no cube | 6.6-10.9 ms |
+| a face every frame, 3 km | about 4.7 ms more (13.0 against 8.3 ms, capped) |
+| 10 refreshes a second, 3 km faces | 13.6-21.4 ms |
+| 10 refreshes a second, 400 m faces, one face copied a frame | 9.8-19.3 ms |
+
+A face view, however small, pays Bevy's per-view, per-mesh CPU work (visibility, material
+specialization, shadow queueing) over thousands of meshes, and the generated environment map adds
+its own setup each frame. The cube map is off by default (`screens_cube_px: 0`). The cheaper route,
+next: the screens' average colours read from the frame the eye camera already drew (a few texels
+of a downsampled copy), driving the screen-glow lights' colour and strength.
+
 ## Open questions
 
 | Id | Question | Recommendation | State |
