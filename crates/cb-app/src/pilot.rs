@@ -19,6 +19,10 @@ pub struct PilotSim {
     pub curr: PilotState,
 }
 
+/// Pilot events this fixed step, for the mech's boarding sequence.
+#[derive(Resource, Default)]
+pub struct PilotEvents(pub Vec<PilotEvent>);
+
 /// The one camera: the pilot's eyes.
 #[derive(Component)]
 pub struct PilotCamera;
@@ -39,6 +43,7 @@ impl Plugin for PilotPlugin {
             prev: state.clone(),
             curr: state,
         })
+        .init_resource::<PilotEvents>()
         .add_systems(Startup, spawn_camera)
         .add_systems(FixedUpdate, step_pilot.in_set(SimSet::Pilot))
         .add_systems(Update, place_camera.in_set(PresentSet::Camera));
@@ -67,6 +72,7 @@ fn spawn_camera(mut commands: Commands) {
 
 fn step_pilot(
     mut pilot: ResMut<PilotSim>,
+    mut events: ResMut<PilotEvents>,
     actions: Res<StepActions>,
     access: Res<MechAccessNow>,
     data: Res<Data>,
@@ -79,7 +85,9 @@ fn step_pilot(
     let event = pilot
         .curr
         .step(&actions, &data.0.pilot, ground, access.0.as_ref(), time.delta_secs());
+    events.0.extend(event);
     match event {
+        Some(PilotEvent::HatchWanted) => info!("pilot: asked the mech to sit and open"),
         Some(PilotEvent::BoardingStarted) => info!("pilot: boarding"),
         Some(PilotEvent::Seated) => info!("pilot: seated at EYE_pilot"),
         Some(PilotEvent::DisembarkStarted) => info!("pilot: climbing out"),

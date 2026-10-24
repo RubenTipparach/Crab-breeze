@@ -6,5 +6,5 @@ pub mod locomotion;
 pub mod rig;
 
 pub use config::{BoxSpec, GaitConfig, LocomotionConfig, MechConfig, NodeSpec};
-pub use gait::{LegPose, LegRest, MechPose, pose, solve_leg};
+pub use gait::{LegPose, LegRest, MechPose, RigRest, pose, solve_leg};
 pub use locomotion::{LocomotionMode, MechControls, MechState, forward};

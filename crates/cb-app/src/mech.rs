@@ -1,16 +1,18 @@
-//! The mech in the game (`mech-rig` design sections 1, 5 and 6): spawns the stand-in from data or
-//! a glb named in data, binds the contract's bones and sockets by name (the same code for both),
-//! steps its locomotion in the fixed step, and poses its bones from the interpolated state.
+//! The mech in the game (`mech-rig` design sections 1, 5 and 6; `mech-boarding`): spawns the
+//! stand-in from data or a glb named in data, binds the contract's bones and sockets by name (the
+//! same code for both), steps its locomotion and boarding clock in the fixed step, and poses its
+//! bones and hatch nodes from the interpolated state.
 
 use crate::input::StepActions;
-use crate::pilot::PilotSim;
+use crate::pilot::{PilotEvents, PilotSim};
 use crate::sim::{Data, PresentSet, SimSet};
 use crate::world::Plan;
 use bevy::prelude::*;
 use bevy::world_serialization::WorldAssetRoot;
+use cb_core::boarding::{Hatch, HatchTarget};
 use cb_core::mech::rig::{BONES, SOCKETS};
-use cb_core::mech::{LegRest, MechControls, MechState, pose};
-use cb_core::pilot::{MechAccess, PilotMode};
+use cb_core::mech::{LegRest, MechControls, MechState, RigRest, pose};
+use cb_core::pilot::{MechAccess, PilotEvent, PilotMode};
 use std::collections::HashMap;
 
 /// The mech's root: on the ground, turned to its heading.
@@ -27,6 +29,20 @@ pub struct MechSim {
     pub prev: MechState,
     /// The latest step.
     pub curr: MechState,
+    /// Boarding clock at the step before.
+    pub hatch_prev: Hatch,
+    /// Boarding clock at the latest step.
+    pub hatch: Hatch,
+}
+
+/// A hatch node found by a timeline motion's pattern.
+#[derive(Clone, Copy)]
+struct HatchNode {
+    entity: Entity,
+    rest: Transform,
+    stage: usize,
+    motion: usize,
+    index: usize,
 }
 
 /// One bound bone: its entity and rest pose.
@@ -43,7 +59,8 @@ struct BoneBind {
 pub struct MechRig {
     bones: Vec<BoneBind>,
     sockets: HashMap<&'static str, Entity>,
-    legs: [LegRest; 2],
+    rest: RigRest,
+    hatch_nodes: Vec<HatchNode>,
 }
 
 /// The model lacks contract bones; it is shown but not driven.
@@ -97,7 +114,12 @@ fn spawn_mech(
         .spawn((
             Name::new(format!("mech {}", cfg.name)),
             MechRoot { model },
-            MechSim { prev: state, curr: state },
+            MechSim {
+                prev: state,
+                curr: state,
+                hatch_prev: Hatch::default(),
+                hatch: Hatch::default(),
+            },
             Transform::from_translation(state.pos).with_rotation(Quat::from_rotation_y(state.heading_rad)),
             Visibility::default(),
         ))
@@ -185,12 +207,16 @@ fn bind_rig(
 ) {
     for (root, mech) in &roots {
         let mut found: HashMap<&'static str, Entity> = HashMap::new();
+        let mut named: Vec<(String, Entity)> = Vec::new();
         for e in children.iter_descendants(mech.model) {
             let Ok(name) = names.get(e) else { continue };
+            named.push((name.as_str().to_string(), e));
             if let Some(spec) = BONES.iter().chain(SOCKETS.iter()).find(|s| s.name == name.as_str()) {
                 found.entry(spec.name).or_insert(e);
             }
         }
+        // Name order, so a pattern's stagger runs the same way every time.
+        named.sort_by(|a, b| a.0.cmp(&b.0));
         if !found.contains_key("root") {
             continue; // The model has not spawned yet.
         }
@@ -240,11 +266,46 @@ fn bind_rig(
             ankle: at(&format!("foot_{s}")),
         };
         let sockets = SOCKETS.iter().map(|s| (s.name, found[s.name])).collect();
-        info!("mech rig bound: {} bones, {} sockets", bones.len(), SOCKETS.len());
+        let mut hatch_nodes = Vec::new();
+        for (si, stage) in data.0.boarding.stages.iter().enumerate() {
+            for (mi, m) in stage.motions.iter().enumerate() {
+                let matches = |n: &str| match m.node.strip_suffix('*') {
+                    Some(prefix) => n.starts_with(prefix),
+                    None => n == m.node,
+                };
+                let hits: Vec<Entity> = named.iter().filter(|(n, _)| matches(n)).map(|(_, e)| *e).collect();
+                if hits.is_empty() {
+                    warn!(
+                        "boarding: stage `{}` moves `{}`, which the model does not have yet",
+                        stage.name, m.node
+                    );
+                }
+                for (index, e) in hits.into_iter().enumerate() {
+                    hatch_nodes.push(HatchNode {
+                        entity: e,
+                        rest: transforms.get(e).copied().unwrap_or_default(),
+                        stage: si,
+                        motion: mi,
+                        index,
+                    });
+                }
+            }
+        }
+        let rest = RigRest {
+            pelvis: at("pelvis"),
+            legs: [leg("L"), leg("R")],
+        };
+        info!(
+            "mech rig bound: {} bones, {} sockets, {} hatch nodes",
+            bones.len(),
+            SOCKETS.len(),
+            hatch_nodes.len()
+        );
         commands.entity(root).insert(MechRig {
             bones,
             sockets,
-            legs: [leg("L"), leg("R")],
+            rest,
+            hatch_nodes,
         });
     }
 }
@@ -274,12 +335,24 @@ fn drive_mech(
     let alpha = fixed.overstep_fraction();
     for (root, sim, rig) in &mut roots {
         let s = lerp_state(&sim.prev, &sim.curr, alpha);
+        let tl = &data.0.boarding;
+        let t = sim.hatch_prev.t_s + (sim.hatch.t_s - sim.hatch_prev.t_s) * alpha;
         if let Ok(mut t) = transforms.get_mut(root) {
             t.translation = s.pos;
             t.rotation = Quat::from_rotation_y(s.heading_rad);
         }
         let Some(rig) = rig else { continue };
-        let p = pose(&s, &data.0.mech.gait, &rig.legs);
+        let p = pose(&s, &data.0.mech.gait, &rig.rest, &tl.sit, tl.sit_amount(t));
+        for n in &rig.hatch_nodes {
+            let stage = &tl.stages[n.stage];
+            let m = &stage.motions[n.motion];
+            let k = tl.motion_amount(stage, m, n.index, t);
+            if let Ok(mut tr) = transforms.get_mut(n.entity) {
+                let axis = Vec3::from_array(m.axis).normalize_or(Vec3::X);
+                tr.rotation = n.rest.rotation * Quat::from_axis_angle(axis, m.angle_deg.to_radians() * k);
+                tr.translation = n.rest.translation + n.rest.rotation * Vec3::from_array(m.translate_m) * k;
+            }
+        }
         let mut d = [Quat::IDENTITY; BONES.len()];
         let rotations = p.rotations();
         for (i, spec) in BONES.iter().enumerate() {
@@ -313,6 +386,7 @@ fn publish_access(
             eye_pilot: at("EYE_pilot")?,
             heading_rad: sim.curr.heading_rad,
             stopped: sim.curr.is_stopped(&data.0.mech.locomotion),
+            hatch_open: sim.hatch.is_open(&data.0.boarding),
         })
     });
 }
@@ -321,21 +395,46 @@ fn step_mech(
     mut roots: Query<&mut MechSim, With<MechRoot>>,
     actions: Res<StepActions>,
     pilot: Res<PilotSim>,
+    mut events: ResMut<PilotEvents>,
+    access: Res<MechAccessNow>,
     data: Res<Data>,
     plan: Res<Plan>,
     time: Res<Time<Fixed>>,
 ) {
-    let controls = if pilot.curr.mode == PilotMode::Seated {
-        MechControls::from_actions(&actions)
-    } else {
-        MechControls::default()
-    };
     let cfg = &data.0.mech;
+    let tl = &data.0.boarding;
+    let seated = pilot.curr.mode == PilotMode::Seated;
     for mut sim in &mut roots {
         sim.prev = sim.curr;
+        sim.hatch_prev = sim.hatch;
+        // The boarding sequence follows the pilot (mech-boarding design section 4).
+        for e in &events.0 {
+            match e {
+                PilotEvent::HatchWanted => sim.hatch.target = HatchTarget::Open,
+                PilotEvent::Seated => sim.hatch.target = HatchTarget::SealedSitting,
+                _ => {}
+            }
+        }
+        let clear = access
+            .0
+            .as_ref()
+            .is_some_and(|a| pilot.curr.mode == PilotMode::OnFoot && pilot.curr.distance_to_stair(a) > tl.clear_m);
+        if sim.hatch.target == HatchTarget::Open && clear && pilot.curr.waiting.is_none() {
+            sim.hatch.target = HatchTarget::SealedSitting;
+        }
+        if seated && sim.hatch.is_sealed_sitting(tl) && actions.throttle_axis > 0.0 {
+            sim.hatch.target = HatchTarget::Standing;
+        }
+        sim.hatch.step(tl, time.delta_secs());
+        let controls = if seated && sim.hatch.can_walk() {
+            MechControls::from_actions(&actions)
+        } else {
+            MechControls::default()
+        };
         let ground: &cb_core::world::WorldPlan = &plan;
         sim.curr.step(&controls, &cfg.locomotion, &cfg.gait, ground, time.delta_secs());
     }
+    events.0.clear();
 }
 
 /// The world transform of a rig socket this frame, composed from local transforms (so it already

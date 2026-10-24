@@ -5,6 +5,7 @@
 //! asset dependency, so it runs headless and is tested without a GPU (CLAUDE.md section 6.2).
 //! `cb-app` adapts it to Bevy.
 
+pub mod boarding;
 pub mod data;
 pub mod input;
 pub mod mech;
@@ -24,6 +25,8 @@ pub struct GameData {
     pub world: world::WorldConfig,
     /// The mech, `data/mechs/<name>.ron`.
     pub mech: mech::MechConfig,
+    /// The mech's boarding timeline, `data/mechs/<name>/boarding.ron`.
+    pub boarding: boarding::BoardingTimeline,
     /// `data/pilot/pilot.ron`.
     pub pilot: pilot::PilotConfig,
     /// `data/input/bindings.ron`.
@@ -32,12 +35,13 @@ pub struct GameData {
 
 impl GameData {
     /// Loads every data file under `root` (the `data/` directory), with the mech file `mech`
-    /// (relative to `root`). The first failure is returned, naming its file and field.
+    /// (relative to `root`) and its boarding timeline beside it (`mechs/<name>/boarding.ron`). The first failure is returned, naming its file and field.
     pub fn load(root: &Path, mech: &str) -> Result<Self, data::DataError> {
         Ok(Self {
             sim: data::load_ron(&root.join("sim.ron"))?,
             world: data::load_ron(&root.join("world/world.ron"))?,
             mech: data::load_ron(&root.join(mech))?,
+            boarding: data::load_ron(&root.join(mech.trim_end_matches(".ron")).join("boarding.ron"))?,
             pilot: data::load_ron(&root.join("pilot/pilot.ron"))?,
             bindings: data::load_ron(&root.join("input/bindings.ron"))?,
         })

@@ -105,29 +105,30 @@ fn run_script(
                 });
             }
             if matches!(pilot.curr.mode, PilotMode::Boarding(_)) {
+                // The stair is down and the climb begins: the open hatch from the stair's foot.
                 acc.script = Some(Actions::default());
-            }
-            if in_beat > 2.0 && matches!(pilot.curr.mode, PilotMode::Boarding(ref p) if p.travelled_m > 9.0) {
-                shoot(&mut commands, &script.dir, "boarding.png");
+                shoot(&mut commands, &script.dir, "hatch-open.png");
                 next = true;
             }
         }
         3 => {
-            if pilot.curr.mode == PilotMode::Seated && in_beat > 1.0 {
+            // Seated; wait for the hatch to seal behind the pilot.
+            if pilot.curr.mode == PilotMode::Seated && in_beat > 12.0 {
                 shoot(&mut commands, &script.dir, "cockpit.png");
                 next = true;
             }
         }
-        // Stride: throttle up to 60 %, hold, measure frame time over 10 s.
+        // Stand up and stride: throttle forward (the mech stands first), hold, measure frame time
+        // over 10 s.
         4 => {
             acc.script = Some(Actions {
-                throttle_axis: if in_beat < 1.0 { 0.6 } else { 0.0 },
+                throttle_axis: if in_beat < 5.0 { 0.6 } else { 0.0 },
                 ..default()
             });
-            if in_beat > 4.0 {
+            if in_beat > 7.0 {
                 script.frames_ms.push(time.delta_secs() * 1000.0);
             }
-            if in_beat > 14.0 {
+            if in_beat > 17.0 {
                 shoot(&mut commands, &script.dir, "cockpit-stride.png");
                 next = true;
             }

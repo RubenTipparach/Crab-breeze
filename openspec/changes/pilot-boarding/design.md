@@ -16,6 +16,10 @@ buildings, eyes 1.7 m above the feet. Pitch is limited to +-85 degrees.
 
 ## 3. Boarding
 
+> Superseded by `mech-boarding` (owner, 2026-10-24: a sealed cockpit, the mech sits, the hatch
+> opens, the pilot climbs a stair). The lift below is gone; the path is now stair foot, platform,
+> `EYE_pilot`, at 1.2 m/s, after the mech has sat and opened.
+
 - Use is offered within 3.0 m (horizontal) of `LADDER_base`, with the mech's throttle at 0 and
   its speed under 0.2 m/s.
 - The path, fixed when boarding starts, is for the pilot's eyes: here, above `LADDER_base` at eye
@@ -44,5 +48,5 @@ One body step and one boarding step a fixed step: microseconds. One camera.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| C1 | How the pilot sees out | a frame around open glass on the stand-in | provisional (survey C1) |
+| C1 | How the pilot sees out | sealed pod, all-view screens | decided by the owner, 2026-10-24 (`mech-boarding`) |
 | G2 | Piloting depth | free look on Alt, mouse aims the torso | provisional (survey G2) |

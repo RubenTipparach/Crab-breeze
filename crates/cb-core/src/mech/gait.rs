@@ -5,6 +5,7 @@
 
 use super::config::GaitConfig;
 use super::locomotion::MechState;
+use crate::boarding::SitPose;
 use glam::{Quat, Vec2, Vec3};
 use std::f32::consts::{PI, TAU};
 
@@ -19,6 +20,15 @@ pub struct LegRest {
     pub hock: Vec3,
     /// Foot origin (ankle).
     pub ankle: Vec3,
+}
+
+/// The rest positions the pose needs, measured from the bound model (never from a copy).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RigRest {
+    /// `pelvis` origin, model space.
+    pub pelvis: Vec3,
+    /// Left then right leg.
+    pub legs: [LegRest; 2],
 }
 
 /// Bone rotations for one leg, model space, relative to rest.
@@ -82,13 +92,17 @@ fn wrap(a: f32) -> f32 {
     (a + PI).rem_euclid(TAU) - PI
 }
 
-/// Solves one digitigrade leg: the hock keeps its rest angle, thigh and shin bend as a two-bone
-/// chain from `hip` to the hock joint, the knee bending the way it bends at rest. A target out of
-/// reach is pulled in to 99.5 % of the chain. Works in the leg's (y, z) plane.
-pub fn solve_leg(rest: &LegRest, hip: Vec3, ankle_target: Vec3) -> LegPose {
+/// Solves one digitigrade leg: the hock turns `hock_turn_rad` from its rest angle (0 when
+/// walking), thigh and shin bend as a two-bone chain from `hip` to the hock joint, the knee
+/// bending the way it bends at rest. A target out of reach is pulled in to 99.5 % of the chain.
+/// Works in the leg's (y, z) plane.
+pub fn solve_leg(rest: &LegRest, hip: Vec3, ankle_target: Vec3, hock_turn_rad: f32) -> LegPose {
     let l1 = plane(rest.knee - rest.hip).length();
     let l2 = plane(rest.hock - rest.knee).length();
-    let hock_vec = plane(rest.ankle - rest.hock);
+    let hock_rest = plane(rest.ankle - rest.hock);
+    let (sin, cos) = hock_turn_rad.sin_cos();
+    // Turning about +x adds to the plane angle atan2(z, y).
+    let hock_vec = Vec2::new(hock_rest.x * cos - hock_rest.y * sin, hock_rest.x * sin + hock_rest.y * cos);
     let thigh_rest = plane_angle(rest.knee - rest.hip);
     let shin_rest = plane_angle(rest.hock - rest.knee);
     let base_rest = plane_angle(rest.hock - rest.hip);
@@ -110,7 +124,7 @@ pub fn solve_leg(rest: &LegRest, hip: Vec3, ankle_target: Vec3) -> LegPose {
     LegPose {
         thigh: Quat::from_rotation_x(wrap(thigh - thigh_rest)),
         shin: Quat::from_rotation_x(wrap(shin - shin_rest)),
-        hock: Quat::IDENTITY,
+        hock: Quat::from_rotation_x(hock_turn_rad),
         foot: Quat::IDENTITY,
         ankle: Vec3::new(ankle_target.x, ankle2.x, ankle2.y),
     }
@@ -129,27 +143,37 @@ pub fn foot_offset(p: f64, a: f32, lift: f32) -> Vec3 {
 }
 
 /// The pose for a mech state: feet from the gait clock, pelvis bob and sway, legs solved, torso
-/// twisted and pitched.
-pub fn pose(state: &MechState, gait: &GaitConfig, legs: &[LegRest; 2]) -> MechPose {
+/// twisted and pitched; then blended toward sitting by `sit_amount` (0 standing, 1 sat), with
+/// the pelvis lowered, the hocks swung back and the torso bowed (mech-boarding design section 2).
+pub fn pose(state: &MechState, gait: &GaitConfig, rest: &RigRest, sit: &SitPose, sit_amount: f32) -> MechPose {
+    let s = sit_amount.clamp(0.0, 1.0);
     let phase = state.gait_cycles;
-    let swing = state.gait_swing;
+    let swing = state.gait_swing * (1.0 - s);
     let a = state.stride_m * 0.25 * swing;
     let lift = gait.step_height_m * swing;
     let p = phase.rem_euclid(1.0) as f32;
-    let pelvis_offset = Vec3::new(
+    let walk_offset = Vec3::new(
         gait.sway_m * swing * (TAU * p).sin(),
         -gait.bob_m * swing * 0.5 * (1.0 - (2.0 * TAU * p).cos()),
         0.0,
     );
-    let solve = |rest: &LegRest, ph: f64| solve_leg(rest, rest.hip + pelvis_offset, rest.ankle + foot_offset(ph, a, lift));
+    let pelvis_offset = walk_offset + Vec3::Y * (sit.pelvis_height_m - rest.pelvis.y) * s;
+    let solve = |leg: &LegRest, ph: f64| {
+        // The sat hock lies `hock_angle_deg` back from straight down: plane angle pi - angle.
+        let hock_rest = plane_angle(leg.ankle - leg.hock);
+        let hock_sat = PI - sit.hock_angle_deg.to_radians();
+        let turn = wrap(hock_sat - hock_rest) * s;
+        solve_leg(leg, leg.hip + pelvis_offset, leg.ankle + foot_offset(ph, a, lift), turn)
+    };
     let twist = Quat::from_rotation_y(state.twist_rad);
+    // Pitch up turns +z toward +y: a negative rotation about +x. A bow is a positive one.
+    let pitch = -state.pitch_rad + sit.torso_bow_deg.to_radians() * s;
     MechPose {
         pelvis_offset,
         torso_twist: twist,
-        // Pitch up turns +z toward +y: a negative rotation about +x.
-        torso: twist * Quat::from_rotation_x(-state.pitch_rad),
-        left: solve(&legs[0], phase),
-        right: solve(&legs[1], phase + 0.5),
+        torso: twist * Quat::from_rotation_x(pitch),
+        left: solve(&rest.legs[0], phase),
+        right: solve(&rest.legs[1], phase + 0.5),
     }
 }
 
@@ -169,6 +193,39 @@ mod tests {
         LegRest { hip, knee, hock, ankle }
     }
 
+    fn rig() -> RigRest {
+        let l = rest();
+        let mut r = l;
+        r.hip.x = -l.hip.x;
+        r.knee.x = -l.knee.x;
+        r.hock.x = -l.hock.x;
+        r.ankle.x = -l.ankle.x;
+        RigRest {
+            pelvis: Vec3::new(0.0, 6.2, 0.0),
+            legs: [l, r],
+        }
+    }
+
+    #[test]
+    fn sitting_lowers_the_pelvis_lays_the_hock_back_and_keeps_the_feet() {
+        let sit = SitPose {
+            pelvis_height_m: 2.4,
+            ..SitPose::default()
+        };
+        let s = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        let p = pose(&s, &GaitConfig::default(), &rig(), &sit, 1.0);
+        assert!((rig().pelvis.y + p.pelvis_offset.y - 2.4).abs() < 1e-4);
+        let r = rest();
+        let hip = r.hip + p.pelvis_offset;
+        let got = ankle_of(&r, hip, &p.left);
+        assert!(got.distance(r.ankle) < 1e-3, "the foot stays planted: {got} vs {}", r.ankle);
+        let hock_joint = hip + p.left.thigh * (r.knee - r.hip) + p.left.shin * (r.hock - r.knee);
+        assert!(
+            (hock_joint.y - r.ankle.y).abs() < 1e-3 && hock_joint.z < r.ankle.z,
+            "the hock lies flat behind the foot: {hock_joint}"
+        );
+    }
+
     /// Forward kinematics with the solved rotations, to check the solver against the bones.
     fn ankle_of(r: &LegRest, hip: Vec3, p: &LegPose) -> Vec3 {
         let knee = hip + p.thigh * (r.knee - r.hip);
@@ -179,7 +236,7 @@ mod tests {
     #[test]
     fn the_solver_returns_the_rest_pose_for_the_rest_target() {
         let r = rest();
-        let p = solve_leg(&r, r.hip, r.ankle);
+        let p = solve_leg(&r, r.hip, r.ankle, 0.0);
         assert!(p.thigh.angle_between(Quat::IDENTITY) < 1e-3);
         assert!(p.shin.angle_between(Quat::IDENTITY) < 1e-3);
     }
@@ -188,7 +245,7 @@ mod tests {
     fn the_solver_reaches_a_reachable_target() {
         let r = rest();
         for target in [Vec3::new(1.6, 1.2, 2.0), Vec3::new(1.6, 0.5, -2.0), Vec3::new(1.6, 0.9, 0.5)] {
-            let p = solve_leg(&r, r.hip, target);
+            let p = solve_leg(&r, r.hip, target, 0.0);
             let got = ankle_of(&r, r.hip, &p);
             assert!(got.distance(target) < 1e-3, "{got} vs {target}");
         }
@@ -197,7 +254,7 @@ mod tests {
     #[test]
     fn the_knee_bends_the_way_the_rest_pose_bends() {
         let r = rest();
-        let p = solve_leg(&r, r.hip + Vec3::new(0.0, -0.8, 0.0), r.ankle);
+        let p = solve_leg(&r, r.hip + Vec3::new(0.0, -0.8, 0.0), r.ankle, 0.0);
         let knee = r.hip + Vec3::new(0.0, -0.8, 0.0) + p.thigh * (r.knee - r.hip);
         assert!(knee.z > r.hip.z, "the knee points forward, as at rest: {knee}");
     }
@@ -213,10 +270,9 @@ mod tests {
     #[test]
     fn feet_settle_together_at_rest() {
         let s = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
-        let legs = [rest(), rest()];
-        let pose = pose(&s, &GaitConfig::default(), &legs);
-        for leg in [pose.left, pose.right] {
-            assert!(leg.ankle.distance(rest().ankle) < 1e-3, "{}", leg.ankle);
+        let pose = pose(&s, &GaitConfig::default(), &rig(), &SitPose::default(), 0.0);
+        for (leg, r) in [(pose.left, rig().legs[0]), (pose.right, rig().legs[1])] {
+            assert!(leg.ankle.distance(r.ankle) < 1e-3, "{}", leg.ankle);
         }
         assert_eq!(pose.pelvis_offset, Vec3::ZERO);
     }
@@ -233,10 +289,10 @@ mod tests {
         for _ in 0..600 {
             s.step(&go, &l, &g, &FlatGround::default(), dt);
         }
-        let legs = [rest(), rest()];
+        let rig = rig();
         // World z of the left foot: body position plus the foot's model offset (model +z is
         // forward, world forward is -z at heading 0).
-        let foot_world = |s: &MechState| s.pos.z - pose(s, &g, &legs).left.ankle.z;
+        let foot_world = |s: &MechState| s.pos.z - pose(s, &g, &rig, &SitPose::default(), 0.0).left.ankle.z;
         let mut slide: f32 = 0.0;
         let mut start = None;
         for _ in 0..240 {
