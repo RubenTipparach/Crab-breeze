@@ -103,13 +103,15 @@
     // section 3). The woods are as dense as before; only the tiles near the pilot and the mechs exist.
     // Denser, farther woods (owner, 2026-10-24: "More trees please", but "100k is probably a bit
     // much" as entities) wait for GPU-driven trees, placed and culled in a compute shader.
+    // Drawn to 2 km (owner, 2026-10-24: "Trees should have max distance of 2km"): grown to 2.2 km,
+    // let go past 2.7 km.
     trees: (
         tile_sites: 24,
-        keep_radius_m: 1500.0,
+        keep_radius_m: 2200.0,
         urgent_radius_m: 400.0,
-        release_radius_m: 2000.0,
+        release_radius_m: 2700.0,
         tiles_per_step: 2,
-        draw_radius_m: 1200.0,
+        draw_radius_m: 2000.0,
     ),
 
     // Clouds over the island and 6 km of sea past the world's edge, drawn within 9 km of the eye.

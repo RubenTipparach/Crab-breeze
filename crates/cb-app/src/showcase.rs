@@ -537,7 +537,7 @@ fn play_defence(
     access: Res<MechAccessNow>,
     ready: Res<crate::loading::GameReady>,
     me: Query<(&MechSim, &crate::mech::MechSpec), With<Piloted>>,
-    raiders: Query<(&MechSim, &crate::defence::Raider)>,
+    hostiles: Res<crate::units::Hostiles>,
     run: Res<crate::defence::DefenceRun>,
     targets: Res<crate::targeting::TargetState>,
     data: Res<crate::sim::Data>,
@@ -546,6 +546,7 @@ fn play_defence(
     time: Res<Time<Real>>,
     mut exit: MessageWriter<AppExit>,
 ) {
+    let _t = crate::perf_hud::slow("play_defence");
     use cb_core::mission::Phase;
     let now = time.elapsed_secs();
     let t = now - take.beat_started_s;
@@ -559,17 +560,17 @@ fn play_defence(
     let over = matches!(run.state.phase, Phase::Won | Phase::Lost(_));
     // Every 5 s, where the pilot and the wave's live raiders are, for reading a stall from the log.
     if (now / 5.0).floor() != ((now - time.delta_secs()) / 5.0).floor() && take.beat >= 4 {
-        let others: Vec<String> = raiders
+        let others: Vec<String> = hostiles
+            .0
             .iter()
-            .filter(|(r, _)| !r.dead)
-            .map(|(r, x)| {
+            .map(|h| {
                 format!(
                     "w{}#{} ({:.0},{:.0},{:.0})",
-                    x.wave + 1,
-                    x.index,
-                    r.curr.pos.x,
-                    r.curr.pos.y,
-                    r.curr.pos.z
+                    h.wave.map_or(0, |w| w + 1),
+                    h.id,
+                    h.aim.x,
+                    h.aim.y,
+                    h.aim.z
                 )
             })
             .collect();
@@ -628,13 +629,15 @@ fn play_defence(
                 return;
             }
             let here = Vec2::new(m.pos.x, m.pos.z);
-            let nearest = raiders
+            // The wave's nearest live enemy, mech or vehicle.
+            let nearest = hostiles
+                .0
                 .iter()
-                .filter(|(r, x)| x.wave == w && !r.dead)
-                .min_by(|a, b| a.0.curr.pos.distance(m.pos).total_cmp(&b.0.curr.pos.distance(m.pos)))
-                .map(|(r, _)| r.curr);
+                .filter(|h| h.wave == Some(w))
+                .min_by(|a, b| a.aim.distance(m.pos).total_cmp(&b.aim.distance(m.pos)))
+                .copied();
             let city = &plan.cities[cfg.cities[w] as usize];
-            let goal = nearest.map_or(city.centre, |r| Vec2::new(r.pos.x, r.pos.z));
+            let goal = nearest.map_or(city.centre, |r| Vec2::new(r.aim.x, r.aim.z));
             let d = here.distance(goal);
             // Fighting, a raider over 600 m off is travelled to, not orbited.
             if !fighting || d > 600.0 {
@@ -690,8 +693,10 @@ fn play_defence(
                 let cover = |me: Vec3, threat: Vec3| crate::mech::cover_point(&plan, &live, me, threat);
                 let view = cb_core::ai::View {
                     eye,
-                    target: target.pos,
-                    target_vel: Vec3::new(target.vel.x, target.vel_y_m_s, target.vel.y),
+                    // The brain aims `TORSO_AIM_M` over the point it is given: hand it that
+                    // much under the enemy's aim point, so a tank is aimed at, not over.
+                    target: target.aim - Vec3::Y * cb_core::ai::TORSO_AIM_M,
+                    target_vel: target.vel,
                     muzzle_speed_m_s: spec.weapons.first().map_or(1100.0, |w| w.speed_m_s),
                     drop: true,
                     health: crate::mech::torso_health(sim, spec),
@@ -702,6 +707,17 @@ fn play_defence(
                 };
                 let o = brain.orders(m, &view, time.delta_secs());
                 play_orders(&o, &mut act);
+                // Fire only with the led aim inside the target's own size (owner, 2026-10-24: "Bot
+                // needs to lead shots for moving objects"): the brain's 3.5 degree gate is 18 m wide
+                // at 300 m, a helicopter 3 m, so it sprayed past anything that moved.
+                let look = crate::targeting::aim_dir(p.yaw_rad, p.pitch_rad);
+                let to_lead = (o.aim_point - eye).normalize_or(look);
+                let off_deg = look.angle_between(to_lead).to_degrees();
+                let radius_m = (target.height_m * 0.5).clamp(1.5, 6.0);
+                let allowed_deg = (radius_m / o.aim_point.distance(eye).max(1.0)).atan().to_degrees().max(0.4);
+                if off_deg > allowed_deg {
+                    act.fire = [false, false];
+                }
             }
             // A lock, travelling or fighting: missile away (as a player holding F would).
             act.fire_missile = targets.locked(&data.0.targeting).is_some();
@@ -715,8 +731,8 @@ fn play_defence(
             if t > 3.0 {
                 let line = match run.state.phase {
                     Phase::Won => format!(
-                        "PLAYTEST_RESULT win defence: all {} raiders destroyed, {}",
-                        cfg.raiders_per_wave as usize * cfg.cities.len(),
+                        "PLAYTEST_RESULT win defence: all {} enemies destroyed, {}",
+                        (0..cfg.cities.len()).map(|w| cfg.wave_size(w)).sum::<u32>(),
                         damage_summary(&run.damage, cfg)
                     ),
                     Phase::Lost(why) => format!(

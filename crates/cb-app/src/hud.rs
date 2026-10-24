@@ -343,7 +343,7 @@ fn draw_targets(
     state: Res<crate::targeting::TargetState>,
     camera: Single<(&Camera, &GlobalTransform), With<crate::pilot::PilotCamera>>,
     me: Query<&MechSpec, With<Piloted>>,
-    enemies: Query<(&MechSim, &crate::mech::MechId, &MechSpec, Option<&crate::mech::EnemyGoal>), With<crate::mech::Enemy>>,
+    hostiles: Res<crate::units::Hostiles>,
     mut boxes: Query<(&TargetBox, &mut Node, &mut BorderColor, &mut Visibility), (Without<LeadRing>, Without<EdgeArrow>)>,
     mut labels: Query<(&TargetLabel, &mut Text, &mut TextColor), Without<EdgeArrow>>,
     mut lead: Single<(&mut Node, &mut Visibility, &mut BorderColor), (With<LeadRing>, Without<TargetBox>, Without<EdgeArrow>)>,
@@ -359,33 +359,29 @@ fn draw_targets(
     let size = cam.logical_viewport_size().unwrap_or(Vec2::new(1920.0, 1080.0));
     let on_screen = |p: Vec2| p.x >= 0.0 && p.y >= 0.0 && p.x <= size.x && p.y <= size.y;
     let locked = state.locked(cfg);
-    // The enemies in range, nearest first.
-    let mut shown: Vec<(f32, &MechSim, u32, bool)> = enemies
+    // The enemies in range, mechs and vehicles, nearest first.
+    let mut shown: Vec<(f32, crate::units::Hostile)> = hostiles
+        .0
         .iter()
-        .filter(|(e, ..)| !e.dead && seated)
-        .map(|(e, id, _, goal)| {
-            let torso = e.curr.pos + Vec3::Y * cb_core::ai::TORSO_AIM_M;
-            (torso.distance(eye), e, id.0, goal.is_some_and(|g| g.point.is_some()))
-        })
-        .filter(|(d, ..)| *d <= cfg.max_range_m)
+        .filter(|_| seated)
+        .map(|h| (h.aim.distance(eye), *h))
+        .filter(|(d, _)| *d <= cfg.max_range_m)
         .collect();
-    shown.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.2.cmp(&b.2)));
+    shown.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.id.cmp(&b.1.id)));
     let mut texts: Vec<(String, Color)> = vec![(String::new(), GREEN); BOXES];
     let mut placed = vec![None; BOXES];
     let mut lead_at = None;
     let mut arrow_dir = None;
-    for (slot, (d, e, id, shelling)) in shown.iter().take(BOXES).enumerate() {
-        let feet = e.curr.pos;
-        let torso = feet + Vec3::Y * cb_core::ai::TORSO_AIM_M;
+    for (slot, (d, h)) in shown.iter().take(BOXES).enumerate() {
+        let (id, feet, torso, vel) = (&h.id, h.feet, h.aim, h.vel);
         let selected = state.selected == Some(*id);
         let colour = if selected && locked == Some(*id) {
             RED
-        } else if *shelling {
+        } else if h.shelling {
             AMBER
         } else {
             RED.with_alpha(0.85)
         };
-        let vel = Vec3::new(e.curr.vel.x, e.curr.vel_y_m_s, e.curr.vel.y);
         if selected {
             let w = me.iter().next().and_then(|spec| spec.weapons.first().cloned());
             if let Some(w) = w {
@@ -397,7 +393,10 @@ fn draw_targets(
         } else {
             texts[slot] = (format!("{d:.0} m"), colour);
         }
-        let (Ok(top), Ok(bottom)) = (cam.world_to_viewport(at, feet + Vec3::Y * 12.0), cam.world_to_viewport(at, feet)) else {
+        let (Ok(top), Ok(bottom)) = (
+            cam.world_to_viewport(at, feet + Vec3::Y * h.height_m),
+            cam.world_to_viewport(at, feet),
+        ) else {
             if selected {
                 arrow_dir = Some(torso);
             }
@@ -540,12 +539,12 @@ fn fmt_mission(run: Option<&crate::defence::DefenceRun>, cfg: &cb_core::mission:
             let damage = run.city_damage(cfg);
             let left = run.state.time_left_s(cfg).unwrap_or(0.0);
             let s = format!(
-                "WAVE {}/{waves}   CITY {}  DAMAGE {:.0} %   RAIDERS {}/{}   {}:{:02}",
+                "WAVE {}/{waves}   CITY {}  DAMAGE {:.0} %   ENEMIES {}/{}   {}:{:02}",
                 wave + 1,
                 cfg.cities[wave] + 1,
                 damage * 100.0,
                 run.alive,
-                cfg.raiders_per_wave,
+                cfg.wave_size(wave),
                 (left / 60.0) as u32,
                 (left % 60.0) as u32
             );

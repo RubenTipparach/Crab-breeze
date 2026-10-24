@@ -91,6 +91,8 @@ fn step_mission(
     assets: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    units: Res<crate::units::Units>,
+    mut forces: MessageWriter<crate::units::WaveForces>,
 ) {
     let cfg = &data.0.defence;
     let dt = time.delta_secs();
@@ -108,6 +110,12 @@ fn step_mission(
             }
         }
     }
+    // The wave's vehicles count with its raiders (invasion-forces).
+    if let Some(w) = wave {
+        let (a, d) = units.wave_count(w);
+        alive += a;
+        destroyed += d;
+    }
     run.alive = alive;
     run.destroyed = destroyed;
     let situation = Situation {
@@ -121,13 +129,15 @@ fn step_mission(
         Some(Event::WaveStarts(w)) => {
             let city = cfg.cities[w];
             say(&format!(
-                "MISSION wave {} of {} starts: {} raiders on city {}, {:.0} s on the clock",
+                "MISSION wave {} of {} starts: {} raiders and {} vehicles on city {}, {:.0} s on the clock",
                 w + 1,
                 cfg.cities.len(),
                 cfg.raiders_per_wave,
+                cfg.wave_size(w) - cfg.raiders_per_wave,
                 city + 1,
                 cfg.wave_time_s
             ));
+            forces.write(crate::units::WaveForces { wave: w, city });
             let points = spawn_points(&plan, cfg, w, &SimRng::new(plan.seed));
             let mut sa = SpawnAssets {
                 tex: &tex,
@@ -174,7 +184,7 @@ fn step_mission(
                 wave + 1,
                 elapsed_s,
                 run.alive,
-                cfg.raiders_per_wave,
+                cfg.wave_size(wave),
                 damage_line(&run.damage, cfg)
             ));
         }

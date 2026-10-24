@@ -13,6 +13,9 @@
     max_particles: 5000,
     max_lights: 24,
     max_fireballs: 64,
+    // Blasts nearby shake the view (owner, 2026-10-24): up to 1.2 degrees, within 60 m per cube
+    // root of the blast's megajoules (120 m for an 8 MJ shell), dying away over 0.7 s.
+    shake: (max_deg: 1.2, reach_m_per_cbrt_mj: 60.0, decay_s: 0.7),
     recipes: {
         // Guns. The effect's direction is the barrel's.
         "muzzle_autocannon": [

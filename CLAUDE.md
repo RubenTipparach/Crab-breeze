@@ -256,6 +256,11 @@ said out loud and kept in check, never guessed.
   (Pale Blue Dot, Mining Mike).
 - **Every design says what it costs**: triangles, draw calls, texture memory, CPU time per fixed
   step, in plain numbers.
+- **Measuring and recording are separate runs** (owner, 2026-10-24: "when doing intensive data
+  gathering obs needs to be deprioritized. Visuals only allow us to debug visual errors not perf",
+  "No obs when tracing"). A trace, a benchmark or any frame-time number comes from a run with no OBS,
+  no screenshots and no other game; an OBS take is for seeing visual errors and is never a source of
+  performance numbers. A traced build runs far slower than the game: its frame rate is not a result.
 - **Every asset has a budget** per LOD in its manifest, and the build refuses one over budget.
 - **Cloud sessions measure nothing**: no GPU. They say so in the PR and ask a session on the
   owner's hardware to measure.

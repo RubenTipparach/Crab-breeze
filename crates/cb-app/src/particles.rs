@@ -112,9 +112,15 @@ pub struct ParticleLibrary {
     bursts: HashMap<(&'static str, usize, u32), Handle<EffectAsset>>,
     trails: HashMap<(&'static str, usize), Handle<EffectAsset>>,
     disc: Handle<Image>,
+    /// Copies of the disc, one per blended burst in turn (see `set_sprite`).
+    discs: Vec<Handle<Image>>,
+    next_disc: usize,
     /// Particles started by bursts still alive, for the cap.
     pub live: u32,
 }
+
+/// Copies of the sprite handed out to blended bursts in turn.
+const DISC_COPIES: usize = 48;
 
 /// A burst's effect entity, gone when its last particle is.
 #[derive(Component)]
@@ -134,9 +140,27 @@ impl Plugin for ParticlesPlugin {
     }
 }
 
-/// Gives the library the sprite every particle uses (the soft disc).
-pub fn set_sprite(lib: &mut ParticleLibrary, disc: Handle<Image>) {
+/// Gives the library the sprite every particle uses (the soft disc), and copies of it for blended
+/// bursts. bevy_hanabi merges effects that share an asset and a texture into one draw, sorted by
+/// one emitter's position and with its particles in no order, so a far smoke burst drew over a
+/// near explosion (owner, 2026-10-24). A blended burst takes the next copy in turn, so bursts alive
+/// at once never merge and each sorts by its own position; additive glow merges freely (its order
+/// does not show).
+pub fn set_sprite(lib: &mut ParticleLibrary, disc: Handle<Image>, images: &mut Assets<Image>) {
+    let image = images.get(&disc).cloned();
+    lib.discs = image.map_or_else(Vec::new, |i| (0..DISC_COPIES).map(|_| images.add(i.clone())).collect());
     lib.disc = disc;
+}
+
+impl ParticleLibrary {
+    /// The sprite for a burst: a copy of its own if it is blended.
+    fn sprite(&mut self, blended: bool) -> Handle<Image> {
+        if !blended || self.discs.is_empty() {
+            return self.disc.clone();
+        }
+        self.next_disc = (self.next_disc + 1) % self.discs.len();
+        self.discs[self.next_disc].clone()
+    }
 }
 
 /// Builds a burst's effect: `count` particles at once, or a steady `rate` a second.
@@ -255,12 +279,12 @@ pub fn burst(
     let mut props = EffectProperties::default();
     props.set("size_scale", scale.into());
     lib.live += count;
+    let blended = !motion(spec.kind).3;
+    let sprite = lib.sprite(blended);
     commands.spawn((
         Name::new(format!("fx {recipe}")),
         ParticleEffect::new(handle),
-        EffectMaterial {
-            images: vec![lib.disc.clone()],
-        },
+        EffectMaterial { images: vec![sprite] },
         props,
         Transform::from_translation(at)
             .with_rotation(Quat::from_rotation_arc(Vec3::Y, dir.normalize_or(Vec3::Y)))

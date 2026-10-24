@@ -47,13 +47,14 @@ impl Plugin for PilotPlugin {
             curr: state,
         })
         .init_resource::<PilotEvents>()
+        .init_resource::<Shake>()
         .add_systems(Startup, (cpu_light_clustering, spawn_camera))
         .add_systems(FixedUpdate, step_pilot.in_set(SimSet::Pilot))
         .add_systems(Startup, spawn_prompt)
         .add_systems(
             Update,
             (
-                (place_camera, crate::water_render::track_eye, weather_and_screens).chain(),
+                (shake_on_blasts, place_camera, crate::water_render::track_eye, weather_and_screens).chain(),
                 show_prompt,
             )
                 .in_set(PresentSet::Camera),
@@ -197,7 +198,33 @@ fn view(yaw: f32, pitch: f32) -> Quat {
     Quat::from_rotation_y(yaw) * Quat::from_rotation_x(pitch)
 }
 
+/// The view's shake from blasts nearby, 0..1, and its clock.
+#[derive(Resource, Default)]
+struct Shake {
+    trauma: f32,
+    t_s: f32,
+}
+
+/// Blasts this frame kick the shake by how near and big they are; it dies away by itself.
+fn shake_on_blasts(
+    mut blasts: MessageReader<crate::blast::Explosion>,
+    data: Res<Data>,
+    time: Res<Time>,
+    camera: Single<&Transform, With<PilotCamera>>,
+    mut shake: ResMut<Shake>,
+) {
+    let cfg = &data.0.fx.shake;
+    let dt = time.delta_secs();
+    shake.t_s += dt;
+    shake.trauma = (shake.trauma - dt / cfg.decay_s).max(0.0);
+    for b in blasts.read() {
+        let kick = cfg.kick(b.energy_mj, b.at.distance(camera.translation));
+        shake.trauma = (shake.trauma + kick).min(1.0);
+    }
+}
+
 fn place_camera(
+    shake: Res<Shake>,
     pilot: Res<PilotSim>,
     acc: Res<InputAccum>,
     access: Res<MechAccessNow>,
@@ -242,7 +269,18 @@ fn place_camera(
         }
         _ => walking_view(),
     };
-    **camera = Transform::from_translation(eye).with_rotation(rotation);
+    // The shake rides on top of the player's view and is never written into their aim: the look
+    // they steer is unchanged (CLAUDE.md section 8). Felt as the square of the trauma, so small
+    // blasts barely register; three unrelated sines so it never settles into a rhythm.
+    let amp = data.0.fx.shake.max_deg.to_radians() * shake.trauma * shake.trauma;
+    let t = shake.t_s;
+    let jolt = Quat::from_euler(
+        EulerRot::YXZ,
+        amp * (t * 37.0).sin() * (t * 5.3).cos(),
+        amp * (t * 41.0 + 1.3).sin(),
+        amp * 0.5 * (t * 29.0 + 2.1).sin(),
+    );
+    **camera = Transform::from_translation(eye).with_rotation(rotation * jolt);
 }
 
 /// The step-in prompt.
