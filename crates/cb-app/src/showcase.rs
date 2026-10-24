@@ -145,12 +145,10 @@ fn play(
                 next = true;
             }
         }
-        6 => {
-            if t > 2.0 {
-                say("PLAYTEST_END showcase");
-                exit.write(AppExit::Success);
-                next = true;
-            }
+        6 if t > 2.0 => {
+            say("PLAYTEST_END showcase");
+            exit.write(AppExit::Success);
+            next = true;
         }
         _ => {}
     }
