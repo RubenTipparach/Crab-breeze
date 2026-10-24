@@ -54,6 +54,7 @@ impl Plugin for ShowcasePlugin {
         let names: &'static [&'static str] = match self.take.as_str() {
             "fight" => &["load", "look", "board", "stand", "fight", "tower", "charge", "result", "end"],
             "defence" => &DEFENCE_BEATS,
+            "demolition" => &crate::demolition::TAKE_BEATS,
             _ => &[
                 "load", "look", "board", "stride", "rockets", "landing", "wade", "wood", "shells", "damage", "result", "end",
             ],
@@ -86,6 +87,9 @@ impl Plugin for ShowcasePlugin {
         match self.take.as_str() {
             "fight" => app.add_systems(Update, play_fight.in_set(crate::sim::PresentSet::Input)),
             "defence" => app.add_systems(Update, play_defence.in_set(crate::sim::PresentSet::Input)),
+            "demolition" => app
+                .init_resource::<crate::demolition::DemolitionTake>()
+                .add_systems(Update, crate::demolition::play_take.in_set(crate::sim::PresentSet::Input)),
             _ => app.add_systems(Update, play.in_set(crate::sim::PresentSet::Input)),
         };
     }

@@ -158,6 +158,7 @@ fn cells_mesh(c: &Cells) -> Mesh {
 /// other chunk, and what reaches the ground is raised as a heap in the crater layer (`rubble`), so
 /// the pilot, the mech and the debris stand on it.
 fn step_structures(time: Res<Time<Fixed>>, mut live: ResMut<Live>, mut fx: MessageWriter<crate::fx::Fx>) {
+    let _t = crate::perf_hud::slow("step_structures");
     let (changed, chunks) = live.structures.step(time.delta_secs());
     for m in live.structures.take_moments() {
         fx.write(match m {
@@ -352,6 +353,7 @@ fn dress_near_player(
     mut settled: ResMut<DressingSettled>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
+    let _t = crate::perf_hud::slow("dress_near_player");
     settled.0 = false;
     let (Some(looks), Some(here)) = (looks, player_xz(&camera)) else {
         return;

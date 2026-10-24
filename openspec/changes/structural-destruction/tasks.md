@@ -19,5 +19,5 @@
 - [ ] 2.1 `BuildingMask` extended material, prepass and shadow included (replaces the band rebuild; needs a custom vertex attribute and vertex, prepass and shadow shaders in Bevy 0.20, so it waits until it can be looked at in the running game)
 - [ ] 2.2 Piece pool from `FRAC_` cells; Avian for the first 600
 - [ ] 2.3 Damage-stage decals and holed variants
-- [ ] 2.4 Measured in `perf-bench` during the `side` demolition
+- [ ] 2.4 Measured in `perf-bench` during the demolition: the `demolition` scenario is built (`--bench demolition`, `crates/cb-app/src/demolition.rs`, smoke-tested on lavapipe); the measurement on the owner's hardware is to do
 - [ ] 2.5 Playtest: bring the tower's podium down from the cockpit; on Drive

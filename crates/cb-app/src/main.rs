@@ -8,6 +8,7 @@ mod capture;
 mod cli;
 mod combat;
 mod defence;
+mod demolition;
 mod fx;
 mod grass;
 mod ground;
