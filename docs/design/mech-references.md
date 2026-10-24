@@ -210,6 +210,10 @@ The owner then: "looksngood. Get those other mechs up to spec". So the **Foreman
 needs the height), in their palettes over the modern plating, every pilot seated (the Stevedore now in a Titan, its
 lower chest folding down), their torsos doubled to carry the bigger cockpits.
 
+**The Stevedore is retired** (owner, 2026-10-24: "Stevedore sucks..all these other mechs 10/10 let's get them integrated
+with the game"). It is off the build list and the Mechs page; its generator stays in git history. The other eight go
+into the game (`openspec/changes/mech-roster`).
+
 ### Fixes the owner asked for along the way
 
 - **The Harrow's canopy** ("it should have a hinge on the back or lift straight up then tilt back, other wise its gonna

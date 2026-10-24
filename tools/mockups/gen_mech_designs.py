@@ -29,7 +29,7 @@ MODELS = os.path.join(ROOT, "assets", "models")
 OUT = os.path.join(ROOT, "docs", "mockups", "mech_designs.html")
 SITE = os.path.join(ROOT, "output", "mech_site")
 HUD = os.path.join(ROOT, "assets", "textures", "cockpit", "displays", "hud.png")
-ORDER = ["foreman", "stevedore", "ironhorse", "harrow", "roustabout", "driller", "mule", "picket", "sapper"]
+ORDER = ["foreman", "ironhorse", "harrow", "roustabout", "driller", "mule", "picket", "sapper"]
 # the block-outs the owner picked to build (2026-10-24: "1,2,6,8,11,12 start building them") keep their numbers
 NUMBERS = dict(harrow=1, roustabout=2, driller=6, mule=8, picket=11, sapper=12)
 
