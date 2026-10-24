@@ -112,19 +112,22 @@ guns"): the Mule's fists and the Roustabout's left hand are punching arms (`fist
 a fist block with a knuckle plate); the Harrow's gun pods are longer and heavier, fed from the outside; the Bowser's
 cannon is a twin-barrel autocannon with a drum magazine on a thick forearm; the Roustabout's rifle is heavier.
 
-And two Gundams (owner, 2026-10-24: "Make a couple Gundam variant", after the RX-79[G]: "if we do gundams, I'd want
-something practical looking like this"; then, of a first pass of generic humanoids, "None of those look like
-gundams"). `gundam()` builds what makes one read as a Gundam: a helmet head with a big yellow V fin, two green eyes
-and a red chin; a broad blue chest with yellow slatted vents either side over a red abdomen and a white waist with a V
-buckle; front and side skirts; big rounded shoulder pads; long legs with knee pads and shins flaring wide at the
-ankle; red feet; two beam saber hilts over the shoulders. They keep the Gundam colours, white, blue, red and yellow,
-weathered: the one place the "no white paint" note does not apply, since the colours are the identity. Close-up:
-`docs/screenshots/mechs/gundams.png`.
+And two humanoids after the Gundam (owner, 2026-10-24: "Make a couple Gundam variant", after the RX-79[G]: "if we do
+gundams, I'd want something practical looking like this"; of a first pass, "None of those look like gundams"; of a
+second with the V fin and the white, blue and red, "no dont make it obvious"). `gundam()` takes the build and leaves
+the badges: a broad chest with slatted intakes over a narrow waist, front and side skirts, big rounded shoulder pads,
+long legs with knee pads and shins flaring at the ankle, a backpack with thrusters and exhaust stacks; but a helmet
+with one visor band, a sensor brow and a single swept antenna, no V fin, no tricolour, no buckle, in Crab Breeze's own
+field colours with orange hazard stripes. Close-up: `docs/screenshots/mechs/gundams.png`.
 
-| Mech | After | Cockpit | Its tell |
-| --- | --- | --- | --- |
-| Picket | The RX-79[G] Ground Type | Panorama (the upper hatch flips up, the lower folds down, as the 08th MS Team's) | A 100 mm machine gun with a box magazine, the tall shield, a radio whip on the backpack |
-| Sapper | A Full Armor Gundam | Titan | The same Gundam under bolt-on armour plates, a long cannon over the right shoulder, a missile pod on the left forearm, a beam rifle |
+| No. | Mech | After | Cockpit | Its tell |
+| --- | --- | --- | --- | --- |
+| 11 | Picket | The RX-79[G]'s build, in sand and olive | Panorama (the upper hatch flips up, the lower folds down) | A 100 mm machine gun with a box magazine, the tall shield, a radio whip on the backpack |
+| 12 | Sapper | The Full Armor idea, in gunmetal and olive | Titan | Bolt-on armour plates, a long cannon over the right shoulder, a missile pod on the left forearm, a rifle |
+
+The contact sheets number the twelve new mechs 1 to 12 (owner, 2026-10-24: "can you add numbers to those mechs"),
+in the order Harrow, Roustabout, Grader, Logger, Lineman, Driller, Bowser, Mule, Pumper, Ploughman, Picket, Sapper;
+the page's buttons carry the same numbers.
 
 The Foreman and the Ironhorse stay (owner: "I think iron and forman are solid designs"); their detailed builds now
 carry the Panorama and the Excavator cab, and their chests open as one body with them (`docs/design/cockpit.md`, "The

@@ -187,29 +187,29 @@
   {
    "id": "picket",
    "name": "Picket",
-   "what": "Gundam: the RX-79[G] Ground Type, the Panorama, machine gun and shield",
+   "what": "humanoid, after the RX-79[G]'s build: the Panorama, machine gun and shield",
    "file": "mech_blockouts/picket.glb",
    "height_m": 23.8,
    "width_m": 13.68,
    "length_m": 15.4,
-   "tris": 2682,
+   "tris": 2606,
    "legs_m3": 353.6,
-   "torso_m3": 216.4,
+   "torso_m3": 216.9,
    "legs_over_torso": 1.63,
    "arm_leg_clips": []
   },
   {
    "id": "sapper",
    "name": "Sapper",
-   "what": "Gundam: Full Armor style, the Titan, shoulder cannon, missile pod, beam rifle",
+   "what": "humanoid, heavy, bolt-on armour: the Titan, shoulder cannon, missile pod, rifle",
    "file": "mech_blockouts/sapper.glb",
-   "height_m": 23.64,
+   "height_m": 23.44,
    "width_m": 15.11,
    "length_m": 16.2,
-   "tris": 2928,
+   "tris": 2852,
    "legs_m3": 426.1,
-   "torso_m3": 254.1,
-   "legs_over_torso": 1.68,
+   "torso_m3": 254.6,
+   "legs_over_torso": 1.67,
    "arm_leg_clips": []
   }
  ]

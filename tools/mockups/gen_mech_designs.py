@@ -121,9 +121,9 @@ aside { display: grid; gap: 12px; min-width: 0; }
     bank), the Lineman (a bucket truck, Cinema), the Driller (a drill rig, the All-view sphere), the Bowser (a fuel tanker,
     Octagon), the Mule (a haul truck, Twin tier), the Pumper (a fire engine, Tile wall) and the Ploughman (a tractor,
     Excavator cab). Some carry bigger arms: punching fists on the Mule and the Roustabout, heavier guns on the Harrow, the
-    Bowser and the Roustabout. Two are Gundams, with the V fin, the blue chest and yellow vents, the skirts and flared
-    shins: the Picket (the RX-79[G] Ground Type, Panorama, machine gun and shield) and the Sapper (Full Armor, Titan,
-    shoulder cannon, missile pod, beam rifle). Legs against torso is
+    Bowser and the Roustabout. Two are humanoids with a Gundam's build but none of its badges: the Picket (after the
+    RX-79[G], Panorama, machine gun and shield) and the Sapper (heavy, bolt-on armour, Titan, shoulder cannon, missile
+    pod). The new ones are numbered 1 to 12, as on their contact sheets. Legs against torso is
     measured off the meshes, and no arm touches a leg (a mesh intersection check in the generator).</p>
     <div class="borow" id="bo-pick"></div>
     <div class="bostage"><canvas id="bo-view"></canvas></div>
@@ -676,7 +676,10 @@ window.MOCKUP = {
     if (id === "all") { cam.position.set(40, 34, 70); oc.target.set(0, 10, -20); } else { cam.position.set(22, 18, 30); oc.target.set(0, 12, 0); }
     oc.update();
   }
-  [...BO.mechs.map(m => [m.id, m.name]), ["all", "Line up"]].forEach(([id, name]) => {
+  // the new mechs carry the numbers on their contact sheets (owner, 2026-10-24: "can you add numbers to those mechs")
+  const ORIGINAL = new Set(["foreman", "stevedore", "ironhorse"]);
+  let num = 0;
+  [...BO.mechs.map(m => [m.id, ORIGINAL.has(m.id) ? m.name : `${++num} ${m.name}`]), ["all", "Line up"]].forEach(([id, name]) => {
     const b = document.createElement("button"); b.textContent = name; b.dataset.bo = id; b.onclick = () => show(id); pick.appendChild(b);
   });
   document.getElementById("bo-stats").innerHTML = "<table><tr><th>Mech</th><th>After</th><th>Height</th><th>Width</th><th>Legs : torso</th><th>Triangles</th></tr>" +
