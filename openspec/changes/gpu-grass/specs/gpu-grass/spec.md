@@ -5,7 +5,7 @@ Grass SHALL be drawn with no entity, transform or CPU instance data per blade: e
 
 #### Scenario: A tile's mesh carries no blade positions
 - **WHEN** the blade mesh of any level is built
-- **THEN** its only vertex attribute is (blade index, vertex in blade, level), and its vertex and triangle counts are those in the design (16,384, 4,096 and 1,024 blades a 32 m tile; 9, 7 and 5 vertices; 7, 5 and 3 triangles a blade)
+- **THEN** its only vertex attribute is (blade index, vertex in blade, level), and its vertex and triangle counts are those in the design (25,600, 6,400 and 1,600 blades a 32 m tile; 11, 7 and 5 vertices; 9, 5 and 3 triangles a blade)
 
 ### Requirement: Grass is drawn in tiles with levels of detail
 Grass SHALL be drawn on square tiles within `radius_m` of the eye, each tile at the level its nearest point's distance calls for, nearer levels drawing more, narrower blades with more segments, a tile changing level only past a hysteresis band, and all tiles of a level SHALL share one mesh and one material so they batch into one draw.
@@ -42,3 +42,17 @@ The environment variable `CB_NO_GRASS=1` SHALL leave grass out of the game entir
 #### Scenario: A benchmark variant
 - **WHEN** the game runs with `CB_NO_GRASS=1`
 - **THEN** no grass plugin, material, buffer or tile entity exists
+
+### Requirement: Grass is tall meadow grass
+Blades SHALL stand between 0.6 m and 1.6 m, with a share of clumps standing taller to about 2 m, sharing a height, lean, facing and hue within each Voronoi clump.
+
+#### Scenario: The tallest grass
+- **WHEN** the shipped grass tuning is loaded
+- **THEN** the shortest blade is at least 0.5 m and the tallest clump's tallest blade is between 1.9 m and 2.2 m
+
+### Requirement: No bare ground shows under grass
+The ground's colour SHALL move toward the grass's ground tint by how fully grass covers it, decided by the same rule that grows the blades and clears them in craters.
+
+#### Scenario: A road, a meadow and a crater
+- **WHEN** the ground's cover is asked on a highway, in a meadow, and in a crater's bowl in that meadow
+- **THEN** the road and the bowl have none, and the meadow's equals where-grass-grows there

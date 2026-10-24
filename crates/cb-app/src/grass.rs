@@ -50,6 +50,14 @@ pub struct GrassUniform {
     dry: Vec4,
     wind: Vec4,
     gust: Vec4,
+    clump: Vec4,
+    ao: Vec4,
+    hue: Vec4,
+    glow: Vec4,
+    gloss: Vec4,
+    far: Vec4,
+    gust2: Vec4,
+    broad: Vec4,
     tile: Vec4,
     grid: UVec4,
     fade: Vec4,
@@ -79,6 +87,14 @@ impl GrassUniform {
             dry: c(cfg.dry_colour),
             wind: Vec4::new(heading.cos(), heading.sin(), cfg.wind_speed_m_s, cfg.wind_push),
             gust: Vec4::new(cfg.gust_per_m, cfg.gust_share, cfg.sway_hz, cfg.sway),
+            clump: Vec4::new(cfg.droop, cfg.clump_tall_share, cfg.clump_tall_scale, cfg.clump_edge_shrink),
+            ao: Vec4::new(cfg.ao_dense, cfg.ao_height_share, cfg.reflectance, cfg.hue_variety),
+            hue: Vec3::from_array(cfg.hue_colour).extend(cfg.tip_lighten),
+            glow: Vec3::from_array(cfg.translucent_colour).extend(cfg.translucency),
+            gloss: Vec4::new(cfg.translucency_power, cfg.far_roughness, cfg.gloss_fade_m[0], cfg.gloss_fade_m[1]),
+            far: Vec4::new(cfg.normal_up_m[0], cfg.normal_up_m[1], 0.0, 0.0),
+            gust2: Vec4::new(cfg.gust_sharpness, cfg.gust_brighten, cfg.flutter_hz, cfg.flutter),
+            broad: Vec4::new(cfg.broad_wavelength_m, cfg.broad_hz, cfg.broad_push, 0.0),
             tile: Vec4::new(cfg.tile_m, cfg.blade_spacing_m, cfg.density_cell_m, cell_m),
             grid: UVec4::new(
                 cfg.cells_per_side(),
@@ -257,7 +273,7 @@ fn show_to_the_pilot(mut commands: Commands, cameras: Query<Entity, Added<PilotC
 fn tile_aabb(bake: &TileBake, cfg: &GrassConfig) -> Aabb {
     Aabb::from_min_max(
         Vec3::new(0.0, bake.ground_m[0] - 0.1, 0.0),
-        Vec3::new(cfg.tile_m, bake.ground_m[1] + cfg.height_m[1] + 0.1, cfg.tile_m),
+        Vec3::new(cfg.tile_m, bake.ground_m[1] + cfg.tallest_m() + 0.1, cfg.tile_m),
     )
 }
 
@@ -497,18 +513,18 @@ mod tests {
         let cfg = GrassConfig::default();
         let layout = GrassLayout::new(&cfg, 8.0);
         let u = GrassUniform::new(&cfg, &layout, 8.0);
-        assert_eq!(u.lods[0], Vec4::new(1.0, 4.0, 1.0, 25.0));
+        assert_eq!(u.lods[0], Vec4::new(1.0, 5.0, 1.0, 25.0));
         assert_eq!(u.next[0].x, 2.0, "level 0 crossfades into level 1's stride");
         assert_eq!(u.next[2], Vec4::ZERO, "the last level has no next");
-        assert_eq!(u.grid, UVec4::new(128, 32, 5, 281));
+        assert_eq!(u.grid, UVec4::new(160, 32, 5, 281));
     }
 
     #[test]
     fn the_blade_mesh_is_only_indices() {
         let cfg = GrassConfig::default();
         let m = blade_mesh(&cfg, 2);
-        assert_eq!(m.count_vertices(), 5_120);
-        assert_eq!(m.indices().map(Indices::len), Some(3 * 3_072));
+        assert_eq!(m.count_vertices(), 8_000);
+        assert_eq!(m.indices().map(Indices::len), Some(3 * 4_800));
         assert!(m.attribute(Mesh::ATTRIBUTE_NORMAL).is_none(), "the shader builds the normals");
     }
 

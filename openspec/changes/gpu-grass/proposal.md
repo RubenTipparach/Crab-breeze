@@ -21,8 +21,8 @@ of Tsushima"), carried by the open reimplementations (for one, `2Retr0/GodotGras
   **clumps** that share a height and a facing; **wind** as noise scrolled with the time; **edge-on
   blades turned toward the eye**; **normals rounded** across the width; colour from root to tip.
 - **Tiles with levels of detail**: 32 m square tiles round the eye, out to 300 m, each drawing one
-  shared blade mesh for its level (16, 4 and 1 blades a square metre; 4, 3 and 2 segments a blade;
-  farther blades wider). One material and one mesh per level, so Bevy batches every tile of a level
+  shared blade mesh for its level (25, 6.25 and 1.56 blades a square metre; 5, 3 and 2 segments a
+  blade; farther blades wider). One material and one mesh per level, so Bevy batches every tile of a level
   into one instanced draw: about three draws for all the grass.
 - **One height query** (CLAUDE.md 6.1): the ground's height under a blade is the terrain's own
   lattice, sampled on the CPU through the rule `Heightfield::height_at` uses and read in the shader
@@ -35,10 +35,18 @@ of Tsushima"), carried by the open reimplementations (for one, `2Retr0/GodotGras
 - **Measurable**: `CB_NO_GRASS=1` leaves the grass out, so the benchmark suite compares it as a
   variant. The costs in the design are estimates until that run.
 
+- **Tall and lush** (owner, 2026-10-24, after the first meadow screenshots: "that seems kinda weak.
+  Look up more best practices with tall grass"): meadow grass 0.6 to 1.6 m with tall clumps to about
+  2 m, drooping tips, the ground under grass tinted to the grass's colour by the same rule that
+  grows it, Voronoi clumps, fake ambient occlusion at the root, the sun glowing through backlit
+  blades, a sheen that fades with distance, more colour variety and layered wind with gust bands
+  rolling across the field (design section 7).
+
 ## Capabilities
 
 - New: `gpu-grass`.
-- Touched: the trees' placement now asks the shared cover rule (`world::cover`), with the same
+- Touched: the ground's vertex colour takes the grass's tint where grass grows
+  (`crates/cb-app/src/ground.rs`, through `cb_core::grass::ground_cover`); the trees' placement now asks the shared cover rule (`world::cover`), with the same
   margins as before (the golden seed is unchanged); the terrain's cell interpolation is one function
   (`terrain::cell_height`) the terrain, the dug ground and the grass share; a crater's reach is one
   function (`CraterConfig::reach_m`).

@@ -62,13 +62,14 @@ where no grass grows).
 
 ## 3. Levels of detail, and what is on screen
 
-Tile 32 m, nearest-level blade spacing 0.25 m: 128 blade cells a side.
+Tile 32 m, nearest-level blade spacing 0.2 m: 160 blade cells a side (section 7 raised the
+density from 16 to 25 blades a square metre and level 0 from 4 to 5 segments).
 
 | Level | Tile nearer than | Stride | Blades/m² | Blades a tile | Segments | Vertices a blade | Triangles a blade | Vertices a tile | Triangles a tile | Width |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0 | 25 m | 1 | 16 | 16,384 | 4 | 9 | 7 | 147,456 | 114,688 | 1.0 x 4.5 cm |
-| 1 | 110 m | 2 | 4 | 4,096 | 3 | 7 | 5 | 28,672 | 20,480 | 1.7 x |
-| 2 | 300 m | 4 | 1 | 1,024 | 2 | 5 | 3 | 5,120 | 3,072 | 2.8 x |
+| 0 | 25 m | 1 | 25 | 25,600 | 5 | 11 | 9 | 281,600 | 230,400 | 1.0 x 6 cm |
+| 1 | 110 m | 2 | 6.25 | 6,400 | 3 | 7 | 5 | 44,800 | 32,000 | 1.7 x |
+| 2 | 300 m | 4 | 1.56 | 1,600 | 2 | 5 | 3 | 8,000 | 4,800 | 2.8 x |
 
 (`the_blade_meshes_have_the_counts_in_the_design` pins these.) A tile's level is set by its nearest
 point's distance from the eye (across the ground and up to the eye), with 6 m of hysteresis.
@@ -78,20 +79,23 @@ Tiles in reach, eye on the ground (the tiles whose nearest point is within `R`: 
 
 | Level | Tiles (whole circle) | Blades | Vertices | Triangles |
 | --- | --- | --- | --- | --- |
-| 0 | 6 | 98,304 | 884,736 | 688,128 |
-| 1 | 46 | 188,416 | 1,318,912 | 942,080 |
-| 2 | 263 | 269,312 | 1,346,560 | 807,936 |
-| All | 315 | 556,032 | 3,550,208 | 2,438,144 |
+| 0 | 6 | 153,600 | 1,689,600 | 1,382,400 |
+| 1 | 46 | 294,400 | 2,060,800 | 1,472,000 |
+| 2 | 263 | 420,800 | 2,104,000 | 1,262,400 |
+| All | 315 | 868,800 | 5,854,400 | 4,116,800 |
 
 On screen: the pilot's lens is 75 degrees vertical, about 107 degrees across at 16:9, so the far
 rings are about 30 percent in view and the near tiles (round the eye) about two thirds:
 
 | Level | Tiles drawn | Blade slots | Vertices | Triangles |
 | --- | --- | --- | --- | --- |
-| 0 | about 4 | 65,536 | 589,824 | 458,752 |
-| 1 | about 18 | 73,728 | 516,096 | 368,640 |
-| 2 | about 84 | 86,016 | 430,080 | 258,048 |
-| All | about 106 | about 225,000 | about 1.54 million | about 1.09 million |
+| 0 | about 4 | 102,400 | 1,126,400 | 921,600 |
+| 1 | about 18 | 115,200 | 806,400 | 576,000 |
+| 2 | about 84 | 134,400 | 672,000 | 403,200 |
+| All | about 106 | about 352,000 | about 2.6 million | about 1.9 million |
+
+The first pass (16 / 4 / 1 blades a square metre, 4 / 3 / 2 segments) drew about 225,000 blade
+slots, 1.54 million vertices and 1.09 million triangles; this pass is about 1.7 times that.
 
 **Draw calls: 3** (one instanced draw per level), in the main pass only: none in the shadow
 cascades, none in the prepass, none in the cube cameras or the cockpit pass. Blade slots where no
@@ -125,6 +129,15 @@ point outside the view, so they cost vertex work but no triangles. Tiles with no
   blast reaches (`CraterConfig::reach_m`, the reach `Deformation::dig` uses). So a crater clears the
   grass it dug, and no blade floats over a bowl or sinks into a rim; the scorched ground shows.
   Masking costs one `delta_at` a cell: 1,024 hash lookups a tile, a few tiles a blast.
+- **The ground takes the grass's colour** (section 7, practice 2). Every ground vertex's colour
+  moves toward `ground_tint_colour` by `ground_tint` times `cb_core::grass::ground_cover`, which is
+  `grows_at` (the rule the blades grow by) with the crater rule (`crater_clears`) the bake's mask
+  uses. So the ground is grass-coloured exactly where blades stand, roads and beaches keep their
+  own colour, a crater's bowl shows its scorch, and far meadows past the grass's 300 m still read
+  green. The terrain nodes compute it off the main thread as they build (`ground.rs`
+  `grass_cover`), crater tiles with the dug ground's change. Measured in a release test run on this
+  Mac (a timing instrument, not kept): `grows_at` costs 0.21 microseconds a call, so a 65 x 65
+  node gains about 1 ms of worker time and the 90 nodes built at startup about 0.1 s.
 
 ## 5. Streaming
 
@@ -136,27 +149,63 @@ async compute pool; let go of tiles past `radius_m + release_m`; and if any slot
 buffer over. Then `press` writes the eight bodies nearest the eye.
 
 A bake reads 25 lattice heights (each a few octaves of noise) and runs the cover, water and slope
-tests on 1,024 cells: estimated 1 to 3 ms of one worker thread a tile. At the start the 315 tiles take
+tests on 1,024 cells: measured 0.19 ms of one worker thread a tile (release, this Mac, the
+timing instrument above). At the start the 315 tiles take
 about 53 frames to start (6 a frame) and fill nearest first; walking (1.5 m/s) or skating (up to
 about 30 m/s) needs a row of about 20 tiles every 1 to 20 s.
 
 ## 6. Costs (estimates, pending the benchmark)
 
+The first pass ran at the 120 Hz frame cap in the owner's meadow screenshots (GPU time was not
+read). These are this pass's estimates, for section 3's counts and section 7's heavier shaders.
+
 | Item | Estimate | How |
 | --- | --- | --- |
 | Draw calls | 3 | one instanced draw per level |
-| Vertices shaded | 1.5 million | section 3 |
-| Triangles | 1.1 million | section 3 |
-| GPU, RTX 3070, 1080p | 1.0 to 1.6 ms | vertex 0.4 to 0.8 ms (about 300 instructions a vertex, the stage bound by vertex fetch and primitive setup), raster 0.2 to 0.3 ms for small triangles, fragment 0.3 to 0.5 ms (grass on about 45 percent of 2.07 million pixels, overdraw about 2, quad waste on thin triangles, Bevy's clustered PBR) |
-| GPU, Apple M4 Max, 1080p | 1.3 to 2.5 ms | the tiler bins every triangle before shading (vertex-heavy work is the weaker side of a tile-based GPU), fragment cheaper than the 3070's thanks to hidden surface removal |
+| Vertices shaded | 2.6 million | section 3 |
+| Triangles | 1.9 million | section 3 |
+| GPU, RTX 3070, 1080p | 1.8 to 3.0 ms | vertex 0.8 to 1.5 ms (about 450 instructions a vertex now: the Voronoi clump's nine cells add about 150; the stage is bound by vertex throughput and primitive setup, not arithmetic), raster 0.3 to 0.5 ms, fragment 0.6 to 1.2 ms (tall grass covers about 60 percent of the frame with overdraw 3 to 4, Bevy's clustered PBR plus one more shadow-map read for the translucency) |
+| GPU, Apple M4 Max, 1080p | 2.5 to 4.5 ms | the tiler bins every triangle before shading, the weaker side of a tile-based GPU for vertex-heavy work; hidden surface removal keeps the fragment side cheaper than the 3070's |
 | CPU, main thread | 0.2 to 0.5 ms | about 315 tile entities visited by visibility, extraction and queueing in one view (the per-mesh costs `gpu-instancing` measured), the stream's bookkeeping, a 581 KiB copy on a frame a tile changed |
-| CPU, workers | 1 to 3 ms a tile baked | off the main thread |
-| GPU memory | 3.9 MB meshes + 0.6 MB buffer | level meshes: 1.77 + 0.34 + 0.06 MB positions, 1.38 + 0.25 + 0.04 MB indices |
+| CPU, workers | 0.19 ms a tile baked (measured), about 1 ms a ground node more for its tint | off the main thread |
+| GPU memory | 7.2 MB meshes + 0.6 MB buffer | level meshes: 3.38 + 0.54 + 0.10 MB positions, 2.76 + 0.38 + 0.06 MB indices |
 | Upload | 581 KiB on a frame any tile changes; 128 bytes every frame | |
+
+If the benchmark shows this over budget, the levers in order: level 0's reach (25 m) and segments
+(5), the near density (`blade_spacing_m` 0.2 back to 0.25 is 25 to 16 blades a square metre),
+level 1's reach (110 m), then the Voronoi clumps (a single-cell clump saves about a third of the
+vertex arithmetic).
 
 `CB_NO_GRASS=1` leaves the plugin out entirely (no entities, no pipeline, no buffers): the benchmark
 suite runs it as a variant against the default, the way it runs `CB_NO_SHADOWS` and
-`CB_NO_WATER_FX`.
+`CB_NO_WATER_FX`. The ground's tint stays (it is the ground's colour, built with its meshes, and
+costs no frame time), so the variant measures the blades alone.
+
+## 7. Tall, lush grass (owner, 2026-10-24: "that seems kinda weak. Look up more best practices with tall grass")
+
+The first pass's meadow screenshots (`docs/screenshots/grass/2026-10-24-meadow-01..03.jpg`): blades
+ankle-high to a person next to a 12 m mech, pale ground between them, flat colour, a thin field.
+Sources: GPU Gems 2 chapter 1 (Pelzer, "Rendering Countless Blades of Waving Grass"), the
+hexaquo.at grass series, `2Retr0/GodotGrass` after Ghost of Tsushima, Orthmann et al. 2008
+("Towards Real-Time Grass Rendering"), and the three.js procedural grass layered-wind write-up.
+
+| # | Practice | In Crab Breeze (data key) |
+| --- | --- | --- |
+| 1 | Tall grass | Blades 0.6 to 1.6 m (`height_m`); 18 percent of clumps stand 1.3 times taller (`clump_tall_share`, `clump_tall_scale`), to about 2.1 m: a mech's ankle and knee, a pilot's waist and over. Wider (`width_m` 4.5 to 6 cm). Level 0 has 5 segments so the long blades curve smoothly; tall blades droop over at the tip (`droop` 0.35 of the height at the tallest, added to the lean, the stiff middle control point keeping the bend near the tip). |
+| 2 | No bare ground | The ground under grass takes the grass's colour by the one rule (section 4). The biggest single lushness gain in every source. |
+| 3 | Density | 25 blades a square metre near (`blade_spacing_m` 0.2), 6.25 and 1.56 farther, the far levels' wider blades kept. Section 3. |
+| 4 | Voronoi clumps | Each blade finds its nearest clump seed in the 3 x 3 cells round it (`clump_m` 2.5 m); the clump shares height, lean, facing (blended as vectors) and hue (`clump_strength` 0.5), some clumps are tall, and each is a mound: blades at its edge are up to 30 percent shorter (`clump_edge_shrink`). |
+| 5 | Fake ambient occlusion | The root is darkened to `root_light` (0.35), deeper by up to `ao_dense` (half) in dense, tall clumps, fading out over the lower `ao_height_share` (55 percent) of the blade. |
+| 6 | Translucency | In the fragment shader, the first directional light (the sun) adds `translucent_colour` times its light times `max(0, dot(-view, light))^translucency_power` times `translucency`, more toward the thin tip, read through the sun's own shadow map so a blade in shadow does not glow. |
+| 7 | Specular | Bevy's PBR specular at `reflectance` 0.35 and `roughness` 0.65 near, the roughness fading to `far_roughness` 0.95 between 20 and 120 m (`gloss_fade_m`), and the normals blending to straight up between 40 and 220 m (`normal_up_m`), so far grass shades like the ground and does not sparkle. |
+| 8 | Colour variety | Each clump's tips move toward a second green (`hue_colour`) by a random share of `hue_variety`; 22 percent of blades are straw-dry, scattered one by one (`dry_share`); tips are lighter (`tip_lighten`). |
+| 9 | Layered wind | Shares of the height at the tip, so all of it is weighted to the tip by the Bezier curve: a steady push (`wind_push`); a broad sway, a sine 70 m long rolling with the wind (`broad_*`); gust waves, value noise scrolled at `wind_speed_m_s` and sharpened by `gust_sharpness` into bands, lightening the blades they bend by up to `gust_brighten` (the bands seen rolling across a field); each blade's sway (`sway`, `sway_hz`); and a flutter across the blade growing with the square of the place along it (`flutter`, `flutter_hz`). |
+
+Tests: the new counts (`the_blade_meshes_have_the_counts_in_the_design`), the ground tint
+(`the_ground_is_tinted_exactly_where_grass_grows_and_not_in_a_crater`,
+`ground_under_full_grass_takes_the_grass_tint_and_bare_ground_keeps_its_own`), the tall clump's
+height (`tall_clumps_stand_about_two_metres`), and the shader compiled against Bevy 0.20's
+`bevy_pbr` with naga, its uniform's size checked against the Rust struct.
 
 ## Seeing it: `--start meadow` (owner, 2026-10-24: "Screenshots with grass?")
 
@@ -171,9 +220,11 @@ tested on seed 42.
 
 | # | Question | Provisional answer | Who decides |
 | --- | --- | --- | --- |
-| 1 | Is 300 m the right reach, and 16 / 4 / 1 blades a square metre the right density? | As built; the benchmark sets the budget. If grass costs more than about 1.5 ms on the 3070, the first lever is level 0's reach (25 m) and level 1's (110 m). | owner, after the benchmark |
+| 1 | Is 300 m the right reach, and 25 / 6.25 / 1.56 blades a square metre the right density? | As built; the benchmark sets the budget. If grass costs more than about 2 ms on the 3070, the levers are in section 6. | owner, after the benchmark |
 | 2 | Cull blades in a compute pass (indirect draws, no wasted vertices on bare ground or behind the eye)? | Not yet: the instanced draw is three draws already. Revisit if the benchmark shows the vertex stage dominating, together with `gpu-instancing`'s tree pass. | after the benchmark |
 | 3 | Grass in the screen cube cameras (the cabin's light)? | No: it would roughly double the vertex cost for a light the pilot cannot see grass in. | Claude, provisional |
 | 4 | Should a mech leave the grass flattened where it walked (a trail)? | Not now: it needs per-blade or per-texel state; a trail texture per tile is the cheap way. Skating trails (survey M4) may want it. | survey, later |
 | 5 | Should grass draw past 300 m as a cheaper far layer (impostor cards or a noise in the ground's colour)? | The ground's colour carries it for now. | after a playtest |
 | 6 | Colour: does the grass match the ground's grass colour at the fade? | Tuned by eye in a playtest; the ground and blade colours are both data. | playtest |
+| 7 | The ground tint's colour against the ground's grass texture (the tint multiplies it), the translucency's strength and the gust bands' brightness | Set by reasoning, not by eye: tune in a screenshot pass. | playtest |
+| 8 | Should the wind's heading and strength come from a weather system rather than data? | Data for now; no weather exists yet. | later change |

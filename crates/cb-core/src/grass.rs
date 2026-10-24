@@ -166,6 +166,59 @@ pub struct GrassConfig {
     pub pilot_press_m: f32,
     /// Radius about each of a mech's feet in which grass is pressed flat, metres.
     pub mech_foot_press_m: f32,
+    /// How far a tall blade's tip droops over, as a share of its height at the tallest.
+    pub droop: f32,
+    /// Share of clumps that stand tall.
+    pub clump_tall_share: f32,
+    /// A tall clump's height as a multiple of its blades' own.
+    pub clump_tall_scale: f32,
+    /// Blades at a clump's edge are this share shorter than at its middle (a clump is a mound).
+    pub clump_edge_shrink: f32,
+    /// Extra darkening at the root in a dense, tall clump, 0..1 (fake ambient occlusion).
+    pub ao_dense: f32,
+    /// Share of the blade's height over which the root's darkening fades out.
+    pub ao_height_share: f32,
+    /// Specular reflectance of a blade at normal incidence (F0), 0..1.
+    pub reflectance: f32,
+    /// A second green, linear RGB: each clump's tips lean toward it by a random share of
+    /// `hue_variety`.
+    pub hue_colour: [f32; 3],
+    /// How far a clump's hue may move toward `hue_colour`, 0..1.
+    pub hue_variety: f32,
+    /// How much lighter a tip is than the blade's colour, 0..1 toward white.
+    pub tip_lighten: f32,
+    /// The colour sunlight takes through a blade (translucency), linear RGB.
+    pub translucent_colour: [f32; 3],
+    /// How strongly a blade glows with the sun behind it, 0..1.
+    pub translucency: f32,
+    /// How tightly the glow gathers round the sun's direction (an exponent).
+    pub translucency_power: f32,
+    /// Roughness far away, where the sheen is faded out so it does not sparkle.
+    pub far_roughness: f32,
+    /// Distance over which a blade's gloss fades from `roughness` to `far_roughness`, metres.
+    pub gloss_fade_m: [f32; 2],
+    /// Distance over which blade normals blend toward straight up, metres (far grass shades
+    /// like the ground and does not alias).
+    pub normal_up_m: [f32; 2],
+    /// How sharp the gust waves are (an exponent on the gust noise): higher, narrower bands.
+    pub gust_sharpness: f32,
+    /// How much lighter a blade bent by a gust looks, 0..1 (the bands rolling across a field).
+    pub gust_brighten: f32,
+    /// Each blade's flutter, cycles a second.
+    pub flutter_hz: f32,
+    /// Each blade's flutter, as a share of its height, at the tip.
+    pub flutter: f32,
+    /// Wavelength of the broad sway across the whole field, metres.
+    pub broad_wavelength_m: f32,
+    /// The broad sway, cycles a second.
+    pub broad_hz: f32,
+    /// The broad sway, as a share of the height.
+    pub broad_push: f32,
+    /// The colour the ground takes under grass, linear RGB (it multiplies the ground's grass
+    /// texture, like every ground vertex colour).
+    pub ground_tint_colour: [f32; 3],
+    /// How far the ground's colour moves toward `ground_tint_colour` where grass grows fully, 0..1.
+    pub ground_tint: f32,
 }
 
 impl Default for GrassConfig {
@@ -175,14 +228,14 @@ impl Default for GrassConfig {
             radius_m: 300.0,
             release_m: 48.0,
             fade_m: 60.0,
-            blade_spacing_m: 0.25,
+            blade_spacing_m: 0.2,
             density_cell_m: 1.0,
             bakes_per_frame: 6,
             lods: vec![
                 GrassLod {
                     until_m: 25.0,
                     stride: 1,
-                    segments: 4,
+                    segments: 5,
                     width_scale: 1.0,
                 },
                 GrassLod {
@@ -204,8 +257,8 @@ impl Default for GrassConfig {
             beach_m: 2.5,
             slope_bare: [0.6, 1.1],
             crater_clear_m: 0.05,
-            height_m: [0.35, 0.85],
-            width_m: 0.045,
+            height_m: [0.6, 1.6],
+            width_m: 0.06,
             taper: 1.4,
             lean_max: 0.45,
             stiffness: 0.5,
@@ -216,7 +269,7 @@ impl Default for GrassConfig {
             tip_colour: [0.22, 0.33, 0.09],
             dry_colour: [0.36, 0.33, 0.16],
             dry_share: 0.22,
-            root_light: 0.4,
+            root_light: 0.35,
             roughness: 0.65,
             clump_m: 2.5,
             clump_strength: 0.5,
@@ -229,6 +282,31 @@ impl Default for GrassConfig {
             sway: 0.05,
             pilot_press_m: 0.7,
             mech_foot_press_m: 2.6,
+            droop: 0.35,
+            clump_tall_share: 0.18,
+            clump_tall_scale: 1.3,
+            clump_edge_shrink: 0.3,
+            ao_dense: 0.5,
+            ao_height_share: 0.55,
+            reflectance: 0.35,
+            hue_colour: [0.30, 0.34, 0.07],
+            hue_variety: 0.6,
+            tip_lighten: 0.12,
+            translucent_colour: [0.55, 0.62, 0.12],
+            translucency: 0.6,
+            translucency_power: 4.0,
+            far_roughness: 0.95,
+            gloss_fade_m: [20.0, 120.0],
+            normal_up_m: [40.0, 220.0],
+            gust_sharpness: 2.0,
+            gust_brighten: 0.25,
+            flutter_hz: 3.0,
+            flutter: 0.025,
+            broad_wavelength_m: 70.0,
+            broad_hz: 0.12,
+            broad_push: 0.1,
+            ground_tint_colour: [0.40, 0.52, 0.20],
+            ground_tint: 0.85,
         }
     }
 }
@@ -328,6 +406,37 @@ impl Validate for GrassConfig {
         within("sway", self.sway, 0.0, 0.95)?;
         within("pilot_press_m", self.pilot_press_m, 0.0, 50.0)?;
         within("mech_foot_press_m", self.mech_foot_press_m, 0.0, 50.0)?;
+        within("droop", self.droop, 0.0, 1.0)?;
+        within("clump_tall_share", self.clump_tall_share, 0.0, 1.0)?;
+        within("clump_tall_scale", self.clump_tall_scale, 1.0, 4.0)?;
+        within("clump_edge_shrink", self.clump_edge_shrink, 0.0, 0.9)?;
+        within("ao_dense", self.ao_dense, 0.0, 1.0)?;
+        within("ao_height_share", self.ao_height_share, 0.05, 1.0)?;
+        within("reflectance", self.reflectance, 0.0, 1.0)?;
+        within("hue_variety", self.hue_variety, 0.0, 1.0)?;
+        within("tip_lighten", self.tip_lighten, 0.0, 1.0)?;
+        within("translucency", self.translucency, 0.0, 4.0)?;
+        positive("translucency_power", self.translucency_power)?;
+        within("far_roughness", self.far_roughness, 0.0, 1.0)?;
+        positive_range("gloss_fade_m", self.gloss_fade_m)?;
+        positive_range("normal_up_m", self.normal_up_m)?;
+        positive("gust_sharpness", self.gust_sharpness)?;
+        within("gust_brighten", self.gust_brighten, 0.0, 1.0)?;
+        within("flutter_hz", self.flutter_hz, 0.0, 50.0)?;
+        within("flutter", self.flutter, 0.0, 0.5)?;
+        positive("broad_wavelength_m", self.broad_wavelength_m)?;
+        within("broad_hz", self.broad_hz, 0.0, 10.0)?;
+        within("broad_push", self.broad_push, 0.0, 0.95)?;
+        within("ground_tint", self.ground_tint, 0.0, 1.0)?;
+        for (field, c) in [
+            ("hue_colour", self.hue_colour),
+            ("translucent_colour", self.translucent_colour),
+            ("ground_tint_colour", self.ground_tint_colour),
+        ] {
+            for x in c {
+                within(field, x, 0.0, 1.0)?;
+            }
+        }
         Ok(())
     }
 }
@@ -351,6 +460,11 @@ impl GrassConfig {
             ));
         }
         Ok(())
+    }
+
+    /// The tallest a blade stands, metres (a tall clump's tallest blade).
+    pub fn tallest_m(&self) -> f32 {
+        self.height_m[1] * self.clump_tall_scale
     }
 
     /// Blade cells along a tile's side at the nearest level.
@@ -537,7 +651,7 @@ impl TileBake {
         for j in 0..d {
             for i in 0..d {
                 let p = corner + (Vec2::new(i as f32, j as f32) + 0.5) * cfg.density_cell_m;
-                if dug.delta_at(p).abs() > cfg.crater_clear_m {
+                if crater_clears(dug.delta_at(p), cfg) {
                     self.density[j * d + i] = 0;
                 }
             }
@@ -605,6 +719,30 @@ pub fn meadow_start(plan: &WorldPlan, cfg: &GrassConfig, half_m: f32, reach_m: f
         r += 50.0;
     }
     None
+}
+
+/// True when a crater changed the ground by `dug_delta_m` enough to clear its grass.
+pub fn crater_clears(dug_delta_m: f32, cfg: &GrassConfig) -> bool {
+    dug_delta_m.abs() > cfg.crater_clear_m
+}
+
+/// How fully grass covers the ground at `p`, 0..1: where grass grows (`grows_at`) and no crater
+/// cleared it. The ground's colour is tinted toward `ground_tint_colour` by this share, so the
+/// ground under the blades is the grass's own colour and no pale soil shows between them; the
+/// same rule decides both, so they never disagree (CLAUDE.md 6.1). `slope` is rise over run.
+pub fn ground_cover(plan: &WorldPlan, p: Vec2, ground_m: f32, slope: f32, dug_delta_m: f32, cfg: &GrassConfig) -> f32 {
+    if crater_clears(dug_delta_m, cfg) {
+        return 0.0;
+    }
+    grows_at(plan, p, ground_m, slope, cfg)
+}
+
+/// The slope (rise over run) of ground whose unit normal points up by `normal_y`.
+pub fn slope_of_normal(normal_y: f32) -> f32 {
+    if normal_y <= 1e-3 {
+        return 1e3;
+    }
+    (1.0 - normal_y * normal_y).max(0.0).sqrt() / normal_y
 }
 
 /// How the tiles are laid out in the shader's buffer.
@@ -742,10 +880,10 @@ mod tests {
 
     #[test]
     fn the_blade_meshes_have_the_counts_in_the_design() {
-        // design.md section 3: 16,384 / 4,096 / 1,024 blades a 32 m tile; 9 / 7 / 5 vertices and
-        // 7 / 5 / 3 triangles a blade.
+        // design.md section 3: 25,600 / 6,400 / 1,600 blades a 32 m tile; 11 / 7 / 5 vertices and
+        // 9 / 5 / 3 triangles a blade.
         let cfg = GrassConfig::default();
-        let want = [(16_384, 147_456, 114_688), (4_096, 28_672, 20_480), (1_024, 5_120, 3_072)];
+        let want = [(25_600, 281_600, 230_400), (6_400, 44_800, 32_000), (1_600, 8_000, 4_800)];
         for (lod, (blades, verts, tris)) in want.into_iter().enumerate() {
             let m = BladeMesh::new(&cfg, lod);
             assert_eq!(cfg.blades_per_tile(lod), blades, "level {lod} blades");
@@ -753,8 +891,8 @@ mod tests {
             assert_eq!(m.indices.len(), tris * 3, "level {lod} triangles");
             assert!(m.indices.iter().all(|i| (*i as usize) < m.vertices.len()));
         }
-        assert_eq!(cfg.blades_per_m2(0), 16.0);
-        assert_eq!(cfg.blades_per_m2(2), 1.0);
+        assert_eq!(cfg.blades_per_m2(0), 25.0);
+        assert_eq!(cfg.blades_per_m2(2), 1.5625);
     }
 
     #[test]
@@ -764,7 +902,7 @@ mod tests {
         assert_eq!(m.vertices[0], [0.0, 0.0, 1.0]);
         assert_eq!(m.vertices[7], [1.0, 0.0, 1.0], "blade 1 starts after blade 0's 7 vertices");
         let last = *m.vertices.last().unwrap();
-        assert_eq!(last, [4095.0, 6.0, 1.0], "the last blade's tip");
+        assert_eq!(last, [6399.0, 6.0, 1.0], "the last blade's tip");
     }
 
     #[test]
@@ -924,6 +1062,42 @@ mod tests {
         assert_eq!(bake.density[mid], 0, "the bowl is bare");
         assert_eq!(bake.density[0], 255, "a corner 22 m off is untouched");
         assert_eq!(bake.open[mid], 255, "the undug bake is kept for the next crater");
+    }
+
+    #[test]
+    fn the_ground_is_tinted_exactly_where_grass_grows_and_not_in_a_crater() {
+        let cfg = GrassConfig::default();
+        let p = plan();
+        let h = &p.highways[0];
+        let road = (h.ends[0] + h.ends[1]) * 0.5;
+        let g = p.height_at(road.x, road.y);
+        assert_eq!(ground_cover(p, road, g, 0.0, 0.0, &cfg), 0.0, "no tint on a road");
+        let m = meadow_start(p, &cfg, 40.0, 6000.0).expect("a meadow").mech_xz;
+        let g = p.height_at(m.x, m.y);
+        let grows = grows_at(p, m, g, 0.1, &cfg);
+        assert!(grows > 0.8);
+        assert_eq!(
+            ground_cover(p, m, g, 0.1, 0.0, &cfg),
+            grows,
+            "the one rule: tint is where grass grows"
+        );
+        assert_eq!(ground_cover(p, m, g, 0.1, -0.3, &cfg), 0.0, "a crater's bowl is bare");
+        assert_eq!(ground_cover(p, m, g, 0.1, 0.01, &cfg), grows, "a scratch is not a crater");
+    }
+
+    #[test]
+    fn a_normals_slope_is_rise_over_run() {
+        assert_eq!(slope_of_normal(1.0), 0.0);
+        let n45 = std::f32::consts::FRAC_1_SQRT_2;
+        assert!((slope_of_normal(n45) - 1.0).abs() < 1e-5);
+        assert!(slope_of_normal(0.0) > 100.0, "a wall");
+    }
+
+    #[test]
+    fn tall_clumps_stand_about_two_metres() {
+        let cfg = GrassConfig::default();
+        assert!((1.9..=2.2).contains(&cfg.tallest_m()), "{}", cfg.tallest_m());
+        assert!(cfg.height_m[0] >= 0.5, "meadow grass reaches a mech's ankle, not a person's");
     }
 
     #[test]
