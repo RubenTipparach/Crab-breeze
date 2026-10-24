@@ -20,6 +20,14 @@ buildings, people), `T` tech and tools, `P` playtesting.
 | `mech-rig` | built, playtest pending | Stand-in mech on the rig contract, digitigrade walk, torso twist, glb drop-in |
 | `mech-boarding` | proposed | The sealed cockpit and its all-view screen, the mech sitting down, the staged hatch with steam and mist |
 | `pilot-boarding` | built, playtest pending | Pilot on foot in first person, boarding up the lift into `EYE_pilot`, climbing out |
+| `terrain-water` | proposed | Rivers and lakes from the seed, wading drag, ripples, spray and steam |
+| `terrain-materials` | proposed | PBR ground layers splatted by slope, water, city and scorch (textures from the art side) |
+| `vegetation` | proposed | Seeded woods, instanced LODs, mechs snapping trees that fall under Avian physics |
+| `terrain-deformation` | proposed | Craters from explosions, dirt bursts, scorch; one ground query |
+| `mech-damage` | proposed | Parts shot off one by one: arms, head (backup cameras), legs (limp) |
+| `clouds` | proposed | Cheap fly-through cumulus, in-cloud fog, cloud shadows; camera raindrops later |
+
+Requests between the Mac and cloud sessions: `docs/design/requests.md`.
 
 ## Mockups
 
