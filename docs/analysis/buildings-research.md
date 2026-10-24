@@ -212,12 +212,4 @@ Things it showed that the write-up alone would have missed:
 
 ## 5. Sources
 
-- SideFX, Making the procedural buildings of THE FINALS using Houdini (2026-02): https://www.sidefx.com/community/making-the-procedural-buildings-of-the-finals-using-houdini/
-- Embark, Engineering Mayhem (GDC 2024): https://gdcvault.com/play/1034280/Engineering-Mayhem-Technical-Deep-Dive
-- KitGuru on THE FINALS' gradual destruction: https://kitguru.net/gaming/joao-silva/embark-studios-reveals-major-destruction-system-update-for-the-finals
-- NVIDIA Blast stress solver: https://docs.nvidia.com/gameworks/content/gameworkslibrary/blast/1.1/api_docs/files/pageextstress.html
-- NVIDIA Blast introduction: https://docs.nvidia.com/gameworks/content/gameworkslibrary/blast/1.1/api_docs/files/pageintroduction.html
-- Interior mapping: https://gamedeveloper.com/programming/interior-mapping-rendering-real-rooms-without-geometry
-- Spider-Man's windows: https://automaton-media.com/en/news/20231201-23558/
-- Bevy decals: https://bevy.org/examples/3d-rendering/decal/ and https://doc.qu1x.dev/bevy_trackball/bevy/pbr/decal/clustered/index.html
-- Bevy parallax (deferred example): https://bevy.org/examples-webgpu/3d-rendering/deferred-rendering/
+Every source, with what it was used for, is listed in `docs/analysis/README.md`.

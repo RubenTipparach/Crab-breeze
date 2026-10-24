@@ -23,6 +23,10 @@
 
 - **Material**: `terrain-materials` gains a `rubble` layer weighted by rubble depth (full over
   0.3 m), and the brick or concrete share follows the building it came from.
+  - The layer is a Material Maker graph, `rubble.ptex`: dust and gravel, broken concrete chunks
+    (14-36 cm) with lit fracture edges and contact shadows, brick fragments, and bent rebar ends.
+    Full PBR at 2048 px over 3 m, with a height map for relief parallax.
+  - The mockup's canvas texture is the stand-in (`rubbleTex()` in `docs/mockups/buildings.html`).
 - **Instanced dressing**: about 1 mesh per 2 m^2 of heap over 0.3 m, picked from 12 kit pieces by the
   cell hash, sunk 30 % into the surface. One draw per piece type.
 - **Dust**: a sprite cloud sized by the island, growing over 6 s. Under 0.3 ms of overdraw at the

@@ -91,6 +91,7 @@ dt { color: var(--muted); } dd { margin: 0; text-align: right; }
         <button data-demo="hole">Hole a wall</button>
         <button data-demo="corner">Tower corner columns</button>
         <button data-demo="side">Tower ground side</button>
+        <button data-demo="tower">Bring the tower down</button>
       </div>
       <div class="row">
         <button data-demo="warehouse">Drop the warehouse</button>
@@ -1215,6 +1216,7 @@ function dropIslands(b, loose) {
       if (!p) continue;
       p.local = bx.c.clone().sub(cl.c); p.lq = bx.q.clone(); cl.pieces.push(p);
     } }
+    if (!cl.pieces.length) { heapDeposit(cl.c.x, cl.c.z, cl.fines * T.rubble_fines, 3); continue; }
     sim.clusters.push(cl);
   }
   b.maskDirty = true;
@@ -1232,13 +1234,41 @@ function footExt(p) {
   return [Math.abs(m[0]) * p.s[0] / 2 + Math.abs(m[4]) * p.s[1] / 2 + Math.abs(m[8]) * p.s[2] / 2,
           Math.abs(m[2]) * p.s[0] / 2 + Math.abs(m[6]) * p.s[1] / 2 + Math.abs(m[10]) * p.s[2] / 2];
 }
-function stamp(p) {
-  const [ex, ez] = footExt(p), top = p.c.y + halfHeight(p), c = STACK.cell;
-  const i0 = Math.max(0, Math.floor((p.c.x - ex * 0.8 - STACK.x0) / c)), i1 = Math.min(STACK.n - 1, Math.floor((p.c.x + ex * 0.8 - STACK.x0) / c));
-  const j0 = Math.max(0, Math.floor((p.c.z - ez * 0.8 - STACK.z0) / c)), j1 = Math.min(STACK.m - 1, Math.floor((p.c.z + ez * 0.8 - STACK.z0) / c));
-  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const ix = j * STACK.n + i; if (top > STACK.top[ix]) STACK.top[ix] = top; }
+// The top of a piece's oriented box over (x, z), or -Infinity where the vertical line misses it.
+const _inv = new THREE.Quaternion(), _lo = new THREE.Vector3(), _ld = new THREE.Vector3();
+function boxTop(p, x, z) {
+  _inv.copy(p.q).invert();
+  _lo.set(x - p.c.x, 0 - p.c.y, z - p.c.z).applyQuaternion(_inv);
+  _ld.set(0, 1, 0).applyQuaternion(_inv);
+  let t0 = -Infinity, t1 = Infinity;
+  for (const [o, d, h] of [[_lo.x, _ld.x, p.s[0] / 2], [_lo.y, _ld.y, p.s[1] / 2], [_lo.z, _ld.z, p.s[2] / 2]]) {
+    if (Math.abs(d) < 1e-6) { if (o < -h || o > h) return -Infinity; continue; }
+    let a = (-h - o) / d, b = (h - o) / d; if (a > b) [a, b] = [b, a];
+    t0 = Math.max(t0, a); t1 = Math.min(t1, b); if (t0 > t1) return -Infinity;
+  }
+  return t1;
 }
-function restack() { STACK.top.fill(0); for (const p of sim.pieces) if (p && p.settled) stamp(p); STACK.dirty = false; STACK.last = sim.t; }
+function stamp(p) {
+  const [ex, ez] = footExt(p), c = STACK.cell;
+  const i0 = Math.max(0, Math.floor((p.c.x - ex - STACK.x0) / c)), i1 = Math.min(STACK.n - 1, Math.floor((p.c.x + ex - STACK.x0) / c));
+  const j0 = Math.max(0, Math.floor((p.c.z - ez - STACK.z0) / c)), j1 = Math.min(STACK.m - 1, Math.floor((p.c.z + ez - STACK.z0) / c));
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const top = boxTop(p, STACK.x0 + (i + 0.5) * c, STACK.z0 + (j + 0.5) * c);
+    const ix = j * STACK.n + i; if (top > STACK.top[ix]) STACK.top[ix] = top;
+  }
+}
+// Rebuild the stack from the resting pieces, then wake any piece whose support has gone (what it lay
+// on fell or was removed); the next restack drops those woken pieces out of the grid.
+function restack() {
+  STACK.top.fill(0);
+  for (const p of sim.pieces) if (p && p.settled) stamp(p);
+  STACK.dirty = false; STACK.last = sim.t;
+  for (const p of sim.pieces) {
+    if (!p || !p.settled) continue;
+    const hh = halfHeight(p);
+    if (p.c.y - hh > pieceSupport(p, hh) + 0.15) { p.settled = false; p.rest = 0; STACK.dirty = true; }
+  }
+}
 // The highest support under a piece: sampled at its centre and, for a wide piece, near its corners.
 // A stack top counts only if the piece's underside was above it this step (so a piece never stands on its own stamp).
 function pieceSupport(p, hh) {
@@ -1303,6 +1333,17 @@ function integrateQ(q, w, dt) {
   const a = w.length() * dt; if (a < 1e-6) return;
   _q.setFromAxisAngle(_w.copy(w).normalize(), a); q.premultiply(_q).normalize();
 }
+// On contact a piece tips toward lying on its nearest face, so rubble lies down instead of bristling.
+const _ax = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0), _fix = new THREE.Quaternion(), _tq = new THREE.Quaternion();
+function layFlat(p) {
+  // Tall, thin things topple: the piece ends up with its thinnest side vertical (a column lies down,
+  // a wall panel falls flat), keeping whichever way that axis already points.
+  const ax = p.s[0] <= p.s[1] && p.s[0] <= p.s[2] ? 0 : p.s[1] <= p.s[2] ? 1 : 2;
+  const best = new THREE.Vector3(ax === 0 ? 1 : 0, ax === 1 ? 1 : 0, ax === 2 ? 1 : 0).applyQuaternion(p.q);
+  best.multiplyScalar(Math.sign(best.y) || 1);
+  _fix.setFromUnitVectors(best, _up); _tq.copy(_fix).multiply(p.q);
+  p.q.slerp(_tq, 0.25); p.w.multiplyScalar(0.5);
+}
 function stepSim(dt) {
   sim.t += dt;
   if (STACK.dirty && sim.t - STACK.last > 0.25) restack();
@@ -1345,6 +1386,7 @@ function stepSim(dt) {
     const onWall = pushOut(p, hh);
     if (p.c.y - hh < sup || onWall) {
       if (p.c.y - hh < sup) p.c.y = sup + hh;
+      layFlat(p);
       if (p.v.y < 0) p.v.y = -p.v.y * 0.18;
       p.v.x *= 0.72; p.v.z *= 0.72; p.w.multiplyScalar(0.7);
       if (p.v.lengthSq() < 0.25) { p.rest += dt; if (p.rest > 0.3) { p.settled = true; p.v.set(0, 0, 0); p.w.set(0, 0, 0); sim.settledQ.push(p.slot); if (!p.glass) stamp(p); if (p.glass) { hidePiece(p.slot); sim.free.push(p.slot); continue; } } }
@@ -1529,9 +1571,46 @@ function roofTex() {
     return H;
   }, [2, 2]);
 }
+// Rubble: dust, gravel, broken concrete and brick chunks with shadowed edges, and a few bent rebar
+// ends, over a 3 m tile. Stand-in for the Material Maker graph `rubble.ptex` (openspec/changes/rubble).
+function rubbleTex() {
+  return makeTex(512, 512, (x, w, h) => {
+    const r = noiseRng(17), H = new Float32Array(w * h);
+    x.fillStyle = '#8f877c'; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 26000; i++) { const v = 105 + r() * 70 | 0; x.fillStyle = `rgba(${v},${v - 6},${v - 14},0.5)`; x.fillRect(r() * w, r() * h, 1 + r() * 2, 1 + r() * 2); }
+    // Chunks drawn three times (offset by the tile) so they wrap; big first, small last.
+    const chunk = (cx, cy, rad, fill) => {
+      const n = 4 + (r() * 4 | 0), pts = [];
+      for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2 + r() * 0.6, rr = rad * (0.55 + r() * 0.45); pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.8]); }
+      const hgt = 0.4 + r() * 0.6;
+      for (const [ox, oy] of [[0, 0], [-w, 0], [w, 0], [0, -h], [0, h], [-w, -h], [w, h], [-w, h], [w, -h]]) {
+        x.beginPath(); pts.forEach(([px, py], k) => k ? x.lineTo(px + ox + 2, py + oy + 3) : x.moveTo(px + ox + 2, py + oy + 3)); x.closePath();
+        x.fillStyle = 'rgba(30,26,22,0.45)'; x.fill();                                       // contact shadow
+        x.beginPath(); pts.forEach(([px, py], k) => k ? x.lineTo(px + ox, py + oy) : x.moveTo(px + ox, py + oy)); x.closePath();
+        x.fillStyle = fill; x.fill();
+        x.strokeStyle = 'rgba(255,250,240,0.25)'; x.lineWidth = 1; x.stroke();               // a lit broken edge
+      }
+      const x0 = Math.floor(cx - rad), x1 = Math.ceil(cx + rad), y0 = Math.floor(cy - rad), y1 = Math.ceil(cy + rad);
+      for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) {
+        const d = Math.hypot(xx - cx, (yy - cy) / 0.8) / rad; if (d > 0.9) continue;
+        const ix = ((yy % h) + h) % h * w + ((xx % w) + w) % w; H[ix] = Math.max(H[ix], hgt * (1 - d * d));
+      }
+    };
+    for (let i = 0; i < 40; i++) { const g = 150 + r() * 50 | 0; chunk(r() * w, r() * h, 14 + r() * 22, `rgb(${g},${g - 5},${g - 14})`); }
+    for (let i = 0; i < 70; i++) chunk(r() * w, r() * h, 6 + r() * 9, r() < 0.5 ? `hsl(${8 + r() * 10},${40 + r() * 15}%,${32 + r() * 12}%)` : `rgb(${170 + r() * 40 | 0},${165 + r() * 40 | 0},${150 + r() * 40 | 0})`);
+    for (let i = 0; i < 260; i++) chunk(r() * w, r() * h, 2 + r() * 3.5, `rgb(${120 + r() * 80 | 0},${115 + r() * 75 | 0},${105 + r() * 70 | 0})`);
+    x.strokeStyle = 'rgba(70,50,38,0.9)'; x.lineWidth = 2.2; x.lineCap = 'round';
+    for (let i = 0; i < 14; i++) {                                                            // rebar ends
+      const sx = r() * w, sy = r() * h, a = r() * Math.PI * 2, l = 18 + r() * 40, bend = (r() - 0.5) * 0.8;
+      x.beginPath(); x.moveTo(sx, sy); x.quadraticCurveTo(sx + Math.cos(a) * l * 0.5, sy + Math.sin(a) * l * 0.5, sx + Math.cos(a + bend) * l, sy + Math.sin(a + bend) * l); x.stroke();
+    }
+    for (let i = 0; i < 6000; i++) { x.fillStyle = `rgba(215,205,190,${r() * 0.12})`; x.fillRect(r() * w, r() * h, 2, 2); }   // dust
+    return H;
+  }, [3, 3]);
+}
 let TEX = null;
 function baseMaterials() {
-  if (!TEX) TEX = { brick: brickTex(), concrete: concreteTex(), roof: roofTex() };
+  if (!TEX) TEX = { brick: brickTex(), concrete: concreteTex(), roof: roofTex(), rubble: rubbleTex() };
   return {
     brick: { color: 0xffffff, map: TEX.brick.map, normalMap: TEX.brick.normal, roughness: 0.9, metalness: 0 },
     concrete: { color: 0xffffff, map: TEX.concrete.map, normalMap: TEX.concrete.normal, roughness: 0.85, metalness: 0 },
@@ -1682,8 +1761,9 @@ function buildWorld(seed) {
   HEAP.h = new Float32Array(HEAP.n * HEAP.m); HEAP.vol = 0;
   STACK.top = new Float32Array(STACK.n * STACK.m); STACK.dirty = false; STACK.last = 0;
   const hg = new THREE.PlaneGeometry((HEAP.n - 1) * T.heap_cell_m, (HEAP.m - 1) * T.heap_cell_m, HEAP.n - 1, HEAP.m - 1);
+  { const uv = hg.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (HEAP.n - 1) * T.heap_cell_m, uv.getY(i) * (HEAP.m - 1) * T.heap_cell_m); }
   hg.rotateX(-Math.PI / 2); hg.translate(HEAP.x0 + (HEAP.n - 1) * T.heap_cell_m / 2, 0, HEAP.z0 + (HEAP.m - 1) * T.heap_cell_m / 2);
-  heapMesh = new THREE.Mesh(hg, new THREE.MeshStandardMaterial({ color: 0xa49c90, map: TEX.concrete.map, normalMap: TEX.roof.normal, roughness: 1, envMapIntensity: 0.35 }));
+  heapMesh = new THREE.Mesh(hg, new THREE.MeshStandardMaterial({ color: 0xffffff, map: TEX.rubble.map, normalMap: TEX.rubble.normal, normalScale: new THREE.Vector2(1.6, 1.6), roughness: 0.95, envMapIntensity: 0.35 }));
   heapMesh.receiveShadow = true; heapMesh.castShadow = true; world.add(heapMesh);
   updateHeapMesh(true);
   stats.gen = genMs;
@@ -1810,6 +1890,7 @@ function demo(name) {
   if (name === 'hole') { const b = B[1]; const w = b.order.map(id => E[id]).find(e => e.kind === 'wall' && e.storey === 3 && e.side === 'z-' && e.idx === 2); if (w) blast(centre(w), 4); }
   if (name === 'corner') for (const e of towerNodes((a, c) => a <= 1 && c <= 1)) blast(centre(e), 4);
   if (name === 'side') for (const e of towerNodes((a, c) => c === 0)) blast(centre(e), 12);
+  if (name === 'tower') for (const e of towerNodes(() => true)) blast(centre(e), 50);
   if (name === 'warehouse') { const b = B[3]; for (const [key, id] of Object.entries(b.colAt[0])) blast(centre(E[id]), 6); }
   if (name === 'walkup') { const b = B[4]; for (let k = 0; k < 2; k++) for (const [key, id] of Object.entries(b.colAt[k])) if (+key.split(',')[1] >= 3) blast(centre(E[id]), 12); }
 }
