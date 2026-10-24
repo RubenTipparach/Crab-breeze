@@ -38,6 +38,9 @@ struct Script {
     shells_fired: usize,
     /// The street tour before the demolition: how many of its shots are taken.
     tour_done: usize,
+    /// How many of the fall's timed shots are taken (each once its time has passed, so a slow
+    /// renderer's long frames cannot step over one).
+    fall_shots: usize,
     /// The offscreen image the building variant draws the pilot's view into (window shots come out
     /// black on macOS when the window is behind another; the bench's offscreen image does not).
     offscreen: Option<Handle<Image>>,
@@ -54,6 +57,7 @@ impl Plugin for StillsPlugin {
             buildings: None,
             shells_fired: 0,
             tour_done: 0,
+            fall_shots: 0,
             offscreen: None,
         })
         .add_systems(PostStartup, offscreen_for_buildings)
@@ -90,7 +94,12 @@ fn buildings_beats(
         // (The demolition's own beat 1 timing starts after the tour: its 2 s wait is long past.)
         let Some(a) = access.0 else { return };
         let here = Vec2::new(a.ladder_base.x, a.ladder_base.z);
-        let kinds: [(&str, std::ops::RangeInclusive<u32>); 4] = [("walkup", 2..=6), ("office", 7..=14), ("tower", 15..=80), ("cockpit-height", 2..=80)];
+        let kinds: [(&str, std::ops::RangeInclusive<u32>); 4] = [
+            ("walkup", 2..=6),
+            ("office", 7..=14),
+            ("tower", 15..=80),
+            ("cockpit-height", 2..=80),
+        ];
         let (name, range) = kinds[script.tour_done].clone();
         let Some(b) = plan
             .0
@@ -109,7 +118,9 @@ fn buildings_beats(
         let street_z = plan.0.cities[b.city as usize]
             .streets
             .iter()
-            .filter(|s| s.rect.max.y <= b.footprint.min.y + 0.5 && s.rect.min.x <= c.x && s.rect.max.x >= c.x && s.rect.size().x > s.rect.size().y)
+            .filter(|s| {
+                s.rect.max.y <= b.footprint.min.y + 0.5 && s.rect.min.x <= c.x && s.rect.max.x >= c.x && s.rect.size().x > s.rect.size().y
+            })
             .map(|s| s.rect.min.y + 3.0)
             .max_by(f32::total_cmp)
             .unwrap_or(b.footprint.min.y - 20.0);
@@ -190,17 +201,19 @@ fn buildings_beats(
                 feet,
                 Vec3::new(b.footprint.centre().x, ground + b.height_m * 0.4, b.footprint.min.y),
             );
-            for (t, name) in [
+            const SHOTS: [(f32, &str); 4] = [
                 (1.0, "building-hit.png"),
                 (2.2, "building-creak.png"),
                 (5.0, "building-fall.png"),
                 (12.0, "building-rubble.png"),
-            ] {
-                if in_beat >= t && in_beat - time_step() < t {
-                    shoot_image(commands, script, name);
-                }
+            ];
+            if let Some(&(t, name)) = SHOTS.get(script.fall_shots)
+                && in_beat >= t
+            {
+                shoot_image(commands, script, name);
+                script.fall_shots += 1;
             }
-            if in_beat > 13.0 {
+            if script.fall_shots == SHOTS.len() && in_beat > 13.0 {
                 *next = true;
             }
         }
@@ -225,11 +238,6 @@ fn buildings_beats(
         }
         _ => {}
     }
-}
-
-/// About one frame, for "did we just cross this time" tests at the frame rate.
-fn time_step() -> f32 {
-    1.0 / 30.0
 }
 
 /// A still of the building variant's offscreen image.
@@ -290,6 +298,7 @@ fn run_script(
     access: Res<MechAccessNow>,
     plan: Res<crate::world::Plan>,
     live: Res<crate::world::Live>,
+    ready: Res<crate::loading::GameReady>,
     time: Res<Time<Real>>,
     mut exit: MessageWriter<AppExit>,
 ) {
@@ -329,8 +338,9 @@ fn run_script(
         return;
     }
     match script.beat {
-        // Wait for the world, the rig and shaders to settle.
-        0 => next = in_beat > 6.0 && access.0.is_some(),
+        // Wait for the world, the rig and shaders to settle (GAME_READY), so no still is shot on
+        // the loading screen or a half-built world (CLAUDE.md section 9).
+        0 => next = ready.0 && in_beat > 6.0 && access.0.is_some(),
         // The street: the pilot 12 m behind the mech, looking up at it along the street.
         1 => {
             if in_beat < 0.05 {
