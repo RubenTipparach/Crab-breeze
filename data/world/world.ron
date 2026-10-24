@@ -150,19 +150,17 @@
         max_rubble_m: 18.0,
         rubble_spread_m: 4.0,
     ),
-    // What makes a box read as a building (openspec/changes/building-generation): pilasters,
-    // string courses, parapet and coping, roof props; dressed within dress_radius_m of the camera.
+    // Building skins and roofs (openspec/changes/building-generation): the mockup's facade modules,
+    // parapet and coping, roof props; only within dress_radius_m of the player.
     dressing: (
         parapet_m: 1.1,
         parapet_wall_m: 0.3,
         coping_m: 0.08,
-        course_m: 0.25,
-        course_out_m: 0.12,
-        pilaster_m: 0.6,
-        pilaster_out_m: 0.2,
         props_per_100m2: 1.0,
         max_props: 10,
         prop_edge_m: 1.2,
-        dress_radius_m: 450.0,
+        // Only buildings this near the player are dressed; farther ones stay plain boxes (owner,
+        // 2026-10-24: elements "only generate when a mech is near city or building").
+        dress_radius_m: 250.0,
     ),
 )

@@ -91,3 +91,26 @@ Expected in the game, measured in `perf-bench` before this is called done:
 | G1 | Setting | 1980s alt-history industrial city | decided (survey G1) |
 | W10 | Building styles | walk-ups, warehouses, brutalist offices, early glass towers | provisional (survey W10) |
 | W14 | Facade texture source | Material Maker for bulk materials, Star Crew face-on renders for bays, trims and far facades (needs a section 13 exception) | provisional (survey W14) |
+
+## As built (2026-10-24)
+
+- `cb-core::world::dressing` generates the mockup's facade modules on the plan's boxes: one panel
+  per bay per storey per side, each anchored to its frame facade panel. The skins are punched
+  brick (walk-ups), ribbon concrete with fins (offices), curtain wall (towers) and steel-sash brick
+  with loading doors (warehouses, up to 4 storeys on over 900 m2). Walk-up and office ground
+  storeys get shopfronts with sign bands and stepped awnings on the long faces. Round the roof are
+  a parapet and coping, with roof props on top.
+- **Near only** (owner, 2026-10-24: "far away buildings would not HAVE these generated elements,
+  these elements only generate when a mech is near city or building"): buildings within
+  `dress_radius_m` (250 m) of the player are dressed, 2 a frame, nearest first. Their box is hidden
+  under the skin, with a dark backing behind the glass and a roof cap. Farther buildings are plain
+  boxes, and leaving the radius (x 1.15) drops the dressing.
+- Glass is its own mesh and material (low roughness, some metal). Everything else is one trim mesh
+  coloured per vertex: two meshes per dressed building.
+- Not built yet: setbacks and podiums (the plan's buildings are boxes, and the frame and collision
+  assume it), fire escapes, the Blender module kit, Material Maker and face-on facade textures
+  (W14), LOD1 facade quads.
+- The first version (pilasters and floor bands on the textured box) failed review: the owner on
+  the desktop playtest said the buildings were "not built to spec" and "it doesnt look like a real
+  city". The mockup's skins replace it.
+

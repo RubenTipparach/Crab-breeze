@@ -36,6 +36,8 @@ struct Script {
     /// The building variant: the building, where the pilot stands, and the shells' aim points.
     buildings: Option<(u32, Vec3, Vec<Vec3>)>,
     shells_fired: usize,
+    /// The street tour before the demolition: how many of its shots are taken.
+    tour_done: usize,
     /// The offscreen image the building variant draws the pilot's view into (window shots come out
     /// black on macOS when the window is behind another; the bench's offscreen image does not).
     offscreen: Option<Handle<Image>>,
@@ -51,6 +53,7 @@ impl Plugin for StillsPlugin {
             frames_ms: Vec::new(),
             buildings: None,
             shells_fired: 0,
+            tour_done: 0,
             offscreen: None,
         })
         .add_systems(PostStartup, offscreen_for_buildings)
@@ -80,6 +83,47 @@ fn buildings_beats(
         pilot.prev = s.clone();
         pilot.curr = s;
     };
+    // First a street tour, for comparing with the mockup: the nearest walk-up (up to 6 storeys),
+    // office (7 to 14) and tower (15 and up) to the mech, each from across the street (24 m off
+    // its -z face, eye height) once its dressing has loaded, then one from cockpit height.
+    if script.beat == 1 && script.tour_done < 4 {
+        // (The demolition's own beat 1 timing starts after the tour: its 2 s wait is long past.)
+        let Some(a) = access.0 else { return };
+        let here = Vec2::new(a.ladder_base.x, a.ladder_base.z);
+        let kinds: [(&str, std::ops::RangeInclusive<u32>); 4] = [("walkup", 2..=6), ("office", 7..=14), ("tower", 15..=80), ("cockpit-height", 2..=80)];
+        let (name, range) = kinds[script.tour_done].clone();
+        let Some(b) = plan
+            .0
+            .buildings
+            .iter()
+            .filter(|b| range.contains(&b.storeys))
+            .min_by(|p, q| p.footprint.centre().distance(here).total_cmp(&q.footprint.centre().distance(here)))
+        else {
+            script.tour_done += 1;
+            return;
+        };
+        let ground = plan.0.cities[b.city as usize].ground_m;
+        let c = b.footprint.centre();
+        let eye_up = if name == "cockpit-height" { 7.9 } else { 0.0 };
+        // Stand on the far side of the street in front of the -z face (the street's own rect).
+        let street_z = plan.0.cities[b.city as usize]
+            .streets
+            .iter()
+            .filter(|s| s.rect.max.y <= b.footprint.min.y + 0.5 && s.rect.min.x <= c.x && s.rect.max.x >= c.x && s.rect.size().x > s.rect.size().y)
+            .map(|s| s.rect.min.y + 3.0)
+            .max_by(f32::total_cmp)
+            .unwrap_or(b.footprint.min.y - 20.0);
+        let feet = Vec3::new(c.x, ground + eye_up, street_z);
+        let target = Vec3::new(c.x, ground + (b.height_m * 0.35).min(14.0), b.footprint.min.y);
+        place(pilot, feet, target);
+        // Each shot 3 s after the last (the pilot is placed every frame, so the high one stays up).
+        if in_beat > 3.0 * (script.tour_done + 1) as f32 {
+            shoot_image(commands, script, &format!("tour-{}-{name}.png", script.tour_done));
+            println!("STILLS_TOUR {name} building={} storeys={}", b.id, b.storeys);
+            script.tour_done += 1;
+        }
+        return;
+    }
     match script.beat {
         // Pick the mid-rise nearest the mech and stand 45 m off its -z face.
         1 => {

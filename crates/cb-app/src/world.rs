@@ -426,11 +426,45 @@ fn spawn_buildings(
             perceptual_roughness: 0.9,
             ..default()
         }),
-        trim: materials.add(StandardMaterial {
-            base_color: Color::WHITE,
-            perceptual_roughness: 0.8,
-            ..default()
-        }),
+        skin: {
+            let b = &tex.building;
+            let textured = |m: &mut Assets<StandardMaterial>, pbr: &crate::textures::Pbr, rough: f32| {
+                m.add(StandardMaterial {
+                    base_color: Color::WHITE,
+                    base_color_texture: Some(pbr.color.clone()),
+                    normal_map_texture: Some(pbr.normal.clone()),
+                    perceptual_roughness: rough,
+                    ..default()
+                })
+            };
+            use cb_core::world::dressing::Mat;
+            let mut m = std::collections::BTreeMap::new();
+            m.insert(Mat::Brick, textured(&mut materials, &b.brick, 0.9));
+            m.insert(Mat::Concrete, textured(&mut materials, &b.concrete, 0.85));
+            m.insert(Mat::Roof, textured(&mut materials, &b.roof, 0.95));
+            m.insert(Mat::Wood, textured(&mut materials, &b.wood, 0.7));
+            m.insert(
+                Mat::Trim,
+                materials.add(StandardMaterial {
+                    base_color: Color::WHITE,
+                    perceptual_roughness: 0.6,
+                    ..default()
+                }),
+            );
+            // See-through glass: the rooms behind show (the mockup's windows).
+            m.insert(
+                Mat::Glass,
+                materials.add(StandardMaterial {
+                    base_color: Color::srgba(1.0, 1.0, 1.0, 0.35),
+                    alpha_mode: AlphaMode::Blend,
+                    perceptual_roughness: 0.05,
+                    metallic: 0.2,
+                    reflectance: 0.7,
+                    ..default()
+                }),
+            );
+            m
+        },
     });
     for b in &world.buildings {
         let ground = world.cities[b.city as usize].ground_m;
