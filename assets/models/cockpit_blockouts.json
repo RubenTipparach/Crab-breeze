@@ -18,7 +18,7 @@
    "tris": 646,
    "mech": "clamshell",
    "opening": "the front splits at the screens' foot: clamps slide off the seams, both halves pop off their seals, the top swings up about the roof edge and the bottom drops to the deck as a step",
-   "open_s": 2.45,
+   "open_s": 2.9,
    "parts": [
     "UPPER",
     "LOWER"
@@ -33,22 +33,22 @@
     },
     {
      "node": "UPPER_1",
-     "t0": 0.75,
+     "t0": 1.4,
      "d": 1.5,
      "v": -1.45,
      "axis": "x"
     },
     {
      "node": "LOWER_0",
-     "t0": 0.55,
+     "t0": 0.35,
      "d": 0.3,
      "v": 0.04,
      "pos": "z"
     },
     {
      "node": "LOWER_1",
-     "t0": 0.95,
-     "d": 1.5,
+     "t0": 0.6,
+     "d": 1.4,
      "v": 1.42,
      "axis": "x"
     },
@@ -82,7 +82,7 @@
       -0.0
      ],
      "v": 0.06,
-     "t0": 0.20000000000000007,
+     "t0": 0.0,
      "d": 0.3
     },
     {
@@ -93,7 +93,7 @@
       0.0
      ],
      "v": 0.06,
-     "t0": 0.20000000000000007,
+     "t0": 0.0,
      "d": 0.3
     }
    ],
@@ -252,7 +252,7 @@
    "tris": 934,
    "mech": "petals",
    "opening": "three petals: the middle one pops and swings up, then the two beside it swing out on their outer edges like doors; the seams fall on the screens' own seams",
-   "open_s": 2.9,
+   "open_s": 3.2,
    "parts": [
     "PETAL_M",
     "PETAL_L",
@@ -261,28 +261,28 @@
    "tracks": [
     {
      "node": "PETAL_M_0",
-     "t0": 0.3,
+     "t0": 1.5,
      "d": 0.3,
      "v": 0.04,
      "pos": "z"
     },
     {
      "node": "PETAL_M_1",
-     "t0": 0.6,
+     "t0": 1.8,
      "d": 1.4,
      "v": -1.5,
      "axis": "x"
     },
     {
      "node": "PETAL_L_0",
-     "t0": 1.4,
+     "t0": 0.3,
      "d": 1.5,
      "v": 1.75,
      "axis": "y"
     },
     {
      "node": "PETAL_R_0",
-     "t0": 1.4,
+     "t0": 0.3,
      "d": 1.5,
      "v": -1.75,
      "axis": "y"
@@ -297,7 +297,7 @@
       0.2,
       1
      ],
-     "t0": 0.3,
+     "t0": 1.5,
      "d": 0.9
     },
     {
@@ -307,7 +307,7 @@
       0.1,
       0.4
      ],
-     "t0": 1.4,
+     "t0": 0.3,
      "d": 0.9
     },
     {
@@ -317,7 +317,7 @@
       0.1,
       0.4
      ],
-     "t0": 1.4,
+     "t0": 0.3,
      "d": 0.9
     }
    ],
@@ -875,8 +875,8 @@
    "span_deg": 175,
    "tris": 520,
    "mech": "plug",
-   "opening": "a plug door: clamps slide off, it pushes 20 cm out off its seal, then slides aside on rails past the corner",
-   "open_s": 3.0,
+   "opening": "a plug door: clamps slide off, it pushes 60 cm out off its seal with the dash on it, then slides aside on rails past the corner",
+   "open_s": 3.3,
    "parts": [
     "PLUG"
    ],
@@ -884,13 +884,13 @@
     {
      "node": "PLUG_0",
      "t0": 0.4,
-     "d": 0.6,
-     "v": 0.2,
+     "d": 0.9,
+     "v": 0.6,
      "pos": "z"
     },
     {
      "node": "PLUG_1",
-     "t0": 1.1,
+     "t0": 1.4,
      "d": 1.9,
      "v": -2.562713463649643,
      "pos": "x"
