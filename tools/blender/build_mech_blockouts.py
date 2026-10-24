@@ -434,8 +434,21 @@ def wheel_foot(name, ball, s, w=4.2, l=6.6, r=1.15):
     cyl(f"{name}_hub", hub - V((w * 0.31, 0, 0)), hub + V((w * 0.31, 0, 0)), r * 0.45, "ACCENT", "legs", 10)
 
 
+LEG_SLIM = (0.72, 0.8)    # owner, 2026-10-24: "legs a little less thick" (thigh and shin width, depth)
+WAIST_LIFT_M = 2.0        # owner, 2026-10-24: "arms clip through the leg. Perhaps torso a little higher"
+
+
+def waist(hip_y, hx):
+    """The torso stood WAIST_LIFT_M higher on a waist block over the hips, so the arms hang clear of the thighs.
+    Returns the height the torso is built from."""
+    box("waist", (0, hip_y + 1.2 + WAIST_LIFT_M / 2, -0.2), (max(3.0, hx * 1.1), WAIST_LIFT_M + 0.6, 2.6), "FRAME", "legs")
+    return hip_y + WAIST_LIFT_M
+
+
 def chicken_legs(hip_y, hx, scale, thigh, shin, body_mat="BODY"):
-    """Heavy reverse-jointed legs (thigh and shin boxes, a ram down the front of each), with wheel feet."""
+    """Reverse-jointed legs (thigh and shin boxes, a ram down the front of each), with wheel feet."""
+    thigh = (thigh[0] * LEG_SLIM[0], thigh[1] * LEG_SLIM[1])
+    shin = (shin[0] * LEG_SLIM[0], shin[1] * LEG_SLIM[1])
     for s in (1, -1):
         P = {k: v + V((s * hx, 0, 0)) for k, v in leg_points(hip_y, scale).items()}
         chamfered(f"thigh{s}", (P["hip"] + P["knee"]) / 2, (thigh[0], (P["knee"] - P["hip"]).length + 0.6, thigh[1]), 0.55,
@@ -460,6 +473,7 @@ def harrow():
     hip_y, hx = 15.0, 3.9
     chicken_legs(hip_y, hx, 1.12, (4.6, 4.2), (3.6, 3.3))
     box("hips", (0, hip_y + 0.2, -0.4), (2 * hx + 1.2, 2.4, 3.8), "FRAME", "legs")
+    hip_y = waist(hip_y, hx)
     # the hull: its side profile extruded across, the nose sloping down to a chin; the nose's corners cut away (CSG)
     yc, zc = hip_y + 3.2, 0.6
     hull = prism_x("hull", [(zc - 4.8, yc - 2.0), (zc - 4.8, yc + 2.0), (zc + 0.2, yc + 2.4), (zc + 5.2, yc - 0.1),
@@ -509,6 +523,7 @@ def roustabout():
     hip_y, hx = 14.4, 3.5
     chicken_legs(hip_y, hx, 1.0, (4.2, 4.0), (3.4, 3.2))
     box("hips", (0, hip_y + 0.3, -0.2), (2 * hx + 1.0, 2.6, 3.4), "FRAME", "legs")
+    hip_y = waist(hip_y, hx)
     yb = hip_y + 1.6
     chamfered("waist", (0, yb + 0.6, -0.2), (5.0, 1.6, 4.4), 0.4, "BODY2", "torso")
     floor = (0, yb + 1.6, 1.4)
@@ -561,14 +576,17 @@ def grader():
     hip_y, hx = 14.2, 3.8
     chicken_legs(hip_y, hx, 1.05, (4.6, 4.2), (3.8, 3.4))
     box("hips", (0, hip_y + 0.2, 0), (2 * hx + 1.2, 2.6, 3.6), "FRAME", "legs")
+    hip_y = waist(hip_y, hx)
     yc = hip_y + 3.6
     chamfered("torso", (0, yc, -0.6), (7.0, 4.6, 5.6), 0.7, "BODY", "torso")
     pod_in("panorama", (0, yc - 1.6, 2.4))
     for s in (1, -1):
-        strut(f"push{s}", (s * 4.6, hip_y + 0.4, 0.4), (s * 4.0, hip_y - 4.6, 6.0), 0.8, "BODY2", "arms")
-        cyl(f"tilt{s}", (s * 3.4, hip_y + 2.0, 2.0), (s * 3.6, hip_y - 2.8, 6.0), 0.35, "METAL", "arms", 8)
-    box("blade", (0, hip_y - 4.4, 6.6), (11.0, 3.2, 0.5), "BODY", "arms", ((1, 0, 0), (0, 1, 0.25), (0, -0.25, 1)))
-    box("blade_edge", (0, hip_y - 6.0, 7.0), (11.2, 0.4, 0.6), "METAL", "arms")
+        # the push arms run outside the thighs, from the waist's sides down to the blade's ends
+        strut(f"push{s}", (s * 6.1, hip_y + 0.6, 0.6), (s * 6.1, hip_y - 4.6, 6.4), 0.8, "BODY2", "arms")
+        strut(f"push_mount{s}", (s * 1.4, hip_y + 0.6, 0.6), (s * 6.4, hip_y + 0.6, 0.6), 0.7, "FRAME", "arms")
+        cyl(f"tilt{s}", (s * 3.0, hip_y + 2.6, 2.0), (s * 3.0, hip_y - 2.8, 6.6), 0.35, "METAL", "arms", 8)
+    box("blade", (0, hip_y - 4.4, 6.9), (13.4, 3.2, 0.5), "BODY", "arms", ((1, 0, 0), (0, 1, 0.25), (0, -0.25, 1)))
+    box("blade_edge", (0, hip_y - 6.0, 7.3), (13.6, 0.4, 0.6), "METAL", "arms")
     box("ripper_beam", (0, hip_y - 0.6, -3.6), (5.0, 0.8, 1.0), "FRAME", "arms")
     for x in (-1.6, 0, 1.6):
         strut(f"tooth{x}", (x, hip_y - 0.6, -3.8), (x, hip_y - 4.4, -4.6), 0.5, "METAL", "arms")
@@ -586,6 +604,8 @@ def logger():
     its back with a log grapple, a felling head with a saw for the right hand."""
     hip_y, hx = 13.0, 4.2
     chicken_legs(hip_y, hx, 1.2, (4.4, 4.4), (3.6, 3.4))
+    box("hips", (0, hip_y + 0.2, 0), (2 * hx + 1.0, 2.4, 3.4), "FRAME", "legs")
+    hip_y = waist(hip_y, hx)
     yc, zc = hip_y + 2.2, 0.4
     prism_x("hull", [(zc - 5.0, yc - 1.8), (zc - 5.0, yc + 1.8), (zc + 2.6, yc + 1.8), (zc + 5.4, yc - 0.2),
                      (zc + 5.0, yc - 1.8)], 3.6, "BODY", "torso")
@@ -601,13 +621,13 @@ def logger():
     for dx in (-0.7, 0.7):
         strut(f"grapple{dx}", tip, tip + V((dx, -2.6, 0)), 0.35, "FRAME", "arms")
     for s in (1, -1):
-        sh = V((s * 4.4, yc + 0.6, zc + 0.6))
+        sh = V((s * 4.6, yc + 0.6, zc + 0.6))
         cyl(f"drum{s}", sh - V((s * 0.8, 0, 0)), sh + V((s * 0.8, 0, 0)), 1.2, "FRAME", "arms", 12)
-        el = sh + V((s * 0.4, -3.0, 2.0))
+        el = sh + V((s * 0.9, -1.6, 2.6))
         strut(f"upper{s}", sh, el, 1.0, "BODY2", "arms")
         if s < 0:
-            box("felling_head", el + V((0, -0.6, 1.4)), (1.6, 2.4, 1.4), "BODY", "arms")
-            cyl("saw", el + V((0, -2.0, 1.4)) - V((0.15, 0, 0)), el + V((0, -2.0, 1.4)) + V((0.15, 0, 0)), 1.1, "METAL", "arms", 16)
+            box("felling_head", el + V((0, -0.4, 1.6)), (1.6, 2.0, 1.4), "BODY", "arms")
+            cyl("saw", el + V((0, -1.4, 2.4)) - V((0.15, 0, 0)), el + V((0, -1.4, 2.4)) + V((0.15, 0, 0)), 1.1, "METAL", "arms", 16)
         else:
             strut("fore", el, el + V((0, -0.4, 2.6)), 0.8, "BODY", "arms")
             box("claw", el + V((0, -0.4, 3.2)), (1.2, 1.0, 1.0), "ACCENT", "arms")
@@ -619,6 +639,7 @@ def lineman():
     hip_y, hx = 14.0, 3.4
     chicken_legs(hip_y, hx, 1.0, (4.0, 3.8), (3.2, 3.0))
     box("hips", (0, hip_y + 0.3, 0), (2 * hx + 1.0, 2.4, 3.2), "FRAME", "legs")
+    hip_y = waist(hip_y, hx)
     yc = hip_y + 4.0
     chamfered("torso", (0, yc, -0.4), (6.4, 5.4, 5.0), 0.6, "BODY", "torso")
     pod_in("cinema", (0, yc - 2.0, 1.9))
@@ -648,6 +669,7 @@ def driller():
     hip_y, hx = 14.4, 3.6
     chicken_legs(hip_y, hx, 1.05, (4.4, 4.0), (3.6, 3.2))
     box("hips", (0, hip_y + 0.3, -0.4), (2 * hx + 1.0, 2.4, 3.6), "FRAME", "legs")
+    hip_y = waist(hip_y, hx)
     yc = hip_y + 3.8
     chamfered("torso", (0, yc, -1.4), (6.6, 5.0, 4.4), 0.6, "BODY", "torso")
     pod_in("allview", (0, yc - 1.8, 1.6))
@@ -679,6 +701,7 @@ def bowser():
     hip_y, hx = 13.6, 3.8
     chicken_legs(hip_y, hx, 1.1, (4.4, 4.2), (3.6, 3.3))
     box("hips", (0, hip_y + 0.2, -0.6), (2 * hx + 1.2, 2.4, 3.8), "FRAME", "legs")
+    hip_y = waist(hip_y, hx)
     yc = hip_y + 2.8
     chamfered("chassis", (0, yc, 0.4), (6.0, 3.0, 6.4), 0.5, "BODY", "torso")
     pod_in("octagon", (0, yc - 1.0, 3.2))
@@ -707,6 +730,7 @@ def mule():
     hip_y, hx = 13.4, 4.0
     chicken_legs(hip_y, hx, 1.15, (5.2, 4.8), (4.2, 3.8))
     box("hips", (0, hip_y + 0.2, 0), (2 * hx + 1.4, 2.8, 4.0), "FRAME", "legs")
+    hip_y = waist(hip_y, hx)
     yc = hip_y + 3.4
     chamfered("torso", (0, yc, -0.4), (6.6, 4.2, 5.4), 0.6, "BODY", "torso")
     pod_in("twintier", (0, yc - 1.6, 2.3))
@@ -732,6 +756,7 @@ def pumper():
     hip_y, hx = 14.0, 3.5
     chicken_legs(hip_y, hx, 1.0, (4.2, 4.0), (3.4, 3.2))
     box("hips", (0, hip_y + 0.3, 0), (2 * hx + 1.0, 2.4, 3.2), "FRAME", "legs")
+    hip_y = waist(hip_y, hx)
     yc = hip_y + 3.8
     chamfered("torso", (0, yc, -0.6), (6.8, 5.0, 5.2), 0.6, "BODY", "torso")
     pod_in("tilewall", (0, yc - 1.8, 2.0))
@@ -764,6 +789,7 @@ def ploughman():
         cyl(f"hub{s}", (s * (hx + 0.2), hip_y, 0), (s * (hx + 1.6), hip_y, 0), 3.0, "RUBBER", "legs", 20)
         cyl(f"rim{s}", (s * (hx + 1.5), hip_y, 0), (s * (hx + 1.7), hip_y, 0), 1.8, "ACCENT", "legs", 16)
     box("hips", (0, hip_y + 0.2, 0), (2 * hx, 2.4, 3.4), "FRAME", "legs")
+    hip_y = waist(hip_y, hx)
     yc = hip_y + 2.8
     box("bonnet", (0, yc, 2.6), (3.8, 2.4, 6.0), "BODY", "torso")
     for i in range(6):

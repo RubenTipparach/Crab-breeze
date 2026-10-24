@@ -58,7 +58,7 @@ PAGE = r"""<title>Crab Breeze Mechs</title>
 * { box-sizing: border-box; }
 body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); margin: 0;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 32px; }
-header { display: grid; gap: 4px; margin: 0 auto 14px; max-width: 1400px; }
+header { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; margin: 0 auto 14px; max-width: 1400px; }
 .eyebrow { font: 500 12px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
 h1 { font: 700 34px/1 var(--display); letter-spacing: 0.03em; text-transform: uppercase; margin: 0; text-wrap: balance; }
 .lede { margin: 0; color: var(--muted); max-width: 76ch; }
@@ -96,7 +96,7 @@ aside { display: grid; gap: 12px; min-width: 0; }
 .note { font-size: 13px; color: var(--muted); margin: 0; }
 .foot { max-width: 1400px; margin: 16px auto 0; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
 .foot code { font: 12px var(--mono); overflow-wrap: anywhere; }
-.bo { margin: 8px 0 26px }
+.bo { margin: 8px 0 26px; min-width: 0 }
 .boh { font: 700 24px "Saira Condensed", sans-serif; text-transform: uppercase; margin: 14px 0 6px }
 .bop { max-width: 72ch; margin: 0 0 10px }
 .borow { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px }
