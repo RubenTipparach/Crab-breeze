@@ -1,0 +1,380 @@
+{
+  "variant": "tilewall",
+  "model": "assets/models/cockpit_tilewall/cockpit_tilewall.gltf",
+  "frame": "glTF: +y up, the pilot faces +z, +x is the pilot's left; metres; origin on the tub floor under the eye",
+  "eye_m": [
+    0.0,
+    1.2,
+    0.0
+  ],
+  "envelope_m": {
+    "x": [
+      -1.0859258262890683,
+      1.0859258262890683
+    ],
+    "y": [
+      -0.07,
+      2.29
+    ],
+    "z": [
+      -0.87,
+      0.8271067811865476
+    ]
+  },
+  "bounds_closed_m": {
+    "x": [
+      -1.025,
+      1.025
+    ],
+    "y": [
+      -0.055,
+      2.165
+    ],
+    "z": [
+      -0.79,
+      0.747
+    ]
+  },
+  "bounds_open_m": {
+    "x": [
+      -1.552,
+      1.552
+    ],
+    "y": [
+      -0.055,
+      2.165
+    ],
+    "z": [
+      -0.79,
+      3.009
+    ]
+  },
+  "doorway_m": {
+    "width": 1.07,
+    "height": 1.99,
+    "through": "the front face (+z)"
+  },
+  "sockets": {
+    "EYE_pilot": [
+      0.0,
+      1.2,
+      0.0
+    ],
+    "SEAT_pilot": [
+      0.0,
+      0.45,
+      -0.02
+    ],
+    "HATCH_entry": [
+      0.0,
+      0.02,
+      0.7571
+    ]
+  },
+  "motions": {
+    "INNER_petal_m": {
+      "value": 0.04,
+      "t0": 1.5,
+      "d": 0.3,
+      "slide": "z",
+      "pivot_m": [
+        0.0,
+        2.19,
+        0.7871
+      ]
+    },
+    "INNER_petal_m_1": {
+      "value": -1.5,
+      "t0": 1.8,
+      "d": 1.4,
+      "axis": "x",
+      "pivot_m": [
+        0.0,
+        2.19,
+        0.7871
+      ]
+    },
+    "INNER_petal_l": {
+      "value": 1.75,
+      "t0": 0.3,
+      "d": 1.5,
+      "axis": "y",
+      "pivot_m": [
+        1.0459,
+        0.0,
+        0.2803
+      ]
+    },
+    "INNER_petal_r": {
+      "value": -1.75,
+      "t0": 0.3,
+      "d": 1.5,
+      "axis": "y",
+      "pivot_m": [
+        -1.0459,
+        0.0,
+        0.2803
+      ]
+    }
+  },
+  "inner_opening_s": 3.0,
+  "front_screen_dir": [
+    0.0,
+    0.614,
+    0.789
+  ],
+  "allview_material": "SCREEN_allview",
+  "nodes": {
+    "pod": {
+      "parent": null,
+      "pivot_m": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "INNER_petal_m": {
+      "parent": "pod",
+      "pivot_m": [
+        0.0,
+        2.19,
+        0.7871
+      ]
+    },
+    "INNER_petal_m_1": {
+      "parent": "INNER_petal_m",
+      "pivot_m": [
+        0.0,
+        2.19,
+        0.7871
+      ]
+    },
+    "INNER_petal_l": {
+      "parent": "pod",
+      "pivot_m": [
+        1.0459,
+        0.0,
+        0.2803
+      ]
+    },
+    "INNER_petal_r": {
+      "parent": "pod",
+      "pivot_m": [
+        -1.0459,
+        0.0,
+        0.2803
+      ]
+    },
+    "CTRL_stick": {
+      "parent": "pod",
+      "pivot_m": [
+        -0.49,
+        0.665,
+        0.3
+      ]
+    },
+    "CTRL_throttle": {
+      "parent": "pod",
+      "pivot_m": [
+        0.4725,
+        0.66,
+        0.24
+      ]
+    },
+    "CONSOLE_front": {
+      "parent": "INNER_petal_m_1",
+      "pivot_m": [
+        0.0,
+        0.64,
+        0.4071
+      ]
+    },
+    "SCREEN_left": {
+      "parent": "CONSOLE_front",
+      "pivot_m": [
+        0.0,
+        0.64,
+        0.4071
+      ]
+    },
+    "SCREEN_center": {
+      "parent": "CONSOLE_front",
+      "pivot_m": [
+        0.0,
+        0.64,
+        0.4071
+      ]
+    },
+    "SCREEN_right": {
+      "parent": "CONSOLE_front",
+      "pivot_m": [
+        0.0,
+        0.64,
+        0.4071
+      ]
+    },
+    "HUD_mfd_0": {
+      "parent": "INNER_petal_m_1",
+      "pivot_m": [
+        0.0,
+        2.19,
+        0.7871
+      ]
+    },
+    "HUD_mfd_1": {
+      "parent": "INNER_petal_m_1",
+      "pivot_m": [
+        0.0,
+        2.19,
+        0.7871
+      ]
+    },
+    "HUD_mfd_2": {
+      "parent": "INNER_petal_m_1",
+      "pivot_m": [
+        0.0,
+        2.19,
+        0.7871
+      ]
+    }
+  },
+  "meshes": {
+    "CONSOLE_front_front": {
+      "tris": 8304,
+      "group": "front",
+      "node": "CONSOLE_front"
+    },
+    "CTRL_stick_front": {
+      "tris": 628,
+      "group": "front",
+      "node": "CTRL_stick"
+    },
+    "CTRL_throttle_front": {
+      "tris": 628,
+      "group": "front",
+      "node": "CTRL_throttle"
+    },
+    "HUD_mfd_0_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "HUD_mfd_0"
+    },
+    "HUD_mfd_1_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "HUD_mfd_1"
+    },
+    "HUD_mfd_2_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "HUD_mfd_2"
+    },
+    "INNER_petal_l_allview": {
+      "tris": 4,
+      "group": "allview",
+      "node": "INNER_petal_l"
+    },
+    "INNER_petal_l_cabin": {
+      "tris": 1264,
+      "group": "cabin",
+      "node": "INNER_petal_l"
+    },
+    "INNER_petal_m_1_allview": {
+      "tris": 4,
+      "group": "allview",
+      "node": "INNER_petal_m_1"
+    },
+    "INNER_petal_m_1_cabin": {
+      "tris": 1600,
+      "group": "cabin",
+      "node": "INNER_petal_m_1"
+    },
+    "INNER_petal_r_allview": {
+      "tris": 4,
+      "group": "allview",
+      "node": "INNER_petal_r"
+    },
+    "INNER_petal_r_cabin": {
+      "tris": 1264,
+      "group": "cabin",
+      "node": "INNER_petal_r"
+    },
+    "SCREEN_center_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "SCREEN_center"
+    },
+    "SCREEN_left_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "SCREEN_left"
+    },
+    "SCREEN_right_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "SCREEN_right"
+    },
+    "pod_allview": {
+      "tris": 8,
+      "group": "allview",
+      "node": "pod"
+    },
+    "pod_cabin": {
+      "tris": 13636,
+      "group": "cabin",
+      "node": "pod"
+    },
+    "pod_front": {
+      "tris": 24,
+      "group": "front",
+      "node": "pod"
+    }
+  },
+  "vents": 8,
+  "lights": 6,
+  "tris": 27380,
+  "tri_budget": 600000,
+  "draw_calls": 18,
+  "atlases": {
+    "front": {
+      "maps": [
+        "albedo",
+        "emissive",
+        "normal",
+        "orm"
+      ],
+      "px": 512,
+      "emissive_strength": 1.0
+    },
+    "cabin": {
+      "maps": [
+        "albedo",
+        "emissive",
+        "normal",
+        "orm"
+      ],
+      "px": 512,
+      "emissive_strength": 1.0
+    }
+  },
+  "bake": {
+    "ao_samples": 8,
+    "denoised": true,
+    "maps": "base colour, tangent normal, ORM (R occlusion, G roughness, B metal), emission; light is real time"
+  },
+  "panels": [
+    "breakers_L",
+    "breakers_R",
+    "console_L",
+    "console_R",
+    "dash_main",
+    "floor",
+    "footwell",
+    "glare",
+    "knee",
+    "rear",
+    "wall_L",
+    "wall_R"
+  ],
+  "bytes": 3784056
+}

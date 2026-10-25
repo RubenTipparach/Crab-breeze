@@ -1,0 +1,418 @@
+{
+  "variant": "octagon",
+  "model": "assets/models/cockpit_octagon/cockpit_octagon.gltf",
+  "frame": "glTF: +y up, the pilot faces +z, +x is the pilot's left; metres; origin on the tub floor under the eye",
+  "eye_m": [
+    0.0,
+    1.2,
+    0.0
+  ],
+  "envelope_m": {
+    "x": [
+      -1.17,
+      1.17
+    ],
+    "y": [
+      -0.07,
+      2.35
+    ],
+    "z": [
+      -0.97,
+      0.92
+    ]
+  },
+  "bounds_closed_m": {
+    "x": [
+      -1.09,
+      1.09
+    ],
+    "y": [
+      -0.055,
+      2.225
+    ],
+    "z": [
+      -0.89,
+      0.869
+    ]
+  },
+  "bounds_open_m": {
+    "x": [
+      -2.995,
+      2.995
+    ],
+    "y": [
+      -0.055,
+      2.916
+    ],
+    "z": [
+      -0.89,
+      3.188
+    ]
+  },
+  "doorway_m": {
+    "width": 1.32,
+    "height": 2.05,
+    "through": "the front face (+z)"
+  },
+  "sockets": {
+    "EYE_pilot": [
+      0.0,
+      1.2,
+      0.0
+    ],
+    "SEAT_pilot": [
+      0.0,
+      0.45,
+      -0.02
+    ],
+    "HATCH_entry": [
+      0.0,
+      0.02,
+      0.85
+    ]
+  },
+  "motions": {
+    "INNER_wing_l": {
+      "value": 0.03,
+      "t0": 0.3,
+      "d": 0.3,
+      "slide": "y",
+      "pivot_m": [
+        0.84,
+        2.25,
+        0.0
+      ]
+    },
+    "INNER_wing_l_1": {
+      "value": 1.75,
+      "t0": 0.65,
+      "d": 1.8,
+      "axis": "z",
+      "pivot_m": [
+        0.84,
+        2.25,
+        0.0
+      ]
+    },
+    "INNER_wing_r": {
+      "value": 0.03,
+      "t0": 0.3,
+      "d": 0.3,
+      "slide": "y",
+      "pivot_m": [
+        -0.84,
+        2.25,
+        0.0
+      ]
+    },
+    "INNER_wing_r_1": {
+      "value": -1.75,
+      "t0": 0.65,
+      "d": 1.8,
+      "axis": "z",
+      "pivot_m": [
+        -0.84,
+        2.25,
+        0.0
+      ]
+    },
+    "INNER_front": {
+      "value": 0.04,
+      "t0": 0.35,
+      "d": 0.3,
+      "slide": "z",
+      "pivot_m": [
+        0.0,
+        -0.08,
+        0.88
+      ]
+    },
+    "INNER_front_1": {
+      "value": 1.5,
+      "t0": 0.9,
+      "d": 2.0,
+      "axis": "x",
+      "pivot_m": [
+        0.0,
+        -0.08,
+        0.88
+      ]
+    }
+  },
+  "inner_opening_s": 3.0,
+  "front_screen_dir": [
+    0.0,
+    0.625,
+    0.781
+  ],
+  "allview_material": "SCREEN_allview",
+  "nodes": {
+    "pod": {
+      "parent": null,
+      "pivot_m": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "INNER_wing_l": {
+      "parent": "pod",
+      "pivot_m": [
+        0.84,
+        2.25,
+        0.0
+      ]
+    },
+    "INNER_wing_l_1": {
+      "parent": "INNER_wing_l",
+      "pivot_m": [
+        0.84,
+        2.25,
+        0.0
+      ]
+    },
+    "INNER_wing_r": {
+      "parent": "pod",
+      "pivot_m": [
+        -0.84,
+        2.25,
+        0.0
+      ]
+    },
+    "INNER_wing_r_1": {
+      "parent": "INNER_wing_r",
+      "pivot_m": [
+        -0.84,
+        2.25,
+        0.0
+      ]
+    },
+    "INNER_front": {
+      "parent": "pod",
+      "pivot_m": [
+        0.0,
+        -0.08,
+        0.88
+      ]
+    },
+    "INNER_front_1": {
+      "parent": "INNER_front",
+      "pivot_m": [
+        0.0,
+        -0.08,
+        0.88
+      ]
+    },
+    "CTRL_stick": {
+      "parent": "pod",
+      "pivot_m": [
+        -0.49,
+        0.665,
+        0.3
+      ]
+    },
+    "CTRL_throttle": {
+      "parent": "pod",
+      "pivot_m": [
+        0.4725,
+        0.66,
+        0.24
+      ]
+    },
+    "CONSOLE_front": {
+      "parent": "INNER_front_1",
+      "pivot_m": [
+        0.0,
+        0.59,
+        0.5
+      ]
+    },
+    "SCREEN_left": {
+      "parent": "CONSOLE_front",
+      "pivot_m": [
+        0.0,
+        0.59,
+        0.5
+      ]
+    },
+    "SCREEN_center": {
+      "parent": "CONSOLE_front",
+      "pivot_m": [
+        0.0,
+        0.59,
+        0.5
+      ]
+    },
+    "SCREEN_right": {
+      "parent": "CONSOLE_front",
+      "pivot_m": [
+        0.0,
+        0.59,
+        0.5
+      ]
+    },
+    "HUD_mfd_0": {
+      "parent": "INNER_front_1",
+      "pivot_m": [
+        0.0,
+        -0.08,
+        0.88
+      ]
+    },
+    "HUD_mfd_1": {
+      "parent": "INNER_front_1",
+      "pivot_m": [
+        0.0,
+        -0.08,
+        0.88
+      ]
+    },
+    "HUD_mfd_2": {
+      "parent": "INNER_front_1",
+      "pivot_m": [
+        0.0,
+        -0.08,
+        0.88
+      ]
+    }
+  },
+  "meshes": {
+    "CONSOLE_front_front": {
+      "tris": 8304,
+      "group": "front",
+      "node": "CONSOLE_front"
+    },
+    "CTRL_stick_front": {
+      "tris": 628,
+      "group": "front",
+      "node": "CTRL_stick"
+    },
+    "CTRL_throttle_front": {
+      "tris": 628,
+      "group": "front",
+      "node": "CTRL_throttle"
+    },
+    "HUD_mfd_0_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "HUD_mfd_0"
+    },
+    "HUD_mfd_1_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "HUD_mfd_1"
+    },
+    "HUD_mfd_2_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "HUD_mfd_2"
+    },
+    "INNER_front_1_allview": {
+      "tris": 4,
+      "group": "allview",
+      "node": "INNER_front_1"
+    },
+    "INNER_front_1_cabin": {
+      "tris": 1612,
+      "group": "cabin",
+      "node": "INNER_front_1"
+    },
+    "INNER_wing_l_1_allview": {
+      "tris": 10,
+      "group": "allview",
+      "node": "INNER_wing_l_1"
+    },
+    "INNER_wing_l_1_cabin": {
+      "tris": 2962,
+      "group": "cabin",
+      "node": "INNER_wing_l_1"
+    },
+    "INNER_wing_r_1_allview": {
+      "tris": 10,
+      "group": "allview",
+      "node": "INNER_wing_r_1"
+    },
+    "INNER_wing_r_1_cabin": {
+      "tris": 2962,
+      "group": "cabin",
+      "node": "INNER_wing_r_1"
+    },
+    "SCREEN_center_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "SCREEN_center"
+    },
+    "SCREEN_left_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "SCREEN_left"
+    },
+    "SCREEN_right_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "SCREEN_right"
+    },
+    "pod_allview": {
+      "tris": 8,
+      "group": "allview",
+      "node": "pod"
+    },
+    "pod_cabin": {
+      "tris": 14072,
+      "group": "cabin",
+      "node": "pod"
+    },
+    "pod_front": {
+      "tris": 24,
+      "group": "front",
+      "node": "pod"
+    }
+  },
+  "vents": 10,
+  "lights": 6,
+  "tris": 31236,
+  "tri_budget": 600000,
+  "draw_calls": 18,
+  "atlases": {
+    "front": {
+      "maps": [
+        "albedo",
+        "emissive",
+        "normal",
+        "orm"
+      ],
+      "px": 512,
+      "emissive_strength": 1.0
+    },
+    "cabin": {
+      "maps": [
+        "albedo",
+        "emissive",
+        "normal",
+        "orm"
+      ],
+      "px": 512,
+      "emissive_strength": 1.0
+    }
+  },
+  "bake": {
+    "ao_samples": 8,
+    "denoised": true,
+    "maps": "base colour, tangent normal, ORM (R occlusion, G roughness, B metal), emission; light is real time"
+  },
+  "panels": [
+    "breakers_L",
+    "breakers_R",
+    "console_L",
+    "console_R",
+    "dash_main",
+    "floor",
+    "footwell",
+    "glare",
+    "knee",
+    "rear",
+    "wall_L",
+    "wall_R"
+  ],
+  "bytes": 4233915
+}

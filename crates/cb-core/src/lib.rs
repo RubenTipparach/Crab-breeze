@@ -161,6 +161,20 @@ mod tests {
         }
     }
 
+    /// Every roster mech sits in a cockpit of its own (openspec change `cockpit-identity`).
+    #[test]
+    fn no_two_mechs_share_a_cockpit_interior() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let mut seen: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+        for mech in GameData::mech_files(&root) {
+            let cfg: mech::MechConfig = data::load_ron(&root.join(&mech)).unwrap_or_else(|e| panic!("{e}"));
+            let Some(interior) = cfg.interior else { continue };
+            if let Some(other) = seen.insert(interior.model.clone(), mech.clone()) {
+                panic!("{mech} and {other} both sit in {}", interior.model);
+            }
+        }
+    }
+
     #[test]
     fn every_defence_wave_names_units_that_exist() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
