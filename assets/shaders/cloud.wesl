@@ -1,7 +1,7 @@
-// The sky's clouds (openspec change `cloud-weather`): every puff of the weather is one camera-facing
-// billboard, its edge eaten by noise and lit as a sphere by the scene's sun and sky (the light the
-// ground and the water get, through `water_light` in Rust); rain shafts are billboards turned about
-// the vertical with streaks falling; cirrus are flat streaks high up. All three are items of one
+// The sky's clouds (openspec change `cloud-weather`): every puff of the weather is one billboard
+// facing the eye's position and kept upright (`facing`), its edge eaten by noise and lit as a sphere
+// by the scene's sun and sky (the light the ground and the water get, through `water_light` in
+// Rust); rain shafts are billboards turned about the vertical with streaks falling; cirrus are flat streaks high up. All three are items of one
 // mesh, sorted back to front on the CPU, drawn in one alpha-blended draw. Each billboard fades
 // where it meets the ground behind it (the depth prepass, "soft particles") and near the eye, where
 // the cloud fog takes over; Bevy's fog hazes far ones. Linear HDR colour, reverse-Z depth.
@@ -67,6 +67,23 @@ struct CloudFragment {
     @location(2) @interpolate(flat) shape: vec4<f32>,
     @location(3) @interpolate(flat) look: vec4<f32>,
     @location(4) @interpolate(flat) layer: vec2<f32>,
+    // The puff's centre (with the wind's drift), for its facing frame.
+    @location(5) @interpolate(flat) centre: vec3<f32>,
+}
+
+// A puff's frame: it faces the eye's position and stays upright (owner, 2026-10-25: "cloud
+// rotations billboard kinda suck, I think they shoudl do rolling rotations to face you"), so turning
+// the head leaves the sky where it is; only moving past a puff turns it. Columns: right, up, and
+// back toward the eye. Straight under or over a puff, where upright has no meaning, it takes the
+// view's right.
+fn facing(c: vec3<f32>, eye: vec3<f32>) -> mat3x3<f32> {
+    let back = normalize(eye - c + vec3<f32>(0.0, 1e-3, 0.0));
+    let flat_right = cross(vec3<f32>(0.0, 1.0, 0.0), back);
+    let view_right = view.world_from_view[0].xyz;
+    let screen_right = view_right - back * dot(view_right, back);
+    let right = normalize(mix(screen_right, flat_right, smoothstep(0.02, 0.2, length(flat_right))));
+    let up = cross(back, right);
+    return mat3x3<f32>(right, up, back);
 }
 
 @vertex
@@ -75,8 +92,6 @@ fn vertex(in: CloudVertex) -> CloudFragment {
     let drift = get_world_from_local(in.instance_index)[3].xyz;
     let c = in.centre + drift;
     let eye = view.world_position;
-    let right = view.world_from_view[0].xyz;
-    let up = view.world_from_view[1].xyz;
     let kind = in.look.x;
     var wp: vec3<f32>;
     if kind > KIND_CIRRUS - 0.5 {
@@ -93,8 +108,9 @@ fn vertex(in: CloudVertex) -> CloudFragment {
         wp = c + across * (in.corner.x * in.shape.x) + vec3<f32>(0.0, in.corner.y * 0.5 * in.shape.y, 0.0);
     } else {
         // A flat puff seen from above is round: its height on screen grows toward its width.
-        let k = abs(normalize(eye - c).y);
-        wp = c + right * (in.corner.x * in.shape.x) + up * (in.corner.y * mix(in.shape.y, in.shape.x, k * k));
+        let f = facing(c, eye);
+        let k = abs(f[2].y);
+        wp = c + f[0] * (in.corner.x * in.shape.x) + f[1] * (in.corner.y * mix(in.shape.y, in.shape.x, k * k));
     }
     out.position = position_world_to_clip(wp);
     out.world = wp;
@@ -102,6 +118,7 @@ fn vertex(in: CloudVertex) -> CloudFragment {
     out.shape = in.shape;
     out.look = in.look;
     out.layer = in.layer;
+    out.centre = c;
     return out;
 }
 
@@ -153,9 +170,10 @@ fn puff(in: CloudFragment, look: vec3<f32>, dist: f32) -> vec4<f32> {
     let n2 = vn(p * 7.0 + seed * 5.0);
     let erode = select(cloud.fade.y, 0.22, abs(in.look.x - KIND_CAP) < 0.5);
     let dens = smoothstep(1.0, 0.45, d + (n - 0.5) * erode + (n2 - 0.5) * 0.2);
-    let right = view.world_from_view[0].xyz;
-    let up = view.world_from_view[1].xyz;
-    let back = view.world_from_view[2].xyz;
+    let f = facing(in.centre, view.world_position);
+    let right = f[0];
+    let up = f[1];
+    let back = f[2];
     let z = sqrt(max(0.0, 1.0 - d * d));
     let nrm = normalize(right * p.x + up * p.y + back * (z + 0.15) + 0.5 * (vec3<f32>(n, n2, n) - 0.5));
     let sun = normalize(cloud.sun_dir.xyz);
