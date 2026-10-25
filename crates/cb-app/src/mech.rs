@@ -1090,8 +1090,9 @@ pub fn step_mech(
             } else {
                 MechControls::default()
             }
-        } else if !seated {
-            // The enemies wait until the pilot is in the seat: no one fights an empty mech.
+        } else if !seated && !std::env::var("CB_ENEMY_STUNT").is_ok_and(|v| v == "hover") {
+            // The enemies wait until the pilot is in the seat: no one fights an empty mech. (The hover
+            // test instrument flies them anyway, so an on-foot still can look at their jets.)
             MechControls::default()
         } else if let (Some((mut enemy, goal)), Some((player_at, player_vel, player_dead))) = (enemy, player) {
             // A mission may send it at something else (city-defence: a building to shell).
