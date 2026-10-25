@@ -15,6 +15,42 @@ fn shipped() -> WorldConfig {
     load_ron(&data_path("data/world/world.ron")).expect("shipped world data loads")
 }
 
+/// The shipped world data with rivers switched on, for the river generator's own tests and the golden
+/// world (rivers are off in the game for now: `WaterConfig::rivers`).
+fn with_rivers() -> WorldConfig {
+    let mut cfg = shipped();
+    cfg.water.rivers = true;
+    cfg
+}
+
+fn seed_42_rivers() -> &'static WorldPlan {
+    static PLAN: OnceLock<WorldPlan> = OnceLock::new();
+    PLAN.get_or_init(|| generate(42, &with_rivers()))
+}
+
+#[test]
+fn the_shipped_world_has_lakes_and_the_sea_and_no_rivers() {
+    let plan = seed_42();
+    let w = &plan.waters;
+    assert!(
+        w.rivers.is_empty() && w.falls.is_empty() && w.bridges.is_empty(),
+        "no rivers, falls or bridges"
+    );
+    assert!(!w.lakes.list.is_empty(), "the basin lakes stay");
+    assert!(plan.water_at(19_000.0, 0.0).is_some(), "the sea");
+    // Nothing is carved for a river: the ground is the ground of the same world without rivers'
+    // channels, away from the lakes.
+    let rivers = seed_42_rivers();
+    let r = &rivers.waters.rivers[0];
+    let p = r.path[r.path.len() / 2];
+    if w.lakes.at(p).is_none() {
+        assert!(
+            plan.terrain.height_at(p.x, p.y) > rivers.terrain.height_at(p.x, p.y),
+            "the river's bed is not dug"
+        );
+    }
+}
+
 fn seed_42() -> &'static WorldPlan {
     static PLAN: OnceLock<WorldPlan> = OnceLock::new();
     PLAN.get_or_init(|| {
@@ -68,7 +104,7 @@ fn a_different_seed_builds_a_different_world() {
 
 #[test]
 fn seed_42_builds_the_golden_world() {
-    let plan = seed_42();
+    let plan = seed_42_rivers();
     let summary = (
         plan.cities.len(),
         plan.buildings.len(),
@@ -437,9 +473,9 @@ fn the_shore_shelves_gently_enough_to_walk_out_of_the_sea() {
 
 #[test]
 fn seed_42_has_rivers_and_the_sea() {
-    let w = &seed_42().waters;
+    let w = &seed_42_rivers().waters;
     assert!(w.rivers.len() >= 3, "rivers: {}", w.rivers.len());
-    assert!(seed_42().water_at(19_000.0, 0.0).is_some(), "the sea");
+    assert!(seed_42_rivers().water_at(19_000.0, 0.0).is_some(), "the sea");
 }
 
 #[test]
@@ -676,7 +712,7 @@ fn only_the_seen_body_grows_trees_out_to_the_keep_radius() {
 
 #[test]
 fn the_crater_wall_has_waterfalls_at_least_the_least_height() {
-    let plan = seed_42();
+    let plan = seed_42_rivers();
     let cfg = shipped();
     assert!(!plan.waters.falls.is_empty(), "no waterfalls");
     for f in &plan.waters.falls {
@@ -754,9 +790,9 @@ fn measure_river_water_against_the_ground() {
 fn far_terrain_never_hides_a_rivers_water() {
     // At every coarse step, the four corners of the far cell holding a river's water lie under its
     // surface, so the water is drawn over the far ground (owner, 2026-10-25: "rivers misssing").
-    let plan = seed_42();
+    let plan = seed_42_rivers();
     let t = &plan.terrain;
-    let road_flat = shipped().highway_width_m * 0.5 + shipped().highway_flat_margin_m;
+    let road_flat = with_rivers().highway_width_m * 0.5 + with_rivers().highway_flat_margin_m;
     let (mut checked, mut over, mut worst) = (0, 0, 0.0f32);
     let mut before = 0;
     for (ri, r) in plan.waters.rivers.iter().enumerate() {

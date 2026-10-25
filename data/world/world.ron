@@ -181,6 +181,11 @@
     // (owner, 2026-10-25: "too many lakes"). A river that drops 12 m in one
     // 16 m step (a cliff, not a steep slope) for 25 m or more is a waterfall, with a plunge pool under it.
     water: (
+        // No rivers for now, and nothing carved for them: the sea and the basin lakes stay (owner,
+        // 2026-10-25: "they dont integrate well with the terrain", "I just want to turn off river
+        // geometry, and river caving terrain", "lakes and oceans should work still"). `true` brings
+        // back the rivers, their waterfalls, plunge pools and bridges.
+        rivers: false,
         city_freeboard_m: 2.0,
         drainage_cell_m: 128.0,
         lowland_rain: 0.08,
