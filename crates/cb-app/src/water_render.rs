@@ -61,6 +61,8 @@ pub struct WaterEye {
     pub submersion: f32,
     /// How strongly drops run on the glass, 0..1.
     pub drips: f32,
+    /// Rain on the glass from cloud, 0..1 (`cb_core::water_look::cloud_glass`).
+    pub rain: f32,
     /// The sealed cabin's dry radius about the eye, metres; 0 on foot.
     pub cabin_m: f32,
     /// The glass's memory of the water.
@@ -97,15 +99,15 @@ pub struct WaterSurfaceUniform {
 
 /// The light the water sees this frame, all times the camera's exposure.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-struct WaterLight {
+pub(crate) struct WaterLight {
     /// Toward the sun.
-    sun_dir: Vec3,
+    pub sun_dir: Vec3,
     /// The sun's light.
-    sun: Vec3,
+    pub sun: Vec3,
     /// The light reaching the water body from above: the sun over pi on a level surface and the
     /// ambient light (Bevy's Lambert and ambient terms, so the water sits in the same light as the
     /// ground).
-    body: Vec3,
+    pub body: Vec3,
 }
 
 fn v3(c: [f32; 3]) -> Vec3 {
@@ -265,13 +267,16 @@ pub fn track_eye(
         eye.submersion = submersion(eye.depth_m, look.partial_band_m);
         let state = eye.submersion;
         eye.drips = eye.lens.step(time.elapsed_secs(), state, look.emerge_dry_s);
+        // Flying through a cloud wets the glass (the external cameras' lenses when seated).
+        let density = plan.clouds.density_at(p, time.elapsed_secs());
+        eye.rain = cb_core::water_look::cloud_glass(eye.rain, density, time.delta_secs(), look);
         eye.cabin_m = if seated { look.cabin_dry_radius_m } else { 0.0 };
     }
 }
 
 /// The light the water sees: the first directional light (the sun), the ambient light and the
 /// camera's exposure, as Bevy's lighting would apply them.
-fn water_light(sun: Option<(&DirectionalLight, &GlobalTransform)>, ambient: &GlobalAmbientLight, exposure: f32) -> WaterLight {
+pub(crate) fn water_light(sun: Option<(&DirectionalLight, &GlobalTransform)>, ambient: &GlobalAmbientLight, exposure: f32) -> WaterLight {
     let (sun_dir, sun) = sun.map_or((Vec3::Y, Vec3::ZERO), |(light, transform)| {
         let c = LinearRgba::from(light.color);
         (
@@ -519,9 +524,9 @@ fn prepare_water_post(
             deep: look.deep.extend(look.distortion),
             light: settings.light.extend(look.wet_blur),
             lens: look.lens,
-            lens_fx: Vec4::new(eye.drips, look.lens_rain, look.lens_scale, eye.cabin_m),
+            lens_fx: Vec4::new(eye.drips, look.lens_rain.max(eye.rain), look.lens_scale, eye.cabin_m),
         };
-        let (run_compose, run_lens) = passes_needed(&eye, look.lens_rain);
+        let (run_compose, run_lens) = passes_needed(&eye, look.lens_rain.max(eye.rain));
         let multisampled = msaa.samples() > 1;
         // Cached by key: a lookup each frame, a new pipeline only if the format or MSAA changed.
         let mut id = |pass| {

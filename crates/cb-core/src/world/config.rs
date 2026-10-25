@@ -4,29 +4,37 @@
 //! `openspec/changes/procgen-world/design.md`.
 
 use crate::data::{Validate, finite, positive, positive_range, within};
+use glam::Vec2;
 use serde::Deserialize;
 
-/// Rivers and lakes (openspec change `terrain-water`).
+/// Rivers, lakes and waterfalls (openspec changes `terrain-water`, `hydrology`). Where water goes is
+/// worked out on a coarse drainage grid: every cell drains to its lowest neighbour, basins fill to
+/// their spill point as lakes, and a cell whose drained snowmelt and rain pass `stream_min_flow` is
+/// a stream; streams meet and widen into rivers (hydrology design section 2).
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct WaterConfig {
     /// Every city's ground stands at least this far above sea level.
     pub city_freeboard_m: f32,
-    /// Rivers to run.
-    pub river_count: u32,
-    /// Grid a river's course is chosen on.
-    pub river_grid_m: f32,
-    /// Most grid steps a river takes.
-    pub river_max_steps: u32,
-    /// Random height added to each step's choice: larger meanders more.
-    pub meander_m: f32,
-    /// Least distance between a river and a city square.
+    /// Cell size of the drainage grid.
+    pub drainage_cell_m: f32,
+    /// Rain a lowland cell gives, as a share of what a cell above the snowline gives in melt.
+    pub lowland_rain: f32,
+    /// Melt ramps up over this height below the snowline (`range.snowline_m`).
+    pub melt_band_m: f32,
+    /// A cell is a stream when the water draining through it is at least this many snow cells' worth.
+    pub stream_min_flow: f32,
+    /// Fewest drainage cells a stream runs before it meets another or the sea.
+    pub stream_min_cells: u32,
+    /// Spacing of the points along a river's course.
+    pub river_step_m: f32,
+    /// Least distance between a river or lake and a city square.
     pub river_city_clearance_m: f32,
-    /// Water surface width at the source.
-    pub river_width_m: f32,
-    /// Width grows by this share from source to mouth.
-    pub river_widening: f32,
-    /// Depth at the channel's centre.
+    /// Half width of a stream at `stream_min_flow`; a river is wider by the square root of its flow.
+    pub stream_half_width_m: f32,
+    /// Widest half width of a river.
+    pub river_max_half_width_m: f32,
+    /// Depth at the channel's centre (a stream's is at most half its width).
     pub river_depth_m: f32,
     /// Water surface below the surrounding ground.
     pub freeboard_m: f32,
@@ -34,23 +42,52 @@ pub struct WaterConfig {
     pub bank_slope: f32,
     /// River flow speed.
     pub flow_m_s: f32,
+    /// A basin is a lake when the water stands at least this deep in it.
+    pub lake_min_depth_m: f32,
+    /// A basin is a lake when it covers at least this many drainage cells.
+    pub lake_min_cells: u32,
+    /// Most lakes in basins (the largest are kept); plunge pools under waterfalls come on top.
+    pub lake_max_count: u32,
+    /// Radius range of a lake.
+    pub lake_radius_m: [f32; 2],
+    /// Depth of a lake's bowl at its centre.
+    pub lake_depth_m: f32,
+    /// How far the shore wanders in or out, as a share of the radius.
+    pub lake_shore_wobble: f32,
+    /// A river falls (a waterfall) where its surface drops at least this much in one `river_step_m`.
+    pub fall_step_m: f32,
+    /// Least height of a waterfall.
+    pub fall_min_height_m: f32,
+    /// A waterfall's plunge pool has this radius per metre of fall, within `lake_radius_m`'s lower half.
+    pub plunge_radius_per_m: f32,
 }
 
 impl Default for WaterConfig {
     fn default() -> Self {
         Self {
             city_freeboard_m: 2.0,
-            river_count: 6,
-            river_grid_m: 32.0,
-            river_max_steps: 700,
-            meander_m: 6.0,
+            drainage_cell_m: 128.0,
+            lowland_rain: 0.08,
+            melt_band_m: 400.0,
+            stream_min_flow: 12.0,
+            stream_min_cells: 3,
+            river_step_m: 16.0,
             river_city_clearance_m: 80.0,
-            river_width_m: 36.0,
-            river_widening: 0.4,
+            stream_half_width_m: 5.0,
+            river_max_half_width_m: 28.0,
             river_depth_m: 7.0,
             freeboard_m: 2.0,
             bank_slope: 0.45,
             flow_m_s: 1.5,
+            lake_min_depth_m: 8.0,
+            lake_min_cells: 16,
+            lake_max_count: 10,
+            lake_radius_m: [70.0, 900.0],
+            lake_depth_m: 14.0,
+            lake_shore_wobble: 0.12,
+            fall_step_m: 12.0,
+            fall_min_height_m: 25.0,
+            plunge_radius_per_m: 1.4,
         }
     }
 }
@@ -58,15 +95,201 @@ impl Default for WaterConfig {
 impl Validate for WaterConfig {
     fn validate(&self) -> Result<(), String> {
         finite("water.city_freeboard_m", self.city_freeboard_m)?;
-        positive("water.river_grid_m", self.river_grid_m)?;
-        finite("water.meander_m", self.meander_m)?;
+        positive("water.drainage_cell_m", self.drainage_cell_m)?;
+        within("water.lowland_rain", self.lowland_rain, 0.0, 1.0)?;
+        positive("water.melt_band_m", self.melt_band_m)?;
+        positive("water.stream_min_flow", self.stream_min_flow)?;
+        positive("water.river_step_m", self.river_step_m)?;
         finite("water.river_city_clearance_m", self.river_city_clearance_m)?;
-        positive("water.river_width_m", self.river_width_m)?;
-        finite("water.river_widening", self.river_widening)?;
+        positive("water.stream_half_width_m", self.stream_half_width_m)?;
+        positive("water.river_max_half_width_m", self.river_max_half_width_m)?;
+        if self.river_max_half_width_m < self.stream_half_width_m {
+            return Err("`water.river_max_half_width_m` must be at least `water.stream_half_width_m`".into());
+        }
         positive("water.river_depth_m", self.river_depth_m)?;
         finite("water.freeboard_m", self.freeboard_m)?;
         positive("water.bank_slope", self.bank_slope)?;
         finite("water.flow_m_s", self.flow_m_s)?;
+        positive("water.lake_min_depth_m", self.lake_min_depth_m)?;
+        positive_range("water.lake_radius_m", self.lake_radius_m)?;
+        positive("water.lake_depth_m", self.lake_depth_m)?;
+        within("water.lake_shore_wobble", self.lake_shore_wobble, 0.0, 0.5)?;
+        positive("water.fall_step_m", self.fall_step_m)?;
+        positive("water.fall_min_height_m", self.fall_min_height_m)?;
+        positive("water.plunge_radius_per_m", self.plunge_radius_per_m)?;
+        Ok(())
+    }
+}
+
+/// The mountain range (openspec change `hydrology`, from `island-biomes`): a crater of mountains
+/// round the island's middle (owner, 2026-10-25: "need a crater like moutain range at center of
+/// islan"): ridged peaks under an envelope round a rim circle, snow above the snowline, a cliff band
+/// along each side of the rim (inside, the crater's wall) that the rivers fall over, and passes
+/// cut through it for the rivers and roads.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct RangeConfig {
+    /// Middle of the crater (x, z).
+    pub centre_m: [f32; 2],
+    /// Radius of the rim's crest.
+    pub radius_m: f32,
+    /// The range falls to nothing this far either side of the rim.
+    pub half_width_m: f32,
+    /// Height of the highest peaks above the land under them; zero for no range.
+    pub peak_m: f32,
+    /// Wavelength of the ridges' first octave.
+    pub ridge_wavelength_m: f32,
+    /// Ridge octaves (fewer is smoother).
+    pub ridge_octaves: u32,
+    /// How far the ridges are pushed about, so they do not run in lattice lines.
+    pub warp_m: f32,
+    /// Snow lies above this height.
+    pub snowline_m: f32,
+    /// The cliff band runs this far from the rim on each side.
+    pub scarp_offset_m: f32,
+    /// Height of the cliff band.
+    pub scarp_m: f32,
+    /// Width over which the cliff band drops.
+    pub scarp_width_m: f32,
+    /// Most the cliff band's line wanders in or out.
+    pub scarp_wobble_m: f32,
+    /// Bearings of the passes through the rim, degrees clockwise from north (-z).
+    pub passes_deg: Vec<f32>,
+    /// A pass is open within half this of its bearing and closes over the rest.
+    pub pass_width_deg: f32,
+}
+
+impl Default for RangeConfig {
+    fn default() -> Self {
+        Self {
+            centre_m: [0.0, 0.0],
+            radius_m: 5500.0,
+            half_width_m: 3000.0,
+            peak_m: 1700.0,
+            ridge_wavelength_m: 3600.0,
+            ridge_octaves: 5,
+            warp_m: 900.0,
+            snowline_m: 900.0,
+            scarp_offset_m: 1800.0,
+            scarp_m: 60.0,
+            scarp_width_m: 14.0,
+            scarp_wobble_m: 300.0,
+            passes_deg: vec![35.0, 160.0, 265.0],
+            pass_width_deg: 10.0,
+        }
+    }
+}
+
+impl Validate for RangeConfig {
+    fn validate(&self) -> Result<(), String> {
+        finite("range.centre_m", self.centre_m[0])?;
+        finite("range.centre_m", self.centre_m[1])?;
+        positive("range.radius_m", self.radius_m)?;
+        positive("range.half_width_m", self.half_width_m)?;
+        for &b in &self.passes_deg {
+            finite("range.passes_deg", b)?;
+        }
+        within("range.pass_width_deg", self.pass_width_deg, 0.0, 180.0)?;
+        within("range.peak_m", self.peak_m, 0.0, 5000.0)?;
+        positive("range.ridge_wavelength_m", self.ridge_wavelength_m)?;
+        if self.ridge_octaves == 0 || self.ridge_octaves > 8 {
+            return Err("`range.ridge_octaves` must be 1 to 8".into());
+        }
+        finite("range.warp_m", self.warp_m)?;
+        finite("range.snowline_m", self.snowline_m)?;
+        positive("range.scarp_offset_m", self.scarp_offset_m)?;
+        if self.scarp_offset_m >= self.half_width_m {
+            return Err("`range.scarp_offset_m` must be inside `range.half_width_m`".into());
+        }
+        within("range.scarp_m", self.scarp_m, 0.0, 500.0)?;
+        positive("range.scarp_width_m", self.scarp_width_m)?;
+        finite("range.scarp_wobble_m", self.scarp_wobble_m)?;
+        Ok(())
+    }
+}
+
+/// The biomes (openspec change `island-biomes`): where the island dries out, and the bands each
+/// biome's border fades over.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct BiomeConfig {
+    /// The island dries out toward this direction (x, z): the lee of the prevailing wind.
+    pub dry_toward: [f32; 2],
+    /// Along that direction, moisture starts to fall this far from the centre...
+    pub dry_from_m: f32,
+    /// ...and is gone this far.
+    pub dry_to_m: f32,
+    /// Most the dry side's edge wanders in or out.
+    pub wander_m: f32,
+    /// Wavelength of that wandering.
+    pub wander_wavelength_m: f32,
+    /// Share of the moisture that is patchy noise rather than the lee's fall, 0..1.
+    pub patch_share: f32,
+    /// Wavelength of the patches.
+    pub patch_wavelength_m: f32,
+    /// Below this moisture the desert takes over (tuned so it is a quarter of the land).
+    pub desert_moisture: f32,
+    /// Width of each moisture border, in moisture.
+    pub border_band: f32,
+    /// Above this moisture low ground is wetland.
+    pub wetland_moisture: f32,
+    /// Most the height borders (snow, rock, forest) wander up or down.
+    pub height_jitter_m: f32,
+    /// Bare rock below the snowline over this height.
+    pub alpine_band_m: f32,
+    /// The range's forest fades in over this height range.
+    pub montane_m: [f32; 2],
+    /// Slope (rise over run) over which ground turns to bare rock.
+    pub rock_slope: [f32; 2],
+    /// Beach sand up to this height above the sea.
+    pub beach_m: f32,
+}
+
+impl Default for BiomeConfig {
+    fn default() -> Self {
+        Self {
+            dry_toward: [0.92, 0.38],
+            dry_from_m: -2000.0,
+            dry_to_m: 12000.0,
+            wander_m: 3500.0,
+            wander_wavelength_m: 6500.0,
+            patch_share: 0.25,
+            patch_wavelength_m: 3000.0,
+            desert_moisture: 0.40,
+            border_band: 0.13,
+            wetland_moisture: 0.8,
+            height_jitter_m: 120.0,
+            alpine_band_m: 250.0,
+            montane_m: [250.0, 450.0],
+            rock_slope: [0.9, 1.4],
+            beach_m: 4.0,
+        }
+    }
+}
+
+impl Validate for BiomeConfig {
+    fn validate(&self) -> Result<(), String> {
+        finite("biomes.dry_toward", self.dry_toward[0])?;
+        finite("biomes.dry_toward", self.dry_toward[1])?;
+        if Vec2::from(self.dry_toward).length() < 1e-3 {
+            return Err("`biomes.dry_toward` must be a direction, not zero".into());
+        }
+        finite("biomes.dry_from_m", self.dry_from_m)?;
+        if self.dry_to_m <= self.dry_from_m {
+            return Err("`biomes.dry_to_m` must be past `biomes.dry_from_m`".into());
+        }
+        finite("biomes.wander_m", self.wander_m)?;
+        positive("biomes.wander_wavelength_m", self.wander_wavelength_m)?;
+        within("biomes.patch_share", self.patch_share, 0.0, 1.0)?;
+        positive("biomes.patch_wavelength_m", self.patch_wavelength_m)?;
+        within("biomes.desert_moisture", self.desert_moisture, 0.0, 1.0)?;
+        positive("biomes.border_band", self.border_band)?;
+        within("biomes.wetland_moisture", self.wetland_moisture, 0.0, 1.0)?;
+        finite("biomes.height_jitter_m", self.height_jitter_m)?;
+        positive("biomes.alpine_band_m", self.alpine_band_m)?;
+        positive_range("biomes.montane_m", self.montane_m)?;
+        positive_range("biomes.rock_slope", self.rock_slope)?;
+        positive("biomes.beach_m", self.beach_m)?;
         Ok(())
     }
 }
@@ -225,6 +448,18 @@ pub struct CloudConfig {
     pub wind_m_s: [f32; 2],
     /// Cloud puffs are drawn within this of the eye (beyond it the haze has hidden them).
     pub draw_radius_m: f32,
+    /// How far the sun wraps round a puff, 0 (hard) to 1 (soft) (`cloud-puffs`).
+    pub look_wrap: f32,
+    /// The silver lining's strength toward the sun.
+    pub look_silver: f32,
+    /// How white a cloud is (its albedo, 0..1).
+    pub look_albedo: f32,
+    /// How much darker a cloud's base is than its top, 0..1.
+    pub look_base_shade: f32,
+    /// A puff fades in from this distance from the eye (closer, the cloud fog takes over).
+    pub look_near_fade_m: f32,
+    /// How soft a puff's silhouette is (0 hard, 1 very soft).
+    pub look_edge_softness: f32,
 }
 
 impl Default for CloudConfig {
@@ -238,6 +473,12 @@ impl Default for CloudConfig {
             beyond_world_m: 6000.0,
             wind_m_s: [3.0, 1.0],
             draw_radius_m: 9000.0,
+            look_wrap: 0.6,
+            look_silver: 1.6,
+            look_albedo: 0.9,
+            look_base_shade: 0.45,
+            look_near_fade_m: 160.0,
+            look_edge_softness: 0.45,
         }
     }
 }
@@ -255,6 +496,12 @@ impl Validate for CloudConfig {
         finite("clouds.wind_m_s", self.wind_m_s[0])?;
         finite("clouds.wind_m_s", self.wind_m_s[1])?;
         positive("clouds.draw_radius_m", self.draw_radius_m)?;
+        within("clouds.look_wrap", self.look_wrap, 0.0, 1.0)?;
+        within("clouds.look_silver", self.look_silver, 0.0, 10.0)?;
+        within("clouds.look_albedo", self.look_albedo, 0.0, 1.0)?;
+        within("clouds.look_base_shade", self.look_base_shade, 0.0, 1.0)?;
+        positive("clouds.look_near_fade_m", self.look_near_fade_m)?;
+        within("clouds.look_edge_softness", self.look_edge_softness, 0.0, 1.0)?;
         Ok(())
     }
 }
@@ -339,7 +586,7 @@ impl Default for IslandConfig {
             land_radius_m: 13000.0,
             coast_noise_m: 2500.0,
             coast_wavelength_m: 6000.0,
-            land_height_m: 30.0,
+            land_height_m: 50.0,
             highland_m: 90.0,
             shelf_m: 3000.0,
             sea_depth_m: 38.0,
@@ -467,6 +714,34 @@ pub struct ViewConfig {
     pub sun_disk_deg: f32,
     /// The sun disk's brightness over its physical value.
     pub sun_disk_intensity: f32,
+    /// The colour grade on the pilot's eye (Bevy's `ColorGrading`): saturation after
+    /// tonemapping, 1 unchanged.
+    pub grade_saturation: f32,
+    /// Contrast across shadows, midtones and highlights, 1 unchanged.
+    pub grade_contrast: f32,
+    /// White balance, a CIE 1931 x offset: positive warmer, negative cooler, 0 unchanged.
+    pub grade_temperature: f32,
+    /// Screen-space ambient occlusion's sample radius (openspec change `ambient-occlusion`); 0
+    /// switches it off.
+    pub ssao_radius_m: f32,
+    /// Its quality level.
+    pub ssao_quality: SsaoQuality,
+    /// GPU occlusion culling on the pilot's eye (openspec change `occlusion-culling`).
+    pub occlusion_culling: bool,
+}
+
+/// Screen-space ambient occlusion quality, Bevy's levels.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+pub enum SsaoQuality {
+    /// Fewest samples.
+    Low,
+    /// Bevy's default.
+    #[default]
+    Medium,
+    /// More samples.
+    High,
+    /// Most samples.
+    Ultra,
 }
 
 impl Default for ViewConfig {
@@ -477,6 +752,12 @@ impl Default for ViewConfig {
             exposure_ev100: 13.0,
             sun_disk_deg: 2.0,
             sun_disk_intensity: 2.0,
+            grade_saturation: 1.0,
+            grade_contrast: 1.0,
+            grade_temperature: 0.0,
+            ssao_radius_m: 1.5,
+            ssao_quality: SsaoQuality::Medium,
+            occlusion_culling: true,
         }
     }
 }
@@ -488,6 +769,10 @@ impl Validate for ViewConfig {
         within("view.exposure_ev100", self.exposure_ev100, 0.0, 20.0)?;
         within("view.sun_disk_deg", self.sun_disk_deg, 0.0, 20.0)?;
         within("view.sun_disk_intensity", self.sun_disk_intensity, 0.0, 100.0)?;
+        within("view.ssao_radius_m", self.ssao_radius_m, 0.0, 20.0)?;
+        within("view.grade_saturation", self.grade_saturation, 0.0, 3.0)?;
+        within("view.grade_contrast", self.grade_contrast, 0.5, 2.0)?;
+        within("view.grade_temperature", self.grade_temperature, -1.0, 1.0)?;
         if self.clear_visibility_m > self.far_m {
             return Err("`view.clear_visibility_m` must not exceed `view.far_m`".into());
         }
@@ -573,6 +858,16 @@ pub struct WorldConfig {
     pub start_pilot_distance_m: f32,
     /// The island and the sea.
     pub island: IslandConfig,
+    /// The mountain range.
+    pub range: RangeConfig,
+    /// The biomes.
+    pub biomes: BiomeConfig,
+    /// A city's ground stands at most this far above sea level (off the mountains).
+    pub city_max_ground_m: f32,
+    /// The land under a city square and its blend rises or falls at most this far from its ground.
+    pub city_max_relief_m: f32,
+    /// A highway is not built where the ground on its line rises more than this above both its ends.
+    pub highway_max_climb_m: f32,
     /// Levels of detail of the drawn ground.
     pub terrain_lod: LodConfig,
     /// How far the pilot sees.
@@ -585,6 +880,60 @@ pub struct WorldConfig {
     pub clouds: CloudConfig,
     /// Craters.
     pub craters: CraterConfig,
+    /// Building frames (openspec change `structural-destruction`).
+    pub structure: super::structure::StructureConfig,
+    /// Building dressing (openspec change `building-generation`).
+    pub dressing: super::dressing::DressingConfig,
+    /// Physics debris (openspec change `debris-physics`).
+    pub debris: DebrisConfig,
+}
+
+/// Physics debris: where chunks become rigid bodies, and how many (openspec change
+/// `debris-physics`, "Physics near the player only").
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct DebrisConfig {
+    /// A chunk breaking off within this distance of the pilot's eye becomes a rigid body; farther,
+    /// it is a dust puff only. 0 switches debris physics off: every chunk is a puff.
+    pub physics_radius_m: f32,
+    /// A moving body farther than `physics_radius_m` times this is made static where it is.
+    pub freeze_factor: f32,
+    /// Most moving bodies; past it the oldest settle where they are.
+    pub max_dynamic: u32,
+    /// Most bodies kept at all; past it the oldest are removed.
+    pub max_kept: u32,
+}
+
+impl Default for DebrisConfig {
+    fn default() -> Self {
+        Self {
+            physics_radius_m: 400.0,
+            freeze_factor: 1.2,
+            max_dynamic: 600,
+            max_kept: 2500,
+        }
+    }
+}
+
+impl DebrisConfig {
+    /// True when a chunk breaking off `distance_m` from the pilot's eye becomes a rigid body.
+    pub fn is_physical(&self, distance_m: f32) -> bool {
+        self.physics_radius_m > 0.0 && distance_m.is_finite() && distance_m <= self.physics_radius_m
+    }
+
+    /// True when a moving body `distance_m` from the pilot's eye is made static.
+    pub fn freezes(&self, distance_m: f32) -> bool {
+        !distance_m.is_finite() || distance_m > self.physics_radius_m * self.freeze_factor
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        within("debris.physics_radius_m", self.physics_radius_m, 0.0, 1.0e5)?;
+        within("debris.freeze_factor", self.freeze_factor, 1.0, 4.0)?;
+        if self.max_dynamic == 0 || self.max_kept < self.max_dynamic {
+            return Err("debris: max_dynamic must be above 0 and max_kept at least max_dynamic".into());
+        }
+        Ok(())
+    }
 }
 
 impl Default for WorldConfig {
@@ -593,7 +942,7 @@ impl Default for WorldConfig {
             world_size_m: 40960.0,
             terrain_cell_m: 8.0,
             noise_wavelength_m: 1100.0,
-            noise_amplitude_m: 35.0,
+            noise_amplitude_m: 28.0,
             noise_octaves: 4,
             noise_persistence: 0.5,
             city_count: 24,
@@ -626,12 +975,20 @@ impl Default for WorldConfig {
             kerb_height_m: 0.2,
             start_pilot_distance_m: 25.0,
             island: IslandConfig::default(),
+            range: RangeConfig::default(),
+            biomes: BiomeConfig::default(),
+            city_max_ground_m: 260.0,
+            city_max_relief_m: 70.0,
+            highway_max_climb_m: 45.0,
             terrain_lod: LodConfig::default(),
             view: ViewConfig::default(),
             water: WaterConfig::default(),
             trees: TreeConfig::default(),
             clouds: CloudConfig::default(),
             craters: CraterConfig::default(),
+            structure: super::structure::StructureConfig::default(),
+            dressing: super::dressing::DressingConfig::default(),
+            debris: DebrisConfig::default(),
         }
     }
 }
@@ -696,6 +1053,11 @@ impl Validate for WorldConfig {
         }
         positive("start_pilot_distance_m", self.start_pilot_distance_m)?;
         self.island.validate()?;
+        self.range.validate()?;
+        self.biomes.validate()?;
+        positive("city_max_ground_m", self.city_max_ground_m)?;
+        positive("city_max_relief_m", self.city_max_relief_m)?;
+        positive("highway_max_climb_m", self.highway_max_climb_m)?;
         let i = &self.island;
         let reach = i.land_radius_m + i.coast_noise_m.abs() + i.shelf_m;
         let flat_from = self.world_size_m * 0.5 - i.edge_fade_m;
@@ -722,6 +1084,50 @@ impl Validate for WorldConfig {
         self.trees.validate()?;
         self.clouds.validate()?;
         self.craters.validate()?;
+        self.structure.validate()?;
+        self.dressing.validate()?;
+        self.debris.validate()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod debris_tests {
+    use super::{DebrisConfig, Validate, ViewConfig};
+
+    #[test]
+    fn ssao_settings_are_validated() {
+        assert!(ViewConfig::default().validate().is_ok());
+        let off = ViewConfig {
+            ssao_radius_m: 0.0,
+            ..ViewConfig::default()
+        };
+        assert!(off.validate().is_ok(), "0 switches it off");
+        let bad = ViewConfig {
+            ssao_radius_m: f32::NAN,
+            ..ViewConfig::default()
+        };
+        assert!(bad.validate().is_err(), "a broken radius stops startup");
+        let neg = ViewConfig {
+            ssao_radius_m: -1.0,
+            ..ViewConfig::default()
+        };
+        assert!(neg.validate().is_err());
+    }
+
+    #[test]
+    fn debris_is_physical_only_near_the_pilot() {
+        let d = DebrisConfig::default();
+        assert!(d.is_physical(10.0) && d.is_physical(400.0), "near chunks are bodies");
+        assert!(!d.is_physical(401.0) && !d.is_physical(1000.0), "far chunks are only dust");
+        assert!(!d.is_physical(f32::NAN), "a broken distance makes no body");
+        assert!(!d.freezes(450.0), "a body just past the radius keeps moving");
+        assert!(d.freezes(481.0), "a body well past it is made static");
+        let off = DebrisConfig {
+            physics_radius_m: 0.0,
+            ..d
+        };
+        assert!(off.validate().is_ok(), "0 is allowed");
+        assert!(!off.is_physical(0.0) && !off.is_physical(5.0), "0 switches debris physics off");
     }
 }

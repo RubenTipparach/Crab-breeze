@@ -17,6 +17,9 @@ Scenarios (each ends itself):
     fight   the city fight: the player's mech against the raiders
     defence the combat test from the desktop session (`--showcase defence`): defend a city against
             waves of enemies, three fights
+    demolition  structural-destruction task 2.4: on foot, shell every column on one face of the
+            8-20 storey building nearest the start, watch it creak, fall and settle, walk up to the
+            rubble (`crates/cb-app/src/demolition.rs`, the same script as the building stills)
 
 Variants are `name|exe|ENV=1;ENV2=2|root` (all but the name optional). `root` is the checkout
 whose `data/` and `assets/` that exe reads (`CB_ROOT`): an old build runs with its own data. For
@@ -44,7 +47,12 @@ import sys
 import time
 from pathlib import Path
 
-SCENARIOS = {"world": ["--bench", "world"], "fight": ["--bench", "fight"], "defence": ["--bench", "defence"]}
+SCENARIOS = {
+    "world": ["--bench", "world"],
+    "fight": ["--bench", "fight"],
+    "defence": ["--bench", "defence"],
+    "demolition": ["--bench", "demolition"],
+}
 DONE = "BENCH all"
 WANT_MS = 1000 / 120
 FLOOR_MS = 1000 / 60

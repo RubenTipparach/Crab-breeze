@@ -397,14 +397,18 @@ fn exit_point(r: &Rect, from: Vec2, to: Vec2) -> Vec2 {
 }
 
 /// Joins the cities with a minimum spanning tree of straight highways (Prim's, ties to the lower
-/// index). An edge that would cross a third city's square is not used.
-pub fn connect_cities(cities: &[City], cfg: &WorldConfig) -> Vec<Highway> {
+/// index; a spanning forest where refused edges leave cities apart). An edge that would cross a third city's square, or that `road_ok(from, to, grounds)`
+/// refuses (over the mountains, across a lake), is not used.
+pub fn connect_cities(cities: &[City], cfg: &WorldConfig, road_ok: &dyn Fn(Vec2, Vec2, [f32; 2]) -> bool) -> Vec<Highway> {
     let n = cities.len();
     if n < 2 {
         return Vec::new();
     }
     let blocked = |a: usize, b: usize| {
         let (pa, pb) = (cities[a].centre, cities[b].centre);
+        if !road_ok(pa, pb, [cities[a].ground_m, cities[b].ground_m]) {
+            return true;
+        }
         cities.iter().enumerate().any(|(k, c)| {
             if k == a || k == b {
                 return false;
@@ -423,7 +427,7 @@ pub fn connect_cities(cities: &[City], cfg: &WorldConfig) -> Vec<Highway> {
     let mut in_tree = vec![false; n];
     in_tree[0] = true;
     let mut out = Vec::new();
-    for _ in 1..n {
+    while in_tree.iter().any(|t| !t) {
         let mut best: Option<(f32, usize, usize)> = None;
         for a in (0..n).filter(|&a| in_tree[a]) {
             for b in (0..n).filter(|&b| !in_tree[b]) {
@@ -436,7 +440,13 @@ pub fn connect_cities(cities: &[City], cfg: &WorldConfig) -> Vec<Highway> {
                 }
             }
         }
-        let Some((_, a, b)) = best else { break };
+        // Nothing joins the tree: start another from the first city left out (a spanning forest).
+        let Some((_, a, b)) = best else {
+            if let Some(k) = (0..n).find(|&k| !in_tree[k]) {
+                in_tree[k] = true;
+            }
+            continue;
+        };
         in_tree[b] = true;
         let (ca, cb) = (&cities[a], &cities[b]);
         out.push(Highway {
