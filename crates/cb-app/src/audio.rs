@@ -527,8 +527,10 @@ fn start_due(
     voices: Query<(Entity, &Voice)>,
     roots: Query<(Entity, &GlobalTransform), With<MechRoot>>,
     nodes: Query<&GlobalTransform>,
+    settings: Res<crate::settings::Settings>,
 ) {
     let cfg = &data.0.audio.cues;
+    let sfx = settings.0.sfx_volume;
     let now = time.elapsed_secs();
     let (due, waiting): (Vec<Due>, Vec<Due>) = std::mem::take(&mut pending.0).into_iter().partition(|d| d.at_s <= now);
     pending.0 = waiting;
@@ -541,7 +543,22 @@ fn start_due(
         if voices.iter().filter(|(_, v)| v.cue == d.cue).count() >= cue.max_voices as usize || count >= cfg.max_voices as usize {
             continue;
         }
-        if spawn_voice(&mut commands, cfg, d.cue, cue, d.at, None, &ear, &lib, &mut dice, &roots, &nodes).is_some() {
+        if spawn_voice(
+            &mut commands,
+            cfg,
+            d.cue,
+            cue,
+            d.at,
+            None,
+            sfx,
+            &ear,
+            &lib,
+            &mut dice,
+            &roots,
+            &nodes,
+        )
+        .is_some()
+        {
             count += 1;
         }
     }
@@ -557,6 +574,8 @@ fn spawn_voice(
     cue: &rules::Cue,
     at: SoundAt,
     looping: Option<LoopLevel>,
+    // the player's sound effects volume (Options), for a one-shot's first frame; `level_voices` keeps it after
+    sfx: f32,
     ear: &Ear,
     lib: &Library,
     dice: &mut Dice,
@@ -608,7 +627,7 @@ fn spawn_voice(
     // a loop starts silent and fades in (`drive_loops`); a one-shot starts at its level
     let (mode, volume) = match looping {
         Some(_) => (PlaybackMode::Loop, 0.0),
-        None => (PlaybackMode::Despawn, level * gain),
+        None => (PlaybackMode::Despawn, level * gain * sfx),
     };
     let settings = PlaybackSettings {
         mode,
@@ -672,6 +691,7 @@ fn drive_loops(
             cue,
             l.at,
             Some(l.level),
+            0.0,
             &ear,
             &lib,
             &mut dice,
@@ -711,8 +731,14 @@ fn drive_loops(
 
 /// Every placed voice's level this frame: its cue's level, its distance and the seal (and a loop's
 /// own eased level).
-fn level_voices(mut voices: Query<(&Voice, Option<&LoopVoice>, &GlobalTransform, &mut SpatialAudioSink)>, ear: Res<Ear>, data: Res<Data>) {
+fn level_voices(
+    mut voices: Query<(&Voice, Option<&LoopVoice>, &GlobalTransform, &mut SpatialAudioSink)>,
+    ear: Res<Ear>,
+    data: Res<Data>,
+    settings: Res<crate::settings::Settings>,
+) {
     let cfg = &data.0.audio.cues;
+    let player = settings.0.sfx_volume;
     for (v, l, at, mut sink) in &mut voices {
         let g = if v.inside {
             1.0
@@ -722,7 +748,7 @@ fn level_voices(mut voices: Query<(&Voice, Option<&LoopVoice>, &GlobalTransform,
             rules::distance_gain(cfg.full_level_within_m, d) * seal
         };
         let loop_gain = l.map_or(1.0, |l| db_to_gain(l.db));
-        sink.set_volume(Volume::Linear(v.level * g * loop_gain));
+        sink.set_volume(Volume::Linear(v.level * g * loop_gain * player));
     }
 }
 

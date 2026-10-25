@@ -93,6 +93,7 @@ fn choose_and_play(
     assets: Res<AssetServer>,
     time: Res<Time>,
     ready: Res<crate::loading::GameReady>,
+    settings: Res<crate::settings::Settings>,
 ) {
     if !ready.0 {
         return;
@@ -111,7 +112,7 @@ fn choose_and_play(
         won: run.is_some_and(|r| matches!(r.state.phase, cb_core::mission::Phase::Won)),
     };
     let wanted = rules::music_state(&inputs, cfg.hold_s);
-    let base = db_to_gain(cfg.volume_db);
+    let base = db_to_gain(cfg.volume_db) * settings.0.music_volume;
 
     // a stinger that has played out stays finished while its state holds
     let played_out = player

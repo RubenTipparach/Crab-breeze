@@ -1,5 +1,5 @@
 //! The player's settings (openspec change `game-menus`, design section 4): mouse sensitivity and
-//! invert, field of view, shadows, vsync and fullscreen. One record, defaulted from the data's own
+//! invert, field of view, shadows, vsync, fullscreen and the sound effects and music volumes. One record, defaulted from the data's own
 //! values, changed on the Options page and saved by the game to `settings.ron`. Pure: the steps the
 //! Options page takes and the limits they keep to live here so they are tested without a window.
 
@@ -10,6 +10,12 @@ use serde::{Deserialize, Serialize};
 pub const MOUSE_DEG_PER_PX: (f32, f32, f32) = (0.01, 1.0, 0.01);
 /// Vertical field of view limits, degrees, and the Options page's step.
 pub const FOV_DEG: (f32, f32, f32) = (60.0, 110.0, 5.0);
+/// Volume limits, a share of the data's own level, and the Options page's step (10 %).
+pub const VOLUME: (f32, f32, f32) = (0.0, 1.0, 0.1);
+
+fn full() -> f32 {
+    1.0
+}
 
 /// The player's settings.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -27,6 +33,12 @@ pub struct Settings {
     pub vsync: bool,
     /// Borderless fullscreen instead of a window.
     pub fullscreen: bool,
+    /// Sound effects, a share of their level in the data, 0-1 (1 if the file has none).
+    #[serde(default = "full")]
+    pub sfx_volume: f32,
+    /// Music, a share of its level in the data, 0-1 (1 if the file has none).
+    #[serde(default = "full")]
+    pub music_volume: f32,
 }
 
 impl Settings {
@@ -39,6 +51,8 @@ impl Settings {
             shadows: true,
             vsync: true,
             fullscreen: false,
+            sfx_volume: 1.0,
+            music_volume: 1.0,
         }
     }
 
@@ -50,6 +64,16 @@ impl Settings {
     /// Field of view up or down by the page's step, kept within its limits.
     pub fn nudge_fov(&mut self, steps: i32) {
         self.fov_deg = nudge(self.fov_deg, steps, FOV_DEG);
+    }
+
+    /// Sound effects volume up or down by the page's step, kept within 0-1.
+    pub fn nudge_sfx(&mut self, steps: i32) {
+        self.sfx_volume = nudge(self.sfx_volume, steps, VOLUME);
+    }
+
+    /// Music volume up or down by the page's step, kept within 0-1.
+    pub fn nudge_music(&mut self, steps: i32) {
+        self.music_volume = nudge(self.music_volume, steps, VOLUME);
     }
 }
 
@@ -78,7 +102,9 @@ fn nudge(v: f32, steps: i32, (lo, hi, step): (f32, f32, f32)) -> f32 {
 impl Validate for Settings {
     fn validate(&self) -> Result<(), String> {
         within("mouse_deg_per_px", self.mouse_deg_per_px, MOUSE_DEG_PER_PX.0, MOUSE_DEG_PER_PX.1)?;
-        within("fov_deg", self.fov_deg, FOV_DEG.0, FOV_DEG.1)
+        within("fov_deg", self.fov_deg, FOV_DEG.0, FOV_DEG.1)?;
+        within("sfx_volume", self.sfx_volume, VOLUME.0, VOLUME.1)?;
+        within("music_volume", self.music_volume, VOLUME.0, VOLUME.1)
     }
 }
 
@@ -133,6 +159,27 @@ mod tests {
         s.shadows = false;
         let back = Settings::from_ron(&s.to_ron()).unwrap();
         assert_eq!(back, s);
+    }
+
+    #[test]
+    fn volumes_step_by_ten_percent_and_stop_at_silent_and_full() {
+        let mut s = defaults();
+        assert_eq!((s.sfx_volume, s.music_volume), (1.0, 1.0));
+        s.nudge_music(-2);
+        assert!((s.music_volume - 0.8).abs() < 1e-6);
+        s.nudge_sfx(-100);
+        assert_eq!(s.sfx_volume, 0.0);
+        s.nudge_sfx(100);
+        assert_eq!(s.sfx_volume, 1.0);
+        let back = Settings::from_ron(&s.to_ron()).unwrap();
+        assert_eq!(back, s);
+    }
+
+    #[test]
+    fn a_settings_file_without_volumes_loads_them_full() {
+        let text = "(mouse_deg_per_px: 0.1, invert_pitch: false, fov_deg: 75.0, shadows: true, vsync: true, fullscreen: false)";
+        let s = Settings::from_ron(text).unwrap();
+        assert_eq!((s.sfx_volume, s.music_volume), (1.0, 1.0));
     }
 
     #[test]
