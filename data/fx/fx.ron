@@ -35,7 +35,7 @@
     // Big translucent clouds drawn apart, each in a stable order (merged, their particles reorder
     // every frame and the cloud flickers; owner, 2026-10-25). Each burst of these is its own draw.
     sorted: ["explosion_ground", "explosion_air", "explosion_water", "collapse_dust", "creak_dust", "member_fail"],
-    stream_per_s: {"jet_flame": 60.0, "jet_trail": 20.0, "burning": 10.0, "smoking": 6.0, "burning_hull": 10.0},
+    stream_per_s: {"jet_flame": 60.0, "jet_trail": 30.0, "burning": 10.0, "smoking": 6.0, "burning_hull": 10.0},
     // Particle bursts start only within 400 m of the eye (times the effect's scale; explosions four
     // times as far): far off they barely show and each costs an effect of its own (2026-10-24).
     burst_range_m: 400.0,
@@ -155,10 +155,12 @@
             Burst(kind: Smoke, count: 1, speed_m_s: 8.0, spread: 0.4, size_m: 2.5, life_s: 2.0, offset_m: 3.0, along_dir: true),
         ],
         // A jet's smoke trail, which hangs in the sky for two minutes, spreading and fading (owner,
-        // 2026-10-25: "per survey that trail needs to las 2 mins or more"). At 20 puffs a second a
-        // jet at 60 m/s leaves one every 3 m; each grows from about 1.2 m to about 40 m wide.
+        // 2026-10-25: "per survey that trail needs to las 2 mins or more"). At 30 puffs a second a
+        // jet at 60 m/s leaves one every 2 m, each 2 m across at first, so they touch: at 20 a
+        // second and 1.2 m the trail seen from the seat was a string of separate beads (2026-10-25).
+        // Each grows to about 70 m wide over its life.
         "jet_trail": [
-            Burst(kind: Trail, count: 1, speed_m_s: 1.0, spread: 0.3, size_m: 1.2, life_s: 120.0, offset_m: 4.0, along_dir: true),
+            Burst(kind: Trail, count: 1, speed_m_s: 1.0, spread: 0.3, size_m: 2.0, life_s: 120.0, offset_m: 4.0, along_dir: true),
         ],
         // Every step a wheel skates fast on soil; the direction is back and up from the wheel.
         "skate_dirt": [
