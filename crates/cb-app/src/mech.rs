@@ -118,6 +118,16 @@ pub struct MechRig {
 }
 
 impl MechRig {
+    /// The entity of the node named `name` under the model, if any.
+    pub(crate) fn named(&self, name: &str) -> Option<Entity> {
+        self.named.get(name).copied()
+    }
+
+    /// The torso bone's entity.
+    pub(crate) fn torso(&self) -> Entity {
+        self.bones[3].entity
+    }
+
     /// The entity of contract bone `i` (by `BONES` index).
     pub fn bone_entity(&self, i: usize) -> Entity {
         self.bones[i].entity
@@ -131,8 +141,8 @@ impl MechRig {
 
 /// Smoke and fire rising from where a part was shot off.
 #[derive(Component)]
-struct Burning {
-    until_s: f32,
+pub(crate) struct Burning {
+    pub(crate) until_s: f32,
 }
 
 /// The model lacks contract bones; it is shown but not driven.
@@ -1449,12 +1459,22 @@ pub struct Wreck {
     angle_rad: f32,
     rate_rad_s: f32,
     heading_rad: f32,
+    /// Its mass, tonnes, for the dust it throws when it lands.
+    mass_t: f32,
+    /// It has thrown its dust.
+    dusted: bool,
 }
 
 /// It comes to rest this far over: lying on its side.
 const WRECK_LIE_RAD: f32 = 1.45;
 
-fn fall_wrecks(time: Res<Time>, plan: Res<Plan>, mut wrecks: Query<(&mut Wreck, &mut Transform)>) {
+fn fall_wrecks(
+    time: Res<Time>,
+    plan: Res<Plan>,
+    data: Res<Data>,
+    mut fx: MessageWriter<Fx>,
+    mut wrecks: Query<(&mut Wreck, &mut Transform)>,
+) {
     let dt = time.delta_secs().min(0.05);
     for (mut w, mut t) in &mut wrecks {
         let ground = plan.height_at(t.translation.x, t.translation.z);
@@ -1471,6 +1491,12 @@ fn fall_wrecks(time: Res<Time>, plan: Res<Plan>, mut wrecks: Query<(&mut Wreck, 
             if w.angle_rad < WRECK_LIE_RAD {
                 w.rate_rad_s += 1.5 * 9.81 * w.angle_rad.sin() / w.centre_m * dt;
                 w.angle_rad = (w.angle_rad + w.rate_rad_s * dt).min(WRECK_LIE_RAD);
+            } else if !w.dusted {
+                // It hits the ground along its length: dust where its middle lands (openspec change `mech-damage-fx`).
+                w.dusted = true;
+                let along = (t.rotation * Vec3::Y).with_y(0.0) * w.centre_m;
+                let scale = crate::battle_fx::dust_scale(&data.0.battle_fx.damage, w.mass_t);
+                fx.write(Fx::new("fall_dust", t.translation + along).scaled(scale));
             }
         }
         t.rotation = Quat::from_axis_angle(w.axis, w.angle_rad) * Quat::from_rotation_y(w.heading_rad);
@@ -1485,10 +1511,12 @@ fn cut_parts(
     globals: Query<&GlobalTransform>,
     parents: Query<&ChildOf>,
     time: Res<Time>,
+    data: Res<Data>,
     mut fx: MessageWriter<Fx>,
     mut explosions: MessageWriter<Explosion>,
 ) {
     let _t = crate::perf_hud::slow("cut_parts");
+    let burn = &data.0.battle_fx.damage;
     for (root, mut sim, mut rig, mech, mut skin) in &mut roots {
         for part in std::mem::take(&mut sim.cuts) {
             let spec = &mech.parts[part];
@@ -1507,6 +1535,8 @@ fn cut_parts(
                     angle_rad: 0.05,
                     rate_rad_s: 0.0,
                     heading_rad: heading,
+                    mass_t: mech.locomotion.mass_kg / 1000.0,
+                    dusted: false,
                 });
                 commands.entity(rig.bones[3].entity).insert(Burning {
                     until_s: time.elapsed_secs() + 60.0,
@@ -1528,7 +1558,29 @@ fn cut_parts(
             // A skinned enemy throws its skin's limb instead; the stand-in's bone is not drawn and stays put.
             let thrown = skin
                 .as_deref_mut()
-                .is_some_and(|s| crate::skins::throw_limb(&mut commands, s, spec.kind, &globals, centre, mech.body.cut_box_m));
+                .and_then(|s| crate::skins::throw_limb(&mut commands, s, spec.kind, &globals, centre, mech.body.cut_box_m));
+            let now = time.elapsed_secs();
+            let box_t = mech.body.cut_box_m.iter().product::<f32>() * 8.0 * 0.8;
+            if let Some(t) = &thrown {
+                // The thrown limb burns where it lands and throws dust; its stump burns where the limb hung
+                // (openspec change `mech-damage-fx`: on a skin the stand-in's bone is inside the skin, unseen).
+                let mass_t = box_t * t.scale.powi(3);
+                commands.entity(t.limb).insert((
+                    Burning {
+                        until_s: now + burn.limb_burn_s,
+                    },
+                    crate::battle_fx::Falling { mass_t },
+                ));
+                commands.spawn((
+                    Name::new("stump fire"),
+                    Transform::from_translation(t.pivot),
+                    Burning {
+                        until_s: now + burn.stump_burn_s,
+                    },
+                    ChildOf(t.parent),
+                ));
+            }
+            let thrown = thrown.is_some();
             let out = (at - centre).with_y(0.0).normalize_or(Vec3::X);
             // The wreck falls under physics (debris-physics): a box about the part's size.
             if !thrown && skin.is_none() {
@@ -1538,11 +1590,12 @@ fn cut_parts(
                     Collider::cuboid(mech.body.cut_box_m[0], mech.body.cut_box_m[1], mech.body.cut_box_m[2]),
                     LinearVelocity(out * 6.0 + Vec3::Y * 5.0),
                     AngularVelocity(Vec3::new(1.5, 0.7, -1.1)),
+                    crate::battle_fx::Falling { mass_t: box_t },
                 ));
             }
-            if let Ok(stump) = parents.get(e).map(|p| p.parent()).or(Ok::<Entity, ()>(e)) {
+            if !thrown && let Ok(stump) = parents.get(e).map(|p| p.parent()).or(Ok::<Entity, ()>(e)) {
                 commands.entity(stump).insert(Burning {
-                    until_s: time.elapsed_secs() + 25.0,
+                    until_s: now + burn.stump_burn_s,
                 });
             }
             fx.write(Fx::new("part_lost", at));
@@ -1598,16 +1651,35 @@ fn cockpit_layer(
 #[derive(Component)]
 struct JetTrail(Entity);
 
+/// A jet's exhaust flame, under its nozzle socket (openspec change `rocket-plumes`).
+#[derive(Component)]
+struct JetPlume;
+
+#[allow(clippy::too_many_arguments)]
 fn jet_flames(
     mut commands: Commands,
     mechs: Query<(&MechSim, &MechRig)>,
     trails: Query<&JetTrail>,
     mut streams: Query<&mut crate::fx::FxStream>,
+    mut plumes: Query<(&mut Transform, &mut Visibility), With<JetPlume>>,
+    children: Query<&Children>,
+    plume: Res<crate::plumes::PlumeAssets>,
+    data: Res<Data>,
+    plan: Res<Plan>,
+    time: Res<Time>,
+    mut fx: MessageWriter<Fx>,
+    mut wash_s: Local<f32>,
 ) {
+    let cfg = &data.0.fx;
+    *wash_s += time.delta_secs();
+    let wash = *wash_s >= 0.1;
+    if wash {
+        *wash_s = 0.0;
+    }
     for (sim, rig) in &mechs {
+        let on = sim.curr.boosting && !sim.dead;
         for jet in ["JET_L", "JET_R"] {
             let Some(&e) = rig.sockets.get(jet) else { continue };
-            let on = sim.curr.boosting && !sim.dead;
             let trail = trails.get(e).ok().map(|t| t.0);
             match (streams.get(e).is_ok(), trail) {
                 (true, Some(t)) => {
@@ -1641,6 +1713,34 @@ fn jet_flames(
                     ));
                 }
             }
+            // The flame under the nozzle, flickering in length while the jets fire.
+            let flicker = 0.85 + 0.3 * (time.elapsed_secs() * 37.0 + e.index().index() as f32).sin().abs();
+            let shape = crate::plumes::placed(Vec3::ZERO, Vec3::NEG_Y, cfg.jet_plume_m[0] * flicker, cfg.jet_plume_m[1]);
+            let mine = children.get(e).ok().and_then(|c| c.iter().find(|c| plumes.contains(*c)));
+            match mine.and_then(|p| plumes.get_mut(p).ok()) {
+                Some((mut t, mut v)) => {
+                    *t = shape;
+                    *v = if on { Visibility::Inherited } else { Visibility::Hidden };
+                }
+                None => {
+                    commands.spawn((
+                        Name::new("jet plume"),
+                        Mesh3d(plume.mesh.clone()),
+                        MeshMaterial3d(plume.jet.clone()),
+                        shape,
+                        Visibility::Hidden,
+                        bevy::light::NotShadowCaster,
+                        JetPlume,
+                        ChildOf(e),
+                    ));
+                }
+            }
+        }
+        // Low over the ground the jets blow the dust out in a ring.
+        let p = sim.curr.pos;
+        let ground = plan.height_at(p.x, p.z);
+        if on && wash && p.y - ground < cfg.jet_wash_m {
+            fx.write(Fx::new("jet_wash", Vec3::new(p.x, ground, p.z)));
         }
     }
 }

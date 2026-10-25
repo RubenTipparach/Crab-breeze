@@ -449,20 +449,24 @@ fn spawn_roads(
             );
         }
     }
+    // Highways: a strip along the routed centre line, every 4 m, each edge square to the road
+    // where it is, with the centre dashes along each 16 m piece.
     for h in &world.highways {
-        let along = h.ends[1] - h.ends[0];
-        let across = along.normalize().perp() * h.width_m * 0.5;
         let steps = (h.length_m() / 4.0).ceil() as usize;
+        let p = |t: f32, side: f32| {
+            let xz = h.point_at(t) + h.dir_at(t).perp() * h.width_m * 0.5 * side;
+            Vec3::new(xz.x, h.grade_at(t) + cfg.road_lift_m, xz.y)
+        };
         for i in 0..steps {
             let (t0, t1) = (i as f32 / steps as f32, (i + 1) as f32 / steps as f32);
-            let p = |t: f32, side: f32| {
-                let xz = h.ends[0] + along * t + across * side;
-                Vec3::new(xz.x, h.grade_at(t) + cfg.road_lift_m, xz.y)
-            };
             roads.quad([p(t0, 1.0), p(t1, 1.0), p(t1, -1.0), p(t0, -1.0)], asphalt);
         }
         let lift = cfg.road_lift_m + 0.04;
-        dashes(h.ends[0], h.ends[1], &|t| h.grade_at(t) + lift);
+        let n = h.path.len();
+        for k in 0..n - 1 {
+            let (g0, g1) = (h.grade_m[k], h.grade_m[k + 1]);
+            dashes(h.path[k], h.path[k + 1], &|t| g0 + (g1 - g0) * t + lift);
+        }
     }
     let road_mat = materials.add(StandardMaterial {
         base_color_texture: Some(tex.asphalt.clone()),

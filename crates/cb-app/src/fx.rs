@@ -138,7 +138,13 @@ struct Pools {
     /// Each motor's smoke trail: its own entity, always drawn, so the smoke it laid hangs on
     /// after the rocket is gone; only its spawner turns off.
     trails: Vec<Entity>,
+    /// Each motor's exhaust flame (openspec change `rocket-plumes`).
+    plumes: Vec<Entity>,
 }
+
+/// A rocket's exhaust flame in the motor pool.
+#[derive(Component)]
+struct RocketPlume;
 
 /// Effects.
 pub struct FxPlugin;
@@ -321,6 +327,13 @@ fn setup(
     // Unlit, the colour is what is drawn: past 1.0 it is HDR, and the bloom spreads it.
     let hot = LinearRgba::from(Color::srgb(1.0, 0.8, 0.45)) * data.0.fx.tracer_glow;
     particles::set_sprite(&mut lib, disc.clone(), &mut images);
+    // The Material Maker sprite sheets (openspec change `fx-sprites`); a kind whose sheet cannot be read keeps the disc.
+    let root = crate::cli::repo_root().join("assets");
+    for name in particles::SHEETS {
+        if let Some(img) = crate::pbr_set::load_tiling(&root, &format!("textures/fx/{name}/albedo.png"), true) {
+            particles::set_sheet(&mut lib, name, img, &mut images);
+        }
+    }
     commands.insert_resource(FxAssets {
         quad: meshes.add(Rectangle::new(1.0, 1.0)),
         sphere: meshes.add(Sphere::new(1.0).mesh().uv(32, 16)),
@@ -587,12 +600,13 @@ fn draw_shots(
     fixed: Res<Time<Fixed>>,
     camera: Single<&GlobalTransform, With<PilotCamera>>,
     mut pools: ResMut<Pools>,
-    mut q: Query<(&mut Transform, &mut Visibility), Or<(With<Tracer>, With<Motor>)>>,
+    mut q: Query<(&mut Transform, &mut Visibility), Or<(With<Tracer>, With<Motor>, With<RocketPlume>)>>,
+    plume: Res<crate::plumes::PlumeAssets>,
     mechs: Query<(&crate::mech::MechId, &crate::mech::MechSpec)>,
     mut rng: ResMut<Rand>,
     mut lib: ResMut<ParticleLibrary>,
     mut effects: ResMut<Assets<EffectAsset>>,
-    mut trails: Query<(&mut Transform, Option<&mut EffectSpawner>), (Without<Tracer>, Without<Motor>)>,
+    mut trails: Query<(&mut Transform, Option<&mut EffectSpawner>), (Without<Tracer>, Without<Motor>, Without<RocketPlume>)>,
 ) {
     let cfg = &data.0.fx;
     // A rocket lays a smoke puff every `trail_spacing_m` at about 240 m/s.
@@ -639,6 +653,19 @@ fn draw_shots(
                     t.insert(effect);
                 }
                 pools.trails.push(t.id());
+                pools.plumes.push(
+                    commands
+                        .spawn((
+                            Name::new("rocket plume"),
+                            Mesh3d(plume.mesh.clone()),
+                            MeshMaterial3d(plume.rocket.clone()),
+                            Transform::default(),
+                            Visibility::Hidden,
+                            bevy::light::NotShadowCaster,
+                            RocketPlume,
+                        ))
+                        .id(),
+                );
             } else if let Ok((mut t, mut v)) = q.get_mut(pools.motors[mi]) {
                 let tail = pos - dir * 1.2;
                 let flicker = 1.6 + 0.6 * rng.f();
@@ -646,6 +673,18 @@ fn draw_shots(
                     .looking_at(eye, Vec3::Y)
                     .with_scale(Vec3::splat(flicker));
                 *v = Visibility::Inherited;
+                if let Some(&p) = pools.plumes.get(mi)
+                    && let Ok((mut pt, mut pv)) = q.get_mut(p)
+                {
+                    // The exhaust: a flame from the nozzle back along the flight, flickering in length.
+                    *pt = crate::plumes::placed(
+                        pos - dir * 0.6,
+                        -dir,
+                        cfg.plume_length_m * (0.85 + 0.3 * rng.f()),
+                        cfg.plume_width_m,
+                    );
+                    *pv = Visibility::Inherited;
+                }
                 if let Some(Ok((mut tt, spawner))) = pools.trails.get(mi).map(|e| trails.get_mut(*e)) {
                     tt.translation = tail;
                     if let Some(mut sp) = spawner {
@@ -689,7 +728,13 @@ fn draw_shots(
         }
         ti += 1;
     }
-    for e in pools.tracers.iter().skip(ti).chain(pools.motors.iter().skip(mi)) {
+    for e in pools
+        .tracers
+        .iter()
+        .skip(ti)
+        .chain(pools.motors.iter().skip(mi))
+        .chain(pools.plumes.iter().skip(mi))
+    {
         if let Ok((_, mut v)) = q.get_mut(*e) {
             *v = Visibility::Hidden;
         }

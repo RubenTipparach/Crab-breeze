@@ -35,6 +35,9 @@ struct Limb {
     /// For a walking leg: the foot's offset from the hip across the travel (in the skin's frame, metres before the
     /// skin's scale), and the axis it swings about to carry the foot fore and aft. None for an arm or a track.
     foot: Option<(Vec3, Vec3)>,
+    /// The node it hangs from, and where in that node's frame.
+    parent: Entity,
+    pivot: Vec3,
     off: bool,
 }
 
@@ -112,6 +115,7 @@ fn bind_skins(
     children: Query<&Children>,
     names: Query<&Name>,
     transforms: Query<&Transform>,
+    parents: Query<&ChildOf>,
 ) {
     for (root, p) in &pending {
         let mut any = false;
@@ -137,6 +141,8 @@ fn bind_skins(
                 side,
                 rest: t.rotation,
                 foot,
+                parent: parents.get(e).map_or(p.0, |c| c.parent()),
+                pivot: t.translation,
                 off: false,
             });
         }
@@ -221,8 +227,55 @@ fn walk_skins(skins: Query<(&MechSim, &SkinLimbs)>, mut transforms: Query<&mut T
     }
 }
 
+/// A limb thrown off a skin: the limb's entity, the node it hung from and where (that node's frame), and the skin's
+/// scale.
+pub struct Thrown {
+    /// The limb, now a free body.
+    pub limb: Entity,
+    /// The node it hung from.
+    pub parent: Entity,
+    /// Where it hung, in `parent`'s frame.
+    pub pivot: Vec3,
+    /// The skin's scale.
+    pub scale: f32,
+}
+
+impl SkinLimbs {
+    /// The skin node a part of `kind` is drawn by: its arm, the lowest leg left on its side, or the skin's root for the
+    /// torso and head.
+    pub fn node_for(&self, kind: PartKind) -> Entity {
+        let (leg, side) = match kind {
+            PartKind::ArmL => (false, 1.0),
+            PartKind::ArmR => (false, -1.0),
+            PartKind::LegL => (true, 1.0),
+            PartKind::LegR => (true, -1.0),
+            _ => return self.scene,
+        };
+        self.limbs
+            .iter()
+            .filter(|l| !l.off && l.leg == leg && l.side == side)
+            .min_by_key(|l| l.pair)
+            .map_or(self.scene, |l| l.entity)
+    }
+
+    /// The skin's scene root.
+    pub fn scene(&self) -> Entity {
+        self.scene
+    }
+
+    /// The skin's scale.
+    pub fn scale(&self) -> f32 {
+        self.scale
+    }
+
+    /// Its hips' height in the skin's frame (the highest leg pivot), metres before the scale.
+    pub fn hip_height(&self) -> f32 {
+        self.limbs.iter().filter(|l| l.leg).map(|l| l.pivot.y).fold(0.0, f32::max)
+    }
+}
+
 /// Throws off the skin limb a lost part takes (an arm its arm; a leg the lowest numbered leg left on its side) as a
-/// dynamic body with the cut's box, moving out and up from `centre`. Returns whether a limb was thrown.
+/// dynamic body with the cut's box, moving out and up from `centre`. Returns what was thrown, if anything.
 pub fn throw_limb(
     commands: &mut Commands,
     skin: &mut SkinLimbs,
@@ -230,24 +283,21 @@ pub fn throw_limb(
     globals: &Query<&GlobalTransform>,
     centre: Vec3,
     cut_box_m: [f32; 3],
-) -> bool {
+) -> Option<Thrown> {
     let (leg, side) = match kind {
         PartKind::ArmL => (false, 1.0),
         PartKind::ArmR => (false, -1.0),
         PartKind::LegL => (true, 1.0),
         PartKind::LegR => (true, -1.0),
-        _ => return false,
+        _ => return None,
     };
-    let Some(l) = skin
+    let l = skin
         .limbs
         .iter_mut()
         .filter(|l| !l.off && l.leg == leg && l.side == side)
-        .min_by_key(|l| l.pair)
-    else {
-        return false;
-    };
+        .min_by_key(|l| l.pair)?;
     l.off = true;
-    let Ok(g) = globals.get(l.entity) else { return false };
+    let g = globals.get(l.entity).ok()?;
     let at = g.translation();
     let out = (at - centre).with_y(0.0).normalize_or(Vec3::X);
     commands.entity(l.entity).remove::<ChildOf>().insert((
@@ -257,7 +307,12 @@ pub fn throw_limb(
         LinearVelocity(out * 6.0 + Vec3::Y * 5.0),
         AngularVelocity(Vec3::new(1.5, 0.7, -1.1)),
     ));
-    true
+    Some(Thrown {
+        limb: l.entity,
+        parent: l.parent,
+        pivot: l.pivot,
+        scale: skin.scale,
+    })
 }
 
 #[cfg(test)]
@@ -283,6 +338,8 @@ mod tests {
             side,
             rest: Quat::IDENTITY,
             foot: None,
+            parent: Entity::PLACEHOLDER,
+            pivot: Vec3::ZERO,
             off: false,
         };
         assert_eq!(group(&l(0, -1.0)) - group(&l(0, 1.0)), 0.5);

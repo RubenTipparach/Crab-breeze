@@ -62,7 +62,7 @@ pub fn draw(plan: &WorldPlan, cfg: &WorldConfig, px: usize, view: (Vec2, f32)) -
     for h in &plan.highways {
         let steps = (h.length_m() / (m_per_px * 0.5)).ceil() as usize;
         for i in 0..=steps {
-            dot(h.ends[0].lerp(h.ends[1], i as f32 / steps as f32), 0, Vec3::new(0.15, 0.13, 0.12));
+            dot(h.point_at(i as f32 / steps as f32), 0, Vec3::new(0.15, 0.13, 0.12));
         }
     }
     for c in &plan.cities {

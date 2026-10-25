@@ -793,7 +793,7 @@ mod tests {
         let road = p
             .highways
             .iter()
-            .flat_map(|h| (1..20).map(move |i| h.ends[0].lerp(h.ends[1], i as f32 / 20.0)))
+            .flat_map(|h| (1..20).map(move |i| h.point_at(i as f32 / 20.0)))
             .find(|q| p.water_at(q.x, q.y).is_none())
             .expect("a highway on dry land");
         assert_eq!(mark_surface(p, p, road), Some(Surface::Concrete), "a highway is paved");

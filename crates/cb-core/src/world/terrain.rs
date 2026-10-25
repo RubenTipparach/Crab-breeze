@@ -56,10 +56,11 @@ impl Shape {
     fn unpassed(&self, p: Vec2) -> f32 {
         let r = &self.range;
         let q = p - Vec2::from(r.centre_m);
-        let bearing = q.x.atan2(-q.y).to_degrees();
+        // The passes' line wanders, so their walls are not straight radial cuts.
+        let bearing = q.x.atan2(-q.y).to_degrees() + 6.0 * self.warp.unit(p.x - 3100.0, p.y + 8800.0, 1800.0, 2, 0.5);
         r.passes_deg.iter().fold(1.0, |acc, &pass| {
             let off = ((bearing - pass + 540.0).rem_euclid(360.0) - 180.0).abs();
-            acc * smoothstep(0.5 * r.pass_width_deg, r.pass_width_deg, off)
+            acc * smoothstep(0.25 * r.pass_width_deg, r.pass_width_deg, off)
         })
     }
 
@@ -158,7 +159,8 @@ impl Flats {
             boxes.push((i as u32, r.min - Vec2::splat(plateau_reach), r.max + Vec2::splat(plateau_reach)));
         }
         for (k, h) in highways.iter().enumerate() {
-            let (lo, hi) = (h.ends[0].min(h.ends[1]), h.ends[0].max(h.ends[1]));
+            let lo = h.path.iter().fold(Vec2::splat(f32::MAX), |m, p| m.min(*p));
+            let hi = h.path.iter().fold(Vec2::splat(f32::MIN), |m, p| m.max(*p));
             boxes.push((
                 (cities.len() + k) as u32,
                 lo - Vec2::splat(road_reach),
@@ -178,21 +180,24 @@ impl Flats {
         }
     }
 
-    /// `h` at `p` blended toward each city's ground, then each highway's grade.
+    /// `h` at `p` blended toward each highway's grade, then each city's ground: a city's square
+    /// stays flat at its ground even where a routed road runs close by.
     pub fn apply(&self, p: Vec2, h: f32) -> f32 {
         let mut h = h;
-        for &id in self.index.at(p) {
-            let id = id as usize;
-            if let Some((rect, ground_m)) = self.cities.get(id) {
-                let d = rect.distance(p) - self.plateau_margin_m;
-                let w = 1.0 - smoothstep(0.0, self.plateau_blend_m, d);
-                h += (ground_m - h) * w;
-            } else {
-                let hw = &self.highways[id - self.cities.len()];
-                let (d, t) = hw.project(p);
-                let w = 1.0 - smoothstep(0.0, self.road_blend_m, d - self.road_flat_m);
+        let ids = self.index.at(p);
+        for &id in ids.iter().filter(|&&id| id as usize >= self.cities.len()) {
+            let hw = &self.highways[id as usize - self.cities.len()];
+            let (d, t) = hw.project(p);
+            let w = 1.0 - smoothstep(0.0, self.road_blend_m, d - self.road_flat_m);
+            if w > 0.0 {
                 h += (hw.grade_at(t) - h) * w;
             }
+        }
+        for &id in ids.iter().filter(|&&id| (id as usize) < self.cities.len()) {
+            let (rect, ground_m) = &self.cities[id as usize];
+            let d = rect.distance(p) - self.plateau_margin_m;
+            let w = 1.0 - smoothstep(0.0, self.plateau_blend_m, d);
+            h += (ground_m - h) * w;
         }
         h
     }

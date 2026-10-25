@@ -402,6 +402,10 @@ fn scorch_craters(mut marks: ResMut<Marks>, data: Res<Data>, plan: Res<Plan>, li
         let Some(surface) = mark_surface(&plan, &scene, b.centre) else {
             continue;
         };
+        // On soil the Material Maker scorch decal covers the crater (openspec change `blast-scorch`).
+        if surface == cb_core::world::Surface::Dirt {
+            continue;
+        }
         // A turn from the blast's place, so neighbouring craters differ.
         let yaw = (b.centre.x * 0.37 + b.centre.y * 0.61).sin() * std::f32::consts::PI;
         let m = cfg
