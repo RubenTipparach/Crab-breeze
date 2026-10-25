@@ -4,11 +4,12 @@
 //! checks it at startup and `cb-tools validate` checks it before a push.
 
 use crate::data::{Validate, finite, finite3, positive, within};
+use glam::Vec3;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
 /// Every recipe the game asks for. A file without one of these stops startup.
-pub const RECIPES: [&str; 31] = [
+pub const RECIPES: [&str; 30] = [
     "muzzle_autocannon",
     "muzzle_cannon",
     "muzzle_rocket",
@@ -19,7 +20,6 @@ pub const RECIPES: [&str; 31] = [
     "explosion_ground",
     "explosion_water",
     "explosion_air",
-    "rocket_trail",
     "foot_strike_dirt",
     "foot_strike_concrete",
     "landing_dirt",
@@ -140,6 +140,33 @@ pub enum Layer {
         /// Final radius.
         radius_m: f32,
     },
+    /// Lit smoke puffs (openspec change `smoke-puffs`): 3D blobs lit like the clouds, each its own
+    /// draw so it sorts on its own; they grow, rise, drift and fade (`crate::smoke::Puff`).
+    Puffs {
+        /// Puffs (times the effect's density).
+        count: u32,
+        /// Starting diameter.
+        size_m: f32,
+        /// Diameter added per second.
+        grow_m_s: f32,
+        /// Speed thrown at, mean.
+        speed_m_s: f32,
+        /// Cone spread, 0 straight to 1 a hemisphere.
+        spread: f32,
+        /// Upward drift of the warm smoke.
+        rise_m_s: f32,
+        /// Lifetime.
+        life_s: f32,
+        /// Share of the life spent fading out at the end, 0..1.
+        fade: f32,
+        /// Colour, linear RGB 0..1 (lit by the scene).
+        colour: [f32; 3],
+        /// Opacity at full strength, 0..1.
+        opacity: f32,
+        /// Moved this far along the effect's direction.
+        #[serde(default)]
+        offset_m: f32,
+    },
 }
 
 impl Layer {
@@ -188,6 +215,30 @@ impl Layer {
                 finite(&f("offset_m"), *offset_m)
             }
             Layer::Ripple { radius_m } => positive(&f("radius_m"), *radius_m),
+            Layer::Puffs {
+                size_m,
+                grow_m_s,
+                speed_m_s,
+                spread,
+                rise_m_s,
+                life_s,
+                fade,
+                colour,
+                opacity,
+                offset_m,
+                ..
+            } => {
+                positive(&f("size_m"), *size_m)?;
+                finite(&f("grow_m_s"), *grow_m_s)?;
+                finite(&f("speed_m_s"), *speed_m_s)?;
+                within(&f("spread"), *spread, 0.0, 2.0)?;
+                finite(&f("rise_m_s"), *rise_m_s)?;
+                positive(&f("life_s"), *life_s)?;
+                within(&f("fade"), *fade, 0.0, 1.0)?;
+                finite3(&f("colour"), *colour)?;
+                within(&f("opacity"), *opacity, 0.0, 1.0)?;
+                finite(&f("offset_m"), *offset_m)
+            }
         }
     }
 }
@@ -205,8 +256,6 @@ pub struct FxConfig {
     /// How many times brighter than white a tracer burns, so the bloom catches it (HDR; owner,
     /// 2026-10-25: "bullets need to be brighter, like affected by bloom more or something? HDR maybe?").
     pub tracer_glow: f32,
-    /// A rocket drops a `rocket_trail` puff every this far.
-    pub trail_spacing_m: f32,
     /// A rocket motor's light.
     pub motor_lumens: f32,
     /// A rocket's exhaust plume's length and width, metres (openspec change `rocket-plumes`).
@@ -241,6 +290,131 @@ pub struct FxConfig {
     /// every frame: big translucent clouds (explosion smoke, collapse dust) flickered merged (owner,
     /// 2026-10-25: "this smoke here is reall flickery still"). Each costs its own draw.
     pub sorted: Vec<String>,
+    /// Smoke trails laid as lit puffs (openspec change `smoke-puffs`).
+    pub puffs: PuffsConfig,
+}
+
+/// A trail of lit smoke puffs laid by distance along a path: one every `spacing_m`, each starting
+/// wider than the spacing so the trail is one connected stream at any frame rate (owner,
+/// 2026-10-25: "use the new smoke trails, and make them larger and more conencted").
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PuffTrail {
+    /// Path length between puffs.
+    pub spacing_m: f32,
+    /// Starting diameter.
+    pub size_m: f32,
+    /// Diameter added per second.
+    pub grow_m_s: f32,
+    /// Upward drift.
+    pub rise_m_s: f32,
+    /// Lifetime.
+    pub life_s: f32,
+    /// Share of the life spent fading out at the end, 0..1.
+    pub fade: f32,
+    /// Colour, linear RGB 0..1 (lit by the scene).
+    pub colour: [f32; 3],
+    /// Opacity at full strength, 0..1.
+    pub opacity: f32,
+    /// Laid this far behind the source, along its exhaust.
+    #[serde(default)]
+    pub offset_m: f32,
+}
+
+impl PuffTrail {
+    fn validate(&self, name: &str) -> Result<(), String> {
+        let f = |k: &str| format!("puffs.{name}.{k}");
+        positive(&f("spacing_m"), self.spacing_m)?;
+        positive(&f("size_m"), self.size_m)?;
+        finite(&f("grow_m_s"), self.grow_m_s)?;
+        finite(&f("rise_m_s"), self.rise_m_s)?;
+        positive(&f("life_s"), self.life_s)?;
+        within(&f("fade"), self.fade, 0.0, 1.0)?;
+        finite3(&f("colour"), self.colour)?;
+        within(&f("opacity"), self.opacity, 0.0, 1.0)?;
+        finite(&f("offset_m"), self.offset_m)?;
+        if self.size_m < self.spacing_m {
+            return Err(format!(
+                "{} must be at least spacing_m, or the trail breaks into beads",
+                f("size_m")
+            ));
+        }
+        Ok(())
+    }
+
+    /// The puff it lays.
+    pub fn spec(&self) -> crate::smoke::PuffSpec {
+        crate::smoke::PuffSpec {
+            size_m: self.size_m,
+            grow_m_s: self.grow_m_s,
+            rise_m_s: self.rise_m_s,
+            life_s: self.life_s,
+            fade: self.fade,
+            opacity: self.opacity,
+        }
+    }
+}
+
+/// The lit smoke puffs: how many at most, and the trails that lay them.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct PuffsConfig {
+    /// Most puffs alive; the oldest is reused past it.
+    pub max_puffs: u32,
+    /// A mech's jets while it lifts on its rockets.
+    pub jet: PuffTrail,
+    /// A missile or rocket in flight.
+    pub missile: PuffTrail,
+}
+
+impl Default for PuffsConfig {
+    fn default() -> Self {
+        Self {
+            max_puffs: 3000,
+            jet: PuffTrail {
+                spacing_m: 3.0,
+                size_m: 5.0,
+                grow_m_s: 0.6,
+                rise_m_s: 0.3,
+                life_s: 120.0,
+                fade: 0.7,
+                colour: [0.86, 0.85, 0.83],
+                opacity: 0.75,
+                offset_m: 4.0,
+            },
+            missile: PuffTrail {
+                spacing_m: 2.0,
+                size_m: 2.5,
+                grow_m_s: 1.6,
+                rise_m_s: 0.4,
+                life_s: 6.0,
+                fade: 0.7,
+                colour: [0.82, 0.81, 0.79],
+                opacity: 0.8,
+                offset_m: 1.0,
+            },
+        }
+    }
+}
+
+/// The points every `spacing_m` along the path from `from` to `to`, carrying `walked` (the path
+/// already laid past the last point) over from the step before so the spacing holds across steps.
+/// A jump longer than `max_step_m` (a teleport, a respawn) starts afresh at `to`.
+pub fn lay_along(from: Vec3, to: Vec3, spacing_m: f32, walked: &mut f32, max_step_m: f32) -> Vec<Vec3> {
+    let d = to - from;
+    let len = d.length();
+    if spacing_m.is_nan() || spacing_m <= 0.0 || !len.is_finite() || len > max_step_m {
+        *walked = 0.0;
+        return vec![to];
+    }
+    let mut out = Vec::new();
+    let mut at = spacing_m - *walked;
+    while at <= len {
+        out.push(from + d * (at / len.max(1e-6)));
+        at += spacing_m;
+    }
+    *walked = (*walked + len) % spacing_m;
+    out
 }
 
 /// How blasts nearby shake the view (owner, 2026-10-24: "screen needs to shake a bit when
@@ -294,7 +468,6 @@ impl Default for FxConfig {
             tracer_width_m: 0.25,
             tracer_heavy_width_m: 0.5,
             tracer_glow: 12.0,
-            trail_spacing_m: 3.0,
             motor_lumens: 2.0e5,
             plume_length_m: 4.5,
             plume_width_m: 0.9,
@@ -308,6 +481,7 @@ impl Default for FxConfig {
             stream_per_s: BTreeMap::new(),
             burst_range_m: 400.0,
             sorted: vec!["explosion_ground".into(), "explosion_air".into(), "explosion_water".into()],
+            puffs: PuffsConfig::default(),
         }
     }
 }
@@ -324,6 +498,8 @@ impl Validate for FxConfig {
         positive("shake.reach_m_per_cbrt_mj", self.shake.reach_m_per_cbrt_mj)?;
         positive("shake.decay_s", self.shake.decay_s)?;
         positive("burst_range_m", self.burst_range_m)?;
+        self.puffs.jet.validate("jet")?;
+        self.puffs.missile.validate("missile")?;
         for (name, per_s) in &self.stream_per_s {
             positive(&format!("stream_per_s.{name}"), *per_s)?;
             if !self.recipes.contains_key(name) {
@@ -333,7 +509,6 @@ impl Validate for FxConfig {
         positive("tracer_width_m", self.tracer_width_m)?;
         positive("tracer_heavy_width_m", self.tracer_heavy_width_m)?;
         positive("tracer_glow", self.tracer_glow)?;
-        positive("trail_spacing_m", self.trail_spacing_m)?;
         positive("motor_lumens", self.motor_lumens)?;
         for name in RECIPES {
             if !self.recipes.contains_key(name) {
@@ -427,6 +602,91 @@ mod tests {
         for name in RECIPES {
             assert!(!cfg.recipes[name].is_empty(), "{name} has no layers");
         }
+    }
+
+    #[test]
+    fn a_puffs_layer_is_validated() {
+        let good = Layer::Puffs {
+            count: 6,
+            size_m: 3.0,
+            grow_m_s: 2.0,
+            speed_m_s: 4.0,
+            spread: 0.8,
+            rise_m_s: 1.5,
+            life_s: 6.0,
+            fade: 0.4,
+            colour: [0.3, 0.3, 0.3],
+            opacity: 0.8,
+            offset_m: 0.0,
+        };
+        assert!(good.validate("x").is_ok());
+        let Layer::Puffs { .. } = good else { unreachable!() };
+        let bad = match good.clone() {
+            Layer::Puffs {
+                count,
+                size_m,
+                grow_m_s,
+                speed_m_s,
+                spread,
+                rise_m_s,
+                life_s,
+                colour,
+                offset_m,
+                ..
+            } => Layer::Puffs {
+                count,
+                size_m,
+                grow_m_s,
+                speed_m_s,
+                spread,
+                rise_m_s,
+                life_s,
+                fade: 1.5,
+                colour,
+                opacity: 0.8,
+                offset_m,
+            },
+            _ => unreachable!(),
+        };
+        assert!(bad.validate("x").unwrap_err().contains("fade"));
+    }
+
+    #[test]
+    fn a_trail_lays_a_puff_every_spacing_across_steps() {
+        let mut walked = 0.0;
+        let mut all = Vec::new();
+        // Three uneven steps along x, 7.5 m in all, puffs every 2 m.
+        for (a, b) in [(0.0, 1.5), (1.5, 4.9), (4.9, 7.5)] {
+            all.extend(lay_along(Vec3::X * a, Vec3::X * b, 2.0, &mut walked, 100.0));
+        }
+        let xs: Vec<f32> = all.iter().map(|p| p.x).collect();
+        assert_eq!(xs.len(), 3, "{xs:?}");
+        for (x, want) in xs.iter().zip([2.0, 4.0, 6.0]) {
+            assert!((x - want).abs() < 1e-4, "{xs:?}");
+        }
+        assert!((walked - 1.5).abs() < 1e-4, "1.5 m laid past the last puff");
+    }
+
+    #[test]
+    fn a_fast_step_still_lays_every_puff_and_a_jump_starts_afresh() {
+        let mut walked = 0.0;
+        // One long step (a slow frame): no gaps, a puff every 3 m.
+        let pts = lay_along(Vec3::ZERO, Vec3::Z * 30.0, 3.0, &mut walked, 100.0);
+        assert_eq!(pts.len(), 10);
+        let jump = lay_along(Vec3::ZERO, Vec3::Z * 500.0, 3.0, &mut walked, 100.0);
+        assert_eq!(jump, vec![Vec3::Z * 500.0], "a teleport is not a trail");
+        assert_eq!(walked, 0.0);
+    }
+
+    #[test]
+    fn a_trail_whose_puffs_are_narrower_than_their_spacing_is_refused() {
+        let mut cfg = FxConfig {
+            recipes: RECIPES.iter().map(|n| (n.to_string(), Vec::new())).collect(),
+            ..FxConfig::default()
+        };
+        assert!(cfg.validate().is_ok(), "{:?}", cfg.validate());
+        cfg.puffs.jet.size_m = 1.0;
+        assert!(cfg.validate().unwrap_err().contains("beads"));
     }
 
     #[test]
