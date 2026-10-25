@@ -63,7 +63,8 @@ cue is cut from CC0 originals by a committed spec (layers with start, length, pi
 and fades, plus synthesised layers such as the sub rumble where a recording lacks low end), and
 gets a row in `assets/audio/sfx/SOURCES.md`.
 
-**Blocked on the network.** The cloud environment refuses opengameart.org, kenney.nl,
+**Blocked on the network.** The cloud environment refuses opengameart.org, kenney.nl, archive.org,
+commons.wikimedia.org, upload.wikimedia.org,
 freesound.org, godotengine.org and mediafire.com, where every original lives. The GitHub mirrors
 found on 2026-10-25: [hipdiscovery/Free-Sound-Effects](https://github.com/hipdiscovery/Free-Sound-Effects)
 holds only Kenney's 100 Interface Sounds (CC0, licence file checked); the Godot Asset Library's
@@ -78,9 +79,10 @@ used, but its table and specs say which original file makes a good mech step, ex
 | --- | --- | --- |
 | foot_stomp | Mech Stomp / Step Sound (hc), `stomp.flac`; 100 CC0 metal and wood SFX (dull metal collisions) | pitched 0.8-0.9 for a 24 m mech, our sub thump under it |
 | jet_ignite | Flare ignition (qubodup); Rocket launch (qubodup) | our sub rumble under it |
-| rocket_loop | rocket engine (loopable); 30 CC0 SFX loops | steep lowpass as now |
+| rocket_loop | rocket engine (loopable); 30 CC0 SFX loops; NASA launch recordings (below) | steep lowpass as now |
 | rocket_rumble | Low rumbling (Musheran) | |
 | rocket_launch | Rocket launch (qubodup), `launch.wav` | |
+| jet_ignite, rocket_loop, rocket_rumble (real launches) | [NASA Audio Highlight Reels](https://archive.org/details/NasaAudioHighlightReels) on the Internet Archive: `Launch-Sound_Saturn-V.ogg`, `Launch-Sound_Shuttle-Launch-Mid.ogg` and more, in ogg and flac | NASA works are public domain (the item carries the Public Domain Mark); check each file's page. Real ignition and roar, the owner's "fuel igniting". Wikimedia Commons (owner's suggestion) had no launch audio by search, only launch videos whose soundtracks could be cut; both hosts are refused here too |
 | missile_launch | Missile sound (mikeask), `missile.wav` | |
 | autocannon, cannon, shotgun | The Free Firearm Sound Library (Still North Media): Carl Gustav M45, AK-47, shotgun takes | autocannon pitched about 0.7 |
 | impact_mech | 75 CC0 breaking / falling / hit SFX; 100 CC0 metal and wood SFX (`metal_slam`); a Free Firearm Sound Library crack | the owner asked for "a harder sound like gunshot" |
