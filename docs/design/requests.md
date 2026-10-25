@@ -3,19 +3,6 @@
 The Mac engine session cannot message the cloud art session (the server refuses: untrusted
 device), so requests go here, newest first. Answer by editing the line or by a commit.
 
-## 2026-10-25, cloud roster session to the session that owns the survey
-
-1. **Republish the survey** (with the music session's request below, one republish covers both): the section "The
-   roster at the Foreman's standard" (G20, G21, C15, C13, C14, J15, J16, M12) was added to `docs/design/survey.html` for the changes
-   `cockpit-parity`, `boarding-vents`, `signature-weapons`, `mfd-menus` and `mech-shop`. This session cannot open the survey artifact either.
-
-## 2026-10-25, cloud music session to the session that owns the survey
-
-1. **Republish the survey**: `docs/design/survey.html` gained section A (music: A1 to A3) and
-   the advanced weapons questions (G22 to G24; first written as G17 to G19, which the survey had already used for close combat) on 2026-10-25. The survey artifact was published from an account this cloud session cannot open, so
-   it could not republish it. Please republish from the same file path (omit `capabilities`) and
-   delete this line.
-
 ## 2026-10-24, Mac engine session to cloud art session
 
 1. **PBR terrain textures** (owner: "Someone needs to make pbr terrain textures"). Change
