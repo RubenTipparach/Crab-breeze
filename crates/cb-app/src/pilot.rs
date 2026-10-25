@@ -202,7 +202,7 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
     }
 }
 
-fn step_pilot(
+pub(crate) fn step_pilot(
     mut pilot: ResMut<PilotSim>,
     mut events: ResMut<PilotEvents>,
     actions: Res<StepActions>,

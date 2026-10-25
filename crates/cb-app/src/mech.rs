@@ -142,6 +142,12 @@ impl MechRig {
     pub fn head(&self) -> Option<Entity> {
         self.named.get("head").copied()
     }
+
+    /// The entity of a contract socket (`MUZZLE_L`, `JET_L`, `WHEEL_R`, `HATCH_entry`, `EYE_pilot`...),
+    /// for something that rides it (a sound).
+    pub fn socket(&self, name: &str) -> Option<Entity> {
+        self.sockets.get(name).copied()
+    }
 }
 
 /// Smoke and fire rising from where a part was shot off.
