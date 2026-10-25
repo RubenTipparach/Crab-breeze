@@ -66,7 +66,9 @@ def mirror(half):
 
 LAYOUTS = [
     dict(id="panorama", rear="hatch", mech="clamshell", name="Panorama", rows=[(0.95, 1.80)], plan=mirror([(0.95, 0.85), (1.05, 0.15), (0.95, -0.45)]),
-         pillars=[2, 3], mfd=("top", "dash"),
+         # Overhead MFDs 6 cm lower than the top bar (owner, 2026-10-25: "the mfds up top should be ooved down a
+         # bit", "close, almost there nudge it down just a bit").
+         pillars=[2, 3], mfd=("top", "dash"), mfd_top_m=(-0.06, 0.16),
          text="One wide front screen, 1.9 m across, the pillars pushed out to the corners; square side screens to the "
               "shoulders. Armored Core's front."),
     dict(id="tilewall", rear="ramp", mech="petals", name="Tile wall", rows=[(0.80, 1.38), (1.41, 1.99)], plan=arc(1.0, -105, 105, 11), pillars=[0, 11],
