@@ -1031,8 +1031,11 @@ pub fn step_mech(
                 }
                 None => {}
             }
-            if !seated && sim.hatch.target == HatchTarget::Open && pilot.curr.mode == PilotMode::OnFoot {
-                // Asked to board: turn to face the pilot while kneeling, so the hatch is toward them.
+            // Asked to board: turn to face the pilot while kneeling, so the hatch is toward them. Once
+            // the kneel is complete it holds still (owner, 2026-10-25: "when mech has completed
+            // kneeling animation it should no longer turn to face the player").
+            let kneeling = sim.hatch.t_s < tl.sit.duration_s;
+            if !seated && kneeling && sim.hatch.target == HatchTarget::Open && pilot.curr.mode == PilotMode::OnFoot {
                 let to = pilot.curr.feet - sim.curr.pos;
                 let want = (-to.x).atan2(-to.z);
                 let err = (want - sim.curr.heading_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
