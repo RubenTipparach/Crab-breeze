@@ -272,6 +272,7 @@ fn place_camera(
     fixed: Res<Time<Fixed>>,
     data: Res<Data>,
     rigs: Query<&MechRig, With<crate::mech::Piloted>>,
+    sims: Query<&crate::mech::MechSim, With<crate::mech::Piloted>>,
     transforms: Query<&Transform, Without<PilotCamera>>,
     parents: Query<&ChildOf>,
     mut camera: Single<&mut Transform, With<PilotCamera>>,
@@ -309,6 +310,23 @@ fn place_camera(
             let seat_yaw = access.0.as_ref().map_or(curr.yaw_rad, |a| a.seat_yaw_rad);
             view(curr.yaw_rad, curr.pitch_rad).slerp(view(seat_yaw, 0.0), k)
         }
+        // Seated, the view is the mech's heading, drawn between steps as the cockpit is, plus the
+        // pilot's own look from its nose with the mouse not yet stepped. Turning only once a fixed
+        // step while the cockpit glided between steps, it jittered against the cabin (owner,
+        // 2026-10-25: "the motion of the mech turning vs mouselook ... it jitters alot").
+        PilotMode::Seated => match sims.iter().next() {
+            Some(sim) => {
+                let pitch_limit = cfg.pitch_limit_deg.to_radians();
+                let (from, to) = (sim.prev.heading_rad, sim.curr.heading_rad);
+                let turned = (to - from + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+                let heading = from + turned * alpha;
+                view(
+                    heading + curr.seated_rel_rad - pending.x.to_radians(),
+                    (curr.pitch_rad + pending.y.to_radians()).clamp(-pitch_limit, pitch_limit),
+                )
+            }
+            None => walking_view(),
+        },
         _ => walking_view(),
     };
     // The shake rides on top of the player's view and is never written into their aim: the look

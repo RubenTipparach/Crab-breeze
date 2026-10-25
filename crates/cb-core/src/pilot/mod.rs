@@ -42,7 +42,15 @@ pub struct PilotConfig {
     pub exit_near_stop_m_s: f32,
     /// The view's vertical field of view (on foot and seated).
     pub view_fov_deg: f32,
+    /// On foot, Space jumps at this upward speed (owner, 2026-10-25: "my fps character needs jump!").
+    pub jump_speed_m_s: f32,
+    /// What pulls a jumping pilot back down.
+    pub gravity_m_s2: f32,
 }
+
+/// Ground this far below the feet is stepped down onto, not fallen to: walking down a slope or a
+/// kerb keeps the feet on the ground.
+const STEP_DOWN_M: f32 = 0.5;
 
 impl Default for PilotConfig {
     fn default() -> Self {
@@ -60,6 +68,8 @@ impl Default for PilotConfig {
             exit_hold_s: 1.0,
             exit_near_stop_m_s: 3.0,
             view_fov_deg: 75.0,
+            jump_speed_m_s: 4.4,
+            gravity_m_s2: 9.81,
         }
     }
 }
@@ -79,6 +89,8 @@ impl Validate for PilotConfig {
         positive("exit_hold_s", self.exit_hold_s)?;
         positive("exit_near_stop_m_s", self.exit_near_stop_m_s)?;
         within("view_fov_deg", self.view_fov_deg, 30.0, 120.0)?;
+        within("jump_speed_m_s", self.jump_speed_m_s, 0.0, 15.0)?;
+        positive("gravity_m_s2", self.gravity_m_s2)?;
         Ok(())
     }
 }
@@ -184,6 +196,8 @@ pub struct PilotState {
     pub feet: Vec3,
     /// Horizontal velocity on foot (x, z).
     pub velocity: Vec2,
+    /// Vertical velocity on foot, up positive: 0 on the ground, set by a jump.
+    pub vel_y_m_s: f32,
     /// View yaw in the world, radians; 0 faces -z, positive turns left. The player's own, in every
     /// state: only the mouse moves it (owner, 2026-10-24: "never take camera control away from the
     /// player"). On foot it is also the body's heading; seated, the torso turns to follow it.
@@ -248,30 +262,45 @@ pub fn coupled_look(rel: f32, prev_rel: f32, turn: f32, limit: f32, free_look: b
 /// An ejected pilot lands this far out in front of the destroyed mech's hatch.
 pub const EJECT_OUT_M: f32 = 18.0;
 
-/// The view's last stretch before the coupled limit over which the mech's turn toward it ramps up.
-pub const LOOK_TURN_BAND_DEG: f32 = 20.0;
-
-/// The mech's turn toward the seated view (`turn_axis`, -1..1): nothing until the view is within
-/// `LOOK_TURN_BAND_DEG` of the coupled limit, then easing up to full at the limit, so the mech
-/// starts turning gently and never snaps between turning and not (owner, 2026-10-25: "theres lots
-/// of mech jitter when I turn, mech should turn more smoothly"). `None` (free look held, or the
-/// view well inside the limit) leaves the turn to the keys.
+/// The mech's turn toward the seated view (`turn_axis`, -1..1): in proportion to how far the view is
+/// off the mech's nose, full at half the coupled limit (45 degrees of 90), so a small look turns it
+/// slowly and a large one fast, and it settles onto the view as the gap closes (owner, 2026-10-25:
+/// "if move a little bit turn mech slowly to match my cursor, if move a lot, the move faster"). The
+/// legs' turn rate eases on top of this (`turn_accel_deg_s2`). `None` while free look is held.
 pub fn look_turn(rel: f32, limit: f32, free_look: bool) -> Option<f32> {
-    let band = LOOK_TURN_BAND_DEG.to_radians().min(limit);
-    let into = (rel.abs() - (limit - band)) / band;
-    if free_look || into <= 0.0 {
+    if free_look || !rel.is_finite() {
         return None;
     }
-    let k = into.min(1.0);
-    Some(rel.signum() * k * k * (3.0 - 2.0 * k))
+    Some((rel / (0.5 * limit).max(1e-3)).clamp(-1.0, 1.0))
 }
 
 impl PilotState {
+    /// The feet's height after this step on foot, over ground at `floor_m`: on the ground they follow
+    /// it (down steps up to `STEP_DOWN_M`), and Space (the lift key, which jumps on foot) leaves it at
+    /// `jump_speed_m_s`; in the air they rise and fall under gravity until they land.
+    fn vertical(&mut self, a: &Actions, cfg: &PilotConfig, floor_m: f32, dt_s: f32) -> f32 {
+        let grounded = self.vel_y_m_s == 0.0 && self.feet.y - floor_m < STEP_DOWN_M;
+        if grounded && a.lift_axis <= 0.0 {
+            return floor_m;
+        }
+        if grounded {
+            self.vel_y_m_s = cfg.jump_speed_m_s;
+        }
+        self.vel_y_m_s -= cfg.gravity_m_s2 * dt_s;
+        let y = self.feet.y + self.vel_y_m_s * dt_s;
+        if y <= floor_m && self.vel_y_m_s <= 0.0 {
+            self.vel_y_m_s = 0.0;
+            return floor_m;
+        }
+        y.max(floor_m)
+    }
+
     /// A pilot standing at `feet`, looking along `yaw_rad`.
     pub fn standing(feet: Vec3, yaw_rad: f32) -> Self {
         Self {
             feet,
             velocity: Vec2::ZERO,
+            vel_y_m_s: 0.0,
             yaw_rad,
             pitch_rad: 0.0,
             seated_eye: Vec3::ZERO,
@@ -372,7 +401,7 @@ impl PilotState {
                     self.velocity = Vec2::ZERO;
                 }
                 let p = ground.push_out(moved, cfg.body_radius_m);
-                self.feet = Vec3::new(p.x, ground.height_at(p.x, p.y), p.y);
+                self.feet = Vec3::new(p.x, self.vertical(a, cfg, ground.height_at(p.x, p.y), dt_s), p.y);
                 if let Some(m) = access {
                     if a.use_pressed && self.can_board(m, cfg) && self.waiting.is_none() {
                         self.waiting = Some(Waiting::ToBoard);
@@ -539,6 +568,25 @@ mod tests {
     fn the_shipped_pilot_data_loads() {
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/pilot/pilot.ron");
         crate::data::load_ron::<PilotConfig>(&path).expect("pilot data loads");
+    }
+
+    #[test]
+    fn space_on_foot_jumps_about_a_metre_and_lands() {
+        let cfg = PilotConfig::default();
+        let mut p = PilotState::standing(Vec3::ZERO, 0.0);
+        let jump = Actions {
+            lift_axis: 1.0,
+            ..Default::default()
+        };
+        p.step(&jump, &cfg, &FlatGround::default(), None, DT);
+        let mut top = 0.0f32;
+        for _ in 0..240 {
+            p.step(&Actions::default(), &cfg, &FlatGround::default(), None, DT);
+            top = top.max(p.feet.y);
+        }
+        assert!((0.8..1.2).contains(&top), "a jump about a metre high: {top}");
+        assert_eq!(p.feet.y, 0.0, "it lands on the ground");
+        assert_eq!(p.vel_y_m_s, 0.0, "and stands");
     }
 
     #[test]
@@ -809,15 +857,16 @@ mod tests {
     }
 
     #[test]
-    fn pushing_past_the_edge_turns_the_mech_at_its_turn_rate() {
+    fn a_small_look_turns_the_mech_slowly_and_a_large_one_fast() {
         let limit = 90f32.to_radians();
+        let small = look_turn(5f32.to_radians(), limit, false).unwrap();
+        let large = look_turn(40f32.to_radians(), limit, false).unwrap();
+        assert!(small > 0.0 && small < 0.15, "a small look, a slow turn: {small}");
+        assert!(large > 0.8, "a large look, a fast turn: {large}");
         assert_eq!(look_turn(limit, limit, false), Some(1.0));
         assert_eq!(look_turn(-limit, limit, false), Some(-1.0));
-        assert_eq!(look_turn(limit * 0.5, limit, false), None);
-        assert_eq!(look_turn(limit, limit, true), None);
-        // Partway into the band the turn is partway: it ramps, it does not snap.
-        let half = look_turn(limit - (LOOK_TURN_BAND_DEG * 0.5).to_radians(), limit, false).unwrap();
-        assert!(half > 0.3 && half < 0.7, "{half}");
+        assert_eq!(look_turn(0.0, limit, false), Some(0.0), "looking ahead, no turn");
+        assert_eq!(look_turn(limit, limit, true), None, "free look turns nothing");
     }
 
     #[test]

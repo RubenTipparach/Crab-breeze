@@ -166,6 +166,8 @@ pub struct MechState {
     pub turn_rate_rad_s: f32,
     /// Torso twist from the legs, radians, left positive.
     pub twist_rad: f32,
+    /// How fast the torso is twisting now, rad/s, left positive (it eases in and out).
+    pub twist_rate_rad_s: f32,
     /// Torso pitch, radians, up positive.
     pub pitch_rad: f32,
     /// Where the pilot aims the twist.
@@ -213,6 +215,22 @@ fn flat_forward(heading_rad: f32) -> Vec2 {
 
 fn approach(v: f32, target: f32, max_step: f32) -> f32 {
     v + (target - v).clamp(-max_step, max_step)
+}
+
+/// `x` moving toward `target` at rate `rate` (per second), no faster than `max_rate`, its rate
+/// changing by no more than `accel` per second: it speeds up from rest, and slows in time to stop on
+/// the target (the fastest rate that can still stop there is the square root of 2 `accel` times the
+/// distance left). Returns the new value and rate.
+fn ease_toward(x: f32, rate: f32, target: f32, max_rate: f32, accel: f32, dt_s: f32) -> (f32, f32) {
+    let left = target - x;
+    let want = left.signum() * (2.0 * accel * left.abs()).sqrt().min(max_rate);
+    let rate = approach(rate, want, accel * dt_s);
+    let step = rate * dt_s;
+    if step * left >= 0.0 && step.abs() >= left.abs() {
+        (target, 0.0)
+    } else {
+        (x + step, rate)
+    }
 }
 
 fn approach_vec(v: Vec2, target: Vec2, max_step: f32) -> Vec2 {
@@ -490,7 +508,15 @@ impl MechState {
         let [pitch_lo, pitch_hi] = loco.pitch_limits_deg.map(f32::to_radians);
         self.aim_twist_rad = (self.aim_twist_rad - c.aim_delta_deg.x.to_radians()).clamp(-twist_max, twist_max);
         self.aim_pitch_rad = (self.aim_pitch_rad + c.aim_delta_deg.y.to_radians()).clamp(pitch_lo, pitch_hi);
-        self.twist_rad = approach(self.twist_rad, self.aim_twist_rad, loco.twist_rate_deg_s.to_radians() * dt_s);
+        let (twist, rate) = ease_toward(
+            self.twist_rad,
+            self.twist_rate_rad_s,
+            self.aim_twist_rad,
+            loco.twist_rate_deg_s.to_radians(),
+            loco.twist_accel_deg_s2.to_radians(),
+            dt_s,
+        );
+        (self.twist_rad, self.twist_rate_rad_s) = (twist, rate);
         self.pitch_rad = approach(self.pitch_rad, self.aim_pitch_rad, loco.pitch_rate_deg_s.to_radians() * dt_s);
 
         // Gait clock: cycles advance by distance over stride; turning in place steps too. Skating
@@ -536,6 +562,29 @@ mod tests {
         assert_eq!(m.throttle, 1.0);
         assert!((m.speed_m_s - 7.0).abs() < 1e-3, "{}", m.speed_m_s);
         assert!(m.pos.z < -20.0, "heading 0 walks toward -z: {}", m.pos);
+    }
+
+    #[test]
+    fn the_torso_eases_into_a_twist_and_brakes_onto_its_aim() {
+        let cfg = MechConfig::default();
+        let mut m = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        let aim_left = MechControls {
+            aim_delta_deg: Vec2::new(-60.0, 0.0),
+            ..Default::default()
+        };
+        m.step(&aim_left, &cfg, &FlatGround::default(), DT);
+        let max = cfg.locomotion.twist_rate_deg_s.to_radians();
+        let accel = cfg.locomotion.twist_accel_deg_s2.to_radians();
+        assert!(m.twist_rate_rad_s <= accel * DT + 1e-5, "it starts slowly, not at full rate");
+        let mut last = m.twist_rate_rad_s;
+        for _ in 0..240 {
+            m.step(&MechControls::default(), &cfg, &FlatGround::default(), DT);
+            assert!((m.twist_rate_rad_s - last).abs() <= accel * DT + 1e-4, "no jump in rate");
+            assert!(m.twist_rate_rad_s <= max + 1e-4);
+            last = m.twist_rate_rad_s;
+        }
+        assert!((m.twist_rad - 60f32.to_radians()).abs() < 1e-4, "it stops on the aim");
+        assert_eq!(m.twist_rate_rad_s, 0.0, "and holds still");
     }
 
     #[test]
