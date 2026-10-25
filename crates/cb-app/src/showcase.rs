@@ -473,6 +473,19 @@ fn play(
     }
     acc.script = Some(act);
     if next {
+        if take.trail {
+            info!(
+                "trail: beat {} ends at {t:.1} s: {:.1} m above ground, airborne {}, rockets heat {:.2} locked {}, skates {}, \
+                 speed {:.1} m/s",
+                take.names.get(take.beat).unwrap_or(&"?"),
+                m.pos.y - plan.height_at(m.pos.x, m.pos.z),
+                m.airborne(),
+                m.boost.heat,
+                m.boost.locked,
+                m.skates_on,
+                m.vel.length()
+            );
+        }
         take.beat += 1;
         take.beat_started_s = now;
     }
