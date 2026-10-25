@@ -6,7 +6,7 @@
 ## 2. Menus
 - [x] 2.1 `mfd::ray_uv`: the page point under the ray; tested on a quad
 - [x] 2.2 MENU page; a screen's page chosen from its menu; each screen's home page; BACK restores it (one table of rows, `mfd_apps::items`, lays out and is pressed; the stills script takes a job by it)
-- [ ] 2.2b Escape while pointing does what BACK does (Escape opens the pause menu today)
+- [x] 2.2b Escape while pointing at a MENU or MAIL does what BACK does, and the pause menu stays shut; on a readout or with nothing pointed at, Escape pauses as before (`mfd::turn_page`, tested)
 - [ ] 2.3 MAP page: the plan drawn once; mech, job and enemy markers; three zooms
 - [x] 2.4a MAIL (`mission-jobs`) as a page: credits, the job under way and its distance, three offers with ACCEPT
 - [ ] 2.4b MENU row opens the pause menu (`game-menus`); SHOP (`mech-shop`) as a page

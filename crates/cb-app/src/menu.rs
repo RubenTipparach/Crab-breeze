@@ -133,6 +133,7 @@ fn escape(
     back: Res<BackTo>,
     settings: Res<Settings>,
     career: Option<Res<crate::career::CareerRun>>,
+    (pointed, mut acc): (Res<crate::mfd_apps::Pointed>, ResMut<crate::input::InputAccum>),
     mut menu: ResMut<Menu>,
     mut time: ResMut<Time<Virtual>>,
     mut cursor: Single<&mut CursorOptions>,
@@ -147,6 +148,12 @@ fn escape(
         return;
     }
     if !input.any_just_pressed(keys.release_mouse.iter().copied()) {
+        return;
+    }
+    // In play, pointing at an MFD's MENU or MAIL in free look, Escape is that screen's BACK (mfd-menus), not the
+    // pause menu.
+    if *menu == Menu::Closed && pointed.page.is_some_and(|p| p >= crate::mfd_apps::MENU_PAGE) {
+        acc.mfd_back = true;
         return;
     }
     let next = match *menu {

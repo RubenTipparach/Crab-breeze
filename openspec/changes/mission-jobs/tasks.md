@@ -3,7 +3,7 @@
 - [x] 1.1 `cb-core::mail`: messages, offers, the inbox limit, the template filler, deterministic from the seed
 - [x] 1.2 `cb-core::jobs`: JobSpec, the generator from the world plan, the JobRule registry (Defend over city-defence, Intercept, Destroy), tested
 - [x] 1.3 `data/jobs/jobs.ron` and `data/jobs/mail.ron`, validated
-- [x] 2.1 MAIL MFD page (`mfd_apps`, after the five readouts): offers, the job under way, ACCEPT by press (decline and reading a body by press still to come)
+- [x] 2.1 MAIL MFD page (`mfd_apps`, after the five readouts): offers, the job under way, ACCEPT and DECLINE by press (reading a mail's body by press still to come)
 - [x] 2.2 Nav bearing and the site marker on the screens (`hud::draw_job`)
 - [x] 2.3 Arrival releases the forces; the outcome pays through the career and writes the save
 - [ ] 2.4 Test key: start the accepted job at its site

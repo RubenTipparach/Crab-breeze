@@ -222,24 +222,23 @@ fn press(
     mut career: Option<ResMut<crate::career::CareerRun>>,
     mut sounds: MessageWriter<crate::audio::Sound>,
 ) {
-    if !std::mem::take(&mut acc.mfd_press) {
+    let back = std::mem::take(&mut acc.mfd_back);
+    if !std::mem::take(&mut acc.mfd_press) && !back {
         return;
     }
     let Some(mut screen) = pointed.screen.and_then(|e| screens.get_mut(e).ok()) else {
         return;
     };
     let page = screen.page;
-    let next = if page < MFD_READOUTS {
-        screen.home = Some(page);
-        Some(MENU_PAGE)
-    } else {
-        match pointed.item {
-            Some(Item::Back) => Some(screen.home.take().unwrap_or(0)),
-            Some(Item::Readout(i)) => {
-                screen.home = None;
-                Some(i)
-            }
-            Some(Item::Mail) => Some(MAIL_PAGE),
+    // Escape is BACK wherever the view points on the page (`turn_page`).
+    let item = pointed.item;
+    let next = match item {
+        _ if back || page < MFD_READOUTS || matches!(item, Some(Item::Back | Item::Readout(_) | Item::Mail)) => {
+            let (next, home) = turn_page(page, screen.home, item, back);
+            screen.home = home;
+            next
+        }
+        _ => match item {
             Some(Item::Accept(k)) => {
                 if let Some(run) = career.as_mut()
                     && let Some(id) = offer_in_slot(&run.career.board, k)
@@ -253,8 +252,18 @@ fn press(
                 }
                 None
             }
-            None => None,
-        }
+            Some(Item::Decline(k)) => {
+                if let Some(run) = career.as_mut()
+                    && let Some(id) = offer_in_slot(&run.career.board, k)
+                    && run.career.board.decline(id)
+                {
+                    info!("MFD: job {id} declined on the MAIL page");
+                    sounds.write(crate::audio::Sound::speaker("mfd_click"));
+                }
+                None
+            }
+            _ => None,
+        },
     };
     if let Some(p) = next {
         sounds.write(crate::audio::Sound::speaker("mfd_click"));
@@ -262,6 +271,22 @@ fn press(
         if let Some(mut m) = materials.get_mut(&screen.material) {
             m.uv_transform = page_uv(screen.page);
         }
+    }
+}
+
+/// Which page a screen turns to, and the readout it remembers (`home`), when it is pressed on `item` while showing
+/// `page`, or BACK'd by Escape (`escape`): a readout opens the MENU and remembers itself; BACK gives the remembered
+/// readout back (the MECH page when none is remembered); a readout row shows that readout and forgets the old one;
+/// MAIL keeps it. Escape on a readout does nothing. None: the page stays.
+fn turn_page(page: usize, home: Option<usize>, item: Option<Item>, escape: bool) -> (Option<usize>, Option<usize>) {
+    if page < MFD_READOUTS {
+        return if escape { (None, home) } else { (Some(MENU_PAGE), Some(page)) };
+    }
+    match if escape { Some(Item::Back) } else { item } {
+        Some(Item::Back) => (Some(home.unwrap_or(0)), None),
+        Some(Item::Readout(i)) => (Some(i), None),
+        Some(Item::Mail) => (Some(MAIL_PAGE), home),
+        _ => (None, home),
     }
 }
 
@@ -571,6 +596,41 @@ mod tests {
             vec![Vec2::new(0.0, 1.0), Vec2::new(1.0, 1.0), Vec2::new(1.0, 0.0), Vec2::new(0.0, 0.0)],
             vec![0, 1, 2, 0, 2, 3],
         )
+    }
+
+    /// One screen's pages as the pilot clicks through them: (page, remembered readout).
+    fn click(state: (usize, Option<usize>), item: Option<Item>, escape: bool) -> (usize, Option<usize>) {
+        let (next, home) = turn_page(state.0, state.1, item, escape);
+        (next.unwrap_or(state.0), home)
+    }
+
+    #[test]
+    fn leaving_the_mail_by_back_gives_the_screen_its_own_page_again() {
+        // MECH (0): click opens the MENU, MAIL, then BACK.
+        let s = click((0, None), None, false);
+        assert_eq!(s, (MENU_PAGE, Some(0)));
+        let s = click(s, Some(Item::Mail), false);
+        assert_eq!(s, (MAIL_PAGE, Some(0)));
+        assert_eq!(click(s, Some(Item::Back), false), (0, None));
+    }
+
+    #[test]
+    fn escape_on_a_menu_is_back_and_on_a_readout_does_nothing() {
+        let s = click((4, None), None, false);
+        assert_eq!(click(s, None, true), (4, None), "Escape anywhere on the MENU: TARGET again");
+        assert_eq!(click((4, None), None, true), (4, None), "Escape on a readout: nothing");
+    }
+
+    #[test]
+    fn picking_a_readout_makes_it_the_screens_page() {
+        let s = click((4, None), None, false);
+        let s = click(s, Some(Item::Readout(1)), false);
+        assert_eq!(s, (1, None));
+        assert_eq!(
+            click(click(s, None, false), Some(Item::Back), false),
+            (1, None),
+            "BACK now gives FLIGHT"
+        );
     }
 
     #[test]

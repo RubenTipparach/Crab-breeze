@@ -32,6 +32,8 @@ pub enum Item {
     Mail,
     /// ACCEPT on the MAIL page's offer slot.
     Accept(usize),
+    /// DECLINE on the MAIL page's offer slot.
+    Decline(usize),
 }
 
 /// A rectangle on a page, pixels from the page's top left.
@@ -75,7 +77,9 @@ fn items(page: usize) -> Vec<(Item, Area)> {
         }
         MAIL_PAGE => {
             for k in 0..MAIL_SLOTS {
-                out.push((Item::Accept(k), Area::new(372.0, TOP + 128.0 + k as f32 * 96.0, 118.0, 48.0)));
+                let y = TOP + 124.0 + k as f32 * 96.0;
+                out.push((Item::Accept(k), Area::new(372.0, y, 118.0, 40.0)));
+                out.push((Item::Decline(k), Area::new(372.0, y + 46.0, 118.0, 40.0)));
             }
         }
         _ => out.clear(),
@@ -209,6 +213,7 @@ fn page_node(pages: &mut ChildSpawnerCommands, title: &str, page: usize, extra: 
                     Item::Readout(i) => READOUTS[i].to_string(),
                     Item::Mail => "MAIL".to_string(),
                     Item::Accept(_) => "ACCEPT".to_string(),
+                    Item::Decline(_) => "DECLINE".to_string(),
                 };
                 let mut e = p.spawn((
                     Node {
@@ -220,7 +225,7 @@ fn page_node(pages: &mut ChildSpawnerCommands, title: &str, page: usize, extra: 
                         border: UiRect::all(px(2.0)),
                         padding: UiRect::horizontal(px(12.0)),
                         align_items: AlignItems::Center,
-                        justify_content: if matches!(item, Item::Back | Item::Accept(_)) {
+                        justify_content: if matches!(item, Item::Back | Item::Accept(_) | Item::Decline(_)) {
                             JustifyContent::Center
                         } else {
                             JustifyContent::FlexStart
@@ -238,7 +243,7 @@ fn page_node(pages: &mut ChildSpawnerCommands, title: &str, page: usize, extra: 
                         b.spawn(text(&label, if matches!(item, Item::Readout(_)) { 30.0 } else { 26.0 }));
                     }
                 });
-                if matches!(item, Item::Accept(_)) {
+                if matches!(item, Item::Accept(_) | Item::Decline(_)) {
                     e.insert(Visibility::Hidden);
                 }
             }
@@ -354,18 +359,17 @@ fn write_live(
             t.0 = s;
         }
     }
-    // ACCEPT shows on a slot with an offer in it, while no job is under way.
+    // DECLINE shows on a slot with an offer in it; ACCEPT too, while no job is under way.
     let free = board.is_some_and(|b| b.current().is_none());
     for (ItemNode(_, item), mut vis) in &mut accept {
-        if let Item::Accept(k) = item {
-            let v = if free && k < &open.len() {
-                Visibility::Inherited
-            } else {
-                Visibility::Hidden
-            };
-            if *vis != v {
-                *vis = v;
-            }
+        let shown = match item {
+            Item::Accept(k) => free && *k < open.len(),
+            Item::Decline(k) => *k < open.len(),
+            _ => continue,
+        };
+        let v = if shown { Visibility::Inherited } else { Visibility::Hidden };
+        if *vis != v {
+            *vis = v;
         }
     }
 }
