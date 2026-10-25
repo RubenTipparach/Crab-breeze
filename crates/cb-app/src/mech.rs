@@ -1746,8 +1746,22 @@ fn jet_flames(
     if wash {
         *wash_s = 0.0;
     }
+    // A measurement line, with `CB_ENEMY_STUNT`: each mech's rockets and its jet emitters, every 5 s.
+    let report = crate::cli::switched_off("CB_ENEMY_STUNT") && (time.elapsed_secs() % 5.0) < time.delta_secs();
     for (sim, rig) in &mechs {
         let on = sim.curr.boosting && !sim.dead;
+        if report {
+            let socket = rig.sockets.get("JET_L").copied();
+            let kids = socket.and_then(|e| children.get(e).ok()).map_or(0, |c| c.len());
+            info!(
+                "jets: boosting {} airborne {} socket {:?} stream {} children {}",
+                sim.curr.boosting,
+                sim.curr.airborne(),
+                socket,
+                socket.is_some_and(|e| streams.get(e).is_ok()),
+                kids
+            );
+        }
         for jet in ["JET_L", "JET_R"] {
             let Some(&e) = rig.sockets.get(jet) else { continue };
             let trail = trails.get(e).ok().map(|t| t.0);
