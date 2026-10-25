@@ -1118,7 +1118,7 @@ pub fn step_mech(
                 open: &open,
             };
             let orders = enemy.ai.orders(&sim.curr, &view, dt);
-            if let Some(c) = stunt(&sim.curr, &plan, time.elapsed_secs() + id.0 as f32 * 7.0) {
+            if let Some(c) = stunt(&sim.curr, &plan, player_at, time.elapsed_secs() + id.0 as f32 * 7.0) {
                 aim_at = Some(orders.aim_point);
                 c
             } else {
@@ -1633,16 +1633,27 @@ fn cut_parts(
 /// orders, holding fire: up on the rockets with the skates pushing forward, a glide down, then
 /// skating on the ground, so its jet smoke and skate trails can be checked from the seat (owner,
 /// 2026-10-25: "do other mechs and do my mech while I'm in the pilot seat").
-fn stunt(m: &MechState, plan: &Plan, t_s: f32) -> Option<MechControls> {
+fn stunt(m: &MechState, plan: &Plan, player: Vec3, t_s: f32) -> Option<MechControls> {
     if !crate::cli::switched_off("CB_ENEMY_STUNT") {
         return None;
     }
     let phase = t_s.rem_euclid(24.0);
     let agl = m.pos.y - plan.height_at(m.pos.x, m.pos.z);
     let hover = (0.175 - m.vel_y_m_s * 0.025).clamp(0.0, 1.0);
+    // Round the player 150-300 m out, so the loop passes in front of the seat.
+    let to = Vec2::new(player.x - m.pos.x, player.z - m.pos.z);
+    let want = (-to.x).atan2(-to.y);
+    let off = (want - m.heading_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+    let turn = if to.length() > 300.0 {
+        (off * 2.0).clamp(-1.0, 1.0)
+    } else if to.length() < 150.0 {
+        (-off.signum()).clamp(-1.0, 1.0)
+    } else {
+        0.5
+    };
     Some(MechControls {
         skate_toggle: !m.skates_on,
-        turn_axis: 0.25,
+        turn_axis: turn,
         view_yaw_rad: m.heading_rad,
         lift_axis: match phase {
             p if p < 10.0 => {

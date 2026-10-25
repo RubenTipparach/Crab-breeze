@@ -309,7 +309,7 @@ fn play(
         // Rockets up with the skates pushing back, so the mech climbs backwards.
         3 if take.trail => {
             let agl = m.pos.y - plan.height_at(m.pos.x, m.pos.z);
-            act.skate_toggle = !m.skates_on && t < 0.2;
+            act.skate_toggle = !m.skates_on;
             act.lift_axis = if agl < 40.0 {
                 1.0
             } else {
@@ -346,7 +346,7 @@ fn play(
         }
         // Skate in reverse, looking ahead at the grooves the wheels leave.
         6 if take.trail => {
-            act.skate_toggle = !m.skates_on && t < 0.2;
+            act.skate_toggle = !m.skates_on;
             act.throttle_axis = throttle_to(m, -1.0);
             act.look_delta_deg = aim(m, 0.0, -0.3);
             next = Vec2::new(m.pos.x, m.pos.z).distance(take.landing) > 60.0 || t > 900.0;
@@ -499,6 +499,16 @@ fn play(
     }
 }
 
+/// The pilot's view onto a world point from the eye, as mouse motion: steered by where the head
+/// points, which leads the torso, so a slow frame does not overshoot.
+fn look_at(p: &PilotState, eye: Vec3, point: Vec3) -> Vec2 {
+    let d = point - eye;
+    let yaw = (-d.x).atan2(-d.z);
+    let turn = (yaw - p.yaw_rad + PI).rem_euclid(TAU) - PI;
+    let pitch = d.y.atan2(Vec2::new(d.x, d.z).length());
+    Vec2::new(-turn.to_degrees() * 0.3, (pitch - p.pitch_rad).to_degrees() * 0.3)
+}
+
 /// Torso aim onto a world point from the eye, as mouse motion.
 fn aim_at(m: &MechState, eye: Vec3, point: Vec3) -> Vec2 {
     let d = point - eye;
@@ -592,7 +602,7 @@ fn play_fight(
                 .iter()
                 .min_by(|a, b| a.curr.pos.distance(m.pos).total_cmp(&b.curr.pos.distance(m.pos)));
             if let Some(e) = nearest {
-                act.look_delta_deg = aim_at(m, eye, e.curr.pos + Vec3::Y * 12.0);
+                act.look_delta_deg = look_at(p, eye, e.curr.pos + Vec3::Y * 12.0);
                 // A missile at it now and then, so missile trails are seen from the seat too.
                 act.fire_missile = t > 60.0 && t.rem_euclid(80.0) < 2.0;
             }
