@@ -31,3 +31,7 @@ naga = { version = "=30.0.1", features = ["wgsl-in"] }
 
 [lints]
 workspace = true
+
+[features]
+# The packaged game for itch.io (itch.bat): no on-screen performance readout or frame graph.
+shipping = []

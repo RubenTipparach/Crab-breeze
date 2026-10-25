@@ -53,9 +53,14 @@ impl Plugin for PerfHudPlugin {
             FrameTimeDiagnosticsPlugin::default(),
             EntityCountDiagnosticsPlugin::default(),
             RenderDiagnosticsPlugin,
-        ))
-        .add_systems(Startup, spawn)
-        .add_systems(Update, (update, graph));
+        ));
+        // The packaged game (itch.bat builds with `shipping`) keeps the diagnostics but shows no
+        // readout or frame graph on screen (owner, 2026-10-25: "itch.bat should disable on csreen
+        // debug graph").
+        if cfg!(feature = "shipping") {
+            return;
+        }
+        app.add_systems(Startup, spawn).add_systems(Update, (update, graph));
     }
 }
 
