@@ -14,7 +14,7 @@ use cb_core::fx::{Layer, ParticleKind};
 use std::collections::HashMap;
 
 /// (gravity m/s2, drag per s, growth per s as a share of size, additive glow).
-fn motion(kind: ParticleKind) -> (f32, f32, f32, bool) {
+pub(crate) fn motion(kind: ParticleKind) -> (f32, f32, f32, bool) {
     match kind {
         ParticleKind::Spray => (9.81, 0.6, 0.8, false),
         ParticleKind::Steam => (-1.5, 1.2, 1.6, false),
@@ -32,7 +32,7 @@ fn motion(kind: ParticleKind) -> (f32, f32, f32, bool) {
 }
 
 /// A particle's colour over its life (linear RGB, values over 1 glow), keyed 0 to 1.
-fn colour_over_life(kind: ParticleKind) -> Vec<(f32, Vec4)> {
+pub(crate) fn colour_over_life(kind: ParticleKind) -> Vec<(f32, Vec4)> {
     let v = |r: f32, g: f32, b: f32, a: f32| Vec4::new(r, g, b, a);
     match kind {
         ParticleKind::Spray => vec![
@@ -127,7 +127,7 @@ pub fn sheet(kind: ParticleKind) -> Option<&'static str> {
 pub const SHEETS: [&str; 4] = ["smoke_puffs", "fire_flipbook", "dust_wisps", "dirt_clods"];
 
 /// Cells across a sheet.
-const GRID: u32 = 4;
+pub(crate) const GRID: u32 = 4;
 
 /// Whether a kind plays its sheet as a flipbook over its life (fire) rather than holding one random cell.
 fn flipbook(kind: ParticleKind) -> bool {
@@ -136,12 +136,25 @@ fn flipbook(kind: ParticleKind) -> bool {
 
 /// The burst numbers an effect asset is built from.
 #[derive(Clone, Copy, Debug)]
-struct BurstSpec {
-    kind: ParticleKind,
-    speed_m_s: f32,
-    spread: f32,
-    size_m: f32,
-    life_s: f32,
+pub(crate) struct BurstSpec {
+    pub(crate) kind: ParticleKind,
+    pub(crate) speed_m_s: f32,
+    pub(crate) spread: f32,
+    pub(crate) size_m: f32,
+    pub(crate) life_s: f32,
+}
+
+impl BurstSpec {
+    /// The same numbers for the soft sprite renderer (`soft_sprites`).
+    pub(crate) fn soft(self) -> crate::soft_sprites::SoftSpec {
+        crate::soft_sprites::SoftSpec {
+            kind: self.kind,
+            speed_m_s: self.speed_m_s,
+            spread: self.spread,
+            size_m: self.size_m,
+            life_s: self.life_s,
+        }
+    }
 }
 
 /// Effect assets by (recipe, layer, particle count); a continuous trail by recipe, layer and rate.
@@ -222,6 +235,11 @@ impl ParticleLibrary {
         }
         self.next_disc = (self.next_disc + 1) % self.discs.len();
         self.discs[self.next_disc].clone()
+    }
+
+    /// A loaded sheet's image, if it loaded.
+    pub(crate) fn sheet_image(&self, name: &str) -> Option<Handle<Image>> {
+        self.sheets.get(name).map(|(image, _, _)| image.clone())
     }
 
     /// Whether `kind` draws from a loaded sheet (its effect asset then carries the flipbook).
@@ -341,7 +359,7 @@ fn build(spec: BurstSpec, spawner: SpawnerSettings, capacity: u32, sheet: bool) 
 }
 
 /// The burst numbers of a recipe's `Burst` layer.
-fn spec_of(layer: &Layer) -> Option<BurstSpec> {
+pub(crate) fn spec_of(layer: &Layer) -> Option<BurstSpec> {
     match *layer {
         Layer::Burst {
             kind,

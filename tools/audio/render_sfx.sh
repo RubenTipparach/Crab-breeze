@@ -36,4 +36,7 @@ for wav in "$OUT"/*.wav; do
     ffmpeg -hide_banner -loglevel error -y -i "$wav" -af "lowpass=f=2000,lowpass=f=2000" -c:a libvorbis -q:a 4 "$OGG/far/$name.ogg"
   fi
 done
+# the record of every pack used, and the list of recordings in docs/analysis/audio-sources.md
+cp "$SRC/licences.json" "$REPO/tools/audio/cc0_licences.json"
+python3 "$REPO/tools/audio/list_sources.py"
 echo "wrote $(ls "$OGG"/*.ogg | wc -l) sounds to assets/audio/sfx, $(ls "$AMB"/*.ogg 2>/dev/null | wc -l) beds to assets/audio/ambience"
