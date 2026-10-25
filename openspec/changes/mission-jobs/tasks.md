@@ -10,3 +10,10 @@
 - [x] 2.5 M focuses the MAIL page; the pause menu's MAIL button
 - [x] 2.6 Ejecting when the mech is destroyed; the wreck recovered to the nearest base
 - [ ] 3.1 Playtest: read mail, accept, travel, fight, get paid
+
+## Free roam (owner, 2026-10-25)
+
+- [ ] 4.1 Free roam spawns no encounter enemies at the start; the email MFD offers missions there as in a career
+- [ ] 4.2 An accepted mission's enemies spawn only on reaching its waypoint, none nearer the pilot than the boarding stand-off
+- [ ] 4.3 Scripted takes (`--showcase`, `--bench`) start their fights directly, without the email MFD
+- [ ] 4.4 Playtest in free roam: board with no one firing, accept on the email MFD, fly to the waypoint, fight
