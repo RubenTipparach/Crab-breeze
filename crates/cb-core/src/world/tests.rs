@@ -20,8 +20,32 @@ fn shipped() -> WorldConfig {
 /// for when they come back.
 fn shipped_with_rivers() -> WorldConfig {
     let mut cfg = shipped();
+    cfg.water.rivers = true;
     cfg.water.stream_min_flow = 12.0;
     cfg
+}
+
+#[test]
+fn the_shipped_world_has_lakes_and_the_sea_and_no_rivers() {
+    let plan = generate(42, &shipped());
+    let w = &plan.waters;
+    assert!(
+        w.rivers.is_empty() && w.falls.is_empty() && w.bridges.is_empty(),
+        "no rivers, falls or bridges"
+    );
+    assert!(!w.lakes.list.is_empty(), "the basin lakes stay");
+    assert!(plan.water_at(19_000.0, 0.0).is_some(), "the sea");
+    // Nothing is carved for a river: the ground is the ground of the same world without rivers'
+    // channels, away from the lakes.
+    let rivers = seed_42();
+    let r = &rivers.waters.rivers[0];
+    let p = r.path[r.path.len() / 2];
+    if w.lakes.at(p).is_none() {
+        assert!(
+            plan.terrain.height_at(p.x, p.y) > rivers.terrain.height_at(p.x, p.y),
+            "the river's bed is not dug"
+        );
+    }
 }
 
 fn seed_42() -> &'static WorldPlan {
@@ -785,7 +809,7 @@ fn far_terrain_never_hides_a_rivers_water() {
     // surface, so the water is drawn over the far ground (owner, 2026-10-25: "rivers misssing").
     let plan = seed_42();
     let t = &plan.terrain;
-    let road_flat = shipped().highway_width_m * 0.5 + shipped().highway_flat_margin_m;
+    let road_flat = shipped_with_rivers().highway_width_m * 0.5 + shipped_with_rivers().highway_flat_margin_m;
     let (mut checked, mut over, mut worst) = (0, 0, 0.0f32);
     let mut before = 0;
     for (ri, r) in plan.waters.rivers.iter().enumerate() {
@@ -901,12 +925,4 @@ fn no_rivers_water_lies_under_the_ground() {
         }
     }
     assert!(buried.is_empty(), "river points under the ground: {buried:?}");
-}
-
-#[test]
-fn the_shipped_world_has_no_rivers() {
-    // Owner, 2026-10-25: "delete all rivers". No stream forms, so no river, channel or fall.
-    let plan = generate(42, &shipped());
-    assert!(plan.waters.rivers.is_empty(), "{} rivers", plan.waters.rivers.len());
-    assert!(plan.waters.falls.is_empty());
 }

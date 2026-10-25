@@ -42,10 +42,13 @@ fi
 # clipping in the raw mix means the comp is too hot: lower vol in the score's @mix lines
 python3 "$HERE/check_mix.py" "$TMP/raw.wav"
 
-# one loudness for every cue: -16 LUFS integrated, -1.5 dBTP (two-pass loudnorm)
-STATS="$(ffmpeg -hide_banner -nostats -i "$TMP/raw.wav" -af loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json -f null - 2>&1 | sed -n '/^{/,/^}/p')"
-get() { python3 -c 'import json,sys;print(json.loads(sys.stdin.read())[sys.argv[1]])' "$1" <<<"$STATS"; }
-AF="loudnorm=I=-16:TP=-1.5:LRA=11:measured_I=$(get input_i):measured_TP=$(get input_tp):measured_LRA=$(get input_lra):measured_thresh=$(get input_thresh):offset=$(get target_offset):linear=true"
+# one loudness for every cue, -16 LUFS integrated, keeping the arrangement's dynamics:
+# a plain gain to the target, then a limiter holding peaks under -1.5 dBFS. (ffmpeg's
+# loudnorm switches itself to dynamic compression whenever a linear gain would break
+# its peak limit, which flattened every cue: an intro as loud as the drop.)
+LUFS="$(ffmpeg -hide_banner -nostats -i "$TMP/raw.wav" -af ebur128 -f null - 2>&1 | sed -n 's/^ *I: *\(-*[0-9.]*\) LUFS.*/\1/p' | tail -1)"
+GAIN="$(python3 -c "print(round(-16 - float('$LUFS'), 2))")"
+AF="volume=${GAIN}dB,alimiter=limit=0.84:attack=5:release=60:level=disabled"
 ffmpeg -hide_banner -loglevel error -y -i "$TMP/raw.wav" -af "$AF" -ar 44100 "$TMP/norm.wav"
 TITLE="$(sed -n 's#^// *@title *##p' "$SCORE" | head -1)"
 ffmpeg -hide_banner -loglevel error -y -i "$TMP/norm.wav" -c:a libmp3lame -b:a 192k \

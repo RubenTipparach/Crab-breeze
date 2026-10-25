@@ -13,6 +13,10 @@ use serde::Deserialize;
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct WaterConfig {
+    /// Rivers on the island, with their lakes, waterfalls, channels and bridges. Off, the only water
+    /// is the sea (owner, 2026-10-25: "can you remove all river stuff from the game?", "they dont
+    /// integrate well with the terrain").
+    pub rivers: bool,
     /// Every city's ground stands at least this far above sea level.
     pub city_freeboard_m: f32,
     /// Cell size of the drainage grid.
@@ -64,6 +68,7 @@ pub struct WaterConfig {
 impl Default for WaterConfig {
     fn default() -> Self {
         Self {
+            rivers: true,
             city_freeboard_m: 2.0,
             drainage_cell_m: 128.0,
             lowland_rain: 0.08,

@@ -1,6 +1,8 @@
 //! Crab Breeze, the game. This file is the composition root (CLAUDE.md section 6.2): it reads the
 //! command line and the data, and wires the plugins. It holds no game logic.
 
+mod ambience;
+mod audio;
 mod battle_fx;
 mod bench;
 mod blast;
@@ -24,6 +26,7 @@ mod loading;
 mod mech;
 mod menu;
 mod mfd;
+mod music;
 mod particles;
 mod pbr_set;
 mod perf_hud;
@@ -41,7 +44,6 @@ mod showcase;
 mod sim;
 mod skins;
 mod sky_light;
-mod smoke_render;
 mod sun_flare;
 mod targeting;
 mod textures;
@@ -142,15 +144,14 @@ fn main() -> AppExit {
         rope::RopePlugin,
         vents::VentsPlugin,
         career::CareerPlugin,
-    ));
+    ))
+    // sound: effects in 3D, music, ambience (openspec changes `audio`, `music`, `ambience`)
+    .add_plugins((audio::SoundPlugin, music::MusicPlugin, ambience::AmbiencePlugin));
     // Cheap, correctly lit clouds (openspec change `cloud-puffs`); `CB_NO_CLOUDS=1` leaves them
     // out, so the benchmark can measure what they cost.
     if !cli::switched_off("CB_NO_CLOUDS") {
         app.add_plugins(clouds_render::CloudsRenderPlugin);
     }
-    // Lit smoke puffs on the cloud shader (openspec change `smoke-puffs`): the jets' and missiles'
-    // smoke trails.
-    app.add_plugins(smoke_render::SmokeRenderPlugin);
     // GPU grass (openspec change `gpu-grass`); `CB_NO_GRASS=1` leaves it out, so the benchmark can
     // measure what it costs.
     if !cli::switched_off("CB_NO_GRASS") {

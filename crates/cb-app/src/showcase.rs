@@ -641,11 +641,7 @@ fn play_fight(
                 let b = &plan.buildings[tower as usize];
                 let c = &live.structures.buildings[b.id as usize];
                 (
-                    Vec3::new(
-                        b.footprint.centre().x,
-                        c.origin.y + 2.0 - cb_core::ai::TORSO_AIM_M,
-                        b.footprint.centre().y,
-                    ),
+                    Vec3::new(b.footprint.centre().x, c.origin.y + 2.0, b.footprint.centre().y),
                     Vec3::ZERO,
                     true,
                 )
@@ -657,6 +653,8 @@ fn play_fight(
             let view = cb_core::ai::View {
                 eye,
                 target,
+                // The enemies are mechs like this one; the tower is aimed at its point.
+                aim_height_m: if wall { 0.0 } else { data.0.mech.aim_height_m() },
                 target_vel,
                 muzzle_speed_m_s: 1100.0,
                 drop: true,
@@ -922,9 +920,10 @@ fn play_defence(
                 let open = |a: Vec2, b: Vec2| crate::mech::path_open(&plan, a, b, spec.locomotion.body_radius_m);
                 let view = cb_core::ai::View {
                     eye,
-                    // The brain aims `TORSO_AIM_M` over the point it is given: hand it that
-                    // much under the enemy's aim point, so a tank is aimed at, not over.
-                    target: target.aim - Vec3::Y * cb_core::ai::TORSO_AIM_M,
+                    // The brain aims `aim_height_m` over the feet: the hostile's own aim point, so a
+                    // tank is aimed at, not over.
+                    target: target.feet,
+                    aim_height_m: target.aim.y - target.feet.y,
                     target_vel: target.vel,
                     muzzle_speed_m_s: spec.weapons.first().map_or(1100.0, |w| w.speed_m_s),
                     drop: true,

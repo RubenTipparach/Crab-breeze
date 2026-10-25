@@ -129,7 +129,9 @@ export async function loadScore(file, cyclesOverride) {
     if (!Number.isFinite(midi)) continue;
     const vel = clamp(Math.round(100 * (v.velocity ?? 1) * (v.gain ?? 1)), 1, 127);
     if (!parts.has(c.key)) parts.set(c.key, { ...c, notes: [] });
-    parts.get(c.key).notes.push({ t, dur, midi: clamp(midi, 0, 127), vel });
+    const n = { t, dur, midi: clamp(midi, 0, 127), vel };
+    if (c.kind === 'drums') n.name = v.s;   // which drum, for layers (strudel_to_lmms @layer)
+    parts.get(c.key).notes.push(n);
   }
   if (unknown.size) {
     throw new Error(`${file}: no instrument for s(${[...unknown].map((u) => JSON.stringify(u)).join(', ')})`);

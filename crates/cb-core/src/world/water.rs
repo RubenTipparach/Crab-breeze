@@ -516,7 +516,10 @@ pub fn make_waters(
         ) * cfg.drainage_cell_m
             * MEANDER_SHARE
     };
-    for course in &drainage.courses {
+    // Rivers off (`WaterConfig::rivers`): no course is traced, so no river, river channel,
+    // waterfall, plunge pool or bridge; the basin lakes above stay.
+    let courses: &[_] = if cfg.rivers { &drainage.courses } else { &[] };
+    for course in courses {
         let mut points: Vec<Vec2> = course.points.iter().map(|&p| p + push(p)).collect();
         // A course that stopped on another river's cell ends on that river's line.
         let mut joins: Option<f32> = None;

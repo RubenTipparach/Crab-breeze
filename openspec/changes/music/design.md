@@ -7,12 +7,11 @@
 ```ron
 (
     cues: {
-        "title":   (file: "audio/music/main_theme.ogg", bpm: 132, beats_per_bar: 4, looping: true),
-        "on_foot": (file: "audio/music/on_foot.ogg",    bpm: 92,  beats_per_bar: 4, looping: true),
+        "title":   (file: "audio/music/main_theme.ogg", bpm: 96, beats_per_bar: 4, looping: true),
         "boarding":(file: "audio/music/boarding.ogg",   bpm: 72,  beats_per_bar: 4, looping: false),
         "combat":  (file: "audio/music/sortie.ogg",     bpm: 150, beats_per_bar: 4, looping: true),
         "set_piece":(file: "audio/music/big_boy.ogg",   bpm: 140, beats_per_bar: 4, looping: true),
-        "won":     (file: "audio/music/mission_accomplished.ogg", bpm: 104, beats_per_bar: 4, looping: false),
+        "won":     (file: "audio/music/mission_accomplished.ogg", bpm: 96, beats_per_bar: 4, looping: false),
     },
     crossfade_bars: 1.0,
     duck_db: -6.0,
@@ -20,17 +19,33 @@
 )
 ```
 
-A state the game enters that the file lacks, a missing file or a non-finite number stops startup
+A state the game enters that the file lacks (other than on foot, which is silent by design), a missing file or a non-finite number stops startup
 with its path (CLAUDE.md 6.4). `cb-tools validate` checks that every `bpm` matches the `setcps` of its
 score, `music/<cue>.strudel`, so the data and the score cannot disagree.
 
 ## 2. Choosing the cue
 
-The state is derived, not set by hand: the title screen; on foot (the pilot is not seated);
+The state is derived, not set by hand: the title screen; on foot (the pilot is not seated: no music, the
+owner deleted the town theme, so the cue map has no entry and the music fades out);
 boarding (the boarding sequence is running); combat (any enemy within 2 km has the mech as a
 target, or a shot landed within 30 s); set piece (Big Boy is alive in the wave); won (the mission
-result is a win). Higher entries in this list lose to lower ones. The rule is a pure function in
+result is a win). Higher entries in this list lose to lower ones.
+
+**Calm is silence** (owner, 2026-10-25: "if theres not mutch action on screen, some silence would be
+nice"). Seated with none of the states above (walking or skating the map with no threat, after a
+win's stinger ends): no music. The cue map has no `calm` entry, so the music fades out over 2 bars
+of the cue that was playing and the ambience beds (change `ambience`) carry the scene. Combat holds
+its cue until 30 s after the last threat or shot (the combat rule's own window) and only then
+fades, so a lull between waves does not switch the music off and on. The title screen and the
+boarding cinematic keep their cues. The rule is a pure function in
 `cb-core` (`music_state(&World) -> MusicState`) with tests; `cb-app` plays what it returns.
+
+**What the rule reads today (built 2026-10-25, `cb-app/src/music.rs`).** There is no title screen
+yet and no Big Boy, so `title` and `set_piece` are never true. A threat is a hostile (`Hostiles`,
+not shelling a city) within 2 km of the pilot's head; a shot is a muzzle flash or an impact within
+300 m of it, or an explosion within 500 m; a win is the defence mission's `Phase::Won`. A cue that
+does not loop (boarding, won) plays once and then leaves silence while its state holds. The music
+starts only after `GAME_READY`.
 
 ## 3. Bar-aligned crossfades
 
@@ -56,6 +71,6 @@ not loaded whole; the seven cues are 11 MB on disk.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| A1 | The score's direction | Orchestral rock with 80s colours, as rendered | provisional (survey A1) |
+| A1 | The score's direction | Electronic and futuristic | decided (owner, 2026-10-25: "electronic, scifi futuristic please!") |
 | A2 | Adaptive music | One cue per state with bar-aligned crossfades first; stems later if wanted | provisional (survey A2) |
 | A3 | Music in the cockpit | The score plays over everything (not through the radio) | provisional (survey A3) |
