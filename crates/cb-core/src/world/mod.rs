@@ -23,7 +23,7 @@ pub mod water;
 
 pub use clouds::Clouds;
 pub use collision::BuildingGrid;
-pub use config::WorldConfig;
+pub use config::{DebrisConfig, WorldConfig};
 pub use cover::{Clearance, Cover, Surface};
 pub use deform::Deformation;
 pub use destruct::{Chunk, Moment, Structures};

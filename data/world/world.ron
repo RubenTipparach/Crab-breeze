@@ -92,6 +92,14 @@
         grade_saturation: 1.15,
         grade_contrast: 1.08,
         grade_temperature: 0.0,
+        // Screen-space ambient occlusion on the world (openspec/changes/ambient-occlusion; owner,
+        // 2026-10-24: "Ssao? Might help"): creases and contact points darken in indirect light.
+        // 1.5 m reaches across a desk; 0 switches it off.
+        ssao_radius_m: 1.5,
+        ssao_quality: Medium,
+        // GPU occlusion culling on the pilot's eye (openspec/changes/occlusion-culling): what is
+        // hidden behind the street's buildings is not drawn. CB_NO_OCCLUSION=1 switches it off.
+        occlusion_culling: true,
     ),
 
     // Rivers and lakes (openspec/changes/terrain-water/design.md section 1). Lakes are the ground
@@ -176,5 +184,21 @@
         // Only buildings this near the player are dressed; farther ones stay plain boxes (owner,
         // 2026-10-24: elements "only generate when a mech is near city or building").
         dress_radius_m: 250.0,
+        // Rooms and furniture are drawn within 250 m of the pilot, hidden past 270 m, and cast no
+        // shadows (openspec/changes/building-lod; owner, 2026-10-24: "I would prefer 250 m for
+        // furniture").
+        rooms_radius_m: 250.0,
+        rooms_margin_m: 20.0,
+    ),
+    // Physics debris (openspec/changes/debris-physics): chunks become rigid bodies only within
+    // physics_radius_m of the pilot's eye (owner, 2026-10-24: "If the mech is too far away there
+    // should be no physics sim"); farther they are a dust puff, and the cell simulation still
+    // breaks the building. Bodies past 1.2 times the radius are made static where they are.
+    // physics_radius_m: 0.0 switches debris physics off: every breaking piece is a dust puff.
+    debris: (
+        physics_radius_m: 400.0,
+        freeze_factor: 1.2,
+        max_dynamic: 600,
+        max_kept: 2500,
     ),
 )

@@ -30,6 +30,13 @@ impl Plugin for HudPlugin {
 #[derive(Component)]
 struct HudRoot;
 
+/// The root of the MFD pages (cockpit-mfds).
+#[derive(Component)]
+pub struct MfdRoot;
+
+/// One MFD page's side, pixels; the MFD texture is three pages wide (a row a multiple of 256 bytes).
+pub const MFD_PAGE_PX: f32 = 512.0;
+
 #[derive(Component)]
 struct LegArrow;
 
@@ -89,10 +96,10 @@ fn bar(parent: &mut ChildSpawnerCommands, gauge: Gauge, readout: Readout, label:
             ..default()
         })
         .with_children(|col| {
-            col.spawn((text(label, 15.0), readout));
+            col.spawn((text(label, 34.0), readout));
             col.spawn((
                 Node {
-                    width: px(220.0),
+                    width: px(400.0),
                     height: px(12.0),
                     border: UiRect::all(px(1.0)),
                     ..default()
@@ -197,45 +204,57 @@ fn spawn_hud(mut commands: Commands) {
                     BackgroundColor(GREEN.with_alpha(0.8)),
                 ));
             }
-            // Navigation, top centre: heading and the nearest city.
-            root.spawn(Node {
+        });
+    // The mech's readouts, on the cockpit's MFDs (cockpit-mfds): three 512 x 512 pages in a row,
+    // drawn by the MFD camera into one texture each screen shows a third of. Without MFDs (the
+    // Canopy) the same pages sit along the bottom of the view.
+    commands
+        .spawn((
+            HudRoot,
+            MfdRoot,
+            Node {
+                width: px(MFD_PAGE_PX * 3.0),
+                height: px(MFD_PAGE_PX),
                 position_type: PositionType::Absolute,
-                top: px(24.0),
-                width: Val::Percent(100.0),
-                justify_content: JustifyContent::Center,
+                left: px(0.0),
+                top: px(0.0),
                 ..default()
-            })
-            .with_children(|c| {
-                c.spawn((text("", 18.0), Readout::Nav));
-            });
-            // The mission, under it.
-            root.spawn(Node {
-                position_type: PositionType::Absolute,
-                top: px(52.0),
-                width: Val::Percent(100.0),
-                justify_content: JustifyContent::Center,
-                ..default()
-            })
-            .with_children(|c| {
-                c.spawn((text("", 22.0), Readout::Mission));
-            });
-            // Leg compass, bottom centre: the torso is straight up; the arrow is the legs.
-            root.spawn(Node {
-                position_type: PositionType::Absolute,
-                bottom: px(28.0),
-                left: Val::Percent(50.0),
-                margin: UiRect::left(px(-70.0)),
-                width: px(140.0),
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                row_gap: px(6.0),
-                ..default()
-            })
-            .with_children(|c| {
+            },
+            Visibility::Hidden,
+        ))
+        .with_children(|pages| {
+            let page = |pages: &mut ChildSpawnerCommands, title: &str| {
+                pages
+                    .spawn((
+                        Node {
+                            width: px(MFD_PAGE_PX),
+                            height: px(MFD_PAGE_PX),
+                            padding: UiRect::all(px(24.0)),
+                            flex_direction: FlexDirection::Column,
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            row_gap: px(10.0),
+                            border: UiRect::all(px(4.0)),
+                            // A long readout wraps or is cut at the page's edge, never drawn over the
+                            // next page.
+                            overflow: Overflow::clip(),
+                            ..default()
+                        },
+                        BorderColor::all(FRAME),
+                        BackgroundColor(Color::srgb(0.02, 0.05, 0.04)),
+                    ))
+                    .with_children(|p| {
+                        p.spawn(text(title, 26.0));
+                    })
+                    .id()
+            };
+            // MECH: the legs against the torso, and damage.
+            let mech = page(pages, "MECH");
+            pages.commands().entity(mech).with_children(|c| {
                 c.spawn((
                     Node {
-                        width: px(110.0),
-                        height: px(110.0),
+                        width: px(200.0),
+                        height: px(200.0),
                         border: UiRect::all(px(2.0)),
                         border_radius: BorderRadius::MAX,
                         justify_content: JustifyContent::Center,
@@ -249,9 +268,9 @@ fn spawn_hud(mut commands: Commands) {
                     ring.spawn((
                         Node {
                             position_type: PositionType::Absolute,
-                            top: px(-2.0),
-                            width: px(8.0),
-                            height: px(14.0),
+                            top: px(-4.0),
+                            width: px(14.0),
+                            height: px(26.0),
                             ..default()
                         },
                         BackgroundColor(AMBER),
@@ -259,8 +278,8 @@ fn spawn_hud(mut commands: Commands) {
                     // The legs: a bar through the centre, its head marked, turned by the twist.
                     ring.spawn((
                         Node {
-                            width: px(10.0),
-                            height: px(90.0),
+                            width: px(18.0),
+                            height: px(164.0),
                             flex_direction: FlexDirection::Column,
                             align_items: AlignItems::Center,
                             ..default()
@@ -271,8 +290,8 @@ fn spawn_hud(mut commands: Commands) {
                     .with_children(|arrow| {
                         arrow.spawn((
                             Node {
-                                width: px(18.0),
-                                height: px(18.0),
+                                width: px(32.0),
+                                height: px(32.0),
                                 border_radius: BorderRadius::all(px(3.0)),
                                 ..default()
                             },
@@ -280,43 +299,58 @@ fn spawn_hud(mut commands: Commands) {
                         ));
                         arrow.spawn((
                             Node {
-                                width: px(4.0),
-                                height: px(72.0),
+                                width: px(7.0),
+                                height: px(132.0),
                                 ..default()
                             },
                             BackgroundColor(GREEN.with_alpha(0.7)),
                         ));
                     });
                 });
-                c.spawn((text("LEGS", 14.0), Readout::Legs));
+                c.spawn((text("LEGS", 44.0), Readout::Legs));
+                c.spawn((
+                    Node {
+                        max_width: percent(100.0),
+                        ..default()
+                    },
+                    text("", 36.0),
+                    Readout::Damage,
+                ));
             });
-            // Budgets, bottom left.
-            root.spawn(Node {
-                position_type: PositionType::Absolute,
-                bottom: px(28.0),
-                left: px(28.0),
-                flex_direction: FlexDirection::Column,
-                row_gap: px(12.0),
-                ..default()
-            })
-            .with_children(|c| {
+            // FLIGHT: boosters and skates, throttle, speed, altitude, mode, guns.
+            let flight = page(pages, "FLIGHT");
+            pages.commands().entity(flight).with_children(|c| {
                 bar(c, Gauge::Boost, Readout::Boost, "BOOST");
                 bar(c, Gauge::Skate, Readout::Skate, "SKATE");
-            });
-            // Flight, right: throttle, speed, altitude, mode.
-            root.spawn(Node {
-                position_type: PositionType::Absolute,
-                bottom: px(28.0),
-                right: px(28.0),
-                flex_direction: FlexDirection::Column,
-                row_gap: px(12.0),
-                align_items: AlignItems::End,
-                ..default()
-            })
-            .with_children(|c| {
-                c.spawn((text("", 16.0), Readout::Flight));
+                c.spawn((
+                    Node {
+                        max_width: percent(100.0),
+                        ..default()
+                    },
+                    text("", 38.0),
+                    Readout::Flight,
+                ));
                 bar(c, Gauge::Throttle, Readout::Guns, "");
-                c.spawn((text("", 14.0), Readout::Damage));
+            });
+            // MISSION: heading, the nearest city, the wave.
+            let mission = page(pages, "MISSION");
+            pages.commands().entity(mission).with_children(|c| {
+                c.spawn((
+                    Node {
+                        max_width: percent(100.0),
+                        ..default()
+                    },
+                    text("", 36.0),
+                    Readout::Nav,
+                ));
+                c.spawn((
+                    Node {
+                        max_width: percent(100.0),
+                        ..default()
+                    },
+                    text("", 36.0),
+                    Readout::Mission,
+                ));
             });
         });
 }
@@ -507,14 +541,15 @@ fn fmt_nav(view_yaw_rad: f32, at: Vec2, cities: &[cb_core::world::City]) -> Stri
 fn fmt_budget(name: &str, heat: f32, locked: bool, burn_s: f32, recharge_s: f32, active: bool) -> (String, Color) {
     let left = (1.0 - heat) * burn_s;
     let recharge = heat * recharge_s;
+    // Big and minimal on the MFDs (owner, 2026-10-24): the name and one number; the bar shows the
+    // rest, recharging included.
+    let _ = recharge;
     if locked {
-        (format!("{name}  EMPTY  recharging {recharge:.1} s"), RED)
-    } else if active {
-        (format!("{name}  {left:.1} s left  (recharge {recharge:.1} s)"), AMBER)
-    } else if heat > 0.0 {
-        (format!("{name}  {left:.1} s  recharging {recharge:.1} s"), GREEN)
+        (format!("{name} EMPTY"), RED)
+    } else if active || heat > 0.0 {
+        (format!("{name} {left:.0}s"), if active { AMBER } else { GREEN })
     } else {
-        (format!("{name}  {burn_s:.0} s  ready"), GREEN)
+        (format!("{name} READY"), GREEN)
     }
 }
 
@@ -569,14 +604,16 @@ fn update_hud(
     run: Option<Res<crate::defence::DefenceRun>>,
     plan: Res<Plan>,
     mech: Query<(&MechSim, &MechSpec), With<Piloted>>,
-    mut root: Single<&mut Visibility, With<HudRoot>>,
+    mut roots: Query<&mut Visibility, With<HudRoot>>,
     mut arrow: Single<&mut UiTransform, With<LegArrow>>,
     mut gauges: Query<(&Gauge, &mut Node, &mut BackgroundColor)>,
     mut readouts: Query<(&Readout, &mut Text, &mut TextColor)>,
 ) {
     let seated = pilot.curr.mode == PilotMode::Seated;
     let Some((sim, spec)) = mech.iter().next() else { return };
-    **root = if seated { Visibility::Inherited } else { Visibility::Hidden };
+    for mut root in &mut roots {
+        *root = if seated { Visibility::Inherited } else { Visibility::Hidden };
+    }
     if !seated {
         return;
     }
@@ -629,36 +666,27 @@ fn update_hud(
     };
     for (r, mut t, mut c) in &mut readouts {
         let (s, colour) = match r {
-            Readout::Boost => fmt_budget(
-                "ROCKETS [Space up, Ctrl dive]",
-                m.boost.heat,
-                m.boost.locked,
-                jet.burn_s,
-                jet.recharge_s,
-                m.boosting,
-            ),
+            Readout::Boost => fmt_budget("BOOST", m.boost.heat, m.boost.locked, jet.burn_s, jet.recharge_s, m.boosting),
             Readout::Skate => fmt_budget(
-                if m.skates_on { "SKATES ON [Shift]" } else { "SKATES [Shift]" },
+                if m.skates_on { "SKATE ON" } else { "SKATE" },
                 m.skate.heat,
                 m.skate.locked,
                 sk.burn_s,
                 sk.recharge_s,
                 m.mode == LocomotionMode::Skate,
             ),
-            Readout::Legs => {
-                let turn = if m.turn_rate_rad_s > 0.01 {
-                    "  turning left"
-                } else if m.turn_rate_rad_s < -0.01 {
-                    "  turning right"
-                } else {
-                    ""
-                };
-                (format!("LEGS {:+.0} deg{turn}", -m.twist_rad.to_degrees()), GREEN)
+            Readout::Legs => (format!("LEGS {:+.0}", -m.twist_rad.to_degrees()), GREEN),
+            // One fact a line on the MFD.
+            Readout::Nav => (
+                fmt_nav(pilot.curr.yaw_rad, Vec2::new(m.pos.x, m.pos.z), &plan.cities).replace("   ", "\n"),
+                GREEN,
+            ),
+            Readout::Mission => {
+                let (s, c) = fmt_mission(run.as_deref(), &data.0.defence);
+                (s.replace("   ", "\n").replace("  ", "\n"), c)
             }
-            Readout::Nav => (fmt_nav(pilot.curr.yaw_rad, Vec2::new(m.pos.x, m.pos.z), &plan.cities), GREEN),
-            Readout::Mission => fmt_mission(run.as_deref(), &data.0.defence),
             Readout::Flight => (
-                format!("{mode}   {speed_kmh:.0} km/h   ALT {agl:.0} m"),
+                format!("{mode}\n{speed_kmh:.0} KM/H\nALT {agl:.0} M"),
                 if m.on_water == OnWater::Sunk {
                     RED
                 } else if m.mode == LocomotionMode::Walk {
@@ -668,14 +696,14 @@ fn update_hud(
                 },
             ),
             Readout::Guns => {
-                let mut parts = vec![format!("THROTTLE {:.0}%", m.throttle * 100.0)];
+                let mut parts = vec![format!("THR {:.0}%", m.throttle * 100.0)];
                 for (i, w) in spec.weapons.iter().enumerate() {
                     let cd = sim.guns.cooldown_s.get(i).copied().unwrap_or(0.0);
                     let gone = sim.damage.is_lost(&spec.parts, w.arm);
                     let state = if gone {
                         "LOST".to_string()
                     } else if cd > 0.05 {
-                        format!("{cd:.1} s")
+                        format!("{cd:.1}s")
                     } else {
                         "READY".to_string()
                     };
@@ -684,7 +712,7 @@ fn update_hud(
                         1 => "RMB",
                         _ => "F",
                     };
-                    parts.push(format!("{} [{button}] {state}", w.name));
+                    parts.push(format!("{button} {state}"));
                 }
                 (parts.join("\n"), GREEN)
             }
@@ -694,7 +722,7 @@ fn update_hud(
                     .parts
                     .iter()
                     .enumerate()
-                    .map(|(i, p)| {
+                    .filter_map(|(i, p)| {
                         let f = sim.damage.structure[i] / p.structure.max(1.0);
                         worst = worst.min(f);
                         let name = match p.kind {
@@ -705,15 +733,22 @@ fn update_hud(
                             PartKind::Head => "HEAD",
                             PartKind::Torso => "TORSO",
                         };
+                        // Only what is hurt: big and minimal on the MFD.
                         if sim.damage.lost[i] {
-                            format!("{name} --")
+                            Some(format!("{name} LOST"))
+                        } else if f < 0.995 {
+                            Some(format!("{name} {:.0}%", f * 100.0))
                         } else {
-                            format!("{name} {:.0}%", f * 100.0)
+                            None
                         }
                     })
                     .collect();
                 (
-                    rows.join("  "),
+                    if rows.is_empty() {
+                        "ALL PARTS OK".to_string()
+                    } else {
+                        rows.into_iter().take(4).collect::<Vec<_>>().join("\n")
+                    },
                     if worst < 0.3 {
                         RED
                     } else if worst < 0.7 {

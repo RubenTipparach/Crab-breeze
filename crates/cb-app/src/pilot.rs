@@ -84,7 +84,7 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
     let view = &data.0.world.view;
     let srgb = |c: [f32; 3]| Color::srgb(c[0], c[1], c[2]);
     let lens = Projection::from(PerspectiveProjection {
-        fov: 75f32.to_radians(),
+        fov: data.0.pilot.view_fov_deg.to_radians(),
         near: 0.05,
         far: view.far_m,
         ..default()
@@ -96,6 +96,8 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
             Camera3d::default(),
             Camera {
                 order: 1,
+                // `CB_NO_COCKPIT_PASS=1`: the second camera off (perf-bench switch, to measure it).
+                is_active: !crate::cli::switched_off("CB_NO_COCKPIT_PASS"),
                 clear_color: ClearColorConfig::None,
                 ..default()
             },
@@ -154,6 +156,31 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
         bevy::anti_alias::fxaa::Fxaa::default(),
     ));
     camera.add_child(cockpit);
+    // Screen-space ambient occlusion on the world (ambient-occlusion): creases and contact points
+    // darken in indirect light. The cockpit keeps its baked occlusion. `CB_NO_SSAO=1` or a 0 radius
+    // switches it off.
+    // GPU occlusion culling (occlusion-culling): meshes hidden behind what was drawn last frame are
+    // skipped on the GPU. It needs the depth prepass. `CB_NO_OCCLUSION=1` switches it off.
+    if view.occlusion_culling && !crate::cli::switched_off("CB_NO_OCCLUSION") {
+        camera.insert((
+            bevy::core_pipeline::prepass::DepthPrepass,
+            bevy::render::occlusion_culling::OcclusionCulling,
+        ));
+    }
+    if view.ssao_radius_m > 0.0 && !crate::cli::switched_off("CB_NO_SSAO") {
+        use bevy::pbr::{ScreenSpaceAmbientOcclusion, ScreenSpaceAmbientOcclusionQualityLevel as Q};
+        use cb_core::world::config::SsaoQuality;
+        camera.insert(ScreenSpaceAmbientOcclusion {
+            quality_level: match view.ssao_quality {
+                SsaoQuality::Low => Q::Low,
+                SsaoQuality::Medium => Q::Medium,
+                SsaoQuality::High => Q::High,
+                SsaoQuality::Ultra => Q::Ultra,
+            },
+            radius: view.ssao_radius_m,
+            ..default()
+        });
+    }
     // The scattering sky (sky-atmosphere): Bevy's atmosphere draws the sky and hazes the distance,
     // under raw sunlight, with the exposure to match. `CB_NO_SKY=1` keeps the old flat sky.
     if crate::world::scattering_sky() {

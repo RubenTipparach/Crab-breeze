@@ -163,9 +163,15 @@ pub struct MeshBuilder {
     normals: Vec<[f32; 3]>,
     colors: Vec<[f32; 4]>,
     uvs: Vec<[f32; 2]>,
+    /// Second UV: the texture array layer in x (`building-texture-array`), when `layered`.
+    uv1s: Vec<[f32; 2]>,
     indices: Vec<u32>,
     /// Metres per texture tile along u and v; zero means 4 m by 4 m.
     pub tile_m: Vec2,
+    /// The layer the next faces are drawn from.
+    layer: f32,
+    /// True once a layer was set: the mesh carries the second UV.
+    layered: bool,
 }
 
 impl MeshBuilder {
@@ -175,6 +181,13 @@ impl MeshBuilder {
             tile_m: Vec2::new(u, v),
             ..default()
         }
+    }
+
+    /// The texture array layer, and its tile size, of the faces added next.
+    pub fn set_layer(&mut self, layer: u32, tile_m: Vec2) {
+        self.layer = layer as f32;
+        self.tile_m = tile_m;
+        self.layered = true;
     }
 
     /// Planar UV for a point on a face with normal `n`: walls run u along the wall, v up.
@@ -202,6 +215,7 @@ impl MeshBuilder {
             self.normals.push(n.into());
             self.colors.push(color);
             self.uvs.push(self.uv(c, n));
+            self.uv1s.push([self.layer, 0.0]);
         }
         self.indices
             .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
@@ -252,6 +266,7 @@ impl MeshBuilder {
             self.normals.push(n.into());
             self.colors.push(color);
             self.uvs.push(self.uv(p, face));
+            self.uv1s.push([self.layer, 0.0]);
         }
         self.indices.extend_from_slice(&[base, base + 1, base + 2]);
     }
@@ -311,14 +326,47 @@ impl MeshBuilder {
         }
     }
 
+    /// The mesh with tangents for a normal map, written straight from the planar UV mapping (`uv`):
+    /// u runs along +x on floors and on z-facing walls, along +z on x-facing walls; v runs +z on
+    /// floors and down on walls. MikkTSpace (`Mesh::generate_tangents`) gives the same on these
+    /// faces and cost most of a combat frame's building redraw (`building-surfaces`, 2026-10-24).
+    pub fn build_with_tangents(self) -> Mesh {
+        let tangents: Vec<[f32; 4]> = self.normals.iter().map(|n| planar_tangent(Vec3::from(*n))).collect();
+        self.build().with_inserted_attribute(Mesh::ATTRIBUTE_TANGENT, tangents)
+    }
+
     pub fn build(self) -> Mesh {
-        Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+        let layered = self.layered;
+        let uv1s = self.uv1s;
+        let mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
             .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, self.positions)
             .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, self.normals)
             .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, self.colors)
             .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, self.uvs)
-            .with_inserted_indices(Indices::U32(self.indices))
+            .with_inserted_indices(Indices::U32(self.indices));
+        if layered {
+            mesh.with_inserted_attribute(Mesh::ATTRIBUTE_UV_1, uv1s)
+        } else {
+            mesh
+        }
     }
+}
+
+/// The tangent (xyz, handedness w) of `MeshBuilder::uv`'s planar mapping on a face of normal `n`.
+fn planar_tangent(n: Vec3) -> [f32; 4] {
+    let a = n.abs();
+    let (t, b) = if a.y >= a.x && a.y >= a.z {
+        (Vec3::X, Vec3::Z)
+    } else if a.x >= a.z {
+        (Vec3::Z, Vec3::NEG_Y)
+    } else {
+        (Vec3::X, Vec3::NEG_Y)
+    };
+    let t = (t - n * n.dot(t)).normalize_or(Vec3::X);
+    // Bevy's tangent space has v running against the bitangent (glTF's flipped v), so the
+    // handedness is the opposite of cross(n, t) against the direction v grows.
+    let w = if n.cross(t).dot(b) < 0.0 { 1.0 } else { -1.0 };
+    [t.x, t.y, t.z, w]
 }
 
 fn vertex_material(materials: &mut Assets<StandardMaterial>, roughness: f32) -> Handle<StandardMaterial> {
@@ -446,8 +494,13 @@ fn spawn_buildings(
     data: Res<Data>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
     mut ents: ResMut<crate::buildings::BuildingEntities>,
 ) {
+    // `CB_NO_BUILDINGS=1`: no buildings drawn (perf-bench switch, to measure what they cost).
+    if crate::cli::switched_off("CB_NO_BUILDINGS") {
+        return;
+    }
     let tones = BUILDING_TONES.map(|(r, g, b)| {
         materials.add(StandardMaterial {
             base_color: Color::srgb(r, g, b),
@@ -456,43 +509,17 @@ fn spawn_buildings(
             ..default()
         })
     });
+    let arrays = crate::building_arrays::build(&mut images, &crate::buildings::layer_sources(&tex));
     commands.insert_resource(crate::buildings::BuildingLooks {
-        tones: tones.to_vec(),
-        structure: materials.add(StandardMaterial {
-            base_color: Color::WHITE,
-            perceptual_roughness: 0.9,
-            ..default()
-        }),
-        skin: {
-            let b = &tex.building;
-            let textured = |m: &mut Assets<StandardMaterial>, pbr: &crate::textures::Pbr, rough: f32| {
-                m.add(StandardMaterial {
-                    base_color: Color::WHITE,
-                    base_color_texture: Some(pbr.color.clone()),
-                    normal_map_texture: Some(pbr.normal.clone()),
-                    perceptual_roughness: rough,
-                    ..default()
-                })
-            };
-            use cb_core::world::dressing::Mat;
-            let mut m = std::collections::BTreeMap::new();
-            m.insert(Mat::Brick, textured(&mut materials, &b.brick, 0.9));
-            m.insert(Mat::Concrete, textured(&mut materials, &b.concrete, 0.85));
-            m.insert(Mat::Roof, textured(&mut materials, &b.roof, 0.95));
-            m.insert(Mat::Wood, textured(&mut materials, &b.wood, 0.7));
-            m.insert(
-                Mat::Trim,
-                materials.add(StandardMaterial {
-                    base_color: Color::WHITE,
-                    perceptual_roughness: 0.6,
-                    ..default()
-                }),
-            );
-            // See-through glass: the rooms behind show (the mockup's windows), and it reflects the
-            // sky at full strength (glass-reflections).
-            m.insert(Mat::Glass, materials.add(crate::sky_light::glass_material(&data.0.sky_light.glass)));
-            m
-        },
+        tone_tints: BUILDING_TONES
+            .iter()
+            .map(|&(r, g, b)| Color::srgb(r, g, b).to_linear().to_f32_array_no_alpha())
+            .collect(),
+        arrays,
+        // See-through glass: the rooms behind show (the mockup's windows), and it reflects the sky
+        // at full strength (glass-reflections).
+        glass: materials.add(crate::sky_light::glass_material(&data.0.sky_light.glass)),
+        concrete: crate::buildings::concrete_material(&mut images, &mut materials),
     });
     for b in &world.buildings {
         let ground = world.cities[b.city as usize].ground_m;
@@ -532,10 +559,12 @@ fn spawn_sun(mut commands: Commands, data: Res<Data>, mut media: ResMut<Assets<b
             ..default()
         },
         Transform::from_rotation(Quat::from_euler(EulerRot::YXZ, 0.8, -0.75, 0.0)),
+        // Three cascades to 500 m (were four to 900 m): shadows cost about 2 ms of a combat frame
+        // (2026-10-24), and past 500 m the fog and haze carry the depth.
         CascadeShadowConfigBuilder {
-            num_cascades: 4,
+            num_cascades: 3,
             first_cascade_far_bound: 40.0,
-            maximum_distance: 900.0,
+            maximum_distance: 500.0,
             ..default()
         }
         .build(),
@@ -705,13 +734,15 @@ struct TreeEntities {
     tiles: BTreeMap<(u32, u32), TileDraw>,
     /// The tile each drawn tree belongs to.
     tile_of: HashMap<u32, (u32, u32)>,
-    /// Falling trees, drawn one entity each until they land.
+    /// Felled trees, falling or lying, drawn one entity each (left out of their tile's mesh).
     moving: HashMap<u32, Entity>,
     species: Vec<Handle<Mesh>>,
     geometry: Arc<Vec<TreeGeometry>>,
+    /// The far version of each species (`tree_mesh(.., true)`), for tiles past `TREE_FAR_M`.
+    geometry_far: Arc<Vec<TreeGeometry>>,
     material: Handle<StandardMaterial>,
-    /// Tiles whose meshes are being merged on a worker thread.
-    building: BTreeMap<(u32, u32), Task<Vec<(Mesh, Vec3)>>>,
+    /// Tiles whose meshes are being merged on a worker thread, and whether in the far version.
+    building: BTreeMap<(u32, u32), (Task<Vec<(Mesh, Vec3)>>, bool)>,
 }
 
 /// One drawn tile: its merged species meshes, whether they cast shadows, whether to rebuild.
@@ -719,6 +750,8 @@ struct TileDraw {
     meshes: Vec<Entity>,
     shadows: bool,
     dirty: bool,
+    /// Built from the far version of the trees.
+    far: bool,
 }
 
 /// A species' mesh on the CPU, one unit tall, to be merged per tile.
@@ -821,7 +854,26 @@ const TREE_KEEP_MARGIN_M: f32 = 150.0;
 const TREE_SHADOW_RADIUS_M: f32 = 300.0;
 
 /// A tree mesh, one unit tall, base at the origin: trunk and crown in vertex colours.
-fn tree_mesh(species: &str) -> Mesh {
+/// Past this, a tree tile is built from the far version of its trees (a fraction of the vertices):
+/// with trees drawn to 2 km most tiles are far, and their full-detail meshes were most of the
+/// upload behind the frame spikes (2026-10-24). A tile changes version 60 m past the line.
+const TREE_FAR_M: f32 = 600.0;
+const TREE_FAR_SLACK_M: f32 = 60.0;
+
+/// Whether a tile at `d` metres from the eye should be the far version, given what it is now.
+fn tile_far(d: f32, now_far: Option<bool>) -> bool {
+    // `CB_NO_TREE_LOD=1`: every tile at full detail (perf-bench switch).
+    if crate::cli::switched_off("CB_NO_TREE_LOD") {
+        return false;
+    }
+    match now_far {
+        Some(true) => d > TREE_FAR_M - TREE_FAR_SLACK_M,
+        Some(false) => d > TREE_FAR_M + TREE_FAR_SLACK_M,
+        None => d > TREE_FAR_M,
+    }
+}
+
+fn tree_mesh(species: &str, far: bool) -> Mesh {
     // The mesh is one unit tall: a foliage tile every 5 cm of it, about a metre of a real tree.
     let mut b = MeshBuilder::tiled(0.05, 0.05);
     let bark = [0.30, 0.22, 0.15, 1.0];
@@ -834,9 +886,18 @@ fn tree_mesh(species: &str) -> Mesh {
         Vec3::ZERO,
         trunk_r,
         trunk_top,
-        7,
+        if far { 4 } else { 7 },
         if species == "birch" { [0.85, 0.83, 0.78, 1.0] } else { bark },
     );
+    // The far version: one coarse crown in the same place and size, a few dozen vertices.
+    if far {
+        match species {
+            "oak" => b.blob(Vec3::new(0.04, 0.66, 0.03), Vec3::new(0.36, 0.32, 0.36), 3, [0.21, 0.34, 0.14, 1.0]),
+            "birch" => b.blob(Vec3::new(0.0, 0.72, 0.0), Vec3::new(0.2, 0.3, 0.2), 3, [0.36, 0.48, 0.20, 1.0]),
+            _ => b.cone(Vec3::new(0.0, 0.2, 0.0), 0.2, 0.8, 5, [0.13, 0.26, 0.12, 1.0]),
+        }
+        return b.build();
+    }
     match species {
         "oak" => {
             b.blob(Vec3::new(0.0, 0.68, 0.0), Vec3::new(0.34, 0.3, 0.34), 9, [0.20, 0.33, 0.13, 1.0]);
@@ -874,12 +935,31 @@ fn spawn_trees(
         perceptual_roughness: 0.9,
         ..default()
     });
-    let built: Vec<Mesh> = data.0.world.trees.species.iter().map(|s| tree_mesh(&s.name)).collect();
+    let built: Vec<Mesh> = data.0.world.trees.species.iter().map(|s| tree_mesh(&s.name, false)).collect();
     let geometry = built.iter().map(TreeGeometry::of).collect();
+    let geometry_far: Vec<TreeGeometry> = data
+        .0
+        .world
+        .trees
+        .species
+        .iter()
+        .map(|s| TreeGeometry::of(&tree_mesh(&s.name, true)))
+        .collect();
+    let counts: Vec<String> = data
+        .0
+        .world
+        .trees
+        .species
+        .iter()
+        .zip(built.iter().zip(geometry_far.iter()))
+        .map(|(s, (n, f)): (_, (&Mesh, &TreeGeometry))| format!("{} {}/{}", s.name, n.count_vertices(), f.positions.len()))
+        .collect();
+    info!("trees: vertices a tree, full/far: {}", counts.join(", "));
     let species = built.into_iter().map(|m| meshes.add(m)).collect();
     commands.insert_resource(TreeEntities {
         species,
         geometry: Arc::new(geometry),
+        geometry_far: Arc::new(geometry_far),
         material,
         ..default()
     });
@@ -893,7 +973,8 @@ fn keep_trees(mut live: ResMut<Live>, plan: Res<Plan>, pilot: Res<crate::pilot::
     let feet = pilot.curr.feet;
     let mut bodies = vec![Vec2::new(feet.x, feet.z)];
     bodies.extend(mechs.iter().map(|m| Vec2::new(m.curr.pos.x, m.curr.pos.z)));
-    live.forest.keep_around(&plan, &bodies);
+    // The pilot first: only their eye sees the woods out to the draw radius (`keep_around_seen`).
+    live.forest.keep_around_seen(&plan, &bodies, 1);
 }
 
 /// Puts the grown tiles within the draw radius of the eye on screen as merged meshes, a few tiles a
@@ -907,6 +988,10 @@ fn show_trees(
     trees: Option<ResMut<TreeEntities>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
+    // `CB_NO_TREES=1`: no trees drawn (perf-bench switch, to measure what they cost).
+    if crate::cli::switched_off("CB_NO_TREES") {
+        return;
+    }
     let _t = crate::perf_hud::slow("show_trees");
     let Some(mut trees) = trees else { return };
     let trees = &mut *trees;
@@ -929,19 +1014,31 @@ fn show_trees(
             }
         }
         trees.building.remove(&key);
+        // Fallen and falling trees drawn on their own go with their tile.
+        let loose: Vec<u32> = trees
+            .moving
+            .keys()
+            .copied()
+            .filter(|id| trees.tile_of.get(id) == Some(&key))
+            .collect();
+        for id in loose {
+            if let Some(e) = trees.moving.remove(&id) {
+                commands.entity(e).despawn();
+            }
+        }
         trees.tile_of.retain(|_, k| *k != key);
     }
     // Tiles built off the main thread go on screen a couple a frame (each is a GPU upload).
     let mut done = Vec::new();
-    for (key, task) in trees.building.iter_mut() {
+    for (key, (task, far)) in trees.building.iter_mut() {
         if done.len() >= TREE_TILES_SHOWN_PER_FRAME {
             break;
         }
         if let Some(built) = check_ready(task) {
-            done.push((*key, built));
+            done.push((*key, built, *far));
         }
     }
-    for (key, built) in done {
+    for (key, built, far) in done {
         trees.building.remove(&key);
         if !keep.contains(&key) {
             continue;
@@ -977,6 +1074,7 @@ fn show_trees(
                 meshes: entities,
                 shadows,
                 dirty,
+                far,
             },
         );
     }
@@ -984,12 +1082,16 @@ fn show_trees(
     // merge of a tile's few hundred trees took 40-75 ms a frame on the main thread, 2026-10-24).
     let mut todo: Vec<(f32, (u32, u32))> = grown
         .into_iter()
-        .filter(|g| g.0 <= radius && !trees.building.contains_key(&g.1) && trees.tiles.get(&g.1).is_none_or(|t| t.dirty))
+        .filter(|g| {
+            g.0 <= radius
+                && !trees.building.contains_key(&g.1)
+                && trees.tiles.get(&g.1).is_none_or(|t| t.dirty || t.far != tile_far(g.0, Some(t.far)))
+        })
         .collect();
     todo.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
     let room = TREE_TILES_BUILDING.saturating_sub(trees.building.len());
     let pool = AsyncComputeTaskPool::get();
-    for (_, key) in todo.into_iter().take(TREE_TILES_PER_FRAME.min(room)) {
+    for (d, key) in todo.into_iter().take(TREE_TILES_PER_FRAME.min(room)) {
         let Some((_, grown)) = live.forest.grown_tiles().find(|(k, _)| *k == key) else {
             continue;
         };
@@ -1005,7 +1107,8 @@ fn show_trees(
                 by_species[t.species as usize].push((*t, live.forest.state(t.id)));
             }
         }
-        let geometry = trees.geometry.clone();
+        let far = tile_far(d, trees.tiles.get(&key).map(|t| t.far));
+        let geometry = if far { trees.geometry_far.clone() } else { trees.geometry.clone() };
         let task = pool.spawn(async move {
             geometry
                 .iter()
@@ -1013,7 +1116,7 @@ fn show_trees(
                 .filter_map(|(g, list)| merge_trees(g, list.iter().map(|(t, st)| (t, *st))))
                 .collect::<Vec<(Mesh, Vec3)>>()
         });
-        trees.building.insert(key, task);
+        trees.building.insert(key, (task, far));
     }
     // Shadows from the near tiles only; a tile changes over as a whole, rarely.
     for (key, tile) in trees.tiles.iter_mut() {
@@ -1046,8 +1149,8 @@ fn fell_trees(mut live: ResMut<Live>, time: Res<Time<Fixed>>, mut fx: MessageWri
     live.moved_trees.extend(landed);
 }
 
-/// A tree that starts falling leaves its tile's mesh and is drawn on its own as it falls; when it
-/// lands it goes back into its tile, which is rebuilt with it lying down.
+/// A tree that starts falling leaves its tile's mesh (one rebuild) and is drawn on its own as it
+/// falls and where it lies; it joins a tile's mesh again only when the tile is grown afresh.
 fn redraw_trees(mut commands: Commands, mut live: ResMut<Live>, trees: Option<ResMut<TreeEntities>>, mut q: Query<&mut Transform>) {
     let _t = crate::perf_hud::slow("redraw_trees");
     let Some(mut trees) = trees else { return };
@@ -1078,14 +1181,21 @@ fn redraw_trees(mut commands: Commands, mut live: ResMut<Live>, trees: Option<Re
                     }
                 }
             },
-            _ => {
-                if let Some(e) = trees.moving.remove(&id) {
-                    commands.entity(e).despawn();
+            // Landed: it stays drawn on its own where it lies, and its tile is not rebuilt again.
+            // In a fight mechs fell about 200 trees in two minutes, and rebuilding and uploading a
+            // whole tile's mesh for each landing made frames over 50 ms (2026-10-24).
+            _ => match trees.moving.get(&id) {
+                Some(e) => {
+                    if let Ok(mut t) = q.get_mut(*e) {
+                        *t = tree_transform(tree, state);
+                    }
                 }
-                if let Some(tile) = trees.tiles.get_mut(&key) {
-                    tile.dirty = true;
+                None => {
+                    if let Some(tile) = trees.tiles.get_mut(&key) {
+                        tile.dirty = true;
+                    }
                 }
-            }
+            },
         }
     }
 }
@@ -1257,5 +1367,34 @@ fn face_clouds(
     for (mut t, c) in &mut q {
         t.translation = c.anchor + drift;
         t.rotation = rot;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy::mesh::VertexAttributeValues;
+
+    fn tangents(mesh: &Mesh) -> Vec<[f32; 4]> {
+        match mesh.attribute(Mesh::ATTRIBUTE_TANGENT) {
+            Some(VertexAttributeValues::Float32x4(t)) => t.clone(),
+            _ => panic!("no tangents"),
+        }
+    }
+
+    #[test]
+    fn planar_tangents_match_mikktspace_on_a_box() {
+        let mut a = MeshBuilder::tiled(2.4, 2.4);
+        a.block(Vec3::new(1.0, 2.0, 3.0), Vec3::new(4.0, 3.5, 7.0), [1.0; 4]);
+        let mut b = MeshBuilder::tiled(2.4, 2.4);
+        b.block(Vec3::new(1.0, 2.0, 3.0), Vec3::new(4.0, 3.5, 7.0), [1.0; 4]);
+        let ours = tangents(&a.build_with_tangents());
+        let mut mikk = b.build();
+        mikk.generate_tangents().unwrap();
+        for (i, (o, m)) in ours.iter().zip(tangents(&mikk)).enumerate() {
+            let (o3, m3) = (Vec3::new(o[0], o[1], o[2]), Vec3::new(m[0], m[1], m[2]));
+            assert!(o3.dot(m3) > 0.99, "vertex {i}: tangent {o3} against {m3}");
+            assert_eq!(o[3], m[3], "vertex {i}: handedness");
+        }
     }
 }

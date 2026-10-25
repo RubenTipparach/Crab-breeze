@@ -14,7 +14,15 @@
    "legs_m3": 353.4,
    "torso_m3": 226.9,
    "legs_over_torso": 1.56,
-   "arm_leg_clips": []
+   "arm_leg_clips": [],
+   "limbs": [
+    "ARM_L",
+    "ARM_R",
+    "LEG_0L",
+    "LEG_0L_foot",
+    "LEG_0R",
+    "LEG_0R_foot"
+   ]
   },
   {
    "id": "swift",
@@ -28,7 +36,15 @@
    "legs_m3": 312.7,
    "torso_m3": 198.7,
    "legs_over_torso": 1.57,
-   "arm_leg_clips": []
+   "arm_leg_clips": [],
+   "limbs": [
+    "ARM_L",
+    "ARM_R",
+    "LEG_0L",
+    "LEG_0L_foot",
+    "LEG_0R",
+    "LEG_0R_foot"
+   ]
   },
   {
    "id": "bulldog",
@@ -42,7 +58,13 @@
    "legs_m3": 543.6,
    "torso_m3": 364.3,
    "legs_over_torso": 1.49,
-   "arm_leg_clips": []
+   "arm_leg_clips": [],
+   "limbs": [
+    "ARM_L",
+    "ARM_R",
+    "LEG_0L",
+    "LEG_0R"
+   ]
   },
   {
    "id": "tarantula",
@@ -56,7 +78,19 @@
    "legs_m3": 487.2,
    "torso_m3": 258.4,
    "legs_over_torso": 1.89,
-   "arm_leg_clips": []
+   "arm_leg_clips": [],
+   "limbs": [
+    "ARM_L",
+    "ARM_R",
+    "LEG_0L",
+    "LEG_0L_foot",
+    "LEG_0R",
+    "LEG_0R_foot",
+    "LEG_1L",
+    "LEG_1L_foot",
+    "LEG_1R",
+    "LEG_1R_foot"
+   ]
   },
   {
    "id": "hatchet",
@@ -70,7 +104,15 @@
    "legs_m3": 342.9,
    "torso_m3": 258.4,
    "legs_over_torso": 1.33,
-   "arm_leg_clips": []
+   "arm_leg_clips": [],
+   "limbs": [
+    "ARM_L",
+    "ARM_R",
+    "LEG_0L",
+    "LEG_0L_foot",
+    "LEG_0R",
+    "LEG_0R_foot"
+   ]
   },
   {
    "id": "longbow",
@@ -84,7 +126,15 @@
    "legs_m3": 284.6,
    "torso_m3": 201.8,
    "legs_over_torso": 1.41,
-   "arm_leg_clips": []
+   "arm_leg_clips": [],
+   "limbs": [
+    "ARM_L",
+    "ARM_R",
+    "LEG_0L",
+    "LEG_0L_foot",
+    "LEG_0R",
+    "LEG_0R_foot"
+   ]
   },
   {
    "id": "anvil",
@@ -98,7 +148,15 @@
    "legs_m3": 459.4,
    "torso_m3": 324.7,
    "legs_over_torso": 1.42,
-   "arm_leg_clips": []
+   "arm_leg_clips": [],
+   "limbs": [
+    "ARM_L",
+    "ARM_R",
+    "LEG_0L",
+    "LEG_0L_foot",
+    "LEG_0R",
+    "LEG_0R_foot"
+   ]
   },
   {
    "id": "skylark",
@@ -112,7 +170,15 @@
    "legs_m3": 288.8,
    "torso_m3": 219.3,
    "legs_over_torso": 1.32,
-   "arm_leg_clips": []
+   "arm_leg_clips": [],
+   "limbs": [
+    "ARM_L",
+    "ARM_R",
+    "LEG_0L",
+    "LEG_0L_foot",
+    "LEG_0R",
+    "LEG_0R_foot"
+   ]
   },
   {
    "id": "brigand",
@@ -126,7 +192,15 @@
    "legs_m3": 342.9,
    "torso_m3": 244.8,
    "legs_over_torso": 1.4,
-   "arm_leg_clips": []
+   "arm_leg_clips": [],
+   "limbs": [
+    "ARM_L",
+    "ARM_R",
+    "LEG_0L",
+    "LEG_0L_foot",
+    "LEG_0R",
+    "LEG_0R_foot"
+   ]
   },
   {
    "id": "rampart",
@@ -140,7 +214,13 @@
    "legs_m3": 543.6,
    "torso_m3": 364.0,
    "legs_over_torso": 1.49,
-   "arm_leg_clips": []
+   "arm_leg_clips": [],
+   "limbs": [
+    "ARM_L",
+    "ARM_R",
+    "LEG_0L",
+    "LEG_0R"
+   ]
   }
  ]
 }

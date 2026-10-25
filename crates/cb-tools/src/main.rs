@@ -1,6 +1,8 @@
 //! Crab Breeze command-line tools. `cb-tools validate <data dir>` loads every data file through the
 //! same loader the game uses (CLAUDE.md section 11), so a file that would stop the game stops here.
 
+mod glb;
+
 use cb_core::GameData;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -18,11 +20,33 @@ fn main() -> ExitCode {
             let mut ok = true;
             for mech in &mechs {
                 match GameData::load(&root, mech) {
-                    Ok(_) => println!("ok   {}/{mech} (with sim, world, pilot, bindings)", root.display()),
+                    Ok(d) => {
+                        // the model it names, read as data: the rig contract, and the sizes it was generated from
+                        let problems = glb::check_mech(&d.mech, &root.join("..").join("assets"));
+                        if problems.is_empty() {
+                            println!("ok   {}/{mech} (with sim, world, pilot, bindings, model)", root.display());
+                        } else {
+                            for p in problems {
+                                eprintln!("FAIL {mech}: {p}");
+                            }
+                            ok = false;
+                        }
+                    }
                     Err(e) => {
                         eprintln!("FAIL {e}");
                         ok = false;
                     }
+                }
+            }
+            // the enemy skins, once: every one names a shipped model with limbs to walk and shoot off
+            if let Ok(d) = GameData::load(&root, &mechs[0]) {
+                let problems = glb::check_skins(&d.skins, &root.join("..").join("assets"));
+                if problems.is_empty() {
+                    println!("ok   {} enemy skins", d.skins.skins.len());
+                }
+                for p in problems {
+                    eprintln!("FAIL {p}");
+                    ok = false;
                 }
             }
             if ok { ExitCode::SUCCESS } else { ExitCode::FAILURE }

@@ -11,18 +11,26 @@
     trail_spacing_m: 3.0,
     motor_lumens: 200000.0,
     max_particles: 5000,
-    max_lights: 24,
+    // 8, not 24: each point light is clustered on the CPU every frame; 24 cost about 1 ms of a
+    // combat frame (median 10.2 ms with 24, 9.1 ms with 8, 2026-10-24).
+    max_lights: 8,
     max_fireballs: 64,
     // Blasts nearby shake the view (owner, 2026-10-24): up to 1.2 degrees, within 60 m per cube
     // root of the blast's megajoules (120 m for an 8 MJ shell), dying away over 0.7 s.
     shake: (max_deg: 1.2, reach_m_per_cbrt_mj: 60.0, decay_s: 0.7),
+    // Recipes played as continuous streams from an emitter riding the body, bursts a second: a
+    // jet's flame while it fires, a wreck's fire while it burns.
+    stream_per_s: {"jet_flame": 60.0, "burning": 10.0},
+    // Particle bursts start only within 400 m of the eye (times the effect's scale; explosions four
+    // times as far): far off they barely show and each costs an effect of its own (2026-10-24).
+    burst_range_m: 400.0,
     recipes: {
         // Guns. The effect's direction is the barrel's.
         "muzzle_autocannon": [
             Star(size_m: 1.4, life_s: 0.05, offset_m: 0.8),
-            // The light outlasts the 0.2 s between rounds, so a burst holds a pulsing glow instead
-            // of 50 ms flashes with dark between them, which strobed (owner, 2026-10-24).
-            Light(lumens: 1.0e6, range_m: 40.0, life_s: 0.6, colour: (1.0, 0.75, 0.45)),
+            // No point light: every gun firing kept up to 8 lights alive for the CPU to cluster each
+            // frame (2026-10-24, frame time); the flash and fire carry the muzzle. Heavy guns and
+            // blasts keep theirs.
             Burst(kind: Fire, count: 5, speed_m_s: 8.0, spread: 0.3, size_m: 0.6, life_s: 0.15, offset_m: 1.5, along_dir: true),
             Burst(kind: Smoke, count: 1, speed_m_s: 3.0, spread: 0.4, size_m: 0.8, life_s: 1.2, offset_m: 2.0, along_dir: true),
         ],

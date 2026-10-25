@@ -139,6 +139,11 @@ pub struct DressingConfig {
     pub prop_edge_m: f32,
     /// Buildings within this distance of the camera are dressed (drawn only; the frame does not care).
     pub dress_radius_m: f32,
+    /// Rooms and furniture are drawn within this distance of the pilot's eye (`building-lod`; owner,
+    /// 2026-10-24: "I would prefer 250 m for furniture").
+    pub rooms_radius_m: f32,
+    /// ...and hidden beyond the radius plus this margin (in between they keep their state).
+    pub rooms_margin_m: f32,
 }
 
 impl Default for DressingConfig {
@@ -151,6 +156,8 @@ impl Default for DressingConfig {
             max_props: 10,
             prop_edge_m: 1.2,
             dress_radius_m: 250.0,
+            rooms_radius_m: 250.0,
+            rooms_margin_m: 20.0,
         }
     }
 }
@@ -165,6 +172,8 @@ impl crate::data::Validate for DressingConfig {
             ("dressing.props_per_100m2", self.props_per_100m2),
             ("dressing.prop_edge_m", self.prop_edge_m),
             ("dressing.dress_radius_m", self.dress_radius_m),
+            ("dressing.rooms_radius_m", self.rooms_radius_m),
+            ("dressing.rooms_margin_m", self.rooms_margin_m),
         ] {
             positive(name, v)?;
         }

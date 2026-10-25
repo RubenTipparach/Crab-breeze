@@ -1,0 +1,25 @@
+// Enemy skins (openspec/changes/blockout-enemies): the block-out models an enemy wears over the stand-in's
+// skeleton, which still does the walking, aiming, hits and damage. Each model has one node per leg and arm at its
+// root joint (LEG_<pair><L|R>, ARM_L, ARM_R), which the game swings from the gait and throws off when the part is lost.
+// Built by tools/blender/build_mech_blockouts.py (-- combat, -- crabs); sizes in assets/models/mech_combat.json and
+// mech_crabs.json.
+(
+    skins: {
+        "sabre": (model: "models/mech_blockouts/sabre.glb"),   // Sabre, 25.5 m
+        "swift": (model: "models/mech_blockouts/swift.glb"),   // Swift, 24.5 m
+        "bulldog": (model: "models/mech_blockouts/bulldog.glb"),   // Bulldog, 16.8 m
+        "tarantula": (model: "models/mech_blockouts/tarantula.glb"),   // Tarantula, 22.1 m
+        "hatchet": (model: "models/mech_blockouts/hatchet.glb"),   // Hatchet, 24.9 m
+        "longbow": (model: "models/mech_blockouts/longbow.glb"),   // Longbow, 25.5 m
+        "anvil": (model: "models/mech_blockouts/anvil.glb"),   // Anvil, 26.6 m
+        "skylark": (model: "models/mech_blockouts/skylark.glb"),   // Skylark, 24.1 m
+        "brigand": (model: "models/mech_blockouts/brigand.glb"),   // Brigand, 26.3 m
+        "rampart": (model: "models/mech_blockouts/rampart.glb"),   // Rampart, 16.9 m
+        "tyrant": (model: "models/mech_blockouts/tyrant.glb"),   // Tyrant, 18.0 m
+        "bruiser": (model: "models/mech_blockouts/bruiser.glb"),   // Bruiser, 15.5 m
+        "shrike": (model: "models/mech_blockouts/shrike.glb"),   // Shrike, 15.0 m
+        "pincher": (model: "models/mech_blockouts/pincher.glb"),   // Pincher, 14.1 m
+        "scuttler": (model: "models/mech_blockouts/scuttler.glb"),   // Scuttler, 11.1 m
+        "mite": (model: "models/mech_blockouts/mite.glb"),   // Mite, 13.5 m
+    },
+)

@@ -74,15 +74,17 @@ fn watch(
 ) {
     let dt = time.delta_secs();
     if ready.0 {
-        // After loading, the frame time every 5 s (a measurement instrument: p50 and worst).
+        // After loading, the frame time every 5 s (a measurement instrument: p50, p95, p99, worst).
         frames.push(dt * 1000.0);
         *log_in_s -= dt;
         if *log_in_s <= 0.0 {
             *log_in_s = 5.0;
             frames.sort_by(f32::total_cmp);
             let p50 = frames[frames.len() / 2];
+            let p95 = frames[(frames.len() * 95 / 100).min(frames.len() - 1)];
+            let p99 = frames[(frames.len() * 99 / 100).min(frames.len() - 1)];
             info!(
-                "frames: p50 {p50:.1} ms, worst {:.1} ms over {}",
+                "frames: p50 {p50:.1} ms, p95 {p95:.1} ms, p99 {p99:.1} ms, worst {:.1} ms over {}",
                 frames[frames.len() - 1],
                 frames.len()
             );

@@ -310,8 +310,12 @@ mod tests {
 
     #[test]
     fn the_shipped_timelines_load() {
-        for m in ["breeze", "placeholder"] {
-            shipped(m);
+        // every mech's, the eight detailed mechs' among them (mech-roster)
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let mechs = crate::GameData::mech_files(&root);
+        assert!(mechs.len() >= 10, "{mechs:?}");
+        for m in mechs {
+            shipped(m.trim_start_matches("mechs/").trim_end_matches(".ron"));
         }
     }
 
