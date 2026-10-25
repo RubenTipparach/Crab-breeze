@@ -196,10 +196,14 @@ fn fragment(in: WaterFragment, @builtin(front_facing) front: bool) -> @location(
         scene_lit *= water_transmittance(absorption * water.refraction.w, p.y - behind.y);
     }
     let transmitted = mix(deep_lit, scene_lit, water_transmittance(absorption, path));
-    // The sky mirrored: Schlick's Fresnel, floored at a grazing angle.
+    // The sky mirrored: Schlick's Fresnel, floored at a grazing angle. A dry eye under the water's
+    // plane (a river running down a slope above it) sees the sheet as it would from the mirrored
+    // side, so a high river is water coloured, not all sky (owner, 2026-10-25: "WATER IS NOT
+    // BLACK", "water is blue obviously").
+    let facing = abs(dot(look, normal));
     let reflected_ray = reflect(-look, normal);
-    let reflection_height = clamp(reflected_ray.y, 0.0, 1.0);
-    let fresnel = (0.02 + 0.98 * pow(1.0 - max(dot(look, normal), 0.0), 5.0))
+    let reflection_height = clamp(abs(reflected_ray.y), 0.0, 1.0);
+    let fresnel = (0.02 + 0.98 * pow(1.0 - facing, 5.0))
         * mix(clamp(water.absorption.w, 0.0, 1.0), 1.0, reflection_height);
     let sky = mix(water.sky_horizon.rgb, water.sky_zenith.rgb, reflection_height);
     // Foam on crests, steep ripples and along the shore (the water under this pixel is shallow).

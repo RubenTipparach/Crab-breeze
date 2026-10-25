@@ -833,6 +833,20 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // Up close on the steepest reach from beside it and from downhill, the eye lower than the water
+    // (the case that drew high rivers black: `close_river_view`).
+    View {
+        name: "river-close",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "river-close-below",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // Mist in the low ground, from a hill over the wet west at dawn-like low height.
     view("valley-mist", [-9000.0, 260.0, -1000.0], [-6000.0, 120.0, 2500.0]),
     // Under the storm, in its rain, 40 m up, facing away from the sun.
@@ -899,6 +913,43 @@ fn steep_river_view(plan: &crate::world::Plan, back_m: f32, up_m: f32, top: bool
     (eye.to_array(), at.to_array())
 }
 
+/// Up close on the steepest river reach that is not a waterfall: 40 m to its side and 6 m over the
+/// ground, or (`below`) on the ground 120 m downstream and to the side, looking up at the water.
+fn close_river_view(plan: &crate::world::Plan, below: bool) -> ([f32; 3], [f32; 3]) {
+    let w = &plan.waters;
+    let mut best: Option<(f32, Vec3, Vec3)> = None;
+    for (ri, r) in w.rivers.iter().enumerate() {
+        for i in 0..r.path.len().saturating_sub(16) {
+            if w.falls.iter().any(|f| f.river == ri && i + 18 >= f.lip && i <= f.foot + 2) {
+                continue;
+            }
+            let drop = r.surface_m[i] - r.surface_m[i + 10];
+            let p = r.path[i + 5];
+            let s = r.surface_m[i + 5];
+            let along = (r.path[i + 10] - r.path[i]).normalize_or(Vec2::X);
+            let side = if below {
+                p + along * 120.0 + along.perp() * 30.0
+            } else {
+                p + along.perp() * 40.0
+            };
+            let ground = plan.terrain.height_at(side.x, side.y);
+            let eye = Vec3::new(side.x, ground + if below { 2.0 } else { 6.0 }, side.y);
+            if below && eye.y >= s {
+                continue;
+            }
+            if plan.clouds.density_at(eye, 0.0) > 0.0 || best.is_some_and(|b| drop <= b.0) {
+                continue;
+            }
+            best = Some((drop, eye, Vec3::new(p.x, s, p.y)));
+        }
+    }
+    let Some((drop, eye, at)) = best else {
+        return ([0.0, 400.0, 0.0], [0.0, 0.0, 100.0]);
+    };
+    info!("close river: {drop:.0} m over 10 points at {at}, eye {eye}");
+    (eye.to_array(), at.to_array())
+}
+
 #[derive(Resource)]
 struct WeatherScript {
     dir: PathBuf,
@@ -951,6 +1002,8 @@ fn run_weather_script(
             "river-steep" => steep_river_view(&plan, 700.0, 150.0, false),
             "river-steep-far" => steep_river_view(&plan, 3000.0, 400.0, false),
             "river-steep-top" => steep_river_view(&plan, 0.0, 500.0, true),
+            "river-close" => close_river_view(&plan, false),
+            "river-close-below" => close_river_view(&plan, true),
             _ => (v.eye, v.at),
         };
         let v = View {

@@ -137,12 +137,15 @@
     // flow to 56 m. Basins 8 m deep and 16 cells wide that a stream feeds are lakes, the ten largest
     // (owner, 2026-10-25: "too many lakes"). A river that drops 12 m in one
     // 16 m step (a cliff, not a steep slope) for 25 m or more is a waterfall, with a plunge pool under it.
+    // No rivers (owner, 2026-10-25: "delete all rivers", "I dont have time to tinker with this"):
+    // no flow reaches the stream threshold, so no river, channel or river-fed lake forms. Put it back
+    // to 12.0 to bring them back.
     water: (
         city_freeboard_m: 2.0,
         drainage_cell_m: 128.0,
         lowland_rain: 0.08,
         melt_band_m: 400.0,
-        stream_min_flow: 12.0,
+        stream_min_flow: 1.0e12,
         stream_min_cells: 3,
         river_step_m: 16.0,
         river_city_clearance_m: 80.0,

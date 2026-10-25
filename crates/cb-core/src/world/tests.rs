@@ -15,11 +15,20 @@ fn shipped() -> WorldConfig {
     load_ron(&data_path("data/world/world.ron")).expect("shipped world data loads")
 }
 
+/// The shipped data with rivers on (the stream threshold the hydrology was built and tuned at): the
+/// game ships with none (owner, 2026-10-25: "delete all rivers"), but the river code stays tested
+/// for when they come back.
+fn shipped_with_rivers() -> WorldConfig {
+    let mut cfg = shipped();
+    cfg.water.stream_min_flow = 12.0;
+    cfg
+}
+
 fn seed_42() -> &'static WorldPlan {
     static PLAN: OnceLock<WorldPlan> = OnceLock::new();
     PLAN.get_or_init(|| {
         let started = std::time::Instant::now();
-        let plan = generate(42, &shipped());
+        let plan = generate(42, &shipped_with_rivers());
         eprintln!(
             "seed 42 generated in {:.0} ms (test profile)",
             started.elapsed().as_secs_f64() * 1000.0
@@ -56,13 +65,13 @@ fn the_shipped_world_data_loads() {
 
 #[test]
 fn the_same_seed_builds_the_same_world() {
-    let again = generate(42, &shipped());
+    let again = generate(42, &shipped_with_rivers());
     assert!(again == *seed_42(), "seed 42 built two different worlds");
 }
 
 #[test]
 fn a_different_seed_builds_a_different_world() {
-    let other = generate(43, &shipped());
+    let other = generate(43, &shipped_with_rivers());
     assert_ne!(other.fingerprint(), seed_42().fingerprint());
 }
 
@@ -892,4 +901,12 @@ fn no_rivers_water_lies_under_the_ground() {
         }
     }
     assert!(buried.is_empty(), "river points under the ground: {buried:?}");
+}
+
+#[test]
+fn the_shipped_world_has_no_rivers() {
+    // Owner, 2026-10-25: "delete all rivers". No stream forms, so no river, channel or fall.
+    let plan = generate(42, &shipped());
+    assert!(plan.waters.rivers.is_empty(), "{} rivers", plan.waters.rivers.len());
+    assert!(plan.waters.falls.is_empty());
 }
