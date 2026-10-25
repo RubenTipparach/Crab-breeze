@@ -135,6 +135,21 @@
         // The sun disk 2 degrees across (the real 0.53 reads as a dot), twice as bright.
         sun_disk_deg: 2.0,
         sun_disk_intensity: 2.0,
+        // The colour grade (owner, 2026-10-24: "Some colour balance maybe? ... Make scene a little
+        // more vibrant"): 15 % more saturation and a touch more contrast. White balance stays
+        // neutral: 0.06 warmer turned the whole street pink and the glass purple (lavapipe stills,
+        // 2026-10-24), Bevy's temperature is far stronger than its size suggests.
+        grade_saturation: 1.15,
+        grade_contrast: 1.08,
+        grade_temperature: 0.0,
+        // Screen-space ambient occlusion on the world (openspec/changes/ambient-occlusion; owner,
+        // 2026-10-24: "Ssao? Might help"): creases and contact points darken in indirect light.
+        // 1.5 m reaches across a desk; 0 switches it off.
+        ssao_radius_m: 1.5,
+        ssao_quality: Medium,
+        // GPU occlusion culling on the pilot's eye (openspec/changes/occlusion-culling): what is
+        // hidden behind the street's buildings is not drawn. CB_NO_OCCLUSION=1 switches it off.
+        occlusion_culling: true,
     ),
 
     // Rivers, lakes and waterfalls (openspec/changes/hydrology/design.md). Water drains over a
@@ -199,5 +214,63 @@
         spacing_m: 1000.0,
         beyond_world_m: 6000.0,
         draw_radius_m: 9000.0,
+    ),
+    // Building frames (openspec/changes/structural-destruction): a member fails past
+    // safety_factor x its intact load, after a creak; a floor bay held on one edge keeps 45 %.
+    structure: (
+        safety_factor: 2.0,
+        creak_s: (0.5, 1.6),
+        held_four: 1.0,
+        held_three: 0.85,
+        held_diagonal: 0.7,
+        held_one_edge: 0.45,
+        held_one: 0.25,
+        held_hung: 0.4,
+        // A 6 MJ shell at a column's foot breaks the columns within about 3 m (playtest 2026-10-24).
+        column_hp_mj: 2.0,
+        slab_hp_mj: 3.0,
+        wall_hp_mj: 0.7,
+        slab_kg_m2: 600.0,
+        column_kg_m: 864.0,
+        wall_kg_m2: 400.0,
+        slab_m: 0.25,
+        column_m: 0.6,
+        wall_m: 0.3,
+        // Falling parts and rubble (openspec/changes/rubble).
+        impact_factor: 2.0,
+        rubble_fines: 0.5,
+        rubble_bulking: 1.4,
+        repose_slope: 0.75,
+        max_rubble_m: 18.0,
+        rubble_spread_m: 4.0,
+    ),
+    // Building skins and roofs (openspec/changes/building-generation): the mockup's facade modules,
+    // parapet and coping, roof props; only within dress_radius_m of the player.
+    dressing: (
+        parapet_m: 1.1,
+        parapet_wall_m: 0.3,
+        coping_m: 0.08,
+        props_per_100m2: 1.0,
+        max_props: 10,
+        prop_edge_m: 1.2,
+        // Only buildings this near the player are dressed; farther ones stay plain boxes (owner,
+        // 2026-10-24: elements "only generate when a mech is near city or building").
+        dress_radius_m: 250.0,
+        // Rooms and furniture are drawn within 250 m of the pilot, hidden past 270 m, and cast no
+        // shadows (openspec/changes/building-lod; owner, 2026-10-24: "I would prefer 250 m for
+        // furniture").
+        rooms_radius_m: 250.0,
+        rooms_margin_m: 20.0,
+    ),
+    // Physics debris (openspec/changes/debris-physics): chunks become rigid bodies only within
+    // physics_radius_m of the pilot's eye (owner, 2026-10-24: "If the mech is too far away there
+    // should be no physics sim"); farther they are a dust puff, and the cell simulation still
+    // breaks the building. Bodies past 1.2 times the radius are made static where they are.
+    // physics_radius_m: 0.0 switches debris physics off: every breaking piece is a dust puff.
+    debris: (
+        physics_radius_m: 400.0,
+        freeze_factor: 1.2,
+        max_dynamic: 600,
+        max_kept: 2500,
     ),
 )

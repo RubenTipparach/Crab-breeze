@@ -1,0 +1,152 @@
+{
+ "connections": [
+  {
+   "from": "fbm2_0",
+   "from_port": 0,
+   "to": "shader_2",
+   "to_port": 0
+  },
+  {
+   "from": "fbm2_1",
+   "from_port": 0,
+   "to": "shader_2",
+   "to_port": 1
+  },
+  {
+   "from": "shader_2",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 0
+  },
+  {
+   "from": "shader_2",
+   "from_port": 1,
+   "to": "Material",
+   "to_port": 7
+  }
+ ],
+ "label": "Fire Flipbook",
+ "name": "Material",
+ "node_position": {
+  "x": 0,
+  "y": 0
+ },
+ "nodes": [
+  {
+   "name": "fbm2_0",
+   "node_position": {
+    "x": 220,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 5,
+    "noise": 2,
+    "offset": 0.0,
+    "persistence": 0.55,
+    "scale_x": 4,
+    "scale_y": 4
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "fbm2_1",
+   "node_position": {
+    "x": 440,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 5,
+    "noise": 2,
+    "offset": 0.5,
+    "persistence": 0.6,
+    "scale_x": 8,
+    "scale_y": 8
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "shader_2",
+   "node_position": {
+    "x": 660,
+    "y": 0
+   },
+   "parameters": {},
+   "seed_int": 0,
+   "shader_model": {
+    "code": "",
+    "global": "",
+    "inputs": [
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "n1",
+      "longdesc": "n1",
+      "name": "n1",
+      "shortdesc": "n1",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "n2",
+      "longdesc": "n2",
+      "name": "n2",
+      "shortdesc": "n2",
+      "type": "f"
+     }
+    ],
+    "instance": "\nvec2 cell_$name(vec2 uv) { return floor(uv * 4.0); }\nvec2 local_$name(vec2 uv) { return fract(uv * 4.0); }\nfloat edge_$name(vec2 uv) { vec2 c = local_$name(uv) - vec2(0.5); return smoothstep(0.5, 0.43, max(abs(c.x), abs(c.y))); }\n\nfloat flame_$name(vec2 uv) {\n\tvec2 cl = cell_$name(uv);\n\tvec2 c = local_$name(uv);\n\tfloat t = (cl.x + cl.y * 4.0) / 15.0;\n\tfloat y = 1.0 - c.y;\n\tfloat grow = mix(0.55, 1.0, smoothstep(0.0, 0.35, t));\n\tfloat a = $n1(vec2(c.x * 0.25 + 0.13, fract(c.y * 0.25 + t * 0.9)));\n\tfloat b = $n2(vec2(c.x * 0.25 + 0.61, fract(c.y * 0.25 + t * 1.7)));\n\tfloat sway = (a - 0.5) * 0.4 * y;\n\tfloat taper = clamp(1.0 - y / (0.95 * grow), 0.0, 1.0);\n\tfloat half_w = max(0.36 * grow * sqrt(taper) * (0.7 + 0.6 * b), 0.0001);\n\tfloat body = smoothstep(half_w, half_w * 0.15, abs(c.x - 0.5 - sway)) * step(0.0001, taper);\n\tfloat breakup = smoothstep(0.2 + 0.6 * t, 0.42 + 0.6 * t, b + (1.0 - y) * 0.55);\n\treturn body * breakup * smoothstep(0.0, 0.08, y) * edge_$name(uv);\n}\nvec4 fire_$name(vec2 uv) {\n\tfloat i = flame_$name(uv);\n\tvec3 c = mix(vec3(1.0, 0.62, 0.38), vec3(1.0, 0.97, 0.9), smoothstep(0.45, 0.95, i));\n\treturn vec4(c, smoothstep(0.0, 0.6, i));\n}\n",
+    "longdesc": "fire flipbook",
+    "name": "fire flipbook",
+    "outputs": [
+     {
+      "longdesc": "out0",
+      "rgba": "fire_$name($uv)",
+      "shortdesc": "out0",
+      "type": "rgba"
+     },
+     {
+      "f": "fire_$name($uv).a",
+      "longdesc": "out1",
+      "shortdesc": "out1",
+      "type": "f"
+     }
+    ],
+    "parameters": [],
+    "shortdesc": "fire flipbook"
+   },
+   "type": "shader"
+  },
+  {
+   "export_paths": {},
+   "name": "Material",
+   "node_position": {
+    "x": 880,
+    "y": 0
+   },
+   "parameters": {
+    "albedo_color": {
+     "a": 1.0,
+     "b": 1,
+     "g": 1,
+     "r": 1,
+     "type": "Color"
+    },
+    "ao": 1.0,
+    "depth_scale": 0.0,
+    "emission_energy": 1.0,
+    "flags_transparent": true,
+    "metallic": 0.0,
+    "normal": 1.0,
+    "roughness": 1.0,
+    "size": 11,
+    "sss": 0.0
+   },
+   "type": "material"
+  }
+ ],
+ "parameters": {},
+ "type": "graph"
+}

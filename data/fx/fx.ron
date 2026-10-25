@@ -165,6 +165,23 @@
             Burst(kind: Fire, count: 30, speed_m_s: 6.0, spread: 0.8, size_m: 1.6, life_s: 0.8),
             Burst(kind: Smoke, count: 30, speed_m_s: 3.0, spread: 0.8, size_m: 3.0, life_s: 6.0),
         ],
+        // Buildings (openspec/changes/structural-destruction). An overloaded member about to give.
+        "creak_dust": [
+            Burst(kind: Dust, count: 10, speed_m_s: 1.0, spread: 0.6, size_m: 1.2, life_s: 2.5),
+            Burst(kind: Rubble, count: 4, speed_m_s: 1.5, spread: 0.5, size_m: 0.3, life_s: 1.5),
+        ],
+        // A member giving way.
+        "member_fail": [
+            Burst(kind: Dust, count: 30, speed_m_s: 4.0, spread: 0.9, size_m: 2.5, life_s: 4.0),
+            Burst(kind: Rubble, count: 15, speed_m_s: 4.0, spread: 0.8, size_m: 0.6, life_s: 2.0),
+        ],
+        // A falling part landing on a floor or the ground; scale grows with the cube root of its
+        // mass (a 200 t storey is 1, at most 2). Thinned after the 2026-10-24 playtest, where a
+        // collapse whited out the view from the street for over 10 s.
+        "collapse_dust": [
+            Burst(kind: Dust, count: 50, speed_m_s: 7.0, spread: 1.0, size_m: 4.0, life_s: 5.0),
+            Burst(kind: Rubble, count: 40, speed_m_s: 7.0, spread: 1.0, size_m: 1.0, life_s: 2.5),
+        ],
         // Every 0.1 s while a wreck or a stump burns.
         "burning": [
             Burst(kind: Smoke, count: 2, speed_m_s: 3.0, spread: 0.3, size_m: 1.8, life_s: 5.0),

@@ -156,6 +156,31 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
         bevy::anti_alias::fxaa::Fxaa::default(),
     ));
     camera.add_child(cockpit);
+    // Screen-space ambient occlusion on the world (ambient-occlusion): creases and contact points
+    // darken in indirect light. The cockpit keeps its baked occlusion. `CB_NO_SSAO=1` or a 0 radius
+    // switches it off.
+    // GPU occlusion culling (occlusion-culling): meshes hidden behind what was drawn last frame are
+    // skipped on the GPU. It needs the depth prepass. `CB_NO_OCCLUSION=1` switches it off.
+    if view.occlusion_culling && !crate::cli::switched_off("CB_NO_OCCLUSION") {
+        camera.insert((
+            bevy::core_pipeline::prepass::DepthPrepass,
+            bevy::render::occlusion_culling::OcclusionCulling,
+        ));
+    }
+    if view.ssao_radius_m > 0.0 && !crate::cli::switched_off("CB_NO_SSAO") {
+        use bevy::pbr::{ScreenSpaceAmbientOcclusion, ScreenSpaceAmbientOcclusionQualityLevel as Q};
+        use cb_core::world::config::SsaoQuality;
+        camera.insert(ScreenSpaceAmbientOcclusion {
+            quality_level: match view.ssao_quality {
+                SsaoQuality::Low => Q::Low,
+                SsaoQuality::Medium => Q::Medium,
+                SsaoQuality::High => Q::High,
+                SsaoQuality::Ultra => Q::Ultra,
+            },
+            radius: view.ssao_radius_m,
+            ..default()
+        });
+    }
     // The scattering sky (sky-atmosphere): Bevy's atmosphere draws the sky and hazes the distance,
     // under raw sunlight, with the exposure to match. `CB_NO_SKY=1` keeps the old flat sky.
     if crate::world::scattering_sky() {
@@ -382,10 +407,18 @@ fn weather_and_screens(
         Color::srgb(0.80, 0.86, 0.95).mix(&Color::srgb(0.95, 0.95, 0.97), inside),
     );
     let head_lost = pilot.curr.mode == PilotMode::Seated && mechs.iter().any(|(m, spec)| m.damage.is_lost(&spec.parts, PartKind::Head));
+    // The world's colour grade from data; a lost head washes it out on top (backup cameras).
+    let view = &data.0.world.view;
     let (sat, exp, tint) = if head_lost { (0.25, -0.6, 0.15) } else { (1.0, 0.0, 0.0) };
-    if grading.global.post_saturation != sat {
+    let sat = sat * view.grade_saturation;
+    if grading.global.post_saturation != sat || grading.midtones.contrast != view.grade_contrast {
         grading.global.post_saturation = sat;
         grading.global.exposure = exp;
         grading.global.tint = tint;
+        grading.global.temperature = view.grade_temperature;
+        let g = &mut **grading;
+        for section in [&mut g.shadows, &mut g.midtones, &mut g.highlights] {
+            section.contrast = view.grade_contrast;
+        }
     }
 }

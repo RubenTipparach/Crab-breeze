@@ -714,6 +714,34 @@ pub struct ViewConfig {
     pub sun_disk_deg: f32,
     /// The sun disk's brightness over its physical value.
     pub sun_disk_intensity: f32,
+    /// The colour grade on the pilot's eye (Bevy's `ColorGrading`): saturation after
+    /// tonemapping, 1 unchanged.
+    pub grade_saturation: f32,
+    /// Contrast across shadows, midtones and highlights, 1 unchanged.
+    pub grade_contrast: f32,
+    /// White balance, a CIE 1931 x offset: positive warmer, negative cooler, 0 unchanged.
+    pub grade_temperature: f32,
+    /// Screen-space ambient occlusion's sample radius (openspec change `ambient-occlusion`); 0
+    /// switches it off.
+    pub ssao_radius_m: f32,
+    /// Its quality level.
+    pub ssao_quality: SsaoQuality,
+    /// GPU occlusion culling on the pilot's eye (openspec change `occlusion-culling`).
+    pub occlusion_culling: bool,
+}
+
+/// Screen-space ambient occlusion quality, Bevy's levels.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+pub enum SsaoQuality {
+    /// Fewest samples.
+    Low,
+    /// Bevy's default.
+    #[default]
+    Medium,
+    /// More samples.
+    High,
+    /// Most samples.
+    Ultra,
 }
 
 impl Default for ViewConfig {
@@ -724,6 +752,12 @@ impl Default for ViewConfig {
             exposure_ev100: 13.0,
             sun_disk_deg: 2.0,
             sun_disk_intensity: 2.0,
+            grade_saturation: 1.0,
+            grade_contrast: 1.0,
+            grade_temperature: 0.0,
+            ssao_radius_m: 1.5,
+            ssao_quality: SsaoQuality::Medium,
+            occlusion_culling: true,
         }
     }
 }
@@ -735,6 +769,10 @@ impl Validate for ViewConfig {
         within("view.exposure_ev100", self.exposure_ev100, 0.0, 20.0)?;
         within("view.sun_disk_deg", self.sun_disk_deg, 0.0, 20.0)?;
         within("view.sun_disk_intensity", self.sun_disk_intensity, 0.0, 100.0)?;
+        within("view.ssao_radius_m", self.ssao_radius_m, 0.0, 20.0)?;
+        within("view.grade_saturation", self.grade_saturation, 0.0, 3.0)?;
+        within("view.grade_contrast", self.grade_contrast, 0.5, 2.0)?;
+        within("view.grade_temperature", self.grade_temperature, -1.0, 1.0)?;
         if self.clear_visibility_m > self.far_m {
             return Err("`view.clear_visibility_m` must not exceed `view.far_m`".into());
         }
@@ -842,6 +880,60 @@ pub struct WorldConfig {
     pub clouds: CloudConfig,
     /// Craters.
     pub craters: CraterConfig,
+    /// Building frames (openspec change `structural-destruction`).
+    pub structure: super::structure::StructureConfig,
+    /// Building dressing (openspec change `building-generation`).
+    pub dressing: super::dressing::DressingConfig,
+    /// Physics debris (openspec change `debris-physics`).
+    pub debris: DebrisConfig,
+}
+
+/// Physics debris: where chunks become rigid bodies, and how many (openspec change
+/// `debris-physics`, "Physics near the player only").
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct DebrisConfig {
+    /// A chunk breaking off within this distance of the pilot's eye becomes a rigid body; farther,
+    /// it is a dust puff only. 0 switches debris physics off: every chunk is a puff.
+    pub physics_radius_m: f32,
+    /// A moving body farther than `physics_radius_m` times this is made static where it is.
+    pub freeze_factor: f32,
+    /// Most moving bodies; past it the oldest settle where they are.
+    pub max_dynamic: u32,
+    /// Most bodies kept at all; past it the oldest are removed.
+    pub max_kept: u32,
+}
+
+impl Default for DebrisConfig {
+    fn default() -> Self {
+        Self {
+            physics_radius_m: 400.0,
+            freeze_factor: 1.2,
+            max_dynamic: 600,
+            max_kept: 2500,
+        }
+    }
+}
+
+impl DebrisConfig {
+    /// True when a chunk breaking off `distance_m` from the pilot's eye becomes a rigid body.
+    pub fn is_physical(&self, distance_m: f32) -> bool {
+        self.physics_radius_m > 0.0 && distance_m.is_finite() && distance_m <= self.physics_radius_m
+    }
+
+    /// True when a moving body `distance_m` from the pilot's eye is made static.
+    pub fn freezes(&self, distance_m: f32) -> bool {
+        !distance_m.is_finite() || distance_m > self.physics_radius_m * self.freeze_factor
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        within("debris.physics_radius_m", self.physics_radius_m, 0.0, 1.0e5)?;
+        within("debris.freeze_factor", self.freeze_factor, 1.0, 4.0)?;
+        if self.max_dynamic == 0 || self.max_kept < self.max_dynamic {
+            return Err("debris: max_dynamic must be above 0 and max_kept at least max_dynamic".into());
+        }
+        Ok(())
+    }
 }
 
 impl Default for WorldConfig {
@@ -894,6 +986,9 @@ impl Default for WorldConfig {
             trees: TreeConfig::default(),
             clouds: CloudConfig::default(),
             craters: CraterConfig::default(),
+            structure: super::structure::StructureConfig::default(),
+            dressing: super::dressing::DressingConfig::default(),
+            debris: DebrisConfig::default(),
         }
     }
 }
@@ -989,6 +1084,50 @@ impl Validate for WorldConfig {
         self.trees.validate()?;
         self.clouds.validate()?;
         self.craters.validate()?;
+        self.structure.validate()?;
+        self.dressing.validate()?;
+        self.debris.validate()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod debris_tests {
+    use super::{DebrisConfig, Validate, ViewConfig};
+
+    #[test]
+    fn ssao_settings_are_validated() {
+        assert!(ViewConfig::default().validate().is_ok());
+        let off = ViewConfig {
+            ssao_radius_m: 0.0,
+            ..ViewConfig::default()
+        };
+        assert!(off.validate().is_ok(), "0 switches it off");
+        let bad = ViewConfig {
+            ssao_radius_m: f32::NAN,
+            ..ViewConfig::default()
+        };
+        assert!(bad.validate().is_err(), "a broken radius stops startup");
+        let neg = ViewConfig {
+            ssao_radius_m: -1.0,
+            ..ViewConfig::default()
+        };
+        assert!(neg.validate().is_err());
+    }
+
+    #[test]
+    fn debris_is_physical_only_near_the_pilot() {
+        let d = DebrisConfig::default();
+        assert!(d.is_physical(10.0) && d.is_physical(400.0), "near chunks are bodies");
+        assert!(!d.is_physical(401.0) && !d.is_physical(1000.0), "far chunks are only dust");
+        assert!(!d.is_physical(f32::NAN), "a broken distance makes no body");
+        assert!(!d.freezes(450.0), "a body just past the radius keeps moving");
+        assert!(d.freezes(481.0), "a body well past it is made static");
+        let off = DebrisConfig {
+            physics_radius_m: 0.0,
+            ..d
+        };
+        assert!(off.validate().is_ok(), "0 is allowed");
+        assert!(!off.is_physical(0.0) && !off.is_physical(5.0), "0 switches debris physics off");
     }
 }

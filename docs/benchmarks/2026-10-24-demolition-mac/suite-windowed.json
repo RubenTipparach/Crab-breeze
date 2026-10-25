@@ -1,0 +1,415 @@
+{
+  "meta": {
+    "when": "2026-10-24 16:40",
+    "revision": "c85d1de",
+    "dirty": false,
+    "variants": [
+      {
+        "name": "current",
+        "exe": "/Users/rubentipparach/cb-demolition/target/release/crab-breeze",
+        "env": {},
+        "root": null
+      }
+    ],
+    "args": [
+      "--scenarios",
+      "demolition",
+      "--repeats",
+      "3",
+      "--windowed",
+      "--out",
+      "output/perf/demolition-mac"
+    ],
+    "machine": "Apple M4 Max",
+    "adapter": "Apple M4 Max (Metal)",
+    "gpu_preprocessing": [
+      true
+    ]
+  },
+  "results": [
+    {
+      "scenario": "demolition",
+      "variant": "current",
+      "exe": "/Users/rubentipparach/cb-demolition/target/release/crab-breeze",
+      "env": {},
+      "index": 0,
+      "seconds": 42.8,
+      "csv": "/Users/rubentipparach/cb-demolition/output/perf/demolition-mac/demolition_current_0.csv",
+      "log": "output/perf/demolition-mac/demolition_current_0.log",
+      "frame_ms": {
+        "missed": 7,
+        "missed_share": 0.003995433789954338,
+        "freezes": 6,
+        "n": 1752,
+        "mean": 17.57349771689498,
+        "p50": 16.648,
+        "p95": 18.537,
+        "p99": 21.519,
+        "p999": 301.371,
+        "max": 772.896,
+        "over_want": 1740,
+        "over_floor": 859
+      },
+      "render_cpu_ms": {
+        "missed": 16,
+        "missed_share": 0.0091324200913242,
+        "freezes": 0,
+        "n": 1752,
+        "mean": 0.024488584474885916,
+        "p50": 0.024,
+        "p95": 0.03,
+        "p99": 0.036,
+        "p999": 0.047,
+        "max": 0.086,
+        "over_want": 0,
+        "over_floor": 0
+      },
+      "gpu_total_ms": {},
+      "entities": {
+        "missed": 0,
+        "missed_share": 0.0,
+        "freezes": 1752,
+        "n": 1752,
+        "mean": 8841.97602739726,
+        "p50": 8882.0,
+        "p95": 9009.0,
+        "p99": 9044.0,
+        "p999": 9045.0,
+        "max": 9046.0,
+        "over_want": 1752,
+        "over_floor": 1752
+      },
+      "memory_mb": {
+        "peak": 1175.828125,
+        "median": 1147.8125
+      },
+      "passes": {
+        "ui": {
+          "cpu_ms": 0.003,
+          "gpu_ms": 0.0
+        },
+        "lightprobe_radiance_map": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "atmosphere_luts": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "fxaa": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "lightprobe_copy": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "tonemapping": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "lightprobe_irradiance_map": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "auxiliary_views": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "early_mesh_preprocessing": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "uniform_allocation": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "bin_unpacking": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "lightprobe_downsampling_first_pass": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "lightprobe_downsampling_second_pass": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "main_opaque_pass_3d": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "atmosphere_environment": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "per_view_shadow_pass": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        }
+      },
+      "notes": [],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "demolition",
+      "variant": "current",
+      "exe": "/Users/rubentipparach/cb-demolition/target/release/crab-breeze",
+      "env": {},
+      "index": 1,
+      "seconds": 33.7,
+      "csv": "/Users/rubentipparach/cb-demolition/output/perf/demolition-mac/demolition_current_1.csv",
+      "log": "output/perf/demolition-mac/demolition_current_1.log",
+      "frame_ms": {
+        "missed": 3,
+        "missed_share": 0.0021961932650073207,
+        "freezes": 1,
+        "n": 1366,
+        "mean": 16.68327232796485,
+        "p50": 16.629,
+        "p95": 18.661,
+        "p99": 20.904,
+        "p999": 25.359,
+        "max": 79.064,
+        "over_want": 1360,
+        "over_floor": 663
+      },
+      "render_cpu_ms": {
+        "missed": 9,
+        "missed_share": 0.006588579795021962,
+        "freezes": 0,
+        "n": 1366,
+        "mean": 0.023307467057100965,
+        "p50": 0.023,
+        "p95": 0.028,
+        "p99": 0.033,
+        "p999": 0.04,
+        "max": 0.046,
+        "over_want": 0,
+        "over_floor": 0
+      },
+      "gpu_total_ms": {},
+      "entities": {
+        "missed": 0,
+        "missed_share": 0.0,
+        "freezes": 1366,
+        "n": 1366,
+        "mean": 8949.564421669107,
+        "p50": 8950.0,
+        "p95": 9161.0,
+        "p99": 9176.0,
+        "p999": 9181.0,
+        "max": 9181.0,
+        "over_want": 1366,
+        "over_floor": 1366
+      },
+      "memory_mb": {
+        "peak": 1222.4375,
+        "median": 1214.8125
+      },
+      "passes": {
+        "ui": {
+          "cpu_ms": 0.003,
+          "gpu_ms": 0.0
+        },
+        "lightprobe_radiance_map": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "fxaa": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "atmosphere_luts": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "tonemapping": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "lightprobe_copy": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "auxiliary_views": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "early_mesh_preprocessing": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "uniform_allocation": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "lightprobe_downsampling_second_pass": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "bin_unpacking": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "lightprobe_downsampling_first_pass": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "lightprobe_irradiance_map": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "main_opaque_pass_3d": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "atmosphere_environment": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "per_view_shadow_pass": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        }
+      },
+      "notes": [],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    },
+    {
+      "scenario": "demolition",
+      "variant": "current",
+      "exe": "/Users/rubentipparach/cb-demolition/target/release/crab-breeze",
+      "env": {},
+      "index": 2,
+      "seconds": 33.5,
+      "csv": "/Users/rubentipparach/cb-demolition/output/perf/demolition-mac/demolition_current_2.csv",
+      "log": "output/perf/demolition-mac/demolition_current_2.log",
+      "frame_ms": {
+        "missed": 4,
+        "missed_share": 0.00293470286133529,
+        "freezes": 1,
+        "n": 1363,
+        "mean": 16.68724431401322,
+        "p50": 16.648,
+        "p95": 18.648,
+        "p99": 20.246,
+        "p999": 25.935,
+        "max": 85.596,
+        "over_want": 1357,
+        "over_floor": 671
+      },
+      "render_cpu_ms": {
+        "missed": 1,
+        "missed_share": 0.0007336757153338225,
+        "freezes": 0,
+        "n": 1363,
+        "mean": 0.026151870873073888,
+        "p50": 0.026,
+        "p95": 0.032,
+        "p99": 0.034,
+        "p999": 0.038,
+        "max": 0.04,
+        "over_want": 0,
+        "over_floor": 0
+      },
+      "gpu_total_ms": {},
+      "entities": {
+        "missed": 0,
+        "missed_share": 0.0,
+        "freezes": 1363,
+        "n": 1363,
+        "mean": 8823.569332355099,
+        "p50": 8833.0,
+        "p95": 8854.0,
+        "p99": 8860.0,
+        "p999": 8862.0,
+        "max": 8862.0,
+        "over_want": 1363,
+        "over_floor": 1363
+      },
+      "memory_mb": {
+        "peak": 1221.671875,
+        "median": 1217.3125
+      },
+      "passes": {
+        "ui": {
+          "cpu_ms": 0.003,
+          "gpu_ms": 0.0
+        },
+        "lightprobe_radiance_map": {
+          "cpu_ms": 0.002,
+          "gpu_ms": 0.0
+        },
+        "atmosphere_luts": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "fxaa": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "tonemapping": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "lightprobe_copy": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "auxiliary_views": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "early_mesh_preprocessing": {
+          "cpu_ms": 0.001,
+          "gpu_ms": 0.0
+        },
+        "uniform_allocation": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "bin_unpacking": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "lightprobe_downsampling_first_pass": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "lightprobe_irradiance_map": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "lightprobe_downsampling_second_pass": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "main_opaque_pass_3d": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "atmosphere_environment": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        },
+        "per_view_shadow_pass": {
+          "cpu_ms": 0.0,
+          "gpu_ms": 0.0
+        }
+      },
+      "notes": [],
+      "adapter": "Apple M4 Max (Metal)",
+      "gpu_preprocessing": true,
+      "valid": true,
+      "problems": []
+    }
+  ]
+}

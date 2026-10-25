@@ -1,0 +1,2029 @@
+<title>Crab Breeze Buildings</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* A demolition survey sheet: the block on the stage, the controls and the floorplan on a clipboard beside it. */
+:root {
+  --bg: #e9ebef; --panel: #f7f8fa; --edge: #c4cad3; --ink: #12161c; --muted: #56606d;
+  --accent: #1f5fbf; --accent-soft: #dce6f6; --warn: #a86a00; --bad: #b3261e; --stage: #9fb3c4;
+  --display: "Saira Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+    --accent: #6ea8ff; --accent-soft: #1b2a40; --warn: #f0b13c; --bad: #ff7a70; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+  --accent: #6ea8ff; --accent-soft: #1b2a40; --warn: #f0b13c; --bad: #ff7a70; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); margin: 0; padding-block: 0 32px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { max-width: 1500px; margin: 0 auto; padding: 18px 0 10px; }
+h1 { font: 700 30px/1.1 var(--display); letter-spacing: .02em; margin: 0 0 4px; }
+h2 { font: 700 17px/1.2 var(--display); letter-spacing: .04em; text-transform: uppercase; margin: 0 0 8px; color: var(--muted); }
+header p { margin: 0; color: var(--muted); max-width: 980px; }
+code { font: 13px var(--mono); }
+.layout { max-width: 1500px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; aspect-ratio: 16 / 10; min-height: 360px; }
+.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.hint { position: absolute; left: 10px; bottom: 10px; background: rgba(10, 14, 20, .72); color: #e6ebf1; font: 12px var(--mono); padding: 5px 9px; border-radius: 4px; pointer-events: none; }
+.readout { position: absolute; right: 10px; top: 10px; background: rgba(10, 14, 20, .72); color: #e6ebf1; font: 12px/1.45 var(--mono); padding: 6px 10px; border-radius: 4px; pointer-events: none; white-space: pre; }
+aside { display: grid; gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 12px 14px; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+button, select, input[type=number] { font: 13px var(--body); color: var(--ink); background: var(--bg); border: 1px solid var(--edge); border-radius: 5px; padding: 5px 9px; }
+button { cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+label { font-size: 13px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
+input[type=range] { flex: 1; min-width: 120px; accent-color: var(--accent); }
+#plan { width: 100%; aspect-ratio: 1 / 1; background: #fbfbf8; border: 1px solid var(--edge); border-radius: 4px; display: block; }
+dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; font: 12px/1.5 var(--mono); }
+dt { color: var(--muted); } dd { margin: 0; text-align: right; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.sw { display: inline-block; width: 11px; height: 11px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; border: 1px solid rgba(0,0,0,.15); }
+.ramp { height: 10px; border-radius: 3px; background: linear-gradient(90deg, #5a7fa8, #4caf6a 50%, #e0b020 75%, #d23a2a); margin: 4px 0 2px; }
+.notes { max-width: 1500px; margin: 16px auto 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.notes .card p, .notes .card li { font-size: 14px; color: var(--muted); }
+.notes ul { margin: 0; padding-left: 18px; }
+@media (max-width: 1000px) { .layout { grid-template-columns: minmax(0, 1fr); } .stage { aspect-ratio: 4 / 3; } }
+</style>
+<header>
+  <h1>Destructible city block</h1>
+  <p>Mockup for the OpenSpec changes <code>building-generation</code>, <code>building-interiors</code>, <code>structural-destruction</code> and <code>rubble</code>. One seed generates a 1980s block from rules: mass, storeys, structural grid, facade, roof clutter, floorplans and furniture. Every piece belongs to one element of a structural graph, so shooting a column moves load onto its neighbours, an overloaded column creaks and fails, unsupported floors fall, and what lands turns into rubble piles you could walk on. Orbit with the mouse and click a building to fire. The pilot (1.8 m) and a 12 m mech stand in the street for scale.</p>
+</header>
+<div class="layout">
+  <div class="stage" id="stage">
+    <canvas id="c"></canvas>
+    <div class="readout" id="readout"></div>
+    <div class="hint" id="hint">Drag to orbit, scroll to zoom, click a wall to fire</div>
+  </div>
+  <aside>
+    <div class="card">
+      <h2>Weapon</h2>
+      <div class="row" id="weapons"></div>
+      <div class="row"><label>Blast radius <span id="radius"></span></label></div>
+    </div>
+    <div class="card">
+      <h2>Inspect</h2>
+      <div class="row"><select id="bsel"></select></div>
+      <div class="row"><label>Cut above storey</label><input type="range" id="cut" min="0" max="20" value="20"><code id="cutv"></code></div>
+      <div class="row">
+        <button id="tFacade">Skin off</button>
+        <button id="tStress">Stress view</button>
+        <button id="tPause">Pause</button>
+      </div>
+      <div class="row">Stress: load over capacity</div>
+      <div class="ramp"></div>
+      <div class="legend"><span>0</span><span style="margin-left:auto">0.5</span><span style="margin-left:auto">1.0 (fails)</span></div>
+    </div>
+    <div class="card">
+      <h2>Demolition</h2>
+      <div class="row">
+        <button data-demo="hole">Hole a wall</button>
+        <button data-demo="corner">Tower corner columns</button>
+        <button data-demo="side">Tower ground side</button>
+        <button data-demo="tower">Bring the tower down</button>
+      </div>
+      <div class="row">
+        <button data-demo="warehouse">Drop the warehouse</button>
+        <button data-demo="walkup">Missile volley</button>
+      </div>
+      <div class="row"><label>Debris</label>
+        <button id="tierGame" class="on">Game</button>
+        <button id="tierFull">Full</button>
+      </div>
+      <div class="row">
+        <label>Seed <input type="number" id="seed" value="42" style="width:90px"></label>
+        <button id="regen">Generate</button>
+        <button id="reset">Reset</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>View</h2>
+      <div class="row">
+        <button data-view="orbit" class="on">Block</button>
+        <button data-view="street">Pilot's eye</button>
+        <button data-view="mech">Cockpit height</button>
+        <button data-view="roofs">Roofs</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Floorplan</h2>
+      <canvas id="plan" width="720" height="720"></canvas>
+      <div class="legend" id="planLegend"></div>
+    </div>
+    <div class="card">
+      <h2>Counts</h2>
+      <dl id="stats"></dl>
+    </div>
+  </aside>
+</div>
+<section class="notes">
+  <div class="card">
+    <h2>What is the real design here</h2>
+    <ul>
+      <li>One seeded stream (SplitMix64 forked by label, the same as <code>cb-core::rng</code>) builds everything: the same seed gives the same block.</li>
+      <li>One structural grid (6 m) is the column layout, the facade's bay rhythm, the line partitions follow, the spatial index for blasts and the graph destruction runs on.</li>
+      <li>Each building draws in one call per material. A destroyed piece costs one bit in a per-building mask the vertex shader reads, so no mesh is rebuilt when something breaks.</li>
+      <li>Collapse is a load path: floors put weight on the columns at their corners, columns pass it down, and a column carrying more than its capacity (2 x its intact load) fails after a short creak.</li>
+      <li>Rubble is a heightfield that grows where pieces land and slumps to a 37 degree angle of repose, with loose pieces on top.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h2>What is a mockup stand-in</h2>
+    <ul>
+      <li>Textures are canvas noise. The game uses Material Maker graphs for brick, concrete and roofing, and face-on Cycles renders of modelled facade bays (Star Crew's method) for trims and far facades.</li>
+      <li>Debris pieces do not hit standing walls or each other. In the game Avian does that (<code>debris-physics</code>).</li>
+      <li>Furniture and roof props are boxes at their real sizes, not the Blender kit.</li>
+      <li>Frame times shown are this browser's, not a measurement (CLAUDE.md section 7).</li>
+    </ul>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/environments/RoomEnvironment.js"></script>
+<script>
+'use strict';
+// ============================================================================================
+// Seeded randomness: SplitMix64 with labelled forks, the same stream as cb-core's SimRng.
+// ============================================================================================
+const M64 = (1n << 64n) - 1n;
+const GAMMA = 0x9E3779B97F4A7C15n;
+function mix64(z) {
+  z = ((z ^ (z >> 30n)) * 0xBF58476D1CE4E5B9n) & M64;
+  z = ((z ^ (z >> 27n)) * 0x94D049BB133111EBn) & M64;
+  return z ^ (z >> 31n);
+}
+function labelHash(s) {
+  let h = 0xCBF29CE484222325n;
+  for (const b of new TextEncoder().encode(s)) { h ^= BigInt(b); h = (h * 0x100000001B3n) & M64; }
+  return h;
+}
+class Rng {
+  constructor(seed) { this.seed = BigInt.asUintN(64, BigInt(seed)); this.state = this.seed; }
+  fork(label) { return new Rng(mix64(this.seed ^ mix64(labelHash(label)))); }
+  u64() { this.state = (this.state + GAMMA) & M64; return mix64(this.state); }
+  f() { return Number(this.u64() >> 40n) / 16777216; }
+  range(a, b) { return a + (b - a) * this.f(); }
+  int(a, b) { return a + Math.floor(this.f() * (b - a + 1)); }
+  pick(a) { return a[Math.floor(this.f() * a.length)]; }
+  chance(p) { return this.f() < p; }
+}
+
+// ============================================================================================
+// Tuning: what data/world/buildings.ron would hold. Units in the keys.
+// ============================================================================================
+const T = {
+  grid_m: 6.0, slab_m: 0.25, column_m: 0.6, wall_m: 0.3, partition_m: 0.12, plinth_m: 0.3, pad_m: 0.15,
+  corridor_m: 2.0, door_w_m: 1.0, door_h_m: 2.1, bay_m: 3.0,
+  density_kg_m3: { concrete: 2400, brick: 1900, glass: 2500, metal: 900, plaster: 700, furn: 300, roof: 1400, wood: 600 },
+  safety_factor: 2.0, impact_factor: 2.0, creak_s: [0.5, 1.6], hang_hops: 1,
+  // A floor bay keeps this share of its capacity by how many of its corner columns still carry load.
+  slab_support_factor: { four: 1.0, three: 0.85, diagonal: 0.7, one_edge: 0.45, one: 0.25, hung: 0.4 },
+  hp_mj: { column: 2.5, slab: 3.0, wall: 0.7, glass: 0.02, partition: 0.15, core: 1.2, furniture: 0.05, prop: 0.35, parapet: 0.5, escape: 0.25 },
+  blast_m_per_cbrt_mj: 2.2,
+  debris_pool: 9000, rubble_fines: 0.5,
+  // Debris detail. Game: only the biggest boxes of a member become pieces (a column 1, a wall 2, a
+  // tank 6), at most 2 parts each, glass, partitions and furniture go straight to dust and heap, and
+  // pieces never perch on column or wall tops. Full: every box, up to 6 parts each (the first mockup).
+  debris_keep: { column: 1, slab: 1, wall: 2, parapet: 1, core: 3, escape: 2, prop: 6, glass: 0, partition: 0, furniture: 0 },
+  debris_pool_game: 2500, repose_slope: 0.75, heap_cell_m: 1.0,
+};
+const WEAPONS = [['35 mm', 0.25], ['120 mm', 4], ['Missile', 12], ['Demolition', 50]];
+const blastRadius = e => T.blast_m_per_cbrt_mj * Math.cbrt(e);   // the crater rule from terrain-deformation
+
+const ARCH = {
+  walkup: { label: 'Brick walk-up', storeys: [4, 6], ground_m: 4.2, storey_m: 3.3, skin: 'punched', clad: 'brick',
+    uses: k => k === 0 ? 'retail' : 'apartment', cornice: true, escape: true,
+    roof: ['tank', 'chimney', 'chimney', 'tv', 'tv', 'vent', 'vent', 'hatch'], colInset: 0.18 },
+  office: { label: 'Brutalist office', storeys: [7, 10], ground_m: 4.5, storey_m: 3.6, skin: 'ribbon', clad: 'concrete',
+    uses: k => k === 0 ? 'lobby' : 'office', fins: true,
+    roof: ['hvac', 'hvac', 'hvac', 'dish', 'mast', 'vent', 'vent', 'duct', 'duct'], colInset: 0.62 },
+  tower: { label: 'Curtain-wall tower', storeys: [15, 19], ground_m: 5.0, storey_m: 3.6, skin: 'curtain', clad: 'concrete',
+    uses: k => k === 0 ? 'retail' : 'office', podium: 3,
+    roof: ['tank', 'hvac', 'hvac', 'hvac', 'mast', 'mast', 'dish', 'vent', 'duct'], colInset: 0.62 },
+  warehouse: { label: 'Brick warehouse', storeys: [3, 4], ground_m: 5.5, storey_m: 4.5, skin: 'industrial', clad: 'brick',
+    uses: () => 'industrial', roof: ['skylight', 'skylight', 'skylight', 'skylight', 'skylight', 'vent', 'vent', 'tank', 'hvac'], colInset: 0.18 },
+};
+// The block: lots on one 108 x 88 m city block, the streets around it. Street sides get storefronts.
+const LOTS = [
+  { arch: 'tower', cx: -33, cz: -23, nx: 6, nz: 6, street: ['z-', 'x-'] },
+  { arch: 'office', cx: 8, cz: -26, nx: 5, nz: 4, street: ['z-'] },
+  { arch: 'walkup', cx: 38, cz: -26, nx: 4, nz: 4, street: ['z-', 'x+'] },
+  { arch: 'warehouse', cx: -33, cz: 23, nx: 6, nz: 5, street: ['z+', 'x-'] },
+  { arch: 'walkup', cx: -2, cz: 26, nx: 3, nz: 5, street: ['z+'] },
+  { arch: 'walkup', cx: 18, cz: 26, nx: 3, nz: 5, street: ['z+'] },
+  { arch: 'walkup', cx: 40, cz: 26, nx: 2, nz: 5, street: ['z+', 'x+'] },
+];
+const BLOCK = { x0: -54, x1: 54, z0: -44, z1: 44 };
+
+const C = {   // colours (linear-ish hex, mockup palette)
+  concrete: 0xb9b4aa, concreteDark: 0x8f8a82, slab: 0xc8c3b8, stone: 0xd8cfbc, frame: 0x2d3a33, frameWhite: 0xe8e4da,
+  metal: 0x5d646b, metalLight: 0xa9afb4, glass: 0x6f8ea6, spandrel: 0x2e3b48, tar: 0x55524d, plaster: 0xe9e4d8,
+  wood: 0x8a5a36, woodLight: 0xb08458, beige: 0xd9cfb5, fabric: [0x7d4a3a, 0x4f6a5a, 0x5b5f7d, 0x9a7b4f, 0x7a5a6d],
+  sign: [0xc23b2e, 0x2a6fb0, 0xe0a82e, 0x2e8b57, 0x7b3fa0, 0xd8d0c0],
+};
+
+// ============================================================================================
+// Geometry: boxes with world-metre UVs, bucketed per building per material, tagged by element.
+// ============================================================================================
+const MATS = ['brick', 'concrete', 'metal', 'glass', 'plaster', 'furn', 'roof'];
+const _v = new THREE.Vector3(), _n = new THREE.Vector3(), _m3 = new THREE.Matrix3(), _col = new THREE.Color();
+const UNIT_FACES = [ // normal, then four corners (unit box) wound counter-clockwise from outside
+  [[1, 0, 0], [[1, -1, -1], [1, 1, -1], [1, 1, 1], [1, -1, 1]]],
+  [[-1, 0, 0], [[-1, -1, 1], [-1, 1, 1], [-1, 1, -1], [-1, -1, -1]]],
+  [[0, 1, 0], [[-1, 1, -1], [-1, 1, 1], [1, 1, 1], [1, 1, -1]]],
+  [[0, -1, 0], [[-1, -1, 1], [-1, -1, -1], [1, -1, -1], [1, -1, 1]]],
+  [[0, 0, 1], [[1, -1, 1], [1, 1, 1], [-1, 1, 1], [-1, -1, 1]]],
+  [[0, 0, -1], [[-1, -1, -1], [-1, 1, -1], [1, 1, -1], [1, -1, -1]]],
+];
+function bucket(b, mat) {
+  if (!b.geo[mat]) b.geo[mat] = { pos: [], nor: [], uv: [], col: [], elem: [], idx: [] };
+  return b.geo[mat];
+}
+function pushVert(g, p, n, color, li) {
+  g.pos.push(p.x, p.y, p.z); g.nor.push(n.x, n.y, n.z);
+  const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
+  if (ax >= ay && ax >= az) g.uv.push(p.z, p.y); else if (ay >= az) g.uv.push(p.x, p.z); else g.uv.push(p.x, p.y);
+  g.col.push(color.r, color.g, color.b); g.elem.push(li);
+}
+// A box of size s whose centre and orientation come from matrix m (or centre c when m is null).
+function addBox(b, e, mat, c, s, color, m = null) {
+  const g = bucket(b, mat); _col.set(color);
+  const mm = m || new THREE.Matrix4().makeTranslation(c[0], c[1], c[2]);
+  _m3.getNormalMatrix(mm);
+  for (const [n, quad] of UNIT_FACES) {
+    const base = g.pos.length / 3;
+    _n.set(n[0], n[1], n[2]).applyMatrix3(_m3).normalize();
+    for (const q of quad) { _v.set(q[0] * s[0] / 2, q[1] * s[1] / 2, q[2] * s[2] / 2).applyMatrix4(mm); pushVert(g, _v, _n, _col, e.li); }
+    g.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  const ctr = new THREE.Vector3().setFromMatrixPosition(mm);
+  const q = new THREE.Quaternion().setFromRotationMatrix(mm);
+  e.boxes.push({ c: ctr, q, s: s.slice(), color, mat });
+  const vol = s[0] * s[1] * s[2];
+  e.vol += vol; e.mass += vol * (T.density_kg_m3[mat === 'furn' ? 'furn' : mat] || 1000);
+  growAabb(e.aabb, ctr, s, q);
+}
+function addCyl(b, e, mat, c, r0, r1, h, color, seg = 12) {
+  const g = bucket(b, mat); _col.set(color);
+  for (let i = 0; i < seg; i++) {
+    const a0 = i / seg * Math.PI * 2, a1 = (i + 1) / seg * Math.PI * 2;
+    const base = g.pos.length / 3, am = (a0 + a1) / 2;
+    _n.set(Math.cos(am), (r0 - r1) / h, Math.sin(am)).normalize();
+    for (const [a, r, y] of [[a0, r0, 0], [a1, r0, 0], [a1, r1, h], [a0, r1, h]]) {
+      _v.set(c[0] + Math.cos(a) * r, c[1] + y, c[2] + Math.sin(a) * r); pushVert(g, _v, _n, _col, e.li);
+    }
+    g.idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+    const top = g.pos.length / 3; _n.set(0, 1, 0);
+    for (const [a, r] of [[a0, r1], [a1, r1]]) { _v.set(c[0] + Math.cos(a) * r, c[1] + h, c[2] + Math.sin(a) * r); pushVert(g, _v, _n, _col, e.li); }
+    _v.set(c[0], c[1] + h, c[2]); pushVert(g, _v, _n, _col, e.li);
+    g.idx.push(top, top + 2, top + 1);
+  }
+  const rr = Math.max(r0, r1);
+  // As debris a round thing is staves round its circumference (a timber tank bursts into its boards).
+  const n = Math.max(6, Math.round(seg * 0.75)), rm = (r0 + r1) / 2, lean = Math.atan2(r0 - r1, h), slant = Math.hypot(h, r0 - r1);
+  for (let i = 0; i < n; i++) {
+    const a = (i + 0.5) / n * Math.PI * 2;
+    const m = new THREE.Matrix4().makeRotationY(Math.PI / 2 - a).multiply(new THREE.Matrix4().makeRotationX(-lean));
+    m.setPosition(c[0] + Math.cos(a) * rm, c[1] + h / 2, c[2] + Math.sin(a) * rm);
+    e.boxes.push({ c: new THREE.Vector3().setFromMatrixPosition(m), q: new THREE.Quaternion().setFromRotationMatrix(m), s: [Math.max(0.05, 2 * Math.PI * rm / n), slant, Math.min(0.12, rr * 0.3)], color, mat });
+  }
+  const vol = Math.PI * rr * rr * h * 0.5;
+  e.vol += vol; e.mass += vol * (T.density_kg_m3[mat] || 1000);
+  growAabb(e.aabb, new THREE.Vector3(c[0], c[1] + h / 2, c[2]), [rr * 2, h, rr * 2], null);
+}
+function growAabb(a, c, s, q) {
+  let hx = s[0] / 2, hy = s[1] / 2, hz = s[2] / 2;
+  if (q && (q.x || q.y || q.z)) { const r = Math.hypot(hx, hy, hz); hx = hy = hz = r; }
+  a[0] = Math.min(a[0], c.x - hx); a[1] = Math.min(a[1], c.y - hy); a[2] = Math.min(a[2], c.z - hz);
+  a[3] = Math.max(a[3], c.x + hx); a[4] = Math.max(a[4], c.y + hy); a[5] = Math.max(a[5], c.z + hz);
+}
+
+// ============================================================================================
+// Elements: every piece of a building is one element of its structural graph.
+// rests: what it stands on (GROUND or element ids); lateral: slabs it can hang from.
+// ============================================================================================
+const GROUND = -1;
+const RANK = { glass: 0, escape: 1, prop: 1, parapet: 1, furniture: 2, partition: 2, core: 2, wall: 3, slab: 4, column: 5, static: 9 };
+let E = [];          // every element, by id
+let B = [];          // buildings
+function newElem(b, kind, storey, extra = {}) {
+  const e = Object.assign({ id: E.length, li: b.elems.length, b: b.id, kind, storey, boxes: [], rests: [], lateral: [], carries: [],
+    alive: true, sup: 0, hp: T.hp_mj[kind] ?? Infinity, mass: 0, vol: 0, load: 0, cap: Infinity, stress: 0, due: -1,
+    aabb: [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity], role: 0 }, extra);
+  E.push(e); b.elems.push(e.id); return e;
+}
+
+// ============================================================================================
+// Building generation: lot -> mass and storeys -> structural grid -> skin -> plan -> furniture -> roof.
+// ============================================================================================
+function generateBuilding(lot, id, root) {
+  const rng = root.fork('building/' + id);
+  const A = ARCH[lot.arch], g = T.grid_m;
+  const b = { id, lot, A, arch: lot.arch, label: A.label, elems: [], geo: {}, plans: [], rng,
+    nx: lot.nx, nz: lot.nz, x0: lot.cx - lot.nx * g / 2, z0: lot.cz - lot.nz * g / 2 };
+  b.storeys = rng.int(A.storeys[0], A.storeys[1]);
+  b.base = [T.plinth_m];
+  for (let k = 0; k < b.storeys; k++) b.base.push(b.base[k] + (k === 0 ? A.ground_m : A.storey_m));
+  // Footprint per storey, in grid cells. The tower steps in one bay all round above its podium.
+  b.fp = [];
+  for (let k = 0; k < b.storeys; k++) {
+    const inset = (A.podium && k >= A.podium) ? 1 : 0;
+    b.fp.push({ i0: inset, i1: b.nx - inset, j0: inset, j1: b.nz - inset });
+  }
+  b.inFp = (k, i, j) => k >= 0 && k < b.storeys && i >= b.fp[k].i0 && i < b.fp[k].i1 && j >= b.fp[k].j0 && j < b.fp[k].j1;
+  b.nodeIn = (k, a, c) => k >= 0 && k < b.storeys && a >= b.fp[k].i0 && a <= b.fp[k].i1 && c >= b.fp[k].j0 && c <= b.fp[k].j1;
+  b.colAt = []; b.slabAt = []; b.wallAt = [];
+  b.staticE = newElem(b, 'static', -1);
+  // The core (stairs and lifts) sits in one cell that every storey has, so the stairs line up.
+  const top = b.fp[b.storeys - 1];
+  b.core = (top.i1 - top.i0 >= 3 && top.j1 - top.j0 >= 3 && lot.arch !== 'warehouse')
+    ? { i: Math.floor((top.i0 + top.i1 - 1) / 2), j: Math.floor((top.j0 + top.j1 - 1) / 2) } : null;
+
+  // Grade slab: static, part of the ground.
+  addBox(b, b.staticE, 'concrete', [lot.cx, (T.pad_m + T.plinth_m) / 2 - 0.01, lot.cz], [b.nx * g + 0.4, T.plinth_m - T.pad_m + 0.02, b.nz * g + 0.4], C.concreteDark);
+
+  for (let k = 0; k < b.storeys; k++) { buildColumns(b, k); buildSlabs(b, k); }
+  for (let k = 0; k < b.storeys; k++) buildWalls(b, k);
+  buildParapets(b);
+  for (let k = 0; k < b.storeys; k++) {
+    const plan = planStorey(b, k, rng.fork('plan/' + k));
+    b.plans.push(plan);
+    buildPlan(b, k, plan);
+    furnish(b, k, plan, rng.fork('furnish/' + k));
+  }
+  buildRoof(b, rng.fork('roof'));
+  wire(b);
+  return b;
+}
+const nodeX = (b, a) => b.x0 + a * T.grid_m;
+const nodeZ = (b, c) => b.z0 + c * T.grid_m;
+
+function buildColumns(b, k) {
+  const A = b.A, f = b.fp[k], g = T.grid_m, cm = T.column_m;
+  b.colAt[k] = {};
+  const y0 = b.base[k], y1 = b.base[k + 1] - T.slab_m;
+  for (let a = f.i0; a <= f.i1; a++) for (let c = f.j0; c <= f.j1; c++) {
+    const e = newElem(b, 'column', k, { node: [a, c] });
+    let x = nodeX(b, a), z = nodeZ(b, c);
+    // Perimeter columns sit back behind the skin (or stand proud as brick piers on brick buildings).
+    if (a === f.i0) x += A.colInset; if (a === f.i1) x -= A.colInset;
+    if (c === f.j0) z += A.colInset; if (c === f.j1) z -= A.colInset;
+    const perim = a === f.i0 || a === f.i1 || c === f.j0 || c === f.j1;
+    const pier = perim && A.clad === 'brick';
+    addBox(b, e, pier ? 'brick' : 'concrete', [x, (y0 + y1) / 2 + 0.01, z], [pier ? 0.75 : cm, y1 - y0 + 0.02, pier ? 0.75 : cm], pier ? 0xffffff : C.concrete);
+    b.colAt[k][a + ',' + c] = e.id;
+    if (k === 0) e.rests.push(GROUND);
+    else {
+      // The column below first (the load line), then the floor below, which holds it up if that column goes.
+      if (b.colAt[k - 1][a + ',' + c] !== undefined) e.rests.push(b.colAt[k - 1][a + ',' + c]);
+      for (const [i, j] of [[a - 1, c - 1], [a, c - 1], [a - 1, c], [a, c]]) {
+        const s = b.slabAt[k - 1][i + ',' + j]; if (s !== undefined) e.rests.push(s);
+      }
+    }
+  }
+}
+function buildSlabs(b, k) {
+  const f = b.fp[k], g = T.grid_m, t = T.slab_m;
+  b.slabAt[k] = {};
+  const y = b.base[k + 1] - t / 2;
+  for (let i = f.i0; i < f.i1; i++) for (let j = f.j0; j < f.j1; j++) {
+    const e = newElem(b, 'slab', k, { cell: [i, j] });
+    const cx = nodeX(b, i) + g / 2, cz = nodeZ(b, j) + g / 2;
+    addBox(b, e, 'concrete', [cx, y, cz], [g, t, g], C.slab);
+    // A roof cell gets its membrane (part of the same element).
+    if (!b.inFp(k + 1, i, j)) addBox(b, e, 'roof', [cx, b.base[k + 1] + 0.025, cz], [g - 0.02, 0.04, g - 0.02], 0xffffff);
+    b.slabAt[k][i + ',' + j] = e.id;
+    for (const [a, c] of [[i, j], [i + 1, j], [i, j + 1], [i + 1, j + 1]]) e.rests.push(b.colAt[k][a + ',' + c]);
+  }
+  for (let i = f.i0; i < f.i1; i++) for (let j = f.j0; j < f.j1; j++) {
+    const e = E[b.slabAt[k][i + ',' + j]];
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const n = b.slabAt[k][(i + di) + ',' + (j + dj)]; if (n !== undefined) e.lateral.push(n);
+    }
+  }
+}
+
+// --- the skin ---------------------------------------------------------------------------------
+// A panel is one structural bay of facade on one storey: s runs along the face, d runs inward from
+// the outer plane (negative d stands proud of it). Every panel box is axis-aligned.
+function panelFrame(b, side, k, idx) {
+  const f = b.fp[k], g = T.grid_m;
+  const out = 0.06;
+  if (side === 'z-') return { side, k, idx, ax: 'x', s0: nodeX(b, f.i0 + idx), plane: nodeZ(b, f.j0) - out, n: -1, cell: [f.i0 + idx, f.j0], nodes: [[f.i0 + idx, f.j0], [f.i0 + idx + 1, f.j0]] };
+  if (side === 'z+') return { side, k, idx, ax: 'x', s0: nodeX(b, f.i0 + idx), plane: nodeZ(b, f.j1) + out, n: 1, cell: [f.i0 + idx, f.j1 - 1], nodes: [[f.i0 + idx, f.j1], [f.i0 + idx + 1, f.j1]] };
+  if (side === 'x-') return { side, k, idx, ax: 'z', s0: nodeZ(b, f.j0 + idx), plane: nodeX(b, f.i0) - out, n: -1, cell: [f.i0, f.j0 + idx], nodes: [[f.i0, f.j0 + idx], [f.i0, f.j0 + idx + 1]] };
+  return { side, k, idx, ax: 'z', s0: nodeZ(b, f.j0 + idx), plane: nodeX(b, f.i1) + out, n: 1, cell: [f.i1 - 1, f.j0 + idx], nodes: [[f.i1, f.j0 + idx], [f.i1, f.j0 + idx + 1]] };
+}
+function pbox(b, e, p, s0, s1, y0, y1, d0, d1, mat, color) {
+  // d measured inward: the world coordinate across the face is plane - n * d
+  const ca = p.plane - p.n * d0, cb = p.plane - p.n * d1;
+  const lo = Math.min(ca, cb), hi = Math.max(ca, cb);
+  const sa = p.s0 + s0, sb = p.s0 + s1;
+  if (p.ax === 'x') addBox(b, e, mat, [(sa + sb) / 2, (y0 + y1) / 2, (lo + hi) / 2], [sb - sa, y1 - y0, hi - lo], color);
+  else addBox(b, e, mat, [(lo + hi) / 2, (y0 + y1) / 2, (sa + sb) / 2], [hi - lo, y1 - y0, sb - sa], color);
+}
+function sidesOf(b, k) {
+  const f = b.fp[k];
+  return [['z-', f.i1 - f.i0], ['z+', f.i1 - f.i0], ['x-', f.j1 - f.j0], ['x+', f.j1 - f.j0]];
+}
+function buildWalls(b, k) {
+  const A = b.A, g = T.grid_m, t = T.slab_m;
+  const yF = b.base[k], y0 = b.base[k] - t - 0.02, y1 = b.base[k + 1] - t + 0.03, H = b.base[k + 1] - b.base[k];
+  const street = b.lot.street;
+  const signColor = C.sign[b.rng.int(0, C.sign.length - 1)];
+  for (const [side, count] of sidesOf(b, k)) for (let idx = 0; idx < count; idx++) {
+    const p = panelFrame(b, side, k, idx);
+    const e = newElem(b, 'wall', k, { role: 1, side, idx });
+    const [ci, cj] = p.cell;
+    e.rests.push(k === 0 ? GROUND : b.slabAt[k - 1][ci + ',' + cj]);
+    for (const [a, c] of p.nodes) e.rests.push(b.colAt[k][a + ',' + c]);
+    if (k === 0 && street.includes(side) && b.A.uses(0) !== 'industrial') storefront(b, e, p, yF, y0, y1, signColor, idx);
+    else if (A.skin === 'punched') skinPunched(b, e, p, yF, y0, y1, H);
+    else if (A.skin === 'ribbon') skinRibbon(b, e, p, yF, y0, y1, H, idx === count - 1);
+    else if (A.skin === 'curtain') skinCurtain(b, e, p, yF, y0, y1, H);
+    else skinIndustrial(b, e, p, yF, y0, y1, H, k === 0 && street.includes(side) && idx % 3 === 1);
+    if (A.escape && k >= 1 && side === street[0] && idx === Math.floor(count / 2)) fireEscape(b, e, p, k, yF);
+  }
+}
+function glassElem(b, wall, p) {
+  const e = newElem(b, 'glass', wall.storey, { role: 1 }); e.rests.push(wall.id); return e;
+}
+function window_(b, wall, p, sc, w, ya, yb, frame, mullions = 1) {
+  const gl = glassElem(b, wall, p);
+  pbox(b, gl, p, sc - w / 2, sc + w / 2, ya, yb, 0.16, 0.18, 'glass', C.glass);
+  const fw = 0.06;
+  pbox(b, wall, p, sc - w / 2, sc + w / 2, ya, ya + fw, 0.12, 0.2, 'metal', frame);
+  pbox(b, wall, p, sc - w / 2, sc + w / 2, yb - fw, yb, 0.12, 0.2, 'metal', frame);
+  pbox(b, wall, p, sc - w / 2, sc - w / 2 + fw, ya + fw, yb - fw, 0.12, 0.2, 'metal', frame);
+  pbox(b, wall, p, sc + w / 2 - fw, sc + w / 2, ya + fw, yb - fw, 0.12, 0.2, 'metal', frame);
+  for (let m = 1; m <= mullions; m++) { const y = ya + (yb - ya) * m / (mullions + 1); pbox(b, wall, p, sc - w / 2 + fw, sc + w / 2 - fw, y - 0.025, y + 0.025, 0.13, 0.19, 'metal', frame); }
+}
+function skinPunched(b, e, p, yF, y0, y1, H) {
+  const g = T.grid_m, w = 1.1, sill = yF + 0.85, head = Math.min(sill + 1.75, y1 - 0.45);
+  const cs = [g * 0.25, g * 0.75];
+  pbox(b, e, p, 0, g, y0, sill, 0, T.wall_m, 'brick', 0xffffff);
+  pbox(b, e, p, 0, g, head, y1, 0, T.wall_m, 'brick', 0xffffff);
+  let s = 0;
+  for (const c of cs) { pbox(b, e, p, s, c - w / 2, sill, head, 0, T.wall_m, 'brick', 0xffffff); s = c + w / 2; }
+  pbox(b, e, p, s, g, sill, head, 0, T.wall_m, 'brick', 0xffffff);
+  for (const c of cs) {
+    pbox(b, e, p, c - 0.68, c + 0.68, sill - 0.08, sill + 0.02, -0.07, 0.12, 'concrete', C.stone);  // stone sill, 2 cm proud of the brick
+    pbox(b, e, p, c - 0.72, c + 0.72, head - 0.02, head + 0.24, -0.04, 0.1, 'concrete', C.stone);  // lintel
+    window_(b, e, p, c, w, sill + 0.02, head - 0.02, C.frameWhite, 1);
+  }
+}
+function skinRibbon(b, e, p, yF, y0, y1, H, last) {
+  const g = T.grid_m, sill = yF + 1.0, head = y1 - 0.5;
+  pbox(b, e, p, 0, g, y0, sill, -0.18, T.wall_m, 'concrete', C.concrete);
+  pbox(b, e, p, 0, g, head, y1, 0, T.wall_m, 'concrete', C.concreteDark);
+  const gl = glassElem(b, e, p);
+  pbox(b, gl, p, 0.15, g - 0.15, sill, head, 0.2, 0.22, 'glass', C.glass);
+  for (let s = 0.15; s <= g - 0.1; s += (g - 0.3) / 4) pbox(b, e, p, s - 0.04, s + 0.04, sill, head, 0.14, 0.24, 'metal', C.metal);
+  pbox(b, e, p, -0.17, 0.17, y0, y1, -0.8, 0.02, 'concrete', C.concrete);           // a fin on the column line
+  if (last) pbox(b, e, p, g - 0.17, g + 0.17, y0, y1, -0.8, 0.02, 'concrete', C.concrete);
+}
+function skinCurtain(b, e, p, yF, y0, y1, H) {
+  const g = T.grid_m, vis0 = yF + 0.1, vis1 = y1 - 0.75;
+  pbox(b, e, p, 0, g, vis1, y1, 0.02, 0.1, 'metal', C.spandrel);       // spandrel over the slab edge
+  pbox(b, e, p, 0, g, y0, vis0, 0.02, 0.1, 'metal', C.spandrel);
+  const gl = glassElem(b, e, p);
+  pbox(b, gl, p, 0, g, vis0, vis1, 0.04, 0.06, 'glass', C.glass);
+  for (let s = 0; s < g - 0.01; s += 1.5) pbox(b, e, p, s - 0.04, s + 0.04, y0, y1, -0.14, 0.04, 'metal', C.metalLight);
+  pbox(b, e, p, 0, g, vis1 - 0.03, vis1 + 0.03, -0.08, 0.04, 'metal', C.metalLight);
+}
+function skinIndustrial(b, e, p, yF, y0, y1, H, door) {
+  const g = T.grid_m;
+  if (door) {   // a roll-up loading door
+    const top = yF + 4.2;
+    pbox(b, e, p, 0, 0.6, y0, y1, 0, T.wall_m, 'brick', 0xffffff);
+    pbox(b, e, p, g - 0.6, g, y0, y1, 0, T.wall_m, 'brick', 0xffffff);
+    pbox(b, e, p, 0.6, g - 0.6, top, y1, 0, T.wall_m, 'brick', 0xffffff);
+    for (let i = 0; i < 8; i++) pbox(b, e, p, 0.6, g - 0.6, yF - 0.05 + i * (top - yF + 0.05) / 8, yF - 0.05 + (i + 1) * (top - yF + 0.05) / 8, 0.14 + (i % 2) * 0.03, 0.22, 'metal', i % 2 ? 0x6f7a5a : 0x7d8866);
+    pbox(b, e, p, 0.5, g - 0.5, top, top + 0.3, -0.05, 0.1, 'metal', 0x3a3f36);
+    return;
+  }
+  const sill = yF + 1.1, head = y1 - 0.9, w = g - 1.8;
+  pbox(b, e, p, 0, g, y0, sill, 0, T.wall_m, 'brick', 0xffffff);
+  pbox(b, e, p, 0, g, head, y1, 0, T.wall_m, 'brick', 0xffffff);
+  pbox(b, e, p, 0, 0.9, sill, head, 0, T.wall_m, 'brick', 0xffffff);
+  pbox(b, e, p, g - 0.9, g, sill, head, 0, T.wall_m, 'brick', 0xffffff);
+  pbox(b, e, p, 0.8, g - 0.8, head - 0.02, head + 0.32, -0.04, 0.08, 'brick', 0xd8b8a0);   // soldier-course header
+  pbox(b, e, p, 0.8, g - 0.8, sill - 0.1, sill + 0.02, -0.06, 0.1, 'concrete', C.stone);
+  const gl = glassElem(b, e, p);
+  pbox(b, gl, p, 0.9, g - 0.9, sill + 0.02, head - 0.02, 0.18, 0.2, 'glass', 0x7d97a3);
+  for (let s = 0.9; s <= g - 0.89; s += w / 7) pbox(b, e, p, s - 0.025, s + 0.025, sill, head, 0.15, 0.22, 'metal', C.frame);
+  for (let y = sill; y <= head + 0.01; y += (head - sill) / 5) pbox(b, e, p, 0.9, g - 0.9, y - 0.025, y + 0.025, 0.16, 0.21, 'metal', C.frame);
+}
+function storefront(b, e, p, yF, y0, y1, signColor, idx) {
+  const g = T.grid_m, top = Math.min(yF + 3.0, y1 - 0.8);
+  pbox(b, e, p, 0, g, y0, yF + 0.45, -0.04, T.wall_m, 'concrete', 0x3b3d40);           // kickplate
+  pbox(b, e, p, 0, 0.3, yF + 0.45, top, 0, T.wall_m, b.A.clad, b.A.clad === 'brick' ? 0xffffff : C.concrete);
+  pbox(b, e, p, g - 0.3, g, yF + 0.45, top, 0, T.wall_m, b.A.clad, b.A.clad === 'brick' ? 0xffffff : C.concrete);
+  pbox(b, e, p, 0, g, top, y1, 0, T.wall_m, b.A.clad, b.A.clad === 'brick' ? 0xffffff : C.concrete);
+  const gl = glassElem(b, e, p);
+  pbox(b, gl, p, 0.3, g - 0.3, yF + 0.45, top, 0.12, 0.14, 'glass', C.glass);
+  for (const s of [0.3, g / 2, g - 0.3]) pbox(b, e, p, s - 0.04, s + 0.04, yF + 0.45, top, 0.08, 0.18, 'metal', C.frame);
+  pbox(b, e, p, 0.2, g - 0.2, top + 0.15, top + 0.75, -0.14, -0.01, 'metal', signColor);  // sign band
+  // Awning: a tilted plate on the street, as a prop of this wall.
+  const aw = newElem(b, 'prop', e.storey, { role: 1 }); aw.rests.push(e.id);
+  const depth = 1.4, tilt = 0.35;
+  const along = p.s0 + g / 2, outC = p.plane + p.n * depth / 2 * Math.cos(tilt);
+  const m = new THREE.Matrix4();
+  const yA = top - 0.05 - Math.sin(tilt) * depth / 2;
+  if (p.ax === 'x') m.makeRotationX(p.n * tilt).setPosition(along, yA, outC);
+  else m.makeRotationZ(-p.n * tilt).setPosition(outC, yA, along);
+  addBox(b, aw, 'furn', null, p.ax === 'x' ? [g - 0.6, 0.05, depth] : [depth, 0.05, g - 0.6], (idx % 2) ? signColor : 0xd8d0c0, m);
+}
+function fireEscape(b, wall, p, k, yF) {
+  const e = newElem(b, 'escape', k, { role: 1 }); e.rests.push(wall.id);
+  const g = T.grid_m, col = 0x1e2124, py = yF - 0.08;
+  pbox(b, e, p, 0.3, g - 0.3, py, py + 0.06, -1.25, -0.08, 'metal', col);                  // grated platform
+  pbox(b, e, p, 0.3, g - 0.3, py + 1.0, py + 1.04, -1.25, -1.2, 'metal', col);            // rail
+  pbox(b, e, p, 0.3, g - 0.3, py + 0.5, py + 0.53, -1.25, -1.2, 'metal', col);
+  for (let s = 0.3; s <= g - 0.29; s += (g - 0.6) / 6) pbox(b, e, p, s - 0.02, s + 0.02, py, py + 1.04, -1.25, -1.21, 'metal', col);
+  if (k === 1) { pbox(b, e, p, g - 0.9, g - 0.5, py - 2.0, py, -1.0, -0.96, 'metal', col); return; }   // first floor: a drop ladder, no stair
+  // The stair down to the platform below, a tilted stringer.
+  const H = b.base[k] - b.base[k - 1], run = g - 1.6;
+  const ang = Math.atan2(H, run), len = Math.hypot(H, run);
+  const m = new THREE.Matrix4(), out = p.plane + p.n * 0.85, sc = p.s0 + g / 2, yc = py - H / 2;
+  if (p.ax === 'x') m.makeRotationZ(ang).setPosition(sc, yc, out); else m.makeRotationX(-ang).setPosition(out, yc, sc);
+  addBox(b, e, 'metal', null, p.ax === 'x' ? [len, 0.05, 0.7] : [0.7, 0.05, len], col, m);
+}
+function buildParapets(b) {
+  const A = b.A;
+  for (let k = 0; k < b.storeys; k++) for (const [side, count] of sidesOf(b, k)) for (let idx = 0; idx < count; idx++) {
+    const p = panelFrame(b, side, k, idx);
+    const [ci, cj] = p.cell;
+    if (b.inFp(k + 1, ci, cj)) continue;                     // a storey above covers this edge
+    const e = newElem(b, 'parapet', k + 1, { role: 1 });
+    e.rests.push(b.slabAt[k][ci + ',' + cj]);
+    const y = b.base[k + 1] - T.slab_m + 0.01, g = T.grid_m, mat = A.clad === 'brick' ? 'brick' : 'concrete';
+    const tone = mat === 'brick' ? 0xffffff : (A.skin === 'curtain' ? C.spandrel : C.concrete);
+    if (A.skin === 'curtain') {
+      pbox(b, e, p, 0, g, y, y + 1.3, 0.02, 0.1, 'metal', C.spandrel);
+      pbox(b, e, p, 0, g, y + 1.3, y + 1.38, -0.04, 0.16, 'metal', C.metalLight);
+    } else {
+      pbox(b, e, p, 0, g, y, y + 1.15, 0, T.wall_m, mat, tone);
+      pbox(b, e, p, -0.04, g + 0.04, y + 1.15, y + 1.23, -0.06, T.wall_m + 0.06, 'concrete', C.stone);   // coping
+      if (A.cornice && k === b.storeys - 1) {
+        pbox(b, e, p, 0, g, y - 0.35, y + 0.05, -0.32, 0.05, 'metal', 0x6b4a32);
+        pbox(b, e, p, 0, g, y + 0.05, y + 0.33, -0.48, 0.05, 'metal', 0x7a563a);
+      }
+    }
+  }
+}
+
+// --- floorplans ---------------------------------------------------------------------------------
+// Work in (u, v): u along the long axis, v across. A double-loaded corridor runs along u through the
+// core, rooms fill the bands either side and split on the 3 m facade bay lines, so a partition always
+// lands on a mullion and never cuts a window.
+function planStorey(b, k, rng) {
+  const f = b.fp[k], g = T.grid_m;
+  const X0 = nodeX(b, f.i0), X1 = nodeX(b, f.i1), Z0 = nodeZ(b, f.j0), Z1 = nodeZ(b, f.j1);
+  const use = b.A.uses(k);
+  const plan = { k, use, rooms: [], walls: [], doors: [], corridor: [], core: null, stair: null, rect: [X0, Z0, X1, Z1] };
+  if (use === 'industrial') { plan.rooms.push({ r: [X0, Z0, X1, Z1], type: k === 0 ? 'workshop' : 'storage' }); plan.stair = [X0 + 0.4, Z1 - 3.4, X0 + 6, Z1 - 0.4]; return plan; }
+  const longX = (X1 - X0) >= (Z1 - Z0);
+  const U0 = longX ? X0 : Z0, U1 = longX ? X1 : Z1, V0 = longX ? Z0 : X0, V1 = longX ? Z1 : X1;
+  const toR = (u0, v0, u1, v1) => longX ? [u0, v0, u1, v1] : [v0, u0, v1, u1];
+  const street = b.lot.street;
+  const frontIsV1 = longX ? street.some(s => s === 'z+') : street.some(s => s === 'x+');
+  const cw = T.corridor_m;
+  let coreU = null;
+  if (b.core) {
+    const cx0 = nodeX(b, b.core.i), cz0 = nodeZ(b, b.core.j);
+    const cr = longX ? [cx0, cz0, cx0 + g, cz0 + g] : [cz0, cx0, cz0 + g, cx0 + g];
+    coreU = cr; plan.core = toR(cr[0], cr[1], cr[2], cr[3]);
+  }
+  const depth = V1 - V0;
+  const rooms = [];
+  const addWall = (u0, v0, u1, v1, door, kind = 'partition') => {
+    const r = toR(Math.min(u0, u1), Math.min(v0, v1), Math.max(u0, u1), Math.max(v0, v1));
+    plan.walls.push({ a: [r[0], r[1]], b: [r[2], r[3]], door: door == null ? null : (longX ? door : door), kind });
+    if (door != null) {
+      const alongU = Math.abs(v1 - v0) < 1e-6;
+      const dp = alongU ? toR(door, v0, door, v0) : toR(u0, door, u0, door);
+      plan.doors.push({ x: dp[0], z: dp[1], alongX: longX ? alongU : !alongU });
+    }
+  };
+  // Bands either side of the corridor, as [u0, u1, v0 (corridor side), v1 (facade side)].
+  const bands = [];
+  if (depth < 13 || !coreU) {
+    // Single-loaded: the corridor runs along the back, rooms take the street side, the stair is at one end.
+    plan.core = null;
+    const back = frontIsV1 ? V0 : V1, sgn = frontIsV1 ? 1 : -1, fv = frontIsV1 ? V1 : V0;
+    const cv0 = back, cv1 = back + sgn * cw, sv = cv1 + sgn * 3.5;
+    plan.corridor.push(toR(U0, Math.min(cv0, cv1), U1, Math.max(cv0, cv1)));
+    const streetAtU1 = street.includes(longX ? 'x+' : 'z+');
+    const su0 = streetAtU1 ? U0 : U1 - 5.5, su1 = su0 + 5.5, wu = streetAtU1 ? su1 : su0;
+    plan.stair = toR(su0, Math.min(cv1, sv), su1, Math.max(cv1, sv));
+    bands.push({ u0: streetAtU1 ? su1 : U0, u1: streetAtU1 ? U1 : su0, va: cv1, vb: fv, front: true });
+    if (Math.abs(fv - sv) > 2.5) { bands.push({ u0: su0, u1: su1, va: sv, vb: fv, front: true }); addWall(wu, sv, wu, fv, null); }
+    addWall(wu, cv1, wu, sv, null, 'core');
+    addWall(su0, sv, su1, sv, null, 'core');
+  } else {
+    const [cu0, cv0, cu1, cv1] = coreU;
+    const vc = (cv0 + cv1) / 2;
+    const s0 = vc - cw / 2, s1 = vc + cw / 2;
+    const lu0 = cu0 - cw, lu1 = cu1 + cw;
+    plan.corridor.push(toR(U0, s0, lu0, s1), toR(lu1, s0, U1, s1));
+    plan.corridor.push(toR(lu0, cv0 - cw, lu1, cv0), toR(lu0, cv1, lu1, cv1 + cw), toR(lu0, cv0, cu0, cv1), toR(cu1, cv0, lu1, cv1));
+    for (const [fv, near, coreEdge] of [[V1, s1, cv1 + cw], [V0, s0, cv0 - cw]]) {
+      const front = (fv === V1) === frontIsV1;
+      if (lu0 - U0 > 2.5) bands.push({ u0: U0, u1: lu0, va: near, vb: fv, front });
+      bands.push({ u0: lu0, u1: lu1, va: coreEdge, vb: fv, front });
+      if (U1 - lu1 > 2.5) bands.push({ u0: lu1, u1: U1, va: near, vb: fv, front });
+    }
+    if (lu0 - U0 <= 2.5) plan.corridor.push(toR(U0, s0, lu0, s1));
+    // One wall where two bands meet (or a band meets the corridor), from the corridor side nearest
+    // the spine out to the facade, so no two walls ever share a plane.
+    for (const sgn of [1, -1]) {
+      const list = bands.filter(bd => Math.sign(bd.vb - bd.va) === sgn);
+      const us = [...new Set(list.flatMap(bd => [bd.u0, bd.u1]).filter(u => u > U0 + 0.01 && u < U1 - 0.01))].sort((p, q) => p - q);
+      for (const u of us) {
+        const touching = list.filter(bd => Math.abs(bd.u0 - u) < 0.01 || Math.abs(bd.u1 - u) < 0.01);
+        const va = touching.reduce((best, bd) => Math.abs(bd.va - vc) < Math.abs(best - vc) ? bd.va : best, touching[0].va);
+        addWall(u, va, u, touching[0].vb, null);
+      }
+    }
+  }
+  // Split each band into rooms on the bay lines.
+  for (const bd of bands) {
+    let u = bd.u0;
+    const len = bd.u1 - bd.u0;
+    const snap = x => bd.u0 + Math.max(T.bay_m, Math.round((x - bd.u0) / T.bay_m) * T.bay_m);
+    while (bd.u1 - u > 0.5) {
+      let type, w;
+      if (use === 'retail') { type = bd.front ? 'shop' : 'stockroom'; w = rng.pick([6, 9, 12]); }
+      else if (use === 'lobby') { type = bd.front && u === bd.u0 && len > 12 ? 'lobby' : (bd.front ? 'shop' : 'mail room'); w = type === 'lobby' ? Math.min(len, 12) : rng.pick([6, 9]); }
+      else if (use === 'apartment') { type = 'flat'; w = rng.pick([6, 6, 9]); }
+      else { const r = rng.f(); type = r < 0.45 ? 'open office' : r < 0.8 ? 'office' : 'meeting'; w = type === 'open office' ? rng.pick([9, 12, 15]) : type === 'office' ? rng.pick([3, 3, 6]) : 6; }
+      let u1 = Math.min(bd.u1, snap(u + w));
+      if (bd.u1 - u1 < 2.9) u1 = bd.u1;
+      const room = { r: toR(u, Math.min(bd.va, bd.vb), u1, Math.max(bd.va, bd.vb)), type, ur: [u, bd.va, u1, bd.vb] };
+      rooms.push(room);
+      const doorU = type === 'open office' || type === 'lobby' || type === 'shop' ? null : (u + Math.min(u1 - u - 0.9, 1.2));
+      if (type !== 'lobby' && type !== 'open office') addWall(u, bd.va, u1, bd.va, doorU ?? (u + u1) / 2);
+      else addWall(u, bd.va, u1, bd.va, (u + u1) / 2);
+      if (u1 < bd.u1 - 0.01) addWall(u1, bd.va, u1, bd.vb, null);
+      if (type === 'flat') subdivideFlat(room, bd, u, u1, addWall, rooms, toR);
+      u = u1;
+    }
+  }
+  plan.rooms = rooms;
+  return plan;
+}
+// A flat: kitchen and bath along the corridor, living room and bedroom on the facade.
+function subdivideFlat(room, bd, u0, u1, addWall, rooms, toR) {
+  const sg = Math.sign(bd.vb - bd.va), back = 2.6;
+  const vb = bd.va + sg * back;
+  room.type = 'living';
+  addWall(u0, vb, u1, vb, u0 + (u1 - u0) * 0.6);
+  addWall(u0 + 2.4, bd.va, u0 + 2.4, vb, null);
+  const conv = (a, b, c, d) => toR(Math.min(a, c), Math.min(b, d), Math.max(a, c), Math.max(b, d));
+  rooms.push({ r: conv(u0, bd.va, u0 + 2.4, vb), type: 'bath' });
+  rooms.push({ r: conv(u0 + 2.4, bd.va, u1, vb), type: 'kitchen' });
+  if (u1 - u0 >= 8.5) {
+    const us = u0 + (u1 - u0) * 0.55;
+    addWall(us, vb, us, bd.vb, (vb + bd.vb) / 2);
+    room.r = conv(u0, vb, us, bd.vb);
+    rooms.push({ r: conv(us, vb, u1, bd.vb), type: 'bedroom' });
+  } else room.r = conv(u0, vb, u1, bd.vb);
+}
+
+function buildPlan(b, k, plan) {
+  const y0 = b.base[k] - 0.02, y1 = b.base[k + 1] - T.slab_m + 0.03, rest = k === 0 ? GROUND : null;
+  const restOf = (x, z) => {
+    if (k === 0) return GROUND;
+    const i = Math.floor((x - b.x0) / T.grid_m), j = Math.floor((z - b.z0) / T.grid_m);
+    return b.slabAt[k - 1][i + ',' + j];
+  };
+  const tone = { office: C.woodLight, meeting: C.woodLight }[plan.use] ?? C.plaster;
+  for (const w of plan.walls) {
+    const core = w.kind === 'core';
+    const th = core ? 0.25 : T.partition_m;
+    const alongX = Math.abs(w.a[1] - w.b[1]) < 1e-6;
+    const a0 = alongX ? w.a[0] : w.a[1], a1 = alongX ? w.b[0] : w.b[1], fixed = alongX ? w.a[1] : w.a[0];
+    const pieces = [];
+    if (w.door != null) {
+      const d = Math.max(a0 + 0.1, Math.min(a1 - T.door_w_m - 0.1, w.door - T.door_w_m / 2));
+      pieces.push([a0, d, y0, y1], [d + T.door_w_m, a1, y0, y1], [d, d + T.door_w_m, b.base[k] + T.door_h_m, y1]);
+    } else pieces.push([a0, a1, y0, y1]);
+    for (const [p0, p1, ya, yb] of pieces) {
+      if (p1 - p0 < 0.05) continue;
+      const mid = (p0 + p1) / 2;
+      const e = newElem(b, core ? 'core' : 'partition', k);
+      e.rests.push(alongX ? restOf(mid, fixed + 0.01) : restOf(fixed + 0.01, mid));
+      if (alongX) addBox(b, e, core ? 'concrete' : 'plaster', [mid, (ya + yb) / 2, fixed], [p1 - p0, yb - ya, th], core ? C.concrete : tone);
+      else addBox(b, e, core ? 'concrete' : 'plaster', [fixed, (ya + yb) / 2, mid], [th, yb - ya, p1 - p0], core ? C.concrete : tone);
+    }
+  }
+  // The core: concrete walls, two lift shafts and a stair.
+  if (plan.core) {
+    const [x0, z0, x1, z1] = plan.core, th = 0.25;
+    const e = newElem(b, 'core', k); e.rests.push(restOf((x0 + x1) / 2, (z0 + z1) / 2));
+    const h = y1 - y0, yc = (y0 + y1) / 2;
+    addBox(b, e, 'concrete', [x0 + th / 2, yc, (z0 + z1) / 2], [th, h, z1 - z0], C.concrete);
+    addBox(b, e, 'concrete', [x1 - th / 2, yc, (z0 + z1) / 2], [th, h, z1 - z0], C.concrete);
+    addBox(b, e, 'concrete', [(x0 + x1) / 2, yc, z0 + th / 2], [x1 - x0 - 2 * th, h, th], C.concrete);
+    addBox(b, e, 'concrete', [x0 + 1.4, yc, z1 - th / 2], [2.3, h, th], C.concrete);
+    addBox(b, e, 'concrete', [x1 - 1.4, yc, z1 - th / 2], [2.3, h, th], C.concrete);
+    addBox(b, e, 'concrete', [(x0 + x1) / 2, b.base[k] + T.door_h_m + (y1 - b.base[k] - T.door_h_m) / 2, z1 - th / 2], [x1 - x0 - 5.1, y1 - b.base[k] - T.door_h_m, th], C.concrete);
+    addBox(b, e, 'metal', [x0 + 1.5, yc, z0 + 1.6], [2.2, h, 2.4], C.metal);                  // lift shafts
+    addBox(b, e, 'metal', [x1 - 1.5, yc, z0 + 1.6], [2.2, h, 2.4], C.metal);
+    stair(b, k, e, (x0 + x1) / 2, z0 + 4.2, 2.2, 2.4);
+  }
+  if (plan.stair) {
+    const [x0, z0, x1, z1] = plan.stair;
+    const e = newElem(b, 'core', k); e.rests.push(restOf((x0 + x1) / 2, (z0 + z1) / 2));
+    stair(b, k, e, (x0 + x1) / 2, (z0 + z1) / 2, Math.min(4.6, x1 - x0 - 0.6), Math.min(2.8, z1 - z0 - 0.4));
+  }
+}
+function stair(b, k, e, cx, cz, w, d) {
+  const H = b.base[k + 1] - b.base[k], run = w * 0.8, ang = Math.atan2(H / 2, run), len = Math.hypot(H / 2, run);
+  const y = b.base[k];
+  addBox(b, e, 'concrete', [cx + w / 2 - 0.5, y + H / 2 - 0.1, cz], [1.0, 0.2, d], C.concreteDark);
+  for (const [dz, dir, y0] of [[-d / 4, 1, 0], [d / 4, -1, H / 2]]) {
+    const m = new THREE.Matrix4().makeRotationZ(dir * ang).setPosition(cx - 0.4 + 0.05, y + y0 + H / 4, cz + dz);
+    addBox(b, e, 'concrete', null, [len, 0.18, d / 2 - 0.05], C.concreteDark, m);
+  }
+}
+
+// --- furniture -------------------------------------------------------------------------------------
+// An item is boxes in its own frame: origin at its back edge on the floor, facing +z.
+const KIT = {
+  desk: { boxes: [[0, .73, .375, 1.5, .04, .75, 'wood'], [-.55, .36, .375, .4, .71, .7, 'wood'], [.7, .36, .375, .05, .71, .7, 'wood'], [.1, .95, .25, .42, .38, .42, 'beige'], [0, .45, 1.05, .5, .08, .5, 'fabric'], [0, .78, 1.28, .48, .55, .06, 'fabric'], [0, .22, 1.05, .08, .44, .08, 'metal']], anchor: 'wall', front: .6 },
+  filing: { boxes: [[0, .66, .3, .47, 1.32, .6, 0x70786a]], anchor: 'wall', front: .7, tall: true },
+  shelf: { boxes: [[0, 1.0, .17, .9, 2.0, .34, 'wood'], [0, 1.0, .33, .8, 1.7, .02, 'books']], anchor: 'wall', front: .5, tall: true },
+  sofa: { boxes: [[0, .22, .45, 2.0, .44, .9, 'fabric'], [0, .62, .1, 2.0, .5, .2, 'fabric'], [-.92, .45, .45, .16, .4, .9, 'fabric'], [.92, .45, .45, .16, .4, .9, 'fabric']], anchor: 'wall', front: .9 },
+  armchair: { boxes: [[0, .22, .42, .9, .44, .84, 'fabric'], [0, .6, .1, .9, .45, .2, 'fabric']], anchor: 'wall', front: .6 },
+  tv: { boxes: [[0, .3, .25, 1.0, .6, .45, 'wood'], [0, .86, .25, .66, .52, .5, 0x26282a]], anchor: 'wall', front: 1.6 },
+  coffee: { boxes: [[0, .2, 0, 1.1, .4, .6, 'wood']], anchor: 'center' },
+  bed: { boxes: [[0, .25, 1.0, 1.5, .5, 2.0, 'wood'], [0, .56, 1.05, 1.42, .2, 1.9, 0xe9e6dd], [0, .6, .03, 1.6, 1.2, .06, 'wood'], [0, .67, 1.35, 1.44, .04, 1.3, 'fabric']], anchor: 'wall', front: .6 },
+  nightstand: { boxes: [[0, .28, .22, .45, .56, .42, 'wood']], anchor: 'wall', front: .3 },
+  wardrobe: { boxes: [[0, 1.0, .3, 1.2, 2.0, .6, 'wood']], anchor: 'wall', front: .8, tall: true },
+  counter: { boxes: [[0, .45, .3, 2.4, .9, .6, 0xc9b98f], [0, .92, .31, 2.42, .04, .62, 0xece6d6], [.6, .93, .3, .6, .02, .5, 0x333333]], anchor: 'wall', front: .9 },
+  fridge: { boxes: [[0, .9, .35, .7, 1.8, .7, 0xe8dcb8]], anchor: 'wall', front: .8, tall: true },
+  dining: { boxes: [[0, .73, 0, 1.3, .04, .85, 'wood'], [0, .36, 0, .14, .71, .14, 'wood'], [-.45, .45, .7, .42, .06, .42, 'wood'], [.45, .45, .7, .42, .06, .42, 'wood'], [-.45, .45, -.7, .42, .06, .42, 'wood'], [.45, .45, -.7, .42, .06, .42, 'wood']], anchor: 'center' },
+  bath: { boxes: [[0, .28, .38, 1.6, .56, .75, 0xf2f0ea]], anchor: 'wall', front: .5 },
+  toilet: { boxes: [[0, .2, .35, .38, .4, .55, 0xf2f0ea], [0, .55, .1, .4, .4, .2, 0xf2f0ea]], anchor: 'wall', front: .5 },
+  meeting: { boxes: [[0, .73, 0, 3.6, .05, 1.2, 'wood'], [0, .36, 0, .3, .71, .6, 'wood'], [-1.2, .45, .9, .45, .07, .45, 'fabric'], [0, .45, .9, .45, .07, .45, 'fabric'], [1.2, .45, .9, .45, .07, .45, 'fabric'], [-1.2, .45, -.9, .45, .07, .45, 'fabric'], [0, .45, -.9, .45, .07, .45, 'fabric'], [1.2, .45, -.9, .45, .07, .45, 'fabric']], anchor: 'center' },
+  plant: { boxes: [[0, .2, .2, .35, .4, .35, 0x9a6040], [0, .85, .2, .6, .9, .6, 0x4c7a3a]], anchor: 'wall', front: .2 },
+  cooler: { boxes: [[0, .55, .2, .32, 1.1, .32, 0xe8e8e2], [0, 1.25, .2, .26, .3, .26, 0x7fb0d8]], anchor: 'wall', front: .5 },
+  gondola: { boxes: [[0, .75, 0, 3.0, 1.5, .9, 0xd0d0cc], [0, 1.1, .46, 2.9, .3, .02, 'goods'], [0, .6, .46, 2.9, .3, .02, 'goods'], [0, 1.1, -.46, 2.9, .3, .02, 'goods'], [0, .6, -.46, 2.9, .3, .02, 'goods']], anchor: 'center' },
+  till: { boxes: [[0, .5, .3, 2.4, 1.0, .6, 'wood'], [-.6, 1.1, .3, .45, .2, .4, 0x2a2a2a]], anchor: 'wall', front: 1.0 },
+  reception: { boxes: [[0, .55, .4, 3.2, 1.1, .8, 'wood'], [0, 1.12, .4, 3.3, .05, .9, 0x3a3a3a]], anchor: 'wall', front: 1.5 },
+  bench: { boxes: [[0, .23, .25, 1.8, .45, .5, 'wood']], anchor: 'wall', front: .5 },
+  rack: { boxes: [[-1.33, 2.0, .55, .08, 4.0, 1.1, 0x2f5fa0], [1.33, 2.0, .55, .08, 4.0, 1.1, 0x2f5fa0], [0, .15, .55, 2.7, .1, 1.1, 0xe08a2a], [0, 1.6, .55, 2.7, .1, 1.1, 0xe08a2a], [0, 3.0, .55, 2.7, .1, 1.1, 0xe08a2a], [-.65, .7, .55, 1.1, 1.0, 1.0, 'crate'], [.65, .7, .55, 1.1, 1.0, 1.0, 'crate'], [-.65, 2.15, .55, 1.1, 1.0, 1.0, 'crate'], [.65, 2.2, .55, 1.1, 1.1, 1.0, 'crate']], anchor: 'grid' },
+  crates: { boxes: [[0, .6, 0, 1.2, 1.2, 1.2, 'crate'], [.1, 1.8, .05, 1.1, 1.2, 1.1, 'crate']], anchor: 'center' },
+  lathe: { boxes: [[0, .6, .45, 2.6, 1.2, .9, 0x5f7a66], [-1.0, 1.4, .45, .6, .5, .7, 0x5f7a66], [.4, 1.25, .45, 1.6, .1, .3, 0x9aa0a4]], anchor: 'wall', front: 1.2 },
+  bench_work: { boxes: [[0, .45, .35, 2.0, .9, .7, 'wood'], [0, 1.4, .05, 2.0, 1.0, .05, 0x6b6f72]], anchor: 'wall', front: 1.0 },
+};
+for (const it of Object.values(KIT)) {
+  let w = 0, d0 = Infinity, d1 = -Infinity, h = 0;
+  for (const bx of it.boxes) { w = Math.max(w, Math.abs(bx[0]) + bx[3] / 2); d0 = Math.min(d0, bx[2] - bx[5] / 2); d1 = Math.max(d1, bx[2] + bx[5] / 2); h = Math.max(h, bx[1] + bx[4] / 2); }
+  Object.assign(it, { w: w * 2, d0, d1, h });
+}
+const ROOM_KIT = {   // what goes in a room, in placement order: [item, min, max]
+  'office': [['desk', 1, 1], ['filing', 1, 2], ['shelf', 0, 1], ['plant', 0, 1], ['armchair', 0, 1]],
+  'open office': [['desk', 4, 12], ['filing', 2, 4], ['cooler', 0, 1], ['plant', 1, 2], ['shelf', 0, 2]],
+  'meeting': [['meeting', 1, 1], ['shelf', 0, 1], ['plant', 0, 1]],
+  'living': [['sofa', 1, 1], ['tv', 1, 1], ['coffee', 1, 1], ['armchair', 0, 1], ['shelf', 0, 2], ['plant', 0, 1]],
+  'bedroom': [['bed', 1, 1], ['nightstand', 1, 2], ['wardrobe', 1, 1]],
+  'kitchen': [['counter', 1, 1], ['fridge', 1, 1], ['dining', 0, 1]],
+  'bath': [['bath', 1, 1], ['toilet', 1, 1]],
+  'shop': [['till', 1, 1], ['gondola', 1, 4], ['shelf', 1, 3]],
+  'stockroom': [['shelf', 2, 4], ['crates', 1, 3]],
+  'lobby': [['reception', 1, 1], ['bench', 1, 3], ['plant', 2, 3]],
+  'mail room': [['shelf', 1, 3], ['bench_work', 0, 1]],
+  'workshop': [['lathe', 2, 5], ['bench_work', 2, 4], ['crates', 2, 5]],
+  'storage': [['rack', 1, 1], ['crates', 3, 6]],
+};
+function furnish(b, k, plan, rng) {
+  plan.items = [];
+  const doorZones = plan.doors.map(d => [d.x - 0.9, d.z - 0.9, d.x + 0.9, d.z + 0.9]);
+  const cols = [];
+  const f = b.fp[k];
+  for (let a = f.i0; a <= f.i1; a++) for (let c = f.j0; c <= f.j1; c++) { const x = nodeX(b, a), z = nodeZ(b, c); cols.push([x - 0.45, z - 0.45, x + 0.45, z + 0.45]); }
+  const facade = plan.rect;
+  for (const room of plan.rooms) {
+    const list = ROOM_KIT[room.type]; if (!list) continue;
+    const [rx0, rz0, rx1, rz1] = room.r;
+    // The clear rectangle: inside the partitions, and inside the skin on facade sides.
+    const ins = (v, edge) => Math.abs(v - edge) < 0.01 ? 0.32 : 0.1;
+    const cr = [rx0 + ins(rx0, facade[0]), rz0 + ins(rz0, facade[1]), rx1 - ins(rx1, facade[2]), rz1 - ins(rz1, facade[3])];
+    const onFacade = [Math.abs(rz0 - facade[1]) < .01, Math.abs(rx1 - facade[2]) < .01, Math.abs(rz1 - facade[3]) < .01, Math.abs(rx0 - facade[0]) < .01];
+    const placed = [];
+    const blocked = r => doorZones.concat(cols).concat(placed).some(o => r[0] < o[2] && r[2] > o[0] && r[1] < o[3] && r[3] > o[1]);
+    if (room.type === 'storage') {   // racks in rows between the columns
+      for (let z = cr[1] + 0.2; z + 1.2 < cr[3]; z += 3.4) for (let x = cr[0] + 1.6; x + 1.4 < cr[2]; x += 3.0) {
+        const r = [x - 1.4, z, x + 1.4, z + 1.2]; if (blocked(r)) continue;
+        placed.push(r); plan.items.push(placeItem(b, k, 'rack', x, z, 0, rng));
+      }
+    }
+    if (room.type === 'open office') {   // desk pods on a 3 m grid
+      let n = 0, want = rng.int(4, 12);
+      for (let z = cr[1] + 1.0; z + 1.5 < cr[3] && n < want; z += 3.2) for (let x = cr[0] + 1.2; x + 1.0 < cr[2] && n < want; x += 2.4) {
+        const r = [x - 0.8, z - 0.1, x + 0.8, z + 1.5]; if (blocked(r)) continue;
+        placed.push(r); plan.items.push(placeItem(b, k, 'desk', x, z, 0, rng)); n++;
+      }
+    }
+    for (const [name, lo, hi] of list) {
+      if ((room.type === 'storage' && name === 'rack') || (room.type === 'open office' && name === 'desk')) continue;
+      const it = KIT[name], count = rng.int(lo, hi);
+      for (let c = 0; c < count; c++) {
+        for (let tries = 0; tries < 30; tries++) {
+          let x, z, rot;
+          if (it.anchor === 'center' || it.anchor === 'grid') {
+            rot = rng.chance(0.5) ? 0 : Math.PI / 2;
+            x = rng.range(cr[0] + 1, cr[2] - 1); z = rng.range(cr[1] + 1, cr[3] - 1);
+          } else {
+            const side = rng.int(0, 3);                            // 0 z0, 1 x1, 2 z1, 3 x0
+            if (it.tall && onFacade[side]) continue;               // tall things never stand in front of windows
+            const t = rng.f();
+            if (side === 0) { rot = 0; x = cr[0] + t * (cr[2] - cr[0]); z = cr[1]; }
+            else if (side === 2) { rot = Math.PI; x = cr[0] + t * (cr[2] - cr[0]); z = cr[3]; }
+            else if (side === 3) { rot = Math.PI / 2; x = cr[0]; z = cr[1] + t * (cr[3] - cr[1]); }
+            else { rot = -Math.PI / 2; x = cr[2]; z = cr[1] + t * (cr[3] - cr[1]); }
+          }
+          const fr = footprint(it, x, z, rot, it.anchor === 'wall' ? it.front : 0.5);
+          if (fr[0] < cr[0] - 0.01 || fr[1] < cr[1] - 0.01 || fr[2] > cr[2] + 0.01 || fr[3] > cr[3] + 0.01) {
+            if (it.anchor === 'wall') { // the clearance may poke out; the item itself must not
+              const ir = footprint(it, x, z, rot, 0);
+              if (ir[0] < cr[0] - 0.01 || ir[1] < cr[1] - 0.01 || ir[2] > cr[2] + 0.01 || ir[3] > cr[3] + 0.01) continue;
+            } else continue;
+          }
+          if (blocked(fr)) continue;
+          placed.push(fr);
+          plan.items.push(placeItem(b, k, name, x, z, rot, rng));
+          break;
+        }
+      }
+    }
+  }
+}
+function footprint(it, x, z, rot, front) {
+  const hw = it.w / 2, d0 = it.d0, d1 = it.d1 + front;
+  const pts = [[-hw, d0], [hw, d0], [hw, d1], [-hw, d1]].map(([lx, lz]) => [x + lx * Math.cos(rot) + lz * Math.sin(rot), z - lx * Math.sin(rot) + lz * Math.cos(rot)]);
+  return [Math.min(...pts.map(p => p[0])), Math.min(...pts.map(p => p[1])), Math.max(...pts.map(p => p[0])), Math.max(...pts.map(p => p[1]))];
+}
+function placeItem(b, k, name, x, z, rot, rng) {
+  const it = KIT[name];
+  const e = newElem(b, 'furniture', k, { item: name });
+  const i = Math.floor((x - b.x0) / T.grid_m), j = Math.floor((z - b.z0) / T.grid_m);
+  e.rests.push(k === 0 ? GROUND : (b.slabAt[k - 1][i + ',' + j] ?? GROUND));
+  const fab = C.fabric[rng.int(0, C.fabric.length - 1)];
+  const y = b.base[k] + 0.002;
+  for (const [lx, ly, lz, sx, sy, sz, col] of it.boxes) {
+    const colour = col === 'wood' ? C.wood : col === 'fabric' ? fab : col === 'beige' ? C.beige : col === 'metal' ? C.metal
+      : col === 'books' ? C.sign[rng.int(0, 5)] : col === 'goods' ? C.sign[rng.int(0, 5)] : col === 'crate' ? (rng.chance(0.5) ? 0xb08a58 : 0x9a7a4a) : col;
+    const m = new THREE.Matrix4().makeRotationY(rot);
+    m.setPosition(x + lx * Math.cos(rot) + lz * Math.sin(rot), y + ly, z - lx * Math.sin(rot) + lz * Math.cos(rot));
+    addBox(b, e, 'furn', null, [sx, sy, sz], colour, m);
+  }
+  return { name, x, z, rot, id: e.id };
+}
+
+// --- roofs ---------------------------------------------------------------------------------------
+function buildRoof(b, rng) {
+  // Roof cells: cells whose top storey is k. The bulkhead goes over the core.
+  const roofs = [];
+  for (let k = 0; k < b.storeys; k++) { const f = b.fp[k]; for (let i = f.i0; i < f.i1; i++) for (let j = f.j0; j < f.j1; j++) if (!b.inFp(k + 1, i, j)) roofs.push([k, i, j]); }
+  const placed = [];
+  const topK = b.storeys - 1;
+  if (b.core) {
+    const e = newElem(b, 'prop', topK + 1); e.rests.push(b.slabAt[topK][b.core.i + ',' + b.core.j]);
+    const x = nodeX(b, b.core.i) + T.grid_m / 2, z = nodeZ(b, b.core.j) + T.grid_m / 2, y = b.base[topK + 1];
+    const mat = b.A.clad === 'brick' ? 'brick' : 'concrete';
+    addBox(b, e, mat, [x, y + 1.8, z], [5.2, 3.6, 5.2], mat === 'brick' ? 0xffffff : C.concrete);
+    addBox(b, e, 'concrete', [x, y + 3.66, z], [5.5, 0.12, 5.5], C.stone);
+    addBox(b, e, mat, [x - 1.1, y + 4.6, z - 0.8], [2.6, 1.9, 3.0], mat === 'brick' ? 0xffffff : C.concrete);    // lift machine room
+    addBox(b, e, 'metal', [x + 1.3, y + 1.05, z + 2.61], [0.95, 2.05, 0.04], 0x6a4a3a);                         // door
+    placed.push([x, z, 4.2]);
+  }
+  const wants = b.A.roof.slice();
+  for (const name of wants) {
+    for (let tries = 0; tries < 40; tries++) {
+      const [k, i, j] = roofs[rng.int(0, roofs.length - 1)];
+      const r = { tank: 3.0, hvac: 1.8, dish: 1.4, mast: 1.0, vent: 0.5, duct: 2.4, chimney: 0.8, tv: 1.0, skylight: 2.2, hatch: 0.8, beacon: 0.6 }[name];
+      const x = nodeX(b, i) + rng.range(0, T.grid_m), z = nodeZ(b, j) + rng.range(0, T.grid_m);
+      // Keep clear of the roof edge (the parapet) and of other props.
+      const f = b.fp[k];
+      const onEdge = (i === f.i0 && x - r < nodeX(b, i) + 1.0) || (i === f.i1 - 1 && x + r > nodeX(b, i + 1) - 1.0) || (j === f.j0 && z - r < nodeZ(b, j) + 1.0) || (j === f.j1 - 1 && z + r > nodeZ(b, j + 1) - 1.0);
+      if (onEdge) continue;
+      if (placed.some(([px, pz, pr]) => Math.hypot(px - x, pz - z) < pr + r)) continue;
+      if (name !== 'vent' && name !== 'tv') {   // the cells under a big prop must all be roof of this storey
+        const ok = [[x - r, z - r], [x + r, z - r], [x - r, z + r], [x + r, z + r]].every(([px, pz]) => {
+          const ii = Math.floor((px - b.x0) / T.grid_m), jj = Math.floor((pz - b.z0) / T.grid_m);
+          return b.inFp(k, ii, jj) && !b.inFp(k + 1, ii, jj);
+        });
+        if (!ok) continue;
+      }
+      placed.push([x, z, r]);
+      const e = newElem(b, 'prop', k + 1, { item: name }); e.rests.push(b.slabAt[k][i + ',' + j]);
+      roofProp(b, e, name, x, b.base[k + 1] + 0.045, z, rng);
+      break;
+    }
+  }
+}
+function roofProp(b, e, name, x, y, z, rng) {
+  const rot = rng.chance(0.5) ? 0 : Math.PI / 2;
+  const R = (lx, lz) => [x + lx * Math.cos(rot) + lz * Math.sin(rot), z - lx * Math.sin(rot) + lz * Math.cos(rot)];
+  const box = (lx, ly, lz, sx, sy, sz, mat, col) => { const [wx, wz] = R(lx, lz); const m = new THREE.Matrix4().makeRotationY(rot).setPosition(wx, y + ly, wz); addBox(b, e, mat, null, [sx, sy, sz], col, m); };
+  if (name === 'tank') {   // a timber water tank on a steel stand, New York style
+    for (const [dx, dz] of [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]]) box(dx, 1.5, dz, 0.2, 3.0, 0.2, 'metal', 0x2a2c2e);
+    box(0, 3.05, 0, 4.0, 0.12, 4.0, 'metal', 0x2a2c2e);
+    addCyl(b, e, 'furn', [x, y + 3.1, z], 2.0, 2.0, 3.6, 0x7a5a3c, 16);
+    addCyl(b, e, 'furn', [x, y + 6.7, z], 2.15, 0.15, 1.3, 0x5a4636, 16);
+  } else if (name === 'hvac') {
+    box(0, 0.08, 0, 2.6, 0.16, 1.5, 'metal', 0x3a3d40);
+    box(0, 0.9, 0, 2.4, 1.5, 1.4, 'metal', 0xb9bdb8);
+    addCyl(b, e, 'metal', [...R(-0.6, 0)].flatMap((v, i) => i === 0 ? [v, y + 1.65] : [v]), 0.5, 0.5, 0.08, 0x2a2c2e, 12);
+    addCyl(b, e, 'metal', [...R(0.6, 0)].flatMap((v, i) => i === 0 ? [v, y + 1.65] : [v]), 0.5, 0.5, 0.08, 0x2a2c2e, 12);
+  } else if (name === 'dish') {
+    box(0, 0.8, 0, 0.2, 1.6, 0.2, 'metal', 0x6a6e72);
+    const [wx, wz] = R(0, 0.2);
+    const m = new THREE.Matrix4().makeRotationY(rot).multiply(new THREE.Matrix4().makeRotationX(-0.7)).setPosition(wx, y + 1.9, wz);
+    addBox(b, e, 'metal', null, [2.2, 2.2, 0.12], 0xdedad0, m);
+  } else if (name === 'mast') {
+    const h = rng.range(8, 14);
+    for (const [dx, dz] of [[-0.25, -0.25], [0.25, -0.25], [0, 0.25]]) box(dx, h / 2, dz, 0.07, h, 0.07, 'metal', 0xb8402e);
+    for (let yy = 1; yy < h; yy += 1.4) box(0, yy, 0, 0.6, 0.05, 0.6, 'metal', 0xd8d4cc);
+    box(0, h + 0.2, 0, 0.25, 0.25, 0.25, 'metal', 0xff3020);
+  } else if (name === 'vent') {
+    addCyl(b, e, 'metal', [x, y, z], 0.22, 0.22, 1.3, 0x8c9094, 10);
+    addCyl(b, e, 'metal', [x, y + 1.3, z], 0.4, 0.05, 0.3, 0x6c7074, 10);
+  } else if (name === 'duct') {
+    box(0, 0.75, 0, 4.4, 0.7, 0.7, 'metal', 0xa8aca8);
+    for (const dx of [-1.8, 0, 1.8]) box(dx, 0.2, 0, 0.1, 0.4, 0.8, 'metal', 0x3a3d40);
+  } else if (name === 'chimney') {
+    box(0, 1.1, 0, 0.9, 2.2, 0.6, 'brick', 0xffffff);
+    box(0, 2.25, 0, 1.0, 0.1, 0.7, 'concrete', C.stone);
+  } else if (name === 'tv') {   // a yagi on a pole: the 1980s roofline
+    box(0, 1.6, 0, 0.05, 3.2, 0.05, 'metal', 0x9a9ea2);
+    box(0, 3.0, 0, 0.04, 0.04, 1.8, 'metal', 0x9a9ea2);
+    for (let i = 0; i < 6; i++) box(0, 3.0, -0.8 + i * 0.32, 1.4 - i * 0.15, 0.025, 0.025, 'metal', 0x9a9ea2);
+  } else if (name === 'skylight') {
+    box(0, 0.25, 0, 3.6, 0.5, 2.4, 'metal', 0x4a4f4a);
+    for (const s of [-1, 1]) {
+      const [wx, wz] = R(0, s * 0.62);
+      const m = new THREE.Matrix4().makeRotationY(rot).multiply(new THREE.Matrix4().makeRotationX(s * 0.5)).setPosition(wx, y + 0.82, wz);
+      addBox(b, e, 'glass', null, [3.5, 0.04, 1.36], 0x9ab4c0, m);
+    }
+  } else if (name === 'hatch') {
+    box(0, 0.35, 0, 1.0, 0.7, 1.0, 'metal', 0x6a6e66);
+  }
+}
+
+// Fill in the reverse links (what each element carries) and the solve order.
+function wire(b) {
+  for (const id of b.elems) { const e = E[id]; for (const r of e.rests) if (r !== GROUND && r !== undefined) E[r].carries.push(id); }
+  for (const id of b.elems) { const e = E[id]; e.rests = e.rests.filter(r => r !== undefined); }
+  // Standing solids by (storey, cell): debris is pushed out of these.
+  b.solid = new Map();
+  for (const id of b.elems) {
+    const e = E[id]; if (!['column', 'wall', 'core', 'partition'].includes(e.kind)) continue;
+    const a = e.aabb, g = T.grid_m;
+    const i0 = Math.max(0, Math.floor((a[0] - b.x0) / g)), i1 = Math.min(b.nx - 1, Math.floor((a[3] - b.x0) / g));
+    const j0 = Math.max(0, Math.floor((a[2] - b.z0) / g)), j1 = Math.min(b.nz - 1, Math.floor((a[5] - b.z0) / g));
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const key = e.storey + ',' + i + ',' + j; if (!b.solid.has(key)) b.solid.set(key, []); b.solid.get(key).push(id); }
+  }
+  b.order = b.elems.filter(id => E[id].kind !== 'static').sort((p, q) => (E[q].storey - E[p].storey) || (RANK[E[p].kind] - RANK[E[q].kind]) || (p - q));
+  b.aabb = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+  for (const id of b.elems) { const a = E[id].aabb; for (let i = 0; i < 3; i++) { b.aabb[i] = Math.min(b.aabb[i], a[i]); b.aabb[i + 3] = Math.max(b.aabb[i + 3], a[i + 3]); } }
+}
+
+// ============================================================================================
+// The structural solve: connectivity from the ground, then a load path top-down.
+// ============================================================================================
+const isLine = new Map();
+function solve(b, design = false) {
+  const t0 = performance.now();
+  b.dirty = false;
+  for (const id of b.order) E[id].sup = 0;
+  // 1. Connectivity: anything standing on something that stands.
+  const q = [];
+  for (const id of b.order) { const e = E[id]; if (e.alive && e.rests.includes(GROUND)) { e.sup = 1; q.push(id); } }
+  const spread = (queue, mark) => {
+    while (queue.length) {
+      const id = queue.pop();
+      for (const c of E[id].carries) { const ce = E[c]; if (ce.alive && !ce.sup) { ce.sup = mark; queue.push(c); } }
+    }
+  };
+  spread(q, 1);
+  // A slab with nothing under it may hang from a neighbour that stands directly (one hop).
+  const hung = [];
+  for (const id of b.order) { const e = E[id]; if (e.kind === 'slab' && e.alive && !e.sup && e.lateral.some(n => E[n].alive && E[n].sup === 1)) { e.sup = 2; hung.push(id); } }
+  spread(hung, 2);
+  // 2. Islands: what is left falls, grouped by its bonds.
+  const loose = b.order.filter(id => E[id].alive && !E[id].sup);
+  if (loose.length && !design) dropIslands(b, loose);
+  // 3. Load path. A column carries load only while its column line reaches the ground.
+  for (const id of b.order) { const e = E[id]; if (e.kind === 'column') isLine.set(id, false); }
+  const cols = b.order.filter(id => E[id].kind === 'column').sort((p, q2) => E[p].storey - E[q2].storey);
+  for (const id of cols) {
+    const e = E[id]; if (!e.alive || !e.sup) continue;
+    isLine.set(id, e.rests[0] === GROUND || (E[e.rests[0]]?.kind === 'column' && E[e.rests[0]].alive && isLine.get(e.rests[0])));
+  }
+  for (const id of b.order) { const e = E[id]; e.load = e.alive && e.sup ? e.mass * 9.81 / 1000 : 0; }
+  const failNow = [];
+  const storeys = b.storeys;
+  for (let k = storeys + 1; k >= -1; k--) {
+    const here = b.order.filter(id => E[id].storey === k && E[id].alive && E[id].sup);
+    // Hung slabs first, so the slab they hang from carries them.
+    here.sort((p, q2) => {
+      const hp = E[p].kind === 'slab' && !E[p].rests.some(r => isLine.get(r)) ? 0 : 1;
+      const hq = E[q2].kind === 'slab' && !E[q2].rests.some(r => isLine.get(r)) ? 0 : 1;
+      return (RANK[E[p].kind] - RANK[E[q2].kind]) || (hp - hq) || (p - q2);
+    });
+    for (const id of here) {
+      const e = E[id];
+      let targets;
+      if (e.kind === 'slab') {
+        targets = e.rests.filter(r => E[r].alive && isLine.get(r));
+        if (!targets.length) {
+          targets = e.lateral.filter(n => E[n].alive && E[n].sup === 1 && E[n].rests.some(r => E[r].alive && isLine.get(r)));
+          if (!targets.length) { failNow.push(id); continue; }
+        }
+      } else if (e.kind === 'column') {
+        if (isLine.get(id)) targets = e.rests[0] === GROUND ? [] : [e.rests[0]];
+        else targets = e.rests.filter(r => r !== GROUND && E[r].alive && E[r].sup);
+      } else targets = e.rests.filter(r => r !== GROUND && E[r].alive && E[r].sup);
+      if (!targets.length) continue;
+      const share = e.load / targets.length;
+      for (const t of targets) E[t].load += share;
+    }
+  }
+  // 4. Check against capacity. An overloaded member creaks, then fails.
+  for (const id of b.order) {
+    const e = E[id];
+    if (design) { if (e.kind === 'column' || e.kind === 'slab') e.cap = Math.max(e.load, 1) * T.safety_factor; continue; }
+    e.stress = e.alive && e.cap < Infinity ? e.load / (e.cap * (e.kind === 'slab' ? slabFactor(e) : 1)) : 0;
+    if (e.alive && e.stress > 1 && e.due < 0) schedule(id, sim.t + sim.rng.range(T.creak_s[0], T.creak_s[1]));
+  }
+  for (const id of failNow) if (!design) destroy(id, null);
+  b.solveMs = performance.now() - t0;
+  b.maskDirty = true;
+}
+
+// How well a floor bay is held: on four corners, three, two across, two along one edge (a cantilever), one or none.
+function slabFactor(e) {
+  const f = T.slab_support_factor;
+  const held = e.rests.filter(r => E[r].alive && isLine.get(r)).map(r => E[r].node);
+  if (held.length >= 4) return f.four;
+  if (held.length === 3) return f.three;
+  if (held.length === 2) return (held[0][0] === held[1][0] || held[0][1] === held[1][1]) ? f.one_edge : f.diagonal;
+  if (held.length === 1) return f.one;
+  return f.hung;
+}
+
+// ============================================================================================
+// Simulation: blasts, failures, falling islands, debris and the rubble heap.
+// ============================================================================================
+const sim = { t: 0, rng: new Rng(1), events: [], clusters: [], pieces: [], free: [], settledQ: [], dust: [], weapon: 1, paused: false, step: 1 / 60, broken: 0 };
+function schedule(id, t) { E[id].due = t; sim.events.push({ t, id }); sim.events.sort((a, c) => a.t - c.t || a.id - c.id); }
+function aabbDist(a, p) {
+  const dx = Math.max(a[0] - p.x, 0, p.x - a[3]), dy = Math.max(a[1] - p.y, 0, p.y - a[4]), dz = Math.max(a[2] - p.z, 0, p.z - a[5]);
+  return Math.hypot(dx, dy, dz);
+}
+function blast(p, energy) {
+  const R = blastRadius(energy);
+  const rng = sim.rng;
+  for (const b of B) {
+    if (aabbDist(b.aabb, p) > R) continue;
+    for (const id of b.order) {
+      const e = E[id]; if (!e.alive) continue;
+      const d = aabbDist(e.aabb, p); if (d >= R) continue;
+      e.hp -= energy * (1 - d / R) ** 2;
+      if (e.hp <= 0) destroy(id, { p, energy, R });
+    }
+  }
+  puff(p, R * 1.4, 0x8a8278, 3.5, 0.9);
+  puff(p, R * 0.9, 0xffa040, 0.35, 1.0);
+}
+let DEBRIS_TIER = 'game';
+// The boxes of an element that become pieces, and the volume that goes straight to the heap.
+function pieceBoxes(e) {
+  if (DEBRIS_TIER === 'full') return { boxes: e.boxes, fines: 0 };
+  const keep = T.debris_keep[e.kind] ?? 1;
+  const sorted = e.boxes.slice().sort((a, c) => c.s[0] * c.s[1] * c.s[2] - a.s[0] * a.s[1] * a.s[2]);
+  const boxes = sorted.slice(0, keep);
+  const fines = sorted.slice(keep).reduce((v, bx) => v + bx.s[0] * bx.s[1] * bx.s[2], 0);
+  return { boxes, fines };
+}
+const poolSize = () => DEBRIS_TIER === 'full' ? T.debris_pool : T.debris_pool_game;
+function destroy(id, cause) {
+  const e = E[id]; if (!e.alive) return;
+  e.alive = false; sim.broken++;
+  const b = B[e.b]; b.dirty = true; b.maskDirty = true;
+  const r = sim.rng;
+  // The pieces: each box breaks into a few (in the game, the module's pre-fractured cells).
+  const { boxes, fines } = pieceBoxes(e);
+  if (fines > 0) heapDeposit((e.aabb[0] + e.aabb[3]) / 2, (e.aabb[2] + e.aabb[5]) / 2, fines * T.rubble_fines, 1.5);
+  for (const bx of boxes) {
+    const most = DEBRIS_TIER === 'full' ? 6 : 2;
+    const n = bx.mat === 'glass' ? 4 : Math.max(1, Math.min(most, Math.round(bx.s[0] * bx.s[1] * bx.s[2] / 0.5)));
+    for (const part of fracture(bx, n, r)) {
+      let v;
+      if (cause) {
+        const dir = part.c.clone().sub(cause.p); const dist = Math.max(dir.length(), 0.3); dir.normalize();
+        const speed = (6 * Math.sqrt(cause.energy)) * Math.max(0, 1 - dist / (cause.R * 1.5)) + 1;
+        v = dir.multiplyScalar(speed).add(new THREE.Vector3(r.range(-1, 1), r.range(0.5, 2.5), r.range(-1, 1)));
+      } else v = new THREE.Vector3(r.range(-0.6, 0.6), r.range(-0.5, 0.2), r.range(-0.6, 0.6));
+      spawnPiece(part, v, new THREE.Vector3(r.range(-3, 3), r.range(-3, 3), r.range(-3, 3)));
+    }
+  }
+  if (e.kind === 'column' || e.kind === 'slab') puff(new THREE.Vector3((e.aabb[0] + e.aabb[3]) / 2, (e.aabb[1] + e.aabb[4]) / 2, (e.aabb[2] + e.aabb[5]) / 2), 4, 0x9a9288, 3, 0.7);
+  wake(e.aabb);
+}
+// Split a box along its longest axis until there are n parts.
+function fracture(bx, n, r) {
+  let parts = [{ c: bx.c.clone(), s: bx.s.slice() }];
+  while (parts.length < n) {
+    parts.sort((a, c) => (c.s[0] * c.s[1] * c.s[2]) - (a.s[0] * a.s[1] * a.s[2]));
+    const p = parts.shift();
+    const ax = p.s[0] >= p.s[1] && p.s[0] >= p.s[2] ? 0 : p.s[1] >= p.s[2] ? 1 : 2;
+    const t = r.range(0.3, 0.7), len = p.s[ax];
+    const a = { c: p.c.clone(), s: p.s.slice() }, c = { c: p.c.clone(), s: p.s.slice() };
+    a.s[ax] = len * t; c.s[ax] = len * (1 - t);
+    const axv = new THREE.Vector3(ax === 0 ? 1 : 0, ax === 1 ? 1 : 0, ax === 2 ? 1 : 0).applyQuaternion(bx.q);
+    a.c.addScaledVector(axv, -len / 2 + a.s[ax] / 2); c.c.addScaledVector(axv, len / 2 - c.s[ax] / 2);
+    parts.push(a, c);
+  }
+  return parts.map(p => ({ c: p.c, s: p.s, q: bx.q.clone(), color: bx.color, mat: bx.mat }));
+}
+const MAT_TINT = { brick: 0x9a4a36, roof: 0x55524d };
+function spawnPiece(part, v, w, cluster = null) {
+  let slot = sim.free.pop();
+  if (slot === undefined) {
+    if (sim.pieces.length < poolSize()) slot = sim.pieces.length;
+    else {    // the pool is full: the oldest resting piece becomes heap
+      while (sim.settledQ.length && !(sim.pieces[sim.settledQ[0]]?.settled)) sim.settledQ.shift();
+      slot = sim.settledQ.shift();
+      if (slot === undefined) { heapDeposit(part.c.x, part.c.z, part.s[0] * part.s[1] * part.s[2], 2); return null; }
+      hidePiece(slot);
+    }
+  }
+  const color = new THREE.Color(part.color === 0xffffff ? (MAT_TINT[part.mat] ?? 0xb0aaa0) : part.color);
+  const p = { slot, c: part.c.clone(), q: part.q.clone(), s: part.s, v: v.clone(), w: w.clone(), settled: false, rest: 0, vol: part.s[0] * part.s[1] * part.s[2], cluster, local: null, lq: null, alive: true, glass: part.mat === 'glass' };
+  sim.pieces[slot] = p;
+  debrisMesh.setColorAt(slot, color);
+  debrisMesh.instanceColor.needsUpdate = true;
+  writePiece(p);
+  return p;
+}
+function hidePiece(slot) { if (sim.pieces[slot]?.settled) STACK.dirty = true; _mat4.makeScale(0, 0, 0); debrisMesh.setMatrixAt(slot, _mat4); sim.pieces[slot] = null; }
+const _mat4 = new THREE.Matrix4(), _sc = new THREE.Vector3();
+function writePiece(p) { _sc.set(p.s[0], p.s[1], p.s[2]); _mat4.compose(p.c, p.q, _sc); debrisMesh.setMatrixAt(p.slot, _mat4); debrisMesh.instanceMatrix.needsUpdate = true; }
+function wake(a) {
+  STACK.dirty = true;
+  for (const p of sim.pieces) if (p && p.settled && p.c.x > a[0] - 1 && p.c.x < a[3] + 1 && p.c.z > a[2] - 1 && p.c.z < a[5] + 1 && p.c.y > a[1] - 0.5) { p.settled = false; p.rest = 0; }
+}
+// Islands: union the loose elements by their bonds and drop each group as one rigid cluster.
+function dropIslands(b, loose) {
+  const set = new Set(loose), parent = new Map(loose.map(id => [id, id]));
+  const find = x => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
+  for (const id of loose) for (const n of E[id].rests.concat(E[id].lateral)) if (set.has(n)) parent.set(find(id), find(n));
+  const groups = new Map();
+  for (const id of loose) { const r = find(id); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(id); }
+  for (const ids of [...groups.values()].sort((a, c) => a[0] - c[0])) {
+    const cl = { pieces: [], c: new THREE.Vector3(), v: new THREE.Vector3(), q: new THREE.Quaternion(), w: new THREE.Vector3(), mass: 0, b: b.id, ids, alive: true, fallen: 0 };
+    let m = 0; const sup = new THREE.Vector3(); let ns = 0;
+    for (const id of ids) {
+      const e = E[id]; e.alive = false; sim.broken++;
+      const ec = new THREE.Vector3((e.aabb[0] + e.aabb[3]) / 2, (e.aabb[1] + e.aabb[4]) / 2, (e.aabb[2] + e.aabb[5]) / 2);
+      cl.c.addScaledVector(ec, e.mass + 1); m += e.mass + 1;
+      for (const n of e.rests.concat(e.lateral)) if (n !== GROUND && E[n].alive) { const a = E[n].aabb; sup.add(new THREE.Vector3((a[0] + a[3]) / 2, 0, (a[2] + a[5]) / 2)); ns++; }
+    }
+    cl.c.multiplyScalar(1 / m); cl.mass = m;
+    // It tips away from whatever it last stood on.
+    if (ns) { sup.multiplyScalar(1 / ns); const away = new THREE.Vector3(cl.c.x - sup.x, 0, cl.c.z - sup.z); if (away.lengthSq() > 0.01) { away.normalize(); cl.w.set(away.z, 0, -away.x).multiplyScalar(-0.35); } }
+    cl.fines = 0;
+    for (const id of ids) { const pb = pieceBoxes(E[id]); cl.fines += pb.fines; for (const bx of pb.boxes) {
+      const p = spawnPiece({ c: bx.c, s: bx.s, q: bx.q, color: bx.color, mat: bx.mat }, new THREE.Vector3(), new THREE.Vector3(), cl);
+      if (!p) continue;
+      p.local = bx.c.clone().sub(cl.c); p.lq = bx.q.clone(); cl.pieces.push(p);
+    } }
+    if (!cl.pieces.length) { heapDeposit(cl.c.x, cl.c.z, cl.fines * T.rubble_fines, 3); continue; }
+    sim.clusters.push(cl);
+  }
+  b.maskDirty = true;
+}
+// The highest standing floor or heap under (x, z) at or below height y.
+// Resting pieces are a surface later pieces land on: the top of the stack in each 0.25 m cell.
+// A resting piece is scenery: no physics, no collision of its own, just this grid and one instance.
+const STACK = { x0: -80, z0: -70, cell: 0.25, n: 640, m: 560, top: null, dirty: false, last: 0 };
+function stackAt(x, z) {
+  const i = Math.floor((x - STACK.x0) / STACK.cell), j = Math.floor((z - STACK.z0) / STACK.cell);
+  return (i < 0 || j < 0 || i >= STACK.n || j >= STACK.m) ? 0 : STACK.top[j * STACK.n + i];
+}
+function footExt(p) {
+  const m = _mat4.makeRotationFromQuaternion(p.q).elements;
+  return [Math.abs(m[0]) * p.s[0] / 2 + Math.abs(m[4]) * p.s[1] / 2 + Math.abs(m[8]) * p.s[2] / 2,
+          Math.abs(m[2]) * p.s[0] / 2 + Math.abs(m[6]) * p.s[1] / 2 + Math.abs(m[10]) * p.s[2] / 2];
+}
+// The top of a piece's oriented box over (x, z), or -Infinity where the vertical line misses it.
+const _inv = new THREE.Quaternion(), _lo = new THREE.Vector3(), _ld = new THREE.Vector3();
+function boxTop(p, x, z) {
+  _inv.copy(p.q).invert();
+  _lo.set(x - p.c.x, 0 - p.c.y, z - p.c.z).applyQuaternion(_inv);
+  _ld.set(0, 1, 0).applyQuaternion(_inv);
+  let t0 = -Infinity, t1 = Infinity;
+  for (const [o, d, h] of [[_lo.x, _ld.x, p.s[0] / 2], [_lo.y, _ld.y, p.s[1] / 2], [_lo.z, _ld.z, p.s[2] / 2]]) {
+    if (Math.abs(d) < 1e-6) { if (o < -h || o > h) return -Infinity; continue; }
+    let a = (-h - o) / d, b = (h - o) / d; if (a > b) [a, b] = [b, a];
+    t0 = Math.max(t0, a); t1 = Math.min(t1, b); if (t0 > t1) return -Infinity;
+  }
+  return t1;
+}
+function stamp(p) {
+  const [ex, ez] = footExt(p), c = STACK.cell;
+  const i0 = Math.max(0, Math.floor((p.c.x - ex - STACK.x0) / c)), i1 = Math.min(STACK.n - 1, Math.floor((p.c.x + ex - STACK.x0) / c));
+  const j0 = Math.max(0, Math.floor((p.c.z - ez - STACK.z0) / c)), j1 = Math.min(STACK.m - 1, Math.floor((p.c.z + ez - STACK.z0) / c));
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const top = boxTop(p, STACK.x0 + (i + 0.5) * c, STACK.z0 + (j + 0.5) * c);
+    const ix = j * STACK.n + i; if (top > STACK.top[ix]) STACK.top[ix] = top;
+  }
+}
+// Rebuild the stack from the resting pieces, then wake any piece whose support has gone (what it lay
+// on fell or was removed); the next restack drops those woken pieces out of the grid.
+function restack() {
+  STACK.top.fill(0);
+  for (const p of sim.pieces) if (p && p.settled) stamp(p);
+  STACK.dirty = false; STACK.last = sim.t;
+  for (const p of sim.pieces) {
+    if (!p || !p.settled) continue;
+    const hh = halfHeight(p);
+    if (p.c.y - hh > pieceSupport(p, hh) + 0.15) { p.settled = false; p.rest = 0; STACK.dirty = true; }
+  }
+}
+// The highest support under a piece: sampled at its centre and, for a wide piece, near its corners.
+// A stack top counts only if the piece's underside was above it this step (so a piece never stands on its own stamp).
+function pieceSupport(p, hh) {
+  const below = p.c.y - hh + 0.08 + Math.max(0, -p.v.y) * sim.step;
+  let s = supportAt(p.c.x, p.c.z, p.c.y, below);
+  const [ex, ez] = footExt(p);
+  if (ex > 0.35 || ez > 0.35) for (const [sx, sz] of [[-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7], [0.7, 0.7]]) s = Math.max(s, supportAt(p.c.x + sx * ex, p.c.z + sz * ez, p.c.y, below));
+  return s;
+}
+// Push a moving piece out of the standing columns and walls it has moved into.
+function pushOut(p, hh) {
+  const [ex, ez] = footExt(p);
+  for (const b of B) {
+    const g = T.grid_m;
+    if (p.c.x < b.x0 - 2 || p.c.z < b.z0 - 2 || p.c.x > b.x0 + b.nx * g + 2 || p.c.z > b.z0 + b.nz * g + 2) continue;
+    let k = 0; while (k < b.storeys - 1 && p.c.y >= b.base[k + 1]) k++;
+    const i = Math.min(b.nx - 1, Math.max(0, Math.floor((p.c.x - b.x0) / g))), j = Math.min(b.nz - 1, Math.max(0, Math.floor((p.c.z - b.z0) / g)));
+    let onTop = false;
+    for (const id of b.solid.get(k + ',' + i + ',' + j) || []) {
+      const e = E[id]; if (!e.alive) continue;
+      const a = e.aabb;
+      const ox = Math.min(p.c.x + ex - a[0], a[3] - (p.c.x - ex)), oz = Math.min(p.c.z + ez - a[2], a[5] - (p.c.z - ez));
+      const oy = Math.min(p.c.y + hh - a[1], a[4] - (p.c.y - hh));
+      if (ox <= 0 || oy <= 0 || oz <= 0) continue;
+      if (DEBRIS_TIER === 'full' && oy < Math.min(ox, oz) && p.c.y > (a[1] + a[4]) / 2) { p.c.y += oy + 0.004; onTop = true; }
+      else if (ox < oz) { p.c.x += p.c.x < (a[0] + a[3]) / 2 ? -ox : ox; p.v.x *= -0.2; }
+      else { p.c.z += p.c.z < (a[2] + a[5]) / 2 ? -oz : oz; p.v.z *= -0.2; }
+    }
+    if (onTop) return true;
+  }
+  return false;
+}
+function supportAt(x, z, y, stackBelow = y + 0.35) {
+  let h = heapTop(x, z);
+  const st = stackAt(x, z); if (st > h && st <= stackBelow) h = st;
+  for (const b of B) {
+    if (x < b.x0 || z < b.z0 || x >= b.x0 + b.nx * T.grid_m || z >= b.z0 + b.nz * T.grid_m) continue;
+    h = Math.max(h, T.plinth_m);
+    const i = Math.floor((x - b.x0) / T.grid_m), j = Math.floor((z - b.z0) / T.grid_m);
+    for (let k = b.storeys - 1; k >= 0; k--) {
+      const s = b.slabAt[k][i + ',' + j]; if (s === undefined || !E[s].alive) continue;
+      const top = b.base[k + 1] + (b.inFp(k + 1, i, j) ? 0 : 0.045);
+      if (top <= y + 0.35) { h = Math.max(h, top); break; }
+    }
+  }
+  return h;
+}
+function slabUnder(x, z, y) {
+  for (const b of B) {
+    if (x < b.x0 || z < b.z0 || x >= b.x0 + b.nx * T.grid_m || z >= b.z0 + b.nz * T.grid_m) continue;
+    const i = Math.floor((x - b.x0) / T.grid_m), j = Math.floor((z - b.z0) / T.grid_m);
+    for (let k = b.storeys - 1; k >= 0; k--) { const s = b.slabAt[k][i + ',' + j]; if (s !== undefined && E[s].alive && b.base[k + 1] <= y + 0.35) return s; }
+  }
+  return null;
+}
+const _q = new THREE.Quaternion(), _w = new THREE.Vector3(), _ext = new THREE.Vector3();
+function halfHeight(p) {
+  const m = _mat4.makeRotationFromQuaternion(p.q).elements;
+  return Math.abs(m[1]) * p.s[0] / 2 + Math.abs(m[5]) * p.s[1] / 2 + Math.abs(m[9]) * p.s[2] / 2;
+}
+function integrateQ(q, w, dt) {
+  const a = w.length() * dt; if (a < 1e-6) return;
+  _q.setFromAxisAngle(_w.copy(w).normalize(), a); q.premultiply(_q).normalize();
+}
+// On contact a piece tips toward lying on its nearest face, so rubble lies down instead of bristling.
+const _ax = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0), _fix = new THREE.Quaternion(), _tq = new THREE.Quaternion();
+function layFlat(p) {
+  // Tall, thin things topple: the piece ends up with its thinnest side vertical (a column lies down,
+  // a wall panel falls flat), keeping whichever way that axis already points.
+  const ax = p.s[0] <= p.s[1] && p.s[0] <= p.s[2] ? 0 : p.s[1] <= p.s[2] ? 1 : 2;
+  const best = new THREE.Vector3(ax === 0 ? 1 : 0, ax === 1 ? 1 : 0, ax === 2 ? 1 : 0).applyQuaternion(p.q);
+  best.multiplyScalar(Math.sign(best.y) || 1);
+  _fix.setFromUnitVectors(best, _up); _tq.copy(_fix).multiply(p.q);
+  p.q.slerp(_tq, 0.25); p.w.multiplyScalar(0.5);
+}
+function stepSim(dt) {
+  sim.t += dt;
+  if (STACK.dirty && sim.t - STACK.last > 0.25) restack();
+  while (sim.events.length && sim.events[0].t <= sim.t) { const ev = sim.events.shift(); if (E[ev.id].alive) destroy(ev.id, null); }
+  for (const b of B) if (b.dirty) solve(b);
+  // Falling clusters: rigid until they hit something.
+  for (const cl of sim.clusters) {
+    if (!cl.alive) continue;
+    cl.v.y -= 9.81 * dt; cl.c.addScaledVector(cl.v, dt); integrateQ(cl.q, cl.w, dt);
+    cl.fallen += -cl.v.y * dt;
+    let contact = null;
+    const step = Math.max(1, Math.floor(cl.pieces.length / 48));
+    for (let i = 0; i < cl.pieces.length; i += step) {
+      const p = cl.pieces[i]; if (!p.alive) continue;
+      _ext.copy(p.local).applyQuaternion(cl.q).add(cl.c);
+      const hh = Math.max(...p.s) * 0.5;
+      const sup = supportAt(_ext.x, _ext.z, _ext.y);
+      if (_ext.y - hh * 0.5 < sup) { contact = { x: _ext.x, z: _ext.z, y: _ext.y }; break; }
+    }
+    for (const p of cl.pieces) { if (!p.alive) continue; p.c.copy(p.local).applyQuaternion(cl.q).add(cl.c); p.q.copy(cl.q).multiply(p.lq); writePiece(p); }
+    if (!contact) continue;
+    // Landing on a floor: the impact loads it; if the floor gives, the cluster keeps falling.
+    const slab = slabUnder(contact.x, contact.z, contact.y);
+    if (slab !== null && cl.fallen > 0.5) {
+      const under = new Set();
+      for (const p of cl.pieces) { const s = slabUnder(p.c.x, p.c.z, p.c.y); if (s !== null) under.add(s); }
+      const kN = cl.mass * 9.81 / 1000 * T.impact_factor * Math.min(2, 1 + cl.fallen / 3.5) / Math.max(1, under.size);
+      let gave = false;
+      for (const s of under) { const se = E[s]; if (se.load + kN > se.cap) { destroy(s, null); gave = true; } }
+      if (gave) { cl.v.multiplyScalar(0.55); cl.fallen = 0; puff(new THREE.Vector3(contact.x, contact.y, contact.z), 9, 0x9a9288, 4, 0.8); continue; }
+    }
+    shatter(cl, contact);
+  }
+  sim.clusters = sim.clusters.filter(c => c.alive);
+  // Free pieces.
+  for (const p of sim.pieces) {
+    if (!p || p.settled || p.cluster) continue;
+    p.v.y -= 9.81 * dt; p.c.addScaledVector(p.v, dt); integrateQ(p.q, p.w, dt);
+    const hh = halfHeight(p), sup = pieceSupport(p, hh) + 0.003 + (p.slot % 5) * 0.002;
+    const onWall = pushOut(p, hh);
+    if (p.c.y - hh < sup || onWall) {
+      if (p.c.y - hh < sup) p.c.y = sup + hh;
+      layFlat(p);
+      if (p.v.y < 0) p.v.y = -p.v.y * 0.18;
+      p.v.x *= 0.72; p.v.z *= 0.72; p.w.multiplyScalar(0.7);
+      if (p.v.lengthSq() < 0.25) { p.rest += dt; if (p.rest > 0.3) { p.settled = true; p.v.set(0, 0, 0); p.w.set(0, 0, 0); sim.settledQ.push(p.slot); if (!p.glass) stamp(p); if (p.glass) { hidePiece(p.slot); sim.free.push(p.slot); continue; } } }
+    }
+    if (p.c.y < -20) { hidePiece(p.slot); sim.free.push(p.slot); continue; }
+    writePiece(p);
+  }
+  stepDust(dt);
+}
+function shatter(cl, contact) {
+  cl.alive = false;
+  const r = sim.rng;
+  let vol = 0;
+  for (const p of cl.pieces) {
+    if (!p.alive || sim.pieces[p.slot] !== p) continue;
+    const arm = p.c.clone().sub(cl.c);
+    const v = cl.v.clone().add(new THREE.Vector3().crossVectors(cl.w, arm)).multiplyScalar(0.35);
+    v.add(new THREE.Vector3(arm.x, 0, arm.z).normalize().multiplyScalar(r.range(0.5, 2.5))).add(new THREE.Vector3(0, r.range(0, 1.5), 0));
+    p.v.copy(v); p.w.set(r.range(-2, 2), r.range(-2, 2), r.range(-2, 2)); p.cluster = null;
+    vol += p.vol;
+    // Big slabs break on landing.
+    if (p.vol > 1.0) {
+      const parts = fracture({ c: p.c, s: p.s, q: p.q, color: 0xb0aaa0, mat: 'concrete' }, 3, r);
+      const col = debrisMesh.instanceColor ? new THREE.Color().fromArray(debrisMesh.instanceColor.array, p.slot * 3).getHex() : 0xb0aaa0;
+      hidePiece(p.slot); sim.free.push(p.slot);
+      for (const part of parts) { part.color = col; spawnPiece(part, v.clone().add(new THREE.Vector3(r.range(-1, 1), 0, r.range(-1, 1))), new THREE.Vector3(r.range(-2, 2), 0, r.range(-2, 2))); }
+    }
+  }
+  // The fines (dust, crushed block, plaster) go straight into the heap round the landing.
+  const cx = cl.pieces.reduce((s, p) => s + p.c.x, 0) / Math.max(1, cl.pieces.length);
+  const cz = cl.pieces.reduce((s, p) => s + p.c.z, 0) / Math.max(1, cl.pieces.length);
+  const spread = Math.sqrt(Math.max(4, cl.pieces.length)) * 0.9;
+  heapDeposit(cx, cz, (vol + (cl.fines || 0)) * T.rubble_fines, Math.min(14, 2 + spread));
+  puff(new THREE.Vector3(contact.x, contact.y, contact.z), Math.min(30, 6 + spread * 1.5), 0x9e968a, 6, 0.9);
+}
+
+// --- the rubble heap: a heightfield that grows where things land and slumps to its angle of repose ---
+const HEAP = { x0: -80, z0: -70, n: 160, m: 140, h: null, dirty: false, last: 0 };
+function heapTop(x, z) {
+  const fx = (x - HEAP.x0) / T.heap_cell_m, fz = (z - HEAP.z0) / T.heap_cell_m;
+  const i = Math.floor(fx), j = Math.floor(fz);
+  if (i < 0 || j < 0 || i >= HEAP.n - 1 || j >= HEAP.m - 1) return 0;
+  const tx = fx - i, tz = fz - j, h = HEAP.h, n = HEAP.n;
+  const v = h[j * n + i] * (1 - tx) * (1 - tz) + h[j * n + i + 1] * tx * (1 - tz) + h[(j + 1) * n + i] * (1 - tx) * tz + h[(j + 1) * n + i + 1] * tx * tz;
+  return v + groundAt(x, z);
+}
+function groundAt(x, z) { return (x > BLOCK.x0 && x < BLOCK.x1 && z > BLOCK.z0 && z < BLOCK.z1) ? T.pad_m : 0; }
+function heapDeposit(x, z, vol, radius) {
+  const n = HEAP.n, h = HEAP.h, c = T.heap_cell_m;
+  const ci = Math.round((x - HEAP.x0) / c), cj = Math.round((z - HEAP.z0) / c), rr = Math.ceil(radius / c);
+  let wsum = 0; const cells = [];
+  for (let j = cj - rr; j <= cj + rr; j++) for (let i = ci - rr; i <= ci + rr; i++) {
+    if (i < 1 || j < 1 || i >= n - 1 || j >= HEAP.m - 1) continue;
+    const d2 = ((i - ci) ** 2 + (j - cj) ** 2) * c * c; if (d2 > radius * radius) continue;
+    const w = Math.exp(-d2 / (radius * radius * 0.35)); wsum += w; cells.push([j * n + i, w]);
+  }
+  if (!wsum) return;
+  for (const [ix, w] of cells) h[ix] += vol * w / wsum / (c * c);
+  relax(ci - rr - 4, cj - rr - 4, ci + rr + 4, cj + rr + 4);
+  HEAP.dirty = true; HEAP.vol += vol;
+}
+function relax(i0, j0, i1, j1) {
+  const n = HEAP.n, h = HEAP.h, lim = T.repose_slope * T.heap_cell_m;
+  i0 = Math.max(1, i0); j0 = Math.max(1, j0); i1 = Math.min(n - 2, i1); j1 = Math.min(HEAP.m - 2, j1);
+  for (let pass = 0; pass < 12; pass++) {
+    let moved = false;
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const a = j * n + i;
+      for (const bIx of [a + 1, a - 1, a + n, a - n]) {
+        const d = h[a] - h[bIx] - lim;
+        if (d > 0.01) { const mv = d * 0.25; h[a] -= mv; h[bIx] += mv; moved = true; }
+      }
+    }
+    if (!moved) break;
+  }
+}
+
+// --- dust -------------------------------------------------------------------------------------
+const dustTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d'), gr = x.createRadialGradient(32, 32, 2, 32, 32, 31);
+  gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+})();
+function puff(p, size, color, life, alpha) {
+  if (sim.dust.length > 260) { const old = sim.dust.shift(); scene.remove(old.s); old.s.material.dispose(); }
+  const m = new THREE.SpriteMaterial({ map: dustTex, color, transparent: true, depthWrite: false, opacity: alpha });
+  const s = new THREE.Sprite(m); s.position.copy(p); s.scale.setScalar(size * 0.4); scene.add(s);
+  sim.dust.push({ s, size, life, age: 0, alpha });
+}
+function stepDust(dt) {
+  for (const d of sim.dust) {
+    d.age += dt; const t = d.age / d.life;
+    d.s.scale.setScalar(d.size * (0.4 + 0.8 * Math.min(1, t * 1.6)));
+    d.s.position.y += dt * 1.2; d.s.material.opacity = d.alpha * Math.max(0, 1 - t);
+  }
+  const dead = sim.dust.filter(d => d.age >= d.life);
+  for (const d of dead) { scene.remove(d.s); d.s.material.dispose(); }
+  sim.dust = sim.dust.filter(d => d.age < d.life);
+}
+
+// ============================================================================================
+// Rendering: one mesh per building per material; a per-building mask texture hides broken pieces.
+// ============================================================================================
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.8;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xa9bccb); scene.fog = new THREE.Fog(0xa9bccb, 260, 720);
+const camera = new THREE.PerspectiveCamera(50, 1.6, 0.3, 2000);
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.maxPolarAngle = Math.PI * 0.495;
+if (THREE.RoomEnvironment) { const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(new THREE.RoomEnvironment(), 0.04).texture; }
+scene.add(new THREE.HemisphereLight(0xdfe8f0, 0x6a6458, 0.3));
+const sun = new THREE.DirectionalLight(0xfff2dc, 1.7);
+sun.position.set(-90, 160, 70); sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -110, right: 110, top: 110, bottom: -110, near: 10, far: 420 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
+scene.add(sun);
+
+// Canvas textures: stand-ins for the Material Maker maps (base colour plus a normal map from height).
+function makeTex(w, h, paint, repeatM) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d'); const height = paint(x, w, h);
+  const map = new THREE.CanvasTexture(c); map.encoding = THREE.sRGBEncoding; map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  map.repeat.set(1 / repeatM[0], 1 / repeatM[1]); map.anisotropy = 8;
+  let normal = null;
+  if (height) {
+    const n = document.createElement('canvas'); n.width = w; n.height = h;
+    const nx = n.getContext('2d'), img = nx.createImageData(w, h);
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+      const hl = height[j * w + (i + w - 1) % w], hr = height[j * w + (i + 1) % w], hu = height[((j + h - 1) % h) * w + i], hd = height[((j + 1) % h) * w + i];
+      const dx = (hl - hr) * 2.5, dy = (hd - hu) * 2.5, len = Math.hypot(dx, dy, 1);
+      const o = (j * w + i) * 4; img.data[o] = (dx / len * 0.5 + 0.5) * 255; img.data[o + 1] = (dy / len * 0.5 + 0.5) * 255; img.data[o + 2] = (1 / len * 0.5 + 0.5) * 255; img.data[o + 3] = 255;
+    }
+    nx.putImageData(img, 0, 0);
+    normal = new THREE.CanvasTexture(n); normal.wrapS = normal.wrapT = THREE.RepeatWrapping; normal.repeat.copy(map.repeat);
+  }
+  return { map, normal };
+}
+function noiseRng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+function brickTex() {
+  return makeTex(512, 512, (x, w, h) => {
+    const r = noiseRng(7), H = new Float32Array(w * h).fill(0.2);
+    x.fillStyle = '#b8ab9a'; x.fillRect(0, 0, w, h);
+    const course = h / 32, brick = w / 9.3;   // 2.4 m x 2.4 m: 32 courses of 75 mm, 9.3 bricks of 225 mm
+    for (let row = 0; row < 32; row++) {
+      const off = row % 2 ? brick / 2 : 0;
+      for (let col = -1; col < 11; col++) {
+        const bx = col * brick + off, by = row * course;
+        const t = r(), l = 34 + t * 14 + (r() < 0.06 ? -12 : 0);
+        x.fillStyle = `hsl(${10 + r() * 10}, ${45 + r() * 15}%, ${l}%)`;
+        x.fillRect(bx + 1.5, by + 1.5, brick - 3, course - 3);
+        for (let yy = Math.floor(by + 1.5); yy < by + course - 1.5; yy++) for (let xx = Math.floor(bx + 1.5); xx < bx + brick - 1.5; xx++) if (xx >= 0 && xx < w) H[yy * w + xx] = 1;
+      }
+    }
+    for (let i = 0; i < 9000; i++) { x.fillStyle = `rgba(0,0,0,${r() * 0.08})`; x.fillRect(r() * w, r() * h, 2, 2); }
+    return H;
+  }, [2.4, 2.4]);
+}
+function concreteTex() {
+  return makeTex(512, 512, (x, w, h) => {
+    const r = noiseRng(11), H = new Float32Array(w * h).fill(0.5);
+    x.fillStyle = '#c9c4ba'; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 14000; i++) { const v = 150 + r() * 70 | 0; x.fillStyle = `rgba(${v},${v - 4},${v - 10},0.18)`; x.fillRect(r() * w, r() * h, 1 + r() * 4, 1 + r() * 4); }
+    // board-formed lines every 150 mm and tie holes on a 600 mm grid (a 2.4 m tile)
+    for (let j = 0; j < 16; j++) { const y = j * h / 16; x.fillStyle = 'rgba(80,76,70,0.22)'; x.fillRect(0, y, w, 1.5); for (let i = 0; i < w; i++) H[Math.floor(y) * w + i] = 0.2; }
+    for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) { x.fillStyle = 'rgba(60,58,54,0.55)'; x.beginPath(); x.arc((i + 0.5) * w / 4, (j + 0.5) * h / 4, 4, 0, 7); x.fill(); }
+    return H;
+  }, [2.4, 2.4]);
+}
+function roofTex() {
+  return makeTex(256, 256, (x, w, h) => {
+    const r = noiseRng(5), H = new Float32Array(w * h);
+    x.fillStyle = '#5a5751'; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < w * h; i++) H[i] = r();
+    for (let i = 0; i < 9000; i++) { const v = 60 + r() * 80 | 0; x.fillStyle = `rgb(${v},${v - 3},${v - 8})`; x.fillRect(r() * w, r() * h, 2, 2); }
+    return H;
+  }, [2, 2]);
+}
+// Rubble: dust, gravel, broken concrete and brick chunks with shadowed edges, and a few bent rebar
+// ends, over a 3 m tile. Stand-in for the Material Maker graph `rubble.ptex` (openspec/changes/rubble).
+function rubbleTex() {
+  return makeTex(512, 512, (x, w, h) => {
+    const r = noiseRng(17), H = new Float32Array(w * h);
+    x.fillStyle = '#8f877c'; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 26000; i++) { const v = 105 + r() * 70 | 0; x.fillStyle = `rgba(${v},${v - 6},${v - 14},0.5)`; x.fillRect(r() * w, r() * h, 1 + r() * 2, 1 + r() * 2); }
+    // Chunks drawn three times (offset by the tile) so they wrap; big first, small last.
+    const chunk = (cx, cy, rad, fill) => {
+      const n = 4 + (r() * 4 | 0), pts = [];
+      for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2 + r() * 0.6, rr = rad * (0.55 + r() * 0.45); pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.8]); }
+      const hgt = 0.4 + r() * 0.6;
+      for (const [ox, oy] of [[0, 0], [-w, 0], [w, 0], [0, -h], [0, h], [-w, -h], [w, h], [-w, h], [w, -h]]) {
+        x.beginPath(); pts.forEach(([px, py], k) => k ? x.lineTo(px + ox + 2, py + oy + 3) : x.moveTo(px + ox + 2, py + oy + 3)); x.closePath();
+        x.fillStyle = 'rgba(30,26,22,0.45)'; x.fill();                                       // contact shadow
+        x.beginPath(); pts.forEach(([px, py], k) => k ? x.lineTo(px + ox, py + oy) : x.moveTo(px + ox, py + oy)); x.closePath();
+        x.fillStyle = fill; x.fill();
+        x.strokeStyle = 'rgba(255,250,240,0.25)'; x.lineWidth = 1; x.stroke();               // a lit broken edge
+      }
+      const x0 = Math.floor(cx - rad), x1 = Math.ceil(cx + rad), y0 = Math.floor(cy - rad), y1 = Math.ceil(cy + rad);
+      for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) {
+        const d = Math.hypot(xx - cx, (yy - cy) / 0.8) / rad; if (d > 0.9) continue;
+        const ix = ((yy % h) + h) % h * w + ((xx % w) + w) % w; H[ix] = Math.max(H[ix], hgt * (1 - d * d));
+      }
+    };
+    for (let i = 0; i < 40; i++) { const g = 150 + r() * 50 | 0; chunk(r() * w, r() * h, 14 + r() * 22, `rgb(${g},${g - 5},${g - 14})`); }
+    for (let i = 0; i < 70; i++) chunk(r() * w, r() * h, 6 + r() * 9, r() < 0.5 ? `hsl(${8 + r() * 10},${40 + r() * 15}%,${32 + r() * 12}%)` : `rgb(${170 + r() * 40 | 0},${165 + r() * 40 | 0},${150 + r() * 40 | 0})`);
+    for (let i = 0; i < 260; i++) chunk(r() * w, r() * h, 2 + r() * 3.5, `rgb(${120 + r() * 80 | 0},${115 + r() * 75 | 0},${105 + r() * 70 | 0})`);
+    x.strokeStyle = 'rgba(70,50,38,0.9)'; x.lineWidth = 2.2; x.lineCap = 'round';
+    for (let i = 0; i < 14; i++) {                                                            // rebar ends
+      const sx = r() * w, sy = r() * h, a = r() * Math.PI * 2, l = 18 + r() * 40, bend = (r() - 0.5) * 0.8;
+      x.beginPath(); x.moveTo(sx, sy); x.quadraticCurveTo(sx + Math.cos(a) * l * 0.5, sy + Math.sin(a) * l * 0.5, sx + Math.cos(a + bend) * l, sy + Math.sin(a + bend) * l); x.stroke();
+    }
+    for (let i = 0; i < 6000; i++) { x.fillStyle = `rgba(215,205,190,${r() * 0.12})`; x.fillRect(r() * w, r() * h, 2, 2); }   // dust
+    return H;
+  }, [3, 3]);
+}
+let TEX = null;
+function baseMaterials() {
+  if (!TEX) TEX = { brick: brickTex(), concrete: concreteTex(), roof: roofTex(), rubble: rubbleTex() };
+  return {
+    brick: { color: 0xffffff, map: TEX.brick.map, normalMap: TEX.brick.normal, roughness: 0.9, metalness: 0 },
+    concrete: { color: 0xffffff, map: TEX.concrete.map, normalMap: TEX.concrete.normal, roughness: 0.85, metalness: 0 },
+    roof: { color: 0xffffff, map: TEX.roof.map, normalMap: TEX.roof.normal, roughness: 0.95, metalness: 0 },
+    metal: { color: 0xffffff, roughness: 0.45, metalness: 0.55 },
+    glass: { color: 0xffffff, roughness: 0.06, metalness: 0.4, transparent: true, opacity: 0.42, depthWrite: false },
+    plaster: { color: 0xffffff, roughness: 0.9, metalness: 0 },
+    furn: { color: 0xffffff, roughness: 0.75, metalness: 0.05 },
+  };
+}
+// The mask: per element, R = standing, G = stress (0..2 over 0..255), B = 1 for structure.
+const MASK_W = 256;
+function patchShader(sh, b, u) {
+  sh.uniforms.uMask = { value: b.maskTex }; sh.uniforms.uCut = u.cut; sh.uniforms.uSkin = u.skin; sh.uniforms.uStress = U.stress;
+  sh.vertexShader = 'attribute float elem;\nuniform sampler2D uMask;\nuniform float uCut;\nuniform float uSkin;\nvarying vec3 vMask;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+    ivec2 mc = ivec2(int(mod(elem, ${MASK_W}.0)), int(elem / ${MASK_W}.0));
+    vec4 mk = texelFetch(uMask, mc, 0);
+    vMask = mk.rgb;
+    float storeyOf = mk.a * 255.0 - 1.0;
+    bool hideSkin = uSkin > 0.5 && mk.b < 0.3 && mk.b > 0.1;
+    if (mk.r < 0.5 || storeyOf > uCut || hideSkin) transformed = vec3(0.0);`);
+  if (sh.fragmentShader.includes('#include <color_fragment>')) {
+    sh.fragmentShader = 'uniform float uStress;\nvarying vec3 vMask;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      if (uStress > 0.5) {
+        float s = vMask.g * 2.0;
+        vec3 ramp = s < 0.5 ? mix(vec3(0.35,0.5,0.66), vec3(0.3,0.69,0.42), s * 2.0) : s < 0.75 ? mix(vec3(0.3,0.69,0.42), vec3(0.88,0.69,0.13), (s - 0.5) * 4.0) : mix(vec3(0.88,0.69,0.13), vec3(0.82,0.23,0.16), clamp((s - 0.75) * 4.0, 0.0, 1.0));
+        diffuseColor.rgb = vMask.b > 0.9 ? ramp : vec3(0.78) * diffuseColor.rgb * 0.35 + 0.45;
+      }`);
+  }
+}
+const U = { stress: { value: 0 } };
+const world = new THREE.Group(); scene.add(world);
+let debrisMesh, heapMesh;
+function buildMeshes(b) {
+  const n = b.elems.length, H = Math.ceil(n / MASK_W);
+  b.mask = new Uint8Array(MASK_W * H * 4);
+  b.maskTex = new THREE.DataTexture(b.mask, MASK_W, H, THREE.RGBAFormat, THREE.UnsignedByteType);
+  b.maskTex.magFilter = b.maskTex.minFilter = THREE.NearestFilter;
+  b.u = { cut: { value: 999 }, skin: { value: 0 } };
+  writeMask(b);
+  const bm = baseMaterials();
+  b.meshes = [];
+  for (const mat of MATS) {
+    const g = b.geo[mat]; if (!g || !g.idx.length) continue;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(g.pos, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(g.nor, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(g.uv, 2));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(g.col, 3));
+    geo.setAttribute('elem', new THREE.Float32BufferAttribute(g.elem, 1));
+    geo.setIndex(g.idx);
+    geo.computeBoundingSphere();
+    const m = new THREE.MeshStandardMaterial(Object.assign({ vertexColors: true, envMapIntensity: 0.35 }, bm[mat]));
+    m.onBeforeCompile = sh => patchShader(sh, b, b.u);
+    m.customProgramCacheKey = () => 'cb-building';
+    const mesh = new THREE.Mesh(geo, m);
+    mesh.castShadow = mat !== 'glass'; mesh.receiveShadow = true;
+    const dm = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+    dm.onBeforeCompile = sh => patchShader(sh, b, b.u);
+    dm.customProgramCacheKey = () => 'cb-building-depth';
+    mesh.customDepthMaterial = dm;
+    if (mat === 'glass') mesh.renderOrder = 2;
+    world.add(mesh); b.meshes.push(mesh);
+  }
+  b.geo = null;
+}
+function writeMask(b) {
+  for (const id of b.elems) {
+    const e = E[id], o = e.li * 4;
+    b.mask[o] = e.alive ? 255 : 0;
+    b.mask[o + 1] = Math.min(255, Math.round(e.stress * 127.5));
+    b.mask[o + 2] = (e.kind === 'column' || e.kind === 'slab') ? 255 : (e.role === 1 ? 51 : 0);
+    b.mask[o + 3] = Math.min(255, e.storey + 1);
+  }
+  b.maskTex.needsUpdate = true; b.maskDirty = false;
+}
+
+function buildStreets() {
+  const g = new THREE.Group();
+  const asphalt = new THREE.MeshStandardMaterial({ color: 0x2e3033, roughness: 0.95, envMapIntensity: 0.3 });
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400), asphalt);
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; g.add(ground);
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(BLOCK.x1 - BLOCK.x0, T.pad_m, BLOCK.z1 - BLOCK.z0), new THREE.MeshStandardMaterial({ color: 0x8a8882, roughness: 0.9, envMapIntensity: 0.3 }));
+  pad.position.set(0, T.pad_m / 2, 0); pad.receiveShadow = true; pad.castShadow = true; g.add(pad);
+  const paint = new THREE.MeshStandardMaterial({ color: 0xe8d890, roughness: 0.8 });
+  for (const z of [-56, 56]) for (let x = -200; x < 200; x += 9) { const m = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.02, 0.18), paint); m.position.set(x, 0.011, z); g.add(m); }
+  for (const x of [-66, 66]) for (let z = -200; z < 200; z += 9) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.02, 4.5), paint); m.position.set(x, 0.011, z); g.add(m); }
+  // Neighbouring blocks as plain massing, for context.
+  const mass = new THREE.MeshStandardMaterial({ color: 0x7d838a, roughness: 0.9, envMapIntensity: 0.3 });
+  const r = noiseRng(3);
+  for (const [cx, cz] of [[-150, -125], [0, -125], [150, -125], [-150, 0], [-150, 125]]) {   // behind the block from the default view
+    for (let i = 0; i < 5; i++) {
+      const w = 18 + r() * 20, d = 18 + r() * 20, h = 8 + r() * (Math.abs(cz) > 50 ? 30 : 50);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mass);
+      m.position.set(cx + (r() - 0.5) * 70, h / 2, cz + (r() - 0.5) * 50); m.castShadow = m.receiveShadow = true; g.add(m);
+    }
+  }
+  return g;
+}
+function buildScale() {   // the pilot and a 12 m digitigrade mech, for scale
+  const g = new THREE.Group();
+  const suit = new THREE.MeshStandardMaterial({ color: 0xd07a28, roughness: 0.6 });
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.2, 1.5, 12), suit); body.position.y = 0.75;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 8), suit); head.position.y = 1.65;
+  const pilot = new THREE.Group(); pilot.add(body, head); pilot.position.set(-40, T.pad_m, 42.6); pilot.traverse(o => o.castShadow = true);
+  g.add(pilot);
+  const steel = new THREE.MeshStandardMaterial({ color: 0x6b7178, roughness: 0.5, metalness: 0.5 });
+  const paintM = new THREE.MeshStandardMaterial({ color: 0xc9a227, roughness: 0.55 });
+  const mech = new THREE.Group();
+  const add = (geo, m, x, y, z, rx = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.x = rx; o.castShadow = true; mech.add(o); return o; };
+  add(new THREE.BoxGeometry(5.2, 3.6, 4.4), paintM, 0, 9.6, 0);
+  add(new THREE.BoxGeometry(3.0, 1.4, 2.0), steel, 0, 11.7, 0.6);
+  for (const s of [-1, 1]) {
+    add(new THREE.BoxGeometry(1.2, 4.2, 1.4), steel, s * 1.9, 6.6, -0.6, 0.5);
+    add(new THREE.BoxGeometry(1.0, 4.4, 1.0), paintM, s * 1.9, 3.3, -0.4, -0.55);
+    add(new THREE.BoxGeometry(0.7, 2.4, 0.7), steel, s * 1.9, 1.1, -1.4, 0.35);
+    add(new THREE.BoxGeometry(1.6, 0.4, 2.6), steel, s * 1.9, 0.2, -1.0);
+    add(new THREE.BoxGeometry(1.0, 3.4, 1.0), steel, s * 3.2, 8.6, 0.4);
+  }
+  mech.position.set(30, 0, 64.5); mech.rotation.y = Math.PI;
+  g.add(mech);
+  return g;
+}
+
+// ============================================================================================
+// World lifecycle.
+// ============================================================================================
+let SEED = 42;
+function buildWorld(seed) {
+  SEED = seed;
+  while (world.children.length) { const o = world.children.pop(); o.geometry?.dispose(); o.material?.dispose(); }
+  for (const d of sim.dust) { scene.remove(d.s); d.s.material.dispose(); }
+  Object.assign(sim, { t: 0, rng: new Rng(seed).fork('sim'), events: [], clusters: [], pieces: [], free: [], settledQ: [], dust: [], broken: 0 });
+  E = []; B = [];
+  const t0 = performance.now();
+  const root = new Rng(seed).fork('city/block');
+  LOTS.forEach((lot, i) => B.push(generateBuilding(lot, i, root)));
+  const genMs = performance.now() - t0;
+  for (const b of B) { solve(b, true); solve(b); }
+  for (const b of B) buildMeshes(b);
+  world.add(buildStreets()); world.add(buildScale());
+  debrisMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0xffffff, map: TEX.concrete.map, roughness: 0.9, envMapIntensity: 0.35 }), T.debris_pool);
+  debrisMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  _mat4.makeScale(0, 0, 0); for (let i = 0; i < T.debris_pool; i++) debrisMesh.setMatrixAt(i, _mat4);
+  debrisMesh.setColorAt(0, new THREE.Color(0xffffff));
+  debrisMesh.castShadow = debrisMesh.receiveShadow = true; debrisMesh.frustumCulled = false;
+  world.add(debrisMesh);
+  HEAP.h = new Float32Array(HEAP.n * HEAP.m); HEAP.vol = 0;
+  STACK.top = new Float32Array(STACK.n * STACK.m); STACK.dirty = false; STACK.last = 0;
+  const hg = new THREE.PlaneGeometry((HEAP.n - 1) * T.heap_cell_m, (HEAP.m - 1) * T.heap_cell_m, HEAP.n - 1, HEAP.m - 1);
+  { const uv = hg.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (HEAP.n - 1) * T.heap_cell_m, uv.getY(i) * (HEAP.m - 1) * T.heap_cell_m); }
+  hg.rotateX(-Math.PI / 2); hg.translate(HEAP.x0 + (HEAP.n - 1) * T.heap_cell_m / 2, 0, HEAP.z0 + (HEAP.m - 1) * T.heap_cell_m / 2);
+  heapMesh = new THREE.Mesh(hg, new THREE.MeshStandardMaterial({ color: 0xffffff, map: TEX.rubble.map, normalMap: TEX.rubble.normal, normalScale: new THREE.Vector2(1.6, 1.6), roughness: 0.95, envMapIntensity: 0.35 }));
+  heapMesh.receiveShadow = true; heapMesh.castShadow = true; world.add(heapMesh);
+  updateHeapMesh(true);
+  stats.gen = genMs;
+  fillBuildingSelect();
+  drawPlan();
+}
+function updateHeapMesh(force) {
+  if (!HEAP.dirty && !force) return;
+  const pos = heapMesh.geometry.attributes.position;
+  for (let j = 0; j < HEAP.m; j++) for (let i = 0; i < HEAP.n; i++) {
+    const ix = j * HEAP.n + i, h = HEAP.h[ix];
+    const x = HEAP.x0 + i * T.heap_cell_m, z = HEAP.z0 + j * T.heap_cell_m;
+    pos.setY(ix, h > 0.02 ? h + groundAt(x, z) : -0.4);
+  }
+  pos.needsUpdate = true; heapMesh.geometry.computeVertexNormals(); HEAP.dirty = false;
+}
+
+// ============================================================================================
+// UI.
+// ============================================================================================
+const stats = { gen: 0 };
+const ui = { sel: 0, cut: 999, skin: false };
+const wEl = document.getElementById('weapons');
+WEAPONS.forEach(([name, e], i) => {
+  const bt = document.createElement('button'); bt.textContent = name; bt.className = i === sim.weapon ? 'on' : '';
+  bt.onclick = () => { sim.weapon = i; [...wEl.children].forEach((c, j) => c.className = j === i ? 'on' : ''); showRadius(); };
+  wEl.appendChild(bt);
+});
+function showRadius() { const e = WEAPONS[sim.weapon][1]; document.getElementById('radius').textContent = `${blastRadius(e).toFixed(1)} m at ${e} MJ`; }
+showRadius();
+const bsel = document.getElementById('bsel'), cutEl = document.getElementById('cut');
+function fillBuildingSelect() {
+  bsel.innerHTML = '';
+  B.forEach((b, i) => { const o = document.createElement('option'); o.value = i; o.textContent = `${i + 1}. ${b.label}, ${b.storeys} storeys`; bsel.appendChild(o); });
+  bsel.value = Math.min(ui.sel, B.length - 1); selectBuilding(+bsel.value);
+}
+function selectBuilding(i) {
+  for (const b of B) { b.u.cut.value = 999; b.u.skin.value = 0; }
+  ui.sel = i; const b = B[i];
+  cutEl.max = b.storeys; cutEl.value = Math.min(+cutEl.value, b.storeys);
+  if (ui.cutTouched) applyCut(); else cutEl.value = b.storeys;
+  b.u.skin.value = ui.skin ? 1 : 0;
+  document.getElementById('cutv').textContent = cutEl.value >= b.storeys ? 'none' : cutEl.value;
+  drawPlan();
+}
+function applyCut() {
+  const b = B[ui.sel], v = +cutEl.value;
+  b.u.cut.value = v >= b.storeys ? 999 : v - 1 + 0.5;
+  document.getElementById('cutv').textContent = v >= b.storeys ? 'none' : v;
+  drawPlan();
+}
+bsel.onchange = () => selectBuilding(+bsel.value);
+cutEl.oninput = () => { ui.cutTouched = true; applyCut(); };
+const toggle = (id, fn) => { const el = document.getElementById(id); el.onclick = () => { el.classList.toggle('on'); fn(el.classList.contains('on')); }; };
+toggle('tFacade', on => { ui.skin = on; B[ui.sel].u.skin.value = on ? 1 : 0; });
+toggle('tStress', on => { U.stress.value = on ? 1 : 0; });
+toggle('tPause', on => { sim.paused = on; });
+function setTier(t) { DEBRIS_TIER = t; document.getElementById('tierGame').classList.toggle('on', t === 'game'); document.getElementById('tierFull').classList.toggle('on', t === 'full'); }
+document.getElementById('tierGame').onclick = () => setTier('game');
+document.getElementById('tierFull').onclick = () => setTier('full');
+document.getElementById('regen').onclick = () => buildWorld(+document.getElementById('seed').value || 0);
+document.getElementById('reset').onclick = () => buildWorld(SEED);
+document.querySelectorAll('[data-view]').forEach(bt => bt.onclick = () => setView(bt.dataset.view));
+document.querySelectorAll('[data-demo]').forEach(bt => bt.onclick = () => demo(bt.dataset.demo));
+
+const VIEWS = {
+  orbit: [[115, 95, 150], [0, 18, 0]],
+  street: [[-62, 1.8, 50], [0, 9, 30]],
+  mech: [[30, 10.2, 63], [-6, 9, 24]],
+  roofs: [[60, 75, -2], [10, 30, -24]],
+};
+function setView(v) {
+  const [p, t] = VIEWS[v];
+  camera.position.set(...p); controls.target.set(...t); controls.update();
+  document.querySelectorAll('[data-view]').forEach(bt => bt.classList.toggle('on', bt.dataset.view === v));
+}
+setView('orbit');
+
+// Picking: the ray against standing elements' boxes (hidden ones are skipped), else the ground.
+const ray = new THREE.Raycaster();
+function rayAabb(o, d, a) {
+  let t0 = 0, t1 = Infinity;
+  for (let i = 0; i < 3; i++) {
+    const oi = [o.x, o.y, o.z][i], di = [d.x, d.y, d.z][i];
+    if (Math.abs(di) < 1e-9) { if (oi < a[i] || oi > a[i + 3]) return null; continue; }
+    let ta = (a[i] - oi) / di, tb = (a[i + 3] - oi) / di; if (ta > tb) [ta, tb] = [tb, ta];
+    t0 = Math.max(t0, ta); t1 = Math.min(t1, tb); if (t0 > t1) return null;
+  }
+  return t0;
+}
+function pick(nx, ny) {
+  ray.setFromCamera({ x: nx, y: ny }, camera);
+  const o = ray.ray.origin, d = ray.ray.direction;
+  let best = Infinity;
+  for (const b of B) {
+    if (rayAabb(o, d, b.aabb) === null) continue;
+    for (const id of b.order) {
+      const e = E[id]; if (!e.alive || e.kind === 'furniture') continue;
+      if (b.u.cut.value < e.storey) continue;
+      if (b.u.skin.value && e.role === 1) continue;
+      const t = rayAabb(o, d, e.aabb); if (t !== null && t < best) best = t;
+    }
+  }
+  if (best === Infinity) { if (d.y >= 0) return null; best = -o.y / d.y; }
+  return o.clone().addScaledVector(d, best + 0.3);
+}
+let down = null;
+canvas.addEventListener('pointerdown', ev => { down = [ev.clientX, ev.clientY]; });
+canvas.addEventListener('pointerup', ev => {
+  if (!down || Math.hypot(ev.clientX - down[0], ev.clientY - down[1]) > 5) return;
+  const r = canvas.getBoundingClientRect();
+  const p = pick((ev.clientX - r.left) / r.width * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  if (p) blast(p, WEAPONS[sim.weapon][1]);
+});
+
+// Scripted demolitions, the same calls a click makes.
+function towerNodes(filter) {
+  const b = B[0], out = [];
+  for (const [key, id] of Object.entries(b.colAt[0])) { const [a, c] = key.split(',').map(Number); if (filter(a, c, b)) out.push(E[id]); }
+  return out;
+}
+function demo(name) {
+  const centre = e => new THREE.Vector3((e.aabb[0] + e.aabb[3]) / 2, (e.aabb[1] + e.aabb[4]) / 2, (e.aabb[2] + e.aabb[5]) / 2);
+  if (name === 'hole') { const b = B[1]; const w = b.order.map(id => E[id]).find(e => e.kind === 'wall' && e.storey === 3 && e.side === 'z-' && e.idx === 2); if (w) blast(centre(w), 4); }
+  if (name === 'corner') for (const e of towerNodes((a, c) => a <= 1 && c <= 1)) blast(centre(e), 4);
+  if (name === 'side') for (const e of towerNodes((a, c) => c === 0)) blast(centre(e), 12);
+  if (name === 'tower') for (const e of towerNodes(() => true)) blast(centre(e), 50);
+  if (name === 'warehouse') { const b = B[3]; for (const [key, id] of Object.entries(b.colAt[0])) blast(centre(E[id]), 6); }
+  if (name === 'walkup') { const b = B[4]; for (let k = 0; k < 2; k++) for (const [key, id] of Object.entries(b.colAt[k])) if (+key.split(',')[1] >= 3) blast(centre(E[id]), 12); }
+}
+
+// --- floorplan drawing ---
+const ROOM_COL = { 'office': '#e9dcc4', 'open office': '#f1e8d2', 'meeting': '#e4d2b6', 'living': '#dde8d4', 'bedroom': '#d8dff0', 'kitchen': '#f3e3c2', 'bath': '#cfe6ea', 'shop': '#f2d4cc', 'stockroom': '#e6dcd6', 'lobby': '#efe0d0', 'mail room': '#e2dcd0', 'workshop': '#dad8c8', 'storage': '#e0dccd', 'flat': '#dde8d4' };
+function drawPlan() {
+  const cv = document.getElementById('plan'), x = cv.getContext('2d'), W = cv.width;
+  const b = B[ui.sel]; if (!b) return;
+  const k = Math.max(0, Math.min(b.storeys - 1, (+cutEl.value >= b.storeys ? b.storeys : +cutEl.value) - 1));
+  const plan = b.plans[k];
+  const ext = Math.max(b.nx, b.nz) * T.grid_m + 6, sc = W / ext;
+  const ox = W / 2 - (b.x0 + b.nx * T.grid_m / 2) * sc, oz = W / 2 - (b.z0 + b.nz * T.grid_m / 2) * sc;
+  const X = v => ox + v * sc, Z = v => oz + v * sc;
+  x.clearRect(0, 0, W, W); x.fillStyle = '#fbfbf8'; x.fillRect(0, 0, W, W);
+  const [rx0, rz0, rx1, rz1] = plan.rect;
+  x.fillStyle = '#f1f0ea'; x.fillRect(X(rx0), Z(rz0), (rx1 - rx0) * sc, (rz1 - rz0) * sc);
+  for (const c of plan.corridor) { x.fillStyle = '#ebe9e2'; x.fillRect(X(c[0]), Z(c[1]), (c[2] - c[0]) * sc, (c[3] - c[1]) * sc); }
+  x.font = `${Math.max(11, sc * 0.9)}px IBM Plex Sans, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
+  for (const r of plan.rooms) {
+    x.fillStyle = ROOM_COL[r.type] || '#eee'; x.fillRect(X(r.r[0]), Z(r.r[1]), (r.r[2] - r.r[0]) * sc, (r.r[3] - r.r[1]) * sc);
+  }
+  if (plan.core) { const c = plan.core; x.fillStyle = '#c9c6bd'; x.fillRect(X(c[0]), Z(c[1]), (c[2] - c[0]) * sc, (c[3] - c[1]) * sc); }
+  if (plan.stair) { const c = plan.stair; x.fillStyle = '#d4d1c8'; x.fillRect(X(c[0]), Z(c[1]), (c[2] - c[0]) * sc, (c[3] - c[1]) * sc); }
+  // furniture
+  for (const it of plan.items || []) {
+    const e = E[it.id], kit = KIT[it.name];
+    x.save(); x.translate(X(it.x), Z(it.z)); x.rotate(-it.rot);
+    x.fillStyle = e.alive ? 'rgba(90,70,50,0.28)' : 'rgba(200,40,30,0.15)'; x.strokeStyle = e.alive ? 'rgba(70,55,40,0.7)' : 'rgba(200,40,30,0.6)'; x.lineWidth = 1;
+    for (const bx of kit.boxes) { if (bx[1] - bx[4] / 2 > 1.3) continue; x.fillRect((bx[0] - bx[3] / 2) * sc, (bx[2] - bx[5] / 2) * sc, bx[3] * sc, bx[5] * sc); x.strokeRect((bx[0] - bx[3] / 2) * sc, (bx[2] - bx[5] / 2) * sc, bx[3] * sc, bx[5] * sc); }
+    x.restore();
+  }
+  // partitions and core walls, drawn from the elements so broken ones show
+  for (const id of b.elems) {
+    const e = E[id]; if (e.storey !== k || (e.kind !== 'partition' && e.kind !== 'core')) continue;
+    for (const bx of e.boxes) {
+      if (bx.c.y - bx.s[1] / 2 > b.base[k] + 1.5) continue;
+      if (bx.q.x || bx.q.z) continue;
+      x.fillStyle = e.alive ? (e.kind === 'core' ? '#55534e' : '#3a3833') : 'rgba(210,58,42,0.35)';
+      x.fillRect(X(bx.c.x - bx.s[0] / 2), Z(bx.c.z - bx.s[2] / 2), Math.max(1.5, bx.s[0] * sc), Math.max(1.5, bx.s[2] * sc));
+    }
+  }
+  // exterior walls by panel
+  for (const id of b.elems) {
+    const e = E[id]; if (e.storey !== k || e.kind !== 'wall') continue;
+    const p = panelFrame(b, e.side, k, e.idx);
+    x.strokeStyle = e.alive ? '#24221e' : '#d23a2a'; x.lineWidth = Math.max(3, 0.3 * sc); x.setLineDash(e.alive ? [] : [6, 4]);
+    x.beginPath();
+    if (p.ax === 'x') { x.moveTo(X(p.s0), Z(p.plane - p.n * 0.15)); x.lineTo(X(p.s0 + T.grid_m), Z(p.plane - p.n * 0.15)); }
+    else { x.moveTo(X(p.plane - p.n * 0.15), Z(p.s0)); x.lineTo(X(p.plane - p.n * 0.15), Z(p.s0 + T.grid_m)); }
+    x.stroke(); x.setLineDash([]);
+  }
+  // columns with their stress
+  for (const [key, id] of Object.entries(b.colAt[k])) {
+    const e = E[id]; const cx = (e.aabb[0] + e.aabb[3]) / 2, cz = (e.aabb[2] + e.aabb[5]) / 2, s = 0.7 * sc;
+    if (!e.alive) { x.strokeStyle = '#d23a2a'; x.lineWidth = 2; x.beginPath(); x.moveTo(X(cx) - s / 2, Z(cz) - s / 2); x.lineTo(X(cx) + s / 2, Z(cz) + s / 2); x.moveTo(X(cx) + s / 2, Z(cz) - s / 2); x.lineTo(X(cx) - s / 2, Z(cz) + s / 2); x.stroke(); continue; }
+    x.fillStyle = e.stress > 1 ? '#d23a2a' : e.stress > 0.75 ? '#e0b020' : '#24221e';
+    x.fillRect(X(cx) - s / 2, Z(cz) - s / 2, s, s);
+  }
+  // room labels last
+  x.fillStyle = '#3a3833';
+  for (const r of plan.rooms) if ((r.r[2] - r.r[0]) * sc > 34) x.fillText(r.type, X((r.r[0] + r.r[2]) / 2), Z((r.r[1] + r.r[3]) / 2));
+  if (plan.core) x.fillText('core', X((plan.core[0] + plan.core[2]) / 2), Z((plan.core[1] + plan.core[3]) / 2));
+  if (plan.stair) x.fillText('stair', X((plan.stair[0] + plan.stair[2]) / 2), Z((plan.stair[1] + plan.stair[3]) / 2));
+  x.textAlign = 'left'; x.font = '13px IBM Plex Mono, monospace'; x.fillStyle = '#56606d';
+  x.fillText(`${b.label}: storey ${k + 1} of ${b.storeys} (${plan.use}), 6 m grid, north up`, 8, 14);
+  const lg = document.getElementById('planLegend');
+  lg.innerHTML = [...new Set(plan.rooms.map(r => r.type))].map(t => `<span><span class="sw" style="background:${ROOM_COL[t]}"></span>${t}</span>`).join('')
+    + '<span><span class="sw" style="background:#24221e"></span>column</span><span><span class="sw" style="background:#e0b020"></span>loaded over 75 %</span><span><span class="sw" style="background:#d23a2a"></span>failing or gone</span>';
+}
+
+// --- the loop ---
+let acc = 0, last = performance.now(), frames = [], planTimer = 0;
+function resize() {
+  const r = canvas.parentElement.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+function advance(dt) {
+  if (sim.paused) return;
+  acc += Math.min(dt, 0.1);
+  while (acc >= sim.step) { stepSim(sim.step); acc -= sim.step; }
+}
+function afterSim() {
+  for (const b of B) if (b.maskDirty) writeMask(b);
+  if (HEAP.dirty && sim.t - HEAP.last > 0.2) { updateHeapMesh(); HEAP.last = sim.t; }
+}
+function frame(now) {
+  const dt = (now - last) / 1000; last = now;
+  advance(dt); afterSim();
+  controls.update();
+  renderer.render(scene, camera);
+  frames.push(dt * 1000); if (frames.length > 120) frames.shift();
+  planTimer += dt; if (planTimer > 0.5) { planTimer = 0; drawPlan(); showStats(); }
+  requestAnimationFrame(frame);
+}
+function showStats() {
+  const kinds = {}; let alive = 0, bonds = 0;
+  for (const e of E) { if (e.kind === 'static') continue; kinds[e.kind] = (kinds[e.kind] || 0) + 1; if (e.alive) alive++; bonds += e.rests.length + e.lateral.length; }
+  const rooms = B.reduce((s, b) => s + b.plans.reduce((t, p) => t + p.rooms.length, 0), 0);
+  const moving = sim.pieces.filter(p => p && !p.settled).length, resting = sim.pieces.filter(p => p && p.settled).length;
+  const solveMs = Math.max(...B.map(b => b.solveMs || 0));
+  const info = renderer.info.render;
+  const rows = [
+    ['buildings', B.length], ['storeys', B.reduce((s, b) => s + b.storeys, 0)], ['rooms', rooms], ['furniture items', kinds.furniture || 0], ['roof props', B.reduce((s, b) => s + b.elems.filter(id => E[id].kind === 'prop' && E[id].storey > 0).length, 0)],
+    ['elements', `${alive} / ${E.length - B.length}`], ['columns, slabs', `${kinds.column}, ${kinds.slab}`], ['bonds', bonds],
+    ['triangles drawn', info.triangles.toLocaleString()], ['draw calls', info.calls], ['generation', stats.gen.toFixed(0) + ' ms'], ['last solve (worst bldg)', solveMs.toFixed(2) + ' ms'],
+    ['debris moving / resting', `${moving} / ${resting}`], ['falling clusters', sim.clusters.length], ['rubble heap', (HEAP.vol || 0).toFixed(0) + ' m3'],
+  ];
+  document.getElementById('stats').innerHTML = rows.map(([a, v]) => `<dt>${a}</dt><dd>${v}</dd>`).join('');
+  const f = frames.slice().sort((a, c) => a - c);
+  document.getElementById('readout').textContent = `seed ${SEED}   t ${sim.t.toFixed(1)} s\nframe p50 ${(f[f.length >> 1] || 0).toFixed(1)} ms (browser)\nbroken ${sim.broken}   creaking ${sim.events.length}`;
+}
+
+// The shot hooks for tools/mockups/shoot_buildings.mjs.
+window.MOCKUP = {
+  setView, demo, blast: (x, y, z, e) => blast(new THREE.Vector3(x, y, z), e),
+  select: i => { bsel.value = i; selectBuilding(i); },
+  cut: n => { ui.cutTouched = true; cutEl.value = n; applyCut(); },
+  skin: on => { ui.skin = on; B[ui.sel].u.skin.value = on ? 1 : 0; document.getElementById('tFacade').classList.toggle('on', on); },
+  stress: on => { U.stress.value = on ? 1 : 0; document.getElementById('tStress').classList.toggle('on', on); },
+  look: (p, t) => { camera.position.set(...p); controls.target.set(...t); controls.update(); },
+  run: s => { const n = Math.round(s / sim.step); for (let i = 0; i < n; i++) stepSim(sim.step); afterSim(); updateHeapMesh(true); drawPlan(); showStats(); },
+  reset: seed => {
+    ui.cutTouched = false; ui.skin = false; U.stress.value = 0;
+    document.getElementById('tFacade').classList.remove('on'); document.getElementById('tStress').classList.remove('on');
+    buildWorld(seed ?? SEED);
+  },
+  pause: on => { sim.paused = on; },
+  tier: setTier,
+};
+buildWorld(42);
+resize();
+requestAnimationFrame(t => { last = t; frame(t); });
+setTimeout(() => { showStats(); window.MOCKUP_READY = true; }, 300);
+</script>

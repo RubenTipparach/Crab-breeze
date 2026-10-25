@@ -3,12 +3,15 @@
 
 mod bench;
 mod blast;
+mod building_arrays;
+mod building_state;
 mod buildings;
 mod capture;
 mod cli;
 mod clouds_render;
 mod combat;
 mod defence;
+mod demolition;
 mod fx;
 mod grass;
 mod ground;
@@ -30,6 +33,7 @@ mod shader_check;
 mod showcase;
 mod sim;
 mod skins;
+mod sky_light;
 mod sun_flare;
 mod targeting;
 mod textures;
@@ -105,6 +109,7 @@ fn main() -> AppExit {
         fx::FxPlugin,
         blast::BlastPlugin,
         combat::CombatPlugin,
+        building_state::BuildingStatePlugin,
         buildings::BuildingsPlugin,
         physics::DebrisPhysicsPlugin,
         hud::HudPlugin,
@@ -113,6 +118,7 @@ fn main() -> AppExit {
     ))
     .add_plugins((
         screens_cube::ScreensCubePlugin,
+        sky_light::SkyLightPlugin,
         skins::SkinsPlugin,
         loading::LoadingPlugin,
         perf_hud::PerfHudPlugin,
