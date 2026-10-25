@@ -66,7 +66,7 @@
         // A rocket in flight, every `trail_spacing_m`. The direction is its flight.
         "rocket_trail": [
             // Thick white smoke from the smoke sheet, laid every metre, growing as it hangs: a solid motor's trail.
-            Burst(kind: Trail, count: 1, speed_m_s: 0.4, spread: 0.4, size_m: 1.0, life_s: 6.0),
+            Burst(kind: Trail, count: 1, speed_m_s: 0.4, spread: 0.4, size_m: 2.5, life_s: 6.0),
             Burst(kind: Flame, count: 1, speed_m_s: 30.0, spread: 0.1, size_m: 0.8, life_s: 0.06, offset_m: -1.0, along_dir: true),
         ],
         // Impacts. The direction points back the way the shot came.
@@ -156,11 +156,12 @@
         ],
         // A jet's smoke trail, which hangs in the sky for two minutes, spreading and fading (owner,
         // 2026-10-25: "per survey that trail needs to las 2 mins or more"). At 30 puffs a second a
-        // jet at 60 m/s leaves one every 2 m, each 2 m across at first, so they touch: at 20 a
-        // second and 1.2 m the trail seen from the seat was a string of separate beads (2026-10-25).
-        // Each grows to about 70 m wide over its life.
+        // jet at 60 m/s leaves one every 2 m, each 4 m across at first, so they touch and read at
+        // combat range: at 20 a second and 1.2 m the trail seen from the seat was a string of beads,
+        // and at 2 m an enemy's trail 500 m off was three pixels wide (2026-10-25). Each grows to
+        // about 150 m wide, faint, over its life.
         "jet_trail": [
-            Burst(kind: Trail, count: 1, speed_m_s: 1.0, spread: 0.3, size_m: 2.0, life_s: 120.0, offset_m: 4.0, along_dir: true),
+            Burst(kind: Trail, count: 1, speed_m_s: 1.0, spread: 0.3, size_m: 4.0, life_s: 120.0, offset_m: 4.0, along_dir: true),
         ],
         // Every step a wheel skates fast on soil; the direction is back and up from the wheel.
         "skate_dirt": [
