@@ -92,7 +92,7 @@
             Fireball(radius_m: 4.5, grow_s: 0.15, life_s: 0.9),
             Shock(radius_m: 22.0, life_s: 0.35),
             Burst(kind: Dirt, count: 160, speed_m_s: 20.0, spread: 0.6, size_m: 0.5, life_s: 3.0),
-            Burst(kind: Dust, count: 60, speed_m_s: 6.0, spread: 0.9, size_m: 4.0, life_s: 5.0),
+            Burst(kind: Dust, count: 24, speed_m_s: 6.0, spread: 0.9, size_m: 4.0, life_s: 4.0),
             Burst(kind: Debris, count: 24, speed_m_s: 25.0, spread: 0.9, size_m: 0.6, life_s: 2.5),
             Burst(kind: Spark, count: 80, speed_m_s: 26.0, spread: 0.9, size_m: 0.25, life_s: 1.2),
             Burst(kind: Fire, count: 50, speed_m_s: 9.0, spread: 0.8, size_m: 2.2, life_s: 0.7),
