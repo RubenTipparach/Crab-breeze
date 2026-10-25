@@ -121,7 +121,10 @@ fn ghost_distance(q: vec2<f32>, radius: f32, hexagon: bool) -> f32 {
 // A soft-edged body with a brighter rim, from the shape distance (1 at the edge).
 fn ghost_body(d: vec3<f32>, softness: f32) -> vec3<f32> {
     let body = 1.0 - smoothstep(vec3<f32>(1.0 - max(softness, 1.0e-3)), vec3<f32>(1.0), d);
-    let rim = exp(-pow((d - vec3<f32>(0.96)) / 0.05, vec3<f32>(2.0))) * flare.ghost_look.y;
+    // Squared by hand: pow() of a negative base (inside the ghost, d < 0.96) is undefined in WGSL and
+    // came out NaN on NVIDIA under Vulkan/DX12, drawing every ghost as a black shape.
+    let r = (d - vec3<f32>(0.96)) / 0.05;
+    let rim = exp(-(r * r)) * flare.ghost_look.y;
     return body * (0.55 + 0.45 * d * d) + rim * body;
 }
 
