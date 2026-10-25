@@ -183,23 +183,30 @@ fn warm_up(
     mut fx: MessageWriter<Fx>,
     mut frames: Local<u32>,
 ) {
-    if ready.0 || *frames > 30 {
+    // Every burst size (`cb_core::fx::burst_count`): density one step to two, a size a frame from
+    // frame 30, so the particle budget never cuts one out.
+    let last = 30 + 2 * cb_core::fx::BURST_STEPS;
+    if ready.0 || *frames > last {
         return;
     }
     *frames += 1;
-    if *frames != 30 {
+    if *frames < 30 || *frames > last {
         return;
     }
+    let density = (*frames - 29) as f32 / cb_core::fx::BURST_STEPS as f32;
     let Ok(eye) = camera.single() else { return };
     // 200 m out and 100 m down: inside the view, hidden by the ground.
     let at = eye.translation() + eye.forward().with_y(0.0).normalize_or(Vec3::NEG_Z) * 200.0 - Vec3::Y * 100.0;
     let names: Vec<&'static str> = cb_core::fx::RECIPES.to_vec();
     for name in names {
         if data.0.fx.recipes.contains_key(name) {
-            fx.write(Fx::new(name, at));
+            fx.write(Fx::new(name, at).dense(density));
         }
     }
-    info!("fx: warmed up {} recipes behind the loading screen", data.0.fx.recipes.len());
+    info!(
+        "fx: warmed up {} recipes at density {density:.2} behind the loading screen",
+        data.0.fx.recipes.len()
+    );
 }
 
 /// A body that plays a recipe as a continuous stream (`FxConfig::stream_per_s`): one emitter per
@@ -370,12 +377,19 @@ fn play(
     lights: Query<(Entity, &FlashLight)>,
     fireballs: Query<(), With<Fireball>>,
     camera: Query<&GlobalTransform, With<PilotCamera>>,
+    ready: Res<crate::loading::GameReady>,
 ) {
     let _t = crate::perf_hud::slow("play");
     let eye = camera.single().map(|g| g.translation()).ok();
+    // Behind the loading screen (the warm-up) every burst plays, at every size: no budget and no range.
+    let loading = !ready.0;
     let cfg: &FxConfig = &data.0.fx;
     let now = time.elapsed_secs();
-    let mut room = cfg.max_particles.saturating_sub(lib.live);
+    let mut room = if loading {
+        u32::MAX
+    } else {
+        cfg.max_particles.saturating_sub(lib.live)
+    };
     let mut fireball_room = (cfg.max_fireballs as usize).saturating_sub(fireballs.iter().count());
     // Lights alive, oldest first: a new light past the cap puts out the oldest.
     let mut live_lights: Vec<(Entity, f32)> = lights.iter().map(|(e, l)| (e, l.age)).collect();
@@ -395,7 +409,7 @@ fn play(
                 continue;
             }
             // Far from the eye a burst barely shows and costs a whole effect (`burst_range`).
-            if matches!(layer, Layer::Burst { .. }) && eye.is_some_and(|p| p.distance(e.at) > cfg.burst_range(e.recipe, s)) {
+            if !loading && matches!(layer, Layer::Burst { .. }) && eye.is_some_and(|p| p.distance(e.at) > cfg.burst_range(e.recipe, s)) {
                 continue;
             }
             match *layer {
@@ -405,7 +419,7 @@ fn play(
                     along_dir,
                     ..
                 } => {
-                    let n = ((count as f32 * e.density).round() as u32).min(room);
+                    let n = cb_core::fx::burst_count(count, e.density, room);
                     room -= n;
                     let dir = if along_dir { e.dir } else { Vec3::Y };
                     let at = e.at + e.dir * offset_m * s;
