@@ -634,7 +634,7 @@ pub struct WorldConfig {
 #[serde(deny_unknown_fields, default)]
 pub struct DebrisConfig {
     /// A chunk breaking off within this distance of the pilot's eye becomes a rigid body; farther,
-    /// it is a dust puff only.
+    /// it is a dust puff only. 0 switches debris physics off: every chunk is a puff.
     pub physics_radius_m: f32,
     /// A moving body farther than `physics_radius_m` times this is made static where it is.
     pub freeze_factor: f32,
@@ -658,7 +658,7 @@ impl Default for DebrisConfig {
 impl DebrisConfig {
     /// True when a chunk breaking off `distance_m` from the pilot's eye becomes a rigid body.
     pub fn is_physical(&self, distance_m: f32) -> bool {
-        distance_m.is_finite() && distance_m <= self.physics_radius_m
+        self.physics_radius_m > 0.0 && distance_m.is_finite() && distance_m <= self.physics_radius_m
     }
 
     /// True when a moving body `distance_m` from the pilot's eye is made static.
@@ -667,7 +667,7 @@ impl DebrisConfig {
     }
 
     fn validate(&self) -> Result<(), String> {
-        positive("debris.physics_radius_m", self.physics_radius_m)?;
+        within("debris.physics_radius_m", self.physics_radius_m, 0.0, 1.0e5)?;
         within("debris.freeze_factor", self.freeze_factor, 1.0, 4.0)?;
         if self.max_dynamic == 0 || self.max_kept < self.max_dynamic {
             return Err("debris: max_dynamic must be above 0 and max_kept at least max_dynamic".into());
@@ -853,5 +853,11 @@ mod debris_tests {
         assert!(!d.is_physical(f32::NAN), "a broken distance makes no body");
         assert!(!d.freezes(450.0), "a body just past the radius keeps moving");
         assert!(d.freezes(481.0), "a body well past it is made static");
+        let off = DebrisConfig {
+            physics_radius_m: 0.0,
+            ..d
+        };
+        assert!(off.validate().is_ok(), "0 is allowed");
+        assert!(!off.is_physical(0.0) && !off.is_physical(5.0), "0 switches debris physics off");
     }
 }

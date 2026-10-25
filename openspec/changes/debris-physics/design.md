@@ -26,6 +26,10 @@ could see.
   leaves its rubble heap, which are not physics.
 - A moving body that ends up beyond `physics_radius_m x 1.2` (480 m, so a body on the edge does not
   flicker) is made static where it is, checked every 0.5 s.
+- `physics_radius_m: 0` switches debris physics off (owner, 2026-10-24: "Can we add a param to
+  turn off furniture physics? So when furniture gets blown up it just gets blown up?"; furniture is
+  never a body, it goes with its floor, so the switch covers the structure chunks): every chunk is
+  a puff.
 - The budget constants move to data (`world.ron`, `debris`): `physics_radius_m`, `max_dynamic`
   600, `max_kept` 2500 (CLAUDE.md section 6.4).
 - Cost: one distance test per new chunk, one per moving body every 0.5 s. Saving: no Avian bodies,
