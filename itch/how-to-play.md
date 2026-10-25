@@ -10,7 +10,8 @@
 
 - Skates and jets are limited: watch heat on the MFDs
 - Hold **Ctrl** to look around the cabin and click the screens
-- Check **M** for jobs; enemies arrive with an accepted mission
+- Read your mail for jobs: press **M**, or **Esc** then **Mail**
+- Accept a job to get a mission; enemies only arrive for an accepted one
 - Buildings fall: use them, or bring them down
 
 ## On Foot
@@ -53,5 +54,5 @@
 
 | Key | Action |
 |---|---|
-| M | Mail and jobs |
-| Esc | Menu |
+| M | Read mail (jobs) |
+| Esc | Menu (Mail, Options, Controls) |
