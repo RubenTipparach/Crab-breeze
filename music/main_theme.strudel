@@ -87,13 +87,14 @@ const FANFARE_CHORDS = note(`<
 const power = (roots) => roots.add(note("[12,19,24]"))   // root, fifth, octave
 const fill = s("<~!7 [~ ~ ~ ~ ~ ~ ~ ~ ht ht mt mt lt lt ft ft]>")
 
-// intro: the call sign over a held D minor, timpani swelling
+// intro: the call sign over a held D minor, timpani swelling; kept well under
+// theme A so the horns' entry lands (owner, 2026-10-25: "intro on main theme is a little loud")
 const intro = stack(
-  CALLSIGN.s("square").gain(0.8),
-  CALLSIGN.s("gm_glockenspiel").gain(0.7),
-  note("[d3,a3,e4]").s("gm_pad_warm").gain(0.6),
-  note("[d2,a2]").s("gm_string_ensemble_1").gain(0.5),
-  note("d2").struct("x*16").s("gm_timpani").gain(saw.slow(4).range(0.25, 0.9))
+  CALLSIGN.s("square").gain(0.4),
+  CALLSIGN.s("gm_glockenspiel").gain(0.35),
+  note("[d3,a3,e4]").s("gm_pad_warm").gain(0.35),
+  note("[d2,a2]").s("gm_string_ensemble_1").gain(0.3),
+  note("d2").struct("x*16").s("gm_timpani").gain(saw.slow(4).range(0.12, 0.55))
 )
 
 // theme A: the Breeze on horns, strings striding under it

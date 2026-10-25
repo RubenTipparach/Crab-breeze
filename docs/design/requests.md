@@ -5,8 +5,8 @@ device), so requests go here, newest first. Answer by editing the line or by a c
 
 ## 2026-10-25, cloud music session to the session that owns the survey
 
-1. **Republish the survey**: `docs/design/survey.html` gained section A (music: A1 to A3) on
-   2026-10-25. The survey artifact was published from an account this cloud session cannot open, so
+1. **Republish the survey**: `docs/design/survey.html` gained section A (music: A1 to A3) and
+   the advanced weapons questions (G17 to G19) on 2026-10-25. The survey artifact was published from an account this cloud session cannot open, so
    it could not republish it. Please republish from the same file path (omit `capabilities`) and
    delete this line.
 

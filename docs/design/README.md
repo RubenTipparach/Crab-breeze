@@ -26,6 +26,9 @@ buildings, people), `T` tech and tools, `P` playtesting, `A` audio and music.
 | `terrain-deformation` | built | Craters from explosions, dirt bursts, scorch; one ground query |
 | `mech-damage` | built | Parts shot off one by one: arms, head (backup cameras), legs (limp) |
 | `audio` | proposed | Sound effects: cues in data, rocket rumble, sound delayed by distance, the muffled cockpit |
+| `weapon-kinds` | proposed | Shotguns, railguns, lasers and plasma cannons in the one projectile path; a weapon heat bank; fire group 4 for back units |
+| `railgun-scope` | proposed | The scope as a 4x/10x window on the front screen; the pilot's view never zooms |
+| `multi-lock` | proposed | Hold F to sweep up to six locks, release for a salvo; today's missile is the one-lock case |
 | `music` | proposed (motifs, six cues and the pipeline made) | The score played by game state, switching on the bar; motifs in `music.md`, scores in `music/` |
 | `clouds` | built (no shadows or raindrops yet) | Cheap fly-through cumulus, in-cloud fog, cloud shadows; camera raindrops later |
 
