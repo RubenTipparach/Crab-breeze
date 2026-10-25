@@ -34,6 +34,8 @@ pub struct PilotConfig {
     /// Seated, the view stays within this of the mech's nose unless free look is held
     /// (openspec change `seated-look`).
     pub seated_look_limit_deg: f32,
+    /// The view's vertical field of view (on foot and seated).
+    pub view_fov_deg: f32,
 }
 
 impl Default for PilotConfig {
@@ -49,6 +51,7 @@ impl Default for PilotConfig {
             board_reach_m: 25.0,
             climb_speed_m_s: 7.0,
             seated_look_limit_deg: 90.0,
+            view_fov_deg: 75.0,
         }
     }
 }
@@ -65,6 +68,7 @@ impl Validate for PilotConfig {
         positive("board_reach_m", self.board_reach_m)?;
         positive("climb_speed_m_s", self.climb_speed_m_s)?;
         within("seated_look_limit_deg", self.seated_look_limit_deg, 1.0, 179.0)?;
+        within("view_fov_deg", self.view_fov_deg, 30.0, 120.0)?;
         Ok(())
     }
 }

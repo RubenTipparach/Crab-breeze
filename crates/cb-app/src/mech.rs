@@ -920,7 +920,12 @@ pub fn step_mech(
                     ..default()
                 }
             } else if seated && sim.hatch.can_walk() {
-                fire = [actions.fire[0], actions.fire[1], actions.fire_missile];
+                // Free look is for pressing the cockpit's MFDs: the guns hold (cockpit-mfds).
+                fire = if actions.free_look {
+                    [false; 3]
+                } else {
+                    [actions.fire[0], actions.fire[1], actions.fire_missile]
+                };
                 // The torso turns to follow where the pilot looks (the view leads, the torso
                 // follows); holding free look keeps the torso where it is.
                 let mut c = MechControls::from_actions(&actions);
