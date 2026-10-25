@@ -1,6 +1,7 @@
 //! The capture instrument (`pilot-boarding` design section 4; CLAUDE.md section 4 allows it as a
-//! measurement instrument): `--stills <dir>` writes stills from the street and the cockpit and
-//! logs frame time over a stride, then exits. It only writes input actions, as a player would,
+//! measurement instrument): `--stills <dir>` writes stills from the street and the cockpit, logs
+//! frame time over a stride, looks up at the clouds and jets into one for the rain on the glass
+//! (`cloud-puffs`, `cloud-rain`), then exits. It only writes input actions, as a player would,
 //! except for placing the pilot at the start of the street shot. It moves into the scripted pilot
 //! (`playtest-pipeline`) when that lands.
 //!
@@ -13,8 +14,10 @@
 //! breaks through the game's own shell.
 
 use crate::input::InputAccum;
-use crate::mech::MechAccessNow;
+use crate::mech::{MechAccessNow, MechSim, Piloted};
 use crate::pilot::PilotSim;
+use crate::showcase::{fly_to_cloud, nearest_cloud};
+use crate::sim::Data;
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use cb_core::input::Actions;
@@ -33,6 +36,11 @@ struct Script {
     beat: usize,
     beat_started_s: f32,
     frames_ms: Vec<f32>,
+    cloud: Vec3,
+    in_cloud_s: f32,
+    shot_near: bool,
+    shot_climb: bool,
+    start_y_m: f32,
     /// The building variant's demolition (`demolition`), once its building is picked.
     buildings: Option<crate::demolition::Demolition>,
     /// The street tour before the demolition: how many of its shots are taken.
@@ -55,6 +63,11 @@ impl Plugin for StillsPlugin {
             beat: 0,
             beat_started_s: 0.0,
             frames_ms: Vec::new(),
+            cloud: Vec3::ZERO,
+            in_cloud_s: 0.0,
+            shot_near: false,
+            shot_climb: false,
+            start_y_m: 0.0,
             buildings: None,
             tour_done: 0,
             tour_settled_s: None,
@@ -239,6 +252,8 @@ fn run_script(
     ready: Res<crate::loading::GameReady>,
     settled: Res<crate::buildings::DressingSettled>,
     enemies: Query<&GlobalTransform, With<crate::mech::Enemy>>,
+    mechs: Query<&MechSim, With<Piloted>>,
+    data: Res<Data>,
     time: Res<Time<Real>>,
     game_time: Res<Time<Virtual>>,
     mut exit: MessageWriter<AppExit>,
@@ -369,8 +384,48 @@ fn run_script(
                 next = true;
             }
         }
+        // Stop and look up through the front screens at the clouds (cloud-puffs).
+        6 => {
+            let Some(m) = mechs.iter().next().map(|s| &s.curr) else { return };
+            acc.script = Some(Actions {
+                throttle_zero: in_beat < 0.1,
+                look_delta_deg: Vec2::new(0.0, (0.3 - m.aim_pitch_rad).to_degrees() * 0.2),
+                ..default()
+            });
+            if in_beat > 6.0 {
+                shoot(&mut commands, &script.dir, "sky.png");
+                script.cloud = nearest_cloud(&plan, m);
+                script.start_y_m = m.pos.y;
+                next = true;
+            }
+        }
+        // Rockets up and skates across into the nearest cloud: one still 400 m up, clear of the
+        // roofs, one on the way in, one after 2.5 s inside, when the glass is wet (cloud-rain). The
+        // limit is in real seconds and generous: a software renderer runs the simulation slower.
+        7 => {
+            let Some(m) = mechs.iter().next().map(|s| &s.curr) else { return };
+            acc.script = Some(fly_to_cloud(m, script.cloud));
+            let eye = m.pos + Vec3::Y * data.0.mech.body.eye_height_m;
+            if !script.shot_climb && m.pos.y - script.start_y_m > 400.0 {
+                shoot(&mut commands, &script.dir, "climb.png");
+                script.shot_climb = true;
+            }
+            if !script.shot_near && Vec2::new(eye.x, eye.z).distance(Vec2::new(script.cloud.x, script.cloud.z)) < 700.0 {
+                shoot(&mut commands, &script.dir, "cloud-near.png");
+                script.shot_near = true;
+            }
+            if plan.clouds.density_at(eye, now) > 0.05 {
+                // Game time, as the glass wets by it.
+                script.in_cloud_s += game_time.delta_secs();
+            }
+            if script.in_cloud_s > 2.5 || in_beat > 900.0 || m.boost.locked {
+                info!("capture: {:.1} s in the cloud", script.in_cloud_s);
+                shoot(&mut commands, &script.dir, "cloud-rain.png");
+                next = true;
+            }
+        }
         // A few frames after the last shot, so its readback lands even at a software renderer's frame rate.
-        6 if in_beat > 1.5 && {
+        8 if in_beat > 1.5 && {
             *exit_frames += 1;
             *exit_frames > 6
         } =>

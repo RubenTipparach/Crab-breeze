@@ -88,6 +88,12 @@ pub struct LocomotionConfig {
     pub water_climb_m_s: f32,
     /// How hard water brakes the mech's motion through it (sinking, entering at speed).
     pub water_drag_m_s2: f32,
+    /// The skates ride water only deeper than this share of the mech's height; shallower water
+    /// is waded or walked, skates or not (owner, 2026-10-24: "The skis only kicking if you're above
+    /// water deeper than 50% of the mech").
+    pub skim_depth_share: f32,
+    /// How fast a wading mech with its skates on rises to the surface once the water is deep enough.
+    pub skim_rise_m_s: f32,
 }
 
 impl Default for LocomotionConfig {
@@ -116,6 +122,8 @@ impl Default for LocomotionConfig {
             water_sink_m_s: 4.0,
             water_climb_m_s: 10.0,
             water_drag_m_s2: 30.0,
+            skim_depth_share: 0.5,
+            skim_rise_m_s: 6.0,
         }
     }
 }
@@ -449,6 +457,8 @@ impl Validate for MechConfig {
         positive("locomotion.water_sink_m_s", l.water_sink_m_s)?;
         positive("locomotion.water_climb_m_s", l.water_climb_m_s)?;
         positive("locomotion.water_drag_m_s2", l.water_drag_m_s2)?;
+        within("locomotion.skim_depth_share", l.skim_depth_share, 0.0, 2.0)?;
+        positive("locomotion.skim_rise_m_s", l.skim_rise_m_s)?;
         let g = &self.gait;
         positive("gait.stride_max_m", g.stride_max_m)?;
         positive("gait.stride_min_m", g.stride_min_m)?;
