@@ -9,10 +9,12 @@
 //! `cb-core`'s `Frame`.
 
 use bevy::asset::RenderAssetUsages;
-use bevy::pbr::{ExtendedMaterial, MaterialExtension};
+use bevy::mesh::MeshVertexBufferLayoutRef;
+use bevy::pbr::{ExtendedMaterial, MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline};
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssets;
-use bevy::render::render_resource::AsBindGroup;
+use bevy::render::render_resource::{AsBindGroup, RenderPipelineDescriptor, SpecializedMeshPipelineError};
+use bevy::shader::ShaderDefVal;
 use bevy::render::renderer::RenderQueue;
 use bevy::render::storage::{GpuShaderBuffer, ShaderBuffer};
 use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderSystems};
@@ -22,6 +24,7 @@ use std::collections::HashMap;
 
 const SHADER: &str = "shaders/building_state.wesl";
 const PREPASS_SHADER: &str = "shaders/building_state_prepass.wesl";
+const SURFACE_SHADER: &str = "shaders/building_surface.wesl";
 
 /// Words the shared buffer starts with (256 KB; a 60-storey tower is about 6,000), doubled when
 /// full.
@@ -36,6 +39,9 @@ pub struct ElementState {
     /// The words (`BuildingStates`).
     #[storage(100, read_only)]
     pub standing: Handle<ShaderBuffer>,
+    /// 1 for glass: it takes no screen-space ambient occlusion (`building_surface.wesl`).
+    #[uniform(105)]
+    pub no_ssao: u32,
 }
 
 impl MaterialExtension for ElementState {
@@ -45,6 +51,26 @@ impl MaterialExtension for ElementState {
 
     fn prepass_vertex_shader() -> ShaderRef {
         PREPASS_SHADER.into()
+    }
+
+    fn fragment_shader() -> ShaderRef {
+        SURFACE_SHADER.into()
+    }
+
+    // Never load the surface normal from the normal prepass (SSAO's): Bevy does for every material
+    // when the view has one, and glass is not in that prepass, so a window read the normal of the
+    // floor or room wall behind it and reflected the sky along it (the windows looked see-through,
+    // with white wedges, 2026-10-24 stills). Bevy drops it for its own transmissive materials only.
+    fn specialize(
+        _pipeline: &MaterialExtensionPipeline,
+        descriptor: &mut RenderPipelineDescriptor,
+        _layout: &MeshVertexBufferLayoutRef,
+        _key: MaterialExtensionKey<Self>,
+    ) -> Result<(), SpecializedMeshPipelineError> {
+        if let Some(fragment) = descriptor.fragment.as_mut() {
+            fragment.shader_defs.retain(|d| d != &ShaderDefVal::from("LOAD_PREPASS_NORMALS"));
+        }
+        Ok(())
     }
 }
 
@@ -178,7 +204,10 @@ mod tests {
             return;
         };
         // The main pass of a textured surface (normals, UVs, tangents, colours), and of a plain one.
+        // Bevy's mesh pipeline always sets MESH_PIPELINE and VERTEX_OUTPUT_INSTANCE_INDEX.
         let base = [
+            ("MESH_PIPELINE", true),
+            ("VERTEX_OUTPUT_INSTANCE_INDEX", true),
             ("VERTEX_POSITIONS", true),
             ("VERTEX_NORMALS", true),
             ("VERTEX_UVS_A", true),
@@ -199,6 +228,18 @@ mod tests {
                 ("UNCLIPPED_DEPTH_ORTHO_EMULATION", clamp),
             ]);
             compile(&resolver, "building_state_prepass", &flags);
+        }
+        // The building fragment as the pilot's eyes draw it (SSAO, fog) and the plainest.
+        for (ssao, fog) in [(true, true), (false, false)] {
+            let mut flags = base.to_vec();
+            flags.extend([
+                ("VERTEX_TANGENTS", true),
+                ("CLUSTERED_FORWARD_STORAGE_BUFFER", true),
+                ("DEPTH_PREPASS", true),
+                ("SCREEN_SPACE_AMBIENT_OCCLUSION", ssao),
+                ("DISTANCE_FOG", fog),
+            ]);
+            compile(&resolver, "building_surface", &flags);
         }
     }
 
