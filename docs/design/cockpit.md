@@ -193,8 +193,8 @@ is a chain of `INNER_<part>` nodes, one a stage, with the block-out's pivots and
 | --- | --- | --- | --- |
 | `panorama` | Foreman | 25,056 | Clamshell: the lower front drops to a step, then the upper front swings up and out with the dash |
 | `titan` | Roustabout (new) | 24,984 | The top half rises past the roof and tilts back; the bottom half drops as a step with the dash |
-| `cab` | Ironhorse | 19,506 | The whole front drops forward as a ramp; screens floor to roof in two rows and one in the floor |
-| `canopy` | Harrow (new) | 25,034 | A fighter's canopy: everything above the sill lifts off its seal and tilts up on its back edge; screens overhead too |
+| `cab` | Ironhorse, Mule | 27,720 | The whole front drops forward as a ramp with the dash on it; screens floor to roof in two rows and one in the floor |
+| `canopy` | Harrow (new) | 25,352 | A fighter's canopy: everything above the sill lifts off its seal and tilts up on its back edge; screens overhead too |
 
 **The chest and the cockpit open as one body** (owner, 2026-10-24, on the Foreman: "it's cockpit has a problem when
 opening. It needs to follow the titan style or panorama style"). Before, the chest armour opened on its own hinges
@@ -203,6 +203,16 @@ each opening part of the interior (`cockpit_hull.parts`), cuts the armour in fro
 and hangs that piece on a chain of joints with the part's own stages, hinged on the armour's outer edge. The interior
 part rides the last joint (`cockpit.rides` in the mech's extras), so armour and cabin wall move together. The box's
 sides are planes across the hinge, so a piece swinging on it never passes through what stays.
+
+**All four at the Foreman's standard, 2026-10-25** (owner: "bring all other implemented mechs in game up to the gold
+standard that is the Foreman, rendered cockpits with baked lighting, fully functioning MFDs";
+`openspec/changes/cockpit-parity`). The Cab had no dash (three live screens) and the rail between its two screen rows
+crossed the view 8.5 cm under the eye; the Canopy had no hanging MFDs. Now the Cab carries the Panorama's dash at the
+Panorama's height, riding its ramp (it lands face up as the step out), with its rows split at 0.955 m, behind the
+glare shield seen from the eye; the Canopy hangs its three MFDs above its low front screen on the bubble's front slope
+(`mfd_top_m`, 22 cm in, centres at 1.58 m). Both are re-baked at 4096 px. Every cockpit now has the same six live
+screens (three hung, three on the dash), and `cb-tools validate` refuses an interior without them, its eye, seat, four
+lamps or a part it is asked to ride.
 
 **The cube map is only for the cockpit's reflections** (owner, 2026-10-24: "Cube map is only for cockpit reflections
 btw"). `crates/cb-app/src/screens_cube.rs` renders the outside round the eye into a cube that lights the cabin and

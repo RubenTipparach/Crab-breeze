@@ -27,6 +27,7 @@ fn motion(kind: ParticleKind) -> (f32, f32, f32, bool) {
         ParticleKind::Debris => (9.81, 0.3, 0.8, false),
         ParticleKind::Rubble => (9.81, 0.2, 0.0, false),
         ParticleKind::Trail => (-0.1, 0.6, 0.3, false),
+        ParticleKind::Mist => (0.4, 1.8, 1.4, false),
     }
 }
 
@@ -100,6 +101,13 @@ fn colour_over_life(kind: ParticleKind) -> Vec<(f32, Vec4)> {
             (0.5, v(1.45, 1.43, 1.4, 0.45)),
             (1.0, v(1.4, 1.38, 1.35, 0.0)),
         ],
+        // Cold mist: a faint blue-white that thickens as it spreads, then thins.
+        ParticleKind::Mist => vec![
+            (0.0, v(0.82, 0.88, 0.92, 0.0)),
+            (0.2, v(0.82, 0.88, 0.92, 0.22)),
+            (0.7, v(0.85, 0.89, 0.92, 0.16)),
+            (1.0, v(0.85, 0.89, 0.92, 0.0)),
+        ],
     }
 }
 
@@ -107,7 +115,7 @@ fn colour_over_life(kind: ParticleKind) -> Vec<(f32, Vec4)> {
 /// for the soft disc. One table, so a new kind names its sheet here.
 pub fn sheet(kind: ParticleKind) -> Option<&'static str> {
     match kind {
-        ParticleKind::Smoke | ParticleKind::Steam | ParticleKind::Trail => Some("smoke_puffs"),
+        ParticleKind::Smoke | ParticleKind::Steam | ParticleKind::Mist | ParticleKind::Trail => Some("smoke_puffs"),
         ParticleKind::Fire | ParticleKind::Flame => Some("fire_flipbook"),
         ParticleKind::Dust => Some("dust_wisps"),
         ParticleKind::Dirt | ParticleKind::Debris | ParticleKind::Rubble => Some("dirt_clods"),
@@ -136,11 +144,11 @@ struct BurstSpec {
     life_s: f32,
 }
 
-/// Effect assets by (recipe, layer, particle count); a continuous trail by recipe and layer.
+/// Effect assets by (recipe, layer, particle count); a continuous trail by recipe, layer and rate.
 #[derive(Resource, Default)]
 pub struct ParticleLibrary {
     bursts: HashMap<(&'static str, usize, u32), Handle<EffectAsset>>,
-    trails: HashMap<(&'static str, usize), Handle<EffectAsset>>,
+    trails: HashMap<(&'static str, usize, u32), Handle<EffectAsset>>,
     disc: Handle<Image>,
     /// Copies of the disc, one per blended burst in turn (see `set_sprite`).
     discs: Vec<Handle<Image>>,
@@ -405,7 +413,8 @@ pub fn burst(
 }
 
 /// A steady stream of recipe `recipe`'s layer `index` at `rate` a second (a rocket's smoke trail),
-/// to ride an entity; switch it with `EffectSpawner::active`.
+/// to ride an entity; switch it with `EffectSpawner::active`. It carries its properties (the size
+/// scale, 1) as a burst does: an effect whose module declares a property draws nothing without them.
 pub fn stream(
     lib: &mut ParticleLibrary,
     effects: &mut Assets<EffectAsset>,
@@ -413,22 +422,25 @@ pub fn stream(
     index: usize,
     layer: &Layer,
     rate: f32,
-) -> Option<(ParticleEffect, EffectMaterial)> {
+) -> Option<(ParticleEffect, EffectMaterial, EffectProperties)> {
     let spec = spec_of(layer)?;
     let sheet = lib.has_sheet(spec.kind);
     let handle = lib
         .trails
-        .entry((recipe, index))
+        .entry((recipe, index, rate.to_bits()))
         .or_insert_with(|| {
             let capacity = (rate * spec.life_s * 1.4).ceil() as u32;
             effects.add(build(spec, SpawnerSettings::rate(rate.into()), capacity, sheet))
         })
         .clone();
+    let mut props = EffectProperties::default();
+    props.set("size_scale", 1.0.into());
     Some((
         ParticleEffect::new(handle),
         EffectMaterial {
             images: vec![lib.sprite(spec.kind, false)],
         },
+        props,
     ))
 }
 

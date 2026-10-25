@@ -1,0 +1,2564 @@
+<?xml version="1.0"?>
+<!DOCTYPE lmms-project>
+<lmms-project version="1.0" type="song" creator="LMMS" creatorversion="1.2.2">
+<head timesig_numerator="4" mastervol="50" masterpitch="0" timesig_denominator="4" bpm="132"/>
+<song>
+<trackcontainer type="song" width="600" maximized="0" height="300" x="5" y="5" visible="1">
+<track muted="0" type="0" name="square" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="16" basenote="69" pan="0" fxch="0" usemasterpitch="1">
+
+      <instrument name="tripleoscillator">
+        <tripleoscillator phoffset2="0" userwavefile0="samples/empty.wav" userwavefile1="samples/empty.wav" finer0="0" userwavefile2="samples/empty.wav" finer1="8" finer2="0" coarse0="0" coarse1="12" coarse2="0" finel0="0" finel1="-8" modalgo1="2" finel2="0" modalgo2="2" pan0="0" modalgo3="0" pan1="0" stphdetun0="0" pan2="0" stphdetun1="0" wavetype0="2" stphdetun2="0" wavetype1="3" wavetype2="6" vol0="100" vol1="100" phoffset0="0" phoffset1="54" vol2="1"/>
+      </instrument>
+      <eldata fres="0.87" ftype="6" fcut="92" fwet="0">
+        <elvol lspd_denominator="1" userwavefile="" pdel="0" dec="0" lamt="0" syncmode="0" latt="0" rel="0.332" sus="0" amt="1" x100="0" att="0" lpdel="0" hold="0" lshp="0" lspd="0.1" ctlenvamt="0" lspd_numerator="1"/>
+        <elcut lspd_denominator="1" userwavefile="" pdel="0" dec="0.174" lamt="0" syncmode="0" latt="0" rel="0" sus="0.999" amt="0" x100="0" att="0.101" lpdel="0" hold="0" lshp="1" lspd="0.1178" ctlenvamt="0" lspd_numerator="1"/>
+        <elres lspd_denominator="1" userwavefile="" pdel="0" dec="0.5" lamt="0" syncmode="0" latt="0" rel="0.1" sus="0.5" amt="0" x100="0" att="0" lpdel="0" hold="0.5" lshp="0" lspd="0.1" ctlenvamt="0" lspd_numerator="1"/>
+      </eldata>
+      <chordcreator chord="0" chordrange="1" chord-enabled="1"/>
+      <arpeggiator arptime="165" arprange="1" arptime_denominator="1" syncmode="0" arpmode="0" arp-enabled="0" arp="0" arptime_numerator="1" arpdir="0" arpgate="72"/>
+      <midiport inputcontroller="0" inputchannel="0" outputcontroller="0" writable="0" outputchannel="1" defvelout="0" readable="0" defvelin="0"/>
+      <fxchain numofeffects="0" enabled="0"/>
+    
+</instrumenttrack>
+<pattern muted="0" type="1" name="square" pos="0" len="9216" steps="16">
+<note pan="0" key="57" vol="63" pos="0" len="35"/>
+<note pan="0" key="57" vol="63" pos="48" len="11"/>
+<note pan="0" key="57" vol="63" pos="72" len="35"/>
+<note pan="0" key="57" vol="63" pos="120" len="11"/>
+<note pan="0" key="50" vol="63" pos="168" len="35"/>
+<note pan="0" key="50" vol="63" pos="216" len="11"/>
+<note pan="0" key="50" vol="63" pos="240" len="11"/>
+<note pan="0" key="50" vol="63" pos="264" len="11"/>
+<note pan="0" key="57" vol="63" pos="384" len="35"/>
+<note pan="0" key="57" vol="63" pos="432" len="11"/>
+<note pan="0" key="57" vol="63" pos="456" len="35"/>
+<note pan="0" key="57" vol="63" pos="504" len="11"/>
+<note pan="0" key="50" vol="63" pos="552" len="35"/>
+<note pan="0" key="50" vol="63" pos="600" len="11"/>
+<note pan="0" key="50" vol="63" pos="624" len="11"/>
+<note pan="0" key="50" vol="63" pos="648" len="11"/>
+</pattern>
+</track>
+<track muted="0" type="0" name="gm_glockenspiel" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="127" basenote="57" pan="20" fxch="0" usemasterpitch="1">
+<instrument name="sf2player">
+<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="9" bank="0" gain="1" reverbOn="1" reverbLevel="0.45" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+</instrument>
+<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
+<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+</eldata>
+<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
+<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
+<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
+<fxchain numofeffects="0" enabled="0"/>
+</instrumenttrack>
+<pattern muted="0" type="1" name="gm_glockenspiel" pos="0" len="9216" steps="16">
+<note pan="0" key="69" vol="55" pos="0" len="35"/>
+<note pan="0" key="69" vol="55" pos="48" len="11"/>
+<note pan="0" key="69" vol="55" pos="72" len="35"/>
+<note pan="0" key="69" vol="55" pos="120" len="11"/>
+<note pan="0" key="62" vol="55" pos="168" len="35"/>
+<note pan="0" key="62" vol="55" pos="216" len="11"/>
+<note pan="0" key="62" vol="55" pos="240" len="11"/>
+<note pan="0" key="62" vol="55" pos="264" len="11"/>
+<note pan="0" key="69" vol="55" pos="384" len="35"/>
+<note pan="0" key="69" vol="55" pos="432" len="11"/>
+<note pan="0" key="69" vol="55" pos="456" len="35"/>
+<note pan="0" key="69" vol="55" pos="504" len="11"/>
+<note pan="0" key="62" vol="55" pos="552" len="35"/>
+<note pan="0" key="62" vol="55" pos="600" len="11"/>
+<note pan="0" key="62" vol="55" pos="624" len="11"/>
+<note pan="0" key="62" vol="55" pos="648" len="11"/>
+</pattern>
+</track>
+<track muted="0" type="0" name="gm_pad_warm" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="200" basenote="57" pan="0" fxch="0" usemasterpitch="1">
+<instrument name="sf2player">
+<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="89" bank="0" gain="1" reverbOn="1" reverbLevel="0.45" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+</instrument>
+<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
+<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+</eldata>
+<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
+<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
+<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
+<fxchain numofeffects="0" enabled="0"/>
+</instrumenttrack>
+<pattern muted="0" type="1" name="gm_pad_warm" pos="0" len="9216" steps="16">
+<note pan="0" key="38" vol="55" pos="0" len="191"/>
+<note pan="0" key="45" vol="55" pos="0" len="191"/>
+<note pan="0" key="52" vol="55" pos="0" len="191"/>
+<note pan="0" key="38" vol="55" pos="192" len="191"/>
+<note pan="0" key="45" vol="55" pos="192" len="191"/>
+<note pan="0" key="52" vol="55" pos="192" len="191"/>
+<note pan="0" key="38" vol="55" pos="384" len="191"/>
+<note pan="0" key="45" vol="55" pos="384" len="191"/>
+<note pan="0" key="52" vol="55" pos="384" len="191"/>
+<note pan="0" key="38" vol="55" pos="576" len="191"/>
+<note pan="0" key="45" vol="55" pos="576" len="191"/>
+<note pan="0" key="52" vol="55" pos="576" len="191"/>
+</pattern>
+</track>
+<track muted="0" type="0" name="gm_string_ensemble_1" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="106" basenote="57" pan="-10" fxch="0" usemasterpitch="1">
+<instrument name="sf2player">
+<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="48" bank="0" gain="1" reverbOn="1" reverbLevel="0.45" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+</instrument>
+<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
+<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+</eldata>
+<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
+<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
+<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
+<fxchain numofeffects="0" enabled="0"/>
+</instrumenttrack>
+<pattern muted="0" type="1" name="gm_string_ensemble_1" pos="0" len="9216" steps="16">
+<note pan="0" key="26" vol="47" pos="0" len="191"/>
+<note pan="0" key="33" vol="47" pos="0" len="191"/>
+<note pan="0" key="26" vol="47" pos="192" len="191"/>
+<note pan="0" key="33" vol="47" pos="192" len="191"/>
+<note pan="0" key="26" vol="47" pos="384" len="191"/>
+<note pan="0" key="33" vol="47" pos="384" len="191"/>
+<note pan="0" key="26" vol="47" pos="576" len="191"/>
+<note pan="0" key="33" vol="47" pos="576" len="191"/>
+<note pan="0" key="38" vol="94" pos="768" len="23"/>
+<note pan="0" key="41" vol="94" pos="768" len="23"/>
+<note pan="0" key="45" vol="94" pos="768" len="23"/>
+<note pan="0" key="38" vol="94" pos="840" len="23"/>
+<note pan="0" key="41" vol="94" pos="840" len="23"/>
+<note pan="0" key="45" vol="94" pos="840" len="23"/>
+<note pan="0" key="38" vol="94" pos="912" len="23"/>
+<note pan="0" key="41" vol="94" pos="912" len="23"/>
+<note pan="0" key="45" vol="94" pos="912" len="23"/>
+<note pan="0" key="34" vol="94" pos="960" len="23"/>
+<note pan="0" key="38" vol="94" pos="960" len="23"/>
+<note pan="0" key="41" vol="94" pos="960" len="23"/>
+<note pan="0" key="34" vol="94" pos="1032" len="23"/>
+<note pan="0" key="38" vol="94" pos="1032" len="23"/>
+<note pan="0" key="41" vol="94" pos="1032" len="23"/>
+<note pan="0" key="34" vol="94" pos="1104" len="23"/>
+<note pan="0" key="38" vol="94" pos="1104" len="23"/>
+<note pan="0" key="41" vol="94" pos="1104" len="23"/>
+<note pan="0" key="41" vol="94" pos="1152" len="23"/>
+<note pan="0" key="45" vol="94" pos="1152" len="23"/>
+<note pan="0" key="48" vol="94" pos="1152" len="23"/>
+<note pan="0" key="41" vol="94" pos="1224" len="23"/>
+<note pan="0" key="45" vol="94" pos="1224" len="23"/>
+<note pan="0" key="48" vol="94" pos="1224" len="23"/>
+<note pan="0" key="41" vol="94" pos="1296" len="23"/>
+<note pan="0" key="45" vol="94" pos="1296" len="23"/>
+<note pan="0" key="48" vol="94" pos="1296" len="23"/>
+<note pan="0" key="36" vol="94" pos="1344" len="23"/>
+<note pan="0" key="40" vol="94" pos="1344" len="23"/>
+<note pan="0" key="43" vol="94" pos="1344" len="23"/>
+<note pan="0" key="36" vol="94" pos="1416" len="23"/>
+<note pan="0" key="40" vol="94" pos="1416" len="23"/>
+<note pan="0" key="43" vol="94" pos="1416" len="23"/>
+<note pan="0" key="36" vol="94" pos="1488" len="23"/>
+<note pan="0" key="40" vol="94" pos="1488" len="23"/>
+<note pan="0" key="43" vol="94" pos="1488" len="23"/>
+<note pan="0" key="38" vol="94" pos="1536" len="23"/>
+<note pan="0" key="41" vol="94" pos="1536" len="23"/>
+<note pan="0" key="45" vol="94" pos="1536" len="23"/>
+<note pan="0" key="38" vol="94" pos="1608" len="23"/>
+<note pan="0" key="41" vol="94" pos="1608" len="23"/>
+<note pan="0" key="45" vol="94" pos="1608" len="23"/>
+<note pan="0" key="38" vol="94" pos="1680" len="23"/>
+<note pan="0" key="41" vol="94" pos="1680" len="23"/>
+<note pan="0" key="45" vol="94" pos="1680" len="23"/>
+<note pan="0" key="34" vol="94" pos="1728" len="23"/>
+<note pan="0" key="38" vol="94" pos="1728" len="23"/>
+<note pan="0" key="41" vol="94" pos="1728" len="23"/>
+<note pan="0" key="34" vol="94" pos="1800" len="23"/>
+<note pan="0" key="38" vol="94" pos="1800" len="23"/>
+<note pan="0" key="41" vol="94" pos="1800" len="23"/>
+<note pan="0" key="34" vol="94" pos="1872" len="23"/>
+<note pan="0" key="38" vol="94" pos="1872" len="23"/>
+<note pan="0" key="41" vol="94" pos="1872" len="23"/>
+<note pan="0" key="31" vol="94" pos="1920" len="23"/>
+<note pan="0" key="34" vol="94" pos="1920" len="23"/>
+<note pan="0" key="38" vol="94" pos="1920" len="23"/>
+<note pan="0" key="31" vol="94" pos="1992" len="23"/>
+<note pan="0" key="34" vol="94" pos="1992" len="23"/>
+<note pan="0" key="38" vol="94" pos="1992" len="23"/>
+<note pan="0" key="31" vol="94" pos="2064" len="23"/>
+<note pan="0" key="34" vol="94" pos="2064" len="23"/>
+<note pan="0" key="38" vol="94" pos="2064" len="23"/>
+<note pan="0" key="33" vol="94" pos="2112" len="23"/>
+<note pan="0" key="37" vol="94" pos="2112" len="23"/>
+<note pan="0" key="40" vol="94" pos="2112" len="23"/>
+<note pan="0" key="33" vol="94" pos="2184" len="23"/>
+<note pan="0" key="37" vol="94" pos="2184" len="23"/>
+<note pan="0" key="40" vol="94" pos="2184" len="23"/>
+<note pan="0" key="33" vol="94" pos="2256" len="23"/>
+<note pan="0" key="37" vol="94" pos="2256" len="23"/>
+<note pan="0" key="40" vol="94" pos="2256" len="23"/>
+<note pan="0" key="38" vol="94" pos="2304" len="23"/>
+<note pan="0" key="41" vol="94" pos="2304" len="23"/>
+<note pan="0" key="45" vol="94" pos="2304" len="23"/>
+<note pan="0" key="38" vol="94" pos="2376" len="23"/>
+<note pan="0" key="41" vol="94" pos="2376" len="23"/>
+<note pan="0" key="45" vol="94" pos="2376" len="23"/>
+<note pan="0" key="38" vol="94" pos="2448" len="23"/>
+<note pan="0" key="41" vol="94" pos="2448" len="23"/>
+<note pan="0" key="45" vol="94" pos="2448" len="23"/>
+<note pan="0" key="34" vol="94" pos="2496" len="23"/>
+<note pan="0" key="38" vol="94" pos="2496" len="23"/>
+<note pan="0" key="41" vol="94" pos="2496" len="23"/>
+<note pan="0" key="34" vol="94" pos="2568" len="23"/>
+<note pan="0" key="38" vol="94" pos="2568" len="23"/>
+<note pan="0" key="41" vol="94" pos="2568" len="23"/>
+<note pan="0" key="34" vol="94" pos="2640" len="23"/>
+<note pan="0" key="38" vol="94" pos="2640" len="23"/>
+<note pan="0" key="41" vol="94" pos="2640" len="23"/>
+<note pan="0" key="41" vol="94" pos="2688" len="23"/>
+<note pan="0" key="45" vol="94" pos="2688" len="23"/>
+<note pan="0" key="48" vol="94" pos="2688" len="23"/>
+<note pan="0" key="41" vol="94" pos="2760" len="23"/>
+<note pan="0" key="45" vol="94" pos="2760" len="23"/>
+<note pan="0" key="48" vol="94" pos="2760" len="23"/>
+<note pan="0" key="41" vol="94" pos="2832" len="23"/>
+<note pan="0" key="45" vol="94" pos="2832" len="23"/>
+<note pan="0" key="48" vol="94" pos="2832" len="23"/>
+<note pan="0" key="36" vol="94" pos="2880" len="23"/>
+<note pan="0" key="40" vol="94" pos="2880" len="23"/>
+<note pan="0" key="43" vol="94" pos="2880" len="23"/>
+<note pan="0" key="36" vol="94" pos="2952" len="23"/>
+<note pan="0" key="40" vol="94" pos="2952" len="23"/>
+<note pan="0" key="43" vol="94" pos="2952" len="23"/>
+<note pan="0" key="36" vol="94" pos="3024" len="23"/>
+<note pan="0" key="40" vol="94" pos="3024" len="23"/>
+<note pan="0" key="43" vol="94" pos="3024" len="23"/>
+<note pan="0" key="31" vol="94" pos="3072" len="23"/>
+<note pan="0" key="34" vol="94" pos="3072" len="23"/>
+<note pan="0" key="38" vol="94" pos="3072" len="23"/>
+<note pan="0" key="31" vol="94" pos="3144" len="23"/>
+<note pan="0" key="34" vol="94" pos="3144" len="23"/>
+<note pan="0" key="38" vol="94" pos="3144" len="23"/>
+<note pan="0" key="31" vol="94" pos="3216" len="23"/>
+<note pan="0" key="34" vol="94" pos="3216" len="23"/>
+<note pan="0" key="38" vol="94" pos="3216" len="23"/>
+<note pan="0" key="34" vol="94" pos="3264" len="23"/>
+<note pan="0" key="38" vol="94" pos="3264" len="23"/>
+<note pan="0" key="41" vol="94" pos="3264" len="23"/>
+<note pan="0" key="34" vol="94" pos="3336" len="23"/>
+<note pan="0" key="38" vol="94" pos="3336" len="23"/>
+<note pan="0" key="41" vol="94" pos="3336" len="23"/>
+<note pan="0" key="34" vol="94" pos="3408" len="23"/>
+<note pan="0" key="38" vol="94" pos="3408" len="23"/>
+<note pan="0" key="41" vol="94" pos="3408" len="23"/>
+<note pan="0" key="36" vol="94" pos="3456" len="23"/>
+<note pan="0" key="40" vol="94" pos="3456" len="23"/>
+<note pan="0" key="43" vol="94" pos="3456" len="23"/>
+<note pan="0" key="36" vol="94" pos="3528" len="23"/>
+<note pan="0" key="40" vol="94" pos="3528" len="23"/>
+<note pan="0" key="43" vol="94" pos="3528" len="23"/>
+<note pan="0" key="36" vol="94" pos="3600" len="23"/>
+<note pan="0" key="40" vol="94" pos="3600" len="23"/>
+<note pan="0" key="43" vol="94" pos="3600" len="23"/>
+<note pan="0" key="38" vol="94" pos="3648" len="23"/>
+<note pan="0" key="42" vol="94" pos="3648" len="23"/>
+<note pan="0" key="45" vol="94" pos="3648" len="23"/>
+<note pan="0" key="38" vol="94" pos="3720" len="23"/>
+<note pan="0" key="42" vol="94" pos="3720" len="23"/>
+<note pan="0" key="45" vol="94" pos="3720" len="23"/>
+<note pan="0" key="38" vol="94" pos="3792" len="23"/>
+<note pan="0" key="42" vol="94" pos="3792" len="23"/>
+<note pan="0" key="45" vol="94" pos="3792" len="23"/>
+<note pan="0" key="60" vol="126" pos="3840" len="71"/>
+<note pan="0" key="57" vol="126" pos="3912" len="23"/>
+<note pan="0" key="55" vol="126" pos="3936" len="47"/>
+<note pan="0" key="53" vol="126" pos="3984" len="47"/>
+<note pan="0" key="62" vol="126" pos="4032" len="71"/>
+<note pan="0" key="60" vol="126" pos="4104" len="23"/>
+<note pan="0" key="58" vol="126" pos="4128" len="95"/>
+<note pan="0" key="57" vol="126" pos="4224" len="71"/>
+<note pan="0" key="55" vol="126" pos="4296" len="23"/>
+<note pan="0" key="53" vol="126" pos="4320" len="47"/>
+<note pan="0" key="50" vol="126" pos="4368" len="47"/>
+<note pan="0" key="52" vol="126" pos="4416" len="47"/>
+<note pan="0" key="55" vol="126" pos="4464" len="47"/>
+<note pan="0" key="60" vol="126" pos="4512" len="95"/>
+<note pan="0" key="60" vol="126" pos="4608" len="71"/>
+<note pan="0" key="57" vol="126" pos="4680" len="23"/>
+<note pan="0" key="55" vol="126" pos="4704" len="47"/>
+<note pan="0" key="53" vol="126" pos="4752" len="47"/>
+<note pan="0" key="62" vol="126" pos="4800" len="71"/>
+<note pan="0" key="65" vol="126" pos="4872" len="23"/>
+<note pan="0" key="64" vol="126" pos="4896" len="47"/>
+<note pan="0" key="62" vol="126" pos="4944" len="47"/>
+<note pan="0" key="60" vol="126" pos="4992" len="47"/>
+<note pan="0" key="58" vol="126" pos="5040" len="47"/>
+<note pan="0" key="57" vol="126" pos="5088" len="47"/>
+<note pan="0" key="55" vol="126" pos="5136" len="47"/>
+<note pan="0" key="53" vol="126" pos="5184" len="191"/>
+<note pan="0" key="38" vol="87" pos="5376" len="23"/>
+<note pan="0" key="41" vol="87" pos="5376" len="23"/>
+<note pan="0" key="45" vol="87" pos="5376" len="23"/>
+<note pan="0" key="38" vol="87" pos="5400" len="23"/>
+<note pan="0" key="41" vol="87" pos="5400" len="23"/>
+<note pan="0" key="45" vol="87" pos="5400" len="23"/>
+<note pan="0" key="38" vol="87" pos="5424" len="23"/>
+<note pan="0" key="41" vol="87" pos="5424" len="23"/>
+<note pan="0" key="45" vol="87" pos="5424" len="23"/>
+<note pan="0" key="38" vol="87" pos="5448" len="23"/>
+<note pan="0" key="41" vol="87" pos="5448" len="23"/>
+<note pan="0" key="45" vol="87" pos="5448" len="23"/>
+<note pan="0" key="38" vol="87" pos="5472" len="23"/>
+<note pan="0" key="41" vol="87" pos="5472" len="23"/>
+<note pan="0" key="45" vol="87" pos="5472" len="23"/>
+<note pan="0" key="38" vol="87" pos="5496" len="23"/>
+<note pan="0" key="41" vol="87" pos="5496" len="23"/>
+<note pan="0" key="45" vol="87" pos="5496" len="23"/>
+<note pan="0" key="38" vol="87" pos="5520" len="23"/>
+<note pan="0" key="41" vol="87" pos="5520" len="23"/>
+<note pan="0" key="45" vol="87" pos="5520" len="23"/>
+<note pan="0" key="38" vol="87" pos="5544" len="23"/>
+<note pan="0" key="41" vol="87" pos="5544" len="23"/>
+<note pan="0" key="45" vol="87" pos="5544" len="23"/>
+<note pan="0" key="34" vol="87" pos="5568" len="23"/>
+<note pan="0" key="38" vol="87" pos="5568" len="23"/>
+<note pan="0" key="41" vol="87" pos="5568" len="23"/>
+<note pan="0" key="34" vol="87" pos="5592" len="23"/>
+<note pan="0" key="38" vol="87" pos="5592" len="23"/>
+<note pan="0" key="41" vol="87" pos="5592" len="23"/>
+<note pan="0" key="34" vol="87" pos="5616" len="23"/>
+<note pan="0" key="38" vol="87" pos="5616" len="23"/>
+<note pan="0" key="41" vol="87" pos="5616" len="23"/>
+<note pan="0" key="34" vol="87" pos="5640" len="23"/>
+<note pan="0" key="38" vol="87" pos="5640" len="23"/>
+<note pan="0" key="41" vol="87" pos="5640" len="23"/>
+<note pan="0" key="34" vol="87" pos="5664" len="23"/>
+<note pan="0" key="38" vol="87" pos="5664" len="23"/>
+<note pan="0" key="41" vol="87" pos="5664" len="23"/>
+<note pan="0" key="34" vol="87" pos="5688" len="23"/>
+<note pan="0" key="38" vol="87" pos="5688" len="23"/>
+<note pan="0" key="41" vol="87" pos="5688" len="23"/>
+<note pan="0" key="34" vol="87" pos="5712" len="23"/>
+<note pan="0" key="38" vol="87" pos="5712" len="23"/>
+<note pan="0" key="41" vol="87" pos="5712" len="23"/>
+<note pan="0" key="34" vol="87" pos="5736" len="23"/>
+<note pan="0" key="38" vol="87" pos="5736" len="23"/>
+<note pan="0" key="41" vol="87" pos="5736" len="23"/>
+<note pan="0" key="41" vol="87" pos="5760" len="23"/>
+<note pan="0" key="45" vol="87" pos="5760" len="23"/>
+<note pan="0" key="48" vol="87" pos="5760" len="23"/>
+<note pan="0" key="41" vol="87" pos="5784" len="23"/>
+<note pan="0" key="45" vol="87" pos="5784" len="23"/>
+<note pan="0" key="48" vol="87" pos="5784" len="23"/>
+<note pan="0" key="41" vol="87" pos="5808" len="23"/>
+<note pan="0" key="45" vol="87" pos="5808" len="23"/>
+<note pan="0" key="48" vol="87" pos="5808" len="23"/>
+<note pan="0" key="41" vol="87" pos="5832" len="23"/>
+<note pan="0" key="45" vol="87" pos="5832" len="23"/>
+<note pan="0" key="48" vol="87" pos="5832" len="23"/>
+<note pan="0" key="41" vol="87" pos="5856" len="23"/>
+<note pan="0" key="45" vol="87" pos="5856" len="23"/>
+<note pan="0" key="48" vol="87" pos="5856" len="23"/>
+<note pan="0" key="41" vol="87" pos="5880" len="23"/>
+<note pan="0" key="45" vol="87" pos="5880" len="23"/>
+<note pan="0" key="48" vol="87" pos="5880" len="23"/>
+<note pan="0" key="41" vol="87" pos="5904" len="23"/>
+<note pan="0" key="45" vol="87" pos="5904" len="23"/>
+<note pan="0" key="48" vol="87" pos="5904" len="23"/>
+<note pan="0" key="41" vol="87" pos="5928" len="23"/>
+<note pan="0" key="45" vol="87" pos="5928" len="23"/>
+<note pan="0" key="48" vol="87" pos="5928" len="23"/>
+<note pan="0" key="36" vol="87" pos="5952" len="23"/>
+<note pan="0" key="40" vol="87" pos="5952" len="23"/>
+<note pan="0" key="43" vol="87" pos="5952" len="23"/>
+<note pan="0" key="36" vol="87" pos="5976" len="23"/>
+<note pan="0" key="40" vol="87" pos="5976" len="23"/>
+<note pan="0" key="43" vol="87" pos="5976" len="23"/>
+<note pan="0" key="36" vol="87" pos="6000" len="23"/>
+<note pan="0" key="40" vol="87" pos="6000" len="23"/>
+<note pan="0" key="43" vol="87" pos="6000" len="23"/>
+<note pan="0" key="36" vol="87" pos="6024" len="23"/>
+<note pan="0" key="40" vol="87" pos="6024" len="23"/>
+<note pan="0" key="43" vol="87" pos="6024" len="23"/>
+<note pan="0" key="36" vol="87" pos="6048" len="23"/>
+<note pan="0" key="40" vol="87" pos="6048" len="23"/>
+<note pan="0" key="43" vol="87" pos="6048" len="23"/>
+<note pan="0" key="36" vol="87" pos="6072" len="23"/>
+<note pan="0" key="40" vol="87" pos="6072" len="23"/>
+<note pan="0" key="43" vol="87" pos="6072" len="23"/>
+<note pan="0" key="36" vol="87" pos="6096" len="23"/>
+<note pan="0" key="40" vol="87" pos="6096" len="23"/>
+<note pan="0" key="43" vol="87" pos="6096" len="23"/>
+<note pan="0" key="36" vol="87" pos="6120" len="23"/>
+<note pan="0" key="40" vol="87" pos="6120" len="23"/>
+<note pan="0" key="43" vol="87" pos="6120" len="23"/>
+<note pan="0" key="38" vol="87" pos="6144" len="23"/>
+<note pan="0" key="41" vol="87" pos="6144" len="23"/>
+<note pan="0" key="45" vol="87" pos="6144" len="23"/>
+<note pan="0" key="38" vol="87" pos="6168" len="23"/>
+<note pan="0" key="41" vol="87" pos="6168" len="23"/>
+<note pan="0" key="45" vol="87" pos="6168" len="23"/>
+<note pan="0" key="38" vol="87" pos="6192" len="23"/>
+<note pan="0" key="41" vol="87" pos="6192" len="23"/>
+<note pan="0" key="45" vol="87" pos="6192" len="23"/>
+<note pan="0" key="38" vol="87" pos="6216" len="23"/>
+<note pan="0" key="41" vol="87" pos="6216" len="23"/>
+<note pan="0" key="45" vol="87" pos="6216" len="23"/>
+<note pan="0" key="38" vol="87" pos="6240" len="23"/>
+<note pan="0" key="41" vol="87" pos="6240" len="23"/>
+<note pan="0" key="45" vol="87" pos="6240" len="23"/>
+<note pan="0" key="38" vol="87" pos="6264" len="23"/>
+<note pan="0" key="41" vol="87" pos="6264" len="23"/>
+<note pan="0" key="45" vol="87" pos="6264" len="23"/>
+<note pan="0" key="38" vol="87" pos="6288" len="23"/>
+<note pan="0" key="41" vol="87" pos="6288" len="23"/>
+<note pan="0" key="45" vol="87" pos="6288" len="23"/>
+<note pan="0" key="38" vol="87" pos="6312" len="23"/>
+<note pan="0" key="41" vol="87" pos="6312" len="23"/>
+<note pan="0" key="45" vol="87" pos="6312" len="23"/>
+<note pan="0" key="34" vol="87" pos="6336" len="23"/>
+<note pan="0" key="38" vol="87" pos="6336" len="23"/>
+<note pan="0" key="41" vol="87" pos="6336" len="23"/>
+<note pan="0" key="34" vol="87" pos="6360" len="23"/>
+<note pan="0" key="38" vol="87" pos="6360" len="23"/>
+<note pan="0" key="41" vol="87" pos="6360" len="23"/>
+<note pan="0" key="34" vol="87" pos="6384" len="23"/>
+<note pan="0" key="38" vol="87" pos="6384" len="23"/>
+<note pan="0" key="41" vol="87" pos="6384" len="23"/>
+<note pan="0" key="34" vol="87" pos="6408" len="23"/>
+<note pan="0" key="38" vol="87" pos="6408" len="23"/>
+<note pan="0" key="41" vol="87" pos="6408" len="23"/>
+<note pan="0" key="34" vol="87" pos="6432" len="23"/>
+<note pan="0" key="38" vol="87" pos="6432" len="23"/>
+<note pan="0" key="41" vol="87" pos="6432" len="23"/>
+<note pan="0" key="34" vol="87" pos="6456" len="23"/>
+<note pan="0" key="38" vol="87" pos="6456" len="23"/>
+<note pan="0" key="41" vol="87" pos="6456" len="23"/>
+<note pan="0" key="34" vol="87" pos="6480" len="23"/>
+<note pan="0" key="38" vol="87" pos="6480" len="23"/>
+<note pan="0" key="41" vol="87" pos="6480" len="23"/>
+<note pan="0" key="34" vol="87" pos="6504" len="23"/>
+<note pan="0" key="38" vol="87" pos="6504" len="23"/>
+<note pan="0" key="41" vol="87" pos="6504" len="23"/>
+<note pan="0" key="31" vol="87" pos="6528" len="23"/>
+<note pan="0" key="34" vol="87" pos="6528" len="23"/>
+<note pan="0" key="38" vol="87" pos="6528" len="23"/>
+<note pan="0" key="31" vol="87" pos="6552" len="23"/>
+<note pan="0" key="34" vol="87" pos="6552" len="23"/>
+<note pan="0" key="38" vol="87" pos="6552" len="23"/>
+<note pan="0" key="31" vol="87" pos="6576" len="23"/>
+<note pan="0" key="34" vol="87" pos="6576" len="23"/>
+<note pan="0" key="38" vol="87" pos="6576" len="23"/>
+<note pan="0" key="31" vol="87" pos="6600" len="23"/>
+<note pan="0" key="34" vol="87" pos="6600" len="23"/>
+<note pan="0" key="38" vol="87" pos="6600" len="23"/>
+<note pan="0" key="31" vol="87" pos="6624" len="23"/>
+<note pan="0" key="34" vol="87" pos="6624" len="23"/>
+<note pan="0" key="38" vol="87" pos="6624" len="23"/>
+<note pan="0" key="31" vol="87" pos="6648" len="23"/>
+<note pan="0" key="34" vol="87" pos="6648" len="23"/>
+<note pan="0" key="38" vol="87" pos="6648" len="23"/>
+<note pan="0" key="31" vol="87" pos="6672" len="23"/>
+<note pan="0" key="34" vol="87" pos="6672" len="23"/>
+<note pan="0" key="38" vol="87" pos="6672" len="23"/>
+<note pan="0" key="31" vol="87" pos="6696" len="23"/>
+<note pan="0" key="34" vol="87" pos="6696" len="23"/>
+<note pan="0" key="38" vol="87" pos="6696" len="23"/>
+<note pan="0" key="33" vol="87" pos="6720" len="23"/>
+<note pan="0" key="37" vol="87" pos="6720" len="23"/>
+<note pan="0" key="40" vol="87" pos="6720" len="23"/>
+<note pan="0" key="33" vol="87" pos="6744" len="23"/>
+<note pan="0" key="37" vol="87" pos="6744" len="23"/>
+<note pan="0" key="40" vol="87" pos="6744" len="23"/>
+<note pan="0" key="33" vol="87" pos="6768" len="23"/>
+<note pan="0" key="37" vol="87" pos="6768" len="23"/>
+<note pan="0" key="40" vol="87" pos="6768" len="23"/>
+<note pan="0" key="33" vol="87" pos="6792" len="23"/>
+<note pan="0" key="37" vol="87" pos="6792" len="23"/>
+<note pan="0" key="40" vol="87" pos="6792" len="23"/>
+<note pan="0" key="33" vol="87" pos="6816" len="23"/>
+<note pan="0" key="37" vol="87" pos="6816" len="23"/>
+<note pan="0" key="40" vol="87" pos="6816" len="23"/>
+<note pan="0" key="33" vol="87" pos="6840" len="23"/>
+<note pan="0" key="37" vol="87" pos="6840" len="23"/>
+<note pan="0" key="40" vol="87" pos="6840" len="23"/>
+<note pan="0" key="33" vol="87" pos="6864" len="23"/>
+<note pan="0" key="37" vol="87" pos="6864" len="23"/>
+<note pan="0" key="40" vol="87" pos="6864" len="23"/>
+<note pan="0" key="33" vol="87" pos="6888" len="23"/>
+<note pan="0" key="37" vol="87" pos="6888" len="23"/>
+<note pan="0" key="40" vol="87" pos="6888" len="23"/>
+<note pan="0" key="38" vol="87" pos="6912" len="23"/>
+<note pan="0" key="41" vol="87" pos="6912" len="23"/>
+<note pan="0" key="45" vol="87" pos="6912" len="23"/>
+<note pan="0" key="38" vol="87" pos="6936" len="23"/>
+<note pan="0" key="41" vol="87" pos="6936" len="23"/>
+<note pan="0" key="45" vol="87" pos="6936" len="23"/>
+<note pan="0" key="38" vol="87" pos="6960" len="23"/>
+<note pan="0" key="41" vol="87" pos="6960" len="23"/>
+<note pan="0" key="45" vol="87" pos="6960" len="23"/>
+<note pan="0" key="38" vol="87" pos="6984" len="23"/>
+<note pan="0" key="41" vol="87" pos="6984" len="23"/>
+<note pan="0" key="45" vol="87" pos="6984" len="23"/>
+<note pan="0" key="38" vol="87" pos="7008" len="23"/>
+<note pan="0" key="41" vol="87" pos="7008" len="23"/>
+<note pan="0" key="45" vol="87" pos="7008" len="23"/>
+<note pan="0" key="38" vol="87" pos="7032" len="23"/>
+<note pan="0" key="41" vol="87" pos="7032" len="23"/>
+<note pan="0" key="45" vol="87" pos="7032" len="23"/>
+<note pan="0" key="38" vol="87" pos="7056" len="23"/>
+<note pan="0" key="41" vol="87" pos="7056" len="23"/>
+<note pan="0" key="45" vol="87" pos="7056" len="23"/>
+<note pan="0" key="38" vol="87" pos="7080" len="23"/>
+<note pan="0" key="41" vol="87" pos="7080" len="23"/>
+<note pan="0" key="45" vol="87" pos="7080" len="23"/>
+<note pan="0" key="34" vol="87" pos="7104" len="23"/>
+<note pan="0" key="38" vol="87" pos="7104" len="23"/>
+<note pan="0" key="41" vol="87" pos="7104" len="23"/>
+<note pan="0" key="34" vol="87" pos="7128" len="23"/>
+<note pan="0" key="38" vol="87" pos="7128" len="23"/>
+<note pan="0" key="41" vol="87" pos="7128" len="23"/>
+<note pan="0" key="34" vol="87" pos="7152" len="23"/>
+<note pan="0" key="38" vol="87" pos="7152" len="23"/>
+<note pan="0" key="41" vol="87" pos="7152" len="23"/>
+<note pan="0" key="34" vol="87" pos="7176" len="23"/>
+<note pan="0" key="38" vol="87" pos="7176" len="23"/>
+<note pan="0" key="41" vol="87" pos="7176" len="23"/>
+<note pan="0" key="34" vol="87" pos="7200" len="23"/>
+<note pan="0" key="38" vol="87" pos="7200" len="23"/>
+<note pan="0" key="41" vol="87" pos="7200" len="23"/>
+<note pan="0" key="34" vol="87" pos="7224" len="23"/>
+<note pan="0" key="38" vol="87" pos="7224" len="23"/>
+<note pan="0" key="41" vol="87" pos="7224" len="23"/>
+<note pan="0" key="34" vol="87" pos="7248" len="23"/>
+<note pan="0" key="38" vol="87" pos="7248" len="23"/>
+<note pan="0" key="41" vol="87" pos="7248" len="23"/>
+<note pan="0" key="34" vol="87" pos="7272" len="23"/>
+<note pan="0" key="38" vol="87" pos="7272" len="23"/>
+<note pan="0" key="41" vol="87" pos="7272" len="23"/>
+<note pan="0" key="41" vol="87" pos="7296" len="23"/>
+<note pan="0" key="45" vol="87" pos="7296" len="23"/>
+<note pan="0" key="48" vol="87" pos="7296" len="23"/>
+<note pan="0" key="41" vol="87" pos="7320" len="23"/>
+<note pan="0" key="45" vol="87" pos="7320" len="23"/>
+<note pan="0" key="48" vol="87" pos="7320" len="23"/>
+<note pan="0" key="41" vol="87" pos="7344" len="23"/>
+<note pan="0" key="45" vol="87" pos="7344" len="23"/>
+<note pan="0" key="48" vol="87" pos="7344" len="23"/>
+<note pan="0" key="41" vol="87" pos="7368" len="23"/>
+<note pan="0" key="45" vol="87" pos="7368" len="23"/>
+<note pan="0" key="48" vol="87" pos="7368" len="23"/>
+<note pan="0" key="41" vol="87" pos="7392" len="23"/>
+<note pan="0" key="45" vol="87" pos="7392" len="23"/>
+<note pan="0" key="48" vol="87" pos="7392" len="23"/>
+<note pan="0" key="41" vol="87" pos="7416" len="23"/>
+<note pan="0" key="45" vol="87" pos="7416" len="23"/>
+<note pan="0" key="48" vol="87" pos="7416" len="23"/>
+<note pan="0" key="41" vol="87" pos="7440" len="23"/>
+<note pan="0" key="45" vol="87" pos="7440" len="23"/>
+<note pan="0" key="48" vol="87" pos="7440" len="23"/>
+<note pan="0" key="41" vol="87" pos="7464" len="23"/>
+<note pan="0" key="45" vol="87" pos="7464" len="23"/>
+<note pan="0" key="48" vol="87" pos="7464" len="23"/>
+<note pan="0" key="36" vol="87" pos="7488" len="23"/>
+<note pan="0" key="40" vol="87" pos="7488" len="23"/>
+<note pan="0" key="43" vol="87" pos="7488" len="23"/>
+<note pan="0" key="36" vol="87" pos="7512" len="23"/>
+<note pan="0" key="40" vol="87" pos="7512" len="23"/>
+<note pan="0" key="43" vol="87" pos="7512" len="23"/>
+<note pan="0" key="36" vol="87" pos="7536" len="23"/>
+<note pan="0" key="40" vol="87" pos="7536" len="23"/>
+<note pan="0" key="43" vol="87" pos="7536" len="23"/>
+<note pan="0" key="36" vol="87" pos="7560" len="23"/>
+<note pan="0" key="40" vol="87" pos="7560" len="23"/>
+<note pan="0" key="43" vol="87" pos="7560" len="23"/>
+<note pan="0" key="36" vol="87" pos="7584" len="23"/>
+<note pan="0" key="40" vol="87" pos="7584" len="23"/>
+<note pan="0" key="43" vol="87" pos="7584" len="23"/>
+<note pan="0" key="36" vol="87" pos="7608" len="23"/>
+<note pan="0" key="40" vol="87" pos="7608" len="23"/>
+<note pan="0" key="43" vol="87" pos="7608" len="23"/>
+<note pan="0" key="36" vol="87" pos="7632" len="23"/>
+<note pan="0" key="40" vol="87" pos="7632" len="23"/>
+<note pan="0" key="43" vol="87" pos="7632" len="23"/>
+<note pan="0" key="36" vol="87" pos="7656" len="23"/>
+<note pan="0" key="40" vol="87" pos="7656" len="23"/>
+<note pan="0" key="43" vol="87" pos="7656" len="23"/>
+<note pan="0" key="31" vol="87" pos="7680" len="23"/>
+<note pan="0" key="34" vol="87" pos="7680" len="23"/>
+<note pan="0" key="38" vol="87" pos="7680" len="23"/>
+<note pan="0" key="31" vol="87" pos="7704" len="23"/>
+<note pan="0" key="34" vol="87" pos="7704" len="23"/>
+<note pan="0" key="38" vol="87" pos="7704" len="23"/>
+<note pan="0" key="31" vol="87" pos="7728" len="23"/>
+<note pan="0" key="34" vol="87" pos="7728" len="23"/>
+<note pan="0" key="38" vol="87" pos="7728" len="23"/>
+<note pan="0" key="31" vol="87" pos="7752" len="23"/>
+<note pan="0" key="34" vol="87" pos="7752" len="23"/>
+<note pan="0" key="38" vol="87" pos="7752" len="23"/>
+<note pan="0" key="31" vol="87" pos="7776" len="23"/>
+<note pan="0" key="34" vol="87" pos="7776" len="23"/>
+<note pan="0" key="38" vol="87" pos="7776" len="23"/>
+<note pan="0" key="31" vol="87" pos="7800" len="23"/>
+<note pan="0" key="34" vol="87" pos="7800" len="23"/>
+<note pan="0" key="38" vol="87" pos="7800" len="23"/>
+<note pan="0" key="31" vol="87" pos="7824" len="23"/>
+<note pan="0" key="34" vol="87" pos="7824" len="23"/>
+<note pan="0" key="38" vol="87" pos="7824" len="23"/>
+<note pan="0" key="31" vol="87" pos="7848" len="23"/>
+<note pan="0" key="34" vol="87" pos="7848" len="23"/>
+<note pan="0" key="38" vol="87" pos="7848" len="23"/>
+<note pan="0" key="34" vol="87" pos="7872" len="23"/>
+<note pan="0" key="38" vol="87" pos="7872" len="23"/>
+<note pan="0" key="41" vol="87" pos="7872" len="23"/>
+<note pan="0" key="34" vol="87" pos="7896" len="23"/>
+<note pan="0" key="38" vol="87" pos="7896" len="23"/>
+<note pan="0" key="41" vol="87" pos="7896" len="23"/>
+<note pan="0" key="34" vol="87" pos="7920" len="23"/>
+<note pan="0" key="38" vol="87" pos="7920" len="23"/>
+<note pan="0" key="41" vol="87" pos="7920" len="23"/>
+<note pan="0" key="34" vol="87" pos="7944" len="23"/>
+<note pan="0" key="38" vol="87" pos="7944" len="23"/>
+<note pan="0" key="41" vol="87" pos="7944" len="23"/>
+<note pan="0" key="34" vol="87" pos="7968" len="23"/>
+<note pan="0" key="38" vol="87" pos="7968" len="23"/>
+<note pan="0" key="41" vol="87" pos="7968" len="23"/>
+<note pan="0" key="34" vol="87" pos="7992" len="23"/>
+<note pan="0" key="38" vol="87" pos="7992" len="23"/>
+<note pan="0" key="41" vol="87" pos="7992" len="23"/>
+<note pan="0" key="34" vol="87" pos="8016" len="23"/>
+<note pan="0" key="38" vol="87" pos="8016" len="23"/>
+<note pan="0" key="41" vol="87" pos="8016" len="23"/>
+<note pan="0" key="34" vol="87" pos="8040" len="23"/>
+<note pan="0" key="38" vol="87" pos="8040" len="23"/>
+<note pan="0" key="41" vol="87" pos="8040" len="23"/>
+<note pan="0" key="36" vol="87" pos="8064" len="23"/>
+<note pan="0" key="40" vol="87" pos="8064" len="23"/>
+<note pan="0" key="43" vol="87" pos="8064" len="23"/>
+<note pan="0" key="36" vol="87" pos="8088" len="23"/>
+<note pan="0" key="40" vol="87" pos="8088" len="23"/>
+<note pan="0" key="43" vol="87" pos="8088" len="23"/>
+<note pan="0" key="36" vol="87" pos="8112" len="23"/>
+<note pan="0" key="40" vol="87" pos="8112" len="23"/>
+<note pan="0" key="43" vol="87" pos="8112" len="23"/>
+<note pan="0" key="36" vol="87" pos="8136" len="23"/>
+<note pan="0" key="40" vol="87" pos="8136" len="23"/>
+<note pan="0" key="43" vol="87" pos="8136" len="23"/>
+<note pan="0" key="36" vol="87" pos="8160" len="23"/>
+<note pan="0" key="40" vol="87" pos="8160" len="23"/>
+<note pan="0" key="43" vol="87" pos="8160" len="23"/>
+<note pan="0" key="36" vol="87" pos="8184" len="23"/>
+<note pan="0" key="40" vol="87" pos="8184" len="23"/>
+<note pan="0" key="43" vol="87" pos="8184" len="23"/>
+<note pan="0" key="36" vol="87" pos="8208" len="23"/>
+<note pan="0" key="40" vol="87" pos="8208" len="23"/>
+<note pan="0" key="43" vol="87" pos="8208" len="23"/>
+<note pan="0" key="36" vol="87" pos="8232" len="23"/>
+<note pan="0" key="40" vol="87" pos="8232" len="23"/>
+<note pan="0" key="43" vol="87" pos="8232" len="23"/>
+<note pan="0" key="38" vol="87" pos="8256" len="23"/>
+<note pan="0" key="42" vol="87" pos="8256" len="23"/>
+<note pan="0" key="45" vol="87" pos="8256" len="23"/>
+<note pan="0" key="38" vol="87" pos="8280" len="23"/>
+<note pan="0" key="42" vol="87" pos="8280" len="23"/>
+<note pan="0" key="45" vol="87" pos="8280" len="23"/>
+<note pan="0" key="38" vol="87" pos="8304" len="23"/>
+<note pan="0" key="42" vol="87" pos="8304" len="23"/>
+<note pan="0" key="45" vol="87" pos="8304" len="23"/>
+<note pan="0" key="38" vol="87" pos="8328" len="23"/>
+<note pan="0" key="42" vol="87" pos="8328" len="23"/>
+<note pan="0" key="45" vol="87" pos="8328" len="23"/>
+<note pan="0" key="38" vol="87" pos="8352" len="23"/>
+<note pan="0" key="42" vol="87" pos="8352" len="23"/>
+<note pan="0" key="45" vol="87" pos="8352" len="23"/>
+<note pan="0" key="38" vol="87" pos="8376" len="23"/>
+<note pan="0" key="42" vol="87" pos="8376" len="23"/>
+<note pan="0" key="45" vol="87" pos="8376" len="23"/>
+<note pan="0" key="38" vol="87" pos="8400" len="23"/>
+<note pan="0" key="42" vol="87" pos="8400" len="23"/>
+<note pan="0" key="45" vol="87" pos="8400" len="23"/>
+<note pan="0" key="38" vol="87" pos="8424" len="23"/>
+<note pan="0" key="42" vol="87" pos="8424" len="23"/>
+<note pan="0" key="45" vol="87" pos="8424" len="23"/>
+</pattern>
+</track>
+<track muted="0" type="0" name="gm_timpani" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="71" basenote="57" pan="0" fxch="0" usemasterpitch="1">
+<instrument name="sf2player">
+<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="47" bank="0" gain="1" reverbOn="1" reverbLevel="0.45" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+</instrument>
+<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
+<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+</eldata>
+<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
+<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
+<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
+<fxchain numofeffects="0" enabled="0"/>
+</instrumenttrack>
+<pattern muted="0" type="1" name="gm_timpani" pos="0" len="9216" steps="16">
+<note pan="0" key="26" vol="19" pos="0" len="11"/>
+<note pan="0" key="26" vol="20" pos="12" len="11"/>
+<note pan="0" key="26" vol="20" pos="24" len="11"/>
+<note pan="0" key="26" vol="22" pos="36" len="11"/>
+<note pan="0" key="26" vol="24" pos="48" len="11"/>
+<note pan="0" key="26" vol="24" pos="60" len="11"/>
+<note pan="0" key="26" vol="25" pos="72" len="11"/>
+<note pan="0" key="26" vol="27" pos="84" len="11"/>
+<note pan="0" key="26" vol="27" pos="96" len="11"/>
+<note pan="0" key="26" vol="28" pos="108" len="11"/>
+<note pan="0" key="26" vol="30" pos="120" len="11"/>
+<note pan="0" key="26" vol="30" pos="132" len="11"/>
+<note pan="0" key="26" vol="31" pos="144" len="11"/>
+<note pan="0" key="26" vol="33" pos="156" len="11"/>
+<note pan="0" key="26" vol="33" pos="168" len="11"/>
+<note pan="0" key="26" vol="35" pos="180" len="11"/>
+<note pan="0" key="26" vol="36" pos="192" len="11"/>
+<note pan="0" key="26" vol="36" pos="204" len="11"/>
+<note pan="0" key="26" vol="38" pos="216" len="11"/>
+<note pan="0" key="26" vol="39" pos="228" len="11"/>
+<note pan="0" key="26" vol="39" pos="240" len="11"/>
+<note pan="0" key="26" vol="41" pos="252" len="11"/>
+<note pan="0" key="26" vol="43" pos="264" len="11"/>
+<note pan="0" key="26" vol="43" pos="276" len="11"/>
+<note pan="0" key="26" vol="44" pos="288" len="11"/>
+<note pan="0" key="26" vol="46" pos="300" len="11"/>
+<note pan="0" key="26" vol="46" pos="312" len="11"/>
+<note pan="0" key="26" vol="47" pos="324" len="11"/>
+<note pan="0" key="26" vol="49" pos="336" len="11"/>
+<note pan="0" key="26" vol="49" pos="348" len="11"/>
+<note pan="0" key="26" vol="50" pos="360" len="11"/>
+<note pan="0" key="26" vol="52" pos="372" len="11"/>
+<note pan="0" key="26" vol="54" pos="384" len="11"/>
+<note pan="0" key="26" vol="54" pos="396" len="11"/>
+<note pan="0" key="26" vol="55" pos="408" len="11"/>
+<note pan="0" key="26" vol="57" pos="420" len="11"/>
+<note pan="0" key="26" vol="57" pos="432" len="11"/>
+<note pan="0" key="26" vol="58" pos="444" len="11"/>
+<note pan="0" key="26" vol="60" pos="456" len="11"/>
+<note pan="0" key="26" vol="60" pos="468" len="11"/>
+<note pan="0" key="26" vol="61" pos="480" len="11"/>
+<note pan="0" key="26" vol="63" pos="492" len="11"/>
+<note pan="0" key="26" vol="63" pos="504" len="11"/>
+<note pan="0" key="26" vol="65" pos="516" len="11"/>
+<note pan="0" key="26" vol="66" pos="528" len="11"/>
+<note pan="0" key="26" vol="66" pos="540" len="11"/>
+<note pan="0" key="26" vol="68" pos="552" len="11"/>
+<note pan="0" key="26" vol="69" pos="564" len="11"/>
+<note pan="0" key="26" vol="69" pos="576" len="11"/>
+<note pan="0" key="26" vol="71" pos="588" len="11"/>
+<note pan="0" key="26" vol="72" pos="600" len="11"/>
+<note pan="0" key="26" vol="72" pos="612" len="11"/>
+<note pan="0" key="26" vol="74" pos="624" len="11"/>
+<note pan="0" key="26" vol="76" pos="636" len="11"/>
+<note pan="0" key="26" vol="76" pos="648" len="11"/>
+<note pan="0" key="26" vol="77" pos="660" len="11"/>
+<note pan="0" key="26" vol="79" pos="672" len="11"/>
+<note pan="0" key="26" vol="79" pos="684" len="11"/>
+<note pan="0" key="26" vol="80" pos="696" len="11"/>
+<note pan="0" key="26" vol="82" pos="708" len="11"/>
+<note pan="0" key="26" vol="82" pos="720" len="11"/>
+<note pan="0" key="26" vol="83" pos="732" len="11"/>
+<note pan="0" key="26" vol="85" pos="744" len="11"/>
+<note pan="0" key="26" vol="85" pos="756" len="11"/>
+<note pan="0" key="38" vol="110" pos="5376" len="23"/>
+<note pan="0" key="38" vol="110" pos="5448" len="23"/>
+<note pan="0" key="38" vol="110" pos="5520" len="23"/>
+<note pan="0" key="34" vol="110" pos="5568" len="23"/>
+<note pan="0" key="34" vol="110" pos="5640" len="23"/>
+<note pan="0" key="34" vol="110" pos="5712" len="23"/>
+<note pan="0" key="41" vol="110" pos="5760" len="23"/>
+<note pan="0" key="41" vol="110" pos="5832" len="23"/>
+<note pan="0" key="41" vol="110" pos="5904" len="23"/>
+<note pan="0" key="36" vol="110" pos="5952" len="23"/>
+<note pan="0" key="36" vol="110" pos="6024" len="23"/>
+<note pan="0" key="36" vol="110" pos="6096" len="23"/>
+<note pan="0" key="38" vol="110" pos="6144" len="23"/>
+<note pan="0" key="38" vol="110" pos="6216" len="23"/>
+<note pan="0" key="38" vol="110" pos="6288" len="23"/>
+<note pan="0" key="34" vol="110" pos="6336" len="23"/>
+<note pan="0" key="34" vol="110" pos="6408" len="23"/>
+<note pan="0" key="34" vol="110" pos="6480" len="23"/>
+<note pan="0" key="31" vol="110" pos="6528" len="23"/>
+<note pan="0" key="31" vol="110" pos="6600" len="23"/>
+<note pan="0" key="31" vol="110" pos="6672" len="23"/>
+<note pan="0" key="33" vol="110" pos="6720" len="23"/>
+<note pan="0" key="33" vol="110" pos="6792" len="23"/>
+<note pan="0" key="33" vol="110" pos="6864" len="23"/>
+<note pan="0" key="38" vol="110" pos="6912" len="23"/>
+<note pan="0" key="38" vol="110" pos="6984" len="23"/>
+<note pan="0" key="38" vol="110" pos="7056" len="23"/>
+<note pan="0" key="34" vol="110" pos="7104" len="23"/>
+<note pan="0" key="34" vol="110" pos="7176" len="23"/>
+<note pan="0" key="34" vol="110" pos="7248" len="23"/>
+<note pan="0" key="41" vol="110" pos="7296" len="23"/>
+<note pan="0" key="41" vol="110" pos="7368" len="23"/>
+<note pan="0" key="41" vol="110" pos="7440" len="23"/>
+<note pan="0" key="36" vol="110" pos="7488" len="23"/>
+<note pan="0" key="36" vol="110" pos="7560" len="23"/>
+<note pan="0" key="36" vol="110" pos="7632" len="23"/>
+<note pan="0" key="31" vol="110" pos="7680" len="23"/>
+<note pan="0" key="31" vol="110" pos="7752" len="23"/>
+<note pan="0" key="31" vol="110" pos="7824" len="23"/>
+<note pan="0" key="34" vol="110" pos="7872" len="23"/>
+<note pan="0" key="34" vol="110" pos="7944" len="23"/>
+<note pan="0" key="34" vol="110" pos="8016" len="23"/>
+<note pan="0" key="36" vol="110" pos="8064" len="23"/>
+<note pan="0" key="36" vol="110" pos="8136" len="23"/>
+<note pan="0" key="36" vol="110" pos="8208" len="23"/>
+<note pan="0" key="38" vol="110" pos="8256" len="23"/>
+<note pan="0" key="38" vol="110" pos="8328" len="23"/>
+<note pan="0" key="38" vol="110" pos="8400" len="23"/>
+<note pan="0" key="34" vol="126" pos="8448" len="191"/>
+<note pan="0" key="36" vol="126" pos="8640" len="191"/>
+<note pan="0" key="38" vol="126" pos="8832" len="191"/>
+<note pan="0" key="26" vol="126" pos="9024" len="11"/>
+<note pan="0" key="26" vol="126" pos="9036" len="11"/>
+<note pan="0" key="26" vol="126" pos="9048" len="11"/>
+<note pan="0" key="26" vol="126" pos="9060" len="11"/>
+<note pan="0" key="26" vol="126" pos="9072" len="11"/>
+<note pan="0" key="26" vol="126" pos="9084" len="11"/>
+<note pan="0" key="26" vol="126" pos="9096" len="11"/>
+<note pan="0" key="26" vol="126" pos="9108" len="11"/>
+<note pan="0" key="26" vol="126" pos="9120" len="11"/>
+<note pan="0" key="26" vol="126" pos="9132" len="11"/>
+<note pan="0" key="26" vol="126" pos="9144" len="11"/>
+<note pan="0" key="26" vol="126" pos="9156" len="11"/>
+<note pan="0" key="26" vol="126" pos="9168" len="11"/>
+<note pan="0" key="26" vol="126" pos="9180" len="11"/>
+<note pan="0" key="26" vol="126" pos="9192" len="11"/>
+<note pan="0" key="26" vol="126" pos="9204" len="11"/>
+</pattern>
+</track>
+<track muted="0" type="0" name="gm_french_horn" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="95" basenote="57" pan="-25" fxch="0" usemasterpitch="1">
+<instrument name="sf2player">
+<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="60" bank="0" gain="1" reverbOn="1" reverbLevel="0.45" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+</instrument>
+<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
+<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+</eldata>
+<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
+<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
+<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
+<fxchain numofeffects="0" enabled="0"/>
+</instrumenttrack>
+<pattern muted="0" type="1" name="gm_french_horn" pos="0" len="9216" steps="16">
+<note pan="0" key="50" vol="165" pos="768" len="71"/>
+<note pan="0" key="57" vol="165" pos="840" len="71"/>
+<note pan="0" key="55" vol="165" pos="912" len="23"/>
+<note pan="0" key="57" vol="165" pos="936" len="23"/>
+<note pan="0" key="58" vol="165" pos="960" len="71"/>
+<note pan="0" key="57" vol="165" pos="1032" len="71"/>
+<note pan="0" key="53" vol="165" pos="1104" len="23"/>
+<note pan="0" key="55" vol="165" pos="1128" len="23"/>
+<note pan="0" key="57" vol="165" pos="1152" len="71"/>
+<note pan="0" key="60" vol="165" pos="1224" len="71"/>
+<note pan="0" key="58" vol="165" pos="1296" len="23"/>
+<note pan="0" key="57" vol="165" pos="1320" len="23"/>
+<note pan="0" key="55" vol="165" pos="1344" len="143"/>
+<note pan="0" key="53" vol="165" pos="1488" len="23"/>
+<note pan="0" key="52" vol="165" pos="1512" len="23"/>
+<note pan="0" key="50" vol="165" pos="1536" len="71"/>
+<note pan="0" key="57" vol="165" pos="1608" len="71"/>
+<note pan="0" key="55" vol="165" pos="1680" len="23"/>
+<note pan="0" key="57" vol="165" pos="1704" len="23"/>
+<note pan="0" key="58" vol="165" pos="1728" len="71"/>
+<note pan="0" key="62" vol="165" pos="1800" len="71"/>
+<note pan="0" key="60" vol="165" pos="1872" len="23"/>
+<note pan="0" key="58" vol="165" pos="1896" len="23"/>
+<note pan="0" key="62" vol="165" pos="1920" len="71"/>
+<note pan="0" key="67" vol="165" pos="1992" len="71"/>
+<note pan="0" key="65" vol="165" pos="2064" len="23"/>
+<note pan="0" key="64" vol="165" pos="2088" len="23"/>
+<note pan="0" key="64" vol="165" pos="2112" len="143"/>
+<note pan="0" key="61" vol="165" pos="2256" len="23"/>
+<note pan="0" key="57" vol="165" pos="2280" len="23"/>
+<note pan="0" key="50" vol="165" pos="2304" len="71"/>
+<note pan="0" key="57" vol="165" pos="2376" len="71"/>
+<note pan="0" key="55" vol="165" pos="2448" len="23"/>
+<note pan="0" key="57" vol="165" pos="2472" len="23"/>
+<note pan="0" key="58" vol="165" pos="2496" len="71"/>
+<note pan="0" key="57" vol="165" pos="2568" len="71"/>
+<note pan="0" key="53" vol="165" pos="2640" len="23"/>
+<note pan="0" key="55" vol="165" pos="2664" len="23"/>
+<note pan="0" key="57" vol="165" pos="2688" len="71"/>
+<note pan="0" key="60" vol="165" pos="2760" len="71"/>
+<note pan="0" key="62" vol="165" pos="2832" len="23"/>
+<note pan="0" key="64" vol="165" pos="2856" len="23"/>
+<note pan="0" key="65" vol="165" pos="2880" len="71"/>
+<note pan="0" key="64" vol="165" pos="2952" len="71"/>
+<note pan="0" key="62" vol="165" pos="3024" len="23"/>
+<note pan="0" key="60" vol="165" pos="3048" len="23"/>
+<note pan="0" key="62" vol="165" pos="3072" len="71"/>
+<note pan="0" key="58" vol="165" pos="3144" len="71"/>
+<note pan="0" key="60" vol="165" pos="3216" len="23"/>
+<note pan="0" key="62" vol="165" pos="3240" len="23"/>
+<note pan="0" key="65" vol="165" pos="3264" len="71"/>
+<note pan="0" key="62" vol="165" pos="3336" len="71"/>
+<note pan="0" key="64" vol="165" pos="3408" len="23"/>
+<note pan="0" key="65" vol="165" pos="3432" len="23"/>
+<note pan="0" key="67" vol="165" pos="3456" len="71"/>
+<note pan="0" key="64" vol="165" pos="3528" len="71"/>
+<note pan="0" key="65" vol="165" pos="3600" len="23"/>
+<note pan="0" key="67" vol="165" pos="3624" len="23"/>
+<note pan="0" key="66" vol="165" pos="3648" len="71"/>
+<note pan="0" key="69" vol="165" pos="3720" len="119"/>
+<note pan="0" key="38" vol="142" pos="5376" len="71"/>
+<note pan="0" key="45" vol="142" pos="5448" len="71"/>
+<note pan="0" key="43" vol="142" pos="5520" len="23"/>
+<note pan="0" key="45" vol="142" pos="5544" len="23"/>
+<note pan="0" key="46" vol="142" pos="5568" len="71"/>
+<note pan="0" key="45" vol="142" pos="5640" len="71"/>
+<note pan="0" key="41" vol="142" pos="5712" len="23"/>
+<note pan="0" key="43" vol="142" pos="5736" len="23"/>
+<note pan="0" key="45" vol="142" pos="5760" len="71"/>
+<note pan="0" key="48" vol="142" pos="5832" len="71"/>
+<note pan="0" key="46" vol="142" pos="5904" len="23"/>
+<note pan="0" key="45" vol="142" pos="5928" len="23"/>
+<note pan="0" key="43" vol="142" pos="5952" len="143"/>
+<note pan="0" key="41" vol="142" pos="6096" len="23"/>
+<note pan="0" key="40" vol="142" pos="6120" len="23"/>
+<note pan="0" key="38" vol="142" pos="6144" len="71"/>
+<note pan="0" key="45" vol="142" pos="6216" len="71"/>
+<note pan="0" key="43" vol="142" pos="6288" len="23"/>
+<note pan="0" key="45" vol="142" pos="6312" len="23"/>
+<note pan="0" key="46" vol="142" pos="6336" len="71"/>
+<note pan="0" key="50" vol="142" pos="6408" len="71"/>
+<note pan="0" key="48" vol="142" pos="6480" len="23"/>
+<note pan="0" key="46" vol="142" pos="6504" len="23"/>
+<note pan="0" key="50" vol="142" pos="6528" len="71"/>
+<note pan="0" key="55" vol="142" pos="6600" len="71"/>
+<note pan="0" key="53" vol="142" pos="6672" len="23"/>
+<note pan="0" key="52" vol="142" pos="6696" len="23"/>
+<note pan="0" key="52" vol="142" pos="6720" len="143"/>
+<note pan="0" key="49" vol="142" pos="6864" len="23"/>
+<note pan="0" key="45" vol="142" pos="6888" len="23"/>
+<note pan="0" key="38" vol="142" pos="6912" len="71"/>
+<note pan="0" key="45" vol="142" pos="6984" len="71"/>
+<note pan="0" key="43" vol="142" pos="7056" len="23"/>
+<note pan="0" key="45" vol="142" pos="7080" len="23"/>
+<note pan="0" key="46" vol="142" pos="7104" len="71"/>
+<note pan="0" key="45" vol="142" pos="7176" len="71"/>
+<note pan="0" key="41" vol="142" pos="7248" len="23"/>
+<note pan="0" key="43" vol="142" pos="7272" len="23"/>
+<note pan="0" key="45" vol="142" pos="7296" len="71"/>
+<note pan="0" key="48" vol="142" pos="7368" len="71"/>
+<note pan="0" key="50" vol="142" pos="7440" len="23"/>
+<note pan="0" key="52" vol="142" pos="7464" len="23"/>
+<note pan="0" key="53" vol="142" pos="7488" len="71"/>
+<note pan="0" key="52" vol="142" pos="7560" len="71"/>
+<note pan="0" key="50" vol="142" pos="7632" len="23"/>
+<note pan="0" key="48" vol="142" pos="7656" len="23"/>
+<note pan="0" key="50" vol="142" pos="7680" len="71"/>
+<note pan="0" key="46" vol="142" pos="7752" len="71"/>
+<note pan="0" key="48" vol="142" pos="7824" len="23"/>
+<note pan="0" key="50" vol="142" pos="7848" len="23"/>
+<note pan="0" key="53" vol="142" pos="7872" len="71"/>
+<note pan="0" key="50" vol="142" pos="7944" len="71"/>
+<note pan="0" key="52" vol="142" pos="8016" len="23"/>
+<note pan="0" key="53" vol="142" pos="8040" len="23"/>
+<note pan="0" key="55" vol="142" pos="8064" len="71"/>
+<note pan="0" key="52" vol="142" pos="8136" len="71"/>
+<note pan="0" key="53" vol="142" pos="8208" len="23"/>
+<note pan="0" key="55" vol="142" pos="8232" len="23"/>
+<note pan="0" key="54" vol="142" pos="8256" len="71"/>
+<note pan="0" key="57" vol="142" pos="8328" len="119"/>
+</pattern>
+</track>
+<track muted="0" type="0" name="gm_cello" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="90" basenote="57" pan="20" fxch="0" usemasterpitch="1">
+<instrument name="sf2player">
+<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="42" bank="0" gain="1" reverbOn="1" reverbLevel="0.45" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+</instrument>
+<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
+<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+</eldata>
+<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
+<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
+<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
+<fxchain numofeffects="0" enabled="0"/>
+</instrumenttrack>
+<pattern muted="0" type="1" name="gm_cello" pos="0" len="9216" steps="16">
+<note pan="0" key="38" vol="110" pos="768" len="191"/>
+<note pan="0" key="34" vol="110" pos="960" len="191"/>
+<note pan="0" key="41" vol="110" pos="1152" len="191"/>
+<note pan="0" key="36" vol="110" pos="1344" len="191"/>
+<note pan="0" key="38" vol="110" pos="1536" len="191"/>
+<note pan="0" key="34" vol="110" pos="1728" len="191"/>
+<note pan="0" key="31" vol="110" pos="1920" len="191"/>
+<note pan="0" key="33" vol="110" pos="2112" len="191"/>
+<note pan="0" key="38" vol="110" pos="2304" len="191"/>
+<note pan="0" key="34" vol="110" pos="2496" len="191"/>
+<note pan="0" key="41" vol="110" pos="2688" len="191"/>
+<note pan="0" key="36" vol="110" pos="2880" len="191"/>
+<note pan="0" key="31" vol="110" pos="3072" len="191"/>
+<note pan="0" key="34" vol="110" pos="3264" len="191"/>
+<note pan="0" key="36" vol="110" pos="3456" len="191"/>
+<note pan="0" key="38" vol="110" pos="3648" len="191"/>
+</pattern>
+</track>
+<track muted="0" type="0" name="gm_contrabass" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="105" basenote="57" pan="25" fxch="0" usemasterpitch="1">
+<instrument name="sf2player">
+<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="43" bank="0" gain="1" reverbOn="1" reverbLevel="0.45" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+</instrument>
+<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
+<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+</eldata>
+<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
+<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
+<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
+<fxchain numofeffects="0" enabled="0"/>
+</instrumenttrack>
+<pattern muted="0" type="1" name="gm_contrabass" pos="0" len="9216" steps="16">
+<note pan="0" key="26" vol="134" pos="768" len="23"/>
+<note pan="0" key="26" vol="134" pos="840" len="23"/>
+<note pan="0" key="26" vol="134" pos="912" len="23"/>
+<note pan="0" key="22" vol="134" pos="960" len="23"/>
+<note pan="0" key="22" vol="134" pos="1032" len="23"/>
+<note pan="0" key="22" vol="134" pos="1104" len="23"/>
+<note pan="0" key="29" vol="134" pos="1152" len="23"/>
+<note pan="0" key="29" vol="134" pos="1224" len="23"/>
+<note pan="0" key="29" vol="134" pos="1296" len="23"/>
+<note pan="0" key="24" vol="134" pos="1344" len="23"/>
+<note pan="0" key="24" vol="134" pos="1416" len="23"/>
+<note pan="0" key="24" vol="134" pos="1488" len="23"/>
+<note pan="0" key="26" vol="134" pos="1536" len="23"/>
+<note pan="0" key="26" vol="134" pos="1608" len="23"/>
+<note pan="0" key="26" vol="134" pos="1680" len="23"/>
+<note pan="0" key="22" vol="134" pos="1728" len="23"/>
+<note pan="0" key="22" vol="134" pos="1800" len="23"/>
+<note pan="0" key="22" vol="134" pos="1872" len="23"/>
+<note pan="0" key="19" vol="134" pos="1920" len="23"/>
+<note pan="0" key="19" vol="134" pos="1992" len="23"/>
+<note pan="0" key="19" vol="134" pos="2064" len="23"/>
+<note pan="0" key="21" vol="134" pos="2112" len="23"/>
+<note pan="0" key="21" vol="134" pos="2184" len="23"/>
+<note pan="0" key="21" vol="134" pos="2256" len="23"/>
+<note pan="0" key="26" vol="134" pos="2304" len="23"/>
+<note pan="0" key="26" vol="134" pos="2376" len="23"/>
+<note pan="0" key="26" vol="134" pos="2448" len="23"/>
+<note pan="0" key="22" vol="134" pos="2496" len="23"/>
+<note pan="0" key="22" vol="134" pos="2568" len="23"/>
+<note pan="0" key="22" vol="134" pos="2640" len="23"/>
+<note pan="0" key="29" vol="134" pos="2688" len="23"/>
+<note pan="0" key="29" vol="134" pos="2760" len="23"/>
+<note pan="0" key="29" vol="134" pos="2832" len="23"/>
+<note pan="0" key="24" vol="134" pos="2880" len="23"/>
+<note pan="0" key="24" vol="134" pos="2952" len="23"/>
+<note pan="0" key="24" vol="134" pos="3024" len="23"/>
+<note pan="0" key="19" vol="134" pos="3072" len="23"/>
+<note pan="0" key="19" vol="134" pos="3144" len="23"/>
+<note pan="0" key="19" vol="134" pos="3216" len="23"/>
+<note pan="0" key="22" vol="134" pos="3264" len="23"/>
+<note pan="0" key="22" vol="134" pos="3336" len="23"/>
+<note pan="0" key="22" vol="134" pos="3408" len="23"/>
+<note pan="0" key="24" vol="134" pos="3456" len="23"/>
+<note pan="0" key="24" vol="134" pos="3528" len="23"/>
+<note pan="0" key="24" vol="134" pos="3600" len="23"/>
+<note pan="0" key="26" vol="134" pos="3648" len="23"/>
+<note pan="0" key="26" vol="134" pos="3720" len="23"/>
+<note pan="0" key="26" vol="134" pos="3792" len="23"/>
+<note pan="0" key="29" vol="110" pos="3840" len="191"/>
+<note pan="0" key="22" vol="110" pos="4032" len="191"/>
+<note pan="0" key="26" vol="110" pos="4224" len="191"/>
+<note pan="0" key="24" vol="110" pos="4416" len="191"/>
+<note pan="0" key="29" vol="110" pos="4608" len="191"/>
+<note pan="0" key="22" vol="110" pos="4800" len="191"/>
+<note pan="0" key="19" vol="110" pos="4992" len="95"/>
+<note pan="0" key="24" vol="110" pos="5088" len="95"/>
+<note pan="0" key="29" vol="110" pos="5184" len="191"/>
+<note pan="0" key="22" vol="142" pos="8448" len="191"/>
+<note pan="0" key="24" vol="142" pos="8640" len="191"/>
+<note pan="0" key="26" vol="142" pos="8832" len="191"/>
+<note pan="0" key="26" vol="142" pos="9024" len="191"/>
+</pattern>
+</track>
+<track muted="0" type="0" name="drums" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="95" basenote="57" pan="0" fxch="0" usemasterpitch="1">
+<instrument name="sf2player">
+<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="0" bank="128" gain="1" reverbOn="1" reverbLevel="0.45" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+</instrument>
+<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
+<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+</eldata>
+<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
+<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
+<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
+<fxchain numofeffects="0" enabled="0"/>
+</instrumenttrack>
+<pattern muted="0" type="1" name="drums" pos="0" len="9216" steps="16">
+<note pan="0" key="24" vol="126" pos="768" len="6"/>
+<note pan="0" key="30" vol="55" pos="768" len="6"/>
+<note pan="0" key="30" vol="55" pos="792" len="6"/>
+<note pan="0" key="26" vol="126" pos="816" len="6"/>
+<note pan="0" key="30" vol="55" pos="816" len="6"/>
+<note pan="0" key="24" vol="126" pos="840" len="6"/>
+<note pan="0" key="30" vol="55" pos="840" len="6"/>
+<note pan="0" key="30" vol="55" pos="864" len="6"/>
+<note pan="0" key="30" vol="55" pos="888" len="6"/>
+<note pan="0" key="24" vol="126" pos="912" len="6"/>
+<note pan="0" key="26" vol="126" pos="912" len="6"/>
+<note pan="0" key="30" vol="55" pos="912" len="6"/>
+<note pan="0" key="30" vol="55" pos="936" len="6"/>
+<note pan="0" key="24" vol="126" pos="960" len="6"/>
+<note pan="0" key="30" vol="55" pos="960" len="6"/>
+<note pan="0" key="30" vol="55" pos="984" len="6"/>
+<note pan="0" key="26" vol="126" pos="1008" len="6"/>
+<note pan="0" key="30" vol="55" pos="1008" len="6"/>
+<note pan="0" key="24" vol="126" pos="1032" len="6"/>
+<note pan="0" key="30" vol="55" pos="1032" len="6"/>
+<note pan="0" key="30" vol="55" pos="1056" len="6"/>
+<note pan="0" key="30" vol="55" pos="1080" len="6"/>
+<note pan="0" key="24" vol="126" pos="1104" len="6"/>
+<note pan="0" key="26" vol="126" pos="1104" len="6"/>
+<note pan="0" key="30" vol="55" pos="1104" len="6"/>
+<note pan="0" key="30" vol="55" pos="1128" len="6"/>
+<note pan="0" key="24" vol="126" pos="1152" len="6"/>
+<note pan="0" key="30" vol="55" pos="1152" len="6"/>
+<note pan="0" key="30" vol="55" pos="1176" len="6"/>
+<note pan="0" key="26" vol="126" pos="1200" len="6"/>
+<note pan="0" key="30" vol="55" pos="1200" len="6"/>
+<note pan="0" key="24" vol="126" pos="1224" len="6"/>
+<note pan="0" key="30" vol="55" pos="1224" len="6"/>
+<note pan="0" key="30" vol="55" pos="1248" len="6"/>
+<note pan="0" key="30" vol="55" pos="1272" len="6"/>
+<note pan="0" key="24" vol="126" pos="1296" len="6"/>
+<note pan="0" key="26" vol="126" pos="1296" len="6"/>
+<note pan="0" key="30" vol="55" pos="1296" len="6"/>
+<note pan="0" key="30" vol="55" pos="1320" len="6"/>
+<note pan="0" key="24" vol="126" pos="1344" len="6"/>
+<note pan="0" key="30" vol="55" pos="1344" len="6"/>
+<note pan="0" key="30" vol="55" pos="1368" len="6"/>
+<note pan="0" key="26" vol="126" pos="1392" len="6"/>
+<note pan="0" key="30" vol="55" pos="1392" len="6"/>
+<note pan="0" key="24" vol="126" pos="1416" len="6"/>
+<note pan="0" key="30" vol="55" pos="1416" len="6"/>
+<note pan="0" key="30" vol="55" pos="1440" len="6"/>
+<note pan="0" key="30" vol="55" pos="1464" len="6"/>
+<note pan="0" key="24" vol="126" pos="1488" len="6"/>
+<note pan="0" key="26" vol="126" pos="1488" len="6"/>
+<note pan="0" key="30" vol="55" pos="1488" len="6"/>
+<note pan="0" key="30" vol="55" pos="1512" len="6"/>
+<note pan="0" key="24" vol="126" pos="1536" len="6"/>
+<note pan="0" key="30" vol="55" pos="1536" len="6"/>
+<note pan="0" key="30" vol="55" pos="1560" len="6"/>
+<note pan="0" key="26" vol="126" pos="1584" len="6"/>
+<note pan="0" key="30" vol="55" pos="1584" len="6"/>
+<note pan="0" key="24" vol="126" pos="1608" len="6"/>
+<note pan="0" key="30" vol="55" pos="1608" len="6"/>
+<note pan="0" key="30" vol="55" pos="1632" len="6"/>
+<note pan="0" key="30" vol="55" pos="1656" len="6"/>
+<note pan="0" key="24" vol="126" pos="1680" len="6"/>
+<note pan="0" key="26" vol="126" pos="1680" len="6"/>
+<note pan="0" key="30" vol="55" pos="1680" len="6"/>
+<note pan="0" key="30" vol="55" pos="1704" len="6"/>
+<note pan="0" key="24" vol="126" pos="1728" len="6"/>
+<note pan="0" key="30" vol="55" pos="1728" len="6"/>
+<note pan="0" key="30" vol="55" pos="1752" len="6"/>
+<note pan="0" key="26" vol="126" pos="1776" len="6"/>
+<note pan="0" key="30" vol="55" pos="1776" len="6"/>
+<note pan="0" key="24" vol="126" pos="1800" len="6"/>
+<note pan="0" key="30" vol="55" pos="1800" len="6"/>
+<note pan="0" key="30" vol="55" pos="1824" len="6"/>
+<note pan="0" key="30" vol="55" pos="1848" len="6"/>
+<note pan="0" key="24" vol="126" pos="1872" len="6"/>
+<note pan="0" key="26" vol="126" pos="1872" len="6"/>
+<note pan="0" key="30" vol="55" pos="1872" len="6"/>
+<note pan="0" key="30" vol="55" pos="1896" len="6"/>
+<note pan="0" key="24" vol="126" pos="1920" len="6"/>
+<note pan="0" key="30" vol="55" pos="1920" len="6"/>
+<note pan="0" key="30" vol="55" pos="1944" len="6"/>
+<note pan="0" key="26" vol="126" pos="1968" len="6"/>
+<note pan="0" key="30" vol="55" pos="1968" len="6"/>
+<note pan="0" key="24" vol="126" pos="1992" len="6"/>
+<note pan="0" key="30" vol="55" pos="1992" len="6"/>
+<note pan="0" key="30" vol="55" pos="2016" len="6"/>
+<note pan="0" key="30" vol="55" pos="2040" len="6"/>
+<note pan="0" key="24" vol="126" pos="2064" len="6"/>
+<note pan="0" key="26" vol="126" pos="2064" len="6"/>
+<note pan="0" key="30" vol="55" pos="2064" len="6"/>
+<note pan="0" key="30" vol="55" pos="2088" len="6"/>
+<note pan="0" key="24" vol="126" pos="2112" len="6"/>
+<note pan="0" key="30" vol="55" pos="2112" len="6"/>
+<note pan="0" key="30" vol="55" pos="2136" len="6"/>
+<note pan="0" key="26" vol="126" pos="2160" len="6"/>
+<note pan="0" key="30" vol="55" pos="2160" len="6"/>
+<note pan="0" key="24" vol="126" pos="2184" len="6"/>
+<note pan="0" key="30" vol="55" pos="2184" len="6"/>
+<note pan="0" key="30" vol="55" pos="2208" len="6"/>
+<note pan="0" key="38" vol="94" pos="2208" len="6"/>
+<note pan="0" key="38" vol="94" pos="2220" len="6"/>
+<note pan="0" key="30" vol="55" pos="2232" len="6"/>
+<note pan="0" key="35" vol="94" pos="2232" len="6"/>
+<note pan="0" key="35" vol="94" pos="2244" len="6"/>
+<note pan="0" key="24" vol="126" pos="2256" len="6"/>
+<note pan="0" key="26" vol="126" pos="2256" len="6"/>
+<note pan="0" key="30" vol="55" pos="2256" len="6"/>
+<note pan="0" key="33" vol="94" pos="2256" len="6"/>
+<note pan="0" key="33" vol="94" pos="2268" len="6"/>
+<note pan="0" key="29" vol="94" pos="2280" len="6"/>
+<note pan="0" key="30" vol="55" pos="2280" len="6"/>
+<note pan="0" key="29" vol="94" pos="2292" len="6"/>
+<note pan="0" key="24" vol="126" pos="2304" len="6"/>
+<note pan="0" key="30" vol="55" pos="2304" len="6"/>
+<note pan="0" key="30" vol="55" pos="2328" len="6"/>
+<note pan="0" key="26" vol="126" pos="2352" len="6"/>
+<note pan="0" key="30" vol="55" pos="2352" len="6"/>
+<note pan="0" key="24" vol="126" pos="2376" len="6"/>
+<note pan="0" key="30" vol="55" pos="2376" len="6"/>
+<note pan="0" key="30" vol="55" pos="2400" len="6"/>
+<note pan="0" key="30" vol="55" pos="2424" len="6"/>
+<note pan="0" key="24" vol="126" pos="2448" len="6"/>
+<note pan="0" key="26" vol="126" pos="2448" len="6"/>
+<note pan="0" key="30" vol="55" pos="2448" len="6"/>
+<note pan="0" key="30" vol="55" pos="2472" len="6"/>
+<note pan="0" key="24" vol="126" pos="2496" len="6"/>
+<note pan="0" key="30" vol="55" pos="2496" len="6"/>
+<note pan="0" key="30" vol="55" pos="2520" len="6"/>
+<note pan="0" key="26" vol="126" pos="2544" len="6"/>
+<note pan="0" key="30" vol="55" pos="2544" len="6"/>
+<note pan="0" key="24" vol="126" pos="2568" len="6"/>
+<note pan="0" key="30" vol="55" pos="2568" len="6"/>
+<note pan="0" key="30" vol="55" pos="2592" len="6"/>
+<note pan="0" key="30" vol="55" pos="2616" len="6"/>
+<note pan="0" key="24" vol="126" pos="2640" len="6"/>
+<note pan="0" key="26" vol="126" pos="2640" len="6"/>
+<note pan="0" key="30" vol="55" pos="2640" len="6"/>
+<note pan="0" key="30" vol="55" pos="2664" len="6"/>
+<note pan="0" key="24" vol="126" pos="2688" len="6"/>
+<note pan="0" key="30" vol="55" pos="2688" len="6"/>
+<note pan="0" key="30" vol="55" pos="2712" len="6"/>
+<note pan="0" key="26" vol="126" pos="2736" len="6"/>
+<note pan="0" key="30" vol="55" pos="2736" len="6"/>
+<note pan="0" key="24" vol="126" pos="2760" len="6"/>
+<note pan="0" key="30" vol="55" pos="2760" len="6"/>
+<note pan="0" key="30" vol="55" pos="2784" len="6"/>
+<note pan="0" key="30" vol="55" pos="2808" len="6"/>
+<note pan="0" key="24" vol="126" pos="2832" len="6"/>
+<note pan="0" key="26" vol="126" pos="2832" len="6"/>
+<note pan="0" key="30" vol="55" pos="2832" len="6"/>
+<note pan="0" key="30" vol="55" pos="2856" len="6"/>
+<note pan="0" key="24" vol="126" pos="2880" len="6"/>
+<note pan="0" key="30" vol="55" pos="2880" len="6"/>
+<note pan="0" key="30" vol="55" pos="2904" len="6"/>
+<note pan="0" key="26" vol="126" pos="2928" len="6"/>
+<note pan="0" key="30" vol="55" pos="2928" len="6"/>
+<note pan="0" key="24" vol="126" pos="2952" len="6"/>
+<note pan="0" key="30" vol="55" pos="2952" len="6"/>
+<note pan="0" key="30" vol="55" pos="2976" len="6"/>
+<note pan="0" key="30" vol="55" pos="3000" len="6"/>
+<note pan="0" key="24" vol="126" pos="3024" len="6"/>
+<note pan="0" key="26" vol="126" pos="3024" len="6"/>
+<note pan="0" key="30" vol="55" pos="3024" len="6"/>
+<note pan="0" key="30" vol="55" pos="3048" len="6"/>
+<note pan="0" key="24" vol="126" pos="3072" len="6"/>
+<note pan="0" key="30" vol="55" pos="3072" len="6"/>
+<note pan="0" key="30" vol="55" pos="3096" len="6"/>
+<note pan="0" key="26" vol="126" pos="3120" len="6"/>
+<note pan="0" key="30" vol="55" pos="3120" len="6"/>
+<note pan="0" key="24" vol="126" pos="3144" len="6"/>
+<note pan="0" key="30" vol="55" pos="3144" len="6"/>
+<note pan="0" key="30" vol="55" pos="3168" len="6"/>
+<note pan="0" key="30" vol="55" pos="3192" len="6"/>
+<note pan="0" key="24" vol="126" pos="3216" len="6"/>
+<note pan="0" key="26" vol="126" pos="3216" len="6"/>
+<note pan="0" key="30" vol="55" pos="3216" len="6"/>
+<note pan="0" key="30" vol="55" pos="3240" len="6"/>
+<note pan="0" key="24" vol="126" pos="3264" len="6"/>
+<note pan="0" key="30" vol="55" pos="3264" len="6"/>
+<note pan="0" key="30" vol="55" pos="3288" len="6"/>
+<note pan="0" key="26" vol="126" pos="3312" len="6"/>
+<note pan="0" key="30" vol="55" pos="3312" len="6"/>
+<note pan="0" key="24" vol="126" pos="3336" len="6"/>
+<note pan="0" key="30" vol="55" pos="3336" len="6"/>
+<note pan="0" key="30" vol="55" pos="3360" len="6"/>
+<note pan="0" key="30" vol="55" pos="3384" len="6"/>
+<note pan="0" key="24" vol="126" pos="3408" len="6"/>
+<note pan="0" key="26" vol="126" pos="3408" len="6"/>
+<note pan="0" key="30" vol="55" pos="3408" len="6"/>
+<note pan="0" key="30" vol="55" pos="3432" len="6"/>
+<note pan="0" key="24" vol="126" pos="3456" len="6"/>
+<note pan="0" key="30" vol="55" pos="3456" len="6"/>
+<note pan="0" key="30" vol="55" pos="3480" len="6"/>
+<note pan="0" key="26" vol="126" pos="3504" len="6"/>
+<note pan="0" key="30" vol="55" pos="3504" len="6"/>
+<note pan="0" key="24" vol="126" pos="3528" len="6"/>
+<note pan="0" key="30" vol="55" pos="3528" len="6"/>
+<note pan="0" key="30" vol="55" pos="3552" len="6"/>
+<note pan="0" key="30" vol="55" pos="3576" len="6"/>
+<note pan="0" key="24" vol="126" pos="3600" len="6"/>
+<note pan="0" key="26" vol="126" pos="3600" len="6"/>
+<note pan="0" key="30" vol="55" pos="3600" len="6"/>
+<note pan="0" key="30" vol="55" pos="3624" len="6"/>
+<note pan="0" key="24" vol="126" pos="3648" len="6"/>
+<note pan="0" key="30" vol="55" pos="3648" len="6"/>
+<note pan="0" key="30" vol="55" pos="3672" len="6"/>
+<note pan="0" key="26" vol="126" pos="3696" len="6"/>
+<note pan="0" key="30" vol="55" pos="3696" len="6"/>
+<note pan="0" key="24" vol="126" pos="3720" len="6"/>
+<note pan="0" key="30" vol="55" pos="3720" len="6"/>
+<note pan="0" key="30" vol="55" pos="3744" len="6"/>
+<note pan="0" key="38" vol="94" pos="3744" len="6"/>
+<note pan="0" key="38" vol="94" pos="3756" len="6"/>
+<note pan="0" key="30" vol="55" pos="3768" len="6"/>
+<note pan="0" key="35" vol="94" pos="3768" len="6"/>
+<note pan="0" key="35" vol="94" pos="3780" len="6"/>
+<note pan="0" key="24" vol="126" pos="3792" len="6"/>
+<note pan="0" key="26" vol="126" pos="3792" len="6"/>
+<note pan="0" key="30" vol="55" pos="3792" len="6"/>
+<note pan="0" key="33" vol="94" pos="3792" len="6"/>
+<note pan="0" key="33" vol="94" pos="3804" len="6"/>
+<note pan="0" key="29" vol="94" pos="3816" len="6"/>
+<note pan="0" key="30" vol="55" pos="3816" len="6"/>
+<note pan="0" key="29" vol="94" pos="3828" len="6"/>
+<note pan="0" key="39" vol="47" pos="3840" len="6"/>
+<note pan="0" key="39" vol="47" pos="3864" len="6"/>
+<note pan="0" key="25" vol="47" pos="3888" len="6"/>
+<note pan="0" key="39" vol="47" pos="3888" len="6"/>
+<note pan="0" key="39" vol="47" pos="3912" len="6"/>
+<note pan="0" key="39" vol="47" pos="3936" len="6"/>
+<note pan="0" key="39" vol="47" pos="3960" len="6"/>
+<note pan="0" key="25" vol="47" pos="3984" len="6"/>
+<note pan="0" key="39" vol="47" pos="3984" len="6"/>
+<note pan="0" key="39" vol="47" pos="4008" len="6"/>
+<note pan="0" key="39" vol="47" pos="4032" len="6"/>
+<note pan="0" key="39" vol="47" pos="4056" len="6"/>
+<note pan="0" key="25" vol="47" pos="4080" len="6"/>
+<note pan="0" key="39" vol="47" pos="4080" len="6"/>
+<note pan="0" key="39" vol="47" pos="4104" len="6"/>
+<note pan="0" key="39" vol="47" pos="4128" len="6"/>
+<note pan="0" key="39" vol="47" pos="4152" len="6"/>
+<note pan="0" key="25" vol="47" pos="4176" len="6"/>
+<note pan="0" key="39" vol="47" pos="4176" len="6"/>
+<note pan="0" key="39" vol="47" pos="4200" len="6"/>
+<note pan="0" key="39" vol="47" pos="4224" len="6"/>
+<note pan="0" key="39" vol="47" pos="4248" len="6"/>
+<note pan="0" key="25" vol="47" pos="4272" len="6"/>
+<note pan="0" key="39" vol="47" pos="4272" len="6"/>
+<note pan="0" key="39" vol="47" pos="4296" len="6"/>
+<note pan="0" key="39" vol="47" pos="4320" len="6"/>
+<note pan="0" key="39" vol="47" pos="4344" len="6"/>
+<note pan="0" key="25" vol="47" pos="4368" len="6"/>
+<note pan="0" key="39" vol="47" pos="4368" len="6"/>
+<note pan="0" key="39" vol="47" pos="4392" len="6"/>
+<note pan="0" key="39" vol="47" pos="4416" len="6"/>
+<note pan="0" key="39" vol="47" pos="4440" len="6"/>
+<note pan="0" key="25" vol="47" pos="4464" len="6"/>
+<note pan="0" key="39" vol="47" pos="4464" len="6"/>
+<note pan="0" key="39" vol="47" pos="4488" len="6"/>
+<note pan="0" key="39" vol="47" pos="4512" len="6"/>
+<note pan="0" key="39" vol="47" pos="4536" len="6"/>
+<note pan="0" key="25" vol="47" pos="4560" len="6"/>
+<note pan="0" key="39" vol="47" pos="4560" len="6"/>
+<note pan="0" key="39" vol="47" pos="4584" len="6"/>
+<note pan="0" key="39" vol="47" pos="4608" len="6"/>
+<note pan="0" key="39" vol="47" pos="4632" len="6"/>
+<note pan="0" key="25" vol="47" pos="4656" len="6"/>
+<note pan="0" key="39" vol="47" pos="4656" len="6"/>
+<note pan="0" key="39" vol="47" pos="4680" len="6"/>
+<note pan="0" key="39" vol="47" pos="4704" len="6"/>
+<note pan="0" key="39" vol="47" pos="4728" len="6"/>
+<note pan="0" key="25" vol="47" pos="4752" len="6"/>
+<note pan="0" key="39" vol="47" pos="4752" len="6"/>
+<note pan="0" key="39" vol="47" pos="4776" len="6"/>
+<note pan="0" key="39" vol="47" pos="4800" len="6"/>
+<note pan="0" key="39" vol="47" pos="4824" len="6"/>
+<note pan="0" key="25" vol="47" pos="4848" len="6"/>
+<note pan="0" key="39" vol="47" pos="4848" len="6"/>
+<note pan="0" key="39" vol="47" pos="4872" len="6"/>
+<note pan="0" key="39" vol="47" pos="4896" len="6"/>
+<note pan="0" key="39" vol="47" pos="4920" len="6"/>
+<note pan="0" key="25" vol="47" pos="4944" len="6"/>
+<note pan="0" key="39" vol="47" pos="4944" len="6"/>
+<note pan="0" key="39" vol="47" pos="4968" len="6"/>
+<note pan="0" key="39" vol="47" pos="4992" len="6"/>
+<note pan="0" key="39" vol="47" pos="5016" len="6"/>
+<note pan="0" key="25" vol="47" pos="5040" len="6"/>
+<note pan="0" key="39" vol="47" pos="5040" len="6"/>
+<note pan="0" key="39" vol="47" pos="5064" len="6"/>
+<note pan="0" key="39" vol="47" pos="5088" len="6"/>
+<note pan="0" key="39" vol="47" pos="5112" len="6"/>
+<note pan="0" key="25" vol="47" pos="5136" len="6"/>
+<note pan="0" key="39" vol="47" pos="5136" len="6"/>
+<note pan="0" key="39" vol="47" pos="5160" len="6"/>
+<note pan="0" key="39" vol="47" pos="5184" len="6"/>
+<note pan="0" key="39" vol="47" pos="5208" len="6"/>
+<note pan="0" key="25" vol="47" pos="5232" len="6"/>
+<note pan="0" key="39" vol="47" pos="5232" len="6"/>
+<note pan="0" key="39" vol="47" pos="5256" len="6"/>
+<note pan="0" key="39" vol="47" pos="5280" len="6"/>
+<note pan="0" key="39" vol="47" pos="5304" len="6"/>
+<note pan="0" key="25" vol="47" pos="5328" len="6"/>
+<note pan="0" key="39" vol="47" pos="5328" len="6"/>
+<note pan="0" key="39" vol="47" pos="5352" len="6"/>
+<note pan="0" key="24" vol="150" pos="5376" len="6"/>
+<note pan="0" key="30" vol="63" pos="5376" len="6"/>
+<note pan="0" key="37" vol="118" pos="5376" len="6"/>
+<note pan="0" key="30" vol="63" pos="5400" len="6"/>
+<note pan="0" key="26" vol="150" pos="5424" len="6"/>
+<note pan="0" key="30" vol="63" pos="5424" len="6"/>
+<note pan="0" key="24" vol="150" pos="5448" len="6"/>
+<note pan="0" key="30" vol="63" pos="5448" len="6"/>
+<note pan="0" key="30" vol="63" pos="5472" len="6"/>
+<note pan="0" key="30" vol="63" pos="5496" len="6"/>
+<note pan="0" key="24" vol="150" pos="5520" len="6"/>
+<note pan="0" key="26" vol="150" pos="5520" len="6"/>
+<note pan="0" key="30" vol="63" pos="5520" len="6"/>
+<note pan="0" key="30" vol="63" pos="5544" len="6"/>
+<note pan="0" key="24" vol="150" pos="5568" len="6"/>
+<note pan="0" key="30" vol="63" pos="5568" len="6"/>
+<note pan="0" key="30" vol="63" pos="5592" len="6"/>
+<note pan="0" key="26" vol="150" pos="5616" len="6"/>
+<note pan="0" key="30" vol="63" pos="5616" len="6"/>
+<note pan="0" key="24" vol="150" pos="5640" len="6"/>
+<note pan="0" key="30" vol="63" pos="5640" len="6"/>
+<note pan="0" key="30" vol="63" pos="5664" len="6"/>
+<note pan="0" key="30" vol="63" pos="5688" len="6"/>
+<note pan="0" key="24" vol="150" pos="5712" len="6"/>
+<note pan="0" key="26" vol="150" pos="5712" len="6"/>
+<note pan="0" key="30" vol="63" pos="5712" len="6"/>
+<note pan="0" key="30" vol="63" pos="5736" len="6"/>
+<note pan="0" key="24" vol="150" pos="5760" len="6"/>
+<note pan="0" key="30" vol="63" pos="5760" len="6"/>
+<note pan="0" key="30" vol="63" pos="5784" len="6"/>
+<note pan="0" key="26" vol="150" pos="5808" len="6"/>
+<note pan="0" key="30" vol="63" pos="5808" len="6"/>
+<note pan="0" key="24" vol="150" pos="5832" len="6"/>
+<note pan="0" key="30" vol="63" pos="5832" len="6"/>
+<note pan="0" key="30" vol="63" pos="5856" len="6"/>
+<note pan="0" key="30" vol="63" pos="5880" len="6"/>
+<note pan="0" key="24" vol="150" pos="5904" len="6"/>
+<note pan="0" key="26" vol="150" pos="5904" len="6"/>
+<note pan="0" key="30" vol="63" pos="5904" len="6"/>
+<note pan="0" key="30" vol="63" pos="5928" len="6"/>
+<note pan="0" key="24" vol="150" pos="5952" len="6"/>
+<note pan="0" key="30" vol="63" pos="5952" len="6"/>
+<note pan="0" key="30" vol="63" pos="5976" len="6"/>
+<note pan="0" key="26" vol="150" pos="6000" len="6"/>
+<note pan="0" key="30" vol="63" pos="6000" len="6"/>
+<note pan="0" key="24" vol="150" pos="6024" len="6"/>
+<note pan="0" key="30" vol="63" pos="6024" len="6"/>
+<note pan="0" key="30" vol="63" pos="6048" len="6"/>
+<note pan="0" key="30" vol="63" pos="6072" len="6"/>
+<note pan="0" key="24" vol="150" pos="6096" len="6"/>
+<note pan="0" key="26" vol="150" pos="6096" len="6"/>
+<note pan="0" key="30" vol="63" pos="6096" len="6"/>
+<note pan="0" key="30" vol="63" pos="6120" len="6"/>
+<note pan="0" key="24" vol="150" pos="6144" len="6"/>
+<note pan="0" key="30" vol="63" pos="6144" len="6"/>
+<note pan="0" key="30" vol="63" pos="6168" len="6"/>
+<note pan="0" key="26" vol="150" pos="6192" len="6"/>
+<note pan="0" key="30" vol="63" pos="6192" len="6"/>
+<note pan="0" key="24" vol="150" pos="6216" len="6"/>
+<note pan="0" key="30" vol="63" pos="6216" len="6"/>
+<note pan="0" key="30" vol="63" pos="6240" len="6"/>
+<note pan="0" key="30" vol="63" pos="6264" len="6"/>
+<note pan="0" key="24" vol="150" pos="6288" len="6"/>
+<note pan="0" key="26" vol="150" pos="6288" len="6"/>
+<note pan="0" key="30" vol="63" pos="6288" len="6"/>
+<note pan="0" key="30" vol="63" pos="6312" len="6"/>
+<note pan="0" key="24" vol="150" pos="6336" len="6"/>
+<note pan="0" key="30" vol="63" pos="6336" len="6"/>
+<note pan="0" key="30" vol="63" pos="6360" len="6"/>
+<note pan="0" key="26" vol="150" pos="6384" len="6"/>
+<note pan="0" key="30" vol="63" pos="6384" len="6"/>
+<note pan="0" key="24" vol="150" pos="6408" len="6"/>
+<note pan="0" key="30" vol="63" pos="6408" len="6"/>
+<note pan="0" key="30" vol="63" pos="6432" len="6"/>
+<note pan="0" key="30" vol="63" pos="6456" len="6"/>
+<note pan="0" key="24" vol="150" pos="6480" len="6"/>
+<note pan="0" key="26" vol="150" pos="6480" len="6"/>
+<note pan="0" key="30" vol="63" pos="6480" len="6"/>
+<note pan="0" key="30" vol="63" pos="6504" len="6"/>
+<note pan="0" key="24" vol="150" pos="6528" len="6"/>
+<note pan="0" key="30" vol="63" pos="6528" len="6"/>
+<note pan="0" key="30" vol="63" pos="6552" len="6"/>
+<note pan="0" key="26" vol="150" pos="6576" len="6"/>
+<note pan="0" key="30" vol="63" pos="6576" len="6"/>
+<note pan="0" key="24" vol="150" pos="6600" len="6"/>
+<note pan="0" key="30" vol="63" pos="6600" len="6"/>
+<note pan="0" key="30" vol="63" pos="6624" len="6"/>
+<note pan="0" key="30" vol="63" pos="6648" len="6"/>
+<note pan="0" key="24" vol="150" pos="6672" len="6"/>
+<note pan="0" key="26" vol="150" pos="6672" len="6"/>
+<note pan="0" key="30" vol="63" pos="6672" len="6"/>
+<note pan="0" key="30" vol="63" pos="6696" len="6"/>
+<note pan="0" key="24" vol="150" pos="6720" len="6"/>
+<note pan="0" key="30" vol="63" pos="6720" len="6"/>
+<note pan="0" key="30" vol="63" pos="6744" len="6"/>
+<note pan="0" key="26" vol="150" pos="6768" len="6"/>
+<note pan="0" key="30" vol="63" pos="6768" len="6"/>
+<note pan="0" key="24" vol="150" pos="6792" len="6"/>
+<note pan="0" key="30" vol="63" pos="6792" len="6"/>
+<note pan="0" key="30" vol="63" pos="6816" len="6"/>
+<note pan="0" key="38" vol="118" pos="6816" len="6"/>
+<note pan="0" key="38" vol="118" pos="6828" len="6"/>
+<note pan="0" key="30" vol="63" pos="6840" len="6"/>
+<note pan="0" key="35" vol="118" pos="6840" len="6"/>
+<note pan="0" key="35" vol="118" pos="6852" len="6"/>
+<note pan="0" key="24" vol="150" pos="6864" len="6"/>
+<note pan="0" key="26" vol="150" pos="6864" len="6"/>
+<note pan="0" key="30" vol="63" pos="6864" len="6"/>
+<note pan="0" key="33" vol="118" pos="6864" len="6"/>
+<note pan="0" key="33" vol="118" pos="6876" len="6"/>
+<note pan="0" key="29" vol="118" pos="6888" len="6"/>
+<note pan="0" key="30" vol="63" pos="6888" len="6"/>
+<note pan="0" key="29" vol="118" pos="6900" len="6"/>
+<note pan="0" key="24" vol="150" pos="6912" len="6"/>
+<note pan="0" key="30" vol="63" pos="6912" len="6"/>
+<note pan="0" key="37" vol="118" pos="6912" len="6"/>
+<note pan="0" key="30" vol="63" pos="6936" len="6"/>
+<note pan="0" key="26" vol="150" pos="6960" len="6"/>
+<note pan="0" key="30" vol="63" pos="6960" len="6"/>
+<note pan="0" key="24" vol="150" pos="6984" len="6"/>
+<note pan="0" key="30" vol="63" pos="6984" len="6"/>
+<note pan="0" key="30" vol="63" pos="7008" len="6"/>
+<note pan="0" key="30" vol="63" pos="7032" len="6"/>
+<note pan="0" key="24" vol="150" pos="7056" len="6"/>
+<note pan="0" key="26" vol="150" pos="7056" len="6"/>
+<note pan="0" key="30" vol="63" pos="7056" len="6"/>
+<note pan="0" key="30" vol="63" pos="7080" len="6"/>
+<note pan="0" key="24" vol="150" pos="7104" len="6"/>
+<note pan="0" key="30" vol="63" pos="7104" len="6"/>
+<note pan="0" key="30" vol="63" pos="7128" len="6"/>
+<note pan="0" key="26" vol="150" pos="7152" len="6"/>
+<note pan="0" key="30" vol="63" pos="7152" len="6"/>
+<note pan="0" key="24" vol="150" pos="7176" len="6"/>
+<note pan="0" key="30" vol="63" pos="7176" len="6"/>
+<note pan="0" key="30" vol="63" pos="7200" len="6"/>
+<note pan="0" key="30" vol="63" pos="7224" len="6"/>
+<note pan="0" key="24" vol="150" pos="7248" len="6"/>
+<note pan="0" key="26" vol="150" pos="7248" len="6"/>
+<note pan="0" key="30" vol="63" pos="7248" len="6"/>
+<note pan="0" key="30" vol="63" pos="7272" len="6"/>
+<note pan="0" key="24" vol="150" pos="7296" len="6"/>
+<note pan="0" key="30" vol="63" pos="7296" len="6"/>
+<note pan="0" key="30" vol="63" pos="7320" len="6"/>
+<note pan="0" key="26" vol="150" pos="7344" len="6"/>
+<note pan="0" key="30" vol="63" pos="7344" len="6"/>
+<note pan="0" key="24" vol="150" pos="7368" len="6"/>
+<note pan="0" key="30" vol="63" pos="7368" len="6"/>
+<note pan="0" key="30" vol="63" pos="7392" len="6"/>
+<note pan="0" key="30" vol="63" pos="7416" len="6"/>
+<note pan="0" key="24" vol="150" pos="7440" len="6"/>
+<note pan="0" key="26" vol="150" pos="7440" len="6"/>
+<note pan="0" key="30" vol="63" pos="7440" len="6"/>
+<note pan="0" key="30" vol="63" pos="7464" len="6"/>
+<note pan="0" key="24" vol="150" pos="7488" len="6"/>
+<note pan="0" key="30" vol="63" pos="7488" len="6"/>
+<note pan="0" key="30" vol="63" pos="7512" len="6"/>
+<note pan="0" key="26" vol="150" pos="7536" len="6"/>
+<note pan="0" key="30" vol="63" pos="7536" len="6"/>
+<note pan="0" key="24" vol="150" pos="7560" len="6"/>
+<note pan="0" key="30" vol="63" pos="7560" len="6"/>
+<note pan="0" key="30" vol="63" pos="7584" len="6"/>
+<note pan="0" key="30" vol="63" pos="7608" len="6"/>
+<note pan="0" key="24" vol="150" pos="7632" len="6"/>
+<note pan="0" key="26" vol="150" pos="7632" len="6"/>
+<note pan="0" key="30" vol="63" pos="7632" len="6"/>
+<note pan="0" key="30" vol="63" pos="7656" len="6"/>
+<note pan="0" key="24" vol="150" pos="7680" len="6"/>
+<note pan="0" key="30" vol="63" pos="7680" len="6"/>
+<note pan="0" key="30" vol="63" pos="7704" len="6"/>
+<note pan="0" key="26" vol="150" pos="7728" len="6"/>
+<note pan="0" key="30" vol="63" pos="7728" len="6"/>
+<note pan="0" key="24" vol="150" pos="7752" len="6"/>
+<note pan="0" key="30" vol="63" pos="7752" len="6"/>
+<note pan="0" key="30" vol="63" pos="7776" len="6"/>
+<note pan="0" key="30" vol="63" pos="7800" len="6"/>
+<note pan="0" key="24" vol="150" pos="7824" len="6"/>
+<note pan="0" key="26" vol="150" pos="7824" len="6"/>
+<note pan="0" key="30" vol="63" pos="7824" len="6"/>
+<note pan="0" key="30" vol="63" pos="7848" len="6"/>
+<note pan="0" key="24" vol="150" pos="7872" len="6"/>
+<note pan="0" key="30" vol="63" pos="7872" len="6"/>
+<note pan="0" key="30" vol="63" pos="7896" len="6"/>
+<note pan="0" key="26" vol="150" pos="7920" len="6"/>
+<note pan="0" key="30" vol="63" pos="7920" len="6"/>
+<note pan="0" key="24" vol="150" pos="7944" len="6"/>
+<note pan="0" key="30" vol="63" pos="7944" len="6"/>
+<note pan="0" key="30" vol="63" pos="7968" len="6"/>
+<note pan="0" key="30" vol="63" pos="7992" len="6"/>
+<note pan="0" key="24" vol="150" pos="8016" len="6"/>
+<note pan="0" key="26" vol="150" pos="8016" len="6"/>
+<note pan="0" key="30" vol="63" pos="8016" len="6"/>
+<note pan="0" key="30" vol="63" pos="8040" len="6"/>
+<note pan="0" key="24" vol="150" pos="8064" len="6"/>
+<note pan="0" key="30" vol="63" pos="8064" len="6"/>
+<note pan="0" key="30" vol="63" pos="8088" len="6"/>
+<note pan="0" key="26" vol="150" pos="8112" len="6"/>
+<note pan="0" key="30" vol="63" pos="8112" len="6"/>
+<note pan="0" key="24" vol="150" pos="8136" len="6"/>
+<note pan="0" key="30" vol="63" pos="8136" len="6"/>
+<note pan="0" key="30" vol="63" pos="8160" len="6"/>
+<note pan="0" key="30" vol="63" pos="8184" len="6"/>
+<note pan="0" key="24" vol="150" pos="8208" len="6"/>
+<note pan="0" key="26" vol="150" pos="8208" len="6"/>
+<note pan="0" key="30" vol="63" pos="8208" len="6"/>
+<note pan="0" key="30" vol="63" pos="8232" len="6"/>
+<note pan="0" key="24" vol="150" pos="8256" len="6"/>
+<note pan="0" key="30" vol="63" pos="8256" len="6"/>
+<note pan="0" key="30" vol="63" pos="8280" len="6"/>
+<note pan="0" key="26" vol="150" pos="8304" len="6"/>
+<note pan="0" key="30" vol="63" pos="8304" len="6"/>
+<note pan="0" key="24" vol="150" pos="8328" len="6"/>
+<note pan="0" key="30" vol="63" pos="8328" len="6"/>
+<note pan="0" key="30" vol="63" pos="8352" len="6"/>
+<note pan="0" key="38" vol="118" pos="8352" len="6"/>
+<note pan="0" key="38" vol="118" pos="8364" len="6"/>
+<note pan="0" key="30" vol="63" pos="8376" len="6"/>
+<note pan="0" key="35" vol="118" pos="8376" len="6"/>
+<note pan="0" key="35" vol="118" pos="8388" len="6"/>
+<note pan="0" key="24" vol="150" pos="8400" len="6"/>
+<note pan="0" key="26" vol="150" pos="8400" len="6"/>
+<note pan="0" key="30" vol="63" pos="8400" len="6"/>
+<note pan="0" key="33" vol="118" pos="8400" len="6"/>
+<note pan="0" key="33" vol="118" pos="8412" len="6"/>
+<note pan="0" key="29" vol="118" pos="8424" len="6"/>
+<note pan="0" key="30" vol="63" pos="8424" len="6"/>
+<note pan="0" key="29" vol="118" pos="8436" len="6"/>
+<note pan="0" key="24" vol="142" pos="8448" len="6"/>
+<note pan="0" key="37" vol="126" pos="8448" len="6"/>
+<note pan="0" key="24" vol="142" pos="8520" len="6"/>
+<note pan="0" key="24" vol="142" pos="8592" len="6"/>
+<note pan="0" key="24" vol="142" pos="8640" len="6"/>
+<note pan="0" key="37" vol="126" pos="8640" len="6"/>
+<note pan="0" key="24" vol="142" pos="8712" len="6"/>
+<note pan="0" key="24" vol="142" pos="8784" len="6"/>
+<note pan="0" key="24" vol="142" pos="8832" len="6"/>
+<note pan="0" key="37" vol="126" pos="8832" len="6"/>
+</pattern>
+</track>
+<track muted="0" type="0" name="gm_flute" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="72" basenote="57" pan="-10" fxch="0" usemasterpitch="1">
+<instrument name="sf2player">
+<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="73" bank="0" gain="1" reverbOn="1" reverbLevel="0.45" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+</instrument>
+<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
+<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+</eldata>
+<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
+<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
+<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
+<fxchain numofeffects="0" enabled="0"/>
+</instrumenttrack>
+<pattern muted="0" type="1" name="gm_flute" pos="0" len="9216" steps="16">
+<note pan="0" key="72" vol="94" pos="3840" len="71"/>
+<note pan="0" key="69" vol="94" pos="3912" len="23"/>
+<note pan="0" key="67" vol="94" pos="3936" len="47"/>
+<note pan="0" key="65" vol="94" pos="3984" len="47"/>
+<note pan="0" key="74" vol="94" pos="4032" len="71"/>
+<note pan="0" key="72" vol="94" pos="4104" len="23"/>
+<note pan="0" key="70" vol="94" pos="4128" len="95"/>
+<note pan="0" key="69" vol="94" pos="4224" len="71"/>
+<note pan="0" key="67" vol="94" pos="4296" len="23"/>
+<note pan="0" key="65" vol="94" pos="4320" len="47"/>
+<note pan="0" key="62" vol="94" pos="4368" len="47"/>
+<note pan="0" key="64" vol="94" pos="4416" len="47"/>
+<note pan="0" key="67" vol="94" pos="4464" len="47"/>
+<note pan="0" key="72" vol="94" pos="4512" len="95"/>
+<note pan="0" key="72" vol="94" pos="4608" len="71"/>
+<note pan="0" key="69" vol="94" pos="4680" len="23"/>
+<note pan="0" key="67" vol="94" pos="4704" len="47"/>
+<note pan="0" key="65" vol="94" pos="4752" len="47"/>
+<note pan="0" key="74" vol="94" pos="4800" len="71"/>
+<note pan="0" key="77" vol="94" pos="4872" len="23"/>
+<note pan="0" key="76" vol="94" pos="4896" len="47"/>
+<note pan="0" key="74" vol="94" pos="4944" len="47"/>
+<note pan="0" key="72" vol="94" pos="4992" len="47"/>
+<note pan="0" key="70" vol="94" pos="5040" len="47"/>
+<note pan="0" key="69" vol="94" pos="5088" len="47"/>
+<note pan="0" key="67" vol="94" pos="5136" len="47"/>
+<note pan="0" key="65" vol="94" pos="5184" len="191"/>
+</pattern>
+</track>
+<track muted="0" type="0" name="gm_epiano1" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="88" basenote="57" pan="0" fxch="0" usemasterpitch="1">
+<instrument name="sf2player">
+<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="4" bank="0" gain="1" reverbOn="1" reverbLevel="0.45" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+</instrument>
+<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
+<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+</eldata>
+<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
+<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
+<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
+<fxchain numofeffects="0" enabled="0"/>
+</instrumenttrack>
+<pattern muted="0" type="1" name="gm_epiano1" pos="0" len="9216" steps="16">
+<note pan="0" key="41" vol="87" pos="3840" len="23"/>
+<note pan="0" key="45" vol="87" pos="3840" len="23"/>
+<note pan="0" key="48" vol="87" pos="3840" len="23"/>
+<note pan="0" key="41" vol="87" pos="3888" len="23"/>
+<note pan="0" key="45" vol="87" pos="3888" len="23"/>
+<note pan="0" key="48" vol="87" pos="3888" len="23"/>
+<note pan="0" key="41" vol="87" pos="3936" len="23"/>
+<note pan="0" key="45" vol="87" pos="3936" len="23"/>
+<note pan="0" key="48" vol="87" pos="3936" len="23"/>
+<note pan="0" key="41" vol="87" pos="3984" len="23"/>
+<note pan="0" key="45" vol="87" pos="3984" len="23"/>
+<note pan="0" key="48" vol="87" pos="3984" len="23"/>
+<note pan="0" key="34" vol="87" pos="4032" len="23"/>
+<note pan="0" key="38" vol="87" pos="4032" len="23"/>
+<note pan="0" key="41" vol="87" pos="4032" len="23"/>
+<note pan="0" key="34" vol="87" pos="4080" len="23"/>
+<note pan="0" key="38" vol="87" pos="4080" len="23"/>
+<note pan="0" key="41" vol="87" pos="4080" len="23"/>
+<note pan="0" key="34" vol="87" pos="4128" len="23"/>
+<note pan="0" key="38" vol="87" pos="4128" len="23"/>
+<note pan="0" key="41" vol="87" pos="4128" len="23"/>
+<note pan="0" key="34" vol="87" pos="4176" len="23"/>
+<note pan="0" key="38" vol="87" pos="4176" len="23"/>
+<note pan="0" key="41" vol="87" pos="4176" len="23"/>
+<note pan="0" key="38" vol="87" pos="4224" len="23"/>
+<note pan="0" key="41" vol="87" pos="4224" len="23"/>
+<note pan="0" key="45" vol="87" pos="4224" len="23"/>
+<note pan="0" key="38" vol="87" pos="4272" len="23"/>
+<note pan="0" key="41" vol="87" pos="4272" len="23"/>
+<note pan="0" key="45" vol="87" pos="4272" len="23"/>
+<note pan="0" key="38" vol="87" pos="4320" len="23"/>
+<note pan="0" key="41" vol="87" pos="4320" len="23"/>
+<note pan="0" key="45" vol="87" pos="4320" len="23"/>
+<note pan="0" key="38" vol="87" pos="4368" len="23"/>
+<note pan="0" key="41" vol="87" pos="4368" len="23"/>
+<note pan="0" key="45" vol="87" pos="4368" len="23"/>
+<note pan="0" key="36" vol="87" pos="4416" len="23"/>
+<note pan="0" key="40" vol="87" pos="4416" len="23"/>
+<note pan="0" key="43" vol="87" pos="4416" len="23"/>
+<note pan="0" key="36" vol="87" pos="4464" len="23"/>
+<note pan="0" key="40" vol="87" pos="4464" len="23"/>
+<note pan="0" key="43" vol="87" pos="4464" len="23"/>
+<note pan="0" key="36" vol="87" pos="4512" len="23"/>
+<note pan="0" key="40" vol="87" pos="4512" len="23"/>
+<note pan="0" key="43" vol="87" pos="4512" len="23"/>
+<note pan="0" key="36" vol="87" pos="4560" len="23"/>
+<note pan="0" key="40" vol="87" pos="4560" len="23"/>
+<note pan="0" key="43" vol="87" pos="4560" len="23"/>
+<note pan="0" key="41" vol="87" pos="4608" len="23"/>
+<note pan="0" key="45" vol="87" pos="4608" len="23"/>
+<note pan="0" key="48" vol="87" pos="4608" len="23"/>
+<note pan="0" key="41" vol="87" pos="4656" len="23"/>
+<note pan="0" key="45" vol="87" pos="4656" len="23"/>
+<note pan="0" key="48" vol="87" pos="4656" len="23"/>
+<note pan="0" key="41" vol="87" pos="4704" len="23"/>
+<note pan="0" key="45" vol="87" pos="4704" len="23"/>
+<note pan="0" key="48" vol="87" pos="4704" len="23"/>
+<note pan="0" key="41" vol="87" pos="4752" len="23"/>
+<note pan="0" key="45" vol="87" pos="4752" len="23"/>
+<note pan="0" key="48" vol="87" pos="4752" len="23"/>
+<note pan="0" key="34" vol="87" pos="4800" len="23"/>
+<note pan="0" key="38" vol="87" pos="4800" len="23"/>
+<note pan="0" key="41" vol="87" pos="4800" len="23"/>
+<note pan="0" key="34" vol="87" pos="4848" len="23"/>
+<note pan="0" key="38" vol="87" pos="4848" len="23"/>
+<note pan="0" key="41" vol="87" pos="4848" len="23"/>
+<note pan="0" key="34" vol="87" pos="4896" len="23"/>
+<note pan="0" key="38" vol="87" pos="4896" len="23"/>
+<note pan="0" key="41" vol="87" pos="4896" len="23"/>
+<note pan="0" key="34" vol="87" pos="4944" len="23"/>
+<note pan="0" key="38" vol="87" pos="4944" len="23"/>
+<note pan="0" key="41" vol="87" pos="4944" len="23"/>
+<note pan="0" key="31" vol="87" pos="4992" len="23"/>
+<note pan="0" key="34" vol="87" pos="4992" len="23"/>
+<note pan="0" key="38" vol="87" pos="4992" len="23"/>
+<note pan="0" key="31" vol="87" pos="5040" len="23"/>
+<note pan="0" key="34" vol="87" pos="5040" len="23"/>
+<note pan="0" key="38" vol="87" pos="5040" len="23"/>
+<note pan="0" key="36" vol="87" pos="5088" len="23"/>
+<note pan="0" key="40" vol="87" pos="5088" len="23"/>
+<note pan="0" key="43" vol="87" pos="5088" len="23"/>
+<note pan="0" key="36" vol="87" pos="5136" len="23"/>
+<note pan="0" key="40" vol="87" pos="5136" len="23"/>
+<note pan="0" key="43" vol="87" pos="5136" len="23"/>
+<note pan="0" key="41" vol="87" pos="5184" len="23"/>
+<note pan="0" key="45" vol="87" pos="5184" len="23"/>
+<note pan="0" key="48" vol="87" pos="5184" len="23"/>
+<note pan="0" key="41" vol="87" pos="5232" len="23"/>
+<note pan="0" key="45" vol="87" pos="5232" len="23"/>
+<note pan="0" key="48" vol="87" pos="5232" len="23"/>
+<note pan="0" key="41" vol="87" pos="5280" len="23"/>
+<note pan="0" key="45" vol="87" pos="5280" len="23"/>
+<note pan="0" key="48" vol="87" pos="5280" len="23"/>
+<note pan="0" key="41" vol="87" pos="5328" len="23"/>
+<note pan="0" key="45" vol="87" pos="5328" len="23"/>
+<note pan="0" key="48" vol="87" pos="5328" len="23"/>
+</pattern>
+</track>
+<track muted="0" type="0" name="gm_trumpet" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="190" basenote="57" pan="15" fxch="0" usemasterpitch="1">
+<instrument name="sf2player">
+<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="56" bank="0" gain="1" reverbOn="1" reverbLevel="0.45" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+</instrument>
+<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
+<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+</eldata>
+<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
+<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
+<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
+<fxchain numofeffects="0" enabled="0"/>
+</instrumenttrack>
+<pattern muted="0" type="1" name="gm_trumpet" pos="0" len="9216" steps="16">
+<note pan="0" key="50" vol="173" pos="5376" len="71"/>
+<note pan="0" key="57" vol="173" pos="5448" len="71"/>
+<note pan="0" key="55" vol="173" pos="5520" len="23"/>
+<note pan="0" key="57" vol="173" pos="5544" len="23"/>
+<note pan="0" key="58" vol="173" pos="5568" len="71"/>
+<note pan="0" key="57" vol="173" pos="5640" len="71"/>
+<note pan="0" key="53" vol="173" pos="5712" len="23"/>
+<note pan="0" key="55" vol="173" pos="5736" len="23"/>
+<note pan="0" key="57" vol="173" pos="5760" len="71"/>
+<note pan="0" key="60" vol="173" pos="5832" len="71"/>
+<note pan="0" key="58" vol="173" pos="5904" len="23"/>
+<note pan="0" key="57" vol="173" pos="5928" len="23"/>
+<note pan="0" key="55" vol="173" pos="5952" len="143"/>
+<note pan="0" key="53" vol="173" pos="6096" len="23"/>
+<note pan="0" key="52" vol="173" pos="6120" len="23"/>
+<note pan="0" key="50" vol="173" pos="6144" len="71"/>
+<note pan="0" key="57" vol="173" pos="6216" len="71"/>
+<note pan="0" key="55" vol="173" pos="6288" len="23"/>
+<note pan="0" key="57" vol="173" pos="6312" len="23"/>
+<note pan="0" key="58" vol="173" pos="6336" len="71"/>
+<note pan="0" key="62" vol="173" pos="6408" len="71"/>
+<note pan="0" key="60" vol="173" pos="6480" len="23"/>
+<note pan="0" key="58" vol="173" pos="6504" len="23"/>
+<note pan="0" key="62" vol="173" pos="6528" len="71"/>
+<note pan="0" key="67" vol="173" pos="6600" len="71"/>
+<note pan="0" key="65" vol="173" pos="6672" len="23"/>
+<note pan="0" key="64" vol="173" pos="6696" len="23"/>
+<note pan="0" key="64" vol="173" pos="6720" len="143"/>
+<note pan="0" key="61" vol="173" pos="6864" len="23"/>
+<note pan="0" key="57" vol="173" pos="6888" len="23"/>
+<note pan="0" key="50" vol="173" pos="6912" len="71"/>
+<note pan="0" key="57" vol="173" pos="6984" len="71"/>
+<note pan="0" key="55" vol="173" pos="7056" len="23"/>
+<note pan="0" key="57" vol="173" pos="7080" len="23"/>
+<note pan="0" key="58" vol="173" pos="7104" len="71"/>
+<note pan="0" key="57" vol="173" pos="7176" len="71"/>
+<note pan="0" key="53" vol="173" pos="7248" len="23"/>
+<note pan="0" key="55" vol="173" pos="7272" len="23"/>
+<note pan="0" key="57" vol="173" pos="7296" len="71"/>
+<note pan="0" key="60" vol="173" pos="7368" len="71"/>
+<note pan="0" key="62" vol="173" pos="7440" len="23"/>
+<note pan="0" key="64" vol="173" pos="7464" len="23"/>
+<note pan="0" key="65" vol="173" pos="7488" len="71"/>
+<note pan="0" key="64" vol="173" pos="7560" len="71"/>
+<note pan="0" key="62" vol="173" pos="7632" len="23"/>
+<note pan="0" key="60" vol="173" pos="7656" len="23"/>
+<note pan="0" key="62" vol="173" pos="7680" len="71"/>
+<note pan="0" key="58" vol="173" pos="7752" len="71"/>
+<note pan="0" key="60" vol="173" pos="7824" len="23"/>
+<note pan="0" key="62" vol="173" pos="7848" len="23"/>
+<note pan="0" key="65" vol="173" pos="7872" len="71"/>
+<note pan="0" key="62" vol="173" pos="7944" len="71"/>
+<note pan="0" key="64" vol="173" pos="8016" len="23"/>
+<note pan="0" key="65" vol="173" pos="8040" len="23"/>
+<note pan="0" key="67" vol="173" pos="8064" len="71"/>
+<note pan="0" key="64" vol="173" pos="8136" len="71"/>
+<note pan="0" key="65" vol="173" pos="8208" len="23"/>
+<note pan="0" key="67" vol="173" pos="8232" len="23"/>
+<note pan="0" key="66" vol="173" pos="8256" len="71"/>
+<note pan="0" key="69" vol="173" pos="8328" len="119"/>
+<note pan="0" key="62" vol="173" pos="8448" len="71"/>
+<note pan="0" key="65" vol="173" pos="8520" len="71"/>
+<note pan="0" key="62" vol="173" pos="8592" len="23"/>
+<note pan="0" key="65" vol="173" pos="8616" len="23"/>
+<note pan="0" key="64" vol="173" pos="8640" len="71"/>
+<note pan="0" key="67" vol="173" pos="8712" len="71"/>
+<note pan="0" key="64" vol="173" pos="8784" len="23"/>
+<note pan="0" key="67" vol="173" pos="8808" len="23"/>
+<note pan="0" key="66" vol="173" pos="8832" len="71"/>
+<note pan="0" key="69" vol="173" pos="8904" len="119"/>
+<note pan="0" key="69" vol="173" pos="9024" len="191"/>
+</pattern>
+</track>
+<track muted="0" type="0" name="gm_choir_aahs" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="85" basenote="57" pan="0" fxch="0" usemasterpitch="1">
+<instrument name="sf2player">
+<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="52" bank="0" gain="1" reverbOn="1" reverbLevel="0.45" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+</instrument>
+<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
+<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+</eldata>
+<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
+<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
+<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
+<fxchain numofeffects="0" enabled="0"/>
+</instrumenttrack>
+<pattern muted="0" type="1" name="gm_choir_aahs" pos="0" len="9216" steps="16">
+<note pan="0" key="50" vol="94" pos="5376" len="191"/>
+<note pan="0" key="53" vol="94" pos="5376" len="191"/>
+<note pan="0" key="57" vol="94" pos="5376" len="191"/>
+<note pan="0" key="46" vol="94" pos="5568" len="191"/>
+<note pan="0" key="50" vol="94" pos="5568" len="191"/>
+<note pan="0" key="53" vol="94" pos="5568" len="191"/>
+<note pan="0" key="53" vol="94" pos="5760" len="191"/>
+<note pan="0" key="57" vol="94" pos="5760" len="191"/>
+<note pan="0" key="60" vol="94" pos="5760" len="191"/>
+<note pan="0" key="48" vol="94" pos="5952" len="191"/>
+<note pan="0" key="52" vol="94" pos="5952" len="191"/>
+<note pan="0" key="55" vol="94" pos="5952" len="191"/>
+<note pan="0" key="50" vol="94" pos="6144" len="191"/>
+<note pan="0" key="53" vol="94" pos="6144" len="191"/>
+<note pan="0" key="57" vol="94" pos="6144" len="191"/>
+<note pan="0" key="46" vol="94" pos="6336" len="191"/>
+<note pan="0" key="50" vol="94" pos="6336" len="191"/>
+<note pan="0" key="53" vol="94" pos="6336" len="191"/>
+<note pan="0" key="43" vol="94" pos="6528" len="191"/>
+<note pan="0" key="46" vol="94" pos="6528" len="191"/>
+<note pan="0" key="50" vol="94" pos="6528" len="191"/>
+<note pan="0" key="45" vol="94" pos="6720" len="191"/>
+<note pan="0" key="49" vol="94" pos="6720" len="191"/>
+<note pan="0" key="52" vol="94" pos="6720" len="191"/>
+<note pan="0" key="50" vol="94" pos="6912" len="191"/>
+<note pan="0" key="53" vol="94" pos="6912" len="191"/>
+<note pan="0" key="57" vol="94" pos="6912" len="191"/>
+<note pan="0" key="46" vol="94" pos="7104" len="191"/>
+<note pan="0" key="50" vol="94" pos="7104" len="191"/>
+<note pan="0" key="53" vol="94" pos="7104" len="191"/>
+<note pan="0" key="53" vol="94" pos="7296" len="191"/>
+<note pan="0" key="57" vol="94" pos="7296" len="191"/>
+<note pan="0" key="60" vol="94" pos="7296" len="191"/>
+<note pan="0" key="48" vol="94" pos="7488" len="191"/>
+<note pan="0" key="52" vol="94" pos="7488" len="191"/>
+<note pan="0" key="55" vol="94" pos="7488" len="191"/>
+<note pan="0" key="43" vol="94" pos="7680" len="191"/>
+<note pan="0" key="46" vol="94" pos="7680" len="191"/>
+<note pan="0" key="50" vol="94" pos="7680" len="191"/>
+<note pan="0" key="46" vol="94" pos="7872" len="191"/>
+<note pan="0" key="50" vol="94" pos="7872" len="191"/>
+<note pan="0" key="53" vol="94" pos="7872" len="191"/>
+<note pan="0" key="48" vol="94" pos="8064" len="191"/>
+<note pan="0" key="52" vol="94" pos="8064" len="191"/>
+<note pan="0" key="55" vol="94" pos="8064" len="191"/>
+<note pan="0" key="50" vol="94" pos="8256" len="191"/>
+<note pan="0" key="54" vol="94" pos="8256" len="191"/>
+<note pan="0" key="57" vol="94" pos="8256" len="191"/>
+<note pan="0" key="46" vol="94" pos="8448" len="191"/>
+<note pan="0" key="50" vol="94" pos="8448" len="191"/>
+<note pan="0" key="53" vol="94" pos="8448" len="191"/>
+<note pan="0" key="48" vol="94" pos="8640" len="191"/>
+<note pan="0" key="52" vol="94" pos="8640" len="191"/>
+<note pan="0" key="55" vol="94" pos="8640" len="191"/>
+<note pan="0" key="50" vol="94" pos="8832" len="191"/>
+<note pan="0" key="54" vol="94" pos="8832" len="191"/>
+<note pan="0" key="57" vol="94" pos="8832" len="191"/>
+<note pan="0" key="62" vol="94" pos="8832" len="191"/>
+<note pan="0" key="50" vol="94" pos="9024" len="191"/>
+<note pan="0" key="54" vol="94" pos="9024" len="191"/>
+<note pan="0" key="57" vol="94" pos="9024" len="191"/>
+<note pan="0" key="62" vol="94" pos="9024" len="191"/>
+</pattern>
+</track>
+<track muted="0" type="0" name="gm_distortion_guitar" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="70" basenote="57" pan="35" fxch="0" usemasterpitch="1">
+<instrument name="sf2player">
+<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="30" bank="0" gain="1" reverbOn="1" reverbLevel="0.45" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+</instrument>
+<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
+<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+</eldata>
+<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
+<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
+<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
+<fxchain numofeffects="0" enabled="0"/>
+</instrumenttrack>
+<pattern muted="0" type="1" name="gm_distortion_guitar" pos="0" len="9216" steps="16">
+<note pan="0" key="38" vol="94" pos="5376" len="23"/>
+<note pan="0" key="45" vol="94" pos="5376" len="23"/>
+<note pan="0" key="50" vol="94" pos="5376" len="23"/>
+<note pan="0" key="38" vol="94" pos="5400" len="23"/>
+<note pan="0" key="45" vol="94" pos="5400" len="23"/>
+<note pan="0" key="50" vol="94" pos="5400" len="23"/>
+<note pan="0" key="38" vol="94" pos="5424" len="23"/>
+<note pan="0" key="45" vol="94" pos="5424" len="23"/>
+<note pan="0" key="50" vol="94" pos="5424" len="23"/>
+<note pan="0" key="38" vol="94" pos="5448" len="23"/>
+<note pan="0" key="45" vol="94" pos="5448" len="23"/>
+<note pan="0" key="50" vol="94" pos="5448" len="23"/>
+<note pan="0" key="38" vol="94" pos="5472" len="23"/>
+<note pan="0" key="45" vol="94" pos="5472" len="23"/>
+<note pan="0" key="50" vol="94" pos="5472" len="23"/>
+<note pan="0" key="38" vol="94" pos="5496" len="23"/>
+<note pan="0" key="45" vol="94" pos="5496" len="23"/>
+<note pan="0" key="50" vol="94" pos="5496" len="23"/>
+<note pan="0" key="38" vol="94" pos="5520" len="23"/>
+<note pan="0" key="45" vol="94" pos="5520" len="23"/>
+<note pan="0" key="50" vol="94" pos="5520" len="23"/>
+<note pan="0" key="38" vol="94" pos="5544" len="23"/>
+<note pan="0" key="45" vol="94" pos="5544" len="23"/>
+<note pan="0" key="50" vol="94" pos="5544" len="23"/>
+<note pan="0" key="34" vol="94" pos="5568" len="23"/>
+<note pan="0" key="41" vol="94" pos="5568" len="23"/>
+<note pan="0" key="46" vol="94" pos="5568" len="23"/>
+<note pan="0" key="34" vol="94" pos="5592" len="23"/>
+<note pan="0" key="41" vol="94" pos="5592" len="23"/>
+<note pan="0" key="46" vol="94" pos="5592" len="23"/>
+<note pan="0" key="34" vol="94" pos="5616" len="23"/>
+<note pan="0" key="41" vol="94" pos="5616" len="23"/>
+<note pan="0" key="46" vol="94" pos="5616" len="23"/>
+<note pan="0" key="34" vol="94" pos="5640" len="23"/>
+<note pan="0" key="41" vol="94" pos="5640" len="23"/>
+<note pan="0" key="46" vol="94" pos="5640" len="23"/>
+<note pan="0" key="34" vol="94" pos="5664" len="23"/>
+<note pan="0" key="41" vol="94" pos="5664" len="23"/>
+<note pan="0" key="46" vol="94" pos="5664" len="23"/>
+<note pan="0" key="34" vol="94" pos="5688" len="23"/>
+<note pan="0" key="41" vol="94" pos="5688" len="23"/>
+<note pan="0" key="46" vol="94" pos="5688" len="23"/>
+<note pan="0" key="34" vol="94" pos="5712" len="23"/>
+<note pan="0" key="41" vol="94" pos="5712" len="23"/>
+<note pan="0" key="46" vol="94" pos="5712" len="23"/>
+<note pan="0" key="34" vol="94" pos="5736" len="23"/>
+<note pan="0" key="41" vol="94" pos="5736" len="23"/>
+<note pan="0" key="46" vol="94" pos="5736" len="23"/>
+<note pan="0" key="41" vol="94" pos="5760" len="23"/>
+<note pan="0" key="48" vol="94" pos="5760" len="23"/>
+<note pan="0" key="53" vol="94" pos="5760" len="23"/>
+<note pan="0" key="41" vol="94" pos="5784" len="23"/>
+<note pan="0" key="48" vol="94" pos="5784" len="23"/>
+<note pan="0" key="53" vol="94" pos="5784" len="23"/>
+<note pan="0" key="41" vol="94" pos="5808" len="23"/>
+<note pan="0" key="48" vol="94" pos="5808" len="23"/>
+<note pan="0" key="53" vol="94" pos="5808" len="23"/>
+<note pan="0" key="41" vol="94" pos="5832" len="23"/>
+<note pan="0" key="48" vol="94" pos="5832" len="23"/>
+<note pan="0" key="53" vol="94" pos="5832" len="23"/>
+<note pan="0" key="41" vol="94" pos="5856" len="23"/>
+<note pan="0" key="48" vol="94" pos="5856" len="23"/>
+<note pan="0" key="53" vol="94" pos="5856" len="23"/>
+<note pan="0" key="41" vol="94" pos="5880" len="23"/>
+<note pan="0" key="48" vol="94" pos="5880" len="23"/>
+<note pan="0" key="53" vol="94" pos="5880" len="23"/>
+<note pan="0" key="41" vol="94" pos="5904" len="23"/>
+<note pan="0" key="48" vol="94" pos="5904" len="23"/>
+<note pan="0" key="53" vol="94" pos="5904" len="23"/>
+<note pan="0" key="41" vol="94" pos="5928" len="23"/>
+<note pan="0" key="48" vol="94" pos="5928" len="23"/>
+<note pan="0" key="53" vol="94" pos="5928" len="23"/>
+<note pan="0" key="36" vol="94" pos="5952" len="23"/>
+<note pan="0" key="43" vol="94" pos="5952" len="23"/>
+<note pan="0" key="48" vol="94" pos="5952" len="23"/>
+<note pan="0" key="36" vol="94" pos="5976" len="23"/>
+<note pan="0" key="43" vol="94" pos="5976" len="23"/>
+<note pan="0" key="48" vol="94" pos="5976" len="23"/>
+<note pan="0" key="36" vol="94" pos="6000" len="23"/>
+<note pan="0" key="43" vol="94" pos="6000" len="23"/>
+<note pan="0" key="48" vol="94" pos="6000" len="23"/>
+<note pan="0" key="36" vol="94" pos="6024" len="23"/>
+<note pan="0" key="43" vol="94" pos="6024" len="23"/>
+<note pan="0" key="48" vol="94" pos="6024" len="23"/>
+<note pan="0" key="36" vol="94" pos="6048" len="23"/>
+<note pan="0" key="43" vol="94" pos="6048" len="23"/>
+<note pan="0" key="48" vol="94" pos="6048" len="23"/>
+<note pan="0" key="36" vol="94" pos="6072" len="23"/>
+<note pan="0" key="43" vol="94" pos="6072" len="23"/>
+<note pan="0" key="48" vol="94" pos="6072" len="23"/>
+<note pan="0" key="36" vol="94" pos="6096" len="23"/>
+<note pan="0" key="43" vol="94" pos="6096" len="23"/>
+<note pan="0" key="48" vol="94" pos="6096" len="23"/>
+<note pan="0" key="36" vol="94" pos="6120" len="23"/>
+<note pan="0" key="43" vol="94" pos="6120" len="23"/>
+<note pan="0" key="48" vol="94" pos="6120" len="23"/>
+<note pan="0" key="38" vol="94" pos="6144" len="23"/>
+<note pan="0" key="45" vol="94" pos="6144" len="23"/>
+<note pan="0" key="50" vol="94" pos="6144" len="23"/>
+<note pan="0" key="38" vol="94" pos="6168" len="23"/>
+<note pan="0" key="45" vol="94" pos="6168" len="23"/>
+<note pan="0" key="50" vol="94" pos="6168" len="23"/>
+<note pan="0" key="38" vol="94" pos="6192" len="23"/>
+<note pan="0" key="45" vol="94" pos="6192" len="23"/>
+<note pan="0" key="50" vol="94" pos="6192" len="23"/>
+<note pan="0" key="38" vol="94" pos="6216" len="23"/>
+<note pan="0" key="45" vol="94" pos="6216" len="23"/>
+<note pan="0" key="50" vol="94" pos="6216" len="23"/>
+<note pan="0" key="38" vol="94" pos="6240" len="23"/>
+<note pan="0" key="45" vol="94" pos="6240" len="23"/>
+<note pan="0" key="50" vol="94" pos="6240" len="23"/>
+<note pan="0" key="38" vol="94" pos="6264" len="23"/>
+<note pan="0" key="45" vol="94" pos="6264" len="23"/>
+<note pan="0" key="50" vol="94" pos="6264" len="23"/>
+<note pan="0" key="38" vol="94" pos="6288" len="23"/>
+<note pan="0" key="45" vol="94" pos="6288" len="23"/>
+<note pan="0" key="50" vol="94" pos="6288" len="23"/>
+<note pan="0" key="38" vol="94" pos="6312" len="23"/>
+<note pan="0" key="45" vol="94" pos="6312" len="23"/>
+<note pan="0" key="50" vol="94" pos="6312" len="23"/>
+<note pan="0" key="34" vol="94" pos="6336" len="23"/>
+<note pan="0" key="41" vol="94" pos="6336" len="23"/>
+<note pan="0" key="46" vol="94" pos="6336" len="23"/>
+<note pan="0" key="34" vol="94" pos="6360" len="23"/>
+<note pan="0" key="41" vol="94" pos="6360" len="23"/>
+<note pan="0" key="46" vol="94" pos="6360" len="23"/>
+<note pan="0" key="34" vol="94" pos="6384" len="23"/>
+<note pan="0" key="41" vol="94" pos="6384" len="23"/>
+<note pan="0" key="46" vol="94" pos="6384" len="23"/>
+<note pan="0" key="34" vol="94" pos="6408" len="23"/>
+<note pan="0" key="41" vol="94" pos="6408" len="23"/>
+<note pan="0" key="46" vol="94" pos="6408" len="23"/>
+<note pan="0" key="34" vol="94" pos="6432" len="23"/>
+<note pan="0" key="41" vol="94" pos="6432" len="23"/>
+<note pan="0" key="46" vol="94" pos="6432" len="23"/>
+<note pan="0" key="34" vol="94" pos="6456" len="23"/>
+<note pan="0" key="41" vol="94" pos="6456" len="23"/>
+<note pan="0" key="46" vol="94" pos="6456" len="23"/>
+<note pan="0" key="34" vol="94" pos="6480" len="23"/>
+<note pan="0" key="41" vol="94" pos="6480" len="23"/>
+<note pan="0" key="46" vol="94" pos="6480" len="23"/>
+<note pan="0" key="34" vol="94" pos="6504" len="23"/>
+<note pan="0" key="41" vol="94" pos="6504" len="23"/>
+<note pan="0" key="46" vol="94" pos="6504" len="23"/>
+<note pan="0" key="31" vol="94" pos="6528" len="23"/>
+<note pan="0" key="38" vol="94" pos="6528" len="23"/>
+<note pan="0" key="43" vol="94" pos="6528" len="23"/>
+<note pan="0" key="31" vol="94" pos="6552" len="23"/>
+<note pan="0" key="38" vol="94" pos="6552" len="23"/>
+<note pan="0" key="43" vol="94" pos="6552" len="23"/>
+<note pan="0" key="31" vol="94" pos="6576" len="23"/>
+<note pan="0" key="38" vol="94" pos="6576" len="23"/>
+<note pan="0" key="43" vol="94" pos="6576" len="23"/>
+<note pan="0" key="31" vol="94" pos="6600" len="23"/>
+<note pan="0" key="38" vol="94" pos="6600" len="23"/>
+<note pan="0" key="43" vol="94" pos="6600" len="23"/>
+<note pan="0" key="31" vol="94" pos="6624" len="23"/>
+<note pan="0" key="38" vol="94" pos="6624" len="23"/>
+<note pan="0" key="43" vol="94" pos="6624" len="23"/>
+<note pan="0" key="31" vol="94" pos="6648" len="23"/>
+<note pan="0" key="38" vol="94" pos="6648" len="23"/>
+<note pan="0" key="43" vol="94" pos="6648" len="23"/>
+<note pan="0" key="31" vol="94" pos="6672" len="23"/>
+<note pan="0" key="38" vol="94" pos="6672" len="23"/>
+<note pan="0" key="43" vol="94" pos="6672" len="23"/>
+<note pan="0" key="31" vol="94" pos="6696" len="23"/>
+<note pan="0" key="38" vol="94" pos="6696" len="23"/>
+<note pan="0" key="43" vol="94" pos="6696" len="23"/>
+<note pan="0" key="33" vol="94" pos="6720" len="23"/>
+<note pan="0" key="40" vol="94" pos="6720" len="23"/>
+<note pan="0" key="45" vol="94" pos="6720" len="23"/>
+<note pan="0" key="33" vol="94" pos="6744" len="23"/>
+<note pan="0" key="40" vol="94" pos="6744" len="23"/>
+<note pan="0" key="45" vol="94" pos="6744" len="23"/>
+<note pan="0" key="33" vol="94" pos="6768" len="23"/>
+<note pan="0" key="40" vol="94" pos="6768" len="23"/>
+<note pan="0" key="45" vol="94" pos="6768" len="23"/>
+<note pan="0" key="33" vol="94" pos="6792" len="23"/>
+<note pan="0" key="40" vol="94" pos="6792" len="23"/>
+<note pan="0" key="45" vol="94" pos="6792" len="23"/>
+<note pan="0" key="33" vol="94" pos="6816" len="23"/>
+<note pan="0" key="40" vol="94" pos="6816" len="23"/>
+<note pan="0" key="45" vol="94" pos="6816" len="23"/>
+<note pan="0" key="33" vol="94" pos="6840" len="23"/>
+<note pan="0" key="40" vol="94" pos="6840" len="23"/>
+<note pan="0" key="45" vol="94" pos="6840" len="23"/>
+<note pan="0" key="33" vol="94" pos="6864" len="23"/>
+<note pan="0" key="40" vol="94" pos="6864" len="23"/>
+<note pan="0" key="45" vol="94" pos="6864" len="23"/>
+<note pan="0" key="33" vol="94" pos="6888" len="23"/>
+<note pan="0" key="40" vol="94" pos="6888" len="23"/>
+<note pan="0" key="45" vol="94" pos="6888" len="23"/>
+<note pan="0" key="38" vol="94" pos="6912" len="23"/>
+<note pan="0" key="45" vol="94" pos="6912" len="23"/>
+<note pan="0" key="50" vol="94" pos="6912" len="23"/>
+<note pan="0" key="38" vol="94" pos="6936" len="23"/>
+<note pan="0" key="45" vol="94" pos="6936" len="23"/>
+<note pan="0" key="50" vol="94" pos="6936" len="23"/>
+<note pan="0" key="38" vol="94" pos="6960" len="23"/>
+<note pan="0" key="45" vol="94" pos="6960" len="23"/>
+<note pan="0" key="50" vol="94" pos="6960" len="23"/>
+<note pan="0" key="38" vol="94" pos="6984" len="23"/>
+<note pan="0" key="45" vol="94" pos="6984" len="23"/>
+<note pan="0" key="50" vol="94" pos="6984" len="23"/>
+<note pan="0" key="38" vol="94" pos="7008" len="23"/>
+<note pan="0" key="45" vol="94" pos="7008" len="23"/>
+<note pan="0" key="50" vol="94" pos="7008" len="23"/>
+<note pan="0" key="38" vol="94" pos="7032" len="23"/>
+<note pan="0" key="45" vol="94" pos="7032" len="23"/>
+<note pan="0" key="50" vol="94" pos="7032" len="23"/>
+<note pan="0" key="38" vol="94" pos="7056" len="23"/>
+<note pan="0" key="45" vol="94" pos="7056" len="23"/>
+<note pan="0" key="50" vol="94" pos="7056" len="23"/>
+<note pan="0" key="38" vol="94" pos="7080" len="23"/>
+<note pan="0" key="45" vol="94" pos="7080" len="23"/>
+<note pan="0" key="50" vol="94" pos="7080" len="23"/>
+<note pan="0" key="34" vol="94" pos="7104" len="23"/>
+<note pan="0" key="41" vol="94" pos="7104" len="23"/>
+<note pan="0" key="46" vol="94" pos="7104" len="23"/>
+<note pan="0" key="34" vol="94" pos="7128" len="23"/>
+<note pan="0" key="41" vol="94" pos="7128" len="23"/>
+<note pan="0" key="46" vol="94" pos="7128" len="23"/>
+<note pan="0" key="34" vol="94" pos="7152" len="23"/>
+<note pan="0" key="41" vol="94" pos="7152" len="23"/>
+<note pan="0" key="46" vol="94" pos="7152" len="23"/>
+<note pan="0" key="34" vol="94" pos="7176" len="23"/>
+<note pan="0" key="41" vol="94" pos="7176" len="23"/>
+<note pan="0" key="46" vol="94" pos="7176" len="23"/>
+<note pan="0" key="34" vol="94" pos="7200" len="23"/>
+<note pan="0" key="41" vol="94" pos="7200" len="23"/>
+<note pan="0" key="46" vol="94" pos="7200" len="23"/>
+<note pan="0" key="34" vol="94" pos="7224" len="23"/>
+<note pan="0" key="41" vol="94" pos="7224" len="23"/>
+<note pan="0" key="46" vol="94" pos="7224" len="23"/>
+<note pan="0" key="34" vol="94" pos="7248" len="23"/>
+<note pan="0" key="41" vol="94" pos="7248" len="23"/>
+<note pan="0" key="46" vol="94" pos="7248" len="23"/>
+<note pan="0" key="34" vol="94" pos="7272" len="23"/>
+<note pan="0" key="41" vol="94" pos="7272" len="23"/>
+<note pan="0" key="46" vol="94" pos="7272" len="23"/>
+<note pan="0" key="41" vol="94" pos="7296" len="23"/>
+<note pan="0" key="48" vol="94" pos="7296" len="23"/>
+<note pan="0" key="53" vol="94" pos="7296" len="23"/>
+<note pan="0" key="41" vol="94" pos="7320" len="23"/>
+<note pan="0" key="48" vol="94" pos="7320" len="23"/>
+<note pan="0" key="53" vol="94" pos="7320" len="23"/>
+<note pan="0" key="41" vol="94" pos="7344" len="23"/>
+<note pan="0" key="48" vol="94" pos="7344" len="23"/>
+<note pan="0" key="53" vol="94" pos="7344" len="23"/>
+<note pan="0" key="41" vol="94" pos="7368" len="23"/>
+<note pan="0" key="48" vol="94" pos="7368" len="23"/>
+<note pan="0" key="53" vol="94" pos="7368" len="23"/>
+<note pan="0" key="41" vol="94" pos="7392" len="23"/>
+<note pan="0" key="48" vol="94" pos="7392" len="23"/>
+<note pan="0" key="53" vol="94" pos="7392" len="23"/>
+<note pan="0" key="41" vol="94" pos="7416" len="23"/>
+<note pan="0" key="48" vol="94" pos="7416" len="23"/>
+<note pan="0" key="53" vol="94" pos="7416" len="23"/>
+<note pan="0" key="41" vol="94" pos="7440" len="23"/>
+<note pan="0" key="48" vol="94" pos="7440" len="23"/>
+<note pan="0" key="53" vol="94" pos="7440" len="23"/>
+<note pan="0" key="41" vol="94" pos="7464" len="23"/>
+<note pan="0" key="48" vol="94" pos="7464" len="23"/>
+<note pan="0" key="53" vol="94" pos="7464" len="23"/>
+<note pan="0" key="36" vol="94" pos="7488" len="23"/>
+<note pan="0" key="43" vol="94" pos="7488" len="23"/>
+<note pan="0" key="48" vol="94" pos="7488" len="23"/>
+<note pan="0" key="36" vol="94" pos="7512" len="23"/>
+<note pan="0" key="43" vol="94" pos="7512" len="23"/>
+<note pan="0" key="48" vol="94" pos="7512" len="23"/>
+<note pan="0" key="36" vol="94" pos="7536" len="23"/>
+<note pan="0" key="43" vol="94" pos="7536" len="23"/>
+<note pan="0" key="48" vol="94" pos="7536" len="23"/>
+<note pan="0" key="36" vol="94" pos="7560" len="23"/>
+<note pan="0" key="43" vol="94" pos="7560" len="23"/>
+<note pan="0" key="48" vol="94" pos="7560" len="23"/>
+<note pan="0" key="36" vol="94" pos="7584" len="23"/>
+<note pan="0" key="43" vol="94" pos="7584" len="23"/>
+<note pan="0" key="48" vol="94" pos="7584" len="23"/>
+<note pan="0" key="36" vol="94" pos="7608" len="23"/>
+<note pan="0" key="43" vol="94" pos="7608" len="23"/>
+<note pan="0" key="48" vol="94" pos="7608" len="23"/>
+<note pan="0" key="36" vol="94" pos="7632" len="23"/>
+<note pan="0" key="43" vol="94" pos="7632" len="23"/>
+<note pan="0" key="48" vol="94" pos="7632" len="23"/>
+<note pan="0" key="36" vol="94" pos="7656" len="23"/>
+<note pan="0" key="43" vol="94" pos="7656" len="23"/>
+<note pan="0" key="48" vol="94" pos="7656" len="23"/>
+<note pan="0" key="31" vol="94" pos="7680" len="23"/>
+<note pan="0" key="38" vol="94" pos="7680" len="23"/>
+<note pan="0" key="43" vol="94" pos="7680" len="23"/>
+<note pan="0" key="31" vol="94" pos="7704" len="23"/>
+<note pan="0" key="38" vol="94" pos="7704" len="23"/>
+<note pan="0" key="43" vol="94" pos="7704" len="23"/>
+<note pan="0" key="31" vol="94" pos="7728" len="23"/>
+<note pan="0" key="38" vol="94" pos="7728" len="23"/>
+<note pan="0" key="43" vol="94" pos="7728" len="23"/>
+<note pan="0" key="31" vol="94" pos="7752" len="23"/>
+<note pan="0" key="38" vol="94" pos="7752" len="23"/>
+<note pan="0" key="43" vol="94" pos="7752" len="23"/>
+<note pan="0" key="31" vol="94" pos="7776" len="23"/>
+<note pan="0" key="38" vol="94" pos="7776" len="23"/>
+<note pan="0" key="43" vol="94" pos="7776" len="23"/>
+<note pan="0" key="31" vol="94" pos="7800" len="23"/>
+<note pan="0" key="38" vol="94" pos="7800" len="23"/>
+<note pan="0" key="43" vol="94" pos="7800" len="23"/>
+<note pan="0" key="31" vol="94" pos="7824" len="23"/>
+<note pan="0" key="38" vol="94" pos="7824" len="23"/>
+<note pan="0" key="43" vol="94" pos="7824" len="23"/>
+<note pan="0" key="31" vol="94" pos="7848" len="23"/>
+<note pan="0" key="38" vol="94" pos="7848" len="23"/>
+<note pan="0" key="43" vol="94" pos="7848" len="23"/>
+<note pan="0" key="34" vol="94" pos="7872" len="23"/>
+<note pan="0" key="41" vol="94" pos="7872" len="23"/>
+<note pan="0" key="46" vol="94" pos="7872" len="23"/>
+<note pan="0" key="34" vol="94" pos="7896" len="23"/>
+<note pan="0" key="41" vol="94" pos="7896" len="23"/>
+<note pan="0" key="46" vol="94" pos="7896" len="23"/>
+<note pan="0" key="34" vol="94" pos="7920" len="23"/>
+<note pan="0" key="41" vol="94" pos="7920" len="23"/>
+<note pan="0" key="46" vol="94" pos="7920" len="23"/>
+<note pan="0" key="34" vol="94" pos="7944" len="23"/>
+<note pan="0" key="41" vol="94" pos="7944" len="23"/>
+<note pan="0" key="46" vol="94" pos="7944" len="23"/>
+<note pan="0" key="34" vol="94" pos="7968" len="23"/>
+<note pan="0" key="41" vol="94" pos="7968" len="23"/>
+<note pan="0" key="46" vol="94" pos="7968" len="23"/>
+<note pan="0" key="34" vol="94" pos="7992" len="23"/>
+<note pan="0" key="41" vol="94" pos="7992" len="23"/>
+<note pan="0" key="46" vol="94" pos="7992" len="23"/>
+<note pan="0" key="34" vol="94" pos="8016" len="23"/>
+<note pan="0" key="41" vol="94" pos="8016" len="23"/>
+<note pan="0" key="46" vol="94" pos="8016" len="23"/>
+<note pan="0" key="34" vol="94" pos="8040" len="23"/>
+<note pan="0" key="41" vol="94" pos="8040" len="23"/>
+<note pan="0" key="46" vol="94" pos="8040" len="23"/>
+<note pan="0" key="36" vol="94" pos="8064" len="23"/>
+<note pan="0" key="43" vol="94" pos="8064" len="23"/>
+<note pan="0" key="48" vol="94" pos="8064" len="23"/>
+<note pan="0" key="36" vol="94" pos="8088" len="23"/>
+<note pan="0" key="43" vol="94" pos="8088" len="23"/>
+<note pan="0" key="48" vol="94" pos="8088" len="23"/>
+<note pan="0" key="36" vol="94" pos="8112" len="23"/>
+<note pan="0" key="43" vol="94" pos="8112" len="23"/>
+<note pan="0" key="48" vol="94" pos="8112" len="23"/>
+<note pan="0" key="36" vol="94" pos="8136" len="23"/>
+<note pan="0" key="43" vol="94" pos="8136" len="23"/>
+<note pan="0" key="48" vol="94" pos="8136" len="23"/>
+<note pan="0" key="36" vol="94" pos="8160" len="23"/>
+<note pan="0" key="43" vol="94" pos="8160" len="23"/>
+<note pan="0" key="48" vol="94" pos="8160" len="23"/>
+<note pan="0" key="36" vol="94" pos="8184" len="23"/>
+<note pan="0" key="43" vol="94" pos="8184" len="23"/>
+<note pan="0" key="48" vol="94" pos="8184" len="23"/>
+<note pan="0" key="36" vol="94" pos="8208" len="23"/>
+<note pan="0" key="43" vol="94" pos="8208" len="23"/>
+<note pan="0" key="48" vol="94" pos="8208" len="23"/>
+<note pan="0" key="36" vol="94" pos="8232" len="23"/>
+<note pan="0" key="43" vol="94" pos="8232" len="23"/>
+<note pan="0" key="48" vol="94" pos="8232" len="23"/>
+<note pan="0" key="38" vol="94" pos="8256" len="23"/>
+<note pan="0" key="45" vol="94" pos="8256" len="23"/>
+<note pan="0" key="50" vol="94" pos="8256" len="23"/>
+<note pan="0" key="38" vol="94" pos="8280" len="23"/>
+<note pan="0" key="45" vol="94" pos="8280" len="23"/>
+<note pan="0" key="50" vol="94" pos="8280" len="23"/>
+<note pan="0" key="38" vol="94" pos="8304" len="23"/>
+<note pan="0" key="45" vol="94" pos="8304" len="23"/>
+<note pan="0" key="50" vol="94" pos="8304" len="23"/>
+<note pan="0" key="38" vol="94" pos="8328" len="23"/>
+<note pan="0" key="45" vol="94" pos="8328" len="23"/>
+<note pan="0" key="50" vol="94" pos="8328" len="23"/>
+<note pan="0" key="38" vol="94" pos="8352" len="23"/>
+<note pan="0" key="45" vol="94" pos="8352" len="23"/>
+<note pan="0" key="50" vol="94" pos="8352" len="23"/>
+<note pan="0" key="38" vol="94" pos="8376" len="23"/>
+<note pan="0" key="45" vol="94" pos="8376" len="23"/>
+<note pan="0" key="50" vol="94" pos="8376" len="23"/>
+<note pan="0" key="38" vol="94" pos="8400" len="23"/>
+<note pan="0" key="45" vol="94" pos="8400" len="23"/>
+<note pan="0" key="50" vol="94" pos="8400" len="23"/>
+<note pan="0" key="38" vol="94" pos="8424" len="23"/>
+<note pan="0" key="45" vol="94" pos="8424" len="23"/>
+<note pan="0" key="50" vol="94" pos="8424" len="23"/>
+</pattern>
+</track>
+<track muted="0" type="0" name="gm_electric_bass_pick" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="85" basenote="57" pan="0" fxch="0" usemasterpitch="1">
+<instrument name="sf2player">
+<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="34" bank="0" gain="1" reverbOn="1" reverbLevel="0.45" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+</instrument>
+<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
+<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+</eldata>
+<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
+<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
+<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
+<fxchain numofeffects="0" enabled="0"/>
+</instrumenttrack>
+<pattern muted="0" type="1" name="gm_electric_bass_pick" pos="0" len="9216" steps="16">
+<note pan="0" key="38" vol="126" pos="5376" len="23"/>
+<note pan="0" key="38" vol="126" pos="5400" len="23"/>
+<note pan="0" key="38" vol="126" pos="5424" len="23"/>
+<note pan="0" key="38" vol="126" pos="5448" len="23"/>
+<note pan="0" key="38" vol="126" pos="5472" len="23"/>
+<note pan="0" key="38" vol="126" pos="5496" len="23"/>
+<note pan="0" key="38" vol="126" pos="5520" len="23"/>
+<note pan="0" key="38" vol="126" pos="5544" len="23"/>
+<note pan="0" key="34" vol="126" pos="5568" len="23"/>
+<note pan="0" key="34" vol="126" pos="5592" len="23"/>
+<note pan="0" key="34" vol="126" pos="5616" len="23"/>
+<note pan="0" key="34" vol="126" pos="5640" len="23"/>
+<note pan="0" key="34" vol="126" pos="5664" len="23"/>
+<note pan="0" key="34" vol="126" pos="5688" len="23"/>
+<note pan="0" key="34" vol="126" pos="5712" len="23"/>
+<note pan="0" key="34" vol="126" pos="5736" len="23"/>
+<note pan="0" key="41" vol="126" pos="5760" len="23"/>
+<note pan="0" key="41" vol="126" pos="5784" len="23"/>
+<note pan="0" key="41" vol="126" pos="5808" len="23"/>
+<note pan="0" key="41" vol="126" pos="5832" len="23"/>
+<note pan="0" key="41" vol="126" pos="5856" len="23"/>
+<note pan="0" key="41" vol="126" pos="5880" len="23"/>
+<note pan="0" key="41" vol="126" pos="5904" len="23"/>
+<note pan="0" key="41" vol="126" pos="5928" len="23"/>
+<note pan="0" key="36" vol="126" pos="5952" len="23"/>
+<note pan="0" key="36" vol="126" pos="5976" len="23"/>
+<note pan="0" key="36" vol="126" pos="6000" len="23"/>
+<note pan="0" key="36" vol="126" pos="6024" len="23"/>
+<note pan="0" key="36" vol="126" pos="6048" len="23"/>
+<note pan="0" key="36" vol="126" pos="6072" len="23"/>
+<note pan="0" key="36" vol="126" pos="6096" len="23"/>
+<note pan="0" key="36" vol="126" pos="6120" len="23"/>
+<note pan="0" key="38" vol="126" pos="6144" len="23"/>
+<note pan="0" key="38" vol="126" pos="6168" len="23"/>
+<note pan="0" key="38" vol="126" pos="6192" len="23"/>
+<note pan="0" key="38" vol="126" pos="6216" len="23"/>
+<note pan="0" key="38" vol="126" pos="6240" len="23"/>
+<note pan="0" key="38" vol="126" pos="6264" len="23"/>
+<note pan="0" key="38" vol="126" pos="6288" len="23"/>
+<note pan="0" key="38" vol="126" pos="6312" len="23"/>
+<note pan="0" key="34" vol="126" pos="6336" len="23"/>
+<note pan="0" key="34" vol="126" pos="6360" len="23"/>
+<note pan="0" key="34" vol="126" pos="6384" len="23"/>
+<note pan="0" key="34" vol="126" pos="6408" len="23"/>
+<note pan="0" key="34" vol="126" pos="6432" len="23"/>
+<note pan="0" key="34" vol="126" pos="6456" len="23"/>
+<note pan="0" key="34" vol="126" pos="6480" len="23"/>
+<note pan="0" key="34" vol="126" pos="6504" len="23"/>
+<note pan="0" key="31" vol="126" pos="6528" len="23"/>
+<note pan="0" key="31" vol="126" pos="6552" len="23"/>
+<note pan="0" key="31" vol="126" pos="6576" len="23"/>
+<note pan="0" key="31" vol="126" pos="6600" len="23"/>
+<note pan="0" key="31" vol="126" pos="6624" len="23"/>
+<note pan="0" key="31" vol="126" pos="6648" len="23"/>
+<note pan="0" key="31" vol="126" pos="6672" len="23"/>
+<note pan="0" key="31" vol="126" pos="6696" len="23"/>
+<note pan="0" key="33" vol="126" pos="6720" len="23"/>
+<note pan="0" key="33" vol="126" pos="6744" len="23"/>
+<note pan="0" key="33" vol="126" pos="6768" len="23"/>
+<note pan="0" key="33" vol="126" pos="6792" len="23"/>
+<note pan="0" key="33" vol="126" pos="6816" len="23"/>
+<note pan="0" key="33" vol="126" pos="6840" len="23"/>
+<note pan="0" key="33" vol="126" pos="6864" len="23"/>
+<note pan="0" key="33" vol="126" pos="6888" len="23"/>
+<note pan="0" key="38" vol="126" pos="6912" len="23"/>
+<note pan="0" key="38" vol="126" pos="6936" len="23"/>
+<note pan="0" key="38" vol="126" pos="6960" len="23"/>
+<note pan="0" key="38" vol="126" pos="6984" len="23"/>
+<note pan="0" key="38" vol="126" pos="7008" len="23"/>
+<note pan="0" key="38" vol="126" pos="7032" len="23"/>
+<note pan="0" key="38" vol="126" pos="7056" len="23"/>
+<note pan="0" key="38" vol="126" pos="7080" len="23"/>
+<note pan="0" key="34" vol="126" pos="7104" len="23"/>
+<note pan="0" key="34" vol="126" pos="7128" len="23"/>
+<note pan="0" key="34" vol="126" pos="7152" len="23"/>
+<note pan="0" key="34" vol="126" pos="7176" len="23"/>
+<note pan="0" key="34" vol="126" pos="7200" len="23"/>
+<note pan="0" key="34" vol="126" pos="7224" len="23"/>
+<note pan="0" key="34" vol="126" pos="7248" len="23"/>
+<note pan="0" key="34" vol="126" pos="7272" len="23"/>
+<note pan="0" key="41" vol="126" pos="7296" len="23"/>
+<note pan="0" key="41" vol="126" pos="7320" len="23"/>
+<note pan="0" key="41" vol="126" pos="7344" len="23"/>
+<note pan="0" key="41" vol="126" pos="7368" len="23"/>
+<note pan="0" key="41" vol="126" pos="7392" len="23"/>
+<note pan="0" key="41" vol="126" pos="7416" len="23"/>
+<note pan="0" key="41" vol="126" pos="7440" len="23"/>
+<note pan="0" key="41" vol="126" pos="7464" len="23"/>
+<note pan="0" key="36" vol="126" pos="7488" len="23"/>
+<note pan="0" key="36" vol="126" pos="7512" len="23"/>
+<note pan="0" key="36" vol="126" pos="7536" len="23"/>
+<note pan="0" key="36" vol="126" pos="7560" len="23"/>
+<note pan="0" key="36" vol="126" pos="7584" len="23"/>
+<note pan="0" key="36" vol="126" pos="7608" len="23"/>
+<note pan="0" key="36" vol="126" pos="7632" len="23"/>
+<note pan="0" key="36" vol="126" pos="7656" len="23"/>
+<note pan="0" key="31" vol="126" pos="7680" len="23"/>
+<note pan="0" key="31" vol="126" pos="7704" len="23"/>
+<note pan="0" key="31" vol="126" pos="7728" len="23"/>
+<note pan="0" key="31" vol="126" pos="7752" len="23"/>
+<note pan="0" key="31" vol="126" pos="7776" len="23"/>
+<note pan="0" key="31" vol="126" pos="7800" len="23"/>
+<note pan="0" key="31" vol="126" pos="7824" len="23"/>
+<note pan="0" key="31" vol="126" pos="7848" len="23"/>
+<note pan="0" key="34" vol="126" pos="7872" len="23"/>
+<note pan="0" key="34" vol="126" pos="7896" len="23"/>
+<note pan="0" key="34" vol="126" pos="7920" len="23"/>
+<note pan="0" key="34" vol="126" pos="7944" len="23"/>
+<note pan="0" key="34" vol="126" pos="7968" len="23"/>
+<note pan="0" key="34" vol="126" pos="7992" len="23"/>
+<note pan="0" key="34" vol="126" pos="8016" len="23"/>
+<note pan="0" key="34" vol="126" pos="8040" len="23"/>
+<note pan="0" key="36" vol="126" pos="8064" len="23"/>
+<note pan="0" key="36" vol="126" pos="8088" len="23"/>
+<note pan="0" key="36" vol="126" pos="8112" len="23"/>
+<note pan="0" key="36" vol="126" pos="8136" len="23"/>
+<note pan="0" key="36" vol="126" pos="8160" len="23"/>
+<note pan="0" key="36" vol="126" pos="8184" len="23"/>
+<note pan="0" key="36" vol="126" pos="8208" len="23"/>
+<note pan="0" key="36" vol="126" pos="8232" len="23"/>
+<note pan="0" key="38" vol="126" pos="8256" len="23"/>
+<note pan="0" key="38" vol="126" pos="8280" len="23"/>
+<note pan="0" key="38" vol="126" pos="8304" len="23"/>
+<note pan="0" key="38" vol="126" pos="8328" len="23"/>
+<note pan="0" key="38" vol="126" pos="8352" len="23"/>
+<note pan="0" key="38" vol="126" pos="8376" len="23"/>
+<note pan="0" key="38" vol="126" pos="8400" len="23"/>
+<note pan="0" key="38" vol="126" pos="8424" len="23"/>
+</pattern>
+</track>
+<track muted="0" type="0" name="gm_brass_section" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="107" basenote="57" pan="0" fxch="0" usemasterpitch="1">
+<instrument name="sf2player">
+<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="61" bank="0" gain="1" reverbOn="1" reverbLevel="0.45" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+</instrument>
+<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
+<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
+</eldata>
+<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
+<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
+<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
+<fxchain numofeffects="0" enabled="0"/>
+</instrumenttrack>
+<pattern muted="0" type="1" name="gm_brass_section" pos="0" len="9216" steps="16">
+<note pan="0" key="46" vol="126" pos="8448" len="191"/>
+<note pan="0" key="50" vol="126" pos="8448" len="191"/>
+<note pan="0" key="53" vol="126" pos="8448" len="191"/>
+<note pan="0" key="48" vol="126" pos="8640" len="191"/>
+<note pan="0" key="52" vol="126" pos="8640" len="191"/>
+<note pan="0" key="55" vol="126" pos="8640" len="191"/>
+<note pan="0" key="50" vol="126" pos="8832" len="191"/>
+<note pan="0" key="54" vol="126" pos="8832" len="191"/>
+<note pan="0" key="57" vol="126" pos="8832" len="191"/>
+<note pan="0" key="62" vol="126" pos="8832" len="191"/>
+<note pan="0" key="50" vol="126" pos="9024" len="191"/>
+<note pan="0" key="54" vol="126" pos="9024" len="191"/>
+<note pan="0" key="57" vol="126" pos="9024" len="191"/>
+<note pan="0" key="62" vol="126" pos="9024" len="191"/>
+</pattern>
+</track>
+</trackcontainer>
+<fxmixer>
+<fxchannel num="0" name="Master" volume="1" muted="0">
+<fxchain numofeffects="0" enabled="0"/>
+</fxchannel>
+</fxmixer>
+<controllers/>
+<projectnotes><![CDATA[Crab Breeze: Main Theme. Generated by tools/music/strudel_to_lmms.mjs from music/main_theme.strudel; edit the score, not this file.]]></projectnotes>
+<timeline lp0pos="0" lpstate="0" lp1pos="192" stopbehaviour="0"/>
+</song>
+</lmms-project>

@@ -123,6 +123,11 @@ pub struct MechRig {
 }
 
 impl MechRig {
+    /// A socket's entity (`JET_L`, `WHEEL_R`, ...), if the model has it.
+    pub(crate) fn socket(&self, name: &str) -> Option<Entity> {
+        self.sockets.get(name).copied()
+    }
+
     /// The entity of the node named `name` under the model, if any.
     pub(crate) fn named(&self, name: &str) -> Option<Entity> {
         self.named.get(name).copied()
@@ -1695,13 +1700,18 @@ fn stunt(m: &MechState, plan: &Plan, player: Vec3, axis: &mut Option<Vec2>, t_s:
 /// (cockpit-overlay; owner: "only when it is closed and player is inside"). Otherwise it is drawn
 /// with the world like anything else. Walks the mech's descendants each frame, so a model that
 /// loads late is caught.
+/// A mesh hung under a mech that sets its own render layers (an MFD's outline, `mfd-menus`): the cockpit pass leaves it
+/// alone.
+#[derive(Component)]
+pub struct OwnLayers;
+
 fn cockpit_layer(
     mut commands: Commands,
     pilot: Res<PilotSim>,
     data: Res<Data>,
     mech: Query<(Entity, &MechSim, Option<&Interior>), With<Piloted>>,
     children: Query<&Children>,
-    meshes: Query<Option<&bevy::camera::visibility::RenderLayers>, With<Mesh3d>>,
+    meshes: Query<Option<&bevy::camera::visibility::RenderLayers>, (With<Mesh3d>, Without<OwnLayers>)>,
 ) {
     use bevy::camera::visibility::RenderLayers;
     let Some((root, sim, interior)) = mech.iter().next() else { return };
@@ -1732,12 +1742,7 @@ fn cockpit_layer(
 }
 
 /// The booster flame while boosting: a stream on each jet socket (`FxStream`), switched with the
-/// boost.
-/// A jet socket's smoke trail: the child entity streaming `jet_trail` (two minutes long), kept apart
-/// from the socket's own flame stream so each has its own rate.
-#[derive(Component)]
-struct JetTrail(Entity);
-
+/// boost. The smoke trail is lit puffs laid along the jets' path (`smoke_render::jet_trails`).
 /// A jet's exhaust flame, under its nozzle socket (openspec change `rocket-plumes`).
 #[derive(Component)]
 struct JetPlume;
@@ -1746,7 +1751,6 @@ struct JetPlume;
 fn jet_flames(
     mut commands: Commands,
     mechs: Query<(&MechSim, &MechRig)>,
-    trails: Query<&JetTrail>,
     mut streams: Query<&mut crate::fx::FxStream>,
     mut plumes: Query<(&mut Transform, &mut Visibility), With<JetPlume>>,
     children: Query<&Children>,
@@ -1756,7 +1760,6 @@ fn jet_flames(
     time: Res<Time>,
     mut fx: MessageWriter<Fx>,
     mut wash_s: Local<f32>,
-    (globals, visible): (Query<&GlobalTransform>, Query<(&InheritedVisibility, &ViewVisibility)>),
 ) {
     let cfg = &data.0.fx;
     *wash_s += time.delta_secs();
@@ -1764,70 +1767,23 @@ fn jet_flames(
     if wash {
         *wash_s = 0.0;
     }
-    // A measurement line, with `CB_ENEMY_STUNT`: each mech's rockets and its jet emitters, every 5 s.
-    let report = crate::cli::switched_off("CB_ENEMY_STUNT") && (time.elapsed_secs() % 5.0) < time.delta_secs();
     for (sim, rig) in &mechs {
         let on = sim.curr.boosting && !sim.dead;
-        if report {
-            let socket = rig.sockets.get("JET_L").copied();
-            let kids = socket.and_then(|e| children.get(e).ok()).map_or(0, |c| c.len());
-            let at = socket.and_then(|e| globals.get(e).ok()).map(|g| g.translation());
-            let kid_vis: Vec<String> = socket
-                .and_then(|e| children.get(e).ok())
-                .map(|c| {
-                    c.iter()
-                        .map(|k| match (visible.get(k).ok(), globals.get(k).ok()) {
-                            (Some((i, v)), Some(g)) => format!("{}/{} {:.0?}", i.get(), v.get(), g.translation()),
-                            _ => "?".into(),
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            info!(
-                "jets: boosting {} airborne {} mech {:.0?} socket {:?} at {:.0?} stream {} children {} [{}]",
-                sim.curr.boosting,
-                sim.curr.airborne(),
-                sim.curr.pos,
-                socket,
-                at,
-                socket.is_some_and(|e| streams.get(e).is_ok()),
-                kids,
-                kid_vis.join("; ")
-            );
-        }
         for jet in ["JET_L", "JET_R"] {
             let Some(&e) = rig.sockets.get(jet) else { continue };
-            let trail = trails.get(e).ok().map(|t| t.0);
-            match (streams.get(e).is_ok(), trail) {
-                (true, Some(t)) => {
-                    for s in [e, t] {
-                        if let Ok(mut s) = streams.get_mut(s)
-                            && s.on != on
-                        {
-                            s.on = on;
-                        }
+            match streams.get_mut(e) {
+                Ok(mut s) => {
+                    if s.on != on {
+                        s.on = on;
                     }
                 }
-                _ => {
-                    let child = commands
-                        .spawn((
-                            Name::new("jet trail"),
-                            Transform::default(),
-                            crate::fx::FxStream {
-                                recipe: "jet_trail",
-                                dir: Vec3::NEG_Y,
-                                on,
-                            },
-                        ))
-                        .id();
-                    commands.entity(e).add_child(child).insert((
-                        crate::fx::FxStream {
-                            recipe: "jet_flame",
-                            dir: Vec3::NEG_Y,
-                            on,
-                        },
-                        JetTrail(child),
-                    ));
+                Err(_) => {
+                    commands.entity(e).insert(crate::fx::FxStream {
+                        recipe: "jet_flame",
+                        dir: Vec3::NEG_Y,
+                        on,
+                        density: 1.0,
+                    });
                 }
             }
             // The flame under the nozzle, flickering in length while the jets fire.
@@ -1875,6 +1831,7 @@ fn burn(mut commands: Commands, q: Query<(Entity, &GlobalTransform, &Burning)>, 
             recipe: "burning",
             dir: Vec3::Y,
             on,
+            density: 1.0,
         });
         if !on {
             commands.entity(e).remove::<Burning>();

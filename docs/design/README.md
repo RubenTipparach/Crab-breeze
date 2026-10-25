@@ -3,12 +3,14 @@
 ## Survey
 
 Open questions for the owner live in the survey page, never in chat (CLAUDE.md section 8):
-https://claude.ai/artifact/KndrEC5xE7wBmAd8WM4aTP (source: `docs/design/survey.html`; answers in
+https://claude.ai/artifact/EbeWFXQeCbcM7ok3tsp64h (source: `docs/design/survey.html`; answers in
 its `answers` collection, read with `ArtifactData`). Keep editing this one rather than starting
-another.
+another. It replaced https://claude.ai/artifact/KndrEC5xE7wBmAd8WM4aTP on 2026-10-25 (owner: "make a new one"),
+which was published from an account the cloud sessions cannot open; every answer given there is
+written into the page's Answered section, so nothing was lost. Its new database started empty.
 
 Question id prefixes: `G` game and feel, `M` the mech, `C` the cockpit, `W` world (cities,
-buildings, people), `T` tech and tools, `P` playtesting.
+buildings, people), `T` tech and tools, `P` playtesting, `A` audio and music.
 
 ## Changes
 
@@ -20,11 +22,21 @@ buildings, people), `T` tech and tools, `P` playtesting.
 | `mech-rig` | built, playtest pending | Stand-in mech on the rig contract, digitigrade walk, torso twist, glb drop-in |
 | `mech-boarding` | proposed | The sealed cockpit and its all-view screen, the mech sitting down, the staged hatch with steam and mist |
 | `pilot-boarding` | built, playtest pending | Pilot on foot in first person, boarding up the lift into `EYE_pilot`, climbing out |
+| `cockpit-parity` | built, playtest pending | Every roster cockpit up to the Foreman's: the Cab gets the dash and its row seam out of the view, the Canopy its hanging MFDs, both re-baked; six live MFD screens in every cockpit, checked by `cb-tools validate` |
+| `boarding-vents` | built, playtest pending | Every mech steams and mists as it kneels and opens: the seals, hinges, sill, cabin and leg rams, from its own models' `VENT_*` empties |
+| `mfd-menus` | outline built; menus proposed | In free look the MFD under the crosshair is outlined; clicking any MFD opens its menu: readouts, MAP, MAIL, SHOP and the game menu |
+| `mech-shop` | proposed | The SHOP page on any MFD (and the base terminal): every roster mech for sale, its sheet from its own data, bought through the career's ledger, delivered to a free bay |
+| `signature-weapons` | proposed | One unique weapon per roster mech on `weapon-kinds`: boom cannon, cutting lance, twin racks, steam cannon, rocket ripple, rail rifle, breaching gun, siege mortar |
 | `terrain-water` | built, in the 2026-10-24 world take | Rivers and lakes from the seed, wading drag, ripples, spray and steam |
 | `terrain-materials` | proposed | PBR ground layers splatted by slope, water, city and scorch (textures from the art side) |
 | `vegetation` | built (procedural trees until models arrive) | Seeded woods, instanced LODs, mechs snapping trees that fall under Avian physics |
 | `terrain-deformation` | built | Craters from explosions, dirt bursts, scorch; one ground query |
 | `mech-damage` | built | Parts shot off one by one: arms, head (backup cameras), legs (limp) |
+| `audio` | proposed | Sound effects: cues in data, rocket rumble, sound delayed by distance, the muffled cockpit |
+| `weapon-kinds` | proposed | Shotguns, railguns, lasers and plasma cannons in the one projectile path; a weapon heat bank; fire group 4 for back units |
+| `railgun-scope` | proposed | The scope as a 4x/10x window on the front screen; the pilot's view never zooms |
+| `multi-lock` | proposed | Hold F to sweep up to six locks, release for a salvo; today's missile is the one-lock case |
+| `music` | proposed (motifs, six cues and the pipeline made) | The score played by game state, switching on the bar; motifs in `music.md`, scores in `music/` |
 | `clouds` | built (no shadows or raindrops yet) | Cheap fly-through cumulus, in-cloud fog, cloud shadows; camera raindrops later |
 
 | `jet-flight` | built | Jets limited by heat, landing on roofs, flame; for flying into clouds |
@@ -45,7 +57,7 @@ buildings, people), `T` tech and tools, `P` playtesting.
 
 Requests between the Mac and cloud sessions: `docs/design/requests.md`.
 
-Design notes: `cockpit.md` (the cockpit, the owner's reviews, the four detailed from block-outs and how the chest
+Design notes: `music.md` (the score: key, the spine, the stride, every motif in notes, the cues and the rules for new music), `cockpit.md` (the cockpit, the owner's reviews, the four detailed from block-outs and how the chest
 opens as one body with them, open questions), `cockpit-blockouts.md` (the ten cockpit block-outs with screenshots of
 each opening), `mech-references.md` (the mech pictures the owner showed, what to take from them, and the two new mechs
 built on it), `mech-rig.md`, `alien-rig.md`.
@@ -54,9 +66,11 @@ built on it), `mech-rig.md`, `alien-rig.md`.
 
 | Page | Published | Built by |
 | --- | --- | --- |
+| Crab Breeze Music (`docs/mockups/music.html`): the six cues to play, every motif as a piano roll drawn from the score with its notes and meaning, the musical world | https://claude.ai/artifact/17Lj37SLPpsARPqE9ZfV9C | `tools/music/render.sh` for each `music/<cue>.strudel`, then published with `output/music/*.mp3` as files (skill `music-authoring`) |
 | Mech Cockpits (`docs/mockups/cockpits.html`): the detailed Panorama, Titan, Excavator cab and Canopy, the first three built interiors (wall, harness, jockey) and the ten seated block-outs, each opening by the front or the back in stages (scrub with the slider): sit at the pilot's eye with the world on the screens, or orbit the pod beside a pilot. Was the Breeze Cockpit page | https://claude.ai/artifact/AqMpKdiBjn9e1uQPT1c1aj | `tools/mockups/gen_cockpit_page.py` from `assets/models/cockpit_<variant>/`, published with them as files |
 | Crab Breeze Mechs (`docs/mockups/mech_designs.html`): on top, the 24 m low-poly redesign (`tools/blender/build_mech_blockouts.py`, legs against torso measured), the working mechs numbered 1 to 12 and, in their own viewer, ten combat mechs built from Armored Core style parts (13 to 22: legs, core, head, hand weapons, back units, boosters); below, the detailed 12 m round: Foreman (Panorama), Stevedore (harness) and Ironhorse (Excavator cab) at true scale; each kneels and opens its chest with steam (the Stevedore drops its ladder; the Foreman and Ironhorse, opening as one body with their cockpits, fold their front flaps down flush with the floor and leave the doorway clear); board it in first person or sit in each cockpit | https://claude.ai/artifact/B5tX8ycUR2tLBknKyMb8bc | `tools/mockups/gen_mech_designs.py` from `assets/models/mech_<id>.glb` and `assets/models/cockpit_<variant>/`, published with them as files |
 | Crab Breeze Buildings (`docs/mockups/buildings.html`): a seeded city block with facades, roofs, floorplans and furniture; click to fire, demolition scripts, stress view, falling storeys and rubble piles; the pilot and a 12 m mech for scale. Research in `docs/analysis/buildings-research.md` | https://claude.ai/artifact/FhoXXPFzGMvrmqea9SYaRS | hand-written page; shots by `tools/mockups/shoot_buildings.mjs` into `docs/screenshots/buildings/` |
+| Cockpit MFD Shop (`docs/mockups/mfd_shop.html`): three dash MFDs in free look: point at one for the amber outline, click for its menu (readouts, MAP, MAIL, SHOP, the game menu), open a mech's sheet and buy it with an example career (`mfd-menus`, `mech-shop`) | https://claude.ai/artifact/2A6KyHEvVbSD1MBVK3Ys3P | hand-written page |
 | Alien Crab Mechs (`docs/mockups/alien_mechs.html`): the three enemy crab machines (Skitter 6 m, Snapper 12 m, Big Boy 30 m) at true scale beside the Breeze | https://claude.ai/artifact/DAdKyPWjNyjur74vQaZTA8 | `tools/mockups/gen_alien_mechs.py` from `assets/models/alien_*.glb` (`tools/blender/build_alien_mechs.py`, rig in `docs/design/alien-rig.md`) |
 | Crab Breeze Island (`docs/mockups/island.html`, rules in `island_gen.js`): the 41 km island from seed 42 at true scale, with the range, the desert and canyons, jungle, swamps, rivers from mountain tarns through valley lakes, beaches, cliffs, archipelago, rock formations, trees, cities and highways, and billboard clouds in weather systems; orbit or fly, with rain on the glass inside a cloud, a biome map and a 24 m mech for scale | https://claude.ai/artifact/NyHSzekHMnyspZyUrP5rTx | `docs/mockups/island.html` with `island_gen.js` published beside it |
 | Crab Breeze Main Street (`docs/mockups/small_buildings.html`, parts in `small_buildings_kit.js`): seventeen 1980s houses and small businesses on one street with real windows, interiors, signs and cars; walk at the pilot's or mech's eye, day, dusk or night, cutaway | https://claude.ai/artifact/MmkFvAZyjECdFZ883QbBRq | `docs/mockups/small_buildings.html` with `small_buildings_kit.js` published beside it |

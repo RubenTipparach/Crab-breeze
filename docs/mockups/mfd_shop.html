@@ -1,0 +1,316 @@
+<title>Cockpit MFD Shop</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=IBM+Plex+Sans+Condensed:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: the Foreman's dash seen from the seat, three MFDs in heavy bezels on a dark panel; notes beneath.
+   One deliberate dark look (the sealed cockpit), not two themes. */
+:root {
+  color-scheme: dark;
+  --cabin: #0d0f11;          /* the cabin's dark paint */
+  --panel: #1a1d20;          /* the dash */
+  --bezel: #2b2f33;          /* screen bezels */
+  --bezel-hi: #3c4146;
+  --phosphor: #8ef0a2;       /* MFD text, the game's green */
+  --phosphor-dim: #4d8a5b;
+  --screen: #051009;         /* an MFD's ground */
+  --amber: #ffa233;          /* the outline and lit rows: the selected-station colour */
+  --red: #ff6a55;
+  --ink: #d7dde2;            /* page notes */
+  --ink-dim: #8c959d;
+  --display: "VT323", "IBM Plex Mono", ui-monospace, monospace;
+  --body: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+[hidden] { display: none !important; }
+html, body { background: var(--cabin); color: var(--ink); }
+body { font-family: var(--body); font-size: 15px; line-height: 1.5; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px; }
+.wrap { max-width: 1100px; margin: 0 auto; display: grid; gap: 22px; }
+header { display: grid; gap: 6px; }
+h1 { font-family: var(--display); font-weight: 400; font-size: 44px; line-height: 1; letter-spacing: 0.04em; color: var(--phosphor); margin: 0; text-wrap: balance; }
+.lede { color: var(--ink-dim); max-width: 68ch; margin: 0; }
+.key { font-family: var(--mono); font-size: 12px; color: var(--ink); background: var(--bezel); border: 1px solid var(--bezel-hi); border-radius: 3px; padding: 0 5px; }
+
+/* The dash */
+.dash { position: relative; background: linear-gradient(180deg, #202428, var(--panel) 30%, #141618); border: 1px solid #000; border-radius: 6px; padding: 26px 22px 30px; display: grid; gap: 18px; overflow: hidden; }
+.dash.look { cursor: none; }
+.state { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; font-family: var(--mono); font-size: 12px; color: var(--ink-dim); }
+.state b { color: var(--ink); font-weight: 600; }
+.lamp { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #3a2a18; margin-right: 6px; vertical-align: 0; box-shadow: inset 0 0 0 1px #000; }
+.look .lamp { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+.screens { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 760px) { .screens { grid-template-columns: minmax(0, 1fr); max-width: 380px; margin: 0 auto; width: 100%; } }
+.mfd { position: relative; background: var(--bezel); border-radius: 5px; padding: 14px; box-shadow: inset 0 1px 0 var(--bezel-hi), 0 2px 0 #000; }
+.mfd::before { content: ""; position: absolute; inset: -7px; border-radius: 9px; border: 3px solid transparent; pointer-events: none; transition: border-color 80ms, box-shadow 80ms; }
+.mfd.pointed::before { border-color: var(--amber); box-shadow: 0 0 14px rgba(255, 162, 51, 0.55); }
+.bolts { position: absolute; inset: 4px; pointer-events: none; }
+.bolts i { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: #50565c; }
+.bolts i:nth-child(1) { left: 0; top: 0; } .bolts i:nth-child(2) { right: 0; top: 0; } .bolts i:nth-child(3) { left: 0; bottom: 0; } .bolts i:nth-child(4) { right: 0; bottom: 0; }
+.glass { aspect-ratio: 1; max-width: 100%; background: radial-gradient(circle at 50% 40%, #0a1c10, var(--screen) 70%); border: 2px solid #000; position: relative; overflow: hidden; font-family: var(--display); color: var(--phosphor); font-size: clamp(15px, 2.1vw, 21px); line-height: 1.05; }
+.glass::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0 1px, transparent 1px 3px); }
+.page { position: absolute; inset: 0; padding: 7% 7% 6%; display: grid; grid-template-rows: auto 1fr auto; gap: 4%; }
+.title { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--phosphor-dim); padding-bottom: 3%; letter-spacing: 0.06em; }
+.rows { display: grid; align-content: start; gap: 1px; min-width: 0; }
+.row { display: flex; justify-content: space-between; gap: 8px; padding: 1% 3%; border: 1px solid transparent; white-space: nowrap; }
+.row.lit { border-color: var(--amber); color: var(--amber); }
+.row .dim, .dim { color: var(--phosphor-dim); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 6%; }
+.foot { border-top: 1px solid var(--phosphor-dim); padding-top: 3%; display: flex; justify-content: space-between; gap: 8px; }
+.btn { display: inline-block; padding: 1% 4%; border: 1px solid var(--phosphor); }
+.btn.lit { border-color: var(--amber); color: var(--amber); background: rgba(255,162,51,0.08); }
+.warn { color: var(--red); }
+.sheet { display: grid; grid-template-columns: 44% 1fr; gap: 5%; align-items: start; }
+.sheet canvas { width: 100%; aspect-ratio: 1; border: 1px solid var(--phosphor-dim); display: block; }
+.bar { height: 7px; border: 1px solid var(--phosphor-dim); position: relative; margin-top: 3px; }
+.bar i { position: absolute; inset: 1px auto 1px 1px; background: var(--phosphor); }
+.mapc { width: 100%; height: 100%; display: block; }
+.cross { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; pointer-events: none; z-index: 5; }
+.cross::before, .cross::after { content: ""; position: absolute; background: var(--phosphor); box-shadow: 0 0 3px #000; }
+.cross::before { left: 10px; top: 0; width: 2px; height: 22px; }
+.cross::after { top: 10px; left: 0; height: 2px; width: 22px; }
+.toast { min-height: 1.5em; font-family: var(--mono); font-size: 12px; color: var(--amber); }
+
+/* The pause menu, as Escape and the MENU row open it (game-menus) */
+.pause { position: absolute; inset: 0; background: rgba(5, 6, 7, 0.82); display: grid; place-items: center; z-index: 6; }
+.pause div { display: grid; gap: 8px; min-width: 220px; text-align: center; font-family: var(--display); font-size: 26px; color: var(--phosphor); }
+.pause button { font: inherit; color: inherit; background: var(--bezel); border: 1px solid var(--bezel-hi); padding: 4px 10px; cursor: pointer; }
+.pause button:focus-visible, .ctl button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+/* Notes */
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px 28px; }
+.notes section { min-width: 0; }
+.notes h2 { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--phosphor); margin: 0 0 4px; font-weight: 600; }
+.notes p, .notes li { color: var(--ink-dim); margin: 0; max-width: 62ch; }
+.notes ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+.ctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ctl button { font-family: var(--mono); font-size: 12px; color: var(--ink); background: var(--bezel); border: 1px solid var(--bezel-hi); border-radius: 3px; padding: 4px 10px; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .mfd::before { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Cockpit MFD Shop</h1>
+    <p class="lede">The Foreman's three dash screens, as the pilot uses them in free look. Hold <span class="key">Ctrl</span> (or tick free look below), point the crosshair at a screen: it lights an amber outline. Click to open that screen's menu, pick a page or an app, and buy a mech from <b>SHOP</b>. Money here is an example career.</p>
+  </header>
+
+  <div class="dash" id="dash">
+    <div class="state">
+      <span><span class="lamp"></span><b id="lookState">FREE LOOK OFF</b></span>
+      <span>CREDITS <b id="money">1 234 000</b></span>
+      <span>AT <b id="where">IN THE FIELD</b></span>
+      <span class="toast" id="toast" role="status"></span>
+    </div>
+    <div class="screens" id="screens"></div>
+    <div class="cross" id="cross" hidden></div>
+    <div class="pause" id="pause" hidden><div><span>PAUSED</span><button id="resume" type="button">RESUME</button><button type="button" disabled>OPTIONS</button><button type="button" disabled>CONTROLS</button><button type="button" disabled>QUIT</button></div></div>
+  </div>
+
+  <div class="ctl">
+    <label><input type="checkbox" id="lockLook"> Free look held</label>
+    <label><input type="checkbox" id="atBase"> Parked at home base</label>
+    <button type="button" id="reset">Reset the example</button>
+  </div>
+
+  <div class="notes">
+    <section><h2>Pointing</h2><p>In free look the mouse turns the head, so the crosshair is the pointer: the screen it falls on is outlined and is the one a click presses. Here the mouse stands in for the head. Nothing ever turns the view for you.</p></section>
+    <section><h2>Every screen, every page</h2><p>Any of the six screens opens the same menu: the five readouts, MAP, MAIL, SHOP and MENU (the pause menu Escape opens). Each screen keeps its own page. BACK, or Escape, closes the menu or app and gives the screen back the page it showed before it was opened; LIST on a shop sheet steps back to the shop.</p></section>
+    <section><h2>Buying</h2><ul><li>Every mech is for sale from the start; money is the only limit.</li><li>The price goes through the career's ledger. Short of money, nothing changes.</li><li>Away from a base, it waits in the nearest base with a free bay.</li></ul></section>
+    <section><h2>The numbers</h2><p>Heights and masses are read from each mech's game data (<span class="key">data/mechs/&lt;id&gt;.ron</span>); prices are the proposal's (survey J15). The wireframe is drawn here from box proportions; the game turns the mech's own model.</p></section>
+  </div>
+</div>
+
+<script>
+const MECHS = [
+  { id: "foreman", name: "FOREMAN", price: 850000, h: 24.0, t: 400, cockpit: "PANORAMA", sig: "BOOM CANNON", sigLine: "3 x 120 MM IN 0.4 S", guns: "35 MM AC, SHLDR MSL", shape: [0.55, 0.42, 0.5] },
+  { id: "ironhorse", name: "IRONHORSE", price: 700000, h: 22.7, t: 337, cockpit: "CAB", sig: "STEAM CANNON", sigLine: "SCALDING BURST 6 MJ", guns: "35 MM AC, SHLDR MSL", shape: [0.62, 0.38, 0.55] },
+  { id: "harrow", name: "HARROW", price: 1200000, h: 23.8, t: 390, cockpit: "CANOPY", sig: "TWIN RACKS", sigLine: "12 MISSILES, 12 LOCKS", guns: "35 MM AC, 120 MM CANNON", shape: [0.45, 0.36, 0.62] },
+  { id: "roustabout", name: "ROUSTABOUT", price: 450000, h: 23.7, t: 385, cockpit: "TITAN", sig: "BREACHING GUN", sigLine: "16 PELLETS, 2 DEG", guns: "35 MM AC, SHLDR MSL", shape: [0.5, 0.4, 0.6] },
+  { id: "driller", name: "DRILLER", price: 520000, h: 23.9, t: 393, cockpit: "PANORAMA", sig: "CUTTING LANCE", sigLine: "BEAM 600 M, 90 /S", guns: "35 MM AC, SHLDR MSL", shape: [0.48, 0.45, 0.45] },
+  { id: "mule", name: "MULE", price: 360000, h: 23.7, t: 384, cockpit: "CAB", sig: "ROCKET RIPPLE", sigLine: "16 ROCKETS IN 1.9 S", guns: "2 x 35 MM AC", shape: [0.58, 0.4, 0.56] },
+  { id: "picket", name: "PICKET", price: 300000, h: 24.0, t: 398, cockpit: "PANORAMA", sig: "RAIL RIFLE", sigLine: "2 400 M/S, SCOPE 10X", guns: "35 MM MG, SHLDR MSL", shape: [0.42, 0.4, 0.52] },
+  { id: "sapper", name: "SAPPER", price: 600000, h: 23.9, t: 393, cockpit: "TITAN", sig: "SIEGE MORTAR", sigLine: "LOBS 100-1 500 M", guns: "35 MM AC, RKT POD", shape: [0.5, 0.42, 0.55] },
+];
+const READOUTS = ["MECH", "FLIGHT", "MISSION", "WEAPONS", "TARGET"];
+const APPS = ["MAP", "MAIL", "SHOP", "MENU"];
+const MAIL = [
+  { from: "HARBOUR AUTHORITY", subj: "ESCORT: ORE CONVOY", unread: true },
+  { from: "NORTH FIELD", subj: "YOUR BAY 2 IS FREE", unread: true },
+  { from: "UNION LOCAL 12", subj: "DUES RECEIVED", unread: false },
+];
+const fmt = n => n.toLocaleString("en-US").replace(/,/g, " ");
+const START = { money: 1234000, owned: ["foreman"], bays: { home: [true, false, false, false, false, false], north: [false, false, false, false, false, false] } };
+let career = structuredClone(START);
+const screens = [
+  { page: "MECH", home: null, shop: null, zoom: 0, lit: -1 },
+  { page: "TARGET", home: null, shop: null, zoom: 0, lit: -1 },
+  { page: "WEAPONS", home: null, shop: null, zoom: 0, lit: -1 },
+];
+const dash = document.getElementById("dash"), root = document.getElementById("screens"), cross = document.getElementById("cross");
+let look = false, pointed = -1, atBase = false;
+
+function bay() {
+  const base = atBase ? "home" : "north";
+  const i = career.bays[base].indexOf(false);
+  return i < 0 ? null : { base, i };
+}
+function rowsFor(s) {
+  // each returns [{label, right, act}]
+  if (s.page === "MENU_LIST") {
+    const unread = MAIL.filter(m => m.unread).length;
+    return [...READOUTS.map(p => ({ label: p, act: () => show(s, p) })),
+      ...APPS.map(a => ({ label: a, right: a === "MAIL" && unread ? `${unread} NEW` : "", act: () => a === "MENU" ? openPause() : show(s, a) }))];
+  }
+  if (s.page === "SHOP" && !s.shop) return MECHS.map(m => ({ label: m.name, right: career.owned.includes(m.id) ? `${fmt(m.price)} OWNED` : fmt(m.price), act: () => { s.shop = m.id; render(); } }));
+  if (s.page === "MAP") return [{ label: "+", act: () => { s.zoom = Math.min(2, s.zoom + 1); render(); } }, { label: "-", act: () => { s.zoom = Math.max(0, s.zoom - 1); render(); } }];
+  if (s.page === "MAIL") return MAIL.map(m => ({ label: m.subj, right: m.unread ? "NEW" : "", act: () => { m.unread = false; render(); } }));
+  return [];
+}
+// A screen's home is the readout it showed when its menu was opened: BACK gives it back.
+// Picking a readout makes that the screen's page (and so its home next time).
+const isApp = p => p === "MENU_LIST" || APPS.includes(p);
+function openMenu(s) { if (!isApp(s.page)) s.home = s.page; s.page = "MENU_LIST"; s.shop = null; render(); }
+function show(s, p) { s.page = p; s.shop = null; if (!isApp(p)) s.home = null; render(); }
+function back(s) {
+  if (!isApp(s.page)) return;
+  s.page = s.home || "MECH"; s.home = null; s.shop = null; s.zoom = 0;
+  render();
+}
+function buy(m) {
+  if (career.owned.includes(m.id)) return say(`${m.name} IS ALREADY YOURS`);
+  if (career.money < m.price) return say(`SHORT ${fmt(m.price - career.money)}: NOTHING CHARGED`);
+  const b = bay();
+  if (!b) return say("NO FREE BAY: NOTHING CHARGED");
+  career.money -= m.price; career.owned.push(m.id); career.bays[b.base][b.i] = true;
+  say(`BOUGHT ${m.name}: ${b.base === "home" ? "HOME BASE" : "NORTH FIELD"}, BAY ${b.i + 1}`);
+  render();
+}
+function say(t) { document.getElementById("toast").textContent = t; }
+
+function pageHtml(s, k) {
+  const lit = i => (pointed === k && s.lit === i ? " lit" : "");
+  const rows = rowsFor(s);
+  const r = (x, i) => `<div class="row${lit(i)}" data-i="${i}"><span>${x.label}</span><span class="dim">${x.right || ""}</span></div>`;
+  const backBtn = `<span class="btn${lit(99)}" data-i="99">BACK</span>`;
+  if (s.page === "MENU_LIST") return `<div class="page"><div class="title"><span>MFD ${k + 1}</span>${backBtn}</div>
+    <div class="rows"><div class="grid2">${rows.slice(0, 5).map(r).join("")}</div><div class="dim">--------------------</div>${rows.slice(5).map((x, j) => r(x, j + 5)).join("")}</div><div class="foot dim"><span>POINT AND CLICK</span><span>ESC BACK</span></div></div>`;
+  if (s.page === "SHOP" && s.shop) {
+    const m = MECHS.find(x => x.id === s.shop), owned = career.owned.includes(m.id), after = career.money - m.price;
+    const label = owned ? "OWNED" : `BUY ${fmt(m.price)}`;
+    return `<div class="page"><div class="title"><span>${m.name}</span><span><span class="btn${lit(98)}" data-i="98">LIST</span> ${backBtn}</span></div>
+      <div class="rows"><div class="sheet"><canvas data-wire="${m.id}" width="180" height="180" aria-label="${m.name} wireframe"></canvas>
+      <div>${m.h.toFixed(1)} M<br>${m.t} T<br>WALK 43 KM/H<br><span class="dim">${m.cockpit}</span></div></div>
+      <div>SIG: ${m.sig}</div><div class="dim">${m.sigLine}</div><div class="dim">${m.guns}</div></div>
+      <div class="foot"><span class="btn${lit(50)}" data-i="50">${label}</span><span class="${after < 0 && !owned ? "warn" : "dim"}">${owned ? "" : after < 0 ? "SHORT " + fmt(-after) : "AFTER " + fmt(after)}</span></div></div>`;
+  }
+  if (s.page === "SHOP") {
+    const b = bay();
+    return `<div class="page"><div class="title"><span>SHOP</span><span>CR ${fmt(career.money)}</span>${backBtn}</div>
+      <div class="rows">${rows.map(r).join("")}</div><div class="foot dim"><span>DELIVERY: ${b ? (b.base === "home" ? "HOME BASE" : "NORTH FIELD") + ", BAY " + (b.i + 1) : "NO FREE BAY"}</span></div></div>`;
+  }
+  if (s.page === "MAP") return `<div class="page"><div class="title"><span>MAP ${["ISLAND", "8 KM", "2 KM"][s.zoom]}</span>${backBtn}</div>
+      <div class="rows" style="position:relative"><canvas class="mapc" data-map="${s.zoom}" width="300" height="300" aria-label="map"></canvas></div>
+      <div class="foot"><span>${rows.map((x, i) => `<span class="btn${lit(i)}" data-i="${i}">${x.label}</span>`).join(" ")}</span><span class="dim">HDG 254</span></div></div>`;
+  if (s.page === "MAIL") return `<div class="page"><div class="title"><span>MAIL</span>${backBtn}</div>
+      <div class="rows">${MAIL.map((m, i) => `<div class="row${lit(i)}" data-i="${i}"><span>${m.subj}</span><span class="${m.unread ? "" : "dim"}">${m.unread ? "NEW" : "READ"}</span></div><div class="dim" style="padding-left:3%">${m.from}</div>`).join("")}</div><div class="foot dim"><span>ACCEPT IN A JOB MAIL</span></div></div>`;
+  // readouts: stand-ins of today's pages
+  const body = {
+    MECH: `<div>LEGS -0</div><div>ARM L 100%</div><div>ARM R 98%</div><div>TORSO 100%</div><div class="bar"><i style="width:22%"></i></div><div class="dim">HEAT 22%</div>`,
+    FLIGHT: `<div>BOOST READY</div><div class="bar"><i style="width:100%"></i></div><div>SKATE READY</div><div class="bar"><i style="width:100%"></i></div><div>WALK 0 KM/H</div><div>ALT 0 M</div>`,
+    MISSION: `<div>HDG 254 W</div><div>IN CITY 1</div><div class="dim">NO JOB</div>`,
+    WEAPONS: `<div class="row lit"><span>STA 1 35 MM AC</span><span>RDY</span></div><div class="row"><span>STA 2 BOOM CANNON</span><span>RDY</span></div><div class="row"><span>STA 3 SHLDR MSL</span><span>RDY</span></div>`,
+    TARGET: `<div>NO TARGET</div><div class="dim">TAB: NEXT</div>`,
+  }[s.page];
+  return `<div class="page"><div class="title"><span>${s.page}</span><span class="dim">CLICK: MENU</span></div><div class="rows">${body}</div><div class="foot dim"><span>MFD ${k + 1}</span></div></div>`;
+}
+function render() {
+  document.getElementById("money").textContent = fmt(career.money);
+  root.innerHTML = screens.map((s, k) => `<div class="mfd${pointed === k ? " pointed" : ""}" data-k="${k}"><div class="bolts"><i></i><i></i><i></i><i></i></div><div class="glass">${pageHtml(s, k)}</div></div>`).join("");
+  root.querySelectorAll("canvas[data-wire]").forEach(drawWire);
+  root.querySelectorAll("canvas[data-map]").forEach(drawMap);
+}
+let spin = 0;
+function drawWire(c) {
+  const m = MECHS.find(x => x.id === c.dataset.wire), g = c.getContext("2d"), W = c.width, H = c.height;
+  g.clearRect(0, 0, W, H);
+  const [legs, torso, w] = m.shape, s = (H * 0.86) / m.h, base = H * 0.95;
+  const boxes = [ // [x, y, z, w, h, d] metres: legs, hips, torso, head, arms
+    [-w * 5, 0, 0, 2.2, legs * m.h, 2.6], [w * 5, 0, 0, 2.2, legs * m.h, 2.6],
+    [0, legs * m.h, 0, w * 12, 1.4, 4], [0, legs * m.h + 1.4, 0, w * 13, torso * m.h * 0.75, 6],
+    [0, m.h - 2.2, 0.6, 3, 2.2, 3], [-w * 9, legs * m.h + 2, 0, 2.6, torso * m.h * 0.7, 3], [w * 9, legs * m.h + 2, 0, 2.6, torso * m.h * 0.7, 3],
+  ];
+  const a = spin, ca = Math.cos(a), sa = Math.sin(a);
+  const P = (x, y, z) => { const rx = x * ca - z * sa, rz = x * sa + z * ca; return [W / 2 + rx * s, base - y * s - rz * s * 0.18]; };
+  g.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--phosphor"); g.lineWidth = 1;
+  for (const [x, y, z, bw, bh, bd] of boxes) {
+    const xs = [x - bw / 2, x + bw / 2], ys = [y, y + bh], zs = [z - bd / 2, z + bd / 2];
+    const v = []; for (const X of xs) for (const Y of ys) for (const Z of zs) v.push(P(X, Y, Z));
+    const e = [[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]];
+    g.beginPath(); for (const [i, j] of e) { g.moveTo(...v[i]); g.lineTo(...v[j]); } g.stroke();
+  }
+  // the 1.8 m pilot beside it, to scale
+  g.fillStyle = g.strokeStyle; const px = W * 0.86; g.fillRect(px, base - 1.8 * s, Math.max(1, 0.5 * s), 1.8 * s);
+}
+function drawMap(c) {
+  const g = c.getContext("2d"), W = c.width, H = c.height, z = [1, 3, 9][+c.dataset.map];
+  const ph = getComputedStyle(document.documentElement).getPropertyValue("--phosphor"), dim = getComputedStyle(document.documentElement).getPropertyValue("--phosphor-dim"), am = getComputedStyle(document.documentElement).getPropertyValue("--amber");
+  g.clearRect(0, 0, W, H); g.save(); g.translate(W / 2, H / 2); g.scale(z, z);
+  g.strokeStyle = dim; g.lineWidth = 1.5 / z; g.beginPath();
+  for (let i = 0; i <= 64; i++) { const t = i / 64 * Math.PI * 2, r = 120 + 14 * Math.sin(t * 3) + 8 * Math.cos(t * 5); g.lineTo(Math.cos(t) * r - 6, Math.sin(t) * r * 0.86); }
+  g.closePath(); g.stroke();
+  g.fillStyle = dim; for (const [x, y, r] of [[-30, -10, 14], [50, 40, 10], [-60, 60, 9]]) { g.fillRect(x - r, y - r, r * 2, r * 2); }
+  g.strokeStyle = dim; g.beginPath(); g.moveTo(-30, -10); g.lineTo(50, 40); g.lineTo(-60, 60); g.lineTo(-30, -10); g.stroke();
+  g.fillStyle = am; for (const [x, y] of [[20, -70], [-90, 10]]) { g.fillRect(x - 4, y - 4, 8, 8); }
+  g.restore();
+  g.fillStyle = ph; g.beginPath(); g.moveTo(W / 2, H / 2 - 8); g.lineTo(W / 2 + 5, H / 2 + 6); g.lineTo(W / 2 - 5, H / 2 + 6); g.closePath(); g.fill();
+  g.font = "16px VT323, monospace"; g.fillStyle = am; g.fillText("BASES", 8, H - 10);
+}
+function openPause() { document.getElementById("pause").hidden = false; document.getElementById("resume").focus(); }
+document.getElementById("resume").onclick = () => { document.getElementById("pause").hidden = true; };
+
+function pick(ev) {
+  if (!look) return { k: -1, i: -1 };
+  const el = document.elementFromPoint(ev.clientX, ev.clientY);
+  const m = el && el.closest(".mfd"); if (!m) return { k: -1, i: -1 };
+  const it = el.closest("[data-i]");
+  return { k: +m.dataset.k, i: it ? +it.dataset.i : -1 };
+}
+dash.addEventListener("pointermove", ev => {
+  const r = dash.getBoundingClientRect();
+  cross.style.left = (ev.clientX - r.left) + "px"; cross.style.top = (ev.clientY - r.top) + "px";
+  const { k, i } = pick(ev);
+  const changed = k !== pointed || (k >= 0 && screens[k].lit !== i);
+  pointed = k; screens.forEach((s, j) => s.lit = j === k ? i : -1);
+  if (changed) render();
+});
+dash.addEventListener("pointerleave", () => { pointed = -1; screens.forEach(s => s.lit = -1); render(); });
+dash.addEventListener("click", ev => {
+  const { k, i } = pick(ev); if (k < 0) return;
+  const s = screens[k];
+  if (i === 99) return back(s);
+  if (i === 98 && s.page === "SHOP") { s.shop = null; return render(); }
+  if (s.page === "SHOP" && s.shop && i === 50) return buy(MECHS.find(m => m.id === s.shop));
+  const rows = rowsFor(s);
+  if (rows[i]) return rows[i].act();
+  if (!isApp(s.page)) openMenu(s);
+});
+function setLook(v) {
+  look = v; dash.classList.toggle("look", v); cross.hidden = !v;
+  document.getElementById("lookState").textContent = v ? "FREE LOOK HELD" : "FREE LOOK OFF";
+  if (!v) { pointed = -1; screens.forEach(s => s.lit = -1); }
+  render();
+}
+const lockBox = document.getElementById("lockLook");
+lockBox.onchange = () => setLook(lockBox.checked);
+addEventListener("keydown", e => {
+  if (e.key === "Control") setLook(true);
+  if (e.key === "Escape") { const p = document.getElementById("pause"); if (!p.hidden) { p.hidden = true; return; } if (pointed >= 0) back(screens[pointed]); }
+});
+addEventListener("keyup", e => { if (e.key === "Control" && !lockBox.checked) setLook(false); });
+document.getElementById("atBase").onchange = e => { atBase = e.target.checked; document.getElementById("where").textContent = atBase ? "HOME BASE" : "IN THE FIELD"; render(); };
+document.getElementById("reset").onclick = () => { career = structuredClone(START); MAIL.forEach((m, i) => m.unread = i < 2); screens.forEach((s, i) => Object.assign(s, { page: ["MECH", "SHOP", "WEAPONS"][i], home: i === 1 ? "TARGET" : null, shop: i === 1 ? "harrow" : null, zoom: 0 })); say(""); render(); };
+// Opens in a working state: free look held, the centre screen on the Harrow's sheet.
+screens[1].page = "SHOP"; screens[1].shop = "harrow"; screens[1].home = "TARGET";
+lockBox.checked = true; setLook(true);
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+(function tick() { if (!reduce) { spin += 0.006; root.querySelectorAll("canvas[data-wire]").forEach(drawWire); } requestAnimationFrame(tick); })();
+</script>

@@ -1248,15 +1248,18 @@ def build_layout(S, VAR):
             half = min(half, F * math.tan(max(abs(carrier["region"][1]), abs(carrier["region"][2])) * D(1)) - 0.17)
         k = min(1.0, 2 * half / 1.58)
         name = "CONSOLE_front"
-        NODES[name] = (cn or "pod", V(0, rows[0][0] - 0.16, zf))
-        dash_unit(S, name, V(0, rows[0][0] - 0.16, zf), k)
+        # Under the first row of screens, unless the layout sets its height (the Cab's floor-to-roof glass: the dash at
+        # the Panorama's height, openspec change cockpit-parity).
+        dy = L.get("dash_y_m", rows[0][0] - 0.16)
+        NODES[name] = (cn or "pod", V(0, dy, zf))
+        dash_unit(S, name, V(0, dy, zf), k)
         for s_ in (1, -1):                   # brackets from the dash to its wall
             x_ = s_ * 0.3 * 1.58 * k
-            S.obox(V(x_, rows[0][0] - 0.30, (zf + F) / 2), (X, Y, Z), (0.05, 0.05, F - zf), "steel", "front", name, bevel=0.005)
+            S.obox(V(x_, dy - 0.14, (zf + F) / 2), (X, Y, Z), (0.05, 0.05, F - zf), "steel", "front", name, bevel=0.005)
         # The footwell's front wall, behind the pedals, from the floor up into the dash's body, on the dash's part so
         # it swings clear with it and the doorway stays open. Without it the footwell ran out under the dash to the
         # outside (owner, 2026-10-25: "theres an opening here need fix"; the cabin is airtight).
-        zw, top = F - 0.08, rows[0][0] - 0.16
+        zw, top = F - 0.08, dy
         S.box((-0.79 * k, 0.0, zw), (0.79 * k, top, zw + 0.03), "paint_dk", "front", name)
         S.plate("footwell", (0, min(0.27, top * 0.5), zw), -Z, Y, t=0.012, group="front", node=name,
                 scale=min(1.0, 1.5 * k / CP.PANELS["footwell"][0], (top - 0.04) / CP.PANELS["footwell"][1]))
@@ -1267,10 +1270,13 @@ def build_layout(S, VAR):
         # (owner: "theres some geometry in front of mfd, I would move them forward").
         nm, yc_, centre, n_in, nd, (ry0, ry1) = front_screen
         size = 0.30
-        yc = ry1 - 0.02
+        # A layout with a low front screen hangs them higher and further in, on the canopy's front slope, so they never
+        # cover the screen at eye height (`mfd_top_m`: rise, out; openspec change cockpit-parity).
+        rise, out = L.get("mfd_top_m", (0.0, 0.16))
+        yc = ry1 - 0.02 + rise
         face = (n_in - Y * 0.5).normalized()
         for i, (x, img) in enumerate(((0.36, "mfd_left"), (0.0, "mfd_center"), (-0.36, "mfd_right"))):
-            c_ = V(x, yc, centre.z) + n_in * 0.16
+            c_ = V(x, yc, centre.z) + n_in * out
             S.obox(c_ - face * 0.004, basis(face, Y), (size + 0.04, size + 0.04, 0.008), "bezel", "cabin", nd, bevel=0.002)
             sn = f"HUD_mfd_{i}"
             NODES[sn] = (nd or "pod", None)

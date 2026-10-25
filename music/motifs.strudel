@@ -1,0 +1,143 @@
+// @title Crab Breeze: the motifs
+// @cycles 59
+// @reverb 0.5
+// @mix gm_french_horn vol=95
+// @mix gm_trumpet vol=180
+// @mix gm_epiano1 vol=130
+// @mix gm_contrabass vol=110
+// @mix square vol=18
+//
+// The Crab Breeze motif sheet: every motif of the score stated plainly, one
+// after another, with a bar of silence between them. The block between the
+// MOTIF LIBRARY markers is the canonical text of each motif; every cue in
+// music/ copies it word for word (tools/music/check_motifs.mjs refuses a copy
+// that drifts). docs/design/music.md explains what each motif means and when
+// it is used. Paste this file into https://strudel.cc to hear it in a browser.
+
+setcps(120/60/4)
+
+// ── MOTIF LIBRARY ──────────────────────────────────────────────
+// The spine: 16 bars in D minor. Pass A ends on A major (the pull home),
+// pass B climbs Gm Bb C into D MAJOR: the lift, the score's signature.
+const SPINE_ROOTS = note(`<
+  d2 bb1 f2 c2 d2 bb1 g1 a1
+  d2 bb1 f2 c2 g1 bb1 c2 d2
+>`)
+const SPINE_CHORDS = note(`<
+  [d3,f3,a3] [bb2,d3,f3] [f3,a3,c4] [c3,e3,g3] [d3,f3,a3] [bb2,d3,f3] [g2,bb2,d3] [a2,c#3,e3]
+  [d3,f3,a3] [bb2,d3,f3] [f3,a3,c4] [c3,e3,g3] [g2,bb2,d3] [bb2,d3,f3] [c3,e3,g3] [d3,f#3,a3]
+>`)
+// The stride: 3+3+2 eighths, the mech's gait (stomp, stomp, step-step).
+const STRIDE = "x ~ ~ x ~ ~ x ~"
+const STRIDE_DRUMS = s(`[bd ~ ~ ~ ~ ~ bd ~ ~ ~ ~ ~ bd ~ ~ ~,
+                        ~ ~ ~ ~ sd ~ ~ ~ ~ ~ ~ ~ sd ~ ~ ~]`)
+// THE BREEZE: the mech, the hero. Rides the stride rhythm over the spine;
+// the last bar sings the F sharp of D major.
+const BREEZE = note(`<
+  [d4@3 a4@3 g4 a4] [bb4@3 a4@3 f4 g4] [a4@3 c5@3 bb4 a4] [g4@6 f4 e4]
+  [d4@3 a4@3 g4 a4] [bb4@3 d5@3 c5 bb4] [d5@3 g5@3 f5 e5] [e5@6 c#5 a4]
+  [d4@3 a4@3 g4 a4] [bb4@3 a4@3 f4 g4] [a4@3 c5@3 d5 e5] [f5@3 e5@3 d5 c5]
+  [d5@3 bb4@3 c5 d5] [f5@3 d5@3 e5 f5] [g5@3 e5@3 f5 g5] [f#5@3 a5@5]
+>`)
+// CALL SIGN: "CB" in Morse (-.-. -...) on A and D, two bars of 16ths.
+// The radio, the briefing, the systems waking; the lock-on tone's rhythm.
+const CALLSIGN = note("[a5@3 ~ a5 ~ a5@3 ~ a5 ~@3 d5@3 ~ d5 ~ d5 ~ d5 ~@9]/2")
+// MAIN STREET: the city and its people, a hymn in F major.
+const MAINSTREET = note(`<
+  [c5@3 a4 g4@2 f4@2] [d5@3 c5 bb4@4] [a4@3 g4 f4@2 d4@2] [e4@2 g4@2 c5@4]
+  [c5@3 a4 g4@2 f4@2] [d5@3 f5 e5@2 d5@2] [c5@2 bb4@2 a4@2 g4@2] [f4@8]
+>`)
+const STREET_ROOTS = note("<f2 bb1 d2 c2 f2 bb1 [g1 c2] f2>")
+const STREET_CHORDS = note(`<
+  [f3,a3,c4] [bb2,d3,f3] [d3,f3,a3] [c3,e3,g3]
+  [f3,a3,c4] [bb2,d3,f3] [[g2,bb2,d3] [c3,e3,g3]] [f3,a3,c4]
+>`)
+// SCUTTLE: the alien crabs. 16ths grouped 3+3+3+3+2+2 (legs, sideways),
+// grinding D against E flat and the tritone A flat.
+const SCUTTLE = note(`<
+  [d2 eb2 d2 d2 eb2 d2 ab1 a1 ab1 d2 eb2 d2 f2 e2 eb2 d2]
+  [d2 eb2 d2 d2 eb2 d2 ab1 a1 ab1 d2 eb2 d2 bb1 a1 ab1 g1]
+>`)
+const SCUTTLE_ACCENT = "1 .55 .55 1 .55 .55 1 .55 .55 1 .55 .55 1 .55 1 .55"
+// CLAW: the tritone stab on the scuttle's accents.
+const CLAW = note("[d4,ab4]").struct("x ~ ~ ~ ~ ~ x ~ ~ ~ ~ ~ x ~ x ~")
+// SIREN: the crabs' wail, a slow chromatic fall over four bars.
+const SIREN = note("<a4 ab4 g4 f#4>")
+// THE HATCH: boarding. Stacked fourths climbing a step per hatch stage
+// (two bars each), arriving on D major as the pilot sits.
+const HATCH = note(`<
+  [d3 g3 c4 f4]!2 [e3 a3 d4 g4]!2 [f3 bb3 e4 a4]!2 [g3 c4 f4 bb4]!2
+  [a3 d4 g4 c5] [d3 a3 d4 f#4]
+>`)
+const HATCH_CHORDS = note(`<
+  [d3,g3,c4,f4]!2 [e3,a3,d4,g4]!2 [f3,bb3,e4,a4]!2 [g3,c4,f4,bb4]!2
+  [a3,d4,g4,c5] [d3,f#3,a3,d4]
+>`)
+// FANFARE: mission accomplished. Bb, C, D major: the lift, with the
+// Breeze's head turned major.
+const FANFARE = note(`<
+  [d5@3 f5@3 d5 f5] [e5@3 g5@3 e5 g5] [d5@3 a5@3 g5 a5] [f#5@8]
+  [b5@3 a5@3 f#5 g5] [a5@8]
+>`)
+const FANFARE_ROOTS = note("<bb1 c2 d2 d2 g1 d2>")
+const FANFARE_CHORDS = note(`<
+  [bb3,d4,f4] [c4,e4,g4] [d4,f#4,a4] [d4,f#4,a4] [g3,b3,d4] [d4,f#4,a4]
+>`)
+// ── END MOTIF LIBRARY ──────────────────────────────────────────
+
+const rest = silence
+
+// 1. the Breeze on a horn over the spine, with the stride under it
+const breeze = stack(
+  BREEZE.s("gm_french_horn").gain(1.1),
+  SPINE_CHORDS.s("gm_string_ensemble_1").gain(0.55),
+  SPINE_ROOTS.struct(STRIDE).s("gm_contrabass").gain(0.85),
+  STRIDE_DRUMS.gain(0.5)
+)
+
+// 2. the call sign on the radio
+const callsign = stack(
+  CALLSIGN.s("square").gain(0.8),
+  note("<[d3,a3,e4] [bb2,f3,d4]>").slow(2).s("gm_pad_warm").gain(0.6)
+)
+
+// 3. Main Street on an 80s electric piano
+const street = stack(
+  MAINSTREET.s("gm_epiano1").gain(1.0),
+  STREET_CHORDS.s("gm_string_ensemble_2").gain(0.45),
+  STREET_ROOTS.s("gm_contrabass").gain(0.7)
+)
+
+// 4. the crabs: scuttle, claw, siren
+const scuttle = stack(
+  SCUTTLE.s("gm_cello").gain(SCUTTLE_ACCENT),
+  SCUTTLE.sub(note(12)).s("gm_contrabass").gain(SCUTTLE_ACCENT),
+  CLAW.s("gm_trombone").gain(0.9),
+  SIREN.s("gm_choir_aahs").gain(0.7),
+  s("[bd ~ ~ ~ ~ ~ bd ~ ~ ~ ~ ~ bd ~ bd ~]").gain(0.6)
+)
+
+// 5. the hatch opening stage by stage
+const hatch = stack(
+  HATCH.s("gm_string_ensemble_1").gain(0.75),
+  HATCH_CHORDS.s("gm_choir_aahs").gain(0.55),
+  note("<d2!8 a1 d2>").s("gm_timpani").struct("x*4").gain(0.5)
+)
+
+// 6. mission accomplished
+const fanfare = stack(
+  FANFARE.s("gm_trumpet").gain(1.1),
+  FANFARE_CHORDS.s("gm_brass_section").gain(0.7),
+  FANFARE_ROOTS.s("gm_contrabass").gain(0.8),
+  FANFARE_ROOTS.add(note(12)).struct("x ~ ~ x ~ ~ x ~").s("gm_timpani").gain(0.8),
+  s("<cr ~ cr ~ cr cr>").gain(0.7)
+)
+
+arrange(
+  [16, breeze], [1, rest],
+  [4, callsign], [1, rest],
+  [8, street], [1, rest],
+  [8, scuttle], [1, rest],
+  [10, hatch], [1, rest],
+  [6, fanfare], [2, rest]
+)
