@@ -3,6 +3,9 @@
 use std::path::{Path, PathBuf};
 
 /// How to call the game.
+/// The mech flown when none is named.
+pub const DEFAULT_MECH: &str = "mechs/foreman.ron";
+
 pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence] [--showcase world|fight|defence|marks|sun|demolition] [--bench world|fight|defence|marks|sun|demolition] [--start meadow]";
 
 /// Parsed command line.
@@ -36,9 +39,11 @@ impl Args {
     pub fn parse(args: impl Iterator<Item = String>) -> Result<Self, String> {
         let mut out = Args {
             seed: 42,
-            // `CB_MECH=mechs/<name>.ron` picks the mech without an argument (the perf suite's
+            // The Foreman by default (owner, 2026-10-25: "wrong cockpit, use forman"), so plain runs,
+            // showcases and benchmarks fly the mech and cockpit the game is built around.
+            // `CB_MECH=mechs/<name>.ron` picks another without an argument (the perf suite's
             // variants set only the environment); `--mech` still wins.
-            mech: std::env::var("CB_MECH").unwrap_or_else(|_| "mechs/placeholder.ron".into()),
+            mech: std::env::var("CB_MECH").unwrap_or_else(|_| DEFAULT_MECH.into()),
             stills: None,
             mission: None,
             showcase: None,
@@ -95,5 +100,21 @@ fn take_name(v: Option<String>) -> Result<String, String> {
     match v.as_deref() {
         Some("world") | Some("fight") | Some("defence") | Some("marks") | Some("sun") | Some("demolition") => Ok(v.unwrap_or_default()),
         _ => Err("--showcase and --bench take `world`, `fight`, `defence`, `marks`, `sun` or `demolition`".into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_foreman_is_flown_when_no_mech_is_named() {
+        if std::env::var("CB_MECH").is_ok() {
+            return; // a run that names its mech in the environment
+        }
+        let args = Args::parse(std::iter::empty()).unwrap();
+        assert_eq!(args.mech, "mechs/foreman.ron");
+        let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data").join(&args.mech);
+        assert!(file.exists(), "{} is in data/", args.mech);
     }
 }
