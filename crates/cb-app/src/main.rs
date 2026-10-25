@@ -117,6 +117,9 @@ fn main() -> AppExit {
     if args.start.as_deref() == Some("fx") {
         app.add_plugins(fx_gallery::FxGalleryPlugin);
     }
+    if args.start.as_deref() == Some("overlook") {
+        app.insert_resource(world::StartOnOverlook);
+    }
     app.add_plugins((
         sim::SimPlugin,
         input::InputPlugin,

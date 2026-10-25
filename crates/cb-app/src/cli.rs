@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 /// The mech flown when none is named.
 pub const DEFAULT_MECH: &str = "mechs/foreman.ron";
 
-pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence] [--showcase world|fight|defence|marks|sun|demolition|trail] [--bench world|fight|defence|marks|sun|demolition] [--start meadow]";
+pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence] [--showcase world|fight|defence|marks|sun|demolition|trail] [--bench world|fight|defence|marks|sun|demolition] [--start meadow|overlook]";
 
 /// Parsed command line.
 #[derive(Debug, PartialEq)]
@@ -67,7 +67,8 @@ impl Args {
                 "--start" => match it.next().as_deref() {
                     Some("meadow") => out.start = Some("meadow".into()),
                     Some("fx") => out.start = Some("fx".into()),
-                    _ => return Err("--start takes `meadow` or `fx`".into()),
+                    Some("overlook") => out.start = Some("overlook".into()),
+                    _ => return Err("--start takes `meadow`, `fx` or `overlook`".into()),
                 },
                 other => return Err(format!("unknown argument {other}")),
             }

@@ -8,3 +8,6 @@ __pycache__/
 /settings.ron.tmp
 /saves/
 tools/materials/raw/
+
+# itch.bat packages the game here
+/dist/

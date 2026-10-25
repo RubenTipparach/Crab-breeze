@@ -176,8 +176,13 @@ fn puff(in: CloudFragment, look: vec3<f32>, dist: f32) -> vec4<f32> {
     let lit = cloud.sun.rgb * (albedo / 3.14159265) * (diffuse * body + silver + scattered)
         + cloud.ambient.rgb * albedo * mix(0.45, 1.0, h) * mix(1.0, 0.6, dark) * mix(0.5, 1.0, shadow);
     let near = smoothstep(cloud.fade.x * 0.3, cloud.fade.x, dist);
-    // The flat base: nothing below the system's base.
-    let floor = smoothstep(in.layer.x - 20.0, in.layer.x + 50.0, in.world.y);
+    // The flat base: seen from the side, nothing below the system's base. Seen from under the base
+    // looking up, the base is the flat underside the eye sees, so nothing is cut: cutting the flat
+    // billboard there sliced storm puffs into straight-edged blocks and hid the lowest ones
+    // (owner, 2026-10-25: "why clouds are all rough like this?").
+    let eye_y = view.world_position.y;
+    let from_below = smoothstep(in.layer.x - 30.0, in.layer.x - 250.0, eye_y) * smoothstep(0.15, 0.5, look.y);
+    let floor = mix(smoothstep(in.layer.x - 20.0, in.layer.x + 50.0, in.world.y), 1.0, from_below);
     return vec4<f32>(lit, dens * in.look.z * near * floor);
 }
 
