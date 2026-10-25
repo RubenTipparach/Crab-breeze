@@ -1447,8 +1447,90 @@ UV_SHAPE = "AABB"  # pack shape; CONCAVE measured no better on this set
 UV_LONG = 0.25     # thin islands longer than this (in pre-pack UV units) are shrunk before packing
 
 
+def face_uv_scale(me, lay, poly):
+    """A face's worst UV scale pair along its two principal directions (UV units per metre, larger first), over the
+    face's own triangles (an n-gon's first three corners can lie almost in a line), or None."""
+    worst = None
+    for tri in TRIS.get((id(me), poly.index), []):
+        p = [me.vertices[v].co for v in tri.vertices]
+        t = [lay[i].uv for i in tri.loops]
+        e1, e2 = p[1] - p[0], p[2] - p[0]
+        n = e1.cross(e2)
+        if e1.length < 1e-9 or n.length < 1e-12:
+            continue
+        u, w = e1.normalized(), n.normalized().cross(e1.normalized())
+        A = Matrix(((e1.dot(u), e2.dot(u)), (e1.dot(w), e2.dot(w))))
+        B = Matrix(((t[1][0] - t[0][0], t[2][0] - t[0][0]), (t[1][1] - t[0][1], t[2][1] - t[0][1])))
+        sv = np.linalg.svd(np.array(B @ A.inverted()), compute_uv=False)
+        if worst is None or sv[0] / max(sv[1], 1e-12) > worst[0] / max(worst[1], 1e-12):
+            worst = sv
+    return worst
+
+
+TRIS = {}
+
+
+def index_tris(me):
+    """The mesh's loop triangles by polygon, for face_uv_scale."""
+    me.calc_loop_triangles()
+    for tri in me.loop_triangles:
+        TRIS.setdefault((id(me), tri.polygon_index), []).append(tri)
+
+
+UV_STRETCH_MAX = 3.0   # the most a face's light UV may be longer along one direction than the other
+
+
+def uv_stretch(obs):
+    """Measured: per object, the faces larger than 25 cm2 whose light UV is stretched past UV_STRETCH_MAX (the ratio of
+    a face's UV scale along its two principal directions; 1 is undistorted). Any such face stops the build."""
+    worst = []
+    TRIS.clear()
+    for ob in obs:
+        me = ob.data
+        index_tris(me)
+        lay = me.uv_layers["light"].data
+        bad, top = 0, (1.0, None)
+        for poly in me.polygons:
+            if poly.area < 0.0025 or poly.loop_total < 3:
+                continue
+            sv = face_uv_scale(me, lay, poly)
+            if sv is None:
+                continue
+            r = sv[0] / max(sv[1], 1e-12)
+            bad += r > UV_STRETCH_MAX
+            if r > top[0]:
+                top = (r, tuple(round(c, 2) for c in poly.center))
+        worst.append((ob.name, bad, round(top[0], 1), top[1]))
+    print("UV STRETCH worst: " + ", ".join(f"{n} {r} at {c}" for n, _, r, c in worst), flush=True)
+    over = [f"{n}: {b} faces over {UV_STRETCH_MAX}x, worst {r} at {c}" for n, b, r, c in worst if b]
+    if over:
+        raise SystemExit("UV STRETCHED: " + "; ".join(over))
+
+
 def lightmap_uvs(obs):
     """A 'light' UV layer on every object of an atlas: smart projected, then packed together."""
+    # Blender's unwrap and pack both scale UVs by the aspect of the active image node in a face's material, and the
+    # panels carry long, thin pictures: with them active the dash's faces came out up to 58 times finer one way than
+    # the other, and the bake streaked along them (owner, 2026-10-25: "stretched textures" on the glare shield's lip
+    # and the strips between the dash panels). Unwrap with the images
+    # detached (Blender reads the material's active texture node, not its active node), then put them back.
+    images = {}
+    for ob in obs:
+        for slot in ob.material_slots:
+            m = slot.material
+            if m and m.use_nodes:
+                for n in m.node_tree.nodes:
+                    if n.type == "TEX_IMAGE" and n not in images:
+                        images[n] = n.image
+                        n.image = None
+    try:
+        _lightmap_uvs(obs)
+    finally:
+        for n, im in images.items():
+            n.image = im
+
+
+def _lightmap_uvs(obs):
     for ob in obs:
         uv = ob.data.uv_layers.get("light") or ob.data.uv_layers.new(name="light")
         ob.data.uv_layers.active = uv
@@ -1458,7 +1540,9 @@ def lightmap_uvs(obs):
     bpy.context.view_layer.objects.active = obs[0]
     bpy.ops.object.mode_set(mode="EDIT")
     bpy.ops.mesh.select_all(action="SELECT")
-    bpy.ops.uv.smart_project(angle_limit=math.radians(UV_ANGLE), island_margin=0.0015, area_weight=0.0, scale_to_bounds=False)
+    # correct_aspect off as well as the images detached (lightmap_uvs): no image aspect may scale the unwrap.
+    bpy.ops.uv.smart_project(angle_limit=math.radians(UV_ANGLE), island_margin=0.0015, area_weight=0.0,
+                             correct_aspect=False, scale_to_bounds=False)
     # Long hair-thin islands (trim strips a few millimetres wide and 1.5 m long) cap how far the packer
     # can scale everything else up, since none may exceed the unit square. Shrink just those: they are
     # baked into this UV, so they only lose texels along a length nobody inspects.
@@ -1486,6 +1570,7 @@ def lightmap_uvs(obs):
     bpy.ops.uv.select_all(action="SELECT")
     bpy.ops.uv.pack_islands(rotate=True, margin=0.0015, shape_method=UV_SHAPE)
     bpy.ops.object.mode_set(mode="OBJECT")
+    uv_stretch(obs)
     u = np.concatenate([np.array([d.uv[:] for d in ob.data.uv_layers["light"].data]) for ob in obs])
     print(f"UV PACK {obs[0].name}..: u {u[:, 0].min():.3f}-{u[:, 0].max():.3f} v {u[:, 1].min():.3f}-{u[:, 1].max():.3f}", flush=True)
 
@@ -1747,6 +1832,8 @@ def main():
     atlases = {g: [ob for ob, gg, _ in meshes.values() if gg == g] for g in ("front", "cabin")}
     for g, obs in atlases.items():
         lightmap_uvs(obs)
+    if os.environ.get("CB_UV_ONLY"):
+        return
     print(f"BUILT in {time.time() - t0:.0f} s: " + ", ".join(f"{k} {tris(v[0])}" for k, v in sorted(meshes.items())), flush=True)
 
     tex_dir = os.path.join(RAW, f"pbr_{a.variant}")
