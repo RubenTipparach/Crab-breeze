@@ -27,6 +27,8 @@ pub struct InputAccum {
     pub skate_toggle: bool,
     /// The next target was asked for.
     pub target_next: bool,
+    /// Close combat was toggled.
+    pub close_combat: bool,
     /// Fire pressed while free look is held: press the MFD looked at (cockpit-mfds). Taken by the
     /// MFDs each frame, never by the fixed step.
     pub mfd_press: bool,
@@ -59,6 +61,7 @@ pub(crate) struct Keys {
     skate: Vec<KeyCode>,
     sink: Vec<KeyCode>,
     target_next: Vec<KeyCode>,
+    close_combat: Vec<KeyCode>,
     fire: [(Vec<KeyCode>, Vec<MouseButton>); 2],
     fire_missile: (Vec<KeyCode>, Vec<MouseButton>),
     debug: Vec<(Vec<KeyCode>, DebugCommand)>,
@@ -122,6 +125,7 @@ fn resolve(b: &Bindings) -> Result<Keys, String> {
         skate: r("skate", &b.skate)?,
         sink: r("sink", &b.sink)?,
         target_next: r("target_next", &b.target_next)?,
+        close_combat: r("close_combat", &b.close_combat)?,
         fire: [split("fire_primary", &b.fire_primary)?, split("fire_secondary", &b.fire_secondary)?],
         fire_missile: split("fire_missile", &b.fire_missile)?,
         debug: vec![
@@ -239,6 +243,7 @@ fn sample_devices(
     }
     acc.skate_toggle |= any_just(&input, &keys.skate);
     acc.target_next |= any_just(&input, &keys.target_next);
+    acc.close_combat |= any_just(&input, &keys.close_combat);
     let (fire_keys, fire_buttons) = &keys.fire[0];
     if any(&input, &keys.free_look) && (any_just(&input, fire_keys) || mouse.any_just_pressed(fire_buttons.iter().copied())) {
         acc.mfd_press = true;
@@ -291,6 +296,7 @@ fn take_step_actions(
         debug: held.debug.or(acc.debug),
         skate_toggle: held.skate_toggle || acc.skate_toggle,
         target_next: held.target_next || acc.target_next,
+        close_combat: held.close_combat || acc.close_combat,
         ..held
     }
     .sanitised();
@@ -301,6 +307,7 @@ fn take_step_actions(
     acc.debug = None;
     acc.skate_toggle = false;
     acc.target_next = false;
+    acc.close_combat = false;
 }
 
 #[cfg(test)]

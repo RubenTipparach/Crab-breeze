@@ -61,6 +61,8 @@ pub struct Actions {
     pub fire_missile: bool,
     /// Select the next target this step.
     pub target_next: bool,
+    /// Close combat toggled this step (openspec change `close-combat`).
+    pub close_combat: bool,
 }
 
 impl Actions {
@@ -177,6 +179,8 @@ pub struct Bindings {
     pub fire_missile: Vec<String>,
     /// Select the next target (in the mech).
     pub target_next: Vec<String>,
+    /// Close combat on and off (in the mech).
+    pub close_combat: Vec<String>,
 }
 
 impl Default for Bindings {
@@ -209,6 +213,7 @@ impl Default for Bindings {
             sink: k("KeyC"),
             fire_missile: k("KeyF"),
             target_next: k("KeyQ"),
+            close_combat: k("Tab"),
         }
     }
 }
@@ -288,6 +293,12 @@ impl Bindings {
             row("Weapons", "Fire secondary", "fire_secondary", &self.fire_secondary),
             row("Weapons", "Fire missile at the lock", "fire_missile", &self.fire_missile),
             row("Weapons", "Next target", "target_next", &self.target_next),
+            row(
+                "Weapons",
+                "Close combat on and off (on by itself when the target is close)",
+                "close_combat",
+                &self.close_combat,
+            ),
             row(
                 "Cockpit",
                 "Free look (hold); click an MFD to change page",

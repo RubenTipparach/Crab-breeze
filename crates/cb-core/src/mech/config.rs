@@ -333,6 +333,8 @@ pub struct MechConfig {
     pub parts: Vec<PartSpec>,
     /// Guns.
     pub weapons: Vec<crate::weapons::WeaponSpec>,
+    /// Close combat: melee range and the arms' strikes (openspec change `close-combat`).
+    pub melee: super::melee::MeleeConfig,
     /// The stand-in's bones and sockets.
     pub nodes: Vec<NodeSpec>,
     /// The stand-in's boxes.
@@ -352,6 +354,7 @@ impl Default for MechConfig {
             skate: SkateConfig::default(),
             parts: default_parts(),
             weapons: crate::weapons::default_weapons(),
+            melee: super::melee::MeleeConfig::default(),
             nodes: Vec::new(),
             boxes: Vec::new(),
         }
@@ -385,6 +388,7 @@ impl Validate for MechConfig {
         positive("locomotion.water_sink_m_s", l.water_sink_m_s)?;
         positive("locomotion.water_climb_m_s", l.water_climb_m_s)?;
         positive("locomotion.water_drag_m_s2", l.water_drag_m_s2)?;
+        self.melee.validate()?;
         let g = &self.gait;
         positive("gait.stride_max_m", g.stride_max_m)?;
         positive("gait.stride_min_m", g.stride_min_m)?;

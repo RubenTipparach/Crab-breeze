@@ -695,8 +695,17 @@ fn update_hud(
                     AMBER
                 },
             ),
-            Readout::Guns => {
+            Readout::Guns => 'guns: {
                 let mut parts = vec![format!("THR {:.0}%", m.throttle * 100.0)];
+                // In close combat the mouse buttons strike and the guns hold (close-combat).
+                if sim.close.on {
+                    parts.push("CLOSE COMBAT".into());
+                    for (button, kind) in [("LMB", PartKind::ArmL), ("RMB", PartKind::ArmR)] {
+                        let state = if sim.damage.is_lost(&spec.parts, kind) { "LOST" } else { "STRIKE" };
+                        parts.push(format!("{button} {state}"));
+                    }
+                    break 'guns (parts.join("\n"), AMBER);
+                }
                 for (i, w) in spec.weapons.iter().enumerate() {
                     let cd = sim.guns.cooldown_s.get(i).copied().unwrap_or(0.0);
                     let gone = sim.damage.is_lost(&spec.parts, w.arm);

@@ -1,3 +1,4 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Crab Breeze Survey</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -116,7 +117,7 @@ code { font: 500 0.9em var(--mono); }
 
 <div class="wrap">
   <header class="top">
-    <div class="eyebrow">Owner survey · opened 2026-10-23 · cleaned up 2026-10-24</div>
+    <div class="eyebrow">Owner survey · opened 2026-10-23 · cleaned up 2026-10-24 · island, small-building, weather and terrain questions added</div>
     <h1>Crab Breeze Survey</h1>
     <div class="suits" aria-hidden="true"><span style="background:var(--sun)"></span><span style="background:var(--crescent)"></span><span style="background:var(--star)"></span><span style="background:var(--eagle)"></span></div>
     <p class="lede">Only the questions still open. Everything you have answered is in the Answered section at the bottom, with where it went. Each open question has a recommendation that gets built if you leave it blank: pick an option, add a note, or leave it.</p>
@@ -151,6 +152,18 @@ const SECTIONS = [
   { tag: 'G', name: 'Combat effects and the city defence',
     lead: 'New on 2026-10-23: weapon effects (openspec/changes/combat-fx), dumbfire rockets (rockets) and the three-city defence mission (city-defence).',
     qs: [
+      { id: 'G17', q: 'Close combat (openspec/changes/close-combat): it switches on when the target is within melee range and Tab toggles it. In close combat, what do the triggers do?',
+        options: ['Left mouse strikes with the left arm, right mouse with the right: a wind-up, a hit sweeping the arm\'s reach, a recovery; the guns hold', 'Strikes on the mouse, and the guns still fire on other keys', 'One strike key; both arms alternate'], rec: 0,
+        why: 'Each arm is its own weapon already (losing an arm loses its gun); a strike per arm keeps the controls the same shape, and holding the guns keeps a close fight readable.' },
+      { id: 'G18', q: 'How far is melee range for a 24 m mech?',
+        options: ['30 m (about an arm\'s reach plus a stride)', '20 m', '45 m'], rec: 0,
+        why: 'Close enough that the target fills the front screen, far enough that the mode is on before the arms can reach.' },
+      { id: 'G19', q: 'What does a strike do?',
+        options: ['Through the same damage rules as a shot: the arm\'s strike beats armour like a heavy shell (300 mm, 60 structure) and breaks building cells and trees in its sweep', 'Knocks the target back as well', 'Damage only to mechs and vehicles'], rec: 0,
+        why: 'One damage rule (CLAUDE.md section 6.1): a strike is a hit like any other, and smashing a wall should feel like it.' },
+      { id: 'C12', q: 'How do you press an MFD (openspec/changes/cockpit-mfds)?',
+        options: ['Hold free look (Left Ctrl), look at it and click; the guns hold while free look is held', 'A key per MFD to change its page', 'A visible mouse cursor in the cockpit'], rec: 0,
+        why: 'Free look already takes the view off the guns; clicking what you look at is the simplest reach into the cockpit.' },
       { id: 'G9', q: 'A city loses when it is "damaged more than 50 %". What counts as damage?',
         options: ['The share of the city\'s building structure destroyed, so a fallen 40-storey tower counts far more than a shed', 'The share of buildings destroyed, each building counting the same', 'Only a few landmark buildings per city count'], rec: 0,
         why: 'It matches what you see: a skyline with its towers down looks half gone even if the suburbs stand.' },
@@ -206,6 +219,24 @@ const SECTIONS = [
       { id: 'W15', q: 'An overloaded column is about to give. How much warning?',
         options: ['0.5-1.6 s of dust trickling and groaning, with the stress on your target readout', 'None: it goes at once', '3-6 s, time to get clear'], rec: 0,
         why: 'Long enough to see it coming and enjoy it, short enough that a collapse still surprises.' },
+      { id: 'W18', q: 'Brick only goes on buildings of 6 storeys or fewer, and downtown (where you start) is all 7 to 60 storeys, so you see concrete and glass there. Measured on seed 42: 48 % of all buildings are brick, but none taller than 6 storeys. How should brick spread?',
+        options: ['Pick the material per building, not by height: brick on about 40 % of 7-14 storey buildings (pre-war lofts and offices: brick piers, steel windows), brick podiums under some towers; walk-ups and warehouses stay brick', 'Lower downtown so more walk-ups are near the centre', 'Keep it as it is'], rec: 0,
+        why: 'A 1980s downtown was old brick lofts beside new glass; it puts brick in the streets you fight in without shrinking the towers.' },
+      { id: 'W19', q: 'The glass now reflects a real sky (a Poly Haven HDRI baked into a cube map). Should that sky also be the sky you see?',
+        options: ['Not yet: keep the flat sky and fog you see now; the HDRI shows in reflections only', 'Yes, show the HDRI sky behind everything', 'Several skies, one per mission (time of day, weather)'], rec: 0,
+        why: 'The fog and clouds are tuned to the flat sky; changing the visible sky is its own change with a playtest.' },
+      { id: 'W20', q: 'What colour is the tinted tower glass? (Now: blue-green, 30 % of the room shows through, about 13 % reflection head-on.)',
+        options: ['Blue-green, the common late-70s and 80s tower glass', 'Bronze', 'Grey', 'Silver mirror glass (almost no room shows)'], rec: 0,
+        why: 'Blue-green reads as glass at a distance and sits well against the brick and concrete.' },
+      { id: 'W21', q: 'Your reference photos show towers mirroring the buildings across the street. The sky cube only reflects sky. Build cached street reflections next?',
+        options: ['Yes: a 128 px cube map captured once at each street crossing near you (six frames to draw, at most 8 kept, 4 MB), redrawn when a building there falls', 'Later', 'No'], rec: 0,
+        why: 'It is the cached cube maps you asked for: captured once and reused, so it does not cost what the live cockpit cube did (4.7 ms a frame).' },
+      { id: 'W22', q: 'The game has five building kinds (brick walk-up, brick warehouse, two concrete offices, glass tower), and 38 % of buildings near the start are glass towers. Which new kinds do we add (openspec/changes/building-variety)? Each comes with normal-mapped materials, and frames, sills and cornices get normal maps too.',
+        options: ['All six, brick loft and Art Deco stone tower first: brick loft (7-14 storeys), Art Deco stone setback tower, 1970s precast concrete panel tower, dark mirror-glass slab, stone civic or bank block, metal-clad industrial shed and parking deck', 'Only the brick loft and Art Deco tower for now', 'Different kinds (say which in the note)'], rec: 0,
+        why: 'Brick lofts and stone towers put brick and stone downtown beside the glass, which is what a 1980s city looked like, and no kind passes 30 % of a street.' },
+      { id: 'W23', q: 'Buildings now break only from weapons or a ram at 20 m/s or more (skating or jets; the walk tops out at 12 m/s), with a hole that grows with speed (openspec/changes/mech-ramming). Does ramming hurt your own mech?',
+        options: ['Yes, later: the torso takes damage from the same impact energy, once the damage model handles collisions', 'No, ramming is free', 'Yes, now, a flat amount per ram'], rec: 0,
+        why: 'Ramming should be a choice with a cost, and the damage model is the one place that cost belongs.' },
     ] },
   { tag: 'M', name: 'The mech',
     lead: 'The first mech is the yardstick for every building and person. Its size sets the city scale.',
@@ -238,9 +269,6 @@ const SECTIONS = [
       { id: 'W16', q: 'Splashes make real 3D waves (openspec/changes/water-ripples). How big a patch of water moves?',
         options: ['256 m round you at 1 m cells (about 0.15 ms a step); farther splashes show flat rings', '512 m at 2 m cells', '128 m at 0.5 m cells, sharper but smaller'], rec: 0,
         why: 'It covers everything near enough to read as waves from the cockpit at a small, fixed cost.' },
-      { id: 'W17', q: 'The clouds look bad. How should they be made?',
-        options: ['Bevy volumetric fog volumes with a 3D noise density, lit by the sun (real volume you fly through)', 'Better sprite puffs from Blender-rendered cloud flipbooks', 'A sky dome with painted clouds only'], rec: 0,
-        why: 'Ace Combat clouds are volumes you burst out of; Bevy 0.20 renders lit fog volumes, and the in-cloud fog already in the game stays.' },
       { id: 'W1', q: 'City street layout?',
         options: ['Grids now; organic layouts after the first real city blocks exist', 'Organic (curving streets) from the start', 'Grids only'], rec: 0,
         why: 'Grids are what the generator builds today and read well from a 12 m cockpit.' },
@@ -275,6 +303,68 @@ const SECTIONS = [
         options: ['Yes: keep the port for now, write our own drop field before anything is sold', 'No: it stays', 'Replace it now'], rec: 0,
         why: 'The non-commercial clause does not fit a game that is sold; it costs nothing to keep while the look is being settled.' },
     ] },
+  { tag: 'I', name: 'The island',
+    lead: 'New on 2026-10-24: a mountain range, canyons, desert, jungle, swamps, waterfalls, beaches, cliffs and an archipelago (openspec/changes/island-biomes, rock-formations, terrain-materials), cities and highways, and billboard clouds in weather systems with rain on the glass (cloud-weather, cloud-rain). Fly over it first on the Island mockup: https://claude.ai/artifact/NyHSzekHMnyspZyUrP5rTx',
+    qs: [
+      { id: 'I1', q: 'The mountain range through the middle: how big?',
+        options: ['A 16 km spine running north-north-east, peaks of 1.4-2.2 km reaching through the clouds with snow, passes at 500-700 m for the highways', 'Lower: peaks of 600-900 m, all below the cloud tops', 'Higher: peaks to 3.5 km, flying round them rather than over'], rec: 0,
+        why: 'Peaks you climb through the cloud deck to clear are the Ace Combat picture, and the passes keep the ground routes between cities.' },
+      { id: 'I2', q: 'The range takes the middle, where the capital stands today. Where does the capital go?',
+        options: ['The northern plain, the biggest flat site within 6 km of the centre', 'In a wide valley inside the range', 'On the south coast by the beaches'], rec: 0,
+        why: 'Cities need gentle ground under 300 m; the northern plain has the most, and you still start near the middle of the island.' },
+      { id: 'I3', q: 'Which side is the desert?',
+        options: ['East: the range\'s rain shadow, with canyons and mesas; jungle and swamps on the wet west and south-west', 'West, jungle east', 'South, with the jungle north'], rec: 0,
+        why: 'A rain shadow is why deserts sit behind ranges, so the layout reads as real; the archipelago then sits off the wet south-west.' },
+      { id: 'I4', q: 'The archipelago: how many islets, where?',
+        options: ['20-40 islets, 0.2-2 km across, 3-9 km off the south-west, some with cliffs and sea stacks', 'A few big islands (3-5 km)', 'Islets all round the island'], rec: 0,
+        why: 'A scatter of islets is a good place for low-level flying and naval set pieces and stays inside the 41 km world.' },
+      { id: 'I5', q: 'Ground materials: twenty PBR layers (grass, dry grass, forest floor, jungle floor, mud, swamp muck, beach sand, wet sand, pebbles, desert sand, cracked clay, red sandstone with strata, granite, limestone, scree, snow, moss rock, gravel, red dirt, scorch). Where do they come from?',
+        options: ['Material Maker graphs for all twenty, CC0 scans (ambientCG) as references only', 'CC0 scans (ambientCG, Poly Haven) used directly, as the grass on main is', 'Material Maker for rock and sand, scans for vegetation floors'], rec: 0,
+        why: 'Graphs are the CLAUDE.md rule and tile without seams at any size; the grass scan on main would need an exception listed.' },
+      { id: 'I6', q: 'Jungle trees are 30-45 m, taller than the mech. How dense?',
+        options: ['Dense canopy grown only near the mechs like today\'s trees, a far canopy mesh beyond; measured on the 3070', 'Sparser jungle, clearings between groves', 'Shorter trees (15-20 m) so the mech sees over them'], rec: 0,
+        why: 'Pushing through a canopy above your cockpit is the jungle feeling; growing it only nearby keeps the cost bounded.' },
+      { id: 'I7', q: 'Cloud shadows on the ground?',
+        options: ['Yes: a 2 km shadow texture that drifts with the clouds, one sample a pixel', 'No shadows (cheapest)', 'Real shadow maps from the cloud meshes (dearer)'], rec: 0,
+        why: 'Shadows racing over the ground sell the clouds from the air for almost no cost.' },
+      { id: 'I8', q: 'Waterfalls: how many and how big?',
+        options: ['20-40 where rivers drop off the range and canyon lips, 40-200 m high, with spray, mist and a plunge pool', 'A few hero falls only, at mission sites', 'One giant fall (400 m+) as a landmark, plus small ones'], rec: 0,
+        why: 'Falls come from the terrain itself wherever a river drops, so there are many to find; each costs two draws and some particles nearby.' },
+      { id: 'I9', q: 'With the range down the middle there is no flat ground under 300 m within 6 km of the centre. The nearest site that fits the capital is 8 km north-north-east. Where does it go?',
+        options: ['There, the nearest flat site north of the centre (about 8 km out)', 'Flatten a site in the foothills nearer the centre', 'A valley city inside the range, at a pass'], rec: 0,
+        why: 'It keeps the capital on real flat ground on the plain, a short flight from the middle, without carving the range.' },
+      { id: 'I11', q: 'Cities are 0.6-1 km squares (the game\'s layout rules), so from the air they read as specks on a 41 km island. The mockup adds suburbs: houses out to 2.6 times each city\'s half-size, thinning outward, with the main roads running on. What do we do?',
+        options: ['Suburbs round every city (2-2.5 km across in all), the cities keep their size', 'Bigger cities: the capital 3 km, the rest 1-2 km', 'Both: bigger cities and suburbs'], rec: 0,
+        why: 'Suburbs make a city read from the air and give low houses to stride through, without more towers to draw.' },
+      { id: 'I10', q: 'Climate borders now follow a moisture field: wet west to dry east over a 9 km band, so jungle gives way to grassland, savanna and then desert, and each border breaks into patches on the ground. Is that the transition you want? (Desert and canyon are now a quarter of the land, 24.9 %, as you asked, with savanna 9.5 % between them and the green.)',
+        options: ['Yes, a 9 km band with patchy borders', 'Wider and softer (12 km), more savanna', 'Tighter (3 km): a sharper wet and dry split'], rec: 0,
+        why: 'Seven kilometres reads as a real rain shadow from the air and still gives each side its own look on the ground.' },
+      { id: 'W25', q: 'Clouds are now billboards (one per puff, lit as a sphere, sorted). Storm towers are the one place billboards may look flat when you fly right up to them. Add a cheap raymarch there?',
+        options: ['Billboards everywhere; raymarch the storm towers only if they look flat in a playtest', 'Raymarch the storm towers now (about 0.5-1 ms)', 'Raymarch every cloud at quarter resolution'], rec: 0,
+        why: 'Billboards cost almost nothing; a raymarch is worth its time only where a playtest shows the billboards failing.' },
+      { id: 'W26', q: 'Which weather does the island have? Now: fair cumulus (thick in the wet west, thin over the desert), three storm cells with anvils and rain shafts, a cloud deck over the sea to the north-west, cloud banked on the range, caps on the peaks, cirrus high up. All from the west.',
+        options: ['All six, as on the mockup', 'Calmer: cumulus and the deck only, storms for set-piece missions', 'More: fog banks in the valleys and sea mist too'], rec: 0,
+        why: 'Each system is a rule over the same puffs, so the variety costs data rather than code, and storms give missions a place to hide.' },
+      { id: 'W27', q: 'Does the weather change during a mission?',
+        options: ['Fixed for the mission, drifting with the wind; storms that grow and die come later', 'It changes: storms build and pass over 20-30 minutes', 'Fixed and still'], rec: 0,
+        why: 'A fixed sky that drifts is cheap and repeatable for playtests; living weather is a later change.' },
+      { id: 'W28', q: 'Does weather matter in a fight?',
+        options: ['Storms and cloud hide targets from the eye; radar sees through them (as in Ace Combat)', 'They also jam radar and lock-on', 'Looks only'], rec: 0,
+        why: 'Hiding in cloud is a classic Ace Combat move and needs only the cloud query the game already has.' },
+    ] },
+  { tag: 'S', name: 'Houses and small businesses',
+    lead: 'New on 2026-10-24: seventeen 1980s houses and small businesses for the island\'s towns and roadsides (openspec/changes/small-buildings). Walk the street first on the Main Street mockup: https://claude.ai/artifact/MmkFvAZyjECdFZ883QbBRq (try Walk, Dusk and the cutaway).',
+    qs: [
+      { id: 'S1', q: 'Which building types do we build, and which first? (Ranch, colonial, bungalow, split-level, A-frame, Pueblo Revival, stilt house, beach cottage, trailer; diner, gas station, corner store, auto repair, motel, strip mall, burger drive-in, Quonset.)',
+        options: ['All seventeen; ranch house, diner, gas station and motel first', 'Houses first, businesses later', 'A shorter list (say which in the note)'], rec: 0,
+        why: 'Those four read best from a cockpit at speed and between them cover a suburb and a roadside stop.' },
+      { id: 'S2', q: 'How many small places between the cities?',
+        options: ['3-8 small towns of 20-60 buildings, and a roadside stop (diner, gas, motel) every 3-4 km of highway', 'Only roadside stops', 'Dense: suburbs ringing every city as well'], rec: 0,
+        why: 'Enough that low flying always has something human below, without filling the wild biomes.' },
+      { id: 'S3', q: 'Do these buildings get real interiors near you?',
+        options: ['Yes: rooms and furniture within 150 m or when a wall is blown open, as the city\'s buildings do', 'Only the businesses', 'No: windows are dark glass'], rec: 0,
+        why: 'Seeing a kitchen through a window or a blasted wall is what sells the scale, and it costs little at 1,000-12,000 triangles a building.' },
+    ] },
   { tag: 'C', name: 'The cockpit',
     lead: 'The cockpit is where the whole game is played, so it is designed before the exterior.',
     qs: [
@@ -306,6 +396,15 @@ const SECTIONS = [
       { id: 'T5', q: 'Effects look rough. Move particles onto bevy_hanabi, Bevy\'s GPU particle system? Its Bevy 0.20 support is on its main branch (2026-10-15), not yet released.',
         options: ['Yes: pin its Bevy 0.20 commit now, switch to the crates.io release when it ships', 'Yes, but wait for the release', 'No: keep improving our own particles'], rec: 0,
         why: 'Colour and size over life, flipbooks, sparks stretched along their path and smoke trails as ribbons, for far less CPU than one entity per puff.' },
+      { id: 'T8', q: 'The ground is a heightmap of 8 m cells, so a 300 m canyon wall is two stretched triangles and there are no overhangs, arches or caves (openspec/changes/terrain-features; see the Cliff view on the Island mockup and toggle Field cliffs). How far do we go?',
+        options: ['All three steps in order: better triplanar (biplanar, rock normals, no repeats) on steep ground; 1 m rock detail on steep cells; cliffs, canyons, sea cliffs and waterfall faces meshed from a density field (overhangs, ledges, arches, caves); the rest stays a heightmap', 'Shader only: better triplanar, nothing else', 'Voxel terrain for the whole island'], rec: 0,
+        why: 'The density field goes only where a heightmap fails (about 3 % of the land), so roads, rivers, trees and the quadtree stay as they are.' },
+      { id: 'T10', q: 'MegaSplat-style ground texturing (openspec/changes/terrain-materials section 2b): what do we take from it?',
+        options: ['All twenty layers in one texture array; 2-3 variants of the five widest layers (grass, dry grass, desert sand, jungle and forest floor) picked by noise so plains never repeat; the two layers of each pixel chosen by noise from the biome weights and height-blended', 'Only the texture array and the variants', 'The full MegaSplat way now: a baked splat map of layer ids at 1 m round the eye (64 MB), painted by the rules'], rec: 0,
+        why: 'It gives the natural breakup and no repeats for fewer texture samples than today\'s design, without a baked map to stream.' },
+      { id: 'T9', q: 'Mesh the density field with surface nets or marching cubes?',
+        options: ['Surface nets: about 2 triangles a square metre, well shaped; Transvoxel-style seams between detail levels', 'Marching cubes: the classic, 3-5 triangles a square metre with slivers', 'Dual contouring: keeps sharp rock edges, more work to make robust'], rec: 0,
+        why: 'Surface nets give the same surface with fewer and better triangles; we can switch if the rock edges look too soft.' },
     ] },
   { tag: 'P', name: 'Playtesting',
     lead: 'The pipeline in openspec/changes/playtest-pipeline. Built before anything else.',
@@ -320,6 +419,9 @@ const SECTIONS = [
 ];
 
 const DECIDED = [
+  { text: 'W17 Clouds are billboards, one per puff, with weather: "I prefer clouds to be billboards or a mix of some cheap raymarch", "I also want more varied clouds. Like make it look like there\'s actual weather".', where: 'openspec/changes/cloud-weather; the Island mockup' },
+  { text: 'Before W17 was revised, clouds were cheap, lit blob meshes rather than volumetric fog: "we\'re on a tight budget, I just want good looking clouds with correct lighting and dont cost much to render". Flying through one wets the glass with drops, as in Pale Blue Dot.', where: 'openspec/changes/cloud-puffs, cloud-rain' },
+  { text: 'Shallow water is waded; the skates skim only over water deeper than half the mech ("The skis only kicking if you\'re above water deeper than 50% of the mech").', where: 'openspec/changes/skim-depth' },
   { text: 'Breeze is retired ("Breeze me h sucks"). The cockpit is inside the mech\'s chest and the chest armour opens to board. Designs are original, from the 1980s industrial world, with Mining Mike\'s boss kit as the finish only ("New mechs are just stolen. Those are not original mechs").', where: 'tools/blender/build_mechs.py, mech_boarding.py; docs/design/cockpit.md' },
   { text: 'Alien crabs have no big claws: their arms are guns, swords and missile launchers ("It\'s claws are guns or swords or missile launchers").', where: 'tools/blender/build_alien_mechs.py, docs/design/alien-rig.md' },
   { text: 'C3 The cockpit is lit live with full PBR (base colour, normal, ORM, emission maps on every custom texture); occlusion is baked into the maps, light is not. Target: a high-end PC with an RTX 3070. Your words: "I want normal maps, speculat maps and ao for all our custom textures. Aim for that pbr triple a goodness that bevy provides".', where: 'CLAUDE.md sections 1, 7, 10; docs/design/cockpit.md' },
@@ -587,3 +689,6 @@ ALL_QS.forEach((q) => paint(q.id));
 connect();
 setupDownload();
 </script>
+
+
+</body></html>

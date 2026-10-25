@@ -204,11 +204,11 @@ fn point_segment_distance(p: Vec3, a: Vec3, b: Vec3) -> f32 {
     (a + ab * t).distance(p)
 }
 
-/// What is solid at `p`, testing in order: mech parts, buildings, trees, water, ground.
-fn solid_at(p: Vec3, shot: &Projectile, scene: &Scene, structures: &Structures, forest: &Forest, parts: &[PartCapsule]) -> Option<Struck> {
+/// What is solid at `p`, testing in order: mech parts (not those of `skip`), buildings, trees,
+/// water, ground.
+fn solid_at(p: Vec3, skip: Option<u32>, scene: &Scene, structures: &Structures, forest: &Forest, parts: &[PartCapsule]) -> Option<Struck> {
     for c in parts {
-        // A shot cannot hit the mech that fired it in its first 0.3 s (it leaves the muzzle).
-        if c.mech == shot.owner && shot.age_s < 0.3 {
+        if Some(c.mech) == skip {
             continue;
         }
         if point_segment_distance(p, c.a, c.b) <= c.radius_m {
@@ -239,6 +239,26 @@ fn solid_at(p: Vec3, shot: &Projectile, scene: &Scene, structures: &Structures, 
     (p.y <= scene.height_at(p.x, p.z)).then_some(Struck::Ground)
 }
 
+/// The first solid thing on the segment `from` to `to`, tested every `step_m`, and where: the one
+/// hit test for shots in flight and for close combat's strikes (`close-combat`). Parts of `skip`
+/// (the mech striking, or a shot's own mech as it leaves the muzzle) are passed through.
+pub fn sweep(
+    from: Vec3,
+    to: Vec3,
+    step_m: f32,
+    skip: Option<u32>,
+    scene: &Scene,
+    structures: &Structures,
+    forest: &Forest,
+    parts: &[PartCapsule],
+) -> Option<(Struck, Vec3)> {
+    let steps = ((from.distance(to) / step_m.max(0.05)).ceil() as usize).max(1);
+    (1..=steps).find_map(|s| {
+        let p = from.lerp(to, s as f32 / steps as f32);
+        solid_at(p, skip, scene, structures, forest, parts).map(|struck| (struck, p))
+    })
+}
+
 /// Flies a shot one step of `dt_s`, testing its path every metre. Returns where it stopped, or
 /// `None` if it flies on. A shot past its age is reported as hitting nothing (`None`, with
 /// `age_s` over the limit; the caller drops it).
@@ -252,18 +272,15 @@ pub fn fly(
 ) -> Option<Impact> {
     let from = shot.pos;
     let to = from + shot.vel * dt_s;
-    let len = from.distance(to);
-    let steps = (len.ceil() as usize).max(1);
-    for s in 1..=steps {
-        let p = from.lerp(to, s as f32 / steps as f32);
-        if let Some(struck) = solid_at(p, shot, scene, structures, forest, parts) {
-            shot.pos = p;
-            return Some(Impact {
-                struck,
-                at: p,
-                shot: *shot,
-            });
-        }
+    // A shot cannot hit the mech that fired it in its first 0.3 s (it leaves the muzzle).
+    let skip = (shot.age_s < 0.3).then_some(shot.owner);
+    if let Some((struck, p)) = sweep(from, to, 1.0, skip, scene, structures, forest, parts) {
+        shot.pos = p;
+        return Some(Impact {
+            struck,
+            at: p,
+            shot: *shot,
+        });
     }
     shot.pos = to;
     if !shot.rocket {

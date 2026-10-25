@@ -52,6 +52,12 @@ pub struct MechSim {
     pub cuts: Vec<usize>,
     /// Gun reloads.
     pub guns: Guns,
+    /// Close combat on or off (close-combat).
+    pub close: cb_core::mech::CloseCombat,
+    /// The arms' strikes at the step before, for drawing between steps.
+    pub strikes_prev: cb_core::mech::Strikes,
+    /// The arms' strikes at the latest step.
+    pub strikes: cb_core::mech::Strikes,
     /// The torso is gone: the mech is a wreck.
     pub dead: bool,
     /// It took a hit since its last step (its AI evades).
@@ -353,6 +359,9 @@ fn spawn_mech_entity(
                 damage: Damage::new(&cfg.parts),
                 cuts: Vec::new(),
                 guns: Guns::default(),
+                close: Default::default(),
+                strikes_prev: Default::default(),
+                strikes: Default::default(),
                 dead: false,
                 took_hit: false,
             },
@@ -764,7 +773,14 @@ fn drive_mech(
             }
         }
         let mut d = [Quat::IDENTITY; BONES.len()];
-        let rotations = p.rotations();
+        let mut rotations = p.rotations().to_vec();
+        // A striking arm swings over the torso (close-combat).
+        let m = &spec.melee;
+        let swing = [0, 1].map(|a| {
+            let (from, to) = (sim.strikes_prev.swing(m, a), sim.strikes.swing(m, a));
+            from + (to - from) * alpha
+        });
+        rotations.extend(cb_core::mech::arm_rotations(p.torso, swing));
         for (i, spec) in BONES.iter().enumerate() {
             let parent = spec.parent.and_then(|pn| BONES.iter().position(|b| b.name == pn));
             let inherited = parent.map(|pi| d[pi]).unwrap_or(Quat::IDENTITY);
@@ -875,6 +891,8 @@ pub fn step_mech(
             continue;
         }
         let mut fire = [false, false, false];
+        // Close combat's strikes, [left arm, right arm] (close-combat).
+        let mut strike = [false; 2];
         let mut aim_at: Option<Vec3> = None;
         if piloted {
             // The player's mech's hit flag lasts one step (its enemies' brains take theirs below);
@@ -945,12 +963,20 @@ pub fn step_mech(
                     ..default()
                 }
             } else if seated && sim.hatch.can_walk() {
-                // Free look is for pressing the cockpit's MFDs: the guns hold (cockpit-mfds).
-                fire = if actions.free_look {
-                    [false; 3]
+                // Close combat comes on when the targeted hostile is within melee range and Tab
+                // toggles it (close-combat); only a targeted hostile counts.
+                let near = targeting.selected.map(|_| targeting.range_m);
+                sim.close.step(near, actions.close_combat, &cfg.melee);
+                // Free look is for pressing the cockpit's MFDs: the guns hold (cockpit-mfds). In
+                // close combat the mouse buttons strike with the arms and the guns hold.
+                if actions.free_look {
+                    fire = [false; 3];
+                } else if sim.close.on {
+                    fire = [false, false, actions.fire_missile];
+                    strike = actions.fire;
                 } else {
-                    [actions.fire[0], actions.fire[1], actions.fire_missile]
-                };
+                    fire = [actions.fire[0], actions.fire[1], actions.fire_missile];
+                }
                 // The torso turns to follow where the pilot looks (the view leads, the torso
                 // follows); holding free look keeps the torso where it is.
                 let mut c = MechControls::from_actions(&actions);
@@ -1056,6 +1082,36 @@ pub fn step_mech(
         }
         let Some(rig) = rig else { continue };
         let damage = sim.damage.clone();
+        if !(piloted && seated) {
+            sim.close = Default::default();
+        }
+        // Strikes: each arm on its own clock; one landing this step sweeps from its shoulder out to
+        // its reach, toward the aim point (close-combat). A lost arm cannot strike.
+        sim.strikes_prev = sim.strikes;
+        let arm_lost = [PartKind::ArmL, PartKind::ArmR].map(|k| damage.is_lost(&cfg.parts, k));
+        let lands = sim.strikes.step(&cfg.melee, strike, arm_lost, dt);
+        for (arm, shoulder) in ["shoulder_L", "shoulder_R"].into_iter().enumerate() {
+            if !lands[arm] {
+                continue;
+            }
+            let Some(from) = BONES
+                .iter()
+                .position(|b| b.name == shoulder)
+                .and_then(|i| globals.get(rig.bone_entity(i)).ok())
+                .map(|g| g.translation())
+            else {
+                continue;
+            };
+            let ahead = cb_core::mech::forward(sim.curr.heading_rad + sim.curr.twist_rad);
+            let dir = aim_at.map_or(ahead, |t| (t - from).normalize_or(ahead));
+            shots.1.push(crate::combat::Blow {
+                owner: id.0,
+                from,
+                to: from + dir * cfg.melee.reach_m,
+                penetration_mm: cfg.melee.penetration_mm,
+                damage: cfg.melee.damage,
+            });
+        }
         // Guns: fire from the muzzle toward the aim point; a lost arm's gun is gone.
         let fired = sim.guns.trigger(&cfg.weapons, fire, |k| damage.is_lost(&cfg.parts, k), dt);
         for wi in fired {
