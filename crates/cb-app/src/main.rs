@@ -3,6 +3,7 @@
 
 mod bench;
 mod blast;
+mod building_arrays;
 mod building_state;
 mod buildings;
 mod capture;

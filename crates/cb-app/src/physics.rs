@@ -13,7 +13,6 @@ use crate::sim::PresentSet;
 use crate::world::Live;
 use avian3d::prelude::{AngularVelocity, Collider, LinearVelocity, PhysicsPlugins, RigidBody};
 use bevy::prelude::*;
-use cb_core::world::interior::Surface;
 use std::collections::VecDeque;
 
 /// Seconds between checks for moving bodies left beyond the physics radius.
@@ -64,12 +63,7 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
 
 /// The chunk materials: the buildings' concrete surface, darkened to each building tone.
 fn chunk_tones(looks: &crate::buildings::BuildingLooks, materials: &mut Assets<StandardMaterial>) -> Vec<Handle<StandardMaterial>> {
-    let concrete = looks
-        .surfaces
-        .get(&Surface::Concrete)
-        .and_then(|h| materials.get(h))
-        .cloned()
-        .unwrap_or_default();
+    let concrete = materials.get(&looks.concrete).cloned().unwrap_or_default();
     crate::world::BUILDING_TONES
         .iter()
         .map(|(r, g, b)| {

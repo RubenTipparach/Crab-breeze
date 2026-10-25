@@ -163,9 +163,15 @@ pub struct MeshBuilder {
     normals: Vec<[f32; 3]>,
     colors: Vec<[f32; 4]>,
     uvs: Vec<[f32; 2]>,
+    /// Second UV: the texture array layer in x (`building-texture-array`), when `layered`.
+    uv1s: Vec<[f32; 2]>,
     indices: Vec<u32>,
     /// Metres per texture tile along u and v; zero means 4 m by 4 m.
     pub tile_m: Vec2,
+    /// The layer the next faces are drawn from.
+    layer: f32,
+    /// True once a layer was set: the mesh carries the second UV.
+    layered: bool,
 }
 
 impl MeshBuilder {
@@ -175,6 +181,13 @@ impl MeshBuilder {
             tile_m: Vec2::new(u, v),
             ..default()
         }
+    }
+
+    /// The texture array layer, and its tile size, of the faces added next.
+    pub fn set_layer(&mut self, layer: u32, tile_m: Vec2) {
+        self.layer = layer as f32;
+        self.tile_m = tile_m;
+        self.layered = true;
     }
 
     /// Planar UV for a point on a face with normal `n`: walls run u along the wall, v up.
@@ -202,6 +215,7 @@ impl MeshBuilder {
             self.normals.push(n.into());
             self.colors.push(color);
             self.uvs.push(self.uv(c, n));
+            self.uv1s.push([self.layer, 0.0]);
         }
         self.indices
             .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
@@ -252,6 +266,7 @@ impl MeshBuilder {
             self.normals.push(n.into());
             self.colors.push(color);
             self.uvs.push(self.uv(p, face));
+            self.uv1s.push([self.layer, 0.0]);
         }
         self.indices.extend_from_slice(&[base, base + 1, base + 2]);
     }
@@ -321,12 +336,19 @@ impl MeshBuilder {
     }
 
     pub fn build(self) -> Mesh {
-        Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+        let layered = self.layered;
+        let uv1s = self.uv1s;
+        let mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
             .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, self.positions)
             .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, self.normals)
             .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, self.colors)
             .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, self.uvs)
-            .with_inserted_indices(Indices::U32(self.indices))
+            .with_inserted_indices(Indices::U32(self.indices));
+        if layered {
+            mesh.with_inserted_attribute(Mesh::ATTRIBUTE_UV_1, uv1s)
+        } else {
+            mesh
+        }
     }
 }
 
@@ -483,39 +505,17 @@ fn spawn_buildings(
             ..default()
         })
     });
+    let arrays = crate::building_arrays::build(&mut images, &crate::buildings::layer_sources(&tex));
     commands.insert_resource(crate::buildings::BuildingLooks {
-        tones: tones.to_vec(),
-        surfaces: crate::buildings::surface_materials(&mut images, &mut materials),
-        skin: {
-            let b = &tex.building;
-            let textured = |m: &mut Assets<StandardMaterial>, pbr: &crate::textures::Pbr, rough: f32| {
-                m.add(StandardMaterial {
-                    base_color: Color::WHITE,
-                    base_color_texture: Some(pbr.color.clone()),
-                    normal_map_texture: Some(pbr.normal.clone()),
-                    perceptual_roughness: rough,
-                    ..default()
-                })
-            };
-            use cb_core::world::dressing::Mat;
-            let mut m = std::collections::BTreeMap::new();
-            m.insert(Mat::Brick, textured(&mut materials, &b.brick, 0.9));
-            m.insert(Mat::Concrete, textured(&mut materials, &b.concrete, 0.85));
-            m.insert(Mat::Roof, textured(&mut materials, &b.roof, 0.95));
-            m.insert(Mat::Wood, textured(&mut materials, &b.wood, 0.7));
-            m.insert(
-                Mat::Trim,
-                materials.add(StandardMaterial {
-                    base_color: Color::WHITE,
-                    perceptual_roughness: 0.6,
-                    ..default()
-                }),
-            );
-            // See-through glass: the rooms behind show (the mockup's windows), and it reflects the
-            // sky at full strength (glass-reflections).
-            m.insert(Mat::Glass, materials.add(crate::sky_light::glass_material(&data.0.sky_light.glass)));
-            m
-        },
+        tone_tints: BUILDING_TONES
+            .iter()
+            .map(|&(r, g, b)| Color::srgb(r, g, b).to_linear().to_f32_array_no_alpha())
+            .collect(),
+        arrays,
+        // See-through glass: the rooms behind show (the mockup's windows), and it reflects the sky
+        // at full strength (glass-reflections).
+        glass: materials.add(crate::sky_light::glass_material(&data.0.sky_light.glass)),
+        concrete: crate::buildings::concrete_material(&mut images, &mut materials),
     });
     for b in &world.buildings {
         let ground = world.cities[b.city as usize].ground_m;
