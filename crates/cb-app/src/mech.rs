@@ -83,6 +83,8 @@ pub struct Piloted;
 pub struct Enemy {
     /// Its pilot.
     pub ai: AiPilot,
+    /// The line it flies with `CB_ENEMY_STUNT`, from the player out toward where it first stood.
+    pub stunt_axis: Option<Vec2>,
 }
 
 /// A hatch node found by a timeline motion's pattern.
@@ -118,6 +120,16 @@ pub struct MechRig {
 }
 
 impl MechRig {
+    /// The entity of the node named `name` under the model, if any.
+    pub(crate) fn named(&self, name: &str) -> Option<Entity> {
+        self.named.get(name).copied()
+    }
+
+    /// The torso bone's entity.
+    pub(crate) fn torso(&self) -> Entity {
+        self.bones[3].entity
+    }
+
     /// The entity of contract bone `i` (by `BONES` index).
     pub fn bone_entity(&self, i: usize) -> Entity {
         self.bones[i].entity
@@ -131,8 +143,8 @@ impl MechRig {
 
 /// Smoke and fire rising from where a part was shot off.
 #[derive(Component)]
-struct Burning {
-    until_s: f32,
+pub(crate) struct Burning {
+    pub(crate) until_s: f32,
 }
 
 /// The model lacks contract bones; it is shown but not driven.
@@ -337,7 +349,9 @@ pub fn spawn_enemy(
         crate::skins::wear(commands, a.assets, ent, skin);
     }
     let ai = AiPilot::new(l.skill.clone(), rng);
-    commands.entity(ent).insert((Enemy { ai }, id, EnemyGoal::default()));
+    commands
+        .entity(ent)
+        .insert((Enemy { ai, stunt_axis: None }, id, EnemyGoal::default()));
     Some(ent)
 }
 
@@ -857,6 +871,7 @@ fn publish_access(
             seat_yaw_rad: sim.curr.heading_rad + sim.curr.twist_rad,
             stopped: sim.curr.is_stopped(&data.0.mech.locomotion),
             speed_m_s: sim.curr.vel.length(),
+            destroyed: sim.dead,
             hatch_open: sim.hatch.is_open(&data.0.boarding),
         })
     });
@@ -1014,14 +1029,15 @@ pub fn step_mech(
                 let near = targeting.selected.map(|_| targeting.range_m);
                 sim.close.step(near, actions.close_combat, &cfg.melee);
                 // Free look is for pressing the cockpit's MFDs: the guns hold (cockpit-mfds). In
-                // close combat the mouse buttons strike with the arms and the guns hold.
+                // close combat the guns keep firing and the punch keys strike with the arms (owner,
+                // 2026-10-25: "Guns keep firing in close combat, and punches move to other keys").
                 if actions.free_look {
                     fire = [false; 3];
-                } else if sim.close.on {
-                    fire = [false, false, actions.fire_missile];
-                    strike = actions.fire;
                 } else {
                     fire = [actions.fire[0], actions.fire[1], actions.fire_missile];
+                    if sim.close.on {
+                        strike = actions.strike;
+                    }
                 }
                 // The torso turns to follow where the pilot looks (the view leads, the torso
                 // follows); holding free look keeps the torso where it is.
@@ -1040,6 +1056,26 @@ pub fn step_mech(
                 if let Some(t) = cb_core::pilot::look_turn(pilot.curr.seated_rel_rad, limit, actions.free_look) {
                     c.turn_axis = t;
                 }
+                // Walking, WASD is direct: toward the view, back from it, a step to either side; the
+                // legs turn to the way to walk and the mech stops with no key held (walk-controls).
+                // Skating and the jets keep the lever and the leg turn (owner, 2026-10-25: "tank
+                // controls on skate makes sense, but when in walking mode, wasd should be standard
+                // walking").
+                if actions.walk_keys && sim.curr.mode == LocomotionMode::Walk && !sim.curr.skates_on && !sim.curr.airborne() {
+                    let w = cb_core::mech::walk::walk(
+                        actions.move_xy,
+                        pilot.curr.yaw_rad,
+                        sim.curr.heading_rad,
+                        cfg.locomotion.throttle_min,
+                    );
+                    c.throttle_axis = 0.0;
+                    if !c.throttle_zero {
+                        c.throttle_set = Some(w.throttle);
+                    }
+                    if actions.move_xy.length() > 0.1 {
+                        c.turn_axis = w.turn_axis;
+                    }
+                }
                 if !actions.free_look {
                     let wrap = |a: f32| (a + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
                     let twist = wrap(pilot.curr.yaw_rad - sim.curr.heading_rad);
@@ -1054,8 +1090,9 @@ pub fn step_mech(
             } else {
                 MechControls::default()
             }
-        } else if !seated {
-            // The enemies wait until the pilot is in the seat: no one fights an empty mech.
+        } else if !seated && !std::env::var("CB_ENEMY_STUNT").is_ok_and(|v| v == "hover") {
+            // The enemies wait until the pilot is in the seat: no one fights an empty mech. (The hover
+            // test instrument flies them anyway, so an on-foot still can look at their jets.)
             MechControls::default()
         } else if let (Some((mut enemy, goal)), Some((player_at, player_vel, player_dead))) = (enemy, player) {
             // A mission may send it at something else (city-defence: a building to shell).
@@ -1086,11 +1123,22 @@ pub fn step_mech(
                 open: &open,
             };
             let orders = enemy.ai.orders(&sim.curr, &view, dt);
-            if !target_dead && !goal.hold_fire {
-                fire = [orders.fire[0], orders.fire[1], false];
+            if let Some(c) = stunt(
+                &sim.curr,
+                &plan,
+                player_at,
+                &mut enemy.stunt_axis,
+                time.elapsed_secs() + id.0 as f32 * 7.0,
+            ) {
+                aim_at = Some(orders.aim_point);
+                c
+            } else {
+                if !target_dead && !goal.hold_fire {
+                    fire = [orders.fire[0], orders.fire[1], false];
+                }
+                aim_at = Some(orders.aim_point);
+                orders.controls
             }
-            aim_at = Some(orders.aim_point);
-            orders.controls
         } else {
             MechControls::default()
         };
@@ -1448,12 +1496,22 @@ pub struct Wreck {
     angle_rad: f32,
     rate_rad_s: f32,
     heading_rad: f32,
+    /// Its mass, tonnes, for the dust it throws when it lands.
+    mass_t: f32,
+    /// It has thrown its dust.
+    dusted: bool,
 }
 
 /// It comes to rest this far over: lying on its side.
 const WRECK_LIE_RAD: f32 = 1.45;
 
-fn fall_wrecks(time: Res<Time>, plan: Res<Plan>, mut wrecks: Query<(&mut Wreck, &mut Transform)>) {
+fn fall_wrecks(
+    time: Res<Time>,
+    plan: Res<Plan>,
+    data: Res<Data>,
+    mut fx: MessageWriter<Fx>,
+    mut wrecks: Query<(&mut Wreck, &mut Transform)>,
+) {
     let dt = time.delta_secs().min(0.05);
     for (mut w, mut t) in &mut wrecks {
         let ground = plan.height_at(t.translation.x, t.translation.z);
@@ -1470,6 +1528,12 @@ fn fall_wrecks(time: Res<Time>, plan: Res<Plan>, mut wrecks: Query<(&mut Wreck, 
             if w.angle_rad < WRECK_LIE_RAD {
                 w.rate_rad_s += 1.5 * 9.81 * w.angle_rad.sin() / w.centre_m * dt;
                 w.angle_rad = (w.angle_rad + w.rate_rad_s * dt).min(WRECK_LIE_RAD);
+            } else if !w.dusted {
+                // It hits the ground along its length: dust where its middle lands (openspec change `mech-damage-fx`).
+                w.dusted = true;
+                let along = (t.rotation * Vec3::Y).with_y(0.0) * w.centre_m;
+                let scale = crate::battle_fx::dust_scale(&data.0.battle_fx.damage, w.mass_t);
+                fx.write(Fx::new("fall_dust", t.translation + along).scaled(scale));
             }
         }
         t.rotation = Quat::from_axis_angle(w.axis, w.angle_rad) * Quat::from_rotation_y(w.heading_rad);
@@ -1484,10 +1548,12 @@ fn cut_parts(
     globals: Query<&GlobalTransform>,
     parents: Query<&ChildOf>,
     time: Res<Time>,
+    data: Res<Data>,
     mut fx: MessageWriter<Fx>,
     mut explosions: MessageWriter<Explosion>,
 ) {
     let _t = crate::perf_hud::slow("cut_parts");
+    let burn = &data.0.battle_fx.damage;
     for (root, mut sim, mut rig, mech, mut skin) in &mut roots {
         for part in std::mem::take(&mut sim.cuts) {
             let spec = &mech.parts[part];
@@ -1506,6 +1572,8 @@ fn cut_parts(
                     angle_rad: 0.05,
                     rate_rad_s: 0.0,
                     heading_rad: heading,
+                    mass_t: mech.locomotion.mass_kg / 1000.0,
+                    dusted: false,
                 });
                 commands.entity(rig.bones[3].entity).insert(Burning {
                     until_s: time.elapsed_secs() + 60.0,
@@ -1527,7 +1595,29 @@ fn cut_parts(
             // A skinned enemy throws its skin's limb instead; the stand-in's bone is not drawn and stays put.
             let thrown = skin
                 .as_deref_mut()
-                .is_some_and(|s| crate::skins::throw_limb(&mut commands, s, spec.kind, &globals, centre, mech.body.cut_box_m));
+                .and_then(|s| crate::skins::throw_limb(&mut commands, s, spec.kind, &globals, centre, mech.body.cut_box_m));
+            let now = time.elapsed_secs();
+            let box_t = mech.body.cut_box_m.iter().product::<f32>() * 8.0 * 0.8;
+            if let Some(t) = &thrown {
+                // The thrown limb burns where it lands and throws dust; its stump burns where the limb hung
+                // (openspec change `mech-damage-fx`: on a skin the stand-in's bone is inside the skin, unseen).
+                let mass_t = box_t * t.scale.powi(3);
+                commands.entity(t.limb).insert((
+                    Burning {
+                        until_s: now + burn.limb_burn_s,
+                    },
+                    crate::battle_fx::Falling { mass_t },
+                ));
+                commands.spawn((
+                    Name::new("stump fire"),
+                    Transform::from_translation(t.pivot),
+                    Burning {
+                        until_s: now + burn.stump_burn_s,
+                    },
+                    ChildOf(t.parent),
+                ));
+            }
+            let thrown = thrown.is_some();
             let out = (at - centre).with_y(0.0).normalize_or(Vec3::X);
             // The wreck falls under physics (debris-physics): a box about the part's size.
             if !thrown && skin.is_none() {
@@ -1537,16 +1627,57 @@ fn cut_parts(
                     Collider::cuboid(mech.body.cut_box_m[0], mech.body.cut_box_m[1], mech.body.cut_box_m[2]),
                     LinearVelocity(out * 6.0 + Vec3::Y * 5.0),
                     AngularVelocity(Vec3::new(1.5, 0.7, -1.1)),
+                    crate::battle_fx::Falling { mass_t: box_t },
                 ));
             }
-            if let Ok(stump) = parents.get(e).map(|p| p.parent()).or(Ok::<Entity, ()>(e)) {
+            if !thrown && let Ok(stump) = parents.get(e).map(|p| p.parent()).or(Ok::<Entity, ()>(e)) {
                 commands.entity(stump).insert(Burning {
-                    until_s: time.elapsed_secs() + 25.0,
+                    until_s: now + burn.stump_burn_s,
                 });
             }
             fx.write(Fx::new("part_lost", at));
         }
     }
+}
+
+/// A test instrument: `CB_ENEMY_STUNT=1` flies every enemy back and forth along the line from the
+/// player toward where it first stood (down the street it started in, so the street's view is
+/// open along it), 120 m to 400 m out, 30 m up on the rockets with the skates pushing, holding
+/// fire. When the rockets lock it comes down and skates on. Its jet smoke and skate trails can then
+/// be checked from the seat (owner, 2026-10-25: "do other mechs and do my mech while I'm in the
+/// pilot seat").
+fn stunt(m: &MechState, plan: &Plan, player: Vec3, axis: &mut Option<Vec2>, t_s: f32) -> Option<MechControls> {
+    if !crate::cli::switched_off("CB_ENEMY_STUNT") {
+        return None;
+    }
+    let me = Vec2::new(m.pos.x, m.pos.z);
+    let home = Vec2::new(player.x, player.z);
+    let axis = *axis.get_or_insert_with(|| (me - home).normalize_or(Vec2::NEG_Y));
+    // Toward the player for 12 s, then away for 12 s; `CB_ENEMY_STUNT=hover` holds it 120 m out, 40 m
+    // up, so its jets and the column of smoke under it are in plain view.
+    let hold = std::env::var("CB_ENEMY_STUNT").is_ok_and(|v| v == "hover");
+    let goal = home + axis * if hold || t_s.rem_euclid(24.0) < 12.0 { 120.0 } else { 400.0 };
+    let to = goal - me;
+    let want = (-to.x).atan2(-to.y);
+    let off = (want - m.heading_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+    let agl = m.pos.y - plan.height_at(m.pos.x, m.pos.z);
+    Some(MechControls {
+        skate_toggle: !m.skates_on,
+        turn_axis: (off * 2.0).clamp(-1.0, 1.0),
+        view_yaw_rad: want,
+        lift_axis: if agl < if hold { 40.0 } else { 30.0 } {
+            1.0
+        } else {
+            (0.175 - m.vel_y_m_s * 0.025).clamp(0.0, 1.0)
+        },
+        move_xy: if m.airborne() && !(hold && to.length() < 20.0) {
+            Vec2::new(0.0, 1.0)
+        } else {
+            Vec2::ZERO
+        },
+        throttle_set: Some(1.0),
+        ..default()
+    })
 }
 
 /// While the pilot sits in the mech with the hatch shut, every mesh of the mech is on the cockpit
@@ -1602,16 +1733,65 @@ fn cockpit_layer(
 #[derive(Component)]
 struct JetTrail(Entity);
 
+/// A jet's exhaust flame, under its nozzle socket (openspec change `rocket-plumes`).
+#[derive(Component)]
+struct JetPlume;
+
+#[allow(clippy::too_many_arguments)]
 fn jet_flames(
     mut commands: Commands,
     mechs: Query<(&MechSim, &MechRig)>,
     trails: Query<&JetTrail>,
     mut streams: Query<&mut crate::fx::FxStream>,
+    mut plumes: Query<(&mut Transform, &mut Visibility), With<JetPlume>>,
+    children: Query<&Children>,
+    plume: Res<crate::plumes::PlumeAssets>,
+    data: Res<Data>,
+    plan: Res<Plan>,
+    time: Res<Time>,
+    mut fx: MessageWriter<Fx>,
+    mut wash_s: Local<f32>,
+    (globals, visible): (Query<&GlobalTransform>, Query<(&InheritedVisibility, &ViewVisibility)>),
 ) {
+    let cfg = &data.0.fx;
+    *wash_s += time.delta_secs();
+    let wash = *wash_s >= 0.1;
+    if wash {
+        *wash_s = 0.0;
+    }
+    // A measurement line, with `CB_ENEMY_STUNT`: each mech's rockets and its jet emitters, every 5 s.
+    let report = crate::cli::switched_off("CB_ENEMY_STUNT") && (time.elapsed_secs() % 5.0) < time.delta_secs();
     for (sim, rig) in &mechs {
+        let on = sim.curr.boosting && !sim.dead;
+        if report {
+            let socket = rig.sockets.get("JET_L").copied();
+            let kids = socket.and_then(|e| children.get(e).ok()).map_or(0, |c| c.len());
+            let at = socket.and_then(|e| globals.get(e).ok()).map(|g| g.translation());
+            let kid_vis: Vec<String> = socket
+                .and_then(|e| children.get(e).ok())
+                .map(|c| {
+                    c.iter()
+                        .map(|k| match (visible.get(k).ok(), globals.get(k).ok()) {
+                            (Some((i, v)), Some(g)) => format!("{}/{} {:.0?}", i.get(), v.get(), g.translation()),
+                            _ => "?".into(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            info!(
+                "jets: boosting {} airborne {} mech {:.0?} socket {:?} at {:.0?} stream {} children {} [{}]",
+                sim.curr.boosting,
+                sim.curr.airborne(),
+                sim.curr.pos,
+                socket,
+                at,
+                socket.is_some_and(|e| streams.get(e).is_ok()),
+                kids,
+                kid_vis.join("; ")
+            );
+        }
         for jet in ["JET_L", "JET_R"] {
             let Some(&e) = rig.sockets.get(jet) else { continue };
-            let on = sim.curr.boosting && !sim.dead;
             let trail = trails.get(e).ok().map(|t| t.0);
             match (streams.get(e).is_ok(), trail) {
                 (true, Some(t)) => {
@@ -1649,6 +1829,34 @@ fn jet_flames(
                     ));
                 }
             }
+            // The flame under the nozzle, flickering in length while the jets fire.
+            let flicker = 0.85 + 0.3 * (time.elapsed_secs() * 37.0 + e.index().index() as f32).sin().abs();
+            let shape = crate::plumes::placed(Vec3::ZERO, Vec3::NEG_Y, cfg.jet_plume_m[0] * flicker, cfg.jet_plume_m[1]);
+            let mine = children.get(e).ok().and_then(|c| c.iter().find(|c| plumes.contains(*c)));
+            match mine.and_then(|p| plumes.get_mut(p).ok()) {
+                Some((mut t, mut v)) => {
+                    *t = shape;
+                    *v = if on { Visibility::Inherited } else { Visibility::Hidden };
+                }
+                None => {
+                    commands.spawn((
+                        Name::new("jet plume"),
+                        Mesh3d(plume.mesh.clone()),
+                        MeshMaterial3d(plume.jet.clone()),
+                        shape,
+                        Visibility::Hidden,
+                        bevy::light::NotShadowCaster,
+                        JetPlume,
+                        ChildOf(e),
+                    ));
+                }
+            }
+        }
+        // Low over the ground the jets blow the dust out in a ring.
+        let p = sim.curr.pos;
+        let ground = plan.height_at(p.x, p.z);
+        if on && wash && p.y - ground < cfg.jet_wash_m {
+            fx.write(Fx::new("jet_wash", Vec3::new(p.x, ground, p.z)));
         }
     }
 }

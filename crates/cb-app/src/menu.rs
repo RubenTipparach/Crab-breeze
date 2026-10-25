@@ -31,6 +31,8 @@ pub enum Menu {
     Options,
     /// Every control and its keys.
     Controls,
+    /// The mail: the job offers to accept or decline, the current job, the messages (a career).
+    Mail,
 }
 
 impl Menu {
@@ -48,6 +50,8 @@ pub enum Play {
     FreeRoam,
     /// The city defence mission.
     Defence,
+    /// A career: jobs by mail (career, mission-jobs).
+    Career,
 }
 
 /// A plain run: open the title menu once the game is ready.
@@ -65,6 +69,11 @@ struct MenuRoot;
 /// What a menu button does.
 #[derive(Component, Clone, Copy)]
 enum MenuButton {
+    NewCareer,
+    Continue,
+    Mail,
+    Accept(u32),
+    Decline(u32),
     Resume,
     FreeRoam,
     Defence,
@@ -109,19 +118,31 @@ fn open_title(
 
 /// Escape: open the pause menu from play, step back a page, or resume from the pause menu. On the
 /// title menu there is nothing to go back to.
+#[allow(clippy::too_many_arguments)]
 fn escape(
     input: Res<ButtonInput<KeyCode>>,
     keys: Res<crate::input::Keys>,
     back: Res<BackTo>,
     settings: Res<Settings>,
+    career: Option<Res<crate::career::CareerRun>>,
     mut menu: ResMut<Menu>,
     mut time: ResMut<Time<Virtual>>,
     mut cursor: Single<&mut CursorOptions>,
 ) {
+    // M opens and closes the mail in a career (survey J1: "press M to focus on the mail screen").
+    if career.is_some() && input.any_just_pressed(keys.mail.iter().copied()) {
+        match *menu {
+            Menu::Closed => set(&mut menu, Menu::Mail, &mut time, &mut cursor),
+            Menu::Mail => set(&mut menu, Menu::Closed, &mut time, &mut cursor),
+            _ => {}
+        }
+        return;
+    }
     if !input.any_just_pressed(keys.release_mouse.iter().copied()) {
         return;
     }
     let next = match *menu {
+        Menu::Mail => Menu::Closed,
         Menu::Closed => Menu::Pause,
         Menu::Pause => Menu::Closed,
         Menu::Title => Menu::Title,
@@ -157,8 +178,39 @@ struct Press<'a> {
 }
 
 /// A menu button was pressed.
-fn press(what: MenuButton, p: Press, exit: &mut MessageWriter<AppExit>, commands: &mut Commands) {
+fn press(
+    what: MenuButton,
+    p: Press,
+    career: Option<&mut crate::career::CareerRun>,
+    exit: &mut MessageWriter<AppExit>,
+    commands: &mut Commands,
+) {
     match what {
+        MenuButton::NewCareer | MenuButton::Continue => {
+            commands.insert_resource(Play::Career);
+            commands.insert_resource(if matches!(what, MenuButton::NewCareer) {
+                crate::career::CareerStart::New
+            } else {
+                crate::career::CareerStart::Continue
+            });
+            set(p.menu, Menu::Closed, p.time, p.cursor);
+        }
+        MenuButton::Mail => {
+            if matches!(*p.menu, Menu::Title | Menu::Pause) {
+                p.back.0 = *p.menu;
+            }
+            set(p.menu, Menu::Mail, p.time, p.cursor);
+        }
+        MenuButton::Accept(id) => {
+            if let Some(c) = career {
+                c.career.board.accept(id);
+            }
+        }
+        MenuButton::Decline(id) => {
+            if let Some(c) = career {
+                c.career.board.decline(id);
+            }
+        }
         MenuButton::Resume => set(p.menu, Menu::Closed, p.time, p.cursor),
         // A run begins: the encounters near the start, or the city defence (one way a mission
         // begins, as `--mission defence` does before startup).
@@ -230,6 +282,7 @@ fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton,
                   mut settings: ResMut<Settings>,
                   mut time: ResMut<Time<Virtual>>,
                   mut cursor: Single<&mut CursorOptions>,
+                  mut career: Option<ResMut<crate::career::CareerRun>>,
                   mut exit: MessageWriter<AppExit>| {
                 press(
                     what,
@@ -240,6 +293,7 @@ fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton,
                         time: &mut time,
                         cursor: &mut cursor,
                     },
+                    career.as_deref_mut(),
                     &mut exit,
                     &mut commands,
                 );
@@ -314,10 +368,12 @@ fn draw(
     back: Res<BackTo>,
     settings: Res<Settings>,
     data: Res<Data>,
+    career: Option<Res<crate::career::CareerRun>>,
     roots: Query<Entity, With<MenuRoot>>,
     overlay: Query<Entity, With<CockpitCamera>>,
 ) {
-    if !menu.is_changed() && !(settings.is_changed() && *menu == Menu::Options) {
+    let career_changed = career.as_ref().is_some_and(|c| c.is_changed());
+    if !menu.is_changed() && !(settings.is_changed() && *menu == Menu::Options) && !(career_changed && *menu == Menu::Mail) {
         return;
     }
     for r in &roots {
@@ -363,6 +419,10 @@ fn draw(
         .with_children(|p| match *menu {
             Menu::Title => {
                 p.spawn(label("CRAB BREEZE", 64.0, INK));
+                if crate::career::can_continue() {
+                    button(p, "Continue", MenuButton::Continue);
+                }
+                button(p, "New career", MenuButton::NewCareer);
                 button(p, "Free roam", MenuButton::FreeRoam);
                 button(p, "City defence", MenuButton::Defence);
                 button(p, "Options", MenuButton::Options);
@@ -372,6 +432,9 @@ fn draw(
             Menu::Pause => {
                 p.spawn(label("PAUSED", 44.0, INK));
                 button(p, "Resume", MenuButton::Resume);
+                if career.is_some() {
+                    button(p, "Mail", MenuButton::Mail);
+                }
                 button(p, "Options", MenuButton::Options);
                 button(p, "Controls", MenuButton::Controls);
                 button(p, "Quit", MenuButton::Quit);
@@ -451,7 +514,103 @@ fn draw(
                 });
                 button(p, "Back", MenuButton::Back);
             }
+            Menu::Mail => {
+                if let Some(run) = career.as_deref() {
+                    mail_page(p, &run.career);
+                }
+                button(p, "Back", MenuButton::Resume);
+            }
             Menu::Closed => {}
         });
     });
+}
+
+/// The MAIL page: the credits, the job under way, every open offer with Accept and Decline, and the
+/// newest messages.
+fn mail_page(p: &mut ChildSpawnerCommands, c: &cb_core::career::Career) {
+    use cb_core::jobs::JobState;
+    p.spawn(label(&format!("MAIL      CREDITS {}", c.money), 40.0, INK));
+    let what = |k: cb_core::jobs::JobKind| match k {
+        cb_core::jobs::JobKind::Defend => "Defend",
+        cb_core::jobs::JobKind::Intercept => "Intercept",
+        cb_core::jobs::JobKind::Destroy => "Destroy",
+    };
+    match c.board.current() {
+        Some(j) => {
+            let m = (j.clock_s / 60.0).floor();
+            let s = j.clock_s - m * 60.0;
+            let state = if j.state == JobState::Active { "UNDER WAY" } else { "ACCEPTED" };
+            p.spawn(label(
+                &format!(
+                    "{state}: {} City {}, {} mechs, {} credits, {m:.0}:{s:02.0} left",
+                    what(j.kind),
+                    j.city + 1,
+                    j.mechs,
+                    j.pay
+                ),
+                24.0,
+                INK,
+            ));
+        }
+        None => {
+            p.spawn(label("No job under way: accept one below.", 24.0, DIM));
+        }
+    }
+    let offers: Vec<_> = c.board.jobs.iter().filter(|j| j.state == JobState::Offered).collect();
+    if offers.is_empty() {
+        p.spawn(label("No offers yet. They arrive by mail every minute or so.", 22.0, DIM));
+    }
+    for j in offers {
+        let subject = c
+            .board
+            .inbox
+            .iter()
+            .rev()
+            .find(|m| m.job == Some(j.id))
+            .map_or_else(String::new, |m| format!("{}: {}", m.from, m.subject));
+        p.spawn(Node {
+            column_gap: px(14.0),
+            align_items: AlignItems::Center,
+            ..default()
+        })
+        .with_children(|row| {
+            row.spawn((
+                Node {
+                    width: px(620.0),
+                    ..default()
+                },
+                label(
+                    &format!(
+                        "{subject}\n{} City {}, {} mechs, {} credits",
+                        what(j.kind),
+                        j.city + 1,
+                        j.mechs,
+                        j.pay
+                    ),
+                    20.0,
+                    INK,
+                ),
+            ));
+            if c.board.current().is_none() {
+                button_sized(row, "Accept", MenuButton::Accept(j.id), 130.0);
+            }
+            button_sized(row, "Decline", MenuButton::Decline(j.id), 130.0);
+        });
+    }
+    for m in c
+        .board
+        .inbox
+        .iter()
+        .rev()
+        .filter(|m| m.job.is_none() || m.from == "Accounts")
+        .take(3)
+    {
+        p.spawn((
+            Node {
+                max_width: px(900.0),
+                ..default()
+            },
+            label(&format!("{}: {}. {}", m.from, m.subject, m.body), 18.0, DIM),
+        ));
+    }
 }

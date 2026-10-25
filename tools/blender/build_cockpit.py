@@ -1256,6 +1256,13 @@ def build_layout(S, VAR):
         for s_ in (1, -1):                   # brackets from the dash to its wall
             x_ = s_ * 0.3 * 1.58 * k
             S.obox(V(x_, dy - 0.14, (zf + F) / 2), (X, Y, Z), (0.05, 0.05, F - zf), "steel", "front", name, bevel=0.005)
+        # The footwell's front wall, behind the pedals, from the floor up into the dash's body, on the dash's part so
+        # it swings clear with it and the doorway stays open. Without it the footwell ran out under the dash to the
+        # outside (owner, 2026-10-25: "theres an opening here need fix"; the cabin is airtight).
+        zw, top = F - 0.08, dy
+        S.box((-0.79 * k, 0.0, zw), (0.79 * k, top, zw + 0.03), "paint_dk", "front", name)
+        S.plate("footwell", (0, min(0.27, top * 0.5), zw), -Z, Y, t=0.012, group="front", node=name,
+                scale=min(1.0, 1.5 * k / CP.PANELS["footwell"][0], (top - 0.04) / CP.PANELS["footwell"][1]))
     if "top" in L["mfd"] and front_screen:
         # Hung from the screen's top bar and tilted down at the eye, so they cover only the screen's top edge (owner,
         # 2026-10-24: "move the mfds in the window up to the top bar a bit so theyre not in the way", "try to clear

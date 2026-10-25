@@ -36,7 +36,7 @@ roughness, B metal 0), height; `blast_scorch` also writes alpha.
   - a random yaw from the blast's id;
   - held for the crater's life (`ground_marks` craters, 240 s), the oldest despawned past `max_scorches` (64).
 - The `ground-marks` crater on soil is not laid any more; on paving it stays.
-- Numbers in `data/fx/scorch.ron` (`scorch_per_radius`, `max_scorches`, `depth_fade_m`, `life_s`), validated.
+- Numbers in `data/fx/battle_fx.ron` (`scorch`: `scorch_per_radius`, `max_scorches`, `depth_fade_m` 6 m to reach the bowl, `life_s`), validated.
 
 ## 4. The pipeline
 

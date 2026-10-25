@@ -101,6 +101,12 @@ pub struct WaterLook {
     pub lens_scale: f32,
     /// Rain on the glass, 0..1. Zero until weather exists (the code path is kept, gated).
     pub lens_rain: f32,
+    /// Rain on the glass inside a cloud at full density, 0..1 (openspec change `cloud-rain`).
+    pub cloud_rain: f32,
+    /// Seconds for the glass to wet through on entering a cloud.
+    pub cloud_wet_s: f32,
+    /// Seconds for the drops to clear after leaving one.
+    pub cloud_dry_s: f32,
 }
 
 impl Default for WaterLook {
@@ -146,6 +152,9 @@ impl Default for WaterLook {
             lens_size: 0.7,
             lens_scale: 2.0,
             lens_rain: 0.0,
+            cloud_rain: 0.85,
+            cloud_wet_s: 1.2,
+            cloud_dry_s: 4.0,
         }
     }
 }
@@ -213,7 +222,10 @@ impl Validate for WaterLook {
         within("lens_speed", self.lens_speed, 0.0, 10.0)?;
         positive("lens_size", self.lens_size)?;
         positive("lens_scale", self.lens_scale)?;
-        within("lens_rain", self.lens_rain, 0.0, 1.0)
+        within("lens_rain", self.lens_rain, 0.0, 1.0)?;
+        within("cloud_rain", self.cloud_rain, 0.0, 1.0)?;
+        positive("cloud_wet_s", self.cloud_wet_s)?;
+        positive("cloud_dry_s", self.cloud_dry_s)
     }
 }
 
@@ -273,6 +285,21 @@ impl Lens {
     }
 }
 
+/// Rain on the glass from cloud (openspec change `cloud-rain`): the glass wets toward `cloud_rain`
+/// x the cloud's density at the eye over `cloud_wet_s`, and clears over `cloud_dry_s` once the
+/// eye is out. `prev` is last step's value; returns this step's, 0..1. Pure, so the lens pass and
+/// any test read the same rule.
+pub fn cloud_glass(prev: f32, density: f32, dt_s: f32, look: &WaterLook) -> f32 {
+    let target = (look.cloud_rain * density.clamp(0.0, 1.0)).clamp(0.0, 1.0);
+    let prev = if prev.is_finite() { prev.clamp(0.0, 1.0) } else { 0.0 };
+    let dt = if dt_s.is_finite() { dt_s.max(0.0) } else { 0.0 };
+    if target > prev {
+        (prev + dt / look.cloud_wet_s.max(1e-3)).min(target)
+    } else {
+        (prev - dt / look.cloud_dry_s.max(1e-3)).max(target)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,6 +319,39 @@ mod tests {
         let e = parse_ron::<WaterLook>("(emerge_dry_s: -1.0)", path).unwrap_err().to_string();
         assert!(e.contains("data/world/water_look.ron"), "{e}");
         assert!(e.contains("emerge_dry_s"), "{e}");
+    }
+
+    #[test]
+    fn flying_into_a_cloud_wets_the_glass_and_leaving_it_dries_it() {
+        let look = WaterLook::default();
+        let mut wet = 0.0;
+        for _ in 0..120 {
+            wet = cloud_glass(wet, 1.0, 1.0 / 60.0, &look);
+        }
+        assert!(
+            (wet - look.cloud_rain).abs() < 1e-4,
+            "two seconds in a thick cloud wets the glass through ({wet})"
+        );
+        let mut t = 0.0;
+        while wet > 0.0 {
+            wet = cloud_glass(wet, 0.0, 1.0 / 60.0, &look);
+            t += 1.0 / 60.0;
+        }
+        assert!(
+            (t - look.cloud_rain * look.cloud_dry_s).abs() < 0.05,
+            "it clears in the drying time ({t} s)"
+        );
+    }
+
+    #[test]
+    fn clear_air_leaves_dry_glass_dry_and_bad_numbers_change_nothing() {
+        let look = WaterLook::default();
+        assert_eq!(cloud_glass(0.0, 0.0, 1.0, &look), 0.0);
+        assert_eq!(cloud_glass(f32::NAN, f32::NAN, f32::NAN, &look), 0.0);
+        assert!(
+            cloud_glass(0.0, 0.3, 10.0, &look) <= look.cloud_rain * 0.3 + 1e-6,
+            "a thin cloud wets it less"
+        );
     }
 
     #[test]

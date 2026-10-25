@@ -55,6 +55,15 @@ seated.
 
 ## 4. Input
 
+Owner, 2026-10-25, choosing "Guns keep firing in close combat, and punches move to other keys",
+and "MELEE MODE on the main screen, not mfd". This replaces the mouse-button strikes below:
+- In close combat the guns fire as always.
+- `strike_left` (Z) and `strike_right` (V) swing the arms.
+- `[MELEE MODE]` and the punch keys show under the crosshair.
+- Tab with Alt held is ignored, so Alt+Tab no longer switches close combat on.
+
+Earlier design (replaced):
+
 - `close_combat_toggle` (Tab) is a latch, like `target_next`.
 - In close combat, `fire[0]` and `fire[1]` start strikes and the guns hold.
 

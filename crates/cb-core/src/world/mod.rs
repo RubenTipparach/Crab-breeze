@@ -5,6 +5,7 @@
 //! draws the plan; the pilot and the mech walk on it through `height_at` and `push_out`. The world
 //! is an island in the sea (openspec change `island-world`).
 
+pub mod biome;
 pub mod clouds;
 pub mod collision;
 pub mod config;
@@ -14,13 +15,17 @@ pub mod destruct;
 pub mod dressing;
 pub mod forest;
 pub mod grid;
+pub mod hydrology;
 pub mod interior;
 pub mod layout;
 pub mod lod;
+pub mod roads;
 pub mod structure;
+pub mod sun_shade;
 pub mod terrain;
 pub mod water;
 
+pub use biome::{BIOME_COUNT, BIOMES, Biome, Biomes};
 pub use clouds::Clouds;
 pub use collision::BuildingGrid;
 pub use config::{DebrisConfig, WorldConfig};
@@ -32,7 +37,7 @@ pub use forest::{Body, Bump, Forest, Push, TileChanges, Tree, TreeState};
 pub use layout::{Block, Building, City, Highway, Rect, StreetKind, StreetPiece};
 pub use structure::{Frame, StructureConfig};
 pub use terrain::{ChunkMesh, Heightfield};
-pub use water::{Bridge, River, WaterSample, Waters};
+pub use water::{Bridge, Lake, Lakes, River, WaterSample, Waterfall, Waters};
 
 use crate::rng::{SimRng, label_hash};
 use glam::Vec2;
@@ -201,6 +206,10 @@ pub struct WorldPlan {
     pub forest: Forest,
     /// The sky's clouds.
     pub clouds: Clouds,
+    /// What grows where.
+    pub biomes: Biomes,
+    /// The terrain's own shadow for the sun, for far ground (distant-shadows).
+    pub sun_shade: sun_shade::SunShade,
 }
 
 impl WorldPlan {
@@ -221,8 +230,11 @@ impl WorldPlan {
             }
         }
         for h in &self.highways {
-            put(h.ends[0].x);
-            put(h.ends[0].y);
+            for (p, g) in h.path.iter().zip(&h.grade_m).step_by(8) {
+                put(p.x);
+                put(p.y);
+                put(*g);
+            }
             put(h.ends[1].x);
             put(h.ends[1].y);
         }
@@ -240,6 +252,16 @@ impl WorldPlan {
                 put(p.y);
                 put(*s);
             }
+        }
+        for l in &self.waters.lakes.list {
+            put(l.centre.x);
+            put(l.centre.y);
+            put(l.radius_m);
+            put(l.level_m);
+        }
+        for f in &self.waters.falls {
+            put(f.top_m);
+            put(f.bottom_m);
         }
         for iz in (0..self.terrain.n).step_by(97) {
             for ix in (0..self.terrain.n).step_by(97) {
@@ -264,16 +286,25 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
     let shape = Shape::new(&root, cfg);
     let sea_level_m = cfg.island.sea_level_m;
 
-    // A city stands inland, on ground above the sea, its square and blend clear of the shelf.
+    // Where the water goes, worked out on the island's shape before anything is built on it.
+    let drainage = hydrology::Drainage::new(&shape, cfg.world_size_m, sea_level_m, &cfg.water);
+
+    // A city stands inland, on ground above the sea and below the mountains, its square and blend
+    // clear of the shelf, on land that is not too steep, and clear of the rivers and lakes.
     let on_land = |c: Vec2, half: f32| {
         let reach = half + cfg.plateau_flat_margin_m + cfg.plateau_blend_m;
-        let corners = [
-            Vec2::new(-1.0, -1.0),
-            Vec2::new(1.0, -1.0),
-            Vec2::new(1.0, 1.0),
-            Vec2::new(-1.0, 1.0),
-        ];
-        shape.height(c) >= sea_level_m + cfg.water.city_freeboard_m && corners.iter().all(|k| shape.past_land_edge_m(c + *k * reach) < 0.0)
+        let ground = shape.height(c);
+        if ground < sea_level_m + cfg.water.city_freeboard_m || ground > sea_level_m + cfg.city_max_ground_m {
+            return false;
+        }
+        let probes = [-1.0f32, 0.0, 1.0]
+            .into_iter()
+            .flat_map(|x| [-1.0f32, 0.0, 1.0].map(|z| Vec2::new(x, z)));
+        let level = probes.into_iter().all(|k| {
+            let q = c + k * reach;
+            shape.past_land_edge_m(q) < 0.0 && (shape.height(q) - ground).abs() <= cfg.city_max_relief_m
+        });
+        level && !drainage.water_near(c - Vec2::splat(half), c + Vec2::splat(half), cfg.water.river_city_clearance_m)
     };
     let placed = layout::place_cities(&mut root.fork("cities"), cfg, &on_land);
     let cities: Vec<City> = placed
@@ -281,7 +312,10 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         .enumerate()
         .map(|(i, &(c, half))| layout::lay_out_city(&mut root.fork(&format!("city/{i}")), i as u32, c, half, shape.height(c), cfg))
         .collect();
-    let highways = layout::connect_cities(&cities, cfg);
+    // Highways are routed round the mountains, lakes and other cities (openspec change
+    // `curved-roads`).
+    let lay = |a: usize, b: usize, from: Vec2, to: Vec2| roads::lay_highway(&shape, &drainage, &cities, (a, b), (from, to), cfg);
+    let highways = layout::connect_cities(&cities, cfg, &lay);
 
     let largest = placed.first().map(|p| p.1).unwrap_or(1.0);
     let mut buildings = Vec::new();
@@ -293,20 +327,21 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
 
     let flats = Flats::new(&cities, &highways, cfg);
     let terrain = Heightfield::new(cfg, shape, flats);
-    let bounds = water::RiverBounds {
+    let bounds = water::WaterBounds {
         world_size_m: cfg.world_size_m,
         sea_level_m,
-        source_within_m: cfg.island.land_radius_m * 0.7,
     };
-    let waters = water::make_waters(&root.fork("water"), &terrain, &cities, &highways, &cfg.water, &bounds);
+    let waters = water::make_waters(&root.fork("water"), &drainage, &terrain, &cities, &highways, &cfg.water, &bounds);
     let road_flat_m = cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m;
     let channels = waters.channels(&cfg.water, &cities, cfg.plateau_flat_margin_m, &highways, road_flat_m);
     let terrain = terrain.with_channels(channels);
+    let sun_shade = sun_shade::SunShade::bake(&terrain, cfg.world_size_m, sun_shade::to_sun(), &cfg.sun_shade);
 
     let start = start_point(&cities, cfg);
     let roofs = buildings.iter().map(|b| cities[b.city as usize].ground_m + b.height_m).collect();
     let collision = BuildingGrid::new(&buildings, cfg.world_size_m, 64.0).with_roofs(roofs);
     let clouds = clouds::make_clouds(&root.fork("clouds"), &cfg.clouds, cfg.world_size_m);
+    let biomes = Biomes::new(&root.fork("biomes"), &cfg.biomes, sea_level_m, cfg.range.snowline_m);
     WorldPlan {
         seed,
         terrain,
@@ -318,6 +353,8 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         waters,
         forest: Forest::new(&root.fork("trees"), &cfg.trees, cfg.world_size_m),
         clouds,
+        biomes,
+        sun_shade,
     }
 }
 

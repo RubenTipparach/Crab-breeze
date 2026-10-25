@@ -162,6 +162,8 @@ pub struct MechAccess {
     pub stopped: bool,
     /// The mech's ground speed.
     pub speed_m_s: f32,
+    /// The mech is destroyed: its pilot ejects.
+    pub destroyed: bool,
     /// True when the mech sits with its hatch open and stair down.
     pub hatch_open: bool,
 }
@@ -213,6 +215,8 @@ pub enum PilotEvent {
     DisembarkStarted,
     /// The pilot is standing at the ladder.
     Disembarked,
+    /// The mech was destroyed and threw its pilot clear (mission-jobs, survey J3).
+    Ejected,
 }
 
 /// An angle wrapped to -pi..pi.
@@ -240,6 +244,9 @@ pub fn coupled_look(rel: f32, prev_rel: f32, turn: f32, limit: f32, free_look: b
         moved
     }
 }
+
+/// An ejected pilot lands this far out in front of the destroyed mech's hatch.
+pub const EJECT_OUT_M: f32 = 18.0;
 
 /// The view's last stretch before the coupled limit over which the mech's turn toward it ramps up.
 pub const LOOK_TURN_BAND_DEG: f32 = 20.0;
@@ -312,6 +319,19 @@ impl PilotState {
         let up = Vec3::Y * cfg.eye_height_m;
         EyePath {
             points: vec![m.eye_pilot, m.hatch_entry + up, Self::rope_top(m, cfg), m.ladder_base + up],
+            travelled_m: 0.0,
+        }
+    }
+
+    /// Thrown clear of a destroyed mech: out of the seat, up through the hatch and 10 m over it, then
+    /// down to the ground `EJECT_OUT_M` out in front, landing on foot.
+    fn eject_path(m: &MechAccess, cfg: &PilotConfig) -> EyePath {
+        let up = Vec3::Y * cfg.eye_height_m;
+        let flat = Vec3::new(m.ladder_base.x - m.hatch_entry.x, 0.0, m.ladder_base.z - m.hatch_entry.z).normalize_or(Vec3::Z);
+        let land = Vec3::new(m.hatch_entry.x, m.ladder_base.y, m.hatch_entry.z) + flat * EJECT_OUT_M + up;
+        let top = m.hatch_entry + up + Vec3::Y * 10.0 + flat * (EJECT_OUT_M * 0.4);
+        EyePath {
+            points: vec![m.eye_pilot, m.hatch_entry + up, top, land],
             travelled_m: 0.0,
         }
     }
@@ -404,6 +424,16 @@ impl PilotState {
                     self.yaw_rad = (self.yaw_rad - look.x.to_radians()).rem_euclid(std::f32::consts::TAU);
                 }
                 self.pitch_rad = (self.pitch_rad + look.y.to_radians()).clamp(-pitch_limit, pitch_limit);
+                if let Some(m) = access.filter(|m| m.destroyed) {
+                    // The mech is destroyed: the seat throws the pilot out of the hatch, up and clear,
+                    // to land on foot beside the wreck (owner, survey J3: "whenever your mech is
+                    // destroyed you eject out of yuor mech"). Only the eye's position is carried; where
+                    // the pilot looks stays theirs.
+                    self.waiting = None;
+                    self.exit_hold_s = 0.0;
+                    self.mode = PilotMode::Disembarking(Self::eject_path(m, cfg));
+                    return Some(PilotEvent::Ejected);
+                }
                 if let Some(m) = access {
                     // Holding Use near a stop fills the ring; the mech brakes meanwhile (the app
                     // zeroes its throttle while the hold runs), and the pilot climbs out once the
@@ -462,6 +492,7 @@ mod tests {
             seat_yaw_rad: 0.0,
             stopped: true,
             speed_m_s: 0.0,
+            destroyed: false,
             hatch_open: true,
         }
     }
@@ -696,6 +727,28 @@ mod tests {
         run_until_settled(&mut p, &cfg, &access());
         assert_eq!(p.mode, PilotMode::OnFoot);
         assert!(p.feet.distance(access().ladder_base) < 1e-3, "{}", p.feet);
+    }
+
+    #[test]
+    fn a_destroyed_mech_throws_its_pilot_clear_onto_their_feet() {
+        let cfg = PilotConfig::default();
+        let mut p = PilotState::standing(Vec3::new(0.0, 0.0, 5.5), 0.0);
+        p.step(&press_use(), &cfg, &FlatGround::default(), Some(&access()), DT);
+        run_until_settled(&mut p, &cfg, &access());
+        assert_eq!(p.mode, PilotMode::Seated);
+        let wreck = MechAccess {
+            destroyed: true,
+            stopped: false,
+            speed_m_s: 6.0,
+            hatch_open: false,
+            ..access()
+        };
+        let e = p.step(&Actions::default(), &cfg, &FlatGround::default(), Some(&wreck), DT);
+        assert_eq!(e, Some(PilotEvent::Ejected));
+        run_until_settled(&mut p, &cfg, &wreck);
+        assert_eq!(p.mode, PilotMode::OnFoot);
+        let out = Vec2::new(p.feet.x - wreck.hatch_entry.x, p.feet.z - wreck.hatch_entry.z).length();
+        assert!(out > EJECT_OUT_M * 0.9, "landed clear of the wreck: {out}");
     }
 
     #[test]

@@ -8,7 +8,7 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 
 /// Every recipe the game asks for. A file without one of these stops startup.
-pub const RECIPES: [&str; 29] = [
+pub const RECIPES: [&str; 33] = [
     "muzzle_autocannon",
     "muzzle_cannon",
     "muzzle_rocket",
@@ -33,6 +33,10 @@ pub const RECIPES: [&str; 29] = [
     "tree_fall",
     "part_lost",
     "burning",
+    "smoking",
+    "burning_hull",
+    "fall_dust",
+    "jet_wash",
     "creak_dust",
     "member_fail",
     "collapse_dust",
@@ -209,6 +213,14 @@ pub struct FxConfig {
     pub trail_spacing_m: f32,
     /// A rocket motor's light.
     pub motor_lumens: f32,
+    /// A rocket's exhaust plume's length and width, metres (openspec change `rocket-plumes`).
+    pub plume_length_m: f32,
+    /// See `plume_length_m`.
+    pub plume_width_m: f32,
+    /// A mech's jet plume's length and width while it fires, metres.
+    pub jet_plume_m: [f32; 2],
+    /// Jets fired this close above the ground blow dust (`jet_wash`), metres.
+    pub jet_wash_m: f32,
     /// Most particles alive at once; a burst that does not fit is cut.
     pub max_particles: u32,
     /// Most effect point lights alive at once; the oldest goes first.
@@ -228,6 +240,11 @@ pub struct FxConfig {
     /// four times as far for an explosion): every burst is an effect of its own on the GPU side,
     /// and those far off cost about 2 ms of a combat frame while barely showing (2026-10-24).
     pub burst_range_m: f32,
+    /// Recipes whose blended bursts each get a sprite of their own, so bevy_hanabi draws them
+    /// apart, each in a stable order, instead of merging them into one draw whose particles reorder
+    /// every frame: big translucent clouds (explosion smoke, collapse dust) flickered merged (owner,
+    /// 2026-10-25: "this smoke here is reall flickery still"). Each costs its own draw.
+    pub sorted: Vec<String>,
 }
 
 /// How blasts nearby shake the view (owner, 2026-10-24: "screen needs to shake a bit when
@@ -283,6 +300,10 @@ impl Default for FxConfig {
             tracer_glow: 12.0,
             trail_spacing_m: 3.0,
             motor_lumens: 2.0e5,
+            plume_length_m: 4.5,
+            plume_width_m: 0.9,
+            jet_plume_m: [6.0, 1.6],
+            jet_wash_m: 15.0,
             max_particles: 5000,
             max_lights: 24,
             max_fireballs: 64,
@@ -290,6 +311,7 @@ impl Default for FxConfig {
             shake: ShakeConfig::default(),
             stream_per_s: BTreeMap::new(),
             burst_range_m: 400.0,
+            sorted: vec!["explosion_ground".into(), "explosion_air".into(), "explosion_water".into()],
         }
     }
 }
@@ -297,6 +319,11 @@ impl Default for FxConfig {
 impl Validate for FxConfig {
     fn validate(&self) -> Result<(), String> {
         positive("tracer_s", self.tracer_s)?;
+        positive("plume_length_m", self.plume_length_m)?;
+        positive("plume_width_m", self.plume_width_m)?;
+        positive("jet_plume_m[0]", self.jet_plume_m[0])?;
+        positive("jet_plume_m[1]", self.jet_plume_m[1])?;
+        positive("jet_wash_m", self.jet_wash_m)?;
         positive("shake.max_deg", self.shake.max_deg)?;
         positive("shake.reach_m_per_cbrt_mj", self.shake.reach_m_per_cbrt_mj)?;
         positive("shake.decay_s", self.shake.decay_s)?;
@@ -322,12 +349,59 @@ impl Validate for FxConfig {
                 l.validate(&format!("recipes.{name}[{i}]"))?;
             }
         }
+        for name in &self.sorted {
+            if !self.recipes.contains_key(name) {
+                return Err(format!("`sorted` names no recipe: {name}"));
+            }
+        }
         Ok(())
     }
 }
 
+/// Burst sizes come in this many steps up to a layer's own count (`particle-steps`).
+pub const BURST_STEPS: u32 = 4;
+
+/// How many particles a burst of a layer with `count` particles spawns at `density`, with `room`
+/// left under the particle budget: a whole number of steps of `count / BURST_STEPS` (rounded to
+/// the nearest, at least one step while any were asked for), cut to whole steps that fit. Each size
+/// is its own GPU effect, built when first used; a footstep's density follows its speed, so without
+/// steps every stride built a new one mid-fight (`particle-steps`).
+pub fn burst_count(count: u32, density: f32, room: u32) -> u32 {
+    let step = count.div_ceil(BURST_STEPS).max(1);
+    let asked = (count as f32 * density.max(0.0)).round();
+    if !asked.is_finite() || asked < 1.0 {
+        return 0;
+    }
+    let steps = ((asked / step as f32).round() as u32).max(1);
+    steps.min(room / step) * step
+}
+
 #[cfg(test)]
 mod tests {
+    use super::burst_count;
+
+    #[test]
+    fn bursts_come_in_quarter_steps_of_their_count() {
+        assert_eq!(burst_count(40, 1.0, 1000), 40);
+        assert_eq!(burst_count(40, 0.6, 1000), 20);
+        assert_eq!(burst_count(40, 0.7, 1000), 30);
+        assert_eq!(burst_count(40, 0.05, 1000), 10, "a light step still shows one step");
+        assert_eq!(burst_count(40, 0.0, 1000), 0);
+        assert_eq!(burst_count(40, 2.0, 1000), 80);
+        assert_eq!(burst_count(3, 1.0, 1000), 3);
+    }
+
+    #[test]
+    fn a_burst_takes_only_whole_steps_that_fit_the_budget() {
+        assert_eq!(burst_count(40, 1.0, 25), 20);
+        assert_eq!(burst_count(40, 1.0, 9), 0);
+    }
+
+    #[test]
+    fn a_footstep_at_any_speed_is_one_of_a_few_sizes() {
+        let sizes: std::collections::BTreeSet<u32> = (0..=200).map(|i| burst_count(24, i as f32 / 100.0, 10_000)).collect();
+        assert!(sizes.len() <= 2 * super::BURST_STEPS as usize + 1, "{sizes:?}");
+    }
     #[test]
     fn far_small_bursts_are_left_out_and_explosions_reach_further() {
         let c = super::FxConfig::default();
@@ -357,6 +431,17 @@ mod tests {
         for name in RECIPES {
             assert!(!cfg.recipes[name].is_empty(), "{name} has no layers");
         }
+    }
+
+    #[test]
+    fn a_sorted_name_must_be_a_recipe() {
+        let cfg = FxConfig {
+            recipes: RECIPES.iter().map(|n| (n.to_string(), Vec::new())).collect(),
+            sorted: vec!["no_such_recipe".into()],
+            ..FxConfig::default()
+        };
+        let e = cfg.validate().unwrap_err();
+        assert!(e.contains("no_such_recipe"), "{e}");
     }
 
     #[test]

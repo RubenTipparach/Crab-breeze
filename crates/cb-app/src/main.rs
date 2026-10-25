@@ -1,13 +1,16 @@
 //! Crab Breeze, the game. This file is the composition root (CLAUDE.md section 6.2): it reads the
 //! command line and the data, and wires the plugins. It holds no game logic.
 
+mod battle_fx;
 mod bench;
 mod blast;
 mod building_arrays;
 mod building_state;
 mod buildings;
 mod capture;
+mod career;
 mod cli;
+mod clouds_render;
 mod combat;
 mod defence;
 mod demolition;
@@ -26,6 +29,7 @@ mod pbr_set;
 mod perf_hud;
 mod physics;
 mod pilot;
+mod plumes;
 mod rope;
 mod screen_cut;
 mod screens_cube;
@@ -123,6 +127,8 @@ fn main() -> AppExit {
         screens_cube::ScreensCubePlugin,
         sky_light::SkyLightPlugin,
         skins::SkinsPlugin,
+        battle_fx::BattleFxPlugin,
+        plumes::PlumesPlugin,
         loading::LoadingPlugin,
         perf_hud::PerfHudPlugin,
         units::UnitsPlugin,
@@ -130,7 +136,13 @@ fn main() -> AppExit {
         menu::MenuPlugin,
         rope::RopePlugin,
         vents::VentsPlugin,
+        career::CareerPlugin,
     ));
+    // Cheap, correctly lit clouds (openspec change `cloud-puffs`); `CB_NO_CLOUDS=1` leaves them
+    // out, so the benchmark can measure what they cost.
+    if !cli::switched_off("CB_NO_CLOUDS") {
+        app.add_plugins(clouds_render::CloudsRenderPlugin);
+    }
     // GPU grass (openspec change `gpu-grass`); `CB_NO_GRASS=1` leaves it out, so the benchmark can
     // measure what it costs.
     if !cli::switched_off("CB_NO_GRASS") {
@@ -166,9 +178,16 @@ fn main() -> AppExit {
         window: !scripted && !cli::switched_off("CB_UNCAPPED"),
     });
     if let Some(dir) = args.stills {
-        app.add_plugins(capture::StillsPlugin { dir });
+        if std::env::var("CB_STILLS_FX").is_ok() {
+            app.add_plugins(capture::FxStillsPlugin { dir });
+        } else {
+            app.add_plugins(capture::StillsPlugin { dir });
+        }
     } else if let Some(take) = args.showcase.clone().or(args.bench.clone()) {
         app.add_plugins(showcase::ShowcasePlugin { take });
+        if let Ok(dir) = std::env::var("CB_FRAMES_DIR") {
+            app.add_plugins(capture::FramesPlugin { dir: dir.into() });
+        }
     }
     if args.bench.is_some() {
         app.add_plugins(bench::BenchPlugin);

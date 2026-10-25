@@ -42,6 +42,9 @@ pub struct WeaponSpec {
     /// guns and rockets; openspec change `targeting`).
     #[serde(default)]
     pub seeker_turn_deg_s: f32,
+    /// Rounds carried a sortie; `None` for no limit.
+    #[serde(default)]
+    pub rounds: Option<u32>,
 }
 
 /// The default guns: an autocannon on the right arm, a heavy cannon on the left.
@@ -59,6 +62,7 @@ pub fn default_weapons() -> Vec<WeaponSpec> {
             blast_mj: 0.4,
             rocket: false,
             seeker_turn_deg_s: 0.0,
+            rounds: None,
         },
         WeaponSpec {
             name: "120 mm cannon".into(),
@@ -72,6 +76,7 @@ pub fn default_weapons() -> Vec<WeaponSpec> {
             blast_mj: 6.0,
             rocket: false,
             seeker_turn_deg_s: 0.0,
+            rounds: None,
         },
         WeaponSpec {
             name: "shoulder missile".into(),
@@ -85,6 +90,8 @@ pub fn default_weapons() -> Vec<WeaponSpec> {
             blast_mj: 2.5,
             rocket: true,
             seeker_turn_deg_s: 70.0,
+            // Owner, 2026-10-25, survey G13: "40" missiles a sortie.
+            rounds: Some(40),
         },
     ]
 }
@@ -110,6 +117,8 @@ impl Validate for WeaponSpec {
 pub struct Guns {
     /// Seconds until each gun can fire again.
     pub cooldown_s: Vec<f32>,
+    /// Rounds left in each gun (`None`: no limit), filled from its spec on the first trigger.
+    pub rounds_left: Vec<Option<u32>>,
 }
 
 /// The station `step` stations on from `current` (+1 next, -1 back), wrapping, passing over any
@@ -158,10 +167,17 @@ impl Guns {
     /// weapon by weapon: `station_pulls` or `group_pulls`). Returns the indices of the guns that fired.
     pub fn trigger(&mut self, specs: &[WeaponSpec], pulled: &[bool], arm_lost: impl Fn(PartKind) -> bool, dt_s: f32) -> Vec<usize> {
         self.cooldown_s.resize(specs.len(), 0.0);
+        if self.rounds_left.len() != specs.len() {
+            self.rounds_left = specs.iter().map(|w| w.rounds).collect();
+        }
         let mut fired = Vec::new();
         for (i, w) in specs.iter().enumerate() {
             self.cooldown_s[i] = (self.cooldown_s[i] - dt_s).max(0.0);
-            if pulled.get(i).copied().unwrap_or(false) && self.cooldown_s[i] == 0.0 && !arm_lost(w.arm) {
+            let loaded = self.rounds_left[i] != Some(0);
+            if pulled.get(i).copied().unwrap_or(false) && loaded && self.cooldown_s[i] == 0.0 && !arm_lost(w.arm) {
+                if let Some(n) = &mut self.rounds_left[i] {
+                    *n -= 1;
+                }
                 self.cooldown_s[i] = w.interval_s;
                 fired.push(i);
             }
@@ -402,6 +418,21 @@ mod tests {
     }
 
     #[test]
+    fn the_missiles_run_out_after_forty() {
+        let w = default_weapons();
+        let m = w.iter().position(|w| w.group == 2).unwrap();
+        let mut g = Guns::default();
+        let mut shots = 0;
+        for _ in 0..(60 * 120) {
+            shots += g
+                .trigger(&w, &station_pulls(&w, 0, false, false, true), |_| false, 1.0 / 60.0)
+                .len();
+        }
+        assert_eq!(shots, 40);
+        assert_eq!(g.rounds_left[m], Some(0));
+    }
+
+    #[test]
     fn the_primary_trigger_fires_only_the_selected_station() {
         let w = default_weapons();
         let sel = first_station(&w);
@@ -456,7 +487,7 @@ mod tests {
         let b = &plan().buildings[0];
         let ground = plan().cities[b.city as usize].ground_m;
         let wall = b.footprint.centre();
-        let from = Vec3::new(b.footprint.min.x - 150.0, ground + 4.0, wall.y);
+        let from = Vec3::new(b.footprint.min.x - 150.0, ground + 12.0, wall.y);
         let mech_in_the_way = PartCapsule {
             mech: 7,
             part: 2,

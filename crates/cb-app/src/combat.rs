@@ -61,6 +61,7 @@ fn land(
     mechs: &mut Mechs,
     fx: &mut MessageWriter<Fx>,
     explosions: &mut MessageWriter<Explosion>,
+    hits: &mut MessageWriter<crate::battle_fx::MechHit>,
 ) {
     match struck {
         Struck::Mech { mech, .. } if mech >= crate::units::UNIT_ID_BASE => {
@@ -73,6 +74,15 @@ fn land(
             fx.write(Fx::new("impact_mech", at).toward(-dir));
         }
         Struck::Mech { mech, part } => {
+            // The hit's mark on the part (openspec change `mech-damage-fx`).
+            hits.write(crate::battle_fx::MechHit {
+                mech,
+                part,
+                at,
+                dir,
+                penetration_mm: power.penetration_mm,
+                blast_mj: power.blast_mj,
+            });
             if let Some((mut sim, spec, _, _)) = mechs.iter_mut().find(|m| m.2.0 == mech) {
                 apply_hit(
                     &mut sim,
@@ -179,6 +189,7 @@ pub fn fly_shots(
     time: Res<Time<Fixed>>,
     mut fx: MessageWriter<Fx>,
     mut explosions: MessageWriter<Explosion>,
+    mut hits: MessageWriter<crate::battle_fx::MechHit>,
 ) {
     let _t = crate::perf_hud::slow("fly_shots");
     if shots.0.is_empty() && shots.1.is_empty() {
@@ -262,6 +273,7 @@ pub fn fly_shots(
                 &mut mechs,
                 &mut fx,
                 &mut explosions,
+                &mut hits,
             );
         }
     }
@@ -313,6 +325,7 @@ pub fn fly_shots(
             &mut mechs,
             &mut fx,
             &mut explosions,
+            &mut hits,
         );
     }
     shots.0 = flying;

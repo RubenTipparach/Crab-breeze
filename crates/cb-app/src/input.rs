@@ -61,11 +61,14 @@ pub(crate) struct Keys {
     mode_jet: Vec<KeyCode>,
     /// Opens and closes the pause menu (game-menus).
     pub(crate) release_mouse: Vec<KeyCode>,
+    pub(crate) mail: Vec<KeyCode>,
     lift: Vec<KeyCode>,
     skate: Vec<KeyCode>,
     sink: Vec<KeyCode>,
     target_next: Vec<KeyCode>,
     close_combat: Vec<KeyCode>,
+    /// Punch keys, [left arm, right arm].
+    strike: [Vec<KeyCode>; 2],
     /// Keys that step the weapon on, and whether the mouse wheel steps it.
     weapon_cycle: (Vec<KeyCode>, bool),
     fire: [(Vec<KeyCode>, Vec<MouseButton>); 2],
@@ -127,11 +130,13 @@ fn resolve(b: &Bindings) -> Result<Keys, String> {
         mode_skate: r("mode_skate", &b.mode_skate)?,
         mode_jet: r("mode_jet", &b.mode_jet)?,
         release_mouse: r("release_mouse", &b.release_mouse)?,
+        mail: r("mail", &b.mail)?,
         lift: r("lift", &b.lift)?,
         skate: r("skate", &b.skate)?,
         sink: r("sink", &b.sink)?,
         target_next: r("target_next", &b.target_next)?,
         close_combat: r("close_combat", &b.close_combat)?,
+        strike: [r("strike_left", &b.strike_left)?, r("strike_right", &b.strike_right)?],
         weapon_cycle: (
             r(
                 "weapon_cycle",
@@ -281,7 +286,10 @@ fn sample_devices(
     }
     acc.skate_toggle |= any_just(&input, &keys.skate);
     acc.target_next |= any_just(&input, &keys.target_next);
-    acc.close_combat |= any_just(&input, &keys.close_combat);
+    // Tab with Alt held is switching windows, not close combat (Alt+Tab turned it on by hand, with no
+    // one near, and held the guns).
+    let alt = input.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]);
+    acc.close_combat |= !alt && any_just(&input, &keys.close_combat);
     // The wheel steps the weapon: down on, up back (weapon-select).
     if keys.weapon_cycle.1 && scroll.delta.y != 0.0 {
         acc.weapon_cycle += if scroll.delta.y < 0.0 { 1 } else { -1 };
@@ -330,6 +338,8 @@ fn take_step_actions(
                 use_held: any(&input, &keys.use_key),
                 sink: any(&input, &keys.sink),
                 fire_missile: any(&input, &keys.fire_missile.0) || mouse.any_pressed(keys.fire_missile.1.iter().copied()),
+                strike: [any(&input, &keys.strike[0]), any(&input, &keys.strike[1])],
+                walk_keys: true,
                 ..default()
             }
         }

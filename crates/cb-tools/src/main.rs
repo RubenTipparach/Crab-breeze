@@ -1,7 +1,9 @@
 //! Crab Breeze command-line tools. `cb-tools validate <data dir>` loads every data file through the
 //! same loader the game uses (CLAUDE.md section 11), so a file that would stop the game stops here.
+//! `cities` and `map` are instruments: a seed's cities, and its island drawn from above.
 
 mod glb;
+mod map;
 
 use cb_core::GameData;
 use std::path::PathBuf;
@@ -83,8 +85,38 @@ fn main() -> ExitCode {
             }
             ExitCode::SUCCESS
         }
+        // A documentation instrument (openspec change `hydrology`): the generated island seen from
+        // above, as a PPM picture: ground by height, snow, the sea and lakes, rivers, waterfalls
+        // (red), cities and highways.
+        Some("map") => {
+            let seed = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(42);
+            let out = PathBuf::from(args.get(2).map(String::as_str).unwrap_or("map.ppm"));
+            let px = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(1024usize);
+            let num = |i: usize, d: f32| args.get(i).and_then(|s| s.parse().ok()).unwrap_or(d);
+            let view = (glam::Vec2::new(num(4, 0.0), num(5, 0.0)), num(6, 0.0));
+            let data = match GameData::load(&PathBuf::from("data"), "mechs/placeholder.ron") {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("FAIL {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let plan = cb_core::world::generate(seed, &data.world);
+            match std::fs::write(&out, map::draw(&plan, &data.world, px, view)) {
+                Ok(()) => {
+                    println!("wrote {}", out.display());
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("FAIL {}: {e}", out.display());
+                    ExitCode::FAILURE
+                }
+            }
+        }
         _ => {
-            eprintln!("usage: cb-tools validate [data dir] | cb-tools cities [seed]");
+            eprintln!(
+                "usage: cb-tools validate [data dir] | cb-tools cities [seed] | cb-tools map [seed] [out.ppm] [pixels] [centre x] [centre z] [span m]"
+            );
             ExitCode::FAILURE
         }
     }

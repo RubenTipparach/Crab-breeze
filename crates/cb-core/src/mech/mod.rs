@@ -6,6 +6,7 @@ pub mod gait;
 pub mod locomotion;
 pub mod melee;
 pub mod rig;
+pub mod walk;
 
 pub use config::{BoxSpec, GaitConfig, JetConfig, LocomotionConfig, MechConfig, NodeSpec, RamConfig, SkateConfig};
 pub use damage::{Damage, Hit, PartKind, PartSpec};

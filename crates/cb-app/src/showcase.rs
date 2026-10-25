@@ -34,6 +34,10 @@ pub struct Take {
     /// The marks take (`--showcase marks`): after the stride it turns round and looks down at
     /// its own footprints, then skates and looks back at the grooves (ground-marks).
     marks: bool,
+    /// The trail take (`--showcase trail`): up on the rockets, then flown backwards and skated in
+    /// reverse, looking ahead, so the pilot's own jet smoke and skate grooves lie in front of the
+    /// screens (owner, 2026-10-25: "I can turn the mech around and fly backwards").
+    trail: bool,
     /// The sun take (`--showcase sun`): on foot, the view turned onto the sun and held, for the
     /// bloom and the lens flare (sun-flare).
     sun: bool,
@@ -47,6 +51,8 @@ pub struct Take {
     flying: bool,
     /// The height it crosses at while flying.
     cruise_m: f32,
+    /// When the take's fight began (`PLAYTEST_START`), seconds of real time.
+    started_s: f32,
 }
 
 impl Plugin for ShowcasePlugin {
@@ -76,11 +82,18 @@ impl Plugin for ShowcasePlugin {
         } else {
             names
         };
+        let trail = self.take == "trail";
+        let names: &'static [&'static str] = if trail {
+            &["load", "look", "board", "lift", "backwards", "land", "reverse skate", "end"]
+        } else {
+            names
+        };
         let sun = self.take == "sun";
         let names: &'static [&'static str] = if sun { &["load", "to the sun", "hold", "end"] } else { names };
         app.insert_resource(Take {
             names,
             marks,
+            trail,
             sun,
             ..default()
         });
@@ -124,6 +137,42 @@ fn board(p: &PilotState, access: Option<&cb_core::pilot::MechAccess>) -> Actions
         PilotMode::OnFoot if p.waiting.is_none() => walk_to(p, a.ladder_base, 0.2),
         PilotMode::OnFoot => walk_to(p, a.ladder_base + Vec3::Y, 0.45),
         _ => Actions::default(),
+    }
+}
+
+/// The nearest cloud more than 500 m from the mech: the one a take flies into. Shared with the
+/// capture instrument.
+pub fn nearest_cloud(plan: &Plan, m: &MechState) -> Vec3 {
+    let here = Vec2::new(m.pos.x, m.pos.z);
+    plan.clouds
+        .puffs
+        .iter()
+        .filter(|c| Vec2::new(c.centre.x, c.centre.z).distance(here) > 500.0)
+        .min_by(|a, b| {
+            Vec2::new(a.centre.x, a.centre.z)
+                .distance(here)
+                .total_cmp(&Vec2::new(b.centre.x, b.centre.z).distance(here))
+        })
+        .map(|c| c.centre)
+        .unwrap_or(Vec3::new(here.x, 800.0, here.y - 800.0))
+}
+
+/// Rockets up, skates across, toward a cloud's centre: climb to its height, then hold level.
+/// Shared with the capture instrument.
+pub fn fly_to_cloud(m: &MechState, cloud: Vec3) -> Actions {
+    let climb = cloud.y - m.pos.y;
+    Actions {
+        skate_toggle: !m.skates_on,
+        move_xy: Vec2::new(0.0, 1.0),
+        turn_axis: steer(m, Vec2::new(cloud.x, cloud.z)),
+        throttle_axis: throttle_to(m, 1.0),
+        lift_axis: if climb > 30.0 {
+            1.0
+        } else {
+            (HOVER_LIFT - m.vel_y_m_s * 0.025).clamp(0.0, 1.0)
+        },
+        look_delta_deg: aim(m, 0.0, 0.15),
+        ..default()
     }
 }
 
@@ -179,18 +228,7 @@ fn play(
             // The game is loaded and its pipelines compiled (GAME_READY): only then does a take begin.
             if ready.0 && access.0.is_some() {
                 let here = Vec2::new(m.pos.x, m.pos.z);
-                take.cloud = plan
-                    .clouds
-                    .puffs
-                    .iter()
-                    .filter(|c| Vec2::new(c.centre.x, c.centre.z).distance(here) > 500.0)
-                    .min_by(|a, b| {
-                        Vec2::new(a.centre.x, a.centre.z)
-                            .distance(here)
-                            .total_cmp(&Vec2::new(b.centre.x, b.centre.z).distance(here))
-                    })
-                    .map(|c| c.centre)
-                    .unwrap_or(Vec3::new(here.x, 800.0, here.y - 800.0));
+                take.cloud = nearest_cloud(&plan, m);
                 let cloud_xz = Vec2::new(take.cloud.x, take.cloud.z);
                 let mut best = (f32::MIN, here, here);
                 // Trees grow only near bodies (island-world), so probe a copy of the forest grown
@@ -268,6 +306,59 @@ fn play(
             act = board(p, access.0.as_ref());
             next = p.mode == PilotMode::Seated;
         }
+        // The trail take. Its beats end on what the mech has done, not on the clock: the showcase
+        // counts real seconds, and a software renderer runs the game at an eighth of real time.
+        // Rockets up with the skates pushing back, so the mech climbs backwards.
+        3 if take.trail => {
+            let agl = m.pos.y - plan.height_at(m.pos.x, m.pos.z);
+            act.skate_toggle = !m.skates_on;
+            act.lift_axis = if agl < 40.0 {
+                1.0
+            } else {
+                (HOVER_LIFT - m.vel_y_m_s * 0.025).clamp(0.0, 1.0)
+            };
+            act.move_xy = if m.airborne() { Vec2::new(0.0, -1.0) } else { Vec2::ZERO };
+            act.look_delta_deg = aim(m, 0.0, -0.2);
+            next = agl > 35.0 || t > 900.0 || m.boost.locked;
+            if next {
+                take.landing = Vec2::new(m.pos.x, m.pos.z);
+            }
+        }
+        // Hold the height and keep flying backwards, looking ahead along the trail.
+        4 if take.trail => {
+            act.lift_axis = (HOVER_LIFT - m.vel_y_m_s * 0.025).clamp(0.0, 1.0);
+            act.move_xy = Vec2::new(0.0, -1.0);
+            act.look_delta_deg = aim(m, 0.0, -0.15);
+            next = Vec2::new(m.pos.x, m.pos.z).distance(take.landing) > 150.0 || t > 900.0 || m.boost.locked;
+        }
+        // Come down on the skates.
+        5 if take.trail => {
+            let agl = m.pos.y - plan.height_at(m.pos.x, m.pos.z);
+            let want_vy = (-agl * 0.25).clamp(-10.0, -2.0);
+            act.lift_axis = if m.airborne() {
+                (HOVER_LIFT + (want_vy - m.vel_y_m_s) * 0.04).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            act.look_delta_deg = aim(m, 0.0, -0.2);
+            next = !m.airborne() || t > 900.0;
+            if next {
+                take.landing = Vec2::new(m.pos.x, m.pos.z);
+            }
+        }
+        // Skate in reverse, looking ahead at the grooves the wheels leave.
+        6 if take.trail => {
+            act.skate_toggle = !m.skates_on;
+            act.throttle_axis = throttle_to(m, -1.0);
+            act.look_delta_deg = aim(m, 0.0, -0.3);
+            next = Vec2::new(m.pos.x, m.pos.z).distance(take.landing) > 60.0 || t > 900.0;
+        }
+        7 if take.trail => {
+            say("PLAYTEST_RESULT ok trail: flew backwards, skated in reverse");
+            say("PLAYTEST_END trail");
+            exit.write(AppExit::Success);
+            next = true;
+        }
         // Stand up and stride down the street.
         3 => {
             if t < 0.05 {
@@ -315,18 +406,7 @@ fn play(
         }
         // Rockets up, skates across: climb toward the cloud, fly into it.
         4 => {
-            let cloud_xz = Vec2::new(take.cloud.x, take.cloud.z);
-            act.skate_toggle = !m.skates_on;
-            act.move_xy = Vec2::new(0.0, 1.0);
-            act.turn_axis = steer(m, cloud_xz);
-            act.throttle_axis = throttle_to(m, 1.0);
-            let climb = take.cloud.y - m.pos.y;
-            act.lift_axis = if climb > 30.0 {
-                1.0
-            } else {
-                (HOVER_LIFT - m.vel_y_m_s * 0.025).clamp(0.0, 1.0)
-            };
-            act.look_delta_deg = aim(m, 0.0, 0.15);
+            act = fly_to_cloud(m, take.cloud);
             if plan.clouds.density_at(m.pos + Vec3::Y * data.0.mech.body.eye_height_m, now) > 0.05 {
                 take.in_cloud_s += time.delta_secs();
             }
@@ -403,6 +483,19 @@ fn play(
     }
     acc.script = Some(act);
     if next {
+        if take.trail {
+            info!(
+                "trail: beat {} ends at {t:.1} s: {:.1} m above ground, airborne {}, rockets heat {:.2} locked {}, skates {}, \
+                 speed {:.1} m/s",
+                take.names.get(take.beat).unwrap_or(&"?"),
+                m.pos.y - plan.height_at(m.pos.x, m.pos.z),
+                m.airborne(),
+                m.boost.heat,
+                m.boost.locked,
+                m.skates_on,
+                m.vel.length()
+            );
+        }
         take.beat += 1;
         take.beat_started_s = now;
     }
@@ -490,6 +583,34 @@ fn play_fight(
         3 => {
             act.throttle_axis = throttle_to(m, 0.5);
             next = t > 8.0;
+        }
+        // With `CB_ENEMY_STUNT` the enemies fly their rocket and skate loop instead of fighting
+        // (mech.rs `stunt`): stand still and keep the nearest in the middle of the screens, so its
+        // jet smoke and skate trails are watched from the seat. About 50 s of game time at an
+        // eighth of real time, then the take ends.
+        4 if crate::cli::switched_off("CB_ENEMY_STUNT") => {
+            act.throttle_zero = true;
+            let nearest = alive
+                .iter()
+                .min_by(|a, b| a.curr.pos.distance(m.pos).total_cmp(&b.curr.pos.distance(m.pos)));
+            if let Some(e) = nearest {
+                // Turn to face it, the view a little up, steered gently: a bigger gain overshot
+                // and spun at two-second frames.
+                // Seated, the mech turns when the view reaches the edge of its look range
+                // (seated-look), so the view leads the turn; the legs alone do not turn at a stop.
+                let to = e.curr.pos - eye;
+                let turn = ((-to.x).atan2(-to.z) - p.yaw_rad + PI).rem_euclid(TAU) - PI;
+                // The head levels gently: the look is applied on every fixed step of a frame, so
+                // at an eighth of real time a bigger gain overshoots.
+                act.look_delta_deg = Vec2::new(-turn.to_degrees() * 0.02, (0.12 - p.pitch_rad).to_degrees() * 0.02);
+                // A missile at it now and then, so missile trails are seen from the seat too.
+                act.fire_missile = t > 60.0 && t.rem_euclid(80.0) < 2.0;
+            }
+            if t > 420.0 {
+                say("PLAYTEST_RESULT ok fight: watched the enemies' rocket and skate loop");
+                say("PLAYTEST_END fight");
+                exit.write(AppExit::Success);
+            }
         }
         // The fight: the enemies' own brain flies the player's mech (orbit the nearest at a
         // stand-off, evade when hit, hop, find a firing line), its orders played as actions.
@@ -614,6 +735,11 @@ fn play_orders(o: &cb_core::ai::Orders, act: &mut Actions) {
 }
 
 /// The defence take's beats: travel to each wave and fight it.
+/// The defence take ends here if the waves are not over by then, seconds after `PLAYTEST_START`: a
+/// benchmark take has an end (2026-10-25: a raider flying 90 m up outlived the missiles and the take
+/// ran past the suite's 600 s timeout).
+const DEFENCE_TAKE_MAX_S: f32 = 360.0;
+
 const DEFENCE_BEATS: [&str; 12] = [
     "load", "look", "board", "stand", "travel1", "fight1", "travel2", "fight2", "travel3", "fight3", "result", "end",
 ];
@@ -649,7 +775,8 @@ fn play_defence(
     let eye = m.pos + Vec3::Y * data.0.mech.body.eye_height_m;
     let cfg = &data.0.defence;
     let mut act = Actions::default();
-    let over = matches!(run.state.phase, Phase::Won | Phase::Lost(_));
+    let out_of_time = take.beat >= 1 && now - take.started_s > DEFENCE_TAKE_MAX_S;
+    let over = out_of_time || matches!(run.state.phase, Phase::Won | Phase::Lost(_));
     // Every 5 s, where the pilot and the wave's live raiders are, for reading a stall from the log.
     if (now / 5.0).floor() != ((now - time.delta_secs()) / 5.0).floor() && take.beat >= 4 {
         let others: Vec<String> = hostiles
@@ -683,6 +810,7 @@ fn play_defence(
             if ready.0 && access.0.is_some() {
                 say("PLAYTEST_READY defence");
                 say("PLAYTEST_START defence");
+                take.started_s = now;
                 next = true;
             }
         }
@@ -841,6 +969,10 @@ fn play_defence(
                     Phase::Lost(why) => format!(
                         "PLAYTEST_RESULT lose defence: {}, {}",
                         crate::defence::loss_text(why),
+                        damage_summary(&run.damage, cfg)
+                    ),
+                    _ if out_of_time => format!(
+                        "PLAYTEST_RESULT lose defence: out of time after {DEFENCE_TAKE_MAX_S:.0} s, {}",
                         damage_summary(&run.damage, cfg)
                     ),
                     _ => "PLAYTEST_RESULT lose defence: the take ended early".into(),

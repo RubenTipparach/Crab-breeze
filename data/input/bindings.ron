@@ -42,4 +42,11 @@
     // The selected weapon station, which the left mouse fires (weapon-select; owner, 2026-10-25: "can
     // scroll wheel change weaopon selection?"): the wheel steps it, down on and up back; ] steps on.
     weapon_cycle: ["MouseWheel", "BracketRight"],
+    // The mail and its job offers, in a career (mission-jobs; owner, survey J1: "press M to focus on the
+    // mail screen").
+    mail: ["KeyM"],
+    // Punches in close combat, on their own keys so the guns keep firing (owner, 2026-10-25, picking
+    // "Guns keep firing in close combat, and punches move to other keys").
+    strike_left: ["KeyZ"],
+    strike_right: ["KeyV"],
 )

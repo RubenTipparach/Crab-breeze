@@ -70,6 +70,11 @@ pub struct Actions {
     pub close_combat: bool,
     /// Step the selected weapon station this step: +1 on, -1 back, 0 none (weapon-select).
     pub weapon_cycle: i32,
+    /// Punch keys held, [left arm, right arm]: in close combat they strike (close-combat).
+    pub strike: [bool; 2],
+    /// The keys are the player's: in walking mode WASD walks directly (walk-controls). The scripted
+    /// pilot leaves it off and drives the throttle lever, until its beats move to the walking keys.
+    pub walk_keys: bool,
 }
 
 impl Actions {
@@ -190,6 +195,12 @@ pub struct Bindings {
     pub close_combat: Vec<String>,
     /// Step the selected weapon: key names step on; `MouseWheel` steps by the wheel, down on, up back.
     pub weapon_cycle: Vec<String>,
+    /// Open and close the mail (a career; mission-jobs).
+    pub mail: Vec<String>,
+    /// Punch with the left arm, in close combat.
+    pub strike_left: Vec<String>,
+    /// Punch with the right arm, in close combat.
+    pub strike_right: Vec<String>,
 }
 
 impl Default for Bindings {
@@ -224,6 +235,9 @@ impl Default for Bindings {
             target_next: k("KeyQ"),
             close_combat: k("Tab"),
             weapon_cycle: vec!["MouseWheel".to_string(), "BracketRight".to_string()],
+            mail: k("KeyM"),
+            strike_left: k("KeyZ"),
+            strike_right: k("KeyV"),
         }
     }
 }
@@ -317,6 +331,8 @@ impl Bindings {
                 "close_combat",
                 &self.close_combat,
             ),
+            row("Weapons", "Punch, left arm (close combat)", "strike_left", &self.strike_left),
+            row("Weapons", "Punch, right arm (close combat)", "strike_right", &self.strike_right),
             row(
                 "Cockpit",
                 "Free look (hold); click an MFD to change page",
@@ -324,6 +340,7 @@ impl Bindings {
                 &self.free_look,
             ),
             row("Game", "Pause menu", "release_mouse", &self.release_mouse),
+            row("Game", "Mail and jobs (a career)", "mail", &self.mail),
             row("Test keys", "Hit left arm", "debug_hit_arm_l", &self.debug_hit_arm_l),
             row("Test keys", "Hit right arm", "debug_hit_arm_r", &self.debug_hit_arm_r),
             row("Test keys", "Hit head", "debug_hit_head", &self.debug_hit_head),

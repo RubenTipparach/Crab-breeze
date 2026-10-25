@@ -103,4 +103,4 @@ the Foreman's.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| C12 | The Cab's lower front screens are mostly behind the new dash. Keep them, or make the lower row sides only | Keep them: they light the footwell with the outside and show past the dash's ends | provisional |
+| C15 | The Cab's lower front screens are mostly behind the new dash. Keep them, or make the lower row sides only | Keep them: they light the footwell with the outside and show past the dash's ends | provisional |
