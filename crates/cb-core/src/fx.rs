@@ -214,6 +214,10 @@ pub struct FxConfig {
     /// per layer instead of a burst entity per frame (2,700 jet bursts and 3,400 fire bursts in 110
     /// s of combat cost about 6 ms a frame, 2026-10-24).
     pub stream_per_s: BTreeMap<String, f32>,
+    /// Particle bursts start only within this of the eye, metres, times the effect's scale (and
+    /// four times as far for an explosion): every burst is an effect of its own on the GPU side,
+    /// and those far off cost about 2 ms of a combat frame while barely showing (2026-10-24).
+    pub burst_range_m: f32,
 }
 
 /// How blasts nearby shake the view (owner, 2026-10-24: "screen needs to shake a bit when
@@ -237,6 +241,14 @@ impl Default for ShakeConfig {
             reach_m_per_cbrt_mj: 60.0,
             decay_s: 0.7,
         }
+    }
+}
+
+impl FxConfig {
+    /// How far from the eye recipe `recipe` played at `scale` starts its particle bursts.
+    pub fn burst_range(&self, recipe: &str, scale: f32) -> f32 {
+        let big = if recipe.starts_with("explosion") { 4.0 } else { 1.0 };
+        self.burst_range_m * scale.max(1.0) * big
     }
 }
 
@@ -266,6 +278,7 @@ impl Default for FxConfig {
             recipes: BTreeMap::new(),
             shake: ShakeConfig::default(),
             stream_per_s: BTreeMap::new(),
+            burst_range_m: 400.0,
         }
     }
 }
@@ -276,6 +289,7 @@ impl Validate for FxConfig {
         positive("shake.max_deg", self.shake.max_deg)?;
         positive("shake.reach_m_per_cbrt_mj", self.shake.reach_m_per_cbrt_mj)?;
         positive("shake.decay_s", self.shake.decay_s)?;
+        positive("burst_range_m", self.burst_range_m)?;
         for (name, per_s) in &self.stream_per_s {
             positive(&format!("stream_per_s.{name}"), *per_s)?;
             if !self.recipes.contains_key(name) {
@@ -302,6 +316,14 @@ impl Validate for FxConfig {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn far_small_bursts_are_left_out_and_explosions_reach_further() {
+        let c = super::FxConfig::default();
+        assert_eq!(c.burst_range("foot_dust", 1.0), c.burst_range_m);
+        assert_eq!(c.burst_range("explosion_ground", 1.0), c.burst_range_m * 4.0);
+        assert!(c.burst_range("impact_mech", 2.0) > c.burst_range("impact_mech", 1.0));
+    }
+
     #[test]
     fn a_blast_shakes_the_view_less_the_further_off_it_is() {
         let s = super::ShakeConfig::default();

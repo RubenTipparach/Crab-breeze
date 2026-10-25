@@ -96,6 +96,8 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
             Camera3d::default(),
             Camera {
                 order: 1,
+                // `CB_NO_COCKPIT_PASS=1`: the second camera off (perf-bench switch, to measure it).
+                is_active: !crate::cli::switched_off("CB_NO_COCKPIT_PASS"),
                 clear_color: ClearColorConfig::None,
                 ..default()
             },

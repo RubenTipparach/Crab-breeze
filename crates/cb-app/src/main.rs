@@ -70,7 +70,9 @@ fn main() -> AppExit {
                     // On the main display, centred, so a run is seen where the owner looks.
                     position: bevy::window::WindowPosition::Centered(bevy::window::MonitorSelection::Primary),
                     // The capture instrument measures frame cost, so it must not wait for vsync.
-                    present_mode: if args.stills.is_some() {
+                    // `CB_UNCAPPED=1` (perf-bench switch): on screen but not waiting for vsync,
+                    // so a 60 Hz display does not hide the headroom under 120 fps.
+                    present_mode: if args.stills.is_some() || cli::switched_off("CB_UNCAPPED") {
                         PresentMode::AutoNoVsync
                     } else {
                         PresentMode::AutoVsync
