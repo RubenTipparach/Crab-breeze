@@ -5,7 +5,7 @@
 - [x] 1.2 The block-out page's Cab and Canopy rebuilt from the same layouts
 
 ## 2. Interiors
-- [ ] 2.1 Rebuild and bake the Cab and the Canopy at 4096 px, 16 occlusion samples; manifests updated; triangle budget held
+- [x] 2.1 Rebuild and bake the Cab and the Canopy at 4096 px, 16 occlusion samples; manifests updated; triangle budget held
 - [x] 2.2 Look at each from the eye (headless still) before it is done: no rail across the front screen, the MFDs clear of the screen and the bubble
 
 ## 3. Checks

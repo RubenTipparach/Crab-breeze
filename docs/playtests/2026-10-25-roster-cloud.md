@@ -19,7 +19,9 @@ playtest belongs on the owner's machine (`./run.sh --mech mechs/ironhorse.ron`, 
 | `ironhorse-hatch-open.jpg` | The cab open from below: the ramp down, the dash riding it as the step |
 | `ironhorse-street.jpg` | The Ironhorse standing in the street before boarding |
 | `foreman-seat.jpg`, `foreman-stride.jpg` | The Foreman, the standard: all six screens each showing one whole page (the five-page fix, below) |
-| `harrow-seat.jpg`, `harrow-up.jpg` | The Canopy from the seat after `cockpit-parity`, and looking up at its new hanging MFDs |
+| `harrow-seat.jpg` | The Canopy from the seat after `cockpit-parity`: the three new MFDs hung above the front screen and clear of it, the dash's three live screens below. Compare `docs/screenshots/cockpit-smear-fix/canopy-harrow.jpg` (before: no cabin in view, the pages in a strip over the bottom of the view) |
+| `harrow-outline.jpg` | The outline on the Canopy's dash centre screen at the new glow (1.4 times white) |
+| `harrow-up.jpg` | A Blender render of the baked Canopy from the eye, looking up at its new MFDs (their baked pictures; in the game they show the live pages) |
 
 ## What was found and fixed on the way
 
