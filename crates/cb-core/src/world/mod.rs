@@ -11,21 +11,26 @@ pub mod config;
 pub mod cover;
 pub mod deform;
 pub mod destruct;
+pub mod dressing;
 pub mod forest;
 pub mod grid;
+pub mod interior;
 pub mod layout;
 pub mod lod;
+pub mod structure;
 pub mod terrain;
 pub mod water;
 
 pub use clouds::Clouds;
 pub use collision::BuildingGrid;
-pub use config::WorldConfig;
+pub use config::{DebrisConfig, WorldConfig};
 pub use cover::{Clearance, Cover, Surface};
 pub use deform::Deformation;
-pub use destruct::{Chunk, Structures};
+pub use destruct::{Chunk, Moment, Structures};
+pub use dressing::DressingConfig;
 pub use forest::{Body, Bump, Forest, Push, TileChanges, Tree, TreeState};
 pub use layout::{Block, Building, City, Highway, Rect, StreetKind, StreetPiece};
+pub use structure::{Frame, StructureConfig};
 pub use terrain::{ChunkMesh, Heightfield};
 pub use water::{Bridge, River, WaterSample, Waters};
 

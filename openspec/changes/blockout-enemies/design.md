@@ -11,10 +11,20 @@ optional `skin` (an id in that list; an unknown id is an error naming it).
 - At spawn (`spawn_enemy`, the one way enemies enter): the stand-in is built as now; its box meshes are hidden; the skin's
   scene is spawned under the mech's model node (glTF space, the same facing), scaled.
 - When the scene has spawned: its `LEG_*` and `ARM_*` nodes are recorded with their side, pair and rest rotation.
-- Each frame (presentation, after the mech is posed): every limb still on is set to its rest rotation turned by the
-  gait: phase `2 pi gait_cycles + pi (group)`, where group alternates by pair and side and the arms walk as pair -1;
-  lift `max(0, sin phase) * gait_swing` about the limb's forward axis (0.22 rad), swing `cos phase * gait_swing` about
-  the vertical (0.16 rad over the square root of the pairs); arms pitch 0.18 rad. Tracks have no limbs and do not move.
+- Each frame (presentation, after the mech is posed), the feet are planted (owner, 2026-10-25: "mechs look like they
+  just hover aruond"; the first walk swung a hanging leg about the vertical, which twists it in place). Each walking leg
+  has a `<LEG>_foot` node at its lowest point (the block-out builder puts it there; tracks have none and do not walk).
+  The foot's offset from the hip across the travel, `d`, gives the swing axis `d x forward` (a hanging leg swings about
+  its side axis, a crab's splayed leg about the vertical) and the reach `r = |d|` times the skin's scale.
+  - Phase `u = gait_cycles + group`: the sides half a cycle apart, each pair a quarter on, the arms with the first
+    pair's other side. A foot is down for 0.55 of the cycle.
+  - Half sweep `a = asin(stride_m * 0.55 / (2 r))` (at most 0.6 rad) times `gait_swing`: while down the angle falls
+    evenly from `+a` to `-a`, so the foot goes back `2 r sin a`, exactly as far as the body goes forward
+    (`gait_cycles` advances by distance over `stride_m`); in the air it comes back, eased, lifted out to the side by up
+    to 0.16 rad.
+  - A planted foot swung off straight rises by `(R d - d).y`: the skin's body comes down by the most any planted foot
+    rose, so its feet keep the ground and it bobs as it walks.
+  - Arms pitch 0.18 rad with the step.
 - `cut_parts`: for a skinned mech, a lost ArmL or ArmR detaches `ARM_L` or `ARM_R`, a lost LegL or LegR the lowest
   numbered `LEG_*L` or `LEG_*R` still on; the limb becomes a dynamic body with the stand-in cut's box collider and
   velocities. The stand-in's own cut bone stops being driven but is not thrown (it is not drawn).

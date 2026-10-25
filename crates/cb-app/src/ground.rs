@@ -103,6 +103,26 @@ fn grass_cover(plan: &WorldPlan, grass: &GrassConfig, p: Vec3, n: Vec3, dug_m: f
     ground_cover(plan, Vec2::new(p.x, p.z), p.y, slope_of_normal(n.y), dug_m, grass)
 }
 
+/// Ground under a rubble heap (openspec change `rubble`): dusty broken concrete flecked with brick,
+/// blended in as the heap deepens from 0.2 m to 0.6 m (crater rims stay ground). A stand-in until
+/// the `rubble` layer of `terrain-materials` exists.
+fn rubble_colour(ground: [f32; 4], depth_m: f32, i: usize, j: usize) -> [f32; 4] {
+    let w = ((depth_m - 0.2) / 0.4).clamp(0.0, 1.0);
+    if w <= 0.0 {
+        return ground;
+    }
+    // A stable per-sample fleck: brick in about one sample in six, lighter and darker concrete.
+    let h = (i as u32).wrapping_mul(73_856_093) ^ (j as u32).wrapping_mul(19_349_663);
+    let f = (h % 1000) as f32 / 1000.0;
+    let rubble = if f < 0.16 {
+        Vec3::new(0.52, 0.30, 0.22)
+    } else {
+        Vec3::splat(0.44 + 0.18 * f) * Vec3::new(1.0, 0.97, 0.92)
+    };
+    let c = Vec3::new(ground[0], ground[1], ground[2]).lerp(rubble, w);
+    [c.x, c.y, c.z, ground[3]]
+}
+
 /// Ground colour: grass on the level, earth on slopes, sand on the beaches, silt under the sea,
 /// mud by rivers, scorch in craters, and the grass's own colour where grass covers it (`cover`,
 /// 0..1, gpu-grass: no pale soil between the blades). Vertex colours stand in until the PBR layers
@@ -475,7 +495,8 @@ fn redraw_craters(
                 .map(|(k, (p, n))| {
                     let (i, j) = (k % cb_core::world::deform::TILE_N, k / cb_core::world::deform::TILE_N);
                     let cover = grass_cover(&world, &grass, *p, *n, dug.delta_at(Vec2::new(p.x, p.z)));
-                    ground_colour(*p, *n, sea, false, dug.scorch_at(key, i, j), cover, (&*grass).into())
+                    let c = ground_colour(*p, *n, sea, false, dug.scorch_at(key, i, j), cover, (&*grass).into());
+                    rubble_colour(c, dug.delta_sample(key, i, j), i, j)
                 })
                 .collect();
             chunk_to_mesh(tile, colors)

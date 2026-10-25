@@ -7,6 +7,20 @@
 (
     name: "stand-in",
     model: None,
+    // Ramming buildings (openspec/changes/mech-ramming; owner, 2026-10-24: "the mech has to hit a
+    // biulding with a weapon or ram into it at a significant speed to actually caause damage"):
+    // under 20 m/s (the walk tops out at 12) a building only stops the mech; at or above it, and
+    // stopped by the wall, the mech breaks a hole 4.5 m in radius growing as (speed / 20)^(2/3) to
+    // 9 m, and smashes through keeping 70 % of its speed.
+    ram: (
+        speed_m_s: 20.0,
+        stopped_fraction: 0.6,
+        radius_m: 4.5,
+        radius_max_m: 9.0,
+        kept_fraction: 0.7,
+        reach_m: 2.5,
+        height_m: 5.0,
+    ),
     // Snappier than a real 50 t walker (owner, 2026-10-24: "slow and sluggish"): 12 m/s top speed,
     // full throttle in under a second, a torso that tracks at 160 degrees a second.
     locomotion: (

@@ -27,6 +27,17 @@ pub fn scattering_sky() -> bool {
     !crate::cli::switched_off("CB_NO_SKY")
 }
 
+/// How much brighter a light set at Bevy's default exposure (EV100 9.7) must be to look the same
+/// under the scattering sky's exposure: `2^(EV100 - 9.7)`, 1 without the scattering sky. The one
+/// place the flat ambient and the sky light (`sky_light`) are scaled from.
+pub fn exposure_scale(view: &cb_core::world::config::ViewConfig) -> f32 {
+    if scattering_sky() {
+        2f32.powf(view.exposure_ev100 - 9.7)
+    } else {
+        1.0
+    }
+}
+
 /// Start in the nearest meadow instead of the city (`--start meadow`, gpu-grass).
 #[derive(Resource)]
 pub struct StartInMeadow;
@@ -47,7 +58,7 @@ pub struct Live {
     pub dirty_tiles: Vec<(i32, i32)>,
     /// Trees that started falling or landed since they were last drawn.
     pub moved_trees: Vec<u32>,
-    /// Every building's cells.
+    /// Every building's cells and, once hit, its structural frame.
     pub structures: cb_core::world::Structures,
     /// Buildings damaged since they were last drawn.
     pub dirty_buildings: Vec<u32>,
@@ -92,7 +103,7 @@ impl Plugin for WorldPlugin {
             dug: Deformation::new(cfg.world_size_m),
             dirty_tiles: Vec::new(),
             moved_trees: Vec::new(),
-            structures: cb_core::world::Structures::new(&plan),
+            structures: cb_core::world::Structures::with_config(&plan, cfg.structure.clone(), cfg.craters.radius_m_per_cbrt_mj),
             dirty_buildings: Vec::new(),
             new_chunks: Vec::new(),
         };
@@ -105,19 +116,17 @@ impl Plugin for WorldPlugin {
             plan.waters.sea_level_m,
             plan.clouds.puffs.len()
         );
+        let sky = app.world().resource::<Data>().0.sky_light.clone();
+        let ambient_cd_m2 = crate::sky_light::ambient_cd_m2(&sky);
+        let [ar, ag, ab] = sky.ambient_colour;
         app.insert_resource(live)
             .insert_resource(Plan(Arc::new(plan)))
             .insert_resource(ClearColor(SKY))
             .insert_resource(GlobalAmbientLight {
-                color: Color::srgb(0.75, 0.82, 1.0),
+                color: Color::srgb(ar, ag, ab),
                 // Under the scattering sky the exposure is darker by the step from Bevy's default
                 // EV100 9.7 to the view's, so the ambient rises by the same factor.
-                brightness: 900.0
-                    * if scattering_sky() {
-                        2f32.powf(cfg.view.exposure_ev100 - 9.7)
-                    } else {
-                        1.0
-                    },
+                brightness: ambient_cd_m2 * exposure_scale(&cfg.view),
                 ..default()
             })
             .add_plugins(crate::ground::GroundPlugin)
@@ -154,9 +163,15 @@ pub struct MeshBuilder {
     normals: Vec<[f32; 3]>,
     colors: Vec<[f32; 4]>,
     uvs: Vec<[f32; 2]>,
+    /// Second UV: the texture array layer in x (`building-texture-array`), when `layered`.
+    uv1s: Vec<[f32; 2]>,
     indices: Vec<u32>,
     /// Metres per texture tile along u and v; zero means 4 m by 4 m.
     pub tile_m: Vec2,
+    /// The layer the next faces are drawn from.
+    layer: f32,
+    /// True once a layer was set: the mesh carries the second UV.
+    layered: bool,
 }
 
 impl MeshBuilder {
@@ -166,6 +181,13 @@ impl MeshBuilder {
             tile_m: Vec2::new(u, v),
             ..default()
         }
+    }
+
+    /// The texture array layer, and its tile size, of the faces added next.
+    pub fn set_layer(&mut self, layer: u32, tile_m: Vec2) {
+        self.layer = layer as f32;
+        self.tile_m = tile_m;
+        self.layered = true;
     }
 
     /// Planar UV for a point on a face with normal `n`: walls run u along the wall, v up.
@@ -193,6 +215,7 @@ impl MeshBuilder {
             self.normals.push(n.into());
             self.colors.push(color);
             self.uvs.push(self.uv(c, n));
+            self.uv1s.push([self.layer, 0.0]);
         }
         self.indices
             .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
@@ -211,6 +234,30 @@ impl MeshBuilder {
         self.quad([v(x0, y0, z0), v(x0, y0, z1), v(x0, y1, z1), v(x0, y1, z0)], color);
     }
 
+    /// A closed box, bottom face included (for pieces seen from below, as floors through a hole).
+    pub fn block(&mut self, min: Vec3, max: Vec3, color: [f32; 4]) {
+        self.cuboid(min, max, color);
+        let [x0, y0, z0] = min.to_array();
+        let [x1, _, z1] = max.to_array();
+        let v = |x, y, z| Vec3::new(x, y, z);
+        self.quad([v(x0, y0, z0), v(x1, y0, z0), v(x1, y0, z1), v(x0, y0, z1)], color);
+    }
+
+    /// An upright drum or cone of `seg` sides: radius `r0` at `base`, `r1` at `base + h`, capped on top.
+    pub fn drum(&mut self, base: Vec3, r0: f32, r1: f32, h: f32, seg: u32, color: [f32; 4]) {
+        let at = |a: f32, r: f32, y: f32| base + Vec3::new(a.cos() * r, y, a.sin() * r);
+        for i in 0..seg {
+            let (a0, a1) = (
+                i as f32 / seg as f32 * std::f32::consts::TAU,
+                (i + 1) as f32 / seg as f32 * std::f32::consts::TAU,
+            );
+            self.quad([at(a0, r0, 0.0), at(a0, r1, h), at(a1, r1, h), at(a1, r0, 0.0)], color);
+            if r1 > 0.0 {
+                self.tri(base + Vec3::Y * h, at(a1, r1, h), at(a0, r1, h), [Vec3::Y; 3], color);
+            }
+        }
+    }
+
     fn tri(&mut self, a: Vec3, b: Vec3, c: Vec3, n: [Vec3; 3], color: [f32; 4]) {
         let base = self.positions.len() as u32;
         let face = (b - a).cross(c - a).normalize_or(Vec3::Y);
@@ -219,6 +266,7 @@ impl MeshBuilder {
             self.normals.push(n.into());
             self.colors.push(color);
             self.uvs.push(self.uv(p, face));
+            self.uv1s.push([self.layer, 0.0]);
         }
         self.indices.extend_from_slice(&[base, base + 1, base + 2]);
     }
@@ -278,14 +326,47 @@ impl MeshBuilder {
         }
     }
 
+    /// The mesh with tangents for a normal map, written straight from the planar UV mapping (`uv`):
+    /// u runs along +x on floors and on z-facing walls, along +z on x-facing walls; v runs +z on
+    /// floors and down on walls. MikkTSpace (`Mesh::generate_tangents`) gives the same on these
+    /// faces and cost most of a combat frame's building redraw (`building-surfaces`, 2026-10-24).
+    pub fn build_with_tangents(self) -> Mesh {
+        let tangents: Vec<[f32; 4]> = self.normals.iter().map(|n| planar_tangent(Vec3::from(*n))).collect();
+        self.build().with_inserted_attribute(Mesh::ATTRIBUTE_TANGENT, tangents)
+    }
+
     pub fn build(self) -> Mesh {
-        Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+        let layered = self.layered;
+        let uv1s = self.uv1s;
+        let mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
             .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, self.positions)
             .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, self.normals)
             .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, self.colors)
             .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, self.uvs)
-            .with_inserted_indices(Indices::U32(self.indices))
+            .with_inserted_indices(Indices::U32(self.indices));
+        if layered {
+            mesh.with_inserted_attribute(Mesh::ATTRIBUTE_UV_1, uv1s)
+        } else {
+            mesh
+        }
     }
+}
+
+/// The tangent (xyz, handedness w) of `MeshBuilder::uv`'s planar mapping on a face of normal `n`.
+fn planar_tangent(n: Vec3) -> [f32; 4] {
+    let a = n.abs();
+    let (t, b) = if a.y >= a.x && a.y >= a.z {
+        (Vec3::X, Vec3::Z)
+    } else if a.x >= a.z {
+        (Vec3::Z, Vec3::NEG_Y)
+    } else {
+        (Vec3::X, Vec3::NEG_Y)
+    };
+    let t = (t - n * n.dot(t)).normalize_or(Vec3::X);
+    // Bevy's tangent space has v running against the bitangent (glTF's flipped v), so the
+    // handedness is the opposite of cross(n, t) against the direction v grows.
+    let w = if n.cross(t).dot(b) < 0.0 { 1.0 } else { -1.0 };
+    [t.x, t.y, t.z, w]
 }
 
 fn vertex_material(materials: &mut Assets<StandardMaterial>, roughness: f32) -> Handle<StandardMaterial> {
@@ -410,8 +491,10 @@ fn spawn_buildings(
     mut commands: Commands,
     world: Res<Plan>,
     tex: Res<crate::textures::Textures>,
+    data: Res<Data>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
     mut ents: ResMut<crate::buildings::BuildingEntities>,
 ) {
     // `CB_NO_BUILDINGS=1`: no buildings drawn (perf-bench switch, to measure what they cost).
@@ -425,6 +508,18 @@ fn spawn_buildings(
             perceptual_roughness: 0.75,
             ..default()
         })
+    });
+    let arrays = crate::building_arrays::build(&mut images, &crate::buildings::layer_sources(&tex));
+    commands.insert_resource(crate::buildings::BuildingLooks {
+        tone_tints: BUILDING_TONES
+            .iter()
+            .map(|&(r, g, b)| Color::srgb(r, g, b).to_linear().to_f32_array_no_alpha())
+            .collect(),
+        arrays,
+        // See-through glass: the rooms behind show (the mockup's windows), and it reflects the sky
+        // at full strength (glass-reflections).
+        glass: materials.add(crate::sky_light::glass_material(&data.0.sky_light.glass)),
+        concrete: crate::buildings::concrete_material(&mut images, &mut materials),
     });
     for b in &world.buildings {
         let ground = world.cities[b.city as usize].ground_m;
@@ -1272,5 +1367,34 @@ fn face_clouds(
     for (mut t, c) in &mut q {
         t.translation = c.anchor + drift;
         t.rotation = rot;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy::mesh::VertexAttributeValues;
+
+    fn tangents(mesh: &Mesh) -> Vec<[f32; 4]> {
+        match mesh.attribute(Mesh::ATTRIBUTE_TANGENT) {
+            Some(VertexAttributeValues::Float32x4(t)) => t.clone(),
+            _ => panic!("no tangents"),
+        }
+    }
+
+    #[test]
+    fn planar_tangents_match_mikktspace_on_a_box() {
+        let mut a = MeshBuilder::tiled(2.4, 2.4);
+        a.block(Vec3::new(1.0, 2.0, 3.0), Vec3::new(4.0, 3.5, 7.0), [1.0; 4]);
+        let mut b = MeshBuilder::tiled(2.4, 2.4);
+        b.block(Vec3::new(1.0, 2.0, 3.0), Vec3::new(4.0, 3.5, 7.0), [1.0; 4]);
+        let ours = tangents(&a.build_with_tangents());
+        let mut mikk = b.build();
+        mikk.generate_tangents().unwrap();
+        for (i, (o, m)) in ours.iter().zip(tangents(&mikk)).enumerate() {
+            let (o3, m3) = (Vec3::new(o[0], o[1], o[2]), Vec3::new(m[0], m[1], m[2]));
+            assert!(o3.dot(m3) > 0.99, "vertex {i}: tangent {o3} against {m3}");
+            assert_eq!(o[3], m[3], "vertex {i}: handedness");
+        }
     }
 }

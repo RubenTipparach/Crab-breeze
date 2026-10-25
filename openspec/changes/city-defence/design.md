@@ -51,6 +51,15 @@ that would start inside another city's square (plus the 150 m margin) is turned 
 city 2's buildings, where it stuck). Each
 raider faces the city centre. Seeded and stable: the same seed gives the same points.
 
+**Inside the city** (owner, 2026-10-24: "Make sure enemies spawn in the city", to see how the
+buildings hold up to real mech combat). When `spawn_inside_fraction` is above 0, the arc's radius
+is that fraction of the city's half size instead (0.5: halfway from the centre to the edge), and
+each point moves to the nearest spot at least `spawn_clearance_m` (8 m, wider than a mech's body)
+from every building footprint, searched on rings 5 m apart out to 300 m (buildings stand wall to
+wall, so a plain push out of one lands in the next), so a raider starts in a street or a plaza, never
+inside a building. 0 keeps the old ring outside the city. Cost: one footprint query per raider per
+wave, nothing per step.
+
 ## 4. Raiders (`cb-core::mission::raider_goal`)
 
 Every think (0.25 s) each raider picks one of two goals, a pure function of what it can see:
