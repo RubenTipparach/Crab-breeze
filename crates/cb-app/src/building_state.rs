@@ -25,13 +25,50 @@ use std::collections::HashMap;
 const SHADER: &str = "shaders/building_state.wesl";
 const PREPASS_SHADER: &str = "shaders/building_state_prepass.wesl";
 const SURFACE_SHADER: &str = "shaders/building_surface.wesl";
+const ARRAY_SHADER: &str = "shaders/building_array.wesl";
 
 /// Words the shared buffer starts with (256 KB; a 60-storey tower is about 6,000), doubled when
 /// full.
 const FIRST_CAPACITY: usize = 1 << 16;
 
-/// A building material: the look, and the element state.
+/// A building material with its own look (glass): the look, and the element state.
 pub type BuildingMaterial = ExtendedMaterial<StandardMaterial, ElementState>;
+
+/// The opaque building material (`building-texture-array`): every opaque look a layer of the
+/// arrays, and the element state.
+pub type ArrayMaterial = ExtendedMaterial<StandardMaterial, ArrayState>;
+
+/// The arrays and the element state.
+#[derive(Asset, TypePath, AsBindGroup, Clone, Debug)]
+pub struct ArrayState {
+    /// The words (`BuildingStates`).
+    #[storage(100, read_only)]
+    pub standing: Handle<ShaderBuffer>,
+    /// Colour layers.
+    #[texture(101, dimension = "2d_array")]
+    #[sampler(102)]
+    pub albedo: Handle<Image>,
+    /// Normal map layers.
+    #[texture(103, dimension = "2d_array")]
+    pub normal: Handle<Image>,
+    /// Occlusion-roughness-metal layers.
+    #[texture(104, dimension = "2d_array")]
+    pub orm: Handle<Image>,
+}
+
+impl MaterialExtension for ArrayState {
+    fn vertex_shader() -> ShaderRef {
+        SHADER.into()
+    }
+
+    fn prepass_vertex_shader() -> ShaderRef {
+        PREPASS_SHADER.into()
+    }
+
+    fn fragment_shader() -> ShaderRef {
+        ARRAY_SHADER.into()
+    }
+}
 
 /// Which elements stand: one `u32` per element of every damaged building, 1 standing, 0 not.
 #[derive(Asset, TypePath, AsBindGroup, Clone, Debug)]
@@ -158,9 +195,12 @@ pub struct BuildingStatePlugin;
 
 impl Plugin for BuildingStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(MaterialPlugin::<BuildingMaterial>::default())
-            .add_systems(PreStartup, setup)
-            .add_systems(First, |mut s: ResMut<BuildingStates>| s.writes.clear());
+        app.add_plugins((
+            MaterialPlugin::<BuildingMaterial>::default(),
+            MaterialPlugin::<ArrayMaterial>::default(),
+        ))
+        .add_systems(PreStartup, setup)
+        .add_systems(First, |mut s: ResMut<BuildingStates>| s.writes.clear());
         if let Some(render) = app.get_sub_app_mut(RenderApp) {
             render
                 .add_systems(ExtractSchedule, extract)
@@ -240,6 +280,23 @@ mod tests {
                 ("DISTANCE_FOG", fog),
             ]);
             compile(&resolver, "building_surface", &flags);
+        }
+        // The array material's fragment, as the pilot's eyes draw it (HDR, no MSAA, a depth
+        // prepass, fog, SSAO) and the plainest.
+        let lit = [
+            ("VERTEX_UVS_B", true),
+            ("VERTEX_TANGENTS", true),
+            ("CLUSTERED_FORWARD_STORAGE_BUFFER", true),
+        ];
+        for (prepass, fog, ssao) in [(true, true, true), (false, false, false)] {
+            let mut flags = base.to_vec();
+            flags.extend(lit);
+            flags.extend([
+                ("DEPTH_PREPASS", prepass),
+                ("DISTANCE_FOG", fog),
+                ("SCREEN_SPACE_AMBIENT_OCCLUSION", ssao),
+            ]);
+            compile(&resolver, "building_array", &flags);
         }
     }
 
