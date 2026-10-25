@@ -735,7 +735,7 @@ pub fn grows_at(plan: &WorldPlan, p: Vec2, ground_m: f32, slope: f32, cfg: &Gras
         return 0.0;
     }
     let [lo, hi] = cfg.slope_bare;
-    1.0 - crate::world::terrain::smoothstep(lo, hi, slope)
+    (1.0 - crate::world::terrain::smoothstep(lo, hi, slope)) * plan.biomes.grass_share(p, ground_m, slope)
 }
 
 /// The nearest open meadow to the usual start (owner, 2026-10-24: "Screenshots with grass?"): a

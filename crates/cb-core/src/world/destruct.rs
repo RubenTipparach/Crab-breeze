@@ -1,16 +1,16 @@
-//! Destructible buildings (openspec change `building-destruction`): every building is a grid of
-//! cells about 6 m square and one storey tall. Blasts and impacts break cells; a cell with no cell
-//! under it falls, and a storey with too little left standing brings everything above it down.
-//! Fallen cells come back as chunks for the physics debris. Pure and deterministic.
+//! Destructible buildings as the rest of the game sees them: a grid of cells about 6 m square and
+//! one storey tall, each open or closed. What breaks and what falls is decided by the building's
+//! structural frame (`structure.rs`, openspec change `structural-destruction`), built the first time
+//! the building is hit; until then a building is whole and costs nothing. Fallen elements come back
+//! as chunks for the physics debris. Pure and deterministic.
 
 use super::WorldPlan;
 use super::layout::Rect;
+use super::structure::{Footprint, Frame, StructureConfig};
 use glam::{Vec2, Vec3};
 
 /// Target cell width.
 const CELL_M: f32 = 6.0;
-/// A storey with less than this share of its cells standing gives way.
-const STOREY_HOLDS: f32 = 0.35;
 
 /// One building's cells.
 #[derive(Clone, Debug, PartialEq)]
@@ -25,6 +25,8 @@ pub struct Cells {
     pub intact: Vec<bool>,
     /// Cells left standing.
     pub standing: usize,
+    /// The structural frame, from the first hit on.
+    pub frame: Option<Box<Frame>>,
 }
 
 impl Cells {
@@ -73,16 +75,71 @@ pub struct Chunk {
     pub size: Vec3,
 }
 
+/// A part of a building on its way down: it lands at `at_s` on the floor below it or the ground.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Fall {
+    /// The building it fell from.
+    pub building: u32,
+    /// When it lands.
+    pub at_s: f32,
+    /// Where it is.
+    pub part: Footprint,
+}
+
+/// Rubble that reached the ground: a heap to raise over `lo..hi` (x, z).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Landing {
+    /// Least (x, z) of the fallen part.
+    pub lo: Vec2,
+    /// Greatest (x, z).
+    pub hi: Vec2,
+    /// Heap volume (crushed, fines only).
+    pub volume_m3: f32,
+}
+
+/// A moment worth seeing or hearing, for the effects.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Moment {
+    /// A member is overloaded and will fail soon (dust trickles, it groans).
+    Creak(Vec3),
+    /// A member gave way.
+    Fail(Vec3),
+    /// A falling part hit a floor or the ground.
+    Impact {
+        /// Where it hit.
+        at: Vec3,
+        /// Its mass.
+        mass_kg: f32,
+    },
+}
+
 /// Every building's cells.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Structures {
     /// Cells by building id.
     pub buildings: Vec<Cells>,
+    /// Frame tuning.
+    pub cfg: StructureConfig,
+    /// Blast radius per cube root of energy (the crater rule), to turn a reach into an energy.
+    pub radius_m_per_cbrt_mj: f32,
+    /// Simulation time, for creaks and falls.
+    pub time_s: f32,
+    /// Parts on their way down, by landing time.
+    pub falls: Vec<Fall>,
+    /// Heaps waiting to be raised on the ground (taken by `take_landings`).
+    pub landings: Vec<Landing>,
+    /// Moments since the last `take_moments`.
+    pub moments: Vec<Moment>,
 }
 
 impl Structures {
-    /// Every building of a plan, whole.
+    /// Every building of a plan, whole, with the default frame tuning.
     pub fn new(plan: &WorldPlan) -> Self {
+        Self::with_config(plan, StructureConfig::default(), 2.2)
+    }
+
+    /// Every building of a plan, whole, with the shipped tuning (`structure:` and the crater rule).
+    pub fn with_config(plan: &WorldPlan, cfg: StructureConfig, radius_m_per_cbrt_mj: f32) -> Self {
         let buildings = plan
             .buildings
             .iter()
@@ -101,99 +158,212 @@ impl Structures {
                     origin: Vec3::new(b.footprint.min.x, ground, b.footprint.min.y),
                     intact: vec![true; count],
                     standing: count,
+                    frame: None,
                 }
             })
             .collect();
-        Self { buildings }
+        Self {
+            buildings,
+            cfg,
+            radius_m_per_cbrt_mj,
+            time_s: 0.0,
+            falls: Vec::new(),
+            landings: Vec::new(),
+            moments: Vec::new(),
+        }
     }
 
-    /// Breaks every standing cell of building `b` whose centre is within `radius_m` of `centre`,
-    /// then lets what lost its support fall. Returns the chunks that fell (broken cells vanish as
-    /// dust; unsupported ones fall as chunks).
+    /// The frame of building `b`, built on first use.
+    fn frame_mut(&mut self, b: usize) -> &mut Frame {
+        let cfg = &self.cfg;
+        let c = &mut self.buildings[b];
+        c.frame
+            .get_or_insert_with(|| Box::new(Frame::new(b as u32, c.n, c.origin, c.size, cfg)))
+    }
+
+    /// A blast reaching `radius_m` from `centre` on building `b`, with the energy the crater rule
+    /// gives that reach. Breaks the elements it overcomes, then lets the frame settle. Returns how
+    /// many elements broke and the chunks that fell.
     pub fn break_sphere(&mut self, b: u32, centre: Vec3, radius_m: f32) -> (usize, Vec<Chunk>) {
-        let Some(c) = self.buildings.get_mut(b as usize) else {
+        if b as usize >= self.buildings.len() || radius_m.is_nan() || radius_m <= 0.0 {
             return (0, Vec::new());
-        };
-        let mut broke = 0;
-        for k in 0..c.n[1] {
-            for j in 0..c.n[2] {
-                for i in 0..c.n[0] {
-                    let idx = c.index(i, k, j);
-                    if c.intact[idx] && c.centre(i, k, j).distance(centre) <= radius_m {
-                        c.intact[idx] = false;
-                        c.standing -= 1;
-                        broke += 1;
-                    }
-                }
-            }
         }
+        let energy_mj = (radius_m / self.radius_m_per_cbrt_mj).powi(3);
+        let broke = self.frame_mut(b as usize).blast(centre, radius_m, energy_mj);
         let chunks = if broke > 0 { self.settle(b) } else { Vec::new() };
         (broke, chunks)
     }
 
-    /// Lets unsupported cells fall: a cell needs the cell below it, and a storey with under 35 % of
-    /// its cells standing gives way under everything above it.
+    /// Lets building `b`'s frame find its balance now; returns the chunks that fell. What fell is
+    /// dropped: it lands later on the floor below or the ground.
     pub fn settle(&mut self, b: u32) -> Vec<Chunk> {
-        let c = &mut self.buildings[b as usize];
-        let per_storey = c.n[0] * c.n[2];
-        let mut falling = vec![false; c.intact.len()];
-        let mut give_way_at = None;
-        for k in 0..c.n[1] {
-            let standing = (0..c.n[2])
-                .flat_map(|j| (0..c.n[0]).map(move |i| (i, j)))
-                .filter(|&(i, j)| c.at(i, k, j))
-                .count();
-            if (standing as f32) < STOREY_HOLDS * per_storey as f32 && standing < per_storey {
-                give_way_at = Some(k);
-                break;
+        let (now, cfg) = (self.time_s, self.cfg.clone());
+        let settled = self.frame_mut(b as usize).settle(now, &cfg);
+        if let Some(f) = self.buildings[b as usize].frame.as_ref() {
+            self.moments
+                .extend(settled.creaking.iter().map(|&id| Moment::Creak(f.elements[id as usize].centre())));
+        }
+        let chunks = self.chunks_of(b, &settled.fell);
+        if let Some(part) = self.buildings[b as usize].frame.as_ref().and_then(|f| f.footprint(&settled.fell)) {
+            self.drop_part(b, part, now);
+        }
+        self.sync(b as usize);
+        chunks
+    }
+
+    /// Schedules a falling part's landing: on the highest standing floor under it, or the ground.
+    fn drop_part(&mut self, b: u32, part: Footprint, from_s: f32) {
+        let c = &self.buildings[b as usize];
+        let target = c
+            .frame
+            .as_ref()
+            .and_then(|f| f.floor_below(&part.cells, part.bottom_m))
+            .map_or(c.origin.y, |(top, _)| top);
+        let drop = (part.bottom_m - target).max(0.0);
+        let at_s = from_s + (2.0 * drop / 9.81).sqrt();
+        let i = self.falls.partition_point(|f| f.at_s <= at_s);
+        self.falls.insert(i, Fall { building: b, at_s, part });
+    }
+
+    /// A part lands. On a floor it loads the bays under it; if any give way it keeps falling
+    /// through them. On the ground its fines become a heap.
+    fn land(&mut self, fall: Fall) -> Vec<Chunk> {
+        let b = fall.building;
+        let cfg = self.cfg.clone();
+        let mut part = fall.part;
+        let below = self.buildings[b as usize]
+            .frame
+            .as_ref()
+            .and_then(|f| f.floor_below(&part.cells, part.bottom_m));
+        let ground = self.buildings[b as usize].origin.y;
+        let centre = (part.lo + part.hi) * 0.5;
+        self.moments.push(Moment::Impact {
+            at: Vec3::new(centre.x, below.as_ref().map_or(ground, |(top, _)| *top), centre.y),
+            mass_kg: part.mass_kg,
+        });
+        let Some((top, slabs)) = below else {
+            self.landings.push(Landing {
+                lo: part.lo,
+                hi: part.hi,
+                volume_m3: part.volume_m3 * cfg.rubble_fines * cfg.rubble_bulking,
+            });
+            return Vec::new();
+        };
+        let drop = (part.bottom_m - top).max(0.0);
+        let kn = part.mass_kg * 9.81e-3 * cfg.impact_factor * (1.0 + drop / 3.5).min(2.0) / slabs.len().max(1) as f32;
+        let gave = self.frame_mut(b as usize).impact(&slabs, kn, &cfg);
+        if gave.is_empty() {
+            return Vec::new();
+        }
+        // It punches through: what stood on the broken bays falls too, and the part goes on down
+        // over the bays that gave.
+        let mut chunks = self.chunks_of(b, &gave);
+        chunks.extend(self.settle(b));
+        if let Some(f) = self.buildings[b as usize].frame.as_ref() {
+            part.cells.retain(|c| gave.iter().any(|&s| f.elements[s as usize].at == *c));
+            part.bottom_m = top - cfg.slab_m;
+        }
+        if !part.cells.is_empty() {
+            self.drop_part(b, part, self.time_s);
+        }
+        self.sync(b as usize);
+        chunks
+    }
+
+    /// Moments since the last call, for the effects.
+    pub fn take_moments(&mut self) -> Vec<Moment> {
+        std::mem::take(&mut self.moments)
+    }
+
+    /// Heaps that reached the ground since the last call, for the ground to raise.
+    pub fn take_landings(&mut self) -> Vec<Landing> {
+        std::mem::take(&mut self.landings)
+    }
+
+    /// Advances time by `dt_s`: every creaking member whose time is up fails, and its building
+    /// settles. Returns the buildings that changed and the chunks that fell.
+    pub fn step(&mut self, dt_s: f32) -> (Vec<u32>, Vec<Chunk>) {
+        self.time_s += dt_s;
+        let now = self.time_s;
+        let due: Vec<u32> = (0..self.buildings.len())
+            .filter(|&b| {
+                self.buildings[b]
+                    .frame
+                    .as_ref()
+                    .and_then(|f| f.next_due())
+                    .is_some_and(|t| t <= now)
+            })
+            .map(|b| b as u32)
+            .collect();
+        let mut chunks = Vec::new();
+        for &b in &due {
+            if let Some(f) = self.buildings[b as usize].frame.as_mut() {
+                let failed = f.fail_due(now);
+                let at: Vec<Vec3> = failed.iter().map(|&id| f.elements[id as usize].centre()).collect();
+                self.moments.extend(at.into_iter().map(Moment::Fail));
+            }
+            chunks.extend(self.settle(b));
+        }
+        let mut changed = due;
+        while self.falls.first().is_some_and(|f| f.at_s <= now) {
+            let fall = self.falls.remove(0);
+            changed.push(fall.building);
+            chunks.extend(self.land(fall));
+        }
+        changed.sort_unstable();
+        changed.dedup();
+        (changed, chunks)
+    }
+
+    /// Falling elements as chunks: one per storey per cell, the union of their boxes. (2 x 2 cell
+    /// groups fell as 12 m slabs in the 2026-10-24 playtest; a cell is about 6 m.)
+    fn chunks_of(&self, b: u32, fell: &[u32]) -> Vec<Chunk> {
+        let Some(f) = self.buildings[b as usize].frame.as_ref() else {
+            return Vec::new();
+        };
+        let mut groups: Vec<((u32, u32, u32), Vec3, Vec3)> = Vec::new();
+        for &id in fell {
+            let e = &f.elements[id as usize];
+            let i = e.at[0].min(f.n[0] as u32 - 1);
+            let j = e.at[1].min(f.n[2] as u32 - 1);
+            let key = (e.storey, i, j);
+            match groups.iter_mut().find(|g| g.0 == key) {
+                Some(g) => {
+                    g.1 = g.1.min(e.min);
+                    g.2 = g.2.max(e.max);
+                }
+                None => groups.push((key, e.min, e.max)),
             }
         }
+        groups.sort_by_key(|g| g.0);
+        groups
+            .into_iter()
+            .map(|(_, lo, hi)| Chunk {
+                building: b,
+                centre: (lo + hi) * 0.5,
+                size: hi - lo,
+            })
+            .collect()
+    }
+
+    /// Brings building `b`'s cells in line with its frame.
+    fn sync(&mut self, b: usize) {
+        let c = &mut self.buildings[b];
+        let Some(f) = c.frame.as_ref() else {
+            return;
+        };
+        let mut standing = 0;
         for k in 0..c.n[1] {
             for j in 0..c.n[2] {
                 for i in 0..c.n[0] {
-                    let idx = c.index(i, k, j);
-                    if !c.intact[idx] {
-                        continue;
-                    }
-                    let below_gone = k > 0 && (!c.intact[c.index(i, k - 1, j)] || falling[c.index(i, k - 1, j)]);
-                    if below_gone || give_way_at.is_some_and(|g| k > g) {
-                        falling[idx] = true;
-                    }
+                    let closed = f.cell_closed(i, k, j);
+                    let idx = (k * c.n[2] + j) * c.n[0] + i;
+                    c.intact[idx] = closed;
+                    standing += closed as usize;
                 }
             }
         }
-        // Group falling cells into chunks of up to 2 x 2 cells per storey.
-        let mut chunks = Vec::new();
-        for k in 0..c.n[1] {
-            for j in (0..c.n[2]).step_by(2) {
-                for i in (0..c.n[0]).step_by(2) {
-                    let mut lo = Vec3::splat(f32::MAX);
-                    let mut hi = Vec3::splat(f32::MIN);
-                    for (di, dj) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
-                        let (ii, jj) = (i + di, j + dj);
-                        if ii >= c.n[0] || jj >= c.n[2] {
-                            continue;
-                        }
-                        let idx = c.index(ii, k, jj);
-                        if falling[idx] {
-                            c.intact[idx] = false;
-                            c.standing -= 1;
-                            let m = c.origin + c.size * Vec3::new(ii as f32, k as f32, jj as f32);
-                            lo = lo.min(m);
-                            hi = hi.max(m + c.size);
-                        }
-                    }
-                    if lo.x <= hi.x {
-                        chunks.push(Chunk {
-                            building: b,
-                            centre: (lo + hi) * 0.5,
-                            size: hi - lo,
-                        });
-                    }
-                }
-            }
-        }
-        chunks
+        c.standing = standing;
     }
 
     /// The standing cells' footprints of building `b` whose storeys overlap `[y0, y1]`, as rects.
@@ -254,18 +424,33 @@ mod tests {
         assert_eq!(s.buildings.len(), plan().buildings.len());
     }
 
+    /// A point on the outer face of cell (i, k, 0), half a metre in.
+    fn on_face(c: &Cells, i: usize, k: usize) -> Vec3 {
+        c.centre(i, k, 0) - Vec3::Z * (c.size.z * 0.5 - 0.5)
+    }
+
+    /// Steps the structures for `secs` at the fixed rate, collecting chunks.
+    fn run(s: &mut Structures, secs: f32) -> Vec<Chunk> {
+        let mut out = Vec::new();
+        for _ in 0..(secs * 60.0) as usize {
+            out.extend(s.step(1.0 / 60.0).1);
+        }
+        out
+    }
+
     #[test]
     fn a_shell_holes_a_wall_without_bringing_the_building_down() {
         let mut s = Structures::new(plan());
         let b = tallest();
         let c = s.buildings[b as usize].clone();
-        let at = c.centre(0, c.n[1] / 2, 0);
-        let (broke, fell) = s.break_sphere(b, at, 4.0);
+        let at = on_face(&c, c.n[0] / 2, c.n[1] / 2);
+        let (broke, fell) = s.break_sphere(b, at, 3.4);
         assert!(broke >= 1);
+        let fell: Vec<Chunk> = fell.into_iter().chain(run(&mut s, 3.0)).collect();
         let cells = &s.buildings[b as usize];
-        assert!(cells.standing > c.standing / 2, "most of the tower stands");
-        assert!(!fell.is_empty(), "the cells above the hole fall");
-        assert!(!cells.solid_at(at));
+        assert!(fell.is_empty(), "a hole in a wall drops nothing");
+        assert!(cells.standing >= c.standing - 2, "the tower stands");
+        assert!(!cells.solid_at(at), "the hole is open");
     }
 
     #[test]
@@ -274,12 +459,17 @@ mod tests {
         let b = tallest();
         let c = s.buildings[b as usize].clone();
         let mut chunks = Vec::new();
-        for j in 0..c.n[2] {
-            for i in 0..c.n[0] {
-                chunks.extend(s.break_sphere(b, c.centre(i, 0, j), 0.1).1);
+        for j in 0..=c.n[2] {
+            for i in 0..=c.n[0] {
+                let node = c.origin + Vec3::new(c.size.x * i as f32, 1.5, c.size.z * j as f32);
+                chunks.extend(s.break_sphere(b, node, 3.0).1);
             }
         }
-        assert_eq!(s.buildings[b as usize].standing, 0, "nothing stands");
+        chunks.extend(run(&mut s, 5.0));
+        assert!(
+            s.buildings[b as usize].standing <= c.n[0] * c.n[2],
+            "nothing above the ground storey stands"
+        );
         assert!(chunks.len() >= c.n[1] - 1, "every storey above fell as chunks");
     }
 
@@ -288,10 +478,85 @@ mod tests {
         let mut s = Structures::new(plan());
         let b = plan().buildings.iter().find(|b| b.storeys <= 4).unwrap().id;
         let c = s.buildings[b as usize].clone();
-        let full = s.solid_rects(b, c.origin.y, c.origin.y + 10.0).len();
-        for k in 0..c.n[1] {
-            s.break_sphere(b, c.centre(0, k, 0), 0.1);
+        let full = s.solid_rects(b, c.origin.y, c.origin.y + 3.0).len();
+        s.break_sphere(b, on_face(&c, 0, 0), 4.5);
+        assert!(s.solid_rects(b, c.origin.y, c.origin.y + 3.0).len() < full);
+    }
+
+    #[test]
+    fn a_falling_top_punches_down_through_the_floors_below() {
+        let mut s = Structures::new(plan());
+        let b = tallest();
+        let c = s.buildings[b as usize].clone();
+        let k = c.n[1] / 2;
+        // Every column of the middle storey goes: the top half falls onto the storey below.
+        let cfg = s.cfg.clone();
+        {
+            let f = s.frame_mut(b as usize);
+            for a in 0..=c.n[0] {
+                for cc in 0..=c.n[2] {
+                    let id = f.column(k, a, cc) as usize;
+                    f.elements[id].alive = false;
+                }
+            }
+            let _ = cfg;
         }
-        assert!(s.solid_rects(b, c.origin.y, c.origin.y + 10.0).len() < full);
+        s.settle(b);
+        run(&mut s, 12.0);
+        let closed_below = (0..k)
+            .filter(|&kk| (0..c.n[0]).any(|i| (0..c.n[2]).any(|j| s.buildings[b as usize].intact[(kk * c.n[2] + j) * c.n[0] + i])))
+            .count();
+        assert!(
+            closed_below < k,
+            "the falling top crushed storeys below the cut ({closed_below} of {k} left)"
+        );
+    }
+
+    #[test]
+    fn a_collapse_leaves_a_heap_on_the_ground() {
+        let mut s = Structures::new(plan());
+        let b = tallest();
+        let c = s.buildings[b as usize].clone();
+        for j in 0..=c.n[2] {
+            for i in 0..=c.n[0] {
+                let node = c.origin + Vec3::new(c.size.x * i as f32, 1.5, c.size.z * j as f32);
+                s.break_sphere(b, node, 3.0);
+            }
+        }
+        run(&mut s, 12.0);
+        let heaps = s.take_landings();
+        assert!(!heaps.is_empty(), "rubble reached the ground");
+        let moments = s.take_moments();
+        assert!(
+            moments.iter().any(|m| matches!(m, Moment::Impact { .. })),
+            "the landing is a moment for the effects"
+        );
+        assert!(heaps.iter().map(|h| h.volume_m3).sum::<f32>() > 1000.0, "a tower makes a big heap");
+    }
+
+    #[test]
+    fn the_same_collapse_lands_the_same_heaps() {
+        let go = || {
+            let mut s = Structures::new(plan());
+            let b = tallest();
+            let c = s.buildings[b as usize].clone();
+            for i in 0..=c.n[0] {
+                let node = c.origin + Vec3::new(c.size.x * i as f32, 1.5, 0.0);
+                s.break_sphere(b, node, 3.0);
+            }
+            run(&mut s, 10.0);
+            (s.take_landings(), s.buildings[b as usize].intact.clone())
+        };
+        assert_eq!(go(), go());
+    }
+
+    #[test]
+    fn an_unhit_building_has_no_frame() {
+        let mut s = Structures::new(plan());
+        let b = tallest();
+        let c = s.buildings[b as usize].clone();
+        s.break_sphere(b, on_face(&c, 0, 1), 3.4);
+        assert!(s.buildings[b as usize].frame.is_some());
+        assert_eq!(s.buildings.iter().filter(|c| c.frame.is_some()).count(), 1);
     }
 }

@@ -54,6 +54,7 @@ impl Plugin for ShowcasePlugin {
         let names: &'static [&'static str] = match self.take.as_str() {
             "fight" => &["load", "look", "board", "stand", "fight", "tower", "charge", "result", "end"],
             "defence" => &DEFENCE_BEATS,
+            "demolition" => &crate::demolition::TAKE_BEATS,
             _ => &[
                 "load", "look", "board", "stride", "rockets", "landing", "wade", "wood", "shells", "damage", "result", "end",
             ],
@@ -86,6 +87,9 @@ impl Plugin for ShowcasePlugin {
         match self.take.as_str() {
             "fight" => app.add_systems(Update, play_fight.in_set(crate::sim::PresentSet::Input)),
             "defence" => app.add_systems(Update, play_defence.in_set(crate::sim::PresentSet::Input)),
+            "demolition" => app
+                .init_resource::<crate::demolition::DemolitionTake>()
+                .add_systems(Update, crate::demolition::play_take.in_set(crate::sim::PresentSet::Input)),
             _ => app.add_systems(Update, play.in_set(crate::sim::PresentSet::Input)),
         };
     }
@@ -120,6 +124,42 @@ fn board(p: &PilotState, access: Option<&cb_core::pilot::MechAccess>) -> Actions
         PilotMode::OnFoot if p.waiting.is_none() => walk_to(p, a.ladder_base, 0.2),
         PilotMode::OnFoot => walk_to(p, a.ladder_base + Vec3::Y, 0.45),
         _ => Actions::default(),
+    }
+}
+
+/// The nearest cloud more than 500 m from the mech: the one a take flies into. Shared with the
+/// capture instrument.
+pub fn nearest_cloud(plan: &Plan, m: &MechState) -> Vec3 {
+    let here = Vec2::new(m.pos.x, m.pos.z);
+    plan.clouds
+        .puffs
+        .iter()
+        .filter(|c| Vec2::new(c.centre.x, c.centre.z).distance(here) > 500.0)
+        .min_by(|a, b| {
+            Vec2::new(a.centre.x, a.centre.z)
+                .distance(here)
+                .total_cmp(&Vec2::new(b.centre.x, b.centre.z).distance(here))
+        })
+        .map(|c| c.centre)
+        .unwrap_or(Vec3::new(here.x, 800.0, here.y - 800.0))
+}
+
+/// Rockets up, skates across, toward a cloud's centre: climb to its height, then hold level.
+/// Shared with the capture instrument.
+pub fn fly_to_cloud(m: &MechState, cloud: Vec3) -> Actions {
+    let climb = cloud.y - m.pos.y;
+    Actions {
+        skate_toggle: !m.skates_on,
+        move_xy: Vec2::new(0.0, 1.0),
+        turn_axis: steer(m, Vec2::new(cloud.x, cloud.z)),
+        throttle_axis: throttle_to(m, 1.0),
+        lift_axis: if climb > 30.0 {
+            1.0
+        } else {
+            (HOVER_LIFT - m.vel_y_m_s * 0.025).clamp(0.0, 1.0)
+        },
+        look_delta_deg: aim(m, 0.0, 0.15),
+        ..default()
     }
 }
 
@@ -175,18 +215,7 @@ fn play(
             // The game is loaded and its pipelines compiled (GAME_READY): only then does a take begin.
             if ready.0 && access.0.is_some() {
                 let here = Vec2::new(m.pos.x, m.pos.z);
-                take.cloud = plan
-                    .clouds
-                    .puffs
-                    .iter()
-                    .filter(|c| Vec2::new(c.centre.x, c.centre.z).distance(here) > 500.0)
-                    .min_by(|a, b| {
-                        Vec2::new(a.centre.x, a.centre.z)
-                            .distance(here)
-                            .total_cmp(&Vec2::new(b.centre.x, b.centre.z).distance(here))
-                    })
-                    .map(|c| c.centre)
-                    .unwrap_or(Vec3::new(here.x, 800.0, here.y - 800.0));
+                take.cloud = nearest_cloud(&plan, m);
                 let cloud_xz = Vec2::new(take.cloud.x, take.cloud.z);
                 let mut best = (f32::MIN, here, here);
                 // Trees grow only near bodies (island-world), so probe a copy of the forest grown
@@ -311,18 +340,7 @@ fn play(
         }
         // Rockets up, skates across: climb toward the cloud, fly into it.
         4 => {
-            let cloud_xz = Vec2::new(take.cloud.x, take.cloud.z);
-            act.skate_toggle = !m.skates_on;
-            act.move_xy = Vec2::new(0.0, 1.0);
-            act.turn_axis = steer(m, cloud_xz);
-            act.throttle_axis = throttle_to(m, 1.0);
-            let climb = take.cloud.y - m.pos.y;
-            act.lift_axis = if climb > 30.0 {
-                1.0
-            } else {
-                (HOVER_LIFT - m.vel_y_m_s * 0.025).clamp(0.0, 1.0)
-            };
-            act.look_delta_deg = aim(m, 0.0, 0.15);
+            act = fly_to_cloud(m, take.cloud);
             if plan.clouds.density_at(m.pos + Vec3::Y * data.0.mech.body.eye_height_m, now) > 0.05 {
                 take.in_cloud_s += time.delta_secs();
             }

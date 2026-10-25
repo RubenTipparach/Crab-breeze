@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 /// How to call the game.
-pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence] [--showcase world|fight|defence|marks|sun] [--bench world|fight|defence|marks|sun] [--start meadow]";
+pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence] [--showcase world|fight|defence|marks|sun|demolition] [--bench world|fight|defence|marks|sun|demolition] [--start meadow]";
 
 /// Parsed command line.
 #[derive(Debug, PartialEq)]
@@ -93,7 +93,7 @@ pub fn switched_off(name: &str) -> bool {
 
 fn take_name(v: Option<String>) -> Result<String, String> {
     match v.as_deref() {
-        Some("world") | Some("fight") | Some("defence") | Some("marks") | Some("sun") => Ok(v.unwrap_or_default()),
-        _ => Err("--showcase and --bench take `world`, `fight`, `defence`, `marks` or `sun`".into()),
+        Some("world") | Some("fight") | Some("defence") | Some("marks") | Some("sun") | Some("demolition") => Ok(v.unwrap_or_default()),
+        _ => Err("--showcase and --bench take `world`, `fight`, `defence`, `marks`, `sun` or `demolition`".into()),
     }
 }

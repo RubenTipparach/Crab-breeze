@@ -60,6 +60,11 @@ pub struct DefenceConfig {
     pub spawn_arc_deg: f32,
     /// Random shift of each spawn point, at most.
     pub spawn_jitter_m: f32,
+    /// Above 0, raiders appear inside the city instead, on an arc this fraction of its half size
+    /// from the centre (0 keeps the ring `spawn_distance_m` beyond its corners).
+    pub spawn_inside_fraction: f32,
+    /// A raider appearing inside the city starts at least this far from every building.
+    pub spawn_clearance_m: f32,
     /// Spawn points stay this far inside the world's edge.
     pub edge_margin_m: f32,
     /// At most this many raiders fight the pilot at once (the nearest).
@@ -127,6 +132,8 @@ impl Default for DefenceConfig {
             spawn_distance_m: 450.0,
             spawn_arc_deg: 100.0,
             spawn_jitter_m: 30.0,
+            spawn_inside_fraction: 0.0,
+            spawn_clearance_m: 8.0,
             edge_margin_m: 150.0,
             max_on_player: 3,
             engage_player_m: 300.0,
@@ -169,6 +176,8 @@ impl Validate for DefenceConfig {
         positive("spawn_distance_m", self.spawn_distance_m)?;
         within("spawn_arc_deg", self.spawn_arc_deg, 0.0, 360.0)?;
         finite("spawn_jitter_m", self.spawn_jitter_m)?;
+        within("spawn_inside_fraction", self.spawn_inside_fraction, 0.0, 1.0)?;
+        finite("spawn_clearance_m", self.spawn_clearance_m)?;
         finite("edge_margin_m", self.edge_margin_m)?;
         positive("engage_player_m", self.engage_player_m)?;
         finite("grudge_s", self.grudge_s)?;
@@ -394,7 +403,12 @@ pub fn spawn_points(plan: &WorldPlan, cfg: &DefenceConfig, wave: usize, rng: &Si
         }
         _ => rng.range_f32(-PI, PI),
     };
-    let radius = city.half_size_m * std::f32::consts::SQRT_2 + cfg.spawn_distance_m;
+    let inside_city = cfg.spawn_inside_fraction > 0.0;
+    let radius = if inside_city {
+        city.half_size_m * cfg.spawn_inside_fraction
+    } else {
+        city.half_size_m * std::f32::consts::SQRT_2 + cfg.spawn_distance_m
+    };
     let inside = -plan.terrain.origin_m - cfg.edge_margin_m;
     let n = cfg.raiders_per_wave as usize;
     let arc = cfg.spawn_arc_deg.to_radians();
@@ -415,6 +429,9 @@ pub fn spawn_points(plan: &WorldPlan, cfg: &DefenceConfig, wave: usize, rng: &Si
                     }
                     p += toward * 10.0;
                 }
+                if inside_city {
+                    p = clear_spot(plan, p, cfg.spawn_clearance_m);
+                }
                 p
             };
             let clear = |p: Vec2| {
@@ -432,6 +449,19 @@ pub fn spawn_points(plan: &WorldPlan, cfg: &DefenceConfig, wave: usize, rng: &Si
             (p, yaw_of(centre - p))
         })
         .collect()
+}
+
+/// The nearest dry point to `p` at least `clearance_m` from every building, searched on rings
+/// 5 m apart (16 points a ring, in a fixed order) out to 300 m; `p` itself if none is found.
+fn clear_spot(plan: &WorldPlan, p: Vec2, clearance_m: f32) -> Vec2 {
+    let ok = |q: Vec2| !plan.collision.overlaps(q, clearance_m) && plan.water_at(q.x, q.y).is_none();
+    if ok(p) {
+        return p;
+    }
+    (1..=60)
+        .flat_map(|ring| (0..16).map(move |k| p + Vec2::from_angle(k as f32 * std::f32::consts::TAU / 16.0) * (ring as f32 * 5.0)))
+        .find(|q| ok(*q))
+        .unwrap_or(p)
 }
 
 /// What a raider goes for.
@@ -702,7 +732,10 @@ mod tests {
 
     #[test]
     fn spawn_points_are_dry_inside_the_world_and_outside_other_cities() {
-        let c = cfg();
+        let c = DefenceConfig {
+            spawn_inside_fraction: 0.0,
+            ..cfg()
+        };
         let p = plan();
         let inside = -p.terrain.origin_m - c.edge_margin_m + 1.0;
         for w in 0..c.cities.len() {
@@ -718,6 +751,31 @@ mod tests {
                 );
                 let facing = Vec2::new(-heading.sin(), -heading.cos());
                 assert!(facing.dot((city.centre - pt).normalize()) > 0.99, "faces the city");
+            }
+        }
+    }
+
+    #[test]
+    fn raiders_inside_the_city_start_clear_of_every_building() {
+        let c = DefenceConfig {
+            spawn_inside_fraction: 0.5,
+            ..cfg()
+        };
+        let p = plan();
+        for w in 0..c.cities.len() {
+            let city = &p.cities[c.cities[w] as usize];
+            for (pt, _) in spawn_points(p, &c, w, &SimRng::new(42)) {
+                assert!(
+                    (pt - city.centre).abs().max_element() < city.half_size_m,
+                    "wave {w}: {pt} is outside the city"
+                );
+                for b in &p.buildings {
+                    assert!(
+                        b.footprint.distance(pt) >= c.spawn_clearance_m - 0.01,
+                        "wave {w}: {pt} starts {} m from a building",
+                        b.footprint.distance(pt)
+                    );
+                }
             }
         }
     }

@@ -11,7 +11,7 @@ use bevy::camera::visibility::VisibilityRange;
 use bevy::light::{CascadeShadowConfigBuilder, NotShadowCaster};
 use bevy::mesh::Indices;
 use bevy::prelude::*;
-use bevy::render::render_resource::{Extent3d, PrimitiveTopology, TextureDimension, TextureFormat};
+use bevy::render::render_resource::PrimitiveTopology;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use cb_core::water_look::WaterLook;
 use cb_core::world::{Deformation, Forest, TreeState, WorldPlan, generate};
@@ -29,6 +29,17 @@ pub struct Sun;
 /// True unless `CB_NO_SKY=1`: the pilot's view has Bevy's scattering sky (sky-atmosphere).
 pub fn scattering_sky() -> bool {
     !crate::cli::switched_off("CB_NO_SKY")
+}
+
+/// How much brighter a light set at Bevy's default exposure (EV100 9.7) must be to look the same
+/// under the scattering sky's exposure: `2^(EV100 - 9.7)`, 1 without the scattering sky. The one
+/// place the flat ambient and the sky light (`sky_light`) are scaled from.
+pub fn exposure_scale(view: &cb_core::world::config::ViewConfig) -> f32 {
+    if scattering_sky() {
+        2f32.powf(view.exposure_ev100 - 9.7)
+    } else {
+        1.0
+    }
 }
 
 /// Start in the nearest meadow instead of the city (`--start meadow`, gpu-grass).
@@ -51,7 +62,7 @@ pub struct Live {
     pub dirty_tiles: Vec<(i32, i32)>,
     /// Trees that started falling or landed since they were last drawn.
     pub moved_trees: Vec<u32>,
-    /// Every building's cells.
+    /// Every building's cells and, once hit, its structural frame.
     pub structures: cb_core::world::Structures,
     /// Buildings damaged since they were last drawn.
     pub dirty_buildings: Vec<u32>,
@@ -96,7 +107,7 @@ impl Plugin for WorldPlugin {
             dug: Deformation::new(cfg.world_size_m),
             dirty_tiles: Vec::new(),
             moved_trees: Vec::new(),
-            structures: cb_core::world::Structures::new(&plan),
+            structures: cb_core::world::Structures::with_config(&plan, cfg.structure.clone(), cfg.craters.radius_m_per_cbrt_mj),
             dirty_buildings: Vec::new(),
             new_chunks: Vec::new(),
         };
@@ -109,32 +120,24 @@ impl Plugin for WorldPlugin {
             plan.waters.sea_level_m,
             plan.clouds.puffs.len()
         );
+        let sky = app.world().resource::<Data>().0.sky_light.clone();
+        let ambient_cd_m2 = crate::sky_light::ambient_cd_m2(&sky);
+        let [ar, ag, ab] = sky.ambient_colour;
         app.insert_resource(live)
             .insert_resource(Plan(Arc::new(plan)))
             .insert_resource(ClearColor(SKY))
             .insert_resource(GlobalAmbientLight {
-                color: Color::srgb(0.75, 0.82, 1.0),
+                color: Color::srgb(ar, ag, ab),
                 // Under the scattering sky the exposure is darker by the step from Bevy's default
                 // EV100 9.7 to the view's, so the ambient rises by the same factor.
-                brightness: 900.0
-                    * if scattering_sky() {
-                        2f32.powf(cfg.view.exposure_ev100 - 9.7)
-                    } else {
-                        1.0
-                    },
+                brightness: ambient_cd_m2 * exposure_scale(&cfg.view),
                 ..default()
             })
             .add_plugins(crate::ground::GroundPlugin)
-            .add_systems(
-                Startup,
-                (spawn_roads, spawn_buildings, spawn_sun, spawn_water, spawn_trees, spawn_clouds),
-            )
+            .add_systems(Startup, (spawn_roads, spawn_buildings, spawn_sun, spawn_water, spawn_trees))
             .add_systems(FixedUpdate, keep_trees.in_set(SimSet::World))
             .add_systems(FixedUpdate, fell_trees.in_set(SimSet::Mech).after(crate::mech::step_mech))
-            .add_systems(
-                Update,
-                ((show_trees, redraw_trees).chain(), follow_ocean, (show_clouds, face_clouds).chain()).in_set(PresentSet::Pose),
-            );
+            .add_systems(Update, ((show_trees, redraw_trees).chain(), follow_ocean).in_set(PresentSet::Pose));
     }
 }
 
@@ -158,9 +161,15 @@ pub struct MeshBuilder {
     normals: Vec<[f32; 3]>,
     colors: Vec<[f32; 4]>,
     uvs: Vec<[f32; 2]>,
+    /// Second UV: the texture array layer in x (`building-texture-array`), when `layered`.
+    uv1s: Vec<[f32; 2]>,
     indices: Vec<u32>,
     /// Metres per texture tile along u and v; zero means 4 m by 4 m.
     pub tile_m: Vec2,
+    /// The layer the next faces are drawn from.
+    layer: f32,
+    /// True once a layer was set: the mesh carries the second UV.
+    layered: bool,
 }
 
 impl MeshBuilder {
@@ -170,6 +179,13 @@ impl MeshBuilder {
             tile_m: Vec2::new(u, v),
             ..default()
         }
+    }
+
+    /// The texture array layer, and its tile size, of the faces added next.
+    pub fn set_layer(&mut self, layer: u32, tile_m: Vec2) {
+        self.layer = layer as f32;
+        self.tile_m = tile_m;
+        self.layered = true;
     }
 
     /// Planar UV for a point on a face with normal `n`: walls run u along the wall, v up.
@@ -197,6 +213,7 @@ impl MeshBuilder {
             self.normals.push(n.into());
             self.colors.push(color);
             self.uvs.push(self.uv(c, n));
+            self.uv1s.push([self.layer, 0.0]);
         }
         self.indices
             .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
@@ -215,6 +232,30 @@ impl MeshBuilder {
         self.quad([v(x0, y0, z0), v(x0, y0, z1), v(x0, y1, z1), v(x0, y1, z0)], color);
     }
 
+    /// A closed box, bottom face included (for pieces seen from below, as floors through a hole).
+    pub fn block(&mut self, min: Vec3, max: Vec3, color: [f32; 4]) {
+        self.cuboid(min, max, color);
+        let [x0, y0, z0] = min.to_array();
+        let [x1, _, z1] = max.to_array();
+        let v = |x, y, z| Vec3::new(x, y, z);
+        self.quad([v(x0, y0, z0), v(x1, y0, z0), v(x1, y0, z1), v(x0, y0, z1)], color);
+    }
+
+    /// An upright drum or cone of `seg` sides: radius `r0` at `base`, `r1` at `base + h`, capped on top.
+    pub fn drum(&mut self, base: Vec3, r0: f32, r1: f32, h: f32, seg: u32, color: [f32; 4]) {
+        let at = |a: f32, r: f32, y: f32| base + Vec3::new(a.cos() * r, y, a.sin() * r);
+        for i in 0..seg {
+            let (a0, a1) = (
+                i as f32 / seg as f32 * std::f32::consts::TAU,
+                (i + 1) as f32 / seg as f32 * std::f32::consts::TAU,
+            );
+            self.quad([at(a0, r0, 0.0), at(a0, r1, h), at(a1, r1, h), at(a1, r0, 0.0)], color);
+            if r1 > 0.0 {
+                self.tri(base + Vec3::Y * h, at(a1, r1, h), at(a0, r1, h), [Vec3::Y; 3], color);
+            }
+        }
+    }
+
     fn tri(&mut self, a: Vec3, b: Vec3, c: Vec3, n: [Vec3; 3], color: [f32; 4]) {
         let base = self.positions.len() as u32;
         let face = (b - a).cross(c - a).normalize_or(Vec3::Y);
@@ -223,6 +264,7 @@ impl MeshBuilder {
             self.normals.push(n.into());
             self.colors.push(color);
             self.uvs.push(self.uv(p, face));
+            self.uv1s.push([self.layer, 0.0]);
         }
         self.indices.extend_from_slice(&[base, base + 1, base + 2]);
     }
@@ -282,14 +324,47 @@ impl MeshBuilder {
         }
     }
 
+    /// The mesh with tangents for a normal map, written straight from the planar UV mapping (`uv`):
+    /// u runs along +x on floors and on z-facing walls, along +z on x-facing walls; v runs +z on
+    /// floors and down on walls. MikkTSpace (`Mesh::generate_tangents`) gives the same on these
+    /// faces and cost most of a combat frame's building redraw (`building-surfaces`, 2026-10-24).
+    pub fn build_with_tangents(self) -> Mesh {
+        let tangents: Vec<[f32; 4]> = self.normals.iter().map(|n| planar_tangent(Vec3::from(*n))).collect();
+        self.build().with_inserted_attribute(Mesh::ATTRIBUTE_TANGENT, tangents)
+    }
+
     pub fn build(self) -> Mesh {
-        Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+        let layered = self.layered;
+        let uv1s = self.uv1s;
+        let mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
             .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, self.positions)
             .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, self.normals)
             .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, self.colors)
             .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, self.uvs)
-            .with_inserted_indices(Indices::U32(self.indices))
+            .with_inserted_indices(Indices::U32(self.indices));
+        if layered {
+            mesh.with_inserted_attribute(Mesh::ATTRIBUTE_UV_1, uv1s)
+        } else {
+            mesh
+        }
     }
+}
+
+/// The tangent (xyz, handedness w) of `MeshBuilder::uv`'s planar mapping on a face of normal `n`.
+fn planar_tangent(n: Vec3) -> [f32; 4] {
+    let a = n.abs();
+    let (t, b) = if a.y >= a.x && a.y >= a.z {
+        (Vec3::X, Vec3::Z)
+    } else if a.x >= a.z {
+        (Vec3::Z, Vec3::NEG_Y)
+    } else {
+        (Vec3::X, Vec3::NEG_Y)
+    };
+    let t = (t - n * n.dot(t)).normalize_or(Vec3::X);
+    // Bevy's tangent space has v running against the bitangent (glTF's flipped v), so the
+    // handedness is the opposite of cross(n, t) against the direction v grows.
+    let w = if n.cross(t).dot(b) < 0.0 { 1.0 } else { -1.0 };
+    [t.x, t.y, t.z, w]
 }
 
 fn vertex_material(materials: &mut Assets<StandardMaterial>, roughness: f32) -> Handle<StandardMaterial> {
@@ -414,8 +489,10 @@ fn spawn_buildings(
     mut commands: Commands,
     world: Res<Plan>,
     tex: Res<crate::textures::Textures>,
+    data: Res<Data>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
     mut ents: ResMut<crate::buildings::BuildingEntities>,
 ) {
     // `CB_NO_BUILDINGS=1`: no buildings drawn (perf-bench switch, to measure what they cost).
@@ -429,6 +506,18 @@ fn spawn_buildings(
             perceptual_roughness: 0.75,
             ..default()
         })
+    });
+    let arrays = crate::building_arrays::build(&mut images, &crate::buildings::layer_sources(&tex));
+    commands.insert_resource(crate::buildings::BuildingLooks {
+        tone_tints: BUILDING_TONES
+            .iter()
+            .map(|&(r, g, b)| Color::srgb(r, g, b).to_linear().to_f32_array_no_alpha())
+            .collect(),
+        arrays,
+        // See-through glass: the rooms behind show (the mockup's windows), and it reflects the sky
+        // at full strength (glass-reflections).
+        glass: materials.add(crate::sky_light::glass_material(&data.0.sky_light.glass)),
+        concrete: crate::buildings::concrete_material(&mut images, &mut materials),
     });
     for b in &world.buildings {
         let ground = world.cities[b.city as usize].ground_m;
@@ -515,12 +604,16 @@ fn spawn_water(
         NotShadowCaster,
         OceanFollow,
     ));
-    // Rivers: a strip along each course at its surface, tucked 2 m into the banks.
+    // Rivers: a strip along each course at its surface, tucked 2 m into the banks, gathered into
+    // one mesh per `RIVER_TILE_M` tile so the island's hundreds of streams are a few draw calls. A
+    // segment inside a lake is not drawn (the lake's surface is the water there), nor one down a
+    // waterfall (the falling sheet is).
+    let mut tiles: BTreeMap<(i32, i32), Ribbons> = BTreeMap::new();
     for (ri, r) in w.rivers.iter().enumerate() {
-        let mut positions = Vec::new();
-        let mut uvs = Vec::new();
-        let mut flow = Vec::new();
+        let falling = |i: usize| w.falls.iter().any(|f| f.river == ri && i >= f.lip && i < f.foot);
+        let in_lake: Vec<bool> = r.path.iter().map(|p| w.lakes.at(*p).is_some()).collect();
         let mut along = 0.0;
+        let mut edges = Vec::with_capacity(r.path.len());
         for i in 0..r.path.len() {
             let p = r.path[i];
             let d = if i + 1 < r.path.len() {
@@ -529,37 +622,78 @@ fn spawn_water(
                 p - r.path[i - 1]
             }
             .normalize_or(Vec2::X);
-            let side = d.perp() * (r.half_width_m[i] + 2.0);
             if i > 0 {
                 along += p.distance(r.path[i - 1]);
             }
-            for k in [-1.0f32, 1.0] {
-                let q = p + side * k;
-                positions.push([q.x, r.surface_m[i], q.y]);
-                uvs.push([k * r.half_width_m[i] / 12.0, along / 24.0]);
-                // The water's flow, for the water material (rg, metres a second).
-                flow.push([d.x * w.flow_m_s, d.y * w.flow_m_s, 0.0, 1.0]);
-            }
+            let side = d.perp() * (r.half_width_m[i] + 2.0);
+            edges.push((p - side, p + side, d, along));
         }
-        let mut indices = Vec::new();
-        for i in 0..r.path.len() as u32 - 1 {
-            let (a, b, c, d) = (2 * i, 2 * i + 1, 2 * i + 2, 2 * i + 3);
-            indices.extend_from_slice(&[a, b, c, b, d, c]);
+        for i in 0..r.path.len() - 1 {
+            if (in_lake[i] && in_lake[i + 1]) || falling(i) {
+                continue;
+            }
+            let mid = (r.path[i] + r.path[i + 1]) * 0.5;
+            let key = ((mid.x / RIVER_TILE_M).floor() as i32, (mid.y / RIVER_TILE_M).floor() as i32);
+            let rb = tiles.entry(key).or_default();
+            let base = rb.positions.len() as u32;
+            for k in [i, i + 1] {
+                let (l, rt, d, at) = edges[k];
+                for (q, u) in [(l, -1.0f32), (rt, 1.0)] {
+                    rb.positions.push([q.x, r.surface_m[k], q.y]);
+                    rb.uvs.push([u * r.half_width_m[k] / 12.0, at / 24.0]);
+                    // The water's flow, for the water material (rg, metres a second).
+                    rb.flow.push([d.x * w.flow_m_s, d.y * w.flow_m_s, 0.0, 1.0]);
+                }
+            }
+            rb.indices
+                .extend_from_slice(&[base, base + 1, base + 2, base + 1, base + 3, base + 2]);
+        }
+    }
+    for ((tx, tz), rb) in tiles {
+        let n = rb.positions.len();
+        let mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, rb.positions)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 1.0, 0.0]; n])
+            .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, rb.uvs)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, rb.flow)
+            .with_inserted_indices(Indices::U32(rb.indices));
+        commands.spawn((
+            Name::new(format!("rivers {tx},{tz}")),
+            Mesh3d(meshes.add(mesh)),
+            MeshMaterial3d(water.clone()),
+            NotShadowCaster,
+        ));
+    }
+    // Lakes: a still surface at the lake's level out to 3 m past its shore, where the raised bank
+    // hides its edge (the shore's outline is `Lakes::outline_m`, the same rule the carve uses).
+    for (li, l) in w.lakes.list.iter().enumerate() {
+        let rays = 96;
+        let mut positions = vec![[l.centre.x, l.level_m, l.centre.y]];
+        for k in 0..rays {
+            let a = k as f32 / rays as f32 * std::f32::consts::TAU;
+            let q = l.centre + Vec2::new(a.cos(), a.sin()) * w.lakes.outline_m(li, a, 3.0);
+            positions.push([q.x, l.level_m, q.y]);
+        }
+        let uvs: Vec<[f32; 2]> = positions.iter().map(|p| [p[0] / RIPPLE_TILE_M, p[2] / RIPPLE_TILE_M]).collect();
+        let mut indices = Vec::with_capacity(rays * 3);
+        for k in 0..rays as u32 {
+            // Wound to face up: centre, next, this (angles run from +x toward +z).
+            indices.extend_from_slice(&[0, 1 + (k + 1) % rays as u32, 1 + k]);
         }
         let n = positions.len();
         let mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
             .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
             .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 1.0, 0.0]; n])
             .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
-            .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, flow)
             .with_inserted_indices(Indices::U32(indices));
         commands.spawn((
-            Name::new(format!("river {ri}")),
+            Name::new(format!("lake {li}")),
             Mesh3d(meshes.add(mesh)),
             MeshMaterial3d(water.clone()),
             NotShadowCaster,
         ));
     }
+    spawn_falls(&mut commands, &plan, &mut meshes, &mut materials);
     // Bridges: a deck and two piers (placeholder boxes until a blender-csg-levels model).
     let concrete = materials.add(StandardMaterial {
         base_color: Color::srgb(0.58, 0.57, 0.54),
@@ -592,6 +726,97 @@ fn spawn_water(
                     .with_scale(Vec3::new(b.width_m * 0.6, h, 2.5)),
             ));
         }
+    }
+}
+
+/// River strips are gathered into one mesh per tile this many metres square.
+const RIVER_TILE_M: f32 = 4096.0;
+
+/// One tile's river strips, being built.
+#[derive(Default)]
+struct Ribbons {
+    positions: Vec<[f32; 3]>,
+    uvs: Vec<[f32; 2]>,
+    flow: Vec<[f32; 4]>,
+    indices: Vec<u32>,
+}
+
+/// Gravity for the falling water's arc, metres a second squared.
+const GRAVITY_M_S2: f32 = 9.81;
+
+/// Waterfalls (openspec change `hydrology`): a sheet of water leaving each lip at the river's flow
+/// speed and falling on gravity's arc, never through the cliff face behind it, to the plunge
+/// pool's surface, with foam where it lands.
+fn spawn_falls(commands: &mut Commands, plan: &Plan, meshes: &mut Assets<Mesh>, materials: &mut Assets<StandardMaterial>) {
+    let w = &plan.waters;
+    if w.falls.is_empty() {
+        return;
+    }
+    let sheet = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.86, 0.91, 0.95, 0.8),
+        alpha_mode: AlphaMode::Blend,
+        perceptual_roughness: 0.35,
+        cull_mode: None,
+        double_sided: true,
+        ..default()
+    });
+    let foam = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.95, 0.97, 0.98, 0.7),
+        alpha_mode: AlphaMode::Blend,
+        perceptual_roughness: 0.9,
+        ..default()
+    });
+    let disc = meshes.add(Circle::new(1.0));
+    for (fi, f) in w.falls.iter().enumerate() {
+        let lip = w.rivers[f.river].path[f.lip];
+        let side = f.along.perp();
+        let height = (f.top_m - f.bottom_m).max(0.5);
+        let fall_s = (2.0 * height / GRAVITY_M_S2).sqrt();
+        let v0 = w.flow_m_s.max(0.5);
+        let rows = 24;
+        let (mut positions, mut uvs, mut indices) = (Vec::new(), Vec::new(), Vec::new());
+        let mut landing = lip;
+        for k in 0..=rows {
+            let t = fall_s * k as f32 / rows as f32;
+            let c = lip + f.along * v0 * t;
+            let ground = plan.terrain.height_at(c.x, c.y);
+            let y = (f.top_m - 0.5 * GRAVITY_M_S2 * t * t)
+                .max(ground + 0.4)
+                .min(f.top_m)
+                .max(f.bottom_m);
+            let hw = f.half_width_m * (1.0 + 0.3 * k as f32 / rows as f32);
+            for s in [-1.0f32, 1.0] {
+                let q = c + side * hw * s;
+                positions.push([q.x, y, q.y]);
+                uvs.push([s * 0.5 + 0.5, (f.top_m - y) / 8.0]);
+            }
+            landing = c;
+        }
+        for k in 0..rows as u32 {
+            let a = 2 * k;
+            indices.extend_from_slice(&[a, a + 1, a + 2, a + 1, a + 3, a + 2]);
+        }
+        let n = positions.len();
+        let mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[-f.along.x, 0.0, -f.along.y]; n])
+            .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+            .with_inserted_indices(Indices::U32(indices));
+        commands.spawn((
+            Name::new(format!("waterfall {fi}")),
+            Mesh3d(meshes.add(mesh)),
+            MeshMaterial3d(sheet.clone()),
+            NotShadowCaster,
+        ));
+        commands.spawn((
+            Name::new(format!("waterfall {fi} foam")),
+            Mesh3d(disc.clone()),
+            MeshMaterial3d(foam.clone()),
+            Transform::from_xyz(landing.x, f.bottom_m + 0.25, landing.y)
+                .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
+                .with_scale(Vec3::splat(f.half_width_m * 1.8)),
+            NotShadowCaster,
+        ));
     }
 }
 
@@ -1113,172 +1338,31 @@ fn redraw_trees(mut commands: Commands, mut live: ResMut<Live>, trees: Option<Re
     }
 }
 
-/// A cloud billboard.
-#[derive(Component)]
-struct CloudSprite {
-    anchor: Vec3,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy::mesh::VertexAttributeValues;
 
-fn cloud_texture(images: &mut Assets<Image>) -> Handle<Image> {
-    const N: usize = 128;
-    let mut data = Vec::with_capacity(N * N * 4);
-    for j in 0..N {
-        for i in 0..N {
-            let (u, v) = (i as f32 / (N - 1) as f32 * 2.0 - 1.0, j as f32 / (N - 1) as f32 * 2.0 - 1.0);
-            let r = (u * u + v * v).sqrt();
-            let n = ((u * 9.0).sin() * (v * 7.0).cos() * 0.08 + (u * 17.0 + v * 13.0).sin() * 0.05).abs();
-            let a = ((1.0 - r).clamp(0.0, 1.0).powf(1.4) - n).clamp(0.0, 1.0);
-            data.extend_from_slice(&[255, 255, 255, (a * 255.0) as u8]);
+    fn tangents(mesh: &Mesh) -> Vec<[f32; 4]> {
+        match mesh.attribute(Mesh::ATTRIBUTE_TANGENT) {
+            Some(VertexAttributeValues::Float32x4(t)) => t.clone(),
+            _ => panic!("no tangents"),
         }
     }
-    images.add(Image::new(
-        Extent3d {
-            width: N as u32,
-            height: N as u32,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        data,
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::RENDER_WORLD,
-    ))
-}
 
-/// Drawn clouds (island-world): the cloud tiles near the eye, a few billboards per puff.
-#[derive(Resource)]
-struct CloudSprites {
-    quad: Handle<Mesh>,
-    shades: Vec<Handle<StandardMaterial>>,
-    /// Every tile with puffs and its centre (x, z) at time zero.
-    all: Vec<((i32, i32), Vec2)>,
-    drawn: HashMap<(i32, i32), Vec<Entity>>,
-}
-
-/// Most cloud tiles put in the sky in one frame.
-const CLOUD_TILES_PER_FRAME: usize = 2;
-
-fn spawn_clouds(
-    mut commands: Commands,
-    plan: Res<Plan>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut images: ResMut<Assets<Image>>,
-) {
-    let tex = cloud_texture(&mut images);
-    let quad = meshes.add(Rectangle::new(1.0, 1.0));
-    let shades: Vec<Handle<StandardMaterial>> = [0.98, 0.9, 0.8]
-        .iter()
-        .map(|g| {
-            materials.add(StandardMaterial {
-                base_color: Color::srgba(*g, *g, *g * 1.02, 0.85),
-                base_color_texture: Some(tex.clone()),
-                alpha_mode: AlphaMode::Blend,
-                unlit: true,
-                double_sided: true,
-                cull_mode: None,
-                fog_enabled: true,
-                ..default()
-            })
-        })
-        .collect();
-    commands.insert_resource(CloudSprites {
-        quad,
-        shades,
-        all: plan.clouds.tiles(),
-        drawn: HashMap::new(),
-    });
-}
-
-/// The billboards of one puff: seven, scattered through it, darker underneath. A pure function of
-/// the seed and the puff, so a tile drawn again looks the same.
-fn puff_sprites(seed: u64, index: u32, p: &cb_core::world::clouds::Puff) -> [(Vec3, f32, usize); 7] {
-    let mut s: u64 = (seed ^ 0xC10D).wrapping_add(u64::from(index).wrapping_mul(0x9E37_79B9_7F4A_7C15));
-    let mut f = move || {
-        s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-        ((s >> 40) as f32) / (1u64 << 24) as f32
-    };
-    std::array::from_fn(|_| {
-        let off = Vec3::new(f() - 0.5, f() - 0.5, f() - 0.5) * p.radii * 1.1;
-        let size = p.radii.x.max(p.radii.y) * (0.9 + 0.6 * f());
-        let shade = if off.y < -p.radii.y * 0.2 {
-            2
-        } else if off.y < p.radii.y * 0.2 {
-            1
-        } else {
-            0
-        };
-        (p.centre + off, size, shade)
-    })
-}
-
-/// Puts the cloud tiles within the draw radius of the eye in the sky (as the wind has carried them),
-/// a couple a frame nearest first, and takes the ones beyond it down. Beyond the radius the haze
-/// has hidden them anyway.
-fn show_clouds(
-    mut commands: Commands,
-    plan: Res<Plan>,
-    data: Res<Data>,
-    time: Res<Time>,
-    camera: Single<&GlobalTransform, With<PilotCamera>>,
-    sprites: Option<ResMut<CloudSprites>>,
-) {
-    let Some(mut sprites) = sprites else { return };
-    let eye = camera.translation();
-    let drift = plan.clouds.wind_m_s * time.elapsed_secs();
-    let radius = data.0.world.clouds.draw_radius_m;
-    let half_diag = cb_core::world::clouds::CLOUD_TILE_M * std::f32::consts::FRAC_1_SQRT_2;
-    let dist = |c: Vec2| ((c + drift).distance(Vec2::new(eye.x, eye.z)) - half_diag).max(0.0);
-    let s = &mut *sprites;
-    let gone: Vec<(i32, i32)> = s
-        .drawn
-        .keys()
-        .copied()
-        .filter(|k| s.all.iter().find(|a| a.0 == *k).is_none_or(|a| dist(a.1) > radius + half_diag))
-        .collect();
-    for key in gone {
-        for e in s.drawn.remove(&key).unwrap_or_default() {
-            commands.entity(e).despawn();
+    #[test]
+    fn planar_tangents_match_mikktspace_on_a_box() {
+        let mut a = MeshBuilder::tiled(2.4, 2.4);
+        a.block(Vec3::new(1.0, 2.0, 3.0), Vec3::new(4.0, 3.5, 7.0), [1.0; 4]);
+        let mut b = MeshBuilder::tiled(2.4, 2.4);
+        b.block(Vec3::new(1.0, 2.0, 3.0), Vec3::new(4.0, 3.5, 7.0), [1.0; 4]);
+        let ours = tangents(&a.build_with_tangents());
+        let mut mikk = b.build();
+        mikk.generate_tangents().unwrap();
+        for (i, (o, m)) in ours.iter().zip(tangents(&mikk)).enumerate() {
+            let (o3, m3) = (Vec3::new(o[0], o[1], o[2]), Vec3::new(m[0], m[1], m[2]));
+            assert!(o3.dot(m3) > 0.99, "vertex {i}: tangent {o3} against {m3}");
+            assert_eq!(o[3], m[3], "vertex {i}: handedness");
         }
-    }
-    let mut wanted: Vec<(f32, (i32, i32))> = s
-        .all
-        .iter()
-        .filter(|a| !s.drawn.contains_key(&a.0))
-        .map(|a| (dist(a.1), a.0))
-        .filter(|w| w.0 <= radius)
-        .collect();
-    wanted.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-    for (_, key) in wanted.into_iter().take(CLOUD_TILES_PER_FRAME) {
-        let mut ents = Vec::new();
-        for i in plan.clouds.puffs_in(key) {
-            for (at, size, shade) in puff_sprites(plan.seed, i, &plan.clouds.puffs[i as usize]) {
-                ents.push(
-                    commands
-                        .spawn((
-                            Mesh3d(s.quad.clone()),
-                            MeshMaterial3d(s.shades[shade].clone()),
-                            Transform::from_translation(at).with_scale(Vec3::splat(size)),
-                            NotShadowCaster,
-                            CloudSprite { anchor: at },
-                        ))
-                        .id(),
-                );
-            }
-        }
-        s.drawn.insert(key, ents);
-    }
-}
-
-fn face_clouds(
-    time: Res<Time>,
-    plan: Res<Plan>,
-    camera: Single<&GlobalTransform, With<PilotCamera>>,
-    mut q: Query<(&mut Transform, &CloudSprite)>,
-) {
-    let drift = Vec3::new(plan.clouds.wind_m_s.x, 0.0, plan.clouds.wind_m_s.y) * time.elapsed_secs();
-    let rot = camera.rotation();
-    for (mut t, c) in &mut q {
-        t.translation = c.anchor + drift;
-        t.rotation = rot;
     }
 }

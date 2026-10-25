@@ -1139,7 +1139,7 @@ def legs_tank(hip_y, hx, k=1.0):
             cyl(f"sprocket{s}{z}", (x - 1.55 * k, 2.0, z), (x + 1.55 * k, 2.0, z), 1.45, "FRAME", "legs", 14)
         plate(f"skirt{s}", (x + s * 1.75 * k, 3.0, 0), (0.4, 1.8, 10.4), "BODY", "legs")
         box(f"skirt_band{s}", (x + s * 2.0 * k, 3.4, 3.0), (0.06, 0.5, 3.0), "ACCENT", "legs")
-        limb(f"LEG_0{'L' if s > 0 else 'R'}", V((x, 2.0, 0)), before)    # a track unit is the leg a shot takes
+        limb(f"LEG_0{'L' if s > 0 else 'R'}", V((x, 2.0, 0)), before, foot=False)    # a track unit: the leg a shot takes
     chamfered("hull", (0, hip_y - 1.5, -0.2), (2 * hx - 1.0, 3.0, 9.4), 0.6, "BODY2", "legs")
     plate("glacis", (0, hip_y - 1.6, 4.7), (2 * hx - 1.6, 2.6, 0.5), "BODY", "legs", rake=0.9)
     cyl("ring", (0, hip_y, -0.3), (0, hip_y + 0.8, -0.3), 3.0, "FRAME", "legs", 20)
@@ -1509,18 +1509,30 @@ def crab_member(name, a, b, r1, r2):
     box(name + "_top", (a + b) / 2 + up * ((r1 + r2) / 2 * 0.85), (r1 * 1.2, L * 0.7, 0.3 * (r1 + r2)), "BODY2", "legs", ax)
 
 
-def limb(name, pivot, before):
+def limb(name, pivot, before, foot=True):
     """Every piece made since `before` (a set of object names) hung on one empty named `name` at its root joint
     (glTF frame), so the limb is one node the game can shoot off (owner, 2026-10-25: "Can we shoot off each leg or
-    arm")."""
+    arm"). A walking leg also gets `<name>_foot` at its lowest point, where it meets the ground: the game swings the
+    leg so that point stays planted while the body travels (owner, 2026-10-25: "mechs look like they just hover
+    aruond"). A track (`foot=False`) does not walk."""
     e = bpy.data.objects.new(name, None)
     bpy.context.scene.collection.objects.link(e)
     e.location = (G2B @ V(pivot).to_4d()).to_3d()
     bpy.context.view_layer.update()
     inv = e.matrix_world.inverted()
-    for o in [o for o in bpy.data.objects if o.name not in before and o is not e]:
+    pieces = [o for o in bpy.data.objects if o.name not in before and o is not e]
+    for o in pieces:
         o.parent = e
         o.matrix_parent_inverse = inv
+    if foot and name.startswith("LEG_"):
+        bpy.context.view_layer.update()
+        low = min((o.matrix_world @ v.co for o in pieces if o.type == "MESH" for v in o.data.vertices),
+                  key=lambda w: (round(w.z, 3), abs(w.x - e.location.x) + abs(w.y - e.location.y)))
+        f = bpy.data.objects.new(name + "_foot", None)
+        bpy.context.scene.collection.objects.link(f)
+        f.location = low
+        f.parent = e
+        f.matrix_parent_inverse = inv
     return e
 
 

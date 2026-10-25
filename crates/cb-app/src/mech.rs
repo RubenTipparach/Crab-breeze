@@ -1271,20 +1271,25 @@ pub fn step_mech(
                 }
             }
         }
-        // A mech striding into a wall at speed smashes through it (building-destruction).
-        let pushed_back =
-            sim.prev.speed_m_s.abs() > 2.5 && sim.curr.speed_m_s.abs() < sim.prev.speed_m_s.abs() * 0.6 && !sim.curr.airborne();
-        if pushed_back {
+        // A mech that rams a wall at speed smashes through it; one that only walks into it is
+        // stopped and breaks nothing (mech-ramming: `RamConfig::hole_radius_m`).
+        let ram = &cfg.ram;
+        let hole = if sim.curr.airborne() {
+            None
+        } else {
+            ram.hole_radius_m(sim.prev.speed_m_s, sim.curr.speed_m_s)
+        };
+        if let Some(radius_m) = hole {
             let front = sim.curr.pos
-                + cb_core::mech::forward(sim.curr.heading_rad) * (cfg.locomotion.body_radius_m + 2.5)
-                + Vec3::Y * cfg.body.smash_height_m;
+                + cb_core::mech::forward(sim.curr.heading_rad) * (cfg.locomotion.body_radius_m + ram.reach_m)
+                + Vec3::Y * ram.height_m;
             let p2 = Vec2::new(front.x, front.z);
-            for b in plan.collision.candidates(p2, 3.0) {
-                let (broke, chunks) = live.structures.break_sphere(b, front, 4.5);
+            for b in plan.collision.candidates(p2, radius_m) {
+                let (broke, chunks) = live.structures.break_sphere(b, front, radius_m);
                 if broke > 0 {
                     live.dirty_buildings.push(b);
                     live.new_chunks.extend(chunks);
-                    sim.curr.speed_m_s = sim.prev.speed_m_s * 0.7;
+                    sim.curr.speed_m_s = sim.prev.speed_m_s * ram.kept_fraction;
                     fx.write(Fx::new("wall_smash", front));
                 }
             }

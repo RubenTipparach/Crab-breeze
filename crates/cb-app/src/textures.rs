@@ -24,6 +24,31 @@ pub struct Textures {
     pub metal: Handle<Image>,
     /// Bark and leaves (trees).
     pub foliage: Handle<Image>,
+    /// Building materials (`building-generation`), each a colour map and a normal map, near white
+    /// so the piece's colour tints them; stand-ins for Material Maker graphs (survey W14).
+    pub building: BuildingTextures,
+}
+
+/// A colour map and its normal map.
+#[derive(Clone)]
+pub struct Pbr {
+    /// Base colour, sRGB.
+    pub color: Handle<Image>,
+    /// Tangent-space normal, linear.
+    pub normal: Handle<Image>,
+}
+
+/// The building materials' maps.
+#[derive(Clone)]
+pub struct BuildingTextures {
+    /// Stretcher-bond brick, 215 x 65 mm with 10 mm joints, a 2.4 m tile.
+    pub brick: Pbr,
+    /// Board-formed concrete, 150 mm boards, tie holes on 600 mm, a 2.4 m tile.
+    pub concrete: Pbr,
+    /// Roofing felt with gravel, a 2 m tile.
+    pub roof: Pbr,
+    /// Painted timber boards, a 1 m tile.
+    pub wood: Pbr,
 }
 
 const N: usize = 256;
@@ -80,6 +105,109 @@ fn image(images: &mut Assets<Image>, f: impl Fn(f32, f32) -> [f32; 3]) -> Handle
         ..default()
     });
     images.add(img)
+}
+
+/// A colour map and a normal map from `f(u, v) -> (colour, height 0..1)` at `n` px a side; the
+/// normal comes from the height's slope (`relief` is how steep a full step of height looks).
+fn pbr(images: &mut Assets<Image>, n: usize, relief: f32, f: impl Fn(f32, f32) -> ([f32; 3], f32)) -> Pbr {
+    let mut col = Vec::with_capacity(n * n * 4);
+    let mut h = vec![0.0f32; n * n];
+    for j in 0..n {
+        for i in 0..n {
+            let (c, hh) = f(i as f32 / n as f32, j as f32 / n as f32);
+            col.extend(c.iter().map(|x| (x.clamp(0.0, 1.0) * 255.0) as u8));
+            col.push(255);
+            h[j * n + i] = hh;
+        }
+    }
+    let mut nor = Vec::with_capacity(n * n * 4);
+    for j in 0..n {
+        for i in 0..n {
+            let at = |a: usize, b: usize| h[(b % n) * n + (a % n)];
+            let dx = (at(i + n - 1, j) - at(i + 1, j)) * relief;
+            let dy = (at(i, j + n - 1) - at(i, j + 1)) * relief;
+            let v = Vec3::new(dx, dy, 1.0).normalize();
+            nor.extend([v.x, v.y, v.z].iter().map(|x| ((x * 0.5 + 0.5) * 255.0) as u8));
+            nor.push(255);
+        }
+    }
+    let make = |data: Vec<u8>, format: TextureFormat| {
+        let mut img = Image::new(
+            Extent3d {
+                width: n as u32,
+                height: n as u32,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            data,
+            format,
+            RenderAssetUsages::RENDER_WORLD,
+        );
+        img.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+            address_mode_u: ImageAddressMode::Repeat,
+            address_mode_v: ImageAddressMode::Repeat,
+            mag_filter: ImageFilterMode::Linear,
+            min_filter: ImageFilterMode::Linear,
+            mipmap_filter: ImageFilterMode::Linear,
+            anisotropy_clamp: 8,
+            ..default()
+        });
+        img
+    };
+    Pbr {
+        color: images.add(make(col, TextureFormat::Rgba8UnormSrgb)),
+        normal: images.add(make(nor, TextureFormat::Rgba8Unorm)),
+    }
+}
+
+/// The building materials (the mockup's canvases, at their real sizes).
+fn building_textures(images: &mut Assets<Image>) -> BuildingTextures {
+    // Brick: 32 courses of 75 mm and 9.3 bricks of 225 mm in a 2.4 m tile, half-bond.
+    let brick = pbr(images, 512, 6.0, |u, v| {
+        let (courses, per) = (32.0, 2.4 / 0.225);
+        let row = (v * courses).floor();
+        let x = u * per + if row as i32 % 2 == 1 { 0.5 } else { 0.0 };
+        let (fx, fy) = (x.fract(), (v * courses).fract());
+        let joint = fx < 0.045 || fy < 0.13;
+        let id = hash(x.floor() as i32, row as i32, 21);
+        if joint {
+            let m = 0.78 + 0.08 * noise(u, v, 64, 22);
+            ([m, m * 0.97, m * 0.92], 0.0)
+        } else {
+            let k = 0.70 + 0.30 * id - 0.08 * fbm(u, v, 48, 23) - if id > 0.94 { 0.2 } else { 0.0 };
+            ([k, k * 0.96, k * 0.93], 0.8 + 0.2 * noise(u, v, 96, 24))
+        }
+    });
+    // Board-formed concrete: boards every 150 mm, tie holes on a 600 mm grid.
+    let concrete = pbr(images, 512, 3.0, |u, v| {
+        let board = (v * 16.0).floor();
+        let grain = noise(u * 0.4, v * 16.0, 64, 31 + board as u32) * 0.06;
+        let seam = (v * 16.0).fract() < 0.04;
+        let (hx, hy) = ((u * 4.0).fract() - 0.5, (v * 4.0).fract() - 0.5);
+        let hole = hx * hx + hy * hy < 0.0016;
+        let k = 0.82 + 0.1 * fbm(u, v, 12, 32) - grain - if seam { 0.12 } else { 0.0 } - if hole { 0.35 } else { 0.0 };
+        ([k, k * 0.99, k * 0.96], if seam || hole { 0.0 } else { 0.6 + grain })
+    });
+    // Roofing felt and gravel.
+    let roof = pbr(images, 256, 4.0, |u, v| {
+        let g = noise(u, v, 128, 41);
+        let k = 0.38 + 0.25 * g + 0.08 * fbm(u, v, 8, 42);
+        ([k, k * 0.98, k * 0.95], g)
+    });
+    // Painted timber boards, 120 mm wide.
+    let wood = pbr(images, 256, 4.0, |u, v| {
+        let b = (u * 8.0).floor();
+        let grain = noise(u * 8.0, v * 2.0, 32, 51 + b as u32);
+        let gap = (u * 8.0).fract() < 0.05;
+        let k = 0.78 + 0.15 * grain - if gap { 0.35 } else { 0.0 };
+        ([k, k * 0.95, k * 0.9], if gap { 0.0 } else { 0.5 + 0.3 * grain })
+    });
+    BuildingTextures {
+        brick,
+        concrete,
+        roof,
+        wood,
+    }
 }
 
 /// Generates the textures.
@@ -146,6 +274,7 @@ impl Plugin for TexturesPlugin {
             let k = 0.6 + 0.5 * leaf;
             [k, k, k]
         });
+        let building = building_textures(&mut images);
         app.insert_resource(Textures {
             grass,
             asphalt,
@@ -153,6 +282,7 @@ impl Plugin for TexturesPlugin {
             facade,
             metal,
             foliage,
+            building,
         });
     }
 }

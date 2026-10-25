@@ -1,0 +1,152 @@
+{
+ "connections": [
+  {
+   "from": "fbm2_0",
+   "from_port": 0,
+   "to": "shader_2",
+   "to_port": 0
+  },
+  {
+   "from": "fbm2_1",
+   "from_port": 0,
+   "to": "shader_2",
+   "to_port": 1
+  },
+  {
+   "from": "shader_2",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 0
+  },
+  {
+   "from": "shader_2",
+   "from_port": 1,
+   "to": "Material",
+   "to_port": 7
+  }
+ ],
+ "label": "Dust Wisps",
+ "name": "Material",
+ "node_position": {
+  "x": 0,
+  "y": 0
+ },
+ "nodes": [
+  {
+   "name": "fbm2_0",
+   "node_position": {
+    "x": 220,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 6,
+    "noise": 2,
+    "offset": 0.0,
+    "persistence": 0.6,
+    "scale_x": 16,
+    "scale_y": 6
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "fbm2_1",
+   "node_position": {
+    "x": 440,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 4,
+    "noise": 2,
+    "offset": 0.6,
+    "persistence": 0.5,
+    "scale_x": 40,
+    "scale_y": 40
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "shader_2",
+   "node_position": {
+    "x": 660,
+    "y": 0
+   },
+   "parameters": {},
+   "seed_int": 0,
+   "shader_model": {
+    "code": "",
+    "global": "",
+    "inputs": [
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "n",
+      "longdesc": "n",
+      "name": "n",
+      "shortdesc": "n",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "n2",
+      "longdesc": "n2",
+      "name": "n2",
+      "shortdesc": "n2",
+      "type": "f"
+     }
+    ],
+    "instance": "float h_$name(float x) { return fract(sin(x * 12.9898 + 0.731) * 43758.5453); }\n\nvec2 cell_$name(vec2 uv) { return floor(uv * 4.0); }\nvec2 local_$name(vec2 uv) { return fract(uv * 4.0); }\nfloat edge_$name(vec2 uv) { vec2 c = local_$name(uv) - vec2(0.5); return smoothstep(0.5, 0.43, max(abs(c.x), abs(c.y))); }\n\nvec4 dust_$name(vec2 uv) {\n\tvec2 cl = cell_$name(uv);\n\tvec2 c = local_$name(uv) - vec2(0.5);\n\tfloat id = cl.x + cl.y * 4.0;\n\tfloat ang = (h_$name(id) - 0.5) * 0.6;\n\tvec2 q = vec2(c.x * cos(ang) - c.y * sin(ang), c.x * sin(ang) + c.y * cos(ang));\n\tfloat mask = 1.0 - smoothstep(0.15, 0.46, length(q * vec2(0.85, 1.6)));\n\tfloat v = $n(uv);\n\tfloat a = smoothstep(0.42, 0.72, v * 0.8 + mask * 0.55) * mask;\n\ta *= mix(0.7, 1.0, $n2(uv)) * edge_$name(uv);\n\treturn vec4(vec3(0.86, 0.81, 0.73) * mix(0.82, 1.04, v), clamp(a, 0.0, 1.0));\n}\n",
+    "longdesc": "dust wisps",
+    "name": "dust wisps",
+    "outputs": [
+     {
+      "longdesc": "out0",
+      "rgba": "dust_$name($uv)",
+      "shortdesc": "out0",
+      "type": "rgba"
+     },
+     {
+      "f": "dust_$name($uv).a",
+      "longdesc": "out1",
+      "shortdesc": "out1",
+      "type": "f"
+     }
+    ],
+    "parameters": [],
+    "shortdesc": "dust wisps"
+   },
+   "type": "shader"
+  },
+  {
+   "export_paths": {},
+   "name": "Material",
+   "node_position": {
+    "x": 880,
+    "y": 0
+   },
+   "parameters": {
+    "albedo_color": {
+     "a": 1.0,
+     "b": 1,
+     "g": 1,
+     "r": 1,
+     "type": "Color"
+    },
+    "ao": 1.0,
+    "depth_scale": 0.0,
+    "emission_energy": 1.0,
+    "flags_transparent": true,
+    "metallic": 0.0,
+    "normal": 1.0,
+    "roughness": 1.0,
+    "size": 11,
+    "sss": 0.0
+   },
+   "type": "material"
+  }
+ ],
+ "parameters": {},
+ "type": "graph"
+}

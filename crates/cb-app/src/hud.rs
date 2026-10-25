@@ -225,8 +225,7 @@ fn spawn_hud(mut commands: Commands) {
                     position_type: PositionType::Absolute,
                     ..default()
                 },
-                text("", 22.0),
-                TextColor(AMBER),
+                (Text::new(""), TextFont::from_font_size(22.0), TextColor(AMBER)),
                 Visibility::Hidden,
                 JobMarker,
             ));
@@ -472,8 +471,7 @@ fn spawn_hud(mut commands: Commands) {
                         max_width: percent(100.0),
                         ..default()
                     },
-                    text("", 32.0),
-                    TextColor(AMBER),
+                    (Text::new(""), TextFont::from_font_size(32.0), TextColor(AMBER)),
                     JobLine,
                 ));
             });

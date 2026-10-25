@@ -32,6 +32,9 @@ struct Limb {
     /// +1 the mech's left (+x in glTF space), -1 its right.
     side: f32,
     rest: Quat,
+    /// For a walking leg: the foot's offset from the hip across the travel (in the skin's frame, metres before the
+    /// skin's scale), and the axis it swings about to carry the foot fore and aft. None for an arm or a track.
+    foot: Option<(Vec3, Vec3)>,
     off: bool,
 }
 
@@ -39,14 +42,22 @@ struct Limb {
 #[derive(Component)]
 pub struct SkinLimbs {
     limbs: Vec<Limb>,
-    pairs: f32,
+    /// The skin's scene root (dipped as the legs swing, so the planted foot keeps the ground).
+    scene: Entity,
+    /// The skin's scale.
+    scale: f32,
 }
 
-/// How far a stepping leg lifts about its own forward axis, and swings about the vertical, radians.
-const LIFT_RAD: f32 = 0.22;
-const SWING_RAD: f32 = 0.16;
+/// How far a stepping leg lifts out to the side at the top of its swing, radians.
+const LIFT_RAD: f32 = 0.16;
+/// The share of a cycle each foot stands on the ground.
+const DUTY: f32 = 0.55;
+/// The widest a leg swings either side of straight, radians (a stride longer than this allows is clipped).
+const SWING_MAX_RAD: f32 = 0.6;
 /// How far an arm or claw pitches as it walks, radians.
 const ARM_RAD: f32 = 0.18;
+/// The skin's forward, in its own (glTF) frame.
+const FORWARD: Vec3 = Vec3::Z;
 
 /// Hangs and walks the skins.
 pub struct SkinsPlugin;
@@ -110,49 +121,102 @@ fn bind_skins(
             let Some((leg, pair, side)) = names.get(e).ok().and_then(|n| limb_of(n.as_str())) else {
                 continue;
             };
-            let rest = transforms.get(e).map(|t| t.rotation).unwrap_or_default();
+            let Ok(t) = transforms.get(e) else { continue };
+            // The leg's `<name>_foot` child: where it meets the ground (none on a track, which does not walk).
+            let foot = children
+                .get(e)
+                .into_iter()
+                .flatten()
+                .find(|c| names.get(**c).is_ok_and(|n| n.as_str().ends_with("_foot")))
+                .and_then(|c| transforms.get(*c).ok())
+                .and_then(|f| swing_axis(t.rotation * f.translation));
             limbs.push(Limb {
                 entity: e,
                 leg,
                 pair,
                 side,
-                rest,
+                rest: t.rotation,
+                foot,
                 off: false,
             });
         }
         if !any {
             continue; // The scene has not spawned yet.
         }
-        let legs = limbs.iter().filter(|l| l.leg).count() as f32;
+        let scale = transforms.get(p.0).map(|t| t.scale.y).unwrap_or(1.0);
         info!("enemy skin bound: {} limbs", limbs.len());
-        commands.entity(root).remove::<PendingSkin>().insert(SkinLimbs {
-            limbs,
-            pairs: (legs / 2.0).max(1.0),
-        });
+        commands
+            .entity(root)
+            .remove::<PendingSkin>()
+            .insert(SkinLimbs { limbs, scene: p.0, scale });
     }
 }
 
-/// The phase offset of a limb's group: legs alternate by pair and side; the arms walk as the pair before the first.
+/// The offset of a hip to its foot `d` read for the walk: the part across the travel, and the axis a swing turns it
+/// about to carry the foot forward (a leg hanging down swings about its side axis, a crab's leg splayed out to the
+/// side about the vertical). None when the foot lies along the travel (no swing would move it fore and aft).
+fn swing_axis(d: Vec3) -> Option<(Vec3, Vec3)> {
+    let across = d - FORWARD * d.dot(FORWARD);
+    let axis = across.cross(FORWARD).try_normalize()?;
+    Some((across, axis))
+}
+
+/// A leg's swing at phase `u` of its cycle (0 its foot is put down) for a half sweep of `a` radians: the angle about
+/// its swing axis (+ carries the foot forward) and how far up its step (0 planted .. 1 at the top). On the ground the
+/// angle falls evenly from +a to -a while the body passes over the foot; in the air it comes back, eased.
+pub fn leg_phase(u: f32, a: f32) -> (f32, f32) {
+    let u = u.rem_euclid(1.0);
+    if u < DUTY {
+        (a * (1.0 - 2.0 * u / DUTY), 0.0)
+    } else {
+        let w = (u - DUTY) / (1.0 - DUTY);
+        let e = w * w * (3.0 - 2.0 * w);
+        (-a + 2.0 * a * e, (std::f32::consts::PI * w).sin())
+    }
+}
+
+/// The half sweep, radians, that keeps a foot `reach_m` from its hip's swing axis planted while the body travels
+/// `stride_m` a cycle: on the ground for `DUTY` of it, the foot passes from `+a` to `-a`, `2 r sin a` metres.
+pub fn half_sweep(stride_m: f32, reach_m: f32) -> f32 {
+    if reach_m <= 0.0 || !stride_m.is_finite() {
+        return 0.0;
+    }
+    (stride_m.max(0.0) * DUTY / (2.0 * reach_m)).clamp(0.0, SWING_MAX_RAD.sin()).asin()
+}
+
+/// The phase of a limb's group in a cycle: the two sides half a cycle apart, each pair a quarter on from the pair
+/// before, so a crab's legs ripple; the arms walk with the first pair's opposite side.
 fn group(l: &Limb) -> f32 {
-    let pair = if l.leg { f32::from(l.pair) + 1.0 } else { 0.0 };
-    pair + if l.side > 0.0 { 0.0 } else { 1.0 }
+    let pair = if l.leg { f32::from(l.pair) } else { 0.0 };
+    let side = if l.side > 0.0 { 0.0 } else { 0.5 };
+    side + pair * 0.25 + if l.leg { 0.0 } else { 0.5 }
 }
 
 fn walk_skins(skins: Query<(&MechSim, &SkinLimbs)>, mut transforms: Query<&mut Transform>) {
     for (sim, skin) in &skins {
-        let cycles = sim.curr.gait_cycles as f32;
+        let cycles = sim.curr.gait_cycles.rem_euclid(1.0) as f32;
         let amp = if sim.dead { 0.0 } else { sim.curr.gait_swing.clamp(0.0, 1.0) };
+        let mut dip = 0.0_f32;
         for l in skin.limbs.iter().filter(|l| !l.off) {
             let Ok(mut t) = transforms.get_mut(l.entity) else { continue };
-            let ph = cycles * std::f32::consts::TAU + group(l) * std::f32::consts::PI;
-            let lift = ph.sin().max(0.0) * amp;
-            t.rotation = if l.leg {
-                l.rest
-                    * Quat::from_rotation_z(l.side * lift * LIFT_RAD)
-                    * Quat::from_rotation_y(-l.side * ph.cos() * amp * SWING_RAD / skin.pairs.sqrt())
-            } else {
-                l.rest * Quat::from_rotation_x(-lift * ARM_RAD)
-            };
+            let u = cycles + group(l);
+            if !l.leg {
+                let lift = (u * std::f32::consts::TAU).sin().max(0.0) * amp;
+                t.rotation = l.rest * Quat::from_rotation_x(-lift * ARM_RAD);
+                continue;
+            }
+            let Some((across, axis)) = l.foot else { continue };
+            let a = half_sweep(sim.curr.stride_m, across.length() * skin.scale) * amp;
+            let (angle, up) = leg_phase(u, a);
+            let turn = Quat::from_rotation_z(l.side * up * amp * LIFT_RAD) * Quat::from_axis_angle(axis, angle);
+            t.rotation = turn * l.rest;
+            if up == 0.0 {
+                // A planted foot swung away from straight rises off the ground: the body comes down by as much.
+                dip = dip.max((turn * across - across).y * skin.scale);
+            }
+        }
+        if let Ok(mut t) = transforms.get_mut(skin.scene) {
+            t.translation.y = -dip;
         }
     }
 }
@@ -211,16 +275,45 @@ mod tests {
     }
 
     #[test]
-    fn the_two_sides_of_a_pair_step_half_a_cycle_apart() {
+    fn the_two_sides_of_a_pair_step_half_a_cycle_apart_and_pairs_ripple() {
         let l = |pair, side| Limb {
             entity: Entity::PLACEHOLDER,
             leg: true,
             pair,
             side,
             rest: Quat::IDENTITY,
+            foot: None,
             off: false,
         };
-        assert_eq!(group(&l(0, -1.0)) - group(&l(0, 1.0)), 1.0);
-        assert_eq!(group(&l(1, 1.0)) - group(&l(0, 1.0)), 1.0);
+        assert_eq!(group(&l(0, -1.0)) - group(&l(0, 1.0)), 0.5);
+        assert_eq!(group(&l(1, 1.0)) - group(&l(0, 1.0)), 0.25);
+    }
+
+    #[test]
+    fn a_hanging_leg_swings_about_its_side_axis_and_a_splayed_leg_about_the_vertical() {
+        let (_, hang) = swing_axis(Vec3::new(0.0, -10.0, 0.5)).unwrap();
+        assert!(hang.abs().abs_diff_eq(Vec3::X, 1e-5), "{hang}");
+        let (_, splay) = swing_axis(Vec3::new(8.0, -2.0, 0.0)).unwrap();
+        assert!(splay.y.abs() > 0.9, "{splay}");
+        // A positive swing carries the foot forward.
+        for d in [Vec3::new(0.0, -10.0, 0.0), Vec3::new(8.0, -2.0, 0.0), Vec3::new(-8.0, -2.0, 0.0)] {
+            let (across, axis) = swing_axis(d).unwrap();
+            assert!((Quat::from_axis_angle(axis, 0.3) * across).z > 0.0, "{d}");
+        }
+        assert!(swing_axis(Vec3::new(0.0, 0.0, 5.0)).is_none());
+    }
+
+    #[test]
+    fn a_planted_foot_travels_back_exactly_as_far_as_the_body_goes_forward() {
+        let (stride, reach) = (13.0, 12.0);
+        let a = half_sweep(stride, reach);
+        // Foot fore-aft offset over the stance, against the body's travel over the same share of the cycle.
+        let fore = |u: f32| reach * leg_phase(u, a).0.sin();
+        let slid = fore(0.0) - fore(DUTY - 1e-6);
+        assert!((slid - stride * DUTY).abs() < 1e-3, "{slid}");
+        assert_eq!(leg_phase(0.2, a).1, 0.0, "planted feet stay down");
+        assert!(leg_phase(DUTY + (1.0 - DUTY) / 2.0, a).1 > 0.99, "a stepping foot is up mid-swing");
+        assert_eq!(half_sweep(stride, 0.0), 0.0);
+        assert!(half_sweep(1000.0, 1.0) <= SWING_MAX_RAD + 1e-6);
     }
 }
