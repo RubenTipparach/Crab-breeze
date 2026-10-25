@@ -170,7 +170,9 @@ fn puff(in: CloudFragment, look: vec3<f32>, dist: f32) -> vec4<f32> {
     let n = fbm2(p * 2.2 + seed * 13.1 + globals.time * 0.004);
     let n2 = vn(p * 7.0 + seed * 5.0);
     let erode = select(cloud.fade.y, 0.22, abs(in.look.x - KIND_CAP) < 0.5);
-    let dens = smoothstep(1.0, 0.45, d + (n - 0.5) * erode + (n2 - 0.5) * 0.2);
+    // Faded out before the billboard's circle whatever the noise says, so no puff shows the hard arc
+    // where the circle is cut (seen in the storm stills from below).
+    let dens = smoothstep(1.0, 0.45, d + (n - 0.5) * erode + (n2 - 0.5) * 0.2) * smoothstep(1.0, 0.8, d);
     let f = facing(in.centre, view.world_position);
     let right = f[0];
     let up = f[1];
