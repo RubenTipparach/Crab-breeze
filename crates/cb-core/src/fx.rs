@@ -202,6 +202,9 @@ pub struct FxConfig {
     pub tracer_width_m: f32,
     /// A heavy shell's (1 MJ or more) streak width.
     pub tracer_heavy_width_m: f32,
+    /// How many times brighter than white a tracer burns, so the bloom catches it (HDR; owner,
+    /// 2026-10-25: "bullets need to be brighter, like affected by bloom more or something? HDR maybe?").
+    pub tracer_glow: f32,
     /// A rocket drops a `rocket_trail` puff every this far.
     pub trail_spacing_m: f32,
     /// A rocket motor's light.
@@ -285,6 +288,7 @@ impl Default for FxConfig {
             tracer_s: 0.008,
             tracer_width_m: 0.25,
             tracer_heavy_width_m: 0.5,
+            tracer_glow: 12.0,
             trail_spacing_m: 3.0,
             motor_lumens: 2.0e5,
             plume_length_m: 4.5,
@@ -322,6 +326,7 @@ impl Validate for FxConfig {
         }
         positive("tracer_width_m", self.tracer_width_m)?;
         positive("tracer_heavy_width_m", self.tracer_heavy_width_m)?;
+        positive("tracer_glow", self.tracer_glow)?;
         positive("trail_spacing_m", self.trail_spacing_m)?;
         positive("motor_lumens", self.motor_lumens)?;
         for name in RECIPES {

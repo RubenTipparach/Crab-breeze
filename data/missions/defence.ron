@@ -17,7 +17,8 @@
     spawn_inside_fraction: 0.5,
     spawn_clearance_m: 8.0,
     edge_margin_m: 150.0,
-    max_on_player: 3,
+    // 2, not 3, since each wave also brings vehicles (invasion-forces, 2026-10-24).
+    max_on_player: 2,
     engage_player_m: 300.0,
     grudge_s: 8.0,
     grudge_range_m: 700.0,
@@ -65,21 +66,22 @@
         ["tyrant", "scuttler", "mite", "shrike", "bruiser", "pincher", "scuttler", "mite", "shrike", "hatchet"],
     ],
     // Each wave's vehicles beside its raiders (openspec/changes/invasion-forces, survey G16,
-    // provisional): tanks come by cargo plane and parachute. The crab airship joins wave 3 when it
+    // provisional): tanks come by cargo plane and parachute. Lightened 2026-10-24 for the full
+    // three-wave take: at 4 tanks and 2 helicopters a wave the scripted pilot fell in wave 1. The crab airship joins wave 3 when it
     // is built. A wave is cleared when its raiders and these are all destroyed.
     forces: [
         [
-            (unit: "tank", count: 4, by_air: true, per_plane: 2),
-            (unit: "helicopter", count: 2),
+            (unit: "tank", count: 2, by_air: true, per_plane: 2),
+            (unit: "helicopter", count: 1),
         ],
         [
             (unit: "tank", count: 2, by_air: true, per_plane: 2),
-            (unit: "helicopter", count: 2),
-            (unit: "fighter", count: 2),
+            (unit: "helicopter", count: 1),
+            (unit: "fighter", count: 1),
         ],
         [
             (unit: "helicopter", count: 2),
-            (unit: "fighter", count: 4),
+            (unit: "fighter", count: 2),
         ],
     ],
 )

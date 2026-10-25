@@ -15,7 +15,7 @@ when the look is no longer coupled to the mech".
 - **Coupled look (seated, the default):** the view stays within 90 degrees of the mech's nose. Mouse
   input past the edge is held at it, and while the view is at the edge the mech turns toward it at
   its own turn rate, so the view comes round no faster than the mech can turn.
-- **Free look (held, Left Alt by default):** the view is not coupled: it can look anywhere, behind
+- **Free look (held, Left Ctrl by default):** the view is not coupled: it can look anywhere, behind
   the pilot included, and the mech does not turn for it.
 - **Leaving free look** with the view past 90 degrees: the view stays where it is (only the player
   turns the view, CLAUDE.md section 8) and the mech turns toward it at its turn rate until the view is

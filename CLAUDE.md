@@ -304,6 +304,11 @@ said out loud and kept in check, never guessed.
 - **End every reply with the artifact links** (owner rule in every repository): each artifact made
   or changed since the owner's last message, with one line on what is new, or one line saying
   there were none.
+- **Every pushed branch has a pull request** (owner, 2026-10-25: "there must always be a pr for every
+  branch"). The session that first pushes a branch opens its PR in the same step, with a body saying
+  which session owns it and what it holds, so the owner can tell whose a branch is from the PR list.
+  A session that finds a pushed branch with no PR opens one for it, marked as opened on its owner's
+  behalf.
 - **No scheduled PR check-ins** (owner rule in Pale Blue Dot, Star Crew and Mining Mike: "you
   should never rearm pr checkins"). No `send_later`, routine, `/loop` or timer that wakes the
   session to re-read a PR. A PR is looked at when the owner asks, when its events arrive, or as

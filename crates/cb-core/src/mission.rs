@@ -816,8 +816,9 @@ mod tests {
 
     #[test]
     fn only_the_nearest_three_turn_on_the_pilot() {
-        let c = cfg();
-        assert_eq!(c.max_on_player, 3);
+        // The rule at three, whatever the shipped tuning is.
+        let mut c = cfg();
+        c.max_on_player = 3;
         let rs: Vec<RaiderView> = [250.0, 50.0, 200.0, 100.0, 150.0].iter().map(|x| at(*x, 0.0)).collect();
         let goals: Vec<Goal> = (0..rs.len()).map(|i| raider_goal(i, &rs, Vec3::ZERO, &c)).collect();
         assert_eq!(goals, vec![Goal::City, Goal::Pilot, Goal::City, Goal::Pilot, Goal::Pilot]);
