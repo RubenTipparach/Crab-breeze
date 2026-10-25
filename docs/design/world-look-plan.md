@@ -10,6 +10,17 @@ Every step below is already designed in an OpenSpec change, or says which change
 ends in something you can check: headless stills from a cloud session, then a playtest on your
 machine.
 
+## Since this was written (2026-10-25, later the same day)
+
+- **Step 0 went the other way round.** You asked for the mockup's island in the game ("I wanted
+  this island ... with different biomes", "Of course we still want cool roads and rivers"), so the
+  game took the mockup's land instead of the mockup taking the game's: `cb_core::world::island` is
+  `island_gen.js` ported line for line, and seed 42 is the mockup's island (a test checks 30 points
+  against the mockup run in Node, within 5 cm). The crater is gone. The game's own rivers, lakes,
+  waterfalls, cities and curved highways are laid on it, and the mockup's ten biomes colour it
+  (`island-biomes` tasks 1.1-1.4 and 2.1). The table below describes the game before that.
+- **Step 2 (clouds as weather) is built**, on the mockup's island again (section below).
+
 ## Where things stand
 
 | In the mockup | In the game today | Change that brings it |
@@ -65,6 +76,13 @@ below; this is how each one is judged.
 frame time.
 
 ## Step 2. Clouds as weather (`cloud-weather`)
+
+**Built 2026-10-25** (on this branch, `environment-design`): the weather systems in
+`cb_core::world::weather` moved to the crater island, billboard clouds, rain shafts and cirrus in one
+sorted draw, rain on the glass under a shaft, and the storm darkening as a texture on the sun.
+What changed from the plan below is in `openspec/changes/cloud-weather/design.md` section 2a; the
+headless stills are in `docs/screenshots/weather/`. Still to do: the playtest on your machine and
+the frame time with `CB_NO_CLOUDS` (tasks 3.2, 3.3), and the water reading the storm shade.
 
 The biggest visible difference. The design is written (`openspec/changes/cloud-weather/design.md`);
 what follows is the work, with what changes for the crater.

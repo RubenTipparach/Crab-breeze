@@ -149,6 +149,19 @@ const ART_IMG = '';
 
 // The questions. Answers live in the db collection `answers`, one document per question id.
 const SECTIONS = [
+  { tag: 'F', name: 'Ground fog',
+    lead: 'New on 2026-10-25: fog that lies low and fills the valleys, the lakes and the coast, greyer under a storm (openspec/changes/ground-fog). Being built on the recommendations.',
+    qs: [
+      { id: 'F1', q: 'Ground fog (openspec/changes/ground-fog): fog that lies low and fills the valleys, the lakes and the coast, thinning with height, greyer under a storm. How much by default?',
+        options: ['Morning mist in the valleys and the crater, thinning by day; clear for combat-heavy missions', 'Always a light haze, no valley mist', 'Heavy: fog banks as a regular weather'], rec: 0,
+        why: 'Mist that pools in the low ground makes the valleys and the lakes read at a glance, and a per-mission preset keeps fights clear when they need to be.' },
+      { id: 'F2', q: 'Does ground fog hide targets?',
+        options: ['From the eye only, as cloud does; radar sees through it', 'It also shortens radar and lock-on range', 'Looks only'], rec: 0,
+        why: 'The same rule as cloud (W28): fog is cover from sight, not from sensors.' },
+      { id: 'F3', q: 'Fog is worked out exactly along each view ray (about 0.1 ms). Bevy also has ray-marched volumetric fog with light shafts (about 1-3 ms). Use it?',
+        options: ['Not for the island; later only for small local volumes (steam when the cockpit opens, waterfall spray)', 'Yes, everywhere, for the light shafts', 'Never'], rec: 0,
+        why: 'The exact layer gives the look for a tenth of the cost; the ray march earns its time only in small volumes close to the eye.' },
+    ] },
 ];
 
 const DECIDED = [

@@ -15,11 +15,20 @@ fn shipped() -> WorldConfig {
     load_ron(&data_path("data/world/world.ron")).expect("shipped world data loads")
 }
 
+/// The shipped data with rivers on (the stream threshold the hydrology was built and tuned at): the
+/// game ships with none (owner, 2026-10-25: "delete all rivers"), but the river code stays tested
+/// for when they come back.
+fn shipped_with_rivers() -> WorldConfig {
+    let mut cfg = shipped();
+    cfg.water.stream_min_flow = 12.0;
+    cfg
+}
+
 fn seed_42() -> &'static WorldPlan {
     static PLAN: OnceLock<WorldPlan> = OnceLock::new();
     PLAN.get_or_init(|| {
         let started = std::time::Instant::now();
-        let plan = generate(42, &shipped());
+        let plan = generate(42, &shipped_with_rivers());
         eprintln!(
             "seed 42 generated in {:.0} ms (test profile)",
             started.elapsed().as_secs_f64() * 1000.0
@@ -56,13 +65,13 @@ fn the_shipped_world_data_loads() {
 
 #[test]
 fn the_same_seed_builds_the_same_world() {
-    let again = generate(42, &shipped());
+    let again = generate(42, &shipped_with_rivers());
     assert!(again == *seed_42(), "seed 42 built two different worlds");
 }
 
 #[test]
 fn a_different_seed_builds_a_different_world() {
-    let other = generate(43, &shipped());
+    let other = generate(43, &shipped_with_rivers());
     assert_ne!(other.fingerprint(), seed_42().fingerprint());
 }
 
@@ -91,17 +100,17 @@ fn seed_42_builds_the_golden_world() {
     );
 }
 
-// Pinned 2026-10-25 in a Linux cloud session (x86_64), when the crater range, the drainage, the
-// lakes, the waterfalls and the biomes came in (openspec change `hydrology`), and the routed
-// highways (`curved-roads`). The generator uses
-// only IEEE arithmetic plus `powf` for storeys, `sqrt` and `atan2`; if another platform disagrees,
-// the difference is in those calls.
-const GOLDEN_CITIES: usize = 24;
-const GOLDEN_BUILDINGS: usize = 6528;
-const GOLDEN_HIGHWAYS: usize = 23;
-const GOLDEN_RIVERS: usize = 109;
-const GOLDEN_TREES_AT_START: usize = 47147;
-const GOLDEN_FINGERPRINT: u64 = 2672083249162357820;
+// Pinned 2026-10-25 in a Linux cloud session (x86_64), when the island mockup's land and its ten
+// biomes replaced the crater (openspec change `island-biomes`), under the drainage, the lakes, the
+// waterfalls (`hydrology`) and the routed highways (`curved-roads`). The generator uses IEEE
+// arithmetic plus `powf`, `sqrt`, `atan2`, `hypot`, `exp`, `sin` and `cos` (the island's gradient
+// noise); if another platform disagrees, the difference is in those calls.
+const GOLDEN_CITIES: usize = 13;
+const GOLDEN_BUILDINGS: usize = 3609;
+const GOLDEN_HIGHWAYS: usize = 12;
+const GOLDEN_RIVERS: usize = 64;
+const GOLDEN_TREES_AT_START: usize = 38407;
+const GOLDEN_FINGERPRINT: u64 = 337051159644685406;
 
 #[test]
 fn seed_42_census_for_the_design() {
@@ -153,6 +162,17 @@ fn seed_42_census_for_the_design() {
         plan.clouds.puffs.len(),
     );
     assert!(land_km2 > 300.0 && land_km2 < 1000.0, "{land_km2} km2 of land");
+    let mut kinds = std::collections::BTreeMap::new();
+    for p in &plan.clouds.puffs {
+        *kinds.entry(p.kind).or_insert(0usize) += 1;
+    }
+    eprintln!(
+        "seed 42 sky: {} puffs ({kinds:?}), {} rain shafts, {} darkened cells, {} cirrus",
+        plan.clouds.puffs.len(),
+        plan.clouds.shafts.len(),
+        plan.clouds.shades.len(),
+        plan.clouds.cirrus.len()
+    );
     let shares = biome_shares(plan, &cfg);
     eprintln!(
         "seed 42 biomes (share of land): {}",
@@ -190,8 +210,13 @@ fn biome_shares(plan: &WorldPlan, cfg: &WorldConfig) -> [f32; BIOME_COUNT] {
 #[test]
 fn a_quarter_of_the_land_is_desert() {
     // Owner, 2026-10-25: "Desert should be 1/4 the island".
-    let desert = biome_shares(seed_42(), &shipped())[5];
-    assert!((0.2..=0.3).contains(&desert), "desert is {:.1}% of the land", desert * 100.0);
+    let shares = biome_shares(seed_42(), &shipped());
+    let desert = shares[6] + shares[7];
+    assert!(
+        (0.2..=0.3).contains(&desert),
+        "desert and canyon are {:.1}% of the land",
+        desert * 100.0
+    );
 }
 
 #[test]
@@ -307,7 +332,7 @@ fn the_ground_under_a_highway_is_the_road_grade() {
                 // The drawn road sits `road_lift_m` (0.15 m) above the grade; the ground's straight
                 // 8 m triangles may only sag or bulge less than that under a climbing bend.
                 assert!(
-                    (got - h.grade_at(tt)).abs() < 0.12,
+                    (got - h.grade_at(tt)).abs() < 0.15,
                     "highway {:?} at {p}: {got} vs {}",
                     h.cities,
                     h.grade_at(tt)
@@ -385,47 +410,52 @@ fn the_island_has_land_in_the_middle_and_sea_at_the_edges() {
 }
 
 #[test]
-fn the_open_sea_floor_is_between_twenty_and_sixty_metres_down() {
+fn the_sea_floor_meets_the_flat_floor_at_the_worlds_edge() {
+    // The island mockup's sea falls to 230 m; over the last `edge_fade_m` it rises or falls to the
+    // flat floor drawn past the world's edge, so the two meet exactly.
     let plan = seed_42();
     let cfg = shipped();
     let i = &cfg.island;
-    let shelf_ends = i.land_radius_m + i.coast_noise_m + i.shelf_m;
-    let mut checked = 0;
-    for k in 0..2000 {
-        let a = k as f32 * 0.618_034 * std::f32::consts::TAU;
-        let r = shelf_ends + (k % 13) as f32 * 900.0;
-        let p = Vec2::new(a.cos(), a.sin()) * r;
-        let depth = i.sea_level_m - plan.height_at(p.x, p.y);
-        assert!((20.0..=60.0).contains(&depth), "the sea is {depth} m deep at {p}");
-        assert_eq!(plan.water_at(p.x, p.y).map(|w| w.depth_m), Some(depth));
-        checked += 1;
-    }
-    assert_eq!(checked, 2000);
-    // At the world's edge the floor is exactly the open sea floor (it meets the flat floor beyond).
     let half = cfg.world_size_m * 0.5;
-    assert_eq!(plan.height_at(half, 1234.0), i.sea_level_m - i.sea_depth_m);
+    for k in 0..40 {
+        let along = -half + k as f32 * cfg.world_size_m / 40.0;
+        for p in [Vec2::new(half, along), Vec2::new(along, -half)] {
+            assert!((plan.height_at(p.x, p.y) - (i.sea_level_m - i.sea_depth_m)).abs() < 1e-3, "at {p}");
+            assert!(plan.water_at(p.x, p.y).is_some());
+        }
+    }
 }
 
 #[test]
 fn the_shore_shelves_gently_enough_to_walk_out_of_the_sea() {
-    // Along rays from the centre, the ground between the open floor and the beach never climbs
-    // faster than 1 in 4 (a mech walks up 1 in 2): a mech that sank can walk ashore.
+    // Along rays from the centre, the sea floor in the shallows (2-30 m) never climbs faster than
+    // 1 in 4 (a mech walks up 1 in 2): a mech that sank near the shore can walk out, except under
+    // the north-east's sea cliffs and round the archipelago's islets.
     let plan = seed_42();
     let cfg = shipped();
     let i = &cfg.island;
+    let half = cfg.world_size_m * 0.5 - i.edge_fade_m;
     for k in 0..64 {
         let a = k as f32 / 64.0 * std::f32::consts::TAU;
         let dir = Vec2::new(a.cos(), a.sin());
         let mut last: Option<f32> = None;
-        let start = i.land_radius_m - i.coast_noise_m;
-        let mut r = start;
-        while r < i.land_radius_m + i.coast_noise_m + i.shelf_m {
+        let mut r = 8000.0;
+        while r < half {
             let p = dir * r;
             let h = plan.height_at(p.x, p.y);
             let near_city = plan.cities.iter().any(|c| c.rect().distance(p) < 300.0);
+            // The north-east's sea cliffs and the cliffed islets drop straight into the water: no
+            // walking ashore there.
+            let f = plan.terrain.shape().height_and_fields(p).1;
+            let cliff = f.cliff_coast > 0.05 || f.islet_q < 1.6;
+            // The shallows: past the shelf the floor falls to 230 m (the mockup's sea), deeper than
+            // any mech stands.
+            let shallow = |y: f32| (i.sea_level_m - 30.0..i.sea_level_m - 2.0).contains(&y);
             if let Some(l) = last
-                && h < i.sea_level_m
+                && shallow(h)
+                && shallow(l)
                 && !near_city
+                && !cliff
             {
                 assert!((l - h) / 32.0 < 0.25, "the sea floor climbs {} m in 32 m at {p}", l - h);
             }
@@ -706,15 +736,14 @@ fn a_lakes_water_stands_at_its_level() {
 }
 
 #[test]
-fn the_capital_stands_inside_the_crater() {
+fn the_capital_stands_on_low_ground_near_the_centre() {
+    // The range fills the middle: the capital is the first site within `capital_within_m` on low,
+    // level land (the mockup's capital is on the northern plain about 7.5 km out).
     let plan = seed_42();
     let cfg = shipped();
-    let r = cfg.range.radius_m - cfg.range.half_width_m;
-    assert!(
-        plan.cities[0].centre.distance(Vec2::from(cfg.range.centre_m)) < r,
-        "capital at {}",
-        plan.cities[0].centre
-    );
+    let c = &plan.cities[0];
+    assert!(c.centre.length() < cfg.capital_within_m, "capital at {}", c.centre);
+    assert!(c.ground_m < cfg.island.sea_level_m + cfg.city_max_ground_m);
 }
 
 /// Instrument (river water vs the carved ground): how much of every river's centre line has its water
@@ -846,4 +875,38 @@ fn the_baked_sun_shade_agrees_with_a_ray_toward_the_sun() {
     eprintln!("{shaded} of 3000 in shade; {agree} of {sure} agree with the ray");
     assert!(shaded > 10, "the island's ridges cast shade: {shaded}");
     assert!(agree as f32 >= sure as f32 * 0.93, "{agree} of {sure}");
+}
+
+#[test]
+fn no_rivers_water_lies_under_the_ground() {
+    // Owner, 2026-10-25: "I see rivers still have holes in them". Every river's water is over the
+    // ground along its whole course, joins included, except where a road's flat band or a bridge
+    // crosses it (the road stands over the water by design) and on a waterfall's sheet.
+    let plan = seed_42();
+    let cfg = shipped();
+    let road_flat = cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m;
+    let mut buried = Vec::new();
+    for (ri, r) in plan.waters.rivers.iter().enumerate() {
+        for (i, p) in r.path.iter().enumerate() {
+            if plan.waters.falls.iter().any(|f| f.river == ri && i + 3 >= f.lip && i <= f.foot + 3)
+                || plan.highways.iter().any(|h| h.project(*p).0 <= road_flat + 10.0)
+                || plan.waters.bridges.iter().any(|b| b.centre.distance(*p) < b.length_m)
+            {
+                continue;
+            }
+            let under = plan.terrain.height_at(p.x, p.y) - r.surface_m[i];
+            if under > 0.05 {
+                buried.push((ri, i, under));
+            }
+        }
+    }
+    assert!(buried.is_empty(), "river points under the ground: {buried:?}");
+}
+
+#[test]
+fn the_shipped_world_has_no_rivers() {
+    // Owner, 2026-10-25: "delete all rivers". No stream forms, so no river, channel or fall.
+    let plan = generate(42, &shipped());
+    assert!(plan.waters.rivers.is_empty(), "{} rivers", plan.waters.rivers.len());
+    assert!(plan.waters.falls.is_empty());
 }

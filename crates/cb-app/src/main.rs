@@ -30,6 +30,7 @@ mod perf_hud;
 mod physics;
 mod pilot;
 mod plumes;
+mod rocks;
 mod rope;
 mod screen_cut;
 mod screens_cube;
@@ -178,6 +179,8 @@ fn main() -> AppExit {
     if let Some(dir) = args.stills {
         if std::env::var("CB_STILLS_FX").is_ok() {
             app.add_plugins(capture::FxStillsPlugin { dir });
+        } else if std::env::var("CB_STILLS_WEATHER").is_ok() {
+            app.add_plugins(capture::WeatherStillsPlugin { dir });
         } else {
             app.add_plugins(capture::StillsPlugin { dir });
         }

@@ -22,6 +22,12 @@ struct WaterPost {
     light: vec4<f32>,      // rgb the light reaching the water, times exposure; w wet blur 0..1
     lens: vec4<f32>,       // drop density, refraction, speed, grid size
     lens_fx: vec4<f32>,    // x drips 0..1 (surfacing), y rain on the glass 0..1, z the drops' scale, w the sealed cabin's dry radius m (0 on foot)
+    fog_layer: vec4<f32>,  // ground fog: x density at sea level per m, y scale height m, z sea level m, w 1 on
+    fog_mist: vec4<f32>,   // x mist strength, y the mist taps' reach m, z a sky ray's length m, w extra extinction per m (rain)
+    fog_ambient: vec4<f32>, // rgb the sky's light the fog scatters back; w the phase asymmetry g
+    fog_sun: vec4<f32>,    // rgb the sun's light the fog scatters (storm shade in it)
+    fog_sun_dir: vec4<f32>, // xyz toward the sun
+    fog_map: vec4<f32>,    // x the mist map's least corner m, y its cell m, z cells a side
 }
 
 struct FullscreenVertexOutput {
@@ -36,6 +42,7 @@ struct FullscreenVertexOutput {
 @if(!MULTISAMPLED)
 @group(0) @binding(2) var scene_depth: texture_depth_2d;
 @group(0) @binding(3) var scene_sampler: sampler;
+@group(0) @binding(4) var mist_map: texture_2d<f32>;
 
 fn load_depth(uv: vec2<f32>) -> f32 {
     let size = vec2<i32>(textureDimensions(scene_depth));
@@ -95,6 +102,43 @@ fn blur(uv: vec2<f32>, focus: f32) -> vec3<f32> {
     return s / w;
 }
 
+// The mist (0..1) at `xz` from the baked map (`cb_core::world::mist::MistMap`).
+fn mist_at(xz: vec2<f32>) -> f32 {
+    let uv = (xz - vec2<f32>(post.fog_map.x)) / (post.fog_map.y * max(post.fog_map.z, 1.0));
+    return textureSampleLevel(mist_map, scene_sampler, uv, 0.0).r;
+}
+
+// The ground fog's optical depth along a ray from `origin` going `dir` for `len` metres: the layer's
+// exact integral (`cb_core::world::mist::optical_depth`, written with both ends' exponentials),
+// thickened by the mist read at four points along the ray, plus the rain's haze.
+fn fog_depth(origin: vec3<f32>, dir: vec3<f32>, len: f32) -> f32 {
+    let h = post.fog_layer.y;
+    let sea = post.fog_layer.z;
+    let reach = min(len, post.fog_mist.y);
+    var mist = 0.0;
+    for (var k = 0u; k < 4u; k++) {
+        let f = array<f32, 4>(0.1, 0.3, 0.6, 1.0)[k];
+        mist += mist_at((origin + dir * (reach * f)).xz);
+    }
+    let thick = 1.0 + post.fog_mist.x * mist * 0.25;
+    let e0 = exp(-max(origin.y - sea, -200.0) / h);
+    var layer = post.fog_layer.x * e0 * len;
+    if (abs(dir.y) >= 1e-4) {
+        let e1 = exp(-max(origin.y + dir.y * len - sea, -200.0) / h);
+        layer = post.fog_layer.x * h * (e0 - e1) / dir.y;
+    }
+    return thick * max(layer, 0.0) + post.fog_mist.w * len;
+}
+
+// The fog's colour seen along `dir`: the sky's light scattered back, and the sun's scattered
+// forward (Henyey-Greenstein), so it glows toward the sun.
+fn fog_colour(dir: vec3<f32>) -> vec3<f32> {
+    let g = post.fog_ambient.w;
+    let c = dot(dir, normalize(post.fog_sun_dir.xyz));
+    let phase = (1.0 - g * g) / (12.566371 * pow(max(1.0 + g * g - 2.0 * g * c, 1e-4), 1.5));
+    return post.fog_ambient.rgb + post.fog_sun.rgb * phase;
+}
+
 @fragment
 fn compose(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let uv = in.uv;
@@ -140,6 +184,16 @@ fn compose(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         }
         let deep = water_murk(post.deep.rgb, post.light.rgb, absorption, cam_gap);
         color = mix(color, mix(deep, lit, water_transmittance(absorption, travel)), wet);
+    }
+    // Ground fog in the air, from the cabin's wall (seated) to the pixel or out to the sky's length.
+    if (post.fog_layer.w > 0.5 && wet < 0.5) {
+        let start = post.lens_fx.w;
+        let end = select(view_dist, post.fog_mist.z, sky);
+        let len = end - start;
+        if (len > 0.0) {
+            let t = exp(-fog_depth(eye + direction * start, direction, len));
+            color = mix(fog_colour(direction), color, t);
+        }
     }
     // Depth blur while the glass is wet: the distance softens, the foreground stays crisp.
     let dz_amt = max(post.lens_fx.y, post.lens_fx.x);

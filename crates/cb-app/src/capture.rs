@@ -758,3 +758,293 @@ fn run_fx_script(
         script.done.clear();
     }
 }
+
+/// The weather, shot from named views for headless stills (openspec change `cloud-weather`, task
+/// 3.1; `docs/design/world-look-plan.md` step 1; an instrument, CLAUDE.md section 4): with
+/// `--stills <dir>` and `CB_STILLS_WEATHER=1`, once the game is ready the pilot's eye is put at each
+/// view in turn (held there, on foot, looking at its target), the ground and the sky are given time
+/// to stream in round it, and one still is saved per view as `weather-<name>.png`; then it exits.
+/// The views are the island mockup's (`island-biomes`) and two of a storm.
+/// `CB_STILLS_ONLY=<name>,<name>` shoots only those views. It writes no input and plays no game.
+/// They move into a data file shared with the mockup when step 1 of
+/// `docs/design/world-look-plan.md` lands.
+pub struct WeatherStillsPlugin {
+    /// Where the PNGs go.
+    pub dir: PathBuf,
+}
+
+/// A view: a name, where the eye is (x, y, z) and what it looks at (x, y, z). With
+/// `above_ground`, the eye's y is metres above the ground or the sea under it; otherwise it is a
+/// height, held at least 2 m above the ground.
+struct View {
+    name: &'static str,
+    eye: [f32; 3],
+    at: [f32; 3],
+    above_ground: bool,
+}
+
+const fn view(name: &'static str, eye: [f32; 3], at: [f32; 3]) -> View {
+    View {
+        name,
+        eye,
+        at,
+        above_ground: false,
+    }
+}
+
+/// The views (x east, z south, metres): the island mockup's named views (`docs/mockups/island.html`,
+/// `VIEWS`), worked out from its generator for seed 42, so a still of the game and a shot of the
+/// mockup can be laid side by side; and two of the storm over the jungle at (-5.9, -4.2) km.
+const VIEWS: &[View] = &[
+    view("overview", [6000.0, 22000.0, 26000.0], [0.0, 0.0, 0.0]),
+    view("range", [-8811.0, 1900.0, 4558.0], [189.0, 1466.0, -442.0]),
+    view("desert", [3300.0, 862.0, 7300.0], [4200.0, 476.0, 6650.0]),
+    view("canyon", [7758.0, 407.0, 3585.0], [8828.0, 288.0, 3598.0]),
+    view("jungle", [-8000.0, 323.0, 4000.0], [-7100.0, 541.0, 3600.0]),
+    view("cliffs", [10578.0, 70.0, -8876.0], [9174.0, 60.0, -7698.0]),
+    view("islets", [-9348.0, 420.0, 8074.0], [-11548.0, 0.0, 10274.0]),
+    view("coast", [13421.0, 380.0, 7136.0], [11838.0, 0.0, 2951.0]),
+    view("storm", [-3387.0, 205.0, 8814.0], [-5887.0, 2600.0, -4186.0]),
+    view("weather", [-24000.0, 6500.0, 26000.0], [-9000.0, 1500.0, -2000.0]),
+    // Along the longest river from 40 m over its bank, downstream (placed from the plan: `river_view`).
+    View {
+        name: "river",
+        eye: [0.0, 40.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: true,
+    },
+    // The steepest river reach that is not a waterfall, from 250 m to its side and from above
+    // (placed from the plan: `steep_river_view`).
+    View {
+        name: "river-steep",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "river-steep-far",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "river-steep-top",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Up close on the steepest reach from beside it and from downhill, the eye lower than the water
+    // (the case that drew high rivers black: `close_river_view`).
+    View {
+        name: "river-close",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "river-close-below",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Mist in the low ground, from a hill over the wet west at dawn-like low height.
+    view("valley-mist", [-9000.0, 260.0, -1000.0], [-6000.0, 120.0, 2500.0]),
+    // Under the storm, in its rain, 40 m up, facing away from the sun.
+    View {
+        name: "under-the-storm",
+        eye: [-5600.0, 40.0, -3900.0],
+        at: [-11600.0, 500.0, -9600.0],
+        above_ground: true,
+    },
+    // The storm's shadow on the ground, from 900 m up outside it, looking down across its edge.
+    View {
+        name: "storm-shadow",
+        eye: [500.0, 900.0, 2000.0],
+        at: [-5000.0, 0.0, -3000.0],
+        above_ground: true,
+    },
+];
+
+/// The river view: 150 m off the longest river's middle, 40 m over the bank, looking 1.2 km
+/// downstream along it.
+fn river_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
+    let Some(r) = plan.waters.rivers.iter().max_by_key(|r| r.path.len()) else {
+        return ([0.0, 40.0, 0.0], [0.0, 0.0, 100.0]);
+    };
+    let i = r.path.len() / 2;
+    let (p, q) = (r.path[i], r.path[(i + 1).min(r.path.len() - 1)]);
+    let along = (q - p).normalize_or(Vec2::X);
+    let eye = p - along * 300.0 + along.perp() * 150.0;
+    let at = p + along * 1200.0;
+    ([eye.x, 40.0, eye.y], [at.x, r.surface_m[i], at.y])
+}
+
+/// A steep river reach seen from a clear eye (no cloud there, at time zero): the reach whose
+/// surface falls most over 10 points (off every waterfall) on the range's west flank, seen from
+/// `back_m` across the slope and `up_m` over its water, or from straight above.
+fn steep_river_view(plan: &crate::world::Plan, back_m: f32, up_m: f32, top: bool) -> ([f32; 3], [f32; 3]) {
+    let w = &plan.waters;
+    let mut best: Option<(f32, Vec3, Vec3)> = None;
+    for (ri, r) in w.rivers.iter().enumerate() {
+        for i in 0..r.path.len().saturating_sub(10) {
+            if w.falls.iter().any(|f| f.river == ri && i + 12 >= f.lip && i <= f.foot + 2) {
+                continue;
+            }
+            let drop = r.surface_m[i] - r.surface_m[i + 10];
+            let p = r.path[i + 5];
+            let along = (r.path[i + 10] - r.path[i]).normalize_or(Vec2::X);
+            let s = r.surface_m[i + 5];
+            let side = p + along.perp() * back_m;
+            let eye = if top {
+                Vec3::new(p.x + 1.0, s + up_m, p.y + 1.0)
+            } else {
+                Vec3::new(side.x, s.max(plan.terrain.height_at(side.x, side.y)) + up_m, side.y)
+            };
+            if plan.clouds.density_at(eye, 0.0) > 0.0 || best.is_some_and(|b| drop <= b.0) {
+                continue;
+            }
+            best = Some((drop, eye, Vec3::new(p.x, s, p.y)));
+        }
+    }
+    let Some((drop, eye, at)) = best else {
+        return ([0.0, 400.0, 0.0], [0.0, 0.0, 100.0]);
+    };
+    info!("steep river: {drop:.0} m over 10 points at {at}");
+    (eye.to_array(), at.to_array())
+}
+
+/// Up close on the steepest river reach that is not a waterfall: 40 m to its side and 6 m over the
+/// ground, or (`below`) on the ground 120 m downstream and to the side, looking up at the water.
+fn close_river_view(plan: &crate::world::Plan, below: bool) -> ([f32; 3], [f32; 3]) {
+    let w = &plan.waters;
+    let mut best: Option<(f32, Vec3, Vec3)> = None;
+    for (ri, r) in w.rivers.iter().enumerate() {
+        for i in 0..r.path.len().saturating_sub(16) {
+            if w.falls.iter().any(|f| f.river == ri && i + 18 >= f.lip && i <= f.foot + 2) {
+                continue;
+            }
+            let drop = r.surface_m[i] - r.surface_m[i + 10];
+            let p = r.path[i + 5];
+            let s = r.surface_m[i + 5];
+            let along = (r.path[i + 10] - r.path[i]).normalize_or(Vec2::X);
+            let side = if below {
+                p + along * 120.0 + along.perp() * 30.0
+            } else {
+                p + along.perp() * 40.0
+            };
+            let ground = plan.terrain.height_at(side.x, side.y);
+            let eye = Vec3::new(side.x, ground + if below { 2.0 } else { 6.0 }, side.y);
+            if below && eye.y >= s {
+                continue;
+            }
+            if plan.clouds.density_at(eye, 0.0) > 0.0 || best.is_some_and(|b| drop <= b.0) {
+                continue;
+            }
+            best = Some((drop, eye, Vec3::new(p.x, s, p.y)));
+        }
+    }
+    let Some((drop, eye, at)) = best else {
+        return ([0.0, 400.0, 0.0], [0.0, 0.0, 100.0]);
+    };
+    info!("close river: {drop:.0} m over 10 points at {at}, eye {eye}");
+    (eye.to_array(), at.to_array())
+}
+
+#[derive(Resource)]
+struct WeatherScript {
+    dir: PathBuf,
+    /// The view being shot (0 waits for the game to be ready).
+    beat: usize,
+    beat_started_s: f32,
+    frames: u32,
+    /// The stills asked for, to wait for before the exit.
+    shots: Vec<PathBuf>,
+}
+
+impl Plugin for WeatherStillsPlugin {
+    fn build(&self, app: &mut App) {
+        std::fs::create_dir_all(&self.dir).ok();
+        app.insert_resource(WeatherScript {
+            dir: self.dir.clone(),
+            beat: 0,
+            beat_started_s: 0.0,
+            frames: 0,
+            shots: Vec::new(),
+        })
+        .add_systems(Update, run_weather_script);
+    }
+}
+
+fn run_weather_script(
+    mut commands: Commands,
+    mut script: ResMut<WeatherScript>,
+    mut pilot: ResMut<PilotSim>,
+    plan: Res<crate::world::Plan>,
+    time: Res<Time<Real>>,
+    ready: Option<Res<crate::loading::GameReady>>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    use cb_core::world::Ground;
+    let now = time.elapsed_secs();
+    let t = now - script.beat_started_s;
+    script.frames += 1;
+    let mut next = false;
+    if script.beat == 0 {
+        next = ready.is_some_and(|r| r.0) && t > 6.0;
+    } else if let Some(v) = VIEWS.get(script.beat - 1) {
+        let only = std::env::var("CB_STILLS_ONLY").unwrap_or_default();
+        if !only.is_empty() && !only.split(',').any(|n| n.trim() == v.name) {
+            script.beat += 1;
+            return;
+        }
+        let (v_eye, v_at) = match v.name {
+            "river" => river_view(&plan),
+            "river-steep" => steep_river_view(&plan, 700.0, 150.0, false),
+            "river-steep-far" => steep_river_view(&plan, 3000.0, 400.0, false),
+            "river-steep-top" => steep_river_view(&plan, 0.0, 500.0, true),
+            "river-close" => close_river_view(&plan, false),
+            "river-close-below" => close_river_view(&plan, true),
+            _ => (v.eye, v.at),
+        };
+        let v = View {
+            name: v.name,
+            eye: v_eye,
+            at: v_at,
+            above_ground: v.above_ground,
+        };
+        let ground = plan.height_at(v.eye[0], v.eye[2]).max(plan.waters.sea_level_m);
+        let eye = if v.above_ground {
+            Vec3::new(v.eye[0], ground + v.eye[1], v.eye[2])
+        } else {
+            Vec3::new(v.eye[0], v.eye[1].max(ground + 2.0), v.eye[2])
+        };
+        // Held at the view every frame (a pilot on foot in the air would fall).
+        stand_looking(&mut pilot, eye - Vec3::Y * 1.7, Vec3::from_array(v.at));
+        // Time for the ground's detail, the trees and the sky to stream in round the eye.
+        if t > 8.0 && script.frames > 12 {
+            let name = format!("weather-{}.png", v.name);
+            shoot(&mut commands, &script.dir.clone(), &name);
+            let path = script.dir.join(name);
+            script.shots.push(path);
+            println!(
+                "STILLS_WEATHER {} eye ({:.0}, {:.0}, {:.0}) cloud {:.2} rain {:.2} sun {:.2}",
+                v.name,
+                eye.x,
+                eye.y,
+                eye.z,
+                plan.clouds.density_at(eye, now),
+                plan.clouds.rain_at(eye, now),
+                plan.clouds.sun_at(Vec2::new(eye.x, eye.z), now)
+            );
+            next = true;
+        }
+    } else if script.shots.iter().all(|p| p.exists()) || t > 120.0 {
+        // Once every still is on disk (a software renderer reads a frame back slowly).
+        exit.write(AppExit::Success);
+    }
+    if next {
+        script.beat += 1;
+        script.beat_started_s = now;
+        script.frames = 0;
+    }
+}

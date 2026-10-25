@@ -12,7 +12,9 @@ path = "src/main.rs"
 
 [dependencies]
 cb-core.workspace = true
-bevy = { workspace = true, features = ["jpeg"] }
+# `pbr_light_textures`: the storm shade is a texture on the sun (`DirectionalLightTexture`, openspec
+# change `cloud-weather`), so everything the sun lights is darkened under a storm.
+bevy = { workspace = true, features = ["jpeg", "pbr_light_textures"] }
 avian3d = "=0.8.0"
 # Decodes the ground's CC0 texture set to build its mip chain at load (Bevy 0.20 makes none for a
 # PNG or JPEG); the same version Bevy itself uses (Cargo.lock).
