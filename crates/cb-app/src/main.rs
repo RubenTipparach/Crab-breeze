@@ -16,6 +16,7 @@ mod hud;
 mod input;
 mod loading;
 mod mech;
+mod mfd;
 mod particles;
 mod pbr_set;
 mod perf_hud;
@@ -113,6 +114,7 @@ fn main() -> AppExit {
         loading::LoadingPlugin,
         perf_hud::PerfHudPlugin,
         units::UnitsPlugin,
+        mfd::MfdPlugin,
     ));
     // GPU grass (openspec change `gpu-grass`); `CB_NO_GRASS=1` leaves it out, so the benchmark can
     // measure what it costs.

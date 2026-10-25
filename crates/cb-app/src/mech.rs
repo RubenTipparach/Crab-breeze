@@ -571,7 +571,7 @@ fn bind_rig(
 
 /// Hangs a bound mech's cockpit interior in its chest, as the mockup page does (`gen_mech_designs.py`): the interior
 /// at the `cockpit` bone's origin, each riding part moved onto its chest joint keeping where it is, so the two open
-/// as one body; the interior's lamps go (the game lights the cabin itself, `cockpit-lighting`). Waits until the
+/// as one body; the interior's lamps light the cabin on the cockpit layer (`cockpit-lighting`). Waits until the
 /// interior's scene has spawned.
 #[allow(clippy::too_many_arguments)]
 fn bind_interior(
@@ -583,6 +583,10 @@ fn bind_interior(
     parents: Query<&ChildOf>,
     meshes: Query<&Mesh3d>,
     lights: Query<(), Or<(With<PointLight>, With<SpotLight>, With<DirectionalLight>)>>,
+    mut points: Query<&mut PointLight>,
+    mut spots: Query<&mut SpotLight>,
+    piloted: Query<(), With<Piloted>>,
+    data: Res<Data>,
     mut assets: ResMut<Assets<Mesh>>,
     mut cut_done: Local<HashSet<AssetId<Mesh>>>,
 ) {
@@ -672,8 +676,29 @@ fn bind_interior(
                 .entity(part)
                 .insert((ChildOf(joint), Transform::from_matrix(on.inverse() * at)));
         }
+        // The interior's own lamps light its cabin (owner, 2026-10-24: "Need proper dashboard
+        // lighting"): on the cockpit layer only, so they light the cabin and never the world, and
+        // nothing outside reaches the cabin (lights are clustered on the CPU, which keeps each to its
+        // layer). No shadows: they are cheap fills. Only the pilot's mech keeps them; an enemy's
+        // cabin is never seen from inside.
+        let keep = piloted.contains(root);
         for l in lamps {
-            commands.entity(l).despawn();
+            if !keep {
+                commands.entity(l).despawn();
+                continue;
+            }
+            let scale = data.0.cockpit_light.interior_lamp_scale;
+            if let Ok(mut p) = points.get_mut(l) {
+                p.shadow_maps_enabled = false;
+                p.intensity *= scale;
+            }
+            if let Ok(mut sp) = spots.get_mut(l) {
+                sp.shadow_maps_enabled = false;
+                sp.intensity *= scale;
+            }
+            commands
+                .entity(l)
+                .insert(bevy::camera::visibility::RenderLayers::layer(crate::pilot::COCKPIT_LAYER));
         }
         info!(
             "cockpit interior bound: {} meshes, {} of them the screen wall ({} triangles, cut into {} meshes), {} rides",
@@ -920,7 +945,12 @@ pub fn step_mech(
                     ..default()
                 }
             } else if seated && sim.hatch.can_walk() {
-                fire = [actions.fire[0], actions.fire[1], actions.fire_missile];
+                // Free look is for pressing the cockpit's MFDs: the guns hold (cockpit-mfds).
+                fire = if actions.free_look {
+                    [false; 3]
+                } else {
+                    [actions.fire[0], actions.fire[1], actions.fire_missile]
+                };
                 // The torso turns to follow where the pilot looks (the view leads, the torso
                 // follows); holding free look keeps the torso where it is.
                 let mut c = MechControls::from_actions(&actions);
