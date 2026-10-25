@@ -22,6 +22,9 @@ pub struct RaiderSpec {
     /// Hull colour override (sRGB 0..1).
     #[serde(default)]
     pub tint: Option<[f32; 3]>,
+    /// The block-out it wears over the stand-in (`data/enemies/skins.ron`); `None` shows the stand-in.
+    #[serde(default)]
+    pub skin: Option<String>,
     /// Gun override; `None` keeps the mech's own.
     #[serde(default)]
     pub weapons: Option<Vec<WeaponSpec>>,
@@ -79,6 +82,10 @@ pub struct DefenceConfig {
     /// wave with no entry brings raiders only.
     #[serde(default)]
     pub forces: Vec<Vec<ForceSpec>>,
+    /// Each wave's skins (openspec change `blockout-enemies`): raider `i` of wave `w` wears
+    /// `skins_by_wave[w][i % len]` over its kind's own skin; a wave with no entry keeps the kinds' skins.
+    #[serde(default)]
+    pub skins_by_wave: Vec<Vec<String>>,
 }
 
 /// Vehicles of one kind in a wave.
@@ -130,6 +137,17 @@ impl Default for DefenceConfig {
             facade_out_m: 2.0,
             raiders: Vec::new(),
             forces: Vec::new(),
+            skins_by_wave: Vec::new(),
+        }
+    }
+}
+
+impl DefenceConfig {
+    /// The skin raider `i` of wave `w` wears: the wave's list if it has one, else its kind's own.
+    pub fn raider_skin(&self, w: usize, i: usize) -> Option<&str> {
+        match self.skins_by_wave.get(w) {
+            Some(list) if !list.is_empty() => Some(list[i % list.len()].as_str()),
+            _ => self.raiders.get(i % self.raiders.len().max(1)).and_then(|r| r.skin.as_deref()),
         }
     }
 }
@@ -776,6 +794,7 @@ mod tests {
             raiders: vec![RaiderSpec {
                 mech: "mechs/placeholder.ron".into(),
                 tint: None,
+                skin: None,
                 weapons: None,
                 armour_scale: 1.0,
                 skill: Default::default(),

@@ -29,6 +29,7 @@ mod screens_cube;
 mod shader_check;
 mod showcase;
 mod sim;
+mod skins;
 mod sun_flare;
 mod targeting;
 mod textures;
@@ -112,6 +113,7 @@ fn main() -> AppExit {
     ))
     .add_plugins((
         screens_cube::ScreensCubePlugin,
+        skins::SkinsPlugin,
         loading::LoadingPlugin,
         perf_hud::PerfHudPlugin,
         units::UnitsPlugin,

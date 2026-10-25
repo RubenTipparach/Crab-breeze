@@ -1082,6 +1082,7 @@ def legs_reverse(hip_y, hx, k=1.0):
     hip, knee = V((0, hip_y, 0)), V((0, hip_y * 0.66, 2.5 * k))
     hock, ball = V((0, hip_y * 0.36, -2.4 * k)), V((0, 1.2, 0.6))
     for s in (1, -1):
+        before = {o.name for o in bpy.data.objects}
         o = V((s * hx, 0, 0))
         H, Kn, Hk, B = hip + o, knee + o, hock + o, ball + o
         armoured(f"thigh{s}", H, Kn, (2.5 * k, 3.0 * k), "BODY", "legs", outer=s)
@@ -1098,6 +1099,7 @@ def legs_reverse(hip_y, hx, k=1.0):
             p = B + V((dx * k, -0.6, 0)) + d * L / 2
             box(f"claw{s}{i}", p, (1.15 * k, 1.1, L), "BODY2", "legs", ((d.z, 0, -d.x), (0, 1, 0), (d.x, 0, d.z)))
         cyl(f"wheel{s}", B + V((-0.5, -0.25, -0.4)), B + V((0.5, -0.25, -0.4)), 0.85, "RUBBER", "legs", 14)
+        limb(f"LEG_0{'L' if s > 0 else 'R'}", H, before)
 
 
 def legs_biped(hip_y, hx, k=1.0):
@@ -1105,6 +1107,7 @@ def legs_biped(hip_y, hx, k=1.0):
     the skate wheel under its heel."""
     hip, knee, ankle = V((0, hip_y, 0)), V((0, hip_y * 0.52, 0.8)), V((0, 2.1, -0.2))
     for s in (1, -1):
+        before = {o.name for o in bpy.data.objects}
         x = s * hx
         o = V((x, 0, 0))
         H, Kn, A = hip + o, knee + o, ankle + o
@@ -1119,12 +1122,14 @@ def legs_biped(hip_y, hx, k=1.0):
         chamfered(f"foot{s}", V((x, 0.6, 0.9)), (3.0 * k, 1.2, 6.4), 0.35, "BODY2", "legs")
         box(f"toe{s}", V((x, 0.8, 4.4)), (2.7 * k, 0.9, 1.6), "BODY2", "legs", ((1, 0, 0), (0, 1, 0.6), (0, -0.6, 1)))
         cyl(f"wheel{s}", V((x - 0.5, 0.75, -1.6)), V((x + 0.5, 0.75, -1.6)), 0.8, "RUBBER", "legs", 14)
+        limb(f"LEG_0{'L' if s > 0 else 'R'}", H, before)
 
 
 def legs_tank(hip_y, hx, k=1.0):
     """Tracks: two track units under a hull, road wheels and sprockets on their outsides, skirts over them, the core
     stood on a turret ring. hip_y is the hull's top."""
     for s in (1, -1):
+        before = {o.name for o in bpy.data.objects}
         x = s * hx
         chamfered(f"track{s}", (x, 1.9, 0), (2.9 * k, 3.6, 12.0), 1.2, "RUBBER", "legs", top=False)
         for i in range(5):
@@ -1134,6 +1139,7 @@ def legs_tank(hip_y, hx, k=1.0):
             cyl(f"sprocket{s}{z}", (x - 1.55 * k, 2.0, z), (x + 1.55 * k, 2.0, z), 1.45, "FRAME", "legs", 14)
         plate(f"skirt{s}", (x + s * 1.75 * k, 3.0, 0), (0.4, 1.8, 10.4), "BODY", "legs")
         box(f"skirt_band{s}", (x + s * 2.0 * k, 3.4, 3.0), (0.06, 0.5, 3.0), "ACCENT", "legs")
+        limb(f"LEG_0{'L' if s > 0 else 'R'}", V((x, 2.0, 0)), before)    # a track unit is the leg a shot takes
     chamfered("hull", (0, hip_y - 1.5, -0.2), (2 * hx - 1.0, 3.0, 9.4), 0.6, "BODY2", "legs")
     plate("glacis", (0, hip_y - 1.6, 4.7), (2 * hx - 1.6, 2.6, 0.5), "BODY", "legs", rake=0.9)
     cyl("ring", (0, hip_y, -0.3), (0, hip_y + 0.8, -0.3), 3.0, "FRAME", "legs", 20)
@@ -1146,6 +1152,7 @@ def legs_quad(hip_y, hx, k=1.0):
     chamfered("hull", (0, hip_y, -0.3), (2 * hx + 1.4, 3.0, 7.0), 0.6, "BODY2", "legs")
     for sx in (1, -1):
         for sz in (1, -1):
+            before = {o.name for o in bpy.data.objects}
             P = V((sx * hx, hip_y, sz * 2.4 - 0.3))
             Kn = V((sx * (hx + 3.8), hip_y + 0.4, sz * 5.0 - 0.3))
             F = V((sx * (hx + 5.0), 1.0, sz * 6.8 - 0.3))
@@ -1156,6 +1163,7 @@ def legs_quad(hip_y, hx, k=1.0):
             plate(f"kneeguard{n}", Kn + V((sx * 0.6, 1.2, 0)), (2.4, 0.5, 2.6), "BODY", "legs", roll=-sx * 0.4)
             armoured(f"lower{n}", Kn, F, (2.3 * k, 2.5 * k), "BODY", "legs")
             chamfered(f"pad{n}", F + V((0, -0.4, 0)), (2.8, 0.9, 2.8), 0.4, "BODY2", "legs")
+            limb(f"LEG_{0 if sz > 0 else 1}{'L' if sx > 0 else 'R'}", P, before)
     nozzle("bellyjet", (0, hip_y - 1.4, -0.3), (0, hip_y - 2.6, -0.3), 1.0, "legs")
 
 
@@ -1362,8 +1370,10 @@ def combat(legs, layout, hd, R, L, back_R, back_L, boost="std", k=1.0, armk=1.0,
     STATE["anchor"] = V((0, hip_y + 2.0, -0.4))
     head(hd, C)
     for s, wpn in ((-1, R), (1, L)):
+        before = {o.name for o in bpy.data.objects}
         g, el = arm(s, C, armk)
         weapon(wpn, g, s, el, armk)
+        limb(f"ARM_{'L' if s > 0 else 'R'}", V((s * (C["w"] / 2 + 1.4 * armk), C["sh_y"], -0.3)), before)
     back_unit(back_R, -1, C)
     back_unit(back_L, 1, C)
     boosters(boost, C)
@@ -1499,6 +1509,24 @@ def crab_member(name, a, b, r1, r2):
     box(name + "_top", (a + b) / 2 + up * ((r1 + r2) / 2 * 0.85), (r1 * 1.2, L * 0.7, 0.3 * (r1 + r2)), "BODY2", "legs", ax)
 
 
+def limb(name, pivot, before):
+    """Every piece made since `before` (a set of object names) hung on one empty named `name` at its root joint
+    (glTF frame), so the limb is one node the game can shoot off (owner, 2026-10-25: "Can we shoot off each leg or
+    arm")."""
+    e = bpy.data.objects.new(name, None)
+    bpy.context.scene.collection.objects.link(e)
+    e.location = (G2B @ V(pivot).to_4d()).to_3d()
+    bpy.context.view_layer.update()
+    inv = e.matrix_world.inverted()
+    for o in [o for o in bpy.data.objects if o.name not in before and o is not e]:
+        o.parent = e
+        o.matrix_parent_inverse = inv
+    return e
+
+
+# The crab legs' length against the first round's (owner, 2026-10-25: "Crab legs seem too long").
+LEG_REACH, LEG_RISE = 0.72, 0.8
+
 # Where the hind legs root along the shell (fractions of its length, + ahead) and which way they splay (radians from
 # straight out to the side, + ahead), by the number of pairs.
 HIND = {1: ([-0.18], [-0.35]), 2: ([-0.08, -0.36], [-0.1, -0.85]), 3: ([0.02, -0.2, -0.42], [0.15, -0.4, -0.95])}
@@ -1511,9 +1539,11 @@ def crab_legs(C, pairs=2, reach=11.0, rise=4.5, k=1.0):
     the ground. One pair is thick and carries the shell over itself; three are short and thin."""
     hip_y, bw, bl = C["hip_y"], C["w"], C["l"]
     zs, angles = HIND[pairs]
+    reach, rise = reach * LEG_REACH, rise * LEG_RISE
     for i, (fz, a) in enumerate(zip(zs, angles)):
         for sd in (1, -1):
             n = f"{i}{sd}"
+            before = {o.name for o in bpy.data.objects}
             P = V((sd * (bw / 2 - 1.0), hip_y - 0.6, bl * fz))
             d = V((sd * math.cos(a), 0, math.sin(a)))
             K = P + d * reach * 0.36 + V((0, rise, 0))
@@ -1537,6 +1567,7 @@ def crab_legs(C, pairs=2, reach=11.0, rise=4.5, k=1.0):
                 cyl(f"heelclaw{n}{j}", (F.x, 0.45 * k, F.z), V((F.x, 0.12, F.z)) + back * 1.7 * k, 0.35 * k, "FRAME", "legs", 8,
                     r2=0.05)
             box(f"band{n}", K.lerp(A, 0.3) + V((0, 0.95 * k, 0)), (0.3, 0.25 * k, 0.3), "ACCENT", "legs")
+            limb(f"LEG_{i}{'L' if sd > 0 else 'R'}", P, before)     # +x is the pilot's left
 
 
 def crab_gun(kind, n, G, sd, k):
@@ -1576,7 +1607,8 @@ def gun_arm(kind, sd, C, k=1.0, claw=1.0):
     """A claw hanging in front: shoulder low at the shell's front corner, the upper arm forward and out, a heavy elbow,
     then a meaty forearm hanging down and ahead to a wrist above the ground and a crab's claw, its fixed finger
     reaching the ground and its moving finger over it, open. The gun (`crab_gun`) rides the forearm's outside, pointing
-    ahead; `pincer` puts a cannon in the claw's palm instead, the claw grown round it."""
+    ahead; `pincer` puts a cannon in the claw's palm instead, the claw grown round it. Returns the shoulder (the arm's
+    root joint)."""
     S = V((sd * (C["w"] / 2 - 1.3), C["hip_y"] - 0.6, C["zf"] - 2.0))
     E = S + V((sd * 2.4 * k, -0.6 * k, 2.4 * k))
     W = V((E.x - sd * 0.5 * k, 2.6 * claw + 0.4, E.z + 2.6 * k))
@@ -1611,6 +1643,7 @@ def gun_arm(kind, sd, C, k=1.0, claw=1.0):
         boolean(palm, cyl(n + "_bore", W + V((0, 0.1, 0.5)), W + V((0, 0.1, 2.0 * c)), 0.5 * c, "FRAME", "arms", 12), "DIFFERENCE")
     else:
         crab_gun(kind, n, E + V((sd * 2.0 * k, 0.8 * k, -0.6 * k)), sd, k)
+    return S
 
 
 def crab(layout, R, L, back_R, back_L, pairs=2, bw=9.0, bl=10.0, hip_y=8.0, hump=2.6, reach=11.0, rise=4.5, k=1.0,
@@ -1620,8 +1653,9 @@ def crab(layout, R, L, back_R, back_L, pairs=2, bw=9.0, bl=10.0, hip_y=8.0, hump
     STATE["anchor"] = V((0, hip_y, 0))
     crab_eyes(C)
     crab_legs(C, pairs, reach, rise, k)
-    gun_arm(R, -1, C, kR, clawR)
-    gun_arm(L, 1, C, kL, clawL)
+    for kind, sd, ka, claw, side in ((R, -1, kR, clawR, "R"), (L, 1, kL, clawL, "L")):
+        before = {o.name for o in bpy.data.objects}
+        limb(f"ARM_{side}", gun_arm(kind, sd, C, ka, claw), before)
     U = dict(C, w=bw * 0.7)
     back_unit(back_R, -1, U)
     back_unit(back_L, 1, U)
@@ -1744,7 +1778,8 @@ def main():
         row = dict(id=key, name=name, what=what, file=f"mech_blockouts/{key}.glb", height_m=round(hi[2] - lo[2], 2),
                    width_m=round(hi[0] - lo[0], 2), length_m=round(hi[1] - lo[1], 2), tris=tris,
                    legs_m3=round(legs, 1), torso_m3=round(torso, 1), legs_over_torso=round(legs / torso, 2) if torso else None,
-                   arm_leg_clips=clips)
+                   arm_leg_clips=clips,
+                   limbs=sorted(o.name for o in bpy.data.objects if o.type == "EMPTY" and o.name.startswith(("LEG_", "ARM_"))))
         rows.append(row)
         print("BUILT", row, flush=True)
     with open(manifest, "w") as f:

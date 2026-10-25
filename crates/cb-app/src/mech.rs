@@ -32,7 +32,7 @@ use std::sync::Arc;
 #[derive(Component)]
 pub struct MechRoot {
     /// The child turned 180 degrees about y that holds the model in glTF space.
-    model: Entity,
+    pub(crate) model: Entity,
 }
 
 /// Simulation state at the last two fixed steps, for interpolation.
@@ -223,6 +223,7 @@ fn spawn_mech(
             armour_scale: e.armour_scale,
             tint: e.tint,
             skill: &e.skill,
+            skin: e.skin.as_ref().and_then(|s| data.0.skins.skins.get(s)),
         };
         let rng = SimRng::new(world.seed).fork(&format!("enemy/{i}"));
         let mut sa = SpawnAssets {
@@ -256,6 +257,8 @@ pub struct Loadout<'a> {
     pub tint: Option<[f32; 3]>,
     /// Its pilot.
     pub skill: &'a cb_core::ai::Skill,
+    /// The block-out it wears over the stand-in (openspec change `blockout-enemies`); `None` shows the stand-in.
+    pub skin: Option<&'a cb_core::skins::SkinSpec>,
 }
 
 /// The assets a spawned mech draws with.
@@ -297,6 +300,9 @@ pub fn spawn_enemy(
     for p in &mut cfg.parts {
         p.armour_mm *= l.armour_scale;
     }
+    if l.skin.is_some() {
+        cfg.boxes.clear(); // the skin is drawn instead; the skeleton stays for the sim, sockets and hits
+    }
     let at = Vec3::new(xz.x, world.terrain.height_at(xz.x, xz.y), xz.y);
     let tint = l.tint.map(|c| Color::srgb(c[0], c[1], c[2]));
     let ent = spawn_mech_entity(
@@ -310,6 +316,9 @@ pub fn spawn_enemy(
         a.meshes,
         a.materials,
     );
+    if let Some(skin) = l.skin {
+        crate::skins::wear(commands, a.assets, ent, skin);
+    }
     let ai = AiPilot::new(l.skill.clone(), rng);
     commands.entity(ent).insert((Enemy { ai }, id, EnemyGoal::default()));
     Some(ent)
@@ -1417,7 +1426,7 @@ fn fall_wrecks(time: Res<Time>, plan: Res<Plan>, mut wrecks: Query<(&mut Wreck, 
 /// burns.
 fn cut_parts(
     mut commands: Commands,
-    mut roots: Query<(Entity, &mut MechSim, &mut MechRig, &MechSpec)>,
+    mut roots: Query<(Entity, &mut MechSim, &mut MechRig, &MechSpec, Option<&mut crate::skins::SkinLimbs>)>,
     globals: Query<&GlobalTransform>,
     parents: Query<&ChildOf>,
     time: Res<Time>,
@@ -1425,7 +1434,7 @@ fn cut_parts(
     mut explosions: MessageWriter<Explosion>,
 ) {
     let _t = crate::perf_hud::slow("cut_parts");
-    for (root, mut sim, mut rig, mech) in &mut roots {
+    for (root, mut sim, mut rig, mech, mut skin) in &mut roots {
         for part in std::mem::take(&mut sim.cuts) {
             let spec = &mech.parts[part];
             if spec.kind == PartKind::Torso {
@@ -1460,17 +1469,22 @@ fn cut_parts(
                 }
             }
             let at = g.translation();
-            let out = (at - globals.get(rig.bones[0].entity).map(|r| r.translation()).unwrap_or(at))
-                .with_y(0.0)
-                .normalize_or(Vec3::X);
+            let centre = globals.get(rig.bones[0].entity).map(|r| r.translation()).unwrap_or(at);
+            // A skinned enemy throws its skin's limb instead; the stand-in's bone is not drawn and stays put.
+            let thrown = skin
+                .as_deref_mut()
+                .is_some_and(|s| crate::skins::throw_limb(&mut commands, s, spec.kind, &globals, centre, mech.body.cut_box_m));
+            let out = (at - centre).with_y(0.0).normalize_or(Vec3::X);
             // The wreck falls under physics (debris-physics): a box about the part's size.
-            commands.entity(e).remove::<ChildOf>().insert((
-                g.compute_transform(),
-                RigidBody::Dynamic,
-                Collider::cuboid(mech.body.cut_box_m[0], mech.body.cut_box_m[1], mech.body.cut_box_m[2]),
-                LinearVelocity(out * 6.0 + Vec3::Y * 5.0),
-                AngularVelocity(Vec3::new(1.5, 0.7, -1.1)),
-            ));
+            if !thrown && skin.is_none() {
+                commands.entity(e).remove::<ChildOf>().insert((
+                    g.compute_transform(),
+                    RigidBody::Dynamic,
+                    Collider::cuboid(mech.body.cut_box_m[0], mech.body.cut_box_m[1], mech.body.cut_box_m[2]),
+                    LinearVelocity(out * 6.0 + Vec3::Y * 5.0),
+                    AngularVelocity(Vec3::new(1.5, 0.7, -1.1)),
+                ));
+            }
             if let Ok(stump) = parents.get(e).map(|p| p.parent()).or(Ok::<Entity, ()>(e)) {
                 commands.entity(stump).insert(Burning {
                     until_s: time.elapsed_secs() + 25.0,

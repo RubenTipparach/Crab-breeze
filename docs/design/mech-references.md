@@ -262,15 +262,18 @@ writes `assets/models/mech_crabs.json`), each crab one line of `CRABS`:
 
 | No. | Mech | Hind legs | Right claw | Left claw | Back | Cockpit | Height, width |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 23 | Tyrant | 1 pair, thick; maw, spined hump | Crusher, howitzer | Crusher, autocannon | Missile box, radar | Titan | 18.0 m, 28.5 m |
-| 24 | Bruiser | 1 pair; flat wide shell, maw | Gatling in the palm | Gatling in the palm | Cannon, missile box | Excavator cab | 16.4 m, 29.5 m |
-| 25 | Shrike | 2 pairs, arching; saucer, cheek intakes | Autocannon | Autocannon | Two vertical launchers | Panorama | 16.2 m, 36.2 m |
-| 26 | Pincher | 2 pairs; great pincers | Cannon in the palm | Cannon in the palm | Two rocket pods | All-view sphere | 15.1 m, 33.4 m |
-| 27 | Scuttler | 3 pairs, short and thin | Gatling | Rocket box | Railgun, missile box | Canopy | 11.1 m, 24.7 m |
-| 28 | Mite | 3 pairs, short and thin, the smallest | Cannon in the palm | Autocannon | Cannon, radar | Low bank | 13.7 m, 22.4 m |
+| 23 | Tyrant | 1 pair, thick; maw, spined hump | Crusher, howitzer | Crusher, autocannon | Missile box, radar | Titan | 18.0 m, 23.0 m |
+| 24 | Bruiser | 1 pair; flat wide shell, maw | Gatling in the palm | Gatling in the palm | Cannon, missile box | Excavator cab | 15.5 m, 24.3 m |
+| 25 | Shrike | 2 pairs, arching; saucer, cheek intakes | Autocannon | Autocannon | Two vertical launchers | Panorama | 15.0 m, 28.9 m |
+| 26 | Pincher | 2 pairs; great pincers | Cannon in the palm | Cannon in the palm | Two rocket pods | All-view sphere | 14.1 m, 26.6 m |
+| 27 | Scuttler | 3 pairs, short and thin | Gatling | Rocket box | Railgun, missile box | Canopy | 11.1 m, 19.8 m |
+| 28 | Mite | 3 pairs, short and thin, the smallest | Cannon in the palm | Autocannon | Cannon, radar | Low bank | 13.5 m, 18.2 m |
 
 Heights run to the top of the back units, widths across the feet; no claw touches a leg (the mesh intersection check
 reads 0 on all six). With the legs now behind and the claws carrying the front, legs over shell by volume falls to 0.5
 (three thin pairs) to 1.2 (Tyrant), against the walkers' rule of legs heavier than the torso: a crab's claws are its
-front legs. Contact sheet: `docs/screenshots/mechs/crabs.png`.
+front legs. The legs were shortened by a quarter in reach and a fifth in rise after the first round (owner, 2026-10-25:
+"Crab legs seem too long"). Each leg and claw arm is one node at its root joint (`LEG_<pair><L|R>`, `ARM_L`, `ARM_R`),
+so it can be shot off whole (owner: "Can we shoot off each leg or arm"; the page's Shoot off a limb button, and
+`openspec/changes/crab-enemies`). Contact sheet: `docs/screenshots/mechs/crabs.png`.
 

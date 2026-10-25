@@ -21,6 +21,32 @@ step rate.
 Tests: `a_tripod_always_has_three_feet_down`, `planted_feet_do_not_slide`,
 `the_ik_reaches_every_tip_in_range`, `a_crab_strafes_with_its_body_facing_the_target`.
 
+## 2b. The new crabs, and losing limbs
+
+The crab mechs 23 to 28 (`build_mech_blockouts.py -- crabs`; owner, 2026-10-25: "Can we shoot off each leg or arm")
+stand on one, two or three pairs of hind legs, their claws carrying the front. Each leg and each claw arm is one node
+in the glb, at its root joint: `LEG_<pair><L|R>` (pair 0 forward) and `ARM_L`, `ARM_R`, every piece of the limb under
+it. The manifest lists them (`mech_crabs.json`, `limbs`).
+
+- **Gait**: the claws walk as the front pair (knuckle down, a short stride), so a one-pair crab moves diagonals of claw
+  and hind leg, a two-pair crab tripods of claw, hind and hind, and a three-pair crab alternating tripods of hind legs
+  with the claws planted between steps.
+- **Each limb is a part** with its own armour (`parts`, as the mechs' arms and legs are) and a hit capsule along it.
+- **At zero it comes off**: the game unparents the limb's node and hands it to `debris-physics` as one body, with the
+  hit's impulse, a spark burst and smoke from the stump; it stays in the world as a wreck (cover, `debris-physics`).
+- **What a lost limb costs**, from the sim, not faked (CLAUDE.md 6.1):
+
+| Lost | Effect |
+| --- | --- |
+| A hind leg, of two or three pairs | top speed times the share of hind legs left; the gait drops to the legs it has |
+| A hind leg, of one pair | it falls onto that claw and crawls on the claws and the other leg at a quarter speed |
+| Both hind legs on one side | it cannot walk; it turns in place on its claws |
+| A claw arm | its gun is gone; the crab leans onto the other claw (a slower, lopsided walk) |
+| Both claws | it cannot fire its arm guns; back units only |
+
+The mockup shows it now: on the Mechs page, Scene, Crabs, **Shoot off a limb** blows a random limb of the crab on
+screen off whole, with sparks, and **Repair** puts them back.
+
 ## 3. Cost
 
 Skitter 21 k, Snapper 25 k and Big Boy 29 k triangles (`assets/models/aliens.json`): ten crabs are
@@ -31,4 +57,7 @@ step. Measured with `--bench defence` before and after.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
+| C1 | The new crabs (23 to 28) replace Skitter, Snapper and Big Boy, or join them? | Join: the new six as the heavy waves | provisional |
+| C2 | Lost-limb effects as in the table above? | Yes | provisional |
+| C3 | Shot-off limbs stay as wrecks in the world? | Yes, as cover, until the mission ends | provisional |
 | G14 | What the defence waves are | Wave 1: 10 Skitters; wave 2: 6 Skitters and 4 Snappers; wave 3: 6 Snappers and Big Boy | provisional (survey G14) |
