@@ -45,6 +45,7 @@ mod showcase;
 mod sim;
 mod skins;
 mod sky_light;
+mod soft_sprites;
 mod sun_flare;
 mod targeting;
 mod textures;
@@ -111,6 +112,8 @@ fn main() -> AppExit {
     if matches!(args.start.as_deref(), Some("meadow") | Some("fx")) {
         app.insert_resource(world::StartInMeadow);
     }
+    // The blended smoke drawn sorted and soft (openspec change `particle-depth`).
+    app.add_plugins(soft_sprites::SoftSpritesPlugin);
     if args.start.as_deref() == Some("fx") {
         app.add_plugins(fx_gallery::FxGalleryPlugin);
     }

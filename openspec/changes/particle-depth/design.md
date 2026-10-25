@@ -50,3 +50,25 @@ It fixes both the cut and the order.
 |---|---|---|
 | PD1 | B or C, from the sheets | C if B still shimmers in the trail and far tests; B if it does not |
 | PD2 | `soft_m` per kind | 2 m smoke and dust, 1 m steam and mist, 0 sparks, fire, flame and debris |
+
+## Rendering particles properly (read up, 2026-10-25)
+
+Owner: "need particle smoothing blend so they dont glitch out, read up on how to properly render
+particles". What the standard references agree on, and where variant C stands against each:
+
+| Practice | Why | Variant C |
+|---|---|---|
+| Sort blended particles back to front by view depth | OVER blending is order dependent; a sprite lies in a plane parallel to the screen, so its depth along the view is exact for it (NVIDIA, Dunn and Bavoil) | done: sorted every frame by depth along the view, ties by spawn order |
+| Soft particles | fade a sprite over a short distance in front of the depth buffer, so it shows no hard edge where it crosses geometry (Unity's standard particle shaders) | done: `soft_m` against the depth prepass |
+| Premultiplied alpha | no dark or bright fringe at soft edges, texels filter without bleeding, and additive and blended looks can share one sorted draw (NVIDIA; the GameDev.net atlas advice) | done for the smoke kinds; fire and sparks stay additive in hanabi |
+| Fade in at birth, out at death | a particle that appears or vanishes at full alpha pops | done: every colour-over-life starts and ends at alpha 0 |
+| Fade near the eye | a sprite through the near plane fills the screen and pops | done: 2 m |
+| No culling by centre | culling a big sprite by its centre pops it in and out at the screen's edge (vvvv forum) | done: one mesh, never culled |
+| Order-independent blending (weighted blended OIT, McGuire and Bavoil 2013) | removes the pop when two sorted sprites swap order, the case the paper names for particles | not done: needs extra render targets and a composite pass; the next step if C still pops when two puffs cross |
+
+Sources: https://www.jcgt.org/published/0002/02/09/paper.pdf,
+https://developer.nvidia.com/content/transparency-or-translucency-rendering,
+https://docs.unity3d.com/es/2017.4/Manual/shader-StandardParticleShaders.html,
+https://catlikecoding.com/unity/tutorials/custom-srp/particles/,
+https://discourse.vvvv.org/t/spherical-billboards-soft-particles-blending/14821,
+https://gamedev.net/forums/topic/216773/.

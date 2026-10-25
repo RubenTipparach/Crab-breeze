@@ -245,6 +245,13 @@ pub struct FxConfig {
     /// every frame: big translucent clouds (explosion smoke, collapse dust) flickered merged (owner,
     /// 2026-10-25: "this smoke here is reall flickery still"). Each costs its own draw.
     pub sorted: Vec<String>,
+    /// Most soft smoke sprites alive at once (openspec change `particle-depth`): the blended smoke,
+    /// trail, dust, steam and mist particles, drawn sorted back to front and faded where they meet the
+    /// world instead of by bevy_hanabi. Past it, the oldest go first.
+    pub soft_max_particles: u32,
+    /// A soft sprite fades out over this many metres in front of the surface behind it, so it never
+    /// shows a straight cut where it crosses the ground or a wall.
+    pub soft_m: f32,
 }
 
 /// How blasts nearby shake the view (owner, 2026-10-24: "screen needs to shake a bit when
@@ -312,6 +319,8 @@ impl Default for FxConfig {
             stream_per_s: BTreeMap::new(),
             burst_range_m: 400.0,
             sorted: vec!["explosion_ground".into(), "explosion_air".into(), "explosion_water".into()],
+            soft_max_particles: 6000,
+            soft_m: 2.0,
         }
     }
 }
