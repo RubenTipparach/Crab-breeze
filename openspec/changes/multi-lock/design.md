@@ -69,4 +69,4 @@ range and angle. Six missiles in flight follow the existing missile path. Neglig
 
 ## Open questions
 
-None new: what a pod is carried by is survey G17 (`weapon-kinds`).
+None new: what a pod is carried by is survey G22 (`weapon-kinds`).

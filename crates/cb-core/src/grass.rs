@@ -214,8 +214,8 @@ pub struct GrassConfig {
     pub broad_hz: f32,
     /// The broad sway, as a share of the height.
     pub broad_push: f32,
-    /// The colour the ground takes under grass, linear RGB (it multiplies the ground's grass
-    /// texture, like every ground vertex colour).
+    /// The colour the ground takes under grass, a linear albedo (over the ground's neutral grain,
+    /// like every ground vertex colour).
     pub ground_tint_colour: [f32; 3],
     /// How far the ground's colour moves toward `ground_tint_colour` where grass grows fully, 0..1.
     pub ground_tint: f32,
@@ -735,7 +735,7 @@ pub fn grows_at(plan: &WorldPlan, p: Vec2, ground_m: f32, slope: f32, cfg: &Gras
         return 0.0;
     }
     let [lo, hi] = cfg.slope_bare;
-    1.0 - crate::world::terrain::smoothstep(lo, hi, slope)
+    (1.0 - crate::world::terrain::smoothstep(lo, hi, slope)) * plan.biomes.grass_share(p, ground_m, slope)
 }
 
 /// The nearest open meadow to the usual start (owner, 2026-10-24: "Screenshots with grass?"): a
@@ -1080,18 +1080,20 @@ mod tests {
         let cfg = GrassConfig::default();
         let p = plan();
         let h = &p.highways[0];
-        let mid = (h.ends[0] + h.ends[1]) * 0.5;
+        let mid = h.point_at(0.5);
         let ground = p.height_at(mid.x, mid.y);
         assert_eq!(grows_at(p, mid, ground, 0.0, &cfg), 0.0);
         // Well off the road (and off any bridge or city), on dry level ground above the beach: grass.
-        let across = (h.ends[1] - h.ends[0]).perp().normalize() * (h.width_m * 0.5 + 40.0);
+        let across = h.dir_at(0.5).perp() * (h.width_m * 0.5 + 40.0);
         let off = mid + across;
         let g = p.height_at(off.x, off.y);
         let open = p.cover_at(off, &cfg.clearance.into()) != Cover::Bare
             && p.waters.water_at(off, g).is_none()
             && g > p.waters.sea_level_m + cfg.beach_m;
         if open {
-            assert!(grows_at(p, off, g, 0.0, &cfg) > 0.99);
+            // As much as the biomes there grow (`Biomes::grass_share`).
+            let share = p.biomes.grass_share(off, g, 0.0);
+            assert!((grows_at(p, off, g, 0.0, &cfg) - share).abs() < 0.01);
         }
     }
 
@@ -1113,13 +1115,14 @@ mod tests {
         let cfg = GrassConfig::default();
         let p = plan();
         let (mut found, mut q) = (false, Vec2::ZERO);
-        // Some open dry ground above the beach.
+        // Some open dry grassland above the beach.
         for k in 0..400 {
             let c = Vec2::new(-6000.0 + (k % 20) as f32 * 600.0, -6000.0 + (k / 20) as f32 * 600.0);
             let g = p.height_at(c.x, c.y);
             if p.cover_at(c, &cfg.clearance.into()) == Cover::Open
                 && p.waters.water_at(c, g).is_none()
                 && g > p.waters.sea_level_m + cfg.beach_m + 1.0
+                && p.biomes.grass_share(c, g, 0.0) > 0.5
             {
                 found = true;
                 q = c;
@@ -1128,8 +1131,12 @@ mod tests {
         }
         assert!(found, "seed 42 has open dry ground");
         let g = p.height_at(q.x, q.y);
-        assert_eq!(grows_at(p, q, g, 0.0, &cfg), 1.0, "level");
-        assert!(grows_at(p, q, g, 0.85, &cfg) < 0.9, "steep");
+        let share = p.biomes.grass_share(q, g, 0.0);
+        assert!(
+            (grows_at(p, q, g, 0.0, &cfg) - share).abs() < 1e-6,
+            "level: as much as the biomes grow"
+        );
+        assert!(grows_at(p, q, g, 0.85, &cfg) < 0.9 * share, "steep");
         assert_eq!(grows_at(p, q, g, 2.0, &cfg), 0.0, "a cliff");
     }
 
@@ -1162,7 +1169,7 @@ mod tests {
         let cfg = GrassConfig::default();
         let p = plan();
         let h = &p.highways[0];
-        let road = (h.ends[0] + h.ends[1]) * 0.5;
+        let road = h.point_at(0.5);
         let g = p.height_at(road.x, road.y);
         assert_eq!(ground_cover(p, road, g, 0.0, 0.0, &cfg), 0.0, "no tint on a road");
         let m = meadow_start(p, &cfg, 40.0, 6000.0).expect("a meadow").mech_xz;

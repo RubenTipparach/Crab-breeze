@@ -1,0 +1,11 @@
+# Tasks: cloud-weather
+
+- [x] 0.1 The look in the island mockup: billboards, the six weather systems, rain shafts, storm darkening (`docs/mockups/island.html`, `island_gen.js`), shot in `docs/screenshots/island/`
+- [x] 1.1 `cb_core::world::weather`: the systems as seeded rules producing puffs with a kind, darkness and layer; tuning in `data/world/world.ron` under `weather:` (tests: counts and heights per system, every puff inside its layer, the same seed gives the same sky; `weather::tests`, also the desert clearer than the wet west, the high clear, orographic cloud on the windward rim only, caps over high peaks, no square edge)
+- [x] 1.2 `Clouds::density_at` reads every kind; rain density under a shaft (test: inside a shaft below its top is raining, outside is not; `clouds::tests::it_rains_inside_a_shaft_below_its_top_and_not_beside_it`); `Clouds::sun_at` for the storm darkening (`the_sun_is_darkened_under_a_storm_and_full_in_the_open`)
+- [x] 2.1 Billboard drawing: one quad per puff in one mesh, `cloud.wesl` reworked for a sprite (sphere normal, eroded edge), sorted back to front within the draw radius (`clouds_render::tests::items_are_drawn_from_the_farthest_to_the_nearest`), faded by the depth prepass where they meet the ground; the shader compiled against `bevy_pbr` in `cargo test`
+- [x] 2.2 Rain shafts and cirrus, items of the same sorted mesh; the storm darkening as a texture on the sun (`DirectionalLightTexture`), so the ground, buildings, trees, grass and mechs all darken through Bevy's own lighting (`the_shade_map_darkens_where_the_sun_crosses_a_storm`). The water's own light (`water_light`) does not read it yet: a follow-up
+- [x] 2.3 Rain on the glass under a shaft (`cloud-rain`): the glass reads `Clouds::wetness_at`, the larger of the cloud density and the shaft's rain
+- [x] 3.1 Headless stills (lavapipe): `--stills <dir>` with `CB_STILLS_WEATHER=1` shoots nine named views (storm, under the storm, the storm's shadow, front, crater, desert, deck, streets, overview); `docs/screenshots/weather/`, looked at, and the owner's notes on the first take fixed (sorting by view depth, shaded undersides)
+- [ ] 3.2 Measured with `CB_NO_CLOUDS` against the same take on the owner's hardware: frame time in fair weather and facing a storm
+- [ ] 3.3 Playtest: fly under a storm and into the deck, on Drive

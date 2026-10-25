@@ -29,9 +29,27 @@ ROSTER = ["foreman", "ironhorse", "harrow", "roustabout", "driller", "mule", "pi
 # The stand-in's tuning (data/mechs/placeholder.ron), the base every size is scaled from.
 STAND_IN_HEIGHT_M = 12.0
 STRIDE_PER_HIP = 13.0 / 5.9          # the stand-in's 13 m stride on its 5.9 m hip
-SIT_PELVIS_PER_HIP = 1.8 / 6.2       # the stand-in sits its pelvis at 1.8 m of 6.2 m
+# The kneel to be boarded is the mockup's (tools/mockups/mech_pose.js `sitPose`): each leg joint bends by
+# `bendLegs` at k = 1.25, as far as the legs physically can, and the torso bows by the waist and chest turns. Owner,
+# 2026-10-24: "dont fold the legs all the way down like that, how it was mocked up in the artifact made sense, it
+# kneels as far as it 'physically can'" (the stand-in's old 1.8 m of 6.2 m sat the torso on the road).
+SIT_BEND = 1.25
+SIT_MULT = [0.5, 1.0, 0.8]
+SIT_BOW_RAD = 0.28 + 0.12
+# The boarding crane reaches out past everything below the hatch on the rope's line (a strip this wide either side of
+# the centre line), plus a margin for the knees coming forward in the kneel (owner, 2026-10-24: "extend a crane out
+# then lower the rope").
+CRANE_STRIP_M = 2.0
+CRANE_MARGIN_M = 1.5
 # The page's boarding clock (tools/mockups/gen_mech_designs.py): the sit, then the chest a moment after it.
 SIT_S, CHEST_AT_S = 3.0, 3.2
+# The steam and mist (openspec change boarding-vents), on the page's own windows (gen_mech_designs.py `vent`):
+# particles a second from one vent at rate 1, and the legs' rams' throw in the mech's frame (out, a little up and
+# forward). The page streams steam at 30 a vent and mist at 9 x 0.7.
+STEAM_PER_S, MIST_PER_S = 30.0, 6.3
+STEAM_SPEED_M_S, MIST_SPEED_M_S = 3.0, 0.6         # the recipes' own (data/fx/fx.ron vent_steam, vent_mist)
+LEG_RAMS = ("shin_L", "shin_R", "hock_L", "hock_R")
+LEG_THROW = (1.0, 0.4, 0.3)
 
 
 def glb_json(path):
@@ -221,7 +239,136 @@ def mech_ron(mid, name, size, cockpit):
 AXES = {"x": (1.0, 0.0, 0.0), "y": (0.0, 1.0, 0.0), "z": (0.0, 0.0, 1.0)}
 
 
-def boarding_ron(m, name, size, tracks):
+def kneel(m):
+    """The mockup's kneel for this mech: (pelvis height, hock angle back from straight down in degrees), from the
+    legs' own segments (root extras `legSegs`: length and bend of hip, knee and hock) exactly as `bendLegs` bends
+    them, and the hock's rest angle measured off the rig."""
+    ex = m.root_extras()
+    segs = ex["legSegs"]
+    if isinstance(segs, str):
+        segs = json.loads(segs)
+    foot = ex.get("footH", 0.0)
+    a = a2 = 0.0
+    h = h2 = foot
+    for i, (length, rest) in enumerate(segs):
+        bend = SIT_BEND * math.copysign(1.0, rest) * SIT_MULT[i] * 0.9
+        a += rest
+        a2 += rest + bend
+        h += length * math.cos(a)
+        h2 += length * math.cos(a2)
+    pelvis = m.at("pelvis")[1] * h2 / h
+    # The hock (the last segment) turns by the change in its absolute angle; a two-segment leg has no hock to turn.
+    turn = -(a2 - a) if len(segs) >= 3 else 0.0
+    hock, ankle = m.at("hock_L"), m.at("foot_L")
+    rest_back = math.atan2(ankle[2] - hock[2], -(ankle[1] - hock[1]))
+    return pelvis, math.degrees(rest_back + turn)
+
+
+def crane_reach(m):
+    """How far out in front of the hatch's sill the crane must reach: past the furthest point of any mesh below the sill
+    that crosses the centre strip, measured at rest, plus the margin."""
+    hatch = m.at("HATCH_entry")
+    furthest = hatch[2]
+    for i, nd in enumerate(m.nodes):
+        if "mesh" not in nd:
+            continue
+        pts = []
+        for p in m.j["meshes"][nd["mesh"]]["primitives"]:
+            a = m.j["accessors"][p["attributes"]["POSITION"]]
+            lo, hi = a["min"], a["max"]
+            for cx in (lo[0], hi[0]):
+                for cy in (lo[1], hi[1]):
+                    for cz in (lo[2], hi[2]):
+                        pts.append(apply(m.world[i], (cx, cy, cz)))
+        xs, ys = [q[0] for q in pts], [q[1] for q in pts]
+        if min(xs) < CRANE_STRIP_M and max(xs) > -CRANE_STRIP_M and min(ys) < hatch[1] - 0.5:
+            furthest = max(furthest, max(q[2] for q in pts))
+    return furthest - hatch[2] + CRANE_MARGIN_M
+
+
+def unit(v):
+    n = math.sqrt(sum(c * c for c in v)) or 1.0
+    return tuple(c / n for c in v)
+
+
+def vent_line(node, kind, duration, rate, d, hold=False):
+    """One vent for the timeline: `kind` "steam" or "mist", `d` its throw in the node's own frame."""
+    k = "Mist" if kind == "mist" else "Steam"
+    per_s, speed = (MIST_PER_S, MIST_SPEED_M_S) if kind == "mist" else (STEAM_PER_S, STEAM_SPEED_M_S)
+    d = unit(d)
+    tail = ", hold: true" if hold else ""
+    return (f'(node: "{node}", kind: {k}, duration_s: {f(duration)}, rate_per_s: {f(per_s * rate, 1)}, '
+            f"speed_m_s: {f(speed, 1)}, dir: ({f(d[0], 3)}, {f(d[1], 3)}, {f(d[2], 3)}){tail})")
+
+
+def vent_empties(nodes):
+    """(name, kind, stage, rate, throw in the node's own frame) of every `VENT_*` empty in a glTF node list. The
+    extras' `dir` is in the parent's frame; turned into the empty's own (they are written unrotated, so it is the
+    same unless that changes)."""
+    out = []
+    for nd in nodes:
+        name = nd.get("name", "")
+        if not name.startswith("VENT_"):
+            continue
+        ex = nd.get("extras") or {}
+        d = extra(ex.get("dir", [0, 0, 1]))
+        d = rotate_inv(nd.get("rotation", [0, 0, 0, 1]), tuple(d))
+        out.append((name, ex.get("kind", "steam"), ex.get("stage", ""), float(ex.get("rate", 1.0)), d))
+    return sorted(out)
+
+
+def interior_nodes(cockpit):
+    v = cockpit.get("variant")
+    if not v:
+        return []
+    path = os.path.join(ROOT, "assets", "models", f"cockpit_{v}", f"cockpit_{v}.gltf")
+    return json.load(open(path))["nodes"] if os.path.exists(path) else []
+
+
+def vent_stages(m, cockpit, tracks, ready_s):
+    """The boarding's steam and mist (openspec change boarding-vents) as timeline stages (start, text), on the page's
+    windows: the legs' rams through the sit, the seals as the chest breaks, the hinges as it swings, the mist over
+    the sill and out of the cabin once it is open, held while it stands open."""
+    end = max((t["t0"] + t["d"] for t in tracks), default=0.0)
+    chest = vent_empties(m.nodes)
+    cabin = vent_empties(interior_nodes(cockpit))
+    stages = []
+
+    def stage(name, start, duration, lines):
+        if not lines:
+            return
+        body = "\n".join(f"                {ln}," for ln in lines)
+        stages.append((start, f'        (name: "{name}", start_s: {f(start)}, duration_s: {f(duration)},\n'
+                              f"            vents: [\n{body}\n            ]),"))
+
+    # The legs' rams: the page's throw (out, up, forward) in the mech's frame, turned into each bone's rest frame.
+    legs = []
+    for b in LEG_RAMS:
+        if b not in m.index:
+            continue
+        w = m.world[m.index[b]]
+        side = 1.0 if b.endswith("_L") else -1.0
+        t = (side * LEG_THROW[0], LEG_THROW[1], LEG_THROW[2])
+        local = tuple(sum(w[r][c] * t[r] for r in range(3)) for c in range(3))     # R^T t (the scale cancels in unit)
+        legs.append(vent_line(b, "steam", SIT_S, 1.0, local))
+    stage("the legs' rams work", 0.0, SIT_S, legs)
+    seals = [vent_line(n, k, 1.3, r, d) for n, k, st, r, d in chest if st == "seam"]
+    stage("the seals break", CHEST_AT_S - 0.1, 1.3, seals)
+    if end > 0.35:
+        hinges = [vent_line(n, k, end - 0.3, r, d) for n, k, st, r, d in chest if st == "open"]
+        stage("the hinges steam", CHEST_AT_S + 0.3, end - 0.3, hinges)
+    # Held vents run to just past ready_s, so they keep going while the chest stands open.
+    s0 = CHEST_AT_S + 0.6 * end
+    sill = [vent_line(n, k, ready_s - s0 + 0.05, r, d, hold=True) for n, k, st, r, d in chest if st == "sill"]
+    stage("mist rolls over the sill", s0, ready_s - s0, sill)
+    s1 = CHEST_AT_S + 0.8 * end
+    inner = [vent_line(n, k, ready_s - s1 + 0.05, r, d, hold=True) if k == "mist"
+             else vent_line(n, k, min(1.5, ready_s - s1), r, d) for n, k, st, r, d in cabin]
+    stage("the cabin breathes out", s1, ready_s - s1, inner)
+    return stages
+
+
+def boarding_ron(m, name, size, tracks, cockpit):
     stages = []
     for t in sorted(tracks, key=lambda t: (t["t0"], t["node"])):
         start, d = CHEST_AT_S + t["t0"], t["d"]
@@ -238,18 +385,23 @@ def boarding_ron(m, name, size, tracks):
         stages.append((start, f'        (name: "{t["node"]} {what}", start_s: {f(start)}, duration_s: {f(d)},\n'
                               f"            motions: [{motion}]),"))
     ready = max([s for s, _ in stages] + [SIT_S]) if not tracks else max(CHEST_AT_S + t["t0"] + t["d"] for t in tracks)
-    body = "\n".join(s for _, s in stages)
+    ready_s = float(f(ready + 0.3))
+    stages += vent_stages(m, cockpit, tracks, ready_s)
+    body = "\n".join(s for _, s in sorted(stages, key=lambda s: s[0]))
+    pelvis, hock_deg = kneel(m)
     return f"""// {name}'s boarding: generated by tools/mechs/gen_mech_data.py from the glb's own chest tracks (the root extras
 // `boarding.tracks`, written by tools/blender/mech_boarding.py), on the page's clock: the sit over {f(SIT_S, 1)} s, the chest
 // from {f(CHEST_AT_S, 1)} s. The cockpit's opening parts ride their chest joints (the mech file's `interior.rides`), so they
-// open with these stages. Edit the generator or the mech, not this file.
+// open with these stages. The steam and mist are the glb's and the interior's own `VENT_*` empties (openspec change
+// boarding-vents). Edit the generator or the mech, not this file.
 (
-    sit: (duration_s: {f(SIT_S, 1)}, pelvis_height_m: {f(SIT_PELVIS_PER_HIP * size["hip"])}, hock_angle_deg: 90.0, torso_bow_deg: 10.0),
+    sit: (duration_s: {f(SIT_S, 1)}, pelvis_height_m: {f(pelvis)}, hock_angle_deg: {f(hock_deg, 1)}, torso_bow_deg: {f(math.degrees(SIT_BOW_RAD), 1)}),
     stages: [
 {body}
     ],
-    ready_s: {f(ready + 0.3)},
+    ready_s: {f(ready_s)},
     clear_m: 3.0,
+    crane_reach_m: {f(crane_reach(m))},
     screen_power_up_s: 2.5,
     screen_power_down_s: 0.6,
 )
@@ -269,7 +421,7 @@ def generate(mid):
     with open(os.path.join(out, f"{mid}.ron"), "w") as fh:
         fh.write(mech_ron(mid, meta["name"], size, cockpit))
     with open(os.path.join(out, mid, "boarding.ron"), "w") as fh:
-        fh.write(boarding_ron(m, meta["name"], size, tracks))
+        fh.write(boarding_ron(m, meta["name"], size, tracks, cockpit))
     print(f"{mid}: {size['top']:.2f} m tall, hips {size['hip']:.2f} m, eyes {size['eye']:.2f} m, "
           f"half width {size['half_width']:.2f} m, {len(tracks)} chest tracks, interior {cockpit.get('variant')}")
 

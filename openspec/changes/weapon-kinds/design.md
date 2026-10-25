@@ -66,7 +66,7 @@ the mech's data: an empty bank refills in 20 s, 0.05 a second). A shot adds its 
 until it is back under 0.4. Sustained fire: the laser fills the bank in 5 s (0.25 in, 0.05 out a
 second), the plasma cannon in about 13 s, the railgun on its 4 s interval on its sixth shot, and
 mixing them fills it faster: two rail shots (0.5 after the cooling between them) and three seconds of laser lock it. Whether weapons and jets should share one bank is
-survey G18 (recommended: separate, so a jet hop never blocks the guns).
+survey G23 (recommended: separate, so a jet hop never blocks the guns).
 
 ## 4. Fire groups and actions
 
@@ -79,7 +79,7 @@ charge on the press.
 
 Loadouts live in each mech's `weapons` list, so the combat mechs carry what their block-outs hold
 (Hatchet a shotgun, Brigand and Rampart a railgun on the back). Lasers and plasma go to the mechs and
-crabs survey G17 picks (recommended: the alien crabs carry the energy weapons, the human combat mechs
+crabs survey G22 picks (recommended: the alien crabs carry the energy weapons, the human combat mechs
 the shotguns and railguns, so the two sides fight differently). The AI pilot (`cb-core::ai`) fires
 each kind through the same actions, with one rule per kind in its fire decision: shotgun inside
 200 m; railgun when the lead error is under 0.3 degrees and the target is beyond 300 m; laser held
@@ -113,5 +113,5 @@ while the aim is on the target and the bank is under 0.8; plasma inside 450 m, l
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| G17 | Who carries the new weapons | Human combat mechs: shotguns and railguns. Alien crabs: lasers and plasma | provisional (survey G17) |
-| G18 | Do weapon heat and jet heat share one bank | Separate banks | provisional (survey G18) |
+| G22 | Who carries the new weapons | Human combat mechs: shotguns and railguns. Alien crabs: lasers and plasma | provisional (survey G22) |
+| G23 | Do weapon heat and jet heat share one bank | Separate banks | provisional (survey G23) |

@@ -54,6 +54,9 @@ pub struct LocomotionConfig {
     pub brake_m_s2: f32,
     /// Leg turn rate at full turn input.
     pub turn_rate_deg_s: f32,
+    /// How fast the leg turn rate changes, so a 40 t mech eases into and out of a turn instead of
+    /// snapping (owner, 2026-10-25: "mech should turn more smoothly").
+    pub turn_accel_deg_s2: f32,
     /// Torso twist limit either side of the legs.
     pub twist_max_deg: f32,
     /// Torso twist rate.
@@ -88,6 +91,12 @@ pub struct LocomotionConfig {
     pub water_climb_m_s: f32,
     /// How hard water brakes the mech's motion through it (sinking, entering at speed).
     pub water_drag_m_s2: f32,
+    /// The skates ride water only deeper than this share of the mech's height; shallower water
+    /// is waded or walked, skates or not (owner, 2026-10-24: "The skis only kicking if you're above
+    /// water deeper than 50% of the mech").
+    pub skim_depth_share: f32,
+    /// How fast a wading mech with its skates on rises to the surface once the water is deep enough.
+    pub skim_rise_m_s: f32,
 }
 
 impl Default for LocomotionConfig {
@@ -99,6 +108,7 @@ impl Default for LocomotionConfig {
             accel_m_s2: 2.5,
             brake_m_s2: 4.0,
             turn_rate_deg_s: 30.0,
+            turn_accel_deg_s2: 120.0,
             twist_max_deg: 100.0,
             twist_rate_deg_s: 70.0,
             pitch_limits_deg: [-20.0, 25.0],
@@ -116,6 +126,8 @@ impl Default for LocomotionConfig {
             water_sink_m_s: 4.0,
             water_climb_m_s: 10.0,
             water_drag_m_s2: 30.0,
+            skim_depth_share: 0.5,
+            skim_rise_m_s: 6.0,
         }
     }
 }
@@ -192,7 +204,10 @@ impl Default for JetConfig {
             fall_max_m_s: 60.0,
             dive_m_s2: 30.0,
             dive_max_m_s: 90.0,
-            drag_per_s: 0.3,
+            // A 40 t mech keeps its momentum in the air; the skates are its side thrusters for moving
+            // across (owner, 2026-10-25: "when flying if skate is off I should inherit inertia, think of
+            // skate as lateral thrusters"). Air drag on 100 m2 at 30 m/s is about 1.3 m/s2: 4 % a second.
+            drag_per_s: 0.04,
             burn_s: 20.0,
             recharge_s: 8.0,
             recharge_delay_s: 1.5,
@@ -385,10 +400,22 @@ pub struct MechConfig {
     pub parts: Vec<PartSpec>,
     /// Guns.
     pub weapons: Vec<crate::weapons::WeaponSpec>,
+    /// Close combat: melee range and the arms' strikes (openspec change `close-combat`).
+    pub melee: super::melee::MeleeConfig,
     /// The stand-in's bones and sockets.
     pub nodes: Vec<NodeSpec>,
     /// The stand-in's boxes.
     pub boxes: Vec<BoxSpec>,
+}
+
+impl MechConfig {
+    /// Where a mech is aimed at, metres above its feet: its chest, a metre under the pilot's eyes,
+    /// inside the torso's hit capsule (owner, 2026-10-25: "I'm 24 m tall, why not aim at my
+    /// center?", "sure, chest is fine"). A fixed 9.8 m, set for the 12 m mechs, put the aim between
+    /// the 24 m mechs' thighs, and rounds flew through.
+    pub fn aim_height_m(&self) -> f32 {
+        (self.body.eye_height_m - 1.0).max(0.0)
+    }
 }
 
 impl Default for MechConfig {
@@ -405,6 +432,7 @@ impl Default for MechConfig {
             ram: RamConfig::default(),
             parts: default_parts(),
             weapons: crate::weapons::default_weapons(),
+            melee: super::melee::MeleeConfig::default(),
             nodes: Vec::new(),
             boxes: Vec::new(),
         }
@@ -431,6 +459,7 @@ impl Validate for MechConfig {
         positive("locomotion.accel_m_s2", l.accel_m_s2)?;
         positive("locomotion.brake_m_s2", l.brake_m_s2)?;
         positive("locomotion.turn_rate_deg_s", l.turn_rate_deg_s)?;
+        positive("locomotion.turn_accel_deg_s2", l.turn_accel_deg_s2)?;
         within("locomotion.twist_max_deg", l.twist_max_deg, 0.0, 180.0)?;
         positive("locomotion.twist_rate_deg_s", l.twist_rate_deg_s)?;
         within("locomotion.pitch_limits_deg[0]", l.pitch_limits_deg[0], -89.0, 0.0)?;
@@ -449,6 +478,9 @@ impl Validate for MechConfig {
         positive("locomotion.water_sink_m_s", l.water_sink_m_s)?;
         positive("locomotion.water_climb_m_s", l.water_climb_m_s)?;
         positive("locomotion.water_drag_m_s2", l.water_drag_m_s2)?;
+        self.melee.validate()?;
+        within("locomotion.skim_depth_share", l.skim_depth_share, 0.0, 2.0)?;
+        positive("locomotion.skim_rise_m_s", l.skim_rise_m_s)?;
         let g = &self.gait;
         positive("gait.stride_max_m", g.stride_max_m)?;
         positive("gait.stride_min_m", g.stride_min_m)?;
@@ -560,6 +592,25 @@ mod tests {
     use super::*;
     use crate::data::{load_ron, parse_ron};
     use std::path::{Path, PathBuf};
+
+    #[test]
+    fn every_shipped_mech_is_aimed_at_its_chest_above_the_hips() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/mechs");
+        let mut checked = 0;
+        for entry in std::fs::read_dir(&dir).expect("data/mechs reads") {
+            let path = entry.expect("entry").path();
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or_default().to_string();
+            if !name.ends_with(".ron") || name.contains("boarding") {
+                continue;
+            }
+            let Ok(m) = load_ron::<MechConfig>(&path) else { continue };
+            let aim = m.aim_height_m();
+            let (hip, top) = (m.locomotion.hip_height_m, m.locomotion.body_height_m);
+            assert!(aim > hip && aim < top, "{name}: aimed at {aim} m, hips {hip} m, top {top} m");
+            checked += 1;
+        }
+        assert!(checked >= 5, "{checked} mechs checked");
+    }
 
     fn shipped() -> MechConfig {
         let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/mechs/placeholder.ron");

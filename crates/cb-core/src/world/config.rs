@@ -6,27 +6,38 @@
 use crate::data::{Validate, finite, positive, positive_range, within};
 use serde::Deserialize;
 
-/// Rivers and lakes (openspec change `terrain-water`).
+/// Rivers, lakes and waterfalls (openspec changes `terrain-water`, `hydrology`). Where water goes is
+/// worked out on a coarse drainage grid: every cell drains to its lowest neighbour, basins fill to
+/// their spill point as lakes, and a cell whose drained snowmelt and rain pass `stream_min_flow` is
+/// a stream; streams meet and widen into rivers (hydrology design section 2).
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct WaterConfig {
+    /// Rivers on the island, with their lakes, waterfalls, channels and bridges. Off, the only water
+    /// is the sea (owner, 2026-10-25: "can you remove all river stuff from the game?", "they dont
+    /// integrate well with the terrain").
+    pub rivers: bool,
     /// Every city's ground stands at least this far above sea level.
     pub city_freeboard_m: f32,
-    /// Rivers to run.
-    pub river_count: u32,
-    /// Grid a river's course is chosen on.
-    pub river_grid_m: f32,
-    /// Most grid steps a river takes.
-    pub river_max_steps: u32,
-    /// Random height added to each step's choice: larger meanders more.
-    pub meander_m: f32,
-    /// Least distance between a river and a city square.
+    /// Cell size of the drainage grid.
+    pub drainage_cell_m: f32,
+    /// Rain a lowland cell gives, as a share of what a cell above the snowline gives in melt.
+    pub lowland_rain: f32,
+    /// Melt ramps up over this height below the snowline (`island.snowline_m`).
+    pub melt_band_m: f32,
+    /// A cell is a stream when the water draining through it is at least this many snow cells' worth.
+    pub stream_min_flow: f32,
+    /// Fewest drainage cells a stream runs before it meets another or the sea.
+    pub stream_min_cells: u32,
+    /// Spacing of the points along a river's course.
+    pub river_step_m: f32,
+    /// Least distance between a river or lake and a city square.
     pub river_city_clearance_m: f32,
-    /// Water surface width at the source.
-    pub river_width_m: f32,
-    /// Width grows by this share from source to mouth.
-    pub river_widening: f32,
-    /// Depth at the channel's centre.
+    /// Half width of a stream at `stream_min_flow`; a river is wider by the square root of its flow.
+    pub stream_half_width_m: f32,
+    /// Widest half width of a river.
+    pub river_max_half_width_m: f32,
+    /// Depth at the channel's centre (a stream's is at most half its width).
     pub river_depth_m: f32,
     /// Water surface below the surrounding ground.
     pub freeboard_m: f32,
@@ -34,23 +45,53 @@ pub struct WaterConfig {
     pub bank_slope: f32,
     /// River flow speed.
     pub flow_m_s: f32,
+    /// A basin is a lake when the water stands at least this deep in it.
+    pub lake_min_depth_m: f32,
+    /// A basin is a lake when it covers at least this many drainage cells.
+    pub lake_min_cells: u32,
+    /// Most lakes in basins (the largest are kept); plunge pools under waterfalls come on top.
+    pub lake_max_count: u32,
+    /// Radius range of a lake.
+    pub lake_radius_m: [f32; 2],
+    /// Depth of a lake's bowl at its centre.
+    pub lake_depth_m: f32,
+    /// How far the shore wanders in or out, as a share of the radius.
+    pub lake_shore_wobble: f32,
+    /// A river falls (a waterfall) where its surface drops at least this much in one `river_step_m`.
+    pub fall_step_m: f32,
+    /// Least height of a waterfall.
+    pub fall_min_height_m: f32,
+    /// A waterfall's plunge pool has this radius per metre of fall, within `lake_radius_m`'s lower half.
+    pub plunge_radius_per_m: f32,
 }
 
 impl Default for WaterConfig {
     fn default() -> Self {
         Self {
+            rivers: true,
             city_freeboard_m: 2.0,
-            river_count: 6,
-            river_grid_m: 32.0,
-            river_max_steps: 700,
-            meander_m: 6.0,
+            drainage_cell_m: 128.0,
+            lowland_rain: 0.08,
+            melt_band_m: 400.0,
+            stream_min_flow: 12.0,
+            stream_min_cells: 3,
+            river_step_m: 16.0,
             river_city_clearance_m: 80.0,
-            river_width_m: 36.0,
-            river_widening: 0.4,
+            stream_half_width_m: 5.0,
+            river_max_half_width_m: 28.0,
             river_depth_m: 7.0,
             freeboard_m: 2.0,
             bank_slope: 0.45,
             flow_m_s: 1.5,
+            lake_min_depth_m: 8.0,
+            lake_min_cells: 16,
+            lake_max_count: 10,
+            lake_radius_m: [70.0, 900.0],
+            lake_depth_m: 14.0,
+            lake_shore_wobble: 0.12,
+            fall_step_m: 12.0,
+            fall_min_height_m: 25.0,
+            plunge_radius_per_m: 1.4,
         }
     }
 }
@@ -58,15 +99,56 @@ impl Default for WaterConfig {
 impl Validate for WaterConfig {
     fn validate(&self) -> Result<(), String> {
         finite("water.city_freeboard_m", self.city_freeboard_m)?;
-        positive("water.river_grid_m", self.river_grid_m)?;
-        finite("water.meander_m", self.meander_m)?;
+        positive("water.drainage_cell_m", self.drainage_cell_m)?;
+        within("water.lowland_rain", self.lowland_rain, 0.0, 1.0)?;
+        positive("water.melt_band_m", self.melt_band_m)?;
+        positive("water.stream_min_flow", self.stream_min_flow)?;
+        positive("water.river_step_m", self.river_step_m)?;
         finite("water.river_city_clearance_m", self.river_city_clearance_m)?;
-        positive("water.river_width_m", self.river_width_m)?;
-        finite("water.river_widening", self.river_widening)?;
+        positive("water.stream_half_width_m", self.stream_half_width_m)?;
+        positive("water.river_max_half_width_m", self.river_max_half_width_m)?;
+        if self.river_max_half_width_m < self.stream_half_width_m {
+            return Err("`water.river_max_half_width_m` must be at least `water.stream_half_width_m`".into());
+        }
         positive("water.river_depth_m", self.river_depth_m)?;
         finite("water.freeboard_m", self.freeboard_m)?;
         positive("water.bank_slope", self.bank_slope)?;
         finite("water.flow_m_s", self.flow_m_s)?;
+        positive("water.lake_min_depth_m", self.lake_min_depth_m)?;
+        positive_range("water.lake_radius_m", self.lake_radius_m)?;
+        positive("water.lake_depth_m", self.lake_depth_m)?;
+        within("water.lake_shore_wobble", self.lake_shore_wobble, 0.0, 0.5)?;
+        positive("water.fall_step_m", self.fall_step_m)?;
+        positive("water.fall_min_height_m", self.fall_min_height_m)?;
+        positive("water.plunge_radius_per_m", self.plunge_radius_per_m)?;
+        Ok(())
+    }
+}
+
+/// The biomes (openspec change `island-biomes`; the rules are the island mockup's, `biome`).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct BiomeConfig {
+    /// The moisture under which the desert takes over (the mockup's `DRY_M`): set so the desert
+    /// and the canyons are a quarter of the land.
+    pub desert_moisture: f32,
+    /// Radius of a swamp at a western river mouth.
+    pub swamp_radius_m: f32,
+}
+
+impl Default for BiomeConfig {
+    fn default() -> Self {
+        Self {
+            desert_moisture: 0.48,
+            swamp_radius_m: 2600.0,
+        }
+    }
+}
+
+impl Validate for BiomeConfig {
+    fn validate(&self) -> Result<(), String> {
+        within("biomes.desert_moisture", self.desert_moisture, 0.15, 0.85)?;
+        positive("biomes.swamp_radius_m", self.swamp_radius_m)?;
         Ok(())
     }
 }
@@ -205,56 +287,75 @@ impl Validate for TreeConfig {
     }
 }
 
-/// Clouds (openspec change `clouds`).
+/// Clouds (openspec changes `clouds`, `cloud-puffs`, `cloud-weather`): the wind, how far they are
+/// drawn and how they are lit. Where they are is the weather's (`weather:`).
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct CloudConfig {
-    /// Cloud base height.
-    pub base_m: f32,
-    /// Highest cloud top.
-    pub top_m: f32,
-    /// Grid spacing of cluster sites.
-    pub spacing_m: f32,
-    /// Share of sites with a cluster, 0..1.
-    pub coverage: f32,
-    /// Cluster width range.
-    pub cluster_size_m: [f32; 2],
-    /// Clouds continue this far past the world's edge.
-    pub beyond_world_m: f32,
-    /// Wind drift (x, z).
+    /// Wind drift (x, z): everything in the sky moves with it.
     pub wind_m_s: [f32; 2],
     /// Cloud puffs are drawn within this of the eye (beyond it the haze has hidden them).
     pub draw_radius_m: f32,
+    /// The drawn puffs are gathered and sorted again when the eye has moved this far through them.
+    pub resort_m: f32,
+    /// How far the sun wraps round a puff, 0 (hard) to 1 (soft) (`cloud-puffs`).
+    pub look_wrap: f32,
+    /// The silver lining's strength toward the sun.
+    pub look_silver: f32,
+    /// Light scattered many times inside a puff, a share of the sun's (so a backlit puff is grey).
+    pub look_scattered: f32,
+    /// How white a white cloud is (its albedo, 0..1); a storm-grey one is `look_storm_albedo`.
+    pub look_albedo: f32,
+    /// The albedo of a puff at full darkness.
+    pub look_storm_albedo: f32,
+    /// How much darker a white cloud's base is than its top, 0..1; a storm's is `look_storm_base_shade`.
+    pub look_base_shade: f32,
+    /// The base darkening of a puff at full darkness.
+    pub look_storm_base_shade: f32,
+    /// A puff fades in from this distance from the eye (closer, the cloud fog takes over).
+    pub look_near_fade_m: f32,
+    /// How far noise eats into a billow's edge (0 a clean disc).
+    pub look_erode: f32,
+    /// A billboard fades out over this depth in front of the ground behind it (soft particles).
+    pub look_soft_m: f32,
 }
 
 impl Default for CloudConfig {
     fn default() -> Self {
         Self {
-            base_m: 600.0,
-            top_m: 1100.0,
-            spacing_m: 1000.0,
-            coverage: 0.45,
-            cluster_size_m: [220.0, 520.0],
-            beyond_world_m: 6000.0,
-            wind_m_s: [3.0, 1.0],
-            draw_radius_m: 9000.0,
+            wind_m_s: [6.0, 0.0],
+            draw_radius_m: 24000.0,
+            resort_m: 30.0,
+            look_wrap: 0.35,
+            look_silver: 1.6,
+            look_scattered: 0.2,
+            look_albedo: 0.92,
+            look_storm_albedo: 0.55,
+            look_base_shade: 0.55,
+            look_storm_base_shade: 0.85,
+            look_near_fade_m: 140.0,
+            look_erode: 0.62,
+            look_soft_m: 60.0,
         }
     }
 }
 
 impl Validate for CloudConfig {
     fn validate(&self) -> Result<(), String> {
-        finite("clouds.base_m", self.base_m)?;
-        if self.top_m <= self.base_m {
-            return Err("`clouds.top_m` must be above `clouds.base_m`".into());
-        }
-        positive("clouds.spacing_m", self.spacing_m)?;
-        within("clouds.coverage", self.coverage, 0.0, 1.0)?;
-        positive_range("clouds.cluster_size_m", self.cluster_size_m)?;
-        finite("clouds.beyond_world_m", self.beyond_world_m)?;
         finite("clouds.wind_m_s", self.wind_m_s[0])?;
         finite("clouds.wind_m_s", self.wind_m_s[1])?;
         positive("clouds.draw_radius_m", self.draw_radius_m)?;
+        positive("clouds.resort_m", self.resort_m)?;
+        within("clouds.look_wrap", self.look_wrap, 0.0, 1.0)?;
+        within("clouds.look_silver", self.look_silver, 0.0, 10.0)?;
+        within("clouds.look_scattered", self.look_scattered, 0.0, 2.0)?;
+        within("clouds.look_albedo", self.look_albedo, 0.0, 1.0)?;
+        within("clouds.look_storm_albedo", self.look_storm_albedo, 0.0, 1.0)?;
+        within("clouds.look_base_shade", self.look_base_shade, 0.0, 1.0)?;
+        within("clouds.look_storm_base_shade", self.look_storm_base_shade, 0.0, 1.0)?;
+        positive("clouds.look_near_fade_m", self.look_near_fade_m)?;
+        within("clouds.look_erode", self.look_erode, 0.0, 2.0)?;
+        positive("clouds.look_soft_m", self.look_soft_m)?;
         Ok(())
     }
 }
@@ -302,50 +403,29 @@ impl Validate for CraterConfig {
     }
 }
 
-/// The island and the sea round it (openspec change `island-world`).
+/// The island and the sea round it (openspec changes `island-world`, `island-biomes`). The land
+/// itself is the island mockup's (`island::Island`, from the seed); these are the sea and the snow.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct IslandConfig {
     /// Height of the sea's surface. Ground below it is under the sea or a lake.
     pub sea_level_m: f32,
-    /// Distance from the island's centre at which the land starts to fall to the sea, before the
-    /// coast noise moves it in or out.
-    pub land_radius_m: f32,
-    /// Most the coast noise moves the land's edge in or out.
-    pub coast_noise_m: f32,
-    /// Wavelength of the coast noise's first octave (bays and headlands).
-    pub coast_wavelength_m: f32,
-    /// Land height above sea level where the land starts to fall to the sea (the hills ride on it).
-    pub land_height_m: f32,
-    /// Extra height at the island's middle, falling off toward the coast.
-    pub highland_m: f32,
-    /// Width over which the land falls to the open sea floor (beaches, shallows, the shelf).
-    pub shelf_m: f32,
-    /// Depth of the open sea floor below sea level.
+    /// Depth of the flat sea floor drawn past the world's edge below sea level.
     pub sea_depth_m: f32,
-    /// Most the sea floor's own noise moves it up or down.
-    pub floor_noise_m: f32,
-    /// Wavelength of the sea floor noise.
-    pub floor_wavelength_m: f32,
-    /// The sea floor noise fades out over this width inside the world's edge, so the floor meets the
-    /// flat floor drawn beyond it exactly.
+    /// The sea floor rises or falls to that depth over this width inside the world's edge, so the
+    /// floor meets the flat floor drawn beyond it exactly.
     pub edge_fade_m: f32,
+    /// Snow lies above this height: the rivers' melt comes from above it (`hydrology`).
+    pub snowline_m: f32,
 }
 
 impl Default for IslandConfig {
     fn default() -> Self {
         Self {
             sea_level_m: 0.0,
-            land_radius_m: 13000.0,
-            coast_noise_m: 2500.0,
-            coast_wavelength_m: 6000.0,
-            land_height_m: 30.0,
-            highland_m: 90.0,
-            shelf_m: 3000.0,
-            sea_depth_m: 38.0,
-            floor_noise_m: 9.0,
-            floor_wavelength_m: 1500.0,
-            edge_fade_m: 1500.0,
+            sea_depth_m: 120.0,
+            edge_fade_m: 2500.0,
+            snowline_m: 1450.0,
         }
     }
 }
@@ -353,19 +433,9 @@ impl Default for IslandConfig {
 impl Validate for IslandConfig {
     fn validate(&self) -> Result<(), String> {
         finite("island.sea_level_m", self.sea_level_m)?;
-        positive("island.land_radius_m", self.land_radius_m)?;
-        finite("island.coast_noise_m", self.coast_noise_m)?;
-        positive("island.coast_wavelength_m", self.coast_wavelength_m)?;
-        finite("island.land_height_m", self.land_height_m)?;
-        finite("island.highland_m", self.highland_m)?;
-        positive("island.shelf_m", self.shelf_m)?;
         positive("island.sea_depth_m", self.sea_depth_m)?;
-        finite("island.floor_noise_m", self.floor_noise_m)?;
-        positive("island.floor_wavelength_m", self.floor_wavelength_m)?;
         positive("island.edge_fade_m", self.edge_fade_m)?;
-        if self.floor_noise_m.abs() >= self.sea_depth_m {
-            return Err("`island.floor_noise_m` must be less than `island.sea_depth_m`, or the floor breaks the surface".into());
-        }
+        finite("island.snowline_m", self.snowline_m)?;
         Ok(())
     }
 }
@@ -541,14 +611,6 @@ pub struct WorldConfig {
     pub world_size_m: f32,
     /// Spacing of the terrain height samples.
     pub terrain_cell_m: f32,
-    /// Wavelength of the first terrain noise octave.
-    pub noise_wavelength_m: f32,
-    /// Peak height of the first terrain noise octave above or below zero.
-    pub noise_amplitude_m: f32,
-    /// Noise octaves, each half the wavelength of the last.
-    pub noise_octaves: u32,
-    /// Amplitude ratio between octaves.
-    pub noise_persistence: f32,
     /// Most cities to place.
     pub city_count: u32,
     /// Placement tries before giving up on more cities.
@@ -603,6 +665,8 @@ pub struct WorldConfig {
     pub highway_flat_margin_m: f32,
     /// Width over which a highway's grading blends back into the hills.
     pub highway_blend_m: f32,
+    /// The terrain's baked shadow for far ground (distant-shadows).
+    pub sun_shade: super::sun_shade::SunShadeConfig,
     /// Height of a road surface above the ground under it (no z-fighting).
     pub road_lift_m: f32,
     /// Height of a block's pavement (the kerb) above the ground.
@@ -611,6 +675,25 @@ pub struct WorldConfig {
     pub start_pilot_distance_m: f32,
     /// The island and the sea.
     pub island: IslandConfig,
+    /// The biomes.
+    pub biomes: BiomeConfig,
+    /// A city's ground stands at most this far above sea level (off the mountains).
+    pub city_max_ground_m: f32,
+    /// The land under a city square and its blend rises or falls at most this far from its ground.
+    pub city_max_relief_m: f32,
+    /// A highway's route never climbs more than this above the higher of its two cities.
+    pub highway_max_climb_m: f32,
+    /// Steepest a highway's grade climbs (rise over run).
+    pub highway_max_grade: f32,
+    /// A route step at the steepest grade costs this many times more than one on the level (more
+    /// at steeper, as the square of the grade).
+    pub highway_slope_cost: f32,
+    /// Crossing a stream costs the route this many metres of road (a bridge).
+    pub highway_bridge_cost_m: f32,
+    /// A route may swing this far outside the box round its two ends.
+    pub highway_detour_m: f32,
+    /// The grade follows the land averaged over this distance either side.
+    pub highway_grade_smooth_m: f32,
     /// Levels of detail of the drawn ground.
     pub terrain_lod: LodConfig,
     /// How far the pilot sees.
@@ -619,8 +702,12 @@ pub struct WorldConfig {
     pub water: WaterConfig,
     /// Trees.
     pub trees: TreeConfig,
-    /// Clouds.
+    /// Clouds: wind, drawing and light.
     pub clouds: CloudConfig,
+    /// The weather systems that lay out the sky (openspec change `cloud-weather`).
+    pub weather: super::weather::WeatherConfig,
+    /// Ground fog (openspec change `ground-fog`).
+    pub fog: super::mist::FogConfig,
     /// Craters.
     pub craters: CraterConfig,
     /// Building frames (openspec change `structural-destruction`).
@@ -684,16 +771,12 @@ impl Default for WorldConfig {
         Self {
             world_size_m: 40960.0,
             terrain_cell_m: 8.0,
-            noise_wavelength_m: 1100.0,
-            noise_amplitude_m: 35.0,
-            noise_octaves: 4,
-            noise_persistence: 0.5,
             city_count: 24,
             city_attempts: 4000,
             city_min_spacing_m: 2600.0,
             open_ground_min_m: 600.0,
             city_edge_margin_m: 300.0,
-            capital_within_m: 2500.0,
+            capital_within_m: 9000.0,
             city_half_size_m: [280.0, 480.0],
             plateau_flat_margin_m: 12.0,
             plateau_blend_m: 120.0,
@@ -714,15 +797,27 @@ impl Default for WorldConfig {
             highway_width_m: 28.0,
             highway_flat_margin_m: 12.0,
             highway_blend_m: 60.0,
-            road_lift_m: 0.1,
+            sun_shade: super::sun_shade::SunShadeConfig::default(),
+            road_lift_m: 0.15,
             kerb_height_m: 0.2,
             start_pilot_distance_m: 25.0,
             island: IslandConfig::default(),
+            biomes: BiomeConfig::default(),
+            city_max_ground_m: 300.0,
+            city_max_relief_m: 70.0,
+            highway_max_climb_m: 45.0,
+            highway_max_grade: 0.06,
+            highway_slope_cost: 6.0,
+            highway_bridge_cost_m: 600.0,
+            highway_detour_m: 4000.0,
+            highway_grade_smooth_m: 240.0,
             terrain_lod: LodConfig::default(),
             view: ViewConfig::default(),
             water: WaterConfig::default(),
             trees: TreeConfig::default(),
             clouds: CloudConfig::default(),
+            weather: super::weather::WeatherConfig::default(),
+            fog: super::mist::FogConfig::default(),
             craters: CraterConfig::default(),
             structure: super::structure::StructureConfig::default(),
             dressing: super::dressing::DressingConfig::default(),
@@ -742,9 +837,6 @@ impl Validate for WorldConfig {
     fn validate(&self) -> Result<(), String> {
         positive("world_size_m", self.world_size_m)?;
         positive("terrain_cell_m", self.terrain_cell_m)?;
-        positive("noise_wavelength_m", self.noise_wavelength_m)?;
-        finite("noise_amplitude_m", self.noise_amplitude_m)?;
-        within("noise_persistence", self.noise_persistence, 0.0, 1.0)?;
         positive("city_min_spacing_m", self.city_min_spacing_m)?;
         finite("open_ground_min_m", self.open_ground_min_m)?;
         finite("city_edge_margin_m", self.city_edge_margin_m)?;
@@ -785,20 +877,24 @@ impl Validate for WorldConfig {
         positive("highway_width_m", self.highway_width_m)?;
         positive("highway_blend_m", self.highway_blend_m)?;
         positive("road_lift_m", self.road_lift_m)?;
+        self.sun_shade.validate()?;
         positive("kerb_height_m", self.kerb_height_m)?;
         if self.kerb_height_m <= self.road_lift_m {
             return Err("`kerb_height_m` must be above `road_lift_m`".into());
         }
         positive("start_pilot_distance_m", self.start_pilot_distance_m)?;
         self.island.validate()?;
-        let i = &self.island;
-        let reach = i.land_radius_m + i.coast_noise_m.abs() + i.shelf_m;
-        let flat_from = self.world_size_m * 0.5 - i.edge_fade_m;
-        if reach > flat_from {
-            return Err(format!(
-                "the island's shelf reaches {reach} m from the centre, past {flat_from} m where the sea floor \
-                 must already be flat (`world_size_m` / 2 - `island.edge_fade_m`)"
-            ));
+        self.biomes.validate()?;
+        positive("city_max_ground_m", self.city_max_ground_m)?;
+        positive("city_max_relief_m", self.city_max_relief_m)?;
+        positive("highway_max_climb_m", self.highway_max_climb_m)?;
+        positive("highway_max_grade", self.highway_max_grade)?;
+        finite("highway_slope_cost", self.highway_slope_cost)?;
+        finite("highway_bridge_cost_m", self.highway_bridge_cost_m)?;
+        positive("highway_detour_m", self.highway_detour_m)?;
+        positive("highway_grade_smooth_m", self.highway_grade_smooth_m)?;
+        if self.island.edge_fade_m >= self.world_size_m * 0.25 {
+            return Err("`island.edge_fade_m` must be well inside the world's half".into());
         }
         self.terrain_lod.validate()?;
         let chunk_m = self.terrain_lod.chunk_cells as f32 * self.terrain_cell_m;
@@ -816,6 +912,8 @@ impl Validate for WorldConfig {
         self.water.validate()?;
         self.trees.validate()?;
         self.clouds.validate()?;
+        self.weather.validate()?;
+        self.fog.validate()?;
         self.craters.validate()?;
         self.structure.validate()?;
         self.dressing.validate()?;

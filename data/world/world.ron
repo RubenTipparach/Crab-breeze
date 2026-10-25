@@ -5,34 +5,50 @@
     // An island in the sea, 40,960 m a side (ten times the first world's side; owner, 2026-10-24).
     world_size_m: 40960.0,
     terrain_cell_m: 8.0,
-    noise_wavelength_m: 1100.0,
-    noise_amplitude_m: 35.0,
-    noise_octaves: 4,
-    noise_persistence: 0.5,
 
-    // The island (island-world design section 2): land out to about 13 km from the centre, its edge
-    // moved in or out by up to 2.5 km of coast noise, falling over a 3 km shelf to a sea floor
-    // 38 m (29 to 47 m) down, shallow enough for a sunk 12 m mech to walk back ashore.
+    // The island (openspec/changes/island-biomes; owner, 2026-10-25: "I wanted this island"): the
+    // island mockup's land (docs/mockups/island_gen.js, ported to cb-core world::island), so seed
+    // 42 is the island the mockup shows: a range on a curved spine through the middle, running
+    // north-north-east, peaks to about 2 km with passes for the highways; the desert plateau in its
+    // rain shadow to the east, with mesas, dunes and canyons; beaches and a reef on the wide
+    // shelves, sea cliffs on the north-east; an archipelago off the south-west. The deep sea falls
+    // to 230 m and rises to the flat floor drawn past the world's edge over the last 2.5 km.
     island: (
         sea_level_m: 0.0,
-        land_radius_m: 13000.0,
-        coast_noise_m: 2500.0,
-        coast_wavelength_m: 6000.0,
-        land_height_m: 30.0,
-        highland_m: 90.0,
-        shelf_m: 3000.0,
-        sea_depth_m: 38.0,
-        floor_noise_m: 9.0,
-        floor_wavelength_m: 1500.0,
-        edge_fade_m: 1500.0,
+        sea_depth_m: 120.0,
+        edge_fade_m: 2500.0,
+        // Snow from 1,450 m: the rivers' melt comes from the range above it.
+        snowline_m: 1450.0,
     ),
+    city_max_ground_m: 300.0,
+    city_max_relief_m: 70.0,
+    highway_max_climb_m: 45.0,
+    // Highways are routed, not ruled (openspec/changes/curved-roads/design.md; owner, 2026-10-25:
+    // "roads shouldnt be straight like that"): an A* over the 128 m drainage cells, a step at a 6 %
+    // grade costing seven times one on the level, a stream crossing 600 m more, swinging up to
+    // 4 km out of the way, smoothed into curves and graded on the land averaged over 240 m.
+    highway_max_grade: 0.06,
+    highway_slope_cost: 6.0,
+    highway_bridge_cost_m: 600.0,
+    highway_detour_m: 4000.0,
+    highway_grade_smooth_m: 240.0,
 
+    // The biomes (openspec/changes/island-biomes, the mockup's ten): moisture falls across 12 km
+    // east of the spine, the rain shadow of the westerlies; the desert takes over below 0.48, which
+    // makes desert and canyon a quarter of the land; swamps 2.6 km across at the western river
+    // mouths.
+    biomes: (
+        desert_moisture: 0.48,
+        swamp_radius_m: 2600.0,
+    ),
     city_count: 24,
     city_attempts: 4000,
     city_min_spacing_m: 2600.0,
     open_ground_min_m: 600.0,
     city_edge_margin_m: 300.0,
-    capital_within_m: 2500.0,
+    // The capital stands nearest the centre where the land allows: the range fills the middle, so
+    // within 9 km (the mockup's capital is on the northern plain about 7.5 km out).
+    capital_within_m: 9000.0,
     city_half_size_m: (280.0, 480.0),
     plateau_flat_margin_m: 12.0,
     plateau_blend_m: 120.0,
@@ -56,7 +72,20 @@
     highway_width_m: 28.0,
     highway_flat_margin_m: 12.0,
     highway_blend_m: 60.0,
-    road_lift_m: 0.1,
+    // The sun's shadows (openspec/changes/distant-shadows). Far ground wears the terrain's own
+    // shadow, baked once at load on a 40 m grid, and keeps 0.55 of its colour in shade. Near the eye
+    // the live shadow maps draw everything: three cascades, the first to 40 m, out to 700 m where
+    // far ground begins (owner, 2026-10-25: "when I walk up to it within like 500m or so then it can
+    // render as normally").
+    sun_shade: (
+        cell_m: 40.0,
+        soft_m: 4.0,
+        shade_albedo: 0.55,
+        live_cascades: 3,
+        live_first_cascade_m: 40.0,
+        live_far_m: 700.0,
+    ),
+    road_lift_m: 0.15,
     kerb_height_m: 0.2,
 
     start_pilot_distance_m: 25.0,
@@ -102,21 +131,41 @@
         occlusion_culling: true,
     ),
 
-    // Rivers and lakes (openspec/changes/terrain-water/design.md section 1). Lakes are the ground
-    // below the island's sea level.
+    // Rivers, lakes and waterfalls (openspec/changes/hydrology/design.md). Water drains over a
+    // 128 m grid: snowmelt above the range's snowline, a twelfth as much rain below it, summed
+    // downhill; 12 snow cells' worth makes a stream 10 m wide, which widens by the square root of its
+    // flow to 56 m. Basins 8 m deep and 16 cells wide that a stream feeds are lakes, the ten largest
+    // (owner, 2026-10-25: "too many lakes"). A river that drops 12 m in one
+    // 16 m step (a cliff, not a steep slope) for 25 m or more is a waterfall, with a plunge pool under it.
     water: (
+        // No rivers for now, and nothing carved for them: the sea and the basin lakes stay (owner,
+        // 2026-10-25: "delete all rivers", "they dont integrate well with the terrain", "I just want to turn off river
+        // geometry, and river caving terrain", "lakes and oceans should work still"). `true` brings
+        // back the rivers, their waterfalls, plunge pools and bridges.
+        rivers: false,
         city_freeboard_m: 2.0,
-        river_count: 6,
-        river_grid_m: 32.0,
-        river_max_steps: 700,
-        meander_m: 6.0,
+        drainage_cell_m: 128.0,
+        lowland_rain: 0.08,
+        melt_band_m: 400.0,
+        stream_min_flow: 12.0,
+        stream_min_cells: 3,
+        river_step_m: 16.0,
         river_city_clearance_m: 80.0,
-        river_width_m: 36.0,
-        river_widening: 0.4,
+        stream_half_width_m: 5.0,
+        river_max_half_width_m: 28.0,
         river_depth_m: 7.0,
         freeboard_m: 2.0,
         bank_slope: 0.45,
         flow_m_s: 1.5,
+        lake_min_depth_m: 8.0,
+        lake_min_cells: 16,
+        lake_max_count: 10,
+        lake_radius_m: (70.0, 900.0),
+        lake_depth_m: 14.0,
+        lake_shore_wobble: 0.12,
+        fall_step_m: 12.0,
+        fall_min_height_m: 25.0,
+        plunge_radius_per_m: 1.4,
     ),
 
     // Trees (openspec/changes/vegetation, grown by tile near the bodies: island-world design
@@ -134,14 +183,149 @@
         draw_radius_m: 2000.0,
     ),
 
-    // Clouds over the island and 6 km of sea past the world's edge, drawn within 9 km of the eye.
-    // Off for now (coverage 0): the low, large alpha-blended sprites cost heavy overdraw; clouds are
-    // being redone cheaply in their own change.
+    // Clouds (openspec/changes/cloud-weather): one camera-facing billboard a puff, lit as a sphere
+    // by the scene's sun and sky, sorted back to front, faded where they meet the ground. Drawn
+    // within 20 km of the eye, so storm towers and the front stand on the horizon; re-sorted when
+    // the eye has moved 30 m through them. The wind blows from the west at 6 m/s: the west is wet,
+    // the east in the rain shadow, and the whole sky drifts with it. To be measured on the owner's
+    // hardware with CB_NO_CLOUDS against the same take.
     clouds: (
-        coverage: 0.0,
-        spacing_m: 1000.0,
-        beyond_world_m: 6000.0,
-        draw_radius_m: 9000.0,
+        wind_m_s: (6.0, 0.0),
+        draw_radius_m: 20000.0,
+        resort_m: 30.0,
+        // Owner, 2026-10-25, on the first stills: "clouds are too white, they need some shadowing on
+        // the bottom": less wrap, a darker base, and each puff shaded toward its own underside.
+        look_wrap: 0.35,
+        look_silver: 1.6,
+        look_scattered: 0.2,
+        look_albedo: 0.92,
+        look_storm_albedo: 0.55,
+        look_base_shade: 0.55,
+        look_storm_base_shade: 0.85,
+        look_near_fade_m: 140.0,
+        look_erode: 0.62,
+        look_soft_m: 60.0,
+    ),
+
+    // The weather (openspec/changes/cloud-weather/design.md section 2), ported from the island
+    // mockup to the crater island. Positions are (x, z) metres: +x east, +z south. Bearings are
+    // degrees from north toward east.
+    weather: (
+        // Fair cumulus on a 2 km grid over a disc out to 34 km, thinning from 24 km so the sky has
+        // no edge; per tile 0.3 + 2.8 x moisture clusters over land, 0.5 at sea, 1.6 in the streets
+        // south of the island; 28 % of wet clusters tower to 2.2-3.8 km, 45 % of the rest stay small.
+        cumulus: (
+            base_m: 600.0,
+            tile_m: 2000.0,
+            disc_m: 34000.0,
+            thin_from_m: 24000.0,
+            edge_noise_m: 2500.0,
+            land_clusters: (0.3, 2.8),
+            sea_clusters: 0.5,
+            street_clusters: 1.6,
+            streets_south_of_m: 6000.0,
+            street_spacing_m: 2200.0,
+            towering_share: 0.28,
+            humilis_share: 0.45,
+            towering_top_m: (2200.0, 3800.0),
+            clear_of_front_m: 1500.0,
+            dark: (0.08, 0.3),
+        ),
+        // A high over the sea to the south-east: clear within 6 km, cumulus back to full by 17 km.
+        high: (centre_m: (17000.0, 12000.0), clear_m: 6000.0, edge_m: 17000.0),
+        // Three storm cells in the wet west (the mockup's: over the jungle 6.5 km west of the spine,
+        // at sea off the archipelago, and to the north-west): towers from 700 m to their tops, anvils blown 2.6
+        // km downwind, scud under slate-grey bases, a rain shaft each, the ground darkened by 85 %
+        // at the centre out to 1.6 x the tower's radius, its edge wandering 600 m.
+        storms: (
+            cells: [
+                (centre_m: (-5887.0, -4186.0), radius_m: 2600.0, top_m: 9500.0),
+                (centre_m: (-15500.0, 9500.0), radius_m: 3200.0, top_m: 10500.0),
+                (centre_m: (-11000.0, -14000.0), radius_m: 1900.0, top_m: 6500.0),
+            ],
+            base_m: 700.0,
+            ring_step_m: 260.0,
+            anvil_puffs: 70,
+            anvil_downwind_m: 2600.0,
+            scud_puffs: 24,
+            dark: (0.75, 0.15),
+            shaft_share: 0.75,
+            shaft_top_m: 720.0,
+            shade_reach: 1.6,
+            shade: 0.85,
+            shade_wobble_m: 600.0,
+        ),
+        // A cold front off the west coast, lying south-west to north-east, 52 km long and 8.4 km
+        // wide: layered grey cloud from 900 m to 2.8 km, a tower to 6.2 km every 6 km, a rain
+        // shaft every 5 km.
+        front: (
+            centre_m: (-17000.0, -4000.0),
+            along: (0.62, -0.78),
+            length_m: 52000.0,
+            half_width_m: 4200.0,
+            step_m: 300.0,
+            layer_m: (900.0, 2800.0),
+            tower_every_m: 6000.0,
+            tower_top_m: 6200.0,
+            shaft_every_m: 5000.0,
+            shaft_radius_m: 2200.0,
+            shade_every_m: 10000.0,
+            shade_radius_m: 6000.0,
+            shade: 0.6,
+        ),
+        // The stratocumulus deck at sea to the north, behind the front, with breaks.
+        deck: (
+            count: 900,
+            bearing_deg: (330.0, 400.0),
+            distance_m: (14500.0, 21500.0),
+            layer_m: (700.0, 1000.0),
+            offshore_m: 600.0,
+            break_wavelength_m: 4000.0,
+            break_below: -0.45,
+        ),
+        // Cloud banked on the range's windward (west) flank: over ground above 500 m that rises 60 m
+        // within 900 m downwind, no higher than 1.9 km.
+        orographic: (
+            count: 520,
+            tries: 12000,
+            search_m: 14000.0,
+            min_ground_m: 500.0,
+            rise_probe_m: 900.0,
+            min_rise_m: 60.0,
+            top_m: 1900.0,
+        ),
+        // Lenticular caps over up to five peaks above 1,900 m, 2.5 km apart.
+        caps: (min_peak_m: 1900.0, spacing_m: 2500.0, most: 5, tries: 20000, search_m: 12000.0),
+        // Small flat altocumulus at 3.3-3.7 km over the south-west.
+        altocumulus: (centre_m: (-6000.0, 14000.0), radius_m: 11000.0, spacing_m: 450.0, layer_m: (3300.0, 3700.0)),
+        // Cirrus streaks at 8.2-9.4 km on a 32 km disc.
+        cirrus: (count: 90, disc_m: 32000.0, height_m: (8200.0, 9400.0), length_m: (5000.0, 14000.0), width_m: (500.0, 1400.0)),
+        // Opacity by kind: cumulus, tower, anvil, layer (deck, front, scud), orographic, cap, altocumulus.
+        opacity: (0.95, 1.0, 0.8, 0.8, 0.6, 0.9, 0.6),
+        shaft_rain: 0.7,
+    ),
+
+    // Ground fog (openspec/changes/ground-fog): a layer densest at sea level, thinning by e every
+    // 120 m up, worked out exactly along each view ray; level ground fades to half by about 8 km.
+    // Mist (up to 5 x) pools in hollows 100 m below the ground 1.5 km round, within 300 m of water
+    // and 600 m of the coast, never above 600 m. Under a storm's rain the eye's air thickens by
+    // 1 / 1,500 m. Lit by the sky and by the sun scattered forward (a glow toward it).
+    fog: (
+        density_per_m: 0.0000833,
+        scale_height_m: 120.0,
+        mist_strength: 5.0,
+        mist_top_m: 600.0,
+        hollow_depth_m: 100.0,
+        hollow_reach_m: 1500.0,
+        water_reach_m: 300.0,
+        coast_reach_m: 600.0,
+        map_cell_m: 160.0,
+        mist_taps_m: 6000.0,
+        sky_length_m: 40000.0,
+        rain_per_m: 0.000667,
+        ambient_share: 1.0,
+        sun_share: 0.25,
+        phase_g: 0.6,
     ),
     // Building frames (openspec/changes/structural-destruction): a member fails past
     // safety_factor x its intact load, after a creak; a floor bay held on one edge keeps 45 %.

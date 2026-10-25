@@ -5,6 +5,7 @@
 //! draws the plan; the pilot and the mech walk on it through `height_at` and `push_out`. The world
 //! is an island in the sea (openspec change `island-world`).
 
+pub mod biome;
 pub mod clouds;
 pub mod collision;
 pub mod config;
@@ -14,13 +15,21 @@ pub mod destruct;
 pub mod dressing;
 pub mod forest;
 pub mod grid;
+pub mod hydrology;
 pub mod interior;
+pub mod island;
 pub mod layout;
 pub mod lod;
+pub mod mist;
+pub mod roads;
+pub mod rocks;
 pub mod structure;
+pub mod sun_shade;
 pub mod terrain;
 pub mod water;
+pub mod weather;
 
+pub use biome::{BIOME_COUNT, BIOMES, Biome, Biomes};
 pub use clouds::Clouds;
 pub use collision::BuildingGrid;
 pub use config::{DebrisConfig, WorldConfig};
@@ -32,7 +41,7 @@ pub use forest::{Body, Bump, Forest, Push, TileChanges, Tree, TreeState};
 pub use layout::{Block, Building, City, Highway, Rect, StreetKind, StreetPiece};
 pub use structure::{Frame, StructureConfig};
 pub use terrain::{ChunkMesh, Heightfield};
-pub use water::{Bridge, River, WaterSample, Waters};
+pub use water::{Bridge, Lake, Lakes, River, WaterSample, Waterfall, Waters};
 
 use crate::rng::{SimRng, label_hash};
 use glam::Vec2;
@@ -131,6 +140,7 @@ impl Ground for Scene<'_> {
     }
     fn push_out_at(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
         let p = self.push_out_buildings(p, radius_m, feet_y);
+        let p = rocks::push_out(&self.plan.rocks, p, radius_m, feet_y);
         self.trees.map_or(p, |t| t.push_out(p, radius_m))
     }
 }
@@ -144,6 +154,24 @@ impl Ground for WorldPlan {
     }
     fn water_at(&self, x: f32, z: f32) -> Option<WaterSample> {
         self.waters.water_at(Vec2::new(x, z), self.terrain.height_at(x, z))
+    }
+}
+
+/// The island as the weather sees it: the ground's height, the coast and the moisture.
+struct SkyGround<'a> {
+    terrain: &'a Heightfield,
+    biomes: &'a Biomes,
+}
+
+impl weather::WeatherGround for SkyGround<'_> {
+    fn ground_m(&self, p: Vec2) -> f32 {
+        self.terrain.height_at(p.x, p.y)
+    }
+    fn past_coast_m(&self, p: Vec2) -> f32 {
+        self.terrain.shape().past_land_edge_m(p)
+    }
+    fn moisture(&self, p: Vec2) -> f32 {
+        self.biomes.moisture(p)
     }
 }
 
@@ -201,6 +229,14 @@ pub struct WorldPlan {
     pub forest: Forest,
     /// The sky's clouds.
     pub clouds: Clouds,
+    /// What grows where.
+    pub biomes: Biomes,
+    /// Sea stacks, arches and hoodoos (openspec change `rock-formations`).
+    pub rocks: Vec<rocks::Rock>,
+    /// Where mist forms (openspec change `ground-fog`).
+    pub mist: mist::MistMap,
+    /// The terrain's own shadow for the sun, for far ground (distant-shadows).
+    pub sun_shade: sun_shade::SunShade,
 }
 
 impl WorldPlan {
@@ -221,8 +257,11 @@ impl WorldPlan {
             }
         }
         for h in &self.highways {
-            put(h.ends[0].x);
-            put(h.ends[0].y);
+            for (p, g) in h.path.iter().zip(&h.grade_m).step_by(8) {
+                put(p.x);
+                put(p.y);
+                put(*g);
+            }
             put(h.ends[1].x);
             put(h.ends[1].y);
         }
@@ -241,12 +280,29 @@ impl WorldPlan {
                 put(*s);
             }
         }
+        for l in &self.waters.lakes.list {
+            put(l.centre.x);
+            put(l.centre.y);
+            put(l.radius_m);
+            put(l.level_m);
+        }
+        for f in &self.waters.falls {
+            put(f.top_m);
+            put(f.bottom_m);
+        }
         for iz in (0..self.terrain.n).step_by(97) {
             for ix in (0..self.terrain.n).step_by(97) {
                 put(self.terrain.sample(ix, iz));
             }
         }
         put(self.clouds.puffs.len() as f32);
+        put(self.clouds.shafts.len() as f32);
+        put(self.clouds.cirrus.len() as f32);
+        for r in &self.rocks {
+            put(r.base.x);
+            put(r.base.z);
+            put(r.scale.y);
+        }
         let mut text = String::with_capacity(words.len() * 8);
         for w in words {
             text.push_str(&w.to_string());
@@ -261,19 +317,28 @@ impl WorldPlan {
 /// grow later, by tile, near the bodies in the world (`Forest::keep_around`).
 pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
     let root = SimRng::new(seed).fork("world");
-    let shape = Shape::new(&root, cfg);
+    let shape = Shape::new(seed, cfg);
     let sea_level_m = cfg.island.sea_level_m;
 
-    // A city stands inland, on ground above the sea, its square and blend clear of the shelf.
+    // Where the water goes, worked out on the island's shape before anything is built on it.
+    let drainage = hydrology::Drainage::new(&shape, cfg.world_size_m, sea_level_m, &cfg.water);
+
+    // A city stands inland, on ground above the sea and below the mountains, its square and blend
+    // clear of the shelf, on land that is not too steep, and clear of the rivers and lakes.
     let on_land = |c: Vec2, half: f32| {
         let reach = half + cfg.plateau_flat_margin_m + cfg.plateau_blend_m;
-        let corners = [
-            Vec2::new(-1.0, -1.0),
-            Vec2::new(1.0, -1.0),
-            Vec2::new(1.0, 1.0),
-            Vec2::new(-1.0, 1.0),
-        ];
-        shape.height(c) >= sea_level_m + cfg.water.city_freeboard_m && corners.iter().all(|k| shape.past_land_edge_m(c + *k * reach) < 0.0)
+        let ground = shape.height(c);
+        if ground < sea_level_m + cfg.water.city_freeboard_m || ground > sea_level_m + cfg.city_max_ground_m {
+            return false;
+        }
+        let probes = [-1.0f32, 0.0, 1.0]
+            .into_iter()
+            .flat_map(|x| [-1.0f32, 0.0, 1.0].map(|z| Vec2::new(x, z)));
+        let level = probes.into_iter().all(|k| {
+            let q = c + k * reach;
+            shape.past_land_edge_m(q) < 0.0 && (shape.height(q) - ground).abs() <= cfg.city_max_relief_m
+        });
+        level && !drainage.water_near(c - Vec2::splat(half), c + Vec2::splat(half), cfg.water.river_city_clearance_m)
     };
     let placed = layout::place_cities(&mut root.fork("cities"), cfg, &on_land);
     let cities: Vec<City> = placed
@@ -281,7 +346,10 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         .enumerate()
         .map(|(i, &(c, half))| layout::lay_out_city(&mut root.fork(&format!("city/{i}")), i as u32, c, half, shape.height(c), cfg))
         .collect();
-    let highways = layout::connect_cities(&cities, cfg);
+    // Highways are routed round the mountains, lakes and other cities (openspec change
+    // `curved-roads`).
+    let lay = |a: usize, b: usize, from: Vec2, to: Vec2| roads::lay_highway(&shape, &drainage, &cities, (a, b), (from, to), cfg);
+    let highways = layout::connect_cities(&cities, cfg, &lay);
 
     let largest = placed.first().map(|p| p.1).unwrap_or(1.0);
     let mut buildings = Vec::new();
@@ -293,20 +361,42 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
 
     let flats = Flats::new(&cities, &highways, cfg);
     let terrain = Heightfield::new(cfg, shape, flats);
-    let bounds = water::RiverBounds {
+    let bounds = water::WaterBounds {
         world_size_m: cfg.world_size_m,
         sea_level_m,
-        source_within_m: cfg.island.land_radius_m * 0.7,
     };
-    let waters = water::make_waters(&root.fork("water"), &terrain, &cities, &highways, &cfg.water, &bounds);
+    let waters = water::make_waters(&root.fork("water"), &drainage, &terrain, &cities, &highways, &cfg.water, &bounds);
     let road_flat_m = cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m;
     let channels = waters.channels(&cfg.water, &cities, cfg.plateau_flat_margin_m, &highways, road_flat_m);
     let terrain = terrain.with_channels(channels);
+    let sun_shade = sun_shade::SunShade::bake(&terrain, cfg.world_size_m, sun_shade::to_sun(), &cfg.sun_shade);
 
     let start = start_point(&cities, cfg);
     let roofs = buildings.iter().map(|b| cities[b.city as usize].ground_m + b.height_m).collect();
     let collision = BuildingGrid::new(&buildings, cfg.world_size_m, 64.0).with_roofs(roofs);
-    let clouds = clouds::make_clouds(&root.fork("clouds"), &cfg.clouds, cfg.world_size_m);
+    // Swamps at the western river mouths (the island mockup's rule, on the game's own rivers).
+    let mouths = waters.rivers.iter().filter_map(|r| {
+        r.path
+            .last()
+            .copied()
+            .filter(|_| r.surface_m.last().is_some_and(|s| *s < sea_level_m + 3.0))
+    });
+    let swamps = biome::swamps_at_mouths(mouths, cfg.biomes.swamp_radius_m);
+    let biomes = Biomes::new(&cfg.biomes, terrain.shape().clone(), sea_level_m, swamps);
+    let wind = Vec2::from(cfg.clouds.wind_m_s);
+    let under = SkyGround {
+        terrain: &terrain,
+        biomes: &biomes,
+    };
+    let sky = weather::make_sky(&root.fork("clouds"), &cfg.weather, wind, &under);
+    let mist = mist::MistMap::bake(&cfg.fog, cfg, &terrain, &waters);
+    let road_clear = cfg.highway_width_m * 0.5 + 20.0;
+    let rocks = rocks::make_rocks(terrain.shape().island(), &|p| terrain.height_at(p.x, p.y), &|p| {
+        waters.water_at(p, terrain.height_at(p.x, p.y)).is_some()
+            || highways.iter().any(|h| h.project(p).0 <= road_clear)
+            || cities.iter().any(|c| c.rect().distance(p) < 60.0)
+    });
+    let clouds = Clouds::new(sky, wind, cfg.weather.shaft_rain);
     WorldPlan {
         seed,
         terrain,
@@ -318,6 +408,10 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         waters,
         forest: Forest::new(&root.fork("trees"), &cfg.trees, cfg.world_size_m),
         clouds,
+        biomes,
+        sun_shade,
+        rocks,
+        mist,
     }
 }
 

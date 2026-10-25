@@ -82,8 +82,11 @@ LAYOUTS = [
               "degrees."),
     dict(id="cinema", rear="hatch", mech="door", name="Cinema", rows=[(0.90, 1.95)], plan=mirror([(1.10, 0.95), (1.15, 0.05)]), pillars=[1, 2], mfd=("dash",),
          text="One huge front screen 2.2 m by 1.05 m with no seam at all, square screens beside the knees."),
-    dict(id="cab", rear="ramp", mech="ramp", name="Excavator cab", rows=[(0.30, 1.10), (1.13, 1.93)], plan=mirror([(0.80, 0.80), (0.95, 0.10), (0.90, -0.45)]),
-         pillars=[2, 3], floor=True, mfd=("top",),
+    # The Cab's dash and its row seam behind the dash's glare shield (openspec change cockpit-parity: "bring all other
+    # implemented mechs in game up to the gold standard that is the Foreman"): the dash at the Panorama's height, the
+    # rail between the rows at 0.955 m, under the line from the eye over the shield's lip.
+    dict(id="cab", rear="ramp", mech="ramp", name="Excavator cab", rows=[(0.30, 0.94), (0.97, 1.93)], plan=mirror([(0.80, 0.80), (0.95, 0.10), (0.90, -0.45)]),
+         pillars=[2, 3], floor=True, mfd=("top", "dash"), dash_y_m=0.79,
          text="Floor to roof screens like a digger's glass cab, and a screen under the feet looking down at the ground "
               "ahead."),
     dict(id="octagon", rear="hatch", mech="gullwing", name="Octagon", rows=[(0.75, 1.40), (1.43, 2.05)],
@@ -91,7 +94,8 @@ LAYOUTS = [
          text="The Stevedore's octagon, seated now and stretched so its front is 1.6 m across: pillars at 45 degrees "
               "instead of 21."),
     dict(id="canopy", rear="barn", mech="canopy_rear", top="hump", name="Canopy", rows=[(0.85, 1.45)], plan=mirror([(0.85, 0.80), (1.00, 0.10), (0.90, -0.40)]), pillars=[2, 3],
-         ceiling=True, mfd=("dash",),
+         # the hanging MFDs above the low front screen, on the bubble's front slope (cockpit-parity)
+         ceiling=True, mfd=("top", "dash"), mfd_top_m=(0.15, 0.22),
          text="A fighter's canopy in flat screens: the front half of the ceiling is screens too, so you see up as well "
               "as out."),
     dict(id="twintier", rear="barn", mech="elevator", top="hump", name="Twin tier", rows=[(0.78, 1.24), (1.30, 1.90)], plan=arc(0.95, -95, 95, 9), pillars=[0, 9],
@@ -445,7 +449,8 @@ def mechanism(L, c):
                      hinges=[(-wd, y, F + W) for y in (0.35, H * 0.5, H - 0.35)],
                      vents=[((s * wd, H * 0.5, F + W), (s * 0.5, 0, 1)) for s in (1, -1)])]
     if m == "ramp":
-        return [dict(name="RAMP", region=("sector", -deg, deg, y_lo, y_hi), keep_inner=True,
+        # the dash rides the ramp and lands face up on it as the step out, as the Titan's rides its lower half
+        return [dict(name="RAMP", region=("sector", -deg, deg, y_lo, y_hi), keep_inner=True, dash=True,
                      stages=[stage("pos", "z", 0.04, 0.35, 0.3), stage("rot", "x", 1.5, 0.75, 2.0, (0, -W, F + W))],
                      clamps=[out(s * deg, y) for s in (1, -1) for y in (0.5, H - 0.5)],
                      vents=[((0, top - 0.05, F + W), (0, 0.4, 1))])]
@@ -656,7 +661,7 @@ def build(L, door="front"):
         return [b_, new_obj(name + "_screen", bm, f"SCREEN_mfd_{kind}")]
     where = L["mfd"]
     if "dash" in where:
-        y0 = L["rows"][0][0]
+        y0 = L.get("dash_y_m", L["rows"][0][0] - 0.16) + 0.16      # the dash sits 0.16 m under y0
         zf = c["front"] - 0.30
         carrier = next((P for P in parts if P.get("dash")), None)
         # never wider than the cabin where it stands, nor than the doorway it rides out through (the owner: the

@@ -51,4 +51,4 @@ second frame.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| G19 | Where the scope picture shows | A window in the middle of the front screen | provisional (survey G19) |
+| G24 | Where the scope picture shows | A window in the middle of the front screen | provisional (survey G24) |

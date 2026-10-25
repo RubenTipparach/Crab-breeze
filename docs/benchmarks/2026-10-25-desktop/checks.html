@@ -1,0 +1,135 @@
+<title>RTX 3070 Benchmark</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column, a pass/fail grid (checks down, takes across), then a done/open checklist. */
+:root {
+  --bg: #eef1f3;
+  --panel: #ffffff;
+  --ink: #17212b;
+  --muted: #5b6874;
+  --rule: #d4dbe1;
+  --pass: #23824a;
+  --fail: #c2362d;
+  --open: #8a96a1;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f151b; --panel: #161f27; --ink: #dfe7ee; --muted: #8e9daa; --rule: #27333d;
+    --pass: #4cc27b; --fail: #f06a5e; --open: #6d7b87; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f151b; --panel: #161f27; --ink: #dfe7ee; --muted: #8e9daa; --rule: #27333d;
+  --pass: #4cc27b; --fail: #f06a5e; --open: #6d7b87; color-scheme: dark;
+}
+body {
+  background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 56px;
+}
+.wrap { max-width: 760px; margin: 0 auto; display: grid; gap: 32px; }
+header { display: grid; gap: 6px; }
+h1, h2 { font-family: var(--display); font-weight: 700; margin: 0; line-height: 1.05; text-wrap: balance; letter-spacing: .01em; }
+h1 { font-size: clamp(32px, 6vw, 44px); }
+h2 { font-size: 24px; }
+.meta { color: var(--muted); font-size: 13px; }
+section { display: grid; gap: 12px; }
+.tablewrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 10px 12px; border-bottom: 1px solid var(--rule); text-align: center; vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+th { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+th:first-child, td:first-child { text-align: left; }
+td:first-child { font-weight: 500; min-width: 180px; }
+td:first-child small { display: block; font-weight: 400; color: var(--muted); font-size: 12.5px; }
+.cell { display: inline-flex; align-items: center; gap: 8px; }
+.box {
+  width: 20px; height: 20px; border-radius: 4px; border: 2px solid currentColor;
+  display: inline-grid; place-items: center; font: 700 13px/1 var(--mono); flex: none;
+}
+.box.pass { color: var(--pass); background: color-mix(in srgb, var(--pass) 14%, transparent); }
+.box.fail { color: var(--fail); background: color-mix(in srgb, var(--fail) 12%, transparent); }
+.box.open { color: var(--open); }
+.val { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+li { display: flex; gap: 10px; align-items: flex-start; }
+li .box { margin-top: 2px; }
+li span.text { min-width: 0; }
+li small { color: var(--muted); }
+.note { color: var(--muted); font-size: 13px; max-width: 68ch; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>RTX 3070 Benchmark</h1>
+    <div class="meta">2026-10-25 night run · build be48233 · in the window at 1920 x 1080, 60 Hz display · vsync off unless noted</div>
+  </header>
+
+  <section>
+    <h2>Targets</h2>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Check</th><th>World</th><th>Fight</th><th>Defence</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>p95 within 8.3 ms<small>120 fps most of the time</small></td>
+            <td><span class="cell"><span class="box fail" aria-label="fail">✕</span><span class="val">12.7</span></span></td>
+            <td><span class="cell"><span class="box fail" aria-label="fail">✕</span><span class="val">17.2</span></span></td>
+            <td><span class="cell"><span class="box fail" aria-label="fail">✕</span><span class="val">25.9</span></span></td>
+          </tr>
+          <tr>
+            <td>p99 within 16.7 ms<small>never under 60 fps</small></td>
+            <td><span class="cell"><span class="box fail" aria-label="fail">✕</span><span class="val">23.7</span></span></td>
+            <td><span class="cell"><span class="box fail" aria-label="fail">✕</span><span class="val">27.4</span></span></td>
+            <td><span class="cell"><span class="box fail" aria-label="fail">✕</span><span class="val">35.5</span></span></td>
+          </tr>
+          <tr>
+            <td>No freezes over 50 ms</td>
+            <td><span class="cell"><span class="box fail" aria-label="fail">✕</span><span class="val">22</span></span></td>
+            <td><span class="cell"><span class="box fail" aria-label="fail">✕</span><span class="val">10</span></span></td>
+            <td><span class="cell"><span class="box fail" aria-label="fail">✕</span><span class="val">38</span></span></td>
+          </tr>
+          <tr>
+            <td>Holds 60 fps with vsync on<small>refreshes missed</small></td>
+            <td><span class="cell"><span class="box fail" aria-label="fail">✕</span><span class="val">8.9 %</span></span></td>
+            <td><span class="cell"><span class="box fail" aria-label="fail">✕</span><span class="val">11.0 %</span></span></td>
+            <td><span class="cell"><span class="box open" aria-label="not measured"></span><span class="val">not run</span></span></td>
+          </tr>
+          <tr>
+            <td>Take plays to the end</td>
+            <td><span class="cell"><span class="box pass" aria-label="pass">✓</span></span></td>
+            <td><span class="cell"><span class="box pass" aria-label="pass">✓</span></span></td>
+            <td><span class="cell"><span class="box pass" aria-label="pass">✓</span><span class="val">6 min cap</span></span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Values are milliseconds per frame unless marked. World and fight are the median of two runs; defence is one run. Freezes are counted per take.</p>
+  </section>
+
+  <section>
+    <h2>Tonight</h2>
+    <ul>
+      <li><span class="box pass" aria-label="done">✓</span><span class="text">Distant terrain shadows, baked past 700 m <small>· 0.4 s at load</small></span></li>
+      <li><span class="box pass" aria-label="done">✓</span><span class="text">Building detail built off the main thread <small>· no more 12-45 ms stalls walking into a city</small></span></li>
+      <li><span class="box pass" aria-label="done">✓</span><span class="text">Particle sizes all loaded behind the loading screen</span></li>
+      <li><span class="box pass" aria-label="done">✓</span><span class="text">Defence benchmark take ends after 6 minutes</span></li>
+      <li><span class="box open" aria-label="open"></span><span class="text">Draw far buildings as shared meshes <small>· buildings cost about 4 ms a frame</small></span></li>
+      <li><span class="box open" aria-label="open"></span><span class="text">Cut the shadow cost near the eye <small>· about 4 ms a frame</small></span></li>
+      <li><span class="box open" aria-label="open"></span><span class="text">Find what live particle effects cost <small>· most missed refreshes in combat</small></span></li>
+      <li><span class="box open" aria-label="open"></span><span class="text">Look at far shadows and city detail in a playtest</span></li>
+      <li><span class="box open" aria-label="open"></span><span class="text">A fight take that plays the same every run</span></li>
+    </ul>
+  </section>
+
+  <p class="note">Full numbers and method: <code>docs/benchmarks/2026-10-25-desktop/report.md</code> in the repository.</p>
+</div>

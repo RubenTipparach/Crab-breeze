@@ -7,6 +7,6 @@
 - [ ] 2.1 `HeatBank` shared by the boosters and the weapon bank (tests: `the_laser_fills_the_bank_in_five_seconds`, `a_beam_cuts_out_when_the_bank_fills`)
 - [ ] 2.2 Fire group 3 and `fire_back` in the bindings
 - [ ] 3.1 AI fire rules per kind
-- [ ] 3.2 Loadouts in the combat mechs' and crabs' data (after G17)
+- [ ] 3.2 Loadouts in the combat mechs' and crabs' data (after G22)
 - [ ] 4.1 Weapons MFD page; effects recipes; sound cue names handed to `audio`
 - [ ] 5.1 Playtest: a fight against a shotgun Hatchet, a railgun Brigand and a laser crab, recorded and uploaded

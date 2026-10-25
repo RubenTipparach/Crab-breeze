@@ -3,7 +3,7 @@
 //! out, and `EYE_pilot` in the seat. There is no other camera (CLAUDE.md, the law).
 
 use crate::input::{InputAccum, StepActions};
-use crate::mech::{MechAccessNow, MechRig, socket_now};
+use crate::mech::{MechAccessNow, MechRig};
 use crate::sim::{Data, PresentSet, SimSet};
 use crate::world::{Live, Plan, SKY};
 use bevy::pbr::{DistanceFog, FogFalloff};
@@ -230,6 +230,7 @@ pub(crate) fn step_pilot(
         Some(PilotEvent::Seated) => info!("pilot: seated at EYE_pilot"),
         Some(PilotEvent::DisembarkStarted) => info!("pilot: climbing out"),
         Some(PilotEvent::Disembarked) => info!("pilot: standing at LADDER_base"),
+        Some(PilotEvent::Ejected) => info!("pilot: ejected from the destroyed mech"),
         None => {}
     }
 }
@@ -283,7 +284,8 @@ fn place_camera(
     let pending = acc.look_deg;
     let seat = || {
         let rig = rigs.iter().next()?;
-        let eye = socket_now(rig, "EYE_pilot", &transforms, &parents)?;
+        // Level with the stride: no footstep bob or sway in the cockpit (owner, 2026-10-25).
+        let eye = crate::mech::socket_steady(rig, "EYE_pilot", &transforms, &parents)?;
         Some(eye)
     };
     let walking_view = || {

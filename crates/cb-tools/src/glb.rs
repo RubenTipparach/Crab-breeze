@@ -173,9 +173,70 @@ fn local_matrix(nd: &Value) -> Mat4 {
     Mat4::from_scale_rotation_translation(s, r, t)
 }
 
+/// The six MFD screens every cockpit carries, the Foreman's (openspec change `cockpit-parity`): three hung above the
+/// front screen, three on the dash. `cb-app::mfd` binds them by these names.
+pub const COCKPIT_SCREENS: [&str; 6] = [
+    "HUD_mfd_0_screen",
+    "HUD_mfd_1_screen",
+    "HUD_mfd_2_screen",
+    "SCREEN_left_screen",
+    "SCREEN_center_screen",
+    "SCREEN_right_screen",
+];
+
+/// The fewest lamps (`LIGHT_*`) a cockpit lights its cabin with.
+pub const COCKPIT_MIN_LAMPS: usize = 4;
+
+/// Every way an interior falls short of the Foreman's cockpit: a missing MFD screen, eye, seat, lamps, or a part the
+/// mech's data asks to ride its chest.
+pub fn cockpit_problems(tree: &Tree, interior: &cb_core::mech::config::InteriorConfig) -> Vec<String> {
+    let idx = tree.index();
+    let mut out: Vec<String> = COCKPIT_SCREENS
+        .iter()
+        .chain(["EYE_pilot", "SEAT_pilot"].iter())
+        .filter(|n| !idx.contains_key(*n))
+        .map(|n| format!("no `{n}`"))
+        .collect();
+    let lamps = tree.names.iter().filter(|n| n.starts_with("LIGHT_")).count();
+    if lamps < COCKPIT_MIN_LAMPS {
+        out.push(format!("{lamps} `LIGHT_*` lamps, fewer than {COCKPIT_MIN_LAMPS}"));
+    }
+    for r in &interior.rides {
+        if !idx.contains_key(r.part.as_str()) {
+            out.push(format!("no `{}` to ride `{}`", r.part, r.joint));
+        }
+    }
+    out
+}
+
+/// Every vent and hatch motion in a boarding timeline whose node is in neither the mech's model nor its interior
+/// (openspec change `boarding-vents`): a timeline left stale by a rebuild.
+pub fn boarding_problems(tl: &cb_core::boarding::BoardingTimeline, trees: &[&Tree]) -> Vec<String> {
+    let found = |pattern: &str| {
+        trees.iter().any(|t| {
+            t.names.iter().any(|n| match pattern.strip_suffix('*') {
+                Some(prefix) => n.starts_with(prefix),
+                None => n == pattern,
+            })
+        })
+    };
+    let mut out = Vec::new();
+    for s in &tl.stages {
+        let nodes = s.motions.iter().map(|m| &m.node).chain(s.vents.iter().map(|v| &v.node));
+        for n in nodes {
+            if !found(n) {
+                out.push(format!("boarding stage `{}`: no node `{n}` in the mech or its interior", s.name));
+            }
+        }
+    }
+    out
+}
+
 /// Checks a mech file's model (and its interior) under `assets`: the contract always; the eye, hip and height
-/// too for a mech generated from its glb (one that carries an interior, `tools/mechs/gen_mech_data.py`).
-pub fn check_mech(cfg: &MechConfig, assets: &Path) -> Vec<String> {
+/// too for a mech generated from its glb (one that carries an interior, `tools/mechs/gen_mech_data.py`); the
+/// interior's cockpit (its screens, eye, seat, lamps and riding parts), and for such a mech the nodes its boarding
+/// moves and vents from, when given.
+pub fn check_mech(cfg: &MechConfig, boarding: Option<&cb_core::boarding::BoardingTimeline>, assets: &Path) -> Vec<String> {
     let Some(model) = &cfg.model else { return Vec::new() };
     let path = assets.join(model);
     let tree = match Tree::read(&path) {
@@ -183,9 +244,18 @@ pub fn check_mech(cfg: &MechConfig, assets: &Path) -> Vec<String> {
         Err(e) => return vec![e],
     };
     let mut out: Vec<String> = tree.contract_problems().into_iter().map(|p| format!("{model}: {p}")).collect();
+    let mut cabin = None;
     if let Some(interior) = &cfg.interior {
-        if !assets.join(&interior.model).exists() {
-            out.push(format!("interior.model: `{}` is not under assets/", interior.model));
+        match Tree::read(&assets.join(&interior.model)) {
+            Ok(t) => {
+                out.extend(
+                    cockpit_problems(&t, interior)
+                        .into_iter()
+                        .map(|p| format!("{}: {p}", interior.model)),
+                );
+                cabin = Some(t);
+            }
+            Err(e) => out.push(format!("interior.model: {e}")),
         }
         let near = |what: &str, file: f32, glb: Option<f32>| match glb {
             Some(g) if (g - file).abs() <= SIZE_TOLERANCE_M => None,
@@ -201,6 +271,12 @@ pub fn check_mech(cfg: &MechConfig, assets: &Path) -> Vec<String> {
         ));
         out.extend(near("body.eye_height_m", cfg.body.eye_height_m, tree.at("EYE_pilot").map(|p| p.y)));
         out.extend(near("locomotion.body_height_m", cfg.locomotion.body_height_m, Some(tree.top_m())));
+    }
+    // The boarding's nodes, for a mech whose timeline is generated from its glb and its interior. The retired
+    // Breeze's hand-written timeline names hatch nodes that only its separate pod glb carried (`requests.md`, item 3),
+    // so it is left out, as its sizes are.
+    if let (Some(tl), Some(cabin)) = (boarding, cabin.as_ref()) {
+        out.extend(boarding_problems(tl, &[&tree, cabin]));
     }
     out
 }
@@ -268,12 +344,88 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let mut checked = 0;
         for mech in cb_core::GameData::mech_files(&root.join("data")) {
-            let cfg: MechConfig = cb_core::data::load_ron(&root.join("data").join(&mech)).unwrap();
-            let problems = check_mech(&cfg, &root.join("assets"));
+            let d = cb_core::GameData::load(&root.join("data"), &mech).unwrap();
+            let problems = check_mech(&d.mech, Some(&d.boarding), &root.join("assets"));
             assert!(problems.is_empty(), "{mech}: {problems:?}");
-            checked += usize::from(cfg.interior.is_some());
+            checked += usize::from(d.mech.interior.is_some());
         }
         assert!(checked >= 8, "the eight detailed mechs are shipped ({checked} found)");
+    }
+
+    fn cockpit(names: &[&str]) -> Tree {
+        let nodes: Vec<Value> = names.iter().map(|n| json!({ "name": n })).collect();
+        let roots: Vec<usize> = (0..names.len()).collect();
+        Tree::from_json(json!({ "nodes": nodes, "scenes": [{ "nodes": roots }] })).unwrap()
+    }
+
+    fn rides(part: &str) -> cb_core::mech::config::InteriorConfig {
+        cb_core::mech::config::InteriorConfig {
+            model: "models/cockpit_x/cockpit_x.gltf".into(),
+            rides: vec![cb_core::mech::config::RideSpec {
+                part: part.into(),
+                joint: "CHEST_ramp_1".into(),
+            }],
+        }
+    }
+
+    const FULL: [&str; 13] = [
+        "HUD_mfd_0_screen",
+        "HUD_mfd_1_screen",
+        "HUD_mfd_2_screen",
+        "SCREEN_left_screen",
+        "SCREEN_center_screen",
+        "SCREEN_right_screen",
+        "EYE_pilot",
+        "SEAT_pilot",
+        "LIGHT_screen",
+        "LIGHT_overhead",
+        "LIGHT_rear",
+        "LIGHT_footwell",
+        "INNER_ramp",
+    ];
+
+    #[test]
+    fn a_cockpit_with_the_six_screens_eye_seat_and_lamps_passes() {
+        assert!(cockpit_problems(&cockpit(&FULL), &rides("INNER_ramp")).is_empty());
+    }
+
+    #[test]
+    fn a_cockpit_without_a_dash_is_refused_by_the_missing_screen() {
+        let names: Vec<&str> = FULL.iter().copied().filter(|n| *n != "SCREEN_center_screen").collect();
+        let p = cockpit_problems(&cockpit(&names), &rides("INNER_ramp"));
+        assert_eq!(p, vec!["no `SCREEN_center_screen`".to_string()]);
+    }
+
+    #[test]
+    fn a_cockpit_short_of_lamps_or_a_ridden_part_is_refused() {
+        let names: Vec<&str> = FULL.iter().copied().filter(|n| *n != "LIGHT_rear").collect();
+        let p = cockpit_problems(&cockpit(&names), &rides("INNER_canopy"));
+        assert!(p.iter().any(|p| p.contains("lamps")), "{p:?}");
+        assert!(p.iter().any(|p| p.contains("INNER_canopy")), "{p:?}");
+    }
+
+    #[test]
+    fn a_vent_on_a_node_the_models_lack_is_refused() {
+        let mut tl = cb_core::boarding::BoardingTimeline::default();
+        tl.stages.push(cb_core::boarding::Stage {
+            name: "the seals break".into(),
+            start_s: 3.1,
+            duration_s: 1.3,
+            vents: vec![
+                cb_core::boarding::Vent {
+                    node: "VENT_seam*".into(),
+                    ..Default::default()
+                },
+                cb_core::boarding::Vent {
+                    node: "VENT_gone".into(),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        });
+        let p = boarding_problems(&tl, &[&cockpit(&["VENT_seam_04"])]);
+        assert_eq!(p.len(), 1, "{p:?}");
+        assert!(p[0].contains("VENT_gone"));
     }
 
     #[test]

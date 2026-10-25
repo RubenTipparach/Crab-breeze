@@ -565,7 +565,7 @@ impl Forest {
 
 impl Grower {
     /// The trees of one tile: a jittered grid, thick where the forest mask is high, sparse
-    /// elsewhere, never on roads, in water, in cities (except parks) or on buildings.
+    /// elsewhere, scaled by the biome (none in desert or snow), never on roads, in water, in cities (except parks) or on buildings.
     fn grow(&self, plan: &WorldPlan, key: (u32, u32)) -> Vec<Tree> {
         let cfg = &self.cfg;
         let ts = cfg.tile_sites;
@@ -594,6 +594,11 @@ impl Grower {
                     continue;
                 }
                 let ground = plan.height_at(p.x, p.y);
+                // As thick as the biome grows them: none in the desert or the snow.
+                let rise = Vec2::new(plan.height_at(p.x + 4.0, p.y) - ground, plan.height_at(p.x, p.y + 4.0) - ground).length() / 4.0;
+                if pick >= chance * plan.biomes.tree_share(p, ground, rise) {
+                    continue;
+                }
                 // Dry ground, and dry a trunk's width either side (a bank, not the water's edge).
                 let w = &plan.waters;
                 if w.water_at(p, ground).is_some()

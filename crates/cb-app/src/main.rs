@@ -3,13 +3,16 @@
 
 mod ambience;
 mod audio;
+mod battle_fx;
 mod bench;
 mod blast;
 mod building_arrays;
 mod building_state;
 mod buildings;
 mod capture;
+mod career;
 mod cli;
+mod clouds_render;
 mod combat;
 mod defence;
 mod demolition;
@@ -21,6 +24,7 @@ mod hud;
 mod input;
 mod loading;
 mod mech;
+mod menu;
 mod mfd;
 mod music;
 mod particles;
@@ -28,8 +32,12 @@ mod pbr_set;
 mod perf_hud;
 mod physics;
 mod pilot;
+mod plumes;
+mod rocks;
+mod rope;
 mod screen_cut;
 mod screens_cube;
+mod settings;
 #[cfg(test)]
 mod shader_check;
 mod showcase;
@@ -40,6 +48,7 @@ mod sun_flare;
 mod targeting;
 mod textures;
 mod units;
+mod vents;
 mod water_render;
 mod world;
 
@@ -122,14 +131,24 @@ fn main() -> AppExit {
         screens_cube::ScreensCubePlugin,
         sky_light::SkyLightPlugin,
         skins::SkinsPlugin,
+        battle_fx::BattleFxPlugin,
+        plumes::PlumesPlugin,
         loading::LoadingPlugin,
         perf_hud::PerfHudPlugin,
         units::UnitsPlugin,
         mfd::MfdPlugin,
-        audio::SoundPlugin,
-        music::MusicPlugin,
-        ambience::AmbiencePlugin,
-    ));
+        menu::MenuPlugin,
+        rope::RopePlugin,
+        vents::VentsPlugin,
+        career::CareerPlugin,
+    ))
+    // sound: effects in 3D, music, ambience (openspec changes `audio`, `music`, `ambience`)
+    .add_plugins((audio::SoundPlugin, music::MusicPlugin, ambience::AmbiencePlugin));
+    // Cheap, correctly lit clouds (openspec change `cloud-puffs`); `CB_NO_CLOUDS=1` leaves them
+    // out, so the benchmark can measure what they cost.
+    if !cli::switched_off("CB_NO_CLOUDS") {
+        app.add_plugins(clouds_render::CloudsRenderPlugin);
+    }
     // GPU grass (openspec change `gpu-grass`); `CB_NO_GRASS=1` leaves it out, so the benchmark can
     // measure what it costs.
     if !cli::switched_off("CB_NO_GRASS") {
@@ -147,13 +166,36 @@ fn main() -> AppExit {
         flare: !cli::switched_off("CB_NO_FLARE"),
         bloom: !cli::switched_off("CB_NO_BLOOM"),
     });
+    // The run begins: a command-line run as asked (the defence mission, or free roam for a take, a
+    // bench or stills), a plain run on the title menu once the game is ready (game-menus).
+    app.add_plugins(defence::DefencePlugin);
+    let scripted = args.stills.is_some() || args.showcase.is_some() || args.bench.is_some();
     if args.defending() {
-        app.add_plugins(defence::DefencePlugin);
+        app.insert_resource(defence::Defending)
+            .init_resource::<defence::DefenceRun>()
+            .insert_resource(menu::Play::Defence);
+    } else if scripted || args.mission.is_some() {
+        app.insert_resource(menu::Play::FreeRoam);
+    } else {
+        app.insert_resource(menu::TitleWanted);
     }
+    // The player's settings; a measurement or capture run keeps the window it set up.
+    app.add_plugins(settings::SettingsPlugin {
+        window: !scripted && !cli::switched_off("CB_UNCAPPED"),
+    });
     if let Some(dir) = args.stills {
-        app.add_plugins(capture::StillsPlugin { dir });
+        if std::env::var("CB_STILLS_FX").is_ok() {
+            app.add_plugins(capture::FxStillsPlugin { dir });
+        } else if std::env::var("CB_STILLS_WEATHER").is_ok() {
+            app.add_plugins(capture::WeatherStillsPlugin { dir });
+        } else {
+            app.add_plugins(capture::StillsPlugin { dir });
+        }
     } else if let Some(take) = args.showcase.clone().or(args.bench.clone()) {
         app.add_plugins(showcase::ShowcasePlugin { take });
+        if let Ok(dir) = std::env::var("CB_FRAMES_DIR") {
+            app.add_plugins(capture::FramesPlugin { dir: dir.into() });
+        }
     }
     if args.bench.is_some() {
         app.add_plugins(bench::BenchPlugin);

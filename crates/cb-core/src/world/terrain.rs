@@ -1,85 +1,76 @@
-//! The ground: an island of seeded hills falling to a sea floor (openspec change `island-world`),
-//! shaped flat under cities and highways and carved by rivers. `height_at` is the one ground query:
+//! The ground: the island of `island-biomes` (the island mockup's land, `island::Island`, from the
+//! seed: a range on a curved spine, the desert plateau with its canyons, beaches, sea cliffs and an
+//! archipelago), shaped flat under cities and highways and carved by rivers and lakes.
+//! `height_at` is the one ground query:
 //! the drawn chunks at every level of detail, the colliders, the pilot's feet and the mech's root
 //! all read it (procgen-world design section 3).
 //!
 //! The ground is a grid of samples `cell_m` apart, but the grid is not stored: a sample is a pure
 //! function of its position, worked out when asked for. A 40 km world at 8 m would be 26 million
-//! stored heights (105 MB); asking costs about a third of a microsecond a sample instead
-//! (island-world design section 2).
+//! stored heights (105 MB); asking costs a few microseconds a sample instead (island-world design
+//! section 2).
 
-use super::config::{IslandConfig, WorldConfig};
+use super::config::WorldConfig;
+use super::island::{Fields, Island};
 use super::layout::{City, Highway, Rect};
 use super::water::Channels;
 use crate::rng::SimRng;
 use glam::{Vec2, Vec3};
+use std::sync::Arc;
 
-/// The island's shape: hills on land that falls away to a sea floor past a noisy coast.
+/// The island's shape: the mockup's land under the game's sea, its sea floor rising or falling to
+/// the flat floor drawn past the world's edge.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Shape {
-    hills: ValueNoise,
-    coast: ValueNoise,
-    floor: ValueNoise,
-    hills_wavelength_m: f32,
-    hills_amplitude_m: f32,
-    hills_octaves: u32,
-    hills_persistence: f32,
-    island: IslandConfig,
+    island: Arc<Island>,
     half_world_m: f32,
+    sea_level_m: f32,
+    sea_depth_m: f32,
+    edge_fade_m: f32,
+    snowline_m: f32,
 }
 
 impl Shape {
-    /// The shape for a world, from the world's stream (the hills keep the `terrain` fork they
-    /// always drew from).
-    pub fn new(root: &SimRng, cfg: &WorldConfig) -> Self {
+    /// The shape for the world of `seed` (the mockup's seed: the game's seed 42 is its island).
+    pub fn new(seed: u64, cfg: &WorldConfig) -> Self {
         Self {
-            hills: ValueNoise::new(&root.fork("terrain")),
-            coast: ValueNoise::new(&root.fork("coast")),
-            floor: ValueNoise::new(&root.fork("sea floor")),
-            hills_wavelength_m: cfg.noise_wavelength_m,
-            hills_amplitude_m: cfg.noise_amplitude_m,
-            hills_octaves: cfg.noise_octaves,
-            hills_persistence: cfg.noise_persistence,
-            island: cfg.island.clone(),
+            island: Arc::new(Island::new(seed as u32)),
             half_world_m: cfg.world_size_m * 0.5,
+            sea_level_m: cfg.island.sea_level_m,
+            sea_depth_m: cfg.island.sea_depth_m,
+            edge_fade_m: cfg.island.edge_fade_m,
+            snowline_m: cfg.island.snowline_m,
         }
     }
 
-    /// Signed distance past the land's edge at `p`: negative inland, positive out to sea, where the
-    /// edge is `land_radius_m` from the centre moved in or out by the coast noise.
+    /// The island the land comes from.
+    pub fn island(&self) -> &Island {
+        &self.island
+    }
+
+    /// Height of the snowline.
+    pub fn snowline_m(&self) -> f32 {
+        self.snowline_m
+    }
+
+    /// Signed distance past the coast at `p`: negative inland, positive out to sea (islets count
+    /// as sea: nothing is built on them).
     pub fn past_land_edge_m(&self, p: Vec2) -> f32 {
-        let i = &self.island;
-        let wobble = self.coast.unit(p.x, p.y, i.coast_wavelength_m, 3, 0.5);
-        p.length() + i.coast_noise_m * wobble - i.land_radius_m
+        -(self.island.coast_dist(f64::from(p.x), f64::from(p.y)) as f32)
+    }
+
+    /// Ground height at `p` before cities, roads and rivers, and what it came from.
+    pub fn height_and_fields(&self, p: Vec2) -> (f32, Fields) {
+        let (h, f) = self.island.height(p);
+        let edge = p.x.abs().max(p.y.abs());
+        let fade = smoothstep(self.half_world_m - self.edge_fade_m, self.half_world_m, edge);
+        let h = if h < 0.0 { h + (-self.sea_depth_m - h) * fade } else { h };
+        (self.sea_level_m + h, f)
     }
 
     /// Ground height at `p` before cities, roads and rivers.
     pub fn height(&self, p: Vec2) -> f32 {
-        let i = &self.island;
-        let past = self.past_land_edge_m(p);
-        let t = smoothstep(0.0, i.shelf_m, past);
-        let land = if t < 1.0 {
-            let inland = (-past / i.land_radius_m).clamp(0.0, 1.0);
-            let hills = self.hills.height(
-                p.x,
-                p.y,
-                self.hills_wavelength_m,
-                self.hills_amplitude_m,
-                self.hills_octaves,
-                self.hills_persistence,
-            );
-            i.land_height_m + i.highland_m * inland * inland + hills
-        } else {
-            0.0
-        };
-        let sea = if t > 0.0 {
-            let edge = p.x.abs().max(p.y.abs());
-            let fade = 1.0 - smoothstep(self.half_world_m - i.edge_fade_m, self.half_world_m, edge);
-            -i.sea_depth_m + i.floor_noise_m * fade * self.floor.unit(p.x, p.y, i.floor_wavelength_m, 2, 0.5)
-        } else {
-            0.0
-        };
-        i.sea_level_m + land * (1.0 - t) + sea * t
+        self.height_and_fields(p).0
     }
 }
 
@@ -112,7 +103,8 @@ impl Flats {
             boxes.push((i as u32, r.min - Vec2::splat(plateau_reach), r.max + Vec2::splat(plateau_reach)));
         }
         for (k, h) in highways.iter().enumerate() {
-            let (lo, hi) = (h.ends[0].min(h.ends[1]), h.ends[0].max(h.ends[1]));
+            let lo = h.path.iter().fold(Vec2::splat(f32::MAX), |m, p| m.min(*p));
+            let hi = h.path.iter().fold(Vec2::splat(f32::MIN), |m, p| m.max(*p));
             boxes.push((
                 (cities.len() + k) as u32,
                 lo - Vec2::splat(road_reach),
@@ -132,21 +124,24 @@ impl Flats {
         }
     }
 
-    /// `h` at `p` blended toward each city's ground, then each highway's grade.
+    /// `h` at `p` blended toward each highway's grade, then each city's ground: a city's square
+    /// stays flat at its ground even where a routed road runs close by.
     pub fn apply(&self, p: Vec2, h: f32) -> f32 {
         let mut h = h;
-        for &id in self.index.at(p) {
-            let id = id as usize;
-            if let Some((rect, ground_m)) = self.cities.get(id) {
-                let d = rect.distance(p) - self.plateau_margin_m;
-                let w = 1.0 - smoothstep(0.0, self.plateau_blend_m, d);
-                h += (ground_m - h) * w;
-            } else {
-                let hw = &self.highways[id - self.cities.len()];
-                let (d, t) = hw.project(p);
-                let w = 1.0 - smoothstep(0.0, self.road_blend_m, d - self.road_flat_m);
+        let ids = self.index.at(p);
+        for &id in ids.iter().filter(|&&id| id as usize >= self.cities.len()) {
+            let hw = &self.highways[id as usize - self.cities.len()];
+            let (d, t) = hw.project(p);
+            let w = 1.0 - smoothstep(0.0, self.road_blend_m, d - self.road_flat_m);
+            if w > 0.0 {
                 h += (hw.grade_at(t) - h) * w;
             }
+        }
+        for &id in ids.iter().filter(|&&id| (id as usize) < self.cities.len()) {
+            let (rect, ground_m) = &self.cities[id as usize];
+            let d = rect.distance(p) - self.plateau_margin_m;
+            let w = 1.0 - smoothstep(0.0, self.plateau_blend_m, d);
+            h += (ground_m - h) * w;
         }
         h
     }
@@ -240,6 +235,21 @@ impl Heightfield {
         }
     }
 
+    /// A lattice point's height as a chunk drawn at `step` shows it: the full carve at step 1, the far
+    /// carve (rivers held just under their water a coarse cell wide, `Channels::carve_far`) coarser.
+    pub(crate) fn lattice_at_step(&self, ix: i64, iz: i64, step: usize) -> f32 {
+        if step <= 1 {
+            return self.lattice(ix, iz);
+        }
+        let p = self.lattice_xz(ix, iz);
+        let h = self.flats.apply(p, self.shape.height(p));
+        match &self.channels {
+            // A cell and a half: every corner of a coarse cell holding the water is in the band.
+            Some(c) => c.carve_far(p, h, 1.5 * step as f32 * self.cell_m),
+            None => h,
+        }
+    }
+
     /// Ground height at world `(x, z)`, on the same two triangles per cell the full-detail mesh
     /// draws: the cell is split along its (0,0)-(1,1) diagonal. Past the world's edge the ground
     /// goes on (the open sea floor). A non-finite position reads zero.
@@ -297,7 +307,7 @@ impl Heightfield {
             for i in 0..bw {
                 let ix = x0 as i64 + (i as i64 - 1) * step as i64;
                 let iz = z0 as i64 + (j as i64 - 1) * step as i64;
-                grid.push(self.lattice(ix, iz));
+                grid.push(self.lattice_at_step(ix, iz, step));
             }
         }
         let at = |i: usize, j: usize| grid[(j + 1) * bw + i + 1];
@@ -366,7 +376,7 @@ fn add_skirt(mesh: &mut ChunkMesh, edge: &[u32], out: Vec3, depth_m: f32) {
 }
 
 /// Seeded value noise: a lattice of random heights, smoothly interpolated.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ValueNoise {
     seed: u64,
 }
@@ -418,6 +428,24 @@ impl ValueNoise {
         sum
     }
 
+    /// Ridged fractal noise at world `(x, z)`, 0..1: each octave folded about zero into a crest and
+    /// weighted by the one before (Musgrave), so detail gathers on the ridges and the valleys stay
+    /// smooth.
+    pub fn ridged(&self, x: f32, z: f32, wavelength_m: f32, octaves: u32) -> f32 {
+        let (mut sum, mut norm, mut amp, mut weight) = (0.0, 0.0, 0.5, 1.0);
+        let mut freq = 1.0 / wavelength_m;
+        for o in 0..octaves {
+            let mut n = 1.0 - self.octave(x * freq, z * freq, o).abs();
+            n = n * n * weight;
+            weight = (n * 2.0).clamp(0.0, 1.0);
+            sum += n * amp;
+            norm += amp;
+            amp *= 0.5;
+            freq *= 2.0;
+        }
+        sum / norm.max(1e-6)
+    }
+
     /// Fractal noise scaled to -1..1 (the sum of the octaves' amplitudes is one).
     pub fn unit(&self, x: f32, z: f32, wavelength_m: f32, octaves: u32, persistence: f32) -> f32 {
         let total: f32 = (0..octaves).map(|o| persistence.powi(o as i32)).sum();
@@ -435,15 +463,13 @@ pub fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
 mod tests {
     use super::*;
 
-    /// A small world of open hills: no island falloff within it, no cities, no rivers.
+    /// A small world: the island's middle, no cities, no rivers.
     fn hills() -> Heightfield {
-        let mut cfg = WorldConfig {
+        let cfg = WorldConfig {
             world_size_m: 512.0,
             ..Default::default()
         };
-        cfg.island.land_radius_m = 100_000.0;
-        let root = SimRng::new(7);
-        Heightfield::new(&cfg, Shape::new(&root, &cfg), Flats::default())
+        Heightfield::new(&cfg, Shape::new(7, &cfg), Flats::default())
     }
 
     #[test]

@@ -7,6 +7,6 @@ A rocket in flight and every firing jet nozzle SHALL draw an exhaust plume, and 
 - **WHEN** a rocket is in flight
 - **THEN** a 4 m plume is drawn behind it, pointing back along its flight
 
-#### Scenario: A rocket's smoke is capped
-- **WHEN** a rocket has laid `trail_max_per_rocket` puffs that still live
-- **THEN** its next puff replaces its oldest
+#### Scenario: A jet fires
+- **WHEN** a mech's jets fire
+- **THEN** a plume is drawn under each nozzle, and it is gone when they stop
