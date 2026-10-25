@@ -3,6 +3,10 @@
 // get, through `water_light` in Rust), fogged by Bevy's own fog so far clouds haze and the eye
 // inside a cloud sees the cloud fog. Linear HDR colour.
 //
+// The same shader draws smoke puffs (openspec change `smoke-puffs`) with `SMOKE` defined: each
+// puff's own colour is its albedo, its height share is its normal's (darker underneath), and its
+// own opacity scales the alpha. One implementation of the lighting for clouds and smoke.
+//
 // Lighting, per pixel:
 // - the sun wrapped round the blob (cumulus scatter light deep into their shade side);
 // - darker toward the base (the light has crossed the whole cloud), lighter at the tops;
@@ -25,6 +29,9 @@ struct CloudLight {
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> cloud: CloudLight;
+// A smoke puff's colour (rgb, linear) and opacity (a); `SmokeMaterial::tint` in Rust.
+@if(SMOKE)
+@group(constants::MATERIAL_BIND_GROUP) @binding(1) var<uniform> tint: vec4<f32>;
 
 // The mesh vertex shader's output, the fields used (bevy_pbr `forward_io::VertexOutput` locations).
 struct CloudFragment {
@@ -46,7 +53,14 @@ fn fragment(in: CloudFragment) -> @location(0) vec4<f32> {
 
     // The sun wrapped round the blob, the base darker than the top.
     let diffuse = clamp((dot(n, sun) + wrap) / (1.0 + wrap), 0.0, 1.0);
-    let h = clamp((p.y - cloud.layer.x) / max(cloud.layer.y - cloud.layer.x, 1.0), 0.0, 1.0);
+    var h = clamp((p.y - cloud.layer.x) / max(cloud.layer.y - cloud.layer.x, 1.0), 0.0, 1.0);
+    var albedo = vec3<f32>(cloud.ambient.w);
+    var opacity = 1.0;
+    @if(SMOKE) {
+        h = n.y * 0.5 + 0.5;
+        albedo = tint.rgb;
+        opacity = tint.a;
+    }
     let body = mix(1.0 - cloud.layer.z, 1.0, smoothstep(0.0, 0.8, h));
     // Edges facing across the view are thin: the silver lining toward the sun lights them.
     let facing = abs(dot(n, look));
@@ -54,14 +68,13 @@ fn fragment(in: CloudFragment) -> @location(0) vec4<f32> {
     let toward_sun = pow(max(dot(look, sun), 0.0), 6.0);
     let silver = toward_sun * edge * edge * cloud.sun.w;
 
-    let albedo = cloud.ambient.w;
     let lit = cloud.sun.rgb * (albedo / 3.14159265) * (diffuse * body + silver)
         + cloud.ambient.rgb * albedo * mix(0.55, 1.0, h);
 
     // Soft silhouette, and a fade near the eye (inside a cloud the fog does the work).
     let soft = smoothstep(0.0, max(cloud.fade.y, 1e-3), facing);
     let near = smoothstep(cloud.fade.x * 0.4, cloud.fade.x, dist);
-    var out = vec4<f32>(lit, soft * near);
+    var out = vec4<f32>(lit, soft * near * opacity);
     @if(DISTANCE_FOG) {
         out = apply_fog(fog, out, p, eye, in.position.xy);
     }

@@ -13,8 +13,6 @@
     // Tracers burn this many times brighter than white, so the bloom catches them (owner, 2026-10-25:
     // "bullets need to be brighter, like affected by bloom more or something? HDR maybe?").
     tracer_glow: 12.0,
-    // A rocket lays a smoke puff every metre (openspec change `rocket-plumes`: a dense trail, not a dotted line).
-    trail_spacing_m: 1.0,
     // Exhaust plumes: a rocket's flame, and a mech's jet's while it fires (length, width), metres.
     plume_length_m: 4.5,
     plume_width_m: 0.9,
@@ -35,10 +33,22 @@
     // Big translucent clouds drawn apart, each in a stable order (merged, their particles reorder
     // every frame and the cloud flickers; owner, 2026-10-25). Each burst of these is its own draw.
     sorted: ["explosion_ground", "explosion_air", "explosion_water", "collapse_dust", "creak_dust", "member_fail"],
-    stream_per_s: {"jet_flame": 60.0, "jet_trail": 30.0, "burning": 10.0, "smoking": 6.0, "burning_hull": 10.0, "vent_steam": 30.0, "vent_mist": 6.3},
+    stream_per_s: {"jet_flame": 60.0, "burning": 10.0, "smoking": 6.0, "burning_hull": 10.0, "vent_steam": 30.0, "vent_mist": 6.3},
     // Particle bursts start only within 400 m of the eye (times the effect's scale; explosions four
     // times as far): far off they barely show and each costs an effect of its own (2026-10-24).
     burst_range_m: 400.0,
+    // Smoke trails as lit puffs, drawn the way the clouds are (openspec change `smoke-puffs`; owner,
+    // 2026-10-25: "use the new smoke trails, and make them larger and more conencted"). A puff is laid
+    // every `spacing_m` of path, however fast the frames come, and each starts wider than that, so a
+    // trail is one connected stream. The jets' trail hangs for two minutes (survey: "that trail needs
+    // to las 2 mins or more"), a missile's for six seconds.
+    puffs: (
+        max_puffs: 3000,
+        jet: (spacing_m: 3.0, size_m: 6.0, grow_m_s: 0.5, rise_m_s: 0.3, life_s: 120.0, fade: 0.7,
+              colour: (0.86, 0.85, 0.83), opacity: 0.75, offset_m: 4.0),
+        missile: (spacing_m: 2.0, size_m: 3.0, grow_m_s: 1.8, rise_m_s: 0.4, life_s: 6.0, fade: 0.7,
+                  colour: (0.82, 0.81, 0.79), opacity: 0.8, offset_m: 1.0),
+    ),
     recipes: {
         // Guns. The effect's direction is the barrel's.
         "muzzle_autocannon": [
@@ -62,12 +72,6 @@
             Light(lumens: 1.0e7, range_m: 60.0, life_s: 0.2, colour: (1.0, 0.8, 0.55)),
             Burst(kind: Flame, count: 12, speed_m_s: 18.0, spread: 0.5, size_m: 1.2, life_s: 0.2, offset_m: -1.0, along_dir: true),
             Burst(kind: Smoke, count: 14, speed_m_s: 6.0, spread: 0.9, size_m: 2.2, life_s: 4.0, offset_m: -2.0, along_dir: true),
-        ],
-        // A rocket in flight, every `trail_spacing_m`. The direction is its flight.
-        "rocket_trail": [
-            // Thick white smoke from the smoke sheet, laid every metre, growing as it hangs: a solid motor's trail.
-            Burst(kind: Trail, count: 1, speed_m_s: 0.4, spread: 0.4, size_m: 2.5, life_s: 6.0),
-            Burst(kind: Flame, count: 1, speed_m_s: 30.0, spread: 0.1, size_m: 0.8, life_s: 0.06, offset_m: -1.0, along_dir: true),
         ],
         // Impacts. The direction points back the way the shot came.
         "impact_mech": [
@@ -153,15 +157,6 @@
         "jet_flame": [
             Burst(kind: Flame, count: 6, speed_m_s: 30.0, spread: 0.15, size_m: 0.9, life_s: 0.25, along_dir: true),
             Burst(kind: Smoke, count: 1, speed_m_s: 8.0, spread: 0.4, size_m: 2.5, life_s: 2.0, offset_m: 3.0, along_dir: true),
-        ],
-        // A jet's smoke trail, which hangs in the sky for two minutes, spreading and fading (owner,
-        // 2026-10-25: "per survey that trail needs to las 2 mins or more"). At 30 puffs a second a
-        // jet at 60 m/s leaves one every 2 m, each 4 m across at first, so they touch and read at
-        // combat range: at 20 a second and 1.2 m the trail seen from the seat was a string of beads,
-        // and at 2 m an enemy's trail 500 m off was three pixels wide (2026-10-25). Each grows to
-        // about 150 m wide, faint, over its life.
-        "jet_trail": [
-            Burst(kind: Trail, count: 1, speed_m_s: 1.0, spread: 0.3, size_m: 4.0, life_s: 120.0, offset_m: 4.0, along_dir: true),
         ],
         // Every step a wheel skates fast on soil; the direction is back and up from the wheel.
         "skate_dirt": [
