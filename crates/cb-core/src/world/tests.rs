@@ -716,3 +716,93 @@ fn the_capital_stands_inside_the_crater() {
         plan.cities[0].centre
     );
 }
+
+/// Instrument (river water vs the carved ground): how much of every river's centre line has its water
+/// surface below the ground there, the water then hidden in a dry channel. Run with --ignored --nocapture.
+#[test]
+#[ignore]
+fn measure_river_water_against_the_ground() {
+    let plan = seed_42();
+    let (mut points, mut buried, mut worst) = (0usize, 0usize, 0.0f32);
+    let mut per_river = Vec::new();
+    for (ri, r) in plan.waters.rivers.iter().enumerate() {
+        let mut b = 0;
+        for (i, p) in r.path.iter().enumerate() {
+            let ground = plan.terrain.height_at(p.x, p.y);
+            let under = ground - r.surface_m[i];
+            points += 1;
+            if under > 0.05 {
+                buried += 1;
+                b += 1;
+                worst = worst.max(under);
+            }
+        }
+        per_river.push((ri, r.path.len(), b));
+    }
+    eprintln!(
+        "rivers {}, points {points}, buried {buried} ({:.1} %), worst {worst:.1} m under",
+        plan.waters.rivers.len(),
+        100.0 * buried as f32 / points.max(1) as f32
+    );
+    per_river.sort_by_key(|r| std::cmp::Reverse(r.2));
+    for (ri, n, b) in per_river.iter().take(8) {
+        eprintln!("  river {ri}: {b} of {n} points buried");
+    }
+}
+
+#[test]
+fn far_terrain_never_hides_a_rivers_water() {
+    // At every coarse step, the four corners of the far cell holding a river's water lie under its
+    // surface, so the water is drawn over the far ground (owner, 2026-10-25: "rivers misssing").
+    let plan = seed_42();
+    let t = &plan.terrain;
+    let road_flat = shipped().highway_width_m * 0.5 + shipped().highway_flat_margin_m;
+    let (mut checked, mut over, mut worst) = (0, 0, 0.0f32);
+    let mut before = 0;
+    for (ri, r) in plan.waters.rivers.iter().enumerate() {
+        for (i, p) in r.path.iter().enumerate().step_by(7) {
+            // A waterfall's water is its falling sheet, not the river's ribbon.
+            if plan.waters.falls.iter().any(|f| f.river == ri && i + 2 >= f.lip && i <= f.foot + 2) {
+                continue;
+            }
+            if plan.highways.iter().any(|h| h.project(*p).0 <= road_flat + 200.0)
+                || plan.cities.iter().any(|c| c.rect().distance(*p) < 300.0)
+            {
+                continue;
+            }
+            for step in [2usize, 4, 8, 16] {
+                let cell = t.cell_m * step as f32;
+                let ix = (((p.x - t.origin_m) / cell).floor() as i64) * step as i64;
+                let iz = (((p.y - t.origin_m) / cell).floor() as i64) * step as i64;
+                // The far ground at the river point, on the two triangles the far mesh draws.
+                let s = step as i64;
+                let corners = [
+                    t.lattice_at_step(ix, iz, step),
+                    t.lattice_at_step(ix + s, iz, step),
+                    t.lattice_at_step(ix, iz + s, step),
+                    t.lattice_at_step(ix + s, iz + s, step),
+                ];
+                let u = (p.x - (t.origin_m + ix as f32 * t.cell_m)) / cell;
+                let v = (p.y - (t.origin_m + iz as f32 * t.cell_m)) / cell;
+                let ground = super::terrain::cell_height(corners, u, v);
+                let full = [(0, 0), (s, 0), (0, s), (s, s)].map(|(dx, dz)| t.lattice_at_step(ix + dx, iz + dz, 1));
+                if super::terrain::cell_height(full, u, v) > r.surface_m[i] + 0.1 {
+                    before += 1;
+                }
+                if ground > r.surface_m[i] + 0.1 {
+                    over += 1;
+                    worst = worst.max(ground - r.surface_m[i]);
+                }
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked > 1000, "{checked}");
+    eprintln!("far river points hidden: {over} of {checked} (worst {worst:.1} m); with the full carve: {before}");
+    // Measured 2026-10-25 on seed 42: 4 710 of 12 648 far river points hidden with the full carve,
+    // 148 (1.2 %) with the far carve, mostly where two rivers meet. Keep it under 2 %.
+    assert!(
+        over * 50 <= checked,
+        "{over} of {checked} far river points hidden, worst {worst:.1} m"
+    );
+}
