@@ -50,11 +50,13 @@ fn colour_over_life(kind: ParticleKind) -> Vec<(f32, Vec4)> {
             (0.8, v(0.85, 0.8, 0.75, 1.0)),
             (1.0, v(0.85, 0.8, 0.75, 0.0)),
         ],
+        // Pale, thin and mostly grey: the wisp sheet is already tan, so this only dims it (the first sheet run made
+        // each blast a towering orange column).
         ParticleKind::Dust => vec![
-            (0.0, v(0.55, 0.48, 0.38, 0.0)),
-            (0.1, v(0.55, 0.48, 0.38, 0.45)),
-            (0.6, v(0.5, 0.45, 0.37, 0.3)),
-            (1.0, v(0.5, 0.45, 0.37, 0.0)),
+            (0.0, v(0.62, 0.6, 0.57, 0.0)),
+            (0.1, v(0.62, 0.6, 0.57, 0.28)),
+            (0.6, v(0.6, 0.59, 0.57, 0.16)),
+            (1.0, v(0.6, 0.59, 0.57, 0.0)),
         ],
         ParticleKind::Smoke => vec![
             (0.0, v(0.2, 0.19, 0.18, 0.0)),
