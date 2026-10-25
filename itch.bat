@@ -6,6 +6,10 @@ rem (crab-breeze.exe beside data and assets: the game finds them from the folder
 rem dist\crab-breeze, and zips that to dist\crab-breeze-windows.zip for upload.
 cd /d "%~dp0"
 set CARGO_TARGET_DIR=%~dp0target\itch
+rem No QuickEdit in this window (a click would freeze the build), and a watchdog that beeps if the
+rem build stalls anyway (tools\build).
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\build\no_quickedit.ps1"
+start "" /b powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\build\watch_build.ps1"
 cargo build --release -p cb-app --features shipping || (pause & exit /b 1)
 set OUT=%~dp0dist\crab-breeze
 if exist "%OUT%" rmdir /s /q "%OUT%"
