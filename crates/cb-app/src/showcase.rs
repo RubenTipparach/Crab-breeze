@@ -505,7 +505,9 @@ fn look_at(p: &PilotState, eye: Vec3, point: Vec3) -> Vec2 {
     let d = point - eye;
     let yaw = (-d.x).atan2(-d.z);
     let turn = (yaw - p.yaw_rad + PI).rem_euclid(TAU) - PI;
-    let pitch = d.y.atan2(Vec2::new(d.x, d.z).length());
+    // Held between 10 degrees down and 20 up, so the view stays on the screens when a mech passes
+    // overhead (the cabin's ceiling has none).
+    let pitch = d.y.atan2(Vec2::new(d.x, d.z).length()).clamp(-0.17, 0.35);
     Vec2::new(-turn.to_degrees() * 0.3, (pitch - p.pitch_rad).to_degrees() * 0.3)
 }
 

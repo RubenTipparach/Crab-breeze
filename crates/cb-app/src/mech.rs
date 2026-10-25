@@ -1640,13 +1640,13 @@ fn stunt(m: &MechState, plan: &Plan, player: Vec3, t_s: f32) -> Option<MechContr
     let phase = t_s.rem_euclid(24.0);
     let agl = m.pos.y - plan.height_at(m.pos.x, m.pos.z);
     let hover = (0.175 - m.vel_y_m_s * 0.025).clamp(0.0, 1.0);
-    // Round the player 150-300 m out, so the loop passes in front of the seat.
+    // Round the player 250-450 m out, so the loop passes in front of the seat.
     let to = Vec2::new(player.x - m.pos.x, player.z - m.pos.z);
     let want = (-to.x).atan2(-to.y);
     let off = (want - m.heading_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
-    let turn = if to.length() > 300.0 {
+    let turn = if to.length() > 450.0 {
         (off * 2.0).clamp(-1.0, 1.0)
-    } else if to.length() < 150.0 {
+    } else if to.length() < 250.0 {
         (-off.signum()).clamp(-1.0, 1.0)
     } else {
         0.5
