@@ -1,0 +1,14 @@
+{
+  "name": "crab-breeze-music",
+  "private": true,
+  "type": "module",
+  "description": "Strudel scores to multitrack MIDI and LMMS projects (see .claude/skills/music-authoring)",
+  "scripts": {
+    "postinstall": "node patch_kabelsalat.mjs"
+  },
+  "dependencies": {
+    "@strudel/core": "^1.2.6",
+    "@strudel/mini": "^1.2.6",
+    "@strudel/transpiler": "^1.2.6"
+  }
+}

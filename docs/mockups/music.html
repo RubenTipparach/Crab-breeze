@@ -1,0 +1,264 @@
+<title>Crab Breeze Music</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a works manual for the score. A masthead plate, the tape (the cues) as a run sheet, then one plate per motif with its notes drawn to scale. */
+:root {
+  --paper: #edf0ee; --plate: #f8faf9; --ink: #1a2026; --steel: #56626c; --rule: #c6cdd0;
+  --amber: #b97700; --amber-ink: #1a2026; --crab: #b0392b; --town: #2f6f86;
+  --f-display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+  --f-body: "Barlow", "Segoe UI", Roboto, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #111518; --plate: #181d21; --ink: #e2e6e7; --steel: #929ea7; --rule: #2b3339;
+  --amber: #f0a62a; --amber-ink: #111518; --crab: #e46450; --town: #5fb0cc; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #111518; --plate: #181d21; --ink: #e2e6e7; --steel: #929ea7; --rule: #2b3339;
+  --amber: #f0a62a; --amber-ink: #111518; --crab: #e46450; --town: #5fb0cc; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--paper); color: var(--ink); font: 400 16px/1.55 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 64px }
+.wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 48px }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 800; line-height: 1; margin: 0; text-wrap: balance; letter-spacing: .01em }
+h1 { font-size: clamp(56px, 11vw, 112px); text-transform: uppercase }
+h2 { font-size: clamp(30px, 5vw, 42px); text-transform: uppercase }
+h3 { font-size: 30px; text-transform: uppercase }
+p { margin: 0; max-width: 66ch }
+.eyebrow { font: 500 12px/1.2 var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--steel) }
+.mono { font-family: var(--f-mono); font-size: 13px }
+.mast { display: grid; gap: 18px; border-top: 6px solid var(--ink); padding-top: 18px }
+.mast .stripe { height: 10px; background: repeating-linear-gradient(-45deg, var(--amber) 0 12px, transparent 12px 24px); max-width: 280px }
+.facts { display: flex; flex-wrap: wrap; gap: 10px 28px; font: 500 13px/1.3 var(--f-mono); color: var(--steel) }
+.facts b { color: var(--ink); font-weight: 500 }
+.status { border-left: 3px solid var(--amber); padding: 2px 0 2px 14px; color: var(--steel) }
+section { display: grid; gap: 18px }
+.head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; border-bottom: 2px solid var(--ink); padding-bottom: 8px }
+
+/* the tape */
+.tape { display: grid; border-top: 1px solid var(--rule) }
+.cue { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 4px 16px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--rule) }
+.cue .side { font: 500 12px/1 var(--f-mono); color: var(--steel); grid-row: span 2 }
+.cue .name { font: 600 19px/1.2 var(--f-body); min-width: 0 }
+.cue .meta { font: 400 12.5px/1.3 var(--f-mono); color: var(--steel); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap }
+.cue .what { grid-column: 2 / 4; color: var(--steel); font-size: 14.5px; min-width: 0 }
+.cue .bar { grid-column: 1 / 4; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center }
+button.play { appearance: none; border: 1.5px solid var(--ink); background: transparent; color: var(--ink); font: 600 13px/1 var(--f-mono);
+  letter-spacing: .08em; text-transform: uppercase; padding: 9px 12px; min-width: 84px; border-radius: 2px; cursor: pointer }
+button.play[aria-pressed="true"] { background: var(--amber); border-color: var(--amber); color: var(--amber-ink) }
+button.play:focus-visible, .track:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px }
+.track { height: 6px; background: var(--rule); position: relative; cursor: pointer; border-radius: 1px }
+.track i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--ink) }
+.time { font: 400 12px/1 var(--f-mono); color: var(--steel); font-variant-numeric: tabular-nums; min-width: 92px; text-align: right }
+
+/* the world */
+.world { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 28px }
+.world div { display: grid; gap: 6px; align-content: start }
+.spine { overflow-x: auto }
+.spine table { border-collapse: collapse; font: 500 14px/1 var(--f-mono); min-width: 560px; width: 100% }
+.spine th { font: 500 11px/1 var(--f-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--steel); text-align: left; padding: 8px 10px 8px 0; white-space: nowrap }
+.spine td { border: 1px solid var(--rule); padding: 10px 6px; text-align: center }
+.spine td.lift { background: var(--amber); color: var(--amber-ink); border-color: var(--amber) }
+.spine td.pull { border-color: var(--ink) }
+
+/* motif plates */
+.plates { display: grid; gap: 22px }
+.plate { background: var(--plate); border: 1px solid var(--rule); padding: 20px; display: grid; gap: 14px }
+.plate header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; justify-content: space-between }
+.plate .tag { font: 500 11px/1 var(--f-mono); letter-spacing: .12em; text-transform: uppercase; padding: 5px 7px; border: 1px solid currentColor }
+.plate[data-family="hero"] .tag { color: var(--amber) }
+.plate[data-family="crab"] .tag { color: var(--crab) }
+.plate[data-family="town"] .tag { color: var(--town) }
+.roll { width: 100%; height: 150px; display: block }
+.notes { font: 400 12.5px/1.6 var(--f-mono); color: var(--steel); overflow-x: auto; white-space: pre; margin: 0 }
+.plate .row { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center }
+.plate .use { color: var(--steel); font-size: 15px }
+.pipe { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0; border: 1px solid var(--rule) }
+.pipe div { padding: 14px; border-right: 1px solid var(--rule); display: grid; gap: 4px; align-content: start }
+.pipe div:last-child { border-right: 0 }
+.pipe b { font: 600 15px/1.2 var(--f-body) }
+.pipe span { color: var(--steel); font-size: 14px }
+footer { color: var(--steel); font-size: 14px; display: grid; gap: 6px; border-top: 1px solid var(--rule); padding-top: 14px }
+@media (max-width: 560px) { .cue .meta { grid-column: 2 / 4; text-align: left } .cue { grid-template-columns: 36px minmax(0,1fr) } .cue .what { grid-column: 1 / 3 } .cue .bar { grid-column: 1 / 3 } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+</style>
+<div class="wrap">
+  <header class="mast">
+    <div class="stripe" aria-hidden="true"></div>
+    <span class="eyebrow">Crab Breeze original score · works sheet 1 · 2026-10-25</span>
+    <h1>Crab Breeze Music</h1>
+    <p>Seven motifs and the first six cues, written as Strudel scores, exported to multitrack MIDI and played by real instruments in LMMS. Orchestral rock with an 80s edge, in D minor, for a 1980s industrial mech fighting alien crabs.</p>
+    <div class="facts"><span>Key <b>D minor</b></span><span>Signature <b>Bb, C, D major</b></span><span>Gait <b>3 + 3 + 2</b></span><span>Instruments <b>GeneralUser GS 2.0.3</b></span><span>Loudness <b>-16 LUFS</b></span></div>
+    <p class="status">Checked by numbers only: no clipping, the loudness of each cue has its shape, and spectrograms show the lead lines. Nobody has listened yet. Your ears decide; the survey has three questions on the direction.</p>
+  </header>
+
+  <section aria-labelledby="tape-h">
+    <div class="head"><h2 id="tape-h">The tape</h2><span class="eyebrow">Press play; one cue at a time</span></div>
+    <div class="tape" id="tape"></div>
+  </section>
+
+  <section aria-labelledby="world-h">
+    <div class="head"><h2 id="world-h">The musical world</h2><span class="eyebrow">Rules every cue follows</span></div>
+    <div class="world">
+      <div><span class="eyebrow">Home</span><p>D natural minor. Every big moment arrives by <b>the lift</b>: B flat, C, then D <i>major</i>. The F sharp of that last chord is the score's signature note, the minor world breaking open when the Breeze wins.</p></div>
+      <div><span class="eyebrow">The stride</span><p>The mech's gait as a rhythm: <b>3 + 3 + 2 eighths</b>, stomp, stomp, step-step. The Breeze's melody walks on it; the bass and the kick drum play it.</p></div>
+      <div><span class="eyebrow">The crabs</span><p>The opposite: chromatic grinding (D against E flat), the tritone (D against A flat), and sixteenths in <b>3 + 3 + 3 + 3 + 2 + 2</b>, many legs moving sideways.</p></div>
+    </div>
+    <div class="spine">
+      <table>
+        <tr><th>Pass A</th><td>Dm</td><td>Bb</td><td>F</td><td>C</td><td>Dm</td><td>Bb</td><td>Gm</td><td class="pull">A</td></tr>
+        <tr><th>Pass B</th><td>Dm</td><td>Bb</td><td>F</td><td>C</td><td>Gm</td><td class="lift">Bb</td><td class="lift">C</td><td class="lift">D major</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="motif-h">
+    <div class="head"><h2 id="motif-h">The motifs</h2><span class="eyebrow">Drawn to scale, a column per bar · a dot is dotted, a dash is held</span></div>
+    <div class="plates" id="plates"></div>
+  </section>
+
+  <section aria-labelledby="pipe-h">
+    <div class="head"><h2 id="pipe-h">How a cue is made</h2><span class="eyebrow">Skill: music-authoring</span></div>
+    <div class="pipe">
+      <div><b>Notes first</b><span>Motifs written down in docs/design/music.md and music/motifs.strudel.</span></div>
+      <div><b>Strudel score</b><span>Each cue is one file that plays at strudel.cc; every layer names its instrument.</span></div>
+      <div><b>Multitrack MIDI</b><span>One track per instrument, ready for any DAW.</span></div>
+      <div><b>LMMS, headless</b><span>The final comp: soundfont orchestra, LMMS synths, calibrated levels.</span></div>
+      <div><b>OGG for the game</b><span>Normalised to -16 LUFS in assets/audio/music.</span></div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Scores: music/*.strudel · Tools: tools/music · Sources and licences: docs/analysis/audio-sources.md · In-game playback: openspec/changes/music (proposed)</span>
+    <span>Tom Lander's pipeline, rebuilt for Crab Breeze. Soundfont: GeneralUser GS by S. Christian Collins.</span>
+  </footer>
+</div>
+
+<script>
+const MOTIFS = {"BREEZE": {"bars": 16, "notes": [[0, 0.375, 62], [0.375, 0.375, 69], [0.75, 0.125, 67], [0.875, 0.125, 69], [1, 0.375, 70], [1.375, 0.375, 69], [1.75, 0.125, 65], [1.875, 0.125, 67], [2, 0.375, 69], [2.375, 0.375, 72], [2.75, 0.125, 70], [2.875, 0.125, 69], [3, 0.75, 67], [3.75, 0.125, 65], [3.875, 0.125, 64], [4, 0.375, 62], [4.375, 0.375, 69], [4.75, 0.125, 67], [4.875, 0.125, 69], [5, 0.375, 70], [5.375, 0.375, 74], [5.75, 0.125, 72], [5.875, 0.125, 70], [6, 0.375, 74], [6.375, 0.375, 79], [6.75, 0.125, 77], [6.875, 0.125, 76], [7, 0.75, 76], [7.75, 0.125, 73], [7.875, 0.125, 69], [8, 0.375, 62], [8.375, 0.375, 69], [8.75, 0.125, 67], [8.875, 0.125, 69], [9, 0.375, 70], [9.375, 0.375, 69], [9.75, 0.125, 65], [9.875, 0.125, 67], [10, 0.375, 69], [10.375, 0.375, 72], [10.75, 0.125, 74], [10.875, 0.125, 76], [11, 0.375, 77], [11.375, 0.375, 76], [11.75, 0.125, 74], [11.875, 0.125, 72], [12, 0.375, 74], [12.375, 0.375, 70], [12.75, 0.125, 72], [12.875, 0.125, 74], [13, 0.375, 77], [13.375, 0.375, 74], [13.75, 0.125, 76], [13.875, 0.125, 77], [14, 0.375, 79], [14.375, 0.375, 76], [14.75, 0.125, 77], [14.875, 0.125, 79], [15, 0.375, 78], [15.375, 0.625, 81]]}, "CALLSIGN": {"bars": 2, "notes": [[0, 0.1875, 81], [0.25, 0.0625, 81], [0.375, 0.1875, 81], [0.625, 0.0625, 81], [0.875, 0.1875, 74], [1.125, 0.0625, 74], [1.25, 0.0625, 74], [1.375, 0.0625, 74]]}, "MAINSTREET": {"bars": 8, "notes": [[0, 0.375, 72], [0.375, 0.125, 69], [0.5, 0.25, 67], [0.75, 0.25, 65], [1, 0.375, 74], [1.375, 0.125, 72], [1.5, 0.5, 70], [2, 0.375, 69], [2.375, 0.125, 67], [2.5, 0.25, 65], [2.75, 0.25, 62], [3, 0.25, 64], [3.25, 0.25, 67], [3.5, 0.5, 72], [4, 0.375, 72], [4.375, 0.125, 69], [4.5, 0.25, 67], [4.75, 0.25, 65], [5, 0.375, 74], [5.375, 0.125, 77], [5.5, 0.25, 76], [5.75, 0.25, 74], [6, 0.25, 72], [6.25, 0.25, 70], [6.5, 0.25, 69], [6.75, 0.25, 67], [7, 1, 65]]}, "SCUTTLE": {"bars": 2, "notes": [[0, 0.0625, 38], [0.0625, 0.0625, 39], [0.125, 0.0625, 38], [0.1875, 0.0625, 38], [0.25, 0.0625, 39], [0.3125, 0.0625, 38], [0.375, 0.0625, 32], [0.4375, 0.0625, 33], [0.5, 0.0625, 32], [0.5625, 0.0625, 38], [0.625, 0.0625, 39], [0.6875, 0.0625, 38], [0.75, 0.0625, 41], [0.8125, 0.0625, 40], [0.875, 0.0625, 39], [0.9375, 0.0625, 38], [1, 0.0625, 38], [1.0625, 0.0625, 39], [1.125, 0.0625, 38], [1.1875, 0.0625, 38], [1.25, 0.0625, 39], [1.3125, 0.0625, 38], [1.375, 0.0625, 32], [1.4375, 0.0625, 33], [1.5, 0.0625, 32], [1.5625, 0.0625, 38], [1.625, 0.0625, 39], [1.6875, 0.0625, 38], [1.75, 0.0625, 34], [1.8125, 0.0625, 33], [1.875, 0.0625, 32], [1.9375, 0.0625, 31]]}, "SIREN": {"bars": 4, "notes": [[0, 1, 69], [1, 1, 68], [2, 1, 67], [3, 1, 66]]}, "HATCH": {"bars": 10, "notes": [[0, 0.25, 50], [0.25, 0.25, 55], [0.5, 0.25, 60], [0.75, 0.25, 65], [1, 0.25, 50], [1.25, 0.25, 55], [1.5, 0.25, 60], [1.75, 0.25, 65], [2, 0.25, 52], [2.25, 0.25, 57], [2.5, 0.25, 62], [2.75, 0.25, 67], [3, 0.25, 52], [3.25, 0.25, 57], [3.5, 0.25, 62], [3.75, 0.25, 67], [4, 0.25, 53], [4.25, 0.25, 58], [4.5, 0.25, 64], [4.75, 0.25, 69], [5, 0.25, 53], [5.25, 0.25, 58], [5.5, 0.25, 64], [5.75, 0.25, 69], [6, 0.25, 55], [6.25, 0.25, 60], [6.5, 0.25, 65], [6.75, 0.25, 70], [7, 0.25, 55], [7.25, 0.25, 60], [7.5, 0.25, 65], [7.75, 0.25, 70], [8, 0.25, 57], [8.25, 0.25, 62], [8.5, 0.25, 67], [8.75, 0.25, 72], [9, 0.25, 50], [9.25, 0.25, 57], [9.5, 0.25, 62], [9.75, 0.25, 66]]}, "FANFARE": {"bars": 6, "notes": [[0, 0.375, 74], [0.375, 0.375, 77], [0.75, 0.125, 74], [0.875, 0.125, 77], [1, 0.375, 76], [1.375, 0.375, 79], [1.75, 0.125, 76], [1.875, 0.125, 79], [2, 0.375, 74], [2.375, 0.375, 81], [2.75, 0.125, 79], [2.875, 0.125, 81], [3, 1, 78], [4, 0.375, 83], [4.375, 0.375, 81], [4.75, 0.125, 78], [4.875, 0.125, 79], [5, 1, 81]]}};
+const CUES = [
+  { side: 'A1', file: 'main_theme.mp3', name: 'Main Theme', meta: '132 BPM · 1:29', what: 'Title screen. The call sign on the radio, the Breeze on horns over the stride, a breath of Main Street, then the Breeze in full climbing into the lift.' },
+  { side: 'A2', file: 'on_foot.mp3', name: 'Main Street', meta: '92 BPM · 1:26 · loops', what: 'On foot in town before the alarm. The town hymn on an electric piano and a picked guitar, then a flute; the call sign drifts in from a radio.' },
+  { side: 'A3', file: 'boarding.mp3', name: 'Boarding', meta: '72 BPM · 0:50', what: 'The boarding cinematic. Stacked fourths climb a step per hatch stage with a burst of steam on each, then the Breeze lifts into D major as you sit.' },
+  { side: 'B1', file: 'sortie.mp3', name: 'Sortie', meta: '150 BPM · 1:44 · loops', what: 'Combat. Call sign over a racing pedal, the Breeze on trumpets and a supersaw over guitars, the crabs pushing in, then the Breeze taking their rhythm back.' },
+  { side: 'B2', file: 'big_boy.mp3', name: 'Big Boy', meta: '140 BPM · 1:24', what: 'The 30 m siege crab. The scuttle slowed to a march in tubas and choir, then at speed with claw stabs and war drums; the siren falls to D minor.' },
+  { side: 'B3', file: 'mission_accomplished.mp3', name: 'Mission Accomplished', meta: '104 BPM · 0:21', what: 'The stinger after a win: the fanfare and a ringing D major chord.' },
+  { side: 'R', file: 'motifs.mp3', name: 'The motifs, one by one', meta: '120 BPM · 1:56', what: 'Reference: every motif stated plainly with a bar of silence between them. The plates below play from here.' },
+];
+const PLATES = [
+  { key: 'BREEZE', name: 'The Breeze', family: 'hero', tag: 'The mech · hero', at: 0, bars: 16,
+    use: 'The main theme. A rising fifth that sags and pushes back up, walking in the stride rhythm. Pass A pulls home through C sharp; pass B climbs the lift and sings F sharp to A over D major. Its head alone (D A G A) says "the Breeze" anywhere.',
+    text: 'Dm  D4. A4. G4 A4  | Bb  Bb4. A4. F4 G4  | F  A4. C5. Bb4 A4 | C  G4-- F4 E4\nDm  D4. A4. G4 A4  | Bb  Bb4. D5. C5 Bb4 | Gm D5. G5. F5 E5  | A  E5-- C#5 A4\nDm  D4. A4. G4 A4  | Bb  Bb4. A4. F4 G4  | F  A4. C5. D5 E5  | C  F5. E5. D5 C5\nGm  D5. Bb4. C5 D5 | Bb  F5. D5. E5 F5   | C  G5. E5. F5 G5  | D  F#5. A5-' },
+  { key: 'CALLSIGN', name: 'Call Sign', family: 'radio', tag: 'The radio', at: 34, bars: 4,
+    use: '"CB" in Morse code (-.-. -...) as a rhythm: C on A, B on D. Briefings, radio traffic, the systems waking. The cockpit’s lock-on tone can take the same rhythm, so the game and the score speak one language.',
+    text: 'A5 dah . A5 dit . A5 dah . A5 dit ...  D5 dah . D5 dit . D5 dit . D5 dit ......' },
+  { key: 'MAINSTREET', name: 'Main Street', family: 'town', tag: 'The town · people', at: 44, bars: 8,
+    use: 'A hymn in F major, plain and singable, with none of the stride in it: people, not machines. On foot, in briefings about a city, the quiet heart of the title theme. Lose a city and it turns minor on a solo piano.',
+    text: 'F  C5. A4 G4 F4   | Bb  D5. C5 Bb4-   | Dm  A4. G4 F4 D4     | C  E4 G4 C5-\nF  C5. A4 G4 F4   | Bb  D5. F5 E5 D5  | Gm C  C5 Bb4 A4 G4  | F  F4--' },
+  { key: 'SCUTTLE', name: 'Scuttle, Claw and Siren', family: 'crab', tag: 'The crabs', at: 62, bars: 8,
+    use: 'Sixteenths grinding D against E flat and the tritone A flat, grouped like legs. The claw stabs D with A flat on the accents; the siren falls A, A flat, G, F sharp over four bars. Whenever the crabs are near.',
+    text: 'D2 Eb2 D2 | D2 Eb2 D2 | Ab1 A1 Ab1 | D2 Eb2 D2 | F2 E2 | Eb2 D2\nD2 Eb2 D2 | D2 Eb2 D2 | Ab1 A1 Ab1 | D2 Eb2 D2 | Bb1 A1 | Ab1 G1\nclaw  [D4+Ab4] on 16ths 1, 7, 13, 15     siren  A4 | Ab4 | G4 | F#4' },
+  { key: 'HATCH', name: 'The Hatch', family: 'hero', tag: 'Boarding', at: 80, bars: 10,
+    use: 'Stacked fourths climbing a step for each stage of the chest opening, two bars a stage, then a quartal chord that resolves into D major as the pilot sits. A burst of steam opens each stage.',
+    text: 'D3 G3 C4 F4 (x2) | E3 A3 D4 G4 (x2) | F3 Bb3 E4 A4 (x2) | G3 C4 F4 Bb4 (x2) | A3 D4 G4 C5 | D3 A3 D4 F#4' },
+  { key: 'FANFARE', name: 'Fanfare', family: 'hero', tag: 'Mission accomplished', at: 102, bars: 6,
+    use: 'The lift with the Breeze’s head turned major: B flat, C, D major, the hero’s D A G A now bright.',
+    text: 'Bb  D5. F5. D5 F5 | C  E5. G5. E5 G5 | D  D5. A5. G5 A5 | D  F#5-- | G  B5. A5. F#5 G5 | D  A5--' },
+];
+const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+
+// one player for the page: one cue at a time
+const players = [];
+let stopAt = null;
+function stopAll(except) {
+  for (const p of players) if (p !== except) { p.audio.pause(); p.btn.setAttribute('aria-pressed', 'false'); p.btn.textContent = 'Play'; }
+  for (const b of document.querySelectorAll('.plate button.play')) { b.setAttribute('aria-pressed', 'false'); b.textContent = 'Hear it'; }
+}
+const tape = document.getElementById('tape');
+for (const c of CUES) {
+  const row = document.createElement('div');
+  row.className = 'cue';
+  row.innerHTML = `<span class="side">${c.side}</span><span class="name">${c.name}</span><span class="meta">${c.meta}</span>
+    <span class="what">${c.what}</span>
+    <div class="bar"><button class="play" type="button" id="play-${c.side}" aria-pressed="false" aria-label="Play ${c.name}">Play</button>
+    <div class="track" tabindex="0" role="slider" aria-label="Position in ${c.name}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div><span class="time">0:00 / --:--</span></div>`;
+  tape.appendChild(row);
+  const audio = new Audio();
+  audio.preload = 'metadata';
+  audio.src = c.file;
+  const btn = row.querySelector('button'), track = row.querySelector('.track'), fill = track.querySelector('i'), time = row.querySelector('.time');
+  const p = { c, audio, btn };
+  players.push(p);
+  const paint = () => { const d = audio.duration || 0; const f = d ? audio.currentTime / d : 0; fill.style.width = (f * 100) + '%';
+    track.setAttribute('aria-valuenow', Math.round(f * 100)); time.textContent = fmt(audio.currentTime) + ' / ' + (d ? fmt(d) : '--:--'); };
+  audio.addEventListener('timeupdate', () => { paint(); if (stopAt !== null && audio.currentTime >= stopAt) { audio.pause(); stopAt = null; stopAll(); } });
+  audio.addEventListener('loadedmetadata', paint);
+  audio.addEventListener('ended', () => { btn.setAttribute('aria-pressed', 'false'); btn.textContent = 'Play'; });
+  audio.addEventListener('error', () => { time.textContent = 'file missing'; });
+  btn.addEventListener('click', () => {
+    if (audio.paused) { stopAll(p); stopAt = null; audio.play().catch(() => {}); btn.setAttribute('aria-pressed', 'true'); btn.textContent = 'Pause'; }
+    else { audio.pause(); btn.setAttribute('aria-pressed', 'false'); btn.textContent = 'Play'; }
+  });
+  const seek = (f) => { if (audio.duration) { audio.currentTime = Math.min(0.999, Math.max(0, f)) * audio.duration; paint(); } };
+  track.addEventListener('click', (e) => { const r = track.getBoundingClientRect(); seek((e.clientX - r.left) / r.width); });
+  track.addEventListener('keydown', (e) => { if (!audio.duration) return; const step = 5 / audio.duration;
+    if (e.key === 'ArrowRight') { seek(audio.currentTime / audio.duration + step); e.preventDefault(); }
+    if (e.key === 'ArrowLeft') { seek(audio.currentTime / audio.duration - step); e.preventDefault(); } });
+}
+const sheet = players.find((p) => p.c.file === 'motifs.mp3');
+
+// motif plates with piano rolls
+const plates = document.getElementById('plates');
+const canvases = [];
+for (const m of PLATES) {
+  const el = document.createElement('article');
+  el.className = 'plate';
+  el.dataset.family = m.family;
+  el.innerHTML = `<header><h3>${m.name}</h3><span class="tag">${m.tag}</span></header>
+    <canvas class="roll" aria-label="Piano roll of ${m.name}"></canvas>
+    <pre class="notes">${m.text}</pre>
+    <div class="row"><button class="play" type="button" id="hear-${m.key}" aria-pressed="false">Hear it</button><span class="mono">${m.bars} bars from ${fmt(m.at)} of the motif sheet</span></div>
+    <p class="use">${m.use}</p>`;
+  plates.appendChild(el);
+  canvases.push({ m, cv: el.querySelector('canvas') });
+  const b = el.querySelector('button');
+  b.addEventListener('click', () => {
+    if (b.getAttribute('aria-pressed') === 'true') { stopAll(); sheet.audio.pause(); stopAt = null; return; }
+    stopAll(); sheet.audio.currentTime = m.at; stopAt = m.at + m.bars * 2 + 0.6;
+    sheet.audio.play().catch(() => {}); b.setAttribute('aria-pressed', 'true'); b.textContent = 'Stop';
+  });
+}
+function draw() {
+  const cs = getComputedStyle(document.documentElement);
+  const tok = (n) => cs.getPropertyValue(n).trim();
+  for (const { m, cv } of canvases) {
+    const data = MOTIFS[m.key];
+    const extra = m.key === 'SCUTTLE' ? MOTIFS.SIREN : null;
+    const w = cv.clientWidth, h = cv.clientHeight, dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    const bars = m.key === 'SCUTTLE' ? 4 : data.bars;
+    const notes = [];
+    // the scuttle repeats to fill four bars beside the siren
+    for (const n of data.notes) { notes.push(n); if (m.key === 'SCUTTLE') notes.push([n[0] + 2, n[1], n[2]]); }
+    const all = notes.concat(extra ? extra.notes : []);
+    let lo = Math.min(...all.map((n) => n[2])) - 2, hi = Math.max(...all.map((n) => n[2])) + 2;
+    const pad = 4, sx = (w - pad * 2) / bars, sy = (h - pad * 2) / (hi - lo + 1);
+    g.strokeStyle = tok('--rule'); g.lineWidth = 1;
+    for (let b = 0; b <= bars; b++) { const x = Math.round(pad + b * sx) + 0.5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
+    for (let p = lo; p <= hi; p++) if (p % 12 === 2) { const y = Math.round(pad + (hi - p) * sy + sy / 2) + 0.5; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); g.setLineDash([]); }
+    const col = m.family === 'crab' ? tok('--crab') : m.family === 'town' ? tok('--town') : m.family === 'radio' ? tok('--steel') : tok('--amber');
+    const box = (n, c) => { g.fillStyle = c; g.fillRect(pad + n[0] * sx + 0.5, pad + (hi - n[2]) * sy + 0.5, Math.max(2, n[1] * sx - 1.5), Math.max(2, sy - 1)); };
+    for (const n of notes) box(n, col);
+    if (extra) for (const n of extra.notes) box(n, tok('--ink'));
+    g.fillStyle = tok('--steel'); g.font = '11px ' + tok('--f-mono');
+    for (let p = lo; p <= hi; p++) if (p % 12 === 2) g.fillText('D' + (Math.floor(p / 12) - 1), 6, pad + (hi - p) * sy + sy / 2 - 3);
+  }
+}
+draw();
+addEventListener('resize', draw);
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw); } catch (e) {}
+new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+</script>

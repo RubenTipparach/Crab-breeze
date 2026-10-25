@@ -23,6 +23,7 @@ Where each skill in this directory came from, so a later copy from the source ca
 | `bevy-architecture` | New in Crab Breeze, after Falchion's `modular-game-systems` and Pale-Blue-Dot's core and app crates | Falchion `5d128af`, Pale-Blue-Dot `db25fe2` | 2026-10-23 | |
 | `deterministic-simulation` | Falchion `.claude/skills/deterministic-simulation`, rewritten for Rust and Bevy | `5d128af` | 2026-10-23 | |
 | `testing-practices` | Falchion `.claude/skills/testing-practices`, rewritten for Rust and Bevy | `5d128af` | 2026-10-23 | |
+| `music-authoring` | New in Crab Breeze, after tom-lander's `audio.md` (motif library, Strudel house style, rendering methodology) and `tools/strudel/` (`strudel_to_midi.mjs`, `strudel_to_lmms.mjs`, `core_suite_to_midi.mjs`, `render_midi.sh`, `patch_kabelsalat.mjs`) | tom-lander `dea3d50` | 2026-10-25 | Tools rebuilt in `tools/music/`: one exporter for every score (the instrument rides on `s(...)`), multitrack LMMS projects, a calibrated instrument table, loudness normalisation, a motif drift check. `patch_kabelsalat.mjs` and the npm manifest copied verbatim. |
 
 Not copied, and why:
 - (`light-baking` and `panel-textures` were left out on 2026-10-23 as serving Star Crew's low-poly
