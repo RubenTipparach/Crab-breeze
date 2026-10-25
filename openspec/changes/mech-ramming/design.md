@@ -36,5 +36,5 @@ One comparison per mech per step; a ram costs what a hit already costs (one `bre
 
 | Id | Question | Recommendation | State |
 |---|---|---|---|
-| RM1 | Does ramming hurt the mech? (survey W23) | Yes, later, with the damage model's collision pass: torso structure by the same energy | open |
+| RM1 | Does ramming hurt the mech? (survey W23) | Yes, later, with the damage model's collision pass: torso structure by the same energy | decided: no, ramming is free (W23) |
 | RM2 | 20 m/s as the ram speed? | Yes: above the 12 m/s walk, reached in under 2 s of skating | provisional |
