@@ -50,8 +50,7 @@ fn colour_over_life(kind: ParticleKind) -> Vec<(f32, Vec4)> {
             (0.8, v(0.85, 0.8, 0.75, 1.0)),
             (1.0, v(0.85, 0.8, 0.75, 0.0)),
         ],
-        // Pale, thin and mostly grey: the wisp sheet is already tan, so this only dims it (the first sheet run made
-        // each blast a towering orange column).
+        // Pale, thin and mostly grey: the wisp sheet is already tan, so this only dims it.
         ParticleKind::Dust => vec![
             (0.0, v(0.62, 0.6, 0.57, 0.0)),
             (0.1, v(0.62, 0.6, 0.57, 0.28)),
@@ -186,7 +185,13 @@ pub fn set_sprite(lib: &mut ParticleLibrary, disc: Handle<Image>, images: &mut A
 
 /// Gives the library a kind's sprite sheet (`fx-sprites`), and copies of it for blended bursts.
 pub fn set_sheet(lib: &mut ParticleLibrary, name: &'static str, image: Image, images: &mut Assets<Image>) {
-    let copies = (0..SHEET_COPIES).map(|_| images.add(image.clone())).collect();
+    // `CB_NO_SHEET_COPIES` hands every burst the one sheet (an instrument, as `CB_NO_FX_SHEETS`).
+    let n = if std::env::var("CB_NO_SHEET_COPIES").is_ok() {
+        0
+    } else {
+        SHEET_COPIES
+    };
+    let copies = (0..n).map(|_| images.add(image.clone())).collect();
     lib.sheets.insert(name, (images.add(image), copies, 0));
 }
 
@@ -211,6 +216,14 @@ impl ParticleLibrary {
     /// Whether `kind` draws from a loaded sheet (its effect asset then carries the flipbook).
     fn has_sheet(&self, kind: ParticleKind) -> bool {
         sheet(kind).is_some_and(|n| self.sheets.contains_key(n))
+    }
+}
+
+/// The texture slot's name for a kind: its sheet's, or the disc's (see `build`).
+fn slot_name(kind: ParticleKind, sheet: bool) -> &'static str {
+    match sheet.then(|| self::sheet(kind)).flatten() {
+        Some(name) => name,
+        None => "disc",
     }
 }
 
@@ -264,7 +277,11 @@ fn build(spec: BurstSpec, spawner: SpawnerSettings, capacity: u32, sheet: bool) 
     }
     let set_cell = SetAttributeModifier::new(Attribute::SPRITE_INDEX, cell.expr());
     let mut module = w.finish();
-    module.add_texture_slot("sprite", SlotDimension::D2);
+    // The slot is named after the image it takes. bevy_hanabi (rev 77630ff) caches an effect's texture bind group by
+    // its property buffer and texture layout, not by the images bound, so every one-slot effect drew whichever image
+    // the first one bound: the smoke column took the fire flipbook and stood twenty seconds as an orange "tornado"
+    // (owner, 2026-10-25). A slot name is part of the layout, so one name per image keeps the bind groups apart.
+    module.add_texture_slot(slot_name(spec.kind, sheet), SlotDimension::D2);
     let orient = if spec.kind == ParticleKind::Spark {
         OrientModifier::new(OrientMode::AlongVelocity)
     } else {
@@ -445,6 +462,31 @@ mod tests {
                 let img = image::open(root.join(name).join("albedo.png")).expect("the sheet is shipped");
                 assert_eq!(img.width() % GRID, 0, "{name} splits into {GRID} cells");
             }
+        }
+    }
+
+    /// bevy_hanabi shares one texture bind group between effects with equal texture layouts, so two kinds drawing
+    /// different images must not have equal layouts (the orange smoke column, 2026-10-25).
+    #[test]
+    fn kinds_drawing_different_images_never_share_a_texture_layout() {
+        let spec = |kind| BurstSpec {
+            kind,
+            speed_m_s: 1.0,
+            spread: 0.5,
+            size_m: 1.0,
+            life_s: 1.0,
+        };
+        let layout = |kind, sheet| {
+            build(spec(kind), SpawnerSettings::once(1.0.into()), 32, sheet)
+                .module()
+                .texture_layout()
+        };
+        let kinds = [ParticleKind::Smoke, ParticleKind::Fire, ParticleKind::Dust, ParticleKind::Dirt];
+        for (i, a) in kinds.iter().enumerate() {
+            for b in &kinds[i + 1..] {
+                assert_ne!(layout(*a, true), layout(*b, true), "{a:?} and {b:?} would share a bind group");
+            }
+            assert_ne!(layout(*a, true), layout(ParticleKind::Spark, false), "{a:?} would share the disc's");
         }
     }
 }

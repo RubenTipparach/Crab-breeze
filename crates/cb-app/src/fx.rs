@@ -335,7 +335,12 @@ fn setup(
     } else {
         &particles::SHEETS[..]
     };
+    // `CB_FX_SHEETS=a,b` loads only the named sheets (an instrument for finding which one draws wrong).
+    let only = std::env::var("CB_FX_SHEETS").ok();
     for name in sheets.iter().copied() {
+        if only.as_ref().is_some_and(|o| !o.split(',').any(|n| n == name)) {
+            continue;
+        }
         if let Some(img) = crate::pbr_set::load_tiling(&root, &format!("textures/fx/{name}/albedo.png"), true) {
             particles::set_sheet(&mut lib, name, img, &mut images);
         }
