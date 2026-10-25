@@ -1739,6 +1739,7 @@ fn jet_flames(
     time: Res<Time>,
     mut fx: MessageWriter<Fx>,
     mut wash_s: Local<f32>,
+    (globals, visible): (Query<&GlobalTransform>, Query<(&InheritedVisibility, &ViewVisibility)>),
 ) {
     let cfg = &data.0.fx;
     *wash_s += time.delta_secs();
@@ -1753,13 +1754,28 @@ fn jet_flames(
         if report {
             let socket = rig.sockets.get("JET_L").copied();
             let kids = socket.and_then(|e| children.get(e).ok()).map_or(0, |c| c.len());
+            let at = socket.and_then(|e| globals.get(e).ok()).map(|g| g.translation());
+            let kid_vis: Vec<String> = socket
+                .and_then(|e| children.get(e).ok())
+                .map(|c| {
+                    c.iter()
+                        .map(|k| match (visible.get(k).ok(), globals.get(k).ok()) {
+                            (Some((i, v)), Some(g)) => format!("{}/{} {:.0?}", i.get(), v.get(), g.translation()),
+                            _ => "?".into(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
             info!(
-                "jets: boosting {} airborne {} socket {:?} stream {} children {}",
+                "jets: boosting {} airborne {} mech {:.0?} socket {:?} at {:.0?} stream {} children {} [{}]",
                 sim.curr.boosting,
                 sim.curr.airborne(),
+                sim.curr.pos,
                 socket,
+                at,
                 socket.is_some_and(|e| streams.get(e).is_ok()),
-                kids
+                kids,
+                kid_vis.join("; ")
             );
         }
         for jet in ["JET_L", "JET_R"] {
