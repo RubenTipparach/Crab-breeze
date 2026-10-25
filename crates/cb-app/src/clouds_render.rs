@@ -27,7 +27,8 @@ use bevy::shader::ShaderRef;
 use cb_core::world::clouds::{CLOUD_TILE_M, Puff};
 use std::collections::HashMap;
 
-const SHADER: &str = "shaders/cloud.wesl";
+/// The cloud shader, which also draws the smoke puffs (`SMOKE`).
+pub(crate) const SHADER: &str = "shaders/cloud.wesl";
 
 /// The cloud material's uniform; `CloudLight` in `cloud.wesl`, field for field.
 #[derive(Clone, Copy, Debug, Default, ShaderType)]
@@ -113,7 +114,7 @@ fn setup(mut commands: Commands, plan: Res<Plan>, mut materials: ResMut<Assets<C
 }
 
 /// A small, stable hash of a point on the unit sphere and a puff, 0..1 (the lumps).
-fn lump(dir: Vec3, seed: u32) -> f32 {
+pub(crate) fn lump(dir: Vec3, seed: u32) -> f32 {
     let mut v = 0.0;
     let mut amp = 0.6;
     let mut f = 2.3;
@@ -234,18 +235,31 @@ fn refresh_light(
 ) {
     let Some(tiles) = tiles else { return };
     let exposure = camera.iter().next().flatten().copied().unwrap_or_default().exposure();
-    let light = water_light(sun.iter().next(), &ambient, exposure);
+    let light = scene_light(&data, &ambient, sun.iter().next(), exposure, data.0.world.clouds.look_near_fade_m);
+    let Some(mut m) = materials.get_mut(&tiles.material) else { return };
+    m.light = light;
+}
+
+/// The scene's light and the clouds' look as the shader's uniform, a blob fading out within
+/// `near_fade_m` of the eye. One implementation for the clouds and the smoke puffs (`smoke_render`).
+pub fn scene_light(
+    data: &Data,
+    ambient: &GlobalAmbientLight,
+    sun: Option<(&DirectionalLight, &GlobalTransform)>,
+    exposure: f32,
+    near_fade_m: f32,
+) -> CloudUniform {
+    let light = water_light(sun, ambient, exposure);
     let a = LinearRgba::from(ambient.color);
     let amb = Vec3::new(a.red, a.green, a.blue) * ambient.brightness * exposure;
     let c = &data.0.world.clouds;
-    let Some(mut m) = materials.get_mut(&tiles.material) else { return };
-    m.light = CloudUniform {
+    CloudUniform {
         sun_dir: light.sun_dir.extend(c.look_wrap),
         sun: light.sun.extend(c.look_silver),
         ambient: amb.extend(c.look_albedo),
         layer: Vec4::new(c.base_m, c.top_m, c.look_base_shade, 0.0),
-        fade: Vec4::new(c.look_near_fade_m, c.look_edge_softness, data.0.world.view.clear_visibility_m, 0.0),
-    };
+        fade: Vec4::new(near_fade_m, c.look_edge_softness, data.0.world.view.clear_visibility_m, 0.0),
+    }
 }
 
 #[cfg(test)]
