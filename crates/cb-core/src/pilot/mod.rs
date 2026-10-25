@@ -272,24 +272,30 @@ impl PilotState {
         self.mode == PilotMode::OnFoot && access.stopped && self.distance_to_stair(access) <= cfg.board_reach_m
     }
 
-    /// A hop from where the pilot stands, up in an arc onto the hatch's sill, then in to the seat.
+    /// From where the pilot stands to the rope's foot (`ladder_base`), straight up the rope to the
+    /// hatch's height, onto the sill, then in to the seat (owner, 2026-10-24: "there should be a rope
+    /// dangling down for me the player to climb up").
     fn board_path(&self, m: &MechAccess, cfg: &PilotConfig) -> EyePath {
         let up = Vec3::Y * cfg.eye_height_m;
-        let eye = self.feet + up;
-        let sill = m.hatch_entry + up;
-        let top = eye.lerp(sill, 0.6) + Vec3::Y * 2.0;
+        let foot = m.ladder_base + up;
         EyePath {
-            points: vec![eye, top, sill, m.eye_pilot],
+            points: vec![self.feet + up, foot, Self::rope_top(m, cfg), m.hatch_entry + up, m.eye_pilot],
             travelled_m: 0.0,
         }
     }
 
+    /// The boarding path backwards: out over the sill, down the rope, standing at its foot.
     fn leave_path(m: &MechAccess, cfg: &PilotConfig) -> EyePath {
         let up = Vec3::Y * cfg.eye_height_m;
         EyePath {
-            points: vec![m.eye_pilot, m.hatch_entry + up, m.ladder_base + up],
+            points: vec![m.eye_pilot, m.hatch_entry + up, Self::rope_top(m, cfg), m.ladder_base + up],
             travelled_m: 0.0,
         }
+    }
+
+    /// The eye at the top of the rope: above its foot, level with the eye on the hatch's sill.
+    fn rope_top(m: &MechAccess, cfg: &PilotConfig) -> Vec3 {
+        Vec3::new(m.ladder_base.x, m.hatch_entry.y + cfg.eye_height_m, m.ladder_base.z)
     }
 
     /// Advances one fixed step of `dt_s` seconds.
@@ -606,6 +612,27 @@ mod tests {
                 w[1]
             );
         }
+    }
+
+    #[test]
+    fn boarding_climbs_straight_up_the_rope() {
+        let cfg = PilotConfig::default();
+        let a = access();
+        let p = PilotState::standing(a.ladder_base + Vec3::new(1.0, 0.0, 0.0), 0.0);
+        let path = p.board_path(&a, &cfg);
+        let (foot, top) = (path.points[1], path.points[2]);
+        assert!(
+            (foot.x - top.x).abs() < 1e-5 && (foot.z - top.z).abs() < 1e-5,
+            "the climb is vertical"
+        );
+        assert!(
+            (top.y - (a.hatch_entry.y + cfg.eye_height_m)).abs() < 1e-5,
+            "it reaches the sill's height"
+        );
+        assert!(
+            (foot.y - (a.ladder_base.y + cfg.eye_height_m)).abs() < 1e-5,
+            "it starts at the rope's foot"
+        );
     }
 
     #[test]

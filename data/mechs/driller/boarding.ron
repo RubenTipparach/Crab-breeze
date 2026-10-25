@@ -3,7 +3,7 @@
 // from 3.2 s. The cockpit's opening parts ride their chest joints (the mech file's `interior.rides`), so they
 // open with these stages. Edit the generator or the mech, not this file.
 (
-    sit: (duration_s: 3.0, pelvis_height_m: 3.08, hock_angle_deg: 90.0, torso_bow_deg: 10.0),
+    sit: (duration_s: 3.0, pelvis_height_m: 6.76, hock_angle_deg: 19.3, torso_bow_deg: 22.9),
     stages: [
         (name: "CHEST_lower slides off its seal", start_s: 3.55, duration_s: 0.30,
             motions: [(node: "CHEST_lower", translate_m: (0.000, 0.000, 0.040))]),

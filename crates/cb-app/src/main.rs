@@ -23,6 +23,7 @@ mod pbr_set;
 mod perf_hud;
 mod physics;
 mod pilot;
+mod rope;
 mod screen_cut;
 mod screens_cube;
 #[cfg(test)]
@@ -119,6 +120,7 @@ fn main() -> AppExit {
         units::UnitsPlugin,
         mfd::MfdPlugin,
         menu::MenuPlugin,
+        rope::RopePlugin,
     ));
     // GPU grass (openspec change `gpu-grass`); `CB_NO_GRASS=1` leaves it out, so the benchmark can
     // measure what it costs.

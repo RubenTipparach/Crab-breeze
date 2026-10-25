@@ -39,10 +39,23 @@ manifest (`assets/models/cockpit_<variant>.json`).
   each side, measured on the owner's hardware before it is accepted (CLAUDE.md 7).
 - Power: the screens power up tile by tile over 2.5 s with a flicker, and down in 0.6 s.
 
-## 2. Sitting down
+## 2. Kneeling down
 
-The legs fold (`sitPose`: thigh forward, knee down, the pelvis lowered, the torso bowed), 3.0 s in,
+The legs bend (`sitPose`: thigh forward, knee down, the pelvis lowered, the torso bowed), 3.0 s in,
 3.0 s out, eased. Steam from the leg pistons as they compress.
+
+The mech kneels only as far as its legs physically can, as the mockup shows, and never folds flat
+onto the ground (owner, 2026-10-24: "the mech nealt down way too far", "dont fold the legs all the way
+down like that, how it was mocked up in the artifact made sense, it kneels as far as it 'physically
+can'", and "CRITICAL, the mech knealt TOO FAR"). The game's sit pose is the mockup's, computed by
+`tools/mechs/gen_mech_data.py` from each glb's leg segments with the mockup's own `bendLegs` at 1.25:
+
+| Mech | Hips standing | Hips knelt | Hock back from straight down | Torso bow |
+| --- | --- | --- | --- | --- |
+| Foreman | 13.10 m | 8.54 m | 19.3 degrees | 22.9 degrees |
+| Others | their hip | 0.63-0.76 of it | 19-22 degrees (two-segment legs: no hock turn) | 22.9 degrees |
+
+The old pose (pelvis at 0.29 of the hip, hock laid flat at 90 degrees) sat the torso on the road.
 
 ## 3. The chest opens (opening; closing is the same in reverse)
 
@@ -65,11 +78,20 @@ drops from under the sill one segment every 0.12 s, as many as reach the ground.
 (seam: pressure equalising as the chest starts; open: the hinges while plates move; sill: mist rolling
 out once open), `rate` and `dir`. Mist is a heavier, slower particle that falls and spreads.
 
-## 4. The pilot's path
+## 4. The pilot's path: the rope
 
-With the chest open, Use within 3 m of the foot of the sill (the ladder's foot, where there is one) walks the pilot's eyes up the ladder,
-onto the sill (`HATCH_entry`), through the opening, turns them to face out of the bay and settles
-them at `EYE_pilot`: about 6 s, look kept free until the last second. The sequence then
+Knelt only as far as the legs go, the Foreman's sill is about 13 m up, so the chest lowers a rope
+(owner, 2026-10-24: "having a rope lowered, the camera then follows the rope up to the mech", "there
+should be a rope dangling down for me the player to climb up"):
+- **The rope** drops from a winch 0.4 m above the sill, 0.8 m out in front of it, once the chest is
+  open, paying out at 9 m/s to the ground, and reels in at the same rate when the hatch closes. It
+  hangs straight with a slow sway of under half a degree (`cb-app::rope`, 4 cm thick).
+- **Its foot** (`MechAccess::ladder_base`) is on the ground 1.2 m out in front of the sill, at the
+  mech's own ground height, so the climbing pilot is just outside the rope.
+- **The climb:** Use within reach of the rope's foot carries the eyes to the foot, straight up the
+  rope to the sill's height, onto the sill (`HATCH_entry`), and settles them at `EYE_pilot` facing
+  out of the bay, at the climbing speed in the pilot data (7 m/s: about 2 s up the rope, as if
+  winched). Climbing out runs the same path backwards and stands the pilot at the rope's foot. The sequence then
 closes (section 3 in reverse, 6 s), and the screens power up. Disembarking: screens down, open,
 the reverse path, the mech may stand when the pilot is clear (3 m).
 

@@ -810,6 +810,18 @@ fn drive_mech(
     }
 }
 
+/// The boarding rope hangs this far out in front of the hatch's sill.
+pub const ROPE_OUT_M: f32 = 0.8;
+/// The climbing pilot's feet are this far out in front of the sill: just outside the rope.
+const ROPE_FOOT_OUT_M: f32 = 1.2;
+
+/// Where the boarding rope meets the ground: below the hatch, out from the mech's root toward it,
+/// at the mech's own ground height.
+pub fn rope_foot(mech_feet: Vec3, hatch: Vec3) -> Vec3 {
+    let out = Vec2::new(hatch.x - mech_feet.x, hatch.z - mech_feet.z).normalize_or(Vec2::Y);
+    Vec3::new(hatch.x + out.x * ROPE_FOOT_OUT_M, mech_feet.y, hatch.z + out.y * ROPE_FOOT_OUT_M)
+}
+
 fn publish_access(
     roots: Query<(&MechSim, &MechRig), With<Piloted>>,
     globals: Query<&GlobalTransform>,
@@ -818,9 +830,14 @@ fn publish_access(
 ) {
     out.0 = roots.iter().next().and_then(|(sim, rig)| {
         let at = |n: &str| globals.get(rig.sockets[n]).ok().map(|g| g.translation());
+        let hatch = at("HATCH_entry")?;
         Some(MechAccess {
-            ladder_base: at("LADDER_base")?,
-            hatch_entry: at("HATCH_entry")?,
+            // The boarding rope's foot: on the ground below the hatch, out in front of it, where the
+            // rope hangs (`rope`). The kneel stops as far as the legs can go, so the hatch stays high
+            // and the pilot climbs (owner, 2026-10-24: "there should be a rope dangling down for me
+            // the player to climb up").
+            ladder_base: rope_foot(sim.curr.pos, hatch),
+            hatch_entry: hatch,
             eye_pilot: at("EYE_pilot")?,
             heading_rad: sim.curr.heading_rad,
             seat_yaw_rad: sim.curr.heading_rad + sim.curr.twist_rad,
