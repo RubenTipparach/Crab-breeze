@@ -461,18 +461,6 @@ fn age_and_upload(
     }
 }
 
-/// `transform` with the jolt `offset` added to its position; its rotation, the player's, is
-/// untouched (CLAUDE.md section 8).
-pub fn jolted(transform: Transform, offset: Vec3) -> Transform {
-    if !offset.is_finite() {
-        return transform;
-    }
-    Transform {
-        translation: transform.translation + offset,
-        ..transform
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -500,23 +488,6 @@ mod tests {
                 "a mark's rows must be the WESL struct's size"
             );
         }
-    }
-
-    #[test]
-    fn the_jolt_moves_the_eye_and_never_turns_it() {
-        let look = Quat::from_rotation_y(0.7) * Quat::from_rotation_x(-0.2);
-        let eye = Transform::from_xyz(3.0, 12.0, -4.0).with_rotation(look);
-        let cfg = cb_core::ground_marks::JoltConfig::default();
-        let mut jolt = Jolt::default();
-        jolt.kick(cfg.amplitude_m(20.0, false), toward_foot(0.3, 1));
-        for _ in 0..12 {
-            jolt.advance(1.0 / 60.0, &cfg);
-            let t = jolted(eye, jolt.offset(&cfg));
-            assert_eq!(t.rotation, eye.rotation, "the view's direction is the player's");
-            assert_eq!(t.scale, eye.scale);
-            assert!(t.translation.distance(eye.translation) <= 0.05, "centimetres, not more");
-        }
-        assert_eq!(jolted(eye, Vec3::NAN), eye, "a broken offset changes nothing");
     }
 
     #[test]
