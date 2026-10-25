@@ -1,0 +1,259 @@
+{
+ "connections": [
+  {
+   "from": "fbm2_0",
+   "from_port": 0,
+   "to": "shader_3",
+   "to_port": 0
+  },
+  {
+   "from": "fbm2_1",
+   "from_port": 0,
+   "to": "shader_3",
+   "to_port": 1
+  },
+  {
+   "from": "voronoi_0",
+   "from_port": 1,
+   "to": "shader_3",
+   "to_port": 2
+  },
+  {
+   "from": "shader_3",
+   "from_port": 0,
+   "to": "normal_map_0",
+   "to_port": 0
+  },
+  {
+   "from": "shader_3",
+   "from_port": 0,
+   "to": "occlusion2_0",
+   "to_port": 0
+  },
+  {
+   "from": "shader_3",
+   "from_port": 1,
+   "to": "Material",
+   "to_port": 0
+  },
+  {
+   "from": "shader_3",
+   "from_port": 2,
+   "to": "Material",
+   "to_port": 2
+  },
+  {
+   "from": "normal_map_0",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 4
+  },
+  {
+   "from": "occlusion2_0",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 5
+  },
+  {
+   "from": "shader_3",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 6
+  },
+  {
+   "from": "shader_3",
+   "from_port": 3,
+   "to": "Material",
+   "to_port": 7
+  }
+ ],
+ "label": "Blast Scorch",
+ "name": "Material",
+ "node_position": {
+  "x": 0,
+  "y": 0
+ },
+ "nodes": [
+  {
+   "name": "fbm2_0",
+   "node_position": {
+    "x": 220,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 5,
+    "noise": 2,
+    "offset": 0.0,
+    "persistence": 0.6,
+    "scale_x": 3,
+    "scale_y": 3
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "fbm2_1",
+   "node_position": {
+    "x": 440,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 5,
+    "noise": 2,
+    "offset": 0.4,
+    "persistence": 0.55,
+    "scale_x": 24,
+    "scale_y": 24
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "voronoi_0",
+   "node_position": {
+    "x": 660,
+    "y": 0
+   },
+   "parameters": {
+    "intensity": 1,
+    "randomness": 0.9,
+    "scale_x": 26,
+    "scale_y": 26,
+    "stretch_x": 1,
+    "stretch_y": 1
+   },
+   "type": "voronoi"
+  },
+  {
+   "name": "shader_3",
+   "node_position": {
+    "x": 880,
+    "y": 0
+   },
+   "parameters": {},
+   "seed_int": 0,
+   "shader_model": {
+    "code": "",
+    "global": "",
+    "inputs": [
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "warp",
+      "longdesc": "warp",
+      "name": "warp",
+      "shortdesc": "warp",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "detail",
+      "longdesc": "detail",
+      "name": "detail",
+      "shortdesc": "detail",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "cracks",
+      "longdesc": "cracks",
+      "name": "cracks",
+      "shortdesc": "cracks",
+      "type": "f"
+     }
+    ],
+    "instance": "float h_$name(float x) { return fract(sin(x * 12.9898 + 0.731) * 43758.5453); }\n\nfloat r_$name(vec2 uv) {\n\tvec2 p = uv - vec2(0.5);\n\treturn length(p) * 2.0 * (1.0 + 0.45 * ($warp(uv) - 0.5));\n}\nfloat rays_$name(vec2 uv, float r) {\n\tvec2 p = uv - vec2(0.5);\n\tfloat a = atan(p.y, p.x) / 6.2831853 + 0.5;\n\tfloat rays = 0.0;\n\tfor (int k = 0; k < 3; k++) {\n\t\tfloat fk = float(k);\n\t\tfloat s = a * mix(53.0, 131.0, fk * 0.5) + fk * 0.37;\n\t\tfloat id = floor(s);\n\t\tfloat f = fract(s) - 0.5;\n\t\tfloat h = h_$name(id + fk * 91.0);\n\t\tfloat reach = 0.5 + 0.55 * h;\n\t\tfloat width = (0.05 + 0.14 * h_$name(id * 3.1 + 7.0)) * (1.0 - 0.7 * clamp(r / reach, 0.0, 1.0));\n\t\tfloat ray = exp(-pow(f / max(width, 0.001), 2.0)) * smoothstep(reach, reach * 0.55, r) * step(0.35, h);\n\t\trays = max(rays, ray * mix(1.0, 0.55, fk * 0.5));\n\t}\n\t// Broken along their length, as thrown soot and dirt lands in clumps.\n\tfloat clumps = smoothstep(0.3, 0.7, $detail(uv * 0.5 + vec2(0.25)));\n\treturn rays * mix(0.45, 1.0, clumps) * smoothstep(0.22, 0.4, r);\n}\nfloat crack_$name(vec2 uv) { return 1.0 - smoothstep(0.0, 0.035, $cracks(uv)); }\nfloat height_$name(vec2 uv) {\n\tfloat r = r_$name(uv);\n\tfloat d = $detail(uv);\n\tfloat bowl = -0.5 * (1.0 - smoothstep(0.0, 0.52, r));\n\tfloat lip = 0.32 * exp(-pow((r - 0.55) / 0.1, 2.0));\n\tfloat clods = (d - 0.5) * 0.3 * smoothstep(0.3, 0.48, r) * smoothstep(0.9, 0.6, r);\n\tfloat crust = -0.05 * crack_$name(uv) * smoothstep(0.36, 0.15, r);\n\treturn 0.55 + bowl + lip + clods + crust + 0.06 * rays_$name(uv, r);\n}\nvec4 albedo_$name(vec2 uv) {\n\tvec2 p = uv - vec2(0.5);\n\tfloat r = r_$name(uv);\n\tfloat d = $detail(uv);\n\tfloat w = $warp(uv);\n\tvec3 soil = mix(vec3(0.15, 0.115, 0.08), vec3(0.25, 0.20, 0.14), d);\n\tvec3 churned = mix(vec3(0.06, 0.047, 0.035), vec3(0.15, 0.11, 0.075), d);\n\tvec3 charred = mix(vec3(0.025, 0.022, 0.019), vec3(0.085, 0.072, 0.06), d);\n\tvec3 ash = mix(vec3(0.27, 0.26, 0.245), vec3(0.45, 0.435, 0.41), d);\n\tvec3 c = mix(soil, churned, smoothstep(0.9, 0.55, r));\n\tc = mix(c, charred, smoothstep(0.52, 0.3, r));\n\tfloat ashm = smoothstep(0.56, 0.7, w + 0.45 * (d - 0.5)) * smoothstep(0.08, 0.22, r) * smoothstep(0.5, 0.34, r);\n\tc = mix(c, ash, ashm);\n\tc = mix(c, ash * 0.7, crack_$name(uv) * smoothstep(0.34, 0.12, r) * 0.55);\n\tfloat soot = smoothstep(1.0, 0.45, r) * mix(0.35, 0.75, w);\n\tc = mix(c, vec3(0.035, 0.03, 0.026), soot * 0.55);\n\tfloat rays = rays_$name(uv, r);\n\tc = mix(c, vec3(0.025, 0.021, 0.018), rays * 0.85);\n\tfloat body = smoothstep(0.78, 0.52, r + 0.18 * (d - 0.5));\n\tfloat a = max(body, max(rays * 0.85, soot * 0.5) * smoothstep(1.05, 0.7, r));\n\ta *= smoothstep(0.5, 0.45, max(abs(p.x), abs(p.y)));\n\treturn vec4(c, clamp(a, 0.0, 1.0));\n}\nfloat rough_$name(vec2 uv) {\n\tfloat r = r_$name(uv);\n\tfloat ro = mix(0.9, 0.82, smoothstep(0.9, 0.55, r));\n\treturn mix(ro, 0.97, smoothstep(0.5, 0.3, r));\n}\n",
+    "longdesc": "blast scorch",
+    "name": "blast scorch",
+    "outputs": [
+     {
+      "f": "height_$name($uv)",
+      "longdesc": "out0",
+      "shortdesc": "out0",
+      "type": "f"
+     },
+     {
+      "longdesc": "out1",
+      "rgba": "albedo_$name($uv)",
+      "shortdesc": "out1",
+      "type": "rgba"
+     },
+     {
+      "f": "rough_$name($uv)",
+      "longdesc": "out2",
+      "shortdesc": "out2",
+      "type": "f"
+     },
+     {
+      "f": "albedo_$name($uv).a",
+      "longdesc": "out3",
+      "shortdesc": "out3",
+      "type": "f"
+     }
+    ],
+    "parameters": [],
+    "shortdesc": "blast scorch"
+   },
+   "type": "shader"
+  },
+  {
+   "name": "normal_map_0",
+   "node_position": {
+    "x": 1100,
+    "y": 0
+   },
+   "parameters": {
+    "param0": 11,
+    "param1": 1.6,
+    "param2": 0,
+    "param4": 1
+   },
+   "type": "normal_map"
+  },
+  {
+   "name": "occlusion2_0",
+   "node_position": {
+    "x": 1320,
+    "y": 0
+   },
+   "parameters": {
+    "param0": 11,
+    "param1": 16,
+    "param2": 1.4,
+    "param3": 1
+   },
+   "type": "occlusion2"
+  },
+  {
+   "export_paths": {},
+   "name": "Material",
+   "node_position": {
+    "x": 1540,
+    "y": 0
+   },
+   "parameters": {
+    "albedo_color": {
+     "a": 1.0,
+     "b": 1,
+     "g": 1,
+     "r": 1,
+     "type": "Color"
+    },
+    "ao": 1.0,
+    "depth_scale": 0.0,
+    "emission_energy": 1.0,
+    "flags_transparent": true,
+    "metallic": 0.0,
+    "normal": 1.0,
+    "roughness": 1.0,
+    "size": 11,
+    "sss": 0.0
+   },
+   "type": "material"
+  }
+ ],
+ "parameters": {},
+ "type": "graph"
+}

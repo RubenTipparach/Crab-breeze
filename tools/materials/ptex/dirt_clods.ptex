@@ -1,0 +1,120 @@
+{
+ "connections": [
+  {
+   "from": "fbm2_0",
+   "from_port": 0,
+   "to": "shader_1",
+   "to_port": 0
+  },
+  {
+   "from": "shader_1",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 0
+  },
+  {
+   "from": "shader_1",
+   "from_port": 1,
+   "to": "Material",
+   "to_port": 7
+  }
+ ],
+ "label": "Dirt Clods",
+ "name": "Material",
+ "node_position": {
+  "x": 0,
+  "y": 0
+ },
+ "nodes": [
+  {
+   "name": "fbm2_0",
+   "node_position": {
+    "x": 220,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 4,
+    "noise": 2,
+    "offset": 0.1,
+    "persistence": 0.55,
+    "scale_x": 48,
+    "scale_y": 48
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "shader_1",
+   "node_position": {
+    "x": 440,
+    "y": 0
+   },
+   "parameters": {},
+   "seed_int": 0,
+   "shader_model": {
+    "code": "",
+    "global": "",
+    "inputs": [
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "grain",
+      "longdesc": "grain",
+      "name": "grain",
+      "shortdesc": "grain",
+      "type": "f"
+     }
+    ],
+    "instance": "float h_$name(float x) { return fract(sin(x * 12.9898 + 0.731) * 43758.5453); }\n\nvec2 cell_$name(vec2 uv) { return floor(uv * 4.0); }\nvec2 local_$name(vec2 uv) { return fract(uv * 4.0); }\nfloat edge_$name(vec2 uv) { vec2 c = local_$name(uv) - vec2(0.5); return smoothstep(0.5, 0.43, max(abs(c.x), abs(c.y))); }\n\nfloat lump_$name(vec2 c, float id, vec2 ctr, float rad) {\n\tvec2 p = c - ctr;\n\tfloat th = atan(p.y, p.x);\n\tfloat rr = rad * (0.86 + 0.09 * sin(2.0 * th + h_$name(id) * 6.28) + 0.07 * sin(5.0 * th + h_$name(id + 3.0) * 6.28)\n\t\t+ 0.05 * sin(11.0 * th + h_$name(id + 4.0) * 6.28));\n\trr *= mix(1.0, 0.8, step(0.82, fract(th * 1.59 + h_$name(id + 9.0))));\n\tfloat d = length(p) / rr;\n\treturn sqrt(max(1.0 - d * d, 0.0));\n}\nfloat height_$name(vec2 uv) {\n\tvec2 cl = cell_$name(uv);\n\tvec2 c = local_$name(uv);\n\tfloat id = cl.x + cl.y * 4.0;\n\tfloat h = lump_$name(c, id * 7.0, vec2(0.5), mix(0.22, 0.32, h_$name(id * 2.0)));\n\th = max(h, 0.7 * lump_$name(c, id * 7.0 + 1.0, vec2(0.5) + 0.22 * vec2(h_$name(id + 5.0) - 0.5, h_$name(id + 6.0) - 0.5), 0.12));\n\treturn h + 0.04 * $grain(uv) * step(0.001, h);\n}\n\nvec3 lit_$name(vec2 uv, float e) {\n\tfloat hx = height_$name(uv + vec2(e, 0.0)) - height_$name(uv - vec2(e, 0.0));\n\tfloat hy = height_$name(uv + vec2(0.0, e)) - height_$name(uv - vec2(0.0, e));\n\tvec3 n = normalize(vec3(-hx, -hy, 2.0 * e * 6.0));\n\treturn n;\n}\n\nvec4 clod_$name(vec2 uv) {\n\tvec2 cl = cell_$name(uv);\n\tfloat id = cl.x + cl.y * 4.0;\n\tfloat h = height_$name(uv);\n\tvec3 n = lit_$name(uv, 0.001);\n\tfloat light = clamp(dot(n, normalize(vec3(-0.35, -0.8, 0.5))), 0.0, 1.0);\n\tvec3 base = mix(vec3(0.24, 0.18, 0.12), vec3(0.36, 0.34, 0.31), step(0.7, h_$name(id * 11.0)));\n\tbase *= mix(0.75, 1.15, $grain(uv));\n\treturn vec4(base * (0.35 + 0.75 * light), smoothstep(0.0, 0.08, h) * edge_$name(uv));\n}\n",
+    "longdesc": "dirt clods",
+    "name": "dirt clods",
+    "outputs": [
+     {
+      "longdesc": "out0",
+      "rgba": "clod_$name($uv)",
+      "shortdesc": "out0",
+      "type": "rgba"
+     },
+     {
+      "f": "clod_$name($uv).a",
+      "longdesc": "out1",
+      "shortdesc": "out1",
+      "type": "f"
+     }
+    ],
+    "parameters": [],
+    "shortdesc": "dirt clods"
+   },
+   "type": "shader"
+  },
+  {
+   "export_paths": {},
+   "name": "Material",
+   "node_position": {
+    "x": 660,
+    "y": 0
+   },
+   "parameters": {
+    "albedo_color": {
+     "a": 1.0,
+     "b": 1,
+     "g": 1,
+     "r": 1,
+     "type": "Color"
+    },
+    "ao": 1.0,
+    "depth_scale": 0.0,
+    "emission_energy": 1.0,
+    "flags_transparent": true,
+    "metallic": 0.0,
+    "normal": 1.0,
+    "roughness": 1.0,
+    "size": 11,
+    "sss": 0.0
+   },
+   "type": "material"
+  }
+ ],
+ "parameters": {},
+ "type": "graph"
+}
