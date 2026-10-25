@@ -17,6 +17,7 @@ mod combat;
 mod defence;
 mod demolition;
 mod fx;
+mod fx_gallery;
 mod grass;
 mod ground;
 mod ground_marks;
@@ -107,8 +108,11 @@ fn main() -> AppExit {
     .insert_resource(sim::Data(data))
     .insert_resource(world::Seed(args.seed))
     .add_plugins(textures::TexturesPlugin);
-    if args.start.as_deref() == Some("meadow") {
+    if matches!(args.start.as_deref(), Some("meadow") | Some("fx")) {
         app.insert_resource(world::StartInMeadow);
+    }
+    if args.start.as_deref() == Some("fx") {
+        app.add_plugins(fx_gallery::FxGalleryPlugin);
     }
     app.add_plugins((
         sim::SimPlugin,

@@ -7,6 +7,7 @@
 #   ./run.sh --seed 7
 #   ./run.sh --showcase fight     watch the scripted fight
 #   ./run.sh --showcase world     watch the scripted world tour
+#   ./run.sh --start fx           every effect set out on a meadow in front of you, on a loop
 #
 # Controls (Esc opens the menu; its Controls page lists every key from data/input/bindings.ron):
 # WASD walk / throttle and turn, mouse look / aim the torso, E board and climb out, Shift run,

@@ -23,7 +23,8 @@ pub struct Args {
     pub showcase: Option<String>,
     /// Play a showcase take offscreen and report frame time (perf-bench).
     pub bench: Option<String>,
-    /// Start somewhere other than the city: `meadow`, the nearest open grassland (gpu-grass).
+    /// Start somewhere other than the city: `meadow`, the nearest open grassland (gpu-grass); `fx`, the same meadow
+    /// with every effect set out in front of the pilot (`fx_gallery`).
     pub start: Option<String>,
 }
 
@@ -65,7 +66,8 @@ impl Args {
                 "--bench" => out.bench = Some(take_name(it.next())?),
                 "--start" => match it.next().as_deref() {
                     Some("meadow") => out.start = Some("meadow".into()),
-                    _ => return Err("--start takes `meadow`".into()),
+                    Some("fx") => out.start = Some("fx".into()),
+                    _ => return Err("--start takes `meadow` or `fx`".into()),
                 },
                 other => return Err(format!("unknown argument {other}")),
             }
