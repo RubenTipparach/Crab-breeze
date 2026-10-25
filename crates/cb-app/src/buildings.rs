@@ -13,7 +13,7 @@
 //! shaders drop what fell. A hit rewrites the buffer, never a mesh. Each fixed step advances the
 //! frames' clock so overloaded members fail when their creak runs out and falling parts land.
 
-use crate::building_state::{BuildingMaterial, BuildingStates, ElementState, slot, standing_words};
+use crate::building_state::{ArrayMaterial, ArrayState, BuildingMaterial, BuildingStates, ElementState, slot, standing_words};
 use crate::sim::{PresentSet, SimSet};
 use crate::world::{Live, MeshBuilder};
 use bevy::light::NotShadowCaster;
@@ -26,97 +26,100 @@ use cb_core::world::interior::{self, Rest, StoreyPlan, Surface};
 use cb_core::world::structure::{Frame, GROUND, Kind};
 use std::collections::{BTreeMap, HashMap};
 
-/// Materials buildings are drawn with: the facade tones (by id), the dressing and the surfaces.
+/// What buildings are drawn with: the facade tones as vertex tints,
+/// the opaque looks as texture arrays (`building-texture-array`), the glass, and the concrete the
+/// debris chunks use.
 #[derive(Resource)]
 pub struct BuildingLooks {
-    /// Facade materials, picked by building id modulo the count.
-    pub tones: Vec<Handle<StandardMaterial>>,
-    /// Structure and furniture surfaces, each a textured PBR set (`building-surfaces`).
-    pub surfaces: BTreeMap<Surface, Handle<StandardMaterial>>,
-    /// Dressing materials: brick, concrete, roof and wood textured, trim plain, glass see-through.
-    pub skin: BTreeMap<Mat, Handle<StandardMaterial>>,
+    /// The far boxes' facade tones (`world::BUILDING_TONES`) as linear vertex tints, for the frame's
+    /// facade panels.
+    pub tone_tints: Vec<[f32; 3]>,
+    /// Every opaque look as a layer (`Layer`).
+    pub arrays: crate::building_arrays::Arrays,
+    /// See-through window glass.
+    pub glass: Handle<StandardMaterial>,
+    /// The concrete set, for debris chunks.
+    pub concrete: Handle<StandardMaterial>,
 }
 
-impl BuildingLooks {
-    /// The base look of a building mesh of `look`.
-    fn base(&self, look: Look) -> &Handle<StandardMaterial> {
-        match look {
-            Look::Skin(m) => &self.skin[&m],
-            Look::Surface(s) | Look::Room(s) => &self.surfaces[&s],
-            Look::Facade(t) => &self.tones[t as usize % self.tones.len()],
-        }
-    }
-
-    /// The facade look of building `id`.
-    fn facade(&self, id: u32) -> Look {
-        Look::Facade((id as usize % self.tones.len()) as u8)
-    }
-}
-
-/// What one of a building's meshes is made of: a dressing material, a structure or furniture
-/// surface, or the plain facade panels.
+/// One of a building's meshes: what it holds decides its material and when it is shown.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Look {
-    /// The skin, roof and props.
-    Skin(Mat),
-    /// Columns and slabs.
-    Surface(Surface),
+    /// The frame's floors and columns.
+    Frame,
     /// Rooms and furniture (`building-lod`): drawn near the pilot only, casting no shadows.
-    Room(Surface),
-    /// The frame's facade panels, in a building tone (hidden while it is dressed).
-    Facade(u8),
+    Rooms,
+    /// The frame's facade panels (hidden while the building is dressed).
+    Facade,
+    /// The opaque skin, roof and props, and a whole building's rooms behind its glass.
+    Skin,
+    /// The windows.
+    Glass,
 }
 
-/// The building materials, one per look, shared by every building (so their draws batch), all
-/// reading the one element state buffer (`BuildingStates`). Made as they are first needed.
-#[derive(Resource, Default)]
-struct Materials {
-    /// The buffer they read.
-    standing: Option<Handle<ShaderBuffer>>,
-    made: BTreeMap<Look, Handle<BuildingMaterial>>,
+/// A texture array layer (`building_arrays`): the eight surfaces, the skin's textured materials,
+/// plain trim and the facade panels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Layer {
+    /// A structure or furniture surface.
+    Surface(Surface),
+    /// A skin material other than glass.
+    Skin(Mat),
+    /// The plain facade panels of a frame.
+    Facade,
 }
 
-impl Materials {
-    /// Points every material at the state buffer's current handle (it changes when it grows).
-    fn follow(&mut self, states: &BuildingStates, materials: &mut Assets<BuildingMaterial>) {
-        if self.standing.as_ref() == Some(&states.handle) {
-            return;
-        }
-        self.standing = Some(states.handle.clone());
-        for m in self.made.values() {
-            if let Some(mut m) = materials.get_mut(m) {
-                m.extension.standing = states.handle.clone();
-            }
+impl Layer {
+    /// Its index in the arrays (the order of `layer_sources`).
+    fn index(self) -> u32 {
+        let surfaces = Surface::ALL.len() as u32;
+        match self {
+            Layer::Surface(s) => Surface::ALL.iter().position(|x| *x == s).unwrap_or(0) as u32,
+            Layer::Skin(Mat::Brick) => surfaces,
+            Layer::Skin(Mat::Concrete) => surfaces + 1,
+            Layer::Skin(Mat::Roof) => surfaces + 2,
+            Layer::Skin(Mat::Wood) => surfaces + 3,
+            Layer::Skin(Mat::Trim | Mat::Glass) => surfaces + 4,
+            Layer::Facade => surfaces + 5,
         }
     }
 
-    /// The material for `look`.
-    fn get(
-        &mut self,
-        look: Look,
-        looks: &BuildingLooks,
-        bases: &Assets<StandardMaterial>,
-        materials: &mut Assets<BuildingMaterial>,
-    ) -> Handle<BuildingMaterial> {
-        let standing = self.standing.clone().unwrap_or_default();
-        // A room reads its surface's material, so rooms and structure batch together.
-        let key = match look {
-            Look::Room(s) => Look::Surface(s),
-            l => l,
-        };
-        self.made
-            .entry(key)
-            .or_insert_with(|| {
-                materials.add(BuildingMaterial {
-                    base: bases.get(looks.base(look)).cloned().unwrap_or_default(),
-                    extension: ElementState {
-                        standing,
-                        no_ssao: u32::from(look == Look::Skin(Mat::Glass)),
-                    },
-                })
-            })
-            .clone()
+    /// Metres per texture tile along u and v (its texture's real size).
+    fn tile_m(self) -> Vec2 {
+        match self {
+            Layer::Surface(s) => Vec2::splat(surface_tile_m(s)),
+            Layer::Skin(m) => Vec2::splat(tile_m(m)),
+            Layer::Facade => Vec2::new(4.0, 3.5),
+        }
     }
+}
+
+/// The arrays' sources, in `Layer::index` order: the CC0 surface sets, the generated skin maps
+/// with the roughness their materials had, plain trim, the generated facade.
+pub fn layer_sources(tex: &crate::textures::Textures) -> Vec<crate::building_arrays::Source> {
+    use crate::building_arrays::Source;
+    let b = &tex.building;
+    let gen_ = |p: &crate::textures::Pbr, roughness: f32| Source::Generated {
+        color: p.color.clone(),
+        normal: Some(p.normal.clone()),
+        roughness,
+    };
+    Surface::ALL
+        .iter()
+        .map(|s| Source::Set(format!("textures/building/{}", format!("{s:?}").to_lowercase())))
+        .chain([
+            gen_(&b.brick, 0.9),
+            gen_(&b.concrete, 0.85),
+            gen_(&b.roof, 0.95),
+            gen_(&b.wood, 0.7),
+            Source::Flat { roughness: 0.6 },
+            Source::Generated {
+                color: tex.facade.clone(),
+                normal: None,
+                roughness: 0.75,
+            },
+        ])
+        .collect()
 }
 
 /// Metres per texture tile for a surface (`building-surfaces` design section 1).
@@ -129,72 +132,121 @@ fn surface_tile_m(s: Surface) -> f32 {
     }
 }
 
-/// The surfaces' materials: each a CC0 PBR set under `assets/textures/building/<surface>/` (colour,
-/// normal, packed occlusion-roughness-metal) with a full mip chain, white so the vertex colour
-/// tints it; a plain material if a set cannot be read.
-pub fn surface_materials(
-    images: &mut Assets<Image>,
-    materials: &mut Assets<StandardMaterial>,
-) -> BTreeMap<Surface, Handle<StandardMaterial>> {
+/// The concrete surface set as a plain material, for the debris chunks (`physics`).
+pub fn concrete_material(images: &mut Assets<Image>, materials: &mut Assets<StandardMaterial>) -> Handle<StandardMaterial> {
     let root = crate::cli::repo_root().join("assets");
-    Surface::ALL
-        .into_iter()
-        .map(|s| {
-            let dir = format!("textures/building/{}", format!("{s:?}").to_lowercase());
-            let mut map =
-                |file: &str, srgb: bool| crate::pbr_set::load_tiling(&root, &format!("{dir}/{file}"), srgb).map(|i| images.add(i));
-            let orm = map("orm.png", false);
-            let material = StandardMaterial {
-                base_color: Color::WHITE,
-                base_color_texture: map("albedo.jpg", true),
-                normal_map_texture: map("normal_gl.png", false),
-                occlusion_texture: orm.clone(),
-                // The ORM map's G and B scale these: rough and dielectric where it says so.
-                perceptual_roughness: if orm.is_some() { 1.0 } else { 0.85 },
-                metallic: if orm.is_some() { 1.0 } else { 0.0 },
-                metallic_roughness_texture: orm,
-                ..default()
-            };
-            (s, materials.add(material))
-        })
-        .collect()
+    let mut map = |file: &str, srgb: bool| {
+        crate::pbr_set::load_tiling(&root, &format!("textures/building/concrete/{file}"), srgb).map(|i| images.add(i))
+    };
+    let orm = map("orm.png", false);
+    materials.add(StandardMaterial {
+        base_color: Color::WHITE,
+        base_color_texture: map("albedo.jpg", true),
+        normal_map_texture: map("normal_gl.png", false),
+        occlusion_texture: orm.clone(),
+        perceptual_roughness: if orm.is_some() { 1.0 } else { 0.85 },
+        metallic: if orm.is_some() { 1.0 } else { 0.0 },
+        metallic_roughness_texture: orm,
+        ..default()
+    })
 }
 
-/// Builds one mesh per surface.
-#[derive(Default)]
-struct SurfaceMeshes(BTreeMap<Surface, MeshBuilder>);
+/// A building material handle of either kind.
+#[derive(Clone)]
+enum Material {
+    /// The opaque array material.
+    Array(Handle<ArrayMaterial>),
+    /// The glass.
+    Glass(Handle<BuildingMaterial>),
+}
 
-impl SurfaceMeshes {
-    /// Adds a box of `surface`, tinted `color`, carrying `slot` (`building_state`).
-    fn block(&mut self, surface: Surface, min: Vec3, max: Vec3, color: [f32; 3], slot: f32) {
-        let t = surface_tile_m(surface);
-        self.0
-            .entry(surface)
-            .or_insert_with(|| MeshBuilder::tiled(t, t))
-            .block(min, max, [color[0], color[1], color[2], slot]);
+/// The two building materials, shared by every building (so their draws batch), reading the one
+/// element state buffer (`BuildingStates`). Made at first need.
+#[derive(Resource, Default)]
+struct Materials {
+    /// The buffer they read.
+    standing: Option<Handle<ShaderBuffer>>,
+    array: Option<Handle<ArrayMaterial>>,
+    glass: Option<Handle<BuildingMaterial>>,
+}
+
+impl Materials {
+    /// Points both materials at the state buffer's current handle (it changes when it grows).
+    fn follow(&mut self, states: &BuildingStates, arrays: &mut Assets<ArrayMaterial>, glasses: &mut Assets<BuildingMaterial>) {
+        if self.standing.as_ref() == Some(&states.handle) {
+            return;
+        }
+        self.standing = Some(states.handle.clone());
+        if let Some(mut m) = self.array.as_ref().and_then(|h| arrays.get_mut(h)) {
+            m.extension.standing = states.handle.clone();
+        }
+        if let Some(mut m) = self.glass.as_ref().and_then(|h| glasses.get_mut(h)) {
+            m.extension.standing = states.handle.clone();
+        }
     }
 
-    /// The rooms of one storey: its walls and furniture, each carrying the slot of what it rests on.
-    fn storey(&mut self, plan: &StoreyPlan, slot_of: impl Fn(Rest) -> f32) {
-        for w in &plan.walls {
-            let s = slot_of(w.rest);
-            if w.core {
-                self.block(Surface::Concrete, w.min, w.max, CORE_TINT, s);
-            } else {
-                self.block(Surface::Plaster, w.min, w.max, PARTITION_TINT, s);
-            }
-        }
-        for it in &plan.items {
-            let s = slot_of(it.rest);
-            for (lo, hi, col, surface) in &it.boxes {
-                self.block(*surface, *lo, *hi, *col, s);
-            }
+    /// The material for `look`.
+    fn get(
+        &mut self,
+        look: Look,
+        looks: &BuildingLooks,
+        bases: &Assets<StandardMaterial>,
+        arrays: &mut Assets<ArrayMaterial>,
+        glasses: &mut Assets<BuildingMaterial>,
+    ) -> Material {
+        let standing = self.standing.clone().unwrap_or_default();
+        match look {
+            Look::Glass => Material::Glass(
+                self.glass
+                    .get_or_insert_with(|| {
+                        glasses.add(BuildingMaterial {
+                            base: bases.get(&looks.glass).cloned().unwrap_or_default(),
+                            extension: ElementState { standing, no_ssao: 1 },
+                        })
+                    })
+                    .clone(),
+            ),
+            _ => Material::Array(
+                self.array
+                    .get_or_insert_with(|| {
+                        arrays.add(ArrayMaterial {
+                            base: StandardMaterial::default(),
+                            extension: ArrayState {
+                                standing,
+                                albedo: looks.arrays.albedo.clone(),
+                                normal: looks.arrays.normal.clone(),
+                                orm: looks.arrays.orm.clone(),
+                            },
+                        })
+                    })
+                    .clone(),
+            ),
         }
     }
+}
 
-    /// The meshes, with tangents for the normal maps.
-    fn build(self) -> Vec<(Surface, Mesh)> {
-        self.0.into_iter().map(|(s, mb)| (s, mb.build_with_tangents())).collect()
+/// Adds a box from layer `layer`, tinted `tint`, carrying `slot` (`building_state`).
+fn layered_block(mb: &mut MeshBuilder, layer: Layer, min: Vec3, max: Vec3, tint: [f32; 3], slot: f32) {
+    mb.set_layer(layer.index(), layer.tile_m());
+    mb.block(min, max, [tint[0], tint[1], tint[2], slot]);
+}
+
+/// The rooms of one storey into `mb`: its walls and furniture, each carrying the slot of what it
+/// rests on.
+fn rooms_into(mb: &mut MeshBuilder, plan: &StoreyPlan, slot_of: impl Fn(Rest) -> f32) {
+    for w in &plan.walls {
+        let s = slot_of(w.rest);
+        if w.core {
+            layered_block(mb, Layer::Surface(Surface::Concrete), w.min, w.max, CORE_TINT, s);
+        } else {
+            layered_block(mb, Layer::Surface(Surface::Plaster), w.min, w.max, PARTITION_TINT, s);
+        }
+    }
+    for it in &plan.items {
+        let s = slot_of(it.rest);
+        for (lo, hi, col, surface) in &it.boxes {
+            layered_block(mb, Layer::Surface(*surface), *lo, *hi, *col, s);
+        }
     }
 }
 
@@ -360,14 +412,14 @@ fn step_structures(time: Res<Time<Fixed>>, mut live: ResMut<Live>, mut fx: Messa
     }
 }
 
-/// The meshes of a frame, built once (`building-gpu-state`): its facade panels, and its floors,
-/// columns and the rooms and furniture behind them per surface, every vertex carrying the slot of
-/// its element (rooms and furniture: the slab under them, or 0 on the ground). Columns are drawn
-/// 1 cm thinner than they are and side walls stop short of the corner walls, so no two faces share
-/// a plane (CLAUDE.md section 10).
-fn frame_meshes(f: &Frame, base: u32, facade_look: Look, wall_m: f32, seed: &SimRng) -> Vec<(Look, Mesh)> {
-    let mut facade = MeshBuilder::tiled(4.0, 3.5);
-    let mut bare = SurfaceMeshes::default();
+/// The meshes of a frame, built once (`building-gpu-state`): its facade panels (tinted `tone`),
+/// and its floors, columns, rooms and furniture in one mesh (`building-texture-array`), every
+/// vertex carrying the slot of its element (rooms and furniture: the slab under them, or 0 on the
+/// ground). Columns are drawn 1 cm thinner than they are and side walls stop short of the corner
+/// walls, so no two faces share a plane (CLAUDE.md section 10).
+fn frame_meshes(f: &Frame, base: u32, tone: [f32; 3], wall_m: f32, seed: &SimRng) -> Vec<(Look, Mesh)> {
+    let mut facade = MeshBuilder::default();
+    let mut frame = MeshBuilder::default();
     for (id, e) in f.elements.iter().enumerate() {
         let s = slot(base, id as u32);
         match e.kind {
@@ -381,30 +433,36 @@ fn frame_meshes(f: &Frame, base: u32, facade_look: Look, wall_m: f32, seed: &Sim
                         hi.z -= wall_m;
                     }
                 }
-                facade.block(lo, hi, [1.0, 1.0, 1.0, s]);
+                layered_block(&mut facade, Layer::Facade, lo, hi, tone, s);
             }
-            Kind::Column => bare.block(
-                Surface::Concrete,
+            Kind::Column => layered_block(
+                &mut frame,
+                Layer::Surface(Surface::Concrete),
                 e.min + Vec3::new(0.01, 0.0, 0.01),
                 e.max - Vec3::new(0.01, 0.0, 0.01),
                 CORE_TINT,
                 s,
             ),
-            Kind::Slab => bare.block(Surface::Concrete, e.min, e.max, SLAB_TINT, s),
+            Kind::Slab => layered_block(&mut frame, Layer::Surface(Surface::Concrete), e.min, e.max, SLAB_TINT, s),
         }
     }
     let rest_slot = |r: Rest| match r {
         Rest::Ground => 0.0,
         Rest::Slab { k, i, j } => slot(base, f.slab(k as usize, i as usize, j as usize)),
     };
-    let mut rooms = SurfaceMeshes::default();
+    let mut rooms = MeshBuilder::default();
     for k in 0..f.n[1] {
-        rooms.storey(&interior::plan_storey(f.building, k, f.n, f.origin, f.size, seed), rest_slot);
+        rooms_into(
+            &mut rooms,
+            &interior::plan_storey(f.building, k, f.n, f.origin, f.size, seed),
+            rest_slot,
+        );
     }
-    std::iter::once((facade_look, facade.build()))
-        .chain(bare.build().into_iter().map(|(s, m)| (Look::Surface(s), m)))
-        .chain(rooms.build().into_iter().map(|(s, m)| (Look::Room(s), m)))
-        .collect()
+    vec![
+        (Look::Facade, facade.build_with_tangents()),
+        (Look::Frame, frame.build_with_tangents()),
+        (Look::Rooms, rooms.build_with_tangents()),
+    ]
 }
 
 /// The slot of the element a dressing piece hangs on: 0 for the whole building or one with no
@@ -430,41 +488,40 @@ fn tile_m(mat: Mat) -> f32 {
     }
 }
 
-/// The dressing meshes of building `id`, one per material: cut per element, every vertex carrying
-/// its element's slot, once it has a frame; whole, with its floors, rooms and furniture behind the
-/// glass while it is whole (a damaged building draws its rooms with its frame).
+/// The dressing meshes of building `id`: the opaque skin in one mesh (every material a layer of
+/// the arrays) and the glass in another, cut per element, every vertex carrying its element's slot,
+/// once it has a frame; whole, with its floors, rooms and furniture behind the glass (in the skin
+/// mesh) while it is whole (a damaged building draws its rooms with its frame).
 fn dressing_meshes(c: &Cells, id: u32, base: u32, seed: &SimRng, cfg: &DressingConfig) -> Vec<(Look, Mesh)> {
     let f = c.frame.as_deref();
-    let mut builders: BTreeMap<Mat, MeshBuilder> = BTreeMap::new();
+    let mut skin = MeshBuilder::default();
+    let mut glass = MeshBuilder::tiled(tile_m(Mat::Glass), tile_m(Mat::Glass));
     for p in dressing::dress(id, c.n, c.origin, c.size, seed, f.is_some(), cfg) {
         let Some(s) = anchor_slot(f, base, p.anchor) else { continue };
-        let mb = builders
-            .entry(p.mat)
-            .or_insert_with(|| MeshBuilder::tiled(tile_m(p.mat), tile_m(p.mat)));
+        let mb = if p.mat == Mat::Glass {
+            &mut glass
+        } else {
+            let layer = Layer::Skin(p.mat);
+            skin.set_layer(layer.index(), layer.tile_m());
+            &mut skin
+        };
         let col = [p.color[0], p.color[1], p.color[2], s];
         match p.shape {
             Shape::Block { min, max } => mb.block(min, max, col),
             Shape::Drum { base, r0, r1, height_m } => mb.drum(base, r0, r1, height_m, 14, col),
         }
     }
-    let mut rooms = SurfaceMeshes::default();
+    let mut rooms = MeshBuilder::default();
     if f.is_none() {
         for k in 0..c.n[1] {
-            rooms.storey(&interior::plan_storey(id, k, c.n, c.origin, c.size, seed), |_| 0.0);
+            rooms_into(&mut rooms, &interior::plan_storey(id, k, c.n, c.origin, c.size, seed), |_| 0.0);
         }
     }
-    builders
-        .into_iter()
-        .map(|(mat, mb)| {
-            let mesh = if matches!(mat, Mat::Brick | Mat::Concrete | Mat::Roof | Mat::Wood) {
-                mb.build_with_tangents()
-            } else {
-                mb.build()
-            };
-            (Look::Skin(mat), mesh)
-        })
-        .chain(rooms.build().into_iter().map(|(s, mesh)| (Look::Room(s), mesh)))
-        .collect()
+    vec![
+        (Look::Skin, skin.build_with_tangents()),
+        (Look::Glass, glass.build()),
+        (Look::Rooms, rooms.build_with_tangents()),
+    ]
 }
 
 /// Shows `parts` in `drawn`, one entity per look, each in its material; a look already drawn has
@@ -474,7 +531,7 @@ fn show_parts(
     meshes: &mut Assets<Mesh>,
     drawn: &mut BTreeMap<Look, Drawn>,
     mut parts: Vec<(Look, Mesh)>,
-    mut material: impl FnMut(Look) -> Handle<BuildingMaterial>,
+    mut material: impl FnMut(Look) -> Material,
     name: &str,
 ) {
     for k in drawn.keys() {
@@ -487,18 +544,16 @@ fn show_parts(
         let d = match drawn.get(&k) {
             Some(d) => {
                 meshes.insert(&d.mesh, mesh).ok();
-                commands.entity(d.entity).insert(MeshMaterial3d(m));
                 d.clone()
             }
             None => {
                 let handle = meshes.add(mesh);
-                let mut e = commands.spawn((
-                    Name::new(format!("{name} {k:?}")),
-                    Mesh3d(handle.clone()),
-                    MeshMaterial3d(m),
-                    Transform::IDENTITY,
-                ));
-                if matches!(k, Look::Room(_)) {
+                let mut e = commands.spawn((Name::new(format!("{name} {k:?}")), Mesh3d(handle.clone()), Transform::IDENTITY));
+                match m {
+                    Material::Array(h) => e.insert(MeshMaterial3d(h)),
+                    Material::Glass(h) => e.insert(MeshMaterial3d(h)),
+                };
+                if k == Look::Rooms {
                     // Shown near the pilot only (`show_rooms_near`); never in the shadow maps.
                     e.insert((Visibility::Hidden, NotShadowCaster));
                 }
@@ -546,7 +601,7 @@ fn show_rooms_near(
     for (b, parts) in parts {
         let d = plan.0.buildings[b as usize].footprint.distance(here);
         for (look, drawn) in parts {
-            if !matches!(look, Look::Room(_)) {
+            if *look != Look::Rooms {
                 continue;
             }
             let was = shown.get(&drawn.entity).copied();
@@ -587,7 +642,8 @@ fn dress_near_player(
     states: Res<BuildingStates>,
     mut meshes: ResMut<Assets<Mesh>>,
     bases: Res<Assets<StandardMaterial>>,
-    mut materials: ResMut<Assets<BuildingMaterial>>,
+    mut arrays: ResMut<Assets<ArrayMaterial>>,
+    mut glasses: ResMut<Assets<BuildingMaterial>>,
 ) {
     let _t = crate::perf_hud::slow("dress_near_player");
     settled.0 = false;
@@ -615,7 +671,7 @@ fn dress_near_player(
         da.total_cmp(&db).then(a.cmp(&b))
     });
     settled.0 = near.len() <= DRESS_PER_FRAME;
-    shared.follow(&states, &mut materials);
+    shared.follow(&states, &mut arrays, &mut glasses);
     for b in near.into_iter().take(DRESS_PER_FRAME) {
         let c = &live.structures.buildings[b as usize];
         if c.standing == 0 {
@@ -639,7 +695,7 @@ fn dress_near_player(
             &mut meshes,
             &mut parts,
             dressing_meshes(c, b, 0, &rng, cfg),
-            |l| shared.get(l, &looks, &bases, &mut materials),
+            |l| shared.get(l, &looks, &bases, &mut arrays, &mut glasses),
             &format!("building {b}"),
         );
         dressed.0.insert(b, Dressing { parts, framed: false });
@@ -686,7 +742,8 @@ fn redraw_buildings(
     cfg: Res<crate::sim::Data>,
     mut meshes: ResMut<Assets<Mesh>>,
     bases: Res<Assets<StandardMaterial>>,
-    mut materials: ResMut<Assets<BuildingMaterial>>,
+    mut arrays: ResMut<Assets<ArrayMaterial>>,
+    mut glasses: ResMut<Assets<BuildingMaterial>>,
     mut buffers: ResMut<Assets<ShaderBuffer>>,
 ) {
     let _t = crate::perf_hud::slow("redraw_buildings");
@@ -712,9 +769,9 @@ fn redraw_buildings(
             continue;
         };
         let base = states.base(id, f.elements.len(), &mut buffers);
-        shared.follow(&states, &mut materials);
+        shared.follow(&states, &mut arrays, &mut glasses);
         states.write(id, &standing_words(f));
-        let facade_look = looks.facade(id);
+        let tone = looks.tone_tints[id as usize % looks.tone_tints.len()];
         let fb = match framed.0.entry(id) {
             std::collections::hash_map::Entry::Occupied(o) => o.into_mut(),
             std::collections::hash_map::Entry::Vacant(v) => {
@@ -728,8 +785,8 @@ fn redraw_buildings(
                     &mut commands,
                     &mut meshes,
                     &mut fb.parts,
-                    frame_meshes(f, base, facade_look, wall_m, &rng),
-                    |l| shared.get(l, &looks, &bases, &mut materials),
+                    frame_meshes(f, base, tone, wall_m, &rng),
+                    |l| shared.get(l, &looks, &bases, &mut arrays, &mut glasses),
                     &format!("building {id}"),
                 );
                 v.insert(fb)
@@ -745,7 +802,7 @@ fn redraw_buildings(
                         &mut meshes,
                         &mut d.parts,
                         parts,
-                        |l| shared.get(l, &looks, &bases, &mut materials),
+                        |l| shared.get(l, &looks, &bases, &mut arrays, &mut glasses),
                         &format!("building {id}"),
                     );
                     d.framed = true;
@@ -754,7 +811,7 @@ fn redraw_buildings(
             }
             None => false,
         };
-        if let Some(facade) = fb.parts.get(&facade_look) {
+        if let Some(facade) = fb.parts.get(&Look::Facade) {
             commands
                 .entity(facade.entity)
                 .insert(if skinned { Visibility::Hidden } else { Visibility::Inherited });
@@ -783,7 +840,7 @@ mod tests {
     #[test]
     fn every_vertex_carries_the_slot_of_its_element() {
         let f = frame();
-        let meshes = frame_meshes(&f, 0, Look::Facade(0), 0.3, &SimRng::new(1));
+        let meshes = frame_meshes(&f, 0, [1.0; 3], 0.3, &SimRng::new(1));
         let all: Vec<u32> = meshes.iter().flat_map(|(_, m)| slots(m)).collect();
         assert!(
             all.iter().all(|&s| s as usize <= f.elements.len()),
@@ -792,14 +849,22 @@ mod tests {
         for id in 0..f.elements.len() as u32 {
             assert!(all.contains(&(id + 1)), "element {id} is drawn with its slot");
         }
-        // Rooms and furniture on a slab carry that slab's slot: the furniture surfaces carry only
-        // slab slots and 0 (the ground floor).
-        let wood = &meshes
-            .iter()
-            .find(|(l, _)| *l == Look::Room(Surface::Wood))
-            .expect("an office has wood")
-            .1;
-        for s in slots(wood) {
+        // Rooms and furniture on a slab carry that slab's slot: in the rooms mesh, every vertex of
+        // the wood layer (furniture only) carries a slab's slot or 0 (the ground floor).
+        let frame_mesh = &meshes.iter().find(|(l, _)| *l == Look::Rooms).unwrap().1;
+        let layers: Vec<u32> = match frame_mesh.attribute(Mesh::ATTRIBUTE_UV_1) {
+            Some(VertexAttributeValues::Float32x2(u)) => u.iter().map(|u| u[0] as u32).collect(),
+            _ => panic!("no layers"),
+        };
+        let wood = Layer::Surface(Surface::Wood).index();
+        let on_wood: Vec<u32> = slots(frame_mesh)
+            .into_iter()
+            .zip(&layers)
+            .filter(|(_, l)| **l == wood)
+            .map(|(s, _)| s)
+            .collect();
+        assert!(!on_wood.is_empty(), "an office has wooden furniture");
+        for s in on_wood {
             assert!(
                 s == 0 || f.elements[s as usize - 1].kind == Kind::Slab,
                 "furniture rests on a slab or the ground"
@@ -810,23 +875,17 @@ mod tests {
     #[test]
     fn rooms_are_their_own_mesh() {
         let f = frame();
-        let meshes = frame_meshes(&f, 0, Look::Facade(0), 0.3, &SimRng::new(1));
-        for (look, mesh) in &meshes {
-            match look {
-                // The structure: columns and slabs only, so concrete only.
-                Look::Surface(s) => {
-                    assert_eq!(*s, Surface::Concrete);
-                    for s in slots(mesh) {
-                        assert!(matches!(f.elements[s as usize - 1].kind, Kind::Column | Kind::Slab));
-                    }
-                }
-                Look::Room(_) | Look::Facade(_) => {}
-                Look::Skin(_) => panic!("a frame has no skin"),
-            }
+        let meshes = frame_meshes(&f, 0, [1.0; 3], 0.3, &SimRng::new(1));
+        let frame_mesh = &meshes.iter().find(|(l, _)| *l == Look::Frame).unwrap().1;
+        for s in slots(frame_mesh) {
+            assert!(
+                matches!(f.elements[s as usize - 1].kind, Kind::Column | Kind::Slab),
+                "the frame mesh is columns and slabs"
+            );
         }
         assert!(
-            meshes.iter().any(|(l, _)| *l == Look::Room(Surface::Wood)),
-            "furniture is in the rooms"
+            meshes.iter().any(|(l, m)| *l == Look::Rooms && m.count_vertices() > 0),
+            "the rooms are their own mesh"
         );
         let cfg = DressingConfig::default();
         assert!(rooms_shown(249.0, false, &cfg), "rooms show within 250 m");
@@ -840,11 +899,28 @@ mod tests {
     #[test]
     fn the_facade_mesh_is_its_walls_only() {
         let f = frame();
-        let meshes = frame_meshes(&f, 0, Look::Facade(0), 0.3, &SimRng::new(1));
-        let facade = &meshes.iter().find(|(l, _)| *l == Look::Facade(0)).unwrap().1;
+        let meshes = frame_meshes(&f, 0, [1.0; 3], 0.3, &SimRng::new(1));
+        let facade = &meshes.iter().find(|(l, _)| *l == Look::Facade).unwrap().1;
         for s in slots(facade) {
             assert_eq!(f.elements[s as usize - 1].kind, Kind::Wall);
         }
+    }
+
+    #[test]
+    fn every_look_has_a_layer() {
+        let mut seen: Vec<u32> = Surface::ALL.iter().map(|s| Layer::Surface(*s).index()).collect();
+        seen.extend([Mat::Brick, Mat::Concrete, Mat::Roof, Mat::Wood, Mat::Trim].map(|m| Layer::Skin(m).index()));
+        seen.push(Layer::Facade.index());
+        let mut sorted = seen.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(sorted.len(), seen.len(), "no two looks share a layer");
+        let sources = Surface::ALL.len() + 6;
+        assert_eq!(
+            sorted,
+            (0..sources as u32).collect::<Vec<_>>(),
+            "the layers are the sources, in order"
+        );
     }
 
     #[test]
