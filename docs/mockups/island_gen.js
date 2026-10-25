@@ -85,7 +85,7 @@
   }
   // Distance to the spine, the position along it 0..1 and the signed side (east positive).
   function spineAt(x, z) {
-    let best = 1e18, bt = 0, side = 0;
+    let best = 1e18, bt = 0, side = 0, perp = 0;
     for (let i = 0; i < 64; i++) {
       const a = SPINE[i], b = SPINE[i + 1];
       const dx = b[0] - a[0], dz = b[1] - a[1];
@@ -93,11 +93,13 @@
       const u = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / l2, 0, 1);
       const px = a[0] + dx * u, pz = a[1] + dz * u;
       const d2 = (x - px) * (x - px) + (z - pz) * (z - pz);
-      if (d2 < best) { best = d2; bt = (i + u) / 64; side = dx * (z - a[1]) - dz * (x - a[0]); }
+      if (d2 < best) { best = d2; bt = (i + u) / 64; side = dx * (z - a[1]) - dz * (x - a[0]); perp = side / Math.sqrt(l2); }
     }
     const d = Math.sqrt(best);
     // dx*(z-az) - dz*(x-ax) is positive to the east of a northbound line (z south).
-    return { d, t: bt, s: side > 0 ? d : -d };
+    // perp: the signed distance from the nearest segment's line. Past the spine's ends it stays
+    // continuous, where s jumps from -d to +d across the line the spine would continue on.
+    return { d, t: bt, s: side > 0 ? d : -d, perp };
   }
   function spinePoint(t) {
     const f = clamp(t, 0, 1) * 64, i = Math.min(63, Math.floor(f)), u = f - i;
@@ -320,6 +322,17 @@
       }
     }
   }
+  // Each fall's face stands halfway from its lip point to its foot point. The water leaves the lip
+  // at the river's surface speed, 3 m/s, and falls freely: after falling y it is 3 sqrt(2y / g) m
+  // out from the face, a parabola. It lands `throw` m out, where the plunge pool is.
+  const FALL_LIP_SPEED_M_S = 3, G_M_S2 = 9.81;
+  for (const f of FALLS) {
+    const ex = f.x - f.tx, ez = f.z - f.tz, el = Math.hypot(ex, ez) || 1;
+    f.dx = ex / el; f.dz = ez / el; f.run = el;
+    f.fx = f.tx + ex * 0.5; f.fz = f.tz + ez * 0.5;
+    f.throw = FALL_LIP_SPEED_M_S * Math.sqrt(2 * (f.top - f.foot) / G_M_S2);
+    f.lx = f.fx + f.dx * f.throw; f.lz = f.fz + f.dz * f.throw;
+  }
   const RIVER_SEGS = [];
   RIVERS.forEach((rv, ri) => {
     for (let i = 0; i + 1 < rv.pts.length; i++) {
@@ -331,6 +344,9 @@
   const riverCells = cellIndex(RIVER_SEGS, 400, 260);
 
   // ---------------------------------------------------------------- the final height and fields
+  // Cities (placed below, once sample() exists): squares flattened to their ground level.
+  const CITIES = [];
+  const CITY_BLEND_M = 240; // the game blends over 12 + 120 m; the mockup's 80 m grid needs more
   function sample(x, z) {
     const f = {};
     let h = baseHeight(x, z, f);
@@ -341,6 +357,10 @@
       if (m > swamp) swamp = m;
     }
     if (swamp > 0) h = mix(h, 0.7 + 1.5 * fbm(x / 260, z / 260, 3, SEED + 15), swamp);
+    for (const c of CITIES) {
+      const e = Math.max(Math.abs(x - c.x), Math.abs(z - c.z));
+      if (e < c.half + CITY_BLEND_M) h = mix(h, c.ground, 1 - smooth(c.half, c.half + CITY_BLEND_M, e));
+    }
     // Rivers: a channel 4 m below the bed, banks at about 20 degrees; a plunge pool under each fall.
     let rdist = 1e9, murk = 0, water = -1e9;
     for (const i of riverCells(x, z)) {
@@ -352,37 +372,244 @@
       if (r.d < rdist) { rdist = r.d; murk = s.west ? 0.55 : 0.15; if (r.d < s.hw + 10) water = bed - 0.5; }
     }
     for (const fl of FALLS) {
-      const d = Math.hypot(x - fl.x, z - fl.z);
-      if (d < 140) h = Math.min(h, fl.foot - 9 * (1 - smooth(0, 140, d)));
+      // A face: across the fall's 300 m corridor the ground steps from the lip's height to the
+      // foot's at the face (on the 80 m grid that is one steep cell; the game's ground is 1 m).
+      const u = ((x - fl.tx) * fl.dx + (z - fl.tz) * fl.dz) / fl.run;
+      if (u > -0.05 && u < 1.05) {
+        // Only between its own lip and foot: falls follow each other down a river.
+        const across = Math.abs((x - fl.tx) * fl.dz - (z - fl.tz) * fl.dx);
+        const k = (1 - smooth(90, 160, across)) * smooth(-0.05, 0.05, u) * (1 - smooth(0.95, 1.05, u));
+        if (k > 0) h = mix(h, mix(fl.top, fl.foot, smooth(0.47, 0.53, u)), k);
+      }
+      // The plunge pool where the water lands, downstream of the face only.
+      const d = Math.hypot(x - fl.lx, z - fl.lz);
+      if (d < 140 && u > 0.52) h = Math.min(h, fl.foot - 9 * (1 - smooth(0, 140, d)));
     }
     if (swamp > 0.3) murk = Math.max(murk, swamp);
-    return { h, cd: f.cd, cliffW: f.cliffW, s: f.sp.s, t: f.sp.t, spineD: f.sp.d, plat: f.plat, canyon: f.canyon, mesa: f.mesa, dune: f.dune, isletQ: f.isletQ, swamp, rdist, murk, water };
+    return { h, cd: f.cd, cliffW: f.cliffW, s: f.sp.s, perp: f.sp.perp, t: f.sp.t, spineD: f.sp.d, plat: f.plat, canyon: f.canyon, mesa: f.mesa, dune: f.dune, isletQ: f.isletQ, swamp, rdist, murk, water };
+  }
+
+  // ---------------------------------------------------------------- cities and highways
+  // The game's placement (cb-core world::layout::place_cities, data/world/world.ron): 24 squares of
+  // half-size 280-480 m, centres 2.6 km apart with 600 m of open ground between, the capital the
+  // largest. island-biomes section 4 adds: ground below 300 m, under 6 degrees across the square,
+  // the capital on the northern plain within 6 km of the centre, an oasis city at a canyon mouth
+  // and a river city in the jungle.
+  {
+    const crng = mulberry(SEED * 31 + 7);
+    const TAN6 = Math.tan(6 * Math.PI / 180);
+    const fits = (cx, cz, half, opts) => {
+      if (CITIES.some((o) => Math.hypot(o.x - cx, o.z - cz) < 2600 ||
+        Math.max(Math.abs(o.x - cx), Math.abs(o.z - cz)) - half - o.half < 600)) return null;
+      let lo = 1e9, hi = -1e9, sum = 0, n = 0;
+      for (let a = -1; a <= 1; a += 0.5) for (let b = -1; b <= 1; b += 0.5) {
+        const f = sample(cx + a * half, cz + b * half);
+        if (f.h < 3 || f.h > (opts.maxH || 300) || f.canyon > 5 || f.swamp > 0.3) return null;
+        if (!opts.river && f.rdist < 80) return null;
+        lo = Math.min(lo, f.h); hi = Math.max(hi, f.h); sum += f.h; n++;
+      }
+      if (hi - lo > TAN6 * 2 * half || coastDist(cx, cz) < half) return null;
+      return sum / n;
+    };
+    const put = (x, z, half, kind) => {
+      const g = fits(x, z, half, kind === 'oasis' ? { maxH: 420, river: true } : { river: kind === 'river' });
+      if (g === null) return false;
+      CITIES.push({ x, z, half, ground: Math.max(g, 4), kind, seed: CITIES.length * 97 + 13 });
+      return true;
+    };
+    // The capital: the site nearest the centre on the northern half that fits. With the range down
+    // the middle the nearest is about 7.5 km out, past the design's 6 km.
+    const sites = [];
+    for (let z = -12000; z <= -1000; z += 500) for (let x = -12000; x <= 12000; x += 500) sites.push([Math.hypot(x, z), x, z]);
+    sites.sort((a, b) => a[0] - b[0]);
+    for (const [, x, z] of sites) if (put(x, z, 480, 'capital')) break;
+    // The oasis: past the seaward end of a canyon branch, as close to the mouth as fits (the ground
+    // at the mouths themselves is too rough for 6 degrees).
+    const ends = CANYONS.filter((c) => !CANYONS.some((o) => o.ax === c.bx && o.az === c.bz));
+    oasis: for (let d = 700; d <= 3100; d += 300) {
+      for (const c of ends) {
+        const l = Math.hypot(c.bx - c.ax, c.bz - c.az) || 1;
+        if (put(c.bx + (c.bx - c.ax) / l * d, c.bz + (c.bz - c.az) / l * d, 320, 'oasis')) break oasis;
+      }
+    }
+    // The river city: on a western river, from the mouth upstream, where the ground is low and wet.
+    outer: for (const rv of RIVERS.filter((r) => r.west)) {
+      for (let i = rv.pts.length - 30; i > 10; i -= 6) {
+        const p = rv.pts[i];
+        if (p.ground > 8 && p.ground < 160 && put(p.x, p.z, 340, 'river')) break outer;
+      }
+    }
+    for (let t = 0; t < 4000 && CITIES.length < 24; t++) {
+      const half = 280 + crng() * 200;
+      put((crng() - 0.5) * 2 * (HALF_M - 300 - half - 132), (crng() - 0.5) * 2 * (HALF_M - 300 - half - 132), half, 'town');
+    }
+  }
+  // Highways: a minimum spanning tree over the cities (Prim, nearest first), each road crossing the
+  // range by the nearer pass. A road is a polyline of [x, z] points.
+  const HIGHWAYS = [];
+  if (CITIES.length > 1) {
+    const inTree = [0];
+    const passPts = PASSES.map((t) => spinePoint(t));
+    while (inTree.length < CITIES.length) {
+      let best = null;
+      for (const i of inTree) CITIES.forEach((c, j) => {
+        if (inTree.includes(j)) return;
+        const d = Math.hypot(c.x - CITIES[i].x, c.z - CITIES[i].z);
+        if (!best || d < best.d) best = { i, j, d };
+      });
+      inTree.push(best.j);
+      const a = CITIES[best.i], b = CITIES[best.j];
+      const sa = spineAt(a.x, a.z), sb = spineAt(b.x, b.z);
+      const route = [[a.x, a.z]];
+      if (Math.sign(sa.s) !== Math.sign(sb.s) && Math.min(Math.abs(sa.s), Math.abs(sb.s)) > 800) {
+        const p = passPts.slice().sort((u, v) => (Math.hypot(u[0] - a.x, u[1] - a.z) + Math.hypot(u[0] - b.x, u[1] - b.z)) -
+          (Math.hypot(v[0] - a.x, v[1] - a.z) + Math.hypot(v[0] - b.x, v[1] - b.z)))[0];
+        route.push([p[0] - EAST[0] * 1200, p[1] - EAST[1] * 1200 * Math.sign(sa.s) * -1]);
+        route.push([p[0], p[1]]);
+      }
+      route.push([b.x, b.z]);
+      HIGHWAYS.push(route);
+    }
+  }
+
+  // ---------------------------------------------------------------- weather
+  // The prevailing wind blows from the west (+x) at 6 m/s: the west is wet, the east in the rain
+  // shadow. Weather is a set of systems, each a rule that lays out cloud puffs:
+  // - fair-weather cumulus over the land, thick where the air is wet and thin over the desert;
+  // - storm cells (cumulonimbus): towers from 700 m to 7-10 km, an anvil spread downwind at the
+  //   top, dark bases and a rain shaft under each;
+  // - a stratocumulus deck over the sea to the north-west, 700-1,000 m;
+  // - orographic cloud banked against the range's windward (west) flank, 900-1,700 m;
+  // - lenticular caps over the highest peaks;
+  // - cirrus streaks at 8-9 km.
+  // A puff is { x, y, z, rx, ry, kind, dark, seed, base, top }: an ellipsoid of radii rx (across)
+  // and ry (up), lit from base (m) to top (m) of its system; dark 0 white to 1 storm grey.
+  const WEATHER = { puffs: [], shafts: [], cirrus: [], storms: [] };
+  {
+    const wr = mulberry(SEED * 53 + 1);
+    const P = WEATHER.puffs;
+    const puff = (x, y, z, rx, ry, kind, dark, base, top) => P.push({ x, y, z, rx, ry, kind, dark, seed: wr() * 100, base, top });
+    // Storm cells: one over the western jungle, one at sea off the archipelago, one decaying to the north-west.
+    const west = spinePoint(0.62);
+    const cells = [
+      { x: west[0] - EAST[0] * 6500, z: west[1] - EAST[1] * 6500, r: 2600, top: 9500 },
+      { x: -15500, z: 9500, r: 3200, top: 10500 },
+      { x: -11000, z: -14000, r: 1900, top: 6500 },
+    ];
+    for (const c of cells) {
+      WEATHER.storms.push({ x: c.x, z: c.z, r: c.r * 1.6 });
+      // The tower: rings of puffs, widest low, narrowing, then the anvil.
+      for (let y = 750; y < c.top * 0.86; y += 260) {
+        const t = y / c.top;
+        const ring = c.r * (0.95 - 0.35 * t) * (0.85 + 0.3 * wr());
+        const n = Math.max(3, Math.round(ring / 260));
+        for (let k = 0; k < n; k++) {
+          const a = wr() * 6.283, d = Math.sqrt(wr()) * ring;
+          const rr = 380 + wr() * 420 + 260 * t;
+          puff(c.x + Math.cos(a) * d + t * 900, y + wr() * 120, c.z + Math.sin(a) * d, rr, rr * 0.85, 1, 0.75 - 0.6 * t, 700, c.top);
+        }
+      }
+      for (let k = 0; k < 70; k++) {
+        const a = wr() * 6.283, d = Math.sqrt(wr()) * c.r * 2.4;
+        // The anvil leans downwind (east).
+        puff(c.x + Math.cos(a) * d + 2600, c.top * (0.86 + 0.08 * wr()), c.z + Math.sin(a) * d * 0.7, 1300 + wr() * 900, 260 + wr() * 160, 2, 0.15, 700, c.top);
+      }
+      // Ragged scud under the base.
+      for (let k = 0; k < 24; k++) {
+        const a = wr() * 6.283, d = Math.sqrt(wr()) * c.r;
+        puff(c.x + Math.cos(a) * d, 520 + wr() * 160, c.z + Math.sin(a) * d, 260 + wr() * 260, 90 + wr() * 60, 3, 0.85, 450, 900);
+      }
+      WEATHER.shafts.push({ x: c.x + 300, z: c.z, r: c.r * 0.75, top: 720 });
+    }
+    const stormAt = (x, z) => WEATHER.storms.some((s) => Math.hypot(x - s.x, z - s.z) < s.r);
+    // Fair-weather cumulus: clusters on a 2 km grid, more over wet ground, few over the desert.
+    for (let tz = -19000; tz < 19000; tz += 2000) for (let tx = -19000; tx < 19000; tx += 2000) {
+      const cx0 = tx + 1000, cz0 = tz + 1000;
+      const f = sample(cx0, cz0);
+      const onLand = f.cd > 0;
+      const m = onLand ? moisture(cx0, cz0, f).m : 0.45;
+      let count = (onLand ? 0.4 + 2.6 * m : 1.1) + 0.9 * fbm(tx / 9000, tz / 9000, 2, 55);
+      if (stormAt(cx0, cz0)) count = 0;
+      for (let c = 0, n = Math.floor(count + wr()); c < n; c++) {
+        const cx = tx + wr() * 2000, cz = tz + wr() * 2000;
+        const big = wr() < 0.25 * (onLand ? m : 0.4);
+        const puffs = big ? 14 + Math.floor(wr() * 10) : 5 + Math.floor(wr() * 7);
+        const spread = big ? 600 : 260 + wr() * 260;
+        const tops = big ? 2200 + wr() * 1400 : 1100;
+        for (let p = 0; p < puffs; p++) {
+          const r = 90 + wr() * 200 + (big ? 120 : 0);
+          const y = CLOUD_BASE_M + r * 0.7 + wr() * Math.max(10, (tops - CLOUD_BASE_M) * (big ? 0.75 : 0.35));
+          puff(cx + (wr() - 0.5) * spread * 2, y, cz + (wr() - 0.5) * spread * 1.4, r * 1.15, r, 0, big ? 0.3 : 0.1, CLOUD_BASE_M, tops);
+        }
+      }
+    }
+    // The stratocumulus deck over the sea to the north-west: wide flat puffs that merge into a sheet.
+    for (let k = 0; k < 900; k++) {
+      const b = (275 + wr() * 70) * Math.PI / 180, r = 14500 + wr() * 7000;
+      const x = Math.sin(b) * r, z = -Math.cos(b) * r;
+      if (coastDist(x, z) > -600 || Math.max(Math.abs(x), Math.abs(z)) > HALF_M + 2000) continue;
+      if (fbm(x / 4000, z / 4000, 2, 61) < -0.25) continue; // breaks in the deck
+      puff(x, 780 + wr() * 160, z, 520 + wr() * 420, 120 + wr() * 70, 3, 0.25 + 0.2 * wr(), 700, 1000);
+    }
+    // Orographic cloud on the windward flank of the range, hugging the ground.
+    for (let k = 0; k < 520; k++) {
+      const t = 0.14 + wr() * 0.72, p = spinePoint(t);
+      const off = -(600 + wr() * 2600);
+      const x = p[0] + EAST[0] * off, z = p[1] + EAST[1] * off;
+      const g = baseHeight(x, z);
+      if (g < 500) continue;
+      // Clear of the ground beneath: a billboard that dips into a slope ends in a hard line there.
+      const rx = 260 + wr() * 260, ry = 120 + wr() * 90;
+      puff(x, Math.min(g + ry * 1.4 + 80 + wr() * 220, 1900), z, rx, ry, 4, 0.2, 800, 2000);
+    }
+    // Lenticular caps over the peaks above 1,900 m.
+    for (let k = 0; k < 4000 && WEATHER.puffs.filter((q) => q.kind === 5).length < 5; k++) {
+      const t = 0.15 + wr() * 0.7, p = spinePoint(t);
+      const x = p[0] + (wr() - 0.5) * 3000, z = p[1] + (wr() - 0.5) * 3000;
+      const g = baseHeight(x, z);
+      if (g < 1900 || WEATHER.puffs.some((q) => q.kind === 5 && Math.hypot(q.x - x, q.z - z) < 2500)) continue;
+      for (let l = 0; l < 3; l++) puff(x + 300, g + 280 + l * 110, z, 900 - l * 180, 70, 5, 0.05, g, g + 600);
+    }
+    // Cirrus: long thin streaks high up, along the wind.
+    for (let k = 0; k < 90; k++) {
+      WEATHER.cirrus.push({ x: (wr() - 0.5) * 50000, y: 8200 + wr() * 1200, z: (wr() - 0.5) * 50000 + 6000 * fbm(k, 0, 1, 70),
+        len: 5000 + wr() * 9000, wid: 500 + wr() * 900, ang: (wr() - 0.5) * 0.5, seed: wr() * 100 });
+    }
   }
 
   // ---------------------------------------------------------------- biomes
   const BIOMES = ['alpine', 'montane forest', 'jungle', 'swamp', 'temperate', 'savanna', 'desert', 'canyon', 'beach', 'cliff'];
-  // Weights over the ten biomes from height, slope (degrees), side of the range, moisture, coast
-  // and rivers. Borders wander with noise over 200-800 m.
+  // Moisture, 0 (desert) to 1 (rain forest): the rain shadow east of the spine over a 7 km band,
+  // wetter to the south, by rivers and in the swamps, with 3 km noise. Its inputs are warped by
+  // 900 m of noise so the bands meander instead of following the spine's curve.
+  function moisture(x, z, f) {
+    const ws = f.perp + 900 * fbm(x / 2600, z / 2600, 3, SEED + 22);
+    const south = smooth(-9000, 4000, z + 1500 * fbm(x / 5000, z / 5000, 2, SEED + 24));
+    let m = 1 - smooth(-1800, 5200, ws);
+    m = m * (0.72 + 0.36 * south) + 0.22 * (fbm(x / 3000, z / 3000, 3, SEED + 21)) + 0.18 * smooth(250, 40, f.rdist) + 0.25 * f.swamp;
+    return { m: clamp(m, 0, 1), south };
+  }
+  // Weights over the ten biomes from height, slope (degrees), moisture, coast and rivers. Every
+  // border is a smoothstep over a band of a field that itself wanders, so none is a straight line,
+  // and the dry side runs down to its beaches instead of turning to grass at the coast.
   function biomeWeights(x, z, f, slopeDeg) {
     const h = f.h;
     const j = 220 * fbm(x / 1500, z / 1500, 3, SEED + 20);
-    const moist = fbm(x / 3000, z / 3000, 3, SEED + 21);
-    const b = bearing(x, z);
+    const { m, south } = moisture(x, z, f);
     const w = new Float32Array(10);
+    const hT = h + j;
     const steep = smooth(40, 50, slopeDeg);
     const coastLow = smooth(160, 20, f.cd + j * 0.3) * smooth(14, 3, h) * (1 - f.cliffW);
     const isle = f.isletQ < 1.2 ? 1 : 0;
-    w[0] = smooth(1450, 1700, h + j) + smooth(1000, 1250, h) * steep;
-    w[1] = smooth(380, 520, h + j) * (1 - smooth(1500, 1700, h + j));
-    const west = smooth(-600, -2600, f.s + j * 4);
-    const south = smooth(-5000, 500, z + j * 5); // z grows southward
-    const low = smooth(470, 330, h + j);
-    w[2] = low * west * south * smooth(-0.45, 0.0, moist + 0.2) + isle * 0.6;
+    const low = smooth(540, 360, hT);
+    const mid = smooth(360, 540, hT) * (1 - smooth(1500, 1750, hT));
+    w[0] = smooth(1450, 1750, hT) + smooth(1000, 1250, h) * steep;
+    w[1] = mid * smooth(0.25, 0.45, m);
+    w[2] = low * smooth(0.6, 0.8, m) * (0.3 + 0.7 * south) + isle * 0.6;
     w[3] = f.swamp * 2;
-    const north = sector(b, 280, 70, 25);
-    w[4] = low * (0.25 + north + (1 - south) * 0.8) * (1 - smooth(2000, 3400, f.s));
-    w[5] = smooth(1200, 2600, f.s + j * 4) * (1 - smooth(3300, 3800, f.s + j * 2)) * smooth(500, 300, h);
-    w[6] = smooth(3200, 3700, f.s + j * 2) * smooth(500, 1400, f.cd) * (1 - smooth(25, 70, f.canyon));
+    w[4] = low * smooth(0.3, 0.48, m) * (1 - smooth(0.68, 0.86, m * (0.55 + 0.45 * south)));
+    w[5] = (low + 0.6 * mid) * smooth(0.1, 0.24, m) * (1 - smooth(0.32, 0.46, m));
+    w[6] = smooth(0.22, 0.08, m) * (1 - smooth(1100, 1400, hT)) * (1 - smooth(25, 70, f.canyon));
     w[7] = smooth(25, 70, f.canyon) * 1.5;
     w[8] = coastLow * 2.2;
     w[9] = steep * 1.2 * smooth(800, 1200, 2400 - h);
@@ -397,7 +624,7 @@
     SEED, WORLD_M, HALF_M, CLOUD_BASE_M, CLOUD_TOP_M, BIOMES,
     SPINE, PASSES, CANYONS, ISLETS, RIVERS, FALLS, SWAMPS, EAST, NORTH,
     mulberry, perlin, fbm, ridged, smooth, mix, clamp, bearing, coastDist, spineAt, spinePoint,
-    baseHeight, sample, biomeWeights,
+    baseHeight, sample, biomeWeights, moisture, FALL_LIP_SPEED_M_S, G_M_S2, CITIES, HIGHWAYS, WEATHER, CITY_BLEND_M,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.IslandGen = api;

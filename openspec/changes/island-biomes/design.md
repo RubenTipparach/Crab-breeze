@@ -64,7 +64,36 @@ rivers.
 | Beach | within 120 m of the sea, low | beach sand, wet sand, pebbles | palms, driftwood |
 | Cliff | slopes over 45 degrees | limestone or granite by region (triplanar) | sea stacks, arches |
 
-Weights blend over 200-800 m transitions with noise, so borders are never straight lines.
+**Moisture decides the climate, height the band.** (Owner, 2026-10-24: "The island transition is
+rough"; the mockup showed a straight jungle edge and a grass ring round the whole coast, even where
+the desert met the sea.)
+- Moisture `m`, 0 desert to 1 rain forest: `1 - smoothstep(-1.8 km, 5.2 km, s')`, where `s'` is
+  the signed distance from the spine's line plus 900 m of 2.6 km noise. That is the rain shadow over
+  a 7 km band, not a step. It is scaled by `0.72 + 0.36 south` (wetter to the south, `south` a
+  13 km smoothstep in z, warped by 1.5 km), plus 0.22 of 3 km noise, plus 0.18 near rivers and
+  0.25 in swamps.
+- `s'` uses the distance from the nearest segment's line, which stays continuous past the spine's
+  ends. The signed distance it replaces jumped from -d to +d across the spine's extended line,
+  which drew the straight edge.
+- The weights (each a smoothstep over a band; `low` below about 450 m and `mid` from 450 m to 1.6
+  km, both wandering 220 m with noise):
+
+| Biome | Weight |
+| --- | --- |
+| Alpine | above 1,450-1,750 m, or steep above 1,000-1,250 m |
+| Montane forest | `mid` where `m` is over 0.25-0.45 |
+| Jungle | `low` where `m` is over 0.6-0.8, more to the south |
+| Temperate | `low` where `m` is 0.3-0.48 up to 0.68-0.86 (higher in the north) |
+| Savanna | `low` (and 0.6 of `mid`) where `m` is 0.1-0.24 up to 0.32-0.46 |
+| Desert | where `m` is under 0.22-0.08, below 1,100-1,400 m, all the way to the beach |
+| Canyon, beach, cliff, swamp | as before |
+
+- So the dry plateau (500-650 m) is desert, not montane forest, and the desert reaches its beaches.
+- On the ground a border is not a crossfade. Each biome's layers carry their own patch noise (140 m,
+  35 m and 7 m), and the weights are cubed after it (a height blend), so one biome breaks into the
+  other in patches and fingers.
+- Trees and props pick their biome by its squared weight, so forests mix at the edges instead of
+  changing species along a line.
 
 ## 3. Water by biome
 
@@ -78,12 +107,38 @@ Weights blend over 200-800 m transitions with noise, so borders are never straig
   - a plunge pool carved below;
   - sound later (`audio`).
   - About 20-40 falls on the island; each is 2 draws and 200 particles within 2 km.
+  - **The look** (owner, 2026-10-24: "Waterfalls.. ooof don't look great"; the mockup had a flat
+    white strip):
+    - The curtain follows free fall (owner, 2026-10-24: "It's horizontal velocity is gentl. And
+      it should fall in a parabolic curve because gravity"): the water leaves the lip at the
+      river's surface speed, 3 m/s, so after falling `y` it is `3 sqrt(2 y / 9.81)` m out from the
+      face. That is 19 m at the foot of a 200 m fall and 25 m at 346 m. It is a 25 by 5 grid,
+      with rows packed toward the lip where the curve bends, and never under the ground.
+    - It is glassy green at the lip, aerating to white by 40 % of the drop. Streaks ride the
+      water: their phase is the time to fall that far, `sqrt(2 y / g)`, so they stretch as it
+      speeds up. Its edges wander.
+    - At the foot, where the curve lands: a foam disc of radius 30 m plus 0.35 of the drop, rings
+      spreading from the impact; 8 mist billboards (the cloud sprites) rising a third of the drop;
+      spray at the lip and the foot.
+    - The ground under a fall is a face: across the fall's 300 m corridor it steps from the lip's
+      height to the foot's. On the game's 8 m cells the drop sits in one cell, nearly vertical
+      but a stretched pair of triangles (`terrain-features` meshes such faces properly); on the
+      mockup's 80 m grid it is one steep cell, so the lower curtain can touch it.
 
 ## 4. Cities
 
 Placement keeps its rules, plus: ground below 300 m with slope under 6 degrees across the square.
 The capital is the largest site on the northern plain, within 6 km of the centre. The desert gets an
 oasis city at a canyon mouth, and the jungle a river city.
+
+The mockup places them (owner, 2026-10-24: "I don't see cities on the island"). At seed 42:
+- **22 cities** fit, not 24, once every square has to stand on the main island.
+- **The capital** stands 8 km north-east of the centre. With the range down the middle, no flat
+  ground under 300 m lies within 6 km, so the 6 km rule cannot be met (survey I9).
+- **The oasis** sits 1-3 km past a canyon's seaward end. At the mouths themselves the ground has
+  about 185 m of relief across the square, three times what 6 degrees allows.
+- **Highways** join the cities in a minimum spanning tree, and a road that crosses the range goes
+  over the nearer pass.
 
 ## 5. Cost summary (expected; measured on the owner's hardware)
 
@@ -103,3 +158,5 @@ oasis city at a canyon mouth, and the jungle a river city.
 | I4 | Archipelago | 20-40 islets off the south-west, 0.2-2 km across | proposed (survey I4) |
 | I6 | Jungle density against frame time | 30-45 m canopy, grown only near the bodies like today's trees; measured | proposed (survey I6) |
 | I8 | Waterfalls | 20-40 from the terrain, 40-200 m, spray, mist and plunge pools | proposed (survey I8) |
+| I9 | The capital, with the range in the middle | the nearest flat site north of the centre, about 8 km out | proposed (survey I9) |
+| I10 | How wide the climate borders are | moisture over a 7 km band; borders in patches, not lines | proposed (survey I10) |
