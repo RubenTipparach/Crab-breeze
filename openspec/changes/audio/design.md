@@ -14,7 +14,7 @@ lacks, stops startup with its path.
 | `explosion_small`, `explosion_large` | `blast::explode` (under or over 3 MJ) | World |
 | `foot_stomp`, `foot_splash` | footfalls | World (own: Cockpit, a muffled thump) |
 | `rocket_loop`, `rocket_rumble` | rockets burning, volume and pitch on the lift axis | Cockpit |
-| `skate_roll` | skating, pitch on speed | Cockpit |
+| `skate_roll` | skating with the wheels on the ground, pitch on speed (section 2) | Cockpit |
 | `lock_tone`, `lock_on` | `targeting` (building, locked) | Cockpit |
 | `hatch_*`, `steam` | the boarding stages | World |
 | `collapse` | a building storey giving way | World |
@@ -25,6 +25,24 @@ While `MechState::boosting`: `rocket_loop` at `-12 + 10 * lift` dB and `0.9 + 0.
 `rocket_rumble` (a 30-60 Hz loop) at `-8 + 6 * lift` dB, and the cockpit set's transform offset by
 a shake of `0.004 * lift` m at 18-25 Hz (smoothed noise). The camera rides the cockpit, so the view
 shakes in position only; its direction is never touched.
+
+## 2b. Skates: wheels on the ground, a low rumble in the air
+
+(owner, 2026-10-25: "skate roll is only on the ground right? other wise its a low rocket rumble?")
+
+- **On the ground, skates on:** `skate_roll` at `-14 + 10 * s` dB and `0.8 + 0.4 * s` pitch, where
+  `s = speed / 120 m/s` (the skates' top speed, `boost-and-skate`). Silent at a standstill.
+- **Feet leave the ground:** `skate_roll` fades out over 0.2 s; it never plays in the air. It fades
+  back in over 0.1 s on landing, after the landing's own thump.
+- **In the air, skates on, a direction held** (the skates thrusting along the view,
+  `boost-and-skate`): the same `rocket_rumble` and `rocket_loop` the lift rockets use, lower, as
+  small thrusters: `rocket_rumble` at `-14 + 6 * k` dB and `rocket_loop` at `-22 + 8 * k` dB and
+  `0.8 + 0.1 * k` pitch, where `k` is the skate thrust as a share of its full value. No shake.
+- **Rockets and air skates together:** one voice per cue at the louder of the two levels, never two
+  copies of the same loop.
+
+The thrust shares (`lift`, `k`) and ground contact are read from the simulation's state, the numbers
+the cockpit's own gauges show (CLAUDE.md 6.1), not guessed from the sound side.
 
 ## 3. Distance
 
