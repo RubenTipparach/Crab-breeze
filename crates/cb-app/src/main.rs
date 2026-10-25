@@ -3,6 +3,7 @@
 
 mod bench;
 mod blast;
+mod building_state;
 mod buildings;
 mod capture;
 mod cli;
@@ -101,6 +102,7 @@ fn main() -> AppExit {
         fx::FxPlugin,
         blast::BlastPlugin,
         combat::CombatPlugin,
+        building_state::BuildingStatePlugin,
         buildings::BuildingsPlugin,
         physics::DebrisPhysicsPlugin,
         hud::HudPlugin,

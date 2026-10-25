@@ -2,31 +2,28 @@
 //! - a building far from the player is one plain box (no generated detail);
 //! - within `dress_radius_m` of the player it is dressed instead: the mockup's facade skin per bay
 //!   per storey, roof, parapet and roof props, in a trim mesh and a glass mesh, and its box hidden;
-//! - a damaged one also draws its frame's floors and columns and the rooms behind them in bands of
-//!   twelve storeys (facade panels too, where no skin hangs).
+//! - a damaged one also draws its frame's floors and columns and the rooms behind them (facade
+//!   panels too, where no skin hangs).
 //!
 //! Structure and furniture are drawn one mesh per surface (`building-surfaces`): concrete, plaster,
 //! wood, fabric, metal, plastic, cardboard and leaves, each a CC0 PBR set shared by every building.
 //!
-//! Meshes are rebuilt in place (`Assets::insert` on the same handle), never despawned and spawned:
-//! a fresh entity is drawn a frame late, and a mech ramming a building rebuilt it every few frames,
-//! which strobed the whole view (desktop playtest, 2026-10-24). Each fixed step advances the
+//! A damaged building is meshed once (`building-gpu-state`): every vertex carries the slot of the
+//! element it hangs on, and the building's element state buffer says which stand; the vertex
+//! shaders drop what fell. A hit rewrites the buffer, never a mesh. Each fixed step advances the
 //! frames' clock so overloaded members fail when their creak runs out and falling parts land.
 
+use crate::building_state::{BuildingMaterial, BuildingStates, ElementState, slot, standing_words};
 use crate::sim::{PresentSet, SimSet};
 use crate::world::{Live, MeshBuilder};
 use bevy::prelude::*;
+use bevy::render::storage::ShaderBuffer;
 use cb_core::rng::SimRng;
 use cb_core::world::destruct::Cells;
 use cb_core::world::dressing::{self, Anchor, DressingConfig, Mat, Shape};
 use cb_core::world::interior::{self, Rest, StoreyPlan, Surface};
 use cb_core::world::structure::{Frame, GROUND, Kind};
 use std::collections::{BTreeMap, HashMap};
-
-/// Storeys per drawn band of a damaged building. Bands keep a rebuild small; few of them keep the
-/// mesh entity count low (the game is CPU-bound on entities per view, measured on the RTX 3070,
-/// openspec change `gpu-instancing`): a 60-storey tower is 5 bands, 10 entities.
-const BAND_STOREYS: u32 = 12;
 
 /// Materials buildings are drawn with: the facade tones (by id), the dressing and the surfaces.
 #[derive(Resource)]
@@ -40,23 +37,75 @@ pub struct BuildingLooks {
 }
 
 impl BuildingLooks {
-    /// The material a building mesh of `look` is drawn with.
-    fn material(&self, look: Look) -> &Handle<StandardMaterial> {
+    /// The base look of a building mesh of `look`.
+    fn base(&self, look: Look) -> &Handle<StandardMaterial> {
         match look {
             Look::Skin(m) => &self.skin[&m],
             Look::Surface(s) => &self.surfaces[&s],
+            Look::Facade(t) => &self.tones[t as usize % self.tones.len()],
         }
+    }
+
+    /// The facade look of building `id`.
+    fn facade(&self, id: u32) -> Look {
+        Look::Facade((id as usize % self.tones.len()) as u8)
     }
 }
 
-/// What one of a building's meshes is made of: a dressing material or a structure or furniture
-/// surface.
+/// What one of a building's meshes is made of: a dressing material, a structure or furniture
+/// surface, or the plain facade panels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Look {
     /// The skin, roof and props.
     Skin(Mat),
     /// Columns, slabs, walls and furniture.
     Surface(Surface),
+    /// The frame's facade panels, in a building tone (hidden while it is dressed).
+    Facade(u8),
+}
+
+/// The building materials, one per look, shared by every building (so their draws batch), all
+/// reading the one element state buffer (`BuildingStates`). Made as they are first needed.
+#[derive(Resource, Default)]
+struct Materials {
+    /// The buffer they read.
+    standing: Option<Handle<ShaderBuffer>>,
+    made: BTreeMap<Look, Handle<BuildingMaterial>>,
+}
+
+impl Materials {
+    /// Points every material at the state buffer's current handle (it changes when it grows).
+    fn follow(&mut self, states: &BuildingStates, materials: &mut Assets<BuildingMaterial>) {
+        if self.standing.as_ref() == Some(&states.handle) {
+            return;
+        }
+        self.standing = Some(states.handle.clone());
+        for m in self.made.values() {
+            if let Some(mut m) = materials.get_mut(m) {
+                m.extension.standing = states.handle.clone();
+            }
+        }
+    }
+
+    /// The material for `look`.
+    fn get(
+        &mut self,
+        look: Look,
+        looks: &BuildingLooks,
+        bases: &Assets<StandardMaterial>,
+        materials: &mut Assets<BuildingMaterial>,
+    ) -> Handle<BuildingMaterial> {
+        let standing = self.standing.clone().unwrap_or_default();
+        self.made
+            .entry(look)
+            .or_insert_with(|| {
+                materials.add(BuildingMaterial {
+                    base: bases.get(looks.base(look)).cloned().unwrap_or_default(),
+                    extension: ElementState { standing },
+                })
+            })
+            .clone()
+    }
 }
 
 /// Metres per texture tile for a surface (`building-surfaces` design section 1).
@@ -105,27 +154,29 @@ pub fn surface_materials(
 struct SurfaceMeshes(BTreeMap<Surface, MeshBuilder>);
 
 impl SurfaceMeshes {
-    /// Adds a box of `surface`, tinted `color`.
-    fn block(&mut self, surface: Surface, min: Vec3, max: Vec3, color: [f32; 3]) {
+    /// Adds a box of `surface`, tinted `color`, carrying `slot` (`building_state`).
+    fn block(&mut self, surface: Surface, min: Vec3, max: Vec3, color: [f32; 3], slot: f32) {
         let t = surface_tile_m(surface);
         self.0
             .entry(surface)
             .or_insert_with(|| MeshBuilder::tiled(t, t))
-            .block(min, max, [color[0], color[1], color[2], 1.0]);
+            .block(min, max, [color[0], color[1], color[2], slot]);
     }
 
-    /// The rooms of one storey: its walls and the furniture standing on what `holds`.
-    fn storey(&mut self, plan: &StoreyPlan, holds: impl Fn(Rest) -> bool) {
-        for w in plan.walls.iter().filter(|w| holds(w.rest)) {
+    /// The rooms of one storey: its walls and furniture, each carrying the slot of what it rests on.
+    fn storey(&mut self, plan: &StoreyPlan, slot_of: impl Fn(Rest) -> f32) {
+        for w in &plan.walls {
+            let s = slot_of(w.rest);
             if w.core {
-                self.block(Surface::Concrete, w.min, w.max, CORE_TINT);
+                self.block(Surface::Concrete, w.min, w.max, CORE_TINT, s);
             } else {
-                self.block(Surface::Plaster, w.min, w.max, PARTITION_TINT);
+                self.block(Surface::Plaster, w.min, w.max, PARTITION_TINT, s);
             }
         }
-        for it in plan.items.iter().filter(|it| holds(it.rest)) {
+        for it in &plan.items {
+            let s = slot_of(it.rest);
             for (lo, hi, col, surface) in &it.boxes {
-                self.block(*surface, *lo, *hi, *col);
+                self.block(*surface, *lo, *hi, *col, s);
             }
         }
     }
@@ -148,8 +199,11 @@ struct Drawn {
     mesh: Handle<Mesh>,
 }
 
-/// A dressed building's meshes, one per material.
-struct Dressing(BTreeMap<Look, Drawn>);
+/// A dressed building's meshes, one per material, and whether they carry its frame's slots.
+struct Dressing {
+    parts: BTreeMap<Look, Drawn>,
+    framed: bool,
+}
 
 /// Dressed buildings near the player.
 #[derive(Resource, Default)]
@@ -163,17 +217,16 @@ pub struct DressingSettled(pub bool);
 /// Most buildings dressed in one frame (a 60-storey tower's skin and rooms are a few milliseconds).
 const DRESS_PER_FRAME: usize = 1;
 
-/// One drawn band of a damaged building: its meshes, and what it was drawn from.
-struct Band {
-    facade: Drawn,
-    parts: BTreeMap<Surface, Drawn>,
-    count: usize,
-    walls: bool,
+/// A damaged building on the GPU: its frame meshes (built once) and its range in the element
+/// state buffer.
+struct Framed {
+    parts: BTreeMap<Look, Drawn>,
+    base: u32,
 }
 
-/// A damaged building's drawn bands.
+/// Damaged buildings near the player, by id.
 #[derive(Resource, Default)]
-struct DrawnBands(HashMap<u32, Vec<Option<Band>>>);
+struct FramedBuildings(HashMap<u32, Framed>);
 
 /// Building entities by id.
 #[derive(Resource, Default)]
@@ -185,7 +238,8 @@ pub struct BuildingsPlugin;
 impl Plugin for BuildingsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<BuildingEntities>()
-            .init_resource::<DrawnBands>()
+            .init_resource::<FramedBuildings>()
+            .init_resource::<Materials>()
             .init_resource::<Dressed>()
             .init_resource::<DressingSettled>()
             .add_systems(FixedUpdate, step_structures.in_set(SimSet::World))
@@ -290,21 +344,18 @@ fn step_structures(time: Res<Time<Fixed>>, mut live: ResMut<Live>, mut fx: Messa
     }
 }
 
-/// The meshes of band `band` of a frame: (facade panels when `walls`, else none; floors, columns
-/// and the interiors behind them). Columns are drawn 1 cm thinner than they are and side walls stop
-/// short of the corner walls, so no two faces share a plane (CLAUDE.md section 10). Partitions and
-/// furniture (`building-interiors`) are drawn while the floor bay under them stands. Returns the
-/// standing element count with the meshes.
-fn band_meshes(f: &Frame, band: u32, wall_m: f32, seed: &SimRng, walls: bool) -> (Mesh, Vec<(Surface, Mesh)>, usize) {
+/// The meshes of a frame, built once (`building-gpu-state`): its facade panels, and its floors,
+/// columns and the rooms and furniture behind them per surface, every vertex carrying the slot of
+/// its element (rooms and furniture: the slab under them, or 0 on the ground). Columns are drawn
+/// 1 cm thinner than they are and side walls stop short of the corner walls, so no two faces share
+/// a plane (CLAUDE.md section 10).
+fn frame_meshes(f: &Frame, base: u32, facade_look: Look, wall_m: f32, seed: &SimRng) -> Vec<(Look, Mesh)> {
     let mut facade = MeshBuilder::tiled(4.0, 3.5);
     let mut bare = SurfaceMeshes::default();
-    let white = [1.0; 4];
-    let (k0, k1) = (band * BAND_STOREYS, (band + 1) * BAND_STOREYS);
-    let mut standing = 0;
-    for e in f.elements.iter().filter(|e| e.alive && e.storey >= k0 && e.storey < k1) {
-        standing += 1;
+    for (id, e) in f.elements.iter().enumerate() {
+        let s = slot(base, id as u32);
         match e.kind {
-            Kind::Wall if walls => {
+            Kind::Wall => {
                 let (mut lo, mut hi) = (e.min, e.max);
                 if e.side >= 2 {
                     if e.at[1] == 0 {
@@ -314,39 +365,41 @@ fn band_meshes(f: &Frame, band: u32, wall_m: f32, seed: &SimRng, walls: bool) ->
                         hi.z -= wall_m;
                     }
                 }
-                facade.block(lo, hi, white);
+                facade.block(lo, hi, [1.0, 1.0, 1.0, s]);
             }
-            Kind::Wall => {}
             Kind::Column => bare.block(
                 Surface::Concrete,
                 e.min + Vec3::new(0.01, 0.0, 0.01),
                 e.max - Vec3::new(0.01, 0.0, 0.01),
                 CORE_TINT,
+                s,
             ),
-            Kind::Slab => bare.block(Surface::Concrete, e.min, e.max, SLAB_TINT),
+            Kind::Slab => bare.block(Surface::Concrete, e.min, e.max, SLAB_TINT, s),
         }
     }
-    let holds = |r: Rest| match r {
-        Rest::Ground => true,
-        Rest::Slab { k, i, j } => f.elements[f.slab(k as usize, i as usize, j as usize) as usize].alive,
+    let rest_slot = |r: Rest| match r {
+        Rest::Ground => 0.0,
+        Rest::Slab { k, i, j } => slot(base, f.slab(k as usize, i as usize, j as usize)),
     };
-    for k in k0..k1.min(f.n[1] as u32) {
-        let plan = interior::plan_storey(f.building, k as usize, f.n, f.origin, f.size, seed);
-        bare.storey(&plan, holds);
+    for k in 0..f.n[1] {
+        bare.storey(&interior::plan_storey(f.building, k, f.n, f.origin, f.size, seed), rest_slot);
     }
-    (facade.build(), bare.build(), standing)
+    std::iter::once((facade_look, facade.build()))
+        .chain(bare.build().into_iter().map(|(s, m)| (Look::Surface(s), m)))
+        .collect()
 }
 
-/// True while the element a dressing piece hangs on stands (a whole building: always).
-fn anchored(f: Option<&Frame>, a: Anchor) -> bool {
-    let Some(f) = f else { return true };
+/// The slot of the element a dressing piece hangs on: 0 for the whole building or one with no
+/// frame; `None` for a piece on nothing (it is never drawn).
+fn anchor_slot(f: Option<&Frame>, base: u32, a: Anchor) -> Option<f32> {
+    let Some(f) = f else { return Some(0.0) };
     let id = match a {
-        Anchor::Whole => return true,
+        Anchor::Whole => return Some(0.0),
         Anchor::Column { k, a, c } => f.column(k as usize, a as usize, c as usize),
         Anchor::Slab { k, i, j } => f.slab(k as usize, i as usize, j as usize),
         Anchor::Wall { k, side, idx } => f.wall(k as usize, side as usize, idx as usize),
     };
-    id != GROUND && f.elements[id as usize].alive
+    (id != GROUND).then(|| slot(base, id))
 }
 
 /// Metres per texture tile for a material (its texture's real size).
@@ -359,20 +412,18 @@ fn tile_m(mat: Mat) -> f32 {
     }
 }
 
-/// The dressing meshes of building `id`, one per material: cut per element and filtered by what
-/// stands once it has a frame; whole, with its floors, rooms and furniture behind the glass while
-/// it is whole (a damaged building draws its rooms in its bands).
-fn dressing_meshes(c: &Cells, id: u32, seed: &SimRng, cfg: &DressingConfig) -> Vec<(Look, Mesh)> {
+/// The dressing meshes of building `id`, one per material: cut per element, every vertex carrying
+/// its element's slot, once it has a frame; whole, with its floors, rooms and furniture behind the
+/// glass while it is whole (a damaged building draws its rooms with its frame).
+fn dressing_meshes(c: &Cells, id: u32, base: u32, seed: &SimRng, cfg: &DressingConfig) -> Vec<(Look, Mesh)> {
     let f = c.frame.as_deref();
     let mut builders: BTreeMap<Mat, MeshBuilder> = BTreeMap::new();
     for p in dressing::dress(id, c.n, c.origin, c.size, seed, f.is_some(), cfg) {
-        if !anchored(f, p.anchor) {
-            continue;
-        }
+        let Some(s) = anchor_slot(f, base, p.anchor) else { continue };
         let mb = builders
             .entry(p.mat)
             .or_insert_with(|| MeshBuilder::tiled(tile_m(p.mat), tile_m(p.mat)));
-        let col = [p.color[0], p.color[1], p.color[2], 1.0];
+        let col = [p.color[0], p.color[1], p.color[2], s];
         match p.shape {
             Shape::Block { min, max } => mb.block(min, max, col),
             Shape::Drum { base, r0, r1, height_m } => mb.drum(base, r0, r1, height_m, 14, col),
@@ -381,7 +432,7 @@ fn dressing_meshes(c: &Cells, id: u32, seed: &SimRng, cfg: &DressingConfig) -> V
     let mut rooms = SurfaceMeshes::default();
     if f.is_none() {
         for k in 0..c.n[1] {
-            rooms.storey(&interior::plan_storey(id, k, c.n, c.origin, c.size, seed), |_| true);
+            rooms.storey(&interior::plan_storey(id, k, c.n, c.origin, c.size, seed), |_| 0.0);
         }
     }
     builders
@@ -398,14 +449,14 @@ fn dressing_meshes(c: &Cells, id: u32, seed: &SimRng, cfg: &DressingConfig) -> V
         .collect()
 }
 
-/// Shows `parts` in `drawn`, one entity per key, each rebuilt in place; a key that no longer
-/// appears keeps its entity with an empty mesh (rebuilt, never despawned: see the module comment).
-fn show_parts<K: Ord + Copy + std::fmt::Debug>(
+/// Shows `parts` in `drawn`, one entity per look, each in its material; a look already drawn has
+/// its mesh replaced in place and keeps its entity, one that no longer appears is emptied.
+fn show_parts(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
-    drawn: &mut BTreeMap<K, Drawn>,
-    mut parts: Vec<(K, Mesh)>,
-    material: impl Fn(K) -> Handle<StandardMaterial>,
+    drawn: &mut BTreeMap<Look, Drawn>,
+    mut parts: Vec<(Look, Mesh)>,
+    mut material: impl FnMut(Look) -> Handle<BuildingMaterial>,
     name: &str,
 ) {
     for k in drawn.keys() {
@@ -414,38 +465,27 @@ fn show_parts<K: Ord + Copy + std::fmt::Debug>(
         }
     }
     for (k, mesh) in parts {
-        let slot = drawn.get(&k).cloned();
-        let d = show(commands, meshes, slot.as_ref(), mesh, &material(k), format!("{name} {k:?}"));
+        let m = material(k);
+        let d = match drawn.get(&k) {
+            Some(d) => {
+                meshes.insert(&d.mesh, mesh).ok();
+                commands.entity(d.entity).insert(MeshMaterial3d(m));
+                d.clone()
+            }
+            None => {
+                let handle = meshes.add(mesh);
+                let entity = commands
+                    .spawn((
+                        Name::new(format!("{name} {k:?}")),
+                        Mesh3d(handle.clone()),
+                        MeshMaterial3d(m),
+                        Transform::IDENTITY,
+                    ))
+                    .id();
+                Drawn { entity, mesh: handle }
+            }
+        };
         drawn.insert(k, d);
-    }
-}
-
-/// Spawns an entity showing `mesh` in `material`, or rebuilds the one it has in place.
-fn show(
-    commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    slot: Option<&Drawn>,
-    mesh: Mesh,
-    material: &Handle<StandardMaterial>,
-    name: String,
-) -> Drawn {
-    match slot {
-        Some(d) => {
-            meshes.insert(&d.mesh, mesh).ok();
-            d.clone()
-        }
-        None => {
-            let handle = meshes.add(mesh);
-            let entity = commands
-                .spawn((
-                    Name::new(name),
-                    Mesh3d(handle.clone()),
-                    MeshMaterial3d(material.clone()),
-                    Transform::IDENTITY,
-                ))
-                .id();
-            Drawn { entity, mesh: handle }
-        }
     }
 }
 
@@ -456,7 +496,8 @@ fn player_xz(camera: &Query<&GlobalTransform, With<crate::pilot::PilotCamera>>) 
 
 /// Dresses the buildings near the player, a few a frame, and undresses those left behind (their
 /// plain box shows again). Far buildings never get generated detail (owner, 2026-10-24: "far away
-/// buildings would not HAVE these generated elements").
+/// buildings would not HAVE these generated elements"). A damaged building is dressed by
+/// `redraw_buildings`, with its own element state.
 #[allow(clippy::too_many_arguments)]
 fn dress_near_player(
     mut commands: Commands,
@@ -469,7 +510,11 @@ fn dress_near_player(
     camera: Query<&GlobalTransform, With<crate::pilot::PilotCamera>>,
     mut dressed: ResMut<Dressed>,
     mut settled: ResMut<DressingSettled>,
+    mut shared: ResMut<Materials>,
+    states: Res<BuildingStates>,
     mut meshes: ResMut<Assets<Mesh>>,
+    bases: Res<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<BuildingMaterial>>,
 ) {
     let _t = crate::perf_hud::slow("dress_near_player");
     settled.0 = false;
@@ -497,9 +542,22 @@ fn dress_near_player(
         da.total_cmp(&db).then(a.cmp(&b))
     });
     settled.0 = near.len() <= DRESS_PER_FRAME;
+    shared.follow(&states, &mut materials);
     for b in near.into_iter().take(DRESS_PER_FRAME) {
         let c = &live.structures.buildings[b as usize];
         if c.standing == 0 {
+            continue;
+        }
+        if c.frame.is_some() {
+            // Dressed with its frame's slots and its own materials when redrawn.
+            dressed.0.insert(
+                b,
+                Dressing {
+                    parts: BTreeMap::new(),
+                    framed: false,
+                },
+            );
+            live.dirty_buildings.push(b);
             continue;
         }
         let mut parts = BTreeMap::new();
@@ -507,15 +565,12 @@ fn dress_near_player(
             &mut commands,
             &mut meshes,
             &mut parts,
-            dressing_meshes(c, b, &rng, cfg),
-            |l| looks.material(l).clone(),
+            dressing_meshes(c, b, 0, &rng, cfg),
+            |l| shared.get(l, &looks, &bases, &mut materials),
             &format!("building {b}"),
         );
-        dressed.0.insert(b, Dressing(parts));
+        dressed.0.insert(b, Dressing { parts, framed: false });
         commands.entity(ents.0[b as usize]).insert(Visibility::Hidden);
-        if c.frame.is_some() {
-            live.dirty_buildings.push(b); // its bands drop the facade panels the skin now covers
-        }
     }
     let keep = cfg.dress_radius_m * 1.15;
     let mut gone: Vec<u32> = dressed
@@ -527,31 +582,39 @@ fn dress_near_player(
     gone.sort_unstable();
     for b in gone {
         if let Some(d) = dressed.0.remove(&b) {
-            for part in d.0.values() {
+            for part in d.parts.values() {
                 commands.entity(part.entity).despawn();
                 meshes.remove(&part.mesh);
             }
         }
         let c = &live.structures.buildings[b as usize];
         if c.frame.is_some() {
-            live.dirty_buildings.push(b); // its bands draw the facade panels again
+            live.dirty_buildings.push(b); // its facade panels show again
         } else {
             commands.entity(ents.0[b as usize]).insert(Visibility::Visible);
         }
     }
 }
 
+/// Draws what changed in damaged buildings. On a building's first damage its frame (and, if it is
+/// dressed, its skin) is meshed once with slots and given its element state buffer; after that a
+/// change only rewrites the buffer (`building-gpu-state`).
 #[allow(clippy::too_many_arguments)]
 fn redraw_buildings(
     mut commands: Commands,
     mut live: ResMut<Live>,
     ents: Res<BuildingEntities>,
     looks: Option<Res<BuildingLooks>>,
-    mut drawn: ResMut<DrawnBands>,
+    mut framed: ResMut<FramedBuildings>,
     mut dressed: ResMut<Dressed>,
+    mut shared: ResMut<Materials>,
+    mut states: ResMut<BuildingStates>,
     seed: Res<crate::world::Seed>,
     cfg: Res<crate::sim::Data>,
     mut meshes: ResMut<Assets<Mesh>>,
+    bases: Res<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<BuildingMaterial>>,
+    mut buffers: ResMut<Assets<ShaderBuffer>>,
 ) {
     let _t = crate::perf_hud::slow("redraw_buildings");
     if live.dirty_buildings.is_empty() || ents.0.is_empty() {
@@ -566,19 +629,6 @@ fn redraw_buildings(
     for id in ids {
         let c = &live.structures.buildings[id as usize];
         let e = ents.0[id as usize];
-        // A dressed building's skin follows its elements, rebuilt in place.
-        if let Some(d) = dressed.0.get_mut(&id) {
-            let parts = dressing_meshes(c, id, &rng, &cfg.0.world.dressing);
-            show_parts(
-                &mut commands,
-                &mut meshes,
-                &mut d.0,
-                parts,
-                |l| looks.material(l).clone(),
-                &format!("building {id}"),
-            );
-        }
-        let skinned = dressed.0.contains_key(&id);
         let Some(f) = c.frame.as_ref() else {
             // No frame (an old save, a test): the cell view.
             if c.standing == 0 {
@@ -588,43 +638,53 @@ fn redraw_buildings(
             }
             continue;
         };
-        // The whole-building box gives way to the frame's bands (and the skin, if dressed).
-        commands.entity(e).insert(Visibility::Hidden);
-        let bands = (f.n[1] as u32).div_ceil(BAND_STOREYS);
-        let slots = drawn.0.entry(id).or_insert_with(|| (0..bands).map(|_| None).collect());
-        for band in 0..bands {
-            let (k0, k1) = (band * BAND_STOREYS, (band + 1) * BAND_STOREYS);
-            let now = f.elements.iter().filter(|e| e.alive && e.storey >= k0 && e.storey < k1).count();
-            let walls = !skinned;
-            let slot = &mut slots[band as usize];
-            if slot.as_ref().is_some_and(|b| b.count == now && b.walls == walls) {
-                continue;
+        let base = states.base(id, f.elements.len(), &mut buffers);
+        shared.follow(&states, &mut materials);
+        states.write(id, &standing_words(f));
+        let facade_look = looks.facade(id);
+        let fb = match framed.0.entry(id) {
+            std::collections::hash_map::Entry::Occupied(o) => o.into_mut(),
+            std::collections::hash_map::Entry::Vacant(v) => {
+                // First damage: the whole-building box gives way to the frame, meshed once.
+                commands.entity(e).insert(Visibility::Hidden);
+                let mut fb = Framed {
+                    parts: BTreeMap::new(),
+                    base,
+                };
+                show_parts(
+                    &mut commands,
+                    &mut meshes,
+                    &mut fb.parts,
+                    frame_meshes(f, base, facade_look, wall_m, &rng),
+                    |l| shared.get(l, &looks, &bases, &mut materials),
+                    &format!("building {id}"),
+                );
+                v.insert(fb)
             }
-            let (facade, surfaces, _) = band_meshes(f, band, wall_m, &rng, walls);
-            let tone = &looks.tones[id as usize % looks.tones.len()];
-            let facade = show(
-                &mut commands,
-                &mut meshes,
-                slot.as_ref().map(|b| &b.facade),
-                facade,
-                tone,
-                format!("building {id} band {band} facade"),
-            );
-            let mut parts = slot.take().map(|b| b.parts).unwrap_or_default();
-            show_parts(
-                &mut commands,
-                &mut meshes,
-                &mut parts,
-                surfaces,
-                |s| looks.surfaces[&s].clone(),
-                &format!("building {id} band {band}"),
-            );
-            *slot = Some(Band {
-                facade,
-                parts,
-                count: now,
-                walls,
-            });
+        };
+        // A dressed building's skin is meshed once with its frame's slots, in its own materials.
+        let skinned = match dressed.0.get_mut(&id) {
+            Some(d) => {
+                if !d.framed {
+                    let parts = dressing_meshes(c, id, fb.base, &rng, &cfg.0.world.dressing);
+                    show_parts(
+                        &mut commands,
+                        &mut meshes,
+                        &mut d.parts,
+                        parts,
+                        |l| shared.get(l, &looks, &bases, &mut materials),
+                        &format!("building {id}"),
+                    );
+                    d.framed = true;
+                }
+                true
+            }
+            None => false,
+        };
+        if let Some(facade) = fb.parts.get(&facade_look) {
+            commands
+                .entity(facade.entity)
+                .insert(if skinned { Visibility::Hidden } else { Visibility::Inherited });
         }
     }
 }
@@ -632,53 +692,74 @@ fn redraw_buildings(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy::mesh::VertexAttributeValues;
     use cb_core::world::StructureConfig;
 
     fn frame() -> Frame {
         Frame::new(3, [4, 9, 3], Vec3::ZERO, Vec3::new(6.0, 3.5, 6.0), &StructureConfig::default())
     }
 
-    #[test]
-    fn a_band_draws_every_standing_element_of_its_storeys() {
-        let f = frame();
-        let per_storey = f.elements.iter().filter(|e| e.storey == 0).count();
-        let f = Frame::new(3, [4, 13, 3], Vec3::ZERO, Vec3::new(6.0, 3.5, 6.0), &StructureConfig::default());
-        let (_, _, n0) = band_meshes(&f, 0, 0.3, &SimRng::new(1), true);
-        let (_, _, n1) = band_meshes(&f, 1, 0.3, &SimRng::new(1), true);
-        assert_eq!(n0, per_storey * 12);
-        assert_eq!(n1, per_storey, "the last band holds the thirteenth storey only");
+    /// The slots a mesh's vertices carry.
+    fn slots(mesh: &Mesh) -> Vec<u32> {
+        match mesh.attribute(Mesh::ATTRIBUTE_COLOR) {
+            Some(VertexAttributeValues::Float32x4(c)) => c.iter().map(|c| c[3] as u32).collect(),
+            _ => panic!("no colours"),
+        }
     }
 
     #[test]
-    fn dressing_drops_the_pieces_whose_element_fell() {
+    fn every_vertex_carries_the_slot_of_its_element() {
+        let f = frame();
+        let meshes = frame_meshes(&f, 0, Look::Facade(0), 0.3, &SimRng::new(1));
+        let all: Vec<u32> = meshes.iter().flat_map(|(_, m)| slots(m)).collect();
+        assert!(
+            all.iter().all(|&s| s as usize <= f.elements.len()),
+            "every slot names an element or 0"
+        );
+        for id in 0..f.elements.len() as u32 {
+            assert!(all.contains(&(id + 1)), "element {id} is drawn with its slot");
+        }
+        // Rooms and furniture on a slab carry that slab's slot: the furniture surfaces carry only
+        // slab slots and 0 (the ground floor).
+        let wood = &meshes
+            .iter()
+            .find(|(l, _)| *l == Look::Surface(Surface::Wood))
+            .expect("an office has wood")
+            .1;
+        for s in slots(wood) {
+            assert!(
+                s == 0 || f.elements[s as usize - 1].kind == Kind::Slab,
+                "furniture rests on a slab or the ground"
+            );
+        }
+    }
+
+    #[test]
+    fn the_facade_mesh_is_its_walls_only() {
+        let f = frame();
+        let meshes = frame_meshes(&f, 0, Look::Facade(0), 0.3, &SimRng::new(1));
+        let facade = &meshes.iter().find(|(l, _)| *l == Look::Facade(0)).unwrap().1;
+        for s in slots(facade) {
+            assert_eq!(f.elements[s as usize - 1].kind, Kind::Wall);
+        }
+    }
+
+    #[test]
+    fn dressing_hangs_each_piece_on_its_element() {
         let f = frame();
         let cfg = DressingConfig::default();
         let rng = SimRng::new(1);
         let all = dressing::dress(3, f.n, f.origin, f.size, &rng, true, &cfg);
-        let standing = |f: &Frame| all.iter().filter(|p| anchored(Some(f), p.anchor)).count();
-        assert_eq!(standing(&f), all.len(), "a frame that stands keeps every piece");
-        let mut broken = f.clone();
-        let roof = broken.slab(f.n[1] - 1, 1, 1) as usize;
-        broken.elements[roof].alive = false;
-        let wall = broken.wall(4, 0, 0) as usize;
-        broken.elements[wall].alive = false;
+        let hung: Vec<f32> = all.iter().filter_map(|p| anchor_slot(Some(&f), 0, p.anchor)).collect();
+        assert!(!hung.is_empty());
+        assert!(hung.iter().all(|&s| s as usize <= f.elements.len()));
+        assert!(hung.iter().any(|&s| s > 0.0), "pieces hang on elements once there is a frame");
+        assert_eq!(anchor_slot(None, 0, Anchor::Whole), Some(0.0), "no frame: always shown");
+        assert_eq!(anchor_slot(Some(&f), 0, Anchor::Whole), Some(0.0));
+        let shifted: Vec<f32> = all.iter().filter_map(|p| anchor_slot(Some(&f), 500, p.anchor)).collect();
         assert!(
-            standing(&broken) < all.len(),
-            "the pieces on the broken roof bay and facade panel go"
+            shifted.iter().zip(&hung).all(|(s, h)| *s == 0.0 || *s == h + 500.0),
+            "a building's slots start at its range"
         );
-        assert!(anchored(None, Anchor::Whole));
-    }
-
-    #[test]
-    fn a_broken_element_leaves_its_band() {
-        let mut f = Frame::new(3, [4, 13, 3], Vec3::ZERO, Vec3::new(6.0, 3.5, 6.0), &StructureConfig::default());
-        let id = f.elements.iter().position(|e| e.kind == Kind::Wall && e.storey == 12).unwrap();
-        let (b0, b1) = (
-            band_meshes(&f, 0, 0.3, &SimRng::new(1), true).2,
-            band_meshes(&f, 1, 0.3, &SimRng::new(1), true).2,
-        );
-        f.elements[id].alive = false;
-        assert_eq!(band_meshes(&f, 1, 0.3, &SimRng::new(1), true).2, b1 - 1);
-        assert_eq!(band_meshes(&f, 0, 0.3, &SimRng::new(1), true).2, b0, "other bands are untouched");
     }
 }
