@@ -563,13 +563,11 @@ fn spawn_sun(mut commands: Commands, data: Res<Data>, mut media: ResMut<Assets<b
         },
         // The one sun, shared with the terrain's baked shadow (distant-shadows).
         Transform::from_rotation(cb_core::world::sun_shade::sun_rotation()),
-        // Three cascades to 500 m (were four to 900 m): shadows cost about 2 ms of a combat frame
-        // (2026-10-24), and past 500 m the fog and haze carry the depth.
+        // The live shadows near the eye, from data (`sun_shade:` in `data/world/world.ron`).
         CascadeShadowConfigBuilder {
-            num_cascades: 3,
-            first_cascade_far_bound: 40.0,
-            // Out to where far ground takes over with the baked shadow (distant-shadows).
-            maximum_distance: 700.0,
+            num_cascades: data.0.world.sun_shade.live_cascades as usize,
+            first_cascade_far_bound: data.0.world.sun_shade.live_first_cascade_m,
+            maximum_distance: data.0.world.sun_shade.live_far_m,
             ..default()
         }
         .build(),

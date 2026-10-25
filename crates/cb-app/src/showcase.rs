@@ -47,6 +47,8 @@ pub struct Take {
     flying: bool,
     /// The height it crosses at while flying.
     cruise_m: f32,
+    /// When the take's fight began (`PLAYTEST_START`), seconds of real time.
+    started_s: f32,
 }
 
 impl Plugin for ShowcasePlugin {
@@ -628,6 +630,11 @@ fn play_orders(o: &cb_core::ai::Orders, act: &mut Actions) {
 }
 
 /// The defence take's beats: travel to each wave and fight it.
+/// The defence take ends here if the waves are not over by then, seconds after `PLAYTEST_START`: a
+/// benchmark take has an end (2026-10-25: a raider flying 90 m up outlived the missiles and the take
+/// ran past the suite's 600 s timeout).
+const DEFENCE_TAKE_MAX_S: f32 = 360.0;
+
 const DEFENCE_BEATS: [&str; 12] = [
     "load", "look", "board", "stand", "travel1", "fight1", "travel2", "fight2", "travel3", "fight3", "result", "end",
 ];
@@ -663,7 +670,8 @@ fn play_defence(
     let eye = m.pos + Vec3::Y * data.0.mech.body.eye_height_m;
     let cfg = &data.0.defence;
     let mut act = Actions::default();
-    let over = matches!(run.state.phase, Phase::Won | Phase::Lost(_));
+    let out_of_time = take.beat >= 1 && now - take.started_s > DEFENCE_TAKE_MAX_S;
+    let over = out_of_time || matches!(run.state.phase, Phase::Won | Phase::Lost(_));
     // Every 5 s, where the pilot and the wave's live raiders are, for reading a stall from the log.
     if (now / 5.0).floor() != ((now - time.delta_secs()) / 5.0).floor() && take.beat >= 4 {
         let others: Vec<String> = hostiles
@@ -697,6 +705,7 @@ fn play_defence(
             if ready.0 && access.0.is_some() {
                 say("PLAYTEST_READY defence");
                 say("PLAYTEST_START defence");
+                take.started_s = now;
                 next = true;
             }
         }
@@ -855,6 +864,10 @@ fn play_defence(
                     Phase::Lost(why) => format!(
                         "PLAYTEST_RESULT lose defence: {}, {}",
                         crate::defence::loss_text(why),
+                        damage_summary(&run.damage, cfg)
+                    ),
+                    _ if out_of_time => format!(
+                        "PLAYTEST_RESULT lose defence: out of time after {DEFENCE_TAKE_MAX_S:.0} s, {}",
                         damage_summary(&run.damage, cfg)
                     ),
                     _ => "PLAYTEST_RESULT lose defence: the take ended early".into(),

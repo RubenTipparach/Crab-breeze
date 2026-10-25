@@ -29,6 +29,13 @@ pub struct SunShadeConfig {
     pub soft_m: f32,
     /// Far ground in shade keeps this share of its colour (the sun's share of its light is gone).
     pub shade_albedo: f32,
+    /// The live shadow maps near the eye: how many cascades.
+    pub live_cascades: u32,
+    /// Where the first cascade ends, metres from the eye.
+    pub live_first_cascade_m: f32,
+    /// Where the live shadows end, metres from the eye: about where far ground, wearing the baked
+    /// shadow, begins.
+    pub live_far_m: f32,
 }
 
 impl Default for SunShadeConfig {
@@ -37,6 +44,9 @@ impl Default for SunShadeConfig {
             cell_m: 40.0,
             soft_m: 4.0,
             shade_albedo: 0.55,
+            live_cascades: 3,
+            live_first_cascade_m: 40.0,
+            live_far_m: 700.0,
         }
     }
 }
@@ -45,7 +55,16 @@ impl Validate for SunShadeConfig {
     fn validate(&self) -> Result<(), String> {
         positive("sun_shade.cell_m", self.cell_m)?;
         positive("sun_shade.soft_m", self.soft_m)?;
-        within("sun_shade.shade_albedo", self.shade_albedo, 0.0, 1.0)
+        within("sun_shade.shade_albedo", self.shade_albedo, 0.0, 1.0)?;
+        if !(1..=4).contains(&self.live_cascades) {
+            return Err(format!("sun_shade.live_cascades: {} is not 1 to 4", self.live_cascades));
+        }
+        positive("sun_shade.live_first_cascade_m", self.live_first_cascade_m)?;
+        positive("sun_shade.live_far_m", self.live_far_m)?;
+        if self.live_first_cascade_m >= self.live_far_m {
+            return Err("sun_shade.live_first_cascade_m must be under live_far_m".into());
+        }
+        Ok(())
     }
 }
 
