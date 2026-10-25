@@ -43,14 +43,13 @@ pub fn load_tiling(assets_root: &Path, path: &str, srgb: bool) -> Option<Image> 
     };
     let (w, h) = decoded.dimensions();
     let (data, levels) = mip_chain(decoded);
-    let mut img = Image::new(
+    let mut img = Image::new_uninit(
         Extent3d {
             width: w,
             height: h,
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
-        Vec::new(),
         if srgb {
             TextureFormat::Rgba8UnormSrgb
         } else {
