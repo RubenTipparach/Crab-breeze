@@ -187,6 +187,10 @@ fn main() -> AppExit {
             .insert_resource(menu::Play::Defence);
     } else if scripted || args.mission.is_some() || args.start.as_deref() == Some("fx") {
         app.insert_resource(menu::Play::FreeRoam);
+        // A scripted take fights the encounter mechs; free roam as a player plays it has none.
+        if scripted {
+            app.insert_resource(menu::Encounters);
+        }
     } else {
         app.insert_resource(menu::TitleWanted);
     }

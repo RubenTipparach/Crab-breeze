@@ -194,7 +194,7 @@ impl Plugin for MechPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MechAccessNow>()
             .add_systems(Startup, spawn_mech)
-            .add_systems(Update, spawn_encounters.run_if(resource_added::<crate::menu::Play>))
+            .add_systems(Update, spawn_encounters.run_if(resource_added::<crate::menu::Encounters>))
             .add_systems(FixedUpdate, (publish_access.in_set(SimSet::Input), step_mech.in_set(SimSet::Mech)))
             .add_systems(
                 Update,
