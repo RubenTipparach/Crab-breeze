@@ -41,6 +41,7 @@ mod showcase;
 mod sim;
 mod skins;
 mod sky_light;
+mod smoke_render;
 mod sun_flare;
 mod targeting;
 mod textures;
@@ -142,6 +143,9 @@ fn main() -> AppExit {
     if !cli::switched_off("CB_NO_CLOUDS") {
         app.add_plugins(clouds_render::CloudsRenderPlugin);
     }
+    // Lit smoke puffs on the cloud shader (openspec change `smoke-puffs`): the jets' and missiles'
+    // smoke trails.
+    app.add_plugins(smoke_render::SmokeRenderPlugin);
     // GPU grass (openspec change `gpu-grass`); `CB_NO_GRASS=1` leaves it out, so the benchmark can
     // measure what it costs.
     if !cli::switched_off("CB_NO_GRASS") {
