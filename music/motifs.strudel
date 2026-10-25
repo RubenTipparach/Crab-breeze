@@ -1,18 +1,21 @@
 // @title Crab Breeze: the motifs
 // @cycles 59
-// @reverb 0.5
-// @mix gm_french_horn vol=95
-// @mix gm_trumpet vol=180
-// @mix gm_epiano1 vol=130
-// @mix gm_contrabass vol=110
-// @mix square vol=18
+// @drumkit 25
+// @space gm_lead_2_sawtooth 0.25
+// @space gm_lead_1_square 0.3
+// @space gm_pad_poly 0.35
+// @space gm_fx_crystal 0.35
+// @space gm_synth_strings_1 0.3
 //
 // The Crab Breeze motif sheet: every motif of the score stated plainly, one
-// after another, with a bar of silence between them. The block between the
-// MOTIF LIBRARY markers is the canonical text of each motif; every cue in
-// music/ copies it word for word (tools/music/check_motifs.mjs refuses a copy
-// that drifts). docs/design/music.md explains what each motif means and when
-// it is used. Paste this file into https://strudel.cc to hear it in a browser.
+// after another, with a bar of silence between them, voiced electronic and
+// futuristic (owner, 2026-10-25: "electronic, scifi futuristic please!"). The
+// block between the MOTIF LIBRARY markers is the canonical text of each motif;
+// every cue in music/ copies it word for word (tools/music/check_motifs.mjs
+// refuses a copy that drifts). docs/design/music.md explains what each motif
+// means and when it is used. Paste this file into https://strudel.cc to hear a
+// General MIDI preview; the final comp swaps in LMMS synths (music/instruments.json
+// voices).
 
 setcps(120/60/4)
 
@@ -86,51 +89,55 @@ const FANFARE_CHORDS = note(`<
 // ── END MOTIF LIBRARY ──────────────────────────────────────────
 
 const rest = silence
+// an echo written as notes (LMMS's delay effect renders silence headless)
+const echo = (p, t = 3/16) => stack(p, p.late(t).gain(0.35), p.late(2 * t).gain(0.14))
+const kit = stack(STRIDE_DRUMS.gain(0.85), s("~ cp ~ cp").gain(0.7), s("hh*16").gain(0.3))
 
-// 1. the Breeze on a horn over the spine, with the stride under it
+// 1. the Breeze on a supersaw over a pumping pad, the bass on the stride
 const breeze = stack(
-  BREEZE.s("gm_french_horn").gain(1.1),
-  SPINE_CHORDS.s("gm_string_ensemble_1").gain(0.55),
-  SPINE_ROOTS.struct(STRIDE).s("gm_contrabass").gain(0.85),
-  STRIDE_DRUMS.gain(0.5)
+  echo(BREEZE.s("gm_lead_2_sawtooth").gain(1.0)),
+  SPINE_CHORDS.struct("x*8").gain("0.3 0.75").s("gm_pad_poly"),
+  SPINE_ROOTS.add(note(12)).struct(STRIDE).s("gm_synth_bass_1").gain(0.85),
+  kit
 )
 
-// 2. the call sign on the radio
+// 2. the call sign on a pluck, echoing over a held pad
 const callsign = stack(
-  CALLSIGN.s("square").gain(0.8),
-  note("<[d3,a3,e4] [bb2,f3,d4]>").slow(2).s("gm_pad_warm").gain(0.6)
+  echo(CALLSIGN.s("gm_lead_1_square").gain(0.9), 3/8),
+  note("<[d3,a3,e4] [bb2,f3,d4]>").slow(2).s("gm_synth_strings_1").gain(0.55)
 )
 
-// 3. Main Street on an 80s electric piano
+// 3. Main Street on a glassy bell over a DX electric piano
 const street = stack(
-  MAINSTREET.s("gm_epiano1").gain(1.0),
-  STREET_CHORDS.s("gm_string_ensemble_2").gain(0.45),
-  STREET_ROOTS.s("gm_contrabass").gain(0.7)
+  echo(MAINSTREET.s("gm_fx_crystal").gain(0.95)),
+  STREET_CHORDS.struct("x ~ x ~ x ~ x ~").s("gm_epiano2").gain(0.55),
+  STREET_ROOTS.s("gm_synth_bass_1").gain(0.6)
 )
 
-// 4. the crabs: scuttle, claw, siren
+// 4. the crabs: the scuttle on an acid bass, the claw as synth stabs, the siren on a pad
 const scuttle = stack(
-  SCUTTLE.s("gm_cello").gain(SCUTTLE_ACCENT),
-  SCUTTLE.sub(note(12)).s("gm_contrabass").gain(SCUTTLE_ACCENT),
-  CLAW.s("gm_trombone").gain(0.9),
-  SIREN.s("gm_choir_aahs").gain(0.7),
-  s("[bd ~ ~ ~ ~ ~ bd ~ ~ ~ ~ ~ bd ~ bd ~]").gain(0.6)
+  SCUTTLE.add(note(12)).s("gm_lead_8_bass_lead").gain(SCUTTLE_ACCENT).velocity(0.6),
+  SCUTTLE.s("gm_synth_bass_2").gain(SCUTTLE_ACCENT).velocity(0.6),
+  CLAW.s("gm_synth_brass_1").gain(0.75),
+  SIREN.s("gm_pad_choir").gain(0.6),
+  s("bd ~ ~ ~ ~ ~ bd ~ ~ ~ ~ ~ bd ~ bd ~").gain(0.85), s("hh*16").gain(0.3)
 )
 
-// 5. the hatch opening stage by stage
+// 5. the hatch climbing on an echoing pluck, synth strings holding each stage
 const hatch = stack(
-  HATCH.s("gm_string_ensemble_1").gain(0.75),
-  HATCH_CHORDS.s("gm_choir_aahs").gain(0.55),
-  note("<d2!8 a1 d2>").s("gm_timpani").struct("x*4").gain(0.5)
+  echo(HATCH.s("gm_lead_1_square").gain(0.85), 3/8),
+  HATCH_CHORDS.s("gm_synth_strings_1").gain(0.55),
+  note("<d2!8 a1 d2>").s("gm_synth_bass_2").gain(0.5),
+  note("<[c4 ~] ~>").s("gm_fx_sci_fi").gain(0.6)
 )
 
-// 6. mission accomplished
+// 6. mission accomplished: the fanfare on supersaws over brassy synth chords
 const fanfare = stack(
-  FANFARE.s("gm_trumpet").gain(1.1),
-  FANFARE_CHORDS.s("gm_brass_section").gain(0.7),
-  FANFARE_ROOTS.s("gm_contrabass").gain(0.8),
-  FANFARE_ROOTS.add(note(12)).struct("x ~ ~ x ~ ~ x ~").s("gm_timpani").gain(0.8),
-  s("<cr ~ cr ~ cr cr>").gain(0.7)
+  echo(FANFARE.s("gm_lead_2_sawtooth").gain(1.0)),
+  FANFARE_CHORDS.struct("x ~ ~ x ~ ~ x ~").s("gm_synth_brass_1").gain(0.6),
+  FANFARE_CHORDS.s("gm_synth_strings_1").gain(0.5),
+  FANFARE_ROOTS.add(note(12)).struct("x ~ ~ x ~ ~ x ~").s("gm_synth_bass_1").gain(0.85),
+  s("<[cr, bd] ~ [cr, bd] ~ [cr, bd] [cr, bd]>").gain(0.75), s("[~ cp]*2").gain(0.65), s("hh*8").gain(0.35)
 )
 
 arrange(

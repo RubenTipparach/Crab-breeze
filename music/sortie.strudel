@@ -1,20 +1,19 @@
 // @title Crab Breeze: Sortie
 // @cycles 64
-// @reverb 0.35
-// @mix gm_trumpet vol=190
-// @mix gm_french_horn vol=90
-// @mix gm_contrabass vol=105
-// @mix gm_distortion_guitar vol=70
-// @mix gm_overdriven_guitar vol=70
-// @mix gm_choir_aahs vol=85
-// @mix square vol=14
-// @mix supersaw vol=30
+// @drumkit 25
+// @mix gm_synth_bass_2 vol=7.5
+// @mix gm_lead_2_sawtooth vol=72
+// @space gm_lead_2_sawtooth 0.22
+// @space gm_lead_5_charang 0.25
+// @space gm_lead_1_square 0.25
+// @space gm_pad_choir 0.35
 //
-// The fight: the mission music while the mech is in combat. Radio call sign
-// over a racing D pedal, the Breeze on trumpets and a supersaw over chugging
-// guitars, the crabs pushing in (scuttle, claw, siren) and the Breeze taking
-// their rhythm back. 150 BPM, 64 bars (102 s); the last bar sits on A so the
-// track loops straight back into the opening. Motifs: docs/design/music.md.
+// The fight, electronic and futuristic: the radio call sign over a reese bass
+// pedal and a gathering breakbeat, the Breeze on a supersaw over arpeggios, the
+// crabs on an acid bassline with synth-stab claws and the siren on a pad, then
+// the Breeze back on top with the crab rhythm stolen into its bass. 150 BPM,
+// 64 bars (102 s); the last bar sits on A so it loops straight back into the
+// opening. Motifs: docs/design/music.md.
 
 setcps(150/60/4)
 
@@ -87,72 +86,68 @@ const FANFARE_CHORDS = note(`<
 >`)
 // ── END MOTIF LIBRARY ──────────────────────────────────────────
 
+// an echo written as notes (LMMS's delay effect renders silence headless)
+const echo = (p, t = 3/16) => stack(p, p.late(t).gain(0.35), p.late(2 * t).gain(0.14))
+// sixteenth arpeggio over a chord: low, mid, high, mid
+const arp16 = (chords) => chords.arp("0 1 2 1 0 2 1 2 0 1 2 1 0 2 1 2")
 const power = (roots) => roots.add(note("[12,19,24]"))
-const fill = s("<~!7 [~ ~ ~ ~ ~ ~ ~ ~ sd sd ht ht mt mt ft ft]>")
-const rock = stack(STRIDE_DRUMS, s("hh*8").gain(0.4), s("~ ~ ~ ~ ~ ~ ~ oh").gain(0.4))
 
-// engage: the radio and a racing pedal on D, drums gathering
+const breaks = stack(
+  s("bd ~ ~ ~ ~ ~ ~ bd ~ ~ bd ~ ~ ~ ~ ~").gain(0.95),
+  s("~ ~ ~ ~ sd ~ ~ ~ ~ ~ ~ ~ sd ~ ~ [~ sd]").gain(0.8),
+  s("hh*16").gain(0.28), s("~ ~ ~ ~ ~ ~ oh ~ ~ ~ ~ ~ ~ ~ oh ~").gain(0.35)
+)
+const fill = s("<~!7 [~ ~ ~ ~ ~ ~ ~ ~ sd sd ht ht mt mt lt lt]>").gain(0.7)
+
+// engage: the radio, a reese pedal on D in eighths, drums gathering
 const engage = stack(
-  CALLSIGN.s("square").gain(0.8),
-  note("d3").struct("x*16").s("gm_tremolo_strings").gain(0.55),
-  note("<d2!7 a1>").struct("x*8").s("gm_electric_bass_pick").gain(0.7),
-  note("<[d2,a2]!7 [a1,e2]>").struct("x*8").s("gm_overdriven_guitar").gain(0.5),
-  s("bd*4").gain(saw.slow(8).range(0.5, 1)),
+  echo(CALLSIGN.s("gm_lead_1_square").gain(0.8), 3/8),
+  note("<d2!7 a1>").struct("x*8").s("gm_synth_bass_2").gain(0.75),
+  note("<[d3,a3]!7 [a2,e3]>").s("gm_pad_choir").gain(0.4),
+  s("bd*4").gain(saw.slow(8).range(0.4, 0.95)),
+  s("hh*16").gain(saw.slow(8).range(0.05, 0.3)),
   s("<~!6 [sd*4] [sd*8]>").gain(0.7)
 )
 
-// drive A: the Breeze on trumpets and a supersaw, guitars chugging
+// drive A: the Breeze on a supersaw, arpeggios, reese bass, the breakbeat
 const driveA = stack(
-  BREEZE.s("gm_trumpet").gain(1.05),
-  BREEZE.s("supersaw").gain(0.6),
-  power(SPINE_ROOTS).struct("x*8").s("gm_distortion_guitar").gain(0.6),
-  SPINE_ROOTS.add(note(12)).struct("x*8").s("gm_electric_bass_pick").gain(0.85),
-  SPINE_CHORDS.add(note(12)).struct(STRIDE).s("gm_brass_section").gain(0.6),
-  SPINE_CHORDS.s("gm_string_ensemble_1").gain(0.45),
-  rock.gain(0.95),
-  s("<cr ~!7 cr ~!7>").gain(0.7),
-  fill.gain(0.7)
+  echo(BREEZE.s("gm_lead_2_sawtooth").gain(1.0)),
+  arp16(SPINE_CHORDS.add(note(12))).s("gm_lead_1_square").gain(0.4),
+  SPINE_CHORDS.struct("x*8").gain("0.3 0.75").s("gm_pad_poly"),
+  SPINE_ROOTS.add(note(12)).struct("x ~ x x ~ x [~ x] x").s("gm_synth_bass_2").gain(0.85),
+  breaks, fill, s("<cr ~!7 cr ~!7>").gain(0.65)
 )
 
-// crabs: the scuttle in the low strings and guitars, claw stabs, the siren
-// above; the second pass throws the Breeze's head against them on horns
+// crabs: the scuttle on acid and reese, claw stabs, the siren; the second pass
+// throws the Breeze's head against them on the trance lead
 const crabs = stack(
-  SCUTTLE.add(note(12)).s("gm_cello").gain(SCUTTLE_ACCENT),
-  SCUTTLE.add(note(12)).s("gm_overdriven_guitar").gain(SCUTTLE_ACCENT),
-  SCUTTLE.s("gm_contrabass").gain(SCUTTLE_ACCENT),
-  CLAW.s("gm_brass_section").gain(0.85),
-  SIREN.add(note(12)).s("gm_choir_aahs").gain(0.65),
-  SIREN.s("gm_tremolo_strings").gain(0.5),
-  note("<~!8 [d4@3 a4@3 g4 a4] ~ [d4@3 a4@3 g4 a4] ~ [d4@3 a4@3 bb4 a4] ~ [d5@3 a4@3 g4 a4] [ab4@8]>")
-    .s("gm_french_horn").gain(1.0),
-  s("[bd ~ ~ ~ ~ ~ bd ~ ~ ~ ~ ~ bd ~ bd ~, ~ ~ ~ ~ ~ ~ ~ ~ sd ~ ~ ~ ~ ~ ~ ~]").gain(0.9),
-  s("<cr ~!7 cr ~!7>").gain(0.7),
-  fill.gain(0.7)
+  SCUTTLE.add(note(12)).s("gm_lead_8_bass_lead").gain(SCUTTLE_ACCENT),
+  SCUTTLE.s("gm_synth_bass_2").gain(SCUTTLE_ACCENT),
+  CLAW.s("gm_synth_brass_1").gain(0.7),
+  SIREN.add(note(12)).s("gm_pad_choir").gain(0.55),
+  echo(note("<~!8 [d4@3 a4@3 g4 a4] ~ [d4@3 a4@3 g4 a4] ~ [d4@3 a4@3 bb4 a4] ~ [d5@3 a4@3 g4 a4] [ab4@8]>").s("gm_lead_5_charang").gain(0.9)),
+  s("bd ~ ~ ~ ~ ~ bd ~ ~ ~ ~ ~ bd ~ bd ~").gain(0.95), s("~ ~ ~ ~ sd ~ ~ ~ ~ ~ ~ ~ sd ~ ~ ~").gain(0.75),
+  s("hh*16").gain(SCUTTLE_ACCENT).velocity(0.3), fill, s("<cr ~!7 cr ~!7>").gain(0.65)
 )
 
-// drive B: the Breeze an octave up, choir behind, the crab rhythm on the spine roots
+// drive B: the Breeze on top (supersaw and trance lead an octave up), the bass in the crab rhythm
 const driveB = stack(
-  BREEZE.add(note(12)).s("supersaw").gain(0.55),
-  BREEZE.s("gm_trumpet").gain(1.05),
-  BREEZE.sub(note(12)).s("gm_french_horn").gain(0.9),
-  SPINE_CHORDS.add(note(12)).s("gm_choir_aahs").gain(0.6),
-  power(SPINE_ROOTS).struct("x*16").s("gm_distortion_guitar").gain(SCUTTLE_ACCENT),
-  SPINE_ROOTS.add(note(12)).struct("x*16").s("gm_electric_bass_pick").gain(SCUTTLE_ACCENT),
-  SPINE_ROOTS.add(note(12)).struct(STRIDE).s("gm_timpani").gain(0.75),
-  rock,
-  s("<cr ~!7 cr ~!7>").gain(0.8),
-  fill.gain(0.8)
+  echo(BREEZE.s("gm_lead_2_sawtooth").gain(1.0)),
+  BREEZE.add(note(12)).s("gm_lead_5_charang").gain(0.55),
+  SPINE_CHORDS.add(note(12)).struct(STRIDE).s("gm_synth_brass_1").gain(0.55),
+  arp16(SPINE_CHORDS.add(note(12))).s("gm_lead_1_square").gain(0.35),
+  SPINE_ROOTS.add(note(12)).struct("x*16").s("gm_synth_bass_2").gain(SCUTTLE_ACCENT),
+  SPINE_ROOTS.add(note(24)).struct("x*16").s("gm_lead_8_bass_lead").gain(SCUTTLE_ACCENT).velocity(0.5),
+  breaks, fill, s("<cr ~!7 cr ~!7>").gain(0.7)
 )
 
-// break: claw against call sign, sinking to A to loop home
+// break: claw against the call sign, sinking to A to loop home
 const breakdown = stack(
-  CALLSIGN.s("square").gain(0.8),
-  CLAW.s("gm_brass_section").gain(0.7),
-  note("<d2!6 bb1 a1>").struct("x*8").s("gm_electric_bass_pick").gain(0.75),
-  note("<[d3,a3]!6 [bb2,f3] [a2,e3]>").struct(STRIDE).s("gm_distortion_guitar").gain(0.5),
-  note("<[d3,f3,a3]!6 [bb2,d3,f3] [a2,c#3,e3]>").s("gm_string_ensemble_1").gain(0.55),
-  s("bd*4, ~ sd ~ sd").gain(0.85),
-  s("<~!7 [sd*8]>").gain(0.75)
+  echo(CALLSIGN.s("gm_lead_1_square").gain(0.8), 3/8),
+  CLAW.s("gm_synth_brass_1").gain(0.6),
+  note("<d2!6 bb1 a1>").struct("x*8").s("gm_synth_bass_2").gain(0.75),
+  note("<[d3,f3,a3]!6 [bb2,d3,f3] [a2,c#3,e3]>").s("gm_pad_choir").gain(0.45),
+  s("bd*4").gain(0.85), s("~ sd ~ sd").gain(0.7), s("<~!7 [sd*8]>").gain(0.7)
 )
 
 arrange([8, engage], [16, driveA], [16, crabs], [16, driveB], [8, breakdown])

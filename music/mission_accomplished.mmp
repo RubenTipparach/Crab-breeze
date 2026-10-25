@@ -4,157 +4,248 @@
 <head timesig_numerator="4" mastervol="50" masterpitch="0" timesig_denominator="4" bpm="104"/>
 <song>
 <trackcontainer type="song" width="600" maximized="0" height="300" x="5" y="5" visible="1">
-<track muted="0" type="0" name="gm_trumpet" solo="0">
-<instrumenttrack pitch="0" pitchrange="1" vol="190" basenote="57" pan="15" fxch="0" usemasterpitch="1">
-<instrument name="sf2player">
-<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="56" bank="0" gain="1" reverbOn="1" reverbLevel="0.55" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
-</instrument>
-<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
-<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-</eldata>
-<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
-<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
-<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
-<fxchain numofeffects="0" enabled="0"/>
+<track muted="0" type="0" name="gm_lead_2_sawtooth" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="51" basenote="57" pan="0" fxch="0" usemasterpitch="1">
+
+      <instrument name="tripleoscillator">
+        <tripleoscillator phoffset2="0" userwavefile0="" finer0="0" userwavefile1="" finer1="-25" userwavefile2="" finer2="15" coarse0="0" coarse1="0" coarse2="0" finel0="-1" finel1="-25" modalgo1="2" modalgo2="2" finel2="15" pan0="0" modalgo3="2" pan1="0" stphdetun0="0" pan2="0" stphdetun1="0" wavetype0="2" stphdetun2="0" wavetype1="2" wavetype2="2" vol0="33" vol1="33" phoffset0="0" phoffset1="0" vol2="33"/>
+      </instrument>
+      <eldata fres="1.86" ftype="0" fcut="442" fwet="1">
+        <elvol lspd_denominator="4" sustain="1" pdel="0" userwavefile="" dec="2" lamt="0" syncmode="0" latt="0" rel="0.1" amt="1" x100="0" att="0.033" lpdel="0" hold="0" lshp="0" lspd="0.1" ctlenvamt="0" lspd_numerator="4"/>
+        <elcut lspd_denominator="4" sustain="0.06" pdel="0" userwavefile="" dec="0.725" lamt="0" syncmode="0" latt="0" rel="0.162" amt="1" x100="0" att="0.038" lpdel="0" hold="0" lshp="0" lspd="0.1" ctlenvamt="0" lspd_numerator="4"/>
+        <elres lspd_denominator="4" sustain="0.5" pdel="0" userwavefile="" dec="0.5" lamt="0" syncmode="0" latt="0" rel="0.1" amt="0" x100="0" att="0" lpdel="0" hold="0.5" lshp="0" lspd="0.1" ctlenvamt="0" lspd_numerator="4"/>
+      </eldata>
+      <chordcreator chord="0" chordrange="1" chord-enabled="0"/>
+      <arpeggiator arptime="100" arprange="1" arptime_denominator="4" syncmode="0" arpmode="0" arp-enabled="0" arp="0" arptime_numerator="4" arpdir="0" arpgate="100"/>
+      <midiport inputcontroller="0" fixedoutputvelocity="-1" inputchannel="0" outputcontroller="0" writable="0" outputchannel="1" fixedinputvelocity="-1" fixedoutputnote="-1" outputprogram="1" basevelocity="63" readable="0"/>
+      <fxchain numofeffects="3" enabled="1">
+        <effect autoquit_numerator="4" autoquit_denominator="4" syncmode="0" autoquit="8000" gate="0" name="ladspaeffect" wet="1" on="1">
+          <ladspacontrols ports="10">
+            <port04 data="174.825"/>
+            <port05 data="8"/>
+            <port06 data="8"/>
+            <port07 data="8"/>
+            <port08 data="0.5"/>
+            <port09 data="0.48"/>
+            <port010 data="2"/>
+            <port011 data="1"/>
+            <port012 data="0.86"/>
+            <port013 data="1"/>
+          </ladspacontrols>
+          <key>
+            <attribute value="calf" name="file"/>
+            <attribute value="VintageDelay" name="plugin"/>
+          </key>
+        </effect>
+        <effect autoquit_numerator="4" autoquit_denominator="4" syncmode="0" autoquit="1" gate="0" name="dualfilter" wet="1" on="1">
+          <DualFilterControls gain2="100" cut1="10" cut2="7000" mix="0" res1="0.01" res2="0.5" filter1="1" filter2="0" enabled1="1" enabled2="0" gain1="100"/>
+          <key/>
+        </effect>
+      <effect name="reverbsc" on="1" wet="0.3" gate="0" autoquit="1" autoquit_numerator="4" autoquit_denominator="4" syncmode="0"><ReverbSCControls input_gain="0" size="0.88" color="9000" output_gain="0"/><key/></effect></fxchain>
+    
 </instrumenttrack>
-<pattern muted="0" type="1" name="gm_trumpet" pos="0" len="1536" steps="16">
-<note pan="0" key="62" vol="173" pos="0" len="71"/>
-<note pan="0" key="65" vol="173" pos="72" len="71"/>
-<note pan="0" key="62" vol="173" pos="144" len="23"/>
-<note pan="0" key="65" vol="173" pos="168" len="23"/>
-<note pan="0" key="64" vol="173" pos="192" len="71"/>
-<note pan="0" key="67" vol="173" pos="264" len="71"/>
-<note pan="0" key="64" vol="173" pos="336" len="23"/>
-<note pan="0" key="67" vol="173" pos="360" len="23"/>
-<note pan="0" key="62" vol="173" pos="384" len="71"/>
-<note pan="0" key="69" vol="173" pos="456" len="71"/>
-<note pan="0" key="67" vol="173" pos="528" len="23"/>
-<note pan="0" key="69" vol="173" pos="552" len="23"/>
-<note pan="0" key="66" vol="173" pos="576" len="191"/>
-<note pan="0" key="71" vol="173" pos="768" len="71"/>
-<note pan="0" key="69" vol="173" pos="840" len="71"/>
-<note pan="0" key="66" vol="173" pos="912" len="23"/>
-<note pan="0" key="67" vol="173" pos="936" len="23"/>
-<note pan="0" key="69" vol="173" pos="960" len="191"/>
-<note pan="0" key="69" vol="157" pos="1152" len="191"/>
+<pattern muted="0" type="1" name="gm_lead_2_sawtooth" pos="0" len="1536" steps="16">
+<note pan="0" key="62" vol="157" pos="0" len="71"/>
+<note pan="0" key="62" vol="55" pos="36" len="71"/>
+<note pan="0" key="62" vol="22" pos="72" len="71"/>
+<note pan="0" key="65" vol="157" pos="72" len="71"/>
+<note pan="0" key="65" vol="55" pos="108" len="71"/>
+<note pan="0" key="62" vol="157" pos="144" len="23"/>
+<note pan="0" key="65" vol="22" pos="144" len="71"/>
+<note pan="0" key="65" vol="157" pos="168" len="23"/>
+<note pan="0" key="62" vol="55" pos="180" len="23"/>
+<note pan="0" key="64" vol="157" pos="192" len="71"/>
+<note pan="0" key="65" vol="55" pos="204" len="23"/>
+<note pan="0" key="62" vol="22" pos="216" len="23"/>
+<note pan="0" key="64" vol="55" pos="228" len="71"/>
+<note pan="0" key="65" vol="22" pos="240" len="23"/>
+<note pan="0" key="64" vol="22" pos="264" len="71"/>
+<note pan="0" key="67" vol="157" pos="264" len="71"/>
+<note pan="0" key="67" vol="55" pos="300" len="71"/>
+<note pan="0" key="64" vol="157" pos="336" len="23"/>
+<note pan="0" key="67" vol="22" pos="336" len="71"/>
+<note pan="0" key="67" vol="157" pos="360" len="23"/>
+<note pan="0" key="64" vol="55" pos="372" len="23"/>
+<note pan="0" key="62" vol="157" pos="384" len="71"/>
+<note pan="0" key="67" vol="55" pos="396" len="23"/>
+<note pan="0" key="64" vol="22" pos="408" len="23"/>
+<note pan="0" key="62" vol="55" pos="420" len="71"/>
+<note pan="0" key="67" vol="22" pos="432" len="23"/>
+<note pan="0" key="62" vol="22" pos="456" len="71"/>
+<note pan="0" key="69" vol="157" pos="456" len="71"/>
+<note pan="0" key="69" vol="55" pos="492" len="71"/>
+<note pan="0" key="67" vol="157" pos="528" len="23"/>
+<note pan="0" key="69" vol="22" pos="528" len="71"/>
+<note pan="0" key="69" vol="157" pos="552" len="23"/>
+<note pan="0" key="67" vol="55" pos="564" len="23"/>
+<note pan="0" key="66" vol="157" pos="576" len="191"/>
+<note pan="0" key="69" vol="55" pos="588" len="23"/>
+<note pan="0" key="67" vol="22" pos="600" len="23"/>
+<note pan="0" key="66" vol="55" pos="612" len="191"/>
+<note pan="0" key="69" vol="22" pos="624" len="23"/>
+<note pan="0" key="66" vol="22" pos="648" len="191"/>
+<note pan="0" key="71" vol="157" pos="768" len="71"/>
+<note pan="0" key="71" vol="55" pos="804" len="71"/>
+<note pan="0" key="69" vol="157" pos="840" len="71"/>
+<note pan="0" key="71" vol="22" pos="840" len="71"/>
+<note pan="0" key="69" vol="55" pos="876" len="71"/>
+<note pan="0" key="66" vol="157" pos="912" len="23"/>
+<note pan="0" key="69" vol="22" pos="912" len="71"/>
+<note pan="0" key="67" vol="157" pos="936" len="23"/>
+<note pan="0" key="66" vol="55" pos="948" len="23"/>
+<note pan="0" key="69" vol="157" pos="960" len="191"/>
+<note pan="0" key="67" vol="55" pos="972" len="23"/>
+<note pan="0" key="66" vol="22" pos="984" len="23"/>
+<note pan="0" key="69" vol="55" pos="996" len="191"/>
+<note pan="0" key="67" vol="22" pos="1008" len="23"/>
+<note pan="0" key="69" vol="22" pos="1032" len="191"/>
 </pattern>
 </track>
-<track muted="0" type="0" name="gm_french_horn" solo="0">
-<instrumenttrack pitch="0" pitchrange="1" vol="58" basenote="57" pan="-25" fxch="0" usemasterpitch="1">
-<instrument name="sf2player">
-<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="60" bank="0" gain="1" reverbOn="1" reverbLevel="0.55" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
-</instrument>
-<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
-<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-</eldata>
-<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
-<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
-<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
-<fxchain numofeffects="0" enabled="0"/>
+<track muted="0" type="0" name="gm_synth_brass_1" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="5.8" basenote="57" pan="0" fxch="0" usemasterpitch="1">
+
+      <instrument name="tripleoscillator">
+        <tripleoscillator phoffset2="80" userwavefile0="" finer0="0" userwavefile1="" finer1="13" userwavefile2="samples/shapes/smooth_inv_saw.ogg" finer2="0" coarse0="0" coarse1="0" coarse2="12" finel0="0" finel1="-16" modalgo1="2" modalgo2="0" finel2="0" pan0="0" modalgo3="0" pan1="0" stphdetun0="121" pan2="0" stphdetun1="259" wavetype0="2" stphdetun2="92" wavetype1="2" wavetype2="3" vol0="100" vol1="100" phoffset0="0" phoffset1="266" vol2="63"/>
+      </instrument>
+      <eldata fres="1.26" ftype="7" fcut="1754" fwet="1">
+        <elvol lspd_denominator="1" sustain="1" pdel="0" userwavefile="" dec="0.598" lamt="0" syncmode="0" latt="0" rel="0.329" amt="1" x100="0" att="0" lpdel="0" hold="0" lshp="0" lspd="0.1" ctlenvamt="0" lspd_numerator="1"/>
+        <elcut lspd_denominator="1" sustain="0.001" pdel="0" userwavefile="" dec="0.137" lamt="0.63" syncmode="0" latt="0" rel="0.016" amt="0.82" x100="0" att="0" lpdel="0" hold="0" lshp="1" lspd="0.2918" ctlenvamt="0" lspd_numerator="1"/>
+        <elres lspd_denominator="1" sustain="0.5" pdel="0" userwavefile="" dec="0.5" lamt="0" syncmode="0" latt="0" rel="0.1" amt="0" x100="0" att="0" lpdel="0" hold="0.5" lshp="0" lspd="0.1" ctlenvamt="0" lspd_numerator="1"/>
+      </eldata>
+      <chordcreator chord="0" chordrange="1" chord-enabled="0"/>
+      <arpeggiator arptime="143" arprange="3" arptime_denominator="3" syncmode="8" arpmode="0" arp-enabled="0" arp="0" arptime_numerator="1" arpdir="0" arpgate="100"/>
+      <midiport inputcontroller="0" fixedoutputvelocity="-1" inputchannel="0" outputcontroller="0" writable="0" outputchannel="1" fixedinputvelocity="-1" fixedoutputnote="-1" outputprogram="1" basevelocity="127" readable="0"/>
+      <fxchain numofeffects="0" enabled="0"/>
+    
 </instrumenttrack>
-<pattern muted="0" type="1" name="gm_french_horn" pos="0" len="1536" steps="16">
-<note pan="0" key="50" vol="134" pos="0" len="71"/>
-<note pan="0" key="53" vol="134" pos="72" len="71"/>
-<note pan="0" key="50" vol="134" pos="144" len="23"/>
-<note pan="0" key="53" vol="134" pos="168" len="23"/>
-<note pan="0" key="52" vol="134" pos="192" len="71"/>
-<note pan="0" key="55" vol="134" pos="264" len="71"/>
-<note pan="0" key="52" vol="134" pos="336" len="23"/>
-<note pan="0" key="55" vol="134" pos="360" len="23"/>
-<note pan="0" key="50" vol="134" pos="384" len="71"/>
-<note pan="0" key="57" vol="134" pos="456" len="71"/>
-<note pan="0" key="55" vol="134" pos="528" len="23"/>
-<note pan="0" key="57" vol="134" pos="552" len="23"/>
-<note pan="0" key="54" vol="134" pos="576" len="191"/>
-<note pan="0" key="59" vol="134" pos="768" len="71"/>
-<note pan="0" key="57" vol="134" pos="840" len="71"/>
-<note pan="0" key="54" vol="134" pos="912" len="23"/>
-<note pan="0" key="55" vol="134" pos="936" len="23"/>
-<note pan="0" key="57" vol="134" pos="960" len="191"/>
+<pattern muted="0" type="1" name="gm_synth_brass_1" pos="0" len="1536" steps="16">
+<note pan="0" key="46" vol="94" pos="0" len="23"/>
+<note pan="0" key="50" vol="94" pos="0" len="23"/>
+<note pan="0" key="53" vol="94" pos="0" len="23"/>
+<note pan="0" key="46" vol="94" pos="72" len="23"/>
+<note pan="0" key="50" vol="94" pos="72" len="23"/>
+<note pan="0" key="53" vol="94" pos="72" len="23"/>
+<note pan="0" key="46" vol="94" pos="144" len="23"/>
+<note pan="0" key="50" vol="94" pos="144" len="23"/>
+<note pan="0" key="53" vol="94" pos="144" len="23"/>
+<note pan="0" key="48" vol="94" pos="192" len="23"/>
+<note pan="0" key="52" vol="94" pos="192" len="23"/>
+<note pan="0" key="55" vol="94" pos="192" len="23"/>
+<note pan="0" key="48" vol="94" pos="264" len="23"/>
+<note pan="0" key="52" vol="94" pos="264" len="23"/>
+<note pan="0" key="55" vol="94" pos="264" len="23"/>
+<note pan="0" key="48" vol="94" pos="336" len="23"/>
+<note pan="0" key="52" vol="94" pos="336" len="23"/>
+<note pan="0" key="55" vol="94" pos="336" len="23"/>
+<note pan="0" key="50" vol="94" pos="384" len="23"/>
+<note pan="0" key="54" vol="94" pos="384" len="23"/>
+<note pan="0" key="57" vol="94" pos="384" len="23"/>
+<note pan="0" key="50" vol="94" pos="456" len="23"/>
+<note pan="0" key="54" vol="94" pos="456" len="23"/>
+<note pan="0" key="57" vol="94" pos="456" len="23"/>
+<note pan="0" key="50" vol="94" pos="528" len="23"/>
+<note pan="0" key="54" vol="94" pos="528" len="23"/>
+<note pan="0" key="57" vol="94" pos="528" len="23"/>
+<note pan="0" key="50" vol="94" pos="576" len="23"/>
+<note pan="0" key="54" vol="94" pos="576" len="23"/>
+<note pan="0" key="57" vol="94" pos="576" len="23"/>
+<note pan="0" key="50" vol="94" pos="648" len="23"/>
+<note pan="0" key="54" vol="94" pos="648" len="23"/>
+<note pan="0" key="57" vol="94" pos="648" len="23"/>
+<note pan="0" key="50" vol="94" pos="720" len="23"/>
+<note pan="0" key="54" vol="94" pos="720" len="23"/>
+<note pan="0" key="57" vol="94" pos="720" len="23"/>
+<note pan="0" key="43" vol="94" pos="768" len="23"/>
+<note pan="0" key="47" vol="94" pos="768" len="23"/>
+<note pan="0" key="50" vol="94" pos="768" len="23"/>
+<note pan="0" key="43" vol="94" pos="840" len="23"/>
+<note pan="0" key="47" vol="94" pos="840" len="23"/>
+<note pan="0" key="50" vol="94" pos="840" len="23"/>
+<note pan="0" key="43" vol="94" pos="912" len="23"/>
+<note pan="0" key="47" vol="94" pos="912" len="23"/>
+<note pan="0" key="50" vol="94" pos="912" len="23"/>
+<note pan="0" key="50" vol="94" pos="960" len="23"/>
+<note pan="0" key="54" vol="94" pos="960" len="23"/>
+<note pan="0" key="57" vol="94" pos="960" len="23"/>
+<note pan="0" key="50" vol="94" pos="1032" len="23"/>
+<note pan="0" key="54" vol="94" pos="1032" len="23"/>
+<note pan="0" key="57" vol="94" pos="1032" len="23"/>
+<note pan="0" key="50" vol="94" pos="1104" len="23"/>
+<note pan="0" key="54" vol="94" pos="1104" len="23"/>
+<note pan="0" key="57" vol="94" pos="1104" len="23"/>
 </pattern>
 </track>
-<track muted="0" type="0" name="gm_brass_section" solo="0">
-<instrumenttrack pitch="0" pitchrange="1" vol="107" basenote="57" pan="0" fxch="0" usemasterpitch="1">
-<instrument name="sf2player">
-<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="61" bank="0" gain="1" reverbOn="1" reverbLevel="0.55" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
-</instrument>
-<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
-<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-</eldata>
-<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
-<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
-<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
-<fxchain numofeffects="0" enabled="0"/>
+<track muted="0" type="0" name="gm_synth_strings_1" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="5.7" basenote="57" pan="0" fxch="0" usemasterpitch="1">
+
+      <instrument name="tripleoscillator">
+        <tripleoscillator phoffset2="80" userwavefile0="" finer0="0" userwavefile1="" finer1="13" userwavefile2="samples/shapes/smooth_inv_saw.ogg" finer2="0" coarse0="0" coarse1="0" coarse2="12" finel0="0" finel1="-16" modalgo1="2" modalgo2="0" finel2="0" pan0="0" modalgo3="2" pan1="0" stphdetun0="121" pan2="0" stphdetun1="259" wavetype0="2" stphdetun2="92" wavetype1="2" wavetype2="3" vol0="100" vol1="100" phoffset0="0" phoffset1="266" vol2="42"/>
+      </instrument>
+      <eldata fres="1.04" ftype="7" fcut="3224" fwet="1">
+        <elvol lspd_denominator="1" sustain="1" pdel="0" userwavefile="" dec="0.797" lamt="0" syncmode="0" latt="0" rel="0.219" amt="1" x100="0" att="0" lpdel="0" hold="0" lshp="0" lspd="0.1" ctlenvamt="0" lspd_numerator="1"/>
+        <elcut lspd_denominator="1" sustain="0.002" pdel="0" userwavefile="" dec="0.336" lamt="0" syncmode="0" latt="0" rel="0.016" amt="1" x100="0" att="0" lpdel="0" hold="0" lshp="1" lspd="0.6268" ctlenvamt="0" lspd_numerator="1"/>
+        <elres lspd_denominator="1" sustain="0.501" pdel="0" userwavefile="" dec="0.499" lamt="0.43" syncmode="0" latt="0" rel="0.1" amt="0" x100="0" att="0" lpdel="0" hold="0.499" lshp="0" lspd="0.6717" ctlenvamt="0" lspd_numerator="1"/>
+      </eldata>
+      <chordcreator chord="0" chordrange="1" chord-enabled="0"/>
+      <arpeggiator arptime="158" arprange="2" arptime_denominator="1" syncmode="0" arpmode="0" arp-enabled="0" arp="0" arptime_numerator="1" arpdir="0" arpgate="100"/>
+      <midiport inputcontroller="0" fixedoutputvelocity="-1" inputchannel="0" outputcontroller="0" writable="0" outputchannel="1" fixedinputvelocity="-1" fixedoutputnote="-1" outputprogram="1" basevelocity="127" readable="0"/>
+      <fxchain numofeffects="4" enabled="1">
+        <effect autoquit_numerator="4" autoquit_denominator="4" syncmode="0" autoquit="1" gate="0" name="bassbooster" wet="1" on="1">
+          <bassboostercontrols ratio="10" freq="100" gain="1"/>
+          <key/>
+        </effect>
+        <effect autoquit_numerator="4" autoquit_denominator="4" syncmode="0" autoquit="8000" gate="0" name="ladspaeffect" wet="1" on="1">
+          <ladspacontrols ports="4">
+            <port02 data="0.50197"/>
+            <port03 data="0.54677"/>
+            <port04 data="0.249875"/>
+            <port05 data="0.36"/>
+          </ladspacontrols>
+          <key>
+            <attribute value="caps.so" name="file"/>
+            <attribute value="Plate2x2" name="plugin"/>
+          </key>
+        </effect>
+        <effect autoquit_numerator="4" autoquit_denominator="4" syncmode="0" autoquit="1" gate="0" name="ladspaeffect" wet="1" on="1">
+          <ladspacontrols ports="10">
+            <port02 data="-48"/>
+            <port03 data="-22.32"/>
+            <port04 data="-7.92"/>
+            <port05 data="0"/>
+            <port06 data="0"/>
+            <port07 data="0"/>
+            <port08 data="0"/>
+            <port09 data="1.44"/>
+            <port010 data="1.98"/>
+            <port011 data="4.68"/>
+          </ladspacontrols>
+          <key>
+            <attribute value="caps" name="file"/>
+            <attribute value="Eq2x2" name="plugin"/>
+          </key>
+        </effect>
+      <effect name="reverbsc" on="1" wet="0.4" gate="0" autoquit="1" autoquit_numerator="4" autoquit_denominator="4" syncmode="0"><ReverbSCControls input_gain="0" size="0.88" color="9000" output_gain="0"/><key/></effect></fxchain>
+    
 </instrumenttrack>
-<pattern muted="0" type="1" name="gm_brass_section" pos="0" len="1536" steps="16">
-<note pan="0" key="46" vol="118" pos="0" len="191"/>
-<note pan="0" key="50" vol="118" pos="0" len="191"/>
-<note pan="0" key="53" vol="118" pos="0" len="191"/>
-<note pan="0" key="48" vol="118" pos="192" len="191"/>
-<note pan="0" key="52" vol="118" pos="192" len="191"/>
-<note pan="0" key="55" vol="118" pos="192" len="191"/>
-<note pan="0" key="50" vol="118" pos="384" len="191"/>
-<note pan="0" key="54" vol="118" pos="384" len="191"/>
-<note pan="0" key="57" vol="118" pos="384" len="191"/>
-<note pan="0" key="50" vol="118" pos="576" len="191"/>
-<note pan="0" key="54" vol="118" pos="576" len="191"/>
-<note pan="0" key="57" vol="118" pos="576" len="191"/>
-<note pan="0" key="43" vol="118" pos="768" len="191"/>
-<note pan="0" key="47" vol="118" pos="768" len="191"/>
-<note pan="0" key="50" vol="118" pos="768" len="191"/>
-<note pan="0" key="50" vol="118" pos="960" len="191"/>
-<note pan="0" key="54" vol="118" pos="960" len="191"/>
-<note pan="0" key="57" vol="118" pos="960" len="191"/>
-<note pan="0" key="50" vol="110" pos="1152" len="191"/>
-<note pan="0" key="54" vol="110" pos="1152" len="191"/>
-<note pan="0" key="57" vol="110" pos="1152" len="191"/>
-<note pan="0" key="62" vol="110" pos="1152" len="191"/>
-<note pan="0" key="50" vol="110" pos="1344" len="191"/>
-<note pan="0" key="54" vol="110" pos="1344" len="191"/>
-<note pan="0" key="57" vol="110" pos="1344" len="191"/>
-<note pan="0" key="62" vol="110" pos="1344" len="191"/>
-</pattern>
-</track>
-<track muted="0" type="0" name="gm_string_ensemble_1" solo="0">
-<instrumenttrack pitch="0" pitchrange="1" vol="106" basenote="57" pan="-10" fxch="0" usemasterpitch="1">
-<instrument name="sf2player">
-<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="48" bank="0" gain="1" reverbOn="1" reverbLevel="0.55" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
-</instrument>
-<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
-<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-</eldata>
-<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
-<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
-<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
-<fxchain numofeffects="0" enabled="0"/>
-</instrumenttrack>
-<pattern muted="0" type="1" name="gm_string_ensemble_1" pos="0" len="1536" steps="16">
-<note pan="0" key="46" vol="94" pos="0" len="191"/>
-<note pan="0" key="50" vol="94" pos="0" len="191"/>
-<note pan="0" key="53" vol="94" pos="0" len="191"/>
-<note pan="0" key="48" vol="94" pos="192" len="191"/>
-<note pan="0" key="52" vol="94" pos="192" len="191"/>
-<note pan="0" key="55" vol="94" pos="192" len="191"/>
-<note pan="0" key="50" vol="94" pos="384" len="191"/>
-<note pan="0" key="54" vol="94" pos="384" len="191"/>
-<note pan="0" key="57" vol="94" pos="384" len="191"/>
-<note pan="0" key="50" vol="94" pos="576" len="191"/>
-<note pan="0" key="54" vol="94" pos="576" len="191"/>
-<note pan="0" key="57" vol="94" pos="576" len="191"/>
-<note pan="0" key="43" vol="94" pos="768" len="191"/>
-<note pan="0" key="47" vol="94" pos="768" len="191"/>
-<note pan="0" key="50" vol="94" pos="768" len="191"/>
-<note pan="0" key="50" vol="94" pos="960" len="191"/>
-<note pan="0" key="54" vol="94" pos="960" len="191"/>
-<note pan="0" key="57" vol="94" pos="960" len="191"/>
+<pattern muted="0" type="1" name="gm_synth_strings_1" pos="0" len="1536" steps="16">
+<note pan="0" key="46" vol="87" pos="0" len="191"/>
+<note pan="0" key="50" vol="87" pos="0" len="191"/>
+<note pan="0" key="53" vol="87" pos="0" len="191"/>
+<note pan="0" key="48" vol="87" pos="192" len="191"/>
+<note pan="0" key="52" vol="87" pos="192" len="191"/>
+<note pan="0" key="55" vol="87" pos="192" len="191"/>
+<note pan="0" key="50" vol="87" pos="384" len="191"/>
+<note pan="0" key="54" vol="87" pos="384" len="191"/>
+<note pan="0" key="57" vol="87" pos="384" len="191"/>
+<note pan="0" key="50" vol="87" pos="576" len="191"/>
+<note pan="0" key="54" vol="87" pos="576" len="191"/>
+<note pan="0" key="57" vol="87" pos="576" len="191"/>
+<note pan="0" key="43" vol="87" pos="768" len="191"/>
+<note pan="0" key="47" vol="87" pos="768" len="191"/>
+<note pan="0" key="50" vol="87" pos="768" len="191"/>
+<note pan="0" key="50" vol="87" pos="960" len="191"/>
+<note pan="0" key="54" vol="87" pos="960" len="191"/>
+<note pan="0" key="57" vol="87" pos="960" len="191"/>
 <note pan="0" key="38" vol="94" pos="1152" len="191"/>
 <note pan="0" key="45" vol="94" pos="1152" len="191"/>
 <note pan="0" key="50" vol="94" pos="1152" len="191"/>
@@ -167,130 +258,198 @@
 <note pan="0" key="57" vol="94" pos="1344" len="191"/>
 </pattern>
 </track>
-<track muted="0" type="0" name="gm_choir_aahs" solo="0">
-<instrumenttrack pitch="0" pitchrange="1" vol="107" basenote="57" pan="0" fxch="0" usemasterpitch="1">
-<instrument name="sf2player">
-<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="52" bank="0" gain="1" reverbOn="1" reverbLevel="0.55" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
-</instrument>
-<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
-<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-</eldata>
-<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
-<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
-<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
-<fxchain numofeffects="0" enabled="0"/>
+<track muted="0" type="0" name="gm_synth_bass_2" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="11.8" basenote="57" pan="0" fxch="0" usemasterpitch="1">
+
+      <instrument name="tripleoscillator">
+        <tripleoscillator phoffset2="0" userwavefile0="" finer0="14" userwavefile1="" finer1="-15" userwavefile2="" finer2="20" coarse0="-24" coarse1="-24" coarse2="-12" finel0="15" finel1="-14" modalgo1="2" modalgo2="2" finel2="20" pan0="0" modalgo3="2" pan1="0" stphdetun0="0" pan2="0" stphdetun1="0" wavetype0="2" stphdetun2="0" wavetype1="2" wavetype2="2" vol0="33" vol1="33" phoffset0="0" phoffset1="0" vol2="33"/>
+      </instrument>
+      <eldata fres="2" ftype="0" fcut="13720" fwet="1">
+        <elvol lspd_denominator="4" sustain="0.5" pdel="0" userwavefile="" dec="0.5" lamt="0" syncmode="0" latt="0" rel="0.1" amt="0" x100="0" att="0" lpdel="0" hold="0.5" lshp="0" lspd="0.1" ctlenvamt="0" lspd_numerator="4"/>
+        <elcut lspd_denominator="4" sustain="0.5" pdel="0" userwavefile="" dec="0.5" lamt="0" syncmode="0" latt="0" rel="0.1" amt="0" x100="0" att="0" lpdel="0" hold="0.5" lshp="0" lspd="0.1" ctlenvamt="0" lspd_numerator="4"/>
+        <elres lspd_denominator="4" sustain="0.5" pdel="0" userwavefile="" dec="0.5" lamt="0" syncmode="0" latt="0" rel="0.1" amt="1" x100="0" att="0" lpdel="0" hold="0.5" lshp="0" lspd="0.1" ctlenvamt="0" lspd_numerator="4"/>
+      </eldata>
+      <chordcreator chord="0" chordrange="1" chord-enabled="0"/>
+      <arpeggiator arptime="100" arprange="1" arptime_denominator="4" syncmode="0" arpmode="0" arp-enabled="0" arp="0" arptime_numerator="4" arpdir="0" arpgate="100"/>
+      <midiport inputcontroller="0" fixedoutputvelocity="-1" inputchannel="0" outputcontroller="0" writable="0" outputchannel="1" fixedinputvelocity="-1" fixedoutputnote="-1" outputprogram="1" basevelocity="127" readable="0"/>
+      <fxchain numofeffects="4" enabled="1">
+        <effect autoquit_numerator="4" autoquit_denominator="4" syncmode="0" autoquit="8000" gate="0" name="ladspaeffect" wet="1" on="1">
+          <ladspacontrols ports="12">
+            <port04 data="3.168"/>
+            <port05 data="9.999"/>
+            <port06 data="0.69965"/>
+            <port07 data="180"/>
+            <port08 data="4"/>
+            <port09 data="212.4"/>
+            <port010 data="2"/>
+            <port011 data="1"/>
+            <port012 data="99.95"/>
+            <port013 data="2998.5"/>
+            <port014 data="0.125"/>
+            <port015 data="0.38"/>
+          </ladspacontrols>
+          <key>
+            <attribute value="calf" name="file"/>
+            <attribute value="MultiChorus" name="plugin"/>
+          </key>
+        </effect>
+        <effect autoquit_numerator="4" autoquit_denominator="4" syncmode="0" autoquit="8000" gate="0" name="ladspaeffect" wet="1" on="0">
+          <ladspacontrols ports="7">
+            <port00 data="2.8"/>
+            <port01 data="90"/>
+            <port02 data="100"/>
+            <port03 data="0"/>
+            <port04 data="20"/>
+            <port05 data="0"/>
+            <port06 data="0"/>
+          </ladspacontrols>
+          <key>
+            <attribute value="tap_chorusflanger" name="file"/>
+            <attribute value="tap_chorusflanger" name="plugin"/>
+          </key>
+        </effect>
+        <effect autoquit_numerator="4" autoquit_denominator="4" syncmode="0" autoquit="8000" gate="0" name="ladspaeffect" wet="1" on="0">
+          <ladspacontrols ports="4">
+            <port02 data="0.50197"/>
+            <port03 data="0.3745"/>
+            <port04 data="0.9995"/>
+            <port05 data="0.25"/>
+          </ladspacontrols>
+          <key>
+            <attribute value="caps" name="file"/>
+            <attribute value="Plate2x2" name="plugin"/>
+          </key>
+        </effect>
+        <effect autoquit_numerator="4" autoquit_denominator="4" syncmode="0" autoquit="8000" gate="0" name="ladspaeffect" wet="1" on="1">
+          <ladspacontrols link="1" ports="6">
+            <port00 link="1" data="-3"/>
+            <port01 link="1" data="1"/>
+            <port02 link="1" data="0"/>
+            <port10 data="-3"/>
+            <port11 data="1"/>
+            <port12 data="0"/>
+          </ladspacontrols>
+          <key>
+            <attribute value="hard_limiter_1413" name="file"/>
+            <attribute value="hardLimiter" name="plugin"/>
+          </key>
+        </effect>
+      </fxchain>
+    
 </instrumenttrack>
-<pattern muted="0" type="1" name="gm_choir_aahs" pos="0" len="1536" steps="16">
-<note pan="0" key="58" vol="79" pos="0" len="191"/>
-<note pan="0" key="62" vol="79" pos="0" len="191"/>
-<note pan="0" key="65" vol="79" pos="0" len="191"/>
-<note pan="0" key="60" vol="79" pos="192" len="191"/>
-<note pan="0" key="64" vol="79" pos="192" len="191"/>
-<note pan="0" key="67" vol="79" pos="192" len="191"/>
-<note pan="0" key="62" vol="79" pos="384" len="191"/>
-<note pan="0" key="66" vol="79" pos="384" len="191"/>
-<note pan="0" key="69" vol="79" pos="384" len="191"/>
-<note pan="0" key="62" vol="79" pos="576" len="191"/>
-<note pan="0" key="66" vol="79" pos="576" len="191"/>
-<note pan="0" key="69" vol="79" pos="576" len="191"/>
-<note pan="0" key="55" vol="79" pos="768" len="191"/>
-<note pan="0" key="59" vol="79" pos="768" len="191"/>
-<note pan="0" key="62" vol="79" pos="768" len="191"/>
-<note pan="0" key="62" vol="79" pos="960" len="191"/>
-<note pan="0" key="66" vol="79" pos="960" len="191"/>
-<note pan="0" key="69" vol="79" pos="960" len="191"/>
-<note pan="0" key="50" vol="87" pos="1152" len="191"/>
-<note pan="0" key="54" vol="87" pos="1152" len="191"/>
-<note pan="0" key="57" vol="87" pos="1152" len="191"/>
-<note pan="0" key="50" vol="87" pos="1344" len="191"/>
-<note pan="0" key="54" vol="87" pos="1344" len="191"/>
-<note pan="0" key="57" vol="87" pos="1344" len="191"/>
+<pattern muted="0" type="1" name="gm_synth_bass_2" pos="0" len="1536" steps="16">
+<note pan="0" key="58" vol="126" pos="0" len="23"/>
+<note pan="0" key="58" vol="126" pos="72" len="23"/>
+<note pan="0" key="58" vol="126" pos="144" len="23"/>
+<note pan="0" key="60" vol="126" pos="192" len="23"/>
+<note pan="0" key="60" vol="126" pos="264" len="23"/>
+<note pan="0" key="60" vol="126" pos="336" len="23"/>
+<note pan="0" key="62" vol="126" pos="384" len="23"/>
+<note pan="0" key="62" vol="126" pos="456" len="23"/>
+<note pan="0" key="62" vol="126" pos="528" len="23"/>
+<note pan="0" key="62" vol="126" pos="576" len="23"/>
+<note pan="0" key="62" vol="126" pos="648" len="23"/>
+<note pan="0" key="62" vol="126" pos="720" len="23"/>
+<note pan="0" key="55" vol="126" pos="768" len="23"/>
+<note pan="0" key="55" vol="126" pos="840" len="23"/>
+<note pan="0" key="55" vol="126" pos="912" len="23"/>
+<note pan="0" key="62" vol="126" pos="960" len="23"/>
+<note pan="0" key="62" vol="126" pos="1032" len="23"/>
+<note pan="0" key="62" vol="126" pos="1104" len="23"/>
+<note pan="0" key="50" vol="110" pos="1152" len="191"/>
+<note pan="0" key="50" vol="110" pos="1344" len="191"/>
 </pattern>
 </track>
-<track muted="0" type="0" name="gm_contrabass" solo="0">
-<instrumenttrack pitch="0" pitchrange="1" vol="110" basenote="57" pan="25" fxch="0" usemasterpitch="1">
-<instrument name="sf2player">
-<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="43" bank="0" gain="1" reverbOn="1" reverbLevel="0.55" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
-</instrument>
-<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
-<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-</eldata>
-<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
-<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
-<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
-<fxchain numofeffects="0" enabled="0"/>
+<track muted="0" type="0" name="gm_fx_crystal" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="15.7" basenote="57" pan="0" fxch="0" usemasterpitch="1">
+
+      <instrument name="tripleoscillator">
+        <tripleoscillator phoffset2="0" userwavefile0="samples/empty.wav" finer0="0" userwavefile1="samples/empty.wav" finer1="0" userwavefile2="samples/empty.wav" finer2="13" coarse0="0" coarse1="0" coarse2="-12" finel0="0" finel1="0" modalgo1="2" modalgo2="3" finel2="-14" pan0="0" modalgo3="0" pan1="0" stphdetun0="247" pan2="0" stphdetun1="109" wavetype0="3" stphdetun2="50" wavetype1="2" wavetype2="0" vol0="49" vol1="54" phoffset0="0" phoffset1="271" vol2="14"/>
+      </instrument>
+      <eldata fres="0.66" ftype="0" fcut="5" fwet="1">
+        <elvol lspd_denominator="1" sustain="0.567" pdel="0" userwavefile="" dec="0.324" lamt="0" syncmode="0" latt="0" rel="0.473" amt="1" x100="0" att="0" lpdel="0" hold="0" lshp="0" lspd="0.0917" ctlenvamt="0" lspd_numerator="1"/>
+        <elcut lspd_denominator="1" sustain="0.36" pdel="0" userwavefile="" dec="0.385" lamt="0" syncmode="0" latt="0" rel="0.43" amt="1" x100="0" att="0" lpdel="0" hold="0" lshp="1" lspd="0.767" ctlenvamt="0" lspd_numerator="1"/>
+        <elres lspd_denominator="1" sustain="0.501" pdel="0" userwavefile="" dec="0.499" lamt="-0.01" syncmode="0" latt="0" rel="0.1" amt="0" x100="0" att="0" lpdel="0" hold="0" lshp="1" lspd="0.01" ctlenvamt="0" lspd_numerator="1"/>
+      </eldata>
+      <chordcreator chord="0" chordrange="1" chord-enabled="0"/>
+      <arpeggiator arptime="102" arprange="3" arptime_denominator="1" syncmode="0" arpmode="0" arp-enabled="0" arp="0" arptime_numerator="1" arpdir="0" arpgate="142"/>
+      <midiport inputcontroller="0" fixedoutputvelocity="-1" inputchannel="0" outputcontroller="0" writable="0" outputchannel="1" fixedinputvelocity="-1" fixedoutputnote="-1" outputprogram="1" basevelocity="127" readable="0"/>
+      <fxchain numofeffects="1" enabled="1"><effect name="reverbsc" on="1" wet="0.4" gate="0" autoquit="1" autoquit_numerator="4" autoquit_denominator="4" syncmode="0"><ReverbSCControls input_gain="0" size="0.88" color="9000" output_gain="0"/><key/></effect></fxchain>
+    
 </instrumenttrack>
-<pattern muted="0" type="1" name="gm_contrabass" pos="0" len="1536" steps="16">
-<note pan="0" key="22" vol="134" pos="0" len="191"/>
-<note pan="0" key="24" vol="134" pos="192" len="191"/>
-<note pan="0" key="26" vol="134" pos="384" len="191"/>
-<note pan="0" key="26" vol="134" pos="576" len="191"/>
-<note pan="0" key="19" vol="134" pos="768" len="191"/>
-<note pan="0" key="26" vol="134" pos="960" len="191"/>
-<note pan="0" key="14" vol="126" pos="1152" len="191"/>
-<note pan="0" key="14" vol="126" pos="1344" len="191"/>
-</pattern>
-</track>
-<track muted="0" type="0" name="gm_timpani" solo="0">
-<instrumenttrack pitch="0" pitchrange="1" vol="71" basenote="57" pan="0" fxch="0" usemasterpitch="1">
-<instrument name="sf2player">
-<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="47" bank="0" gain="1" reverbOn="1" reverbLevel="0.55" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
-</instrument>
-<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
-<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-</eldata>
-<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
-<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
-<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
-<fxchain numofeffects="0" enabled="0"/>
-</instrumenttrack>
-<pattern muted="0" type="1" name="gm_timpani" pos="0" len="1536" steps="16">
-<note pan="0" key="34" vol="126" pos="0" len="23"/>
-<note pan="0" key="34" vol="126" pos="72" len="23"/>
-<note pan="0" key="34" vol="126" pos="144" len="23"/>
-<note pan="0" key="36" vol="126" pos="192" len="23"/>
-<note pan="0" key="36" vol="126" pos="264" len="23"/>
-<note pan="0" key="36" vol="126" pos="336" len="23"/>
-<note pan="0" key="38" vol="126" pos="384" len="23"/>
-<note pan="0" key="38" vol="126" pos="456" len="23"/>
-<note pan="0" key="38" vol="126" pos="528" len="23"/>
-<note pan="0" key="38" vol="126" pos="576" len="23"/>
-<note pan="0" key="38" vol="126" pos="648" len="23"/>
-<note pan="0" key="38" vol="126" pos="720" len="23"/>
-<note pan="0" key="31" vol="126" pos="768" len="23"/>
-<note pan="0" key="31" vol="126" pos="840" len="23"/>
-<note pan="0" key="31" vol="126" pos="912" len="23"/>
-<note pan="0" key="38" vol="126" pos="960" len="23"/>
-<note pan="0" key="38" vol="126" pos="1032" len="23"/>
-<note pan="0" key="38" vol="126" pos="1104" len="23"/>
-<note pan="0" key="26" vol="94" pos="1152" len="11"/>
-<note pan="0" key="26" vol="94" pos="1164" len="11"/>
-<note pan="0" key="26" vol="94" pos="1176" len="11"/>
-<note pan="0" key="26" vol="94" pos="1188" len="11"/>
-<note pan="0" key="26" vol="94" pos="1200" len="11"/>
-<note pan="0" key="26" vol="94" pos="1212" len="11"/>
-<note pan="0" key="26" vol="94" pos="1224" len="11"/>
-<note pan="0" key="26" vol="94" pos="1236" len="11"/>
-<note pan="0" key="26" vol="94" pos="1248" len="11"/>
-<note pan="0" key="26" vol="94" pos="1260" len="11"/>
-<note pan="0" key="26" vol="94" pos="1272" len="11"/>
-<note pan="0" key="26" vol="94" pos="1284" len="11"/>
-<note pan="0" key="26" vol="94" pos="1296" len="11"/>
-<note pan="0" key="26" vol="94" pos="1308" len="11"/>
-<note pan="0" key="26" vol="94" pos="1320" len="11"/>
-<note pan="0" key="26" vol="94" pos="1332" len="11"/>
+<pattern muted="0" type="1" name="gm_fx_crystal" pos="0" len="1536" steps="16">
+<note pan="0" key="74" vol="55" pos="0" len="71"/>
+<note pan="0" key="74" vol="55" pos="36" len="71"/>
+<note pan="0" key="74" vol="22" pos="72" len="71"/>
+<note pan="0" key="77" vol="55" pos="72" len="71"/>
+<note pan="0" key="77" vol="55" pos="108" len="71"/>
+<note pan="0" key="74" vol="55" pos="144" len="23"/>
+<note pan="0" key="77" vol="22" pos="144" len="71"/>
+<note pan="0" key="77" vol="55" pos="168" len="23"/>
+<note pan="0" key="74" vol="55" pos="180" len="23"/>
+<note pan="0" key="76" vol="55" pos="192" len="71"/>
+<note pan="0" key="77" vol="55" pos="204" len="23"/>
+<note pan="0" key="74" vol="22" pos="216" len="23"/>
+<note pan="0" key="76" vol="55" pos="228" len="71"/>
+<note pan="0" key="77" vol="22" pos="240" len="23"/>
+<note pan="0" key="76" vol="22" pos="264" len="71"/>
+<note pan="0" key="79" vol="55" pos="264" len="71"/>
+<note pan="0" key="79" vol="55" pos="300" len="71"/>
+<note pan="0" key="76" vol="55" pos="336" len="23"/>
+<note pan="0" key="79" vol="22" pos="336" len="71"/>
+<note pan="0" key="79" vol="55" pos="360" len="23"/>
+<note pan="0" key="76" vol="55" pos="372" len="23"/>
+<note pan="0" key="74" vol="55" pos="384" len="71"/>
+<note pan="0" key="79" vol="55" pos="396" len="23"/>
+<note pan="0" key="76" vol="22" pos="408" len="23"/>
+<note pan="0" key="74" vol="55" pos="420" len="71"/>
+<note pan="0" key="79" vol="22" pos="432" len="23"/>
+<note pan="0" key="74" vol="22" pos="456" len="71"/>
+<note pan="0" key="81" vol="55" pos="456" len="71"/>
+<note pan="0" key="81" vol="55" pos="492" len="71"/>
+<note pan="0" key="79" vol="55" pos="528" len="23"/>
+<note pan="0" key="81" vol="22" pos="528" len="71"/>
+<note pan="0" key="81" vol="55" pos="552" len="23"/>
+<note pan="0" key="79" vol="55" pos="564" len="23"/>
+<note pan="0" key="78" vol="55" pos="576" len="191"/>
+<note pan="0" key="81" vol="55" pos="588" len="23"/>
+<note pan="0" key="79" vol="22" pos="600" len="23"/>
+<note pan="0" key="78" vol="55" pos="612" len="191"/>
+<note pan="0" key="81" vol="22" pos="624" len="23"/>
+<note pan="0" key="78" vol="22" pos="648" len="191"/>
+<note pan="0" key="83" vol="55" pos="768" len="71"/>
+<note pan="0" key="83" vol="55" pos="804" len="71"/>
+<note pan="0" key="81" vol="55" pos="840" len="71"/>
+<note pan="0" key="83" vol="22" pos="840" len="71"/>
+<note pan="0" key="81" vol="55" pos="876" len="71"/>
+<note pan="0" key="78" vol="55" pos="912" len="23"/>
+<note pan="0" key="81" vol="22" pos="912" len="71"/>
+<note pan="0" key="79" vol="55" pos="936" len="23"/>
+<note pan="0" key="78" vol="55" pos="948" len="23"/>
+<note pan="0" key="81" vol="55" pos="960" len="191"/>
+<note pan="0" key="79" vol="55" pos="972" len="23"/>
+<note pan="0" key="78" vol="22" pos="984" len="23"/>
+<note pan="0" key="81" vol="55" pos="996" len="191"/>
+<note pan="0" key="79" vol="22" pos="1008" len="23"/>
+<note pan="0" key="81" vol="22" pos="1032" len="191"/>
+<note pan="0" key="69" vol="79" pos="1152" len="47"/>
+<note pan="0" key="69" vol="55" pos="1188" len="47"/>
+<note pan="0" key="66" vol="79" pos="1200" len="47"/>
+<note pan="0" key="69" vol="22" pos="1224" len="47"/>
+<note pan="0" key="66" vol="55" pos="1236" len="47"/>
+<note pan="0" key="62" vol="79" pos="1248" len="47"/>
+<note pan="0" key="66" vol="22" pos="1272" len="47"/>
+<note pan="0" key="62" vol="55" pos="1284" len="47"/>
+<note pan="0" key="57" vol="79" pos="1296" len="47"/>
+<note pan="0" key="62" vol="22" pos="1320" len="47"/>
+<note pan="0" key="57" vol="55" pos="1332" len="47"/>
+<note pan="0" key="57" vol="22" pos="1368" len="47"/>
 </pattern>
 </track>
 <track muted="0" type="0" name="drums" solo="0">
 <instrumenttrack pitch="0" pitchrange="1" vol="95" basenote="57" pan="0" fxch="0" usemasterpitch="1">
 <instrument name="sf2player">
-<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="0" bank="128" gain="1" reverbOn="1" reverbLevel="0.55" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="25" bank="128" gain="1" reverbOn="1" reverbLevel="0.45" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
 </instrument>
 <eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
 <elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
@@ -303,47 +462,151 @@
 <fxchain numofeffects="0" enabled="0"/>
 </instrumenttrack>
 <pattern muted="0" type="1" name="drums" pos="0" len="1536" steps="16">
-<note pan="0" key="37" vol="118" pos="0" len="6"/>
-<note pan="0" key="37" vol="118" pos="384" len="6"/>
-<note pan="0" key="37" vol="118" pos="768" len="6"/>
-<note pan="0" key="37" vol="118" pos="960" len="6"/>
-<note pan="0" key="37" vol="110" pos="1152" len="6"/>
+<note pan="0" key="24" vol="126" pos="0" len="6"/>
+<note pan="0" key="30" vol="47" pos="0" len="6"/>
+<note pan="0" key="37" vol="126" pos="0" len="6"/>
+<note pan="0" key="30" vol="47" pos="24" len="6"/>
+<note pan="0" key="27" vol="102" pos="48" len="6"/>
+<note pan="0" key="30" vol="47" pos="48" len="6"/>
+<note pan="0" key="30" vol="47" pos="72" len="6"/>
+<note pan="0" key="30" vol="47" pos="96" len="6"/>
+<note pan="0" key="30" vol="47" pos="120" len="6"/>
+<note pan="0" key="27" vol="102" pos="144" len="6"/>
+<note pan="0" key="30" vol="47" pos="144" len="6"/>
+<note pan="0" key="30" vol="47" pos="168" len="6"/>
+<note pan="0" key="30" vol="47" pos="192" len="6"/>
+<note pan="0" key="30" vol="47" pos="216" len="6"/>
+<note pan="0" key="27" vol="102" pos="240" len="6"/>
+<note pan="0" key="30" vol="47" pos="240" len="6"/>
+<note pan="0" key="30" vol="47" pos="264" len="6"/>
+<note pan="0" key="30" vol="47" pos="288" len="6"/>
+<note pan="0" key="30" vol="47" pos="312" len="6"/>
+<note pan="0" key="27" vol="102" pos="336" len="6"/>
+<note pan="0" key="30" vol="47" pos="336" len="6"/>
+<note pan="0" key="30" vol="47" pos="360" len="6"/>
+<note pan="0" key="24" vol="126" pos="384" len="6"/>
+<note pan="0" key="30" vol="47" pos="384" len="6"/>
+<note pan="0" key="37" vol="126" pos="384" len="6"/>
+<note pan="0" key="30" vol="47" pos="408" len="6"/>
+<note pan="0" key="27" vol="102" pos="432" len="6"/>
+<note pan="0" key="30" vol="47" pos="432" len="6"/>
+<note pan="0" key="30" vol="47" pos="456" len="6"/>
+<note pan="0" key="30" vol="47" pos="480" len="6"/>
+<note pan="0" key="30" vol="47" pos="504" len="6"/>
+<note pan="0" key="27" vol="102" pos="528" len="6"/>
+<note pan="0" key="30" vol="47" pos="528" len="6"/>
+<note pan="0" key="30" vol="47" pos="552" len="6"/>
+<note pan="0" key="30" vol="47" pos="576" len="6"/>
+<note pan="0" key="30" vol="47" pos="600" len="6"/>
+<note pan="0" key="27" vol="102" pos="624" len="6"/>
+<note pan="0" key="30" vol="47" pos="624" len="6"/>
+<note pan="0" key="30" vol="47" pos="648" len="6"/>
+<note pan="0" key="30" vol="47" pos="672" len="6"/>
+<note pan="0" key="30" vol="47" pos="696" len="6"/>
+<note pan="0" key="27" vol="102" pos="720" len="6"/>
+<note pan="0" key="30" vol="47" pos="720" len="6"/>
+<note pan="0" key="30" vol="47" pos="744" len="6"/>
+<note pan="0" key="24" vol="126" pos="768" len="6"/>
+<note pan="0" key="30" vol="47" pos="768" len="6"/>
+<note pan="0" key="37" vol="126" pos="768" len="6"/>
+<note pan="0" key="30" vol="47" pos="792" len="6"/>
+<note pan="0" key="27" vol="102" pos="816" len="6"/>
+<note pan="0" key="30" vol="47" pos="816" len="6"/>
+<note pan="0" key="30" vol="47" pos="840" len="6"/>
+<note pan="0" key="30" vol="47" pos="864" len="6"/>
+<note pan="0" key="30" vol="47" pos="888" len="6"/>
+<note pan="0" key="27" vol="102" pos="912" len="6"/>
+<note pan="0" key="30" vol="47" pos="912" len="6"/>
+<note pan="0" key="30" vol="47" pos="936" len="6"/>
+<note pan="0" key="24" vol="126" pos="960" len="6"/>
+<note pan="0" key="30" vol="47" pos="960" len="6"/>
+<note pan="0" key="37" vol="126" pos="960" len="6"/>
+<note pan="0" key="30" vol="47" pos="984" len="6"/>
+<note pan="0" key="27" vol="102" pos="1008" len="6"/>
+<note pan="0" key="30" vol="47" pos="1008" len="6"/>
+<note pan="0" key="30" vol="47" pos="1032" len="6"/>
+<note pan="0" key="30" vol="47" pos="1056" len="6"/>
+<note pan="0" key="30" vol="47" pos="1080" len="6"/>
+<note pan="0" key="27" vol="102" pos="1104" len="6"/>
+<note pan="0" key="30" vol="47" pos="1104" len="6"/>
+<note pan="0" key="30" vol="47" pos="1128" len="6"/>
+<note pan="0" key="24" vol="126" pos="1152" len="6"/>
+<note pan="0" key="26" vol="31" pos="1152" len="6"/>
+<note pan="0" key="37" vol="126" pos="1152" len="6"/>
+<note pan="0" key="26" vol="36" pos="1164" len="6"/>
+<note pan="0" key="26" vol="39" pos="1176" len="6"/>
+<note pan="0" key="26" vol="44" pos="1188" len="6"/>
+<note pan="0" key="26" vol="47" pos="1200" len="6"/>
+<note pan="0" key="26" vol="52" pos="1212" len="6"/>
+<note pan="0" key="26" vol="55" pos="1224" len="6"/>
+<note pan="0" key="26" vol="60" pos="1236" len="6"/>
+<note pan="0" key="26" vol="63" pos="1248" len="6"/>
+<note pan="0" key="26" vol="68" pos="1260" len="6"/>
+<note pan="0" key="26" vol="71" pos="1272" len="6"/>
+<note pan="0" key="26" vol="76" pos="1284" len="6"/>
+<note pan="0" key="26" vol="79" pos="1296" len="6"/>
+<note pan="0" key="26" vol="82" pos="1308" len="6"/>
+<note pan="0" key="26" vol="87" pos="1320" len="6"/>
+<note pan="0" key="26" vol="90" pos="1332" len="6"/>
 </pattern>
 </track>
-<track muted="0" type="0" name="gm_glockenspiel" solo="0">
-<instrumenttrack pitch="0" pitchrange="1" vol="127" basenote="57" pan="20" fxch="0" usemasterpitch="1">
-<instrument name="sf2player">
-<sf2player src="/opt/soundfonts/GeneralUser-GS.sf2" patch="9" bank="0" gain="1" reverbOn="1" reverbLevel="0.55" reverbRoomSize="0.8" reverbDamping="0.3" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
-</instrument>
-<eldata fwet="0" ftype="0" fcut="14000" fres="0.5">
-<elvol pdel="0" amt="0" latt="0" rel="0.1" sustain="1" hold="0" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-<elcut pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-<elres pdel="0" amt="0" latt="0" rel="0.1" sustain="0.5" hold="0.5" dec="0.5" att="0" lamt="0" x100="0" lshp="0" ctlenvamt="0" lspd="0.1" userwavefile=""/>
-</eldata>
-<chordcreator chordrange="1" chord="0" chord-enabled="0"/>
-<arpeggiator arprange="1" arptime="100" arpmode="0" arpdir="0" arp="0" arpgt="100" arp-enabled="0" arpskip="0" arpmiss="0" arpcycle="0"/>
-<midiport inputchannel="0" outputchannel="1" fixedoutputnote="-1" outputprogram="1" readable="0" writable="0" inputcontroller="0" outputcontroller="0" fixedinputvelocity="-1" fixedoutputvelocity="-1" basevelocity="127" receive="0" default-velocity="0"/>
-<fxchain numofeffects="0" enabled="0"/>
+<track muted="0" type="0" name="gm_pad_poly" solo="0">
+<instrumenttrack pitch="0" pitchrange="1" vol="30.2" basenote="57" pan="0" fxch="0" usemasterpitch="1">
+
+      <instrument name="tripleoscillator">
+        <tripleoscillator phoffset2="0" userwavefile0="" finer0="0" userwavefile1="" finer1="12" userwavefile2="" finer2="-5" coarse0="0" coarse1="0" coarse2="0" finel0="0" finel1="-5" modalgo1="2" modalgo2="2" finel2="4" pan0="0" modalgo3="2" pan1="0" stphdetun0="0" pan2="0" stphdetun1="0" wavetype0="4" stphdetun2="0" wavetype1="2" wavetype2="1" vol0="33" vol1="33" phoffset0="0" phoffset1="0" vol2="33"/>
+      </instrument>
+      <eldata fres="0.5" ftype="4" fcut="1" fwet="1">
+        <elvol lspd_denominator="4" sustain="0.7" pdel="0" userwavefile="" dec="1" lamt="0" syncmode="0" latt="0" rel="0.1" amt="1" x100="0" att="0" lpdel="0" hold="0" lshp="0" lspd="0.1" ctlenvamt="0" lspd_numerator="4"/>
+        <elcut lspd_denominator="4" sustain="0" pdel="0" userwavefile="" dec="0.88" lamt="0" syncmode="0" latt="0" rel="0.1" amt="0.88" x100="0" att="0.44" lpdel="0" hold="0" lshp="0" lspd="0.1" ctlenvamt="0" lspd_numerator="4"/>
+        <elres lspd_denominator="4" sustain="0.5" pdel="0" userwavefile="" dec="0.5" lamt="0" syncmode="0" latt="0" rel="0.1" amt="0" x100="0" att="0" lpdel="0" hold="0.5" lshp="0" lspd="0.1" ctlenvamt="0" lspd_numerator="4"/>
+      </eldata>
+      <chordcreator chord="0" chordrange="1" chord-enabled="0"/>
+      <arpeggiator arptime="100" arprange="1" arptime_denominator="4" syncmode="0" arpmode="0" arp-enabled="0" arp="0" arptime_numerator="4" arpdir="0" arpgate="100"/>
+      <midiport inputcontroller="0" inports="" fixedoutputvelocity="-1" inputchannel="0" outputcontroller="0" writable="0" outputchannel="1" fixedinputvelocity="127" fixedoutputnote="-1" outputprogram="1" basevelocity="127" readable="0"/>
+      <fxchain numofeffects="2" enabled="1">
+        <effect autoquit_numerator="4" autoquit_denominator="4" syncmode="0" autoquit="8000" gate="0" name="ladspaeffect" wet="1" on="1">
+          <ladspacontrols ports="4">
+            <port02 data="0.91945"/>
+            <port03 data="0.47936"/>
+            <port04 data="0.469765"/>
+            <port05 data="0.25"/>
+          </ladspacontrols>
+          <key>
+            <attribute value="caps" name="file"/>
+            <attribute value="Plate2x2" name="plugin"/>
+          </key>
+        </effect>
+        <effect autoquit_numerator="4" autoquit_denominator="4" syncmode="0" autoquit="8000" gate="0" name="ladspaeffect" wet="1" on="1">
+          <ladspacontrols ports="10">
+            <port02 data="-45.18"/>
+            <port03 data="-48"/>
+            <port04 data="-45.18"/>
+            <port05 data="-48"/>
+            <port06 data="0"/>
+            <port07 data="0"/>
+            <port08 data="0"/>
+            <port09 data="0"/>
+            <port010 data="0"/>
+            <port011 data="0"/>
+          </ladspacontrols>
+          <key>
+            <attribute value="caps" name="file"/>
+            <attribute value="Eq2x2" name="plugin"/>
+          </key>
+        </effect>
+      </fxchain>
+    
 </instrumenttrack>
-<pattern muted="0" type="1" name="gm_glockenspiel" pos="0" len="1536" steps="16">
-<note pan="0" key="74" vol="71" pos="0" len="71"/>
-<note pan="0" key="77" vol="71" pos="72" len="71"/>
-<note pan="0" key="74" vol="71" pos="144" len="23"/>
-<note pan="0" key="77" vol="71" pos="168" len="23"/>
-<note pan="0" key="76" vol="71" pos="192" len="71"/>
-<note pan="0" key="79" vol="71" pos="264" len="71"/>
-<note pan="0" key="76" vol="71" pos="336" len="23"/>
-<note pan="0" key="79" vol="71" pos="360" len="23"/>
-<note pan="0" key="74" vol="71" pos="384" len="71"/>
-<note pan="0" key="81" vol="71" pos="456" len="71"/>
-<note pan="0" key="79" vol="71" pos="528" len="23"/>
-<note pan="0" key="81" vol="71" pos="552" len="23"/>
-<note pan="0" key="78" vol="71" pos="576" len="191"/>
-<note pan="0" key="83" vol="71" pos="768" len="71"/>
-<note pan="0" key="81" vol="71" pos="840" len="71"/>
-<note pan="0" key="78" vol="71" pos="912" len="23"/>
-<note pan="0" key="79" vol="71" pos="936" len="23"/>
-<note pan="0" key="81" vol="71" pos="960" len="191"/>
+<pattern muted="0" type="1" name="gm_pad_poly" pos="0" len="1536" steps="16">
+<note pan="0" key="50" vol="71" pos="1152" len="191"/>
+<note pan="0" key="54" vol="71" pos="1152" len="191"/>
+<note pan="0" key="57" vol="71" pos="1152" len="191"/>
+<note pan="0" key="62" vol="71" pos="1152" len="191"/>
+<note pan="0" key="50" vol="71" pos="1344" len="191"/>
+<note pan="0" key="54" vol="71" pos="1344" len="191"/>
+<note pan="0" key="57" vol="71" pos="1344" len="191"/>
+<note pan="0" key="62" vol="71" pos="1344" len="191"/>
 </pattern>
 </track>
 </trackcontainer>

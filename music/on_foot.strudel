@@ -1,14 +1,16 @@
 // @title Crab Breeze: Main Street
 // @cycles 32
-// @reverb 0.5
-// @mix gm_epiano1 vol=120
-// @mix gm_flute vol=95
+// @drumkit 25
+// @space gm_fx_crystal 0.35
+// @space gm_lead_1_square 0.3
+// @space gm_pad_poly 0.35
+// @space gm_synth_strings_1 0.35
 //
-// On foot in town, before the alarm: the pilot walking the 1980s main street
-// to the mech. Main Street on an electric piano over a picked guitar, then on
-// a flute with strings; the call sign drifts in from a radio at the end. Quiet
-// enough to sit under footsteps and the city. 92 BPM, 32 bars (83 s); loops.
-// Motifs: docs/design/music.md.
+// On foot in town, before the alarm: the pilot walking the 1980s main street to
+// the mech, as calm synthwave. Main Street on a glassy bell over a DX electric
+// piano and a picked synth, then on a soft pad lead with strings; the call sign
+// drifts in from a radio at the end. Quiet enough to sit under footsteps and the
+// city. 92 BPM, 32 bars (83 s); loops. Motifs: docs/design/music.md.
 
 setcps(92/60/4)
 
@@ -81,38 +83,44 @@ const FANFARE_CHORDS = note(`<
 >`)
 // ── END MOTIF LIBRARY ──────────────────────────────────────────
 
-// a picked guitar on the chord tones (root, fifth, tenth, fifth)
+// an echo written as notes (LMMS's delay effect renders silence headless)
+const echo = (p, t = 3/16) => stack(p, p.late(t).gain(0.35), p.late(2 * t).gain(0.14))
+// sixteenth arpeggio over a chord: low, mid, high, mid
+const arp16 = (chords) => chords.arp("0 1 2 1 0 2 1 2 0 1 2 1 0 2 1 2")
+const power = (roots) => roots.add(note("[12,19,24]"))
+
+// a picked synth on the chord tones (root, fifth, tenth, fifth)
 const PICK = note(`<
   [f2 c3 a3 c3]*2 [bb1 f2 d3 f2]*2 [d2 a2 f3 a2]*2 [c2 g2 e3 g2]*2
   [f2 c3 a3 c3]*2 [bb1 f2 d3 f2]*2 [g2 d3 bb3 d3 c2 g2 e3 g2] [f2 c3 a3 c3]*2
 >`)
-const kit = s("[~ rim ~ rim, sh*8]")
+const kit = stack(s("bd ~ ~ ~ bd ~ ~ ~").gain(0.6), s("~ rim ~ rim").gain(0.45), s("hh*8").gain(0.2))
 
-// first pass: electric piano and guitar
+// first pass: the bell and the electric piano
 const first = stack(
-  MAINSTREET.s("gm_epiano1").gain(0.95),
-  PICK.s("gm_acoustic_guitar_steel").gain(0.6),
-  STREET_ROOTS.s("gm_fretless_bass").gain(0.65),
-  kit.gain(0.25)
+  echo(MAINSTREET.s("gm_fx_crystal").gain(0.9)),
+  STREET_CHORDS.struct("x ~ x ~ x ~ x ~").s("gm_epiano2").gain(0.5),
+  PICK.add(note(12)).s("gm_lead_1_square").gain(0.35),
+  STREET_ROOTS.s("gm_synth_bass_1").gain(0.6),
+  kit
 )
 
-// second pass: the flute takes the hymn, strings hold the chords
+// second pass: a soft pad lead takes the hymn, synth strings hold the chords
 const second = stack(
-  MAINSTREET.add(note(12)).s("gm_flute").gain(0.85),
-  MAINSTREET.s("gm_epiano1").gain(0.5),
-  STREET_CHORDS.s("gm_string_ensemble_2").gain(0.45),
-  PICK.s("gm_acoustic_guitar_steel").gain(0.55),
-  STREET_ROOTS.s("gm_fretless_bass").gain(0.65),
-  kit.gain(0.3)
+  echo(MAINSTREET.s("gm_pad_poly").gain(0.8)),
+  STREET_CHORDS.s("gm_synth_strings_1").gain(0.45),
+  PICK.add(note(12)).s("gm_lead_1_square").gain(0.3),
+  STREET_ROOTS.s("gm_synth_bass_1").gain(0.6),
+  kit
 )
 
 // a third, sparser pass with the radio call sign under it, ready to loop
 const third = stack(
-  STREET_CHORDS.s("gm_epiano1").gain(0.55),
-  PICK.s("gm_acoustic_guitar_steel").gain(0.5),
-  STREET_ROOTS.s("gm_fretless_bass").gain(0.6),
-  CALLSIGN.add(note(-12)).s("gm_vibraphone").gain(0.35),
-  kit.gain(0.2)
+  STREET_CHORDS.struct("x ~ x ~ x ~ x ~").s("gm_epiano2").gain(0.5),
+  PICK.add(note(12)).s("gm_lead_1_square").gain(0.3),
+  STREET_ROOTS.s("gm_synth_bass_1").gain(0.55),
+  echo(CALLSIGN.add(note(-12)).s("gm_fx_crystal").gain(0.35), 3/8),
+  s("hh*8").gain(0.15)
 )
 
 arrange([8, first], [8, second], [8, first], [8, third])

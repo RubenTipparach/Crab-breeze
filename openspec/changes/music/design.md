@@ -56,6 +56,6 @@ not loaded whole; the seven cues are 11 MB on disk.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| A1 | The score's direction | Orchestral rock with 80s colours, as rendered | provisional (survey A1) |
+| A1 | The score's direction | Electronic and futuristic | decided (owner, 2026-10-25: "electronic, scifi futuristic please!") |
 | A2 | Adaptive music | One cue per state with bar-aligned crossfades first; stems later if wanted | provisional (survey A2) |
 | A3 | Music in the cockpit | The score plays over everything (not through the radio) | provisional (survey A3) |

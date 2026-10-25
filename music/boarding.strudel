@@ -1,15 +1,19 @@
 // @title Crab Breeze: Boarding
 // @cycles 14
-// @reverb 0.6
-// @mix gm_french_horn vol=100
-// @mix gm_contrabass vol=110
+// @space gm_lead_1_square 0.4
+// @space gm_lead_5_charang 0.35
+// @space gm_synth_strings_1 0.4
+// @space gm_pad_choir 0.4
+// @space gm_fx_crystal 0.4
+// @space gm_fx_sci_fi 0.45
 //
-// The boarding cinematic (openspec/changes/mech-boarding): the mech sits, the
-// chest opens in four stages with steam and mist, the pilot climbs into the
-// seat. The hatch motif climbs a step per stage, a burst of steam (sea-shore
-// noise) opens each one and a reversed cymbal leans into the next; the call
-// sign wakes the systems; seated, the Breeze's last four bars lift into
-// D major. 72 BPM, 14 bars (47 s). Motifs: docs/design/music.md.
+// The boarding cinematic (openspec/changes/mech-boarding), ambient electronic:
+// the mech sits, the chest opens in four stages with steam and mist, the pilot
+// climbs into the seat. The hatch climbs a step per stage on an echoing pluck,
+// a burst of steam (sea-shore noise) and a sci-fi swell open each one; the call
+// sign wakes the systems on a bell; seated, the Breeze's last four bars lift
+// into D major on the trance lead. 72 BPM, 14 bars (47 s).
+// Motifs: docs/design/music.md.
 
 setcps(72/60/4)
 
@@ -82,26 +86,31 @@ const FANFARE_CHORDS = note(`<
 >`)
 // ── END MOTIF LIBRARY ──────────────────────────────────────────
 
+// an echo written as notes (LMMS's delay effect renders silence headless)
+const echo = (p, t = 3/16) => stack(p, p.late(t).gain(0.35), p.late(2 * t).gain(0.14))
+// sixteenth arpeggio over a chord: low, mid, high, mid
+const arp16 = (chords) => chords.arp("0 1 2 1 0 2 1 2 0 1 2 1 0 2 1 2")
+const power = (roots) => roots.add(note("[12,19,24]"))
+
 const hatch = stack(
-  HATCH.s("gm_string_ensemble_1").gain(0.8),
-  HATCH.add(note(12)).s("gm_orchestral_harp").gain(0.6),
-  HATCH_CHORDS.s("gm_choir_aahs").gain(0.5),
-  note("<d1!8 a1 d2>").s("gm_contrabass").gain(0.7),
-  note("<d2!8 a1 d2>").struct("x*16").s("gm_timpani").gain(0.3),
-  note("<[c3 ~ ~ ~] ~>").s("gm_seashore").gain(0.9),          // steam on each stage
-  note("<~ [~ ~ ~ c4]>").s("gm_reverse_cymbal").gain(0.7),    // lean into the next stage
-  note("<~!8 [~ ~ c#5 d5]*2 ~>").s("gm_glockenspiel").gain(0.5)
+  echo(HATCH.s("gm_lead_1_square").gain(0.8), 3/8),
+  HATCH_CHORDS.s("gm_synth_strings_1").gain(0.55),
+  HATCH_CHORDS.s("gm_pad_choir").gain(0.35),
+  note("<d1!8 a1 d2>").s("gm_synth_bass_2").gain(0.55),
+  note("<[c3 ~ ~ ~] ~>").s("gm_seashore").gain(0.8),          // steam on each stage
+  note("<[c4 ~] ~>").s("gm_fx_sci_fi").gain(0.55),            // a swell as each stage opens
+  note("<~ [~ ~ ~ c4]>").s("gm_reverse_cymbal").gain(0.6),    // lean into the next stage
+  echo(note("<~!8 [~ ~ c#5 d5]*2 ~>").s("gm_fx_crystal").gain(0.5))
 )
 
-// seated: the systems wake (call sign) and the Breeze lifts into D major
+// seated: the systems wake (the call sign on a bell) and the Breeze lifts into D major
 const seated = stack(
-  BREEZE.early(12).s("gm_french_horn").gain(1.05),
-  BREEZE.early(12).sub(note(12)).s("gm_trombone").gain(0.7),
-  SPINE_CHORDS.early(12).s("gm_string_ensemble_1").gain(0.6),
-  SPINE_CHORDS.early(12).add(note(12)).s("gm_choir_aahs").gain(0.5),
-  SPINE_ROOTS.early(12).s("gm_contrabass").gain(0.8),
-  CALLSIGN.s("gm_glockenspiel").gain(0.6),
-  note("<~ ~ ~ d2>").struct("x ~ ~ x ~ ~ x ~").s("gm_timpani").gain(0.8)
+  echo(BREEZE.early(12).s("gm_lead_5_charang").gain(0.95)),
+  SPINE_CHORDS.early(12).s("gm_synth_strings_1").gain(0.55),
+  SPINE_CHORDS.early(12).struct("x*8").gain("0.3 0.7").s("gm_pad_poly"),
+  SPINE_ROOTS.early(12).add(note(12)).s("gm_synth_bass_2").gain(0.7),
+  echo(CALLSIGN.s("gm_fx_crystal").gain(0.55), 3/8),
+  s("<~ ~ ~ [bd ~ ~ bd ~ ~ bd ~]>").gain(0.8)
 )
 
 arrange([10, hatch], [4, seated])

@@ -1,16 +1,18 @@
 // @title Crab Breeze: Big Boy
 // @cycles 48
-// @reverb 0.5
-// @mix gm_trumpet vol=190
-// @mix gm_french_horn vol=90
-// @mix gm_contrabass vol=105
-// @mix gm_distortion_guitar vol=70
+// @drumkit 25
+// @mix gm_synth_bass_2 vol=7.5
+// @mix gm_lead_2_sawtooth vol=72
+// @space gm_lead_2_sawtooth 0.22
+// @space gm_lead_5_charang 0.25
+// @space gm_pad_choir 0.4
+// @space gm_synth_strings_1 0.35
 //
-// The set piece: Big Boy, the 30 m siege crab (survey G14). The scuttle
-// slowed to a march in tubas and choir, then at full speed with claw stabs and
-// war drums; the Breeze answers in brass and steals the crab's rhythm onto the
-// spine; the siren's fall ends it on D minor. 140 BPM, 48 bars (82 s).
-// Motifs: docs/design/music.md.
+// The set piece, industrial electronic: Big Boy, the 30 m siege crab (survey
+// G14). The scuttle slowed to a march on a distorted reese and a choir pad, then
+// at full speed on acid with claw stabs and a pounding kit; the Breeze answers on
+// supersaws and steals the crab's rhythm onto the spine; the siren's fall ends it
+// on D minor. 140 BPM, 48 bars (82 s). Motifs: docs/design/music.md.
 
 setcps(140/60/4)
 
@@ -83,63 +85,58 @@ const FANFARE_CHORDS = note(`<
 >`)
 // ── END MOTIF LIBRARY ──────────────────────────────────────────
 
+// an echo written as notes (LMMS's delay effect renders silence headless)
+const echo = (p, t = 3/16) => stack(p, p.late(t).gain(0.35), p.late(2 * t).gain(0.14))
+// sixteenth arpeggio over a chord: low, mid, high, mid
+const arp16 = (chords) => chords.arp("0 1 2 1 0 2 1 2 0 1 2 1 0 2 1 2")
 const power = (roots) => roots.add(note("[12,19,24]"))
+
 // the scuttle's skeleton, one note a bar: D, E flat, D, A flat
 const MARCH = note("<d2 eb2 d2 ab1>")
 
-// arrival: the march in tubas and low choir, taiko and orchestra hits
+// arrival: the march on a reese and acid, the tritone in a choir pad, heavy hits
 const arrival = stack(
-  MARCH.s("gm_tuba").gain(1.0),
-  MARCH.add(note(12)).s("gm_trombone").gain(0.85),
-  MARCH.add(note("[12,18]")).s("gm_choir_aahs").gain(0.7),
-  MARCH.sub(note(12)).s("gm_contrabass").gain(0.8),
-  MARCH.add(note(12)).struct("x ~ ~ ~ ~ ~ x ~").s("gm_orchestra_hit").gain(0.9),
-  s("bd ~ ~ ~ ~ ~ bd ~").gain(0.9),
-  note("c3").struct("x ~ ~ ~ ~ ~ x x").s("gm_taiko_drum").gain(0.9)
+  MARCH.s("gm_synth_bass_2").gain(0.95),
+  MARCH.add(note(12)).struct("x ~ ~ x ~ ~ x x").s("gm_lead_8_bass_lead").gain(0.7),
+  MARCH.add(note("[12,18]")).s("gm_pad_choir").gain(0.6),
+  MARCH.add(note(24)).struct("x ~ ~ ~ ~ ~ x ~").s("gm_synth_brass_1").gain(0.7),
+  s("bd ~ ~ ~ ~ ~ bd ~").gain(0.95), s("~ ~ ~ ~ [sd, cp] ~ ~ ~").gain(0.75),
+  s("<cr ~ ~ ~>").gain(0.6)
 )
 
-// assault: the scuttle at full speed, claw, siren above, war drums
+// assault: the scuttle at full speed, the claw, the siren above, a pounding kit
 const assault = stack(
-  SCUTTLE.add(note(12)).s("gm_cello").gain(SCUTTLE_ACCENT),
-  SCUTTLE.add(note(12)).s("gm_distortion_guitar").gain(SCUTTLE_ACCENT),
-  SCUTTLE.s("gm_contrabass").gain(SCUTTLE_ACCENT),
-  CLAW.s("gm_brass_section").gain(0.9),
-  CLAW.add(note(12)).s("gm_tremolo_strings").gain(0.6),
-  SIREN.add(note(12)).s("gm_choir_aahs").gain(0.75),
-  note("c3").struct("x ~ ~ x ~ ~ x ~ x ~ x ~ x x x x").s("gm_taiko_drum").gain(SCUTTLE_ACCENT),
-  s("[bd ~ ~ bd ~ ~ bd ~ ~ bd ~ ~ bd ~ bd ~, ~ ~ ~ ~ sd ~ ~ ~ ~ ~ ~ ~ sd ~ ~ ~]").gain(0.9),
-  s("<cr ~!3>").gain(0.75)
+  SCUTTLE.add(note(12)).s("gm_lead_8_bass_lead").gain(SCUTTLE_ACCENT),
+  SCUTTLE.s("gm_synth_bass_2").gain(SCUTTLE_ACCENT),
+  CLAW.s("gm_synth_brass_1").gain(0.8),
+  SIREN.add(note(12)).s("gm_pad_choir").gain(0.6),
+  s("bd ~ ~ bd ~ ~ bd ~ ~ bd ~ ~ bd ~ bd ~").gain(SCUTTLE_ACCENT),
+  s("~ ~ ~ ~ [sd, cp] ~ ~ ~ ~ ~ ~ ~ [sd, cp] ~ ~ ~").gain(0.8), s("hh*16").gain(0.3),
+  s("<cr ~!3>").gain(0.7)
 )
 
-// the Breeze answers: the hero theme in brass over the spine, which now
-// moves in the crab's 3+3+3+3+2+2 rhythm (the mech takes it from them)
+// the Breeze answers on supersaws over the spine, now moving in the crab's
+// 3+3+3+3+2+2 rhythm (the mech takes it from them)
 const answer = stack(
-  BREEZE.s("gm_trumpet").gain(1.1),
-  BREEZE.sub(note(12)).s("gm_french_horn").gain(0.95),
-  SPINE_CHORDS.add(note(12)).s("gm_choir_aahs").gain(0.65),
-  power(SPINE_ROOTS).struct("x*16").s("gm_distortion_guitar").gain(SCUTTLE_ACCENT),
-  SPINE_ROOTS.add(note(12)).struct("x*16").s("gm_cello").gain(SCUTTLE_ACCENT),
-  SPINE_ROOTS.struct("x*16").s("gm_contrabass").gain(SCUTTLE_ACCENT),
-  SPINE_ROOTS.add(note(12)).struct(STRIDE).s("gm_timpani").gain(0.8),
-  STRIDE_DRUMS.gain(0.95),
-  s("hh*8").gain(0.4),
-  s("<cr ~!7>").gain(0.8)
+  echo(BREEZE.s("gm_lead_2_sawtooth").gain(1.0)),
+  BREEZE.add(note(12)).s("gm_lead_5_charang").gain(0.5),
+  SPINE_CHORDS.add(note(12)).s("gm_synth_strings_1").gain(0.55),
+  SPINE_ROOTS.add(note(12)).struct("x*16").s("gm_synth_bass_2").gain(SCUTTLE_ACCENT),
+  arp16(SPINE_CHORDS.add(note(12))).s("gm_lead_1_square").gain(0.35),
+  STRIDE_DRUMS.gain(0.95), s("hh*16").gain(0.28), s("<cr ~!7>").gain(0.7)
 )
 
-// fall: the siren's descent as tutti chords, then D minor and a last hit
+// fall: the siren's descent as chords, then D minor and a last hit
 const FALL = note(`<
   [d3,ab3,d4] [eb3,a3,eb4] [d3,ab3,d4] [db3,g3,db4]
   [c3,f#3,c4] [bb2,f3,d4] [a2,e3,c#4] [d3,a3,d4,f4]
 >`)
 const fall = stack(
-  FALL.s("gm_brass_section").gain(0.95),
-  FALL.add(note(12)).s("gm_choir_aahs").gain(0.75),
-  FALL.s("gm_string_ensemble_1").gain(0.7),
-  note("<d1 eb1 d1 db1 c1 bb0 a0 d1>").s("gm_contrabass").gain(0.9),
-  note("<~!7 [d3,a3,d4]>").s("gm_orchestra_hit").gain(1.0),
-  note("<d2 eb2 d2 db2 c2 bb1 a1 [d2*8]>").struct("x ~ ~ x ~ ~ x ~").s("gm_timpani").gain(0.85),
-  note("c3").struct("<x ~ ~ ~ x x ~ ~>").s("gm_taiko_drum").gain(1.0),
-  s("<cr ~ ~ ~ cr ~ ~ cr>").gain(0.8)
+  FALL.s("gm_synth_strings_1").gain(0.7),
+  FALL.struct("x ~ ~ x ~ ~ x ~").s("gm_synth_brass_1").gain(0.65),
+  FALL.add(note(12)).s("gm_pad_choir").gain(0.5),
+  note("<d2 eb2 d2 db2 c2 bb1 a1 d2>").struct("x*8").s("gm_synth_bass_2").gain(0.8),
+  s("<[bd, cr] ~ ~ ~ [bd, cr] ~ ~ [bd, cr]>").gain(0.9), s("<~!6 [sd*8] ~>").gain(0.7)
 )
 
 arrange([8, arrival], [16, assault], [16, answer], [8, fall])

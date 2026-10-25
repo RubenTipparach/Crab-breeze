@@ -1,19 +1,21 @@
 // @title Crab Breeze: Main Theme
 // @cycles 48
-// @reverb 0.45
-// @mix gm_french_horn vol=95
-// @mix gm_trumpet vol=190
-// @mix gm_contrabass vol=105
-// @mix gm_distortion_guitar vol=70
-// @mix gm_choir_aahs vol=85
-// @mix square vol=16
+// @drumkit 25
+// @space gm_lead_2_sawtooth 0.25
+// @space gm_lead_5_charang 0.3
+// @space gm_lead_1_square 0.3
+// @space gm_pad_poly 0.35
+// @space gm_fx_crystal 0.35
+// @space gm_fx_sci_fi 0.4
 //
-// The title theme: the call sign on the radio, the Breeze on horns over the
-// stride, a breath of Main Street, then the Breeze in full (trumpets, choir,
-// guitars) climbing into the lift and a D major ending. Orchestral rock,
-// 132 BPM, 48 bars (87 s). Motifs: docs/design/music.md.
+// The title theme, electronic and futuristic (owner, 2026-10-25: "electronic,
+// scifi futuristic please!"): the call sign pulsing on a pluck out of a held pad,
+// the Breeze on a trance lead over a pumping pad and a striding analog bass, a
+// breakdown on Main Street with a snare build, then the drop: the Breeze on
+// supersaws over a reese bass, arpeggios and a 909, climbing into the lift and a
+// D major ending. 128 BPM, 48 bars (90 s). Motifs: docs/design/music.md.
 
-setcps(132/60/4)
+setcps(128/60/4)
 
 // ── MOTIF LIBRARY ──────────────────────────────────────────────
 // The spine: 16 bars in D minor. Pass A ends on A major (the pull home),
@@ -84,63 +86,62 @@ const FANFARE_CHORDS = note(`<
 >`)
 // ── END MOTIF LIBRARY ──────────────────────────────────────────
 
-const power = (roots) => roots.add(note("[12,19,24]"))   // root, fifth, octave
-const fill = s("<~!7 [~ ~ ~ ~ ~ ~ ~ ~ ht ht mt mt lt lt ft ft]>")
+// an echo written as notes (LMMS's delay effect renders silence headless)
+const echo = (p, t = 3/16) => stack(p, p.late(t).gain(0.35), p.late(2 * t).gain(0.14))
+// sixteenth arpeggio over a chord: low, mid, high, mid
+const arp16 = (chords) => chords.arp("0 1 2 1 0 2 1 2 0 1 2 1 0 2 1 2")
+const power = (roots) => roots.add(note("[12,19,24]"))
 
-// intro: the call sign over a held D minor, timpani swelling; kept well under
-// theme A so the horns' entry lands (owner, 2026-10-25: "intro on main theme is a little loud")
+const build = s("<~!6 [sd*4] [sd*8 sd*8]>")
+
+// intro: the call sign on an echoing pluck over a held D minor, a rising sweep;
+// kept well under theme A so the drop lands (owner: "intro on main theme is a little loud")
 const intro = stack(
-  CALLSIGN.s("square").gain(0.4),
-  CALLSIGN.s("gm_glockenspiel").gain(0.35),
-  note("[d3,a3,e4]").s("gm_pad_warm").gain(0.35),
-  note("[d2,a2]").s("gm_string_ensemble_1").gain(0.3),
-  note("d2").struct("x*16").s("gm_timpani").gain(saw.slow(4).range(0.12, 0.55))
+  echo(CALLSIGN.s("gm_lead_1_square").gain(0.4), 3/8),
+  note("[d3,a3,e4]").s("gm_pad_poly").gain(0.22),
+  note("<d3@4>").s("gm_fx_sci_fi").gain(0.3),
+  s("bd*4").gain(saw.slow(4).range(0.08, 0.3))
 )
 
-// theme A: the Breeze on horns, strings striding under it
+// theme A: the Breeze on a trance lead, the pad pumping on the off-beats
 const themeA = stack(
-  BREEZE.s("gm_french_horn").gain(1.05),
-  SPINE_CHORDS.struct(STRIDE).s("gm_string_ensemble_1").gain(0.6),
-  SPINE_ROOTS.add(note(12)).s("gm_cello").gain(0.7),
-  SPINE_ROOTS.struct(STRIDE).s("gm_contrabass").gain(0.85),
-  STRIDE_DRUMS.gain(0.8),
-  s("hh*8").gain(0.35),
-  fill.gain(0.6)
+  echo(BREEZE.s("gm_lead_5_charang").gain(0.95)),
+  SPINE_CHORDS.struct("x*8").gain("0.22 0.55").s("gm_pad_poly"),
+  arp16(SPINE_CHORDS.add(note(12))).s("gm_lead_1_square").gain(0.25),
+  SPINE_ROOTS.add(note(12)).struct(STRIDE).s("gm_synth_bass_1").gain(0.7),
+  STRIDE_DRUMS.gain(0.65), s("~ cp ~ cp").gain(0.5), s("hh*16").gain(0.2),
+  s("<~!7 [~ ~ ~ ~ ~ ~ ~ ~ sd sd sd sd sd sd sd sd]>").gain(0.55)
 )
 
-// interlude: Main Street, strings and electric piano, a breath before the climb
+// breakdown: Main Street on a bell over a DX electric piano, a snare build to the drop
 const street = stack(
-  MAINSTREET.s("gm_string_ensemble_1").gain(0.8),
-  MAINSTREET.add(note(12)).s("gm_flute").gain(0.6),
-  STREET_CHORDS.struct("x ~ x ~ x ~ x ~").s("gm_epiano1").gain(0.55),
-  STREET_ROOTS.s("gm_contrabass").gain(0.7),
-  s("~ rim ~ rim, rd*8").gain(0.3)
+  echo(MAINSTREET.s("gm_fx_crystal").gain(0.9)),
+  STREET_CHORDS.struct("x ~ x ~ x ~ x ~").s("gm_epiano2").gain(0.5),
+  STREET_ROOTS.s("gm_synth_bass_1").gain(0.55),
+  s("hh*8").gain(0.2),
+  build.gain(saw.slow(8).range(0.2, 0.8)),
+  note("<~!6 c4@2>").s("gm_fx_sci_fi").gain(0.55)
 )
 
-// theme B: the Breeze in full
+// the drop: the Breeze on supersaws (and an octave up), reese bass, stabs on the stride
 const themeB = stack(
-  BREEZE.s("gm_trumpet").gain(1.1),
-  BREEZE.sub(note(12)).s("gm_french_horn").gain(0.9),
-  SPINE_CHORDS.add(note(12)).s("gm_choir_aahs").gain(0.6),
-  SPINE_CHORDS.struct("x*8").s("gm_string_ensemble_1").gain(0.55),
-  power(SPINE_ROOTS).struct("x*8").s("gm_distortion_guitar").gain(0.6),
-  SPINE_ROOTS.add(note(12)).struct("x*8").s("gm_electric_bass_pick").gain(0.8),
-  SPINE_ROOTS.add(note(12)).struct(STRIDE).s("gm_timpani").gain(0.7),
-  STRIDE_DRUMS.gain(0.95),
-  s("hh*8").gain(0.4),
-  s("<cr ~!7 cr ~!7>").gain(0.75),
-  fill.gain(0.75)
+  echo(BREEZE.s("gm_lead_2_sawtooth").gain(1.0)),
+  BREEZE.add(note(12)).s("gm_lead_5_charang").gain(0.5),
+  SPINE_CHORDS.struct("x*8").gain("0.3 0.8").s("gm_pad_poly"),
+  SPINE_CHORDS.add(note(12)).struct(STRIDE).s("gm_synth_brass_1").gain(0.55),
+  arp16(SPINE_CHORDS.add(note(12))).s("gm_lead_1_square").gain(0.4),
+  SPINE_ROOTS.add(note(12)).struct("~ x ~ x ~ x ~ x").s("gm_synth_bass_2").gain(0.85),
+  s("bd*4").gain(0.9), s("~ cp ~ cp").gain(0.7), s("[~ oh]*4").gain(0.35), s("hh*16").gain(0.25),
+  s("<cr ~!7 cr ~!7>").gain(0.7)
 )
 
-// ending: Bb, C, D major (the lift), held
+// ending: Bb, C, D major (the lift), the supersaw ringing on A
 const ending = stack(
-  note("<[d5@3 f5@3 d5 f5] [e5@3 g5@3 e5 g5] [f#5@3 a5@5] a5>").s("gm_trumpet").gain(1.1),
-  note("<[bb3,d4,f4] [c4,e4,g4] [d4,f#4,a4,d5] [d4,f#4,a4,d5]>").s("gm_brass_section").gain(0.8),
-  note("<[bb3,d4,f4] [c4,e4,g4] [d4,f#4,a4,d5] [d4,f#4,a4,d5]>").s("gm_choir_aahs").gain(0.6),
-  note("<bb1 c2 d2 d2>").s("gm_contrabass").gain(0.9),
-  note("<bb2 c3 d3 [d2*16]>").s("gm_timpani").gain(0.8),
-  s("<cr cr cr ~>").gain(0.8),
-  s("<[bd ~ ~ bd ~ ~ bd ~] [bd ~ ~ bd ~ ~ bd ~] bd ~>").gain(0.9)
+  echo(note("<[d5@3 f5@3 d5 f5] [e5@3 g5@3 e5 g5] [f#5@3 a5@5] a5>").s("gm_lead_2_sawtooth").gain(1.0)),
+  note("<[bb3,d4,f4] [c4,e4,g4] [d4,f#4,a4,d5] [d4,f#4,a4,d5]>").s("gm_synth_strings_1").gain(0.6),
+  note("<[bb3,d4,f4] [c4,e4,g4] [d4,f#4,a4] ~>").struct("x ~ ~ x ~ ~ x ~").s("gm_synth_brass_1").gain(0.6),
+  note("<bb2 c3 d3 d3>").s("gm_synth_bass_2").gain(0.8),
+  s("<[bd, cr] [bd, cr] [bd, cr] ~>").gain(0.85), s("<[~ cp]*2 [~ cp]*2 [sd*8] ~>").gain(0.6)
 )
 
 arrange([4, intro], [16, themeA], [8, street], [16, themeB], [4, ending])

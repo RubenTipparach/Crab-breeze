@@ -10,11 +10,21 @@ Listen to everything on the Crab Breeze Music page (the link is in `docs/design/
 
 ## The musical world
 
-- **Setting.** Alternate-history 1980s industrial mechs (survey G1) defending towns from alien
-  crabs, fought Ace Combat style (survey G4): big set pieces, a radio in your ear, a hero's theme.
-  So the score is **orchestral rock with an 80s edge**: a symphony orchestra (horns, trumpets,
-  strings, choir, timpani) over rock drums, picked bass and chugging guitars, with a few 80s
-  colours (an electric piano for the town, a square-wave radio, a supersaw in the fight).
+- **Setting and sound** (owner, 2026-10-25: "music sucks, electronic, scifi futuristic please!",
+  replacing the first orchestral-rock round). Alternate-history 1980s industrial mechs (survey G1)
+  defending towns from alien crabs, fought Ace Combat style (survey G4). The score is
+  **electronic and futuristic**: supersaw and trance leads, pumping pads, sixteenth-note
+  arpeggios, analog and reese basses, an acid bassline for the crabs, synth-stab claws, 808/909
+  drums and breakbeats, echoes written as notes and reverb on the leads and pads. The town keeps a
+  little warmth (a glassy bell, a DX electric piano: calm synthwave). Nothing orchestral.
+- **The voices** are LMMS synths, chosen per role in `music/instruments.json` `voices`: lead
+  `gm_lead_2_sawtooth` (SuperSawLead), second lead `gm_lead_5_charang` (AnalogTimes), pad
+  `gm_pad_poly` (TINTNpad), dark pad `gm_pad_choir` (CryingPads), strings `gm_synth_strings_1`
+  (PowerStrings), stabs `gm_synth_brass_1` (Jupiter), pluck and arpeggio `gm_lead_1_square`
+  (PluckArpeggio), bass `gm_synth_bass_1` (FuzzyAnalogBass), reese `gm_synth_bass_2` (DirtyReece),
+  acid `gm_lead_8_bass_lead` (LB302 AcidLead), bell `gm_fx_crystal` (AnalogBell), swells
+  `gm_fx_sci_fi` (Supernova); drums the soundfont's 808/909 kit (`@drumkit 25`). A score names the
+  role by its GM name, so strudel.cc still plays a rough preview.
 - **Home key: D minor**, natural minor. **The personality is the lift**: B flat, C, then **D
   major** (bVI, bVII, I with the major third). Every big moment arrives by it, and the F sharp of
   that last chord is the score's signature note: the minor world breaks into major when the Breeze
@@ -32,7 +42,7 @@ Listen to everything on the Crab Breeze Music page (the link is in `docs/design/
   play it, and a cue that wants the mech in it uses it.
 - **The crabs are the opposite**: chromatic (D against E flat), the tritone (D against A flat),
   and a scuttling rhythm of sixteenths grouped 3 + 3 + 3 + 3 + 2 + 2, many legs moving sideways.
-- **Tempi**: 132 BPM for the title, 140 to 150 BPM for combat, 92 on foot, 72 for the boarding
+- **Tempi**: 128 BPM for the title, 140 to 150 BPM for combat, 92 on foot, 72 for the boarding
   cinematic. One cycle of Strudel is one 4/4 bar (`setcps(BPM/60/4)`).
 
 ## The motifs
@@ -53,7 +63,7 @@ pass B  Dm  D4@3 A4@3 G4 A4   | Bb  Bb4@3 A4@3 F4 G4  | F   A4@3 C5@3 D5 E5  | C
         Gm  D5@3 Bb4@3 C5 D5  | Bb  F5@3 D5@3 E5 F5   | C   G5@3 E5@3 F5 G5  | D  F#5@3 A5@5
 ```
 
-Use it: when the mech is the subject. Horns state it plainly; trumpets sing it in full; its head
+Use it: when the mech is the subject. A trance lead states it plainly; supersaws sing it in full; its head
 alone (`D A G A`) is enough to say "the Breeze" anywhere. In D major (the fanfare) it is victory.
 
 ### 2. Call Sign: the radio (2 bars)
@@ -66,7 +76,7 @@ A5@3 . A5 . A5@3 . A5 . . .  D5@3 . D5 . D5 . D5 . . . . . . . . .
 ```
 
 Use it: briefings, radio traffic, the mech's systems waking, the end of a cue that hands over to a
-mission. A square wave makes it a radio; a glockenspiel makes it instruments lighting up. The
+mission. An echoing pluck makes it a radio; a glassy bell makes it instruments lighting up. The
 lock-on tone in `openspec/changes/audio` can take its rhythm, so the cockpit and the score speak
 the same language.
 
@@ -80,8 +90,8 @@ F   C5@3 A4 G4@2 F4@2 | Bb  D5@3 C5 Bb4@4      | Dm  A4@3 G4 F4@2 D4@2 | C   E4@
 F   C5@3 A4 G4@2 F4@2 | Bb  D5@3 F5 E5@2 D5@2  | Gm C  C5@2 Bb4@2 A4@2 G4@2 | F   F4@8
 ```
 
-Use it: on foot, in town, before the alarm; briefings about a city; the quiet section of the title
-theme. Defeat (a city lost) can take it into D minor on a solo piano.
+Use it: on foot, in town, before the alarm; briefings about a city; the breakdown of the title
+theme. Defeat (a city lost) can take it into D minor on a lone bell.
 
 ### 4. The crabs: Scuttle, Claw and Siren
 
@@ -90,11 +100,11 @@ theme. Defeat (a city lost) can take it into D minor on a solo piano.
   D2 Eb2 D2 | D2 Eb2 D2 | Ab1 A1 Ab1 | D2 Eb2 D2 | F2 E2 | Eb2 D2
   D2 Eb2 D2 | D2 Eb2 D2 | Ab1 A1 Ab1 | D2 Eb2 D2 | Bb1 A1 | Ab1 G1
   ```
-  Low strings, basses and guitars. The crabs on the move.
+  An acid bassline over a reese. The crabs on the move.
 - **Claw**: the tritone D4 + A flat 4, stabbed on the scuttle's accents (sixteenths 1, 7, 13, 15).
-  Brass.
+  Synth stabs.
 - **Siren**: A4, A flat 4, G4, F sharp 4, one bar each: the crabs' wail, a slow chromatic fall.
-  Choir and tremolo strings.
+  A dark pad.
 
 Use them: whenever the crabs are near. In the fight the Breeze takes the scuttle's rhythm and
 plays it on the spine's chords: the mech beating the crabs at their own game.
@@ -123,13 +133,13 @@ Bb  D5@3 F5@3 D5 F5 | C  E5@3 G5@3 E5 G5 | D  D5@3 A5@3 G5 A5 | D  F#5@8 | G  B5
 
 | Cue | Score | Where it plays | Tempo, length | Built from |
 | --- | --- | --- | --- | --- |
-| The motifs | `music/motifs.strudel` | Reference only: every motif in turn | 120 BPM, 59 bars, 1:56 | All |
-| Main Theme | `music/main_theme.strudel` | Title screen | 132 BPM, 48 bars, 1:27 | Call Sign, Breeze (horns, then full), Main Street, the lift |
-| Main Street | `music/on_foot.strudel` | On foot in town; loops | 92 BPM, 32 bars, 1:24 | Main Street, Call Sign on a radio |
-| Boarding | `music/boarding.strudel` | The boarding cinematic | 72 BPM, 14 bars, 0:47 | Hatch, Call Sign, the Breeze's lift |
-| Sortie | `music/sortie.strudel` | Combat; loops (ends on A) | 150 BPM, 64 bars, 1:42 | Call Sign, Breeze, Scuttle, Claw, Siren |
-| Big Boy | `music/big_boy.strudel` | The siege crab set piece (survey G14) | 140 BPM, 48 bars, 1:22 | Scuttle as a march and at speed, Claw, Siren, Breeze |
-| Mission Accomplished | `music/mission_accomplished.strudel` | After a won mission | 104 BPM, 8 bars, 0:18 | Fanfare |
+| The motifs | `music/motifs.strudel` | Reference only: every motif in turn | 120 BPM, 59 bars, 1:58 | All |
+| Main Theme | `music/main_theme.strudel` | Title screen | 128 BPM, 48 bars, 1:34 | Call Sign on a pluck, Breeze on a trance lead, a Main Street breakdown and build, the drop on supersaws, the lift |
+| Main Street | `music/on_foot.strudel` | On foot in town; loops | 92 BPM, 32 bars, 1:26 | Main Street on a bell and a pad lead, Call Sign on a radio |
+| Boarding | `music/boarding.strudel` | The boarding cinematic | 72 BPM, 14 bars, 0:53 | Hatch on an echoing pluck with steam and swells, Call Sign, the Breeze's lift |
+| Sortie | `music/sortie.strudel` | Combat; loops (ends on A) | 150 BPM, 64 bars, 1:44 | Call Sign, Breeze on supersaws over breakbeats, Scuttle on acid, Claw, Siren |
+| Big Boy | `music/big_boy.strudel` | The siege crab set piece (survey G14) | 140 BPM, 48 bars, 1:24 | Scuttle as a reese march and on acid, Claw, Siren, Breeze |
+| Mission Accomplished | `music/mission_accomplished.strudel` | After a won mission | 104 BPM, 8 bars, 0:21 | Fanfare on supersaws |
 
 Each score's `.mid` (for any DAW) and `.mmp` (the LMMS project) sit beside it in `music/`; the
 game's copies are `assets/audio/music/<cue>.ogg`, loudness-normalised to -16 LUFS. How they play in
@@ -144,9 +154,8 @@ the game (which cue when, crossfades, loops, layers) is `openspec/changes/music`
   the hero theme, no lift in a crab cue unless the Breeze is winning.
 - **First person holds** (CLAUDE.md, the law): music never cuts the view or the input. A stinger
   plays over the game; it does not stop it.
-- **Mix for the cockpit.** Leads in the middle (horns, trumpets), no sub-bass mud under the rocket
-  rumble and footfalls (`openspec/changes/audio`): keep the lowest parts on the contrabass and the
-  kick, and check a cue under the game's sound once both exist.
+- **Mix for the cockpit.** Leads in the middle (the supersaw, the trance lead), no sub-bass mud under the rocket
+  rumble and footfalls (`openspec/changes/audio`): keep the lowest parts on the bass and the kick, and check a cue under the game's sound once both exist.
 - **Know what is proven.** A render is checked by numbers (no clipping, the loudness profile has
   the cue's shape) and by a spectrogram that shows the lead line; neither replaces the owner's
   ears. Say so when handing music over.

@@ -113,7 +113,9 @@ From the owner's brief, 2026-10-23. Quotes are the owner's words.
   thing to make midi tracks, then bring it into headless lllms and get some instruments for final comp)"). Motifs are
   written as notes in `docs/design/music.md` and `music/motifs.strudel`, scored in Strudel, exported to multitrack MIDI
   and rendered in headless LMMS with real instruments (`music-authoring`). How the game plays them is
-  `openspec/changes/music`.
+  `openspec/changes/music`. **The sound is electronic and futuristic** (owner, 2026-10-25, on the first
+  orchestral round: "music sucks, electronic, scifi futuristic please!"): LMMS synths, arpeggios, reese and
+  acid basses, 808/909 drums; nothing orchestral.
 - **Mechs twice the size, legs heavier than the torso, low-poly first** (owner, 2026-10-24: "2x mech size
   please, they dont seem very big right now, redesign mechs, start with lowpoly first", "I really expect legs
   on these mechs to be bigger than the torso, just for balance", "I really like how stevedore is all struts",

@@ -1,12 +1,14 @@
 // @title Crab Breeze: Mission Accomplished
 // @cycles 8
-// @reverb 0.55
-// @mix gm_trumpet vol=190
-// @mix gm_contrabass vol=110
+// @drumkit 25
+// @space gm_lead_2_sawtooth 0.3
+// @space gm_synth_strings_1 0.4
+// @space gm_fx_crystal 0.4
 //
-// The stinger after a won mission: the fanfare (Bb, C, D major, the Breeze's
-// head turned major) and a held D major chord ringing out. 104 BPM, 8 bars
-// (18 s). Motifs: docs/design/music.md.
+// The stinger after a won mission, electronic: the fanfare (Bb, C, D major, the
+// Breeze's head turned major) on supersaws over brassy synth chords, and a held
+// D major chord ringing out under a bell. 104 BPM, 8 bars (18 s).
+// Motifs: docs/design/music.md.
 
 setcps(104/60/4)
 
@@ -79,27 +81,28 @@ const FANFARE_CHORDS = note(`<
 >`)
 // ── END MOTIF LIBRARY ──────────────────────────────────────────
 
+// an echo written as notes (LMMS's delay effect renders silence headless)
+const echo = (p, t = 3/16) => stack(p, p.late(t).gain(0.35), p.late(2 * t).gain(0.14))
+// sixteenth arpeggio over a chord: low, mid, high, mid
+const arp16 = (chords) => chords.arp("0 1 2 1 0 2 1 2 0 1 2 1 0 2 1 2")
+const power = (roots) => roots.add(note("[12,19,24]"))
+
 const fanfare = stack(
-  FANFARE.s("gm_trumpet").gain(1.1),
-  FANFARE.sub(note(12)).s("gm_french_horn").gain(0.85),
-  FANFARE_CHORDS.s("gm_brass_section").gain(0.75),
-  FANFARE_CHORDS.s("gm_string_ensemble_1").gain(0.6),
-  FANFARE_CHORDS.add(note(12)).s("gm_choir_aahs").gain(0.5),
-  FANFARE_ROOTS.s("gm_contrabass").gain(0.85),
-  FANFARE_ROOTS.add(note(12)).struct("x ~ ~ x ~ ~ x ~").s("gm_timpani").gain(0.8),
-  s("<cr ~ cr ~ cr cr>").gain(0.75),
-  FANFARE.add(note(12)).s("gm_glockenspiel").gain(0.45)
+  echo(FANFARE.s("gm_lead_2_sawtooth").gain(1.0)),
+  FANFARE_CHORDS.struct("x ~ ~ x ~ ~ x ~").s("gm_synth_brass_1").gain(0.6),
+  FANFARE_CHORDS.s("gm_synth_strings_1").gain(0.55),
+  FANFARE_ROOTS.add(note(12)).struct("x ~ ~ x ~ ~ x ~").s("gm_synth_bass_2").gain(0.8),
+  echo(FANFARE.add(note(12)).s("gm_fx_crystal").gain(0.35)),
+  s("<[cr, bd] ~ [cr, bd] ~ [cr, bd] [cr, bd]>").gain(0.8), s("[~ cp]*2").gain(0.65), s("hh*8").gain(0.3)
 )
 
-// the ring-out: D major held, a last crash and timpani roll
+// the ring-out: D major held, a last crash and a snare roll
 const ring = stack(
-  note("[d4,f#4,a4,d5]").s("gm_brass_section").gain(0.7),
-  note("[d3,a3,d4,f#4,a4]").s("gm_string_ensemble_1").gain(0.6),
-  note("[d4,f#4,a4]").s("gm_choir_aahs").gain(0.55),
-  note("<a5 ~>").s("gm_trumpet").gain(1.0),
-  note("d1").s("gm_contrabass").gain(0.8),
-  note("<[d2*16] ~>").s("gm_timpani").gain(0.6),
-  s("<cr ~>").gain(0.7)
+  note("[d3,a3,d4,f#4,a4]").s("gm_synth_strings_1").gain(0.6),
+  note("[d4,f#4,a4,d5]").s("gm_pad_poly").gain(0.45),
+  echo(note("<[a5 f#5 d5 a4] ~>").s("gm_fx_crystal").gain(0.5)),
+  note("d2").s("gm_synth_bass_2").gain(0.7),
+  s("<[cr, bd] ~>").gain(0.8), s("<[sd*16] ~>").gain(saw.range(0.2, 0.6))
 )
 
 arrange([6, fanfare], [2, ring])

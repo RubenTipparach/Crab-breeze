@@ -86,11 +86,11 @@ footer { color: var(--steel); font-size: 14px; display: grid; gap: 6px; border-t
 <div class="wrap">
   <header class="mast">
     <div class="stripe" aria-hidden="true"></div>
-    <span class="eyebrow">Crab Breeze original score · works sheet 1 · 2026-10-25</span>
+    <span class="eyebrow">Crab Breeze original score · works sheet 2, electronic · 2026-10-25</span>
     <h1>Crab Breeze Music</h1>
-    <p>Seven motifs and the first six cues, written as Strudel scores, exported to multitrack MIDI and played by real instruments in LMMS. Orchestral rock with an 80s edge, in D minor, for a 1980s industrial mech fighting alien crabs.</p>
-    <div class="facts"><span>Key <b>D minor</b></span><span>Signature <b>Bb, C, D major</b></span><span>Gait <b>3 + 3 + 2</b></span><span>Instruments <b>GeneralUser GS 2.0.3</b></span><span>Loudness <b>-16 LUFS</b></span></div>
-    <p class="status">Checked by numbers only: no clipping, the loudness of each cue has its shape, and spectrograms show the lead lines. Nobody has listened yet. Your ears decide; the survey has three questions on the direction.</p>
+    <p>Seven motifs and six cues, written as Strudel scores, exported to multitrack MIDI and played on LMMS synths. Electronic and futuristic: supersaw leads, pumping pads, arpeggios, reese and acid basses, 808/909 drums. In D minor, for a 1980s industrial mech fighting alien crabs.</p>
+    <div class="facts"><span>Key <b>D minor</b></span><span>Signature <b>Bb, C, D major</b></span><span>Gait <b>3 + 3 + 2</b></span><span>Instruments <b>LMMS synths, 808/909</b></span><span>Loudness <b>-16 LUFS</b></span></div>
+    <p class="status">Second round, after your note on the first (&ldquo;music sucks, electronic, scifi futuristic please!&rdquo;): the same motifs, re-voiced and re-rhythmed on synths. Checked by numbers only (no clipping, each cue builds from quiet to loud, the lead shows on a spectrogram); your ears decide.</p>
   </header>
 
   <section aria-labelledby="tape-h">
@@ -124,27 +124,27 @@ footer { color: var(--steel); font-size: 14px; display: grid; gap: 6px; border-t
       <div><b>Notes first</b><span>Motifs written down in docs/design/music.md and music/motifs.strudel.</span></div>
       <div><b>Strudel score</b><span>Each cue is one file that plays at strudel.cc; every layer names its instrument.</span></div>
       <div><b>Multitrack MIDI</b><span>One track per instrument, ready for any DAW.</span></div>
-      <div><b>LMMS, headless</b><span>The final comp: soundfont orchestra, LMMS synths, calibrated levels.</span></div>
-      <div><b>OGG for the game</b><span>Normalised to -16 LUFS in assets/audio/music.</span></div>
+      <div><b>LMMS, headless</b><span>The final comp: LMMS synths and an 808/909 kit, levels and pitch calibrated.</span></div>
+      <div><b>OGG for the game</b><span>Brought to -16 LUFS in assets/audio/music, builds kept.</span></div>
     </div>
   </section>
 
   <footer>
     <span>Scores: music/*.strudel · Tools: tools/music · Sources and licences: docs/analysis/audio-sources.md · In-game playback: openspec/changes/music (proposed)</span>
-    <span>Tom Lander's pipeline, rebuilt for Crab Breeze. Soundfont: GeneralUser GS by S. Christian Collins.</span>
+    <span>Tom Lander's pipeline, rebuilt for Crab Breeze. Synths: LMMS presets. Drums: GeneralUser GS by S. Christian Collins.</span>
   </footer>
 </div>
 
 <script>
 const MOTIFS = {"BREEZE": {"bars": 16, "notes": [[0, 0.375, 62], [0.375, 0.375, 69], [0.75, 0.125, 67], [0.875, 0.125, 69], [1, 0.375, 70], [1.375, 0.375, 69], [1.75, 0.125, 65], [1.875, 0.125, 67], [2, 0.375, 69], [2.375, 0.375, 72], [2.75, 0.125, 70], [2.875, 0.125, 69], [3, 0.75, 67], [3.75, 0.125, 65], [3.875, 0.125, 64], [4, 0.375, 62], [4.375, 0.375, 69], [4.75, 0.125, 67], [4.875, 0.125, 69], [5, 0.375, 70], [5.375, 0.375, 74], [5.75, 0.125, 72], [5.875, 0.125, 70], [6, 0.375, 74], [6.375, 0.375, 79], [6.75, 0.125, 77], [6.875, 0.125, 76], [7, 0.75, 76], [7.75, 0.125, 73], [7.875, 0.125, 69], [8, 0.375, 62], [8.375, 0.375, 69], [8.75, 0.125, 67], [8.875, 0.125, 69], [9, 0.375, 70], [9.375, 0.375, 69], [9.75, 0.125, 65], [9.875, 0.125, 67], [10, 0.375, 69], [10.375, 0.375, 72], [10.75, 0.125, 74], [10.875, 0.125, 76], [11, 0.375, 77], [11.375, 0.375, 76], [11.75, 0.125, 74], [11.875, 0.125, 72], [12, 0.375, 74], [12.375, 0.375, 70], [12.75, 0.125, 72], [12.875, 0.125, 74], [13, 0.375, 77], [13.375, 0.375, 74], [13.75, 0.125, 76], [13.875, 0.125, 77], [14, 0.375, 79], [14.375, 0.375, 76], [14.75, 0.125, 77], [14.875, 0.125, 79], [15, 0.375, 78], [15.375, 0.625, 81]]}, "CALLSIGN": {"bars": 2, "notes": [[0, 0.1875, 81], [0.25, 0.0625, 81], [0.375, 0.1875, 81], [0.625, 0.0625, 81], [0.875, 0.1875, 74], [1.125, 0.0625, 74], [1.25, 0.0625, 74], [1.375, 0.0625, 74]]}, "MAINSTREET": {"bars": 8, "notes": [[0, 0.375, 72], [0.375, 0.125, 69], [0.5, 0.25, 67], [0.75, 0.25, 65], [1, 0.375, 74], [1.375, 0.125, 72], [1.5, 0.5, 70], [2, 0.375, 69], [2.375, 0.125, 67], [2.5, 0.25, 65], [2.75, 0.25, 62], [3, 0.25, 64], [3.25, 0.25, 67], [3.5, 0.5, 72], [4, 0.375, 72], [4.375, 0.125, 69], [4.5, 0.25, 67], [4.75, 0.25, 65], [5, 0.375, 74], [5.375, 0.125, 77], [5.5, 0.25, 76], [5.75, 0.25, 74], [6, 0.25, 72], [6.25, 0.25, 70], [6.5, 0.25, 69], [6.75, 0.25, 67], [7, 1, 65]]}, "SCUTTLE": {"bars": 2, "notes": [[0, 0.0625, 38], [0.0625, 0.0625, 39], [0.125, 0.0625, 38], [0.1875, 0.0625, 38], [0.25, 0.0625, 39], [0.3125, 0.0625, 38], [0.375, 0.0625, 32], [0.4375, 0.0625, 33], [0.5, 0.0625, 32], [0.5625, 0.0625, 38], [0.625, 0.0625, 39], [0.6875, 0.0625, 38], [0.75, 0.0625, 41], [0.8125, 0.0625, 40], [0.875, 0.0625, 39], [0.9375, 0.0625, 38], [1, 0.0625, 38], [1.0625, 0.0625, 39], [1.125, 0.0625, 38], [1.1875, 0.0625, 38], [1.25, 0.0625, 39], [1.3125, 0.0625, 38], [1.375, 0.0625, 32], [1.4375, 0.0625, 33], [1.5, 0.0625, 32], [1.5625, 0.0625, 38], [1.625, 0.0625, 39], [1.6875, 0.0625, 38], [1.75, 0.0625, 34], [1.8125, 0.0625, 33], [1.875, 0.0625, 32], [1.9375, 0.0625, 31]]}, "SIREN": {"bars": 4, "notes": [[0, 1, 69], [1, 1, 68], [2, 1, 67], [3, 1, 66]]}, "HATCH": {"bars": 10, "notes": [[0, 0.25, 50], [0.25, 0.25, 55], [0.5, 0.25, 60], [0.75, 0.25, 65], [1, 0.25, 50], [1.25, 0.25, 55], [1.5, 0.25, 60], [1.75, 0.25, 65], [2, 0.25, 52], [2.25, 0.25, 57], [2.5, 0.25, 62], [2.75, 0.25, 67], [3, 0.25, 52], [3.25, 0.25, 57], [3.5, 0.25, 62], [3.75, 0.25, 67], [4, 0.25, 53], [4.25, 0.25, 58], [4.5, 0.25, 64], [4.75, 0.25, 69], [5, 0.25, 53], [5.25, 0.25, 58], [5.5, 0.25, 64], [5.75, 0.25, 69], [6, 0.25, 55], [6.25, 0.25, 60], [6.5, 0.25, 65], [6.75, 0.25, 70], [7, 0.25, 55], [7.25, 0.25, 60], [7.5, 0.25, 65], [7.75, 0.25, 70], [8, 0.25, 57], [8.25, 0.25, 62], [8.5, 0.25, 67], [8.75, 0.25, 72], [9, 0.25, 50], [9.25, 0.25, 57], [9.5, 0.25, 62], [9.75, 0.25, 66]]}, "FANFARE": {"bars": 6, "notes": [[0, 0.375, 74], [0.375, 0.375, 77], [0.75, 0.125, 74], [0.875, 0.125, 77], [1, 0.375, 76], [1.375, 0.375, 79], [1.75, 0.125, 76], [1.875, 0.125, 79], [2, 0.375, 74], [2.375, 0.375, 81], [2.75, 0.125, 79], [2.875, 0.125, 81], [3, 1, 78], [4, 0.375, 83], [4.375, 0.375, 81], [4.75, 0.125, 78], [4.875, 0.125, 79], [5, 1, 81]]}};
 const CUES = [
-  { side: 'A1', file: 'main_theme.mp3', name: 'Main Theme', meta: '132 BPM · 1:29', what: 'Title screen. The call sign on the radio, the Breeze on horns over the stride, a breath of Main Street, then the Breeze in full climbing into the lift.' },
-  { side: 'A2', file: 'on_foot.mp3', name: 'Main Street', meta: '92 BPM · 1:26 · loops', what: 'On foot in town before the alarm. The town hymn on an electric piano and a picked guitar, then a flute; the call sign drifts in from a radio.' },
-  { side: 'A3', file: 'boarding.mp3', name: 'Boarding', meta: '72 BPM · 0:50', what: 'The boarding cinematic. Stacked fourths climb a step per hatch stage with a burst of steam on each, then the Breeze lifts into D major as you sit.' },
-  { side: 'B1', file: 'sortie.mp3', name: 'Sortie', meta: '150 BPM · 1:44 · loops', what: 'Combat. Call sign over a racing pedal, the Breeze on trumpets and a supersaw over guitars, the crabs pushing in, then the Breeze taking their rhythm back.' },
-  { side: 'B2', file: 'big_boy.mp3', name: 'Big Boy', meta: '140 BPM · 1:24', what: 'The 30 m siege crab. The scuttle slowed to a march in tubas and choir, then at speed with claw stabs and war drums; the siren falls to D minor.' },
-  { side: 'B3', file: 'mission_accomplished.mp3', name: 'Mission Accomplished', meta: '104 BPM · 0:21', what: 'The stinger after a win: the fanfare and a ringing D major chord.' },
-  { side: 'R', file: 'motifs.mp3', name: 'The motifs, one by one', meta: '120 BPM · 1:56', what: 'Reference: every motif stated plainly with a bar of silence between them. The plates below play from here.' },
+  { side: 'A1', file: 'main_theme.mp3', name: 'Main Theme', meta: '128 BPM · 1:34', what: 'Title screen. The call sign pulsing on a pluck, the Breeze on a trance lead over a pumping pad, a Main Street breakdown with a snare build, then the drop: the Breeze on supersaws over a reese bass and a 909.' },
+  { side: 'A2', file: 'on_foot.mp3', name: 'Main Street', meta: '92 BPM · 1:26 · loops', what: 'On foot in town before the alarm, as calm synthwave. The town hymn on a glassy bell over a DX electric piano, then a soft pad lead; the call sign drifts in from a radio.' },
+  { side: 'A3', file: 'boarding.mp3', name: 'Boarding', meta: '72 BPM · 0:53', what: 'The boarding cinematic, ambient. Stacked fourths climb a step per hatch stage on an echoing pluck, with steam and a sci-fi swell on each, then the Breeze lifts into D major as you sit.' },
+  { side: 'B1', file: 'sortie.mp3', name: 'Sortie', meta: '150 BPM · 1:44 · loops', what: 'Combat. The call sign over a reese pedal, the Breeze on a supersaw over breakbeats and arpeggios, the crabs on an acid bassline, then the Breeze back on top with their rhythm in its bass.' },
+  { side: 'B2', file: 'big_boy.mp3', name: 'Big Boy', meta: '140 BPM · 1:24', what: 'The 30 m siege crab, industrial. The scuttle as a march on a distorted reese, then at speed on acid with synth-stab claws; the Breeze answers on supersaws; the siren falls to D minor.' },
+  { side: 'B3', file: 'mission_accomplished.mp3', name: 'Mission Accomplished', meta: '104 BPM · 0:21', what: 'The stinger after a win: the fanfare on supersaws and a ringing D major chord under a bell.' },
+  { side: 'R', file: 'motifs.mp3', name: 'The motifs, one by one', meta: '120 BPM · 1:58', what: 'Reference: every motif stated plainly with a bar of silence between them. The plates below play from here.' },
 ];
 const PLATES = [
   { key: 'BREEZE', name: 'The Breeze', family: 'hero', tag: 'The mech · hero', at: 0, bars: 16,
