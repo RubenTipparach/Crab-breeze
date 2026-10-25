@@ -239,6 +239,14 @@ fn run_script(
     ready: Res<crate::loading::GameReady>,
     settled: Res<crate::buildings::DressingSettled>,
     enemies: Query<&GlobalTransform, With<crate::mech::Enemy>>,
+    // The boarding clock and its timeline, for the shot of the seals venting (`boarding-vents`).
+    (mech, data, mut steam_shot): (
+        Query<&crate::mech::MechSim, With<crate::mech::Piloted>>,
+        Res<crate::sim::Data>,
+        // The steam shot is taken; frames drawn since the cabin sealed (the screens power up over 2.5 s of game,
+        // 10 frames at the cap), counting on through the outline shot.
+        Local<(bool, u32)>,
+    ),
     time: Res<Time<Real>>,
     game_time: Res<Time<Virtual>>,
     mut exit: MessageWriter<AppExit>,
@@ -340,6 +348,22 @@ fn run_script(
                     ..default()
                 }
             });
+            // The chest opening as its seals break, looked up at from the rope's foot: their steam (`boarding-vents`).
+            // Only the view is turned (as the street shot sets it); where the pilot stands and their wait for the
+            // hatch are left alone, so the boarding goes on.
+            let tl = &data.0.boarding;
+            let t = mech.single().map_or(0.0, |m| m.hatch.t_s);
+            let sealed = tl.sealed_sitting_s();
+            if !steam_shot.0 && pilot.curr.mode == PilotMode::OnFoot && t >= sealed {
+                let to = a.hatch_entry - (pilot.curr.feet + Vec3::Y * 1.7);
+                pilot.curr.yaw_rad = (-to.x).atan2(-to.z);
+                pilot.curr.pitch_rad = to.y.atan2(Vec2::new(to.x, to.z).length()).min(1.3);
+                pilot.prev = pilot.curr.clone();
+                if t >= sealed + 0.3 {
+                    shoot(&mut commands, &script.dir, "hatch-steam.png");
+                    steam_shot.0 = true;
+                }
+            }
             if matches!(pilot.curr.mode, PilotMode::Boarding(_)) {
                 // The stair is down and the climb begins: the open hatch from the stair's foot.
                 acc.script = Some(Actions::default());
@@ -348,17 +372,45 @@ fn run_script(
             }
         }
         4 => {
-            // Seated; wait for the hatch to seal behind the pilot.
-            if pilot.curr.mode == PilotMode::Seated && in_beat > 12.0 {
+            // Seated; wait for the hatch to seal behind the pilot and the screens to power up: on the boarding
+            // clock, not the wall clock, which a software renderer's long frames outrun (0.25 s of game a frame).
+            let sealed = mech.single().is_ok_and(|m| m.hatch.is_closed(&data.0.boarding));
+            if pilot.curr.mode == PilotMode::Seated && sealed && in_beat > 12.0 && {
+                steam_shot.1 += 1;
+                steam_shot.1 > 12
+            } {
                 shoot(&mut commands, &script.dir, "cockpit.png");
                 next = true;
             }
         }
-        // Stand up and stride: throttle forward (the mech stands first), hold, measure frame time
-        // over 10 s.
+        // Free look held, looking down at the dash's centre screen: the outline on the screen pointed at
+        // (`mfd-menus`), by input as a player does it.
         5 => {
+            let down = pilot.curr.pitch_rad > -0.6;
+            acc.script = Some(Actions {
+                free_look: true,
+                look_delta_deg: if down { Vec2::new(0.0, -1.5) } else { Vec2::ZERO },
+                ..default()
+            });
+            // Held on the screen a few frames first, so the outline built when it is first pointed at is drawn.
+            if !down && in_beat > 2.0 && {
+                steam_shot.1 += 1;
+                steam_shot.1 > 18
+            } {
+                shoot(&mut commands, &script.dir, "cockpit-outline.png");
+                next = true;
+            }
+        }
+        // Stand up and stride: throttle forward (the mech stands first), hold, measure frame time
+        // over 10 s. The view comes back up to level first, by input.
+        6 => {
             acc.script = Some(Actions {
                 throttle_axis: if in_beat < 5.0 { 0.6 } else { 0.0 },
+                look_delta_deg: if pilot.curr.pitch_rad < -0.02 {
+                    Vec2::new(0.0, 1.5)
+                } else {
+                    Vec2::ZERO
+                },
                 ..default()
             });
             if in_beat > 7.0 {
@@ -370,7 +422,7 @@ fn run_script(
             }
         }
         // A few frames after the last shot, so its readback lands even at a software renderer's frame rate.
-        6 if in_beat > 1.5 && {
+        7 if in_beat > 1.5 && {
             *exit_frames += 1;
             *exit_frames > 6
         } =>

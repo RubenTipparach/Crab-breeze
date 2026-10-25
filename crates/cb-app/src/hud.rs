@@ -36,8 +36,12 @@ struct HudRoot;
 #[derive(Component)]
 pub struct MfdRoot;
 
-/// One MFD page's side, pixels; the MFD texture is three pages wide (a row a multiple of 256 bytes).
+/// One MFD page's side, pixels (a row a multiple of 256 bytes).
 pub const MFD_PAGE_PX: f32 = 512.0;
+
+/// Pages side by side on the MFD texture, left to right: MECH, FLIGHT, MISSION, WEAPONS, TARGET (weapon-select).
+/// The pages' row and the texture are both this many pages wide, so each screen's slice holds exactly one page.
+pub const MFD_PAGES: usize = 5;
 
 #[derive(Component)]
 struct LegArrow;
@@ -252,15 +256,16 @@ fn spawn_hud(mut commands: Commands) {
                 ));
             }
         });
-    // The mech's readouts, on the cockpit's MFDs (cockpit-mfds): three 512 x 512 pages in a row,
-    // drawn by the MFD camera into one texture each screen shows a third of. Without MFDs (the
-    // Canopy) the same pages sit along the bottom of the view.
+    // The mech's readouts, on the cockpit's MFDs (cockpit-mfds, weapon-select): five 512 x 512 pages
+    // in a row, drawn by the MFD camera into one texture each screen shows one page of. Every roster
+    // cockpit has six screens (cockpit-parity); only a mech with no interior (the stand-in) keeps the
+    // pages along the bottom of the view.
     commands
         .spawn((
             HudRoot,
             MfdRoot,
             Node {
-                width: px(MFD_PAGE_PX * 3.0),
+                width: px(MFD_PAGE_PX * MFD_PAGES as f32),
                 height: px(MFD_PAGE_PX),
                 position_type: PositionType::Absolute,
                 left: px(0.0),

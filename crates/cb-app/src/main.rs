@@ -40,6 +40,7 @@ mod sun_flare;
 mod targeting;
 mod textures;
 mod units;
+mod vents;
 mod water_render;
 mod world;
 
@@ -128,6 +129,7 @@ fn main() -> AppExit {
         mfd::MfdPlugin,
         menu::MenuPlugin,
         rope::RopePlugin,
+        vents::VentsPlugin,
     ));
     // GPU grass (openspec change `gpu-grass`); `CB_NO_GRASS=1` leaves it out, so the benchmark can
     // measure what it costs.

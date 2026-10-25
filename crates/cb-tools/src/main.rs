@@ -21,10 +21,11 @@ fn main() -> ExitCode {
             for mech in &mechs {
                 match GameData::load(&root, mech) {
                     Ok(d) => {
-                        // the model it names, read as data: the rig contract, and the sizes it was generated from
-                        let problems = glb::check_mech(&d.mech, &root.join("..").join("assets"));
+                        // the model it names, read as data: the rig contract, the sizes it was generated from, its
+                        // cockpit's screens, eye, seat and lamps, and every node its boarding moves or vents from
+                        let problems = glb::check_mech(&d.mech, Some(&d.boarding), &root.join("..").join("assets"));
                         if problems.is_empty() {
-                            println!("ok   {}/{mech} (with sim, world, pilot, bindings, model)", root.display());
+                            println!("ok   {}/{mech} (with sim, world, pilot, bindings, model, cockpit)", root.display());
                         } else {
                             for p in problems {
                                 eprintln!("FAIL {mech}: {p}");

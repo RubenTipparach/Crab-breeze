@@ -98,8 +98,8 @@
   "inner_opening_s": 3.0,
   "front_screen_dir": [
     0.0,
-    0.381,
-    0.924
+    0.298,
+    0.954
   ],
   "allview_material": "SCREEN_allview",
   "nodes": {
@@ -143,6 +143,38 @@
         0.24
       ]
     },
+    "CONSOLE_front": {
+      "parent": "INNER_ramp_1",
+      "pivot_m": [
+        0.0,
+        0.79,
+        0.5
+      ]
+    },
+    "SCREEN_left": {
+      "parent": "CONSOLE_front",
+      "pivot_m": [
+        0.0,
+        0.79,
+        0.5
+      ]
+    },
+    "SCREEN_center": {
+      "parent": "CONSOLE_front",
+      "pivot_m": [
+        0.0,
+        0.79,
+        0.5
+      ]
+    },
+    "SCREEN_right": {
+      "parent": "CONSOLE_front",
+      "pivot_m": [
+        0.0,
+        0.79,
+        0.5
+      ]
+    },
     "HUD_mfd_0": {
       "parent": "INNER_ramp_1",
       "pivot_m": [
@@ -169,6 +201,11 @@
     }
   },
   "meshes": {
+    "CONSOLE_front_front": {
+      "tris": 8280,
+      "group": "front",
+      "node": "CONSOLE_front"
+    },
     "CTRL_stick_front": {
       "tris": 628,
       "group": "front",
@@ -204,13 +241,28 @@
       "group": "cabin",
       "node": "INNER_ramp_1"
     },
+    "SCREEN_center_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "SCREEN_center"
+    },
+    "SCREEN_left_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "SCREEN_left"
+    },
+    "SCREEN_right_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "SCREEN_right"
+    },
     "pod_allview": {
       "tris": 18,
       "group": "allview",
       "node": "pod"
     },
     "pod_cabin": {
-      "tris": 16598,
+      "tris": 16526,
       "group": "cabin",
       "node": "pod"
     },
@@ -222,9 +274,9 @@
   },
   "vents": 6,
   "lights": 6,
-  "tris": 19506,
+  "tris": 27720,
   "tri_budget": 600000,
-  "draw_calls": 10,
+  "draw_calls": 14,
   "atlases": {
     "front": {
       "maps": [
@@ -266,5 +318,5 @@
     "wall_L",
     "wall_R"
   ],
-  "bytes": 11620658
+  "bytes": 14545785
 }

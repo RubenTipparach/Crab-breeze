@@ -25,6 +25,7 @@ fn motion(kind: ParticleKind) -> (f32, f32, f32, bool) {
         ParticleKind::Debris => (9.81, 0.3, 0.8, false),
         ParticleKind::Rubble => (9.81, 0.2, 0.0, false),
         ParticleKind::Trail => (-0.1, 0.6, 0.3, false),
+        ParticleKind::Mist => (0.4, 1.8, 1.4, false),
     }
 }
 
@@ -93,6 +94,13 @@ fn colour_over_life(kind: ParticleKind) -> Vec<(f32, Vec4)> {
             (0.5, v(0.8, 0.79, 0.77, 0.3)),
             (1.0, v(0.8, 0.79, 0.77, 0.0)),
         ],
+        // Cold mist: a faint blue-white that thickens as it spreads, then thins.
+        ParticleKind::Mist => vec![
+            (0.0, v(0.82, 0.88, 0.92, 0.0)),
+            (0.2, v(0.82, 0.88, 0.92, 0.22)),
+            (0.7, v(0.85, 0.89, 0.92, 0.16)),
+            (1.0, v(0.85, 0.89, 0.92, 0.0)),
+        ],
     }
 }
 
@@ -106,11 +114,11 @@ struct BurstSpec {
     life_s: f32,
 }
 
-/// Effect assets by (recipe, layer, particle count); a continuous trail by recipe and layer.
+/// Effect assets by (recipe, layer, particle count); a continuous trail by recipe, layer and rate.
 #[derive(Resource, Default)]
 pub struct ParticleLibrary {
     bursts: HashMap<(&'static str, usize, u32), Handle<EffectAsset>>,
-    trails: HashMap<(&'static str, usize), Handle<EffectAsset>>,
+    trails: HashMap<(&'static str, usize, u32), Handle<EffectAsset>>,
     disc: Handle<Image>,
     /// Copies of the disc, one per blended burst in turn (see `set_sprite`).
     discs: Vec<Handle<Image>>,
@@ -300,7 +308,8 @@ pub fn burst(
 }
 
 /// A steady stream of recipe `recipe`'s layer `index` at `rate` a second (a rocket's smoke trail),
-/// to ride an entity; switch it with `EffectSpawner::active`.
+/// to ride an entity; switch it with `EffectSpawner::active`. It carries its properties (the size
+/// scale, 1) as a burst does: an effect whose module declares a property draws nothing without them.
 pub fn stream(
     lib: &mut ParticleLibrary,
     effects: &mut Assets<EffectAsset>,
@@ -308,21 +317,24 @@ pub fn stream(
     index: usize,
     layer: &Layer,
     rate: f32,
-) -> Option<(ParticleEffect, EffectMaterial)> {
+) -> Option<(ParticleEffect, EffectMaterial, EffectProperties)> {
     let spec = spec_of(layer)?;
     let handle = lib
         .trails
-        .entry((recipe, index))
+        .entry((recipe, index, rate.to_bits()))
         .or_insert_with(|| {
             let capacity = (rate * spec.life_s * 1.4).ceil() as u32;
             effects.add(build(spec, SpawnerSettings::rate(rate.into()), capacity))
         })
         .clone();
+    let mut props = EffectProperties::default();
+    props.set("size_scale", 1.0.into());
     Some((
         ParticleEffect::new(handle),
         EffectMaterial {
             images: vec![lib.disc.clone()],
         },
+        props,
     ))
 }
 

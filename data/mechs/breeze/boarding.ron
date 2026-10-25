@@ -12,7 +12,7 @@
         (name: "pressure equalises", start_s: 4.2, duration_s: 0.4,
             vents: [
                 (node: "VENT_seam*", kind: Steam, duration_s: 0.8, rate_per_s: 120.0, speed_m_s: 3.5),
-                (node: "VENT_seam*", kind: Mist, duration_s: 10.0, rate_per_s: 30.0, speed_m_s: 0.4),
+                (node: "VENT_seam*", kind: Mist, duration_s: 10.0, rate_per_s: 30.0, speed_m_s: 0.4, hold: true),
             ]),
         (name: "visor lifts", start_s: 4.6, duration_s: 0.8,
             motions: [(node: "HATCH_upper", axis: (1.0, 0.0, 0.0), angle_deg: -80.0)],
@@ -27,7 +27,7 @@
             motions: [(node: "HATCH_lower", axis: (1.0, 0.0, 0.0), angle_deg: 100.0)]),
         (name: "shutters retract", start_s: 5.8, duration_s: 0.3,
             motions: [(node: "SHUTTER_*", translate_m: (0.0, 0.5, 0.0), stagger_s: 0.15)],
-            vents: [(node: "VENT_cabin*", kind: Mist, duration_s: 8.0, rate_per_s: 60.0, speed_m_s: 0.6)]),
+            vents: [(node: "VENT_cabin*", kind: Mist, duration_s: 8.0, rate_per_s: 60.0, speed_m_s: 0.6, hold: true)]),
         (name: "stair unfolds", start_s: 6.6, duration_s: 0.6,
             motions: [(node: "STEP_*", axis: (1.0, 0.0, 0.0), angle_deg: 90.0, stagger_s: 0.1)]),
         (name: "console clears", start_s: 7.2, duration_s: 0.8,

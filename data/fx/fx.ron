@@ -3,7 +3,7 @@
 // `scale`, counts by `density`, lumens by `scale` cubed. An explosion's scale is the cube root of
 // its energy in megajoules (a 6 MJ shell is 1.82), as a fireball's size grows with the cube root
 // of its yield. Particle kinds: Spray, Steam, Dirt, Dust, Smoke, Spark, Fire, Flame, Debris,
-// Rubble, Trail.
+// Rubble, Trail, Mist.
 (
     // Bigger, longer tracers so a burst reads at range (owner, 2026-10-24: "The bullets are hard to
     // see ... make them bigger like tracer rounds"): 25 ms of flight long, 0.6 m wide (heavy 1.2 m).
@@ -24,8 +24,8 @@
     // root of the blast's megajoules (120 m for an 8 MJ shell), dying away over 0.7 s.
     shake: (max_deg: 1.2, reach_m_per_cbrt_mj: 60.0, decay_s: 0.7),
     // Recipes played as continuous streams from an emitter riding the body, bursts a second: a
-    // jet's flame while it fires, a wreck's fire while it burns.
-    stream_per_s: {"jet_flame": 60.0, "jet_trail": 20.0, "burning": 10.0},
+    // jet's flame while it fires, a wreck's fire while it burns, a boarding vent while it vents.
+    stream_per_s: {"jet_flame": 60.0, "jet_trail": 20.0, "burning": 10.0, "vent_steam": 30.0, "vent_mist": 6.3},
     // Particle bursts start only within 400 m of the eye (times the effect's scale; explosions four
     // times as far): far off they barely show and each costs an effect of its own (2026-10-24).
     burst_range_m: 400.0,
@@ -197,6 +197,16 @@
         "burning": [
             Burst(kind: Smoke, count: 2, speed_m_s: 3.0, spread: 0.3, size_m: 1.8, life_s: 5.0),
             Burst(kind: Fire, count: 1, speed_m_s: 2.0, spread: 0.4, size_m: 0.9, life_s: 0.5),
+        ],
+        // A mech opening to be boarded (openspec/changes/boarding-vents): streamed from each vent along its own
+        // direction while the boarding clock passes its window. Steam jets from the seals, hinges and leg rams and
+        // rises; cold mist rolls slowly out over the sill and the cabin floor and sinks. A vent's own rate
+        // multiplies the stream's (`stream_per_s` below is one vent at rate 1).
+        "vent_steam": [
+            Burst(kind: Steam, count: 1, speed_m_s: 3.0, spread: 0.25, size_m: 0.35, life_s: 1.4, along_dir: true),
+        ],
+        "vent_mist": [
+            Burst(kind: Mist, count: 1, speed_m_s: 0.6, spread: 0.6, size_m: 0.8, life_s: 4.0, along_dir: true),
         ],
     },
 )
