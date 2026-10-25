@@ -287,9 +287,9 @@
     return h;
   }
 
-  // ---------------------------------------------------------------- rivers (traced downhill), falls, swamps
+  // ---------------------------------------------------------------- rivers (traced downhill), swamps
+  // No waterfalls (owner, 2026-10-25: "Delete waterfall", "No waterfalls"): rivers run unbroken.
   const RIVERS = [];
-  const FALLS = [];
   const SWAMPS = [];
   {
     const sources = [
@@ -323,32 +323,12 @@
       if (pts.length < 20) continue;
       const river = { pts, west: s < 0 };
       RIVERS.push(river);
-      // Falls: a drop of more than 25 m within one 60 m step; runs merge into one fall.
-      for (let i = 1; i < pts.length; i++) {
-        if (pts[i - 1].bed - pts[i].bed > 25) {
-          let j = i;
-          while (j + 1 < pts.length && pts[j].bed - pts[j + 1].bed > 12) j++;
-          FALLS.push({ river: RIVERS.length - 1, i0: i - 1, i1: j, top: pts[i - 1].bed, foot: pts[j].bed, x: pts[j].x, z: pts[j].z, tx: pts[i - 1].x, tz: pts[i - 1].z });
-          i = j;
-        }
-      }
       const mb = bearing(pts[pts.length - 1].x, pts[pts.length - 1].z);
       if (river.west && mb > 200 && mb < 320) {
         const m = pts[pts.length - 1];
         if (!SWAMPS.some((o) => Math.hypot(o.x - m.x, o.z - m.z) < 3500)) SWAMPS.push({ x: m.x, z: m.z, r: 2600 });
       }
     }
-  }
-  // Each fall's face stands halfway from its lip point to its foot point. The water leaves the lip
-  // at the river's surface speed, 3 m/s, and falls freely: after falling y it is 3 sqrt(2y / g) m
-  // out from the face, a parabola. It lands `throw` m out, where the plunge pool is.
-  const FALL_LIP_SPEED_M_S = 3, G_M_S2 = 9.81;
-  for (const f of FALLS) {
-    const ex = f.x - f.tx, ez = f.z - f.tz, el = Math.hypot(ex, ez) || 1;
-    f.dx = ex / el; f.dz = ez / el; f.run = el;
-    f.fx = f.tx + ex * 0.5; f.fz = f.tz + ez * 0.5;
-    f.throw = FALL_LIP_SPEED_M_S * Math.sqrt(2 * (f.top - f.foot) / G_M_S2);
-    f.lx = f.fx + f.dx * f.throw; f.lz = f.fz + f.dz * f.throw;
   }
   const RIVER_SEGS = [];
   RIVERS.forEach((rv, ri) => {
@@ -359,6 +339,45 @@
     }
   });
   const riverCells = cellIndex(RIVER_SEGS, 400, 260);
+
+  // Lakes (owner, 2026-10-25: "They need rivers and lakes to exist"):
+  // - a tarn at every river's source, high on the range, the river flowing out of it;
+  // - a valley lake on each long river's flattest lowland stretch, the river running through.
+  // A lake is { x, z, r, depth, bank, level, kind }: a bowl `depth` deep under `level` inside r,
+  // and a bank `bank` wide that blends back to the ground.
+  const LAKES = [];
+  {
+    const lr = mulberry(SEED * 61 + 3);
+    // A lake fills only its basin: its radius stops where the ground first rises 25 m over its
+    // level along any of 16 rays (so it never reaches into a hillside), and at least 160 m.
+    const fit = (o) => {
+      let r = o.r;
+      for (let a = 0; a < 16; a++) {
+        const t = a / 16 * Math.PI * 2;
+        for (let q = 40; q < r; q += 40) if (baseHeight(o.x + Math.cos(t) * q, o.z + Math.sin(t) * q) > o.level + 25) { r = Math.min(r, q * 0.9); break; }
+      }
+      o.r = Math.max(160, r);
+      return o;
+    };
+    const add = (o) => { fit(o); if (!LAKES.some((q) => Math.hypot(q.x - o.x, q.z - o.z) < q.r + o.r + 120)) LAKES.push(o); };
+    for (const rv of RIVERS) {
+      const p = rv.pts[3];
+      add({ x: p.x, z: p.z, r: 240 + 160 * lr(), depth: 16, bank: 220, level: p.ground - 3, kind: 'tarn' });
+      if (rv.pts.length < 60) continue;
+      let best = null;
+      for (let i = Math.floor(rv.pts.length * 0.25); i < rv.pts.length * 0.85; i++) {
+        const a = rv.pts[i - 5], b = rv.pts[i + 5], q = rv.pts[i];
+        if (!b || q.ground < 25 || q.ground > 400) continue;
+        const slope = Math.abs(a.bed - b.bed) / 600;
+        if (!best || slope < best.slope) best = { i, slope };
+      }
+      if (best) {
+        const q = rv.pts[best.i];
+        add({ x: q.x, z: q.z, r: 480 + 380 * lr(), depth: 24, bank: 300, level: q.bed + 1, kind: 'valley' });
+      }
+    }
+  }
+  const inLake = (x, z, pad) => LAKES.some((o) => Math.hypot(x - o.x, z - o.z) < o.r + pad);
 
   // ---------------------------------------------------------------- the final height and fields
   // Cities (placed below, once sample() exists): squares flattened to their ground level.
@@ -378,32 +397,33 @@
       const e = Math.max(Math.abs(x - c.x), Math.abs(z - c.z));
       if (e < c.half + CITY_BLEND_M) h = mix(h, c.ground, 1 - smooth(c.half, c.half + CITY_BLEND_M, e));
     }
-    // Rivers: a channel 4 m below the bed, banks at about 20 degrees; a plunge pool under each fall.
+    // Rivers: a channel 4 m below the bed, banks at about 20 degrees.
     let rdist = 1e9, murk = 0, water = -1e9;
+    // Only the nearest piece of river carves: on a steep stretch the piece 60 m downstream is far
+    // lower, and letting it carve dug the ground out from under the water upstream.
+    let near = null;
     for (const i of riverCells(x, z)) {
       const s = RIVER_SEGS[i];
       const r = segDist(s, x, z);
-      const bed = mix(s.bedA, s.bedB, r.u);
-      const ch = bed - 4 + Math.max(0, r.d - s.hw) * 0.38;
-      if (ch < h) h = ch;
-      if (r.d < rdist) { rdist = r.d; murk = (s.west ? 0.55 : 0.15) * smooth(150, 20, bed); if (r.d < s.hw + 10) water = bed - 0.5; }
+      if (r.d < rdist) { rdist = r.d; near = { s, r }; }
     }
-    for (const fl of FALLS) {
-      // A face: across the fall's 300 m corridor the ground steps from the lip's height to the
-      // foot's at the face (on the 80 m grid that is one steep cell; the game's ground is 1 m).
-      const u = ((x - fl.tx) * fl.dx + (z - fl.tz) * fl.dz) / fl.run;
-      if (u > -0.05 && u < 1.05) {
-        // Only between its own lip and foot: falls follow each other down a river.
-        const across = Math.abs((x - fl.tx) * fl.dz - (z - fl.tz) * fl.dx);
-        const k = (1 - smooth(90, 160, across)) * smooth(-0.05, 0.05, u) * (1 - smooth(0.95, 1.05, u));
-        if (k > 0) h = mix(h, mix(fl.top, fl.foot, smooth(0.47, 0.53, u)), k);
-      }
-      // The plunge pool where the water lands, downstream of the face only.
-      const d = Math.hypot(x - fl.lx, z - fl.lz);
-      if (d < 140 && u > 0.52) h = Math.min(h, fl.foot - 9 * (1 - smooth(0, 140, d)));
+    if (near) {
+      const { s, r } = near, bed = mix(s.bedA, s.bedB, r.u);
+      h = Math.min(h, bed - 4 + Math.max(0, r.d - s.hw) * 0.38);
+      murk = (s.west ? 0.55 : 0.15) * smooth(150, 20, bed);
+      if (r.d < s.hw + 10) water = bed - 0.5;
+    }
+    // Lakes: inside, a bowl under the lake's level; round it a bank that only raises ground lower
+    // than the level (a moraine or dam), leaving higher ground as the natural shore.
+    let lake = -1e9;
+    for (const o of LAKES) {
+      const d = Math.hypot(x - o.x, z - o.z) / (1 + 0.18 * fbm(x / 300, z / 300, 2, SEED + 40));
+      if (d > o.r + o.bank) continue;
+      if (d < o.r) { h = Math.min(h, o.level - o.depth * (1 - (d / o.r) * (d / o.r)) - 0.6); lake = o.level; murk = Math.max(murk * 0.5, 0.05); }
+      else h = Math.max(h, mix(o.level + 1.5, h, smooth(o.r, o.r + o.bank, d)));
     }
     if (swamp > 0.3) murk = Math.max(murk, swamp);
-    return { h, cd: f.cd, cliffW: f.cliffW, s: f.sp.s, perp: f.sp.perp, t: f.sp.t, spineD: f.sp.d, plat: f.plat, canyon: f.canyon, mesa: f.mesa, dune: f.dune, isletQ: f.isletQ, swamp, rdist, murk, water };
+    return { h, cd: f.cd, cliffW: f.cliffW, s: f.sp.s, perp: f.sp.perp, t: f.sp.t, spineD: f.sp.d, plat: f.plat, canyon: f.canyon, mesa: f.mesa, dune: f.dune, isletQ: f.isletQ, swamp, rdist, murk, water, lake };
   }
 
   // ---------------------------------------------------------------- cities and highways
@@ -421,7 +441,7 @@
       let lo = 1e9, hi = -1e9, sum = 0, n = 0;
       for (let a = -1; a <= 1; a += 0.5) for (let b = -1; b <= 1; b += 0.5) {
         const f = sample(cx + a * half, cz + b * half);
-        if (f.h < 3 || f.h > (opts.maxH || 300) || f.canyon > 5 || f.swamp > 0.3) return null;
+        if (f.h < 3 || f.h > (opts.maxH || 300) || f.canyon > 5 || f.swamp > 0.3 || f.lake > -1e8) return null;
         if (!opts.river && f.rdist < 80) return null;
         lo = Math.min(lo, f.h); hi = Math.max(hi, f.h); sum += f.h; n++;
       }
@@ -485,6 +505,21 @@
         route.push([p[0], p[1]]);
       }
       route.push([b.x, b.z]);
+      // Round lakes, never into them: a leg that passes within a lake's radius plus 150 m bends
+      // through a point 250 m outside its shore, on the side the road already passes.
+      for (let pass = 0; pass < 2; pass++) for (let i = 0; i + 1 < route.length; i++) {
+        const [ax, az] = route[i], [bx, bz] = route[i + 1];
+        const seg = { ax, az, bx, bz };
+        for (const o of LAKES) {
+          const r = segDist(seg, o.x, o.z);
+          if (r.d > o.r + 150 || r.u <= 0 || r.u >= 1) continue;
+          const px = ax + (bx - ax) * r.u, pz = az + (bz - az) * r.u;
+          const nx = (px - o.x) / (r.d || 1), nz = (pz - o.z) / (r.d || 1);
+          const side = r.d > 1 ? [nx, nz] : [-(bz - az), bx - ax].map((v) => v / (Math.hypot(bx - ax, bz - az) || 1));
+          route.splice(i + 1, 0, [o.x + side[0] * (o.r + 250), o.z + side[1] * (o.r + 250)]);
+          break;
+        }
+      }
       HIGHWAYS.push(route);
     }
   }
@@ -692,9 +727,9 @@
 
   const api = {
     SEED, WORLD_M, HALF_M, CLOUD_BASE_M, CLOUD_TOP_M, BIOMES,
-    SPINE, PASSES, CANYONS, ISLETS, RIVERS, FALLS, SWAMPS, EAST, NORTH,
+    SPINE, PASSES, CANYONS, ISLETS, RIVERS, SWAMPS, EAST, NORTH,
     mulberry, perlin, fbm, ridged, smooth, mix, clamp, bearing, coastDist, spineAt, spinePoint,
-    baseHeight, sample, biomeWeights, moisture, FALL_LIP_SPEED_M_S, G_M_S2, CITIES, HIGHWAYS, WEATHER, CITY_BLEND_M,
+    baseHeight, sample, biomeWeights, moisture, LAKES, inLake, CITIES, HIGHWAYS, WEATHER, CITY_BLEND_M,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.IslandGen = api;

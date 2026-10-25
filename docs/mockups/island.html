@@ -76,7 +76,7 @@ label.sl input { flex: 1; min-width: 0; }
 <header>
   <div class="eyebrow">Crab Breeze · openspec island-biomes, rock-formations, terrain-materials, cloud-weather, terrain-features · mockup</div>
   <h1>The island, at true scale</h1>
-  <p class="lede">The 41 km island as the design draws it, from seed 42: a snow range through the middle reaching through the clouds, the desert and its canyons in the rain shadow to the east, jungle and swamps on the wet west, cities by the game's rules joined by highways over the passes, beaches, sea cliffs with stacks and arches, waterfalls where the rivers drop, and an archipelago off the south-west. The weather comes from the west: storm cells with rain shafts over the jungle and the sea, a cloud deck to the north-west, cloud banked on the range, caps on the peaks, fair cumulus thinning over the desert, cirrus high above. Fly through a cloud or under a storm to see the rain on the glass.</p>
+  <p class="lede">The 41 km island as the design draws it, from seed 42: a snow range through the middle reaching through the clouds, the desert and its canyons in the rain shadow to the east, jungle and swamps on the wet west, cities by the game's rules joined by highways over the passes, beaches, sea cliffs with stacks and arches, rivers from mountain tarns through valley lakes to the sea, and an archipelago off the south-west. The weather comes from the west: storm cells with rain shafts over the jungle and the sea, a cloud deck to the north-west, cloud banked on the range, caps on the peaks, fair cumulus thinning over the desert, cirrus high above. Fly through a cloud or under a storm to see the rain on the glass.</p>
 </header>
 
 <div class="wrap">
@@ -89,7 +89,7 @@ label.sl input { flex: 1; min-width: 0; }
       <button data-view="desert">Dunes</button>
       <button data-view="jungle">Jungle</button>
       <button data-view="swamp">Swamp</button>
-      <button data-view="falls">Waterfall</button>
+      <button data-view="lake">Lake</button>
       <button data-view="cliffs">Cliffs</button>
       <button data-view="islets">Archipelago</button>
       <button data-view="beach">Beach</button>
@@ -137,7 +137,7 @@ label.sl input { flex: 1; min-width: 0; }
     </div>
     <div class="card">
       <h2>What is stand-in</h2>
-      <p class="note">The ground is a 512 by 512 grid at 80 m, ten times coarser than the game's 8 m ground cells, so canyon ledges and cliffs are blunter here; each waterfall's face is one steep cell. Even at 8 m a heightmap stretches a cliff into long triangles; terrain-features proposes meshing cliffs from a density field. Ground layers are procedural colours, not the Material Maker maps. Trees are placed every 70 m across the whole island; the game grows its dense 30-45 m jungle only near the bodies. Rocks are block-outs of the kit. Cities follow the game's layout rules, but buildings are plain boxes with a window grid. Clouds are the cloud-weather proposal: one billboard per puff, lit as a sphere, sorted back to front; the weather does not change over time.</p>
+      <p class="note">The ground is a 512 by 512 grid at 80 m, ten times coarser than the game's 8 m ground cells, so canyon ledges and cliffs are blunter here. Even at 8 m a heightmap stretches a cliff into long triangles; terrain-features proposes meshing cliffs from a density field. Ground layers are procedural colours, not the Material Maker maps. Trees are placed every 70 m across the whole island; the game grows its dense 30-45 m jungle only near the bodies. Rocks are block-outs of the kit. Cities follow the game's layout rules, but buildings are plain boxes with a window grid. Clouds are the cloud-weather proposal: one billboard per puff, lit as a sphere, sorted back to front; the weather does not change over time.</p>
     </div>
   </aside>
 </div>
@@ -543,7 +543,7 @@ function buildCliff() {
   return CLIFF;
 }
 
-// ------------------------------------------------------------------ the sea, rivers and waterfalls
+// ------------------------------------------------------------------ the sea, rivers and lakes
 const time = { value: 0 };
 const waterMat = new THREE.ShaderMaterial({
   transparent: true, depthWrite: false,
@@ -556,18 +556,19 @@ const waterMat = new THREE.ShaderMaterial({
   vertexShader: `
     #include <common>
     #include <logdepthbuf_pars_vertex>
-    attribute float murk; varying float vMurk; varying vec3 vWorld;
-    void main(){ vMurk = murk; vec4 wp = modelMatrix * vec4(position, 1.0); vWorld = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp;
+    attribute float murk; attribute float wdepth; varying float vMurk; varying float vOwnDepth; varying vec3 vWorld;
+    void main(){ vMurk = murk; vOwnDepth = wdepth; vec4 wp = modelMatrix * vec4(position, 1.0); vWorld = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp;
       #include <logdepthbuf_vertex>
     }`,
   fragmentShader: GLSL_COMMON + `
     #include <logdepthbuf_pars_fragment>
-    uniform sampler2D uDepth; uniform float uTime; varying float vMurk; varying vec3 vWorld;
+    uniform sampler2D uDepth; uniform float uTime; varying float vMurk; varying float vOwnDepth; varying vec3 vWorld;
     void main(){
       #include <logdepthbuf_fragment>
       vec2 uv = (vWorld.xz + ${G.HALF_M.toFixed(1)}) / ${G.WORLD_M.toFixed(1)};
       vec4 dm = texture2D(uDepth, uv);
-      float depth = dm.r * 120.0;
+      // Rivers and lakes carry their own depth; the sea reads the depth map (zero on land).
+      float depth = vOwnDepth >= 0.0 ? vOwnDepth : dm.r * 120.0;
       float murk = max(vMurk, dm.g);
       vec2 q = vWorld.xz * 0.02;
       vec3 n = normalize(vec3((vn(q + uTime * 0.05) - 0.5) * 0.25 + (vn(q * 3.7 - uTime * 0.08) - 0.5) * 0.12, 1.0,
@@ -606,187 +607,63 @@ function buildSea() {
   const geo = new THREE.PlaneGeometry(G.WORLD_M * 6, G.WORLD_M * 6, 1, 1);
   geo.rotateX(-Math.PI / 2);
   geo.setAttribute('murk', new THREE.BufferAttribute(new Float32Array(4), 1));
+  geo.setAttribute('wdepth', new THREE.BufferAttribute(new Float32Array(4).fill(-1), 1));
   const sea = new THREE.Mesh(geo, waterMat);
   sea.renderOrder = 1;
   scene.add(sea);
 }
 
-// The fall's curtain (island-biomes section 3): glassy and green at the lip, aerating to white as it
-// drops, streaks accelerating down it, ragged edges that wander, fading into the mist at the foot.
-const fallMat = new THREE.ShaderMaterial({
-  transparent: true, depthWrite: false, side: THREE.DoubleSide,
-  uniforms: { uTime: time, uFogCol: { value: SKY_HORIZON.clone().convertSRGBToLinear() }, uFogDensity: { value: FOG_DENSITY },
-    uSunDir: { value: sunDir }, uSunCol: { value: new THREE.Color(1, 1, 1) }, uSkyCol: { value: new THREE.Color() }, uGroundCol: { value: new THREE.Color() } },
-  vertexShader: `#include <common>
-    #include <logdepthbuf_pars_vertex>
-    attribute float drop; varying vec2 vUv; varying vec3 vWorld; varying float vDrop;
-    void main(){ vUv = uv; vDrop = drop; vec4 wp = modelMatrix * vec4(position, 1.0); vWorld = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp;
-      #include <logdepthbuf_vertex>
-    }`,
-  fragmentShader: GLSL_COMMON + `
-    #include <logdepthbuf_pars_fragment>
-    uniform float uTime; varying vec2 vUv; varying vec3 vWorld; varying float vDrop;
-    void main(){
-      #include <logdepthbuf_fragment>
-      float t = vUv.y, yy = t * vDrop;
-      // Streaks ride the water: their phase is the time taken to fall this far, sqrt(2 y / g), so
-      // they stretch as the water speeds up.
-      float tau = sqrt(2.0 * yy / 9.81);
-      float s1 = vn(vec2(vUv.x * 24.0, (tau - uTime) * 2.2)), s2 = vn(vec2(vUv.x * 70.0, (tau - uTime) * 5.0));
-      float streak = 0.6 * s1 + 0.4 * s2;
-      float aer = smoothstep(0.02, 0.4, t);
-      vec3 glass = vec3(0.30, 0.50, 0.48), white = vec3(0.96, 0.97, 0.98);
-      vec3 c = mix(glass, white, clamp(0.15 + aer * 0.75 + (streak - 0.5) * 0.6 * aer, 0.0, 1.0));
-      float e = abs(vUv.x * 2.0 - 1.0) + 0.3 * (vn(vec2(yy / 18.0 - uTime * 1.3, vUv.x * 3.0)) - 0.5) * aer;
-      float a = smoothstep(1.0, 0.72, e) * mix(0.7, 0.95, aer) * (0.55 + 0.45 * streak) * smoothstep(1.0, 0.86, t);
-      vec3 lit = srgb(c) * (0.5 + 0.9 * max(uSunDir.y, 0.0));
-      gl_FragColor = vec4(applyFog(lit, length(vWorld - cameraPosition)), a);
-      #include <tonemapping_fragment>
-      #include <encodings_fragment>
-    }`,
-});
-// Churned water in the plunge pool: foam rings spreading from the impact.
-const foamMat = new THREE.ShaderMaterial({
-  transparent: true, depthWrite: false,
-  uniforms: { uTime: time },
-  vertexShader: `#include <common>
-    #include <logdepthbuf_pars_vertex>
-    varying vec2 vUv; void main(){ vUv = uv * 2.0 - 1.0; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
-      #include <logdepthbuf_vertex>
-    }`,
-  fragmentShader: GLSL_COMMON + `
-    #include <logdepthbuf_pars_fragment>
-    uniform float uTime; varying vec2 vUv;
-    void main(){
-      #include <logdepthbuf_fragment>
-      float r = length(vUv);
-      float rings = 0.5 + 0.5 * sin(r * 26.0 - uTime * 3.0 + 4.0 * vn(vUv * 4.0));
-      float a = (1.0 - smoothstep(0.35, 1.0, r)) * (0.45 + 0.55 * vn(vUv * 9.0 + uTime * 0.4)) * mix(1.0, rings, smoothstep(0.2, 0.5, r));
-      gl_FragColor = vec4(vec3(0.95), a * 0.85);
-      #include <encodings_fragment>
-    }`,
-});
-const MIST = [];
-const sprayMat = new THREE.ShaderMaterial({
-  transparent: true, depthWrite: false,
-  uniforms: { uTime: time, uScale: { value: 600 } },
-  vertexShader: `#include <common>
-    #include <logdepthbuf_pars_vertex>
-    uniform float uTime; uniform float uScale; attribute float seed; varying float vA;
-    void main(){
-      vec3 p = position;
-      float t = fract(uTime * 0.12 + seed);
-      p.y += t * 60.0 * (0.5 + seed); p.x += sin(seed * 40.0 + uTime * 0.3) * 18.0 * t; p.z += cos(seed * 31.0) * 18.0 * t;
-      vA = (1.0 - t) * 0.5;
-      vec4 mv = viewMatrix * modelMatrix * vec4(p, 1.0);
-      gl_PointSize = uScale * (18.0 + 30.0 * t) / max(-mv.z, 1.0);
-      gl_Position = projectionMatrix * mv;
-      #include <logdepthbuf_vertex>
-    }`,
-  fragmentShader: `#include <logdepthbuf_pars_fragment>
-    varying float vA;
-    void main(){
-      #include <logdepthbuf_fragment>
-      float d = length(gl_PointCoord - 0.5); if (d > 0.5) discard;
-      gl_FragColor = vec4(vec3(0.92, 0.95, 0.97), vA * smoothstep(0.5, 0.0, d));
-      #include <encodings_fragment>
-    }`,
-});
 
 function buildRivers() {
-  const pos = [], murk = [], idx = [];
-  const fallPos = [], fallUv = [], fallIdx = [];
-  const spray = [], seeds = [];
-  G.RIVERS.forEach((rv, ri) => {
+  const pos = [], murk = [], wdepth = [], idx = [];
+  G.RIVERS.forEach((rv) => {
     const pts = rv.pts;
-    const inFall = new Uint8Array(pts.length);
-    G.FALLS.filter((f) => f.river === ri).forEach((f) => { for (let i = f.i0; i <= f.i1; i++) inFall[i] = 1; });
     let prev = -1;
     for (let i = 0; i < pts.length; i++) {
       const p = pts[i], q = pts[Math.min(pts.length - 1, i + 1)], o = pts[Math.max(0, i - 1)];
       let dx = q.x - o.x, dz = q.z - o.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
       const hw = 24 + 26 * (i / pts.length);
-      const y = p.bed - 0.5 + 2.0;
+      // On the 80 m grid a 50-100 m channel mostly falls between grid points and the drawn
+      // ground runs over it, so each edge also sits 0.8 m over the drawn ground.
+      const y = p.bed + 1.5;
+      const lx = p.x - dz * hw, lz = p.z + dx * hw, rx = p.x + dz * hw, rz = p.z - dx * hw;
       const base = pos.length / 3;
-      pos.push(p.x - dz * hw, y, p.z + dx * hw, p.x + dz * hw, y, p.z - dx * hw);
+      pos.push(lx, Math.max(y, groundAt(lx, lz) + 0.8, groundAt(p.x, p.z) + 0.8), lz, rx, Math.max(y, groundAt(rx, rz) + 0.8, groundAt(p.x, p.z) + 0.8), rz);
       // Clear in the mountains; western rivers turn muddy only on the lowland run to the swamps.
       const m = (rv.west ? 0.55 : 0.15) * G.smooth(150, 20, p.bed);
-      murk.push(m, m);
-      if (prev >= 0 && !(inFall[i] && inFall[i - 1]) && p.bed > -1) idx.push(prev, prev + 1, base, prev + 1, base + 1, base);
+      murk.push(m, m); wdepth.push(3, 3);
+      const wet = !G.inLake(p.x, p.z, 0) && (i === 0 || !G.inLake(o.x, o.z, 0));
+      // Wound to face up (they faced down, so one-sided water culled every river from above).
+      if (prev >= 0 && wet && p.bed > -1) idx.push(prev, base, prev + 1, prev + 1, base, base + 1);
       prev = base;
     }
   });
-  const frnd = G.mulberry(4747);
-  const fallDrop = [];
-  const foam = new THREE.Group();
-  G.FALLS.forEach((f) => {
-    const pts = G.RIVERS[f.river].pts;
-    const dx = f.dx, dz = f.dz;
-    const drop = f.top - f.foot;
-    const hw0 = 24 + 26 * (f.i0 / pts.length);
-    const base = fallPos.length / 3;
-    // Rows by distance fallen, closer together near the lip where the curve bends: each row sits
-    // where free fall from the lip at 3 m/s puts it, never under the ground.
-    const ROWS = 24, COLS = 5, H = drop + 4;
-    for (let r = 0; r <= ROWS; r++) {
-      const t = (r / ROWS) * (r / ROWS), fallen = H * t;
-      const out = 1.5 + G.FALL_LIP_SPEED_M_S * Math.sqrt(2 * fallen / G.G_M_S2);
-      const cx = f.fx + dx * out, cz = f.fz + dz * out;
-      const hw = hw0 * (0.9 + 0.3 * t);
-      for (let c = 0; c < COLS; c++) {
-        const u = c / (COLS - 1), side = (u - 0.5) * 2 * hw;
-        const x = cx - dz * side, z = cz + dx * side;
-        const y = Math.max(f.top + 1.5 - fallen, groundAt(x, z) + 2.5);
-        fallPos.push(x, y, z); fallUv.push(u, t); fallDrop.push(drop);
+  // Lakes: a disc at each lake's level, its edge following the same wobble as the carved shore.
+  for (const o of G.LAKES) {
+    const k0 = pos.length / 3, SEG = 64;
+    pos.push(o.x, o.level, o.z); murk.push(o.kind === 'valley' ? 0.12 : 0.04); wdepth.push(o.depth);
+    for (let a = 0; a < SEG; a++) {
+      const t = a / SEG * Math.PI * 2;
+      let rr = o.r * 1.02;
+      // Find the shore along this ray: the first place the carved ground rises over the level.
+      // Past the bowl, where the ground falls away below the level (the outlet), the water stops
+      // short instead of overhanging.
+      for (let q = 0.3; q <= 1.25; q += 0.05) {
+        const x = o.x + Math.cos(t) * o.r * q, z = o.z + Math.sin(t) * o.r * q, gq = groundAt(x, z);
+        if (gq > o.level + 0.5) { rr = o.r * q + 30; break; }
+        if (q > 0.85 && gq < o.level - 0.3) { rr = o.r * (q - 0.1); break; }
       }
+      const x = o.x + Math.cos(t) * rr, z = o.z + Math.sin(t) * rr;
+      pos.push(x, o.level, z); murk.push(o.kind === 'valley' ? 0.12 : 0.04); wdepth.push(Math.max(0.3, o.level - groundAt(x, z)));
     }
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS - 1; c++) {
-      const i = base + r * COLS + c;
-      fallIdx.push(i, i + COLS, i + 1, i + 1, i + COLS, i + COLS + 1);
-    }
-    const a = { x: f.fx, z: f.fz }, b = { x: f.lx, z: f.lz };
-    // The river on the tread above, running to the lip, and below, from the landing on.
-    const strip = (x0, z0, x1, z1, y, hw) => {
-      const k = pos.length / 3, m = (G.RIVERS[f.river].west ? 0.55 : 0.15) * G.smooth(150, 20, y);
-      pos.push(x0 - dz * hw, y, z0 + dx * hw, x0 + dz * hw, y, z0 - dx * hw, x1 - dz * hw, y, z1 + dx * hw, x1 + dz * hw, y, z1 - dx * hw);
-      murk.push(m, m, m, m);
-      idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2);
-    };
-    strip(f.tx, f.tz, f.fx, f.fz, f.top + 1.5, hw0);
-    strip(f.lx, f.lz, f.x, f.z, f.foot + 1.5, hw0 * 1.2);
-    // The plunge pool's foam, and mist rising off it.
-    const pr = 30 + 0.35 * drop;
-    const disc = new THREE.Mesh(new THREE.PlaneGeometry(pr * 2, pr * 2).rotateX(-Math.PI / 2), foamMat);
-    disc.position.set(b.x, f.foot + 1.7, b.z); disc.renderOrder = 3;
-    foam.add(disc);
-    for (let k = 0; k < 8; k++) {
-      const r0 = 18 + 0.22 * drop * (0.6 + 0.6 * frnd());
-      MIST.push({ x: b.x + (frnd() - 0.5) * pr, y: f.foot + r0 * 0.5 + frnd() * drop * 0.35, z: b.z + (frnd() - 0.5) * pr, rx: r0, ry: r0 * 0.8,
-        kind: 6, dark: 0, seed: frnd() * 100, base: f.foot, top: f.top });
-    }
-    for (let k = 0; k < 220; k++) {
-      const atLip = k < 40;
-      spray.push((atLip ? a.x : b.x) + (frnd() - 0.5) * pr * 1.4, atLip ? f.top : f.foot, (atLip ? a.z : b.z) + (frnd() - 0.5) * pr * 1.4);
-      seeds.push(frnd());
-    }
-  });
-  scene.add(foam);
+    for (let a = 0; a < SEG; a++) idx.push(k0, k0 + 1 + ((a + 1) % SEG), k0 + 1 + a);
+  }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('murk', new THREE.Float32BufferAttribute(murk, 1));
+  g.setAttribute('wdepth', new THREE.Float32BufferAttribute(wdepth, 1));
   g.setIndex(idx);
   const rm = new THREE.Mesh(g, waterMat); rm.renderOrder = 2; scene.add(rm);
-  const fg = new THREE.BufferGeometry();
-  fg.setAttribute('position', new THREE.Float32BufferAttribute(fallPos, 3));
-  fg.setAttribute('uv', new THREE.Float32BufferAttribute(fallUv, 2));
-  fg.setAttribute('drop', new THREE.Float32BufferAttribute(fallDrop, 1));
-  fg.setIndex(fallIdx);
-  const fm = new THREE.Mesh(fg, fallMat); fm.renderOrder = 3; scene.add(fm);
-  const sg = new THREE.BufferGeometry();
-  sg.setAttribute('position', new THREE.Float32BufferAttribute(spray, 3));
-  sg.setAttribute('seed', new THREE.Float32BufferAttribute(seeds, 1));
-  const sp = new THREE.Points(sg, sprayMat); sp.renderOrder = 4; sp.frustumCulled = false; scene.add(sp);
-  SPRITES.push(spriteSet(MIST, scene));
 }
 
 // ------------------------------------------------------------------ trees
@@ -818,7 +695,7 @@ function buildTrees() {
     if (h < 1.2) continue;
     const { b, k } = biomePick(px, pz, rnd());
     const f = FIELDS[k];
-    if (f.rdist < 40 || inCity(px, pz, 40) || inCliff(px, pz)) continue;
+    if (f.rdist < 40 || f.lake > -1e8 || G.inLake(px, pz, 20) || inCity(px, pz, 40) || inCliff(px, pz)) continue;
     const r = rnd(), sh = 0.75 + rnd() * 0.5, ry = rnd() * 6.28;
     if (b === 2 && r < 0.95) { const tall = 30 + rnd() * 15; canopy.push({ x: px, y: h + tall * 0.72, z: pz, sx: 9 + rnd() * 6, sy: tall * 0.3, sz: 9 + rnd() * 6, ry, shade: sh }); }
     else if (b === 1 && r < 0.6) { const tall = 18 + rnd() * 14; conifer.push({ x: px, y: h + tall * 0.5, z: pz, sx: tall * 0.22, sy: tall, sz: tall * 0.22, ry, shade: sh }); }
@@ -1147,7 +1024,7 @@ const spriteMat = new THREE.ShaderMaterial({
       #include <encodings_fragment>
     }`,
 });
-// The opacity of each kind: cumulus, storm tower, anvil, deck, front and scud, orographic, cap, mist, altocumulus.
+// The opacity of each kind: cumulus, storm tower, anvil, deck, front and scud, orographic, cap, (unused), altocumulus.
 const KIND_ALPHA = [0.95, 1.0, 0.8, 0.8, 0.6, 0.9, 0.4, 0.6];
 
 // A sorted billboard set: the puffs, their instanced quad, and a sort by distance from the eye.
@@ -1357,17 +1234,7 @@ function setupViews() {
   const cl = Math.hypot(c0.bx - c0.ax, c0.bz - c0.az) || 1;
   const ca = [(c0.bx - c0.ax) / cl, (c0.bz - c0.az) / cl], cn = [-ca[1], ca[0]];
   const sw = G.SWAMPS[0] || { x: -9000, z: 3000 };
-  // The view's fall: of the five tallest, the one with the least cloud between the eye and it.
-  const fallEye = (f) => { const d = Math.max(260, 2.4 * (f.top - f.foot));
-    return [f.lx + f.dx * d + f.dz * d * 0.6, f.foot + 0.3 * (f.top - f.foot), f.lz + f.dz * d - f.dx * d * 0.6]; };
-  const cloudOnLine = (p, q) => G.WEATHER.puffs.filter((c) => {
-    const ab = [q[0] - p[0], q[1] - p[1], q[2] - p[2]], l2 = ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2;
-    const u = G.clamp(((c.x - p[0]) * ab[0] + (c.y - p[1]) * ab[1] + (c.z - p[2]) * ab[2]) / l2, 0, 1);
-    return Math.hypot(c.x - p[0] - ab[0] * u, c.y - p[1] - ab[1] * u, c.z - p[2] - ab[2] * u) < c.rx * 1.3;
-  }).length;
-  const fall = G.FALLS.slice().sort((a, b) => (b.top - b.foot) - (a.top - a.foot)).slice(0, 5)
-    .map((f) => ({ f, n: cloudOnLine(fallEye(f), [f.fx, (f.top + f.foot) / 2, f.fz]) }))
-    .sort((a, b) => a.n - b.n)[0].f;
+  const vl = G.LAKES.filter((o) => o.kind === 'valley').sort((a, b) => b.r - a.r)[0] || G.LAKES[0];
   const isl = G.ISLETS[0];
   const ne = [Math.sin(50 * Math.PI / 180) * 12000, -Math.cos(50 * Math.PI / 180) * 12000];
   // The heart of the sand sea: the 400 m grid point whose 1.2 km square holds the most dune
@@ -1396,7 +1263,8 @@ function setupViews() {
     jungle: { pos: at(jung.x, jung.z, 70), tgt: at(jung.x + 900, jung.z - 400, 20) },
     swamp: { pos: [sw.x + 700, 45, sw.z + 500], tgt: [sw.x - 300, 0, sw.z - 200] },
     // From downstream of the landing and off to one side, so the curve shows in profile.
-    falls: fall ? { pos: fallEye(fall), tgt: [fall.fx, (fall.top + fall.foot) / 2, fall.fz] } : { pos: [0, 3000, 8000], tgt: [0, 0, 0] },
+    // The largest valley lake from 1.6 km off, 220 m up, the river running through it.
+    lake: { pos: at(vl.x + vl.r * 2.4, vl.z + vl.r * 1.4, 220), tgt: [vl.x, vl.level, vl.z] },
     cliffs: { pos: [ne[0] * 1.13, 70, ne[1] * 1.13], tgt: [ne[0] * 0.98, 60, ne[1] * 0.98] },
     // Under the cloud base (600 m), so no cloud stands between the eye and the islands.
     islets: { pos: [isl.x + 2200, 420, isl.z - 2200], tgt: [isl.x, 0, isl.z] },
@@ -1506,7 +1374,8 @@ function facts(trees, rocks, cl, ci, cliff) {
   const kv = [
     ['highest ground', `${peak.h.toFixed(0)} m (clouds ${G.CLOUD_BASE_M}-${G.CLOUD_TOP_M} m)`],
     ['land', `${(land * 4 * STEP * STEP / 1e6).toFixed(0)} km²`],
-    ['rivers', `${G.RIVERS.length}, with ${G.FALLS.length} waterfalls (${Math.round(Math.min(...G.FALLS.map((f) => f.top - f.foot)))}-${Math.round(Math.max(...G.FALLS.map((f) => f.top - f.foot)))} m)`],
+    ['rivers', `${G.RIVERS.length}, from tarns on the range to the sea`],
+    ['lakes', `${G.LAKES.length}: ${G.LAKES.filter((o) => o.kind === 'tarn').length} tarns at river sources, ${G.LAKES.filter((o) => o.kind === 'valley').length} valley lakes`],
     ['swamps', `${G.SWAMPS.length} at western river mouths`],
     ['canyons', `${G.CANYONS.length} segments of 230 m`],
     ['islets', `${G.ISLETS.length} (${G.ISLETS.filter((o) => o.cliff).length} cliffed)`],
@@ -1540,7 +1409,12 @@ function placeLabels() {
   for (const l of LABELS) {
     _v.copy(l.p).project(camera);
     const d = camera.position.distanceTo(l.p);
-    const show = on && _v.z < 1 && Math.abs(_v.x) < 1.05 && Math.abs(_v.y) < 1.05 && d > 900;
+    let show = on && _v.z < 1 && Math.abs(_v.x) < 1.05 && Math.abs(_v.y) < 1.05 && d > 900;
+    // Hidden behind the ground: sample the terrain along the line of sight.
+    for (let k = 1; show && k < 24; k++) {
+      const t = k / 24, x = camera.position.x + (l.p.x - camera.position.x) * t, z = camera.position.z + (l.p.z - camera.position.z) * t;
+      if (groundAt(x, z) > camera.position.y + (l.p.y - camera.position.y) * t + 5) show = false;
+    }
     l.el.style.display = show ? '' : 'none';
     if (show) { l.el.style.left = `${(_v.x * 0.5 + 0.5) * w}px`; l.el.style.top = `${(-_v.y * 0.5 + 0.5) * h - 8}px`; }
   }
@@ -1573,7 +1447,7 @@ function frame(now) {
   }
   const fogD = FOG_DENSITY * (1 - 0.85 * THREE.MathUtils.smoothstep(camera.position.y, 1500, 14000));
   scene.fog.density = fogD;
-  [groundMat, waterMat, fallMat, buildingMat].forEach((m) => { m.uniforms.uFogDensity.value = fogD; });
+  [groundMat, waterMat, buildingMat].forEach((m) => { m.uniforms.uFogDensity.value = fogD; });
   spriteMat.uniforms.uFogDensity.value = fogD * 0.8;
   shaftMat.uniforms.uFogDensity.value = fogD;
   drawRain(dt, groups.clouds.visible ? insideCloud(camera.position, drift) : 0);

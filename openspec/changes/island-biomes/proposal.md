@@ -27,8 +27,8 @@ grid, as today):
   height and more), rivers through it.
 - **Swamps:** flat wetlands at the western river mouths. Murky, shallow water (0.5-4 m, waded:
   `skim-depth`), mangrove and cypress.
-- **Waterfalls:** where a river drops off the range's cliff bands or a canyon lip, 40-200 m falls
-  with spray and mist, and a plunge pool below.
+- **Rivers and lakes:** rivers from tarns on the range through valley lakes to the sea. No
+  waterfalls (owner, 2026-10-25: "No waterfalls").
 - **Temperate north:** forest and grassland plains, where most cities stand.
 - **Coasts:**
   - beaches and dunes on the south and west;

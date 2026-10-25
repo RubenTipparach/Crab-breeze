@@ -44,7 +44,8 @@ with land out to about 13 km. All numbers would go in `data/world/world.ron` und
 10. **Swamp flats:** within 3 km of the western river mouths, ground below 6 m is flattened toward
     1-2 m above the river water, with pools.
 11. **Cities, highways and rivers:** as today, on top. Rivers run downhill from the range.
-    Waterfalls are recorded where a river's bed drops more than 25 m within 60 m.
+    No waterfalls (owner, 2026-10-25: "Delete waterfall", "No waterfalls"); rivers run unbroken
+    from tarns to the sea, through lakes (section 3).
 
 **Cost.** Today a sample is about 70 ns. With the range, canyon index and terraces it is expected at
 200-300 ns (measured by the existing `ground_chunks_cost_less_the_coarser_they_are_drawn`).
@@ -118,30 +119,25 @@ the desert met the sea.)
 - The one water material gets a murk input: the vertex colour's third channel, 0 clear to 1
   swamp-brown and opaque at 1.5 m. Rivers pick it up from their biome.
 - Swamp pools are shallow and waded (`skim-depth`: skates only past half the mech).
-- **Waterfalls:**
-  - a curtain mesh down the recorded drop, scrolling foam (Material Maker flow and foam maps);
-  - spray particles at the lip and the foot (`combat-fx`'s particles), and a mist volume (a few
-    soft sprites);
-  - a plunge pool carved below;
-  - sound later (`audio`).
-  - About 20-40 falls on the island; each is 2 draws and 200 particles within 2 km.
-  - **The look** (owner, 2026-10-24: "Waterfalls.. ooof don't look great"; the mockup had a flat
-    white strip):
-    - The curtain follows free fall (owner, 2026-10-24: "It's horizontal velocity is gentl. And
-      it should fall in a parabolic curve because gravity"): the water leaves the lip at the
-      river's surface speed, 3 m/s, so after falling `y` it is `3 sqrt(2 y / 9.81)` m out from the
-      face. That is 19 m at the foot of a 200 m fall and 25 m at 346 m. It is a 25 by 5 grid,
-      with rows packed toward the lip where the curve bends, and never under the ground.
-    - It is glassy green at the lip, aerating to white by 40 % of the drop. Streaks ride the
-      water: their phase is the time to fall that far, `sqrt(2 y / g)`, so they stretch as it
-      speeds up. Its edges wander.
-    - At the foot, where the curve lands: a foam disc of radius 30 m plus 0.35 of the drop, rings
-      spreading from the impact; 8 mist billboards (the cloud sprites) rising a third of the drop;
-      spray at the lip and the foot.
-    - The ground under a fall is a face: across the fall's 300 m corridor it steps from the lip's
-      height to the foot's. On the game's 8 m cells the drop sits in one cell, nearly vertical
-      but a stretched pair of triangles (`terrain-features` meshes such faces properly); on the
-      mockup's 80 m grid it is one steep cell, so the lower curtain can touch it.
+- **No waterfalls** (owner, 2026-10-25: "Waterfalls are messed up. They need rivers and lakes to
+  exist", then "Delete waterfall", "No waterfalls"). The falls, their carved faces and plunge
+  pools are gone from the design and the mockup.
+- **Lakes** (the same note):
+  - a **tarn** at every river's source on the range, the river flowing out of it;
+  - a **valley lake** on each long river's flattest lowland stretch (rivers of over 60 points,
+    between a quarter and 85 % of the way down, ground 25-400 m), the river running through.
+  - A lake is a bowl under its level inside its radius, and a bank that only raises ground lower
+    than the level (a moraine or dam), so the water always sits in a basin. Its radius stops where
+    the ground rises 25 m over its level along any of 16 rays, so it never reaches into a
+    hillside. Seed 42: 9 tarns and 5 valley lakes, 160-430 m across.
+  - Cities and trees keep out of lakes; highways bend round them, through a point 250 m outside
+    the shore.
+- **Rivers carve by their nearest piece only.** On a steep stretch the piece 60 m downstream is far
+  lower, and letting every nearby piece carve dug the ground out from under the water upstream
+  (368 of 4,704 river points floated more than 8 m over the ground; now 20, in swamps and at city
+  edges).
+- **Rivers carry their own depth** to the water shader; the sea's depth map is zero on land and
+  drew every river as shallow surf.
 
 ## 4. Cities
 
@@ -167,7 +163,7 @@ The mockup places them (owner, 2026-10-24: "I don't see cities on the island"). 
 
 - **Terrain:** sample cost rises about 3-4 times, all off the main thread.
 - **Triangles:** unchanged, from the same quadtree.
-- **Waterfalls:** under 100 draws and 8,000 particles worst case.
+- **Lakes:** one more draw (they join the rivers' mesh), 65 vertices each.
 - **Biome weights:** computed with the vertex (8 more noise reads); the trees and rocks read the
   same function.
 
@@ -180,7 +176,7 @@ The mockup places them (owner, 2026-10-24: "I don't see cities on the island"). 
 | I3 | Which side is desert | east (the rain shadow), jungle west and south-west | proposed (survey I3) |
 | I4 | Archipelago | 20-40 islets off the south-west, 0.2-2 km across | proposed (survey I4) |
 | I6 | Jungle density against frame time | 30-45 m canopy, grown only near the bodies like today's trees; measured | proposed (survey I6) |
-| I8 | Waterfalls | 20-40 from the terrain, 40-200 m, spray, mist and plunge pools | proposed (survey I8) |
+| I8 | Waterfalls | none; rivers and lakes instead | decided (owner, 2026-10-25: "No waterfalls") |
 | I9 | The capital, with the range in the middle | the nearest flat site north of the centre, about 8 km out | proposed (survey I9) |
 | I11 | Cities from the air | suburbs out to 2.6 times each city's half-size; the cities keep the game's size | proposed (survey I11) |
 | I10 | How wide the climate borders are | moisture over a 12 km band; desert and canyon a quarter of the land (owner); borders in patches up close, gradients from the air | decided in part (owner, 2026-10-25: a quarter desert, gradual) |

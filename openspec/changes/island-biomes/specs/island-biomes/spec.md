@@ -7,9 +7,9 @@ The island SHALL have a mountain range through its middle with peaks above the c
 - **WHEN** the shipped island is generated with seed 42
 - **THEN** its highest ground is above the cloud base, and every biome (alpine, montane forest, jungle, swamp, temperate, savanna, desert, canyon, beach, cliff) holds at least one point
 
-### Requirement: Waterfalls where rivers drop
-A waterfall SHALL be recorded wherever a river's bed drops more than 25 m within 60 m, and drawn with spray and mist.
+### Requirement: Rivers run through lakes
+Every river SHALL start at a tarn on the range, and each long river SHALL pass through a valley lake on its flattest lowland stretch; a lake's water SHALL sit inside a basin, and no highway or city SHALL stand in a lake.
 
-#### Scenario: Rivers off the range
+#### Scenario: Seed 42
 - **WHEN** the shipped island is generated
-- **THEN** at least one river has a waterfall
+- **THEN** every river's source lies in a tarn, at least one valley lake exists, and no highway point lies inside a lake

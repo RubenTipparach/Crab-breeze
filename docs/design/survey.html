@@ -314,9 +314,6 @@ const SECTIONS = [
       { id: 'I7', q: 'Cloud shadows on the ground?',
         options: ['Yes: a 2 km shadow texture that drifts with the clouds, one sample a pixel', 'No shadows (cheapest)', 'Real shadow maps from the cloud meshes (dearer)'], rec: 0,
         why: 'Shadows racing over the ground sell the clouds from the air for almost no cost.' },
-      { id: 'I8', q: 'Waterfalls: how many and how big?',
-        options: ['20-40 where rivers drop off the range and canyon lips, 40-200 m high, with spray, mist and a plunge pool', 'A few hero falls only, at mission sites', 'One giant fall (400 m+) as a landmark, plus small ones'], rec: 0,
-        why: 'Falls come from the terrain itself wherever a river drops, so there are many to find; each costs two draws and some particles nearby.' },
       { id: 'I9', q: 'With the range down the middle there is no flat ground under 300 m within 6 km of the centre. The nearest site that fits the capital is 8 km north-north-east. Where does it go?',
         options: ['There, the nearest flat site north of the centre (about 8 km out)', 'Flatten a site in the foothills nearer the centre', 'A valley city inside the range, at a pass'], rec: 0,
         why: 'It keeps the capital on real flat ground on the plain, a short flight from the middle, without carving the range.' },
@@ -326,6 +323,9 @@ const SECTIONS = [
       { id: 'I10', q: 'Climate borders now follow a moisture field: wet west to dry east over a 9 km band, so jungle gives way to grassland, savanna and then desert, and each border breaks into patches on the ground. Is that the transition you want? (Desert and canyon are now a quarter of the land, 24.9 %, as you asked, with savanna 9.5 % between them and the green.)',
         options: ['Yes, a 9 km band with patchy borders', 'Wider and softer (12 km), more savanna', 'Tighter (3 km): a sharper wet and dry split'], rec: 0,
         why: 'Seven kilometres reads as a real rain shadow from the air and still gives each side its own look on the ground.' },
+      { id: 'W29', q: 'Water like your Space Engineers 2 picture (openspec/changes/water-look). Our water already refracts, absorbs and foams; what it lacks is the light on the surface. Which steps?',
+        options: ['All five in order: wavelets at three scales from an ocean spectrum; the sky and its clouds reflected; the mech, ships and shore reflected by a screen-space trace; a long sun glitter path; turquoise light through the wavelets and shadows on the water', 'Only the cheap ones: wavelets, sky reflection, glitter (no trace)', 'A planar mirror camera for exact reflections (draws the scene twice)'], rec: 0,
+        why: 'Each step is something visible in the reference, and together they cost about 0.6-0.9 ms on the 3070 by estimate (to be measured).' },
       { id: 'W25', q: 'Clouds are now billboards (one per puff, lit as a sphere, sorted). Storm towers are the one place billboards may look flat when you fly right up to them. Add a cheap raymarch there?',
         options: ['Billboards everywhere; raymarch the storm towers only if they look flat in a playtest', 'Raymarch the storm towers now (about 0.5-1 ms)', 'Raymarch every cloud at quarter resolution'], rec: 0,
         why: 'Billboards cost almost nothing; a raymarch is worth its time only where a playtest shows the billboards failing.' },
@@ -406,6 +406,7 @@ const SECTIONS = [
 ];
 
 const DECIDED = [
+  { text: 'I8 No waterfalls: "Waterfalls are messed up. They need rivers and lakes to exist", then "Delete waterfall", "No waterfalls". Rivers run from tarns on the range through valley lakes to the sea.', where: 'openspec/changes/island-biomes section 3; the Island mockup' },
   { text: 'W17 Clouds are billboards, one per puff, with weather: "I prefer clouds to be billboards or a mix of some cheap raymarch", "I also want more varied clouds. Like make it look like there\'s actual weather".', where: 'openspec/changes/cloud-weather; the Island mockup' },
   { text: 'Before W17 was revised, clouds were cheap, lit blob meshes rather than volumetric fog: "we\'re on a tight budget, I just want good looking clouds with correct lighting and dont cost much to render". Flying through one wets the glass with drops, as in Pale Blue Dot.', where: 'openspec/changes/cloud-puffs, cloud-rain' },
   { text: 'Shallow water is waded; the skates skim only over water deeper than half the mech ("The skis only kicking if you\'re above water deeper than 50% of the mech").', where: 'openspec/changes/skim-depth' },
