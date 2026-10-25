@@ -1,0 +1,13 @@
+// Every Material Maker material Crab Breeze ships (openspec changes `blast-scorch` and `fx-sprites`). Each is rendered from
+// `tools/materials/ptex/<name>.ptex` by `tools/materials/export_materials.sh` and written by `tools/materials/postprocess.py`
+// to `assets/textures/fx/<name>/`. `size_px` is the shipped size; `maps` the maps shipped; `use` what reads it.
+(
+    materials: [
+        (name: "blast_scorch", size_px: 2048, maps: ["albedo", "normal", "orm"], use: "decal over a crater on soil"),
+        (name: "churned_soil", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 2.0, use: "the crater's bowl"),
+        (name: "smoke_puffs", size_px: 1024, maps: ["albedo"], grid: 4, use: "smoke, steam and trail particles"),
+        (name: "fire_flipbook", size_px: 1024, maps: ["albedo"], grid: 4, use: "fire and flame particles, played over life"),
+        (name: "dust_wisps", size_px: 1024, maps: ["albedo"], grid: 4, use: "dust particles"),
+        (name: "dirt_clods", size_px: 1024, maps: ["albedo"], grid: 4, use: "dirt, debris and rubble particles"),
+    ],
+)
