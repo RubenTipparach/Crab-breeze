@@ -146,6 +146,9 @@ fn main() -> AppExit {
         app.add_plugins(capture::StillsPlugin { dir });
     } else if let Some(take) = args.showcase.clone().or(args.bench.clone()) {
         app.add_plugins(showcase::ShowcasePlugin { take });
+        if let Ok(dir) = std::env::var("CB_FRAMES_DIR") {
+            app.add_plugins(capture::FramesPlugin { dir: dir.into() });
+        }
     }
     if args.bench.is_some() {
         app.add_plugins(bench::BenchPlugin);

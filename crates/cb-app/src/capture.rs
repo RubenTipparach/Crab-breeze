@@ -180,3 +180,50 @@ fn run_script(
         script.beat_started_s = now;
     }
 }
+
+/// Frames from a showcase take, for checking effects headless (openspec change `mech-damage-fx` task 4.1; CLAUDE.md
+/// section 4 allows it as an instrument): with `CB_FRAMES_DIR` set, the primary window is saved every
+/// `CB_FRAMES_EVERY_S` seconds of game time (default 2) as `frame-<n>.png`, at most `CB_FRAMES_MAX` (default 90).
+/// It saves pictures and nothing else; a take with frames saved is not a frame-time result (CLAUDE.md section 7).
+pub struct FramesPlugin {
+    /// Where the PNGs go.
+    pub dir: PathBuf,
+}
+
+#[derive(Resource)]
+struct Frames {
+    dir: PathBuf,
+    every_s: f32,
+    max: u32,
+    taken: u32,
+    next_s: f32,
+}
+
+impl Plugin for FramesPlugin {
+    fn build(&self, app: &mut App) {
+        std::fs::create_dir_all(&self.dir).ok();
+        let env = |k: &str, d: f32| std::env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(d);
+        app.insert_resource(Frames {
+            dir: self.dir.clone(),
+            every_s: env("CB_FRAMES_EVERY_S", 2.0).max(0.1),
+            max: env("CB_FRAMES_MAX", 90.0) as u32,
+            taken: 0,
+            next_s: 0.0,
+        })
+        .add_systems(Update, save_frames);
+    }
+}
+
+fn save_frames(mut commands: Commands, mut frames: ResMut<Frames>, time: Res<Time>, ready: Option<Res<crate::loading::GameReady>>) {
+    if !ready.is_some_and(|r| r.0) || frames.taken >= frames.max {
+        return;
+    }
+    let now = time.elapsed_secs();
+    if now < frames.next_s {
+        return;
+    }
+    frames.next_s = now + frames.every_s;
+    let name = format!("frame-{:03}.png", frames.taken);
+    frames.taken += 1;
+    shoot(&mut commands, &frames.dir.clone(), &name);
+}
