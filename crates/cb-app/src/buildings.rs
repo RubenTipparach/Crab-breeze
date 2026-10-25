@@ -16,6 +16,7 @@
 use crate::building_state::{BuildingMaterial, BuildingStates, ElementState, slot, standing_words};
 use crate::sim::{PresentSet, SimSet};
 use crate::world::{Live, MeshBuilder};
+use bevy::light::NotShadowCaster;
 use bevy::prelude::*;
 use bevy::render::storage::ShaderBuffer;
 use cb_core::rng::SimRng;
@@ -41,7 +42,7 @@ impl BuildingLooks {
     fn base(&self, look: Look) -> &Handle<StandardMaterial> {
         match look {
             Look::Skin(m) => &self.skin[&m],
-            Look::Surface(s) => &self.surfaces[&s],
+            Look::Surface(s) | Look::Room(s) => &self.surfaces[&s],
             Look::Facade(t) => &self.tones[t as usize % self.tones.len()],
         }
     }
@@ -58,8 +59,10 @@ impl BuildingLooks {
 enum Look {
     /// The skin, roof and props.
     Skin(Mat),
-    /// Columns, slabs, walls and furniture.
+    /// Columns and slabs.
     Surface(Surface),
+    /// Rooms and furniture (`building-lod`): drawn near the pilot only, casting no shadows.
+    Room(Surface),
     /// The frame's facade panels, in a building tone (hidden while it is dressed).
     Facade(u8),
 }
@@ -96,8 +99,13 @@ impl Materials {
         materials: &mut Assets<BuildingMaterial>,
     ) -> Handle<BuildingMaterial> {
         let standing = self.standing.clone().unwrap_or_default();
+        // A room reads its surface's material, so rooms and structure batch together.
+        let key = match look {
+            Look::Room(s) => Look::Surface(s),
+            l => l,
+        };
         self.made
-            .entry(look)
+            .entry(key)
             .or_insert_with(|| {
                 materials.add(BuildingMaterial {
                     base: bases.get(looks.base(look)).cloned().unwrap_or_default(),
@@ -243,7 +251,12 @@ impl Plugin for BuildingsPlugin {
             .init_resource::<Dressed>()
             .init_resource::<DressingSettled>()
             .add_systems(FixedUpdate, step_structures.in_set(SimSet::World))
-            .add_systems(Update, (dress_near_player, redraw_buildings).chain().in_set(PresentSet::Pose));
+            .add_systems(
+                Update,
+                (dress_near_player, redraw_buildings, show_rooms_near)
+                    .chain()
+                    .in_set(PresentSet::Pose),
+            );
     }
 }
 
@@ -381,11 +394,13 @@ fn frame_meshes(f: &Frame, base: u32, facade_look: Look, wall_m: f32, seed: &Sim
         Rest::Ground => 0.0,
         Rest::Slab { k, i, j } => slot(base, f.slab(k as usize, i as usize, j as usize)),
     };
+    let mut rooms = SurfaceMeshes::default();
     for k in 0..f.n[1] {
-        bare.storey(&interior::plan_storey(f.building, k, f.n, f.origin, f.size, seed), rest_slot);
+        rooms.storey(&interior::plan_storey(f.building, k, f.n, f.origin, f.size, seed), rest_slot);
     }
     std::iter::once((facade_look, facade.build()))
         .chain(bare.build().into_iter().map(|(s, m)| (Look::Surface(s), m)))
+        .chain(rooms.build().into_iter().map(|(s, m)| (Look::Room(s), m)))
         .collect()
 }
 
@@ -445,7 +460,7 @@ fn dressing_meshes(c: &Cells, id: u32, base: u32, seed: &SimRng, cfg: &DressingC
             };
             (Look::Skin(mat), mesh)
         })
-        .chain(rooms.build().into_iter().map(|(s, mesh)| (Look::Surface(s), mesh)))
+        .chain(rooms.build().into_iter().map(|(s, mesh)| (Look::Room(s), mesh)))
         .collect()
 }
 
@@ -474,19 +489,74 @@ fn show_parts(
             }
             None => {
                 let handle = meshes.add(mesh);
-                let entity = commands
-                    .spawn((
-                        Name::new(format!("{name} {k:?}")),
-                        Mesh3d(handle.clone()),
-                        MeshMaterial3d(m),
-                        Transform::IDENTITY,
-                    ))
-                    .id();
-                Drawn { entity, mesh: handle }
+                let mut e = commands.spawn((
+                    Name::new(format!("{name} {k:?}")),
+                    Mesh3d(handle.clone()),
+                    MeshMaterial3d(m),
+                    Transform::IDENTITY,
+                ));
+                if matches!(k, Look::Room(_)) {
+                    // Shown near the pilot only (`show_rooms_near`); never in the shadow maps.
+                    e.insert((Visibility::Hidden, NotShadowCaster));
+                }
+                Drawn {
+                    entity: e.id(),
+                    mesh: handle,
+                }
             }
         };
         drawn.insert(k, d);
     }
+}
+
+/// Whether a building's rooms are drawn (`building-lod`): shown within the rooms radius of the
+/// pilot's eye, hidden beyond it plus the margin, kept as they were in between (so a building on
+/// the edge does not flicker). Distance to the footprint, across the ground.
+fn rooms_shown(distance_m: f32, was: bool, cfg: &DressingConfig) -> bool {
+    if distance_m <= cfg.rooms_radius_m {
+        true
+    } else if distance_m > cfg.rooms_radius_m + cfg.rooms_margin_m {
+        false
+    } else {
+        was
+    }
+}
+
+/// Shows and hides the rooms and furniture of drawn buildings by their distance from the pilot.
+fn show_rooms_near(
+    mut commands: Commands,
+    plan: Res<crate::world::Plan>,
+    cfg: Res<crate::sim::Data>,
+    camera: Query<&GlobalTransform, With<crate::pilot::PilotCamera>>,
+    dressed: Res<Dressed>,
+    framed: Res<FramedBuildings>,
+    mut shown: Local<HashMap<Entity, bool>>,
+) {
+    let Some(here) = player_xz(&camera) else { return };
+    let cfg = &cfg.0.world.dressing;
+    let parts = dressed
+        .0
+        .iter()
+        .map(|(b, d)| (*b, &d.parts))
+        .chain(framed.0.iter().map(|(b, f)| (*b, &f.parts)));
+    let mut seen = HashMap::new();
+    for (b, parts) in parts {
+        let d = plan.0.buildings[b as usize].footprint.distance(here);
+        for (look, drawn) in parts {
+            if !matches!(look, Look::Room(_)) {
+                continue;
+            }
+            let was = shown.get(&drawn.entity).copied();
+            let now = rooms_shown(d, was.unwrap_or(false), cfg);
+            if was != Some(now) {
+                commands
+                    .entity(drawn.entity)
+                    .insert(if now { Visibility::Inherited } else { Visibility::Hidden });
+            }
+            seen.insert(drawn.entity, now);
+        }
+    }
+    *shown = seen;
 }
 
 /// Where the player is: the pilot's eyes, on foot or in the cockpit.
@@ -723,7 +793,7 @@ mod tests {
         // slab slots and 0 (the ground floor).
         let wood = &meshes
             .iter()
-            .find(|(l, _)| *l == Look::Surface(Surface::Wood))
+            .find(|(l, _)| *l == Look::Room(Surface::Wood))
             .expect("an office has wood")
             .1;
         for s in slots(wood) {
@@ -732,6 +802,36 @@ mod tests {
                 "furniture rests on a slab or the ground"
             );
         }
+    }
+
+    #[test]
+    fn rooms_are_their_own_mesh() {
+        let f = frame();
+        let meshes = frame_meshes(&f, 0, Look::Facade(0), 0.3, &SimRng::new(1));
+        for (look, mesh) in &meshes {
+            match look {
+                // The structure: columns and slabs only, so concrete only.
+                Look::Surface(s) => {
+                    assert_eq!(*s, Surface::Concrete);
+                    for s in slots(mesh) {
+                        assert!(matches!(f.elements[s as usize - 1].kind, Kind::Column | Kind::Slab));
+                    }
+                }
+                Look::Room(_) | Look::Facade(_) => {}
+                Look::Skin(_) => panic!("a frame has no skin"),
+            }
+        }
+        assert!(
+            meshes.iter().any(|(l, _)| *l == Look::Room(Surface::Wood)),
+            "furniture is in the rooms"
+        );
+        let cfg = DressingConfig::default();
+        assert!(rooms_shown(249.0, false, &cfg), "rooms show within 250 m");
+        assert!(!rooms_shown(271.0, true, &cfg), "and hide past 270 m");
+        assert!(
+            rooms_shown(260.0, true, &cfg) && !rooms_shown(260.0, false, &cfg),
+            "in between they keep their state"
+        );
     }
 
     #[test]

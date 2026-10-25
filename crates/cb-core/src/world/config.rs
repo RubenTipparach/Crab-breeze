@@ -479,6 +479,8 @@ pub struct ViewConfig {
     pub ssao_radius_m: f32,
     /// Its quality level.
     pub ssao_quality: SsaoQuality,
+    /// GPU occlusion culling on the pilot's eye (openspec change `occlusion-culling`).
+    pub occlusion_culling: bool,
 }
 
 /// Screen-space ambient occlusion quality, Bevy's levels.
@@ -508,6 +510,7 @@ impl Default for ViewConfig {
             grade_temperature: 0.0,
             ssao_radius_m: 1.5,
             ssao_quality: SsaoQuality::Medium,
+            occlusion_culling: true,
         }
     }
 }
