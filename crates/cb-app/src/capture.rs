@@ -671,17 +671,31 @@ fn run_depth_bench(
     let now = time.elapsed_secs();
     let (start_s, test, done, emitter) = state.get_or_insert((now, 0, Vec::new(), None));
     let Some(home) = access.0.map(|a| a.ladder_base) else { return };
-    // Stand 30 m off the mech's ladder, looking along +X across open ground.
-    let feet = Vec3::new(home.x + 30.0, plan.height_at(home.x + 30.0, home.z), home.z);
+    // Stand 20 m off the mech's ladder on the heading with the longest run of open ground (no building within
+    // 4 m of the line, out to 450 m), looking along it.
+    let clear = |p: Vec3| plan.collision.push_out_at(p.xz(), 4.0, plan.height_at(p.x, p.z)).distance(p.xz()) < 1e-3;
+    let (heading, _) = (0..32)
+        .map(|i| {
+            let a = i as f32 / 32.0 * std::f32::consts::TAU;
+            let d = Vec3::new(a.cos(), 0.0, a.sin());
+            let run = (4..=450).step_by(5).take_while(|&m| clear(home + d * m as f32)).last().unwrap_or(0);
+            (a, run)
+        })
+        .max_by_key(|&(_, run)| run)
+        .unwrap_or((0.0, 0));
+    let along = Vec3::new(heading.cos(), 0.0, heading.sin());
+    let side = Vec3::new(-along.z, 0.0, along.x);
+    let p = home + along * 20.0;
+    let feet = Vec3::new(p.x, plan.height_at(p.x, p.z), p.z);
     let t = now - *start_s;
     let Some(d) = DEPTH_TESTS.get(*test) else {
         exit.write(AppExit::Success);
         return;
     };
     let turn = if t > 3.2 { 20f32.to_radians() } else { 0.0 };
-    let fwd = Vec3::new(turn.cos(), 0.0, turn.sin());
+    let fwd = along * turn.cos() + side * turn.sin();
     let target = |ahead: f32| {
-        let p = feet + Vec3::X * ahead;
+        let p = feet + along * ahead;
         Vec3::new(p.x, plan.height_at(p.x, p.z), p.z)
     };
     let at = target(d.ahead_m) + Vec3::Y * d.up_m;
@@ -693,7 +707,7 @@ fn run_depth_bench(
                 commands
                     .spawn((
                         Name::new("depth bench emitter"),
-                        Transform::from_translation(at - Vec3::Z * 60.0),
+                        Transform::from_translation(at - side * 60.0),
                         crate::fx::FxStream {
                             recipe: d.recipe,
                             dir: Vec3::NEG_Y,
@@ -708,7 +722,7 @@ fn run_depth_bench(
         }
     }
     if let Some(Ok((mut tf, _))) = emitter.map(|e| streams.get_mut(e)) {
-        tf.translation = at + Vec3::Z * (t * 30.0 - 60.0);
+        tf.translation = at + side * (t * 30.0 - 60.0);
     }
     for (when, shot) in [(0.5, "a"), (3.0, "b"), (3.9, "turned")] {
         if t > when && !done.contains(&shot) {
