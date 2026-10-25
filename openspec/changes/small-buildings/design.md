@@ -122,19 +122,35 @@ What the mockup does (it is the model for the game; the game's version goes thro
   - near pieces are thrown at up to 9-22 m/s by weapon;
   - lone boxes over 1.6 m break into chunks about 1.2 m across, keeping their material and paint;
   - a fireball, a flash light, sparks, dust and a scorch on the ground go with it.
-- **Support.** Pieces touch pieces (bounds within 4 cm). Any piece no longer joined to the ground
-  through touching pieces creaks and trickles dust for 0.25-0.85 s, then falls.
+- **Support.** A piece stands while something holds it up: a piece below whose top meets its
+  bottom, or a neighbour beside it sharing its height, at most three pieces sideways from one that
+  stands on something. Bounding boxes merely touching do not count: that let a single wall stub
+  hold a whole roof in the air (owner, 2026-10-24: "A lot of stuff stuck floating"). The rest creak
+  and trickle dust for 0.25-0.85 s, then fall.
 - **Collapse.** A building that loses half its ground-floor wall area pancakes: everything above the
   floor slab falls, in chunks about 2 m across, under a dust cloud.
-- **Rubble.**
-  - Debris tumbles with gravity, bounce and friction on the ground or on rubble already there (a
-    0.5 m height grid, so piles build).
-  - After 0.25 s at rest each piece is baked into one static rubble mesh a material, so a flattened
-    street draws in the same 45 draws as a standing one.
-  - At most 1,200 pieces fall at once.
-  - Measured headless: one demolition charge on the motel, two on the corner store (which
-    pancakes), and a shell, a cannon round and a missile elsewhere throw 695 pieces. They all rest
-    within 15 s, leaving 12,400 rubble triangles.
+- **What breaks into what.**
+  - Thin pieces (plaster faces, glass, signs, under 6 cm) turn to dust.
+  - Lone boxes break into chunks about 1.5 m across, keeping their material and paint.
+  - Other pieces (a window with its glass, a sofa, a car, a roof plane) fall whole.
+- **Cost** (owner: "Doesn't seem very performant, is there too much detail in debris"):
+  - Chunks are drawn instanced, one draw a material (a unit box scaled and tinted per chunk), and
+    a chunk at rest simply stops moving, so rubble costs nothing more.
+  - Whole pieces bake into one static mesh a material when they rest, rebuilt for that material
+    only and at most twice a second.
+  - Flying debris casts shadows only through the instanced draws.
+  - At most 500 things fall at once, and none falls for more than 6 s.
+- **Piles.** Debris lands on the ground or on rubble already there (a 0.5 m height grid). A pile
+  steeper than 35 degrees sheds what lands on it, so walls falling straight down spread into heaps
+  instead of standing back up as columns. A pile rises by the thickness of what lands, not by its
+  tilted bounding box.
+- **Measured headless:**
+  - the shots: a shell on the ranch house; one demolition charge on the motel; two each on the
+    corner store and the colonial (the colonial pancakes); a cannon round on the diner and a
+    missile on the Quonset;
+  - 468 things fall and rest within 20 s, as 422 chunks;
+  - no chunk rests above 6 m, and the highest pile, the colonial's, is 4.5-5.5 m;
+  - every standing piece is held.
 
 In the game:
 - A house is light, wood framed, so one mech kick or a shell caves it in; brick and block take more.
