@@ -335,8 +335,10 @@ fn play(
     time: Res<Time>,
     lights: Query<(Entity, &FlashLight)>,
     fireballs: Query<(), With<Fireball>>,
+    camera: Query<&GlobalTransform, With<PilotCamera>>,
 ) {
     let _t = crate::perf_hud::slow("play");
+    let eye = camera.single().map(|g| g.translation()).ok();
     let cfg: &FxConfig = &data.0.fx;
     let now = time.elapsed_secs();
     let mut room = cfg.max_particles.saturating_sub(lib.live);
@@ -356,6 +358,10 @@ fn play(
         for (index, layer) in layers.iter().enumerate() {
             // Perf-bench switches: what the effects cost, measured by leaving a kind out.
             if (no_particles && matches!(layer, Layer::Burst { .. })) || (no_lights && matches!(layer, Layer::Light { .. })) {
+                continue;
+            }
+            // Far from the eye a burst barely shows and costs a whole effect (`burst_range`).
+            if matches!(layer, Layer::Burst { .. }) && eye.is_some_and(|p| p.distance(e.at) > cfg.burst_range(e.recipe, s)) {
                 continue;
             }
             match *layer {

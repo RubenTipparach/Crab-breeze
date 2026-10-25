@@ -36,7 +36,9 @@ impl Args {
     pub fn parse(args: impl Iterator<Item = String>) -> Result<Self, String> {
         let mut out = Args {
             seed: 42,
-            mech: "mechs/placeholder.ron".into(),
+            // `CB_MECH=mechs/<name>.ron` picks the mech without an argument (the perf suite's
+            // variants set only the environment); `--mech` still wins.
+            mech: std::env::var("CB_MECH").unwrap_or_else(|_| "mechs/placeholder.ron".into()),
             stills: None,
             mission: None,
             showcase: None,

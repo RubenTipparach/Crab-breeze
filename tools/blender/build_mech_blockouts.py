@@ -1082,6 +1082,7 @@ def legs_reverse(hip_y, hx, k=1.0):
     hip, knee = V((0, hip_y, 0)), V((0, hip_y * 0.66, 2.5 * k))
     hock, ball = V((0, hip_y * 0.36, -2.4 * k)), V((0, 1.2, 0.6))
     for s in (1, -1):
+        before = {o.name for o in bpy.data.objects}
         o = V((s * hx, 0, 0))
         H, Kn, Hk, B = hip + o, knee + o, hock + o, ball + o
         armoured(f"thigh{s}", H, Kn, (2.5 * k, 3.0 * k), "BODY", "legs", outer=s)
@@ -1098,6 +1099,7 @@ def legs_reverse(hip_y, hx, k=1.0):
             p = B + V((dx * k, -0.6, 0)) + d * L / 2
             box(f"claw{s}{i}", p, (1.15 * k, 1.1, L), "BODY2", "legs", ((d.z, 0, -d.x), (0, 1, 0), (d.x, 0, d.z)))
         cyl(f"wheel{s}", B + V((-0.5, -0.25, -0.4)), B + V((0.5, -0.25, -0.4)), 0.85, "RUBBER", "legs", 14)
+        limb(f"LEG_0{'L' if s > 0 else 'R'}", H, before)
 
 
 def legs_biped(hip_y, hx, k=1.0):
@@ -1105,6 +1107,7 @@ def legs_biped(hip_y, hx, k=1.0):
     the skate wheel under its heel."""
     hip, knee, ankle = V((0, hip_y, 0)), V((0, hip_y * 0.52, 0.8)), V((0, 2.1, -0.2))
     for s in (1, -1):
+        before = {o.name for o in bpy.data.objects}
         x = s * hx
         o = V((x, 0, 0))
         H, Kn, A = hip + o, knee + o, ankle + o
@@ -1119,12 +1122,14 @@ def legs_biped(hip_y, hx, k=1.0):
         chamfered(f"foot{s}", V((x, 0.6, 0.9)), (3.0 * k, 1.2, 6.4), 0.35, "BODY2", "legs")
         box(f"toe{s}", V((x, 0.8, 4.4)), (2.7 * k, 0.9, 1.6), "BODY2", "legs", ((1, 0, 0), (0, 1, 0.6), (0, -0.6, 1)))
         cyl(f"wheel{s}", V((x - 0.5, 0.75, -1.6)), V((x + 0.5, 0.75, -1.6)), 0.8, "RUBBER", "legs", 14)
+        limb(f"LEG_0{'L' if s > 0 else 'R'}", H, before)
 
 
 def legs_tank(hip_y, hx, k=1.0):
     """Tracks: two track units under a hull, road wheels and sprockets on their outsides, skirts over them, the core
     stood on a turret ring. hip_y is the hull's top."""
     for s in (1, -1):
+        before = {o.name for o in bpy.data.objects}
         x = s * hx
         chamfered(f"track{s}", (x, 1.9, 0), (2.9 * k, 3.6, 12.0), 1.2, "RUBBER", "legs", top=False)
         for i in range(5):
@@ -1134,6 +1139,7 @@ def legs_tank(hip_y, hx, k=1.0):
             cyl(f"sprocket{s}{z}", (x - 1.55 * k, 2.0, z), (x + 1.55 * k, 2.0, z), 1.45, "FRAME", "legs", 14)
         plate(f"skirt{s}", (x + s * 1.75 * k, 3.0, 0), (0.4, 1.8, 10.4), "BODY", "legs")
         box(f"skirt_band{s}", (x + s * 2.0 * k, 3.4, 3.0), (0.06, 0.5, 3.0), "ACCENT", "legs")
+        limb(f"LEG_0{'L' if s > 0 else 'R'}", V((x, 2.0, 0)), before)    # a track unit is the leg a shot takes
     chamfered("hull", (0, hip_y - 1.5, -0.2), (2 * hx - 1.0, 3.0, 9.4), 0.6, "BODY2", "legs")
     plate("glacis", (0, hip_y - 1.6, 4.7), (2 * hx - 1.6, 2.6, 0.5), "BODY", "legs", rake=0.9)
     cyl("ring", (0, hip_y, -0.3), (0, hip_y + 0.8, -0.3), 3.0, "FRAME", "legs", 20)
@@ -1146,6 +1152,7 @@ def legs_quad(hip_y, hx, k=1.0):
     chamfered("hull", (0, hip_y, -0.3), (2 * hx + 1.4, 3.0, 7.0), 0.6, "BODY2", "legs")
     for sx in (1, -1):
         for sz in (1, -1):
+            before = {o.name for o in bpy.data.objects}
             P = V((sx * hx, hip_y, sz * 2.4 - 0.3))
             Kn = V((sx * (hx + 3.8), hip_y + 0.4, sz * 5.0 - 0.3))
             F = V((sx * (hx + 5.0), 1.0, sz * 6.8 - 0.3))
@@ -1156,6 +1163,7 @@ def legs_quad(hip_y, hx, k=1.0):
             plate(f"kneeguard{n}", Kn + V((sx * 0.6, 1.2, 0)), (2.4, 0.5, 2.6), "BODY", "legs", roll=-sx * 0.4)
             armoured(f"lower{n}", Kn, F, (2.3 * k, 2.5 * k), "BODY", "legs")
             chamfered(f"pad{n}", F + V((0, -0.4, 0)), (2.8, 0.9, 2.8), 0.4, "BODY2", "legs")
+            limb(f"LEG_{0 if sz > 0 else 1}{'L' if sx > 0 else 'R'}", P, before)
     nozzle("bellyjet", (0, hip_y - 1.4, -0.3), (0, hip_y - 2.6, -0.3), 1.0, "legs")
 
 
@@ -1362,8 +1370,10 @@ def combat(legs, layout, hd, R, L, back_R, back_L, boost="std", k=1.0, armk=1.0,
     STATE["anchor"] = V((0, hip_y + 2.0, -0.4))
     head(hd, C)
     for s, wpn in ((-1, R), (1, L)):
+        before = {o.name for o in bpy.data.objects}
         g, el = arm(s, C, armk)
         weapon(wpn, g, s, el, armk)
+        limb(f"ARM_{'L' if s > 0 else 'R'}", V((s * (C["w"] / 2 + 1.4 * armk), C["sh_y"], -0.3)), before)
     back_unit(back_R, -1, C)
     back_unit(back_L, 1, C)
     boosters(boost, C)
@@ -1417,167 +1427,277 @@ for _id, (_n, _w, _pal, _parts) in COMBAT.items():
 
 
 # ----------------------------------------------------------------------------- crab mechs (23 on)
-# The owner, 2026-10-24: "We need more crab designs, more practical big legged crabs with guns for arms". Built from
-# their own parts, the way the combat mechs are: a carapace with the cockpit block-out in its face, eye stalks for the
-# sensors, three or four pairs of heavy walking legs whose knees stand over the shell (a crab's stance, and legs that
-# outweigh the body), and gun forearms where the claws would be. Each is one line of CRABS.
+# The owner, 2026-10-24: "We need more crab designs, more practical big legged crabs with guns for arms", then "make
+# crab mechs more alien like ... they definitely work with two hind legs, and meaty claws dangling in the front ... a
+# variation on leg count would be cool, 1,2,3 pairs, 3 pairs would probably have to be shorter and thinner". So a crab
+# is a hunched carapace, low at the face and humped at the back, standing on hind legs only (one, two or three pairs,
+# rooted in the shell's back half and arching over it), its weight carried forward on two heavy claws that hang to the
+# ground; a gun rides each forearm, pointing ahead. Alien in the shapes (spines, mandibles, clustered eyes, arching
+# legs), industrial in the finish (rams, bands, the kit's plates). Each is one line of CRABS.
 
-def crab_body(hip_y, bw, bl, layout, hump=2.6):
-    """The carapace: a wide, low shell lofted through plan octagons, its widest at the leg roots, rising to a hump.
-    The cockpit block-out sits in a well cut in its face. Returns the measures the other parts hang off."""
-    loft("carapace", [(hip_y - 1.7, octa(0, -0.4, bw * 0.62, bl * 0.72, 1.4)), (hip_y - 0.4, octa(0, 0, bw, bl, 2.4)),
-                      (hip_y + 0.9, octa(0, -0.2, bw * 0.96, bl * 0.94, 2.4)),
-                      (hip_y + hump, octa(0, -0.8, bw * 0.55, bl * 0.6, 1.4))], "BODY", "torso")
+def crab_body(hip_y, bw, bl, layout, hump=2.6, spines=5, saucer=False, maw=False):
+    """The carapace: lofted through plan octagons, widest at the rim, the face low and forward, the hump high and back;
+    the cockpit block-out in a well in its face under a brow, mandibles under the chin, a row of spines down the hump
+    (saucer: a flatter, wider shell with an intake pod at each cheek). Returns the measures the other parts hang off."""
+    r = 0.3 if saucer else 0.26
+    loft("carapace", [(hip_y - 2.0, octa(0, 0.6, bw * 0.5, bl * 0.7, bw * 0.12)),
+                      (hip_y - 0.6, octa(0, 0.4, bw, bl, bw * r)),
+                      (hip_y + 0.8, octa(0, -0.4, bw * (0.95 if saucer else 0.88), bl * 0.82, bw * r)),
+                      (hip_y + hump, octa(0, -1.4 - 0.1 * bl, bw * 0.42, bl * 0.42, bw * 0.12))], "BODY", "torso")
     c = GROUPS["torso"][-1]
-    zf = bl / 2 - 0.1
+    zf = 0.4 + bl / 2 - 0.1
     floor = V((0, hip_y - 1.15, zf - 1.15))
     boolean(c, box("well", floor + V((0, 1.15, 1.35)), (2.7, 2.5, 2.4), "BODY2", "torso"), "DIFFERENCE")
     pod_in(layout, tuple(floor))
-    chamfered("chin", (0, hip_y - 1.9, zf - 1.4), (3.4, 0.6, 2.4), 0.25, "FRAME", "torso")     # the cabin's floor under the shell
+    chamfered("chin", (0, hip_y - 1.9, zf - 1.4), (3.4, 0.6, 2.4), 0.25, "FRAME", "torso")
     box("sill", floor + V((0, -0.2, 1.2)), (2.9, 0.25, 0.3), "ACCENT", "torso")
-    for sd in (1, -1):                                        # a band of the accent round the shell's rim, each side
-        box(f"rim{sd}", (sd * (bw / 2 - 0.9), hip_y - 0.4, zf - 2.2), (1.4, 0.3, 0.12), "ACCENT", "torso",
-            ((1, 0, 0), (0, 1, 0), (0, 0, 1)))
-    chamfered("belly", (0, hip_y - 2.2, -0.6), (bw * 0.45, 1.0, bl * 0.5), 0.3, "FRAME", "torso")
-    top = hip_y + hump
-    return dict(hip_y=hip_y, w=bw, l=bl, zf=zf, top=top, zb=-0.8 - 0.3 * bl, y0=hip_y - 1.7, h=hump + 1.7)
-
-
-def crab_eyes(C, tall=1.8):
-    """The sensors on two stalks over the cockpit, as a crab's eyes: a stalk each side, a hooded lens box on top."""
+    plate("brow", (0, hip_y + 1.55, zf - 0.7), (4.2, 0.45, 2.2), "BODY", "torso", rake=0.22)
     for sd in (1, -1):
-        b = V((sd * 1.7, C["hip_y"] + 1.2, 0.38 * C["l"] - 0.6))
-        t = b + V((sd * 0.2, tall + 1.2, 0.3))
-        cyl(f"stalk{sd}", b, t, 0.42, "FRAME", "head", 10)
-        cyl(f"stalk_collar{sd}", b - V((0, 0.2, 0)), b + V((0, 0.5, 0)), 0.7, "FRAME", "head", 12)
-        chamfered(f"eyebox{sd}", t + V((0, 0.45, 0.2)), (1.1, 0.9, 1.5), 0.2, "BODY2", "head")
-        cyl(f"lens{sd}", t + V((0, 0.45, 0.95)), t + V((0, 0.45, 1.1)), 0.32, "GLOW", "head", 12)
-        plate(f"hood{sd}", t + V((0, 1.05, 0.25)), (1.3, 0.25, 1.8), "BODY", "head", rake=-0.1)
+        plate(f"mandible{sd}", (sd * 1.9, hip_y - 2.3, zf - 0.7), (0.7, 2.4, 1.4), "BODY2", "torso", rake=0.35, yaw=sd * 0.3)
+        cyl(f"fang{sd}", (sd * 1.9, hip_y - 3.3, zf - 0.2), (sd * 1.6, hip_y - 4.3, zf + 0.4), 0.3, "FRAME", "torso", 8, r2=0.04)
+        box(f"rim{sd}", (sd * (bw / 2 - 0.9), hip_y - 0.6, zf - 2.4), (1.6, 0.3, 0.12), "ACCENT", "torso",
+            ((1, 0, 0), (0, 1, 0), (0, 0, 1)))
+        if saucer:                                            # an intake pod each cheek, its mouth glowing
+            m = V((sd * (bw / 2 - 1.2), hip_y + 0.2, zf - 2.6))
+            cyl(f"intake{sd}", m, m + V((0, 0, 2.6)), 1.0, "BODY2", "torso", 16)
+            cyl(f"intake_mouth{sd}", m + V((0, 0, 2.4)), m + V((0, 0, 2.7)), 0.7, "GLOW", "torso", 16)
+    if maw:                                                    # a toothed maw under the cockpit, across the face
+        y = hip_y - 1.75
+        boolean(c, box("maw", (0, y, zf + 0.1), (bw * 0.62, 0.9, 2.0), "FRAME", "torso"), "DIFFERENCE")
+        box("gullet", (0, y, zf - 0.75), (bw * 0.6, 0.85, 0.2), "GLOW", "torso")
+        n = int(bw * 1.4)
+        for i in range(n):
+            x = (i + 0.5 - n / 2) * bw * 0.6 / n
+            cyl(f"tooth_up{i}", (x, y + 0.45, zf - 0.35), (x, y - 0.2, zf - 0.25), 0.2, "METAL", "torso", 6, r2=0.02)
+            cyl(f"tooth_dn{i}", (x + 0.15, y - 0.45, zf - 0.35), (x + 0.15, y + 0.2, zf - 0.25), 0.2, "METAL", "torso", 6, r2=0.02)
+    zc = -1.4 - 0.1 * bl
+    for i in range(spines):                                    # down the hump, raked back, shrinking to the tail
+        z = zc + bl * 0.18 - i * bl * 0.36 / max(1, spines - 1)
+        base = V((0, hip_y + hump - 0.3, z))
+        cyl(f"spine{i}", base, base + V((0, 1.8 - 0.18 * i, -1.1)), 0.55 - 0.04 * i, "FRAME", "torso", 8, r2=0.05)
+    chamfered("belly", (0, hip_y - 2.3, -0.2), (bw * 0.4, 1.0, bl * 0.45), 0.3, "FRAME", "torso")
+    return dict(hip_y=hip_y, w=bw, l=bl, zf=zf, top=hip_y + hump, zb=-0.8 - 0.3 * bl, y0=hip_y - 2.0, h=hump + 2.0)
 
 
-def crab_member(name, a, b, size):
-    """A leg segment in the body colour (a crab's legs are shell, not frame): the armoured member, a darker plate along
-    its top, the accent's narrow band across it."""
+def crab_eyes(C):
+    """Clustered eyes, not stalks: three lenses each side of the well in a sensor housing, the biggest highest."""
+    for sd in (1, -1):
+        h = V((sd * 2.3, C["hip_y"] + 0.7, C["zf"] - 0.9))
+        chamfered(f"eyehouse{sd}", h, (1.4, 1.5, 1.2), 0.3, "BODY2", "head")
+        for j, (dx, dy, r) in enumerate(((0.0, 0.35, 0.36), (sd * 0.45, -0.35, 0.24), (-sd * 0.35, -0.4, 0.2))):
+            e = h + V((dx, dy, 0.55))
+            cyl(f"eye{sd}{j}", e, e + V((0, 0, 0.25)), r, "GLOW", "head", 12)
+
+
+def ball(name, c, r, mat, group, seg=10):
+    """A low-poly sphere: a joint as wide as the members meeting at it, so a limb reads as one solid."""
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=seg, v_segments=max(4, seg // 2 + 1), radius=r)
+    bmesh.ops.translate(bm, verts=bm.verts, vec=V(c))
+    return obj(name, bm, mat, group)
+
+
+def crab_member(name, a, b, r1, r2):
+    """A leg segment in the body colour (a crab's legs are shell, not frame): an octagonal tube tapering from r1 at a to
+    r2 at b, and a darker armour plate along its top, laid on with no boolean. Joints are balls of at least the tube's
+    radius (`ball`), so the leg is one closed chain whatever angle it takes."""
     a, b = V(a), V(b)
-    L = (b - a).length
+    cyl(name, a, b, r1, "BODY", "legs", 8, r2=r2)
     ax = between(a, b)
-    m = (a + b) / 2
-    chamfered(name, m, (size[0], L + 0.4, size[1]), min(0.5, min(size) * 0.25), "BODY", "legs", ax)
     up = ax[2] if ax[2].y >= 0 else -ax[2]
-    chamfered(name + "_top", m + up * (size[1] / 2 + 0.2), (size[0] * 0.7, L * 0.72, 0.45), 0.15, "BODY2", "legs", ax)
+    L = (b - a).length
+    box(name + "_top", (a + b) / 2 + up * ((r1 + r2) / 2 * 0.85), (r1 * 1.2, L * 0.7, 0.3 * (r1 + r2)), "BODY2", "legs", ax)
 
 
-def crab_legs(C, pairs=3, reach=11.0, rise=4.5, k=1.0):
-    """Walking legs from the shell's sides: each rises out to a knee over the shell and comes down far out to a pad
-    and a tip, a ram on the thigh. The front pair splays forward, the back pairs back."""
+def limb(name, pivot, before):
+    """Every piece made since `before` (a set of object names) hung on one empty named `name` at its root joint
+    (glTF frame), so the limb is one node the game can shoot off (owner, 2026-10-25: "Can we shoot off each leg or
+    arm")."""
+    e = bpy.data.objects.new(name, None)
+    bpy.context.scene.collection.objects.link(e)
+    e.location = (G2B @ V(pivot).to_4d()).to_3d()
+    bpy.context.view_layer.update()
+    inv = e.matrix_world.inverted()
+    for o in [o for o in bpy.data.objects if o.name not in before and o is not e]:
+        o.parent = e
+        o.matrix_parent_inverse = inv
+    return e
+
+
+# The crab legs' length against the first round's (owner, 2026-10-25: "Crab legs seem too long").
+LEG_REACH, LEG_RISE = 0.72, 0.8
+
+# Where the hind legs root along the shell (fractions of its length, + ahead) and which way they splay (radians from
+# straight out to the side, + ahead), by the number of pairs.
+HIND = {1: ([-0.18], [-0.35]), 2: ([-0.08, -0.36], [-0.1, -0.85]), 3: ([0.02, -0.2, -0.42], [0.15, -0.4, -0.95])}
+
+
+def crab_legs(C, pairs=2, reach=11.0, rise=4.5, k=1.0):
+    """Hind legs, out of the shell's back half: a thigh arching up over the shell to a spurred knee, a shin down and
+    back to the hock, a long cannon bone forward to the ankle over the foot, which grips with a toe ahead and two
+    behind. Tapering octagonal tubes between balls at the hip, knee, hock and ankle: one closed chain from the shell to
+    the ground. One pair is thick and carries the shell over itself; three are short and thin."""
     hip_y, bw, bl = C["hip_y"], C["w"], C["l"]
-    zs = [bl * (-0.02 - 0.55 * i / max(1, pairs - 1)) for i in range(pairs)]      # behind the gun arms' shoulders
-    for i, z in enumerate(zs):
-        a = 0.2 - 0.95 * i / max(1, pairs - 1)                  # splay: + ahead, - behind
+    zs, angles = HIND[pairs]
+    reach, rise = reach * LEG_REACH, rise * LEG_RISE
+    for i, (fz, a) in enumerate(zip(zs, angles)):
         for sd in (1, -1):
             n = f"{i}{sd}"
-            P = V((sd * (bw / 2 - 0.8), hip_y - 0.3, z))
+            before = {o.name for o in bpy.data.objects}
+            P = V((sd * (bw / 2 - 1.0), hip_y - 0.6, bl * fz))
             d = V((sd * math.cos(a), 0, math.sin(a)))
-            K = P + d * reach * 0.42 + V((0, rise, 0))
+            K = P + d * reach * 0.36 + V((0, rise, 0))
+            A = P + d * reach * 0.8 + V((0, rise * 0.25 + 1.6 * k, -1.4 * k))
             F = P + d * reach
-            F.y = 1.3
-            t = V((0, 1, 0)).cross(d).normalized()
-            cyl(f"coxa{n}", P - V((0, 1.4 * k, 0)), P + V((0, 1.4 * k, 0)), 1.5 * k, "FRAME", "legs", 14)
-            crab_member(f"femur{n}", P, K, (2.6 * k, 3.0 * k))
-            cyl(f"knee{n}", K - t * 1.6 * k, K + t * 1.6 * k, 1.45 * k, "FRAME", "legs", 14)
-            crab_member(f"tibia{n}", K, F, (2.3 * k, 2.6 * k))
-            cyl(f"ram{n}", P + V((0, 1.6 * k, 0)) + d * 0.6, P.lerp(K, 0.6) + V((0, 1.9 * k, 0)), 0.38 * k, "METAL", "legs", 8)
-            chamfered(f"pad{n}", (F.x, 0.55, F.z), (2.9 * k, 1.1, 2.9 * k), 0.4, "BODY2", "legs")
-            cyl(f"tip{n}", F + V((0, 0.4, 0)), F + V((0, -0.9, 0)), 0.9 * k, "FRAME", "legs", 10, r2=1.2 * k)
-            box(f"band{n}", K.lerp(F, 0.3) + V((0, 0.2, 0)), (0.3, 0.35, 0.3), "ACCENT", "legs")
+            F.y = 0.95 * k                                       # the ankle, over the foot
+            ball(f"hip{n}", P, 1.3 * k, "FRAME", "legs")
+            crab_member(f"femur{n}", P, K, 1.2 * k, 1.0 * k)
+            ball(f"knee{n}", K, 1.05 * k, "FRAME", "legs")
+            cyl(f"spur{n}", K + V((0, 0.5 * k, 0)), K + V((0, 2.6 * k, -1.4 * k)) + d * 0.6, 0.55 * k, "FRAME", "legs", 8, r2=0.05)
+            crab_member(f"tibia{n}", K, A, 0.95 * k, 0.75 * k)
+            ball(f"hock{n}", A, 0.8 * k, "FRAME", "legs")
+            crab_member(f"tarsus{n}", A, F, 0.65 * k, 0.5 * k)
+            ball(f"ankle{n}", F, 0.62 * k, "FRAME", "legs")
+            cyl(f"ram{n}", P + V((0, 1.2 * k, 0)) + d * 0.6, P.lerp(K, 0.6) + V((0, 1.3 * k, 0)), 0.32 * k, "METAL", "legs", 8)
+            chamfered(f"heel{n}", (F.x, 0.45 * k, F.z), (1.8 * k, 0.9 * k, 1.8 * k), 0.3 * k, "BODY2", "legs")
+            fwd = V((d.x * 0.4, 0, 1.0)).normalized()
+            cyl(f"toe{n}", (F.x, 0.45 * k, F.z), V((F.x, 0.12, F.z)) + fwd * 2.6 * k, 0.45 * k, "FRAME", "legs", 8, r2=0.06)
+            for j, s2 in enumerate((1, -1)):
+                back = V((-fwd.x + s2 * 0.6 * fwd.z, 0, -fwd.z - s2 * 0.6 * fwd.x)).normalized()
+                cyl(f"heelclaw{n}{j}", (F.x, 0.45 * k, F.z), V((F.x, 0.12, F.z)) + back * 1.7 * k, 0.35 * k, "FRAME", "legs", 8,
+                    r2=0.05)
+            box(f"band{n}", K.lerp(A, 0.3) + V((0, 0.95 * k, 0)), (0.3, 0.25 * k, 0.3), "ACCENT", "legs")
+            limb(f"LEG_{i}{'L' if sd > 0 else 'R'}", P, before)     # +x is the pilot's left
 
 
-def gun_arm(kind, sd, C, k=1.0):
-    """A cheliped whose forearm is a gun: shoulder at the shell's front corner, an upper arm out and forward, a
-    vertical elbow, then the weapon as the forearm, pointing ahead: autocannon (two barrels and a box magazine),
-    howitzer (one fat barrel and a muzzle brake), gatling, pincer (a claw's two jaws round a cannon) or rockets
-    (a box of tubes)."""
-    S = V((sd * (C["w"] / 2 - 1.2), C["hip_y"] + 0.6, C["zf"] - 0.9))
-    E = S + V((sd * 2.8 * k, 0.6, 2.2 * k))
-    cyl(f"shoulder{sd}", S - V((sd * 0.2, 0, 0)), S + V((sd * 1.6 * k, 0, 0)), 1.3 * k, "FRAME", "arms", 14)
-    armoured(f"upper{sd}", S, E, (1.9 * k, 2.1 * k), "BODY", "arms")
-    cyl(f"elbow{sd}", E - V((0, 1.2 * k, 0)), E + V((0, 1.2 * k, 0)), 1.15 * k, "FRAME", "arms", 14)
-    W = E + V((-sd * 0.5 * k, 0.1, 6.0 * k))
+def crab_gun(kind, n, G, sd, k):
+    """A gun along the forearm's outside, pointing ahead from G: autocannon (two barrels and a box magazine), howitzer
+    (one fat barrel and a muzzle brake), gatling, or rockets (a box of tubes)."""
+    d = V((0, 0, 1))
+    E, W = G, G + d * 4.5 * k
     ax = between(E, W)
-    d = (W - E).normalized()
-    n = f"{kind}{sd}"
     if kind == "autocannon":
-        chamfered(n + "_rec", E.lerp(W, 0.35), (1.9 * k, 4.2 * k, 1.7 * k), 0.3, "BODY2", "arms", ax)
-        box(n + "_mag", E.lerp(W, 0.3) + V((sd * 1.4 * k, -0.2, 0)), (0.9 * k, 1.6 * k, 2.2 * k), "FRAME", "arms")
-        for dx in (-0.45, 0.45):
+        chamfered(n + "_rec", E.lerp(W, 0.4), (1.7 * k, 4.0 * k, 1.5 * k), 0.3, "BODY2", "arms", ax)
+        box(n + "_mag", E.lerp(W, 0.3) + V((sd * 1.2 * k, -0.2, 0)), (0.8 * k, 1.5 * k, 2.0 * k), "FRAME", "arms")
+        for dx in (-0.4, 0.4):
             o = V((dx * k, 0.15, 0))
-            cyl(n + f"_barrel{dx}", E.lerp(W, 0.6) + o, W + d * 3.0 * k + o, 0.24 * k, "METAL", "arms", 10)
+            cyl(n + f"_barrel{dx}", E.lerp(W, 0.7) + o, W + d * 3.0 * k + o, 0.22 * k, "METAL", "arms", 10)
     elif kind == "howitzer":
-        chamfered(n + "_rec", E.lerp(W, 0.35), (2.4 * k, 4.4 * k, 2.4 * k), 0.4, "BODY2", "arms", ax)
-        cyl(n + "_barrel", E.lerp(W, 0.6), W + d * 4.0 * k, 0.6 * k, "METAL", "arms", 14)
-        cyl(n + "_jacket", E.lerp(W, 0.6), E.lerp(W, 0.95), 0.9 * k, "FRAME", "arms", 14)
-        cyl(n + "_brake", W + d * 3.4 * k, W + d * 4.6 * k, 0.9 * k, "FRAME", "arms", 14)
-        box(n + "_band", E.lerp(W, 0.2) + V((0, 1.25 * k, 0)), (2.0 * k, 0.12, 0.6), "ACCENT", "arms")
+        chamfered(n + "_rec", E.lerp(W, 0.4), (2.2 * k, 4.2 * k, 2.2 * k), 0.4, "BODY2", "arms", ax)
+        cyl(n + "_barrel", E.lerp(W, 0.7), W + d * 4.0 * k, 0.55 * k, "METAL", "arms", 14)
+        cyl(n + "_jacket", E.lerp(W, 0.7), E.lerp(W, 1.0), 0.85 * k, "FRAME", "arms", 14)
+        cyl(n + "_brake", W + d * 3.4 * k, W + d * 4.6 * k, 0.85 * k, "FRAME", "arms", 14)
     elif kind == "gatling":
-        cyl(n + "_body", E.lerp(W, 0.1), E.lerp(W, 0.55), 1.1 * k, "BODY2", "arms", 14)
+        cyl(n + "_body", E.lerp(W, 0.1), E.lerp(W, 0.6), 1.0 * k, "BODY2", "arms", 14)
         for i in range(6):
             a = i / 6 * math.tau
-            o = V((math.cos(a) * 0.55 * k, math.sin(a) * 0.55 * k, 0))
-            cyl(n + f"_b{i}", E.lerp(W, 0.55) + o, W + d * 2.4 * k + o, 0.16 * k, "METAL", "arms", 8)
-        cyl(n + "_clamp", W + d * 1.6 * k, W + d * 2.0 * k, 0.85 * k, "FRAME", "arms", 12)
-        box(n + "_drum", E.lerp(W, 0.3) + V((sd * 1.5 * k, 0, 0)), (1.2 * k, 2.0 * k, 2.4 * k), "FRAME", "arms")
-    elif kind == "pincer":
-        chamfered(n + "_palm", E.lerp(W, 0.3), (2.6 * k, 3.6 * k, 2.4 * k), 0.4, "BODY", "arms", ax)
-        for j, (dy, rk) in enumerate(((1.0, 0.16), (-1.0, -0.16))):       # the jaws, open a little round the gun
-            plate(n + f"_jaw{j}", E.lerp(W, 0.85) + V((0, dy * 1.05 * k, 0)), (2.0 * k, 0.6 * k, 4.4 * k), "BODY", "arms", rake=rk)
-        cyl(n + "_barrel", E.lerp(W, 0.5), W + d * 2.6 * k, 0.42 * k, "METAL", "arms", 12)
-        cyl(n + "_brake", W + d * 2.2 * k, W + d * 3.0 * k, 0.6 * k, "FRAME", "arms", 12)
+            o = V((math.cos(a) * 0.5 * k, math.sin(a) * 0.5 * k, 0))
+            cyl(n + f"_b{i}", E.lerp(W, 0.6) + o, W + d * 2.4 * k + o, 0.15 * k, "METAL", "arms", 8)
+        cyl(n + "_clamp", W + d * 1.6 * k, W + d * 2.0 * k, 0.8 * k, "FRAME", "arms", 12)
     elif kind == "rockets":
-        b = chamfered(n + "_box", E.lerp(W, 0.5), (2.4 * k, 6.0 * k, 2.2 * k), 0.3, "BODY2", "arms", ax)
+        b = chamfered(n + "_box", E.lerp(W, 0.5), (2.2 * k, 5.0 * k, 2.0 * k), 0.3, "BODY2", "arms", ax)
         for i in range(3):
             for j in range(2):
-                p = W + d * 0.2 + V(((-0.7 + i * 0.7) * k, (-0.45 + j * 0.9) * k, 0))
-                boolean(b, cyl(n + f"_t{i}{j}", p - d * 0.7, p + d * 0.7, 0.26 * k, "FRAME", "arms", 8), "DIFFERENCE")
-        box(n + "_band", E.lerp(W, 0.25) + V((0, 1.12 * k, 0)), (2.2 * k, 0.06, 0.5), "ACCENT", "arms")
+                p = W + V(((-0.65 + i * 0.65) * k, (-0.42 + j * 0.84) * k, 0))
+                boolean(b, cyl(n + f"_t{i}{j}", p - d * 0.7, p + d * 0.7, 0.24 * k, "FRAME", "arms", 8), "DIFFERENCE")
+    box(n + "_band", E.lerp(W, 0.2) + V((0, 1.0 * k, 0)), (1.8 * k, 0.08, 0.5), "ACCENT", "arms")
 
 
-def crab(layout, R, L, back_R, back_L, pairs=3, bw=9.0, bl=10.0, hip_y=8.0, hump=2.6, reach=11.0, rise=4.5, k=1.0,
-         kR=1.0, kL=1.0):
-    """A crab mech from parts. R and L are the right and left gun arms (the pilot's right is -x)."""
-    C = crab_body(hip_y, bw, bl, layout, hump)
+def gun_arm(kind, sd, C, k=1.0, claw=1.0):
+    """A claw hanging in front: shoulder low at the shell's front corner, the upper arm forward and out, a heavy elbow,
+    then a meaty forearm hanging down and ahead to a wrist above the ground and a crab's claw, its fixed finger
+    reaching the ground and its moving finger over it, open. The gun (`crab_gun`) rides the forearm's outside, pointing
+    ahead; `pincer` puts a cannon in the claw's palm instead, the claw grown round it. Returns the shoulder (the arm's
+    root joint)."""
+    S = V((sd * (C["w"] / 2 - 1.3), C["hip_y"] - 0.6, C["zf"] - 2.0))
+    E = S + V((sd * 2.4 * k, -0.6 * k, 2.4 * k))
+    W = V((E.x - sd * 0.5 * k, 2.6 * claw + 0.4, E.z + 2.6 * k))
+    cyl(f"shoulder{sd}", S - V((sd * 0.3, 0, 0)), S + V((sd * 1.3 * k, 0, 0)), 1.1 * k, "FRAME", "arms", 14)
+    armoured(f"upper{sd}", S, E, (1.9 * k, 2.1 * k), "BODY", "arms")
+    cyl(f"elbow{sd}", E - V((sd * 1.2 * k, 0, 0)), E + V((sd * 1.2 * k, 0, 0)), 1.0 * k, "FRAME", "arms", 14)
+    ax = between(E, W)
+    m = E.lerp(W, 0.5)
+    chamfered(f"fore{sd}", m, (3.0 * k, (W - E).length + 0.6, 3.2 * k), 0.6 * k, "BODY", "arms", ax)    # the meat
+    plate(f"fore_shell{sd}", m + V((sd * 1.5 * k, 0.2, 0.2)), (0.5, (W - E).length * 0.9, 3.0 * k), "BODY2", "arms",
+          yaw=0.0, roll=-sd * 0.35)
+    cyl(f"fore_ram{sd}", E + V((-sd * 1.0 * k, 0.6, -0.4)), W + V((-sd * 1.0 * k, 0.5, -0.4)), 0.32 * k, "METAL", "arms", 8)
+    c = claw * k
+    palm = chamfered(f"palm{sd}", W, (2.6 * c, 2.2 * c, 2.6 * c), 0.5 * c, "BODY", "arms")
+    fixed = W + V((0, -0.6 * c, 0.9 * c))
+    cyl(f"finger{sd}", fixed, V((W.x, 0.35, W.z + 3.6 * c)), 1.0 * c, "BODY", "arms", 10, r2=0.35 * c)
+    dact = W + V((0, 0.7 * c, 0.9 * c))
+    cyl(f"dactyl{sd}", dact, dact + V((0, 0.6 * c, 3.6 * c)), 0.85 * c, "BODY", "arms", 10, r2=0.3 * c)
+    for j in range(3):                                         # teeth along the fixed finger's top
+        t = fixed.lerp(V((W.x, 0.35, W.z + 3.6 * c)), 0.25 + 0.22 * j) + V((0, 0.55 * c, 0))
+        cyl(f"tooth{sd}{j}", t - V((0, 0.2, 0)), t + V((0, 0.5 * c, 0.15)), 0.22 * c, "FRAME", "arms", 6, r2=0.03)
+    n = f"{kind}{sd}"
+    if kind == "clawgat":                                      # a gatling in the claw's palm, barrels between the jaws
+        for i in range(6):
+            a = i / 6 * math.tau
+            o = V((math.cos(a) * 0.45 * c, 0.1 + math.sin(a) * 0.45 * c, 0))
+            cyl(n + f"_b{i}", W + o + V((0, 0, 0.8)), W + o + V((0, 0, 4.2 * c)), 0.14 * c, "METAL", "arms", 8)
+        cyl(n + "_clamp", W + V((0, 0.1, 3.2 * c)), W + V((0, 0.1, 3.6 * c)), 0.75 * c, "FRAME", "arms", 12)
+    elif kind == "pincer":
+        cyl(n + "_barrel", W + V((0, 0.1, 0.6)), W + V((0, 0.1, 4.6 * c)), 0.4 * c, "METAL", "arms", 12)
+        cyl(n + "_brake", W + V((0, 0.1, 4.0 * c)), W + V((0, 0.1, 4.8 * c)), 0.55 * c, "FRAME", "arms", 12)
+        boolean(palm, cyl(n + "_bore", W + V((0, 0.1, 0.5)), W + V((0, 0.1, 2.0 * c)), 0.5 * c, "FRAME", "arms", 12), "DIFFERENCE")
+    else:
+        crab_gun(kind, n, E + V((sd * 2.0 * k, 0.8 * k, -0.6 * k)), sd, k)
+    return S
+
+
+def crab(layout, R, L, back_R, back_L, pairs=2, bw=9.0, bl=10.0, hip_y=8.0, hump=2.6, reach=11.0, rise=4.5, k=1.0,
+         kR=1.0, kL=1.0, clawR=1.0, clawL=1.0, spines=5, saucer=False, maw=False):
+    """A crab mech from parts. R and L are the right and left claws' guns (the pilot's right is -x)."""
+    C = crab_body(hip_y, bw, bl, layout, hump, spines, saucer, maw)
     STATE["anchor"] = V((0, hip_y, 0))
     crab_eyes(C)
     crab_legs(C, pairs, reach, rise, k)
-    gun_arm(R, -1, C, kR)
-    gun_arm(L, 1, C, kL)
+    for kind, sd, ka, claw, side in ((R, -1, kR, clawR, "R"), (L, 1, kL, clawL, "L")):
+        before = {o.name for o in bpy.data.objects}
+        limb(f"ARM_{side}", gun_arm(kind, sd, C, ka, claw), before)
     U = dict(C, w=bw * 0.7)
     back_unit(back_R, -1, U)
     back_unit(back_L, 1, U)
 
 
 CRABS = {
-    # id: (name, what, palette, parts)
-    "fiddler": ("Fiddler", "one big arm: a howitzer on the right, an autocannon on the left; radar and missiles, Panorama",
-                dict(BODY=(0.78, 0.40, 0.14), BODY2=(0.20, 0.20, 0.22), ACCENT=(0.95, 0.85, 0.20)),
-                dict(layout="panorama", R="howitzer", L="autocannon", back_R="radar", back_L="missiles", kR=1.35, kL=0.8)),
-    "hermit": ("Hermit", "a high shell that is a missile magazine, twin gatlings, Titan",
-               dict(BODY=(0.30, 0.38, 0.42), BODY2=(0.16, 0.17, 0.19), ACCENT=(0.92, 0.48, 0.12)),
-               dict(layout="titan", R="gatling", L="gatling", back_R="vmissile", back_L="vmissile", hump=3.6, k=1.1)),
-    "stone": ("Stone", "low and wide on four pairs of legs, two pincer cannons, rocket pods, Excavator cab",
-              dict(BODY=(0.46, 0.42, 0.36), BODY2=(0.22, 0.21, 0.20), ACCENT=(0.80, 0.15, 0.10)),
-              dict(layout="cab", R="pincer", L="pincer", back_R="rockets", back_L="rockets", pairs=4, bw=10.5, bl=11.5,
-                   hip_y=6.8, reach=12.0, rise=4.0, k=1.15, kR=1.15, kL=1.15)),
-    "ghost": ("Ghost", "light and high on long legs, two autocannons, radar and missiles, Canopy",
-              dict(BODY=(0.80, 0.78, 0.70), BODY2=(0.24, 0.26, 0.28), ACCENT=(0.10, 0.55, 0.75)),
-              dict(layout="canopy", R="autocannon", L="autocannon", back_R="radar", back_L="missiles", bw=8.0, bl=9.0,
-                   hip_y=10.5, hump=2.2, reach=12.5, rise=5.5, k=0.82, kR=0.9, kL=0.9)),
-    "coconut": ("Coconut", "the biggest: four pairs of legs, a gatling and a pincer cannon, railgun and vertical missiles, All-view sphere",
-                dict(BODY=(0.40, 0.26, 0.16), BODY2=(0.18, 0.16, 0.14), ACCENT=(0.90, 0.72, 0.20)),
-                dict(layout="allview", R="gatling", L="pincer", back_R="railgun", back_L="vmissile", pairs=4, bw=11.0,
-                     bl=12.5, hip_y=8.6, hump=3.2, reach=13.0, rise=5.0, k=1.25, kR=1.2, kL=1.3)),
-    "mitten": ("Mitten", "a rocket box and an autocannon for arms, a shoulder cannon and missiles, Low bank",
-               dict(BODY=(0.28, 0.34, 0.24), BODY2=(0.20, 0.21, 0.19), ACCENT=(0.95, 0.60, 0.10)),
-               dict(layout="lowbank", R="autocannon", L="rockets", back_R="cannon", back_L="missiles", kR=1.1, kL=1.1)),
+    # id: (name, what, palette, parts). One, two or three pairs of hind legs; three are shorter and thinner.
+    "tyrant": ("Tyrant", "one pair of thick hind legs, a shark's maw, the hump all spines, crusher claws with a howitzer and an autocannon, "
+               "missiles and radar, Titan",
+               dict(BODY=(0.36, 0.42, 0.22), BODY2=(0.20, 0.21, 0.17), ACCENT=(0.85, 0.30, 0.10)),
+               dict(layout="titan", R="howitzer", L="autocannon", back_R="missiles", back_L="radar", pairs=1, bw=10.0,
+                    bl=10.5, hip_y=9.0, hump=3.6, reach=9.0, rise=5.0, k=1.5, kR=1.2, kL=1.1, clawR=1.35, clawL=1.2,
+                    spines=7, maw=True)),
+    "bruiser": ("Bruiser", "one pair of hind legs under a flat wide shell, a toothed maw, gatlings in both claws, "
+                "a shoulder cannon and missiles, Excavator cab",
+                dict(BODY=(0.70, 0.72, 0.74), BODY2=(0.26, 0.27, 0.29), ACCENT=(0.20, 0.55, 0.60)),
+                dict(layout="cab", R="clawgat", L="clawgat", back_R="cannon", back_L="missiles", pairs=1, bw=12.0, bl=9.0,
+                     hip_y=8.6, hump=1.8, reach=8.6, rise=4.6, k=1.4, kR=1.25, kL=1.25, clawR=1.3, clawL=1.3, spines=0,
+                     maw=True)),
+    "shrike": ("Shrike", "two pairs of arching legs under a flat saucer shell with cheek intakes, two autocannons, "
+               "vertical missiles, Panorama",
+               dict(BODY=(0.42, 0.58, 0.60), BODY2=(0.16, 0.17, 0.19), ACCENT=(0.92, 0.82, 0.16)),
+               dict(layout="panorama", R="autocannon", L="autocannon", back_R="vmissile", back_L="vmissile", pairs=2,
+                    bw=11.0, bl=10.0, hip_y=8.2, hump=1.8, reach=12.5, rise=6.0, k=1.0, kR=0.95, kL=0.95, clawR=0.9,
+                    clawL=0.9, spines=0, saucer=True)),
+    "pincher": ("Pincher", "two pairs of legs, two great pincers with cannons in their palms, rocket pods, All-view sphere",
+                dict(BODY=(0.30, 0.33, 0.44), BODY2=(0.15, 0.16, 0.20), ACCENT=(0.90, 0.40, 0.10)),
+                dict(layout="allview", R="pincer", L="pincer", back_R="rockets", back_L="rockets", pairs=2, bw=10.0,
+                     bl=10.0, hip_y=7.8, hump=2.4, reach=11.5, rise=5.0, k=1.05, kR=1.1, kL=1.1, clawR=1.6, clawL=1.6,
+                     spines=4)),
+    "scuttler": ("Scuttler", "three pairs of short thin legs, low and quick, a gatling and a rocket box, railgun and missiles, "
+                "Canopy",
+                dict(BODY=(0.70, 0.36, 0.14), BODY2=(0.20, 0.19, 0.18), ACCENT=(0.95, 0.85, 0.30)),
+                dict(layout="canopy", R="gatling", L="rockets", back_R="railgun", back_L="missiles", pairs=3, bw=9.0,
+                     bl=10.5, hip_y=6.6, hump=2.2, reach=8.0, rise=3.2, k=0.66, kR=0.95, kL=0.95, clawR=0.9, clawL=0.9,
+                     spines=5)),
+    "mite": ("Mite", "three pairs of short thin legs, the smallest, a pincer cannon and an autocannon, a cannon and "
+             "radar, Low bank",
+             dict(BODY=(0.62, 0.62, 0.56), BODY2=(0.22, 0.24, 0.26), ACCENT=(0.10, 0.60, 0.70)),
+             dict(layout="lowbank", R="pincer", L="autocannon", back_R="cannon", back_L="radar", pairs=3, bw=8.4,
+                  bl=9.2, hip_y=6.2, hump=2.0, reach=7.4, rise=3.0, k=0.6, kR=0.85, kL=0.85, clawR=1.1, clawL=0.8,
+                  spines=4)),
 }
 for _id, (_n, _w, _pal, _parts) in CRABS.items():
     PALETTES[_id] = dict(COMBAT_BASE, ARMOR=tuple(c * 0.8 for c in _pal["BODY"]), **_pal)
@@ -1658,7 +1778,8 @@ def main():
         row = dict(id=key, name=name, what=what, file=f"mech_blockouts/{key}.glb", height_m=round(hi[2] - lo[2], 2),
                    width_m=round(hi[0] - lo[0], 2), length_m=round(hi[1] - lo[1], 2), tris=tris,
                    legs_m3=round(legs, 1), torso_m3=round(torso, 1), legs_over_torso=round(legs / torso, 2) if torso else None,
-                   arm_leg_clips=clips)
+                   arm_leg_clips=clips,
+                   limbs=sorted(o.name for o in bpy.data.objects if o.type == "EMPTY" and o.name.startswith(("LEG_", "ARM_"))))
         rows.append(row)
         print("BUILT", row, flush=True)
     with open(manifest, "w") as f:

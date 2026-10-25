@@ -530,6 +530,7 @@ fn play_fight(
             let hit = sim.took_hit;
             let clear = |a: Vec3, b: Vec3| wall || crate::mech::line_clear(&plan, &live, a, b);
             let cover = |me: Vec3, threat: Vec3| crate::mech::cover_point(&plan, &live, me, threat);
+            let open = |a: Vec2, b: Vec2| crate::mech::path_open(&plan, a, b, 3.0);
             let view = cb_core::ai::View {
                 eye,
                 target,
@@ -541,6 +542,7 @@ fn play_fight(
                 allies: &[],
                 clear: &clear,
                 cover: &cover,
+                open: &open,
             };
             let o = brain.orders(m, &view, time.delta_secs());
             play_orders(&o, &mut act);
@@ -780,6 +782,7 @@ fn play_defence(
                 });
                 let clear = |a: Vec3, b: Vec3| crate::mech::line_clear(&plan, &live, a, b);
                 let cover = |me: Vec3, threat: Vec3| crate::mech::cover_point(&plan, &live, me, threat);
+                let open = |a: Vec2, b: Vec2| crate::mech::path_open(&plan, a, b, spec.locomotion.body_radius_m);
                 let view = cb_core::ai::View {
                     eye,
                     // The brain aims `TORSO_AIM_M` over the point it is given: hand it that
@@ -793,6 +796,7 @@ fn play_defence(
                     allies: &[],
                     clear: &clear,
                     cover: &cover,
+                    open: &open,
                 };
                 let o = brain.orders(m, &view, time.delta_secs());
                 play_orders(&o, &mut act);

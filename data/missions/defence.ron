@@ -57,6 +57,13 @@
             skill: (aim_noise_deg: 2.0, fire_error_deg: 2.5, range_m: 320.0, max_fire_range_m: 800.0, hop_chance: 0.2),
         ),
     ],
+    // Each wave's skins (openspec/changes/blockout-enemies, E1, provisional): raider i of a wave wears its list's
+    // i-th, cycled. Combat mechs first, then mechs with two-pair crabs, then the crabs with a Tyrant and a Bruiser.
+    skins_by_wave: [
+        ["sabre", "swift", "longbow", "hatchet", "anvil", "skylark", "brigand", "sabre", "swift", "hatchet"],
+        ["sabre", "shrike", "hatchet", "pincher", "bulldog", "shrike", "brigand", "pincher", "anvil", "tarantula"],
+        ["tyrant", "scuttler", "mite", "shrike", "bruiser", "pincher", "scuttler", "mite", "shrike", "hatchet"],
+    ],
     // Each wave's vehicles beside its raiders (openspec/changes/invasion-forces, survey G16,
     // provisional): tanks come by cargo plane and parachute. The crab airship joins wave 3 when it
     // is built. A wave is cleared when its raiders and these are all destroyed.

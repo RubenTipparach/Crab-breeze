@@ -84,7 +84,7 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
     let view = &data.0.world.view;
     let srgb = |c: [f32; 3]| Color::srgb(c[0], c[1], c[2]);
     let lens = Projection::from(PerspectiveProjection {
-        fov: 75f32.to_radians(),
+        fov: data.0.pilot.view_fov_deg.to_radians(),
         near: 0.05,
         far: view.far_m,
         ..default()
@@ -96,6 +96,8 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
             Camera3d::default(),
             Camera {
                 order: 1,
+                // `CB_NO_COCKPIT_PASS=1`: the second camera off (perf-bench switch, to measure it).
+                is_active: !crate::cli::switched_off("CB_NO_COCKPIT_PASS"),
                 clear_color: ClearColorConfig::None,
                 ..default()
             },

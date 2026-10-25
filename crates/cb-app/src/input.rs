@@ -27,6 +27,9 @@ pub struct InputAccum {
     pub skate_toggle: bool,
     /// The next target was asked for.
     pub target_next: bool,
+    /// Fire pressed while free look is held: press the MFD looked at (cockpit-mfds). Taken by the
+    /// MFDs each frame, never by the fixed step.
+    pub mfd_press: bool,
     /// When set, a script plays instead of the keyboard (held axes and buttons); mouse look and
     /// latches above still add.
     pub script: Option<Actions>,
@@ -207,6 +210,7 @@ fn grab_mouse(
 
 fn sample_devices(
     input: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
     motion: Res<AccumulatedMouseMotion>,
     cursor: Single<&CursorOptions>,
     keys: Res<Keys>,
@@ -229,6 +233,10 @@ fn sample_devices(
     }
     acc.skate_toggle |= any_just(&input, &keys.skate);
     acc.target_next |= any_just(&input, &keys.target_next);
+    let (fire_keys, fire_buttons) = &keys.fire[0];
+    if any(&input, &keys.free_look) && (any_just(&input, fire_keys) || mouse.any_just_pressed(fire_buttons.iter().copied())) {
+        acc.mfd_press = true;
+    }
     for (k, cmd) in &keys.debug {
         if any_just(&input, k) {
             acc.debug = Some(*cmd);

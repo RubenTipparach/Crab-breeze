@@ -116,7 +116,7 @@ code { font: 500 0.9em var(--mono); }
 
 <div class="wrap">
   <header class="top">
-    <div class="eyebrow">Owner survey · opened 2026-10-23 · cleaned up 2026-10-24</div>
+    <div class="eyebrow">Owner survey · opened 2026-10-23 · cleaned up 2026-10-24 · island and small-building questions added</div>
     <h1>Crab Breeze Survey</h1>
     <div class="suits" aria-hidden="true"><span style="background:var(--sun)"></span><span style="background:var(--crescent)"></span><span style="background:var(--star)"></span><span style="background:var(--eagle)"></span></div>
     <p class="lede">Only the questions still open. Everything you have answered is in the Answered section at the bottom, with where it went. Each open question has a recommendation that gets built if you leave it blank: pick an option, add a note, or leave it.</p>
@@ -256,9 +256,6 @@ const SECTIONS = [
       { id: 'W16', q: 'Splashes make real 3D waves (openspec/changes/water-ripples). How big a patch of water moves?',
         options: ['256 m round you at 1 m cells (about 0.15 ms a step); farther splashes show flat rings', '512 m at 2 m cells', '128 m at 0.5 m cells, sharper but smaller'], rec: 0,
         why: 'It covers everything near enough to read as waves from the cockpit at a small, fixed cost.' },
-      { id: 'W17', q: 'The clouds look bad. How should they be made?',
-        options: ['Bevy volumetric fog volumes with a 3D noise density, lit by the sun (real volume you fly through)', 'Better sprite puffs from Blender-rendered cloud flipbooks', 'A sky dome with painted clouds only'], rec: 0,
-        why: 'Ace Combat clouds are volumes you burst out of; Bevy 0.20 renders lit fog volumes, and the in-cloud fog already in the game stays.' },
       { id: 'W1', q: 'City street layout?',
         options: ['Grids now; organic layouts after the first real city blocks exist', 'Organic (curving streets) from the start', 'Grids only'], rec: 0,
         why: 'Grids are what the generator builds today and read well from a 12 m cockpit.' },
@@ -292,6 +289,47 @@ const SECTIONS = [
       { id: 'WR3', q: 'The drops on the glass are Martijn Steinrucken\'s "Heartfelt" shader (CC BY-NC-SA 3.0, as Tenebris and Pale Blue Dot carry it). Replace it before a commercial release?',
         options: ['Yes: keep the port for now, write our own drop field before anything is sold', 'No: it stays', 'Replace it now'], rec: 0,
         why: 'The non-commercial clause does not fit a game that is sold; it costs nothing to keep while the look is being settled.' },
+    ] },
+  { tag: 'I', name: 'The island',
+    lead: 'New on 2026-10-24: a mountain range, canyons, desert, jungle, swamps, waterfalls, beaches, cliffs and an archipelago (openspec/changes/island-biomes, rock-formations, terrain-materials), and cheap lit clouds with rain on the glass (cloud-puffs, cloud-rain). Fly over it first on the Island mockup: https://claude.ai/artifact/NyHSzekHMnyspZyUrP5rTx',
+    qs: [
+      { id: 'I1', q: 'The mountain range through the middle: how big?',
+        options: ['A 16 km spine running north-north-east, peaks of 1.4-2.2 km reaching through the clouds with snow, passes at 500-700 m for the highways', 'Lower: peaks of 600-900 m, all below the cloud tops', 'Higher: peaks to 3.5 km, flying round them rather than over'], rec: 0,
+        why: 'Peaks you climb through the cloud deck to clear are the Ace Combat picture, and the passes keep the ground routes between cities.' },
+      { id: 'I2', q: 'The range takes the middle, where the capital stands today. Where does the capital go?',
+        options: ['The northern plain, the biggest flat site within 6 km of the centre', 'In a wide valley inside the range', 'On the south coast by the beaches'], rec: 0,
+        why: 'Cities need gentle ground under 300 m; the northern plain has the most, and you still start near the middle of the island.' },
+      { id: 'I3', q: 'Which side is the desert?',
+        options: ['East: the range\'s rain shadow, with canyons and mesas; jungle and swamps on the wet west and south-west', 'West, jungle east', 'South, with the jungle north'], rec: 0,
+        why: 'A rain shadow is why deserts sit behind ranges, so the layout reads as real; the archipelago then sits off the wet south-west.' },
+      { id: 'I4', q: 'The archipelago: how many islets, where?',
+        options: ['20-40 islets, 0.2-2 km across, 3-9 km off the south-west, some with cliffs and sea stacks', 'A few big islands (3-5 km)', 'Islets all round the island'], rec: 0,
+        why: 'A scatter of islets is a good place for low-level flying and naval set pieces and stays inside the 41 km world.' },
+      { id: 'I5', q: 'Ground materials: twenty PBR layers (grass, dry grass, forest floor, jungle floor, mud, swamp muck, beach sand, wet sand, pebbles, desert sand, cracked clay, red sandstone with strata, granite, limestone, scree, snow, moss rock, gravel, red dirt, scorch). Where do they come from?',
+        options: ['Material Maker graphs for all twenty, CC0 scans (ambientCG) as references only', 'CC0 scans (ambientCG, Poly Haven) used directly, as the grass on main is', 'Material Maker for rock and sand, scans for vegetation floors'], rec: 0,
+        why: 'Graphs are the CLAUDE.md rule and tile without seams at any size; the grass scan on main would need an exception listed.' },
+      { id: 'I6', q: 'Jungle trees are 30-45 m, taller than the mech. How dense?',
+        options: ['Dense canopy grown only near the mechs like today\'s trees, a far canopy mesh beyond; measured on the 3070', 'Sparser jungle, clearings between groves', 'Shorter trees (15-20 m) so the mech sees over them'], rec: 0,
+        why: 'Pushing through a canopy above your cockpit is the jungle feeling; growing it only nearby keeps the cost bounded.' },
+      { id: 'I7', q: 'Cloud shadows on the ground?',
+        options: ['Yes: a 2 km shadow texture that drifts with the clouds, one sample a pixel', 'No shadows (cheapest)', 'Real shadow maps from the cloud meshes (dearer)'], rec: 0,
+        why: 'Shadows racing over the ground sell the clouds from the air for almost no cost.' },
+      { id: 'I8', q: 'Waterfalls: how many and how big?',
+        options: ['20-40 where rivers drop off the range and canyon lips, 40-200 m high, with spray, mist and a plunge pool', 'A few hero falls only, at mission sites', 'One giant fall (400 m+) as a landmark, plus small ones'], rec: 0,
+        why: 'Falls come from the terrain itself wherever a river drops, so there are many to find; each costs two draws and some particles nearby.' },
+    ] },
+  { tag: 'S', name: 'Houses and small businesses',
+    lead: 'New on 2026-10-24: seventeen 1980s houses and small businesses for the island\'s towns and roadsides (openspec/changes/small-buildings). Walk the street first on the Main Street mockup: https://claude.ai/artifact/MmkFvAZyjECdFZ883QbBRq (try Walk, Dusk and the cutaway).',
+    qs: [
+      { id: 'S1', q: 'Which building types do we build, and which first? (Ranch, colonial, bungalow, split-level, A-frame, Pueblo Revival, stilt house, beach cottage, trailer; diner, gas station, corner store, auto repair, motel, strip mall, burger drive-in, Quonset.)',
+        options: ['All seventeen; ranch house, diner, gas station and motel first', 'Houses first, businesses later', 'A shorter list (say which in the note)'], rec: 0,
+        why: 'Those four read best from a cockpit at speed and between them cover a suburb and a roadside stop.' },
+      { id: 'S2', q: 'How many small places between the cities?',
+        options: ['3-8 small towns of 20-60 buildings, and a roadside stop (diner, gas, motel) every 3-4 km of highway', 'Only roadside stops', 'Dense: suburbs ringing every city as well'], rec: 0,
+        why: 'Enough that low flying always has something human below, without filling the wild biomes.' },
+      { id: 'S3', q: 'Do these buildings get real interiors near you?',
+        options: ['Yes: rooms and furniture within 150 m or when a wall is blown open, as the city\'s buildings do', 'Only the businesses', 'No: windows are dark glass'], rec: 0,
+        why: 'Seeing a kitchen through a window or a blasted wall is what sells the scale, and it costs little at 1,000-12,000 triangles a building.' },
     ] },
   { tag: 'C', name: 'The cockpit',
     lead: 'The cockpit is where the whole game is played, so it is designed before the exterior.',
@@ -338,6 +376,8 @@ const SECTIONS = [
 ];
 
 const DECIDED = [
+  { text: 'W17 Clouds are cheap, lit blob meshes rather than volumetric fog: "we\'re on a tight budget, I just want good looking clouds with correct lighting and dont cost much to render". Flying through one wets the glass with drops, as in Pale Blue Dot.', where: 'openspec/changes/cloud-puffs, cloud-rain' },
+  { text: 'Shallow water is waded; the skates skim only over water deeper than half the mech ("The skis only kicking if you\'re above water deeper than 50% of the mech").', where: 'openspec/changes/skim-depth' },
   { text: 'Breeze is retired ("Breeze me h sucks"). The cockpit is inside the mech\'s chest and the chest armour opens to board. Designs are original, from the 1980s industrial world, with Mining Mike\'s boss kit as the finish only ("New mechs are just stolen. Those are not original mechs").', where: 'tools/blender/build_mechs.py, mech_boarding.py; docs/design/cockpit.md' },
   { text: 'Alien crabs have no big claws: their arms are guns, swords and missile launchers ("It\'s claws are guns or swords or missile launchers").', where: 'tools/blender/build_alien_mechs.py, docs/design/alien-rig.md' },
   { text: 'C3 The cockpit is lit live with full PBR (base colour, normal, ORM, emission maps on every custom texture); occlusion is baked into the maps, light is not. Target: a high-end PC with an RTX 3070. Your words: "I want normal maps, speculat maps and ao for all our custom textures. Aim for that pbr triple a goodness that bevy provides".', where: 'CLAUDE.md sections 1, 7, 10; docs/design/cockpit.md' },
