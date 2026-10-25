@@ -898,6 +898,13 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // From the street in the biggest city, looking up past the towers at the sky (`city_up_view`).
+    View {
+        name: "city-up",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // Mist in the low ground, from a hill over the wet west at dawn-like low height.
     view("valley-mist", [-9000.0, 260.0, -1000.0], [-6000.0, 120.0, 2500.0]),
     // Under the storm, in its rain, 40 m up, facing away from the sun.
@@ -962,6 +969,33 @@ fn steep_river_view(plan: &crate::world::Plan, back_m: f32, up_m: f32, top: bool
     };
     info!("steep river: {drop:.0} m over 10 points at {at}");
     (eye.to_array(), at.to_array())
+}
+
+/// On the street nearest the middle of the city with the most cloud overhead, 2 m up, looking nearly straight up.
+fn city_up_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
+    // The city with the most cloud overhead (the storm decks are where the cloud's base shows).
+    let overhead = |c: &cb_core::world::layout::City| -> f32 {
+        (0..30)
+            .map(|k| {
+                plan.clouds
+                    .density_at(Vec3::new(c.centre.x, 500.0 + k as f32 * 100.0, c.centre.y), 0.0)
+            })
+            .sum()
+    };
+    let Some(city) = plan.cities.iter().max_by(|a, b| overhead(a).total_cmp(&overhead(b))) else {
+        return ([0.0, 400.0, 0.0], [0.0, 2000.0, 100.0]);
+    };
+    let street = city
+        .streets
+        .iter()
+        .min_by(|a, b| {
+            let d = |s: &cb_core::world::layout::StreetPiece| s.rect.centre().distance(city.centre) - s.width_m;
+            d(a).total_cmp(&d(b))
+        })
+        .map_or(city.centre, |s| s.rect.centre());
+    let eye = Vec3::new(street.x, plan.terrain.height_at(street.x, street.y) + 2.0, street.y);
+    info!("city up: city {} at {eye}", city.id);
+    (eye.to_array(), (eye + Vec3::new(60.0, 1000.0, 30.0)).to_array())
 }
 
 /// Up close on the steepest river reach that is not a waterfall: 40 m to its side and 6 m over the
@@ -1055,6 +1089,7 @@ fn run_weather_script(
             "river-steep-top" => steep_river_view(&plan, 0.0, 500.0, true),
             "river-close" => close_river_view(&plan, false),
             "river-close-below" => close_river_view(&plan, true),
+            "city-up" => city_up_view(&plan),
             _ => (v.eye, v.at),
         };
         let v = View {
