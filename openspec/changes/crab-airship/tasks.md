@@ -1,6 +1,6 @@
 # Tasks: crab-airship
 
-- [x] 0.1 Mockup: `docs/mockups/crab_fortress.html` (`tools/mockups/gen_crab_fortress.py`): the block-out at true scale with a 24 m Foreman and the crab mechs, the lift rule live, thrusters to destroy, the fall, the climb from the pilot's eye; shots in `docs/screenshots/fortress/`
+- [x] 0.1 Mockup: `docs/mockups/crab_fortress.html` (`tools/mockups/gen_crab_fortress.py`): the block-out at true scale with a 24 m Foreman and the crab mechs; fighters launching off the catapults on patrol and cannon runs; turrets tracking and firing at your mech (flak, beams, deck guns, missiles); the deck guard fighting and replaced up the lifts; crabs dropped on chutes; your mech's cannon, autocannon and missiles against each part's armour, weak points and hit points until it falls and crashes, also from your cockpit; shots in `docs/screenshots/fortress/`
 - [ ] 1.1 `data/world/fortress.ron` and its validation
 - [ ] 1.2 `cb-core::fortress`: the lift rule, pose, list and fall (tests: `a_side_with_two_thrusters_holds_its_half`, `three_kills_on_one_side_bring_it_down`, `two_kills_a_side_hold_at_full_throttle`, `a_falling_fortress_lists_toward_its_weak_side`, `the_sink_speed_never_passes_its_terminal_speed`)
 - [ ] 1.3 Launch and drop timers (tests: `a_lost_catapult_halves_the_launches`, `no_drops_without_a_bay`, `nothing_launches_while_falling`)
