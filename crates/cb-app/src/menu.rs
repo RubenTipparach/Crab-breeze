@@ -44,6 +44,12 @@ impl Menu {
 
 /// How this run plays, chosen on the title menu or by the command line: the encounter mechs near
 /// the start (free roam) or the city defence. Inserted once the run begins.
+/// The encounter mechs near the start are wanted (`data/world/encounters.ron`): only a scripted take
+/// asks for them. Free roam as a player plays it starts with no enemies (owner, 2026-10-25: "no
+/// enemies in free roam!", "its CALLED FREE ROAM", "why are there enemeies at spawn!").
+#[derive(Resource)]
+pub struct Encounters;
+
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Play {
     /// The start with its encounter mechs.
