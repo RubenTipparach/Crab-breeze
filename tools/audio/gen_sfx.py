@@ -119,6 +119,67 @@ def shape(x: np.ndarray, drive: float) -> np.ndarray:
     return np.tanh(x * drive) / np.tanh(drive)
 
 
+def _svf(x: np.ndarray, cutoff_hz, q: float, mode: str) -> np.ndarray:
+    """One zero-delay-feedback state-variable filter stage (12 dB/octave), stable while its
+    cutoff sweeps per sample (Zavalishin's topology-preserving form)."""
+    c = np.broadcast_to(np.asarray(cutoff_hz, dtype=np.float64), x.shape)
+    g = np.tan(np.pi * np.clip(c, 5.0, SR * 0.45) / SR)
+    k = 1.0 / q
+    a1 = 1.0 / (1.0 + g * (g + k))
+    a2 = g * a1
+    a3 = g * a2
+    ic1 = ic2 = 0.0
+    y = np.empty_like(x)
+    low = mode == "lp"
+    for i in range(len(x)):
+        v3 = x[i] - ic2
+        v1 = a1[i] * ic1 + a2[i] * v3
+        v2 = ic2 + a2[i] * ic1 + a3[i] * v3
+        ic1 = 2 * v1 - ic1
+        ic2 = 2 * v2 - ic2
+        y[i] = v2 if low else x[i] - k * v1 - v2
+    return y
+
+
+def lp(x: np.ndarray, cutoff_hz, order: int = 4, q: float = 0.707) -> np.ndarray:
+    """A steep lowpass: `order` / 2 SVF stages (order 4 is 24 dB/octave). Combustion, blasts and
+    rumble live under it: the onepole_lp above is too gentle and leaves them hissing."""
+    for _ in range(order // 2):
+        x = _svf(x, cutoff_hz, q, "lp")
+    return x
+
+
+def hp(x: np.ndarray, cutoff_hz, order: int = 2) -> np.ndarray:
+    """A steep highpass (order 2 is 12 dB/octave); used at 20-30 Hz to keep sub energy audible."""
+    for _ in range(order // 2):
+        x = _svf(x, cutoff_hz, 0.707, "hp")
+    return x
+
+
+def brown(rng: np.random.Generator, n: int) -> np.ndarray:
+    """Brown (red) noise: integrated white noise with a slight leak, the colour of a roar."""
+    w = rng.uniform(-1, 1, n)
+    y = np.empty(n)
+    z = 0.0
+    for i in range(n):
+        z = 0.998 * z + w[i] * 0.05
+        y[i] = z
+    return y / (np.max(np.abs(y)) or 1.0)
+
+
+def turbulence(rng: np.random.Generator, n: int, rate_hz: float = 7.0, depth: float = 0.45) -> np.ndarray:
+    """A burning flame's unsteady swell: slow random amplitude between 1 - depth and 1 + depth."""
+    m = lp(rng.uniform(-1, 1, n), rate_hz, order=2)
+    m = m / (np.max(np.abs(m)) or 1.0)
+    return 1.0 + depth * m
+
+
+def crackle(rng: np.random.Generator, n: int, density: float = 0.004, cutoff_hz: float = 2500.0) -> np.ndarray:
+    """Sparse pops of burning fuel, low passed so they sound like fire, not like static."""
+    pops = rng.uniform(-1, 1, n) * (rng.uniform(0, 1, n) < density)
+    return lp(pops, cutoff_hz, order=2)
+
+
 def ring(freqs, decays_s, n: int, amps=None) -> np.ndarray:
     """Inharmonic struck-metal partials."""
     amps = amps or [1.0] * len(freqs)
@@ -184,23 +245,26 @@ def at(x: np.ndarray, seconds: float, n: int) -> np.ndarray:
 SOUNDS = {}
 
 
-def sound(name, group, what):
+def sound(name, group, what, peak_db=-1.0):
+    """Register a cue. peak_db is the level it is written at: -1 dBFS for blasts and footsteps,
+    lower for cockpit tones that should sit under the fight rather than over it."""
     def deco(fn):
-        SOUNDS[name] = (group, what, fn)
+        SOUNDS[name] = (group, what, fn, peak_db)
         return fn
     return deco
 
 
 # --- the mech
 
-@sound("foot_stomp", "Mech", "A 24 m mech's foot landing: a sub thump, the ground's crunch, the leg's metal ringing and a hiss of hydraulics.")
+@sound("foot_stomp", "Mech", "A 24 m mech's foot landing: a sub thump you feel, the ground's low crunch, the leg's metal ringing and a hiss of hydraulics.")
 def foot_stomp(r):
-    n = int(1.6 * SR)
-    thump = sine(sweep(62, 28, n, 0.5)) * exp_decay(n, 0.7)
-    crunch = onepole_lp(noise(r, n), 520) * exp_decay(n, 0.35) * 2.2
-    clank = ring([143, 331, 517, 911], [0.9, 0.6, 0.4, 0.25], n, [0.5, 0.35, 0.25, 0.15])
-    hiss = onepole_hp(noise(r, n), 3000) * adsr(n, 0.12, 0.2, 0.0, 0.01) * 0.25
-    return shape(mix(thump * 1.4, crunch, clank * 0.6, at(hiss, 0.05, n)), 1.6)
+    n = int(1.8 * SR)
+    thump = sine(sweep(58, 26, n, 0.5)) * exp_decay(n, 0.8) * 1.6
+    crunch = lp(noise(r, n), sweep(1400, 120, n, 0.4)) * exp_decay(n, 0.5) * 3.0
+    rumble = lp(brown(r, n), 90) * adsr(n, 0.01, 0.3, 0.3, 1.0) * 2.0
+    clank = lp(ring([143, 331, 517, 911], [0.9, 0.6, 0.4, 0.25], n, [0.5, 0.35, 0.25, 0.15]), 2500, order=2)
+    hiss = onepole_hp(noise(r, n), 3000) * adsr(n, 0.12, 0.2, 0.0, 0.01) * 0.15
+    return hp(shape(mix(thump, crunch, rumble, clank * 0.5, at(hiss, 0.05, n)), 1.8), 22)
 
 
 @sound("foot_splash", "Mech", "A foot coming down in water: the thump under a heavy wash of spray.")
@@ -260,40 +324,50 @@ def hatch_motor(r):
     return mix(motor, at(clunk, 1.7, n))
 
 
-@sound("jet_ignite", "Mech", "The jets lighting: an igniter crackle and a roar that swells to full thrust.")
+@sound("jet_ignite", "Mech", "The jets lighting: igniters ticking, a deep whoomp as the fuel catches, then a roar swelling to full thrust with the cockpit shaking.")
 def jet_ignite(r):
-    n = int(2.0 * SR)
-    crackle = bandpass(noise(r, n) * (r.uniform(0, 1, n) > 0.97), 2500, 3) * adsr(n, 0.0, 0.3, 0.0, 0.0) * 4
-    roar = onepole_lp(noise(r, n), sweep(300, 2500, n, 0.6)) * adsr(n, 0.5, 0.3, 0.9, 0.2) * 2.5
-    whine = sine(sweep(400, 1800, n, 0.7)) * adsr(n, 0.6, 0.2, 0.3, 0.3) * 0.25
-    return mix(crackle, roar, whine)
+    n = int(2.6 * SR)
+    ticks = lp(noise(r, n) * (np.sin(2 * np.pi * 14 * np.arange(n) / SR) > 0.97), 3500, order=2) * adsr(n, 0.0, 0.0, 1.0, 0.0) * 1.5
+    ticks *= (np.arange(n) < int(0.35 * SR))
+    whoomp = mix(sine(sweep(80, 32, n, 0.4)) * exp_decay(n, 0.7) * 1.8,
+                 lp(brown(r, n), sweep(1800, 140, n, 0.35)) * exp_decay(n, 0.9) * 3.0)
+    roar = lp(brown(r, n), sweep(180, 900, n, 0.6)) * turbulence(r, n, 6, 0.35) * adsr(n, 0.7, 0.3, 0.9, 0.25) * 2.4
+    sub = lp(noise(r, n), 55) * adsr(n, 0.6, 0.3, 0.9, 0.3) * 6.0
+    fire = crackle(r, n, 0.003, 1800) * adsr(n, 0.5, 0.2, 0.7, 0.3) * 2.0
+    return hp(shape(mix(ticks, at(whoomp, 0.35, n), at(roar, 0.3, n), at(sub, 0.3, n), at(fire, 0.4, n)), 1.6), 22)
 
 
-@sound("rocket_loop", "Mech", "The jets burning (loops): a ragged roar with crackle, for while the rockets hold the mech up.")
+@sound("rocket_loop", "Mech", "The jets burning (loops): a deep, unsteady roar of burning fuel with crackle, for while the rockets hold the mech up.")
 def rocket_loop(r):
-    n = int(2.4 * SR)
-    roar = onepole_lp(noise(r, n), 1600) * 2.0
-    crackle = bandpass(noise(r, n) * (r.uniform(0, 1, n) > 0.985), 3000, 2) * 3
-    body = onepole_lp(noise(r, n), 180) * 3
-    return loopable(roar * (1 + 0.2 * sine(np.full(n, 7.3))) + crackle + body)
+    n = int(3.0 * SR)
+    roar = lp(brown(r, n), 700) * turbulence(r, n, 5, 0.35) * 2.5
+    body = lp(noise(r, n), 160) * turbulence(r, n, 9, 0.25) * 4.0
+    fire = crackle(r, n, 0.004, 1600) * 2.0
+    return loopable(hp(shape(roar + body + fire, 1.5), 22), 0.3)
 
 
-@sound("rocket_rumble", "Mech", "The sub-bass under the jets (loops): the cockpit shaking at 30 to 55 Hz.")
+@sound("rocket_rumble", "Mech", "The sub-bass under the jets (loops): the cockpit shaking, 25 to 60 Hz, ragged like the flame.")
 def rocket_rumble(r):
-    n = int(2.4 * SR)
-    wob = 42 + 10 * sine(np.full(n, 0.9))
-    sub = sine(wob) + 0.4 * sine(wob * 1.5)
-    grit = onepole_lp(noise(r, n), 90) * 2
-    return loopable(sub * 0.8 + grit)
+    n = int(3.0 * SR)
+    sub = lp(noise(r, n), 60) * turbulence(r, n, 4, 0.4) * 8.0
+    tone = sine(38 + 6 * lp(r.uniform(-1, 1, n), 2, order=2) * 40) * 0.35
+    return loopable(hp(shape(sub + tone, 1.3), 20), 0.3)
 
 
-@sound("skate_roll", "Mech", "Skating on the powered wheels (loops): an electric drive whine over the roar of tyres on road.")
+@sound("skate_roll", "Mech", "Skating on the powered wheels (loops): heavy tyres roaring on asphalt, a thump at every road seam, a gritty drive motor and the scrape of the wheels sliding, the boost hissing under it all.")
 def skate_roll(r):
-    n = int(2.4 * SR)
-    f = 410 + 6 * sine(np.full(n, 0.5))
-    whine = sine(f) * 0.35 + sine(f * 2) * 0.15 + sine(f * 3.02) * 0.08
-    road = onepole_lp(noise(r, n), 700) * 1.2
-    return loopable(whine + road)
+    n = int(3.0 * SR)
+    t = np.arange(n) / SR
+    road = lp(brown(r, n), 380) * turbulence(r, n, 11, 0.3) * 2.6
+    grit = lp(onepole_hp(noise(r, n), 600), 1800) * turbulence(r, n, 17, 0.5) * 0.35
+    seams = np.zeros(n)
+    for s0 in np.arange(0.05, 3.0, 0.375):          # an expansion joint every 0.375 s at speed
+        k = int(s0 * SR)
+        seams = seams + at(sine(sweep(70, 40, int(0.18 * SR))) * exp_decay(int(0.18 * SR), 0.15), s0, n)
+    f = 95 + 4 * np.sin(2 * np.pi * 0.7 * t)
+    motor = lp(saw(f) * 0.5 + saw(f * 1.005) * 0.5 + saw(f * 2) * 0.25, 650) * 0.5
+    boost = lp(brown(r, n), 1100) * turbulence(r, n, 6, 0.2) * 0.6
+    return loopable(hp(shape(road + grit + seams * 1.4 + motor + boost, 1.4), 25), 0.3)
 
 
 @sound("reactor_hum", "Mech", "The cockpit at rest (loops): the reactor's hum, slow beating and a faint electrical fizz.")
@@ -306,69 +380,73 @@ def reactor_hum(r):
 
 # --- weapons
 
-@sound("autocannon", "Weapons", "One round of the 35 mm autocannon: a hard crack and a short mechanical thump (fires 8 a second).")
+@sound("autocannon", "Weapons", "One round of the 35 mm autocannon: a hard crack over a chesty low thump and a short muzzle roar (fires 8 a second).")
 def autocannon(r):
-    n = int(0.45 * SR)
-    crack = onepole_hp(noise(r, n), 1500) * exp_decay(n, 0.05) * 2
-    body = onepole_lp(noise(r, n), 700) * exp_decay(n, 0.14) * 2.5
-    thump = sine(sweep(140, 55, n)) * exp_decay(n, 0.12)
-    bolt = at(ring([1200, 2700], [0.05, 0.03], n) * 0.3, 0.06, n)
-    return shape(mix(crack, body, thump, bolt), 2.0)
+    n = int(0.6 * SR)
+    crack = lp(onepole_hp(noise(r, n), 800), 6000, order=2) * exp_decay(n, 0.04) * 1.6
+    blast = lp(noise(r, n), sweep(2500, 180, n, 0.3)) * exp_decay(n, 0.18) * 3.5
+    thump = sine(sweep(120, 45, n, 0.5)) * exp_decay(n, 0.16) * 1.4
+    bolt = at(lp(ring([1200, 2700], [0.05, 0.03], n), 4000, order=2) * 0.25, 0.07, n)
+    return hp(shape(mix(crack, blast, thump, bolt), 2.0), 25)
 
 
-@sound("cannon", "Weapons", "The 120 mm cannon: a deep boom that rolls away.")
+@sound("cannon", "Weapons", "The 120 mm cannon: a concussive boom, the charge burning out of the barrel, and a rumble rolling off the hills.")
 def cannon(r):
-    n = int(1.4 * SR)
-    blast = onepole_lp(noise(r, n), sweep(4000, 300, n, 0.3)) * exp_decay(n, 0.8) * 3
-    boom = sine(sweep(90, 32, n, 0.4)) * exp_decay(n, 1.0) * 1.3
-    return reverb(shape(mix(blast, boom), 1.8), room=0.8, wet=0.35, tail_s=1.2)
+    n = int(2.4 * SR)
+    blast = lp(noise(r, n), sweep(3500, 90, n, 0.25)) * exp_decay(n, 0.9) * 4.0
+    boom = sine(sweep(75, 24, n, 0.4)) * exp_decay(n, 1.1) * 1.8
+    roll = lp(brown(r, n), 140) * turbulence(r, n, 3, 0.5) * adsr(n, 0.15, 0.4, 0.5, 1.6) * 2.5
+    return hp(reverb(shape(mix(blast, boom, roll), 1.8), room=0.9, wet=0.3, tail_s=1.2), 22)
 
 
-@sound("rocket_launch", "Weapons", "A dumbfire rocket leaving its pod: an ignition pop and a whoosh that tears away.")
+@sound("rocket_launch", "Weapons", "A dumbfire rocket leaving its pod: the motor lighting with a low whoomp, a roaring burn tearing away.")
 def rocket_launch(r):
-    n = int(1.6 * SR)
-    pop = onepole_lp(noise(r, n), 1200) * exp_decay(n, 0.06) * 2.5
-    whoosh = bandpass(noise(r, n), sweep(1800, 400, n, 0.5), 1.5) * adsr(n, 0.01, 0.2, 0.5, 1.2) * 3
-    return mix(pop, whoosh)
+    n = int(2.0 * SR)
+    whoomp = mix(sine(sweep(90, 35, n, 0.4)) * exp_decay(n, 0.35) * 1.5, lp(noise(r, n), sweep(2200, 200, n, 0.3)) * exp_decay(n, 0.25) * 3)
+    burn = lp(brown(r, n), sweep(1500, 300, n, 0.7)) * turbulence(r, n, 8, 0.4) * adsr(n, 0.02, 0.2, 0.6, 1.3) * 2.8
+    fire = crackle(r, n, 0.005, 2200) * exp_decay(n, 1.2) * 2
+    return hp(shape(mix(whoomp, burn, fire), 1.6), 22)
 
 
-@sound("missile_launch", "Weapons", "A guided missile away: a pneumatic kick, the motor's whoosh and a rising seeker chirp.")
+@sound("missile_launch", "Weapons", "A guided missile away: an ejection thud, the motor catching with a deep roar that tears off, and the seeker's chirp.")
 def missile_launch(r):
-    n = int(1.8 * SR)
-    kick = onepole_lp(noise(r, n), 600) * exp_decay(n, 0.05) * 2.5
-    motor = bandpass(noise(r, n), sweep(900, 2600, n, 0.5), 2) * adsr(n, 0.08, 0.3, 0.6, 1.0) * 2.5
-    chirp = sine(sweep(1200, 2400, int(0.25 * SR))) * adsr(int(0.25 * SR), 0.01, 0.05, 0.6, 0.1) * 0.3
-    return mix(kick, motor, at(chirp, 0.1, n))
+    n = int(2.2 * SR)
+    kick = mix(sine(sweep(70, 30, n, 0.4)) * exp_decay(n, 0.25) * 1.4, lp(noise(r, n), 500) * exp_decay(n, 0.06) * 3)
+    motor = lp(brown(r, n), sweep(400, 1800, n, 0.5)) * turbulence(r, n, 9, 0.35) * adsr(n, 0.05, 0.3, 0.6, 1.3) * 2.6
+    sub = lp(noise(r, n), 70) * adsr(n, 0.05, 0.3, 0.4, 1.0) * 5
+    chirp = sine(sweep(1200, 2400, int(0.25 * SR))) * adsr(int(0.25 * SR), 0.01, 0.05, 0.6, 0.1) * 0.15
+    return hp(shape(mix(kick, at(motor, 0.12, n), at(sub, 0.12, n), at(chirp, 0.15, n)), 1.5), 22)
 
 
-@sound("lock_tone", "Weapons", "The missile seeker hunting: beeps quickening as the lock builds (1.0 s, Ace Combat style).")
+@sound("lock_tone", "Weapons", "The missile seeker hunting: soft, low beeps quickening as the lock builds (1.0 s, Ace Combat style).", peak_db=-14)
 def lock_tone(r):
     n = int(1.0 * SR)
     out = np.zeros(n)
     t, gap = 0.0, 0.16
     while t < 1.0:
-        b = int(0.045 * SR)
-        beep = square(np.full(b, 1250.0), 0.4) * adsr(b, 0.002, 0.01, 0.8, 0.01)
-        out += at(onepole_lp(beep, 5000) * 0.6, t, n)
+        b = int(0.05 * SR)
+        beep = (sine(np.full(b, 740.0)) + 0.12 * sine(np.full(b, 1480.0))) * adsr(b, 0.006, 0.01, 0.8, 0.02)
+        out += at(lp(beep, 1800, order=2), t, n)
         t += gap
         gap = max(0.05, gap * 0.82)
     return out
 
 
-@sound("lock_on", "Weapons", "Locked: one steady high tone.")
+@sound("lock_on", "Weapons", "Locked: one steady, soft tone, an octave under the old one.", peak_db=-14)
 def lock_on(r):
     n = int(1.0 * SR)
-    tone = square(np.full(n, 1650.0), 0.45) * adsr(n, 0.005, 0.02, 0.9, 0.05)
-    return onepole_lp(tone, 6000) * 0.6
+    tone = (sine(np.full(n, 880.0)) + 0.12 * sine(np.full(n, 1760.0))) * adsr(n, 0.015, 0.02, 0.9, 0.04)
+    return lp(tone, 2000, order=2)
 
 
-@sound("shotgun", "Weapons", "The scattergun: a wide, heavy blast with a pump-action clack after it.")
+@sound("shotgun", "Weapons", "The scattergun: a wide, heavy blast that thumps the chest, then the pump-action clack.")
 def shotgun(r):
-    n = int(1.3 * SR)
-    blast = onepole_lp(noise(r, n), sweep(7000, 500, n, 0.3)) * exp_decay(n, 0.35) * 3
-    thump = sine(sweep(110, 40, n, 0.4)) * exp_decay(n, 0.3) * 1.2
-    clack = mix(onepole_hp(noise(r, n), 2000) * exp_decay(n, 0.02) * 1.5, ring([900, 1900, 3100], [0.08, 0.05, 0.04], n) * 0.4)
-    return shape(mix(blast, thump, at(clack, 0.62, n), at(clack * 0.8, 0.78, n)), 1.7)
+    n = int(1.5 * SR)
+    blast = lp(noise(r, n), sweep(5000, 160, n, 0.25)) * exp_decay(n, 0.45) * 4
+    thump = sine(sweep(100, 32, n, 0.4)) * exp_decay(n, 0.35) * 1.8
+    roll = lp(brown(r, n), 150) * exp_decay(n, 0.8) * 2
+    clack = lp(mix(onepole_hp(noise(r, n), 2000) * exp_decay(n, 0.02) * 1.2, ring([900, 1900, 3100], [0.08, 0.05, 0.04], n) * 0.4), 5000, order=2)
+    return hp(shape(mix(blast, thump, roll, at(clack, 0.7, n), at(clack * 0.8, 0.86, n)), 1.8), 22)
 
 
 @sound("rail_charge", "Weapons", "The railgun charging: capacitors whining up through a second, with crackle as they fill.")
@@ -381,14 +459,15 @@ def rail_charge(r):
     return (whine * trem + crackle) * np.linspace(0.3, 1, n)
 
 
-@sound("rail_fire", "Weapons", "The railgun firing: a supersonic crack, an electric zap and a low boom, ringing as the air ionises.")
+@sound("rail_fire", "Weapons", "The railgun firing: a supersonic crack, an electric zap, and a deep concussion that rolls away while the air rings.")
 def rail_fire(r):
-    n = int(1.6 * SR)
-    crack = onepole_hp(noise(r, n), 2500) * exp_decay(n, 0.03) * 3
-    zap = saw(sweep(5200, 300, n, 0.25)) * exp_decay(n, 0.25) * 0.6
-    boom = sine(sweep(100, 35, n, 0.4)) * exp_decay(n, 0.9) * 1.2
-    ion = ring([2300, 3550, 4980], [1.2, 0.9, 0.7], n) * 0.15
-    return reverb(shape(mix(crack, zap, boom, ion), 1.6), room=0.7, wet=0.3, tail_s=0.8)
+    n = int(2.4 * SR)
+    crack = onepole_hp(noise(r, n), 2500) * exp_decay(n, 0.025) * 2
+    zap = lp(saw(sweep(5200, 300, n, 0.25)), 6000, order=2) * exp_decay(n, 0.2) * 0.45
+    boom = sine(sweep(85, 26, n, 0.4)) * exp_decay(n, 1.0) * 1.8
+    roll = lp(brown(r, n), 160) * turbulence(r, n, 3, 0.5) * exp_decay(n, 1.4) * 2.5
+    ion = ring([2300, 3550, 4980], [1.2, 0.9, 0.7], n) * 0.08
+    return hp(reverb(shape(mix(crack, zap, boom, roll, ion), 1.6), room=0.8, wet=0.28, tail_s=0.8), 22)
 
 
 @sound("laser_loop", "Weapons", "The laser beam held (loops): a buzzing, detuned hum with a searing high whine.")
@@ -407,33 +486,37 @@ def laser_stop(r):
     return onepole_lp(saw(f) * 0.5 + saw(f * 1.01) * 0.5, sweep(3000, 200, n)) * exp_decay(n, 0.5)
 
 
-@sound("plasma_fire", "Weapons", "The plasma cannon: a deep, wobbling 'thoom' as the ball leaves the barrel.")
+@sound("plasma_fire", "Weapons", "The plasma cannon: a deep, wobbling thoom as the ball leaves the barrel, with a low gas roar behind it.")
 def plasma_fire(r):
-    n = int(1.2 * SR)
-    f = sweep(420, 70, n, 0.4) * (1 + 0.08 * sine(np.full(n, 23.0)))
-    thoom = sine(f) * exp_decay(n, 0.9) * 1.2
-    fizz = bandpass(noise(r, n), sweep(4000, 900, n), 2) * exp_decay(n, 0.5)
-    return shape(mix(thoom, fizz, sine(f * 2) * exp_decay(n, 0.4) * 0.3), 1.4)
+    n = int(1.4 * SR)
+    f = sweep(300, 55, n, 0.4) * (1 + 0.08 * sine(np.full(n, 23.0)))
+    thoom = sine(f) * exp_decay(n, 1.0) * 1.6
+    gas = lp(brown(r, n), sweep(1200, 200, n, 0.5)) * turbulence(r, n, 12, 0.4) * exp_decay(n, 0.7) * 2.5
+    fizz = lp(bandpass(noise(r, n), sweep(3000, 900, n), 2), 3500, order=2) * exp_decay(n, 0.4) * 0.5
+    return hp(shape(mix(thoom, gas, fizz), 1.5), 22)
 
 
-@sound("plasma_burst", "Weapons", "A plasma ball bursting: a blast that fizzes and crackles with electricity as it dies.")
+@sound("plasma_burst", "Weapons", "A plasma ball bursting: a deep blast of burning gas, a sub drop, and electric crackle dying in the fire.")
 def plasma_burst(r):
-    n = int(2.4 * SR)
-    blast = onepole_lp(noise(r, n), sweep(6000, 400, n, 0.3)) * exp_decay(n, 0.9) * 3
-    boom = sine(sweep(80, 30, n, 0.4)) * exp_decay(n, 1.2)
-    sparks = onepole_hp(noise(r, n) * (r.uniform(0, 1, n) > 0.985), 2500) * exp_decay(n, 2.0) * 4
-    hum = saw(sweep(300, 90, n)) * exp_decay(n, 1.0) * 0.2
-    return reverb(shape(mix(blast, boom, sparks, hum), 1.5), room=0.8, wet=0.3, tail_s=1.0)
+    n = int(3.0 * SR)
+    blast = lp(noise(r, n), sweep(3500, 110, n, 0.25)) * exp_decay(n, 1.1) * 4
+    boom = sine(sweep(70, 24, n, 0.4)) * exp_decay(n, 1.3) * 1.6
+    fire = lp(brown(r, n), 500) * turbulence(r, n, 6, 0.5) * adsr(n, 0.05, 0.4, 0.4, 2.0) * 2.2
+    sparks = lp(onepole_hp(noise(r, n) * (r.uniform(0, 1, n) > 0.988), 1500), 4500, order=2) * exp_decay(n, 2.0) * 2.5
+    return hp(reverb(shape(mix(blast, boom, fire, sparks), 1.5), room=0.85, wet=0.28, tail_s=1.0), 22)
 
 
 # --- impacts
 
-@sound("impact_mech", "Impacts", "A round striking armour: a hard clang that rings.")
+@sound("impact_mech", "Impacts", "A round striking armour: a hard, sharp crack like a gunshot, a heavy thump into the plate, and a short dead clank.")
 def impact_mech(r):
-    n = int(1.0 * SR)
-    hit = onepole_hp(noise(r, n), 800) * exp_decay(n, 0.04) * 2
-    clang = ring([380, 870, 1420, 2210, 3170], [0.6, 0.45, 0.3, 0.2, 0.15], n, [0.6, 0.5, 0.35, 0.25, 0.2])
-    return shape(mix(hit, clang), 1.5)
+    n = int(0.8 * SR)
+    snap = onepole_hp(noise(r, n), 1500) * exp_decay(n, 0.008) * 3.0
+    crack = lp(noise(r, n), sweep(7000, 600, n, 0.3)) * exp_decay(n, 0.05) * 3.5
+    thump = sine(sweep(180, 60, n, 0.4)) * exp_decay(n, 0.09) * 1.8
+    body = lp(brown(r, n), 400) * exp_decay(n, 0.15) * 1.5
+    clank = lp(ring([520, 1190, 2050], [0.12, 0.08, 0.05], n, [0.5, 0.35, 0.2]), 4000, order=2) * 0.6
+    return hp(shape(mix(snap, crack, thump, body, clank), 2.5), 25)
 
 
 @sound("impact_building", "Impacts", "A round hitting concrete: a dull crack and falling grit.")
@@ -444,43 +527,47 @@ def impact_building(r):
     return mix(crack, grit)
 
 
-@sound("explosion_small", "Impacts", "A small explosion: a sharp blast and a short roll.")
+@sound("explosion_small", "Impacts", "A small explosion: a hard, deep blast and a short roll of fire.")
 def explosion_small(r):
-    n = int(1.6 * SR)
-    blast = onepole_lp(noise(r, n), sweep(5000, 250, n, 0.3)) * exp_decay(n, 0.8) * 3
-    boom = sine(sweep(85, 35, n, 0.4)) * exp_decay(n, 0.7)
-    return reverb(shape(mix(blast, boom), 1.6), room=0.6, wet=0.25, tail_s=0.8)
+    n = int(2.0 * SR)
+    blast = lp(noise(r, n), sweep(4000, 120, n, 0.25)) * exp_decay(n, 0.8) * 4
+    boom = sine(sweep(80, 28, n, 0.4)) * exp_decay(n, 0.8) * 1.6
+    fire = lp(brown(r, n), 300) * turbulence(r, n, 6, 0.5) * exp_decay(n, 1.2) * 2
+    return hp(reverb(shape(mix(blast, boom, fire), 1.7), room=0.7, wet=0.25, tail_s=0.8), 22)
 
 
-@sound("explosion_large", "Impacts", "A big explosion: a deep blast, debris, and a long rumble rolling off the hills.")
+@sound("explosion_large", "Impacts", "A big explosion: a crushing low blast, a sub drop you feel, burning debris and a long rumble rolling off the hills.")
 def explosion_large(r):
-    n = int(3.5 * SR)
-    blast = onepole_lp(noise(r, n), sweep(6000, 150, n, 0.25)) * exp_decay(n, 2.2) * 3
-    boom = sine(sweep(70, 25, n, 0.4)) * exp_decay(n, 2.0) * 1.5
-    debris = onepole_hp(noise(r, n) * (r.uniform(0, 1, n) > 0.99), 1200) * adsr(n, 0.3, 0.5, 0.4, 2.0) * 2
-    return reverb(shape(mix(blast, boom, debris), 1.5), room=0.95, wet=0.4, tail_s=1.5)
-
-
-@sound("collapse", "Impacts", "A storey giving way: groaning steel, a crash and a long rumble of falling concrete.")
-def collapse(r):
     n = int(4.5 * SR)
-    groan = bandpass(saw(sweep(60, 40, n)) * 0.5, sweep(400, 200, n), 8) * adsr(n, 0.3, 0.4, 0.5, 1.0) * 2
-    rumble = onepole_lp(noise(r, n), 220) * adsr(n, 0.8, 0.5, 0.8, 2.0) * 4
-    crash = onepole_lp(noise(r, n), 3000) * exp_decay(n, 1.2) * 2.5
-    debris = onepole_hp(noise(r, n) * (r.uniform(0, 1, n) > 0.985), 900) * adsr(n, 1.0, 0.5, 0.6, 2.0) * 3
-    return mix(groan, rumble, at(crash, 0.9, n), debris)
+    blast = lp(noise(r, n), sweep(3000, 70, n, 0.22)) * exp_decay(n, 2.0) * 4.5
+    boom = sine(sweep(60, 20, n, 0.4)) * exp_decay(n, 2.2) * 2.0
+    fire = lp(brown(r, n), 350) * turbulence(r, n, 4, 0.5) * adsr(n, 0.1, 0.5, 0.5, 3.0) * 2.5
+    roll = lp(noise(r, n), 80) * turbulence(r, n, 2, 0.6) * adsr(n, 0.3, 0.6, 0.6, 3.0) * 6
+    debris = lp(onepole_hp(noise(r, n) * (r.uniform(0, 1, n) > 0.992), 900), 3500, order=2) * adsr(n, 0.3, 0.5, 0.4, 2.0) * 2
+    return hp(reverb(shape(mix(blast, boom, fire, roll, debris), 1.6), room=0.95, wet=0.35, tail_s=1.5), 20)
+
+
+@sound("collapse", "Impacts", "A storey giving way: groaning steel, a deep crash and a long, heavy rumble of falling concrete.")
+def collapse(r):
+    n = int(5.0 * SR)
+    groan = lp(bandpass(saw(sweep(60, 40, n)) * 0.5, sweep(400, 200, n), 8), 900, order=2) * adsr(n, 0.3, 0.4, 0.5, 1.0) * 2
+    crash = lp(noise(r, n), sweep(3000, 150, n, 0.3)) * exp_decay(n, 1.4) * 3.5
+    rumble = lp(brown(r, n), 120) * turbulence(r, n, 3, 0.5) * adsr(n, 0.8, 0.5, 0.8, 2.2) * 4
+    debris = lp(onepole_hp(noise(r, n) * (r.uniform(0, 1, n) > 0.985), 700), 3000, order=2) * adsr(n, 1.0, 0.5, 0.6, 2.0) * 3
+    return hp(shape(mix(groan, rumble, at(crash, 0.9, n), debris), 1.5), 22)
 
 
 # --- cockpit
 
-@sound("heat_lock", "Cockpit", "Weapons overheated: a two-tone alarm, three times.")
+@sound("heat_lock", "Cockpit", "Weapons overheated: a soft, low two-tone chime, three times.", peak_db=-16)
 def heat_lock(r):
-    n = int(1.5 * SR)
+    n = int(1.6 * SR)
     out = np.zeros(n)
     for k in range(6):
-        b = int(0.22 * SR)
-        f = 880 if k % 2 == 0 else 660
-        out += at(onepole_lp(square(np.full(b, float(f)), 0.5), 4000) * adsr(b, 0.005, 0.02, 0.9, 0.02) * 0.5, k * 0.25, n)
+        b = int(0.24 * SR)
+        f = 587.0 if k % 2 == 0 else 440.0
+        tone = (sine(np.full(b, f)) + 0.08 * sine(np.full(b, 2 * f))) * adsr(b, 0.03, 0.05, 0.7, 0.08)
+        out += at(lp(tone, 1400, order=2), k * 0.26, n)
     return out
 
 
@@ -538,9 +625,9 @@ def systems_boot(r):
 
 # ---------------------------------------------------------------- output
 
-def write_wav(path: str, x: np.ndarray) -> None:
+def write_wav(path: str, x: np.ndarray, peak_db: float = -1.0) -> None:
     peak = float(np.max(np.abs(x))) or 1.0
-    y = np.clip(x / peak * 10 ** (-1 / 20), -1, 1)
+    y = np.clip(x / peak * 10 ** (peak_db / 20), -1, 1)
     fade = min(len(y), int(0.005 * SR))
     y[-fade:] *= np.linspace(1, 0, fade)
     with wave.open(path, "wb") as w:
@@ -557,14 +644,14 @@ def main() -> int:
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
     manifest = []
-    for name, (group, what, fn) in SOUNDS.items():
+    for name, (group, what, fn, peak_db) in SOUNDS.items():
         if args.only and name not in args.only:
             continue
         x = fn(rng_for(name))
         if not np.all(np.isfinite(x)):
             print(f"{name}: produced a non-finite sample", file=sys.stderr)
             return 1
-        write_wav(os.path.join(args.out, f"{name}.wav"), x)
+        write_wav(os.path.join(args.out, f"{name}.wav"), x, peak_db)
         # a 120-point peak outline for the page's waveform strip
         peaks = np.abs(x).reshape(-1)[: len(x) // 120 * 120].reshape(120, -1).max(axis=1)
         peaks = peaks / (peaks.max() or 1.0)
