@@ -363,9 +363,11 @@ mod tests {
 
     #[test]
     fn a_sorted_name_must_be_a_recipe() {
-        let mut cfg = FxConfig::default();
-        cfg.recipes = RECIPES.iter().map(|n| (n.to_string(), Vec::new())).collect();
-        cfg.sorted = vec!["no_such_recipe".into()];
+        let cfg = FxConfig {
+            recipes: RECIPES.iter().map(|n| (n.to_string(), Vec::new())).collect(),
+            sorted: vec!["no_such_recipe".into()],
+            ..FxConfig::default()
+        };
         let e = cfg.validate().unwrap_err();
         assert!(e.contains("no_such_recipe"), "{e}");
     }
