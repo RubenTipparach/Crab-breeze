@@ -738,79 +738,61 @@ fn run_fx_script(
 /// `--stills <dir>` and `CB_STILLS_WEATHER=1`, once the game is ready the pilot's eye is put at each
 /// view in turn (held there, on foot, looking at its target), the ground and the sky are given time
 /// to stream in round it, and one still is saved per view as `weather-<name>.png`; then it exits.
+/// The views are the island mockup's (`island-biomes`) and two of a storm.
 /// `CB_STILLS_ONLY=<name>,<name>` shoots only those views. It writes no input and plays no game.
-/// The views are the island mockup's, moved to the game's
-/// crater island; they move into a data file shared with the mockup when step 1 lands.
+/// They move into a data file shared with the mockup when step 1 of
+/// `docs/design/world-look-plan.md` lands.
 pub struct WeatherStillsPlugin {
     /// Where the PNGs go.
     pub dir: PathBuf,
 }
 
-/// A view: a name, where the eye is (x, z and metres above the ground or the sea), and what it
-/// looks at (x, y, z).
+/// A view: a name, where the eye is (x, y, z) and what it looks at (x, y, z). With
+/// `above_ground`, the eye's y is metres above the ground or the sea under it; otherwise it is a
+/// height, held at least 2 m above the ground.
 struct View {
     name: &'static str,
     eye: [f32; 3],
     at: [f32; 3],
+    above_ground: bool,
 }
 
-/// The views (x east, z south, metres). Seed 42's storm cells stand at (-10.5, 2.5), (-15.5, 9.5)
-/// and (-11, -14) km; the front lies off the west coast; the deck is at sea to the north; the high
-/// clears the sky to the south-east; the rim's crest is a 5.5 km circle round the centre.
-const VIEWS: &[View] = &[
-    // The storm over the wet west from 13 km south of it, low, so the tower, anvil and shaft stand up.
+const fn view(name: &'static str, eye: [f32; 3], at: [f32; 3]) -> View {
     View {
-        name: "storm",
-        eye: [-8000.0, 160.0, 15500.0],
-        at: [-10500.0, 2600.0, 2500.0],
-    },
-    // Under the storm, in its rain, looking away from the sun out toward the sea.
+        name,
+        eye,
+        at,
+        above_ground: false,
+    }
+}
+
+/// The views (x east, z south, metres): the island mockup's named views (`docs/mockups/island.html`,
+/// `VIEWS`), worked out from its generator for seed 42, so a still of the game and a shot of the
+/// mockup can be laid side by side; and two of the storm over the jungle at (-5.9, -4.2) km.
+const VIEWS: &[View] = &[
+    view("overview", [6000.0, 22000.0, 26000.0], [0.0, 0.0, 0.0]),
+    view("range", [-8811.0, 1900.0, 4558.0], [189.0, 1466.0, -442.0]),
+    view("desert", [3300.0, 862.0, 7300.0], [4200.0, 476.0, 6650.0]),
+    view("canyon", [7758.0, 407.0, 3585.0], [8828.0, 288.0, 3598.0]),
+    view("jungle", [-8000.0, 323.0, 4000.0], [-7100.0, 541.0, 3600.0]),
+    view("cliffs", [10578.0, 70.0, -8876.0], [9174.0, 60.0, -7698.0]),
+    view("islets", [-9348.0, 420.0, 8074.0], [-11548.0, 0.0, 10274.0]),
+    view("coast", [13421.0, 380.0, 7136.0], [11838.0, 0.0, 2951.0]),
+    view("storm", [-3387.0, 205.0, 8814.0], [-5887.0, 2600.0, -4186.0]),
+    view("weather", [-24000.0, 6500.0, 26000.0], [-9000.0, 1500.0, -2000.0]),
+    // Under the storm, in its rain, 40 m up, facing away from the sun.
     View {
         name: "under-the-storm",
-        eye: [-10000.0, 40.0, 2200.0],
-        at: [-16000.0, 500.0, -1500.0],
+        eye: [-5600.0, 40.0, -3900.0],
+        at: [-11600.0, 500.0, -9600.0],
+        above_ground: true,
     },
     // The storm's shadow on the ground, from 900 m up outside it, looking down across its edge.
     View {
         name: "storm-shadow",
-        eye: [-3500.0, 900.0, 7500.0],
-        at: [-9000.0, 0.0, 3500.0],
-    },
-    // From the west coast toward the front lying off it.
-    View {
-        name: "front",
-        eye: [-12500.0, 60.0, -1500.0],
-        at: [-20000.0, 1600.0, -4000.0],
-    },
-    // The crater floor looking west at the rim, cloud banked on its far side and caps on its peaks.
-    View {
-        name: "crater",
-        eye: [-1500.0, 3.0, 800.0],
-        at: [-7000.0, 1700.0, 0.0],
-    },
-    // The dry east under fair cumulus, looking back west over the island.
-    View {
-        name: "desert",
-        eye: [10500.0, 3.0, 1500.0],
-        at: [0.0, 1400.0, 0.0],
-    },
-    // The north coast looking out to the deck at sea.
-    View {
-        name: "deck",
-        eye: [1500.0, 120.0, -12000.0],
-        at: [0.0, 900.0, -20000.0],
-    },
-    // The south coast looking out over the cloud streets and the clear sky of the high.
-    View {
-        name: "streets",
-        eye: [3000.0, 120.0, 12500.0],
-        at: [9000.0, 900.0, 22000.0],
-    },
-    // The whole weather map from high in the south: the front, the storms, the streets, the deck.
-    View {
-        name: "overview",
-        eye: [0.0, 11000.0, 30000.0],
-        at: [-4000.0, 0.0, -2000.0],
+        eye: [500.0, 900.0, 2000.0],
+        at: [-5000.0, 0.0, -3000.0],
+        above_ground: true,
     },
 ];
 
@@ -862,7 +844,11 @@ fn run_weather_script(
             return;
         }
         let ground = plan.height_at(v.eye[0], v.eye[2]).max(plan.waters.sea_level_m);
-        let eye = Vec3::new(v.eye[0], ground + v.eye[1], v.eye[2]);
+        let eye = if v.above_ground {
+            Vec3::new(v.eye[0], ground + v.eye[1], v.eye[2])
+        } else {
+            Vec3::new(v.eye[0], v.eye[1].max(ground + 2.0), v.eye[2])
+        };
         // Held at the view every frame (a pilot on foot in the air would fall).
         stand_looking(&mut pilot, eye - Vec3::Y * 1.7, Vec3::from_array(v.at));
         // Time for the ground's detail, the trees and the sky to stream in round the eye.

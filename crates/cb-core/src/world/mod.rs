@@ -17,6 +17,7 @@ pub mod forest;
 pub mod grid;
 pub mod hydrology;
 pub mod interior;
+pub mod island;
 pub mod layout;
 pub mod lod;
 pub mod roads;
@@ -301,7 +302,7 @@ impl WorldPlan {
 /// grow later, by tile, near the bodies in the world (`Forest::keep_around`).
 pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
     let root = SimRng::new(seed).fork("world");
-    let shape = Shape::new(&root, cfg);
+    let shape = Shape::new(seed, cfg);
     let sea_level_m = cfg.island.sea_level_m;
 
     // Where the water goes, worked out on the island's shape before anything is built on it.
@@ -357,18 +358,21 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
     let start = start_point(&cities, cfg);
     let roofs = buildings.iter().map(|b| cities[b.city as usize].ground_m + b.height_m).collect();
     let collision = BuildingGrid::new(&buildings, cfg.world_size_m, 64.0).with_roofs(roofs);
-    let biomes = Biomes::new(&root.fork("biomes"), &cfg.biomes, sea_level_m, cfg.range.snowline_m);
+    // Swamps at the western river mouths (the island mockup's rule, on the game's own rivers).
+    let mouths = waters.rivers.iter().filter_map(|r| {
+        r.path
+            .last()
+            .copied()
+            .filter(|_| r.surface_m.last().is_some_and(|s| *s < sea_level_m + 3.0))
+    });
+    let swamps = biome::swamps_at_mouths(mouths, cfg.biomes.swamp_radius_m);
+    let biomes = Biomes::new(&cfg.biomes, terrain.shape().clone(), sea_level_m, swamps);
     let wind = Vec2::from(cfg.clouds.wind_m_s);
-    let rim = weather::Rim {
-        centre: Vec2::from(cfg.range.centre_m),
-        radius_m: cfg.range.radius_m,
-        half_width_m: cfg.range.half_width_m,
-    };
     let under = SkyGround {
         terrain: &terrain,
         biomes: &biomes,
     };
-    let sky = weather::make_sky(&root.fork("clouds"), &cfg.weather, wind, &under, rim);
+    let sky = weather::make_sky(&root.fork("clouds"), &cfg.weather, wind, &under);
     let clouds = Clouds::new(sky, wind, cfg.weather.shaft_rain);
     WorldPlan {
         seed,

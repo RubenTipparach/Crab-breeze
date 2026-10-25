@@ -10,6 +10,17 @@ Every step below is already designed in an OpenSpec change, or says which change
 ends in something you can check: headless stills from a cloud session, then a playtest on your
 machine.
 
+## Since this was written (2026-10-25, later the same day)
+
+- **Step 0 went the other way round.** You asked for the mockup's island in the game ("I wanted
+  this island ... with different biomes", "Of course we still want cool roads and rivers"), so the
+  game took the mockup's land instead of the mockup taking the game's: `cb_core::world::island` is
+  `island_gen.js` ported line for line, and seed 42 is the mockup's island (a test checks 30 points
+  against the mockup run in Node, within 5 cm). The crater is gone. The game's own rivers, lakes,
+  waterfalls, cities and curved highways are laid on it, and the mockup's ten biomes colour it
+  (`island-biomes` tasks 1.1-1.4 and 2.1). The table below describes the game before that.
+- **Step 2 (clouds as weather) is built**, on the mockup's island again (section below).
+
 ## Where things stand
 
 | In the mockup | In the game today | Change that brings it |

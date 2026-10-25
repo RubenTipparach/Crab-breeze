@@ -81,24 +81,24 @@ but from above they drowned in evenly spread fair cumulus):
 Seed 42: 5,960 puffs (2,550 cumulus, 711 tower, 210 anvil, 1,169 deck, front and scud, 461
 orographic, 6 caps, 853 altocumulus), 11 rain shafts, 7 darkened cells.
 
-## 2a. In the game: the crater island (built 2026-10-25)
+## 2a. In the game (built 2026-10-25)
 
-The game's island is not the mockup's (`docs/design/world-look-plan.md`, step 0): a crater of
-mountains round the middle (crest 5.5 km out, peaks to about 1.7 km), not a north-south range. The
-systems were moved to it; everything below is in `data/world/world.ron` under `weather:`.
+The weather was first built on the crater island the game had then, and moved back to the
+mockup's island the same day when the game took the mockup's land (`island-biomes`; owner:
+"I wanted this island"). Everything below is in `data/world/world.ron` under `weather:`.
 
 | System | Mockup | Game |
 | --- | --- | --- |
-| Storm cells | over the jungle west of the spine, off the archipelago, north-west at sea | (-10.5, 2.5) km over the wet west outside the rim, (-15.5, 9.5) and (-11, -14) km at sea (x east, z south) |
-| Orographic | the range's west flank, 600-3,200 m out, ground above 500 m | the rim's windward arc (bearings 200-340 degrees), 200-2,200 m out from the crest, ground above 400 m: the rim's outer flank falls below 400 m within about 2 km |
-| Caps | peaks above 1,900 m | rim peaks above 1,350 m, at most five, 2.5 km apart |
-| Fair cumulus | moisture of the mockup | the game's biome moisture (`Biomes::moisture`): 0.3 + 2.8 x moisture clusters a 2 km tile over land |
+| Storm cells | over the jungle 6.5 km west of the spine, off the archipelago, north-west at sea | the same three: (-5.9, -4.2), (-15.5, 9.5) and (-11, -14) km (x east, z south) |
+| Orographic | the spine's west flank, 600-3,200 m out, ground above 500 m | any ground above 500 m that rises 60 m within 900 m downwind (the windward flank, wherever the range is), up to 520 puffs |
+| Caps | peaks above 1,900 m | the same, found by trying places over the island |
+| Fair cumulus | moisture of the mockup | the game's biome moisture (the mockup's rule, `Biomes::moisture`) |
 | The deck's breaks | the mockup's fbm below -0.25 | the game's value noise (-1..1) below -0.45 |
 | Wind | from the west, 6 m/s | the same (`clouds.wind_m_s`, was 3, 1) |
 
-Seed 42 (`world::tests::seed_42_census_for_the_design`): 7,897 puffs (4,313 cumulus, 812 tower, 210
-anvil, 1,482 deck, front and scud, 272 orographic, 15 in five caps, 793 altocumulus), 14 rain shafts,
-8 darkened cells, 90 cirrus. Built in the world's generation with the rest of the plan.
+Seed 42 (`world::tests::seed_42_census_for_the_design`), on the mockup's island: 7,609 puffs
+(3,784 cumulus, 812 tower, 210 anvil, 1,481 deck, front and scud, 520 orographic, 9 in three caps,
+793 altocumulus), 14 rain shafts, 8 darkened cells, 90 cirrus.
 
 **Drawn.** One mesh of every item within 20 km of the eye (not 9 km: storm towers and the front
 should stand on the horizon, and a far billboard is a few pixels), sorted on the CPU, re-gathered

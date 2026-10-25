@@ -123,61 +123,153 @@ fn rubble_colour(ground: [f32; 4], depth_m: f32, i: usize, j: usize) -> [f32; 4]
     [c.x, c.y, c.z, ground[3]]
 }
 
-/// Ground colours of the biomes, in `BIOMES` order (snow, rock, montane forest floor, temperate
-/// grass, savanna, desert, beach, wetland). Stand-ins until the PBR layers of `terrain-materials`.
-const BIOME_COLOURS: [[f32; 3]; BIOME_COUNT] = [
-    [0.88, 0.9, 0.93],
-    [0.45, 0.44, 0.42],
-    [0.24, 0.32, 0.19],
-    [0.30, 0.42, 0.20],
-    [0.52, 0.48, 0.28],
-    [0.70, 0.58, 0.40],
-    [0.62, 0.57, 0.44],
-    [0.27, 0.33, 0.21],
+/// The surface layers (the island mockup's `LAYERS`, `docs/mockups/island.html`): grass, dry
+/// grass, forest floor, jungle floor, mud, swamp muck, beach sand, wet sand, pebbles, desert sand,
+/// cracked clay, red sandstone, granite, limestone, scree, snow, moss rock, gravel, red dirt.
+/// Each biome draws four of them (`BIOME_LAYERS`): on the flat, on slopes, on cliffs, and where it
+/// is wet. Stand-ins for the Material Maker layers of `terrain-materials`: colours per vertex, a
+/// neutral grain from the ground texture.
+const BIOME_LAYERS: [[usize; 4]; BIOME_COUNT] = [
+    [15, 14, 12, 14], // alpine
+    [2, 16, 12, 4],   // montane forest
+    [3, 16, 16, 4],   // jungle
+    [5, 4, 16, 5],    // swamp
+    [0, 1, 12, 4],    // temperate
+    [1, 18, 11, 10],  // savanna
+    [9, 18, 11, 10],  // desert
+    [17, 11, 11, 10], // canyon (floor gravel, walls sandstone)
+    [6, 8, 13, 7],    // beach
+    [14, 12, 12, 8],  // cliff
 ];
+
+/// A stable hash of a lattice point, 0..1.
+fn h21(x: f32, z: f32) -> f32 {
+    let mut q = Vec2::new((x * 123.34).fract(), (z * 456.21).fract());
+    q += Vec2::splat(q.dot(q + 45.32));
+    (q.x * q.y).fract().abs()
+}
+
+/// Value noise, 0..1.
+fn vn(x: f32, z: f32) -> f32 {
+    let (ix, iz) = (x.floor(), z.floor());
+    let (fx, fz) = (x - ix, z - iz);
+    let (ux, uz) = (fx * fx * (3.0 - 2.0 * fx), fz * fz * (3.0 - 2.0 * fz));
+    let (a, b) = (h21(ix, iz), h21(ix + 1.0, iz));
+    let (c, d) = (h21(ix, iz + 1.0), h21(ix + 1.0, iz + 1.0));
+    let top = a + (b - a) * ux;
+    top + ((c + (d - c) * ux) - top) * uz
+}
+
+/// Three octaves of value noise, 0..1.
+fn fbm2(x: f32, z: f32) -> f32 {
+    (0.5 * vn(x, z) + 0.25 * vn(x * 2.03 + 17.0, z * 2.03 + 17.0) + 0.125 * vn(x * 4.07 + 31.0, z * 4.07 + 31.0)) / 0.875
+}
+
+/// Strata: a band colour by height, warped so the bands wander but stay level along a wall.
+fn strata(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Vec3 {
+    let yy = p.y + 30.0 * (vn(p.x / 400.0, p.z / 400.0) - 0.5);
+    let band = (yy / 9.0).floor();
+    let r = h21(band, 3.0);
+    let col = if r < 0.33 {
+        a
+    } else if r < 0.66 {
+        b
+    } else {
+        c
+    };
+    col * (0.85 + 0.3 * h21(band, 7.0))
+}
+
+/// One layer's colour (sRGB) at `p`, with `n` its 0..1 patch noise.
+fn layer_colour(layer: usize, p: Vec3, n: f32) -> Vec3 {
+    let v = Vec3::new;
+    let mix = |a: Vec3, b: Vec3, t: f32| a.lerp(b, t);
+    match layer {
+        0 => {
+            let c = mix(v(0.24, 0.36, 0.12), v(0.42, 0.52, 0.20), n);
+            mix(c, v(0.42, 0.34, 0.22), smoothstep(0.68, 0.8, fbm2(p.x * 0.05, p.z * 0.05)))
+        }
+        1 => mix(v(0.55, 0.48, 0.27), v(0.72, 0.64, 0.38), n),
+        2 => mix(v(0.22, 0.17, 0.10), v(0.38, 0.27, 0.15), n),
+        3 => mix(v(0.10, 0.17, 0.07), v(0.24, 0.30, 0.10), n),
+        4 => mix(v(0.22, 0.17, 0.11), v(0.33, 0.26, 0.17), n),
+        5 => mix(v(0.09, 0.10, 0.06), v(0.20, 0.22, 0.10), n),
+        6 => mix(v(0.82, 0.75, 0.58), v(0.92, 0.86, 0.70), n),
+        7 => mix(v(0.52, 0.46, 0.34), v(0.62, 0.55, 0.41), n),
+        8 => mix(v(0.45, 0.43, 0.40), v(0.62, 0.55, 0.45), n),
+        9 => mix(v(0.80, 0.55, 0.32), v(0.90, 0.67, 0.42), n),
+        10 => mix(v(0.70, 0.62, 0.50), v(0.80, 0.72, 0.58), n),
+        11 => strata(p, v(0.62, 0.28, 0.15), v(0.78, 0.52, 0.32), v(0.52, 0.22, 0.13)),
+        12 => {
+            let c = v(0.50, 0.50, 0.49) * (0.8 + 0.25 * n);
+            mix(c, v(0.55, 0.58, 0.35), smoothstep(0.7, 0.85, fbm2(p.x * 0.2, p.z * 0.2)) * 0.5)
+        }
+        13 => strata(p, v(0.80, 0.78, 0.70), v(0.72, 0.70, 0.62), v(0.86, 0.84, 0.77)),
+        14 => v(0.47, 0.45, 0.42) * (0.75 + 0.5 * n),
+        15 => v(0.93, 0.95, 0.98) * (0.94 + 0.08 * n),
+        16 => mix(v(0.30, 0.34, 0.24), v(0.20, 0.30, 0.12), smoothstep(0.4, 0.6, n)),
+        17 => v(0.50, 0.47, 0.42) * (0.9 + 0.2 * n),
+        18 => mix(v(0.55, 0.30, 0.18), v(0.66, 0.40, 0.24), n),
+        _ => v(0.10, 0.09, 0.08) * (0.8 + 0.4 * n),
+    }
+}
+
+fn smoothstep(a: f32, b: f32, x: f32) -> f32 {
+    cb_core::world::terrain::smoothstep(a, b, x)
+}
 
 /// The biome weights at a drawn vertex (the one biome rule, `Biomes::weights`).
 fn biome_at(plan: &WorldPlan, p: Vec3, n: Vec3) -> [f32; BIOME_COUNT] {
     plan.biomes.weights(Vec2::new(p.x, p.z), p.y, slope_of_normal(n.y))
 }
 
-/// Ground colour: the biomes' colours blended by their weights (`biome`), earth on slopes, sand
-/// on the beaches, silt under the sea, mud by rivers, scorch in craters, and the grass's own colour
-/// where grass covers it (`cover`, 0..1, gpu-grass: no pale soil between the blades). Vertex
-/// colours stand in until the PBR layers of `terrain-materials` arrive.
+/// Ground colour (linear albedo; the material doubles it against the neutral grain): the three
+/// strongest biomes' layers, each picked by slope (flat below 17 degrees, cliff above 38) and
+/// wetted by a river, blended through each biome's own patch noise so a border breaks into
+/// patches up close (`far` 0) and crossfades from the air (`far` 1); macro variation at 40 m and
+/// 400 m; then the grass's own colour where grass covers it (`cover`, 0..1, gpu-grass) and scorch
+/// in craters. The island mockup's ground shader, per vertex.
 #[allow(clippy::too_many_arguments)]
 fn ground_colour(
     p: Vec3,
     n: Vec3,
-    sea_level_m: f32,
+    _sea_level_m: f32,
     wet: bool,
     scorch: f32,
     cover: f32,
     tint: GrassTint,
     biome: [f32; BIOME_COUNT],
+    far: f32,
 ) -> [f32; 4] {
-    let slope = ((1.0 - n.y).clamp(0.0, 1.0) * 6.0).min(1.0);
-    let k = (p.y * 0.05).sin() * 0.04 + ((p.x * 0.013).sin() * (p.z * 0.011).cos()) * 0.03;
-    let land: Vec3 = biome.iter().zip(BIOME_COLOURS).map(|(w, c)| Vec3::from(c) * *w).sum::<Vec3>() + Vec3::new(k, k, 0.0);
-    let earth = Vec3::new(0.42, 0.36, 0.27);
-    let mud = Vec3::new(0.27, 0.24, 0.19);
-    let rock = Vec3::new(0.45, 0.44, 0.42);
-    let sand = Vec3::new(0.62 + k, 0.57 + k, 0.44);
-    let silt = Vec3::new(0.36, 0.34, 0.28);
-    // Snow and bare rock keep their own colour on slopes; everything else shows earth.
-    let soil = 1.0 - biome[0] - biome[1];
-    let mut c = land.lerp(earth, slope * soil);
-    if slope > 0.9 {
-        c = c.lerp(rock, 0.6 * soil);
+    let slope = n.y.clamp(-1.0, 1.0).acos().to_degrees();
+    let s_flat = 1.0 - smoothstep(17.0, 23.0, slope);
+    let s_cliff = smoothstep(32.0, 38.0, slope);
+    let s_mid = (1.0 - s_flat - s_cliff).max(0.0);
+    let noise = fbm2(p.x / 60.0, p.z / 60.0);
+    let mut order: Vec<usize> = (0..BIOME_COUNT).collect();
+    order.sort_by(|a, b| biome[*b].total_cmp(&biome[*a]).then(a.cmp(b)));
+    let (mut acc, mut total) = (Vec3::ZERO, 0.0);
+    for &b in order.iter().take(3) {
+        let w = biome[b];
+        if w < 0.02 {
+            continue;
+        }
+        let l = BIOME_LAYERS[b];
+        let mut c = layer_colour(l[0], p, noise) * s_flat + layer_colour(l[1], p, noise) * s_mid + layer_colour(l[2], p, noise) * s_cliff;
+        if wet {
+            c = c.lerp(layer_colour(l[3], p, noise), 1.0 - s_cliff);
+        }
+        let k = b as f32;
+        let pn = 0.6 * vn(p.x / 140.0 + k * 7.3, p.z / 140.0 + k * 7.3) + 0.4 * vn(p.x / 35.0 + k * 3.1, p.z / 35.0 + k * 3.1);
+        let hb = (w * (0.35 + 1.3 * pn)).powi(3) * (1.0 - far) + w * far;
+        acc += c * hb;
+        total += hb;
     }
-    if p.y < sea_level_m - 1.5 {
-        c = c.lerp(silt, 0.85);
-    } else if p.y < sea_level_m + 2.5 && !wet {
-        c = c.lerp(sand, 0.8 * (1.0 - slope));
-    }
-    if wet {
-        c = c.lerp(mud, 0.8);
-    }
+    let mut c = acc / total.max(1e-4);
+    c *= 0.86 + 0.28 * fbm2(p.x / 40.0, p.z / 40.0);
+    c = c.lerp(c * Vec3::new(1.08, 1.0, 0.88), (fbm2(p.x / 400.0, p.z / 400.0) - 0.5) * 0.9);
+    // sRGB to linear.
+    let mut c = c.max(Vec3::ZERO).powf(2.2);
     c = c.lerp(tint.colour, (cover * tint.strength).clamp(0.0, 1.0));
     c = c.lerp(Vec3::new(0.10, 0.08, 0.07), scorch.clamp(0.0, 1.0) * 0.85);
     c.extend(1.0).to_array()
@@ -224,6 +316,8 @@ fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, sk
         |ix, iz| skip.contains(&(ix, iz)),
     );
     let sea = plan.waters.sea_level_m;
+    // Patches up close, a crossfade on the coarse nodes far away (seen from the air).
+    let far = smoothstep(1.0, 8.0, step as f32);
     let colors = chunk
         .positions
         .iter()
@@ -235,7 +329,7 @@ fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, sk
                 .water_at(Vec2::new(p.x, p.z), p.y - 3.0)
                 .is_some_and(|w| w.surface_m > sea);
             let cover = grass_cover(plan, grass, *p, *n, 0.0);
-            ground_colour(*p, *n, sea, river, 0.0, cover, grass.into(), biome_at(plan, *p, *n))
+            ground_colour(*p, *n, sea, river, 0.0, cover, grass.into(), biome_at(plan, *p, *n), far)
         })
         .collect();
     chunk_to_mesh(chunk, colors)
@@ -328,15 +422,22 @@ fn spawn_ground(
     let cells = cfg.terrain_lod.chunk_cells as usize;
     let side = (t.n - 1).div_ceil(cells);
     // One material for every node, so they all share a pipeline and batch.
-    // The ground's grass: the CC0 set (ambientCG Grass001, assets/textures/ground/grass001) with
-    // its normal and packed occlusion-roughness map; the vertex colours tint it per surface. The
-    // stand-in grass texture if the set cannot be read.
+    // The ground's grain: the CC0 set (ambientCG Grass001, assets/textures/ground/grass001) with
+    // its normal and packed occlusion-roughness map, its colour made neutral; the vertex colours
+    // give each biome's surface (the island mockup's layers). The stand-in grass texture if the set
+    // cannot be read.
     let root = crate::cli::repo_root().join("assets");
+    // The photo's grain only: its hue would turn sand and rock green (`pbr_set::neutral_detail`);
+    // the biome's colour comes per vertex, doubled by `base_color` against the grain's mean of 0.5.
+    let albedo = crate::pbr_set::load_tiling(&root, "textures/ground/grass001/albedo.jpg", true).map(|mut i| {
+        crate::pbr_set::neutral_detail(&mut i);
+        images.add(i)
+    });
     let mut tiling = |path: &str, srgb: bool| crate::pbr_set::load_tiling(&root, path, srgb).map(|i| images.add(i));
-    let albedo = tiling("textures/ground/grass001/albedo.jpg", true);
     let normal = tiling("textures/ground/grass001/normal_gl.png", false);
     let orm = tiling("textures/ground/grass001/orm.png", false);
     let material = materials.add(StandardMaterial {
+        base_color: Color::linear_rgb(2.0, 2.0, 2.0),
         base_color_texture: Some(albedo.unwrap_or_else(|| tex.grass.clone())),
         normal_map_texture: normal,
         occlusion_texture: orm.clone(),
@@ -424,6 +525,7 @@ fn spawn_far_floor(
         0.0,
         GrassTint::default(),
         biome_at(plan, Vec3::new(0.0, y, 0.0), Vec3::Y),
+        1.0,
     );
     let mut b = MeshBuilder::tiled(64.0, 64.0);
     // Each strip (x0, z0)-(x1, z1), wound to face up.
@@ -535,6 +637,7 @@ fn redraw_craters(
                         cover,
                         (&*grass).into(),
                         biome_at(&world, *p, *n),
+                        0.0,
                     );
                     rubble_colour(c, dug.delta_sample(key, i, j), i, j)
                 })
@@ -721,7 +824,7 @@ fn stream_ground(
 mod tests {
     use super::*;
     /// Temperate ground alone.
-    const TEMPERATE: [f32; BIOME_COUNT] = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0];
+    const TEMPERATE: [f32; BIOME_COUNT] = [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0];
 
     fn n(level: u32, x: u32, z: u32) -> Node {
         Node { level, x, z }
@@ -732,12 +835,12 @@ mod tests {
         let grass = GrassConfig::default();
         let tint = GrassTint::from(&grass);
         let p = Vec3::new(0.0, 20.0, 0.0);
-        let bare = ground_colour(p, Vec3::Y, 0.0, false, 0.0, 0.0, tint, TEMPERATE);
-        let full = ground_colour(p, Vec3::Y, 0.0, false, 0.0, 1.0, tint, TEMPERATE);
+        let bare = ground_colour(p, Vec3::Y, 0.0, false, 0.0, 0.0, tint, TEMPERATE, 0.0);
+        let full = ground_colour(p, Vec3::Y, 0.0, false, 0.0, 1.0, tint, TEMPERATE, 0.0);
         let want = Vec3::new(bare[0], bare[1], bare[2]).lerp(tint.colour, grass.ground_tint);
         assert!((Vec3::new(full[0], full[1], full[2]) - want).length() < 1e-5);
         assert_ne!(bare, full);
-        let none = ground_colour(p, Vec3::Y, 0.0, false, 0.0, 1.0, GrassTint::default(), TEMPERATE);
+        let none = ground_colour(p, Vec3::Y, 0.0, false, 0.0, 1.0, GrassTint::default(), TEMPERATE, 0.0);
         assert_eq!(none, bare, "no tint strength, no change");
     }
 

@@ -1,5 +1,8 @@
 # The weather in the game: lavapipe stills, 2026-10-25
 
+**On the crater island.** These were shot before the game took the island mockup's land later
+the same day (`island-biomes`); the weather on the new island is in `docs/screenshots/island-game/`.
+
 Stills of `cloud-weather` as built on `environment-design`: billboard clouds in seeded weather
 systems, rain shafts, cirrus, the storm shade on the sun and rain on the glass. Taken in a cloud
 session: the release build, Mesa's software Vulkan (lavapipe) under Xvfb, 1920 x 1080, reduced to

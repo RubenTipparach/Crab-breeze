@@ -2,12 +2,12 @@
 //! systems, each a rule that places cloud puffs with a kind, a darkness and a layer. Fair cumulus
 //! follows the ground's moisture (thick over the wet west, thin over the desert in the lee), storm
 //! cells stand towers with anvils blown downwind and rain shafts beneath, a cold front lies off the
-//! west coast, a stratocumulus deck sits at sea to the north, cloud banks against the crater rim's
+//! west coast, a stratocumulus deck sits at sea to the north, cloud banks against the range's
 //! windward flank, caps sit over its highest peaks, an altocumulus field lies high to the south-west
 //! and cirrus streaks at 8-9 km. A high over the sea to the south-east keeps its sky clear.
 //!
 //! The island mockup's `weather` block (`docs/mockups/island_gen.js`) is the reference for every
-//! rule; this ports it to the game's crater island. The numbers a designer would turn are in
+//! rule; this ports it to the game. The numbers a designer would turn are in
 //! `data/world/world.ron` under `weather:`; the shape of each system (how a tower narrows, how a
 //! cluster spreads) is in the code beside its rule. `clouds::Clouds` indexes the result: it is the
 //! one cloud query the view, the rain on the glass and the drawing all read.
@@ -28,17 +28,6 @@ pub trait WeatherGround {
     fn past_coast_m(&self, p: Vec2) -> f32;
     /// Moisture at `p`, 0 (desert) to 1 (marsh).
     fn moisture(&self, p: Vec2) -> f32;
-}
-
-/// The crater rim the orographic cloud banks against and the caps sit on.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Rim {
-    /// The crater's centre (x, z).
-    pub centre: Vec2,
-    /// The crest's radius.
-    pub radius_m: f32,
-    /// Half the range's width either side of the crest.
-    pub half_width_m: f32,
 }
 
 /// Fair-weather cumulus: clusters on a grid of tiles over a disc round the island.
@@ -167,9 +156,9 @@ impl Default for StormConfig {
     fn default() -> Self {
         Self {
             cells: vec![
-                // Over the wet west, outside the rim.
+                // Over the wet western jungle, 6.5 km west of the spine (the mockup's cell).
                 StormCell {
-                    centre_m: [-10500.0, 2500.0],
+                    centre_m: [-5887.0, -4186.0],
                     radius_m: 2600.0,
                     top_m: 9500.0,
                 },
@@ -287,18 +276,22 @@ impl Default for DeckConfig {
     }
 }
 
-/// Cloud banked against the crater rim's windward flank.
+/// Cloud banked against the windward flank of high ground: where the land rises downwind.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct OrographicConfig {
-    /// Puffs tried.
+    /// Most puffs.
     pub count: u32,
-    /// The bearings of the rim it banks on, degrees (0 north, 270 west).
-    pub bearing_deg: [f32; 2],
-    /// How far out from the crest.
-    pub out_m: [f32; 2],
-    /// Only over ground at least this high.
+    /// Places tried, over the disc.
+    pub tries: u32,
+    /// Places are tried within this of the centre.
+    pub search_m: f32,
+    /// Only over ground at least this high...
     pub min_ground_m: f32,
+    /// ...that rises at least `min_rise_m` within `rise_probe_m` downwind (a windward flank).
+    pub rise_probe_m: f32,
+    /// See `rise_probe_m`.
+    pub min_rise_m: f32,
     /// No higher than this.
     pub top_m: f32,
 }
@@ -307,15 +300,17 @@ impl Default for OrographicConfig {
     fn default() -> Self {
         Self {
             count: 520,
-            bearing_deg: [200.0, 340.0],
-            out_m: [200.0, 2200.0],
-            min_ground_m: 400.0,
+            tries: 12000,
+            search_m: 14000.0,
+            min_ground_m: 500.0,
+            rise_probe_m: 900.0,
+            min_rise_m: 60.0,
             top_m: 1900.0,
         }
     }
 }
 
-/// Lenticular caps over the rim's highest peaks.
+/// Lenticular caps over the highest peaks.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct CapConfig {
@@ -325,17 +320,20 @@ pub struct CapConfig {
     pub spacing_m: f32,
     /// At most this many.
     pub most: u32,
-    /// Places tried.
+    /// Places tried, over the disc.
     pub tries: u32,
+    /// Places are tried within this of the centre.
+    pub search_m: f32,
 }
 
 impl Default for CapConfig {
     fn default() -> Self {
         Self {
-            min_peak_m: 1350.0,
+            min_peak_m: 1900.0,
             spacing_m: 2500.0,
             most: 5,
-            tries: 4000,
+            tries: 20000,
+            search_m: 12000.0,
         }
     }
 }
@@ -407,7 +405,7 @@ pub struct WeatherConfig {
     pub front: FrontConfig,
     /// The stratocumulus deck.
     pub deck: DeckConfig,
-    /// Cloud on the rim.
+    /// Cloud on the range's windward flank.
     pub orographic: OrographicConfig,
     /// Caps over the peaks.
     pub caps: CapConfig,
@@ -516,13 +514,14 @@ impl Validate for WeatherConfig {
         positive("weather.deck.break_wavelength_m", d.break_wavelength_m)?;
         within("weather.deck.break_below", d.break_below, -1.0, 1.0)?;
         let o = &self.orographic;
-        finite("weather.orographic.bearing_deg", o.bearing_deg[0])?;
-        finite("weather.orographic.bearing_deg", o.bearing_deg[1])?;
-        positive_range("weather.orographic.out_m", o.out_m)?;
+        positive("weather.orographic.search_m", o.search_m)?;
         finite("weather.orographic.min_ground_m", o.min_ground_m)?;
+        positive("weather.orographic.rise_probe_m", o.rise_probe_m)?;
+        finite("weather.orographic.min_rise_m", o.min_rise_m)?;
         positive("weather.orographic.top_m", o.top_m)?;
         positive("weather.caps.min_peak_m", self.caps.min_peak_m)?;
         positive("weather.caps.spacing_m", self.caps.spacing_m)?;
+        positive("weather.caps.search_m", self.caps.search_m)?;
         let a = &self.altocumulus;
         finite("weather.altocumulus.centre_m", a.centre_m[0])?;
         finite("weather.altocumulus.centre_m", a.centre_m[1])?;
@@ -595,7 +594,7 @@ fn at_bearing(c: Vec2, bearing: f32, distance: f32) -> Vec2 {
 
 /// Lays out the sky (cloud-weather design section 2). Pure: the same seed, config, wind and
 /// ground give the same sky, in the same order.
-pub fn make_sky(rng: &SimRng, cfg: &WeatherConfig, wind_m_s: Vec2, ground: &dyn WeatherGround, rim: Rim) -> Sky {
+pub fn make_sky(rng: &SimRng, cfg: &WeatherConfig, wind_m_s: Vec2, ground: &dyn WeatherGround) -> Sky {
     let wind = wind_m_s.normalize_or(Vec2::X);
     let across = wind.perp();
     let mut b = Builder {
@@ -609,8 +608,8 @@ pub fn make_sky(rng: &SimRng, cfg: &WeatherConfig, wind_m_s: Vec2, ground: &dyn 
     cumulus(&mut b, cfg, wind, across, ground, &noise);
     altocumulus(&mut b, &cfg.altocumulus, &noise);
     deck(&mut b, &cfg.deck, ground, &noise);
-    orographic(&mut b, &cfg.orographic, ground, rim);
-    caps(&mut b, &cfg.caps, ground, rim, wind);
+    orographic(&mut b, &cfg.orographic, ground, wind);
+    caps(&mut b, &cfg.caps, ground, wind);
     cirrus(&mut b, &cfg.cirrus, wind);
     b.sky
 }
@@ -874,19 +873,33 @@ fn deck(b: &mut Builder, d: &DeckConfig, ground: &dyn WeatherGround, noise: &Val
     }
 }
 
-/// Cloud banked on the rim's windward flank, hugging the ground but clear of it.
-fn orographic(b: &mut Builder, o: &OrographicConfig, ground: &dyn WeatherGround, rim: Rim) {
-    for _ in 0..o.count {
-        let bearing = b.range(o.bearing_deg);
-        let out = b.range(o.out_m);
-        let p = at_bearing(rim.centre, bearing, rim.radius_m + out);
+/// A point tried uniformly over the disc of radius `r`.
+fn in_disc(b: &mut Builder, r: f32) -> Vec2 {
+    let a = b.f() * TAU;
+    let d = b.f().sqrt() * r;
+    Vec2::new(a.cos(), a.sin()) * d
+}
+
+/// Cloud banked on a windward flank (high ground rising downwind), hugging the ground but clear
+/// of it.
+fn orographic(b: &mut Builder, o: &OrographicConfig, ground: &dyn WeatherGround, wind: Vec2) {
+    let mut placed = 0;
+    for _ in 0..o.tries {
+        if placed >= o.count {
+            break;
+        }
+        let p = in_disc(b, o.search_m);
         let (rx, ry) = (260.0 + b.f() * 260.0, 120.0 + b.f() * 90.0);
         let lift = 80.0 + b.f() * 220.0;
         let g = ground.ground_m(p);
-        if g < o.min_ground_m {
+        if g < o.min_ground_m || ground.ground_m(p + wind * o.rise_probe_m) < g + o.min_rise_m {
             continue;
         }
         let y = (g + ry * 1.4 + lift).min(o.top_m);
+        if y - ry <= g {
+            continue;
+        }
+        placed += 1;
         b.puff(
             Vec3::new(p.x, y, p.y),
             rx,
@@ -898,16 +911,14 @@ fn orographic(b: &mut Builder, o: &OrographicConfig, ground: &dyn WeatherGround,
     }
 }
 
-/// Lenticular caps: three stacked smooth lenses over each of the rim's highest peaks.
-fn caps(b: &mut Builder, c: &CapConfig, ground: &dyn WeatherGround, rim: Rim, wind: Vec2) {
+/// Lenticular caps: three stacked smooth lenses over each of the highest peaks.
+fn caps(b: &mut Builder, c: &CapConfig, ground: &dyn WeatherGround, wind: Vec2) {
     let mut placed: Vec<Vec2> = Vec::new();
     for _ in 0..c.tries {
         if placed.len() >= c.most as usize {
             break;
         }
-        let a = b.f() * 360.0;
-        let off = (b.f() - 0.5) * rim.half_width_m;
-        let p = at_bearing(rim.centre, a, rim.radius_m + off);
+        let p = in_disc(b, c.search_m);
         let g = ground.ground_m(p);
         if g < c.min_peak_m || placed.iter().any(|q| q.distance(p) < c.spacing_m) {
             continue;
@@ -953,13 +964,14 @@ fn cirrus(b: &mut Builder, c: &CirrusConfig, wind: Vec2) {
 mod tests {
     use super::*;
 
-    /// A round island 13 km across, wet in the west and dry in the east, with a rim 1.5 km high
+    /// A round island 13 km across, wet in the west and dry in the east, with a ring of mountains
+    /// 2 km high 5.5 km from the centre.
     /// 5.5 km from the centre.
     struct TestIsland;
 
     impl WeatherGround for TestIsland {
         fn ground_m(&self, p: Vec2) -> f32 {
-            let rim = 1500.0 * (1.0 - ((p.length() - 5500.0).abs() / 3000.0).min(1.0));
+            let rim = 2000.0 * (1.0 - ((p.length() - 5500.0).abs() / 3000.0).min(1.0));
             if p.length() < 13000.0 { 50.0 + rim } else { -30.0 }
         }
         fn past_coast_m(&self, p: Vec2) -> f32 {
@@ -970,14 +982,8 @@ mod tests {
         }
     }
 
-    const RIM: Rim = Rim {
-        centre: Vec2::ZERO,
-        radius_m: 5500.0,
-        half_width_m: 3000.0,
-    };
-
     fn sky(seed: u64) -> Sky {
-        make_sky(&SimRng::new(seed), &WeatherConfig::default(), Vec2::new(6.0, 0.0), &TestIsland, RIM)
+        make_sky(&SimRng::new(seed), &WeatherConfig::default(), Vec2::new(6.0, 0.0), &TestIsland)
     }
 
     fn count(s: &Sky, kind: CloudKind) -> usize {
@@ -1075,13 +1081,14 @@ mod tests {
     }
 
     #[test]
-    fn orographic_cloud_banks_on_the_windward_rim_only() {
+    fn orographic_cloud_banks_on_windward_flanks_only() {
         let s = sky(42);
         let oro: Vec<&Puff> = s.puffs.iter().filter(|p| p.kind == CloudKind::Orographic).collect();
         assert!(oro.len() > 50);
         for p in oro {
-            assert!(p.centre.x < 0.0, "on the west side");
-            let g = TestIsland.ground_m(Vec2::new(p.centre.x, p.centre.z));
+            let at = Vec2::new(p.centre.x, p.centre.z);
+            let g = TestIsland.ground_m(at);
+            assert!(TestIsland.ground_m(at + Vec2::X * 900.0) >= g + 60.0, "the ground rises downwind");
             assert!(p.centre.y - p.radii.y > g, "clear of the ground");
         }
     }

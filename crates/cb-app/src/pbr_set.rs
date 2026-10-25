@@ -73,9 +73,54 @@ pub fn load_tiling(assets_root: &Path, path: &str, srgb: bool) -> Option<Image> 
     Some(img)
 }
 
+/// Turns an sRGB RGBA8 colour map (every mip level) into a neutral detail map: each pixel's
+/// luminance over the top level's mean, so the mean is 0.5 in linear light and the hue is gone.
+/// The ground's biome colour (per vertex, twice as bright) then gives the hue, and the photo only
+/// its grain (`island-biomes`: sand and rock no longer take the grass's green).
+pub fn neutral_detail(img: &mut Image) {
+    let Some(data) = img.data.as_mut() else { return };
+    let top = (img.texture_descriptor.size.width * img.texture_descriptor.size.height * 4) as usize;
+    let lin = |c: u8| (f32::from(c) / 255.0).powf(2.2);
+    let lum = |p: &[u8; 4]| 0.2126 * lin(p[0]) + 0.7152 * lin(p[1]) + 0.0722 * lin(p[2]);
+    let n = (top / 4).max(1) as f32;
+    let mean = data[..top.min(data.len())].as_chunks::<4>().0.iter().map(lum).sum::<f32>() / n;
+    if mean <= 0.0 {
+        return;
+    }
+    for p in data.as_chunks_mut::<4>().0 {
+        let v = (0.5 * lum(p) / mean).clamp(0.0, 1.0);
+        let g = (v.powf(1.0 / 2.2) * 255.0).round() as u8;
+        p[0] = g;
+        p[1] = g;
+        p[2] = g;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_neutral_detail_map_is_grey_with_its_mean_at_half() {
+        let mut img = Image::new(
+            Extent3d {
+                width: 2,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            vec![40, 160, 20, 255, 90, 200, 60, 255],
+            TextureFormat::Rgba8UnormSrgb,
+            RenderAssetUsages::RENDER_WORLD,
+        );
+        neutral_detail(&mut img);
+        let d = img.data.unwrap();
+        assert_eq!((d[0], d[1]), (d[1], d[2]), "grey");
+        let lin = |c: u8| (f32::from(c) / 255.0).powf(2.2);
+        let mean = (lin(d[0]) + lin(d[4])) / 2.0;
+        assert!((mean - 0.5).abs() < 0.02, "{mean}");
+        assert!(d[4] > d[0], "the brighter pixel stays brighter");
+    }
 
     #[test]
     fn a_tiling_texture_loads_with_its_whole_mip_chain() {

@@ -513,9 +513,12 @@ pub fn make_waters(
             let height = f.top_m - f.bottom_m;
             let r = (height * cfg.plunge_radius_per_m).clamp(cfg.lake_radius_m[0], cfg.lake_radius_m[1]);
             let c = foot + f.along * r * 0.35;
-            // Only a river (twice a stream's width) digs a pool; a stream lands in its own foam.
+            // Only a river (twice a stream's width) digs a pool; a stream lands in its own foam. Nor
+            // does a fall whose pool would sit on ground standing above its water (a ledge of the
+            // range's terraces): the carving keeps such ground dry, so the pool would hold none.
             let river = f.half_width_m >= 2.0 * cfg.stream_half_width_m;
-            if river && lakes.at(foot).is_none() && clear(c, r) && !overlaps(&lakes.list, c, r) {
+            let holds = terrain.height_at(c.x, c.y) < f.bottom_m + KEEP_ABOVE_M * 0.5;
+            if river && holds && lakes.at(foot).is_none() && clear(c, r) && !overlaps(&lakes.list, c, r) {
                 lakes.list.push(Lake {
                     centre: c,
                     radius_m: r,
