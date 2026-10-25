@@ -230,7 +230,7 @@ ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; 
           <tr><td>Bridge</td><td class="n" id="ob-bridge"></td><td>Fire control</td></tr>
         </tbody>
       </table></div>
-      <dl class="kv"><dt>Hits on you</dt><dd id="hits"></dd></dl>
+      <dl class="kv"><dt>Hits on you</dt><dd id="hits"></dd><dt>Allies</dt><dd id="allyhits"></dd></dl>
     </div>
     <div class="card">
       <h2>Taking it down</h2>
@@ -263,6 +263,8 @@ ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; 
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/utils/BufferGeometryUtils.js"></script>
 <script>
 const MODELS = __MODELS__;
+const TEX = __TEXTURES__;      // the plating maps (assets/textures/mech): large panels hull and hullB, frameM, detail normals
+const PAL = __PALETTE__;       // the hermit palette (tools/blender/mech_palettes.py), as sRGB hex
 const T = THREE, TAU = Math.PI * 2, DEG = Math.PI / 180;
 const ease = x => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 const lerp = (a, b, u) => a + (b - a) * u;
@@ -364,6 +366,50 @@ const deckTex = canvasTex(256, 1152, (g, w, h) => {
   const gr = rng(11); for (let i = 0; i < 3; i++) for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) if (gr() < 0.55) g.fillRect(X(-8 + a * 4), Z(-96 - i * 22 - b * 4), 3.4 * sx, 3.4 * sz);
 });
 M.deck = new T.MeshStandardMaterial({ map: deckTex, roughness: 0.8, metalness: 0.25 });
+// The plating, the mechs' way (owner, 2026-10-25: "make textures for the crab ... blue and orange ... use same armor
+// techniques as the mech"): the modern plating maps, neutral, tinted by the hermit palette; normal and ORM maps with them
+const texLoader = new T.TextureLoader();
+let texLeft = 0, texDone = null; const texReady = new Promise(ok => { texDone = ok; });
+function loadTex(key, srgb) { texLeft++; const t = texLoader.load(TEX[key], () => { if (--texLeft === 0) texDone(); }, undefined, () => { if (--texLeft === 0) texDone(); });
+  t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 8; if (srgb) t.encoding = T.sRGBEncoding; return t; }
+// Panelling laid out by shape (owner, 2026-10-25: "paneling must look organized and intentional", "see how the panel
+// aligns with the flow of the geometry?", "each element has paneling that compliments its shape"). Three layouts from
+// the plating kit: `carapace` rings and sectors round the shell and belly (u once round from the stern, the bow at 0.5;
+// v from the rim in to the middle), `drum` panels round every cylinder, `slab` modules fitted whole to flat faces. Each
+// colour role is a material per layout: its maps, the palette tint, the livery mask mixing in the role's accent, the
+// conduits lit acid green, and the slab's normal laid small over everything as close-up detail (owner: "we want
+// normal maps for large and small details").
+const MODULE_M = 22, DRUM_M = 14, DETAIL_STRENGTH = 0.55;
+const DETAIL = { carapace: [160, 30], drum: [3, 6], slab: [4, 8] };   // detail repeats per map repeat, across and down (drum and slab sheets are two rows tall)
+const ROLES = new Map();   // role material -> { hex, accent }
+const VARIANTS = new Map();
+function role(hex, accent, extra) { const m = variantOf({ hex, accent, extra }, "slab"); ROLES.set(m, { hex, accent, extra }); return m; }
+function variantOf(r, type) {
+  const key = r.hex + r.accent + type + (r.extra && r.extra.side ? "2" : "");
+  if (VARIANTS.has(key)) return VARIANTS.get(key);
+  const orm = loadTex(type + "_orm"), liv = loadTex(type + "_m"), det = loadTex("slab_n");
+  const m = new T.MeshStandardMaterial(Object.assign({ color: r.hex, map: loadTex(type, true), normalMap: loadTex(type + "_n"), normalScale: new T.Vector2(1.3, 1.3),
+    roughnessMap: orm, metalnessMap: orm, aoMap: orm, roughness: 1, metalness: 1,
+    emissiveMap: loadTex(type + "_e", true), emissive: new T.Color(PAL.GLOW).convertSRGBToLinear(), emissiveIntensity: 1.6 }, r.extra || {}));
+  m.color.convertSRGBToLinear(); m.userData.plated = true;
+  const accent = new T.Color(r.accent).convertSRGBToLinear();
+  m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, { detailNormal: { value: det }, detailScale: { value: new T.Vector2(...DETAIL[type]) }, detailStrength: { value: DETAIL_STRENGTH },
+      liveryMap: { value: liv }, accentColor: { value: accent } });
+    sh.fragmentShader = "uniform sampler2D detailNormal; uniform vec2 detailScale; uniform float detailStrength; uniform sampler2D liveryMap; uniform vec3 accentColor;\n" + sh.fragmentShader
+      .replace("#include <map_fragment>", T.ShaderChunk.map_fragment + "\n diffuseColor.rgb = mix( diffuseColor.rgb, accentColor * sampledDiffuseColor.rgb, texture2D( liveryMap, vUv ).r );")
+      .replace("#include <normal_fragment_maps>", T.ShaderChunk.normal_fragment_maps.replace(
+        "vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;",
+        "vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0; vec3 detN = texture2D( detailNormal, vUv * detailScale ).xyz * 2.0 - 1.0; mapN = normalize( vec3( mapN.xy + detN.xy * detailStrength, mapN.z ) );"));
+  };
+  VARIANTS.set(key, m); return m;
+}
+M.hull = role(PAL.BODY, PAL.BODY2);                    // the blue carapace, orange livery
+M.hull2 = role(PAL.BODY2, PAL.FRAME);                  // the orange armour: the belly, the spine, the bridge, the sleeves
+M.dark = role("#b4b8c0", PAL.BODY2);                   // the structure
+M.armour = role(PAL.BODY2, PAL.FRAME, { side: T.DoubleSide });   // the thrusters' outboard plates
+M.mark.color.set(PAL.ACCENT).convertSRGBToLinear();
+
 const smokeTex = canvasTex(64, 64, (g, w) => { const gr = g.createRadialGradient(32, 32, 2, 32, 32, 31);
   gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.5, "rgba(255,255,255,0.55)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, w, w); });
 smokeTex.encoding = T.LinearEncoding;
@@ -445,9 +491,10 @@ function part(id, kind, obj, opts = {}) {
 }
 
 (() => {
-  const shell = add(F, new T.SphereGeometry(1, 28, 14, 0, TAU, 0, Math.PI / 2), M.hull); shell.scale.set(140, 45, 210);
-  const under = add(F, new T.SphereGeometry(1, 28, 10, 0, TAU, Math.PI / 2, Math.PI / 2), M.hull2); under.scale.set(140, 34, 210);
-  const belly = add(F, new T.SphereGeometry(1, 20, 10), M.hull2, 0, -30, -10); belly.scale.set(92, 28, 150);
+  // the shell, its underside and the belly take the carapace panelling: rings round their own middles
+  const shell = add(F, new T.SphereGeometry(1, 48, 20, 0, TAU, 0, Math.PI / 2), M.hull); shell.scale.set(140, 45, 210); shell.userData.polar = { cx: 0, cz: 0, ax: 140, az: 210 };
+  const under = add(F, new T.SphereGeometry(1, 48, 14, 0, TAU, Math.PI / 2, Math.PI / 2), M.hull2); under.scale.set(140, 34, 210); under.userData.polar = { cx: 0, cz: 0, ax: 140, az: 210 };
+  const belly = add(F, new T.SphereGeometry(1, 36, 14), M.hull2, 0, -30, -10); belly.scale.set(92, 28, 150); belly.userData.polar = { cx: 0, cz: -10, ax: 92, az: 150 };
   // the abdomen's segment ribs, a crab's folded tail plate
   for (let k = -3; k <= 3; k++) { const rib = add(F, new T.TorusGeometry(1, 0.06, 4, 24), M.dark, 0, -34, -10 + k * 34); rib.scale.set(86 * Math.sqrt(1 - (k / 4.4) ** 2), 26, 1); }
   const band = add(F, cyl(1, 1, 1, 40, true), M.mark); band.scale.set(141.5, 7, 211.5);
@@ -510,7 +557,7 @@ const THR_Z = [125, 45, -40, -125];
   plume.raycast = wash.raycast = () => {};
   // the armour plate: the outboard half of the nacelle and a skirt below the nozzle, 300 mm; only from under it
   // (or from inboard) are the cowl and the nozzle open to fire (owner, 2026-10-25)
-  const plateMat = std(0x4a5068, 0.5, 0.7, { side: T.DoubleSide });
+  const plateMat = M.armour;
   const plate = add(g, new T.CylinderGeometry(17.2, 16.2, 50, 16, 1, true, s > 0 ? 0 : Math.PI, Math.PI), plateMat, 0, -4, 0);
   plate.userData.armour = 300; plate.userData.msg = "ARMOUR PLATE 300 mm: SHOOT FROM UNDER IT";
   [-16, 2, 18].forEach(y => { const rib = add(g, new T.CylinderGeometry(17.9, 17.9, 2.2, 16, 1, true, s > 0 ? 0 : Math.PI, Math.PI), M.dark, 0, y, 0);
@@ -555,37 +602,30 @@ const HULL = [];
   HULL.push(hp);
 }));
 
-// the carapace: overlapping shell plates (scutes), an armoured rim skirt, spikes all round, horns at bow and stern
+// the carapace's spikes: across the shell, all round the rim, horns at bow and stern (the square shell plates and the
+// rim skirt are gone, owner 2026-10-25: "get rid of the square plates"; the armour is in the plating textures now)
 (() => {
   const top = (x, z) => 45 * Math.sqrt(Math.max(0, 1 - (x / 140) ** 2 - (z / 210) ** 2));
   const clear = (x, z) => !(Math.abs(x) < 52 || (Math.abs(x) < 92 && Math.abs(z) < 124))                 // the spine, deck and shoulders
     && !HULL.some(h => Math.hypot(x - h.g.position.x, z - h.g.position.z) < 19)                            // the hull ports' collars
     && !THR_Z.some(zp => Math.abs(z - zp) < 11 && Math.abs(x) > 118)                                       // the pylon roots
     && !(Math.abs(x) < 70 && z < -150);                                                                     // the drive thrusters
-  const plates = [], plateTrim = [];
-  [0.6, 0.68, 0.76, 0.84, 0.92].forEach((r, ring) => {
-    const n = Math.round(TAU * 175 * r / 19);
+  [0.6, 0.76, 0.92].forEach((r, ring) => {   // spikes over the shell, raked back from the middle
+    const n = Math.round(TAU * 175 * r / 30);
     for (let k = 0; k < n; k++) {
       const a = (k + (ring % 2) * 0.5) / n * TAU, x = 140 * r * Math.cos(a), z = 210 * r * Math.sin(a);
       if (!clear(x, z)) continue;
       const y = top(x, z), nrm = new T.Vector3(x / 140 ** 2, y / 45 ** 2, z / 210 ** 2).normalize();
-      let fwd = new T.Vector3(x, 0, z).normalize(); fwd.addScaledVector(nrm, -fwd.dot(nrm)).normalize();
-      fwd.applyAxisAngle(new T.Vector3().crossVectors(nrm, fwd).normalize(), 0.14);   // shingled: each plate's outer edge stands proud
-      const up = nrm.clone(), right = new T.Vector3().crossVectors(up, fwd).normalize(); up.crossVectors(fwd, right).normalize();
-      const pos = new T.Vector3(x, y, z).addScaledVector(nrm, 0.9);
-      plates.push(new T.Matrix4().makeBasis(right, up, fwd).scale(new T.Vector3(18, 2.6, 15)).setPosition(pos));
-      plateTrim.push(new T.Matrix4().makeBasis(right, up, fwd).scale(new T.Vector3(18.6, 1.2, 2)).setPosition(pos.clone().addScaledVector(fwd, 7.6).addScaledVector(up, 0.9)));
-      if ((k + ring) % 3 === 0) SPIKES.push([pos.clone().addScaledVector(nrm, 1), nrm.clone().addScaledVector(fwd, 0.35), ring === 4 ? 11 : 7, ring === 4 ? 2.2 : 1.6]);
+      const fwd = new T.Vector3(x, 0, z).normalize(); fwd.addScaledVector(nrm, -fwd.dot(nrm)).normalize();
+      SPIKES.push([new T.Vector3(x, y, z).addScaledVector(nrm, 1), nrm.clone().addScaledVector(fwd, 0.35), ring === 2 ? 11 : 8, ring === 2 ? 2.2 : 1.8]);
     }
   });
-  // the rim: an armoured skirt angled down, and a ring of spikes, long and short by turns
-  const skirt = [], n = 64;
+  // the rim: a ring of spikes, long and short by turns
+  const n = 64;
   for (let k = 0; k < n; k++) {
     const a = k / n * TAU, x = 143 * Math.cos(a), z = 213 * Math.sin(a);
     if (THR_Z.some(zp => Math.abs(z - zp) < 15) || (Math.abs(x) < 70 && z < -150)) continue;
-    const out = new T.Vector3(x / 140 ** 2, 0, z / 210 ** 2).normalize(), tan = new T.Vector3(-out.z, 0, out.x);
-    const fwd = out.clone().applyAxisAngle(tan, 0.5), up = new T.Vector3().crossVectors(fwd, tan).normalize();
-    skirt.push(new T.Matrix4().makeBasis(tan, up, fwd).scale(new T.Vector3(16, 1.8, 11)).setPosition(new T.Vector3(x, -5, z)));
+    const out = new T.Vector3(x / 140 ** 2, 0, z / 210 ** 2).normalize();
     SPIKES.push([new T.Vector3(x * 1.01, 1, z * 1.01), out.clone().add(new T.Vector3(0, 0.22, 0)), k % 2 ? 9 : 16, k % 2 ? 1.8 : 2.8]);
   }
   // the bow: two great horns either side of the eyes, a row of teeth under them; the stern: two back-swept spines
@@ -601,8 +641,6 @@ const HULL = [];
   [1, -1].forEach(s => { for (let z = -150; z <= 130; z += 28) { const e = 1 - (40 / 92) ** 2 - ((z + 10) / 150) ** 2; if (e <= 0.05) continue;
     SPIKES.push([new T.Vector3(40 * s, -30 - 28 * Math.sqrt(e) + 1, z), new T.Vector3(0.2 * s, -1, 0), 12, 2.2]); } });
   const inst = (geo, mat, list) => { const im = new T.InstancedMesh(geo, mat, list.length); list.forEach((m, i) => im.setMatrixAt(i, m)); im.castShadow = im.receiveShadow = true; F.add(im); return im; };
-  const unit = box(1, 1, 1);
-  inst(unit, std(0x4c5677, 0.5, 0.6), plates); inst(unit, M.mark, plateTrim); inst(unit, std(0x434a63, 0.55, 0.6), skirt);
   inst(spikeGeo, M.spike, SPIKES.map(([p, d, l, r]) => spikeMatrix(p, d, l, r)));
 })();
 
@@ -657,6 +695,50 @@ const BAYS = [40, -60].map((z, i) => { const b = new T.Group(); b.position.set(0
     add(h, box(15, 1.2, 40), M.hull, -7.5 * s, -0.6, 0); return h; });
   add(b, box(30.2, 0.4, 40.2), M.core, 0, -6.1, 0, false);
   return { b, doors, open: 0, openUntil: -1, part: part("bay" + (i + 1), "bay", b, { label: i === 0 ? "Drop bays" : null, fire: new T.Vector3(0, -8, 0) }) }; });
+// lay each plated piece's UVs out by its shape, and give it its role's material for that layout
+//   polar (the shell, its underside, the belly): u = the angle round its middle from the stern, v = how far out to its rim
+//   drum (every cylinder): u = round it in panels about DRUM_M wide (an even number, so it mirrors), v = up it in bands
+//   slab (everything else): each face in whole modules about MODULE_M across, fitted to the piece's own box
+function projectUVs(root) {
+  root.updateMatrixWorld(true); const inv = new T.Matrix4().copy(root.matrixWorld).invert();
+  const a = new T.Vector3(), b = new T.Vector3(), c = new T.Vector3(), n = new T.Vector3(), e = new T.Vector3();
+  root.traverse(o => {
+    if (!o.isMesh || o.isInstancedMesh || Array.isArray(o.material) || !ROLES.has(o.material)) return;
+    const r = ROLES.get(o.material), g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(), pos = g.attributes.position, uv = new Float32Array(pos.count * 2);
+    const sc = new T.Vector3(); o.getWorldScale(sc); sc.divide(root.getWorldScale(new T.Vector3()));
+    const polar = o.userData.polar, cyl = !polar && g.type === "CylinderGeometry", type = polar ? "carapace" : cyl ? "drum" : "slab";
+    const rel = new T.Matrix4().multiplyMatrices(inv, o.matrixWorld);
+    g.computeBoundingBox(); const bb = g.boundingBox, size = bb.getSize(new T.Vector3()).multiply(sc);
+    const P = g.parameters || {}, rad = Math.max(P.radiusTop || 0, P.radiusBottom || 0) * Math.max(sc.x, sc.z);
+    const around = Math.max(4, 2 * Math.round(TAU * rad / (2 * DRUM_M))), bands = Math.max(1, Math.round(size.y / DRUM_M));
+    const tiles = k => Math.max(1, Math.round(size.getComponent(k) / MODULE_M));
+    for (let i = 0; i + 2 < pos.count; i += 3) {
+      a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
+      const tri = [a, b, c].map(p => p.clone()), uvs = [];
+      if (polar) {
+        tri.forEach(p => { p.applyMatrix4(rel); const nx = (p.x - polar.cx) / polar.ax, nz = (p.z - polar.cz) / polar.az;
+          uvs.push([Math.atan2(nx, nz) / TAU + 0.5, 1 - Math.min(1, Math.hypot(nx, nz))]); });
+      } else if (cyl) {
+        n.subVectors(c, b).cross(e.subVectors(a, b)).normalize();
+        if (Math.abs(n.y) > 0.9) tri.forEach(p => uvs.push([p.x / (2 * (P.radiusTop || 1)) + 0.5, (p.z / (2 * (P.radiusTop || 1)) + 0.5) / 2]));   // a cap: one plate of the drum
+        else tri.forEach(p => uvs.push([(Math.atan2(p.x, p.z) / TAU + 0.5) * around, (p.y - bb.min.y) / (bb.max.y - bb.min.y || 1) * bands / 2]));   // the sheet is two bands tall
+      } else {
+        n.subVectors(c, b).cross(e.subVectors(a, b)); n.multiply(new T.Vector3(1 / sc.x, 1 / sc.y, 1 / sc.z));
+        const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z), [ku, kv] = ax >= ay && ax >= az ? [2, 1] : ay >= az ? [0, 2] : [0, 1];
+        tri.forEach(p => { const f = k => (p.getComponent(k) - bb.min.getComponent(k)) / ((bb.max.getComponent(k) - bb.min.getComponent(k)) || 1);
+          uvs.push([f(ku) * tiles(ku), f(kv) * tiles(kv) / 2]); });   // the sheet is two modules tall, laid as bricks
+      }
+      // a triangle across the seam round the back takes its u on one side of it
+      if (polar || cyl) { const per = polar ? 1 : around, us = uvs.map(q => q[0]);
+        if (Math.max(...us) - Math.min(...us) > per / 2) uvs.forEach(q => { if (q[0] < per / 2) q[0] += per; }); }
+      uvs.forEach((q, k) => { uv[(i + k) * 2] = q[0]; uv[(i + k) * 2 + 1] = q[1]; });
+    }
+    g.setAttribute("uv", new T.BufferAttribute(uv, 2)); g.setAttribute("uv2", new T.BufferAttribute(uv.slice(), 2)); o.geometry = g;
+    o.material = variantOf(r, type); if (o.userData.mat0) o.userData.mat0 = o.material;
+  });
+}
+projectUVs(F);
+
 // static parts keep their own materials so a destroyed part can be put back
 parts.forEach(p => p.obj.traverse(o => { if (o.isMesh) o.userData.mat0 = o.material; }));
 
@@ -721,11 +803,10 @@ function launchMissile(from, dir, target, onHit, c) { const m = new T.Mesh(missi
 // ---- The block-outs: crabs and the Foreman, merged per limb and material so a crab is a few draws ----
 const loader = new T.GLTFLoader();
 const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0)).buffer;
-function mergeUnder(node, space, skip) {
-  const inv = new T.Matrix4().copy(space.matrixWorld).invert(), byMat = new Map();
-  node.traverse(o => {
-    if (!o.isMesh) return;
-    for (let p = o; p && p !== node; p = p.parent) if (skip(p)) return;
+// merge meshes into one mesh per material, their geometry expressed in the frame `inv` maps into
+function mergeMeshes(meshes, inv) {
+  const byMat = new Map();
+  meshes.forEach(o => {
     let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
     for (const k of Object.keys(g.attributes)) if (k !== "position" && k !== "normal") g.deleteAttribute(k);
     g.applyMatrix4(new T.Matrix4().multiplyMatrices(inv, o.matrixWorld));
@@ -737,26 +818,98 @@ function mergeUnder(node, space, skip) {
     const mesh = new T.Mesh(T.BufferGeometryUtils.mergeBufferGeometries(gs), mm); mesh.castShadow = mesh.receiveShadow = true; out.push(mesh); });
   return out;
 }
+function meshesUnder(node, skip) { const list = []; node.traverse(o => { if (!o.isMesh) return;
+  for (let p = o; p && p !== node; p = p.parent) if (skip(p)) return; list.push(o); }); return list; }
+function mergeUnder(node, space, skip) { return mergeMeshes(meshesUnder(node, skip), new T.Matrix4().copy(space.matrixWorld).invert()); }
+
+// The crab rig for the block-outs (owner, 2026-10-25: "use IK solver to actually move them correctly when they are
+// grounded, if they are flying have them go limp slightly"). Each leg is split at the knee by its pieces' names:
+// a coxa (yaw at the hip), the femur (hip, femur, ram, band, knee, spur) and the lower leg (tibia, hock, tarsus and
+// the foot). H is the hip, K the knee, P the foot's contact point, all in the crab's frame at rest.
+const RIG = {};
+const UPPER = /^(hip|femur|ram|band|knee|spur)/;
 function prep(id) {
   return new Promise((ok, no) => loader.parse(b64(MODELS[id].glb), "", gltf => {
     const root = gltf.scene; root.updateMatrixWorld(true);
-    const isLimb = o => /^(LEG_\d[LR]|ARM_[LR])$/.test(o.name);
-    const out = new T.Group(); out.name = id;
-    mergeUnder(root, root, isLimb).forEach(m => out.add(m));
-    root.traverse(o => { if (!isLimb(o)) return;   // each limb flat under the body, at its place in the model
-      const piv = new T.Group(); piv.name = o.name;
-      new T.Matrix4().multiplyMatrices(new T.Matrix4().copy(root.matrixWorld).invert(), o.matrixWorld).decompose(piv.position, piv.quaternion, piv.scale);
-      mergeUnder(o, o, p => p !== o && isLimb(p)).forEach(m => piv.add(m));
-      out.add(piv); });
+    const rootInv = new T.Matrix4().copy(root.matrixWorld).invert();
+    const isLeg = o => /^LEG_\d[LR]$/.test(o.name), isArm = o => /^ARM_[LR]$/.test(o.name);
+    const out = new T.Group(); out.name = id; RIG[id] = [];
+    mergeUnder(root, root, o => isLeg(o) || isArm(o)).forEach(m => out.add(m));
+    root.traverse(o => {
+      if (isArm(o)) {   // arms stay one piece each
+        const piv = new T.Group(); piv.name = o.name;
+        new T.Matrix4().multiplyMatrices(rootInv, o.matrixWorld).decompose(piv.position, piv.quaternion, piv.scale);
+        mergeUnder(o, o, p => p !== o && (isArm(p) || isLeg(p))).forEach(m => piv.add(m)); out.add(piv);
+      }
+      if (!isLeg(o)) return;
+      const inRoot = obj => new T.Vector3().setFromMatrixPosition(obj.matrixWorld).applyMatrix4(rootInv);
+      const H = inRoot(o), foot = o.children.find(c => /_foot$/.test(c.name)), P = foot ? inRoot(foot) : H.clone().setY(0);
+      const all = meshesUnder(o, p => p !== o && isLeg(p));
+      const nameOf = m => { for (let q = m; q && q !== o; q = q.parent) if (q.name && q.name !== "") return q.name; return ""; };
+      const upper = all.filter(m => UPPER.test(nameOf(m))), lower = all.filter(m => !UPPER.test(nameOf(m)));
+      const kneeMesh = all.find(m => /^knee/.test(nameOf(m)));
+      const K = kneeMesh ? new T.Box3().setFromObject(kneeMesh).getCenter(new T.Vector3()).applyMatrix4(rootInv) : H.clone().lerp(P, 0.5).setY(H.y * 1.3);
+      const at = v => new T.Matrix4().makeTranslation(v.x, v.y, v.z).premultiply(root.matrixWorld).invert();
+      const coxa = new T.Group(); coxa.name = o.name + "_coxa"; coxa.position.copy(H);
+      const femur = new T.Group(); femur.name = o.name + "_femur"; coxa.add(femur);
+      const low = new T.Group(); low.name = o.name + "_lower"; low.position.copy(K).sub(H); femur.add(low);
+      mergeMeshes(upper, at(H)).forEach(m => femur.add(m)); mergeMeshes(lower, at(K)).forEach(m => low.add(m));
+      out.add(coxa);
+      const F0 = K.clone().sub(H), L0 = P.clone().sub(K);
+      RIG[id].push({ name: o.name, side: /L$/.test(o.name) ? 0 : 1, pair: +o.name[4], H, K, P, F0, L0, a: F0.length(), b: L0.length(), F0n: F0.clone().normalize(), L0n: L0.clone().normalize() });
+    });
     ok(out);
   }, no));
 }
 const templates = {};
-function cloneCrab(id) { const c = templates[id].clone();
-  c.userData.legs = c.children.filter(o => /^LEG_/.test(o.name)).map(o => ({ o, rest: o.rotation.y, ph: /R$/.test(o.name) ? Math.PI : 0, pair: +o.name[4] }));
-  c.traverse(o => { if (o.isMesh) o.userData.mat0 = o.material; }); c.userData.id = id; return c; }
-function scuttle(c, phase, amount) {   // a block-out's legs swing in alternating pairs as it moves (the gait itself is crab-enemies' job)
-  c.userData.legs.forEach(l => { l.o.rotation.y = l.rest + amount * 0.22 * Math.sin(phase + l.ph + l.pair * Math.PI); }); }
+function cloneCrab(id) {
+  const c = templates[id].clone();
+  c.userData.id = id;
+  c.userData.legs = RIG[id].map(r => ({ r, coxa: c.getObjectByName(r.name + "_coxa"), femur: c.getObjectByName(r.name + "_femur"), lower: c.getObjectByName(r.name + "_lower"),
+    foot: null, from: new T.Vector3(), to: new T.Vector3(), swing: -1, group: (r.pair + r.side) % 2 }));
+  c.traverse(o => { if (o.isMesh) o.userData.mat0 = o.material; });
+  return c;
+}
+// two-bone IK: the coxa yaws the leg's plane onto the target, the femur and lower leg bend in it, the knee kept up
+const _q = new T.Quaternion();
+function legIK(L, T_) {
+  const r = L.r, d = T_.clone().sub(r.H);
+  const hr = new T.Vector3(r.P.x - r.H.x, 0, r.P.z - r.H.z).normalize(), th = new T.Vector3(d.x, 0, d.z);
+  const yaw = th.lengthSq() > 1e-6 ? Math.atan2(hr.z * th.x - hr.x * th.z, hr.x * th.x + hr.z * th.z) : 0;
+  L.coxa.rotation.set(0, yaw, 0);
+  const tc = d.applyAxisAngle(UP, -yaw), len = Math.max(Math.abs(r.a - r.b) + 0.05, Math.min(r.a + r.b - 0.05, tc.length()));
+  const dir = tc.normalize();
+  let n = new T.Vector3().crossVectors(dir, UP); if (n.lengthSq() < 1e-6) n.set(1, 0, 0); n.normalize();
+  const alpha = Math.acos(Math.max(-1, Math.min(1, (r.a * r.a + len * len - r.b * r.b) / (2 * r.a * len))));
+  const k1 = dir.clone().applyAxisAngle(n, alpha), k2 = dir.clone().applyAxisAngle(n, -alpha), kd = k1.y > k2.y ? k1 : k2;
+  L.femur.quaternion.setFromUnitVectors(r.F0n, kd);
+  const lowerDir = dir.clone().multiplyScalar(len).sub(kd.clone().multiplyScalar(r.a)).normalize().applyQuaternion(_q.copy(L.femur.quaternion).invert());
+  L.lower.quaternion.setFromUnitVectors(r.L0n, lowerDir);
+}
+// grounded: each foot stays planted where it touched (in the crab's parent's frame) until the body has moved it more
+// than a quarter of the leg's reach from where it wants to be; then it swings there in 0.3 s along a low arc, one
+// group of legs at a time (tripods for six legs, diagonal pairs for four)
+function gait(c, groundY) {
+  c.updateMatrix(); const inv = new T.Matrix4().copy(c.matrix).invert(), legs = c.userData.legs;
+  const swinging = legs.some(L => L.swing >= 0) ? legs.find(L => L.swing >= 0).group : -1;
+  legs.forEach(L => {
+    const want = L.r.P.clone().applyMatrix4(c.matrix); want.y = groundY;
+    if (!L.foot) L.foot = want.clone();
+    if (L.swing < 0 && L.foot.distanceTo(want) > 0.25 * (L.r.a + L.r.b) && (swinging < 0 || swinging === L.group)) {
+      L.swing = 0; L.from.copy(L.foot); L.to.copy(want).addScaledVector(want.clone().sub(L.foot), 0.4); L.to.y = groundY; }
+    if (L.swing >= 0) { L.swing = Math.min(1, L.swing + DT / 0.3); const u = ease(L.swing);
+      L.foot.lerpVectors(L.from, L.to, u); L.foot.y = groundY + Math.sin(Math.PI * L.swing) * 0.16 * (L.r.a + L.r.b);
+      if (L.swing >= 1) L.swing = -1; }
+    legIK(L, L.foot.clone().applyMatrix4(inv));
+  });
+}
+// in the air: the legs hang a little limp, drooping from rest and swaying
+function limp(c, t) {
+  c.userData.legs.forEach((L, i) => { L.foot = null; L.swing = -1; const r = L.r, s = r.a + r.b;
+    legIK(L, r.H.clone().lerp(r.P, 0.9).add(new T.Vector3(Math.sin(t * 1.3 + i) * 0.05 * s, -0.12 * s, Math.cos(t * 1.1 + i * 2) * 0.05 * s))); });
+}
+// at rest, standing where it stands (riding a lift)
+function stand(c) { c.userData.legs.forEach(L => { L.foot = null; L.swing = -1; legIK(L, L.r.P.clone()); }); }
 function scorch(obj, on) { obj.traverse(o => { if (!o.isMesh) return;
   if (o.material.isMeshBasicMaterial) o.visible = !on; else o.material = on ? M.scorch : o.userData.mat0; }); }
 function pilotFigure() { const p = new T.Group(), suit = std(0x2e5ea8, 0.7, 0), skin = std(0xd8b49a, 0.8, 0);
@@ -858,14 +1011,23 @@ function spread(p, dist, deg) { const e = Math.tan(deg * DEG) * dist * aimError(
 
 // turrets: slew onto the target, fire when on it, in range and in sight (design section 4)
 const RANGE = { flak: 1800, beam: 900, gun: 600 };
-function turretsUpdate(tw) {
-  const tl = tw ? F.worldToLocal(tw.clone()) : null;
+// every mech the fortress fights: yours and the allies, each { pos() aim point, you, hit(kind, amount) }
+function nearestTarget(list, fromLocal, range, sight) {
+  let best = null, bd = range;
+  list.forEach(t => { const tl = F.worldToLocal(t.pos().clone()), d = tl.distanceTo(fromLocal);
+    if (d < bd && (!sight || !blocked(fromLocal, tl))) { bd = d; best = t; } });
+  return best;
+}
+function turretsUpdate(list) {
   TURRETS.forEach((tu, k) => {
     const p = tu.part;
     if (!p.alive || sim.crashed) { if (tu.ray) tu.ray.visible = false; return; }
+    const from = tu.base.position.clone(); from.y += tu.yaw.position.y;
+    // a turret keeps its target while it can, else takes the nearest it can see in range
+    if (!tu.tgt || !list.includes(tu.tgt) || F.worldToLocal(tu.tgt.pos().clone()).distanceTo(from) > RANGE[tu.kind] || blocked(from, F.worldToLocal(tu.tgt.pos().clone()))) tu.tgt = nearestTarget(list, from, RANGE[tu.kind], true);
+    const tgt = tu.tgt, tw = tgt ? tgt.pos().clone() : null, tl = tw ? F.worldToLocal(tw.clone()) : null;
     let want = null, dist = 1e9;
-    if (tl) { const from = tu.base.position.clone(); from.y += tu.yaw.position.y; const d = tl.clone().sub(from); dist = d.length();
-      if (dist < RANGE[tu.kind] && !blocked(from, tl)) want = { yaw: Math.atan2(d.x, d.z), pitch: -Math.atan2(d.y, Math.hypot(d.x, d.z)) }; }
+    if (tl) { const d = tl.clone().sub(from); dist = d.length(); want = { yaw: Math.atan2(d.x, d.z), pitch: -Math.atan2(d.y, Math.hypot(d.x, d.z)) }; }
     if (!want) want = { yaw: Math.sin(clock * 0.2 + k * 1.7) * 1.2 + k, pitch: tu.kind === "beam" ? 0.4 : -0.4 - 0.3 * Math.sin(clock * 0.25 + k) };
     if (tu.kind !== "beam") want.pitch = Math.max(-1.4, Math.min(0.2, want.pitch));
     const slew = 1.2 * DT, dy = Math.atan2(Math.sin(want.yaw - tu.yaw.rotation.y), Math.cos(want.yaw - tu.yaw.rotation.y));
@@ -876,12 +1038,12 @@ function turretsUpdate(tw) {
     if (tu.kind === "flak" && onIt && tu.cool <= 0) {   // 2 rounds a second, bursting within 10 m of where it aims
       tu.cool = 0.5; const at = spread(tw, dist, 1.5);
       fire(muzzle, at, 900, C.tracer, 2, q => { FIRE.emit(q, null, 0.2, 8, 22, C.flash); SMOKE.emit(q, new T.Vector3(0, 2, 0), 3.5, 10, 26, C.smoke, 0.5);
-        if (playerAlive() && q.distanceTo(tw) < 25) S.hits.flak++; });
+        if (q.distanceTo(tgt.pos()) < 25) tgt.hit("flak", 1); });
       FIRE.emit(muzzle, null, 0.08, 3, 6, C.flash);
     }
     if (tu.kind === "gun") {   // bursts of 20 at 20 rounds a second, a burst every 3 s
       if (onIt && tu.burst <= 0 && tu.cool <= 0) { tu.burst = 20; tu.cool = 3; }
-      if (tu.burst > 0 && onIt) { for (let r = 0; r < 2 && tu.burst > 0; r++, tu.burst--) fire(muzzle, spread(tw, dist, 0.8), 1000, C.tracer, 1.2, q => { FIRE.emit(q, null, 0.1, 1.5, 3, C.spark); if (q.distanceTo(tw) < 14) S.hits.gun++; }); }
+      if (tu.burst > 0 && onIt) { for (let r = 0; r < 2 && tu.burst > 0; r++, tu.burst--) fire(muzzle, spread(tw, dist, 0.8), 1000, C.tracer, 1.2, q => { FIRE.emit(q, null, 0.1, 1.5, 3, C.spark); if (q.distanceTo(tgt.pos()) < 14) tgt.hit("gun", 1); }); }
       else if (!onIt) tu.burst = 0;
     }
     if (tu.kind === "beam") {   // 1.5 s charge, 3 s beam, 6 s between
@@ -894,17 +1056,17 @@ function turretsUpdate(tw) {
       tu.ray.visible = tu.state === "fire";
       // from your cockpit the beam strikes your mech's armour in front of you, not your eye
       if (tu.ray.visible) { let end = tw.clone().add(new T.Vector3(Math.sin(clock * 9) * 3, Math.cos(clock * 7) * 3, 0));
-        if (view === "fight") end.addScaledVector(muzzle.clone().sub(end).normalize(), 45);
+        if (view === "fight" && tgt.you) end.addScaledVector(muzzle.clone().sub(end).normalize(), 45);
         const d = end.clone().sub(muzzle);
         tu.ray.position.copy(muzzle).addScaledVector(d, 0.5); tu.ray.quaternion.setFromUnitVectors(UP, d.clone().normalize()); tu.ray.scale.set(1, d.length(), 1);
-        FIRE.emit(end, new T.Vector3((R() - 0.5) * 20, R() * 20, (R() - 0.5) * 20), 0.3, 3, 1, C.red); S.hits.beam += DT; }
+        FIRE.emit(end, new T.Vector3((R() - 0.5) * 20, R() * 20, (R() - 0.5) * 20), 0.3, 3, 1, C.red); tgt.hit("beam", DT); }
     } else if (tu.ray) tu.ray.visible = false;
   });
-  VLS.forEach((v, i) => { if (!v.part.alive || sim.crashed || !tw) return; v.cool -= DT;
-    const from = v.b.position.clone(); from.y += 5; const dist = F.localToWorld(from.clone()).distanceTo(tw);
-    if (v.cool <= 0 && dist < 2500 && v.cells > 0) { v.cool = 5; v.cells--; const p = F.localToWorld(from);
+  VLS.forEach((v, i) => { if (!v.part.alive || sim.crashed) return; v.cool -= DT;
+    const from = v.b.position.clone(); from.y += 5; const tgt = nearestTarget(list, from, 2500, false);
+    if (tgt && v.cool <= 0 && v.cells > 0) { v.cool = 5; v.cells--; const p = F.localToWorld(from);
       FIRE.emit(p, null, 0.4, 6, 16, C.flash); for (let k = 0; k < 6; k++) SMOKE.emit(p, new T.Vector3((R() - 0.5) * 10, 5, (R() - 0.5) * 10), 3, 8, 24, C.grey, 0.5);
-      launchMissile(p, new T.Vector3(0, 1, 0).applyQuaternion(F.quaternion), targetNow, () => { S.hits.missile++; }, C.red); } });
+      launchMissile(p, new T.Vector3(0, 1, 0).applyQuaternion(F.quaternion), () => tgt.pos(), () => tgt.hit("missile", 1), C.red); } });
 }
 function shotsUpdate() {
   for (let i = shots.length - 1; i >= 0; i--) { const s = shots[i]; s.t += DT; if (s.t < 0) continue; s.p.addScaledVector(s.v, DT);
@@ -931,7 +1093,7 @@ function launch() {
   return true;
 }
 function capPoint(f) { const k = f.slot % 8; return { R: 700 + (k % 4) * 120, A: F.position.y - 40 + (k % 3) * 80 }; }
-function fightersUpdate(tw) {
+function fightersUpdate(list) {
   const live = S.fighters.filter(f => f.state !== "gone" && f.state !== "down").length;
   if (!sim.crashed && !liftOf(sim.alive).falls && clock >= S.nextLaunch) { S.nextLaunch = clock + 20; if (live < 8) launch(); }
   S.fighters.forEach(f => {
@@ -953,7 +1115,10 @@ function fightersUpdate(tw) {
       f.speed = Math.min(200, f.speed + 20 * DT);
       let want;
       f.modeT += DT;
-      if (f.mode === "cap" && tw && f.state === "fly" && f.modeT > 14 + (f.slot % 4) * 4) { f.mode = "attack"; f.modeT = 0; }
+      // a cannon run on one of the mechs, picked in turn; the target's aim point is `tw` while it lasts
+      if (f.mode === "cap" && list.length && f.state === "fly" && f.modeT > 14 + (f.slot % 4) * 4) { f.mode = "attack"; f.modeT = 0; f.tgt = list[(f.slot + S.runs++) % list.length]; }
+      if (f.tgt && !list.includes(f.tgt)) f.tgt = null;
+      const tw = f.mode === "attack" && f.tgt ? f.tgt.pos().clone() : null, tgt = f.tgt;
       if (f.mode === "attack" && (!tw || f.modeT > 9 || f.p.distanceTo(tw) < 200)) { f.mode = "extend"; f.modeT = 0; }
       if (f.mode === "extend" && f.modeT > 5) { f.mode = "cap"; f.modeT = 0; }
       if (f.state === "out") want = f.d.clone();
@@ -968,7 +1133,7 @@ function fightersUpdate(tw) {
       // cannon runs: salvos of 15 at 10 rounds a second, inside 1 200 m and 6 deg
       f.cool -= DT;
       if (f.mode === "attack" && tw && f.p.distanceTo(tw) < 1200 && f.d.angleTo(tw.clone().sub(f.p)) < 6 * DEG && f.cool <= 0) { f.salvo = 15; f.cool = 2; }
-      if (f.salvo > 0 && tw) { f.salvo -= 3; const nose = f.p.clone().addScaledVector(f.d, 9); for (let r = 0; r < 3; r++) fire(nose, spread(tw, f.p.distanceTo(tw), 0.7), 1000, C.tracer, 1.2, q => { if (q.distanceTo(tw) < 14) S.hits.fighter++; }); }
+      if (f.salvo > 0 && tw && tgt) { f.salvo -= 3; const nose = f.p.clone().addScaledVector(f.d, 9); for (let r = 0; r < 3; r++) fire(nose, spread(tw, f.p.distanceTo(tw), 0.7), 1000, C.tracer, 1.2, q => { if (q.distanceTo(tgt.pos()) < 14) tgt.hit("fighter", 1); }); }
       FIRE.emit(f.p.clone().addScaledVector(f.d, -8), f.d.clone().multiplyScalar(-30), 0.2, 2.2, 0.5, C.green);
     }
     if (f.state === "gone") return;
@@ -985,28 +1150,32 @@ function startFighters() {   // four on patrol when the fight opens
 }
 
 // crab mechs: the deck guard, replacements up the lifts, drops from the bays (design section 4)
-const GUARD_START = [["shrike", 0, 49, 40, 0.0, 22, 14], ["shrike", 0, 49, -105, 0.0, 12, 17], ["mite", 60, 42.6, 60, Math.PI / 2, 40, 11],
-  ["mite", -60, 42.6, -40, Math.PI / 2, 50, 13], ["mite", -60, 42.6, 85, Math.PI / 2, 30, 9], ["mite", 60, 42.6, -80, Math.PI / 2, 30, 12]];
+// [crab, home x, y, z, beat direction, half-beat m, seconds a beat]: at most about 6 m/s along it
+const GUARD_START = [["shrike", 0, 49, 40, 0.0, 18, 22], ["shrike", 0, 49, -105, 0.0, 12, 16], ["mite", 60, 42.6, 60, Math.PI / 2, 30, 32],
+  ["mite", -60, 42.6, -40, Math.PI / 2, 36, 38], ["mite", -60, 42.6, 85, Math.PI / 2, 24, 26], ["mite", 60, 42.6, -80, Math.PI / 2, 24, 28]];
 function addGuard(id, home, dir, span, period) {
   const c = cloneCrab(id); F.add(c); c.position.copy(home);
   const g = { c, id, home: home.clone(), dir, span, period, ph: R() * TAU, cool: 1 + R() * 2, wreckT: 0 };
   g.part = part("guard" + (++S.nGuard), "guard", c, { hp: CRAB_HP[id], name: MODELS[id].name + " (deck guard)", fire: new T.Vector3(0, MODELS[id].height_m * 0.6, 0), up: MODELS[id].height_m + 4 });
   S.guards.push(g); return g;
 }
-function guardsUpdate(tw) {
-  const pl = S.player === "deck" && player && tw ? F.worldToLocal(tw.clone()) : null;
+// the guard walks its beat, turns on the nearest mech within 700 m (any it can see from the deck, yours or an ally),
+// and fires; with no one near it faces out over the side, where an attack comes from
+function guardsUpdate(list) {
   S.guards.forEach((g, k) => {
     if (!g.part.alive) { g.wreckT += DT; if (g.wreckT > 30) { g.c.position.y -= 2 * DT; } return; }
     g.ph += DT * TAU / g.period;
-    const off = Math.sin(g.ph) * g.span, moving = Math.abs(Math.cos(g.ph));
-    g.c.position.set(g.home.x + off * Math.cos(g.dir), g.home.y, g.home.z + off * Math.sin(g.dir));
-    if (pl) {   // you are on the deck: it turns on you and fires
-      const d = pl.clone().sub(g.c.position); g.c.rotation.y = Math.atan2(d.x, d.z);
-      g.cool -= DT;
-      if (g.cool <= 0 && d.length() < 450) { g.cool = 2.5 + R(); const from = F.localToWorld(g.c.position.clone().add(new T.Vector3(0, MODELS[g.id].height_m * 0.6, 0)));
-        for (let r = 0; r < 6; r++) fire(from, spread(tw, d.length(), 1.2), 900, [0.6, 1, 0.3], 1.2, q => { FIRE.emit(q, null, 0.1, 1.5, 3, C.spark); if (q.distanceTo(tw) < 14) S.hits.crab++; }); }
-    } else g.c.rotation.y = g.home.x > 0 ? -Math.PI / 2 : g.home.x < 0 ? Math.PI / 2 : (g.home.z > 0 ? Math.PI : 0);
-    scuttle(g.c, clock * 4 + k, moving);
+    g.c.position.set(g.home.x + Math.sin(g.ph) * g.span * Math.cos(g.dir), g.home.y, g.home.z + Math.sin(g.ph) * g.span * Math.sin(g.dir));
+    const eye = g.c.position.clone().add(new T.Vector3(0, MODELS[g.id].height_m * 0.6, 0));
+    const tgt = nearestTarget(list, eye, 700, true);
+    let face = g.home.x > 0 ? Math.PI / 2 : g.home.x < 0 ? -Math.PI / 2 : (g.home.z > 0 ? 0 : Math.PI);   // outward
+    if (tgt) { const d = F.worldToLocal(tgt.pos().clone()).sub(g.c.position); face = Math.atan2(d.x, d.z); }
+    const turn = Math.atan2(Math.sin(face - g.c.rotation.y), Math.cos(face - g.c.rotation.y));
+    g.c.rotation.y += Math.max(-1.2 * DT, Math.min(1.2 * DT, turn));    // 70 deg/s
+    g.cool -= DT;
+    if (tgt && Math.abs(turn) < 0.2 && g.cool <= 0) { g.cool = 2.5 + R(); const from = F.localToWorld(eye.clone()), tw = tgt.pos().clone();
+      for (let r = 0; r < 6; r++) fire(from, spread(tw, from.distanceTo(tw), 1.2), 900, [0.6, 1, 0.3], 1.2, q => { FIRE.emit(q, null, 0.1, 1.5, 3, C.spark); if (q.distanceTo(tgt.pos()) < 14) tgt.hit("crab", 1); }); }
+    gait(g.c, g.home.y);
   });
   for (let i = S.guards.length - 1; i >= 0; i--) if (S.guards[i].c.position.y < S.guards[i].home.y - 30) { const g = S.guards[i]; F.remove(g.c); parts.splice(parts.indexOf(g.part), 1); S.guards.splice(i, 1); }
   // a lift brings up a Mite every 60 s while the guard is short (8 s: the plate sinks, the Mite rises through the hatch)
@@ -1017,10 +1186,10 @@ function guardsUpdate(tw) {
   LIFTS.forEach(l => { if (l.busy < 0) return; l.busy += DT; const t = l.busy;
     const y = t < 2 ? -34 * ease(t / 2) : t < 6 ? -34 + 34 * ease((t - 2) / 4) : 0;
     l.plate.position.y = y; l.hatch.visible = t < 6.5; if (l.mite) l.mite.position.y = 49 + y + (t < 2 ? -34 : 0) * 0;
-    if (l.mite) { l.mite.position.y = t < 2 ? 49 - 34 : 49 + y; scuttle(l.mite, clock * 3, 0.4); }
+    if (l.mite) { l.mite.position.y = t < 2 ? 49 - 34 : 49 + y; stand(l.mite); }
     if (!l.part.alive) { if (l.mite) { F.remove(l.mite); l.mite = null; } l.busy = -1; l.plate.position.y = 0; l.hatch.visible = false; return; }
     if (t >= 8) { const home = new T.Vector3(l.b.position.x * 0.45, 49, l.b.position.z + 30); F.remove(l.mite);
-      const g = addGuard("mite", home, 0, 10, 10); g.c.position.copy(home); l.mite = null; l.busy = -1; l.plate.position.y = 0; l.hatch.visible = false; } });
+      const g = addGuard("mite", home, 0, 10, 14); g.c.position.copy(home); l.mite = null; l.busy = -1; l.plate.position.y = 0; l.hatch.visible = false; } });
 }
 function dropsUpdate() {
   const falling = liftOf(sim.alive).falls;
@@ -1028,7 +1197,7 @@ function dropsUpdate() {
     const live = BAYS.filter(b => b.part.alive);
     if (live.length) { const b = live[S.bayTurn++ % live.length]; b.openUntil = clock + 5; S.dropMag -= 2;
       ["mite", "scuttler"].forEach((id, k) => { const c = cloneCrab(id), ch = chute(); scene.add(c, ch); ch.visible = false;
-        const d = { c, ch, id, t: -1.5, from: null, dx: k ? 8 : -8, bay: b, v: 0, y: 0, landed: -1 };
+        const d = { c, ch, id, t: -1.5, from: null, dx: k ? 14 : -14, bay: b, v: 0, y: 0, landed: -1 };
         d.part = part("drop" + (++S.nDrop), "drop", c, { hp: CRAB_HP[id], name: MODELS[id].name + " on its chutes", fire: new T.Vector3(0, 8, 0), up: 60 }); S.drops.push(d); }); } }
   BAYS.forEach(b => { b.open = lerp(b.open, clock < b.openUntil && b.part.alive ? 1 : 0, 0.08); b.doors.forEach((h, s) => { h.rotation.z = (s ? 1 : -1) * b.open * 1.4; }); });
   S.drops.forEach((d, k) => {
@@ -1043,6 +1212,7 @@ function dropsUpdate() {
     }
     const sw = alive && d.t > 2 && d.landed < 0 ? 0.12 * Math.sin(d.t * 1.3 + k) : 0;
     d.c.position.set(d.from.x + Math.max(0, d.t - 2) * 0.8, d.y, d.from.z); d.c.rotation.z = sw;
+    if (d.landed < 0) limp(d.c, d.t + k * 1.7); else if (alive) gait(d.c, 0);   // limp under the chutes, standing once down
     d.ch.visible = alive && d.t > 2 && d.landed < 0; d.ch.position.copy(d.c.position); d.ch.rotation.z = sw; d.ch.scale.setScalar(Math.max(0.01, Math.min(1, (d.t - 2) / 0.6)));
     if (!alive && d.landed < 0) SMOKE.emit(d.c.position.clone().add(new T.Vector3(0, 8, 0)), null, 3, 5, 18, C.smoke, 0, 2);
   });
@@ -1168,6 +1338,27 @@ function burnUpdate() {
     SMOKE.emit(at, new T.Vector3((R() - 0.5) * 3, 6, (R() - 0.5) * 3), 5, 6, 34, C.smoke, 0.1, 2); });
 }
 
+// two friendly mechs fly round the fortress on their jets and draw its fire; their own fire at it is shown, not
+// counted, so bringing it down stays yours
+const ALLY_PATHS = [{ id: "stevedore", R: 820, h: 40, w: 0.07, ph: 0.6, name: "Stevedore (ally)" }, { id: "ironhorse", R: 660, h: -170, w: -0.085, ph: 3.4, name: "Ironhorse (ally)" }];
+const ALLIES = [];
+function alliesUpdate() {
+  ALLIES.forEach((a, i) => { const P = a.path, ang = clock * P.w + P.ph;
+    const pos = new T.Vector3(F.position.x + Math.cos(ang) * P.R, (S.stationY || ALT) + P.h + 40 * Math.sin(clock * 0.2 + i * 2), F.position.z + Math.sin(ang) * P.R * 0.85);
+    const ahead = new T.Vector3(F.position.x + Math.cos(ang + 0.05 * Math.sign(P.w)) * P.R, pos.y, F.position.z + Math.sin(ang + 0.05 * Math.sign(P.w)) * P.R * 0.85);
+    a.obj.position.copy(pos); a.obj.lookAt(ahead); a.obj.rotateX(0.3);
+    if (R() < 0.8) [-1, 1].forEach(s => FIRE.emit(a.obj.localToWorld(new T.Vector3(2.2 * s, 6, -4)), new T.Vector3(0, -40, 0).applyQuaternion(a.obj.quaternion), 0.35, 4, 9, [0.6, 0.85, 1, 0.9]));
+    a.cool -= DT;
+    const live = parts.filter(p => p.alive && ["lift", "flak", "beam", "gun", "vls", "cat", "bay", "drive"].includes(p.kind) && p.obj.parent);
+    if (a.cool <= 0 && live.length && !sim.crashed) { a.cool = 2.2 + R(); const p = live[Math.floor(R() * live.length)], at = p.obj.localToWorld(p.fire.clone()), from = a.obj.localToWorld(new T.Vector3(0, 16, 6));
+      if (from.distanceTo(at) < 1500) for (let r = 0; r < 6; r++) fire(from, at.clone().add(new T.Vector3((R() - 0.5) * 8, (R() - 0.5) * 8, (R() - 0.5) * 8)), 1100, [0.7, 0.85, 1], 1.4, q => { FIRE.emit(q, null, 0.12, 2, 5, C.spark); }); } });
+}
+const YOU = { you: true, pos: () => targetNow() || target, hit: (k, n) => { S.hits[k] += n; } };
+function targetList() {
+  const list = []; if (targetNow()) list.push(YOU);
+  ALLIES.forEach(a => list.push(a.target)); return list;
+}
+
 function update() {
   clock += DT;
   stepFall();
@@ -1176,8 +1367,9 @@ function update() {
   if (sim.opening >= 0 && !sim.deployed) HULL.forEach(h => h.ends.forEach(e => { if (R() < 0.5) SMOKE.emit(h.g.localToWorld(new T.Vector3((R() - 0.5) * 20, e.y + e.up * 3, (R() - 0.5) * 20)), new T.Vector3((R() - 0.5) * 8, e.up * 14, (R() - 0.5) * 8), 3, 8, 30, C.steam, 0.4); }));
   F.position.y = sim.y; F.rotation.z = sim.roll * DEG; F.updateMatrixWorld(true);
   playerUpdate();
-  const tw = targetNow();
-  fightersUpdate(tw); guardsUpdate(tw); dropsUpdate(); turretsUpdate(tw); shotsUpdate(); burnUpdate(); legsUpdate();
+  alliesUpdate();
+  const list = targetList();
+  fightersUpdate(list); guardsUpdate(list); dropsUpdate(); turretsUpdate(list); shotsUpdate(); burnUpdate(); legsUpdate();
   SMOKE.step(DT); FIRE.step(DT);
   if (view === "climb") climbT += DT;
 }
@@ -1315,6 +1507,7 @@ function readouts() {
   set("ob-bridge", parts.find(p => p.kind === "bridge").alive ? "aim error 1.5 deg" : "lost: aim error doubled");
   const h = S.hits;
   set("hits", S.player === "off" ? "your mech is away" : `flak ${h.flak}, deck guns ${h.gun}, beams ${h.beam.toFixed(1)} s, missiles ${h.missile}, fighters ${h.fighter}, crabs ${h.crab}`);
+  set("allyhits", `${Math.round(S.allyHits)} hits on the two allies`);
 }
 const tags = document.getElementById("tags");
 function drawTags() {
@@ -1326,6 +1519,7 @@ function drawTags() {
     const fl = S.fighters.find(f => f.state !== "gone" && f.state !== "down"); if (fl && view !== "deck" && view !== "pylon") list.push({ obj: fl.obj, text: "Fighter", up: 6 });
     const dr = S.drops.find(d => d.part.alive && d.t > 2 && d.landed < 0); if (dr && view !== "deck") list.push({ obj: dr.c, text: "Crab mechs on chutes", up: 64 });
     if (player && player.visible) list.push({ obj: player, text: "Your mech (Foreman, 23.6 m)", up: 30, you: true });
+    if (view !== "deck" && view !== "pylon") ALLIES.forEach(a => list.push({ obj: a.obj, text: a.path.name, up: 30, you: true }));
     if (pilot && pilot.visible && view === "deck") list.push({ obj: pilot, text: "Pilot (1.8 m)", up: 3 });
   }
   if (showLabels && selected && view !== "climb" && view !== "fight" && !list.some(l => l.obj === selected.obj) && selected.obj.visible !== false) list.push({ obj: selected.obj, text: selected.name, dead: !selected.alive, up: selected.up || 10 });
@@ -1421,7 +1615,8 @@ function resetAll() {
   TURRETS.forEach(t => { t.cool = 0; t.burst = 0; t.state = "idle"; t.st = 0; if (t.ray) t.ray.visible = false; });
   Object.assign(sim, { alive: Array(8).fill(true), hull: Array(6).fill(true), deployed: false, opening: -1, doors: 0, y: ALT, v: 0, roll: 0, crashed: false });
   Object.assign(S, { fighters: [], guards: [], drops: [], hangar: 20, dropMag: 12, liftHangar: 8, nextLaunch: 4, catTurn: 0, nextDrop: 10, bayTurn: 0, nextLift: 6, liftTurn: 0,
-    hits: { flak: 0, gun: 0, beam: 0, missile: 0, fighter: 0, crab: 0 }, nGuard: 0, nDrop: 0, nFighter: 0, stationY: ALT });
+    hits: { flak: 0, gun: 0, beam: 0, missile: 0, fighter: 0, crab: 0 }, nGuard: 0, nDrop: 0, nFighter: 0, stationY: ALT, runs: 0, allyHits: 0 });
+  ALLIES.forEach((a, i) => { a.cool = 1 + i; });
   shots.length = 0; MISSILES.length = 0; SMOKE.clear(); FIRE.clear();
   HULL.forEach(h => h.ends.forEach(e => e.doors.forEach(d => { d.position.z = 0; })));
   R = rng(1234); clock = 0; acc = 0;
@@ -1433,8 +1628,10 @@ function resetAll() {
   reloadUntil = 0; POPS.forEach(q => q.el.remove()); POPS.length = 0;
   refresh(); select(THR[5].part);
 }
-Promise.all(Object.keys(MODELS).map(id => prep(id).then(o => { templates[id] = o; }))).then(() => {
+Promise.all([texReady, ...Object.keys(MODELS).map(id => prep(id).then(o => { templates[id] = o; }))]).then(() => {
   player = templates.foreman.clone(); scene.add(player);
+  ALLY_PATHS.forEach(P => { const obj = templates[P.id].clone(); scene.add(obj);
+    const a = { path: P, obj, cool: 1 }; a.target = { you: false, pos: () => obj.position.clone().add(new T.Vector3(0, 13, 0)), hit: (k, n) => { S.allyHits += n; } }; ALLIES.push(a); });
   [-1, 1].forEach(s => { const j = add(player, new T.ConeGeometry(1.6, 9, 12, 1, true), plumeMat(0xbfe4ff, 0.5), 2.2 * s, 7, -4.5, false); j.rotation.x = Math.PI; });
   pilot = pilotFigure(); pilot.position.set(-2, 49, -46); F.add(pilot);
   const sc = document.getElementById("scale");

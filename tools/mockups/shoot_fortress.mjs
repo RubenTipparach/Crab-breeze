@@ -33,6 +33,12 @@ const ALL = [
   ["leg_falling", `M.run(3); M.destroy("R2"); M.run(4); M.setView("orbit"); M.labels(false); M.orbitFrom([-620, -200, 420], [-200, -220, 60]);`],
   ["leg_down", `M.run(3); M.destroy("R2"); M.run(10.9); M.setView("orbit"); M.labels(false); M.orbitFrom([-560, -380, 380], [-220, -560, 60]);`],
   ["leg_wreck", `M.run(3); M.destroy("R2"); M.run(16); M.setView("orbit"); M.labels(false); M.orbitFrom([-520, -420, 360], [-220, -590, 60]);`],
+  ["guards_walk", `M.setPlayer("air"); M.run(14); M.setView("orbit"); M.labels(false); M.orbitFrom([150, 75, 0], [62, 46, 50]);`],
+  ["ik1", `M.setPlayer("off"); M.run(20); M.setView("orbit"); M.labels(false); M.orbitFrom([105, 58, 92], [60, 46, 70]);`],
+  ["ik2", `M.setPlayer("off"); M.run(20.3); M.setView("orbit"); M.labels(false); M.orbitFrom([105, 58, 92], [60, 46, 70]);`],
+  ["ik3", `M.setPlayer("off"); M.run(20.6); M.setView("orbit"); M.labels(false); M.orbitFrom([105, 58, 92], [60, 46, 70]);`],
+  ["drop_limp", `M.run(17.5); M.setView("orbit"); M.labels(false); M.orbitFrom([70, -95, 95], [-8, -112, 42]);`],
+  ["allies", `M.setPlayer("off"); M.run(26); M.setView("orbit"); M.orbitFrom([-900, 160, 700], [0, -40, 0]);`],
   ["shell", `M.run(8); M.setView("orbit"); M.labels(false); M.orbitFrom([-300, 170, 330], [-40, 10, 60]);`],
   ["climb_high", `M.climb(10.5);`],
 ];

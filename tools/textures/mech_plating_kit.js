@@ -115,11 +115,11 @@ let TEX = null;
 
 // Crab Breeze: a normal map from a bump canvas (Sobel), strength in the kit's bumpScale spirit.
 function normalOf(c, strength) {
-  const S = c.width, g = c.getContext("2d"), src = g.getImageData(0, 0, S, S).data;
-  const out = document.createElement("canvas"); out.width = out.height = S;
-  const o = out.getContext("2d"), im = o.createImageData(S, S), d = im.data;
-  const h = (x, y) => src[(((y + S) % S) * S + ((x + S) % S)) * 4] / 255;
-  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+  const S = c.width, V = c.height, g = c.getContext("2d"), src = g.getImageData(0, 0, S, V).data;
+  const out = document.createElement("canvas"); out.width = S; out.height = V;
+  const o = out.getContext("2d"), im = o.createImageData(S, V), d = im.data;
+  const h = (x, y) => src[(((y + V) % V) * S + ((x + S) % S)) * 4] / 255;
+  for (let y = 0; y < V; y++) for (let x = 0; x < S; x++) {
     const dx = (h(x + 1, y - 1) + 2 * h(x + 1, y) + h(x + 1, y + 1)) - (h(x - 1, y - 1) + 2 * h(x - 1, y) + h(x - 1, y + 1));
     const dy = (h(x - 1, y + 1) + 2 * h(x, y + 1) + h(x + 1, y + 1)) - (h(x - 1, y - 1) + 2 * h(x, y - 1) + h(x + 1, y - 1));
     let nx = -dx * strength, ny = dy * strength, nz = 1; const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
@@ -133,15 +133,15 @@ function normalOf(c, strength) {
 // than its base, smoother where it is worn through; metal is the bare steel showing through the paint.
 // metal0 is the plate's own metalness (paint 0, knurled steel high).
 function ormOf(colC, bmpC, o) {
-  const S = colC.width;
-  const blur = document.createElement("canvas"); blur.width = blur.height = S;
+  const S = colC.width, V = colC.height;
+  const blur = document.createElement("canvas"); blur.width = S; blur.height = V;
   const q = blur.getContext("2d"); q.filter = "blur(5px)";
-  for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) q.drawImage(bmpC, ox, oy);
-  const hb = q.getImageData(0, 0, S, S).data, h = bmpC.getContext("2d").getImageData(0, 0, S, S).data;
-  const c = colC.getContext("2d").getImageData(0, 0, S, S).data;
+  for (const ox of [-S, 0, S]) for (const oy of [-V, 0, V]) q.drawImage(bmpC, ox, oy);
+  const hb = q.getImageData(0, 0, S, V).data, h = bmpC.getContext("2d").getImageData(0, 0, S, V).data;
+  const c = colC.getContext("2d").getImageData(0, 0, S, V).data;
   const base = parseInt(o.base.slice(1), 16), bl = (((base >> 16) & 255) * 0.3 + ((base >> 8) & 255) * 0.59 + (base & 255) * 0.11) / 255;
-  const out = document.createElement("canvas"); out.width = out.height = S;
-  const g = out.getContext("2d"), im = g.createImageData(S, S), d = im.data;
+  const out = document.createElement("canvas"); out.width = S; out.height = V;
+  const g = out.getContext("2d"), im = g.createImageData(S, V), d = im.data;
   for (let i = 0; i < d.length; i += 4) {
     const cav = Math.max(0, hb[i] - h[i]) / 255, lum = (c[i] * 0.3 + c[i + 1] * 0.59 + c[i + 2] * 0.11) / 255;
     const ao = Math.min(1, Math.max(0.25, 1 - cav * 3.2));
@@ -253,6 +253,165 @@ function modern(seed, o) {
 }
 
 
+// Crab Breeze: panelling for the crab air fortress laid out by the shape it covers (owner, 2026-10-25: "its all random
+// paneling, I dont like that, paneling must look organized and intentional", "see how the panel aligns with the flow of
+// the geometry?", "like it fits like big symmetric jigsaw", "each element has paneling that compliments its shape",
+// "avoid 4 junctions in a paneling ... NEVER HAVE A CROSS in the seams", "you want t junctions, and about 20-30%
+// diagonal lines", with a saucer's ring plating, a bird of prey's feathered wings and a painted kit panel for
+// reference). Each sheet is drawn as a height field first, so the normal map carries the big shapes: plates (convex
+// polygons) with deep bevels over recessed channels. Seams meet only in T-junctions: rows of plates are laid as
+// bricks, each row half a plate out from the next, and a diagonal seam ends on a channel at three or five eighths of
+// its plate, clear of every seam on the other side. Three layouts:
+//   carapace: the shell's rings (v, from its middle out to its rim) cut into sectors (u, once round), each pair of rings
+//             8, 16, 32 then 64 sectors, half a sector out from each other and from the ring before; mirrored about the
+//             centreline (u = 0.5 the bow), a mirrored pair taking the same detail and mirror-image diagonals; a quarter
+//             of the plates split by a diagonal; outer corners clipped like feathers; a livery mask for a band near the
+//             rim and a stripe down the centreline; two ring channels lit as conduits.
+//   drum:     a cylinder's wrap, two bands of one plate each, the second half a plate round and split by a diagonal.
+//   slab:     a flat face's module, the same two-row brick: a whole symmetric plate over a pair split by a diagonal.
+// The colour is a neutral paint the palette tints; each sheet also gives an emission and a livery mask.
+function panelSheet(W, H) {
+  const mk = () => { const c = document.createElement("canvas"); c.width = W; c.height = H; return c; };
+  const K = { W, H, col: mk(), bmp: mk(), emi: mk(), liv: mk() };
+  K.g = K.col.getContext("2d"); K.b = K.bmp.getContext("2d"); K.e = K.emi.getContext("2d"); K.l = K.liv.getContext("2d");
+  K.g.fillStyle = "#2a2b2f"; K.g.fillRect(0, 0, W, H);
+  K.b.fillStyle = "rgb(40,40,40)"; K.b.fillRect(0, 0, W, H);
+  K.e.fillStyle = "#000"; K.e.fillRect(0, 0, W, H); K.l.fillStyle = "#000"; K.l.fillRect(0, 0, W, H);
+  const grey = v => `rgb(${v},${v},${v})`;
+  // a rectangle with each corner clipped by its own amount, as a polygon
+  K.shape = (x, y, w, h, c) => [[x + c[0], y], [x + w - c[1], y], [x + w, y + c[1]], [x + w, y + h - c[2]], [x + w - c[2], y + h], [x + c[3], y + h], [x, y + h - c[3]], [x, y + c[0]]];
+  K.poly = (ctx, pts) => { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); };
+  const clean = pts => pts.filter((p, i) => { const q = pts[(i + 1) % pts.length]; return Math.hypot(p[0] - q[0], p[1] - q[1]) > 0.5; });
+  // a convex polygon moved in by d: each edge pushed in along its normal, neighbours intersected
+  K.offset = (pts, d) => {
+    pts = clean(pts); const n = pts.length; if (n < 3 || d <= 0) return pts;
+    const cx = pts.reduce((a, p) => a + p[0], 0) / n, cy = pts.reduce((a, p) => a + p[1], 0) / n;
+    const lines = pts.map((p, i) => { const q = pts[(i + 1) % n], ex = q[0] - p[0], ey = q[1] - p[1], l = Math.hypot(ex, ey);
+      let nx = -ey / l, ny = ex / l; if ((cx - p[0]) * nx + (cy - p[1]) * ny < 0) { nx = -nx; ny = -ny; }
+      return { x: p[0] + nx * d, y: p[1] + ny * d, ex, ey }; });
+    return lines.map((L1, i) => { const L0 = lines[(i + n - 1) % n], den = L0.ex * L1.ey - L0.ey * L1.ex;
+      if (Math.abs(den) < 1e-9) return [L1.x, L1.y];
+      const t = ((L1.x - L0.x) * L1.ey - (L1.y - L0.y) * L1.ex) / den; return [L0.x + L0.ex * t, L0.y + L0.ey * t]; });
+  };
+  // the part of a convex polygon at least gap/2 to one side of the line a-b (side +1 or -1)
+  K.cut = (pts, a, b, side, gap) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy), sd = p => side * ((p[0] - a[0]) * dy - (p[1] - a[1]) * dx) / l - gap / 2, out = [];
+    pts.forEach((p, i) => { const q = pts[(i + 1) % pts.length], sp = sd(p), sq = sd(q);
+      if (sp >= 0) out.push(p);
+      if ((sp >= 0) !== (sq >= 0)) { const t = sp / (sp - sq); out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]); } });
+    return out;
+  };
+  // a polygon shrunk toward its centre (an inner panel: unlike a large offset it cannot turn itself inside out)
+  K.shrink = (pts, f) => { const n = pts.length, cx = pts.reduce((a, p) => a + p[0], 0) / n, cy = pts.reduce((a, p) => a + p[1], 0) / n;
+    return pts.map(([x, y]) => [cx + (x - cx) * f, cy + (y - cy) * f]); };
+  K.size = pts => { const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]); return Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)); };
+  // a bevel: the polygon moved in step by step, its height ramping from h0 to h1 over d pixels
+  K.bevel = (pts, d, h0, h1, steps = 12) => {
+    for (let k = 0; k <= steps; k++) { const t = k / steps, v = Math.round(h0 + (h1 - h0) * Math.sin(t * Math.PI / 2));
+      K.b.fillStyle = grey(v); K.poly(K.b, K.offset(pts, d * t)); K.b.fill(); }
+  };
+  // a plate: paint, a bevel up from the channel, a worn rim
+  K.plate = (pts, base, d, tone) => {
+    K.g.fillStyle = base; K.poly(K.g, pts); K.g.fill();
+    if (tone) { K.g.fillStyle = tone; K.poly(K.g, pts); K.g.fill(); }
+    K.bevel(pts, d, 80, 192);
+    K.g.strokeStyle = "rgba(235,235,240,0.35)"; K.g.lineWidth = 2; K.poly(K.g, K.offset(pts, d * 0.3)); K.g.stroke();
+  };
+  // an inner panel following its plate's outline, raised or recessed
+  K.inset = (pts, d, up) => {
+    K.bevel(pts, d, 192, up ? 224 : 156, 6);
+    K.g.strokeStyle = "rgba(14,14,16,0.55)"; K.g.lineWidth = 2; K.poly(K.g, pts); K.g.stroke();
+    K.g.fillStyle = up ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.07)"; K.poly(K.g, K.offset(pts, d)); K.g.fill();
+  };
+  K.vents = (cx, cy, n, sw, sh, gap) => { const x0 = cx - (n * sw + (n - 1) * gap) / 2;
+    for (let k = 0; k < n; k++) { K.b.fillStyle = grey(110); K.b.fillRect(x0 + k * (sw + gap), cy - sh / 2, sw, sh); K.g.fillStyle = "#18191c"; K.g.fillRect(x0 + k * (sw + gap), cy - sh / 2, sw, sh); } };
+  K.hatch = (cx, cy, w, h) => { const pts = K.shape(cx - w / 2, cy - h / 2, w, h, [8, 8, 8, 8]);
+    K.b.strokeStyle = grey(120); K.b.lineWidth = 3; K.poly(K.b, pts); K.b.stroke();
+    K.g.strokeStyle = "rgba(16,16,18,0.7)"; K.g.lineWidth = 2.5; K.poly(K.g, pts); K.g.stroke();
+    K.g.fillStyle = "rgba(16,16,18,0.8)"; K.g.fillRect(cx - 8, cy - 2.5, 16, 5); };
+  K.bolt = (x, y, r = 6) => { const gr = K.b.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, grey(240)); gr.addColorStop(1, grey(192));
+    K.b.fillStyle = gr; K.b.beginPath(); K.b.arc(x, y, r, 0, TAU); K.b.fill(); K.g.fillStyle = "rgba(60,60,64,0.8)"; K.g.beginPath(); K.g.arc(x, y, r - 1, 0, TAU); K.g.fill(); };
+  K.grime = (x, y, w, h, r) => { for (let k = 0; k < 4; k++) { const gx = x + r() * w, l = h * (0.2 + r() * 0.4), gr = K.g.createLinearGradient(0, y, 0, y + l);
+    gr.addColorStop(0, `rgba(30,26,22,${0.08 + r() * 0.1})`); gr.addColorStop(1, "rgba(30,26,22,0)"); K.g.fillStyle = gr; K.g.fillRect(gx, y, 2 + r() * 5, l); } };
+  K.noise = r => { for (const [ctx, amp] of [[K.g, 6], [K.b, 3]]) { const im = ctx.getImageData(0, 0, W, H), d = im.data;
+    for (let i = 0; i < d.length; i += 4) { const n = (r() - 0.5) * amp; d[i] += n; d[i + 1] += n; d[i + 2] += n; } ctx.putImageData(im, 0, 0); } };
+  // one cell of plating: whole, or split by a diagonal from `a` of the way along its top to `b` along its bottom;
+  // each piece bevelled, with an inner panel following it when it is big enough
+  K.cell = (x, y, w, h, c, o) => {
+    const outline = K.shape(x, y, w, h, c), pieces = [];
+    if (o.diag) { const A = [x + w * o.diag[0], y], B = [x + w * o.diag[1], y + h]; pieces.push(K.cut(outline, A, B, 1, o.gap), K.cut(outline, A, B, -1, o.gap)); }
+    else pieces.push(outline);
+    pieces.forEach(pts => { if (pts.length < 3) return; K.plate(pts, o.base, o.bevel, o.tone);
+      const m = K.size(pts); if (o.inner && m > 4 * o.bevel) K.inset(K.shrink(pts, 0.62), Math.max(3, o.bevel * 0.45), o.up); });
+    return pieces;
+  };
+  return K;
+}
+function carapacePanels(seed, o) {
+  const W = 4096, H = 1024, K = panelSheet(W, H);
+  const RINGS = [0, 0.18, 0.33, 0.47, 0.6, 0.72, 0.83, 0.92, 1.0];
+  const SECTORS = [[8, 0.5], [8, 0], [16, 0.5], [16, 0], [32, 0.5], [32, 0], [64, 0.5], [64, 0]];   // half a sector out, ring to ring
+  const LIVERY_RING = 6, GLOW_RINGS = [2, 6];
+  for (let i = 0; i < SECTORS.length; i++) {
+    const [N, off] = SECTORS[i], y0 = RINGS[i] * H, y1 = RINGS[i + 1] * H, cw = W / N;
+    for (let k = 0; k < N; k++) {
+      const uc = (k + off + 0.5) / N, left = uc < 0.5, mirror = Math.round(Math.abs(uc - 0.5) * N * 2);
+      const r = rng(seed * 7919 + i * 131 + mirror);                    // the same choices for a mirrored pair
+      const gu = 5, gv = 6, x = (k + off) * cw + gu, y = y0 + gv, w = cw - 2 * gu, h = (y1 - y0) - 2 * gv, m = Math.min(w, h);
+      const c = [0.05 * m, 0.05 * m, 0.22 * m, 0.22 * m];               // tapered toward the rim, like feathers
+      const tone = r() < 0.5 ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.035)", split = r() < 0.25, flip = r() < 0.5, inner = r() < 0.7, up = r() < 0.4, det = r();
+      // a diagonal from 3/8 to 5/8 (or back), mirrored on the mirrored side; never on the plate on the centreline
+      const onCentre = Math.abs(uc - 0.5) < 0.5 / N || uc < 0.5 / N || uc > 1 - 0.5 / N;
+      let diag = split && !onCentre ? (flip ? [0.375, 0.625] : [0.625, 0.375]) : null;
+      if (diag && left) diag = [1 - diag[0], 1 - diag[1]];
+      for (const ox of [0, -W, W]) {                                    // a plate across the seam round the back, drawn on both sides
+        const X = x + ox; if (X > W || X + w < 0) continue;
+        const pieces = K.cell(X, y, w, h, c, { base: o.base, bevel: 9, tone, diag, gap: 10, inner, up });
+        if (!diag && det < 0.25 && w > 90 && h > 60) K.vents(X + w / 2, y + h * 0.5, Math.max(3, Math.min(7, Math.floor(w / 26))), 8, h * 0.3, 8);
+        else if (!diag && det < 0.5 && w > 80 && h > 60) K.hatch(X + w / 2, y + h / 2, Math.min(w * 0.4, 120), Math.min(h * 0.4, 70));
+        for (const [bx, by] of [[X + 14, y + 14], [X + w - 14, y + 14]]) K.bolt(bx, by, 5);
+        // livery: a band round the shell near the rim, and a stripe down the centreline fore and aft
+        if (i === LIVERY_RING || (onCentre && i >= 2)) { K.l.fillStyle = "#fff"; pieces.forEach(pts => { K.poly(K.l, pts); K.l.fill(); }); }
+      }
+      K.grime(x, y, w, h, r);
+    }
+  }
+  // conduits: two whole ring channels lit
+  for (const gi of GLOW_RINGS) { const y = RINGS[gi] * H;
+    K.e.fillStyle = "#fff"; K.e.fillRect(0, y - 2, W, 4); K.g.fillStyle = "#d8f0d8"; K.g.fillRect(0, y - 1.5, W, 3); K.b.fillStyle = "rgb(70,70,70)"; K.b.fillRect(0, y - 2, W, 4); }
+  K.noise(rng(seed));
+  return K;
+}
+// the two-row brick both modules use: a whole plate over a pair of half plates split at the middle (the next tile's
+// plate edges fall at the middle of this one's), the lower one split by a diagonal; T-junctions only
+function brickModule(K, o, r, top, bottom) {
+  const S = K.W, g = 8, half = S;   // each row is S by S; the sheet is S wide and 2S tall
+  K.cell(g, g, S - 2 * g, half - 2 * g, o.c, { base: o.base, bevel: o.bevel, gap: 2 * g, inner: true, up: true });
+  top(0);
+  // the shifted row: one plate from the middle across the tile edge to the middle, drawn on both sides
+  for (const ox of [-S / 2, S / 2]) K.cell(ox + g, half + g, S - 2 * g, half - 2 * g, o.c, { base: o.base, bevel: o.bevel, gap: 2 * g, diag: o.diag, inner: true, up: false });
+  bottom(half);
+  K.grime(g, g, S - 2 * g, 2 * S - 2 * g, r); K.noise(r);
+}
+function drumPanels(seed, o) {
+  const S = 1024, K = panelSheet(S, 2 * S), r = rng(seed);
+  brickModule(K, { base: o.base, bevel: 22, c: [24, 24, 24, 24], diag: [0.375, 0.625] }, r,
+    y => { for (const yy of [0.2, 0.5, 0.8]) for (const x of [0.09, 0.91]) K.bolt(x * S, y + yy * S, 9); K.vents(S / 2, y + S * 0.84, 7, 22, 70, 18);
+      K.e.fillStyle = "#fff"; K.e.fillRect(S * 0.3, y + S - 6, S * 0.4, 4); },
+    y => { for (const x of [0.06, 0.94]) K.bolt(x * S, y + S * 0.5, 9); });
+  return K;
+}
+function slabPanels(seed, o) {
+  const S = 1024, K = panelSheet(S, 2 * S), r = rng(seed);
+  brickModule(K, { base: o.base, bevel: 24, c: [70, 70, 70, 70], diag: [0.375, 0.625] }, r,
+    y => { for (const x of [0.12, 0.88]) K.hatch(x * S, y + S * 0.78, 100, 140);           // a mirrored pair of hatches
+      K.vents(S / 2, y + S * 0.84, 9, 16, 80, 14);
+      for (const [x, yy] of [[0.1, 0.1], [0.9, 0.1], [0.1, 0.9], [0.9, 0.9]]) K.bolt(x * S, y + yy * S, 10); },
+    y => { for (const x of [0.06, 0.94]) K.bolt(x * S, y + S * 0.5, 10); });
+  return K;
+}
+
+
 // Crab Breeze: the decal sheet (owner, 2026-10-24, with water-slide decal sheets for reference: "instead of \"danger\"
 // plastered everywhere it should say \"no step\", company logo, \"warning flamable\" etc"). Crab Breeze's own markings on
 // an 8 by 8 grid of 128 px cells, transparent between them; DECALS names each one's cells (col, row, cols, rows), and
@@ -346,6 +505,12 @@ window.__out = (() => {
         plate: png(A.map), plate_n: png(normalOf(A.bump, 2.0)), plate_orm: png(ormOf(A.map, A.bump, { base: "#dcdcdc", rough: 0.42, metal0: 0 })),
         plateB: png(B.map), plateB_n: png(normalOf(B.bump, 2.0)), plateB_orm: png(ormOf(B.map, B.bump, { base: "#d2d2d2", rough: 0.5, metal0: 0 })),
         frameM: png(F.map), frameM_n: png(normalOf(F.bump, 2.0)), frameM_orm: png(ormOf(F.map, F.bump, { base: "#4a4b4f", rough: 0.4, metal0: 0.7 })),
+        // the crab air fortress: panelling laid out by shape, each with normal, ORM, emission and a livery mask
+        ...(() => { const out = {};
+          for (const [name, K, base] of [["carapace", carapacePanels(301, { base: "#d2d2d2" }), "#d2d2d2"], ["drum", drumPanels(311, { base: "#d0d0d0" }), "#d0d0d0"], ["slab", slabPanels(321, { base: "#d0d0d0" }), "#d0d0d0"]]) {
+            out[name] = png(K.col); out[name + "_n"] = png(normalOf(K.bmp, 3.0)); out[name + "_orm"] = png(ormOf(K.col, K.bmp, { base, rough: 0.44, metal0: 0 }));
+            out[name + "_e"] = png(K.emi); out[name + "_m"] = png(K.liv); }
+          return out; })(),
         decals: png(decalSheet()),
       };
     })(),

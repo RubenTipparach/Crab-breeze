@@ -41,4 +41,9 @@ PALETTES = {
     "sapper": dict(BODY=(0.42, 0.44, 0.45), BODY2=(0.20, 0.22, 0.24), FRAME=(0.11, 0.11, 0.12), ACCENT=(0.82, 0.42, 0.12),
                    YELLOW=(0.24, 0.25, 0.26), ARMOR=(0.31, 0.33, 0.24), RUBBER=(0.06, 0.06, 0.06), METAL=(0.45, 0.46, 0.48),
                    GLOW=(0.45, 0.9, 1.0)),
+    # The crab air fortress (openspec/changes/crab-airship; owner, 2026-10-25: "I prefer something blue and orange for the
+    # crab armor, use same armor techniques as the mech"): BODY tints the carapace plating (assets/textures/mech/shell),
+    # BODY2 the plateB armour (thruster plates, leg sleeves, the spine), FRAME frameM. Read by gen_crab_fortress.py.
+    "hermit": dict(BODY=(0.030, 0.120, 0.380), BODY2=(0.560, 0.150, 0.016), FRAME=(0.022, 0.024, 0.030),
+                   ACCENT=(0.800, 0.100, 0.010), RUBBER=(0.06, 0.06, 0.06), METAL=(0.55, 0.56, 0.60), GLOW=(0.25, 1.0, 0.04)),
 }

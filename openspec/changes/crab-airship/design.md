@@ -125,13 +125,36 @@ and stays as a burning wreck. While both drive thrusters live it drifts along it
 where it falls is the pilot's choice: stop the drive first to drop it where it is, or wait until it is
 over open ground. Whether a fall on the city counts as city damage is G23.
 
-### Its look (owner, 2026-10-25: "make the crab more ornate with spikes and more armor like geometry", "pink bad color, use red instead")
+### Its look (owner, 2026-10-25)
 
-Overlapping shell plates (scutes) in rings over the carapace, each with a red edge, an armoured skirt angled
-down round the rim, a ring of spikes long and short by turns, two great horns and a row of teeth at the bow,
-back-swept spines at the stern, fins along the shoulders, spines on every leg's knee, armour sleeves on the
-legs, spikes on the thruster plates and a keel of spikes down the belly. The livery, cores and beams are red;
-the acid green glows stay. Plates and spikes are instanced: four draws for the shell, plus one per thruster for its plate spikes.
+"make the crab more ornate with spikes and more armor like geometry", "get rid of the square plates", "I prefer
+something blue and orange for the crab armor, use same armor techniques as the mech", "paneling must look organized
+and intentional", "each element has paneling that compliments its shape", "NEVER HAVE A CROSS in the seams", "you want
+t junctions, and about 20-30% diagonal lines", "we want normal maps for large and small details".
+
+- Spikes all round the rim, across the shell, two great horns and a row of teeth at the bow, back-swept spines at
+  the stern, fins along the shoulders, spines on every leg's knee, spikes on the thruster plates and a keel of spikes
+  down the belly; instanced, one draw for the shell's and one per thruster.
+- Painted the mechs' way: the plating kit (`tools/textures/gen_mech_plating.mjs`), neutral paint tinted by the
+  `hermit` palette in `tools/blender/mech_palettes.py` (blue carapace, orange armour, a dark frame, red-orange
+  accents), full PBR (colour, normal, ORM, emission, a livery mask). Its panelling is laid out by each piece's shape:
+  - **carapace** (the shell, its underside, the belly): rings round the middle cut into sectors, 8, 16, 32 then 64
+    a ring, each ring half a sector out from the next, so seams meet only in T-junctions; mirrored about the
+    centreline; a quarter of the plates split by a diagonal ending at three or five eighths of its plate; outer
+    corners clipped like feathers; an orange band near the rim and a stripe down the centreline; two ring
+    channels lit acid green.
+  - **drum** (every cylinder): plates round it, bands up it laid as bricks, every other band split by a diagonal.
+  - **slab** (every flat face): a symmetric module fitted whole to the face, rows laid as bricks.
+  - The big shapes (bevels, channels, inner panels) are in each sheet's normal map; the slab's normal map is laid
+    over everything small as close-up detail.
+- Its guard crabs walk on two-bone IK: each leg's coxa yaws its plane onto the foot, femur and lower leg bend in it
+  with the knee up; a foot stays planted until the body has carried it a quarter of the leg's reach from where it
+  wants to be, then swings there in 0.3 s, one group of legs at a time (tripods for six legs, diagonal pairs for
+  four). Under their chutes the legs hang a little limp and sway (owner: "use IK solver to actually move them
+  correctly when they are grounded, if they are flying have them go limp slightly"). The game's version is
+  `crab-enemies`' gait; this is the mockup's.
+- Its guards turn on the nearest mech within 700 m they can see, and face out over the side with nobody near;
+  its turrets, fighters and missiles take the nearest mech too, so friendly mechs flying round it draw its fire.
 
 ## 7. Data and code
 
