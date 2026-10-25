@@ -5,3 +5,5 @@
 __pycache__/
 .claude/worktrees/
 tools/materials/raw/
+/settings.ron
+/settings.ron.tmp

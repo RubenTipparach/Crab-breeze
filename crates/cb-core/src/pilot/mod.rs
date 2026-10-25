@@ -34,6 +34,12 @@ pub struct PilotConfig {
     /// Seated, the view stays within this of the mech's nose unless free look is held
     /// (openspec change `seated-look`).
     pub seated_look_limit_deg: f32,
+    /// Seated, holding Use this long climbs out (owner, 2026-10-25: "I should be able to hold E to
+    /// exit, there would be a ccircle timer thing that shows progress of confirming E to exit").
+    pub exit_hold_s: f32,
+    /// The hold counts while the mech is slower than this ("when I'm even close to stop"); the mech
+    /// brakes to a stop while it is held, and the pilot climbs out once it has stopped.
+    pub exit_near_stop_m_s: f32,
     /// The view's vertical field of view (on foot and seated).
     pub view_fov_deg: f32,
 }
@@ -51,6 +57,8 @@ impl Default for PilotConfig {
             board_reach_m: 25.0,
             climb_speed_m_s: 7.0,
             seated_look_limit_deg: 90.0,
+            exit_hold_s: 1.0,
+            exit_near_stop_m_s: 3.0,
             view_fov_deg: 75.0,
         }
     }
@@ -68,6 +76,8 @@ impl Validate for PilotConfig {
         positive("board_reach_m", self.board_reach_m)?;
         positive("climb_speed_m_s", self.climb_speed_m_s)?;
         within("seated_look_limit_deg", self.seated_look_limit_deg, 1.0, 179.0)?;
+        positive("exit_hold_s", self.exit_hold_s)?;
+        positive("exit_near_stop_m_s", self.exit_near_stop_m_s)?;
         within("view_fov_deg", self.view_fov_deg, 30.0, 120.0)?;
         Ok(())
     }
@@ -150,6 +160,8 @@ pub struct MechAccess {
     pub seat_yaw_rad: f32,
     /// True when the mech is stopped with its throttle at zero.
     pub stopped: bool,
+    /// The mech's ground speed.
+    pub speed_m_s: f32,
     /// True when the mech sits with its hatch open and stair down.
     pub hatch_open: bool,
 }
@@ -184,6 +196,8 @@ pub struct PilotState {
     pub mode: PilotMode,
     /// Waiting for the hatch, after pressing Use.
     pub waiting: Option<Waiting>,
+    /// Seated: how long Use has been held toward climbing out (0 when it is not).
+    pub exit_hold_s: f32,
 }
 
 /// What happened this step that other systems react to.
@@ -227,14 +241,22 @@ pub fn coupled_look(rel: f32, prev_rel: f32, turn: f32, limit: f32, free_look: b
     }
 }
 
-/// The mech's turn toward the seated view (`turn_axis`, -1..1), when the view is at the coupled
-/// limit or past it and free look is not held; `None` leaves the turn to the keys. Within 2 degrees
-/// of the limit it holds on, so the turn does not chatter at the edge.
+/// The view's last stretch before the coupled limit over which the mech's turn toward it ramps up.
+pub const LOOK_TURN_BAND_DEG: f32 = 20.0;
+
+/// The mech's turn toward the seated view (`turn_axis`, -1..1): nothing until the view is within
+/// `LOOK_TURN_BAND_DEG` of the coupled limit, then easing up to full at the limit, so the mech
+/// starts turning gently and never snaps between turning and not (owner, 2026-10-25: "theres lots
+/// of mech jitter when I turn, mech should turn more smoothly"). `None` (free look held, or the
+/// view well inside the limit) leaves the turn to the keys.
 pub fn look_turn(rel: f32, limit: f32, free_look: bool) -> Option<f32> {
-    if free_look || rel.abs() < limit - 2f32.to_radians() {
+    let band = LOOK_TURN_BAND_DEG.to_radians().min(limit);
+    let into = (rel.abs() - (limit - band)) / band;
+    if free_look || into <= 0.0 {
         return None;
     }
-    Some(rel.signum())
+    let k = into.min(1.0);
+    Some(rel.signum() * k * k * (3.0 - 2.0 * k))
 }
 
 impl PilotState {
@@ -249,6 +271,7 @@ impl PilotState {
             seated_rel_rad: 0.0,
             mode: PilotMode::OnFoot,
             waiting: None,
+            exit_hold_s: 0.0,
         }
     }
 
@@ -272,24 +295,30 @@ impl PilotState {
         self.mode == PilotMode::OnFoot && access.stopped && self.distance_to_stair(access) <= cfg.board_reach_m
     }
 
-    /// A hop from where the pilot stands, up in an arc onto the hatch's sill, then in to the seat.
+    /// From where the pilot stands to the rope's foot (`ladder_base`), straight up the rope to the
+    /// hatch's height, onto the sill, then in to the seat (owner, 2026-10-24: "there should be a rope
+    /// dangling down for me the player to climb up").
     fn board_path(&self, m: &MechAccess, cfg: &PilotConfig) -> EyePath {
         let up = Vec3::Y * cfg.eye_height_m;
-        let eye = self.feet + up;
-        let sill = m.hatch_entry + up;
-        let top = eye.lerp(sill, 0.6) + Vec3::Y * 2.0;
+        let foot = m.ladder_base + up;
         EyePath {
-            points: vec![eye, top, sill, m.eye_pilot],
+            points: vec![self.feet + up, foot, Self::rope_top(m, cfg), m.hatch_entry + up, m.eye_pilot],
             travelled_m: 0.0,
         }
     }
 
+    /// The boarding path backwards: out over the sill, down the rope, standing at its foot.
     fn leave_path(m: &MechAccess, cfg: &PilotConfig) -> EyePath {
         let up = Vec3::Y * cfg.eye_height_m;
         EyePath {
-            points: vec![m.eye_pilot, m.hatch_entry + up, m.ladder_base + up],
+            points: vec![m.eye_pilot, m.hatch_entry + up, Self::rope_top(m, cfg), m.ladder_base + up],
             travelled_m: 0.0,
         }
+    }
+
+    /// The eye at the top of the rope: above its foot, level with the eye on the hatch's sill.
+    fn rope_top(m: &MechAccess, cfg: &PilotConfig) -> Vec3 {
+        Vec3::new(m.ladder_base.x, m.hatch_entry.y + cfg.eye_height_m, m.ladder_base.z)
     }
 
     /// Advances one fixed step of `dt_s` seconds.
@@ -376,7 +405,17 @@ impl PilotState {
                 }
                 self.pitch_rad = (self.pitch_rad + look.y.to_radians()).clamp(-pitch_limit, pitch_limit);
                 if let Some(m) = access {
-                    if a.use_pressed && m.stopped && self.waiting.is_none() {
+                    // Holding Use near a stop fills the ring; the mech brakes meanwhile (the app
+                    // zeroes its throttle while the hold runs), and the pilot climbs out once the
+                    // ring is full and the mech has stopped.
+                    let near = m.speed_m_s <= cfg.exit_near_stop_m_s;
+                    self.exit_hold_s = if a.use_held && near && self.waiting.is_none() {
+                        (self.exit_hold_s + dt_s).min(cfg.exit_hold_s)
+                    } else {
+                        0.0
+                    };
+                    if self.exit_hold_s >= cfg.exit_hold_s && m.stopped && self.waiting.is_none() {
+                        self.exit_hold_s = 0.0;
                         self.waiting = Some(Waiting::ToLeave);
                         if !m.hatch_open {
                             event = Some(PilotEvent::HatchWanted);
@@ -422,8 +461,26 @@ mod tests {
             heading_rad: 0.0,
             seat_yaw_rad: 0.0,
             stopped: true,
+            speed_m_s: 0.0,
             hatch_open: true,
         }
+    }
+
+    fn hold_use() -> Actions {
+        Actions {
+            use_held: true,
+            ..Default::default()
+        }
+    }
+
+    /// Holds Use until the pilot starts climbing out (or two seconds pass).
+    fn hold_to_exit(p: &mut PilotState, cfg: &PilotConfig, a: &MechAccess) -> Option<PilotEvent> {
+        for _ in 0..120 {
+            if let Some(e) = p.step(&hold_use(), cfg, &FlatGround::default(), Some(a), DT) {
+                return Some(e);
+            }
+        }
+        None
     }
 
     fn press_use() -> Actions {
@@ -609,16 +666,80 @@ mod tests {
     }
 
     #[test]
+    fn boarding_climbs_straight_up_the_rope() {
+        let cfg = PilotConfig::default();
+        let a = access();
+        let p = PilotState::standing(a.ladder_base + Vec3::new(1.0, 0.0, 0.0), 0.0);
+        let path = p.board_path(&a, &cfg);
+        let (foot, top) = (path.points[1], path.points[2]);
+        assert!(
+            (foot.x - top.x).abs() < 1e-5 && (foot.z - top.z).abs() < 1e-5,
+            "the climb is vertical"
+        );
+        assert!(
+            (top.y - (a.hatch_entry.y + cfg.eye_height_m)).abs() < 1e-5,
+            "it reaches the sill's height"
+        );
+        assert!(
+            (foot.y - (a.ladder_base.y + cfg.eye_height_m)).abs() < 1e-5,
+            "it starts at the rope's foot"
+        );
+    }
+
+    #[test]
     fn disembarking_leaves_the_pilot_at_the_ladder() {
         let cfg = PilotConfig::default();
         let mut p = PilotState::standing(Vec3::new(0.0, 0.0, 5.5), 0.0);
         p.step(&press_use(), &cfg, &FlatGround::default(), Some(&access()), DT);
         run_until_settled(&mut p, &cfg, &access());
-        let e = p.step(&press_use(), &cfg, &FlatGround::default(), Some(&access()), DT);
-        assert_eq!(e, Some(PilotEvent::DisembarkStarted));
+        assert_eq!(hold_to_exit(&mut p, &cfg, &access()), Some(PilotEvent::DisembarkStarted));
         run_until_settled(&mut p, &cfg, &access());
         assert_eq!(p.mode, PilotMode::OnFoot);
         assert!(p.feet.distance(access().ladder_base) < 1e-3, "{}", p.feet);
+    }
+
+    #[test]
+    fn a_tap_of_use_does_not_climb_out_but_a_held_one_does() {
+        let cfg = PilotConfig::default();
+        let mut p = PilotState::standing(Vec3::new(0.0, 0.0, 5.5), 0.0);
+        p.step(&press_use(), &cfg, &FlatGround::default(), Some(&access()), DT);
+        run_until_settled(&mut p, &cfg, &access());
+        let tap = Actions {
+            use_pressed: true,
+            use_held: true,
+            ..Default::default()
+        };
+        assert_eq!(p.step(&tap, &cfg, &FlatGround::default(), Some(&access()), DT), None);
+        p.step(&Actions::default(), &cfg, &FlatGround::default(), Some(&access()), DT);
+        assert_eq!(p.exit_hold_s, 0.0, "letting go empties the ring");
+        assert_eq!(p.mode, PilotMode::Seated);
+        assert_eq!(hold_to_exit(&mut p, &cfg, &access()), Some(PilotEvent::DisembarkStarted));
+    }
+
+    #[test]
+    fn the_exit_ring_fills_near_a_stop_and_waits_for_the_mech_to_stop() {
+        let cfg = PilotConfig::default();
+        let mut p = PilotState::standing(Vec3::new(0.0, 0.0, 5.5), 0.0);
+        p.step(&press_use(), &cfg, &FlatGround::default(), Some(&access()), DT);
+        run_until_settled(&mut p, &cfg, &access());
+        let rolling = MechAccess {
+            stopped: false,
+            speed_m_s: 1.5,
+            ..access()
+        };
+        assert_eq!(hold_to_exit(&mut p, &cfg, &rolling), None, "still rolling: no exit yet");
+        assert_eq!(p.exit_hold_s, cfg.exit_hold_s, "but the ring is full");
+        assert_eq!(hold_to_exit(&mut p, &cfg, &access()), Some(PilotEvent::DisembarkStarted));
+        let fast = MechAccess {
+            stopped: false,
+            speed_m_s: 10.0,
+            ..access()
+        };
+        let mut q = PilotState::standing(Vec3::new(0.0, 0.0, 5.5), 0.0);
+        q.step(&press_use(), &cfg, &FlatGround::default(), Some(&access()), DT);
+        run_until_settled(&mut q, &cfg, &access());
+        hold_to_exit(&mut q, &cfg, &fast);
+        assert_eq!(q.exit_hold_s, 0.0, "too fast: the ring does not fill");
     }
 
     #[test]
@@ -641,6 +762,9 @@ mod tests {
         assert_eq!(look_turn(-limit, limit, false), Some(-1.0));
         assert_eq!(look_turn(limit * 0.5, limit, false), None);
         assert_eq!(look_turn(limit, limit, true), None);
+        // Partway into the band the turn is partway: it ramps, it does not snap.
+        let half = look_turn(limit - (LOOK_TURN_BAND_DEG * 0.5).to_radians(), limit, false).unwrap();
+        assert!(half > 0.3 && half < 0.7, "{half}");
     }
 
     #[test]

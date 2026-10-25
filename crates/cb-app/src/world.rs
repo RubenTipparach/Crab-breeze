@@ -22,6 +22,10 @@ use std::sync::Arc;
 #[derive(Resource, Clone, Copy)]
 pub struct Seed(pub u64);
 
+/// The sun's light (the Options page turns its shadows on and off: `settings`).
+#[derive(Component)]
+pub struct Sun;
+
 /// True unless `CB_NO_SKY=1`: the pilot's view has Bevy's scattering sky (sky-atmosphere).
 pub fn scattering_sky() -> bool {
     !crate::cli::switched_off("CB_NO_SKY")
@@ -548,6 +552,7 @@ fn spawn_sun(mut commands: Commands, data: Res<Data>, mut media: ResMut<Assets<b
     }
     let mut sun = commands.spawn((
         Name::new("sun"),
+        Sun,
         DirectionalLight {
             // Raw sunlight under the scattering sky, which filters it; the old daylight value otherwise.
             illuminance: if scattering_sky() {
@@ -657,13 +662,16 @@ fn spawn_water(
         ..default()
     });
     let cube = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
+    // The deck's top lies 5 cm under the highway's surface, which runs across it at `road_lift_m` over
+    // the grade: level with it, the two fought (owner, 2026-10-25: "this bridge has zfighting").
+    let deck_top = data.0.world.road_lift_m - 0.05;
     for b in &w.bridges {
         let yaw = (-b.along.x).atan2(-b.along.y);
         let rot = Quat::from_rotation_y(yaw);
         commands.spawn((
             Mesh3d(cube.clone()),
             MeshMaterial3d(concrete.clone()),
-            Transform::from_xyz(b.centre.x, b.deck_m - 0.6, b.centre.y)
+            Transform::from_xyz(b.centre.x, b.deck_m + deck_top - 0.7, b.centre.y)
                 .with_rotation(rot)
                 .with_scale(Vec3::new(b.width_m + 2.0, 1.4, b.length_m)),
         ));

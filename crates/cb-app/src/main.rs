@@ -19,14 +19,17 @@ mod hud;
 mod input;
 mod loading;
 mod mech;
+mod menu;
 mod mfd;
 mod particles;
 mod pbr_set;
 mod perf_hud;
 mod physics;
 mod pilot;
+mod rope;
 mod screen_cut;
 mod screens_cube;
+mod settings;
 #[cfg(test)]
 mod shader_check;
 mod showcase;
@@ -123,6 +126,8 @@ fn main() -> AppExit {
         perf_hud::PerfHudPlugin,
         units::UnitsPlugin,
         mfd::MfdPlugin,
+        menu::MenuPlugin,
+        rope::RopePlugin,
     ));
     // GPU grass (openspec change `gpu-grass`); `CB_NO_GRASS=1` leaves it out, so the benchmark can
     // measure what it costs.
@@ -141,9 +146,23 @@ fn main() -> AppExit {
         flare: !cli::switched_off("CB_NO_FLARE"),
         bloom: !cli::switched_off("CB_NO_BLOOM"),
     });
+    // The run begins: a command-line run as asked (the defence mission, or free roam for a take, a
+    // bench or stills), a plain run on the title menu once the game is ready (game-menus).
+    app.add_plugins(defence::DefencePlugin);
+    let scripted = args.stills.is_some() || args.showcase.is_some() || args.bench.is_some();
     if args.defending() {
-        app.add_plugins(defence::DefencePlugin);
+        app.insert_resource(defence::Defending)
+            .init_resource::<defence::DefenceRun>()
+            .insert_resource(menu::Play::Defence);
+    } else if scripted || args.mission.is_some() {
+        app.insert_resource(menu::Play::FreeRoam);
+    } else {
+        app.insert_resource(menu::TitleWanted);
     }
+    // The player's settings; a measurement or capture run keeps the window it set up.
+    app.add_plugins(settings::SettingsPlugin {
+        window: !scripted && !cli::switched_off("CB_UNCAPPED"),
+    });
     if let Some(dir) = args.stills {
         app.add_plugins(capture::StillsPlugin { dir });
     } else if let Some(take) = args.showcase.clone().or(args.bench.clone()) {

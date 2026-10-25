@@ -39,8 +39,13 @@ pub struct Actions {
     pub turn_axis: f32,
     /// In the mech: jet lift, 0..1.
     pub lift_axis: f32,
-    /// Use was pressed this step (board, climb out).
+    /// Use was pressed this step (board).
     pub use_pressed: bool,
+    /// Use is held (seated: held to climb out).
+    pub use_held: bool,
+    /// A quick tap of free look this step: on the ground, stop the mech (owner, 2026-10-25: "when I
+    /// hit ctrl when I'm standing on ground that means i want mech to come to full stop").
+    pub full_stop: bool,
     /// Run on foot.
     pub run: bool,
     /// Hold to look around the cockpit instead of aiming the torso.
@@ -61,6 +66,10 @@ pub struct Actions {
     pub fire_missile: bool,
     /// Select the next target this step.
     pub target_next: bool,
+    /// Close combat toggled this step (openspec change `close-combat`).
+    pub close_combat: bool,
+    /// Step the selected weapon station this step: +1 on, -1 back, 0 none (weapon-select).
+    pub weapon_cycle: i32,
 }
 
 impl Actions {
@@ -79,6 +88,33 @@ impl Actions {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_binding_in_the_data_is_on_the_controls_page() {
+        let p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/input/bindings.ron");
+        let text = std::fs::read_to_string(&p).unwrap();
+        let b: Bindings = crate::data::load_ron(&p).unwrap();
+        let fields: Vec<&str> = b.controls().iter().map(|c| c.field).collect();
+        for line in text.lines() {
+            let t = line.trim_start();
+            if let Some((name, rest)) = t.split_once(':')
+                && rest.trim_start().starts_with('[')
+            {
+                assert!(fields.contains(&name), "`{name}` is bound but not on the Controls page");
+            }
+        }
+    }
+
+    #[test]
+    fn keys_read_as_a_player_names_them() {
+        assert_eq!(key_label("KeyW"), "W");
+        assert_eq!(key_label("ControlLeft"), "Left Ctrl");
+        assert_eq!(key_label("ShiftLeft"), "Left Shift");
+        assert_eq!(key_label("MouseLeft"), "Left mouse");
+        assert_eq!(key_label("Digit1"), "1");
+        assert_eq!(key_label("Escape"), "Esc");
+        assert_eq!(key_label("Space"), "Space");
+    }
 
     #[test]
     fn non_finite_input_becomes_zero() {
@@ -150,6 +186,10 @@ pub struct Bindings {
     pub fire_missile: Vec<String>,
     /// Select the next target (in the mech).
     pub target_next: Vec<String>,
+    /// Close combat on and off (in the mech).
+    pub close_combat: Vec<String>,
+    /// Step the selected weapon: key names step on; `MouseWheel` steps by the wheel, down on, up back.
+    pub weapon_cycle: Vec<String>,
 }
 
 impl Default for Bindings {
@@ -164,7 +204,7 @@ impl Default for Bindings {
             right: k("KeyD"),
             run: k("ShiftLeft"),
             use_key: k("KeyE"),
-            free_look: k("AltLeft"),
+            free_look: k("ControlLeft"),
             throttle_zero: k("KeyX"),
             mode_walk: k("Digit1"),
             mode_skate: k("Digit2"),
@@ -179,9 +219,11 @@ impl Default for Bindings {
             fire_primary: k("MouseLeft"),
             fire_secondary: k("MouseRight"),
             skate: k("ShiftLeft"),
-            sink: k("ControlLeft"),
+            sink: k("KeyC"),
             fire_missile: k("KeyF"),
             target_next: k("KeyQ"),
+            close_combat: k("Tab"),
+            weapon_cycle: vec!["MouseWheel".to_string(), "BracketRight".to_string()],
         }
     }
 }
@@ -189,5 +231,104 @@ impl Default for Bindings {
 impl crate::data::Validate for Bindings {
     fn validate(&self) -> Result<(), String> {
         crate::data::within("mouse_deg_per_px", self.mouse_deg_per_px, 0.0, 10.0)
+    }
+}
+
+/// A key's name as a player reads it: `KeyW` reads W, `ControlLeft` Left Ctrl, `MouseLeft` Left
+/// mouse, `Digit1` 1.
+pub fn key_label(name: &str) -> String {
+    for (prefix, word) in [("Control", "Ctrl"), ("Shift", "Shift"), ("Alt", "Alt"), ("Super", "Super")] {
+        if let Some(side) = name.strip_prefix(prefix) {
+            return match side {
+                "Left" | "Right" => format!("{side} {word}"),
+                _ => word.to_string(),
+            };
+        }
+    }
+    match name {
+        "MouseLeft" => "Left mouse".into(),
+        "MouseRight" => "Right mouse".into(),
+        "MouseMiddle" => "Middle mouse".into(),
+        "MouseWheel" => "Mouse wheel".into(),
+        "BracketRight" => "]".into(),
+        "Escape" => "Esc".into(),
+        _ => name
+            .strip_prefix("Key")
+            .or_else(|| name.strip_prefix("Digit"))
+            .unwrap_or(name)
+            .to_string(),
+    }
+}
+
+/// One row of the controls table: where it is used, what it does, its binding's field, its keys.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Control {
+    /// Where it is used ("On foot", "In the mech", ...).
+    pub group: &'static str,
+    /// What it does, in the pilot's words.
+    pub name: &'static str,
+    /// The binding's field in `data/input/bindings.ron`.
+    pub field: &'static str,
+    /// Its keys, readable, joined with " / ".
+    pub keys: String,
+}
+
+impl Bindings {
+    /// Every control and its keys, grouped by where it is used: what the Controls page shows
+    /// (openspec change `game-menus`). Read from the bindings, so it is never out of date.
+    pub fn controls(&self) -> Vec<Control> {
+        let row = |group, name, field, keys: &Vec<String>| Control {
+            group,
+            name,
+            field,
+            keys: keys.iter().map(|k| key_label(k)).collect::<Vec<_>>().join(" / "),
+        };
+        vec![
+            row("On foot", "Walk forward", "forward", &self.forward),
+            row("On foot", "Walk back", "back", &self.back),
+            row("On foot", "Step left", "left", &self.left),
+            row("On foot", "Step right", "right", &self.right),
+            row("On foot", "Run (hold)", "run", &self.run),
+            row("On foot", "Board the mech, climb out", "use_key", &self.use_key),
+            row("In the mech", "Throttle up", "forward", &self.forward),
+            row("In the mech", "Throttle down", "back", &self.back),
+            row("In the mech", "Turn left", "left", &self.left),
+            row("In the mech", "Turn right", "right", &self.right),
+            row("In the mech", "Throttle to zero", "throttle_zero", &self.throttle_zero),
+            row("In the mech", "Walk", "mode_walk", &self.mode_walk),
+            row("In the mech", "Skate mode", "mode_skate", &self.mode_skate),
+            row("In the mech", "Jet mode", "mode_jet", &self.mode_jet),
+            row("In the mech", "Rockets: lift", "lift", &self.lift),
+            row("In the mech", "Skates on and off", "skate", &self.skate),
+            row("In the mech", "Dive, sink on water", "sink", &self.sink),
+            row("Weapons", "Fire primary", "fire_primary", &self.fire_primary),
+            row("Weapons", "Fire secondary", "fire_secondary", &self.fire_secondary),
+            row("Weapons", "Fire missile at the lock", "fire_missile", &self.fire_missile),
+            row("Weapons", "Next target", "target_next", &self.target_next),
+            row(
+                "Weapons",
+                "Next weapon (the left mouse fires it)",
+                "weapon_cycle",
+                &self.weapon_cycle,
+            ),
+            row(
+                "Weapons",
+                "Close combat on and off (on by itself when the target is close)",
+                "close_combat",
+                &self.close_combat,
+            ),
+            row(
+                "Cockpit",
+                "Free look (hold); click an MFD to change page",
+                "free_look",
+                &self.free_look,
+            ),
+            row("Game", "Pause menu", "release_mouse", &self.release_mouse),
+            row("Test keys", "Hit left arm", "debug_hit_arm_l", &self.debug_hit_arm_l),
+            row("Test keys", "Hit right arm", "debug_hit_arm_r", &self.debug_hit_arm_r),
+            row("Test keys", "Hit head", "debug_hit_head", &self.debug_hit_head),
+            row("Test keys", "Hit left leg", "debug_hit_leg_l", &self.debug_hit_leg_l),
+            row("Test keys", "Drop a shell where you look", "debug_shell", &self.debug_shell),
+        ]
     }
 }

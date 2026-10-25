@@ -22,8 +22,10 @@ pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_hud)
-            .add_systems(Update, (update_hud, draw_targets).in_set(PresentSet::Camera));
+        app.add_systems(Startup, spawn_hud).add_systems(
+            Update,
+            (update_hud, draw_targets, exit_ring, update_stations).in_set(PresentSet::Camera),
+        );
     }
 }
 
@@ -39,6 +41,26 @@ pub const MFD_PAGE_PX: f32 = 512.0;
 
 #[derive(Component)]
 struct LegArrow;
+
+/// One dot of the climb-out ring round the crosshair, by its place round the ring (0 at the top).
+#[derive(Component)]
+struct ExitDot(usize);
+
+/// A row of the WEAPONS page: one weapon station, boxed when selected.
+#[derive(Component)]
+struct StationRow(usize);
+
+/// Rows on the WEAPONS page.
+const STATION_ROWS: usize = 6;
+
+/// The TARGET page's readout.
+#[derive(Component)]
+struct TargetReadout;
+
+/// Dots in the climb-out ring.
+const EXIT_DOTS: usize = 24;
+/// The climb-out ring's radius, pixels.
+const EXIT_RING_PX: f32 = 34.0;
 
 /// A pooled target box, by slot.
 #[derive(Component, Clone, Copy)]
@@ -185,6 +207,31 @@ fn spawn_hud(mut commands: Commands) {
                 Visibility::Hidden,
                 EdgeArrow,
             ));
+            // The climb-out ring: fills clockwise while Use is held (owner, 2026-10-25: "there would be
+            // a ccircle timer thing that shows progress of confirming E to exit").
+            for i in 0..EXIT_DOTS {
+                let a = i as f32 / EXIT_DOTS as f32 * std::f32::consts::TAU;
+                let (x, y) = (EXIT_RING_PX * a.sin(), -EXIT_RING_PX * a.cos());
+                root.spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Percent(50.0),
+                        top: Val::Percent(50.0),
+                        width: px(5.0),
+                        height: px(5.0),
+                        margin: UiRect {
+                            left: px(x - 2.5),
+                            top: px(y - 2.5),
+                            ..default()
+                        },
+                        border_radius: BorderRadius::MAX,
+                        ..default()
+                    },
+                    BackgroundColor(AMBER),
+                    Visibility::Hidden,
+                    ExitDot(i),
+                ));
+            }
             // Crosshair.
             for (w, h) in [(22.0, 2.0), (2.0, 22.0)] {
                 root.spawn((
@@ -334,6 +381,36 @@ fn spawn_hud(mut commands: Commands) {
             });
             // MISSION: heading, the nearest city, the wave.
             let mission = page(pages, "MISSION");
+            // WEAPONS: every station, the selected one boxed (weapon-select).
+            let weapons = page(pages, "WEAPONS");
+            pages.commands().entity(weapons).with_children(|c| {
+                for i in 0..STATION_ROWS {
+                    c.spawn((
+                        Node {
+                            width: percent(100.0),
+                            padding: UiRect::axes(px(12.0), px(6.0)),
+                            border: UiRect::all(px(3.0)),
+                            ..default()
+                        },
+                        text("", 30.0),
+                        BorderColor::all(Color::NONE),
+                        Visibility::Hidden,
+                        StationRow(i),
+                    ));
+                }
+            });
+            // TARGET: what is targeted, where, the lock, how hurt (weapon-select).
+            let target = page(pages, "TARGET");
+            pages.commands().entity(target).with_children(|c| {
+                c.spawn((
+                    Node {
+                        max_width: percent(100.0),
+                        ..default()
+                    },
+                    text("", 36.0),
+                    TargetReadout,
+                ));
+            });
             pages.commands().entity(mission).with_children(|c| {
                 c.spawn((
                     Node {
@@ -695,8 +772,17 @@ fn update_hud(
                     AMBER
                 },
             ),
-            Readout::Guns => {
+            Readout::Guns => 'guns: {
                 let mut parts = vec![format!("THR {:.0}%", m.throttle * 100.0)];
+                // In close combat the mouse buttons strike and the guns hold (close-combat).
+                if sim.close.on {
+                    parts.push("CLOSE COMBAT".into());
+                    for (button, kind) in [("LMB", PartKind::ArmL), ("RMB", PartKind::ArmR)] {
+                        let state = if sim.damage.is_lost(&spec.parts, kind) { "LOST" } else { "STRIKE" };
+                        parts.push(format!("{button} {state}"));
+                    }
+                    break 'guns (parts.join("\n"), AMBER);
+                }
                 for (i, w) in spec.weapons.iter().enumerate() {
                     let cd = sim.guns.cooldown_s.get(i).copied().unwrap_or(0.0);
                     let gone = sim.damage.is_lost(&spec.parts, w.arm);
@@ -707,10 +793,13 @@ fn update_hud(
                     } else {
                         "READY".to_string()
                     };
+                    // The left mouse fires the selected station (weapon-select); the right mouse and F
+                    // fire their groups.
                     let button = match w.group {
-                        0 => "LMB",
+                        _ if i == sim.selected => "LMB",
                         1 => "RMB",
-                        _ => "F",
+                        2 => "F",
+                        _ => continue,
                     };
                     parts.push(format!("{button} {state}"));
                 }
@@ -764,6 +853,93 @@ fn update_hud(
         }
         c.0 = colour;
     }
+}
+
+/// The climb-out ring: hidden until Use is held in the seat, then lit dot by dot as the hold fills,
+/// from the pilot's own hold clock (`cb_core::pilot`), so the ring and the exit agree.
+fn exit_ring(pilot: Res<PilotSim>, data: Res<crate::sim::Data>, mut dots: Query<(&ExitDot, &mut Visibility, &mut BackgroundColor)>) {
+    let k = (pilot.curr.exit_hold_s / data.0.pilot.exit_hold_s).clamp(0.0, 1.0);
+    let lit = (k * EXIT_DOTS as f32).ceil() as usize;
+    for (d, mut v, mut c) in &mut dots {
+        *v = if k > 0.0 { Visibility::Visible } else { Visibility::Hidden };
+        c.0 = if d.0 < lit { AMBER } else { AMBER.with_alpha(0.25) };
+    }
+}
+
+/// The WEAPONS and TARGET pages, from the piloted mech's own stations and the targeting state.
+#[allow(clippy::type_complexity)]
+fn update_stations(
+    data: Res<crate::sim::Data>,
+    targeting: Res<crate::targeting::TargetState>,
+    units: Res<crate::units::Units>,
+    me: Query<(&MechSim, &MechSpec), With<Piloted>>,
+    mechs: Query<(&MechSim, &MechSpec, &crate::mech::MechId)>,
+    mut rows: Query<(&StationRow, &mut Text, &mut TextColor, &mut BorderColor, &mut Visibility), Without<TargetReadout>>,
+    mut target: Query<(&mut Text, &mut TextColor), (With<TargetReadout>, Without<StationRow>)>,
+) {
+    let Some((sim, spec)) = me.iter().next() else { return };
+    for (row, mut t, mut c, mut b, mut v) in &mut rows {
+        let Some(w) = spec.weapons.get(row.0) else {
+            *v = Visibility::Hidden;
+            continue;
+        };
+        *v = Visibility::Inherited;
+        let lost = sim.damage.is_lost(&spec.parts, w.arm);
+        let cd = sim.guns.cooldown_s.get(row.0).copied().unwrap_or(0.0);
+        let state = if lost {
+            "LOST".to_string()
+        } else if cd > 0.05 {
+            format!("{cd:.1}s")
+        } else {
+            "READY".to_string()
+        };
+        let name = w.name.to_uppercase();
+        t.0 = format!("STA {}  {name}  {state}", row.0 + 1);
+        let selected = row.0 == sim.selected;
+        c.0 = if lost {
+            RED
+        } else if selected {
+            AMBER
+        } else {
+            GREEN
+        };
+        *b = BorderColor::all(if selected { AMBER } else { Color::NONE });
+    }
+    let Ok((mut t, mut c)) = target.single_mut() else { return };
+    let Some(id) = targeting.selected else {
+        t.0 = "NO TARGET".into();
+        c.0 = GREEN;
+        return;
+    };
+    let (name, health) = if id >= crate::units::UNIT_ID_BASE {
+        match units.list.iter().find(|p| p.unit.id == id) {
+            Some(p) => {
+                let full = data.0.units.units.get(&p.unit.kind).map_or(1.0, |s| s.hp.max(1.0));
+                (p.unit.kind.to_uppercase(), p.unit.hp / full)
+            }
+            None => ("UNKNOWN".into(), 0.0),
+        }
+    } else {
+        match mechs.iter().find(|m| m.2.0 == id) {
+            Some((s, sp, _)) => {
+                let torso = sp.parts.iter().position(|p| p.kind == PartKind::Torso);
+                let h = torso.map_or(1.0, |i| s.damage.structure[i] / sp.parts[i].structure.max(1.0));
+                (sp.name.to_uppercase(), h)
+            }
+            None => ("UNKNOWN".into(), 0.0),
+        }
+    };
+    let lock = if targeting.lock.locked(&data.0.targeting) {
+        "LOCK"
+    } else {
+        "LOCKING"
+    };
+    t.0 = format!(
+        "TARGET\n{name}\n{:.0} M\n{lock}\nHEALTH {:.0}%",
+        targeting.range_m,
+        (health * 100.0).clamp(0.0, 100.0)
+    );
+    c.0 = if targeting.lock.locked(&data.0.targeting) { AMBER } else { GREEN };
 }
 
 #[cfg(test)]

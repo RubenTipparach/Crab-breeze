@@ -331,7 +331,10 @@ impl MechState {
             false if legs_left == 1 => loco.turn_rate_deg_s * 0.5,
             false => loco.turn_rate_deg_s,
         };
-        self.turn_rate_rad_s = c.turn_axis * turn_rate.to_radians();
+        // The turn rate eases toward what is asked at the legs' turn acceleration.
+        let want = c.turn_axis * turn_rate.to_radians();
+        let ease = loco.turn_accel_deg_s2.to_radians() * dt_s;
+        self.turn_rate_rad_s += (want - self.turn_rate_rad_s).clamp(-ease, ease);
         self.heading_rad = (self.heading_rad + self.turn_rate_rad_s * dt_s).rem_euclid(std::f32::consts::TAU);
         let fwd = flat_forward(self.heading_rad);
 
