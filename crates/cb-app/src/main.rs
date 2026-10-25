@@ -1,6 +1,8 @@
 //! Crab Breeze, the game. This file is the composition root (CLAUDE.md section 6.2): it reads the
 //! command line and the data, and wires the plugins. It holds no game logic.
 
+mod ambience;
+mod audio;
 mod bench;
 mod blast;
 mod building_arrays;
@@ -20,6 +22,7 @@ mod input;
 mod loading;
 mod mech;
 mod mfd;
+mod music;
 mod particles;
 mod pbr_set;
 mod perf_hud;
@@ -123,6 +126,9 @@ fn main() -> AppExit {
         perf_hud::PerfHudPlugin,
         units::UnitsPlugin,
         mfd::MfdPlugin,
+        audio::SoundPlugin,
+        music::MusicPlugin,
+        ambience::AmbiencePlugin,
     ));
     // GPU grass (openspec change `gpu-grass`); `CB_NO_GRASS=1` leaves it out, so the benchmark can
     // measure what it costs.

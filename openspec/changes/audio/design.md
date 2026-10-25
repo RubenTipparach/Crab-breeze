@@ -86,12 +86,29 @@ edits (trim, loop point, normalised to -1 dBFS peak). Candidates found on OpenGa
 [100 CC0 SFX #2](https://opengameart.org/content/100-cc0-sfx-2). The gaps (a rocket engine loop, a
 sub rumble, a heavy autocannon, a lock tone) come from Freesound's CC0 filter.
 
-## 4b. Engine for 3D
+## 4b. Engine for 3D (decided, built 2026-10-25)
 
-Bevy 0.20 places a sound with a spatial listener and emitter (stereo panning between two ears and
-distance falloff); check its API on docs.rs for the pinned version before writing it (CLAUDE.md 2).
-If panning alone does not put a sound behind the pilot convincingly in a playtest, the candidates
-are `oddio` (spatial, with propagation delay) and Steam Audio (HRTF), `docs/analysis/audio-sources.md`.
+Bevy 0.20's own audio (rodio), read from the pinned source: a spatial voice is panned between two
+ears with rodio's falloff of `min(1, 1 / d^2)` on amplitude, -40 dB at only 10 m. So every voice
+carries a spatial scale of `1e-4`: 4 km becomes 0.4, inside rodio's unit radius where its falloff is
+1, while its panning (which depends only on the difference of the two ears' distances) still
+works. The level is then this design's law (`cb_core::audio::distance_gain`), set as the voice's
+volume every frame. rodio has no per-voice filter, so the low passes are files: every placed cue
+has a muffled copy (4 kHz, heard through the seal) and a far copy (2 kHz, past 600 m) rendered by
+`tools/audio/render_sfx.sh` into `audio/sfx/muffled/` and `audio/sfx/far/`, chosen when the sound
+starts. If panning alone does not put a sound behind the pilot convincingly in a playtest, the
+candidates are `oddio` and Steam Audio (HRTF).
+
+**Most sounds ride messages the game already sends.** `fx_sounds` in `cues.ron` maps an effect
+recipe to its sound (a muzzle flash to its gun, an impact to its surface's hit, a foot strike or a
+landing to a stomp, foot spray to a splash, a wall smash, a failing member, collapse dust, a lost
+part), so an effect and its sound are asked for by one message. Explosions sound from the
+`Explosion` message, large at 3 MJ and over. A sound that starts within 15 m of a mech rides it, so
+a muzzle blast or a footstep is not left behind a mech skating at 100 m/s.
+
+**Cockpit speakers are data**, offsets from the seat's `EYE_pilot` socket in `cues.ron`
+(`speakers`): a speaker voice rides that socket, so it stays put while the head turns. Named
+speaker empties in the cockpit models can replace the offsets later without changing a cue.
 
 ## 5. Cost
 

@@ -1,0 +1,88 @@
+// Every sound effect (openspec change `audio`). Files are under assets/; a placed cue's
+// muffled and far copies sit beside it (sfx/muffled/, sfx/far/), rendered by
+// tools/audio/render_sfx.sh. Every sound effect is placed in 3D (owner, 2026-10-25): `Placed` at
+// a node or point the game gives, `Cockpit("<speaker>")` at a speaker inside the cabin. Only
+// ambience (ambience.ron) and music (music.ron) are unplaced.
+(
+    ear_gap_m: 0.2,
+    speed_of_sound_m_s: 343.0,
+    full_level_within_m: 5.0,
+    far_beyond_m: 600.0,
+    audible_within_m: 4000.0,
+    seal_db: -6.0,
+    max_voices: 32,
+    master_db: 0.0,
+    // offsets from the pilot's eye in the seat, m: x right, y up, z back
+    speakers: {
+        "warning": (0.0, -0.25, -0.6),
+        "radio": (-0.35, -0.2, -0.5),
+        "console": (0.15, -0.3, -0.55),
+        "reactor": (0.0, 0.1, 0.9),
+    },
+    cues: {
+        // the mech
+        "foot_stomp": (files: ["audio/sfx/foot_stomp.ogg"], volume_db: -2.0, pitch: (0.92, 1.06), max_voices: 6),
+        "foot_splash": (files: ["audio/sfx/foot_splash.ogg"], volume_db: -2.0, pitch: (0.92, 1.06), max_voices: 4),
+        "servo_torso": (files: ["audio/sfx/servo_torso.ogg"], looping: true, max_voices: 1),
+        "hydraulic": (files: ["audio/sfx/hydraulic.ogg"], volume_db: -8.0, pitch: (0.9, 1.1), max_voices: 4),
+        "hatch_seal": (files: ["audio/sfx/hatch_seal.ogg"], max_voices: 2),
+        "hatch_steam": (files: ["audio/sfx/hatch_steam.ogg"], volume_db: -3.0, max_voices: 2),
+        "hatch_motor": (files: ["audio/sfx/hatch_motor.ogg"], volume_db: -3.0, max_voices: 2),
+        "jet_ignite": (files: ["audio/sfx/jet_ignite.ogg"], max_voices: 2),
+        "rocket_loop": (files: ["audio/sfx/rocket_loop.ogg"], looping: true, max_voices: 2),
+        "rocket_rumble": (files: ["audio/sfx/rocket_rumble.ogg"], looping: true, max_voices: 2),
+        "skate_roll": (files: ["audio/sfx/skate_roll.ogg"], looping: true, max_voices: 2),
+        "reactor_hum": (files: ["audio/sfx/reactor_hum.ogg"], volume_db: -14.0, space: Cockpit("reactor"), looping: true, max_voices: 1),
+        // weapons
+        "autocannon": (files: ["audio/sfx/autocannon.ogg"], volume_db: -3.0, pitch: (0.95, 1.05), max_voices: 10),
+        "cannon": (files: ["audio/sfx/cannon.ogg"], pitch: (0.97, 1.03), max_voices: 4),
+        "rocket_launch": (files: ["audio/sfx/rocket_launch.ogg"], volume_db: -2.0, pitch: (0.95, 1.05), max_voices: 6),
+        "missile_launch": (files: ["audio/sfx/missile_launch.ogg"], volume_db: -2.0, pitch: (0.96, 1.04), max_voices: 6),
+        "shotgun": (files: ["audio/sfx/shotgun.ogg"], pitch: (0.96, 1.04), max_voices: 4),
+        "rail_charge": (files: ["audio/sfx/rail_charge.ogg"], volume_db: -4.0, max_voices: 2),
+        "rail_fire": (files: ["audio/sfx/rail_fire.ogg"], max_voices: 2),
+        "laser_loop": (files: ["audio/sfx/laser_loop.ogg"], volume_db: -4.0, looping: true, max_voices: 2),
+        "laser_stop": (files: ["audio/sfx/laser_stop.ogg"], volume_db: -4.0, max_voices: 2),
+        "plasma_fire": (files: ["audio/sfx/plasma_fire.ogg"], volume_db: -2.0, pitch: (0.95, 1.05), max_voices: 4),
+        "lock_tone": (files: ["audio/sfx/lock_tone.ogg"], space: Cockpit("warning"), max_voices: 1),
+        "lock_on": (files: ["audio/sfx/lock_on.ogg"], space: Cockpit("warning"), max_voices: 1),
+        // melee (reserved: no punch is designed yet)
+        "punch_swing": (files: ["audio/sfx/punch_swing.ogg"], max_voices: 2),
+        "punch_hit_mech": (files: ["audio/sfx/punch_hit_mech.ogg"], max_voices: 2),
+        "punch_hit_building": (files: ["audio/sfx/punch_hit_building.ogg"], max_voices: 2),
+        // impacts
+        "impact_mech": (files: ["audio/sfx/impact_mech.ogg"], volume_db: -3.0, pitch: (0.9, 1.1), max_voices: 8),
+        "impact_building": (files: ["audio/sfx/impact_building.ogg"], volume_db: -3.0, pitch: (0.9, 1.1), max_voices: 8),
+        "plasma_burst": (files: ["audio/sfx/plasma_burst.ogg"], pitch: (0.95, 1.05), max_voices: 4),
+        "explosion_small": (files: ["audio/sfx/explosion_small.ogg"], pitch: (0.92, 1.08), max_voices: 6),
+        "explosion_large": (files: ["audio/sfx/explosion_large.ogg"], pitch: (0.95, 1.05), max_voices: 4),
+        "collapse": (files: ["audio/sfx/collapse.ogg"], pitch: (0.9, 1.05), max_voices: 3),
+        // the cockpit
+        "heat_lock": (files: ["audio/sfx/heat_lock.ogg"], space: Cockpit("warning"), max_voices: 1),
+        "alarm_warning": (files: ["audio/sfx/alarm_warning.ogg"], space: Cockpit("warning"), max_voices: 1),
+        "mfd_click": (files: ["audio/sfx/mfd_click.ogg"], space: Cockpit("console"), pitch: (0.95, 1.05), max_voices: 3),
+        "radio_squelch": (files: ["audio/sfx/radio_squelch.ogg"], space: Cockpit("radio"), max_voices: 1),
+        "radar_ping": (files: ["audio/sfx/radar_ping.ogg"], volume_db: -6.0, space: Cockpit("warning"), max_voices: 1),
+        "systems_boot": (files: ["audio/sfx/systems_boot.ogg"], space: Cockpit("warning"), max_voices: 1),
+    },
+    // The effects the game already announces (cb-core fx::RECIPES), and the sound each makes: the
+    // effect and its sound come from one message, so they cannot disagree.
+    fx_sounds: {
+        "muzzle_autocannon": "autocannon",
+        "muzzle_cannon": "cannon",
+        "muzzle_rocket": "rocket_launch",
+        "impact_mech": "impact_mech",
+        "impact_building": "impact_building",
+        "impact_ground": "impact_building",
+        "impact_water": "foot_splash",
+        "foot_strike_dirt": "foot_stomp",
+        "foot_strike_concrete": "foot_stomp",
+        "landing_dirt": "foot_stomp",
+        "landing_concrete": "foot_stomp",
+        "foot_spray": "foot_splash",
+        "wall_smash": "punch_hit_building",
+        "member_fail": "impact_building",
+        "collapse_dust": "collapse",
+        "part_lost": "punch_hit_mech",
+    },
+)

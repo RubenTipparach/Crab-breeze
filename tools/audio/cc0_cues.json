@@ -1,5 +1,5 @@
 {
-  "_about": "Recorded cues for tools/audio/cut_cc0.py. A layer is {src: 'pack:file'} or {synth: '<gen_sfx cue>'}, with optional shot (n-th shot of a multi-shot take), start, dur (s), pitch (tape-speed ratio), gain (dB after the layer is peak-normalised), lp, hp (Hz, steep), fadein, fadeout, delay (s). A cue may set len, drive (tanh), hp, loop, peak_db, what and edits.",
+  "_about": "Recorded cues for tools/audio/cut_cc0.py. A layer is {src: 'pack:file'} or {synth: '<gen_sfx cue>'}, with optional shot (n-th shot of a multi-shot take), start, dur (s), pitch (tape-speed ratio), gain (dB after the layer is peak-normalised), lp, hp (Hz, steep), fadein, fadeout, delay (s). A cue may set len, drive (tanh), hp, lp (gentle, 12 dB/octave), distance (compressor, lowpass and reverb that push a bed into the background), loop, stereo, group, peak_db, what and edits.",
   "foot_stomp": {
     "what": "A 24 m mech's foot landing: a recorded mech stomp slowed to its size, a heavy plate slam and the ground's sub thump.",
     "layers": [
@@ -457,19 +457,37 @@
     "edits": "slowed to 0.6-0.7 speed, layered"
   },
   "servo_torso": {
-    "what": "The torso turning on its ring: a recorded mechanism slowed to a heavy servo grind.",
+    "what": "The torso slewing on its ring (loops while it turns): a heavy electric slew motor whining, gear teeth meshing, the motor's low body.",
     "layers": [
       {
-        "src": "oga/mechanical-sounds:mechanical1.wav",
-        "pitch": 0.55,
-        "fadeout": 0.3
+        "src": "oga/68-workshop-sounds:workshop - drill long.wav",
+        "start": 1.0,
+        "dur": 2.6,
+        "pitch": 0.5,
+        "lp": 2200,
+        "gain": -3
       },
       {
-        "synth": "servo_torso",
+        "src": "oga/gears:gears.mp3",
+        "start": 12.0,
+        "dur": 2.6,
+        "pitch": 0.6,
+        "lp": 1800,
+        "gain": -4
+      },
+      {
+        "src": "oga/generator-loop:loop_generator_1.mp3",
+        "start": 0.5,
+        "dur": 2.6,
+        "pitch": 0.8,
+        "lp": 300,
         "gain": -6
       }
     ],
-    "edits": "slowed to 0.55 speed, layered over our synthesised motor"
+    "len": 2.6,
+    "loop": true,
+    "loop_fade": 0.4,
+    "edits": "a drill motor slowed to 0.5 speed for the slew motor, gears slowed to 0.6, a generator for the body, crossfaded into a loop"
   },
   "hydraulic": {
     "what": "A hydraulic ram: an electric pump straining as the ram drives, then the heavy thunk at the end of its stroke.",
@@ -875,7 +893,7 @@
     "stereo": true,
     "loop": true,
     "loop_fade": 3.0,
-    "peak_db": -3,
+    "peak_db": -14,
     "what": "Open country by day (loops): morning birdsong, a light breeze through grass, insects.",
     "layers": [
       {
@@ -895,14 +913,20 @@
       }
     ],
     "len": 45,
-    "edits": "layered, lowpassed wind, crossfaded into a loop (3 s crossfade)"
+    "edits": "layered, lowpassed wind, crossfaded into a loop (3 s crossfade), pushed into the background (compressed 3:1, lowpassed at 3.5 kHz, diffuse reverb), levelled 11 dB quieter",
+    "distance": {
+      "lp": 3500,
+      "wet": 0.35,
+      "threshold_db": -18,
+      "ratio": 3
+    }
   },
   "amb_forest": {
     "group": "Ambience",
     "stereo": true,
     "loop": true,
     "loop_fade": 3.0,
-    "peak_db": -3,
+    "peak_db": -14,
     "what": "Woodland (loops): birds close and far, leaves, a creek of air through the trees.",
     "layers": [
       {
@@ -915,14 +939,20 @@
       }
     ],
     "len": 44,
-    "edits": "layered, crossfaded into a loop (3 s crossfade)"
+    "edits": "layered, crossfaded into a loop (3 s crossfade), pushed into the background (compressed 3:1, lowpassed at 3.5 kHz, diffuse reverb), levelled 11 dB quieter",
+    "distance": {
+      "lp": 3500,
+      "wet": 0.35,
+      "threshold_db": -18,
+      "ratio": 3
+    }
   },
   "amb_night": {
     "group": "Ambience",
     "stereo": true,
     "loop": true,
     "loop_fade": 3.0,
-    "peak_db": -3,
+    "peak_db": -14,
     "what": "Open country at night (loops): crickets in the grass and a low wind.",
     "layers": [
       {
@@ -943,14 +973,20 @@
       }
     ],
     "len": 45,
-    "edits": "tiled, lowpassed wind panned wide, crossfaded into a loop (3 s crossfade)"
+    "edits": "tiled, lowpassed wind panned wide, crossfaded into a loop (3 s crossfade), pushed into the background (compressed 3:1, lowpassed at 3.5 kHz, diffuse reverb), levelled 11 dB quieter",
+    "distance": {
+      "lp": 3500,
+      "wet": 0.35,
+      "threshold_db": -18,
+      "ratio": 3
+    }
   },
   "amb_wind_high": {
     "group": "Ambience",
     "stereo": true,
     "loop": true,
     "loop_fade": 3.0,
-    "peak_db": -3,
+    "peak_db": -14,
     "what": "Wind at the cockpit's height, 24 m up (loops): gusts moving across the hull, left and right.",
     "layers": [
       {
@@ -970,14 +1006,20 @@
       }
     ],
     "len": 44,
-    "edits": "two mono winds panned wide, lowpassed, crossfaded into a loop (3 s crossfade)"
+    "edits": "two mono winds panned wide, lowpassed, crossfaded into a loop (3 s crossfade), pushed into the background (compressed 3:1, lowpassed at 3.5 kHz, diffuse reverb), levelled 11 dB quieter",
+    "distance": {
+      "lp": 3500,
+      "wet": 0.35,
+      "threshold_db": -18,
+      "ratio": 3
+    }
   },
   "amb_rain": {
     "group": "Ambience",
     "stereo": true,
     "loop": true,
     "loop_fade": 3.0,
-    "peak_db": -3,
+    "peak_db": -14,
     "what": "Steady rain (loops): rain on open ground and on metal.",
     "layers": [
       {
@@ -985,14 +1027,20 @@
       }
     ],
     "len": 45,
-    "edits": "crossfaded into a loop (3 s crossfade)"
+    "edits": "crossfaded into a loop (3 s crossfade), pushed into the background (compressed 3:1, lowpassed at 3.5 kHz, diffuse reverb), levelled 11 dB quieter",
+    "distance": {
+      "lp": 3500,
+      "wet": 0.35,
+      "threshold_db": -18,
+      "ratio": 3
+    }
   },
   "amb_rain_storm": {
     "group": "Ambience",
     "stereo": true,
     "loop": true,
     "loop_fade": 3.0,
-    "peak_db": -3,
+    "peak_db": -14,
     "what": "A storm (loops): heavy rain with thunder rolling far off.",
     "layers": [
       {
@@ -1000,14 +1048,20 @@
       }
     ],
     "len": 44,
-    "edits": "crossfaded into a loop (3 s crossfade)"
+    "edits": "crossfaded into a loop (3 s crossfade), pushed into the background (compressed 3:1, lowpassed at 3.5 kHz, diffuse reverb), levelled 11 dB quieter",
+    "distance": {
+      "lp": 3500,
+      "wet": 0.35,
+      "threshold_db": -18,
+      "ratio": 3
+    }
   },
   "amb_city_street": {
     "group": "Ambience",
     "stereo": true,
     "loop": true,
     "loop_fade": 3.0,
-    "peak_db": -3,
+    "peak_db": -14,
     "what": "City streets (loops): traffic passing, a crowd murmuring, the hum of a busy city, a siren far off.",
     "layers": [
       {
@@ -1039,14 +1093,20 @@
       }
     ],
     "len": 40,
-    "edits": "tiled, crowd lowpassed to a murmur, a distant siren, crossfaded into a loop (3 s crossfade)"
+    "edits": "tiled, crowd lowpassed to a murmur, a distant siren, crossfaded into a loop (3 s crossfade), pushed into the background (compressed 3:1, lowpassed at 3.5 kHz, diffuse reverb), levelled 11 dB quieter",
+    "distance": {
+      "lp": 3500,
+      "wet": 0.35,
+      "threshold_db": -18,
+      "ratio": 3
+    }
   },
   "amb_city_night_rain": {
     "group": "Ambience",
     "stereo": true,
     "loop": true,
     "loop_fade": 3.0,
-    "peak_db": -3,
+    "peak_db": -14,
     "what": "The city at night in the rain (loops): rain on the street, wet tyres hissing past, the city's low hum.",
     "layers": [
       {
@@ -1066,14 +1126,20 @@
       }
     ],
     "len": 37,
-    "edits": "layered, traffic and city lowpassed, crossfaded into a loop (3 s crossfade)"
+    "edits": "layered, traffic and city lowpassed, crossfaded into a loop (3 s crossfade), pushed into the background (compressed 3:1, lowpassed at 3.5 kHz, diffuse reverb), levelled 11 dB quieter",
+    "distance": {
+      "lp": 3500,
+      "wet": 0.35,
+      "threshold_db": -18,
+      "ratio": 3
+    }
   },
   "amb_industrial": {
     "group": "Ambience",
     "stereo": true,
     "loop": true,
     "loop_fade": 3.0,
-    "peak_db": -3,
+    "peak_db": -14,
     "what": "The industrial district (loops): a factory working, vents roaring, machinery in the distance.",
     "layers": [
       {
@@ -1089,6 +1155,12 @@
       }
     ],
     "len": 45,
-    "edits": "layered, vent lowpassed, crossfaded into a loop (3 s crossfade)"
+    "edits": "layered, vent lowpassed, crossfaded into a loop (3 s crossfade), pushed into the background (compressed 3:1, lowpassed at 3.5 kHz, diffuse reverb), levelled 11 dB quieter",
+    "distance": {
+      "lp": 3500,
+      "wet": 0.35,
+      "threshold_db": -18,
+      "ratio": 3
+    }
   }
 }

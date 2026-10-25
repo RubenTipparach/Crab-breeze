@@ -25,10 +25,11 @@ read at 4 Hz (ambience needs no more):
 
 - **city** `c = 1 - smoothstep(r, r + 300 m, d)` with `d` the distance to the nearest city's
   centre and `r` its flat-ground radius (`island-world`): 1 in the streets, 0 300 m outside.
-- **industrial** `i = c * share`, `share` the fraction of warehouses (`building-generation`'s
-  brick warehouse) among the buildings within 200 m; the city weight becomes `c - i`.
+- **industrial** `i = c * share`, `share` the fraction of warehouses among the buildings within
+  200 m; the city weight becomes `c - i`. A building's style is not stored, so a warehouse is the
+  city generator's own warehouse test: at most 4 storeys over more than 900 m2.
 - **forest** `f = (1 - c) * min(1, trees within 80 m / 40)` (`world::forest`).
-- **open ground** `o = (1 - c) * (1 - f)`.
+- **open ground** `o = (1 - c) * (1 - min(1, trees within 80 m / 40))`, so the zone weights sum to 1.
 - **height** `h = smoothstep(2 m, 24 m, listener height above ground)`: 0 on foot, 1 in the seat.
 
 Each bed's gain is `volume_db + 20 log10(sqrt(weight))` (equal power, so a crossfade between two
@@ -39,6 +40,11 @@ below -40 dB is stopped and restarted at a random point of its loop when it is n
 **Until the game has a time of day and weather**, `amb_night`, `amb_rain`, `amb_rain_storm` and
 `amb_city_night_rain` are never chosen; the rule takes `is_night` and `rain` inputs that are false
 today, so the beds plug in when those systems exist (a data switch can force them for a take).
+
+**The beds' files are quiet and far** (owner, 2026-10-25: "ambient sounds needs to be softer and
+queiter", "they are too foregroundy, need to be more background audio"): each is compressed 3:1,
+low passed at 3.5 kHz, given a diffuse reverb and written 11 dB lower when it is cut
+(`tools/audio/cut_cc0.py`, `distance`), so in the game it plays at 0 dB and sits behind everything.
 
 ## 3. Heard from the cockpit
 

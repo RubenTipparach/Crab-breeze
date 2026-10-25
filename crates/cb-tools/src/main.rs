@@ -1,6 +1,7 @@
 //! Crab Breeze command-line tools. `cb-tools validate <data dir>` loads every data file through the
 //! same loader the game uses (CLAUDE.md section 11), so a file that would stop the game stops here.
 
+mod audio_check;
 mod glb;
 
 use cb_core::GameData;
@@ -43,6 +44,21 @@ fn main() -> ExitCode {
                 let problems = glb::check_skins(&d.skins, &root.join("..").join("assets"));
                 if problems.is_empty() {
                     println!("ok   {} enemy skins", d.skins.skins.len());
+                }
+                for p in problems {
+                    eprintln!("FAIL {p}");
+                    ok = false;
+                }
+                // the sounds: every file there, every placed one mono, music tempos match the scores
+                let repo = root.join("..");
+                let problems = audio_check::check_audio(&d.audio, &repo.join("assets"), &repo.join("music"));
+                if problems.is_empty() {
+                    println!(
+                        "ok   {} sound effects, {} ambience beds, {} music cues",
+                        d.audio.cues.cues.len(),
+                        d.audio.ambience.beds.len(),
+                        d.audio.music.cues.len()
+                    );
                 }
                 for p in problems {
                     eprintln!("FAIL {p}");

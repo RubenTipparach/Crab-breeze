@@ -115,6 +115,39 @@ def layer(spec: dict, src_root: str, channels: int) -> np.ndarray:
     return np.concatenate([np.zeros((channels, int(spec.get("delay", 0.0) * SR))), x], axis=1)
 
 
+def smooth(x: np.ndarray, seconds: float) -> np.ndarray:
+    w = max(1, int(seconds * SR))
+    return np.convolve(x, np.ones(w) / w, "same")
+
+
+def compress(x: np.ndarray, threshold_db: float = -18.0, ratio: float = 3.0) -> np.ndarray:
+    """Evens out a bed so no bird, car or shout jumps forward: a 300 ms RMS follower, gain above the
+    threshold reduced by the ratio, the gain itself smoothed over 200 ms. x is (channels, n)."""
+    peak = np.max(np.abs(x)) or 1.0
+    env = np.sqrt(smooth((x / peak).mean(axis=0) ** 2, 0.3)) + 1e-9
+    thr = 10 ** (threshold_db / 20)
+    gain = np.minimum(1.0, (thr / env) ** (1 - 1 / ratio))
+    return x * smooth(gain, 0.2)
+
+
+def wrapped_reverb(x: np.ndarray, wet: float, room: float) -> np.ndarray:
+    """gen_sfx's reverb with its tail folded back onto the start, so a loop stays seamless."""
+    n = len(x)
+    r = g.reverb(x, room=room, wet=wet, tail_s=1.5)
+    y = r[:n].copy()
+    y[: len(r) - n] += r[n:]
+    return y
+
+
+def distance(x: np.ndarray, spec: dict) -> np.ndarray:
+    """Pushes a bed into the background: compressed, lowpassed, then a diffuse reverb, slightly
+    different on each side so the bed is wide and nothing in it sounds close."""
+    x = compress(x, spec.get("threshold_db", -18.0), spec.get("ratio", 3.0))
+    x = per_channel(g.lp, x, spec.get("lp", 3500), order=2)
+    rooms = (0.8, 0.88)
+    return np.stack([wrapped_reverb(c, spec.get("wet", 0.35), rooms[i % 2]) for i, c in enumerate(x)])
+
+
 def cut(cue: dict, src_root: str) -> np.ndarray:
     """The cue as (channels, n): stereo for an ambience bed (cue "stereo": true), mono otherwise."""
     ch = 2 if cue.get("stereo") else 1
@@ -123,7 +156,11 @@ def cut(cue: dict, src_root: str) -> np.ndarray:
     x = sum(fit(p, n) for p in parts)
     if "drive" in cue:
         x = g.shape(x / (np.max(np.abs(x)) or 1.0), cue["drive"])
+    if "distance" in cue:
+        x = distance(x, cue["distance"])
     x = per_channel(g.hp, x, cue.get("hp", 20))
+    if "lp" in cue:
+        x = per_channel(g.lp, x, cue["lp"], order=2)
     if cue.get("loop"):
         x = per_channel(g.loopable, x, cue.get("loop_fade", 0.3))
     else:

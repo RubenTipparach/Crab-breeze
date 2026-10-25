@@ -11,7 +11,7 @@ REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT="$REPO/output/sfx"
 OGG="$REPO/assets/audio/sfx"
 AMB="$REPO/assets/audio/ambience"
-mkdir -p "$OUT" "$OGG" "$AMB"
+mkdir -p "$OUT" "$OGG" "$OGG/muffled" "$OGG/far" "$AMB"
 if [ "$#" -gt 0 ]; then
   python3 "$REPO/tools/audio/gen_sfx.py" --out "$OUT" --only "$@"
 else
@@ -30,6 +30,10 @@ for wav in "$OUT"/*.wav; do
   else
     ffmpeg -hide_banner -loglevel error -y -i "$wav" -c:a libvorbis -q:a 5 "$OGG/$name.ogg"
     ffmpeg -hide_banner -loglevel error -y -i "$wav" -c:a libmp3lame -b:a 160k "$OUT/$name.mp3"
+    # the copies the game plays for a placed sound heard through the cockpit's seal (low passed at
+    # 4 kHz) and from far off (toward 2 kHz): cb-core::audio::Variant, openspec change `audio`
+    ffmpeg -hide_banner -loglevel error -y -i "$wav" -af "lowpass=f=4000,lowpass=f=4000" -c:a libvorbis -q:a 4 "$OGG/muffled/$name.ogg"
+    ffmpeg -hide_banner -loglevel error -y -i "$wav" -af "lowpass=f=2000,lowpass=f=2000" -c:a libvorbis -q:a 4 "$OGG/far/$name.ogg"
   fi
 done
 echo "wrote $(ls "$OGG"/*.ogg | wc -l) sounds to assets/audio/sfx, $(ls "$AMB"/*.ogg 2>/dev/null | wc -l) beds to assets/audio/ambience"

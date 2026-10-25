@@ -40,6 +40,13 @@ fades, so a lull between waves does not switch the music off and on. The title s
 boarding cinematic keep their cues. The rule is a pure function in
 `cb-core` (`music_state(&World) -> MusicState`) with tests; `cb-app` plays what it returns.
 
+**What the rule reads today (built 2026-10-25, `cb-app/src/music.rs`).** There is no title screen
+yet and no Big Boy, so `title` and `set_piece` are never true. A threat is a hostile (`Hostiles`,
+not shelling a city) within 2 km of the pilot's head; a shot is a muzzle flash or an impact within
+300 m of it, or an explosion within 500 m; a win is the defence mission's `Phase::Won`. A cue that
+does not loop (boarding, won) plays once and then leaves silence while its state holds. The music
+starts only after `GAME_READY`.
+
 ## 3. Bar-aligned crossfades
 
 On a state change at time `t` into a cue playing since `t0` at `bpm`, the switch happens at the

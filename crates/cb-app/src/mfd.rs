@@ -150,6 +150,7 @@ fn press(
     eye: Single<&GlobalTransform, With<PilotCamera>>,
     mut screens: Query<(&mut MfdScreen, &Aabb, &GlobalTransform)>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut sounds: MessageWriter<crate::audio::Sound>,
 ) {
     if !std::mem::take(&mut acc.mfd_press) {
         return;
@@ -163,6 +164,7 @@ fn press(
         }
     }
     if let Some((_, mut screen)) = nearest {
+        sounds.write(crate::audio::Sound::speaker("mfd_click"));
         screen.page = (screen.page + 1) % PAGES;
         if let Some(mut m) = materials.get_mut(&screen.material) {
             m.uv_transform = page_uv(screen.page);
