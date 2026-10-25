@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Crab Breeze Island</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -48,6 +49,7 @@ button:focus-visible, canvas:focus-visible, input:focus-visible { outline: 2px s
   border: 1px solid #34402f; padding: 6px 9px; pointer-events: none; white-space: pre; }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; font: 700 20px var(--display); letter-spacing: 0.1em;
   text-transform: uppercase; color: #eef2ec; background: rgba(12, 16, 13, 0.6); }
+.loading[hidden] { display: none; }
 .hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
 aside { display: grid; gap: 12px; min-width: 0; }
 .card { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 12px 14px; display: grid; gap: 8px; }
@@ -155,7 +157,7 @@ const SKY_HORIZON = new THREE.Color('#b9cfdf');
 const SKY_ZENITH = new THREE.Color('#3d72b0');
 scene.background = SKY_HORIZON.clone();
 scene.fog = new THREE.FogExp2(SKY_HORIZON.clone().convertSRGBToLinear(), FOG_DENSITY);
-const camera = new THREE.PerspectiveCamera(55, 16 / 9, 1, 120000);
+const camera = new THREE.PerspectiveCamera(55, 16 / 9, 1, 200000);
 const controls = new THREE.OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.maxDistance = 70000;
@@ -441,7 +443,8 @@ function buildSea() {
   const tex = new THREE.DataTexture(data, N + 1, N + 1, THREE.RGBAFormat);
   tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.needsUpdate = true;
   waterMat.uniforms.uDepth.value = tex;
-  const geo = new THREE.PlaneGeometry(G.WORLD_M * 3, G.WORLD_M * 3, 1, 1);
+  // Six worlds wide, so its edge lies past the far plane from every view.
+  const geo = new THREE.PlaneGeometry(G.WORLD_M * 6, G.WORLD_M * 6, 1, 1);
   geo.rotateX(-Math.PI / 2);
   geo.setAttribute('murk', new THREE.BufferAttribute(new Float32Array(4), 1));
   const sea = new THREE.Mesh(geo, waterMat);
@@ -747,7 +750,7 @@ function buildClouds() {
 
 // ------------------------------------------------------------------ sky dome, mech and pilot for scale
 function buildSky() {
-  const g = new THREE.SphereGeometry(100000, 32, 16);
+  const g = new THREE.SphereGeometry(150000, 32, 16);
   const m = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false,
     uniforms: { uZen: { value: SKY_ZENITH.clone().convertSRGBToLinear() }, uHor: { value: SKY_HORIZON.clone().convertSRGBToLinear() }, uSunDir: { value: sunDir } },
     vertexShader: `#include <common>
@@ -818,28 +821,41 @@ const VIEWS = {};
 function setupViews() {
   const c0 = G.CANYONS[Math.floor(G.CANYONS.length * 0.15)];
   const cmid = [(c0.ax + c0.bx) / 2, (c0.az + c0.bz) / 2];
+  const cl = Math.hypot(c0.bx - c0.ax, c0.bz - c0.az) || 1;
+  const ca = [(c0.bx - c0.ax) / cl, (c0.bz - c0.az) / cl], cn = [-ca[1], ca[0]];
   const sw = G.SWAMPS[0] || { x: -9000, z: 3000 };
   const fall = G.FALLS.slice().sort((a, b) => (b.top - b.foot) - (a.top - a.foot))[0];
   const isl = G.ISLETS[0];
   const ne = [Math.sin(50 * Math.PI / 180) * 12000, -Math.cos(50 * Math.PI / 180) * 12000];
-  let dune = null;
-  for (let t = 0; t < 4000 && !dune; t++) { const x = 3000 + Math.random() * 9000, z = -6000 + Math.random() * 12000; const f = G.sample(x, z); if (f.dune > 8) dune = { x, z, h: f.h }; }
-  dune = dune || { x: 8000, z: 0, h: 350 };
+  // The heart of the sand sea: the 400 m grid point whose 1.2 km square holds the most dune
+  // height on open plateau, so every load frames the same spot.
+  let dune = { x: 8000, z: 0, h: 350, d: 0 };
+  for (let z = -10000; z <= 10000; z += 400) for (let x = 4000; x <= 14000; x += 400) {
+    let d = 0;
+    for (let a = -600; a <= 600; a += 600) for (let b = -600; b <= 600; b += 600) {
+      const f = G.sample(x + a, z + b);
+      if (f.plat > 0.98 && f.canyon < 1) d += f.dune;
+    }
+    if (d > dune.d) dune = { x, z, h: groundAt(x, z), d };
+  }
+  const rnd = G.mulberry(G.SEED + 99);
   let jung = null;
-  for (let t = 0; t < 4000 && !jung; t++) { const x = -12000 + Math.random() * 8000, z = 0 + Math.random() * 9000; if (groundAt(x, z) > 5 && biomeAt(x, z).b === 2) jung = { x, z }; }
+  for (let t = 0; t < 4000 && !jung; t++) { const x = -12000 + rnd() * 8000, z = 0 + rnd() * 9000; if (groundAt(x, z) > 5 && biomeAt(x, z).b === 2) jung = { x, z }; }
   jung = jung || { x: -8000, z: 4000 };
   const at = (x, z, up) => [x, groundAt(x, z) + up, z];
   const fdx = fall ? fall.tx - fall.x : 1, fdz = fall ? fall.tz - fall.z : 0, fl = Math.hypot(fdx, fdz) || 1;
   Object.assign(VIEWS, {
     overview: { pos: [6000, 22000, 26000], tgt: [0, 0, 0] },
     range: { pos: [peak.x - 9000, 1900, peak.z + 5000], tgt: [peak.x, peak.h * 0.6, peak.z] },
-    canyon: { pos: at(cmid[0] - 400, cmid[1] - 300, 120), tgt: at(cmid[0] + 600, cmid[1] + 200, 20) },
-    desert: { pos: [dune.x - 900, dune.h + 90, dune.z + 700], tgt: [dune.x + 400, dune.h, dune.z - 200] },
+    // From the rim, 380 m to one side and 300 m back, looking along the cut.
+    canyon: { pos: at(cmid[0] + cn[0] * 380 - ca[0] * 300, cmid[1] + cn[1] * 380 - ca[1] * 300, 60), tgt: at(cmid[0] + ca[0] * 700, cmid[1] + ca[1] * 700, 0) },
+    desert: { pos: at(dune.x - 700, dune.z + 500, 220), tgt: at(dune.x + 200, dune.z - 150, 0) },
     jungle: { pos: at(jung.x, jung.z, 70), tgt: at(jung.x + 900, jung.z - 400, 20) },
     swamp: { pos: [sw.x + 700, 45, sw.z + 500], tgt: [sw.x - 300, 0, sw.z - 200] },
     falls: fall ? { pos: [fall.x - fdx / fl * 650 + fdz / fl * 250, fall.foot + 90, fall.z - fdz / fl * 650 - fdx / fl * 250], tgt: [fall.tx, (fall.top + fall.foot) / 2, fall.tz] } : { pos: [0, 3000, 8000], tgt: [0, 0, 0] },
     cliffs: { pos: [ne[0] * 1.13, 70, ne[1] * 1.13], tgt: [ne[0] * 0.98, 60, ne[1] * 0.98] },
-    islets: { pos: [isl.x + 2500, 900, isl.z - 2500], tgt: [isl.x, 0, isl.z] },
+    // Under the cloud base (600 m), so no cloud stands between the eye and the islands.
+    islets: { pos: [isl.x + 2200, 420, isl.z - 2200], tgt: [isl.x, 0, isl.z] },
     beach: { pos: [SCALE_SPOT.x + 260, SCALE_SPOT.h + 40, SCALE_SPOT.z + 380], tgt: [SCALE_SPOT.x - 300, SCALE_SPOT.h, SCALE_SPOT.z - 400] },
     scale: { pos: [SCALE_SPOT.x + 30, SCALE_SPOT.h + 14, SCALE_SPOT.z + 46], tgt: [SCALE_SPOT.x + 3, SCALE_SPOT.h + 10, SCALE_SPOT.z] },
   });

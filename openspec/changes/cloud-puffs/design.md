@@ -48,5 +48,5 @@ All six numbers live in `data/world/world.ron` under `clouds:` (`look_*`).
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | W8 | Clouds | scattered cumulus at 600-1100 m, about 35 % cover, fly-through fog | provisional (survey W8) |
-| W17 | How clouds are made | lit blob meshes now; far impostors later if the haze needs more | decided (owner 2026-10-24: "tight budget"; survey W17 moved to decided) |
+| W17 | How clouds are made | lit blob meshes now; far impostors later if the haze needs more | reopened: owner, 2026-10-24, after the lit blobs were built and shot (`docs/screenshots/island/`): "I prefer clouds to be billboards or a mix of some cheap raymarch". The blobs stand until a revision of this design (billboards, or billboards with a cheap raymarch, priced in overdraw and GPU time) is written and accepted (it had been marked decided, "tight budget") |
 | I7 | Cloud shadows on the ground | a scrolling 2 km shadow texture, one sample a pixel | proposed (survey I7) |
