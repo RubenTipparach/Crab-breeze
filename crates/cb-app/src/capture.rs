@@ -200,6 +200,10 @@ fn buildings_beats(
 
 /// The poster variant's shots: (where the camera stands round the mech from straight ahead of it,
 /// degrees; knelt and open; how far the view turns off the mech, degrees, so it sits to one side).
+/// The stills script's beat for taking a job on the MAIL page (`CB_STILLS_MAIL`), out of the numbered run: entered
+/// after the outline shot, it goes on to the stride.
+const MAIL_BEAT: usize = 50;
+
 const POSTER_SHOTS: [(f32, bool, f32); 2] = [(45.0, false, 13.0), (45.0, true, 13.0)];
 
 /// How far the poster variant turns the mech from facing the pilot's start, degrees, so it stands
@@ -322,6 +326,13 @@ fn run_script(
         // The steam shot is taken; frames drawn since the cabin sealed (the screens power up over 2.5 s of game,
         // 10 frames at the cap), counting on through the outline shot.
         Local<(bool, u32)>,
+    ),
+    // `CB_STILLS_MAIL`: where the view points on the MFDs, the free-roam board, and how far through taking a job
+    // the script is (its step, frames in it).
+    (pointed, career, mut mail): (
+        Res<crate::mfd_apps::Pointed>,
+        Option<Res<crate::career::CareerRun>>,
+        Local<(u32, u32)>,
     ),
     time: Res<Time<Real>>,
     game_time: Res<Time<Virtual>>,
@@ -512,8 +523,111 @@ fn run_script(
                 steam_shot.1 += 1;
                 steam_shot.1 > 18
             } {
+                if crate::cli::switched_off("CB_STILLS_MAIL") {
+                    steam_shot.1 = 0;
+                    script.beat = MAIL_BEAT;
+                    script.beat_started_s = now;
+                    shoot(&mut commands, &script.dir, "cockpit-outline.png");
+                    return;
+                }
                 shoot(&mut commands, &script.dir, "cockpit-outline.png");
                 next = true;
+            }
+        }
+        // `CB_STILLS_MAIL`: a job taken on the cockpit's MAIL page, as a player takes one in free roam (mission-jobs
+        // 4.1): click the pointed screen (its MENU opens), aim at MAIL and click, aim at the first ACCEPT and click,
+        // aim at BACK and click (the screen's own page again). Aiming is by look input until the row lights, as a
+        // player's mouse does; a click is the press free look and fire make. A still at each step.
+        MAIL_BEAT => {
+            use crate::mfd_apps::{Item, MAIL_PAGE, MENU_PAGE, item_centre};
+            let (step, frames) = &mut *mail;
+            *frames += 1;
+            let seek = |page: usize, item: Item| -> Vec2 {
+                match (pointed.at, item_centre(page, item)) {
+                    (Some(at), Some(c)) => ((c - at) * Vec2::new(0.02, -0.02)).clamp(Vec2::splat(-0.6), Vec2::splat(0.6)),
+                    _ => Vec2::ZERO,
+                }
+            };
+            let mut look = Vec2::ZERO;
+            let mut press = false;
+            let board = career.as_ref().map(|c| &c.career.board);
+            let advance = |step: &mut u32, frames: &mut u32| {
+                *step += 1;
+                *frames = 0;
+            };
+            match *step {
+                // Raise the view onto the screen (the outline beat stops a little under the dash's centre screen),
+                // then click it.
+                0 if pointed.screen.is_none() => look = Vec2::new(0.0, 0.4),
+                0 if *frames > 4 => {
+                    press = true;
+                    advance(step, frames);
+                }
+                1 if *frames > 8 && pointed.page == Some(MENU_PAGE) => {
+                    shoot(&mut commands, &script.dir, "mfd-menu.png");
+                    advance(step, frames);
+                }
+                2 => {
+                    look = seek(MENU_PAGE, Item::Mail);
+                    if pointed.item == Some(Item::Mail) && *frames > 4 {
+                        press = true;
+                        advance(step, frames);
+                    }
+                }
+                3 => {
+                    let offered = board.is_some_and(|b| b.jobs.iter().any(|j| j.state == cb_core::jobs::JobState::Offered));
+                    if *frames > 8 && pointed.page == Some(MAIL_PAGE) && offered {
+                        shoot(&mut commands, &script.dir, "mfd-mail.png");
+                        advance(step, frames);
+                    }
+                }
+                4 => {
+                    look = seek(MAIL_PAGE, Item::Accept(0));
+                    if pointed.item == Some(Item::Accept(0)) && *frames > 4 {
+                        press = true;
+                        advance(step, frames);
+                    }
+                }
+                5 if *frames > 8 && board.is_some_and(|b| b.current().is_some()) => {
+                    let j = board.and_then(|b| b.current()).unwrap();
+                    println!(
+                        "STILLS_MAIL accepted job {} at ({:.0}, {:.0}), {} mechs",
+                        j.id, j.site.x, j.site.y, j.mechs
+                    );
+                    shoot(&mut commands, &script.dir, "mfd-accepted.png");
+                    advance(step, frames);
+                }
+                6 => {
+                    look = seek(MAIL_PAGE, Item::Back);
+                    if pointed.item == Some(Item::Back) && *frames > 4 {
+                        press = true;
+                        advance(step, frames);
+                    }
+                }
+                7 if *frames > 8 && pointed.page.is_some_and(|p| p < MENU_PAGE) => {
+                    println!("STILLS_MAIL back on page {:?}", pointed.page);
+                    shoot(&mut commands, &script.dir, "mfd-back.png");
+                    next = true;
+                }
+                _ => {}
+            }
+            if in_beat > 900.0 && !next {
+                println!("STILLS_MAIL stuck at step {} (pointed {:?})", *step, *pointed);
+                next = true;
+            }
+            // The aim goes in once a frame, as a mouse's does (`look_deg` is taken by the next fixed step only): held in
+            // the script's actions it would turn the view again on every step of a long software-rendered frame.
+            acc.script = Some(Actions {
+                free_look: true,
+                ..default()
+            });
+            acc.look_deg += look;
+            acc.mfd_press |= press;
+            if next {
+                // On to the stride, as after the outline shot.
+                script.beat = 6;
+                script.beat_started_s = now;
+                return;
             }
         }
         // Stand up and stride: throttle forward (the mech stands first), hold, measure frame time

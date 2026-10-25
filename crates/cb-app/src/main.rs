@@ -26,6 +26,7 @@ mod loading;
 mod mech;
 mod menu;
 mod mfd;
+mod mfd_apps;
 mod music;
 mod particles;
 mod pbr_set;
@@ -140,6 +141,7 @@ fn main() -> AppExit {
         perf_hud::PerfHudPlugin,
         units::UnitsPlugin,
         mfd::MfdPlugin,
+        mfd_apps::MfdAppsPlugin,
         menu::MenuPlugin,
         rope::RopePlugin,
         vents::VentsPlugin,
@@ -177,8 +179,13 @@ fn main() -> AppExit {
         app.insert_resource(defence::Defending)
             .init_resource::<defence::DefenceRun>()
             .insert_resource(menu::Play::Defence);
+    } else if args.stills.is_some() && std::env::var("CB_STILLS_MAIL").is_ok() {
+        // The stills of taking a job on the cockpit's MAIL page start as free roam does from the title menu: no
+        // enemy, a board of jobs by mail (capture::run_script's beat 5).
+        app.insert_resource(menu::Play::FreeRoam)
+            .insert_resource(career::CareerStart::FreeRoam);
     } else if scripted || args.mission.is_some() {
-        app.insert_resource(menu::Play::FreeRoam);
+        app.insert_resource(menu::Play::Encounters);
     } else {
         app.insert_resource(menu::TitleWanted);
     }

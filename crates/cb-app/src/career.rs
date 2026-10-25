@@ -2,7 +2,9 @@
 //! title menu (New career, or Continue from `saves/career.ron`), steps the job board every fixed step
 //! with where the pilot is and how many of the job's enemies are left, brings a job's enemy mechs in
 //! when the pilot arrives at its site, pays a won job through the career's ledger, and saves. The rules
-//! are `cb_core::career` and `cb_core::jobs`; the mail is read and answered on the menu's MAIL page.
+//! are `cb_core::career` and `cb_core::jobs`; the mail is read and answered on the cockpit's MAIL page
+//! (`mfd_apps`) and the menu's. Free roam runs the same board on a career that is never saved, so its jobs
+//! come by mail as a career's do and a free-roam run never touches the career's save (mission-jobs 4.1).
 
 use crate::mech::{Loadout, MechId, MechSim, Piloted, SpawnAssets, spawn_enemy};
 use crate::pilot::PilotSim;
@@ -25,6 +27,8 @@ pub struct CareerRun {
     pub jobs: JobsConfig,
     /// Seconds since the last save.
     since_save_s: f32,
+    /// Written to `saves/career.ron` (false in free roam).
+    saves: bool,
 }
 
 /// How the career begins, chosen on the title menu.
@@ -34,6 +38,8 @@ pub enum CareerStart {
     New,
     /// The saved one.
     Continue,
+    /// Free roam: a fresh board of jobs, never saved.
+    FreeRoam,
 }
 
 /// An enemy mech brought in by a job (its id).
@@ -94,7 +100,7 @@ fn begin(mut commands: Commands, start: Res<CareerStart>, data: Res<Data>, plan:
     let whole: Vec<f32> = data.0.mech.parts.iter().map(|p| p.structure).collect();
     let fresh = || Career::new("career", plan.seed ^ 0x5eed, &cfg, &whole);
     let career = match *start {
-        CareerStart::New => fresh(),
+        CareerStart::New | CareerStart::FreeRoam => fresh(),
         CareerStart::Continue => std::fs::read_to_string(save_path())
             .map_err(|e| e.to_string())
             .and_then(|t| Career::from_ron(&t))
@@ -109,12 +115,16 @@ fn begin(mut commands: Commands, start: Res<CareerStart>, data: Res<Data>, plan:
         career.mechs.len(),
         career.done.len()
     );
-    save(&career);
+    let saves = *start != CareerStart::FreeRoam;
+    if saves {
+        save(&career);
+    }
     commands.insert_resource(CareerRun {
         career,
         cfg,
         jobs,
         since_save_s: 0.0,
+        saves,
     });
 }
 
@@ -189,8 +199,8 @@ fn step_jobs(
                     };
                     let mut rng = SimRng::new(seed).fork(&format!("job/{id}/mech/{i}"));
                     let a = rng.range_f32(0.0, std::f32::consts::TAU);
-                    let r = rng.range_f32(150.0, 350.0);
-                    let xz = job.site + Vec2::new(a.cos(), a.sin()) * r;
+                    let ring = rng.range_f32(0.0, 1.0);
+                    let xz = cb_core::jobs::enemy_spot(&run.jobs, job.site, at, a, ring);
                     let heading = (xz.x - job.site.x).atan2(xz.y - job.site.y);
                     let mech_id = MechId(1000 + id * 16 + i as u32);
                     if let Some(ent) = spawn_enemy(&mut commands, &plan, &loadout, xz, heading, rng, mech_id, &mut sa) {
@@ -234,7 +244,7 @@ fn step_jobs(
         }
     }
     run.since_save_s += dt;
-    if dirty || run.since_save_s > 60.0 {
+    if run.saves && (dirty || run.since_save_s > 60.0) {
         run.since_save_s = 0.0;
         save(&run.career);
     }

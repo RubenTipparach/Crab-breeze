@@ -42,12 +42,16 @@ impl Menu {
     }
 }
 
-/// How this run plays, chosen on the title menu or by the command line: the encounter mechs near
-/// the start (free roam) or the city defence. Inserted once the run begins.
+/// How this run plays, chosen on the title menu or by the command line. Inserted once the run begins.
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Play {
-    /// The start with its encounter mechs.
+    /// Free roam from the title menu: no enemy at the start; jobs come by mail on the cockpit's MAIL
+    /// page, and a job's enemies only when the pilot reaches its site (mission-jobs 4.1, 4.2).
     FreeRoam,
+    /// A scripted or command-line run (a take, a bench, stills): the start with its encounter mechs,
+    /// the fight there at once with no mail (mission-jobs 4.3: "the playtest harness doesnt need to
+    /// activate in mfd").
+    Encounters,
     /// The city defence mission.
     Defence,
     /// A career: jobs by mail (career, mission-jobs).
@@ -216,6 +220,7 @@ fn press(
         // begins, as `--mission defence` does before startup).
         MenuButton::FreeRoam => {
             commands.insert_resource(Play::FreeRoam);
+            commands.insert_resource(crate::career::CareerStart::FreeRoam);
             set(p.menu, Menu::Closed, p.time, p.cursor);
         }
         MenuButton::Defence => {

@@ -52,18 +52,21 @@
 
 The click and the row lighting need the spot on the page, not only the screen:
 
-- `mfd::point_on(ray, screen) -> Option<Vec2>`: the ray against the screen mesh's two triangles in the screen's
-  frame, the hit's barycentric weights applied to the mesh's own UVs, then the screen's page slice: a pixel on the
-  page, 0 to 512 each way. Pure, tested on a quad: the ray through the quad's centre lands on (256, 256); through a
-  corner, on that corner's pixel.
-- Each page's UI rows are `Interaction` targets in page pixels (Bevy UI nodes on the MFD camera). The pointed pixel
-  is turned into a hover and a press on the node under it through Bevy's UI picking with a custom pointer for the
-  MFD camera, so buttons on a page work like any UI button: one pointing path for every page.
+- `mfd::ray_uv`: the ray, in the screen's own frame, against the screen mesh's triangles; the hit's barycentric
+  weights applied to the mesh's own UVs give the point on the page, 0 to 1 from its top left (times 512: page
+  pixels). Pure, tested on a quad: through the middle it lands mid-page, near a corner near that corner, off the
+  quad or looking away nothing.
+- **One table of rows** (`mfd_apps::items`): every row and button of MENU and MAIL as a rectangle in page pixels. The
+  page's nodes are laid out from it and the pointed pixel is tested against it (`item_at`), so the row that lights
+  amber is the row a click presses (CLAUDE.md 6.1). This replaces the Bevy UI picking first planned here: a custom
+  pointer on a render-to-texture camera was a second path to keep in step, the table is one.
+- **Nothing to read or press above 80 px:** from the seat, the dash's glare shield hides the top 15 % of the dash's
+  screens (seen in the first stills, 2026-10-25), so every row starts below it; tested.
 
 ## 4. The pages on the texture
 
 The MFD texture holds every page side by side (`hud::MFD_PAGES`): the five readouts, then MENU, MAP, MAIL, SHOP:
-nine pages, 4 608 x 512 px. A screen shows one slice (its `page`). MENU is one page whose lit row follows the
+nine pages, 4 608 x 512 px when MAP and SHOP are built; seven (the readouts, MENU, MAIL) today, 3 584 x 512 px. A screen shows one slice (its `page`). MENU is one page whose lit row follows the
 pointer, so two screens showing their menus at once show the same rows; only the pointed one is pressed.
 
 | Page | Built in | Notes |

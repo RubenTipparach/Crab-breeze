@@ -1,11 +1,14 @@
 //! The cockpit's MFDs (openspec changes `cockpit-mfds`, `weapon-select`, `cockpit-parity`): one UI camera
 //! draws the mech's readouts (`hud`'s MFD pages) into one texture five pages wide, and each of the
 //! cockpit's six screens (`HUD_mfd_N_screen` hung above the front screen, `SCREEN_left/center/right_screen`
-//! on the dash) shows one page of it. With free look held, clicking while looking at a screen moves it to
-//! its next page. A mech with no interior (the stand-in) keeps the pages along the bottom of the view.
+//! on the dash) shows one page of it. With free look held, the screen under the view's centre is outlined, and a
+//! click on a readout opens that screen's MENU (`mfd_apps`, openspec change `mfd-menus`); on MENU or MAIL the click
+//! presses the row under the view's centre, found on the page itself (`ray_uv`), and BACK gives the screen back the
+//! page it showed before. A mech with no interior (the stand-in) keeps the pages along the bottom of the view.
 
-use crate::hud::{MFD_PAGE_PX, MFD_PAGES as PAGES, MfdRoot};
+use crate::hud::{MFD_PAGE_PX, MFD_PAGES as PAGES, MFD_READOUTS, MfdRoot};
 use crate::input::InputAccum;
+use crate::mfd_apps::{Item, MAIL_PAGE, MENU_PAGE, Pointed, item_at, offer_in_slot};
 use crate::pilot::{CockpitCamera, PilotCamera, PilotSim};
 use bevy::camera::RenderTarget;
 use bevy::camera::primitives::Aabb;
@@ -26,10 +29,13 @@ struct MfdTarget {
     camera: Entity,
 }
 
-/// A screen showing page `page` (0..PAGES) of the MFD texture through `material`.
+/// A screen showing page `page` (0..PAGES) of the MFD texture through `material`; `home` is the readout it
+/// showed when its menu was opened, which BACK gives back (owner, 2026-10-25: "clicking back should return to mech
+/// view and restore the mfd to its original screen").
 #[derive(Component)]
 struct MfdScreen {
     page: usize,
+    home: Option<usize>,
     material: Handle<StandardMaterial>,
 }
 
@@ -39,7 +45,7 @@ pub struct MfdPlugin;
 impl Plugin for MfdPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup)
-            .add_systems(Update, (bind_screens, place_pages, press, outline, shoot).chain());
+            .add_systems(Update, (bind_screens, place_pages, point, press, outline, shoot).chain());
     }
 }
 
@@ -108,9 +114,14 @@ fn bind_screens(
                 uv_transform: page_uv(page),
                 ..default()
             });
-            commands
-                .entity(m)
-                .insert((MeshMaterial3d(material.clone()), MfdScreen { page, material }));
+            commands.entity(m).insert((
+                MeshMaterial3d(material.clone()),
+                MfdScreen {
+                    page,
+                    home: None,
+                    material,
+                },
+            ));
         }
     }
 }
@@ -162,27 +173,145 @@ fn pointed<'a>(ray: Ray3d, screens: impl Iterator<Item = (Entity, &'a Aabb, &'a 
         .map(|(_, e)| e)
 }
 
-/// Free look and fire pressed: the MFD screen the view's centre falls on moves to its next page.
+/// Where the view's centre falls on the MFDs this frame, seated with free look held: the screen (`pointed`), the page
+/// it shows, and the row or button there (`ray_uv` on the screen's own mesh, then `mfd_apps::item_at`).
+#[allow(clippy::type_complexity)]
+fn point(
+    actions: Res<crate::input::StepActions>,
+    pilot: Res<PilotSim>,
+    eye: Single<&GlobalTransform, With<PilotCamera>>,
+    screens: Query<(Entity, &MfdScreen, &Aabb, &GlobalTransform, &Mesh3d)>,
+    meshes: Res<Assets<Mesh>>,
+    mut out: ResMut<Pointed>,
+) {
+    let mut now = Pointed::default();
+    if actions.free_look && pilot.curr.mode == PilotMode::Seated {
+        let ray = Ray3d::new(eye.translation(), eye.forward());
+        if let Some(e) = pointed(ray, screens.iter().map(|(e, _, aabb, at, _)| (e, aabb, at)))
+            && let Ok((_, screen, _, at, mesh)) = screens.get(e)
+        {
+            now.screen = Some(e);
+            now.page = Some(screen.page);
+            let inv = at.affine().inverse();
+            let uv = meshes.get(&mesh.0).and_then(|m| {
+                ray_uv(
+                    inv.transform_point3(ray.origin),
+                    inv.transform_vector3(*ray.direction),
+                    &positions(m),
+                    &uvs(m),
+                    &indices(m),
+                )
+            });
+            now.at = uv.map(|uv| uv * MFD_PAGE_PX);
+            now.item = now.at.and_then(|p| item_at(screen.page, p));
+        }
+    }
+    if *out != now {
+        *out = now;
+    }
+}
+
+/// Free look and fire pressed on a screen: a readout opens the screen's MENU (remembering the readout); on MENU or
+/// MAIL the pointed row acts: a readout or MAIL shows that page, ACCEPT takes the offer (the career's board, free
+/// roam's too: mission-jobs 4.1), BACK gives the screen back its readout.
 fn press(
     mut acc: ResMut<InputAccum>,
-    eye: Single<&GlobalTransform, With<PilotCamera>>,
-    mut screens: Query<(Entity, &mut MfdScreen, &Aabb, &GlobalTransform)>,
+    pointed: Res<Pointed>,
+    mut screens: Query<&mut MfdScreen>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut career: Option<ResMut<crate::career::CareerRun>>,
     mut sounds: MessageWriter<crate::audio::Sound>,
 ) {
     if !std::mem::take(&mut acc.mfd_press) {
         return;
     }
-    let ray = Ray3d::new(eye.translation(), eye.forward());
-    let Some(hit) = pointed(ray, screens.iter().map(|(e, _, aabb, at)| (e, aabb, at))) else {
+    let Some(mut screen) = pointed.screen.and_then(|e| screens.get_mut(e).ok()) else {
         return;
     };
-    if let Ok((_, mut screen, _, _)) = screens.get_mut(hit) {
+    let page = screen.page;
+    let next = if page < MFD_READOUTS {
+        screen.home = Some(page);
+        Some(MENU_PAGE)
+    } else {
+        match pointed.item {
+            Some(Item::Back) => Some(screen.home.take().unwrap_or(0)),
+            Some(Item::Readout(i)) => {
+                screen.home = None;
+                Some(i)
+            }
+            Some(Item::Mail) => Some(MAIL_PAGE),
+            Some(Item::Accept(k)) => {
+                if let Some(run) = career.as_mut()
+                    && let Some(id) = offer_in_slot(&run.career.board, k)
+                    && run.career.board.accept(id)
+                {
+                    info!("MFD: job {id} accepted on the MAIL page");
+                    for m in run.career.board.inbox.iter_mut().filter(|m| m.job == Some(id)) {
+                        m.read = true;
+                    }
+                    sounds.write(crate::audio::Sound::speaker("mfd_click"));
+                }
+                None
+            }
+            None => None,
+        }
+    };
+    if let Some(p) = next {
         sounds.write(crate::audio::Sound::speaker("mfd_click"));
-        screen.page = (screen.page + 1) % PAGES;
+        screen.page = p.min(PAGES - 1);
         if let Some(mut m) = materials.get_mut(&screen.material) {
             m.uv_transform = page_uv(screen.page);
         }
+    }
+}
+
+/// Where a ray (origin `o`, direction `d`, in the mesh's frame) first crosses the triangles `idx` of `pos`, as the
+/// mesh's own UV there (`uv`, barycentric): on a screen, the point on its page, 0 to 1 each way from the top left.
+fn ray_uv(o: Vec3, d: Vec3, pos: &[Vec3], uv: &[Vec2], idx: &[u32]) -> Option<Vec2> {
+    let mut best: Option<(f32, Vec2)> = None;
+    for t in idx.as_chunks::<3>().0 {
+        let [a, b, c] = [t[0] as usize, t[1] as usize, t[2] as usize];
+        let (Some(&p0), Some(&p1), Some(&p2)) = (pos.get(a), pos.get(b), pos.get(c)) else {
+            continue;
+        };
+        let (Some(&u0), Some(&u1), Some(&u2)) = (uv.get(a), uv.get(b), uv.get(c)) else {
+            continue;
+        };
+        // Moller-Trumbore, both faces.
+        let (e1, e2) = (p1 - p0, p2 - p0);
+        let h = d.cross(e2);
+        let det = e1.dot(h);
+        if det.abs() < 1e-9 {
+            continue;
+        }
+        let s = o - p0;
+        let bu = s.dot(h) / det;
+        let q = s.cross(e1);
+        let bv = d.dot(q) / det;
+        let dist = e2.dot(q) / det;
+        if !(0.0..=1.0).contains(&bu) || bv < 0.0 || bu + bv > 1.0 || dist < 0.0 {
+            continue;
+        }
+        if best.is_none_or(|(bd, _)| dist < bd) {
+            best = Some((dist, u0 * (1.0 - bu - bv) + u1 * bu + u2 * bv));
+        }
+    }
+    best.map(|(_, p)| p)
+}
+
+/// A mesh's first UVs.
+fn uvs(mesh: &Mesh) -> Vec<Vec2> {
+    match mesh.attribute(Mesh::ATTRIBUTE_UV_0) {
+        Some(bevy::mesh::VertexAttributeValues::Float32x2(p)) => p.iter().map(|a| Vec2::from_array(*a)).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// A mesh's triangle indices (0, 1, 2, ... when it has none).
+fn indices(mesh: &Mesh) -> Vec<u32> {
+    match mesh.indices() {
+        Some(i) => i.iter().map(|v| v as u32).collect(),
+        None => (0..mesh.count_vertices() as u32).collect(),
     }
 }
 
@@ -428,6 +557,42 @@ mod tests {
                 "in the screen's own plane, 3 cm toward the eye: {q}"
             );
         }
+    }
+
+    /// A 2 m quad in z = 0 whose UVs run 0 to 1 from its top left, as a screen's do.
+    fn quad() -> (Vec<Vec3>, Vec<Vec2>, Vec<u32>) {
+        (
+            vec![
+                Vec3::new(-1.0, -1.0, 0.0),
+                Vec3::new(1.0, -1.0, 0.0),
+                Vec3::new(1.0, 1.0, 0.0),
+                Vec3::new(-1.0, 1.0, 0.0),
+            ],
+            vec![Vec2::new(0.0, 1.0), Vec2::new(1.0, 1.0), Vec2::new(1.0, 0.0), Vec2::new(0.0, 0.0)],
+            vec![0, 1, 2, 0, 2, 3],
+        )
+    }
+
+    #[test]
+    fn a_ray_through_a_screens_middle_lands_mid_page() {
+        let (p, uv, i) = quad();
+        let hit = ray_uv(Vec3::new(0.0, 0.0, 2.0), Vec3::NEG_Z, &p, &uv, &i).unwrap();
+        assert!((hit - Vec2::splat(0.5)).length() < 1e-5, "{hit}");
+    }
+
+    #[test]
+    fn a_ray_near_a_screens_top_left_lands_near_the_pages_top_left() {
+        let (p, uv, i) = quad();
+        let hit = ray_uv(Vec3::new(-0.9, 0.9, 2.0), Vec3::NEG_Z, &p, &uv, &i).unwrap();
+        assert!((hit - Vec2::new(0.05, 0.05)).length() < 1e-5, "{hit}");
+        assert!(
+            ray_uv(Vec3::new(1.5, 0.0, 2.0), Vec3::NEG_Z, &p, &uv, &i).is_none(),
+            "off the screen: nothing"
+        );
+        assert!(
+            ray_uv(Vec3::new(0.0, 0.0, 2.0), Vec3::Z, &p, &uv, &i).is_none(),
+            "looking away: nothing"
+        );
     }
 
     #[test]
