@@ -1,21 +1,26 @@
 """How much of the outside a cockpit hides (openspec change cockpit-identity; a measurement instrument, CLAUDE.md
-section 4). Renders the interior from EYE_pilot at the game's eye camera (85 degrees vertical, 16:9, straight ahead and
-level, data/pilot/pilot.ron `view_fov_deg`), the outside screens (faces of the screen wall's material, `SCREEN_allview`) white and everything else black
+section 4). Renders the interior from EYE_pilot at the game's eye camera (data/pilot/pilot.ron `view_fov_deg` vertical, 16:9,
+straight ahead and level), the outside screens (faces of the screen wall's material, `SCREEN_allview`) white and everything else black
 (frame, dividers, hung MFDs, dash), and prints the share of the fighting band that is not outside: the full width of the
-view (113 degrees), from 10 degrees under the eye line to 20 degrees over it. The dash under the knees and the roof
-overhead are outside the band. On this measure the Foreman's Panorama hides 21.2 % (owner, 2026-10-25: "lets assume
-forman cockput obscures about 20 percent of the view", "lets say 25% is abosolute max").
+view, from 10 degrees under the eye line to 20 degrees over it. The dash under the knees and the roof
+overhead are outside the band. On this measure the Foreman's Panorama hid 21.2 % at the 85 degree view the owner
+judged it at (owner, 2026-10-25: "lets assume forman cockput obscures about 20 percent of the view", "lets say 25% is
+abosolute max"), and 17.9 % at the 95 degree view the game has since taken.
 
 Usage: blender --background --factory-startup --python tools/blender/measure_view.py -- <interior.gltf> [out.png]
 Prints `VIEW <file> hidden <percent> (whole picture <percent>)`."""
 import math
+import os
+import re
 import sys
 
 import bpy
 import numpy as np
 from mathutils import Euler, Vector
 
-FOV_V_DEG = 85.0          # the game's eye camera, vertical
+# The game's eye camera, vertical, read from the game's own data so the two never disagree.
+_PILOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "pilot", "pilot.ron")
+FOV_V_DEG = float(re.search(r"view_fov_deg:\s*([0-9.]+)", open(_PILOT).read()).group(1))
 W, H = 480, 270
 BAND_DEG = (-10.0, 20.0)  # the fighting band, degrees from the eye line
 BUDGET = 25.0             # the most of the band a cockpit may hide, percent

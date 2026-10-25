@@ -154,25 +154,26 @@
             Burst(kind: Flame, count: 6, speed_m_s: 30.0, spread: 0.15, size_m: 0.9, life_s: 0.25, along_dir: true),
             Burst(kind: Smoke, count: 1, speed_m_s: 8.0, spread: 0.4, size_m: 2.5, life_s: 2.0, offset_m: 3.0, along_dir: true),
         ],
-        // A jet's smoke trail, which hangs in the sky for two minutes, spreading and fading (owner,
-        // 2026-10-25: "per survey that trail needs to las 2 mins or more"). At 30 puffs a second a
-        // jet at 60 m/s leaves one every 2 m, each 4 m across at first, so they touch and read at
-        // combat range: at 20 a second and 1.2 m the trail seen from the seat was a string of beads,
-        // and at 2 m an enemy's trail 500 m off was three pixels wide (2026-10-25). Each grows to
-        // about 150 m wide, faint, over its life.
+        // A jet's smoke trail while it fires: the missiles' smoke (`rocket_trail`), a puff every 2 m at
+        // 60 m/s, gone in six seconds (owner, 2026-10-25: "mech rocket smoke should use the same stuff as
+        // the others"). Two minutes of it grew each puff tens of metres wide and cut it flat into the ground.
         "jet_trail": [
-            Burst(kind: Trail, count: 1, speed_m_s: 1.0, spread: 0.3, size_m: 4.0, life_s: 120.0, offset_m: 4.0, along_dir: true),
+            Burst(kind: Trail, count: 1, speed_m_s: 1.0, spread: 0.3, size_m: 3.0, life_s: 6.0, offset_m: 4.0, along_dir: true),
         ],
         // Every step a wheel skates fast on soil; the direction is back and up from the wheel.
         "skate_dirt": [
             Burst(kind: Dirt, count: 3, speed_m_s: 9.0, spread: 0.35, size_m: 0.3, life_s: 0.9, along_dir: true),
             Burst(kind: Dust, count: 1, speed_m_s: 3.0, spread: 0.6, size_m: 1.6, life_s: 1.6, along_dir: true),
+            // A thin pale smoke behind the wheels (owner, 2026-10-25: "skate also should leave some
+            // lighter smoke behind"): the steam sprite, faint and short-lived.
+            Burst(kind: Steam, count: 1, speed_m_s: 1.5, spread: 0.6, size_m: 1.4, life_s: 2.5, along_dir: true),
         ],
         // The same on paving: grit and dust (sparks drew orange smears at the wheels; owner,
         // 2026-10-25).
         "skate_grit": [
             Burst(kind: Rubble, count: 2, speed_m_s: 8.0, spread: 0.4, size_m: 0.12, life_s: 0.6, along_dir: true),
             Burst(kind: Dust, count: 1, speed_m_s: 3.0, spread: 0.5, size_m: 1.2, life_s: 1.2, along_dir: true),
+            Burst(kind: Steam, count: 1, speed_m_s: 1.5, spread: 0.6, size_m: 1.4, life_s: 2.5, along_dir: true),
         ],
         // A rooster tail on water; density grows with speed.
         "skate_spray": [

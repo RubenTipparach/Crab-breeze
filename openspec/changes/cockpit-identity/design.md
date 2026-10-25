@@ -28,16 +28,19 @@ everything else black, and counts the black in the **fighting band**: the full w
 line to 20 degrees over it (the dash under the knees and the roof overhead lie outside it). On that measure the
 Foreman's Panorama hides 21.2 %, the owner's "about 20". **No cockpit may hide more than 25 %.**
 
-| Cockpit | Mech | Hidden | |
-| --- | --- | --- | --- |
-| Tile wall | Mule | 16.8 % | |
-| Cinema | Picket | 18.3 % | |
-| Twin tier | Sapper | 19.2 % | |
-| Panorama | Foreman | 21.2 % | the yardstick |
-| Cab | Ironhorse | 22.1 % | |
-| Canopy | Harrow | 37.0 % then 22.5 % | its screen's top raised from 1.45 m to 1.58 m |
-| Octagon | Driller | 30.1 % then 24.2 % | its rail at 21.6 degrees, its MFDs hung from the upper row |
-| Titan | Roustabout | 25.0 % | at the limit; margin to find |
+Measured at the 85 degree view of the time, then again at 95 degrees after the game widened its view (main, 2026-10-25;
+the instrument now reads `view_fov_deg` from `data/pilot/pilot.ron`):
+
+| Cockpit | Mech | Hidden at 85 degrees | at 95 degrees | |
+| --- | --- | --- | --- | --- |
+| Tile wall | Mule | 16.8 % | 14.4 % | |
+| Cinema | Picket | 18.3 % | 15.4 % | |
+| Twin tier | Sapper | 19.2 % | 15.7 % | |
+| Panorama | Foreman | 21.2 % | 17.9 % | the yardstick |
+| Cab | Ironhorse | 22.1 % | 18.8 % | |
+| Octagon | Driller | 30.1 % then 24.2 % | 20.0 % | its rail at 21.6 degrees, its MFDs hung from the upper row |
+| Titan | Roustabout | 25.0 % | 21.2 % | |
+| Canopy | Harrow | 37.0 %, 22.5 % in the builder | 31.2 % (the shipped bake) | its screen's top raised from 1.45 m to 1.58 m, rebake pending |
 
 ## 2. The opening
 

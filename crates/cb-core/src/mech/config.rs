@@ -61,6 +61,10 @@ pub struct LocomotionConfig {
     pub twist_max_deg: f32,
     /// Torso twist rate.
     pub twist_rate_deg_s: f32,
+    /// How fast the torso's twist speeds up and slows down: it eases into a turn and brakes onto
+    /// the aim instead of starting and stopping dead (owner, 2026-10-25: "mech isnt accelerating
+    /// to match to the rotation", "rotates abruptly").
+    pub twist_accel_deg_s2: f32,
     /// Torso pitch limits, [down, up] (down negative).
     pub pitch_limits_deg: [f32; 2],
     /// Torso pitch rate.
@@ -111,6 +115,7 @@ impl Default for LocomotionConfig {
             turn_accel_deg_s2: 120.0,
             twist_max_deg: 100.0,
             twist_rate_deg_s: 70.0,
+            twist_accel_deg_s2: 600.0,
             pitch_limits_deg: [-20.0, 25.0],
             pitch_rate_deg_s: 40.0,
             body_radius_m: 3.0,
@@ -462,6 +467,7 @@ impl Validate for MechConfig {
         positive("locomotion.turn_accel_deg_s2", l.turn_accel_deg_s2)?;
         within("locomotion.twist_max_deg", l.twist_max_deg, 0.0, 180.0)?;
         positive("locomotion.twist_rate_deg_s", l.twist_rate_deg_s)?;
+        positive("locomotion.twist_accel_deg_s2", l.twist_accel_deg_s2)?;
         within("locomotion.pitch_limits_deg[0]", l.pitch_limits_deg[0], -89.0, 0.0)?;
         within("locomotion.pitch_limits_deg[1]", l.pitch_limits_deg[1], 0.0, 89.0)?;
         positive("locomotion.pitch_rate_deg_s", l.pitch_rate_deg_s)?;

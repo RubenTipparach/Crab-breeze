@@ -71,7 +71,9 @@ def mirror(half):
 
 LAYOUTS = [
     dict(id="panorama", rear="hatch", mech="clamshell", name="Panorama", rows=[(0.95, 1.80)], plan=mirror([(0.95, 0.85), (1.05, 0.15), (0.95, -0.45)]),
-         pillars=[2, 3], mfd=("top", "dash"),
+         # Overhead MFDs 6 cm lower than the top bar (owner, 2026-10-25: "the mfds up top should be ooved down a
+         # bit", "close, almost there nudge it down just a bit").
+         pillars=[2, 3], mfd=("top", "dash"), mfd_top_m=(-0.06, 0.16),
          text="One wide front screen, 1.9 m across, the pillars pushed out to the corners; square side screens to the "
               "shoulders. Armored Core's front."),
     # The Mule's (openspec change cockpit-identity): one wide tile ahead, 90 degrees across, and square tiles round the

@@ -101,11 +101,14 @@ fn play_beds(
     assets: Res<AssetServer>,
     time: Res<Time>,
     ready: Res<crate::loading::GameReady>,
+    settings: Res<crate::settings::Settings>,
 ) {
     if !ready.0 {
         return;
     }
     let cfg = &data.0.audio.ambience;
+    // ambience is a sound effect: the player's sound effects volume (Options) scales it
+    let sfx = settings.0.sfx_volume;
     let seal = if ear.sealed { cfg.seal_db } else { 0.0 };
     let dt = time.delta_secs();
     let weights = beds.weights;
@@ -137,7 +140,7 @@ fn play_beds(
         let Some(b) = beds.playing.get_mut(name) else { continue };
         b.db = rules::ease(b.db, target.unwrap_or(silent), dt, cfg.ease_s);
         if let Ok(mut s) = sinks.get_mut(b.voice) {
-            s.set_volume(Volume::Linear(db_to_gain(b.db)));
+            s.set_volume(Volume::Linear(db_to_gain(b.db) * sfx));
         }
         if target.is_none() && b.db < cfg.stop_below_db {
             commands.entity(b.voice).despawn();
