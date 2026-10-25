@@ -428,80 +428,71 @@ impl Validate for TreeConfig {
     }
 }
 
-/// Clouds (openspec change `clouds`).
+/// Clouds (openspec changes `clouds`, `cloud-puffs`, `cloud-weather`): the wind, how far they are
+/// drawn and how they are lit. Where they are is the weather's (`weather:`).
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct CloudConfig {
-    /// Cloud base height.
-    pub base_m: f32,
-    /// Highest cloud top.
-    pub top_m: f32,
-    /// Grid spacing of cluster sites.
-    pub spacing_m: f32,
-    /// Share of sites with a cluster, 0..1.
-    pub coverage: f32,
-    /// Cluster width range.
-    pub cluster_size_m: [f32; 2],
-    /// Clouds continue this far past the world's edge.
-    pub beyond_world_m: f32,
-    /// Wind drift (x, z).
+    /// Wind drift (x, z): everything in the sky moves with it.
     pub wind_m_s: [f32; 2],
     /// Cloud puffs are drawn within this of the eye (beyond it the haze has hidden them).
     pub draw_radius_m: f32,
+    /// The drawn puffs are gathered and sorted again when the eye has moved this far through them.
+    pub resort_m: f32,
     /// How far the sun wraps round a puff, 0 (hard) to 1 (soft) (`cloud-puffs`).
     pub look_wrap: f32,
     /// The silver lining's strength toward the sun.
     pub look_silver: f32,
-    /// How white a cloud is (its albedo, 0..1).
+    /// How white a white cloud is (its albedo, 0..1); a storm-grey one is `look_storm_albedo`.
     pub look_albedo: f32,
-    /// How much darker a cloud's base is than its top, 0..1.
+    /// The albedo of a puff at full darkness.
+    pub look_storm_albedo: f32,
+    /// How much darker a white cloud's base is than its top, 0..1; a storm's is `look_storm_base_shade`.
     pub look_base_shade: f32,
+    /// The base darkening of a puff at full darkness.
+    pub look_storm_base_shade: f32,
     /// A puff fades in from this distance from the eye (closer, the cloud fog takes over).
     pub look_near_fade_m: f32,
-    /// How soft a puff's silhouette is (0 hard, 1 very soft).
-    pub look_edge_softness: f32,
+    /// How far noise eats into a billow's edge (0 a clean disc).
+    pub look_erode: f32,
+    /// A billboard fades out over this depth in front of the ground behind it (soft particles).
+    pub look_soft_m: f32,
 }
 
 impl Default for CloudConfig {
     fn default() -> Self {
         Self {
-            base_m: 600.0,
-            top_m: 1100.0,
-            spacing_m: 1000.0,
-            coverage: 0.45,
-            cluster_size_m: [220.0, 520.0],
-            beyond_world_m: 6000.0,
-            wind_m_s: [3.0, 1.0],
-            draw_radius_m: 9000.0,
+            wind_m_s: [6.0, 0.0],
+            draw_radius_m: 24000.0,
+            resort_m: 30.0,
             look_wrap: 0.6,
             look_silver: 1.6,
-            look_albedo: 0.9,
-            look_base_shade: 0.45,
-            look_near_fade_m: 160.0,
-            look_edge_softness: 0.45,
+            look_albedo: 0.92,
+            look_storm_albedo: 0.55,
+            look_base_shade: 0.4,
+            look_storm_base_shade: 0.85,
+            look_near_fade_m: 140.0,
+            look_erode: 0.62,
+            look_soft_m: 60.0,
         }
     }
 }
 
 impl Validate for CloudConfig {
     fn validate(&self) -> Result<(), String> {
-        finite("clouds.base_m", self.base_m)?;
-        if self.top_m <= self.base_m {
-            return Err("`clouds.top_m` must be above `clouds.base_m`".into());
-        }
-        positive("clouds.spacing_m", self.spacing_m)?;
-        within("clouds.coverage", self.coverage, 0.0, 1.0)?;
-        positive_range("clouds.cluster_size_m", self.cluster_size_m)?;
-        finite("clouds.beyond_world_m", self.beyond_world_m)?;
         finite("clouds.wind_m_s", self.wind_m_s[0])?;
         finite("clouds.wind_m_s", self.wind_m_s[1])?;
         positive("clouds.draw_radius_m", self.draw_radius_m)?;
+        positive("clouds.resort_m", self.resort_m)?;
         within("clouds.look_wrap", self.look_wrap, 0.0, 1.0)?;
         within("clouds.look_silver", self.look_silver, 0.0, 10.0)?;
         within("clouds.look_albedo", self.look_albedo, 0.0, 1.0)?;
+        within("clouds.look_storm_albedo", self.look_storm_albedo, 0.0, 1.0)?;
         within("clouds.look_base_shade", self.look_base_shade, 0.0, 1.0)?;
+        within("clouds.look_storm_base_shade", self.look_storm_base_shade, 0.0, 1.0)?;
         positive("clouds.look_near_fade_m", self.look_near_fade_m)?;
-        within("clouds.look_edge_softness", self.look_edge_softness, 0.0, 1.0)?;
+        within("clouds.look_erode", self.look_erode, 0.0, 2.0)?;
+        positive("clouds.look_soft_m", self.look_soft_m)?;
         Ok(())
     }
 }
@@ -887,8 +878,10 @@ pub struct WorldConfig {
     pub water: WaterConfig,
     /// Trees.
     pub trees: TreeConfig,
-    /// Clouds.
+    /// Clouds: wind, drawing and light.
     pub clouds: CloudConfig,
+    /// The weather systems that lay out the sky (openspec change `cloud-weather`).
+    pub weather: super::weather::WeatherConfig,
     /// Craters.
     pub craters: CraterConfig,
     /// Building frames (openspec change `structural-destruction`).
@@ -1001,6 +994,7 @@ impl Default for WorldConfig {
             water: WaterConfig::default(),
             trees: TreeConfig::default(),
             clouds: CloudConfig::default(),
+            weather: super::weather::WeatherConfig::default(),
             craters: CraterConfig::default(),
             structure: super::structure::StructureConfig::default(),
             dressing: super::dressing::DressingConfig::default(),
@@ -1104,6 +1098,7 @@ impl Validate for WorldConfig {
         self.water.validate()?;
         self.trees.validate()?;
         self.clouds.validate()?;
+        self.weather.validate()?;
         self.craters.validate()?;
         self.structure.validate()?;
         self.dressing.validate()?;

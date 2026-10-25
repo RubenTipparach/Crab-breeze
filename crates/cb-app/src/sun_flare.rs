@@ -214,7 +214,7 @@ fn extract_flare(
     mut commands: Commands,
     data: Extract<Res<Data>>,
     look: Option<Res<RenderFlareLook>>,
-    sun: Extract<Query<(&DirectionalLight, &GlobalTransform)>>,
+    sun: Extract<Query<(&DirectionalLight, &GlobalTransform), With<crate::world::Sun>>>,
     eyes: Extract<Query<(RenderEntity, &SunFlareMedium, Option<&Exposure>), With<SunFlareEye>>>,
     cockpits: Extract<Query<RenderEntity, With<SunFlareCockpit>>>,
 ) {
@@ -222,7 +222,7 @@ fn extract_flare(
     if look.is_none() {
         commands.insert_resource(RenderFlareLook(flare.clone()));
     }
-    // The sun is the first directional light (as the water's light has it).
+    // The sun (`world::Sun`), as the water's light has it.
     let Some((light, transform)) = sun.iter().next() else {
         return;
     };

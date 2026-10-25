@@ -732,3 +732,145 @@ fn run_fx_script(
         script.done.clear();
     }
 }
+
+/// The weather, shot from named views for headless stills (openspec change `cloud-weather`, task
+/// 3.1; `docs/design/world-look-plan.md` step 1; an instrument, CLAUDE.md section 4): with
+/// `--stills <dir>` and `CB_STILLS_WEATHER=1`, once the game is ready the pilot's eye is put at each
+/// view in turn (held there, on foot, looking at its target), the ground and the sky are given time
+/// to stream in round it, and one still is saved per view as `weather-<name>.png`; then it exits.
+/// It writes no input and plays no game. The views are the island mockup's, moved to the game's
+/// crater island; they move into a data file shared with the mockup when step 1 lands.
+pub struct WeatherStillsPlugin {
+    /// Where the PNGs go.
+    pub dir: PathBuf,
+}
+
+/// A view: a name, where the eye is (x, z and metres above the ground or the sea), and what it
+/// looks at (x, y, z).
+struct View {
+    name: &'static str,
+    eye: [f32; 3],
+    at: [f32; 3],
+}
+
+/// The views (x east, z south, metres). Seed 42's storm cells stand at (-10.5, 2.5), (-15.5, 9.5)
+/// and (-11, -14) km; the front lies off the west coast; the deck is at sea to the north; the high
+/// clears the sky to the south-east; the rim's crest is a 5.5 km circle round the centre.
+const VIEWS: &[View] = &[
+    // The storm over the wet west from 13 km south of it, low, so the tower, anvil and shaft stand up.
+    View {
+        name: "storm",
+        eye: [-8000.0, 160.0, 15500.0],
+        at: [-10500.0, 2600.0, 2500.0],
+    },
+    // Under the storm, in its rain, looking out toward its edge.
+    View {
+        name: "under-the-storm",
+        eye: [-10000.0, 3.0, 2200.0],
+        at: [-4000.0, 900.0, 2500.0],
+    },
+    // From the west coast toward the front lying off it.
+    View {
+        name: "front",
+        eye: [-12500.0, 60.0, -1500.0],
+        at: [-20000.0, 1600.0, -4000.0],
+    },
+    // The crater floor looking west at the rim, cloud banked on its far side and caps on its peaks.
+    View {
+        name: "crater",
+        eye: [-1500.0, 3.0, 800.0],
+        at: [-7000.0, 1700.0, 0.0],
+    },
+    // The dry east under fair cumulus, looking back west over the island.
+    View {
+        name: "desert",
+        eye: [10500.0, 3.0, 1500.0],
+        at: [0.0, 1400.0, 0.0],
+    },
+    // The north coast looking out to the deck at sea.
+    View {
+        name: "deck",
+        eye: [1500.0, 120.0, -12000.0],
+        at: [0.0, 900.0, -20000.0],
+    },
+    // The south coast looking out over the cloud streets and the clear sky of the high.
+    View {
+        name: "streets",
+        eye: [3000.0, 120.0, 12500.0],
+        at: [9000.0, 900.0, 22000.0],
+    },
+    // The whole weather map from high in the south: the front, the storms, the streets, the deck.
+    View {
+        name: "overview",
+        eye: [0.0, 11000.0, 30000.0],
+        at: [-4000.0, 0.0, -2000.0],
+    },
+];
+
+#[derive(Resource)]
+struct WeatherScript {
+    dir: PathBuf,
+    /// The view being shot (0 waits for the game to be ready).
+    beat: usize,
+    beat_started_s: f32,
+    frames: u32,
+}
+
+impl Plugin for WeatherStillsPlugin {
+    fn build(&self, app: &mut App) {
+        std::fs::create_dir_all(&self.dir).ok();
+        app.insert_resource(WeatherScript {
+            dir: self.dir.clone(),
+            beat: 0,
+            beat_started_s: 0.0,
+            frames: 0,
+        })
+        .add_systems(Update, run_weather_script);
+    }
+}
+
+fn run_weather_script(
+    mut commands: Commands,
+    mut script: ResMut<WeatherScript>,
+    mut pilot: ResMut<PilotSim>,
+    plan: Res<crate::world::Plan>,
+    time: Res<Time<Real>>,
+    ready: Option<Res<crate::loading::GameReady>>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    use cb_core::world::Ground;
+    let now = time.elapsed_secs();
+    let t = now - script.beat_started_s;
+    script.frames += 1;
+    let mut next = false;
+    if script.beat == 0 {
+        next = ready.is_some_and(|r| r.0) && t > 6.0;
+    } else if let Some(v) = VIEWS.get(script.beat - 1) {
+        let ground = plan.height_at(v.eye[0], v.eye[2]).max(plan.waters.sea_level_m);
+        let eye = Vec3::new(v.eye[0], ground + v.eye[1], v.eye[2]);
+        // Held at the view every frame (a pilot on foot in the air would fall).
+        stand_looking(&mut pilot, eye - Vec3::Y * 1.7, Vec3::from_array(v.at));
+        // Time for the ground's detail, the trees and the sky to stream in round the eye.
+        if t > 8.0 && script.frames > 12 {
+            shoot(&mut commands, &script.dir.clone(), &format!("weather-{}.png", v.name));
+            println!(
+                "STILLS_WEATHER {} eye ({:.0}, {:.0}, {:.0}) cloud {:.2} rain {:.2} sun {:.2}",
+                v.name,
+                eye.x,
+                eye.y,
+                eye.z,
+                plan.clouds.density_at(eye, now),
+                plan.clouds.rain_at(eye, now),
+                plan.clouds.sun_at(Vec2::new(eye.x, eye.z), now)
+            );
+            next = true;
+        }
+    } else if t > 3.0 {
+        exit.write(AppExit::Success);
+    }
+    if next {
+        script.beat += 1;
+        script.beat_started_s = now;
+        script.frames = 0;
+    }
+}

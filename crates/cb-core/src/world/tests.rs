@@ -101,7 +101,7 @@ const GOLDEN_BUILDINGS: usize = 6528;
 const GOLDEN_HIGHWAYS: usize = 23;
 const GOLDEN_RIVERS: usize = 109;
 const GOLDEN_TREES_AT_START: usize = 47147;
-const GOLDEN_FINGERPRINT: u64 = 2672083249162357820;
+const GOLDEN_FINGERPRINT: u64 = 15356199226601307284;
 
 #[test]
 fn seed_42_census_for_the_design() {
@@ -153,6 +153,17 @@ fn seed_42_census_for_the_design() {
         plan.clouds.puffs.len(),
     );
     assert!(land_km2 > 300.0 && land_km2 < 1000.0, "{land_km2} km2 of land");
+    let mut kinds = std::collections::BTreeMap::new();
+    for p in &plan.clouds.puffs {
+        *kinds.entry(p.kind).or_insert(0usize) += 1;
+    }
+    eprintln!(
+        "seed 42 sky: {} puffs ({kinds:?}), {} rain shafts, {} darkened cells, {} cirrus",
+        plan.clouds.puffs.len(),
+        plan.clouds.shafts.len(),
+        plan.clouds.shades.len(),
+        plan.clouds.cirrus.len()
+    );
     let shares = biome_shares(plan, &cfg);
     eprintln!(
         "seed 42 biomes (share of land): {}",

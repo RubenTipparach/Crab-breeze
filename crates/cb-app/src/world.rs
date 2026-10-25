@@ -538,6 +538,11 @@ fn spawn_buildings(
     }
 }
 
+/// The sun: the one directional light that lights the world (the cockpit's screen glow is another,
+/// kept to the cockpit layer).
+#[derive(Component)]
+pub struct Sun;
+
 fn spawn_sun(mut commands: Commands, data: Res<Data>, mut media: ResMut<Assets<bevy::light::atmosphere::ScatteringMedium>>) {
     if scattering_sky() {
         // Earth's air (sky-atmosphere): Rayleigh and Mie scattering through Bevy's lookup tables.
@@ -546,6 +551,7 @@ fn spawn_sun(mut commands: Commands, data: Res<Data>, mut media: ResMut<Assets<b
     }
     let mut sun = commands.spawn((
         Name::new("sun"),
+        Sun,
         DirectionalLight {
             // Raw sunlight under the scattering sky, which filters it; the old daylight value otherwise.
             illuminance: if scattering_sky() {

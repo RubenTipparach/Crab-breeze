@@ -267,8 +267,9 @@ pub fn track_eye(
         eye.submersion = submersion(eye.depth_m, look.partial_band_m);
         let state = eye.submersion;
         eye.drips = eye.lens.step(time.elapsed_secs(), state, look.emerge_dry_s);
-        // Flying through a cloud wets the glass (the external cameras' lenses when seated).
-        let density = plan.clouds.density_at(p, time.elapsed_secs());
+        // Flying through a cloud or under a storm's rain shaft wets the glass (the external cameras' lenses
+        // when seated).
+        let density = plan.clouds.wetness_at(p, time.elapsed_secs());
         eye.rain = cb_core::water_look::cloud_glass(eye.rain, density, time.delta_secs(), look);
         eye.cabin_m = if seated { look.cabin_dry_radius_m } else { 0.0 };
     }
@@ -298,7 +299,7 @@ fn refresh_materials(
     data: Res<Data>,
     time: Res<Time>,
     ambient: Res<GlobalAmbientLight>,
-    sun: Query<(&DirectionalLight, &GlobalTransform)>,
+    sun: Query<(&DirectionalLight, &GlobalTransform), With<crate::world::Sun>>,
     cameras: Query<(&Transform, &WaterEye, Option<&Exposure>), With<WaterOptics>>,
     mut materials: ResMut<Assets<WaterMaterial>>,
 ) {
@@ -359,7 +360,7 @@ fn extract_water_eye(
     data: Extract<Res<Data>>,
     time: Extract<Res<Time>>,
     ambient: Extract<Res<GlobalAmbientLight>>,
-    sun: Extract<Query<(&DirectionalLight, &GlobalTransform)>>,
+    sun: Extract<Query<(&DirectionalLight, &GlobalTransform), With<crate::world::Sun>>>,
     cameras: Extract<Query<(RenderEntity, &WaterEye, Option<&Exposure>), With<WaterOptics>>>,
 ) {
     let look = PostLook::from(&data.0.water_look);

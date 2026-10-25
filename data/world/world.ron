@@ -208,21 +208,120 @@
         draw_radius_m: 2000.0,
     ),
 
-    // Clouds over the island and 6 km of sea past the world's edge, drawn within 9 km of the eye.
-    // Back on as lumpy lit blobs, one mesh per 2 km tile (openspec/changes/cloud-puffs): one blended
-    // layer per blob instead of the sprite stacks that cost heavy overdraw. To be measured on the
-    // owner's hardware with CB_NO_CLOUDS against the same take.
+    // Clouds (openspec/changes/cloud-weather): one camera-facing billboard a puff, lit as a sphere
+    // by the scene's sun and sky, sorted back to front, faded where they meet the ground. Drawn
+    // within 20 km of the eye, so storm towers and the front stand on the horizon; re-sorted when
+    // the eye has moved 30 m through them. The wind blows from the west at 6 m/s: the west is wet,
+    // the east in the rain shadow, and the whole sky drifts with it. To be measured on the owner's
+    // hardware with CB_NO_CLOUDS against the same take.
     clouds: (
-        coverage: 0.35,
+        wind_m_s: (6.0, 0.0),
+        draw_radius_m: 20000.0,
+        resort_m: 30.0,
         look_wrap: 0.6,
         look_silver: 1.6,
-        look_albedo: 0.9,
-        look_base_shade: 0.45,
-        look_near_fade_m: 160.0,
-        look_edge_softness: 0.45,
-        spacing_m: 1000.0,
-        beyond_world_m: 6000.0,
-        draw_radius_m: 9000.0,
+        look_albedo: 0.92,
+        look_storm_albedo: 0.55,
+        look_base_shade: 0.4,
+        look_storm_base_shade: 0.85,
+        look_near_fade_m: 140.0,
+        look_erode: 0.62,
+        look_soft_m: 60.0,
+    ),
+
+    // The weather (openspec/changes/cloud-weather/design.md section 2), ported from the island
+    // mockup to the crater island. Positions are (x, z) metres: +x east, +z south. Bearings are
+    // degrees from north toward east.
+    weather: (
+        // Fair cumulus on a 2 km grid over a disc out to 34 km, thinning from 24 km so the sky has
+        // no edge; per tile 0.3 + 2.8 x moisture clusters over land, 0.5 at sea, 1.6 in the streets
+        // south of the island; 28 % of wet clusters tower to 2.2-3.8 km, 45 % of the rest stay small.
+        cumulus: (
+            base_m: 600.0,
+            tile_m: 2000.0,
+            disc_m: 34000.0,
+            thin_from_m: 24000.0,
+            edge_noise_m: 2500.0,
+            land_clusters: (0.3, 2.8),
+            sea_clusters: 0.5,
+            street_clusters: 1.6,
+            streets_south_of_m: 6000.0,
+            street_spacing_m: 2200.0,
+            towering_share: 0.28,
+            humilis_share: 0.45,
+            towering_top_m: (2200.0, 3800.0),
+            clear_of_front_m: 1500.0,
+            dark: (0.08, 0.3),
+        ),
+        // A high over the sea to the south-east: clear within 6 km, cumulus back to full by 17 km.
+        high: (centre_m: (17000.0, 12000.0), clear_m: 6000.0, edge_m: 17000.0),
+        // Three storm cells, all in the wet west: towers from 700 m to their tops, anvils blown 2.6
+        // km downwind, scud under slate-grey bases, a rain shaft each, the ground darkened by 60 %
+        // at the centre out to 1.6 x the tower's radius, its edge wandering 600 m.
+        storms: (
+            cells: [
+                (centre_m: (-10500.0, 2500.0), radius_m: 2600.0, top_m: 9500.0),
+                (centre_m: (-15500.0, 9500.0), radius_m: 3200.0, top_m: 10500.0),
+                (centre_m: (-11000.0, -14000.0), radius_m: 1900.0, top_m: 6500.0),
+            ],
+            base_m: 700.0,
+            ring_step_m: 260.0,
+            anvil_puffs: 70,
+            anvil_downwind_m: 2600.0,
+            scud_puffs: 24,
+            dark: (0.75, 0.15),
+            shaft_share: 0.75,
+            shaft_top_m: 720.0,
+            shade_reach: 1.6,
+            shade: 0.6,
+            shade_wobble_m: 600.0,
+        ),
+        // A cold front off the west coast, lying south-west to north-east, 52 km long and 8.4 km
+        // wide: layered grey cloud from 900 m to 2.8 km, a tower to 6.2 km every 6 km, a rain
+        // shaft every 5 km.
+        front: (
+            centre_m: (-17000.0, -4000.0),
+            along: (0.62, -0.78),
+            length_m: 52000.0,
+            half_width_m: 4200.0,
+            step_m: 300.0,
+            layer_m: (900.0, 2800.0),
+            tower_every_m: 6000.0,
+            tower_top_m: 6200.0,
+            shaft_every_m: 5000.0,
+            shaft_radius_m: 2200.0,
+            shade_every_m: 10000.0,
+            shade_radius_m: 6000.0,
+            shade: 0.45,
+        ),
+        // The stratocumulus deck at sea to the north, behind the front, with breaks.
+        deck: (
+            count: 900,
+            bearing_deg: (330.0, 400.0),
+            distance_m: (14500.0, 21500.0),
+            layer_m: (700.0, 1000.0),
+            offshore_m: 600.0,
+            break_wavelength_m: 4000.0,
+            break_below: -0.45,
+        ),
+        // Cloud banked on the crater rim's windward (west) arc, 0.2-2.2 km out from the crest,
+        // over ground above 400 m (the rim's flank falls below that within about 2 km).
+        orographic: (
+            count: 520,
+            bearing_deg: (200.0, 340.0),
+            out_m: (200.0, 2200.0),
+            min_ground_m: 400.0,
+            top_m: 1900.0,
+        ),
+        // Lenticular caps over up to five rim peaks above 1,350 m (the rim reaches about 1.7 km).
+        caps: (min_peak_m: 1350.0, spacing_m: 2500.0, most: 5, tries: 4000),
+        // Small flat altocumulus at 3.3-3.7 km over the south-west.
+        altocumulus: (centre_m: (-6000.0, 14000.0), radius_m: 11000.0, spacing_m: 450.0, layer_m: (3300.0, 3700.0)),
+        // Cirrus streaks at 8.2-9.4 km on a 32 km disc.
+        cirrus: (count: 90, disc_m: 32000.0, height_m: (8200.0, 9400.0), length_m: (5000.0, 14000.0), width_m: (500.0, 1400.0)),
+        // Opacity by kind: cumulus, tower, anvil, layer (deck, front, scud), orographic, cap, altocumulus.
+        opacity: (0.95, 1.0, 0.8, 0.8, 0.6, 0.9, 0.6),
+        shaft_rain: 0.7,
     ),
     // Building frames (openspec/changes/structural-destruction): a member fails past
     // safety_factor x its intact load, after a creak; a floor bay held on one edge keeps 45 %.

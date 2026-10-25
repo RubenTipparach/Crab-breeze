@@ -417,7 +417,7 @@ fn add_skirt(mesh: &mut ChunkMesh, edge: &[u32], out: Vec3, depth_m: f32) {
 }
 
 /// Seeded value noise: a lattice of random heights, smoothly interpolated.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ValueNoise {
     seed: u64,
 }

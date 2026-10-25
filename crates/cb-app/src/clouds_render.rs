@@ -1,46 +1,67 @@
-//! Cheap, correctly lit clouds (openspec change `cloud-puffs`), replacing the sprite clouds the
-//! owner turned off for their overdraw ("something is quite heavy on my gpu disable clouds for
-//! now"; then "good looking clouds with correct lighting and dont cost much to render").
+//! The sky's clouds drawn as billboards (openspec change `cloud-weather`; owner, 2026-10-24: "I
+//! prefer clouds to be billboards or a mix of some cheap raymarch", "make it look like there's
+//! actual weather"), replacing the lumpy blob meshes of `cloud-puffs`.
 //!
-//! Every puff of `cb_core::world::clouds` is a lumpy blob (an icosphere pushed out by
-//! noise, its base flattened at the cloud base), and every puff of a 2 km cloud tile is merged into
-//! one mesh: about 30 tiles in the sky within the draw radius, 30 entities, one material, so Bevy
-//! batches them. The wind moves each tile by its transform. The light is the scene's own: the sun's
-//! direction and radiance and the ambient light, through the water's light helper, so a cloud sits
-//! in the same light as the ground. The shader (`assets/shaders/cloud.wesl`) wraps the sun round
-//! the blob, darkens the base, lights a silver lining toward the sun, softens the silhouette and
-//! fades a blob out close to the eye (inside, the cloud fog takes over); Bevy's fog hazes far ones. One
-//! alpha-blended layer per blob, not a stack of sprites, is what keeps the overdraw low.
+//! Every puff the weather laid out (`cb_core::world::clouds`) within the draw radius of the eye is
+//! one camera-facing quad, every rain shaft three quads turned about the vertical, every cirrus
+//! streak one flat quad: all of them items of one mesh, one entity and one material, sorted from
+//! the farthest to the nearest so they blend in order, and gathered and sorted again when the eye
+//! has moved `resort_m` through the drifting sky. One draw. The wind moves the whole mesh by its
+//! transform. The light is the scene's own: the sun's direction and radiance and the ambient light,
+//! through the water's light helper, so a cloud sits in the same light as the ground. The shader
+//! (`assets/shaders/cloud.wesl`) erodes each puff's edge with noise, lights it as a sphere and
+//! fades it where it meets the ground behind it and near the eye (inside, the cloud fog takes over);
+//! Bevy's fog hazes far ones. `CB_NO_CLOUDS=1` leaves the sky clear, for the benchmark.
+//!
+//! The ground under a storm is darkened by a texture on the sun (Bevy's `DirectionalLightTexture`,
+//! a light cookie): the core's `Clouds::sun_at` at the cloud base, baked along the sun's rays into
+//! one 1024 px map over the weather, which the wind carries by moving the sun's transform. So the
+//! ground, the buildings, the trees, the grass and the mechs all darken under a storm, through
+//! Bevy's own lighting, with no shader of their own changed.
 
 use crate::pilot::PilotCamera;
 use crate::sim::{Data, PresentSet};
 use crate::water_render::water_light;
-use crate::world::Plan;
+use crate::world::{Plan, Sun};
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::Exposure;
+use bevy::camera::visibility::NoFrustumCulling;
+use bevy::light::DirectionalLightTexture;
 use bevy::light::NotShadowCaster;
-use bevy::mesh::{Indices, PrimitiveTopology};
-use bevy::pbr::{Material, MaterialPlugin};
+use bevy::mesh::{Indices, MeshVertexAttribute, MeshVertexBufferLayoutRef, PrimitiveTopology, VertexFormat};
+use bevy::pbr::{Material, MaterialPipeline, MaterialPipelineKey, MaterialPlugin};
 use bevy::prelude::*;
-use bevy::render::render_resource::{AsBindGroup, ShaderType};
+use bevy::render::render_resource::{AsBindGroup, RenderPipelineDescriptor, ShaderType, SpecializedMeshPipelineError};
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::shader::ShaderRef;
-use cb_core::world::clouds::{CLOUD_TILE_M, Puff};
-use std::collections::HashMap;
+use cb_core::world::Clouds;
 
 const SHADER: &str = "shaders/cloud.wesl";
+
+/// A puff: rx across, ry up, seed, unused. A shaft: radius, height, seed, unused. Cirrus: length,
+/// width, seed, heading.
+const ATTRIBUTE_SHAPE: MeshVertexAttribute = MeshVertexAttribute::new("CloudShape", 0x0C10_D5A1, VertexFormat::Float32x4);
+/// Kind, darkness, opacity, unused.
+const ATTRIBUTE_LOOK: MeshVertexAttribute = MeshVertexAttribute::new("CloudLook", 0x0C10_D5A2, VertexFormat::Float32x4);
+/// The base and top of the item's system.
+const ATTRIBUTE_LAYER: MeshVertexAttribute = MeshVertexAttribute::new("CloudLayer", 0x0C10_D5A3, VertexFormat::Float32x2);
+
+/// The shader's kind number for a rain shaft and a cirrus streak (after the puff kinds).
+const KIND_SHAFT: f32 = 7.0;
+const KIND_CIRRUS: f32 = 8.0;
 
 /// The cloud material's uniform; `CloudLight` in `cloud.wesl`, field for field.
 #[derive(Clone, Copy, Debug, Default, ShaderType)]
 pub struct CloudUniform {
-    /// xyz toward the sun; w how far the sun wraps round a blob (0 hard, 1 soft).
+    /// xyz toward the sun; w how far the sun wraps round a puff (0 hard, 1 soft).
     pub sun_dir: Vec4,
     /// rgb the sun's light times exposure; w the silver lining's strength.
     pub sun: Vec4,
-    /// rgb the ambient light times exposure; w the albedo.
+    /// rgb the ambient light times exposure; w unused.
     pub ambient: Vec4,
-    /// x the cloud base, y the cloud top (metres), z how dark the base is (0..1), w unused.
-    pub layer: Vec4,
-    /// x fade-in distance from the eye (m), y edge softness, z clear-air visibility (m), w unused.
+    /// x white albedo, y storm albedo, z white base shade, w storm base shade.
+    pub albedo: Vec4,
+    /// x fade-in distance from the eye (m), y edge erosion, z soft depth against the ground (m), w unused.
     pub fade: Vec4,
 }
 
@@ -53,6 +74,10 @@ pub struct CloudMaterial {
 }
 
 impl Material for CloudMaterial {
+    fn vertex_shader() -> ShaderRef {
+        SHADER.into()
+    }
+
     fn fragment_shader() -> ShaderRef {
         SHADER.into()
     }
@@ -61,13 +86,37 @@ impl Material for CloudMaterial {
         AlphaMode::Blend
     }
 
-    // Transparent: no depth prepass and no shadows (cloud shadows are a later, cheaper texture).
+    // Behind every other see-through thing (smoke and dust in front of the sky), after the ground
+    // marks. The bias only orders the transparent pass.
+    fn depth_bias(&self) -> f32 {
+        -1.0e8
+    }
+
+    // Transparent: no depth prepass and no shadows (it reads the prepass, for its soft edges).
     fn enable_prepass() -> bool {
         false
     }
 
     fn enable_shadows() -> bool {
         false
+    }
+
+    fn specialize(
+        _pipeline: &MaterialPipeline,
+        descriptor: &mut RenderPipelineDescriptor,
+        layout: &MeshVertexBufferLayoutRef,
+        _key: MaterialPipelineKey<Self>,
+    ) -> Result<(), SpecializedMeshPipelineError> {
+        descriptor.vertex.buffers = vec![layout.0.get_layout(&[
+            Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
+            Mesh::ATTRIBUTE_UV_0.at_shader_location(1),
+            ATTRIBUTE_SHAPE.at_shader_location(2),
+            ATTRIBUTE_LOOK.at_shader_location(3),
+            ATTRIBUTE_LAYER.at_shader_location(4),
+        ])?];
+        // A cirrus streak is seen from below; a turned quad from either side.
+        descriptor.primitive.cull_mode = None;
+        Ok(())
     }
 }
 
@@ -78,148 +127,159 @@ impl Plugin for CloudsRenderPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MaterialPlugin::<CloudMaterial>::default())
             .add_systems(Startup, setup)
-            .add_systems(Update, (show_tiles, drift_tiles, refresh_light).chain().in_set(PresentSet::Pose));
+            .add_systems(Update, (gather, refresh_light, shade_sun).chain().in_set(PresentSet::Pose));
     }
 }
 
-/// The drawn cloud tiles.
+/// The drawn sky.
 #[derive(Resource)]
-struct CloudTiles {
+struct CloudDraw {
     material: Handle<CloudMaterial>,
-    /// Every tile with puffs and its centre (x, z) at time zero.
-    all: Vec<((i32, i32), Vec2)>,
-    drawn: HashMap<(i32, i32), Entity>,
+    mesh: Handle<Mesh>,
+    entity: Entity,
+    /// The eye in the sky's frame (as at time zero) when the mesh was last gathered and sorted.
+    sorted_at: Option<Vec3>,
 }
 
-/// A drawn tile (its mesh is in world space at time zero; the transform carries the wind).
-#[derive(Component)]
-struct CloudTile;
-
-/// Icosphere subdivisions of a puff: 4 is 252 vertices and about 500 triangles, round enough for
-/// the lumps to read and cheap enough for a few hundred puffs in view.
-const PUFF_DETAIL: u32 = 4;
-
-/// Most tiles put in the sky in one frame (a tile's mesh is a few thousand triangles).
-const TILES_PER_FRAME: usize = 2;
-
-fn setup(mut commands: Commands, plan: Res<Plan>, mut materials: ResMut<Assets<CloudMaterial>>) {
-    commands.insert_resource(CloudTiles {
-        material: materials.add(CloudMaterial {
-            light: CloudUniform::default(),
-        }),
-        all: plan.clouds.tiles(),
-        drawn: HashMap::new(),
+fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<CloudMaterial>>) {
+    let mesh = meshes.add(item_mesh(&[]));
+    let material = materials.add(CloudMaterial {
+        light: CloudUniform::default(),
+    });
+    let entity = commands
+        .spawn((
+            Name::new("clouds"),
+            Mesh3d(mesh.clone()),
+            MeshMaterial3d(material.clone()),
+            Transform::default(),
+            NotShadowCaster,
+            NoFrustumCulling,
+        ))
+        .id();
+    commands.insert_resource(CloudDraw {
+        material,
+        mesh,
+        entity,
+        sorted_at: None,
     });
 }
 
-/// A small, stable hash of a point on the unit sphere and a puff, 0..1 (the lumps).
-fn lump(dir: Vec3, seed: u32) -> f32 {
-    let mut v = 0.0;
-    let mut amp = 0.6;
-    let mut f = 2.3;
-    for o in 0..3u32 {
-        let p = dir * f + Vec3::splat((seed.wrapping_mul(97).wrapping_add(o * 31) % 1000) as f32 * 0.37);
-        v += amp * ((p.x * 1.7 + p.y * 2.3).sin() * (p.y * 1.3 - p.z * 2.9).cos() * (p.z * 2.1 + p.x * 0.7).sin() * 0.5 + 0.5);
-        amp *= 0.5;
-        f *= 2.1;
-    }
-    v / 1.05
+/// One quad to draw, in the sky's frame at time zero.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Item {
+    /// Its centre.
+    pub centre: Vec3,
+    /// See `ATTRIBUTE_SHAPE`.
+    pub shape: Vec4,
+    /// Kind, darkness, opacity, unused.
+    pub look: Vec4,
+    /// The base and top of its system.
+    pub layer: Vec2,
 }
 
-/// One tile's puffs as one mesh, in world space at time zero: each an icosphere scaled to its radii,
-/// pushed out by `lump`, and flattened at the base so cumulus sit on a level floor.
-fn tile_mesh(puffs: &[(u32, Puff)], base_m: f32) -> Mesh {
-    let unit = Sphere::new(1.0).mesh().ico(PUFF_DETAIL).expect("an icosphere");
-    let (Some(bevy::mesh::VertexAttributeValues::Float32x3(pos)), Some(Indices::U32(idx))) =
-        (unit.attribute(Mesh::ATTRIBUTE_POSITION).cloned(), unit.indices().cloned())
-    else {
-        return Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD);
-    };
-    let mut positions: Vec<[f32; 3]> = Vec::with_capacity(puffs.len() * pos.len());
-    let mut indices: Vec<u32> = Vec::with_capacity(puffs.len() * idx.len());
-    for (i, p) in puffs {
-        let first = positions.len() as u32;
-        for v in &pos {
-            let d = Vec3::from_array(*v).normalize_or(Vec3::Y);
-            let push = 0.78 + 0.45 * lump(d, *i);
-            let mut w = p.centre + d * p.radii * push;
-            w.y = w.y.max(base_m.max(p.centre.y - p.radii.y * 0.75));
-            positions.push(w.to_array());
+/// Every item within `radius_m` of `eye` (in the sky's frame at time zero, x and z) in the order
+/// they are drawn: the farthest first. Puffs and shafts within the radius, every cirrus streak.
+pub fn items(clouds: &Clouds, eye: Vec3, radius_m: f32) -> Vec<Item> {
+    let flat = |p: Vec3| Vec2::new(p.x, p.z).distance(Vec2::new(eye.x, eye.z));
+    let mut out: Vec<Item> = clouds
+        .puffs_near(Vec2::new(eye.x, eye.z), radius_m, 0.0)
+        .into_iter()
+        .map(|i| &clouds.puffs[i as usize])
+        .filter(|p| flat(p.centre) <= radius_m)
+        .map(|p| Item {
+            centre: p.centre,
+            shape: Vec4::new(p.radii.x, p.radii.y, p.seed, 0.0),
+            look: Vec4::new(p.kind as u8 as f32, p.dark, p.opacity, 0.0),
+            layer: Vec2::from(p.layer_m),
+        })
+        .collect();
+    for (k, s) in clouds.shafts.iter().enumerate() {
+        // Three sheets a shaft, offset across and along, the middle one widest.
+        for j in 0..3 {
+            let off = (j as f32 - 1.0) * s.radius_m;
+            let at = s.centre + Vec2::new(off * 0.5, off * 0.3);
+            let centre = Vec3::new(at.x, s.top_m * 0.5, at.y);
+            if flat(centre) > radius_m + s.radius_m {
+                continue;
+            }
+            let r = s.radius_m * if j == 1 { 0.9 } else { 0.6 };
+            out.push(Item {
+                centre,
+                shape: Vec4::new(r, s.top_m, (k * 3 + j) as f32 * 7.3, 0.0),
+                look: Vec4::new(KIND_SHAFT, 0.0, 1.0, 0.0),
+                layer: Vec2::new(0.0, s.top_m),
+            });
         }
-        indices.extend(idx.iter().map(|k| first + k));
     }
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
-        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
-        .with_inserted_indices(Indices::U32(indices));
-    mesh.compute_smooth_normals();
-    mesh
+    out.extend(clouds.cirrus.iter().map(|c| Item {
+        centre: c.centre,
+        shape: Vec4::new(c.length_m, c.width_m, c.seed, c.angle_rad),
+        look: Vec4::new(KIND_CIRRUS, 0.0, 1.0, 0.0),
+        layer: Vec2::new(c.centre.y, c.centre.y),
+    }));
+    // Farthest first; ties keep the gathering order, so the same eye always draws the same way.
+    let mut keyed: Vec<(f32, usize)> = out.iter().enumerate().map(|(i, it)| (it.centre.distance_squared(eye), i)).collect();
+    keyed.sort_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)));
+    keyed.into_iter().map(|(_, i)| out[i]).collect()
 }
 
-/// Puts the tiles within the draw radius of the eye in the sky (as the wind has carried them), a
-/// couple a frame nearest first, and takes the ones beyond it down.
-fn show_tiles(
-    mut commands: Commands,
+/// The quads of `items` as one mesh, four corners and two triangles an item, in order.
+fn item_mesh(items: &[Item]) -> Mesh {
+    let n = items.len() * 4;
+    let (mut centre, mut corner, mut shape, mut look, mut layer) = (
+        Vec::with_capacity(n),
+        Vec::with_capacity(n),
+        Vec::with_capacity(n),
+        Vec::with_capacity(n),
+        Vec::with_capacity(n),
+    );
+    let mut indices: Vec<u32> = Vec::with_capacity(items.len() * 6);
+    for (i, it) in items.iter().enumerate() {
+        for c in [[-1.0f32, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]] {
+            centre.push(it.centre.to_array());
+            corner.push(c);
+            shape.push(it.shape.to_array());
+            look.push(it.look.to_array());
+            layer.push(it.layer.to_array());
+        }
+        let b = i as u32 * 4;
+        indices.extend([b, b + 1, b + 2, b, b + 2, b + 3]);
+    }
+    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, centre)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, corner)
+        .with_inserted_attribute(ATTRIBUTE_SHAPE, shape)
+        .with_inserted_attribute(ATTRIBUTE_LOOK, look)
+        .with_inserted_attribute(ATTRIBUTE_LAYER, layer)
+        .with_inserted_indices(Indices::U32(indices))
+}
+
+/// Carries the sky with the wind, and gathers and sorts the items near the eye again once it has
+/// moved `resort_m` through the sky.
+fn gather(
     plan: Res<Plan>,
     data: Res<Data>,
     time: Res<Time>,
     camera: Single<&GlobalTransform, With<PilotCamera>>,
-    tiles: Option<ResMut<CloudTiles>>,
+    draw: Option<ResMut<CloudDraw>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut transforms: Query<&mut Transform>,
 ) {
-    let Some(mut tiles) = tiles else { return };
-    let eye = camera.translation();
-    let drift = plan.clouds.wind_m_s * time.elapsed_secs();
-    let radius = data.0.world.clouds.draw_radius_m;
-    let half_diag = CLOUD_TILE_M * std::f32::consts::FRAC_1_SQRT_2;
-    let dist = |c: Vec2| ((c + drift).distance(Vec2::new(eye.x, eye.z)) - half_diag).max(0.0);
-    let t = &mut *tiles;
-    let mut gone: Vec<(i32, i32)> = t
-        .drawn
-        .keys()
-        .copied()
-        .filter(|k| t.all.iter().find(|a| a.0 == *k).is_none_or(|a| dist(a.1) > radius + half_diag))
-        .collect();
-    gone.sort_unstable();
-    for key in gone {
-        if let Some(e) = t.drawn.remove(&key) {
-            commands.entity(e).despawn();
-        }
+    let Some(mut draw) = draw else { return };
+    let clouds = &plan.clouds;
+    let d = clouds.drift(time.elapsed_secs());
+    let drift = Vec3::new(d.x, 0.0, d.y);
+    if let Ok(mut t) = transforms.get_mut(draw.entity) {
+        t.translation = drift;
     }
-    let mut wanted: Vec<(f32, (i32, i32))> = t
-        .all
-        .iter()
-        .filter(|a| !t.drawn.contains_key(&a.0))
-        .map(|a| (dist(a.1), a.0))
-        .filter(|w| w.0 <= radius)
-        .collect();
-    wanted.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-    let base = data.0.world.clouds.base_m;
-    for (_, key) in wanted.into_iter().take(TILES_PER_FRAME) {
-        let puffs: Vec<(u32, Puff)> = plan
-            .clouds
-            .puffs_in(key)
-            .into_iter()
-            .map(|i| (i, plan.clouds.puffs[i as usize]))
-            .collect();
-        let e = commands
-            .spawn((
-                Name::new(format!("cloud tile {key:?}")),
-                CloudTile,
-                Mesh3d(meshes.add(tile_mesh(&puffs, base))),
-                MeshMaterial3d(t.material.clone()),
-                Transform::from_translation(Vec3::new(drift.x, 0.0, drift.y)),
-                NotShadowCaster,
-            ))
-            .id();
-        t.drawn.insert(key, e);
+    let eye = camera.translation() - drift;
+    let c = &data.0.world.clouds;
+    if draw.sorted_at.is_some_and(|at| at.distance(eye) < c.resort_m) {
+        return;
     }
-}
-
-/// The wind carries every drawn tile.
-fn drift_tiles(plan: Res<Plan>, time: Res<Time>, mut q: Query<&mut Transform, With<CloudTile>>) {
-    let d = plan.clouds.wind_m_s * time.elapsed_secs();
-    for mut t in &mut q {
-        t.translation = Vec3::new(d.x, 0.0, d.y);
+    draw.sorted_at = Some(eye);
+    if let Some(mut mesh) = meshes.get_mut(&draw.mesh) {
+        *mesh = item_mesh(&items(clouds, eye, c.draw_radius_m));
     }
 }
 
@@ -227,73 +287,239 @@ fn drift_tiles(plan: Res<Plan>, time: Res<Time>, mut q: Query<&mut Transform, Wi
 fn refresh_light(
     data: Res<Data>,
     ambient: Res<GlobalAmbientLight>,
-    sun: Query<(&DirectionalLight, &GlobalTransform)>,
+    sun: Query<(&DirectionalLight, &GlobalTransform), With<Sun>>,
     camera: Query<Option<&Exposure>, With<PilotCamera>>,
-    tiles: Option<Res<CloudTiles>>,
+    draw: Option<Res<CloudDraw>>,
     mut materials: ResMut<Assets<CloudMaterial>>,
 ) {
-    let Some(tiles) = tiles else { return };
+    let Some(draw) = draw else { return };
     let exposure = camera.iter().next().flatten().copied().unwrap_or_default().exposure();
     let light = water_light(sun.iter().next(), &ambient, exposure);
     let a = LinearRgba::from(ambient.color);
     let amb = Vec3::new(a.red, a.green, a.blue) * ambient.brightness * exposure;
     let c = &data.0.world.clouds;
-    let Some(mut m) = materials.get_mut(&tiles.material) else { return };
+    let Some(mut m) = materials.get_mut(&draw.material) else { return };
     m.light = CloudUniform {
         sun_dir: light.sun_dir.extend(c.look_wrap),
         sun: light.sun.extend(c.look_silver),
-        ambient: amb.extend(c.look_albedo),
-        layer: Vec4::new(c.base_m, c.top_m, c.look_base_shade, 0.0),
-        fade: Vec4::new(c.look_near_fade_m, c.look_edge_softness, data.0.world.view.clear_visibility_m, 0.0),
+        ambient: amb.extend(0.0),
+        albedo: Vec4::new(c.look_albedo, c.look_storm_albedo, c.look_base_shade, c.look_storm_base_shade),
+        fade: Vec4::new(c.look_near_fade_m, c.look_erode, c.look_soft_m, 0.0),
     };
+}
+
+/// Texels a side of the storm shade map.
+const SHADE_TEXELS: usize = 1024;
+/// The map covers this far either side of the island's centre, across the sun's rays (metres).
+const SHADE_HALF_M: f32 = 40000.0;
+/// The shade is laid at this height: where the sun's ray crosses the storms' base.
+const SHADE_AT_M: f32 = 700.0;
+
+/// The storm shade map: the share of the sun reaching the cloud base where each texel's ray
+/// crosses it, R8 (255 full sun). The texel at local `(x, y)` (-1..1 across the light) is the ray
+/// through `R (x s, y s, 0)`, where `R` turns the light's frame to the world's and `s` is
+/// `SHADE_HALF_M`; Bevy samples it at `uv = local.xy * (-0.5, 0.5) + 0.5`.
+pub fn shade_map(clouds: &Clouds, rotation: Quat, texels: usize) -> Vec<u8> {
+    let travel = rotation * Vec3::NEG_Z;
+    let mut out = vec![255u8; texels * texels];
+    if travel.y > -0.05 {
+        // The sun at the horizon or below: no storm shadow worth drawing.
+        return out;
+    }
+    for j in 0..texels {
+        for i in 0..texels {
+            let u = (i as f32 + 0.5) / texels as f32;
+            let v = (j as f32 + 0.5) / texels as f32;
+            let local = Vec3::new((0.5 - u) * 2.0, (v - 0.5) * 2.0, 0.0) * SHADE_HALF_M;
+            let w = rotation * local;
+            // Along the ray to the cloud base.
+            let at = w + travel * ((SHADE_AT_M - w.y) / travel.y);
+            out[j * texels + i] = (clouds.sun_at(Vec2::new(at.x, at.z), 0.0) * 255.0).round() as u8;
+        }
+    }
+    out
+}
+
+/// The sun's storm shade: baked once for the sun's direction (again if it turns), and carried with
+/// the wind by the sun's transform (a directional light's translation and scale light nothing but
+/// its texture; its shadows read only its rotation).
+fn shade_sun(
+    mut commands: Commands,
+    plan: Res<Plan>,
+    time: Res<Time>,
+    mut images: ResMut<Assets<Image>>,
+    mut sun: Query<(Entity, &mut Transform, Option<&DirectionalLightTexture>), With<Sun>>,
+    mut baked_for: Local<Option<Quat>>,
+) {
+    let Ok((entity, mut transform, texture)) = sun.single_mut() else {
+        return;
+    };
+    if plan.clouds.shades.is_empty() {
+        return;
+    }
+    let d = plan.clouds.drift(time.elapsed_secs());
+    transform.translation = Vec3::new(d.x, 0.0, d.y);
+    transform.scale = Vec3::splat(SHADE_HALF_M);
+    let turned = baked_for.is_none_or(|q| q.angle_between(transform.rotation) > 0.01);
+    if texture.is_some() && !turned {
+        return;
+    }
+    *baked_for = Some(transform.rotation);
+    let started = std::time::Instant::now();
+    let texels = shade_map(&plan.clouds, transform.rotation, SHADE_TEXELS);
+    let image = Image::new(
+        Extent3d {
+            width: SHADE_TEXELS as u32,
+            height: SHADE_TEXELS as u32,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        texels,
+        TextureFormat::R8Unorm,
+        RenderAssetUsages::RENDER_WORLD,
+    );
+    commands.entity(entity).insert(DirectionalLightTexture {
+        image: images.add(image),
+        tiled: false,
+    });
+    info!(
+        "clouds: storm shade baked for {} darkened cells in {:.0} ms",
+        plan.clouds.shades.len(),
+        started.elapsed().as_secs_f64() * 1000.0
+    );
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cb_core::world::clouds::{Cirrus, CloudKind, Puff, RainShaft};
+    use cb_core::world::weather::Sky;
 
-    fn puff() -> (u32, Puff) {
-        (
-            7,
-            Puff {
-                centre: Vec3::new(100.0, 700.0, -50.0),
-                radii: Vec3::new(150.0, 90.0, 120.0),
+    fn sky() -> Clouds {
+        let mut puffs = Vec::new();
+        for k in 0..200u32 {
+            let x = -9000.0 + (k % 20) as f32 * 900.0;
+            let z = -9000.0 + (k / 20) as f32 * 1700.0;
+            puffs.push(Puff {
+                centre: Vec3::new(x, 700.0 + (k % 3) as f32 * 300.0, z),
+                radii: Vec3::new(200.0, 150.0, 200.0),
+                kind: CloudKind::Cumulus,
+                dark: 0.1,
+                opacity: 0.95,
+                layer_m: [600.0, 1500.0],
+                seed: k as f32,
+            });
+        }
+        let shafts = vec![RainShaft {
+            centre: Vec2::new(1000.0, 500.0),
+            radius_m: 1500.0,
+            top_m: 720.0,
+        }];
+        let cirrus = vec![Cirrus {
+            centre: Vec3::new(0.0, 8500.0, 0.0),
+            length_m: 6000.0,
+            width_m: 800.0,
+            angle_rad: 0.2,
+            seed: 3.0,
+        }];
+        Clouds::new(
+            Sky {
+                puffs,
+                shafts,
+                cirrus,
+                ..Sky::default()
             },
+            Vec2::new(6.0, 0.0),
+            0.7,
         )
     }
 
     #[test]
-    fn a_tile_mesh_holds_every_puff_and_sits_on_the_cloud_base() {
-        let p = puff();
-        let m = tile_mesh(
-            &[
-                p,
-                (
-                    8,
-                    Puff {
-                        centre: p.1.centre + Vec3::X * 300.0,
-                        ..p.1
-                    },
-                ),
-            ],
-            610.0,
-        );
-        let Some(bevy::mesh::VertexAttributeValues::Float32x3(pos)) = m.attribute(Mesh::ATTRIBUTE_POSITION) else {
-            panic!("positions")
-        };
-        let one = Sphere::new(1.0).mesh().ico(PUFF_DETAIL).unwrap().count_vertices();
-        assert_eq!(pos.len(), 2 * one, "two puffs, one icosphere each");
-        assert!(pos.iter().all(|v| v[1] >= 610.0 - 1e-3), "nothing hangs below the cloud base");
-        assert!(m.attribute(Mesh::ATTRIBUTE_NORMAL).is_some(), "lit with smooth normals");
+    fn items_are_drawn_from_the_farthest_to_the_nearest() {
+        let eye = Vec3::new(300.0, 2.0, -400.0);
+        let list = items(&sky(), eye, 6000.0);
+        assert!(list.len() > 20);
+        for w in list.windows(2) {
+            assert!(w[0].centre.distance(eye) >= w[1].centre.distance(eye));
+        }
     }
 
     #[test]
-    fn lumps_are_stable_and_bounded() {
-        for i in 0..50u32 {
-            let d = Vec3::new((i as f32).sin(), (i as f32 * 0.7).cos(), 0.3).normalize();
-            let a = lump(d, i);
-            assert_eq!(a, lump(d, i), "the same puff is the same shape every time");
-            assert!((0.0..=1.0).contains(&a), "{a}");
+    fn only_puffs_within_the_radius_are_gathered_and_every_one_of_them_is() {
+        let c = sky();
+        let eye = Vec3::new(-2000.0, 50.0, 1000.0);
+        let list = items(&c, eye, 4000.0);
+        let puffs: Vec<&Item> = list.iter().filter(|i| i.look.x < KIND_SHAFT - 0.5).collect();
+        let within = c
+            .puffs
+            .iter()
+            .filter(|p| Vec2::new(p.centre.x, p.centre.z).distance(Vec2::new(eye.x, eye.z)) <= 4000.0)
+            .count();
+        assert_eq!(puffs.len(), within);
+        assert_eq!(
+            list.iter().filter(|i| i.look.x == KIND_SHAFT).count(),
+            3,
+            "three sheets for the shaft"
+        );
+        assert_eq!(list.iter().filter(|i| i.look.x == KIND_CIRRUS).count(), 1);
+    }
+
+    #[test]
+    fn the_shade_map_darkens_where_the_sun_crosses_a_storm() {
+        use cb_core::world::clouds::StormShade;
+        let shade = StormShade {
+            centre: Vec2::new(-8000.0, 3000.0),
+            radius_m: 5000.0,
+            shade: 0.6,
+            wobble_m: 0.0,
+        };
+        let c = Clouds::new(
+            Sky {
+                shades: vec![shade],
+                ..Sky::default()
+            },
+            Vec2::X,
+            0.7,
+        );
+        let rotation = Quat::from_euler(EulerRot::YXZ, 0.8, -0.75, 0.0);
+        let n = 64;
+        let map = shade_map(&c, rotation, n);
+        assert!(map.iter().any(|&t| t < 110), "60 % of the sun taken at the storm's heart");
+        assert!(map.iter().filter(|&&t| t == 255).count() > n * n / 2, "most of the map in full sun");
+        // The darkest texel's ray crosses the cloud base near the storm's centre, as Bevy reads it.
+        let (k, _) = map.iter().enumerate().min_by_key(|(_, t)| **t).unwrap();
+        let (u, v) = (((k % n) as f32 + 0.5) / n as f32, ((k / n) as f32 + 0.5) / n as f32);
+        let w = rotation * Vec3::new((0.5 - u) * 2.0, (v - 0.5) * 2.0, 0.0) * SHADE_HALF_M;
+        let travel = rotation * Vec3::NEG_Z;
+        let at = w + travel * ((SHADE_AT_M - w.y) / travel.y);
+        assert!(Vec2::new(at.x, at.z).distance(shade.centre) < 0.45 * shade.radius_m + 2.0 * SHADE_HALF_M / n as f32);
+    }
+
+    #[test]
+    fn one_quad_an_item() {
+        let list = items(&sky(), Vec3::ZERO, 6000.0);
+        let m = item_mesh(&list);
+        assert_eq!(m.count_vertices(), list.len() * 4);
+        assert_eq!(m.indices().map(|i| i.len()), Some(list.len() * 6));
+    }
+
+    #[test]
+    fn the_cloud_shader_compiles_against_bevy_pbr_and_its_uniform_matches() {
+        use crate::shader_check::{compile, struct_size, with_bevy};
+        let Some(resolver) = with_bevy() else {
+            eprintln!("skipped: Bevy 0.20's sources are not in the Cargo registry");
+            return;
+        };
+        let base = [("VERTEX_POSITIONS", true), ("CLUSTERED_FORWARD_STORAGE_BUFFER", true)];
+        for (msaa, prepass, fog) in [(false, true, true), (true, true, true), (false, false, false)] {
+            let mut flags = base.to_vec();
+            flags.extend([("MULTISAMPLED", msaa), ("DEPTH_PREPASS", prepass), ("DISTANCE_FOG", fog)]);
+            let module = compile(&resolver, "cloud", &flags);
+            assert_eq!(
+                u64::from(struct_size(&module, "CloudLight")),
+                CloudUniform::min_size().get(),
+                "the Rust uniform must be the WESL struct's size"
+            );
         }
     }
 }

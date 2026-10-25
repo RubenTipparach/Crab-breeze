@@ -66,6 +66,13 @@ frame time.
 
 ## Step 2. Clouds as weather (`cloud-weather`)
 
+**Built 2026-10-25** (on this branch, `environment-design`): the weather systems in
+`cb_core::world::weather` moved to the crater island, billboard clouds, rain shafts and cirrus in one
+sorted draw, rain on the glass under a shaft, and the storm darkening as a texture on the sun.
+What changed from the plan below is in `openspec/changes/cloud-weather/design.md` section 2a; the
+headless stills are in `docs/screenshots/weather/`. Still to do: the playtest on your machine and
+the frame time with `CB_NO_CLOUDS` (tasks 3.2, 3.3), and the water reading the storm shade.
+
 The biggest visible difference. The design is written (`openspec/changes/cloud-weather/design.md`);
 what follows is the work, with what changes for the crater.
 

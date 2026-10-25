@@ -23,6 +23,7 @@ pub mod roads;
 pub mod structure;
 pub mod terrain;
 pub mod water;
+pub mod weather;
 
 pub use biome::{BIOME_COUNT, BIOMES, Biome, Biomes};
 pub use clouds::Clouds;
@@ -151,6 +152,24 @@ impl Ground for WorldPlan {
     }
 }
 
+/// The island as the weather sees it: the ground's height, the coast and the moisture.
+struct SkyGround<'a> {
+    terrain: &'a Heightfield,
+    biomes: &'a Biomes,
+}
+
+impl weather::WeatherGround for SkyGround<'_> {
+    fn ground_m(&self, p: Vec2) -> f32 {
+        self.terrain.height_at(p.x, p.y)
+    }
+    fn past_coast_m(&self, p: Vec2) -> f32 {
+        self.terrain.shape().past_land_edge_m(p)
+    }
+    fn moisture(&self, p: Vec2) -> f32 {
+        self.biomes.moisture(p)
+    }
+}
+
 /// Endless flat ground at height zero with optional walls, for tests.
 #[derive(Clone, Debug, Default)]
 pub struct FlatGround {
@@ -266,6 +285,8 @@ impl WorldPlan {
             }
         }
         put(self.clouds.puffs.len() as f32);
+        put(self.clouds.shafts.len() as f32);
+        put(self.clouds.cirrus.len() as f32);
         let mut text = String::with_capacity(words.len() * 8);
         for w in words {
             text.push_str(&w.to_string());
@@ -336,8 +357,19 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
     let start = start_point(&cities, cfg);
     let roofs = buildings.iter().map(|b| cities[b.city as usize].ground_m + b.height_m).collect();
     let collision = BuildingGrid::new(&buildings, cfg.world_size_m, 64.0).with_roofs(roofs);
-    let clouds = clouds::make_clouds(&root.fork("clouds"), &cfg.clouds, cfg.world_size_m);
     let biomes = Biomes::new(&root.fork("biomes"), &cfg.biomes, sea_level_m, cfg.range.snowline_m);
+    let wind = Vec2::from(cfg.clouds.wind_m_s);
+    let rim = weather::Rim {
+        centre: Vec2::from(cfg.range.centre_m),
+        radius_m: cfg.range.radius_m,
+        half_width_m: cfg.range.half_width_m,
+    };
+    let under = SkyGround {
+        terrain: &terrain,
+        biomes: &biomes,
+    };
+    let sky = weather::make_sky(&root.fork("clouds"), &cfg.weather, wind, &under, rim);
+    let clouds = Clouds::new(sky, wind, cfg.weather.shaft_rain);
     WorldPlan {
         seed,
         terrain,

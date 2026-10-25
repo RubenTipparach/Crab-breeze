@@ -81,16 +81,50 @@ but from above they drowned in evenly spread fair cumulus):
 Seed 42: 5,960 puffs (2,550 cumulus, 711 tower, 210 anvil, 1,169 deck, front and scud, 461
 orographic, 6 caps, 853 altocumulus), 11 rain shafts, 7 darkened cells.
 
+## 2a. In the game: the crater island (built 2026-10-25)
+
+The game's island is not the mockup's (`docs/design/world-look-plan.md`, step 0): a crater of
+mountains round the middle (crest 5.5 km out, peaks to about 1.7 km), not a north-south range. The
+systems were moved to it; everything below is in `data/world/world.ron` under `weather:`.
+
+| System | Mockup | Game |
+| --- | --- | --- |
+| Storm cells | over the jungle west of the spine, off the archipelago, north-west at sea | (-10.5, 2.5) km over the wet west outside the rim, (-15.5, 9.5) and (-11, -14) km at sea (x east, z south) |
+| Orographic | the range's west flank, 600-3,200 m out, ground above 500 m | the rim's windward arc (bearings 200-340 degrees), 200-2,200 m out from the crest, ground above 400 m: the rim's outer flank falls below 400 m within about 2 km |
+| Caps | peaks above 1,900 m | rim peaks above 1,350 m, at most five, 2.5 km apart |
+| Fair cumulus | moisture of the mockup | the game's biome moisture (`Biomes::moisture`): 0.3 + 2.8 x moisture clusters a 2 km tile over land |
+| The deck's breaks | the mockup's fbm below -0.25 | the game's value noise (-1..1) below -0.45 |
+| Wind | from the west, 6 m/s | the same (`clouds.wind_m_s`, was 3, 1) |
+
+Seed 42 (`world::tests::seed_42_census_for_the_design`): 7,897 puffs (4,313 cumulus, 812 tower, 210
+anvil, 1,482 deck, front and scud, 272 orographic, 15 in five caps, 793 altocumulus), 14 rain shafts,
+8 darkened cells, 90 cirrus. Built in the world's generation with the rest of the plan.
+
+**Drawn.** One mesh of every item within 20 km of the eye (not 9 km: storm towers and the front
+should stand on the horizon, and a far billboard is a few pixels), sorted on the CPU, re-gathered
+when the eye has moved 30 m through the drifting sky; rain shafts and cirrus are items of the same
+mesh, so it is one draw, not three. One material, `assets/shaders/cloud.wesl`.
+
+**The storm darkening is a texture on the sun**, not a loop in each shader: Bevy 0.20's
+`DirectionalLightTexture` (a light cookie, feature `pbr_light_textures`) projects a 1024 px R8 map
+along the sun's rays. Each texel holds `Clouds::sun_at` where its ray crosses the storms' base
+(700 m), so the shade falls where a real storm's shadow would; the wind carries it by moving the
+sun's translation, which nothing but the texture reads (the shadow cascades take only its
+rotation). The ground, buildings, trees, grass and mechs all darken through Bevy's own lighting.
+The map covers 80 km across the light; one bake, about 1 M lookups at start (logged), again only
+if the sun turns. The water's light is its own (`water_light`) and does not read it yet.
+
 ## 3. Cost (expected; measured with `CB_NO_CLOUDS` on the owner's hardware)
 
 | Item | Fair weather | Facing a storm |
 | --- | --- | --- |
-| Puffs in the 9 km draw radius | about 1,200 | about 2,000 |
-| Draws | 3 (puffs, shafts, cirrus) | 3 |
+| Puffs in the draw radius (20 km as built, section 2a) | about 3,000 | about 4,000 |
+| Draws | 1 (puffs, shafts and cirrus in one sorted mesh) | 1 |
 | Blended layers a sky pixel | about 0.6 | up to 6 across 40 % of the screen |
 | Fragment work at 1920 x 1080 | about 0.6 million shades, under 0.1 ms on an RTX 3070 | about 5 million, about 0.5 ms |
-| CPU | a sort of 1,200-2,000 keys when the eye moves 30 m: about 0.2 ms | the same |
-| Triangles | 2 a puff: about 4,000, against about 100,000 in view for the blobs | |
+| CPU | a gather and sort of 3,000-4,000 items and a mesh rebuilt (about 1 MB) when the eye moves 30 m: about 1 ms, so 10 times a second at the jets' 300 m/s, to be measured | the same |
+| Triangles | 2 a puff: about 8,000, against about 100,000 in view for the blobs | |
+| Storm shade | one 1 MB R8 texture on the sun, sampled once a lit pixel by Bevy's light texture path | |
 
 The fragment cost is the one to watch: a storm seen from inside its anvil is the worst case. The
 sort can drop to per-tile order (tiles far to near, puffs sorted only in the three nearest tiles)
