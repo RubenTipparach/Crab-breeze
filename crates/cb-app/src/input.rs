@@ -4,7 +4,7 @@
 //! value. Nothing else in the game reads a device.
 
 use crate::sim::{Data, PresentSet, SimSet};
-use bevy::input::mouse::AccumulatedMouseMotion;
+use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions};
 use cb_core::input::{Actions, Bindings, DebugCommand, ModeRequest};
@@ -17,6 +17,8 @@ pub struct InputAccum {
     pub look_deg: Vec2,
     /// Use was pressed.
     pub use_pressed: bool,
+    /// Free look was tapped (pressed and let go quickly): a full stop on the ground.
+    pub full_stop: bool,
     /// Throttle zero was pressed.
     pub throttle_zero: bool,
     /// A mode was asked for.
@@ -27,6 +29,10 @@ pub struct InputAccum {
     pub skate_toggle: bool,
     /// The next target was asked for.
     pub target_next: bool,
+    /// Close combat was toggled.
+    pub close_combat: bool,
+    /// Weapon station steps asked for (+ on, - back).
+    pub weapon_cycle: i32,
     /// Fire pressed while free look is held: press the MFD looked at (cockpit-mfds). Taken by the
     /// MFDs each frame, never by the fixed step.
     pub mfd_press: bool,
@@ -41,7 +47,7 @@ pub struct StepActions(pub Actions);
 
 /// Key codes resolved from the bindings data.
 #[derive(Resource)]
-struct Keys {
+pub(crate) struct Keys {
     forward: Vec<KeyCode>,
     back: Vec<KeyCode>,
     left: Vec<KeyCode>,
@@ -53,16 +59,23 @@ struct Keys {
     mode_walk: Vec<KeyCode>,
     mode_skate: Vec<KeyCode>,
     mode_jet: Vec<KeyCode>,
-    release_mouse: Vec<KeyCode>,
+    /// Opens and closes the pause menu (game-menus).
+    pub(crate) release_mouse: Vec<KeyCode>,
+    pub(crate) mail: Vec<KeyCode>,
     lift: Vec<KeyCode>,
     skate: Vec<KeyCode>,
     sink: Vec<KeyCode>,
     target_next: Vec<KeyCode>,
+    close_combat: Vec<KeyCode>,
+    /// Punch keys, [left arm, right arm].
+    strike: [Vec<KeyCode>; 2],
+    /// Keys that step the weapon on, and whether the mouse wheel steps it.
+    weapon_cycle: (Vec<KeyCode>, bool),
     fire: [(Vec<KeyCode>, Vec<MouseButton>); 2],
     fire_missile: (Vec<KeyCode>, Vec<MouseButton>),
     debug: Vec<(Vec<KeyCode>, DebugCommand)>,
-    deg_per_px: f32,
-    invert_pitch: bool,
+    pub(crate) deg_per_px: f32,
+    pub(crate) invert_pitch: bool,
 }
 
 /// Samples devices into actions.
@@ -117,10 +130,24 @@ fn resolve(b: &Bindings) -> Result<Keys, String> {
         mode_skate: r("mode_skate", &b.mode_skate)?,
         mode_jet: r("mode_jet", &b.mode_jet)?,
         release_mouse: r("release_mouse", &b.release_mouse)?,
+        mail: r("mail", &b.mail)?,
         lift: r("lift", &b.lift)?,
         skate: r("skate", &b.skate)?,
         sink: r("sink", &b.sink)?,
         target_next: r("target_next", &b.target_next)?,
+        close_combat: r("close_combat", &b.close_combat)?,
+        strike: [r("strike_left", &b.strike_left)?, r("strike_right", &b.strike_right)?],
+        weapon_cycle: (
+            r(
+                "weapon_cycle",
+                &b.weapon_cycle
+                    .iter()
+                    .filter(|n| n.as_str() != "MouseWheel")
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            )?,
+            b.weapon_cycle.iter().any(|n| n == "MouseWheel"),
+        ),
         fire: [split("fire_primary", &b.fire_primary)?, split("fire_secondary", &b.fire_secondary)?],
         fire_missile: split("fire_missile", &b.fire_missile)?,
         debug: vec![
@@ -160,6 +187,8 @@ fn key_code(name: &str) -> Option<KeyCode> {
         "AltRight" => AltRight,
         "Space" => Space,
         "Tab" => Tab,
+        "BracketLeft" => BracketLeft,
+        "BracketRight" => BracketRight,
         "Enter" => Enter,
         "Escape" => Escape,
         "ArrowUp" => ArrowUp,
@@ -193,29 +222,53 @@ fn any_just(input: &ButtonInput<KeyCode>, keys: &[KeyCode]) -> bool {
 fn grab_mouse(
     mut cursor: Single<&mut CursorOptions>,
     mouse: Res<ButtonInput<MouseButton>>,
-    input: Res<ButtonInput<KeyCode>>,
-    keys: Res<Keys>,
+    menu: Res<crate::menu::Menu>,
     mut first: Local<bool>,
 ) {
+    // The pause menu (game-menus) releases the mouse on Escape and takes it back on Resume; a click
+    // with the menu open is for its buttons.
+    if menu.is_open() {
+        return;
+    }
     if !*first || mouse.just_pressed(MouseButton::Left) {
         *first = true;
         cursor.visible = false;
         cursor.grab_mode = CursorGrabMode::Locked;
     }
-    if any_just(&input, &keys.release_mouse) {
-        cursor.visible = true;
-        cursor.grab_mode = CursorGrabMode::None;
-    }
 }
 
+/// A press of free look let go within this long is a tap (a full stop), not a look round.
+const TAP_S: f32 = 0.3;
+
+#[allow(clippy::too_many_arguments)]
 fn sample_devices(
+    menu: Res<crate::menu::Menu>,
     input: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     motion: Res<AccumulatedMouseMotion>,
+    scroll: Res<AccumulatedMouseScroll>,
     cursor: Single<&CursorOptions>,
     keys: Res<Keys>,
+    time: Res<Time<Real>>,
     mut acc: ResMut<InputAccum>,
+    mut free_look_since: Local<Option<f32>>,
 ) {
+    // Paused in the menu: no look, no presses reach the game.
+    if menu.is_open() {
+        return;
+    }
+    // A quick tap of free look asks for a full stop (owner, 2026-10-25: "when I hit ctrl when I'm
+    // standing on ground that means i want mech to come to full stop"); holding it looks round.
+    let now = time.elapsed_secs();
+    if any_just(&input, &keys.free_look) {
+        *free_look_since = Some(now);
+    }
+    if keys.free_look.iter().any(|k| input.just_released(*k)) {
+        if free_look_since.is_some_and(|t| now - t <= TAP_S) {
+            acc.full_stop = true;
+        }
+        *free_look_since = None;
+    }
     if cursor.grab_mode != CursorGrabMode::None {
         let sign = if keys.invert_pitch { 1.0 } else { -1.0 };
         acc.look_deg += Vec2::new(motion.delta.x, sign * motion.delta.y) * keys.deg_per_px;
@@ -233,6 +286,17 @@ fn sample_devices(
     }
     acc.skate_toggle |= any_just(&input, &keys.skate);
     acc.target_next |= any_just(&input, &keys.target_next);
+    // Tab with Alt held is switching windows, not close combat (Alt+Tab turned it on by hand, with no
+    // one near, and held the guns).
+    let alt = input.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]);
+    acc.close_combat |= !alt && any_just(&input, &keys.close_combat);
+    // The wheel steps the weapon: down on, up back (weapon-select).
+    if keys.weapon_cycle.1 && scroll.delta.y != 0.0 {
+        acc.weapon_cycle += if scroll.delta.y < 0.0 { 1 } else { -1 };
+    }
+    if any_just(&input, &keys.weapon_cycle.0) {
+        acc.weapon_cycle += 1;
+    }
     let (fire_keys, fire_buttons) = &keys.fire[0];
     if any(&input, &keys.free_look) && (any_just(&input, fire_keys) || mouse.any_just_pressed(fire_buttons.iter().copied())) {
         acc.mfd_press = true;
@@ -271,8 +335,11 @@ fn take_step_actions(
                     .clone()
                     .map(|(k, m)| any(&input, &k) || mouse.any_pressed(m.iter().copied())),
                 free_look: any(&input, &keys.free_look),
+                use_held: any(&input, &keys.use_key),
                 sink: any(&input, &keys.sink),
                 fire_missile: any(&input, &keys.fire_missile.0) || mouse.any_pressed(keys.fire_missile.1.iter().copied()),
+                strike: [any(&input, &keys.strike[0]), any(&input, &keys.strike[1])],
+                walk_keys: true,
                 ..default()
             }
         }
@@ -285,6 +352,9 @@ fn take_step_actions(
         debug: held.debug.or(acc.debug),
         skate_toggle: held.skate_toggle || acc.skate_toggle,
         target_next: held.target_next || acc.target_next,
+        full_stop: held.full_stop || acc.full_stop,
+        weapon_cycle: (held.weapon_cycle + acc.weapon_cycle).signum(),
+        close_combat: held.close_combat || acc.close_combat,
         ..held
     }
     .sanitised();
@@ -295,6 +365,9 @@ fn take_step_actions(
     acc.debug = None;
     acc.skate_toggle = false;
     acc.target_next = false;
+    acc.full_stop = false;
+    acc.weapon_cycle = 0;
+    acc.close_combat = false;
 }
 
 #[cfg(test)]

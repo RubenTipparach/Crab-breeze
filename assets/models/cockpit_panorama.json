@@ -46,7 +46,7 @@
     ],
     "z": [
       -0.79,
-      2.445
+      2.94
     ]
   },
   "doorway_m": {
@@ -240,7 +240,7 @@
   },
   "meshes": {
     "CONSOLE_front_front": {
-      "tris": 8280,
+      "tris": 8304,
       "group": "front",
       "node": "CONSOLE_front"
     },
@@ -317,7 +317,7 @@
   },
   "vents": 7,
   "lights": 6,
-  "tris": 25044,
+  "tris": 25068,
   "tri_budget": 600000,
   "draw_calls": 15,
   "atlases": {
@@ -361,5 +361,5 @@
     "wall_L",
     "wall_R"
   ],
-  "bytes": 13853223
+  "bytes": 13524901
 }

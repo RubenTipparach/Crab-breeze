@@ -131,6 +131,10 @@ pub struct BoardingTimeline {
     pub ready_s: f32,
     /// How far from the stair's foot a pilot must be before the empty mech closes up.
     pub clear_m: f32,
+    /// How far out in front of the hatch's sill the boarding crane reaches, so the rope from its tip
+    /// hangs clear of the knelt mech's hips and legs (owner, 2026-10-24: "extend a crane out then
+    /// lower the rope"); measured off each glb by `tools/mechs/gen_mech_data.py`.
+    pub crane_reach_m: f32,
     /// The all-view screen's power-up time.
     pub screen_power_up_s: f32,
     /// The all-view screen's power-down time.
@@ -144,6 +148,7 @@ impl Default for BoardingTimeline {
             stages: Vec::new(),
             ready_s: 3.5,
             clear_m: 3.0,
+            crane_reach_m: 3.0,
             screen_power_up_s: 2.5,
             screen_power_down_s: 0.6,
         }
@@ -161,6 +166,7 @@ impl Validate for BoardingTimeline {
             return Err("`ready_s` must not come before the sit ends".into());
         }
         positive("clear_m", self.clear_m)?;
+        positive("crane_reach_m", self.crane_reach_m)?;
         positive("screen_power_up_s", self.screen_power_up_s)?;
         positive("screen_power_down_s", self.screen_power_down_s)?;
         let mut last = 0.0;

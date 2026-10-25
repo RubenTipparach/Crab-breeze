@@ -127,6 +127,42 @@ fn board(p: &PilotState, access: Option<&cb_core::pilot::MechAccess>) -> Actions
     }
 }
 
+/// The nearest cloud more than 500 m from the mech: the one a take flies into. Shared with the
+/// capture instrument.
+pub fn nearest_cloud(plan: &Plan, m: &MechState) -> Vec3 {
+    let here = Vec2::new(m.pos.x, m.pos.z);
+    plan.clouds
+        .puffs
+        .iter()
+        .filter(|c| Vec2::new(c.centre.x, c.centre.z).distance(here) > 500.0)
+        .min_by(|a, b| {
+            Vec2::new(a.centre.x, a.centre.z)
+                .distance(here)
+                .total_cmp(&Vec2::new(b.centre.x, b.centre.z).distance(here))
+        })
+        .map(|c| c.centre)
+        .unwrap_or(Vec3::new(here.x, 800.0, here.y - 800.0))
+}
+
+/// Rockets up, skates across, toward a cloud's centre: climb to its height, then hold level.
+/// Shared with the capture instrument.
+pub fn fly_to_cloud(m: &MechState, cloud: Vec3) -> Actions {
+    let climb = cloud.y - m.pos.y;
+    Actions {
+        skate_toggle: !m.skates_on,
+        move_xy: Vec2::new(0.0, 1.0),
+        turn_axis: steer(m, Vec2::new(cloud.x, cloud.z)),
+        throttle_axis: throttle_to(m, 1.0),
+        lift_axis: if climb > 30.0 {
+            1.0
+        } else {
+            (HOVER_LIFT - m.vel_y_m_s * 0.025).clamp(0.0, 1.0)
+        },
+        look_delta_deg: aim(m, 0.0, 0.15),
+        ..default()
+    }
+}
+
 /// Leg turn toward a point, -1..1 (left positive).
 fn steer(m: &MechState, target: Vec2) -> f32 {
     let v = target - Vec2::new(m.pos.x, m.pos.z);
@@ -179,18 +215,7 @@ fn play(
             // The game is loaded and its pipelines compiled (GAME_READY): only then does a take begin.
             if ready.0 && access.0.is_some() {
                 let here = Vec2::new(m.pos.x, m.pos.z);
-                take.cloud = plan
-                    .clouds
-                    .puffs
-                    .iter()
-                    .filter(|c| Vec2::new(c.centre.x, c.centre.z).distance(here) > 500.0)
-                    .min_by(|a, b| {
-                        Vec2::new(a.centre.x, a.centre.z)
-                            .distance(here)
-                            .total_cmp(&Vec2::new(b.centre.x, b.centre.z).distance(here))
-                    })
-                    .map(|c| c.centre)
-                    .unwrap_or(Vec3::new(here.x, 800.0, here.y - 800.0));
+                take.cloud = nearest_cloud(&plan, m);
                 let cloud_xz = Vec2::new(take.cloud.x, take.cloud.z);
                 let mut best = (f32::MIN, here, here);
                 // Trees grow only near bodies (island-world), so probe a copy of the forest grown
@@ -292,7 +317,8 @@ fn play(
         }
         // Climb out.
         6 if take.marks => {
-            act.use_pressed = p.mode == PilotMode::Seated && t < 0.3;
+            // Climbing out is a held Use (pilot data `exit_hold_s`).
+            act.use_held = p.mode == PilotMode::Seated && t < 1.6;
             next = p.mode == PilotMode::OnFoot && t > 1.0;
         }
         // Walk back along the track, looking down at the grooves and then the prints.
@@ -314,18 +340,7 @@ fn play(
         }
         // Rockets up, skates across: climb toward the cloud, fly into it.
         4 => {
-            let cloud_xz = Vec2::new(take.cloud.x, take.cloud.z);
-            act.skate_toggle = !m.skates_on;
-            act.move_xy = Vec2::new(0.0, 1.0);
-            act.turn_axis = steer(m, cloud_xz);
-            act.throttle_axis = throttle_to(m, 1.0);
-            let climb = take.cloud.y - m.pos.y;
-            act.lift_axis = if climb > 30.0 {
-                1.0
-            } else {
-                (HOVER_LIFT - m.vel_y_m_s * 0.025).clamp(0.0, 1.0)
-            };
-            act.look_delta_deg = aim(m, 0.0, 0.15);
+            act = fly_to_cloud(m, take.cloud);
             if plan.clouds.density_at(m.pos + Vec3::Y * data.0.mech.body.eye_height_m, now) > 0.05 {
                 take.in_cloud_s += time.delta_secs();
             }
@@ -720,12 +735,19 @@ fn play_defence(
                 return;
             }
             let here = Vec2::new(m.pos.x, m.pos.z);
-            // The wave's nearest live enemy, mech or vehicle.
+            // The wave's nearest live enemy, mech or vehicle; an aircraft counts as four times as far,
+            // so the ground fight comes first (a helicopter circling the pilot at 300 m was always
+            // "nearest" and was chased for seven minutes while the raiders stood, 2026-10-24). The
+            // missiles still go at a lock, aircraft included.
+            let weight = |h: &crate::units::Hostile| {
+                let airborne = h.feet.y - plan.height_at(h.feet.x, h.feet.z) > 20.0;
+                h.aim.distance(m.pos) * if airborne { 4.0 } else { 1.0 }
+            };
             let nearest = hostiles
                 .0
                 .iter()
                 .filter(|h| h.wave == Some(w))
-                .min_by(|a, b| a.aim.distance(m.pos).total_cmp(&b.aim.distance(m.pos)))
+                .min_by(|a, b| weight(a).total_cmp(&weight(b)))
                 .copied();
             let city = &plan.cities[cfg.cities[w] as usize];
             let goal = nearest.map_or(city.centre, |r| Vec2::new(r.aim.x, r.aim.z));
@@ -807,7 +829,9 @@ fn play_defence(
                 let to_lead = (o.aim_point - eye).normalize_or(look);
                 let off_deg = look.angle_between(to_lead).to_degrees();
                 let radius_m = (target.height_m * 0.5).clamp(1.5, 6.0);
-                let allowed_deg = (radius_m / o.aim_point.distance(eye).max(1.0)).atan().to_degrees().max(0.4);
+                // Twice the target's size, at least a degree: the seated view is coupled to the nose
+                // (seated-look), so the aim settles more slowly than a free view did.
+                let allowed_deg = (2.0 * radius_m / o.aim_point.distance(eye).max(1.0)).atan().to_degrees().max(1.0);
                 if off_deg > allowed_deg {
                     act.fire = [false, false];
                 }

@@ -64,6 +64,10 @@ struct Ring {
     age: f32,
     life: f32,
     radius: f32,
+    /// Its own material, so it fades on its own.
+    material: Handle<StandardMaterial>,
+    /// Opacity at the start.
+    alpha: f32,
 }
 
 #[derive(Component)]
@@ -107,10 +111,12 @@ struct Motor;
 #[derive(Resource)]
 struct FxAssets {
     quad: Handle<Mesh>,
-    ring: Handle<Mesh>,
     sphere: Handle<Mesh>,
-    water_ring: Handle<StandardMaterial>,
+    /// A ripple: soft crests near the edge of a disc, uneven round it.
+    ripple: Handle<Image>,
     glow: Handle<StandardMaterial>,
+    /// Tracers: the glow's colour, HDR-bright (`tracer_glow`) so the bloom catches them.
+    tracer: Handle<StandardMaterial>,
     flame: Handle<StandardMaterial>,
 }
 
@@ -132,7 +138,13 @@ struct Pools {
     /// Each motor's smoke trail: its own entity, always drawn, so the smoke it laid hangs on
     /// after the rocket is gone; only its spawner turns off.
     trails: Vec<Entity>,
+    /// Each motor's exhaust flame (openspec change `rocket-plumes`).
+    plumes: Vec<Entity>,
 }
+
+/// A rocket's exhaust flame in the motor pool.
+#[derive(Component)]
+struct RocketPlume;
 
 /// Effects.
 pub struct FxPlugin;
@@ -308,15 +320,32 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
     mut lib: ResMut<ParticleLibrary>,
+    data: Res<crate::sim::Data>,
 ) {
     let disc = soft_disc(&mut images);
+    let ripple = ripple_crests(&mut images);
+    // Unlit, the colour is what is drawn: past 1.0 it is HDR, and the bloom spreads it.
+    let hot = LinearRgba::from(Color::srgb(1.0, 0.8, 0.45)) * data.0.fx.tracer_glow;
     particles::set_sprite(&mut lib, disc.clone(), &mut images);
+    // The Material Maker sprite sheets (openspec change `fx-sprites`); a kind whose sheet cannot be read keeps the disc.
+    let root = crate::cli::repo_root().join("assets");
+    // `CB_NO_FX_SHEETS=1` keeps the soft disc for every kind, to compare (an A/B switch, as `CB_NO_GROUND_MARKS`).
+    let sheets = if std::env::var("CB_NO_FX_SHEETS").is_ok() {
+        &[][..]
+    } else {
+        &particles::SHEETS[..]
+    };
+    for name in sheets.iter().copied() {
+        if let Some(img) = crate::pbr_set::load_tiling(&root, &format!("textures/fx/{name}/albedo.png"), true) {
+            particles::set_sheet(&mut lib, name, img, &mut images);
+        }
+    }
     commands.insert_resource(FxAssets {
         quad: meshes.add(Rectangle::new(1.0, 1.0)),
-        ring: meshes.add(Annulus::new(0.85, 1.0)),
         sphere: meshes.add(Sphere::new(1.0).mesh().uv(32, 16)),
-        water_ring: materials.add(unlit(Color::srgba(0.9, 0.96, 1.0, 0.45), None, AlphaMode::Blend, 0.0)),
+        ripple,
         glow: materials.add(unlit(Color::srgb(1.0, 0.8, 0.45), Some(disc.clone()), AlphaMode::Add, 8.0)),
+        tracer: materials.add(unlit(Color::LinearRgba(hot), Some(disc.clone()), AlphaMode::Add, 8.0)),
         flame: materials.add(unlit(Color::srgba(0.7, 0.85, 1.0, 0.85), Some(disc), AlphaMode::Add, 6.0)),
     });
 }
@@ -498,23 +527,84 @@ fn play(
                         });
                 }
                 Layer::Ripple { radius_m } => {
-                    spawn_ring(&mut commands, &fx, fx.water_ring.clone(), e.at, radius_m * s, 2.5);
+                    // Two sets of crests, the second smaller and slower, so the water rings out.
+                    spawn_ring(&mut commands, &fx, &mut materials, e.at, radius_m * s, 2.8, 0.55);
+                    spawn_ring(&mut commands, &fx, &mut materials, e.at, radius_m * s * 0.6, 3.6, 0.35);
                 }
             }
         }
     }
 }
 
-fn spawn_ring(commands: &mut Commands, fx: &FxAssets, mat: Handle<StandardMaterial>, at: Vec3, radius: f32, life: f32) {
+/// A ripple on the water at `at`: a disc of soft crests spreading to `radius` over `life` seconds and
+/// fading from `alpha`, with its own material so it fades on its own.
+fn spawn_ring(
+    commands: &mut Commands,
+    fx: &FxAssets,
+    materials: &mut Assets<StandardMaterial>,
+    at: Vec3,
+    radius: f32,
+    life: f32,
+    alpha: f32,
+) {
+    let material = materials.add(unlit(
+        Color::srgba(0.92, 0.97, 1.0, alpha),
+        Some(fx.ripple.clone()),
+        AlphaMode::Blend,
+        0.0,
+    ));
     commands.spawn((
-        Mesh3d(fx.ring.clone()),
-        MeshMaterial3d(mat),
+        Mesh3d(fx.quad.clone()),
+        MeshMaterial3d(material.clone()),
         Transform::from_translation(at + Vec3::Y * 0.05)
             .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
-            .with_scale(Vec3::splat(0.5)),
+            .with_scale(Vec3::splat(1.0)),
         bevy::light::NotShadowCaster,
-        Ring { age: 0.0, life, radius },
+        Ring {
+            age: 0.0,
+            life,
+            radius,
+            material,
+            alpha,
+        },
     ));
+}
+
+/// The ripple's picture: three soft crests in the outer half of a disc, the leading one strongest,
+/// broken up round the circle so no ripple is a perfect ring.
+fn ripple_crests(images: &mut Assets<Image>) -> Handle<Image> {
+    use bevy::asset::RenderAssetUsages;
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    const N: usize = 256;
+    let mut data = Vec::with_capacity(N * N * 4);
+    for j in 0..N {
+        for i in 0..N {
+            let (u, v) = (i as f32 / (N - 1) as f32 * 2.0 - 1.0, j as f32 / (N - 1) as f32 * 2.0 - 1.0);
+            let a = v.atan2(u);
+            // The radius wanders a little round the circle, and the crests' strength more.
+            let r = (u * u + v * v).sqrt() * (1.0 + 0.03 * (a * 5.0).sin() + 0.02 * (a * 11.0 + 1.3).sin());
+            let smooth = |e0: f32, e1: f32, x: f32| {
+                let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
+                t * t * (3.0 - 2.0 * t)
+            };
+            let crests = ((r - 0.5) / 0.5 * 3.0 * std::f32::consts::PI).sin().max(0.0).powf(1.6);
+            let envelope = smooth(0.45, 0.8, r) * (1.0 - smooth(0.9, 1.0, r)) * (0.4 + 0.6 * smooth(0.5, 1.0, r));
+            let breakup = 0.75 + 0.25 * ((a * 7.0 + 0.5).sin() * (a * 3.0).cos());
+            let alpha = (crests * envelope * breakup).clamp(0.0, 1.0);
+            data.extend_from_slice(&[255, 255, 255, (alpha * 255.0) as u8]);
+        }
+    }
+    images.add(Image::new(
+        Extent3d {
+            width: N as u32,
+            height: N as u32,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::RENDER_WORLD,
+    ))
 }
 
 /// One streak per shell in flight and one motor per rocket, placed where the shot is this frame
@@ -529,12 +619,13 @@ fn draw_shots(
     fixed: Res<Time<Fixed>>,
     camera: Single<&GlobalTransform, With<PilotCamera>>,
     mut pools: ResMut<Pools>,
-    mut q: Query<(&mut Transform, &mut Visibility), Or<(With<Tracer>, With<Motor>)>>,
+    mut q: Query<(&mut Transform, &mut Visibility), Or<(With<Tracer>, With<Motor>, With<RocketPlume>)>>,
+    plume: Res<crate::plumes::PlumeAssets>,
     mechs: Query<(&crate::mech::MechId, &crate::mech::MechSpec)>,
     mut rng: ResMut<Rand>,
     mut lib: ResMut<ParticleLibrary>,
     mut effects: ResMut<Assets<EffectAsset>>,
-    mut trails: Query<(&mut Transform, Option<&mut EffectSpawner>), (Without<Tracer>, Without<Motor>)>,
+    mut trails: Query<(&mut Transform, Option<&mut EffectSpawner>), (Without<Tracer>, Without<Motor>, Without<RocketPlume>)>,
 ) {
     let cfg = &data.0.fx;
     // A rocket lays a smoke puff every `trail_spacing_m` at about 240 m/s.
@@ -581,6 +672,19 @@ fn draw_shots(
                     t.insert(effect);
                 }
                 pools.trails.push(t.id());
+                pools.plumes.push(
+                    commands
+                        .spawn((
+                            Name::new("rocket plume"),
+                            Mesh3d(plume.mesh.clone()),
+                            MeshMaterial3d(plume.rocket.clone()),
+                            Transform::default(),
+                            Visibility::Hidden,
+                            bevy::light::NotShadowCaster,
+                            RocketPlume,
+                        ))
+                        .id(),
+                );
             } else if let Ok((mut t, mut v)) = q.get_mut(pools.motors[mi]) {
                 let tail = pos - dir * 1.2;
                 let flicker = 1.6 + 0.6 * rng.f();
@@ -588,6 +692,18 @@ fn draw_shots(
                     .looking_at(eye, Vec3::Y)
                     .with_scale(Vec3::splat(flicker));
                 *v = Visibility::Inherited;
+                if let Some(&p) = pools.plumes.get(mi)
+                    && let Ok((mut pt, mut pv)) = q.get_mut(p)
+                {
+                    // The exhaust: a flame from the nozzle back along the flight, flickering in length.
+                    *pt = crate::plumes::placed(
+                        pos - dir * 0.6,
+                        -dir,
+                        cfg.plume_length_m * (0.85 + 0.3 * rng.f()),
+                        cfg.plume_width_m,
+                    );
+                    *pv = Visibility::Inherited;
+                }
                 if let Some(Ok((mut tt, spawner))) = pools.trails.get(mi).map(|e| trails.get_mut(*e)) {
                     tt.translation = tail;
                     if let Some(mut sp) = spawner {
@@ -602,7 +718,7 @@ fn draw_shots(
             let e = commands
                 .spawn((
                     Mesh3d(fx.quad.clone()),
-                    MeshMaterial3d(fx.glow.clone()),
+                    MeshMaterial3d(fx.tracer.clone()),
                     Transform::default(),
                     Visibility::Hidden,
                     bevy::light::NotShadowCaster,
@@ -631,7 +747,13 @@ fn draw_shots(
         }
         ti += 1;
     }
-    for e in pools.tracers.iter().skip(ti).chain(pools.motors.iter().skip(mi)) {
+    for e in pools
+        .tracers
+        .iter()
+        .skip(ti)
+        .chain(pools.motors.iter().skip(mi))
+        .chain(pools.plumes.iter().skip(mi))
+    {
         if let Ok((_, mut v)) = q.get_mut(*e) {
             *v = Visibility::Hidden;
         }
@@ -643,7 +765,12 @@ fn draw_shots(
     }
 }
 
-fn grow_rings(mut commands: Commands, time: Res<Time>, mut q: Query<(Entity, &mut Transform, &mut Ring)>) {
+fn grow_rings(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut q: Query<(Entity, &mut Transform, &mut Ring)>,
+) {
     for (e, mut t, mut r) in &mut q {
         r.age += time.delta_secs();
         if r.age > r.life {
@@ -651,7 +778,11 @@ fn grow_rings(mut commands: Commands, time: Res<Time>, mut q: Query<(Entity, &mu
             continue;
         }
         let k = r.age / r.life;
-        t.scale = Vec3::splat(0.5 + r.radius * k.sqrt()) * Vec3::new(1.0, 1.0, 1.0 - k * 0.9);
+        // Spreading fast at first and slowing, fading as it goes (the quad is the disc's diameter).
+        t.scale = Vec3::splat(2.0 * (0.5 + r.radius * k.sqrt()));
+        if let Some(mut m) = materials.get_mut(&r.material) {
+            m.base_color.set_alpha(r.alpha * (1.0 - k).powf(1.5));
+        }
     }
 }
 

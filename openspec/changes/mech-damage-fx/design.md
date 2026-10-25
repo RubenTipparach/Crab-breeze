@@ -20,7 +20,7 @@
   - Size: 35 mm 0.7 m, 120 mm 1.8 m, rocket 3.5 m, times the skin's scale over the stand-in's.
   - Glancing hits (under 25 degrees to the surface) take a gouge.
 - **Caps**: 48 marks a mech (the oldest go first), 400 in the world. A mech's marks go when it is despawned.
-- Numbers in `data/fx/hit_marks.ron`, validated.
+- Numbers in `data/fx/battle_fx.ron` (`hit_marks`, `damage`), validated.
 
 ## 2. Burning and smoking
 

@@ -6,17 +6,21 @@
 //! `cb-app` adapts it to Bevy.
 
 pub mod ai;
+pub mod battle_fx;
 pub mod boarding;
+pub mod career;
 pub mod cockpit;
 pub mod data;
 pub mod fx;
 pub mod grass;
 pub mod ground_marks;
 pub mod input;
+pub mod jobs;
 pub mod mech;
 pub mod mission;
 pub mod pilot;
 pub mod rng;
+pub mod settings;
 pub mod sim;
 pub mod skins;
 pub mod sky_light;
@@ -62,6 +66,8 @@ pub struct GameData {
     pub grass: grass::GrassConfig,
     /// `data/fx/ground_marks.ron`.
     pub ground_marks: ground_marks::GroundMarksConfig,
+    /// `data/fx/battle_fx.ron`.
+    pub battle_fx: battle_fx::BattleFxConfig,
     /// `data/world/sun_flare.ron`.
     pub sun: sun_flare::SunLook,
     /// `data/world/units.ron`.
@@ -121,6 +127,7 @@ impl GameData {
             sky_light: data::load_ron(&root.join("world/sky_light.ron"))?,
             grass,
             ground_marks: data::load_ron(&root.join("fx/ground_marks.ron"))?,
+            battle_fx: data::load_ron(&root.join("fx/battle_fx.ron"))?,
             sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
             units: data::load_ron(&root.join("world/units.ron"))?,
             skins,

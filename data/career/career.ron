@@ -1,0 +1,7 @@
+// How a career starts (openspec change career). Owner, 2026-10-25, survey J4: "start with 1000 credits";
+// jobs pay 40 000-150 000 and mechs cost 300 000-1 200 000 (mission-jobs, air-bases).
+(
+    start_money: 1000,
+    start_mech: "mechs/foreman.ron",
+    ledger_kept: 200,
+)

@@ -6,7 +6,7 @@
     world_size_m: 40960.0,
     terrain_cell_m: 8.0,
     noise_wavelength_m: 1100.0,
-    noise_amplitude_m: 35.0,
+    noise_amplitude_m: 28.0,
     noise_octaves: 4,
     noise_persistence: 0.5,
 
@@ -18,7 +18,7 @@
         land_radius_m: 13000.0,
         coast_noise_m: 2500.0,
         coast_wavelength_m: 6000.0,
-        land_height_m: 30.0,
+        land_height_m: 50.0,
         highland_m: 90.0,
         shelf_m: 3000.0,
         sea_depth_m: 38.0,
@@ -27,6 +27,65 @@
         edge_fade_m: 1500.0,
     ),
 
+    // The mountain range (openspec/changes/hydrology/design.md section 1): a crater of mountains
+    // round the island's middle (owner, 2026-10-25: "need a crater like moutain range at center of
+    // islan"). The rim's crest is a 5.5 km circle, the range 6 km wide, peaks to about 1.6 km with
+    // snow above 900 m, smooth ridges (five octaves, no terraces). A 60 m cliff band runs 1.8 km
+    // each side of the crest: inside it is the crater's wall, which the streams fall over to the
+    // crater floor where the capital stands. Three passes (north-east, south-south-east, west) let
+    // the rivers and highways out. Cities stay below 260 m on land within 70 m of level; highways
+    // do not climb over the rim.
+    range: (
+        centre_m: (0.0, 0.0),
+        radius_m: 5500.0,
+        half_width_m: 3000.0,
+        peak_m: 1700.0,
+        ridge_wavelength_m: 3600.0,
+        ridge_octaves: 5,
+        warp_m: 900.0,
+        snowline_m: 900.0,
+        scarp_offset_m: 1800.0,
+        scarp_m: 60.0,
+        scarp_width_m: 14.0,
+        scarp_wobble_m: 300.0,
+        passes_deg: [35.0, 160.0, 265.0],
+        pass_width_deg: 18.0,
+    ),
+    city_max_ground_m: 260.0,
+    city_max_relief_m: 70.0,
+    highway_max_climb_m: 45.0,
+    // Highways are routed, not ruled (openspec/changes/curved-roads/design.md; owner, 2026-10-25:
+    // "roads shouldnt be straight like that"): an A* over the 128 m drainage cells, a step at a 6 %
+    // grade costing seven times one on the level, a stream crossing 600 m more, swinging up to
+    // 4 km out of the way, smoothed into curves and graded on the land averaged over 240 m.
+    highway_max_grade: 0.06,
+    highway_slope_cost: 6.0,
+    highway_bridge_cost_m: 600.0,
+    highway_detour_m: 4000.0,
+    highway_grade_smooth_m: 240.0,
+
+    // The biomes (openspec/changes/island-biomes/design.md section 1): the island dries toward the
+    // east-south-east, the lee of the westerlies, from 2 km west of the centre to 12 km east, its
+    // edge wandering 2.5 km; a quarter of the land is desert, with savanna then grassland fading in
+    // over wide bands, conifer forest on the range's moist flanks, bare rock below the snow, beaches
+    // and marsh on wet low ground. Every border fades over a band; none is a straight line.
+    biomes: (
+        dry_toward: (0.92, 0.38),
+        dry_from_m: -2000.0,
+        dry_to_m: 12000.0,
+        wander_m: 3500.0,
+        wander_wavelength_m: 6500.0,
+        patch_share: 0.25,
+        patch_wavelength_m: 3000.0,
+        desert_moisture: 0.40,
+        border_band: 0.13,
+        wetland_moisture: 0.8,
+        height_jitter_m: 120.0,
+        alpine_band_m: 250.0,
+        montane_m: (250.0, 450.0),
+        rock_slope: (0.9, 1.4),
+        beach_m: 4.0,
+    ),
     city_count: 24,
     city_attempts: 4000,
     city_min_spacing_m: 2600.0,
@@ -56,7 +115,7 @@
     highway_width_m: 28.0,
     highway_flat_margin_m: 12.0,
     highway_blend_m: 60.0,
-    road_lift_m: 0.1,
+    road_lift_m: 0.15,
     kerb_height_m: 0.2,
 
     start_pilot_distance_m: 25.0,
@@ -102,21 +161,36 @@
         occlusion_culling: true,
     ),
 
-    // Rivers and lakes (openspec/changes/terrain-water/design.md section 1). Lakes are the ground
-    // below the island's sea level.
+    // Rivers, lakes and waterfalls (openspec/changes/hydrology/design.md). Water drains over a
+    // 128 m grid: snowmelt above the range's snowline, a twelfth as much rain below it, summed
+    // downhill; 12 snow cells' worth makes a stream 10 m wide, which widens by the square root of its
+    // flow to 56 m. Basins 8 m deep and 16 cells wide that a stream feeds are lakes, the ten largest
+    // (owner, 2026-10-25: "too many lakes"). A river that drops 12 m in one
+    // 16 m step (a cliff, not a steep slope) for 25 m or more is a waterfall, with a plunge pool under it.
     water: (
         city_freeboard_m: 2.0,
-        river_count: 6,
-        river_grid_m: 32.0,
-        river_max_steps: 700,
-        meander_m: 6.0,
+        drainage_cell_m: 128.0,
+        lowland_rain: 0.08,
+        melt_band_m: 400.0,
+        stream_min_flow: 12.0,
+        stream_min_cells: 3,
+        river_step_m: 16.0,
         river_city_clearance_m: 80.0,
-        river_width_m: 36.0,
-        river_widening: 0.4,
+        stream_half_width_m: 5.0,
+        river_max_half_width_m: 28.0,
         river_depth_m: 7.0,
         freeboard_m: 2.0,
         bank_slope: 0.45,
         flow_m_s: 1.5,
+        lake_min_depth_m: 8.0,
+        lake_min_cells: 16,
+        lake_max_count: 10,
+        lake_radius_m: (70.0, 900.0),
+        lake_depth_m: 14.0,
+        lake_shore_wobble: 0.12,
+        fall_step_m: 12.0,
+        fall_min_height_m: 25.0,
+        plunge_radius_per_m: 1.4,
     ),
 
     // Trees (openspec/changes/vegetation, grown by tile near the bodies: island-world design
@@ -135,10 +209,17 @@
     ),
 
     // Clouds over the island and 6 km of sea past the world's edge, drawn within 9 km of the eye.
-    // Off for now (coverage 0): the low, large alpha-blended sprites cost heavy overdraw; clouds are
-    // being redone cheaply in their own change.
+    // Back on as lumpy lit blobs, one mesh per 2 km tile (openspec/changes/cloud-puffs): one blended
+    // layer per blob instead of the sprite stacks that cost heavy overdraw. To be measured on the
+    // owner's hardware with CB_NO_CLOUDS against the same take.
     clouds: (
-        coverage: 0.0,
+        coverage: 0.35,
+        look_wrap: 0.6,
+        look_silver: 1.6,
+        look_albedo: 0.9,
+        look_base_shade: 0.45,
+        look_near_fade_m: 160.0,
+        look_edge_softness: 0.45,
         spacing_m: 1000.0,
         beyond_world_m: 6000.0,
         draw_radius_m: 9000.0,

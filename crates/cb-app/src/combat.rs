@@ -1,8 +1,9 @@
 //! Shots in flight (openspec change `weapons`): every fixed step each projectile flies through
 //! `cb_core::weapons::fly` against the mechs' part capsules, standing building cells, trees, water
 //! and ground; what it hits takes the hit (a part through `mech-damage`, a cell through
-//! `building-destruction`, a tree snaps) and heavy shells explode. Tracers, rocket motors and
-//! their smoke trails are effects (`fx`).
+//! `building-destruction`, a tree snaps) and heavy shells explode. Close combat's strikes
+//! (`close-combat`) are blows queued by the mechs' step and land here through the same sweep and the
+//! same hit rules. Tracers, rocket motors and their smoke trails are effects (`fx`).
 
 use crate::blast::Explosion;
 use crate::fx::Fx;
@@ -12,14 +13,117 @@ use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use cb_core::mech::rig::BONES;
 use cb_core::mech::{Hit, MechConfig, PartKind};
-use cb_core::weapons::{PartCapsule, Projectile, Struck, fly, home, spent};
+use cb_core::weapons::{PartCapsule, Projectile, Struck, fly, home, spent, sweep};
 use cb_core::world::Scene;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// Every shot in flight.
+/// Every shot in flight, and the blows struck this step.
 #[derive(Resource, Default)]
-pub struct Shots(pub Vec<Projectile>);
+pub struct Shots(pub Vec<Projectile>, pub Vec<Blow>);
+
+/// A close-combat strike landing this step: the arm's sweep from the shoulder to its reach.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Blow {
+    /// The mech striking (its own parts are not hit).
+    pub owner: u32,
+    /// The shoulder.
+    pub from: Vec3,
+    /// The end of the reach.
+    pub to: Vec3,
+    /// Armour it beats, millimetres of rolled steel equivalent.
+    pub penetration_mm: f32,
+    /// Structure points it takes from a part it beats.
+    pub damage: f32,
+}
+
+/// What a hit carries, from a gun or a strike.
+#[derive(Clone, Copy)]
+struct Power {
+    penetration_mm: f32,
+    damage: f32,
+    blast_mj: f32,
+}
+
+type Mechs<'w, 's> = Query<'w, 's, (&'static mut MechSim, &'static MechSpec, &'static MechId, Option<&'static MechRig>)>;
+
+/// The one place a hit takes effect, whatever struck: a vehicle or a mech part takes it through the
+/// damage rules, a building loses the cells round it, a tree snaps; heavy shells explode.
+#[allow(clippy::too_many_arguments)]
+fn land(
+    struck: Struck,
+    at: Vec3,
+    dir: Vec3,
+    power: Power,
+    units: &mut crate::units::Units,
+    data: &crate::sim::Data,
+    live: &mut Live,
+    mechs: &mut Mechs,
+    fx: &mut MessageWriter<Fx>,
+    explosions: &mut MessageWriter<Explosion>,
+    hits: &mut MessageWriter<crate::battle_fx::MechHit>,
+) {
+    match struck {
+        Struck::Mech { mech, .. } if mech >= crate::units::UNIT_ID_BASE => {
+            if let Some(p) = units.get_mut(mech) {
+                let armour = data.0.units.units.get(&p.unit.kind).map_or(0.0, |s| s.armour_mm);
+                if p.unit.hit(power.penetration_mm, power.damage, armour) {
+                    crate::units::unit_destroyed(p, data, fx, explosions);
+                }
+            }
+            fx.write(Fx::new("impact_mech", at).toward(-dir));
+        }
+        Struck::Mech { mech, part } => {
+            // The hit's mark on the part (openspec change `mech-damage-fx`).
+            hits.write(crate::battle_fx::MechHit {
+                mech,
+                part,
+                at,
+                dir,
+                penetration_mm: power.penetration_mm,
+                blast_mj: power.blast_mj,
+            });
+            if let Some((mut sim, spec, _, _)) = mechs.iter_mut().find(|m| m.2.0 == mech) {
+                apply_hit(
+                    &mut sim,
+                    &spec.0.clone(),
+                    Hit {
+                        part,
+                        penetration_mm: power.penetration_mm,
+                        damage: power.damage,
+                    },
+                );
+            }
+            fx.write(Fx::new("impact_mech", at).toward(-dir));
+        }
+        Struck::Building(b) => {
+            let r = 3.4f32.max(1.2 * 2.2 * power.blast_mj.max(0.01).cbrt());
+            let (broke, chunks) = live.structures.break_sphere(b, at, r);
+            if broke > 0 {
+                live.dirty_buildings.push(b);
+                live.new_chunks.extend(chunks);
+            }
+            fx.write(Fx::new("impact_building", at).toward(-dir));
+        }
+        Struck::Tree(id) => {
+            if live.forest.hit(id, Vec2::new(dir.x, dir.z), f32::MAX) {
+                live.moved_trees.push(id);
+            }
+        }
+        Struck::Water => {
+            fx.write(Fx::new("impact_water", at));
+        }
+        Struck::Ground => {
+            fx.write(Fx::new("impact_ground", at).toward(-dir));
+        }
+    }
+    if power.blast_mj >= 1.0 {
+        explosions.write(Explosion {
+            at,
+            energy_mj: power.blast_mj,
+        });
+    }
+}
 
 /// Flies shots and resolves their hits.
 pub struct CombatPlugin;
@@ -80,14 +184,15 @@ pub fn fly_shots(
     data: Res<crate::sim::Data>,
     plan: Res<Plan>,
     mut live: ResMut<Live>,
-    mut mechs: Query<(&mut MechSim, &MechSpec, &MechId, Option<&MechRig>)>,
+    mut mechs: Mechs,
     globals: Query<&GlobalTransform>,
     time: Res<Time<Fixed>>,
     mut fx: MessageWriter<Fx>,
     mut explosions: MessageWriter<Explosion>,
+    mut hits: MessageWriter<crate::battle_fx::MechHit>,
 ) {
     let _t = crate::perf_hud::slow("fly_shots");
-    if shots.0.is_empty() {
+    if shots.0.is_empty() && shots.1.is_empty() {
         return;
     }
     let dt = time.delta_secs();
@@ -130,6 +235,48 @@ pub fn fly_shots(
             .cloned()
     };
     let live = &mut *live;
+    // Strikes land first: the first thing in each arm's sweep takes the blow (close-combat).
+    for blow in std::mem::take(&mut shots.1) {
+        let hit = {
+            let scene = Scene {
+                plan: &plan,
+                dug: &live.dug,
+                trees: None,
+                structures: Some(&live.structures),
+            };
+            sweep(
+                blow.from,
+                blow.to,
+                0.5,
+                Some(blow.owner),
+                &scene,
+                &live.structures,
+                &live.forest,
+                &parts,
+            )
+        };
+        if let Some((struck, at)) = hit {
+            let power = Power {
+                penetration_mm: blow.penetration_mm,
+                damage: blow.damage,
+                blast_mj: 0.0,
+            };
+            let dir = (blow.to - blow.from).normalize_or(Vec3::NEG_Z);
+            land(
+                struck,
+                at,
+                dir,
+                power,
+                &mut units,
+                &data,
+                live,
+                &mut mechs,
+                &mut fx,
+                &mut explosions,
+                &mut hits,
+            );
+        }
+    }
     let mut flying = Vec::with_capacity(shots.0.len());
     for mut shot in std::mem::take(&mut shots.0) {
         // A missile turns toward its locked target's torso first (targeting).
@@ -162,57 +309,24 @@ pub fn fly_shots(
             "impact: shot from mech {} ({}) hit {:?} at {:?}",
             shot.owner, w.name, hit.struck, hit.at
         );
-        match hit.struck {
-            Struck::Mech { mech, .. } if mech >= crate::units::UNIT_ID_BASE => {
-                if let Some(p) = units.get_mut(mech) {
-                    let armour = data.0.units.units.get(&p.unit.kind).map_or(0.0, |s| s.armour_mm);
-                    if p.unit.hit(w.penetration_mm, w.damage, armour) {
-                        crate::units::unit_destroyed(p, &data, &mut fx, &mut explosions);
-                    }
-                }
-                fx.write(Fx::new("impact_mech", hit.at).toward(-dir));
-            }
-            Struck::Mech { mech, part } => {
-                if let Some((mut sim, spec, _, _)) = mechs.iter_mut().find(|m| m.2.0 == mech) {
-                    apply_hit(
-                        &mut sim,
-                        &spec.0.clone(),
-                        Hit {
-                            part,
-                            penetration_mm: w.penetration_mm,
-                            damage: w.damage,
-                        },
-                    );
-                }
-                fx.write(Fx::new("impact_mech", hit.at).toward(-dir));
-            }
-            Struck::Building(b) => {
-                let r = 3.4f32.max(1.2 * 2.2 * w.blast_mj.max(0.01).cbrt());
-                let (broke, chunks) = live.structures.break_sphere(b, hit.at, r);
-                if broke > 0 {
-                    live.dirty_buildings.push(b);
-                    live.new_chunks.extend(chunks);
-                }
-                fx.write(Fx::new("impact_building", hit.at).toward(-dir));
-            }
-            Struck::Tree(id) => {
-                if live.forest.hit(id, Vec2::new(dir.x, dir.z), f32::MAX) {
-                    live.moved_trees.push(id);
-                }
-            }
-            Struck::Water => {
-                fx.write(Fx::new("impact_water", hit.at));
-            }
-            Struck::Ground => {
-                fx.write(Fx::new("impact_ground", hit.at).toward(-dir));
-            }
-        }
-        if w.blast_mj >= 1.0 {
-            explosions.write(Explosion {
-                at: hit.at,
-                energy_mj: w.blast_mj,
-            });
-        }
+        let power = Power {
+            penetration_mm: w.penetration_mm,
+            damage: w.damage,
+            blast_mj: w.blast_mj,
+        };
+        land(
+            hit.struck,
+            hit.at,
+            dir,
+            power,
+            &mut units,
+            &data,
+            live,
+            &mut mechs,
+            &mut fx,
+            &mut explosions,
+            &mut hits,
+        );
     }
     shots.0 = flying;
 }

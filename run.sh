@@ -8,12 +8,13 @@
 #   ./run.sh --showcase fight     watch the scripted fight
 #   ./run.sh --showcase world     watch the scripted world tour
 #
-# Controls: WASD walk / throttle and turn, mouse look / aim the torso, E board and climb out,
-# Shift run, X throttle to zero, Alt free look, 1 walk.
-# In the mech: hold Space for the rockets (up only), Shift toggles the skates (wheels on the ground
-# and the water, WASD thrust in the air), hold Ctrl to dive from the air or sink on water,
-# left mouse autocannon, right mouse cannon, F5-F8 shoot off a part, F9 drop a shell,
-# Esc release the mouse (click to grab it again).
+# Controls (Esc opens the menu; its Controls page lists every key from data/input/bindings.ron):
+# WASD walk / throttle and turn, mouse look / aim the torso, E board and climb out, Shift run,
+# X throttle to zero, hold Left Ctrl to free look (and click an MFD to change its page).
+# In the mech: hold Space for the rockets, Shift toggles the skates, C dives or sinks, left mouse
+# autocannon, right mouse cannon, F missile at the lock, Q next target, Tab close combat (on by
+# itself when the targeted hostile is within 30 m: the mouse buttons strike with the arms),
+# F5-F8 shoot off a part, F9 drop a shell.
 set -euo pipefail
 cd "$(dirname "$0")"
 if ! command -v cargo >/dev/null 2>&1; then

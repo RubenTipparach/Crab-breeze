@@ -95,6 +95,8 @@ pub struct MechControls {
     pub throttle_axis: f32,
     /// Snap the lever to zero.
     pub throttle_zero: bool,
+    /// Hold the lever at this (walking controls, `walk`): `None` leaves it to the lever's keys.
+    pub throttle_set: Option<f32>,
     /// Leg turn, left positive, -1..1.
     pub turn_axis: f32,
     /// Aim change: twist right (+x) and pitch up (+y), degrees.
@@ -120,6 +122,7 @@ impl MechControls {
         Self {
             throttle_axis: a.throttle_axis,
             throttle_zero: a.throttle_zero,
+            throttle_set: None,
             turn_axis: a.turn_axis,
             aim_delta_deg: if a.free_look { Vec2::ZERO } else { a.look_delta_deg },
             mode_request: a.mode_request,
@@ -274,7 +277,11 @@ impl MechState {
         let here = Vec2::new(self.pos.x, self.pos.z);
         let water = ground.water_at(here.x, here.y);
         let deep = water.is_some_and(|w| w.depth_m > loco.max_wade_depth_m);
+        // Deep enough to skim: over half the mech (data). Shallower is waded, skates or not.
+        let skimmable = water.is_some_and(|w| w.depth_m > loco.skim_depth_share * loco.body_height_m);
         let at_surface = water.is_some_and(|w| self.pos.y >= w.surface_m - loco.float_catch_m);
+        // Wading with the skates on into water deep enough: the wheels bring the mech up to ride it.
+        let rising = water.is_some_and(|w| self.pos.y < w.surface_m - loco.float_catch_m) && self.skates_on && skimmable && !self.in_air;
 
         // Skates on and off (Shift, a toggle anywhere: survey M5); they need both legs and power.
         let skate_asked = c.skate_toggle || c.mode_request == Some(ModeRequest::Skate);
@@ -285,11 +292,12 @@ impl MechState {
             self.skates_on = false;
         }
         let skate_power = !self.skate.locked && legs_left == 2;
-        // Water (water-skimming): with skate power the wheels ride the surface of deep water,
-        // switching on by themselves; water shallow enough to wade is waded, skates or not (owner,
-        // 2026-10-24: "shallow water dont need autoskate"); with the skates empty the rockets hold
-        // the mech up on deep water; Ctrl, or both empty, and it sinks.
-        let skim = at_surface && !c.sink && skate_power && deep;
+        // Water (water-skimming): with skate power the wheels ride the surface of water deeper than
+        // half the mech, switching on by themselves at the surface; water shallower than that is
+        // waded, skates or not (owner, 2026-10-24: "shallow water dont need autoskate", "The skis
+        // only kicking if you're above water deeper than 50% of the mech"); with the skates empty
+        // the rockets hold the mech up on deep water; Ctrl, or both empty, and it sinks.
+        let skim = (at_surface || rising) && !c.sink && skate_power && skimmable;
         if skim {
             self.skates_on = true;
         }
@@ -323,7 +331,10 @@ impl MechState {
         if c.throttle_zero {
             self.throttle = 0.0;
         }
-        self.throttle = (self.throttle + c.throttle_axis * loco.throttle_rate_per_s * dt_s).clamp(loco.throttle_min, 1.0);
+        self.throttle = match c.throttle_set {
+            Some(t) if t.is_finite() => t.clamp(loco.throttle_min, 1.0),
+            _ => (self.throttle + c.throttle_axis * loco.throttle_rate_per_s * dt_s).clamp(loco.throttle_min, 1.0),
+        };
 
         // Legs (or wheels) turn the heading.
         let turn_rate = match self.skates_on {
@@ -331,7 +342,10 @@ impl MechState {
             false if legs_left == 1 => loco.turn_rate_deg_s * 0.5,
             false => loco.turn_rate_deg_s,
         };
-        self.turn_rate_rad_s = c.turn_axis * turn_rate.to_radians();
+        // The turn rate eases toward what is asked at the legs' turn acceleration.
+        let want = c.turn_axis * turn_rate.to_radians();
+        let ease = loco.turn_accel_deg_s2.to_radians() * dt_s;
+        self.turn_rate_rad_s += (want - self.turn_rate_rad_s).clamp(-ease, ease);
         self.heading_rad = (self.heading_rad + self.turn_rate_rad_s * dt_s).rem_euclid(std::f32::consts::TAU);
         let fwd = flat_forward(self.heading_rad);
 
@@ -442,7 +456,11 @@ impl MechState {
             support = support.max(w.surface_m);
         }
         let on_floor = y <= support || (!lifting && self.vel_y_m_s <= 0.0 && self.pos.y - support < 1.0);
-        if on_floor {
+        if skim && y < support - loco.skim_rise_m_s * dt_s {
+            // Rising from the bed to the surface it will ride, at the skates' rate (no snap).
+            y = self.pos.y + loco.skim_rise_m_s * dt_s;
+            self.vel_y_m_s = 0.0;
+        } else if on_floor {
             // On the ground, a roof, the sea floor or the surface it rides.
             y = support;
             self.vel_y_m_s = if lifting { self.vel_y_m_s.max(0.0) } else { 0.0 };
@@ -606,6 +624,43 @@ mod tests {
         run(&mut m, go, 5.0, &Pool { depth_m: 0.8 });
         assert_ne!(m.on_water, OnWater::Skimming, "wades in 0.8 m of water");
         assert!(m.wading_depth_m > 0.7, "feet on the bed: {}", m.wading_depth_m);
+    }
+
+    #[test]
+    fn skates_wade_in_water_up_to_half_the_mech_and_skim_deeper() {
+        let cfg = MechConfig::default();
+        let half = cfg.locomotion.skim_depth_share * cfg.locomotion.body_height_m;
+        let go = MechControls {
+            throttle_axis: 1.0,
+            ..Default::default()
+        };
+        let mut shallow = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        shallow.skates_on = true;
+        run(&mut shallow, go, 8.0, &Pool { depth_m: half * 0.8 });
+        assert_ne!(shallow.on_water, OnWater::Skimming, "wades in water under half the mech");
+        let mut deep = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        deep.skates_on = true;
+        run(&mut deep, go, 8.0, &Pool { depth_m: half * 1.2 });
+        assert_eq!(deep.on_water, OnWater::Skimming, "skims water deeper than half the mech");
+        assert!((deep.pos.y - half * 1.2).abs() < 0.5, "riding the surface: {}", deep.pos.y);
+    }
+
+    #[test]
+    fn rising_to_skim_takes_time_not_a_snap() {
+        let cfg = MechConfig::default();
+        let depth = cfg.locomotion.body_height_m * 0.8;
+        let mut m = MechState::standing(Vec3::new(0.0, 0.0, -100.0), 0.0, &GaitConfig::default());
+        m.skates_on = true;
+        let ground = Pool { depth_m: depth };
+        let dt = 1.0 / 60.0;
+        m.step(&MechControls::default(), &cfg, &ground, dt);
+        assert!(
+            m.pos.y <= cfg.locomotion.skim_rise_m_s * dt + 1e-3,
+            "one step rises one step's worth: {}",
+            m.pos.y
+        );
+        run(&mut m, MechControls::default(), depth / cfg.locomotion.skim_rise_m_s + 0.5, &ground);
+        assert!((m.pos.y - depth).abs() < 0.2, "and reaches the surface: {}", m.pos.y);
     }
 
     #[test]
