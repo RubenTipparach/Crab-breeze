@@ -200,7 +200,10 @@ impl Materials {
                 self.glass
                     .get_or_insert_with(|| {
                         glasses.add(BuildingMaterial {
-                            base: bases.get(&looks.glass).cloned().unwrap_or_default(),
+                            base: StandardMaterial {
+                                depth_bias: GLASS_SORT_BIAS,
+                                ..bases.get(&looks.glass).cloned().unwrap_or_default()
+                            },
                             extension: ElementState { standing, no_ssao: 1 },
                         })
                     })
@@ -249,6 +252,13 @@ fn rooms_into(mb: &mut MeshBuilder, plan: &StoreyPlan, slot_of: impl Fn(Rest) ->
         }
     }
 }
+
+/// Added to the glass's distance when transparent things are sorted (Bevy sorts by the mesh's
+/// box centre plus this): the windows always draw before smoke, dust and fire. One glass mesh
+/// covers a building, so sorted at its centre it drew over any smoke farther than that centre,
+/// though the smoke was in front of the window (owner, 2026-10-25: "glass not playing well with
+/// smoke"). Sort only: `ElementState::specialize` keeps it out of the depth test.
+pub const GLASS_SORT_BIAS: f32 = -1.0e6;
 
 /// Tints of the structure: columns and core walls, slabs, partitions.
 const CORE_TINT: [f32; 3] = [0.66, 0.64, 0.6];

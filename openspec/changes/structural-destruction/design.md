@@ -125,8 +125,8 @@ comparison.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| W12 | How deep does destruction go? | structural: columns and floors carry load, overloaded members creak then fail, storeys pancake | provisional (survey W12) |
-| W15 | Creak before a collapse | 0.5-1.6 s of dust and groaning, shown on the target readout | provisional (survey W15) |
+| W12 | How deep does destruction go? | structural: columns and floors carry load, overloaded members creak then fail, storeys pancake | answered 2026-10-25: the simpler option (pieces break, a building falls when its ground floor is mostly gone), "whatever looks cool and is EFFICIENT, might ve already been implemented in another branch". The structural model is built here; it stays only if the `demolition` benchmark (task 2.4, running on the owner's Mac) shows it within budget, else the simpler rule replaces it |
+| W15 | Creak before a collapse | 0.5-1.6 s of dust and groaning, shown on the target readout | answered: "see W12" (kept while the structural model is) |
 
 ## As built (2026-10-24, step 1)
 

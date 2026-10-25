@@ -23,4 +23,4 @@ The placeholder mech walks at up to 12 m/s, so simply walking into a building te
 
 ## Out of scope
 
-Damage to the mech from ramming (open question RM1), ramming other mechs.
+Damage to the mech from ramming (the owner: ramming is free, survey W23), ramming other mechs.

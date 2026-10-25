@@ -32,6 +32,9 @@
     shake: (max_deg: 1.2, reach_m_per_cbrt_mj: 60.0, decay_s: 0.7),
     // Recipes played as continuous streams from an emitter riding the body, bursts a second: a
     // jet's flame while it fires, a wreck's fire while it burns.
+    // Big translucent clouds drawn apart, each in a stable order (merged, their particles reorder
+    // every frame and the cloud flickers; owner, 2026-10-25). Each burst of these is its own draw.
+    sorted: ["explosion_ground", "explosion_air", "explosion_water", "collapse_dust", "creak_dust", "member_fail"],
     stream_per_s: {"jet_flame": 60.0, "jet_trail": 20.0, "burning": 10.0, "smoking": 6.0, "burning_hull": 10.0},
     // Particle bursts start only within 400 m of the eye (times the effect's scale; explosions four
     // times as far): far off they barely show and each costs an effect of its own (2026-10-24).
@@ -125,9 +128,10 @@
             Burst(kind: Dust, count: 14, speed_m_s: 2.6, spread: 1.0, size_m: 1.8, life_s: 2.4),
         ],
         // Paving: grit and chips of concrete, a few sparks off the steel sole, pale dust.
+        // No sparks from a foot or a landing on concrete: they drew as orange streaks in every street
+        // (owner, 2026-10-25: "orange columns ... causing orange dust to kick up"); grit and dust only.
         "foot_strike_concrete": [
             Burst(kind: Rubble, count: 12, speed_m_s: 6.0, spread: 0.8, size_m: 0.16, life_s: 1.1),
-            Burst(kind: Spark, count: 4, speed_m_s: 7.0, spread: 0.9, size_m: 0.12, life_s: 0.35),
             Burst(kind: Dust, count: 9, speed_m_s: 2.2, spread: 1.0, size_m: 1.5, life_s: 1.8),
         ],
         // Coming down from a boost: both feet at once, harder, with a ring of dust.
@@ -139,7 +143,6 @@
         "landing_concrete": [
             Shock(radius_m: 7.0, life_s: 0.25),
             Burst(kind: Rubble, count: 34, speed_m_s: 8.0, spread: 0.8, size_m: 0.2, life_s: 1.4),
-            Burst(kind: Spark, count: 14, speed_m_s: 10.0, spread: 0.9, size_m: 0.14, life_s: 0.4),
             Burst(kind: Dust, count: 26, speed_m_s: 3.5, spread: 1.0, size_m: 2.0, life_s: 2.4),
         ],
         "foot_spray": [
@@ -162,9 +165,10 @@
             Burst(kind: Dirt, count: 3, speed_m_s: 9.0, spread: 0.35, size_m: 0.3, life_s: 0.9, along_dir: true),
             Burst(kind: Dust, count: 1, speed_m_s: 3.0, spread: 0.6, size_m: 1.6, life_s: 1.6, along_dir: true),
         ],
-        // The same on paving: sparks and grit.
+        // The same on paving: grit and dust (sparks drew orange smears at the wheels; owner,
+        // 2026-10-25).
         "skate_grit": [
-            Burst(kind: Spark, count: 2, speed_m_s: 8.0, spread: 0.4, size_m: 0.2, life_s: 0.4, along_dir: true),
+            Burst(kind: Rubble, count: 2, speed_m_s: 8.0, spread: 0.4, size_m: 0.12, life_s: 0.6, along_dir: true),
             Burst(kind: Dust, count: 1, speed_m_s: 3.0, spread: 0.5, size_m: 1.2, life_s: 1.2, along_dir: true),
         ],
         // A rooster tail on water; density grows with speed.
