@@ -83,6 +83,8 @@ pub struct Piloted;
 pub struct Enemy {
     /// Its pilot.
     pub ai: AiPilot,
+    /// The line it flies with `CB_ENEMY_STUNT`, from the player out toward where it first stood.
+    pub stunt_axis: Option<Vec2>,
 }
 
 /// A hatch node found by a timeline motion's pattern.
@@ -347,7 +349,9 @@ pub fn spawn_enemy(
         crate::skins::wear(commands, a.assets, ent, skin);
     }
     let ai = AiPilot::new(l.skill.clone(), rng);
-    commands.entity(ent).insert((Enemy { ai }, id, EnemyGoal::default()));
+    commands
+        .entity(ent)
+        .insert((Enemy { ai, stunt_axis: None }, id, EnemyGoal::default()));
     Some(ent)
 }
 
@@ -1118,7 +1122,13 @@ pub fn step_mech(
                 open: &open,
             };
             let orders = enemy.ai.orders(&sim.curr, &view, dt);
-            if let Some(c) = stunt(&sim.curr, &plan, player_at, time.elapsed_secs() + id.0 as f32 * 7.0) {
+            if let Some(c) = stunt(
+                &sim.curr,
+                &plan,
+                player_at,
+                &mut enemy.stunt_axis,
+                time.elapsed_secs() + id.0 as f32 * 7.0,
+            ) {
                 aim_at = Some(orders.aim_point);
                 c
             } else {
@@ -1629,42 +1639,33 @@ fn cut_parts(
     }
 }
 
-/// A test instrument: `CB_ENEMY_STUNT=1` flies every enemy round a 24 s loop instead of its brain's
-/// orders, holding fire: up on the rockets to 150 m, over the rooftops, with the skates pushing forward, a glide down, then
-/// skating on the ground, so its jet smoke and skate trails can be checked from the seat (owner,
-/// 2026-10-25: "do other mechs and do my mech while I'm in the pilot seat").
-fn stunt(m: &MechState, plan: &Plan, player: Vec3, t_s: f32) -> Option<MechControls> {
+/// A test instrument: `CB_ENEMY_STUNT=1` flies every enemy back and forth along the line from the
+/// player toward where it first stood (down the street it started in, so the street's view is
+/// open along it), 120 m to 400 m out, 30 m up on the rockets with the skates pushing, holding
+/// fire. When the rockets lock it comes down and skates on. Its jet smoke and skate trails can then
+/// be checked from the seat (owner, 2026-10-25: "do other mechs and do my mech while I'm in the
+/// pilot seat").
+fn stunt(m: &MechState, plan: &Plan, player: Vec3, axis: &mut Option<Vec2>, t_s: f32) -> Option<MechControls> {
     if !crate::cli::switched_off("CB_ENEMY_STUNT") {
         return None;
     }
-    let phase = t_s.rem_euclid(24.0);
-    let agl = m.pos.y - plan.height_at(m.pos.x, m.pos.z);
-    let hover = (0.175 - m.vel_y_m_s * 0.025).clamp(0.0, 1.0);
-    // Round the player 250-450 m out, so the loop passes in front of the seat.
-    let to = Vec2::new(player.x - m.pos.x, player.z - m.pos.z);
+    let me = Vec2::new(m.pos.x, m.pos.z);
+    let home = Vec2::new(player.x, player.z);
+    let axis = *axis.get_or_insert_with(|| (me - home).normalize_or(Vec2::NEG_Y));
+    // Toward the player for 12 s, then away for 12 s.
+    let goal = home + axis * if t_s.rem_euclid(24.0) < 12.0 { 120.0 } else { 400.0 };
+    let to = goal - me;
     let want = (-to.x).atan2(-to.y);
     let off = (want - m.heading_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
-    let turn = if to.length() > 450.0 {
-        (off * 2.0).clamp(-1.0, 1.0)
-    } else if to.length() < 250.0 {
-        (-off.signum()).clamp(-1.0, 1.0)
-    } else {
-        0.5
-    };
+    let agl = m.pos.y - plan.height_at(m.pos.x, m.pos.z);
     Some(MechControls {
         skate_toggle: !m.skates_on,
-        turn_axis: turn,
-        view_yaw_rad: m.heading_rad,
-        lift_axis: match phase {
-            p if p < 10.0 => {
-                if agl < 150.0 {
-                    1.0
-                } else {
-                    hover
-                }
-            }
-            p if p < 16.0 => (0.175 + (-4.0 - m.vel_y_m_s) * 0.04).clamp(0.0, 1.0),
-            _ => 0.0,
+        turn_axis: (off * 2.0).clamp(-1.0, 1.0),
+        view_yaw_rad: want,
+        lift_axis: if agl < 30.0 {
+            1.0
+        } else {
+            (0.175 - m.vel_y_m_s * 0.025).clamp(0.0, 1.0)
         },
         move_xy: if m.airborne() { Vec2::new(0.0, 1.0) } else { Vec2::ZERO },
         throttle_set: Some(1.0),
