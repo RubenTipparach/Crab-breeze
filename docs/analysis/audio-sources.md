@@ -56,6 +56,45 @@ Gaps: no confirmed CC0 lock-on or radar ping, jet loop or wheel-skate loop. Synt
 (jsfxr, below; the lock tone can take the Call Sign rhythm, `docs/design/music.md`) and take the
 engines from a Sonniss bundle.
 
+## Recorded CC0 replacements (owner, 2026-10-25: "can you not pull from cc0 sound fx?")
+
+The synthesised cues stay in place until each one has a recording that sounds better. A recorded
+cue is cut from CC0 originals by a committed spec (layers with start, length, pitch, gain, lowpass
+and fades, plus synthesised layers such as the sub rumble where a recording lacks low end), and
+gets a row in `assets/audio/sfx/SOURCES.md`.
+
+**Blocked on the network.** The cloud environment refuses opengameart.org, kenney.nl,
+freesound.org, godotengine.org and mediafire.com, where every original lives. The GitHub mirrors
+found on 2026-10-25: [hipdiscovery/Free-Sound-Effects](https://github.com/hipdiscovery/Free-Sound-Effects)
+holds only Kenney's 100 Interface Sounds (CC0, licence file checked); the Godot Asset Library's
+Kenney ports ([Kenney's Sci-Fi Sounds](https://godotengine.org/asset-library/asset/1834), Impact
+Sounds, RPG Audio, UI Audio, from `github.com/Loppansson/*-for-godot`) are gone from GitHub;
+`PanderMusubi/sound-effects-library-weapons` is a packaging script whose files sit on mediafire.
+[bonesvt/GodotFall](https://github.com/bonesvt/GodotFall) (revision `ad59aac`) ships 226 cuts from
+CC0 packs with a source table and its cut specs; the repository has no licence, so its cuts are not
+used, but its table and specs say which original file makes a good mech step, explosion or rocket.
+
+| Cue | CC0 originals (OpenGameArt unless marked) | Notes |
+| --- | --- | --- |
+| foot_stomp | Mech Stomp / Step Sound (hc), `stomp.flac`; 100 CC0 metal and wood SFX (dull metal collisions) | pitched 0.8-0.9 for a 24 m mech, our sub thump under it |
+| jet_ignite | Flare ignition (qubodup); Rocket launch (qubodup) | our sub rumble under it |
+| rocket_loop | rocket engine (loopable); 30 CC0 SFX loops | steep lowpass as now |
+| rocket_rumble | Low rumbling (Musheran) | |
+| rocket_launch | Rocket launch (qubodup), `launch.wav` | |
+| missile_launch | Missile sound (mikeask), `missile.wav` | |
+| autocannon, cannon, shotgun | The Free Firearm Sound Library (Still North Media): Carl Gustav M45, AK-47, shotgun takes | autocannon pitched about 0.7 |
+| impact_mech | 75 CC0 breaking / falling / hit SFX; 100 CC0 metal and wood SFX (`metal_slam`); a Free Firearm Sound Library crack | the owner asked for "a harder sound like gunshot" |
+| impact_building | 75 CC0 breaking / falling / hit SFX (rock hits) | |
+| explosion_small, explosion_large | Explosions (EZduzziteh); Chunky Explosion (Joth); Mechanical Explosion (Spring Spring) | |
+| collapse | 75 CC0 breaking / falling / hit SFX; Low rumbling | |
+| hatch_steam | Steam release sounds (bart); Compressed Gas Leak SFX (0new4y) | |
+| hatch_seal, hatch_motor, servo_torso, hydraulic | Mechanical Sounds (BMacZero); Robotic Transformations (Mekaal) | |
+| laser_loop, laser_stop, rail_charge, rail_fire, plasma_fire, plasma_burst | Sci-Fi Sounds (Kenney); Doomsday Laser Cannon (TAD); Electricity Game Sound Pack (faxcorp) | |
+| reactor_hum | Generator (loop) (YCbCr) | |
+| radio_squelch | Misc/menu sci-fi sounds (HaelDB); Radio Noise 1 | |
+| mfd_click | Interface Sounds (Kenney), reachable now through the GitHub mirror above | |
+| lock_tone, lock_on, heat_lock, alarm_warning, radar_ping, systems_boot | none found | stay synthesised (the owner liked the lock sound once softened) |
+
 ## Tools
 
 | Name | What | Licence | Fit |
