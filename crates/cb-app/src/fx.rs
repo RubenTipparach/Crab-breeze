@@ -223,6 +223,8 @@ pub struct FxStream {
     pub dir: Vec3,
     /// Emitting now.
     pub on: bool,
+    /// Multiplies the recipe's stream rate (a boarding vent's own rate; 1 for the rest).
+    pub density: f32,
 }
 
 /// The emitters a stream put under its body.
@@ -253,7 +255,8 @@ fn attach_streams(
             else {
                 continue;
             };
-            let Some(effect) = particles::stream(&mut lib, &mut effects, s.recipe, i, layer, count as f32 * per_s) else {
+            let rate = count as f32 * per_s * s.density.max(0.0);
+            let Some(effect) = particles::stream(&mut lib, &mut effects, s.recipe, i, layer, rate) else {
                 continue;
             };
             let dir = if along_dir { s.dir.normalize_or(Vec3::Y) } else { Vec3::Y };
@@ -896,6 +899,7 @@ mod tests {
                 recipe: "burning",
                 dir: Vec3::NEG_Y,
                 on: true,
+                density: 1.0,
             })
             .id();
         let body = world.entity(e);

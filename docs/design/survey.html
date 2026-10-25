@@ -117,10 +117,10 @@ code { font: 500 0.9em var(--mono); }
 
 <div class="wrap">
   <header class="top">
-    <div class="eyebrow">Owner survey · opened 2026-10-23 · cleaned up 2026-10-24 · every answer moved to Answered on 2026-10-25</div>
+    <div class="eyebrow">Owner survey · opened 2026-10-23 · cleaned up 2026-10-24 · every answer moved to Answered on 2026-10-25 · new questions on the roster, advanced weapons and music the same day</div>
     <h1>Crab Breeze Survey</h1>
     <div class="suits" aria-hidden="true"><span style="background:var(--sun)"></span><span style="background:var(--crescent)"></span><span style="background:var(--star)"></span><span style="background:var(--eagle)"></span></div>
-    <p class="lede">No questions are open right now. Only the questions still open appear here. Everything you have answered is in the Answered section at the bottom, with where it went. Each open question has a recommendation that gets built if you leave it blank: pick an option, add a note, or leave it.</p>
+    <p class="lede">Only the questions still open appear here. Everything you have answered is in the Answered section at the bottom, with where it went. Each open question has a recommendation that gets built if you leave it blank: pick an option, add a note, or leave it.</p>
   </header>
 
   <div class="tally">
@@ -161,6 +161,60 @@ const SECTIONS = [
       { id: 'F3', q: 'Fog is worked out exactly along each view ray (about 0.1 ms). Bevy also has ray-marched volumetric fog with light shafts (about 1-3 ms). Use it?',
         options: ['Not for the island; later only for small local volumes (steam when the cockpit opens, waterfall spray)', 'Yes, everywhere, for the light shafts', 'Never'], rec: 0,
         why: 'The exact layer gives the look for a tenth of the cost; the ray march earns its time only in small volumes close to the eye.' },
+    ] },
+  { tag: 'G', name: 'The roster at the Foreman\'s standard',
+    lead: 'New on 2026-10-25: every roster mech brought up to the Foreman. Cockpits (openspec/changes/cockpit-parity) and boarding steam (boarding-vents) are built; each mech\'s signature weapon (signature-weapons) is designed, to be built after weapon-kinds. Any MFD now outlines when you point at it in free look; its menu (game menu, map, mail, shop: mfd-menus, mech-shop) is designed.',
+    qs: [
+      { id: 'G20', q: 'Each mech\'s signature weapon: the Foreman a three-shell boom cannon, the Driller a short hot cutting laser, the Harrow twelve multi-lock missiles, the Ironhorse a steam cannon (a slow scalding ball), the Mule a sixteen-rocket ripple, the Picket the scoped rail rifle, the Roustabout a sixteen-pellet breaching shotgun, the Sapper a siege mortar that lobs over buildings. Right picks?',
+        options: ['Yes, as listed: each is the weapon its model already carries', 'Mostly: swap some (say which in the note)', 'Different idea (say in the note)'], rec: 0,
+        why: 'Every mech then plays differently, and nothing new needs modelling: the boom cannon, auger, racks, steam cannon, pods, long gun, rifle and shoulder cannon are already on the models.' },
+      { id: 'G21', q: 'The Sapper\'s mortar takes 8 s to land 300 m away and 14 s at 1 km (a real high arc, apex a quarter of the range up). Too slow to be fun?',
+        options: ['Keep it: it is the siege weapon, and the TARGET screen counts down to the splash', 'Faster: a flatter, quicker arc that cannot clear tall towers', 'Drop the mortar; give the Sapper something else'], rec: 0,
+        why: 'It is the only weapon that lands behind a building; making it fast means making it a cannon.' },
+      { id: 'C15', q: 'The Ironhorse\'s and Mule\'s cab now has the Foreman\'s dash. It hides most of the lower front screens. Keep them?',
+        options: ['Keep them: they show past the dash\'s ends and light the footwell with the outside', 'Lower row at the sides only', 'Drop the lower row'], rec: 0,
+        why: 'The side and floor screens are what make it a digger\'s cab; the front pair costs nothing to keep.' },
+      { id: 'C13', q: 'In free look, the MFD you point at gets a lit outline (openspec/changes/mfd-menus). What colour?',
+        options: ['Amber, the same as the selected weapon station', 'White', 'Cyan, like the cabin trim'], rec: 0,
+        why: 'Amber already means "selected" on the WEAPONS screen, so it reads the same everywhere.' },
+      { id: 'C14', q: 'Each MFD keeps the page you picked for it (map, mail, shop, readouts). Should that be remembered between sorties?',
+        options: ['Yes, saved with the career', 'No, back to the default pages each time you board'], rec: 0,
+        why: 'You set the cockpit up once, the way you like it.' },
+      { id: 'J15', q: 'Mech prices in the shop (openspec/changes/mech-shop): Picket 300 000, Mule 360 000, Roustabout 450 000, Driller 520 000, Sapper 600 000, Ironhorse 700 000, Foreman 850 000, Harrow 1 200 000. Right?',
+        options: ['Yes, as listed', 'Flatter: all near 600 000', 'Different (say in the note)'], rec: 0,
+        why: 'The cheapest is three or four good jobs away, the Harrow about ten, so there is always something to save for.' },
+      { id: 'J16', q: 'Buying a mech from the cockpit while away from a base:',
+        options: ['Allowed: it is delivered to the nearest base with a free bay, waiting on arrival, and a mail says where', 'Only at a base'], rec: 0,
+        why: 'You asked for the shop on the MFDs, which you have everywhere; delivery keeps the hangar bays meaningful.' },
+      { id: 'M12', q: 'Mechs now steam and mist when they kneel and open. Should enemy mechs vent too when they stop (none board today)?',
+        options: ['No: only the mech you board vents', 'Yes: any mech that kneels vents'], rec: 0,
+        why: 'Only you board; enemies never open their chests, so there is nothing for them to vent.' },
+    ] },
+  { tag: 'G', name: 'Advanced weapons',
+    lead: 'New on 2026-10-25: shotguns, railguns, lasers and plasma cannons (openspec/changes/weapon-kinds), the railgun scope (railgun-scope) and multi-lock missiles (multi-lock). Designed, not built.',
+    qs: [
+      { id: 'G22', q: 'Who carries the new weapons?',
+        options: ['Human combat mechs: shotguns, railguns and multi-lock pods. Alien crabs: lasers and plasma', 'Anyone: every weapon on both sides', 'Humans get everything; crabs keep guns, swords and missiles'], rec: 0,
+        why: 'The two sides then fight differently: you read a crab by its beam and its slow glowing balls, and the combat block-outs already hold shotguns and railguns.' },
+      { id: 'G23', q: 'The railgun, laser and plasma cannon heat up and lock when hot. Should that heat share the bank the jets use?',
+        options: ['No: a weapon heat bank of its own (refills in 20 s)', 'Yes: one bank, so firing hard costs you flight time'], rec: 0,
+        why: 'A jet hop never blocks the guns, and each bar on the MFD means one thing.' },
+      { id: 'G24', q: 'Where does the railgun scope show its magnified picture (4x and 10x)?',
+        options: ['A window in the middle of the front screen', 'The whole front screen', 'One of the MFDs'], rec: 0,
+        why: 'You keep your full view round the window, so a flanker is not hidden while you aim, and your own eyes never zoom (the first person rule).' },
+    ] },
+  { tag: 'A', name: 'Music',
+    lead: 'New on 2026-10-25: the motifs and the first six cues. Listen on the Crab Breeze Music page (https://claude.ai/artifact/17Lj37SLPpsARPqE9ZfV9C); notes and rules in docs/design/music.md, playback in openspec/changes/music.',
+    qs: [
+      { id: 'A1', q: 'The score is orchestral rock with 80s colours, in D minor, lifting into D major for the big moments. Is that the direction?',
+        options: ['Yes: orchestra, rock drums and guitars, a few 80s synths (as rendered)', 'More 80s: synth-led, the orchestra in support', 'Pure orchestra, no rock band', 'Heavier: industrial and metal'], rec: 0,
+        why: 'It matches Ace Combat\'s hybrid and the 1980s industrial setting, and every cue already works this way.' },
+      { id: 'A2', q: 'How should the music follow the fight?',
+        options: ['One cue per game state (on foot, combat, set piece, won), switching on the bar with a one-bar crossfade', 'Layered stems that rise and fall with the danger inside one cue', 'Both: switching now, stems later'], rec: 0,
+        why: 'Switching on the bar sounds composed and needs nothing beyond the OGG files we have; stems cost a render per layer per cue.' },
+      { id: 'A3', q: 'Where is the music heard from the cockpit?',
+        options: ['Over everything, like a film score; it ducks under the radio and alarms', 'Only through the cockpit radio, as if broadcast', 'Score outside the mech, radio inside it'], rec: 0,
+        why: 'The sealed cockpit muffles the world; a score that ignores the walls keeps the music clear without breaking the first person view.' },
     ] },
 ];
 

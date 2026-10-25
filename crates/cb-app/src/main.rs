@@ -46,6 +46,7 @@ mod sun_flare;
 mod targeting;
 mod textures;
 mod units;
+mod vents;
 mod water_render;
 mod world;
 
@@ -136,6 +137,7 @@ fn main() -> AppExit {
         mfd::MfdPlugin,
         menu::MenuPlugin,
         rope::RopePlugin,
+        vents::VentsPlugin,
         career::CareerPlugin,
     ));
     // Cheap, correctly lit clouds (openspec change `cloud-puffs`); `CB_NO_CLOUDS=1` leaves them

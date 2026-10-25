@@ -337,6 +337,7 @@ fn smoke_damaged(
                         recipe: "smoking",
                         dir: Vec3::Y,
                         on: true,
+                        density: 1.0,
                     },
                     ChildOf(node),
                 ));
@@ -358,6 +359,7 @@ fn smoke_damaged(
                         recipe: "burning_hull",
                         dir: Vec3::Y,
                         on: true,
+                        density: 1.0,
                     },
                     ChildOf(node),
                 ));

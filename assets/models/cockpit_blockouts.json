@@ -1080,7 +1080,7 @@
    ],
    "clear_deg": 87,
    "span_deg": 233,
-   "tris": 480,
+   "tris": 640,
    "mech": "ramp",
    "opening": "the whole front, floor to roof, unclamps and drops forward on its bottom edge to the deck as a ramp",
    "open_s": 2.75,
@@ -1161,12 +1161,13 @@
     }
    ],
    "mfd": [
-    "top"
+    "top",
+    "dash"
    ],
    "rear": {
     "file": "cockpit_blockouts/cab_rear.glb",
     "clear_deg": 90,
-    "tris": 436,
+    "tris": 596,
     "mech": "rear_ramp",
     "opening": "by the back: the back wall unclamps and drops back to the deck as a ramp, then the seat swivels round to face it; the screens ahead never move",
     "open_s": 4.1,
@@ -1524,7 +1525,7 @@
    ],
    "clear_deg": 93,
    "span_deg": 228,
-   "tris": 652,
+   "tris": 664,
    "mech": "canopy_rear",
    "opening": "a fighter's canopy: everything above the sill, screens, roof and bubble, lifts off its seal and tilts up on its back edge on two rams",
    "open_s": 2.75,
@@ -1644,12 +1645,13 @@
     }
    ],
    "mfd": [
+    "top",
     "dash"
    ],
    "rear": {
     "file": "cockpit_blockouts/canopy_rear.glb",
     "clear_deg": 93,
-    "tris": 608,
+    "tris": 620,
     "mech": "rear_barn",
     "opening": "by the back: two doors swing out on hinges at the back corners, then the seat swivels round to face them; the screens ahead never move",
     "open_s": 4.1,

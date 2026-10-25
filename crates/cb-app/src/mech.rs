@@ -1690,13 +1690,18 @@ fn stunt(m: &MechState, plan: &Plan, player: Vec3, axis: &mut Option<Vec2>, t_s:
 /// (cockpit-overlay; owner: "only when it is closed and player is inside"). Otherwise it is drawn
 /// with the world like anything else. Walks the mech's descendants each frame, so a model that
 /// loads late is caught.
+/// A mesh hung under a mech that sets its own render layers (an MFD's outline, `mfd-menus`): the cockpit pass leaves it
+/// alone.
+#[derive(Component)]
+pub struct OwnLayers;
+
 fn cockpit_layer(
     mut commands: Commands,
     pilot: Res<PilotSim>,
     data: Res<Data>,
     mech: Query<(Entity, &MechSim, Option<&Interior>), With<Piloted>>,
     children: Query<&Children>,
-    meshes: Query<Option<&bevy::camera::visibility::RenderLayers>, With<Mesh3d>>,
+    meshes: Query<Option<&bevy::camera::visibility::RenderLayers>, (With<Mesh3d>, Without<OwnLayers>)>,
 ) {
     use bevy::camera::visibility::RenderLayers;
     let Some((root, sim, interior)) = mech.iter().next() else { return };
@@ -1767,6 +1772,7 @@ fn jet_flames(
                         recipe: "jet_flame",
                         dir: Vec3::NEG_Y,
                         on,
+                        density: 1.0,
                     });
                 }
             }
@@ -1815,6 +1821,7 @@ fn burn(mut commands: Commands, q: Query<(Entity, &GlobalTransform, &Burning)>, 
             recipe: "burning",
             dir: Vec3::Y,
             on,
+            density: 1.0,
         });
         if !on {
             commands.entity(e).remove::<Burning>();
