@@ -41,11 +41,16 @@ pub struct Course {
 /// The drainage of an island's shape.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Drainage {
-    cell_m: f32,
-    origin_m: f32,
-    n: usize,
-    /// Cells that are streams, for keeping cities clear of them.
-    stream: Vec<bool>,
+    /// Side of a drainage cell.
+    pub cell_m: f32,
+    /// World position of the grid's corner (x and z).
+    pub origin_m: f32,
+    /// Cells along a side.
+    pub n: usize,
+    /// The shape's height at each cell's centre, row by row.
+    pub ground: Vec<f32>,
+    /// Cells that are streams, for keeping cities and roads clear of them.
+    pub stream: Vec<bool>,
     /// Lakes.
     pub basins: Vec<Basin>,
     /// Stream courses, highest source first.
@@ -187,10 +192,25 @@ impl Drainage {
             cell_m,
             origin_m,
             n,
+            ground,
             stream,
             basins,
             courses,
         }
+    }
+
+    /// The centre of cell `k` (x, z).
+    pub fn centre(&self, k: usize) -> Vec2 {
+        Vec2::new(
+            self.origin_m + ((k % self.n) as f32 + 0.5) * self.cell_m,
+            self.origin_m + ((k / self.n) as f32 + 0.5) * self.cell_m,
+        )
+    }
+
+    /// The cell holding `p`, clamped to the grid.
+    pub fn cell_of(&self, p: Vec2) -> usize {
+        let c = |v: f32| (((v - self.origin_m) / self.cell_m).floor().max(0.0) as usize).min(self.n - 1);
+        c(p.y) * self.n + c(p.x)
     }
 
     /// Whether any stream cell or lake comes within `clearance_m` of the box `lo`..`hi`.

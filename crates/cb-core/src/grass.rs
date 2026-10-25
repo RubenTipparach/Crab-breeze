@@ -1080,11 +1080,11 @@ mod tests {
         let cfg = GrassConfig::default();
         let p = plan();
         let h = &p.highways[0];
-        let mid = (h.ends[0] + h.ends[1]) * 0.5;
+        let mid = h.point_at(0.5);
         let ground = p.height_at(mid.x, mid.y);
         assert_eq!(grows_at(p, mid, ground, 0.0, &cfg), 0.0);
         // Well off the road (and off any bridge or city), on dry level ground above the beach: grass.
-        let across = (h.ends[1] - h.ends[0]).perp().normalize() * (h.width_m * 0.5 + 40.0);
+        let across = h.dir_at(0.5).perp() * (h.width_m * 0.5 + 40.0);
         let off = mid + across;
         let g = p.height_at(off.x, off.y);
         let open = p.cover_at(off, &cfg.clearance.into()) != Cover::Bare
@@ -1162,7 +1162,7 @@ mod tests {
         let cfg = GrassConfig::default();
         let p = plan();
         let h = &p.highways[0];
-        let road = (h.ends[0] + h.ends[1]) * 0.5;
+        let road = h.point_at(0.5);
         let g = p.height_at(road.x, road.y);
         assert_eq!(ground_cover(p, road, g, 0.0, 0.0, &cfg), 0.0, "no tint on a road");
         let m = meadow_start(p, &cfg, 40.0, 6000.0).expect("a meadow").mech_xz;

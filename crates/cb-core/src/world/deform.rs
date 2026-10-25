@@ -399,7 +399,7 @@ mod tests {
     #[test]
     fn a_road_is_scorched_not_dug() {
         let h = &plan().highways[0];
-        let c = h.ends[0].lerp(h.ends[1], 0.37);
+        let c = h.point_at(0.37);
         let mut d = Deformation::new(4096.0);
         d.dig(plan(), Blast { centre: c, energy_mj: 4.0 }, &CraterConfig::default());
         assert_eq!(d.delta_at(c), 0.0);

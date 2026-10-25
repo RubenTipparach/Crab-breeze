@@ -175,7 +175,7 @@ impl Default for RangeConfig {
             scarp_width_m: 14.0,
             scarp_wobble_m: 300.0,
             passes_deg: vec![35.0, 160.0, 265.0],
-            pass_width_deg: 10.0,
+            pass_width_deg: 18.0,
         }
     }
 }
@@ -866,8 +866,19 @@ pub struct WorldConfig {
     pub city_max_ground_m: f32,
     /// The land under a city square and its blend rises or falls at most this far from its ground.
     pub city_max_relief_m: f32,
-    /// A highway is not built where the ground on its line rises more than this above both its ends.
+    /// A highway's route never climbs more than this above the higher of its two cities.
     pub highway_max_climb_m: f32,
+    /// Steepest a highway's grade climbs (rise over run).
+    pub highway_max_grade: f32,
+    /// A route step at the steepest grade costs this many times more than one on the level (more
+    /// at steeper, as the square of the grade).
+    pub highway_slope_cost: f32,
+    /// Crossing a stream costs the route this many metres of road (a bridge).
+    pub highway_bridge_cost_m: f32,
+    /// A route may swing this far outside the box round its two ends.
+    pub highway_detour_m: f32,
+    /// The grade follows the land averaged over this distance either side.
+    pub highway_grade_smooth_m: f32,
     /// Levels of detail of the drawn ground.
     pub terrain_lod: LodConfig,
     /// How far the pilot sees.
@@ -971,7 +982,7 @@ impl Default for WorldConfig {
             highway_width_m: 28.0,
             highway_flat_margin_m: 12.0,
             highway_blend_m: 60.0,
-            road_lift_m: 0.1,
+            road_lift_m: 0.15,
             kerb_height_m: 0.2,
             start_pilot_distance_m: 25.0,
             island: IslandConfig::default(),
@@ -980,6 +991,11 @@ impl Default for WorldConfig {
             city_max_ground_m: 260.0,
             city_max_relief_m: 70.0,
             highway_max_climb_m: 45.0,
+            highway_max_grade: 0.06,
+            highway_slope_cost: 6.0,
+            highway_bridge_cost_m: 600.0,
+            highway_detour_m: 4000.0,
+            highway_grade_smooth_m: 240.0,
             terrain_lod: LodConfig::default(),
             view: ViewConfig::default(),
             water: WaterConfig::default(),
@@ -1058,6 +1074,11 @@ impl Validate for WorldConfig {
         positive("city_max_ground_m", self.city_max_ground_m)?;
         positive("city_max_relief_m", self.city_max_relief_m)?;
         positive("highway_max_climb_m", self.highway_max_climb_m)?;
+        positive("highway_max_grade", self.highway_max_grade)?;
+        finite("highway_slope_cost", self.highway_slope_cost)?;
+        finite("highway_bridge_cost_m", self.highway_bridge_cost_m)?;
+        positive("highway_detour_m", self.highway_detour_m)?;
+        positive("highway_grade_smooth_m", self.highway_grade_smooth_m)?;
         let i = &self.island;
         let reach = i.land_radius_m + i.coast_noise_m.abs() + i.shelf_m;
         let flat_from = self.world_size_m * 0.5 - i.edge_fade_m;

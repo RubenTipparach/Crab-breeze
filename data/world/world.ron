@@ -49,11 +49,20 @@
         scarp_width_m: 14.0,
         scarp_wobble_m: 300.0,
         passes_deg: [35.0, 160.0, 265.0],
-        pass_width_deg: 10.0,
+        pass_width_deg: 18.0,
     ),
     city_max_ground_m: 260.0,
     city_max_relief_m: 70.0,
     highway_max_climb_m: 45.0,
+    // Highways are routed, not ruled (openspec/changes/curved-roads/design.md; owner, 2026-10-25:
+    // "roads shouldnt be straight like that"): an A* over the 128 m drainage cells, a step at a 6 %
+    // grade costing seven times one on the level, a stream crossing 600 m more, swinging up to
+    // 4 km out of the way, smoothed into curves and graded on the land averaged over 240 m.
+    highway_max_grade: 0.06,
+    highway_slope_cost: 6.0,
+    highway_bridge_cost_m: 600.0,
+    highway_detour_m: 4000.0,
+    highway_grade_smooth_m: 240.0,
 
     // The biomes (openspec/changes/island-biomes/design.md section 1): the island dries toward the
     // east-south-east, the lee of the westerlies, from 2 km west of the centre to 12 km east, its
@@ -106,7 +115,7 @@
     highway_width_m: 28.0,
     highway_flat_margin_m: 12.0,
     highway_blend_m: 60.0,
-    road_lift_m: 0.1,
+    road_lift_m: 0.15,
     kerb_height_m: 0.2,
 
     start_pilot_distance_m: 25.0,

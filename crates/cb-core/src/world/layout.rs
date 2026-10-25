@@ -3,6 +3,7 @@
 //! section 2).
 
 use super::config::WorldConfig;
+use super::grid::CellIndex;
 use crate::rng::SimRng;
 use glam::Vec2;
 
@@ -123,43 +124,144 @@ impl City {
     }
 }
 
-/// A straight graded road joining two cities, from one city's edge to the other's.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// A graded road joining two cities, from one city's edge to the other's, along a centre line
+/// routed over the island (openspec change `curved-roads`): round the crater's rim, lakes and
+/// steep ground, smoothed into curves, with a grade that follows the land within the steepest a
+/// road may climb.
+#[derive(Clone, Debug, PartialEq)]
 pub struct Highway {
     /// The two cities it joins.
     pub cities: [u32; 2],
-    /// Start and end of the paved surface (x, z).
+    /// Start and end of the paved surface (x, z): the centre line's first and last points.
     pub ends: [Vec2; 2],
-    /// Ground height at each end.
+    /// Ground height at each end (its city's ground).
     pub ends_ground_m: [f32; 2],
     /// Paved width.
     pub width_m: f32,
     /// Length at each end where the road stays level at its city's height, so a city's flat
     /// ground and the road meet exactly.
     pub level_end_m: f32,
+    /// Centre line (x, z), `ends[0]` first.
+    pub path: Vec<Vec2>,
+    /// The road surface's height at each point of `path`.
+    pub grade_m: Vec<f32>,
+    /// Distance along the road to each point of `path`.
+    along_m: Vec<f32>,
+    /// The centre line's segments by cell, for `project`.
+    index: CellIndex,
 }
 
+/// The highway's segment index cells are this size.
+const ROAD_CELL_M: f32 = 256.0;
+/// `project` finds the centre line within this of a point (farther reads as infinitely far).
+pub const ROAD_REACH_M: f32 = 300.0;
+
 impl Highway {
-    /// Distance from `p` to the centre line, and the position along it in 0..1.
+    /// A highway along `path` (at least two points) with `grade_m` at each, in a world
+    /// `world_size_m` across.
+    pub fn new(cities: [u32; 2], path: Vec<Vec2>, grade_m: Vec<f32>, width_m: f32, level_end_m: f32, world_size_m: f32) -> Self {
+        let mut along_m = vec![0.0];
+        for w in path.windows(2) {
+            along_m.push(along_m.last().copied().unwrap_or(0.0) + w[0].distance(w[1]));
+        }
+        let boxes: Vec<(u32, Vec2, Vec2)> = path
+            .windows(2)
+            .enumerate()
+            .map(|(i, w)| {
+                (
+                    i as u32,
+                    w[0].min(w[1]) - Vec2::splat(ROAD_REACH_M),
+                    w[0].max(w[1]) + Vec2::splat(ROAD_REACH_M),
+                )
+            })
+            .collect();
+        let side = (world_size_m / ROAD_CELL_M).ceil() as usize + 1;
+        let index = CellIndex::build(-world_size_m * 0.5, ROAD_CELL_M, side, &boxes);
+        let n = path.len();
+        Self {
+            cities,
+            ends: [path[0], path[n - 1]],
+            ends_ground_m: [grade_m[0], grade_m[n - 1]],
+            width_m,
+            level_end_m,
+            path,
+            grade_m,
+            along_m,
+            index,
+        }
+    }
+
+    /// A straight road from `a` to `b` at `ground_m` at each end (a probe, or a road with nothing
+    /// in its way), graded level at each end for `level_end_m` and on an S-curve between.
+    pub fn straight(cities: [u32; 2], a: Vec2, b: Vec2, ground_m: [f32; 2], width_m: f32, level_end_m: f32, world_size_m: f32) -> Self {
+        let len = a.distance(b);
+        let steps = (len / 16.0).ceil().max(1.0) as usize;
+        let middle = (len - 2.0 * level_end_m).max(1.0);
+        let path: Vec<Vec2> = (0..=steps).map(|i| a.lerp(b, i as f32 / steps as f32)).collect();
+        let grade = (0..=steps)
+            .map(|i| {
+                let u = ((i as f32 / steps as f32 * len - level_end_m) / middle).clamp(0.0, 1.0);
+                ground_m[0] + (ground_m[1] - ground_m[0]) * u * u * (3.0 - 2.0 * u)
+            })
+            .collect();
+        Self::new(cities, path, grade, width_m, level_end_m, world_size_m)
+    }
+
+    /// Distance from `p` to the centre line, and the position along it in 0..1. Farther than
+    /// `ROAD_REACH_M` from the road reads as infinitely far.
     pub fn project(&self, p: Vec2) -> (f32, f32) {
-        let ab = self.ends[1] - self.ends[0];
-        let t = ((p - self.ends[0]).dot(ab) / ab.length_squared()).clamp(0.0, 1.0);
-        ((self.ends[0] + ab * t - p).length(), t)
+        let mut best = (f32::INFINITY, 0.0);
+        for &i in self.index.at(p) {
+            let i = i as usize;
+            let (a, b) = (self.path[i], self.path[i + 1]);
+            let ab = b - a;
+            let u = if ab.length_squared() > 0.0 {
+                ((p - a).dot(ab) / ab.length_squared()).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let d = (a + ab * u).distance(p);
+            if d < best.0 {
+                best = (d, (self.along_m[i] + ab.length() * u) / self.length_m().max(1e-3));
+            }
+        }
+        best
+    }
+
+    /// The centre line's segments within `ROAD_REACH_M` of `p`, as (start, end).
+    pub fn segments_near(&self, p: Vec2) -> impl Iterator<Item = (Vec2, Vec2)> + '_ {
+        self.index.at(p).iter().map(|&i| (self.path[i as usize], self.path[i as usize + 1]))
     }
 
     /// Paved length.
     pub fn length_m(&self) -> f32 {
-        self.ends[0].distance(self.ends[1])
+        self.along_m.last().copied().unwrap_or(0.0)
     }
 
-    /// The road's grade at position `t` (0..1) along it: level for `level_end_m` at each end,
-    /// then an S-curve (smoothstep) between the two city heights, so the slope never jumps.
+    /// The segment and the share of it at position `t` (0..1) along the road.
+    fn locate(&self, t: f32) -> (usize, f32) {
+        let s = t.clamp(0.0, 1.0) * self.length_m();
+        let i = self.along_m.partition_point(|&a| a <= s).saturating_sub(1).min(self.path.len() - 2);
+        let len = (self.along_m[i + 1] - self.along_m[i]).max(1e-6);
+        (i, ((s - self.along_m[i]) / len).clamp(0.0, 1.0))
+    }
+
+    /// The point on the centre line at position `t` (0..1) along the road.
+    pub fn point_at(&self, t: f32) -> Vec2 {
+        let (i, u) = self.locate(t);
+        self.path[i].lerp(self.path[i + 1], u)
+    }
+
+    /// The road's direction at position `t` (0..1).
+    pub fn dir_at(&self, t: f32) -> Vec2 {
+        let (i, _) = self.locate(t);
+        (self.path[i + 1] - self.path[i]).normalize_or(Vec2::X)
+    }
+
+    /// The road's grade at position `t` (0..1) along it.
     pub fn grade_at(&self, t: f32) -> f32 {
-        let len = self.length_m();
-        let middle = (len - 2.0 * self.level_end_m).max(1.0);
-        let u = ((t * len - self.level_end_m) / middle).clamp(0.0, 1.0);
-        let s = u * u * (3.0 - 2.0 * u);
-        self.ends_ground_m[0] + (self.ends_ground_m[1] - self.ends_ground_m[0]) * s
+        let (i, u) = self.locate(t);
+        self.grade_m[i] + (self.grade_m[i + 1] - self.grade_m[i]) * u
     }
 }
 
@@ -396,34 +498,29 @@ fn exit_point(r: &Rect, from: Vec2, to: Vec2) -> Vec2 {
     from + d * tx.min(tz).min(1.0)
 }
 
-/// Joins the cities with a minimum spanning tree of straight highways (Prim's, ties to the lower
-/// index; a spanning forest where refused edges leave cities apart). An edge that would cross a third city's square, or that `road_ok(from, to, grounds)`
-/// refuses (over the mountains, across a lake), is not used.
-pub fn connect_cities(cities: &[City], cfg: &WorldConfig, road_ok: &dyn Fn(Vec2, Vec2, [f32; 2]) -> bool) -> Vec<Highway> {
+/// Joins the cities with a minimum spanning tree of highways (Prim's on the straight distance,
+/// ties to the lower index; a spanning forest where cities cannot be joined). `build(a, b, from,
+/// to)` lays the road from city `a`'s edge point `from` to city `b`'s `to`, or refuses (no route
+/// round the mountains), and a refused pair is not tried again. An edge whose straight line would
+/// cross a third city's square is not used.
+pub fn connect_cities(cities: &[City], cfg: &WorldConfig, build: &dyn Fn(usize, usize, Vec2, Vec2) -> Option<Highway>) -> Vec<Highway> {
     let n = cities.len();
     if n < 2 {
         return Vec::new();
     }
-    let blocked = |a: usize, b: usize| {
+    let crosses_a_city = |a: usize, b: usize| {
         let (pa, pb) = (cities[a].centre, cities[b].centre);
-        if !road_ok(pa, pb, [cities[a].ground_m, cities[b].ground_m]) {
-            return true;
-        }
         cities.iter().enumerate().any(|(k, c)| {
             if k == a || k == b {
                 return false;
             }
-            let probe = Highway {
-                cities: [0, 0],
-                ends: [pa, pb],
-                ends_ground_m: [0.0, 0.0],
-                width_m: 0.0,
-                level_end_m: 0.0,
-            };
+            let ab = pb - pa;
+            let t = ((c.centre - pa).dot(ab) / ab.length_squared().max(1e-6)).clamp(0.0, 1.0);
             let reach = c.half_size_m * std::f32::consts::SQRT_2 + cfg.plateau_flat_margin_m + cfg.plateau_blend_m + cfg.highway_width_m;
-            probe.project(c.centre).0 < reach
+            (pa + ab * t).distance(c.centre) < reach
         })
     };
+    let mut refused = std::collections::BTreeSet::new();
     let mut in_tree = vec![false; n];
     in_tree[0] = true;
     let mut out = Vec::new();
@@ -431,7 +528,7 @@ pub fn connect_cities(cities: &[City], cfg: &WorldConfig, road_ok: &dyn Fn(Vec2,
         let mut best: Option<(f32, usize, usize)> = None;
         for a in (0..n).filter(|&a| in_tree[a]) {
             for b in (0..n).filter(|&b| !in_tree[b]) {
-                if blocked(a, b) {
+                if refused.contains(&(a, b)) || crosses_a_city(a, b) {
                     continue;
                 }
                 let d = cities[a].centre.distance(cities[b].centre);
@@ -447,20 +544,28 @@ pub fn connect_cities(cities: &[City], cfg: &WorldConfig, road_ok: &dyn Fn(Vec2,
             }
             continue;
         };
-        in_tree[b] = true;
         let (ca, cb) = (&cities[a], &cities[b]);
-        out.push(Highway {
-            cities: [ca.id, cb.id],
-            ends: [
-                exit_point(&ca.rect(), ca.centre, cb.centre),
-                exit_point(&cb.rect(), cb.centre, ca.centre),
-            ],
-            ends_ground_m: [ca.ground_m, cb.ground_m],
-            width_m: cfg.highway_width_m,
-            // A ray from a city's centre leaves its square at 45 degrees or steeper, so every point
-            // of the square within the road's graded band projects within this of the end.
-            level_end_m: (cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m + cfg.highway_blend_m) * std::f32::consts::SQRT_2,
-        });
+        match build(
+            a,
+            b,
+            exit_point(&ca.rect(), ca.centre, cb.centre),
+            exit_point(&cb.rect(), cb.centre, ca.centre),
+        ) {
+            Some(h) => {
+                in_tree[b] = true;
+                out.push(h);
+            }
+            None => {
+                refused.insert((a, b));
+            }
+        }
     }
     out
+}
+
+/// Length at each end of a highway that stays level at its city's height: a ray from a city's
+/// centre leaves its square at 45 degrees or steeper, so every point of the square within the
+/// road's graded band projects within this of the end.
+pub fn level_end_m(cfg: &WorldConfig) -> f32 {
+    (cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m + cfg.highway_blend_m) * std::f32::consts::SQRT_2
 }

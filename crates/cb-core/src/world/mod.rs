@@ -19,6 +19,7 @@ pub mod hydrology;
 pub mod interior;
 pub mod layout;
 pub mod lod;
+pub mod roads;
 pub mod structure;
 pub mod terrain;
 pub mod water;
@@ -226,8 +227,11 @@ impl WorldPlan {
             }
         }
         for h in &self.highways {
-            put(h.ends[0].x);
-            put(h.ends[0].y);
+            for (p, g) in h.path.iter().zip(&h.grade_m).step_by(8) {
+                put(p.x);
+                put(p.y);
+                put(*g);
+            }
             put(h.ends[1].x);
             put(h.ends[1].y);
         }
@@ -305,14 +309,10 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         .enumerate()
         .map(|(i, &(c, half))| layout::lay_out_city(&mut root.fork(&format!("city/{i}")), i as u32, c, half, shape.height(c), cfg))
         .collect();
-    // A highway is built only where it does not climb over the mountains (a lake it crosses is
-    // left dry: `make_waters` keeps lakes clear of the roads).
-    let road_ok = |a: Vec2, b: Vec2, ends_ground_m: [f32; 2]| {
-        let top = ends_ground_m[0].max(ends_ground_m[1]) + cfg.highway_max_climb_m;
-        let steps = (a.distance(b) / 64.0).ceil().max(1.0) as usize;
-        (0..=steps).all(|i| shape.height(a.lerp(b, i as f32 / steps as f32)) <= top)
-    };
-    let highways = layout::connect_cities(&cities, cfg, &road_ok);
+    // Highways are routed round the mountains, lakes and other cities (openspec change
+    // `curved-roads`).
+    let lay = |a: usize, b: usize, from: Vec2, to: Vec2| roads::lay_highway(&shape, &drainage, &cities, (a, b), (from, to), cfg);
+    let highways = layout::connect_cities(&cities, cfg, &lay);
 
     let largest = placed.first().map(|p| p.1).unwrap_or(1.0);
     let mut buildings = Vec::new();
