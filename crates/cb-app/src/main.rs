@@ -143,7 +143,11 @@ fn main() -> AppExit {
         app.add_plugins(defence::DefencePlugin);
     }
     if let Some(dir) = args.stills {
-        app.add_plugins(capture::StillsPlugin { dir });
+        if std::env::var("CB_STILLS_FX").is_ok() {
+            app.add_plugins(capture::FxStillsPlugin { dir });
+        } else {
+            app.add_plugins(capture::StillsPlugin { dir });
+        }
     } else if let Some(take) = args.showcase.clone().or(args.bench.clone()) {
         app.add_plugins(showcase::ShowcasePlugin { take });
         if let Ok(dir) = std::env::var("CB_FRAMES_DIR") {
