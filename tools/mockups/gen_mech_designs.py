@@ -712,6 +712,7 @@ function blockoutViewer(BO, label, pickId, statsId, first, gap, api, frame) {
   frame = frame || { d: 1, ty: 12 };     // one mech's framing: distance scale and target height (the crabs are wide and low)
   // built on the shared renderer and canvas: its own scene, camera and controls, and nothing loaded until it is opened
   let sc = null, cam = null, oc = null, loading = null;
+  const limbs = [], sparks = []; let last = performance.now();
   const groups = {}, ids = BO.mechs.map(m => m.id);
   const pick = document.getElementById(pickId), stats = document.getElementById(statsId);
   let cur = "all";
@@ -737,6 +738,8 @@ function blockoutViewer(BO, label, pickId, statsId, first, gap, api, frame) {
     loading = Promise.all(BO.mechs.map(m => loader.loadAsync(m.file).then(g => {
       g.scene.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
       groups[m.id] = g.scene; sc.add(g.scene);
+      // the limbs a crab can lose: one node each, at its root joint (build_mech_blockouts.py `limb`)
+      g.scene.traverse(o => { if (/^(ARM|LEG)_/.test(o.name)) limbs.push({ node: o, mech: m.id, parent: o.parent, pos: o.position.clone(), rot: o.quaternion.clone(), v: null, w: null }); });
     }))).then(() => { show(cur); if (sceneId === api) document.getElementById("mode").textContent = label; })
       .catch(e => { stats.textContent = "Could not load: " + e; });
     show(cur);
@@ -755,6 +758,52 @@ function blockoutViewer(BO, label, pickId, statsId, first, gap, api, frame) {
   [...BO.mechs.map(m => [m.id, ORIGINAL.has(m.id) ? m.name : `${++num} ${m.name}${LIKED.has(m.id) ? " (liked)" : ""}`]), ["all", "Line up"]].forEach(([id, name]) => {
     const b = document.createElement("button"); b.textContent = name; b.dataset.bo = id; b.onclick = () => show(id); pick.appendChild(b);
   });
+  // shoot off a leg or an arm (owner, 2026-10-25: "Can we shoot off each leg or arm"): only where the models have limbs
+  if (BO.mechs.some(m => m.limbs)) {
+    const shoot = document.createElement("button"); shoot.textContent = "Shoot off a limb"; shoot.onclick = shootLimb; pick.appendChild(shoot);
+    const fix = document.createElement("button"); fix.textContent = "Repair"; fix.onclick = repair; pick.appendChild(fix);
+  }
+  function shootLimb() {
+    const on = limbs.filter(l => !l.v && (cur === "all" || l.mech === cur) && groups[l.mech].visible);
+    if (!on.length) return;
+    const l = on[Math.floor(Math.random() * on.length)], g = groups[l.mech];
+    const root = new T.Vector3(); l.node.getWorldPosition(root);
+    const c = new T.Vector3(); g.getWorldPosition(c);
+    const out = root.clone().sub(c).setY(0).normalize();
+    sc.attach(l.node);
+    l.v = out.multiplyScalar(7).add(new T.Vector3(0, 9, 0));
+    l.w = new T.Vector3((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 4);
+    for (let i = 0; i < 40; i++) {
+      const sp = new T.Mesh(new T.BoxGeometry(0.25, 0.25, 0.25), new T.MeshBasicMaterial({ color: i % 3 ? 0xffa030 : 0xfff0c0 }));
+      sp.position.copy(root);
+      sp.userData = { v: new T.Vector3(Math.random() - 0.5, Math.random() * 0.8 + 0.2, Math.random() - 0.5).multiplyScalar(18), t: 0.6 + Math.random() * 0.6 };
+      sc.add(sp); sparks.push(sp);
+    }
+  }
+  function repair() {
+    limbs.forEach(l => { if (!l.v) return; l.parent.add(l.node); l.node.position.copy(l.pos); l.node.quaternion.copy(l.rot); l.v = l.w = null; });
+  }
+  function stepDebris() {
+    const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const box = new T.Box3();
+    limbs.forEach(l => {
+      if (!l.v || l.v.lengthSq() + l.w.lengthSq() < 1e-4) return;
+      l.v.y -= 9.8 * dt;
+      l.node.position.addScaledVector(l.v, dt);
+      l.node.rotateX(l.w.x * dt); l.node.rotateY(l.w.y * dt); l.node.rotateZ(l.w.z * dt);
+      box.setFromObject(l.node);
+      if (box.min.y < 0) {                       // on the ground: stop sinking, bounce a little, settle
+        l.node.position.y -= box.min.y;
+        l.v.y = Math.abs(l.v.y) * 0.25; l.v.x *= 0.5; l.v.z *= 0.5; l.w.multiplyScalar(0.5);
+        if (l.v.lengthSq() < 1) { l.v.set(0, 0, 0); l.w.set(0, 0, 0); }
+      }
+    });
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const sp = sparks[i], d = sp.userData;
+      d.v.y -= 9.8 * dt; sp.position.addScaledVector(d.v, dt); d.t -= dt;
+      if (d.t <= 0 || sp.position.y < 0) { sc.remove(sp); sp.geometry.dispose(); sparks.splice(i, 1); }
+    }
+  }
   stats.innerHTML = "<table><tr><th>Mech</th><th>After</th><th>Height</th><th>Width</th><th>Legs : torso</th><th>Triangles</th></tr>" +
     BO.mechs.map(m => `<tr><td>${m.name}</td><td>${m.what}</td><td>${m.height_m.toFixed(1)} m</td><td>${m.width_m.toFixed(1)} m</td><td>${m.legs_over_torso.toFixed(2)} by volume</td><td>${m.tris.toLocaleString()}</td></tr>`).join("") + "</table>";
   const v = {
@@ -767,12 +816,13 @@ function blockoutViewer(BO, label, pickId, statsId, first, gap, api, frame) {
     render() {
       const w = canvas.clientWidth, h = canvas.clientHeight;
       if (Math.abs(cam.aspect - w / h) > 1e-3) { cam.aspect = w / h; cam.updateProjectionMatrix(); }
+      stepDebris();
       oc.update(); renderer.toneMappingExposure = 1.0; renderer.render(sc, cam);
     },
-    show, ready: () => loading,
+    show, ready: () => loading, shootLimb, repair,
   };
   VIEWERS[api] = v;
-  window[api] = { show, open: () => { setScene(api); return loading; } };
+  window[api] = { show, shootLimb, repair, open: () => { setScene(api); return loading; } };
 }
 blockoutViewer(__MECH_BLOCKOUTS__, "Block-outs", "bo-pick", "bo-stats", 1, 16, "BLOCKOUTS");
 // the combat mechs, numbered on from the working ones (owner, 2026-10-24: "I want combat mechs with guns like in armored core")

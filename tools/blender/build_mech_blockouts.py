@@ -1499,6 +1499,24 @@ def crab_member(name, a, b, r1, r2):
     box(name + "_top", (a + b) / 2 + up * ((r1 + r2) / 2 * 0.85), (r1 * 1.2, L * 0.7, 0.3 * (r1 + r2)), "BODY2", "legs", ax)
 
 
+def limb(name, pivot, before):
+    """Every piece made since `before` (a set of object names) hung on one empty named `name` at its root joint
+    (glTF frame), so the limb is one node the game can shoot off (owner, 2026-10-25: "Can we shoot off each leg or
+    arm")."""
+    e = bpy.data.objects.new(name, None)
+    bpy.context.scene.collection.objects.link(e)
+    e.location = (G2B @ V(pivot).to_4d()).to_3d()
+    bpy.context.view_layer.update()
+    inv = e.matrix_world.inverted()
+    for o in [o for o in bpy.data.objects if o.name not in before and o is not e]:
+        o.parent = e
+        o.matrix_parent_inverse = inv
+    return e
+
+
+# The crab legs' length against the first round's (owner, 2026-10-25: "Crab legs seem too long").
+LEG_REACH, LEG_RISE = 0.72, 0.8
+
 # Where the hind legs root along the shell (fractions of its length, + ahead) and which way they splay (radians from
 # straight out to the side, + ahead), by the number of pairs.
 HIND = {1: ([-0.18], [-0.35]), 2: ([-0.08, -0.36], [-0.1, -0.85]), 3: ([0.02, -0.2, -0.42], [0.15, -0.4, -0.95])}
@@ -1511,9 +1529,11 @@ def crab_legs(C, pairs=2, reach=11.0, rise=4.5, k=1.0):
     the ground. One pair is thick and carries the shell over itself; three are short and thin."""
     hip_y, bw, bl = C["hip_y"], C["w"], C["l"]
     zs, angles = HIND[pairs]
+    reach, rise = reach * LEG_REACH, rise * LEG_RISE
     for i, (fz, a) in enumerate(zip(zs, angles)):
         for sd in (1, -1):
             n = f"{i}{sd}"
+            before = {o.name for o in bpy.data.objects}
             P = V((sd * (bw / 2 - 1.0), hip_y - 0.6, bl * fz))
             d = V((sd * math.cos(a), 0, math.sin(a)))
             K = P + d * reach * 0.36 + V((0, rise, 0))
@@ -1537,6 +1557,7 @@ def crab_legs(C, pairs=2, reach=11.0, rise=4.5, k=1.0):
                 cyl(f"heelclaw{n}{j}", (F.x, 0.45 * k, F.z), V((F.x, 0.12, F.z)) + back * 1.7 * k, 0.35 * k, "FRAME", "legs", 8,
                     r2=0.05)
             box(f"band{n}", K.lerp(A, 0.3) + V((0, 0.95 * k, 0)), (0.3, 0.25 * k, 0.3), "ACCENT", "legs")
+            limb(f"LEG_{i}{'L' if sd > 0 else 'R'}", P, before)     # +x is the pilot's left
 
 
 def crab_gun(kind, n, G, sd, k):
@@ -1576,7 +1597,8 @@ def gun_arm(kind, sd, C, k=1.0, claw=1.0):
     """A claw hanging in front: shoulder low at the shell's front corner, the upper arm forward and out, a heavy elbow,
     then a meaty forearm hanging down and ahead to a wrist above the ground and a crab's claw, its fixed finger
     reaching the ground and its moving finger over it, open. The gun (`crab_gun`) rides the forearm's outside, pointing
-    ahead; `pincer` puts a cannon in the claw's palm instead, the claw grown round it."""
+    ahead; `pincer` puts a cannon in the claw's palm instead, the claw grown round it. Returns the shoulder (the arm's
+    root joint)."""
     S = V((sd * (C["w"] / 2 - 1.3), C["hip_y"] - 0.6, C["zf"] - 2.0))
     E = S + V((sd * 2.4 * k, -0.6 * k, 2.4 * k))
     W = V((E.x - sd * 0.5 * k, 2.6 * claw + 0.4, E.z + 2.6 * k))
@@ -1611,6 +1633,7 @@ def gun_arm(kind, sd, C, k=1.0, claw=1.0):
         boolean(palm, cyl(n + "_bore", W + V((0, 0.1, 0.5)), W + V((0, 0.1, 2.0 * c)), 0.5 * c, "FRAME", "arms", 12), "DIFFERENCE")
     else:
         crab_gun(kind, n, E + V((sd * 2.0 * k, 0.8 * k, -0.6 * k)), sd, k)
+    return S
 
 
 def crab(layout, R, L, back_R, back_L, pairs=2, bw=9.0, bl=10.0, hip_y=8.0, hump=2.6, reach=11.0, rise=4.5, k=1.0,
@@ -1620,8 +1643,9 @@ def crab(layout, R, L, back_R, back_L, pairs=2, bw=9.0, bl=10.0, hip_y=8.0, hump
     STATE["anchor"] = V((0, hip_y, 0))
     crab_eyes(C)
     crab_legs(C, pairs, reach, rise, k)
-    gun_arm(R, -1, C, kR, clawR)
-    gun_arm(L, 1, C, kL, clawL)
+    for kind, sd, ka, claw, side in ((R, -1, kR, clawR, "R"), (L, 1, kL, clawL, "L")):
+        before = {o.name for o in bpy.data.objects}
+        limb(f"ARM_{side}", gun_arm(kind, sd, C, ka, claw), before)
     U = dict(C, w=bw * 0.7)
     back_unit(back_R, -1, U)
     back_unit(back_L, 1, U)
@@ -1744,7 +1768,8 @@ def main():
         row = dict(id=key, name=name, what=what, file=f"mech_blockouts/{key}.glb", height_m=round(hi[2] - lo[2], 2),
                    width_m=round(hi[0] - lo[0], 2), length_m=round(hi[1] - lo[1], 2), tris=tris,
                    legs_m3=round(legs, 1), torso_m3=round(torso, 1), legs_over_torso=round(legs / torso, 2) if torso else None,
-                   arm_leg_clips=clips)
+                   arm_leg_clips=clips,
+                   limbs=sorted(o.name for o in bpy.data.objects if o.type == "EMPTY" and o.name.startswith(("LEG_", "ARM_"))))
         rows.append(row)
         print("BUILT", row, flush=True)
     with open(manifest, "w") as f:
