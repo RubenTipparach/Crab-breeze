@@ -52,3 +52,13 @@ faint bright rim. They are lit, not hard grey polygons, but they are bright and 
 After these shots the owner said (2026-10-24): "I prefer clouds to be billboards or a mix of some cheap
 raymarch". That is recorded against W17 in `openspec/changes/cloud-puffs/design.md`; the blobs stay until
 that design is revised.
+
+## The game's island from above (`game_map_seed42.png`)
+
+Not a mockup: the game's own generator (`cb-core::world::generate`, seed 42, the shipped
+`data/world/world.ron`), drawn from above by `cargo run --release -p cb-tools -- map 42 map.ppm 1024`
+through the game's `height_at`, `water_at` and biome queries (openspec change `hydrology`). 40 m a
+pixel. The crater range with snow on its rim and three passes, the capital on the crater floor,
+rivers starting in the snow and falling over the crater's cliff bands (red dots are waterfall lips),
+19 lakes (12 plunge pools), desert on 23 % of the land to the east-south-east, savanna between it and
+the grassland, 24 cities (grey) and 23 highways (black).

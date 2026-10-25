@@ -374,7 +374,7 @@ mod tests {
         let b = &plan().buildings[0];
         let ground = plan().cities[b.city as usize].ground_m;
         let wall = b.footprint.centre();
-        let from = Vec3::new(b.footprint.min.x - 150.0, ground + 4.0, wall.y);
+        let from = Vec3::new(b.footprint.min.x - 150.0, ground + 12.0, wall.y);
         let mech_in_the_way = PartCapsule {
             mech: 7,
             part: 2,

@@ -91,17 +91,16 @@ fn seed_42_builds_the_golden_world() {
     );
 }
 
-// Pinned 2026-10-24 (the island world, openspec change island-world) on the owner's Mac (aarch64).
-// The generator uses only IEEE arithmetic plus `powf` for storeys and `sqrt`, `cos` and `sin` for
-// river sources; if another platform disagrees, the difference is in those calls.
+// Pinned 2026-10-25 in a Linux cloud session (x86_64), when the crater range, the drainage, the
+// lakes, the waterfalls and the biomes came in (openspec change `hydrology`). The generator uses
+// only IEEE arithmetic plus `powf` for storeys, `sqrt` and `atan2`; if another platform disagrees,
+// the difference is in those calls.
 const GOLDEN_CITIES: usize = 24;
-const GOLDEN_BUILDINGS: usize = 6100;
+const GOLDEN_BUILDINGS: usize = 6512;
 const GOLDEN_HIGHWAYS: usize = 23;
-const GOLDEN_RIVERS: usize = 6;
-const GOLDEN_TREES_AT_START: usize = 46495;
-// Changed 2026-10-24 when clouds came back on (coverage 0.35, openspec change `cloud-puffs`): the
-// fingerprint includes the cloud puffs; cities, buildings, highways, rivers and trees are unchanged.
-const GOLDEN_FINGERPRINT: u64 = 2898287396453381879;
+const GOLDEN_RIVERS: usize = 115;
+const GOLDEN_TREES_AT_START: usize = 46873;
+const GOLDEN_FINGERPRINT: u64 = 7567681378060678653;
 
 #[test]
 fn seed_42_census_for_the_design() {
@@ -124,17 +123,74 @@ fn seed_42_census_for_the_design() {
         }
     }
     let land_km2 = land as f32 / total as f32 * (cfg.world_size_m / 1000.0).powi(2);
+    let river_km: f32 = plan
+        .waters
+        .rivers
+        .iter()
+        .map(|r| r.path.windows(2).map(|w| w[0].distance(w[1])).sum::<f32>())
+        .sum::<f32>()
+        / 1000.0;
+    let fall_heights = plan
+        .waters
+        .falls
+        .iter()
+        .map(|f| format!("{:.0}", f.top_m - f.bottom_m))
+        .collect::<Vec<_>>()
+        .join(" ");
     eprintln!(
-        "seed 42: {} cities, {} buildings, {} highways ({km:.0} km), {} rivers, {} bridges, {} cloud puffs, \
+        "seed 42: {} cities, {} buildings, {} highways ({km:.0} km), {} rivers ({river_km:.0} km), {} lakes \
+         ({} plunge pools), {} waterfalls ({fall_heights}), {} bridges, {} cloud puffs, \
          {land_km2:.0} km2 of land, highest ground {top:.0} m",
         plan.cities.len(),
         plan.buildings.len(),
         plan.highways.len(),
         plan.waters.rivers.len(),
+        plan.waters.lakes.list.len(),
+        plan.waters.lakes.list.iter().filter(|l| l.plunge).count(),
+        plan.waters.falls.len(),
         plan.waters.bridges.len(),
         plan.clouds.puffs.len(),
     );
     assert!(land_km2 > 300.0 && land_km2 < 1000.0, "{land_km2} km2 of land");
+    let shares = biome_shares(plan, &cfg);
+    eprintln!(
+        "seed 42 biomes (share of land): {}",
+        BIOMES
+            .iter()
+            .zip(shares)
+            .map(|(b, s)| format!("{b:?} {:.1}%", s * 100.0))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+}
+
+/// The share of the land where each biome is strongest, sampled every 160 m.
+fn biome_shares(plan: &WorldPlan, cfg: &WorldConfig) -> [f32; BIOME_COUNT] {
+    let step = 160.0;
+    let n = (cfg.world_size_m / step) as i32;
+    let mut count = [0u32; BIOME_COUNT];
+    let mut land = 0u32;
+    for iz in 0..n {
+        for ix in 0..n {
+            let p = Vec2::splat(-cfg.world_size_m * 0.5) + Vec2::new(ix as f32, iz as f32) * step;
+            let h = plan.height_at(p.x, p.y);
+            if h <= cfg.island.sea_level_m || plan.water_at(p.x, p.y).is_some() {
+                continue;
+            }
+            let slope = Vec2::new(plan.height_at(p.x + 4.0, p.y) - h, plan.height_at(p.x, p.y + 4.0) - h).length() / 4.0;
+            let b = plan.biomes.dominant(p, h, slope);
+            count[BIOMES.iter().position(|x| *x == b).unwrap_or(0)] += 1;
+            land += 1;
+        }
+    }
+    count.map(|c| c as f32 / land.max(1) as f32)
+}
+
+#[test]
+fn a_quarter_of_the_land_is_desert() {
+    // Owner, 2026-10-25: "Desert should be 1/4 the island".
+    let desert = biome_shares(seed_42(), &shipped())[5];
+    assert!((0.2..=0.3).contains(&desert), "desert is {:.1}% of the land", desert * 100.0);
 }
 
 #[test]
@@ -417,7 +473,7 @@ fn rivers_keep_clear_of_cities() {
         for p in &r.path {
             for c in &plan.cities {
                 assert!(
-                    c.rect().distance(*p) >= cfg.water.river_city_clearance_m - cfg.water.river_grid_m,
+                    c.rect().distance(*p) >= cfg.water.river_city_clearance_m - cfg.water.drainage_cell_m * 0.5,
                     "river at {p} near city {}",
                     c.id
                 );
@@ -434,7 +490,8 @@ fn a_river_centre_is_under_water_and_its_depth_is_surface_minus_ground() {
         let p = r.path[mid];
         let w = plan.water_at(p.x, p.y).expect("water at a river's centre");
         assert!((w.surface_m - w.depth_m - plan.height_at(p.x, p.y)).abs() < 1e-3);
-        assert!(w.depth_m > 2.0, "a river is deep at its centre: {}", w.depth_m);
+        // A stream's channel is as deep as it is half wide (at least 5 m wide), a river's 7 m.
+        assert!(w.depth_m > 1.0, "a river is deep at its centre: {}", w.depth_m);
     }
 }
 
@@ -615,5 +672,48 @@ fn only_the_seen_body_grows_trees_out_to_the_keep_radius() {
         far_of(other) <= cfg.urgent_radius_m + 1.0,
         "the other body's woods reach {}",
         far_of(other)
+    );
+}
+
+#[test]
+fn the_crater_wall_has_waterfalls_at_least_the_least_height() {
+    let plan = seed_42();
+    let cfg = shipped();
+    assert!(!plan.waters.falls.is_empty(), "no waterfalls");
+    for f in &plan.waters.falls {
+        assert!(
+            f.top_m - f.bottom_m >= cfg.water.fall_min_height_m,
+            "a fall of {} m",
+            f.top_m - f.bottom_m
+        );
+    }
+}
+
+#[test]
+fn a_lakes_water_stands_at_its_level() {
+    let plan = seed_42();
+    let cfg = shipped();
+    let basins = plan.waters.lakes.list.iter().filter(|l| !l.plunge).count();
+    assert!(basins as u32 <= cfg.water.lake_max_count, "{basins} basin lakes");
+    for l in &plan.waters.lakes.list {
+        let w = plan.water_at(l.centre.x, l.centre.y).expect("water at a lake's centre");
+        assert!(
+            w.surface_m >= l.level_m - 1e-3,
+            "lake at {} has its surface at {}",
+            l.level_m,
+            w.surface_m
+        );
+    }
+}
+
+#[test]
+fn the_capital_stands_inside_the_crater() {
+    let plan = seed_42();
+    let cfg = shipped();
+    let r = cfg.range.radius_m - cfg.range.half_width_m;
+    assert!(
+        plan.cities[0].centre.distance(Vec2::from(cfg.range.centre_m)) < r,
+        "capital at {}",
+        plan.cities[0].centre
     );
 }

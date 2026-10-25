@@ -504,12 +504,16 @@ fn spawn_water(
         NotShadowCaster,
         OceanFollow,
     ));
-    // Rivers: a strip along each course at its surface, tucked 2 m into the banks.
+    // Rivers: a strip along each course at its surface, tucked 2 m into the banks, gathered into
+    // one mesh per `RIVER_TILE_M` tile so the island's hundreds of streams are a few draw calls. A
+    // segment inside a lake is not drawn (the lake's surface is the water there), nor one down a
+    // waterfall (the falling sheet is).
+    let mut tiles: BTreeMap<(i32, i32), Ribbons> = BTreeMap::new();
     for (ri, r) in w.rivers.iter().enumerate() {
-        let mut positions = Vec::new();
-        let mut uvs = Vec::new();
-        let mut flow = Vec::new();
+        let falling = |i: usize| w.falls.iter().any(|f| f.river == ri && i >= f.lip && i < f.foot);
+        let in_lake: Vec<bool> = r.path.iter().map(|p| w.lakes.at(*p).is_some()).collect();
         let mut along = 0.0;
+        let mut edges = Vec::with_capacity(r.path.len());
         for i in 0..r.path.len() {
             let p = r.path[i];
             let d = if i + 1 < r.path.len() {
@@ -518,37 +522,78 @@ fn spawn_water(
                 p - r.path[i - 1]
             }
             .normalize_or(Vec2::X);
-            let side = d.perp() * (r.half_width_m[i] + 2.0);
             if i > 0 {
                 along += p.distance(r.path[i - 1]);
             }
-            for k in [-1.0f32, 1.0] {
-                let q = p + side * k;
-                positions.push([q.x, r.surface_m[i], q.y]);
-                uvs.push([k * r.half_width_m[i] / 12.0, along / 24.0]);
-                // The water's flow, for the water material (rg, metres a second).
-                flow.push([d.x * w.flow_m_s, d.y * w.flow_m_s, 0.0, 1.0]);
-            }
+            let side = d.perp() * (r.half_width_m[i] + 2.0);
+            edges.push((p - side, p + side, d, along));
         }
-        let mut indices = Vec::new();
-        for i in 0..r.path.len() as u32 - 1 {
-            let (a, b, c, d) = (2 * i, 2 * i + 1, 2 * i + 2, 2 * i + 3);
-            indices.extend_from_slice(&[a, b, c, b, d, c]);
+        for i in 0..r.path.len() - 1 {
+            if (in_lake[i] && in_lake[i + 1]) || falling(i) {
+                continue;
+            }
+            let mid = (r.path[i] + r.path[i + 1]) * 0.5;
+            let key = ((mid.x / RIVER_TILE_M).floor() as i32, (mid.y / RIVER_TILE_M).floor() as i32);
+            let rb = tiles.entry(key).or_default();
+            let base = rb.positions.len() as u32;
+            for k in [i, i + 1] {
+                let (l, rt, d, at) = edges[k];
+                for (q, u) in [(l, -1.0f32), (rt, 1.0)] {
+                    rb.positions.push([q.x, r.surface_m[k], q.y]);
+                    rb.uvs.push([u * r.half_width_m[k] / 12.0, at / 24.0]);
+                    // The water's flow, for the water material (rg, metres a second).
+                    rb.flow.push([d.x * w.flow_m_s, d.y * w.flow_m_s, 0.0, 1.0]);
+                }
+            }
+            rb.indices
+                .extend_from_slice(&[base, base + 1, base + 2, base + 1, base + 3, base + 2]);
+        }
+    }
+    for ((tx, tz), rb) in tiles {
+        let n = rb.positions.len();
+        let mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, rb.positions)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 1.0, 0.0]; n])
+            .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, rb.uvs)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, rb.flow)
+            .with_inserted_indices(Indices::U32(rb.indices));
+        commands.spawn((
+            Name::new(format!("rivers {tx},{tz}")),
+            Mesh3d(meshes.add(mesh)),
+            MeshMaterial3d(water.clone()),
+            NotShadowCaster,
+        ));
+    }
+    // Lakes: a still surface at the lake's level out to 3 m past its shore, where the raised bank
+    // hides its edge (the shore's outline is `Lakes::outline_m`, the same rule the carve uses).
+    for (li, l) in w.lakes.list.iter().enumerate() {
+        let rays = 96;
+        let mut positions = vec![[l.centre.x, l.level_m, l.centre.y]];
+        for k in 0..rays {
+            let a = k as f32 / rays as f32 * std::f32::consts::TAU;
+            let q = l.centre + Vec2::new(a.cos(), a.sin()) * w.lakes.outline_m(li, a, 3.0);
+            positions.push([q.x, l.level_m, q.y]);
+        }
+        let uvs: Vec<[f32; 2]> = positions.iter().map(|p| [p[0] / RIPPLE_TILE_M, p[2] / RIPPLE_TILE_M]).collect();
+        let mut indices = Vec::with_capacity(rays * 3);
+        for k in 0..rays as u32 {
+            // Wound to face up: centre, next, this (angles run from +x toward +z).
+            indices.extend_from_slice(&[0, 1 + (k + 1) % rays as u32, 1 + k]);
         }
         let n = positions.len();
         let mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
             .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
             .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 1.0, 0.0]; n])
             .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
-            .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, flow)
             .with_inserted_indices(Indices::U32(indices));
         commands.spawn((
-            Name::new(format!("river {ri}")),
+            Name::new(format!("lake {li}")),
             Mesh3d(meshes.add(mesh)),
             MeshMaterial3d(water.clone()),
             NotShadowCaster,
         ));
     }
+    spawn_falls(&mut commands, &plan, &mut meshes, &mut materials);
     // Bridges: a deck and two piers (placeholder boxes until a blender-csg-levels model).
     let concrete = materials.add(StandardMaterial {
         base_color: Color::srgb(0.58, 0.57, 0.54),
@@ -578,6 +623,97 @@ fn spawn_water(
                     .with_scale(Vec3::new(b.width_m * 0.6, h, 2.5)),
             ));
         }
+    }
+}
+
+/// River strips are gathered into one mesh per tile this many metres square.
+const RIVER_TILE_M: f32 = 4096.0;
+
+/// One tile's river strips, being built.
+#[derive(Default)]
+struct Ribbons {
+    positions: Vec<[f32; 3]>,
+    uvs: Vec<[f32; 2]>,
+    flow: Vec<[f32; 4]>,
+    indices: Vec<u32>,
+}
+
+/// Gravity for the falling water's arc, metres a second squared.
+const GRAVITY_M_S2: f32 = 9.81;
+
+/// Waterfalls (openspec change `hydrology`): a sheet of water leaving each lip at the river's flow
+/// speed and falling on gravity's arc, never through the cliff face behind it, to the plunge
+/// pool's surface, with foam where it lands.
+fn spawn_falls(commands: &mut Commands, plan: &Plan, meshes: &mut Assets<Mesh>, materials: &mut Assets<StandardMaterial>) {
+    let w = &plan.waters;
+    if w.falls.is_empty() {
+        return;
+    }
+    let sheet = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.86, 0.91, 0.95, 0.8),
+        alpha_mode: AlphaMode::Blend,
+        perceptual_roughness: 0.35,
+        cull_mode: None,
+        double_sided: true,
+        ..default()
+    });
+    let foam = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.95, 0.97, 0.98, 0.7),
+        alpha_mode: AlphaMode::Blend,
+        perceptual_roughness: 0.9,
+        ..default()
+    });
+    let disc = meshes.add(Circle::new(1.0));
+    for (fi, f) in w.falls.iter().enumerate() {
+        let lip = w.rivers[f.river].path[f.lip];
+        let side = f.along.perp();
+        let height = (f.top_m - f.bottom_m).max(0.5);
+        let fall_s = (2.0 * height / GRAVITY_M_S2).sqrt();
+        let v0 = w.flow_m_s.max(0.5);
+        let rows = 24;
+        let (mut positions, mut uvs, mut indices) = (Vec::new(), Vec::new(), Vec::new());
+        let mut landing = lip;
+        for k in 0..=rows {
+            let t = fall_s * k as f32 / rows as f32;
+            let c = lip + f.along * v0 * t;
+            let ground = plan.terrain.height_at(c.x, c.y);
+            let y = (f.top_m - 0.5 * GRAVITY_M_S2 * t * t)
+                .max(ground + 0.4)
+                .min(f.top_m)
+                .max(f.bottom_m);
+            let hw = f.half_width_m * (1.0 + 0.3 * k as f32 / rows as f32);
+            for s in [-1.0f32, 1.0] {
+                let q = c + side * hw * s;
+                positions.push([q.x, y, q.y]);
+                uvs.push([s * 0.5 + 0.5, (f.top_m - y) / 8.0]);
+            }
+            landing = c;
+        }
+        for k in 0..rows as u32 {
+            let a = 2 * k;
+            indices.extend_from_slice(&[a, a + 1, a + 2, a + 1, a + 3, a + 2]);
+        }
+        let n = positions.len();
+        let mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[-f.along.x, 0.0, -f.along.y]; n])
+            .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+            .with_inserted_indices(Indices::U32(indices));
+        commands.spawn((
+            Name::new(format!("waterfall {fi}")),
+            Mesh3d(meshes.add(mesh)),
+            MeshMaterial3d(sheet.clone()),
+            NotShadowCaster,
+        ));
+        commands.spawn((
+            Name::new(format!("waterfall {fi} foam")),
+            Mesh3d(disc.clone()),
+            MeshMaterial3d(foam.clone()),
+            Transform::from_xyz(landing.x, f.bottom_m + 0.25, landing.y)
+                .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
+                .with_scale(Vec3::splat(f.half_width_m * 1.8)),
+            NotShadowCaster,
+        ));
     }
 }
 

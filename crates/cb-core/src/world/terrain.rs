@@ -1,5 +1,6 @@
 //! The ground: an island of seeded hills falling to a sea floor (openspec change `island-world`),
-//! shaped flat under cities and highways and carved by rivers. `height_at` is the one ground query:
+//! with a crater of mountains round its middle and their cliff bands (`hydrology`), shaped flat under cities and highways and
+//! carved by rivers and lakes. `height_at` is the one ground query:
 //! the drawn chunks at every level of detail, the colliders, the pilot's feet and the mech's root
 //! all read it (procgen-world design section 3).
 //!
@@ -8,7 +9,7 @@
 //! stored heights (105 MB); asking costs about a third of a microsecond a sample instead
 //! (island-world design section 2).
 
-use super::config::{IslandConfig, WorldConfig};
+use super::config::{IslandConfig, RangeConfig, WorldConfig};
 use super::layout::{City, Highway, Rect};
 use super::water::Channels;
 use crate::rng::SimRng;
@@ -26,6 +27,9 @@ pub struct Shape {
     hills_persistence: f32,
     island: IslandConfig,
     half_world_m: f32,
+    range: RangeConfig,
+    ridges: ValueNoise,
+    warp: ValueNoise,
 }
 
 impl Shape {
@@ -42,7 +46,49 @@ impl Shape {
             hills_persistence: cfg.noise_persistence,
             island: cfg.island.clone(),
             half_world_m: cfg.world_size_m * 0.5,
+            range: cfg.range.clone(),
+            ridges: ValueNoise::new(&root.fork("range")),
+            warp: ValueNoise::new(&root.fork("range warp")),
         }
+    }
+
+    /// How much of the rim stands at `p`, 0 in a pass to 1 away from them.
+    fn unpassed(&self, p: Vec2) -> f32 {
+        let r = &self.range;
+        let q = p - Vec2::from(r.centre_m);
+        let bearing = q.x.atan2(-q.y).to_degrees();
+        r.passes_deg.iter().fold(1.0, |acc, &pass| {
+            let off = ((bearing - pass + 540.0).rem_euclid(360.0) - 180.0).abs();
+            acc * smoothstep(0.5 * r.pass_width_deg, r.pass_width_deg, off)
+        })
+    }
+
+    /// The crater range's height at `p` above the land under it: smooth ridged peaks under an
+    /// envelope round the rim's circle, with the cliff band's step on each side of it (inside, the
+    /// crater's wall), cut down to nothing in the passes.
+    pub fn range_height(&self, p: Vec2) -> f32 {
+        let r = &self.range;
+        let d = (p.distance(Vec2::from(r.centre_m)) - r.radius_m).abs();
+        if r.peak_m <= 0.0 || d > r.half_width_m + r.scarp_wobble_m.abs() + r.scarp_width_m {
+            return 0.0;
+        }
+        let wobble = r.scarp_wobble_m * self.warp.unit(p.x + 7300.0, p.y - 2100.0, 2600.0, 2, 0.5);
+        let scarp = r.scarp_m * (1.0 - smoothstep(-0.5 * r.scarp_width_m, 0.5 * r.scarp_width_m, d + wobble - r.scarp_offset_m));
+        let env = 1.0 - smoothstep(0.0, r.half_width_m, d);
+        if env <= 0.0 && scarp <= 0.0 {
+            return 0.0;
+        }
+        let q = p + Vec2::new(
+            self.warp.unit(p.x, p.y, 3800.0, 3, 0.5),
+            self.warp.unit(p.x - 9100.0, p.y + 4400.0, 3800.0, 3, 0.5),
+        ) * r.warp_m;
+        let rm = self.ridges.ridged(q.x, q.y, r.ridge_wavelength_m, r.ridge_octaves);
+        self.unpassed(p) * (env * env * r.peak_m * (0.25 + 0.75 * rm) + scarp)
+    }
+
+    /// Height of the snowline.
+    pub fn snowline_m(&self) -> f32 {
+        self.range.snowline_m
     }
 
     /// Signed distance past the land's edge at `p`: negative inland, positive out to sea, where the
@@ -68,7 +114,7 @@ impl Shape {
                 self.hills_octaves,
                 self.hills_persistence,
             );
-            i.land_height_m + i.highland_m * inland * inland + hills
+            i.land_height_m + i.highland_m * inland * inland + hills + self.range_height(p)
         } else {
             0.0
         };
@@ -416,6 +462,24 @@ impl ValueNoise {
             amp *= persistence;
         }
         sum
+    }
+
+    /// Ridged fractal noise at world `(x, z)`, 0..1: each octave folded about zero into a crest and
+    /// weighted by the one before (Musgrave), so detail gathers on the ridges and the valleys stay
+    /// smooth.
+    pub fn ridged(&self, x: f32, z: f32, wavelength_m: f32, octaves: u32) -> f32 {
+        let (mut sum, mut norm, mut amp, mut weight) = (0.0, 0.0, 0.5, 1.0);
+        let mut freq = 1.0 / wavelength_m;
+        for o in 0..octaves {
+            let mut n = 1.0 - self.octave(x * freq, z * freq, o).abs();
+            n = n * n * weight;
+            weight = (n * 2.0).clamp(0.0, 1.0);
+            sum += n * amp;
+            norm += amp;
+            amp *= 0.5;
+            freq *= 2.0;
+        }
+        sum / norm.max(1e-6)
     }
 
     /// Fractal noise scaled to -1..1 (the sum of the octaves' amplitudes is one).

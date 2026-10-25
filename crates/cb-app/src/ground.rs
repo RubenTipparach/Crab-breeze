@@ -21,7 +21,7 @@ use bevy::render::render_resource::PrimitiveTopology;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use cb_core::grass::{GrassConfig, ground_cover, slope_of_normal};
 use cb_core::world::lod::{self, Node};
-use cb_core::world::{ChunkMesh, Deformation, WorldPlan};
+use cb_core::world::{BIOME_COUNT, ChunkMesh, Deformation, WorldPlan};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
@@ -103,22 +103,52 @@ fn grass_cover(plan: &WorldPlan, grass: &GrassConfig, p: Vec3, n: Vec3, dug_m: f
     ground_cover(plan, Vec2::new(p.x, p.z), p.y, slope_of_normal(n.y), dug_m, grass)
 }
 
-/// Ground colour: grass on the level, earth on slopes, sand on the beaches, silt under the sea,
-/// mud by rivers, scorch in craters, and the grass's own colour where grass covers it (`cover`,
-/// 0..1, gpu-grass: no pale soil between the blades). Vertex colours stand in until the PBR layers
-/// of `terrain-materials` arrive.
-fn ground_colour(p: Vec3, n: Vec3, sea_level_m: f32, wet: bool, scorch: f32, cover: f32, tint: GrassTint) -> [f32; 4] {
+/// Ground colours of the biomes, in `BIOMES` order (snow, rock, montane forest floor, temperate
+/// grass, savanna, desert, beach, wetland). Stand-ins until the PBR layers of `terrain-materials`.
+const BIOME_COLOURS: [[f32; 3]; BIOME_COUNT] = [
+    [0.88, 0.9, 0.93],
+    [0.45, 0.44, 0.42],
+    [0.24, 0.32, 0.19],
+    [0.30, 0.42, 0.20],
+    [0.52, 0.48, 0.28],
+    [0.70, 0.58, 0.40],
+    [0.62, 0.57, 0.44],
+    [0.27, 0.33, 0.21],
+];
+
+/// The biome weights at a drawn vertex (the one biome rule, `Biomes::weights`).
+fn biome_at(plan: &WorldPlan, p: Vec3, n: Vec3) -> [f32; BIOME_COUNT] {
+    plan.biomes.weights(Vec2::new(p.x, p.z), p.y, slope_of_normal(n.y))
+}
+
+/// Ground colour: the biomes' colours blended by their weights (`biome`), earth on slopes, sand
+/// on the beaches, silt under the sea, mud by rivers, scorch in craters, and the grass's own colour
+/// where grass covers it (`cover`, 0..1, gpu-grass: no pale soil between the blades). Vertex
+/// colours stand in until the PBR layers of `terrain-materials` arrive.
+#[allow(clippy::too_many_arguments)]
+fn ground_colour(
+    p: Vec3,
+    n: Vec3,
+    sea_level_m: f32,
+    wet: bool,
+    scorch: f32,
+    cover: f32,
+    tint: GrassTint,
+    biome: [f32; BIOME_COUNT],
+) -> [f32; 4] {
     let slope = ((1.0 - n.y).clamp(0.0, 1.0) * 6.0).min(1.0);
     let k = (p.y * 0.05).sin() * 0.04 + ((p.x * 0.013).sin() * (p.z * 0.011).cos()) * 0.03;
-    let grass = Vec3::new(0.30 + k, 0.42 + k, 0.20);
+    let land: Vec3 = biome.iter().zip(BIOME_COLOURS).map(|(w, c)| Vec3::from(c) * *w).sum::<Vec3>() + Vec3::new(k, k, 0.0);
     let earth = Vec3::new(0.42, 0.36, 0.27);
     let mud = Vec3::new(0.27, 0.24, 0.19);
     let rock = Vec3::new(0.45, 0.44, 0.42);
     let sand = Vec3::new(0.62 + k, 0.57 + k, 0.44);
     let silt = Vec3::new(0.36, 0.34, 0.28);
-    let mut c = grass.lerp(earth, slope);
+    // Snow and bare rock keep their own colour on slopes; everything else shows earth.
+    let soil = 1.0 - biome[0] - biome[1];
+    let mut c = land.lerp(earth, slope * soil);
     if slope > 0.9 {
-        c = c.lerp(rock, 0.6);
+        c = c.lerp(rock, 0.6 * soil);
     }
     if p.y < sea_level_m - 1.5 {
         c = c.lerp(silt, 0.85);
@@ -185,7 +215,7 @@ fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, sk
                 .water_at(Vec2::new(p.x, p.z), p.y - 3.0)
                 .is_some_and(|w| w.surface_m > sea);
             let cover = grass_cover(plan, grass, *p, *n, 0.0);
-            ground_colour(*p, *n, sea, river, 0.0, cover, grass.into())
+            ground_colour(*p, *n, sea, river, 0.0, cover, grass.into(), biome_at(plan, *p, *n))
         })
         .collect();
     chunk_to_mesh(chunk, colors)
@@ -373,6 +403,7 @@ fn spawn_far_floor(
         0.0,
         0.0,
         GrassTint::default(),
+        biome_at(plan, Vec3::new(0.0, y, 0.0), Vec3::Y),
     );
     let mut b = MeshBuilder::tiled(64.0, 64.0);
     // Each strip (x0, z0)-(x1, z1), wound to face up.
@@ -475,7 +506,16 @@ fn redraw_craters(
                 .map(|(k, (p, n))| {
                     let (i, j) = (k % cb_core::world::deform::TILE_N, k / cb_core::world::deform::TILE_N);
                     let cover = grass_cover(&world, &grass, *p, *n, dug.delta_at(Vec2::new(p.x, p.z)));
-                    ground_colour(*p, *n, sea, false, dug.scorch_at(key, i, j), cover, (&*grass).into())
+                    ground_colour(
+                        *p,
+                        *n,
+                        sea,
+                        false,
+                        dug.scorch_at(key, i, j),
+                        cover,
+                        (&*grass).into(),
+                        biome_at(&world, *p, *n),
+                    )
                 })
                 .collect();
             chunk_to_mesh(tile, colors)
@@ -659,6 +699,8 @@ fn stream_ground(
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// Temperate ground alone.
+    const TEMPERATE: [f32; BIOME_COUNT] = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0];
 
     fn n(level: u32, x: u32, z: u32) -> Node {
         Node { level, x, z }
@@ -669,12 +711,12 @@ mod tests {
         let grass = GrassConfig::default();
         let tint = GrassTint::from(&grass);
         let p = Vec3::new(0.0, 20.0, 0.0);
-        let bare = ground_colour(p, Vec3::Y, 0.0, false, 0.0, 0.0, tint);
-        let full = ground_colour(p, Vec3::Y, 0.0, false, 0.0, 1.0, tint);
+        let bare = ground_colour(p, Vec3::Y, 0.0, false, 0.0, 0.0, tint, TEMPERATE);
+        let full = ground_colour(p, Vec3::Y, 0.0, false, 0.0, 1.0, tint, TEMPERATE);
         let want = Vec3::new(bare[0], bare[1], bare[2]).lerp(tint.colour, grass.ground_tint);
         assert!((Vec3::new(full[0], full[1], full[2]) - want).length() < 1e-5);
         assert_ne!(bare, full);
-        let none = ground_colour(p, Vec3::Y, 0.0, false, 0.0, 1.0, GrassTint::default());
+        let none = ground_colour(p, Vec3::Y, 0.0, false, 0.0, 1.0, GrassTint::default(), TEMPERATE);
         assert_eq!(none, bare, "no tint strength, no change");
     }
 
