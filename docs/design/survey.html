@@ -203,6 +203,16 @@ const SECTIONS = [
         options: ['A window in the middle of the front screen', 'The whole front screen', 'One of the MFDs'], rec: 0,
         why: 'You keep your full view round the window, so a flanker is not hidden while you aim, and your own eyes never zoom (the first person rule).' },
     ] },
+  { tag: 'L', name: 'Far buildings',
+    lead: 'New on 2026-10-25: every building type gets its own far look instead of the one generic tiled texture (openspec/changes/building-type-lods).',
+    qs: [
+      { id: 'L1', q: 'How should each type\'s far facade texture be made?',
+        options: ['Rendered by a tool from that type\'s own near facade pieces and textures, so far and near cannot disagree', 'A Material Maker graph per type', 'A Blender model of a bay per type, rendered'], rec: 0,
+        why: 'The near facade is generated in code; rendering the same pieces is the only way the far texture matches its colours and window rhythm exactly, and it rebuilds itself when a type changes.' },
+      { id: 'L2', q: 'Where should the detailed far shape (parapet, cornice, roof props) give way to a plain box with the type\'s facade?',
+        options: ['1.5 km', '1 km', '3 km'], rec: 0,
+        why: 'Past 1.5 km a cornice or a water tank is a pixel or two from the cockpit; the box still wears the type\'s own facade.' },
+    ] },
   { tag: 'A', name: 'Music',
     lead: 'New on 2026-10-25: the motifs and five cues, now moody cyberpunk (an edgy rebel, not a hero; Main Street deleted). Listen on the Crab Breeze Music page (https://claude.ai/artifact/17Lj37SLPpsARPqE9ZfV9C); notes and rules in docs/design/music.md, playback in openspec/changes/music.',
     qs: [

@@ -6,3 +6,4 @@
 - [ ] 2.1 Material Maker graphs and PBR sets: limestone ashlar, cast stone, precast panel, corrugated metal, granite; contact sheet
 - [ ] 2.2 Trim set with normals; `Mat::Trim` textured
 - [ ] 3.1 Stills of each type from the street and from cockpit height; measure the dressed downtown on the owner's machine
+- [ ] Each new type bakes its far look and massing recipe (`building-type-lods`; `every_building_type_has_its_far_look` passes)
