@@ -592,12 +592,15 @@ fn play_fight(
                 .iter()
                 .min_by(|a, b| a.curr.pos.distance(m.pos).total_cmp(&b.curr.pos.distance(m.pos)));
             if let Some(e) = nearest {
-                // Turn the mech on its legs to face it, the view held ahead and a little up: the
-                // seated look steered onto a point overshot and spun at two-second frames.
-                act.turn_axis = steer(m, Vec2::new(e.curr.pos.x, e.curr.pos.z));
+                // Turn to face it, the view a little up, steered gently: a bigger gain overshot
+                // and spun at two-second frames.
+                // Seated, the mech turns when the view reaches the edge of its look range
+                // (seated-look), so the view leads the turn; the legs alone do not turn at a stop.
+                let to = e.curr.pos - eye;
+                let turn = ((-to.x).atan2(-to.z) - p.yaw_rad + PI).rem_euclid(TAU) - PI;
                 // The head levels gently: the look is applied on every fixed step of a frame, so
                 // at an eighth of real time a bigger gain overshoots.
-                act.look_delta_deg = Vec2::new(0.0, (0.12 - p.pitch_rad).to_degrees() * 0.02);
+                act.look_delta_deg = Vec2::new(-turn.to_degrees() * 0.02, (0.12 - p.pitch_rad).to_degrees() * 0.02);
                 // A missile at it now and then, so missile trails are seen from the seat too.
                 act.fire_missile = t > 60.0 && t.rem_euclid(80.0) < 2.0;
             }
