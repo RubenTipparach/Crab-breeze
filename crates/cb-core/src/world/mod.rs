@@ -22,6 +22,7 @@ pub mod layout;
 pub mod lod;
 pub mod roads;
 pub mod structure;
+pub mod sun_shade;
 pub mod terrain;
 pub mod water;
 pub mod weather;
@@ -227,6 +228,8 @@ pub struct WorldPlan {
     pub clouds: Clouds,
     /// What grows where.
     pub biomes: Biomes,
+    /// The terrain's own shadow for the sun, for far ground (distant-shadows).
+    pub sun_shade: sun_shade::SunShade,
 }
 
 impl WorldPlan {
@@ -354,6 +357,7 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
     let road_flat_m = cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m;
     let channels = waters.channels(&cfg.water, &cities, cfg.plateau_flat_margin_m, &highways, road_flat_m);
     let terrain = terrain.with_channels(channels);
+    let sun_shade = sun_shade::SunShade::bake(&terrain, cfg.world_size_m, sun_shade::to_sun(), &cfg.sun_shade);
 
     let start = start_point(&cities, cfg);
     let roofs = buildings.iter().map(|b| cities[b.city as usize].ground_m + b.height_m).collect();
@@ -386,6 +390,7 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         forest: Forest::new(&root.fork("trees"), &cfg.trees, cfg.world_size_m),
         clouds,
         biomes,
+        sun_shade,
     }
 }
 

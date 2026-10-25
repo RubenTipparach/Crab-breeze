@@ -95,6 +95,8 @@ pub struct MechControls {
     pub throttle_axis: f32,
     /// Snap the lever to zero.
     pub throttle_zero: bool,
+    /// Hold the lever at this (walking controls, `walk`): `None` leaves it to the lever's keys.
+    pub throttle_set: Option<f32>,
     /// Leg turn, left positive, -1..1.
     pub turn_axis: f32,
     /// Aim change: twist right (+x) and pitch up (+y), degrees.
@@ -120,6 +122,7 @@ impl MechControls {
         Self {
             throttle_axis: a.throttle_axis,
             throttle_zero: a.throttle_zero,
+            throttle_set: None,
             turn_axis: a.turn_axis,
             aim_delta_deg: if a.free_look { Vec2::ZERO } else { a.look_delta_deg },
             mode_request: a.mode_request,
@@ -328,7 +331,10 @@ impl MechState {
         if c.throttle_zero {
             self.throttle = 0.0;
         }
-        self.throttle = (self.throttle + c.throttle_axis * loco.throttle_rate_per_s * dt_s).clamp(loco.throttle_min, 1.0);
+        self.throttle = match c.throttle_set {
+            Some(t) if t.is_finite() => t.clamp(loco.throttle_min, 1.0),
+            _ => (self.throttle + c.throttle_axis * loco.throttle_rate_per_s * dt_s).clamp(loco.throttle_min, 1.0),
+        };
 
         // Legs (or wheels) turn the heading.
         let turn_rate = match self.skates_on {
@@ -336,7 +342,10 @@ impl MechState {
             false if legs_left == 1 => loco.turn_rate_deg_s * 0.5,
             false => loco.turn_rate_deg_s,
         };
-        self.turn_rate_rad_s = c.turn_axis * turn_rate.to_radians();
+        // The turn rate eases toward what is asked at the legs' turn acceleration.
+        let want = c.turn_axis * turn_rate.to_radians();
+        let ease = loco.turn_accel_deg_s2.to_radians() * dt_s;
+        self.turn_rate_rad_s += (want - self.turn_rate_rad_s).clamp(-ease, ease);
         self.heading_rad = (self.heading_rad + self.turn_rate_rad_s * dt_s).rem_euclid(std::f32::consts::TAU);
         let fwd = flat_forward(self.heading_rad);
 

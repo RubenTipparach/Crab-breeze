@@ -235,6 +235,21 @@ impl Heightfield {
         }
     }
 
+    /// A lattice point's height as a chunk drawn at `step` shows it: the full carve at step 1, the far
+    /// carve (rivers held just under their water a coarse cell wide, `Channels::carve_far`) coarser.
+    pub(crate) fn lattice_at_step(&self, ix: i64, iz: i64, step: usize) -> f32 {
+        if step <= 1 {
+            return self.lattice(ix, iz);
+        }
+        let p = self.lattice_xz(ix, iz);
+        let h = self.flats.apply(p, self.shape.height(p));
+        match &self.channels {
+            // A cell and a half: every corner of a coarse cell holding the water is in the band.
+            Some(c) => c.carve_far(p, h, 1.5 * step as f32 * self.cell_m),
+            None => h,
+        }
+    }
+
     /// Ground height at world `(x, z)`, on the same two triangles per cell the full-detail mesh
     /// draws: the cell is split along its (0,0)-(1,1) diagonal. Past the world's edge the ground
     /// goes on (the open sea floor). A non-finite position reads zero.
@@ -292,7 +307,7 @@ impl Heightfield {
             for i in 0..bw {
                 let ix = x0 as i64 + (i as i64 - 1) * step as i64;
                 let iz = z0 as i64 + (j as i64 - 1) * step as i64;
-                grid.push(self.lattice(ix, iz));
+                grid.push(self.lattice_at_step(ix, iz, step));
             }
         }
         let at = |i: usize, j: usize| grid[(j + 1) * bw + i + 1];

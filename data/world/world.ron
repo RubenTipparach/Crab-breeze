@@ -72,6 +72,19 @@
     highway_width_m: 28.0,
     highway_flat_margin_m: 12.0,
     highway_blend_m: 60.0,
+    // The sun's shadows (openspec/changes/distant-shadows). Far ground wears the terrain's own
+    // shadow, baked once at load on a 40 m grid, and keeps 0.55 of its colour in shade. Near the eye
+    // the live shadow maps draw everything: three cascades, the first to 40 m, out to 700 m where
+    // far ground begins (owner, 2026-10-25: "when I walk up to it within like 500m or so then it can
+    // render as normally").
+    sun_shade: (
+        cell_m: 40.0,
+        soft_m: 4.0,
+        shade_albedo: 0.55,
+        live_cascades: 3,
+        live_first_cascade_m: 40.0,
+        live_far_m: 700.0,
+    ),
     road_lift_m: 0.15,
     kerb_height_m: 0.2,
 

@@ -19,6 +19,7 @@ use crate::world::{Live, MeshBuilder};
 use bevy::light::NotShadowCaster;
 use bevy::prelude::*;
 use bevy::render::storage::ShaderBuffer;
+use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use cb_core::rng::SimRng;
 use cb_core::world::destruct::Cells;
 use cb_core::world::dressing::{self, Anchor, DressingConfig, Mat, Shape};
@@ -200,7 +201,10 @@ impl Materials {
                 self.glass
                     .get_or_insert_with(|| {
                         glasses.add(BuildingMaterial {
-                            base: bases.get(&looks.glass).cloned().unwrap_or_default(),
+                            base: StandardMaterial {
+                                depth_bias: GLASS_SORT_BIAS,
+                                ..bases.get(&looks.glass).cloned().unwrap_or_default()
+                            },
                             extension: ElementState { standing, no_ssao: 1 },
                         })
                     })
@@ -250,6 +254,13 @@ fn rooms_into(mb: &mut MeshBuilder, plan: &StoreyPlan, slot_of: impl Fn(Rest) ->
     }
 }
 
+/// Added to the glass's distance when transparent things are sorted (Bevy sorts by the mesh's
+/// box centre plus this): the windows always draw before smoke, dust and fire. One glass mesh
+/// covers a building, so sorted at its centre it drew over any smoke farther than that centre,
+/// though the smoke was in front of the window (owner, 2026-10-25: "glass not playing well with
+/// smoke"). Sort only: `ElementState::specialize` keeps it out of the depth test.
+pub const GLASS_SORT_BIAS: f32 = -1.0e6;
+
 /// Tints of the structure: columns and core walls, slabs, partitions.
 const CORE_TINT: [f32; 3] = [0.66, 0.64, 0.6];
 const SLAB_TINT: [f32; 3] = [0.56, 0.55, 0.52];
@@ -277,8 +288,13 @@ struct Dressed(HashMap<u32, Dressing>);
 #[derive(Resource, Default)]
 pub struct DressingSettled(pub bool);
 
-/// Most buildings dressed in one frame (a 60-storey tower's skin and rooms are a few milliseconds).
-const DRESS_PER_FRAME: usize = 1;
+/// Buildings whose dressing is being meshed on the async pool (`dress-off-thread`), by id: a
+/// building's dressing took 12-15 ms of the main thread, 45 ms at worst (2026-10-25 benchmark).
+#[derive(Resource, Default)]
+struct DressJobs(BTreeMap<u32, Task<Vec<(Look, Mesh)>>>);
+
+/// Most buildings being dressed at once.
+const DRESS_JOBS: usize = 4;
 
 /// A damaged building on the GPU: its frame meshes (built once) and its range in the element
 /// state buffer.
@@ -304,6 +320,7 @@ impl Plugin for BuildingsPlugin {
             .init_resource::<FramedBuildings>()
             .init_resource::<Materials>()
             .init_resource::<Dressed>()
+            .init_resource::<DressJobs>()
             .init_resource::<DressingSettled>()
             .add_systems(FixedUpdate, step_structures.in_set(SimSet::World))
             .add_systems(
@@ -622,8 +639,9 @@ fn player_xz(camera: &Query<&GlobalTransform, With<crate::pilot::PilotCamera>>) 
     camera.single().ok().map(|t| Vec2::new(t.translation().x, t.translation().z))
 }
 
-/// Dresses the buildings near the player, a few a frame, and undresses those left behind (their
-/// plain box shows again). Far buildings never get generated detail (owner, 2026-10-24: "far away
+/// Dresses the buildings near the player, nearest first and off the main thread (`dress-off-thread`:
+/// the plain box shows until the dressing is built), and undresses those left behind (their plain
+/// box shows again). Far buildings never get generated detail (owner, 2026-10-24: "far away
 /// buildings would not HAVE these generated elements"). A damaged building is dressed by
 /// `redraw_buildings`, with its own element state.
 #[allow(clippy::too_many_arguments)]
@@ -636,8 +654,7 @@ fn dress_near_player(
     cfg: Res<crate::sim::Data>,
     ents: Res<BuildingEntities>,
     camera: Query<&GlobalTransform, With<crate::pilot::PilotCamera>>,
-    mut dressed: ResMut<Dressed>,
-    mut settled: ResMut<DressingSettled>,
+    (mut dressed, mut jobs, mut settled): (ResMut<Dressed>, ResMut<DressJobs>, ResMut<DressingSettled>),
     mut shared: ResMut<Materials>,
     states: Res<BuildingStates>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -660,7 +677,11 @@ fn dress_near_player(
         .collision
         .candidates(here, cfg.dress_radius_m)
         .into_iter()
-        .filter(|&b| !dressed.0.contains_key(&b) && plan.0.buildings[b as usize].footprint.centre().distance(here) <= cfg.dress_radius_m)
+        .filter(|&b| {
+            !dressed.0.contains_key(&b)
+                && !jobs.0.contains_key(&b)
+                && plan.0.buildings[b as usize].footprint.centre().distance(here) <= cfg.dress_radius_m
+        })
         .collect();
     // Nearest first, ties by id (never hash order).
     near.sort_by(|&a, &b| {
@@ -670,14 +691,44 @@ fn dress_near_player(
         );
         da.total_cmp(&db).then(a.cmp(&b))
     });
-    settled.0 = near.len() <= DRESS_PER_FRAME;
+    let keep = cfg.dress_radius_m * 1.15;
     shared.follow(&states, &mut arrays, &mut glasses);
-    for b in near.into_iter().take(DRESS_PER_FRAME) {
+    // The dressings that are built, in id order. A building still near, standing and without a frame
+    // is dressed with them; any other result is dropped (a framed one is dressed by `redraw_buildings`).
+    let built: Vec<(u32, Vec<(Look, Mesh)>)> = jobs.0.iter_mut().filter_map(|(b, t)| check_ready(t).map(|m| (*b, m))).collect();
+    for (b, built) in built {
+        jobs.0.remove(&b);
+        let c = &live.structures.buildings[b as usize];
+        let near = plan.0.buildings[b as usize].footprint.centre().distance(here) <= keep;
+        if c.standing == 0 || c.frame.is_some() || !near || dressed.0.contains_key(&b) {
+            continue;
+        }
+        let mut parts = BTreeMap::new();
+        show_parts(
+            &mut commands,
+            &mut meshes,
+            &mut parts,
+            built,
+            |l| shared.get(l, &looks, &bases, &mut arrays, &mut glasses),
+            &format!("building {b}"),
+        );
+        dressed.0.insert(b, Dressing { parts, framed: false });
+        commands.entity(ents.0[b as usize]).insert(Visibility::Hidden);
+    }
+    let pool = AsyncComputeTaskPool::get();
+    let (mut waiting, mut framed_now) = (0, 0);
+    for b in near {
         let c = &live.structures.buildings[b as usize];
         if c.standing == 0 {
             continue;
         }
         if c.frame.is_some() {
+            // One a frame: `redraw_buildings` meshes it on the main thread.
+            if framed_now > 0 {
+                waiting += 1;
+                continue;
+            }
+            framed_now += 1;
             // Dressed with its frame's slots and its own materials when redrawn.
             dressed.0.insert(
                 b,
@@ -689,19 +740,17 @@ fn dress_near_player(
             live.dirty_buildings.push(b);
             continue;
         }
-        let mut parts = BTreeMap::new();
-        show_parts(
-            &mut commands,
-            &mut meshes,
-            &mut parts,
-            dressing_meshes(c, b, 0, &rng, cfg),
-            |l| shared.get(l, &looks, &bases, &mut arrays, &mut glasses),
-            &format!("building {b}"),
-        );
-        dressed.0.insert(b, Dressing { parts, framed: false });
-        commands.entity(ents.0[b as usize]).insert(Visibility::Hidden);
+        if jobs.0.len() >= DRESS_JOBS {
+            waiting += 1;
+            continue;
+        }
+        let (c, rng, cfg) = (c.clone(), rng.clone(), cfg.clone());
+        jobs.0.insert(b, pool.spawn(async move { dressing_meshes(&c, b, 0, &rng, &cfg) }));
     }
-    let keep = cfg.dress_radius_m * 1.15;
+    // Left behind while being dressed: the job is dropped (which cancels it).
+    jobs.0
+        .retain(|&b, _| plan.0.buildings[b as usize].footprint.centre().distance(here) <= keep);
+    settled.0 = waiting == 0 && jobs.0.is_empty();
     let mut gone: Vec<u32> = dressed
         .0
         .keys()

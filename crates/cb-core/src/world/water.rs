@@ -351,6 +351,50 @@ impl Channels {
     }
 }
 
+impl Channels {
+    /// The ground `h` at `p` as far terrain draws it, sampled `band_m` apart (one coarse cell): the
+    /// lakes as `carve` shapes them, but each river's channel held to just under its water out to
+    /// `band_m` past the water, instead of cut 7 m deep. A coarse grid then neither digs a dark notch
+    /// where one sample falls in a channel nor bridges over the water between two bank samples, so
+    /// far rivers show as water on the land (owner, 2026-10-25: "rivers misssing", "can we fix ther
+    /// river issues on the terrain?"). Near ground (step 1) keeps `carve`.
+    pub fn carve_far(&self, p: Vec2, h: f32, band_m: f32) -> f32 {
+        let h = self.lakes.shape(p, h, self.bank_slope);
+        let Some((ri, si, d, t)) = nearest(&self.rivers, &self.index, p, CARVE_REACH_M + self.max_half_width_m + band_m) else {
+            return h;
+        };
+        if self.cities.iter().any(|c| c.distance(p) <= self.city_margin_m) {
+            return h;
+        }
+        let on_road = self.highways.iter().any(|hw| hw.project(p).0 <= self.road_flat_m);
+        if on_road && !self.spans.iter().any(|(c, half)| c.distance(p) <= *half) {
+            return h;
+        }
+        let r = &self.rivers[ri];
+        let lerp = |v: &[f32]| v[si] + (v[si + 1] - v[si]) * t;
+        let (s, hw) = (lerp(&r.surface_m), lerp(&r.half_width_m));
+        // Water falls downstream: hold the ground under the lowest water within the band, so a far
+        // cell across a steep reach does not stand over the water lower down it.
+        let mut s = s;
+        for j in si + 1..r.path.len() {
+            if r.path[j].distance(p) > hw + band_m {
+                break;
+            }
+            s = s.min(r.surface_m[j]);
+        }
+        let x = (d - hw - band_m).max(0.0);
+        let target = if d < hw + band_m {
+            s - FAR_UNDER_WATER_M
+        } else {
+            s - FAR_UNDER_WATER_M + x * self.bank_slope + (x / CARVE_REACH_M).powi(2) * CARVE_RISE_M
+        };
+        h.min(target)
+    }
+}
+
+/// Far ground lies this far under a river's water, so the water is drawn over it.
+const FAR_UNDER_WATER_M: f32 = 0.3;
+
 /// The carve reaches this far past a river's water.
 const CARVE_REACH_M: f32 = 80.0;
 /// By `CARVE_REACH_M` past the water the bank stands this far above it.
