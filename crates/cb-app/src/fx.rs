@@ -556,6 +556,9 @@ fn play(
                     spawn_ring(&mut commands, &fx, &mut materials, e.at, radius_m * s, 2.8, 0.55);
                     spawn_ring(&mut commands, &fx, &mut materials, e.at, radius_m * s * 0.6, 3.6, 0.35);
                 }
+                // Lit smoke puffs (smoke-puffs): drawn by the smoke renderer, which is built on the
+                // cloud shader from main and lands with it.
+                Layer::Puffs { .. } => {}
             }
         }
     }

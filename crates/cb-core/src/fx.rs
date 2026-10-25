@@ -140,6 +140,33 @@ pub enum Layer {
         /// Final radius.
         radius_m: f32,
     },
+    /// Lit smoke puffs (openspec change `smoke-puffs`): 3D blobs lit like the clouds, each its own
+    /// draw so it sorts on its own; they grow, rise, drift and fade (`crate::smoke::Puff`).
+    Puffs {
+        /// Puffs (times the effect's density).
+        count: u32,
+        /// Starting diameter.
+        size_m: f32,
+        /// Diameter added per second.
+        grow_m_s: f32,
+        /// Speed thrown at, mean.
+        speed_m_s: f32,
+        /// Cone spread, 0 straight to 1 a hemisphere.
+        spread: f32,
+        /// Upward drift of the warm smoke.
+        rise_m_s: f32,
+        /// Lifetime.
+        life_s: f32,
+        /// Share of the life spent fading out at the end, 0..1.
+        fade: f32,
+        /// Colour, linear RGB 0..1 (lit by the scene).
+        colour: [f32; 3],
+        /// Opacity at full strength, 0..1.
+        opacity: f32,
+        /// Moved this far along the effect's direction.
+        #[serde(default)]
+        offset_m: f32,
+    },
 }
 
 impl Layer {
@@ -188,6 +215,30 @@ impl Layer {
                 finite(&f("offset_m"), *offset_m)
             }
             Layer::Ripple { radius_m } => positive(&f("radius_m"), *radius_m),
+            Layer::Puffs {
+                size_m,
+                grow_m_s,
+                speed_m_s,
+                spread,
+                rise_m_s,
+                life_s,
+                fade,
+                colour,
+                opacity,
+                offset_m,
+                ..
+            } => {
+                positive(&f("size_m"), *size_m)?;
+                finite(&f("grow_m_s"), *grow_m_s)?;
+                finite(&f("speed_m_s"), *speed_m_s)?;
+                within(&f("spread"), *spread, 0.0, 2.0)?;
+                finite(&f("rise_m_s"), *rise_m_s)?;
+                positive(&f("life_s"), *life_s)?;
+                within(&f("fade"), *fade, 0.0, 1.0)?;
+                finite3(&f("colour"), *colour)?;
+                within(&f("opacity"), *opacity, 0.0, 1.0)?;
+                finite(&f("offset_m"), *offset_m)
+            }
         }
     }
 }
@@ -427,6 +478,53 @@ mod tests {
         for name in RECIPES {
             assert!(!cfg.recipes[name].is_empty(), "{name} has no layers");
         }
+    }
+
+    #[test]
+    fn a_puffs_layer_is_validated() {
+        let good = Layer::Puffs {
+            count: 6,
+            size_m: 3.0,
+            grow_m_s: 2.0,
+            speed_m_s: 4.0,
+            spread: 0.8,
+            rise_m_s: 1.5,
+            life_s: 6.0,
+            fade: 0.4,
+            colour: [0.3, 0.3, 0.3],
+            opacity: 0.8,
+            offset_m: 0.0,
+        };
+        assert!(good.validate("x").is_ok());
+        let Layer::Puffs { .. } = good else { unreachable!() };
+        let bad = match good.clone() {
+            Layer::Puffs {
+                count,
+                size_m,
+                grow_m_s,
+                speed_m_s,
+                spread,
+                rise_m_s,
+                life_s,
+                colour,
+                offset_m,
+                ..
+            } => Layer::Puffs {
+                count,
+                size_m,
+                grow_m_s,
+                speed_m_s,
+                spread,
+                rise_m_s,
+                life_s,
+                fade: 1.5,
+                colour,
+                opacity: 0.8,
+                offset_m,
+            },
+            _ => unreachable!(),
+        };
+        assert!(bad.validate("x").unwrap_err().contains("fade"));
     }
 
     #[test]
