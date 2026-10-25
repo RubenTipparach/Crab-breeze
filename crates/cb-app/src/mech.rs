@@ -142,6 +142,12 @@ impl MechRig {
     pub fn head(&self) -> Option<Entity> {
         self.named.get("head").copied()
     }
+
+    /// The entity of a contract socket (`MUZZLE_L`, `JET_L`, `WHEEL_R`, `HATCH_entry`, `EYE_pilot`...),
+    /// for something that rides it (a sound).
+    pub fn socket(&self, name: &str) -> Option<Entity> {
+        self.sockets.get(name).copied()
+    }
 }
 
 /// Smoke and fire rising from where a part was shot off.
@@ -788,12 +794,12 @@ fn lerp_state(a: &MechState, b: &MechState, t: f32) -> MechState {
 fn drive_mech(
     fixed: Res<Time<Fixed>>,
     data: Res<Data>,
-    mut roots: Query<(Entity, &MechSim, &MechSpec, Option<&mut MechRig>), With<MechRoot>>,
+    mut roots: Query<(Entity, &MechSim, &MechSpec, Option<&mut MechRig>, Has<Piloted>), With<MechRoot>>,
     mut transforms: Query<&mut Transform>,
     wrecks: Query<(), With<Wreck>>,
 ) {
     let alpha = fixed.overstep_fraction();
-    for (root, sim, spec, rig) in &mut roots {
+    for (root, sim, spec, rig, piloted) in &mut roots {
         let s = lerp_state(&sim.prev, &sim.curr, alpha);
         let tl = &data.0.boarding;
         let t = sim.hatch_prev.t_s + (sim.hatch.t_s - sim.hatch_prev.t_s) * alpha;
@@ -842,8 +848,15 @@ fn drive_mech(
             t.translation = bind.rest_local.translation;
             if spec.name == "pelvis" {
                 let to_local = (d_parent * bind.parent_rest_model_rot).inverse();
-                t.translation += to_local * p.pelvis_offset;
-                walk_local = to_local * p.walk_offset;
+                // The piloted mech's body rides level: the stride's bob and sway would swing the
+                // cockpit round the pilot (owner, 2026-10-25: "theeres still massive sway", "int he
+                // cockpit"). Other mechs keep their stride.
+                if piloted {
+                    t.translation += to_local * (p.pelvis_offset - p.walk_offset);
+                } else {
+                    t.translation += to_local * p.pelvis_offset;
+                    walk_local = to_local * p.walk_offset;
+                }
             }
         }
         rig.walk_local = walk_local;

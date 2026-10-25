@@ -207,13 +207,10 @@ const SECTIONS = [
         why: 'You keep your full view round the window, so a flanker is not hidden while you aim, and your own eyes never zoom (the first person rule).' },
     ] },
   { tag: 'A', name: 'Music',
-    lead: 'New on 2026-10-25: the motifs and the first six cues. Listen on the Crab Breeze Music page (https://claude.ai/artifact/17Lj37SLPpsARPqE9ZfV9C); notes and rules in docs/design/music.md, playback in openspec/changes/music.',
+    lead: 'New on 2026-10-25: the motifs and five cues, now moody cyberpunk (an edgy rebel, not a hero; Main Street deleted). Listen on the Crab Breeze Music page (https://claude.ai/artifact/17Lj37SLPpsARPqE9ZfV9C); notes and rules in docs/design/music.md, playback in openspec/changes/music.',
     qs: [
-      { id: 'A1', q: 'The score is orchestral rock with 80s colours, in D minor, lifting into D major for the big moments. Is that the direction?',
-        options: ['Yes: orchestra, rock drums and guitars, a few 80s synths (as rendered)', 'More 80s: synth-led, the orchestra in support', 'Pure orchestra, no rock band', 'Heavier: industrial and metal'], rec: 0,
-        why: 'It matches Ace Combat\'s hybrid and the 1980s industrial setting, and every cue already works this way.' },
       { id: 'A2', q: 'How should the music follow the fight?',
-        options: ['One cue per game state (on foot, combat, set piece, won), switching on the bar with a one-bar crossfade', 'Layered stems that rise and fall with the danger inside one cue', 'Both: switching now, stems later'], rec: 0,
+        options: ['One cue per game state (title, boarding, combat, set piece, won; silent on foot), switching on the bar with a one-bar crossfade', 'Layered stems that rise and fall with the danger inside one cue', 'Both: switching now, stems later'], rec: 0,
         why: 'Switching on the bar sounds composed and needs nothing beyond the OGG files we have; stems cost a render per layer per cue.' },
       { id: 'A3', q: 'Where is the music heard from the cockpit?',
         options: ['Over everything, like a film score; it ducks under the radio and alarms', 'Only through the cockpit radio, as if broadcast', 'Score outside the mech, radio inside it'], rec: 0,
@@ -222,6 +219,7 @@ const SECTIONS = [
 ];
 
 const DECIDED = [
+  { text: 'A1 The score is moody, edgy rebel cyberpunk: "music sucks, electronic, scifi futuristic please!", then "Main street sucks delete it. Theme sucks..I want some thing moody,more cyber punk themed", then "It\'s too cherry and heroic. I want to feel like an edgy rebel" (2026-10-25). A snarling riff, a sinking hook, half-time drums, rain; no town theme, no triumphant major chord.', where: 'CLAUDE.md section 1, docs/design/music.md, music/*.strudel' },
   { text: 'W12 Buildings fall the simpler way: pieces break, and a building falls when its ground floor is mostly gone (your pick), and: "whatever looks cool and is EFFICIENT, might ve already been implemented in another branch". W13 rubble, W15 the warning before a column gives and W18 brick above 6 storeys: "see W12".', where: 'openspec/changes/structural-destruction, rubble, building-variety (open questions: measure the structural model already on building-research against the simpler one before choosing)' },
   { text: 'W14 Building textures: Material Maker for brick, concrete and roofing; modelled bays rendered face-on for facades, trims and far facades (your pick).', where: 'openspec/changes/building-generation' },
   { text: 'W19 The visible sky: "nah just whatever sky like is fine". The HDRI stays in the reflections; the scattering sky from main is what you see.', where: 'openspec/changes/glass-reflections (GR1, GR2)' },

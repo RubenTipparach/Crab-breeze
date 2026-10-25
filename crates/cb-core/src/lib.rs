@@ -6,6 +6,7 @@
 //! `cb-app` adapts it to Bevy.
 
 pub mod ai;
+pub mod audio;
 pub mod battle_fx;
 pub mod boarding;
 pub mod career;
@@ -74,6 +75,8 @@ pub struct GameData {
     pub units: units::UnitsConfig,
     /// `data/enemies/skins.ron`.
     pub skins: skins::Skins,
+    /// `data/audio/cues.ron`, `music.ron` and `ambience.ron`.
+    pub audio: audio::AudioData,
 }
 
 impl GameData {
@@ -131,6 +134,11 @@ impl GameData {
             sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
             units: data::load_ron(&root.join("world/units.ron"))?,
             skins,
+            audio: audio::AudioData {
+                cues: data::load_ron(&root.join("audio/cues.ron"))?,
+                music: data::load_ron(&root.join("audio/music.ron"))?,
+                ambience: data::load_ron(&root.join("audio/ambience.ron"))?,
+            },
         })
     }
 
