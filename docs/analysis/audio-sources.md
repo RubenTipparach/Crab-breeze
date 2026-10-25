@@ -58,7 +58,7 @@ engines from a Sonniss bundle.
 
 ## Recorded CC0 replacements (owner, 2026-10-25: "can you not pull from cc0 sound fx?")
 
-**Done for 28 of 36 cues (2026-10-25).** The owner opened the network to opengameart.org,
+**Done for 30 of 36 cues (2026-10-25).** The owner opened the network to opengameart.org,
 kenney.nl and archive.org. `tools/audio/fetch_cc0.py` downloads the packs listed in
 `tools/audio/cc0_packs.json` into `/opt/sfx-src` (not committed) and reads each OpenGameArt page's
 licence field, refusing a pack without a CC0 option: Robotic Transformations and Misc/menu sci-fi
@@ -66,8 +66,8 @@ sounds were refused that way, though GodotFall lists them as CC0. `tools/audio/c
 recorded cue to the spec in `tools/audio/cc0_cues.json` (layers with start, length, which shot of a
 take, tape-speed pitch, gain, steep filters and fades, plus our synthesised layers where a recording
 lacks weight) and writes `assets/audio/sfx/SOURCES.md`, which names every original. Synthesised
-still (8): lock_tone, lock_on, heat_lock, alarm_warning, radar_ping and systems_boot (no CC0 recording
-beat the tones), hatch_motor and foot_splash (no fitting pack fetched yet).
+still (6): lock_tone, lock_on, heat_lock, alarm_warning, radar_ping and systems_boot, the cockpit
+tones, kept soft and low at -14 to -16 dBFS on the owner's notes ("too much", "more subtle").
 
 **Still refused by the network.** archive.org's pages load but its files come from storage hosts
 (`dn*.ca.archive.org`, `ia*.us.archive.org`), so the NASA launch recordings below need

@@ -571,14 +571,16 @@ def heat_lock(r):
     return out
 
 
-@sound("alarm_warning", "Cockpit", "Damage warning: a rising electronic whoop.")
+@sound("alarm_warning", "Cockpit", "Damage warning: a soft, low rising tone, twice, under the fight rather than over it.", peak_db=-16)
 def alarm_warning(r):
-    n = int(1.2 * SR)
+    n = int(1.4 * SR)
     out = np.zeros(n)
     for k in range(2):
         b = int(0.5 * SR)
-        out += at(saw(sweep(500, 1300, b, 0.8)) * adsr(b, 0.02, 0.05, 0.9, 0.05) * 0.45, k * 0.6, n)
-    return onepole_lp(out, 5000)
+        f = sweep(330, 520, b, 0.8)
+        tone = (sine(f) + 0.1 * sine(f * 2)) * adsr(b, 0.06, 0.05, 0.8, 0.12)
+        out += at(lp(tone, 1400, order=2), k * 0.65, n)
+    return out
 
 
 @sound("mfd_click", "Cockpit", "Pressing a cockpit button: a click and a soft confirming blip.")
@@ -606,21 +608,23 @@ def radar_ping(r):
     return mix(p, echo)
 
 
-@sound("systems_boot", "Cockpit", "The mech waking as the pilot sits: the Call Sign ('CB' in Morse) in synth beeps over a power-up sweep.")
+@sound("systems_boot", "Cockpit", "The mech waking as the pilot sits: a low power-up hum and the Call Sign ('CB' in Morse) in soft beeps.", peak_db=-16)
 def systems_boot(r):
     n = int(2.6 * SR)
-    sweep_up = onepole_lp(saw(sweep(40, 220, n, 0.7)) * 0.3, sweep(200, 4000, n, 0.8)) * adsr(n, 0.8, 0.3, 0.4, 1.0)
+    f = sweep(45, 110, n, 0.7)
+    hum = lp(sine(f) + 0.3 * sine(f * 2) + 0.1 * sine(f * 3), 600, order=2) * adsr(n, 0.9, 0.3, 0.5, 0.9) * 0.8
     beeps = np.zeros(n)
     unit = 0.075   # one Morse unit, s
     t = 0.7
-    for letter, pitch in (("-.-.", 880.0), ("-...", 587.33)):
+    for letter, pitch in (("-.-.", 587.33), ("-...", 440.0)):
         for sym in letter:
             d = unit * (3 if sym == "-" else 1)
             b = int(d * SR)
-            beeps += at(onepole_lp(square(np.full(b, pitch), 0.5), 5000) * adsr(b, 0.003, 0.01, 0.8, 0.01) * 0.35, t, n)
+            tone = (sine(np.full(b, pitch)) + 0.08 * sine(np.full(b, 2 * pitch))) * adsr(b, 0.008, 0.01, 0.8, 0.02)
+            beeps += at(lp(tone, 1500, order=2) * 0.35, t, n)
             t += d + unit
         t += unit * 2
-    return mix(sweep_up, beeps)
+    return mix(hum, beeps)
 
 
 # ---------------------------------------------------------------- output
