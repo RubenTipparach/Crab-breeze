@@ -1652,8 +1652,10 @@ fn stunt(m: &MechState, plan: &Plan, player: Vec3, axis: &mut Option<Vec2>, t_s:
     let me = Vec2::new(m.pos.x, m.pos.z);
     let home = Vec2::new(player.x, player.z);
     let axis = *axis.get_or_insert_with(|| (me - home).normalize_or(Vec2::NEG_Y));
-    // Toward the player for 12 s, then away for 12 s.
-    let goal = home + axis * if t_s.rem_euclid(24.0) < 12.0 { 120.0 } else { 400.0 };
+    // Toward the player for 12 s, then away for 12 s; `CB_ENEMY_STUNT=hover` holds it 120 m out, 40 m
+    // up, so its jets and the column of smoke under it are in plain view.
+    let hold = std::env::var("CB_ENEMY_STUNT").is_ok_and(|v| v == "hover");
+    let goal = home + axis * if hold || t_s.rem_euclid(24.0) < 12.0 { 120.0 } else { 400.0 };
     let to = goal - me;
     let want = (-to.x).atan2(-to.y);
     let off = (want - m.heading_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
@@ -1662,12 +1664,16 @@ fn stunt(m: &MechState, plan: &Plan, player: Vec3, axis: &mut Option<Vec2>, t_s:
         skate_toggle: !m.skates_on,
         turn_axis: (off * 2.0).clamp(-1.0, 1.0),
         view_yaw_rad: want,
-        lift_axis: if agl < 30.0 {
+        lift_axis: if agl < if hold { 40.0 } else { 30.0 } {
             1.0
         } else {
             (0.175 - m.vel_y_m_s * 0.025).clamp(0.0, 1.0)
         },
-        move_xy: if m.airborne() { Vec2::new(0.0, 1.0) } else { Vec2::ZERO },
+        move_xy: if m.airborne() && !(hold && to.length() < 20.0) {
+            Vec2::new(0.0, 1.0)
+        } else {
+            Vec2::ZERO
+        },
         throttle_set: Some(1.0),
         ..default()
     })
