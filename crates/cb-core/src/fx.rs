@@ -236,6 +236,11 @@ pub struct FxConfig {
     /// four times as far for an explosion): every burst is an effect of its own on the GPU side,
     /// and those far off cost about 2 ms of a combat frame while barely showing (2026-10-24).
     pub burst_range_m: f32,
+    /// Recipes whose blended bursts each get a sprite of their own, so bevy_hanabi draws them
+    /// apart, each in a stable order, instead of merging them into one draw whose particles reorder
+    /// every frame: big translucent clouds (explosion smoke, collapse dust) flickered merged (owner,
+    /// 2026-10-25: "this smoke here is reall flickery still"). Each costs its own draw.
+    pub sorted: Vec<String>,
 }
 
 /// How blasts nearby shake the view (owner, 2026-10-24: "screen needs to shake a bit when
@@ -302,6 +307,7 @@ impl Default for FxConfig {
             shake: ShakeConfig::default(),
             stream_per_s: BTreeMap::new(),
             burst_range_m: 400.0,
+            sorted: vec!["explosion_ground".into(), "explosion_air".into(), "explosion_water".into()],
         }
     }
 }
@@ -339,6 +345,11 @@ impl Validate for FxConfig {
                 l.validate(&format!("recipes.{name}[{i}]"))?;
             }
         }
+        for name in &self.sorted {
+            if !self.recipes.contains_key(name) {
+                return Err(format!("`sorted` names no recipe: {name}"));
+            }
+        }
         Ok(())
     }
 }
@@ -374,6 +385,17 @@ mod tests {
         for name in RECIPES {
             assert!(!cfg.recipes[name].is_empty(), "{name} has no layers");
         }
+    }
+
+    #[test]
+    fn a_sorted_name_must_be_a_recipe() {
+        let cfg = FxConfig {
+            recipes: RECIPES.iter().map(|n| (n.to_string(), Vec::new())).collect(),
+            sorted: vec!["no_such_recipe".into()],
+            ..FxConfig::default()
+        };
+        let e = cfg.validate().unwrap_err();
+        assert!(e.contains("no_such_recipe"), "{e}");
     }
 
     #[test]

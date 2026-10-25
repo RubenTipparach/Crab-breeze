@@ -365,6 +365,7 @@ pub fn burst(
     dir: Vec3,
     scale: f32,
     now_s: f32,
+    sorted: bool,
 ) {
     let Some(spec) = spec_of(layer) else { return };
     if count == 0 {
@@ -379,10 +380,11 @@ pub fn burst(
     let mut props = EffectProperties::default();
     props.set("size_scale", scale.into());
     lib.live += count;
-    // Only an explosion's smoke gets a sprite of its own: per-burst sprites stop bevy_hanabi
-    // batching, and for every burst they cost about 6 ms a frame in combat (2026-10-24). The big
-    // blended clouds are what showed the wrong order.
-    let blended = !motion(spec.kind).3 && recipe.starts_with("explosion");
+    // Only the `sorted` recipes' blended layers get a sprite of their own: per-burst sprites stop
+    // bevy_hanabi batching, and for every burst they cost about 6 ms a frame in combat
+    // (2026-10-24). The big blended clouds (explosion smoke, collapse dust) are what showed the
+    // wrong order, and flickered as merged bursts came and went.
+    let blended = !motion(spec.kind).3 && sorted;
     let sprite = lib.sprite(spec.kind, blended);
     commands.spawn((
         Name::new(format!("fx {recipe}")),

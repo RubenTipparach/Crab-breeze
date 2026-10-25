@@ -107,6 +107,11 @@ impl MaterialExtension for ElementState {
         if let Some(fragment) = descriptor.fragment.as_mut() {
             fragment.shader_defs.retain(|d| d != &ShaderDefVal::from("LOAD_PREPASS_NORMALS"));
         }
+        // The glass's `depth_bias` orders it among transparent things (`GLASS_SORT_BIAS`);
+        // `StandardMaterial` also makes it a GPU depth bias, which would push windows through walls.
+        if let Some(depth) = descriptor.depth_stencil.as_mut() {
+            depth.bias.constant = 0;
+        }
         Ok(())
     }
 }

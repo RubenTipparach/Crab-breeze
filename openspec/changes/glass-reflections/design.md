@@ -82,7 +82,7 @@ no pass: Bevy applies the grade in the tonemapping pass the camera already runs 
 
 | Id | Question | Recommendation | State |
 |---|---|---|---|
-| GR1 | Show the HDRI as the visible sky (a skybox) too, or keep the flat sky colour and fog? (survey W19) | Keep the flat sky for now: the fog and clouds are tuned to it, and the reflections carry the HDRI's clouds | provisional |
-| GR2 | Which sky, and one or several (time of day, weather)? (survey W19) | One midday partly cloudy sky now; a sky per mission later | provisional |
-| GR3 | Glass colour and strength (survey W20; owner, 2026-10-24: "usually glass is tinted", "so it reflects more light, and interiors appear darker than the world around it", "too transparent", "go harder on the reflections") | Mirror-coated, dark: alpha 0.92 (8 % of the room shows), coating 0.9 over a dark blue-grey tint (about 30 % head-on), each building's tint on top | provisional |
-| GR4 | Build the cached street probes (section 3) next? (survey W21; the owner's reference photos show towers mirroring the street) | Yes | open |
+| GR1 | Show the HDRI as the visible sky (a skybox) too, or keep the flat sky colour and fog? (survey W19) | Keep the flat sky for now: the fog and clouds are tuned to it, and the reflections carry the HDRI's clouds | decided (W19: "nah just whatever sky like is fine"; the scattering sky from main is the visible sky) |
+| GR2 | Which sky, and one or several (time of day, weather)? (survey W19) | One midday partly cloudy sky now; a sky per mission later | decided (W19) |
+| GR3 | Glass colour and strength (survey W20; owner, 2026-10-24: "usually glass is tinted", "so it reflects more light, and interiors appear darker than the world around it", "too transparent", "go harder on the reflections") | Mirror-coated, dark: alpha 0.92 (8 % of the room shows), coating 0.9 over a dark blue-grey tint (about 30 % head-on), each building's tint on top | decided: blue-green (W20) |
+| GR4 | Build the cached street probes (section 3) next? (survey W21; the owner's reference photos show towers mirroring the street) | Yes | decided: later (W21) |
