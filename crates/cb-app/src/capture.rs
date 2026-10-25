@@ -694,7 +694,152 @@ impl Plugin for FxStillsPlugin {
             soil: None,
             done: Vec::new(),
         })
-        .add_systems(Update, run_fx_script);
+        .add_systems(Update, (run_fx_script, run_depth_bench));
+    }
+}
+
+/// One test of the particle depth bench (openspec change `particle-depth`): a recipe, where it plays relative
+/// to the pilot (metres ahead, metres up), and whether it is a moving stream rather than a one-off.
+struct DepthTest {
+    name: &'static str,
+    recipe: &'static str,
+    ahead_m: f32,
+    up_m: f32,
+    stream: bool,
+}
+
+const DEPTH_TESTS: [DepthTest; 5] = [
+    DepthTest {
+        name: "ground-near",
+        recipe: "explosion_ground",
+        ahead_m: 15.0,
+        up_m: 0.0,
+        stream: false,
+    },
+    DepthTest {
+        name: "ground-far",
+        recipe: "explosion_ground",
+        ahead_m: 450.0,
+        up_m: 0.0,
+        stream: false,
+    },
+    DepthTest {
+        name: "trail",
+        recipe: "jet_trail",
+        ahead_m: 120.0,
+        up_m: 30.0,
+        stream: true,
+    },
+    DepthTest {
+        name: "skate",
+        recipe: "skate_dirt",
+        ahead_m: 40.0,
+        up_m: 0.5,
+        stream: true,
+    },
+    DepthTest {
+        name: "sky",
+        recipe: "explosion_air",
+        ahead_m: 300.0,
+        up_m: 300.0,
+        stream: false,
+    },
+];
+
+/// Seconds each depth test runs; stills at 0.5 s and 3 s from one heading, and at 3.5 s from 20 degrees round.
+const DEPTH_TEST_S: f32 = 4.5;
+
+/// The particle depth bench (`CB_STILLS_FX=depth`, openspec change `particle-depth`): the pilot stands by their
+/// mech and each test plays in turn in front of them; a stream test's emitter crosses the view at 30 m/s. A
+/// measurement instrument: it writes stills (`depth-<test>-<shot>.png`) and exits, and says nothing of frame time.
+#[allow(clippy::too_many_arguments)]
+fn run_depth_bench(
+    mut commands: Commands,
+    script: Res<FxScript>,
+    mut pilot: ResMut<PilotSim>,
+    access: Res<MechAccessNow>,
+    time: Res<Time>,
+    plan: Res<crate::world::Plan>,
+    mut fx: MessageWriter<crate::fx::Fx>,
+    mut streams: Query<(&mut Transform, &mut crate::fx::FxStream)>,
+    mut exit: MessageWriter<AppExit>,
+    mut state: Local<Option<(f32, usize, Vec<&'static str>, Option<Entity>)>>,
+) {
+    use cb_core::world::Ground;
+    if script.beat != usize::MAX {
+        return;
+    }
+    let now = time.elapsed_secs();
+    let (start_s, test, done, emitter) = state.get_or_insert((now, 0, Vec::new(), None));
+    let Some(home) = access.0.map(|a| a.ladder_base) else { return };
+    // Stand 20 m off the mech's ladder on the heading with the longest run of open ground (no building within
+    // 4 m of the line, out to 450 m), looking along it.
+    let clear = |p: Vec3| plan.collision.push_out_at(p.xz(), 4.0, plan.height_at(p.x, p.z)).distance(p.xz()) < 1e-3;
+    let (heading, _) = (0..32)
+        .map(|i| {
+            let a = i as f32 / 32.0 * std::f32::consts::TAU;
+            let d = Vec3::new(a.cos(), 0.0, a.sin());
+            let run = (4..=450).step_by(5).take_while(|&m| clear(home + d * m as f32)).last().unwrap_or(0);
+            (a, run)
+        })
+        .max_by_key(|&(_, run)| run)
+        .unwrap_or((0.0, 0));
+    let along = Vec3::new(heading.cos(), 0.0, heading.sin());
+    let side = Vec3::new(-along.z, 0.0, along.x);
+    let p = home + along * 20.0;
+    let feet = Vec3::new(p.x, plan.height_at(p.x, p.z), p.z);
+    let t = now - *start_s;
+    let Some(d) = DEPTH_TESTS.get(*test) else {
+        exit.write(AppExit::Success);
+        return;
+    };
+    let turn = if t > 3.2 { 20f32.to_radians() } else { 0.0 };
+    let fwd = along * turn.cos() + side * turn.sin();
+    let target = |ahead: f32| {
+        let p = feet + along * ahead;
+        Vec3::new(p.x, plan.height_at(p.x, p.z), p.z)
+    };
+    let at = target(d.ahead_m) + Vec3::Y * d.up_m;
+    stand_looking(&mut pilot, feet, feet + fwd * d.ahead_m + Vec3::Y * (at.y - feet.y + 1.7));
+    if !done.contains(&"start") {
+        done.push("start");
+        if d.stream {
+            *emitter = Some(
+                commands
+                    .spawn((
+                        Name::new("depth bench emitter"),
+                        Transform::from_translation(at - side * 60.0),
+                        crate::fx::FxStream {
+                            recipe: d.recipe,
+                            dir: Vec3::NEG_Y,
+                            on: true,
+                            density: 1.0,
+                        },
+                    ))
+                    .id(),
+            );
+        } else {
+            fx.write(crate::fx::Fx::new(d.recipe, at));
+        }
+    }
+    if let Some(Ok((mut tf, _))) = emitter.map(|e| streams.get_mut(e)) {
+        tf.translation = at + side * (t * 30.0 - 60.0);
+    }
+    for (when, shot) in [(0.5, "a"), (3.0, "b"), (3.9, "turned")] {
+        if t > when && !done.contains(&shot) {
+            done.push(shot);
+            shoot(&mut commands, &script.dir, &format!("depth-{}-{}.png", d.name, shot));
+        }
+    }
+    if t > DEPTH_TEST_S {
+        if let Some(e) = emitter.take()
+            && let Ok((_, mut s)) = streams.get_mut(e)
+        {
+            s.on = false;
+        }
+        *test += 1;
+        *start_s = now;
+        done.clear();
     }
 }
 
@@ -745,6 +890,11 @@ fn run_fx_script(
             // `CB_STILLS_FX=soil` stages the blasts on soil alone, with a still every half second.
             if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "soil") {
                 script.beat = 2;
+            }
+            // `CB_STILLS_FX=depth` is the particle depth bench (`run_depth_bench`) alone.
+            if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "depth") {
+                script.beat = usize::MAX;
+                return;
             }
             if next {
                 // The nearest live enemy to the player's mech.

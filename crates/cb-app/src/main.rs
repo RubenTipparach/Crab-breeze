@@ -17,6 +17,7 @@ mod combat;
 mod defence;
 mod demolition;
 mod fx;
+mod fx_gallery;
 mod grass;
 mod ground;
 mod ground_marks;
@@ -44,6 +45,7 @@ mod showcase;
 mod sim;
 mod skins;
 mod sky_light;
+mod soft_sprites;
 mod sun_flare;
 mod targeting;
 mod textures;
@@ -110,7 +112,13 @@ fn main() -> AppExit {
     if args.start.as_deref() == Some("meadow") {
         app.insert_resource(world::StartInMeadow);
     }
-    if args.start.as_deref() == Some("overlook") {
+    // The blended smoke drawn sorted and soft (openspec change `particle-depth`).
+    app.add_plugins(soft_sprites::SoftSpritesPlugin);
+    if args.start.as_deref() == Some("fx") {
+        app.add_plugins(fx_gallery::FxGalleryPlugin);
+    }
+    // The gallery stands on the overlook's rise, so its rows are seen from above the grass.
+    if matches!(args.start.as_deref(), Some("overlook") | Some("fx")) {
         app.insert_resource(world::StartOnOverlook);
     }
     app.add_plugins((
@@ -177,7 +185,7 @@ fn main() -> AppExit {
         app.insert_resource(defence::Defending)
             .init_resource::<defence::DefenceRun>()
             .insert_resource(menu::Play::Defence);
-    } else if scripted || args.mission.is_some() {
+    } else if scripted || args.mission.is_some() || args.start.as_deref() == Some("fx") {
         app.insert_resource(menu::Play::FreeRoam);
     } else {
         app.insert_resource(menu::TitleWanted);

@@ -1751,7 +1751,7 @@ fn cockpit_layer(
 
 /// The booster flame while boosting: a stream on each jet socket (`FxStream`), switched with the
 /// boost.
-/// A jet socket's smoke trail: the child entity streaming `jet_trail` (two minutes long), kept apart
+/// A jet socket's smoke trail: the child entity streaming `jet_trail`, kept apart
 /// from the socket's own flame stream so each has its own rate.
 #[derive(Component)]
 struct JetTrail(Entity);

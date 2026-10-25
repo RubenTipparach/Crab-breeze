@@ -259,10 +259,24 @@ fn attach_streams(
                 continue;
             };
             let rate = count as f32 * per_s * s.density.max(0.0);
+            let dir = if along_dir { s.dir.normalize_or(Vec3::Y) } else { Vec3::Y };
+            if let Some(spec) = particles::spec_of(layer).filter(|b| crate::soft_sprites::soft(b.kind)) {
+                let mut emitter = crate::soft_sprites::SoftEmitter::new(spec.soft(), rate);
+                emitter.on = s.on;
+                let kid = commands
+                    .spawn((
+                        Name::new(format!("fx soft stream {}", s.recipe)),
+                        emitter,
+                        Transform::from_translation(dir * offset_m).with_rotation(Quat::from_rotation_arc(Vec3::Y, dir)),
+                        ChildOf(e),
+                    ))
+                    .id();
+                kids.push(kid);
+                continue;
+            }
             let Some(effect) = particles::stream(&mut lib, &mut effects, s.recipe, i, layer, rate) else {
                 continue;
             };
-            let dir = if along_dir { s.dir.normalize_or(Vec3::Y) } else { Vec3::Y };
             let kid = commands
                 .spawn((
                     Name::new(format!("fx stream {}", s.recipe)),
@@ -277,13 +291,22 @@ fn attach_streams(
     }
 }
 
-fn switch_streams(streams: Query<(&FxStream, &StreamEmitters)>, mut spawners: Query<&mut EffectSpawner>) {
+fn switch_streams(
+    streams: Query<(&FxStream, &StreamEmitters)>,
+    mut spawners: Query<&mut EffectSpawner>,
+    mut soft: Query<&mut crate::soft_sprites::SoftEmitter>,
+) {
     for (s, kids) in &streams {
         for k in &kids.0 {
             if let Ok(mut sp) = spawners.get_mut(*k)
                 && sp.active != s.on
             {
                 sp.active = s.on;
+            }
+            if let Ok(mut sp) = soft.get_mut(*k)
+                && sp.on != s.on
+            {
+                sp.on = s.on;
             }
         }
     }
@@ -337,6 +360,7 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     mut lib: ResMut<ParticleLibrary>,
     data: Res<crate::sim::Data>,
+    mut soft_materials: ResMut<Assets<crate::soft_sprites::SoftMaterial>>,
 ) {
     let disc = soft_disc(&mut images);
     let ripple = ripple_crests(&mut images);
@@ -361,6 +385,9 @@ fn setup(
             particles::set_sheet(&mut lib, name, img, &mut images);
         }
     }
+    let smoke = lib.sheet_image("smoke_puffs").unwrap_or_else(|| disc.clone());
+    let dust = lib.sheet_image("dust_wisps").unwrap_or_else(|| disc.clone());
+    crate::soft_sprites::make_draw(&mut commands, &mut meshes, &mut soft_materials, smoke, dust, data.0.fx.soft_m);
     commands.insert_resource(FxAssets {
         quad: meshes.add(Rectangle::new(1.0, 1.0)),
         sphere: meshes.add(Sphere::new(1.0).mesh().uv(32, 16)),
@@ -387,6 +414,7 @@ fn play(
     fireballs: Query<(), With<Fireball>>,
     camera: Query<&GlobalTransform, With<PilotCamera>>,
     ready: Res<crate::loading::GameReady>,
+    mut soft: ResMut<crate::soft_sprites::SoftSprites>,
 ) {
     let _t = crate::perf_hud::slow("play");
     let eye = camera.single().map(|g| g.translation()).ok();
@@ -432,6 +460,11 @@ fn play(
                     room -= n;
                     let dir = if along_dir { e.dir } else { Vec3::Y };
                     let at = e.at + e.dir * offset_m * s;
+                    // The blended smoke kinds are drawn sorted and soft (`soft_sprites`).
+                    if let Some(spec) = particles::spec_of(layer).filter(|b| crate::soft_sprites::soft(b.kind)) {
+                        soft.emit(spec.soft(), n, at, dir, s);
+                        continue;
+                    }
                     particles::burst(
                         &mut commands,
                         &mut lib,
@@ -653,7 +686,14 @@ fn draw_shots(
     mut rng: ResMut<Rand>,
     mut lib: ResMut<ParticleLibrary>,
     mut effects: ResMut<Assets<EffectAsset>>,
-    mut trails: Query<(&mut Transform, Option<&mut EffectSpawner>), (Without<Tracer>, Without<Motor>, Without<RocketPlume>)>,
+    mut trails: Query<
+        (
+            &mut Transform,
+            Option<&mut EffectSpawner>,
+            Option<&mut crate::soft_sprites::SoftEmitter>,
+        ),
+        (Without<Tracer>, Without<Motor>, Without<RocketPlume>),
+    >,
 ) {
     let cfg = &data.0.fx;
     // A rocket lays a smoke puff every `trail_spacing_m` at about 240 m/s.
@@ -691,13 +731,19 @@ fn draw_shots(
                     ))
                     .id();
                 pools.motors.push(e);
-                let trail = cfg
-                    .recipes
-                    .get("rocket_trail")
-                    .and_then(|layers| particles::stream(&mut lib, &mut effects, "rocket_trail", 0, &layers[0], trail_rate));
+                let layer = cfg.recipes.get("rocket_trail").and_then(|layers| layers.first());
                 let mut t = commands.spawn((Name::new("rocket trail"), Transform::from_translation(pos)));
-                if let Some(effect) = trail {
-                    t.insert(effect);
+                match layer.and_then(particles::spec_of) {
+                    Some(spec) if crate::soft_sprites::soft(spec.kind) => {
+                        t.insert(crate::soft_sprites::SoftEmitter::new(spec.soft(), trail_rate));
+                    }
+                    _ => {
+                        if let Some(effect) =
+                            layer.and_then(|l| particles::stream(&mut lib, &mut effects, "rocket_trail", 0, l, trail_rate))
+                        {
+                            t.insert(effect);
+                        }
+                    }
                 }
                 pools.trails.push(t.id());
                 pools.plumes.push(
@@ -732,10 +778,13 @@ fn draw_shots(
                     );
                     *pv = Visibility::Inherited;
                 }
-                if let Some(Ok((mut tt, spawner))) = pools.trails.get(mi).map(|e| trails.get_mut(*e)) {
+                if let Some(Ok((mut tt, spawner, soft))) = pools.trails.get(mi).map(|e| trails.get_mut(*e)) {
                     tt.translation = tail;
                     if let Some(mut sp) = spawner {
                         sp.active = true;
+                    }
+                    if let Some(mut sp) = soft {
+                        sp.on = true;
                     }
                 }
             }
@@ -787,8 +836,13 @@ fn draw_shots(
         }
     }
     for e in pools.trails.iter().skip(mi) {
-        if let Ok((_, Some(mut sp))) = trails.get_mut(*e) {
-            sp.active = false;
+        if let Ok((_, spawner, soft)) = trails.get_mut(*e) {
+            if let Some(mut sp) = spawner {
+                sp.active = false;
+            }
+            if let Some(mut sp) = soft {
+                sp.on = false;
+            }
         }
     }
 }
@@ -920,7 +974,7 @@ mod tests {
         let mut world = World::new();
         let e = world
             .spawn(FxStream {
-                recipe: "jet_trail",
+                recipe: "burning",
                 dir: Vec3::NEG_Y,
                 on: true,
                 density: 1.0,
