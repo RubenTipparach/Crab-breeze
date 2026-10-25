@@ -1,6 +1,6 @@
 //! Lit smoke puffs (openspec change `smoke-puffs`; owner, 2026-10-25: "can we render smoke like
 //! that? especially stuff from explosions?", "use the new smoke trails, and make them larger and more
-//! conencted"). Each puff is a lumpy blob drawn by the cloud shader (`assets/shaders/cloud.wesl` with
+//! conencted"). Each puff is a lumpy blob drawn by the smoke shader (`assets/shaders/smoke.wesl`, with
 //! `SMOKE`) in the scene's own light, its life (`cb_core::smoke::Puff`) stepped here each frame: it
 //! grows, rises, drifts with the wind and fades. Every puff is its own entity, so the transparent pass
 //! sorts each on its own; puffs share one of a few lumpy meshes and one material per colour and
@@ -10,11 +10,11 @@
 //! along the path, each wider than the spacing, so a trail is one connected stream at any frame rate.
 //! The jets lay one while a mech lifts on its rockets; a missile lays one along its flight.
 
-use crate::clouds_render::{CloudUniform, SHADER, lump, scene_light};
 use crate::combat::Shots;
 use crate::mech::{MechRig, MechSim};
 use crate::pilot::PilotCamera;
 use crate::sim::{Data, PresentSet, SimSet};
+use crate::water_render::water_light;
 use crate::world::Plan;
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::Exposure;
@@ -22,7 +22,7 @@ use bevy::light::NotShadowCaster;
 use bevy::mesh::{Indices, MeshVertexBufferLayoutRef, PrimitiveTopology};
 use bevy::pbr::{Material, MaterialPipeline, MaterialPipelineKey, MaterialPlugin};
 use bevy::prelude::*;
-use bevy::render::render_resource::{AsBindGroup, RenderPipelineDescriptor, SpecializedMeshPipelineError};
+use bevy::render::render_resource::{AsBindGroup, RenderPipelineDescriptor, ShaderType, SpecializedMeshPipelineError};
 use bevy::shader::ShaderRef;
 use cb_core::fx::{PuffTrail, lay_along};
 use cb_core::smoke::{Puff, PuffSpec};
@@ -53,12 +53,70 @@ impl PuffAt {
     }
 }
 
+/// The smoke shader.
+const SHADER: &str = "shaders/smoke.wesl";
+
+/// How soft a puff's silhouette is, 0..1 (the clouds' `look_edge_softness` when smoke shared their
+/// blob shader).
+const EDGE_SOFTNESS: f32 = 0.45;
+
+/// The smoke material's light uniform; `CloudLight` in `smoke.wesl`, field for field.
+#[derive(Clone, Copy, Debug, Default, PartialEq, ShaderType)]
+pub struct SmokeLight {
+    /// xyz toward the sun; w how far the sun wraps round a blob (0 hard, 1 soft).
+    pub sun_dir: Vec4,
+    /// rgb the sun's light times exposure; w the silver lining's strength.
+    pub sun: Vec4,
+    /// rgb the ambient light times exposure; w the albedo (unused: each puff has its colour).
+    pub ambient: Vec4,
+    /// x, y unused (a puff's height share is its normal's), z how dark the underside is (0..1).
+    pub layer: Vec4,
+    /// x fade-in distance from the eye (m), y edge softness, z clear-air visibility (m), w unused.
+    pub fade: Vec4,
+}
+
+/// A small, stable hash of a point on the unit sphere and a puff, 0..1 (the lumps).
+fn lump(dir: Vec3, seed: u32) -> f32 {
+    let mut v = 0.0;
+    let mut amp = 0.6;
+    let mut f = 2.3;
+    for o in 0..3u32 {
+        let p = dir * f + Vec3::splat((seed.wrapping_mul(97).wrapping_add(o * 31) % 1000) as f32 * 0.37);
+        v += amp * ((p.x * 1.7 + p.y * 2.3).sin() * (p.y * 1.3 - p.z * 2.9).cos() * (p.z * 2.1 + p.x * 0.7).sin() * 0.5 + 0.5);
+        amp *= 0.5;
+        f *= 2.1;
+    }
+    v / 1.05
+}
+
+/// The scene's light as the smoke's uniform, a puff fading out within `near_fade_m` of the eye, in
+/// the clouds' look (their wrap, silver lining, albedo and base shade).
+fn scene_light(
+    data: &Data,
+    ambient: &GlobalAmbientLight,
+    sun: Option<(&DirectionalLight, &GlobalTransform)>,
+    exposure: f32,
+    near_fade_m: f32,
+) -> SmokeLight {
+    let light = water_light(sun, ambient, exposure);
+    let a = LinearRgba::from(ambient.color);
+    let amb = Vec3::new(a.red, a.green, a.blue) * ambient.brightness * exposure;
+    let c = &data.0.world.clouds;
+    SmokeLight {
+        sun_dir: light.sun_dir.extend(c.look_wrap),
+        sun: light.sun.extend(c.look_silver),
+        ambient: amb.extend(c.look_albedo),
+        layer: Vec4::new(0.0, 1.0, c.look_base_shade, 0.0),
+        fade: Vec4::new(near_fade_m, EDGE_SOFTNESS, data.0.world.view.clear_visibility_m, 0.0),
+    }
+}
+
 /// A smoke puff's material: the clouds' light, and the puff's colour and opacity step.
 #[derive(Asset, TypePath, AsBindGroup, Clone, Debug)]
 pub struct SmokeMaterial {
-    /// The scene's light, rewritten each frame (`clouds_render::scene_light`).
+    /// The scene's light, rewritten each frame (`scene_light`).
     #[uniform(0)]
-    pub light: CloudUniform,
+    pub light: SmokeLight,
     /// rgb the colour (linear), a the opacity.
     #[uniform(1)]
     pub tint: Vec4,
@@ -156,7 +214,7 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     });
 }
 
-/// A unit-diameter lumpy blob (the clouds' lumps, `clouds_render::lump`), with smooth normals.
+/// A unit-diameter lumpy blob (`lump`), with smooth normals.
 fn puff_mesh(seed: u32) -> Mesh {
     let unit = Sphere::new(1.0).mesh().ico(DETAIL).expect("an icosphere");
     let (Some(bevy::mesh::VertexAttributeValues::Float32x3(pos)), Some(Indices::U32(idx))) =
@@ -191,7 +249,7 @@ fn colour_key(c: [f32; 3]) -> [u16; 3] {
 fn material(
     smoke: &mut Smoke,
     materials: &mut Assets<SmokeMaterial>,
-    light: CloudUniform,
+    light: SmokeLight,
     colour: [f32; 3],
     level: u8,
 ) -> Handle<SmokeMaterial> {

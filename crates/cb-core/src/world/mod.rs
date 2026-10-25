@@ -17,13 +17,17 @@ pub mod forest;
 pub mod grid;
 pub mod hydrology;
 pub mod interior;
+pub mod island;
 pub mod layout;
 pub mod lod;
+pub mod mist;
 pub mod roads;
+pub mod rocks;
 pub mod structure;
 pub mod sun_shade;
 pub mod terrain;
 pub mod water;
+pub mod weather;
 
 pub use biome::{BIOME_COUNT, BIOMES, Biome, Biomes};
 pub use clouds::Clouds;
@@ -136,6 +140,7 @@ impl Ground for Scene<'_> {
     }
     fn push_out_at(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
         let p = self.push_out_buildings(p, radius_m, feet_y);
+        let p = rocks::push_out(&self.plan.rocks, p, radius_m, feet_y);
         self.trees.map_or(p, |t| t.push_out(p, radius_m))
     }
 }
@@ -149,6 +154,24 @@ impl Ground for WorldPlan {
     }
     fn water_at(&self, x: f32, z: f32) -> Option<WaterSample> {
         self.waters.water_at(Vec2::new(x, z), self.terrain.height_at(x, z))
+    }
+}
+
+/// The island as the weather sees it: the ground's height, the coast and the moisture.
+struct SkyGround<'a> {
+    terrain: &'a Heightfield,
+    biomes: &'a Biomes,
+}
+
+impl weather::WeatherGround for SkyGround<'_> {
+    fn ground_m(&self, p: Vec2) -> f32 {
+        self.terrain.height_at(p.x, p.y)
+    }
+    fn past_coast_m(&self, p: Vec2) -> f32 {
+        self.terrain.shape().past_land_edge_m(p)
+    }
+    fn moisture(&self, p: Vec2) -> f32 {
+        self.biomes.moisture(p)
     }
 }
 
@@ -208,6 +231,10 @@ pub struct WorldPlan {
     pub clouds: Clouds,
     /// What grows where.
     pub biomes: Biomes,
+    /// Sea stacks, arches and hoodoos (openspec change `rock-formations`).
+    pub rocks: Vec<rocks::Rock>,
+    /// Where mist forms (openspec change `ground-fog`).
+    pub mist: mist::MistMap,
     /// The terrain's own shadow for the sun, for far ground (distant-shadows).
     pub sun_shade: sun_shade::SunShade,
 }
@@ -269,6 +296,13 @@ impl WorldPlan {
             }
         }
         put(self.clouds.puffs.len() as f32);
+        put(self.clouds.shafts.len() as f32);
+        put(self.clouds.cirrus.len() as f32);
+        for r in &self.rocks {
+            put(r.base.x);
+            put(r.base.z);
+            put(r.scale.y);
+        }
         let mut text = String::with_capacity(words.len() * 8);
         for w in words {
             text.push_str(&w.to_string());
@@ -283,7 +317,7 @@ impl WorldPlan {
 /// grow later, by tile, near the bodies in the world (`Forest::keep_around`).
 pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
     let root = SimRng::new(seed).fork("world");
-    let shape = Shape::new(&root, cfg);
+    let shape = Shape::new(seed, cfg);
     let sea_level_m = cfg.island.sea_level_m;
 
     // Where the water goes, worked out on the island's shape before anything is built on it.
@@ -340,8 +374,29 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
     let start = start_point(&cities, cfg);
     let roofs = buildings.iter().map(|b| cities[b.city as usize].ground_m + b.height_m).collect();
     let collision = BuildingGrid::new(&buildings, cfg.world_size_m, 64.0).with_roofs(roofs);
-    let clouds = clouds::make_clouds(&root.fork("clouds"), &cfg.clouds, cfg.world_size_m);
-    let biomes = Biomes::new(&root.fork("biomes"), &cfg.biomes, sea_level_m, cfg.range.snowline_m);
+    // Swamps at the western river mouths (the island mockup's rule, on the game's own rivers).
+    let mouths = waters.rivers.iter().filter_map(|r| {
+        r.path
+            .last()
+            .copied()
+            .filter(|_| r.surface_m.last().is_some_and(|s| *s < sea_level_m + 3.0))
+    });
+    let swamps = biome::swamps_at_mouths(mouths, cfg.biomes.swamp_radius_m);
+    let biomes = Biomes::new(&cfg.biomes, terrain.shape().clone(), sea_level_m, swamps);
+    let wind = Vec2::from(cfg.clouds.wind_m_s);
+    let under = SkyGround {
+        terrain: &terrain,
+        biomes: &biomes,
+    };
+    let sky = weather::make_sky(&root.fork("clouds"), &cfg.weather, wind, &under);
+    let mist = mist::MistMap::bake(&cfg.fog, cfg, &terrain, &waters);
+    let road_clear = cfg.highway_width_m * 0.5 + 20.0;
+    let rocks = rocks::make_rocks(terrain.shape().island(), &|p| terrain.height_at(p.x, p.y), &|p| {
+        waters.water_at(p, terrain.height_at(p.x, p.y)).is_some()
+            || highways.iter().any(|h| h.project(p).0 <= road_clear)
+            || cities.iter().any(|c| c.rect().distance(p) < 60.0)
+    });
+    let clouds = Clouds::new(sky, wind, cfg.weather.shaft_rain);
     WorldPlan {
         seed,
         terrain,
@@ -355,6 +410,8 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         clouds,
         biomes,
         sun_shade,
+        rocks,
+        mist,
     }
 }
 
