@@ -499,18 +499,6 @@ fn play(
     }
 }
 
-/// The pilot's view onto a world point from the eye, as mouse motion: steered by where the head
-/// points, which leads the torso, so a slow frame does not overshoot.
-fn look_at(p: &PilotState, eye: Vec3, point: Vec3) -> Vec2 {
-    let d = point - eye;
-    let yaw = (-d.x).atan2(-d.z);
-    let turn = (yaw - p.yaw_rad + PI).rem_euclid(TAU) - PI;
-    // Held between 10 degrees down and 20 up, so the view stays on the screens when a mech passes
-    // overhead (the cabin's ceiling has none).
-    let pitch = d.y.atan2(Vec2::new(d.x, d.z).length()).clamp(-0.17, 0.35);
-    Vec2::new(-turn.to_degrees() * 0.3, (pitch - p.pitch_rad).to_degrees() * 0.3)
-}
-
 /// Torso aim onto a world point from the eye, as mouse motion.
 fn aim_at(m: &MechState, eye: Vec3, point: Vec3) -> Vec2 {
     let d = point - eye;
@@ -604,7 +592,10 @@ fn play_fight(
                 .iter()
                 .min_by(|a, b| a.curr.pos.distance(m.pos).total_cmp(&b.curr.pos.distance(m.pos)));
             if let Some(e) = nearest {
-                act.look_delta_deg = look_at(p, eye, e.curr.pos + Vec3::Y * 12.0);
+                // Turn the mech on its legs to face it, the view held ahead and a little up: the
+                // seated look steered onto a point overshot and spun at two-second frames.
+                act.turn_axis = steer(m, Vec2::new(e.curr.pos.x, e.curr.pos.z));
+                act.look_delta_deg = aim(m, 0.0, 0.08);
                 // A missile at it now and then, so missile trails are seen from the seat too.
                 act.fire_missile = t > 60.0 && t.rem_euclid(80.0) < 2.0;
             }
