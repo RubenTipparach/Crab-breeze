@@ -195,7 +195,7 @@ impl Default for StormConfig {
             shaft_share: 0.75,
             shaft_top_m: 720.0,
             shade_reach: 1.6,
-            shade: 0.6,
+            shade: 0.85,
             shade_wobble_m: 600.0,
         }
     }
@@ -248,7 +248,7 @@ impl Default for FrontConfig {
             shaft_radius_m: 2200.0,
             shade_every_m: 10000.0,
             shade_radius_m: 6000.0,
-            shade: 0.45,
+            shade: 0.6,
         }
     }
 }

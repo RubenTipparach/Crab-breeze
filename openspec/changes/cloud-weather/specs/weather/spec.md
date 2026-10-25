@@ -23,11 +23,11 @@ The sky SHALL be laid out from the seed by weather systems, each a rule that pla
 - **THEN** a tile over desert ground holds fewer clusters on average than a tile over jungle
 
 ### Requirement: The ground is darkened under a storm
-The sun reaching the ground under a storm cell or the front SHALL be cut by its shade (0.6 under a cell) where the sun's ray crosses the storm's base, back to full sun past its radius, drifting with the wind, and everything the sun lights SHALL be darkened by it.
+The sun reaching the ground under a storm cell or the front SHALL be cut by its shade (0.85 under a cell, 0.6 under the front) where the sun's ray crosses the storm's base, back to full sun past its radius, drifting with the wind, and everything the sun lights SHALL be darkened by it.
 
 #### Scenario: Under the storm's heart
 - **WHEN** the sun's share is asked at a storm cell's centre
-- **THEN** it is 0.4, and far from every storm it is 1
+- **THEN** it is 0.15, and far from every storm it is 1
 
 ### Requirement: It rains under a storm
 Below a storm's base, inside its rain shaft, the cloud query SHALL report rain, and the glass SHALL take rain as it does inside a cloud.

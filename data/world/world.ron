@@ -218,11 +218,14 @@
         wind_m_s: (6.0, 0.0),
         draw_radius_m: 20000.0,
         resort_m: 30.0,
-        look_wrap: 0.6,
+        // Owner, 2026-10-25, on the first stills: "clouds are too white, they need some shadowing on
+        // the bottom": less wrap, a darker base, and each puff shaded toward its own underside.
+        look_wrap: 0.35,
         look_silver: 1.6,
+        look_scattered: 0.2,
         look_albedo: 0.92,
         look_storm_albedo: 0.55,
-        look_base_shade: 0.4,
+        look_base_shade: 0.55,
         look_storm_base_shade: 0.85,
         look_near_fade_m: 140.0,
         look_erode: 0.62,
@@ -256,7 +259,7 @@
         // A high over the sea to the south-east: clear within 6 km, cumulus back to full by 17 km.
         high: (centre_m: (17000.0, 12000.0), clear_m: 6000.0, edge_m: 17000.0),
         // Three storm cells, all in the wet west: towers from 700 m to their tops, anvils blown 2.6
-        // km downwind, scud under slate-grey bases, a rain shaft each, the ground darkened by 60 %
+        // km downwind, scud under slate-grey bases, a rain shaft each, the ground darkened by 85 %
         // at the centre out to 1.6 x the tower's radius, its edge wandering 600 m.
         storms: (
             cells: [
@@ -273,7 +276,7 @@
             shaft_share: 0.75,
             shaft_top_m: 720.0,
             shade_reach: 1.6,
-            shade: 0.6,
+            shade: 0.85,
             shade_wobble_m: 600.0,
         ),
         // A cold front off the west coast, lying south-west to north-east, 52 km long and 8.4 km
@@ -292,7 +295,7 @@
             shaft_radius_m: 2200.0,
             shade_every_m: 10000.0,
             shade_radius_m: 6000.0,
-            shade: 0.45,
+            shade: 0.6,
         ),
         // The stratocumulus deck at sea to the north, behind the front, with breaks.
         deck: (

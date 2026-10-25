@@ -12,6 +12,9 @@
 // Lighting of a puff, per pixel:
 // - the sun wrapped round the sphere (cumulus scatter light deep into their shade side);
 // - darker toward its system's base, lighter at the tops; storm grey puffs darker still;
+// - each puff darker toward its own underside and near the system's base, which is cut flat (a
+//   cumulus has a flat, shadowed base at the condensation level);
+// - light scattered many times inside the cloud, so a puff with the sun behind it is grey, not black;
 // - a silver lining where the eye looks toward the sun through a thin edge (forward scattering);
 // - the ambient sky from above.
 //
@@ -29,7 +32,7 @@ import bevy_pbr::render::{mesh_view_bindings::fog, pbr_functions::apply_fog};
 struct CloudLight {
     sun_dir: vec4<f32>,  // xyz toward the sun; w wrap 0..1
     sun: vec4<f32>,      // rgb the sun's light times exposure; w silver lining strength
-    ambient: vec4<f32>,  // rgb the ambient light times exposure; w unused
+    ambient: vec4<f32>,  // rgb the ambient light times exposure; w light scattered inside, a share of the sun
     albedo: vec4<f32>,   // x white albedo, y storm albedo, z white base shade, w storm base shade
     fade: vec4<f32>,     // x fade-in distance from the eye m, y edge erosion, z soft depth m, w unused
 }
@@ -161,13 +164,21 @@ fn puff(in: CloudFragment, look: vec3<f32>, dist: f32) -> vec4<f32> {
     // Height through the puff's system: storm bases go slate grey, tops stay white.
     let h = clamp((in.world.y - in.layer.x) / max(in.layer.y - in.layer.x, 1.0), 0.0, 1.0);
     let base_shade = mix(cloud.albedo.z, cloud.albedo.w, dark);
-    let body = mix(1.0 - base_shade, 1.0, smoothstep(0.0, 0.7, h));
+    // Self-shadow: the puff's own underside (its lower half on screen, nudged by the billows) and
+    // the last few hundred metres above its system's base.
+    let under = smoothstep(-0.95, 0.55, p.y + (n - 0.5) * 0.4);
+    let above_base = smoothstep(0.0, 350.0, in.world.y - in.layer.x);
+    let shadow = mix(0.35, 1.0, under) * mix(0.55, 1.0, above_base);
+    let body = mix(1.0 - base_shade, 1.0, smoothstep(0.0, 0.7, h)) * shadow;
     let silver = pow(max(dot(look, sun), 0.0), 6.0) * (1.0 - z) * (1.0 - z) * cloud.sun.w;
+    let scattered = cloud.ambient.w * body;
     let albedo = mix(cloud.albedo.x, cloud.albedo.y, dark);
-    let lit = cloud.sun.rgb * (albedo / 3.14159265) * (diffuse * body + silver)
-        + cloud.ambient.rgb * albedo * mix(0.45, 1.0, h) * mix(1.0, 0.6, dark);
+    let lit = cloud.sun.rgb * (albedo / 3.14159265) * (diffuse * body + silver + scattered)
+        + cloud.ambient.rgb * albedo * mix(0.45, 1.0, h) * mix(1.0, 0.6, dark) * mix(0.5, 1.0, shadow);
     let near = smoothstep(cloud.fade.x * 0.3, cloud.fade.x, dist);
-    return vec4<f32>(lit, dens * in.look.z * near);
+    // The flat base: nothing below the system's base.
+    let floor = smoothstep(in.layer.x - 20.0, in.layer.x + 50.0, in.world.y);
+    return vec4<f32>(lit, dens * in.look.z * near * floor);
 }
 
 fn shaft(in: CloudFragment) -> vec4<f32> {
@@ -178,8 +189,8 @@ fn shaft(in: CloudFragment) -> vec4<f32> {
     let streak = 0.6 * vn(vec2<f32>(x * 22.0 + seed, in.world.y / 90.0 + t * 2.2))
         + 0.4 * vn(vec2<f32>(x * 60.0, in.world.y / 40.0 + t * 3.1));
     let body = pow(max(0.0, 1.0 - x * x), 1.5) * (0.55 + 0.45 * vn(vec2<f32>(x * 3.0 + t * 0.02, seed)));
-    let a = 0.5 * body * (0.5 + 0.5 * streak) * smoothstep(0.0, 0.12, y) * smoothstep(1.0, 0.8, y);
-    let col = cloud.ambient.rgb * vec3<f32>(0.62, 0.66, 0.72) * 0.9 + cloud.sun.rgb * (0.05 / 3.14159265);
+    let a = 0.75 * body * (0.5 + 0.5 * streak) * smoothstep(0.0, 0.12, y) * smoothstep(1.0, 0.8, y);
+    let col = cloud.ambient.rgb * vec3<f32>(0.5, 0.53, 0.58) * 0.8 + cloud.sun.rgb * (0.03 / 3.14159265);
     return vec4<f32>(col, a);
 }
 
@@ -189,10 +200,10 @@ fn cirrus(in: CloudFragment, look: vec3<f32>) -> vec4<f32> {
     let v = q.y * 0.5 + 0.5;
     let seed = in.shape.z;
     // Seen edge-on from far away a flat streak is a scratch: fade it out at grazing angles.
-    let graze = smoothstep(0.08, 0.3, abs(look.y));
-    let shape = smoothstep(1.0, 0.3, abs(q.y) + 0.25 * vn(vec2<f32>(u * 6.0 + seed, 2.0))) * smoothstep(1.0, 0.5, abs(q.x));
-    let streak = 0.6 * vn(vec2<f32>(u * 5.0 + seed, v * 9.0)) + 0.4 * vn(vec2<f32>(u * 14.0, v * 22.0 + seed));
-    let a = 0.3 * shape * smoothstep(0.3, 0.8, streak) * graze;
+    let graze = smoothstep(0.15, 0.45, abs(look.y));
+    let shape = smoothstep(1.0, 0.2, abs(q.y) + 0.35 * vn(vec2<f32>(u * 6.0 + seed, 2.0))) * smoothstep(1.0, 0.4, abs(q.x));
+    let streak = 0.6 * vn(vec2<f32>(u * 5.0 + seed, v * 4.0)) + 0.4 * vn(vec2<f32>(u * 14.0, v * 9.0 + seed));
+    let a = 0.16 * shape * smoothstep(0.35, 0.85, streak) * graze;
     let col = cloud.sun.rgb * (0.8 / 3.14159265) + cloud.ambient.rgb * 0.9;
     return vec4<f32>(col, a);
 }

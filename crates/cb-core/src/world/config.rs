@@ -443,6 +443,8 @@ pub struct CloudConfig {
     pub look_wrap: f32,
     /// The silver lining's strength toward the sun.
     pub look_silver: f32,
+    /// Light scattered many times inside a puff, a share of the sun's (so a backlit puff is grey).
+    pub look_scattered: f32,
     /// How white a white cloud is (its albedo, 0..1); a storm-grey one is `look_storm_albedo`.
     pub look_albedo: f32,
     /// The albedo of a puff at full darkness.
@@ -465,11 +467,12 @@ impl Default for CloudConfig {
             wind_m_s: [6.0, 0.0],
             draw_radius_m: 24000.0,
             resort_m: 30.0,
-            look_wrap: 0.6,
+            look_wrap: 0.35,
             look_silver: 1.6,
+            look_scattered: 0.2,
             look_albedo: 0.92,
             look_storm_albedo: 0.55,
-            look_base_shade: 0.4,
+            look_base_shade: 0.55,
             look_storm_base_shade: 0.85,
             look_near_fade_m: 140.0,
             look_erode: 0.62,
@@ -486,6 +489,7 @@ impl Validate for CloudConfig {
         positive("clouds.resort_m", self.resort_m)?;
         within("clouds.look_wrap", self.look_wrap, 0.0, 1.0)?;
         within("clouds.look_silver", self.look_silver, 0.0, 10.0)?;
+        within("clouds.look_scattered", self.look_scattered, 0.0, 2.0)?;
         within("clouds.look_albedo", self.look_albedo, 0.0, 1.0)?;
         within("clouds.look_storm_albedo", self.look_storm_albedo, 0.0, 1.0)?;
         within("clouds.look_base_shade", self.look_base_shade, 0.0, 1.0)?;

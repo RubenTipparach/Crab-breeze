@@ -738,7 +738,8 @@ fn run_fx_script(
 /// `--stills <dir>` and `CB_STILLS_WEATHER=1`, once the game is ready the pilot's eye is put at each
 /// view in turn (held there, on foot, looking at its target), the ground and the sky are given time
 /// to stream in round it, and one still is saved per view as `weather-<name>.png`; then it exits.
-/// It writes no input and plays no game. The views are the island mockup's, moved to the game's
+/// `CB_STILLS_ONLY=<name>,<name>` shoots only those views. It writes no input and plays no game.
+/// The views are the island mockup's, moved to the game's
 /// crater island; they move into a data file shared with the mockup when step 1 lands.
 pub struct WeatherStillsPlugin {
     /// Where the PNGs go.
@@ -763,11 +764,17 @@ const VIEWS: &[View] = &[
         eye: [-8000.0, 160.0, 15500.0],
         at: [-10500.0, 2600.0, 2500.0],
     },
-    // Under the storm, in its rain, looking out toward its edge.
+    // Under the storm, in its rain, looking away from the sun out toward the sea.
     View {
         name: "under-the-storm",
-        eye: [-10000.0, 3.0, 2200.0],
-        at: [-4000.0, 900.0, 2500.0],
+        eye: [-10000.0, 40.0, 2200.0],
+        at: [-16000.0, 500.0, -1500.0],
+    },
+    // The storm's shadow on the ground, from 900 m up outside it, looking down across its edge.
+    View {
+        name: "storm-shadow",
+        eye: [-3500.0, 900.0, 7500.0],
+        at: [-9000.0, 0.0, 3500.0],
     },
     // From the west coast toward the front lying off it.
     View {
@@ -814,6 +821,8 @@ struct WeatherScript {
     beat: usize,
     beat_started_s: f32,
     frames: u32,
+    /// The stills asked for, to wait for before the exit.
+    shots: Vec<PathBuf>,
 }
 
 impl Plugin for WeatherStillsPlugin {
@@ -824,6 +833,7 @@ impl Plugin for WeatherStillsPlugin {
             beat: 0,
             beat_started_s: 0.0,
             frames: 0,
+            shots: Vec::new(),
         })
         .add_systems(Update, run_weather_script);
     }
@@ -846,13 +856,21 @@ fn run_weather_script(
     if script.beat == 0 {
         next = ready.is_some_and(|r| r.0) && t > 6.0;
     } else if let Some(v) = VIEWS.get(script.beat - 1) {
+        let only = std::env::var("CB_STILLS_ONLY").unwrap_or_default();
+        if !only.is_empty() && !only.split(',').any(|n| n.trim() == v.name) {
+            script.beat += 1;
+            return;
+        }
         let ground = plan.height_at(v.eye[0], v.eye[2]).max(plan.waters.sea_level_m);
         let eye = Vec3::new(v.eye[0], ground + v.eye[1], v.eye[2]);
         // Held at the view every frame (a pilot on foot in the air would fall).
         stand_looking(&mut pilot, eye - Vec3::Y * 1.7, Vec3::from_array(v.at));
         // Time for the ground's detail, the trees and the sky to stream in round the eye.
         if t > 8.0 && script.frames > 12 {
-            shoot(&mut commands, &script.dir.clone(), &format!("weather-{}.png", v.name));
+            let name = format!("weather-{}.png", v.name);
+            shoot(&mut commands, &script.dir.clone(), &name);
+            let path = script.dir.join(name);
+            script.shots.push(path);
             println!(
                 "STILLS_WEATHER {} eye ({:.0}, {:.0}, {:.0}) cloud {:.2} rain {:.2} sun {:.2}",
                 v.name,
@@ -865,7 +883,8 @@ fn run_weather_script(
             );
             next = true;
         }
-    } else if t > 3.0 {
+    } else if script.shots.iter().all(|p| p.exists()) || t > 120.0 {
+        // Once every still is on disk (a software renderer reads a frame back slowly).
         exit.write(AppExit::Success);
     }
     if next {

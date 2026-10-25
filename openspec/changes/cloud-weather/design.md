@@ -114,6 +114,12 @@ rotation). The ground, buildings, trees, grass and mechs all darken through Bevy
 The map covers 80 km across the light; one bake, about 1 M lookups at start (logged), again only
 if the sun turns. The water's light is its own (`water_light`) and does not read it yet.
 
+Checked in the lavapipe stills: a debug checkerboard in place of the map darkened the ground in
+4 km squares, and seed 42's map holds 102/255 (0.4) at the western cell, as `sun_at` gives. At the
+mockup's 60 % the shade read weakly, because the sky's ambient light is unchanged under the storm,
+so the cut under a cell is 85 % (under the front 60 %): a cumulonimbus blocks almost all direct sun.
+The ambient under a storm staying bright is the next thing to darken.
+
 ## 3. Cost (expected; measured with `CB_NO_CLOUDS` on the owner's hardware)
 
 | Item | Fair weather | Facing a storm |
