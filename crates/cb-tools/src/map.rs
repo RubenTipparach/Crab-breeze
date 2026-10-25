@@ -6,17 +6,19 @@
 use cb_core::world::{WorldConfig, WorldPlan};
 use glam::{Vec2, Vec3};
 
-/// Map colours of the biomes, in `BIOMES` order: snow, rock, montane forest, temperate, savanna,
-/// desert, beach, wetland.
-const BIOME_COLOURS: [[f32; 3]; 8] = [
-    [0.95, 0.96, 0.98],
-    [0.5, 0.48, 0.46],
-    [0.2, 0.34, 0.22],
-    [0.38, 0.54, 0.27],
-    [0.66, 0.6, 0.34],
-    [0.86, 0.73, 0.5],
-    [0.9, 0.84, 0.64],
-    [0.3, 0.42, 0.3],
+/// Map colours of the biomes, in `BIOMES` order (the island mockup's biome map): alpine, montane
+/// forest, jungle, swamp, temperate, savanna, desert, canyon, beach, cliff.
+const BIOME_COLOURS: [[f32; 3]; 10] = [
+    [0.949, 0.957, 0.969],
+    [0.247, 0.369, 0.227],
+    [0.122, 0.290, 0.110],
+    [0.294, 0.290, 0.165],
+    [0.498, 0.627, 0.290],
+    [0.761, 0.659, 0.341],
+    [0.878, 0.659, 0.416],
+    [0.710, 0.325, 0.180],
+    [0.937, 0.878, 0.690],
+    [0.545, 0.522, 0.502],
 ];
 
 /// The plan drawn as a binary PPM of `px` x `px` pixels covering `view` (centre, span in metres; a

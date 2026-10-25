@@ -147,7 +147,8 @@ pub fn nearest_cloud(plan: &Plan, m: &MechState) -> Vec3 {
     plan.clouds
         .puffs
         .iter()
-        .filter(|c| Vec2::new(c.centre.x, c.centre.z).distance(here) > 500.0)
+        // A low cloud the rockets can reach, not a storm's anvil.
+        .filter(|c| c.centre.y < 1500.0 && Vec2::new(c.centre.x, c.centre.z).distance(here) > 500.0)
         .min_by(|a, b| {
             Vec2::new(a.centre.x, a.centre.z)
                 .distance(here)

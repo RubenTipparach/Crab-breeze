@@ -250,8 +250,7 @@ mod tests {
             world_size_m: 8192.0,
             ..Default::default()
         };
-        let root = crate::rng::SimRng::new(3);
-        let shape = crate::world::terrain::Shape::new(&root, &cfg);
+        let shape = crate::world::terrain::Shape::new(3, &cfg);
         Heightfield::new(&cfg, shape, crate::world::terrain::Flats::default())
     }
 
