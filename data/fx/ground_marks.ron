@@ -50,13 +50,14 @@
         crater_depth_m: 0.05,
     ),
 
-    // The pilot's eye drops and recovers on the piloted mech's foot strikes: position only, never
-    // the view's direction (CLAUDE.md section 8). 1 cm standing, 0.2 cm more per m/s, at most 4 cm;
-    // a landing 7 cm; over 0.15 s.
+    // The pilot's eye drops and recovers when the piloted mech lands from a jump: position only,
+    // never the view's direction (CLAUDE.md section 8), 7 cm over 0.15 s. Footsteps move the cockpit
+    // not at all (owner, 2026-10-25: "I would remove the footstep motion forom the cokcpit
+    // entirely"; it was 1 cm a step standing, 0.2 cm more per m/s, at most 4 cm).
     jolt: (
-        step_cm: 1.0,
-        per_m_s_cm: 0.2,
-        max_cm: 4.0,
+        step_cm: 0.0,
+        per_m_s_cm: 0.0,
+        max_cm: 0.0,
         landing_cm: 7.0,
         duration_s: 0.15,
         side_share: 0.25,
