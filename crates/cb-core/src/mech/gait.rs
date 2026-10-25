@@ -51,6 +51,10 @@ pub struct LegPose {
 pub struct MechPose {
     /// Pelvis offset from rest (bob and sway).
     pub pelvis_offset: Vec3,
+    /// The part of `pelvis_offset` that is the stride: its bob and sway, or a limp's hop. The
+    /// pilot's view leaves it out (owner, 2026-10-25: "I dont like foot step motion in the
+    /// cocopit"); the body still moves with it.
+    pub walk_offset: Vec3,
     /// `torso_twist` rotation.
     pub torso_twist: Quat,
     /// `torso` rotation (twist then pitch).
@@ -157,6 +161,7 @@ pub fn pose(state: &MechState, gait: &GaitConfig, rest: &RigRest, sit: &SitPose,
         -gait.bob_m * swing * 0.5 * (1.0 - (2.0 * TAU * p).cos()),
         0.0,
     );
+    let mut walk_offset = walk_offset;
     let mut pelvis_offset = walk_offset + Vec3::Y * (sit.pelvis_height_m - rest.pelvis.y) * s;
     // A lost leg leaves its thigh as a crutch (mech-damage design section 2): the stump points
     // down and a little forward, the hips drop onto it, and the body hops on the good leg.
@@ -170,6 +175,7 @@ pub fn pose(state: &MechState, gait: &GaitConfig, rest: &RigRest, sit: &SitPose,
         let hop = -0.35 * swing * (TAU * p).sin().abs();
         pelvis_offset.y = (hip_y - leg.hip.y) + hop;
         pelvis_offset.x = 0.0;
+        walk_offset = Vec3::Y * hop;
     }
     // Skating: crouched on the wheels, one foot ahead of the other (boost-and-skate).
     let skating = state.mode == super::locomotion::LocomotionMode::Skate;
@@ -209,6 +215,7 @@ pub fn pose(state: &MechState, gait: &GaitConfig, rest: &RigRest, sit: &SitPose,
     let pitch = -state.pitch_rad + sit.torso_bow_deg.to_radians() * s;
     MechPose {
         pelvis_offset,
+        walk_offset,
         torso_twist: twist,
         torso: twist * Quat::from_rotation_x(pitch),
         left: solve(&rest.legs[0], phase, lost[0]),
@@ -295,6 +302,30 @@ mod tests {
         assert!(
             (hock_joint.y - r.ankle.y).abs() < 1e-3 && hock_joint.z < r.ankle.z,
             "the hock lies flat behind the foot: {hock_joint}"
+        );
+    }
+
+    #[test]
+    fn the_stride_bob_is_all_in_the_walk_offset_so_the_pilot_view_can_leave_it_out() {
+        let g = GaitConfig::default();
+        let mut s = MechState::standing(Vec3::ZERO, 0.0, &g);
+        s.gait_swing = 1.0;
+        let mut levels = Vec::new();
+        for i in 0..20 {
+            s.gait_cycles = i as f64 / 20.0;
+            let p = pose(&s, &g, &rig(), &SitPose::default(), 0.0);
+            levels.push(p.pelvis_offset - p.walk_offset);
+            if i == 5 {
+                assert!(
+                    p.walk_offset.length() > 0.1 * g.bob_m,
+                    "mid-stride the body bobs: {}",
+                    p.walk_offset
+                );
+            }
+        }
+        assert!(
+            levels.iter().all(|l| l.distance(levels[0]) < 1e-5),
+            "without the walk offset the pelvis rides level: {levels:?}"
         );
     }
 

@@ -117,6 +117,9 @@ pub struct MechRig {
     named: HashMap<String, Entity>,
     /// Contract bones no longer driven (shot off), by `BONES` index.
     cut: Vec<bool>,
+    /// The stride's part of the pelvis bone's translation this frame (`MechPose::walk_offset` in the
+    /// pelvis's local space), which the pilot's view leaves out.
+    walk_local: Vec3,
 }
 
 impl MechRig {
@@ -610,6 +613,7 @@ fn bind_rig(
         // The optional sensor head.
         commands.entity(root).insert(MechRig {
             cut: vec![false; bones.len()],
+            walk_local: Vec3::ZERO,
             bones,
             sockets,
             rest,
@@ -784,7 +788,7 @@ fn lerp_state(a: &MechState, b: &MechState, t: f32) -> MechState {
 fn drive_mech(
     fixed: Res<Time<Fixed>>,
     data: Res<Data>,
-    mut roots: Query<(Entity, &MechSim, &MechSpec, Option<&MechRig>), With<MechRoot>>,
+    mut roots: Query<(Entity, &MechSim, &MechSpec, Option<&mut MechRig>), With<MechRoot>>,
     mut transforms: Query<&mut Transform>,
     wrecks: Query<(), With<Wreck>>,
 ) {
@@ -799,7 +803,7 @@ fn drive_mech(
             t.translation = s.pos;
             t.rotation = Quat::from_rotation_y(s.heading_rad);
         }
-        let Some(rig) = rig else { continue };
+        let Some(mut rig) = rig else { continue };
         // No legs left: it sits (mech-damage design section 2).
         let sit_amount = if s.legs_lost == [true, true] { 1.0 } else { tl.sit_amount(t) };
         let p = pose(&s, &spec.gait, &rig.rest, &tl.sit, sit_amount);
@@ -822,6 +826,7 @@ fn drive_mech(
             from + (to - from) * alpha
         });
         rotations.extend(cb_core::mech::arm_rotations(p.torso, swing));
+        let mut walk_local = Vec3::ZERO;
         for (i, spec) in BONES.iter().enumerate() {
             let parent = spec.parent.and_then(|pn| BONES.iter().position(|b| b.name == pn));
             let inherited = parent.map(|pi| d[pi]).unwrap_or(Quat::IDENTITY);
@@ -836,9 +841,12 @@ fn drive_mech(
             t.rotation = (d_parent * bind.parent_rest_model_rot).inverse() * d[i] * bind.rest_model_rot;
             t.translation = bind.rest_local.translation;
             if spec.name == "pelvis" {
-                t.translation += (d_parent * bind.parent_rest_model_rot).inverse() * p.pelvis_offset;
+                let to_local = (d_parent * bind.parent_rest_model_rot).inverse();
+                t.translation += to_local * p.pelvis_offset;
+                walk_local = to_local * p.walk_offset;
             }
         }
+        rig.walk_local = walk_local;
     }
 }
 
@@ -1873,19 +1881,30 @@ fn burn(mut commands: Commands, q: Query<(Entity, &GlobalTransform, &Burning)>, 
 }
 
 /// The world transform of a rig socket this frame, composed from local transforms (so it already
-/// includes this frame's pose, before Bevy propagates transforms).
-pub fn socket_now(
+/// includes this frame's pose, before Bevy propagates transforms), without the stride's bob and sway
+/// of the pelvis: where the socket would be with the body carried level. The seated pilot's eye
+/// (owner, 2026-10-25: "I would remove the footstep motion forom the cokcpit entirely").
+pub fn socket_steady(
     rig: &MechRig,
     name: &str,
     transforms: &Query<&Transform, Without<crate::pilot::PilotCamera>>,
     parents: &Query<&ChildOf>,
 ) -> Option<Transform> {
+    let pelvis = BONES.iter().position(|b| b.name == "pelvis").map(|i| rig.bones[i].entity);
+    let local = |e: Entity| {
+        let mut t = transforms.get(e).ok().copied().unwrap_or_default();
+        if Some(e) == pelvis {
+            t.translation -= rig.walk_local;
+        }
+        t
+    };
     let e = *rig.sockets.get(name)?;
-    let mut acc = transforms.get(e).ok().copied()?;
+    transforms.get(e).ok()?;
+    let mut acc = local(e);
     let mut at = e;
     while let Ok(p) = parents.get(at) {
         at = p.parent();
-        acc = transforms.get(at).ok().copied().unwrap_or_default().mul_transform(acc);
+        acc = local(at).mul_transform(acc);
     }
     Some(acc)
 }
