@@ -1025,14 +1025,15 @@ pub fn step_mech(
                 let near = targeting.selected.map(|_| targeting.range_m);
                 sim.close.step(near, actions.close_combat, &cfg.melee);
                 // Free look is for pressing the cockpit's MFDs: the guns hold (cockpit-mfds). In
-                // close combat the mouse buttons strike with the arms and the guns hold.
+                // close combat the guns keep firing and the punch keys strike with the arms (owner,
+                // 2026-10-25: "Guns keep firing in close combat, and punches move to other keys").
                 if actions.free_look {
                     fire = [false; 3];
-                } else if sim.close.on {
-                    fire = [false, false, actions.fire_missile];
-                    strike = actions.fire;
                 } else {
                     fire = [actions.fire[0], actions.fire[1], actions.fire_missile];
+                    if sim.close.on {
+                        strike = actions.strike;
+                    }
                 }
                 // The torso turns to follow where the pilot looks (the view leads, the torso
                 // follows); holding free look keeps the torso where it is.
@@ -1050,6 +1051,26 @@ pub fn step_mech(
                 let limit = data.0.pilot.seated_look_limit_deg.to_radians();
                 if let Some(t) = cb_core::pilot::look_turn(pilot.curr.seated_rel_rad, limit, actions.free_look) {
                     c.turn_axis = t;
+                }
+                // Walking, WASD is direct: toward the view, back from it, a step to either side; the
+                // legs turn to the way to walk and the mech stops with no key held (walk-controls).
+                // Skating and the jets keep the lever and the leg turn (owner, 2026-10-25: "tank
+                // controls on skate makes sense, but when in walking mode, wasd should be standard
+                // walking").
+                if actions.walk_keys && sim.curr.mode == LocomotionMode::Walk && !sim.curr.skates_on && !sim.curr.airborne() {
+                    let w = cb_core::mech::walk::walk(
+                        actions.move_xy,
+                        pilot.curr.yaw_rad,
+                        sim.curr.heading_rad,
+                        cfg.locomotion.throttle_min,
+                    );
+                    c.throttle_axis = 0.0;
+                    if !c.throttle_zero {
+                        c.throttle_set = Some(w.throttle);
+                    }
+                    if actions.move_xy.length() > 0.1 {
+                        c.turn_axis = w.turn_axis;
+                    }
                 }
                 if !actions.free_look {
                     let wrap = |a: f32| (a + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;

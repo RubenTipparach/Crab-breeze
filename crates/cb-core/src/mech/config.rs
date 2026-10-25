@@ -204,7 +204,10 @@ impl Default for JetConfig {
             fall_max_m_s: 60.0,
             dive_m_s2: 30.0,
             dive_max_m_s: 90.0,
-            drag_per_s: 0.3,
+            // A 40 t mech keeps its momentum in the air; the skates are its side thrusters for moving
+            // across (owner, 2026-10-25: "when flying if skate is off I should inherit inertia, think of
+            // skate as lateral thrusters"). Air drag on 100 m2 at 30 m/s is about 1.3 m/s2: 4 % a second.
+            drag_per_s: 0.04,
             burn_s: 20.0,
             recharge_s: 8.0,
             recharge_delay_s: 1.5,

@@ -24,7 +24,16 @@ impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_hud).add_systems(
             Update,
-            (update_hud, draw_targets, draw_lock, exit_ring, update_stations, draw_job).in_set(PresentSet::Camera),
+            (
+                update_hud,
+                draw_targets,
+                draw_lock,
+                exit_ring,
+                update_stations,
+                draw_job,
+                draw_signs,
+            )
+                .in_set(PresentSet::Camera),
         );
     }
 }
@@ -56,6 +65,14 @@ const STATION_ROWS: usize = 6;
 /// The accepted job's site over the screens.
 #[derive(Component)]
 struct JobMarker;
+
+/// `[MELEE MODE]` under the crosshair while close combat is on.
+#[derive(Component)]
+struct MeleeSign;
+
+/// The selected weapon's name under the crosshair: what the left mouse fires.
+#[derive(Component)]
+struct WeaponSign;
 
 /// The job line on the MISSION page.
 #[derive(Component)]
@@ -219,6 +236,30 @@ fn spawn_hud(mut commands: Commands) {
                 Visibility::Hidden,
                 EdgeArrow,
             ));
+            // Under the crosshair: the weapon the left mouse fires, and [MELEE MODE] in close combat
+            // (owner, 2026-10-25: "MELEE MODE on the main screen, not mfd").
+            for (top, size, colour, melee) in [(36.0, 20.0, GREEN, false), (62.0, 28.0, AMBER, true)] {
+                let mut sign = root.spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Percent(0.0),
+                        width: Val::Percent(100.0),
+                        top: Val::Percent(50.0),
+                        margin: UiRect::top(px(top)),
+                        justify_content: JustifyContent::Center,
+                        ..default()
+                    },
+                    Visibility::Hidden,
+                ));
+                sign.with_children(|s| {
+                    s.spawn((Text::new(""), TextFont::from_font_size(size), TextColor(colour)));
+                });
+                if melee {
+                    sign.insert(MeleeSign);
+                } else {
+                    sign.insert(WeaponSign);
+                }
+            }
             // The accepted job's site (draw_job).
             root.spawn((
                 Node {
@@ -298,7 +339,9 @@ fn spawn_hud(mut commands: Commands) {
             HudRoot,
             MfdRoot,
             Node {
-                width: px(MFD_PAGE_PX * 3.0),
+                // One page wide per page on the texture: a narrower strip squeezes the pages and every
+                // screen's slice cuts across two of them (owner, 2026-10-25: "mfds are all busted").
+                width: px(MFD_PAGE_PX * crate::mfd::PAGES as f32),
                 height: px(MFD_PAGE_PX),
                 position_type: PositionType::Absolute,
                 left: px(0.0),
@@ -313,6 +356,7 @@ fn spawn_hud(mut commands: Commands) {
                     .spawn((
                         Node {
                             width: px(MFD_PAGE_PX),
+                            flex_shrink: 0.0,
                             height: px(MFD_PAGE_PX),
                             padding: UiRect::all(px(24.0)),
                             flex_direction: FlexDirection::Column,
@@ -818,17 +862,8 @@ fn update_hud(
                     AMBER
                 },
             ),
-            Readout::Guns => 'guns: {
+            Readout::Guns => {
                 let mut parts = vec![format!("THR {:.0}%", m.throttle * 100.0)];
-                // In close combat the mouse buttons strike and the guns hold (close-combat).
-                if sim.close.on {
-                    parts.push("CLOSE COMBAT".into());
-                    for (button, kind) in [("LMB", PartKind::ArmL), ("RMB", PartKind::ArmR)] {
-                        let state = if sim.damage.is_lost(&spec.parts, kind) { "LOST" } else { "STRIKE" };
-                        parts.push(format!("{button} {state}"));
-                    }
-                    break 'guns (parts.join("\n"), AMBER);
-                }
                 for (i, w) in spec.weapons.iter().enumerate() {
                     let cd = sim.guns.cooldown_s.get(i).copied().unwrap_or(0.0);
                     let gone = sim.damage.is_lost(&spec.parts, w.arm);
@@ -903,6 +938,50 @@ fn update_hud(
 
 /// The climb-out ring: hidden until Use is held in the seat, then lit dot by dot as the hold fills,
 /// from the pilot's own hold clock (`cb_core::pilot`), so the ring and the exit agree.
+/// The signs under the crosshair, seated only: the selected weapon (with its rounds when it has a
+/// limit), and `[MELEE MODE]` while close combat is on, with the punch keys.
+#[allow(clippy::type_complexity)]
+fn draw_signs(
+    pilot: Res<PilotSim>,
+    data: Res<crate::sim::Data>,
+    me: Query<(&MechSim, &MechSpec), With<Piloted>>,
+    mut signs: Query<(&Children, &mut Visibility, Has<MeleeSign>), Or<(With<MeleeSign>, With<WeaponSign>)>>,
+    mut texts: Query<&mut Text>,
+) {
+    let seated = pilot.curr.mode == PilotMode::Seated;
+    let mech = me.iter().next().filter(|_| seated);
+    for (children, mut vis, melee) in &mut signs {
+        let line = mech.and_then(|(sim, spec)| {
+            if melee {
+                sim.close.on.then(|| {
+                    let keys = |names: &[String]| names.iter().map(|k| cb_core::input::key_label(k)).collect::<Vec<_>>().join("/");
+                    let b = &data.0.bindings;
+                    format!("[MELEE MODE]  {} {} punch", keys(&b.strike_left), keys(&b.strike_right))
+                })
+            } else {
+                spec.weapons.get(sim.selected).map(|w| {
+                    let rounds = sim.guns.rounds_left.get(sim.selected).copied().unwrap_or(w.rounds);
+                    match rounds {
+                        Some(n) => format!("{} x{n}", w.name.to_uppercase()),
+                        None => w.name.to_uppercase(),
+                    }
+                })
+            }
+        });
+        *vis = if line.is_some() {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+        if let (Some(line), Some(c)) = (line, children.first())
+            && let Ok(mut t) = texts.get_mut(*c)
+            && t.0 != line
+        {
+            t.0 = line;
+        }
+    }
+}
+
 fn exit_ring(pilot: Res<PilotSim>, data: Res<crate::sim::Data>, mut dots: Query<(&ExitDot, &mut Visibility, &mut BackgroundColor)>) {
     let k = (pilot.curr.exit_hold_s / data.0.pilot.exit_hold_s).clamp(0.0, 1.0);
     let lit = (k * EXIT_DOTS as f32).ceil() as usize;

@@ -14,8 +14,9 @@ use bevy::render::render_resource::TextureFormat;
 use bevy::ui::UiTargetCamera;
 use cb_core::pilot::PilotMode;
 
-/// Pages on the texture, left to right: MECH, FLIGHT, MISSION, WEAPONS, TARGET (weapon-select).
-const PAGES: usize = 5;
+/// Pages on the texture, left to right: MECH, FLIGHT, MISSION, WEAPONS, TARGET (weapon-select). The
+/// pages' strip (`hud`) is this many pages wide, so each screen's slice is exactly one page.
+pub const PAGES: usize = 5;
 
 /// The dash's lower screens, bound by exact name (they were baked pictures), and the page each starts on.
 const DASH_SCREENS: [(&str, usize); 3] = [("SCREEN_left_screen", 0), ("SCREEN_center_screen", 4), ("SCREEN_right_screen", 3)];

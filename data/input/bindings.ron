@@ -45,4 +45,8 @@
     // The mail and its job offers, in a career (mission-jobs; owner, survey J1: "press M to focus on the
     // mail screen").
     mail: ["KeyM"],
+    // Punches in close combat, on their own keys so the guns keep firing (owner, 2026-10-25, picking
+    // "Guns keep firing in close combat, and punches move to other keys").
+    strike_left: ["KeyZ"],
+    strike_right: ["KeyV"],
 )
