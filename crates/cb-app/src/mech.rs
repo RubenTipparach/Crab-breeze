@@ -83,6 +83,8 @@ pub struct Piloted;
 pub struct Enemy {
     /// Its pilot.
     pub ai: AiPilot,
+    /// The line it flies with `CB_ENEMY_STUNT`, from the player out toward where it first stood.
+    pub stunt_axis: Option<Vec2>,
 }
 
 /// A hatch node found by a timeline motion's pattern.
@@ -347,7 +349,9 @@ pub fn spawn_enemy(
         crate::skins::wear(commands, a.assets, ent, skin);
     }
     let ai = AiPilot::new(l.skill.clone(), rng);
-    commands.entity(ent).insert((Enemy { ai }, id, EnemyGoal::default()));
+    commands
+        .entity(ent)
+        .insert((Enemy { ai, stunt_axis: None }, id, EnemyGoal::default()));
     Some(ent)
 }
 
@@ -1086,8 +1090,9 @@ pub fn step_mech(
             } else {
                 MechControls::default()
             }
-        } else if !seated {
-            // The enemies wait until the pilot is in the seat: no one fights an empty mech.
+        } else if !seated && !std::env::var("CB_ENEMY_STUNT").is_ok_and(|v| v == "hover") {
+            // The enemies wait until the pilot is in the seat: no one fights an empty mech. (The hover
+            // test instrument flies them anyway, so an on-foot still can look at their jets.)
             MechControls::default()
         } else if let (Some((mut enemy, goal)), Some((player_at, player_vel, player_dead))) = (enemy, player) {
             // A mission may send it at something else (city-defence: a building to shell).
@@ -1118,11 +1123,22 @@ pub fn step_mech(
                 open: &open,
             };
             let orders = enemy.ai.orders(&sim.curr, &view, dt);
-            if !target_dead && !goal.hold_fire {
-                fire = [orders.fire[0], orders.fire[1], false];
+            if let Some(c) = stunt(
+                &sim.curr,
+                &plan,
+                player_at,
+                &mut enemy.stunt_axis,
+                time.elapsed_secs() + id.0 as f32 * 7.0,
+            ) {
+                aim_at = Some(orders.aim_point);
+                c
+            } else {
+                if !target_dead && !goal.hold_fire {
+                    fire = [orders.fire[0], orders.fire[1], false];
+                }
+                aim_at = Some(orders.aim_point);
+                orders.controls
             }
-            aim_at = Some(orders.aim_point);
-            orders.controls
         } else {
             MechControls::default()
         };
@@ -1624,6 +1640,46 @@ fn cut_parts(
     }
 }
 
+/// A test instrument: `CB_ENEMY_STUNT=1` flies every enemy back and forth along the line from the
+/// player toward where it first stood (down the street it started in, so the street's view is
+/// open along it), 120 m to 400 m out, 30 m up on the rockets with the skates pushing, holding
+/// fire. When the rockets lock it comes down and skates on. Its jet smoke and skate trails can then
+/// be checked from the seat (owner, 2026-10-25: "do other mechs and do my mech while I'm in the
+/// pilot seat").
+fn stunt(m: &MechState, plan: &Plan, player: Vec3, axis: &mut Option<Vec2>, t_s: f32) -> Option<MechControls> {
+    if !crate::cli::switched_off("CB_ENEMY_STUNT") {
+        return None;
+    }
+    let me = Vec2::new(m.pos.x, m.pos.z);
+    let home = Vec2::new(player.x, player.z);
+    let axis = *axis.get_or_insert_with(|| (me - home).normalize_or(Vec2::NEG_Y));
+    // Toward the player for 12 s, then away for 12 s; `CB_ENEMY_STUNT=hover` holds it 120 m out, 40 m
+    // up, so its jets and the column of smoke under it are in plain view.
+    let hold = std::env::var("CB_ENEMY_STUNT").is_ok_and(|v| v == "hover");
+    let goal = home + axis * if hold || t_s.rem_euclid(24.0) < 12.0 { 120.0 } else { 400.0 };
+    let to = goal - me;
+    let want = (-to.x).atan2(-to.y);
+    let off = (want - m.heading_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+    let agl = m.pos.y - plan.height_at(m.pos.x, m.pos.z);
+    Some(MechControls {
+        skate_toggle: !m.skates_on,
+        turn_axis: (off * 2.0).clamp(-1.0, 1.0),
+        view_yaw_rad: want,
+        lift_axis: if agl < if hold { 40.0 } else { 30.0 } {
+            1.0
+        } else {
+            (0.175 - m.vel_y_m_s * 0.025).clamp(0.0, 1.0)
+        },
+        move_xy: if m.airborne() && !(hold && to.length() < 20.0) {
+            Vec2::new(0.0, 1.0)
+        } else {
+            Vec2::ZERO
+        },
+        throttle_set: Some(1.0),
+        ..default()
+    })
+}
+
 /// While the pilot sits in the mech with the hatch shut, every mesh of the mech is on the cockpit
 /// layer, drawn after the world on its own depth so nothing in the world draws through it
 /// (cockpit-overlay; owner: "only when it is closed and player is inside"). Otherwise it is drawn
@@ -1690,6 +1746,7 @@ fn jet_flames(
     time: Res<Time>,
     mut fx: MessageWriter<Fx>,
     mut wash_s: Local<f32>,
+    (globals, visible): (Query<&GlobalTransform>, Query<(&InheritedVisibility, &ViewVisibility)>),
 ) {
     let cfg = &data.0.fx;
     *wash_s += time.delta_secs();
@@ -1697,8 +1754,37 @@ fn jet_flames(
     if wash {
         *wash_s = 0.0;
     }
+    // A measurement line, with `CB_ENEMY_STUNT`: each mech's rockets and its jet emitters, every 5 s.
+    let report = crate::cli::switched_off("CB_ENEMY_STUNT") && (time.elapsed_secs() % 5.0) < time.delta_secs();
     for (sim, rig) in &mechs {
         let on = sim.curr.boosting && !sim.dead;
+        if report {
+            let socket = rig.sockets.get("JET_L").copied();
+            let kids = socket.and_then(|e| children.get(e).ok()).map_or(0, |c| c.len());
+            let at = socket.and_then(|e| globals.get(e).ok()).map(|g| g.translation());
+            let kid_vis: Vec<String> = socket
+                .and_then(|e| children.get(e).ok())
+                .map(|c| {
+                    c.iter()
+                        .map(|k| match (visible.get(k).ok(), globals.get(k).ok()) {
+                            (Some((i, v)), Some(g)) => format!("{}/{} {:.0?}", i.get(), v.get(), g.translation()),
+                            _ => "?".into(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            info!(
+                "jets: boosting {} airborne {} mech {:.0?} socket {:?} at {:.0?} stream {} children {} [{}]",
+                sim.curr.boosting,
+                sim.curr.airborne(),
+                sim.curr.pos,
+                socket,
+                at,
+                socket.is_some_and(|e| streams.get(e).is_ok()),
+                kids,
+                kid_vis.join("; ")
+            );
+        }
         for jet in ["JET_L", "JET_R"] {
             let Some(&e) = rig.sockets.get(jet) else { continue };
             let trail = trails.get(e).ok().map(|t| t.0);

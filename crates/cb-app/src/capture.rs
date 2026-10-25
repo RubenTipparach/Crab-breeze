@@ -616,8 +616,20 @@ fn run_fx_script(
             let flat = (home - e).with_y(0.0).normalize_or(Vec3::X);
             let feet = Vec3::new(e.x, plan.height_at(e.x + flat.x * 70.0, e.z + flat.z * 70.0), e.z) + flat * 70.0;
             let torso = e + Vec3::Y * 14.0;
-            if script.once("stand") {
+            // `CB_STILLS_FX=jets` (with `CB_ENEMY_STUNT=hover`): keep looking at the enemy as it hovers on
+            // its rockets, a still every second, to see whether its jet flame and smoke draw.
+            let jets = std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "jets");
+            if script.once("stand") || jets {
                 stand_looking(&mut pilot, feet, torso);
+            }
+            if jets {
+                let k = t as u32;
+                if (1..=14).contains(&k) && !script.dir.join(format!("jets-{k:02}.png")).exists() {
+                    shoot(&mut commands, &script.dir, &format!("jets-{k:02}.png"));
+                }
+                if t > 15.0 {
+                    exit.write(AppExit::Success);
+                }
             }
             if t > 1.0 && script.once("fire") {
                 let player = mechs.iter().find(|m| m.1.0 == 0).map(|m| m.2.0.clone());
@@ -650,7 +662,7 @@ fn run_fx_script(
             if t > 1.5 && script.once("rockets") {
                 shoot(&mut commands, &script.dir, "fx-1-rockets.png");
             }
-            if t > 5.0 {
+            if t > 5.0 && !jets {
                 shoot(&mut commands, &script.dir, "fx-2-hits.png");
                 next = true;
             }
