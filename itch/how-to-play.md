@@ -1,6 +1,17 @@
 # STRATOSTACEAN: How to Play
 
-Walk to your mech, climb in, fight from the cockpit.
+## Getting Started
+
+- Walk to your mech and press **E** at the ladder
+- The mech kneels, opens, and you climb into the seat
+- Everything is first person, from the cockpit
+
+## Tips
+
+- Skates and jets are limited: watch heat on the MFDs
+- Hold **Ctrl** to look around the cabin and click the screens
+- Check **M** for jobs; enemies arrive with an accepted mission
+- Buildings fall: use them, or bring them down
 
 ## On Foot
 
