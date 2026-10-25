@@ -20,6 +20,9 @@ mockup is `docs/mockups/crab_fortress.html`.
 - **The Hermit** (working name, survey G20): a 420 m air fortress shaped like a crab's carapace, hanging
   on eight lift thrusters at the ends of eight leg pylons, four a side. It cruises at 900 m and comes down
   to 600 m over the city it attacks.
+- **Plated thrusters and hull thrusters** (owner, 2026-10-25): each lift thruster's outboard side is a 300 mm
+  plate, so the pilot gets under it to shoot; when a side fails it opens six thrusters built into the hull,
+  whose port holes take hits only from directly above or below.
 - **The thrusters are how it dies.** Each side has to carry half its weight, and one thruster can carry a
   quarter. A side down to one thruster cannot: the fortress rolls toward it and sinks. So three kills on
   one side bring it down; spread out, it takes five. The cockpit shows each side's lift from the same rule.

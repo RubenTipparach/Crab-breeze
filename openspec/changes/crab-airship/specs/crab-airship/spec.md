@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: The fortress stays up on its lift thrusters
-A crab air fortress SHALL hang on eight lift thrusters, four a side; each side SHALL carry half its weight, a thruster SHALL carry at most a quarter, and the fortress SHALL fall when either side has fewer than two live thrusters.
+A crab air fortress SHALL hang on eight lift thrusters, four a side; each side SHALL carry half its weight and a thruster SHALL carry at most a quarter. When a side's outer thrusters cannot carry its half, the fortress SHALL open six hull thrusters, three a side, each carrying at most a sixth, and it SHALL fall only when a side cannot carry its half with both.
 
 #### Scenario: Two lost on each side
 - **WHEN** two lift thrusters are destroyed on each side
@@ -9,6 +9,10 @@ A crab air fortress SHALL hang on eight lift thrusters, four a side; each side S
 
 #### Scenario: Three lost on one side
 - **WHEN** three lift thrusters on the same side are destroyed
+- **THEN** the fortress sinks while it opens its hull thrusters, then holds its height again
+
+#### Scenario: Two hull thrusters lost on that side
+- **WHEN** two of that side's hull thrusters are then destroyed
 - **THEN** the fortress stops launching and dropping, lists toward that side and sinks at no more than its terminal speed
 
 ### Requirement: The cockpit shows the fortress's lift from the lift rule
@@ -45,6 +49,14 @@ A mech inside a live lift thruster's downwash column SHALL be pushed down and da
 
 ### Requirement: The fortress's parts are targets
 Every part of the fortress (thrusters, turrets, catapults, bays, lifts, drive thrusters and bridge) SHALL be a lockable target hit through the one projectile and damage code, with its own armour and weak point.
+
+#### Scenario: A thruster from outboard
+- **WHEN** any round hits a lift thruster's outboard armour plate
+- **THEN** it does not penetrate
+
+#### Scenario: A hull port from the side
+- **WHEN** a round reaches an open hull thruster's port hole more than 30 deg from the fortress's vertical
+- **THEN** it meets the 300 mm hull and does no damage, while one from directly below does double damage
 
 #### Scenario: The autocannon on a thruster's cowl
 - **WHEN** 35 mm autocannon rounds hit a lift thruster's 140 mm cowl

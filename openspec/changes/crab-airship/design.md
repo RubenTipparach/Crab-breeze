@@ -41,8 +41,25 @@ One rule in `cb-core::fortress`, pure and tested, and the cockpit's lift readout
 - Roll: it lists toward the weaker side, toward `theta = 100 deg * |L_L - L_R| / W` at 4 deg/s: 25 deg
   with one thruster left on a side, 50 deg with none.
 
-Tests: `a_side_with_two_thrusters_holds_its_half`, `three_kills_on_one_side_bring_it_down`,
-`two_kills_a_side_hold_at_full_throttle`, `a_falling_fortress_lists_toward_its_weak_side`,
+### 2b. The hull thrusters (owner, 2026-10-25)
+
+"The crab mech once thrusters are destroyed. Have it open up more thrusters that are built into the hull. It is
+only vulnerable from directly above or below the mech where the port holes are exposed."
+
+- Six more thrusters are ducts through the carapace, three a side (x = +-104 m, z = -80, 0, +80 m), each a
+  port hole 23 m across top and bottom under sliding 300 mm doors. Each carries at most `W / 6` (98.1 MN).
+- They are sealed while the outer thrusters hold. When a side's outer thrusters can no longer carry `W / 2`,
+  the doors slide open over 3 s with steam out of every port, and the hull thrusters light at 4 s. Meanwhile
+  it sinks (about 30 m). Then a side's lift is `L_s = min(n_s * T_max + h_s * W / 6, W / 2)` and it holds
+  again: any sink dies away (time constant 1.2 s) and the list comes back level at 4 deg/s.
+- It falls when a side is short of `W / 2` even with its hull thrusters. With one outer thruster left on a side
+  that takes two of that side's three hull thrusters (`W / 4 + W / 6 < W / 2`); with none left, one.
+- A hull thruster is hit only through a port hole, and only by a round travelling within 30 deg of the
+  fortress's vertical: directly above or below it. Anything else meets 300 mm of hull or door.
+
+Tests: `a_side_with_two_thrusters_holds_its_half`, `three_kills_on_one_side_open_the_hull_thrusters`,
+`the_hull_thrusters_hold_a_side_with_one_outer_thruster`, `two_hull_thrusters_lost_on_that_side_bring_it_down`,
+`a_hull_port_takes_damage_only_from_within_30_deg_of_vertical`, `two_kills_a_side_hold_at_full_throttle`, `a_falling_fortress_lists_toward_its_weak_side`,
 `the_sink_speed_never_passes_its_terminal_speed`, `the_lift_readout_is_the_rule`.
 
 ## 3. Its parts and how each is hurt
@@ -53,7 +70,8 @@ Every part is its own target (boxed, lockable, `targeting`) and takes hits throu
 
 | Part | Count | Hit points | Armour | Weak point | Lost, it |
 | --- | --- | --- | --- | --- | --- |
-| Lift thruster | 8 | 800 | cowl 140 mm | intake grille on top (from the pylon) and nozzle below (in the downwash): 40 mm, damage x2 | stops lifting (section 2) |
+| Lift thruster | 8 | 800 | a 300 mm plate over the outboard half and a skirt below the nozzle (owner, 2026-10-25: "armor on the thrusters facing outward. So the player would have to shoot at the thrusters from under"); cowl 140 mm inboard | the nozzle below and the grille on top: 40 mm, damage x2 | stops lifting (section 2) |
+| Hull thruster | 6 | 900 | 300 mm hull and doors; sealed until it opens them (section 2b) | the port holes, 40 mm, damage x2, from within 30 deg of vertical only | stops lifting (section 2b) |
 | Drive thruster | 2 | 600 | 140 mm | | slows the drift; both lost, it hangs where it is |
 | Flak turret | 10 | 150 | 60 mm | | stops firing |
 | Beam turret | 4 | 250 | 120 mm | the lens while charging, 40 mm | stops firing |
@@ -64,9 +82,10 @@ Every part is its own target (boxed, lockable, `targeting`) and takes hits throu
 | Hangar lift | 2 | 400 | 100 mm | | no more deck guards from it |
 | Bridge | 1 | 1 200 | 140 mm | the two eye lenses, 40 mm | every turret's aim error doubles |
 
-So a thruster takes 9 cannon shells on its cowl, 5 into its grille, 18 missiles, or 34 autocannon rounds
-into its grille; the autocannon cannot hurt the cowl. The quick way is to land on its pylon and shoot down
-into the intake, inside the beam turrets' and deck guns' reach.
+So a thruster takes 9 cannon shells on its inboard cowl, 5 into its nozzle or grille, 18 missiles, or 34
+autocannon rounds into its nozzle; the autocannon cannot hurt the cowl, and nothing gets through the outboard
+plate. The way in is from under it (or off its pylon, down into the grille), inside the beam turrets' reach. A
+hull thruster takes 5 cannon shells or 38 autocannon rounds through a port, from straight under or over it.
 
 ## 4. What defends it
 
@@ -121,7 +140,7 @@ over open ground. Whether a fall on the city counts as city damage is G23.
 
 ## 8. Cost
 
-- Triangles: block-out 30 000. The detailed model: LOD0 220 000 (hull and pylons 120 000, parts
+- Triangles: block-out 30 000 (the plates and the six hull ducts add about 4 000). The detailed model: LOD0 220 000 (hull and pylons 120 000, parts
   100 000), LOD1 60 000 beyond 1.5 km, LOD2 12 000 beyond 5 km. The deck guard at its own LODs.
 - Draw calls: the hull in 6 material groups, 41 parts each one mesh, barrels with their turret: about 90
   at LOD0, doubled by the shadow pass.
@@ -138,7 +157,7 @@ over open ground. Whether a fall on the city counts as city damage is G23.
 | --- | --- | --- | --- |
 | G15 | The fortress's size and how it dies | 420 m (mechs are 24 m now), 600-900 m up, eight lift thrusters; it falls when a side is down to one | provisional (survey G15, reworded) |
 | G20 | Its name | the Hermit (a crab that carries its own shell) | provisional (survey G20) |
-| G21 | How it falls | the side rule: three on one side or five spread out | provisional (survey G21) |
+| G21 | How it falls | the side rule, then the hull thrusters: three outer on one side open the hull, two hull thrusters on that side bring it down | provisional (survey G21; the hull thrusters and the plates are the owner's, 2026-10-25) |
 | G22 | How the pilot gets up and stays up | the jets as they are; land on the deck, shoulders or a pylon to recharge | provisional (survey G22) |
 | G23 | Does its crash count as city damage | yes: the pilot chooses where it falls (stop its drive first, or wait) | provisional (survey G23) |
 | G24 | Who guards the deck | 2 Shrikes and 4 Mites aboard, a Mite up each lift every 60 s | provisional (survey G24) |
