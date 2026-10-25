@@ -24,8 +24,8 @@ JobKind: Defend { city: u32, waves: u8 } | Intercept | Destroy { target: TargetK
 ```
 
 - **Generation:** a kind is chosen by weight from `data/jobs/jobs.ron`; its site comes from the world
-  plan (a city for Defend, open ground at least 2 km from cities for Intercept, a valley or coast for
-  Destroy), its forces from the kind's force table, and its pay from the forces' strength times a
+  plan, always in or within 3 km of a city (survey J2): the city itself for Defend, open ground on its
+  edge for Intercept, a valley or shore near it for Destroy, its forces from the kind's force table, and its pay from the forces' strength times a
   per-kind rate (40 000-150 000 credits, provisional on J4).
 - **States:** Offered, Accepted (travelling), Active (the fight: forces arrive when the pilot is within
   `radius_m`, default 1 500 m), Won, Failed.
@@ -42,6 +42,11 @@ JobKind: Defend { city: u32, waves: u8 } | Intercept | Destroy { target: TargetK
 - **MAIL page:** a fourth MFD page (the MFD texture grows from three pages to four, 2048 x 512). The
   list shows sender and subject; pressing a line opens it; an offer shows ACCEPT and DECLINE as
   pressable rows. Same press as the other pages (free look, look, click).
+- **M focuses the mail** (survey J1): pressing M puts the MAIL page on the screen nearest the
+  centre of the view and points the mouse on it, as a base terminal does; M or Esc steps back. Look
+  input pauses only while the mouse points on the screen; the view itself never moves.
+- **The menu's mail button** (survey J1): Esc in the mech opens the pause menu, whose buttons switch
+  between its pages (game-menus); MAIL is one of them, drawing the same page.
 - **The base terminal:** a desk in the ready room (air-bases) with a screen showing the same page,
   pressed with Use when the pilot stands at it. One page, two screens, one implementation.
 - **Nav:** the accepted site shows on the nav page as a bearing and distance, and as a marker on the
@@ -52,11 +57,16 @@ JobKind: Defend { city: u32, waves: u8 } | Intercept | Destroy { target: TargetK
 - **The defence today:** the existing `--mission defence` start stays for playtests; on a career it is
   one Defend job among others.
 
-## 4. Travel
+## 4. Travel, and losing the mech
 
-Jobs are 3-25 km from a base. The jets burn 20 s (about 1.5-2 km), so getting there needs a long-range
-mode: `jet-cruise` (its own change, survey J2). Until it exists, a job can be started at its site with
-a test key, so the fights can be played and tested.
+- **Travel:** jobs are in or near cities, and the pilot gets there on the jets and skates as they
+  are; both recharge (survey J2). There is no cruise mode (jet-cruise is withdrawn). A test key starts
+  the accepted job at its site, so its fight can be tested without the trip.
+- **Ejecting** (survey J3): when the piloted mech is destroyed, the pilot is thrown clear: the view
+  rides an `EyePath` out of the hatch and down to the ground beside the wreck, with look staying the
+  player's, and the pilot is on foot (`PilotMode::OnFoot`). The job fails. The wreck is recovered to
+  the nearest base, where it stands in a bay waiting for a full repair, charged when repaired. The
+  pilot gets there on foot, or in a car (car-driving).
 
 ## 5. Cost
 
@@ -69,7 +79,7 @@ a test key, so the fights can be played and tested.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| J1 | Where you read mail and accept jobs | MFD MAIL page in the cockpit and the ready room terminal at a base | provisional (survey J1) |
-| J2 | How you get to a job | A cruise flight mode (jet-cruise) | provisional (survey J2) |
-| J3 | Losing your mech | Recovered to the nearest base, full repair bill, no pay | provisional (survey J3) |
-| J12 | Which kinds of job first | Defend a city, intercept a raid, destroy a crab nest | provisional (survey J12) |
+| J1 | Where you read mail and accept jobs | MFD MAIL page, M to focus it, the menu's mail button, and the base terminal | decided (survey J1) |
+| J2 | How you get to a job | No cruise: jets and skates as they are; jobs in and near cities | decided (survey J2) |
+| J3 | Losing your mech | You eject and get to the nearest base on foot; the mech is recovered there with a full repair bill; no pay | decided (survey J3) |
+| J12 | Which kinds of job first | Defend a city, intercept a raid, destroy a crab nest | decided (survey J12) |

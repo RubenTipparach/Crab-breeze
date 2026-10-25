@@ -20,5 +20,8 @@ The mech has guns, rockets and missiles but no way to fight hand to hand.
   - A strike damages mechs and vehicles through the same damage rules as a shot, and breaks building
     cells and trees in its sweep.
   - A lost arm cannot strike.
+  - A strike that lands on an enemy mech knocks it over: it falls, lies there, and takes a couple of
+    seconds to get up, unable to move or fire until it is standing (owner, 2026-10-25, survey G19:
+    "knocks enemy mechs over temprorarily, they have to get up, takes a couple seconds").
 - **Display:** the FLIGHT MFD shows `CLOSE COMBAT`.
 - **The scripted pilot** switches the same way, so a take shows close fights.

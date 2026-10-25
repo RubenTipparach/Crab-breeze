@@ -41,11 +41,11 @@ changes `money`.
   the title menu stays open; it is never silently replaced.
 - Versioned (`version: 1`); an older version is upgraded field by field or refused with a message.
 
-## 4. Numbers (data, `data/career/career.ron`, provisional on survey J4)
+## 4. Numbers (data, `data/career/career.ron`, survey J4)
 
 | Item | Value |
 |---|---|
-| Starting money | 200 000 credits |
+| Starting money | 1 000 credits |
 | Starting mech | Foreman, home base bay 1 |
 | Job pay | 40 000-150 000 (mission-jobs) |
 | Mech prices | 300 000-1 200 000 (air-bases) |
@@ -60,5 +60,5 @@ session, off the main thread.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| J4 | Money: start, pay and prices | 200 000 to start, jobs 40 000-150 000, mechs 300 000-1 200 000 | provisional (survey J4) |
-| J3 | What losing your mech costs | Recovered to the nearest base, a full repair bill, the job's pay lost | provisional (survey J3) |
+| J4 | Money: start, pay and prices | 1 000 to start, jobs 40 000-150 000, mechs 300 000-1 200 000 | decided (survey J4) |
+| J3 | What losing your mech costs | You eject; the mech is recovered to the nearest base with a full repair bill; the job's pay is lost | decided (survey J3) |

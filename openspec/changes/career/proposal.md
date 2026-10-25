@@ -16,4 +16,5 @@ starts fresh with one mech. A career is the state those features share, so it is
   the title menu loads the latest one.
 - **Money moves in one place:** every payment and charge (job pay, repair, purchase) goes through
   one ledger function that refuses a charge you cannot afford and records what it was for.
-- **New career:** starts at the home air base with one Foreman in bay 1 and starting money from data.
+- **New career:** starts at the home air base with one Foreman in bay 1 and 1 000 credits (owner,
+  2026-10-25, survey J4: "start with 1000 credits"), so the first jobs are what build the money.

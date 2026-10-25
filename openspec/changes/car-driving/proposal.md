@@ -14,13 +14,13 @@ mech and around a base, and it is fun on its own.
 - **Driving:**
   - W accelerates, S brakes and reverses, A and D steer, Space is the handbrake, the mouse looks
     round.
-  - The car is simulated: engine and gears, weight, tyre grip that lets go in a slide, and suspension
-    over kerbs and craters. The dashboard's speedometer and rev counter show the simulation's own
-    numbers.
+  - It drives arcade style (survey J8): grippy and simple, quick to pick up, sliding only on the
+    handbrake, bouncing over kerbs and craters. The dashboard's speedometer shows the simulation's own
+    speed.
 - **First person only** (the law): you see the modelled dashboard, the wheel turning with your
   steering, your hands on it, and the road through the windscreen. There is no outside camera.
 - **Getting out:** stop and press E; you step out beside the door.
-- **Which cars:** parked cars in towns and at the air bases. Traffic cars cannot be taken while their
-  driver is in them (survey J9).
+- **Which cars:** any car (survey J9), parked or in traffic. Walk up to a traffic car's driver door
+  and press E: it stops, the driver gets out and runs, and you get in.
 - **Damage:** a car you drive takes hits and can be crushed like any car (car-traffic); if it is
   crushed with you in it, you are thrown clear, hurt.

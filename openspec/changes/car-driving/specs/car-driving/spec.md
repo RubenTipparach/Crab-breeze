@@ -12,8 +12,7 @@ getting out.
 
 ### Requirement: The dashboard shows the simulation's numbers
 
-The car's speedometer and rev counter SHALL be driven from the speed and engine speed the car
-simulation uses.
+The car's speedometer SHALL be driven from the speed the car simulation uses.
 
 #### Scenario: Reading the speedometer
 - **WHEN** the car's simulated speed is 50 km/h

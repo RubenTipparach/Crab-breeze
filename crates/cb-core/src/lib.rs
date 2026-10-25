@@ -17,6 +17,7 @@ pub mod mech;
 pub mod mission;
 pub mod pilot;
 pub mod rng;
+pub mod settings;
 pub mod sim;
 pub mod skins;
 pub mod sun_flare;

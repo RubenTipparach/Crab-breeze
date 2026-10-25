@@ -52,7 +52,7 @@ Car { id: u32, kind: CarKind, lane: u32, s_m: f32 /* along the lane */, speed_m_
 - **Materials:** Material Maker car paint (base, clear-coat roughness), chrome, glass, tyre rubber;
   full PBR sets.
 
-## 4. Numbers (provisional on survey J6)
+## 4. Numbers (survey J6)
 
 | Item | Value |
 | --- | --- |
@@ -76,5 +76,5 @@ Measured downtown at rush density on the 3070 before it is called done.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| J6 | Traffic density | One car per 60 m in cities, 300 m on highways, within 1.5 km | provisional (survey J6) |
-| J7 | Which cars | 1980s civilian, no real brands: sedan, wagon, pickup, van, taxi, bus, semi | provisional (survey J7) |
+| J6 | Traffic density | One car per 60 m in cities, 300 m on highways, within 1.5 km | decided (survey J6) |
+| J7 | Which cars | 1980s civilian, no real brands: sedan, wagon, pickup, van, taxi, bus, semi | decided (survey J7) |

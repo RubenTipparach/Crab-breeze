@@ -62,6 +62,10 @@ choice does later: one way a mission begins.
   - fullscreen goes to the window mode.
 - **The pause menu** gains Options. Back from Options returns to the page it came from (the title or
   the pause menu).
+- **Switching menus** (owner, 2026-10-25, survey J1: "ESC inside the mech will bring up the menu with
+  buttons caan switch to other menus"): the pause menu has a row of page buttons along its top
+  (Resume, Options, Controls, and Mail once mission-jobs is built, Quit at the end), so any page is
+  one click from any other, not only through Back.
 - **Precedence:** the environment switches for measurement (`CB_NO_SHADOWS`, `CB_UNCAPPED`) still win,
   so a perf run is never changed by a player's settings file.
 

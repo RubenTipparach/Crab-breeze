@@ -2,7 +2,8 @@
 
 ## 1. Placement (`cb-core::world`, the world plan)
 
-The plan places `base_count` (3) bases after the cities and highways. A base site needs:
+The plan places `base_count` (5, survey J5) bases after the cities and highways, spread so no two
+are within 6 km of each other. A base site needs:
 - ground with a slope under 2 degrees over a 700 x 500 m footprint;
 - a highway within 3 km, joined to the base by a service road;
 - at least 2 km to any city.
@@ -46,19 +47,17 @@ Bays are walkable on foot: floors, and stairs to the ready room.
 - **Arrival:** `Arrived(base)` fires when the piloted mech stops on a pad or inside the fence, having
   been airborne or more than 2 km away. The career's current base becomes that base and the save is
   written.
-- **Repair** (`Repair::step`): while the mech is stopped in the repair bay, its parts are repaired in
-  this order: torso, left leg, right leg, left arm, right arm, head.
-  - Time per part: `repair.part_s` (8 s), plus `repair.per_structure_s` (0.1 s) per missing
-    structure point.
-  - Cost per part: `price x repair.full_share (0.3) x missing / total structure`, charged when the
-    part completes.
-  - A charge the career refuses stops the repair. A lost part is refitted at full structure.
+- **Repair** (`Repair::run`, instant: survey J11): when the mech stops in the repair bay, its parts
+  are repaired at once, in this order: torso, left leg, right leg, left arm, right arm, head.
+  - Cost per part: `price x repair.full_share (0.3) x missing / total structure`, charged as each
+    part is repaired.
+  - A charge the career refuses stops the repair there, leaving the rest damaged. A lost part is
+    refitted at full structure.
 - **Buying** (`Catalogue::buy`): charges the design's price, then adds an `OwnedMech` at full
   structure in the lowest free bay of the current base. With no free bay, the purchase is refused
   before anything is charged. Prices are in each mech's data (`price`, provisional on J4).
-- **Unlocks** (provisional on J14): the catalogue shows every design, priced. With J14's
-  recommendation, a design also needs `unlock_jobs` jobs won: 0 for the three cheapest, then 3, 6
-  and 10.
+- **No unlocks** (survey J14): the catalogue shows and sells every design from the start; the price
+  is the only limit.
 - **Parking:** an owned mech that is not being piloted is parked in its bay:
   - it does not step;
   - it is drawn sitting (the boarding pose);
@@ -70,8 +69,9 @@ Bays are walkable on foot: floors, and stairs to the ready room.
 - **Parked mechs** spawn as ordinary mechs with no AI and their saved damage. Boarding one makes it
   the piloted mech (`Piloted` moves to it) and changes the career's `piloting`. Boarding has one code
   path (pilot-boarding), with no copy.
-- **Repair effects:** the gantries and arms move, with weld sparks and steam (fx recipes). The MECH
-  MFD counts down from the repair rule's own clock.
+- **Repair effects:** the gantries swing in and back out over about 2 s with a burst of weld sparks
+  and steam (fx recipes); the repair itself is already done, and the MECH MFD shows the new state and
+  what it cost.
 - **Terminals:** standing on foot within 1.5 m of a `TERM_*` node and looking at it, the pilot presses
   Use.
   - The terminal's screen shows its page: MAIL from mission-jobs, or the catalogue here.
@@ -94,8 +94,8 @@ Before this is called done, the hangar is measured with all six bays full (perf-
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| J5 | How many bases | 3 | provisional (survey J5) |
-| J11 | How repairs take time | 20-80 s while you watch or walk about, part by part | provisional (survey J11) |
-| J13 | How you use the terminals | Walk up, press Use, the mouse points on the screen in front of you | provisional (survey J13) |
-| J4 | Prices | Mechs 300 000-1 200 000, full repair up to 30 % of the price | provisional (survey J4) |
-| J14 | Do won jobs unlock mechs, or only money | Both: money buys, and the dearer designs open after 3, 6 and 10 jobs won | provisional (survey J14) |
+| J5 | How many bases | 5 | decided (survey J5) |
+| J11 | How repairs take time | Instant | decided (survey J11) |
+| J13 | How you use the terminals | Walk up, press Use, the mouse points on the screen in front of you | decided (survey J13) |
+| J4 | Prices | Mechs 300 000-1 200 000, full repair up to 30 % of the price | decided (survey J4) |
+| J14 | Do won jobs unlock mechs, or only money | Money only: every mech is for sale from the start | decided (survey J14) |

@@ -30,6 +30,19 @@ The rules:
   - a tree: knocked down.
 - Each arm strikes on its own clock, so two strikes can overlap. A lost arm cannot strike.
 
+## 2b. Knockdown (survey G19)
+
+A strike that lands on an enemy mech (any part) knocks it down:
+- `Knockdown { t_s }` on the struck mech: falling 0.6 s, down 1.4 s, getting up 1.2 s (3.2 s in all,
+  `melee.knockdown_*_s` in data).
+- While knocked down it does not walk, turn or fire (its controls are zeroed, its guns' triggers
+  held), and its AI's clock keeps running so it picks up where it left off.
+- The pose: the whole body tips back about the heels to lying (pelvis down, torso back) and comes
+  back up through a kneel, blended over the gait pose like the sit (mech-boarding), so one pose code
+  path serves both.
+- A mech already down is not knocked down again until it stands (no stun lock).
+- Vehicles and crabs are not knocked down (they have no rig to fall with); they take the hit only.
+
 ## 3. The arm pose
 
 While a strike runs, the arm's shoulder and elbow bones are posed over the gait pose:
@@ -49,6 +62,6 @@ seated.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| G17 | What the triggers do in close combat | Arm strikes on the mouse buttons, guns hold | provisional (survey G17) |
+| G17 | What the triggers do in close combat | Arm strikes on the mouse buttons, guns hold | decided (survey G17) |
 | G18 | Melee range | 80 m (owner, 2026-10-25: "range should be 80m instead"; was 30 m) | decided |
-| G19 | What a strike does | Same damage rules as a shot (300 mm, 60), breaks cells and trees | provisional (survey G19) |
+| G19 | What a strike does | Same damage rules as a shot (300 mm, 60), breaks cells and trees, and knocks an enemy mech down for about 3 s | decided (survey G19) |

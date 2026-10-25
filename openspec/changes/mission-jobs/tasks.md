@@ -7,4 +7,6 @@
 - [ ] 2.2 Nav bearing and the site marker on the screens
 - [ ] 2.3 Arrival releases the forces; the outcome pays through the career and writes the save
 - [ ] 2.4 Test key: start the accepted job at its site
+- [ ] 2.5 M focuses the MAIL page; the pause menu's MAIL button
+- [ ] 2.6 Ejecting when the mech is destroyed; the wreck recovered to the nearest base
 - [ ] 3.1 Playtest: read mail, accept, travel, fight, get paid
