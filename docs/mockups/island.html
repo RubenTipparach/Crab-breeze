@@ -69,7 +69,7 @@ label.sl input { flex: 1; min-width: 0; }
 </style>
 
 <header>
-  <div class="eyebrow">Crab Breeze · openspec island-biomes, rock-formations, terrain-materials, cloud-puffs · mockup</div>
+  <div class="eyebrow">Crab Breeze · openspec island-biomes, rock-formations, terrain-materials, cloud-weather, terrain-features · mockup</div>
   <h1>The island, at true scale</h1>
   <p class="lede">The 41 km island as the design draws it, from seed 42: a snow range through the middle reaching through the clouds, the desert and its canyons in the rain shadow to the east, jungle and swamps on the wet west, cities by the game's rules joined by highways over the passes, beaches, sea cliffs with stacks and arches, waterfalls where the rivers drop, and an archipelago off the south-west. The weather comes from the west: storm cells with rain shafts over the jungle and the sea, a cloud deck to the north-west, cloud banked on the range, caps on the peaks, fair cumulus thinning over the desert, cirrus high above. Fly through a cloud or under a storm to see the rain on the glass.</p>
 </header>
@@ -136,7 +136,7 @@ label.sl input { flex: 1; min-width: 0; }
 </div>
 
 <div class="foot">
-  <div>Source: <code>docs/mockups/island.html</code> and <code>docs/mockups/island_gen.js</code> (the height and biome rules). Design: <code>openspec/changes/island-biomes</code>, <code>rock-formations</code>, <code>terrain-materials</code>, <code>cloud-puffs</code>, <code>cloud-rain</code>. Research and sources: <code>docs/analysis/island-environment.md</code>.</div>
+  <div>Source: <code>docs/mockups/island.html</code> and <code>docs/mockups/island_gen.js</code> (the height and biome rules). Design: <code>openspec/changes/island-biomes</code>, <code>rock-formations</code>, <code>terrain-materials</code>, <code>terrain-features</code>, <code>cloud-weather</code>, <code>cloud-rain</code>. Research and sources: <code>docs/analysis/island-environment.md</code>.</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
@@ -697,7 +697,8 @@ function buildRivers() {
       const y = p.bed - 0.5 + 2.0;
       const base = pos.length / 3;
       pos.push(p.x - dz * hw, y, p.z + dx * hw, p.x + dz * hw, y, p.z - dx * hw);
-      const m = rv.west ? 0.55 : 0.15;
+      // Clear in the mountains; western rivers turn muddy only on the lowland run to the swamps.
+      const m = (rv.west ? 0.55 : 0.15) * G.smooth(150, 20, p.bed);
       murk.push(m, m);
       if (prev >= 0 && !(inFall[i] && inFall[i - 1]) && p.bed > -1) idx.push(prev, prev + 1, base, prev + 1, base + 1, base);
       prev = base;
@@ -734,7 +735,7 @@ function buildRivers() {
     const a = { x: f.fx, z: f.fz }, b = { x: f.lx, z: f.lz };
     // The river on the tread above, running to the lip, and below, from the landing on.
     const strip = (x0, z0, x1, z1, y, hw) => {
-      const k = pos.length / 3, m = G.RIVERS[f.river].west ? 0.55 : 0.15;
+      const k = pos.length / 3, m = (G.RIVERS[f.river].west ? 0.55 : 0.15) * G.smooth(150, 20, y);
       pos.push(x0 - dz * hw, y, z0 + dx * hw, x0 + dz * hw, y, z0 - dx * hw, x1 - dz * hw, y, z1 + dx * hw, x1 + dz * hw, y, z1 - dx * hw);
       murk.push(m, m, m, m);
       idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2);

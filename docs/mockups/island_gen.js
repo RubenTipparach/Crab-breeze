@@ -369,7 +369,7 @@
       const bed = mix(s.bedA, s.bedB, r.u);
       const ch = bed - 4 + Math.max(0, r.d - s.hw) * 0.38;
       if (ch < h) h = ch;
-      if (r.d < rdist) { rdist = r.d; murk = s.west ? 0.55 : 0.15; if (r.d < s.hw + 10) water = bed - 0.5; }
+      if (r.d < rdist) { rdist = r.d; murk = (s.west ? 0.55 : 0.15) * smooth(150, 20, bed); if (r.d < s.hw + 10) water = bed - 0.5; }
     }
     for (const fl of FALLS) {
       // A face: across the fall's 300 m corridor the ground steps from the lip's height to the
