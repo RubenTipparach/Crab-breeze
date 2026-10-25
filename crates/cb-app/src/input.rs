@@ -41,7 +41,7 @@ pub struct StepActions(pub Actions);
 
 /// Key codes resolved from the bindings data.
 #[derive(Resource)]
-struct Keys {
+pub(crate) struct Keys {
     forward: Vec<KeyCode>,
     back: Vec<KeyCode>,
     left: Vec<KeyCode>,
@@ -53,7 +53,8 @@ struct Keys {
     mode_walk: Vec<KeyCode>,
     mode_skate: Vec<KeyCode>,
     mode_jet: Vec<KeyCode>,
-    release_mouse: Vec<KeyCode>,
+    /// Opens and closes the pause menu (game-menus).
+    pub(crate) release_mouse: Vec<KeyCode>,
     lift: Vec<KeyCode>,
     skate: Vec<KeyCode>,
     sink: Vec<KeyCode>,
@@ -193,22 +194,23 @@ fn any_just(input: &ButtonInput<KeyCode>, keys: &[KeyCode]) -> bool {
 fn grab_mouse(
     mut cursor: Single<&mut CursorOptions>,
     mouse: Res<ButtonInput<MouseButton>>,
-    input: Res<ButtonInput<KeyCode>>,
-    keys: Res<Keys>,
+    menu: Res<crate::menu::Menu>,
     mut first: Local<bool>,
 ) {
+    // The pause menu (game-menus) releases the mouse on Escape and takes it back on Resume; a click
+    // with the menu open is for its buttons.
+    if menu.is_open() {
+        return;
+    }
     if !*first || mouse.just_pressed(MouseButton::Left) {
         *first = true;
         cursor.visible = false;
         cursor.grab_mode = CursorGrabMode::Locked;
     }
-    if any_just(&input, &keys.release_mouse) {
-        cursor.visible = true;
-        cursor.grab_mode = CursorGrabMode::None;
-    }
 }
 
 fn sample_devices(
+    menu: Res<crate::menu::Menu>,
     input: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     motion: Res<AccumulatedMouseMotion>,
@@ -216,6 +218,10 @@ fn sample_devices(
     keys: Res<Keys>,
     mut acc: ResMut<InputAccum>,
 ) {
+    // Paused in the menu: no look, no presses reach the game.
+    if menu.is_open() {
+        return;
+    }
     if cursor.grab_mode != CursorGrabMode::None {
         let sign = if keys.invert_pitch { 1.0 } else { -1.0 };
         acc.look_deg += Vec2::new(motion.delta.x, sign * motion.delta.y) * keys.deg_per_px;
