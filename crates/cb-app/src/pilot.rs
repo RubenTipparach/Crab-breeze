@@ -154,6 +154,23 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
         bevy::anti_alias::fxaa::Fxaa::default(),
     ));
     camera.add_child(cockpit);
+    // Screen-space ambient occlusion on the world (ambient-occlusion): creases and contact points
+    // darken in indirect light. The cockpit keeps its baked occlusion. `CB_NO_SSAO=1` or a 0 radius
+    // switches it off.
+    if view.ssao_radius_m > 0.0 && !crate::cli::switched_off("CB_NO_SSAO") {
+        use bevy::pbr::{ScreenSpaceAmbientOcclusion, ScreenSpaceAmbientOcclusionQualityLevel as Q};
+        use cb_core::world::config::SsaoQuality;
+        camera.insert(ScreenSpaceAmbientOcclusion {
+            quality_level: match view.ssao_quality {
+                SsaoQuality::Low => Q::Low,
+                SsaoQuality::Medium => Q::Medium,
+                SsaoQuality::High => Q::High,
+                SsaoQuality::Ultra => Q::Ultra,
+            },
+            radius: view.ssao_radius_m,
+            ..default()
+        });
+    }
     // The scattering sky (sky-atmosphere): Bevy's atmosphere draws the sky and hazes the distance,
     // under raw sunlight, with the exposure to match. `CB_NO_SKY=1` keeps the old flat sky.
     if crate::world::scattering_sky() {

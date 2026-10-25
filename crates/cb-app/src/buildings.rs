@@ -132,14 +132,7 @@ impl SurfaceMeshes {
 
     /// The meshes, with tangents for the normal maps.
     fn build(self) -> Vec<(Surface, Mesh)> {
-        self.0
-            .into_iter()
-            .map(|(s, mb)| {
-                let mut mesh = mb.build();
-                mesh.generate_tangents().ok();
-                (s, mesh)
-            })
-            .collect()
+        self.0.into_iter().map(|(s, mb)| (s, mb.build_with_tangents())).collect()
     }
 }
 
@@ -394,10 +387,11 @@ fn dressing_meshes(c: &Cells, id: u32, seed: &SimRng, cfg: &DressingConfig) -> V
     builders
         .into_iter()
         .map(|(mat, mb)| {
-            let mut mesh = mb.build();
-            if matches!(mat, Mat::Brick | Mat::Concrete | Mat::Roof | Mat::Wood) {
-                mesh.generate_tangents().ok();
-            }
+            let mesh = if matches!(mat, Mat::Brick | Mat::Concrete | Mat::Roof | Mat::Wood) {
+                mb.build_with_tangents()
+            } else {
+                mb.build()
+            };
             (Look::Skin(mat), mesh)
         })
         .chain(rooms.build().into_iter().map(|(s, mesh)| (Look::Surface(s), mesh)))

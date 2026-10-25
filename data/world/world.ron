@@ -92,6 +92,11 @@
         grade_saturation: 1.15,
         grade_contrast: 1.08,
         grade_temperature: 0.0,
+        // Screen-space ambient occlusion on the world (openspec/changes/ambient-occlusion; owner,
+        // 2026-10-24: "Ssao? Might help"): creases and contact points darken in indirect light.
+        // 1.5 m reaches across a desk; 0 switches it off.
+        ssao_radius_m: 1.5,
+        ssao_quality: Medium,
     ),
 
     // Rivers and lakes (openspec/changes/terrain-water/design.md section 1). Lakes are the ground

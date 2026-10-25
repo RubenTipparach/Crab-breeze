@@ -33,6 +33,14 @@ One `StandardMaterial` per surface is shared by every building, so meshes of a s
   the 2026-10-24 Mac report.
 - CPU: none per frame; the meshes are rebuilt on the same events as before.
 
+## 4. Measured (2026-10-24, Mac)
+
+The first textured build ran MikkTSpace (`Mesh::generate_tangents`) on every surface mesh of every
+rebuilt band: city combat p95 rose from 23 to 39 ms and freezes over 50 ms from 9 to 494. Tangents
+are now written straight from the planar UV mapping (`MeshBuilder::build_with_tangents`), and the
+textured build is no slower than the flat one (p99 30.5 against 35.3 ms, slow redraw frames down
+about tenfold): `docs/benchmarks/2026-10-24-surfaces-mac/`.
+
 ## Open questions
 
 | question | recommendation | status |

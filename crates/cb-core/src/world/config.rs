@@ -474,6 +474,25 @@ pub struct ViewConfig {
     pub grade_contrast: f32,
     /// White balance, a CIE 1931 x offset: positive warmer, negative cooler, 0 unchanged.
     pub grade_temperature: f32,
+    /// Screen-space ambient occlusion's sample radius (openspec change `ambient-occlusion`); 0
+    /// switches it off.
+    pub ssao_radius_m: f32,
+    /// Its quality level.
+    pub ssao_quality: SsaoQuality,
+}
+
+/// Screen-space ambient occlusion quality, Bevy's levels.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+pub enum SsaoQuality {
+    /// Fewest samples.
+    Low,
+    /// Bevy's default.
+    #[default]
+    Medium,
+    /// More samples.
+    High,
+    /// Most samples.
+    Ultra,
 }
 
 impl Default for ViewConfig {
@@ -487,6 +506,8 @@ impl Default for ViewConfig {
             grade_saturation: 1.0,
             grade_contrast: 1.0,
             grade_temperature: 0.0,
+            ssao_radius_m: 1.5,
+            ssao_quality: SsaoQuality::Medium,
         }
     }
 }
@@ -498,6 +519,7 @@ impl Validate for ViewConfig {
         within("view.exposure_ev100", self.exposure_ev100, 0.0, 20.0)?;
         within("view.sun_disk_deg", self.sun_disk_deg, 0.0, 20.0)?;
         within("view.sun_disk_intensity", self.sun_disk_intensity, 0.0, 100.0)?;
+        within("view.ssao_radius_m", self.ssao_radius_m, 0.0, 20.0)?;
         within("view.grade_saturation", self.grade_saturation, 0.0, 3.0)?;
         within("view.grade_contrast", self.grade_contrast, 0.5, 2.0)?;
         within("view.grade_temperature", self.grade_temperature, -1.0, 1.0)?;
@@ -801,7 +823,27 @@ impl Validate for WorldConfig {
 
 #[cfg(test)]
 mod debris_tests {
-    use super::DebrisConfig;
+    use super::{DebrisConfig, Validate, ViewConfig};
+
+    #[test]
+    fn ssao_settings_are_validated() {
+        assert!(ViewConfig::default().validate().is_ok());
+        let off = ViewConfig {
+            ssao_radius_m: 0.0,
+            ..ViewConfig::default()
+        };
+        assert!(off.validate().is_ok(), "0 switches it off");
+        let bad = ViewConfig {
+            ssao_radius_m: f32::NAN,
+            ..ViewConfig::default()
+        };
+        assert!(bad.validate().is_err(), "a broken radius stops startup");
+        let neg = ViewConfig {
+            ssao_radius_m: -1.0,
+            ..ViewConfig::default()
+        };
+        assert!(neg.validate().is_err());
+    }
 
     #[test]
     fn debris_is_physical_only_near_the_pilot() {

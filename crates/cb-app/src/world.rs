@@ -311,6 +311,15 @@ impl MeshBuilder {
         }
     }
 
+    /// The mesh with tangents for a normal map, written straight from the planar UV mapping (`uv`):
+    /// u runs along +x on floors and on z-facing walls, along +z on x-facing walls; v runs +z on
+    /// floors and down on walls. MikkTSpace (`Mesh::generate_tangents`) gives the same on these
+    /// faces and cost most of a combat frame's building redraw (`building-surfaces`, 2026-10-24).
+    pub fn build_with_tangents(self) -> Mesh {
+        let tangents: Vec<[f32; 4]> = self.normals.iter().map(|n| planar_tangent(Vec3::from(*n))).collect();
+        self.build().with_inserted_attribute(Mesh::ATTRIBUTE_TANGENT, tangents)
+    }
+
     pub fn build(self) -> Mesh {
         Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
             .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, self.positions)
@@ -319,6 +328,23 @@ impl MeshBuilder {
             .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, self.uvs)
             .with_inserted_indices(Indices::U32(self.indices))
     }
+}
+
+/// The tangent (xyz, handedness w) of `MeshBuilder::uv`'s planar mapping on a face of normal `n`.
+fn planar_tangent(n: Vec3) -> [f32; 4] {
+    let a = n.abs();
+    let (t, b) = if a.y >= a.x && a.y >= a.z {
+        (Vec3::X, Vec3::Z)
+    } else if a.x >= a.z {
+        (Vec3::Z, Vec3::NEG_Y)
+    } else {
+        (Vec3::X, Vec3::NEG_Y)
+    };
+    let t = (t - n * n.dot(t)).normalize_or(Vec3::X);
+    // Bevy's tangent space has v running against the bitangent (glTF's flipped v), so the
+    // handedness is the opposite of cross(n, t) against the direction v grows.
+    let w = if n.cross(t).dot(b) < 0.0 { 1.0 } else { -1.0 };
+    [t.x, t.y, t.z, w]
 }
 
 fn vertex_material(materials: &mut Assets<StandardMaterial>, roughness: f32) -> Handle<StandardMaterial> {
@@ -1280,5 +1306,34 @@ fn face_clouds(
     for (mut t, c) in &mut q {
         t.translation = c.anchor + drift;
         t.rotation = rot;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy::mesh::VertexAttributeValues;
+
+    fn tangents(mesh: &Mesh) -> Vec<[f32; 4]> {
+        match mesh.attribute(Mesh::ATTRIBUTE_TANGENT) {
+            Some(VertexAttributeValues::Float32x4(t)) => t.clone(),
+            _ => panic!("no tangents"),
+        }
+    }
+
+    #[test]
+    fn planar_tangents_match_mikktspace_on_a_box() {
+        let mut a = MeshBuilder::tiled(2.4, 2.4);
+        a.block(Vec3::new(1.0, 2.0, 3.0), Vec3::new(4.0, 3.5, 7.0), [1.0; 4]);
+        let mut b = MeshBuilder::tiled(2.4, 2.4);
+        b.block(Vec3::new(1.0, 2.0, 3.0), Vec3::new(4.0, 3.5, 7.0), [1.0; 4]);
+        let ours = tangents(&a.build_with_tangents());
+        let mut mikk = b.build();
+        mikk.generate_tangents().unwrap();
+        for (i, (o, m)) in ours.iter().zip(tangents(&mikk)).enumerate() {
+            let (o3, m3) = (Vec3::new(o[0], o[1], o[2]), Vec3::new(m[0], m[1], m[2]));
+            assert!(o3.dot(m3) > 0.99, "vertex {i}: tangent {o3} against {m3}");
+            assert_eq!(o[3], m[3], "vertex {i}: handedness");
+        }
     }
 }
