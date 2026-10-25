@@ -2,22 +2,44 @@
 
 ## 1. Cues
 
-`data/audio/cues.ron`: each cue has `files`, `volume_db`, `pitch: (lo, hi)`, `space: World | Cockpit`,
-`loop` and `max_voices`. A cue picks one of its files at random (presentation randomness, not the
+`data/audio/cues.ron`: each cue has `files`, `volume_db`, `pitch: (lo, hi)`, `space`, `loop` and
+`max_voices`. A cue picks one of its files at random (presentation randomness, not the
 simulation's) and a pitch in its range. A missing file, or a cue the game asks for that the file
 lacks, stops startup with its path.
 
+**Every sound is 3D except ambience, music and UI** (owner, 2026-10-25: "verify all sounds are 3d
+based (except ambience and music and ui)"). `space` is one of:
+
+- `Emitter(node)`: placed in 3D at a named node and moving with it, heard from the listener at
+  `EYE_pilot` (the pilot's head, on foot or in the seat) with distance, direction and the head's
+  turn. The player's own mech is no exception: its guns fire from `MUZZLE_*` beside and below the
+  cockpit, its jets roar from behind, and a cockpit tone comes from its speaker, so turning the
+  head moves every one of them.
+- `At(point)`: the same, at a world point that does not move (an impact, a blast, a collapse).
+- `Ambience`, `Music`, `Ui`: not placed; stereo, played as they are (`ambience`, `music`, menus).
+
 | Cue | Asked by | Space |
 | --- | --- | --- |
-| `autocannon`, `cannon`, `rocket_launch`, `missile_launch` | a gun firing (`mech::step_mech`) | World (the player's own: Cockpit) |
-| `impact_mech`, `impact_building`, `impact_ground`, `impact_water` | `combat::fly_shots` | World |
-| `explosion_small`, `explosion_large` | `blast::explode` (under or over 3 MJ) | World |
-| `foot_stomp`, `foot_splash` | footfalls | World (own: Cockpit, a muffled thump) |
-| `rocket_loop`, `rocket_rumble` | rockets burning, volume and pitch on the lift axis | Cockpit |
-| `skate_roll` | skating with the wheels on the ground, pitch on speed (section 2) | Cockpit |
-| `lock_tone`, `lock_on` | `targeting` (building, locked) | Cockpit |
-| `hatch_*`, `steam` | the boarding stages | World |
-| `collapse` | a building storey giving way | World |
+| `autocannon`, `cannon`, `shotgun`, `rail_charge`, `rail_fire`, `laser_loop`, `laser_stop`, `plasma_fire` | a gun firing (`mech::step_mech`, `weapon-kinds`) | `Emitter(MUZZLE_L / MUZZLE_R)` of the gun's mount |
+| `rocket_launch`, `missile_launch` | a launcher firing | `Emitter` at the launcher's muzzle |
+| `impact_mech`, `impact_building`, `impact_ground`, `impact_water`, `plasma_burst` | `combat::fly_shots` | `At` the hit |
+| `explosion_small`, `explosion_large` | `blast::explode` (under or over 3 MJ) | `At` the blast |
+| `foot_stomp`, `foot_splash` | footfalls | `Emitter(foot_L / foot_R)`, the foot that landed |
+| `skate_roll` | skating with the wheels on the ground, pitch on speed (section 2b) | `Emitter(WHEEL_L)` and `Emitter(WHEEL_R)`, one voice each |
+| `rocket_loop`, `rocket_rumble`, `jet_ignite` | rockets burning, volume and pitch on the lift axis | `Emitter(JET_L)` and `Emitter(JET_R)` |
+| `servo_torso`, `hydraulic` | the torso turning, a leg's ram | `Emitter` at the torso ring, at the leg's knee |
+| `punch_swing`, `punch_hit_mech`, `punch_hit_building` | a punch (melee is not designed yet: `weapon-kinds` leaves it out; the cue names are reserved) | `Emitter(hand_L / hand_R)` for the swing, `At` the contact for a hit |
+| `lock_tone`, `lock_on`, `heat_lock`, `alarm_warning`, `radar_ping`, `systems_boot`, `radio_squelch` | `targeting`, `cockpit-alarms`, the radio, the boot | `Emitter(SND_warning)` or `Emitter(SND_radio)`: new speaker empties on `CONSOLE_front` (a task for the cockpit generator) |
+| `mfd_click` | a cockpit control pressed | `Emitter` at the pressed control's own node (every control is a named node, CLAUDE.md 10) |
+| `reactor_hum` | the reactor running | `Emitter(SND_reactor)`: a new empty behind the seat |
+| `hatch_*` | the boarding stages | `Emitter(HATCH_entry)` and the hatch parts that move |
+| `collapse` | a building storey giving way | `At` the storey |
+
+**The check.** `cb-tools validate` loads every cue's files and refuses an `Emitter` or `At` cue
+whose file is not mono (a stereo file cannot be placed; every file in `assets/audio/sfx` is mono
+today, 39 of 39) and a cue whose `space` names a node the mech's or cockpit's glb lacks. Only
+`Ambience`, `Music` and `Ui` may be stereo. A test reads `cues.ron` and fails on any cue that is
+neither placed nor one of those three, so a new cue cannot slip in flat.
 
 ## 2. Rocket rumble
 
@@ -47,8 +69,9 @@ the cockpit's own gauges show (CLAUDE.md 6.1), not guessed from the sound side.
 ## 3. Distance
 
 A World sound starts after `distance / 343` s, falls off as `1 / distance` beyond 5 m, and is low
-passed toward 2 kHz at 1 km. Heard from the seat, World sounds are 6 dB down and low passed at
-4 kHz (the sealed cockpit). At most 32 voices; the quietest is dropped.
+passed toward 2 kHz at 1 km. Heard from the seat, a sound from outside the cockpit (anything
+but the speaker, reactor and control emitters inside the sealed cabin, and the ambience beds the
+same way) is 6 dB down and low passed at 4 kHz (the sealed cockpit). At most 32 voices; the quietest is dropped.
 
 ## 4. Sources
 
@@ -62,6 +85,13 @@ edits (trim, loop point, normalised to -1 dBFS peak). Candidates found on OpenGa
 [Mechanical Sounds](https://opengameart.org/content/mechanical-sounds),
 [100 CC0 SFX #2](https://opengameart.org/content/100-cc0-sfx-2). The gaps (a rocket engine loop, a
 sub rumble, a heavy autocannon, a lock tone) come from Freesound's CC0 filter.
+
+## 4b. Engine for 3D
+
+Bevy 0.20 places a sound with a spatial listener and emitter (stereo panning between two ears and
+distance falloff); check its API on docs.rs for the pinned version before writing it (CLAUDE.md 2).
+If panning alone does not put a sound behind the pilot convincingly in a playtest, the candidates
+are `oddio` (spatial, with propagation delay) and Steam Audio (HRTF), `docs/analysis/audio-sources.md`.
 
 ## 5. Cost
 

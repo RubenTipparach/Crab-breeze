@@ -7,6 +7,13 @@ The game SHALL play the cue that `data/audio/music.ron` gives the current music 
 - **WHEN** the pilot is seated and an enemy within 2 km targets the mech
 - **THEN** the music state becomes combat and the combat cue starts
 
+### Requirement: Calm is silence
+When the pilot is seated with no threat, no set piece and no stinger playing, the music SHALL fade out and stay silent, leaving the ambience; it SHALL fade only after 30 s without a threat or a shot.
+
+#### Scenario: A wave cleared
+- **WHEN** the last raider of a wave is destroyed and nothing else targets the mech
+- **THEN** the combat cue keeps playing for 30 s, then fades out over 2 bars, and only the ambience is heard until the next threat
+
 ### Requirement: Cues change on the bar
 A change of cue SHALL start on the next bar line of the playing cue and crossfade over the configured number of bars, so no cue is cut mid-bar.
 

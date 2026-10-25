@@ -630,15 +630,18 @@ def systems_boot(r):
 # ---------------------------------------------------------------- output
 
 def write_wav(path: str, x: np.ndarray, peak_db: float = -1.0, loop: bool = False) -> None:
-    """Peak-normalised mono 16-bit WAV. A one-shot gets a 5 ms fade out; a loop must not, or the
-    fade clicks at the seam on every repeat."""
+    """Peak-normalised 16-bit WAV, mono, or stereo when x is (2, n). A one-shot gets a 5 ms fade
+    out; a loop must not, or the fade clicks at the seam on every repeat."""
     peak = float(np.max(np.abs(x))) or 1.0
     y = np.clip(x / peak * 10 ** (peak_db / 20), -1, 1)
     if not loop:
-        fade = min(len(y), int(0.005 * SR))
-        y[-fade:] *= np.linspace(1, 0, fade)
+        fade = min(y.shape[-1], int(0.005 * SR))
+        y[..., -fade:] *= np.linspace(1, 0, fade)
+    channels = 1 if y.ndim == 1 else y.shape[0]
+    if channels == 2:
+        y = y.T.reshape(-1)   # interleave left and right
     with wave.open(path, "wb") as w:
-        w.setnchannels(1)
+        w.setnchannels(channels)
         w.setsampwidth(2)
         w.setframerate(SR)
         w.writeframes((y * 32767).astype("<i2").tobytes())

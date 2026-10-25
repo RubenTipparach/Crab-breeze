@@ -40,10 +40,11 @@ def find(src_root: str, ref: str) -> str:
     raise FileNotFoundError(f"{ref} (looked under {base})")
 
 
-def load(path: str) -> np.ndarray:
-    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-ac", "1", "-ar", str(SR), "-f", "f32le", "-"],
+def load(path: str, channels: int = 1) -> np.ndarray:
+    """The file as float samples, shape (channels, n): a mono file is copied to both sides."""
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-ac", str(channels), "-ar", str(SR), "-f", "f32le", "-"],
                          capture_output=True, check=True).stdout
-    return np.frombuffer(raw, np.float32).astype(np.float64)
+    return np.frombuffer(raw, np.float32).astype(np.float64).reshape(-1, channels).T
 
 
 def shot_start(x: np.ndarray, k: int, gap_s: float = 0.25) -> float:
@@ -65,49 +66,66 @@ def varispeed(x: np.ndarray, ratio: float) -> np.ndarray:
     """Tape-style pitch: ratio below 1 is lower and longer, as a bigger machine would sound."""
     if ratio == 1:
         return x
-    n = int(len(x) / ratio)
-    return np.interp(np.arange(n) * ratio, np.arange(len(x)), x)
+    n = int(x.shape[-1] / ratio)
+    return np.stack([np.interp(np.arange(n) * ratio, np.arange(x.shape[-1]), c) for c in x])
 
 
 def fades(x: np.ndarray, fin: float, fout: float) -> np.ndarray:
     x = x.copy()
-    a, b = min(len(x), int(fin * SR)), min(len(x), int(fout * SR))
+    n = x.shape[-1]
+    a, b = min(n, int(fin * SR)), min(n, int(fout * SR))
     if a:
-        x[:a] *= np.linspace(0, 1, a)
+        x[..., :a] *= np.linspace(0, 1, a)
     if b:
-        x[-b:] *= np.linspace(1, 0, b) ** 2
+        x[..., -b:] *= np.linspace(1, 0, b) ** 2
     return x
 
 
-def layer(spec: dict, src_root: str) -> np.ndarray:
+def per_channel(fn, x: np.ndarray, *a, **k) -> np.ndarray:
+    return np.stack([fn(c, *a, **k) for c in x])
+
+
+def fit(x: np.ndarray, n: int) -> np.ndarray:
+    return np.pad(x, ((0, 0), (0, max(0, n - x.shape[-1]))))[:, :n]
+
+
+def layer(spec: dict, src_root: str, channels: int) -> np.ndarray:
+    """One layer as (channels, n). pan (-1 left to 1 right, equal power) places it in a stereo cue."""
     if "synth" in spec:
         group, what, fn, _ = g.SOUNDS[spec["synth"]]
-        x = fn(g.rng_for(spec["synth"]))
+        x = np.repeat(fn(g.rng_for(spec["synth"]))[None, :], channels, axis=0)
     else:
-        x = load(find(src_root, spec["src"]))
-        start = shot_start(x, spec["shot"]) + spec.get("start", 0.0) if "shot" in spec else spec.get("start", 0.0)
-        x = x[int(start * SR):]
+        x = load(find(src_root, spec["src"]), channels)
+        start = shot_start(x.mean(axis=0), spec["shot"]) + spec.get("start", 0.0) if "shot" in spec else spec.get("start", 0.0)
+        x = x[:, int(start * SR):]
         x = varispeed(x, spec.get("pitch", 1.0))
+        if spec.get("repeat", 1) > 1:
+            x = np.tile(x, (1, spec["repeat"]))
     if "dur" in spec:
-        x = x[: int(spec["dur"] * SR)]
+        x = x[:, : int(spec["dur"] * SR)]
     if "hp" in spec:
-        x = g.hp(x, spec["hp"])
+        x = per_channel(g.hp, x, spec["hp"])
     if "lp" in spec:
-        x = g.lp(x, spec["lp"], order=spec.get("lp_order", 4))
+        x = per_channel(g.lp, x, spec["lp"], order=spec.get("lp_order", 4))
     x = fades(x, spec.get("fadein", 0.003), spec.get("fadeout", 0.01))
     x = x / (np.max(np.abs(x)) or 1.0) * 10 ** (spec.get("gain", 0.0) / 20)
-    return np.concatenate([np.zeros(int(spec.get("delay", 0.0) * SR)), x])
+    if channels == 2 and "pan" in spec:
+        a = (spec["pan"] + 1) * np.pi / 4
+        x = x * np.array([[np.cos(a)], [np.sin(a)]]) * np.sqrt(2)
+    return np.concatenate([np.zeros((channels, int(spec.get("delay", 0.0) * SR))), x], axis=1)
 
 
 def cut(cue: dict, src_root: str) -> np.ndarray:
-    x = g.mix(*[layer(s, src_root) for s in cue["layers"]])
-    if "len" in cue:
-        x = g.fit(x, int(cue["len"] * SR))
+    """The cue as (channels, n): stereo for an ambience bed (cue "stereo": true), mono otherwise."""
+    ch = 2 if cue.get("stereo") else 1
+    parts = [layer(s, src_root, ch) for s in cue["layers"]]
+    n = cue.get("len") and int(cue["len"] * SR) or max(p.shape[-1] for p in parts)
+    x = sum(fit(p, n) for p in parts)
     if "drive" in cue:
         x = g.shape(x / (np.max(np.abs(x)) or 1.0), cue["drive"])
-    x = g.hp(x, cue.get("hp", 20))
+    x = per_channel(g.hp, x, cue.get("hp", 20))
     if cue.get("loop"):
-        x = g.loopable(x, cue.get("loop_fade", 0.3))
+        x = per_channel(g.loopable, x, cue.get("loop_fade", 0.3))
     else:
         x = fades(x, 0.0, cue.get("tail_fade", 0.05))
     return x
@@ -122,20 +140,21 @@ def credit(ref: str, licences: dict) -> str:
     return f"[{title}]({info.get('url', '')}){who} `{name}`, {lic}"
 
 
-def write_sources(cues: dict, licences: dict) -> None:
+def rows_for(names, cues: dict, licences: dict) -> list:
     rows = []
-    for name in sorted(g.SOUNDS):
+    for name in names:
         if name in cues and cues[name].get("_cut"):
             srcs = []
             for s in cues[name]["layers"]:
                 srcs.append(f"our `{s['synth']}` synthesis" if "synth" in s else credit(s["src"], licences))
             edits = cues[name].get("edits", "trimmed, layered, filtered, levelled")
-            rows.append(f"| {name} | {'; '.join(srcs)} | {edits} |")
+            rows.append(f"| {name} | {'; '.join(dict.fromkeys(srcs))} | {edits} |")
         else:
             rows.append(f"| {name} | `tools/audio/gen_sfx.py` (synthesised, ours) | none |")
-    text = f"""# Sound effect sources
+    return rows
 
-Recorded cues are cut from CC0 and public domain originals by `tools/audio/cut_cc0.py` to the spec in
+
+HEADER = """Recorded cues are cut from CC0 and public domain originals by `tools/audio/cut_cc0.py` to the spec in
 `tools/audio/cc0_cues.json` (originals fetched by `tools/audio/fetch_cc0.py`, which refuses a pack
 whose page does not say CC0 or public domain); the rest are synthesised by `tools/audio/gen_sfx.py`.
 Rebuild all of them with `tools/audio/render_sfx.sh`. This file is written by `cut_cc0.py`: edit the
@@ -144,9 +163,17 @@ Candidates and what was looked at: `docs/analysis/audio-sources.md`.
 
 | Cue | Made from | Edits |
 | --- | --- | --- |
-""" + "\n".join(rows) + "\n"
-    with open(os.path.join(REPO, "assets/audio/sfx/SOURCES.md"), "w") as f:
-        f.write(text)
+"""
+
+
+def write_sources(cues: dict, licences: dict) -> None:
+    named = {n for n in cues if not n.startswith("_")}
+    amb = sorted(n for n in named if cues[n].get("group") == "Ambience")
+    sfx = sorted((set(g.SOUNDS) | named) - set(amb))
+    for title, names, folder in (("Sound effect sources", sfx, "sfx"), ("Ambience sources", amb, "ambience")):
+        os.makedirs(os.path.join(REPO, "assets/audio", folder), exist_ok=True)
+        with open(os.path.join(REPO, "assets/audio", folder, "SOURCES.md"), "w") as f:
+            f.write(f"# {title}\n\n" + HEADER + "\n".join(rows_for(names, cues, licences)) + "\n")
 
 
 def main() -> int:
@@ -165,8 +192,8 @@ def main() -> int:
     for name, cue in cues.items():
         if name.startswith("_") or (args.cues and name not in args.cues):
             continue
-        if name not in g.SOUNDS:
-            print(f"{name}: not a cue gen_sfx.py knows", file=sys.stderr)
+        if name not in g.SOUNDS and not ("group" in cue and "what" in cue):
+            print(f"{name}: not a cue gen_sfx.py knows, and it names no group and what", file=sys.stderr)
             status = 1
             continue
         try:
@@ -178,14 +205,18 @@ def main() -> int:
             print(f"{name}: produced a non-finite sample", file=sys.stderr)
             return 1
         cue["_cut"] = True
-        peak_db = cue.get("peak_db", g.SOUNDS[name][3])
-        g.write_wav(os.path.join(args.out, f"{name}.wav"), x, peak_db, loop=bool(cue.get("loop")))
-        peaks = np.abs(x)[: len(x) // 120 * 120].reshape(120, -1).max(axis=1)
-        m = manifest.setdefault(name, {"name": name, "group": g.SOUNDS[name][0]})
-        m.update({"what": cue.get("what", g.SOUNDS[name][1]), "seconds": round(len(x) / SR, 2),
+        known = g.SOUNDS.get(name)
+        peak_db = cue.get("peak_db", known[3] if known else -1.0)
+        g.write_wav(os.path.join(args.out, f"{name}.wav"), x if x.shape[0] == 2 else x[0], peak_db,
+                    loop=bool(cue.get("loop")))
+        mono = np.abs(x).max(axis=0)
+        peaks = mono[: len(mono) // 120 * 120].reshape(120, -1).max(axis=1)
+        m = manifest.setdefault(name, {"name": name})
+        m.update({"group": cue.get("group", known[0] if known else "Other"),
+                  "what": cue.get("what", known[1] if known else ""), "seconds": round(x.shape[-1] / SR, 2),
                   "loop": bool(cue.get("loop")), "peaks": [round(float(p), 3) for p in peaks / (peaks.max() or 1)],
-                  "recorded": True})
-        print(f"{name:18} {len(x) / SR:4.1f} s  recorded")
+                  "recorded": True, "stereo": x.shape[0] == 2})
+        print(f"{name:18} {x.shape[-1] / SR:4.1f} s  recorded{' stereo' if x.shape[0] == 2 else ''}")
     # cues listed but not cut this run keep a row only if cut earlier: rebuild every row from disk state
     for name, cue in cues.items():
         if not name.startswith("_") and manifest.get(name, {}).get("recorded"):

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Writes the Mech Sounds page (docs/mockups/sounds.html) from output/sfx/sfx.json.
 
-Every sound tools/audio/render_sfx.sh makes (recorded CC0 cuts and synthesised cues), grouped as the game uses them, with its description, length, a
+Every sound tools/audio/render_sfx.sh makes (recorded CC0 cuts, synthesised cues and the ambience
+beds), grouped as the game uses them, with its description, length, a
 waveform strip from its peaks and a play button (loops play on repeat). Each sound's MP3 share copy
-is embedded in the page as a data: URI (about 2 MB for all of them), so the page needs no files beside
+is embedded in the page as a data: URI (about 8 MB with the ambience beds), so the page needs no files beside
 it. Same look as the Crab Breeze Music page.
 
 Usage: python3 tools/audio/gen_sfx_page.py   (after tools/audio/render_sfx.sh)
@@ -71,7 +72,7 @@ BODY = """<div class="wrap">
     <div class="stripe" aria-hidden="true"></div>
     <span class="eyebrow">Crab Breeze sound effects · works sheet 2 · 2026-10-25</span>
     <h1>Crab Breeze Sounds</h1>
-    <p>__COUNT__ sounds for the mech, its weapons, what they hit and the cockpit. __REC__ are cut from real recordings (CC0 packs from OpenGameArt and Kenney: a mech stomp, rocket motors, ship cannons, gunshots, explosions, steam), slowed and layered to a 24 m machine; the cockpit tones and a few others are synthesised. Cues marked <em class="rec">rec</em> are recorded.</p>
+    <p>__COUNT__ sounds for the mech, its weapons and fists, what they hit, the cockpit, and the world around it. __REC__ are cut from real recordings (CC0 packs from OpenGameArt and Kenney: a mech stomp, rocket motors, ship cannons, gunshots, explosions, steam), slowed and layered to a 24 m machine; the cockpit tones are synthesised. The ambience beds at the bottom are stereo and play under everything; every other sound is mono and placed in 3D at its source. Cues marked <em class="rec">rec</em> are recorded.</p>
     <div class="facts"><span>Cues <b>__COUNT__</b></span><span>Recorded <b>__REC__</b></span><span>Synthesised <b>__SYN__</b></span><span>Format <b>mono 44.1 kHz OGG</b></span><span>Licence <b>CC0 and ours</b></span></div>
     <p class="status">Each recorded cue names its originals in assets/audio/sfx/SOURCES.md. Not in the game yet: playing them is the sound plan (openspec/changes/audio).</p>
   </header>
@@ -85,7 +86,7 @@ BODY = """<div class="wrap">
 
 SCRIPT = """<script>
 const SOUNDS = __DATA__;
-const GROUPS = { Mech: 'The mech', Weapons: 'Weapons', Impacts: 'Impacts', Cockpit: 'Cockpit' };
+const GROUPS = { Mech: 'The mech', Weapons: 'Weapons', Melee: 'Melee', Impacts: 'Impacts', Cockpit: 'Cockpit', Ambience: 'Ambience (stereo beds, not 3D)' };
 const fmt = (s) => s.toFixed(1) + ' s';
 let current = null;
 const stop = () => { if (current) { current.audio.pause(); current.audio.currentTime = 0; current.btn.setAttribute('aria-pressed', 'false'); current.btn.textContent = 'Play'; current = null; } };

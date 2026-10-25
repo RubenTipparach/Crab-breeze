@@ -19,7 +19,9 @@ under you, the crack of the autocannon, the thump of a shell landing 300 m off.
   (position only: the view's direction stays the player's, CLAUDE.md section 8; survey G8).
 - **Distance and the cockpit**: outside sounds are 3D, delayed by distance at 343 m/s (a shell
   bursting 700 m off is heard 2 s after its flash), low-passed with distance, and muffled through
-  the sealed cockpit; cockpit sounds (lock tone, alarms, servos, the rocket rumble) are not.
+  the sealed cockpit. Cockpit sounds (lock tone, alarms, the reactor, a pressed button) are 3D too,
+from their speakers and parts inside the cabin, and are not muffled. Every sound is placed in 3D
+except ambience, music and menus (owner, 2026-10-25).
 - **Sources** (`assets/audio/`, each file with its source page, author and licence in
   `assets/audio/SOURCES.md`): CC0 only unless the owner allows more (survey P4). OpenGameArt first
   where it has the sound; Freesound for the rest (it needs the owner's login).

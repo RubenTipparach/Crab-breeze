@@ -121,6 +121,14 @@ From the owner's brief, 2026-10-23. Quotes are the owner's words.
   layered, compressed and driven, level with the music. **Melodies built by theory** ("the melody is just
   garbage. Look into music theory and how to compose good melodies"): one idea grown into a sentence, one high
   point (`docs/design/music.md`, "Writing a melody").
+- **Sound: recorded CC0, placed in 3D, quiet when calm** (owner, 2026-10-25: "all audio and sfx approved",
+  "if theres not mutch action on screen, some silence would be nice, can you get some ambience in this game?
+  like nature? city streets?", "verify all sounds are 3d based (except ambience and music and ui)"). Sound
+  effects are cut from CC0 recordings (`tools/audio/cut_cc0.py`, every original named in `SOURCES.md`),
+  synthesised only where nothing recorded beats them. Every sound plays from a point or a named node in 3D,
+  the player's own mech and cockpit included; only ambience beds, music and menu sounds are unplaced and may
+  be stereo (`openspec/changes/audio`). With no threat the music fades to silence and ambience beds chosen
+  by place carry the scene (`openspec/changes/music`, `openspec/changes/ambience`).
 - **Mechs twice the size, legs heavier than the torso, low-poly first** (owner, 2026-10-24: "2x mech size
   please, they dont seem very big right now, redesign mechs, start with lowpoly first", "I really expect legs
   on these mechs to be bigger than the torso, just for balance", "I really like how stevedore is all struts",

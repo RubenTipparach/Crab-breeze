@@ -757,5 +757,338 @@
     ],
     "len": 3.2,
     "edits": "a gears recording slowed to 0.8 speed, layered with a chain winch, a motor hum and a clank"
+  },
+  "punch_swing": {
+    "group": "Melee",
+    "what": "A mech's arm swinging for a punch: the shoulder's servos whining and a slow, heavy rush of air.",
+    "layers": [
+      {
+        "src": "oga/mechanical-sounds:mechanical1.wav",
+        "pitch": 0.5,
+        "lp": 3000,
+        "fadeout": 0.3
+      },
+      {
+        "src": "oga/swish-bamboo-stick-weapon-swhoshes:swosh-03.flac",
+        "pitch": 0.35,
+        "delay": 0.12,
+        "gain": -1,
+        "fadeout": 0.4
+      },
+      {
+        "src": "oga/swishes-sound-pack:swish-3.wav",
+        "pitch": 0.3,
+        "delay": 0.2,
+        "gain": -4,
+        "fadeout": 0.2
+      }
+    ],
+    "len": 1.0,
+    "edits": "slowed to 0.3-0.5 speed, layered"
+  },
+  "punch_hit_mech": {
+    "group": "Melee",
+    "what": "A mech's fist landing on another mech: a crushing punch, armour plate buckling and metal rattling off.",
+    "layers": [
+      {
+        "src": "oga/37-hitspunches:hit02.mp3.flac",
+        "shot": 1,
+        "pitch": 0.6,
+        "fadeout": 0.4
+      },
+      {
+        "src": "oga/100-cc0-metal-and-wood-sfx:metal_slam_01.ogg",
+        "start": 0.03,
+        "pitch": 0.6,
+        "gain": -1
+      },
+      {
+        "src": "kenney/impact-sounds:impactPlate_heavy_001.ogg",
+        "pitch": 0.55,
+        "gain": -3
+      },
+      {
+        "src": "oga/27-metal-audio-samples-sfx:dull_metal_collision_02_44k_32bit_stereo.wav",
+        "pitch": 0.5,
+        "lp": 3000,
+        "gain": -5
+      },
+      {
+        "src": "kenney/sci-fi-sounds:lowFrequency_explosion_001.ogg",
+        "gain": -3
+      },
+      {
+        "src": "oga/75-cc0-breaking-falling-hit-sfx:bfh1_metal_falling_01.ogg",
+        "pitch": 0.8,
+        "delay": 0.18,
+        "gain": -11
+      }
+    ],
+    "len": 1.6,
+    "drive": 1.6,
+    "edits": "a punch slowed to 0.6 speed, layered with metal slams slowed to 0.5-0.6, saturated"
+  },
+  "punch_hit_building": {
+    "group": "Melee",
+    "what": "A mech's fist going into a building: a heavy punch, concrete breaking and rubble falling.",
+    "layers": [
+      {
+        "src": "oga/37-hitspunches:hit07.mp3.flac",
+        "shot": 1,
+        "pitch": 0.6,
+        "fadeout": 0.4
+      },
+      {
+        "src": "oga/75-cc0-breaking-falling-hit-sfx:bfh1_rock_breaking_01.ogg",
+        "pitch": 0.7,
+        "gain": -1
+      },
+      {
+        "src": "oga/75-cc0-breaking-falling-hit-sfx:bfh1_breaking_01.ogg",
+        "pitch": 0.75,
+        "delay": 0.04,
+        "gain": -4
+      },
+      {
+        "src": "kenney/sci-fi-sounds:lowFrequency_explosion_001.ogg",
+        "gain": -3
+      },
+      {
+        "src": "oga/75-cc0-breaking-falling-hit-sfx:bfh1_rock_falling_04.ogg",
+        "pitch": 0.8,
+        "delay": 0.25,
+        "gain": -6
+      },
+      {
+        "src": "oga/75-cc0-breaking-falling-hit-sfx:bfh1_rock_falling_01.ogg",
+        "pitch": 0.9,
+        "delay": 0.5,
+        "gain": -9
+      }
+    ],
+    "len": 1.8,
+    "drive": 1.4,
+    "edits": "a punch slowed to 0.6 speed, layered with breaking and falling rock"
+  },
+  "amb_meadow_day": {
+    "group": "Ambience",
+    "stereo": true,
+    "loop": true,
+    "loop_fade": 3.0,
+    "peak_db": -3,
+    "what": "Open country by day (loops): morning birdsong, a light breeze through grass, insects.",
+    "layers": [
+      {
+        "src": "oga/amb-morning-sounds-perfect-loop:amb_morning.wav",
+        "start": 5.0
+      },
+      {
+        "src": "oga/mild-wind-background-noise:wind background noise 2.wav",
+        "gain": -9,
+        "lp": 4000
+      },
+      {
+        "src": "oga/amb-outside-1:amb_outdoor1_loop.wav",
+        "repeat": 2,
+        "gain": -8,
+        "pan": 0.4
+      }
+    ],
+    "len": 45,
+    "edits": "layered, lowpassed wind, crossfaded into a loop (3 s crossfade)"
+  },
+  "amb_forest": {
+    "group": "Ambience",
+    "stereo": true,
+    "loop": true,
+    "loop_fade": 3.0,
+    "peak_db": -3,
+    "what": "Woodland (loops): birds close and far, leaves, a creek of air through the trees.",
+    "layers": [
+      {
+        "src": "oga/forest-ambience:Forest_Ambience.mp3"
+      },
+      {
+        "src": "oga/ambient-bird-sounds:birds-isaiah658.ogg",
+        "repeat": 2,
+        "gain": -8
+      }
+    ],
+    "len": 44,
+    "edits": "layered, crossfaded into a loop (3 s crossfade)"
+  },
+  "amb_night": {
+    "group": "Ambience",
+    "stereo": true,
+    "loop": true,
+    "loop_fade": 3.0,
+    "peak_db": -3,
+    "what": "Open country at night (loops): crickets in the grass and a low wind.",
+    "layers": [
+      {
+        "src": "oga/crickets-ambient-noise-loopable:crickets-oneloop.mp3",
+        "repeat": 2
+      },
+      {
+        "src": "oga/wind1:wind2.wav",
+        "lp": 900,
+        "gain": -10,
+        "pan": -0.6
+      },
+      {
+        "src": "oga/wind1:wind4.wav",
+        "lp": 900,
+        "gain": -10,
+        "pan": 0.6
+      }
+    ],
+    "len": 45,
+    "edits": "tiled, lowpassed wind panned wide, crossfaded into a loop (3 s crossfade)"
+  },
+  "amb_wind_high": {
+    "group": "Ambience",
+    "stereo": true,
+    "loop": true,
+    "loop_fade": 3.0,
+    "peak_db": -3,
+    "what": "Wind at the cockpit's height, 24 m up (loops): gusts moving across the hull, left and right.",
+    "layers": [
+      {
+        "src": "oga/wind1:wind1.wav",
+        "lp": 2500,
+        "pan": -0.7
+      },
+      {
+        "src": "oga/wind1:wind3.wav",
+        "lp": 2500,
+        "pan": 0.7
+      },
+      {
+        "src": "oga/mild-wind-background-noise:wind background noise 2.wav",
+        "lp": 1200,
+        "gain": -6
+      }
+    ],
+    "len": 44,
+    "edits": "two mono winds panned wide, lowpassed, crossfaded into a loop (3 s crossfade)"
+  },
+  "amb_rain": {
+    "group": "Ambience",
+    "stereo": true,
+    "loop": true,
+    "loop_fade": 3.0,
+    "peak_db": -3,
+    "what": "Steady rain (loops): rain on open ground and on metal.",
+    "layers": [
+      {
+        "src": "oga/rain-loopable:3.ogg"
+      }
+    ],
+    "len": 45,
+    "edits": "crossfaded into a loop (3 s crossfade)"
+  },
+  "amb_rain_storm": {
+    "group": "Ambience",
+    "stereo": true,
+    "loop": true,
+    "loop_fade": 3.0,
+    "peak_db": -3,
+    "what": "A storm (loops): heavy rain with thunder rolling far off.",
+    "layers": [
+      {
+        "src": "oga/rain-long-thunder:rain-thunder.ogg"
+      }
+    ],
+    "len": 44,
+    "edits": "crossfaded into a loop (3 s crossfade)"
+  },
+  "amb_city_street": {
+    "group": "Ambience",
+    "stereo": true,
+    "loop": true,
+    "loop_fade": 3.0,
+    "peak_db": -3,
+    "what": "City streets (loops): traffic passing, a crowd murmuring, the hum of a busy city, a siren far off.",
+    "layers": [
+      {
+        "src": "oga/scifi-city-ambient-loop:busy_cyberworld.ogg",
+        "repeat": 2,
+        "pan": -0.7
+      },
+      {
+        "src": "oga/100-cc0-sfx-2:sfx100v2_loop_highway.ogg",
+        "repeat": 3,
+        "gain": -4,
+        "pan": 0.7
+      },
+      {
+        "src": "oga/crowd-shoutingspeaking-ambience:crowd_shouting.ogg",
+        "repeat": 2,
+        "lp": 1200,
+        "gain": -10
+      },
+      {
+        "src": "oga/sirens-and-alarm-noise:siren.mp3",
+        "start": 8.0,
+        "dur": 14.0,
+        "lp": 2500,
+        "fadein": 4.0,
+        "fadeout": 6.0,
+        "delay": 20.0,
+        "gain": -18
+      }
+    ],
+    "len": 40,
+    "edits": "tiled, crowd lowpassed to a murmur, a distant siren, crossfaded into a loop (3 s crossfade)"
+  },
+  "amb_city_night_rain": {
+    "group": "Ambience",
+    "stereo": true,
+    "loop": true,
+    "loop_fade": 3.0,
+    "peak_db": -3,
+    "what": "The city at night in the rain (loops): rain on the street, wet tyres hissing past, the city's low hum.",
+    "layers": [
+      {
+        "src": "oga/rain-loopable:4.ogg"
+      },
+      {
+        "src": "oga/100-cc0-sfx-2:sfx100v2_loop_highway.ogg",
+        "repeat": 3,
+        "lp": 2500,
+        "gain": -8
+      },
+      {
+        "src": "oga/scifi-city-ambient-loop:busy_cyberworld.ogg",
+        "repeat": 2,
+        "lp": 900,
+        "gain": -10
+      }
+    ],
+    "len": 37,
+    "edits": "layered, traffic and city lowpassed, crossfaded into a loop (3 s crossfade)"
+  },
+  "amb_industrial": {
+    "group": "Ambience",
+    "stereo": true,
+    "loop": true,
+    "loop_fade": 3.0,
+    "peak_db": -3,
+    "what": "The industrial district (loops): a factory working, vents roaring, machinery in the distance.",
+    "layers": [
+      {
+        "src": "oga/factory-ambiance:Factory.ogg",
+        "start": 10.0
+      },
+      {
+        "src": "oga/airvent-loop:airvent-large-loop.wav",
+        "repeat": 7,
+        "lp": 2000,
+        "gain": -12,
+        "pan": 0.5
+      }
+    ],
+    "len": 45,
+    "edits": "layered, vent lowpassed, crossfaded into a loop (3 s crossfade)"
   }
 }

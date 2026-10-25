@@ -69,6 +69,13 @@ lacks weight) and writes `assets/audio/sfx/SOURCES.md`, which names every origin
 still (6): lock_tone, lock_on, heat_lock, alarm_warning, radar_ping and systems_boot, the cockpit
 tones, kept soft and low at -14 to -16 dBFS on the owner's notes ("too much", "more subtle").
 
+**Ambience and punches (2026-10-25).** Nine stereo beds in `assets/audio/ambience/` (nature: AMB
+Morning Sounds, Forest Ambience, Ambient Bird Sounds, Crickets, wind1, Mild Wind, Rain (loopable),
+Rain Long Thunder; city: Scifi City Ambient Loop, 100 CC0 SFX #2's highway loop, Crowd shouting,
+Sirens and alarm noise; industrial: Factory Ambiance, Airvent Loop; all CC0 by their pages) and
+three punch cues (37 hits/punches, Swishes Sound Pack, bamboo swooshes, with metal and rock from the
+packs above). Their originals are named in each folder's `SOURCES.md`.
+
 **Still refused by the network.** archive.org's pages load but its files come from storage hosts
 (`dn*.ca.archive.org`, `ia*.us.archive.org`), so the NASA launch recordings below need
 `*.archive.org` allowed too. freesound.org answers 403 and upload.wikimedia.org does not connect.

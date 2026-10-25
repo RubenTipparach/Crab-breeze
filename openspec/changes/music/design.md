@@ -29,7 +29,15 @@ The state is derived, not set by hand: the title screen; on foot (the pilot is n
 owner deleted the town theme, so the cue map has no entry and the music fades out);
 boarding (the boarding sequence is running); combat (any enemy within 2 km has the mech as a
 target, or a shot landed within 30 s); set piece (Big Boy is alive in the wave); won (the mission
-result is a win). Higher entries in this list lose to lower ones. The rule is a pure function in
+result is a win). Higher entries in this list lose to lower ones.
+
+**Calm is silence** (owner, 2026-10-25: "if theres not mutch action on screen, some silence would be
+nice"). Seated with none of the states above (walking or skating the map with no threat, after a
+win's stinger ends): no music. The cue map has no `calm` entry, so the music fades out over 2 bars
+of the cue that was playing and the ambience beds (change `ambience`) carry the scene. Combat holds
+its cue until 30 s after the last threat or shot (the combat rule's own window) and only then
+fades, so a lull between waves does not switch the music off and on. The title screen and the
+boarding cinematic keep their cues. The rule is a pure function in
 `cb-core` (`music_state(&World) -> MusicState`) with tests; `cb-app` plays what it returns.
 
 ## 3. Bar-aligned crossfades
