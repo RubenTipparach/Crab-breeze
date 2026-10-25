@@ -35,7 +35,7 @@ mockup is `docs/mockups/crab_fortress.html`.
   8 deck guns, 2 missile batteries, fighters off two bow catapults every 20 s, crab mechs dropped from two
   belly bays every 45 s, and a deck guard of crab mechs (2 Shrikes and 4 Mites) that fights the pilot when
   they land, with more brought up by the hangar lifts.
-- **Every part is a lockable target** (41 of them): thrusters, turrets, catapults, bays, lifts, the drive
+- **Every part is a lockable target** (51 of them): lift and hull thrusters, turrets, missile launchers, catapults, bays, lifts, the drive
   thrusters (stopping its drift, so the pilot picks where it falls) and the bridge (its eyes: losing it
   halves the turrets' aim).
 - **The fall** is a set piece: it lists, sinks at 17-25 m/s, sheds its guard and wrecks what it lands on.

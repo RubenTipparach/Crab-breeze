@@ -76,6 +76,7 @@ Every part is its own target (boxed, lockable, `targeting`) and takes hits throu
 | Flak turret | 10 | 150 | 60 mm | | stops firing |
 | Beam turret | 4 | 250 | 120 mm | the lens while charging, 40 mm | stops firing |
 | Deck gun | 8 | 100 | 30 mm | | stops firing |
+| Missile launcher | 4 | 300 | 60 mm | the tube faces while a salvo leaves, 40 mm | stops firing |
 | Missile battery | 2 | 200 | 60 mm | | stops firing |
 | Catapult | 2 | 400 | 100 mm | | launches stop from it |
 | Drop bay | 2 | 600 | 140 mm | open doors, 40 mm | drops stop from it |
@@ -93,6 +94,7 @@ hull thruster takes 5 cannon shells or 38 autocannon rounds through a port, from
 | 10 flak turrets | the rim and shoulders | twin 105 mm, shells at 900 m/s bursting within 10 m (1 MJ) | 1 800 m | 2 rounds/s each, aim error 1.5 deg |
 | 4 beam turrets | under the belly, between the thruster pairs | a beam: 1.5 s charge (the lens brightens, a tone in the cockpit), 3 s on, 10 damage/s to the part it touches | 900 m | every 6 s |
 | 8 deck guns | the deck edges and pylon roots | 30 mm gatling at 1 000 m/s (40 mm, 1.5 damage) | 600 m | bursts of 20 at 20 rounds/s |
+| 4 missile launchers | the shell's bow and stern corners (owner, 2026-10-25: "crab needs missile launchers") | a turning box of twelve tubes: ripple salvos of six lock-on missiles at 220 m/s (150 mm, 35 damage) | 2 500 m | a salvo every 9 s, a missile every 0.25 s |
 | 2 missile batteries | aft deck | lock-on missiles at 220 m/s (150 mm, 35 damage) | 2 500 m | one every 5 s, 12 cells each |
 | Fighters | two bow catapults, 24 in the hangar | the `fighter` unit (`invasion-forces`) | | one launch every 20 s, alternating catapults, up to 8 airborne |
 | Dropped crabs | two belly bays, 12 aboard (Mites and Scuttlers) | the crab mechs (`crab-enemies`), on the one parachute rule | | a pair every 45 s, alternating bays |
@@ -136,8 +138,11 @@ t junctions, and about 20-30% diagonal lines", "we want normal maps for large an
   the stern, fins along the shoulders, spines on every leg's knee, spikes on the thruster plates and a keel of spikes
   down the belly; instanced, one draw for the shell's and one per thruster.
 - Painted the mechs' way, with the plating kit (`tools/textures/gen_mech_plating.mjs`): neutral paint tinted by the
-  `hermit` palette in `tools/blender/mech_palettes.py` (blue carapace, orange armour, a dark frame, red-orange
-  accents), full PBR (colour, normal, ORM, emission, a livery mask).
+  `hermit` palette in `tools/blender/mech_palettes.py` (owner: "main color orange, secondary a dark orange", "more
+  grey on this platform? red turrets?": an orange carapace, dark orange underside, belly and legs, a grey platform on
+  top, red turrets and launchers; the colours picked from the owner's 42-colour palette: orange `#e98537`, dark
+  orange `#94493a`, grey `#b0a7b8`, crimson `#ac2847` turrets, red `#ec273f` livery bands, `#2c1e31` structure),
+  full PBR (colour, normal, ORM, emission, a livery mask).
 - Its armour is designed for this hull, not tiled (owner: "paneling should look like pieces of custom made armor cut
   and fitted with precision", "you just generate them and tiled them ... that is not the point of panel design"). The
   features are written once, in `tools/mockups/fortress_layout.json`: the mockup builds the geometry from it and the
@@ -180,11 +185,11 @@ t junctions, and about 20-30% diagonal lines", "we want normal maps for large an
 
 - Triangles: block-out 30 000 (the plates and the six hull ducts add about 4 000). The detailed model: LOD0 220 000 (hull and pylons 120 000, parts
   100 000), LOD1 60 000 beyond 1.5 km, LOD2 12 000 beyond 5 km. The deck guard at its own LODs.
-- Draw calls: the hull in 6 material groups, 41 parts each one mesh, barrels with their turret: about 90
+- Draw calls: the hull in 6 material groups, 51 parts each one mesh, barrels with their turret: about 90
   at LOD0, doubled by the shadow pass.
 - Textures: the mech plating set (CLAUDE.md section 13) tinted to the invaders' palette, no new set: 4
   maps at 4 096 px, about 85 MB as BC7 with mips (360 MB if left RGBA8).
-- CPU per fixed step: the pose under 5 us; 41 parts aiming and firing about 0.1 ms; up to 8 fighters and
+- CPU per fixed step: the pose under 5 us; 51 parts aiming and firing about 0.1 ms; up to 8 fighters and
   18 crabs on their existing brains.
 - Effects: 8 downwash columns and 10 exhaust plumes (`rocket-plumes`), flak bursts as `combat-fx` recipes.
 - All of it measured with `--bench defence` on the owner's machine; a cloud session measures nothing.

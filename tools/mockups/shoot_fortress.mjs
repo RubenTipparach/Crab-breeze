@@ -39,6 +39,7 @@ const ALL = [
   ["ik3", `M.setPlayer("off"); M.run(20.6); M.setView("orbit"); M.labels(false); M.orbitFrom([105, 58, 92], [60, 46, 70]);`],
   ["drop_limp", `M.run(17.5); M.setView("orbit"); M.labels(false); M.orbitFrom([70, -95, 95], [-8, -112, 42]);`],
   ["allies", `M.setPlayer("off"); M.run(26); M.setView("orbit"); M.orbitFrom([-900, 160, 700], [0, -40, 0]);`],
+  ["launchers", `M.setPlayer("air"); M.run(31); M.setView("orbit"); M.labels(false); M.orbitFrom([-150, 110, 250], [-82, 30, 138]);`],
   ["shell", `M.run(8); M.setView("orbit"); M.labels(false); M.orbitFrom([-300, 170, 330], [-40, 10, 60]);`],
   ["climb_high", `M.climb(10.5);`],
 ];

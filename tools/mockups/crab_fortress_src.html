@@ -219,6 +219,7 @@ ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; 
           <tr><td>Flak turrets</td><td class="n" id="ob-flak"></td><td>Twin 105 mm airbursts, 1 800 m</td></tr>
           <tr><td>Beam turrets</td><td class="n" id="ob-beam"></td><td>1.5 s charge you can see, then 3 s, 900 m</td></tr>
           <tr><td>Deck guns</td><td class="n" id="ob-gun"></td><td>30 mm gatlings, 600 m</td></tr>
+          <tr><td>Missile launchers</td><td class="n" id="ob-msl"></td><td>Salvos of six lock-on missiles, 2 500 m, every 9 s</td></tr>
           <tr><td>Missile batteries</td><td class="n" id="ob-vls"></td><td>Lock-on missiles, 2 500 m, every 5 s</td></tr>
           <tr><td>Catapults</td><td class="n" id="ob-cat"></td><td>A fighter every 20 s</td></tr>
           <tr><td>Fighters</td><td class="n" id="ob-fighter"></td><td>Patrols and cannon runs, up to 8 up</td></tr>
@@ -367,8 +368,8 @@ const deckTex = canvasTex(256, 1152, (g, w, h) => {
   const gr = rng(11); for (let i = 0; i < 3; i++) for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) if (gr() < 0.55) g.fillRect(X(-8 + a * 4), Z(-96 - i * 22 - b * 4), 3.4 * sx, 3.4 * sz);
 });
 M.deck = new T.MeshStandardMaterial({ map: deckTex, roughness: 0.8, metalness: 0.25 });
-// The plating, the mechs' way (owner, 2026-10-25: "make textures for the crab ... blue and orange ... use same armor
-// techniques as the mech"): the modern plating maps, neutral, tinted by the hermit palette; normal and ORM maps with them
+// The plating, the mechs' way (owner, 2026-10-25: "make textures for the crab ... use same armor techniques as the mech", in
+// red and dark orange with a grey platform): the modern plating maps, neutral, tinted by the hermit palette; normal and ORM maps with them
 const texLoader = new T.TextureLoader();
 let texLeft = 0, texDone = null; const texReady = new Promise(ok => { texDone = ok; });
 function loadTex(key, srgb) { texLeft++; const t = texLoader.load(TEX[key], () => { if (--texLeft === 0) texDone(); }, undefined, () => { if (--texLeft === 0) texDone(); });
@@ -397,9 +398,13 @@ function variantOf(r, sheet) {
   };
   VARIANTS.set(key, m); return m;
 }
-M.hull = role(PAL.BODY, PAL.BODY2);                    // the blue carapace, orange livery
-M.hull2 = role(PAL.BODY2, PAL.FRAME);                  // the orange armour: the belly, the spine, the bridge, the sleeves
-M.dark = role("#b4b8c0", PAL.BODY2);                   // the structure
+// owner, 2026-10-25: "blue doesnt look right", "more grey on this platform? red turrets?", "main color orange, secondary a
+// dark orange"
+M.hull = role(PAL.BODY, PAL.BODY2);                    // orange: the carapace, the shoulder walls, the nacelles; dark orange livery
+M.hull2 = role(PAL.BODY2, PAL.FRAME);                  // dark orange: the underside, the belly, the legs
+M.turret = role(PAL.TURRET, PAL.FRAME);                // red: the turrets and the missile launchers
+M.plat = role(PAL.PLATFORM, PAL.BODY);                 // grey: the platform on top, the spine, the bridge, the lifts
+M.dark = role("#b4b8c0", PAL.BODY);                    // the structure, light grey
 M.armour = role(PAL.BODY2, PAL.FRAME, { side: T.DoubleSide });   // the thrusters' outboard plates
 M.mark.color.set(PAL.ACCENT).convertSRGBToLinear();
 
@@ -458,6 +463,7 @@ const KINDS = {
   flak: { name: "Flak turret", hp: 150, armour: "60 mm (your autocannon gets through)", weak: "none", does: "twin 105 mm airbursts within 10 m, 1 800 m, 2 rounds/s", lost: "stops firing" },
   beam: { name: "Beam turret", hp: 250, armour: "120 mm", weak: "the lens while it charges, 40 mm", does: "1.5 s charge you can see, then 3 s at 10 damage/s, 900 m, every 6 s", lost: "stops firing" },
   gun: { name: "Deck gun", hp: 100, armour: "30 mm", weak: "none", does: "30 mm gatling, bursts of 20 at 20 rounds/s, 600 m", lost: "stops firing" },
+  msl: { name: "Missile launcher", hp: 300, armour: "60 mm (your autocannon gets through)", weak: "the tube faces while a salvo leaves, 40 mm", does: "a turning box of twelve tubes: ripple salvos of six lock-on missiles at 220 m/s, 2 500 m, every 9 s", lost: "stops firing" },
   vls: { name: "Missile battery", hp: 200, armour: "60 mm", weak: "none", does: "lock-on missiles at 220 m/s, 2 500 m, one every 5 s, 12 cells", lost: "stops firing" },
   cat: { name: "Catapult", hp: 400, armour: "100 mm", weak: "none", does: "launches a fighter every 20 s, alternating with the other", lost: "launches stop from it; both lost, no more fighters" },
   bay: { name: "Drop bay", hp: 600, armour: "140 mm", weak: "the doors while open, 40 mm", does: "drops a pair of crab mechs on chutes every 45 s, alternating", lost: "drops stop from it" },
@@ -468,7 +474,7 @@ const KINDS = {
   drop: { name: "Dropped crab", hp: null, armour: "per crab-enemies", weak: "its chutes: shot while descending, it never lands", does: "falls 2 s, then descends at 8 m/s on three chutes", lost: "falls without its chutes and never fights" },
 };
 // armour in mm against a round's penetration (design section 3); a weak point is 40 mm and takes double damage
-const ARMOUR = { hull: 300, lift: 60, drive: 140, flak: 60, beam: 120, gun: 30, vls: 60, cat: 100, bay: 140, hlift: 100, bridge: 140, fighter: 10, guard: 60, drop: 60 };
+const ARMOUR = { hull: 300, lift: 60, drive: 140, flak: 60, beam: 120, gun: 30, msl: 60, vls: 60, cat: 100, bay: 140, hlift: 100, bridge: 140, fighter: 10, guard: 60, drop: 60 };
 const CRAB_HP = { shrike: 400, mite: 250, scuttler: 250 };   // mockup values until crab-enemies sets them
 // your mech's weapons, as cb-core::weapons has them today
 const WEAPONS = {
@@ -493,16 +499,16 @@ function part(id, kind, obj, opts = {}) {
   for (let k = -3; k <= 3; k++) { const rib = add(F, new T.TorusGeometry(1, 0.06, 4, 24), M.dark, 0, -34, BE.cz + k * BE.rib_dz); rib.scale.set(86 * Math.sqrt(1 - (k / 4.4) ** 2), 26, 1); }
   const band = add(F, cyl(1, 1, 1, 40, true), M.mark); band.scale.set(141.5, 7, 211.5);
   const band2 = add(F, cyl(1, 1, 1, 40, true), M.dark, 0, -6, 0); band2.scale.set(140.8, 3, 210.8);
-  add(F, box(90, 30, 360), M.hull2, 0, 33, 0);       // the spine under the deck
+  add(F, box(90, 30, 360), M.plat, 0, 33, 0);        // the spine under the deck
   add(F, box(80, 2, 362), [M.dark, M.dark, M.deck, M.dark, M.hazard, M.hazard], 0, 48, 0);
   [-1, 1].forEach(s => {
-    add(F, box(40, 32, 240), M.hull, 67 * s, 26, 0);  // the shoulders, 6.4 m below the deck
+    add(F, box(40, 32, 240), M.plat, 67 * s, 26, 0);  // the shoulders, 6.4 m below the deck
     add(F, box(40.4, 0.6, 240.4), M.dark, 67 * s, 42.3, 0);
     add(F, box(1.2, 2.4, 240), M.hazard, 87 * s, 43.6, 0);
   });
   // the bridge: the crab's eyes on stalks at the bow
   const bridge = new T.Group(); bridge.position.set(0, 49, 150); F.add(bridge);
-  add(bridge, box(34, 20, 26), M.hull2, 0, 10, 0); add(bridge, box(36, 3, 28), M.dark, 0, 21.5, 0);
+  add(bridge, box(34, 20, 26), M.plat, 0, 10, 0); add(bridge, box(36, 3, 28), M.dark, 0, 21.5, 0);
   add(bridge, box(30, 3, 0.6), M.glow, 0, 14, 13.3, false);
   [-1, 1].forEach(s => { const st = add(bridge, cyl(2.2, 3, 30, 10), M.metal, 9 * s, 34, 4); st.rotation.z = -0.18 * s;
     const eye = add(bridge, new T.SphereGeometry(5, 16, 10), M.dark, 11.7 * s, 50, 4); add(eye, new T.SphereGeometry(3.4, 16, 10), M.glow, 0, 0, 3.2, false); });
@@ -596,6 +602,9 @@ const HULL = [];
   HULL.push(hp);
 }));
 
+// four missile launchers on the shell, at the bow and stern corners clear of the shoulders (owner, 2026-10-25: "crab
+// needs missile launchers")
+const LAUNCHERS = [[82, 138], [-82, 138], [82, -140], [-82, -140]];
 // the carapace's spikes: across the shell, all round the rim, horns at bow and stern (the square shell plates and the
 // rim skirt are gone, owner 2026-10-25: "get rid of the square plates"; the armour is in the plating textures now)
 (() => {
@@ -603,7 +612,8 @@ const HULL = [];
   const clear = (x, z) => !(Math.abs(x) < 52 || (Math.abs(x) < 92 && Math.abs(z) < 124))                 // the spine, deck and shoulders
     && !HULL.some(h => Math.hypot(x - h.g.position.x, z - h.g.position.z) < 19)                            // the hull ports' collars
     && !THR_Z.some(zp => Math.abs(z - zp) < 11 && Math.abs(x) > 118)                                       // the pylon roots
-    && !(Math.abs(x) < 70 && z < -150);                                                                     // the drive thrusters
+    && !(Math.abs(x) < 70 && z < -150)                                                                      // the drive thrusters
+    && !LAUNCHERS.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 22);                                      // the missile launchers
   [0.6, 0.76, 0.92].forEach((r, ring) => {   // spikes over the shell, raked back from the middle
     const n = Math.round(TAU * 175 * r / 30);
     for (let k = 0; k < n; k++) {
@@ -647,14 +657,14 @@ function turret(kind, b, yaw, pitch, muzzle, label, extra) {
 }
 function flak(x, y, z, label) { const b = new T.Group(); b.position.set(x, y, z); F.add(b);
   add(b, cyl(5, 6, 3, 14), M.dark, 0, 1.5, 0); const yaw = new T.Group(); yaw.position.y = 3; b.add(yaw);
-  add(yaw, box(8, 4.5, 9), M.hull2, 0, 2.2, 0); const pitch = new T.Group(); pitch.position.set(0, 2.8, 2); yaw.add(pitch);
+  add(yaw, box(8, 4.5, 9), M.turret, 0, 2.2, 0); const pitch = new T.Group(); pitch.position.set(0, 2.8, 2); yaw.add(pitch);
   [-1.4, 1.4].forEach(dx => { const br = add(pitch, cyl(0.45, 0.55, 11, 8), M.metal, dx, 0, 5.5); br.rotation.x = Math.PI / 2; });
   turret("flak", b, yaw, pitch, new T.Vector3(0, 0, 11), label); }
 [90, 20, -50, -110].forEach((z, k) => [1, -1].forEach(s => flak(80 * s, 42.6, z, k === 0 && s === 1 ? "Flak turret (10)" : null)));
 [1, -1].forEach(s => flak(28 * s, 49, 172));
 function beamT(x, z, label) { const b = new T.Group(); b.position.set(x, -30, z); F.add(b);
   add(b, cyl(3, 4, 8, 10), M.dark, 0, -2, 0); const yaw = new T.Group(); yaw.position.y = -9; b.add(yaw);
-  add(yaw, new T.SphereGeometry(6, 14, 10), M.hull2); const pitch = new T.Group(); yaw.add(pitch);
+  add(yaw, new T.SphereGeometry(6, 14, 10), M.turret); const pitch = new T.Group(); yaw.add(pitch);
   const lens = add(pitch, cyl(2.6, 3.4, 4, 14), M.core.clone(), 0, 0, 6); lens.rotation.x = Math.PI / 2;
   const ray = new T.Group(); ray.visible = false; scene.add(ray);
   const outer = new T.Mesh(cyl(1, 1, 1, 10, true), new T.MeshBasicMaterial({ color: lin(0xff4a3a), transparent: true, opacity: 0.55, blending: T.AdditiveBlending, depthWrite: false })); outer.scale.set(2.2, 1, 2.2);
@@ -664,12 +674,29 @@ function beamT(x, z, label) { const b = new T.Group(); b.position.set(x, -30, z)
 [[80, 85], [-80, 85], [80, -85], [-80, -85]].forEach(([x, z], k) => beamT(x, z, k === 0 ? "Beam turret (4)" : null));
 function deckGun(x, y, z, label) { const b = new T.Group(); b.position.set(x, y, z); F.add(b);
   add(b, cyl(2.4, 2.8, 2, 10), M.dark, 0, 1, 0); const yaw = new T.Group(); yaw.position.y = 2; b.add(yaw);
-  add(yaw, new T.SphereGeometry(2.2, 10, 8), M.hull2, 0, 1.4, 0); const pitch = new T.Group(); pitch.position.y = 1.6; yaw.add(pitch);
+  add(yaw, new T.SphereGeometry(2.2, 10, 8), M.turret, 0, 1.4, 0); const pitch = new T.Group(); pitch.position.y = 1.6; yaw.add(pitch);
   const br = add(pitch, cyl(0.5, 0.5, 6, 8), M.metal, 0, 0, 3.4); br.rotation.x = Math.PI / 2;
   turret("gun", b, yaw, pitch, new T.Vector3(0, 0, 6.5), label); }
 [110, 10, -90, -160].forEach((z, k) => [1, -1].forEach(s => deckGun(37 * s, 49, z, k === 1 && s === -1 ? "Deck gun (8)" : null)));
+// a missile launcher: a red box of twelve tubes on a turning base, pitched up, ripple-firing salvos of six
+function launcher(x, z, label) {
+  const y = LAYOUT.shell.top_m * Math.sqrt(Math.max(0, 1 - (x / LAYOUT.shell.ax) ** 2 - (z / LAYOUT.shell.az) ** 2));
+  const b = new T.Group(); b.position.set(x, y - 1, z); F.add(b);
+  add(b, cyl(7, 8.5, 5, 16), M.dark, 0, 2.5, 0); const yaw = new T.Group(); yaw.position.y = 5; b.add(yaw);
+  add(yaw, box(5, 4, 6), M.dark, 0, 2, -1);
+  const pitch = new T.Group(); pitch.position.set(0, 5, 0); yaw.add(pitch);
+  add(pitch, box(13, 9, 15), M.turret, 0, 0, 0);                      // the armoured box
+  add(pitch, box(13.6, 1.2, 15.6), M.mark, 0, 3.6, 0, false);          // a livery band round it
+  const tubes = [];
+  for (let row = 0; row < 3; row++) for (let col = 0; col < 4; col++) { const tx = -4.5 + col * 3, ty = -2.6 + row * 2.6;
+    const t = add(pitch, cyl(1.05, 1.05, 1.2, 10), M.dark, tx, ty, 7.6, false); t.rotation.x = Math.PI / 2;
+    const cap = add(pitch, new T.CircleGeometry(0.85, 10), M.core, tx, ty, 8.25, false); tubes.push(new T.Vector3(tx, ty, 8.5)); }
+  pitch.rotation.x = -0.6;
+  turret("msl", b, yaw, pitch, new T.Vector3(0, 0, 9), label, { tubes, salvo: 0, tube: 0 });
+}
+LAUNCHERS.forEach(([x, z], k) => launcher(x, z, k === 0 ? "Missile launchers (4)" : null));
 const VLS = [1, -1].map((s, i) => { const b = new T.Group(); b.position.set(20 * s, 49, -150); F.add(b);
-  add(b, box(12, 4, 16), M.hull2, 0, 2, 0);
+  add(b, box(12, 4, 16), M.turret, 0, 2, 0);
   for (let a = 0; a < 3; a++) for (let c = 0; c < 4; c++) add(b, box(2.4, 0.3, 2.4), M.core, -3.4 + a * 3.4, 4.1, -5.4 + c * 3.6, false);
   return { b, cool: 1 + i * 2.5, cells: 12, part: part("vls" + (i + 1), "vls", b, { label: i === 0 ? "Missile batteries" : null }) }; });
 // catapults, with steam at the start of the stroke
@@ -679,7 +706,7 @@ const CATS = [1, -1].map((s, i) => { const b = new T.Group(); b.position.set(20 
   return { s, b, shuttle, part: part("cat" + (i + 1), "cat", b, { label: i === 0 ? "Catapults" : null, fire: new T.Vector3(0, 2, 70) }) }; });
 // hangar lifts: the plate sinks, a Mite rises through the hatch on it
 const LIFTS = [1, -1].map((s, i) => { const b = new T.Group(); b.position.set(22 * s, 49, 10); F.add(b);
-  const plate = new T.Group(); b.add(plate); add(plate, box(24, 0.5, 30), M.hull2, 0, 0.25, 0);
+  const plate = new T.Group(); b.add(plate); add(plate, box(24, 0.5, 30), M.plat, 0, 0.25, 0);
   const hatch = add(b, box(24, 0.2, 30), std(0x050507, 1, 0), 0, 0.15, 0, false); hatch.visible = false;
   return { b, plate, hatch, busy: -1, mite: null, part: part("lift" + (i + 1), "hlift", b, { label: i === 0 ? "Hangar lifts" : null }) }; });
 // the drop bays in the belly
@@ -1013,7 +1040,7 @@ const aimError = () => (parts.find(p => p.kind === "bridge").alive ? 1 : 2);
 function spread(p, dist, deg) { const e = Math.tan(deg * DEG) * dist * aimError(); return p.clone().add(new T.Vector3((R() - 0.5) * 2 * e, (R() - 0.5) * 2 * e, (R() - 0.5) * 2 * e)); }
 
 // turrets: slew onto the target, fire when on it, in range and in sight (design section 4)
-const RANGE = { flak: 1800, beam: 900, gun: 600 };
+const RANGE = { flak: 1800, beam: 900, gun: 600, msl: 2500 };
 // every mech the fortress fights: yours and the allies, each { pos() aim point, you, hit(kind, amount) }
 function nearestTarget(list, fromLocal, range, sight) {
   let best = null, bd = range;
@@ -1032,7 +1059,8 @@ function turretsUpdate(list) {
     let want = null, dist = 1e9;
     if (tl) { const d = tl.clone().sub(from); dist = d.length(); want = { yaw: Math.atan2(d.x, d.z), pitch: -Math.atan2(d.y, Math.hypot(d.x, d.z)) }; }
     if (!want) want = { yaw: Math.sin(clock * 0.2 + k * 1.7) * 1.2 + k, pitch: tu.kind === "beam" ? 0.4 : -0.4 - 0.3 * Math.sin(clock * 0.25 + k) };
-    if (tu.kind !== "beam") want.pitch = Math.max(-1.4, Math.min(0.2, want.pitch));
+    if (tu.kind === "msl") want.pitch = Math.max(-1.2, Math.min(-0.25, want.pitch));   // a launcher always throws its missiles up and out
+    else if (tu.kind !== "beam") want.pitch = Math.max(-1.4, Math.min(0.2, want.pitch));
     const slew = 1.2 * DT, dy = Math.atan2(Math.sin(want.yaw - tu.yaw.rotation.y), Math.cos(want.yaw - tu.yaw.rotation.y));
     tu.yaw.rotation.y += Math.max(-slew, Math.min(slew, dy)); tu.pitch.rotation.x += Math.max(-slew, Math.min(slew, want.pitch - tu.pitch.rotation.x));
     const onIt = tl && dist < RANGE[tu.kind] && Math.abs(dy) < 0.05 && Math.abs(want.pitch - tu.pitch.rotation.x) < 0.05 && !blocked(tu.base.position, tl);
@@ -1043,6 +1071,15 @@ function turretsUpdate(list) {
       fire(muzzle, at, 900, C.tracer, 2, q => { FIRE.emit(q, null, 0.2, 8, 22, C.flash); SMOKE.emit(q, new T.Vector3(0, 2, 0), 3.5, 10, 26, C.smoke, 0.5);
         if (q.distanceTo(tgt.pos()) < 25) tgt.hit("flak", 1); });
       FIRE.emit(muzzle, null, 0.08, 3, 6, C.flash);
+    }
+    if (tu.kind === "msl") {   // a salvo of six every 9 s, one missile every 0.25 s, from the tubes in turn
+      if (tgt && Math.abs(dy) < 0.12 && tu.cool <= 0 && tu.salvo <= 0) { tu.salvo = 6; tu.cool = 9; tu.st = 0; }
+      tu.st -= DT;
+      if (tu.salvo > 0 && tu.st <= 0 && tgt) { tu.st = 0.25; tu.salvo--; const k = tu.tube++ % tu.tubes.length, from = tu.pitch.localToWorld(tu.tubes[k].clone());
+        const dir = new T.Vector3(0, 0, 1).transformDirection(tu.pitch.matrixWorld), t = tgt;
+        FIRE.emit(from, null, 0.25, 4, 10, C.flash); for (let q = 0; q < 4; q++) SMOKE.emit(from, dir.clone().multiplyScalar(-10).add(new T.Vector3((R() - 0.5) * 6, (R() - 0.5) * 6, (R() - 0.5) * 6)), 2.5, 6, 18, C.grey, 0.6);
+        launchMissile(from, dir, () => t.pos(), () => t.hit("missile", 1), C.red); }
+      if (!tgt) tu.salvo = 0;
     }
     if (tu.kind === "gun") {   // bursts of 20 at 20 rounds a second, a burst every 3 s
       if (onIt && tu.burst <= 0 && tu.cool <= 0) { tu.burst = 20; tu.cool = 3; }
@@ -1240,6 +1277,7 @@ function hitInfo(p, obj, at, from) {
   let weak = false;
   if (p.kind === "lift") { const y = p.obj.worldToLocal(at.clone()).y; weak = y > 17 || y < -17; }
   if (p.kind === "beam") { const tu = TURRETS.find(t => t.part === p); weak = obj === tu.lens && tu.state === "charge"; }
+  if (p.kind === "msl") { const tu = TURRETS.find(t => t.part === p); weak = tu.salvo > 0 && obj && obj.userData.mat0 === M.core; }
   if (p.kind === "bay") weak = BAYS.find(b => b.part === p).open > 0.5;
   if (p.kind === "bridge") weak = !!obj && obj.userData.mat0 === M.glow;
   return { armour: weak ? 40 : ARMOUR[p.kind], weak };
@@ -1298,7 +1336,7 @@ function apply(p) {
   refresh(); if (selected === p) showInfo(p);
 }
 function repair(p) {
-  if (p.alive || sim.crashed || !["lift", "hull", "drive", "flak", "beam", "gun", "vls", "cat", "bay", "hlift", "bridge"].includes(p.kind)) return;
+  if (p.alive || sim.crashed || !["lift", "hull", "drive", "flak", "beam", "gun", "msl", "vls", "cat", "bay", "hlift", "bridge"].includes(p.kind)) return;
   p.alive = true; p.hp = p.hpMax; scorch(p.obj, false);
   if (p.kind === "lift") { const t = THR.find(t => t.part === p); sim.alive[THR.indexOf(t)] = true; reattach(t); }
   if (p.kind === "hull") sim.hull[HULL.findIndex(h => h.part === p)] = true;
@@ -1352,7 +1390,7 @@ function alliesUpdate() {
     a.obj.position.copy(pos); a.obj.lookAt(ahead); a.obj.rotateX(0.3);
     if (R() < 0.8) [-1, 1].forEach(s => FIRE.emit(a.obj.localToWorld(new T.Vector3(2.2 * s, 6, -4)), new T.Vector3(0, -40, 0).applyQuaternion(a.obj.quaternion), 0.35, 4, 9, [0.6, 0.85, 1, 0.9]));
     a.cool -= DT;
-    const live = parts.filter(p => p.alive && ["lift", "flak", "beam", "gun", "vls", "cat", "bay", "drive"].includes(p.kind) && p.obj.parent);
+    const live = parts.filter(p => p.alive && ["lift", "flak", "beam", "gun", "msl", "vls", "cat", "bay", "drive"].includes(p.kind) && p.obj.parent);
     if (a.cool <= 0 && live.length && !sim.crashed) { a.cool = 2.2 + R(); const p = live[Math.floor(R() * live.length)], at = p.obj.localToWorld(p.fire.clone()), from = a.obj.localToWorld(new T.Vector3(0, 16, 6));
       if (from.distanceTo(at) < 1500) for (let r = 0; r < 6; r++) fire(from, at.clone().add(new T.Vector3((R() - 0.5) * 8, (R() - 0.5) * 8, (R() - 0.5) * 8)), 1100, [0.7, 0.85, 1], 1.4, q => { FIRE.emit(q, null, 0.12, 2, 5, C.spark); }); } });
 }
@@ -1502,7 +1540,7 @@ function readouts() {
   document.getElementById("list").textContent = `${Math.abs(sim.roll).toFixed(1)} deg` + (sim.roll > 0.05 ? " to starboard" : sim.roll < -0.05 ? " to port" : "");
   document.getElementById("meter").textContent = `${renderer.info.render.triangles.toLocaleString()} triangles, ${renderer.info.render.calls} draws`;
   const set = (id, v) => { const e = document.getElementById(id); if (e && e.textContent !== v) e.textContent = v; };
-  ["flak", "beam", "gun", "vls", "cat", "bay", "hlift", "drive"].forEach(k => { const [a, n] = count(k); set("ob-" + k, `${a} / ${n}`); });
+  ["flak", "beam", "gun", "msl", "vls", "cat", "bay", "hlift", "drive"].forEach(k => { const [a, n] = count(k); set("ob-" + k, `${a} / ${n}`); });
   const air = S.fighters.filter(f => f.state !== "down" && f.state !== "gone").length;
   set("ob-fighter", `${air} up, ${S.hangar} aboard`);
   set("ob-guard", `${S.guards.filter(g => g.part.alive).length} on deck, ${S.liftHangar} below`);
@@ -1516,7 +1554,7 @@ const tags = document.getElementById("tags");
 function drawTags() {
   const show = showLabels && view !== "climb" && view !== "fight", r = canvas.getBoundingClientRect(), list = [];
   if (show) {
-    const ON_DECK = ["bridge", "flak", "gun", "vls", "cat", "hlift", "guard"];
+    const ON_DECK = ["bridge", "flak", "gun", "msl", "vls", "cat", "hlift", "guard"];
     const want = p => view === "deck" ? ON_DECK.includes(p.kind) : view === "pylon" ? p.kind === "lift" : view === "catapult" ? ["cat", "bridge", "fighter"].includes(p.kind) : p.kind !== "guard";
     parts.filter(p => (p.label || p.kind === "guard") && want(p)).forEach(p => list.push({ obj: p.obj, text: p.label || p.name, dead: !p.alive, up: p.up || 10 }));
     const fl = S.fighters.find(f => f.state !== "gone" && f.state !== "down"); if (fl && view !== "deck" && view !== "pylon") list.push({ obj: fl.obj, text: "Fighter", up: 6 });
