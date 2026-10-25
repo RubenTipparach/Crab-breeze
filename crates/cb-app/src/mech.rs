@@ -1630,7 +1630,7 @@ fn cut_parts(
 }
 
 /// A test instrument: `CB_ENEMY_STUNT=1` flies every enemy round a 24 s loop instead of its brain's
-/// orders, holding fire: up on the rockets with the skates pushing forward, a glide down, then
+/// orders, holding fire: up on the rockets to 150 m, over the rooftops, with the skates pushing forward, a glide down, then
 /// skating on the ground, so its jet smoke and skate trails can be checked from the seat (owner,
 /// 2026-10-25: "do other mechs and do my mech while I'm in the pilot seat").
 fn stunt(m: &MechState, plan: &Plan, player: Vec3, t_s: f32) -> Option<MechControls> {
@@ -1657,7 +1657,7 @@ fn stunt(m: &MechState, plan: &Plan, player: Vec3, t_s: f32) -> Option<MechContr
         view_yaw_rad: m.heading_rad,
         lift_axis: match phase {
             p if p < 10.0 => {
-                if agl < 40.0 {
+                if agl < 150.0 {
                     1.0
                 } else {
                     hover
