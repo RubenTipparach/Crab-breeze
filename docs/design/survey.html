@@ -149,6 +149,32 @@ const ART_IMG = '';
 
 // The questions. Answers live in the db collection `answers`, one document per question id.
 const SECTIONS = [
+  { tag: 'G', name: 'Advanced weapons',
+    lead: 'New on 2026-10-25: shotguns, railguns, lasers and plasma cannons (openspec/changes/weapon-kinds), the railgun scope (railgun-scope) and multi-lock missiles (multi-lock). Designed, not built.',
+    qs: [
+      { id: 'G17', q: 'Who carries the new weapons?',
+        options: ['Human combat mechs: shotguns, railguns and multi-lock pods. Alien crabs: lasers and plasma', 'Anyone: every weapon on both sides', 'Humans get everything; crabs keep guns, swords and missiles'], rec: 0,
+        why: 'The two sides then fight differently: you read a crab by its beam and its slow glowing balls, and the combat block-outs already hold shotguns and railguns.' },
+      { id: 'G18', q: 'The railgun, laser and plasma cannon heat up and lock when hot. Should that heat share the bank the jets use?',
+        options: ['No: a weapon heat bank of its own (refills in 20 s)', 'Yes: one bank, so firing hard costs you flight time'], rec: 0,
+        why: 'A jet hop never blocks the guns, and each bar on the MFD means one thing.' },
+      { id: 'G19', q: 'Where does the railgun scope show its magnified picture (4x and 10x)?',
+        options: ['A window in the middle of the front screen', 'The whole front screen', 'One of the MFDs'], rec: 0,
+        why: 'You keep your full view round the window, so a flanker is not hidden while you aim, and your own eyes never zoom (the first person rule).' },
+    ] },
+  { tag: 'A', name: 'Music',
+    lead: 'New on 2026-10-25: the motifs and the first six cues. Listen on the Crab Breeze Music page (https://claude.ai/artifact/17Lj37SLPpsARPqE9ZfV9C); notes and rules in docs/design/music.md, playback in openspec/changes/music.',
+    qs: [
+      { id: 'A1', q: 'The score is orchestral rock with 80s colours, in D minor, lifting into D major for the big moments. Is that the direction?',
+        options: ['Yes: orchestra, rock drums and guitars, a few 80s synths (as rendered)', 'More 80s: synth-led, the orchestra in support', 'Pure orchestra, no rock band', 'Heavier: industrial and metal'], rec: 0,
+        why: 'It matches Ace Combat\'s hybrid and the 1980s industrial setting, and every cue already works this way.' },
+      { id: 'A2', q: 'How should the music follow the fight?',
+        options: ['One cue per game state (on foot, combat, set piece, won), switching on the bar with a one-bar crossfade', 'Layered stems that rise and fall with the danger inside one cue', 'Both: switching now, stems later'], rec: 0,
+        why: 'Switching on the bar sounds composed and needs nothing beyond the OGG files we have; stems cost a render per layer per cue.' },
+      { id: 'A3', q: 'Where is the music heard from the cockpit?',
+        options: ['Over everything, like a film score; it ducks under the radio and alarms', 'Only through the cockpit radio, as if broadcast', 'Score outside the mech, radio inside it'], rec: 0,
+        why: 'The sealed cockpit muffles the world; a score that ignores the walls keeps the music clear without breaking the first person view.' },
+    ] },
   { tag: 'G', name: 'Combat effects and the city defence',
     lead: 'New on 2026-10-23: weapon effects (openspec/changes/combat-fx), dumbfire rockets (rockets) and the three-city defence mission (city-defence).',
     qs: [

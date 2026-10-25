@@ -1,0 +1,147 @@
+{
+  "_doc": "The instruments and default mix for every Crab Breeze score (tools/music, skill music-authoring). soundfont: the .sf2 every General MIDI part and the drums play through. synths: Strudel synth names voiced by LMMS presets (path under lmms_presets) with a General MIDI stand-in (gm) for the MIDI file. mix: default LMMS track volume (percent) and pan (-100..100) per instrument; a score's // @mix lines override it. reverb: the soundfont's reverb level (0..1); a score's // @reverb line overrides it.",
+  "soundfont": "/opt/soundfonts/GeneralUser-GS.sf2",
+  "lmms_presets": "/usr/share/lmms/presets",
+  "sf2_gain": 1.0,
+  "master_vol": 50,
+  "default_vol": 100,
+  "reverb": 0.45,
+  "synths": {
+    "sawtooth": {
+      "lmms_preset": "TripleOscillator/SawReso.xpf",
+      "gm": 81,
+      "vol": 60
+    },
+    "square": {
+      "lmms_preset": "TripleOscillator/Square.xpf",
+      "gm": 80,
+      "vol": 50
+    },
+    "triangle": {
+      "lmms_preset": "TripleOscillator/WarmStack.xpf",
+      "gm": 89,
+      "vol": 60
+    },
+    "sine": {
+      "lmms_preset": "TripleOscillator/PluckBass.xpf",
+      "gm": 38,
+      "vol": 70
+    },
+    "supersaw": {
+      "lmms_preset": "TripleOscillator/SuperSawLead.xpf",
+      "gm": 81,
+      "vol": 55
+    }
+  },
+  "mix": {
+    "drums": {
+      "vol": 95
+    },
+    "gm_acoustic_guitar_steel": {
+      "vol": 157
+    },
+    "gm_acoustic_piano": {
+      "vol": 90
+    },
+    "gm_brass_section": {
+      "vol": 107
+    },
+    "gm_cello": {
+      "vol": 90,
+      "pan": 20
+    },
+    "gm_choir_aahs": {
+      "vol": 107
+    },
+    "gm_contrabass": {
+      "vol": 152,
+      "pan": 25
+    },
+    "gm_distortion_guitar": {
+      "vol": 97,
+      "pan": 35
+    },
+    "gm_electric_bass_pick": {
+      "vol": 85
+    },
+    "gm_epiano1": {
+      "vol": 88
+    },
+    "gm_flute": {
+      "vol": 72,
+      "pan": -10
+    },
+    "gm_french_horn": {
+      "vol": 58,
+      "pan": -25
+    },
+    "gm_fretless_bass": {
+      "vol": 45
+    },
+    "gm_glockenspiel": {
+      "vol": 127,
+      "pan": 20
+    },
+    "gm_oboe": {
+      "vol": 90,
+      "pan": 10
+    },
+    "gm_orchestra_hit": {
+      "vol": 54
+    },
+    "gm_orchestral_harp": {
+      "vol": 47
+    },
+    "gm_overdriven_guitar": {
+      "vol": 100,
+      "pan": -35
+    },
+    "gm_pad_warm": {
+      "vol": 200
+    },
+    "gm_reverse_cymbal": {
+      "vol": 200
+    },
+    "gm_seashore": {
+      "vol": 200
+    },
+    "gm_string_ensemble_1": {
+      "vol": 106,
+      "pan": -10
+    },
+    "gm_string_ensemble_2": {
+      "vol": 146,
+      "pan": 10
+    },
+    "gm_synth_bass_2": {
+      "vol": 85
+    },
+    "gm_synth_brass_1": {
+      "vol": 75
+    },
+    "gm_taiko_drum": {
+      "vol": 42
+    },
+    "gm_timpani": {
+      "vol": 71
+    },
+    "gm_tremolo_strings": {
+      "vol": 164,
+      "pan": -15
+    },
+    "gm_trombone": {
+      "vol": 149,
+      "pan": 20
+    },
+    "gm_trumpet": {
+      "vol": 113,
+      "pan": 15
+    },
+    "gm_tuba": {
+      "vol": 103
+    },
+    "gm_vibraphone": {
+      "vol": 59
+    }
+  }
+}
