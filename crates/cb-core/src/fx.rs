@@ -354,8 +354,50 @@ impl Validate for FxConfig {
     }
 }
 
+/// Burst sizes come in this many steps up to a layer's own count (`particle-steps`).
+pub const BURST_STEPS: u32 = 4;
+
+/// How many particles a burst of a layer with `count` particles spawns at `density`, with `room`
+/// left under the particle budget: a whole number of steps of `count / BURST_STEPS` (rounded to
+/// the nearest, at least one step while any were asked for), cut to whole steps that fit. Each size
+/// is its own GPU effect, built when first used; a footstep's density follows its speed, so without
+/// steps every stride built a new one mid-fight (`particle-steps`).
+pub fn burst_count(count: u32, density: f32, room: u32) -> u32 {
+    let step = count.div_ceil(BURST_STEPS).max(1);
+    let asked = (count as f32 * density.max(0.0)).round();
+    if !asked.is_finite() || asked < 1.0 {
+        return 0;
+    }
+    let steps = ((asked / step as f32).round() as u32).max(1);
+    steps.min(room / step) * step
+}
+
 #[cfg(test)]
 mod tests {
+    use super::burst_count;
+
+    #[test]
+    fn bursts_come_in_quarter_steps_of_their_count() {
+        assert_eq!(burst_count(40, 1.0, 1000), 40);
+        assert_eq!(burst_count(40, 0.6, 1000), 20);
+        assert_eq!(burst_count(40, 0.7, 1000), 30);
+        assert_eq!(burst_count(40, 0.05, 1000), 10, "a light step still shows one step");
+        assert_eq!(burst_count(40, 0.0, 1000), 0);
+        assert_eq!(burst_count(40, 2.0, 1000), 80);
+        assert_eq!(burst_count(3, 1.0, 1000), 3);
+    }
+
+    #[test]
+    fn a_burst_takes_only_whole_steps_that_fit_the_budget() {
+        assert_eq!(burst_count(40, 1.0, 25), 20);
+        assert_eq!(burst_count(40, 1.0, 9), 0);
+    }
+
+    #[test]
+    fn a_footstep_at_any_speed_is_one_of_a_few_sizes() {
+        let sizes: std::collections::BTreeSet<u32> = (0..=200).map(|i| burst_count(24, i as f32 / 100.0, 10_000)).collect();
+        assert!(sizes.len() <= 2 * super::BURST_STEPS as usize + 1, "{sizes:?}");
+    }
     #[test]
     fn far_small_bursts_are_left_out_and_explosions_reach_further() {
         let c = super::FxConfig::default();

@@ -806,3 +806,44 @@ fn far_terrain_never_hides_a_rivers_water() {
         "{over} of {checked} far river points hidden, worst {worst:.1} m"
     );
 }
+
+#[test]
+fn the_baked_sun_shade_agrees_with_a_ray_toward_the_sun() {
+    // Far ground is shaded by the bake (distant-shadows): where it says shade, a ray from the ground
+    // toward the sun meets the terrain, and where it says sunlit, the ray is clear.
+    let plan = seed_42();
+    let t = &plan.terrain;
+    let to_sun = super::sun_shade::to_sun();
+    let started = std::time::Instant::now();
+    let again = super::sun_shade::SunShade::bake(t, shipped().world_size_m, to_sun, &shipped().sun_shade);
+    eprintln!(
+        "sun shade baked in {:.0} ms (test profile)",
+        started.elapsed().as_secs_f64() * 1000.0
+    );
+    assert_eq!(&again, &plan.sun_shade, "the bake is deterministic");
+    let half = shipped().world_size_m * 0.4;
+    let mut rng = crate::rng::SimRng::new(7);
+    let (mut shaded, mut sure, mut agree) = (0, 0, 0);
+    for _ in 0..3000 {
+        let xz = Vec2::new(rng.range_f32(-half, half), rng.range_f32(-half, half));
+        let lit = plan.sun_shade.at(xz);
+        if lit < 0.5 {
+            shaded += 1;
+        }
+        if (0.1..=0.9).contains(&lit) {
+            continue;
+        }
+        let ground = Vec3::new(xz.x, t.height_at(xz.x, xz.y), xz.y);
+        let blocked = (1..400).any(|i| {
+            let q = ground + to_sun * (i as f32 * 20.0);
+            t.height_at(q.x, q.z) > q.y + 2.0
+        });
+        sure += 1;
+        if blocked == (lit < 0.5) {
+            agree += 1;
+        }
+    }
+    eprintln!("{shaded} of 3000 in shade; {agree} of {sure} agree with the ray");
+    assert!(shaded > 10, "the island's ridges cast shade: {shaded}");
+    assert!(agree as f32 >= sure as f32 * 0.93, "{agree} of {sure}");
+}

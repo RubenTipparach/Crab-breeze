@@ -224,6 +224,10 @@ fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, sk
         |ix, iz| skip.contains(&(ix, iz)),
     );
     let sea = plan.waters.sea_level_m;
+    // Far chunks wear the terrain's baked shadow; full-detail ones have the live shadows
+    // (distant-shadows).
+    let far = step >= 2;
+    let shade_albedo = plan.sun_shade.shade_albedo();
     let colors = chunk
         .positions
         .iter()
@@ -235,7 +239,13 @@ fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, sk
                 .water_at(Vec2::new(p.x, p.z), p.y - 3.0)
                 .is_some_and(|w| w.surface_m > sea);
             let cover = grass_cover(plan, grass, *p, *n, 0.0);
-            ground_colour(*p, *n, sea, river, 0.0, cover, grass.into(), biome_at(plan, *p, *n))
+            let mut c = ground_colour(*p, *n, sea, river, 0.0, cover, grass.into(), biome_at(plan, *p, *n));
+            if far {
+                let lit = plan.sun_shade.at(Vec2::new(p.x, p.z));
+                let k = 1.0 + (shade_albedo - 1.0) * (1.0 - lit);
+                c = [c[0] * k, c[1] * k, c[2] * k, c[3]];
+            }
+            c
         })
         .collect();
     chunk_to_mesh(chunk, colors)
