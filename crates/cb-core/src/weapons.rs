@@ -112,15 +112,56 @@ pub struct Guns {
     pub cooldown_s: Vec<f32>,
 }
 
+/// The station `step` stations on from `current` (+1 next, -1 back), wrapping, passing over any
+/// `usable` refuses (a lost arm's gun); `current` if no other is usable (openspec change
+/// `weapon-select`).
+pub fn next_station(specs: &[WeaponSpec], current: usize, step: i32, usable: impl Fn(usize) -> bool) -> usize {
+    let n = specs.len();
+    if n == 0 || step == 0 {
+        return current.min(n.saturating_sub(1));
+    }
+    let mut i = current.min(n - 1);
+    for _ in 0..n {
+        i = (i as i64 + step.signum() as i64).rem_euclid(n as i64) as usize;
+        if usable(i) {
+            return i;
+        }
+    }
+    current.min(n - 1)
+}
+
+/// The station a mech starts with selected: its first primary-group weapon (or the first).
+pub fn first_station(specs: &[WeaponSpec]) -> usize {
+    specs.iter().position(|w| w.group == 0).unwrap_or(0)
+}
+
+/// What the pilot's triggers pull, weapon by weapon: the selected station on the primary, every
+/// secondary-group weapon on the secondary, every missile on the missile key.
+pub fn station_pulls(specs: &[WeaponSpec], selected: usize, primary: bool, secondary: bool, missile: bool) -> Vec<bool> {
+    specs
+        .iter()
+        .enumerate()
+        .map(|(i, w)| (primary && i == selected) || (secondary && w.group == 1) || (missile && w.group == 2))
+        .collect()
+}
+
+/// Every weapon of each pulled group (primary, secondary, missiles): how the enemy AI fires.
+pub fn group_pulls(specs: &[WeaponSpec], pulled: [bool; 3]) -> Vec<bool> {
+    specs
+        .iter()
+        .map(|w| pulled.get(w.group as usize).copied().unwrap_or(false))
+        .collect()
+}
+
 impl Guns {
-    /// Advances reloads by `dt_s`, and fires every ready gun of each pulled group whose arm is
-    /// still on. Returns the indices of the guns that fired.
-    pub fn trigger(&mut self, specs: &[WeaponSpec], pulled: [bool; 3], arm_lost: impl Fn(PartKind) -> bool, dt_s: f32) -> Vec<usize> {
+    /// Advances reloads by `dt_s`, and fires every ready, pulled gun whose arm is still on (`pulled`
+    /// weapon by weapon: `station_pulls` or `group_pulls`). Returns the indices of the guns that fired.
+    pub fn trigger(&mut self, specs: &[WeaponSpec], pulled: &[bool], arm_lost: impl Fn(PartKind) -> bool, dt_s: f32) -> Vec<usize> {
         self.cooldown_s.resize(specs.len(), 0.0);
         let mut fired = Vec::new();
         for (i, w) in specs.iter().enumerate() {
             self.cooldown_s[i] = (self.cooldown_s[i] - dt_s).max(0.0);
-            if pulled[w.group as usize] && self.cooldown_s[i] == 0.0 && !arm_lost(w.arm) {
+            if pulled.get(i).copied().unwrap_or(false) && self.cooldown_s[i] == 0.0 && !arm_lost(w.arm) {
                 self.cooldown_s[i] = w.interval_s;
                 fired.push(i);
             }
@@ -344,7 +385,7 @@ mod tests {
         let mut g = Guns::default();
         let mut shots = 0;
         for _ in 0..600 {
-            shots += g.trigger(&w, [false, true, false], |_| false, 1.0 / 60.0).len();
+            shots += g.trigger(&w, &group_pulls(&w, [false, true, false]), |_| false, 1.0 / 60.0).len();
         }
         assert_eq!(shots, 4, "10 s at one shot per 2.5 s");
     }
@@ -354,10 +395,34 @@ mod tests {
         let w = default_weapons();
         let mut g = Guns::default();
         assert!(
-            g.trigger(&w, [true, true, false], |k| k == PartKind::ArmL, 0.016)
+            g.trigger(&w, &group_pulls(&w, [true, true, false]), |k| k == PartKind::ArmL, 0.016)
                 .iter()
                 .all(|i| w[*i].arm != PartKind::ArmL)
         );
+    }
+
+    #[test]
+    fn the_primary_trigger_fires_only_the_selected_station() {
+        let w = default_weapons();
+        let sel = first_station(&w);
+        let pulls = station_pulls(&w, sel, true, false, false);
+        assert_eq!(pulls.iter().filter(|p| **p).count(), 1);
+        assert!(pulls[sel]);
+        let mut g = Guns::default();
+        assert_eq!(g.trigger(&w, &pulls, |_| false, 0.016), vec![sel]);
+    }
+
+    #[test]
+    fn stepping_the_selection_wraps_and_skips_a_lost_arms_gun() {
+        let w = default_weapons();
+        assert!(w.len() >= 2);
+        let n = w.len();
+        assert_eq!(next_station(&w, n - 1, 1, |_| true), 0, "wraps forward");
+        assert_eq!(next_station(&w, 0, -1, |_| true), n - 1, "wraps back");
+        let skip = 1 % n;
+        let after = next_station(&w, 0, 1, |i| i != skip);
+        assert_ne!(after, skip);
+        assert_eq!(next_station(&w, 0, 1, |i| i == 0), 0, "nothing else usable: it stays");
     }
 
     #[test]

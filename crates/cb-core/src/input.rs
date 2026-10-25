@@ -68,6 +68,8 @@ pub struct Actions {
     pub target_next: bool,
     /// Close combat toggled this step (openspec change `close-combat`).
     pub close_combat: bool,
+    /// Step the selected weapon station this step: +1 on, -1 back, 0 none (weapon-select).
+    pub weapon_cycle: i32,
 }
 
 impl Actions {
@@ -186,6 +188,8 @@ pub struct Bindings {
     pub target_next: Vec<String>,
     /// Close combat on and off (in the mech).
     pub close_combat: Vec<String>,
+    /// Step the selected weapon: key names step on; `MouseWheel` steps by the wheel, down on, up back.
+    pub weapon_cycle: Vec<String>,
 }
 
 impl Default for Bindings {
@@ -219,6 +223,7 @@ impl Default for Bindings {
             fire_missile: k("KeyF"),
             target_next: k("KeyQ"),
             close_combat: k("Tab"),
+            weapon_cycle: vec!["MouseWheel".to_string(), "BracketRight".to_string()],
         }
     }
 }
@@ -244,6 +249,8 @@ pub fn key_label(name: &str) -> String {
         "MouseLeft" => "Left mouse".into(),
         "MouseRight" => "Right mouse".into(),
         "MouseMiddle" => "Middle mouse".into(),
+        "MouseWheel" => "Mouse wheel".into(),
+        "BracketRight" => "]".into(),
         "Escape" => "Esc".into(),
         _ => name
             .strip_prefix("Key")
@@ -298,6 +305,12 @@ impl Bindings {
             row("Weapons", "Fire secondary", "fire_secondary", &self.fire_secondary),
             row("Weapons", "Fire missile at the lock", "fire_missile", &self.fire_missile),
             row("Weapons", "Next target", "target_next", &self.target_next),
+            row(
+                "Weapons",
+                "Next weapon (the left mouse fires it)",
+                "weapon_cycle",
+                &self.weapon_cycle,
+            ),
             row(
                 "Weapons",
                 "Close combat on and off (on by itself when the target is close)",

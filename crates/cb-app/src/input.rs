@@ -4,7 +4,7 @@
 //! value. Nothing else in the game reads a device.
 
 use crate::sim::{Data, PresentSet, SimSet};
-use bevy::input::mouse::AccumulatedMouseMotion;
+use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions};
 use cb_core::input::{Actions, Bindings, DebugCommand, ModeRequest};
@@ -31,6 +31,8 @@ pub struct InputAccum {
     pub target_next: bool,
     /// Close combat was toggled.
     pub close_combat: bool,
+    /// Weapon station steps asked for (+ on, - back).
+    pub weapon_cycle: i32,
     /// Fire pressed while free look is held: press the MFD looked at (cockpit-mfds). Taken by the
     /// MFDs each frame, never by the fixed step.
     pub mfd_press: bool,
@@ -64,6 +66,8 @@ pub(crate) struct Keys {
     sink: Vec<KeyCode>,
     target_next: Vec<KeyCode>,
     close_combat: Vec<KeyCode>,
+    /// Keys that step the weapon on, and whether the mouse wheel steps it.
+    weapon_cycle: (Vec<KeyCode>, bool),
     fire: [(Vec<KeyCode>, Vec<MouseButton>); 2],
     fire_missile: (Vec<KeyCode>, Vec<MouseButton>),
     debug: Vec<(Vec<KeyCode>, DebugCommand)>,
@@ -128,6 +132,17 @@ fn resolve(b: &Bindings) -> Result<Keys, String> {
         sink: r("sink", &b.sink)?,
         target_next: r("target_next", &b.target_next)?,
         close_combat: r("close_combat", &b.close_combat)?,
+        weapon_cycle: (
+            r(
+                "weapon_cycle",
+                &b.weapon_cycle
+                    .iter()
+                    .filter(|n| n.as_str() != "MouseWheel")
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            )?,
+            b.weapon_cycle.iter().any(|n| n == "MouseWheel"),
+        ),
         fire: [split("fire_primary", &b.fire_primary)?, split("fire_secondary", &b.fire_secondary)?],
         fire_missile: split("fire_missile", &b.fire_missile)?,
         debug: vec![
@@ -167,6 +182,8 @@ fn key_code(name: &str) -> Option<KeyCode> {
         "AltRight" => AltRight,
         "Space" => Space,
         "Tab" => Tab,
+        "BracketLeft" => BracketLeft,
+        "BracketRight" => BracketRight,
         "Enter" => Enter,
         "Escape" => Escape,
         "ArrowUp" => ArrowUp,
@@ -224,6 +241,7 @@ fn sample_devices(
     input: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     motion: Res<AccumulatedMouseMotion>,
+    scroll: Res<AccumulatedMouseScroll>,
     cursor: Single<&CursorOptions>,
     keys: Res<Keys>,
     time: Res<Time<Real>>,
@@ -264,6 +282,13 @@ fn sample_devices(
     acc.skate_toggle |= any_just(&input, &keys.skate);
     acc.target_next |= any_just(&input, &keys.target_next);
     acc.close_combat |= any_just(&input, &keys.close_combat);
+    // The wheel steps the weapon: down on, up back (weapon-select).
+    if keys.weapon_cycle.1 && scroll.delta.y != 0.0 {
+        acc.weapon_cycle += if scroll.delta.y < 0.0 { 1 } else { -1 };
+    }
+    if any_just(&input, &keys.weapon_cycle.0) {
+        acc.weapon_cycle += 1;
+    }
     let (fire_keys, fire_buttons) = &keys.fire[0];
     if any(&input, &keys.free_look) && (any_just(&input, fire_keys) || mouse.any_just_pressed(fire_buttons.iter().copied())) {
         acc.mfd_press = true;
@@ -318,6 +343,7 @@ fn take_step_actions(
         skate_toggle: held.skate_toggle || acc.skate_toggle,
         target_next: held.target_next || acc.target_next,
         full_stop: held.full_stop || acc.full_stop,
+        weapon_cycle: (held.weapon_cycle + acc.weapon_cycle).signum(),
         close_combat: held.close_combat || acc.close_combat,
         ..held
     }
@@ -330,6 +356,7 @@ fn take_step_actions(
     acc.skate_toggle = false;
     acc.target_next = false;
     acc.full_stop = false;
+    acc.weapon_cycle = 0;
     acc.close_combat = false;
 }
 

@@ -52,6 +52,8 @@ pub struct MechSim {
     pub cuts: Vec<usize>,
     /// Gun reloads.
     pub guns: Guns,
+    /// The weapon station the pilot's primary trigger fires (weapon-select).
+    pub selected: usize,
     /// Close combat on or off (close-combat).
     pub close: cb_core::mech::CloseCombat,
     /// The arms' strikes at the step before, for drawing between steps.
@@ -368,6 +370,7 @@ fn spawn_mech_entity(
                 damage: Damage::new(&cfg.parts),
                 cuts: Vec::new(),
                 guns: Guns::default(),
+                selected: cb_core::weapons::first_station(&cfg.weapons),
                 close: Default::default(),
                 strikes_prev: Default::default(),
                 strikes: Default::default(),
@@ -986,6 +989,11 @@ pub fn step_mech(
                     ..default()
                 }
             } else if seated && sim.hatch.can_walk() {
+                // The mouse wheel steps the selected station, past any lost arm's gun (weapon-select).
+                if actions.weapon_cycle != 0 {
+                    let lost = |i: usize| sim.damage.is_lost(&cfg.parts, cfg.weapons[i].arm);
+                    sim.selected = cb_core::weapons::next_station(&cfg.weapons, sim.selected, actions.weapon_cycle, |i| !lost(i));
+                }
                 // Close combat comes on when the targeted hostile is within melee range and Tab
                 // toggles it (close-combat); only a targeted hostile counts.
                 let near = targeting.selected.map(|_| targeting.range_m);
@@ -1142,7 +1150,13 @@ pub fn step_mech(
             });
         }
         // Guns: fire from the muzzle toward the aim point; a lost arm's gun is gone.
-        let fired = sim.guns.trigger(&cfg.weapons, fire, |k| damage.is_lost(&cfg.parts, k), dt);
+        // The pilot's left mouse fires the selected station; the enemy AI fires by group (weapon-select).
+        let pulls = if piloted {
+            cb_core::weapons::station_pulls(&cfg.weapons, sim.selected, fire[0], fire[1], fire[2])
+        } else {
+            cb_core::weapons::group_pulls(&cfg.weapons, fire)
+        };
+        let fired = sim.guns.trigger(&cfg.weapons, &pulls, |k| damage.is_lost(&cfg.parts, k), dt);
         for wi in fired {
             let w = &cfg.weapons[wi];
             // A mech without a missile pod launches its missiles from the right arm.
