@@ -15,7 +15,7 @@
     // rate. Free look (held) is unlimited (openspec/changes/seated-look; owner, 2026-10-24).
     seated_look_limit_deg: 90.0,
     // Vertical field of view: 85 degrees is about 117 across a 16:9 screen (owner, 2026-10-24:
-    // "Wider fov?"; was 75, about 106 across). 90 is about 121 across (owner, 2026-10-25: "can you increase
-    // player fov a bit"; was 85, about 117).
-    view_fov_deg: 90.0,
+    // "Wider fov?"; was 75, about 106 across). 95 is about 125 across (owner, 2026-10-25: "can you increase
+    // player fov a bit", "95?"; was 85, about 117).
+    view_fov_deg: 95.0,
 )
