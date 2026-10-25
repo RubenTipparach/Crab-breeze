@@ -1,8 +1,8 @@
 // The sky's clouds (openspec change `cloud-weather`): every puff of the weather is one billboard
 // facing the eye's position and kept upright (`facing`), its edge eaten by noise and lit as a sphere
 // by the scene's sun and sky (the light the ground and the water get, through `water_light` in
-// Rust); rain shafts are billboards turned about the vertical with streaks falling; cirrus are flat streaks high up. All three are items of one
-// mesh, sorted back to front on the CPU, drawn in one alpha-blended draw. Each billboard fades
+// Rust); rain shafts are billboards turned about the vertical with streaks falling; cirrus are
+// flat streaks high up. All three are items of one mesh, sorted back to front on the CPU, drawn in one alpha-blended draw. Each billboard fades
 // where it meets the ground behind it (the depth prepass, "soft particles") and near the eye, where
 // the cloud fog takes over; Bevy's fog hazes far ones. Linear HDR colour, reverse-Z depth.
 //
