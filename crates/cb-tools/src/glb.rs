@@ -205,6 +205,23 @@ pub fn check_mech(cfg: &MechConfig, assets: &Path) -> Vec<String> {
     out
 }
 
+/// Checks every enemy skin (openspec change `blockout-enemies`): its model is under `assets` and carries the
+/// limb nodes (`LEG_*`, `ARM_*`) the game walks and throws, so a skin cannot ship without legs to shoot off.
+pub fn check_skins(skins: &cb_core::skins::Skins, assets: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    for (name, spec) in &skins.skins {
+        match Tree::read(&assets.join(&spec.model)) {
+            Ok(t) => {
+                if !t.names.iter().any(|n| n.starts_with("LEG_")) {
+                    out.push(format!("skin `{name}`: {} has no LEG_ node", spec.model));
+                }
+            }
+            Err(e) => out.push(format!("skin `{name}`: {e}")),
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -257,5 +274,14 @@ mod tests {
             checked += usize::from(cfg.interior.is_some());
         }
         assert!(checked >= 8, "the eight detailed mechs are shipped ({checked} found)");
+    }
+
+    #[test]
+    fn every_enemy_skin_names_a_shipped_model_with_legs() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let d = cb_core::GameData::load(&root.join("data"), "mechs/placeholder.ron").unwrap();
+        assert!(!d.skins.skins.is_empty());
+        let problems = check_skins(&d.skins, &root.join("assets"));
+        assert!(problems.is_empty(), "{problems:?}");
     }
 }

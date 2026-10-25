@@ -38,6 +38,17 @@ fn main() -> ExitCode {
                     }
                 }
             }
+            // the enemy skins, once: every one names a shipped model with limbs to walk and shoot off
+            if let Ok(d) = GameData::load(&root, &mechs[0]) {
+                let problems = glb::check_skins(&d.skins, &root.join("..").join("assets"));
+                if problems.is_empty() {
+                    println!("ok   {} enemy skins", d.skins.skins.len());
+                }
+                for p in problems {
+                    eprintln!("FAIL {p}");
+                    ok = false;
+                }
+            }
             if ok { ExitCode::SUCCESS } else { ExitCode::FAILURE }
         }
         // A measurement instrument (openspec change `city-defence`): each city's size, buildings

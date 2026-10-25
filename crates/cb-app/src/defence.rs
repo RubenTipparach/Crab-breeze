@@ -153,6 +153,7 @@ fn step_mission(
                     armour_scale: spec.armour_scale,
                     tint: spec.tint,
                     skill: &spec.skill,
+                    skin: cfg.raider_skin(w, i).and_then(|s| data.0.skins.skins.get(s)),
                 };
                 let id = MechId(100 + (w * cfg.raiders_per_wave as usize + i) as u32);
                 let rng = SimRng::new(plan.seed).fork(&format!("raider/{w}/{i}"));

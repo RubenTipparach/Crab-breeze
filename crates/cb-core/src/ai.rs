@@ -523,6 +523,9 @@ pub struct EnemySpec {
     /// Hull colour override (linear-ish sRGB 0..1), to tell it from the player's.
     #[serde(default)]
     pub tint: Option<[f32; 3]>,
+    /// The block-out it wears over the stand-in (`data/enemies/skins.ron`); `None` shows the stand-in.
+    #[serde(default)]
+    pub skin: Option<String>,
     /// Gun override; `None` keeps the mech's own.
     #[serde(default)]
     pub weapons: Option<Vec<crate::weapons::WeaponSpec>>,

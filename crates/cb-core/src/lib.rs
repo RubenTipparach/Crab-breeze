@@ -18,6 +18,7 @@ pub mod mission;
 pub mod pilot;
 pub mod rng;
 pub mod sim;
+pub mod skins;
 pub mod sun_flare;
 pub mod targeting;
 pub mod units;
@@ -62,6 +63,8 @@ pub struct GameData {
     pub sun: sun_flare::SunLook,
     /// `data/world/units.ron`.
     pub units: units::UnitsConfig,
+    /// `data/enemies/skins.ron`.
+    pub skins: skins::Skins,
 }
 
 impl GameData {
@@ -69,6 +72,31 @@ impl GameData {
     /// (relative to `root`) and its boarding timeline beside it (`mechs/<name>/boarding.ron`). The first failure is returned, naming its file and field.
     pub fn load(root: &Path, mech: &str) -> Result<Self, data::DataError> {
         let world: world::WorldConfig = data::load_ron(&root.join("world/world.ron"))?;
+        let skins_path = root.join("enemies/skins.ron");
+        let skins: skins::Skins = data::load_ron(&skins_path)?;
+        let encounters: ai::Encounters = data::load_ron(&root.join("world/encounters.ron"))?;
+        let defence: mission::DefenceConfig = data::load_ron(&root.join("missions/defence.ron"))?;
+        // Every skin an enemy names is in the list (openspec change `blockout-enemies`).
+        let named = encounters
+            .enemies
+            .iter()
+            .enumerate()
+            .filter_map(|(i, e)| e.skin.as_deref().map(|s| (s, format!("world/encounters.ron enemies[{i}].skin"))))
+            .chain(
+                defence
+                    .raiders
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, r)| r.skin.as_deref().map(|s| (s, format!("missions/defence.ron raiders[{i}].skin")))),
+            )
+            .chain(defence.skins_by_wave.iter().enumerate().flat_map(|(w, list)| {
+                list.iter()
+                    .map(move |s| (s.as_str(), format!("missions/defence.ron skins_by_wave[{w}]")))
+            }));
+        skins.check_names(named).map_err(|reason| data::DataError {
+            path: skins_path.clone(),
+            reason,
+        })?;
         let grass_path = root.join("world/grass.ron");
         let grass: grass::GrassConfig = data::load_ron(&grass_path)?;
         grass
@@ -81,9 +109,9 @@ impl GameData {
             boarding: data::load_ron(&root.join(mech.trim_end_matches(".ron")).join("boarding.ron"))?,
             pilot: data::load_ron(&root.join("pilot/pilot.ron"))?,
             bindings: data::load_ron(&root.join("input/bindings.ron"))?,
-            encounters: data::load_ron(&root.join("world/encounters.ron"))?,
+            encounters,
             water_look: data::load_ron(&root.join("world/water_look.ron"))?,
-            defence: data::load_ron(&root.join("missions/defence.ron"))?,
+            defence,
             fx: data::load_ron(&root.join("fx/fx.ron"))?,
             targeting: data::load_ron(&root.join("hud/targeting.ron"))?,
             cockpit_light: data::load_ron(&root.join("hud/cockpit_light.ron"))?,
@@ -91,6 +119,7 @@ impl GameData {
             ground_marks: data::load_ron(&root.join("fx/ground_marks.ron"))?,
             sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
             units: data::load_ron(&root.join("world/units.ron"))?,
+            skins,
         })
     }
 
