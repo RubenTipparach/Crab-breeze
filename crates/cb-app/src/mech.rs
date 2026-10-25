@@ -1744,6 +1744,11 @@ fn cockpit_layer(
 
 /// The booster flame while boosting: a stream on each jet socket (`FxStream`), switched with the
 /// boost.
+/// A jet socket's smoke trail: the child entity streaming `jet_trail`, kept apart
+/// from the socket's own flame stream so each has its own rate.
+#[derive(Component)]
+struct JetTrail(Entity);
+
 /// A jet's exhaust flame, under its nozzle socket (openspec change `rocket-plumes`).
 #[derive(Component)]
 struct JetPlume;
@@ -1752,6 +1757,7 @@ struct JetPlume;
 fn jet_flames(
     mut commands: Commands,
     mechs: Query<(&MechSim, &MechRig)>,
+    trails: Query<&JetTrail>,
     mut streams: Query<&mut crate::fx::FxStream>,
     mut plumes: Query<(&mut Transform, &mut Visibility), With<JetPlume>>,
     children: Query<&Children>,
@@ -1772,19 +1778,39 @@ fn jet_flames(
         let on = sim.curr.boosting && !sim.dead;
         for jet in ["JET_L", "JET_R"] {
             let Some(&e) = rig.sockets.get(jet) else { continue };
-            match streams.get_mut(e) {
-                Ok(mut s) => {
-                    if s.on != on {
-                        s.on = on;
+            let trail = trails.get(e).ok().map(|t| t.0);
+            match (streams.get(e).is_ok(), trail) {
+                (true, Some(t)) => {
+                    for s in [e, t] {
+                        if let Ok(mut s) = streams.get_mut(s)
+                            && s.on != on
+                        {
+                            s.on = on;
+                        }
                     }
                 }
-                Err(_) => {
-                    commands.entity(e).insert(crate::fx::FxStream {
-                        recipe: "jet_flame",
-                        dir: Vec3::NEG_Y,
-                        on,
-                        density: 1.0,
-                    });
+                _ => {
+                    let child = commands
+                        .spawn((
+                            Name::new("jet trail"),
+                            Transform::default(),
+                            crate::fx::FxStream {
+                                recipe: "jet_trail",
+                                dir: Vec3::NEG_Y,
+                                on,
+                                density: 1.0,
+                            },
+                        ))
+                        .id();
+                    commands.entity(e).add_child(child).insert((
+                        crate::fx::FxStream {
+                            recipe: "jet_flame",
+                            dir: Vec3::NEG_Y,
+                            on,
+                            density: 1.0,
+                        },
+                        JetTrail(child),
+                    ));
                 }
             }
             // The flame under the nozzle, flickering in length while the jets fire.
