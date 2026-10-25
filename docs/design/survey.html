@@ -162,10 +162,10 @@ const SECTIONS = [
         why: 'You keep your full view round the window, so a flanker is not hidden while you aim, and your own eyes never zoom (the first person rule).' },
     ] },
   { tag: 'A', name: 'Music',
-    lead: 'New on 2026-10-25: the motifs and the first six cues, now electronic. Listen on the Crab Breeze Music page (https://claude.ai/artifact/17Lj37SLPpsARPqE9ZfV9C); notes and rules in docs/design/music.md, playback in openspec/changes/music.',
+    lead: 'New on 2026-10-25: the motifs and five cues, now moody cyberpunk (an edgy rebel, not a hero; Main Street deleted). Listen on the Crab Breeze Music page (https://claude.ai/artifact/17Lj37SLPpsARPqE9ZfV9C); notes and rules in docs/design/music.md, playback in openspec/changes/music.',
     qs: [
       { id: 'A2', q: 'How should the music follow the fight?',
-        options: ['One cue per game state (on foot, combat, set piece, won), switching on the bar with a one-bar crossfade', 'Layered stems that rise and fall with the danger inside one cue', 'Both: switching now, stems later'], rec: 0,
+        options: ['One cue per game state (title, boarding, combat, set piece, won; silent on foot), switching on the bar with a one-bar crossfade', 'Layered stems that rise and fall with the danger inside one cue', 'Both: switching now, stems later'], rec: 0,
         why: 'Switching on the bar sounds composed and needs nothing beyond the OGG files we have; stems cost a render per layer per cue.' },
       { id: 'A3', q: 'Where is the music heard from the cockpit?',
         options: ['Over everything, like a film score; it ducks under the radio and alarms', 'Only through the cockpit radio, as if broadcast', 'Score outside the mech, radio inside it'], rec: 0,
@@ -399,7 +399,7 @@ const SECTIONS = [
 ];
 
 const DECIDED = [
-  { text: 'A1 The score is electronic and futuristic, not orchestral: "music sucks, electronic, scifi futuristic please!" (2026-10-25). Synth leads, pads, arpeggios, reese and acid basses, 808/909 drums.', where: 'CLAUDE.md section 1, docs/design/music.md, music/*.strudel' },
+  { text: 'A1 The score is moody, edgy rebel cyberpunk: "music sucks, electronic, scifi futuristic please!", then "Main street sucks delete it. Theme sucks..I want some thing moody,more cyber punk themed", then "It\'s too cherry and heroic. I want to feel like an edgy rebel" (2026-10-25). A snarling riff, a sinking hook, half-time drums, rain; no town theme, no triumphant major chord.', where: 'CLAUDE.md section 1, docs/design/music.md, music/*.strudel' },
   { text: 'W17 Clouds are cheap, lit blob meshes rather than volumetric fog: "we\'re on a tight budget, I just want good looking clouds with correct lighting and dont cost much to render". Flying through one wets the glass with drops, as in Pale Blue Dot.', where: 'openspec/changes/cloud-puffs, cloud-rain' },
   { text: 'Shallow water is waded; the skates skim only over water deeper than half the mech ("The skis only kicking if you\'re above water deeper than 50% of the mech").', where: 'openspec/changes/skim-depth' },
   { text: 'Breeze is retired ("Breeze me h sucks"). The cockpit is inside the mech\'s chest and the chest armour opens to board. Designs are original, from the 1980s industrial world, with Mining Mike\'s boss kit as the finish only ("New mechs are just stolen. Those are not original mechs").', where: 'tools/blender/build_mechs.py, mech_boarding.py; docs/design/cockpit.md' },

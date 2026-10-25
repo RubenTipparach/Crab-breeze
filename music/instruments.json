@@ -81,6 +81,9 @@
     "gm_fretless_bass": {
       "vol": 45
     },
+    "gm_fx_rain": {
+      "vol": 82.2
+    },
     "gm_glockenspiel": {
       "vol": 127,
       "pan": 20
@@ -143,7 +146,7 @@
   },
   "voices": {
     "gm_lead_2_sawtooth": "TripleOscillator/SuperSawLead.xpf",
-    "gm_lead_5_charang": "TripleOscillator/AnalogTimes.xpf",
+    "gm_lead_5_charang": "TripleOscillator/Erazzor.xpf",
     "gm_pad_poly": "TripleOscillator/TINTNpad.xpf",
     "gm_pad_choir": "TripleOscillator/CryingPads.xpf",
     "gm_synth_strings_1": "TripleOscillator/PowerStrings.xpf",
@@ -152,33 +155,40 @@
     "gm_synth_bass_1": "TripleOscillator/FuzzyAnalogBass.xpf",
     "gm_synth_bass_2": "TripleOscillator/DirtyReece.xpf",
     "gm_lead_8_bass_lead": "LB302/AcidLead.xpf",
-    "gm_fx_crystal": "TripleOscillator/AnalogBell.xpf",
-    "gm_fx_sci_fi": "TripleOscillator/Supernova.xpf"
+    "gm_fx_crystal": "Monstro/ScaryBell.xpf",
+    "gm_fx_sci_fi": "TripleOscillator/Supernova.xpf",
+    "gm_lead_7_fifths": "TripleOscillator/SawReso.xpf"
   },
   "preset_vol": {
     "LB302/AcidLead.xpf": 15.9,
+    "Monstro/ScaryBell.xpf": 19.3,
     "TripleOscillator/AnalogBell.xpf": 15.7,
     "TripleOscillator/AnalogTimes.xpf": 26.7,
     "TripleOscillator/CryingPads.xpf": 24.7,
-    "TripleOscillator/DirtyReece.xpf": 11.8,
+    "TripleOscillator/DirtyReece.xpf": 12.5,
+    "TripleOscillator/Erazzor.xpf": 26.1,
     "TripleOscillator/FuzzyAnalogBass.xpf": 10.1,
     "TripleOscillator/Jupiter.xpf": 5.8,
     "TripleOscillator/PluckArpeggio.xpf": 45.7,
     "TripleOscillator/PowerStrings.xpf": 5.7,
+    "TripleOscillator/SawReso.xpf": 9.6,
     "TripleOscillator/SuperSawLead.xpf": 51.0,
     "TripleOscillator/Supernova.xpf": 200.0,
     "TripleOscillator/TINTNpad.xpf": 30.2
   },
   "preset_offset_st": {
     "LB302/AcidLead.xpf": 0,
+    "Monstro/ScaryBell.xpf": 12,
     "TripleOscillator/AnalogBell.xpf": 0,
     "TripleOscillator/AnalogTimes.xpf": 0,
     "TripleOscillator/CryingPads.xpf": -12,
     "TripleOscillator/DirtyReece.xpf": -24,
+    "TripleOscillator/Erazzor.xpf": 0,
     "TripleOscillator/FuzzyAnalogBass.xpf": -12,
     "TripleOscillator/Jupiter.xpf": 0,
     "TripleOscillator/PluckArpeggio.xpf": 12,
     "TripleOscillator/PowerStrings.xpf": 0,
+    "TripleOscillator/SawReso.xpf": -12,
     "TripleOscillator/SuperSawLead.xpf": 0,
     "TripleOscillator/Supernova.xpf": 0,
     "TripleOscillator/TINTNpad.xpf": 0

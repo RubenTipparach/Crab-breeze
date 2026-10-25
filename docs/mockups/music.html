@@ -86,11 +86,11 @@ footer { color: var(--steel); font-size: 14px; display: grid; gap: 6px; border-t
 <div class="wrap">
   <header class="mast">
     <div class="stripe" aria-hidden="true"></div>
-    <span class="eyebrow">Crab Breeze original score · works sheet 2, electronic · 2026-10-25</span>
+    <span class="eyebrow">Crab Breeze original score · works sheet 3, the rebel · 2026-10-25</span>
     <h1>Crab Breeze Music</h1>
-    <p>Seven motifs and six cues, written as Strudel scores, exported to multitrack MIDI and played on LMMS synths. Electronic and futuristic: supersaw leads, pumping pads, arpeggios, reese and acid basses, 808/909 drums. In D minor, for a 1980s industrial mech fighting alien crabs.</p>
-    <div class="facts"><span>Key <b>D minor</b></span><span>Signature <b>Bb, C, D major</b></span><span>Gait <b>3 + 3 + 2</b></span><span>Instruments <b>LMMS synths, 808/909</b></span><span>Loudness <b>-16 LUFS</b></span></div>
-    <p class="status">Second round, after your note on the first (&ldquo;music sucks, electronic, scifi futuristic please!&rdquo;): the same motifs, re-voiced and re-rhythmed on synths. Checked by numbers only (no clipping, each cue builds from quiet to loud, the lead shows on a spectrogram); your ears decide.</p>
+    <p>Moody, edgy rebel cyberpunk. Rain on the city, a snarling riff, a hook that sinks instead of soaring, half-time drums with a big snare, all on LMMS synths. In D minor with the flat two, and nothing ever resolves to a triumphant major chord.</p>
+    <div class="facts"><span>Key <b>D minor, flat two</b></span><span>Edge <b>E flat against D</b></span><span>Gait <b>3 + 3 + 2</b></span><span>Instruments <b>LMMS synths, 808/909</b></span><span>Loudness <b>-16 LUFS</b></span></div>
+    <p class="status">Third round, after your notes: &ldquo;Main street sucks delete it&rdquo;, &ldquo;moody, more cyber punk&rdquo;, &ldquo;too cherry and heroic. I want to feel like an edgy rebel&rdquo;. Main Street is gone, the heroic Breeze theme and its major lift are gone; the Rebel replaces them. Checked by numbers only; your ears decide.</p>
   </header>
 
   <section aria-labelledby="tape-h">
@@ -101,14 +101,13 @@ footer { color: var(--steel); font-size: 14px; display: grid; gap: 6px; border-t
   <section aria-labelledby="world-h">
     <div class="head"><h2 id="world-h">The musical world</h2><span class="eyebrow">Rules every cue follows</span></div>
     <div class="world">
-      <div><span class="eyebrow">Home</span><p>D natural minor. Every big moment arrives by <b>the lift</b>: B flat, C, then D <i>major</i>. The F sharp of that last chord is the score's signature note, the minor world breaking open when the Breeze wins.</p></div>
-      <div><span class="eyebrow">The stride</span><p>The mech's gait as a rhythm: <b>3 + 3 + 2 eighths</b>, stomp, stomp, step-step. The Breeze's melody walks on it; the bass and the kick drum play it.</p></div>
-      <div><span class="eyebrow">The crabs</span><p>The opposite: chromatic grinding (D against E flat), the tritone (D against A flat), and sixteenths in <b>3 + 3 + 3 + 3 + 2 + 2</b>, many legs moving sideways.</p></div>
+      <div><span class="eyebrow">The mood</span><p>An edgy rebel, not a hero. Minor and modal, half-time weight, rain on the city. <b>Nothing cheery, nothing heroic</b>, no victory parade.</p></div>
+      <div><span class="eyebrow">The edge</span><p>The <b>flat two</b>: E flat against D. The hook leans on it, the spine moves to an E flat chord, the crabs grind on it.</p></div>
+      <div><span class="eyebrow">The crabs</span><p>Chromatic grinding, the tritone (D against A flat), and sixteenths in <b>3 + 3 + 3 + 3 + 2 + 2</b>, many legs moving sideways.</p></div>
     </div>
     <div class="spine">
       <table>
-        <tr><th>Pass A</th><td>Dm</td><td>Bb</td><td>F</td><td>C</td><td>Dm</td><td>Bb</td><td>Gm</td><td class="pull">A</td></tr>
-        <tr><th>Pass B</th><td>Dm</td><td>Bb</td><td>F</td><td>C</td><td>Gm</td><td class="lift">Bb</td><td class="lift">C</td><td class="lift">D major</td></tr>
+        <tr><th>Spine</th><td>Dm(add9)</td><td>Dm(add9)</td><td class="pull">Eb(maj7)</td><td class="pull">Eb(maj7)</td><td>Bb(maj7)</td><td>C(sus)</td><td>Asus4</td><td class="lift">A minor</td></tr>
       </table>
     </div>
   </section>
@@ -136,35 +135,35 @@ footer { color: var(--steel); font-size: 14px; display: grid; gap: 6px; border-t
 </div>
 
 <script>
-const MOTIFS = {"BREEZE": {"bars": 16, "notes": [[0, 0.375, 62], [0.375, 0.375, 69], [0.75, 0.125, 67], [0.875, 0.125, 69], [1, 0.375, 70], [1.375, 0.375, 69], [1.75, 0.125, 65], [1.875, 0.125, 67], [2, 0.375, 69], [2.375, 0.375, 72], [2.75, 0.125, 70], [2.875, 0.125, 69], [3, 0.75, 67], [3.75, 0.125, 65], [3.875, 0.125, 64], [4, 0.375, 62], [4.375, 0.375, 69], [4.75, 0.125, 67], [4.875, 0.125, 69], [5, 0.375, 70], [5.375, 0.375, 74], [5.75, 0.125, 72], [5.875, 0.125, 70], [6, 0.375, 74], [6.375, 0.375, 79], [6.75, 0.125, 77], [6.875, 0.125, 76], [7, 0.75, 76], [7.75, 0.125, 73], [7.875, 0.125, 69], [8, 0.375, 62], [8.375, 0.375, 69], [8.75, 0.125, 67], [8.875, 0.125, 69], [9, 0.375, 70], [9.375, 0.375, 69], [9.75, 0.125, 65], [9.875, 0.125, 67], [10, 0.375, 69], [10.375, 0.375, 72], [10.75, 0.125, 74], [10.875, 0.125, 76], [11, 0.375, 77], [11.375, 0.375, 76], [11.75, 0.125, 74], [11.875, 0.125, 72], [12, 0.375, 74], [12.375, 0.375, 70], [12.75, 0.125, 72], [12.875, 0.125, 74], [13, 0.375, 77], [13.375, 0.375, 74], [13.75, 0.125, 76], [13.875, 0.125, 77], [14, 0.375, 79], [14.375, 0.375, 76], [14.75, 0.125, 77], [14.875, 0.125, 79], [15, 0.375, 78], [15.375, 0.625, 81]]}, "CALLSIGN": {"bars": 2, "notes": [[0, 0.1875, 81], [0.25, 0.0625, 81], [0.375, 0.1875, 81], [0.625, 0.0625, 81], [0.875, 0.1875, 74], [1.125, 0.0625, 74], [1.25, 0.0625, 74], [1.375, 0.0625, 74]]}, "MAINSTREET": {"bars": 8, "notes": [[0, 0.375, 72], [0.375, 0.125, 69], [0.5, 0.25, 67], [0.75, 0.25, 65], [1, 0.375, 74], [1.375, 0.125, 72], [1.5, 0.5, 70], [2, 0.375, 69], [2.375, 0.125, 67], [2.5, 0.25, 65], [2.75, 0.25, 62], [3, 0.25, 64], [3.25, 0.25, 67], [3.5, 0.5, 72], [4, 0.375, 72], [4.375, 0.125, 69], [4.5, 0.25, 67], [4.75, 0.25, 65], [5, 0.375, 74], [5.375, 0.125, 77], [5.5, 0.25, 76], [5.75, 0.25, 74], [6, 0.25, 72], [6.25, 0.25, 70], [6.5, 0.25, 69], [6.75, 0.25, 67], [7, 1, 65]]}, "SCUTTLE": {"bars": 2, "notes": [[0, 0.0625, 38], [0.0625, 0.0625, 39], [0.125, 0.0625, 38], [0.1875, 0.0625, 38], [0.25, 0.0625, 39], [0.3125, 0.0625, 38], [0.375, 0.0625, 32], [0.4375, 0.0625, 33], [0.5, 0.0625, 32], [0.5625, 0.0625, 38], [0.625, 0.0625, 39], [0.6875, 0.0625, 38], [0.75, 0.0625, 41], [0.8125, 0.0625, 40], [0.875, 0.0625, 39], [0.9375, 0.0625, 38], [1, 0.0625, 38], [1.0625, 0.0625, 39], [1.125, 0.0625, 38], [1.1875, 0.0625, 38], [1.25, 0.0625, 39], [1.3125, 0.0625, 38], [1.375, 0.0625, 32], [1.4375, 0.0625, 33], [1.5, 0.0625, 32], [1.5625, 0.0625, 38], [1.625, 0.0625, 39], [1.6875, 0.0625, 38], [1.75, 0.0625, 34], [1.8125, 0.0625, 33], [1.875, 0.0625, 32], [1.9375, 0.0625, 31]]}, "SIREN": {"bars": 4, "notes": [[0, 1, 69], [1, 1, 68], [2, 1, 67], [3, 1, 66]]}, "HATCH": {"bars": 10, "notes": [[0, 0.25, 50], [0.25, 0.25, 55], [0.5, 0.25, 60], [0.75, 0.25, 65], [1, 0.25, 50], [1.25, 0.25, 55], [1.5, 0.25, 60], [1.75, 0.25, 65], [2, 0.25, 52], [2.25, 0.25, 57], [2.5, 0.25, 62], [2.75, 0.25, 67], [3, 0.25, 52], [3.25, 0.25, 57], [3.5, 0.25, 62], [3.75, 0.25, 67], [4, 0.25, 53], [4.25, 0.25, 58], [4.5, 0.25, 64], [4.75, 0.25, 69], [5, 0.25, 53], [5.25, 0.25, 58], [5.5, 0.25, 64], [5.75, 0.25, 69], [6, 0.25, 55], [6.25, 0.25, 60], [6.5, 0.25, 65], [6.75, 0.25, 70], [7, 0.25, 55], [7.25, 0.25, 60], [7.5, 0.25, 65], [7.75, 0.25, 70], [8, 0.25, 57], [8.25, 0.25, 62], [8.5, 0.25, 67], [8.75, 0.25, 72], [9, 0.25, 50], [9.25, 0.25, 57], [9.5, 0.25, 62], [9.75, 0.25, 66]]}, "FANFARE": {"bars": 6, "notes": [[0, 0.375, 74], [0.375, 0.375, 77], [0.75, 0.125, 74], [0.875, 0.125, 77], [1, 0.375, 76], [1.375, 0.375, 79], [1.75, 0.125, 76], [1.875, 0.125, 79], [2, 0.375, 74], [2.375, 0.375, 81], [2.75, 0.125, 79], [2.875, 0.125, 81], [3, 1, 78], [4, 0.375, 83], [4.375, 0.375, 81], [4.75, 0.125, 78], [4.875, 0.125, 79], [5, 1, 81]]}};
+const MOTIFS = {"REBEL_RIFF":{"bars":2,"notes":[[0,0.0625,38],[0.125,0.0625,38],[0.1875,0.0625,41],[0.3125,0.0625,38],[0.375,0.0625,43],[0.5,0.0625,44],[0.625,0.0625,43],[0.6875,0.0625,41],[0.8125,0.0625,38],[1,0.0625,38],[1.125,0.0625,38],[1.1875,0.0625,41],[1.3125,0.0625,38],[1.375,0.0625,48],[1.5,0.0625,46],[1.625,0.0625,44],[1.6875,0.0625,43],[1.75,0.0625,41],[1.875,0.0625,38]]},"REBEL_HOOK":{"bars":8,"notes":[[0,0.375,74],[0.375,0.125,75],[0.5,0.25,74],[0.75,0.25,72],[1,0.75,69],[2,0.375,70],[2.375,0.125,72],[2.5,0.25,70],[2.75,0.25,67],[3,0.75,75],[4,0.375,74],[4.375,0.125,72],[4.5,0.25,70],[4.75,0.25,69],[5,0.375,67],[5.375,0.125,69],[5.5,0.25,72],[5.75,0.25,76],[6,0.75,74],[6.75,0.25,72],[7,1,69]]},"CALLSIGN":{"bars":2,"notes":[[0,0.1875,81],[0.25,0.0625,81],[0.375,0.1875,81],[0.625,0.0625,81],[0.875,0.1875,74],[1.125,0.0625,74],[1.25,0.0625,74],[1.375,0.0625,74]]},"SCUTTLE":{"bars":2,"notes":[[0,0.0625,38],[0.0625,0.0625,39],[0.125,0.0625,38],[0.1875,0.0625,38],[0.25,0.0625,39],[0.3125,0.0625,38],[0.375,0.0625,32],[0.4375,0.0625,33],[0.5,0.0625,32],[0.5625,0.0625,38],[0.625,0.0625,39],[0.6875,0.0625,38],[0.75,0.0625,41],[0.8125,0.0625,40],[0.875,0.0625,39],[0.9375,0.0625,38],[1,0.0625,38],[1.0625,0.0625,39],[1.125,0.0625,38],[1.1875,0.0625,38],[1.25,0.0625,39],[1.3125,0.0625,38],[1.375,0.0625,32],[1.4375,0.0625,33],[1.5,0.0625,32],[1.5625,0.0625,38],[1.625,0.0625,39],[1.6875,0.0625,38],[1.75,0.0625,34],[1.8125,0.0625,33],[1.875,0.0625,32],[1.9375,0.0625,31]]},"SIREN":{"bars":4,"notes":[[0,1,69],[1,1,68],[2,1,67],[3,1,66]]},"HATCH":{"bars":10,"notes":[[0,0.25,50],[0.25,0.25,55],[0.5,0.25,60],[0.75,0.25,65],[1,0.25,50],[1.25,0.25,55],[1.5,0.25,60],[1.75,0.25,65],[2,0.25,52],[2.25,0.25,57],[2.5,0.25,62],[2.75,0.25,67],[3,0.25,52],[3.25,0.25,57],[3.5,0.25,62],[3.75,0.25,67],[4,0.25,53],[4.25,0.25,58],[4.5,0.25,64],[4.75,0.25,69],[5,0.25,53],[5.25,0.25,58],[5.5,0.25,64],[5.75,0.25,69],[6,0.25,55],[6.25,0.25,60],[6.5,0.25,65],[6.75,0.25,70],[7,0.25,55],[7.25,0.25,60],[7.5,0.25,65],[7.75,0.25,70],[8,0.25,57],[8.25,0.25,62],[8.5,0.25,67],[8.75,0.25,72],[9,0.25,50],[9.25,0.25,57],[9.5,0.25,64],[9.75,0.25,65]]},"GETAWAY":{"bars":4,"notes":[[0,0.375,77],[0.375,0.125,75],[0.5,0.25,74],[0.75,0.25,70],[1,0.375,72],[1.375,0.125,74],[1.5,0.25,76],[1.75,0.25,79],[2,0.375,77],[2.375,0.125,76],[2.5,0.25,74],[2.75,0.25,69],[3,1,74]]}};
 const CUES = [
-  { side: 'A1', file: 'main_theme.mp3', name: 'Main Theme', meta: '128 BPM · 1:34', what: 'Title screen. The call sign pulsing on a pluck, the Breeze on a trance lead over a pumping pad, a Main Street breakdown with a snare build, then the drop: the Breeze on supersaws over a reese bass and a 909.' },
-  { side: 'A2', file: 'on_foot.mp3', name: 'Main Street', meta: '92 BPM · 1:26 · loops', what: 'On foot in town before the alarm, as calm synthwave. The town hymn on a glassy bell over a DX electric piano, then a soft pad lead; the call sign drifts in from a radio.' },
-  { side: 'A3', file: 'boarding.mp3', name: 'Boarding', meta: '72 BPM · 0:53', what: 'The boarding cinematic, ambient. Stacked fourths climb a step per hatch stage on an echoing pluck, with steam and a sci-fi swell on each, then the Breeze lifts into D major as you sit.' },
-  { side: 'B1', file: 'sortie.mp3', name: 'Sortie', meta: '150 BPM · 1:44 · loops', what: 'Combat. The call sign over a reese pedal, the Breeze on a supersaw over breakbeats and arpeggios, the crabs on an acid bassline, then the Breeze back on top with their rhythm in its bass.' },
-  { side: 'B2', file: 'big_boy.mp3', name: 'Big Boy', meta: '140 BPM · 1:24', what: 'The 30 m siege crab, industrial. The scuttle as a march on a distorted reese, then at speed on acid with synth-stab claws; the Breeze answers on supersaws; the siren falls to D minor.' },
-  { side: 'B3', file: 'mission_accomplished.mp3', name: 'Mission Accomplished', meta: '104 BPM · 0:21', what: 'The stinger after a win: the fanfare on supersaws and a ringing D major chord under a bell.' },
-  { side: 'R', file: 'motifs.mp3', name: 'The motifs, one by one', meta: '120 BPM · 1:58', what: 'Reference: every motif stated plainly with a bar of silence between them. The plates below play from here.' },
+  { side: 'A1', file: 'main_theme.mp3', name: 'Main Theme', meta: '96 BPM · 2:15', what: 'Title screen. Rain and the call sign on a pluck; the rebel\u2019s riff snarls in on a gritty saw over a reese; the hook sinks over the spine on a smoky lead and a Vangelis brass pad with half-time drums; a breakdown in the rain; the hook on supersaws over the riff; the riff fading back into the rain.' },
+  { side: 'A2', file: 'boarding.mp3', name: 'Boarding', meta: '72 BPM · 0:53', what: 'The boarding cinematic, dark ambient. The hatch climbs a step per stage on an echoing pluck over a drone, with steam and a swell on each; the call sign wakes the systems on a sick bell; the hook begins and hangs, unresolved.' },
+  { side: 'B1', file: 'sortie.mp3', name: 'Sortie', meta: '150 BPM · 1:44 · loops', what: 'Combat, dark and aggressive. The call sign over a reese pedal; the riff on a gritty saw and acid over breakbeats; the crabs pushing in; then the hook on supersaws over the riff, the crab rhythm stolen into the bass.' },
+  { side: 'B2', file: 'big_boy.mp3', name: 'Big Boy', meta: '140 BPM · 1:24', what: 'The 30 m siege crab, industrial. The scuttle as a march on a distorted reese, then at speed on acid with synth-stab claws; the rebel answers with riff and hook; the siren falls to D minor.' },
+  { side: 'B3', file: 'mission_accomplished.mp3', name: 'Getaway', meta: '96 BPM · 0:18', what: 'After a won mission: no parade. B flat, C, then D minor held in the rain under a sick bell.' },
+  { side: 'R', file: 'motifs.mp3', name: 'The motifs, one by one', meta: '110 BPM · 1:38', what: 'Reference: every motif stated plainly with a bar of silence between them. The plates below play from here.' },
 ];
+const BAR_S = 240 / 110;   // a bar of the motif sheet, s
 const PLATES = [
-  { key: 'BREEZE', name: 'The Breeze', family: 'hero', tag: 'The mech · hero', at: 0, bars: 16,
-    use: 'The main theme. A rising fifth that sags and pushes back up, walking in the stride rhythm. Pass A pulls home through C sharp; pass B climbs the lift and sings F sharp to A over D major. Its head alone (D A G A) says "the Breeze" anywhere.',
-    text: 'Dm  D4. A4. G4 A4  | Bb  Bb4. A4. F4 G4  | F  A4. C5. Bb4 A4 | C  G4-- F4 E4\nDm  D4. A4. G4 A4  | Bb  Bb4. D5. C5 Bb4 | Gm D5. G5. F5 E5  | A  E5-- C#5 A4\nDm  D4. A4. G4 A4  | Bb  Bb4. A4. F4 G4  | F  A4. C5. D5 E5  | C  F5. E5. D5 C5\nGm  D5. Bb4. C5 D5 | Bb  F5. D5. E5 F5   | C  G5. E5. F5 G5  | D  F#5. A5-' },
-  { key: 'CALLSIGN', name: 'Call Sign', family: 'radio', tag: 'The radio', at: 34, bars: 4,
-    use: '"CB" in Morse code (-.-. -...) as a rhythm: C on A, B on D. Briefings, radio traffic, the systems waking. The cockpit’s lock-on tone can take the same rhythm, so the game and the score speak one language.',
+  { key: 'REBEL_RIFF', name: 'The Rebel: riff', family: 'hero', tag: 'The mech · the rebel', at: 0, bars: 4,
+    use: 'Two bars of low sixteenths that snarl: D with the flat three, the flat five (A flat) and the flat seven. A gritty saw over a reese. On its own it says the rebel is here.',
+    text: 'D2 . D2 F2 . D2 G2 . Ab2 . G2 F2 . D2 . .\nD2 . D2 F2 . D2 C3 . Bb2 . Ab2 G2 F2 . D2 .' },
+  { key: 'REBEL_HOOK', name: 'The Rebel: hook', family: 'hero', tag: 'The theme', at: 5 * BAR_S, bars: 8,
+    use: 'The theme, over the spine. It leans on the flat two (E flat against D minor) in its first bar and sinks instead of soaring, ending on A without resolving. Brooding on a smoky lead, fighting on supersaws over the riff.',
+    text: 'Dm  D5. Eb5 D5 C5   | Dm  A4--         | Eb    Bb4. C5 Bb4 G4 | Eb  Eb5--\nBb  D5. C5 Bb4 A4   | C   G4. A4 C5 E5 | Asus4 D5-- C5        | Am  A4---' },
+  { key: 'CALLSIGN', name: 'Call Sign', family: 'radio', tag: 'The radio', at: 14 * BAR_S, bars: 4,
+    use: '\u201cCB\u201d in Morse code (-.-. -...) as a rhythm: C on A, B on D. Briefings, radio traffic, the systems waking. The boot-up sound effect beeps it, and the lock-on tone can take it, so the game and the score speak one language.',
     text: 'A5 dah . A5 dit . A5 dah . A5 dit ...  D5 dah . D5 dit . D5 dit . D5 dit ......' },
-  { key: 'MAINSTREET', name: 'Main Street', family: 'town', tag: 'The town · people', at: 44, bars: 8,
-    use: 'A hymn in F major, plain and singable, with none of the stride in it: people, not machines. On foot, in briefings about a city, the quiet heart of the title theme. Lose a city and it turns minor on a solo piano.',
-    text: 'F  C5. A4 G4 F4   | Bb  D5. C5 Bb4-   | Dm  A4. G4 F4 D4     | C  E4 G4 C5-\nF  C5. A4 G4 F4   | Bb  D5. F5 E5 D5  | Gm C  C5 Bb4 A4 G4  | F  F4--' },
-  { key: 'SCUTTLE', name: 'Scuttle, Claw and Siren', family: 'crab', tag: 'The crabs', at: 62, bars: 8,
-    use: 'Sixteenths grinding D against E flat and the tritone A flat, grouped like legs. The claw stabs D with A flat on the accents; the siren falls A, A flat, G, F sharp over four bars. Whenever the crabs are near.',
+  { key: 'SCUTTLE', name: 'Scuttle, Claw and Siren', family: 'crab', tag: 'The crabs', at: 19 * BAR_S, bars: 8,
+    use: 'Sixteenths grinding D against E flat and the tritone A flat, grouped like legs, on an acid bassline over a reese. The claw stabs D with A flat on the accents; the siren falls A, A flat, G, F sharp on a dark pad.',
     text: 'D2 Eb2 D2 | D2 Eb2 D2 | Ab1 A1 Ab1 | D2 Eb2 D2 | F2 E2 | Eb2 D2\nD2 Eb2 D2 | D2 Eb2 D2 | Ab1 A1 Ab1 | D2 Eb2 D2 | Bb1 A1 | Ab1 G1\nclaw  [D4+Ab4] on 16ths 1, 7, 13, 15     siren  A4 | Ab4 | G4 | F#4' },
-  { key: 'HATCH', name: 'The Hatch', family: 'hero', tag: 'Boarding', at: 80, bars: 10,
-    use: 'Stacked fourths climbing a step for each stage of the chest opening, two bars a stage, then a quartal chord that resolves into D major as the pilot sits. A burst of steam opens each stage.',
-    text: 'D3 G3 C4 F4 (x2) | E3 A3 D4 G4 (x2) | F3 Bb3 E4 A4 (x2) | G3 C4 F4 Bb4 (x2) | A3 D4 G4 C5 | D3 A3 D4 F#4' },
-  { key: 'FANFARE', name: 'Fanfare', family: 'hero', tag: 'Mission accomplished', at: 102, bars: 6,
-    use: 'The lift with the Breeze’s head turned major: B flat, C, D major, the hero’s D A G A now bright.',
-    text: 'Bb  D5. F5. D5 F5 | C  E5. G5. E5 G5 | D  D5. A5. G5 A5 | D  F#5-- | G  B5. A5. F#5 G5 | D  A5--' },
+  { key: 'HATCH', name: 'The Hatch', family: 'radio', tag: 'Boarding', at: 28 * BAR_S, bars: 10,
+    use: 'Stacked fourths climbing a step for each stage of the chest opening, two bars a stage, landing on a dark D minor (add 9) as the pilot sits. A burst of steam opens each stage.',
+    text: 'D3 G3 C4 F4 (x2) | E3 A3 D4 G4 (x2) | F3 Bb3 E4 A4 (x2) | G3 C4 F4 Bb4 (x2) | A3 D4 G4 C5 | D3 A3 E4 F4' },
+  { key: 'GETAWAY', name: 'Getaway', family: 'hero', tag: 'Mission done', at: 39 * BAR_S, bars: 4,
+    use: 'No parade. B flat, C, then D minor held: the hook\u2019s edge in four grim, defiant bars.',
+    text: 'Bb  F5. Eb5 D5 Bb4 | C  C5. D5 E5 G5 | Dm  F5. E5 D5 A4 | Dm  D5---' },
 ];
 const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 
@@ -225,7 +224,7 @@ for (const m of PLATES) {
   const b = el.querySelector('button');
   b.addEventListener('click', () => {
     if (b.getAttribute('aria-pressed') === 'true') { stopAll(); sheet.audio.pause(); stopAt = null; return; }
-    stopAll(); sheet.audio.currentTime = m.at; stopAt = m.at + m.bars * 2 + 0.6;
+    stopAll(); sheet.audio.currentTime = m.at; stopAt = m.at + m.bars * BAR_S + 0.6;
     sheet.audio.play().catch(() => {}); b.setAttribute('aria-pressed', 'true'); b.textContent = 'Stop';
   });
 }

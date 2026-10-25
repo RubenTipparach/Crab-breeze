@@ -6,52 +6,45 @@
 // @space gm_lead_2_sawtooth 0.22
 // @space gm_lead_5_charang 0.25
 // @space gm_pad_choir 0.4
-// @space gm_synth_strings_1 0.35
+// @space drums 0.12
 //
-// The set piece, industrial electronic: Big Boy, the 30 m siege crab (survey
-// G14). The scuttle slowed to a march on a distorted reese and a choir pad, then
-// at full speed on acid with claw stabs and a pounding kit; the Breeze answers on
-// supersaws and steals the crab's rhythm onto the spine; the siren's fall ends it
-// on D minor. 140 BPM, 48 bars (82 s). Motifs: docs/design/music.md.
+// The set piece, industrial: Big Boy, the 30 m siege crab (survey G14). The
+// scuttle slowed to a march on a distorted reese and a dark pad, then at full
+// speed on acid with claw stabs and a pounding kit; the rebel answers with its
+// riff and hook over the spine moving in the crab's rhythm; the siren's fall
+// ends it on D minor. 140 BPM, 48 bars (82 s). Motifs: docs/design/music.md.
 
 setcps(140/60/4)
 
 // ── MOTIF LIBRARY ──────────────────────────────────────────────
-// The spine: 16 bars in D minor. Pass A ends on A major (the pull home),
-// pass B climbs Gm Bb C into D MAJOR: the lift, the score's signature.
-const SPINE_ROOTS = note(`<
-  d2 bb1 f2 c2 d2 bb1 g1 a1
-  d2 bb1 f2 c2 g1 bb1 c2 d2
->`)
+// The spine: 8 bars of dark D minor that never resolves. Dm(add9) twice, the
+// flat-two E flat twice (the edge), B flat, C, then A sus4 sinking to A MINOR:
+// no heroic major chord anywhere (owner, 2026-10-25: "too cheery and heroic. I
+// want to feel like an edgy rebel").
+const SPINE_ROOTS = note("<d2 d2 eb2 eb2 bb1 c2 a1 a1>")
 const SPINE_CHORDS = note(`<
-  [d3,f3,a3] [bb2,d3,f3] [f3,a3,c4] [c3,e3,g3] [d3,f3,a3] [bb2,d3,f3] [g2,bb2,d3] [a2,c#3,e3]
-  [d3,f3,a3] [bb2,d3,f3] [f3,a3,c4] [c3,e3,g3] [g2,bb2,d3] [bb2,d3,f3] [c3,e3,g3] [d3,f#3,a3]
+  [d3,f3,a3,e4] [d3,f3,a3,e4] [eb3,g3,bb3,d4] [eb3,g3,bb3,d4]
+  [bb2,d3,f3,a3] [c3,g3,bb3,d4] [a2,d3,e3,a3] [a2,c3,e3,a3]
 >`)
 // The stride: 3+3+2 eighths, the mech's gait (stomp, stomp, step-step).
 const STRIDE = "x ~ ~ x ~ ~ x ~"
 const STRIDE_DRUMS = s(`[bd ~ ~ ~ ~ ~ bd ~ ~ ~ ~ ~ bd ~ ~ ~,
                         ~ ~ ~ ~ sd ~ ~ ~ ~ ~ ~ ~ sd ~ ~ ~]`)
-// THE BREEZE: the mech, the hero. Rides the stride rhythm over the spine;
-// the last bar sings the F sharp of D major.
-const BREEZE = note(`<
-  [d4@3 a4@3 g4 a4] [bb4@3 a4@3 f4 g4] [a4@3 c5@3 bb4 a4] [g4@6 f4 e4]
-  [d4@3 a4@3 g4 a4] [bb4@3 d5@3 c5 bb4] [d5@3 g5@3 f5 e5] [e5@6 c#5 a4]
-  [d4@3 a4@3 g4 a4] [bb4@3 a4@3 f4 g4] [a4@3 c5@3 d5 e5] [f5@3 e5@3 d5 c5]
-  [d5@3 bb4@3 c5 d5] [f5@3 d5@3 e5 f5] [g5@3 e5@3 f5 g5] [f#5@3 a5@5]
+// THE REBEL: the mech and its pilot. A low riff that snarls (two bars of
+// sixteenths, D with the flat five A flat and the flat seven C) ...
+const REBEL_RIFF = note(`<
+  [d2 ~ d2 f2 ~ d2 g2 ~ ab2 ~ g2 f2 ~ d2 ~ ~]
+  [d2 ~ d2 f2 ~ d2 c3 ~ bb2 ~ ab2 g2 f2 ~ d2 ~]
+>`)
+// ... and a hook over the spine that leans on the flat two (E flat against D
+// minor) and sinks instead of soaring.
+const REBEL_HOOK = note(`<
+  [d5@3 eb5 d5@2 c5@2] [a4@6 ~@2] [bb4@3 c5 bb4@2 g4@2] [eb5@6 ~@2]
+  [d5@3 c5 bb4@2 a4@2] [g4@3 a4 c5@2 e5@2] [d5@6 c5@2] [a4@8]
 >`)
 // CALL SIGN: "CB" in Morse (-.-. -...) on A and D, two bars of 16ths.
 // The radio, the briefing, the systems waking; the lock-on tone's rhythm.
 const CALLSIGN = note("[a5@3 ~ a5 ~ a5@3 ~ a5 ~@3 d5@3 ~ d5 ~ d5 ~ d5 ~@9]/2")
-// MAIN STREET: the city and its people, a hymn in F major.
-const MAINSTREET = note(`<
-  [c5@3 a4 g4@2 f4@2] [d5@3 c5 bb4@4] [a4@3 g4 f4@2 d4@2] [e4@2 g4@2 c5@4]
-  [c5@3 a4 g4@2 f4@2] [d5@3 f5 e5@2 d5@2] [c5@2 bb4@2 a4@2 g4@2] [f4@8]
->`)
-const STREET_ROOTS = note("<f2 bb1 d2 c2 f2 bb1 [g1 c2] f2>")
-const STREET_CHORDS = note(`<
-  [f3,a3,c4] [bb2,d3,f3] [d3,f3,a3] [c3,e3,g3]
-  [f3,a3,c4] [bb2,d3,f3] [[g2,bb2,d3] [c3,e3,g3]] [f3,a3,c4]
->`)
 // SCUTTLE: the alien crabs. 16ths grouped 3+3+3+3+2+2 (legs, sideways),
 // grinding D against E flat and the tritone A flat.
 const SCUTTLE = note(`<
@@ -64,37 +57,42 @@ const CLAW = note("[d4,ab4]").struct("x ~ ~ ~ ~ ~ x ~ ~ ~ ~ ~ x ~ x ~")
 // SIREN: the crabs' wail, a slow chromatic fall over four bars.
 const SIREN = note("<a4 ab4 g4 f#4>")
 // THE HATCH: boarding. Stacked fourths climbing a step per hatch stage
-// (two bars each), arriving on D major as the pilot sits.
+// (two bars each), landing on a dark D minor (add 9) as the pilot sits.
 const HATCH = note(`<
   [d3 g3 c4 f4]!2 [e3 a3 d4 g4]!2 [f3 bb3 e4 a4]!2 [g3 c4 f4 bb4]!2
-  [a3 d4 g4 c5] [d3 a3 d4 f#4]
+  [a3 d4 g4 c5] [d3 a3 e4 f4]
 >`)
 const HATCH_CHORDS = note(`<
   [d3,g3,c4,f4]!2 [e3,a3,d4,g4]!2 [f3,bb3,e4,a4]!2 [g3,c4,f4,bb4]!2
-  [a3,d4,g4,c5] [d3,f#3,a3,d4]
+  [a3,d4,g4,c5] [d3,a3,e4,f4]
 >`)
-// FANFARE: mission accomplished. Bb, C, D major: the lift, with the
-// Breeze's head turned major.
-const FANFARE = note(`<
-  [d5@3 f5@3 d5 f5] [e5@3 g5@3 e5 g5] [d5@3 a5@3 g5 a5] [f#5@8]
-  [b5@3 a5@3 f#5 g5] [a5@8]
+// GETAWAY: a mission done, no parade. B flat, C, then D minor held: the hook's
+// edge in a grim, defiant four bars.
+const GETAWAY = note(`<
+  [f5@3 eb5 d5@2 bb4@2] [c5@3 d5 e5@2 g5@2] [f5@3 e5 d5@2 a4@2] [d5@8]
 >`)
-const FANFARE_ROOTS = note("<bb1 c2 d2 d2 g1 d2>")
-const FANFARE_CHORDS = note(`<
-  [bb3,d4,f4] [c4,e4,g4] [d4,f#4,a4] [d4,f#4,a4] [g3,b3,d4] [d4,f#4,a4]
->`)
+const GETAWAY_ROOTS = note("<bb1 c2 d2 d2>")
+const GETAWAY_CHORDS = note("<[bb2,d3,f3,a3] [c3,g3,bb3,d4] [d3,f3,a3,e4] [d3,f3,a3,e4]>")
 // ── END MOTIF LIBRARY ──────────────────────────────────────────
 
 // an echo written as notes (LMMS's delay effect renders silence headless)
 const echo = (p, t = 3/16) => stack(p, p.late(t).gain(0.35), p.late(2 * t).gain(0.14))
-// sixteenth arpeggio over a chord: low, mid, high, mid
-const arp16 = (chords) => chords.arp("0 1 2 1 0 2 1 2 0 1 2 1 0 2 1 2")
-const power = (roots) => roots.add(note("[12,19,24]"))
+// sixteenth arpeggio over a chord
+const arp16 = (chords) => chords.arp("0 1 2 3 2 1 0 2 0 1 2 3 2 1 3 2")
+// half-time drums: the snare on beat 3, a ghost rim, hats in sixteenths with accents
+const half = stack(
+  s("bd ~ ~ ~ ~ ~ bd ~ ~ ~ bd ~ ~ ~ ~ ~").gain(0.9),
+  s("~ ~ ~ ~ ~ ~ ~ ~ sd ~ ~ ~ ~ ~ ~ ~").gain(0.85),
+  s("~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ rim ~ rim").gain(0.3),
+  s("hh*16").gain("[0.26 0.1 0.18 0.1]*4")
+)
+// rain on the city (the soundfont's FX rain, held a bar at a time)
+const rain = note("c4").s("gm_fx_rain").gain(0.55)
 
 // the scuttle's skeleton, one note a bar: D, E flat, D, A flat
 const MARCH = note("<d2 eb2 d2 ab1>")
 
-// arrival: the march on a reese and acid, the tritone in a choir pad, heavy hits
+// arrival: the march on a reese and acid, the tritone in a dark pad, heavy hits
 const arrival = stack(
   MARCH.s("gm_synth_bass_2").gain(0.95),
   MARCH.add(note(12)).struct("x ~ ~ x ~ ~ x x").s("gm_lead_8_bass_lead").gain(0.7),
@@ -115,27 +113,27 @@ const assault = stack(
   s("<cr ~!3>").gain(0.7)
 )
 
-// the Breeze answers on supersaws over the spine, now moving in the crab's
-// 3+3+3+3+2+2 rhythm (the mech takes it from them)
+// the rebel answers: the hook on supersaws, the riff on a gritty saw, the spine
+// moving in the crab's 3+3+3+3+2+2 rhythm (the mech takes it from them)
 const answer = stack(
-  echo(BREEZE.s("gm_lead_2_sawtooth").gain(1.0)),
-  BREEZE.add(note(12)).s("gm_lead_5_charang").gain(0.5),
-  SPINE_CHORDS.add(note(12)).s("gm_synth_strings_1").gain(0.55),
+  echo(REBEL_HOOK.s("gm_lead_2_sawtooth").gain(1.0)),
+  REBEL_HOOK.sub(note(12)).s("gm_lead_5_charang").gain(0.5),
+  REBEL_RIFF.add(note(12)).s("gm_lead_7_fifths").gain(0.6),
   SPINE_ROOTS.add(note(12)).struct("x*16").s("gm_synth_bass_2").gain(SCUTTLE_ACCENT),
-  arp16(SPINE_CHORDS.add(note(12))).s("gm_lead_1_square").gain(0.35),
+  SPINE_CHORDS.s("gm_pad_choir").gain(0.4),
   STRIDE_DRUMS.gain(0.95), s("hh*16").gain(0.28), s("<cr ~!7>").gain(0.7)
 )
 
 // fall: the siren's descent as chords, then D minor and a last hit
 const FALL = note(`<
   [d3,ab3,d4] [eb3,a3,eb4] [d3,ab3,d4] [db3,g3,db4]
-  [c3,f#3,c4] [bb2,f3,d4] [a2,e3,c#4] [d3,a3,d4,f4]
+  [c3,f#3,c4] [bb2,f3,d4] [a2,e3,c4] [d3,a3,d4,f4]
 >`)
 const fall = stack(
-  FALL.s("gm_synth_strings_1").gain(0.7),
+  FALL.s("gm_pad_choir").gain(0.6),
   FALL.struct("x ~ ~ x ~ ~ x ~").s("gm_synth_brass_1").gain(0.65),
-  FALL.add(note(12)).s("gm_pad_choir").gain(0.5),
   note("<d2 eb2 d2 db2 c2 bb1 a1 d2>").struct("x*8").s("gm_synth_bass_2").gain(0.8),
+  REBEL_RIFF.add(note(12)).s("gm_lead_7_fifths").gain("<0 0 0 0 0.4 0.5 0.6 0>"),
   s("<[bd, cr] ~ ~ ~ [bd, cr] ~ ~ [bd, cr]>").gain(0.9), s("<~!6 [sd*8] ~>").gain(0.7)
 )
 
