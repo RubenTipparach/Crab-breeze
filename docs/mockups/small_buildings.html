@@ -1,0 +1,955 @@
+<title>Crab Breeze Main Street</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a town planner's survey sheet. The street is the stage; the building cards are the schedule beside it. */
+:root {
+  --bg: #ebe7df; --panel: #f7f5f0; --edge: #cbc4b6; --ink: #1c1915; --muted: #645c50;
+  --accent: #a3471c; --accent-soft: #f3e1d4; --stage: #a9c0d0;
+  --display: "Saira Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12100d; --panel: #1b1814; --edge: #332d25; --ink: #ece6dc; --muted: #a39887;
+    --accent: #f08a54; --accent-soft: #33200f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12100d; --panel: #1b1814; --edge: #332d25; --ink: #ece6dc; --muted: #a39887;
+  --accent: #f08a54; --accent-soft: #33200f; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 32px; }
+header { display: grid; gap: 4px; margin: 0 auto 14px; max-width: 1500px; }
+.eyebrow { font: 500 12px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 700 34px/1 var(--display); letter-spacing: 0.03em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 86ch; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; max-width: 1500px; margin: 0 auto; }
+@media (max-width: 1050px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+.bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.bar .lbl { font: 500 12px var(--mono); color: var(--muted); min-width: 6ch; }
+button { font: 700 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 9px 11px; cursor: pointer; min-height: 36px; }
+button:hover { border-color: var(--muted); }
+button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+button:focus-visible, canvas:focus-visible, input:focus-visible, .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--edge); border-radius: 4px; overflow: hidden; touch-action: none; }
+#view { display: block; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; }
+@media (max-width: 600px) { #view { aspect-ratio: 1 / 1.1; } }
+.mode { position: absolute; left: 10px; top: 10px; font: 700 13px var(--display); letter-spacing: 0.08em; text-transform: uppercase;
+  color: #f2eee6; background: rgba(20, 17, 13, 0.82); border: 1px solid #40382c; padding: 5px 9px; pointer-events: none; }
+.hud { position: absolute; right: 10px; top: 10px; font: 500 12px/1.45 var(--mono); color: #f2eee6; background: rgba(20, 17, 13, 0.82);
+  border: 1px solid #40382c; padding: 6px 9px; pointer-events: none; white-space: pre; }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; font: 700 20px var(--display); letter-spacing: 0.1em;
+  text-transform: uppercase; color: #f2eee6; background: rgba(20, 17, 13, 0.6); }
+.hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+label.sl { display: flex; gap: 8px; align-items: center; font: 500 12px var(--mono); color: var(--muted); flex: 1 1 220px; }
+label.sl input { flex: 1; min-width: 0; }
+aside { display: grid; gap: 8px; min-width: 0; max-height: 1100px; overflow: auto; }
+.group { font: 700 18px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; margin: 6px 0 0; }
+.card { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 10px 12px; display: grid; gap: 4px; cursor: pointer; text-align: left; }
+.card.sel { border-color: var(--accent); }
+.card h2 { font: 700 20px/1 var(--display); letter-spacing: 0.04em; text-transform: uppercase; margin: 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.card h2 small { font: 500 11px var(--mono); color: var(--accent); letter-spacing: 0.06em; text-transform: uppercase; }
+.card p { margin: 0; font-size: 13px; color: var(--muted); }
+.card .meta { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.foot { max-width: 1500px; margin: 16px auto 0; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+.foot code { font: 12px var(--mono); overflow-wrap: anywhere; }
+</style>
+
+<header>
+  <div class="eyebrow">Crab Breeze · openspec small-buildings · mockup</div>
+  <h1>Main Street: houses, shops, and shooting them</h1>
+  <p class="lede">Seventeen 1980s building types for the island's towns, roadsides, beaches, jungle and desert, built from one kit of parts: walls with real openings, framed and sashed windows with sills and glass you see through, doors and shop fronts, five roof families, porches, interiors with furniture, neon signs, and cars. Walk the street at the pilot's eye, stand at a mech's eye, light it at dusk, or cut it away to see the floor plans. Textures are canvas stand-ins with normal maps for the Material Maker sets.</p>
+</header>
+
+<div class="wrap">
+  <section>
+    <div class="bar" role="group" aria-label="Camera">
+      <span class="lbl">camera</span>
+      <button data-cam="orbit" aria-pressed="true">Orbit</button>
+      <button data-cam="pilot">Walk (pilot 1.7 m)</button>
+      <button data-cam="mech">Mech eye (19 m)</button>
+    </div>
+    <div class="bar" role="group" aria-label="Light">
+      <span class="lbl">light</span>
+      <button data-time="day" aria-pressed="true">Day</button>
+      <button data-time="dusk">Dusk</button>
+      <button data-time="night">Night</button>
+      <label class="sl">cutaway <input type="range" id="cut" min="0" max="13" step="0.1" value="13"> <b id="cutv">off</b></label>
+    </div>
+    <div class="bar" role="group" aria-label="Weapon">
+      <span class="lbl">fire</span>
+      <button data-wpn="cannon">Autocannon</button>
+      <button data-wpn="shell" aria-pressed="true">120 mm shell</button>
+      <button data-wpn="missile">Missile</button>
+      <button data-wpn="demo">Demolition</button>
+      <button id="rebuild">Rebuild street</button>
+    </div>
+    <div class="stage">
+      <canvas id="view" tabindex="0" aria-label="The street in 3D"></canvas>
+      <div class="mode" id="mode">Orbit</div>
+      <div class="hud" id="hud"></div>
+      <div class="loading" id="loading">Building the street</div>
+    </div>
+    <p class="hint">Orbit: drag to turn, right-drag to pan, wheel to zoom. Walk and Mech eye: drag to look, W A S D to move, Shift to hurry. Click (without dragging) to fire the chosen weapon where you point: near pieces blow out, walls break into chunks, anything left hanging creaks and falls, and a building that loses half its ground-floor walls pancakes. Rubble settles into piles. Pick a card to go to that building. The orange block at the end of the street is a 24 m mech.</p>
+  </section>
+  <aside id="cards" aria-label="Building types"></aside>
+</div>
+
+<div class="foot">
+  <div>Source: <code>docs/mockups/small_buildings.html</code> and <code>docs/mockups/small_buildings_kit.js</code> (the parts and the seventeen types). Design: <code>openspec/changes/small-buildings</code>. Research and sources: <code>docs/analysis/small-buildings.md</code>.</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/environments/RoomEnvironment.js"></script>
+<script src="small_buildings_kit.js"></script>
+<script>
+'use strict';
+const K = window.SmallBuildings;
+
+// ------------------------------------------------------------------ renderer
+const canvas = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.localClippingEnabled = true;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 3000);
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.maxPolarAngle = Math.PI * 0.49;
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
+const sun = new THREE.DirectionalLight(0xfff0dc, 2.4);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
+const hemi = new THREE.HemisphereLight(0xc6dcf0, 0x6a5a40, 0.5);
+scene.add(sun, sun.target, hemi);
+const clip = new THREE.Plane(new THREE.Vector3(0, -1, 0), 1000);
+
+// ------------------------------------------------------------------ canvas textures with normal maps
+const TS = 512;
+function noiseFn(seed) {
+  const h = (x, y) => { let n = (x * 374761393 + y * 668265263 + seed * 1442695041) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+  return (x, y, s) => { // tileable value noise, period TS/s cells
+    const P = Math.max(1, Math.round(TS / s)); const fx = x / s, fy = y / s, ix = Math.floor(fx), iy = Math.floor(fy), u = fx - ix, v = fy - iy;
+    const g = (a, b) => h(((a % P) + P) % P, ((b % P) + P) % P);
+    const su = u * u * (3 - 2 * u), sv = v * v * (3 - 2 * v);
+    return (g(ix, iy) * (1 - su) + g(ix + 1, iy) * su) * (1 - sv) + (g(ix, iy + 1) * (1 - su) + g(ix + 1, iy + 1) * su) * sv;
+  };
+}
+// Each generator fills colour (rgb 0..1) and height (0..1) per pixel through put(x, y, r, g, b, h).
+function makeTex(gen, seed) {
+  const col = new Uint8ClampedArray(TS * TS * 4), hgt = new Float32Array(TS * TS);
+  const N = noiseFn(seed);
+  const put = (x, y, r, g, b, h) => { const i = y * TS + x; col[i * 4] = r * 255; col[i * 4 + 1] = g * 255; col[i * 4 + 2] = b * 255; col[i * 4 + 3] = 255; hgt[i] = h; };
+  for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) gen(x, y, N, put);
+  const toCanvas = (data) => { const c = document.createElement('canvas'); c.width = c.height = TS; c.getContext('2d').putImageData(new ImageData(data, TS, TS), 0, 0); return c; };
+  return { col: toCanvas(col), hgt, toCanvas };
+}
+function normalFrom(hgt, strength, toCanvas) {
+  const d = new Uint8ClampedArray(TS * TS * 4);
+  const H = (x, y) => hgt[((y + TS) % TS) * TS + ((x + TS) % TS)];
+  for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) {
+    const dx = (H(x + 1, y) - H(x - 1, y)) * strength, dy = (H(x, y + 1) - H(x, y - 1)) * strength;
+    const l = Math.hypot(dx, dy, 1); const i = (y * TS + x) * 4;
+    d[i] = (-dx / l * 0.5 + 0.5) * 255; d[i + 1] = (dy / l * 0.5 + 0.5) * 255; d[i + 2] = (1 / l * 0.5 + 0.5) * 255; d[i + 3] = 255;
+  }
+  return toCanvas(d);
+}
+const cl = (v) => Math.max(0, Math.min(1, v));
+const px = (m) => m * TS; // metres to pixels for a 1 m tile
+// Generators. Tile sizes (metres) in MATS below.
+const GEN = {
+  brick: (x, y, N, put) => { // 12 courses of 75 mm, 4 bricks of 225 mm across a 0.9 m tile
+    const ch = TS / 12, bw = TS / 4, row = Math.floor(y / ch), off = (row % 2) * bw / 2, bx = (x + off) % TS, col = Math.floor(bx / bw);
+    const mx = bx - col * bw, my = y - row * ch, mortar = mx < 5 || my < 5;
+    const v = N(col * 7 + row * 13, row * 3, 1) * 0.25 + N(x, y, 3) * 0.15 + N(x, y, 40) * 0.1;
+    if (mortar) put(x, y, 0.72 + v * 0.1, 0.70 + v * 0.1, 0.66 + v * 0.1, 0.25 + N(x, y, 2) * 0.1);
+    else { const k = 0.85 + v; put(x, y, cl(0.62 * k), cl(0.30 * k), cl(0.22 * k), 0.85 + N(x, y, 2) * 0.15); }
+  },
+  block: (x, y, N, put) => { const bh = TS / 4, bw = TS / 2, row = Math.floor(y / bh), bx = (x + (row % 2) * bw / 2) % TS; const m = (bx % bw) < 5 || (y % bh) < 5; const v = N(x, y, 2) * 0.12 + N(x, y, 30) * 0.06; put(x, y, 0.86 + v, 0.85 + v, 0.82 + v, m ? 0.3 : 0.8 + N(x, y, 3) * 0.2); },
+  siding: (x, y, N, put) => { const bh = TS / 5, f = (y % bh) / bh; const v = 0.9 + N(x, y, 60) * 0.06 + N(x, y, 4) * 0.03; const h = f * 0.9 + (f < 0.06 ? -0.6 : 0); put(x, y, v, v, v * 0.98, cl(h)); },
+  board: (x, y, N, put) => { const bw = TS / 3.3, f = (x % bw) / bw, batt = f < 0.12; const g = N(x * 0.2, y * 3, 4) * 0.15; const v = 0.82 + g; put(x, y, v, v * 0.95, v * 0.9, batt ? 1 : 0.5 + g); },
+  stucco: (x, y, N, put) => { const v = 0.88 + N(x, y, 3) * 0.08 + N(x, y, 20) * 0.04; put(x, y, v, v, v * 0.97, N(x, y, 3) * 0.7 + N(x, y, 10) * 0.3); },
+  adobe: (x, y, N, put) => { const v = 0.86 + N(x, y, 50) * 0.1 + N(x, y, 6) * 0.05; put(x, y, v, v * 0.97, v * 0.94, N(x, y, 50) * 0.5 + N(x, y, 6) * 0.3); },
+  shingle: (x, y, N, put) => { const rh = TS / 7, row = Math.floor(y / rh), tw = TS / 3, tx = (x + (row % 2) * tw / 2) % TS, f = (y % rh) / rh; const slot = (tx % tw) < 6; const v = 0.55 + N(Math.floor(tx / tw) + row * 5, row, 1) * 0.12 + N(x, y, 2) * 0.12; put(x, y, v, v * 0.98, v * 0.96, slot ? 0.1 : f * 0.6 + N(x, y, 2) * 0.3); },
+  tile: (x, y, N, put) => { const w = TS / 4, f = (x % w) / w, rh = TS / 3, g = (y % rh) / rh; const h = Math.sin(f * Math.PI) * 0.8 + g * 0.2; const v = 0.85 + N(Math.floor(x / w), Math.floor(y / rh), 1) * 0.12; put(x, y, v, v * 0.95, v * 0.9, h); },
+  metalRoof: (x, y, N, put) => { const w = TS / 2.5, f = (x % w) / w, seam = f < 0.04; const v = 0.86 + N(x, y, 80) * 0.06; put(x, y, v, v, v, seam ? 1 : 0.4 + Math.sin(f * Math.PI * 6) * 0.03); },
+  corrugated: (x, y, N, put) => { const v = 0.85 + N(x, y, 60) * 0.08; put(x, y, v, v, v, 0.5 + 0.5 * Math.sin(y / TS * Math.PI * 2 * 13)); },
+  ribbed: (x, y, N, put) => { const v = 0.92 + N(x, y, 60) * 0.04; const f = (x % (TS / 6)) / (TS / 6); put(x, y, v, v, v, f < 0.15 ? 1 : 0.5); },
+  skirt: (x, y, N, put) => { const f = (x % (TS / 8)) / (TS / 8); const v = 0.85 + N(x, y, 50) * 0.05; put(x, y, v, v, v * 0.97, f < 0.5 ? 0.8 : 0.3); },
+  concrete: (x, y, N, put) => { const v = 0.78 + N(x, y, 4) * 0.08 + N(x, y, 40) * 0.08 + (N(x, y, 1.5) > 0.93 ? -0.15 : 0); put(x, y, v, v * 0.99, v * 0.96, N(x, y, 3) * 0.6 + N(x, y, 20) * 0.4); },
+  roofing: (x, y, N, put) => { const v = 0.45 + N(x, y, 1.5) * 0.25; put(x, y, v, v, v, N(x, y, 1.5)); },
+  asphalt: (x, y, N, put) => { const v = 0.28 + N(x, y, 1.5) * 0.12 + N(x, y, 60) * 0.06; put(x, y, v, v, v * 1.02, N(x, y, 1.5)); },
+  smooth: (x, y, N, put) => { const v = 0.94 + N(x, y, 40) * 0.04; put(x, y, v, v, v, N(x, y, 8) * 0.2); },
+  shutter: (x, y, N, put) => { const f = (y % (TS / 16)) / (TS / 16); const v = 0.92 + N(x, y, 30) * 0.05; put(x, y, v, v, v, f); },
+  door: (x, y, N, put) => { const fx = (x % (TS / 2)) / (TS / 2), fy = (y % (TS / 2)) / (TS / 2); const p = fx > 0.15 && fx < 0.85 && fy > 0.1 && fy < 0.9; const v = 0.9 + N(x, y, 30) * 0.06; put(x, y, v, v, v, p ? 0.4 : 0.6); },
+  brushed: (x, y, N, put) => { const v = 0.82 + N(x * 0.02, y * 4, 3) * 0.12; put(x, y, v, v, v * 1.01, N(x * 0.02, y * 4, 3) * 0.3); },
+  laminate: (x, y, N, put) => { const v = 0.9 + N(x, y, 3) * 0.05; put(x, y, v, v, v, 0.5); },
+  wood: (x, y, N, put) => { const g = N(x * 0.15, y * 2, 3) * 0.3 + Math.sin((x + N(x, y, 50) * 40) * 0.25) * 0.05; const v = 0.75 + g; put(x, y, v, v * 0.92, v * 0.85, g); },
+  planks: (x, y, N, put) => { const w = TS / 7, k = Math.floor(x / w), f = (x % w) / w, gap = f < 0.04; const g = N(k * 13, y * 0.1, 3) * 0.2 + N(x * 0.2, y * 3, 4) * 0.1; const v = 0.72 + g; put(x, y, v, v * 0.9, v * 0.8, gap ? 0 : 0.6 + g * 0.5); },
+  pine: (x, y, N, put) => { const w = TS / 6, k = Math.floor(x / w), f = (x % w) / w, gap = f < 0.03; const knot = N(x, y, 12) > 0.9 ? -0.25 : 0; const g = N(k * 7, y * 0.2, 3) * 0.12 + N(x * 0.3, y * 2, 5) * 0.08; const v = 0.86 + g + knot; put(x, y, v, v * 0.88, v * 0.7, gap ? 0 : 0.6); },
+  floorTile: (x, y, N, put) => { const c = TS / 3, ix = Math.floor(x / c), iy = Math.floor(y / c), grout = (x % c) < 3 || (y % c) < 3; const chk = (ix + iy) % 2; const v = grout ? 0.6 : (chk ? 0.92 : 0.18) + N(x, y, 10) * 0.04; put(x, y, v, v, v * 0.98, grout ? 0.2 : 0.8); },
+  wallTile: (x, y, N, put) => { const c = TS / 6.6, grout = (x % c) < 3 || (y % c) < 3; const v = grout ? 0.7 : 0.95; put(x, y, v, v, v, grout ? 0.2 : 0.8); },
+  carpet: (x, y, N, put) => { const v = 0.75 + N(x, y, 1.5) * 0.15; put(x, y, v, v * 0.92, v * 0.85, N(x, y, 1.5)); },
+  fabric: (x, y, N, put) => { const w = ((x % 6) < 3) !== ((y % 6) < 3); const v = 0.86 + (w ? 0.05 : 0) + N(x, y, 20) * 0.05; put(x, y, v, v, v, w ? 0.6 : 0.4); },
+  grass: (x, y, N, put) => { const v = N(x, y, 2) * 0.25 + N(x, y, 30) * 0.2 + N(x, y, 120) * 0.15; put(x, y, cl(0.22 + v * 0.3), cl(0.36 + v * 0.35), cl(0.12 + v * 0.12), N(x, y, 2)); },
+  screen: (x, y, N, put) => { const g = (x % 4) < 1 || (y % 4) < 1; put(x, y, 0.2, 0.2, 0.2, g ? 1 : 0); },
+};
+// The surface table lives in the kit (one table for the mockup, the exporter and the game).
+const MATS = K.SURFACES;
+const materials = {};
+function texMat(key) {
+  const [g, tile, rough, metal, ns] = MATS[key];
+  const t = makeTex(GEN[g], key.length * 31 + g.length);
+  const map = new THREE.CanvasTexture(t.col); map.encoding = THREE.sRGBEncoding;
+  const nrm = new THREE.CanvasTexture(normalFrom(t.hgt, ns, t.toCanvas));
+  for (const tx of [map, nrm]) { tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.repeat.set(1 / tile, 1 / tile); tx.anisotropy = 8; }
+  return new THREE.MeshStandardMaterial({ map, normalMap: nrm, roughness: rough, metalness: metal, vertexColors: true, clippingPlanes: [clip] });
+}
+const glows = []; // [material, day, dusk, night]
+function special(key) {
+  const base = { vertexColors: true, clippingPlanes: [clip] };
+  if (key === 'glass') return new THREE.MeshPhysicalMaterial({ ...base, color: 0x9ab4bc, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.32, depthWrite: false, envMapIntensity: 1.6 });
+  if (key === 'glassShop') return new THREE.MeshPhysicalMaterial({ ...base, color: 0xc8dade, roughness: 0.03, metalness: 0, transparent: true, opacity: 0.18, depthWrite: false, envMapIntensity: 1.4 });
+  if (key === 'glassDark') return new THREE.MeshStandardMaterial({ ...base, color: 0x2a3640, roughness: 0.1, metalness: 0.2, envMapIntensity: 1.2 });
+  if (key === 'screen') return new THREE.MeshStandardMaterial({ ...base, color: 0x222222, transparent: true, opacity: 0.45, depthWrite: false });
+  if (key === 'water') return new THREE.MeshPhysicalMaterial({ ...base, color: 0x3aa6c8, roughness: 0.05, transparent: true, opacity: 0.8, depthWrite: false });
+  if (key === 'lamp') { const m = new THREE.MeshStandardMaterial({ ...base, color: 0xffffff, emissive: 0xfff2d8, emissiveIntensity: 0.5 }); glows.push([m, 0.5, 2.2, 3.0]); return m; }
+  if (key === 'paint' || key === 'product') return null;
+  return null;
+}
+// Signs and awnings, made on demand from their text.
+const SIGNS = {};
+const M = {
+  sign(text, bg, fg, neon) {
+    const key = `sign:${text}|${bg}|${fg}|${neon ? 1 : 0}`;
+    if (!SIGNS[key]) {
+      const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+      const g = c.getContext('2d'); g.fillStyle = bg; g.fillRect(0, 0, 512, 128);
+      g.font = '700 84px "Saira Condensed", "Arial Narrow", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      if (neon) { g.shadowColor = fg; g.shadowBlur = 18; }
+      g.fillStyle = fg; g.fillText(text, 256, 68, 480);
+      if (neon) { g.shadowBlur = 0; g.lineWidth = 3; g.strokeStyle = '#ffffff'; g.globalAlpha = 0.5; g.strokeText(text, 256, 68, 480); g.globalAlpha = 1; }
+      const map = new THREE.CanvasTexture(c); map.encoding = THREE.sRGBEncoding; map.anisotropy = 8;
+      const m = new THREE.MeshStandardMaterial({ map, roughness: 0.5, vertexColors: true, clippingPlanes: [clip], emissive: 0xffffff, emissiveMap: map, emissiveIntensity: neon ? 0.35 : 0.0 });
+      if (neon) glows.push([m, 0.35, 1.8, 2.4]); else glows.push([m, 0, 0.25, 0.45]);
+      SIGNS[key] = m;
+    }
+    return key;
+  },
+  awning(color) {
+    const key = `awning:${color}`;
+    if (!SIGNS[key]) {
+      const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+      for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#f4f1ea' : color; g.fillRect(i * 16, 0, 16, 128); }
+      const map = new THREE.CanvasTexture(c); map.encoding = THREE.sRGBEncoding; map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(1 / 2.4, 1 / 2.4);
+      SIGNS[key] = new THREE.MeshStandardMaterial({ map, roughness: 0.85, vertexColors: true, clippingPlanes: [clip], side: THREE.DoubleSide });
+    }
+    return key;
+  },
+};
+function material(key) {
+  if (materials[key]) return materials[key];
+  let m = SIGNS[key] || special(key);
+  if (!m) m = MATS[key] ? texMat(key) : texMat(key === 'paint' ? 'paint' : 'trim');
+  materials[key] = m;
+  return m;
+}
+
+// ------------------------------------------------------------------ the street
+const STREET = []; // {T, x, z, rot, bounds, tris}
+const merged = {};
+// Every piece of every building: {bld, alive, ranges, lo, hi, meta, nb}. bld -1 cannot break.
+const PIECES = [];
+function mergeInto(B, ox, oz, rot, bld = -1) {
+  const c = rot ? -1 : 1;
+  const base = PIECES.length;
+  for (let i = 0; i < B.pid; i++) {
+    const mt = B.meta[i];
+    let meta = null;
+    if (mt && mt.box) {
+      const [x0, y0, z0, x1, y1, z1] = mt.box;
+      meta = { mat: mt.mat, tint: mt.tint, box: rot ? [ox - x1, y0, oz - z1, ox - x0, y1, oz - z0] : [ox + x0, y0, oz + z0, ox + x1, y1, oz + z1] };
+    } else if (mt && mt.panel) { // a roof panel: an oriented box (a half turn mirrors x and z)
+      const P = mt.panel, f = (v) => [c * v[0], v[1], c * v[2]];
+      meta = { mat: mt.mat, tint: mt.tint, panel: { c: [ox + c * P.c[0], P.c[1], oz + c * P.c[2]], size: P.size, axes: P.axes.map(f) } };
+    }
+    PIECES.push({ bld, alive: true, ranges: [], lo: [1e9, 1e9, 1e9], hi: [-1e9, -1e9, -1e9], meta, nb: [] });
+  }
+  for (const [key, a] of Object.entries(B.parts)) {
+    const m = merged[key] || (merged[key] = { p: [], n: [], u: [], c: [], t: [] });
+    for (let i = 0; i < a.p.length; i += 3) { m.p.push(ox + c * a.p[i], a.p[i + 1], oz + c * a.p[i + 2]); m.n.push(c * a.n[i], a.n[i + 1], c * a.n[i + 2]); }
+    for (const v of a.u) m.u.push(v);
+    for (const v of a.c) m.c.push(v);
+    for (const t of a.t) m.t.push(base + t);
+  }
+}
+function boundsOf(B) {
+  const lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+  for (const a of Object.values(B.parts)) for (let i = 0; i < a.p.length; i += 3) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], a.p[i + k]); hi[k] = Math.max(hi[k], a.p[i + k]); }
+  return { lo, hi };
+}
+const ROAD_HALF = 5, WALK = 2.5;
+function layStreet() {
+  const rows = { house: [], business: [] };
+  for (const T of K.TYPES) {
+    const B = K.build(T.id, 7, M);
+    const b = boundsOf(B);
+    const tris = Object.values(B.parts).reduce((s, a) => s + a.p.length / 9, 0);
+    rows[T.kind].push({ T, B, b, tris });
+  }
+  for (const [kind, list] of Object.entries(rows)) {
+    const widths = list.map((e) => e.b.hi[0] - e.b.lo[0]);
+    const gap = 7;
+    const total = widths.reduce((s, w) => s + w, 0) + gap * (list.length - 1);
+    let x = -total / 2;
+    list.forEach((e, i) => {
+      const rot = kind === 'business';
+      const front = ROAD_HALF + WALK + 1.0;
+      const cx = x - e.b.lo[0];                 // local x = lo lands at x
+      const oz = rot ? front + e.b.hi[2] : -(front + e.b.hi[2]);
+      const ox = rot ? x + e.b.hi[0] : cx;      // a half turn mirrors x, so the right edge lands at x
+      mergeInto(e.B, ox, oz, rot, STREET.length);
+      const wx0 = x, wx1 = x + widths[i];
+      const wz0 = rot ? front : -(front + e.b.hi[2] - e.b.lo[2]), wz1 = rot ? front + e.b.hi[2] - e.b.lo[2] : -front;
+      STREET.push({ T: e.T, tris: e.tris, box: [wx0, 0, wz0, wx1, e.b.hi[1], wz1], front: rot ? 1 : -1 });
+      x += widths[i] + gap;
+    });
+  }
+  // The 24 m mech at the east end, and pilots by the doors.
+  const S = new K.Builder();
+  const mx = 128, mz = 0;
+  S.color(0x3b3f44); S.box('metal', mx - 4.6, 0, mz - 2.2, mx - 1.4, 13.5, mz + 2.2); S.box('metal', mx + 1.4, 0, mz - 2.2, mx + 4.6, 13.5, mz + 2.2);
+  S.color(0xd08a2a); S.box('paint', mx - 6, 13.5, mz - 4.2, mx + 6, 21, mz + 4.2); S.box('paint', mx - 8.4, 12, mz - 1.6, mx - 6, 20, mz + 1.6); S.box('paint', mx + 6, 12, mz - 1.6, mx + 8.4, 20, mz + 1.6);
+  S.color(0x3b3f44); S.box('metal', mx - 2, 21, mz - 1.8, mx + 2, 24, mz + 1.8);
+  K.pilotFigure(S, mx - 8, mz + 3); K.pilotFigure(S, 0, ROAD_HALF + 1.2); K.pilotFigure(S, -40, -(ROAD_HALF + 1.2));
+  mergeInto(S, 0, 0, false);
+}
+function groundAndRoad() {
+  const G = new K.Builder();
+  G.color(0xffffff); G.box('asphalt', -150, -0.1, -ROAD_HALF, 150, 0.0, ROAD_HALF);
+  G.color(0xe8c84a); for (let x = -148; x < 148; x += 6) G.box('paint', x, 0.0, -0.08, x + 3, 0.015, 0.08);
+  G.color(0xd8d2c6); G.box('concrete', -150, -0.1, ROAD_HALF, 150, 0.14, ROAD_HALF + WALK); G.box('concrete', -150, -0.1, -ROAD_HALF - WALK, 150, 0.14, -ROAD_HALF);
+  for (let x = -146; x < 146; x += 18) { G.color(0x6a5040); G.cyl('wood', 'y', [x, 0, ROAD_HALF + WALK + 0.3], 0.13, 0, 9.5, 8); G.box('wood', x - 1.1, 8.6, ROAD_HALF + WALK + 0.22, x + 1.1, 8.72, ROAD_HALF + WALK + 0.38); }
+  G.color(0x8a8e92); for (let x = -140; x < 146; x += 36) { G.box('metal', x - 0.08, 0.14, -ROAD_HALF - 0.6, x + 0.08, 7.5, -ROAD_HALF - 0.44); G.box('metal', x - 0.08, 7.4, -ROAD_HALF - 0.6, x + 0.08, 7.5, -ROAD_HALF + 1.5); G.color(0xfff2d8); G.box('lamp', x - 0.25, 7.25, -ROAD_HALF + 1.0, x + 0.25, 7.4, -ROAD_HALF + 1.6); G.color(0x8a8e92); }
+  mergeInto(G, 0, 0, false);
+  const gm = new THREE.MeshStandardMaterial({ roughness: 0.95 });
+  const t = makeTex(GEN.grass, 5);
+  gm.map = new THREE.CanvasTexture(t.col); gm.map.encoding = THREE.sRGBEncoding; gm.map.wrapS = gm.map.wrapT = THREE.RepeatWrapping; gm.map.repeat.set(160, 160);
+  gm.normalMap = new THREE.CanvasTexture(normalFrom(t.hgt, 3, t.toCanvas)); gm.normalMap.wrapS = gm.normalMap.wrapT = THREE.RepeatWrapping; gm.normalMap.repeat.set(160, 160);
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), gm);
+  g.rotation.x = -Math.PI / 2; g.position.y = -0.02; g.receiveShadow = true; scene.add(g);
+}
+const TRANSPARENT = new Set(['glass', 'glassShop', 'screen', 'water']);
+const MESH = {}, ORIG = {};
+function buildMeshes() {
+  for (const [key, a] of Object.entries(merged)) {
+    // Each piece's runs of triangles in this bucket, and its bounds.
+    for (let t = 0; t < a.t.length;) {
+      const pid = a.t[t]; let n = 1;
+      while (t + n < a.t.length && a.t[t + n] === pid) n++;
+      const P = PIECES[pid]; P.ranges.push({ key, start: t, count: n });
+      for (let i = t * 9; i < (t + n) * 9; i += 3) for (let k = 0; k < 3; k++) { P.lo[k] = Math.min(P.lo[k], a.p[i + k]); P.hi[k] = Math.max(P.hi[k], a.p[i + k]); }
+      t += n;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(a.p, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(a.n, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(a.u, 2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(a.c, 3));
+    g.computeBoundingSphere();
+    const m = new THREE.Mesh(g, material(key));
+    const tr = TRANSPARENT.has(key);
+    m.castShadow = !tr && key !== 'lamp'; m.receiveShadow = !tr;
+    if (tr) m.renderOrder = 2;
+    m.userData.key = key;
+    MESH[key] = m; ORIG[key] = Float32Array.from(a.p);
+    scene.add(m);
+  }
+}
+
+// ------------------------------------------------------------------ light presets
+const SKY = { day: ['#a9c6dc', 2.4, 0.5, 1.0, [60, 90, 40]], dusk: ['#d89a72', 1.2, 0.28, 0.9, [-80, 18, 30]], night: ['#18202e', 0.0, 0.1, 1.1, [-30, 60, -20]] };
+const glowLights = [];
+function setTime(name) {
+  const [sky, sunI, hemiI, exp, dir] = SKY[name];
+  scene.background = new THREE.Color(sky);
+  scene.fog = new THREE.Fog(new THREE.Color(sky), 140, 520);
+  sun.intensity = sunI; hemi.intensity = hemiI; renderer.toneMappingExposure = exp;
+  sun.color.set(name === 'dusk' ? 0xffb07a : 0xfff0dc);
+  sun.position.set(dir[0], dir[1], dir[2]);
+  scene.environmentIntensity = name === 'night' ? 0.15 : 1;
+  for (const m of Object.values(materials)) if ('envMapIntensity' in m && !m.userData.envSet) { m.userData.env0 = m.envMapIntensity; m.userData.envSet = true; }
+  for (const m of Object.values(materials)) if (m.userData.envSet) m.envMapIntensity = m.userData.env0 * (name === 'night' ? 0.12 : name === 'dusk' ? 0.5 : 1);
+  const idx = name === 'day' ? 1 : name === 'dusk' ? 2 : 3;
+  for (const g of glows) g[0].emissiveIntensity = g[idx];
+  for (const l of glowLights) l.intensity = name === 'day' ? 0 : name === 'dusk' ? 6 : 10;
+  document.querySelectorAll('[data-time]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.time === name)));
+}
+function addGlowLights() { // a warm point light in each building and under each street lamp, at night
+  for (const s of STREET) {
+    const l = new THREE.PointLight(0xffd9a0, 0, 22, 2);
+    l.position.set((s.box[0] + s.box[3]) / 2, 2.4, (s.box[2] + s.box[5]) / 2 - s.front * 2);
+    scene.add(l); glowLights.push(l);
+  }
+}
+
+// ------------------------------------------------------------------ cameras
+const walk = { on: false, eye: 1.7, yaw: 0, pitch: 0, keys: {} };
+let dragging = false, lx = 0, ly = 0;
+canvas.addEventListener('pointerdown', (e) => { if (!walk.on) return; dragging = true; lx = e.clientX; ly = e.clientY; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointerup', () => { dragging = false; });
+canvas.addEventListener('pointermove', (e) => { if (!walk.on || !dragging) return; walk.yaw -= (e.clientX - lx) * 0.004; walk.pitch = Math.max(-1.4, Math.min(1.4, walk.pitch - (e.clientY - ly) * 0.004)); lx = e.clientX; ly = e.clientY; });
+window.addEventListener('keydown', (e) => { walk.keys[e.code] = true; });
+window.addEventListener('keyup', (e) => { walk.keys[e.code] = false; });
+function setCam(mode) {
+  walk.on = mode !== 'orbit'; controls.enabled = !walk.on;
+  document.querySelectorAll('[data-cam]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cam === mode)));
+  document.getElementById('mode').textContent = mode === 'orbit' ? 'Orbit' : mode === 'pilot' ? 'Walk, pilot eye 1.7 m' : 'Mech eye 19 m';
+  if (walk.on) {
+    walk.eye = mode === 'pilot' ? 1.7 : 19;
+    const d = new THREE.Vector3(); camera.getWorldDirection(d);
+    walk.yaw = Math.atan2(-d.x, -d.z); walk.pitch = mode === 'pilot' ? 0.05 : -0.25;
+    if (mode === 'pilot') camera.position.set(camera.position.x, 1.7, ROAD_HALF + 1.2); else camera.position.y = 19;
+  } else {
+    const d = new THREE.Vector3(); camera.getWorldDirection(d); controls.target.copy(camera.position).addScaledVector(d, 30);
+  }
+}
+function goTo(s) {
+  const cx = (s.box[0] + s.box[3]) / 2, cz = (s.box[2] + s.box[5]) / 2, w = s.box[3] - s.box[0], h = s.box[4];
+  const dist = Math.max(w, 14) * 1.15;
+  if (walk.on) setCam('orbit');
+  controls.target.set(cx, h * 0.4, cz);
+  camera.position.set(cx + w * 0.35, h * 0.5 + dist * 0.35, cz - s.front * dist);
+  document.querySelectorAll('.card').forEach((c) => c.classList.toggle('sel', c.dataset.id === s.T.id));
+}
+
+// ------------------------------------------------------------------ UI
+function cards() {
+  const el = document.getElementById('cards');
+  const groups = [['house', 'Houses'], ['business', 'Small businesses']];
+  for (const [k, title] of groups) {
+    const h = document.createElement('div'); h.className = 'group'; h.textContent = title; el.append(h);
+    for (const s of STREET.filter((v) => v.T.kind === k)) {
+      const c = document.createElement('button'); c.className = 'card'; c.dataset.id = s.T.id; c.type = 'button';
+      c.innerHTML = `<h2>${s.T.name}<small>${s.T.biome}</small></h2><p>${s.T.blurb}</p><div class="meta">${(s.box[3] - s.box[0]).toFixed(0)} x ${(s.box[5] - s.box[2]).toFixed(0)} m lot, ${s.box[4].toFixed(1)} m tall · ${s.tris.toLocaleString()} triangles with interior</div>`;
+      c.addEventListener('click', () => goTo(s));
+      el.append(c);
+    }
+  }
+}
+document.querySelectorAll('[data-cam]').forEach((b) => b.addEventListener('click', () => setCam(b.dataset.cam)));
+document.querySelectorAll('[data-time]').forEach((b) => b.addEventListener('click', () => setTime(b.dataset.time)));
+document.querySelectorAll('[data-wpn]').forEach((b) => b.addEventListener('click', () => { weapon = b.dataset.wpn; document.querySelectorAll('[data-wpn]').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); }));
+document.getElementById('rebuild').addEventListener('click', () => rebuildStreet());
+document.getElementById('cut').addEventListener('input', (e) => {
+  const v = +e.target.value; clip.constant = v >= 13 ? 1000 : v;
+  document.getElementById('cutv').textContent = v >= 13 ? 'off' : v.toFixed(1) + ' m';
+});
+
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+}
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  resize();
+  if (walk.on) {
+    const f = new THREE.Vector3(-Math.sin(walk.yaw), 0, -Math.cos(walk.yaw)), r = new THREE.Vector3(Math.cos(walk.yaw), 0, -Math.sin(walk.yaw));
+    const sp = (walk.eye > 5 ? 14 : 1.6) * (walk.keys.ShiftLeft || walk.keys.ShiftRight ? 3.5 : 1) * dt;
+    if (walk.keys.KeyW) camera.position.addScaledVector(f, sp);
+    if (walk.keys.KeyS) camera.position.addScaledVector(f, -sp);
+    if (walk.keys.KeyD) camera.position.addScaledVector(r, sp);
+    if (walk.keys.KeyA) camera.position.addScaledVector(r, -sp);
+    camera.position.y = walk.eye;
+    camera.lookAt(camera.position.clone().add(new THREE.Vector3(-Math.sin(walk.yaw) * Math.cos(walk.pitch), Math.sin(walk.pitch), -Math.cos(walk.yaw) * Math.cos(walk.pitch))));
+  } else controls.update();
+  // Keep the sun's shadow box on what the camera looks at.
+  const tgt = walk.on ? camera.position : controls.target;
+  sun.target.position.set(Math.round(tgt.x / 8) * 8, 0, 0);
+  const sd = sun.position.clone().normalize();
+  sun.position.copy(sun.target.position).addScaledVector(sd, 150);
+  stepDebris(dt);
+  stepFx(dt);
+  renderer.render(scene, camera);
+  document.getElementById('hud').textContent = `${(renderer.info.render.triangles / 1e6).toFixed(2)} M tris  ${renderer.info.render.calls} draws\neye ${camera.position.y.toFixed(1)} m  ${WEAPONS[weapon].label}\n${FALLING.length} falling  ${Math.round(rubbleTris / 1000)}k rubble tris`;
+  requestAnimationFrame(frame);
+}
+
+// ------------------------------------------------------------------ destruction
+// A shot blows out every piece within its radius, hurls the near ones and breaks big wall pieces
+// into chunks. A piece stands only while something holds it from below (resting on it), or a
+// neighbour beside it at the same level does, at most three pieces sideways from a piece that
+// stands on something; the rest creak, trickle dust and fall. A building that loses half its
+// ground-floor walls pancakes. Chunks are drawn instanced, one draw a material, and stay where they
+// land as rubble; piles slide until no slope is steeper than about 35 degrees.
+const WEAPONS = { cannon: { r: 1.3, label: 'Autocannon', throwV: 9 }, shell: { r: 3.2, label: '120 mm shell', throwV: 14 }, missile: { r: 5.5, label: 'Missile', throwV: 18, flies: true }, demo: { r: 9, label: 'Demolition', throwV: 22 } };
+let weapon = 'shell';
+const WALLMATS = new Set(K.WALLMATS);
+const THIN = 0.06;              // pieces thinner than this (plaster faces, glass, signs) turn to dust
+const CHUNK = 1.5;              // chunk size from a blast, metres
+const MAX_FALLING = 1500;       // falling chunks and pieces at once (chunks are instanced, so cheap)
+const REPOSE = Math.tan(35 * Math.PI / 180);
+const FALLING = [];             // { kind: 'inst'|'mesh', key, slot | obj, v, w, h, delay, still, q, pos }
+let rubbleTris = 0;
+const GRID = { x0: -170, z0: -70, cell: 0.5, w: 680, h: 280 };
+GRID.hgt = new Float32Array(GRID.w * GRID.h);
+const cellOf = (x, z) => [Math.floor((x - GRID.x0) / GRID.cell), Math.floor((z - GRID.z0) / GRID.cell)];
+function gridAt(x, z) { const [i, j] = cellOf(x, z); return i < 0 || j < 0 || i >= GRID.w || j >= GRID.h ? 0 : GRID.hgt[j * GRID.w + i]; }
+function gridMax(x0, z0, x1, z1) {
+  const [i0, j0] = cellOf(x0, z0), [i1, j1] = cellOf(x1, z1);
+  let m = 0;
+  const si = Math.max(1, Math.ceil((i1 - i0) / 6)), sj = Math.max(1, Math.ceil((j1 - j0) / 6));
+  for (let j = Math.max(0, j0); j <= Math.min(GRID.h - 1, j1); j += sj) for (let i = Math.max(0, i0); i <= Math.min(GRID.w - 1, i1); i += si) m = Math.max(m, GRID.hgt[j * GRID.w + i]);
+  return m;
+}
+function gridStamp(x0, z0, x1, z1, top) {
+  const [i0, j0] = cellOf(x0, z0), [i1, j1] = cellOf(x1, z1);
+  for (let j = Math.max(0, j0); j <= Math.min(GRID.h - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(GRID.w - 1, i1); i++) { const k = j * GRID.w + i; if (top > GRID.hgt[k]) GRID.hgt[k] = top; }
+}
+function resetGrid() {
+  GRID.hgt.fill(0);
+  for (const P of PIECES) {
+    if (P.ranges.length === 0) continue;
+    const foundation = P.meta && P.meta.mat === 'concrete' && P.lo[1] < -0.1;
+    const paving = P.bld < 0 && P.hi[1] < 0.3;
+    if (foundation || paving) gridStamp(P.lo[0], P.lo[2], P.hi[0], P.hi[2], P.hi[1]);
+  }
+}
+
+// Support: 'up' links (the lower piece's top meets the upper piece's bottom, overlapping in plan)
+// and 'side' links (touching, sharing at least 0.3 m of height). Built once per building.
+const BLD = [];
+function buildGraph() {
+  STREET.forEach(() => BLD.push({ pieces: [], walls: [], wallArea: 0, collapsed: false }));
+  PIECES.forEach((P, i) => { P.up = []; P.side = []; if (P.bld >= 0 && P.ranges.length) BLD[P.bld].pieces.push(i); });
+  for (const b of BLD) {
+    const L = b.pieces;
+    const links = K.supportLinks(L.map((pid) => PIECES[pid]));   // the kit's rule, shared with the exporter
+    L.forEach((pid, i) => {
+      const A = PIECES[pid];
+      A.up = links.up[i].map((j) => L[j]); A.side = links.side[i].map((j) => L[j]);
+      if (A.meta && WALLMATS.has(A.meta.mat) && A.lo[1] < 1.2 && A.hi[1] - A.lo[1] > 1.5) {
+        const area = Math.max(A.hi[0] - A.lo[0], A.hi[2] - A.lo[2]) * (A.hi[1] - A.lo[1]);
+        b.walls.push(pid); b.wallArea += area; A.area = area;
+      }
+    });
+  }
+}
+
+// Hide a piece's triangles in the street meshes (collapse them to a point).
+const dirtyKeys = new Set();
+function hide(pid) {
+  for (const r of PIECES[pid].ranges) {
+    MESH[r.key].geometry.attributes.position.array.fill(0, r.start * 9, (r.start + r.count) * 9);
+    dirtyKeys.add(r.key);
+  }
+}
+function flushHidden() {
+  for (const k of dirtyKeys) MESH[k].geometry.attributes.position.needsUpdate = true;
+  dirtyKeys.clear();
+}
+
+// Chunks: one instanced unit box per material, tinted per instance. Rubble is just the chunks
+// that stopped moving, so it costs nothing more to keep.
+const INST = {}; const INST_CAP = 4000;
+let unitBox = null;
+function instFor(key) {
+  if (INST[key]) return INST[key];
+  if (!unitBox) {
+    const B = new K.Builder(); B.box('u', -0.5, -0.5, -0.5, 0.5, 0.5, 0.5);
+    const a = B.parts.u;
+    unitBox = new THREE.BufferGeometry();
+    unitBox.setAttribute('position', new THREE.Float32BufferAttribute(a.p, 3));
+    unitBox.setAttribute('normal', new THREE.Float32BufferAttribute(a.n, 3));
+    unitBox.setAttribute('uv', new THREE.Float32BufferAttribute(a.u, 2));
+  }
+  const m = new THREE.InstancedMesh(unitBox, material(key).userData.instMat || instMaterial(key), INST_CAP);
+  m.count = 0; m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true;
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(m);
+  return (INST[key] = { mesh: m, used: 0, dirty: false });
+}
+function instMaterial(key) { // the street material without vertex colours (instances carry the tint)
+  const base = material(key);
+  const m = base.clone(); m.vertexColors = false; m.clippingPlanes = [clip];
+  base.userData.instMat = m;
+  return m;
+}
+const _mat = new THREE.Matrix4(), _pos = new THREE.Vector3(), _scl = new THREE.Vector3(), _col = new THREE.Color();
+function addChunk(key, tint, lo, hi, v, delay, q) {
+  if (FALLING.length >= MAX_FALLING) return false;
+  const I = instFor(key);
+  if (I.used >= INST_CAP) return false;
+  const slot = I.used++; I.mesh.count = I.used;
+  // lo/hi are box corners, or (with q) a centre and a size.
+  const pos = q ? new THREE.Vector3(...lo) : new THREE.Vector3((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2);
+  const size = q ? hi.slice() : [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]];
+  _col.setRGB(tint[0], tint[1], tint[2]); I.mesh.setColorAt(slot, _col); I.mesh.instanceColor.needsUpdate = true;
+  const f = { kind: 'inst', I, slot, pos, q: q ? q.clone() : new THREE.Quaternion(), size, h: size.map((s) => s / 2), v, w: spin(size), delay, still: 0 };
+  writeInst(f); FALLING.push(f);
+  return true;
+}
+function writeInst(f) { _scl.set(f.size[0], f.size[1], f.size[2]); _mat.compose(f.pos, f.q, _scl); f.I.mesh.setMatrixAt(f.slot, _mat); f.I.dirty = true; }
+function spin(size) { const s = 2.2 / Math.max(0.6, Math.max(...size)); return new THREE.Vector3((Math.random() - 0.5) * s, (Math.random() - 0.5) * s, (Math.random() - 0.5) * s); }
+
+// A non-box piece (a window with its glass, a sofa, a car, a roof plane) falls whole as its own mesh.
+function pieceMesh(pid, v, delay) {
+  if (FALLING.length >= MAX_FALLING) return;
+  const P = PIECES[pid];
+  const center = new THREE.Vector3((P.lo[0] + P.hi[0]) / 2, (P.lo[1] + P.hi[1]) / 2, (P.lo[2] + P.hi[2]) / 2);
+  const grp = new THREE.Group(); grp.position.copy(center);
+  for (const r of P.ranges) {
+    const g = MESH[r.key].geometry, O = ORIG[r.key];
+    const n = r.count * 9, p = new Float32Array(n);
+    for (let i = 0; i < n; i += 3) { const s = r.start * 9 + i; p[i] = O[s] - center.x; p[i + 1] = O[s + 1] - center.y; p[i + 2] = O[s + 2] - center.z; }
+    const ng = new THREE.BufferGeometry();
+    ng.setAttribute('position', new THREE.BufferAttribute(p, 3));
+    ng.setAttribute('normal', new THREE.BufferAttribute(g.attributes.normal.array.slice(r.start * 9, r.start * 9 + n), 3));
+    ng.setAttribute('uv', new THREE.BufferAttribute(g.attributes.uv.array.slice(r.start * 6, r.start * 6 + r.count * 6), 2));
+    ng.setAttribute('color', new THREE.BufferAttribute(g.attributes.color.array.slice(r.start * 9, r.start * 9 + n), 3));
+    const mm = new THREE.Mesh(ng, material(r.key)); mm.userData.key = r.key; grp.add(mm);
+  }
+  grp.userData.debris = true;
+  scene.add(grp);
+  const size = [P.hi[0] - P.lo[0], P.hi[1] - P.lo[1], P.hi[2] - P.lo[2]];
+  FALLING.push({ kind: 'mesh', obj: grp, pos: grp.position, q: grp.quaternion, size, h: size.map((s) => s / 2), v, w: spin(size), delay, still: 0 });
+  rubbleTris += P.ranges.reduce((s, r) => s + r.count, 0);
+}
+// What a destroyed piece becomes: dust, chunks of its material, or itself falling whole.
+function breakOff(pid, vel, delay, from, chunk = CHUNK) {
+  const P = PIECES[pid];
+  const size = [P.hi[0] - P.lo[0], P.hi[1] - P.lo[1], P.hi[2] - P.lo[2]];
+  if (Math.min(...size) < THIN) { if (Math.random() < 0.15) dustAt(P.lo[0], P.lo[1], P.lo[2], 1, 0.5); return; } // plaster faces, glass, signs: dust
+  if (!P.meta) { pieceMesh(pid, vel, delay); return; }
+  if (P.meta.panel) { // a roof panel falls as one tilted chunk of its roofing
+    const A = P.meta.panel.axes;
+    const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(...A[0]), new THREE.Vector3(...A[1]), new THREE.Vector3(...A[2])));
+    const v = from ? vel : vel.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.2, 0, (Math.random() - 0.5) * 1.2));
+    addChunk(P.meta.mat, P.meta.tint, P.meta.panel.c, P.meta.panel.size, v, delay + (from ? 0 : Math.random() * 0.15), q);
+    rubbleTris += 12;
+    return;
+  }
+  const [x0, y0, z0, x1, y1, z1] = P.meta.box;
+  const nx = Math.min(4, Math.ceil((x1 - x0) / chunk)), ny = Math.min(4, Math.ceil((y1 - y0) / chunk)), nz = Math.min(4, Math.ceil((z1 - z0) / chunk));
+  for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) for (let k = 0; k < nz; k++) {
+    const a = [x0 + (x1 - x0) * i / nx, y0 + (y1 - y0) * j / ny, z0 + (z1 - z0) * k / nz];
+    const b = [x0 + (x1 - x0) * (i + 1) / nx, y0 + (y1 - y0) * (j + 1) / ny, z0 + (z1 - z0) * (k + 1) / nz];
+    const c = new THREE.Vector3((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+    const jit = () => (Math.random() - 0.5);
+    const away = from ? c.clone().sub(from).normalize().multiplyScalar(vel.length() * 0.5) : new THREE.Vector3(jit() * 1.5, 0, jit() * 1.5);
+    const v = vel.clone().multiplyScalar(0.6).add(away).add(new THREE.Vector3(jit() * 3, jit() * 2, jit() * 3));
+    addChunk(P.meta.mat, P.meta.tint, a, b, v, delay + (from ? 0 : (a[1] - y0) * 0.03 + Math.random() * 0.05));
+    rubbleTris += 12;
+  }
+}
+
+// Dust, chips and fire: pooled points with a soft sprite and per-particle alpha.
+function softSprite() {
+  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  const r = g.createRadialGradient(32, 32, 2, 32, 32, 31); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.5, 'rgba(255,255,255,0.5)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+function pool(n, size, blending) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 4), 4));
+  const mat = new THREE.PointsMaterial({ size, map: SPRITE, vertexColors: true, transparent: true, depthWrite: false, blending, sizeAttenuation: true });
+  const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.renderOrder = 3; scene.add(pts);
+  return { pts, n, next: 0, live: 0, life: new Float32Array(n), max: new Float32Array(n), vel: new Float32Array(n * 3), rgb: new Float32Array(n * 3), grav: 0, drag: 0.97 };
+}
+let SPRITE, DUST, FIRE;
+function emit(P, x, y, z, vx, vy, vz, life, rgb) {
+  const i = P.next; P.next = (P.next + 1) % P.n;
+  const pos = P.pts.geometry.attributes.position.array;
+  pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
+  P.vel[i * 3] = vx; P.vel[i * 3 + 1] = vy; P.vel[i * 3 + 2] = vz;
+  P.life[i] = life; P.max[i] = life; P.rgb.set(rgb, i * 3); P.live = Math.max(P.live, life);
+}
+function stepPool(P, dt, alpha) {
+  if (P.live <= 0) return; // nothing alive: no work, no upload
+  P.live -= dt;
+  const pos = P.pts.geometry.attributes.position.array, col = P.pts.geometry.attributes.color.array;
+  for (let i = 0; i < P.n; i++) {
+    if (P.life[i] <= 0) { col[i * 4 + 3] = 0; continue; }
+    P.life[i] -= dt;
+    P.vel[i * 3 + 1] += P.grav * dt;
+    for (let k = 0; k < 3; k++) { P.vel[i * 3 + k] *= P.drag; pos[i * 3 + k] += P.vel[i * 3 + k] * dt; }
+    if (pos[i * 3 + 1] < 0.05) { pos[i * 3 + 1] = 0.05; P.vel[i * 3 + 1] *= -0.3; }
+    const f = Math.max(0, P.life[i] / P.max[i]);
+    col[i * 4] = P.rgb[i * 3]; col[i * 4 + 1] = P.rgb[i * 3 + 1]; col[i * 4 + 2] = P.rgb[i * 3 + 2];
+    col[i * 4 + 3] = alpha(f);
+  }
+  P.pts.geometry.attributes.position.needsUpdate = true; P.pts.geometry.attributes.color.needsUpdate = true;
+}
+function dustAt(x, y, z, n, spread, tone = [0.62, 0.58, 0.52]) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, s = Math.random() * spread;
+    const v = 0.85 + Math.random() * 0.3;
+    emit(DUST, x + (Math.random() - 0.5) * spread * 0.5, y + Math.random() * spread * 0.3, z + (Math.random() - 0.5) * spread * 0.5, Math.cos(a) * s, 0.6 + Math.random() * spread * 0.4, Math.sin(a) * s, 3 + Math.random() * 4, [tone[0] * v, tone[1] * v, tone[2] * v]);
+  }
+}
+
+// Flashes: a pooled light and fireball.
+const FLASH = [];
+function makeFlashes() {
+  for (let i = 0; i < 3; i++) {
+    const light = new THREE.PointLight(0xffb060, 0, 40, 2);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    ball.visible = false; scene.add(light, ball);
+    FLASH.push({ light, ball, t: 1, r: 1 });
+  }
+}
+let flashNext = 0;
+function flash(p, r) {
+  const f = FLASH[flashNext]; flashNext = (flashNext + 1) % FLASH.length;
+  f.light.position.copy(p); f.ball.position.copy(p); f.t = 0; f.r = r; f.ball.visible = true;
+}
+const SCORCH = [];
+function scorch(p, r) {
+  const m = new THREE.Mesh(new THREE.CircleGeometry(r * 0.8, 20), new THREE.MeshBasicMaterial({ color: 0x15120e, transparent: true, opacity: 0.55, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.position.set(p.x, gridAt(p.x, p.z) + 0.02 + (SCORCH.length * 0.001) % 0.05, p.z);
+  m.renderOrder = 1; scene.add(m); SCORCH.push(m);
+}
+
+// The shot itself.
+function blast(p, wkey) {
+  const W = WEAPONS[wkey], r = W.r;
+  flash(p, r);
+  for (let i = 0; i < 20 * r; i++) { const a = Math.random() * 6.28, e = Math.random() * 1.2, s = 6 + Math.random() * 14; emit(FIRE, p.x, p.y, p.z, Math.cos(a) * Math.cos(e) * s, Math.sin(e) * s, Math.sin(a) * Math.cos(e) * s, 0.25 + Math.random() * 0.5, [1.0, 0.55 + Math.random() * 0.3, 0.2]); }
+  dustAt(p.x, p.y, p.z, Math.round(25 * r), r * 0.9);
+  if (p.y < 1.0) scorch(p, r);
+  const hitB = new Set();
+  for (let pid = 0; pid < PIECES.length; pid++) {
+    const P = PIECES[pid];
+    if (!P.alive || P.bld < 0) continue;
+    const dx = Math.max(P.lo[0] - p.x, 0, p.x - P.hi[0]), dy = Math.max(P.lo[1] - p.y, 0, p.y - P.hi[1]), dz = Math.max(P.lo[2] - p.z, 0, p.z - P.hi[2]);
+    const d = Math.hypot(dx, dy, dz);
+    if (d > r) continue;
+    P.alive = false; hide(pid); hitB.add(P.bld);
+    const c = new THREE.Vector3((P.lo[0] + P.hi[0]) / 2, (P.lo[1] + P.hi[1]) / 2, (P.lo[2] + P.hi[2]) / 2);
+    const dir = c.clone().sub(p); if (dir.lengthSq() < 1e-4) dir.set(0, 1, 0); dir.normalize();
+    const v = dir.multiplyScalar(W.throwV * (1 - d / r) + 1.5).add(new THREE.Vector3(0, 2 + Math.random() * 3, 0));
+    breakOff(pid, v, 0, p);
+  }
+  for (const b of hitB) settleBuilding(b);
+  flushHidden();
+}
+// What still stands: from the ground up through 'up' links freely, and at most three 'side' steps.
+function settleBuilding(b) {
+  const B = BLD[b];
+  if (B.collapsed) return;
+  const left = B.walls.reduce((s, pid) => s + (PIECES[pid].alive ? PIECES[pid].area : 0), 0);
+  if (left < B.wallArea * 0.5) {
+    B.collapsed = true;
+    for (const pid of B.pieces) {
+      const P = PIECES[pid];
+      if (!P.alive) continue;
+      if (P.lo[1] < 0.6 && P.hi[1] < 1.2) continue; // the slab and what sits on it stay
+      P.alive = false; hide(pid);
+      breakOff(pid, new THREE.Vector3((Math.random() - 0.5) * 1.5, -0.5, (Math.random() - 0.5) * 1.5), 0.5 + P.lo[1] * 0.04 + Math.random() * 0.15, null, 2.2);
+    }
+    const s = STREET[b].box; dustAt((s[0] + s[3]) / 2, 1, (s[2] + s[5]) / 2, 240, Math.max(6, (s[3] - s[0]) * 0.35));
+    return;
+  }
+  // The kit's rule: reachable from the ground through 'up' links, and at most three 'side' steps.
+  const L = B.pieces, idx = new Map(L.map((pid, i) => [pid, i]));
+  const local = { up: L.map((pid) => PIECES[pid].up.map((q) => idx.get(q))), side: L.map((pid) => PIECES[pid].side.map((q) => idx.get(q))) };
+  const st = K.standing(L.map((pid) => PIECES[pid]), local, L.map((pid) => PIECES[pid].alive));
+  const best = new Set([...st.keys()].map((i) => L[i]));
+  for (const pid of B.pieces) {
+    const P = PIECES[pid];
+    if (!P.alive || best.has(pid)) continue;
+    P.alive = false; hide(pid);
+    breakOff(pid, new THREE.Vector3((Math.random() - 0.5) * 0.8, -0.2, (Math.random() - 0.5) * 0.8), 0.25 + Math.random() * 0.6, null);
+    dustAt((P.lo[0] + P.hi[0]) / 2, P.lo[1], (P.lo[2] + P.hi[2]) / 2, 2, 0.8);
+  }
+}
+
+// Physics: gravity, bounce and friction on the ground or rubble; a pile steeper than ~35 degrees
+// sheds what lands on it; at rest a piece stamps its top into the height grid and stops costing.
+const _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
+function stepDebris(dt) {
+  for (let i = FALLING.length - 1; i >= 0; i--) {
+    const d = FALLING[i];
+    if (d.delay > 0) {
+      d.delay -= dt;
+      d.pos.x += (Math.random() - 0.5) * 0.02; d.pos.z += (Math.random() - 0.5) * 0.02; // the creak
+      if (Math.random() < dt * 4) dustAt(d.pos.x, d.pos.y - d.h[1], d.pos.z, 1, 0.4);
+      if (d.kind === 'inst') writeInst(d);
+      continue;
+    }
+    d.age = (d.age || 0) + dt;
+    d.v.y -= 9.81 * dt;
+    d.pos.addScaledVector(d.v, dt);
+    const wl = d.w.length();
+    if (wl > 1e-4) { _q.setFromAxisAngle(d.w.clone().divideScalar(wl), wl * dt); d.q.premultiply(_q); }
+    _m.makeRotationFromQuaternion(d.q); const e = _m.elements;
+    const hy = Math.abs(e[1]) * d.h[0] + Math.abs(e[5]) * d.h[1] + Math.abs(e[9]) * d.h[2];
+    const hx = Math.abs(e[0]) * d.h[0] + Math.abs(e[4]) * d.h[1] + Math.abs(e[8]) * d.h[2];
+    const hz = Math.abs(e[2]) * d.h[0] + Math.abs(e[6]) * d.h[1] + Math.abs(e[10]) * d.h[2];
+    const floor = gridMax(d.pos.x - hx * 0.6, d.pos.z - hz * 0.6, d.pos.x + hx * 0.6, d.pos.z + hz * 0.6);
+    let rest = false;
+    if (d.pos.y - hy < floor) {
+      d.pos.y = floor + hy;
+      if (d.v.y < -2.5) { d.v.y *= -0.2; d.v.x *= 0.55; d.v.z *= 0.55; d.w.multiplyScalar(0.5); if (Math.random() < 0.4) dustAt(d.pos.x, floor, d.pos.z, 2, 0.6); }
+      else { d.v.y = 0; d.v.x *= 0.82; d.v.z *= 0.82; d.w.multiplyScalar(0.7); }
+      // Angle of repose: slide toward the lowest neighbour 1 m away if the drop is too steep.
+      let low = floor, lx = 0, lz = 0;
+      for (let a = 0; a < 8; a++) { const ax = Math.cos(a * Math.PI / 4), az = Math.sin(a * Math.PI / 4); const g = gridAt(d.pos.x + ax * (hx + 0.6), d.pos.z + az * (hz + 0.6)); if (g < low) { low = g; lx = ax; lz = az; } }
+      if (floor - low > REPOSE * (Math.max(hx, hz) + 0.6)) { d.v.x += lx * 9 * dt + lx * 0.4; d.v.z += lz * 9 * dt + lz * 0.4; d.still = 0; }
+      else if (d.v.lengthSq() < 0.15 && d.w.lengthSq() < 0.2) d.still += dt; else d.still = 0;
+      if (d.still > 0.2 || d.age > 6) rest = true;
+    }
+    if (d.kind === 'inst') writeInst(d);
+    if (rest) {
+      // A pile rises by the piece's thickness, not its tilted bounding box (a roof plane lies flat-ish).
+      const thick = d.kind === 'inst' ? Math.min(...d.size) : 0.5; // a whole piece (roof plane, window, sofa): its real thickness is not its box
+      gridStamp(d.pos.x - hx * 0.85, d.pos.z - hz * 0.85, d.pos.x + hx * 0.85, d.pos.z + hz * 0.85, floor + Math.min(hy * 2, Math.max(thick, 0.3)) * 0.85);
+      if (d.kind === 'mesh') bake(d.obj);
+      FALLING.splice(i, 1);
+    } else if (d.pos.y < -20) FALLING.splice(i, 1);
+  }
+  for (const I of Object.values(INST)) if (I.dirty) { I.mesh.instanceMatrix.needsUpdate = true; I.dirty = false; }
+}
+// A whole piece at rest is baked into one static rubble mesh a material (rebuilt for that material only).
+const RUBBLE = {}, rubbleDirty = new Set(); let rubbleTimer = 0;
+function bake(o) {
+  o.updateMatrixWorld(true);
+  const nm = new THREE.Matrix3(), v = new THREE.Vector3();
+  for (const m of o.children) {
+    const key = m.userData.key;
+    const R = RUBBLE[key] || (RUBBLE[key] = { p: [], n: [], u: [], c: [], mesh: null });
+    const g = m.geometry, P = g.attributes.position, N = g.attributes.normal;
+    nm.getNormalMatrix(m.matrixWorld);
+    for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld); R.p.push(v.x, v.y, v.z); v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); R.n.push(v.x, v.y, v.z); }
+    for (const x of g.attributes.uv.array) R.u.push(x);
+    for (const x of g.attributes.color.array) R.c.push(x);
+    g.dispose(); rubbleDirty.add(key);
+  }
+  scene.remove(o);
+}
+function rebuildRubble() {
+  for (const key of rubbleDirty) {
+    const R = RUBBLE[key];
+    if (R.mesh) { scene.remove(R.mesh); R.mesh.geometry.dispose(); R.mesh = null; }
+    if (!R.p.length) continue;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(R.p, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(R.n, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(R.u, 2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(R.c, 3));
+    g.computeBoundingSphere();
+    R.mesh = new THREE.Mesh(g, material(key)); R.mesh.castShadow = true; R.mesh.receiveShadow = true; R.mesh.userData.debris = true;
+    scene.add(R.mesh);
+  }
+  rubbleDirty.clear();
+}
+function stepFx(dt) {
+  rubbleTimer += dt;
+  if (rubbleDirty.size && rubbleTimer > 0.5) { rubbleTimer = 0; rebuildRubble(); }
+  for (const f of FLASH) {
+    if (f.t >= 1) continue;
+    f.t += dt / 0.45;
+    const k = Math.min(1, f.t);
+    f.light.intensity = 120 * Math.pow(1 - k, 2) * f.r;
+    f.ball.scale.setScalar(f.r * (0.3 + 0.9 * Math.sqrt(k)));
+    f.ball.material.opacity = 0.9 * (1 - k);
+    if (k >= 1) { f.ball.visible = false; f.light.intensity = 0; }
+  }
+  stepPool(DUST, dt, (f) => 0.55 * Math.min(1, f * 1.6) * Math.min(1, (1 - f) * 8 + 0.2));
+  stepPool(FIRE, dt, (f) => f);
+  for (const t of TRACERS.slice()) { t.life -= dt; t.line.material.opacity = Math.max(0, t.life / 0.08); if (t.life <= 0) { scene.remove(t.line); TRACERS.splice(TRACERS.indexOf(t), 1); } }
+  for (const m of MISSILES.slice()) {
+    m.t += dt;
+    const k = Math.min(1, m.t / m.dur);
+    m.obj.position.lerpVectors(m.a, m.b, k);
+    emit(DUST, m.obj.position.x, m.obj.position.y, m.obj.position.z, (Math.random() - 0.5) * 0.4, 0.3, (Math.random() - 0.5) * 0.4, 1.8, [0.85, 0.85, 0.85]);
+    if (k >= 1) { scene.remove(m.obj); MISSILES.splice(MISSILES.indexOf(m), 1); blast(m.b, 'missile'); }
+  }
+}
+
+// Firing: a click (not a drag) shoots where you point.
+const TRACERS = [], MISSILES = [];
+const ray = new THREE.Raycaster();
+function fireAt(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const targets = Object.values(MESH).filter((m) => !TRANSPARENT.has(m.userData.key) || m.userData.key === 'glass' || m.userData.key === 'glassShop');
+  const hits = ray.intersectObjects(targets, false);
+  let p = hits.length ? hits[0].point : null;
+  if (!p) { const t = -ray.ray.origin.y / ray.ray.direction.y; if (t > 0 && t < 2000) p = ray.ray.origin.clone().addScaledVector(ray.ray.direction, t); }
+  if (!p) return;
+  const muzzle = camera.position.clone().add(new THREE.Vector3(0, -0.6, 0));
+  if (WEAPONS[weapon].flies) {
+    const obj = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.4, 8), new THREE.MeshStandardMaterial({ color: 0xd8d8d0, emissive: 0xff8030, emissiveIntensity: 0.6 }));
+    obj.position.copy(muzzle); obj.lookAt(p); obj.rotateX(Math.PI / 2); scene.add(obj);
+    MISSILES.push({ obj, a: muzzle, b: p.clone(), t: 0, dur: Math.max(0.15, muzzle.distanceTo(p) / 220) });
+    return;
+  }
+  const g = new THREE.BufferGeometry().setFromPoints([muzzle, p]);
+  const line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xffe0a0, transparent: true, opacity: 1 }));
+  scene.add(line); TRACERS.push({ line, life: 0.08 });
+  blast(p.clone(), weapon);
+}
+let downAt = null;
+canvas.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
+canvas.addEventListener('pointerup', (e) => {
+  if (!downAt) return;
+  const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
+  downAt = null;
+  if (moved < 6 && e.button === 0) fireAt(e.clientX, e.clientY);
+});
+function rebuildStreet() {
+  for (const [k, m] of Object.entries(MESH)) { m.geometry.attributes.position.array.set(ORIG[k]); m.geometry.attributes.position.needsUpdate = true; }
+  for (const P of PIECES) P.alive = true;
+  for (const b of BLD) b.collapsed = false;
+  for (const f of FALLING) if (f.kind === 'mesh') scene.remove(f.obj);
+  for (const R of Object.values(RUBBLE)) { R.p = []; R.n = []; R.u = []; R.c = []; R.mesh = null; }
+  FALLING.length = 0;
+  scene.children.filter((o) => o.userData.debris).forEach((o) => scene.remove(o));
+  for (const I of Object.values(INST)) { I.used = 0; I.mesh.count = 0; }
+  rubbleTris = 0;
+  for (const s of SCORCH) scene.remove(s);
+  SCORCH.length = 0;
+  resetGrid();
+}
+function initDestruction() {
+  SPRITE = softSprite();
+  DUST = pool(2500, 3.2, THREE.NormalBlending); DUST.grav = 0.25; DUST.drag = 0.985;
+  FIRE = pool(600, 0.45, THREE.AdditiveBlending); FIRE.grav = -9.81; FIRE.drag = 0.99;
+  makeFlashes();
+  buildGraph();
+  resetGrid();
+}
+
+setTimeout(() => {
+  layStreet();
+  groundAndRoad();
+  buildMeshes();
+  const sc = sun.shadow.camera; sc.left = -90; sc.right = 90; sc.top = 60; sc.bottom = -60; sc.near = 1; sc.far = 400; sc.updateProjectionMatrix();
+  addGlowLights();
+  initDestruction();
+  cards();
+  setTime('day');
+  camera.position.set(-30, 26, 60); controls.target.set(-10, 2, 0);
+  document.getElementById('loading').hidden = true;
+  window.__streetReady = true;
+  requestAnimationFrame(frame);
+}, 30);
+</script>
