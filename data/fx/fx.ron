@@ -5,9 +5,11 @@
 // of its yield. Particle kinds: Spray, Steam, Dirt, Dust, Smoke, Spark, Fire, Flame, Debris,
 // Rubble, Trail.
 (
-    tracer_s: 0.008,
-    tracer_width_m: 0.25,
-    tracer_heavy_width_m: 0.5,
+    // Bigger, longer tracers so a burst reads at range (owner, 2026-10-24: "The bullets are hard to
+    // see ... make them bigger like tracer rounds"): 25 ms of flight long, 0.6 m wide (heavy 1.2 m).
+    tracer_s: 0.025,
+    tracer_width_m: 0.6,
+    tracer_heavy_width_m: 1.2,
     trail_spacing_m: 3.0,
     motor_lumens: 200000.0,
     max_particles: 5000,
