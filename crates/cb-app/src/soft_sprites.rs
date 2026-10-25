@@ -11,7 +11,8 @@
 //! hanabi's effects are built from (`particles::motion`, `particles::colour_over_life`), so the two
 //! renderers cannot drift. The sheet is mapped the right way up: hanabi's quad runs its texture rows from the
 //! bottom, so the smoke sheet, painted lit from above, drew lit from below (owner, 2026-10-25: "why are the smoke
-//! darker at top?", "it lookslike inverted lighting to me"). `CB_HANABI_SMOKE=1` sends the smoke back to bevy_hanabi, for the A/B.
+//! darker at top?", "it lookslike inverted lighting to me"). `CB_HANABI_SMOKE=1` sends the smoke back to
+//! bevy_hanabi, for the A/B.
 
 use crate::particles::{GRID, colour_over_life, motion};
 use crate::pilot::PilotCamera;
