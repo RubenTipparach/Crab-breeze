@@ -205,7 +205,13 @@ fn warm_up(
 /// A body that plays a recipe as a continuous stream (`FxConfig::stream_per_s`): one emitter per
 /// burst layer, children of this entity, emitting while `on`. `dir` is the way the layers marked
 /// `along_dir` throw, in this entity's frame.
+///
+/// It brings `Transform` and `Visibility` with it: its emitters are children, and a child is drawn
+/// only when its parent carries visibility down to it. The jet trail, the smoking parts and the
+/// burning hull were spawned with a transform alone, so their emitters were culled and no trail or
+/// damage smoke ever drew (owner, 2026-10-25: "I still cant see the players thruster trails").
 #[derive(Component)]
+#[require(Transform, Visibility)]
 pub struct FxStream {
     /// The recipe.
     pub recipe: &'static str,
@@ -888,5 +894,22 @@ mod tests {
         assert!(hot.to_srgba().blue > 0.8 && g0 > 10.0, "white-hot at the start");
         assert!(cold.to_srgba().red < 0.2 && g1 == 0.0, "soot at the end");
         assert!(cold.alpha() < 0.01, "and gone");
+    }
+
+    /// A stream's emitters are its children, so it must carry visibility down to them: one spawned
+    /// with nothing else still gets it (the jet trail drew nothing, 2026-10-25).
+    #[test]
+    fn a_stream_body_carries_visibility_to_its_emitters() {
+        let mut world = World::new();
+        let e = world
+            .spawn(FxStream {
+                recipe: "jet_trail",
+                dir: Vec3::NEG_Y,
+                on: true,
+            })
+            .id();
+        let body = world.entity(e);
+        assert!(body.contains::<Visibility>() && body.contains::<InheritedVisibility>());
+        assert!(body.contains::<GlobalTransform>());
     }
 }

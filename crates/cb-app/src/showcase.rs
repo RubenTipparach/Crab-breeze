@@ -304,7 +304,9 @@ fn play(
             act = board(p, access.0.as_ref());
             next = p.mode == PilotMode::Seated;
         }
-        // The trail take: rockets up with the skates pushing back, so the mech climbs backwards.
+        // The trail take. Its beats end on what the mech has done, not on the clock: the showcase
+        // counts real seconds, and a software renderer runs the game at an eighth of real time.
+        // Rockets up with the skates pushing back, so the mech climbs backwards.
         3 if take.trail => {
             let agl = m.pos.y - plan.height_at(m.pos.x, m.pos.z);
             act.skate_toggle = !m.skates_on && t < 0.2;
@@ -315,14 +317,17 @@ fn play(
             };
             act.move_xy = if m.airborne() { Vec2::new(0.0, -1.0) } else { Vec2::ZERO };
             act.look_delta_deg = aim(m, 0.0, -0.2);
-            next = agl > 35.0 || t > 20.0 || m.boost.locked;
+            next = agl > 35.0 || t > 900.0 || m.boost.locked;
+            if next {
+                take.landing = Vec2::new(m.pos.x, m.pos.z);
+            }
         }
         // Hold the height and keep flying backwards, looking ahead along the trail.
         4 if take.trail => {
             act.lift_axis = (HOVER_LIFT - m.vel_y_m_s * 0.025).clamp(0.0, 1.0);
             act.move_xy = Vec2::new(0.0, -1.0);
             act.look_delta_deg = aim(m, 0.0, -0.15);
-            next = t > 10.0 || m.boost.locked;
+            next = Vec2::new(m.pos.x, m.pos.z).distance(take.landing) > 150.0 || t > 900.0 || m.boost.locked;
         }
         // Come down on the skates.
         5 if take.trail => {
@@ -334,14 +339,17 @@ fn play(
                 0.0
             };
             act.look_delta_deg = aim(m, 0.0, -0.2);
-            next = !m.airborne() && t > 2.0 || t > 40.0;
+            next = !m.airborne() || t > 900.0;
+            if next {
+                take.landing = Vec2::new(m.pos.x, m.pos.z);
+            }
         }
         // Skate in reverse, looking ahead at the grooves the wheels leave.
         6 if take.trail => {
             act.skate_toggle = !m.skates_on && t < 0.2;
             act.throttle_axis = throttle_to(m, -1.0);
             act.look_delta_deg = aim(m, 0.0, -0.3);
-            next = t > 10.0;
+            next = Vec2::new(m.pos.x, m.pos.z).distance(take.landing) > 60.0 || t > 900.0;
         }
         7 if take.trail => {
             say("PLAYTEST_RESULT ok trail: flew backwards, skated in reverse");
@@ -573,6 +581,26 @@ fn play_fight(
         3 => {
             act.throttle_axis = throttle_to(m, 0.5);
             next = t > 8.0;
+        }
+        // With `CB_ENEMY_STUNT` the enemies fly their rocket and skate loop instead of fighting
+        // (mech.rs `stunt`): stand still and keep the nearest in the middle of the screens, so its
+        // jet smoke and skate trails are watched from the seat. About 50 s of game time at an
+        // eighth of real time, then the take ends.
+        4 if crate::cli::switched_off("CB_ENEMY_STUNT") => {
+            act.throttle_zero = true;
+            let nearest = alive
+                .iter()
+                .min_by(|a, b| a.curr.pos.distance(m.pos).total_cmp(&b.curr.pos.distance(m.pos)));
+            if let Some(e) = nearest {
+                act.look_delta_deg = aim_at(m, eye, e.curr.pos + Vec3::Y * 12.0);
+                // A missile at it now and then, so missile trails are seen from the seat too.
+                act.fire_missile = t > 60.0 && t.rem_euclid(80.0) < 2.0;
+            }
+            if t > 420.0 {
+                say("PLAYTEST_RESULT ok fight: watched the enemies' rocket and skate loop");
+                say("PLAYTEST_END fight");
+                exit.write(AppExit::Success);
+            }
         }
         // The fight: the enemies' own brain flies the player's mech (orbit the nearest at a
         // stand-off, evade when hit, hop, find a firing line), its orders played as actions.
