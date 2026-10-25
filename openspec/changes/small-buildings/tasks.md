@@ -5,6 +5,9 @@
 - [x] 0.1b Destruction in the mockup: four weapons, chunks, support by touch, pancake collapse, rubble piles
 - [ ] 0.2 Shots in a cloud container (lavapipe), looked at; owner answers S1-S3
 
+## 0b. Kits for the game
+- [x] 0.3 Exported kits: `assets/models/small_buildings/` (glb with LOD0-2, piece tables, manifest with budgets) by `tools/buildings/export_small_buildings.cjs`, checked by `check_small_buildings.cjs`; how to use them in `docs/design/small-buildings-kit.md`
+
 ## 1. Art (cloud session)
 - [ ] 1.1 Material Maker graphs for the 25 surface sets; contact sheet looked at
 - [ ] 1.2 Exported to `assets/textures/buildings/`, listed in the material table

@@ -1,0 +1,986 @@
+{
+ "generator": "tools/buildings/export_small_buildings.cjs",
+ "kit": "docs/mockups/small_buildings_kit.js",
+ "seed": 7,
+ "units": "metres; front faces +z, centred on x = 0, standing on y = 0",
+ "lod_within_m": {
+  "LOD0": 150,
+  "LOD1": 600,
+  "LOD2": 2000
+ },
+ "lod1_drops": {
+  "interior": true,
+  "pieces_under_m3": 0.004
+ },
+ "budget_triangles": {
+  "LOD0": 16000,
+  "LOD1": 7000,
+  "LOD2": 120
+ },
+ "types": [
+  {
+   "id": "ranch",
+   "name": "Ranch house",
+   "kind": "house",
+   "biomes": [
+    "temperate",
+    "savanna"
+   ],
+   "blurb": "Single storey, low hip roof, a picture window, brick front with siding ends and an attached garage. The commonest 1950s-80s house.",
+   "glb": "ranch.glb",
+   "pieces": "ranch.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -9.21,
+     -0.3,
+     -5.85
+    ],
+    "hi": [
+     8.56,
+     7.968,
+     12
+    ]
+   },
+   "triangles": {
+    "LOD0": 4918,
+    "LOD1": 3140,
+    "LOD2": 28
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 399,
+   "surfaces": [
+    "brick",
+    "concrete",
+    "door",
+    "fabric",
+    "floorWood",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "paint",
+    "plaster",
+    "rubber",
+    "shingle",
+    "siding",
+    "soffit",
+    "trim",
+    "wood"
+   ],
+   "signs": []
+  },
+  {
+   "id": "colonial",
+   "name": "Colonial",
+   "kind": "house",
+   "biomes": [
+    "temperate"
+   ],
+   "blurb": "Two storeys, five bays of shuttered windows, a centre door under a columned portico, white clapboard and end chimneys.",
+   "glb": "colonial.glb",
+   "pieces": "colonial.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -6.21,
+     -0.3,
+     -5.3
+    ],
+    "hi": [
+     6.72,
+     9.802,
+     12
+    ]
+   },
+   "triangles": {
+    "LOD0": 6301,
+    "LOD1": 4164,
+    "LOD2": 24
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 339,
+   "surfaces": [
+    "brick",
+    "concrete",
+    "door",
+    "fabric",
+    "floorWood",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "plaster",
+    "shingle",
+    "shutter",
+    "siding",
+    "soffit",
+    "trim",
+    "wood"
+   ],
+   "signs": []
+  },
+  {
+   "id": "bungalow",
+   "name": "Craftsman bungalow",
+   "kind": "house",
+   "biomes": [
+    "temperate",
+    "coast"
+   ],
+   "blurb": "Gable to the street, a deep full-width porch on tapered posts and brick piers, painted siding and a big front window.",
+   "glb": "bungalow.glb",
+   "pieces": "bungalow.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -5.52,
+     -0.3,
+     -7.1
+    ],
+    "hi": [
+     5.36,
+     6.85,
+     9.16
+    ]
+   },
+   "triangles": {
+    "LOD0": 4138,
+    "LOD1": 2260,
+    "LOD2": 24
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 303,
+   "surfaces": [
+    "brick",
+    "concrete",
+    "deck",
+    "door",
+    "fabric",
+    "floorWood",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "plaster",
+    "shingle",
+    "siding",
+    "soffit",
+    "trim",
+    "wood"
+   ],
+   "signs": []
+  },
+  {
+   "id": "split",
+   "name": "Split-level",
+   "kind": "house",
+   "biomes": [
+    "temperate"
+   ],
+   "blurb": "A one-storey living wing beside a two-storey bedroom wing half a level up, the garage under it. Very 1970s.",
+   "glb": "split.glb",
+   "pieces": "split.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -8.06,
+     -0.3,
+     -5.6
+    ],
+    "hi": [
+     8.26,
+     7.058,
+     12
+    ]
+   },
+   "triangles": {
+    "LOD0": 5778,
+    "LOD1": 3612,
+    "LOD2": 28
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 353,
+   "surfaces": [
+    "brick",
+    "carpet",
+    "concrete",
+    "door",
+    "fabric",
+    "floorWood",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "paint",
+    "plaster",
+    "rubber",
+    "shingle",
+    "siding",
+    "soffit",
+    "trim",
+    "wood"
+   ],
+   "signs": []
+  },
+  {
+   "id": "aframe",
+   "name": "A-frame cabin",
+   "kind": "house",
+   "biomes": [
+    "montane forest"
+   ],
+   "blurb": "Steep roof to the ground, the whole gable glazed toward the view, board-and-batten, a deck in front. The 1970s mountain cabin.",
+   "glb": "aframe.glb",
+   "pieces": "aframe.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -4.5,
+     -0.3,
+     -4.9
+    ],
+    "hi": [
+     4.5,
+     8,
+     7.7
+    ]
+   },
+   "triangles": {
+    "LOD0": 1219,
+    "LOD1": 556,
+    "LOD2": 14
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 132,
+   "surfaces": [
+    "board",
+    "concrete",
+    "deck",
+    "door",
+    "fabric",
+    "floorWood",
+    "glass",
+    "metal",
+    "metalRoof",
+    "trim",
+    "wood",
+    "woodInt"
+   ],
+   "signs": []
+  },
+  {
+   "id": "adobe",
+   "name": "Pueblo Revival house",
+   "kind": "house",
+   "biomes": [
+    "desert"
+   ],
+   "blurb": "Thick stucco walls with rounded corners, flat roof behind stepped parapets, vigas through the wall, a portal porch and a turquoise door.",
+   "glb": "adobe.glb",
+   "pieces": "adobe.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -7.35,
+     -0.3,
+     -5.6
+    ],
+    "hi": [
+     8.35,
+     4.58,
+     10.035
+    ]
+   },
+   "triangles": {
+    "LOD0": 4456,
+    "LOD1": 2972,
+    "LOD2": 20
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 228,
+   "surfaces": [
+    "adobe",
+    "concrete",
+    "door",
+    "fabric",
+    "floorTile",
+    "floorWood",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "plaster",
+    "roofing",
+    "trim",
+    "wood"
+   ],
+   "signs": []
+  },
+  {
+   "id": "stilt",
+   "name": "Stilt house",
+   "kind": "house",
+   "biomes": [
+    "jungle",
+    "swamp"
+   ],
+   "blurb": "Raised 2.4 m on timber piles over flood and swamp, plank walls, a steep corrugated hip roof and a veranda all round.",
+   "glb": "stilt.glb",
+   "pieces": "stilt.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -5.69,
+     -0.6,
+     -5.19
+    ],
+    "hi": [
+     5.69,
+     9.013,
+     7
+    ]
+   },
+   "triangles": {
+    "LOD0": 4462,
+    "LOD1": 2104,
+    "LOD2": 14
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 400,
+   "surfaces": [
+    "board",
+    "concrete",
+    "deck",
+    "door",
+    "fabric",
+    "floorWood",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "metalRoof",
+    "plaster",
+    "shutter",
+    "soffit",
+    "trim",
+    "wood"
+   ],
+   "signs": []
+  },
+  {
+   "id": "beach",
+   "name": "Beach cottage",
+   "kind": "house",
+   "biomes": [
+    "beach"
+   ],
+   "blurb": "Pastel siding on concrete piers, a metal roof, louvred shutters and a screened porch across the front. Florida and the Gulf, 1980s.",
+   "glb": "beach.glb",
+   "pieces": "beach.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -7.1,
+     -0.3,
+     -5.1
+    ],
+    "hi": [
+     4.91,
+     6.5,
+     8.56
+    ]
+   },
+   "triangles": {
+    "LOD0": 4386,
+    "LOD1": 2496,
+    "LOD2": 14
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 341,
+   "surfaces": [
+    "concrete",
+    "deck",
+    "door",
+    "fabric",
+    "floorWood",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "metalRoof",
+    "plaster",
+    "screen",
+    "shutter",
+    "siding",
+    "soffit",
+    "trim",
+    "wood"
+   ],
+   "signs": []
+  },
+  {
+   "id": "trailer",
+   "name": "Single-wide trailer",
+   "kind": "house",
+   "biomes": [
+    "desert",
+    "savanna"
+   ],
+   "blurb": "A 1970s mobile home: ribbed metal siding with a two-tone stripe, small windows, a window air conditioner, skirting, metal steps and an awning.",
+   "glb": "trailer.glb",
+   "pieces": "trailer.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -9.81,
+     0,
+     -2.21
+    ],
+    "hi": [
+     11.15,
+     3.38,
+     7.58
+    ]
+   },
+   "triangles": {
+    "LOD0": 2304,
+    "LOD1": 1728,
+    "LOD2": 10
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 94,
+   "surfaces": [
+    "carpet",
+    "concrete",
+    "counter",
+    "door",
+    "fabric",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "metalRoof",
+    "paint",
+    "ribbed",
+    "rubber",
+    "skirt",
+    "trim",
+    "wood",
+    "woodInt"
+   ],
+   "signs": []
+  },
+  {
+   "id": "diner",
+   "name": "Streamline diner",
+   "kind": "business",
+   "biomes": [
+    "any roadside"
+   ],
+   "blurb": "Stainless steel with enamel stripes and rounded ends, a ribbon of windows over the booths, a counter with stools, and DINER in neon on the roof.",
+   "glb": "diner.glb",
+   "pieces": "diner.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -11.95,
+     -0.3,
+     -3.46
+    ],
+    "hi": [
+     11.95,
+     6.3,
+     11.38
+    ]
+   },
+   "triangles": {
+    "LOD0": 3370,
+    "LOD1": 1898,
+    "LOD2": 10
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 248,
+   "surfaces": [
+    "concrete",
+    "counter",
+    "fabric",
+    "floorTile",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "paint",
+    "roofing",
+    "rubber",
+    "sign:DINER|#1c1c1c|#ff5a4a|1",
+    "stainless",
+    "tileWall",
+    "trim"
+   ],
+   "signs": [
+    "DINER"
+   ]
+  },
+  {
+   "id": "gas",
+   "name": "Gas station",
+   "kind": "business",
+   "biomes": [
+    "any roadside"
+   ],
+   "blurb": "A flat canopy on four columns over two pump islands, a block kiosk with a glass front, a tall price sign, and an oil-stained apron.",
+   "glb": "gas.glb",
+   "pieces": "gas.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -12,
+     -0.3,
+     -13.1
+    ],
+    "hi": [
+     12.1,
+     8.6,
+     14
+    ]
+   },
+   "triangles": {
+    "LOD0": 4596,
+    "LOD1": 1690,
+    "LOD2": 10
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 139,
+   "surfaces": [
+    "block",
+    "concrete",
+    "counter",
+    "door",
+    "fabric",
+    "floorTile",
+    "glass",
+    "glassDark",
+    "glassShop",
+    "lamp",
+    "metal",
+    "paint",
+    "plaster",
+    "product",
+    "roofing",
+    "rubber",
+    "sign:1.09 9/10|#1c1c1c|#ffd34a|0",
+    "sign:1.19 9/10|#1c1c1c|#ffd34a|0",
+    "sign:CRESCENT|#2f8a48|#ffffff|0",
+    "sign:FOOD MART|#2f8a48|#ffffff|0",
+    "sign:ICE|#2f6f8f|#ffffff|0",
+    "trim",
+    "wood"
+   ],
+   "signs": [
+    "1.09 9/10",
+    "1.19 9/10",
+    "CRESCENT",
+    "FOOD MART",
+    "ICE"
+   ]
+  },
+  {
+   "id": "corner",
+   "name": "Corner store",
+   "kind": "business",
+   "biomes": [
+    "towns"
+   ],
+   "blurb": "Two storeys of brick: a glass shop front under a striped awning with GROCERY on the sign band, an apartment above, a corbelled cornice.",
+   "glb": "corner.glb",
+   "pieces": "corner.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -4.9,
+     -0.3,
+     -6.56
+    ],
+    "hi": [
+     5.85,
+     8.23,
+     7.9
+    ]
+   },
+   "triangles": {
+    "LOD0": 5680,
+    "LOD1": 2524,
+    "LOD2": 10
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 192,
+   "surfaces": [
+    "awning:#c23b30",
+    "brick",
+    "concrete",
+    "counter",
+    "door",
+    "fabric",
+    "floorTile",
+    "floorWood",
+    "glass",
+    "glassShop",
+    "lamp",
+    "metal",
+    "paint",
+    "plaster",
+    "product",
+    "roofing",
+    "sign:GROCERY|#2a2f2a|#f2d06a|0",
+    "trim",
+    "wood"
+   ],
+   "signs": [
+    "GROCERY"
+   ]
+  },
+  {
+   "id": "garage",
+   "name": "Auto repair",
+   "kind": "business",
+   "biomes": [
+    "towns",
+    "roadside"
+   ],
+   "blurb": "Painted concrete block with three roll-up doors, an office with a shop window, a sign band, a lift and tyre stacks inside.",
+   "glb": "garage.glb",
+   "pieces": "garage.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -7.56,
+     -0.3,
+     -8.023
+    ],
+    "hi": [
+     7.69,
+     5.78,
+     13
+    ]
+   },
+   "triangles": {
+    "LOD0": 4070,
+    "LOD1": 2784,
+    "LOD2": 10
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 208,
+   "surfaces": [
+    "block",
+    "concrete",
+    "corrugated",
+    "door",
+    "fabric",
+    "glass",
+    "glassDark",
+    "glassShop",
+    "lamp",
+    "metal",
+    "paint",
+    "plaster",
+    "roofing",
+    "rubber",
+    "sign:AUTO REPAIR|#1d4f8f|#ffffff|0",
+    "trim",
+    "wood"
+   ],
+   "signs": [
+    "AUTO REPAIR"
+   ]
+  },
+  {
+   "id": "motel",
+   "name": "Motor court motel",
+   "kind": "business",
+   "biomes": [
+    "roadside",
+    "beach"
+   ],
+   "blurb": "Two storeys of rooms off an open walkway with a railing, a door, window and air conditioner per room, the office at one end, a pool, and a neon MOTEL pylon.",
+   "glb": "motel.glb",
+   "pieces": "motel.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -15.94,
+     -0.3,
+     -5.64
+    ],
+    "hi": [
+     20.7,
+     9,
+     14
+    ]
+   },
+   "triangles": {
+    "LOD0": 13570,
+    "LOD1": 7760,
+    "LOD2": 20
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 8500,
+    "LOD2": 120,
+    "why": "28 rooms over 37 m: about three times the facade of the next largest type"
+   },
+   "piece_count": 895,
+   "surfaces": [
+    "block",
+    "carpet",
+    "concrete",
+    "counter",
+    "door",
+    "fabric",
+    "floorTile",
+    "glass",
+    "glassDark",
+    "glassShop",
+    "lamp",
+    "metal",
+    "paint",
+    "plaster",
+    "roofing",
+    "rubber",
+    "sign:MOTEL|#1c1c1c|#4ae0ff|1",
+    "sign:VACANCY|#1c1c1c|#ff5aa8|1",
+    "soffit",
+    "tile",
+    "trim",
+    "water",
+    "wood"
+   ],
+   "signs": [
+    "MOTEL",
+    "VACANCY"
+   ]
+  },
+  {
+   "id": "strip",
+   "name": "Strip mall",
+   "kind": "business",
+   "biomes": [
+    "towns"
+   ],
+   "blurb": "Four shops under one shingled mansard band and a walkway canopy on posts: a laundromat, a video rental, a pizzeria and a hair salon.",
+   "glb": "strip.glb",
+   "pieces": "strip.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -18,
+     -0.3,
+     -6.05
+    ],
+    "hi": [
+     18,
+     5.55,
+     24
+    ]
+   },
+   "triangles": {
+    "LOD0": 8054,
+    "LOD1": 3416,
+    "LOD2": 10
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 229,
+   "surfaces": [
+    "asphalt",
+    "block",
+    "concrete",
+    "counter",
+    "fabric",
+    "floorTile",
+    "glassDark",
+    "glassShop",
+    "lamp",
+    "metal",
+    "paint",
+    "plaster",
+    "product",
+    "roofing",
+    "rubber",
+    "shingle",
+    "sign:HAIR|#f4f1ea|#d06a9a|1",
+    "sign:LAUNDROMAT|#f4f1ea|#2f6f8f|1",
+    "sign:PIZZA|#f4f1ea|#c23b30|1",
+    "sign:VIDEO|#f4f1ea|#7a3fc0|1",
+    "soffit",
+    "stucco",
+    "trim",
+    "wood"
+   ],
+   "signs": [
+    "HAIR",
+    "LAUNDROMAT",
+    "PIZZA",
+    "VIDEO"
+   ]
+  },
+  {
+   "id": "drivein",
+   "name": "Burger drive-in",
+   "kind": "business",
+   "biomes": [
+    "roadside"
+   ],
+   "blurb": "A swooping roof rising to the street over a glass front, red and white panels, a drive-through window, and a big arrow sign.",
+   "glb": "drivein.glb",
+   "pieces": "drivein.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -6.85,
+     -0.3,
+     -6.5
+    ],
+    "hi": [
+     12.8,
+     9,
+     10.5
+    ]
+   },
+   "triangles": {
+    "LOD0": 1583,
+    "LOD1": 1020,
+    "LOD2": 10
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 114,
+   "surfaces": [
+    "asphalt",
+    "concrete",
+    "counter",
+    "fabric",
+    "floorTile",
+    "glass",
+    "glassDark",
+    "glassShop",
+    "lamp",
+    "metal",
+    "metalRoof",
+    "paint",
+    "rubber",
+    "sign:BURGERS|#c23b30|#ffffff|0",
+    "sign:BURGERS|#e8b23a|#c23b30|1",
+    "sign:MENU|#2a2a2a|#ffd34a|1",
+    "soffit",
+    "tileRed",
+    "tileWall",
+    "trim"
+   ],
+   "signs": [
+    "BURGERS",
+    "BURGERS",
+    "MENU"
+   ]
+  },
+  {
+   "id": "quonset",
+   "name": "Quonset workshop",
+   "kind": "business",
+   "biomes": [
+    "savanna",
+    "coast",
+    "any"
+   ],
+   "blurb": "A corrugated half-cylinder of war surplus, a block end wall with a sliding door and windows, now FEED & SEED.",
+   "glb": "quonset.glb",
+   "pieces": "quonset.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -5.5,
+     -0.3,
+     -10
+    ],
+    "hi": [
+     5.5,
+     5.32,
+     17.68
+    ]
+   },
+   "triangles": {
+    "LOD0": 1362,
+    "LOD1": 968,
+    "LOD2": 10
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 98,
+   "surfaces": [
+    "block",
+    "concrete",
+    "corrugated",
+    "corrugatedArc",
+    "fabric",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "paint",
+    "plaster",
+    "rubber",
+    "sign:FEED & SEED|#6a2a24|#f2e8c8|0",
+    "trim",
+    "wood",
+    "woodInt"
+   ],
+   "signs": [
+    "FEED & SEED"
+   ]
+  }
+ ]
+}

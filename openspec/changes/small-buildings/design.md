@@ -97,6 +97,12 @@ That is about 45 + 45 + 2 draws, measured on the owner's machine before it is ca
 
 ## 5. Generation in the game
 
+The kits are exported now: `assets/models/small_buildings/`, made by
+`tools/buildings/export_small_buildings.cjs` from the same kit the mockup draws. How to load and
+break them is in `docs/design/small-buildings-kit.md`. The game can load these glbs first and
+port the kit to `cb-core` later; the plan below stays the target.
+
+
 - Types and their options are data: `data/world/small_buildings.ron`, with sizes in metres, opening
   rows, materials, roof and plan, and weights by biome and by zone (suburb, roadside, village).
 - `cb-core` builds a building's parts as plain data (boxes and polygons, materials and tints) from

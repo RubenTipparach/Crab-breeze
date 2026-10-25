@@ -20,7 +20,7 @@
 
   // ------------------------------------------------------------------ the geometry gatherer
   class Builder {
-    constructor() { this.parts = {}; this.tint = [1, 1, 1]; this.count = 0; this.pid = 0; this.cur = -1; this.meta = []; }
+    constructor() { this.parts = {}; this.tint = [1, 1, 1]; this.count = 0; this.pid = 0; this.cur = -1; this.meta = []; this.tags = []; this.volumes = []; }
     color(h) { this.tint = typeof h === 'number' ? hex(h) : h; return this; }
     arr(mat) { return this.parts[mat] || (this.parts[mat] = { p: [], n: [], u: [], c: [], t: [] }); }
     // Pieces: what breaks off together (a wall segment, a window, a roof plane, a sofa, a car).
@@ -378,7 +378,8 @@
 
   // ------------------------------------------------------------------ furniture and life, local to a spot
   // Items are boxes in a local frame facing +z, placed at (x, y, z) turned by rot quarter turns.
-  function place(B, x, y, z, rot, items) { B.group(() => placeItems(B, x, y, z, rot, items)); }
+  // tag 'furniture' marks interior dressing (dropped at LOD 1); 'dressing' stays outside.
+  function place(B, x, y, z, rot, items, tag = 'furniture') { B.group(() => { B.tags[B.cur] = tag; placeItems(B, x, y, z, rot, items); }); }
   function placeItems(B, x, y, z, rot, items) {
     const T = (lx, lz) => rot === 1 ? [-lz, lx] : rot === 2 ? [-lx, -lz] : rot === 3 ? [lz, -lx] : [lx, lz];
     for (const it of items) {
@@ -410,7 +411,7 @@
     pump: () => [['concrete', -0.6, 0, -1.4, 0.6, 0.2, 1.4, 0xbab4aa], ['metal', -0.3, 0.2, -0.25, 0.3, 1.75, 0.25, 0xe8e6e0], ['metal', -0.31, 1.15, -0.26, 0.31, 1.55, 0.26, 0xc23b30], ['glassDark', -0.2, 1.2, 0.26, 0.2, 1.45, 0.27, 0x334048]],
   };
   // An 80s box sedan or pickup.
-  function car(B, x, z, rot, tint, kind = 'sedan') { B.group(() => carParts(B, x, z, rot, tint, kind)); }
+  function car(B, x, z, rot, tint, kind = 'sedan') { B.group(() => { carParts(B, x, z, rot, tint, kind); B.tags[B.cur] = 'car'; }); }
   function carParts(B, x, z, rot, tint, kind) {
     const L = kind === 'pickup' ? 2.6 : 2.35;
     const items = [['paint', -0.88, 0.32, -L, 0.88, 0.92, L, tint]];
@@ -506,6 +507,8 @@
       B.box('metal', x1 + R.over - 0.1, 0, z1 + R.over + 0.04, x1 + R.over, top - 0.3, z1 + R.over + 0.14);
     }
     if (o.antenna) { B.color(0x9a9ea2); B.cyl('metal', 'y', [x0 + 1.5, 0, z0 + 2], 0.03, ridgeY - 0.5, ridgeY + 3.2, 6, false); B.box('metal', x0 + 0.8, ridgeY + 2.6, z0 + 1.97, x0 + 2.2, ridgeY + 2.64, z0 + 2.03); B.box('metal', x0 + 1.0, ridgeY + 3.0, z0 + 1.97, x0 + 2.0, ridgeY + 3.04, z0 + 2.03); }
+    // The far-away volume (LOD 2): a box to the eaves with this roof on it.
+    B.volumes.push({ x0, x1, z0, z1, top, ridgeY, roof: R.type || 'gable', ridge: R.ridge || 'x', pitch: R.pitch, mat: R.mat, roofTint: R.tint || 0x4a4744, wall: o.wall, wallTint: o.tint || 0xffffff });
     return { x0, x1, z0, z1, top, ridgeY };
   }
   function porch(B, x0, x1, z1, base, top, p) {
@@ -590,6 +593,7 @@
         const W = 8, D = 9, base = 0.6, H = 7.4;
         const z0 = -D / 2, z1 = D / 2;
         B.color(0xbab4aa); B.box('concrete', -W / 2, -0.3, z0, W / 2, base, z1);
+        B.volumes.push({ x0: -W / 2, x1: W / 2, z0, z1, top: base, ridgeY: base + H, roof: 'gable', ridge: 'z', pitch: H / (W / 2), mat: 'metalRoof', roofTint: 0x3c3a36, wall: 'board', wallTint: 0xa48058 });
         B.color(0xa48058);
         // Roof planes to the ground (deck height), with underside.
         B.color(0x3c3a36);
@@ -743,7 +747,7 @@
         B.sign(M.sign(brand[0], brand[1], brand[2]), 0, 5.62, 11.27, 6, 0.7, '+z');
         B.sign(M.sign(brand[0], brand[1], brand[2]), 0, 5.62, 1.73, 6, 0.7, '-z');
         for (let x = -6; x <= 6; x += 3) { B.color(0xfff6e0); B.box('lamp', x - 0.6, 4.96, 4, x + 0.6, 5.0, 4.6); B.box('lamp', x - 0.6, 4.96, 8.4, x + 0.6, 5.0, 9.0); }
-        for (const x of [-3.2, 3.2]) { place(B, x, 0, 6.5, 0, FURN.pump()); place(B, x, 0.2, 5.5, 0, [['metal', -0.3, 0, -0.25, 0.3, 1.55, 0.25, 0xe8e6e0], ['metal', -0.31, 1.0, -0.26, 0.31, 1.4, 0.26, brand[3]]]); }
+        for (const x of [-3.2, 3.2]) { place(B, x, 0, 6.5, 0, FURN.pump(), 'dressing'); place(B, x, 0.2, 5.5, 0, [['metal', -0.3, 0, -0.25, 0.3, 1.55, 0.25, 0xe8e6e0], ['metal', -0.31, 1.0, -0.26, 0.31, 1.4, 0.26, brand[3]]], 'dressing'); }
         // Kiosk.
         house(B, rnd, { z: -8.5, w: 10, d: 7, base: 0.15, fh: 3.6, wall: 'block', tint: 0xf0ece2, front: [[['shop', 6.5, 3.0, 0, { door: 1 }], ['door', 0.9, 2.1, 0, { doorMat: 'metal', doorTint: 0x8d9196, stoop: false }]]], roof: { type: 'flat', parapet: 0.9, ac: [2.5, -9] }, plan: [[{ k: 'shop', w: 3 }, { k: 'office', w: 1 }]], floorMat: 'floorTile', sideWin: 0 });
         B.color(brand[3]); B.box('paint', -5.05, 3.75, -5.0, 5.05, 4.65, -4.98);
@@ -953,6 +957,113 @@
       } },
   ];
 
+  // ------------------------------------------------------------------ surfaces
+  // Every surface the kit draws: [stand-in generator, tile size m, roughness, metallic, normal
+  // strength, stand-in base colour]. UVs are in metres, so a texture repeats every tile size.
+  // The game binds each key to its Material Maker PBR set; until those exist it uses the colour.
+  const SURFACES = {
+    brick: ['brick', 0.9, 0.85, 0, 6, 0xa05a44],
+    block: ['block', 0.8, 0.8, 0, 5, 0xd8d4cc],
+    siding: ['siding', 1.0, 0.65, 0, 7, 0xece8e0],
+    board: ['board', 1.0, 0.75, 0, 5, 0xb89a74],
+    stucco: ['stucco', 2.0, 0.92, 0, 4, 0xe0d8c8],
+    adobe: ['adobe', 2.5, 0.95, 0, 3, 0xd6a679],
+    shingle: ['shingle', 1.0, 0.9, 0, 6, 0x5a5652],
+    tile: ['tile', 1.0, 0.7, 0, 6, 0xb85a3a],
+    metalRoof: ['metalRoof', 1.0, 0.45, 0.6, 5, 0xb8bcbe],
+    corrugated: ['corrugated', 1.0, 0.45, 0.6, 3, 0xa8acae],
+    corrugatedArc: ['corrugated', 1.0, 0.5, 0.6, 3, 0xb8bcbe],
+    ribbed: ['ribbed', 1.0, 0.45, 0.4, 4, 0xe8e4da],
+    skirt: ['skirt', 1.0, 0.6, 0.2, 3, 0xdcd6c6],
+    concrete: ['concrete', 2.0, 0.9, 0, 2, 0xbab4aa],
+    roofing: ['roofing', 1.0, 0.95, 0, 2, 0x6d6a66],
+    asphalt: ['asphalt', 2.0, 0.95, 0, 2, 0x3a3a3c],
+    trim: ['smooth', 1.0, 0.5, 0, 1, 0xf4f1ea],
+    paint: ['smooth', 1.0, 0.4, 0, 1, 0xffffff],
+    soffit: ['smooth', 1.0, 0.8, 0, 1, 0xf2efe8],
+    plaster: ['smooth', 2.0, 0.9, 0, 1, 0xf0ece4],
+    shutter: ['shutter', 0.5, 0.55, 0, 4, 0x3a4a3a],
+    door: ['door', 1.0, 0.45, 0, 3, 0x6b3b22],
+    metal: ['smooth', 1.0, 0.35, 0.7, 1, 0x9aa0a6],
+    stainless: ['brushed', 1.0, 0.25, 1.0, 1, 0xd8dcde],
+    counter: ['laminate', 1.0, 0.3, 0, 1, 0xe8e2d0],
+    wood: ['wood', 1.0, 0.6, 0, 3, 0x8a6a46],
+    deck: ['planks', 1.0, 0.75, 0, 4, 0xa98a64],
+    floorWood: ['planks', 1.0, 0.35, 0, 3, 0xb08860],
+    woodInt: ['pine', 1.0, 0.55, 0, 2, 0xc8a878],
+    floorTile: ['floorTile', 0.9, 0.2, 0, 2, 0x9a9a9a],
+    tileWall: ['wallTile', 1.0, 0.15, 0, 2, 0xf2f2f0],
+    tileRed: ['wallTile', 1.0, 0.15, 0, 2, 0xc23b30],
+    carpet: ['carpet', 1.0, 0.95, 0, 2, 0x8a7a6a],
+    fabric: ['fabric', 0.5, 0.9, 0, 1, 0x8a7a6a],
+    product: ['smooth', 1.0, 0.5, 0, 0, 0xc8a040],
+    rubber: ['smooth', 1.0, 0.85, 0, 0, 0x222222],
+    paintCar: ['smooth', 1.0, 0.3, 0.3, 0, 0x8a2c2a],
+  };
+
+  // ------------------------------------------------------------------ shared rules (mockup, exporter, game)
+  // Load-bearing wall materials, for the collapse rule.
+  const WALLMATS = ['brick', 'block', 'siding', 'board', 'stucco', 'adobe', 'ribbed', 'stainless', 'tileWall', 'tileRed', 'corrugatedArc'];
+  // A piece is interior (dropped at LOD 1) if it is furniture, or every material in it is an
+  // interior finish, or it is a thin tiled lining.
+  const INTERIOR_MATS = new Set(['plaster', 'floorWood', 'floorTile', 'carpet', 'woodInt', 'lamp', 'counter', 'product', 'glassDark']);
+  function isInterior(piece) {
+    if (piece.tag === 'furniture') return true;
+    if (piece.tag === 'car' || piece.tag === 'dressing') return false;
+    if (piece.mats.length && piece.mats.every((m) => INTERIOR_MATS.has(m))) return true;
+    const thin = Math.min(piece.hi[0] - piece.lo[0], piece.hi[1] - piece.lo[1], piece.hi[2] - piece.lo[2]) < 0.06;
+    return thin && piece.mats.every((m) => m === 'tileWall');
+  }
+  // Support links between pieces of one building, from their bounds:
+  // up[i]: pieces that i holds from below (i's top meets their bottom, overlapping in plan);
+  // side[i]: pieces touching i that share enough of its height to hold it beside.
+  // A piece stands while it can be reached from a piece on the ground through up links, and at
+  // most MAX_SIDE side links (design section 6).
+  const MAX_SIDE = 3, TOUCH_M = 0.04;
+  function supportLinks(pieces) {
+    const n = pieces.length, up = pieces.map(() => []), side = pieces.map(() => []);
+    for (let a = 0; a < n; a++) {
+      const A = pieces[a];
+      for (let c = a + 1; c < n; c++) {
+        const C = pieces[c], e = TOUCH_M;
+        if (A.lo[0] - e > C.hi[0] || C.lo[0] - e > A.hi[0] || A.lo[1] - e > C.hi[1] || C.lo[1] - e > A.hi[1] || A.lo[2] - e > C.hi[2] || C.lo[2] - e > A.hi[2]) continue;
+        const rests = (L, H) => L.hi[1] >= H.lo[1] - 0.12 && L.hi[1] <= H.lo[1] + 0.3;
+        if (rests(A, C) && A.lo[1] < C.lo[1]) up[a].push(c);
+        else if (rests(C, A) && C.lo[1] < A.lo[1]) up[c].push(a);
+        const shared = Math.min(A.hi[1], C.hi[1]) - Math.max(A.lo[1], C.lo[1]);
+        if (shared > Math.min(0.3, 0.5 * Math.min(A.hi[1] - A.lo[1], C.hi[1] - C.lo[1]))) { side[a].push(c); side[c].push(a); }
+      }
+    }
+    return { up, side };
+  }
+  // Which pieces still stand, given which are alive (an array of booleans).
+  function standing(pieces, links, alive) {
+    const best = new Map(), queue = [];
+    pieces.forEach((P, i) => { if (alive[i] && P.lo[1] <= 0.05) { best.set(i, 0); queue.push(i); } });
+    for (let qi = 0; qi < queue.length; qi++) {
+      const q = queue[qi], lat = best.get(q);
+      for (const nb of links.up[q]) if (alive[nb] && (!best.has(nb) || best.get(nb) > 0)) { best.set(nb, 0); queue.push(nb); }
+      if (lat < MAX_SIDE) for (const nb of links.side[q]) if (alive[nb] && (!best.has(nb) || best.get(nb) > lat + 1)) { best.set(nb, lat + 1); queue.push(nb); }
+    }
+    return best;
+  }
+  // The pieces of a built type with their bounds, materials, tag and triangle runs per material.
+  function piecesOf(B) {
+    const P = Array.from({ length: B.pid }, (_, i) => ({ id: i, lo: [1e9, 1e9, 1e9], hi: [-1e9, -1e9, -1e9], mats: [], runs: [], tag: B.tags[i] || null, meta: B.meta[i] || null }));
+    for (const [mat, a] of Object.entries(B.parts)) {
+      for (let t = 0; t < a.t.length;) {
+        const id = a.t[t]; let k = 1;
+        while (t + k < a.t.length && a.t[t + k] === id) k++;
+        const p = P[id];
+        if (!p.mats.includes(mat)) p.mats.push(mat);
+        p.runs.push({ mat, start: t, count: k });
+        for (let i = t * 9; i < (t + k) * 9; i += 3) for (let q = 0; q < 3; q++) { p.lo[q] = Math.min(p.lo[q], a.p[i + q]); p.hi[q] = Math.max(p.hi[q], a.p[i + q]); }
+        t += k;
+      }
+    }
+    return P;
+  }
+
   // Builds one type into material buckets. M supplies sign and awning materials by name.
   function build(id, seed, M) {
     const T = TYPES.find((t) => t.id === id);
@@ -964,7 +1075,7 @@
     return B;
   }
 
-  const api = { TYPES, build, Builder, house, wall, row, hipRoof, gableRoof, flatRoof, slope, tiles, place, FURN, car, pilotFigure, mulberry };
+  const api = { SURFACES, WALLMATS, INTERIOR_MATS, MAX_SIDE, isInterior, supportLinks, standing, piecesOf, TYPES, build, Builder, house, wall, row, hipRoof, gableRoof, flatRoof, slope, tiles, place, FURN, car, pilotFigure, mulberry };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SmallBuildings = api;
 })(this);
