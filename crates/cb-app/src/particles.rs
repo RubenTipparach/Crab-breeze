@@ -91,11 +91,14 @@ fn colour_over_life(kind: ParticleKind) -> Vec<(f32, Vec4)> {
             (0.85, v(1.1, 1.08, 1.05, 1.0)),
             (1.0, v(1.1, 1.08, 1.05, 0.0)),
         ],
+        // White and fairly opaque: the grey sheet times a pale grey at half opacity matched the sky,
+        // so a mech's trail overhead could not be seen from the seat (2026-10-25); it showed only
+        // against the ground.
         ParticleKind::Trail => vec![
-            (0.0, v(0.85, 0.84, 0.82, 0.0)),
-            (0.05, v(0.85, 0.84, 0.82, 0.5)),
-            (0.5, v(0.8, 0.79, 0.77, 0.3)),
-            (1.0, v(0.8, 0.79, 0.77, 0.0)),
+            (0.0, v(1.6, 1.58, 1.55, 0.0)),
+            (0.05, v(1.6, 1.58, 1.55, 0.75)),
+            (0.5, v(1.45, 1.43, 1.4, 0.45)),
+            (1.0, v(1.4, 1.38, 1.35, 0.0)),
         ],
     }
 }
@@ -423,11 +426,8 @@ pub fn stream(
         .clone();
     Some((
         ParticleEffect::new(handle),
-        // A copy of the sprite of its own, as a blended burst gets: streams sharing an asset and an
-        // image are merged by bevy_hanabi into one draw, and with several mechs' jets streaming at
-        // once only one of them drew (2026-10-25: enemies in flight showed no flame or trail).
         EffectMaterial {
-            images: vec![lib.sprite(spec.kind, true)],
+            images: vec![lib.sprite(spec.kind, false)],
         },
     ))
 }
