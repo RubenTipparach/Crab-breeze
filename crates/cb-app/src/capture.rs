@@ -59,6 +59,7 @@ fn run_script(
     mut acc: ResMut<InputAccum>,
     mut pilot: ResMut<PilotSim>,
     access: Res<MechAccessNow>,
+    enemies: Query<&GlobalTransform, With<crate::mech::Enemy>>,
     time: Res<Time<Real>>,
     mut exit: MessageWriter<AppExit>,
     mut exit_frames: Local<u32>,
@@ -85,8 +86,37 @@ fn run_script(
                 next = true;
             }
         }
-        // Walk to the ladder by input, then press Use.
+        // An enemy in its skin (`blockout-enemies`): the pilot stood 70 m off the nearest, looking up at it.
+        // Skipped when there is none; then back behind the mech to board.
+        2 if enemies.is_empty() => next = true,
         2 => {
+            let a = access.0.unwrap();
+            let e = enemies
+                .iter()
+                .map(|g| g.translation())
+                .min_by(|p, q| p.distance(a.ladder_base).total_cmp(&q.distance(a.ladder_base)))
+                .unwrap();
+            if in_beat < 0.05 {
+                let flat = Vec3::new(a.ladder_base.x - e.x, 0.0, a.ladder_base.z - e.z).normalize_or(Vec3::X);
+                let feet = Vec3::new(e.x, a.ladder_base.y, e.z) + flat * 70.0;
+                let to = e - feet;
+                let mut s = PilotState::standing(feet, (-to.x).atan2(-to.z));
+                s.pitch_rad = 0.12;
+                pilot.prev = s.clone();
+                pilot.curr = s;
+            }
+            if in_beat > 2.0 {
+                shoot(&mut commands, &script.dir, "enemy.png");
+                let a = access.0.unwrap();
+                let feet = a.ladder_base + Vec3::new(-6.0, 0.0, 10.0);
+                let s = PilotState::standing(feet, 0.0);
+                pilot.prev = s.clone();
+                pilot.curr = s;
+                next = true;
+            }
+        }
+        // Walk to the ladder by input, then press Use.
+        3 => {
             let a = access.0.unwrap();
             acc.script = Some(if pilot.curr.mode == PilotMode::OnFoot && pilot.curr.distance_to_stair(&a) > 2.0 {
                 crate::showcase::walk_to(&pilot.curr, a.ladder_base, 0.0)
@@ -103,7 +133,7 @@ fn run_script(
                 next = true;
             }
         }
-        3 => {
+        4 => {
             // Seated; wait for the hatch to seal behind the pilot.
             if pilot.curr.mode == PilotMode::Seated && in_beat > 12.0 {
                 shoot(&mut commands, &script.dir, "cockpit.png");
@@ -112,7 +142,7 @@ fn run_script(
         }
         // Stand up and stride: throttle forward (the mech stands first), hold, measure frame time
         // over 10 s.
-        4 => {
+        5 => {
             acc.script = Some(Actions {
                 throttle_axis: if in_beat < 5.0 { 0.6 } else { 0.0 },
                 ..default()
@@ -126,7 +156,7 @@ fn run_script(
             }
         }
         // A few frames after the last shot, so its readback lands even at a software renderer's frame rate.
-        5 if in_beat > 1.5 && {
+        6 if in_beat > 1.5 && {
             *exit_frames += 1;
             *exit_frames > 6
         } =>

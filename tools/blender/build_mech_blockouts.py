@@ -1082,6 +1082,7 @@ def legs_reverse(hip_y, hx, k=1.0):
     hip, knee = V((0, hip_y, 0)), V((0, hip_y * 0.66, 2.5 * k))
     hock, ball = V((0, hip_y * 0.36, -2.4 * k)), V((0, 1.2, 0.6))
     for s in (1, -1):
+        before = {o.name for o in bpy.data.objects}
         o = V((s * hx, 0, 0))
         H, Kn, Hk, B = hip + o, knee + o, hock + o, ball + o
         armoured(f"thigh{s}", H, Kn, (2.5 * k, 3.0 * k), "BODY", "legs", outer=s)
@@ -1098,6 +1099,7 @@ def legs_reverse(hip_y, hx, k=1.0):
             p = B + V((dx * k, -0.6, 0)) + d * L / 2
             box(f"claw{s}{i}", p, (1.15 * k, 1.1, L), "BODY2", "legs", ((d.z, 0, -d.x), (0, 1, 0), (d.x, 0, d.z)))
         cyl(f"wheel{s}", B + V((-0.5, -0.25, -0.4)), B + V((0.5, -0.25, -0.4)), 0.85, "RUBBER", "legs", 14)
+        limb(f"LEG_0{'L' if s > 0 else 'R'}", H, before)
 
 
 def legs_biped(hip_y, hx, k=1.0):
@@ -1105,6 +1107,7 @@ def legs_biped(hip_y, hx, k=1.0):
     the skate wheel under its heel."""
     hip, knee, ankle = V((0, hip_y, 0)), V((0, hip_y * 0.52, 0.8)), V((0, 2.1, -0.2))
     for s in (1, -1):
+        before = {o.name for o in bpy.data.objects}
         x = s * hx
         o = V((x, 0, 0))
         H, Kn, A = hip + o, knee + o, ankle + o
@@ -1119,12 +1122,14 @@ def legs_biped(hip_y, hx, k=1.0):
         chamfered(f"foot{s}", V((x, 0.6, 0.9)), (3.0 * k, 1.2, 6.4), 0.35, "BODY2", "legs")
         box(f"toe{s}", V((x, 0.8, 4.4)), (2.7 * k, 0.9, 1.6), "BODY2", "legs", ((1, 0, 0), (0, 1, 0.6), (0, -0.6, 1)))
         cyl(f"wheel{s}", V((x - 0.5, 0.75, -1.6)), V((x + 0.5, 0.75, -1.6)), 0.8, "RUBBER", "legs", 14)
+        limb(f"LEG_0{'L' if s > 0 else 'R'}", H, before)
 
 
 def legs_tank(hip_y, hx, k=1.0):
     """Tracks: two track units under a hull, road wheels and sprockets on their outsides, skirts over them, the core
     stood on a turret ring. hip_y is the hull's top."""
     for s in (1, -1):
+        before = {o.name for o in bpy.data.objects}
         x = s * hx
         chamfered(f"track{s}", (x, 1.9, 0), (2.9 * k, 3.6, 12.0), 1.2, "RUBBER", "legs", top=False)
         for i in range(5):
@@ -1134,6 +1139,7 @@ def legs_tank(hip_y, hx, k=1.0):
             cyl(f"sprocket{s}{z}", (x - 1.55 * k, 2.0, z), (x + 1.55 * k, 2.0, z), 1.45, "FRAME", "legs", 14)
         plate(f"skirt{s}", (x + s * 1.75 * k, 3.0, 0), (0.4, 1.8, 10.4), "BODY", "legs")
         box(f"skirt_band{s}", (x + s * 2.0 * k, 3.4, 3.0), (0.06, 0.5, 3.0), "ACCENT", "legs")
+        limb(f"LEG_0{'L' if s > 0 else 'R'}", V((x, 2.0, 0)), before)    # a track unit is the leg a shot takes
     chamfered("hull", (0, hip_y - 1.5, -0.2), (2 * hx - 1.0, 3.0, 9.4), 0.6, "BODY2", "legs")
     plate("glacis", (0, hip_y - 1.6, 4.7), (2 * hx - 1.6, 2.6, 0.5), "BODY", "legs", rake=0.9)
     cyl("ring", (0, hip_y, -0.3), (0, hip_y + 0.8, -0.3), 3.0, "FRAME", "legs", 20)
@@ -1146,6 +1152,7 @@ def legs_quad(hip_y, hx, k=1.0):
     chamfered("hull", (0, hip_y, -0.3), (2 * hx + 1.4, 3.0, 7.0), 0.6, "BODY2", "legs")
     for sx in (1, -1):
         for sz in (1, -1):
+            before = {o.name for o in bpy.data.objects}
             P = V((sx * hx, hip_y, sz * 2.4 - 0.3))
             Kn = V((sx * (hx + 3.8), hip_y + 0.4, sz * 5.0 - 0.3))
             F = V((sx * (hx + 5.0), 1.0, sz * 6.8 - 0.3))
@@ -1156,6 +1163,7 @@ def legs_quad(hip_y, hx, k=1.0):
             plate(f"kneeguard{n}", Kn + V((sx * 0.6, 1.2, 0)), (2.4, 0.5, 2.6), "BODY", "legs", roll=-sx * 0.4)
             armoured(f"lower{n}", Kn, F, (2.3 * k, 2.5 * k), "BODY", "legs")
             chamfered(f"pad{n}", F + V((0, -0.4, 0)), (2.8, 0.9, 2.8), 0.4, "BODY2", "legs")
+            limb(f"LEG_{0 if sz > 0 else 1}{'L' if sx > 0 else 'R'}", P, before)
     nozzle("bellyjet", (0, hip_y - 1.4, -0.3), (0, hip_y - 2.6, -0.3), 1.0, "legs")
 
 
@@ -1362,8 +1370,10 @@ def combat(legs, layout, hd, R, L, back_R, back_L, boost="std", k=1.0, armk=1.0,
     STATE["anchor"] = V((0, hip_y + 2.0, -0.4))
     head(hd, C)
     for s, wpn in ((-1, R), (1, L)):
+        before = {o.name for o in bpy.data.objects}
         g, el = arm(s, C, armk)
         weapon(wpn, g, s, el, armk)
+        limb(f"ARM_{'L' if s > 0 else 'R'}", V((s * (C["w"] / 2 + 1.4 * armk), C["sh_y"], -0.3)), before)
     back_unit(back_R, -1, C)
     back_unit(back_L, 1, C)
     boosters(boost, C)
