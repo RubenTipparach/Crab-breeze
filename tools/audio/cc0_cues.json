@@ -1,0 +1,651 @@
+{
+  "_about": "Recorded cues for tools/audio/cut_cc0.py. A layer is {src: 'pack:file'} or {synth: '<gen_sfx cue>'}, with optional shot (n-th shot of a multi-shot take), start, dur (s), pitch (tape-speed ratio), gain (dB after the layer is peak-normalised), lp, hp (Hz, steep), fadein, fadeout, delay (s). A cue may set len, drive (tanh), hp, loop, peak_db, what and edits.",
+  "foot_stomp": {
+    "what": "A 24 m mech's foot landing: a recorded mech stomp slowed to its size, a heavy plate slam and the ground's sub thump.",
+    "layers": [
+      {
+        "src": "oga/mech-stomp-step-sound:stomp.flac",
+        "pitch": 0.72,
+        "fadeout": 0.25
+      },
+      {
+        "src": "kenney/impact-sounds:impactPlate_heavy_001.ogg",
+        "pitch": 0.6,
+        "gain": -5,
+        "lp": 2500
+      },
+      {
+        "src": "oga/27-metal-audio-samples-sfx:dull_metal_collision_02_44k_32bit_stereo.wav",
+        "pitch": 0.55,
+        "gain": -10,
+        "lp": 1500
+      },
+      {
+        "src": "kenney/sci-fi-sounds:lowFrequency_explosion_001.ogg",
+        "pitch": 0.75,
+        "gain": -4
+      }
+    ],
+    "drive": 1.4,
+    "len": 1.4,
+    "edits": "slowed to 0.55-0.75 speed, layered, lowpassed, saturated"
+  },
+  "jet_ignite": {
+    "what": "The jets lighting: a recorded flare igniting, the deep whoomp of a rocket motor catching, and the roar swelling to full thrust.",
+    "layers": [
+      {
+        "src": "oga/flare-ignition:ignition.flac",
+        "pitch": 0.7,
+        "lp": 3500,
+        "gain": -3
+      },
+      {
+        "src": "oga/rocket-launch:launch.wav",
+        "start": 0.6,
+        "dur": 2.4,
+        "lp": 2200,
+        "delay": 0.25,
+        "fadeout": 0.6
+      },
+      {
+        "src": "kenney/sci-fi-sounds:lowFrequency_explosion_000.ogg",
+        "delay": 0.25,
+        "gain": -2
+      },
+      {
+        "src": "oga/rocket-engine:rocket_engine.001.wav",
+        "start": 1.0,
+        "dur": 2.4,
+        "fadein": 0.8,
+        "fadeout": 0.5,
+        "delay": 0.3,
+        "gain": -2
+      }
+    ],
+    "drive": 1.3,
+    "len": 2.8,
+    "edits": "slowed, lowpassed at 2.2-3.5 kHz, layered, saturated"
+  },
+  "rocket_loop": {
+    "what": "The jets burning (loops): a recorded rocket engine's roar with a thruster's ragged fire over it.",
+    "layers": [
+      {
+        "src": "oga/rocket-engine:rocket_engine.001.wav",
+        "start": 0.5,
+        "dur": 3.3
+      },
+      {
+        "src": "kenney/sci-fi-sounds:thrusterFire_001.ogg",
+        "start": 0.5,
+        "dur": 3.3,
+        "lp": 1800,
+        "gain": -3
+      },
+      {
+        "src": "kenney/sci-fi-sounds:thrusterFire_003.ogg",
+        "start": 1.0,
+        "dur": 3.3,
+        "lp": 900,
+        "gain": -4
+      }
+    ],
+    "loop": true,
+    "edits": "lowpassed, layered, crossfaded into a loop"
+  },
+  "rocket_rumble": {
+    "what": "The sub-bass under the jets (loops): a recorded low rumble, 20 to 80 Hz, ragged like the flame.",
+    "layers": [
+      {
+        "src": "oga/low-rumbling:low-rumbling-176033.mp3",
+        "start": 4.0,
+        "dur": 3.3,
+        "lp": 120
+      },
+      {
+        "src": "kenney/sci-fi-sounds:spaceEngineLow_002.ogg",
+        "start": 0.5,
+        "dur": 3.3,
+        "lp": 150,
+        "gain": -6
+      }
+    ],
+    "loop": true,
+    "edits": "lowpassed at 120-150 Hz, layered, crossfaded into a loop"
+  },
+  "skate_roll": {
+    "what": "Skating on the powered wheels (loops): a recorded rolling loop slowed to heavy tyres on asphalt, a low electric drive and road seams thumping.",
+    "layers": [
+      {
+        "src": "oga/30-cc0-sfx-loops:rolling.ogg",
+        "pitch": 0.5,
+        "lp": 2500
+      },
+      {
+        "src": "oga/30-cc0-sfx-loops:rolling.ogg",
+        "pitch": 0.5,
+        "lp": 2500,
+        "delay": 2.0
+      },
+      {
+        "src": "kenney/sci-fi-sounds:engineCircular_001.ogg",
+        "pitch": 0.6,
+        "dur": 3.0,
+        "lp": 900,
+        "gain": -8
+      },
+      {
+        "synth": "skate_roll",
+        "gain": -3
+      }
+    ],
+    "len": 3.0,
+    "loop": true,
+    "edits": "slowed to half speed, lowpassed, layered over our synthesised road roar"
+  },
+  "rocket_launch": {
+    "what": "A dumbfire rocket leaving its pod: a recorded rocket launch, its motor catching with a low whoomp and tearing away.",
+    "layers": [
+      {
+        "src": "oga/rocket-launch:launch.wav",
+        "start": 0.62,
+        "dur": 2.6,
+        "lp": 3000,
+        "fadeout": 1.0
+      },
+      {
+        "src": "kenney/sci-fi-sounds:lowFrequency_explosion_001.ogg",
+        "gain": -3
+      },
+      {
+        "src": "oga/50-cc0-sci-fi-sfx:rocket_01.ogg",
+        "start": 0.15,
+        "pitch": 0.8,
+        "lp": 1500,
+        "gain": -6
+      }
+    ],
+    "drive": 1.3,
+    "edits": "trimmed, lowpassed at 1.5-3 kHz, layered"
+  },
+  "missile_launch": {
+    "what": "A guided missile away: a recorded missile launch over a thruster's roar and a low ejection thump.",
+    "layers": [
+      {
+        "src": "oga/missile-sound:missile.wav",
+        "start": 0.05,
+        "dur": 2.2,
+        "fadeout": 0.8
+      },
+      {
+        "src": "kenney/sci-fi-sounds:thrusterFire_002.ogg",
+        "dur": 1.6,
+        "lp": 2000,
+        "gain": -6,
+        "fadeout": 1.0,
+        "delay": 0.1
+      },
+      {
+        "src": "kenney/sci-fi-sounds:lowFrequency_explosion_001.ogg",
+        "gain": -5
+      }
+    ],
+    "edits": "trimmed, lowpassed, layered"
+  },
+  "autocannon": {
+    "what": "One round of the 35 mm autocannon: a recorded gunshot slowed to a heavy calibre, with a chest thump (fires 8 a second).",
+    "layers": [
+      {
+        "src": "oga/the-free-firearm-sound-library:G_24P.wav",
+        "shot": 1,
+        "dur": 0.45,
+        "pitch": 0.68,
+        "lp": 6000,
+        "fadeout": 0.2
+      },
+      {
+        "src": "kenney/sci-fi-sounds:lowFrequency_explosion_001.ogg",
+        "pitch": 1.4,
+        "dur": 0.35,
+        "gain": -4,
+        "fadeout": 0.15
+      }
+    ],
+    "drive": 1.6,
+    "len": 0.6,
+    "edits": "one shot cut from a take, slowed to 0.68 speed, layered, saturated"
+  },
+  "cannon": {
+    "what": "The 120 mm cannon: a recorded ship's cannon, a concussive boom with a gun's crack on top and the rumble rolling off.",
+    "layers": [
+      {
+        "src": "oga/battle-at-sea:cannon_fire_1.ogg",
+        "fadeout": 1.2
+      },
+      {
+        "src": "oga/the-free-firearm-sound-library:M_26P.wav",
+        "shot": 1,
+        "dur": 1.2,
+        "pitch": 0.6,
+        "lp": 5000,
+        "gain": -6,
+        "fadeout": 0.8
+      },
+      {
+        "src": "kenney/sci-fi-sounds:lowFrequency_explosion_000.ogg",
+        "gain": -4
+      }
+    ],
+    "drive": 1.3,
+    "edits": "layered, a rifle shot slowed to 0.6 speed for the crack",
+    "len": 2.2
+  },
+  "shotgun": {
+    "what": "The scattergun: a recorded pump shotgun, slowed so it booms like a mech's, with a sub thump under it.",
+    "layers": [
+      {
+        "src": "oga/the-free-firearm-sound-library:N_26P.wav",
+        "shot": 1,
+        "dur": 1.6,
+        "pitch": 0.8,
+        "fadeout": 0.8
+      },
+      {
+        "src": "kenney/sci-fi-sounds:lowFrequency_explosion_001.ogg",
+        "gain": -3
+      }
+    ],
+    "drive": 1.4,
+    "edits": "one shot cut from a take, slowed to 0.8 speed, layered"
+  },
+  "impact_mech": {
+    "what": "A round striking armour: a hard gunshot crack into a heavy metal slam, a short dead clank.",
+    "layers": [
+      {
+        "src": "oga/the-free-firearm-sound-library:C_31P.wav",
+        "shot": 1,
+        "dur": 0.3,
+        "pitch": 0.9,
+        "fadeout": 0.15
+      },
+      {
+        "src": "oga/100-cc0-metal-and-wood-sfx:metal_slam_01.ogg",
+        "start": 0.03,
+        "dur": 0.45,
+        "gain": -2,
+        "fadeout": 0.2
+      },
+      {
+        "src": "kenney/impact-sounds:impactMetal_heavy_001.ogg",
+        "gain": -3
+      },
+      {
+        "src": "oga/75-cc0-breaking-falling-hit-sfx:bfh1_metal_hit_05.ogg",
+        "gain": -6
+      }
+    ],
+    "drive": 1.8,
+    "len": 0.7,
+    "edits": "one gunshot cut from a take, layered with metal hits, saturated"
+  },
+  "impact_building": {
+    "what": "A round hitting concrete: a hard crack, breaking rock and falling grit.",
+    "layers": [
+      {
+        "src": "oga/the-free-firearm-sound-library:C_31P.wav",
+        "shot": 1,
+        "dur": 0.25,
+        "pitch": 0.8,
+        "lp": 5000,
+        "gain": -4,
+        "fadeout": 0.12
+      },
+      {
+        "src": "oga/75-cc0-breaking-falling-hit-sfx:bfh1_rock_breaking_01.ogg"
+      },
+      {
+        "src": "oga/75-cc0-breaking-falling-hit-sfx:bfh1_rock_falling_01.ogg",
+        "delay": 0.12,
+        "gain": -6
+      },
+      {
+        "src": "kenney/sci-fi-sounds:lowFrequency_explosion_001.ogg",
+        "pitch": 1.6,
+        "dur": 0.3,
+        "gain": -6,
+        "fadeout": 0.15
+      }
+    ],
+    "edits": "layered, trimmed"
+  },
+  "explosion_small": {
+    "what": "A small explosion: a recorded blast, deep and hard, with a short roll of fire.",
+    "layers": [
+      {
+        "src": "oga/explosions-4:explosion1_0.ogg",
+        "dur": 2.4,
+        "fadeout": 1.2
+      },
+      {
+        "src": "kenney/sci-fi-sounds:explosionCrunch_003.ogg",
+        "gain": -4
+      },
+      {
+        "src": "kenney/sci-fi-sounds:lowFrequency_explosion_001.ogg",
+        "gain": -3
+      }
+    ],
+    "drive": 1.3,
+    "edits": "trimmed, layered"
+  },
+  "explosion_large": {
+    "what": "A big explosion: a recorded chunky blast slowed down, a sub drop you feel, burning debris and a long rumble rolling off.",
+    "layers": [
+      {
+        "src": "oga/chunky-explosion:Chunky Explosion.mp3",
+        "pitch": 0.85,
+        "fadeout": 2.0
+      },
+      {
+        "src": "oga/explosions-4:explosion1_0.ogg",
+        "pitch": 0.7,
+        "gain": -5,
+        "fadeout": 1.5
+      },
+      {
+        "src": "kenney/sci-fi-sounds:lowFrequency_explosion_000.ogg",
+        "gain": -2
+      },
+      {
+        "src": "oga/battle-at-sea:cannon_hit_1.ogg",
+        "start": 0.3,
+        "lp": 400,
+        "gain": -6,
+        "delay": 0.4,
+        "fadeout": 2.0
+      }
+    ],
+    "drive": 1.3,
+    "len": 5.5,
+    "edits": "slowed to 0.7-0.85 speed, layered, lowpassed rumble tail"
+  },
+  "collapse": {
+    "what": "A storey giving way: recorded metal and rock falling over a deep crash and a long rumble.",
+    "layers": [
+      {
+        "src": "oga/battle-at-sea:cannon_hit_1.ogg",
+        "pitch": 0.7,
+        "lp": 1500,
+        "fadeout": 2.0
+      },
+      {
+        "src": "oga/75-cc0-breaking-falling-hit-sfx:bfh1_metal_falling_01.ogg",
+        "pitch": 0.7,
+        "delay": 0.5,
+        "gain": -3
+      },
+      {
+        "src": "oga/75-cc0-breaking-falling-hit-sfx:bfh1_rock_falling_04.ogg",
+        "pitch": 0.6,
+        "delay": 0.9,
+        "gain": -4
+      },
+      {
+        "src": "oga/75-cc0-breaking-falling-hit-sfx:bfh1_breaking_01.ogg",
+        "pitch": 0.6,
+        "delay": 0.2,
+        "gain": -4
+      },
+      {
+        "src": "oga/low-rumbling:low-rumbling-176033.mp3",
+        "dur": 5.0,
+        "lp": 150,
+        "fadein": 0.6,
+        "fadeout": 2.0,
+        "gain": -2
+      }
+    ],
+    "len": 5.0,
+    "edits": "slowed to 0.6-0.7 speed, layered, lowpassed rumble"
+  },
+  "hatch_steam": {
+    "what": "The hatch venting: a recorded steam release and a compressed gas leak, the mist of the boarding cinematic.",
+    "layers": [
+      {
+        "src": "oga/steam-release-sounds:steam hisses - Marker #1.wav",
+        "fadeout": 0.6,
+        "lp": 7000
+      },
+      {
+        "src": "oga/compressed-gas-leak-sfx:compressed_gas_leak.ogg",
+        "delay": 0.5,
+        "gain": -4,
+        "fadeout": 0.8,
+        "lp": 7000
+      },
+      {
+        "src": "oga/steam-release-sounds:steam hisses - Marker #3.wav",
+        "delay": 1.3,
+        "gain": -6,
+        "fadeout": 0.8,
+        "lp": 7000
+      }
+    ],
+    "edits": "layered, lowpassed at 7 kHz, faded"
+  },
+  "hatch_seal": {
+    "what": "The hatch seal locking: a heavy recorded metal close slowed down, a clank and a short hiss.",
+    "layers": [
+      {
+        "src": "oga/100-cc0-metal-and-wood-sfx:metal_close_01.ogg",
+        "pitch": 0.6
+      },
+      {
+        "src": "oga/mechanical-sounds:clank1.wav",
+        "pitch": 0.7,
+        "delay": 0.15,
+        "gain": -3
+      },
+      {
+        "src": "oga/steam-release-sounds:steam hisses - Marker #2.wav",
+        "dur": 0.6,
+        "delay": 0.3,
+        "gain": -10,
+        "fadeout": 0.4
+      }
+    ],
+    "len": 1.4,
+    "edits": "slowed to 0.6-0.7 speed, layered"
+  },
+  "servo_torso": {
+    "what": "The torso turning on its ring: a recorded mechanism slowed to a heavy servo grind.",
+    "layers": [
+      {
+        "src": "oga/mechanical-sounds:mechanical1.wav",
+        "pitch": 0.55,
+        "fadeout": 0.3
+      },
+      {
+        "synth": "servo_torso",
+        "gain": -6
+      }
+    ],
+    "edits": "slowed to 0.55 speed, layered over our synthesised motor"
+  },
+  "hydraulic": {
+    "what": "A hydraulic ram: a recorded mechanism slowed down with a puff of released pressure.",
+    "layers": [
+      {
+        "src": "oga/mechanical-sounds:mechanical2.wav",
+        "pitch": 0.6,
+        "fadeout": 0.3
+      },
+      {
+        "src": "oga/steam-release-sounds:steam hisses - Marker #4.wav",
+        "dur": 0.7,
+        "delay": 0.5,
+        "gain": -8,
+        "fadeout": 0.4
+      },
+      {
+        "synth": "hydraulic",
+        "gain": -6
+      }
+    ],
+    "len": 1.4,
+    "edits": "slowed to 0.6 speed, layered"
+  },
+  "laser_loop": {
+    "what": "The laser beam held on (loops): a recorded doomsday laser cannon's beam, a deep electric burn.",
+    "layers": [
+      {
+        "src": "oga/doomsday-laser-cannon-sound-effect:doomsday_laser_cannon_midium_.wav",
+        "start": 4.0,
+        "dur": 2.0,
+        "lp": 7000
+      }
+    ],
+    "loop": true,
+    "loop_fade": 0.25,
+    "edits": "a sustained middle cut, crossfaded into a loop"
+  },
+  "laser_stop": {
+    "what": "The laser cutting out: the beam's recorded power-down.",
+    "layers": [
+      {
+        "src": "oga/electricity-game-sound-pack:powerdown.wav",
+        "dur": 0.9,
+        "fadeout": 0.4
+      }
+    ],
+    "edits": "trimmed"
+  },
+  "rail_charge": {
+    "what": "The railgun charging: a recorded electric charge-up compressed into one second, rising to the shot.",
+    "layers": [
+      {
+        "src": "oga/electricity-game-sound-pack:charge.wav",
+        "start": 2.9,
+        "dur": 1.1,
+        "fadein": 0.3,
+        "fadeout": 0.05
+      }
+    ],
+    "edits": "the last second of the charge"
+  },
+  "rail_fire": {
+    "what": "The railgun firing: a supersonic crack, a recorded electric discharge, and a cannon's concussion rolling away.",
+    "layers": [
+      {
+        "src": "oga/the-free-firearm-sound-library:M_26P.wav",
+        "shot": 1,
+        "dur": 0.6,
+        "gain": -2,
+        "fadeout": 0.3
+      },
+      {
+        "src": "oga/electricity-game-sound-pack:hit.wav",
+        "gain": -3,
+        "fadeout": 0.8
+      },
+      {
+        "src": "oga/battle-at-sea:cannon_fire_1.ogg",
+        "gain": -2,
+        "fadeout": 1.2
+      }
+    ],
+    "drive": 1.3,
+    "edits": "layered, trimmed",
+    "len": 2.0
+  },
+  "plasma_fire": {
+    "what": "The plasma cannon: a recorded heavy laser slowed into a deep, wobbling thoom with a low thump.",
+    "layers": [
+      {
+        "src": "kenney/sci-fi-sounds:laserLarge_001.ogg",
+        "pitch": 0.5,
+        "fadeout": 0.4
+      },
+      {
+        "src": "kenney/sci-fi-sounds:forceField_001.ogg",
+        "pitch": 0.7,
+        "gain": -6
+      },
+      {
+        "src": "kenney/sci-fi-sounds:lowFrequency_explosion_001.ogg",
+        "gain": -5
+      }
+    ],
+    "edits": "slowed to 0.5-0.7 speed, layered"
+  },
+  "plasma_burst": {
+    "what": "A plasma ball bursting: a recorded electric blast over a deep explosion, crackle dying in the fire.",
+    "layers": [
+      {
+        "src": "oga/electricity-game-sound-pack:deathboom.wav",
+        "dur": 3.5,
+        "fadeout": 1.5
+      },
+      {
+        "src": "kenney/sci-fi-sounds:explosionCrunch_004.ogg",
+        "gain": -3
+      },
+      {
+        "src": "kenney/sci-fi-sounds:lowFrequency_explosion_000.ogg",
+        "gain": -4
+      }
+    ],
+    "edits": "trimmed, layered"
+  },
+  "reactor_hum": {
+    "what": "The reactor (loops): a recorded generator slowed to a deep, steady machine hum.",
+    "layers": [
+      {
+        "src": "oga/generator-loop:loop_generator_1.mp3",
+        "pitch": 0.7,
+        "lp": 2500
+      },
+      {
+        "src": "kenney/sci-fi-sounds:spaceEngineLow_002.ogg",
+        "dur": 5.0,
+        "lp": 300,
+        "gain": -8
+      }
+    ],
+    "len": 4.0,
+    "loop": true,
+    "peak_db": -6,
+    "edits": "slowed to 0.7 speed, lowpassed, crossfaded into a loop"
+  },
+  "radio_squelch": {
+    "what": "Radio key-up: a burst of recorded static closing on a click.",
+    "layers": [
+      {
+        "src": "oga/radio-noise-1:radio_noise_loop.wav",
+        "start": 7.0,
+        "dur": 0.45,
+        "hp": 400,
+        "lp": 4500,
+        "fadeout": 0.05
+      },
+      {
+        "src": "kenney/interface-sounds:click_005.ogg",
+        "delay": 0.45,
+        "gain": -3
+      }
+    ],
+    "peak_db": -6,
+    "edits": "trimmed, band-limited"
+  },
+  "mfd_click": {
+    "what": "A cockpit button: a recorded heavy switch, clicky and short.",
+    "layers": [
+      {
+        "src": "kenney/interface-sounds:switch_003.ogg",
+        "dur": 0.25,
+        "fadeout": 0.08
+      }
+    ],
+    "peak_db": -8,
+    "edits": "trimmed"
+  }
+}

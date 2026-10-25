@@ -625,11 +625,14 @@ def systems_boot(r):
 
 # ---------------------------------------------------------------- output
 
-def write_wav(path: str, x: np.ndarray, peak_db: float = -1.0) -> None:
+def write_wav(path: str, x: np.ndarray, peak_db: float = -1.0, loop: bool = False) -> None:
+    """Peak-normalised mono 16-bit WAV. A one-shot gets a 5 ms fade out; a loop must not, or the
+    fade clicks at the seam on every repeat."""
     peak = float(np.max(np.abs(x))) or 1.0
     y = np.clip(x / peak * 10 ** (peak_db / 20), -1, 1)
-    fade = min(len(y), int(0.005 * SR))
-    y[-fade:] *= np.linspace(1, 0, fade)
+    if not loop:
+        fade = min(len(y), int(0.005 * SR))
+        y[-fade:] *= np.linspace(1, 0, fade)
     with wave.open(path, "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
@@ -651,7 +654,7 @@ def main() -> int:
         if not np.all(np.isfinite(x)):
             print(f"{name}: produced a non-finite sample", file=sys.stderr)
             return 1
-        write_wav(os.path.join(args.out, f"{name}.wav"), x, peak_db)
+        write_wav(os.path.join(args.out, f"{name}.wav"), x, peak_db, loop="(loops)" in what)
         # a 120-point peak outline for the page's waveform strip
         peaks = np.abs(x).reshape(-1)[: len(x) // 120 * 120].reshape(120, -1).max(axis=1)
         peaks = peaks / (peaks.max() or 1.0)

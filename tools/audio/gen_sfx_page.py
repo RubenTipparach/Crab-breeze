@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Writes the Mech Sounds page (docs/mockups/sounds.html) from output/sfx/sfx.json.
 
-Every sound gen_sfx.py makes, grouped as the game uses them, with its description, length, a
+Every sound tools/audio/render_sfx.sh makes (recorded CC0 cuts and synthesised cues), grouped as the game uses them, with its description, length, a
 waveform strip from its peaks and a play button (loops play on repeat). Each sound's MP3 share copy
 is embedded in the page as a data: URI (about 2 MB for all of them), so the page needs no files beside
 it. Same look as the Crab Breeze Music page.
@@ -53,6 +53,7 @@ section { display: grid; gap: 14px }
 .row { display: grid; grid-template-columns: auto minmax(0, 1fr) 200px; gap: 6px 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--rule) }
 .row .txt { display: grid; gap: 2px; min-width: 0 }
 .row .name { font: 500 14px/1.2 var(--f-mono) }
+.rec { color: var(--steel) !important }
 .row .name em { font-style: normal; color: var(--amber); margin-left: 8px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase }
 .row .what { color: var(--steel); font-size: 14.5px }
 .row canvas { width: 200px; height: 40px; display: block; cursor: pointer }
@@ -68,15 +69,15 @@ footer { color: var(--steel); font-size: 14px; display: grid; gap: 6px; border-t
 BODY = """<div class="wrap">
   <header class="mast">
     <div class="stripe" aria-hidden="true"></div>
-    <span class="eyebrow">Crab Breeze sound effects · works sheet 1 · 2026-10-25</span>
+    <span class="eyebrow">Crab Breeze sound effects · works sheet 2 · 2026-10-25</span>
     <h1>Crab Breeze Sounds</h1>
-    <p>The first __COUNT__ sounds for the mech, its weapons, what they hit and the cockpit, voiced electronic and futuristic. Every cue the sound and weapon plans name has one: footfalls, servos, the hatch and its steam, jets, every gun from the autocannon to the plasma cannon, lock tones, explosions and alarms.</p>
-    <div class="facts"><span>Cues <b>__COUNT__</b></span><span>Made by <b>tools/audio/gen_sfx.py</b></span><span>Format <b>mono 44.1 kHz OGG</b></span><span>Licence <b>ours, no strings</b></span></div>
-    <p class="status">Synthesised placeholders: built from oscillators, noise and filters because this session cannot reach the free sound libraries. Any recorded CC0 sound that beats one of these replaces it under the same cue name. Not in the game yet: playing them is the sound plan (openspec/changes/audio).</p>
+    <p>__COUNT__ sounds for the mech, its weapons, what they hit and the cockpit. __REC__ are cut from real recordings (CC0 packs from OpenGameArt and Kenney: a mech stomp, rocket motors, ship cannons, gunshots, explosions, steam), slowed and layered to a 24 m machine; the cockpit tones and a few others are synthesised. Cues marked <em class="rec">rec</em> are recorded.</p>
+    <div class="facts"><span>Cues <b>__COUNT__</b></span><span>Recorded <b>__REC__</b></span><span>Synthesised <b>__SYN__</b></span><span>Format <b>mono 44.1 kHz OGG</b></span><span>Licence <b>CC0 and ours</b></span></div>
+    <p class="status">Each recorded cue names its originals in assets/audio/sfx/SOURCES.md. Not in the game yet: playing them is the sound plan (openspec/changes/audio).</p>
   </header>
   <div id="groups" style="display:grid;gap:44px"></div>
   <footer>
-    <span>Generator: tools/audio/gen_sfx.py · Encode: tools/audio/render_sfx.sh · Game copies: assets/audio/sfx/*.ogg · Plans: openspec/changes/audio, weapon-kinds, multi-lock</span>
+    <span>Cuts: tools/audio/cut_cc0.py to tools/audio/cc0_cues.json · Synthesis: tools/audio/gen_sfx.py · Encode: tools/audio/render_sfx.sh · Game copies: assets/audio/sfx/*.ogg · Plans: openspec/changes/audio, weapon-kinds, multi-lock</span>
     <span>Sources for recorded replacements and their licences: docs/analysis/audio-sources.md</span>
   </footer>
 </div>
@@ -101,7 +102,7 @@ for (const [g, title] of Object.entries(GROUPS)) {
     const row = document.createElement('div');
     row.className = 'row';
     row.innerHTML = `<button class="play" type="button" id="play-${s.name}" aria-pressed="false" aria-label="Play ${s.name}">Play</button>
-      <div class="txt"><span class="name">${s.name}${s.loop ? '<em>loop</em>' : ''} · ${fmt(s.seconds)}</span><span class="what">${s.what}</span></div>
+      <div class="txt"><span class="name">${s.name}${s.recorded ? '<em class="rec">rec</em>' : ''}${s.loop ? '<em>loop</em>' : ''} · ${fmt(s.seconds)}</span><span class="what">${s.what}</span></div>
       <canvas aria-hidden="true"></canvas>`;
     rows.appendChild(row);
     const audio = new Audio();
@@ -143,7 +144,9 @@ def main() -> None:
     for s in data:
         mp3 = os.path.join(REPO, "output", "sfx", s["name"] + ".mp3")
         s["src"] = "data:audio/mpeg;base64," + base64.b64encode(open(mp3, "rb").read()).decode("ascii")
-    page = HEAD + BODY.replace("__COUNT__", str(len(data))) + SCRIPT.replace("__DATA__", json.dumps(data))
+    rec = sum(1 for s in data if s.get("recorded"))
+    body = BODY.replace("__COUNT__", str(len(data))).replace("__REC__", str(rec)).replace("__SYN__", str(len(data) - rec))
+    page = HEAD + body + SCRIPT.replace("__DATA__", json.dumps(data))
     out = os.path.join(REPO, "docs", "mockups", "sounds.html")
     with open(out, "w") as f:
         f.write(page)

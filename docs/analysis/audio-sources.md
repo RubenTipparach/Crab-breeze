@@ -58,22 +58,30 @@ engines from a Sonniss bundle.
 
 ## Recorded CC0 replacements (owner, 2026-10-25: "can you not pull from cc0 sound fx?")
 
-The synthesised cues stay in place until each one has a recording that sounds better. A recorded
-cue is cut from CC0 originals by a committed spec (layers with start, length, pitch, gain, lowpass
-and fades, plus synthesised layers such as the sub rumble where a recording lacks low end), and
-gets a row in `assets/audio/sfx/SOURCES.md`.
+**Done for 28 of 36 cues (2026-10-25).** The owner opened the network to opengameart.org,
+kenney.nl and archive.org. `tools/audio/fetch_cc0.py` downloads the packs listed in
+`tools/audio/cc0_packs.json` into `/opt/sfx-src` (not committed) and reads each OpenGameArt page's
+licence field, refusing a pack without a CC0 option: Robotic Transformations and Misc/menu sci-fi
+sounds were refused that way, though GodotFall lists them as CC0. `tools/audio/cut_cc0.py` cuts each
+recorded cue to the spec in `tools/audio/cc0_cues.json` (layers with start, length, which shot of a
+take, tape-speed pitch, gain, steep filters and fades, plus our synthesised layers where a recording
+lacks weight) and writes `assets/audio/sfx/SOURCES.md`, which names every original. Synthesised
+still (8): lock_tone, lock_on, heat_lock, alarm_warning, radar_ping and systems_boot (no CC0 recording
+beat the tones), hatch_motor and foot_splash (no fitting pack fetched yet).
 
-**Blocked on the network.** The cloud environment refuses opengameart.org, kenney.nl, archive.org,
-commons.wikimedia.org, upload.wikimedia.org,
-freesound.org, godotengine.org and mediafire.com, where every original lives. The GitHub mirrors
-found on 2026-10-25: [hipdiscovery/Free-Sound-Effects](https://github.com/hipdiscovery/Free-Sound-Effects)
-holds only Kenney's 100 Interface Sounds (CC0, licence file checked); the Godot Asset Library's
-Kenney ports ([Kenney's Sci-Fi Sounds](https://godotengine.org/asset-library/asset/1834), Impact
-Sounds, RPG Audio, UI Audio, from `github.com/Loppansson/*-for-godot`) are gone from GitHub;
+**Still refused by the network.** archive.org's pages load but its files come from storage hosts
+(`dn*.ca.archive.org`, `ia*.us.archive.org`), so the NASA launch recordings below need
+`*.archive.org` allowed too. freesound.org answers 403 and upload.wikimedia.org does not connect.
+
+**Where the leads came from.** The GitHub mirrors checked first:
+[hipdiscovery/Free-Sound-Effects](https://github.com/hipdiscovery/Free-Sound-Effects) holds only
+Kenney's 100 Interface Sounds; the Godot Asset Library's Kenney ports
+([Kenney's Sci-Fi Sounds](https://godotengine.org/asset-library/asset/1834), Impact Sounds, RPG
+Audio, UI Audio, from `github.com/Loppansson/*-for-godot`) are gone from GitHub;
 `PanderMusubi/sound-effects-library-weapons` is a packaging script whose files sit on mediafire.
 [bonesvt/GodotFall](https://github.com/bonesvt/GodotFall) (revision `ad59aac`) ships 226 cuts from
-CC0 packs with a source table and its cut specs; the repository has no licence, so its cuts are not
-used, but its table and specs say which original file makes a good mech step, explosion or rocket.
+CC0 packs with a source table and its cut specs; the repository has no licence, so none of its cuts
+are used, but its table said which original file makes a good mech step, explosion or rocket.
 
 | Cue | CC0 originals (OpenGameArt unless marked) | Notes |
 | --- | --- | --- |
