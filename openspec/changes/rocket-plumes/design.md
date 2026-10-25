@@ -18,12 +18,12 @@
 
 ## 3. The trail
 
-- `trail_spacing_m` falls to 0.6 m, and the trail layer becomes:
-  - smoke from the `fx-sprites` sheet, 0.6 m growing at 0.5 m/s, 8 s;
+- `trail_spacing_m` falls to 1 m, and the trail layer becomes:
+  - smoke from the `fx-sprites` sheet, 1 m growing as it hangs, 6 s;
   - an ember Flame, 0.4 m, 0.15 s.
 - Grey runs from warm (0.8, 0.75, 0.7) to cool (0.6, 0.62, 0.65).
 - Puffs drift with the wind (`world.wind_m_s`, already used by the clouds).
-- At 300 m/s a rocket lays 500 puffs a second. Ten rockets in flight at once is 5 000 a second at 8 s each: over the 5 000 cap. So the trail is held to `trail_max_per_rocket` (400) live puffs: the oldest go first, and the spacing widens past 200 m from the eye.
+- At 240 m/s a rocket lays 240 puffs a second, 1 440 alive over 6 s. The trail is a stream effect whose capacity (rate times life times 1.4, about 2 000) is the per-rocket cap: a full trail stops laying until its oldest puffs die.
 
 ## 4. Light and dust
 

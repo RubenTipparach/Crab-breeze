@@ -1,6 +1,7 @@
 //! Crab Breeze, the game. This file is the composition root (CLAUDE.md section 6.2): it reads the
 //! command line and the data, and wires the plugins. It holds no game logic.
 
+mod battle_fx;
 mod bench;
 mod blast;
 mod buildings;
@@ -22,6 +23,7 @@ mod pbr_set;
 mod perf_hud;
 mod physics;
 mod pilot;
+mod plumes;
 mod screen_cut;
 mod screens_cube;
 #[cfg(test)]
@@ -113,6 +115,8 @@ fn main() -> AppExit {
     .add_plugins((
         screens_cube::ScreensCubePlugin,
         skins::SkinsPlugin,
+        battle_fx::BattleFxPlugin,
+        plumes::PlumesPlugin,
         loading::LoadingPlugin,
         perf_hud::PerfHudPlugin,
         units::UnitsPlugin,

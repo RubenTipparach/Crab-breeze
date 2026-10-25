@@ -463,7 +463,103 @@ vec4 clod_$name(vec2 uv) {
     return g
 
 
+def hit_marks():
+    """Sixteen hit marks for mech armour (openspec change `mech-damage-fx` section 1), a 4 x 4 sheet: row 0 autocannon
+    punctures with torn bright rims, row 1 cannon dents with a burnt halo, row 2 rocket scorch splats, row 3 gouges to
+    bare metal. Albedo and alpha, height (for the normal), roughness and metal (bare metal shines)."""
+    g = Graph("Hit Marks")
+    n1 = fbm(g, 24, iterations=5, persistence=0.55)
+    n2 = fbm(g, 64, iterations=4, persistence=0.5, offset=0.4)
+    inst = HASH + CELL + """
+// Per cell: kind (row), a seed, and the local point centred on the cell.
+float kind_$name(vec2 uv) { return cell_$name(uv).y; }
+float seed_$name(vec2 uv) { vec2 c = cell_$name(uv); return c.x + c.y * 4.0; }
+vec2 p_$name(vec2 uv) { return local_$name(uv) - vec2(0.5); }
+// The mark's own shape: 0 outside, how far in (0 at the edge .. 1 at the centre) and the bare metal share.
+float ragged_$name(vec2 uv, vec2 p) {
+	return 1.0 + 0.35 * ($n1(uv) - 0.5) + 0.2 * sin(atan(p.y, p.x) * 7.0 + seed_$name(uv) * 3.0) * 0.5;
+}
+float height_$name(vec2 uv) {
+	vec2 p = p_$name(uv);
+	float k = kind_$name(uv);
+	float sd = seed_$name(uv);
+	float r = length(p) * ragged_$name(uv, p);
+	float h = 0.5;
+	if (k < 0.5) {
+		// Puncture: a hole, a raised torn rim.
+		h += -0.5 * smoothstep(0.1, 0.05, r) + 0.18 * exp(-pow((r - 0.11) / 0.03, 2.0));
+	} else if (k < 1.5) {
+		// Dent: a dished bowl.
+		h += -0.35 * (1.0 - smoothstep(0.0, 0.3, r)) + 0.08 * exp(-pow((r - 0.31) / 0.04, 2.0));
+	} else if (k < 2.5) {
+		// Scorch: blistered paint, barely any shape.
+		h += 0.04 * ($n2(uv) - 0.5) * smoothstep(0.42, 0.2, r);
+	} else {
+		// Gouge: a long groove across the cell, turned by the seed.
+		float a = (h_$name(sd) - 0.5) * 1.2;
+		vec2 q = vec2(p.x * cos(a) - p.y * sin(a), p.x * sin(a) + p.y * cos(a));
+		float len = smoothstep(0.42, 0.3, abs(q.x));
+		h += -0.3 * smoothstep(0.045, 0.0, abs(q.y + 0.03 * sin(q.x * 20.0 + sd))) * len;
+	}
+	return h;
+}
+vec4 albedo_$name(vec2 uv) {
+	vec2 p = p_$name(uv);
+	float k = kind_$name(uv);
+	float sd = seed_$name(uv);
+	float r = length(p) * ragged_$name(uv, p);
+	float d = $n2(uv);
+	vec3 soot = vec3(0.03, 0.028, 0.026);
+	vec3 metal = mix(vec3(0.55, 0.56, 0.58), vec3(0.75, 0.76, 0.78), d);
+	vec3 c = soot;
+	float a = 0.0;
+	if (k < 0.5) {
+		float hole = smoothstep(0.1, 0.05, r);
+		float rim = exp(-pow((r - 0.11) / 0.035, 2.0));
+		c = mix(soot, metal, rim);
+		c = mix(c, vec3(0.005), hole);
+		a = max(max(hole, rim), 0.8 * smoothstep(0.28, 0.1, r) * (0.6 + 0.4 * d));
+	} else if (k < 1.5) {
+		float bowl = smoothstep(0.32, 0.22, r);
+		float halo = smoothstep(0.45, 0.25, r);
+		c = mix(vec3(0.06, 0.05, 0.045), metal * 0.7, bowl * smoothstep(0.4, 0.75, d));
+		a = max(halo * 0.9, bowl);
+	} else if (k < 2.5) {
+		float burn = smoothstep(0.45, 0.12, r + 0.15 * (d - 0.5));
+		c = mix(vec3(0.06, 0.045, 0.03), soot, smoothstep(0.3, 0.1, r));
+		a = burn * (0.75 + 0.25 * d);
+	} else {
+		float a2 = (h_$name(sd) - 0.5) * 1.2;
+		vec2 q = vec2(p.x * cos(a2) - p.y * sin(a2), p.x * sin(a2) + p.y * cos(a2));
+		float len = smoothstep(0.42, 0.3, abs(q.x));
+		float groove = smoothstep(0.05, 0.0, abs(q.y + 0.03 * sin(q.x * 20.0 + sd))) * len;
+		float scuff = smoothstep(0.12, 0.0, abs(q.y)) * len * 0.5;
+		c = mix(soot * 3.0, metal, groove);
+		a = max(groove, scuff);
+	}
+	return vec4(c, clamp(a, 0.0, 1.0) * edge_$name(uv));
+}
+float metal_$name(vec2 uv) {
+	vec2 p = p_$name(uv);
+	float k = kind_$name(uv);
+	float r = length(p) * ragged_$name(uv, p);
+	if (k < 0.5) { return exp(-pow((r - 0.11) / 0.035, 2.0)); }
+	if (k > 2.5) { return albedo_$name(uv).g > 0.4 ? 1.0 : 0.0; }
+	return 0.0;
+}
+"""
+    s = shader(g, "hit marks", [("n1", "f", n1), ("n2", "f", n2)], inst,
+               [("f", "height_$name($uv)"), ("rgba", "albedo_$name($uv)"), ("f", "mix(0.85, 0.35, metal_$name($uv))"),
+                ("f", "albedo_$name($uv).a"), ("f", "metal_$name($uv)")])
+    normal = g.normal_map((s, 0), strength=2.0)
+    ao = g.occlusion((s, 0), strength=1.2, radius=6)
+    g.material(albedo=(s, 1), roughness=(s, 2), metallic=(s, 4), normal=normal, ao=ao, depth=(s, 0), transparent=True,
+               opacity=(s, 3))
+    return g
+
+
 GRAPHS = {
+    "hit_marks": hit_marks,
     "blast_scorch": blast_scorch,
     "churned_soil": churned_soil,
     "smoke_puffs": smoke_puffs,
