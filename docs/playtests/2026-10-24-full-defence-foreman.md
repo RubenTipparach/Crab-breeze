@@ -2,7 +2,7 @@
 
 - **Machine:** RTX 3070, i7-9700F, Windows 10; the game's window at 1920 x 1080; quick release build (thin LTO off) of branch `cockpit-mfds`.
 - **Take:** `crab-breeze --mech mechs/foreman.ron --showcase defence`, recorded with OBS from `PLAYTEST_START` to `PLAYTEST_END`. First person throughout, uncut, 9 min 51 s.
-- **Drive:** `crab-breeze-2026-10-24-full-defence-foreman.mp4` in `dungeon-crawler-2026` (H.264, CRF 26, 196 MB).
+- **Drive:** [crab-breeze-2026-10-24-full-defence-foreman.mp4](https://drive.google.com/file/d/1U0T4iC63YOIzdSKQFYq4lQtXjG6YQ0mC/view) (H.264, CRF 26, 196 MB), confirmed with the Drive connector.
 - **Result:** won. All 41 enemies destroyed: 30 raiders and 11 vehicles. Final city damage: city 1 0.2 %, city 2 1.0 %, city 3 1.9 %.
 
 ## What it shows
