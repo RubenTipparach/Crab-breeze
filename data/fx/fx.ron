@@ -20,6 +20,9 @@
     shake: (max_deg: 1.2, reach_m_per_cbrt_mj: 60.0, decay_s: 0.7),
     // Recipes played as continuous streams from an emitter riding the body, bursts a second: a
     // jet's flame while it fires, a wreck's fire while it burns.
+    // Big translucent clouds drawn apart, each in a stable order (merged, their particles reorder
+    // every frame and the cloud flickers; owner, 2026-10-25). Each burst of these is its own draw.
+    sorted: ["explosion_ground", "explosion_air", "explosion_water", "collapse_dust", "creak_dust", "member_fail"],
     stream_per_s: {"jet_flame": 60.0, "burning": 10.0},
     // Particle bursts start only within 400 m of the eye (times the effect's scale; explosions four
     // times as far): far off they barely show and each costs an effect of its own (2026-10-24).

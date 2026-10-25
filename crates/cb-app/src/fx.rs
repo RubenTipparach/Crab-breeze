@@ -375,7 +375,20 @@ fn play(
                     room -= n;
                     let dir = if along_dir { e.dir } else { Vec3::Y };
                     let at = e.at + e.dir * offset_m * s;
-                    particles::burst(&mut commands, &mut lib, &mut effects, e.recipe, index, layer, n, at, dir, s, now);
+                    particles::burst(
+                        &mut commands,
+                        &mut lib,
+                        &mut effects,
+                        e.recipe,
+                        index,
+                        layer,
+                        n,
+                        at,
+                        dir,
+                        s,
+                        now,
+                        cfg.sorted.iter().any(|r| r == e.recipe),
+                    );
                 }
                 Layer::Light {
                     lumens,
