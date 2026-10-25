@@ -17,7 +17,7 @@ mockup is `docs/mockups/crab_fortress.html`.
 
 ## What changes
 
-- **The Hermit** (working name, survey G20): a 420 m air fortress shaped like a crab's carapace, hanging
+- **The Hermit** (working name, survey H2): a 420 m air fortress shaped like a crab's carapace, hanging
   on eight lift thrusters at the ends of eight leg pylons, four a side. It cruises at 900 m and comes down
   to 600 m over the city it attacks.
 - **Plated thrusters and hull thrusters** (owner, 2026-10-25): each lift thruster's outboard side is a 300 mm

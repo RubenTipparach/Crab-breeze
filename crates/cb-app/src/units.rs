@@ -54,6 +54,8 @@ pub struct Placed {
     pub cargo_wave: Option<usize>,
     /// Gone from the world (dead and removed, or a plane that has left).
     pub gone: bool,
+    /// The mission that brought it (`free-roam-missions`: it leaves when that mission is turned off).
+    pub mission: Option<cb_core::missions::MissionKind>,
 }
 
 /// Every vehicle, in id order.
@@ -66,6 +68,19 @@ pub struct Units {
 
 impl Units {
     fn add(&mut self, unit: impl FnOnce(u32) -> Unit, wave: Option<usize>, cargo_wave: Option<usize>) {
+        // Wave vehicles are the defence's.
+        let mission = (wave.is_some() || cargo_wave.is_some()).then_some(cb_core::missions::MissionKind::Defence);
+        self.add_for(unit, wave, cargo_wave, mission);
+    }
+
+    /// Adds a vehicle brought by `mission`; returns its id.
+    pub fn add_for(
+        &mut self,
+        unit: impl FnOnce(u32) -> Unit,
+        wave: Option<usize>,
+        cargo_wave: Option<usize>,
+        mission: Option<cb_core::missions::MissionKind>,
+    ) -> u32 {
         let id = UNIT_ID_BASE + self.next_id;
         self.next_id += 1;
         self.list.push(Placed {
@@ -73,7 +88,24 @@ impl Units {
             wave,
             cargo_wave,
             gone: false,
+            mission,
         });
+        id
+    }
+
+    /// Every vehicle `mission` brought leaves the world (the mission was turned off).
+    pub fn retire(&mut self, mission: cb_core::missions::MissionKind) {
+        for p in self.list.iter_mut().filter(|p| p.mission == Some(mission)) {
+            p.gone = true;
+        }
+    }
+
+    /// `mission`'s vehicles flying or fighting now.
+    pub fn count_for(&self, mission: cb_core::missions::MissionKind) -> u32 {
+        self.list
+            .iter()
+            .filter(|p| p.mission == Some(mission) && !p.gone && p.unit.alive())
+            .count() as u32
     }
 
     /// The vehicle with this id.
@@ -127,7 +159,7 @@ impl Plugin for UnitsPlugin {
 }
 
 /// Mechs and vehicles alike, for everything that picks a target.
-fn list_hostiles(
+pub fn list_hostiles(
     mechs: Query<(&MechSim, &MechId, Option<&EnemyGoal>, Option<&crate::defence::Raider>), With<Enemy>>,
     units: Res<Units>,
     data: Res<Data>,

@@ -219,6 +219,7 @@ fn step_pilot(
         dug: &live.dug,
         trees: Some(&live.forest),
         structures: Some(&live.structures),
+        platforms: &live.platforms,
     };
     let event = pilot
         .curr

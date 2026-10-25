@@ -390,6 +390,8 @@ function variantOf(r, sheet) {
   const m = new T.MeshStandardMaterial(Object.assign({ color: r.hex, map: loadTex(sheet, true), normalMap: loadTex(sheet + "_n"),
     roughnessMap: orm, metalnessMap: orm, aoMap: orm, roughness: 1, metalness: 1 }, r.extra || {}));
   m.color.convertSRGBToLinear(); m.userData.plated = true;
+  // what the game's model bakes (tools/mockups/export_fortress_glb.mjs): the sheet, its livery mask and accent
+  Object.assign(m.userData, { sheet, livery: liv, accent: r.accent });
   const accent = new T.Color(r.accent).convertSRGBToLinear();
   m.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, { liveryMap: { value: liv }, accentColor: { value: accent } });
@@ -486,7 +488,7 @@ const parts = [];
 function part(id, kind, obj, opts = {}) {
   const hp = opts.hp || KINDS[kind].hp || 250;
   const p = Object.assign({ id, kind, obj, alive: true, label: null, fire: new T.Vector3(0, 4, 0), name: KINDS[kind].name, hp, hpMax: hp }, opts);
-  obj.userData.part = p; parts.push(p); return p;
+  obj.userData.part = p; obj.name = "PART_" + id; parts.push(p); return p;   // PART_<id>: the game finds it by name
 }
 
 (() => {
@@ -500,10 +502,10 @@ function part(id, kind, obj, opts = {}) {
   const band = add(F, cyl(1, 1, 1, 40, true), M.mark); band.scale.set(141.5, 7, 211.5);
   const band2 = add(F, cyl(1, 1, 1, 40, true), M.dark, 0, -6, 0); band2.scale.set(140.8, 3, 210.8);
   add(F, box(90, 30, 360), M.plat, 0, 33, 0);        // the spine under the deck
-  add(F, box(80, 2, 362), [M.dark, M.dark, M.deck, M.dark, M.hazard, M.hazard], 0, 48, 0);
+  add(F, box(80, 2, 362), [M.dark, M.dark, M.deck, M.dark, M.hazard, M.hazard], 0, 48, 0).userData.walk = "deck";   // walk: a surface the game stands mechs on
   [-1, 1].forEach(s => {
     add(F, box(40, 32, 240), M.plat, 67 * s, 26, 0);  // the shoulders, 6.4 m below the deck
-    add(F, box(40.4, 0.6, 240.4), M.dark, 67 * s, 42.3, 0);
+    add(F, box(40.4, 0.6, 240.4), M.dark, 67 * s, 42.3, 0).userData.walk = "shoulder";
     add(F, box(1.2, 2.4, 240), M.hazard, 87 * s, 43.6, 0);
   });
   // the bridge: the crab's eyes on stalks at the bow
@@ -537,7 +539,7 @@ const THR_Z = LAYOUT.lift_z;
   const beam = (a, b, w, h, mat) => { const d = b.clone().sub(a), m = add(F, box(w, h, d.length()), mat);
     m.position.copy(a).addScaledVector(d, 0.5); m.lookAt(F.localToWorld(b.clone())); return m; };
   F.updateMatrixWorld(true);
-  beam(root, knee, 14, 5, M.hull2);                                   // the walkway (landable, 14 m wide)
+  beam(root, knee, 14, 5, M.hull2).userData.walk = "walkway_" + id;  // the walkway (landable, 14 m wide)
   beam(root.clone().add(new T.Vector3(0, 2.8, 6.6)), knee.clone().add(new T.Vector3(0, 2.8, 6.6)), 0.8, 1.2, M.hazard);
   beam(root.clone().add(new T.Vector3(0, 2.8, -6.6)), knee.clone().add(new T.Vector3(0, 2.8, -6.6)), 0.8, 1.2, M.hazard);
   const strut = [beam(knee, top, 9, 7, M.dark), beam(knee.clone(), top.clone().add(new T.Vector3(-14 * s, 0, 0)), 3, 3, M.metal)];
@@ -571,7 +573,7 @@ const THR_Z = LAYOUT.lift_z;
   const st = new T.InstancedMesh(spikeGeo, M.spike, studs.length); studs.forEach((m, i) => st.setMatrixAt(i, m)); st.castShadow = true; g.add(st);
   st.userData.armour = 300; st.userData.msg = plate.userData.msg;
   // the leg below the knee (strut, sleeves and nacelle) is one piece: destroyed, it breaks off and falls
-  const leg = new T.Group(); F.add(leg); strut.forEach(m => leg.add(m)); leg.add(g);
+  const leg = new T.Group(); leg.name = "LEG_" + id; F.add(leg); strut.forEach(m => leg.add(m)); leg.add(g);
   leg.traverse(o => { if (o.isMesh) o.userData.mat0 = o.material; });
   const t = { id, side: si, s, g, cowl, ring, plume, wash, leg, knee: knee.clone(), fall: null };
   t.part = part(id, "lift", g, { label: "Lift " + id, name: "Lift thruster " + id, fire: new T.Vector3(0, 22, 0), up: 26 });
@@ -593,7 +595,7 @@ const HULL = [];
     port.rotation.x = -up * Math.PI / 2; port.userData.port = true;
     for (let b = -2; b <= 2; b++) { const bar = add(g, box(22 * Math.sqrt(1 - (b / 2.6) ** 2), 0.7, 0.8), M.metal, 0, y + up * 1.5, b * 4.4, false); bar.userData.port = true; }
     const doors = [-1, 1].map(dz => { const d = add(g, new T.CylinderGeometry(13, 13, 0.8, 20, 1, false, dz > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI), M.hull, 0, y + up * 2.6, 0);
-      d.userData.armour = 300; d.userData.msg = "SEALED 300 mm"; d.userData.dz = dz; return d; });
+      d.userData.armour = 300; d.userData.msg = "SEALED 300 mm"; d.userData.dz = dz; d.name = `DOOR_${id}_${up > 0 ? "top" : "bottom"}_${dz > 0 ? "a" : "b"}`; return d; });
     return { y, up, port, doors };
   });
   const plume = add(g, new T.ConeGeometry(10, 44, 18, 1, true), plumeMat(0x6cdc2a), 0, bot - 24, 0, false); plume.rotation.x = Math.PI; plume.raycast = () => {}; plume.visible = false;
@@ -653,6 +655,8 @@ const TURRETS = [];
 function turret(kind, b, yaw, pitch, muzzle, label, extra) {
   const tu = Object.assign({ kind, base: b, yaw, pitch, muzzle, cool: 0, burst: 0, state: "idle", st: 0, aimed: false }, extra || {});
   tu.part = part(kind + (TURRETS.length + 1), kind, b, { label, fire: new T.Vector3(0, kind === "beam" ? -8 : 4, 0) });
+  yaw.name = "YAW_" + tu.part.id; pitch.name = "PITCH_" + tu.part.id;
+  const mz = new T.Object3D(); mz.name = "MUZZLE_" + tu.part.id; mz.position.copy(muzzle); pitch.add(mz);   // where its rounds leave
   TURRETS.push(tu); return tu;
 }
 function flak(x, y, z, label) { const b = new T.Group(); b.position.set(x, y, z); F.add(b);
@@ -729,9 +733,9 @@ function projectUVs(root) {
   root.traverse(o => {
     if (!o.isMesh || o.isInstancedMesh || Array.isArray(o.material) || !ROLES.has(o.material)) return;
     const r = ROLES.get(o.material), g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(), pos = g.attributes.position, uv = new Float32Array(pos.count * 2);
-    const rel = new T.Matrix4().multiplyMatrices(inv, o.matrixWorld), polar = o.userData.polar, cyl = !polar && g.type === "CylinderGeometry";
+    const rel = new T.Matrix4().multiplyMatrices(inv, o.matrixWorld), polar = o.userData.polar, cyl = !polar && o.geometry.type === "CylinderGeometry";
     g.computeBoundingBox(); const bb = g.boundingBox, wb = bb.clone().applyMatrix4(rel), longBox = !polar && !cyl && wb.max.z - wb.min.z >= 150;
-    const P = g.parameters || {}, rad = Math.max(P.radiusTop || 0, P.radiusBottom || 0) || 1;
+    const P = o.geometry.parameters || {}, rad = Math.max(P.radiusTop || 0, P.radiusBottom || 0) || 1;
     const sheets = new Set();
     for (let i = 0; i + 2 < pos.count; i += 3) {
       a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
@@ -769,6 +773,8 @@ function projectUVs(root) {
 }
 projectUVs(F);
 
+// the fortress as built, before anything rides it (the deck guard, the pilot): what the game's model is made of
+const STATIC = new Set(F.children);
 // static parts keep their own materials so a destroyed part can be put back
 parts.forEach(p => p.obj.traverse(o => { if (o.isMesh) o.userData.mat0 = o.material; }));
 
@@ -1650,7 +1656,7 @@ function resetAll() {
   LIFTS.forEach(l => { if (l.mite) F.remove(l.mite); l.mite = null; l.busy = -1; l.plate.position.y = 0; l.hatch.visible = false; });
   for (let i = parts.length - 1; i >= 0; i--) if (["fighter", "guard", "drop"].includes(parts[i].kind)) parts.splice(i, 1);
   parts.forEach(p => { p.hp = p.hpMax; if (!p.alive) { p.alive = true; scorch(p.obj, false); } });
-  THR.forEach(t => { reattach(t); t.cowl.material = M.hull; });
+  THR.forEach(t => { reattach(t); t.cowl.material = t.cowl.userData.mat0; });
   FIGHTER_POOL.forEach(f => { f.visible = false; f.rotation.set(0, 0, 0); });
   VLS.forEach((v, i) => { v.cool = 1 + i * 2.5; v.cells = 12; });
   TURRETS.forEach(t => { t.cool = 0; t.burst = 0; t.state = "idle"; t.st = 0; if (t.ray) t.ray.visible = false; });
@@ -1695,6 +1701,8 @@ window.MOCKUP = {
   pause() { speed = 0; }, labels(on) { setLabels(on); },
   run(seconds) { for (let k = 0; k < Math.round(seconds / DT); k++) update(); refresh(); },
   climb(t) { setView("climb"); climbT = t; },
+  // the fortress as built, for tools/mockups/export_fortress_glb.mjs
+  exportable() { return { F, STATIC, parts, M }; },
   orbitFrom(pos, tgt) { controls.target.copy(F.position).add(new T.Vector3(...tgt)); camera.position.copy(F.position).add(new T.Vector3(...pos)); controls.update(); },
 };
 </script>

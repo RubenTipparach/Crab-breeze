@@ -8,12 +8,14 @@ mod building_arrays;
 mod building_state;
 mod buildings;
 mod capture;
+mod capture_fortress;
 mod career;
 mod cli;
 mod clouds_render;
 mod combat;
 mod defence;
 mod demolition;
+mod fortress;
 mod fx;
 mod grass;
 mod ground;
@@ -24,6 +26,7 @@ mod loading;
 mod mech;
 mod menu;
 mod mfd;
+mod missions;
 mod particles;
 mod pbr_set;
 mod perf_hud;
@@ -138,7 +141,9 @@ fn main() -> AppExit {
         rope::RopePlugin,
         vents::VentsPlugin,
         career::CareerPlugin,
-    ));
+    ))
+    // Free roam's mail and its missions (free-roam-missions); the Hermit (crab-airship).
+    .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin));
     // Cheap, correctly lit clouds (openspec change `cloud-puffs`); `CB_NO_CLOUDS=1` leaves them
     // out, so the benchmark can measure what they cost.
     if !cli::switched_off("CB_NO_CLOUDS") {
@@ -174,6 +179,9 @@ fn main() -> AppExit {
             .insert_resource(menu::Play::Defence);
     } else if scripted || args.mission.is_some() {
         app.insert_resource(menu::Play::FreeRoam);
+        if args.mission.as_deref() == Some("fortress") {
+            app.insert_resource(missions::StartWith(cb_core::missions::MissionKind::Fortress));
+        }
     } else {
         app.insert_resource(menu::TitleWanted);
     }
@@ -182,7 +190,9 @@ fn main() -> AppExit {
         window: !scripted && !cli::switched_off("CB_UNCAPPED"),
     });
     if let Some(dir) = args.stills {
-        if std::env::var("CB_STILLS_FX").is_ok() {
+        if std::env::var("CB_STILLS_FORTRESS").is_ok() {
+            app.add_plugins(capture_fortress::FortressStillsPlugin { dir });
+        } else if std::env::var("CB_STILLS_FX").is_ok() {
             app.add_plugins(capture::FxStillsPlugin { dir });
         } else {
             app.add_plugins(capture::StillsPlugin { dir });

@@ -125,7 +125,7 @@ too). Burning breaks and smoke columns follow its damage (`mech-damage-fx` recip
 destroys every building cell under its footprint and within 60 m of it, throws debris (`debris-physics`)
 and stays as a burning wreck. While both drive thrusters live it drifts along its racetrack at 15 m/s, so
 where it falls is the pilot's choice: stop the drive first to drop it where it is, or wait until it is
-over open ground. Whether a fall on the city counts as city damage is G23.
+over open ground. Whether a fall on the city counts as city damage is H5.
 
 ### Its look (owner, 2026-10-25)
 
@@ -171,15 +171,18 @@ t junctions, and about 20-30% diagonal lines", "we want normal maps for large an
 
 ## 7. Data and code
 
-- `data/world/fortress.ron`: everything in sections 1 to 5 with the unit in the key (`mass_t`,
-  `thruster_max_share`, `sink_drag_per_m`, `list_deg_per_weight`, `launch_interval_s`, parts with
-  `hp`, `armour_mm`, `weak_point`), validated on load.
-- `cb-core::fortress`: the lift rule, the pose step (altitude, list, drift on the racetrack), part
-  states, launch and drop timers, the downwash test. Pure and deterministic (fixed step, seeded).
-- `cb-core::support`: `support_at` gains the moving-surface velocity.
-- `cb-app::fortress`: spawns the block-out (then the Blender model), its parts as entities with hit
-  shapes, the targeting boxes, the downwash and plume effects, the cockpit's lift readout.
-- `data/missions/defence.ron`: wave 3 brings the fortress (G16).
+- `data/missions/fortress.ron`: everything in sections 1 to 5 and 9 with the unit in the key (`mass_t`,
+  `thruster_max_share`, `sink_drag_per_m`, `list_deg_per_weight`, `launch_interval_s`, each part kind's `hp`,
+  `armour_mm`, weak point and hit capsule, each defence's gun), validated on load.
+- `cb-core::fortress`: the lift rule with the hull thrusters, the pose step (height, sink, list, drift on its
+  circle), part states, how a hit is taken (section 3, by the round's direction in the part's frame), the turrets'
+  aim and fire clocks, the launch clock, the downwash test. Pure and deterministic (fixed step, seeded).
+- `cb-core::world`: the `Scene` gains platforms, moving surfaces a body stands on (`support_at`), with the motion
+  they carry a body by.
+- `cb-app::fortress`: the mission's begin and end (`free-roam-missions`), the model, its parts' hit capsules, the
+  turrets' fire through the one `Shots`, the fighters through `units`, the platforms, the fall, the legs breaking off,
+  the crash, the readout.
+- The defence's wave 3 bringing the fortress (G16) waits until the fortress has been played on its own.
 
 ## 8. Cost
 
@@ -194,13 +197,86 @@ t junctions, and about 20-30% diagonal lines", "we want normal maps for large an
 - Effects: 8 downwash columns and 10 exhaust plumes (`rocket-plumes`), flak bursts as `combat-fx` recipes.
 - All of it measured with `--bench defence` on the owner's machine; a cloud session measures nothing.
 
+## 9. In the game: the first build (owner, 2026-10-25)
+
+"looks good, build it in game, add an email in free roam to fight the crab fortress." The Hermit is a mission
+of its own, started from free roam's mail (`free-roam-missions`).
+
+**The model.** The block-out the owner approved is the mockup, so the game's model is exported from it:
+`tools/mockups/export_fortress_glb.mjs` loads `docs/mockups/crab_fortress.html` headless and writes
+`assets/models/fortress_hermit.glb` with three.js's glTF exporter, and `fortress_hermit.json`, its manifest
+(triangles, materials, budget, node names). One implementation of its shape (CLAUDE.md 6.1): the page and the game
+draw the same geometry from `tools/mockups/fortress_layout.json`. The livery mask is baked into each material's
+colour map (the page mixes it in a shader), the normal and ORM maps go in as they are, the spikes' instances become
+plain meshes and the effects (plumes, downwash, range shells) stay out. Nodes the game drives are named:
+`PART_<id>` for each of the 51 parts, `YAW_<id>` and `PITCH_<id>` for each turret, `LEG_<id>` for each leg below its
+knee, `DOOR_<id>` for the hull ports' doors. Budget 60 000 triangles. The Blender model replaces it later (task 3.1;
+CLAUDE.md section 13 lists the exception).
+
+**Its levels of detail** (owner, 2026-10-25: "crab fortress needs lod probably, like spikes should not render until we
+are up close"). The spikes are detail: the exporter names their merged meshes `DETAIL_*` and the manifest counts the
+triangles with them (LOD0) and without them (LOD1). The game draws a `DETAIL_` mesh only within `detail_range_m`
+(700 m, fading out over the last 100 m) of its origin, the hull's middle for the shell's spikes and each nacelle
+for its studs, with Bevy's own `VisibilityRange` (the trees' mechanism). From the ground 600 m below or a street
+away, the hull, thrusters and turrets draw; on the climb, on the deck or under a thruster, the spikes are there. The
+Blender model's LODs (task 3.1) replace this split.
+
+**Where.** It comes over the city nearest the pilot when the mission starts, its hull's middle 600 m above that
+city's ground, and flies a circle 380 m round the city's centre at 15 m/s (about 2.4 km a lap), nose along it.
+One drive thruster lost halves the speed; both lost, it stops over 20 s and hangs.
+
+**Hits.** Each part is a capsule from its node: thrusters along their axis, turrets round their mounts, the
+catapults, bays and lifts as flat capsules, the sizes in data. The hull itself is seven capsules along its length
+(the shell and the belly), with no hit points: a round meeting them stops on 300 mm. The hull thrusters are listed
+before the hull, so a round down a port reaches the thruster. What a hit does is section 3, from the round's
+direction and the point it struck in the part's own frame: a lift thruster's outboard half and skirt are 300 mm,
+its inboard side 60 mm, its nozzle (below `-18 m`) and grille (above `+18 m`) 40 mm at double damage; a hull port
+counts only within 30 deg of the fortress's vertical and only once the doors are open.
+
+**Defences in this build.** The 10 flak turrets (shells that burst within 10 m of the pilot's mech as a 1 MJ
+explosion), the 8 deck guns, the 4 missile launchers and 2 missile batteries (lock-on missiles on the existing
+seeker), the 4 beam turrets (a charge the pilot sees, then 10 damage/s to the mech's torso while the beam is on and
+the line is clear), and fighters: one off a live catapult every 20 s, up to 8 in the air, flown by the existing
+`fighter` unit. Every turret turns at 60 deg/s, fires only within 5 deg of its aim and only at the pilot's mech while the pilot sits in it (an empty mech is no
+threat; a cloud run found the parked mech destroyed before the pilot reached it), and
+leads it with `weapons::lead`. Losing the bridge doubles every aim error. Not yet: the crabs dropped from the bays
+and the deck guard (H6), next.
+
+**Standing on it.** The deck, the two shoulders and the eight pylon walkways are platforms: boxes in the fortress's
+frame whose tops a mech or the pilot stands on (`support_at`), carried with the fortress as it flies, sinks and
+lists. The walls of the spine and the bridge do not push yet (a block-out).
+
+**Downwash.** A live lift thruster pushes a mech in the column under it (30 m across, widening to 60 m 150 m down)
+down at 25 m/s2 and burns its torso at 15 damage/s.
+
+**The legs.** A destroyed lift thruster's leg breaks off at the knee and falls under gravity, tumbling; where it
+lands it explodes (30 MJ) and breaks every building cell within 25 m.
+
+**The fall and the crash.** As section 6; on the ground it breaks every building cell within its footprint and 60 m
+of it, throws a 200 MJ explosion at its middle and stays as a wreck. Won when it has crashed; lost when the pilot's
+mech is destroyed.
+
+**The readout.** The MISSION page and the HUD's mission line: `HERMIT  LIFT PORT 100 %  STBD 67 %  ALT 600 M`, the
+hull thrusters when open, `FALLING`, `DOWN: WON`. Every number is the rule's own (section 2).
+
+Tests (cb-core): `the_lift_readout_is_the_rule` and the section 2 tests, `a_round_on_the_outboard_plate_does_nothing`,
+`the_autocannon_cannot_hurt_a_cowl_but_doubles_on_a_grille`, `a_turret_does_not_fire_until_it_is_on_its_aim`,
+`a_lost_catapult_halves_the_launches`, `nothing_launches_while_falling`,
+`a_mech_standing_on_the_drifting_deck_stays_where_it_stood`, `a_mech_under_a_live_thruster_is_pushed_down_and_burned`,
+`the_same_seed_flies_the_same_fortress`. (cb-tools) `cb-tools validate` checks every part in `fortress.ron` against
+the glb's nodes.
+
+Cost of this build: the model 60 000 triangles at most, about 40 draws (one per material and sheet; parts that move
+are their own nodes); the turrets' and lift's step under 0.1 ms; the hit capsules 51 parts plus 7 hull, tested by
+each shot's metre steps as a mech's parts are. Measured on the owner's machine with the mission running.
+
 ## Open questions
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| G15 | The fortress's size and how it dies | 420 m (mechs are 24 m now), 600-900 m up, eight lift thrusters; it falls when a side is down to one | provisional (survey G15, reworded) |
-| G20 | Its name | the Hermit (a crab that carries its own shell) | provisional (survey G20) |
-| G21 | How it falls | the side rule, then the hull thrusters: three outer on one side open the hull, two hull thrusters on that side bring it down | provisional (survey G21; the hull thrusters and the plates are the owner's, 2026-10-25) |
-| G22 | How the pilot gets up and stays up | the jets as they are; land on the deck, shoulders or a pylon to recharge | provisional (survey G22) |
-| G23 | Does its crash count as city damage | yes: the pilot chooses where it falls (stop its drive first, or wait) | provisional (survey G23) |
-| G24 | Who guards the deck | 2 Shrikes and 4 Mites aboard, a Mite up each lift every 60 s | provisional (survey G24) |
+| H1 | The fortress's size and how it dies | 420 m (mechs are 24 m now), 600-900 m up, eight lift thrusters; it falls when a side is down to one | provisional (survey H1; G15 accepted the first 300 m sketch) |
+| H2 | Its name | the Hermit (a crab that carries its own shell) | provisional (survey H2) |
+| H3 | How it falls | the side rule, then the hull thrusters: three outer on one side open the hull, two hull thrusters on that side bring it down | provisional (survey H3; the hull thrusters and the plates are the owner's, 2026-10-25) |
+| H4 | How the pilot gets up and stays up | the jets as they are; land on the deck, shoulders or a pylon to recharge | provisional (survey H4) |
+| H5 | Does its crash count as city damage | yes: the pilot chooses where it falls (stop its drive first, or wait) | provisional (survey H5) |
+| H6 | Who guards the deck | 2 Shrikes and 4 Mites aboard, a Mite up each lift every 60 s | provisional (survey H6) |

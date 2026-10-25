@@ -1,15 +1,20 @@
 # Tasks: crab-airship
 
 - [x] 0.1 Mockup: `docs/mockups/crab_fortress.html` (`tools/mockups/gen_crab_fortress.py`): the block-out at true scale with a 24 m Foreman and the crab mechs; fighters launching off the catapults on patrol and cannon runs; turrets tracking and firing at your mech (flak, beams, deck guns, missiles); the deck guard fighting and replaced up the lifts; crabs dropped on chutes; your mech's cannon, autocannon and missiles against each part's armour, weak points and hit points until it falls and crashes, fired from your view in the outside views or from your cockpit; armour plates on the thrusters' outboard sides; the hull thrusters opening, hit only from directly above or below; its panelling and paint (section 6, its look); the guard crabs on IK; allied mechs drawing its fire; shots in `docs/screenshots/fortress/`
-- [ ] 1.1 `data/world/fortress.ron` and its validation
-- [ ] 1.2 `cb-core::fortress`: the lift rule with the hull thrusters (2b), pose, list and fall (tests: `a_side_with_two_thrusters_holds_its_half`, `three_kills_on_one_side_bring_it_down`, `two_kills_a_side_hold_at_full_throttle`, `a_falling_fortress_lists_toward_its_weak_side`, `the_sink_speed_never_passes_its_terminal_speed`)
-- [ ] 1.3 Launch and drop timers (tests: `a_lost_catapult_halves_the_launches`, `no_drops_without_a_bay`, `nothing_launches_while_falling`)
-- [ ] 1.4 Moving supports (test: `a_mech_standing_on_the_drifting_deck_stays_where_it_stood`, `a_mech_slides_off_past_its_grip`)
-- [ ] 1.5 Downwash (test: `a_mech_under_a_live_thruster_is_pushed_down_and_burned`)
-- [ ] 2.1 `cb-app::fortress`: the block-out in the game, parts as entities with hit shapes and targeting boxes (test: `the_autocannon_cannot_hurt_a_cowl_but_doubles_on_a_grille`)
-- [ ] 2.2 The cockpit lift readout from the rule (test: `the_lift_readout_is_the_rule`)
-- [ ] 2.3 Turrets, beams, deck guns and missile batteries on the existing weapons; the deck guard on the crab brain
-- [ ] 2.4 The fall: sliding off, breaking up, the crash and the wreck
+- [x] 1.1 `data/missions/fortress.ron` and `fortress_shape.ron` (measured off the model), validated
+- [x] 1.2 `cb-core::fortress`: the lift rule with the hull thrusters (2b), pose, list and fall (tests: `a_side_with_two_thrusters_holds_its_half`, `three_kills_on_one_side_open_the_hull_thrusters`, `the_hull_thrusters_hold_a_side_with_one_outer_thruster`, `two_hull_thrusters_lost_on_that_side_bring_it_down` (it lists toward the weak side), `two_kills_a_side_hold_at_full_throttle`, `the_sink_speed_never_passes_its_terminal_speed`, `both_drives_lost_it_hangs_where_it_is`, `the_same_seed_flies_the_same_fortress`)
+- [x] 1.3 Launch timers (drops wait for 2.8) (tests: `a_lost_catapult_halves_the_launches`, `nothing_launches_while_falling`)
+- [x] 1.4 Moving supports (`world::platform`) (tests: `a_mech_standing_on_the_drifting_deck_stays_where_it_stood`, `a_body_in_the_air_above_it_is_not_carried`; sliding off past its grip: not yet)
+- [x] 1.5 Downwash (test: `a_mech_under_a_live_thruster_is_pushed_down_and_burned`)
+- [x] 2.1 `cb-app::fortress`: the block-out in the game, parts as entities with hit shapes and targeting boxes (tests: `the_autocannon_cannot_hurt_a_cowl_but_doubles_on_a_grille`, `a_round_on_the_outboard_plate_does_nothing`, `a_hull_port_takes_damage_only_from_within_30_deg_of_vertical`; turrets: `a_turret_does_not_fire_until_it_is_on_its_aim`, `the_hull_hides_the_pilot_from_the_far_side`, `losing_the_bridge_doubles_the_spread`; `cb-tools`: `the_shipped_fortress_model_has_every_node_its_data_names`)
+- [x] 2.2 The cockpit lift readout from the rule (test: `the_lift_readout_is_the_rule`)
+- [x] 2.3 Turrets, beams, deck guns, missile launchers and batteries on the existing weapons (the deck guard: 2.8)
+- [x] 2.4 The fall: the legs breaking off, the list and sink, the crash on the buildings under it (sliding off a listing deck: not yet)
 - [ ] 2.5 Wave 3 of the defence brings the fortress (G16)
+- [x] 2.6 The model exported from the mockup (`tools/mockups/export_fortress_glb.mjs`): named nodes, baked livery, manifest and budget (section 9)
+- [x] 2.7 The mission started from free roam's mail (`free-roam-missions`); `--mission fortress`; won when it crashes
+- [ ] 2.8 Not in the first build: the dropped crabs and the deck guard (H6)
 - [ ] 3.1 The Blender block-out, then the detailed model with LODs (after the owner picks from the mockup)
 - [ ] 4.1 Playtest beats: climb to the deck, land, fight the guard, walk a pylon, kill three thrusters on one side, jump clear, watch it fall; measure with `--bench defence`
+- [x] 2.9 Headless stills in a cloud session (`CB_STILLS_FORTRESS=1`, `capture_fortress`): whole, under a thruster, on the deck, the hull opening, falling, crashed; `cb-tools validate` checks the model's nodes against the data
+- [x] 2.10 Levels of detail: the spikes as `DETAIL_` meshes drawn only within `detail_range_m` (owner, 2026-10-25: "spikes should not render until we are up close"); LOD0 and LOD1 triangles in the manifest

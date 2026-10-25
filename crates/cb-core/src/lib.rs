@@ -11,6 +11,7 @@ pub mod boarding;
 pub mod career;
 pub mod cockpit;
 pub mod data;
+pub mod fortress;
 pub mod fx;
 pub mod grass;
 pub mod ground_marks;
@@ -18,6 +19,7 @@ pub mod input;
 pub mod jobs;
 pub mod mech;
 pub mod mission;
+pub mod missions;
 pub mod pilot;
 pub mod rng;
 pub mod settings;
@@ -75,6 +77,10 @@ pub struct GameData {
     pub units: units::UnitsConfig,
     /// `data/enemies/skins.ron`.
     pub skins: skins::Skins,
+    /// `data/missions/fortress.ron` and `fortress_shape.ron`.
+    pub fortress: fortress::FortressData,
+    /// `data/missions/mail.ron`: free roam's mission mail.
+    pub missions: missions::MissionsMail,
 }
 
 impl GameData {
@@ -112,6 +118,12 @@ impl GameData {
         grass
             .validate_with(&world)
             .map_err(|reason| data::DataError { path: grass_path, reason })?;
+        let shape_path = root.join("missions/fortress_shape.ron");
+        let fortress = fortress::FortressData {
+            cfg: data::load_ron(&root.join("missions/fortress.ron"))?,
+            shape: data::load_ron(&shape_path)?,
+        };
+        fortress.check().map_err(|reason| data::DataError { path: shape_path, reason })?;
         Ok(Self {
             sim: data::load_ron(&root.join("sim.ron"))?,
             world,
@@ -132,6 +144,8 @@ impl GameData {
             sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
             units: data::load_ron(&root.join("world/units.ron"))?,
             skins,
+            fortress,
+            missions: data::load_ron(&root.join("missions/mail.ron"))?,
         })
     }
 
@@ -160,6 +174,14 @@ mod tests {
         for mech in GameData::mech_files(&root) {
             GameData::load(&root, &mech).unwrap_or_else(|e| panic!("{e}"));
         }
+    }
+
+    #[test]
+    fn the_fortress_launches_a_unit_that_exists() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let d = GameData::load(&root, "mechs/placeholder.ron").unwrap();
+        let unit = &d.fortress.cfg.launch.unit;
+        assert!(d.units.units.contains_key(unit), "no unit `{unit}` in data/world/units.ron");
     }
 
     #[test]

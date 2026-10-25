@@ -43,7 +43,8 @@ buildings, people), `T` tech and tools, `P` playtesting, `A` audio and music.
 | `combat-fx` | built, in the 2026-10-24 defence take | Effects as recipes in `data/fx/fx.ron`: one streak per shot, muzzle stars and flashes, impacts by surface, layered explosions (fireball, shock, burning debris, smoke column), rocket trails |
 | `rockets` | built, in the 2026-10-24 defence take | Dumbfire rockets: straight flight, no drop, led without drop; 3 in 10 raiders carry a pod |
 | `targeting` | built, in the 2026-10-24 defence take | Ace Combat targeting: boxes with range, the selected target, lead marker, edge arrow; missile lock in range (1 200 m) and lock-on missiles on F |
-| `crab-airship` | proposed, mockup | The Hermit air fortress: 420 m, eight lift thrusters on leg pylons (it falls when a side is down to one), flak, beams, deck guns, missiles, fighters off two catapults, crabs dropped on chutes, a crab deck guard; land on it to recharge and walk a pylon to a thruster's intake |
+| `crab-airship` | mockup; first build in the game (section 9) | The Hermit air fortress: 420 m, eight lift thrusters on leg pylons (it falls when a side is down to one), flak, beams, deck guns, missiles, fighters off two catapults, crabs dropped on chutes, a crab deck guard; land on it to recharge and walk a pylon to a thruster's intake |
+| `free-roam-missions` | proposed | Free roam's mail (M) starts the missions, the city defence and the Hermit; starting one turns off the one running; a career's second job abandons the first |
 | `city-defence` | built, won on take 2026-10-24 (too easy: retune next) | Three waves of 10 raiders on three cities; lost past 50 % city damage, 10 min a wave, or the mech; `--mission`, `--showcase`, `--bench defence` |
 
 | `perf-bench` | built | `--bench world|fight`: offscreen 1080p frame time by beat; baseline in docs/benchmarks |

@@ -51,6 +51,7 @@ fn explode(
                 dug: &live.dug,
                 trees: None,
                 structures: None,
+                platforms: &[],
             };
             (s.water_at(xz.x, xz.y), s.height_at(xz.x, xz.y))
         };
