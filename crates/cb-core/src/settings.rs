@@ -53,6 +53,21 @@ impl Settings {
     }
 }
 
+impl Settings {
+    /// The settings as the text of `settings.ron`.
+    pub fn to_ron(&self) -> String {
+        let body = ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::default()).unwrap_or_default();
+        format!("// Your settings, written by the Options page (openspec change game-menus). Delete this file for the defaults.\n{body}\n")
+    }
+
+    /// Settings read from the text of `settings.ron`, checked; an error names what is wrong.
+    pub fn from_ron(text: &str) -> Result<Self, String> {
+        let s: Self = ron::from_str(text).map_err(|e| e.to_string())?;
+        s.validate()?;
+        Ok(s)
+    }
+}
+
 /// `v` moved by `steps` of `step`, rounded to the step (so repeated presses do not drift) and kept
 /// within `lo..=hi`.
 fn nudge(v: f32, steps: i32, (lo, hi, step): (f32, f32, f32)) -> f32 {
@@ -116,8 +131,7 @@ mod tests {
         let mut s = defaults();
         s.nudge_fov(-2);
         s.shadows = false;
-        let text = ron::ser::to_string_pretty(&s, Default::default()).unwrap();
-        let back: Settings = ron::from_str(&text).unwrap();
+        let back = Settings::from_ron(&s.to_ron()).unwrap();
         assert_eq!(back, s);
     }
 

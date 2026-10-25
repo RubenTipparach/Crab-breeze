@@ -173,6 +173,7 @@ impl Plugin for MechPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MechAccessNow>()
             .add_systems(Startup, spawn_mech)
+            .add_systems(Update, spawn_encounters.run_if(resource_added::<crate::menu::Play>))
             .add_systems(FixedUpdate, (publish_access.in_set(SimSet::Input), step_mech.in_set(SimSet::Mech)))
             .add_systems(
                 Update,
@@ -193,7 +194,6 @@ fn spawn_mech(
     mut commands: Commands,
     data: Res<Data>,
     world: Res<Plan>,
-    defending: Option<Res<crate::defence::Defending>>,
     tex: Res<crate::textures::Textures>,
     assets: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -213,10 +213,25 @@ fn spawn_mech(
         &mut materials,
     );
     commands.entity(player).insert((Piloted, MechId(0)));
-    // The defence mission brings its own enemies, wave by wave (city-defence).
-    if defending.is_some() {
+}
+
+/// Free roam's encounter mechs near the start, spawned when the run begins as free roam (the title
+/// menu's choice, or a command-line run). The defence mission brings its own enemies, wave by wave
+/// (city-defence).
+fn spawn_encounters(
+    mut commands: Commands,
+    play: Res<crate::menu::Play>,
+    data: Res<Data>,
+    world: Res<Plan>,
+    tex: Res<crate::textures::Textures>,
+    assets: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    if *play != crate::menu::Play::FreeRoam {
         return;
     }
+    let start = world.start;
     for (i, e) in data.0.encounters.enemies.iter().enumerate() {
         let xz = start.mech_xz + Vec2::from_array(e.offset_m);
         let loadout = Loadout {

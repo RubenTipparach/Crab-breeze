@@ -22,6 +22,10 @@ use std::sync::Arc;
 #[derive(Resource, Clone, Copy)]
 pub struct Seed(pub u64);
 
+/// The sun's light (the Options page turns its shadows on and off: `settings`).
+#[derive(Component)]
+pub struct Sun;
+
 /// True unless `CB_NO_SKY=1`: the pilot's view has Bevy's scattering sky (sky-atmosphere).
 pub fn scattering_sky() -> bool {
     !crate::cli::switched_off("CB_NO_SKY")
@@ -453,6 +457,7 @@ fn spawn_sun(mut commands: Commands, data: Res<Data>, mut media: ResMut<Assets<b
     }
     let mut sun = commands.spawn((
         Name::new("sun"),
+        Sun,
         DirectionalLight {
             // Raw sunlight under the scattering sky, which filters it; the old daylight value otherwise.
             illuminance: if scattering_sky() {

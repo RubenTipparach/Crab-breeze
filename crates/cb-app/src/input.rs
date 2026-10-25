@@ -71,8 +71,8 @@ pub(crate) struct Keys {
     fire: [(Vec<KeyCode>, Vec<MouseButton>); 2],
     fire_missile: (Vec<KeyCode>, Vec<MouseButton>),
     debug: Vec<(Vec<KeyCode>, DebugCommand)>,
-    deg_per_px: f32,
-    invert_pitch: bool,
+    pub(crate) deg_per_px: f32,
+    pub(crate) invert_pitch: bool,
 }
 
 /// Samples devices into actions.
