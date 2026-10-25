@@ -21,3 +21,17 @@ put that page on that screen alone, and MENU SHALL open the game's pause menu.
 #### Scenario: Putting the shop on the left MFD
 - **WHEN** the pilot clicks the left hung MFD, then points at SHOP and clicks
 - **THEN** the left MFD shows the shop and the other screens keep their pages
+
+### Requirement: BACK gives a screen back the page it showed before its menu
+
+BACK, or Escape while pointing at the screen, SHALL close that screen's menu or app and show the readout page the
+screen showed when its menu was opened, whatever app pages were opened in between; the other screens SHALL keep
+their pages.
+
+#### Scenario: Leaving the shop
+- **WHEN** the left MFD shows MECH, the pilot clicks it, picks SHOP, opens the Harrow's sheet and clicks BACK
+- **THEN** the left MFD shows MECH again
+
+#### Scenario: Closing the menu unused
+- **WHEN** the centre MFD shows TARGET and the pilot clicks it, then presses Escape while pointing at it
+- **THEN** the centre MFD shows TARGET again

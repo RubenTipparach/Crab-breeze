@@ -113,7 +113,7 @@ h1 { font-family: var(--display); font-weight: 400; font-size: 44px; line-height
 
   <div class="notes">
     <section><h2>Pointing</h2><p>In free look the mouse turns the head, so the crosshair is the pointer: the screen it falls on is outlined and is the one a click presses. Here the mouse stands in for the head. Nothing ever turns the view for you.</p></section>
-    <section><h2>Every screen, every page</h2><p>Any of the six screens opens the same menu: the five readouts, MAP, MAIL, SHOP and MENU (the pause menu Escape opens). Each screen keeps its own page. BACK, or Escape, steps back.</p></section>
+    <section><h2>Every screen, every page</h2><p>Any of the six screens opens the same menu: the five readouts, MAP, MAIL, SHOP and MENU (the pause menu Escape opens). Each screen keeps its own page. BACK, or Escape, closes the menu or app and gives the screen back the page it showed before it was opened; LIST on a shop sheet steps back to the shop.</p></section>
     <section><h2>Buying</h2><ul><li>Every mech is for sale from the start; money is the only limit.</li><li>The price goes through the career's ledger. Short of money, nothing changes.</li><li>Away from a base, it waits in the nearest base with a free bay.</li></ul></section>
     <section><h2>The numbers</h2><p>Heights and masses are read from each mech's game data (<span class="key">data/mechs/&lt;id&gt;.ron</span>); prices are the proposal's (survey J15). The wireframe is drawn here from box proportions; the game turns the mech's own model.</p></section>
   </div>
@@ -141,9 +141,9 @@ const fmt = n => n.toLocaleString("en-US").replace(/,/g, " ");
 const START = { money: 1234000, owned: ["foreman"], bays: { home: [true, false, false, false, false, false], north: [false, false, false, false, false, false] } };
 let career = structuredClone(START);
 const screens = [
-  { page: "MECH", prev: null, shop: null, zoom: 0, lit: -1 },
-  { page: "TARGET", prev: null, shop: null, zoom: 0, lit: -1 },
-  { page: "WEAPONS", prev: null, shop: null, zoom: 0, lit: -1 },
+  { page: "MECH", home: null, shop: null, zoom: 0, lit: -1 },
+  { page: "TARGET", home: null, shop: null, zoom: 0, lit: -1 },
+  { page: "WEAPONS", home: null, shop: null, zoom: 0, lit: -1 },
 ];
 const dash = document.getElementById("dash"), root = document.getElementById("screens"), cross = document.getElementById("cross");
 let look = false, pointed = -1, atBase = false;
@@ -165,11 +165,14 @@ function rowsFor(s) {
   if (s.page === "MAIL") return MAIL.map(m => ({ label: m.subj, right: m.unread ? "NEW" : "", act: () => { m.unread = false; render(); } }));
   return [];
 }
-function show(s, p) { s.prev = null; s.page = p; s.shop = null; render(); }
+// A screen's home is the readout it showed when its menu was opened: BACK gives it back.
+// Picking a readout makes that the screen's page (and so its home next time).
+const isApp = p => p === "MENU_LIST" || APPS.includes(p);
+function openMenu(s) { if (!isApp(s.page)) s.home = s.page; s.page = "MENU_LIST"; s.shop = null; render(); }
+function show(s, p) { s.page = p; s.shop = null; if (!isApp(p)) s.home = null; render(); }
 function back(s) {
-  if (s.page === "SHOP" && s.shop) { s.shop = null; }
-  else if (s.page === "MENU_LIST") { s.page = s.prev || "MECH"; s.prev = null; }
-  else { s.prev = s.page; s.page = "MENU_LIST"; }
+  if (!isApp(s.page)) return;
+  s.page = s.home || "MECH"; s.home = null; s.shop = null; s.zoom = 0;
   render();
 }
 function buy(m) {
@@ -193,7 +196,7 @@ function pageHtml(s, k) {
   if (s.page === "SHOP" && s.shop) {
     const m = MECHS.find(x => x.id === s.shop), owned = career.owned.includes(m.id), after = career.money - m.price;
     const label = owned ? "OWNED" : `BUY ${fmt(m.price)}`;
-    return `<div class="page"><div class="title"><span>${m.name}</span>${backBtn}</div>
+    return `<div class="page"><div class="title"><span>${m.name}</span><span><span class="btn${lit(98)}" data-i="98">LIST</span> ${backBtn}</span></div>
       <div class="rows"><div class="sheet"><canvas data-wire="${m.id}" width="180" height="180" aria-label="${m.name} wireframe"></canvas>
       <div>${m.h.toFixed(1)} M<br>${m.t} T<br>WALK 43 KM/H<br><span class="dim">${m.cockpit}</span></div></div>
       <div>SIG: ${m.sig}</div><div class="dim">${m.sigLine}</div><div class="dim">${m.guns}</div></div>
@@ -284,10 +287,11 @@ dash.addEventListener("click", ev => {
   const { k, i } = pick(ev); if (k < 0) return;
   const s = screens[k];
   if (i === 99) return back(s);
+  if (i === 98 && s.page === "SHOP") { s.shop = null; return render(); }
   if (s.page === "SHOP" && s.shop && i === 50) return buy(MECHS.find(m => m.id === s.shop));
   const rows = rowsFor(s);
   if (rows[i]) return rows[i].act();
-  if (!["MENU_LIST", "SHOP", "MAP", "MAIL"].includes(s.page)) { s.prev = s.page; s.page = "MENU_LIST"; render(); }
+  if (!isApp(s.page)) openMenu(s);
 });
 function setLook(v) {
   look = v; dash.classList.toggle("look", v); cross.hidden = !v;
@@ -303,9 +307,9 @@ addEventListener("keydown", e => {
 });
 addEventListener("keyup", e => { if (e.key === "Control" && !lockBox.checked) setLook(false); });
 document.getElementById("atBase").onchange = e => { atBase = e.target.checked; document.getElementById("where").textContent = atBase ? "HOME BASE" : "IN THE FIELD"; render(); };
-document.getElementById("reset").onclick = () => { career = structuredClone(START); MAIL.forEach((m, i) => m.unread = i < 2); screens.forEach((s, i) => Object.assign(s, { page: ["MECH", "SHOP", "WEAPONS"][i], prev: null, shop: i === 1 ? "harrow" : null })); say(""); render(); };
+document.getElementById("reset").onclick = () => { career = structuredClone(START); MAIL.forEach((m, i) => m.unread = i < 2); screens.forEach((s, i) => Object.assign(s, { page: ["MECH", "SHOP", "WEAPONS"][i], home: i === 1 ? "TARGET" : null, shop: i === 1 ? "harrow" : null, zoom: 0 })); say(""); render(); };
 // Opens in a working state: free look held, the centre screen on the Harrow's sheet.
-screens[1].page = "SHOP"; screens[1].shop = "harrow";
+screens[1].page = "SHOP"; screens[1].shop = "harrow"; screens[1].home = "TARGET";
 lockBox.checked = true; setLook(true);
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 (function tick() { if (!reduce) { spin += 0.006; root.querySelectorAll("canvas[data-wire]").forEach(drawWire); } requestAnimationFrame(tick); })();

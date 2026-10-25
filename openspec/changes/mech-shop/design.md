@@ -25,7 +25,7 @@
 
 ```text
 +--------------------------------+
-| HARROW                    BACK |
+| HARROW             LIST  BACK |
 | +-----------+  23.8 M  390 T   |
 | | turning   |  WALK 43 KM/H    |
 | | wireframe |  ARMOUR 160 MM   |
@@ -38,6 +38,9 @@
 | [ BUY 1 200 000 ]  AFTER 34 000|
 +--------------------------------+
 ```
+
+LIST returns to the list; BACK, on the list or the sheet, closes the shop and gives the screen back the page it
+showed before its menu was opened (`mfd-menus`).
 
 Every number on the sheet is read from the data the game flies the mech by (`data/mechs/<id>.ron`: height, mass,
 speed, the parts' armour; its loadout from `signature-weapons`), never typed into the shop (CLAUDE.md 6.1: what the

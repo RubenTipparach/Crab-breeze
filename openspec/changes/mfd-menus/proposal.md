@@ -18,7 +18,9 @@ should be reachable from the seat without leaving first person (the law).
   look is let go. Every one of the six screens, in every cockpit (`cockpit-parity`).
 - **Clicking any MFD opens its menu on that screen.** The menu lists the readout pages (MECH, FLIGHT, MISSION,
   WEAPONS, TARGET) and four more: **MAP**, **MAIL**, **SHOP** and **MENU**. The row under the crosshair is lit; a
-  click picks it; the screen then shows that page until it is opened again. Escape, or BACK, steps back.
+  click picks it; the screen then shows that page until it is opened again. BACK, or Escape, closes the menu or
+  app and gives the screen back the page it showed before it was opened (owner, 2026-10-25: "clicking back should
+  return to mech view and restore the mfd to its original screen").
 - **MAP** is a new page: the island from above with the cities, roads, air bases, the mech's position and heading,
   the job's site and known enemies, zoomed by clicking + and - rows.
 - **MAIL** is `mission-jobs`' page; **SHOP** is `mech-shop`'s; **MENU** opens the game's pause menu

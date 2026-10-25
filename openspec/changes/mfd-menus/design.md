@@ -25,8 +25,13 @@
 4. Look at a row (it lights) and click: the screen shows that page from now on. Each screen keeps its own page, so
    the pilot can keep the MAP on one, MAIL on another and the readouts on the rest.
 5. On an app page, the same pointing works on its own rows and buttons (the shop's BUY, the map's zoom, a mail's
-   ACCEPT). BACK on any app page, or Escape, returns that screen to its menu; Escape on the menu returns the screen
-   to the page it showed before.
+   ACCEPT). **BACK** (top right of the menu and of every app page), or Escape while pointing at the screen, closes
+   the menu or app and gives the screen back the readout it showed when its menu was opened: one press, back to the
+   mech's own view (owner, 2026-10-25: "clicking back should return to mech view and restore the mfd to its original
+   screen"). Each screen remembers that readout, its **home**, from the click that opened its menu until BACK; going
+   from the menu to an app and on to another keeps it. Picking a readout from the menu makes that the screen's page,
+   and so its home the next time. The one step inside an app is the shop's sheet, whose **LIST** button returns to the
+   shop's list (`mech-shop`).
 6. Let go of free look: the outline goes, the screens keep their pages, the guns are live again.
 
 ## 2. The outline
