@@ -5,7 +5,17 @@ with land out to about 13 km. All numbers would go in `data/world/world.ron` und
 
 ## 1. Height, in order (each a pure function of (x, z), seeded by label)
 
-1. **Base island:** today's shape (coast noise, shelf, sea floor), land 20 m up.
+1. **Base island and coast** (owner, 2026-10-24: "The island transition is rough"; the mockup's
+   coast was a smooth blob with an even turquoise ring and a ramp into the sea all round):
+   - The coastline is ragged at every scale: lobes, then 420 m of 1.1 km noise (headlands and
+     bays), 140 m of 320 m noise (coves), and bays proper, notches up to about 2 km deep where an
+     along-coast noise runs high.
+   - A beach and low coastal strip 120-500 m wide (by noise) at 1-4 m, then the land rises to the
+     old 20-50 m and the hills come in over the next 1.2 km.
+   - A shelf 250 m-1.6 km wide: wide shelves are lagoons 2-8 m deep, with a reef 1 m under the
+     surface near their edge (gaps where a noise is low); narrow ones drop fast. Past the shelf the
+     floor falls at 7 %. The sea floor is sand.
+   - The north-east sea cliffs are unchanged.
 2. **Range:** distance `d` from a gently curving spine (a quadratic Bezier through the centre, 16
    km, heading 20 degrees east of north).
    - Envelope `exp(-(d / 4,200 m)^2)` along it, tapering at both ends.
@@ -67,9 +77,9 @@ rivers.
 **Moisture decides the climate, height the band.** (Owner, 2026-10-24: "The island transition is
 rough"; the mockup showed a straight jungle edge and a grass ring round the whole coast, even where
 the desert met the sea.)
-- Moisture `m`, 0 desert to 1 rain forest: `1 - smoothstep(-1.8 km, 5.2 km, s')`, where `s'` is
+- Moisture `m`, 0 desert to 1 rain forest: `1 - smoothstep(-0.8 km, 8.5 km, s')`, where `s'` is
   the signed distance from the spine's line plus 900 m of 2.6 km noise. That is the rain shadow over
-  a 7 km band, not a step. It is scaled by `0.72 + 0.36 south` (wetter to the south, `south` a
+  a 9 km band, not a step. It is scaled by `0.72 + 0.36 south` (wetter to the south, `south` a
   13 km smoothstep in z, warped by 1.5 km), plus 0.22 of 3 km noise, plus 0.18 near rivers and
   0.25 in swamps.
 - `s'` uses the distance from the nearest segment's line, which stays continuous past the spine's
@@ -84,11 +94,16 @@ the desert met the sea.)
 | Montane forest | `mid` where `m` is over 0.25-0.45 |
 | Jungle | `low` where `m` is over 0.6-0.8, more to the south |
 | Temperate | `low` where `m` is 0.3-0.48 up to 0.68-0.86 (higher in the north) |
-| Savanna | `low` (and 0.6 of `mid`) where `m` is 0.1-0.24 up to 0.32-0.46 |
-| Desert | where `m` is under 0.22-0.08, below 1,100-1,400 m, all the way to the beach |
+| Savanna | `low` (and 0.6 of `mid`) where `m` is 0.07-0.2 up to 0.32-0.46 |
+| Desert | where `m` is under 0.17-0.05, below 1,100-1,400 m, all the way to the beach |
 | Canyon, beach, cliff, swamp | as before |
 
 - So the dry plateau (500-650 m) is desert, not montane forest, and the desert reaches its beaches.
+- **Shares of the land at seed 42** (strongest biome, sampled every 320 m): desert 14.6 %, savanna
+  7.0 %, temperate 24.4 %, montane forest 21.2 %, jungle 20.6 %, alpine 1.7 %, canyon 3.2 %, cliff
+  4.1 %, beach 2.8 %, swamp 0.4 %. The first moisture band (7 km, desert under 0.22) gave 26 %
+  desert, more than the 20 % before it; the owner asked after the desert's ratio, and it was cut
+  back.
 - On the ground a border is not a crossfade. Each biome's layers carry their own patch noise (140 m,
   35 m and 7 m), and the weights are cubed after it (a height blend), so one biome breaks into the
   other in patches and fingers.
@@ -139,6 +154,11 @@ The mockup places them (owner, 2026-10-24: "I don't see cities on the island"). 
   about 185 m of relief across the square, three times what 6 degrees allows.
 - **Highways** join the cities in a minimum spanning tree, and a road that crosses the range goes
   over the nearer pass.
+- **They read as specks from the air** (owner, 2026-10-24: "I don't see cities on the island"): a
+  0.6-1 km square on a 41 km island. The mockup proposes **suburbs**: houses on a 36 m grid aligned
+  with the city out to 2.6 times its half-size, thinning outward, on gentle dry ground, with the
+  arterials running on through them (`small-buildings` supplies the houses). That makes each city
+  2-2.5 km across from the air. It also labels the cities (survey I11).
 
 ## 5. Cost summary (expected; measured on the owner's hardware)
 
@@ -159,4 +179,5 @@ The mockup places them (owner, 2026-10-24: "I don't see cities on the island"). 
 | I6 | Jungle density against frame time | 30-45 m canopy, grown only near the bodies like today's trees; measured | proposed (survey I6) |
 | I8 | Waterfalls | 20-40 from the terrain, 40-200 m, spray, mist and plunge pools | proposed (survey I8) |
 | I9 | The capital, with the range in the middle | the nearest flat site north of the centre, about 8 km out | proposed (survey I9) |
-| I10 | How wide the climate borders are | moisture over a 7 km band; borders in patches, not lines | proposed (survey I10) |
+| I11 | Cities from the air | suburbs out to 2.6 times each city's half-size; the cities keep the game's size | proposed (survey I11) |
+| I10 | How wide the climate borders are | moisture over a 9 km band (desert 14.6 % of the land); borders in patches, not lines | proposed (survey I10) |

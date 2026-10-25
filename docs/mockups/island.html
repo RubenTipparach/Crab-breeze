@@ -50,6 +50,11 @@ button:focus-visible, canvas:focus-visible, input:focus-visible { outline: 2px s
 .loading { position: absolute; inset: 0; display: grid; place-items: center; font: 700 20px var(--display); letter-spacing: 0.1em;
   text-transform: uppercase; color: #eef2ec; background: rgba(12, 16, 13, 0.6); }
 .loading[hidden] { display: none; }
+.labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.labels span { position: absolute; transform: translate(-50%, -100%); font: 700 12px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase;
+  color: #fff; background: rgba(12, 16, 13, 0.72); border: 1px solid rgba(255, 255, 255, 0.35); padding: 3px 6px; white-space: nowrap; }
+.labels span::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: 10px; background: rgba(255, 255, 255, 0.7); }
+.labels span.town { font-size: 10px; padding: 2px 4px; opacity: 0.85; }
 .hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
 aside { display: grid; gap: 12px; min-width: 0; }
 .card { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 12px 14px; display: grid; gap: 8px; }
@@ -92,6 +97,7 @@ label.sl input { flex: 1; min-width: 0; }
       <button data-view="storm">Storm</button>
       <button data-view="capital">Capital</button>
       <button data-view="weather">Weather</button>
+      <button data-view="coast">Coast</button>
       <button data-view="cliff">Cliff</button>
     </div>
     <div class="bar" role="group" aria-label="Layers">
@@ -109,6 +115,7 @@ label.sl input { flex: 1; min-width: 0; }
       <canvas id="rain" aria-hidden="true"></canvas>
       <div class="mode" id="mode">Orbit</div>
       <div class="hud" id="hud"></div>
+      <div class="labels" id="labels" aria-hidden="true"></div>
       <div class="loading" id="loading">Raising the island</div>
     </div>
     <p class="hint">Orbit: drag to turn, right-drag to pan, wheel to zoom. Fly: drag to look, W A S D to move, Q and E down and up, Shift for speed. The 24 m mech and the 1.8 m pilot stand on the south beach (Scale).</p>
@@ -151,7 +158,7 @@ const STEP = G.WORLD_M / N;         // 80 m
 const FOG_DENSITY = 0.000042;       // exp2 fog, per metre
 let sunDir = new THREE.Vector3();
 // The storm cells' shadows on the ground and the sea (x, z, radius m, how dark), and the wind's drift.
-const STORM_U = { value: G.WEATHER.storms.slice(0, 3).map((c) => new THREE.Vector4(c.x, c.z, c.r, 0.6)) };
+const STORM_U = { value: Array.from({ length: 8 }, (_, i) => { const c = G.WEATHER.storms[i]; return c ? new THREE.Vector4(c.x, c.z, c.r, i < 3 ? 0.6 : 0.45) : new THREE.Vector4(); }) };
 const DRIFT_U = { value: 0 };
 
 // ------------------------------------------------------------------ renderer and scene
@@ -190,10 +197,10 @@ vec2 vor(vec2 p){ vec2 i = floor(p), f = fract(p); float d1 = 8.0, d2 = 8.0;
     if (d < d1){ d2 = d1; d1 = d; } else if (d < d2) d2 = d; }
   return vec2(d1, d2 - d1); }
 vec3 srgb(vec3 c){ return pow(c, vec3(2.2)); }
-uniform vec4 uStorms[3]; uniform float uDrift;
+uniform vec4 uStorms[8]; uniform float uDrift;
 // 1 in the open, down to 1 - darkness under a storm cell (it moves with the wind).
 float stormShade(vec2 xz){ float s = 1.0;
-  for (int i = 0; i < 3; i++){ vec4 c = uStorms[i]; if (c.z <= 0.0) continue;
+  for (int i = 0; i < 8; i++){ vec4 c = uStorms[i]; if (c.z <= 0.0) continue;
     float d = length(xz - c.xy - vec2(uDrift, 0.0)) + 600.0 * (vn(xz / 1500.0) - 0.5);
     s = min(s, mix(1.0 - c.w, 1.0, smoothstep(c.z * 0.45, c.z, d))); }
   return s; }
@@ -932,6 +939,31 @@ function buildCities() {
       }
     }
   });
+  // Suburbs (a proposal, island-biomes section 4): houses on a 36 m grid aligned with the city,
+  // out to 2.6 times its half-size, thinning with distance, on gentle dry ground; the arterials run
+  // on through them.
+  const houses = [];
+  const roofs = ['#8a5a44', '#6d6a66', '#9b7b52', '#5d6670', '#a3896a', '#7a4b3a'];
+  G.CITIES.forEach((c) => {
+    const rnd = G.mulberry(c.seed + 5), R = c.half * 2.6;
+    for (let z = c.z - R; z <= c.z + R; z += 36) for (let x = c.x - R; x <= c.x + R; x += 36) {
+      const e = Math.max(Math.abs(x - c.x), Math.abs(z - c.z));
+      if (e < c.half + 30) continue;
+      if (rnd() > 0.85 * (1 - G.smooth(c.half, R, e))) continue;
+      if (inCity(x, z, 20)) continue;
+      const h = groundAt(x, z);
+      if (h < 2 || Math.abs(groundAt(x + 20, z) - groundAt(x - 20, z)) > 5 || Math.abs(groundAt(x, z + 20) - groundAt(x, z - 20)) > 5) continue;
+      const { k } = biomeAt(x, z);
+      if (FIELDS[k].rdist < 60 || FIELDS[k].canyon > 5) continue;
+      const turn = rnd() < 0.5, w = 9 + rnd() * 6, d = 7 + rnd() * 4, hh = 4 + rnd() * 4;
+      houses.push({ x: x + (rnd() - 0.5) * 8, y: h + hh / 2, z: z + (rnd() - 0.5) * 8, sx: turn ? d : w, sy: hh, sz: turn ? w : d, tint: roofs[Math.floor(rnd() * roofs.length)], shade: 0.85 + rnd() * 0.3 });
+    }
+    // Arterials on through the suburbs, as roads on the ground.
+    for (const s of [-1, 1]) {
+      streets.push({ x: c.x + s * (c.half + R) / 2, y: c.ground + 0.5, z: c.z, sx: R - c.half, sy: 0.4, sz: CITY.arterial * 0.8, shade: 0.9 });
+      streets.push({ x: c.x, y: c.ground + 0.5, z: c.z + s * (c.half + R) / 2, sx: CITY.arterial * 0.8, sy: 0.4, sz: R - c.half, shade: 0.9 });
+    }
+  });
   const g = new THREE.Group();
   const add = (geo, mat, list, colour) => {
     if (!list.length) return;
@@ -945,6 +977,7 @@ function buildCities() {
   };
   const box = new THREE.BoxGeometry(1, 1, 1);
   add(box, buildingMat, towers);
+  add(box, new THREE.MeshLambertMaterial({ color: 0xffffff }), houses);
   add(box, new THREE.MeshLambertMaterial({ color: 0xffffff }), paving, '#8d8b85');
   add(box, new THREE.MeshLambertMaterial({ color: 0xffffff }), streets, '#3a3b3d');
   // Highways: a 28 m ribbon a few metres over the ground, sampled every 40 m.
@@ -975,7 +1008,7 @@ function buildCities() {
   hg.setIndex(idx); hg.computeVertexNormals();
   g.add(new THREE.Mesh(hg, new THREE.MeshLambertMaterial({ color: '#45474a', side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 })));
   groups.cities.add(g);
-  return { cities: G.CITIES.length, buildings, km };
+  return { cities: G.CITIES.length, buildings, houses: houses.length, km };
 }
 
 // ------------------------------------------------------------------ rock formations (block-outs of the kit)
@@ -1109,8 +1142,8 @@ const spriteMat = new THREE.ShaderMaterial({
       #include <encodings_fragment>
     }`,
 });
-// The opacity of each kind: cumulus, storm tower, anvil, deck and scud, orographic, cap, mist.
-const KIND_ALPHA = [0.95, 1.0, 0.8, 0.8, 0.6, 0.9, 0.4];
+// The opacity of each kind: cumulus, storm tower, anvil, deck, front and scud, orographic, cap, mist, altocumulus.
+const KIND_ALPHA = [0.95, 1.0, 0.8, 0.8, 0.6, 0.9, 0.4, 0.6];
 
 // A sorted billboard set: the puffs, their instanced quad, and a sort by distance from the eye.
 function spriteSet(list, parent) {
@@ -1367,7 +1400,10 @@ function setupViews() {
     // The storm cell over the jungle from 13 km south, low, so the tower, anvil and rain shaft stand up.
     storm: { pos: [st.x + 2500, Math.max(0, groundAt(st.x + 2500, st.z + 13000)) + 160, st.z + 13000], tgt: [st.x, 2600, st.z] },
     capital: { pos: [cap.x + cap.half * 2.2, Math.max(cap.ground + 260, groundAt(cap.x + cap.half * 2.2, cap.z + cap.half * 2.6) + 120), cap.z + cap.half * 2.6], tgt: [cap.x, cap.ground + 40, cap.z] },
-    weather: { pos: [-26000, 9000, 22000], tgt: [-2000, 0, 0] },
+    // From the south-west, across the front, the storms and the streets toward the island.
+    weather: { pos: [-24000, 6500, 26000], tgt: [-9000, 1500, -2000] },
+    // Low over a wide shelf on the east coast: lagoon, reef and beach.
+    coast: { pos: [Math.sin(118 * Math.PI / 180) * 15200, 380, -Math.cos(118 * Math.PI / 180) * 15200], tgt: [Math.sin(104 * Math.PI / 180) * 12200, 0, -Math.cos(104 * Math.PI / 180) * 12200] },
     // On the canyon floor inside the feature volume, looking up the wall.
     cliff: { pos: at(CLIFF.cx - ca[0] * 170, CLIFF.cz - ca[1] * 170, 28), tgt: at(CLIFF.cx + ca[0] * 110 + cn[0] * 130, CLIFF.cz + ca[1] * 110 + cn[1] * 130, 40) },
   });
@@ -1471,12 +1507,38 @@ function facts(trees, rocks, cl, ci, cliff) {
     ['islets', `${G.ISLETS.length} (${G.ISLETS.filter((o) => o.cliff).length} cliffed)`],
     ['rocks', `${rocks.stacks} stacks, ${rocks.arches} arches, ${rocks.hoodoos} hoodoos, ${rocks.boulders} boulders`],
     ['trees', `${trees.toLocaleString()} (every 70 m)`],
-    ['cities', `${ci.cities} (capital, oasis, river city), ${ci.buildings.toLocaleString()} buildings, ${Math.round(ci.km)} km of highway`],
+    ['cities', `${ci.cities} (capital, oasis, river city), ${ci.buildings.toLocaleString()} buildings and ${ci.houses.toLocaleString()} suburban houses, ${Math.round(ci.km)} km of highway`],
     ['weather', `${cl.storms} storm cells with rain, a sea deck, cloud on the range, ${cl.kinds[5] || 0} peak caps, ${cl.cirrus} cirrus streaks`],
     ['clouds', `${cl.puffs.toLocaleString()} billboards, sorted, one draw`],
     ['field cliff', `one canyon wall, 480 m square, meshed from a density field at ${cliff.voxel} m: ${Math.round(cliff.tris / 1000)}k triangles`],
   ];
   document.getElementById('facts').innerHTML = kv.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+}
+
+// City labels: one tag a city, kept over it on screen.
+const LABELS = [];
+function buildLabels() {
+  const host = document.getElementById('labels');
+  const names = { capital: 'Capital', oasis: 'Oasis', river: 'River city' };
+  let town = 0;
+  G.CITIES.forEach((c) => {
+    const el = document.createElement('span');
+    el.textContent = names[c.kind] || `Town ${++town}`;
+    if (!names[c.kind]) el.className = 'town';
+    host.append(el);
+    LABELS.push({ el, p: new THREE.Vector3(c.x, c.ground + 120, c.z) });
+  });
+}
+const _v = new THREE.Vector3();
+function placeLabels() {
+  const on = groups.cities.visible, w = canvas.clientWidth, h = canvas.clientHeight;
+  for (const l of LABELS) {
+    _v.copy(l.p).project(camera);
+    const d = camera.position.distanceTo(l.p);
+    const show = on && _v.z < 1 && Math.abs(_v.x) < 1.05 && Math.abs(_v.y) < 1.05 && d > 900;
+    l.el.style.display = show ? '' : 'none';
+    if (show) { l.el.style.left = `${(_v.x * 0.5 + 0.5) * w}px`; l.el.style.top = `${(-_v.y * 0.5 + 0.5) * h - 8}px`; }
+  }
 }
 
 let last = performance.now(), drift = 0;
@@ -1511,6 +1573,7 @@ function frame(now) {
   shaftMat.uniforms.uFogDensity.value = fogD;
   drawRain(dt, groups.clouds.visible ? insideCloud(camera.position, drift) : 0);
   renderer.render(scene, camera);
+  placeLabels();
   const p = camera.position, g = groundAt(p.x, p.z), b = biomeAt(p.x, p.z).b;
   document.getElementById('hud').textContent =
     `alt ${p.y.toFixed(0)} m  agl ${(p.y - Math.max(g, 0)).toFixed(0)} m\nbelow ${g > 0.3 ? G.BIOMES[b] : 'sea'}\n` +
@@ -1528,6 +1591,7 @@ setTimeout(() => {
   const rocks = buildRocks();
   const cl = buildClouds();
   const ci = buildCities();
+  buildLabels();
   buildSky();
   buildScaleFigures();
   setSun(38);

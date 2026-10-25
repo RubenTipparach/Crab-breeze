@@ -57,6 +57,25 @@ thin at the edges. Inside one, below its top, the glass takes rain at 0.7 densit
 centre, back to full sun at the cell's radius (1.6 times the tower's), its edge wandering by a
 1.5 km noise. One loop of three cells in the ground shader: about 30 instructions a pixel.
 
+**The weather map** (owner, again, 2026-10-24, after the first version: the systems were there
+but from above they drowned in evenly spread fair cumulus):
+- **A cold front** off the west coast, lying south-west to north-east, 52 km long and 8.4 km
+  wide: layered grey cloud from 900 m to 2.8 km, thickest and darkest along its middle, towers to
+  6.2 km every 6 km, a rain shaft every 5 km (2.2 km across), and the ground and sea darkened along
+  it. No fair cumulus within 1.5 km of it.
+- **A high** over the sea to the south-east: fair cumulus thins to nothing within 6-17 km of its
+  centre, so that sky is clear.
+- **Cloud streets** over the southern sea: clusters snapped to rows 2.2 km apart, stretched along
+  the wind.
+- **Fair cumulus** over the land by moisture as before, now in three sizes: small flat humilis
+  (60-170 m, 45 %), medium, and towering congestus (28 % of wet clusters).
+- **Altocumulus:** a field of small flat puffs (150-260 m across, 45-70 m thick) at 3.3-3.7 km over
+  the south-west, with gaps, at 0.6 opacity.
+- The stratocumulus deck moves to the north, behind the front.
+
+Seed 42: 5,960 puffs (2,550 cumulus, 711 tower, 210 anvil, 1,169 deck, front and scud, 461
+orographic, 6 caps, 853 altocumulus), 11 rain shafts, 7 darkened cells.
+
 ## 3. Cost (expected; measured with `CB_NO_CLOUDS` on the owner's hardware)
 
 | Item | Fair weather | Facing a storm |

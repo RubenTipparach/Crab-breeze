@@ -119,8 +119,12 @@
   function coastDist(x, z) {
     const r = Math.hypot(x, z) + 1e-6;
     const cx = x / r, cz = z / r;
-    const R = 12300 + 1700 * fbm(cx * 1.6 + 3.1, cz * 1.6 - 1.7, 4, SEED + 1) + 700 * fbm(x / 2600, z / 2600, 3, SEED + 2);
-    return R - r;
+    // Lobes, then headlands and bays (1.1 km noise) and coves (320 m), so the coast is ragged at
+    // every scale; and bays proper, notches up to 2 km deep where a noise along the coast runs high.
+    const R = 12300 + 1700 * fbm(cx * 1.6 + 3.1, cz * 1.6 - 1.7, 4, SEED + 1) + 700 * fbm(x / 2600, z / 2600, 3, SEED + 2)
+      + 420 * fbm(x / 1100, z / 1100, 3, SEED + 30) + 140 * fbm(x / 320, z / 320, 2, SEED + 31);
+    const bay = 3200 * Math.pow(Math.max(0, fbm(cx * 9 + 1.3, cz * 9 - 4.2, 2, SEED + 32)), 1.6);
+    return R - bay - r;
   }
 
   // ---------------------------------------------------------------- canyons, islets, rivers (seeded once)
@@ -191,11 +195,24 @@
 
     // Base island and its shelf; the north-east coast drops in sea cliffs instead of beaches.
     const hills = 38 * fbm(x / 3800, z / 3800, 4, SEED + 3) + 14 * fbm(x / 900, z / 900, 3, SEED + 4);
-    let land = 20 + 30 * smooth(0, 2500, cd) + hills;
+    // The coast: a beach and a low coastal strip 120-500 m wide, then the land rises inland. Out to
+    // sea, a shelf 250 m-1.6 km wide (wide shelves shallow, with a reef near their edge, narrow ones
+    // dropping fast), then the floor falls away.
+    const beachW = 120 + 380 * smooth(-0.2, 0.4, fbm(x / 2500, z / 2500, 2, SEED + 34));
+    let land = 1.2 + 3 * smooth(0, beachW, cd) + (16 + 30 * smooth(0, 2500, cd)) * smooth(beachW * 0.6, beachW + 900, cd)
+      + hills * smooth(beachW, beachW + 1200, cd);
+    land = Math.max(land, 0.9 * smooth(0, 40, cd));
     const cliffTop = 95 + 55 * fbm(x / 3000, z / 3000, 3, SEED + 5);
     land = mix(land, Math.max(land, cliffTop), cliffW);
-    const sea = -8 - Math.min(230, Math.max(0, -cd) * mix(0.05, 0.22, cliffW));
-    const wl = mix(smooth(-220, 520, cd), smooth(-30, 6, cd), cliffW);
+    const shelfN = fbm(x / 7000, z / 7000, 2, SEED + 33);
+    const shelf = 250 + 1350 * smooth(-0.25, 0.35, shelfN);
+    const off = Math.max(0, -cd);
+    let sea = -1.5 - off * mix(0.004, 0.03, smooth(0.35, -0.25, shelfN)) - Math.max(0, off - shelf) * 0.07;
+    // The reef: a rim 1 m under the surface along wide shelves, broken by gaps.
+    const reef = smooth(0, 0.35, shelfN) * Math.exp(-Math.pow((off - shelf * 0.85) / 110, 2)) * smooth(-0.1, 0.25, fbm(x / 900, z / 900, 2, SEED + 35));
+    sea = mix(sea, -1.0, reef);
+    sea = mix(Math.max(-230, sea), -8 - Math.min(230, off * 0.22), cliffW);
+    const wl = mix(smooth(-40, 40, cd), smooth(-30, 6, cd), cliffW);
     let h = mix(sea, land, wl);
 
     // The range: a warped ridged multifractal under an envelope round the spine, with cliff bands.
@@ -522,30 +539,73 @@
       WEATHER.shafts.push({ x: c.x + 300, z: c.z, r: c.r * 0.75, top: 720 });
     }
     const stormAt = (x, z) => WEATHER.storms.some((s) => Math.hypot(x - s.x, z - s.z) < s.r);
-    // Fair-weather cumulus: clusters on a 2 km grid, more over wet ground, few over the desert.
+    // The weather map. Off the west coast a cold front lies south-west to north-east, 8 km wide; a
+    // high sits over the sea to the south-east with clear sky under it; south of the island the
+    // cumulus lines up in streets along the wind; over the land it follows the moisture.
+    const FRONT = { x: -17000, z: -4000, dx: 0.62, dz: -0.78, half: 4200 };
+    const frontAcross = (x, z) => (x - FRONT.x) * -FRONT.dz + (z - FRONT.z) * FRONT.dx;
+    const highAt = (x, z) => smooth(17000, 6000, Math.hypot(x - 17000, z - 12000));
+    // Fair-weather cumulus: clusters on a 2 km grid, more over wet ground, few over the desert,
+    // none in the high or the front; small flat humilis, medium, and towering congestus.
     for (let tz = -19000; tz < 19000; tz += 2000) for (let tx = -19000; tx < 19000; tx += 2000) {
       const cx0 = tx + 1000, cz0 = tz + 1000;
       const f = sample(cx0, cz0);
       const onLand = f.cd > 0;
       const m = onLand ? moisture(cx0, cz0, f).m : 0.45;
-      let count = (onLand ? 0.4 + 2.6 * m : 1.1) + 0.9 * fbm(tx / 9000, tz / 9000, 2, 55);
-      if (stormAt(cx0, cz0)) count = 0;
+      const streets = !onLand && cz0 > 6000;
+      let count = (onLand ? 0.3 + 2.8 * m : streets ? 1.6 : 0.5) + 0.7 * fbm(tx / 9000, tz / 9000, 2, 55);
+      count *= 1 - highAt(cx0, cz0);
+      if (stormAt(cx0, cz0) || Math.abs(frontAcross(cx0, cz0)) < FRONT.half + 1500) count = 0;
       for (let c = 0, n = Math.floor(count + wr()); c < n; c++) {
-        const cx = tx + wr() * 2000, cz = tz + wr() * 2000;
-        const big = wr() < 0.25 * (onLand ? m : 0.4);
-        const puffs = big ? 14 + Math.floor(wr() * 10) : 5 + Math.floor(wr() * 7);
-        const spread = big ? 600 : 260 + wr() * 260;
-        const tops = big ? 2200 + wr() * 1400 : 1100;
+        let cx = tx + wr() * 2000, cz = tz + wr() * 2000;
+        // Streets: rows 2.2 km apart along the wind.
+        if (streets) cz = Math.round(cz / 2200) * 2200 + (wr() - 0.5) * 260;
+        const big = wr() < 0.28 * (onLand ? m : 0.3);
+        const small = !big && wr() < 0.45;
+        const puffs = big ? 14 + Math.floor(wr() * 10) : small ? 3 + Math.floor(wr() * 4) : 5 + Math.floor(wr() * 7);
+        const spread = big ? 600 : small ? 160 + wr() * 140 : 260 + wr() * 260;
+        const tops = big ? 2200 + wr() * 1600 : small ? 800 : 1100;
         for (let p = 0; p < puffs; p++) {
-          const r = 90 + wr() * 200 + (big ? 120 : 0);
+          const r = small ? 60 + wr() * 110 : 90 + wr() * 200 + (big ? 120 : 0);
           const y = CLOUD_BASE_M + r * 0.7 + wr() * Math.max(10, (tops - CLOUD_BASE_M) * (big ? 0.75 : 0.35));
-          puff(cx + (wr() - 0.5) * spread * 2, y, cz + (wr() - 0.5) * spread * 1.4, r * 1.15, r, 0, big ? 0.3 : 0.1, CLOUD_BASE_M, tops);
+          puff(cx + (wr() - 0.5) * spread * (streets ? 3 : 2), y, cz + (wr() - 0.5) * spread * 1.4, r * 1.15, small ? r * 0.65 : r, 0, big ? 0.3 : 0.08, CLOUD_BASE_M, tops);
         }
       }
     }
-    // The stratocumulus deck over the sea to the north-west: wide flat puffs that merge into a sheet.
+    // The front: layered grey cloud from 900 m to 2.8 km along a 52 km band, thickest at its middle,
+    // towers embedded every 6 km, and rain all along it.
+    for (let along = -26000; along < 26000; along += 300) {
+      for (let l = 0; l < 3; l++) {
+        const across = (wr() - 0.5) * 2 * FRONT.half;
+        const core = 1 - Math.abs(across) / FRONT.half;
+        const x = FRONT.x + FRONT.dx * along + -FRONT.dz * across, z = FRONT.z + FRONT.dz * along + FRONT.dx * across;
+        if (Math.max(Math.abs(x), Math.abs(z)) > HALF_M + 3000) continue;
+        const y = 900 + wr() * (500 + 1500 * core);
+        puff(x, y, z, 700 + wr() * 700, 200 + wr() * 180, 3, 0.35 + 0.3 * core * (1 - (y - 900) / 2000), 800, 2800);
+      }
+      if (Math.abs(along % 6000) < 150) {
+        const x = FRONT.x + FRONT.dx * along, z = FRONT.z + FRONT.dz * along;
+        if (Math.max(Math.abs(x), Math.abs(z)) < HALF_M) {
+          for (let y = 1200; y < 6200; y += 300) {
+            const t = y / 6200, rr = 500 + wr() * 300;
+            puff(x + (wr() - 0.5) * 800 + t * 700, y, z + (wr() - 0.5) * 800, rr, rr * 0.85, 1, 0.7 - 0.55 * t, 900, 6500);
+          }
+        }
+      }
+      if (Math.abs(along % 5000) < 150) {
+        const x = FRONT.x + FRONT.dx * along, z = FRONT.z + FRONT.dz * along;
+        WEATHER.shafts.push({ x, z, r: 2200, top: 900 });
+        if (Math.abs(along % 10000) < 150) WEATHER.storms.push({ x, z, r: 6000 });
+      }
+    }
+    // Altocumulus: a field of small flat puffs at 3.3-3.7 km over the south-west, with gaps.
+    for (let z = 3000; z < 25000; z += 450) for (let x = -17000; x < 5000; x += 450) {
+      if (Math.hypot(x + 6000, z - 14000) > 11000 || fbm(x / 3000, z / 3000, 2, 71) < 0.02) continue;
+      puff(x + (wr() - 0.5) * 300, 3300 + wr() * 400, z + (wr() - 0.5) * 300, 150 + wr() * 110, 45 + wr() * 25, 7, 0.05, 3300, 3700);
+    }
+    // The stratocumulus deck over the sea to the north, behind the front: wide flat puffs that merge into a sheet.
     for (let k = 0; k < 900; k++) {
-      const b = (275 + wr() * 70) * Math.PI / 180, r = 14500 + wr() * 7000;
+      const b = (330 + wr() * 70) * Math.PI / 180, r = 14500 + wr() * 7000;
       const x = Math.sin(b) * r, z = -Math.cos(b) * r;
       if (coastDist(x, z) > -600 || Math.max(Math.abs(x), Math.abs(z)) > HALF_M + 2000) continue;
       if (fbm(x / 4000, z / 4000, 2, 61) < -0.25) continue; // breaks in the deck
@@ -585,7 +645,7 @@
   function moisture(x, z, f) {
     const ws = f.perp + 900 * fbm(x / 2600, z / 2600, 3, SEED + 22);
     const south = smooth(-9000, 4000, z + 1500 * fbm(x / 5000, z / 5000, 2, SEED + 24));
-    let m = 1 - smooth(-1800, 5200, ws);
+    let m = 1 - smooth(-800, 8500, ws);
     m = m * (0.72 + 0.36 * south) + 0.22 * (fbm(x / 3000, z / 3000, 3, SEED + 21)) + 0.18 * smooth(250, 40, f.rdist) + 0.25 * f.swamp;
     return { m: clamp(m, 0, 1), south };
   }
@@ -599,7 +659,7 @@
     const w = new Float32Array(10);
     const hT = h + j;
     const steep = smooth(40, 50, slopeDeg);
-    const coastLow = smooth(160, 20, f.cd + j * 0.3) * smooth(14, 3, h) * (1 - f.cliffW);
+    const coastLow = smooth(480, 60, f.cd + j * 0.5) * smooth(9, 2.5, h) * (1 - f.cliffW);
     const isle = f.isletQ < 1.2 ? 1 : 0;
     const low = smooth(540, 360, hT);
     const mid = smooth(360, 540, hT) * (1 - smooth(1500, 1750, hT));
@@ -608,11 +668,13 @@
     w[2] = low * smooth(0.6, 0.8, m) * (0.3 + 0.7 * south) + isle * 0.6;
     w[3] = f.swamp * 2;
     w[4] = low * smooth(0.3, 0.48, m) * (1 - smooth(0.68, 0.86, m * (0.55 + 0.45 * south)));
-    w[5] = (low + 0.6 * mid) * smooth(0.1, 0.24, m) * (1 - smooth(0.32, 0.46, m));
-    w[6] = smooth(0.22, 0.08, m) * (1 - smooth(1100, 1400, hT)) * (1 - smooth(25, 70, f.canyon));
+    w[5] = (low + 0.6 * mid) * smooth(0.07, 0.2, m) * (1 - smooth(0.32, 0.46, m));
+    w[6] = smooth(0.17, 0.05, m) * (1 - smooth(1100, 1400, hT)) * (1 - smooth(25, 70, f.canyon));
     w[7] = smooth(25, 70, f.canyon) * 1.5;
     w[8] = coastLow * 2.2;
     w[9] = steep * 1.2 * smooth(800, 1200, 2400 - h);
+    // Under the sea: sand (the beach's layers), not whatever the land rules leave.
+    if (h < 0.5) { const sub = smooth(0.5, -1.5, h); for (let i = 0; i < 10; i++) w[i] *= 1 - sub; w[8] += 3 * sub; }
     let sum = 0;
     for (let i = 0; i < 10; i++) { w[i] = Math.max(0, w[i]); sum += w[i]; }
     if (sum < 1e-4) { w[4] = 1; sum = 1; }
