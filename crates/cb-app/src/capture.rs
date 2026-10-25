@@ -590,6 +590,10 @@ fn run_fx_script(
     match script.beat {
         0 => {
             next = ready.is_some_and(|r| r.0) && access.0.is_some() && t > 4.0;
+            // `CB_STILLS_FX=soil` stages the blasts on soil alone, with a still every half second.
+            if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "soil") {
+                script.beat = 2;
+            }
             if next {
                 // The nearest live enemy to the player's mech.
                 let home = access.0.unwrap().ladder_base;
@@ -714,6 +718,13 @@ fn run_fx_script(
             }
             if t > 0.5 && script.once("blast") {
                 shoot(&mut commands, &script.dir, "fx-5-blast.png");
+            }
+            if std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "soil") {
+                let k = (t * 2.0) as u32;
+                if k > 0 && k <= 24 && !script.dir.join(format!("soil-{k:02}.png")).exists() {
+                    let name = format!("soil-{k:02}.png");
+                    shoot(&mut commands, &script.dir, &name);
+                }
             }
             if t > 4.0 && script.once("smoke") {
                 shoot(&mut commands, &script.dir, "fx-6-smoke.png");

@@ -319,7 +319,13 @@ fn setup(
     particles::set_sprite(&mut lib, disc.clone(), &mut images);
     // The Material Maker sprite sheets (openspec change `fx-sprites`); a kind whose sheet cannot be read keeps the disc.
     let root = crate::cli::repo_root().join("assets");
-    for name in particles::SHEETS {
+    // `CB_NO_FX_SHEETS=1` keeps the soft disc for every kind, to compare (an A/B switch, as `CB_NO_GROUND_MARKS`).
+    let sheets = if std::env::var("CB_NO_FX_SHEETS").is_ok() {
+        &[][..]
+    } else {
+        &particles::SHEETS[..]
+    };
+    for name in sheets.iter().copied() {
         if let Some(img) = crate::pbr_set::load_tiling(&root, &format!("textures/fx/{name}/albedo.png"), true) {
             particles::set_sheet(&mut lib, name, img, &mut images);
         }
