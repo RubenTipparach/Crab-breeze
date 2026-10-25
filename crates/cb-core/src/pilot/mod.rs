@@ -262,22 +262,16 @@ pub fn coupled_look(rel: f32, prev_rel: f32, turn: f32, limit: f32, free_look: b
 /// An ejected pilot lands this far out in front of the destroyed mech's hatch.
 pub const EJECT_OUT_M: f32 = 18.0;
 
-/// The view's last stretch before the coupled limit over which the mech's turn toward it ramps up.
-pub const LOOK_TURN_BAND_DEG: f32 = 20.0;
-
-/// The mech's turn toward the seated view (`turn_axis`, -1..1): nothing until the view is within
-/// `LOOK_TURN_BAND_DEG` of the coupled limit, then easing up to full at the limit, so the mech
-/// starts turning gently and never snaps between turning and not (owner, 2026-10-25: "theres lots
-/// of mech jitter when I turn, mech should turn more smoothly"). `None` (free look held, or the
-/// view well inside the limit) leaves the turn to the keys.
+/// The mech's turn toward the seated view (`turn_axis`, -1..1): in proportion to how far the view is
+/// off the mech's nose, full at half the coupled limit (45 degrees of 90), so a small look turns it
+/// slowly and a large one fast, and it settles onto the view as the gap closes (owner, 2026-10-25:
+/// "if move a little bit turn mech slowly to match my cursor, if move a lot, the move faster"). The
+/// legs' turn rate eases on top of this (`turn_accel_deg_s2`). `None` while free look is held.
 pub fn look_turn(rel: f32, limit: f32, free_look: bool) -> Option<f32> {
-    let band = LOOK_TURN_BAND_DEG.to_radians().min(limit);
-    let into = (rel.abs() - (limit - band)) / band;
-    if free_look || into <= 0.0 {
+    if free_look || !rel.is_finite() {
         return None;
     }
-    let k = into.min(1.0);
-    Some(rel.signum() * k * k * (3.0 - 2.0 * k))
+    Some((rel / (0.5 * limit).max(1e-3)).clamp(-1.0, 1.0))
 }
 
 impl PilotState {
@@ -863,15 +857,16 @@ mod tests {
     }
 
     #[test]
-    fn pushing_past_the_edge_turns_the_mech_at_its_turn_rate() {
+    fn a_small_look_turns_the_mech_slowly_and_a_large_one_fast() {
         let limit = 90f32.to_radians();
+        let small = look_turn(5f32.to_radians(), limit, false).unwrap();
+        let large = look_turn(40f32.to_radians(), limit, false).unwrap();
+        assert!(small > 0.0 && small < 0.15, "a small look, a slow turn: {small}");
+        assert!(large > 0.8, "a large look, a fast turn: {large}");
         assert_eq!(look_turn(limit, limit, false), Some(1.0));
         assert_eq!(look_turn(-limit, limit, false), Some(-1.0));
-        assert_eq!(look_turn(limit * 0.5, limit, false), None);
-        assert_eq!(look_turn(limit, limit, true), None);
-        // Partway into the band the turn is partway: it ramps, it does not snap.
-        let half = look_turn(limit - (LOOK_TURN_BAND_DEG * 0.5).to_radians(), limit, false).unwrap();
-        assert!(half > 0.3 && half < 0.7, "{half}");
+        assert_eq!(look_turn(0.0, limit, false), Some(0.0), "looking ahead, no turn");
+        assert_eq!(look_turn(limit, limit, true), None, "free look turns nothing");
     }
 
     #[test]

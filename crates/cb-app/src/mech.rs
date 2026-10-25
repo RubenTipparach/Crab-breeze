@@ -1075,10 +1075,13 @@ pub fn step_mech(
                     c.throttle_zero = true;
                     c.throttle_axis = 0.0;
                 }
-                // At the coupled look's edge the mech turns toward the view at its own rate
+                // The mech turns toward the view, faster the further off its nose the view is
                 // (seated-look): the view comes round no faster than the mech can turn.
                 let limit = data.0.pilot.seated_look_limit_deg.to_radians();
-                if let Some(t) = cb_core::pilot::look_turn(pilot.curr.seated_rel_rad, limit, actions.free_look) {
+                // The stronger of the keys' turn and the look's (skating, the keys still turn).
+                if let Some(t) = cb_core::pilot::look_turn(pilot.curr.seated_rel_rad, limit, actions.free_look)
+                    && t.abs() > c.turn_axis.abs()
+                {
                     c.turn_axis = t;
                 }
                 // Walking, WASD is direct: toward the view, back from it, a step to either side; the
