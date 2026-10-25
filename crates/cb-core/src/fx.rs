@@ -299,11 +299,6 @@ impl Validate for FxConfig {
         positive("shake.reach_m_per_cbrt_mj", self.shake.reach_m_per_cbrt_mj)?;
         positive("shake.decay_s", self.shake.decay_s)?;
         positive("burst_range_m", self.burst_range_m)?;
-        for name in &self.sorted {
-            if !self.recipes.contains_key(name) {
-                return Err(format!("`sorted` names no recipe: {name}"));
-            }
-        }
         for (name, per_s) in &self.stream_per_s {
             positive(&format!("stream_per_s.{name}"), *per_s)?;
             if !self.recipes.contains_key(name) {
@@ -322,6 +317,11 @@ impl Validate for FxConfig {
         for (name, layers) in &self.recipes {
             for (i, l) in layers.iter().enumerate() {
                 l.validate(&format!("recipes.{name}[{i}]"))?;
+            }
+        }
+        for name in &self.sorted {
+            if !self.recipes.contains_key(name) {
+                return Err(format!("`sorted` names no recipe: {name}"));
             }
         }
         Ok(())
@@ -359,6 +359,15 @@ mod tests {
         for name in RECIPES {
             assert!(!cfg.recipes[name].is_empty(), "{name} has no layers");
         }
+    }
+
+    #[test]
+    fn a_sorted_name_must_be_a_recipe() {
+        let mut cfg = FxConfig::default();
+        cfg.recipes = RECIPES.iter().map(|n| (n.to_string(), Vec::new())).collect();
+        cfg.sorted = vec!["no_such_recipe".into()];
+        let e = cfg.validate().unwrap_err();
+        assert!(e.contains("no_such_recipe"), "{e}");
     }
 
     #[test]
