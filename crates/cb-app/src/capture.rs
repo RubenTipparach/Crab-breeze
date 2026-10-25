@@ -75,7 +75,8 @@ impl Plugin for StillsPlugin {
             offscreen: None,
         })
         .add_systems(PostStartup, offscreen_for_buildings)
-        .add_systems(Update, run_script);
+        .add_systems(Update, run_script)
+        .add_systems(Last, (hold_poster_hatch, poster_lens));
     }
 }
 
@@ -197,6 +198,67 @@ fn buildings_beats(
     *next = over && (stage != Stage::Fall || script.fall_shots == FALL_SHOTS.len());
 }
 
+/// The poster variant's shots: (where the camera stands round the mech from straight ahead of it,
+/// degrees; knelt and open; how far the view turns off the mech, degrees, so it sits to one side).
+const POSTER_SHOTS: [(f32, bool, f32); 2] = [(45.0, false, 13.0), (45.0, true, 13.0)];
+
+/// How far the poster variant turns the mech from facing the pilot's start, degrees, so it stands
+/// side-on in the frame.
+pub const POSTER_MECH_TURN_DEG: f32 = -90.0;
+
+/// How far the poster camera stands from the mech, metres (the 45 degree lens wants distance).
+const POSTER_RANGE_M: f32 = 62.0;
+
+/// The poster variant's lens: a 45 degree view, everything sharp (the city too), a vignette and a little
+/// chromatic aberration. Runs last, after the settings set the player's lens.
+fn poster_lens(mut commands: Commands, camera: Single<(Entity, &mut Projection), With<crate::pilot::PilotCamera>>, mut added: Local<bool>) {
+    if !crate::cli::switched_off("CB_STILLS_POSTER") {
+        return;
+    }
+    let (e, mut lens) = camera.into_inner();
+    if let Projection::Perspective(p) = lens.as_mut() {
+        p.fov = 45f32.to_radians();
+    }
+    use bevy::post_process::effect_stack::{ChromaticAberration, Vignette};
+    if !*added {
+        *added = true;
+        commands.entity(e).insert((
+            Vignette {
+                intensity: 0.55,
+                radius: 0.9,
+                smoothness: 2.5,
+                ..default()
+            },
+            ChromaticAberration {
+                intensity: 0.004,
+                ..default()
+            },
+        ));
+    }
+}
+
+/// In the poster variant's knelt shots, holds the mech sat down with its chest open: the boarding
+/// clock at "open" whatever the boarding rules would do with no pilot at the stair. Runs last, so
+/// the frame drawn next shows it open.
+fn hold_poster_hatch(script: Res<Script>, data: Res<Data>, mut mechs: Query<&mut MechSim>) {
+    if !crate::cli::switched_off("CB_STILLS_POSTER") || script.beat == 0 {
+        return;
+    }
+    let i = script.beat - 1;
+    if !POSTER_SHOTS.get(i).is_some_and(|s| s.1) {
+        return;
+    }
+    let tl = &data.0.boarding;
+    for mut m in &mut mechs {
+        m.hatch.target = cb_core::boarding::HatchTarget::Open;
+        let open = m.hatch.target_s(tl);
+        m.hatch.step(tl, 0.25);
+        if m.hatch.t_s > open {
+            m.hatch.t_s = open;
+        }
+    }
+}
+
 /// A still of the building variant's offscreen image.
 fn shoot_image(commands: &mut Commands, script: &Script, name: &str) {
     let Some(img) = script.offscreen.clone() else {
@@ -228,7 +290,7 @@ fn offscreen_for_buildings(
     mut images: ResMut<Assets<Image>>,
     mut script: ResMut<Script>,
 ) {
-    if !crate::cli::switched_off("CB_STILLS_BUILDINGS") {
+    if !crate::cli::switched_off("CB_STILLS_BUILDINGS") && !crate::cli::switched_off("CB_STILLS_POSTER") {
         return;
     }
     use bevy::camera::RenderTarget;
@@ -297,6 +359,45 @@ fn run_script(
             &mut exit,
         );
         if next {
+            script.beat += 1;
+            script.beat_started_s = now;
+        }
+        return;
+    }
+    // The poster variant (`CB_STILLS_POSTER=1`, with `--start overlook`): on foot downhill of the
+    // mech, looking up at it with the city and the sun beyond, a few angles standing, then knelt with
+    // its chest open (`hold_poster_hatch`), into the offscreen image.
+    if script.beat >= 1 && crate::cli::switched_off("CB_STILLS_POSTER") {
+        let i = script.beat - 1;
+        if i >= POSTER_SHOTS.len() {
+            // The last screenshot is written a frame or two later.
+            if in_beat > 2.0 {
+                exit.write(AppExit::Success);
+            }
+            return;
+        }
+        let (angle_deg, knelt, turn_deg) = POSTER_SHOTS[i];
+        if access.0.is_none() {
+            return;
+        }
+        let mech = plan.0.start.mech_xz;
+        let ahead = (plan.0.start.pilot_xz - mech).normalize_or(Vec2::Y);
+        if in_beat < 0.05 {
+            let at = mech + Vec2::from_angle(angle_deg.to_radians()).rotate(ahead) * POSTER_RANGE_M;
+            let feet = Vec3::new(at.x, plan.0.terrain.height_at(at.x, at.y), at.y);
+            let to = Vec3::new(mech.x, feet.y, mech.y) - feet;
+            let mut st = PilotState::standing(feet, (-to.x).atan2(-to.z) + turn_deg.to_radians());
+            st.pitch_rad = if knelt { 0.06 } else { 0.13 };
+            pilot.prev = st.clone();
+            pilot.curr = st;
+        }
+        // Standing shots after 4 s; knelt ones once the mech has sat and opened (about 9 s).
+        if in_beat > if knelt { 12.0 } else { 4.0 } {
+            shoot_image(
+                &mut commands,
+                &script,
+                &format!("poster-{i}{}.png", if knelt { "-knelt" } else { "" }),
+            );
             script.beat += 1;
             script.beat_started_s = now;
         }
@@ -898,6 +999,13 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // From the street in the biggest city, looking up past the towers at the sky (`city_up_view`).
+    View {
+        name: "city-up",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // Mist in the low ground, from a hill over the wet west at dawn-like low height.
     view("valley-mist", [-9000.0, 260.0, -1000.0], [-6000.0, 120.0, 2500.0]),
     // Under the storm, in its rain, 40 m up, facing away from the sun.
@@ -962,6 +1070,33 @@ fn steep_river_view(plan: &crate::world::Plan, back_m: f32, up_m: f32, top: bool
     };
     info!("steep river: {drop:.0} m over 10 points at {at}");
     (eye.to_array(), at.to_array())
+}
+
+/// On the street nearest the middle of the city with the most cloud overhead, 2 m up, looking nearly straight up.
+fn city_up_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
+    // The city with the most cloud overhead (the storm decks are where the cloud's base shows).
+    let overhead = |c: &cb_core::world::layout::City| -> f32 {
+        (0..30)
+            .map(|k| {
+                plan.clouds
+                    .density_at(Vec3::new(c.centre.x, 500.0 + k as f32 * 100.0, c.centre.y), 0.0)
+            })
+            .sum()
+    };
+    let Some(city) = plan.cities.iter().max_by(|a, b| overhead(a).total_cmp(&overhead(b))) else {
+        return ([0.0, 400.0, 0.0], [0.0, 2000.0, 100.0]);
+    };
+    let street = city
+        .streets
+        .iter()
+        .min_by(|a, b| {
+            let d = |s: &cb_core::world::layout::StreetPiece| s.rect.centre().distance(city.centre) - s.width_m;
+            d(a).total_cmp(&d(b))
+        })
+        .map_or(city.centre, |s| s.rect.centre());
+    let eye = Vec3::new(street.x, plan.terrain.height_at(street.x, street.y) + 2.0, street.y);
+    info!("city up: city {} at {eye}", city.id);
+    (eye.to_array(), (eye + Vec3::new(60.0, 1000.0, 30.0)).to_array())
 }
 
 /// Up close on the steepest river reach that is not a waterfall: 40 m to its side and 6 m over the
@@ -1055,6 +1190,7 @@ fn run_weather_script(
             "river-steep-top" => steep_river_view(&plan, 0.0, 500.0, true),
             "river-close" => close_river_view(&plan, false),
             "river-close-below" => close_river_view(&plan, true),
+            "city-up" => city_up_view(&plan),
             _ => (v.eye, v.at),
         };
         let v = View {

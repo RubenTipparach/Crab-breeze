@@ -56,6 +56,11 @@ Gaps: no confirmed CC0 lock-on or radar ping, jet loop or wheel-skate loop. Synt
 (jsfxr, below; the lock tone can take the Call Sign rhythm, `docs/design/music.md`) and take the
 engines from a Sonniss bundle.
 
+## Every recording in the game
+
+The list of every pack the game's sounds are cut from, with links, authors, licences and the cues
+cut from each, is [`AUDIO_SOURCES.md`](../../AUDIO_SOURCES.md) at the repository root.
+
 ## Recorded CC0 replacements (owner, 2026-10-25: "can you not pull from cc0 sound fx?")
 
 **Done for 30 of 36 cues (2026-10-25).** The owner opened the network to opengameart.org,

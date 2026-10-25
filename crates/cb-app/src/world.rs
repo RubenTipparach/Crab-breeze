@@ -43,6 +43,11 @@ pub fn exposure_scale(view: &cb_core::world::config::ViewConfig) -> f32 {
     }
 }
 
+/// Start on a grassy rise overlooking a city, facing away from it with the sun beyond it
+/// (`--start overlook`, for poster stills: `cb_core::grass::overlook_start`).
+#[derive(Resource)]
+pub struct StartOnOverlook;
+
 /// Start in the nearest meadow instead of the city (`--start meadow`, gpu-grass).
 #[derive(Resource)]
 pub struct StartInMeadow;
@@ -80,9 +85,30 @@ impl Plugin for WorldPlugin {
         let cfg = app.world().resource::<Data>().0.world.clone();
         let started = std::time::Instant::now();
         let mut plan = generate(seed, &cfg);
+        if app.world().contains_resource::<StartOnOverlook>() {
+            let grass = &app.world().resource::<Data>().0.grass;
+            match cb_core::grass::overlook_start(&plan, grass, cb_core::world::sun_shade::to_sun()) {
+                Some((s, rise)) => {
+                    info!(
+                        "world: starting on an overlook at ({:.0}, {:.0}), {rise:.0} m over the city's ground",
+                        s.mech_xz.x, s.mech_xz.y
+                    );
+                    let mut s = s;
+                    // Poster stills turn the mech off the camera for a silhouette (`capture`).
+                    if crate::cli::switched_off("CB_STILLS_POSTER") {
+                        s.mech_heading_rad += crate::capture::POSTER_MECH_TURN_DEG.to_radians();
+                    }
+                    plan.start = s;
+                }
+                None => warn!("world: no grassy overlook found; starting in the city"),
+            }
+        }
         if app.world().contains_resource::<StartInMeadow>() {
             let grass = &app.world().resource::<Data>().0.grass;
-            match cb_core::grass::meadow_start(&plan, grass, 40.0, 6000.0) {
+            // A wide meadow near the start, else (the island's biomes leave few) a smaller one farther out.
+            let found = cb_core::grass::meadow_start(&plan, grass, 40.0, 6000.0)
+                .or_else(|| cb_core::grass::meadow_start(&plan, grass, 15.0, 15000.0));
+            match found {
                 Some(s) => {
                     info!("world: starting in a meadow at ({:.0}, {:.0})", s.mech_xz.x, s.mech_xz.y);
                     plan.start = s;
