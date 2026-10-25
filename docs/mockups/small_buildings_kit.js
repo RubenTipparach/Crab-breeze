@@ -250,7 +250,32 @@
 
   // ------------------------------------------------------------------ roofs
   // Each roof is a top surface and an underside (seen under the eaves), with fascia boards.
-  function slope(B, mat, pts, under = 'soffit', thick = 0.14) { B.group(() => slopeFaces(B, mat, pts, under, thick)); }
+  // A roof plane, cut into panels about 1.6 m across, each its own piece (so a shell holes a roof
+  // and a lost wall peels one side off, panel by panel). pts: a quad or a triangle, a-b one edge,
+  // d-c the opposite edge (c = d for a triangle).
+  const PANEL_M = 1.6;
+  function slope(B, mat, pts, under = 'soffit', thick = 0.14) {
+    const [a, b, c] = pts, d = pts[3] || pts[2];
+    const L = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+    const nu = Math.max(1, Math.round(Math.max(L(a, b), L(d, c)) / PANEL_M)), nv = Math.max(1, Math.round(Math.max(L(a, d), L(b, c)) / PANEL_M));
+    const lerp = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t];
+    const at = (u, v) => lerp(lerp(a, b, u), lerp(d, c, u), v);
+    for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
+      const p00 = at(i / nu, j / nv), p10 = at((i + 1) / nu, j / nv), p11 = at((i + 1) / nu, (j + 1) / nv), p01 = at(i / nu, (j + 1) / nv);
+      const cell = [p00, p10, p11, p01].filter((p, k, arr) => k === 0 || L(p, arr[k - 1]) > 1e-6);
+      if (cell.length < 3 || (cell.length === 4 && L(cell[3], cell[0]) < 1e-6)) continue;
+      B.group(() => {
+        slopeFaces(B, mat, cell, under, thick);
+        // The panel as an oriented box, so it falls as an instanced chunk of its material.
+        const ctr = [0, 1, 2].map((k) => cell.reduce((s, p) => s + p[k], 0) / cell.length);
+        const tu = sub(p10, p00), tv = sub(p01, p00);
+        let n = norm(cross(tu, tv)); if (n[1] < 0) n = n.map((x) => -x);
+        const tuN = len(tu) > 1e-6 ? norm(tu) : norm(cross(n, tv));
+        const tvN = norm(cross(n, tuN));
+        B.meta[B.cur] = { mat, tint: B.tint.slice(), panel: { c: [ctr[0], ctr[1] - thick / 2, ctr[2]], size: [Math.max(len(tu), L(p11, p01), 0.2), thick, Math.max(len(tv), L(p11, p10), 0.2)], axes: [tuN, n, tvN] } };
+      });
+    }
+  }
   function slopeFaces(B, mat, pts, under, thick) {
     const up = [0, 1, 0];
     B.poly(mat, pts, up);
@@ -258,6 +283,11 @@
     const st = B.tint; B.color(0xf2efe8);
     B.poly(under, low, [0, -1, 0]);
     B.tint = st;
+  }
+  // A big horizontal slab (flat roof, ceiling, upper floor) as tiles about 2.5 m across.
+  function tiles(B, mat, x0, y0, z0, x1, y1, z1, skip, size = 2.5) {
+    const nx = Math.max(1, Math.round((x1 - x0) / size)), nz = Math.max(1, Math.round((z1 - z0) / size));
+    for (let i = 0; i < nx; i++) for (let k = 0; k < nz; k++) B.box(mat, x0 + (x1 - x0) * i / nx, y0, z0 + (z1 - z0) * k / nz, x0 + (x1 - x0) * (i + 1) / nx, y1, z0 + (z1 - z0) * (k + 1) / nz, skip);
   }
   // R: {x0, x1, z0, z1, y, pitch, over, mat, tint, wall (gable end material), wallTint, t}
   function hipRoof(B, R) {
@@ -333,7 +363,7 @@
   // A flat roof with a parapet and coping.
   function flatRoof(B, x0, x1, z0, z1, y, o = {}) {
     const par = o.parapet != null ? o.parapet : 0.7, t = o.t || 0.25;
-    B.color(0x6d6a66); B.box('roofing', x0 + t, y - 0.3, z0 + t, x1 - t, y, z1 - t);
+    B.color(0x6d6a66); tiles(B, 'roofing', x0 + t, y - 0.3, z0 + t, x1 - t, y, z1 - t);
     if (par > 0) {
       B.color(o.wallTint || 0xffffff);
       B.box(o.wall, x0, y, z1 - t, x1, y + par, z1);
@@ -433,8 +463,8 @@
       B.color(o.tint || 0xffffff);
       wall(B, o.wall, 'z', x1 - t / 2, z0 + t, z1 - t, t, yb, yt, 1, o.blankRight ? [] : side, { inner });
       // Floor and ceiling.
-      B.color(0xe6e0d4); B.box('plaster', x0 + t, yb - 0.22, z0 + t, x1 - t, yb - 0.03, z1 - t, s === 0 ? '' : 'Y');
-      B.color(0xffffff); B.box(o.floorMat || 'floorWood', x0 + t + 0.012, yb - 0.03, z0 + t + 0.012, x1 - t - 0.012, yb, z1 - t - 0.012);
+      B.color(0xe6e0d4); tiles(B, 'plaster', x0 + t, yb - 0.22, z0 + t, x1 - t, yb - 0.03, z1 - t, s === 0 ? '' : 'Y');
+      B.color(0xffffff); tiles(B, o.floorMat || 'floorWood', x0 + t + 0.012, yb - 0.03, z0 + t + 0.012, x1 - t - 0.012, yb, z1 - t - 0.012);
       // Partitions with door gaps, and the rooms' furniture.
       const plan = (o.plan && o.plan[s]) || ['living', 'kitchen', 'bed'];
       const shares = plan.map((r) => (typeof r === 'object' ? r.w : 1));
@@ -456,7 +486,7 @@
       });
     }
     // Ceiling of the top storey.
-    B.color(0xf2efe8); B.box('plaster', x0 + t, top - 0.012, z0 + t, x1 - t, top + 0.08, z1 - t, 'Y');
+    B.color(0xf2efe8); tiles(B, 'plaster', x0 + t, top - 0.012, z0 + t, x1 - t, top + 0.08, z1 - t, 'Y');
     // Roof.
     const R = Object.assign({ x0, x1, z0, z1, y: top, pitch: 0.4, over: 0.55, mat: 'shingle', wall: o.wall, wallTint: o.tint, t, yWall: top }, o.roof || {});
     let ridgeY = top;
@@ -934,7 +964,7 @@
     return B;
   }
 
-  const api = { TYPES, build, Builder, house, wall, row, hipRoof, gableRoof, flatRoof, place, FURN, car, pilotFigure, mulberry };
+  const api = { TYPES, build, Builder, house, wall, row, hipRoof, gableRoof, flatRoof, slope, tiles, place, FURN, car, pilotFigure, mulberry };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SmallBuildings = api;
 })(this);

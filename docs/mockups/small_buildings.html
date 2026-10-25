@@ -290,9 +290,12 @@ function mergeInto(B, ox, oz, rot, bld = -1) {
   for (let i = 0; i < B.pid; i++) {
     const mt = B.meta[i];
     let meta = null;
-    if (mt) {
+    if (mt && mt.box) {
       const [x0, y0, z0, x1, y1, z1] = mt.box;
       meta = { mat: mt.mat, tint: mt.tint, box: rot ? [ox - x1, y0, oz - z1, ox - x0, y1, oz - z0] : [ox + x0, y0, oz + z0, ox + x1, y1, oz + z1] };
+    } else if (mt && mt.panel) { // a roof panel: an oriented box (a half turn mirrors x and z)
+      const P = mt.panel, f = (v) => [c * v[0], v[1], c * v[2]];
+      meta = { mat: mt.mat, tint: mt.tint, panel: { c: [ox + c * P.c[0], P.c[1], oz + c * P.c[2]], size: P.size, axes: P.axes.map(f) } };
     }
     PIECES.push({ bld, alive: true, ranges: [], lo: [1e9, 1e9, 1e9], hi: [-1e9, -1e9, -1e9], meta, nb: [] });
   }
@@ -509,7 +512,7 @@ let weapon = 'shell';
 const WALLMATS = new Set(['brick', 'block', 'siding', 'board', 'stucco', 'adobe', 'ribbed', 'stainless', 'tileWall', 'tileRed']);
 const THIN = 0.06;              // pieces thinner than this (plaster faces, glass, signs) turn to dust
 const CHUNK = 1.5;              // chunk size from a blast, metres
-const MAX_FALLING = 500;        // falling chunks and pieces at once
+const MAX_FALLING = 1500;       // falling chunks and pieces at once (chunks are instanced, so cheap)
 const REPOSE = Math.tan(35 * Math.PI / 180);
 const FALLING = [];             // { kind: 'inst'|'mesh', key, slot | obj, v, w, h, delay, still, q, pos }
 let rubbleTris = 0;
@@ -606,15 +609,16 @@ function instMaterial(key) { // the street material without vertex colours (inst
   return m;
 }
 const _mat = new THREE.Matrix4(), _pos = new THREE.Vector3(), _scl = new THREE.Vector3(), _col = new THREE.Color();
-function addChunk(key, tint, lo, hi, v, delay) {
+function addChunk(key, tint, lo, hi, v, delay, q) {
   if (FALLING.length >= MAX_FALLING) return false;
   const I = instFor(key);
   if (I.used >= INST_CAP) return false;
   const slot = I.used++; I.mesh.count = I.used;
-  const pos = new THREE.Vector3((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2);
-  const size = [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]];
+  // lo/hi are box corners, or (with q) a centre and a size.
+  const pos = q ? new THREE.Vector3(...lo) : new THREE.Vector3((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2);
+  const size = q ? hi.slice() : [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]];
   _col.setRGB(tint[0], tint[1], tint[2]); I.mesh.setColorAt(slot, _col); I.mesh.instanceColor.needsUpdate = true;
-  const f = { kind: 'inst', I, slot, pos, q: new THREE.Quaternion(), size, h: size.map((s) => s / 2), v, w: spin(size), delay, still: 0 };
+  const f = { kind: 'inst', I, slot, pos, q: q ? q.clone() : new THREE.Quaternion(), size, h: size.map((s) => s / 2), v, w: spin(size), delay, still: 0 };
   writeInst(f); FALLING.push(f);
   return true;
 }
@@ -650,6 +654,14 @@ function breakOff(pid, vel, delay, from, chunk = CHUNK) {
   const size = [P.hi[0] - P.lo[0], P.hi[1] - P.lo[1], P.hi[2] - P.lo[2]];
   if (Math.min(...size) < THIN) { if (Math.random() < 0.15) dustAt(P.lo[0], P.lo[1], P.lo[2], 1, 0.5); return; } // plaster faces, glass, signs: dust
   if (!P.meta) { pieceMesh(pid, vel, delay); return; }
+  if (P.meta.panel) { // a roof panel falls as one tilted chunk of its roofing
+    const A = P.meta.panel.axes;
+    const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(...A[0]), new THREE.Vector3(...A[1]), new THREE.Vector3(...A[2])));
+    const v = from ? vel : vel.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.2, 0, (Math.random() - 0.5) * 1.2));
+    addChunk(P.meta.mat, P.meta.tint, P.meta.panel.c, P.meta.panel.size, v, delay + (from ? 0 : Math.random() * 0.15), q);
+    rubbleTris += 12;
+    return;
+  }
   const [x0, y0, z0, x1, y1, z1] = P.meta.box;
   const nx = Math.min(4, Math.ceil((x1 - x0) / chunk)), ny = Math.min(4, Math.ceil((y1 - y0) / chunk)), nz = Math.min(4, Math.ceil((z1 - z0) / chunk));
   for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) for (let k = 0; k < nz; k++) {

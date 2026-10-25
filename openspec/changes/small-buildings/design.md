@@ -132,14 +132,21 @@ What the mockup does (it is the model for the game; the game's version goes thro
 - **What breaks into what.**
   - Thin pieces (plaster faces, glass, signs, under 6 cm) turn to dust.
   - Lone boxes break into chunks about 1.5 m across, keeping their material and paint.
-  - Other pieces (a window with its glass, a sofa, a car, a roof plane) fall whole.
+  - Roof planes are cut into panels about 1.6 m across (owner, 2026-10-24: "I wish roofs were
+    more segmented instead of giant triangle"). Each panel is held by the wall under its eave or
+    the panel below it, or by neighbours beside it, so a shell holes a roof (one shell on the
+    bungalow's ridge takes 26 of its 76 panels) and a lost wall peels that side off. A panel falls
+    as one tilted chunk of its roofing. Flat roofs, ceilings and upper floors are tiles about
+    2.5 m across. This adds about 10,000 triangles to the street.
+  - Other pieces (a window with its glass, a sofa, a car) fall whole.
 - **Cost** (owner: "Doesn't seem very performant, is there too much detail in debris"):
   - Chunks are drawn instanced, one draw a material (a unit box scaled and tinted per chunk), and
     a chunk at rest simply stops moving, so rubble costs nothing more.
   - Whole pieces bake into one static mesh a material when they rest, rebuilt for that material
     only and at most twice a second.
   - Flying debris casts shadows only through the instanced draws.
-  - At most 500 things fall at once, and none falls for more than 6 s.
+  - At most 1,500 things fall at once, and none falls for more than 6 s. Physics for 500 falling
+    things costs about 0.02 ms a frame headless.
 - **Piles.** Debris lands on the ground or on rubble already there (a 0.5 m height grid). A pile
   steeper than 35 degrees sheds what lands on it, so walls falling straight down spread into heaps
   instead of standing back up as columns. A pile rises by the thickness of what lands, not by its
