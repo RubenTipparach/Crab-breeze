@@ -27,6 +27,7 @@ fn motion(kind: ParticleKind) -> (f32, f32, f32, bool) {
         ParticleKind::Debris => (9.81, 0.3, 0.8, false),
         ParticleKind::Rubble => (9.81, 0.2, 0.0, false),
         ParticleKind::Trail => (-0.1, 0.6, 0.3, false),
+        ParticleKind::Mist => (0.4, 1.8, 1.4, false),
     }
 }
 
@@ -50,11 +51,12 @@ fn colour_over_life(kind: ParticleKind) -> Vec<(f32, Vec4)> {
             (0.8, v(0.85, 0.8, 0.75, 1.0)),
             (1.0, v(0.85, 0.8, 0.75, 0.0)),
         ],
+        // Pale, thin and mostly grey: the wisp sheet is already tan, so this only dims it.
         ParticleKind::Dust => vec![
-            (0.0, v(0.55, 0.48, 0.38, 0.0)),
-            (0.1, v(0.55, 0.48, 0.38, 0.45)),
-            (0.6, v(0.5, 0.45, 0.37, 0.3)),
-            (1.0, v(0.5, 0.45, 0.37, 0.0)),
+            (0.0, v(0.62, 0.6, 0.57, 0.0)),
+            (0.1, v(0.62, 0.6, 0.57, 0.28)),
+            (0.6, v(0.6, 0.59, 0.57, 0.16)),
+            (1.0, v(0.6, 0.59, 0.57, 0.0)),
         ],
         ParticleKind::Smoke => vec![
             (0.0, v(0.2, 0.19, 0.18, 0.0)),
@@ -90,11 +92,21 @@ fn colour_over_life(kind: ParticleKind) -> Vec<(f32, Vec4)> {
             (0.85, v(1.1, 1.08, 1.05, 1.0)),
             (1.0, v(1.1, 1.08, 1.05, 0.0)),
         ],
+        // White and fairly opaque: the grey sheet times a pale grey at half opacity matched the sky,
+        // so a mech's trail overhead could not be seen from the seat (2026-10-25); it showed only
+        // against the ground.
         ParticleKind::Trail => vec![
-            (0.0, v(0.85, 0.84, 0.82, 0.0)),
-            (0.05, v(0.85, 0.84, 0.82, 0.5)),
-            (0.5, v(0.8, 0.79, 0.77, 0.3)),
-            (1.0, v(0.8, 0.79, 0.77, 0.0)),
+            (0.0, v(1.6, 1.58, 1.55, 0.0)),
+            (0.05, v(1.6, 1.58, 1.55, 0.75)),
+            (0.5, v(1.45, 1.43, 1.4, 0.45)),
+            (1.0, v(1.4, 1.38, 1.35, 0.0)),
+        ],
+        // Cold mist: a faint blue-white that thickens as it spreads, then thins.
+        ParticleKind::Mist => vec![
+            (0.0, v(0.82, 0.88, 0.92, 0.0)),
+            (0.2, v(0.82, 0.88, 0.92, 0.22)),
+            (0.7, v(0.85, 0.89, 0.92, 0.16)),
+            (1.0, v(0.85, 0.89, 0.92, 0.0)),
         ],
     }
 }
@@ -103,7 +115,7 @@ fn colour_over_life(kind: ParticleKind) -> Vec<(f32, Vec4)> {
 /// for the soft disc. One table, so a new kind names its sheet here.
 pub fn sheet(kind: ParticleKind) -> Option<&'static str> {
     match kind {
-        ParticleKind::Smoke | ParticleKind::Steam | ParticleKind::Trail => Some("smoke_puffs"),
+        ParticleKind::Smoke | ParticleKind::Steam | ParticleKind::Mist | ParticleKind::Trail => Some("smoke_puffs"),
         ParticleKind::Fire | ParticleKind::Flame => Some("fire_flipbook"),
         ParticleKind::Dust => Some("dust_wisps"),
         ParticleKind::Dirt | ParticleKind::Debris | ParticleKind::Rubble => Some("dirt_clods"),
@@ -132,11 +144,11 @@ struct BurstSpec {
     life_s: f32,
 }
 
-/// Effect assets by (recipe, layer, particle count); a continuous trail by recipe and layer.
+/// Effect assets by (recipe, layer, particle count); a continuous trail by recipe, layer and rate.
 #[derive(Resource, Default)]
 pub struct ParticleLibrary {
     bursts: HashMap<(&'static str, usize, u32), Handle<EffectAsset>>,
-    trails: HashMap<(&'static str, usize), Handle<EffectAsset>>,
+    trails: HashMap<(&'static str, usize, u32), Handle<EffectAsset>>,
     disc: Handle<Image>,
     /// Copies of the disc, one per blended burst in turn (see `set_sprite`).
     discs: Vec<Handle<Image>>,
@@ -184,7 +196,13 @@ pub fn set_sprite(lib: &mut ParticleLibrary, disc: Handle<Image>, images: &mut A
 
 /// Gives the library a kind's sprite sheet (`fx-sprites`), and copies of it for blended bursts.
 pub fn set_sheet(lib: &mut ParticleLibrary, name: &'static str, image: Image, images: &mut Assets<Image>) {
-    let copies = (0..SHEET_COPIES).map(|_| images.add(image.clone())).collect();
+    // `CB_NO_SHEET_COPIES` hands every burst the one sheet (an instrument, as `CB_NO_FX_SHEETS`).
+    let n = if std::env::var("CB_NO_SHEET_COPIES").is_ok() {
+        0
+    } else {
+        SHEET_COPIES
+    };
+    let copies = (0..n).map(|_| images.add(image.clone())).collect();
     lib.sheets.insert(name, (images.add(image), copies, 0));
 }
 
@@ -209,6 +227,14 @@ impl ParticleLibrary {
     /// Whether `kind` draws from a loaded sheet (its effect asset then carries the flipbook).
     fn has_sheet(&self, kind: ParticleKind) -> bool {
         sheet(kind).is_some_and(|n| self.sheets.contains_key(n))
+    }
+}
+
+/// The texture slot's name for a kind: its sheet's, or the disc's (see `build`).
+fn slot_name(kind: ParticleKind, sheet: bool) -> &'static str {
+    match sheet.then(|| self::sheet(kind)).flatten() {
+        Some(name) => name,
+        None => "disc",
     }
 }
 
@@ -262,7 +288,11 @@ fn build(spec: BurstSpec, spawner: SpawnerSettings, capacity: u32, sheet: bool) 
     }
     let set_cell = SetAttributeModifier::new(Attribute::SPRITE_INDEX, cell.expr());
     let mut module = w.finish();
-    module.add_texture_slot("sprite", SlotDimension::D2);
+    // The slot is named after the image it takes. bevy_hanabi (rev 77630ff) caches an effect's texture bind group by
+    // its property buffer and texture layout, not by the images bound, so every one-slot effect drew whichever image
+    // the first one bound: the smoke column took the fire flipbook and stood twenty seconds as an orange "tornado"
+    // (owner, 2026-10-25). A slot name is part of the layout, so one name per image keeps the bind groups apart.
+    module.add_texture_slot(slot_name(spec.kind, sheet), SlotDimension::D2);
     let orient = if spec.kind == ParticleKind::Spark {
         OrientModifier::new(OrientMode::AlongVelocity)
     } else {
@@ -346,6 +376,7 @@ pub fn burst(
     dir: Vec3,
     scale: f32,
     now_s: f32,
+    sorted: bool,
 ) {
     let Some(spec) = spec_of(layer) else { return };
     if count == 0 {
@@ -360,10 +391,11 @@ pub fn burst(
     let mut props = EffectProperties::default();
     props.set("size_scale", scale.into());
     lib.live += count;
-    // Only an explosion's smoke gets a sprite of its own: per-burst sprites stop bevy_hanabi
-    // batching, and for every burst they cost about 6 ms a frame in combat (2026-10-24). The big
-    // blended clouds are what showed the wrong order.
-    let blended = !motion(spec.kind).3 && recipe.starts_with("explosion");
+    // Only the `sorted` recipes' blended layers get a sprite of their own: per-burst sprites stop
+    // bevy_hanabi batching, and for every burst they cost about 6 ms a frame in combat
+    // (2026-10-24). The big blended clouds (explosion smoke, collapse dust) are what showed the
+    // wrong order, and flickered as merged bursts came and went.
+    let blended = !motion(spec.kind).3 && sorted;
     let sprite = lib.sprite(spec.kind, blended);
     commands.spawn((
         Name::new(format!("fx {recipe}")),
@@ -381,7 +413,8 @@ pub fn burst(
 }
 
 /// A steady stream of recipe `recipe`'s layer `index` at `rate` a second (a rocket's smoke trail),
-/// to ride an entity; switch it with `EffectSpawner::active`.
+/// to ride an entity; switch it with `EffectSpawner::active`. It carries its properties (the size
+/// scale, 1) as a burst does: an effect whose module declares a property draws nothing without them.
 pub fn stream(
     lib: &mut ParticleLibrary,
     effects: &mut Assets<EffectAsset>,
@@ -389,22 +422,25 @@ pub fn stream(
     index: usize,
     layer: &Layer,
     rate: f32,
-) -> Option<(ParticleEffect, EffectMaterial)> {
+) -> Option<(ParticleEffect, EffectMaterial, EffectProperties)> {
     let spec = spec_of(layer)?;
     let sheet = lib.has_sheet(spec.kind);
     let handle = lib
         .trails
-        .entry((recipe, index))
+        .entry((recipe, index, rate.to_bits()))
         .or_insert_with(|| {
             let capacity = (rate * spec.life_s * 1.4).ceil() as u32;
             effects.add(build(spec, SpawnerSettings::rate(rate.into()), capacity, sheet))
         })
         .clone();
+    let mut props = EffectProperties::default();
+    props.set("size_scale", 1.0.into());
     Some((
         ParticleEffect::new(handle),
         EffectMaterial {
             images: vec![lib.sprite(spec.kind, false)],
         },
+        props,
     ))
 }
 
@@ -443,6 +479,31 @@ mod tests {
                 let img = image::open(root.join(name).join("albedo.png")).expect("the sheet is shipped");
                 assert_eq!(img.width() % GRID, 0, "{name} splits into {GRID} cells");
             }
+        }
+    }
+
+    /// bevy_hanabi shares one texture bind group between effects with equal texture layouts, so two kinds drawing
+    /// different images must not have equal layouts (the orange smoke column, 2026-10-25).
+    #[test]
+    fn kinds_drawing_different_images_never_share_a_texture_layout() {
+        let spec = |kind| BurstSpec {
+            kind,
+            speed_m_s: 1.0,
+            spread: 0.5,
+            size_m: 1.0,
+            life_s: 1.0,
+        };
+        let layout = |kind, sheet| {
+            build(spec(kind), SpawnerSettings::once(1.0.into()), 32, sheet)
+                .module()
+                .texture_layout()
+        };
+        let kinds = [ParticleKind::Smoke, ParticleKind::Fire, ParticleKind::Dust, ParticleKind::Dirt];
+        for (i, a) in kinds.iter().enumerate() {
+            for b in &kinds[i + 1..] {
+                assert_ne!(layout(*a, true), layout(*b, true), "{a:?} and {b:?} would share a bind group");
+            }
+            assert_ne!(layout(*a, true), layout(ParticleKind::Spark, false), "{a:?} would share the disc's");
         }
     }
 }

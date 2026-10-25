@@ -22,8 +22,19 @@ pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_hud)
-            .add_systems(Update, (update_hud, draw_targets).in_set(PresentSet::Camera));
+        app.add_systems(Startup, spawn_hud).add_systems(
+            Update,
+            (
+                update_hud,
+                draw_targets,
+                draw_lock,
+                exit_ring,
+                update_stations,
+                draw_job,
+                draw_signs,
+            )
+                .in_set(PresentSet::Camera),
+        );
     }
 }
 
@@ -34,11 +45,55 @@ struct HudRoot;
 #[derive(Component)]
 pub struct MfdRoot;
 
-/// One MFD page's side, pixels; the MFD texture is three pages wide (a row a multiple of 256 bytes).
+/// One MFD page's side, pixels (a row a multiple of 256 bytes).
 pub const MFD_PAGE_PX: f32 = 512.0;
+
+/// Pages side by side on the MFD texture, left to right: MECH, FLIGHT, MISSION, WEAPONS, TARGET (weapon-select).
+/// The pages' row and the texture are both this many pages wide, so each screen's slice holds exactly one page.
+pub const MFD_PAGES: usize = 5;
 
 #[derive(Component)]
 struct LegArrow;
+
+/// One dot of the climb-out ring round the crosshair, by its place round the ring (0 at the top).
+#[derive(Component)]
+struct ExitDot(usize);
+
+/// A row of the WEAPONS page: one weapon station, boxed when selected.
+#[derive(Component)]
+struct StationRow(usize);
+
+/// Rows on the WEAPONS page.
+const STATION_ROWS: usize = 6;
+
+/// The accepted job's site over the screens.
+#[derive(Component)]
+struct JobMarker;
+
+/// `[MELEE MODE]` under the crosshair while close combat is on.
+#[derive(Component)]
+struct MeleeSign;
+
+/// The selected weapon's name under the crosshair: what the left mouse fires.
+#[derive(Component)]
+struct WeaponSign;
+
+/// The job line on the MISSION page.
+#[derive(Component)]
+struct JobLine;
+
+/// The TARGET page's readout.
+#[derive(Component)]
+struct TargetReadout;
+
+/// Dots in the climb-out ring.
+const EXIT_DOTS: usize = 24;
+/// The climb-out ring's radius, pixels.
+const EXIT_RING_PX: f32 = 34.0;
+
+/// One of the two missile-lock boxes: 0 square, 1 turned 45 degrees.
+#[derive(Component, Clone, Copy)]
+struct LockBox(usize);
 
 /// A pooled target box, by slot.
 #[derive(Component, Clone, Copy)]
@@ -185,6 +240,81 @@ fn spawn_hud(mut commands: Commands) {
                 Visibility::Hidden,
                 EdgeArrow,
             ));
+            // Under the crosshair: the weapon the left mouse fires, and [MELEE MODE] in close combat
+            // (owner, 2026-10-25: "MELEE MODE on the main screen, not mfd").
+            for (top, size, colour, melee) in [(36.0, 20.0, GREEN, false), (62.0, 28.0, AMBER, true)] {
+                let mut sign = root.spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Percent(0.0),
+                        width: Val::Percent(100.0),
+                        top: Val::Percent(50.0),
+                        margin: UiRect::top(px(top)),
+                        justify_content: JustifyContent::Center,
+                        ..default()
+                    },
+                    Visibility::Hidden,
+                ));
+                sign.with_children(|s| {
+                    s.spawn((Text::new(""), TextFont::from_font_size(size), TextColor(colour)));
+                });
+                if melee {
+                    sign.insert(MeleeSign);
+                } else {
+                    sign.insert(WeaponSign);
+                }
+            }
+            // The accepted job's site (draw_job).
+            root.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    ..default()
+                },
+                (Text::new(""), TextFont::from_font_size(22.0), TextColor(AMBER)),
+                Visibility::Hidden,
+                JobMarker,
+            ));
+            // The missile lock's two boxes (draw_lock).
+            for i in 0..2 {
+                root.spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        width: px(40.0),
+                        height: px(40.0),
+                        border: UiRect::all(px(3.0)),
+                        ..default()
+                    },
+                    BorderColor::all(RED),
+                    UiTransform::IDENTITY,
+                    Visibility::Hidden,
+                    LockBox(i),
+                ));
+            }
+            // The climb-out ring: fills clockwise while Use is held (owner, 2026-10-25: "there would be
+            // a ccircle timer thing that shows progress of confirming E to exit").
+            for i in 0..EXIT_DOTS {
+                let a = i as f32 / EXIT_DOTS as f32 * std::f32::consts::TAU;
+                let (x, y) = (EXIT_RING_PX * a.sin(), -EXIT_RING_PX * a.cos());
+                root.spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Percent(50.0),
+                        top: Val::Percent(50.0),
+                        width: px(5.0),
+                        height: px(5.0),
+                        margin: UiRect {
+                            left: px(x - 2.5),
+                            top: px(y - 2.5),
+                            ..default()
+                        },
+                        border_radius: BorderRadius::MAX,
+                        ..default()
+                    },
+                    BackgroundColor(AMBER),
+                    Visibility::Hidden,
+                    ExitDot(i),
+                ));
+            }
             // Crosshair.
             for (w, h) in [(22.0, 2.0), (2.0, 22.0)] {
                 root.spawn((
@@ -205,15 +335,18 @@ fn spawn_hud(mut commands: Commands) {
                 ));
             }
         });
-    // The mech's readouts, on the cockpit's MFDs (cockpit-mfds): three 512 x 512 pages in a row,
-    // drawn by the MFD camera into one texture each screen shows a third of. Without MFDs (the
-    // Canopy) the same pages sit along the bottom of the view.
+    // The mech's readouts, on the cockpit's MFDs (cockpit-mfds, weapon-select): five 512 x 512 pages
+    // in a row, drawn by the MFD camera into one texture each screen shows one page of. Every roster
+    // cockpit has six screens (cockpit-parity); only a mech with no interior (the stand-in) keeps the
+    // pages along the bottom of the view.
     commands
         .spawn((
             HudRoot,
             MfdRoot,
             Node {
-                width: px(MFD_PAGE_PX * 3.0),
+                // One page wide per page on the texture: a narrower strip squeezes the pages and every
+                // screen's slice cuts across two of them (owner, 2026-10-25: "mfds are all busted").
+                width: px(MFD_PAGE_PX * MFD_PAGES as f32),
                 height: px(MFD_PAGE_PX),
                 position_type: PositionType::Absolute,
                 left: px(0.0),
@@ -228,6 +361,7 @@ fn spawn_hud(mut commands: Commands) {
                     .spawn((
                         Node {
                             width: px(MFD_PAGE_PX),
+                            flex_shrink: 0.0,
                             height: px(MFD_PAGE_PX),
                             padding: UiRect::all(px(24.0)),
                             flex_direction: FlexDirection::Column,
@@ -334,6 +468,36 @@ fn spawn_hud(mut commands: Commands) {
             });
             // MISSION: heading, the nearest city, the wave.
             let mission = page(pages, "MISSION");
+            // WEAPONS: every station, the selected one boxed (weapon-select).
+            let weapons = page(pages, "WEAPONS");
+            pages.commands().entity(weapons).with_children(|c| {
+                for i in 0..STATION_ROWS {
+                    c.spawn((
+                        Node {
+                            width: percent(100.0),
+                            padding: UiRect::axes(px(12.0), px(6.0)),
+                            border: UiRect::all(px(3.0)),
+                            ..default()
+                        },
+                        text("", 30.0),
+                        BorderColor::all(Color::NONE),
+                        Visibility::Hidden,
+                        StationRow(i),
+                    ));
+                }
+            });
+            // TARGET: what is targeted, where, the lock, how hurt (weapon-select).
+            let target = page(pages, "TARGET");
+            pages.commands().entity(target).with_children(|c| {
+                c.spawn((
+                    Node {
+                        max_width: percent(100.0),
+                        ..default()
+                    },
+                    text("", 36.0),
+                    TargetReadout,
+                ));
+            });
             pages.commands().entity(mission).with_children(|c| {
                 c.spawn((
                     Node {
@@ -350,6 +514,14 @@ fn spawn_hud(mut commands: Commands) {
                     },
                     text("", 36.0),
                     Readout::Mission,
+                ));
+                c.spawn((
+                    Node {
+                        max_width: percent(100.0),
+                        ..default()
+                    },
+                    (Text::new(""), TextFont::from_font_size(32.0), TextColor(AMBER)),
+                    JobLine,
                 ));
             });
         });
@@ -707,10 +879,13 @@ fn update_hud(
                     } else {
                         "READY".to_string()
                     };
+                    // The left mouse fires the selected station (weapon-select); the right mouse and F
+                    // fire their groups.
                     let button = match w.group {
-                        0 => "LMB",
+                        _ if i == sim.selected => "LMB",
                         1 => "RMB",
-                        _ => "F",
+                        2 => "F",
+                        _ => continue,
                     };
                     parts.push(format!("{button} {state}"));
                 }
@@ -763,6 +938,251 @@ fn update_hud(
             t.0 = s;
         }
         c.0 = colour;
+    }
+}
+
+/// The climb-out ring: hidden until Use is held in the seat, then lit dot by dot as the hold fills,
+/// from the pilot's own hold clock (`cb_core::pilot`), so the ring and the exit agree.
+/// The signs under the crosshair, seated only: the selected weapon (with its rounds when it has a
+/// limit), and `[MELEE MODE]` while close combat is on, with the punch keys.
+#[allow(clippy::type_complexity)]
+fn draw_signs(
+    pilot: Res<PilotSim>,
+    data: Res<crate::sim::Data>,
+    me: Query<(&MechSim, &MechSpec), With<Piloted>>,
+    mut signs: Query<(&Children, &mut Visibility, Has<MeleeSign>), Or<(With<MeleeSign>, With<WeaponSign>)>>,
+    mut texts: Query<&mut Text>,
+) {
+    let seated = pilot.curr.mode == PilotMode::Seated;
+    let mech = me.iter().next().filter(|_| seated);
+    for (children, mut vis, melee) in &mut signs {
+        let line = mech.and_then(|(sim, spec)| {
+            if melee {
+                sim.close.on.then(|| {
+                    let keys = |names: &[String]| names.iter().map(|k| cb_core::input::key_label(k)).collect::<Vec<_>>().join("/");
+                    let b = &data.0.bindings;
+                    format!("[MELEE MODE]  {} {} punch", keys(&b.strike_left), keys(&b.strike_right))
+                })
+            } else {
+                spec.weapons.get(sim.selected).map(|w| {
+                    let rounds = sim.guns.rounds_left.get(sim.selected).copied().unwrap_or(w.rounds);
+                    match rounds {
+                        Some(n) => format!("{} x{n}", w.name.to_uppercase()),
+                        None => w.name.to_uppercase(),
+                    }
+                })
+            }
+        });
+        *vis = if line.is_some() {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+        if let (Some(line), Some(c)) = (line, children.first())
+            && let Ok(mut t) = texts.get_mut(*c)
+            && t.0 != line
+        {
+            t.0 = line;
+        }
+    }
+}
+
+fn exit_ring(pilot: Res<PilotSim>, data: Res<crate::sim::Data>, mut dots: Query<(&ExitDot, &mut Visibility, &mut BackgroundColor)>) {
+    let k = (pilot.curr.exit_hold_s / data.0.pilot.exit_hold_s).clamp(0.0, 1.0);
+    let lit = (k * EXIT_DOTS as f32).ceil() as usize;
+    for (d, mut v, mut c) in &mut dots {
+        *v = if k > 0.0 { Visibility::Visible } else { Visibility::Hidden };
+        c.0 = if d.0 < lit { AMBER } else { AMBER.with_alpha(0.25) };
+    }
+}
+
+/// The WEAPONS and TARGET pages, from the piloted mech's own stations and the targeting state.
+#[allow(clippy::type_complexity)]
+fn update_stations(
+    data: Res<crate::sim::Data>,
+    targeting: Res<crate::targeting::TargetState>,
+    units: Res<crate::units::Units>,
+    me: Query<(&MechSim, &MechSpec), With<Piloted>>,
+    mechs: Query<(&MechSim, &MechSpec, &crate::mech::MechId)>,
+    mut rows: Query<(&StationRow, &mut Text, &mut TextColor, &mut BorderColor, &mut Visibility), Without<TargetReadout>>,
+    mut target: Query<(&mut Text, &mut TextColor), (With<TargetReadout>, Without<StationRow>)>,
+) {
+    let Some((sim, spec)) = me.iter().next() else { return };
+    for (row, mut t, mut c, mut b, mut v) in &mut rows {
+        let Some(w) = spec.weapons.get(row.0) else {
+            *v = Visibility::Hidden;
+            continue;
+        };
+        *v = Visibility::Inherited;
+        let lost = sim.damage.is_lost(&spec.parts, w.arm);
+        let cd = sim.guns.cooldown_s.get(row.0).copied().unwrap_or(0.0);
+        let rounds = sim.guns.rounds_left.get(row.0).copied().unwrap_or(w.rounds);
+        let state = if lost {
+            "LOST".to_string()
+        } else if rounds == Some(0) {
+            "EMPTY".to_string()
+        } else if cd > 0.05 {
+            format!("{cd:.1}s")
+        } else {
+            "READY".to_string()
+        };
+        let name = w.name.to_uppercase();
+        let count = rounds.map_or_else(String::new, |n| format!(" x{n}"));
+        t.0 = format!("STA {}  {name}{count}  {state}", row.0 + 1);
+        let selected = row.0 == sim.selected;
+        c.0 = if lost {
+            RED
+        } else if selected {
+            AMBER
+        } else {
+            GREEN
+        };
+        *b = BorderColor::all(if selected { AMBER } else { Color::NONE });
+    }
+    let Ok((mut t, mut c)) = target.single_mut() else { return };
+    let Some(id) = targeting.selected else {
+        t.0 = "NO TARGET".into();
+        c.0 = GREEN;
+        return;
+    };
+    let (name, health) = if id >= crate::units::UNIT_ID_BASE {
+        match units.list.iter().find(|p| p.unit.id == id) {
+            Some(p) => {
+                let full = data.0.units.units.get(&p.unit.kind).map_or(1.0, |s| s.hp.max(1.0));
+                (p.unit.kind.to_uppercase(), p.unit.hp / full)
+            }
+            None => ("UNKNOWN".into(), 0.0),
+        }
+    } else {
+        match mechs.iter().find(|m| m.2.0 == id) {
+            Some((s, sp, _)) => {
+                let torso = sp.parts.iter().position(|p| p.kind == PartKind::Torso);
+                let h = torso.map_or(1.0, |i| s.damage.structure[i] / sp.parts[i].structure.max(1.0));
+                (sp.name.to_uppercase(), h)
+            }
+            None => ("UNKNOWN".into(), 0.0),
+        }
+    };
+    let lock = if targeting.lock.locked(&data.0.targeting) {
+        "LOCK"
+    } else {
+        "LOCKING"
+    };
+    t.0 = format!(
+        "TARGET\n{name}\n{:.0} M\n{lock}\nHEALTH {:.0}%",
+        targeting.range_m,
+        (health * 100.0).clamp(0.0, 100.0)
+    );
+    c.0 = if targeting.lock.locked(&data.0.targeting) { AMBER } else { GREEN };
+}
+
+/// The missile lock round the selected target, from the targeting's own lock clock: while it builds,
+/// two amber boxes (one square, one turned 45 degrees) close in from wide; locked, they hold tight round
+/// the target in red and pulse.
+#[allow(clippy::type_complexity)]
+fn draw_lock(
+    pilot: Res<PilotSim>,
+    data: Res<crate::sim::Data>,
+    state: Res<crate::targeting::TargetState>,
+    hostiles: Res<crate::units::Hostiles>,
+    time: Res<Time>,
+    camera: Single<(&Camera, &GlobalTransform), With<crate::pilot::PilotCamera>>,
+    mut boxes: Query<(&LockBox, &mut Node, &mut BorderColor, &mut UiTransform, &mut Visibility)>,
+) {
+    let cfg = &data.0.targeting;
+    let (cam, at) = *camera;
+    let target = state
+        .selected
+        .filter(|_| pilot.curr.mode == PilotMode::Seated && state.lock.held_s > 0.0 && state.lock.target == state.selected)
+        .and_then(|id| hostiles.0.iter().find(|h| h.id == id));
+    let placed = target.and_then(|h| {
+        let top = cam.world_to_viewport(at, h.feet + Vec3::Y * h.height_m).ok()?;
+        let foot = cam.world_to_viewport(at, h.feet).ok()?;
+        let centre = cam.world_to_viewport(at, h.aim).ok()?;
+        Some((centre, (foot.y - top.y).abs().max(24.0)))
+    });
+    let k = (state.lock.held_s / cfg.lock_s.max(1e-3)).clamp(0.0, 1.0);
+    let locked = state.lock.locked(cfg);
+    let pulse = 0.65 + 0.35 * (time.elapsed_secs() * 9.0).sin().abs();
+    for (b, mut node, mut border, mut turn, mut vis) in &mut boxes {
+        let Some((c, w)) = placed else {
+            *vis = Visibility::Hidden;
+            continue;
+        };
+        // Wide while the lock is young, tight round the target once it holds.
+        let tight = if b.0 == 0 { 1.45 } else { 1.15 };
+        let size = w * (tight + (1.0 - k) * 2.0);
+        node.left = px(c.x - size * 0.5);
+        node.top = px(c.y - size * 0.5);
+        node.width = px(size);
+        node.height = px(size);
+        turn.rotation = Rot2::degrees(if b.0 == 1 { 45.0 } else { 0.0 });
+        *border = BorderColor::all(if locked {
+            RED.with_alpha(pulse)
+        } else {
+            AMBER.with_alpha(0.4 + 0.6 * k)
+        });
+        *vis = Visibility::Inherited;
+    }
+}
+
+/// The accepted job in a career: a diamond and its distance over the site on the screens, and a line on
+/// the MISSION page (where, how far, the time left, the enemies left), from the career's own board.
+#[allow(clippy::type_complexity)]
+fn draw_job(
+    career: Option<Res<crate::career::CareerRun>>,
+    pilot: Res<PilotSim>,
+    plan: Res<Plan>,
+    camera: Single<(&Camera, &GlobalTransform), With<crate::pilot::PilotCamera>>,
+    enemies: Query<(&MechSim, &crate::career::JobEnemy)>,
+    mut marker: Query<(&mut Node, &mut Text, &mut Visibility), (With<JobMarker>, Without<JobLine>)>,
+    mut line: Query<&mut Text, (With<JobLine>, Without<JobMarker>)>,
+) {
+    let job = career.as_ref().and_then(|c| c.career.board.current().cloned());
+    let Ok((mut node, mut text, mut vis)) = marker.single_mut() else {
+        return;
+    };
+    let Some(j) = job else {
+        *vis = Visibility::Hidden;
+        if let Ok(mut l) = line.single_mut() {
+            l.0.clear();
+        }
+        return;
+    };
+    let (cam, at) = *camera;
+    let eye = at.translation();
+    let ground = plan.terrain.height_at(j.site.x, j.site.y);
+    let site = Vec3::new(j.site.x, ground + 20.0, j.site.y);
+    let d = Vec2::new(eye.x, eye.z).distance(j.site);
+    let km = d / 1000.0;
+    match cam
+        .world_to_viewport(at, site)
+        .ok()
+        .filter(|_| pilot.curr.mode == PilotMode::Seated)
+    {
+        Some(p) => {
+            node.left = px(p.x - 40.0);
+            node.top = px(p.y - 14.0);
+            text.0 = format!("<> JOB {km:.1} KM");
+            *vis = Visibility::Inherited;
+        }
+        None => *vis = Visibility::Hidden,
+    }
+    if let Ok(mut l) = line.single_mut() {
+        let bearing = bearing_deg(Vec2::new(j.site.x - eye.x, j.site.y - eye.z));
+        let left = enemies.iter().filter(|(s, e)| e.0 == j.id && !s.dead).count();
+        let m = (j.clock_s / 60.0).floor();
+        let s = j.clock_s - m * 60.0;
+        let fight = if j.state == cb_core::jobs::JobState::Active {
+            format!("\nENEMIES {left}")
+        } else {
+            String::new()
+        };
+        l.0 = format!(
+            "JOB CITY {}\n{km:.1} KM BRG {:03}\nTIME {m:.0}:{s:02.0}{fight}",
+            j.city + 1,
+            whole_deg(bearing)
+        );
     }
 }
 

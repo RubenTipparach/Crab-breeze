@@ -4,4 +4,7 @@
 *.mp4
 __pycache__/
 .claude/worktrees/
+/settings.ron
+/settings.ron.tmp
+/saves/
 tools/materials/raw/

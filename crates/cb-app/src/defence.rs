@@ -58,15 +58,16 @@ pub struct DefencePlugin;
 
 impl Plugin for DefencePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Defending)
-            .init_resource::<DefenceRun>()
-            .add_systems(FixedUpdate, give_goals.in_set(SimSet::Input))
+        // Always present; it runs once the mission begins (`Defending` and `DefenceRun` inserted:
+        // by `--mission defence` before startup, or by the title menu's City defence).
+        app.add_systems(FixedUpdate, give_goals.in_set(SimSet::Input).run_if(resource_exists::<Defending>))
             .add_systems(
                 FixedUpdate,
                 step_mission
                     .in_set(SimSet::Mech)
                     .after(crate::combat::fly_shots)
-                    .after(crate::mech::step_mech),
+                    .after(crate::mech::step_mech)
+                    .run_if(resource_exists::<Defending>),
             );
     }
 }

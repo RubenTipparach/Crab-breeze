@@ -252,8 +252,15 @@ fn run_script(
     ready: Res<crate::loading::GameReady>,
     settled: Res<crate::buildings::DressingSettled>,
     enemies: Query<&GlobalTransform, With<crate::mech::Enemy>>,
-    mechs: Query<&MechSim, With<Piloted>>,
-    data: Res<Data>,
+    // The piloted mech's sim and the data: the boarding clock and its timeline for the shot of the seals venting
+    // (`boarding-vents`), the mech's pose for the clouds (`cloud-puffs`).
+    (mechs, data, mut steam_shot): (
+        Query<&MechSim, With<Piloted>>,
+        Res<Data>,
+        // The steam shot is taken; frames drawn since the cabin sealed (the screens power up over 2.5 s of game,
+        // 10 frames at the cap), counting on through the outline shot.
+        Local<(bool, u32)>,
+    ),
     time: Res<Time<Real>>,
     game_time: Res<Time<Virtual>>,
     mut exit: MessageWriter<AppExit>,
@@ -355,6 +362,22 @@ fn run_script(
                     ..default()
                 }
             });
+            // The chest opening as its seals break, looked up at from the rope's foot: their steam (`boarding-vents`).
+            // Only the view is turned (as the street shot sets it); where the pilot stands and their wait for the
+            // hatch are left alone, so the boarding goes on.
+            let tl = &data.0.boarding;
+            let t = mechs.single().map_or(0.0, |m| m.hatch.t_s);
+            let sealed = tl.sealed_sitting_s();
+            if !steam_shot.0 && pilot.curr.mode == PilotMode::OnFoot && t >= sealed {
+                let to = a.hatch_entry - (pilot.curr.feet + Vec3::Y * 1.7);
+                pilot.curr.yaw_rad = (-to.x).atan2(-to.z);
+                pilot.curr.pitch_rad = to.y.atan2(Vec2::new(to.x, to.z).length()).min(1.3);
+                pilot.prev = pilot.curr.clone();
+                if t >= sealed + 0.3 {
+                    shoot(&mut commands, &script.dir, "hatch-steam.png");
+                    steam_shot.0 = true;
+                }
+            }
             if matches!(pilot.curr.mode, PilotMode::Boarding(_)) {
                 // The stair is down and the climb begins: the open hatch from the stair's foot.
                 acc.script = Some(Actions::default());
@@ -363,17 +386,45 @@ fn run_script(
             }
         }
         4 => {
-            // Seated; wait for the hatch to seal behind the pilot.
-            if pilot.curr.mode == PilotMode::Seated && in_beat > 12.0 {
+            // Seated; wait for the hatch to seal behind the pilot and the screens to power up: on the boarding
+            // clock, not the wall clock, which a software renderer's long frames outrun (0.25 s of game a frame).
+            let sealed = mechs.single().is_ok_and(|m| m.hatch.is_closed(&data.0.boarding));
+            if pilot.curr.mode == PilotMode::Seated && sealed && in_beat > 12.0 && {
+                steam_shot.1 += 1;
+                steam_shot.1 > 12
+            } {
                 shoot(&mut commands, &script.dir, "cockpit.png");
                 next = true;
             }
         }
-        // Stand up and stride: throttle forward (the mech stands first), hold, measure frame time
-        // over 10 s.
+        // Free look held, looking down at the dash's centre screen: the outline on the screen pointed at
+        // (`mfd-menus`), by input as a player does it.
         5 => {
+            let down = pilot.curr.pitch_rad > -0.6;
+            acc.script = Some(Actions {
+                free_look: true,
+                look_delta_deg: if down { Vec2::new(0.0, -1.5) } else { Vec2::ZERO },
+                ..default()
+            });
+            // Held on the screen a few frames first, so the outline built when it is first pointed at is drawn.
+            if !down && in_beat > 2.0 && {
+                steam_shot.1 += 1;
+                steam_shot.1 > 18
+            } {
+                shoot(&mut commands, &script.dir, "cockpit-outline.png");
+                next = true;
+            }
+        }
+        // Stand up and stride: throttle forward (the mech stands first), hold, measure frame time
+        // over 10 s. The view comes back up to level first, by input.
+        6 => {
             acc.script = Some(Actions {
                 throttle_axis: if in_beat < 5.0 { 0.6 } else { 0.0 },
+                look_delta_deg: if pilot.curr.pitch_rad < -0.02 {
+                    Vec2::new(0.0, 1.5)
+                } else {
+                    Vec2::ZERO
+                },
                 ..default()
             });
             if in_beat > 7.0 {
@@ -385,7 +436,7 @@ fn run_script(
             }
         }
         // Stop and look up through the front screens at the clouds (cloud-puffs).
-        6 => {
+        7 => {
             let Some(m) = mechs.iter().next().map(|s| &s.curr) else { return };
             acc.script = Some(Actions {
                 throttle_zero: in_beat < 0.1,
@@ -402,7 +453,7 @@ fn run_script(
         // Rockets up and skates across into the nearest cloud: one still 400 m up, clear of the
         // roofs, one on the way in, one after 2.5 s inside, when the glass is wet (cloud-rain). The
         // limit is in real seconds and generous: a software renderer runs the simulation slower.
-        7 => {
+        8 => {
             let Some(m) = mechs.iter().next().map(|s| &s.curr) else { return };
             acc.script = Some(fly_to_cloud(m, script.cloud));
             let eye = m.pos + Vec3::Y * data.0.mech.body.eye_height_m;
@@ -425,7 +476,7 @@ fn run_script(
             }
         }
         // A few frames after the last shot, so its readback lands even at a software renderer's frame rate.
-        8 if in_beat > 1.5 && {
+        9 if in_beat > 1.5 && {
             *exit_frames += 1;
             *exit_frames > 6
         } =>
@@ -590,6 +641,10 @@ fn run_fx_script(
     match script.beat {
         0 => {
             next = ready.is_some_and(|r| r.0) && access.0.is_some() && t > 4.0;
+            // `CB_STILLS_FX=soil` stages the blasts on soil alone, with a still every half second.
+            if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "soil") {
+                script.beat = 2;
+            }
             if next {
                 // The nearest live enemy to the player's mech.
                 let home = access.0.unwrap().ladder_base;
@@ -607,11 +662,25 @@ fn run_fx_script(
         // Stand 70 m off the enemy, then fire the player's own rockets and rounds at it.
         1 => {
             let Some(e) = enemy_at(&mechs, script.enemy) else { return };
-            let flat = Vec3::new(1.0, 0.0, 0.6).normalize();
+            // Down the street from the enemy toward the player's mech: an open line of sight in the city.
+            let home = access.0.map_or(e + Vec3::X, |a| a.ladder_base);
+            let flat = (home - e).with_y(0.0).normalize_or(Vec3::X);
             let feet = Vec3::new(e.x, plan.height_at(e.x + flat.x * 70.0, e.z + flat.z * 70.0), e.z) + flat * 70.0;
             let torso = e + Vec3::Y * 14.0;
-            if script.once("stand") {
+            // `CB_STILLS_FX=jets` (with `CB_ENEMY_STUNT=hover`): keep looking at the enemy as it hovers on
+            // its rockets, a still every second, to see whether its jet flame and smoke draw.
+            let jets = std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "jets");
+            if script.once("stand") || jets {
                 stand_looking(&mut pilot, feet, torso);
+            }
+            if jets {
+                let k = t as u32;
+                if (1..=14).contains(&k) && !script.dir.join(format!("jets-{k:02}.png")).exists() {
+                    shoot(&mut commands, &script.dir, &format!("jets-{k:02}.png"));
+                }
+                if t > 15.0 {
+                    exit.write(AppExit::Success);
+                }
             }
             if t > 1.0 && script.once("fire") {
                 let player = mechs.iter().find(|m| m.1.0 == 0).map(|m| m.2.0.clone());
@@ -644,7 +713,7 @@ fn run_fx_script(
             if t > 1.5 && script.once("rockets") {
                 shoot(&mut commands, &script.dir, "fx-1-rockets.png");
             }
-            if t > 5.0 {
+            if t > 5.0 && !jets {
                 shoot(&mut commands, &script.dir, "fx-2-hits.png");
                 next = true;
             }
@@ -694,7 +763,8 @@ fn run_fx_script(
                 }
                 script.soil = found;
                 if let Some(c) = found {
-                    let feet = c + Vec3::new(40.0, 0.0, 22.0);
+                    // Close and looking down into it, so the scorch shows over the grass.
+                    let feet = c + Vec3::new(18.0, 0.0, 10.0);
                     let feet = feet.with_y(plan.height_at(feet.x, feet.z));
                     stand_looking(&mut pilot, feet, c);
                     explosions.write(crate::blast::Explosion {
@@ -712,10 +782,17 @@ fn run_fx_script(
             if t > 0.5 && script.once("blast") {
                 shoot(&mut commands, &script.dir, "fx-5-blast.png");
             }
+            if std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "soil") {
+                let k = (t * 2.0) as u32;
+                if k > 0 && k <= 24 && !script.dir.join(format!("soil-{k:02}.png")).exists() {
+                    let name = format!("soil-{k:02}.png");
+                    shoot(&mut commands, &script.dir, &name);
+                }
+            }
             if t > 4.0 && script.once("smoke") {
                 shoot(&mut commands, &script.dir, "fx-6-smoke.png");
             }
-            if t > 16.0 {
+            if t > 30.0 {
                 shoot(&mut commands, &script.dir, "fx-7-scorch.png");
                 next = true;
             }

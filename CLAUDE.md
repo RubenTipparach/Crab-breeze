@@ -108,6 +108,12 @@ From the owner's brief, 2026-10-23. Quotes are the owner's words.
   MFDs show health, heading and walking direction, ammunition and heat, and radar; an opening part closes on a
   seal and moves without passing through anything. A cockpit is chosen from low-poly CSG block-outs
   (`tools/blender/build_cockpit_blockouts.py`, on the Mech Cockpits page) before it is modelled and baked.
+- **Music: motifs first, Tom Lander's way** (owner, 2026-10-25: "we need audio, read tom lander repo for how music
+  is authored, make a skill of that for our repo (we get somenotes for the motifs and themese, then we use the script
+  thing to make midi tracks, then bring it into headless lllms and get some instruments for final comp)"). Motifs are
+  written as notes in `docs/design/music.md` and `music/motifs.strudel`, scored in Strudel, exported to multitrack MIDI
+  and rendered in headless LMMS with real instruments (`music-authoring`). How the game plays them is
+  `openspec/changes/music`.
 - **Mechs twice the size, legs heavier than the torso, low-poly first** (owner, 2026-10-24: "2x mech size
   please, they dont seem very big right now, redesign mechs, start with lowpoly first", "I really expect legs
   on these mechs to be bigger than the torso, just for balance", "I really like how stevedore is all struts",
@@ -304,6 +310,11 @@ said out loud and kept in check, never guessed.
 - **End every reply with the artifact links** (owner rule in every repository): each artifact made
   or changed since the owner's last message, with one line on what is new, or one line saying
   there were none.
+- **Every pushed branch has a pull request** (owner, 2026-10-25: "there must always be a pr for every
+  branch"). The session that first pushes a branch opens its PR in the same step, with a body saying
+  which session owns it and what it holds, so the owner can tell whose a branch is from the PR list.
+  A session that finds a pushed branch with no PR opens one for it, marked as opened on its owner's
+  behalf.
 - **No scheduled PR check-ins** (owner rule in Pale Blue Dot, Star Crew and Mining Mike: "you
   should never rearm pr checkins"). No `send_later`, routine, `/loop` or timer that wakes the
   session to re-read a PR. A PR is looked at when the owner asks, when its events arrive, or as
@@ -447,6 +458,7 @@ Before claiming anything is done, run what applies:
 | `threejs-mockups` | Orbitable model and cockpit mockups as artifact pages (section 10). |
 | `panel-textures` | Star Crew's textures skill: cockpit panels modelled in Blender and baked to PBR maps (section 10). |
 | `light-baking` | Star Crew's light baking: the cockpit's lamps, sky and occlusion baked into atlases (section 10). |
+| `music-authoring` | Tom Lander's music pipeline: motifs in notes, Strudel scores, multitrack MIDI, LMMS headless with real instruments (section 1). |
 
 Provenance for every skill is in `.claude/skills/PROVENANCE.md`.
 

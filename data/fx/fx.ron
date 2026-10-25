@@ -3,13 +3,16 @@
 // `scale`, counts by `density`, lumens by `scale` cubed. An explosion's scale is the cube root of
 // its energy in megajoules (a 6 MJ shell is 1.82), as a fireball's size grows with the cube root
 // of its yield. Particle kinds: Spray, Steam, Dirt, Dust, Smoke, Spark, Fire, Flame, Debris,
-// Rubble, Trail.
+// Rubble, Trail, Mist.
 (
-    tracer_s: 0.008,
-    tracer_width_m: 0.25,
-    tracer_heavy_width_m: 0.5,
-    // A rocket lays a smoke puff every metre (openspec change `rocket-plumes`: a dense trail, not a dotted line).
-    trail_spacing_m: 1.0,
+    // Bigger, longer tracers so a burst reads at range (owner, 2026-10-24: "The bullets are hard to
+    // see ... make them bigger like tracer rounds"): 25 ms of flight long, 0.6 m wide (heavy 1.2 m).
+    tracer_s: 0.025,
+    tracer_width_m: 0.6,
+    tracer_heavy_width_m: 1.2,
+    // Tracers burn this many times brighter than white, so the bloom catches them (owner, 2026-10-25:
+    // "bullets need to be brighter, like affected by bloom more or something? HDR maybe?").
+    tracer_glow: 12.0,
     // Exhaust plumes: a rocket's flame, and a mech's jet's while it fires (length, width), metres.
     plume_length_m: 4.5,
     plume_width_m: 0.9,
@@ -26,11 +29,26 @@
     // root of the blast's megajoules (120 m for an 8 MJ shell), dying away over 0.7 s.
     shake: (max_deg: 1.2, reach_m_per_cbrt_mj: 60.0, decay_s: 0.7),
     // Recipes played as continuous streams from an emitter riding the body, bursts a second: a
-    // jet's flame while it fires, a wreck's fire while it burns.
-    stream_per_s: {"jet_flame": 60.0, "burning": 10.0, "smoking": 6.0, "burning_hull": 10.0},
+    // jet's flame while it fires, a wreck's fire while it burns, a boarding vent while it vents.
+    // Big translucent clouds drawn apart, each in a stable order (merged, their particles reorder
+    // every frame and the cloud flickers; owner, 2026-10-25). Each burst of these is its own draw.
+    sorted: ["explosion_ground", "explosion_air", "explosion_water", "collapse_dust", "creak_dust", "member_fail"],
+    stream_per_s: {"jet_flame": 60.0, "burning": 10.0, "smoking": 6.0, "burning_hull": 10.0, "vent_steam": 30.0, "vent_mist": 6.3},
     // Particle bursts start only within 400 m of the eye (times the effect's scale; explosions four
     // times as far): far off they barely show and each costs an effect of its own (2026-10-24).
     burst_range_m: 400.0,
+    // Smoke trails as lit puffs, drawn the way the clouds are (openspec change `smoke-puffs`; owner,
+    // 2026-10-25: "use the new smoke trails, and make them larger and more conencted"). A puff is laid
+    // every `spacing_m` of path, however fast the frames come, and each starts wider than that, so a
+    // trail is one connected stream. The jets' trail hangs for two minutes (survey: "that trail needs
+    // to las 2 mins or more"), a missile's for six seconds.
+    puffs: (
+        max_puffs: 3000,
+        jet: (spacing_m: 3.0, size_m: 6.0, grow_m_s: 0.5, rise_m_s: 0.3, life_s: 120.0, fade: 0.7,
+              colour: (0.86, 0.85, 0.83), opacity: 0.75, offset_m: 4.0),
+        missile: (spacing_m: 2.0, size_m: 3.0, grow_m_s: 1.8, rise_m_s: 0.4, life_s: 6.0, fade: 0.7,
+                  colour: (0.82, 0.81, 0.79), opacity: 0.8, offset_m: 1.0),
+    ),
     recipes: {
         // Guns. The effect's direction is the barrel's.
         "muzzle_autocannon": [
@@ -54,12 +72,6 @@
             Light(lumens: 1.0e7, range_m: 60.0, life_s: 0.2, colour: (1.0, 0.8, 0.55)),
             Burst(kind: Flame, count: 12, speed_m_s: 18.0, spread: 0.5, size_m: 1.2, life_s: 0.2, offset_m: -1.0, along_dir: true),
             Burst(kind: Smoke, count: 14, speed_m_s: 6.0, spread: 0.9, size_m: 2.2, life_s: 4.0, offset_m: -2.0, along_dir: true),
-        ],
-        // A rocket in flight, every `trail_spacing_m`. The direction is its flight.
-        "rocket_trail": [
-            // Thick white smoke from the smoke sheet, laid every metre, growing as it hangs: a solid motor's trail.
-            Burst(kind: Trail, count: 1, speed_m_s: 0.4, spread: 0.4, size_m: 1.0, life_s: 6.0),
-            Burst(kind: Flame, count: 1, speed_m_s: 30.0, spread: 0.1, size_m: 0.8, life_s: 0.06, offset_m: -1.0, along_dir: true),
         ],
         // Impacts. The direction points back the way the shot came.
         "impact_mech": [
@@ -87,7 +99,7 @@
             Fireball(radius_m: 4.5, grow_s: 0.15, life_s: 0.9),
             Shock(radius_m: 22.0, life_s: 0.35),
             Burst(kind: Dirt, count: 160, speed_m_s: 20.0, spread: 0.6, size_m: 0.5, life_s: 3.0),
-            Burst(kind: Dust, count: 60, speed_m_s: 6.0, spread: 0.9, size_m: 4.0, life_s: 5.0),
+            Burst(kind: Dust, count: 24, speed_m_s: 6.0, spread: 0.9, size_m: 4.0, life_s: 4.0),
             Burst(kind: Debris, count: 24, speed_m_s: 25.0, spread: 0.9, size_m: 0.6, life_s: 2.5),
             Burst(kind: Spark, count: 80, speed_m_s: 26.0, spread: 0.9, size_m: 0.25, life_s: 1.2),
             Burst(kind: Fire, count: 50, speed_m_s: 9.0, spread: 0.8, size_m: 2.2, life_s: 0.7),
@@ -120,9 +132,10 @@
             Burst(kind: Dust, count: 14, speed_m_s: 2.6, spread: 1.0, size_m: 1.8, life_s: 2.4),
         ],
         // Paving: grit and chips of concrete, a few sparks off the steel sole, pale dust.
+        // No sparks from a foot or a landing on concrete: they drew as orange streaks in every street
+        // (owner, 2026-10-25: "orange columns ... causing orange dust to kick up"); grit and dust only.
         "foot_strike_concrete": [
             Burst(kind: Rubble, count: 12, speed_m_s: 6.0, spread: 0.8, size_m: 0.16, life_s: 1.1),
-            Burst(kind: Spark, count: 4, speed_m_s: 7.0, spread: 0.9, size_m: 0.12, life_s: 0.35),
             Burst(kind: Dust, count: 9, speed_m_s: 2.2, spread: 1.0, size_m: 1.5, life_s: 1.8),
         ],
         // Coming down from a boost: both feet at once, harder, with a ring of dust.
@@ -134,7 +147,6 @@
         "landing_concrete": [
             Shock(radius_m: 7.0, life_s: 0.25),
             Burst(kind: Rubble, count: 34, speed_m_s: 8.0, spread: 0.8, size_m: 0.2, life_s: 1.4),
-            Burst(kind: Spark, count: 14, speed_m_s: 10.0, spread: 0.9, size_m: 0.14, life_s: 0.4),
             Burst(kind: Dust, count: 26, speed_m_s: 3.5, spread: 1.0, size_m: 2.0, life_s: 2.4),
         ],
         "foot_spray": [
@@ -151,9 +163,10 @@
             Burst(kind: Dirt, count: 3, speed_m_s: 9.0, spread: 0.35, size_m: 0.3, life_s: 0.9, along_dir: true),
             Burst(kind: Dust, count: 1, speed_m_s: 3.0, spread: 0.6, size_m: 1.6, life_s: 1.6, along_dir: true),
         ],
-        // The same on paving: sparks and grit.
+        // The same on paving: grit and dust (sparks drew orange smears at the wheels; owner,
+        // 2026-10-25).
         "skate_grit": [
-            Burst(kind: Spark, count: 2, speed_m_s: 8.0, spread: 0.4, size_m: 0.2, life_s: 0.4, along_dir: true),
+            Burst(kind: Rubble, count: 2, speed_m_s: 8.0, spread: 0.4, size_m: 0.12, life_s: 0.6, along_dir: true),
             Burst(kind: Dust, count: 1, speed_m_s: 3.0, spread: 0.5, size_m: 1.2, life_s: 1.2, along_dir: true),
         ],
         // A rooster tail on water; density grows with speed.
@@ -214,6 +227,16 @@
         // Jets firing under 15 m above the ground blow the dust out in a ring (openspec change `rocket-plumes`).
         "jet_wash": [
             Burst(kind: Dust, count: 8, speed_m_s: 14.0, spread: 1.7, size_m: 4.0, life_s: 3.0),
+        ],
+        // A mech opening to be boarded (openspec/changes/boarding-vents): streamed from each vent along its own
+        // direction while the boarding clock passes its window. Steam jets from the seals, hinges and leg rams and
+        // rises; cold mist rolls slowly out over the sill and the cabin floor and sinks. A vent's own rate
+        // multiplies the stream's (`stream_per_s` below is one vent at rate 1).
+        "vent_steam": [
+            Burst(kind: Steam, count: 1, speed_m_s: 3.0, spread: 0.25, size_m: 0.35, life_s: 1.4, along_dir: true),
+        ],
+        "vent_mist": [
+            Burst(kind: Mist, count: 1, speed_m_s: 0.6, spread: 0.6, size_m: 0.8, life_s: 4.0, along_dir: true),
         ],
     },
 )

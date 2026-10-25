@@ -850,6 +850,8 @@ pub struct WorldConfig {
     pub highway_flat_margin_m: f32,
     /// Width over which a highway's grading blends back into the hills.
     pub highway_blend_m: f32,
+    /// The terrain's baked shadow for far ground (distant-shadows).
+    pub sun_shade: super::sun_shade::SunShadeConfig,
     /// Height of a road surface above the ground under it (no z-fighting).
     pub road_lift_m: f32,
     /// Height of a block's pavement (the kerb) above the ground.
@@ -982,6 +984,7 @@ impl Default for WorldConfig {
             highway_width_m: 28.0,
             highway_flat_margin_m: 12.0,
             highway_blend_m: 60.0,
+            sun_shade: super::sun_shade::SunShadeConfig::default(),
             road_lift_m: 0.15,
             kerb_height_m: 0.2,
             start_pilot_distance_m: 25.0,
@@ -1063,6 +1066,7 @@ impl Validate for WorldConfig {
         positive("highway_width_m", self.highway_width_m)?;
         positive("highway_blend_m", self.highway_blend_m)?;
         positive("road_lift_m", self.road_lift_m)?;
+        self.sun_shade.validate()?;
         positive("kerb_height_m", self.kerb_height_m)?;
         if self.kerb_height_m <= self.road_lift_m {
             return Err("`kerb_height_m` must be above `road_lift_m`".into());

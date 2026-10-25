@@ -72,11 +72,12 @@ pub enum VentKind {
     Mist,
 }
 
-/// A burst from `VENT_*` empties, along each empty's +z.
+/// A stream of steam or mist from a node (a `VENT_*` empty, or a leg bone), along `dir` (openspec change
+/// `boarding-vents`).
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct Vent {
-    /// Empty name; a trailing `*` matches every empty with that prefix.
+    /// Node name; a trailing `*` matches every node with that prefix.
     pub node: String,
     /// Steam or mist.
     pub kind: VentKind,
@@ -84,10 +85,15 @@ pub struct Vent {
     pub delay_s: f32,
     /// How long it emits.
     pub duration_s: f32,
-    /// Particles a second from each matched empty.
+    /// Particles a second from each matched node.
     pub rate_per_s: f32,
     /// Launch speed.
     pub speed_m_s: f32,
+    /// The way it throws, in the node's own frame.
+    pub dir: [f32; 3],
+    /// Keeps emitting while the clock rests inside its window (mist while the chest stands open); without it a
+    /// vent emits only while the clock moves through its window.
+    pub hold: bool,
 }
 
 impl Default for Vent {
@@ -99,6 +105,8 @@ impl Default for Vent {
             duration_s: 0.5,
             rate_per_s: 60.0,
             speed_m_s: 3.0,
+            dir: [0.0, 0.0, 1.0],
+            hold: false,
         }
     }
 }
@@ -131,6 +139,10 @@ pub struct BoardingTimeline {
     pub ready_s: f32,
     /// How far from the stair's foot a pilot must be before the empty mech closes up.
     pub clear_m: f32,
+    /// How far out in front of the hatch's sill the boarding crane reaches, so the rope from its tip
+    /// hangs clear of the knelt mech's hips and legs (owner, 2026-10-24: "extend a crane out then
+    /// lower the rope"); measured off each glb by `tools/mechs/gen_mech_data.py`.
+    pub crane_reach_m: f32,
     /// The all-view screen's power-up time.
     pub screen_power_up_s: f32,
     /// The all-view screen's power-down time.
@@ -144,6 +156,7 @@ impl Default for BoardingTimeline {
             stages: Vec::new(),
             ready_s: 3.5,
             clear_m: 3.0,
+            crane_reach_m: 3.0,
             screen_power_up_s: 2.5,
             screen_power_down_s: 0.6,
         }
@@ -161,6 +174,7 @@ impl Validate for BoardingTimeline {
             return Err("`ready_s` must not come before the sit ends".into());
         }
         positive("clear_m", self.clear_m)?;
+        positive("crane_reach_m", self.crane_reach_m)?;
         positive("screen_power_up_s", self.screen_power_up_s)?;
         positive("screen_power_down_s", self.screen_power_down_s)?;
         let mut last = 0.0;
@@ -185,10 +199,17 @@ impl Validate for BoardingTimeline {
                 finite(&f("motions.stagger_s"), m.stagger_s)?;
             }
             for v in &s.vents {
+                if v.node.is_empty() {
+                    return Err(format!("{}: a vent needs a node", f("vents")));
+                }
                 finite(&f("vents.delay_s"), v.delay_s)?;
                 positive(&f("vents.duration_s"), v.duration_s)?;
                 finite(&f("vents.rate_per_s"), v.rate_per_s)?;
                 finite(&f("vents.speed_m_s"), v.speed_m_s)?;
+                finite3(&f("vents.dir"), v.dir)?;
+                if glam::Vec3::from_array(v.dir).length() < 1e-3 {
+                    return Err(format!("{}: `{}` vents along a zero direction", f("vents"), v.node));
+                }
             }
         }
         Ok(())
@@ -201,10 +222,12 @@ fn ease(x: f32) -> f32 {
 }
 
 impl BoardingTimeline {
-    /// Timeline time of the sealed, sat-down mech: the sit is over and no hatch stage has begun.
+    /// Timeline time of the sealed, sat-down mech: the sit is over and nothing of the hatch has begun to move. A
+    /// stage that only vents (the legs' rams as the mech kneels) does not count.
     pub fn sealed_sitting_s(&self) -> f32 {
         self.stages
-            .first()
+            .iter()
+            .find(|s| !s.motions.is_empty())
             .map_or(self.sit.duration_s, |s| s.start_s.max(self.sit.duration_s))
     }
 
@@ -219,10 +242,16 @@ impl BoardingTimeline {
         ease((t_s - start) / stage.duration_s)
     }
 
-    /// True while a vent emits at timeline time `t_s`. Vents fire both ways: opening and closing.
+    /// True while timeline time `t_s` is inside a vent's window. Windows fire both ways: opening and closing.
     pub fn vent_active(&self, stage: &Stage, vent: &Vent, t_s: f32) -> bool {
         let start = stage.start_s + vent.delay_s;
         (start..start + vent.duration_s).contains(&t_s)
+    }
+
+    /// True while a vent emits: the clock moved from `prev_t_s` to `t_s` inside its window, or rests there and the
+    /// vent holds. A mech that rests sat and sealed inside its seals' window does not hiss for as long as it sits.
+    pub fn vent_emits(&self, stage: &Stage, vent: &Vent, prev_t_s: f32, t_s: f32) -> bool {
+        self.vent_active(stage, vent, t_s) && (vent.hold || prev_t_s != t_s)
     }
 }
 
@@ -385,6 +414,125 @@ mod tests {
         assert!(!h.can_walk());
         run(&mut h, &tl, tl.sealed_sitting_s() + 0.1);
         assert!(h.can_walk());
+    }
+
+    /// A timeline as the generator writes one: the legs vent through the sit, the seals as the chest breaks, the
+    /// sill's mist holds while open.
+    fn venting() -> BoardingTimeline {
+        let vent = |node: &str, kind, duration_s, hold| Vent {
+            node: node.into(),
+            kind,
+            duration_s,
+            rate_per_s: 30.0,
+            hold,
+            ..Default::default()
+        };
+        BoardingTimeline {
+            sit: SitPose {
+                duration_s: 3.0,
+                ..Default::default()
+            },
+            stages: vec![
+                Stage {
+                    name: "the legs' rams work".into(),
+                    start_s: 0.0,
+                    duration_s: 3.0,
+                    vents: vec![vent("shin_L", VentKind::Steam, 3.0, false)],
+                    ..Default::default()
+                },
+                Stage {
+                    name: "the seals break".into(),
+                    start_s: 3.1,
+                    duration_s: 1.3,
+                    vents: vec![vent("VENT_seam_04", VentKind::Steam, 1.3, false)],
+                    ..Default::default()
+                },
+                Stage {
+                    name: "CHEST_lower slides off its seal".into(),
+                    start_s: 3.55,
+                    duration_s: 0.3,
+                    motions: vec![Motion {
+                        node: "CHEST_lower".into(),
+                        translate_m: [0.0, 0.0, 0.04],
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+                Stage {
+                    name: "mist over the sill".into(),
+                    start_s: 4.9,
+                    duration_s: 1.5,
+                    vents: vec![vent("VENT_sill_00", VentKind::Mist, 1.51, true)],
+                    ..Default::default()
+                },
+            ],
+            ready_s: 6.4,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_stage_that_only_vents_does_not_move_the_sealed_time() {
+        let tl = venting();
+        tl.validate().unwrap();
+        assert_eq!(
+            tl.sealed_sitting_s(),
+            3.55,
+            "the first stage that moves a node, not the legs' vents at 0 s"
+        );
+    }
+
+    #[test]
+    fn a_sealed_mech_resting_in_its_seals_window_stays_quiet() {
+        let tl = venting();
+        let seals = &tl.stages[1];
+        let t = tl.sealed_sitting_s();
+        assert!(
+            tl.vent_active(seals, &seals.vents[0], t),
+            "the sealed time is inside the seals' window"
+        );
+        assert!(
+            !tl.vent_emits(seals, &seals.vents[0], t, t),
+            "but the clock rests, so they do not hiss"
+        );
+        assert!(tl.vent_emits(seals, &seals.vents[0], t - DT, t), "they hiss as the clock passes");
+    }
+
+    #[test]
+    fn the_sills_mist_holds_while_the_chest_stands_open() {
+        let tl = venting();
+        let sill = &tl.stages[3];
+        assert!(
+            tl.vent_emits(sill, &sill.vents[0], tl.ready_s, tl.ready_s),
+            "open and resting: the mist goes on"
+        );
+        assert!(!tl.vent_emits(sill, &sill.vents[0], 0.0, 0.0), "standing: no mist");
+    }
+
+    #[test]
+    fn a_vent_along_no_direction_is_refused() {
+        let mut tl = venting();
+        tl.stages[1].vents[0].dir = [0.0; 3];
+        assert!(tl.validate().unwrap_err().contains("zero direction"));
+    }
+
+    #[test]
+    fn every_roster_mech_vents_from_its_seals_and_sill() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        for m in crate::GameData::mech_files(&root) {
+            let id = m.trim_start_matches("mechs/").trim_end_matches(".ron");
+            if matches!(id, "placeholder" | "breeze") {
+                continue; // the stand-in has no chest, the retired Breeze is hand-written
+            }
+            let tl = shipped(id);
+            let vents: Vec<&Vent> = tl.stages.iter().flat_map(|s| &s.vents).collect();
+            assert!(vents.iter().any(|v| v.node.starts_with("VENT_seam")), "{id}: the seals vent");
+            assert!(
+                vents.iter().any(|v| v.node.starts_with("VENT_sill") && v.hold),
+                "{id}: the sill's mist holds while open"
+            );
+            assert!(vents.iter().any(|v| v.node.starts_with("shin_")), "{id}: the legs' rams vent");
+        }
     }
 
     #[test]

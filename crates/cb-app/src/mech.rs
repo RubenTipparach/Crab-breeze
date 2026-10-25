@@ -52,6 +52,14 @@ pub struct MechSim {
     pub cuts: Vec<usize>,
     /// Gun reloads.
     pub guns: Guns,
+    /// The weapon station the pilot's primary trigger fires (weapon-select).
+    pub selected: usize,
+    /// Close combat on or off (close-combat).
+    pub close: cb_core::mech::CloseCombat,
+    /// The arms' strikes at the step before, for drawing between steps.
+    pub strikes_prev: cb_core::mech::Strikes,
+    /// The arms' strikes at the latest step.
+    pub strikes: cb_core::mech::Strikes,
     /// The torso is gone: the mech is a wreck.
     pub dead: bool,
     /// It took a hit since its last step (its AI evades).
@@ -75,6 +83,8 @@ pub struct Piloted;
 pub struct Enemy {
     /// Its pilot.
     pub ai: AiPilot,
+    /// The line it flies with `CB_ENEMY_STUNT`, from the player out toward where it first stood.
+    pub stunt_axis: Option<Vec2>,
 }
 
 /// A hatch node found by a timeline motion's pattern.
@@ -110,6 +120,11 @@ pub struct MechRig {
 }
 
 impl MechRig {
+    /// A socket's entity (`JET_L`, `WHEEL_R`, ...), if the model has it.
+    pub(crate) fn socket(&self, name: &str) -> Option<Entity> {
+        self.sockets.get(name).copied()
+    }
+
     /// The entity of the node named `name` under the model, if any.
     pub(crate) fn named(&self, name: &str) -> Option<Entity> {
         self.named.get(name).copied()
@@ -175,6 +190,7 @@ impl Plugin for MechPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MechAccessNow>()
             .add_systems(Startup, spawn_mech)
+            .add_systems(Update, spawn_encounters.run_if(resource_added::<crate::menu::Play>))
             .add_systems(FixedUpdate, (publish_access.in_set(SimSet::Input), step_mech.in_set(SimSet::Mech)))
             .add_systems(
                 Update,
@@ -195,7 +211,6 @@ fn spawn_mech(
     mut commands: Commands,
     data: Res<Data>,
     world: Res<Plan>,
-    defending: Option<Res<crate::defence::Defending>>,
     tex: Res<crate::textures::Textures>,
     assets: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -215,10 +230,25 @@ fn spawn_mech(
         &mut materials,
     );
     commands.entity(player).insert((Piloted, MechId(0)));
-    // The defence mission brings its own enemies, wave by wave (city-defence).
-    if defending.is_some() {
+}
+
+/// Free roam's encounter mechs near the start, spawned when the run begins as free roam (the title
+/// menu's choice, or a command-line run). The defence mission brings its own enemies, wave by wave
+/// (city-defence).
+fn spawn_encounters(
+    mut commands: Commands,
+    play: Res<crate::menu::Play>,
+    data: Res<Data>,
+    world: Res<Plan>,
+    tex: Res<crate::textures::Textures>,
+    assets: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    if *play != crate::menu::Play::FreeRoam {
         return;
     }
+    let start = world.start;
     for (i, e) in data.0.encounters.enemies.iter().enumerate() {
         let xz = start.mech_xz + Vec2::from_array(e.offset_m);
         let loadout = Loadout {
@@ -324,7 +354,9 @@ pub fn spawn_enemy(
         crate::skins::wear(commands, a.assets, ent, skin);
     }
     let ai = AiPilot::new(l.skill.clone(), rng);
-    commands.entity(ent).insert((Enemy { ai }, id, EnemyGoal::default()));
+    commands
+        .entity(ent)
+        .insert((Enemy { ai, stunt_axis: None }, id, EnemyGoal::default()));
     Some(ent)
 }
 
@@ -372,6 +404,10 @@ fn spawn_mech_entity(
                 damage: Damage::new(&cfg.parts),
                 cuts: Vec::new(),
                 guns: Guns::default(),
+                selected: cb_core::weapons::first_station(&cfg.weapons),
+                close: Default::default(),
+                strikes_prev: Default::default(),
+                strikes: Default::default(),
                 dead: false,
                 took_hit: false,
             },
@@ -783,7 +819,14 @@ fn drive_mech(
             }
         }
         let mut d = [Quat::IDENTITY; BONES.len()];
-        let rotations = p.rotations();
+        let mut rotations = p.rotations().to_vec();
+        // A striking arm swings over the torso (close-combat).
+        let m = &spec.melee;
+        let swing = [0, 1].map(|a| {
+            let (from, to) = (sim.strikes_prev.swing(m, a), sim.strikes.swing(m, a));
+            from + (to - from) * alpha
+        });
+        rotations.extend(cb_core::mech::arm_rotations(p.torso, swing));
         for (i, spec) in BONES.iter().enumerate() {
             let parent = spec.parent.and_then(|pn| BONES.iter().position(|b| b.name == pn));
             let inherited = parent.map(|pi| d[pi]).unwrap_or(Quat::IDENTITY);
@@ -804,6 +847,14 @@ fn drive_mech(
     }
 }
 
+/// The boarding rope's foot: on the ground below the tip of the boarding crane, `reach_m` out in
+/// front of the hatch's sill (away from the mech's root), at the mech's own ground height. The
+/// climbing pilot's eye rides this line up the rope (`rope`).
+pub fn rope_foot(mech_feet: Vec3, hatch: Vec3, reach_m: f32) -> Vec3 {
+    let out = Vec2::new(hatch.x - mech_feet.x, hatch.z - mech_feet.z).normalize_or(Vec2::Y);
+    Vec3::new(hatch.x + out.x * reach_m, mech_feet.y, hatch.z + out.y * reach_m)
+}
+
 fn publish_access(
     roots: Query<(&MechSim, &MechRig), With<Piloted>>,
     globals: Query<&GlobalTransform>,
@@ -812,13 +863,20 @@ fn publish_access(
 ) {
     out.0 = roots.iter().next().and_then(|(sim, rig)| {
         let at = |n: &str| globals.get(rig.sockets[n]).ok().map(|g| g.translation());
+        let hatch = at("HATCH_entry")?;
         Some(MechAccess {
-            ladder_base: at("LADDER_base")?,
-            hatch_entry: at("HATCH_entry")?,
+            // The boarding rope's foot, under the crane's tip (`rope`). The kneel stops as far as the
+            // legs can go, so the hatch stays high and the pilot is winched up (owner, 2026-10-24:
+            // "there should be a rope dangling down for me the player to climb up", "extend a crane
+            // out then lower the rope").
+            ladder_base: rope_foot(sim.curr.pos, hatch, data.0.boarding.crane_reach_m),
+            hatch_entry: hatch,
             eye_pilot: at("EYE_pilot")?,
             heading_rad: sim.curr.heading_rad,
             seat_yaw_rad: sim.curr.heading_rad + sim.curr.twist_rad,
             stopped: sim.curr.is_stopped(&data.0.mech.locomotion),
+            speed_m_s: sim.curr.vel.length(),
+            destroyed: sim.dead,
             hatch_open: sim.hatch.is_open(&data.0.boarding),
         })
     });
@@ -894,6 +952,8 @@ pub fn step_mech(
             continue;
         }
         let mut fire = [false, false, false];
+        // Close combat's strikes, [left arm, right arm] (close-combat).
+        let mut strike = [false; 2];
         let mut aim_at: Option<Vec3> = None;
         if piloted {
             // The player's mech's hit flag lasts one step (its enemies' brains take theirs below);
@@ -964,22 +1024,62 @@ pub fn step_mech(
                     ..default()
                 }
             } else if seated && sim.hatch.can_walk() {
-                // Free look is for pressing the cockpit's MFDs: the guns hold (cockpit-mfds).
-                fire = if actions.free_look {
-                    [false; 3]
+                // The mouse wheel steps the selected station, past any lost arm's gun (weapon-select).
+                if actions.weapon_cycle != 0 {
+                    let lost = |i: usize| sim.damage.is_lost(&cfg.parts, cfg.weapons[i].arm);
+                    sim.selected = cb_core::weapons::next_station(&cfg.weapons, sim.selected, actions.weapon_cycle, |i| !lost(i));
+                }
+                // Close combat comes on when the targeted hostile is within melee range and Tab
+                // toggles it (close-combat); only a targeted hostile counts.
+                let near = targeting.selected.map(|_| targeting.range_m);
+                sim.close.step(near, actions.close_combat, &cfg.melee);
+                // Free look is for pressing the cockpit's MFDs: the guns hold (cockpit-mfds). In
+                // close combat the guns keep firing and the punch keys strike with the arms (owner,
+                // 2026-10-25: "Guns keep firing in close combat, and punches move to other keys").
+                if actions.free_look {
+                    fire = [false; 3];
                 } else {
-                    [actions.fire[0], actions.fire[1], actions.fire_missile]
-                };
+                    fire = [actions.fire[0], actions.fire[1], actions.fire_missile];
+                    if sim.close.on {
+                        strike = actions.strike;
+                    }
+                }
                 // The torso turns to follow where the pilot looks (the view leads, the torso
                 // follows); holding free look keeps the torso where it is.
                 let mut c = MechControls::from_actions(&actions);
                 // Boost thrust goes where the pilot looks.
                 c.view_yaw_rad = pilot.curr.yaw_rad;
+                // Holding Use to climb out, or a tap of free look on the ground, brings the mech to
+                // a full stop: the throttle goes to zero and the legs brake (owner, 2026-10-25).
+                if pilot.curr.exit_hold_s > 0.0 || (actions.full_stop && !sim.curr.airborne()) {
+                    c.throttle_zero = true;
+                    c.throttle_axis = 0.0;
+                }
                 // At the coupled look's edge the mech turns toward the view at its own rate
                 // (seated-look): the view comes round no faster than the mech can turn.
                 let limit = data.0.pilot.seated_look_limit_deg.to_radians();
                 if let Some(t) = cb_core::pilot::look_turn(pilot.curr.seated_rel_rad, limit, actions.free_look) {
                     c.turn_axis = t;
+                }
+                // Walking, WASD is direct: toward the view, back from it, a step to either side; the
+                // legs turn to the way to walk and the mech stops with no key held (walk-controls).
+                // Skating and the jets keep the lever and the leg turn (owner, 2026-10-25: "tank
+                // controls on skate makes sense, but when in walking mode, wasd should be standard
+                // walking").
+                if actions.walk_keys && sim.curr.mode == LocomotionMode::Walk && !sim.curr.skates_on && !sim.curr.airborne() {
+                    let w = cb_core::mech::walk::walk(
+                        actions.move_xy,
+                        pilot.curr.yaw_rad,
+                        sim.curr.heading_rad,
+                        cfg.locomotion.throttle_min,
+                    );
+                    c.throttle_axis = 0.0;
+                    if !c.throttle_zero {
+                        c.throttle_set = Some(w.throttle);
+                    }
+                    if actions.move_xy.length() > 0.1 {
+                        c.turn_axis = w.turn_axis;
+                    }
                 }
                 if !actions.free_look {
                     let wrap = |a: f32| (a + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
@@ -995,8 +1095,9 @@ pub fn step_mech(
             } else {
                 MechControls::default()
             }
-        } else if !seated {
-            // The enemies wait until the pilot is in the seat: no one fights an empty mech.
+        } else if !seated && !std::env::var("CB_ENEMY_STUNT").is_ok_and(|v| v == "hover") {
+            // The enemies wait until the pilot is in the seat: no one fights an empty mech. (The hover
+            // test instrument flies them anyway, so an on-foot still can look at their jets.)
             MechControls::default()
         } else if let (Some((mut enemy, goal)), Some((player_at, player_vel, player_dead))) = (enemy, player) {
             // A mission may send it at something else (city-defence: a building to shell).
@@ -1027,11 +1128,22 @@ pub fn step_mech(
                 open: &open,
             };
             let orders = enemy.ai.orders(&sim.curr, &view, dt);
-            if !target_dead && !goal.hold_fire {
-                fire = [orders.fire[0], orders.fire[1], false];
+            if let Some(c) = stunt(
+                &sim.curr,
+                &plan,
+                player_at,
+                &mut enemy.stunt_axis,
+                time.elapsed_secs() + id.0 as f32 * 7.0,
+            ) {
+                aim_at = Some(orders.aim_point);
+                c
+            } else {
+                if !target_dead && !goal.hold_fire {
+                    fire = [orders.fire[0], orders.fire[1], false];
+                }
+                aim_at = Some(orders.aim_point);
+                orders.controls
             }
-            aim_at = Some(orders.aim_point);
-            orders.controls
         } else {
             MechControls::default()
         };
@@ -1075,8 +1187,44 @@ pub fn step_mech(
         }
         let Some(rig) = rig else { continue };
         let damage = sim.damage.clone();
+        if !(piloted && seated) {
+            sim.close = Default::default();
+        }
+        // Strikes: each arm on its own clock; one landing this step sweeps from its shoulder out to
+        // its reach, toward the aim point (close-combat). A lost arm cannot strike.
+        sim.strikes_prev = sim.strikes;
+        let arm_lost = [PartKind::ArmL, PartKind::ArmR].map(|k| damage.is_lost(&cfg.parts, k));
+        let lands = sim.strikes.step(&cfg.melee, strike, arm_lost, dt);
+        for (arm, shoulder) in ["shoulder_L", "shoulder_R"].into_iter().enumerate() {
+            if !lands[arm] {
+                continue;
+            }
+            let Some(from) = BONES
+                .iter()
+                .position(|b| b.name == shoulder)
+                .and_then(|i| globals.get(rig.bone_entity(i)).ok())
+                .map(|g| g.translation())
+            else {
+                continue;
+            };
+            let ahead = cb_core::mech::forward(sim.curr.heading_rad + sim.curr.twist_rad);
+            let dir = aim_at.map_or(ahead, |t| (t - from).normalize_or(ahead));
+            shots.1.push(crate::combat::Blow {
+                owner: id.0,
+                from,
+                to: from + dir * cfg.melee.reach_m,
+                penetration_mm: cfg.melee.penetration_mm,
+                damage: cfg.melee.damage,
+            });
+        }
         // Guns: fire from the muzzle toward the aim point; a lost arm's gun is gone.
-        let fired = sim.guns.trigger(&cfg.weapons, fire, |k| damage.is_lost(&cfg.parts, k), dt);
+        // The pilot's left mouse fires the selected station; the enemy AI fires by group (weapon-select).
+        let pulls = if piloted {
+            cb_core::weapons::station_pulls(&cfg.weapons, sim.selected, fire[0], fire[1], fire[2])
+        } else {
+            cb_core::weapons::group_pulls(&cfg.weapons, fire)
+        };
+        let fired = sim.guns.trigger(&cfg.weapons, &pulls, |k| damage.is_lost(&cfg.parts, k), dt);
         for wi in fired {
             let w = &cfg.weapons[wi];
             // A mech without a missile pod launches its missiles from the right arm.
@@ -1497,18 +1645,63 @@ fn cut_parts(
     }
 }
 
+/// A test instrument: `CB_ENEMY_STUNT=1` flies every enemy back and forth along the line from the
+/// player toward where it first stood (down the street it started in, so the street's view is
+/// open along it), 120 m to 400 m out, 30 m up on the rockets with the skates pushing, holding
+/// fire. When the rockets lock it comes down and skates on. Its jet smoke and skate trails can then
+/// be checked from the seat (owner, 2026-10-25: "do other mechs and do my mech while I'm in the
+/// pilot seat").
+fn stunt(m: &MechState, plan: &Plan, player: Vec3, axis: &mut Option<Vec2>, t_s: f32) -> Option<MechControls> {
+    if !crate::cli::switched_off("CB_ENEMY_STUNT") {
+        return None;
+    }
+    let me = Vec2::new(m.pos.x, m.pos.z);
+    let home = Vec2::new(player.x, player.z);
+    let axis = *axis.get_or_insert_with(|| (me - home).normalize_or(Vec2::NEG_Y));
+    // Toward the player for 12 s, then away for 12 s; `CB_ENEMY_STUNT=hover` holds it 120 m out, 40 m
+    // up, so its jets and the column of smoke under it are in plain view.
+    let hold = std::env::var("CB_ENEMY_STUNT").is_ok_and(|v| v == "hover");
+    let goal = home + axis * if hold || t_s.rem_euclid(24.0) < 12.0 { 120.0 } else { 400.0 };
+    let to = goal - me;
+    let want = (-to.x).atan2(-to.y);
+    let off = (want - m.heading_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+    let agl = m.pos.y - plan.height_at(m.pos.x, m.pos.z);
+    Some(MechControls {
+        skate_toggle: !m.skates_on,
+        turn_axis: (off * 2.0).clamp(-1.0, 1.0),
+        view_yaw_rad: want,
+        lift_axis: if agl < if hold { 40.0 } else { 30.0 } {
+            1.0
+        } else {
+            (0.175 - m.vel_y_m_s * 0.025).clamp(0.0, 1.0)
+        },
+        move_xy: if m.airborne() && !(hold && to.length() < 20.0) {
+            Vec2::new(0.0, 1.0)
+        } else {
+            Vec2::ZERO
+        },
+        throttle_set: Some(1.0),
+        ..default()
+    })
+}
+
 /// While the pilot sits in the mech with the hatch shut, every mesh of the mech is on the cockpit
 /// layer, drawn after the world on its own depth so nothing in the world draws through it
 /// (cockpit-overlay; owner: "only when it is closed and player is inside"). Otherwise it is drawn
 /// with the world like anything else. Walks the mech's descendants each frame, so a model that
 /// loads late is caught.
+/// A mesh hung under a mech that sets its own render layers (an MFD's outline, `mfd-menus`): the cockpit pass leaves it
+/// alone.
+#[derive(Component)]
+pub struct OwnLayers;
+
 fn cockpit_layer(
     mut commands: Commands,
     pilot: Res<PilotSim>,
     data: Res<Data>,
     mech: Query<(Entity, &MechSim, Option<&Interior>), With<Piloted>>,
     children: Query<&Children>,
-    meshes: Query<Option<&bevy::camera::visibility::RenderLayers>, With<Mesh3d>>,
+    meshes: Query<Option<&bevy::camera::visibility::RenderLayers>, (With<Mesh3d>, Without<OwnLayers>)>,
 ) {
     use bevy::camera::visibility::RenderLayers;
     let Some((root, sim, interior)) = mech.iter().next() else { return };
@@ -1539,7 +1732,7 @@ fn cockpit_layer(
 }
 
 /// The booster flame while boosting: a stream on each jet socket (`FxStream`), switched with the
-/// boost.
+/// boost. The smoke trail is lit puffs laid along the jets' path (`smoke_render::jet_trails`).
 /// A jet's exhaust flame, under its nozzle socket (openspec change `rocket-plumes`).
 #[derive(Component)]
 struct JetPlume;
@@ -1579,6 +1772,7 @@ fn jet_flames(
                         recipe: "jet_flame",
                         dir: Vec3::NEG_Y,
                         on,
+                        density: 1.0,
                     });
                 }
             }
@@ -1627,6 +1821,7 @@ fn burn(mut commands: Commands, q: Query<(Entity, &GlobalTransform, &Burning)>, 
             recipe: "burning",
             dir: Vec3::Y,
             on,
+            density: 1.0,
         });
         if !on {
             commands.entity(e).remove::<Burning>();
