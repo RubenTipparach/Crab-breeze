@@ -205,6 +205,7 @@ fn step_pilot(
         Some(PilotEvent::Seated) => info!("pilot: seated at EYE_pilot"),
         Some(PilotEvent::DisembarkStarted) => info!("pilot: climbing out"),
         Some(PilotEvent::Disembarked) => info!("pilot: standing at LADDER_base"),
+        Some(PilotEvent::Ejected) => info!("pilot: ejected from the destroyed mech"),
         None => {}
     }
 }

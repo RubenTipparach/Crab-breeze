@@ -190,6 +190,8 @@ pub struct Bindings {
     pub close_combat: Vec<String>,
     /// Step the selected weapon: key names step on; `MouseWheel` steps by the wheel, down on, up back.
     pub weapon_cycle: Vec<String>,
+    /// Open and close the mail (a career; mission-jobs).
+    pub mail: Vec<String>,
 }
 
 impl Default for Bindings {
@@ -224,6 +226,7 @@ impl Default for Bindings {
             target_next: k("KeyQ"),
             close_combat: k("Tab"),
             weapon_cycle: vec!["MouseWheel".to_string(), "BracketRight".to_string()],
+            mail: k("KeyM"),
         }
     }
 }
@@ -324,6 +327,7 @@ impl Bindings {
                 &self.free_look,
             ),
             row("Game", "Pause menu", "release_mouse", &self.release_mouse),
+            row("Game", "Mail and jobs (a career)", "mail", &self.mail),
             row("Test keys", "Hit left arm", "debug_hit_arm_l", &self.debug_hit_arm_l),
             row("Test keys", "Hit right arm", "debug_hit_arm_r", &self.debug_hit_arm_r),
             row("Test keys", "Hit head", "debug_hit_head", &self.debug_hit_head),

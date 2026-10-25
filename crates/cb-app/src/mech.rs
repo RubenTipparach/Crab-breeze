@@ -857,6 +857,7 @@ fn publish_access(
             seat_yaw_rad: sim.curr.heading_rad + sim.curr.twist_rad,
             stopped: sim.curr.is_stopped(&data.0.mech.locomotion),
             speed_m_s: sim.curr.vel.length(),
+            destroyed: sim.dead,
             hatch_open: sim.hatch.is_open(&data.0.boarding),
         })
     });

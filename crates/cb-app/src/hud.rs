@@ -24,7 +24,7 @@ impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_hud).add_systems(
             Update,
-            (update_hud, draw_targets, draw_lock, exit_ring, update_stations).in_set(PresentSet::Camera),
+            (update_hud, draw_targets, draw_lock, exit_ring, update_stations, draw_job).in_set(PresentSet::Camera),
         );
     }
 }
@@ -52,6 +52,14 @@ struct StationRow(usize);
 
 /// Rows on the WEAPONS page.
 const STATION_ROWS: usize = 6;
+
+/// The accepted job's site over the screens.
+#[derive(Component)]
+struct JobMarker;
+
+/// The job line on the MISSION page.
+#[derive(Component)]
+struct JobLine;
 
 /// The TARGET page's readout.
 #[derive(Component)]
@@ -210,6 +218,17 @@ fn spawn_hud(mut commands: Commands) {
                 UiTransform::IDENTITY,
                 Visibility::Hidden,
                 EdgeArrow,
+            ));
+            // The accepted job's site (draw_job).
+            root.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    ..default()
+                },
+                text("", 22.0),
+                TextColor(AMBER),
+                Visibility::Hidden,
+                JobMarker,
             ));
             // The missile lock's two boxes (draw_lock).
             for i in 0..2 {
@@ -447,6 +466,15 @@ fn spawn_hud(mut commands: Commands) {
                     },
                     text("", 36.0),
                     Readout::Mission,
+                ));
+                c.spawn((
+                    Node {
+                        max_width: percent(100.0),
+                        ..default()
+                    },
+                    text("", 32.0),
+                    TextColor(AMBER),
+                    JobLine,
                 ));
             });
         });
@@ -906,15 +934,19 @@ fn update_stations(
         *v = Visibility::Inherited;
         let lost = sim.damage.is_lost(&spec.parts, w.arm);
         let cd = sim.guns.cooldown_s.get(row.0).copied().unwrap_or(0.0);
+        let rounds = sim.guns.rounds_left.get(row.0).copied().unwrap_or(w.rounds);
         let state = if lost {
             "LOST".to_string()
+        } else if rounds == Some(0) {
+            "EMPTY".to_string()
         } else if cd > 0.05 {
             format!("{cd:.1}s")
         } else {
             "READY".to_string()
         };
         let name = w.name.to_uppercase();
-        t.0 = format!("STA {}  {name}  {state}", row.0 + 1);
+        let count = rounds.map_or_else(String::new, |n| format!(" x{n}"));
+        t.0 = format!("STA {}  {name}{count}  {state}", row.0 + 1);
         let selected = row.0 == sim.selected;
         c.0 = if lost {
             RED
@@ -1009,6 +1041,66 @@ fn draw_lock(
             AMBER.with_alpha(0.4 + 0.6 * k)
         });
         *vis = Visibility::Inherited;
+    }
+}
+
+/// The accepted job in a career: a diamond and its distance over the site on the screens, and a line on
+/// the MISSION page (where, how far, the time left, the enemies left), from the career's own board.
+#[allow(clippy::type_complexity)]
+fn draw_job(
+    career: Option<Res<crate::career::CareerRun>>,
+    pilot: Res<PilotSim>,
+    plan: Res<Plan>,
+    camera: Single<(&Camera, &GlobalTransform), With<crate::pilot::PilotCamera>>,
+    enemies: Query<(&MechSim, &crate::career::JobEnemy)>,
+    mut marker: Query<(&mut Node, &mut Text, &mut Visibility), (With<JobMarker>, Without<JobLine>)>,
+    mut line: Query<&mut Text, (With<JobLine>, Without<JobMarker>)>,
+) {
+    let job = career.as_ref().and_then(|c| c.career.board.current().cloned());
+    let Ok((mut node, mut text, mut vis)) = marker.single_mut() else {
+        return;
+    };
+    let Some(j) = job else {
+        *vis = Visibility::Hidden;
+        if let Ok(mut l) = line.single_mut() {
+            l.0.clear();
+        }
+        return;
+    };
+    let (cam, at) = *camera;
+    let eye = at.translation();
+    let ground = plan.terrain.height_at(j.site.x, j.site.y);
+    let site = Vec3::new(j.site.x, ground + 20.0, j.site.y);
+    let d = Vec2::new(eye.x, eye.z).distance(j.site);
+    let km = d / 1000.0;
+    match cam
+        .world_to_viewport(at, site)
+        .ok()
+        .filter(|_| pilot.curr.mode == PilotMode::Seated)
+    {
+        Some(p) => {
+            node.left = px(p.x - 40.0);
+            node.top = px(p.y - 14.0);
+            text.0 = format!("<> JOB {km:.1} KM");
+            *vis = Visibility::Inherited;
+        }
+        None => *vis = Visibility::Hidden,
+    }
+    if let Ok(mut l) = line.single_mut() {
+        let bearing = bearing_deg(Vec2::new(j.site.x - eye.x, j.site.y - eye.z));
+        let left = enemies.iter().filter(|(s, e)| e.0 == j.id && !s.dead).count();
+        let m = (j.clock_s / 60.0).floor();
+        let s = j.clock_s - m * 60.0;
+        let fight = if j.state == cb_core::jobs::JobState::Active {
+            format!("\nENEMIES {left}")
+        } else {
+            String::new()
+        };
+        l.0 = format!(
+            "JOB CITY {}\n{km:.1} KM BRG {:03}\nTIME {m:.0}:{s:02.0}{fight}",
+            j.city + 1,
+            whole_deg(bearing)
+        );
     }
 }
 

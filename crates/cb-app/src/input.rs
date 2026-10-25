@@ -61,6 +61,7 @@ pub(crate) struct Keys {
     mode_jet: Vec<KeyCode>,
     /// Opens and closes the pause menu (game-menus).
     pub(crate) release_mouse: Vec<KeyCode>,
+    pub(crate) mail: Vec<KeyCode>,
     lift: Vec<KeyCode>,
     skate: Vec<KeyCode>,
     sink: Vec<KeyCode>,
@@ -127,6 +128,7 @@ fn resolve(b: &Bindings) -> Result<Keys, String> {
         mode_skate: r("mode_skate", &b.mode_skate)?,
         mode_jet: r("mode_jet", &b.mode_jet)?,
         release_mouse: r("release_mouse", &b.release_mouse)?,
+        mail: r("mail", &b.mail)?,
         lift: r("lift", &b.lift)?,
         skate: r("skate", &b.skate)?,
         sink: r("sink", &b.sink)?,

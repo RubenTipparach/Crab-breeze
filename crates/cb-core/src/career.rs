@@ -128,6 +128,8 @@ pub struct Career {
     pub done: Vec<JobRecord>,
     /// Every credit and charge, newest last (the newest `ledger_kept`).
     pub ledger: Vec<Entry>,
+    /// The jobs offered, taken and done, and the inbox (mission-jobs).
+    pub board: crate::jobs::Board,
     next_key: u32,
 }
 
@@ -145,6 +147,7 @@ impl Career {
             seed,
             done: Vec::new(),
             ledger: Vec::new(),
+            board: crate::jobs::Board::default(),
             next_key: 0,
         };
         let key = c.add_mech(&cfg.start_mech, 0, 0, start_mech_structure);

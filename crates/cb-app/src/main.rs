@@ -5,6 +5,7 @@ mod bench;
 mod blast;
 mod buildings;
 mod capture;
+mod career;
 mod cli;
 mod combat;
 mod defence;
@@ -122,6 +123,7 @@ fn main() -> AppExit {
         mfd::MfdPlugin,
         menu::MenuPlugin,
         rope::RopePlugin,
+        career::CareerPlugin,
     ));
     // GPU grass (openspec change `gpu-grass`); `CB_NO_GRASS=1` leaves it out, so the benchmark can
     // measure what it costs.
