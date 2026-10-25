@@ -117,7 +117,7 @@ aside { display: grid; gap: 12px; min-width: 0; }
     riding each forearm or sitting in the claw's palm. Alien in the shapes: spines down the hump, mandibles and fangs, a
     toothed maw on the two King Crab types, clustered eyes. Tyrant and Bruiser stand on one pair, Shrike and Pincher on two,
     Scuttler and Mite on three short thin pairs. Numbered on from the combat mechs, 23 to 28.</p>
-    <p class="hint">In the viewer below: Scene, Crabs.</p>
+    <p class="hint">In the viewer below: Scene, Crabs. Press Walk, then tap a leg or a claw to shoot it off and watch how the crab copes; Repair puts it back.</p>
   </section>
   <h2 class="boh">The detailed round: the first three at 12 m, the six picked from the block-outs at 24 m</h2>
 </header>
@@ -682,6 +682,8 @@ function fwdOf(b) { const q = new T.Quaternion(); (b.nodes.cockpit || b.root).ge
 let sceneId = "detailed";
 const VIEWERS = {};
 function setScene(id) {
+  if (id === "detailed") loadDetailed();
+  const ld = document.getElementById("load"); if (ld) ld.hidden = id !== "detailed";
   if (id === sceneId) return;
   sceneId = id;
   document.querySelectorAll("[data-scene]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.scene === id)));
@@ -901,8 +903,15 @@ function loop(ms) {
   if ((frame++ & 3) === 0) placeTags();
   requestAnimationFrame(loop);
 }
-const loaded = Promise.all(ORDER.map(loadOne)).catch(e => { document.getElementById("load").textContent = "Could not load: " + e; throw e; });
-loaded.then(() => { document.getElementById("load").remove(); setMech("foreman"); setAct("idle"); setView("orbit"); window.MOCKUP_READY = true; });
+// the detailed mechs (most of the page's weight) load when their scene first opens, so a link to #crabs, #combat or
+// #blockouts opens straight into that scene without them (owner, 2026-10-24: "my phone can only render so much")
+let loaded = null;
+function loadDetailed() {
+  if (loaded) return loaded;
+  loaded = Promise.all(ORDER.map(loadOne)).catch(e => { document.getElementById("load").textContent = "Could not load: " + e; throw e; });
+  loaded.then(() => { document.getElementById("load").remove(); setMech("foreman"); setAct("idle"); setView("orbit"); window.MOCKUP_READY = true; });
+  return loaded;
+}
 requestAnimationFrame(loop);
 window.MOCKUP = {
   setMech, setView, setAct,
@@ -929,7 +938,7 @@ function blockoutViewer(BO, label, pickId, statsId, first, gap, api, frame) {
   frame = frame || { d: 1, ty: 12 };     // one mech's framing: distance scale and target height (the crabs are wide and low)
   // built on the shared renderer and canvas: its own scene, camera and controls, and nothing loaded until it is opened
   let sc = null, cam = null, oc = null, loading = null;
-  const limbs = [], sparks = []; let last = performance.now();
+  const limbs = [], sparks = [], pose = {}; let last = performance.now(), walking = false;
   const groups = {}, ids = BO.mechs.map(m => m.id);
   const pick = document.getElementById(pickId), stats = document.getElementById(statsId);
   let cur = "all";
@@ -956,7 +965,12 @@ function blockoutViewer(BO, label, pickId, statsId, first, gap, api, frame) {
       g.scene.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
       groups[m.id] = g.scene; sc.add(g.scene);
       // the limbs a crab can lose: one node each, at its root joint (build_mech_blockouts.py `limb`)
-      g.scene.traverse(o => { if (/^(ARM|LEG)_/.test(o.name)) limbs.push({ node: o, mech: m.id, parent: o.parent, pos: o.position.clone(), rot: o.quaternion.clone(), v: null, w: null }); });
+      g.scene.traverse(o => {
+        const mm = /^(ARM|LEG)_(\d?)([LR])/.exec(o.name);
+        if (mm) limbs.push({ node: o, mech: m.id, leg: mm[1] === "LEG", pair: +(mm[2] || 0), side: mm[3] === "L" ? 1 : -1,
+                             parent: o.parent, pos: o.position.clone(), rot: o.quaternion.clone(), v: null, w: null });
+      });
+      pose[m.id] = { roll: 0, pitch: 0, dip: 0, t: 0 };
     }))).then(() => { show(cur); if (sceneId === api) document.getElementById("mode").textContent = label; })
       .catch(e => { stats.textContent = "Could not load: " + e; });
     show(cur);
@@ -977,13 +991,33 @@ function blockoutViewer(BO, label, pickId, statsId, first, gap, api, frame) {
   });
   // shoot off a leg or an arm (owner, 2026-10-25: "Can we shoot off each leg or arm"): only where the models have limbs
   if (BO.mechs.some(m => m.limbs)) {
-    const shoot = document.createElement("button"); shoot.textContent = "Shoot off a limb"; shoot.onclick = shootLimb; pick.appendChild(shoot);
+    const walk = document.createElement("button"); walk.textContent = "Walk"; walk.setAttribute("aria-pressed", "false");
+    walk.onclick = () => { walking = !walking; walk.setAttribute("aria-pressed", String(walking)); }; pick.appendChild(walk);
+    const shoot = document.createElement("button"); shoot.textContent = "Shoot off a limb"; shoot.onclick = () => shootLimb(); pick.appendChild(shoot);
+    // tap a leg or a claw to shoot that one off (a tap, not an orbit drag)
+    let down = null;
+    canvas.addEventListener("pointerdown", e => { if (sceneId === api) down = [e.clientX, e.clientY]; });
+    canvas.addEventListener("pointerup", e => {
+      if (sceneId !== api || !down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 6) return;
+      const r = canvas.getBoundingClientRect(), ray = new T.Raycaster();
+      ray.setFromCamera(new T.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1), cam);
+      for (const hit of ray.intersectObjects(sc.children, true)) {
+        let o = hit.object, l = null;
+        while (o && !(l = limbs.find(x => x.node === o && !x.v))) o = o.parent;
+        if (l) { shootLimb(l); break; }
+        if (hit.object.isMesh && hit.object.parent && Object.values(groups).some(g => isUnder(hit.object, g))) break;
+      }
+    });
     const fix = document.createElement("button"); fix.textContent = "Repair"; fix.onclick = repair; pick.appendChild(fix);
   }
-  function shootLimb() {
-    const on = limbs.filter(l => !l.v && (cur === "all" || l.mech === cur) && groups[l.mech].visible);
-    if (!on.length) return;
-    const l = on[Math.floor(Math.random() * on.length)], g = groups[l.mech];
+  function isUnder(o, g) { while (o) { if (o === g) return true; o = o.parent; } return false; }
+  function shootLimb(l) {
+    if (!l) {
+      const on = limbs.filter(x => !x.v && (cur === "all" || x.mech === cur) && groups[x.mech].visible);
+      if (!on.length) return;
+      l = on[Math.floor(Math.random() * on.length)];
+    }
+    const g = groups[l.mech];
     const root = new T.Vector3(); l.node.getWorldPosition(root);
     const c = new T.Vector3(); g.getWorldPosition(c);
     const out = root.clone().sub(c).setY(0).normalize();
@@ -1000,8 +1034,52 @@ function blockoutViewer(BO, label, pickId, statsId, first, gap, api, frame) {
   function repair() {
     limbs.forEach(l => { if (!l.v) return; l.parent.add(l.node); l.node.position.copy(l.pos); l.node.quaternion.copy(l.rot); l.v = l.w = null; });
   }
+  // What the crab does with what it has left (openspec crab-enemies, "losing limbs"): the body drops and rolls toward a
+  // side short of legs, a lost claw leans it onto the other, and it walks slower by the share of hind legs left; with no
+  // hind leg on a side it cannot walk and sits down on its belly and claw.
+  function stance(id) {
+    const mine = limbs.filter(x => x.mech === id), legs = mine.filter(x => x.leg), pairs = Math.max(1, legs.length / 2);
+    const lost = s => legs.filter(x => x.side === s && x.v).length, left = s => legs.filter(x => x.side === s && !x.v).length;
+    const armLost = s => mine.some(x => !x.leg && x.side === s && x.v);
+    const stuck = left(1) === 0 || left(-1) === 0;
+    let roll = -(lost(1) - lost(-1)) / pairs * 0.22 - (armLost(1) ? 0.07 : 0) + (armLost(-1) ? 0.07 : 0);
+    if (stuck) roll = left(1) === 0 && left(-1) === 0 ? 0 : (left(1) === 0 ? -0.32 : 0.32);
+    const lostLegs = lost(1) + lost(-1), frontLost = legs.some(x => x.pair === 0 && x.v);
+    return { roll, pitch: (frontLost ? 0.06 : 0) + (armLost(1) || armLost(-1) ? 0.05 : 0),
+             dip: stuck ? 2.4 : lostLegs / (2 * pairs) * 1.6, speed: stuck ? 0 : (legs.length - lostLegs) / Math.max(1, legs.length) };
+  }
+  const Z = new T.Vector3(0, 0, 1), Y = new T.Vector3(0, 1, 0), X = new T.Vector3(1, 0, 0), q = new T.Quaternion();
+  function stepWalk(dt) {
+    let note = "";
+    for (const id in pose) {
+      const g = groups[id], p = pose[id]; if (!g || !g.visible) continue;
+      const st = stance(id), k = Math.min(1, dt * 3);
+      p.roll += (st.roll - p.roll) * k; p.pitch += (st.pitch - p.pitch) * k; p.dip += (st.dip - p.dip) * k;
+      if (walking) p.t += dt * 1.6 * st.speed;
+      const legs = limbs.filter(x => x.mech === id && x.leg).length, pairs = Math.max(1, legs / 2);
+      g.rotation.set(p.pitch, 0, p.roll);
+      g.position.y = -p.dip + (walking && st.speed ? Math.abs(Math.sin(p.t * Math.PI)) * 0.25 : 0);
+      for (const l of limbs) {
+        if (l.mech !== id || l.v) continue;
+        l.node.quaternion.copy(l.rot);
+        if (!walking || !st.speed) continue;
+        // alternating groups: one pair's left with the next pair's right; the claws walk as the front pair
+        const ph = p.t * Math.PI + ((l.leg ? l.pair + 1 : 0) + (l.side > 0 ? 0 : 1)) * Math.PI;
+        const lift = Math.max(0, Math.sin(ph)), swing = Math.cos(ph);
+        if (l.leg) {
+          l.node.quaternion.multiply(q.setFromAxisAngle(Z, l.side * lift * 0.22));
+          l.node.quaternion.multiply(q.setFromAxisAngle(Y, -l.side * swing * 0.16 / Math.sqrt(pairs)));
+        } else {
+          l.node.quaternion.multiply(q.setFromAxisAngle(X, -lift * 0.18));
+        }
+      }
+      if (id === cur || cur === "all") note = st.speed === 0 ? "cannot walk: a side has no legs" : walking ? `walking at ${Math.round(st.speed * 100)}%` : "";
+    }
+    if (sceneId === api) document.getElementById("mode").textContent = label + (note ? ": " + note : "");
+  }
   function stepDebris() {
     const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
+    stepWalk(dt);
     const box = new T.Box3();
     limbs.forEach(l => {
       if (!l.v || l.v.lengthSq() + l.w.lengthSq() < 1e-4) return;
@@ -1046,4 +1124,6 @@ blockoutViewer({"generator": "tools/blender/build_mech_blockouts.py", "target_he
 blockoutViewer({"generator": "tools/blender/build_mech_blockouts.py", "target_height_m": 24.0, "mechs": [{"id": "sabre", "name": "Sabre", "what": "the standard: biped, rifle and shield, missile box and radar, Panorama", "file": "mech_blockouts/sabre.gltf.json", "height_m": 25.52, "width_m": 13.44, "length_m": 16.62, "tris": 3980, "legs_m3": 353.4, "torso_m3": 226.9, "legs_over_torso": 1.56, "arm_leg_clips": []}, {"id": "swift", "name": "Swift", "what": "light, reverse joint, rifle and gatling, rocket pods, wing boosters, Canopy", "file": "mech_blockouts/swift.gltf.json", "height_m": 24.49, "width_m": 12.87, "length_m": 19.02, "tris": 5492, "legs_m3": 312.7, "torso_m3": 198.7, "legs_over_torso": 1.57, "arm_leg_clips": []}, {"id": "bulldog", "name": "Bulldog", "what": "heavy, tracks, twin gatlings, two shoulder cannons, Excavator cab", "file": "mech_blockouts/bulldog.gltf.json", "height_m": 16.82, "width_m": 17.44, "length_m": 18.65, "tris": 3815, "legs_m3": 543.6, "torso_m3": 364.3, "legs_over_torso": 1.49, "arm_leg_clips": []}, {"id": "tarantula", "name": "Tarantula", "what": "artillery, four legs, rifle and gatling, cannon and vertical missiles, Low bank", "file": "mech_blockouts/tarantula.gltf.json", "height_m": 22.07, "width_m": 19.38, "length_m": 20.62, "tris": 5495, "legs_m3": 487.2, "torso_m3": 258.4, "legs_over_torso": 1.89, "arm_leg_clips": []}, {"id": "hatchet", "name": "Hatchet", "what": "brawler, reverse joint, shotgun and pile driver, rockets and missiles, Titan", "file": "mech_blockouts/hatchet.gltf.json", "height_m": 24.89, "width_m": 15.1, "length_m": 16.96, "tris": 4650, "legs_m3": 342.9, "torso_m3": 258.4, "legs_over_torso": 1.33, "arm_leg_clips": []}, {"id": "longbow", "name": "Longbow", "what": "sniper, light biped, long rifle and assault rifle, radar and missiles, Cinema", "file": "mech_blockouts/longbow.gltf.json", "height_m": 25.52, "width_m": 11.33, "length_m": 20.47, "tris": 4393, "legs_m3": 284.6, "torso_m3": 201.8, "legs_over_torso": 1.41, "arm_leg_clips": []}, {"id": "anvil", "name": "Anvil", "what": "heavy biped, gatling and grenade launcher, two missile boxes, Tile wall", "file": "mech_blockouts/anvil.gltf.json", "height_m": 26.57, "width_m": 17.6, "length_m": 17.51, "tris": 4001, "legs_m3": 459.4, "torso_m3": 324.7, "legs_over_torso": 1.42, "arm_leg_clips": []}, {"id": "skylark", "name": "Skylark", "what": "flyer, light biped, bazooka and rifle, vertical missiles, wing boosters, Twin tier", "file": "mech_blockouts/skylark.gltf.json", "height_m": 24.09, "width_m": 12.8, "length_m": 18.88, "tris": 4748, "legs_m3": 288.8, "torso_m3": 219.3, "legs_over_torso": 1.32, "arm_leg_clips": []}, {"id": "brigand", "name": "Brigand", "what": "raider, reverse joint, bazooka and gatling, railgun and missiles, Octagon", "file": "mech_blockouts/brigand.gltf.json", "height_m": 26.27, "width_m": 13.9, "length_m": 16.82, "tris": 4690, "legs_m3": 342.9, "torso_m3": 244.8, "legs_over_torso": 1.4, "arm_leg_clips": []}, {"id": "rampart", "name": "Rampart", "what": "fortress, tracks, gatling and shield, railgun and vertical missiles, All-view sphere", "file": "mech_blockouts/rampart.gltf.json", "height_m": 16.89, "width_m": 17.2, "length_m": 18.48, "tris": 4316, "legs_m3": 543.6, "torso_m3": 364.0, "legs_over_torso": 1.49, "arm_leg_clips": []}]}, "Combat mechs", "cb-pick", "cb-stats", 13, 24, "COMBAT");
 // the crab mechs, numbered on from the combat mechs (owner, 2026-10-24: "more practical big legged crabs with guns for arms")
 blockoutViewer({"generator": "tools/blender/build_mech_blockouts.py", "target_height_m": 24.0, "mechs": [{"id": "tyrant", "name": "Tyrant", "what": "one pair of thick hind legs, a shark's maw, the hump all spines, crusher claws with a howitzer and an autocannon, missiles and radar, Titan", "file": "mech_blockouts/tyrant.gltf.json", "height_m": 18.01, "width_m": 23.03, "length_m": 23.89, "tris": 5836, "legs_m3": 318.6, "torso_m3": 341.5, "legs_over_torso": 0.93, "arm_leg_clips": [], "limbs": ["ARM_L", "ARM_R", "LEG_0L", "LEG_0R"]}, {"id": "bruiser", "name": "Bruiser", "what": "one pair of hind legs under a flat wide shell, a toothed maw, gatlings in both claws, a shoulder cannon and missiles, Excavator cab", "file": "mech_blockouts/bruiser.gltf.json", "height_m": 15.5, "width_m": 24.31, "length_m": 22.84, "tris": 5736, "legs_m3": 259.9, "torso_m3": 283.9, "legs_over_torso": 0.92, "arm_leg_clips": [], "limbs": ["ARM_L", "ARM_R", "LEG_0L", "LEG_0R"]}, {"id": "shrike", "name": "Shrike", "what": "two pairs of arching legs under a flat saucer shell with cheek intakes, two autocannons, vertical missiles, Panorama", "file": "mech_blockouts/shrike.gltf.json", "height_m": 15.03, "width_m": 28.94, "length_m": 24.15, "tris": 6327, "legs_m3": 270.2, "torso_m3": 298.8, "legs_over_torso": 0.9, "arm_leg_clips": [], "limbs": ["ARM_L", "ARM_R", "LEG_0L", "LEG_0R", "LEG_1L", "LEG_1R"]}, {"id": "pincher", "name": "Pincher", "what": "two pairs of legs, two great pincers with cannons in their palms, rocket pods, All-view sphere", "file": "mech_blockouts/pincher.gltf.json", "height_m": 14.12, "width_m": 26.61, "length_m": 28.8, "tris": 6922, "legs_m3": 279.0, "torso_m3": 292.5, "legs_over_torso": 0.95, "arm_leg_clips": [], "limbs": ["ARM_L", "ARM_R", "LEG_0L", "LEG_0R", "LEG_1L", "LEG_1R"]}, {"id": "scuttler", "name": "Scuttler", "what": "three pairs of short thin legs, low and quick, a gatling and a rocket box, railgun and missiles, Canopy", "file": "mech_blockouts/scuttler.gltf.json", "height_m": 11.05, "width_m": 19.76, "length_m": 22.37, "tris": 7824, "legs_m3": 111.5, "torso_m3": 268.8, "legs_over_torso": 0.41, "arm_leg_clips": [], "limbs": ["ARM_L", "ARM_R", "LEG_0L", "LEG_0R", "LEG_1L", "LEG_1R", "LEG_2L", "LEG_2R"]}, {"id": "mite", "name": "Mite", "what": "three pairs of short thin legs, the smallest, a pincer cannon and an autocannon, a cannon and radar, Low bank", "file": "mech_blockouts/mite.gltf.json", "height_m": 13.47, "width_m": 18.2, "length_m": 20.82, "tris": 7714, "legs_m3": 85.2, "torso_m3": 228.0, "legs_over_torso": 0.37, "arm_leg_clips": [], "limbs": ["ARM_L", "ARM_R", "LEG_0L", "LEG_0R", "LEG_1L", "LEG_1R", "LEG_2L", "LEG_2R"]}]}, "Crab mechs", "cr-pick", "cr-stats", 23, 44, "CRABS", { d: 1.45, ty: 7 });
+{ const start = { crabs: "CRABS", combat: "COMBAT", blockouts: "BLOCKOUTS" }[location.hash.slice(1)];
+  if (start) setScene(start); else loadDetailed(); }
 </script>

@@ -152,7 +152,7 @@ aside { display: grid; gap: 12px; min-width: 0; }
     riding each forearm or sitting in the claw's palm. Alien in the shapes: spines down the hump, mandibles and fangs, a
     toothed maw on the two King Crab types, clustered eyes. Tyrant and Bruiser stand on one pair, Shrike and Pincher on two,
     Scuttler and Mite on three short thin pairs. Numbered on from the combat mechs, 23 to 28.</p>
-    <p class="hint">In the viewer below: Scene, Crabs.</p>
+    <p class="hint">In the viewer below: Scene, Crabs. Press Walk, then tap a leg or a claw to shoot it off and watch how the crab copes; Repair puts it back.</p>
   </section>
   <h2 class="boh">The detailed round: the first three at 12 m, the six picked from the block-outs at 24 m</h2>
 </header>
@@ -465,6 +465,8 @@ function fwdOf(b) { const q = new T.Quaternion(); (b.nodes.cockpit || b.root).ge
 let sceneId = "detailed";
 const VIEWERS = {};
 function setScene(id) {
+  if (id === "detailed") loadDetailed();
+  const ld = document.getElementById("load"); if (ld) ld.hidden = id !== "detailed";
   if (id === sceneId) return;
   sceneId = id;
   document.querySelectorAll("[data-scene]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.scene === id)));
@@ -684,8 +686,15 @@ function loop(ms) {
   if ((frame++ & 3) === 0) placeTags();
   requestAnimationFrame(loop);
 }
-const loaded = Promise.all(ORDER.map(loadOne)).catch(e => { document.getElementById("load").textContent = "Could not load: " + e; throw e; });
-loaded.then(() => { document.getElementById("load").remove(); setMech("foreman"); setAct("idle"); setView("orbit"); window.MOCKUP_READY = true; });
+// the detailed mechs (most of the page's weight) load when their scene first opens, so a link to #crabs, #combat or
+// #blockouts opens straight into that scene without them (owner, 2026-10-24: "my phone can only render so much")
+let loaded = null;
+function loadDetailed() {
+  if (loaded) return loaded;
+  loaded = Promise.all(ORDER.map(loadOne)).catch(e => { document.getElementById("load").textContent = "Could not load: " + e; throw e; });
+  loaded.then(() => { document.getElementById("load").remove(); setMech("foreman"); setAct("idle"); setView("orbit"); window.MOCKUP_READY = true; });
+  return loaded;
+}
 requestAnimationFrame(loop);
 window.MOCKUP = {
   setMech, setView, setAct,
@@ -712,7 +721,7 @@ function blockoutViewer(BO, label, pickId, statsId, first, gap, api, frame) {
   frame = frame || { d: 1, ty: 12 };     // one mech's framing: distance scale and target height (the crabs are wide and low)
   // built on the shared renderer and canvas: its own scene, camera and controls, and nothing loaded until it is opened
   let sc = null, cam = null, oc = null, loading = null;
-  const limbs = [], sparks = []; let last = performance.now();
+  const limbs = [], sparks = [], pose = {}; let last = performance.now(), walking = false;
   const groups = {}, ids = BO.mechs.map(m => m.id);
   const pick = document.getElementById(pickId), stats = document.getElementById(statsId);
   let cur = "all";
@@ -739,7 +748,12 @@ function blockoutViewer(BO, label, pickId, statsId, first, gap, api, frame) {
       g.scene.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
       groups[m.id] = g.scene; sc.add(g.scene);
       // the limbs a crab can lose: one node each, at its root joint (build_mech_blockouts.py `limb`)
-      g.scene.traverse(o => { if (/^(ARM|LEG)_/.test(o.name)) limbs.push({ node: o, mech: m.id, parent: o.parent, pos: o.position.clone(), rot: o.quaternion.clone(), v: null, w: null }); });
+      g.scene.traverse(o => {
+        const mm = /^(ARM|LEG)_(\d?)([LR])/.exec(o.name);
+        if (mm) limbs.push({ node: o, mech: m.id, leg: mm[1] === "LEG", pair: +(mm[2] || 0), side: mm[3] === "L" ? 1 : -1,
+                             parent: o.parent, pos: o.position.clone(), rot: o.quaternion.clone(), v: null, w: null });
+      });
+      pose[m.id] = { roll: 0, pitch: 0, dip: 0, t: 0 };
     }))).then(() => { show(cur); if (sceneId === api) document.getElementById("mode").textContent = label; })
       .catch(e => { stats.textContent = "Could not load: " + e; });
     show(cur);
@@ -760,13 +774,33 @@ function blockoutViewer(BO, label, pickId, statsId, first, gap, api, frame) {
   });
   // shoot off a leg or an arm (owner, 2026-10-25: "Can we shoot off each leg or arm"): only where the models have limbs
   if (BO.mechs.some(m => m.limbs)) {
-    const shoot = document.createElement("button"); shoot.textContent = "Shoot off a limb"; shoot.onclick = shootLimb; pick.appendChild(shoot);
+    const walk = document.createElement("button"); walk.textContent = "Walk"; walk.setAttribute("aria-pressed", "false");
+    walk.onclick = () => { walking = !walking; walk.setAttribute("aria-pressed", String(walking)); }; pick.appendChild(walk);
+    const shoot = document.createElement("button"); shoot.textContent = "Shoot off a limb"; shoot.onclick = () => shootLimb(); pick.appendChild(shoot);
+    // tap a leg or a claw to shoot that one off (a tap, not an orbit drag)
+    let down = null;
+    canvas.addEventListener("pointerdown", e => { if (sceneId === api) down = [e.clientX, e.clientY]; });
+    canvas.addEventListener("pointerup", e => {
+      if (sceneId !== api || !down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 6) return;
+      const r = canvas.getBoundingClientRect(), ray = new T.Raycaster();
+      ray.setFromCamera(new T.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1), cam);
+      for (const hit of ray.intersectObjects(sc.children, true)) {
+        let o = hit.object, l = null;
+        while (o && !(l = limbs.find(x => x.node === o && !x.v))) o = o.parent;
+        if (l) { shootLimb(l); break; }
+        if (hit.object.isMesh && hit.object.parent && Object.values(groups).some(g => isUnder(hit.object, g))) break;
+      }
+    });
     const fix = document.createElement("button"); fix.textContent = "Repair"; fix.onclick = repair; pick.appendChild(fix);
   }
-  function shootLimb() {
-    const on = limbs.filter(l => !l.v && (cur === "all" || l.mech === cur) && groups[l.mech].visible);
-    if (!on.length) return;
-    const l = on[Math.floor(Math.random() * on.length)], g = groups[l.mech];
+  function isUnder(o, g) { while (o) { if (o === g) return true; o = o.parent; } return false; }
+  function shootLimb(l) {
+    if (!l) {
+      const on = limbs.filter(x => !x.v && (cur === "all" || x.mech === cur) && groups[x.mech].visible);
+      if (!on.length) return;
+      l = on[Math.floor(Math.random() * on.length)];
+    }
+    const g = groups[l.mech];
     const root = new T.Vector3(); l.node.getWorldPosition(root);
     const c = new T.Vector3(); g.getWorldPosition(c);
     const out = root.clone().sub(c).setY(0).normalize();
@@ -783,8 +817,52 @@ function blockoutViewer(BO, label, pickId, statsId, first, gap, api, frame) {
   function repair() {
     limbs.forEach(l => { if (!l.v) return; l.parent.add(l.node); l.node.position.copy(l.pos); l.node.quaternion.copy(l.rot); l.v = l.w = null; });
   }
+  // What the crab does with what it has left (openspec crab-enemies, "losing limbs"): the body drops and rolls toward a
+  // side short of legs, a lost claw leans it onto the other, and it walks slower by the share of hind legs left; with no
+  // hind leg on a side it cannot walk and sits down on its belly and claw.
+  function stance(id) {
+    const mine = limbs.filter(x => x.mech === id), legs = mine.filter(x => x.leg), pairs = Math.max(1, legs.length / 2);
+    const lost = s => legs.filter(x => x.side === s && x.v).length, left = s => legs.filter(x => x.side === s && !x.v).length;
+    const armLost = s => mine.some(x => !x.leg && x.side === s && x.v);
+    const stuck = left(1) === 0 || left(-1) === 0;
+    let roll = -(lost(1) - lost(-1)) / pairs * 0.22 - (armLost(1) ? 0.07 : 0) + (armLost(-1) ? 0.07 : 0);
+    if (stuck) roll = left(1) === 0 && left(-1) === 0 ? 0 : (left(1) === 0 ? -0.32 : 0.32);
+    const lostLegs = lost(1) + lost(-1), frontLost = legs.some(x => x.pair === 0 && x.v);
+    return { roll, pitch: (frontLost ? 0.06 : 0) + (armLost(1) || armLost(-1) ? 0.05 : 0),
+             dip: stuck ? 2.4 : lostLegs / (2 * pairs) * 1.6, speed: stuck ? 0 : (legs.length - lostLegs) / Math.max(1, legs.length) };
+  }
+  const Z = new T.Vector3(0, 0, 1), Y = new T.Vector3(0, 1, 0), X = new T.Vector3(1, 0, 0), q = new T.Quaternion();
+  function stepWalk(dt) {
+    let note = "";
+    for (const id in pose) {
+      const g = groups[id], p = pose[id]; if (!g || !g.visible) continue;
+      const st = stance(id), k = Math.min(1, dt * 3);
+      p.roll += (st.roll - p.roll) * k; p.pitch += (st.pitch - p.pitch) * k; p.dip += (st.dip - p.dip) * k;
+      if (walking) p.t += dt * 1.6 * st.speed;
+      const legs = limbs.filter(x => x.mech === id && x.leg).length, pairs = Math.max(1, legs / 2);
+      g.rotation.set(p.pitch, 0, p.roll);
+      g.position.y = -p.dip + (walking && st.speed ? Math.abs(Math.sin(p.t * Math.PI)) * 0.25 : 0);
+      for (const l of limbs) {
+        if (l.mech !== id || l.v) continue;
+        l.node.quaternion.copy(l.rot);
+        if (!walking || !st.speed) continue;
+        // alternating groups: one pair's left with the next pair's right; the claws walk as the front pair
+        const ph = p.t * Math.PI + ((l.leg ? l.pair + 1 : 0) + (l.side > 0 ? 0 : 1)) * Math.PI;
+        const lift = Math.max(0, Math.sin(ph)), swing = Math.cos(ph);
+        if (l.leg) {
+          l.node.quaternion.multiply(q.setFromAxisAngle(Z, l.side * lift * 0.22));
+          l.node.quaternion.multiply(q.setFromAxisAngle(Y, -l.side * swing * 0.16 / Math.sqrt(pairs)));
+        } else {
+          l.node.quaternion.multiply(q.setFromAxisAngle(X, -lift * 0.18));
+        }
+      }
+      if (id === cur || cur === "all") note = st.speed === 0 ? "cannot walk: a side has no legs" : walking ? `walking at ${Math.round(st.speed * 100)}%` : "";
+    }
+    if (sceneId === api) document.getElementById("mode").textContent = label + (note ? ": " + note : "");
+  }
   function stepDebris() {
     const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
+    stepWalk(dt);
     const box = new T.Box3();
     limbs.forEach(l => {
       if (!l.v || l.v.lengthSq() + l.w.lengthSq() < 1e-4) return;
@@ -829,6 +907,8 @@ blockoutViewer(__MECH_BLOCKOUTS__, "Block-outs", "bo-pick", "bo-stats", 1, 16, "
 blockoutViewer(__MECH_COMBAT__, "Combat mechs", "cb-pick", "cb-stats", 13, 24, "COMBAT");
 // the crab mechs, numbered on from the combat mechs (owner, 2026-10-24: "more practical big legged crabs with guns for arms")
 blockoutViewer(__MECH_CRABS__, "Crab mechs", "cr-pick", "cr-stats", 23, 44, "CRABS", { d: 1.45, ty: 7 });
+{ const start = { crabs: "CRABS", combat: "COMBAT", blockouts: "BLOCKOUTS" }[location.hash.slice(1)];
+  if (start) setScene(start); else loadDetailed(); }
 </script>
 """
 
