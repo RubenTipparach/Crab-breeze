@@ -5,4 +5,4 @@
 - [x] 2.1 `cb-app::skins`: hide the stand-in boxes, wear the skin, record its limbs
 - [x] 2.2 Limbs walk from the gait; a lost arm or leg comes off whole
 - [x] 2.3 The first encounter and the defence raiders wear combat mechs and crabs
-- [x] 3.1 Checks, headless stills of a skinned enemy walking and losing a limb; playtest on the owner's machine
+- [ ] 3.1 Checks, headless stills of a skinned enemy walking and losing a limb; playtest on the owner's machine
