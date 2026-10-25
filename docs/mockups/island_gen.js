@@ -547,14 +547,18 @@
     const highAt = (x, z) => smooth(17000, 6000, Math.hypot(x - 17000, z - 12000));
     // Fair-weather cumulus: clusters on a 2 km grid, more over wet ground, few over the desert,
     // none in the high or the front; small flat humilis, medium, and towering congestus.
-    for (let tz = -19000; tz < 19000; tz += 2000) for (let tx = -19000; tx < 19000; tx += 2000) {
+    // Over a disc, not the map's square: out to 34 km from the centre, well past the map's edge,
+    // thinning from 24 km so the sky has no border.
+    for (let tz = -36000; tz < 36000; tz += 2000) for (let tx = -36000; tx < 36000; tx += 2000) {
       const cx0 = tx + 1000, cz0 = tz + 1000;
+      const far = smooth(34000, 24000, Math.hypot(cx0, cz0) + 2500 * fbm(cx0 / 9000, cz0 / 9000, 2, 57));
+      if (far <= 0) continue;
       const f = sample(cx0, cz0);
       const onLand = f.cd > 0;
       const m = onLand ? moisture(cx0, cz0, f).m : 0.45;
       const streets = !onLand && cz0 > 6000;
       let count = (onLand ? 0.3 + 2.8 * m : streets ? 1.6 : 0.5) + 0.7 * fbm(tx / 9000, tz / 9000, 2, 55);
-      count *= 1 - highAt(cx0, cz0);
+      count *= (1 - highAt(cx0, cz0)) * far;
       if (stormAt(cx0, cz0) || Math.abs(frontAcross(cx0, cz0)) < FRONT.half + 1500) count = 0;
       for (let c = 0, n = Math.floor(count + wr()); c < n; c++) {
         let cx = tx + wr() * 2000, cz = tz + wr() * 2000;
@@ -579,13 +583,12 @@
         const across = (wr() - 0.5) * 2 * FRONT.half;
         const core = 1 - Math.abs(across) / FRONT.half;
         const x = FRONT.x + FRONT.dx * along + -FRONT.dz * across, z = FRONT.z + FRONT.dz * along + FRONT.dx * across;
-        if (Math.max(Math.abs(x), Math.abs(z)) > HALF_M + 3000) continue;
         const y = 900 + wr() * (500 + 1500 * core);
         puff(x, y, z, 700 + wr() * 700, 200 + wr() * 180, 3, 0.35 + 0.3 * core * (1 - (y - 900) / 2000), 800, 2800);
       }
       if (Math.abs(along % 6000) < 150) {
         const x = FRONT.x + FRONT.dx * along, z = FRONT.z + FRONT.dz * along;
-        if (Math.max(Math.abs(x), Math.abs(z)) < HALF_M) {
+        {
           for (let y = 1200; y < 6200; y += 300) {
             const t = y / 6200, rr = 500 + wr() * 300;
             puff(x + (wr() - 0.5) * 800 + t * 700, y, z + (wr() - 0.5) * 800, rr, rr * 0.85, 1, 0.7 - 0.55 * t, 900, 6500);
@@ -607,7 +610,7 @@
     for (let k = 0; k < 900; k++) {
       const b = (330 + wr() * 70) * Math.PI / 180, r = 14500 + wr() * 7000;
       const x = Math.sin(b) * r, z = -Math.cos(b) * r;
-      if (coastDist(x, z) > -600 || Math.max(Math.abs(x), Math.abs(z)) > HALF_M + 2000) continue;
+      if (coastDist(x, z) > -600) continue;
       if (fbm(x / 4000, z / 4000, 2, 61) < -0.25) continue; // breaks in the deck
       puff(x, 780 + wr() * 160, z, 520 + wr() * 420, 120 + wr() * 70, 3, 0.25 + 0.2 * wr(), 700, 1000);
     }
@@ -632,7 +635,8 @@
     }
     // Cirrus: long thin streaks high up, along the wind.
     for (let k = 0; k < 90; k++) {
-      WEATHER.cirrus.push({ x: (wr() - 0.5) * 50000, y: 8200 + wr() * 1200, z: (wr() - 0.5) * 50000 + 6000 * fbm(k, 0, 1, 70),
+      const ca = wr() * 6.283, cr = 32000 * Math.sqrt(wr());
+      WEATHER.cirrus.push({ x: Math.cos(ca) * cr, y: 8200 + wr() * 1200, z: Math.sin(ca) * cr,
         len: 5000 + wr() * 9000, wid: 500 + wr() * 900, ang: (wr() - 0.5) * 0.5, seed: wr() * 100 });
     }
   }
@@ -645,13 +649,17 @@
   function moisture(x, z, f) {
     const ws = f.perp + 900 * fbm(x / 2600, z / 2600, 3, SEED + 22);
     const south = smooth(-9000, 4000, z + 1500 * fbm(x / 5000, z / 5000, 2, SEED + 24));
-    let m = 1 - smooth(-800, 8500, ws);
+    let m = 1 - smooth(-2000, 10000, ws);
     m = m * (0.72 + 0.36 * south) + 0.22 * (fbm(x / 3000, z / 3000, 3, SEED + 21)) + 0.18 * smooth(250, 40, f.rdist) + 0.25 * f.swamp;
     return { m: clamp(m, 0, 1), south };
   }
   // Weights over the ten biomes from height, slope (degrees), moisture, coast and rivers. Every
   // border is a smoothstep over a band of a field that itself wanders, so none is a straight line,
   // and the dry side runs down to its beaches instead of turning to grass at the coast.
+  // The moisture under which the desert takes over: set so desert and canyon are a quarter of the
+  // land (owner, 2026-10-25: "Desert should be 1/4 the island"), with savanna, then grassland,
+  // fading in over wide bands either side of it.
+  const DRY_M = 0.48;
   function biomeWeights(x, z, f, slopeDeg) {
     const h = f.h;
     const j = 220 * fbm(x / 1500, z / 1500, 3, SEED + 20);
@@ -667,9 +675,9 @@
     w[1] = mid * smooth(0.25, 0.45, m);
     w[2] = low * smooth(0.6, 0.8, m) * (0.3 + 0.7 * south) + isle * 0.6;
     w[3] = f.swamp * 2;
-    w[4] = low * smooth(0.3, 0.48, m) * (1 - smooth(0.68, 0.86, m * (0.55 + 0.45 * south)));
-    w[5] = (low + 0.6 * mid) * smooth(0.07, 0.2, m) * (1 - smooth(0.32, 0.46, m));
-    w[6] = smooth(0.17, 0.05, m) * (1 - smooth(1100, 1400, hT)) * (1 - smooth(25, 70, f.canyon));
+    w[4] = low * smooth(DRY_M + 0.06, DRY_M + 0.32, m) * (1 - smooth(0.68, 0.86, m * (0.55 + 0.45 * south)));
+    w[5] = (low + 0.6 * mid) * smooth(DRY_M - 0.12, DRY_M + 0.06, m) * (1 - smooth(DRY_M + 0.14, DRY_M + 0.4, m));
+    w[6] = smooth(DRY_M + 0.06, DRY_M - 0.14, m) * (1 - smooth(1100, 1400, hT)) * (1 - smooth(25, 70, f.canyon));
     w[7] = smooth(25, 70, f.canyon) * 1.5;
     w[8] = coastLow * 2.2;
     w[9] = steep * 1.2 * smooth(800, 1200, 2400 - h);

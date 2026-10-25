@@ -77,9 +77,9 @@ rivers.
 **Moisture decides the climate, height the band.** (Owner, 2026-10-24: "The island transition is
 rough"; the mockup showed a straight jungle edge and a grass ring round the whole coast, even where
 the desert met the sea.)
-- Moisture `m`, 0 desert to 1 rain forest: `1 - smoothstep(-0.8 km, 8.5 km, s')`, where `s'` is
+- Moisture `m`, 0 desert to 1 rain forest: `1 - smoothstep(-2 km, 10 km, s')`, where `s'` is
   the signed distance from the spine's line plus 900 m of 2.6 km noise. That is the rain shadow over
-  a 9 km band, not a step. It is scaled by `0.72 + 0.36 south` (wetter to the south, `south` a
+  a 12 km band, not a step. It is scaled by `0.72 + 0.36 south` (wetter to the south, `south` a
   13 km smoothstep in z, warped by 1.5 km), plus 0.22 of 3 km noise, plus 0.18 near rivers and
   0.25 in swamps.
 - `s'` uses the distance from the nearest segment's line, which stays continuous past the spine's
@@ -93,17 +93,20 @@ the desert met the sea.)
 | Alpine | above 1,450-1,750 m, or steep above 1,000-1,250 m |
 | Montane forest | `mid` where `m` is over 0.25-0.45 |
 | Jungle | `low` where `m` is over 0.6-0.8, more to the south |
-| Temperate | `low` where `m` is 0.3-0.48 up to 0.68-0.86 (higher in the north) |
-| Savanna | `low` (and 0.6 of `mid`) where `m` is 0.07-0.2 up to 0.32-0.46 |
-| Desert | where `m` is under 0.17-0.05, below 1,100-1,400 m, all the way to the beach |
+| Temperate | `low` where `m` is over `dry + 0.06` to `dry + 0.32`, up to 0.68-0.86 (higher in the north) |
+| Savanna | `low` (and 0.6 of `mid`) where `m` is `dry - 0.12` to `dry + 0.06`, fading out by `dry + 0.14` to `dry + 0.4` |
+| Desert | where `m` is under `dry + 0.06` to `dry - 0.14`, below 1,100-1,400 m, all the way to the beach |
 | Canyon, beach, cliff, swamp | as before |
 
 - So the dry plateau (500-650 m) is desert, not montane forest, and the desert reaches its beaches.
-- **Shares of the land at seed 42** (strongest biome, sampled every 320 m): desert 14.6 %, savanna
-  7.0 %, temperate 24.4 %, montane forest 21.2 %, jungle 20.6 %, alpine 1.7 %, canyon 3.2 %, cliff
-  4.1 %, beach 2.8 %, swamp 0.4 %. The first moisture band (7 km, desert under 0.22) gave 26 %
-  desert, more than the 20 % before it; the owner asked after the desert's ratio, and it was cut
-  back.
+- `dry` is 0.48, set so **desert and canyon are a quarter of the land** (owner, 2026-10-25: "Desert
+  should be 1/4 the island", "Make sure the transition is more gradually instead of hard borders").
+  Shares at seed 42 (strongest biome, sampled every 320 m): desert 21.8 % and canyon 3.2 % (24.9 %
+  together), savanna 9.5 %, temperate 14.6 %, montane forest 21.3 %, jungle 20.6 %, alpine 1.7 %,
+  cliff 4.1 %, beach 2.8 %, swamp 0.4 %. Desert, savanna and grassland each fade in over a band of
+  0.2-0.26 in `m`, about 3 km on the ground.
+- The ground shader blends the strongest **three** biomes (with two, a border snaps wherever the
+  second changes), patchy up close and a plain crossfade beyond 1.5-6 km.
 - On the ground a border is not a crossfade. Each biome's layers carry their own patch noise (140 m,
   35 m and 7 m), and the weights are cubed after it (a height blend), so one biome breaks into the
   other in patches and fingers.
@@ -180,4 +183,4 @@ The mockup places them (owner, 2026-10-24: "I don't see cities on the island"). 
 | I8 | Waterfalls | 20-40 from the terrain, 40-200 m, spray, mist and plunge pools | proposed (survey I8) |
 | I9 | The capital, with the range in the middle | the nearest flat site north of the centre, about 8 km out | proposed (survey I9) |
 | I11 | Cities from the air | suburbs out to 2.6 times each city's half-size; the cities keep the game's size | proposed (survey I11) |
-| I10 | How wide the climate borders are | moisture over a 9 km band (desert 14.6 % of the land); borders in patches, not lines | proposed (survey I10) |
+| I10 | How wide the climate borders are | moisture over a 12 km band; desert and canyon a quarter of the land (owner); borders in patches up close, gradients from the air | decided in part (owner, 2026-10-25: a quarter desert, gradual) |

@@ -72,6 +72,11 @@ but from above they drowned in evenly spread fair cumulus):
 - **Altocumulus:** a field of small flat puffs (150-260 m across, 45-70 m thick) at 3.3-3.7 km over
   the south-west, with gaps, at 0.6 opacity.
 - The stratocumulus deck moves to the north, behind the front.
+- **No square** (owner, 2026-10-25: "don't generate them in like a square type thing... we can have
+  some clouds scatter outside the map"): cumulus covers a disc out to 34 km from the centre,
+  thinning from 24 km with a 2.5 km noise on the edge, so it runs past the map over the sea; the
+  front and the deck are not clipped to the map; cirrus lies on a 32 km disc. Seed 42: 7,397
+  puffs.
 
 Seed 42: 5,960 puffs (2,550 cumulus, 711 tower, 210 anvil, 1,169 deck, front and scud, 461
 orographic, 6 caps, 853 altocumulus), 11 rain shafts, 7 darkened cells.
