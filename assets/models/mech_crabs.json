@@ -19,7 +19,9 @@
     "ARM_L",
     "ARM_R",
     "LEG_0L",
-    "LEG_0R"
+    "LEG_0L_foot",
+    "LEG_0R",
+    "LEG_0R_foot"
    ]
   },
   {
@@ -39,7 +41,9 @@
     "ARM_L",
     "ARM_R",
     "LEG_0L",
-    "LEG_0R"
+    "LEG_0L_foot",
+    "LEG_0R",
+    "LEG_0R_foot"
    ]
   },
   {
@@ -59,9 +63,13 @@
     "ARM_L",
     "ARM_R",
     "LEG_0L",
+    "LEG_0L_foot",
     "LEG_0R",
+    "LEG_0R_foot",
     "LEG_1L",
-    "LEG_1R"
+    "LEG_1L_foot",
+    "LEG_1R",
+    "LEG_1R_foot"
    ]
   },
   {
@@ -81,9 +89,13 @@
     "ARM_L",
     "ARM_R",
     "LEG_0L",
+    "LEG_0L_foot",
     "LEG_0R",
+    "LEG_0R_foot",
     "LEG_1L",
-    "LEG_1R"
+    "LEG_1L_foot",
+    "LEG_1R",
+    "LEG_1R_foot"
    ]
   },
   {
@@ -103,11 +115,17 @@
     "ARM_L",
     "ARM_R",
     "LEG_0L",
+    "LEG_0L_foot",
     "LEG_0R",
+    "LEG_0R_foot",
     "LEG_1L",
+    "LEG_1L_foot",
     "LEG_1R",
+    "LEG_1R_foot",
     "LEG_2L",
-    "LEG_2R"
+    "LEG_2L_foot",
+    "LEG_2R",
+    "LEG_2R_foot"
    ]
   },
   {
@@ -127,11 +145,17 @@
     "ARM_L",
     "ARM_R",
     "LEG_0L",
+    "LEG_0L_foot",
     "LEG_0R",
+    "LEG_0R_foot",
     "LEG_1L",
+    "LEG_1L_foot",
     "LEG_1R",
+    "LEG_1R_foot",
     "LEG_2L",
-    "LEG_2R"
+    "LEG_2L_foot",
+    "LEG_2R",
+    "LEG_2R_foot"
    ]
   }
  ]

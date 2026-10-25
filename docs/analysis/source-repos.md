@@ -13,6 +13,7 @@ from. The skills' own provenance is `.claude/skills/PROVENANCE.md`.
 | tom-lander | `4a3bfe1` | LOVE (Lua) | The Drive upload recipe: a small H.264 share copy to `G:/My Drive/dungeon-crawler-2026/`, confirmed with the Drive connector; `bot-run`'s verdict lines. At `dea3d50` (2026-10-25): the music pipeline (`audio.md`, `tools/strudel/`), rebuilt as `tools/music/` and the `music-authoring` skill. |
 | mining-the-sky | `51464c0` | Rust, wgpu | "Never rebuild an existing feature"; headless wgpu rendering on lavapipe; screenshot as you go. |
 | fps-game-demo (Undercity) | `1363650` | Godot | Origin of the Blender CSG level and character kits (through Star Crew). |
+| Star-Crew-Bridge-Simulator (again, 2026-10-24) | `09e8552` | Rust, SDL3, sokol | Read for buildings: face-on Cycles renders of modelled panels and trim rows (`build_wall_panels.py`), baked prop atlases, macro-plus-detail exteriors, `crew_rooms.py` furniture checks, `hull-repair` damage stages. Mapped to building textures and furniture in `docs/analysis/buildings-research.md`; nothing copied yet. |
 | star-crew-64, high-frontier-fan-game, games-reporting, adventure-2dcon-26 | read | various | Nothing taken beyond what reached the repositories above. |
 
 "Mining Mike" in the owner's brief is the `godot-sandbox` repository (its CLAUDE.md and skills call

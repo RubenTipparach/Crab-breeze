@@ -8,7 +8,7 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 
 /// Every recipe the game asks for. A file without one of these stops startup.
-pub const RECIPES: [&str; 24] = [
+pub const RECIPES: [&str; 27] = [
     "muzzle_autocannon",
     "muzzle_cannon",
     "muzzle_rocket",
@@ -33,6 +33,9 @@ pub const RECIPES: [&str; 24] = [
     "tree_fall",
     "part_lost",
     "burning",
+    "creak_dust",
+    "member_fail",
+    "collapse_dust",
 ];
 
 /// What a particle looks like and how it moves (its colour and motion are the drawing's).

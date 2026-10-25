@@ -5,6 +5,7 @@
 - [x] 1.2 `Defence` phases (tests: `clearing_a_wave_starts_the_next_after_the_lull`, `a_city_past_half_damage_loses_the_mission`, `a_wave_not_cleared_in_ten_minutes_loses`, `clearing_all_three_waves_wins`, `losing_the_mech_loses_the_mission`)
 - [x] 1.3 `city_damage` (test: `city_damage_counts_cells_not_buildings`)
 - [x] 1.4 Spawn points (test: `spawn_points_are_the_same_for_the_same_seed`, `spawn_points_are_dry_inside_the_world_and_outside_other_cities`)
+- [x] 1.4b Raiders inside the city (`spawn_inside_fraction`, `spawn_clearance_m`; test: `raiders_inside_the_city_start_clear_of_every_building`)
 - [x] 1.5 `raider_goal` (tests: `a_raider_far_from_the_pilot_shells_the_city`, `only_the_nearest_three_turn_on_the_pilot`, `a_raider_hit_turns_on_the_pilot`)
 - [x] 2.1 `DefencePlugin`: waves spawned at runtime, goals fed to the enemies' brains, burst windows, logs
 - [x] 2.2 The cockpit readout

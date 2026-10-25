@@ -190,8 +190,11 @@ colon, commas, parentheses, a period, or a plain hyphen for a range (`10-25 m`).
 
 ```sh
 LC_ALL=C.UTF-8 grep -rnIP '\x{2014}|\x{2013}' --exclude-dir=.git --exclude-dir=.claude \
-  --exclude-dir=target . && echo FAIL
+  --exclude-dir=target --exclude='*.hdr' . && echo FAIL
 ```
+
+(`.hdr` images are binary pixel data with no NUL bytes, so `grep -I` reads them as text and finds
+the dash bytes among the pixels.)
 
 - **Numbers carry units**, SI unless a table says otherwise: metres, seconds, kilograms, newtons,
   kilowatts, kelvin or degrees Celsius (say which).
