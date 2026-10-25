@@ -109,7 +109,7 @@ fn main() -> AppExit {
     .insert_resource(sim::Data(data))
     .insert_resource(world::Seed(args.seed))
     .add_plugins(textures::TexturesPlugin);
-    if matches!(args.start.as_deref(), Some("meadow") | Some("fx")) {
+    if args.start.as_deref() == Some("meadow") {
         app.insert_resource(world::StartInMeadow);
     }
     // The blended smoke drawn sorted and soft (openspec change `particle-depth`).
@@ -117,7 +117,8 @@ fn main() -> AppExit {
     if args.start.as_deref() == Some("fx") {
         app.add_plugins(fx_gallery::FxGalleryPlugin);
     }
-    if args.start.as_deref() == Some("overlook") {
+    // The gallery stands on the overlook's rise, so its rows are seen from above the grass.
+    if matches!(args.start.as_deref(), Some("overlook") | Some("fx")) {
         app.insert_resource(world::StartOnOverlook);
     }
     app.add_plugins((

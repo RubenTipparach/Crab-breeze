@@ -1,9 +1,10 @@
-//! The emitter gallery (`./run.sh --start fx`, openspec change `particle-depth`): every effect recipe the
-//! game has, set out in a grid on open meadow in front of the pilot and replayed on a loop, so each one can
-//! be walked round and looked at, near and far, against the ground and the sky (owner, 2026-10-25: "just set
-//! uop a scene with different emitters", "and test all of them via a gif"). Streams (jet flame and trail,
-//! burning, steam) run all the time; a jet trail's emitter sweeps to and fro so its smoke is laid along a
-//! path; bursts replay every few seconds. A far row repeats the smoke-heavy blasts 450 m out.
+//! The emitter gallery (`./run.sh --start fx`, openspec change `particle-depth`): every effect recipe the game
+//! has, set out in a grid on the ground below the overlook's grassy rise (`--start overlook`), in front of the
+//! pilot and away from their mech, replayed on a loop, so each one can be walked round and looked at, near and
+//! far, against the ground and the sky (owner, 2026-10-25: "just set uop a scene with different emitters", "and
+//! test all of them via a gif"). Streams (jet flame and trail, burning, steam) run all the time; a jet trail's
+//! emitter sweeps to and fro so its smoke is laid along a path; bursts replay every few seconds. A far row
+//! repeats the smoke-heavy blasts 450 m out.
 //!
 //! With `CB_FX_GALLERY_SHOTS=<dir>` it is also a capture instrument: the pilot's view pans slowly across the
 //! grid and a still is written every 0.3 s of game time (`gallery-NNN.png`), for a GIF. Only then does it turn
@@ -71,13 +72,19 @@ fn lay_out(
     plan: Res<Plan>,
     data: Res<Data>,
     time: Res<Time>,
+    access: Res<crate::mech::MechAccessNow>,
 ) {
     if gallery.eye.is_some() || !ready.is_some_and(|r| r.0) {
         return;
     }
     let feet = pilot.curr.feet;
     let yaw = pilot.curr.yaw_rad;
-    let fwd = Vec3::new(-yaw.sin(), 0.0, -yaw.cos());
+    // Laid out the way the pilot faces, or straight away from their mech if it stands in front of them.
+    let facing = Vec3::new(-yaw.sin(), 0.0, -yaw.cos());
+    let fwd = match access.0.map(|a| (feet - a.ladder_base).with_y(0.0)) {
+        Some(away) if away.length() > 1.0 && away.normalize().dot(facing) < 0.5 => away.normalize(),
+        _ => facing,
+    };
     let side = Vec3::new(-fwd.z, 0.0, fwd.x);
     let ground = |p: Vec3| Vec3::new(p.x, plan.height_at(p.x, p.z), p.z);
     let streams = &data.0.fx.stream_per_s;
@@ -166,6 +173,7 @@ fn pan(
     mut commands: Commands,
     mut gallery: ResMut<Gallery>,
     mut pilot: ResMut<PilotSim>,
+    plan: Res<Plan>,
     time: Res<Time>,
     mut exit: MessageWriter<AppExit>,
     mut dir: Local<Option<Option<PathBuf>>>,
@@ -187,10 +195,12 @@ fn pan(
         let k = (u - 0.6) / 0.4;
         ((1.0 - k * 2.0) * 120.0, FAR_ROW_M)
     };
-    let look = feet + fwd * ahead + side * across;
-    let to = look - feet;
+    let at = feet + fwd * ahead + side * across;
+    // A little above the ground at the spot looked at, from the eye.
+    let look = Vec3::new(at.x, plan.height_at(at.x, at.z) + 6.0, at.z);
+    let to = look - (feet + Vec3::Y * 1.7);
     pilot.curr.yaw_rad = (-to.x).atan2(-to.z);
-    pilot.curr.pitch_rad = (-1.7f32).atan2(to.with_y(0.0).length()) + 0.08;
+    pilot.curr.pitch_rad = to.y.atan2(to.with_y(0.0).length());
     pilot.prev = pilot.curr.clone();
     let due = (t / 0.3) as u32;
     if due >= gallery.shots {
