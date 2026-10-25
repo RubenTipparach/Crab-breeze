@@ -101,7 +101,10 @@ impl Materials {
             .or_insert_with(|| {
                 materials.add(BuildingMaterial {
                     base: bases.get(looks.base(look)).cloned().unwrap_or_default(),
-                    extension: ElementState { standing },
+                    extension: ElementState {
+                        standing,
+                        no_ssao: u32::from(look == Look::Skin(Mat::Glass)),
+                    },
                 })
             })
             .clone()
