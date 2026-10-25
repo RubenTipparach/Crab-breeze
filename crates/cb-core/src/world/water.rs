@@ -549,8 +549,9 @@ pub fn make_waters(
     for h in highways {
         for r in &waters.rivers {
             for w in r.path.windows(2) {
-                if let Some(c) = segment_cross(h.ends[0], h.ends[1], w[0], w[1]) {
-                    let along = (h.ends[1] - h.ends[0]).normalize();
+                for (ha, hb) in h.segments_near(w[0]) {
+                    let Some(c) = segment_cross(ha, hb, w[0], w[1]) else { continue };
+                    let along = (hb - ha).normalize_or(Vec2::X);
                     let (_, t) = h.project(c);
                     let hw = waters.river_at(c).map(|x| x.1).unwrap_or(cfg.stream_half_width_m);
                     bridges.push(Bridge {

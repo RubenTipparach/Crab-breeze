@@ -92,15 +92,16 @@ fn seed_42_builds_the_golden_world() {
 }
 
 // Pinned 2026-10-25 in a Linux cloud session (x86_64), when the crater range, the drainage, the
-// lakes, the waterfalls and the biomes came in (openspec change `hydrology`). The generator uses
+// lakes, the waterfalls and the biomes came in (openspec change `hydrology`), and the routed
+// highways (`curved-roads`). The generator uses
 // only IEEE arithmetic plus `powf` for storeys, `sqrt` and `atan2`; if another platform disagrees,
 // the difference is in those calls.
 const GOLDEN_CITIES: usize = 24;
-const GOLDEN_BUILDINGS: usize = 6512;
+const GOLDEN_BUILDINGS: usize = 6528;
 const GOLDEN_HIGHWAYS: usize = 23;
-const GOLDEN_RIVERS: usize = 115;
-const GOLDEN_TREES_AT_START: usize = 46873;
-const GOLDEN_FINGERPRINT: u64 = 7567681378060678653;
+const GOLDEN_RIVERS: usize = 109;
+const GOLDEN_TREES_AT_START: usize = 47147;
+const GOLDEN_FINGERPRINT: u64 = 2672083249162357820;
 
 #[test]
 fn seed_42_census_for_the_design() {
@@ -293,22 +294,20 @@ fn the_ground_under_a_highway_is_the_road_grade() {
     let plan = seed_42();
     assert!(!plan.highways.is_empty());
     for h in &plan.highways {
-        let along = (h.ends[1] - h.ends[0]).normalize();
-        let across = along.perp();
         let steps = (h.length_m() / 8.0) as usize;
         for k in 0..=steps {
             let t = k as f32 / steps as f32;
             for side in [-0.5, 0.0, 0.5] {
-                let p = h.ends[0] + (h.ends[1] - h.ends[0]) * t + across * h.width_m * side;
+                let p = h.point_at(t) + h.dir_at(t).perp() * h.width_m * side;
                 if plan.waters.bridges.iter().any(|b| b.centre.distance(p) < b.length_m * 0.5 + 2.0) {
                     continue; // On a bridge: the river runs under the deck.
                 }
                 let (_, tt) = h.project(p);
                 let got = plan.height_at(p.x, p.y);
-                // The drawn road sits `road_lift_m` (0.1 m) above the grade; the ground's straight
-                // triangles may only sag or bulge a fraction of that on the road's S-curve.
+                // The drawn road sits `road_lift_m` (0.15 m) above the grade; the ground's straight
+                // 8 m triangles may only sag or bulge less than that under a climbing bend.
                 assert!(
-                    (got - h.grade_at(tt)).abs() < 0.05,
+                    (got - h.grade_at(tt)).abs() < 0.12,
                     "highway {:?} at {p}: {got} vs {}",
                     h.cities,
                     h.grade_at(tt)
