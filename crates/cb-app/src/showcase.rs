@@ -34,6 +34,10 @@ pub struct Take {
     /// The marks take (`--showcase marks`): after the stride it turns round and looks down at
     /// its own footprints, then skates and looks back at the grooves (ground-marks).
     marks: bool,
+    /// The trail take (`--showcase trail`): up on the rockets, then flown backwards and skated in
+    /// reverse, looking ahead, so the pilot's own jet smoke and skate grooves lie in front of the
+    /// screens (owner, 2026-10-25: "I can turn the mech around and fly backwards").
+    trail: bool,
     /// The sun take (`--showcase sun`): on foot, the view turned onto the sun and held, for the
     /// bloom and the lens flare (sun-flare).
     sun: bool,
@@ -76,11 +80,18 @@ impl Plugin for ShowcasePlugin {
         } else {
             names
         };
+        let trail = self.take == "trail";
+        let names: &'static [&'static str] = if trail {
+            &["load", "look", "board", "lift", "backwards", "land", "reverse skate", "end"]
+        } else {
+            names
+        };
         let sun = self.take == "sun";
         let names: &'static [&'static str] = if sun { &["load", "to the sun", "hold", "end"] } else { names };
         app.insert_resource(Take {
             names,
             marks,
+            trail,
             sun,
             ..default()
         });
@@ -292,6 +303,51 @@ fn play(
         2 => {
             act = board(p, access.0.as_ref());
             next = p.mode == PilotMode::Seated;
+        }
+        // The trail take: rockets up with the skates pushing back, so the mech climbs backwards.
+        3 if take.trail => {
+            let agl = m.pos.y - plan.height_at(m.pos.x, m.pos.z);
+            act.skate_toggle = !m.skates_on && t < 0.2;
+            act.lift_axis = if agl < 40.0 {
+                1.0
+            } else {
+                (HOVER_LIFT - m.vel_y_m_s * 0.025).clamp(0.0, 1.0)
+            };
+            act.move_xy = if m.airborne() { Vec2::new(0.0, -1.0) } else { Vec2::ZERO };
+            act.look_delta_deg = aim(m, 0.0, -0.2);
+            next = agl > 35.0 || t > 20.0 || m.boost.locked;
+        }
+        // Hold the height and keep flying backwards, looking ahead along the trail.
+        4 if take.trail => {
+            act.lift_axis = (HOVER_LIFT - m.vel_y_m_s * 0.025).clamp(0.0, 1.0);
+            act.move_xy = Vec2::new(0.0, -1.0);
+            act.look_delta_deg = aim(m, 0.0, -0.15);
+            next = t > 10.0 || m.boost.locked;
+        }
+        // Come down on the skates.
+        5 if take.trail => {
+            let agl = m.pos.y - plan.height_at(m.pos.x, m.pos.z);
+            let want_vy = (-agl * 0.25).clamp(-10.0, -2.0);
+            act.lift_axis = if m.airborne() {
+                (HOVER_LIFT + (want_vy - m.vel_y_m_s) * 0.04).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            act.look_delta_deg = aim(m, 0.0, -0.2);
+            next = !m.airborne() && t > 2.0 || t > 40.0;
+        }
+        // Skate in reverse, looking ahead at the grooves the wheels leave.
+        6 if take.trail => {
+            act.skate_toggle = !m.skates_on && t < 0.2;
+            act.throttle_axis = throttle_to(m, -1.0);
+            act.look_delta_deg = aim(m, 0.0, -0.3);
+            next = t > 10.0;
+        }
+        7 if take.trail => {
+            say("PLAYTEST_RESULT ok trail: flew backwards, skated in reverse");
+            say("PLAYTEST_END trail");
+            exit.write(AppExit::Success);
+            next = true;
         }
         // Stand up and stride down the street.
         3 => {
