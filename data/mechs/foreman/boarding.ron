@@ -16,6 +16,7 @@
     ],
     ready_s: 6.40,
     clear_m: 3.0,
+    crane_reach_m: 3.25,
     screen_power_up_s: 2.5,
     screen_power_down_s: 0.6,
 )

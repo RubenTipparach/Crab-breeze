@@ -39,8 +39,13 @@ pub struct Actions {
     pub turn_axis: f32,
     /// In the mech: jet lift, 0..1.
     pub lift_axis: f32,
-    /// Use was pressed this step (board, climb out).
+    /// Use was pressed this step (board).
     pub use_pressed: bool,
+    /// Use is held (seated: held to climb out).
+    pub use_held: bool,
+    /// A quick tap of free look this step: on the ground, stop the mech (owner, 2026-10-25: "when I
+    /// hit ctrl when I'm standing on ground that means i want mech to come to full stop").
+    pub full_stop: bool,
     /// Run on foot.
     pub run: bool,
     /// Hold to look around the cockpit instead of aiming the torso.

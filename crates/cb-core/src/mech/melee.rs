@@ -30,7 +30,8 @@ pub struct MeleeConfig {
 impl Default for MeleeConfig {
     fn default() -> Self {
         Self {
-            range_m: 30.0,
+            // Owner, 2026-10-25: "range should be 80m instead" (was 30 m, survey G18).
+            range_m: 80.0,
             reach_m: 9.0,
             windup_s: 0.35,
             hit_s: 0.15,
@@ -204,11 +205,11 @@ mod tests {
     fn close_combat_comes_on_when_the_target_walks_into_reach_and_off_when_it_leaves() {
         let cfg = MeleeConfig::default();
         let mut c = CloseCombat::default();
-        c.step(Some(80.0), false, &cfg);
+        c.step(Some(cfg.range_m + 50.0), false, &cfg);
         assert!(!c.on);
         c.step(Some(25.0), false, &cfg);
         assert!(c.on);
-        c.step(Some(60.0), false, &cfg);
+        c.step(Some(cfg.range_m + 30.0), false, &cfg);
         assert!(!c.on);
     }
 
@@ -221,7 +222,7 @@ mod tests {
         assert!(!c.on);
         c.step(Some(15.0), false, &cfg);
         assert!(!c.on, "held off while the target stays near");
-        c.step(Some(50.0), false, &cfg);
+        c.step(Some(cfg.range_m + 20.0), false, &cfg);
         c.step(Some(20.0), false, &cfg);
         assert!(c.on, "back on when it comes into range again");
     }

@@ -17,6 +17,8 @@ pub struct InputAccum {
     pub look_deg: Vec2,
     /// Use was pressed.
     pub use_pressed: bool,
+    /// Free look was tapped (pressed and let go quickly): a full stop on the ground.
+    pub full_stop: bool,
     /// Throttle zero was pressed.
     pub throttle_zero: bool,
     /// A mode was asked for.
@@ -213,6 +215,10 @@ fn grab_mouse(
     }
 }
 
+/// A press of free look let go within this long is a tap (a full stop), not a look round.
+const TAP_S: f32 = 0.3;
+
+#[allow(clippy::too_many_arguments)]
 fn sample_devices(
     menu: Res<crate::menu::Menu>,
     input: Res<ButtonInput<KeyCode>>,
@@ -220,11 +226,25 @@ fn sample_devices(
     motion: Res<AccumulatedMouseMotion>,
     cursor: Single<&CursorOptions>,
     keys: Res<Keys>,
+    time: Res<Time<Real>>,
     mut acc: ResMut<InputAccum>,
+    mut free_look_since: Local<Option<f32>>,
 ) {
     // Paused in the menu: no look, no presses reach the game.
     if menu.is_open() {
         return;
+    }
+    // A quick tap of free look asks for a full stop (owner, 2026-10-25: "when I hit ctrl when I'm
+    // standing on ground that means i want mech to come to full stop"); holding it looks round.
+    let now = time.elapsed_secs();
+    if any_just(&input, &keys.free_look) {
+        *free_look_since = Some(now);
+    }
+    if keys.free_look.iter().any(|k| input.just_released(*k)) {
+        if free_look_since.is_some_and(|t| now - t <= TAP_S) {
+            acc.full_stop = true;
+        }
+        *free_look_since = None;
     }
     if cursor.grab_mode != CursorGrabMode::None {
         let sign = if keys.invert_pitch { 1.0 } else { -1.0 };
@@ -282,6 +302,7 @@ fn take_step_actions(
                     .clone()
                     .map(|(k, m)| any(&input, &k) || mouse.any_pressed(m.iter().copied())),
                 free_look: any(&input, &keys.free_look),
+                use_held: any(&input, &keys.use_key),
                 sink: any(&input, &keys.sink),
                 fire_missile: any(&input, &keys.fire_missile.0) || mouse.any_pressed(keys.fire_missile.1.iter().copied()),
                 ..default()
@@ -296,6 +317,7 @@ fn take_step_actions(
         debug: held.debug.or(acc.debug),
         skate_toggle: held.skate_toggle || acc.skate_toggle,
         target_next: held.target_next || acc.target_next,
+        full_stop: held.full_stop || acc.full_stop,
         close_combat: held.close_combat || acc.close_combat,
         ..held
     }
@@ -307,6 +329,7 @@ fn take_step_actions(
     acc.debug = None;
     acc.skate_toggle = false;
     acc.target_next = false;
+    acc.full_stop = false;
     acc.close_combat = false;
 }
 

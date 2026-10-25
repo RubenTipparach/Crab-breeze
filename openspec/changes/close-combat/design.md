@@ -50,5 +50,5 @@ seated.
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | G17 | What the triggers do in close combat | Arm strikes on the mouse buttons, guns hold | provisional (survey G17) |
-| G18 | Melee range | 30 m | provisional (survey G18) |
+| G18 | Melee range | 80 m (owner, 2026-10-25: "range should be 80m instead"; was 30 m) | decided |
 | G19 | What a strike does | Same damage rules as a shot (300 mm, 60), breaks cells and trees | provisional (survey G19) |

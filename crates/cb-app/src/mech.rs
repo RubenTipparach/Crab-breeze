@@ -810,16 +810,12 @@ fn drive_mech(
     }
 }
 
-/// The boarding rope hangs this far out in front of the hatch's sill.
-pub const ROPE_OUT_M: f32 = 0.8;
-/// The climbing pilot's feet are this far out in front of the sill: just outside the rope.
-const ROPE_FOOT_OUT_M: f32 = 1.2;
-
-/// Where the boarding rope meets the ground: below the hatch, out from the mech's root toward it,
-/// at the mech's own ground height.
-pub fn rope_foot(mech_feet: Vec3, hatch: Vec3) -> Vec3 {
+/// The boarding rope's foot: on the ground below the tip of the boarding crane, `reach_m` out in
+/// front of the hatch's sill (away from the mech's root), at the mech's own ground height. The
+/// climbing pilot's eye rides this line up the rope (`rope`).
+pub fn rope_foot(mech_feet: Vec3, hatch: Vec3, reach_m: f32) -> Vec3 {
     let out = Vec2::new(hatch.x - mech_feet.x, hatch.z - mech_feet.z).normalize_or(Vec2::Y);
-    Vec3::new(hatch.x + out.x * ROPE_FOOT_OUT_M, mech_feet.y, hatch.z + out.y * ROPE_FOOT_OUT_M)
+    Vec3::new(hatch.x + out.x * reach_m, mech_feet.y, hatch.z + out.y * reach_m)
 }
 
 fn publish_access(
@@ -832,16 +828,17 @@ fn publish_access(
         let at = |n: &str| globals.get(rig.sockets[n]).ok().map(|g| g.translation());
         let hatch = at("HATCH_entry")?;
         Some(MechAccess {
-            // The boarding rope's foot: on the ground below the hatch, out in front of it, where the
-            // rope hangs (`rope`). The kneel stops as far as the legs can go, so the hatch stays high
-            // and the pilot climbs (owner, 2026-10-24: "there should be a rope dangling down for me
-            // the player to climb up").
-            ladder_base: rope_foot(sim.curr.pos, hatch),
+            // The boarding rope's foot, under the crane's tip (`rope`). The kneel stops as far as the
+            // legs can go, so the hatch stays high and the pilot is winched up (owner, 2026-10-24:
+            // "there should be a rope dangling down for me the player to climb up", "extend a crane
+            // out then lower the rope").
+            ladder_base: rope_foot(sim.curr.pos, hatch, data.0.boarding.crane_reach_m),
             hatch_entry: hatch,
             eye_pilot: at("EYE_pilot")?,
             heading_rad: sim.curr.heading_rad,
             seat_yaw_rad: sim.curr.heading_rad + sim.curr.twist_rad,
             stopped: sim.curr.is_stopped(&data.0.mech.locomotion),
+            speed_m_s: sim.curr.vel.length(),
             hatch_open: sim.hatch.is_open(&data.0.boarding),
         })
     });
@@ -1008,6 +1005,12 @@ pub fn step_mech(
                 let mut c = MechControls::from_actions(&actions);
                 // Boost thrust goes where the pilot looks.
                 c.view_yaw_rad = pilot.curr.yaw_rad;
+                // Holding Use to climb out, or a tap of free look on the ground, brings the mech to
+                // a full stop: the throttle goes to zero and the legs brake (owner, 2026-10-25).
+                if pilot.curr.exit_hold_s > 0.0 || (actions.full_stop && !sim.curr.airborne()) {
+                    c.throttle_zero = true;
+                    c.throttle_axis = 0.0;
+                }
                 // At the coupled look's edge the mech turns toward the view at its own rate
                 // (seated-look): the view comes round no faster than the mech can turn.
                 let limit = data.0.pilot.seated_look_limit_deg.to_radians();
@@ -1555,23 +1558,52 @@ fn cockpit_layer(
 
 /// The booster flame while boosting: a stream on each jet socket (`FxStream`), switched with the
 /// boost.
-fn jet_flames(mut commands: Commands, mechs: Query<(&MechSim, &MechRig)>, mut streams: Query<&mut crate::fx::FxStream>) {
+/// A jet socket's smoke trail: the child entity streaming `jet_trail` (two minutes long), kept apart
+/// from the socket's own flame stream so each has its own rate.
+#[derive(Component)]
+struct JetTrail(Entity);
+
+fn jet_flames(
+    mut commands: Commands,
+    mechs: Query<(&MechSim, &MechRig)>,
+    trails: Query<&JetTrail>,
+    mut streams: Query<&mut crate::fx::FxStream>,
+) {
     for (sim, rig) in &mechs {
         for jet in ["JET_L", "JET_R"] {
             let Some(&e) = rig.sockets.get(jet) else { continue };
             let on = sim.curr.boosting && !sim.dead;
-            match streams.get_mut(e) {
-                Ok(mut s) => {
-                    if s.on != on {
-                        s.on = on;
+            let trail = trails.get(e).ok().map(|t| t.0);
+            match (streams.get(e).is_ok(), trail) {
+                (true, Some(t)) => {
+                    for s in [e, t] {
+                        if let Ok(mut s) = streams.get_mut(s)
+                            && s.on != on
+                        {
+                            s.on = on;
+                        }
                     }
                 }
-                Err(_) => {
-                    commands.entity(e).insert(crate::fx::FxStream {
-                        recipe: "jet_flame",
-                        dir: Vec3::NEG_Y,
-                        on,
-                    });
+                _ => {
+                    let child = commands
+                        .spawn((
+                            Name::new("jet trail"),
+                            Transform::default(),
+                            crate::fx::FxStream {
+                                recipe: "jet_trail",
+                                dir: Vec3::NEG_Y,
+                                on,
+                            },
+                        ))
+                        .id();
+                    commands.entity(e).add_child(child).insert((
+                        crate::fx::FxStream {
+                            recipe: "jet_flame",
+                            dir: Vec3::NEG_Y,
+                            on,
+                        },
+                        JetTrail(child),
+                    ));
                 }
             }
         }

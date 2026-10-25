@@ -288,7 +288,8 @@ fn play(
         }
         // Climb out.
         6 if take.marks => {
-            act.use_pressed = p.mode == PilotMode::Seated && t < 0.3;
+            // Climbing out is a held Use (pilot data `exit_hold_s`).
+            act.use_held = p.mode == PilotMode::Seated && t < 1.6;
             next = p.mode == PilotMode::OnFoot && t > 1.0;
         }
         // Walk back along the track, looking down at the grooves and then the prints.

@@ -23,7 +23,7 @@ pub struct HudPlugin;
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_hud)
-            .add_systems(Update, (update_hud, draw_targets).in_set(PresentSet::Camera));
+            .add_systems(Update, (update_hud, draw_targets, exit_ring).in_set(PresentSet::Camera));
     }
 }
 
@@ -39,6 +39,15 @@ pub const MFD_PAGE_PX: f32 = 512.0;
 
 #[derive(Component)]
 struct LegArrow;
+
+/// One dot of the climb-out ring round the crosshair, by its place round the ring (0 at the top).
+#[derive(Component)]
+struct ExitDot(usize);
+
+/// Dots in the climb-out ring.
+const EXIT_DOTS: usize = 24;
+/// The climb-out ring's radius, pixels.
+const EXIT_RING_PX: f32 = 34.0;
 
 /// A pooled target box, by slot.
 #[derive(Component, Clone, Copy)]
@@ -185,6 +194,31 @@ fn spawn_hud(mut commands: Commands) {
                 Visibility::Hidden,
                 EdgeArrow,
             ));
+            // The climb-out ring: fills clockwise while Use is held (owner, 2026-10-25: "there would be
+            // a ccircle timer thing that shows progress of confirming E to exit").
+            for i in 0..EXIT_DOTS {
+                let a = i as f32 / EXIT_DOTS as f32 * std::f32::consts::TAU;
+                let (x, y) = (EXIT_RING_PX * a.sin(), -EXIT_RING_PX * a.cos());
+                root.spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Percent(50.0),
+                        top: Val::Percent(50.0),
+                        width: px(5.0),
+                        height: px(5.0),
+                        margin: UiRect {
+                            left: px(x - 2.5),
+                            top: px(y - 2.5),
+                            ..default()
+                        },
+                        border_radius: BorderRadius::MAX,
+                        ..default()
+                    },
+                    BackgroundColor(AMBER),
+                    Visibility::Hidden,
+                    ExitDot(i),
+                ));
+            }
             // Crosshair.
             for (w, h) in [(22.0, 2.0), (2.0, 22.0)] {
                 root.spawn((
@@ -772,6 +806,17 @@ fn update_hud(
             t.0 = s;
         }
         c.0 = colour;
+    }
+}
+
+/// The climb-out ring: hidden until Use is held in the seat, then lit dot by dot as the hold fills,
+/// from the pilot's own hold clock (`cb_core::pilot`), so the ring and the exit agree.
+fn exit_ring(pilot: Res<PilotSim>, data: Res<crate::sim::Data>, mut dots: Query<(&ExitDot, &mut Visibility, &mut BackgroundColor)>) {
+    let k = (pilot.curr.exit_hold_s / data.0.pilot.exit_hold_s).clamp(0.0, 1.0);
+    let lit = (k * EXIT_DOTS as f32).ceil() as usize;
+    for (d, mut v, mut c) in &mut dots {
+        *v = if k > 0.0 { Visibility::Visible } else { Visibility::Hidden };
+        c.0 = if d.0 < lit { AMBER } else { AMBER.with_alpha(0.25) };
     }
 }
 

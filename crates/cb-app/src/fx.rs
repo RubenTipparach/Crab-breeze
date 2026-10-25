@@ -111,6 +111,8 @@ struct FxAssets {
     sphere: Handle<Mesh>,
     water_ring: Handle<StandardMaterial>,
     glow: Handle<StandardMaterial>,
+    /// Tracers: the glow's colour, HDR-bright (`tracer_glow`) so the bloom catches them.
+    tracer: Handle<StandardMaterial>,
     flame: Handle<StandardMaterial>,
 }
 
@@ -308,8 +310,11 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
     mut lib: ResMut<ParticleLibrary>,
+    data: Res<crate::sim::Data>,
 ) {
     let disc = soft_disc(&mut images);
+    // Unlit, the colour is what is drawn: past 1.0 it is HDR, and the bloom spreads it.
+    let hot = LinearRgba::from(Color::srgb(1.0, 0.8, 0.45)) * data.0.fx.tracer_glow;
     particles::set_sprite(&mut lib, disc.clone(), &mut images);
     commands.insert_resource(FxAssets {
         quad: meshes.add(Rectangle::new(1.0, 1.0)),
@@ -317,6 +322,7 @@ fn setup(
         sphere: meshes.add(Sphere::new(1.0).mesh().uv(32, 16)),
         water_ring: materials.add(unlit(Color::srgba(0.9, 0.96, 1.0, 0.45), None, AlphaMode::Blend, 0.0)),
         glow: materials.add(unlit(Color::srgb(1.0, 0.8, 0.45), Some(disc.clone()), AlphaMode::Add, 8.0)),
+        tracer: materials.add(unlit(Color::LinearRgba(hot), Some(disc.clone()), AlphaMode::Add, 8.0)),
         flame: materials.add(unlit(Color::srgba(0.7, 0.85, 1.0, 0.85), Some(disc), AlphaMode::Add, 6.0)),
     });
 }
@@ -589,7 +595,7 @@ fn draw_shots(
             let e = commands
                 .spawn((
                     Mesh3d(fx.quad.clone()),
-                    MeshMaterial3d(fx.glow.clone()),
+                    MeshMaterial3d(fx.tracer.clone()),
                     Transform::default(),
                     Visibility::Hidden,
                     bevy::light::NotShadowCaster,

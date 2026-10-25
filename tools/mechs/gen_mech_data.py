@@ -36,6 +36,11 @@ STRIDE_PER_HIP = 13.0 / 5.9          # the stand-in's 13 m stride on its 5.9 m h
 SIT_BEND = 1.25
 SIT_MULT = [0.5, 1.0, 0.8]
 SIT_BOW_RAD = 0.28 + 0.12
+# The boarding crane reaches out past everything below the hatch on the rope's line (a strip this wide either side of
+# the centre line), plus a margin for the knees coming forward in the kneel (owner, 2026-10-24: "extend a crane out
+# then lower the rope").
+CRANE_STRIP_M = 2.0
+CRANE_MARGIN_M = 1.5
 # The page's boarding clock (tools/mockups/gen_mech_designs.py): the sit, then the chest a moment after it.
 SIT_S, CHEST_AT_S = 3.0, 3.2
 
@@ -252,6 +257,28 @@ def kneel(m):
     return pelvis, math.degrees(rest_back + turn)
 
 
+def crane_reach(m):
+    """How far out in front of the hatch's sill the crane must reach: past the furthest point of any mesh below the sill
+    that crosses the centre strip, measured at rest, plus the margin."""
+    hatch = m.at("HATCH_entry")
+    furthest = hatch[2]
+    for i, nd in enumerate(m.nodes):
+        if "mesh" not in nd:
+            continue
+        pts = []
+        for p in m.j["meshes"][nd["mesh"]]["primitives"]:
+            a = m.j["accessors"][p["attributes"]["POSITION"]]
+            lo, hi = a["min"], a["max"]
+            for cx in (lo[0], hi[0]):
+                for cy in (lo[1], hi[1]):
+                    for cz in (lo[2], hi[2]):
+                        pts.append(apply(m.world[i], (cx, cy, cz)))
+        xs, ys = [q[0] for q in pts], [q[1] for q in pts]
+        if min(xs) < CRANE_STRIP_M and max(xs) > -CRANE_STRIP_M and min(ys) < hatch[1] - 0.5:
+            furthest = max(furthest, max(q[2] for q in pts))
+    return furthest - hatch[2] + CRANE_MARGIN_M
+
+
 def boarding_ron(m, name, size, tracks):
     stages = []
     for t in sorted(tracks, key=lambda t: (t["t0"], t["node"])):
@@ -282,6 +309,7 @@ def boarding_ron(m, name, size, tracks):
     ],
     ready_s: {f(ready + 0.3)},
     clear_m: 3.0,
+    crane_reach_m: {f(crane_reach(m))},
     screen_power_up_s: 2.5,
     screen_power_down_s: 0.6,
 )
