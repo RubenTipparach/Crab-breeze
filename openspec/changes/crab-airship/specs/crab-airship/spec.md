@@ -58,6 +58,6 @@ Every part of the fortress (thrusters, turrets, catapults, bays, lifts, drive th
 - **WHEN** a round reaches an open hull thruster's port hole more than 30 deg from the fortress's vertical
 - **THEN** it meets the 300 mm hull and does no damage, while one from directly below does double damage
 
-#### Scenario: The autocannon on a thruster's cowl
-- **WHEN** 35 mm autocannon rounds hit a lift thruster's 140 mm cowl
-- **THEN** they do not penetrate, and the same rounds into its 40 mm intake grille do double damage
+#### Scenario: The autocannon on a thruster's inboard side
+- **WHEN** 35 mm autocannon rounds hit a lift thruster's exposed inboard side (60 mm)
+- **THEN** they penetrate and do their damage, and the same rounds into its 40 mm nozzle do double damage

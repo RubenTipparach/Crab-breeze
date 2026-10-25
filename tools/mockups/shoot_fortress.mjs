@@ -30,6 +30,10 @@ const ALL = [
   ["hull_port_under", `${UNDER} ${shootDown(["R1", "R2", "R3"], NOZZLE)}; M.run(6); M.select("HR2"); M.shoot("HR2", "cannon"); M.run(0.5); M.lookAtPart("HR2");`],
   ["fight_falling", `${UNDER} ${shootDown(["R1", "R2", "R3"], NOZZLE)}; M.run(6); ${shootDown(["HR1", "HR2"])}; M.run(8); M.setPlayer("hover"); M.setView("fight"); M.lookAtPart("R4");`],
   ["crashed", `${UNDER} ${shootDown(["R1", "R2", "R3"], NOZZLE)}; M.run(6); ${shootDown(["HR1", "HR2", "HR3"])}; M.run(50); M.setView("orbit"); M.labels(false); M.orbitFrom([-700, 260, 620], [0, -60, 0]);`],
+  ["leg_falling", `M.run(3); M.destroy("R2"); M.run(4); M.setView("orbit"); M.labels(false); M.orbitFrom([-620, -200, 420], [-200, -220, 60]);`],
+  ["leg_down", `M.run(3); M.destroy("R2"); M.run(10.9); M.setView("orbit"); M.labels(false); M.orbitFrom([-560, -380, 380], [-220, -560, 60]);`],
+  ["leg_wreck", `M.run(3); M.destroy("R2"); M.run(16); M.setView("orbit"); M.labels(false); M.orbitFrom([-520, -420, 360], [-220, -590, 60]);`],
+  ["shell", `M.run(8); M.setView("orbit"); M.labels(false); M.orbitFrom([-300, 170, 330], [-40, 10, 60]);`],
   ["climb_high", `M.climb(10.5);`],
 ];
 const SHOTS = only.length ? ALL.filter(s => only.includes(s[0])) : ALL;

@@ -70,7 +70,7 @@ Every part is its own target (boxed, lockable, `targeting`) and takes hits throu
 
 | Part | Count | Hit points | Armour | Weak point | Lost, it |
 | --- | --- | --- | --- | --- | --- |
-| Lift thruster | 8 | 800 | a 300 mm plate over the outboard half and a skirt below the nozzle (owner, 2026-10-25: "armor on the thrusters facing outward. So the player would have to shoot at the thrusters from under"); cowl 140 mm inboard | the nozzle below and the grille on top: 40 mm, damage x2 | stops lifting (section 2) |
+| Lift thruster | 8 | 800 | a 300 mm plate over the outboard half and a skirt below the nozzle (owner, 2026-10-25: "armor on the thrusters facing outward. So the player would have to shoot at the thrusters from under"); the inboard side is exposed, 60 mm (owner, 2026-10-25: "should be damageable from this side") | the nozzle below and the grille on top: 40 mm, damage x2 | stops lifting (section 2); the leg breaks off at the knee and falls, exploding where it lands and taking the buildings there (owner, 2026-10-25: "when a pylon is destroyed it should fall off and fall onto the ground and explode") |
 | Hull thruster | 6 | 900 | 300 mm hull and doors; sealed until it opens them (section 2b) | the port holes, 40 mm, damage x2, from within 30 deg of vertical only | stops lifting (section 2b) |
 | Drive thruster | 2 | 600 | 140 mm | | slows the drift; both lost, it hangs where it is |
 | Flak turret | 10 | 150 | 60 mm | | stops firing |
@@ -82,9 +82,8 @@ Every part is its own target (boxed, lockable, `targeting`) and takes hits throu
 | Hangar lift | 2 | 400 | 100 mm | | no more deck guards from it |
 | Bridge | 1 | 1 200 | 140 mm | the two eye lenses, 40 mm | every turret's aim error doubles |
 
-So a thruster takes 9 cannon shells on its inboard cowl, 5 into its nozzle or grille, 18 missiles, or 34
-autocannon rounds into its nozzle; the autocannon cannot hurt the cowl, and nothing gets through the outboard
-plate. The way in is from under it (or off its pylon, down into the grille), inside the beam turrets' reach. A
+So a thruster takes 9 cannon shells or 67 autocannon rounds on its inboard side, 5 shells or 34 rounds into
+its nozzle or grille, or 18 missiles; nothing gets through the outboard plate. The way in is from under it (or off its pylon, down into the grille), inside the beam turrets' reach. A
 hull thruster takes 5 cannon shells or 38 autocannon rounds through a port, from straight under or over it.
 
 ## 4. What defends it
@@ -125,6 +124,14 @@ destroys every building cell under its footprint and within 60 m of it, throws d
 and stays as a burning wreck. While both drive thrusters live it drifts along its racetrack at 15 m/s, so
 where it falls is the pilot's choice: stop the drive first to drop it where it is, or wait until it is
 over open ground. Whether a fall on the city counts as city damage is G23.
+
+### Its look (owner, 2026-10-25: "make the crab more ornate with spikes and more armor like geometry", "pink bad color, use red instead")
+
+Overlapping shell plates (scutes) in rings over the carapace, each with a red edge, an armoured skirt angled
+down round the rim, a ring of spikes long and short by turns, two great horns and a row of teeth at the bow,
+back-swept spines at the stern, fins along the shoulders, spines on every leg's knee, armour sleeves on the
+legs, spikes on the thruster plates and a keel of spikes down the belly. The livery, cores and beams are red;
+the acid green glows stay. Plates and spikes are instanced: four draws for the shell, plus one per thruster for its plate spikes.
 
 ## 7. Data and code
 
