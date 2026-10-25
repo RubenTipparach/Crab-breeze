@@ -1,0 +1,477 @@
+<title>Crab Breeze Main Street</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a town planner's survey sheet. The street is the stage; the building cards are the schedule beside it. */
+:root {
+  --bg: #ebe7df; --panel: #f7f5f0; --edge: #cbc4b6; --ink: #1c1915; --muted: #645c50;
+  --accent: #a3471c; --accent-soft: #f3e1d4; --stage: #a9c0d0;
+  --display: "Saira Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12100d; --panel: #1b1814; --edge: #332d25; --ink: #ece6dc; --muted: #a39887;
+    --accent: #f08a54; --accent-soft: #33200f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12100d; --panel: #1b1814; --edge: #332d25; --ink: #ece6dc; --muted: #a39887;
+  --accent: #f08a54; --accent-soft: #33200f; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 32px; }
+header { display: grid; gap: 4px; margin: 0 auto 14px; max-width: 1500px; }
+.eyebrow { font: 500 12px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 700 34px/1 var(--display); letter-spacing: 0.03em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 86ch; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; max-width: 1500px; margin: 0 auto; }
+@media (max-width: 1050px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+.bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.bar .lbl { font: 500 12px var(--mono); color: var(--muted); min-width: 6ch; }
+button { font: 700 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 9px 11px; cursor: pointer; min-height: 36px; }
+button:hover { border-color: var(--muted); }
+button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+button:focus-visible, canvas:focus-visible, input:focus-visible, .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--edge); border-radius: 4px; overflow: hidden; touch-action: none; }
+#view { display: block; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; }
+@media (max-width: 600px) { #view { aspect-ratio: 1 / 1.1; } }
+.mode { position: absolute; left: 10px; top: 10px; font: 700 13px var(--display); letter-spacing: 0.08em; text-transform: uppercase;
+  color: #f2eee6; background: rgba(20, 17, 13, 0.82); border: 1px solid #40382c; padding: 5px 9px; pointer-events: none; }
+.hud { position: absolute; right: 10px; top: 10px; font: 500 12px/1.45 var(--mono); color: #f2eee6; background: rgba(20, 17, 13, 0.82);
+  border: 1px solid #40382c; padding: 6px 9px; pointer-events: none; white-space: pre; }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; font: 700 20px var(--display); letter-spacing: 0.1em;
+  text-transform: uppercase; color: #f2eee6; background: rgba(20, 17, 13, 0.6); }
+.hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+label.sl { display: flex; gap: 8px; align-items: center; font: 500 12px var(--mono); color: var(--muted); flex: 1 1 220px; }
+label.sl input { flex: 1; min-width: 0; }
+aside { display: grid; gap: 8px; min-width: 0; max-height: 1100px; overflow: auto; }
+.group { font: 700 18px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; margin: 6px 0 0; }
+.card { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 10px 12px; display: grid; gap: 4px; cursor: pointer; text-align: left; }
+.card.sel { border-color: var(--accent); }
+.card h2 { font: 700 20px/1 var(--display); letter-spacing: 0.04em; text-transform: uppercase; margin: 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.card h2 small { font: 500 11px var(--mono); color: var(--accent); letter-spacing: 0.06em; text-transform: uppercase; }
+.card p { margin: 0; font-size: 13px; color: var(--muted); }
+.card .meta { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.foot { max-width: 1500px; margin: 16px auto 0; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+.foot code { font: 12px var(--mono); overflow-wrap: anywhere; }
+</style>
+
+<header>
+  <div class="eyebrow">Crab Breeze · openspec small-buildings · mockup</div>
+  <h1>Main Street: houses and small businesses</h1>
+  <p class="lede">Seventeen 1980s building types for the island's towns, roadsides, beaches, jungle and desert, built from one kit of parts: walls with real openings, framed and sashed windows with sills and glass you see through, doors and shop fronts, five roof families, porches, interiors with furniture, neon signs, and cars. Walk the street at the pilot's eye, stand at a mech's eye, light it at dusk, or cut it away to see the floor plans. Textures are canvas stand-ins with normal maps for the Material Maker sets.</p>
+</header>
+
+<div class="wrap">
+  <section>
+    <div class="bar" role="group" aria-label="Camera">
+      <span class="lbl">camera</span>
+      <button data-cam="orbit" aria-pressed="true">Orbit</button>
+      <button data-cam="pilot">Walk (pilot 1.7 m)</button>
+      <button data-cam="mech">Mech eye (19 m)</button>
+    </div>
+    <div class="bar" role="group" aria-label="Light">
+      <span class="lbl">light</span>
+      <button data-time="day" aria-pressed="true">Day</button>
+      <button data-time="dusk">Dusk</button>
+      <button data-time="night">Night</button>
+      <label class="sl">cutaway <input type="range" id="cut" min="0" max="13" step="0.1" value="13"> <b id="cutv">off</b></label>
+    </div>
+    <div class="stage">
+      <canvas id="view" tabindex="0" aria-label="The street in 3D"></canvas>
+      <div class="mode" id="mode">Orbit</div>
+      <div class="hud" id="hud"></div>
+      <div class="loading" id="loading">Building the street</div>
+    </div>
+    <p class="hint">Orbit: drag to turn, right-drag to pan, wheel to zoom. Walk and Mech eye: drag to look, W A S D to move, Shift to hurry. Pick a card to go to that building. The orange block at the end of the street is a 24 m mech.</p>
+  </section>
+  <aside id="cards" aria-label="Building types"></aside>
+</div>
+
+<div class="foot">
+  <div>Source: <code>docs/mockups/small_buildings.html</code> and <code>docs/mockups/small_buildings_kit.js</code> (the parts and the seventeen types). Design: <code>openspec/changes/small-buildings</code>. Research and sources: <code>docs/analysis/small-buildings.md</code>.</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/environments/RoomEnvironment.js"></script>
+<script src="small_buildings_kit.js"></script>
+<script>
+'use strict';
+const K = window.SmallBuildings;
+
+// ------------------------------------------------------------------ renderer
+const canvas = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.localClippingEnabled = true;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 3000);
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.maxPolarAngle = Math.PI * 0.49;
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
+const sun = new THREE.DirectionalLight(0xfff0dc, 2.4);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
+const hemi = new THREE.HemisphereLight(0xc6dcf0, 0x6a5a40, 0.5);
+scene.add(sun, sun.target, hemi);
+const clip = new THREE.Plane(new THREE.Vector3(0, -1, 0), 1000);
+
+// ------------------------------------------------------------------ canvas textures with normal maps
+const TS = 512;
+function noiseFn(seed) {
+  const h = (x, y) => { let n = (x * 374761393 + y * 668265263 + seed * 1442695041) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+  return (x, y, s) => { // tileable value noise, period TS/s cells
+    const P = Math.max(1, Math.round(TS / s)); const fx = x / s, fy = y / s, ix = Math.floor(fx), iy = Math.floor(fy), u = fx - ix, v = fy - iy;
+    const g = (a, b) => h(((a % P) + P) % P, ((b % P) + P) % P);
+    const su = u * u * (3 - 2 * u), sv = v * v * (3 - 2 * v);
+    return (g(ix, iy) * (1 - su) + g(ix + 1, iy) * su) * (1 - sv) + (g(ix, iy + 1) * (1 - su) + g(ix + 1, iy + 1) * su) * sv;
+  };
+}
+// Each generator fills colour (rgb 0..1) and height (0..1) per pixel through put(x, y, r, g, b, h).
+function makeTex(gen, seed) {
+  const col = new Uint8ClampedArray(TS * TS * 4), hgt = new Float32Array(TS * TS);
+  const N = noiseFn(seed);
+  const put = (x, y, r, g, b, h) => { const i = y * TS + x; col[i * 4] = r * 255; col[i * 4 + 1] = g * 255; col[i * 4 + 2] = b * 255; col[i * 4 + 3] = 255; hgt[i] = h; };
+  for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) gen(x, y, N, put);
+  const toCanvas = (data) => { const c = document.createElement('canvas'); c.width = c.height = TS; c.getContext('2d').putImageData(new ImageData(data, TS, TS), 0, 0); return c; };
+  return { col: toCanvas(col), hgt, toCanvas };
+}
+function normalFrom(hgt, strength, toCanvas) {
+  const d = new Uint8ClampedArray(TS * TS * 4);
+  const H = (x, y) => hgt[((y + TS) % TS) * TS + ((x + TS) % TS)];
+  for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) {
+    const dx = (H(x + 1, y) - H(x - 1, y)) * strength, dy = (H(x, y + 1) - H(x, y - 1)) * strength;
+    const l = Math.hypot(dx, dy, 1); const i = (y * TS + x) * 4;
+    d[i] = (-dx / l * 0.5 + 0.5) * 255; d[i + 1] = (dy / l * 0.5 + 0.5) * 255; d[i + 2] = (1 / l * 0.5 + 0.5) * 255; d[i + 3] = 255;
+  }
+  return toCanvas(d);
+}
+const cl = (v) => Math.max(0, Math.min(1, v));
+const px = (m) => m * TS; // metres to pixels for a 1 m tile
+// Generators. Tile sizes (metres) in MATS below.
+const GEN = {
+  brick: (x, y, N, put) => { // 12 courses of 75 mm, 4 bricks of 225 mm across a 0.9 m tile
+    const ch = TS / 12, bw = TS / 4, row = Math.floor(y / ch), off = (row % 2) * bw / 2, bx = (x + off) % TS, col = Math.floor(bx / bw);
+    const mx = bx - col * bw, my = y - row * ch, mortar = mx < 5 || my < 5;
+    const v = N(col * 7 + row * 13, row * 3, 1) * 0.25 + N(x, y, 3) * 0.15 + N(x, y, 40) * 0.1;
+    if (mortar) put(x, y, 0.72 + v * 0.1, 0.70 + v * 0.1, 0.66 + v * 0.1, 0.25 + N(x, y, 2) * 0.1);
+    else { const k = 0.85 + v; put(x, y, cl(0.62 * k), cl(0.30 * k), cl(0.22 * k), 0.85 + N(x, y, 2) * 0.15); }
+  },
+  block: (x, y, N, put) => { const bh = TS / 4, bw = TS / 2, row = Math.floor(y / bh), bx = (x + (row % 2) * bw / 2) % TS; const m = (bx % bw) < 5 || (y % bh) < 5; const v = N(x, y, 2) * 0.12 + N(x, y, 30) * 0.06; put(x, y, 0.86 + v, 0.85 + v, 0.82 + v, m ? 0.3 : 0.8 + N(x, y, 3) * 0.2); },
+  siding: (x, y, N, put) => { const bh = TS / 5, f = (y % bh) / bh; const v = 0.9 + N(x, y, 60) * 0.06 + N(x, y, 4) * 0.03; const h = f * 0.9 + (f < 0.06 ? -0.6 : 0); put(x, y, v, v, v * 0.98, cl(h)); },
+  board: (x, y, N, put) => { const bw = TS / 3.3, f = (x % bw) / bw, batt = f < 0.12; const g = N(x * 0.2, y * 3, 4) * 0.15; const v = 0.82 + g; put(x, y, v, v * 0.95, v * 0.9, batt ? 1 : 0.5 + g); },
+  stucco: (x, y, N, put) => { const v = 0.88 + N(x, y, 3) * 0.08 + N(x, y, 20) * 0.04; put(x, y, v, v, v * 0.97, N(x, y, 3) * 0.7 + N(x, y, 10) * 0.3); },
+  adobe: (x, y, N, put) => { const v = 0.86 + N(x, y, 50) * 0.1 + N(x, y, 6) * 0.05; put(x, y, v, v * 0.97, v * 0.94, N(x, y, 50) * 0.5 + N(x, y, 6) * 0.3); },
+  shingle: (x, y, N, put) => { const rh = TS / 7, row = Math.floor(y / rh), tw = TS / 3, tx = (x + (row % 2) * tw / 2) % TS, f = (y % rh) / rh; const slot = (tx % tw) < 6; const v = 0.55 + N(Math.floor(tx / tw) + row * 5, row, 1) * 0.12 + N(x, y, 2) * 0.12; put(x, y, v, v * 0.98, v * 0.96, slot ? 0.1 : f * 0.6 + N(x, y, 2) * 0.3); },
+  tile: (x, y, N, put) => { const w = TS / 4, f = (x % w) / w, rh = TS / 3, g = (y % rh) / rh; const h = Math.sin(f * Math.PI) * 0.8 + g * 0.2; const v = 0.85 + N(Math.floor(x / w), Math.floor(y / rh), 1) * 0.12; put(x, y, v, v * 0.95, v * 0.9, h); },
+  metalRoof: (x, y, N, put) => { const w = TS / 2.5, f = (x % w) / w, seam = f < 0.04; const v = 0.86 + N(x, y, 80) * 0.06; put(x, y, v, v, v, seam ? 1 : 0.4 + Math.sin(f * Math.PI * 6) * 0.03); },
+  corrugated: (x, y, N, put) => { const v = 0.85 + N(x, y, 60) * 0.08; put(x, y, v, v, v, 0.5 + 0.5 * Math.sin(y / TS * Math.PI * 2 * 13)); },
+  ribbed: (x, y, N, put) => { const v = 0.92 + N(x, y, 60) * 0.04; const f = (x % (TS / 6)) / (TS / 6); put(x, y, v, v, v, f < 0.15 ? 1 : 0.5); },
+  skirt: (x, y, N, put) => { const f = (x % (TS / 8)) / (TS / 8); const v = 0.85 + N(x, y, 50) * 0.05; put(x, y, v, v, v * 0.97, f < 0.5 ? 0.8 : 0.3); },
+  concrete: (x, y, N, put) => { const v = 0.78 + N(x, y, 4) * 0.08 + N(x, y, 40) * 0.08 + (N(x, y, 1.5) > 0.93 ? -0.15 : 0); put(x, y, v, v * 0.99, v * 0.96, N(x, y, 3) * 0.6 + N(x, y, 20) * 0.4); },
+  roofing: (x, y, N, put) => { const v = 0.45 + N(x, y, 1.5) * 0.25; put(x, y, v, v, v, N(x, y, 1.5)); },
+  asphalt: (x, y, N, put) => { const v = 0.28 + N(x, y, 1.5) * 0.12 + N(x, y, 60) * 0.06; put(x, y, v, v, v * 1.02, N(x, y, 1.5)); },
+  smooth: (x, y, N, put) => { const v = 0.94 + N(x, y, 40) * 0.04; put(x, y, v, v, v, N(x, y, 8) * 0.2); },
+  shutter: (x, y, N, put) => { const f = (y % (TS / 16)) / (TS / 16); const v = 0.92 + N(x, y, 30) * 0.05; put(x, y, v, v, v, f); },
+  door: (x, y, N, put) => { const fx = (x % (TS / 2)) / (TS / 2), fy = (y % (TS / 2)) / (TS / 2); const p = fx > 0.15 && fx < 0.85 && fy > 0.1 && fy < 0.9; const v = 0.9 + N(x, y, 30) * 0.06; put(x, y, v, v, v, p ? 0.4 : 0.6); },
+  brushed: (x, y, N, put) => { const v = 0.82 + N(x * 0.02, y * 4, 3) * 0.12; put(x, y, v, v, v * 1.01, N(x * 0.02, y * 4, 3) * 0.3); },
+  laminate: (x, y, N, put) => { const v = 0.9 + N(x, y, 3) * 0.05; put(x, y, v, v, v, 0.5); },
+  wood: (x, y, N, put) => { const g = N(x * 0.15, y * 2, 3) * 0.3 + Math.sin((x + N(x, y, 50) * 40) * 0.25) * 0.05; const v = 0.75 + g; put(x, y, v, v * 0.92, v * 0.85, g); },
+  planks: (x, y, N, put) => { const w = TS / 7, k = Math.floor(x / w), f = (x % w) / w, gap = f < 0.04; const g = N(k * 13, y * 0.1, 3) * 0.2 + N(x * 0.2, y * 3, 4) * 0.1; const v = 0.72 + g; put(x, y, v, v * 0.9, v * 0.8, gap ? 0 : 0.6 + g * 0.5); },
+  pine: (x, y, N, put) => { const w = TS / 6, k = Math.floor(x / w), f = (x % w) / w, gap = f < 0.03; const knot = N(x, y, 12) > 0.9 ? -0.25 : 0; const g = N(k * 7, y * 0.2, 3) * 0.12 + N(x * 0.3, y * 2, 5) * 0.08; const v = 0.86 + g + knot; put(x, y, v, v * 0.88, v * 0.7, gap ? 0 : 0.6); },
+  floorTile: (x, y, N, put) => { const c = TS / 3, ix = Math.floor(x / c), iy = Math.floor(y / c), grout = (x % c) < 3 || (y % c) < 3; const chk = (ix + iy) % 2; const v = grout ? 0.6 : (chk ? 0.92 : 0.18) + N(x, y, 10) * 0.04; put(x, y, v, v, v * 0.98, grout ? 0.2 : 0.8); },
+  wallTile: (x, y, N, put) => { const c = TS / 6.6, grout = (x % c) < 3 || (y % c) < 3; const v = grout ? 0.7 : 0.95; put(x, y, v, v, v, grout ? 0.2 : 0.8); },
+  carpet: (x, y, N, put) => { const v = 0.75 + N(x, y, 1.5) * 0.15; put(x, y, v, v * 0.92, v * 0.85, N(x, y, 1.5)); },
+  fabric: (x, y, N, put) => { const w = ((x % 6) < 3) !== ((y % 6) < 3); const v = 0.86 + (w ? 0.05 : 0) + N(x, y, 20) * 0.05; put(x, y, v, v, v, w ? 0.6 : 0.4); },
+  grass: (x, y, N, put) => { const v = N(x, y, 2) * 0.25 + N(x, y, 30) * 0.2 + N(x, y, 120) * 0.15; put(x, y, cl(0.22 + v * 0.3), cl(0.36 + v * 0.35), cl(0.12 + v * 0.12), N(x, y, 2)); },
+  screen: (x, y, N, put) => { const g = (x % 4) < 1 || (y % 4) < 1; put(x, y, 0.2, 0.2, 0.2, g ? 1 : 0); },
+};
+// Material table: generator, tile size m, roughness, metalness, normal strength, extra.
+const MATS = {
+  brick: ['brick', 0.9, 0.85, 0, 6], block: ['block', 0.8, 0.8, 0, 5], siding: ['siding', 1.0, 0.65, 0, 7], board: ['board', 1.0, 0.75, 0, 5],
+  stucco: ['stucco', 2.0, 0.92, 0, 4], adobe: ['adobe', 2.5, 0.95, 0, 3], shingle: ['shingle', 1.0, 0.9, 0, 6], tile: ['tile', 1.0, 0.7, 0, 6],
+  metalRoof: ['metalRoof', 1.0, 0.45, 0.6, 5], corrugated: ['corrugated', 1.0, 0.45, 0.6, 3], corrugatedArc: ['corrugated', 1.0, 0.5, 0.6, 3],
+  ribbed: ['ribbed', 1.0, 0.45, 0.4, 4], skirt: ['skirt', 1.0, 0.6, 0.2, 3], concrete: ['concrete', 2.0, 0.9, 0, 2], roofing: ['roofing', 1.0, 0.95, 0, 2],
+  asphalt: ['asphalt', 2.0, 0.95, 0, 2], trim: ['smooth', 1.0, 0.5, 0, 1], paint: ['smooth', 1.0, 0.4, 0, 1], soffit: ['smooth', 1.0, 0.8, 0, 1],
+  plaster: ['smooth', 2.0, 0.9, 0, 1], shutter: ['shutter', 0.5, 0.55, 0, 4], door: ['door', 1.0, 0.45, 0, 3], metal: ['smooth', 1.0, 0.35, 0.7, 1],
+  stainless: ['brushed', 1.0, 0.25, 1.0, 1], counter: ['laminate', 1.0, 0.3, 0, 1], wood: ['wood', 1.0, 0.6, 0, 3], deck: ['planks', 1.0, 0.75, 0, 4],
+  floorWood: ['planks', 1.0, 0.35, 0, 3], woodInt: ['pine', 1.0, 0.55, 0, 2], floorTile: ['floorTile', 0.9, 0.2, 0, 2], tileWall: ['wallTile', 1.0, 0.15, 0, 2],
+  tileRed: ['wallTile', 1.0, 0.15, 0, 2], carpet: ['carpet', 1.0, 0.95, 0, 2], fabric: ['fabric', 0.5, 0.9, 0, 1], product: ['smooth', 1.0, 0.5, 0, 0],
+  rubber: ['smooth', 1.0, 0.85, 0, 0], paintCar: ['smooth', 1.0, 0.3, 0.3, 0],
+};
+const materials = {};
+function texMat(key) {
+  const [g, tile, rough, metal, ns] = MATS[key];
+  const t = makeTex(GEN[g], key.length * 31 + g.length);
+  const map = new THREE.CanvasTexture(t.col); map.encoding = THREE.sRGBEncoding;
+  const nrm = new THREE.CanvasTexture(normalFrom(t.hgt, ns, t.toCanvas));
+  for (const tx of [map, nrm]) { tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.repeat.set(1 / tile, 1 / tile); tx.anisotropy = 8; }
+  return new THREE.MeshStandardMaterial({ map, normalMap: nrm, roughness: rough, metalness: metal, vertexColors: true, clippingPlanes: [clip] });
+}
+const glows = []; // [material, day, dusk, night]
+function special(key) {
+  const base = { vertexColors: true, clippingPlanes: [clip] };
+  if (key === 'glass') return new THREE.MeshPhysicalMaterial({ ...base, color: 0x9ab4bc, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.32, depthWrite: false, envMapIntensity: 1.6 });
+  if (key === 'glassShop') return new THREE.MeshPhysicalMaterial({ ...base, color: 0xc8dade, roughness: 0.03, metalness: 0, transparent: true, opacity: 0.18, depthWrite: false, envMapIntensity: 1.4 });
+  if (key === 'glassDark') return new THREE.MeshStandardMaterial({ ...base, color: 0x2a3640, roughness: 0.1, metalness: 0.2, envMapIntensity: 1.2 });
+  if (key === 'screen') return new THREE.MeshStandardMaterial({ ...base, color: 0x222222, transparent: true, opacity: 0.45, depthWrite: false });
+  if (key === 'water') return new THREE.MeshPhysicalMaterial({ ...base, color: 0x3aa6c8, roughness: 0.05, transparent: true, opacity: 0.8, depthWrite: false });
+  if (key === 'lamp') { const m = new THREE.MeshStandardMaterial({ ...base, color: 0xffffff, emissive: 0xfff2d8, emissiveIntensity: 0.5 }); glows.push([m, 0.5, 2.2, 3.0]); return m; }
+  if (key === 'paint' || key === 'product') return null;
+  return null;
+}
+// Signs and awnings, made on demand from their text.
+const SIGNS = {};
+const M = {
+  sign(text, bg, fg, neon) {
+    const key = `sign:${text}|${bg}|${fg}|${neon ? 1 : 0}`;
+    if (!SIGNS[key]) {
+      const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+      const g = c.getContext('2d'); g.fillStyle = bg; g.fillRect(0, 0, 512, 128);
+      g.font = '700 84px "Saira Condensed", "Arial Narrow", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      if (neon) { g.shadowColor = fg; g.shadowBlur = 18; }
+      g.fillStyle = fg; g.fillText(text, 256, 68, 480);
+      if (neon) { g.shadowBlur = 0; g.lineWidth = 3; g.strokeStyle = '#ffffff'; g.globalAlpha = 0.5; g.strokeText(text, 256, 68, 480); g.globalAlpha = 1; }
+      const map = new THREE.CanvasTexture(c); map.encoding = THREE.sRGBEncoding; map.anisotropy = 8;
+      const m = new THREE.MeshStandardMaterial({ map, roughness: 0.5, vertexColors: true, clippingPlanes: [clip], emissive: 0xffffff, emissiveMap: map, emissiveIntensity: neon ? 0.35 : 0.0 });
+      if (neon) glows.push([m, 0.35, 1.8, 2.4]); else glows.push([m, 0, 0.25, 0.45]);
+      SIGNS[key] = m;
+    }
+    return key;
+  },
+  awning(color) {
+    const key = `awning:${color}`;
+    if (!SIGNS[key]) {
+      const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+      for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#f4f1ea' : color; g.fillRect(i * 16, 0, 16, 128); }
+      const map = new THREE.CanvasTexture(c); map.encoding = THREE.sRGBEncoding; map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(1 / 2.4, 1 / 2.4);
+      SIGNS[key] = new THREE.MeshStandardMaterial({ map, roughness: 0.85, vertexColors: true, clippingPlanes: [clip], side: THREE.DoubleSide });
+    }
+    return key;
+  },
+};
+function material(key) {
+  if (materials[key]) return materials[key];
+  let m = SIGNS[key] || special(key);
+  if (!m) m = MATS[key] ? texMat(key) : texMat(key === 'paint' ? 'paint' : 'trim');
+  materials[key] = m;
+  return m;
+}
+
+// ------------------------------------------------------------------ the street
+const STREET = []; // {T, x, z, rot, bounds, tris}
+const merged = {};
+function mergeInto(B, ox, oz, rot) {
+  const c = rot ? -1 : 1;
+  for (const [key, a] of Object.entries(B.parts)) {
+    const m = merged[key] || (merged[key] = { p: [], n: [], u: [], c: [] });
+    for (let i = 0; i < a.p.length; i += 3) { m.p.push(ox + c * a.p[i], a.p[i + 1], oz + c * a.p[i + 2]); m.n.push(c * a.n[i], a.n[i + 1], c * a.n[i + 2]); }
+    for (const v of a.u) m.u.push(v);
+    for (const v of a.c) m.c.push(v);
+  }
+}
+function boundsOf(B) {
+  const lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+  for (const a of Object.values(B.parts)) for (let i = 0; i < a.p.length; i += 3) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], a.p[i + k]); hi[k] = Math.max(hi[k], a.p[i + k]); }
+  return { lo, hi };
+}
+const ROAD_HALF = 5, WALK = 2.5;
+function layStreet() {
+  const rows = { house: [], business: [] };
+  for (const T of K.TYPES) {
+    const B = K.build(T.id, 7, M);
+    const b = boundsOf(B);
+    const tris = Object.values(B.parts).reduce((s, a) => s + a.p.length / 9, 0);
+    rows[T.kind].push({ T, B, b, tris });
+  }
+  for (const [kind, list] of Object.entries(rows)) {
+    const widths = list.map((e) => e.b.hi[0] - e.b.lo[0]);
+    const gap = 7;
+    const total = widths.reduce((s, w) => s + w, 0) + gap * (list.length - 1);
+    let x = -total / 2;
+    list.forEach((e, i) => {
+      const rot = kind === 'business';
+      const front = ROAD_HALF + WALK + 1.0;
+      const cx = x - e.b.lo[0];                 // local x = lo lands at x
+      const oz = rot ? front + e.b.hi[2] : -(front + e.b.hi[2]);
+      const ox = rot ? x + e.b.hi[0] : cx;      // a half turn mirrors x, so the right edge lands at x
+      mergeInto(e.B, ox, oz, rot);
+      const wx0 = x, wx1 = x + widths[i];
+      const wz0 = rot ? front : -(front + e.b.hi[2] - e.b.lo[2]), wz1 = rot ? front + e.b.hi[2] - e.b.lo[2] : -front;
+      STREET.push({ T: e.T, tris: e.tris, box: [wx0, 0, wz0, wx1, e.b.hi[1], wz1], front: rot ? 1 : -1 });
+      x += widths[i] + gap;
+    });
+  }
+  // The 24 m mech at the east end, and pilots by the doors.
+  const S = new K.Builder();
+  const mx = 128, mz = 0;
+  S.color(0x3b3f44); S.box('metal', mx - 4.6, 0, mz - 2.2, mx - 1.4, 13.5, mz + 2.2); S.box('metal', mx + 1.4, 0, mz - 2.2, mx + 4.6, 13.5, mz + 2.2);
+  S.color(0xd08a2a); S.box('paint', mx - 6, 13.5, mz - 4.2, mx + 6, 21, mz + 4.2); S.box('paint', mx - 8.4, 12, mz - 1.6, mx - 6, 20, mz + 1.6); S.box('paint', mx + 6, 12, mz - 1.6, mx + 8.4, 20, mz + 1.6);
+  S.color(0x3b3f44); S.box('metal', mx - 2, 21, mz - 1.8, mx + 2, 24, mz + 1.8);
+  K.pilotFigure(S, mx - 8, mz + 3); K.pilotFigure(S, 0, ROAD_HALF + 1.2); K.pilotFigure(S, -40, -(ROAD_HALF + 1.2));
+  mergeInto(S, 0, 0, false);
+}
+function groundAndRoad() {
+  const G = new K.Builder();
+  G.color(0xffffff); G.box('asphalt', -150, -0.1, -ROAD_HALF, 150, 0.0, ROAD_HALF);
+  G.color(0xe8c84a); for (let x = -148; x < 148; x += 6) G.box('paint', x, 0.0, -0.08, x + 3, 0.015, 0.08);
+  G.color(0xd8d2c6); G.box('concrete', -150, -0.1, ROAD_HALF, 150, 0.14, ROAD_HALF + WALK); G.box('concrete', -150, -0.1, -ROAD_HALF - WALK, 150, 0.14, -ROAD_HALF);
+  for (let x = -146; x < 146; x += 18) { G.color(0x6a5040); G.cyl('wood', 'y', [x, 0, ROAD_HALF + WALK + 0.3], 0.13, 0, 9.5, 8); G.box('wood', x - 1.1, 8.6, ROAD_HALF + WALK + 0.22, x + 1.1, 8.72, ROAD_HALF + WALK + 0.38); }
+  G.color(0x8a8e92); for (let x = -140; x < 146; x += 36) { G.box('metal', x - 0.08, 0.14, -ROAD_HALF - 0.6, x + 0.08, 7.5, -ROAD_HALF - 0.44); G.box('metal', x - 0.08, 7.4, -ROAD_HALF - 0.6, x + 0.08, 7.5, -ROAD_HALF + 1.5); G.color(0xfff2d8); G.box('lamp', x - 0.25, 7.25, -ROAD_HALF + 1.0, x + 0.25, 7.4, -ROAD_HALF + 1.6); G.color(0x8a8e92); }
+  mergeInto(G, 0, 0, false);
+  const gm = new THREE.MeshStandardMaterial({ roughness: 0.95 });
+  const t = makeTex(GEN.grass, 5);
+  gm.map = new THREE.CanvasTexture(t.col); gm.map.encoding = THREE.sRGBEncoding; gm.map.wrapS = gm.map.wrapT = THREE.RepeatWrapping; gm.map.repeat.set(160, 160);
+  gm.normalMap = new THREE.CanvasTexture(normalFrom(t.hgt, 3, t.toCanvas)); gm.normalMap.wrapS = gm.normalMap.wrapT = THREE.RepeatWrapping; gm.normalMap.repeat.set(160, 160);
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), gm);
+  g.rotation.x = -Math.PI / 2; g.position.y = -0.02; g.receiveShadow = true; scene.add(g);
+}
+const TRANSPARENT = new Set(['glass', 'glassShop', 'screen', 'water']);
+function buildMeshes() {
+  for (const [key, a] of Object.entries(merged)) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(a.p, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(a.n, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(a.u, 2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(a.c, 3));
+    g.computeBoundingSphere();
+    const m = new THREE.Mesh(g, material(key));
+    const tr = TRANSPARENT.has(key);
+    m.castShadow = !tr && key !== 'lamp'; m.receiveShadow = !tr;
+    if (tr) m.renderOrder = 2;
+    scene.add(m);
+  }
+}
+
+// ------------------------------------------------------------------ light presets
+const SKY = { day: ['#a9c6dc', 2.4, 0.5, 1.0, [60, 90, 40]], dusk: ['#d89a72', 1.2, 0.28, 0.9, [-80, 18, 30]], night: ['#18202e', 0.0, 0.1, 1.1, [-30, 60, -20]] };
+const glowLights = [];
+function setTime(name) {
+  const [sky, sunI, hemiI, exp, dir] = SKY[name];
+  scene.background = new THREE.Color(sky);
+  scene.fog = new THREE.Fog(new THREE.Color(sky), 140, 520);
+  sun.intensity = sunI; hemi.intensity = hemiI; renderer.toneMappingExposure = exp;
+  sun.color.set(name === 'dusk' ? 0xffb07a : 0xfff0dc);
+  sun.position.set(dir[0], dir[1], dir[2]);
+  scene.environmentIntensity = name === 'night' ? 0.15 : 1;
+  for (const m of Object.values(materials)) if ('envMapIntensity' in m && !m.userData.envSet) { m.userData.env0 = m.envMapIntensity; m.userData.envSet = true; }
+  for (const m of Object.values(materials)) if (m.userData.envSet) m.envMapIntensity = m.userData.env0 * (name === 'night' ? 0.12 : name === 'dusk' ? 0.5 : 1);
+  const idx = name === 'day' ? 1 : name === 'dusk' ? 2 : 3;
+  for (const g of glows) g[0].emissiveIntensity = g[idx];
+  for (const l of glowLights) l.intensity = name === 'day' ? 0 : name === 'dusk' ? 6 : 10;
+  document.querySelectorAll('[data-time]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.time === name)));
+}
+function addGlowLights() { // a warm point light in each building and under each street lamp, at night
+  for (const s of STREET) {
+    const l = new THREE.PointLight(0xffd9a0, 0, 22, 2);
+    l.position.set((s.box[0] + s.box[3]) / 2, 2.4, (s.box[2] + s.box[5]) / 2 - s.front * 2);
+    scene.add(l); glowLights.push(l);
+  }
+}
+
+// ------------------------------------------------------------------ cameras
+const walk = { on: false, eye: 1.7, yaw: 0, pitch: 0, keys: {} };
+let dragging = false, lx = 0, ly = 0;
+canvas.addEventListener('pointerdown', (e) => { if (!walk.on) return; dragging = true; lx = e.clientX; ly = e.clientY; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointerup', () => { dragging = false; });
+canvas.addEventListener('pointermove', (e) => { if (!walk.on || !dragging) return; walk.yaw -= (e.clientX - lx) * 0.004; walk.pitch = Math.max(-1.4, Math.min(1.4, walk.pitch - (e.clientY - ly) * 0.004)); lx = e.clientX; ly = e.clientY; });
+window.addEventListener('keydown', (e) => { walk.keys[e.code] = true; });
+window.addEventListener('keyup', (e) => { walk.keys[e.code] = false; });
+function setCam(mode) {
+  walk.on = mode !== 'orbit'; controls.enabled = !walk.on;
+  document.querySelectorAll('[data-cam]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cam === mode)));
+  document.getElementById('mode').textContent = mode === 'orbit' ? 'Orbit' : mode === 'pilot' ? 'Walk, pilot eye 1.7 m' : 'Mech eye 19 m';
+  if (walk.on) {
+    walk.eye = mode === 'pilot' ? 1.7 : 19;
+    const d = new THREE.Vector3(); camera.getWorldDirection(d);
+    walk.yaw = Math.atan2(-d.x, -d.z); walk.pitch = mode === 'pilot' ? 0.05 : -0.25;
+    if (mode === 'pilot') camera.position.set(camera.position.x, 1.7, ROAD_HALF + 1.2); else camera.position.y = 19;
+  } else {
+    const d = new THREE.Vector3(); camera.getWorldDirection(d); controls.target.copy(camera.position).addScaledVector(d, 30);
+  }
+}
+function goTo(s) {
+  const cx = (s.box[0] + s.box[3]) / 2, cz = (s.box[2] + s.box[5]) / 2, w = s.box[3] - s.box[0], h = s.box[4];
+  const dist = Math.max(w, 14) * 1.15;
+  if (walk.on) setCam('orbit');
+  controls.target.set(cx, h * 0.4, cz);
+  camera.position.set(cx + w * 0.35, h * 0.5 + dist * 0.35, cz - s.front * dist);
+  document.querySelectorAll('.card').forEach((c) => c.classList.toggle('sel', c.dataset.id === s.T.id));
+}
+
+// ------------------------------------------------------------------ UI
+function cards() {
+  const el = document.getElementById('cards');
+  const groups = [['house', 'Houses'], ['business', 'Small businesses']];
+  for (const [k, title] of groups) {
+    const h = document.createElement('div'); h.className = 'group'; h.textContent = title; el.append(h);
+    for (const s of STREET.filter((v) => v.T.kind === k)) {
+      const c = document.createElement('button'); c.className = 'card'; c.dataset.id = s.T.id; c.type = 'button';
+      c.innerHTML = `<h2>${s.T.name}<small>${s.T.biome}</small></h2><p>${s.T.blurb}</p><div class="meta">${(s.box[3] - s.box[0]).toFixed(0)} x ${(s.box[5] - s.box[2]).toFixed(0)} m lot, ${s.box[4].toFixed(1)} m tall · ${s.tris.toLocaleString()} triangles with interior</div>`;
+      c.addEventListener('click', () => goTo(s));
+      el.append(c);
+    }
+  }
+}
+document.querySelectorAll('[data-cam]').forEach((b) => b.addEventListener('click', () => setCam(b.dataset.cam)));
+document.querySelectorAll('[data-time]').forEach((b) => b.addEventListener('click', () => setTime(b.dataset.time)));
+document.getElementById('cut').addEventListener('input', (e) => {
+  const v = +e.target.value; clip.constant = v >= 13 ? 1000 : v;
+  document.getElementById('cutv').textContent = v >= 13 ? 'off' : v.toFixed(1) + ' m';
+});
+
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+}
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  resize();
+  if (walk.on) {
+    const f = new THREE.Vector3(-Math.sin(walk.yaw), 0, -Math.cos(walk.yaw)), r = new THREE.Vector3(Math.cos(walk.yaw), 0, -Math.sin(walk.yaw));
+    const sp = (walk.eye > 5 ? 14 : 1.6) * (walk.keys.ShiftLeft || walk.keys.ShiftRight ? 3.5 : 1) * dt;
+    if (walk.keys.KeyW) camera.position.addScaledVector(f, sp);
+    if (walk.keys.KeyS) camera.position.addScaledVector(f, -sp);
+    if (walk.keys.KeyD) camera.position.addScaledVector(r, sp);
+    if (walk.keys.KeyA) camera.position.addScaledVector(r, -sp);
+    camera.position.y = walk.eye;
+    camera.lookAt(camera.position.clone().add(new THREE.Vector3(-Math.sin(walk.yaw) * Math.cos(walk.pitch), Math.sin(walk.pitch), -Math.cos(walk.yaw) * Math.cos(walk.pitch))));
+  } else controls.update();
+  // Keep the sun's shadow box on what the camera looks at.
+  const tgt = walk.on ? camera.position : controls.target;
+  sun.target.position.set(Math.round(tgt.x / 8) * 8, 0, 0);
+  const sd = sun.position.clone().normalize();
+  sun.position.copy(sun.target.position).addScaledVector(sd, 150);
+  renderer.render(scene, camera);
+  document.getElementById('hud').textContent = `${(renderer.info.render.triangles / 1e6).toFixed(2)} M tris  ${renderer.info.render.calls} draws\neye ${camera.position.y.toFixed(1)} m`;
+  requestAnimationFrame(frame);
+}
+
+setTimeout(() => {
+  layStreet();
+  groundAndRoad();
+  buildMeshes();
+  const sc = sun.shadow.camera; sc.left = -90; sc.right = 90; sc.top = 60; sc.bottom = -60; sc.near = 1; sc.far = 400; sc.updateProjectionMatrix();
+  addGlowLights();
+  cards();
+  setTime('day');
+  camera.position.set(-30, 26, 60); controls.target.set(-10, 2, 0);
+  document.getElementById('loading').hidden = true;
+  window.__streetReady = true;
+  requestAnimationFrame(frame);
+}, 30);
+</script>
