@@ -10,7 +10,9 @@
     right: ["KeyD"],
     run: ["ShiftLeft"],
     use_key: ["KeyE"],
-    free_look: ["AltLeft"],
+    // Held: look round the cockpit uncoupled from the mech's nose, and press MFDs (owner,
+    // 2026-10-24: "holding ctrl should let you free look").
+    free_look: ["ControlLeft"],
     throttle_zero: ["KeyX"],
     mode_walk: ["Digit1"],
     mode_skate: ["Digit2"],
@@ -27,10 +29,24 @@
     fire_secondary: ["MouseRight"],
     // In the mech (openspec boost-and-skate, water-skimming): Space lifts on the rockets (up only),
     // Shift toggles the skates (all paid horizontal movement: wheels on the ground and the water,
-    // WASD thrust in the air), Ctrl dives from the air or sinks on water.
+    // WASD thrust in the air), C dives from the air or sinks on water (Ctrl is free look).
     skate: ["ShiftLeft"],
-    sink: ["ControlLeft"],
+    sink: ["KeyC"],
     // Targeting (openspec targeting): F fires a missile at the lock, Q selects the next target.
     fire_missile: ["KeyF"],
     target_next: ["KeyQ"],
+    // Close combat (openspec close-combat): on by itself when the targeted hostile is within melee
+    // range, off when it goes down or moves away; Tab switches it off, or on with no one near.
+    // In close combat the mouse buttons strike with the arms and the guns hold.
+    close_combat: ["Tab"],
+    // The selected weapon station, which the left mouse fires (weapon-select; owner, 2026-10-25: "can
+    // scroll wheel change weaopon selection?"): the wheel steps it, down on and up back; ] steps on.
+    weapon_cycle: ["MouseWheel", "BracketRight"],
+    // The mail and its job offers, in a career (mission-jobs; owner, survey J1: "press M to focus on the
+    // mail screen").
+    mail: ["KeyM"],
+    // Punches in close combat, on their own keys so the guns keep firing (owner, 2026-10-25, picking
+    // "Guns keep firing in close combat, and punches move to other keys").
+    strike_left: ["KeyZ"],
+    strike_right: ["KeyV"],
 )

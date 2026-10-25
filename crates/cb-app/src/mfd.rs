@@ -14,8 +14,12 @@ use bevy::render::render_resource::TextureFormat;
 use bevy::ui::UiTargetCamera;
 use cb_core::pilot::PilotMode;
 
-/// Pages on the texture, left to right.
-const PAGES: usize = 3;
+/// Pages on the texture, left to right: MECH, FLIGHT, MISSION, WEAPONS, TARGET (weapon-select). The
+/// pages' strip (`hud`) is this many pages wide, so each screen's slice is exactly one page.
+pub const PAGES: usize = 5;
+
+/// The dash's lower screens, bound by exact name (they were baked pictures), and the page each starts on.
+const DASH_SCREENS: [(&str, usize); 3] = [("SCREEN_left_screen", 0), ("SCREEN_center_screen", 4), ("SCREEN_right_screen", 3)];
 
 /// The MFD texture and the camera that draws it.
 #[derive(Resource)]
@@ -82,10 +86,16 @@ fn bind_screens(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for (e, name) in &named {
-        let Some(rest) = name.as_str().strip_prefix("HUD_mfd_").and_then(|r| r.strip_suffix("_screen")) else {
-            continue;
+        let page = match name.as_str().strip_prefix("HUD_mfd_").and_then(|r| r.strip_suffix("_screen")) {
+            Some(rest) => {
+                let Ok(page) = rest.parse::<usize>() else { continue };
+                page
+            }
+            None => match DASH_SCREENS.iter().find(|(n, _)| *n == name.as_str()) {
+                Some((_, page)) => *page,
+                None => continue,
+            },
         };
-        let Ok(page) = rest.parse::<usize>() else { continue };
         let page = page.min(PAGES - 1);
         let mut found = Vec::new();
         if meshes.contains(e) {

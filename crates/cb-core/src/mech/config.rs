@@ -54,6 +54,9 @@ pub struct LocomotionConfig {
     pub brake_m_s2: f32,
     /// Leg turn rate at full turn input.
     pub turn_rate_deg_s: f32,
+    /// How fast the leg turn rate changes, so a 40 t mech eases into and out of a turn instead of
+    /// snapping (owner, 2026-10-25: "mech should turn more smoothly").
+    pub turn_accel_deg_s2: f32,
     /// Torso twist limit either side of the legs.
     pub twist_max_deg: f32,
     /// Torso twist rate.
@@ -105,6 +108,7 @@ impl Default for LocomotionConfig {
             accel_m_s2: 2.5,
             brake_m_s2: 4.0,
             turn_rate_deg_s: 30.0,
+            turn_accel_deg_s2: 120.0,
             twist_max_deg: 100.0,
             twist_rate_deg_s: 70.0,
             pitch_limits_deg: [-20.0, 25.0],
@@ -200,7 +204,10 @@ impl Default for JetConfig {
             fall_max_m_s: 60.0,
             dive_m_s2: 30.0,
             dive_max_m_s: 90.0,
-            drag_per_s: 0.3,
+            // A 40 t mech keeps its momentum in the air; the skates are its side thrusters for moving
+            // across (owner, 2026-10-25: "when flying if skate is off I should inherit inertia, think of
+            // skate as lateral thrusters"). Air drag on 100 m2 at 30 m/s is about 1.3 m/s2: 4 % a second.
+            drag_per_s: 0.04,
             burn_s: 20.0,
             recharge_s: 8.0,
             recharge_delay_s: 1.5,
@@ -393,6 +400,8 @@ pub struct MechConfig {
     pub parts: Vec<PartSpec>,
     /// Guns.
     pub weapons: Vec<crate::weapons::WeaponSpec>,
+    /// Close combat: melee range and the arms' strikes (openspec change `close-combat`).
+    pub melee: super::melee::MeleeConfig,
     /// The stand-in's bones and sockets.
     pub nodes: Vec<NodeSpec>,
     /// The stand-in's boxes.
@@ -413,6 +422,7 @@ impl Default for MechConfig {
             ram: RamConfig::default(),
             parts: default_parts(),
             weapons: crate::weapons::default_weapons(),
+            melee: super::melee::MeleeConfig::default(),
             nodes: Vec::new(),
             boxes: Vec::new(),
         }
@@ -439,6 +449,7 @@ impl Validate for MechConfig {
         positive("locomotion.accel_m_s2", l.accel_m_s2)?;
         positive("locomotion.brake_m_s2", l.brake_m_s2)?;
         positive("locomotion.turn_rate_deg_s", l.turn_rate_deg_s)?;
+        positive("locomotion.turn_accel_deg_s2", l.turn_accel_deg_s2)?;
         within("locomotion.twist_max_deg", l.twist_max_deg, 0.0, 180.0)?;
         positive("locomotion.twist_rate_deg_s", l.twist_rate_deg_s)?;
         within("locomotion.pitch_limits_deg[0]", l.pitch_limits_deg[0], -89.0, 0.0)?;
@@ -457,6 +468,7 @@ impl Validate for MechConfig {
         positive("locomotion.water_sink_m_s", l.water_sink_m_s)?;
         positive("locomotion.water_climb_m_s", l.water_climb_m_s)?;
         positive("locomotion.water_drag_m_s2", l.water_drag_m_s2)?;
+        self.melee.validate()?;
         within("locomotion.skim_depth_share", l.skim_depth_share, 0.0, 2.0)?;
         positive("locomotion.skim_rise_m_s", l.skim_rise_m_s)?;
         let g = &self.gait;

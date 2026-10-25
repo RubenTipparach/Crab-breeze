@@ -1,0 +1,57 @@
+// Jobs and mail (openspec change mission-jobs). Offers arrive as messages; jobs are sited in and near
+// cities (owner, survey J2: "Jobs are usualy started near or in a city"); pay is per enemy mech plus a
+// base (survey J4: 40 000-150 000). {city}, {mechs} and {pay} are filled into the text.
+(
+    open_offers: 3,
+    offer_gap_s: (30.0, 90.0),
+    offer_life_s: 900.0,
+    arrive_m: 1500.0,
+    inbox_kept: 40,
+    kinds: [
+        (
+            kind: Defend,
+            weight: 1.0,
+            mechs: (2, 5),
+            pay_per_mech: 20000,
+            pay_base: 30000,
+            time_limit_s: 900.0,
+            site_out: (0.0, 0.6),
+            senders: ["City Defence Office", "Mayor's Office", "Civil Guard"],
+            subjects: ["Raiders in {city}", "{city} needs a pilot now", "Defend {city}"],
+            bodies: [
+                "{mechs} raider mechs are shelling {city}. Get into the streets and stop them. Pay on completion: {pay} credits.",
+                "We have {mechs} hostiles inside the city limits of {city}. Civilians are sheltering. {pay} credits when the last one is down.",
+            ],
+        ),
+        (
+            kind: Intercept,
+            weight: 1.0,
+            mechs: (2, 4),
+            pay_per_mech: 18000,
+            pay_base: 22000,
+            time_limit_s: 720.0,
+            site_out: (1.3, 2.5),
+            senders: ["Highway Patrol", "Island Command", "Freight Union"],
+            subjects: ["Raid forming outside {city}", "Intercept near {city}", "Catch them before {city}"],
+            bodies: [
+                "A raid of {mechs} mechs is gathering on the edge of {city}. Catch them in the open before they move in. {pay} credits.",
+                "Scouts count {mechs} hostile mechs outside {city}. Intercept and destroy. {pay} credits on confirmation.",
+            ],
+        ),
+        (
+            kind: Destroy,
+            weight: 0.7,
+            mechs: (3, 6),
+            pay_per_mech: 22000,
+            pay_base: 40000,
+            time_limit_s: 1200.0,
+            site_out: (1.5, 3.0),
+            senders: ["Island Command", "Survey Bureau"],
+            subjects: ["Crab nest near {city}", "Clear the nest by {city}", "Burn them out near {city}"],
+            bodies: [
+                "Crabs have dug in near {city}: {mechs} of them guard the nest. Destroy every one. {pay} credits.",
+                "A nest of {mechs} crabs sits outside {city}. Clear it before it spreads. {pay} credits on completion.",
+            ],
+        ),
+    ],
+)

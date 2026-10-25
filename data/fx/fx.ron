@@ -5,9 +5,14 @@
 // of its yield. Particle kinds: Spray, Steam, Dirt, Dust, Smoke, Spark, Fire, Flame, Debris,
 // Rubble, Trail.
 (
-    tracer_s: 0.008,
-    tracer_width_m: 0.25,
-    tracer_heavy_width_m: 0.5,
+    // Bigger, longer tracers so a burst reads at range (owner, 2026-10-24: "The bullets are hard to
+    // see ... make them bigger like tracer rounds"): 25 ms of flight long, 0.6 m wide (heavy 1.2 m).
+    tracer_s: 0.025,
+    tracer_width_m: 0.6,
+    tracer_heavy_width_m: 1.2,
+    // Tracers burn this many times brighter than white, so the bloom catches them (owner, 2026-10-25:
+    // "bullets need to be brighter, like affected by bloom more or something? HDR maybe?").
+    tracer_glow: 12.0,
     // A rocket lays a smoke puff every metre (openspec change `rocket-plumes`: a dense trail, not a dotted line).
     trail_spacing_m: 1.0,
     // Exhaust plumes: a rocket's flame, and a mech's jet's while it fires (length, width), metres.
@@ -27,7 +32,7 @@
     shake: (max_deg: 1.2, reach_m_per_cbrt_mj: 60.0, decay_s: 0.7),
     // Recipes played as continuous streams from an emitter riding the body, bursts a second: a
     // jet's flame while it fires, a wreck's fire while it burns.
-    stream_per_s: {"jet_flame": 60.0, "burning": 10.0, "smoking": 6.0, "burning_hull": 10.0},
+    stream_per_s: {"jet_flame": 60.0, "jet_trail": 20.0, "burning": 10.0, "smoking": 6.0, "burning_hull": 10.0},
     // Particle bursts start only within 400 m of the eye (times the effect's scale; explosions four
     // times as far): far off they barely show and each costs an effect of its own (2026-10-24).
     burst_range_m: 400.0,
@@ -145,6 +150,12 @@
         "jet_flame": [
             Burst(kind: Flame, count: 6, speed_m_s: 30.0, spread: 0.15, size_m: 0.9, life_s: 0.25, along_dir: true),
             Burst(kind: Smoke, count: 1, speed_m_s: 8.0, spread: 0.4, size_m: 2.5, life_s: 2.0, offset_m: 3.0, along_dir: true),
+        ],
+        // A jet's smoke trail, which hangs in the sky for two minutes, spreading and fading (owner,
+        // 2026-10-25: "per survey that trail needs to las 2 mins or more"). At 20 puffs a second a
+        // jet at 60 m/s leaves one every 3 m; each grows from about 1.2 m to about 40 m wide.
+        "jet_trail": [
+            Burst(kind: Trail, count: 1, speed_m_s: 1.0, spread: 0.3, size_m: 1.2, life_s: 120.0, offset_m: 4.0, along_dir: true),
         ],
         // Every step a wheel skates fast on soil; the direction is back and up from the wheel.
         "skate_dirt": [
