@@ -1,0 +1,786 @@
+<title>Hermit Air Fortress</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Source of docs/mockups/crab_fortress.html: python3 tools/mockups/gen_crab_fortress.py inlines the block-outs at __MODELS__.
+     Presents openspec/changes/crab-airship. Every number here is the design's (design.md sections 1 to 5). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an air-raid threat briefing. The stage is the page; the lift board and the threat sheet sit beside it.
+   Same type and tokens as the Alien Crab Mechs page, so the enemy reviews read as one set. */
+:root {
+  --bg: #e9ebef; --panel: #f7f8fa; --edge: #c4cad3; --ink: #12161c; --muted: #56606d;
+  --accent: #4f7a12; --accent-soft: #e3efd2; --warn: #7a3fc0; --bad: #b3261e; --bad-soft: #f6dedb; --stage: #1a2230;
+  --display: "Saira Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+    --accent: #9cf04a; --accent-soft: #1f2c14; --warn: #c08cff; --bad: #ff8a80; --bad-soft: #3a1714; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+  --accent: #9cf04a; --accent-soft: #1f2c14; --warn: #c08cff; --bad: #ff8a80; --bad-soft: #3a1714; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 32px; }
+header { display: grid; gap: 4px; margin: 0 auto 14px; max-width: 1440px; }
+.eyebrow { font: 500 12px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 700 34px/1 var(--display); letter-spacing: 0.03em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 80ch; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; max-width: 1440px; margin: 0 auto; }
+@media (max-width: 1040px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+.bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.bar .lbl { font: 500 12px var(--mono); color: var(--muted); min-width: 6ch; }
+button { font: 700 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 9px 12px; cursor: pointer; min-height: 38px; }
+button:hover { border-color: var(--muted); }
+button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+button:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--edge); border-radius: 4px; overflow: hidden; touch-action: none; }
+canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 16 / 10; }
+@media (max-width: 600px) { canvas { aspect-ratio: 1 / 1.15; } }
+.tag { position: absolute; transform: translate(-50%, -100%); pointer-events: none; font: 500 11px var(--mono);
+  color: #e6ebf1; background: rgba(12, 16, 24, 0.82); border: 1px solid #3a4456; padding: 2px 6px; white-space: nowrap; }
+.tag.dead { color: #ff9a8a; border-color: #6a2a24; }
+.mode, .meter { position: absolute; font: 700 13px var(--display); letter-spacing: 0.08em; text-transform: uppercase;
+  color: #e6ebf1; background: rgba(12, 16, 24, 0.82); border: 1px solid #3a4456; padding: 5px 9px; pointer-events: none; }
+.mode { left: 10px; top: 10px; }
+.meter { right: 10px; top: 10px; font: 500 11px var(--mono); letter-spacing: 0; text-transform: none; }
+.hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+/* the cockpit's screen wall, for the pilot's-eye climb: pillars at the edges only, nothing within 40 deg of ahead */
+.cockpit { position: absolute; inset: 0; pointer-events: none; }
+.cockpit[hidden] { display: none !important; }
+.cockpit .pillar { position: absolute; top: 0; bottom: 0; width: 6.5%; background: linear-gradient(90deg, #07090c, #1b2028 60%, #2a313b); }
+.cockpit .pillar.l { left: 0; } .cockpit .pillar.r { right: 0; transform: scaleX(-1); }
+.cockpit .brow { position: absolute; left: 0; right: 0; top: 0; height: 5%; background: linear-gradient(#07090c, #20262f); }
+.cockpit .dash { position: absolute; left: 0; right: 0; bottom: 0; height: 17%; background: linear-gradient(#1f252e, #0b0e12);
+  border-top: 2px solid #343c48; display: flex; justify-content: center; gap: 1.2%; padding: 0.8% 8%; }
+.mfd { flex: 1; max-width: 230px; background: #050a07; border: 2px solid #3a4250; border-radius: 3px; color: #8cff3a;
+  font: 500 clamp(8px, 1.05vw, 13px)/1.3 var(--mono); padding: 0.5% 0.8%; overflow: hidden; }
+.mfd b { color: #d7ffb8; font-weight: 500; }
+.mfd .warn { color: #ffb36b; }
+.mfd .barv { height: 6px; background: #12301a; margin: 2px 0; } .mfd .barv i { display: block; height: 100%; background: #8cff3a; }
+.hudtxt { position: absolute; left: 50%; top: 7%; transform: translateX(-50%); font: 500 clamp(9px, 1.1vw, 13px) var(--mono); color: #8cff3a;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.9); white-space: nowrap; }
+.lockbox { position: absolute; border: 2px solid #8cff3a; transform: translate(-50%, -50%); pointer-events: none; }
+.lockbox span { position: absolute; left: 100%; top: -2px; margin-left: 4px; font: 500 11px var(--mono); color: #8cff3a; white-space: nowrap; text-shadow: 0 0 3px #000; }
+aside { display: grid; gap: 12px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.card h2 { font: 700 22px/1 var(--display); letter-spacing: 0.05em; text-transform: uppercase; margin: 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.card h2 small { font: 500 11px var(--mono); color: var(--warn); letter-spacing: 0.08em; text-transform: uppercase; }
+.pill { font: 700 13px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 8px; border-radius: 3px; border: 1px solid var(--accent); color: var(--accent); background: var(--accent-soft); }
+.pill.bad { border-color: var(--bad); color: var(--bad); background: var(--bad-soft); }
+.sides { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.side { display: grid; gap: 5px; align-content: start; }
+.side h3 { margin: 0; font: 500 12px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.liftbar { height: 10px; background: var(--edge); border-radius: 2px; overflow: hidden; }
+.liftbar i { display: block; height: 100%; background: var(--accent); }
+.liftbar.bad i { background: var(--bad); }
+.thr { display: grid; grid-template-columns: 1fr; gap: 4px; }
+.thr button { display: flex; justify-content: space-between; gap: 6px; font-size: 13px; padding: 6px 8px; min-height: 32px; }
+.thr button span { font: 500 11px var(--mono); letter-spacing: 0; text-transform: none; color: var(--muted); }
+.thr button.dead { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); }
+.thr button.hot span { color: var(--warn); }
+.kv { display: grid; grid-template-columns: 11ch minmax(0, 1fr); gap: 2px 10px; font-size: 13px; margin: 0; }
+.kv dt { color: var(--muted); font-family: var(--mono); font-size: 12px; padding-top: 1px; }
+.kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.presets button { font-size: 12px; padding: 6px 8px; min-height: 32px; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: left; padding: 4px 6px 4px 0; border-bottom: 1px solid var(--edge); vertical-align: top; }
+th { font: 500 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; }
+.note { font-size: 13px; color: var(--muted); margin: 0; }
+.foot { max-width: 1440px; margin: 16px auto 0; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+.foot code { font: 12px var(--mono); overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<header>
+  <div class="eyebrow">Crab Breeze · enemy design review · defence wave 3 · block-out</div>
+  <h1>The Hermit air fortress</h1>
+  <p class="lede">A 420 m crab-shell carrier hanging 600 m over the city on eight lift thrusters. It launches fighters off its bow, drops crab mechs from its belly on parachutes, and guards its deck with crab mechs of its own. To bring it down you fly up, land on it, and destroy its thrusters: a side left with one cannot hold its half, and the fortress rolls over and falls. Click a thruster, or use the lift board, to try it.</p>
+</header>
+
+<div class="wrap">
+  <section>
+    <div class="bar" role="group" aria-label="View">
+      <span class="lbl">View</span>
+      <button data-view="orbit">Orbit</button>
+      <button data-view="under">Underside</button>
+      <button data-view="deck">Deck</button>
+      <button data-view="pylon">Pylon</button>
+      <button data-view="climb">Climb (pilot's eye)</button>
+    </div>
+    <div class="bar" role="group" aria-label="Show">
+      <span class="lbl">Show</span>
+      <button data-toggle="labels" aria-pressed="true">Labels</button>
+      <button data-toggle="ranges" aria-pressed="false">Gun ranges</button>
+      <span class="lbl" style="margin-left:8px">Time</span>
+      <button data-speed="1" aria-pressed="true">x1</button>
+      <button data-speed="4">x4</button>
+      <button data-speed="0">Pause</button>
+    </div>
+    <div class="stage">
+      <canvas id="view" tabindex="0" aria-label="3D view of the crab air fortress"></canvas>
+      <div id="tags"></div>
+      <div class="cockpit" id="cockpit" hidden>
+        <div class="brow"></div><div class="pillar l"></div><div class="pillar r"></div>
+        <div class="hudtxt" id="hudtxt"></div>
+        <div class="lockbox" id="lockbox" hidden><span id="locktxt"></span></div>
+        <div class="dash">
+          <div class="mfd" id="mfdJet"></div>
+          <div class="mfd" id="mfdTgt"></div>
+          <div class="mfd" id="mfdLift"></div>
+        </div>
+      </div>
+      <div class="mode" id="mode">Orbit</div>
+      <div class="meter" id="meter"></div>
+    </div>
+    <p class="hint" id="hint">Drag to orbit, scroll or pinch to zoom, right drag to pan. Click a lift thruster to destroy it.</p>
+  </section>
+  <aside>
+    <div class="card">
+      <h2>Lift board <small>the design's lift rule, live</small> <span class="pill" id="state">Holding</span></h2>
+      <div class="sides">
+        <div class="side"><h3>Left (port) side</h3><div class="liftbar" id="barL"><i></i></div><div class="thr" id="thrL"></div></div>
+        <div class="side"><h3>Right (starboard) side</h3><div class="liftbar" id="barR"><i></i></div><div class="thr" id="thrR"></div></div>
+      </div>
+      <dl class="kv">
+        <dt>Altitude</dt><dd id="alt"></dd>
+        <dt>Sink</dt><dd id="sink"></dd>
+        <dt>List</dt><dd id="list"></dd>
+        <dt>Rule</dt><dd>Each side carries half the weight (294 MN); one thruster carries a quarter at most. A side down to one thruster cannot hold: it falls.</dd>
+      </dl>
+      <div class="presets">
+        <button data-preset="one-side">3 on one side</button>
+        <button data-preset="two-a-side">2 a side</button>
+        <button data-preset="spread">5 spread</button>
+        <button data-preset="reset">Reset</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>What defends it</h2>
+      <div class="tbl"><table>
+        <thead><tr><th>Defence</th><th>Range</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td>10 flak turrets</td><td class="n">1 800 m</td><td>Twin 105 mm airbursts on the rim and shoulders; the whole climb is under them</td></tr>
+          <tr><td>4 beam turrets</td><td class="n">900 m</td><td>Under the belly by the thrusters; 1.5 s charge you can see, then 3 s at 10 damage/s</td></tr>
+          <tr><td>8 deck guns</td><td class="n">600 m</td><td>30 mm gatlings on the deck edges and pylon roots</td></tr>
+          <tr><td>2 missile batteries</td><td class="n">2 500 m</td><td>Lock-on missiles from the aft deck, one every 5 s</td></tr>
+          <tr><td>Fighters</td><td class="n">24 aboard</td><td>One off a bow catapult every 20 s, up to 8 in the air</td></tr>
+          <tr><td>Dropped crabs</td><td class="n">12 aboard</td><td>Mites and Scuttlers, a pair on chutes every 45 s</td></tr>
+          <tr><td>Deck guard</td><td class="n">6 + 8</td><td>2 Shrikes and 4 Mites on deck; a Mite up each hangar lift every 60 s</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <h2>Taking it down</h2>
+      <ol>
+        <li>Climb on the jets: 600 m takes about 11 s of your 20 s burn. Stay out of the downwash under each thruster.</li>
+        <li>Land on the deck, a shoulder or a pylon walkway to recharge (8 s). The deck guard comes for you.</li>
+        <li>Walk out along a pylon and shoot down into the thruster's intake grille: 40 mm and double damage, where the 140 mm cowl stops your autocannon.</li>
+        <li>Three thrusters on one side and it rolls toward them and sinks. Jump clear before the deck tilts past 20 degrees.</li>
+        <li>Stop its two drive thrusters first if you want it to fall where it is, and not on the city.</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h2>Scale</h2>
+      <dl class="kv" id="scale"></dl>
+      <p class="note">Every crab and the Foreman are the real block-outs, sized by their manifests. The fortress is primitives: it gets its Blender model once this shape is chosen.</p>
+    </div>
+  </aside>
+</div>
+
+<div class="foot">
+  <div>Design: <code>openspec/changes/crab-airship</code> (lift rule section 2, parts section 3, defences section 4). Page: <code>tools/mockups/gen_crab_fortress.py</code> from <code>tools/mockups/crab_fortress_src.html</code>; crabs from <code>tools/blender/build_mech_blockouts.py</code>.</div>
+  <div>The fortress holds still here; in the game it drifts at 15 m/s on a 2.4 km racetrack over the city.</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/utils/BufferGeometryUtils.js"></script>
+<script>
+const MODELS = __MODELS__;
+const T = THREE, TAU = Math.PI * 2, DEG = Math.PI / 180;
+const ease = x => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+const lerp = (a, b, u) => a + (b - a) * u;
+function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+// three r147 reads a hex colour as linear; every colour on this page is written in sRGB, so it goes through lin()
+const lin = hex => new T.Color(hex).convertSRGBToLinear();
+
+// ---- The design's numbers (openspec/changes/crab-airship/design.md) ----
+const ALT = 600;                          // m, hull centre over the city it attacks
+const W = 60000e3 * 9.81;                 // N, 60 000 t
+const TMAX = W / 4, G = 9.81, K = 0.008;  // a thruster's most; sink drag per metre
+const LIST_DEG = 100, ROLL_RATE = 4;      // deg per weight of imbalance; deg/s
+const JET = { thrust: 56, climb: 60, burn: 20 };
+
+// The lift rule (design section 2): each side carries W/2, a thruster at most W/4.
+function liftOf(alive) {
+  const n = [0, 1].map(s => alive.slice(s * 4, s * 4 + 4).filter(Boolean).length);
+  const L = n.map(k => Math.min(k * TMAX, W / 2));
+  const thr = n.map(k => (k ? Math.min(1, (W / 2) / (k * TMAX)) : 0));
+  return { n, L, thr, falls: n[0] < 2 || n[1] < 2 };
+}
+
+// ---- Renderer, scene, light ----
+const canvas = document.getElementById("view");
+const renderer = new T.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true, logarithmicDepthBuffer: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.outputEncoding = T.sRGBEncoding;
+renderer.toneMapping = T.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = T.PCFSoftShadowMap;
+const scene = new T.Scene();
+const HAZE = lin(0xc9d3dc);   // the sky's horizon colour, so far ground fades into it
+scene.fog = new T.Fog(HAZE, 3000, 12000);
+const camera = new T.PerspectiveCamera(42, 1.6, 0.5, 40000);
+const controls = new T.OrbitControls(camera, canvas);
+controls.enableDamping = true;
+Object.assign(controls, { minDistance: 10, maxDistance: 6000 });
+
+// late afternoon: a warm low sun, a pale blue sky, haze on the ground
+const sky = (() => {
+  const g = new T.SphereGeometry(30000, 32, 16), col = [], c = new T.Color();
+  const zen = lin(0x3d6b9e), hor = lin(0xc9d3dc), low = lin(0xc9d3dc);
+  for (let i = 0; i < g.attributes.position.count; i++) { const y = g.attributes.position.getY(i) / 30000;
+    if (y > 0) c.copy(hor).lerp(zen, Math.pow(y, 0.55)); else c.copy(hor).lerp(low, Math.min(1, -y * 40)); col.push(c.r, c.g, c.b); }
+  g.setAttribute("color", new T.Float32BufferAttribute(col, 3));
+  const m = new T.Mesh(g, new T.MeshBasicMaterial({ vertexColors: true, side: T.BackSide, fog: false, depthWrite: false }));
+  m.renderOrder = -1; scene.add(m); return m;
+})();
+scene.add(new T.HemisphereLight(0xbfd4ee, 0x4a4438, 0.7));
+const sun = new T.DirectionalLight(0xffe0bc, 2.4);
+sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -340, right: 340, top: 340, bottom: -340, near: 10, far: 1600 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.6;
+scene.add(sun, sun.target);
+const SUN_DIR = new T.Vector3(-0.55, 0.62, 0.56).normalize();
+scene.environment = (() => {
+  const es = new T.Scene(), g = new T.SphereGeometry(50, 32, 16), col = [], c = new T.Color();
+  const top = lin(0x6f94c0), mid = lin(0xd6dde4), low = lin(0x4c4840);
+  for (let i = 0; i < g.attributes.position.count; i++) { const y = g.attributes.position.getY(i) / 50;
+    if (y > 0) c.copy(mid).lerp(top, Math.min(1, y * 1.4)); else c.copy(mid).lerp(low, Math.min(1, -y * 4)); col.push(c.r, c.g, c.b); }
+  g.setAttribute("color", new T.Float32BufferAttribute(col, 3));
+  es.add(new T.Mesh(g, new T.MeshBasicMaterial({ vertexColors: true, side: T.BackSide })));
+  return new T.PMREMGenerator(renderer).fromScene(es, 0.04).texture;
+})();
+
+// ---- Materials: the invaders' palette (build_alien_mechs.py: acid green glows, violet cores and livery) ----
+const std = (color, rough, metal, extra) => { const m = new T.MeshStandardMaterial(Object.assign({ color, roughness: rough, metalness: metal, flatShading: true }, extra || {}));
+  m.color.convertSRGBToLinear(); m.emissive.convertSRGBToLinear(); return m; };
+const M = {
+  hull: std(0x7f8aa6, 0.55, 0.55), hull2: std(0x5d6a8e, 0.6, 0.5), dark: std(0x24222b, 0.7, 0.45), metal: std(0xa9aeb5, 0.3, 0.9),
+  mark: std(0x8a3ad8, 0.5, 0.3), glow: std(0x0c1a06, 0.3, 0.2, { emissive: 0x8cff3a, emissiveIntensity: 2.2 }),
+  core: std(0x150822, 0.3, 0.3, { emissive: 0xb45cff, emissiveIntensity: 2.0 }), scorch: std(0x16130f, 0.95, 0.2),
+  canopy: new T.MeshStandardMaterial({ color: lin(0xd9d2e6), roughness: 0.8, side: T.DoubleSide }),
+};
+function canvasTex(w, h, draw) { const c = document.createElement("canvas"); c.width = w; c.height = h; draw(c.getContext("2d"), w, h);
+  const t = new T.CanvasTexture(c); t.encoding = T.sRGBEncoding; t.anisotropy = 8; return t; }
+const hazardTex = canvasTex(256, 32, (g, w, h) => { g.fillStyle = "#16121c"; g.fillRect(0, 0, w, h); g.fillStyle = "#c9a6ff";
+  for (let x = -h; x < w + h; x += 32) { g.beginPath(); g.moveTo(x, h); g.lineTo(x + 16, h); g.lineTo(x + 16 + h, 0); g.lineTo(x + h, 0); g.fill(); } });
+hazardTex.wrapS = T.RepeatWrapping;
+M.hazard = new T.MeshStandardMaterial({ map: hazardTex, roughness: 0.6, metalness: 0.3 });
+// the flight deck: catapult tracks, the centre line, lift outlines and the invaders' glyphs (a block-out's markings)
+const deckTex = canvasTex(256, 1152, (g, w, h) => {
+  const sx = w / 80, sz = h / 362, X = x => (x + 40) * sx, Z = z => (z + 181) * sz;   // BoxGeometry's top face: u along +x, v = 1 at the stern
+  g.fillStyle = "#2b2a31"; g.fillRect(0, 0, w, h);
+  const r = rng(7); for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(${r() < 0.5 ? "255,255,255" : "0,0,0"},${0.025 + r() * 0.03})`; g.fillRect(r() * w, r() * h, 2 + r() * 12, 2 + r() * 30); }
+  g.strokeStyle = "#3b3a44"; g.lineWidth = 1; for (let z = -180; z < 181; z += 12) { g.beginPath(); g.moveTo(0, Z(z)); g.lineTo(w, Z(z)); g.stroke(); }
+  g.fillStyle = "#e9e6dc"; for (let z = -170; z < 50; z += 14) g.fillRect(X(-0.4), Z(z + 7), 0.8 * sx, 7 * sz);
+  g.fillStyle = "#d8b13a"; g.fillRect(X(-39), 0, 0.8 * sx, h); g.fillRect(X(38.2), 0, 0.8 * sx, h);
+  [-20, 20].forEach(x => { g.fillStyle = "#e9e6dc"; g.fillRect(X(x - 3), Z(178), 0.6 * sx, 118 * sz); g.fillRect(X(x + 2.4), Z(178), 0.6 * sx, 118 * sz); });
+  [-22, 22].forEach(x => { g.strokeStyle = "#c9a6ff"; g.lineWidth = 3; g.strokeRect(X(x - 12), Z(-5), 24 * sx, 30 * sz); });
+  g.fillStyle = "rgba(138,58,216,0.35)";   // the invaders' glyphs: blocky marks, read by nobody on our side
+  const gr = rng(11); for (let i = 0; i < 3; i++) for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) if (gr() < 0.55) g.fillRect(X(-8 + a * 4), Z(-96 - i * 22 - b * 4), 3.4 * sx, 3.4 * sz);
+});
+M.deck = new T.MeshStandardMaterial({ map: deckTex, roughness: 0.8, metalness: 0.25 });
+const smokeTex = canvasTex(64, 64, (g, w) => { const gr = g.createRadialGradient(32, 32, 2, 32, 32, 31);
+  gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.5, "rgba(255,255,255,0.55)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, w, w); });
+smokeTex.encoding = T.LinearEncoding;
+
+const add = (parent, geo, mat, x = 0, y = 0, z = 0, shadow = true) => { const m = new T.Mesh(geo, mat); m.position.set(x, y, z);
+  if (shadow) { m.castShadow = true; m.receiveShadow = true; } parent.add(m); return m; };
+const box = (w, h, d) => new T.BoxGeometry(w, h, d);
+const cyl = (rt, rb, h, n = 16, open = false) => new T.CylinderGeometry(rt, rb, h, n, 1, open);
+
+// ---- The ground: farmland, a city under the fortress, haze ----
+// the ground ends past the fog's far distance, so its edge is never seen; the sky below the horizon is the haze
+const ground = add(scene, new T.PlaneGeometry(28000, 28000), std(0x5a6a48, 1, 0, { flatShading: false, envMapIntensity: 0.15 }), 0, 0, 0, false);
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
+const cityPad = add(scene, new T.PlaneGeometry(3400, 3400), std(0x55565a, 1, 0, { flatShading: false, envMapIntensity: 0.15 }), 0, 0.5, 0, false);
+cityPad.rotation.x = -Math.PI / 2;
+const city = (() => {
+  const r = rng(42), spots = [];
+  for (let i = -26; i <= 26; i++) for (let j = -26; j <= 26; j++) {
+    if (i % 4 === 0 || j % 5 === 0) continue;           // streets
+    const x = i * 62, z = j * 62, d = Math.hypot(x, z) / 1600;
+    if (d > 1 || r() < 0.25) continue;
+    const tall = r() < 0.06 * (1 - d) ? 60 + r() * 150 : 8 + r() * 26 * (1.2 - d);
+    spots.push([x + (r() - 0.5) * 10, z + (r() - 0.5) * 10, 26 + r() * 24, tall, 26 + r() * 24]);
+  }
+  const im = new T.InstancedMesh(box(1, 1, 1), std(0xffffff, 0.85, 0.1), spots.length), mat = new T.Matrix4(), c = new T.Color();
+  spots.forEach((s, k) => { mat.compose(new T.Vector3(s[0], s[3] / 2, s[1]), new T.Quaternion(), new T.Vector3(s[2], s[3], s[4])); im.setMatrixAt(k, mat);
+    c.setHSL(0.08 + r() * 0.06, 0.1, 0.4 + r() * 0.3).convertSRGBToLinear(); im.setColorAt(k, c); });
+  im.castShadow = true; im.receiveShadow = true; scene.add(im);
+  return { im, spots };
+})();
+// clouds at the fortress's own height: it sits in the cloud base
+const clouds = (() => {
+  const r = rng(9), geos = [], ico = new T.IcosahedronGeometry(1, 1);
+  for (let i = 0; i < 46; i++) {   // the cloud base sits just under the fortress
+    const a = r() * TAU, d = 900 + r() * 7000, cx = Math.cos(a) * d, cz = Math.sin(a) * d, cy = 430 + r() * 140, s = 60 + r() * 110;
+    for (let k = 0; k < 6; k++) { const g = ico.clone(); const sc = s * (0.5 + r() * 0.6);
+      g.scale(sc * 1.4, sc * 0.75, sc * 1.2); g.translate(cx + (r() - 0.5) * s * 2.4, cy + r() * s * 0.5, cz + (r() - 0.5) * s * 2.2); geos.push(g); }
+  }
+  const m = new T.Mesh(T.BufferGeometryUtils.mergeBufferGeometries(geos), new T.MeshLambertMaterial({ color: lin(0xe8ecf0), transparent: true, opacity: 0.82, flatShading: true }));
+  scene.add(m); return m;
+})();
+
+// ---- The fortress (design section 1): +Z forward, +X its own left, origin at the hull's middle ----
+const F = new T.Group(); F.position.set(0, ALT, 0); scene.add(F);
+const hullEdgeX = z => 140 * Math.sqrt(Math.max(0, 1 - (z / 210) ** 2));
+const parts = [];                                      // every lockable part: { id, kind, obj, label }
+const part = (id, kind, obj, label) => { const p = { id, kind, obj, label: label || null }; parts.push(p); return p; };
+(() => {
+  const shell = add(F, new T.SphereGeometry(1, 28, 14, 0, TAU, 0, Math.PI / 2), M.hull); shell.scale.set(140, 45, 210);
+  const under = add(F, new T.SphereGeometry(1, 28, 10, 0, TAU, Math.PI / 2, Math.PI / 2), M.hull2); under.scale.set(140, 34, 210);
+  const belly = add(F, new T.SphereGeometry(1, 20, 10), M.hull2, 0, -30, -10); belly.scale.set(92, 28, 150);
+  // the abdomen's segment ribs, a crab's folded tail plate
+  for (let k = -3; k <= 3; k++) { const rib = add(F, new T.TorusGeometry(1, 0.06, 4, 24), M.dark, 0, -34, -10 + k * 34); rib.scale.set(86 * Math.sqrt(1 - (k / 4.4) ** 2), 26, 1); }
+  const band = add(F, cyl(1, 1, 1, 40, true), M.mark); band.scale.set(141.5, 7, 211.5);
+  const band2 = add(F, cyl(1, 1, 1, 40, true), M.dark, 0, -6, 0); band2.scale.set(140.8, 3, 210.8);
+  add(F, box(90, 30, 360), M.hull2, 0, 33, 0);       // the spine under the deck
+  const deck = add(F, box(80, 2, 362), [M.dark, M.dark, M.deck, M.dark, M.hazard, M.hazard], 0, 48, 0);
+  [-1, 1].forEach(s => {
+    add(F, box(40, 32, 240), M.hull, 67 * s, 26, 0);  // the shoulders, 8 m below the deck
+    add(F, box(40.4, 0.6, 240.4), M.dark, 67 * s, 42.3, 0);
+    add(F, box(1.2, 2.4, 240), M.hazard, 87 * s, 43.6, 0);
+    // carapace ridges: the shell's crab plates
+    for (let k = -2; k <= 2; k++) { const rg = add(F, box(6, 10, 80), M.hull2, 112 * s, 18, k * 70); rg.rotation.z = -0.35 * s; rg.scale.z = Math.sqrt(1 - (k / 3.2) ** 2); }
+  });
+  // the bridge: the crab's eyes on stalks at the bow
+  const bridge = new T.Group(); bridge.position.set(0, 49, 150); F.add(bridge);
+  add(bridge, box(34, 20, 26), M.hull2, 0, 10, 0); add(bridge, box(36, 3, 28), M.dark, 0, 21.5, 0);
+  add(bridge, box(30, 3, 0.6), M.glow, 0, 14, 13.3, false);
+  [-1, 1].forEach(s => { const st = add(bridge, cyl(2.2, 3, 30, 10), M.metal, 9 * s, 34, 4); st.rotation.z = -0.18 * s;
+    const eye = add(bridge, new T.SphereGeometry(5, 16, 10), M.dark, 11.7 * s, 50, 4); add(eye, new T.SphereGeometry(3.4, 16, 10), M.glow, 0, 0, 3.2, false); });
+  part("bridge", "bridge", bridge, "Bridge: its eyes");
+  // the stern: two drive thrusters
+  [-1, 1].forEach((s, i) => { const d = new T.Group(); d.position.set(48 * s, 4, -200); F.add(d);
+    const n = add(d, cyl(10, 12, 34, 18), M.dark); n.rotation.x = Math.PI / 2;
+    const r = add(d, cyl(9, 9, 1, 18), M.glow, 0, 0, -17.2, false); r.rotation.x = Math.PI / 2;
+    const pl = add(d, new T.ConeGeometry(8, 40, 16, 1, true), plumeMat(0xb45cff), 0, 0, -38, false); pl.rotation.x = -Math.PI / 2;
+    part("drive" + (i + 1), "drive", d, i === 0 ? "Drive thrusters" : null); });
+})();
+function plumeMat(color) { return new T.MeshBasicMaterial({ color: lin(color), transparent: true, opacity: 0.35, depthWrite: false, side: T.DoubleSide }); }
+
+// the eight lift thrusters on their leg pylons (design section 1): L = +X, front to back L1..L4
+const THR = [];
+const THR_Z = [125, 45, -40, -125];
+[1, -1].forEach((s, si) => THR_Z.forEach((z, k) => {
+  const id = (si === 0 ? "L" : "R") + (k + 1), xe = hullEdgeX(z);
+  const root = new T.Vector3((xe - 8) * s, 2, z), knee = new T.Vector3((xe + 36) * s, 8, z), top = new T.Vector3((xe + 46) * s, -30, z);
+  const beam = (a, b, w, h, mat) => { const d = b.clone().sub(a), m = add(F, box(w, h, d.length()), mat);
+    m.position.copy(a).addScaledVector(d, 0.5); m.lookAt(F.localToWorld(b.clone())); return m; };
+  F.updateMatrixWorld(true);
+  beam(root, knee, 14, 5, M.hull2);                                   // the walkway (landable, 14 m wide)
+  beam(root.clone().add(new T.Vector3(0, 2.8, 6.6)), knee.clone().add(new T.Vector3(0, 2.8, 6.6)), 0.8, 1.2, M.hazard);
+  beam(root.clone().add(new T.Vector3(0, 2.8, -6.6)), knee.clone().add(new T.Vector3(0, 2.8, -6.6)), 0.8, 1.2, M.hazard);
+  beam(knee, top, 9, 7, M.dark); beam(knee.clone().add(new T.Vector3(0, 0, 0)), top.clone().add(new T.Vector3(-14 * s, 0, 0)), 3, 3, M.metal);
+  add(F, new T.SphereGeometry(7, 12, 8), M.metal, knee.x, knee.y, knee.z);
+  const g = new T.Group(); g.position.set(top.x, top.y - 20, z); F.add(g);
+  const cowl = add(g, cyl(15, 13, 40, 20), M.hull); cowl.userData.thruster = id;
+  add(g, cyl(15.6, 15.6, 3, 20), M.mark, 0, 12, 0);
+  add(g, cyl(13.4, 13.4, 0.6, 20), M.dark, 0, 20.1, 0);              // the intake grille
+  for (let b = -2; b <= 2; b++) add(g, box(26 * Math.sqrt(1 - (b / 2.6) ** 2), 0.8, 1), M.metal, 0, 20.6, b * 4.6);
+  const ring = add(g, new T.TorusGeometry(12.2, 1.2, 8, 24), M.glow, 0, -20.2, 0, false); ring.rotation.x = Math.PI / 2;
+  const plume = add(g, new T.ConeGeometry(11, 46, 20, 1, true), plumeMat(0x6cdc2a), 0, -43, 0, false); plume.rotation.x = Math.PI;
+  const wash = add(g, cyl(15, 30, 150, 24, true), new T.MeshBasicMaterial({ color: lin(0xcfe8ff), transparent: true, opacity: 0.07, depthWrite: false, side: T.DoubleSide }), 0, -95, 0, false);
+  const fire = new T.Group(); g.add(fire); fire.visible = false;
+  THR.push({ id, side: si, s, g, cowl, ring, plume, wash, fire, walkEnd: knee.clone() });
+  part(id, "lift", g, "Lift " + id);
+}));
+
+// turrets (design section 4): flak on the shoulders, beams under the belly, deck guns, missile batteries
+const TURRETS = [];
+function flak(x, y, z, label) { const b = new T.Group(); b.position.set(x, y, z); F.add(b);
+  add(b, cyl(5, 6, 3, 14), M.dark, 0, 1.5, 0); const yaw = new T.Group(); yaw.position.y = 3; b.add(yaw);
+  add(yaw, box(8, 4.5, 9), M.hull2, 0, 2.2, 0); const pitch = new T.Group(); pitch.position.set(0, 2.8, 2); yaw.add(pitch);
+  [-1.4, 1.4].forEach(dx => { const br = add(pitch, cyl(0.45, 0.55, 11, 8), M.metal, dx, 0, 5.5); br.rotation.x = Math.PI / 2; });
+  TURRETS.push({ kind: "flak", yaw, pitch, base: b }); part("flak" + TURRETS.length, "flak", b, label); }
+[90, 20, -50, -110].forEach((z, k) => [1, -1].forEach(s => flak(80 * s, 42.6, z, k === 0 && s === 1 ? "Flak turret (10)" : null)));
+[1, -1].forEach(s => flak(28 * s, 49, 172));
+function beamT(x, z, label) { const b = new T.Group(); b.position.set(x, -30, z); F.add(b);
+  add(b, cyl(3, 4, 8, 10), M.dark, 0, -2, 0); const yaw = new T.Group(); yaw.position.y = -9; b.add(yaw);
+  add(yaw, new T.SphereGeometry(6, 14, 10), M.hull2); const pitch = new T.Group(); yaw.add(pitch);
+  const lens = add(pitch, cyl(2.6, 3.4, 4, 14), M.core, 0, 0, 6); lens.rotation.x = Math.PI / 2;
+  TURRETS.push({ kind: "beam", yaw, pitch, base: b, lens }); part("beam" + TURRETS.length, "beam", b, label); }
+[[80, 85], [-80, 85], [80, -85], [-80, -85]].forEach(([x, z], k) => beamT(x, z, k === 0 ? "Beam turret (4)" : null));
+function deckGun(x, y, z, label) { const b = new T.Group(); b.position.set(x, y, z); F.add(b);
+  add(b, cyl(2.4, 2.8, 2, 10), M.dark, 0, 1, 0); const yaw = new T.Group(); yaw.position.y = 2; b.add(yaw);
+  add(yaw, new T.SphereGeometry(2.2, 10, 8), M.hull2, 0, 1.4, 0); const pitch = new T.Group(); pitch.position.y = 1.6; yaw.add(pitch);
+  const br = add(pitch, cyl(0.5, 0.5, 6, 8), M.metal, 0, 0, 3.4); br.rotation.x = Math.PI / 2;
+  TURRETS.push({ kind: "gun", yaw, pitch, base: b }); part("gun" + TURRETS.length, "gun", b, label); }
+[110, 10, -90, -160].forEach((z, k) => [1, -1].forEach(s => deckGun(37 * s, 49, z, k === 1 && s === -1 ? "Deck gun (8)" : null)));
+[1, -1].forEach((s, i) => { const b = new T.Group(); b.position.set(20 * s, 49, -150); F.add(b);
+  add(b, box(12, 4, 16), M.hull2, 0, 2, 0);
+  for (let a = 0; a < 3; a++) for (let c = 0; c < 4; c++) add(b, box(2.4, 0.3, 2.4), M.core, -3.4 + a * 3.4, 4.1, -5.4 + c * 3.6, false);
+  part("vls" + (i + 1), "vls", b, i === 0 ? "Missile batteries" : null); });
+// catapults and hangar lifts
+const CATS = [1, -1].map((s, i) => { const b = new T.Group(); b.position.set(20 * s, 49, 0); F.add(b);
+  add(b, box(1.4, 0.4, 116), M.glow, 0, 0.2, 119, false);
+  const shuttle = add(b, box(4, 1.2, 6), M.metal, 0, 0.6, 64);
+  part("cat" + (i + 1), "cat", b, i === 0 ? "Catapults" : null); return { s, b, shuttle }; });
+[1, -1].forEach((s, i) => { const b = new T.Group(); b.position.set(22 * s, 49, 10); F.add(b);
+  add(b, box(24, 0.5, 30), M.hull2, 0, 0.25, 0);
+  part("lift" + (i + 1), "hlift", b, i === 0 ? "Hangar lifts" : null); });
+// the drop bays in the belly
+const BAYS = [40, -60].map((z, i) => { const b = new T.Group(); b.position.set(0, -56, z); F.add(b);
+  add(b, box(42, 12, 52), M.dark, 0, 0, 0);
+  const doors = [-1, 1].map(s => { const h = new T.Group(); h.position.set(15 * s, -6.4, 0); b.add(h);
+    add(h, box(15, 1.2, 40), M.hull, -7.5 * s, -0.6, 0); return h; });
+  add(b, box(30.2, 0.4, 40.2), M.core, 0, -6.1, 0, false);
+  part("bay" + (i + 1), "bay", b, i === 0 ? "Drop bays" : null); return { b, doors }; });
+
+// gun ranges (design section 4): flak 1 800 m, beams 900 m, deck guns 600 m
+const ranges = new T.Group(); F.add(ranges); ranges.visible = false;
+[[1800, 0xffb36b], [900, 0xb45cff], [600, 0x8cff3a]].forEach(([r, c]) => {
+  ranges.add(new T.Mesh(new T.SphereGeometry(r, 36, 18), new T.MeshBasicMaterial({ color: c, wireframe: true, transparent: true, opacity: 0.12, depthWrite: false, fog: false }))); });
+
+// ---- The block-outs: crabs and the Foreman, merged per limb and material so a crab is a few draws ----
+const loader = new T.GLTFLoader();
+const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0)).buffer;
+function mergeUnder(node, space, skip) {
+  const inv = new T.Matrix4().copy(space.matrixWorld).invert(), byMat = new Map();
+  node.traverse(o => {
+    if (!o.isMesh) return;
+    for (let p = o; p && p !== node; p = p.parent) if (skip(p)) return;
+    let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    for (const k of Object.keys(g.attributes)) if (k !== "position" && k !== "normal") g.deleteAttribute(k);
+    g.applyMatrix4(new T.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+    const m = Array.isArray(o.material) ? o.material[0] : o.material;
+    if (!byMat.has(m)) byMat.set(m, []); byMat.get(m).push(g);
+  });
+  const out = [];
+  byMat.forEach((gs, m) => { const mm = m.clone(); mm.flatShading = true; mm.needsUpdate = true;
+    const mesh = new T.Mesh(T.BufferGeometryUtils.mergeBufferGeometries(gs), mm); mesh.castShadow = mesh.receiveShadow = true; out.push(mesh); });
+  return out;
+}
+function prep(id) {
+  return new Promise((ok, no) => loader.parse(b64(MODELS[id].glb), "", gltf => {
+    const root = gltf.scene; root.updateMatrixWorld(true);
+    const isLimb = o => /^(LEG_\d[LR]|ARM_[LR])$/.test(o.name);
+    const out = new T.Group(); out.name = id;
+    mergeUnder(root, root, isLimb).forEach(m => out.add(m));
+    root.traverse(o => { if (!isLimb(o)) return;
+      const piv = new T.Group(); piv.name = o.name;
+      const local = new T.Matrix4().multiplyMatrices(new T.Matrix4().copy(root.matrixWorld).invert(), o.matrixWorld);
+      local.decompose(piv.position, piv.quaternion, piv.scale);
+      mergeUnder(o, o, p => p !== o && isLimb(p)).forEach(m => piv.add(m));
+      out.add(piv); });
+    // limbs nested in limbs are re-parented flat; the rig nests none in these block-outs, so order does not matter here
+    ok(out);
+  }, no));
+}
+const crab = { templates: {}, guards: [], drops: [] };
+function cloneCrab(id) { const c = crab.templates[id].clone(); c.userData.legs = c.children.filter(o => /^LEG_/.test(o.name)).map(o => ({ o, rest: o.rotation.y, ph: /R$/.test(o.name) ? Math.PI : 0, pair: +o.name[4] }));
+  c.userData.id = id; return c; }
+function scuttle(c, phase, amount) {   // a block-out's legs swing in alternating pairs as it moves (the gait itself is crab-enemies' job)
+  c.userData.legs.forEach(l => { l.o.rotation.y = l.rest + amount * 0.22 * Math.sin(phase + l.ph + l.pair * Math.PI); }); }
+
+// the pilot (1.8 m) for scale, beside the Foreman
+function pilotFigure() { const p = new T.Group(), suit = std(0x2e5ea8, 0.7, 0), skin = std(0xd8b49a, 0.8, 0);
+  [-0.13, 0.13].forEach(x => add(p, cyl(0.1, 0.07, 0.86, 8), suit, x, 0.43, 0));
+  add(p, cyl(0.24, 0.17, 0.62, 10), suit, 0, 1.18, 0); add(p, new T.SphereGeometry(0.12, 12, 8), skin, 0, 1.66, 0); return p; }
+
+// ---- Effects: flak bursts, fire and smoke, fighters, chutes ----
+const puffs = [];
+function puff(color, add_) { const m = new T.Sprite(new T.SpriteMaterial({ map: smokeTex, color: lin(color), transparent: true, depthWrite: false, blending: add_ ? T.AdditiveBlending : T.NormalBlending, fog: true }));
+  m.visible = false; scene.add(m); puffs.push(m); return m; }
+const FLAK = Array.from({ length: 40 }, () => ({ smoke: puff(0x2a2622), flash: puff(0xffa04a, true) }));
+function fighterMesh() { const f = new T.Group(), hull = std(0xc4cad6, 0.4, 0.6);
+  add(f, box(2.6, 2, 15), hull, 0, 0, 0);
+  const wing = new T.Shape(); wing.moveTo(0, 5); wing.lineTo(6.5, -4); wing.lineTo(-6.5, -4); wing.closePath();
+  const wg = add(f, new T.ExtrudeGeometry(wing, { depth: 0.5, bevelEnabled: false }), hull, 0, 0, -1); wg.rotation.x = -Math.PI / 2;
+  [-1, 1].forEach(s => { const fin = add(f, box(0.4, 3, 3), M.mark, 1.5 * s, 1.6, -5.5); fin.rotation.z = 0.3 * s; });
+  add(f, box(2.0, 1.4, 0.5), M.glow, 0, 0, -7.6, false); add(f, box(1.6, 0.8, 3), M.core, 0, 1, 4, false); return f; }
+const FIGHTERS = Array.from({ length: 7 }, () => { const f = fighterMesh(); scene.add(f); return f; });
+const LAUNCHER = fighterMesh(); scene.add(LAUNCHER);
+function chute() { const g = new T.Group(), lines = [];
+  [[-12, 0], [12, 0], [0, 14]].forEach(([x, z]) => { const c = add(g, new T.SphereGeometry(13, 16, 6, 0, TAU, 0, Math.PI / 2), M.canopy, x, 46, z, false); c.scale.y = 0.45;
+    const b = add(g, cyl(13.1, 13.1, 1.2, 16, true), M.mark, x, 46.4, z, false);
+    [0, 1, 2, 3].forEach(k => { const a = k / 4 * TAU; lines.push(x + Math.cos(a) * 12, 46, z + Math.sin(a) * 12, 0, 8, 0); }); });
+  const lg = new T.BufferGeometry(); lg.setAttribute("position", new T.Float32BufferAttribute(lines, 3));
+  g.add(new T.LineSegments(lg, new T.LineBasicMaterial({ color: 0x2a2630 }))); return g; }
+
+// ---- Simulation state: the fall is stepped at a fixed 1/30 s (design section 2) ----
+const sim = { alive: Array(8).fill(true), y: ALT, v: 0, roll: 0, crashed: false, t: 0, acc: 0 };
+let clock = 0, speed = 1, view = "orbit", climbT = 0, showLabels = true;
+const DT = 1 / 30;
+function step() {
+  const L = liftOf(sim.alive);
+  if (sim.crashed) return;
+  if (L.falls) {
+    const a = G * (L.L[0] + L.L[1]) / W - G - K * sim.v * Math.abs(sim.v);
+    sim.v += a * DT; sim.y += sim.v * DT;
+    const target = LIST_DEG * (L.L[0] - L.L[1]) / W;          // positive: the left side is stronger, so the right goes down
+    sim.roll += Math.max(-ROLL_RATE * DT, Math.min(ROLL_RATE * DT, target - sim.roll));
+    const th = Math.abs(sim.roll) * DEG, lowest = sim.y - (80 * Math.cos(th) + 190 * Math.sin(th));
+    if (lowest <= 0) crash();
+  }
+  sim.t += DT;
+}
+function crash() {
+  sim.crashed = true; sim.v = 0;
+  // it wrecks every building under its footprint and within 60 m of it (design section 6)
+  const m = new T.Matrix4(), p = new T.Vector3(), q = new T.Quaternion(), s = new T.Vector3();
+  city.spots.forEach((sp, k) => { const dx = sp[0] - F.position.x, dz = sp[1] - F.position.z;
+    if ((dx / 270) ** 2 + (dz / 270) ** 2 < 1) { city.im.getMatrixAt(k, m); m.decompose(p, q, s); s.y = 3; p.y = 1.5; m.compose(p, q, s); city.im.setMatrixAt(k, m); } });
+  city.im.instanceMatrix.needsUpdate = true;
+}
+function resetSim() { Object.assign(sim, { alive: Array(8).fill(true), y: ALT, v: 0, roll: 0, crashed: false, t: 0 });
+  city.spots.forEach((sp, k) => { const m = new T.Matrix4().compose(new T.Vector3(sp[0], sp[3] / 2, sp[1]), new T.Quaternion(), new T.Vector3(sp[2], sp[3], sp[4])); city.im.setMatrixAt(k, m); });
+  city.im.instanceMatrix.needsUpdate = true; refresh(); }
+function kill(id) { const i = THR.findIndex(t => t.id === id); if (i < 0 || sim.crashed) return; sim.alive[i] = !sim.alive[i]; refresh(); }
+
+// ---- Per-frame pose of everything ----
+const tmpV = new T.Vector3(), tmpW = new T.Vector3();
+function aimAt(tur, world) {
+  tur.base.updateWorldMatrix(true, false);
+  const local = tur.base.worldToLocal(world.clone());
+  tur.yaw.rotation.y = Math.atan2(local.x, local.z);
+  const flat = Math.hypot(local.x, local.z), dy = local.y - tur.yaw.position.y;
+  tur.pitch.rotation.x = -Math.atan2(dy, flat) * (tur.kind === "beam" ? 1 : 1);
+  if (tur.kind !== "beam") tur.pitch.rotation.x = Math.max(-1.4, Math.min(0.15, tur.pitch.rotation.x));
+}
+function pose(dt) {
+  const L = liftOf(sim.alive), falling = L.falls;
+  F.position.y = sim.y; F.rotation.z = sim.roll * DEG;
+  F.updateMatrixWorld(true);
+  sun.position.copy(F.position).addScaledVector(SUN_DIR, 800); sun.target.position.copy(F.position);
+  // thrusters: throttle from the rule; white hot at full; dead ones burn
+  const white = new T.Color(0xffffff), green = lin(0x6cdc2a);
+  THR.forEach((t, i) => {
+    const on = sim.alive[i], thr = L.thr[t.side];
+    t.plume.visible = t.wash.visible = t.ring.visible = on;
+    t.cowl.material = on ? M.hull : M.scorch; t.fire.visible = !on;
+    if (on) { const hot = Math.max(0, (thr - 0.5) / 0.5);
+      t.plume.material.color.copy(green).lerp(white, hot * 0.7); t.plume.material.opacity = 0.18 + 0.2 * thr + 0.04 * Math.sin(clock * 30 + i);
+      t.plume.scale.set(0.8 + 0.4 * thr, 0.7 + 0.6 * thr, 0.8 + 0.4 * thr); t.wash.material.opacity = 0.04 + 0.06 * thr; }
+  });
+  // bay doors open around each drop; launches and drops stop once it falls (design section 6)
+  const dropCycle = 45, dk = Math.floor(clock / dropCycle), dp = clock - dk * dropCycle;
+  BAYS.forEach((b, i) => { const open = !falling && dk % 2 === i ? ease(1 - Math.abs(dp - 3) / 3) : 0; b.doors.forEach((h, s) => { h.rotation.z = (s ? 1 : -1) * open * 1.4; }); });
+  // turrets: track the pilot when climbing, else sweep the sky
+  const aim = view === "climb" ? camera.position : null;
+  TURRETS.forEach((tu, k) => {
+    if (aim) aimAt(tu, aim);
+    else { tu.yaw.rotation.y = Math.sin(clock * 0.2 + k * 1.7) * 1.2 + k; tu.pitch.rotation.x = tu.kind === "beam" ? 0.4 + 0.3 * Math.sin(clock * 0.3 + k) : -0.4 - 0.3 * Math.sin(clock * 0.25 + k); }
+    if (tu.lens) tu.lens.material.emissiveIntensity = 1.2 + 2.4 * Math.max(0, Math.sin(clock * 0.9 + k * 2));
+  });
+  // deck guard: patrol sideways, legs swinging
+  crab.guards.forEach((c, k) => { const u = c.userData, ph = clock * TAU / u.period + k;
+    c.position.set(u.home.x + Math.sin(ph) * u.span * Math.cos(u.dir), u.home.y, u.home.z + Math.sin(ph) * u.span * Math.sin(u.dir));
+    scuttle(c, clock * 4 + k, Math.abs(Math.cos(ph))); });
+  // fighters: six on station circling at 550-800 m, one off the catapult every 20 s
+  FIGHTERS.forEach((f, k) => { const R = 700 + k * 70, w = 200 / R, a = clock * w + k * 1.05, y = 560 + (k % 3) * 90 + 25 * Math.sin(clock * 0.3 + k);
+    f.position.set(Math.cos(a) * R, y, Math.sin(a) * R); f.lookAt(Math.cos(a + 0.05) * R, y, Math.sin(a + 0.05) * R); f.rotateZ(-0.5); });
+  const lc = 20, lk = Math.floor(clock / lc), lp = clock - lk * lc, cat = CATS[((lk % 2) + 2) % 2];
+  if (!falling) {
+    const zc = lp < 2.5 ? 64 + 0.5 * 38.4 * lp * lp : 184 + 96 * (lp - 2.5) + 4 * (lp - 2.5) ** 2;
+    const yc = lp < 2.5 ? 3 : 3 + 6 * (lp - 2.5) ** 1.6;
+    cat.shuttle.position.z = lp < 2.5 ? zc : Math.max(64, 184 - (lp - 2.5) * 30);
+    LAUNCHER.visible = zc < 3200; LAUNCHER.position.copy(F.localToWorld(tmpV.set(cat.b.position.x, cat.b.position.y + yc, zc)));
+    LAUNCHER.lookAt(F.localToWorld(tmpW.set(cat.b.position.x, cat.b.position.y + yc + 0.2 * (lp > 2.5), zc + 10)));
+  } else LAUNCHER.visible = false;
+  // drops: a pair every 45 s alternating bays, each falls 2 s, then 8 m/s under three chutes (invasion-forces' rule)
+  crab.drops.forEach((d, k) => {
+    const rel = d.k * dropCycle + 3, tau = clock - rel;
+    if (d.k < 0 || tau < 0 || tau > 90) { d.c.visible = d.ch.visible = false; return; }
+    if (!d.from || d.k !== d.forK) { d.from = F.localToWorld(BAYS[d.k % 2].b.position.clone().add(new T.Vector3(d.dx, -12, 0))); d.forK = d.k; }
+    const fall = tau < 2 ? 0.5 * G * tau * tau : 19.6 + 8 * (tau - 2) + 11.6 * (1 - Math.exp(-(tau - 2)));
+    const y = Math.max(0, d.from.y - fall), sw = tau > 2 ? 0.12 * Math.sin(tau * 1.3 + k) : 0;
+    d.c.visible = true; d.c.position.set(d.from.x + (tau - 2) * 0.8 * (tau > 2), y, d.from.z); d.c.rotation.z = y > 0 ? sw : 0;
+    d.ch.visible = tau > 2 && y > 0; d.ch.position.copy(d.c.position); d.ch.rotation.z = sw; d.ch.scale.setScalar(Math.min(1, (tau - 2) / 0.6) || 0.01);
+  });
+  // flak: bursts around the fortress, more of them around the climbing pilot
+  FLAK.forEach((b, k) => { const per = 3.2, cyc = Math.floor((clock + k * 0.37) / per), u = ((clock + k * 0.37) / per) - cyc, r = rng(cyc * 977 + k * 31);
+    let p;
+    if (view === "climb" && k < 24) p = camera.position.clone().add(new T.Vector3((r() - 0.5) * 500, (r() - 0.2) * 300, (r() - 0.5) * 500));
+    else { const a = r() * TAU, d = 450 + r() * 1100; p = new T.Vector3(Math.cos(a) * d, F.position.y - 200 + r() * 500, Math.sin(a) * d); }
+    if (falling) { b.smoke.visible = b.flash.visible = false; return; }
+    b.smoke.visible = true; b.smoke.position.copy(p); b.smoke.scale.setScalar(8 + u * 26); b.smoke.material.opacity = 0.8 * (1 - u);
+    b.flash.visible = u < 0.12; b.flash.position.copy(p); b.flash.scale.setScalar(14 * (1 - u / 0.12)); });
+  // fire and smoke on dead thrusters, and over the wreck
+  THR.forEach((t, i) => { if (!t.fire.visible) return;
+    if (!t.fire.children.length) for (let k = 0; k < 10; k++) { const f = new T.Sprite(new T.SpriteMaterial({ map: smokeTex, color: lin(k < 4 ? 0xff7a2a : 0x26221f), transparent: true, depthWrite: false, blending: k < 4 ? T.AdditiveBlending : T.NormalBlending })); t.fire.add(f); }
+    t.fire.children.forEach((f, k) => { const u = ((clock * 0.4 + k / 10) % 1); f.position.set(Math.sin(k * 3) * 6, 22 + u * (k < 4 ? 20 : 120), Math.cos(k * 5) * 6);
+      f.scale.setScalar(k < 4 ? 16 * (1 - u) + 4 : 14 + u * 50); f.material.opacity = (k < 4 ? 1 : 0.7) * (1 - u); }); });
+}
+
+// ---- Views (the climb is the pilot's eye, in the cockpit, as the game is played) ----
+const VIEWS = {
+  orbit: { pos: [-540, 120, 470], tgt: [0, -20, 0], hint: "Drag to orbit, scroll or pinch to zoom, right drag to pan. Click a lift thruster to destroy it." },
+  under: { pos: [-260, -420, 380], tgt: [0, -40, 0], hint: "The belly: lift thrusters on their leg pylons, the downwash columns under them, the beam turrets and the two drop bays." },
+  deck: { pos: [-70, 96, -190], tgt: [10, 60, -40], hint: "The deck at true scale: the Foreman (24 m) and its pilot (1.8 m) against the deck guard, catapults and the bridge." },
+  pylon: { pos: [-132, 58, 78], tgt: [-183, -36, 45], hint: "Standing on pylon R2's walkway: the thruster's intake grille is below, the downwash under it. Shoot down into the grille." },
+  climb: { hint: "The climb from the pilot's eye: 20 s of jet burn, 60 m/s, flak all the way. Drag to look around." },
+};
+let look = { yaw: 0, pitch: 0 };
+function setView(v) {
+  view = v; climbT = 0; look = { yaw: 0, pitch: 0 };
+  document.querySelectorAll("[data-view]").forEach(b => b.setAttribute("aria-pressed", b.dataset.view === v));
+  document.getElementById("mode").textContent = { orbit: "Orbit", under: "Underside", deck: "Deck", pylon: "Pylon R2", climb: "Pilot's eye" }[v];
+  document.getElementById("hint").textContent = VIEWS[v].hint;
+  document.getElementById("cockpit").hidden = v !== "climb";
+  controls.enabled = v !== "climb";
+  camera.fov = v === "climb" ? 78 : 42; camera.updateProjectionMatrix();
+  if (v !== "climb") { const V = VIEWS[v]; F.updateMatrixWorld(true);
+    controls.target.copy(F.localToWorld(new T.Vector3(...V.tgt))); camera.position.copy(F.localToWorld(new T.Vector3(...V.pos))); controls.update(); }
+}
+// the climb path (design section 5): jets at 56 m/s2 to 60 m/s, straight up outside the thrusters at z = 0,
+// then in over the shoulder to land on it; burn left is 20 s minus the time the jets are lit
+const START = new T.Vector3(330, 0, 140), HOLD = new T.Vector3(255, 0, 0), SHOULDER = new T.Vector3(70, ALT + 42, 0);
+const T_TOP = 1.3 + (680 - 39) / 60, T_LAND = T_TOP + 3.4;
+function climbAt(t) {
+  let h, burnUsed;
+  if (t < 1.3) h = 0.5 * 46.2 * t * t; else h = Math.min(680, 39 + 60 * (t - 1.3));
+  const p = new T.Vector3();
+  if (t <= T_TOP) { const u = ease(t / T_TOP); p.set(lerp(START.x, HOLD.x, u), h, lerp(START.z, HOLD.z, u)); burnUsed = t; }
+  else { const u = ease(Math.min(1, (t - T_TOP) / (T_LAND - T_TOP))); p.set(lerp(HOLD.x, SHOULDER.x, u), lerp(680, SHOULDER.y + 20, u), 0); burnUsed = T_TOP + Math.min(1.6, (t - T_TOP) * 0.5); }
+  const vs = t < 1.3 ? 46.2 * t : t <= T_TOP ? 60 : t < T_LAND ? -(680 - SHOULDER.y - 20) / (T_LAND - T_TOP) : 0;
+  return { p, h: p.y, burnLeft: Math.max(0, JET.burn - burnUsed), vs, landed: t >= T_LAND };
+}
+let drag = null;
+canvas.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY, moved: 0 }; });
+canvas.addEventListener("pointermove", e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy);
+  if (view === "climb") { look.yaw -= dx * 0.004; look.pitch = Math.max(-1.2, Math.min(1.2, look.pitch - dy * 0.004)); }
+  drag.x = e.clientX; drag.y = e.clientY; });
+canvas.addEventListener("pointerup", e => { if (drag && drag.moved < 6 && view !== "climb") pick(e); drag = null; });
+const ray = new T.Raycaster();
+function pick(e) { const r = canvas.getBoundingClientRect();
+  ray.setFromCamera(new T.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+  const hit = ray.intersectObjects(THR.map(t => t.g), true)[0];
+  if (hit) { const t = THR.find(t => hit.object === t.cowl || t.g.children.includes(hit.object) || hit.object.parent === t.g); if (t) kill(t.id); } }
+
+// ---- Panels ----
+const thrBtn = {};
+["L", "R"].forEach(S => { const host = document.getElementById("thr" + S);
+  for (let k = 1; k <= 4; k++) { const id = S + k, b = document.createElement("button"); b.type = "button"; b.id = "thr-" + id;
+    b.innerHTML = `${id} <span></span>`; b.addEventListener("click", () => kill(id)); host.appendChild(b); thrBtn[id] = b; } });
+const PRESETS = { "one-side": ["R1", "R2", "R3"], "two-a-side": ["L1", "L4", "R2", "R3"], spread: ["L1", "L4", "R2", "R3", "L2"], reset: [] };
+document.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => { resetSim(); PRESETS[b.dataset.preset].forEach(kill); }));
+document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
+document.querySelectorAll("[data-speed]").forEach(b => b.addEventListener("click", () => { speed = +b.dataset.speed;
+  document.querySelectorAll("[data-speed]").forEach(x => x.setAttribute("aria-pressed", x === b)); }));
+document.querySelectorAll("[data-toggle]").forEach(b => b.addEventListener("click", () => { const on = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", on);
+  if (b.dataset.toggle === "labels") showLabels = on; else ranges.visible = on; }));
+function refresh() {
+  const L = liftOf(sim.alive);
+  THR.forEach((t, i) => { const b = thrBtn[t.id], on = sim.alive[i];
+    b.classList.toggle("dead", !on); b.classList.toggle("hot", on && L.thr[t.side] >= 0.999);
+    b.querySelector("span").textContent = on ? `${Math.round(L.thr[t.side] * 100)} % throttle` : "destroyed"; });
+  [0, 1].forEach(s => { const el = document.getElementById(s ? "barR" : "barL"); el.querySelector("i").style.width = (L.L[s] / (W / 2) * 100) + "%"; el.classList.toggle("bad", L.L[s] < W / 2); });
+  const st = document.getElementById("state");
+  st.textContent = sim.crashed ? "Down" : L.falls ? "Falling" : "Holding"; st.classList.toggle("bad", L.falls);
+}
+function readouts() {
+  const L = liftOf(sim.alive);
+  document.getElementById("alt").textContent = `${Math.round(sim.y)} m (hull centre)`;
+  document.getElementById("sink").textContent = sim.crashed ? "on the ground" : `${(-sim.v).toFixed(1)} m/s` + (L.falls ? `, at most ${Math.sqrt(Math.max(0, G * (1 - (L.L[0] + L.L[1]) / W)) / K).toFixed(1)} m/s` : "");
+  document.getElementById("list").textContent = `${Math.abs(sim.roll).toFixed(1)} deg` + (sim.roll > 0.05 ? " to starboard" : sim.roll < -0.05 ? " to port" : "");
+  document.getElementById("meter").textContent = `${renderer.info.render.triangles.toLocaleString()} triangles, ${renderer.info.render.calls} draws`;
+}
+const tags = document.getElementById("tags");
+function drawTags() {
+  const show = showLabels && view !== "climb", r = canvas.getBoundingClientRect(), list = [];
+  // each view labels what it is for: the outside views the parts, the deck its crabs and guns, the pylon its thrusters
+  const ON_DECK = ["bridge", "flak", "gun", "vls", "cat", "hlift"];
+  const want = p => view === "deck" ? ON_DECK.includes(p.kind) : view === "pylon" ? p.kind === "lift" : true;
+  if (show) { parts.filter(p => p.label && want(p)).forEach(p => list.push({ obj: p.obj, text: p.label, dead: p.kind === "lift" && !sim.alive[THR.findIndex(t => t.g === p.obj)], up: p.kind === "lift" ? 26 : 10 }));
+    crab.labels.filter(l => (view === "deck") === !l.outside).forEach(l => list.push(l)); }
+  while (tags.children.length < list.length) { const d = document.createElement("div"); d.className = "tag"; tags.appendChild(d); }
+  [...tags.children].forEach((d, k) => { const it = list[k]; if (!it) { d.hidden = true; return; }
+    it.obj.getWorldPosition(tmpV); tmpV.y += it.up || 0; tmpV.project(camera);
+    d.hidden = tmpV.z > 1 || Math.abs(tmpV.x) > 1 || Math.abs(tmpV.y) > 1;
+    d.style.left = ((tmpV.x + 1) / 2 * r.width) + "px"; d.style.top = ((1 - tmpV.y) / 2 * r.height) + "px";
+    d.textContent = it.text; d.classList.toggle("dead", !!it.dead); });
+}
+function cockpitHud(c) {
+  const L = liftOf(sim.alive);
+  document.getElementById("hudtxt").textContent = c.landed ? "LANDED ON THE PORT SHOULDER  /  JETS RECHARGING (8 s)" : `ALT ${Math.round(c.h)} m   V/S ${c.vs >= 0 ? "+" : ""}${c.vs.toFixed(0)} m/s`;
+  document.getElementById("mfdJet").innerHTML = `<b>JETS</b><br>burn ${c.burnLeft.toFixed(1)} s of 20<div class="barv"><i style="width:${c.burnLeft / 20 * 100}%"></i></div>${c.burnLeft < 6 ? '<span class="warn">LOW: LAND TO RECHARGE</span>' : "climb 60 m/s max"}`;
+  // the lock: the nearest live lift thruster, as targeting picks it
+  let best = null, bd = 1e9; THR.forEach((t, i) => { if (!sim.alive[i]) return; t.g.getWorldPosition(tmpV); const d = tmpV.distanceTo(camera.position); if (d < bd) { bd = d; best = t; } });
+  const box_ = document.getElementById("lockbox");
+  if (best) { best.g.getWorldPosition(tmpV); const p = tmpV.clone().project(camera), r = canvas.getBoundingClientRect(), on = p.z < 1 && Math.abs(p.x) < 0.95 && Math.abs(p.y) < 0.95;
+    box_.hidden = !on; const px = Math.max(18, Math.min(160, 9000 / bd));
+    Object.assign(box_.style, { left: ((p.x + 1) / 2 * r.width) + "px", top: ((1 - p.y) / 2 * r.height) + "px", width: px + "px", height: px + "px" });
+    document.getElementById("locktxt").textContent = `LIFT ${best.id}  ${Math.round(bd)} m${bd < 1200 ? "  LOCK" : ""}`;
+    document.getElementById("mfdTgt").innerHTML = `<b>TARGET</b> lift thruster ${best.id}<br>${Math.round(bd)} m  ${bd < 1200 ? "missile lock" : "out of lock range"}<br>cowl 140 mm, grille 40 mm x2`; }
+  document.getElementById("mfdLift").innerHTML = `<b>FORTRESS LIFT</b><br>port ${Math.round(L.L[0] / (W / 2) * 100)} %  stbd ${Math.round(L.L[1] / (W / 2) * 100)} %<br>${L.falls ? '<span class="warn">FALLING: LIST ' + Math.abs(sim.roll).toFixed(0) + " deg</span>" : "holding at " + Math.round(sim.y) + " m"}`;
+}
+
+// ---- Frame loop ----
+function resize() { const w = canvas.clientWidth, h = canvas.clientHeight; if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); } }
+let last = performance.now(), frames = 0;
+function advance(dt) { clock += dt; sim.acc += dt; while (sim.acc >= DT) { step(); sim.acc -= DT; } if (view === "climb") climbT += dt; }
+function render() {
+  resize();
+  pose();
+  if (view === "climb") { const c = climbAt(climbT), eye = c.p.clone(); eye.y += c.landed ? 19 : 0;
+    camera.position.copy(eye); if (c.landed) camera.position.y = F.position.y + 42 + 19;
+    const tgt = c.landed ? F.localToWorld(new T.Vector3(-60, 60, 120)) : F.position.clone().add(new T.Vector3(0, -20, 0));
+    camera.lookAt(tgt); camera.rotateY(look.yaw); camera.rotateX(look.pitch); cockpitHud(c); }
+  else controls.update();
+  renderer.render(scene, camera);
+  drawTags(); readouts();
+}
+function loop(now) { const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)) * speed; last = now; advance(dt); render();
+  if (++frames === 2) window.MOCKUP_READY = true; requestAnimationFrame(loop); }
+
+// ---- Start: load the block-outs, place the deck guard, the drops and the Foreman ----
+crab.labels = [];
+Promise.all(Object.keys(MODELS).map(id => prep(id).then(o => { crab.templates[id] = o; }))).then(() => {
+  const guard = [["shrike", 0, 49, 40, 0.0, 22, 14], ["shrike", 0, 49, -105, 0.0, 12, 17], ["mite", 60, 42.6, 60, Math.PI / 2, 40, 11],
+    ["mite", -60, 42.6, -40, Math.PI / 2, 50, 13], ["mite", -60, 42.6, 85, Math.PI / 2, 30, 9], ["mite", 60, 42.6, -80, Math.PI / 2, 30, 12]];
+  guard.forEach(([id, x, y, z, dir, span, period], k) => { const c = cloneCrab(id); c.userData.home = new T.Vector3(x, y, z); Object.assign(c.userData, { dir, span, period });
+    c.rotation.y = x > 0 ? -Math.PI / 2 : x < 0 ? Math.PI / 2 : (z > 0 ? Math.PI : 0); F.add(c); crab.guards.push(c);
+    if (k < 2 || k === 2) crab.labels.push({ obj: c, text: `${MODELS[id].name} (${MODELS[id].height_m.toFixed(1)} m)`, up: MODELS[id].height_m + 4 }); });
+  [0, 1, 2, 3].forEach(k => { const id = k % 2 ? "scuttler" : "mite", c = cloneCrab(id), ch = chute(); scene.add(c, ch);
+    // objects 0 and 1 are the pair from even drops, 2 and 3 from odd ones, so the last pair is still falling when the next goes
+    const slot = k >> 1; crab.drops.push({ c, ch, dx: (k % 2 ? 7 : -7), get k() { const n = Math.floor((clock - 3) / 45); return ((n % 2) + 2) % 2 === slot ? n : n - 1; } }); });
+  crab.labels.push({ obj: crab.drops[0].c, text: "Dropped Mite on its chutes", up: 70, outside: true });
+  const fm = crab.templates.foreman.clone(); fm.position.set(12, 49, -55); fm.rotation.y = Math.PI; F.add(fm);
+  crab.labels.push({ obj: fm, text: `Foreman, your mech (${MODELS.foreman.height_m.toFixed(1)} m)`, up: MODELS.foreman.height_m + 4 });
+  const pl = pilotFigure(); pl.position.set(-2, 49, -46); F.add(pl);
+  crab.labels.push({ obj: pl, text: "Pilot (1.8 m)", up: 3 });
+  const sc = document.getElementById("scale");
+  [["Fortress", "420 x 280 m hull, 400 m across the pylons, 600 m up"], ["Lift thruster", "30 m across, 40 m tall, 8 of them"],
+   ...["foreman", "shrike", "mite", "scuttler"].map(id => [MODELS[id].name, `${MODELS[id].height_m.toFixed(1)} m tall, ${MODELS[id].width_m.toFixed(0)} m wide${id === "foreman" ? " (yours)" : ""}`]),
+   ["Pilot", "1.8 m"]].forEach(([k, v]) => { const dt = document.createElement("dt"), dd = document.createElement("dd"); dt.textContent = k; dd.textContent = v; sc.append(dt, dd); });
+  setView("orbit"); refresh(); requestAnimationFrame(loop);
+}).catch(e => { document.getElementById("mode").textContent = "Could not load the block-outs: " + e.message; console.error(e); });
+
+// ---- Headless shots (tools/mockups/shoot_fortress.mjs): fixed clock and fixed fall steps, never wall time ----
+window.MOCKUP_SCENE = scene;
+window.MOCKUP = {
+  setView, kill, reset: resetSim,
+  setClock(t) { clock = t; }, pause() { speed = 0; }, labels(on) { showLabels = on; },
+  fall(seconds) { for (let k = 0; k < Math.round(seconds / DT); k++) step(); refresh(); },
+  climb(t) { setView("climb"); climbT = t; },
+  orbitFrom(pos, tgt) { controls.target.copy(F.position).add(new T.Vector3(...tgt)); camera.position.copy(F.position).add(new T.Vector3(...pos)); controls.update(); },
+  render,
+};
+</script>
