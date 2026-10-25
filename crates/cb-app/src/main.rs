@@ -181,7 +181,7 @@ fn main() -> AppExit {
         app.insert_resource(defence::Defending)
             .init_resource::<defence::DefenceRun>()
             .insert_resource(menu::Play::Defence);
-    } else if scripted || args.mission.is_some() {
+    } else if scripted || args.mission.is_some() || args.start.as_deref() == Some("fx") {
         app.insert_resource(menu::Play::FreeRoam);
     } else {
         app.insert_resource(menu::TitleWanted);
