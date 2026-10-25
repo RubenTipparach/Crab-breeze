@@ -1118,11 +1118,16 @@ pub fn step_mech(
                 open: &open,
             };
             let orders = enemy.ai.orders(&sim.curr, &view, dt);
-            if !target_dead && !goal.hold_fire {
-                fire = [orders.fire[0], orders.fire[1], false];
+            if let Some(c) = stunt(&sim.curr, &plan, time.elapsed_secs() + id.0 as f32 * 7.0) {
+                aim_at = Some(orders.aim_point);
+                c
+            } else {
+                if !target_dead && !goal.hold_fire {
+                    fire = [orders.fire[0], orders.fire[1], false];
+                }
+                aim_at = Some(orders.aim_point);
+                orders.controls
             }
-            aim_at = Some(orders.aim_point);
-            orders.controls
         } else {
             MechControls::default()
         };
@@ -1622,6 +1627,38 @@ fn cut_parts(
             fx.write(Fx::new("part_lost", at));
         }
     }
+}
+
+/// A test instrument: `CB_ENEMY_STUNT=1` flies every enemy round a 24 s loop instead of its brain's
+/// orders, holding fire: up on the rockets with the skates pushing forward, a glide down, then
+/// skating on the ground, so its jet smoke and skate trails can be checked from the seat (owner,
+/// 2026-10-25: "do other mechs and do my mech while I'm in the pilot seat").
+fn stunt(m: &MechState, plan: &Plan, t_s: f32) -> Option<MechControls> {
+    if !crate::cli::switched_off("CB_ENEMY_STUNT") {
+        return None;
+    }
+    let phase = t_s.rem_euclid(24.0);
+    let agl = m.pos.y - plan.height_at(m.pos.x, m.pos.z);
+    let hover = (0.175 - m.vel_y_m_s * 0.025).clamp(0.0, 1.0);
+    Some(MechControls {
+        skate_toggle: !m.skates_on,
+        turn_axis: 0.25,
+        view_yaw_rad: m.heading_rad,
+        lift_axis: match phase {
+            p if p < 10.0 => {
+                if agl < 40.0 {
+                    1.0
+                } else {
+                    hover
+                }
+            }
+            p if p < 16.0 => (0.175 + (-4.0 - m.vel_y_m_s) * 0.04).clamp(0.0, 1.0),
+            _ => 0.0,
+        },
+        move_xy: if m.airborne() { Vec2::new(0.0, 1.0) } else { Vec2::ZERO },
+        throttle_set: Some(1.0),
+        ..default()
+    })
 }
 
 /// While the pilot sits in the mech with the hatch shut, every mesh of the mech is on the cockpit
