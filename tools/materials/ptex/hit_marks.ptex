@@ -1,0 +1,240 @@
+{
+ "connections": [
+  {
+   "from": "fbm2_0",
+   "from_port": 0,
+   "to": "shader_2",
+   "to_port": 0
+  },
+  {
+   "from": "fbm2_1",
+   "from_port": 0,
+   "to": "shader_2",
+   "to_port": 1
+  },
+  {
+   "from": "shader_2",
+   "from_port": 0,
+   "to": "normal_map_0",
+   "to_port": 0
+  },
+  {
+   "from": "shader_2",
+   "from_port": 0,
+   "to": "occlusion2_0",
+   "to_port": 0
+  },
+  {
+   "from": "shader_2",
+   "from_port": 1,
+   "to": "Material",
+   "to_port": 0
+  },
+  {
+   "from": "shader_2",
+   "from_port": 4,
+   "to": "Material",
+   "to_port": 1
+  },
+  {
+   "from": "shader_2",
+   "from_port": 2,
+   "to": "Material",
+   "to_port": 2
+  },
+  {
+   "from": "normal_map_0",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 4
+  },
+  {
+   "from": "occlusion2_0",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 5
+  },
+  {
+   "from": "shader_2",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 6
+  },
+  {
+   "from": "shader_2",
+   "from_port": 3,
+   "to": "Material",
+   "to_port": 7
+  }
+ ],
+ "label": "Hit Marks",
+ "name": "Material",
+ "node_position": {
+  "x": 0,
+  "y": 0
+ },
+ "nodes": [
+  {
+   "name": "fbm2_0",
+   "node_position": {
+    "x": 220,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 5,
+    "noise": 2,
+    "offset": 0.0,
+    "persistence": 0.55,
+    "scale_x": 24,
+    "scale_y": 24
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "fbm2_1",
+   "node_position": {
+    "x": 440,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 4,
+    "noise": 2,
+    "offset": 0.4,
+    "persistence": 0.5,
+    "scale_x": 64,
+    "scale_y": 64
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "shader_2",
+   "node_position": {
+    "x": 660,
+    "y": 0
+   },
+   "parameters": {},
+   "seed_int": 0,
+   "shader_model": {
+    "code": "",
+    "global": "",
+    "inputs": [
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "n1",
+      "longdesc": "n1",
+      "name": "n1",
+      "shortdesc": "n1",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "n2",
+      "longdesc": "n2",
+      "name": "n2",
+      "shortdesc": "n2",
+      "type": "f"
+     }
+    ],
+    "instance": "float h_$name(float x) { return fract(sin(x * 12.9898 + 0.731) * 43758.5453); }\n\nvec2 cell_$name(vec2 uv) { return floor(uv * 4.0); }\nvec2 local_$name(vec2 uv) { return fract(uv * 4.0); }\nfloat edge_$name(vec2 uv) { vec2 c = local_$name(uv) - vec2(0.5); return smoothstep(0.5, 0.43, max(abs(c.x), abs(c.y))); }\n\n// Per cell: kind (row), a seed, and the local point centred on the cell.\nfloat kind_$name(vec2 uv) { return cell_$name(uv).y; }\nfloat seed_$name(vec2 uv) { vec2 c = cell_$name(uv); return c.x + c.y * 4.0; }\nvec2 p_$name(vec2 uv) { return local_$name(uv) - vec2(0.5); }\n// The mark's own shape: 0 outside, how far in (0 at the edge .. 1 at the centre) and the bare metal share.\nfloat ragged_$name(vec2 uv, vec2 p) {\n\treturn 1.0 + 0.35 * ($n1(uv) - 0.5) + 0.2 * sin(atan(p.y, p.x) * 7.0 + seed_$name(uv) * 3.0) * 0.5;\n}\nfloat height_$name(vec2 uv) {\n\tvec2 p = p_$name(uv);\n\tfloat k = kind_$name(uv);\n\tfloat sd = seed_$name(uv);\n\tfloat r = length(p) * ragged_$name(uv, p);\n\tfloat h = 0.5;\n\tif (k < 0.5) {\n\t\t// Puncture: a hole, a raised torn rim.\n\t\th += -0.5 * smoothstep(0.1, 0.05, r) + 0.18 * exp(-pow((r - 0.11) / 0.03, 2.0));\n\t} else if (k < 1.5) {\n\t\t// Dent: a dished bowl.\n\t\th += -0.35 * (1.0 - smoothstep(0.0, 0.3, r)) + 0.08 * exp(-pow((r - 0.31) / 0.04, 2.0));\n\t} else if (k < 2.5) {\n\t\t// Scorch: blistered paint, barely any shape.\n\t\th += 0.04 * ($n2(uv) - 0.5) * smoothstep(0.42, 0.2, r);\n\t} else {\n\t\t// Gouge: a long groove across the cell, turned by the seed.\n\t\tfloat a = (h_$name(sd) - 0.5) * 1.2;\n\t\tvec2 q = vec2(p.x * cos(a) - p.y * sin(a), p.x * sin(a) + p.y * cos(a));\n\t\tfloat len = smoothstep(0.42, 0.3, abs(q.x));\n\t\th += -0.3 * smoothstep(0.045, 0.0, abs(q.y + 0.03 * sin(q.x * 20.0 + sd))) * len;\n\t}\n\treturn h;\n}\nvec4 albedo_$name(vec2 uv) {\n\tvec2 p = p_$name(uv);\n\tfloat k = kind_$name(uv);\n\tfloat sd = seed_$name(uv);\n\tfloat r = length(p) * ragged_$name(uv, p);\n\tfloat d = $n2(uv);\n\tvec3 soot = vec3(0.03, 0.028, 0.026);\n\tvec3 metal = mix(vec3(0.55, 0.56, 0.58), vec3(0.75, 0.76, 0.78), d);\n\tvec3 c = soot;\n\tfloat a = 0.0;\n\tif (k < 0.5) {\n\t\tfloat hole = smoothstep(0.1, 0.05, r);\n\t\tfloat rim = exp(-pow((r - 0.11) / 0.035, 2.0));\n\t\tc = mix(soot, metal, rim);\n\t\tc = mix(c, vec3(0.005), hole);\n\t\ta = max(max(hole, rim), 0.8 * smoothstep(0.28, 0.1, r) * (0.6 + 0.4 * d));\n\t} else if (k < 1.5) {\n\t\tfloat bowl = smoothstep(0.32, 0.22, r);\n\t\tfloat halo = smoothstep(0.45, 0.25, r);\n\t\tc = mix(vec3(0.06, 0.05, 0.045), metal * 0.7, bowl * smoothstep(0.4, 0.75, d));\n\t\ta = max(halo * 0.9, bowl);\n\t} else if (k < 2.5) {\n\t\tfloat burn = smoothstep(0.45, 0.12, r + 0.15 * (d - 0.5));\n\t\tc = mix(vec3(0.06, 0.045, 0.03), soot, smoothstep(0.3, 0.1, r));\n\t\ta = burn * (0.75 + 0.25 * d);\n\t} else {\n\t\tfloat a2 = (h_$name(sd) - 0.5) * 1.2;\n\t\tvec2 q = vec2(p.x * cos(a2) - p.y * sin(a2), p.x * sin(a2) + p.y * cos(a2));\n\t\tfloat len = smoothstep(0.42, 0.3, abs(q.x));\n\t\tfloat groove = smoothstep(0.05, 0.0, abs(q.y + 0.03 * sin(q.x * 20.0 + sd))) * len;\n\t\tfloat scuff = smoothstep(0.12, 0.0, abs(q.y)) * len * 0.5;\n\t\tc = mix(soot * 3.0, metal, groove);\n\t\ta = max(groove, scuff);\n\t}\n\treturn vec4(c, clamp(a, 0.0, 1.0) * edge_$name(uv));\n}\nfloat metal_$name(vec2 uv) {\n\tvec2 p = p_$name(uv);\n\tfloat k = kind_$name(uv);\n\tfloat r = length(p) * ragged_$name(uv, p);\n\tif (k < 0.5) { return exp(-pow((r - 0.11) / 0.035, 2.0)); }\n\tif (k > 2.5) { return albedo_$name(uv).g > 0.4 ? 1.0 : 0.0; }\n\treturn 0.0;\n}\n",
+    "longdesc": "hit marks",
+    "name": "hit marks",
+    "outputs": [
+     {
+      "f": "height_$name($uv)",
+      "longdesc": "out0",
+      "shortdesc": "out0",
+      "type": "f"
+     },
+     {
+      "longdesc": "out1",
+      "rgba": "albedo_$name($uv)",
+      "shortdesc": "out1",
+      "type": "rgba"
+     },
+     {
+      "f": "mix(0.85, 0.35, metal_$name($uv))",
+      "longdesc": "out2",
+      "shortdesc": "out2",
+      "type": "f"
+     },
+     {
+      "f": "albedo_$name($uv).a",
+      "longdesc": "out3",
+      "shortdesc": "out3",
+      "type": "f"
+     },
+     {
+      "f": "metal_$name($uv)",
+      "longdesc": "out4",
+      "shortdesc": "out4",
+      "type": "f"
+     }
+    ],
+    "parameters": [],
+    "shortdesc": "hit marks"
+   },
+   "type": "shader"
+  },
+  {
+   "name": "normal_map_0",
+   "node_position": {
+    "x": 880,
+    "y": 0
+   },
+   "parameters": {
+    "param0": 11,
+    "param1": 2.0,
+    "param2": 0,
+    "param4": 1
+   },
+   "type": "normal_map"
+  },
+  {
+   "name": "occlusion2_0",
+   "node_position": {
+    "x": 1100,
+    "y": 0
+   },
+   "parameters": {
+    "param0": 11,
+    "param1": 6,
+    "param2": 1.2,
+    "param3": 1
+   },
+   "type": "occlusion2"
+  },
+  {
+   "export_paths": {},
+   "name": "Material",
+   "node_position": {
+    "x": 1320,
+    "y": 0
+   },
+   "parameters": {
+    "albedo_color": {
+     "a": 1.0,
+     "b": 1,
+     "g": 1,
+     "r": 1,
+     "type": "Color"
+    },
+    "ao": 1.0,
+    "depth_scale": 0.0,
+    "emission_energy": 1.0,
+    "flags_transparent": true,
+    "metallic": 1.0,
+    "normal": 1.0,
+    "roughness": 1.0,
+    "size": 11,
+    "sss": 0.0
+   },
+   "type": "material"
+  }
+ ],
+ "parameters": {},
+ "type": "graph"
+}

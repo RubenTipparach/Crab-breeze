@@ -1,6 +1,7 @@
 //! Crab Breeze, the game. This file is the composition root (CLAUDE.md section 6.2): it reads the
 //! command line and the data, and wires the plugins. It holds no game logic.
 
+mod battle_fx;
 mod bench;
 mod blast;
 mod building_arrays;
@@ -26,6 +27,7 @@ mod pbr_set;
 mod perf_hud;
 mod physics;
 mod pilot;
+mod plumes;
 mod screen_cut;
 mod screens_cube;
 #[cfg(test)]
@@ -120,6 +122,8 @@ fn main() -> AppExit {
         screens_cube::ScreensCubePlugin,
         sky_light::SkyLightPlugin,
         skins::SkinsPlugin,
+        battle_fx::BattleFxPlugin,
+        plumes::PlumesPlugin,
         loading::LoadingPlugin,
         perf_hud::PerfHudPlugin,
         units::UnitsPlugin,
@@ -151,9 +155,16 @@ fn main() -> AppExit {
         app.add_plugins(defence::DefencePlugin);
     }
     if let Some(dir) = args.stills {
-        app.add_plugins(capture::StillsPlugin { dir });
+        if std::env::var("CB_STILLS_FX").is_ok() {
+            app.add_plugins(capture::FxStillsPlugin { dir });
+        } else {
+            app.add_plugins(capture::StillsPlugin { dir });
+        }
     } else if let Some(take) = args.showcase.clone().or(args.bench.clone()) {
         app.add_plugins(showcase::ShowcasePlugin { take });
+        if let Ok(dir) = std::env::var("CB_FRAMES_DIR") {
+            app.add_plugins(capture::FramesPlugin { dir: dir.into() });
+        }
     }
     if args.bench.is_some() {
         app.add_plugins(bench::BenchPlugin);

@@ -8,7 +8,7 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 
 /// Every recipe the game asks for. A file without one of these stops startup.
-pub const RECIPES: [&str; 27] = [
+pub const RECIPES: [&str; 31] = [
     "muzzle_autocannon",
     "muzzle_cannon",
     "muzzle_rocket",
@@ -33,6 +33,10 @@ pub const RECIPES: [&str; 27] = [
     "tree_fall",
     "part_lost",
     "burning",
+    "smoking",
+    "burning_hull",
+    "fall_dust",
+    "jet_wash",
     "creak_dust",
     "member_fail",
     "collapse_dust",
@@ -202,6 +206,14 @@ pub struct FxConfig {
     pub trail_spacing_m: f32,
     /// A rocket motor's light.
     pub motor_lumens: f32,
+    /// A rocket's exhaust plume's length and width, metres (openspec change `rocket-plumes`).
+    pub plume_length_m: f32,
+    /// See `plume_length_m`.
+    pub plume_width_m: f32,
+    /// A mech's jet plume's length and width while it fires, metres.
+    pub jet_plume_m: [f32; 2],
+    /// Jets fired this close above the ground blow dust (`jet_wash`), metres.
+    pub jet_wash_m: f32,
     /// Most particles alive at once; a burst that does not fit is cut.
     pub max_particles: u32,
     /// Most effect point lights alive at once; the oldest goes first.
@@ -275,6 +287,10 @@ impl Default for FxConfig {
             tracer_heavy_width_m: 0.5,
             trail_spacing_m: 3.0,
             motor_lumens: 2.0e5,
+            plume_length_m: 4.5,
+            plume_width_m: 0.9,
+            jet_plume_m: [6.0, 1.6],
+            jet_wash_m: 15.0,
             max_particles: 5000,
             max_lights: 24,
             max_fireballs: 64,
@@ -289,6 +305,11 @@ impl Default for FxConfig {
 impl Validate for FxConfig {
     fn validate(&self) -> Result<(), String> {
         positive("tracer_s", self.tracer_s)?;
+        positive("plume_length_m", self.plume_length_m)?;
+        positive("plume_width_m", self.plume_width_m)?;
+        positive("jet_plume_m[0]", self.jet_plume_m[0])?;
+        positive("jet_plume_m[1]", self.jet_plume_m[1])?;
+        positive("jet_wash_m", self.jet_wash_m)?;
         positive("shake.max_deg", self.shake.max_deg)?;
         positive("shake.reach_m_per_cbrt_mj", self.shake.reach_m_per_cbrt_mj)?;
         positive("shake.decay_s", self.shake.decay_s)?;

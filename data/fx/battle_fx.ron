@@ -1,0 +1,19 @@
+// The battle's lasting marks and damage effects (openspec changes `blast-scorch` and `mech-damage-fx`):
+// `cb_core::battle_fx::BattleFxConfig`.
+(
+    // Scorch decals over craters on soil, from the Material Maker `blast_scorch` maps.
+    scorch: (scorch_per_radius: 2.6, max_scorches: 64, depth_fade_m: 6.0, life_s: 240.0),
+    // Hit marks on mechs, from the `hit_marks` sheet: a puncture, a dent, a scorch and a gouge (sizes on the
+    // stand-in's scale; a skin multiplies by its scale).
+    hit_marks: (
+        per_mech: 48,
+        max: 400,
+        size_m: (0.7, 1.8, 3.5, 1.6),
+        dent_from_mm: 100.0,
+        scorch_from_mj: 1.0,
+        gouge_every: 4,
+        depth_fade_m: 0.6,
+    ),
+    // A part under a quarter of its structure smokes; a mech under a quarter in all burns from the torso.
+    damage: (critical_frac: 0.25, limb_burn_s: 30.0, stump_burn_s: 25.0, dust_per_cbrt_t: 10.0, land_m: 1.2),
+)
