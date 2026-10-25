@@ -274,7 +274,6 @@ fn place_camera(
     rigs: Query<&MechRig, With<crate::mech::Piloted>>,
     transforms: Query<&Transform, Without<PilotCamera>>,
     parents: Query<&ChildOf>,
-    jolt: Option<Res<crate::ground_marks::ViewJolt>>,
     mut camera: Single<&mut Transform, With<PilotCamera>>,
 ) {
     let cfg = &data.0.pilot;
@@ -323,12 +322,9 @@ fn place_camera(
         amp * (t * 41.0 + 1.3).sin(),
         amp * 0.5 * (t * 29.0 + 2.1).sin(),
     );
-    // Seated, the eye jolts on the mech's foot strikes (ground-marks): its position only.
-    let jolt = match (&curr.mode, jolt) {
-        (PilotMode::Seated, Some(j)) => j.0,
-        _ => Vec3::ZERO,
-    };
-    **camera = crate::ground_marks::jolted(Transform::from_translation(eye).with_rotation(rotation * shake), jolt);
+    // No footstep motion on the view, ever: the foot-strike jolt is not applied to the camera (owner,
+    // 2026-10-25: "I would remove the footstep motion forom the cokcpit entirely").
+    **camera = Transform::from_translation(eye).with_rotation(rotation * shake);
 }
 
 /// The step-in prompt.
