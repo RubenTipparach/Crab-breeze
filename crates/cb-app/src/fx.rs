@@ -920,7 +920,7 @@ mod tests {
         let mut world = World::new();
         let e = world
             .spawn(FxStream {
-                recipe: "jet_trail",
+                recipe: "burning",
                 dir: Vec3::NEG_Y,
                 on: true,
                 density: 1.0,
