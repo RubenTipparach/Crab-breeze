@@ -43,6 +43,13 @@ CRANE_STRIP_M = 2.0
 CRANE_MARGIN_M = 1.5
 # The page's boarding clock (tools/mockups/gen_mech_designs.py): the sit, then the chest a moment after it.
 SIT_S, CHEST_AT_S = 3.0, 3.2
+# The steam and mist (openspec change boarding-vents), on the page's own windows (gen_mech_designs.py `vent`):
+# particles a second from one vent at rate 1, and the legs' rams' throw in the mech's frame (out, a little up and
+# forward). The page streams steam at 30 a vent and mist at 9 x 0.7.
+STEAM_PER_S, MIST_PER_S = 30.0, 6.3
+STEAM_SPEED_M_S, MIST_SPEED_M_S = 3.0, 0.6         # the recipes' own (data/fx/fx.ron vent_steam, vent_mist)
+LEG_RAMS = ("shin_L", "shin_R", "hock_L", "hock_R")
+LEG_THROW = (1.0, 0.4, 0.3)
 
 
 def glb_json(path):
@@ -279,7 +286,89 @@ def crane_reach(m):
     return furthest - hatch[2] + CRANE_MARGIN_M
 
 
-def boarding_ron(m, name, size, tracks):
+def unit(v):
+    n = math.sqrt(sum(c * c for c in v)) or 1.0
+    return tuple(c / n for c in v)
+
+
+def vent_line(node, kind, duration, rate, d, hold=False):
+    """One vent for the timeline: `kind` "steam" or "mist", `d` its throw in the node's own frame."""
+    k = "Mist" if kind == "mist" else "Steam"
+    per_s, speed = (MIST_PER_S, MIST_SPEED_M_S) if kind == "mist" else (STEAM_PER_S, STEAM_SPEED_M_S)
+    d = unit(d)
+    tail = ", hold: true" if hold else ""
+    return (f'(node: "{node}", kind: {k}, duration_s: {f(duration)}, rate_per_s: {f(per_s * rate, 1)}, '
+            f"speed_m_s: {f(speed, 1)}, dir: ({f(d[0], 3)}, {f(d[1], 3)}, {f(d[2], 3)}){tail})")
+
+
+def vent_empties(nodes):
+    """(name, kind, stage, rate, throw in the node's own frame) of every `VENT_*` empty in a glTF node list. The
+    extras' `dir` is in the parent's frame; turned into the empty's own (they are written unrotated, so it is the
+    same unless that changes)."""
+    out = []
+    for nd in nodes:
+        name = nd.get("name", "")
+        if not name.startswith("VENT_"):
+            continue
+        ex = nd.get("extras") or {}
+        d = extra(ex.get("dir", [0, 0, 1]))
+        d = rotate_inv(nd.get("rotation", [0, 0, 0, 1]), tuple(d))
+        out.append((name, ex.get("kind", "steam"), ex.get("stage", ""), float(ex.get("rate", 1.0)), d))
+    return sorted(out)
+
+
+def interior_nodes(cockpit):
+    v = cockpit.get("variant")
+    if not v:
+        return []
+    path = os.path.join(ROOT, "assets", "models", f"cockpit_{v}", f"cockpit_{v}.gltf")
+    return json.load(open(path))["nodes"] if os.path.exists(path) else []
+
+
+def vent_stages(m, cockpit, tracks, ready_s):
+    """The boarding's steam and mist (openspec change boarding-vents) as timeline stages (start, text), on the page's
+    windows: the legs' rams through the sit, the seals as the chest breaks, the hinges as it swings, the mist over
+    the sill and out of the cabin once it is open, held while it stands open."""
+    end = max((t["t0"] + t["d"] for t in tracks), default=0.0)
+    chest = vent_empties(m.nodes)
+    cabin = vent_empties(interior_nodes(cockpit))
+    stages = []
+
+    def stage(name, start, duration, lines):
+        if not lines:
+            return
+        body = "\n".join(f"                {ln}," for ln in lines)
+        stages.append((start, f'        (name: "{name}", start_s: {f(start)}, duration_s: {f(duration)},\n'
+                              f"            vents: [\n{body}\n            ]),"))
+
+    # The legs' rams: the page's throw (out, up, forward) in the mech's frame, turned into each bone's rest frame.
+    legs = []
+    for b in LEG_RAMS:
+        if b not in m.index:
+            continue
+        w = m.world[m.index[b]]
+        side = 1.0 if b.endswith("_L") else -1.0
+        t = (side * LEG_THROW[0], LEG_THROW[1], LEG_THROW[2])
+        local = tuple(sum(w[r][c] * t[r] for r in range(3)) for c in range(3))     # R^T t (the scale cancels in unit)
+        legs.append(vent_line(b, "steam", SIT_S, 1.0, local))
+    stage("the legs' rams work", 0.0, SIT_S, legs)
+    seals = [vent_line(n, k, 1.3, r, d) for n, k, st, r, d in chest if st == "seam"]
+    stage("the seals break", CHEST_AT_S - 0.1, 1.3, seals)
+    if end > 0.35:
+        hinges = [vent_line(n, k, end - 0.3, r, d) for n, k, st, r, d in chest if st == "open"]
+        stage("the hinges steam", CHEST_AT_S + 0.3, end - 0.3, hinges)
+    # Held vents run to just past ready_s, so they keep going while the chest stands open.
+    s0 = CHEST_AT_S + 0.6 * end
+    sill = [vent_line(n, k, ready_s - s0 + 0.05, r, d, hold=True) for n, k, st, r, d in chest if st == "sill"]
+    stage("mist rolls over the sill", s0, ready_s - s0, sill)
+    s1 = CHEST_AT_S + 0.8 * end
+    inner = [vent_line(n, k, ready_s - s1 + 0.05, r, d, hold=True) if k == "mist"
+             else vent_line(n, k, min(1.5, ready_s - s1), r, d) for n, k, st, r, d in cabin]
+    stage("the cabin breathes out", s1, ready_s - s1, inner)
+    return stages
+
+
+def boarding_ron(m, name, size, tracks, cockpit):
     stages = []
     for t in sorted(tracks, key=lambda t: (t["t0"], t["node"])):
         start, d = CHEST_AT_S + t["t0"], t["d"]
@@ -296,18 +385,21 @@ def boarding_ron(m, name, size, tracks):
         stages.append((start, f'        (name: "{t["node"]} {what}", start_s: {f(start)}, duration_s: {f(d)},\n'
                               f"            motions: [{motion}]),"))
     ready = max([s for s, _ in stages] + [SIT_S]) if not tracks else max(CHEST_AT_S + t["t0"] + t["d"] for t in tracks)
-    body = "\n".join(s for _, s in stages)
+    ready_s = float(f(ready + 0.3))
+    stages += vent_stages(m, cockpit, tracks, ready_s)
+    body = "\n".join(s for _, s in sorted(stages, key=lambda s: s[0]))
     pelvis, hock_deg = kneel(m)
     return f"""// {name}'s boarding: generated by tools/mechs/gen_mech_data.py from the glb's own chest tracks (the root extras
 // `boarding.tracks`, written by tools/blender/mech_boarding.py), on the page's clock: the sit over {f(SIT_S, 1)} s, the chest
 // from {f(CHEST_AT_S, 1)} s. The cockpit's opening parts ride their chest joints (the mech file's `interior.rides`), so they
-// open with these stages. Edit the generator or the mech, not this file.
+// open with these stages. The steam and mist are the glb's and the interior's own `VENT_*` empties (openspec change
+// boarding-vents). Edit the generator or the mech, not this file.
 (
     sit: (duration_s: {f(SIT_S, 1)}, pelvis_height_m: {f(pelvis)}, hock_angle_deg: {f(hock_deg, 1)}, torso_bow_deg: {f(math.degrees(SIT_BOW_RAD), 1)}),
     stages: [
 {body}
     ],
-    ready_s: {f(ready + 0.3)},
+    ready_s: {f(ready_s)},
     clear_m: 3.0,
     crane_reach_m: {f(crane_reach(m))},
     screen_power_up_s: 2.5,
@@ -329,7 +421,7 @@ def generate(mid):
     with open(os.path.join(out, f"{mid}.ron"), "w") as fh:
         fh.write(mech_ron(mid, meta["name"], size, cockpit))
     with open(os.path.join(out, mid, "boarding.ron"), "w") as fh:
-        fh.write(boarding_ron(m, meta["name"], size, tracks))
+        fh.write(boarding_ron(m, meta["name"], size, tracks, cockpit))
     print(f"{mid}: {size['top']:.2f} m tall, hips {size['hip']:.2f} m, eyes {size['eye']:.2f} m, "
           f"half width {size['half_width']:.2f} m, {len(tracks)} chest tracks, interior {cockpit.get('variant')}")
 

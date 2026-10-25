@@ -9,7 +9,7 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 
 /// Every recipe the game asks for. A file without one of these stops startup.
-pub const RECIPES: [&str; 30] = [
+pub const RECIPES: [&str; 32] = [
     "muzzle_autocannon",
     "muzzle_cannon",
     "muzzle_rocket",
@@ -40,6 +40,8 @@ pub const RECIPES: [&str; 30] = [
     "creak_dust",
     "member_fail",
     "collapse_dust",
+    "vent_steam",
+    "vent_mist",
 ];
 
 /// What a particle looks like and how it moves (its colour and motion are the drawing's).
@@ -67,6 +69,8 @@ pub enum ParticleKind {
     Rubble,
     /// A rocket's hanging smoke trail.
     Trail,
+    /// Cold, pale mist that sinks and spreads (a cabin opening, `boarding-vents`).
+    Mist,
 }
 
 /// One layer of an effect. Sizes, radii, offsets and speeds scale with the effect's `scale`;
