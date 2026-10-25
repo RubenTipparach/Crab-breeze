@@ -595,7 +595,9 @@ fn play_fight(
                 // Turn the mech on its legs to face it, the view held ahead and a little up: the
                 // seated look steered onto a point overshot and spun at two-second frames.
                 act.turn_axis = steer(m, Vec2::new(e.curr.pos.x, e.curr.pos.z));
-                act.look_delta_deg = aim(m, 0.0, 0.08);
+                // The head levels gently: the look is applied on every fixed step of a frame, so
+                // at an eighth of real time a bigger gain overshoots.
+                act.look_delta_deg = Vec2::new(0.0, (0.05 - p.pitch_rad).to_degrees() * 0.02);
                 // A missile at it now and then, so missile trails are seen from the seat too.
                 act.fire_missile = t > 60.0 && t.rem_euclid(80.0) < 2.0;
             }
