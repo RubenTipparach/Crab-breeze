@@ -21,6 +21,7 @@ mod pbr_set;
 mod perf_hud;
 mod physics;
 mod pilot;
+mod screen_cut;
 mod screens_cube;
 #[cfg(test)]
 mod shader_check;

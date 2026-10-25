@@ -61,6 +61,7 @@ fn run_script(
     access: Res<MechAccessNow>,
     time: Res<Time<Real>>,
     mut exit: MessageWriter<AppExit>,
+    mut exit_frames: Local<u32>,
 ) {
     let now = time.elapsed_secs();
     let in_beat = now - script.beat_started_s;
@@ -124,7 +125,12 @@ fn run_script(
                 next = true;
             }
         }
-        5 if in_beat > 1.5 => {
+        // A few frames after the last shot, so its readback lands even at a software renderer's frame rate.
+        5 if in_beat > 1.5 && {
+            *exit_frames += 1;
+            *exit_frames > 6
+        } =>
+        {
             let mut f = script.frames_ms.clone();
             f.sort_by(f32::total_cmp);
             println!(

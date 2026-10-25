@@ -609,7 +609,8 @@ def dash_unit(S, cn, cd, scale=1.0):
     S.plate("glare", g, V(0, 1, 0), V(0, 0, 1), t=0.012, node=cn, scale=k)
     S.box((-0.79 * k, g.y - 0.04, g.z - 0.10), (0.79 * k, g.y - 0.012, g.z + 0.10), "paint_dk", group="front", node=cn, bevel=0.01)
     S.box((-0.78 * k, g.y - 0.05, g.z - 0.095), (0.78 * k, g.y - 0.038, g.z - 0.075), "bezel", group="front", node=cn, bevel=0.002)
-    S.box((-0.60 * k, g.y - 0.054, g.z - 0.089), (0.60 * k, g.y - 0.05, g.z - 0.08), "white_lit", group="front", node=cn)
+    # No lit strip under the shield's lip: seen edge-on from the seat it drew a hard white line across the whole view
+    # (owner, 2026-10-24: "not sure what this white streak is"), and the cabin is lit live, so it lit nothing.
 
 
 # ----------------------------------------------------------------------------- the seated kit
@@ -1253,15 +1254,20 @@ def build_layout(S, VAR):
             x_ = s_ * 0.3 * 1.58 * k
             S.obox(V(x_, rows[0][0] - 0.30, (zf + F) / 2), (X, Y, Z), (0.05, 0.05, F - zf), "steel", "front", name, bevel=0.005)
     if "top" in L["mfd"] and front_screen:
+        # Hung from the screen's top bar and tilted down at the eye, so they cover only the screen's top edge (owner,
+        # 2026-10-24: "move the mfds in the window up to the top bar a bit so theyre not in the way", "try to clear
+        # the main vieiwing screen as much as you can"). 16 cm out, clear of the frame bars (4.5 cm) and the bar's trim
+        # (owner: "theres some geometry in front of mfd, I would move them forward").
         nm, yc_, centre, n_in, nd, (ry0, ry1) = front_screen
         size = 0.30
-        yc = min(max(EYE.y + 0.3, ry0 + size / 2 + 0.06), ry1 - size / 2 - 0.06)
+        yc = ry1 - 0.02
+        face = (n_in - Y * 0.5).normalized()
         for i, (x, img) in enumerate(((0.36, "mfd_left"), (0.0, "mfd_center"), (-0.36, "mfd_right"))):
-            c_ = V(x, yc, centre.z) + n_in * 0.012
-            S.obox(c_ - n_in * 0.004, basis(n_in, Y), (size + 0.04, size + 0.04, 0.008), "bezel", "cabin", nd, bevel=0.002)
+            c_ = V(x, yc, centre.z) + n_in * 0.16
+            S.obox(c_ - face * 0.004, basis(face, Y), (size + 0.04, size + 0.04, 0.008), "bezel", "cabin", nd, bevel=0.002)
             sn = f"HUD_mfd_{i}"
             NODES[sn] = (nd or "pod", None)
-            S.quad(c_ + n_in * 0.001, n_in, Y, size, size, emission_material(sn, os.path.join(DISPLAYS, f"{img}.png"), 2.0), "screen", sn, node=sn)
+            S.quad(c_ + face * 0.001, face, Y, size, size, emission_material(sn, os.path.join(DISPLAYS, f"{img}.png"), 2.0), "screen", sn, node=sn)
             S.disp[sn] = img
     VAR["front_screen"] = front_screen[0] if front_screen else "SCREEN_wall_r0_0"
     VAR["front_screen_c"] = front_screen[2] if front_screen else V(0, 1.3, F)
