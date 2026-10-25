@@ -134,7 +134,7 @@ impl Plugin for WorldPlugin {
                 brightness: ambient_cd_m2 * exposure_scale(&cfg.view),
                 ..default()
             })
-            .add_plugins(crate::ground::GroundPlugin)
+            .add_plugins((crate::ground::GroundPlugin, crate::rocks::RocksPlugin))
             .add_systems(Startup, (spawn_roads, spawn_buildings, spawn_sun, spawn_water, spawn_trees))
             .add_systems(FixedUpdate, keep_trees.in_set(SimSet::World))
             .add_systems(FixedUpdate, fell_trees.in_set(SimSet::Mech).after(crate::mech::step_mech))

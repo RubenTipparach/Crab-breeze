@@ -806,6 +806,35 @@ const VIEWS: &[View] = &[
     view("coast", [13421.0, 380.0, 7136.0], [11838.0, 0.0, 2951.0]),
     view("storm", [-3387.0, 205.0, 8814.0], [-5887.0, 2600.0, -4186.0]),
     view("weather", [-24000.0, 6500.0, 26000.0], [-9000.0, 1500.0, -2000.0]),
+    // Along the longest river from 40 m over its bank, downstream (placed from the plan: `river_view`).
+    View {
+        name: "river",
+        eye: [0.0, 40.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: true,
+    },
+    // The steepest river reach that is not a waterfall, from 250 m to its side and from above
+    // (placed from the plan: `steep_river_view`).
+    View {
+        name: "river-steep",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "river-steep-far",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "river-steep-top",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Mist in the low ground, from a hill over the wet west at dawn-like low height.
+    view("valley-mist", [-9000.0, 260.0, -1000.0], [-6000.0, 120.0, 2500.0]),
     // Under the storm, in its rain, 40 m up, facing away from the sun.
     View {
         name: "under-the-storm",
@@ -821,6 +850,54 @@ const VIEWS: &[View] = &[
         above_ground: true,
     },
 ];
+
+/// The river view: 150 m off the longest river's middle, 40 m over the bank, looking 1.2 km
+/// downstream along it.
+fn river_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
+    let Some(r) = plan.waters.rivers.iter().max_by_key(|r| r.path.len()) else {
+        return ([0.0, 40.0, 0.0], [0.0, 0.0, 100.0]);
+    };
+    let i = r.path.len() / 2;
+    let (p, q) = (r.path[i], r.path[(i + 1).min(r.path.len() - 1)]);
+    let along = (q - p).normalize_or(Vec2::X);
+    let eye = p - along * 300.0 + along.perp() * 150.0;
+    let at = p + along * 1200.0;
+    ([eye.x, 40.0, eye.y], [at.x, r.surface_m[i], at.y])
+}
+
+/// A steep river reach seen from a clear eye (no cloud there, at time zero): the reach whose
+/// surface falls most over 10 points (off every waterfall) on the range's west flank, seen from
+/// `back_m` across the slope and `up_m` over its water, or from straight above.
+fn steep_river_view(plan: &crate::world::Plan, back_m: f32, up_m: f32, top: bool) -> ([f32; 3], [f32; 3]) {
+    let w = &plan.waters;
+    let mut best: Option<(f32, Vec3, Vec3)> = None;
+    for (ri, r) in w.rivers.iter().enumerate() {
+        for i in 0..r.path.len().saturating_sub(10) {
+            if w.falls.iter().any(|f| f.river == ri && i + 12 >= f.lip && i <= f.foot + 2) {
+                continue;
+            }
+            let drop = r.surface_m[i] - r.surface_m[i + 10];
+            let p = r.path[i + 5];
+            let along = (r.path[i + 10] - r.path[i]).normalize_or(Vec2::X);
+            let s = r.surface_m[i + 5];
+            let side = p + along.perp() * back_m;
+            let eye = if top {
+                Vec3::new(p.x + 1.0, s + up_m, p.y + 1.0)
+            } else {
+                Vec3::new(side.x, s.max(plan.terrain.height_at(side.x, side.y)) + up_m, side.y)
+            };
+            if plan.clouds.density_at(eye, 0.0) > 0.0 || best.is_some_and(|b| drop <= b.0) {
+                continue;
+            }
+            best = Some((drop, eye, Vec3::new(p.x, s, p.y)));
+        }
+    }
+    let Some((drop, eye, at)) = best else {
+        return ([0.0, 400.0, 0.0], [0.0, 0.0, 100.0]);
+    };
+    info!("steep river: {drop:.0} m over 10 points at {at}");
+    (eye.to_array(), at.to_array())
+}
 
 #[derive(Resource)]
 struct WeatherScript {
@@ -869,6 +946,19 @@ fn run_weather_script(
             script.beat += 1;
             return;
         }
+        let (v_eye, v_at) = match v.name {
+            "river" => river_view(&plan),
+            "river-steep" => steep_river_view(&plan, 700.0, 150.0, false),
+            "river-steep-far" => steep_river_view(&plan, 3000.0, 400.0, false),
+            "river-steep-top" => steep_river_view(&plan, 0.0, 500.0, true),
+            _ => (v.eye, v.at),
+        };
+        let v = View {
+            name: v.name,
+            eye: v_eye,
+            at: v_at,
+            above_ground: v.above_ground,
+        };
         let ground = plan.height_at(v.eye[0], v.eye[2]).max(plan.waters.sea_level_m);
         let eye = if v.above_ground {
             Vec3::new(v.eye[0], ground + v.eye[1], v.eye[2])

@@ -13,15 +13,15 @@
 use glam::Vec2;
 
 /// The mockup's seeded random stream (mulberry32).
-struct Mulberry(u32);
+pub(crate) struct Mulberry(u32);
 
 impl Mulberry {
-    fn new(seed: u32) -> Self {
+    pub(crate) fn new(seed: u32) -> Self {
         Self(seed)
     }
 
     /// 0..1.
-    fn next(&mut self) -> f64 {
+    pub(crate) fn next(&mut self) -> f64 {
         self.0 = self.0.wrapping_add(0x6d2b_79f5);
         let a = self.0;
         let mut t = (a ^ (a >> 15)).wrapping_mul(1 | a);
@@ -41,8 +41,8 @@ fn hash(ix: i64, iz: i64, s: u32) -> f64 {
     f64::from(h) / 4_294_967_296.0
 }
 
-/// Gradient noise, about -1..1.
-fn perlin(x: f64, z: f64, s: u32) -> f64 {
+/// Gradient noise, about -1..1 (the mockup's; its rock kit is displaced by it too).
+pub fn perlin(x: f64, z: f64, s: u32) -> f64 {
     let (ix, iz) = (x.floor(), z.floor());
     let (fx, fz) = (x - ix, z - iz);
     let (ix, iz) = (ix as i64, iz as i64);
@@ -307,6 +307,25 @@ impl Island {
         let u = f - i as f64;
         let (a, b) = (self.spine[i], self.spine[i + 1]);
         [mix(a[0], b[0], u), mix(a[1], b[1], u)]
+    }
+
+    /// The canyon system's cuts: each segment's ends (x, z) and its floor's half width.
+    pub fn canyon_cuts(&self) -> impl Iterator<Item = (Vec2, Vec2, f32)> + '_ {
+        self.cuts.iter().map(|c| {
+            (
+                Vec2::new(c.a[0] as f32, c.a[1] as f32),
+                Vec2::new(c.b[0] as f32, c.b[1] as f32),
+                c.floor_half_m as f32,
+            )
+        })
+    }
+
+    /// The islets with cliffed shores: centre (x, z) and radius.
+    pub fn cliffed_islets(&self) -> impl Iterator<Item = (Vec2, f32)> + '_ {
+        self.islets
+            .iter()
+            .filter(|o| o.cliff)
+            .map(|o| (Vec2::new(o.x as f32, o.z as f32), o.r as f32))
     }
 
     /// The direction across the spine toward the east (x, z).

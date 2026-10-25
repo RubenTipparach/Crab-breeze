@@ -30,6 +30,7 @@ mod perf_hud;
 mod physics;
 mod pilot;
 mod plumes;
+mod rocks;
 mod rope;
 mod screen_cut;
 mod screens_cube;

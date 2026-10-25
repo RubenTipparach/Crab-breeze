@@ -701,6 +701,8 @@ pub struct WorldConfig {
     pub clouds: CloudConfig,
     /// The weather systems that lay out the sky (openspec change `cloud-weather`).
     pub weather: super::weather::WeatherConfig,
+    /// Ground fog (openspec change `ground-fog`).
+    pub fog: super::mist::FogConfig,
     /// Craters.
     pub craters: CraterConfig,
     /// Building frames (openspec change `structural-destruction`).
@@ -810,6 +812,7 @@ impl Default for WorldConfig {
             trees: TreeConfig::default(),
             clouds: CloudConfig::default(),
             weather: super::weather::WeatherConfig::default(),
+            fog: super::mist::FogConfig::default(),
             craters: CraterConfig::default(),
             structure: super::structure::StructureConfig::default(),
             dressing: super::dressing::DressingConfig::default(),
@@ -905,6 +908,7 @@ impl Validate for WorldConfig {
         self.trees.validate()?;
         self.clouds.validate()?;
         self.weather.validate()?;
+        self.fog.validate()?;
         self.craters.validate()?;
         self.structure.validate()?;
         self.dressing.validate()?;

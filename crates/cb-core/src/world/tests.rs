@@ -101,7 +101,7 @@ const GOLDEN_BUILDINGS: usize = 3609;
 const GOLDEN_HIGHWAYS: usize = 12;
 const GOLDEN_RIVERS: usize = 64;
 const GOLDEN_TREES_AT_START: usize = 38407;
-const GOLDEN_FINGERPRINT: u64 = 15279228632848865957;
+const GOLDEN_FINGERPRINT: u64 = 337051159644685406;
 
 #[test]
 fn seed_42_census_for_the_design() {
@@ -866,4 +866,30 @@ fn the_baked_sun_shade_agrees_with_a_ray_toward_the_sun() {
     eprintln!("{shaded} of 3000 in shade; {agree} of {sure} agree with the ray");
     assert!(shaded > 10, "the island's ridges cast shade: {shaded}");
     assert!(agree as f32 >= sure as f32 * 0.93, "{agree} of {sure}");
+}
+
+#[test]
+fn no_rivers_water_lies_under_the_ground() {
+    // Owner, 2026-10-25: "I see rivers still have holes in them". Every river's water is over the
+    // ground along its whole course, joins included, except where a road's flat band or a bridge
+    // crosses it (the road stands over the water by design) and on a waterfall's sheet.
+    let plan = seed_42();
+    let cfg = shipped();
+    let road_flat = cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m;
+    let mut buried = Vec::new();
+    for (ri, r) in plan.waters.rivers.iter().enumerate() {
+        for (i, p) in r.path.iter().enumerate() {
+            if plan.waters.falls.iter().any(|f| f.river == ri && i + 3 >= f.lip && i <= f.foot + 3)
+                || plan.highways.iter().any(|h| h.project(*p).0 <= road_flat + 10.0)
+                || plan.waters.bridges.iter().any(|b| b.centre.distance(*p) < b.length_m)
+            {
+                continue;
+            }
+            let under = plan.terrain.height_at(p.x, p.y) - r.surface_m[i];
+            if under > 0.05 {
+                buried.push((ri, i, under));
+            }
+        }
+    }
+    assert!(buried.is_empty(), "river points under the ground: {buried:?}");
 }

@@ -36,16 +36,20 @@ Standing in a shaft the world fades out by about 3 km.
 
 ## 3. The mist map
 
-A 512 x 512 R8 texture over the 41 km world (80 m a texel), baked once at start on a worker thread
-from the core's rules (`cb_core::world::mist`, pure and tested):
+A 256 x 256 R8 texture over the 41 km world (160 m a texel), baked with the world plan from the
+core's rules (`cb_core::world::mist`, pure and tested):
 
-- **Hollows**: ground below the average of its surroundings within 1.5 km, by the depth (a
-  valley 100 m deep gets about 3 x).
+- **Hollows**: ground below the average of a ring of eight points 1.5 km round it, by the depth
+  (a full hollow is 100 m deep).
 - **Water**: lakes, rivers and wetland add up to 2 x within 300 m; the coast 1 x within 600 m.
-- **The crater floor**: inside the rim's cliff band, 2 x.
 - **Height**: nothing above 600 m (mist is low).
-- Then a **preset** scales it: `morning` (all of the above, rho0 x 2), `day` (rho0 x 1, hollows x
-  0.5), `clear` (rho0 x 0.5, no mist).
+- Then a **preset** scales it (not built yet): `morning` (all of the above, rho0 x 2), `day`
+  (rho0 x 1, hollows x 0.5), `clear` (rho0 x 0.5, no mist).
+
+As built (2026-10-25): `mist_at = low x (0.6 hollow + 0.5 near water + 0.3 near coast)`, `low`
+falling to 0 between 360 m and 600 m; the density is `1 + 5 x` the mist averaged over the taps.
+The rain haze is uniform while the eye is under a shaft (`rain_per_m` x the shaft's rain), not the
+ray's length inside each shaft's cylinder: the shafts themselves are drawn as billboards.
 
 The pass reads it with four taps along the ray (at 10, 30, 60 and 100 % of the way, capped at 6
 km), so near mist and far valleys both show.

@@ -26,7 +26,7 @@ struct WaterSurface {
     motion: vec4<f32>,      // scaled seconds, detail fade, flow period s, real seconds
     refraction: vec4<f32>,  // amount, max uv, max path m, light falloff 0..1
     absorption: vec4<f32>,  // rgb per metre; w the least reflection at a grazing angle
-    deep: vec4<f32>,        // rgb the water body's colour (an albedo); w spare
+    deep: vec4<f32>,        // rgb the water body's colour (an albedo); w the eye's submersion (0 dry, 1 under)
     light: vec4<f32>,       // rgb the light reaching the water, times exposure; w spare
     sky_horizon: vec4<f32>, // rgb the sky at the horizon (the game's sky), linear; w spare
     sky_zenith: vec4<f32>,  // rgb the sky straight up, linear; w spare
@@ -171,10 +171,15 @@ fn fragment(in: WaterFragment, @builtin(front_facing) front: bool) -> @location(
     let look = safe_normal(to_eye);
     let absorption = max(water.absorption.rgb, vec3<f32>(0.0));
 
-    // Seen from below: decided by where the eye is, not by the polygon's winding (nothing is
-    // culled); `front` only breaks the tie for an eye exactly on the sheet. Snell's window: the sky
-    // straight up, the murk at the eye's depth outside it. The distance murk is compose's.
-    let below = eye.y < p.y || (eye.y == p.y && !front);
+    // Seen from below: only by an eye in the water (`deep.w`, its submersion), and then decided by
+    // where the eye is, not by the polygon's winding (nothing is culled); `front` only breaks the
+    // tie for an eye exactly on the sheet. A dry eye lower than the water (a river or a lake up on
+    // the range seen from the lowlands) sees it from above: taking that for "below" drew every
+    // high river and lake as black murk (owner, 2026-10-25: "the rivers have missing geometry").
+    // Snell's window: the sky straight up, the murk at the eye's depth outside it. The distance
+    // murk is compose's.
+    let in_water = water.deep.w > 0.25;
+    let below = in_water && (eye.y < p.y || (eye.y == p.y && !front));
     if (below) {
         let deep = water_murk(water.deep.rgb, water.light.rgb, absorption, p.y - eye.y);
         let window = smoothstep(0.55, 0.75, dot(-look, normal));

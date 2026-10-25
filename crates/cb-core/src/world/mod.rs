@@ -20,7 +20,9 @@ pub mod interior;
 pub mod island;
 pub mod layout;
 pub mod lod;
+pub mod mist;
 pub mod roads;
+pub mod rocks;
 pub mod structure;
 pub mod sun_shade;
 pub mod terrain;
@@ -138,6 +140,7 @@ impl Ground for Scene<'_> {
     }
     fn push_out_at(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
         let p = self.push_out_buildings(p, radius_m, feet_y);
+        let p = rocks::push_out(&self.plan.rocks, p, radius_m, feet_y);
         self.trees.map_or(p, |t| t.push_out(p, radius_m))
     }
 }
@@ -228,6 +231,10 @@ pub struct WorldPlan {
     pub clouds: Clouds,
     /// What grows where.
     pub biomes: Biomes,
+    /// Sea stacks, arches and hoodoos (openspec change `rock-formations`).
+    pub rocks: Vec<rocks::Rock>,
+    /// Where mist forms (openspec change `ground-fog`).
+    pub mist: mist::MistMap,
     /// The terrain's own shadow for the sun, for far ground (distant-shadows).
     pub sun_shade: sun_shade::SunShade,
 }
@@ -291,6 +298,11 @@ impl WorldPlan {
         put(self.clouds.puffs.len() as f32);
         put(self.clouds.shafts.len() as f32);
         put(self.clouds.cirrus.len() as f32);
+        for r in &self.rocks {
+            put(r.base.x);
+            put(r.base.z);
+            put(r.scale.y);
+        }
         let mut text = String::with_capacity(words.len() * 8);
         for w in words {
             text.push_str(&w.to_string());
@@ -377,6 +389,13 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         biomes: &biomes,
     };
     let sky = weather::make_sky(&root.fork("clouds"), &cfg.weather, wind, &under);
+    let mist = mist::MistMap::bake(&cfg.fog, cfg, &terrain, &waters);
+    let road_clear = cfg.highway_width_m * 0.5 + 20.0;
+    let rocks = rocks::make_rocks(terrain.shape().island(), &|p| terrain.height_at(p.x, p.y), &|p| {
+        waters.water_at(p, terrain.height_at(p.x, p.y)).is_some()
+            || highways.iter().any(|h| h.project(p).0 <= road_clear)
+            || cities.iter().any(|c| c.rect().distance(p) < 60.0)
+    });
     let clouds = Clouds::new(sky, wind, cfg.weather.shaft_rain);
     WorldPlan {
         seed,
@@ -391,6 +410,8 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         clouds,
         biomes,
         sun_shade,
+        rocks,
+        mist,
     }
 }
 
