@@ -12,10 +12,9 @@ without fetching anything (the artifact host refuses fetch() of data: and blob: 
 
 The fortress is built in the page from primitives: it is the low-poly block-out the owner picks from
 before the Blender model is made (CLAUDE.md section 1). It is painted the mechs' way: the plating kit
-(tools/textures/gen_mech_plating.mjs, assets/textures/mech), its panelling laid out by each piece's shape (carapace
-rings and sectors round the shell, drum panels round cylinders, slab modules on flat faces; colour, normal, ORM,
-emission and a livery mask each), the slab's normal laid over everything small as close-up detail, tinted by the
-`hermit` palette in tools/blender/mech_palettes.py, blue and orange. The maps are inlined at 512 px as JPEG to keep the page small; the game loads the 1024 px PNGs.
+(tools/textures/gen_mech_plating.mjs, assets/textures/mech): armour designed for this hull, each sheet laid out
+against the fortress's features in tools/mockups/fortress_layout.json (which the page also builds from), never
+tiled; tinted by the `hermit` palette in tools/blender/mech_palettes.py, blue and orange. The maps are inlined at 512 px as JPEG to keep the page small; the game loads the 1024 px PNGs.
 Two friendly mechs fly round it (Stevedore and Ironhorse block-outs) and draw its fire.
 """
 import base64
@@ -33,9 +32,10 @@ OUT = os.path.join(ROOT, "docs", "mockups", "crab_fortress.html")
 CRABS = ["shrike", "mite", "scuttler"]   # deck guard (Shrike, Mite) and drops (Mite, Scuttler): design section 4
 YARDSTICK = "foreman"
 ALLIES = ["stevedore", "ironhorse"]          # friendly mechs flying round the fortress
-# the panelling laid out by shape: carapace (rings and sectors round the shell), drum (a cylinder's wrap), slab (a flat
-# face's module), each with its normal, ORM, emission and livery mask
-TEXTURES = [f"{n}{k}" for n in ("carapace", "drum", "slab") for k in ("", "_n", "_orm", "_e", "_m")]
+# the fortress's armour, each sheet laid out against its own features: the shell, the belly, the long walls, the
+# cylinders' wrap and the fitted panel, each with its normal, ORM, emission and livery mask
+TEXTURES = [f"{n}{k}" for n in ("fortress_shell", "fortress_belly", "fortress_side", "nacelle", "panel") for k in ("", "_n", "_orm", "_e", "_m")]
+LAYOUT = os.path.join(ROOT, "tools", "mockups", "fortress_layout.json")
 TEX_PX = 512
 sys.path.insert(0, os.path.join(ROOT, "tools", "blender"))
 from mech_palettes import PALETTES  # noqa: E402
@@ -50,7 +50,7 @@ def srgb_hex(c):
 def texture(name):
     """One map, downscaled to half (keeping its shape) and inlined as a JPEG data URL."""
     im = Image.open(os.path.join(ROOT, "assets", "textures", "mech", name + ".png")).convert("RGB")
-    im = im.resize((im.width * TEX_PX // 1024, im.height * TEX_PX // 1024), Image.LANCZOS)   # 4096x1024 carapace, 1024x2048 drum and slab
+    im = im.resize((im.width * TEX_PX // 1024, im.height * TEX_PX // 1024), Image.LANCZOS)   # every sheet at half size
     buf = io.BytesIO()
     im.save(buf, "JPEG", quality=90, optimize=True)
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
@@ -81,12 +81,14 @@ def main():
         page = f.read()
     if "__MODELS__" not in page:
         raise SystemExit(f"{SRC}: no __MODELS__ marker")
-    for marker in ("__MODELS__", "__TEXTURES__", "__PALETTE__"):
+    for marker in ("__MODELS__", "__TEXTURES__", "__PALETTE__", "__LAYOUT__"):
         if marker not in page:
             raise SystemExit(f"{SRC}: no {marker} marker")
     page = page.replace("__MODELS__", json.dumps(models, separators=(",", ":")))
     page = page.replace("__TEXTURES__", json.dumps(tex, separators=(",", ":")))
     page = page.replace("__PALETTE__", json.dumps(palette))
+    with open(LAYOUT) as f:
+        page = page.replace("__LAYOUT__", json.dumps(json.load(f)))
     with open(OUT, "w") as f:
         f.write(page)
     print(f"wrote {os.path.relpath(OUT, ROOT)} ({len(page) / 1e6:.2f} MB)")

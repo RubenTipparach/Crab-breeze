@@ -463,8 +463,8 @@ Nothing is an exception until it is listed here with its reason.
   2026-10-24: "rivets are kinda old school, I want more modern looking armor"): engraved seams, no rivets,
   neutral so each mech's palette (`tools/blender/mech_palettes.py`) tints it, and the decal sheet `decals.png` (owner,
   2026-10-24: "it should say "no step", company logo, "warning flamable" etc"): stencil markings and digits laid on
-  the mechs as quads by `Kit.decal`. It also draws the crab air fortress's panelling, laid out by shape (`carapace`, `drum`,
-  `slab`; owner, 2026-10-25: "paneling must look organized and intentional"). Material Maker stays the source of every other material.
+  the mechs as quads by `Kit.decal`. It also draws the crab air fortress's armour, designed for its hull and laid out against
+  `tools/mockups/fortress_layout.json` (owner, 2026-10-25: "pieces of custom made armor cut and fitted with precision"). Material Maker stays the source of every other material.
 - **Cockpit panels are modelled and rendered, not Material Maker graphs, and the pod's surfaces are
   baked to atlases** (owner, 2026-10-24: "Use the texturing skill we had on star crew bridge sim.
   Baked lighting with AO", then "Aim for that pbr triple a goodness that bevy provides"). A panel's

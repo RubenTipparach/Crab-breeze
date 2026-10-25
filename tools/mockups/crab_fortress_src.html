@@ -263,8 +263,9 @@ ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; 
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/utils/BufferGeometryUtils.js"></script>
 <script>
 const MODELS = __MODELS__;
-const TEX = __TEXTURES__;      // the plating maps (assets/textures/mech): large panels hull and hullB, frameM, detail normals
+const TEX = __TEXTURES__;      // the fortress's armour maps (assets/textures/mech): fortress_shell, fortress_belly, fortress_side, nacelle, panel
 const PAL = __PALETTE__;       // the hermit palette (tools/blender/mech_palettes.py), as sRGB hex
+const LAYOUT = __LAYOUT__;     // the fortress's features (tools/mockups/fortress_layout.json): the geometry and its armour's layout read the same
 const T = THREE, TAU = Math.PI * 2, DEG = Math.PI / 180;
 const ease = x => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 const lerp = (a, b, u) => a + (b - a) * u;
@@ -372,35 +373,27 @@ const texLoader = new T.TextureLoader();
 let texLeft = 0, texDone = null; const texReady = new Promise(ok => { texDone = ok; });
 function loadTex(key, srgb) { texLeft++; const t = texLoader.load(TEX[key], () => { if (--texLeft === 0) texDone(); }, undefined, () => { if (--texLeft === 0) texDone(); });
   t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 8; if (srgb) t.encoding = T.sRGBEncoding; return t; }
-// Panelling laid out by shape (owner, 2026-10-25: "paneling must look organized and intentional", "see how the panel
-// aligns with the flow of the geometry?", "each element has paneling that compliments its shape"). Three layouts from
-// the plating kit: `carapace` rings and sectors round the shell and belly (u once round from the stern, the bow at 0.5;
-// v from the rim in to the middle), `drum` panels round every cylinder, `slab` modules fitted whole to flat faces. Each
-// colour role is a material per layout: its maps, the palette tint, the livery mask mixing in the role's accent, the
-// conduits lit acid green, and the slab's normal laid small over everything as close-up detail (owner: "we want
-// normal maps for large and small details").
-const MODULE_M = 22, DRUM_M = 14, DETAIL_STRENGTH = 0.55;
-const DETAIL = { carapace: [160, 30], drum: [3, 6], slab: [4, 8] };   // detail repeats per map repeat, across and down (drum and slab sheets are two rows tall)
-const ROLES = new Map();   // role material -> { hex, accent }
+// The armour, designed for this hull (owner, 2026-10-25: "paneling should look like pieces of custom made armor cut and
+// fitted with precision", "you just generate them and tiled them ... that is not the point of panel design"): five
+// sheets from the plating kit, each laid out against the fortress's own features (fortress_layout.json), none tiled:
+// fortress_shell (the shell, top and underside), fortress_belly, fortress_side (the long walls, on the hull's stations),
+// nacelle (every cylinder, once round), panel (every other face, one fitted panel). Each colour role is a material per
+// sheet: its maps, the palette tint, and the livery mask mixing in the role's accent.
+const ROLES = new Map();   // role material -> { hex, accent, extra }
 const VARIANTS = new Map();
-function role(hex, accent, extra) { const m = variantOf({ hex, accent, extra }, "slab"); ROLES.set(m, { hex, accent, extra }); return m; }
-function variantOf(r, type) {
-  const key = r.hex + r.accent + type + (r.extra && r.extra.side ? "2" : "");
+function role(hex, accent, extra) { const r = { hex, accent, extra }, m = variantOf(r, "panel"); ROLES.set(m, r); return m; }
+function variantOf(r, sheet) {
+  const key = r.hex + r.accent + sheet + (r.extra && r.extra.side ? "2" : "");
   if (VARIANTS.has(key)) return VARIANTS.get(key);
-  const orm = loadTex(type + "_orm"), liv = loadTex(type + "_m"), det = loadTex("slab_n");
-  const m = new T.MeshStandardMaterial(Object.assign({ color: r.hex, map: loadTex(type, true), normalMap: loadTex(type + "_n"), normalScale: new T.Vector2(1.3, 1.3),
-    roughnessMap: orm, metalnessMap: orm, aoMap: orm, roughness: 1, metalness: 1,
-    emissiveMap: loadTex(type + "_e", true), emissive: new T.Color(PAL.GLOW).convertSRGBToLinear(), emissiveIntensity: 1.6 }, r.extra || {}));
+  const orm = loadTex(sheet + "_orm"), liv = loadTex(sheet + "_m");
+  const m = new T.MeshStandardMaterial(Object.assign({ color: r.hex, map: loadTex(sheet, true), normalMap: loadTex(sheet + "_n"),
+    roughnessMap: orm, metalnessMap: orm, aoMap: orm, roughness: 1, metalness: 1 }, r.extra || {}));
   m.color.convertSRGBToLinear(); m.userData.plated = true;
   const accent = new T.Color(r.accent).convertSRGBToLinear();
   m.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, { detailNormal: { value: det }, detailScale: { value: new T.Vector2(...DETAIL[type]) }, detailStrength: { value: DETAIL_STRENGTH },
-      liveryMap: { value: liv }, accentColor: { value: accent } });
-    sh.fragmentShader = "uniform sampler2D detailNormal; uniform vec2 detailScale; uniform float detailStrength; uniform sampler2D liveryMap; uniform vec3 accentColor;\n" + sh.fragmentShader
-      .replace("#include <map_fragment>", T.ShaderChunk.map_fragment + "\n diffuseColor.rgb = mix( diffuseColor.rgb, accentColor * sampledDiffuseColor.rgb, texture2D( liveryMap, vUv ).r );")
-      .replace("#include <normal_fragment_maps>", T.ShaderChunk.normal_fragment_maps.replace(
-        "vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;",
-        "vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0; vec3 detN = texture2D( detailNormal, vUv * detailScale ).xyz * 2.0 - 1.0; mapN = normalize( vec3( mapN.xy + detN.xy * detailStrength, mapN.z ) );"));
+    Object.assign(sh.uniforms, { liveryMap: { value: liv }, accentColor: { value: accent } });
+    sh.fragmentShader = "uniform sampler2D liveryMap; uniform vec3 accentColor;\n" + sh.fragmentShader
+      .replace("#include <map_fragment>", T.ShaderChunk.map_fragment + "\n diffuseColor.rgb = mix( diffuseColor.rgb, accentColor * sampledDiffuseColor.rgb, texture2D( liveryMap, vUv ).r );");
   };
   VARIANTS.set(key, m); return m;
 }
@@ -454,7 +447,7 @@ const clouds = (() => {
 
 // ---- The fortress (design section 1): +Z forward, +X its own left, origin at the hull's middle ----
 const F = new T.Group(); F.position.set(0, ALT, 0); scene.add(F);
-const hullEdgeX = z => 140 * Math.sqrt(Math.max(0, 1 - (z / 210) ** 2));
+const hullEdgeX = z => LAYOUT.shell.ax * Math.sqrt(Math.max(0, 1 - (z / LAYOUT.shell.az) ** 2));
 function plumeMat(color, opacity = 0.35) { return new T.MeshBasicMaterial({ color: lin(color), transparent: true, opacity, depthWrite: false, side: T.DoubleSide }); }
 
 // Every lockable part (design section 3). `fire` is where it burns once destroyed, in its own frame.
@@ -492,11 +485,12 @@ function part(id, kind, obj, opts = {}) {
 
 (() => {
   // the shell, its underside and the belly take the carapace panelling: rings round their own middles
-  const shell = add(F, new T.SphereGeometry(1, 48, 20, 0, TAU, 0, Math.PI / 2), M.hull); shell.scale.set(140, 45, 210); shell.userData.polar = { cx: 0, cz: 0, ax: 140, az: 210 };
-  const under = add(F, new T.SphereGeometry(1, 48, 14, 0, TAU, Math.PI / 2, Math.PI / 2), M.hull2); under.scale.set(140, 34, 210); under.userData.polar = { cx: 0, cz: 0, ax: 140, az: 210 };
-  const belly = add(F, new T.SphereGeometry(1, 36, 14), M.hull2, 0, -30, -10); belly.scale.set(92, 28, 150); belly.userData.polar = { cx: 0, cz: -10, ax: 92, az: 150 };
+  const SH = LAYOUT.shell, BE = LAYOUT.belly;
+  const shell = add(F, new T.SphereGeometry(1, 64, 24, 0, TAU, 0, Math.PI / 2), M.hull); shell.scale.set(SH.ax, SH.top_m, SH.az); shell.userData.polar = { cx: 0, cz: 0, ax: SH.ax, az: SH.az, tex: "fortress_shell" };
+  const under = add(F, new T.SphereGeometry(1, 64, 16, 0, TAU, Math.PI / 2, Math.PI / 2), M.hull2); under.scale.set(SH.ax, SH.under_m, SH.az); under.userData.polar = { cx: 0, cz: 0, ax: SH.ax, az: SH.az, tex: "fortress_shell" };
+  const belly = add(F, new T.SphereGeometry(1, 48, 16), M.hull2, 0, -30, BE.cz); belly.scale.set(BE.ax, 28, BE.az); belly.userData.polar = { cx: 0, cz: BE.cz, ax: BE.ax, az: BE.az, tex: "fortress_belly" };
   // the abdomen's segment ribs, a crab's folded tail plate
-  for (let k = -3; k <= 3; k++) { const rib = add(F, new T.TorusGeometry(1, 0.06, 4, 24), M.dark, 0, -34, -10 + k * 34); rib.scale.set(86 * Math.sqrt(1 - (k / 4.4) ** 2), 26, 1); }
+  for (let k = -3; k <= 3; k++) { const rib = add(F, new T.TorusGeometry(1, 0.06, 4, 24), M.dark, 0, -34, BE.cz + k * BE.rib_dz); rib.scale.set(86 * Math.sqrt(1 - (k / 4.4) ** 2), 26, 1); }
   const band = add(F, cyl(1, 1, 1, 40, true), M.mark); band.scale.set(141.5, 7, 211.5);
   const band2 = add(F, cyl(1, 1, 1, 40, true), M.dark, 0, -6, 0); band2.scale.set(140.8, 3, 210.8);
   add(F, box(90, 30, 360), M.hull2, 0, 33, 0);       // the spine under the deck
@@ -514,7 +508,7 @@ function part(id, kind, obj, opts = {}) {
     const eye = add(bridge, new T.SphereGeometry(5, 16, 10), M.dark, 11.7 * s, 50, 4); add(eye, new T.SphereGeometry(3.4, 16, 10), M.glow, 0, 0, 3.2, false); });
   part("bridge", "bridge", bridge, { label: "Bridge: its eyes", fire: new T.Vector3(0, 24, 0) });
   // the stern: two drive thrusters
-  [-1, 1].forEach((s, i) => { const d = new T.Group(); d.position.set(48 * s, 4, -200); F.add(d);
+  [-1, 1].forEach((s, i) => { const d = new T.Group(); d.position.set(LAYOUT.drive.x * s, 4, LAYOUT.drive.z); F.add(d);
     const n = add(d, cyl(10, 12, 34, 18), M.dark); n.rotation.x = Math.PI / 2;
     const r = add(d, cyl(9, 9, 1, 18), M.glow, 0, 0, -17.2, false); r.rotation.x = Math.PI / 2;
     const pl = add(d, new T.ConeGeometry(8, 40, 16, 1, true), plumeMat(0xff4a2a), 0, 0, -38, false); pl.rotation.x = -Math.PI / 2; pl.raycast = () => {};
@@ -530,7 +524,7 @@ function spikeMatrix(pos, dir, len, r) { return new T.Matrix4().compose(pos, new
 
 // the eight lift thrusters on their leg pylons (design section 1): L = +X, front to back L1..L4
 const THR = [];
-const THR_Z = [125, 45, -40, -125];
+const THR_Z = LAYOUT.lift_z;
 [1, -1].forEach((s, si) => THR_Z.forEach((z, k) => {
   const id = (si === 0 ? "L" : "R") + (k + 1), xe = hullEdgeX(z);
   const root = new T.Vector3((xe - 8) * s, 2, z), knee = new T.Vector3((xe + 36) * s, 8, z), top = new T.Vector3((xe + 46) * s, -30, z);
@@ -581,8 +575,8 @@ const THR_Z = [125, 45, -40, -125];
 // the six hull thrusters (owner, 2026-10-25): ducts through the carapace, sealed until the outer thrusters fail;
 // then the doors slide open and the port holes top and bottom are the only way in, from directly above or below
 const HULL = [];
-[1, -1].forEach((s, si) => [80, 0, -80].forEach((z, k) => {
-  const id = "H" + (si === 0 ? "L" : "R") + (k + 1), x = 104 * s;
+[1, -1].forEach((s, si) => LAYOUT.hull_ports.z.forEach((z, k) => {
+  const id = "H" + (si === 0 ? "L" : "R") + (k + 1), x = LAYOUT.hull_ports.x * s;
   const e = 1 - (x / 140) ** 2 - (z / 210) ** 2, top = 45 * Math.sqrt(e), bot = -34 * Math.sqrt(e);
   const g = new T.Group(); g.position.set(x, 0, z); F.add(g);
   const shaft = add(g, cyl(11.5, 11.5, top - bot + 4, 20, true), std(0x0c0c10, 1, 0, { side: T.DoubleSide }), 0, (top + bot) / 2, 0, false);
@@ -695,46 +689,55 @@ const BAYS = [40, -60].map((z, i) => { const b = new T.Group(); b.position.set(0
     add(h, box(15, 1.2, 40), M.hull, -7.5 * s, -0.6, 0); return h; });
   add(b, box(30.2, 0.4, 40.2), M.core, 0, -6.1, 0, false);
   return { b, doors, open: 0, openUntil: -1, part: part("bay" + (i + 1), "bay", b, { label: i === 0 ? "Drop bays" : null, fire: new T.Vector3(0, -8, 0) }) }; });
-// lay each plated piece's UVs out by its shape, and give it its role's material for that layout
-//   polar (the shell, its underside, the belly): u = the angle round its middle from the stern, v = how far out to its rim
-//   drum (every cylinder): u = round it in panels about DRUM_M wide (an even number, so it mirrors), v = up it in bands
-//   slab (everything else): each face in whole modules about MODULE_M across, fitted to the piece's own box
+// lay each plated piece's UVs onto its sheet, and give it its role's material for that sheet
+//   the shell, its underside, the belly: polar, u the angle round its middle from the stern, v from its rim in
+//   a cylinder: the nacelle wrap, u once round, v up it; its caps take the panel
+//   a long box (along the hull, 150 m or more): its sides and top take fortress_side, u by the hull's own z so every
+//   wall's seams fall on the same stations; its ends take the panel
+//   anything else: the panel, fitted whole to each face of the piece
 function projectUVs(root) {
   root.updateMatrixWorld(true); const inv = new T.Matrix4().copy(root.matrixWorld).invert();
   const a = new T.Vector3(), b = new T.Vector3(), c = new T.Vector3(), n = new T.Vector3(), e = new T.Vector3();
+  const zs = LAYOUT.stations_z, Z0 = Math.min(...zs), Z1 = Math.max(...zs);
   root.traverse(o => {
     if (!o.isMesh || o.isInstancedMesh || Array.isArray(o.material) || !ROLES.has(o.material)) return;
     const r = ROLES.get(o.material), g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(), pos = g.attributes.position, uv = new Float32Array(pos.count * 2);
-    const sc = new T.Vector3(); o.getWorldScale(sc); sc.divide(root.getWorldScale(new T.Vector3()));
-    const polar = o.userData.polar, cyl = !polar && g.type === "CylinderGeometry", type = polar ? "carapace" : cyl ? "drum" : "slab";
-    const rel = new T.Matrix4().multiplyMatrices(inv, o.matrixWorld);
-    g.computeBoundingBox(); const bb = g.boundingBox, size = bb.getSize(new T.Vector3()).multiply(sc);
-    const P = g.parameters || {}, rad = Math.max(P.radiusTop || 0, P.radiusBottom || 0) * Math.max(sc.x, sc.z);
-    const around = Math.max(4, 2 * Math.round(TAU * rad / (2 * DRUM_M))), bands = Math.max(1, Math.round(size.y / DRUM_M));
-    const tiles = k => Math.max(1, Math.round(size.getComponent(k) / MODULE_M));
+    const rel = new T.Matrix4().multiplyMatrices(inv, o.matrixWorld), polar = o.userData.polar, cyl = !polar && g.type === "CylinderGeometry";
+    g.computeBoundingBox(); const bb = g.boundingBox, wb = bb.clone().applyMatrix4(rel), longBox = !polar && !cyl && wb.max.z - wb.min.z >= 150;
+    const P = g.parameters || {}, rad = Math.max(P.radiusTop || 0, P.radiusBottom || 0) || 1;
+    const sheets = new Set();
     for (let i = 0; i + 2 < pos.count; i += 3) {
       a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
-      const tri = [a, b, c].map(p => p.clone()), uvs = [];
-      if (polar) {
-        tri.forEach(p => { p.applyMatrix4(rel); const nx = (p.x - polar.cx) / polar.ax, nz = (p.z - polar.cz) / polar.az;
+      const tri = [a, b, c], uvs = []; let sheet;
+      n.subVectors(c, b).cross(e.subVectors(a, b)).normalize();
+      if (polar) { sheet = polar.tex;
+        tri.forEach(p => { const q = p.clone().applyMatrix4(rel), nx = (q.x - polar.cx) / polar.ax, nz = (q.z - polar.cz) / polar.az;
           uvs.push([Math.atan2(nx, nz) / TAU + 0.5, 1 - Math.min(1, Math.hypot(nx, nz))]); });
-      } else if (cyl) {
-        n.subVectors(c, b).cross(e.subVectors(a, b)).normalize();
-        if (Math.abs(n.y) > 0.9) tri.forEach(p => uvs.push([p.x / (2 * (P.radiusTop || 1)) + 0.5, (p.z / (2 * (P.radiusTop || 1)) + 0.5) / 2]));   // a cap: one plate of the drum
-        else tri.forEach(p => uvs.push([(Math.atan2(p.x, p.z) / TAU + 0.5) * around, (p.y - bb.min.y) / (bb.max.y - bb.min.y || 1) * bands / 2]));   // the sheet is two bands tall
+      } else if (cyl && Math.abs(n.y) < 0.9) { sheet = "nacelle";
+        tri.forEach(p => uvs.push([Math.atan2(p.x, p.z) / TAU + 0.5, (p.y - bb.min.y) / ((bb.max.y - bb.min.y) || 1)]));
+      } else if (cyl) { sheet = "panel"; tri.forEach(p => uvs.push([p.x / (2 * rad) + 0.5, p.z / (2 * rad) + 0.5]));
       } else {
-        n.subVectors(c, b).cross(e.subVectors(a, b)); n.multiply(new T.Vector3(1 / sc.x, 1 / sc.y, 1 / sc.z));
-        const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z), [ku, kv] = ax >= ay && ax >= az ? [2, 1] : ay >= az ? [0, 2] : [0, 1];
-        tri.forEach(p => { const f = k => (p.getComponent(k) - bb.min.getComponent(k)) / ((bb.max.getComponent(k) - bb.min.getComponent(k)) || 1);
-          uvs.push([f(ku) * tiles(ku), f(kv) * tiles(kv) / 2]); });   // the sheet is two modules tall, laid as bricks
+        const nw = n.clone().transformDirection(rel), ax = Math.abs(nw.x), ay = Math.abs(nw.y), az = Math.abs(nw.z);
+        if (longBox && az < 0.7) { sheet = "fortress_side";
+          tri.forEach(p => { const q = p.clone().applyMatrix4(rel), across = ax >= ay ? (q.y - wb.min.y) / ((wb.max.y - wb.min.y) || 1) : (q.x - wb.min.x) / ((wb.max.x - wb.min.x) || 1);
+            uvs.push([(q.z - Z0) / (Z1 - Z0), across]); });
+        } else { sheet = "panel";
+          const nl = n, lx = Math.abs(nl.x), ly = Math.abs(nl.y), lz = Math.abs(nl.z), [ku, kv] = lx >= ly && lx >= lz ? [2, 1] : ly >= lz ? [0, 2] : [0, 1];
+          tri.forEach(p => { const f = k => (p.getComponent(k) - bb.min.getComponent(k)) / ((bb.max.getComponent(k) - bb.min.getComponent(k)) || 1); uvs.push([f(ku), f(kv)]); }); }
       }
-      // a triangle across the seam round the back takes its u on one side of it
-      if (polar || cyl) { const per = polar ? 1 : around, us = uvs.map(q => q[0]);
-        if (Math.max(...us) - Math.min(...us) > per / 2) uvs.forEach(q => { if (q[0] < per / 2) q[0] += per; }); }
+      if (polar || (cyl && sheet === "nacelle")) { const us = uvs.map(q => q[0]); if (Math.max(...us) - Math.min(...us) > 0.5) uvs.forEach(q => { if (q[0] < 0.5) q[0] += 1; }); }
       uvs.forEach((q, k) => { uv[(i + k) * 2] = q[0]; uv[(i + k) * 2 + 1] = q[1]; });
+      sheets.add(sheet); g.userData.sheets = g.userData.sheets || []; g.userData.sheets.push(sheet);
     }
-    g.setAttribute("uv", new T.BufferAttribute(uv, 2)); g.setAttribute("uv2", new T.BufferAttribute(uv.slice(), 2)); o.geometry = g;
-    o.material = variantOf(r, type); if (o.userData.mat0) o.userData.mat0 = o.material;
+    g.setAttribute("uv", new T.BufferAttribute(uv, 2)); g.setAttribute("uv2", new T.BufferAttribute(uv.slice(), 2));
+    // a piece on more than one sheet (a cylinder and its caps, a long box and its ends) takes one material per sheet, by groups
+    const list = [...sheets];
+    if (list.length === 1) o.material = variantOf(r, list[0]);
+    else { g.clearGroups(); let start = 0; const per = g.userData.sheets;
+      for (let t = 1; t <= per.length; t++) if (t === per.length || per[t] !== per[start]) { g.addGroup(start * 3, (t - start) * 3, list.indexOf(per[start])); start = t; }
+      o.material = list.map(sname => variantOf(r, sname)); }
+    delete g.userData.sheets; o.geometry = g;
+    if (o.userData.mat0) o.userData.mat0 = o.material;
   });
 }
 projectUVs(F);

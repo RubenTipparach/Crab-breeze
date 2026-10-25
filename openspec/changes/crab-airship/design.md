@@ -135,18 +135,26 @@ t junctions, and about 20-30% diagonal lines", "we want normal maps for large an
 - Spikes all round the rim, across the shell, two great horns and a row of teeth at the bow, back-swept spines at
   the stern, fins along the shoulders, spines on every leg's knee, spikes on the thruster plates and a keel of spikes
   down the belly; instanced, one draw for the shell's and one per thruster.
-- Painted the mechs' way: the plating kit (`tools/textures/gen_mech_plating.mjs`), neutral paint tinted by the
+- Painted the mechs' way, with the plating kit (`tools/textures/gen_mech_plating.mjs`): neutral paint tinted by the
   `hermit` palette in `tools/blender/mech_palettes.py` (blue carapace, orange armour, a dark frame, red-orange
-  accents), full PBR (colour, normal, ORM, emission, a livery mask). Its panelling is laid out by each piece's shape:
-  - **carapace** (the shell, its underside, the belly): rings round the middle cut into sectors, 8, 16, 32 then 64
-    a ring, each ring half a sector out from the next, so seams meet only in T-junctions; mirrored about the
-    centreline; a quarter of the plates split by a diagonal ending at three or five eighths of its plate; outer
-    corners clipped like feathers; an orange band near the rim and a stripe down the centreline; two ring
-    channels lit acid green.
-  - **drum** (every cylinder): plates round it, bands up it laid as bricks, every other band split by a diagonal.
-  - **slab** (every flat face): a symmetric module fitted whole to the face, rows laid as bricks.
-  - The big shapes (bevels, channels, inner panels) are in each sheet's normal map; the slab's normal map is laid
-    over everything small as close-up detail.
+  accents), full PBR (colour, normal, ORM, emission, a livery mask).
+- Its armour is designed for this hull, not tiled (owner: "paneling should look like pieces of custom made armor cut
+  and fitted with precision", "you just generate them and tiled them ... that is not the point of panel design"). The
+  features are written once, in `tools/mockups/fortress_layout.json`: the mockup builds the geometry from it and the
+  kit lays the panelling out against it. Five sheets:
+  - **fortress_shell** (the shell, top and underside): an armoured belt round the rim, broken by a root plate at
+    each leg pylon and a plate round each drive; a round doubler framing each hull thruster port; big side plates
+    between seams run out from the doublers, divided by deliberate diagonals; a bow plate on the centreline.
+  - **fortress_belly**: bands between the abdomen's ribs, split on the keel and at either side by turns, a dark keel
+    stripe down alternate bands.
+  - **fortress_side** (every long wall: spine sides, shoulder walls and tops): bays between the hull's structural
+    stations (bow, bridge, each pylon, each port, stern), so seams line up from part to part; a rail along the top;
+    the pylon bays split by a diagonal.
+  - **nacelle** (every cylinder, once round): a collar band, the body in four (two with a diagonal), a nozzle band.
+  - **panel** (every other face): one fitted panel with a border, a split and chamfered top corners.
+  - Precision: plates flush with a few millimetres' step between neighbours, seams as thin engraved grooves with a
+    small chamfer, fasteners in even rows, hatches and grilles placed on purpose; every seam ends on another in a T
+    (never a cross), about a quarter of them diagonal.
 - Its guard crabs walk on two-bone IK: each leg's coxa yaws its plane onto the foot, femur and lower leg bend in it
   with the knee up; a foot stays planted until the body has carried it a quarter of the leg's reach from where it
   wants to be, then swings there in 0.3 s, one group of legs at a time (tripods for six legs, diagonal pairs for
