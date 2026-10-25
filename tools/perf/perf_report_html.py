@@ -240,7 +240,7 @@ pre{background:var(--panel);border:1px solid var(--rule);border-radius:8px;paddi
   <p>The owner's targets are 120 fps (8.3 ms) at the 95th percentile and never below 60 fps (16.7 ms) at the 99th.</p>
   <div class="meta">
     <span>Run <b>%%WHEN%%</b></span><span>Build <b class="mono">%%REVISION%%</b></span>
-    <span>GPU <b>%%ADAPTER%%</b></span><span>View <b>offscreen 1920 × 1080, uncapped</b></span>
+    <span>GPU <b>%%ADAPTER%%</b></span><span>View <b>in the window, presented through the GPU</b></span>
   </div>
 </header>
 
@@ -256,7 +256,7 @@ pre{background:var(--panel);border:1px solid var(--rule);border-radius:8px;paddi
 <section class="foot">
   <h2>How this was measured</h2>
   %%LIMITS%%
-  <p>Each run starts the game fresh, plays the scripted take with the pilot's view rendered offscreen, and throws away its first 10 s. A run that crashed, timed out or never finished its take is marked invalid and left out. Traces are binned to 0.1 s: the faint line is each bin's worst frame, the solid line its median. Reproduce with:</p>
+  <p>Each run starts the game fresh, plays the scripted take in its window, drawn and presented through the GPU as a player sees it (CLAUDE.md section 7: no offscreen perf rendering), and throws away its first 10 s. A run that crashed, timed out or never finished its take is marked invalid and left out. Traces are binned to 0.1 s: the faint line is each bin's worst frame, the solid line its median. Reproduce with:</p>
   <pre>%%COMMAND%%</pre>
 </section>
 </div>
@@ -320,7 +320,7 @@ function chart(sc){
     s+=`<polyline points="${path(r.t,r.p50,y)}" fill="none" stroke="${c}" stroke-width="1.6"${dash}/>`;
   }
   for(const v of [0,gtop/2]) s+=`<line x1="${L}" x2="${W-R}" y1="${gy(v)}" y2="${gy(v)}" stroke="var(--grid)"/><text x="${L-6}" y="${gy(v)+4}" text-anchor="end">${v.toFixed(1)}</text>`;
-  s+=`<text x="${L}" y="${gy0-8}">render passes, CPU ms (Metal reports no GPU time)</text>`;
+  s+=`<text x="${L}" y="${gy0-8}">render passes, CPU ms per frame</text>`;
   for(const r of sc.runs)
     s+=`<polyline points="${path(r.t,r.gpu,gy)}" fill="none" stroke="${colour(r.variant)}" stroke-width="1.4"${r.index%2?' stroke-dasharray="4 2"':""}/>`;
   return s+"</svg>";

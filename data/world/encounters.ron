@@ -1,4 +1,5 @@
-// The first fight (openspec/changes/enemy-mechs). Offsets are from the player's mech, in metres
+// The first fight (openspec/changes/enemy-mechs). Each wears a block-out skin over the stand-in
+// (openspec/changes/blockout-enemies): a Sabre, a Hatchet and the Tyrant crab. Offsets are from the player's mech, in metres
 // (x, z); the player's mech faces -z down its street at the start. Enemies wear a rust tint and
 // carry a light 25 mm autocannon and light armour (55 %): raiders, not the player's equal. Their brain (cb-core::ai, after Mining Mike's autopilot) orbits at
 // `range_m`, evades when hit, hops on its jets and backs off behind cover when badly hurt.
@@ -6,6 +7,7 @@
     enemies: [
         (
             mech: "mechs/placeholder.ron",
+            skin: Some("sabre"),
             offset_m: (0.0, -420.0),
             heading_deg: 180.0,
             armour_scale: 0.55,
@@ -18,6 +20,7 @@
         ),
         (
             mech: "mechs/placeholder.ron",
+            skin: Some("hatchet"),
             offset_m: (30.0, -560.0),
             heading_deg: 180.0,
             armour_scale: 0.55,
@@ -30,6 +33,7 @@
         ),
         (
             mech: "mechs/placeholder.ron",
+            skin: Some("tyrant"),
             offset_m: (-20.0, -700.0),
             heading_deg: 180.0,
             armour_scale: 0.55,

@@ -124,13 +124,33 @@ def parse_variant(spec: str, default_exe: str) -> dict:
     return {"name": parts[0], "exe": str(Path(exe).resolve()), "env": env, "root": root}
 
 
+WINDOWS = os.name == "nt"
+
+
 def running(name: str) -> bool:
+    if WINDOWS:
+        out = subprocess.run(["tasklist", "/FI", f"IMAGENAME eq {name}.exe", "/NH"], capture_output=True, text=True).stdout
+        return name.lower() + ".exe" in out.lower()
     return subprocess.run(["pgrep", "-x", name], capture_output=True).returncode == 0
 
 
 def rss_mb(pid: int) -> float:
+    if WINDOWS:
+        # tasklist's CSV: "image","pid","session","#","mem K"
+        out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"], capture_output=True, text=True).stdout
+        cells = [c.strip('"') for c in out.strip().split('","')]
+        kb = cells[-1].replace(",", "").replace("K", "").replace('"', "").strip() if len(cells) >= 5 else ""
+        return int(kb) / 1024 if kb.isdigit() else math.nan
     out = subprocess.run(["ps", "-o", "rss=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
     return int(out) / 1024 if out.isdigit() else math.nan
+
+
+def machine_name() -> str:
+    if WINDOWS:
+        out = subprocess.run(["wmic", "cpu", "get", "name"], capture_output=True, text=True).stdout.splitlines()
+        cpu = next((l.strip() for l in out[1:] if l.strip()), "")
+        return cpu or os.environ.get("PROCESSOR_IDENTIFIER", "")
+    return subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True).stdout.strip()
 
 
 def run_once(scenario: str, variant: dict, index: int, a) -> dict:
@@ -321,8 +341,9 @@ def main() -> None:
     ap.add_argument("--variant", action="append", help="name|exe|ENV=1;ENV2=2|root (repeatable)")
     ap.add_argument("--exe", default="target/release/crab-breeze", help="the exe of a variant that names none")
     ap.add_argument("--repeats", type=int, default=2)
-    ap.add_argument("--windowed", action="store_true",
-                    help="play in the window, held to the display: report missed refreshes and freezes")
+    # Always on screen (owner, 2026-10-24: "perf rendering off screen is forbidden"): the game as it
+    # is played, in its window, so the cockpit pass, the HUD and presenting each frame are measured.
+    ap.set_defaults(windowed=True)
     ap.add_argument("--skip-s", type=float, default=10.0)
     ap.add_argument("--timeout", type=float, default=600.0)
     ap.add_argument("--out", type=Path, default=Path("output/perf") / dt.datetime.now().strftime("%Y%m%d-%H%M"))
@@ -351,7 +372,7 @@ def main() -> None:
                                      capture_output=True, text=True).stdout.strip()),
         "variants": variants,
         "args": sys.argv[1:],
-        "machine": subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True).stdout.strip(),
+        "machine": machine_name(),
     }
     results = []
     for scenario in a.scenarios:

@@ -32,6 +32,9 @@ pub struct CockpitLightConfig {
     pub screens_cube_cd_m2: f32,
     /// Whole refreshes of the cube a second (six faces each), drawn one face at a time.
     pub screens_cube_hz: f32,
+    /// The interior's own lamps (footwell, overhead, sills, screen), scaled from their glTF
+    /// intensities.
+    pub interior_lamp_scale: f32,
 }
 
 impl Default for CockpitLightConfig {
@@ -46,6 +49,7 @@ impl Default for CockpitLightConfig {
             screens_cube_px: 64,
             screens_cube_cd_m2: 400.0,
             screens_cube_hz: 10.0,
+            interior_lamp_scale: 1.0,
         }
     }
 }
@@ -84,6 +88,7 @@ impl Validate for CockpitLightConfig {
         }
         within("screens_cube_cd_m2", self.screens_cube_cd_m2, 0.0, 100_000.0)?;
         positive("screens_cube_hz", self.screens_cube_hz)?;
+        positive("interior_lamp_scale", self.interior_lamp_scale)?;
         for (i, p) in self.screens_m.iter().enumerate() {
             finite3(&format!("screens_m[{i}]"), *p)?;
         }

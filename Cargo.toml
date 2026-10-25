@@ -31,3 +31,9 @@ opt-level = 3
 
 [profile.dev]
 opt-level = 1
+
+# The game is CPU-bound (GPU about 0.4 ms a frame): whole-program optimisation for the build that is
+# played and measured, at the cost of a longer release build.
+[profile.release]
+lto = "thin"
+codegen-units = 1

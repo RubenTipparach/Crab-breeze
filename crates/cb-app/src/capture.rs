@@ -73,6 +73,7 @@ fn run_script(
     mut acc: ResMut<InputAccum>,
     mut pilot: ResMut<PilotSim>,
     access: Res<MechAccessNow>,
+    enemies: Query<&GlobalTransform, With<crate::mech::Enemy>>,
     mechs: Query<&MechSim, With<Piloted>>,
     plan: Res<Plan>,
     data: Res<Data>,
@@ -80,11 +81,13 @@ fn run_script(
     time: Res<Time<Real>>,
     game_time: Res<Time>,
     mut exit: MessageWriter<AppExit>,
+    mut exit_frames: Local<u32>,
 ) {
     let now = time.elapsed_secs();
     let in_beat = now - script.beat_started_s;
     let mut next = false;
     match script.beat {
+        // Wait for the world, the rig and shaders to settle.
         // Wait for the game to be ready (GAME_READY: every asset and pipeline loaded), then for the
         // rig and shaders to settle.
         0 => next = in_beat > 6.0 && ready.0 && access.0.is_some(),
@@ -104,8 +107,37 @@ fn run_script(
                 next = true;
             }
         }
-        // Walk to the ladder by input, then press Use.
+        // An enemy in its skin (`blockout-enemies`): the pilot stood 70 m off the nearest, looking up at it.
+        // Skipped when there is none; then back behind the mech to board.
+        2 if enemies.is_empty() => next = true,
         2 => {
+            let a = access.0.unwrap();
+            let e = enemies
+                .iter()
+                .map(|g| g.translation())
+                .min_by(|p, q| p.distance(a.ladder_base).total_cmp(&q.distance(a.ladder_base)))
+                .unwrap();
+            if in_beat < 0.05 {
+                let flat = Vec3::new(a.ladder_base.x - e.x, 0.0, a.ladder_base.z - e.z).normalize_or(Vec3::X);
+                let feet = Vec3::new(e.x, a.ladder_base.y, e.z) + flat * 70.0;
+                let to = e - feet;
+                let mut s = PilotState::standing(feet, (-to.x).atan2(-to.z));
+                s.pitch_rad = 0.12;
+                pilot.prev = s.clone();
+                pilot.curr = s;
+            }
+            if in_beat > 2.0 {
+                shoot(&mut commands, &script.dir, "enemy.png");
+                let a = access.0.unwrap();
+                let feet = a.ladder_base + Vec3::new(-6.0, 0.0, 10.0);
+                let s = PilotState::standing(feet, 0.0);
+                pilot.prev = s.clone();
+                pilot.curr = s;
+                next = true;
+            }
+        }
+        // Walk to the ladder by input, then press Use.
+        3 => {
             let a = access.0.unwrap();
             acc.script = Some(if pilot.curr.mode == PilotMode::OnFoot && pilot.curr.distance_to_stair(&a) > 2.0 {
                 crate::showcase::walk_to(&pilot.curr, a.ladder_base, 0.0)
@@ -122,7 +154,7 @@ fn run_script(
                 next = true;
             }
         }
-        3 => {
+        4 => {
             // Seated; wait for the hatch to seal behind the pilot.
             if pilot.curr.mode == PilotMode::Seated && in_beat > 12.0 {
                 shoot(&mut commands, &script.dir, "cockpit.png");
@@ -131,7 +163,7 @@ fn run_script(
         }
         // Stand up and stride: throttle forward (the mech stands first), hold, measure frame time
         // over 10 s.
-        4 => {
+        5 => {
             acc.script = Some(Actions {
                 throttle_axis: if in_beat < 5.0 { 0.6 } else { 0.0 },
                 ..default()
@@ -145,7 +177,7 @@ fn run_script(
             }
         }
         // Stop and look up through the front screens at the clouds (cloud-puffs).
-        5 => {
+        6 => {
             let Some(m) = mechs.iter().next().map(|s| &s.curr) else { return };
             acc.script = Some(Actions {
                 throttle_zero: in_beat < 0.1,
@@ -162,7 +194,7 @@ fn run_script(
         // Rockets up and skates across into the nearest cloud: one still 400 m up, clear of the
         // roofs, one on the way in, one after 2.5 s inside, when the glass is wet (cloud-rain). The
         // limit is in real seconds and generous: a software renderer runs the simulation slower.
-        6 => {
+        7 => {
             let Some(m) = mechs.iter().next().map(|s| &s.curr) else { return };
             acc.script = Some(fly_to_cloud(m, script.cloud));
             let eye = m.pos + Vec3::Y * data.0.mech.body.eye_height_m;
@@ -184,8 +216,12 @@ fn run_script(
                 next = true;
             }
         }
-        // Let the last screenshot reach the disk before exiting.
-        7 if in_beat > 8.0 => {
+        // A few frames after the last shot, so its readback lands even at a software renderer's frame rate.
+        8 if in_beat > 1.5 && {
+            *exit_frames += 1;
+            *exit_frames > 6
+        } =>
+        {
             let mut f = script.frames_ms.clone();
             f.sort_by(f32::total_cmp);
             println!(

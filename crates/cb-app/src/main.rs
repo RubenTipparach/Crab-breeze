@@ -17,16 +17,19 @@ mod hud;
 mod input;
 mod loading;
 mod mech;
+mod mfd;
 mod particles;
 mod pbr_set;
 mod perf_hud;
 mod physics;
 mod pilot;
+mod screen_cut;
 mod screens_cube;
 #[cfg(test)]
 mod shader_check;
 mod showcase;
 mod sim;
+mod skins;
 mod sun_flare;
 mod targeting;
 mod textures;
@@ -70,7 +73,9 @@ fn main() -> AppExit {
                     // On the main display, centred, so a run is seen where the owner looks.
                     position: bevy::window::WindowPosition::Centered(bevy::window::MonitorSelection::Primary),
                     // The capture instrument measures frame cost, so it must not wait for vsync.
-                    present_mode: if args.stills.is_some() {
+                    // `CB_UNCAPPED=1` (perf-bench switch): on screen but not waiting for vsync,
+                    // so a 60 Hz display does not hide the headroom under 120 fps.
+                    present_mode: if args.stills.is_some() || cli::switched_off("CB_UNCAPPED") {
                         PresentMode::AutoNoVsync
                     } else {
                         PresentMode::AutoVsync
@@ -108,9 +113,11 @@ fn main() -> AppExit {
     ))
     .add_plugins((
         screens_cube::ScreensCubePlugin,
+        skins::SkinsPlugin,
         loading::LoadingPlugin,
         perf_hud::PerfHudPlugin,
         units::UnitsPlugin,
+        mfd::MfdPlugin,
     ));
     // Cheap, correctly lit clouds (openspec change `cloud-puffs`); `CB_NO_CLOUDS=1` leaves them
     // out, so the benchmark can measure what they cost.

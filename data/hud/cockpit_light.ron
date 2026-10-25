@@ -3,7 +3,9 @@
 // z back (so -1.2 is 1.2 m ahead).
 (
     cabin_ambient_colour: (0.9, 0.82, 0.72),
-    cabin_ambient_cd_m2: 120.0,
+    // Lower now that the interior's own lamps light the cabin (footwell, overhead, sills, screen):
+    // the ambient only lifts the shadows between them.
+    cabin_ambient_cd_m2: 40.0,
     screen_lumens: 200.0,
     screen_range_m: 4.0,
     screen_tint: (0.75, 0.88, 1.0),
@@ -17,4 +19,6 @@
     screens_cube_px: 0,
     screens_cube_cd_m2: 400.0,
     screens_cube_hz: 10.0,
+    // The interior's own lamps, from their glTF intensities: at 1 the cabin was dim (2026-10-24).
+    interior_lamp_scale: 6.0,
 )
