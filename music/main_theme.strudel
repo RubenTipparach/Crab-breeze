@@ -1,24 +1,33 @@
 // @title Crab Breeze: Main Theme
 // @cycles 52
 // @drumkit 25
+// @layer bd Kicker/KickPower.xpf
+// @layer cp Kicker/Clap.xpf
+// @fx drums comp+drive
+// @fx layer_bd comp
+// @mix drums vol=200
+// @mix layer_bd vol=120
+// @mix layer_cp vol=150
+// @fx master glue
+// @space drums 0.08
 // @space gm_lead_5_charang 0.35
 // @space gm_lead_2_sawtooth 0.3
 // @space gm_lead_1_square 0.35
 // @space gm_pad_choir 0.45
 // @space gm_synth_brass_1 0.4
 // @space gm_fx_crystal 0.45
-// @space drums 0.25
 //
-// The title theme: moody, edgy rebel cyberpunk (owner, 2026-10-25: "I want some
-// thing moody, more cyber punk themed", "too cherry and heroic. I want to feel
-// like an edgy rebel"). Rain on the city and the call sign on a pluck; the
-// rebel's riff snarls in on a gritty saw over a reese; half-time drums with a
-// big snare as the hook sinks over the spine on a smoky lead and a Vangelis
-// brass pad; a breakdown in the rain under a sick bell; the hook again on
-// supersaws over the riff; the riff alone to fade. Nothing resolves to major.
-// 96 BPM, 52 bars (130 s). Motifs: docs/design/music.md.
+// The title theme: moody, edgy rebel cyberpunk on 90s big-beat drums (owner,
+// 2026-10-25: "I want some thing moody, more cyber punk themed", "too cherry and
+// heroic. I want to feel like an edgy rebel", "The beats are too soft to be edm..
+// we need really strong percussion like edm from the 90s", "the melody is just
+// garbage"). Rain and the call sign; the riff snarls in over a kick-and-hat build;
+// the hook (an 8-bar sentence) on a smoky lead over a big-beat break; a breakdown
+// in the rain with a snare roll; the hook on supersaws over the riff and the full
+// break; the riff alone to fade. Nothing resolves to major. 100 BPM, 52 bars.
+// Motifs: docs/design/music.md.
 
-setcps(96/60/4)
+setcps(100/60/4)
 
 // ── MOTIF LIBRARY ──────────────────────────────────────────────
 // The spine: 8 bars of dark D minor that never resolves. Dm(add9) twice, the
@@ -40,11 +49,15 @@ const REBEL_RIFF = note(`<
   [d2 ~ d2 f2 ~ d2 g2 ~ ab2 ~ g2 f2 ~ d2 ~ ~]
   [d2 ~ d2 f2 ~ d2 c3 ~ bb2 ~ ab2 g2 f2 ~ d2 ~]
 >`)
-// ... and a hook over the spine that leans on the flat two (E flat against D
-// minor) and sinks instead of soaring.
+// ... and a hook over the spine, built as a sentence (docs/design/music.md, "Writing a
+// melody"): a 2-bar idea (a syncopated figure, then a tail in the stride rhythm), the idea again a
+// step up on the E flat chord, two bars that shorten it and climb, then the one high point (D6)
+// and a falling tail that lands on an open A, leading straight back to bar 1.
 const REBEL_HOOK = note(`<
-  [d5@3 eb5 d5@2 c5@2] [a4@6 ~@2] [bb4@3 c5 bb4@2 g4@2] [eb5@6 ~@2]
-  [d5@3 c5 bb4@2 a4@2] [g4@3 a4 c5@2 e5@2] [d5@6 c5@2] [a4@8]
+  [a4@2 a4@3 c5@3 d5@4 c5@2 a4@2]   [g4@3 f4@3 e4@2 d4@8]
+  [bb4@2 bb4@3 d5@3 eb5@4 d5@2 bb4@2] [ab4@3 g4@3 f4@2 eb4@8]
+  [d5@2 d5@3 f5@3 g5@4 f5@2 d5@2]   [e5@2 e5@3 g5@3 bb5@4 a5@2 g5@2]
+  [d6@6 c6@2 bb5@4 a5@4]            [a5@3 g5@3 e5@2 a4@8]
 >`)
 // CALL SIGN: "CB" in Morse (-.-. -...) on A and D, two bars of 16ths.
 // The radio, the briefing, the systems waking; the lock-on tone's rhythm.
@@ -70,10 +83,11 @@ const HATCH_CHORDS = note(`<
   [d3,g3,c4,f4]!2 [e3,a3,d4,g4]!2 [f3,bb3,e4,a4]!2 [g3,c4,f4,bb4]!2
   [a3,d4,g4,c5] [d3,a3,e4,f4]
 >`)
-// GETAWAY: a mission done, no parade. B flat, C, then D minor held: the hook's
-// edge in a grim, defiant four bars.
+// GETAWAY: a mission done, no parade. The hook's figure on B flat and C, its stride tail on
+// D minor, then D held: four grim, defiant bars.
 const GETAWAY = note(`<
-  [f5@3 eb5 d5@2 bb4@2] [c5@3 d5 e5@2 g5@2] [f5@3 e5 d5@2 a4@2] [d5@8]
+  [f5@2 f5@3 d5@3 bb4@4 d5@2 f5@2] [g5@2 g5@3 e5@3 c5@4 e5@2 g5@2]
+  [a5@3 g5@3 f5@2 e5@8] [d5@16]
 >`)
 const GETAWAY_ROOTS = note("<bb1 c2 d2 d2>")
 const GETAWAY_CHORDS = note("<[bb2,d3,f3,a3] [c3,g3,bb3,d4] [d3,f3,a3,e4] [d3,f3,a3,e4]>")
@@ -83,15 +97,39 @@ const GETAWAY_CHORDS = note("<[bb2,d3,f3,a3] [c3,g3,bb3,d4] [d3,f3,a3,e4] [d3,f3
 const echo = (p, t = 3/16) => stack(p, p.late(t).gain(0.35), p.late(2 * t).gain(0.14))
 // sixteenth arpeggio over a chord
 const arp16 = (chords) => chords.arp("0 1 2 3 2 1 0 2 0 1 2 3 2 1 3 2")
-// half-time drums: the snare on beat 3, a ghost rim, hats in sixteenths with accents
-const half = stack(
-  s("bd ~ ~ ~ ~ ~ bd ~ ~ ~ bd ~ ~ ~ ~ ~").gain(0.9),
-  s("~ ~ ~ ~ ~ ~ ~ ~ sd ~ ~ ~ ~ ~ ~ ~").gain(0.85),
-  s("~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ rim ~ rim").gain(0.3),
-  s("hh*16").gain("[0.26 0.1 0.18 0.1]*4")
-)
 // rain on the city (the soundfont's FX rain, held a bar at a time)
-const rain = note("c4").s("gm_fx_rain").gain(0.55)
+const rain = note("c4").s("gm_fx_rain").gain(0.5)
+
+// 90s drums (owner, 2026-10-25: "we need really strong percussion like edm from the 90s"): the
+// soundfont's 909 kit with an LMMS Kicker kick under every bd and a Kicker clap under every cp
+// (@layer), squashed and driven on the drum bus (@fx drums comp+drive), played hard.
+// BIGBEAT: a big-beat break, Chemical Brothers style (90-110 BPM)
+const BIGBEAT = stack(
+  s("bd ~ ~ bd ~ ~ ~ ~ ~ ~ bd ~ ~ ~ ~ ~").gain(1.2),
+  s("~ ~ ~ ~ [sd, cp] ~ ~ ~ ~ ~ ~ ~ [sd, cp] ~ ~ ~").gain(1.15),
+  s("~ ~ ~ ~ ~ ~ ~ sd ~ sd ~ ~ ~ ~ ~ sd").gain(0.4),
+  s("hh*16").gain("[0.6 0.3 0.45 0.3]*4"),
+  s("~ ~ oh ~ ~ ~ oh ~").gain(0.5),
+  s("~ tb ~ tb").gain(0.35)
+)
+// FLOOR: a 909 four-on-the-floor, techno and trance style (125-145 BPM)
+const FLOOR = stack(
+  s("bd*4").gain(1.2),
+  s("~ cp ~ cp").gain(1.05),
+  s("[~ oh]*4").gain(0.6),
+  s("hh*16").gain("[0.45 0.25 0.35 0.25]*4"),
+  s("~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ [sd sd]").gain(0.45)
+)
+// RAVE: a chopped rave break, Prodigy style (140-160 BPM)
+const RAVE = stack(
+  s("bd ~ bd ~ ~ ~ ~ ~ ~ ~ bd bd ~ ~ ~ ~").gain(1.2),
+  s("~ ~ ~ ~ [sd, cp] ~ ~ sd ~ sd ~ ~ [sd, cp] ~ ~ sd").gain("1.15 1 1 1.15 0.6"),
+  s("rd*8").gain(0.4),
+  s("hh*16").gain("[0.5 0.25 0.4 0.25]*4")
+)
+const crash8 = s("<cr ~!7>").gain(0.8)
+const crash4 = s("<cr ~!3>").gain(0.8)
+const roll = s("<~!7 [~ ~ ~ ~ ~ ~ ~ ~ sd sd sd sd sd sd sd sd]>").gain(0.8)
 
 // intro: rain, the call sign on a quiet pluck, a dark pad and a sub drone
 const intro = stack(
@@ -101,50 +139,49 @@ const intro = stack(
   note("d1").s("gm_synth_bass_2").gain(0.35)
 )
 
-// the riff snarls in: gritty saw and reese, a filtered arpeggio, kick and hats only
+// the riff snarls in over a build: the break's kick and hats, the snare arriving late
 const riff = stack(
-  rain.gain(0.4),
-  REBEL_RIFF.add(note(12)).s("gm_lead_7_fifths").gain(0.6),
-  REBEL_RIFF.s("gm_synth_bass_2").gain(0.6),
+  rain.gain(0.35),
+  REBEL_RIFF.add(note(12)).s("gm_lead_7_fifths").gain(0.65),
+  REBEL_RIFF.s("gm_synth_bass_2").gain(0.65),
   arp16(SPINE_CHORDS.add(note(12))).s("gm_lead_1_square").gain(0.22),
   SPINE_CHORDS.s("gm_pad_choir").gain(0.3),
-  s("bd ~ ~ ~ ~ ~ bd ~ ~ ~ bd ~ ~ ~ ~ ~").gain(0.7), s("hh*16").gain("[0.2 0.08 0.14 0.08]*4")
+  s("bd ~ ~ bd ~ ~ ~ ~ ~ ~ bd ~ ~ ~ ~ ~").gain(1.1),
+  s("hh*16").gain("[0.5 0.25 0.4 0.25]*4"),
+  s("<~!4 [~ ~ ~ ~ [sd, cp] ~ ~ ~ ~ ~ ~ ~ [sd, cp] ~ ~ ~]!3 [sd*8 sd*8]>").gain(1.0)
 )
 
-// the hook sinks over the spine on a smoky lead, a Vangelis brass pad, half-time drums
+// the hook on a smoky lead with a Vangelis brass pad, over the big-beat break
 const hook = stack(
-  echo(REBEL_HOOK.s("gm_lead_5_charang").gain(0.95)),
+  echo(REBEL_HOOK.s("gm_lead_5_charang").gain(1.0)),
   SPINE_CHORDS.s("gm_synth_brass_1").gain(0.35),
   SPINE_CHORDS.s("gm_pad_choir").gain(0.3),
   REBEL_RIFF.add(note(12)).s("gm_lead_7_fifths").gain(0.45),
-  REBEL_RIFF.s("gm_synth_bass_2").gain(0.6),
+  REBEL_RIFF.s("gm_synth_bass_2").gain(0.65),
   arp16(SPINE_CHORDS.add(note(12))).s("gm_lead_1_square").gain(0.2),
-  half,
-  s("<cr ~!7>").gain(0.5)
+  BIGBEAT, crash8, roll
 )
 
-// breakdown: rain, the pad, the call sign on a sick bell, a sub
+// breakdown: rain, the pad, the call sign on a sick bell, a sub, a snare roll into the drop
 const breakdown = stack(
   rain,
   SPINE_CHORDS.s("gm_pad_choir").gain(0.35),
   echo(CALLSIGN.s("gm_fx_crystal").gain(0.5), 3/8),
   note("<d1 d1 eb1 eb1>").s("gm_synth_bass_2").gain(0.45),
-  s("<~!3 [sd*8]>").gain(saw.slow(4).range(0.1, 0.6))
+  s("<~ ~ [sd*8] [sd*16]>").gain(saw.slow(4).range(0.3, 1.1))
 )
 
-// the hook again, full: supersaw over the smoky lead an octave down, the riff
-// doubled on acid, the pad pumping
+// the drop: the hook on supersaws over the smoky lead an octave down, the riff
+// doubled on acid, the pad pumping, the full break with an extra open hat
 const full = stack(
   echo(REBEL_HOOK.s("gm_lead_2_sawtooth").gain(1.0)),
   REBEL_HOOK.sub(note(12)).s("gm_lead_5_charang").gain(0.5),
   SPINE_CHORDS.struct("x*8").gain("0.25 0.6").s("gm_pad_choir"),
   SPINE_CHORDS.s("gm_synth_brass_1").gain(0.35),
   REBEL_RIFF.add(note(12)).s("gm_lead_7_fifths").gain(0.55),
-  REBEL_RIFF.s("gm_synth_bass_2").gain(0.7),
+  REBEL_RIFF.s("gm_synth_bass_2").gain(0.75),
   REBEL_RIFF.add(note(24)).s("gm_lead_8_bass_lead").gain(0.3),
-  half,
-  s("~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ sd ~ ~ ~").gain(0.35),
-  s("<cr ~!7>").gain(0.6)
+  BIGBEAT, s("[~ oh]*4").gain(0.4), crash8, roll
 )
 
 // outro: the riff alone, fading, back into the rain
@@ -152,7 +189,7 @@ const outro = stack(
   rain,
   REBEL_RIFF.add(note(12)).s("gm_lead_7_fifths").gain(saw.slow(4).range(0.55, 0.05)),
   REBEL_RIFF.s("gm_synth_bass_2").gain(saw.slow(4).range(0.6, 0.05)),
-  echo(note("<~ ~ ~ [~ ~ d5 ~]>").s("gm_fx_crystal").gain(0.4))
+  s("<[bd, cr] ~ ~ ~>").gain(1.0)
 )
 
 arrange([4, intro], [8, riff], [16, hook], [4, breakdown], [16, full], [4, outro])

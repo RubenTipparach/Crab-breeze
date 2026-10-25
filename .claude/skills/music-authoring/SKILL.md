@@ -57,7 +57,15 @@ header:
 // @drumkit 25                         the soundfont's drum kit (0 Standard, 24 Electronic, 25 808/909, 26 Dance)
 // @voice gm_pad_poly TripleOscillator/HiPad.xpf   this cue plays that role on another LMMS preset
 // @space gm_pad_poly 0.35             a reverb on that track, 0..1 wet
+// @layer bd Kicker/KickPower.xpf      every bd hit also on an LMMS drum synth (track layer_bd)
+// @fx drums comp+drive                calf compressor and/or TAP tube drive on a track
+// @fx master glue                     a gentle compressor on the master: the music ducks under the kick
 ```
+
+**Melodies follow `docs/design/music.md` "Writing a melody"**: one short idea, built into a sentence
+(idea, idea again, continuation, cadence), rhythm first, one high point, mostly steps. **Drums
+follow "The drums: 90s weight"**: layered, compressed, driven, played hard, level with the music
+(solo-render the drum tracks and the rest of a copy of the `.mmp` and compare their RMS).
 
 The score is electronic and futuristic (CLAUDE.md section 1): every melodic role is a General MIDI
 name that `music/instruments.json` `voices` maps to an LMMS synth preset for the final comp

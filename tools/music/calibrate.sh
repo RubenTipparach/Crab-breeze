@@ -33,7 +33,7 @@ for i in $(grep -oh 's("gm_[a-z0-9_]*")' "$REPO"/music/*.strudel | sed 's/s("//;
   echo "$i $RMS" >> "$TMP/levels.txt"
 done
 # the LMMS presets: every @voice line in the scores and every default voice
-PRESETS="$( (grep -oh '^// *@voice [^ ]* [^ ]*\.xpf' "$REPO"/music/*.strudel | awk '{print $NF}';
+PRESETS="$( (grep -ohE '^// *@(voice|layer) [^ ]* [^ ]*\.xpf' "$REPO"/music/*.strudel | awk '{print $NF}';
   python3 -c 'import json,sys;[print(v) for v in json.load(open(sys.argv[1])).get("voices",{}).values()]' "$REPO/music/instruments.json") | sort -u)"
 for p in $PRESETS; do
   case "$p" in *Bass*|*bass*|*Reece*|LB302/*) NOTES="d2 a2 f2 d3" ;; *) NOTES="d4 a4 f4 d5" ;; esac

@@ -160,18 +160,20 @@
     "gm_lead_7_fifths": "TripleOscillator/SawReso.xpf"
   },
   "preset_vol": {
+    "Kicker/Clap.xpf": 89.4,
+    "Kicker/KickPower.xpf": 26.7,
     "LB302/AcidLead.xpf": 15.9,
-    "Monstro/ScaryBell.xpf": 19.3,
+    "Monstro/ScaryBell.xpf": 30.5,
     "TripleOscillator/AnalogBell.xpf": 15.7,
     "TripleOscillator/AnalogTimes.xpf": 26.7,
     "TripleOscillator/CryingPads.xpf": 24.7,
     "TripleOscillator/DirtyReece.xpf": 12.5,
-    "TripleOscillator/Erazzor.xpf": 26.1,
+    "TripleOscillator/Erazzor.xpf": 27.0,
     "TripleOscillator/FuzzyAnalogBass.xpf": 10.1,
     "TripleOscillator/Jupiter.xpf": 5.8,
     "TripleOscillator/PluckArpeggio.xpf": 45.7,
     "TripleOscillator/PowerStrings.xpf": 5.7,
-    "TripleOscillator/SawReso.xpf": 9.6,
+    "TripleOscillator/SawReso.xpf": 8.0,
     "TripleOscillator/SuperSawLead.xpf": 51.0,
     "TripleOscillator/Supernova.xpf": 200.0,
     "TripleOscillator/TINTNpad.xpf": 30.2

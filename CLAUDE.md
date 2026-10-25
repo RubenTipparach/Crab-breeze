@@ -116,8 +116,11 @@ From the owner's brief, 2026-10-23. Quotes are the owner's words.
   `openspec/changes/music`. **The sound is moody, edgy rebel cyberpunk** (owner, 2026-10-25, over three rounds:
   "music sucks, electronic, scifi futuristic please!", "Main street sucks delete it. Theme sucks..I want some thing
   moody,more cyber punk themed", "It's too cherry and heroic. I want to feel like an edgy rebel"): LMMS synths, a
-  snarling riff, a hook that sinks, half-time drums, rain; nothing cheery, heroic or orchestral, no triumphant
-  major chord, no town theme.
+  snarling riff, rain; nothing cheery, heroic or orchestral, no triumphant major chord, no town theme. **Hard
+  90s drums** ("The beats are too soft to be edm..we need really strong percussion like edm from the 90s"):
+  layered, compressed and driven, level with the music. **Melodies built by theory** ("the melody is just
+  garbage. Look into music theory and how to compose good melodies"): one idea grown into a sentence, one high
+  point (`docs/design/music.md`, "Writing a melody").
 - **Mechs twice the size, legs heavier than the torso, low-poly first** (owner, 2026-10-24: "2x mech size
   please, they dont seem very big right now, redesign mechs, start with lowpoly first", "I really expect legs
   on these mechs to be bigger than the torso, just for balance", "I really like how stevedore is all struts",
