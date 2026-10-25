@@ -607,7 +607,9 @@ fn run_fx_script(
         // Stand 70 m off the enemy, then fire the player's own rockets and rounds at it.
         1 => {
             let Some(e) = enemy_at(&mechs, script.enemy) else { return };
-            let flat = Vec3::new(1.0, 0.0, 0.6).normalize();
+            // Down the street from the enemy toward the player's mech: an open line of sight in the city.
+            let home = access.0.map_or(e + Vec3::X, |a| a.ladder_base);
+            let flat = (home - e).with_y(0.0).normalize_or(Vec3::X);
             let feet = Vec3::new(e.x, plan.height_at(e.x + flat.x * 70.0, e.z + flat.z * 70.0), e.z) + flat * 70.0;
             let torso = e + Vec3::Y * 14.0;
             if script.once("stand") {
@@ -694,7 +696,8 @@ fn run_fx_script(
                 }
                 script.soil = found;
                 if let Some(c) = found {
-                    let feet = c + Vec3::new(40.0, 0.0, 22.0);
+                    // Close and looking down into it, so the scorch shows over the grass.
+                    let feet = c + Vec3::new(18.0, 0.0, 10.0);
                     let feet = feet.with_y(plan.height_at(feet.x, feet.z));
                     stand_looking(&mut pilot, feet, c);
                     explosions.write(crate::blast::Explosion {
@@ -715,7 +718,7 @@ fn run_fx_script(
             if t > 4.0 && script.once("smoke") {
                 shoot(&mut commands, &script.dir, "fx-6-smoke.png");
             }
-            if t > 16.0 {
+            if t > 30.0 {
                 shoot(&mut commands, &script.dir, "fx-7-scorch.png");
                 next = true;
             }
