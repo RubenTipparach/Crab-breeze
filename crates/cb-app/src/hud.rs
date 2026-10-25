@@ -24,7 +24,7 @@ impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_hud).add_systems(
             Update,
-            (update_hud, draw_targets, exit_ring, update_stations).in_set(PresentSet::Camera),
+            (update_hud, draw_targets, draw_lock, exit_ring, update_stations).in_set(PresentSet::Camera),
         );
     }
 }
@@ -61,6 +61,10 @@ struct TargetReadout;
 const EXIT_DOTS: usize = 24;
 /// The climb-out ring's radius, pixels.
 const EXIT_RING_PX: f32 = 34.0;
+
+/// One of the two missile-lock boxes: 0 square, 1 turned 45 degrees.
+#[derive(Component, Clone, Copy)]
+struct LockBox(usize);
 
 /// A pooled target box, by slot.
 #[derive(Component, Clone, Copy)]
@@ -207,6 +211,22 @@ fn spawn_hud(mut commands: Commands) {
                 Visibility::Hidden,
                 EdgeArrow,
             ));
+            // The missile lock's two boxes (draw_lock).
+            for i in 0..2 {
+                root.spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        width: px(40.0),
+                        height: px(40.0),
+                        border: UiRect::all(px(3.0)),
+                        ..default()
+                    },
+                    BorderColor::all(RED),
+                    UiTransform::IDENTITY,
+                    Visibility::Hidden,
+                    LockBox(i),
+                ));
+            }
             // The climb-out ring: fills clockwise while Use is held (owner, 2026-10-25: "there would be
             // a ccircle timer thing that shows progress of confirming E to exit").
             for i in 0..EXIT_DOTS {
@@ -940,6 +960,56 @@ fn update_stations(
         (health * 100.0).clamp(0.0, 100.0)
     );
     c.0 = if targeting.lock.locked(&data.0.targeting) { AMBER } else { GREEN };
+}
+
+/// The missile lock round the selected target, from the targeting's own lock clock: while it builds,
+/// two amber boxes (one square, one turned 45 degrees) close in from wide; locked, they hold tight round
+/// the target in red and pulse.
+#[allow(clippy::type_complexity)]
+fn draw_lock(
+    pilot: Res<PilotSim>,
+    data: Res<crate::sim::Data>,
+    state: Res<crate::targeting::TargetState>,
+    hostiles: Res<crate::units::Hostiles>,
+    time: Res<Time>,
+    camera: Single<(&Camera, &GlobalTransform), With<crate::pilot::PilotCamera>>,
+    mut boxes: Query<(&LockBox, &mut Node, &mut BorderColor, &mut UiTransform, &mut Visibility)>,
+) {
+    let cfg = &data.0.targeting;
+    let (cam, at) = *camera;
+    let target = state
+        .selected
+        .filter(|_| pilot.curr.mode == PilotMode::Seated && state.lock.held_s > 0.0 && state.lock.target == state.selected)
+        .and_then(|id| hostiles.0.iter().find(|h| h.id == id));
+    let placed = target.and_then(|h| {
+        let top = cam.world_to_viewport(at, h.feet + Vec3::Y * h.height_m).ok()?;
+        let foot = cam.world_to_viewport(at, h.feet).ok()?;
+        let centre = cam.world_to_viewport(at, h.aim).ok()?;
+        Some((centre, (foot.y - top.y).abs().max(24.0)))
+    });
+    let k = (state.lock.held_s / cfg.lock_s.max(1e-3)).clamp(0.0, 1.0);
+    let locked = state.lock.locked(cfg);
+    let pulse = 0.65 + 0.35 * (time.elapsed_secs() * 9.0).sin().abs();
+    for (b, mut node, mut border, mut turn, mut vis) in &mut boxes {
+        let Some((c, w)) = placed else {
+            *vis = Visibility::Hidden;
+            continue;
+        };
+        // Wide while the lock is young, tight round the target once it holds.
+        let tight = if b.0 == 0 { 1.45 } else { 1.15 };
+        let size = w * (tight + (1.0 - k) * 2.0);
+        node.left = px(c.x - size * 0.5);
+        node.top = px(c.y - size * 0.5);
+        node.width = px(size);
+        node.height = px(size);
+        turn.rotation = Rot2::degrees(if b.0 == 1 { 45.0 } else { 0.0 });
+        *border = BorderColor::all(if locked {
+            RED.with_alpha(pulse)
+        } else {
+            AMBER.with_alpha(0.4 + 0.6 * k)
+        });
+        *vis = Visibility::Inherited;
+    }
 }
 
 #[cfg(test)]

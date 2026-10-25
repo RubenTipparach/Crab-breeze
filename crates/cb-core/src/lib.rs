@@ -7,6 +7,7 @@
 
 pub mod ai;
 pub mod boarding;
+pub mod career;
 pub mod cockpit;
 pub mod data;
 pub mod fx;
