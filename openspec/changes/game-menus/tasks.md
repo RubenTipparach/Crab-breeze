@@ -6,5 +6,6 @@
 - [x] 2.1 Title menu after GAME_READY: Free roam, City defence, Options, Controls, Quit; command-line runs skip it
 - [x] 2.2 Options: mouse sensitivity and invert, field of view, shadows, vsync, fullscreen; saved to settings.ron; live
 - [x] 2.5 Page buttons along the top of the pause pages (survey J1)
+- [x] 2.6 Sound effects and music volume on Options; every change saved at once
 - [ ] 2.4 New career and Continue on the title menu (career)
 - [ ] 2.3 Rebinding from the Controls page, written to the bindings data

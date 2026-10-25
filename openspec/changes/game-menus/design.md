@@ -66,10 +66,16 @@ choice does later: one way a mission begins.
   buttons caan switch to other menus"): the pause menu has a row of page buttons along its top
   (Resume, Options, Controls, and Mail once mission-jobs is built, Quit at the end), so any page is
   one click from any other, not only through Back.
+- **Volume** (owner, 2026-10-25: "add in controls for sfx/music, make sure it saves when I change
+  it"): `sfx_volume` and `music_volume`, 0-1 (shown as 0-100 %, steps of 10 %), default 1. Sound
+  effects scale every placed voice's level (`audio::level_voices`, so a playing loop follows at
+  once); music scales the music player's level. A settings file without them loads with them at 1.
+- **Saving on change:** every Options button saves `settings.ron` at once, as well as leaving the
+  page, so a change survives a quit or a crash.
 - **Precedence:** the environment switches for measurement (`CB_NO_SHADOWS`, `CB_UNCAPPED`) still win,
   so a perf run is never changed by a player's settings file.
 
 ## 5. Out of scope for now
 
-Audio volume (the game has no sound yet: openspec audio), graphics presets beyond shadows, and
+Graphics presets beyond shadows, and
 rebinding (task 2.3).

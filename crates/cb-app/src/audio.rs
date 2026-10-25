@@ -711,8 +711,14 @@ fn drive_loops(
 
 /// Every placed voice's level this frame: its cue's level, its distance and the seal (and a loop's
 /// own eased level).
-fn level_voices(mut voices: Query<(&Voice, Option<&LoopVoice>, &GlobalTransform, &mut SpatialAudioSink)>, ear: Res<Ear>, data: Res<Data>) {
+fn level_voices(
+    mut voices: Query<(&Voice, Option<&LoopVoice>, &GlobalTransform, &mut SpatialAudioSink)>,
+    ear: Res<Ear>,
+    data: Res<Data>,
+    settings: Res<crate::settings::Settings>,
+) {
     let cfg = &data.0.audio.cues;
+    let player = settings.0.sfx_volume;
     for (v, l, at, mut sink) in &mut voices {
         let g = if v.inside {
             1.0
@@ -722,7 +728,7 @@ fn level_voices(mut voices: Query<(&Voice, Option<&LoopVoice>, &GlobalTransform,
             rules::distance_gain(cfg.full_level_within_m, d) * seal
         };
         let loop_gain = l.map_or(1.0, |l| db_to_gain(l.db));
-        sink.set_volume(Volume::Linear(v.level * g * loop_gain));
+        sink.set_volume(Volume::Linear(v.level * g * loop_gain * player));
     }
 }
 

@@ -18,3 +18,16 @@ data, grouped by where it is used.
 #### Scenario: A rebound key shows
 - **WHEN** `free_look` is bound to Left Ctrl in `data/input/bindings.ron`
 - **THEN** the Controls page shows "Free look (hold)" as Left Ctrl
+
+### Requirement: Options sets sound effects and music volume and saves each change
+
+The Options page SHALL set the sound effects volume and the music volume, each 0 to 100 % in steps
+of 10 %, applied at once, and SHALL save the settings file on every change.
+
+#### Scenario: Turning the music down
+- **WHEN** the player presses - on Music twice from 100 %
+- **THEN** the music plays at 80 % of its level and `settings.ron` holds `music_volume: 0.8`
+
+#### Scenario: An older settings file
+- **WHEN** `settings.ron` has no volume fields
+- **THEN** it loads with both volumes at 100 %

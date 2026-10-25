@@ -83,6 +83,10 @@ enum MenuButton {
     Quit,
     Mouse(i32),
     Fov(i32),
+    /// Sound effects volume down or up a step.
+    Sfx(i32),
+    /// Music volume down or up a step.
+    Music(i32),
     Invert,
     Shadows,
     Vsync,
@@ -247,13 +251,22 @@ fn press(
         MenuButton::Quit => {
             exit.write(AppExit::Success);
         }
-        MenuButton::Mouse(n) => p.settings.0.nudge_mouse(n),
-        MenuButton::Fov(n) => p.settings.0.nudge_fov(n),
-        MenuButton::Invert => p.settings.0.invert_pitch ^= true,
-        MenuButton::Shadows => p.settings.0.shadows ^= true,
-        MenuButton::Vsync => p.settings.0.vsync ^= true,
-        MenuButton::Fullscreen => p.settings.0.fullscreen ^= true,
+        // Every change is saved at once, so it survives a quit or a crash (owner, 2026-10-25).
+        MenuButton::Mouse(n) => changed(p, |s| s.nudge_mouse(n)),
+        MenuButton::Fov(n) => changed(p, |s| s.nudge_fov(n)),
+        MenuButton::Sfx(n) => changed(p, |s| s.nudge_sfx(n)),
+        MenuButton::Music(n) => changed(p, |s| s.nudge_music(n)),
+        MenuButton::Invert => changed(p, |s| s.invert_pitch ^= true),
+        MenuButton::Shadows => changed(p, |s| s.shadows ^= true),
+        MenuButton::Vsync => changed(p, |s| s.vsync ^= true),
+        MenuButton::Fullscreen => changed(p, |s| s.fullscreen ^= true),
     }
+}
+
+/// Changes the settings with `f` and saves them.
+fn changed(p: Press, f: impl FnOnce(&mut cb_core::settings::Settings)) {
+    f(&mut p.settings.0);
+    save(p.settings);
 }
 
 fn label(s: &str, size: f32, colour: Color) -> (Text, TextFont, TextColor) {
@@ -454,6 +467,18 @@ fn draw(
                     "Field of view",
                     format!("{:.0} deg", s.fov_deg),
                     &[("-", MenuButton::Fov(-1)), ("+", MenuButton::Fov(1))],
+                );
+                option_row(
+                    p,
+                    "Sound effects",
+                    format!("{:.0} %", s.sfx_volume * 100.0),
+                    &[("-", MenuButton::Sfx(-1)), ("+", MenuButton::Sfx(1))],
+                );
+                option_row(
+                    p,
+                    "Music",
+                    format!("{:.0} %", s.music_volume * 100.0),
+                    &[("-", MenuButton::Music(-1)), ("+", MenuButton::Music(1))],
                 );
                 option_row(p, "Shadows", on(s.shadows), &[("Flip", MenuButton::Shadows)]);
                 option_row(p, "Vsync", on(s.vsync), &[("Flip", MenuButton::Vsync)]);
