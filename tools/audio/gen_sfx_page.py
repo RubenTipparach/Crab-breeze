@@ -2,11 +2,13 @@
 """Writes the Mech Sounds page (docs/mockups/sounds.html) from output/sfx/sfx.json.
 
 Every sound gen_sfx.py makes, grouped as the game uses them, with its description, length, a
-waveform strip from its peaks and a play button (loops play on repeat). The page is published with
-output/sfx/*.mp3 beside it as files. Same look as the Crab Breeze Music page.
+waveform strip from its peaks and a play button (loops play on repeat). Each sound's MP3 share copy
+is embedded in the page as a data: URI (about 2 MB for all of them), so the page needs no files beside
+it. Same look as the Crab Breeze Music page.
 
 Usage: python3 tools/audio/gen_sfx_page.py   (after tools/audio/render_sfx.sh)
 """
+import base64
 import json
 import os
 
@@ -103,8 +105,8 @@ for (const [g, title] of Object.entries(GROUPS)) {
       <canvas aria-hidden="true"></canvas>`;
     rows.appendChild(row);
     const audio = new Audio();
-    audio.preload = 'none';
-    audio.src = s.name + '.mp3';
+    audio.preload = 'auto';
+    audio.src = s.src;
     audio.loop = s.loop;
     const btn = row.querySelector('button');
     const me = { audio, btn };
@@ -138,6 +140,9 @@ new MutationObserver(draw).observe(document.documentElement, { attributes: true,
 
 def main() -> None:
     data = json.load(open(os.path.join(REPO, "output", "sfx", "sfx.json")))
+    for s in data:
+        mp3 = os.path.join(REPO, "output", "sfx", s["name"] + ".mp3")
+        s["src"] = "data:audio/mpeg;base64," + base64.b64encode(open(mp3, "rb").read()).decode("ascii")
     page = HEAD + BODY.replace("__COUNT__", str(len(data))) + SCRIPT.replace("__DATA__", json.dumps(data))
     out = os.path.join(REPO, "docs", "mockups", "sounds.html")
     with open(out, "w") as f:
