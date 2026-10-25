@@ -423,8 +423,11 @@ pub fn stream(
         .clone();
     Some((
         ParticleEffect::new(handle),
+        // A copy of the sprite of its own, as a blended burst gets: streams sharing an asset and an
+        // image are merged by bevy_hanabi into one draw, and with several mechs' jets streaming at
+        // once only one of them drew (2026-10-25: enemies in flight showed no flame or trail).
         EffectMaterial {
-            images: vec![lib.sprite(spec.kind, false)],
+            images: vec![lib.sprite(spec.kind, true)],
         },
     ))
 }
