@@ -109,11 +109,36 @@ That is about 45 + 45 + 2 draws, measured on the owner's machine before it is ca
 
 ## 6. Destruction
 
-- Each wall piece between openings, each roof plane and each porch post is one breakable piece
-  for `building-destruction`.
-- A house is light: wood framing, so it caves in from one mech kick or a shell. Brick and block
-  take more.
-- Interiors spill out as debris boxes with their furniture materials.
+What the mockup does (it is the model for the game; the game's version goes through
+`building-destruction` and `debris-physics`, one implementation):
+
+- **Pieces.** The kit records what breaks off together:
+  - each wall segment between openings and each interior face is one piece;
+  - each opening's frame, sill and glass together are one piece, as are each roof plane, each
+    piece of furniture and each car.
+  - A ranch house has about 160 pieces, the motel about 640, the street 3,300.
+- **A shot** blows out every piece within its radius:
+  - autocannon 1.3 m, 120 mm shell 3.2 m, missile 5.5 m, demolition 9 m;
+  - near pieces are thrown at up to 9-22 m/s by weapon;
+  - lone boxes over 1.6 m break into chunks about 1.2 m across, keeping their material and paint;
+  - a fireball, a flash light, sparks, dust and a scorch on the ground go with it.
+- **Support.** Pieces touch pieces (bounds within 4 cm). Any piece no longer joined to the ground
+  through touching pieces creaks and trickles dust for 0.25-0.85 s, then falls.
+- **Collapse.** A building that loses half its ground-floor wall area pancakes: everything above the
+  floor slab falls, in chunks about 2 m across, under a dust cloud.
+- **Rubble.**
+  - Debris tumbles with gravity, bounce and friction on the ground or on rubble already there (a
+    0.5 m height grid, so piles build).
+  - After 0.25 s at rest each piece is baked into one static rubble mesh a material, so a flattened
+    street draws in the same 45 draws as a standing one.
+  - At most 1,200 pieces fall at once.
+  - Measured headless: one demolition charge on the motel, two on the corner store (which
+    pancakes), and a shell, a cannon round and a missile elsewhere throw 695 pieces. They all rest
+    within 15 s, leaving 12,400 rubble triangles.
+
+In the game:
+- A house is light, wood framed, so one mech kick or a shell caves it in; brick and block take more.
+- Interiors spill out with their furniture.
 
 ## Open questions
 

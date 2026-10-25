@@ -64,7 +64,7 @@ aside { display: grid; gap: 8px; min-width: 0; max-height: 1100px; overflow: aut
 
 <header>
   <div class="eyebrow">Crab Breeze · openspec small-buildings · mockup</div>
-  <h1>Main Street: houses and small businesses</h1>
+  <h1>Main Street: houses, shops, and shooting them</h1>
   <p class="lede">Seventeen 1980s building types for the island's towns, roadsides, beaches, jungle and desert, built from one kit of parts: walls with real openings, framed and sashed windows with sills and glass you see through, doors and shop fronts, five roof families, porches, interiors with furniture, neon signs, and cars. Walk the street at the pilot's eye, stand at a mech's eye, light it at dusk, or cut it away to see the floor plans. Textures are canvas stand-ins with normal maps for the Material Maker sets.</p>
 </header>
 
@@ -83,13 +83,21 @@ aside { display: grid; gap: 8px; min-width: 0; max-height: 1100px; overflow: aut
       <button data-time="night">Night</button>
       <label class="sl">cutaway <input type="range" id="cut" min="0" max="13" step="0.1" value="13"> <b id="cutv">off</b></label>
     </div>
+    <div class="bar" role="group" aria-label="Weapon">
+      <span class="lbl">fire</span>
+      <button data-wpn="cannon">Autocannon</button>
+      <button data-wpn="shell" aria-pressed="true">120 mm shell</button>
+      <button data-wpn="missile">Missile</button>
+      <button data-wpn="demo">Demolition</button>
+      <button id="rebuild">Rebuild street</button>
+    </div>
     <div class="stage">
       <canvas id="view" tabindex="0" aria-label="The street in 3D"></canvas>
       <div class="mode" id="mode">Orbit</div>
       <div class="hud" id="hud"></div>
       <div class="loading" id="loading">Building the street</div>
     </div>
-    <p class="hint">Orbit: drag to turn, right-drag to pan, wheel to zoom. Walk and Mech eye: drag to look, W A S D to move, Shift to hurry. Pick a card to go to that building. The orange block at the end of the street is a 24 m mech.</p>
+    <p class="hint">Orbit: drag to turn, right-drag to pan, wheel to zoom. Walk and Mech eye: drag to look, W A S D to move, Shift to hurry. Click (without dragging) to fire the chosen weapon where you point: near pieces blow out, walls break into chunks, anything left hanging creaks and falls, and a building that loses half its ground-floor walls pancakes. Rubble settles into piles. Pick a card to go to that building. The orange block at the end of the street is a 24 m mech.</p>
   </section>
   <aside id="cards" aria-label="Building types"></aside>
 </div>
@@ -274,13 +282,26 @@ function material(key) {
 // ------------------------------------------------------------------ the street
 const STREET = []; // {T, x, z, rot, bounds, tris}
 const merged = {};
-function mergeInto(B, ox, oz, rot) {
+// Every piece of every building: {bld, alive, ranges, lo, hi, meta, nb}. bld -1 cannot break.
+const PIECES = [];
+function mergeInto(B, ox, oz, rot, bld = -1) {
   const c = rot ? -1 : 1;
+  const base = PIECES.length;
+  for (let i = 0; i < B.pid; i++) {
+    const mt = B.meta[i];
+    let meta = null;
+    if (mt) {
+      const [x0, y0, z0, x1, y1, z1] = mt.box;
+      meta = { mat: mt.mat, tint: mt.tint, box: rot ? [ox - x1, y0, oz - z1, ox - x0, y1, oz - z0] : [ox + x0, y0, oz + z0, ox + x1, y1, oz + z1] };
+    }
+    PIECES.push({ bld, alive: true, ranges: [], lo: [1e9, 1e9, 1e9], hi: [-1e9, -1e9, -1e9], meta, nb: [] });
+  }
   for (const [key, a] of Object.entries(B.parts)) {
-    const m = merged[key] || (merged[key] = { p: [], n: [], u: [], c: [] });
+    const m = merged[key] || (merged[key] = { p: [], n: [], u: [], c: [], t: [] });
     for (let i = 0; i < a.p.length; i += 3) { m.p.push(ox + c * a.p[i], a.p[i + 1], oz + c * a.p[i + 2]); m.n.push(c * a.n[i], a.n[i + 1], c * a.n[i + 2]); }
     for (const v of a.u) m.u.push(v);
     for (const v of a.c) m.c.push(v);
+    for (const t of a.t) m.t.push(base + t);
   }
 }
 function boundsOf(B) {
@@ -308,7 +329,7 @@ function layStreet() {
       const cx = x - e.b.lo[0];                 // local x = lo lands at x
       const oz = rot ? front + e.b.hi[2] : -(front + e.b.hi[2]);
       const ox = rot ? x + e.b.hi[0] : cx;      // a half turn mirrors x, so the right edge lands at x
-      mergeInto(e.B, ox, oz, rot);
+      mergeInto(e.B, ox, oz, rot, STREET.length);
       const wx0 = x, wx1 = x + widths[i];
       const wz0 = rot ? front : -(front + e.b.hi[2] - e.b.lo[2]), wz1 = rot ? front + e.b.hi[2] - e.b.lo[2] : -front;
       STREET.push({ T: e.T, tris: e.tris, box: [wx0, 0, wz0, wx1, e.b.hi[1], wz1], front: rot ? 1 : -1 });
@@ -340,8 +361,17 @@ function groundAndRoad() {
   g.rotation.x = -Math.PI / 2; g.position.y = -0.02; g.receiveShadow = true; scene.add(g);
 }
 const TRANSPARENT = new Set(['glass', 'glassShop', 'screen', 'water']);
+const MESH = {}, ORIG = {};
 function buildMeshes() {
   for (const [key, a] of Object.entries(merged)) {
+    // Each piece's runs of triangles in this bucket, and its bounds.
+    for (let t = 0; t < a.t.length;) {
+      const pid = a.t[t]; let n = 1;
+      while (t + n < a.t.length && a.t[t + n] === pid) n++;
+      const P = PIECES[pid]; P.ranges.push({ key, start: t, count: n });
+      for (let i = t * 9; i < (t + n) * 9; i += 3) for (let k = 0; k < 3; k++) { P.lo[k] = Math.min(P.lo[k], a.p[i + k]); P.hi[k] = Math.max(P.hi[k], a.p[i + k]); }
+      t += n;
+    }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(a.p, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(a.n, 3));
@@ -352,6 +382,8 @@ function buildMeshes() {
     const tr = TRANSPARENT.has(key);
     m.castShadow = !tr && key !== 'lamp'; m.receiveShadow = !tr;
     if (tr) m.renderOrder = 2;
+    m.userData.key = key;
+    MESH[key] = m; ORIG[key] = Float32Array.from(a.p);
     scene.add(m);
   }
 }
@@ -428,6 +460,8 @@ function cards() {
 }
 document.querySelectorAll('[data-cam]').forEach((b) => b.addEventListener('click', () => setCam(b.dataset.cam)));
 document.querySelectorAll('[data-time]').forEach((b) => b.addEventListener('click', () => setTime(b.dataset.time)));
+document.querySelectorAll('[data-wpn]').forEach((b) => b.addEventListener('click', () => { weapon = b.dataset.wpn; document.querySelectorAll('[data-wpn]').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); }));
+document.getElementById('rebuild').addEventListener('click', () => rebuildStreet());
 document.getElementById('cut').addEventListener('input', (e) => {
   const v = +e.target.value; clip.constant = v >= 13 ? 1000 : v;
   document.getElementById('cutv').textContent = v >= 13 ? 'off' : v.toFixed(1) + ' m';
@@ -456,9 +490,408 @@ function frame(now) {
   sun.target.position.set(Math.round(tgt.x / 8) * 8, 0, 0);
   const sd = sun.position.clone().normalize();
   sun.position.copy(sun.target.position).addScaledVector(sd, 150);
+  stepDebris(dt);
+  stepFx(dt);
   renderer.render(scene, camera);
-  document.getElementById('hud').textContent = `${(renderer.info.render.triangles / 1e6).toFixed(2)} M tris  ${renderer.info.render.calls} draws\neye ${camera.position.y.toFixed(1)} m`;
+  document.getElementById('hud').textContent = `${(renderer.info.render.triangles / 1e6).toFixed(2)} M tris  ${renderer.info.render.calls} draws\neye ${camera.position.y.toFixed(1)} m  ${WEAPONS[weapon].label}\n${DEBRIS.length} falling  ${Math.round(rubbleTris / 1000)}k rubble tris`;
   requestAnimationFrame(frame);
+}
+
+// ------------------------------------------------------------------ destruction
+// A shot blows out every piece within its radius, hurls the near ones and breaks big wall pieces
+// into chunks. Pieces no longer joined to the ground through touching pieces creak, trickle dust
+// and fall; a building that loses half its ground-floor walls pancakes. Debris tumbles, lands on
+// the ground or on rubble already there, and settles into static rubble piles (one mesh a
+// material), so a flattened street costs no more to draw than a standing one.
+const WEAPONS = { cannon: { r: 1.3, label: 'Autocannon', throwV: 9 }, shell: { r: 3.2, label: '120 mm shell', throwV: 14 }, missile: { r: 5.5, label: 'Missile', throwV: 18, flies: true }, demo: { r: 9, label: 'Demolition', throwV: 22 } };
+let weapon = 'shell';
+const WALLMATS = new Set(['brick', 'block', 'siding', 'board', 'stucco', 'adobe', 'ribbed', 'stainless', 'tileWall', 'tileRed']);
+const DEBRIS = [], MAX_DEBRIS = 1200;
+const RUBBLE = {}; let rubbleDirty = false, rubbleTimer = 0, rubbleTris = 0;
+const GRID = { x0: -170, z0: -70, cell: 0.5, w: 680, h: 280 };
+GRID.hgt = new Float32Array(GRID.w * GRID.h);
+const cellOf = (x, z) => [Math.floor((x - GRID.x0) / GRID.cell), Math.floor((z - GRID.z0) / GRID.cell)];
+function gridMax(x0, z0, x1, z1) {
+  const [i0, j0] = cellOf(x0, z0), [i1, j1] = cellOf(x1, z1);
+  let m = 0;
+  const si = Math.max(1, Math.ceil((i1 - i0) / 6)), sj = Math.max(1, Math.ceil((j1 - j0) / 6));
+  for (let j = Math.max(0, j0); j <= Math.min(GRID.h - 1, j1); j += sj) for (let i = Math.max(0, i0); i <= Math.min(GRID.w - 1, i1); i += si) m = Math.max(m, GRID.hgt[j * GRID.w + i]);
+  return m;
+}
+function gridStamp(x0, z0, x1, z1, top) {
+  const [i0, j0] = cellOf(x0, z0), [i1, j1] = cellOf(x1, z1);
+  for (let j = Math.max(0, j0); j <= Math.min(GRID.h - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(GRID.w - 1, i1); i++) { const k = j * GRID.w + i; if (top > GRID.hgt[k]) GRID.hgt[k] = top; }
+}
+function resetGrid() {
+  GRID.hgt.fill(0);
+  for (const P of PIECES) {
+    if (P.ranges.length === 0) continue;
+    const foundation = P.meta && P.meta.mat === 'concrete' && P.lo[1] < -0.1;
+    const paving = P.bld < 0 && P.hi[1] < 0.3;
+    if (foundation || paving) gridStamp(P.lo[0], P.lo[2], P.hi[0], P.hi[2], P.hi[1]);
+  }
+}
+
+// Which pieces touch which, per building, and which stand on the ground.
+const BLD = []; // per building: { pieces: [pid], walls: [pid], wallArea, collapsed }
+function buildGraph() {
+  const eps = 0.04;
+  STREET.forEach(() => BLD.push({ pieces: [], walls: [], wallArea: 0, collapsed: false }));
+  PIECES.forEach((P, i) => { if (P.bld >= 0 && P.ranges.length) BLD[P.bld].pieces.push(i); });
+  for (const b of BLD) {
+    const L = b.pieces;
+    for (let a = 0; a < L.length; a++) {
+      const A = PIECES[L[a]];
+      for (let c = a + 1; c < L.length; c++) {
+        const C = PIECES[L[c]];
+        if (A.lo[0] - eps > C.hi[0] || C.lo[0] - eps > A.hi[0] || A.lo[1] - eps > C.hi[1] || C.lo[1] - eps > A.hi[1] || A.lo[2] - eps > C.hi[2] || C.lo[2] - eps > A.hi[2]) continue;
+        A.nb.push(L[c]); C.nb.push(L[a]);
+      }
+      if (A.meta && WALLMATS.has(A.meta.mat) && A.lo[1] < 1.2 && A.hi[1] - A.lo[1] > 1.5) {
+        const area = Math.max(A.hi[0] - A.lo[0], A.hi[2] - A.lo[2]) * (A.hi[1] - A.lo[1]);
+        b.walls.push(L[a]); b.wallArea += area; A.area = area;
+      }
+    }
+  }
+}
+
+// Hide a piece's triangles in the street meshes (collapse them to a point).
+const dirtyKeys = new Set();
+function hide(pid) {
+  for (const r of PIECES[pid].ranges) {
+    const arr = MESH[r.key].geometry.attributes.position.array;
+    arr.fill(0, r.start * 9, (r.start + r.count) * 9);
+    dirtyKeys.add(r.key);
+  }
+}
+function flushHidden() {
+  for (const k of dirtyKeys) MESH[k].geometry.attributes.position.needsUpdate = true;
+  dirtyKeys.clear();
+}
+// A free-standing copy of a piece's triangles, centred on its middle.
+function pieceGeoms(pid) {
+  const out = {};
+  for (const r of PIECES[pid].ranges) {
+    const g = MESH[r.key].geometry, o = out[r.key] || (out[r.key] = { p: [], n: [], u: [], c: [] });
+    const P = ORIG[r.key], N = g.attributes.normal.array, U = g.attributes.uv.array, C = g.attributes.color.array;
+    for (let i = r.start * 9; i < (r.start + r.count) * 9; i++) { o.p.push(P[i]); o.n.push(N[i]); o.c.push(C[i]); }
+    for (let i = r.start * 6; i < (r.start + r.count) * 6; i++) o.u.push(U[i]);
+  }
+  return out;
+}
+function geomFrom(a, center) {
+  const g = new THREE.BufferGeometry();
+  const p = new Float32Array(a.p.length);
+  for (let i = 0; i < a.p.length; i += 3) { p[i] = a.p[i] - center.x; p[i + 1] = a.p[i + 1] - center.y; p[i + 2] = a.p[i + 2] - center.z; }
+  g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(a.n, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(a.u, 2));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(a.c, 3));
+  return g;
+}
+function spawn(parts, lo, hi, vel, delay) {
+  if (DEBRIS.length >= MAX_DEBRIS) return;
+  const center = new THREE.Vector3((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2);
+  const grp = new THREE.Group();
+  grp.position.copy(center);
+  for (const [key, a] of Object.entries(parts)) {
+    if (!a.p.length) continue;
+    const m = new THREE.Mesh(geomFrom(a, center), material(key));
+    m.castShadow = !TRANSPARENT.has(key); m.userData.key = key;
+    grp.add(m);
+  }
+  scene.add(grp);
+  const spin = 2.5 / Math.max(0.6, Math.max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]));
+  DEBRIS.push({ obj: grp, v: vel.clone(), w: new THREE.Vector3((Math.random() - 0.5) * spin, (Math.random() - 0.5) * spin, (Math.random() - 0.5) * spin), h: [(hi[0] - lo[0]) / 2, (hi[1] - lo[1]) / 2, (hi[2] - lo[2]) / 2], delay, still: 0, shake: delay > 0 });
+}
+// Break a big box piece into chunks about 1.2 m across, each keeping the piece's material and paint.
+function breakOff(pid, vel, delay, from, chunk = 1.2) {
+  const P = PIECES[pid];
+  const big = P.meta && Math.max(P.hi[0] - P.lo[0], P.hi[1] - P.lo[1], P.hi[2] - P.lo[2]) > 1.6;
+  if (!big) { spawn(pieceGeoms(pid), P.lo, P.hi, vel, delay); return; }
+  const [x0, y0, z0, x1, y1, z1] = P.meta.box;
+  const nx = Math.min(5, Math.ceil((x1 - x0) / chunk)), ny = Math.min(5, Math.ceil((y1 - y0) / chunk)), nz = Math.min(5, Math.ceil((z1 - z0) / chunk));
+  for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) for (let k = 0; k < nz; k++) {
+    const jit = () => (Math.random() - 0.5) * 0.25;
+    const a = [x0 + (x1 - x0) * i / nx, y0 + (y1 - y0) * j / ny, z0 + (z1 - z0) * k / nz];
+    const b = [x0 + (x1 - x0) * (i + 1) / nx, y0 + (y1 - y0) * (j + 1) / ny, z0 + (z1 - z0) * (k + 1) / nz];
+    const B = new K.Builder(); B.color(P.meta.tint);
+    B.box(P.meta.mat, a[0], a[1], a[2], b[0], b[1], b[2]);
+    const parts = {};
+    for (const [key, v] of Object.entries(B.parts)) parts[key] = v;
+    const c = new THREE.Vector3((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+    const away = from ? c.clone().sub(from).normalize().multiplyScalar(vel.length() * 0.5) : new THREE.Vector3();
+    const v = vel.clone().multiplyScalar(0.6).add(away).add(new THREE.Vector3(jit() * 6, jit() * 4, jit() * 6));
+    spawn(parts, a, b, v, delay + (from ? 0 : (b[1] - P.lo[1]) * 0.02 + Math.random() * 0.05));
+  }
+}
+
+// Dust, chips and fire: pooled points with a soft sprite and per-particle alpha.
+function softSprite() {
+  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  const r = g.createRadialGradient(32, 32, 2, 32, 32, 31); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.5, 'rgba(255,255,255,0.5)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c); return t;
+}
+function pool(n, size, blending) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 4), 4));
+  const mat = new THREE.PointsMaterial({ size, map: SPRITE, vertexColors: true, transparent: true, depthWrite: false, blending, sizeAttenuation: true });
+  const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.renderOrder = 3; scene.add(pts);
+  return { pts, n, next: 0, life: new Float32Array(n), max: new Float32Array(n), vel: new Float32Array(n * 3), rgb: new Float32Array(n * 3), grav: 0, drag: 0.97 };
+}
+let SPRITE, DUST, FIRE;
+function emit(P, x, y, z, vx, vy, vz, life, rgb) {
+  const i = P.next; P.next = (P.next + 1) % P.n;
+  const pos = P.pts.geometry.attributes.position.array;
+  pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
+  P.vel[i * 3] = vx; P.vel[i * 3 + 1] = vy; P.vel[i * 3 + 2] = vz;
+  P.life[i] = life; P.max[i] = life; P.rgb.set(rgb, i * 3);
+}
+function stepPool(P, dt, alpha) {
+  const pos = P.pts.geometry.attributes.position.array, col = P.pts.geometry.attributes.color.array;
+  for (let i = 0; i < P.n; i++) {
+    if (P.life[i] <= 0) { col[i * 4 + 3] = 0; continue; }
+    P.life[i] -= dt;
+    P.vel[i * 3 + 1] += P.grav * dt;
+    for (let k = 0; k < 3; k++) { P.vel[i * 3 + k] *= P.drag; pos[i * 3 + k] += P.vel[i * 3 + k] * dt; }
+    if (pos[i * 3 + 1] < 0.05) { pos[i * 3 + 1] = 0.05; P.vel[i * 3 + 1] *= -0.3; }
+    const f = Math.max(0, P.life[i] / P.max[i]);
+    col[i * 4] = P.rgb[i * 3]; col[i * 4 + 1] = P.rgb[i * 3 + 1]; col[i * 4 + 2] = P.rgb[i * 3 + 2];
+    col[i * 4 + 3] = alpha(f);
+  }
+  P.pts.geometry.attributes.position.needsUpdate = true; P.pts.geometry.attributes.color.needsUpdate = true;
+}
+function dustAt(x, y, z, n, spread, tone = [0.62, 0.58, 0.52]) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, s = Math.random() * spread;
+    const v = 0.85 + Math.random() * 0.3;
+    emit(DUST, x + (Math.random() - 0.5) * spread * 0.5, y + Math.random() * spread * 0.3, z + (Math.random() - 0.5) * spread * 0.5, Math.cos(a) * s, 0.6 + Math.random() * spread * 0.4, Math.sin(a) * s, 3 + Math.random() * 4, [tone[0] * v, tone[1] * v, tone[2] * v]);
+  }
+}
+
+// Flashes: a pooled light and fireball.
+const FLASH = [];
+function makeFlashes() {
+  for (let i = 0; i < 3; i++) {
+    const light = new THREE.PointLight(0xffb060, 0, 40, 2);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    ball.visible = false; scene.add(light, ball);
+    FLASH.push({ light, ball, t: 1, r: 1 });
+  }
+}
+let flashNext = 0;
+function flash(p, r) {
+  const f = FLASH[flashNext]; flashNext = (flashNext + 1) % FLASH.length;
+  f.light.position.copy(p); f.ball.position.copy(p); f.t = 0; f.r = r; f.ball.visible = true;
+}
+const SCORCH = [];
+function scorch(p, r) {
+  const m = new THREE.Mesh(new THREE.CircleGeometry(r * 0.8, 20), new THREE.MeshBasicMaterial({ color: 0x15120e, transparent: true, opacity: 0.55, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.position.set(p.x, gridMax(p.x - 0.5, p.z - 0.5, p.x + 0.5, p.z + 0.5) + 0.02 + SCORCH.length * 0.001 % 0.05, p.z);
+  m.renderOrder = 1; scene.add(m); SCORCH.push(m);
+}
+
+// The shot itself.
+function blast(p, wkey) {
+  const W = WEAPONS[wkey];
+  const r = W.r;
+  flash(p, r);
+  for (let i = 0; i < 20 * r; i++) { const a = Math.random() * 6.28, e = Math.random() * 1.2, s = 6 + Math.random() * 14; emit(FIRE, p.x, p.y, p.z, Math.cos(a) * Math.cos(e) * s, Math.sin(e) * s, Math.sin(a) * Math.cos(e) * s, 0.25 + Math.random() * 0.5, [1.0, 0.55 + Math.random() * 0.3, 0.2]); }
+  dustAt(p.x, p.y, p.z, Math.round(25 * r), r * 0.9);
+  if (p.y < 1.0) scorch(p, r);
+  const hitB = new Set();
+  for (let pid = 0; pid < PIECES.length; pid++) {
+    const P = PIECES[pid];
+    if (!P.alive || P.bld < 0) continue;
+    const dx = Math.max(P.lo[0] - p.x, 0, p.x - P.hi[0]), dy = Math.max(P.lo[1] - p.y, 0, p.y - P.hi[1]), dz = Math.max(P.lo[2] - p.z, 0, p.z - P.hi[2]);
+    const d = Math.hypot(dx, dy, dz);
+    if (d > r) continue;
+    P.alive = false; hide(pid); hitB.add(P.bld);
+    const c = new THREE.Vector3((P.lo[0] + P.hi[0]) / 2, (P.lo[1] + P.hi[1]) / 2, (P.lo[2] + P.hi[2]) / 2);
+    const vol = (P.hi[0] - P.lo[0]) * (P.hi[1] - P.lo[1]) * (P.hi[2] - P.lo[2]);
+    const dir = c.clone().sub(p); if (dir.lengthSq() < 1e-4) dir.set(0, 1, 0); dir.normalize();
+    const v = dir.multiplyScalar(W.throwV * (1 - d / r) + 1.5).add(new THREE.Vector3(0, 3 + Math.random() * 3, 0));
+    if (vol < 0.004 && Math.random() < 0.7) continue; // small bits go to dust
+    breakOff(pid, v, 0, p);
+  }
+  for (const b of hitB) settleBuilding(b);
+  flushHidden();
+}
+// After damage: pieces not joined to the ground fall, and a building with half its ground-floor walls gone pancakes.
+function settleBuilding(b) {
+  const B = BLD[b];
+  if (B.collapsed) return;
+  const left = B.walls.reduce((s, pid) => s + (PIECES[pid].alive ? PIECES[pid].area : 0), 0);
+  if (left < B.wallArea * 0.5) {
+    B.collapsed = true;
+    let n = 0;
+    for (const pid of B.pieces) {
+      const P = PIECES[pid];
+      if (!P.alive) continue;
+      n++;
+      if (P.lo[1] < 0.6 && P.hi[1] < 1.2) continue; // the slab and what sits on it stay
+      P.alive = false; hide(pid);
+      breakOff(pid, new THREE.Vector3((Math.random() - 0.5) * 1.5, -0.5, (Math.random() - 0.5) * 1.5), 0.55 + P.lo[1] * 0.04 + Math.random() * 0.15, null, 2.0);
+    }
+    if (n) { const s = STREET[b].box; dustAt((s[0] + s[3]) / 2, 1, (s[2] + s[5]) / 2, 260, Math.max(6, (s[3] - s[0]) * 0.35)); }
+    return;
+  }
+  // Connectivity from the ground through touching pieces.
+  const seen = new Set(), stack = [];
+  for (const pid of B.pieces) { const P = PIECES[pid]; if (P.alive && P.lo[1] <= 0.05) { seen.add(pid); stack.push(pid); } }
+  while (stack.length) { const q = stack.pop(); for (const nb of PIECES[q].nb) if (PIECES[nb].alive && !seen.has(nb)) { seen.add(nb); stack.push(nb); } }
+  for (const pid of B.pieces) {
+    const P = PIECES[pid];
+    if (!P.alive || seen.has(pid)) continue;
+    P.alive = false; hide(pid);
+    const delay = 0.25 + Math.random() * 0.6; // it creaks first
+    breakOff(pid, new THREE.Vector3((Math.random() - 0.5) * 0.8, -0.2, (Math.random() - 0.5) * 0.8), delay, null);
+    dustAt((P.lo[0] + P.hi[0]) / 2, P.lo[1], (P.lo[2] + P.hi[2]) / 2, 3, 0.8);
+  }
+}
+
+// Debris physics: gravity, bounce and friction on the ground or the rubble below, then rest.
+const _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
+function stepDebris(dt) {
+  for (let i = DEBRIS.length - 1; i >= 0; i--) {
+    const d = DEBRIS[i], o = d.obj;
+    if (d.delay > 0) {
+      d.delay -= dt;
+      o.position.x += (Math.random() - 0.5) * 0.02; o.position.z += (Math.random() - 0.5) * 0.02; // creak
+      if (Math.random() < dt * 6) dustAt(o.position.x, o.position.y - d.h[1], o.position.z, 1, 0.4);
+      continue;
+    }
+    d.v.y -= 9.81 * dt;
+    o.position.addScaledVector(d.v, dt);
+    const wl = d.w.length();
+    if (wl > 1e-4) { _q.setFromAxisAngle(d.w.clone().divideScalar(wl), wl * dt); o.quaternion.premultiply(_q); }
+    _m.makeRotationFromQuaternion(o.quaternion); const e = _m.elements;
+    const hy = Math.abs(e[1]) * d.h[0] + Math.abs(e[5]) * d.h[1] + Math.abs(e[9]) * d.h[2];
+    const hx = Math.abs(e[0]) * d.h[0] + Math.abs(e[4]) * d.h[1] + Math.abs(e[8]) * d.h[2];
+    const hz = Math.abs(e[2]) * d.h[0] + Math.abs(e[6]) * d.h[1] + Math.abs(e[10]) * d.h[2];
+    const floor = gridMax(o.position.x - hx * 0.7, o.position.z - hz * 0.7, o.position.x + hx * 0.7, o.position.z + hz * 0.7);
+    if (o.position.y - hy < floor) {
+      o.position.y = floor + hy;
+      if (d.v.y < -2.5) { d.v.y *= -0.22; d.v.x *= 0.55; d.v.z *= 0.55; d.w.multiplyScalar(0.55); if (Math.random() < 0.5) dustAt(o.position.x, floor, o.position.z, 2, 0.6); }
+      else { d.v.y = 0; d.v.x *= 0.8; d.v.z *= 0.8; d.w.multiplyScalar(0.75); }
+      if (d.v.lengthSq() < 0.15 && d.w.lengthSq() < 0.2) d.still += dt; else d.still = 0;
+      if (d.still > 0.25) { bake(d, floor, hx, hy, hz); DEBRIS.splice(i, 1); }
+    }
+    if (o.position.y < -20) { scene.remove(o); DEBRIS.splice(i, 1); }
+  }
+}
+function bake(d, floor, hx, hy, hz) {
+  const o = d.obj; o.updateMatrixWorld(true);
+  const nm = new THREE.Matrix3();
+  for (const m of o.children) {
+    const key = m.userData.key, R = RUBBLE[key] || (RUBBLE[key] = { p: [], n: [], u: [], c: [], mesh: null });
+    const g = m.geometry, P = g.attributes.position, N = g.attributes.normal, v = new THREE.Vector3();
+    nm.getNormalMatrix(m.matrixWorld);
+    for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld); R.p.push(v.x, v.y, v.z); v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); R.n.push(v.x, v.y, v.z); }
+    for (const x of g.attributes.uv.array) R.u.push(x);
+    for (const x of g.attributes.color.array) R.c.push(x);
+    rubbleTris += P.count / 3;
+    g.dispose();
+  }
+  scene.remove(o);
+  gridStamp(o.position.x - hx * 0.8, o.position.z - hz * 0.8, o.position.x + hx * 0.8, o.position.z + hz * 0.8, floor + hy * 1.6);
+  rubbleDirty = true;
+}
+function rebuildRubble() {
+  for (const R of Object.values(RUBBLE)) {
+    if (R.mesh) { scene.remove(R.mesh); R.mesh.geometry.dispose(); }
+    if (!R.p.length) { R.mesh = null; continue; }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(R.p, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(R.n, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(R.u, 2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(R.c, 3));
+    g.computeBoundingSphere();
+    const key = Object.keys(RUBBLE).find((k) => RUBBLE[k] === R);
+    R.mesh = new THREE.Mesh(g, material(key)); R.mesh.castShadow = true; R.mesh.receiveShadow = true; R.mesh.userData.key = key;
+    scene.add(R.mesh);
+  }
+  rubbleDirty = false;
+}
+function stepFx(dt) {
+  for (const f of FLASH) {
+    if (f.t >= 1) continue;
+    f.t += dt / 0.45;
+    const k = Math.min(1, f.t);
+    f.light.intensity = 120 * Math.pow(1 - k, 2) * f.r;
+    f.ball.scale.setScalar(f.r * (0.3 + 0.9 * Math.sqrt(k)));
+    f.ball.material.opacity = 0.9 * (1 - k);
+    if (k >= 1) { f.ball.visible = false; f.light.intensity = 0; }
+  }
+  stepPool(DUST, dt, (f) => 0.55 * Math.min(1, f * 1.6) * Math.min(1, (1 - f) * 8 + 0.2));
+  stepPool(FIRE, dt, (f) => f);
+  for (const t of TRACERS.slice()) { t.life -= dt; t.line.material.opacity = Math.max(0, t.life / 0.08); if (t.life <= 0) { scene.remove(t.line); TRACERS.splice(TRACERS.indexOf(t), 1); } }
+  for (const m of MISSILES.slice()) {
+    m.t += dt;
+    const k = Math.min(1, m.t / m.dur);
+    m.obj.position.lerpVectors(m.a, m.b, k);
+    emit(DUST, m.obj.position.x, m.obj.position.y, m.obj.position.z, (Math.random() - 0.5) * 0.4, 0.3, (Math.random() - 0.5) * 0.4, 1.8, [0.85, 0.85, 0.85]);
+    if (k >= 1) { scene.remove(m.obj); MISSILES.splice(MISSILES.indexOf(m), 1); blast(m.b, 'missile'); }
+  }
+  rubbleTimer += dt;
+  if (rubbleDirty && rubbleTimer > 0.3) { rubbleTimer = 0; rebuildRubble(); }
+}
+
+// Firing: a click (not a drag) shoots where you point.
+const TRACERS = [], MISSILES = [];
+const ray = new THREE.Raycaster();
+function fireAt(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const targets = Object.values(MESH).filter((m) => !TRANSPARENT.has(m.userData.key) || m.userData.key === 'glass' || m.userData.key === 'glassShop');
+  const hits = ray.intersectObjects(targets, false);
+  let p = hits.length ? hits[0].point : null;
+  if (!p) { const t = -ray.ray.origin.y / ray.ray.direction.y; if (t > 0 && t < 2000) p = ray.ray.origin.clone().addScaledVector(ray.ray.direction, t); }
+  if (!p) return;
+  const muzzle = camera.position.clone().add(new THREE.Vector3(0, -0.6, 0));
+  if (WEAPONS[weapon].flies) {
+    const obj = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.4, 8), new THREE.MeshStandardMaterial({ color: 0xd8d8d0, emissive: 0xff8030, emissiveIntensity: 0.6 }));
+    obj.position.copy(muzzle); obj.lookAt(p); obj.rotateX(Math.PI / 2); scene.add(obj);
+    MISSILES.push({ obj, a: muzzle, b: p.clone(), t: 0, dur: Math.max(0.15, muzzle.distanceTo(p) / 220) });
+    return;
+  }
+  const g = new THREE.BufferGeometry().setFromPoints([muzzle, p]);
+  const line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xffe0a0, transparent: true, opacity: 1 }));
+  scene.add(line); TRACERS.push({ line, life: 0.08 });
+  blast(p.clone(), weapon);
+  shots++;
+}
+let shots = 0;
+let downAt = null;
+canvas.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
+canvas.addEventListener('pointerup', (e) => {
+  if (!downAt) return;
+  const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
+  downAt = null;
+  if (moved < 6 && e.button === 0) fireAt(e.clientX, e.clientY);
+});
+function rebuildStreet() {
+  for (const [k, m] of Object.entries(MESH)) { m.geometry.attributes.position.array.set(ORIG[k]); m.geometry.attributes.position.needsUpdate = true; }
+  for (const P of PIECES) P.alive = true;
+  for (const b of BLD) b.collapsed = false;
+  for (const d of DEBRIS) scene.remove(d.obj);
+  DEBRIS.length = 0;
+  for (const R of Object.values(RUBBLE)) { if (R.mesh) { scene.remove(R.mesh); R.mesh.geometry.dispose(); } R.p = []; R.n = []; R.u = []; R.c = []; R.mesh = null; }
+  rubbleTris = 0;
+  for (const s of SCORCH) scene.remove(s);
+  SCORCH.length = 0;
+  resetGrid();
+}
+function initDestruction() {
+  SPRITE = softSprite();
+  DUST = pool(3000, 3.2, THREE.NormalBlending); DUST.grav = 0.25; DUST.drag = 0.985;
+  FIRE = pool(800, 0.45, THREE.AdditiveBlending); FIRE.grav = -9.81; FIRE.drag = 0.99;
+  makeFlashes();
+  buildGraph();
+  resetGrid();
 }
 
 setTimeout(() => {
@@ -467,6 +900,7 @@ setTimeout(() => {
   buildMeshes();
   const sc = sun.shadow.camera; sc.left = -90; sc.right = 90; sc.top = 60; sc.bottom = -60; sc.near = 1; sc.far = 400; sc.updateProjectionMatrix();
   addGlowLights();
+  initDestruction();
   cards();
   setTime('day');
   camera.position.set(-30, 26, 60); controls.target.set(-10, 2, 0);

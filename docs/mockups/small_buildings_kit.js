@@ -20,9 +20,16 @@
 
   // ------------------------------------------------------------------ the geometry gatherer
   class Builder {
-    constructor() { this.parts = {}; this.tint = [1, 1, 1]; this.unitUv = false; this.count = 0; }
+    constructor() { this.parts = {}; this.tint = [1, 1, 1]; this.count = 0; this.pid = 0; this.cur = -1; this.meta = []; }
     color(h) { this.tint = typeof h === 'number' ? hex(h) : h; return this; }
-    arr(mat) { return this.parts[mat] || (this.parts[mat] = { p: [], n: [], u: [], c: [] }); }
+    arr(mat) { return this.parts[mat] || (this.parts[mat] = { p: [], n: [], u: [], c: [], t: [] }); }
+    // Pieces: what breaks off together (a wall segment, a window, a roof plane, a sofa, a car).
+    // Every top-level box, cylinder or polygon is its own piece unless drawn inside group().
+    group(fn) {
+      if (this.cur >= 0) return fn();
+      this.cur = this.pid++;
+      try { return fn(); } finally { this.cur = -1; }
+    }
     // A planar convex polygon, wound to face `hint`; UVs in metres on the plane (u level, v up the slope).
     poly(mat, pts, hint, uvFn) {
       const a = pts[0], b = pts[1], c = pts[2];
@@ -36,12 +43,14 @@
       if (len(t) < 1e-6) t = [1, 0, 0]; else t = norm(t);
       const bt = cross(n, t);
       const A = this.arr(mat);
+      const piece = this.cur >= 0 ? this.cur : this.pid++;
       const uv = (p) => uvFn ? uvFn(p) : [dot(p, t), dot(p, bt)];
       for (let i = 1; i + 1 < pts.length; i++) {
         for (const p of [pts[0], pts[i], pts[i + 1]]) {
           A.p.push(p[0], p[1], p[2]); A.n.push(n[0], n[1], n[2]);
           const q = uv(p); A.u.push(q[0], q[1]); A.c.push(this.tint[0], this.tint[1], this.tint[2]);
         }
+        A.t.push(piece);
         this.count++;
       }
     }
@@ -51,6 +60,9 @@
       if (y0 > y1) [y0, y1] = [y1, y0];
       if (z0 > z1) [z0, z1] = [z1, z0];
       if (x1 - x0 < 1e-4 || y1 - y0 < 1e-4 || z1 - z0 < 1e-4) return;
+      if (this.cur < 0) { // a lone box: remember it so it can be broken into chunks
+        return this.group(() => { this.meta[this.cur] = { mat, box: [x0, y0, z0, x1, y1, z1], tint: this.tint.slice() }; this.box(mat, x0, y0, z0, x1, y1, z1, skip); });
+      }
       const s = skip || '';
       const uvX = (p) => [p[2], p[1]], uvZ = (p) => [p[0], p[1]], uvY = (p) => [p[0], p[2]];
       if (!s.includes('x')) this.poly(mat, [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]], [-1, 0, 0], uvX);
@@ -62,6 +74,7 @@
     }
     // A cylinder along an axis, centred at c, from h0 to h1 along that axis.
     cyl(mat, axis, c, r, h0, h1, seg, caps = true) {
+      if (this.cur < 0) return this.group(() => this.cyl(mat, axis, c, r, h0, h1, seg, caps));
       const P = (ang, h) => {
         const a = Math.cos(ang) * r, b = Math.sin(ang) * r;
         return axis === 'y' ? [c[0] + a, h, c[2] + b] : axis === 'x' ? [h, c[1] + a, c[2] + b] : [c[0] + a, c[1] + b, h];
@@ -133,7 +146,8 @@
       if (s2 < e) strip(s2, e, y0, y1);
     }
   }
-  function fill(B, bx, op, t, out, o) {
+  function fill(B, bx, op, t, out, o) { B.group(() => fillOpening(B, bx, op, t, out, o)); }
+  function fillOpening(B, bx, op, t, out, o) {
     const { a, b, kind } = op;
     const y0 = op.y0, y1 = op.y1;
     const f = op.frame || 0.07;
@@ -236,7 +250,8 @@
 
   // ------------------------------------------------------------------ roofs
   // Each roof is a top surface and an underside (seen under the eaves), with fascia boards.
-  function slope(B, mat, pts, under = 'soffit', thick = 0.14) {
+  function slope(B, mat, pts, under = 'soffit', thick = 0.14) { B.group(() => slopeFaces(B, mat, pts, under, thick)); }
+  function slopeFaces(B, mat, pts, under, thick) {
     const up = [0, 1, 0];
     B.poly(mat, pts, up);
     const low = pts.map((p) => [p[0], p[1] - thick, p[2]]);
@@ -333,7 +348,8 @@
 
   // ------------------------------------------------------------------ furniture and life, local to a spot
   // Items are boxes in a local frame facing +z, placed at (x, y, z) turned by rot quarter turns.
-  function place(B, x, y, z, rot, items) {
+  function place(B, x, y, z, rot, items) { B.group(() => placeItems(B, x, y, z, rot, items)); }
+  function placeItems(B, x, y, z, rot, items) {
     const T = (lx, lz) => rot === 1 ? [-lz, lx] : rot === 2 ? [-lx, -lz] : rot === 3 ? [lz, -lx] : [lx, lz];
     for (const it of items) {
       const [mat, ax, ay, az, bx, by, bz, tint] = it;
@@ -364,7 +380,8 @@
     pump: () => [['concrete', -0.6, 0, -1.4, 0.6, 0.2, 1.4, 0xbab4aa], ['metal', -0.3, 0.2, -0.25, 0.3, 1.75, 0.25, 0xe8e6e0], ['metal', -0.31, 1.15, -0.26, 0.31, 1.55, 0.26, 0xc23b30], ['glassDark', -0.2, 1.2, 0.26, 0.2, 1.45, 0.27, 0x334048]],
   };
   // An 80s box sedan or pickup.
-  function car(B, x, z, rot, tint, kind = 'sedan') {
+  function car(B, x, z, rot, tint, kind = 'sedan') { B.group(() => carParts(B, x, z, rot, tint, kind)); }
+  function carParts(B, x, z, rot, tint, kind) {
     const L = kind === 'pickup' ? 2.6 : 2.35;
     const items = [['paint', -0.88, 0.32, -L, 0.88, 0.92, L, tint]];
     if (kind === 'pickup') items.push(['paint', -0.84, 0.92, -0.2, 0.84, 1.55, 1.0, tint], ['glassDark', -0.8, 1.0, 1.0, 0.8, 1.48, 1.02, 0x2a3a44], ['metal', -0.88, 0.92, -L, 0.88, 1.15, -L + 0.05, tint]);
@@ -381,7 +398,8 @@
       B.cyl('rubber', ax, c, 0.33, h0, h1, 10);
     }
   }
-  function pilotFigure(B, x, z) { // the 1.8 m pilot for scale
+  function pilotFigure(B, x, z) { B.group(() => pilotParts(B, x, z)); }
+  function pilotParts(B, x, z) { // the 1.8 m pilot for scale
     B.color(0x3d4a3a); B.box('fabric', x - 0.2, 0, z - 0.12, x - 0.03, 0.85, z + 0.12); B.box('fabric', x + 0.03, 0, z - 0.12, x + 0.2, 0.85, z + 0.12);
     B.color(0xd08a2a); B.box('fabric', x - 0.25, 0.85, z - 0.15, x + 0.25, 1.5, z + 0.15);
     B.color(0xd9b08c); B.box('fabric', x - 0.1, 1.52, z - 0.1, x + 0.1, 1.8, z + 0.1);

@@ -2,6 +2,7 @@
 
 ## 0. Mockup
 - [x] 0.1 `docs/mockups/small_buildings.html` and `small_buildings_kit.js`: seventeen types on one street, walk, dusk, cutaway
+- [x] 0.1b Destruction in the mockup: four weapons, chunks, support by touch, pancake collapse, rubble piles
 - [ ] 0.2 Shots in a cloud container (lavapipe), looked at; owner answers S1-S3
 
 ## 1. Art (cloud session)
