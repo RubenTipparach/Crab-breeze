@@ -116,7 +116,7 @@ code { font: 500 0.9em var(--mono); }
 
 <div class="wrap">
   <header class="top">
-    <div class="eyebrow">Owner survey · opened 2026-10-23 · cleaned up 2026-10-24 · island, small-building, weather and terrain questions added</div>
+    <div class="eyebrow">Owner survey · opened 2026-10-23 · cleaned up 2026-10-24 · island, small-building, weather, terrain, water, jobs, bases and cars questions added</div>
     <h1>Crab Breeze Survey</h1>
     <div class="suits" aria-hidden="true"><span style="background:var(--sun)"></span><span style="background:var(--crescent)"></span><span style="background:var(--star)"></span><span style="background:var(--eagle)"></span></div>
     <p class="lede">Only the questions still open. Everything you have answered is in the Answered section at the bottom, with where it went. Each open question has a recommendation that gets built if you leave it blank: pick an option, add a note, or leave it.</p>
@@ -148,9 +148,64 @@ const ART_IMG = '';
 
 // The questions. Answers live in the db collection `answers`, one document per question id.
 const SECTIONS = [
+  { tag: 'J', name: 'Jobs, air bases and cars',
+    lead: 'New on 2026-10-24: your career (openspec/changes/career), mail and jobs (mission-jobs), long-range flight (jet-cruise), air bases to land, repair, buy and switch mechs (air-bases), car traffic (car-traffic) and driving (car-driving). Written up, not built yet.',
+    qs: [
+      { id: 'J1', q: 'Where do you read mail and accept jobs?',
+        options: ['On an MFD page in the cockpit (MAIL, pressed like the other pages) and on the ready room terminal at a base', 'Only at the base terminal', 'A menu screen, outside the cockpit'], rec: 0,
+        why: 'Reading a job offer in your own cockpit keeps you in the mech, first person, and the terminal is the same page on a bigger screen.' },
+      { id: 'J2', q: 'Jobs are 3-25 km away and the jets burn 20 s (about 2 km). How do you get there?',
+        options: ['Cruise: a jet setting above 150 m, about 650 km/h, wide turns, guns locked, heats up over about 4 minutes (40 km); a hit or dropping low ends it', 'A transport plane carries your mech to the site and drops it', 'Skate and hop on the jets as they are'], rec: 0,
+        why: 'You fly yourself there, as you asked, and the limits keep the mech a ground machine in a fight.' },
+      { id: 'J3', q: 'Your mech is destroyed on a job. What happens?',
+        options: ['It is recovered to the nearest base with a full repair bill, and the job pays nothing', 'It is lost for good', 'The game reloads your last save'], rec: 0,
+        why: 'Losing costs you real money without ending the career over one bad fight.' },
+      { id: 'J4', q: 'Money: what do things cost?',
+        options: ['Start with 200 000 credits and the Foreman; jobs pay 40 000-150 000; mechs cost 300 000-1 200 000; a full repair up to 30 % of the mech', 'Tighter: start with 50 000, jobs pay 20 000-60 000', 'Looser: start with 1 000 000'], rec: 0,
+        why: 'A new mech is about 3-10 jobs of work, and a hard fight costs about a job to repair.' },
+      { id: 'J14', q: 'Completing jobs is how you buy mechs. Do jobs won also unlock the dearer mechs?',
+        options: ['Both: money buys, and the dearer designs open after 3, 6 and 10 jobs won', 'Money only: every mech is for sale from the start', 'Unlocks only: each job won unlocks a mech, and they are free'], rec: 0,
+        why: 'It stops one lucky payout skipping straight to the best mech, and gives the career steps.' },
+      { id: 'J12', q: 'Which kinds of job first?',
+        options: ['Defend a city (today\'s defence), intercept a raid in open country, destroy a crab nest', 'Defence only, more cities', 'Add escort jobs (protect a convoy on a highway)'], rec: 0,
+        why: 'Three kinds that reuse what is built: the defence, the invasion forces and the crabs.' },
+      { id: 'J5', q: 'How many air bases?',
+        options: ['3: one near the start, one in the north, one on the east coast', '1, the home base', '5, spread over the island'], rec: 0,
+        why: 'Three keep every job within cruise range of a base without filling the island with them.' },
+      { id: 'J11', q: 'How do repairs take time?',
+        options: ['20-80 s, part by part, while you watch the gantries from the cockpit or walk about; it stops when you run out of money', 'Instant', 'Only between jobs, off screen'], rec: 0,
+        why: 'Watching the gantries work on your mech is a moment, and short enough not to drag.' },
+      { id: 'J13', q: 'How do you use a terminal at the base (mail, the mech catalogue)?',
+        options: ['Walk up, press E, and the mouse points on the screen in front of you; E or Esc steps back', 'Press E and a menu opens over the view', 'Click the screen with the crosshair'], rec: 0,
+        why: 'The screen is part of the world you stand in, and the view never moves away from you.' },
+      { id: 'J6', q: 'How much traffic?',
+        options: ['Moderate: a car every 60 m of lane in cities and every 300 m on highways, within 1.5 km of you (about 150-250 downtown)', 'Light: half that', 'Heavy: double, rush hour'], rec: 0,
+        why: 'Enough that a street looks lived in and a mech feels huge, at a measured cost.' },
+      { id: 'J7', q: 'Which cars?',
+        options: ['1980s civilian, no real brands: sedan, station wagon, pickup, van, taxi, bus, semi truck', 'Add police and fire trucks that come to the fight', 'Military vehicles only'], rec: 0,
+        why: 'Ordinary cars under a 24 m mech are what sells the scale; emergency services can follow.' },
+      { id: 'J8', q: 'How do cars drive?',
+        options: ['Simulated: engine and gears, weight, tyre grip that lets go in a slide, suspension; assists you can turn off', 'Arcade: grippy and simple', 'Simulated, no assists'], rec: 0,
+        why: 'It matches the deep mech piloting (G2) and the assists keep it easy to pick up (G5).' },
+      { id: 'J9', q: 'Which cars can you take?',
+        options: ['Parked cars in towns and at the bases', 'Any car, traffic included (the driver gets out and runs)', 'Only your own car at the base'], rec: 0,
+        why: 'Parked cars need no drivers modelled; taking traffic cars can follow when people are in the game.' },
+    ] },
   { tag: 'G', name: 'Combat effects and the city defence',
     lead: 'New on 2026-10-23: weapon effects (openspec/changes/combat-fx), dumbfire rockets (rockets) and the three-city defence mission (city-defence).',
     qs: [
+      { id: 'G17', q: 'Close combat (openspec/changes/close-combat): it switches on when the target is within melee range and Tab toggles it. In close combat, what do the triggers do?',
+        options: ['Left mouse strikes with the left arm, right mouse with the right: a wind-up, a hit sweeping the arm\'s reach, a recovery; the guns hold', 'Strikes on the mouse, and the guns still fire on other keys', 'One strike key; both arms alternate'], rec: 0,
+        why: 'Each arm is its own weapon already (losing an arm loses its gun); a strike per arm keeps the controls the same shape, and holding the guns keeps a close fight readable.' },
+      { id: 'G18', q: 'How far is melee range for a 24 m mech?',
+        options: ['30 m (about an arm\'s reach plus a stride)', '20 m', '45 m'], rec: 0,
+        why: 'Close enough that the target fills the front screen, far enough that the mode is on before the arms can reach.' },
+      { id: 'G19', q: 'What does a strike do?',
+        options: ['Through the same damage rules as a shot: the arm\'s strike beats armour like a heavy shell (300 mm, 60 structure) and breaks building cells and trees in its sweep', 'Knocks the target back as well', 'Damage only to mechs and vehicles'], rec: 0,
+        why: 'One damage rule (CLAUDE.md section 6.1): a strike is a hit like any other, and smashing a wall should feel like it.' },
+      { id: 'C12', q: 'How do you press an MFD (openspec/changes/cockpit-mfds)?',
+        options: ['Hold free look (Left Ctrl), look at it and click; the guns hold while free look is held', 'A key per MFD to change its page', 'A visible mouse cursor in the cockpit'], rec: 0,
+        why: 'Free look already takes the view off the guns; clicking what you look at is the simplest reach into the cockpit.' },
       { id: 'G9', q: 'A city loses when it is "damaged more than 50 %". What counts as damage?',
         options: ['The share of the city\'s building structure destroyed, so a fallen 40-storey tower counts far more than a shed', 'The share of buildings destroyed, each building counting the same', 'Only a few landmark buildings per city count'], rec: 0,
         why: 'It matches what you see: a skyline with its towers down looks half gone even if the suburbs stand.' },
@@ -677,4 +732,5 @@ ALL_QS.forEach((q) => paint(q.id));
 connect();
 setupDownload();
 </script>
+
 
