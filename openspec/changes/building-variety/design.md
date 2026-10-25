@@ -54,6 +54,6 @@ tinted by vertex colour, so every frame, mullion, sill and cornice picks up reli
 
 | Id | Question | Recommendation | State |
 |---|---|---|---|
-| BV1 | Which new types, and in which order? (survey W22) | All six; brick loft and Art Deco first (they put brick and stone downtown) | open |
-| BV2 | Brick above 6 storeys (survey W18) | Yes, through the brick loft type | provisional |
+| BV1 | Which new types, and in which order? (survey W22) | All six; brick loft and Art Deco first (they put brick and stone downtown) | decided (W22) |
+| BV2 | Brick above 6 storeys (survey W18) | Yes, through the brick loft type | W18: "see W12" (whatever looks cool and is efficient): the brick loft carries it |
 | BV3 | Texture sets compressed to KTX2 BC7? | Yes, for load time and repository size | provisional |

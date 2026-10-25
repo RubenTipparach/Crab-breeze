@@ -202,6 +202,9 @@ pub struct FxConfig {
     pub tracer_width_m: f32,
     /// A heavy shell's (1 MJ or more) streak width.
     pub tracer_heavy_width_m: f32,
+    /// How many times brighter than white a tracer burns, so the bloom catches it (HDR; owner,
+    /// 2026-10-25: "bullets need to be brighter, like affected by bloom more or something? HDR maybe?").
+    pub tracer_glow: f32,
     /// A rocket drops a `rocket_trail` puff every this far.
     pub trail_spacing_m: f32,
     /// A rocket motor's light.
@@ -233,6 +236,11 @@ pub struct FxConfig {
     /// four times as far for an explosion): every burst is an effect of its own on the GPU side,
     /// and those far off cost about 2 ms of a combat frame while barely showing (2026-10-24).
     pub burst_range_m: f32,
+    /// Recipes whose blended bursts each get a sprite of their own, so bevy_hanabi draws them
+    /// apart, each in a stable order, instead of merging them into one draw whose particles reorder
+    /// every frame: big translucent clouds (explosion smoke, collapse dust) flickered merged (owner,
+    /// 2026-10-25: "this smoke here is reall flickery still"). Each costs its own draw.
+    pub sorted: Vec<String>,
 }
 
 /// How blasts nearby shake the view (owner, 2026-10-24: "screen needs to shake a bit when
@@ -285,6 +293,7 @@ impl Default for FxConfig {
             tracer_s: 0.008,
             tracer_width_m: 0.25,
             tracer_heavy_width_m: 0.5,
+            tracer_glow: 12.0,
             trail_spacing_m: 3.0,
             motor_lumens: 2.0e5,
             plume_length_m: 4.5,
@@ -298,6 +307,7 @@ impl Default for FxConfig {
             shake: ShakeConfig::default(),
             stream_per_s: BTreeMap::new(),
             burst_range_m: 400.0,
+            sorted: vec!["explosion_ground".into(), "explosion_air".into(), "explosion_water".into()],
         }
     }
 }
@@ -322,6 +332,7 @@ impl Validate for FxConfig {
         }
         positive("tracer_width_m", self.tracer_width_m)?;
         positive("tracer_heavy_width_m", self.tracer_heavy_width_m)?;
+        positive("tracer_glow", self.tracer_glow)?;
         positive("trail_spacing_m", self.trail_spacing_m)?;
         positive("motor_lumens", self.motor_lumens)?;
         for name in RECIPES {
@@ -334,12 +345,59 @@ impl Validate for FxConfig {
                 l.validate(&format!("recipes.{name}[{i}]"))?;
             }
         }
+        for name in &self.sorted {
+            if !self.recipes.contains_key(name) {
+                return Err(format!("`sorted` names no recipe: {name}"));
+            }
+        }
         Ok(())
     }
 }
 
+/// Burst sizes come in this many steps up to a layer's own count (`particle-steps`).
+pub const BURST_STEPS: u32 = 4;
+
+/// How many particles a burst of a layer with `count` particles spawns at `density`, with `room`
+/// left under the particle budget: a whole number of steps of `count / BURST_STEPS` (rounded to
+/// the nearest, at least one step while any were asked for), cut to whole steps that fit. Each size
+/// is its own GPU effect, built when first used; a footstep's density follows its speed, so without
+/// steps every stride built a new one mid-fight (`particle-steps`).
+pub fn burst_count(count: u32, density: f32, room: u32) -> u32 {
+    let step = count.div_ceil(BURST_STEPS).max(1);
+    let asked = (count as f32 * density.max(0.0)).round();
+    if !asked.is_finite() || asked < 1.0 {
+        return 0;
+    }
+    let steps = ((asked / step as f32).round() as u32).max(1);
+    steps.min(room / step) * step
+}
+
 #[cfg(test)]
 mod tests {
+    use super::burst_count;
+
+    #[test]
+    fn bursts_come_in_quarter_steps_of_their_count() {
+        assert_eq!(burst_count(40, 1.0, 1000), 40);
+        assert_eq!(burst_count(40, 0.6, 1000), 20);
+        assert_eq!(burst_count(40, 0.7, 1000), 30);
+        assert_eq!(burst_count(40, 0.05, 1000), 10, "a light step still shows one step");
+        assert_eq!(burst_count(40, 0.0, 1000), 0);
+        assert_eq!(burst_count(40, 2.0, 1000), 80);
+        assert_eq!(burst_count(3, 1.0, 1000), 3);
+    }
+
+    #[test]
+    fn a_burst_takes_only_whole_steps_that_fit_the_budget() {
+        assert_eq!(burst_count(40, 1.0, 25), 20);
+        assert_eq!(burst_count(40, 1.0, 9), 0);
+    }
+
+    #[test]
+    fn a_footstep_at_any_speed_is_one_of_a_few_sizes() {
+        let sizes: std::collections::BTreeSet<u32> = (0..=200).map(|i| burst_count(24, i as f32 / 100.0, 10_000)).collect();
+        assert!(sizes.len() <= 2 * super::BURST_STEPS as usize + 1, "{sizes:?}");
+    }
     #[test]
     fn far_small_bursts_are_left_out_and_explosions_reach_further() {
         let c = super::FxConfig::default();
@@ -369,6 +427,17 @@ mod tests {
         for name in RECIPES {
             assert!(!cfg.recipes[name].is_empty(), "{name} has no layers");
         }
+    }
+
+    #[test]
+    fn a_sorted_name_must_be_a_recipe() {
+        let cfg = FxConfig {
+            recipes: RECIPES.iter().map(|n| (n.to_string(), Vec::new())).collect(),
+            sorted: vec!["no_such_recipe".into()],
+            ..FxConfig::default()
+        };
+        let e = cfg.validate().unwrap_err();
+        assert!(e.contains("no_such_recipe"), "{e}");
     }
 
     #[test]

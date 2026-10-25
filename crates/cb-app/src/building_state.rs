@@ -107,6 +107,18 @@ impl MaterialExtension for ElementState {
         if let Some(fragment) = descriptor.fragment.as_mut() {
             fragment.shader_defs.retain(|d| d != &ShaderDefVal::from("LOAD_PREPASS_NORMALS"));
         }
+        // The glass's `depth_bias` orders it among transparent things (`GLASS_SORT_BIAS`);
+        // `StandardMaterial` also makes it a GPU depth bias, which would push windows through walls.
+        // Glass writes depth (opaque surfaces already do). Drawn first among transparent things, it
+        // was covered by any smoke drawn after it, including smoke behind the window or inside the
+        // hollow dressed building, which then showed on the facade as if in front of it and ended
+        // sharply at the building's edge (owner, 2026-10-25: "critical, massive smoke
+        // sorting/blending issue"). With depth written, smoke in front of a window still covers it
+        // and smoke behind it is hidden, as by glass that lets 12 % through.
+        if let Some(depth) = descriptor.depth_stencil.as_mut() {
+            depth.bias.constant = 0;
+            depth.depth_write_enabled = Some(true);
+        }
         Ok(())
     }
 }
