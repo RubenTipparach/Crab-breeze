@@ -135,6 +135,9 @@ impl Rand {
 struct Pools {
     tracers: Vec<Entity>,
     motors: Vec<Entity>,
+    /// Each motor's smoke trail: its own entity, always drawn, so the smoke it laid hangs on
+    /// after the rocket is gone; only its spawner turns off.
+    trails: Vec<Entity>,
     /// Each motor's exhaust flame (openspec change `rocket-plumes`).
     plumes: Vec<Entity>,
 }
@@ -556,9 +559,6 @@ fn play(
                     spawn_ring(&mut commands, &fx, &mut materials, e.at, radius_m * s, 2.8, 0.55);
                     spawn_ring(&mut commands, &fx, &mut materials, e.at, radius_m * s * 0.6, 3.6, 0.35);
                 }
-                // Lit smoke puffs (smoke-puffs): drawn by the smoke renderer, which is built on the
-                // cloud shader from main and lands with it.
-                Layer::Puffs { .. } => {}
             }
         }
     }
@@ -651,9 +651,13 @@ fn draw_shots(
     plume: Res<crate::plumes::PlumeAssets>,
     mechs: Query<(&crate::mech::MechId, &crate::mech::MechSpec)>,
     mut rng: ResMut<Rand>,
+    mut lib: ResMut<ParticleLibrary>,
+    mut effects: ResMut<Assets<EffectAsset>>,
+    mut trails: Query<(&mut Transform, Option<&mut EffectSpawner>), (Without<Tracer>, Without<Motor>, Without<RocketPlume>)>,
 ) {
-    // A rocket's smoke trail is lit puffs laid along its flight (`smoke_render::missile_trails`).
     let cfg = &data.0.fx;
+    // A rocket lays a smoke puff every `trail_spacing_m` at about 240 m/s.
+    let trail_rate = 240.0 / cfg.trail_spacing_m;
     // A heavy shell (1 MJ or more) draws a wider streak.
     let heavy = |owner: u32, weapon: usize| {
         mechs
@@ -687,6 +691,15 @@ fn draw_shots(
                     ))
                     .id();
                 pools.motors.push(e);
+                let trail = cfg
+                    .recipes
+                    .get("rocket_trail")
+                    .and_then(|layers| particles::stream(&mut lib, &mut effects, "rocket_trail", 0, &layers[0], trail_rate));
+                let mut t = commands.spawn((Name::new("rocket trail"), Transform::from_translation(pos)));
+                if let Some(effect) = trail {
+                    t.insert(effect);
+                }
+                pools.trails.push(t.id());
                 pools.plumes.push(
                     commands
                         .spawn((
@@ -718,6 +731,12 @@ fn draw_shots(
                         cfg.plume_width_m,
                     );
                     *pv = Visibility::Inherited;
+                }
+                if let Some(Ok((mut tt, spawner))) = pools.trails.get(mi).map(|e| trails.get_mut(*e)) {
+                    tt.translation = tail;
+                    if let Some(mut sp) = spawner {
+                        sp.active = true;
+                    }
                 }
             }
             mi += 1;
@@ -765,6 +784,11 @@ fn draw_shots(
     {
         if let Ok((_, mut v)) = q.get_mut(*e) {
             *v = Visibility::Hidden;
+        }
+    }
+    for e in pools.trails.iter().skip(mi) {
+        if let Ok((_, Some(mut sp))) = trails.get_mut(*e) {
+            sp.active = false;
         }
     }
 }
@@ -896,7 +920,7 @@ mod tests {
         let mut world = World::new();
         let e = world
             .spawn(FxStream {
-                recipe: "burning",
+                recipe: "jet_trail",
                 dir: Vec3::NEG_Y,
                 on: true,
                 density: 1.0,

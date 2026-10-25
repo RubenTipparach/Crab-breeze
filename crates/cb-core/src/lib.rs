@@ -24,7 +24,6 @@ pub mod settings;
 pub mod sim;
 pub mod skins;
 pub mod sky_light;
-pub mod smoke;
 pub mod sun_flare;
 pub mod targeting;
 pub mod units;
