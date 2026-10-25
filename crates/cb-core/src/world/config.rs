@@ -602,6 +602,56 @@ pub struct WorldConfig {
     pub structure: super::structure::StructureConfig,
     /// Building dressing (openspec change `building-generation`).
     pub dressing: super::dressing::DressingConfig,
+    /// Physics debris (openspec change `debris-physics`).
+    pub debris: DebrisConfig,
+}
+
+/// Physics debris: where chunks become rigid bodies, and how many (openspec change
+/// `debris-physics`, "Physics near the player only").
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct DebrisConfig {
+    /// A chunk breaking off within this distance of the pilot's eye becomes a rigid body; farther,
+    /// it is a dust puff only.
+    pub physics_radius_m: f32,
+    /// A moving body farther than `physics_radius_m` times this is made static where it is.
+    pub freeze_factor: f32,
+    /// Most moving bodies; past it the oldest settle where they are.
+    pub max_dynamic: u32,
+    /// Most bodies kept at all; past it the oldest are removed.
+    pub max_kept: u32,
+}
+
+impl Default for DebrisConfig {
+    fn default() -> Self {
+        Self {
+            physics_radius_m: 400.0,
+            freeze_factor: 1.2,
+            max_dynamic: 600,
+            max_kept: 2500,
+        }
+    }
+}
+
+impl DebrisConfig {
+    /// True when a chunk breaking off `distance_m` from the pilot's eye becomes a rigid body.
+    pub fn is_physical(&self, distance_m: f32) -> bool {
+        distance_m.is_finite() && distance_m <= self.physics_radius_m
+    }
+
+    /// True when a moving body `distance_m` from the pilot's eye is made static.
+    pub fn freezes(&self, distance_m: f32) -> bool {
+        !distance_m.is_finite() || distance_m > self.physics_radius_m * self.freeze_factor
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        positive("debris.physics_radius_m", self.physics_radius_m)?;
+        within("debris.freeze_factor", self.freeze_factor, 1.0, 4.0)?;
+        if self.max_dynamic == 0 || self.max_kept < self.max_dynamic {
+            return Err("debris: max_dynamic must be above 0 and max_kept at least max_dynamic".into());
+        }
+        Ok(())
+    }
 }
 
 impl Default for WorldConfig {
@@ -651,6 +701,7 @@ impl Default for WorldConfig {
             craters: CraterConfig::default(),
             structure: super::structure::StructureConfig::default(),
             dressing: super::dressing::DressingConfig::default(),
+            debris: DebrisConfig::default(),
         }
     }
 }
@@ -743,6 +794,22 @@ impl Validate for WorldConfig {
         self.craters.validate()?;
         self.structure.validate()?;
         self.dressing.validate()?;
+        self.debris.validate()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod debris_tests {
+    use super::DebrisConfig;
+
+    #[test]
+    fn debris_is_physical_only_near_the_pilot() {
+        let d = DebrisConfig::default();
+        assert!(d.is_physical(10.0) && d.is_physical(400.0), "near chunks are bodies");
+        assert!(!d.is_physical(401.0) && !d.is_physical(1000.0), "far chunks are only dust");
+        assert!(!d.is_physical(f32::NAN), "a broken distance makes no body");
+        assert!(!d.freezes(450.0), "a body just past the radius keeps moving");
+        assert!(d.freezes(481.0), "a body well past it is made static");
     }
 }

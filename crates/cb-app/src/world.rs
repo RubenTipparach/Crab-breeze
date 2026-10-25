@@ -446,6 +446,7 @@ fn spawn_buildings(
     data: Res<Data>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
     mut ents: ResMut<crate::buildings::BuildingEntities>,
 ) {
     let tones = BUILDING_TONES.map(|(r, g, b)| {
@@ -458,11 +459,7 @@ fn spawn_buildings(
     });
     commands.insert_resource(crate::buildings::BuildingLooks {
         tones: tones.to_vec(),
-        structure: materials.add(StandardMaterial {
-            base_color: Color::WHITE,
-            perceptual_roughness: 0.9,
-            ..default()
-        }),
+        surfaces: crate::buildings::surface_materials(&mut images, &mut materials),
         skin: {
             let b = &tex.building;
             let textured = |m: &mut Assets<StandardMaterial>, pbr: &crate::textures::Pbr, rough: f32| {

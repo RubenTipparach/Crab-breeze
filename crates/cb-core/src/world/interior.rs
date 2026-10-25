@@ -85,13 +85,49 @@ pub struct Partition {
     pub rest: Rest,
 }
 
+/// What a furniture box is made of: the texture set it is drawn with (openspec change
+/// `building-surfaces`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Surface {
+    /// Columns, slabs, core walls.
+    Concrete,
+    /// Room partitions.
+    Plaster,
+    /// Desks, shelves, beds, tables.
+    Wood,
+    /// Seats, sofas, bedding.
+    Fabric,
+    /// Painted steel: filing cabinets, shelving, fridges.
+    Metal,
+    /// Monitors, screens, baths, worktops, pots.
+    Plastic,
+    /// Crates.
+    Cardboard,
+    /// Plant foliage.
+    Leaves,
+}
+
+impl Surface {
+    /// Every surface, in drawing order.
+    pub const ALL: [Surface; 8] = [
+        Surface::Concrete,
+        Surface::Plaster,
+        Surface::Wood,
+        Surface::Fabric,
+        Surface::Metal,
+        Surface::Plastic,
+        Surface::Cardboard,
+        Surface::Leaves,
+    ];
+}
+
 /// A furniture item: boxes in world space, and what it rests on.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Item {
     /// Its kit name.
     pub name: &'static str,
-    /// Its boxes (least corner, greatest corner, linear colour).
-    pub boxes: Vec<(Vec3, Vec3, [f32; 3])>,
+    /// Its boxes (least corner, greatest corner, linear colour, surface).
+    pub boxes: Vec<(Vec3, Vec3, [f32; 3], Surface)>,
     /// Its footprint with its clearance strip, (x, z) least and greatest.
     pub clear_lo: Vec2,
     /// Greatest corner of the footprint with clearance.
@@ -428,8 +464,8 @@ pub fn plan_storey(id: u32, k: usize, n: [usize; 3], origin: Vec3, size: Vec3, s
 }
 
 /// A kit item: boxes in its own frame (origin at its back edge on the floor, facing +z), as
-/// (centre x, centre y, centre z, size x, size y, size z, colour).
-type KitBox = (f32, f32, f32, f32, f32, f32, [f32; 3]);
+/// (centre x, centre y, centre z, size x, size y, size z, colour, surface).
+type KitBox = (f32, f32, f32, f32, f32, f32, [f32; 3], Surface);
 const WOOD: [f32; 3] = [0.42, 0.27, 0.16];
 const FABRIC: [f32; 3] = [0.38, 0.30, 0.32];
 const BEIGE: [f32; 3] = [0.80, 0.76, 0.64];
@@ -441,65 +477,74 @@ fn kit(name: &str) -> (&'static [KitBox], bool, f32) {
     match name {
         "desk" => (
             &[
-                (0.0, 0.73, 0.375, 1.5, 0.04, 0.75, WOOD),
-                (-0.55, 0.36, 0.375, 0.4, 0.71, 0.7, WOOD),
-                (0.1, 0.95, 0.25, 0.42, 0.38, 0.42, BEIGE),
-                (0.0, 0.45, 1.05, 0.5, 0.08, 0.5, FABRIC),
+                (0.0, 0.73, 0.375, 1.5, 0.04, 0.75, WOOD, Surface::Wood),
+                (-0.55, 0.36, 0.375, 0.4, 0.71, 0.7, WOOD, Surface::Wood),
+                (0.1, 0.95, 0.25, 0.42, 0.38, 0.42, BEIGE, Surface::Plastic),
+                (0.0, 0.45, 1.05, 0.5, 0.08, 0.5, FABRIC, Surface::Fabric),
             ],
             false,
             0.6,
         ),
-        "filing" => (&[(0.0, 0.66, 0.3, 0.47, 1.32, 0.6, [0.44, 0.47, 0.42])], true, 0.7),
-        "shelf" => (&[(0.0, 1.0, 0.17, 0.9, 2.0, 0.34, WOOD)], true, 0.5),
+        "filing" => (&[(0.0, 0.66, 0.3, 0.47, 1.32, 0.6, [0.44, 0.47, 0.42], Surface::Metal)], true, 0.7),
+        "shelf" => (&[(0.0, 1.0, 0.17, 0.9, 2.0, 0.34, WOOD, Surface::Wood)], true, 0.5),
         "sofa" => (
-            &[(0.0, 0.22, 0.45, 2.0, 0.44, 0.9, FABRIC), (0.0, 0.62, 0.1, 2.0, 0.5, 0.2, FABRIC)],
+            &[
+                (0.0, 0.22, 0.45, 2.0, 0.44, 0.9, FABRIC, Surface::Fabric),
+                (0.0, 0.62, 0.1, 2.0, 0.5, 0.2, FABRIC, Surface::Fabric),
+            ],
             false,
             0.9,
         ),
         "tv" => (
             &[
-                (0.0, 0.3, 0.25, 1.0, 0.6, 0.45, WOOD),
-                (0.0, 0.86, 0.25, 0.66, 0.52, 0.5, [0.15, 0.15, 0.16]),
+                (0.0, 0.3, 0.25, 1.0, 0.6, 0.45, WOOD, Surface::Wood),
+                (0.0, 0.86, 0.25, 0.66, 0.52, 0.5, [0.15, 0.15, 0.16], Surface::Plastic),
             ],
             false,
             1.6,
         ),
         "bed" => (
             &[
-                (0.0, 0.25, 1.0, 1.5, 0.5, 2.0, WOOD),
-                (0.0, 0.56, 1.05, 1.42, 0.2, 1.9, WHITE),
-                (0.0, 0.6, 0.03, 1.6, 1.2, 0.06, WOOD),
+                (0.0, 0.25, 1.0, 1.5, 0.5, 2.0, WOOD, Surface::Wood),
+                (0.0, 0.56, 1.05, 1.42, 0.2, 1.9, WHITE, Surface::Fabric),
+                (0.0, 0.6, 0.03, 1.6, 1.2, 0.06, WOOD, Surface::Wood),
             ],
             false,
             0.6,
         ),
-        "wardrobe" => (&[(0.0, 1.0, 0.3, 1.2, 2.0, 0.6, WOOD)], true, 0.8),
+        "wardrobe" => (&[(0.0, 1.0, 0.3, 1.2, 2.0, 0.6, WOOD, Surface::Wood)], true, 0.8),
         "counter" => (
             &[
-                (0.0, 0.45, 0.3, 2.4, 0.9, 0.6, [0.66, 0.6, 0.44]),
-                (0.0, 0.92, 0.31, 2.42, 0.04, 0.62, WHITE),
+                (0.0, 0.45, 0.3, 2.4, 0.9, 0.6, [0.66, 0.6, 0.44], Surface::Wood),
+                (0.0, 0.92, 0.31, 2.42, 0.04, 0.62, WHITE, Surface::Plastic),
             ],
             false,
             0.9,
         ),
-        "fridge" => (&[(0.0, 0.9, 0.35, 0.7, 1.8, 0.7, [0.86, 0.82, 0.68])], true, 0.8),
-        "bath" => (&[(0.0, 0.28, 0.38, 1.6, 0.56, 0.75, WHITE)], false, 0.5),
+        "fridge" => (&[(0.0, 0.9, 0.35, 0.7, 1.8, 0.7, [0.86, 0.82, 0.68], Surface::Metal)], true, 0.8),
+        "bath" => (&[(0.0, 0.28, 0.38, 1.6, 0.56, 0.75, WHITE, Surface::Plastic)], false, 0.5),
         "meeting" => (
-            &[(0.0, 0.73, 0.6, 3.6, 0.05, 1.2, WOOD), (0.0, 0.36, 0.6, 0.3, 0.71, 0.6, WOOD)],
+            &[
+                (0.0, 0.73, 0.6, 3.6, 0.05, 1.2, WOOD, Surface::Wood),
+                (0.0, 0.36, 0.6, 0.3, 0.71, 0.6, WOOD, Surface::Wood),
+            ],
             false,
             0.9,
         ),
-        "gondola" => (&[(0.0, 0.75, 0.45, 3.0, 1.5, 0.9, [0.78, 0.78, 0.76])], true, 1.0),
+        "gondola" => (&[(0.0, 0.75, 0.45, 3.0, 1.5, 0.9, [0.78, 0.78, 0.76], Surface::Metal)], true, 1.0),
         "till" => (
-            &[(0.0, 0.5, 0.3, 2.4, 1.0, 0.6, WOOD), (-0.6, 1.1, 0.3, 0.45, 0.2, 0.4, STEEL)],
+            &[
+                (0.0, 0.5, 0.3, 2.4, 1.0, 0.6, WOOD, Surface::Wood),
+                (-0.6, 1.1, 0.3, 0.45, 0.2, 0.4, STEEL, Surface::Metal),
+            ],
             false,
             1.0,
         ),
-        "crates" => (&[(0.0, 0.6, 0.6, 1.2, 1.2, 1.2, [0.62, 0.48, 0.3])], false, 0.5),
+        "crates" => (&[(0.0, 0.6, 0.6, 1.2, 1.2, 1.2, [0.62, 0.48, 0.3], Surface::Cardboard)], false, 0.5),
         _ => (
             &[
-                (0.0, 0.2, 0.2, 0.35, 0.4, 0.35, [0.5, 0.33, 0.22]),
-                (0.0, 0.85, 0.2, 0.6, 0.9, 0.6, [0.27, 0.42, 0.2]),
+                (0.0, 0.2, 0.2, 0.35, 0.4, 0.35, [0.5, 0.33, 0.22], Surface::Plastic),
+                (0.0, 0.85, 0.2, 0.6, 0.9, 0.6, [0.27, 0.42, 0.2], Surface::Leaves),
             ],
             false,
             0.2,
@@ -604,9 +649,9 @@ fn furnish(
                         continue;
                     }
                     placed.push(clear);
-                    let world: Vec<(Vec3, Vec3, [f32; 3])> = boxes
+                    let world: Vec<(Vec3, Vec3, [f32; 3], Surface)> = boxes
                         .iter()
-                        .map(|&(cx, cy, cz, sx, sy, sz, col)| {
+                        .map(|&(cx, cy, cz, sx, sy, sz, col, surface)| {
                             let c = p + turn(cx, cz);
                             let half = if rot % 2 == 0 {
                                 Vec2::new(sx, sz) * 0.5
@@ -617,6 +662,7 @@ fn furnish(
                                 Vec3::new(c.x - half.x, floor_y + cy - sy * 0.5 + 0.002, c.y - half.y),
                                 Vec3::new(c.x + half.x, floor_y + cy + sy * 0.5 + 0.002, c.y + half.y),
                                 col,
+                                surface,
                             )
                         })
                         .collect();
@@ -678,6 +724,29 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn furniture_is_drawn_in_furniture_surfaces_never_as_structure() {
+        let names = [
+            "desk", "filing", "shelf", "sofa", "tv", "bed", "wardrobe", "counter", "fridge", "bath", "meeting", "gondola", "till",
+            "crates", "plant",
+        ];
+        for name in names {
+            let (boxes, _, _) = kit(name);
+            assert!(!boxes.is_empty(), "{name} has boxes");
+            for b in boxes {
+                assert!(
+                    !matches!(b.7, Surface::Concrete | Surface::Plaster),
+                    "{name} has a box drawn as structure"
+                );
+            }
+        }
+        let p = storey(4, [5, 12, 4]);
+        assert!(
+            p.items.iter().flat_map(|it| &it.boxes).any(|b| b.3 == Surface::Wood),
+            "an office storey has wooden furniture"
+        );
     }
 
     #[test]
