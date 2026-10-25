@@ -408,6 +408,16 @@ pub struct MechConfig {
     pub boxes: Vec<BoxSpec>,
 }
 
+impl MechConfig {
+    /// Where a mech is aimed at, metres above its feet: its chest, a metre under the pilot's eyes,
+    /// inside the torso's hit capsule (owner, 2026-10-25: "I'm 24 m tall, why not aim at my
+    /// center?", "sure, chest is fine"). A fixed 9.8 m, set for the 12 m mechs, put the aim between
+    /// the 24 m mechs' thighs, and rounds flew through.
+    pub fn aim_height_m(&self) -> f32 {
+        (self.body.eye_height_m - 1.0).max(0.0)
+    }
+}
+
 impl Default for MechConfig {
     fn default() -> Self {
         Self {
@@ -582,6 +592,25 @@ mod tests {
     use super::*;
     use crate::data::{load_ron, parse_ron};
     use std::path::{Path, PathBuf};
+
+    #[test]
+    fn every_shipped_mech_is_aimed_at_its_chest_above_the_hips() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/mechs");
+        let mut checked = 0;
+        for entry in std::fs::read_dir(&dir).expect("data/mechs reads") {
+            let path = entry.expect("entry").path();
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or_default().to_string();
+            if !name.ends_with(".ron") || name.contains("boarding") {
+                continue;
+            }
+            let Ok(m) = load_ron::<MechConfig>(&path) else { continue };
+            let aim = m.aim_height_m();
+            let (hip, top) = (m.locomotion.hip_height_m, m.locomotion.body_height_m);
+            assert!(aim > hip && aim < top, "{name}: aimed at {aim} m, hips {hip} m, top {top} m");
+            checked += 1;
+        }
+        assert!(checked >= 5, "{checked} mechs checked");
+    }
 
     fn shipped() -> MechConfig {
         let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/mechs/placeholder.ron");

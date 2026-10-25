@@ -944,6 +944,7 @@ pub fn step_mech(
             r.0.curr.pos,
             cb_core::mech::forward(r.0.curr.heading_rad) * r.0.curr.speed_m_s + Vec3::Y * r.0.curr.vel_y_m_s,
             r.0.dead,
+            r.1.aim_height_m(),
         )
     });
     let cam = camera.iter().next().copied();
@@ -1102,11 +1103,11 @@ pub fn step_mech(
             // The enemies wait until the pilot is in the seat: no one fights an empty mech. (The hover
             // test instrument flies them anyway, so an on-foot still can look at their jets.)
             MechControls::default()
-        } else if let (Some((mut enemy, goal)), Some((player_at, player_vel, player_dead))) = (enemy, player) {
+        } else if let (Some((mut enemy, goal)), Some((player_at, player_vel, player_dead, player_aim_m))) = (enemy, player) {
             // A mission may send it at something else (city-defence: a building to shell).
-            let (target, target_vel, target_dead) = match goal.point {
-                Some(p) => (p, Vec3::ZERO, false),
-                None => (player_at, player_vel, player_dead),
+            let (target, target_vel, target_dead, aim_height_m) = match goal.point {
+                Some(p) => (p, Vec3::ZERO, false, cfg.aim_height_m()),
+                None => (player_at, player_vel, player_dead, player_aim_m),
             };
             let eye = sim.curr.pos + Vec3::Y * cfg.body.eye_height_m;
             let speed = cfg.weapons.first().map_or(850.0, |w| w.speed_m_s);
@@ -1120,6 +1121,7 @@ pub fn step_mech(
             let view = cb_core::ai::View {
                 eye,
                 target,
+                aim_height_m,
                 target_vel,
                 muzzle_speed_m_s: speed,
                 drop: !cfg.weapons.first().is_some_and(|w| w.rocket),
