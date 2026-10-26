@@ -94,6 +94,8 @@ struct Pilot {
     seen: Option<f32>,
     /// When `PLAYTEST_START` was said, real seconds: the take's clock, for finding a moment in the video.
     start_s: f32,
+    /// A jet leg is resting the jets, on the skates (`cb_core::playtest::rest_jets`).
+    jets_resting: bool,
 }
 
 /// Keys the scripted pilot presses, applied after the devices are read so the game sees them as a key's press.
@@ -135,6 +137,7 @@ impl Plugin for PlaytestPlugin {
             next_s: 0.0,
             seen: None,
             start_s: 0.0,
+            jets_resting: false,
         })
         .init_resource::<PressKey>()
         .init_resource::<Hands>()
@@ -440,6 +443,50 @@ fn travel(
     act
 }
 
+/// One step of a jet leg toward `goal`, holding about `height` metres over the ground: lift while under it, W held so
+/// the rockets swivel forward (rocket-vector). The jets carry a mech about 20 s at a time, so while they rest
+/// (`cb_core::playtest::rest_jets`) the pilot comes down and skates on toward the goal, as a player would, and lifts
+/// again once they have recharged.
+#[allow(clippy::too_many_arguments)]
+fn jet_leg(
+    t: &mut Pilot,
+    m: &cb_core::mech::MechState,
+    p: &cb_core::pilot::PilotState,
+    eye: Vec3,
+    goal: Vec2,
+    height: f32,
+    plan: &Plan,
+    now: f32,
+    dt: f32,
+) -> Actions {
+    let resting = cb_core::playtest::rest_jets(m.boost.heat, m.boost.locked, t.jets_resting);
+    if resting != t.jets_resting {
+        info!(
+            "playtest: jets {} at heat {:.2}, {:.0} m up at ({:.0}, {:.0})",
+            if resting {
+                "resting: down to skate"
+            } else {
+                "recharged: lifting again"
+            },
+            m.boost.heat,
+            m.pos.y - plan.terrain.height_at(m.pos.x, m.pos.z),
+            m.pos.x,
+            m.pos.z
+        );
+        t.jets_resting = resting;
+    }
+    if resting {
+        let mut act = travel(t, m, p, eye, goal, now, dt);
+        act.lift_axis = 0.0;
+        return act;
+    }
+    let mut act = drive(m, p.yaw_rad, p.pitch_rad, goal, eye, 1.0, false, false);
+    let over = m.pos.y - plan.terrain.height_at(m.pos.x, m.pos.z);
+    act.lift_axis = if over < height { 1.0 } else { 0.0 };
+    act.move_xy = Vec2::Y;
+    act
+}
+
 #[allow(clippy::too_many_lines)]
 fn play(
     mut t: ResMut<Pilot>,
@@ -673,11 +720,7 @@ fn play(
             let d = goal.distance(Vec2::new(m.pos.x, m.pos.z));
             dist = Some(d);
             done = d < 250.0;
-            act = drive(m, p.yaw_rad, p.pitch_rad, goal, eye, 1.0, false, false);
-            // Lift while under the height wanted and none over it, W held so the rockets swivel forward (rocket-vector).
-            let over = m.pos.y - s.plan.terrain.height_at(m.pos.x, m.pos.z);
-            act.lift_axis = if over < *height { 1.0 } else { 0.0 };
-            act.move_xy = Vec2::Y;
+            act = jet_leg(&mut t, m, p, eye, goal, *height, &s.plan, now, s.real.delta_secs());
         }
         Beat::FightJob(cap) => {
             let job = career.and_then(|c| c.career.board.current().cloned());
@@ -1088,7 +1131,15 @@ fn play(
                 info!("playtest: the pilot is {mode}");
                 done = true;
             } else if in_beat > *cap {
-                fail(&mut t, now, &format!("not {mode} after {cap:.0} s (now {:?})", p.mode));
+                let driven = x.traffic.as_deref().and_then(|tr| tr.traffic.driven()).map(|c| (c.id, c.state));
+                fail(
+                    &mut t,
+                    now,
+                    &format!(
+                        "not {mode} after {cap:.0} s (now {:?}; car in reach {:?}; driven {driven:?})",
+                        p.mode, x.car.0
+                    ),
+                );
                 return;
             }
         }
@@ -1112,7 +1163,17 @@ fn play(
                     .filter(|c| !c.state.wreck() && door_of(c).distance(feet) < *within);
                 t.goal_id = near
                     .min_by(|a, b| {
-                        let k = |c: &cb_core::traffic::Car| door_of(c).distance(feet) + if c.vel().length() > 0.5 { 60.0 } else { 0.0 };
+                        // and one with road ahead of it, not boxed in a queue
+                        let boxed = |c: &cb_core::traffic::Car| {
+                            let f = Vec3::new(-c.heading_rad.sin(), 0.0, -c.heading_rad.cos());
+                            traffic.traffic.cars.iter().any(|o| {
+                                let v = o.pos - c.pos;
+                                o.id != c.id && v.dot(f) > 0.0 && v.dot(f) < 14.0 && (v - f * v.dot(f)).length() < 2.5
+                            })
+                        };
+                        let k = |c: &cb_core::traffic::Car| {
+                            door_of(c).distance(feet) + if c.vel().length() > 0.5 { 60.0 } else { 0.0 } + if boxed(c) { 30.0 } else { 0.0 }
+                        };
                         k(a).total_cmp(&k(b))
                     })
                     .map(|c| c.id);
@@ -1151,7 +1212,11 @@ fn play(
                 act.move_xy = Vec2::new(0.0, *throttle);
                 if now - t.next_s > 2.0 {
                     t.next_s = now;
-                    info!("playtest: driving at {speed:.1} m/s");
+                    let driven = x.traffic.as_deref().and_then(|tr| tr.traffic.driven());
+                    info!(
+                        "playtest: driving at {speed:.1} m/s, throttle {throttle}, the car {:?}",
+                        driven.map(|c| (c.id, c.state, c.pos))
+                    );
                 }
             } else {
                 act.lift_axis = 1.0;
@@ -1269,10 +1334,8 @@ fn play(
             dist = Some(d);
             if jet {
                 done = d < 250.0;
-                act = drive(m, p.yaw_rad, p.pitch_rad, t.goal, eye, 1.0, false, false);
-                let over = m.pos.y - s.plan.terrain.height_at(m.pos.x, m.pos.z);
-                act.lift_axis = if over < *short { 1.0 } else { 0.0 };
-                act.move_xy = Vec2::Y;
+                let goal = t.goal;
+                act = jet_leg(&mut t, m, p, eye, goal, *short, &s.plan, now, s.real.delta_secs());
             } else {
                 done = d < short + 40.0;
                 let goal = t.goal;
@@ -1578,6 +1641,24 @@ fn play(
                         m.boost.heat
                     );
                 }
+            }
+        }
+        Beat::WalkToMech(within) => {
+            let Some(a) = s.access.0.as_ref() else {
+                fail(&mut t, now, "no mech to walk to");
+                return;
+            };
+            let d = Vec2::new(p.feet.x - a.ladder_base.x, p.feet.z - a.ladder_base.z).length();
+            dist = Some(d);
+            if d <= *within {
+                info!(
+                    "playtest: {d:.0} m from the mech's stair; Use list {}",
+                    use_list(&x.choice.selector)
+                );
+                done = true;
+            } else {
+                act = walk_close(p, a.ladder_base, *within * 0.8);
+                act.run = d > 10.0;
             }
         }
         Beat::Skates(on) => {
@@ -2033,12 +2114,13 @@ fn survey(
     } else {
         Vec2::new(p.feet.x, p.feet.z)
     };
-    let mut out = vec![format!(
-        "pilot {:?} at ({:.0}, {:.0})",
-        std::mem::discriminant(&p.mode),
-        here.x,
-        here.y
-    )];
+    let mode = match p.mode {
+        PilotMode::OnFoot => "on foot",
+        PilotMode::Seated => "seated",
+        PilotMode::Driving => "driving",
+        _ => "between",
+    };
+    let mut out = vec![format!("pilot {mode} at ({:.0}, {:.0}, {:.1} up)", here.x, here.y, p.feet.y)];
     if let Some(c) = x.crowd.as_deref() {
         let near: Vec<_> = c.people.list.iter().filter(|q| q.pos.distance(here) < r).collect();
         let n = |f: &dyn Fn(&A) -> bool| near.iter().filter(|q| f(&q.activity)).count();
