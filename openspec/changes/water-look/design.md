@@ -3,6 +3,74 @@
 All in `assets/shaders/water_surface.wesl` and its uniform in `crates/cb-app/src/water_render.rs`;
 numbers in `data/world/water_look.ron`.
 
+## 0. Colour: a dark open sea, teal shallows
+
+Owner, 2026-10-26: "Water is still too blue", "I want water to look realistic. Check out reference
+images and look at other games triple a especially for inspiration", then, offered a dark grey-navy
+open sea or greener coastal water: "1 and 2 are what I want. We can have both". Data only
+(`data/world/water_look.ron`); the shader's model already has the parts.
+
+**What makes it cyan today.** The water's own colour, `deep_color` (0.0, 0.12, 0.28), is lit by the
+full sun and sky, so the sea sends back 28 % of blue light. Real deep ocean sends back about 2-3 %
+of blue and under 1 % of red and green (its colour from the air is mostly the sky it reflects, 2-6 %
+of it at the angles a pilot sees: a 1970s NASA photogrammetry report puts calm water at 3-6 % of
+diffuse skylight). The reflected zenith is a saturated constant (0.03, 0.18, 0.55), and from the air
+the water mirrors mostly the upper sky, so it mirrored that constant.
+
+**References.**
+- Deep water from altitude reads deep indigo or navy, shallows near the coast turquoise or teal
+  (aerial descriptions; University of Texas Marine Science Institute, "Blue Ocean").
+- Pure water absorbs red about 30 times faster than green and 35 times faster than blue: Pope and
+  Fry (1997), about 0.30-0.34 /m at 600-650 nm, 0.057 /m at 550 nm, 0.009 /m at 450 nm (the field's
+  standard values).
+- Sea of Thieves (SIGGRAPH 2018, "The Technical Art of Sea of Thieves") blends a dark deep-water
+  colour with a lighter subsurface colour by view angle, sun direction and wave crests; the
+  subsurface part is this change's step 5. Crest (Unity) and most ocean renderers model the body
+  as absorption plus a weak, blue-leaning in-scatter, with Fresnel reflection of the sky on top.
+
+**The numbers.**
+
+| Value | Was | Now | Why |
+| --- | --- | --- | --- |
+| `deep_color` (in-scatter albedo) | 0.0, 0.12, 0.28 | 0.004, 0.018, 0.040 | deep ocean returns about 1 % of red-green and 3-4 % of blue: navy |
+| `absorption_per_m` | 0.45, 0.12, 0.06 | 0.32, 0.07, 0.02 | pure water (Pope and Fry) with a little coastal matter: sand shows teal through 2-10 m |
+| `sky_zenith_color` | 0.03, 0.18, 0.55 | 0.16, 0.30, 0.56 | the game's sky deepened toward the zenith, not a saturated constant |
+
+Through 3 m of water a sand bed (about 0.6, 0.5, 0.35) keeps (0.38, 0.81, 0.94) of its light: a
+green-teal; through 10 m (0.04, 0.50, 0.82): teal going blue; past 30 m the dark body takes over.
+
+**First stills, and what they showed.** The open sea went navy, but two things were off:
+- Seen at a slant from the air, the light crosses six or more times the water's depth, which strips
+  the green too, so the shallows came out cobalt, not teal. Coastal water is teal because what is
+  in it (sediment, plankton) scatters green as well as blue: its in-scatter colour is teal, not
+  navy. So the body colour follows the water's depth under the pixel (the shader already reads it
+  for the shore foam): `shallow_color` (0.012, 0.060, 0.052) in the shallows, easing to
+  `deep_color` by `shallow_depth_m` (14 m).
+- Toward the horizon the sea stayed black: the reflection there was multiplied by
+  `sky_horizon_strength` 0.22 where the reflected ray runs level. Water reflects most at a grazing
+  angle, which is what greys a real sea toward its horizon; 0.7 keeps a little of the darkening that
+  stops the far sea going white.
+
+| Value | Was | Now |
+| --- | --- | --- |
+| `shallow_color` (new) | none | 0.012, 0.060, 0.052 |
+| `shallow_depth_m` (new) | none | 14 |
+| `sky_horizon_strength` | 0.22 | 0.7 |
+
+Cost: one more read of the depth the shader already samples, a mix; nothing measurable.
+
+**Second stills.** The horizon greyed as meant, but the shallows' fringe was royal blue: from a
+pilot's height the view crosses the water at a low angle, so the light off the bed travels about six
+times the depth, and at 0.07 /m the green was gone within a metre or two of depth. Clear tropical
+water absorbs less in the blue-green than Pope and Fry's values (later measurements, Lee 2015 and
+Mason 2016, put 410-550 nm about half as high), so green and blue absorption are halved, and the
+shallows' scatter is stronger:
+
+| Value | Second | Third |
+| --- | --- | --- |
+| `absorption_per_m` | 0.32, 0.07, 0.02 | 0.32, 0.035, 0.012 |
+| `shallow_color` | 0.012, 0.060, 0.052 | 0.020, 0.090, 0.075 |
+
 ## 1. Wave detail
 
 - **The bake:** a 512 px, 64-frame tileable normal and height atlas covering a 64 m patch, baked
@@ -66,4 +134,5 @@ numbers in `data/world/water_look.ron`.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
+| W30 | How the water is coloured | a dark navy-grey open sea that reflects the sky, teal shallows over sand (step 0) | decided (owner, 2026-10-26: "1 and 2 are what I want. We can have both") |
 | W29 | Which steps for the water | all five, in order (detail, sky, trace, glitter, scatter and shadow) | proposed (survey W29) |

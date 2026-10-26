@@ -37,6 +37,7 @@ struct WaterSurface {
     sun_light: vec4<f32>,   // rgb the sun's light times exposure; w glint power
     sun_tint: vec4<f32>,    // rgb the glint's tint; w spare
     cabin: vec4<f32>,       // xyz the eye; w the sealed cabin's dry radius m (0: none)
+    shallow: vec4<f32>,     // rgb the body's colour in the shallows (an albedo); w the depth m by which it is `deep`'s
     swell: array<vec4<f32>, 3>, // heading x, heading z, wavenumber rad/m, height m
 }
 
@@ -164,7 +165,15 @@ fn fragment(in: WaterFragment, @builtin(front_facing) front: bool) -> @location(
         refracted_uv = uv;
         refracted_ground = own_ground;
     }
-    let deep_lit = water.deep.rgb * water.light.rgb;
+    // The body's colour by the water under this pixel: teal in the shallows (what coastal water
+    // carries scatters green as well as blue), navy in deep water (owner, 2026-10-26: "I want water
+    // to look realistic", a dark open sea and teal shallows; `water-look` design section 0).
+    var body = water.deep.rgb;
+    if (own_ground > 1e-7) {
+        let under_m = max(p.y - world_at(uv, own_ground).y, 0.0);
+        body = mix(water.shallow.rgb, water.deep.rgb, smoothstep(0.0, max(water.shallow.w, 0.01), under_m));
+    }
+    let deep_lit = body * water.light.rgb;
     let scene = scene_behind(refracted_uv, deep_lit);
     let to_eye = eye - p;
     let eye_distance = length(to_eye);
