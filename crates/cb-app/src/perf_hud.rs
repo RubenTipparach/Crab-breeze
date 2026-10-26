@@ -8,6 +8,7 @@
 //! green within 8.3 ms, amber within 16.7 ms, red past it, scaled to 50 ms; every frame over 50 ms is
 //! logged as a `hitch:` line, with the frame number, so a hitch can be matched to what happened.
 
+use crate::state::GameApp;
 use bevy::camera::visibility::ViewVisibility;
 use bevy::diagnostic::{DiagnosticsStore, EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
@@ -60,7 +61,7 @@ impl Plugin for PerfHudPlugin {
         if cfg!(feature = "shipping") {
             return;
         }
-        app.add_systems(Startup, spawn).add_systems(Update, (update, graph));
+        app.add_world_spawn(spawn).add_game_systems(Update, (update, graph));
     }
 }
 

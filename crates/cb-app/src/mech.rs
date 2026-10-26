@@ -11,6 +11,7 @@ use crate::ground_marks::{Contact, GroundContact};
 use crate::input::StepActions;
 use crate::pilot::{PilotCamera, PilotEvents, PilotSim};
 use crate::sim::{Data, PresentSet, SimSet};
+use crate::state::GameApp;
 use crate::world::{Live, Plan};
 use avian3d::prelude::{AngularVelocity, Collider, LinearVelocity, RigidBody};
 use bevy::prelude::*;
@@ -199,16 +200,17 @@ pub struct MechPlugin;
 impl Plugin for MechPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MechAccessNow>()
-            .add_systems(Startup, spawn_mech)
-            .add_systems(Update, spawn_encounters.run_if(resource_added::<crate::menu::Encounters>))
-            .add_systems(FixedUpdate, (publish_access.in_set(SimSet::Input), step_mech.in_set(SimSet::Mech)))
-            .add_systems(
+            .add_world_spawn(spawn_mech)
+            .add_game_systems(Update, swap_mech.run_if(resource_exists::<SwapMech>).before(PresentSet::Pose))
+            .add_game_systems(Update, spawn_encounters.run_if(resource_added::<crate::menu::Encounters>))
+            .add_game_systems(FixedUpdate, (publish_access.in_set(SimSet::Input), step_mech.in_set(SimSet::Mech)))
+            .add_game_systems(
                 Update,
                 (bind_rig, bind_interior, cut_parts, drive_mech, fall_wrecks, burn, jet_flames)
                     .chain()
                     .in_set(PresentSet::Pose),
             )
-            .add_systems(Update, cockpit_layer.after(PresentSet::Pose));
+            .add_game_systems(Update, cockpit_layer.after(PresentSet::Pose));
     }
 }
 
@@ -240,6 +242,64 @@ fn spawn_mech(
         &mut materials,
     );
     commands.entity(player).insert((Piloted, MechId(0)));
+}
+
+/// Free roam's pause menu picked another mech (openspec change `menu-in-game`, section 3): its data is already in
+/// `Data` (`menu::press`), and `swap_mech` puts it where the piloted mech stands, in this program.
+#[derive(Resource)]
+pub struct SwapMech;
+
+/// The piloted mech swapped in place: the old one's tree is taken down and the picked one spawned through the same
+/// path the world spawn uses (`spawn_mech_entity`), where the old one stood and facing its way, standing as a fresh
+/// start stands it, ready to board. A pilot not on foot is put on foot beside it, where a fresh start stands them.
+#[allow(clippy::too_many_arguments)]
+fn swap_mech(
+    mut commands: Commands,
+    data: Res<Data>,
+    world: Res<Plan>,
+    tex: Res<crate::textures::Textures>,
+    assets: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut pilot: ResMut<PilotSim>,
+    piloted: Query<(Entity, &MechSim), With<Piloted>>,
+) {
+    commands.remove_resource::<SwapMech>();
+    let (at, heading) = match piloted.iter().next() {
+        Some((old, sim)) => {
+            commands.entity(old).despawn();
+            (sim.curr.pos, sim.curr.heading_rad)
+        }
+        None => {
+            let s = world.start;
+            let y = world.terrain.height_at(s.mech_xz.x, s.mech_xz.y);
+            (Vec3::new(s.mech_xz.x, y, s.mech_xz.y), s.mech_heading_rad)
+        }
+    };
+    let player = spawn_mech_entity(
+        &mut commands,
+        Arc::new(data.0.mech.clone()),
+        at,
+        heading,
+        None,
+        &tex.metal,
+        &assets,
+        &mut meshes,
+        &mut materials,
+    );
+    commands.entity(player).insert((Piloted, MechId(0)));
+    if pilot.curr.mode != PilotMode::OnFoot {
+        let s = world.start;
+        let turn = Quat::from_rotation_y(heading - s.mech_heading_rad);
+        let off = turn * Vec3::new(s.pilot_xz.x - s.mech_xz.x, 0.0, s.pilot_xz.y - s.mech_xz.y);
+        let xz = Vec2::new(at.x + off.x, at.z + off.z);
+        let feet = Vec3::new(xz.x, world.terrain.height_at(xz.x, xz.y), xz.y);
+        let to_mech = Vec2::new(at.x, at.z) - xz;
+        let state = cb_core::pilot::PilotState::standing(feet, (-to_mech.x).atan2(-to_mech.y));
+        pilot.prev = state.clone();
+        pilot.curr = state;
+    }
+    info!("mech: swapped in place for the {}", data.0.mech.name);
 }
 
 /// Free roam's encounter mechs near the start, spawned only when a scripted take asks for them

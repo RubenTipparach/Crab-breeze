@@ -12,6 +12,7 @@
 
 use crate::pilot::PilotCamera;
 use crate::sim::{Data, PresentSet};
+use crate::state::GameApp;
 use crate::world::{Live, MeshBuilder, Plan};
 use avian3d::prelude::{Collider, RigidBody};
 use bevy::asset::RenderAssetUsages;
@@ -30,8 +31,8 @@ pub struct GroundPlugin;
 
 impl Plugin for GroundPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_ground)
-            .add_systems(Update, (redraw_craters, stream_ground).chain().in_set(PresentSet::Pose));
+        app.add_world_spawn(spawn_ground)
+            .add_game_systems(Update, (redraw_craters, stream_ground).chain().in_set(PresentSet::Pose));
     }
 }
 

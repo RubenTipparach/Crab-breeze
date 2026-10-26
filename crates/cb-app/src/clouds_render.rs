@@ -21,6 +21,7 @@
 
 use crate::pilot::PilotCamera;
 use crate::sim::{Data, PresentSet};
+use crate::state::GameApp;
 use crate::water_render::water_light;
 use crate::world::{Plan, Sun};
 use bevy::asset::RenderAssetUsages;
@@ -126,8 +127,8 @@ pub struct CloudsRenderPlugin;
 impl Plugin for CloudsRenderPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MaterialPlugin::<CloudMaterial>::default())
-            .add_systems(Startup, setup)
-            .add_systems(Update, (gather, refresh_light, shade_sun).chain().in_set(PresentSet::Pose));
+            .add_world_spawn(setup)
+            .add_game_systems(Update, (gather, refresh_light, shade_sun).chain().in_set(PresentSet::Pose));
     }
 }
 

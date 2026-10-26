@@ -6,6 +6,7 @@
 
 use crate::mech::{MechSim, Piloted};
 use crate::pilot::PilotSim;
+use crate::state::GameApp;
 use bevy::prelude::*;
 use cb_core::pilot::{PilotMode, wrap_rad};
 use cb_core::save::{FreeRoamSave, Place, VERSION};
@@ -35,8 +36,8 @@ pub struct SaveGamePlugin;
 impl Plugin for SaveGamePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Restored>()
-            .add_systems(Update, (restore, save_now).chain().run_if(resource_exists::<Saving>))
-            .add_systems(Last, save_on_quit.run_if(resource_exists::<Saving>));
+            .add_game_systems(Update, (restore, save_now).chain().run_if(resource_exists::<Saving>))
+            .add_game_systems(Last, save_on_quit.run_if(resource_exists::<Saving>));
     }
 }
 
@@ -80,7 +81,7 @@ fn save(saving: &Saving, seed: u64, place: Place, career: Option<&mut crate::car
             mech: saving.mech.clone(),
             place,
         };
-        write(&crate::launcher::free_roam_save_path(), &s.to_ron());
+        write(&crate::main_menu::free_roam_save_path(), &s.to_ron());
     } else if let Some(run) = career {
         run.career.place = Some(place);
         crate::career::save(&run.career);
@@ -155,7 +156,7 @@ fn restore(
         return;
     }
     let place = if saving.free_roam {
-        let path = crate::launcher::free_roam_save_path();
+        let path = crate::main_menu::free_roam_save_path();
         match std::fs::read_to_string(&path)
             .map_err(|e| e.to_string())
             .and_then(|t| FreeRoamSave::from_ron(&t))

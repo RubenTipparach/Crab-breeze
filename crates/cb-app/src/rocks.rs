@@ -7,6 +7,7 @@
 //! entity sharing its kind's mesh and one of three shades of its material, so Bevy draws each kind
 //! in a few instanced batches. Bodies walk round them by the core's rule (`rocks::push_out`).
 
+use crate::state::GameApp;
 use crate::world::Plan;
 use bevy::asset::RenderAssetUsages;
 use bevy::mesh::{Indices, PrimitiveTopology};
@@ -20,7 +21,7 @@ pub struct RocksPlugin;
 
 impl Plugin for RocksPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_rocks);
+        app.add_world_spawn(spawn_rocks);
     }
 }
 

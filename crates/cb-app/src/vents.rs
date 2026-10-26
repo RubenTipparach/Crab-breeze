@@ -6,6 +6,7 @@
 use crate::fx::FxStream;
 use crate::mech::{Interior, MechRig, MechSim, MechSpec, Piloted};
 use crate::sim::{Data, PresentSet};
+use crate::state::GameApp;
 use bevy::prelude::*;
 use cb_core::boarding::VentKind;
 
@@ -25,7 +26,7 @@ pub struct VentsPlugin;
 
 impl Plugin for VentsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (bind, switch).chain().after(PresentSet::Pose));
+        app.add_game_systems(Update, (bind, switch).chain().after(PresentSet::Pose));
     }
 }
 

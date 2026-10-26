@@ -16,6 +16,7 @@ use crate::fx::{Fx, FxStream};
 use crate::mech::{MechId, MechRig, MechRoot, MechSim, MechSpec};
 use crate::sim::{Data, PresentSet};
 use crate::skins::SkinLimbs;
+use crate::state::GameApp;
 use crate::world::{Live, Plan};
 use bevy::image::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::math::{Affine2, Affine3A};
@@ -88,8 +89,8 @@ impl Plugin for BattleFxPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<MechHit>()
             .init_resource::<Standing>()
-            .add_systems(Startup, setup)
-            .add_systems(
+            .add_world_spawn(setup)
+            .add_game_systems(
                 Update,
                 (scorch_craters, mark_hits, smoke_damaged, land_dust).in_set(PresentSet::Pose),
             );

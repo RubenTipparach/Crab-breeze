@@ -8,6 +8,7 @@
 //! their draws batch. It lives in `cb-app` because it is drawing; which elements stand is
 //! `cb-core`'s `Frame`.
 
+use crate::state::GameApp;
 use bevy::asset::RenderAssetUsages;
 use bevy::mesh::MeshVertexBufferLayoutRef;
 use bevy::pbr::{ExtendedMaterial, MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline};
@@ -212,7 +213,7 @@ impl Plugin for BuildingStatePlugin {
             MaterialPlugin::<ArrayMaterial>::default(),
         ))
         .add_systems(PreStartup, setup)
-        .add_systems(First, |mut s: ResMut<BuildingStates>| s.writes.clear());
+        .add_game_systems(First, |mut s: ResMut<BuildingStates>| s.writes.clear());
         if let Some(render) = app.get_sub_app_mut(RenderApp) {
             render
                 .add_systems(ExtractSchedule, extract)

@@ -49,6 +49,28 @@ The save records the mech file (`FreeRoamSave.mech`), so Continue brings back th
   in the playtest.
 - Per frame: nothing. State gates run once per set.
 
+## 5. As built (2026-10-26)
+
+- **States** (`crates/cb-app/src/state.rs`). A plain run opens in `Menu`; any mode on the command line opens in
+  `Loading`, which moves to `Playing` on the first frame. A run cannot open in `Playing` itself: Bevy 0.20 runs the
+  first state's `OnEnter` before `PreStartup`, so the world would spawn before the settings and the building state
+  are set up. Starting in `Loading` keeps the spawns after every startup schedule, as when they were `Startup`.
+- **One helper for the whole sweep** (`GameApp`): `add_world_spawn` (was `Startup`), `add_after_world_spawn` (was
+  `PostStartup`, ordered after the spawns) and `add_game_systems` (`First`, `FixedUpdate`, `Update` and `Last`, in
+  the `InGame` set, which runs only in `Playing`). Settings and the frame cap stay ungated, so the menu is capped and
+  its window settings apply.
+- **The menu** (`main_menu.rs`) is the launcher's pages with their own `Camera2d`, both carrying
+  `DespawnOnExit(GameState::Menu)`. A pick goes through `begin_run`, the one implementation a `--play` run uses too:
+  it inserts `menu::Play`, `career::CareerStart` and `save_game::Saving`, and reloads the game data when the mech
+  differs. Continue in free roam flies the mech the save was made in.
+- **The mech swap is in place** (`mech::SwapMech`, `swap_mech`), not a teardown and restart: the old mech's tree is
+  despawned and the new one spawned through `spawn_mech_entity` where it stood, facing its way. It stands as a fresh
+  start stands it, ready to board, rather than kneeling; a pilot who was not on foot is put on foot beside it, at
+  the start plan's offset turned to the mech's heading.
+- **Not yet:** the world plan is still computed in `WorldPlugin::build` (nothing draws from it before `Playing`), and
+  nothing is taken down on leaving `Playing`, so Quit in the game saves and closes the program, as before but never
+  relaunching. Quit to the main menu waits on task 2.2.
+
 ## Open questions
 
 | Id | Question | Recommendation | State |

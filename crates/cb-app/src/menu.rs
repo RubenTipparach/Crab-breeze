@@ -7,6 +7,7 @@
 use crate::pilot::CockpitCamera;
 use crate::settings::{Settings, save};
 use crate::sim::Data;
+use crate::state::GameApp;
 use bevy::picking::events::PointerClick;
 use bevy::prelude::*;
 use bevy::ui::UiTargetCamera;
@@ -111,7 +112,7 @@ impl Plugin for MenuPlugin {
         app.init_resource::<Menu>()
             .insert_resource(BackTo(Menu::Pause))
             .insert_resource(Roster(cb_core::GameData::roster(&crate::cli::repo_root().join("data"))))
-            .add_systems(Update, (escape, draw).chain().before(crate::sim::PresentSet::Input));
+            .add_game_systems(Update, (escape, draw).chain().before(crate::sim::PresentSet::Input));
     }
 }
 
@@ -223,13 +224,27 @@ fn press(
             p.back.0 = Menu::Pause;
             set(p.menu, Menu::Mech, p.time, p.cursor);
         }
-        // Free roam again in the picked mech: the game starts itself again with it, as the menu starts it, and this
-        // run closes (mech-select: "In free play i can select any mech from the menu and it will swap out models").
+        // The picked mech swapped in where the piloted one stands, in this program (mech-select: "In free play i can
+        // select any mech from the menu and it will swap out models"; menu-in-game: "it should all be the same
+        // instance, not relaunch the game"). Its data loads first; a mech that does not load changes nothing.
         MenuButton::PickMech(i) => {
             if let Some(m) = roster.get(i) {
-                info!("menu: free roam again in the {}", m.name);
-                crate::launcher::start_game("free", Some(&m.file));
-                exit.write(AppExit::Success);
+                let (file, name) = (m.file.clone(), m.name.clone());
+                commands.queue(
+                    move |world: &mut World| match cb_core::GameData::load(&crate::cli::repo_root().join("data"), &file) {
+                        Ok(data) => {
+                            info!("menu: swapping in the {name}");
+                            world.insert_resource(Data(data));
+                            world.insert_resource(crate::main_menu::MechFile(file.clone()));
+                            if let Some(mut saving) = world.get_resource_mut::<crate::save_game::Saving>() {
+                                saving.mech = file;
+                            }
+                            world.insert_resource(crate::mech::SwapMech);
+                        }
+                        Err(e) => error!("menu: the {name} does not load, keeping this mech: {e}"),
+                    },
+                );
+                set(p.menu, Menu::Closed, p.time, p.cursor);
             }
         }
         MenuButton::Accept(id) => {

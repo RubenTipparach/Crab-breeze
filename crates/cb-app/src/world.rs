@@ -5,6 +5,7 @@
 use crate::pilot::PilotCamera;
 use crate::sim::Data;
 use crate::sim::{PresentSet, SimSet};
+use crate::state::GameApp;
 use crate::water_render::WaterMaterial;
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::visibility::VisibilityRange;
@@ -187,10 +188,10 @@ impl Plugin for WorldPlugin {
                 ..default()
             })
             .add_plugins((crate::ground::GroundPlugin, crate::rocks::RocksPlugin))
-            .add_systems(Startup, (spawn_roads, spawn_buildings, spawn_sun, spawn_water, spawn_trees))
-            .add_systems(FixedUpdate, keep_trees.in_set(SimSet::World))
-            .add_systems(FixedUpdate, fell_trees.in_set(SimSet::Mech).after(crate::mech::step_mech))
-            .add_systems(Update, ((show_trees, redraw_trees).chain(), follow_ocean).in_set(PresentSet::Pose));
+            .add_world_spawn((spawn_roads, spawn_buildings, spawn_sun, spawn_water, spawn_trees))
+            .add_game_systems(FixedUpdate, keep_trees.in_set(SimSet::World))
+            .add_game_systems(FixedUpdate, fell_trees.in_set(SimSet::Mech).after(crate::mech::step_mech))
+            .add_game_systems(Update, ((show_trees, redraw_trees).chain(), follow_ocean).in_set(PresentSet::Pose));
     }
 }
 

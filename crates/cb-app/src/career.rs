@@ -8,6 +8,7 @@
 use crate::mech::{Loadout, MechId, MechSim, Piloted, SpawnAssets, spawn_enemy};
 use crate::pilot::PilotSim;
 use crate::sim::{Data, SimSet};
+use crate::state::GameApp;
 use crate::world::Plan;
 use bevy::prelude::*;
 use cb_core::career::{Career, CareerConfig};
@@ -69,14 +70,15 @@ pub struct CareerPlugin;
 
 impl Plugin for CareerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, begin.run_if(resource_added::<CareerStart>)).add_systems(
-            FixedUpdate,
-            step_jobs
-                .in_set(SimSet::Mech)
-                .after(crate::combat::fly_shots)
-                .after(crate::mech::step_mech)
-                .run_if(resource_exists::<CareerRun>),
-        );
+        app.add_game_systems(Update, begin.run_if(resource_added::<CareerStart>))
+            .add_game_systems(
+                FixedUpdate,
+                step_jobs
+                    .in_set(SimSet::Mech)
+                    .after(crate::combat::fly_shots)
+                    .after(crate::mech::step_mech)
+                    .run_if(resource_exists::<CareerRun>),
+            );
     }
 }
 

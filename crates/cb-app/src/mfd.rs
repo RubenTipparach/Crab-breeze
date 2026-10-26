@@ -10,6 +10,7 @@ use crate::hud::{MFD_PAGE_PX, MFD_PAGES as PAGES, MFD_READOUTS, MfdRoot};
 use crate::input::InputAccum;
 use crate::mfd_apps::{Item, MAIL_PAGE, MENU_PAGE, Offer, Pointed, item_at, offers};
 use crate::pilot::{CockpitCamera, PilotCamera, PilotSim};
+use crate::state::GameApp;
 use bevy::camera::RenderTarget;
 use bevy::camera::primitives::Aabb;
 use bevy::camera::visibility::RenderLayers;
@@ -44,8 +45,8 @@ pub struct MfdPlugin;
 
 impl Plugin for MfdPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup)
-            .add_systems(Update, (bind_screens, place_pages, point, press, outline, shoot).chain());
+        app.add_world_spawn(setup)
+            .add_game_systems(Update, (bind_screens, place_pages, point, press, outline, shoot).chain());
     }
 }
 

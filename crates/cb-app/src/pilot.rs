@@ -5,6 +5,7 @@
 use crate::input::{InputAccum, StepActions};
 use crate::mech::{MechAccessNow, MechRig};
 use crate::sim::{Data, PresentSet, SimSet};
+use crate::state::GameApp;
 use crate::world::{Live, Plan, SKY};
 use bevy::pbr::{DistanceFog, FogFalloff};
 use bevy::prelude::*;
@@ -48,10 +49,10 @@ impl Plugin for PilotPlugin {
         })
         .init_resource::<PilotEvents>()
         .init_resource::<Shake>()
-        .add_systems(Startup, (cpu_light_clustering, spawn_camera))
-        .add_systems(FixedUpdate, step_pilot.in_set(SimSet::Pilot))
-        .add_systems(Startup, spawn_prompt)
-        .add_systems(
+        .add_world_spawn((cpu_light_clustering, spawn_camera))
+        .add_game_systems(FixedUpdate, step_pilot.in_set(SimSet::Pilot))
+        .add_world_spawn(spawn_prompt)
+        .add_game_systems(
             Update,
             (
                 (shake_on_blasts, place_camera, crate::water_render::track_eye, weather_and_screens).chain(),

@@ -4,6 +4,7 @@
 //! value. Nothing else in the game reads a device.
 
 use crate::sim::{Data, PresentSet, SimSet};
+use crate::state::GameApp;
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions};
@@ -93,8 +94,8 @@ impl Plugin for InputPlugin {
         app.insert_resource(keys)
             .init_resource::<InputAccum>()
             .init_resource::<StepActions>()
-            .add_systems(Update, (grab_mouse, sample_devices).chain().in_set(PresentSet::Input))
-            .add_systems(FixedUpdate, take_step_actions.in_set(SimSet::Input));
+            .add_game_systems(Update, (grab_mouse, sample_devices).chain().in_set(PresentSet::Input))
+            .add_game_systems(FixedUpdate, take_step_actions.in_set(SimSet::Input));
     }
 }
 
