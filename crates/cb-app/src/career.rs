@@ -485,6 +485,7 @@ fn step_jobs(
     assets: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    (sea, mut sea_started): (Option<Res<crate::boats::SeaJobs>>, MessageWriter<crate::boats::SeaJobStarted>),
 ) {
     let dt = time.delta_secs();
     let run = &mut *run;
@@ -492,9 +493,11 @@ fn step_jobs(
     let sites = job_sites(&plan);
     let centres: Vec<Vec2> = plan.bases.iter().map(|b| b.centre).collect();
     let bonus = run.career.pay_bonuses(centres.len(), &run.data.career);
+    // Shipping jobs are sited at the harbours (harbours).
+    let harbours = sea.as_deref().map_or(&[][..], |s| &s.sites[..]);
     let offers = cb_core::jobs::Offers {
         sites: &sites,
-        harbours: &[],
+        harbours,
         bases: &centres,
         max_tier: max_tier(run),
         bonus: &bonus,
@@ -505,7 +508,9 @@ fn step_jobs(
         _ => Vec2::new(pilot.curr.feet.x, pilot.curr.feet.z),
     };
     let current = run.career.board.current().map(|j| j.id);
-    let left = current.map(|id| enemies.iter().filter(|(s, e)| e.0 == id && !s.dead).count() as u32);
+    // A job's enemies left: its mechs, and at sea its gunboats and an escort's freighter not yet in (harbours).
+    let left =
+        current.map(|id| enemies.iter().filter(|(s, e)| e.0 == id && !s.dead).count() as u32 + sea.as_deref().map_or(0, |s| s.left(id)));
     let active = current.is_some_and(|id| run.career.board.job(id).is_some_and(|j| j.state == cb_core::jobs::JobState::Active));
     let pilot_down = mech.is_some_and(|m| m.dead);
     let seed = run.career.seed;
@@ -523,6 +528,15 @@ fn step_jobs(
             Event::Offered(id) => info!("career: job {id} offered"),
             Event::Arrived(id) => {
                 let Some(job) = run.career.board.job(id).cloned() else { continue };
+                // A shipping job's gunboats and ward are the boats' to bring (harbours).
+                if job.kind.at_sea() {
+                    info!(
+                        "JOB {id} started at sea: {} gunboats at ({:.0}, {:.0})",
+                        job.mechs, job.site.x, job.site.y
+                    );
+                    sea_started.write(crate::boats::SeaJobStarted(id));
+                    continue;
+                }
                 info!("JOB {id} started: {} mechs at ({:.0}, {:.0})", job.mechs, job.site.x, job.site.y);
                 let cfg = &data.0.defence;
                 let mut sa = SpawnAssets {

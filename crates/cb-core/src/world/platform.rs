@@ -74,6 +74,17 @@ impl Platform {
     }
 }
 
+/// A platform built in place rather than moving (a harbour's quay, openspec change `harbours`) names its slabs
+/// with this prefix, so a moving owner replacing its own platforms each step leaves it standing.
+pub const FIXED_PREFIX: &str = "fixed:";
+
+impl Platform {
+    /// True for a platform built in place (`FIXED_PREFIX`).
+    pub fn is_fixed(&self) -> bool {
+        self.slabs.first().is_some_and(|s| s.name.starts_with(FIXED_PREFIX))
+    }
+}
+
 /// The highest platform top under `(x, z)` within a step of `feet_y`.
 pub fn top_under(platforms: &[Platform], x: f32, z: f32, feet_y: f32) -> Option<f32> {
     platforms.iter().filter_map(|p| p.top_under(x, z, feet_y)).reduce(f32::max)

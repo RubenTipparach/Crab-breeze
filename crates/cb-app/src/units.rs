@@ -122,6 +122,11 @@ impl Units {
     }
 }
 
+/// Targets other than the pilot's mech for some vehicles, by id, this step: a point and its velocity (a raider's
+/// gunboat after an escort's freighter or a fishing boat: openspec change `harbours`). Filled before the vehicles step.
+#[derive(Resource, Default)]
+pub struct UnitTargets(pub BTreeMap<u32, (Vec3, Vec3)>);
+
 /// A wave's vehicles are due (sent by the defence mission when the wave starts).
 #[derive(Message, Clone, Copy)]
 pub struct WaveForces {
@@ -145,6 +150,7 @@ impl Plugin for UnitsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Units>()
             .init_resource::<Hostiles>()
+            .init_resource::<UnitTargets>()
             .add_message::<WaveForces>()
             .add_game_systems(FixedUpdate, list_hostiles.in_set(SimSet::Input))
             .add_game_systems(
@@ -286,6 +292,7 @@ fn step_units(
     me: Query<(&MechSim, &crate::mech::MechSpec), With<Piloted>>,
     mut shots: ResMut<Shots>,
     mut fx: MessageWriter<Fx>,
+    targets: Res<UnitTargets>,
 ) {
     let _t = crate::perf_hud::slow("step_units");
     if units.list.is_empty() {
@@ -303,10 +310,11 @@ fn step_units(
     let mut dropped = Vec::new();
     for p in units.list.iter_mut().filter(|p| !p.gone) {
         let Some(spec) = cfg.units.get(&p.unit.kind) else { continue };
+        let aim = targets.0.get(&p.unit.id).copied().or(target);
         let view = UnitView {
             spec,
-            target: target.map(|t| t.0),
-            target_vel: target.map_or(Vec3::ZERO, |t| t.1),
+            target: aim.map(|t| t.0),
+            target_vel: aim.map_or(Vec3::ZERO, |t| t.1),
             ground: &ground,
             drop: &cfg.drop,
             sea_level_m: plan.waters.sea_level_m,

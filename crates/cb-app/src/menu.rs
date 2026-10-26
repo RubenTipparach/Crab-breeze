@@ -725,10 +725,19 @@ fn draw(
                 // The terminal's screen: the career's jobs board, signed up for here (or free roam's missions).
                 let title = terminal.as_deref().map_or_else(
                     || "TERMINAL".to_string(),
-                    |t| format!("TERMINAL   BASE {}  BAY {}", t.0.base + 1, t.0.bay + 1),
+                    |t| match t.0.office {
+                        Some(h) => format!("HARBOUR OFFICE {}", h + 1),
+                        None => format!("TERMINAL   BASE {}  BAY {}", t.0.base + 1, t.0.bay + 1),
+                    },
                 );
                 p.spawn(label(&title, 26.0, DIM));
-                if let Some(run) = career.as_deref() {
+                // A harbour office's screen is the jobs board alone (harbours).
+                let office = terminal.as_deref().is_some_and(|t| t.0.office.is_some());
+                if let Some(run) = career.as_deref()
+                    && office
+                {
+                    mail_page(p, &run.career);
+                } else if let Some(run) = career.as_deref() {
                     terminal_tabs(p, *tab);
                     match *tab {
                         TerminalTab::Jobs => mail_page(p, &run.career),

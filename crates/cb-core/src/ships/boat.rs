@@ -127,6 +127,8 @@ pub struct Boat {
     pub ward: Option<u32>,
     /// The helm between soundings.
     pub helm: Helm,
+    /// The water's surface under it (the sea's, or its lake's), metres; sounded with the helm.
+    pub surface_m: f32,
 }
 
 /// Another boat, as a boat steering sees it.
@@ -195,6 +197,7 @@ impl Boat {
                 next_s: (id % 5) as f32 * PROBE_EVERY_S / 5.0,
                 ..Helm::default()
             },
+            surface_m: 0.0,
         }
     }
 
@@ -368,6 +371,7 @@ impl Boat {
         self.helm.next_s -= dt_s;
         if self.helm.next_s <= 0.0 {
             self.helm = self.sound(view, want_heading, near_end);
+            self.surface_m = view.sea.water(self.pos).map_or(self.surface_m, |w| w.0);
         }
         want_heading += self.helm.deflect_rad;
         if self.helm.slow {

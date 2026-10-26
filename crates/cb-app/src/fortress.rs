@@ -169,7 +169,7 @@ fn switch(
                 commands.entity(e).despawn();
             }
             units.retire(MissionKind::Fortress);
-            live.platforms.clear();
+            live.platforms.retain(cb_core::world::Platform::is_fixed);
             commands.remove_resource::<FortressRun>();
             say("MISSION fortress turned off");
         }
@@ -476,7 +476,9 @@ fn step(
     {
         pilot.curr.feet = p;
     }
-    live.platforms = vec![platform];
+    // Its own platform replaces last step's; one built in place (a harbour's quay) stays.
+    live.platforms.retain(Platform::is_fixed);
+    live.platforms.push(platform);
     let at = |e: Option<Entity>| e.and_then(|e| globals.get(e).ok());
     let Some(nodes) = &run.nodes else { return };
     // Fighters off the catapults.

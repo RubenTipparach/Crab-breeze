@@ -38,12 +38,13 @@ pub struct Blow {
     pub damage: f32,
 }
 
-/// What a hit carries, from a gun or a strike.
+/// What a hit carries, from a gun or a strike, and who fired it.
 #[derive(Clone, Copy)]
 struct Power {
     penetration_mm: f32,
     damage: f32,
     blast_mj: f32,
+    owner: u32,
 }
 
 type Mechs<'w, 's> = Query<'w, 's, (&'static mut MechSim, &'static MechSpec, &'static MechId, Option<&'static MechRig>)>;
@@ -64,6 +65,7 @@ fn land(
     explosions: &mut MessageWriter<Explosion>,
     hits: &mut MessageWriter<crate::battle_fx::MechHit>,
     fortress: &mut MessageWriter<crate::fortress::FortressHit>,
+    boats: &mut MessageWriter<crate::boats::BoatHit>,
 ) {
     match struck {
         // The fortress's parts and hull take it by their own armour rule (crab-airship).
@@ -75,6 +77,18 @@ fn land(
                 penetration_mm: power.penetration_mm,
                 damage: power.damage,
             });
+        }
+        // A boat takes it by the vehicles' rule, in `boats` (harbours).
+        Struck::Mech { mech, .. } if mech >= crate::boats::BOAT_ID_BASE => {
+            boats.write(crate::boats::BoatHit {
+                boat: Some(mech - crate::boats::BOAT_ID_BASE),
+                at,
+                penetration_mm: power.penetration_mm,
+                damage: power.damage,
+                blast_mj: 0.0,
+                owner: power.owner,
+            });
+            fx.write(Fx::new("impact_mech", at).toward(-dir));
         }
         Struck::Mech { mech, .. } if mech >= crate::units::UNIT_ID_BASE => {
             if let Some(p) = units.get_mut(mech) {
@@ -133,6 +147,17 @@ fn land(
         explosions.write(Explosion {
             at,
             energy_mj: power.blast_mj,
+        });
+    }
+    // A round's blast may splash a boat, and the boats need to know whose it was (harbours).
+    if power.blast_mj > 0.0 {
+        boats.write(crate::boats::BoatHit {
+            boat: None,
+            at,
+            penetration_mm: 0.0,
+            damage: 0.0,
+            blast_mj: power.blast_mj,
+            owner: power.owner,
         });
     }
 }
@@ -217,6 +242,7 @@ pub fn fly_shots(
     mut hits: MessageWriter<crate::battle_fx::MechHit>,
     fortress: Option<Res<crate::fortress::FortressRun>>,
     mut fortress_hits: MessageWriter<crate::fortress::FortressHit>,
+    (boats, mut boat_hits): (Option<Res<crate::boats::Boats>>, MessageWriter<crate::boats::BoatHit>),
 ) {
     let _t = crate::perf_hud::slow("fly_shots");
     if shots.0.is_empty() && shots.1.is_empty() {
@@ -235,6 +261,10 @@ pub fn fly_shots(
     }
     // Vehicles are hit like mechs, one capsule each (invasion-forces).
     parts.extend(crate::units::unit_capsules(&units, &data));
+    // Boats afloat, one capsule each (harbours).
+    if let Some(b) = &boats {
+        parts.extend(crate::boats::boat_capsules(b, &data));
+    }
     // The fortress's parts, then its hull (crab-airship).
     if let Some(f) = &fortress {
         parts.extend(f.capsules.iter().copied());
@@ -310,6 +340,7 @@ pub fn fly_shots(
                 penetration_mm: blow.penetration_mm,
                 damage: blow.damage,
                 blast_mj: 0.0,
+                owner: blow.owner,
             };
             let dir = (blow.to - blow.from).normalize_or(Vec3::NEG_Z);
             land(
@@ -325,6 +356,7 @@ pub fn fly_shots(
                 &mut explosions,
                 &mut hits,
                 &mut fortress_hits,
+                &mut boat_hits,
             );
         }
     }
@@ -366,6 +398,7 @@ pub fn fly_shots(
             penetration_mm: w.penetration_mm,
             damage: w.damage,
             blast_mj: w.blast_mj,
+            owner: shot.owner,
         };
         land(
             hit.struck,
@@ -380,6 +413,7 @@ pub fn fly_shots(
             &mut explosions,
             &mut hits,
             &mut fortress_hits,
+            &mut boat_hits,
         );
     }
     shots.0 = flying;

@@ -18,12 +18,14 @@
 
 ## 2. In the game (cb-app)
 
-- [ ] 2.1 Harbours drawn: quay (walkable), cranes, warehouses, office and its terminal
-- [ ] 2.2 Sea traffic, lake boats and the ferry drawn and stepped, floating, with bow spray
-- [ ] 2.3 Boats in the hit list; sinking, wrecks and slicks drawn
-- [ ] 2.4 Mechs shove and swamp boats; boats flee; crabs go after ships
-- [ ] 2.5 `BoatHarmed` written for the lead to wire into standing
-- [ ] 2.6 Shipping jobs started: gunboats, the escort's freighter, the blockade
+Built and unit-tested; not yet run in the game (no playtest on this branch).
+
+- [x] 2.1 Harbours drawn: quay (walkable), cranes, warehouses, office and its terminal
+- [x] 2.2 Sea traffic, lake boats and the ferry drawn and stepped, floating, with bow spray
+- [x] 2.3 Boats in the hit list; sinking, wrecks and slicks drawn
+- [x] 2.4 Mechs shove and swamp boats; boats flee; crabs go after ships
+- [x] 2.5 `BoatHarmed` written for the lead to wire into standing
+- [x] 2.6 Shipping jobs started: gunboats, the escort's freighter, the blockade
 
 ## 3. Models and pages
 

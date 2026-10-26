@@ -98,6 +98,8 @@ pub struct Traffic {
     pub islet: Option<(Vec2, f32)>,
     /// Seconds since the world began.
     pub time_s: f64,
+    /// The sea's level, metres.
+    pub sea_level_m: f32,
     slot_of: BTreeMap<u32, usize>,
     next_id: u32,
 }
@@ -282,6 +284,7 @@ impl Traffic {
             grounds,
             islet,
             time_s: 0.0,
+            sea_level_m: sea.sea_level_m,
             slot_of: BTreeMap::new(),
             next_id: 0,
         }
@@ -403,7 +406,7 @@ impl Traffic {
     /// where something happened.
     pub fn step(&mut self, cfg: &ShipsConfig, sea: &Sea, pilot: Vec2, dt_s: f32) -> Vec<(u32, BoatStep)> {
         self.time_s += f64::from(dt_s);
-        self.keep_round(cfg, pilot);
+        self.keep_round(cfg, sea, pilot);
         let others: Vec<Neighbour> = self
             .boats
             .iter()
@@ -442,7 +445,7 @@ impl Traffic {
     }
 
     /// Makes the timetable's boats near the pilot real and lets far ones go.
-    fn keep_round(&mut self, cfg: &ShipsConfig, pilot: Vec2) {
+    fn keep_round(&mut self, cfg: &ShipsConfig, sea: &Sea, pilot: Vec2) {
         let t = &cfg.traffic;
         let lake_out = t.lake_spawn_m * t.despawn_m / t.spawn_m;
         // Let go: far boats (not sinking, wrecks or wards), boats gone over the horizon, wrecks long down.
@@ -497,6 +500,7 @@ impl Traffic {
             if let Phase::Working { .. } = b.phase {
                 b.speed_m_s = cfg.traffic.work_m_s;
             }
+            b.surface_m = sea.water(b.pos).map_or(sea.sea_level_m, |w| w.0);
             self.slots[i].live = Some(id);
             self.slot_of.insert(id, i);
             self.boats.push(b);
@@ -506,11 +510,14 @@ impl Traffic {
 
     /// Puts a boat of `kind` into the world outside the timetable (an escort's freighter, a raider's sinking hull):
     /// returns its id.
+    /// A boat added outside the timetable floats at sea level until its first sounding.
     pub fn add(&mut self, kind: &str, cfg: &ShipsConfig, errand: Errand, pos: Vec2, heading_rad: f32) -> Option<u32> {
         let spec = cfg.kinds.get(kind)?;
         let id = self.next_id;
         self.next_id += 1;
-        self.boats.push(Boat::new(id, kind, spec, errand, pos, heading_rad));
+        let mut b = Boat::new(id, kind, spec, errand, pos, heading_rad);
+        b.surface_m = self.sea_level_m;
+        self.boats.push(b);
         Some(id)
     }
 
