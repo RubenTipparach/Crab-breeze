@@ -184,6 +184,11 @@ pub struct MechState {
     pub mode: LocomotionMode,
     /// Skates are switched on (the mode is `Skate` on the ground).
     pub skates_on: bool,
+    /// The pilot turned skimming off over deep water (Shift, or C to sink): the mech goes under and stays
+    /// under, the wheels and the rockets no longer holding it up, until Shift turns skimming back on, the
+    /// rockets lift it, or it walks out of deep water (owner, 2026-10-25: "shift toggle skimming off when
+    /// I'm above water", "I want to be able to sink underwater").
+    pub skim_off: bool,
     /// Water depth at the root, 0 on dry ground.
     pub wading_depth_m: f32,
     /// Vertical speed, up positive.
@@ -304,10 +309,24 @@ impl MechState {
         // Wading with the skates on into water deep enough: the wheels bring the mech up to ride it.
         let rising = water.is_some_and(|w| self.pos.y < w.surface_m - loco.float_catch_m) && self.skates_on && skimmable && !self.in_air;
 
-        // Skates on and off (Shift, a toggle anywhere: survey M5); they need both legs and power.
+        // Skates on and off (Shift, a toggle anywhere: survey M5); they need both legs and power. Over water
+        // deep enough to skim, Shift turns skimming off and on instead, and C (sink) turns it off: off, the
+        // mech goes under and stays under.
         let skate_asked = c.skate_toggle || c.mode_request == Some(ModeRequest::Skate);
-        if skate_asked {
+        if !skimmable {
+            self.skim_off = false;
+        }
+        if skate_asked && skimmable {
+            self.skim_off = !self.skim_off;
+            self.skates_on = !self.skim_off;
+        } else if skate_asked {
             self.skates_on = !self.skates_on;
+        }
+        if c.sink && skimmable {
+            self.skim_off = true;
+        }
+        if c.lift_axis > 0.0 {
+            self.skim_off = false;
         }
         if c.mode_request == Some(ModeRequest::Walk) {
             self.skates_on = false;
@@ -318,14 +337,14 @@ impl MechState {
         // waded, skates or not (owner, 2026-10-24: "shallow water dont need autoskate", "The skis
         // only kicking if you're above water deeper than 50% of the mech"); with the skates empty
         // the rockets hold the mech up on deep water; Ctrl, or both empty, and it sinks.
-        let skim = (at_surface || rising) && !c.sink && skate_power && skimmable;
+        let skim = (at_surface || rising) && !c.sink && !self.skim_off && skate_power && skimmable;
         if skim {
             self.skates_on = true;
         }
         if !skate_power {
             self.skates_on = false;
         }
-        let hover = at_surface && deep && !c.sink && !skim && !self.boost.locked;
+        let hover = at_surface && deep && !c.sink && !self.skim_off && !skim && !self.boost.locked;
         let afloat = skim || hover;
 
         // Rockets: vertical only, while boost is held (or holding the mech on water).
@@ -873,6 +892,34 @@ mod tests {
         run(&mut m, ctrl, 15.0, &Sea);
         assert_eq!(m.pos.y, -30.0, "on the bottom");
         assert_eq!(m.on_water, OnWater::Sunk);
+    }
+
+    #[test]
+    fn shift_over_deep_water_turns_skimming_off_and_the_mech_sinks_and_stays_down() {
+        let mut m = skimming_at_sea();
+        let shift = MechControls {
+            skate_toggle: true,
+            ..Default::default()
+        };
+        m.step(&shift, &MechConfig::default(), &Sea, DT);
+        run(&mut m, MechControls::default(), 15.0, &Sea);
+        assert_eq!(m.pos.y, -30.0, "on the bottom, not held up by the rockets");
+        assert_eq!(m.on_water, OnWater::Sunk);
+        m.step(&shift, &MechConfig::default(), &Sea, DT);
+        run(&mut m, MechControls::default(), 15.0, &Sea);
+        assert_eq!(m.on_water, OnWater::Skimming, "Shift again: the wheels bring it back up to skim");
+    }
+
+    #[test]
+    fn a_tap_of_c_over_deep_water_sinks_the_mech_for_good() {
+        let mut m = skimming_at_sea();
+        let c = MechControls {
+            sink: true,
+            ..Default::default()
+        };
+        m.step(&c, &MechConfig::default(), &Sea, DT);
+        run(&mut m, MechControls::default(), 15.0, &Sea);
+        assert_eq!(m.pos.y, -30.0, "it kept sinking after C was let go");
     }
 
     #[test]
