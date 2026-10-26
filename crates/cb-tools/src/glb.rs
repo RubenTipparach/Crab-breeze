@@ -337,10 +337,61 @@ pub fn check_fortress(d: &cb_core::fortress::FortressData, assets: &Path) -> Vec
     out
 }
 
+/// The nodes every car model carries (car-traffic, car-driving): its sockets, the wheels that turn, and the
+/// steering wheel and speedometer needle the dashboard turns from the simulation.
+pub const CAR_NODES: [&str; 8] = [
+    "EYE_driver",
+    "DOOR_driver",
+    "STEER_wheel",
+    "NEEDLE_speed",
+    "WHEEL_FL",
+    "WHEEL_FR",
+    "WHEEL_RL",
+    "WHEEL_RR",
+];
+
+/// Checks every traffic car's model against its data (`data/cars/<kind>.ron`): the model is under `assets`, it has
+/// every node in `CAR_NODES`, and its `EYE_driver` and `DOOR_driver` sit where the data says, so the driver's eye
+/// the game uses and the seat the model shows are one place.
+pub fn check_cars(d: &cb_core::traffic::TrafficData, assets: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    for (name, spec) in d.cfg.kinds.iter().zip(&d.kinds) {
+        let t = match Tree::read(&assets.join(&spec.model)) {
+            Ok(t) => t,
+            Err(e) => {
+                out.push(format!("car `{name}`: {e}"));
+                continue;
+            }
+        };
+        for n in CAR_NODES.iter().filter(|n| t.at(n).is_none()) {
+            out.push(format!("car `{name}`: {} has no node `{n}`", spec.model));
+        }
+        for (socket, want) in [("EYE_driver", spec.eye_driver_m), ("DOOR_driver", spec.door_driver_m)] {
+            if let Some(at) = t.at(socket)
+                && at.distance(Vec3::from_array(want)) > 0.01
+            {
+                out.push(format!(
+                    "car `{name}`: {socket} is at {at} in {} but {want:?} in its data; rebuild with tools/blender/build_cars.py",
+                    spec.model
+                ));
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn every_shipped_car_model_has_its_nodes_where_its_data_says() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let d = cb_core::traffic::TrafficData::load(&root.join("data")).unwrap();
+        let problems = check_cars(&d, &root.join("assets"));
+        assert!(problems.is_empty(), "{problems:#?}");
+    }
 
     #[test]
     fn the_shipped_fortress_model_has_every_node_its_data_names() {

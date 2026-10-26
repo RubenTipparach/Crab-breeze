@@ -68,6 +68,17 @@ fn main() -> ExitCode {
                     ok = false;
                 }
             }
+            // the traffic cars' models against their data (car-traffic, car-driving)
+            if let Ok(d) = GameData::load(&root, &mechs[0]) {
+                let problems = glb::check_cars(&d.traffic, &root.join("..").join("assets"));
+                if problems.is_empty() {
+                    println!("ok   {} car kinds and their models", d.traffic.kinds.len());
+                }
+                for p in problems {
+                    eprintln!("FAIL {p}");
+                    ok = false;
+                }
+            }
             // the Hermit's model against its shape data (crab-airship)
             if let Ok(d) = GameData::load(&root, &mechs[0]) {
                 let problems = glb::check_fortress(&d.fortress, &root.join("..").join("assets"));
