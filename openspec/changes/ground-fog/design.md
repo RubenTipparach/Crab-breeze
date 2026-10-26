@@ -103,10 +103,42 @@ the densest scene (CLAUDE.md section 7).
 - The fog's numbers (`rho0`, `H`, the presets, the rain haze) are data in `data/world/world.ron`
   under `fog:`.
 
+## 7. Fog hides targets (survey F2)
+
+Owner, 2026-10-26 ("Approve all", then "Go and implement"): F2, ground fog also shortens radar
+and lock-on range. This was not the recommendation (which was: fog hides from the eye only, as
+cloud does, and the sensors see through it), so it changes the targeting.
+
+- **The fog along the line**: `cb_core::world::mist::line_depth(cfg, strength, map, sea, eye,
+  target, rain)` is the compose pass's own per-pixel fog (`fog_depth` in `water_post.wesl`: four
+  mist taps at 10, 30, 60 and 100 % of the way out to `mist_taps_m`, averaged, thickening the
+  layer's exact integral, the rain's haze at the eye) for the straight line from the pilot's eye to
+  the target, at the strength F1 sets. So the fog the sensors see through is the fog drawn, at the
+  same preset and on the same clock.
+- **The threshold and the scale** (`data/hud/targeting.ron`): with `T = exp(-depth)` the share of
+  the target's light that reaches the eye, the fog does nothing while `T >= fog_clear_share` (0.6).
+  Below it the scale is `fog_min_scale + (1 - fog_min_scale) * T / fog_clear_share`, down to
+  `fog_min_scale` (0.25) when nothing gets through. `cb_core::targeting::fog_scale` is the rule.
+- **What it shortens**: the boxing range (`max_range_m`, which is the game's radar until a radar
+  page is built: everything boxed is what the sensors hold), the lock range (`lock_range_m`), and
+  the lock's build rate (a lock builds `scale` times as fast). `targeting::seen` and
+  `targeting::in_lock_range` are the only range checks; the cockpit's boxes, the civil CIV boxes,
+  the `IN RANGE` label and the lock all go through them, so they agree. There is no multi-lock in
+  the game yet; one built later steps the same `Lock` and so inherits the rule.
+- **What it means in play**: in plain air the fog never reaches the threshold inside the 2 km
+  boxing range (morning air at sea level lets 72 % through at 2 km). In full valley mist at dawn,
+  about 37 % gets through 1 km, so a crab in the mist locks from about 900 m, not 1,200 m, and
+  takes a quarter longer to lock. Under `clear` (the defence and the fortress) nothing changes.
+- **Cost**: four bilinear map reads and two exponentials a target a fixed step, for at most the
+  targets within 2 km: negligible next to the step (not measured; a cloud of 100 targets is 400
+  reads).
+- `CB_NO_GROUND_FOG=1` turns the drawing off but not the rule: it is a benchmark switch, and the
+  simulation does not change with what is drawn.
+
 ## Open questions
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | F1 | How much fog by default | morning mist in the valleys and the crater, thinning by day; clear for combat-heavy missions | decided, built (owner, 2026-10-26: "Approve all"; section 3a) |
-| F2 | Does fog hide targets | from the eye only, as cloud does (W28); radar sees through it | proposed (survey F2) |
+| F2 | Does fog hide targets | from the eye only, as cloud does (W28); radar sees through it | decided otherwise, built: fog shortens the boxing and lock ranges and slows the lock (owner, 2026-10-26: "Approve all"; section 7) |
 | F3 | Ray-marched volumetric fog | not now; Bevy's `VolumetricFog` later only for local volumes (steam at boarding, waterfall spray) | proposed (survey F3) |

@@ -583,21 +583,22 @@ fn draw_targets(
     let size = cam.logical_viewport_size().unwrap_or(Vec2::new(1920.0, 1080.0));
     let on_screen = |p: Vec2| p.x >= 0.0 && p.y >= 0.0 && p.x <= size.x && p.y <= size.y;
     let locked = state.locked(cfg);
-    // The enemies in range, mechs and vehicles, and civil aircraft as neutrals, nearest first.
-    let mut shown: Vec<(f32, crate::units::Hostile)> = hostiles
+    // The enemies in range, mechs and vehicles, and civil aircraft as neutrals, nearest first: the
+    // ones the targeting saw through the fog this step, at the range the fog leaves (survey F2).
+    let mut shown: Vec<(f32, f32, crate::units::Hostile)> = hostiles
         .0
         .iter()
         .chain(&neutrals.0)
         .filter(|_| seated)
-        .map(|h| (h.aim.distance(eye), *h))
-        .filter(|(d, _)| *d <= cfg.max_range_m)
+        .filter_map(|h| state.fog_toward(h.id).map(|fog| (h.aim.distance(eye), fog, *h)))
+        .filter(|(d, fog, _)| cb_core::targeting::seen(cfg, *d, *fog))
         .collect();
-    shown.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.id.cmp(&b.1.id)));
+    shown.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.2.id.cmp(&b.2.id)));
     let mut texts: Vec<(String, Color)> = vec![(String::new(), GREEN); BOXES];
     let mut placed = vec![None; BOXES];
     let mut lead_at = None;
     let mut arrow_dir = None;
-    for (slot, (d, h)) in shown.iter().take(BOXES).enumerate() {
+    for (slot, (d, fog, h)) in shown.iter().take(BOXES).enumerate() {
         let (id, feet, torso, vel) = (&h.id, h.feet, h.aim, h.vel);
         let selected = state.selected == Some(*id);
         let neutral = crate::air_traffic::is_civil(*id);
@@ -616,7 +617,7 @@ fn draw_targets(
                 let p = cb_core::weapons::lead(eye, torso, vel, w.speed_m_s, !w.rocket);
                 lead_at = cam.world_to_viewport(at, p).ok().filter(|p| on_screen(*p));
             }
-            let in_range = *d <= cfg.lock_range_m;
+            let in_range = cb_core::targeting::in_lock_range(cfg, *d, *fog);
             texts[slot] = (fmt_target(*d, vel.length(), in_range, locked == Some(*id)), colour);
         } else if neutral {
             texts[slot] = (format!("CIV {d:.0} m"), colour);

@@ -12,13 +12,18 @@
 //! How thick it is right now (survey F1; owner, 2026-10-26: "Approve all"): a morning mist that
 //! thins by day, on the fog's own clock (the game has no time of day: the sun stands still), or a
 //! mission's own preset (`clear` for the combat-heavy ones). `FogConfig::strength` is that rule.
+//!
+//! What lies between two points (survey F2: fog also hides targets from the sensors):
+//! `line_depth` is the compose pass's own fog along a pixel's ray, worked out on the CPU for the
+//! straight line from the pilot's eye to a target, so the fog the targeting sees through is the
+//! fog drawn.
 
 use super::config::WorldConfig;
 use super::terrain::{Heightfield, smoothstep};
 use super::water::Waters;
 use crate::data::{Validate, finite, positive, positive_range, within};
 use crate::missions::MissionKind;
-use glam::Vec2;
+use glam::{Vec2, Vec3};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -263,6 +268,35 @@ pub fn optical_depth(cfg: &FogConfig, sea_level_m: f32, from_y_m: f32, dir_y: f3
     base * h * (e0 - e1) / dir_y
 }
 
+/// Where the compose pass reads the mist along a ray, as shares of the way out to
+/// `mist_taps_m` (`fog_depth` in `water_post.wesl`).
+pub const MIST_TAPS: [f32; 4] = [0.1, 0.3, 0.6, 1.0];
+
+/// The fog's optical depth along the straight line from `from` to `to`, worked out as the compose
+/// pass works it out for a pixel (`fog_depth` in `water_post.wesl`): the mist read at the four
+/// taps and averaged, thickening the layer's exact integral, scaled by the strength now
+/// (`FogConfig::strength`), plus the rain's haze `rain` (0..1, under a shaft at `from`) along it.
+/// `exp(-line_depth)` is the share of the target's light that reaches the eye.
+pub fn line_depth(cfg: &FogConfig, strength: FogStrength, map: &MistMap, sea_level_m: f32, from: Vec3, to: Vec3, rain: f32) -> f32 {
+    let len = from.distance(to);
+    if !len.is_finite() || len <= 0.0 {
+        return 0.0;
+    }
+    let dir = (to - from) / len;
+    let reach = len.min(cfg.mist_taps_m);
+    let mist = MIST_TAPS
+        .iter()
+        .map(|f| {
+            let p = from + dir * (reach * f);
+            map.at(Vec2::new(p.x, p.z))
+        })
+        .sum::<f32>()
+        / MIST_TAPS.len() as f32;
+    let thick = 1.0 + cfg.mist_strength * strength.mist_scale * mist;
+    let layer = optical_depth(cfg, sea_level_m, from.y, dir.y, len, thick) * strength.density_scale;
+    layer + cfg.rain_per_m * rain.clamp(0.0, 1.0) * len
+}
+
 /// How misty a place is, 0 (plain air) to 1 (full mist): a hollow below the ground round it, near
 /// water, near the coast; nothing above `mist_top_m`. `ground` is the ground's height, `around` the
 /// average ground round it, `near_water` and `near_coast` 0..1.
@@ -471,6 +505,59 @@ mod tests {
         // The morning mist is thicker than the day's, the day's than clear air.
         let (m, d) = (cfg.presets.morning, cfg.presets.day);
         assert!(m.density_scale > d.density_scale && m.mist_scale > d.mist_scale);
+    }
+
+    /// A map of `side` cells of 100 m, misty (1) in x below 0 and clear above.
+    fn half_misty(side: usize) -> MistMap {
+        let origin = -(side as f32) * 50.0;
+        let mist = (0..side * side)
+            .map(|k| {
+                if origin + ((k % side) as f32 + 0.5) * 100.0 < 0.0 {
+                    1.0
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        MistMap {
+            side,
+            origin_m: origin,
+            cell_m: 100.0,
+            mist,
+        }
+    }
+
+    #[test]
+    fn a_line_through_the_mist_is_foggier_than_one_through_clear_air() {
+        let cfg = FogConfig::default();
+        let map = half_misty(80);
+        let eye = Vec3::new(0.0, 10.0, 0.0);
+        let s = cfg.presets.morning;
+        let misty = line_depth(&cfg, s, &map, 0.0, eye, Vec3::new(-1500.0, 10.0, 0.0), 0.0);
+        let clear = line_depth(&cfg, s, &map, 0.0, eye, Vec3::new(1500.0, 10.0, 0.0), 0.0);
+        assert!(misty > 3.0 * clear, "{misty} against {clear}");
+        // Clear air with no mist: the layer's own integral, nothing more.
+        let plain = optical_depth(&cfg, 0.0, 10.0, 0.0, 1500.0, 1.0) * s.density_scale;
+        assert!((clear - plain).abs() < 1e-3 * plain.max(1e-6), "{clear} against {plain}");
+        // The clear preset lifts the mist off: both ways read alike.
+        let c = cfg.presets.clear;
+        let a = line_depth(&cfg, c, &map, 0.0, eye, Vec3::new(-1500.0, 10.0, 0.0), 0.0);
+        let b = line_depth(&cfg, c, &map, 0.0, eye, Vec3::new(1500.0, 10.0, 0.0), 0.0);
+        assert!((a - b).abs() < 1e-5, "{a} against {b}");
+        // Rain at the eye thickens it; a line of no length has none.
+        assert!(line_depth(&cfg, s, &map, 0.0, eye, Vec3::new(1500.0, 10.0, 0.0), 1.0) > clear + 0.9);
+        assert_eq!(line_depth(&cfg, s, &map, 0.0, eye, eye, 1.0), 0.0);
+    }
+
+    #[test]
+    fn looking_up_out_of_the_mist_sees_through_less_of_it() {
+        let cfg = FogConfig::default();
+        let map = half_misty(80);
+        let eye = Vec3::new(-2000.0, 5.0, 0.0);
+        let s = cfg.presets.morning;
+        let level = line_depth(&cfg, s, &map, 0.0, eye, eye + Vec3::new(1000.0, 0.0, 0.0), 0.0);
+        let up = line_depth(&cfg, s, &map, 0.0, eye, eye + Vec3::new(800.0, 600.0, 0.0), 0.0);
+        assert!(up < level, "{up} against {level}");
     }
 
     #[test]

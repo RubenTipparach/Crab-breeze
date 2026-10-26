@@ -9,4 +9,10 @@
     lock_cone_deg: 12.0,
     lock_s: 1.0,
     box_px: (18.0, 160.0),
+    // Fog hides targets (owner, 2026-10-26, survey F2: "Approve all"). Along the line from the eye to
+    // a target, while 60 % or more of its light gets through the fog, nothing changes; below that the
+    // boxing and lock ranges shrink in step, to a quarter when none gets through, and a lock builds
+    // as much slower. The fog is the one the screens draw (data/world/world.ron, fog:).
+    fog_clear_share: 0.6,
+    fog_min_scale: 0.25,
 )

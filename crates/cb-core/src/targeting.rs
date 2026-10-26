@@ -2,8 +2,15 @@
 //! picking the one nearest the aim or cycling by distance, and the missile lock that builds only
 //! while the target is in missile range and near the aim. Pure: `cb-app` feeds it what the pilot
 //! can see each fixed step; the cockpit draws what it says and the missiles home on the lock.
+//!
+//! Fog hides targets (survey F2; owner, 2026-10-26: "Approve all"): the fog along the line from
+//! the pilot's eye to a target (`world::mist::line_depth`, the fog the compose pass draws) shortens
+//! how far it is boxed and how far it locks, and slows the lock building on it, once less than
+//! `fog_clear_share` of its light gets through. `fog_scale` is that rule, and `seen` and
+//! `Lock::step` are the only places a range is compared, so the boxes (the civil CIV boxes among
+//! them) and the lock agree.
 
-use crate::data::{Validate, positive, positive_range};
+use crate::data::{Validate, positive, positive_range, within};
 use glam::Vec3;
 use serde::Deserialize;
 
@@ -23,6 +30,12 @@ pub struct TargetingConfig {
     pub lock_s: f32,
     /// A target box's size on screen, [smallest, largest] pixels.
     pub box_px: [f32; 2],
+    /// While at least this share (0..1) of a target's light gets through the fog, the fog does not
+    /// hide it (survey F2).
+    pub fog_clear_share: f32,
+    /// In fog nothing gets through, the boxing and lock ranges are this share of their own, and a
+    /// lock builds this much as fast.
+    pub fog_min_scale: f32,
 }
 
 impl Default for TargetingConfig {
@@ -34,6 +47,8 @@ impl Default for TargetingConfig {
             lock_cone_deg: 12.0,
             lock_s: 1.0,
             box_px: [18.0, 160.0],
+            fog_clear_share: 0.6,
+            fog_min_scale: 0.25,
         }
     }
 }
@@ -45,7 +60,9 @@ impl Validate for TargetingConfig {
         positive("lock_range_m", self.lock_range_m)?;
         positive("lock_cone_deg", self.lock_cone_deg)?;
         positive("lock_s", self.lock_s)?;
-        positive_range("box_px", self.box_px)
+        positive_range("box_px", self.box_px)?;
+        within("fog_clear_share", self.fog_clear_share, 0.01, 1.0)?;
+        within("fog_min_scale", self.fog_min_scale, 0.01, 1.0)
     }
 }
 
@@ -59,6 +76,29 @@ pub struct Target {
     /// Not an enemy (a civil aircraft): boxed as information, but never selected, so never locked
     /// (owner, 2026-10-26, survey W47: "Never: only unguided fire can hit one").
     pub neutral: bool,
+}
+
+/// How much of the sensors' reach the fog leaves toward a target (survey F2), from the fog's optical
+/// depth along the line to it (`world::mist::line_depth`): 1 while at least `fog_clear_share` of
+/// its light gets through, falling in step with that share to `fog_min_scale` when none does.
+pub fn fog_scale(cfg: &TargetingConfig, depth: f32) -> f32 {
+    let through = (-depth.max(0.0)).exp();
+    if !through.is_finite() || through >= cfg.fog_clear_share {
+        return 1.0;
+    }
+    cfg.fog_min_scale + (1.0 - cfg.fog_min_scale) * through / cfg.fog_clear_share
+}
+
+/// Whether a target `range_m` away, through fog leaving `fog` of the reach (`fog_scale`), is boxed
+/// and can be selected: within `max_range_m` shortened by the fog. The one boxing range check.
+pub fn seen(cfg: &TargetingConfig, range_m: f32, fog: f32) -> bool {
+    range_m <= cfg.max_range_m * fog.clamp(0.0, 1.0)
+}
+
+/// Whether a target `range_m` away, through fog leaving `fog` of the reach, is in missile range:
+/// `lock_range_m` shortened by the fog. The one lock range check.
+pub fn in_lock_range(cfg: &TargetingConfig, range_m: f32, fog: f32) -> bool {
+    range_m <= cfg.lock_range_m * fog.clamp(0.0, 1.0)
 }
 
 /// The angle in degrees between `aim` and the direction from `eye` to `p`.
@@ -116,15 +156,16 @@ pub struct Lock {
 }
 
 impl Lock {
-    /// Builds while `target` is within the lock range and cone of the aim, falls back at twice the
-    /// rate otherwise, restarts on a new target. True when locked.
-    pub fn step(&mut self, target: Option<u32>, off_deg: f32, range_m: f32, cfg: &TargetingConfig, dt_s: f32) -> bool {
+    /// Builds while `target` is within the lock range (shortened by the fog, `fog` from `fog_scale`)
+    /// and cone of the aim, `fog` times as fast as in clear air; falls back at twice the rate
+    /// otherwise, restarts on a new target. True when locked.
+    pub fn step(&mut self, target: Option<u32>, off_deg: f32, range_m: f32, fog: f32, cfg: &TargetingConfig, dt_s: f32) -> bool {
         if target != self.target {
             *self = Lock { target, held_s: 0.0 };
         }
-        let on = target.is_some() && range_m <= cfg.lock_range_m && off_deg <= cfg.lock_cone_deg;
+        let on = target.is_some() && in_lock_range(cfg, range_m, fog) && off_deg <= cfg.lock_cone_deg;
         self.held_s = if on {
-            (self.held_s + dt_s).min(cfg.lock_s)
+            (self.held_s + dt_s * fog.clamp(0.0, 1.0)).min(cfg.lock_s)
         } else {
             (self.held_s - 2.0 * dt_s).max(0.0)
         };
@@ -189,7 +230,7 @@ mod tests {
         let mut lock = Lock::default();
         for _ in 0..300 {
             held = select(held, false, eye, aim, &alone, &cfg);
-            assert!(!lock.step(held, 0.0, 600.0, &cfg, 0.01), "no lock ever builds on an airliner");
+            assert!(!lock.step(held, 0.0, 600.0, 1.0, &cfg, 0.01), "no lock ever builds on an airliner");
         }
         assert_eq!(lock.target, None);
     }
@@ -215,7 +256,7 @@ mod tests {
         let cfg = TargetingConfig::default();
         let mut l = Lock::default();
         let mut t_s = 0.0;
-        while !l.step(Some(4), 3.0, 800.0, &cfg, 0.01) {
+        while !l.step(Some(4), 3.0, 800.0, 1.0, &cfg, 0.01) {
             t_s += 0.01;
             assert!(t_s < 2.0);
         }
@@ -227,7 +268,7 @@ mod tests {
         let cfg = TargetingConfig::default();
         let mut l = Lock::default();
         for _ in 0..500 {
-            assert!(!l.step(Some(4), 0.0, 1500.0, &cfg, 0.01));
+            assert!(!l.step(Some(4), 0.0, 1500.0, 1.0, &cfg, 0.01));
         }
     }
 
@@ -236,10 +277,69 @@ mod tests {
         let cfg = TargetingConfig::default();
         let mut l = Lock::default();
         for _ in 0..150 {
-            l.step(Some(4), 1.0, 800.0, &cfg, 0.01);
+            l.step(Some(4), 1.0, 800.0, 1.0, &cfg, 0.01);
         }
         assert!(l.locked(&cfg));
-        assert!(!l.step(Some(4), 40.0, 800.0, &cfg, 0.01), "40 degrees off loses it");
-        assert!(!l.step(Some(9), 0.0, 800.0, &cfg, 0.01), "a new target starts over");
+        assert!(!l.step(Some(4), 40.0, 800.0, 1.0, &cfg, 0.01), "40 degrees off loses it");
+        assert!(!l.step(Some(9), 0.0, 800.0, 1.0, &cfg, 0.01), "a new target starts over");
+    }
+
+    #[test]
+    fn fog_thinner_than_the_threshold_hides_nothing() {
+        let cfg = TargetingConfig::default();
+        assert_eq!(fog_scale(&cfg, 0.0), 1.0);
+        // Exactly the clear share gets through: still no effect.
+        assert_eq!(fog_scale(&cfg, -cfg.fog_clear_share.ln()), 1.0);
+        assert!(seen(&cfg, cfg.max_range_m, fog_scale(&cfg, 0.1)));
+    }
+
+    #[test]
+    fn thick_fog_shortens_the_boxing_and_lock_ranges_in_step_with_it() {
+        let cfg = TargetingConfig::default();
+        let mut last = 1.0;
+        for k in 1..40 {
+            let s = fog_scale(&cfg, k as f32 * 0.25);
+            assert!(s <= last && s >= cfg.fog_min_scale, "{s}");
+            last = s;
+        }
+        // Nothing gets through: the floor.
+        assert!((fog_scale(&cfg, 1e9) - cfg.fog_min_scale).abs() < 1e-6);
+        // Half the clear share gets through: the ranges are part way down.
+        let half = fog_scale(&cfg, -(cfg.fog_clear_share * 0.5).ln());
+        assert!((half - (cfg.fog_min_scale + (1.0 - cfg.fog_min_scale) * 0.5)).abs() < 1e-5);
+        // A target at 800 m is boxed and in missile range in clear air, but not in a fog bank.
+        assert!(seen(&cfg, 800.0, 1.0) && in_lock_range(&cfg, 800.0, 1.0));
+        let bank = fog_scale(&cfg, 4.0);
+        assert!(!in_lock_range(&cfg, 800.0, bank), "fog leaving {bank} of the reach");
+        assert!(!seen(&cfg, 800.0, bank));
+    }
+
+    #[test]
+    fn no_lock_builds_on_a_target_hidden_in_fog_and_a_lock_through_light_fog_is_slower() {
+        let cfg = TargetingConfig::default();
+        let mut l = Lock::default();
+        for _ in 0..500 {
+            assert!(!l.step(Some(4), 0.0, 800.0, fog_scale(&cfg, 4.0), &cfg, 0.01));
+        }
+        // Through fog leaving 0.8 of the reach (still in range at 800 m): it locks, later.
+        let thin = fog_scale(&cfg, -(cfg.fog_clear_share * 0.73).ln());
+        assert!(in_lock_range(&cfg, 800.0, thin), "{thin}");
+        let mut l = Lock::default();
+        let mut t_s = 0.0;
+        while !l.step(Some(4), 0.0, 800.0, thin, &cfg, 0.01) {
+            t_s += 0.01;
+            assert!(t_s < 5.0);
+        }
+        assert!(t_s > cfg.lock_s * 1.15, "{t_s}");
+    }
+
+    #[test]
+    fn the_shipped_targeting_is_valid() {
+        assert!(TargetingConfig::default().validate().is_ok());
+        let bad = TargetingConfig {
+            fog_min_scale: 0.0,
+            ..TargetingConfig::default()
+        };
+        assert!(bad.validate().is_err());
     }
 }
