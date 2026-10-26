@@ -47,6 +47,7 @@ mod music;
 mod particles;
 mod pbr_set;
 mod people_take;
+mod people_vat;
 mod perf_hud;
 mod physics;
 mod pilot;

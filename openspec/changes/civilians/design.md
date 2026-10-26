@@ -67,6 +67,9 @@ cards. Budget: 200 near, 2,000 in all, measured on the 3070.
 
 ### 2.1 As built, with stand-ins (`crates/cb-app/src/civilians.rs`)
 
+**Superseded by `people-vat`**: the stand-in pool and the merged crowd mesh below are gone; people are MPFB bodies
+played from vertex animation textures (`crates/cb-app/src/people_vat.rs`). Kept as the record of what was approved.
+
 The humanoid pipeline's packs are not on the development machine, so the bodies are **stand-ins**: box figures built
 in code at true human size (modelled 1.75 m, scaled to each person's 1.55-1.95 m), 120 triangles, in eight clothing
 palettes and four poses (standing, two strides, sitting), laid flat when struck. They are reviewed orbitable beside

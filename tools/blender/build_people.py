@@ -18,8 +18,8 @@ fps-game-demo 1363650):
   - everything is joined into one mesh; every vertex takes a colour region (skin, top, bottom, shoes, hair) by the
     piece it came from and the bones that move it, and a shade from its own texture's brightness there, so the
     folds, seams, lips and brows of the CC0 textures survive as vertex shading under the run-time palette;
-  - the crowd level is the near level through a Decimate collapse, its regions and shades taken from the nearest
-    near vertex;
+  - each level is the full body through a Decimate collapse at its ratio (1 keeps it whole), its regions and
+    shades taken from the nearest full vertex;
   - the clips are UAL's (CC0) retargeted bone by bone onto the game_engine rig: every mapped bone takes the source
     bone's rotation from its rest pose in world space, after its own rest direction is turned onto the source's
     (UAL rests in a T-pose, MPFB in an A-pose); the hips move by the source's hips, scaled by the hip heights.
@@ -307,7 +307,7 @@ def make_body(body, table, allow):
     with bpy.context.temp_override(object=skin, active_object=skin, selected_objects=parts,
                                    selected_editable_objects=parts):
         bpy.ops.object.join()
-    skin.name = skin.data.name = body["id"] + "_near"
+    skin.name = skin.data.name = body["id"] + "_full"
     rig.name = body["id"]
     for g in list(skin.vertex_groups):
         if g.name not in bones:
@@ -321,8 +321,8 @@ def make_body(body, table, allow):
 
 
 def make_crowd_lod(near, ratio, name):
-    """The crowd level: a copy of the near mesh through a Decimate collapse, regions and shades from the nearest
-    near vertex."""
+    """A decimated level: a copy of the full body through a Decimate collapse, regions and shades from the nearest
+    full vertex."""
     me = near.data.copy()
     obj = bpy.data.objects.new(name, me)
     me.name = name
@@ -670,9 +670,16 @@ def build_body(body, table, allow, ual_path, out_dir, verify):
                              f"budget {lod['budget_triangles']}")
         files[name] = tmp
         levels.append(dict(stats, name=lod["name"], file=name, budget_triangles=lod["budget_triangles"]))
-    # the glb: both levels skinned, every clip
-    for c in clips:
-        set_action(rig, None)
+    # the glb: both levels skinned, every clip, with each vertex's region and shade as the custom attributes
+    # `_REGION` and `_SHADE` (the review page colours the body from the palettes with them, as the game does)
+    set_action(rig, None)
+    for obj in lods.values():
+        for src, dst, kind in (("region", "_REGION", 'INT'), ("shade", "_SHADE", 'FLOAT')):
+            n = len(obj.data.vertices)
+            arr = np.empty(n, np.int32 if kind == 'INT' else np.float32)
+            obj.data.attributes[src].data.foreach_get("value", arr)
+            a = obj.data.attributes.new(dst, 'FLOAT', 'POINT')
+            a.data.foreach_set("value", arr.astype(np.float32))
     for o in bpy.data.objects:
         o.select_set(o in (rig, *lods.values()))
     bpy.context.view_layer.objects.active = rig
@@ -682,7 +689,7 @@ def build_body(body, table, allow, ual_path, out_dir, verify):
     tmp = os.path.join(out_dir, glb_name + ".tmp.glb")
     bpy.ops.export_scene.gltf(filepath=tmp, export_format='GLB', use_selection=True, export_yup=True,
                               export_skins=True, export_animations=True, export_animation_mode='ACTIONS',
-                              export_morph=False, export_materials='NONE', export_attributes=False,
+                              export_morph=False, export_materials='NONE', export_attributes=True,
                               export_rest_position_armature=True, export_def_bones=False,
                               export_force_sampling=False, export_frame_range=False)
     files[glb_name] = tmp

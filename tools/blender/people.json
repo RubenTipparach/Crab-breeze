@@ -34,7 +34,7 @@
   "decimate": {"bob01": 0.5},
   "_comment_lods": "Two levels of detail baked separately: near (within the near distance of the eye) and crowd (everyone else). ratio is the Decimate collapse ratio of the whole joined body; the build refuses a level over its triangle budget, read back from what it wrote.",
   "lods": [
-    {"name": "near", "ratio": 1.0, "budget_triangles": 16000},
+    {"name": "near", "ratio": 0.6, "budget_triangles": 10000},
     {"name": "crowd", "ratio": 0.055, "budget_triangles": 1000}
   ],
   "_comment_bake": "Each clip is sampled at its source's 24 frames a second, evenly over its length; a loop's last sample is not its first again. Positions are quantised to 16 bits a component over the level's bounds, normals octahedral to 8 bits a component (design section 3).",

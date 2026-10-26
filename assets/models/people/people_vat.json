@@ -4,29 +4,29 @@
  "bodies": [
   {
    "glb": "man.glb",
-   "glb_sha256": "826f3a1d39e02c9b3b7c82c0f460cabdb748ab264b39b0722e4cc7e9e7ed6083",
+   "glb_sha256": "48bd04ea9d3945aadb08c87dacf03d67a84ac03f70813683f12ea7613debe026",
    "height_m": 1.7473,
    "id": "man",
    "levels": [
     {
      "bounds_max": [
       0.67245,
-      1.93264,
+      1.93258,
       1.63652
      ],
      "bounds_min": [
       -0.49446,
-      -0.09238,
-      -0.68735
+      -0.09252,
+      -0.68557
      ],
-     "budget_triangles": 16000,
-     "bytes": 21972348,
+     "budget_triangles": 10000,
+     "bytes": 13620556,
      "file": "man_near.vat",
      "name": "near",
      "rows": 324,
-     "sha256": "8cc3ecf74a746171e34ed41748e58224719204c3b09265ff3c7ded36c1f0e74b",
-     "triangles": 15772,
-     "vertices": 8391
+     "sha256": "edddbcb469741ed9f571a258b2bff0eadcf99f8659bc8529f6fce574f7ed63b5",
+     "triangles": 9460,
+     "vertices": 5203
     },
     {
      "bounds_max": [
@@ -55,29 +55,29 @@
   },
   {
    "glb": "woman.glb",
-   "glb_sha256": "eb55d7d19496dfc8ed99cc18f8b63eb6ded9797f166f3b8d7798d31a7b5cdfce",
+   "glb_sha256": "c506fc3056363e91ada298b8eee8b7d1d4088b213d6e2bc080a66b301a9d91e3",
    "height_m": 1.7457,
    "id": "woman",
    "levels": [
     {
      "bounds_max": [
-      0.59655,
+      0.59628,
       1.91467,
-      1.58943
+      1.58716
      ],
      "bounds_min": [
-      -0.43318,
+      -0.43322,
       -0.0672,
-      -0.67267
+      -0.67237
      ],
-     "budget_triangles": 16000,
-     "bytes": 20823604,
+     "budget_triangles": 10000,
+     "bytes": 13031020,
      "file": "woman_near.vat",
      "name": "near",
      "rows": 324,
-     "sha256": "130ea8b1912e020e5011fc5eb0745533106cfc71d322e0124e7efa630602d03c",
-     "triangles": 13932,
-     "vertices": 7957
+     "sha256": "4dcfdd58d8ae94bcf1fad3d1645e9d69ee3961e9e37b8f024f28b82089c0d231",
+     "triangles": 8358,
+     "vertices": 4981
     },
     {
      "bounds_max": [

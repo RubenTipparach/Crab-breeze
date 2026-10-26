@@ -123,7 +123,16 @@ impl Plugin for TrafficPlugin {
             .add_game_systems(FixedUpdate, step_traffic.in_set(SimSet::Mech).before(crate::mech::step_mech))
             .add_game_systems(
                 Update,
-                (draw_cars, find_dash, turn_dash, find_wheels, spin_wheels, draw_runners).chain(),
+                (
+                    draw_cars,
+                    find_dash,
+                    turn_dash,
+                    find_wheels,
+                    spin_wheels,
+                    // drivers on foot are people (`people_vat`); the capsule only when people are left out
+                    draw_runners.run_if(not(resource_exists::<crate::people_vat::PeopleDraw>)),
+                )
+                    .chain(),
             )
             .add_game_systems(Update, report_harm);
     }
@@ -550,7 +559,8 @@ fn spin_wheels(
     }
 }
 
-/// Drivers who left their cars, as 1.8 m block-out figures (stand-ins until people are in the game).
+/// Drivers who left their cars, as 1.8 m block-out figures, when people are left out (`CB_NO_PEOPLE=1`);
+/// otherwise `people_vat` draws them as people.
 fn draw_runners(
     mut commands: Commands,
     sim: Res<TrafficSim>,

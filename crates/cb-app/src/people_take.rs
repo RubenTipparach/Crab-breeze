@@ -45,6 +45,8 @@ pub struct PeopleTake {
     /// The person the current still is of.
     subject: Option<u32>,
     shot: u32,
+    /// The offscreen image stills are taken from.
+    offscreen: Option<Handle<Image>>,
     /// The current shot's key (Use, the test shell) is pressed.
     pressed: bool,
     last_count_s: f32,
@@ -61,6 +63,27 @@ pub fn add(app: &mut App) {
         play.in_set(crate::sim::PresentSet::Input)
             .run_if(in_state(crate::state::GameState::Playing)),
     );
+    if std::env::var_os("CB_PEOPLE_STILLS").is_some() {
+        crate::state::GameApp::add_after_world_spawn(app, offscreen);
+    }
+}
+
+/// Stills draw the pilot's eye and the cockpit pass into an offscreen 1920 x 1080 image, as the building stills
+/// do: window shots come out black on macOS when the window is behind another. Never in a measured run.
+fn offscreen(
+    mut commands: Commands,
+    camera: Single<Entity, With<crate::pilot::PilotCamera>>,
+    cockpit: Single<Entity, With<crate::pilot::CockpitCamera>>,
+    mut images: ResMut<Assets<Image>>,
+    mut take: ResMut<PeopleTake>,
+) {
+    use bevy::camera::RenderTarget;
+    use bevy::render::render_resource::TextureFormat;
+    let image = Image::new_target_texture(1920, 1080, TextureFormat::Rgba8Unorm, Some(TextureFormat::Rgba8UnormSrgb));
+    let handle = images.add(image);
+    commands.entity(*camera).insert(RenderTarget::Image(handle.clone().into()));
+    commands.entity(*cockpit).insert(RenderTarget::Image(handle.clone().into()));
+    take.offscreen = Some(handle);
 }
 
 /// Corner `k` (0-3) of a rectangle, then the next round it.
@@ -98,10 +121,14 @@ fn nearest(crowd: &Crowd, from: Vec3, want: impl Fn(&Person) -> bool) -> Option<
         .min_by(|a, b| a.feet().distance_squared(from).total_cmp(&b.feet().distance_squared(from)))
 }
 
-fn shoot(dir: &std::path::Path, name: &str, commands: &mut Commands) {
+fn shoot(dir: &std::path::Path, name: &str, commands: &mut Commands, image: Option<Handle<Image>>) {
     let path = dir.join(format!("{name}.png"));
     println!("PEOPLE_STILL {}", path.display());
-    commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
+    let shot = match image {
+        Some(img) => Screenshot::image(img),
+        None => Screenshot::primary_window(),
+    };
+    commands.spawn(shot).observe(save_to_disk(path));
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -255,7 +282,7 @@ fn stills(
                     "kerb" => (side * 4.0 + fwd * 3.0, 1.1),
                     "bench" => (fwd * 3.2 + side * 0.8, 0.8),
                     "greet" => (fwd * 1.7, 1.5),
-                    _ => (fwd * 28.0, 0.5),
+                    _ => (fwd * 16.0, 0.0),
                 };
                 let at = p.pos + off;
                 let feet = Vec3::new(at.x, p.feet_y, at.y);
@@ -280,7 +307,7 @@ fn stills(
     }
     let mut snap = |at: f32, label: &str, take: &mut PeopleTake| {
         if t >= at && take.shot == shot_index(name, label) {
-            shoot(&dir, &format!("{:02}-{label}", i + 1), commands);
+            shoot(&dir, &format!("{:02}-{label}", i + 1), commands, take.offscreen.clone());
             take.shot += 1;
         }
     };
