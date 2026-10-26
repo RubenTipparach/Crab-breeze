@@ -92,6 +92,68 @@ pub struct TrafficConfig {
     pub runner_speed_m_s: f32,
     /// A running driver is gone after this long, seconds.
     pub runner_life_s: f32,
+    /// The traffic lights' phases where an arterial meets other roads (survey W39).
+    pub lights: LightTimes,
+}
+
+/// How long each phase of a junction's traffic lights shows each colour (survey W39, owner 2026-10-26: "Lights on the
+/// arterials"). A junction's two phases take turns: one shows green, then amber, then both show red for `all_red_s`,
+/// then the other phase does the same. Each junction is offset along the cycle by its id, so neighbours do not all
+/// change at once.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct LightTimes {
+    /// Green, seconds.
+    pub green_s: f32,
+    /// Amber, seconds.
+    pub amber_s: f32,
+    /// Red both ways before the other phase's green, seconds.
+    pub all_red_s: f32,
+}
+
+impl Default for LightTimes {
+    fn default() -> Self {
+        Self {
+            green_s: 24.0,
+            amber_s: 3.0,
+            all_red_s: 2.0,
+        }
+    }
+}
+
+impl LightTimes {
+    /// One whole cycle, both phases, seconds.
+    pub fn cycle_s(&self) -> f32 {
+        2.0 * (self.green_s + self.amber_s + self.all_red_s)
+    }
+}
+
+/// What a traffic light shows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Light {
+    /// Go.
+    Green,
+    /// Stop if you can.
+    Amber,
+    /// Stop.
+    Red,
+}
+
+/// What the light of phase `phase` at junction `node` shows at traffic time `t_s` (survey W39). The one rule the cars
+/// obey and the lamps the game draws show.
+pub fn light(times: &LightTimes, node: u32, phase: u8, t_s: f32) -> Light {
+    let half = times.green_s + times.amber_s + times.all_red_s;
+    let cycle = 2.0 * half;
+    // the golden ratio spreads the junctions' offsets evenly round the cycle
+    let offset = (node as f32 * 0.618_034).fract() * cycle;
+    let t = (t_s + offset - f32::from(phase.min(1)) * half).rem_euclid(cycle);
+    if t < times.green_s {
+        Light::Green
+    } else if t < times.green_s + times.amber_s {
+        Light::Amber
+    } else {
+        Light::Red
+    }
 }
 
 impl Default for TrafficConfig {
@@ -131,6 +193,7 @@ impl Default for TrafficConfig {
             wreck_life_s: 600.0,
             runner_speed_m_s: 5.0,
             runner_life_s: 40.0,
+            lights: LightTimes::default(),
         }
     }
 }
@@ -174,7 +237,10 @@ impl Validate for TrafficConfig {
         positive("burn_s", self.burn_s)?;
         positive("wreck_life_s", self.wreck_life_s)?;
         positive("runner_speed_m_s", self.runner_speed_m_s)?;
-        positive("runner_life_s", self.runner_life_s)
+        positive("runner_life_s", self.runner_life_s)?;
+        positive("lights.green_s", self.lights.green_s)?;
+        positive("lights.amber_s", self.lights.amber_s)?;
+        positive("lights.all_red_s", self.lights.all_red_s)
     }
 }
 
@@ -445,6 +511,11 @@ impl Traffic {
 
     fn get_mut(&mut self, id: u32) -> Option<&mut Car> {
         self.cars.binary_search_by_key(&id, |c| c.id).ok().map(|i| &mut self.cars[i])
+    }
+
+    /// Traffic time, seconds: what the traffic lights run on (`light`).
+    pub fn time_s(&self) -> f32 {
+        self.time_s
     }
 
     /// The car the player drives, if any.
@@ -1013,10 +1084,13 @@ impl Traffic {
         }
     }
 
-    /// Right of way by arrival order: at each junction the waiting cars are taken earliest first
+    /// Right of way by arrival order: at each junction the front car of each lane waiting is taken earliest first
     /// (ties to the lower id); each may go when its connector meets no connector a car is on, none
     /// already given this step, and none an earlier car is still waiting for, and the lane it leads
-    /// into has room for it.
+    /// into has room for it. At a junction with traffic lights (survey W39) a car whose light is red
+    /// is not waiting for a turn at all: it stops at the line and holds no one up; on amber it goes
+    /// only if it could not stop comfortably short of the line; on green it takes its turn as above,
+    /// so a turn across oncoming traffic still gives way.
     fn grant_turns(&mut self, g: &LaneGraph, on: &BTreeMap<u32, Vec<usize>>, data: &TrafficData) {
         let cfg = &data.cfg;
         let now = self.time_s;
@@ -1047,7 +1121,21 @@ impl Traffic {
             if c.state != CarState::Driving || lane.length_m() - c.s_m > cfg.approach_m {
                 continue;
             }
+            // only the front car of a lane asks: one behind it given a turn would hold a path the car in front
+            // needs, and neither could move
+            if on.get(&c.lane).and_then(|l| l.last()) != Some(&i) {
+                continue;
+            }
             let t = *c.arrived_s.get_or_insert(now);
+            if let Some(phase) = lane.phase {
+                let to_line = lane.length_m() - c.s_m - data.kinds[c.kind as usize].size_m[2] * 0.5 - cfg.stop_short_m;
+                let can_stop = c.speed_m_s * c.speed_m_s / (2.0 * cfg.idm_brake_m_s2) <= to_line.max(0.0);
+                match light(&cfg.lights, lane.to_node, phase, now) {
+                    Light::Green => {}
+                    Light::Amber if !can_stop => {}
+                    Light::Amber | Light::Red => continue,
+                }
+            }
             waiting.entry(lane.to_node).or_default().push((t, c.id, i, n));
         }
         for (node, mut list) in waiting {
@@ -1539,15 +1627,17 @@ mod tests {
         // a wreck on the connector: everyone behind it queues
         let (mut t, g, d) = filled(8);
         run(&mut t, &g, &d, 20.0);
-        let Some(i) = t
-            .cars
-            .iter()
-            .position(|c| c.state == CarState::Driving && g.lanes[c.lane as usize].kind == LaneKind::Connector)
+        // the car in a junction with the most cars behind it on the lane that feeds it
+        let feed_of = |lane: u32| g.lanes.iter().find(|l| l.out.contains(&lane)).map(|l| l.id).unwrap();
+        let behind = |lane: u32| t.cars.iter().filter(|o| o.on_lane() && o.lane == feed_of(lane)).count();
+        let Some(i) = (0..t.cars.len())
+            .filter(|&i| t.cars[i].state == CarState::Driving && g.lanes[t.cars[i].lane as usize].kind == LaneKind::Connector)
+            .max_by_key(|&i| (behind(t.cars[i].lane), std::cmp::Reverse(t.cars[i].id)))
         else {
             panic!("no car in a junction");
         };
         let blocked = t.cars[i].lane;
-        let feed = g.lanes.iter().find(|l| l.out.contains(&blocked)).map(|l| l.id).unwrap();
+        let feed = feed_of(blocked);
         t.cars[i].state = CarState::Burnt;
         run(&mut t, &g, &d, 60.0);
         let mut queue: Vec<&Car> = t.cars.iter().filter(|c| c.lane == feed && c.on_lane()).collect();
@@ -1614,6 +1704,105 @@ mod tests {
     }
 
     #[test]
+    fn lights_stand_where_an_arterial_meets_two_other_roads_and_nowhere_else() {
+        // Survey W39, owner 2026-10-26: "Lights on the arterials"; other junctions take turns by arrival.
+        let (_, _, g) = town();
+        assert!(g.nodes.iter().any(|n| n.signal), "the town's arterials have lit junctions");
+        assert!(g.nodes.iter().any(|n| !n.signal), "and its side streets take turns");
+        for n in &g.nodes {
+            let roads: Vec<&crate::world::lanes::Road> = g.roads.iter().filter(|r| r.nodes.contains(&n.id)).collect();
+            let arterial = roads.iter().any(|r| r.kind == LaneKind::Arterial);
+            assert_eq!(n.signal, arterial && roads.len() >= 3, "junction {}", n.id);
+            let into: Vec<&Lane> = g.road_lanes().filter(|l| l.to_node == n.id).collect();
+            assert!(into.iter().all(|l| l.phase.is_some() == n.signal), "junction {}", n.id);
+            if n.signal {
+                for ph in [0, 1] {
+                    assert!(into.iter().any(|l| l.phase == Some(ph)), "junction {} has phase {ph}", n.id);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_junctions_two_phases_are_never_open_together_and_each_gets_its_green() {
+        let times = data().cfg.lights;
+        for node in 0..40 {
+            let mut green = [0u32; 2];
+            for k in 0..(times.cycle_s() * 20.0) as u32 {
+                let t_s = k as f32 * 0.05 + 1000.0;
+                let (a, b) = (light(&times, node, 0, t_s), light(&times, node, 1, t_s));
+                assert!(a == Light::Red || b == Light::Red, "junction {node} at {t_s} s: {a:?} and {b:?}");
+                green[0] += u32::from(a == Light::Green);
+                green[1] += u32::from(b == Light::Green);
+            }
+            assert!(green[0] > 0 && green[1] > 0, "junction {node}: {green:?}");
+        }
+    }
+
+    #[test]
+    fn cars_stop_on_red_and_take_a_lit_junction_only_on_green_or_an_amber_they_cannot_stop_for() {
+        let (mut t, g, d) = filled(5);
+        let ground = FlatGround::default();
+        let times = d.cfg.lights;
+        let mut stopped_at_red = 0;
+        let mut crossed_lit = 0;
+        for _ in 0..(240.0 / DT) as usize {
+            let before: BTreeMap<u32, (u32, bool)> = t.cars.iter().map(|c| (c.id, (c.lane, c.granted))).collect();
+            t.step(&view(&g, &d, &ground), Vec3::ZERO, DT);
+            let now = t.time_s();
+            for c in t.cars.iter().filter(|c| c.on_lane() && c.state == CarState::Driving) {
+                let Some(&(was, was_granted)) = before.get(&c.id) else { continue };
+                let lane = &g.lanes[was as usize];
+                let Some(phase) = lane.phase else { continue };
+                let shows = light(&times, lane.to_node, phase, now);
+                let crossed = c.lane != was && g.lanes[c.lane as usize].kind == LaneKind::Connector;
+                let given_now = !was_granted && ((c.lane == was && c.granted) || crossed);
+                if given_now {
+                    assert_ne!(shows, Light::Red, "car {} given junction {} on red", c.id, lane.to_node);
+                }
+                crossed_lit += usize::from(crossed);
+                let at_line = lane.length_m() - c.s_m < length_of(&d, c) * 0.5 + d.cfg.stop_short_m + 1.0;
+                if c.lane == was && !c.granted && shows == Light::Red && at_line && c.speed_m_s < 0.1 {
+                    stopped_at_red += 1;
+                }
+            }
+        }
+        assert!(stopped_at_red > 0, "cars wait at the line on red");
+        assert!(crossed_lit > 20, "cars cross the lit junctions: {crossed_lit}");
+    }
+
+    #[test]
+    fn with_lights_on_the_arterials_traffic_never_deadlocks() {
+        // Ten minutes of the town: junction crossings keep coming every minute, and no car that is not afraid,
+        // hailed or behind a wreck stands still longer than three light cycles.
+        let (mut t, g, d) = filled(9);
+        let ground = FlatGround::default();
+        let limit_s = d.cfg.lights.cycle_s() * 3.0;
+        let mut still: BTreeMap<u32, f32> = BTreeMap::new();
+        let turns = |t: &Traffic| t.cars.iter().map(|c| u64::from(c.turns)).sum::<u64>();
+        let mut last = turns(&t);
+        for minute in 0..10 {
+            for _ in 0..(60.0 / DT) as usize {
+                t.step(&view(&g, &d, &ground), Vec3::ZERO, DT);
+                for c in &t.cars {
+                    let waiting = c.on_lane() && c.state == CarState::Driving && c.fear_s == 0.0 && !c.hailed && c.speed_m_s < 0.1;
+                    let s = still.entry(c.id).or_insert(0.0);
+                    *s = if waiting { *s + DT } else { 0.0 };
+                    assert!(
+                        *s < limit_s,
+                        "car {} has stood {s:.0} s on lane {} in minute {minute}",
+                        c.id,
+                        c.lane
+                    );
+                }
+            }
+            let now = turns(&t);
+            assert!(now > last + 10, "minute {minute}: only {} junctions crossed", now - last);
+            last = now;
+        }
+    }
+
+    #[test]
     fn seed_11_drives_the_golden_traffic() {
         let (mut t, g, d) = filled(11);
         run(&mut t, &g, &d, 30.0);
@@ -1624,7 +1813,7 @@ mod tests {
         );
     }
 
-    const GOLDEN_11: (usize, u64) = (460, 4063561645986150922);
+    const GOLDEN_11: (usize, u64) = (460, 8585173833603358746);
 
     #[test]
     fn a_blast_within_120_m_stops_the_traffic_for_20_to_40_s() {

@@ -220,6 +220,14 @@ fn main() -> ExitCode {
                 graph.nodes.len(),
                 traffic.cars.len()
             );
+            // the junctions with traffic lights (survey W39) and the light heads the game draws at them
+            let lit = graph.nodes.iter().filter(|n| n.signal).count();
+            let heads = graph
+                .roads
+                .iter()
+                .map(|r| r.nodes.iter().filter(|&&n| graph.nodes[n as usize].signal).count())
+                .sum::<usize>();
+            println!("traffic lights at {lit} junctions, {heads} light heads");
             println!(
                 "traffic step and refill over {steps} steps: p50 {:.3} ms, p95 {:.3} ms, p99 {:.3} ms, max {:.3} ms",
                 q(0.5),

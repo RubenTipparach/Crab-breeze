@@ -86,6 +86,23 @@ What landed, where it differs from the plan above, and what it measured.
   turn, earliest arrival first (ties to the lower id), when its connector meets no connector a car is on or
   has been given, none an earlier car still waits for, and the lane beyond has room for it. A car that cannot
   stop in time stops at the line, never inside the box.
+- **Traffic lights on the arterials** (survey W39, answered 2026-10-26: "Lights on the arterials"). A junction
+  where an arterial meets at least two other roads is lit (`Node::signal`): 257 of the 584 junctions on seed
+  42. Each road lane into it carries a phase (`Lane::phase`): 0 for the roads within 45 degrees of its first
+  arterial, 1 for the rest. The two phases take turns on one clock, `traffic::light` (`lights` in
+  `traffic.ron`: 24 s green, 3 s amber, 2 s red both ways, a 58 s cycle), offset per junction by its id times
+  the golden ratio so neighbours do not all change together. A car whose light is red does not ask for a turn:
+  it stops at the line and holds nobody up; on amber it goes only when it could not stop at 2.5 m/s2
+  (`idm_brake_m_s2`) short of the line; on green it takes its turn by the rule above, so a turn across oncoming
+  traffic still gives way. Every other junction keeps taking turns by arrival. With the lights came one fix to
+  the turn rule for every junction: only the front car of a lane asks for its turn (a car behind it given a
+  turn held a path the car in front needed, and the two stood for good; the lights' red made it common).
+  The game draws a block-out head (pole, housing, three lenses: `cb-app::traffic_lights`) on the kerb of every
+  road into a lit junction, 882 heads on seed 42, shown within 700 m, its lenses lit from the same
+  `traffic::light`. Tested: lights only where an arterial meets two other roads, the phases never open
+  together, no car given a lit junction on red and cars waiting at the line on red, and ten minutes of the
+  town with every minute's crossings and no car standing more than three cycles. Measured again with the
+  lights (`traffic-bench 42 3600`, same Mac): p50 0.125 ms, p95 0.203 ms, p99 0.260 ms a fixed step.
 - **Fear** is two fields on a driving car (`fear_s`, `hailed`) rather than `Stopping` and `Stopped` states:
   the car brakes at 7 m/s2 while either holds. A mech that walks into a car shoves it off its lane as a free
   body (`car::CarBody`, the driven car's own physics) and costs it 0.4 health.
@@ -115,4 +132,4 @@ What landed, where it differs from the plan above, and what it measured.
 | W36 | Are the seven block-outs right to model in detail? | Approve as they are | decided: approved, 2026-10-26 ("Approved all of the stand ins"); detailed models later |
 | W37 | Which harm costs standing with the nearest base? | Only cars with a driver in them, by the player's fire, feet or car | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
 | W38 | What do cars do behind a wreck in their lane? | Queue until it is cleared | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
-| W39 | Junctions: take turns by arrival, or 1980s traffic lights on arterials? | Take turns by arrival | answered by the owner, 2026-10-26 (survey): "Lights on the arterials"; every other junction keeps taking turns by arrival; building |
+| W39 | Junctions: take turns by arrival, or 1980s traffic lights on arterials? | Take turns by arrival | answered by the owner, 2026-10-26 (survey): "Lights on the arterials"; every other junction keeps taking turns by arrival; built (section 6, tested in cb-core) |

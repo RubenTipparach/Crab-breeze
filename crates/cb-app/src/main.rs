@@ -65,6 +65,7 @@ mod sun_flare;
 mod targeting;
 mod textures;
 mod traffic;
+mod traffic_lights;
 mod units;
 mod vents;
 mod walk_in;
@@ -209,7 +210,7 @@ fn main() -> AppExit {
     // Free roam's mail and its missions (free-roam-missions); the Hermit (crab-airship).
     .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin))
     // Car traffic and the car you drive (openspec changes `car-traffic`, `car-driving`).
-    .add_plugins(traffic::TrafficPlugin)
+    .add_plugins((traffic::TrafficPlugin, traffic_lights::TrafficLightsPlugin))
     // Buildings a pilot on foot walks into, and their street doors (building-interiors).
     .add_plugins((walk_in::WalkInPlugin, street_doors::StreetDoorsPlugin))
     // sound: effects in 3D, music, ambience (openspec changes `audio`, `music`, `ambience`)

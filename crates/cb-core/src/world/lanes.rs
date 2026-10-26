@@ -224,6 +224,9 @@ pub struct Lane {
     /// A parked car's sideways offset from this lane, right positive, metres; `None` where nobody
     /// parks (highways, the inner lanes of an arterial, connectors).
     pub parking_m: Option<f32>,
+    /// A road lane running into a junction with traffic lights: which of the junction's two phases its light shows
+    /// green in (survey W39); `None` where junctions take turns by arrival, and for connectors.
+    pub phase: Option<u8>,
 }
 
 impl Lane {
@@ -246,6 +249,9 @@ pub struct Node {
     pub connectors: Vec<u32>,
     /// Lanes stop this far short of its middle, metres.
     pub radius_m: f32,
+    /// 1980s traffic lights stand here (survey W39, owner 2026-10-26: "Lights on the arterials"): where an arterial
+    /// meets at least two other roads. Every other junction takes turns by arrival.
+    pub signal: bool,
 }
 
 /// One road between two junctions: a city street's block-long piece, or a whole highway.
@@ -321,6 +327,7 @@ impl LaneGraph {
                         city: city.id,
                         connectors: Vec::new(),
                         radius_m: wx.max(wz) * 0.5,
+                        signal: false,
                     });
                 }
             }
@@ -365,7 +372,46 @@ impl LaneGraph {
         }
         g.lay_lanes(layout);
         g.join(layout);
+        g.signal();
         g
+    }
+
+    /// Puts traffic lights where an arterial meets at least two other roads (survey W39), and gives each road lane
+    /// into such a junction its phase: 0 for the roads running within 45 degrees of the junction's first arterial
+    /// (both ways), 1 for the rest. The two phases take the junction in turn (`traffic::light`).
+    fn signal(&mut self) {
+        for n in 0..self.nodes.len() {
+            // every road at this junction, and the way it leaves it
+            let mut here: Vec<(u32, Vec2, LaneKind)> = Vec::new();
+            for (ri, r) in self.roads.iter().enumerate() {
+                let pts = &r.line.points;
+                let away = if r.nodes[0] == n as u32 {
+                    pts[1] - pts[0]
+                } else if r.nodes[1] == n as u32 {
+                    pts[pts.len() - 2] - pts[pts.len() - 1]
+                } else {
+                    continue;
+                };
+                here.push((ri as u32, away.normalize_or_zero(), r.kind));
+            }
+            let Some(&(_, axis, _)) = here.iter().find(|h| h.2 == LaneKind::Arterial) else {
+                continue;
+            };
+            if here.len() < 3 {
+                continue;
+            }
+            self.nodes[n].signal = true;
+            let cos45 = std::f32::consts::FRAC_1_SQRT_2;
+            for lane in self.lanes.iter_mut() {
+                if lane.kind == LaneKind::Connector || lane.to_node != n as u32 {
+                    continue;
+                }
+                let Some(h) = here.iter().find(|h| h.0 == lane.road) else {
+                    continue;
+                };
+                lane.phase = Some(if h.1.dot(axis).abs() >= cos45 { 0 } else { 1 });
+            }
+        }
     }
 
     fn add_road(&mut self, a: u32, b: u32, line: Option<Vec<Vec2>>, width_m: f32, kind: LaneKind) {
@@ -421,6 +467,7 @@ impl LaneGraph {
                         turn_rad: 0.0,
                         conflicts: Vec::new(),
                         parking_m,
+                        phase: None,
                     });
                 }
             }
@@ -488,6 +535,7 @@ impl LaneGraph {
                     turn_rad: turn,
                     conflicts: Vec::new(),
                     parking_m: None,
+                    phase: None,
                 });
             }
         }

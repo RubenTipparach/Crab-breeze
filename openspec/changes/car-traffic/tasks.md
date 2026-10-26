@@ -2,6 +2,10 @@
 
 - [x] 1.1 Lane graph from streets and highways, deterministic, tested (no dead ends, lanes on the road surface)
 - [x] 1.2 `cb-core::traffic`: following, junction right of way, turns, fear, crushing by foot strikes, tested with golden seeds
+- [x] 1.4 Traffic lights on the arterials (survey W39, 2026-10-26: "Lights on the arterials"): lit junctions and phases
+  in the lane graph, `traffic::light` from `lights` in `traffic.ron`, cars stopping on red, the front-car turn fix;
+  tested (no deadlock in ten minutes, cars stop on red); block-out heads drawn (`cb-app::traffic_lights`), not yet
+  seen in a playtest
 - [x] 1.3 `data/world/traffic.ron` (densities, speeds, IDM constants), validated
 - [x] 2.1a The block-outs in `tools/blender/build_cars.py`, checked by `cb-tools validate` and shown on
   `docs/mockups/cars.html`; approved by the owner (2026-10-26: "Approved all of the stand ins", survey W36)

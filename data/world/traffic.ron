@@ -51,4 +51,12 @@
     wreck_life_s: 600.0,
     runner_speed_m_s: 5.0,
     runner_life_s: 40.0,
+    // 1980s traffic lights where an arterial meets at least two other roads (survey W39, owner 2026-10-26:
+    // "Lights on the arterials"); every other junction takes turns by arrival. The two phases take turns: green,
+    // amber, then red both ways for a moment, about a minute round.
+    lights: (
+        green_s: 24.0,
+        amber_s: 3.0,
+        all_red_s: 2.0,
+    ),
 )
