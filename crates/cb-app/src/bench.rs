@@ -11,6 +11,7 @@
 
 use crate::pilot::PilotCamera;
 use crate::showcase::Take;
+use crate::state::GameApp;
 use bevy::camera::RenderTarget;
 use bevy::diagnostic::{DiagnosticsStore, EntityCountDiagnosticsPlugin};
 use bevy::prelude::*;
@@ -54,8 +55,8 @@ impl Plugin for BenchPlugin {
             }
         }
         app.insert_resource(frames)
-            .add_systems(PostStartup, offscreen)
-            .add_systems(Last, (record, report).chain());
+            .add_after_world_spawn(offscreen)
+            .add_game_systems(Last, (record, report).chain());
     }
 }
 

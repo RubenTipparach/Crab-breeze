@@ -4,7 +4,6 @@
 //! Options page closes. The record and its limits are `cb_core::settings`.
 
 use crate::input::Keys;
-use crate::pilot::{CockpitCamera, PilotCamera};
 use crate::sim::Data;
 use bevy::prelude::*;
 use bevy::window::{MonitorSelection, PresentMode, WindowMode};
@@ -66,18 +65,12 @@ fn apply(
     settings: Res<Settings>,
     follows: Res<WindowFollows>,
     mut keys: ResMut<Keys>,
-    mut lenses: Query<&mut Projection, Or<(With<PilotCamera>, With<CockpitCamera>)>>,
     mut suns: Query<&mut DirectionalLight, With<crate::world::Sun>>,
     mut window: Query<&mut Window>,
 ) {
     let s = settings.0;
     keys.deg_per_px = s.mouse_deg_per_px;
     keys.invert_pitch = s.invert_pitch;
-    for mut lens in &mut lenses {
-        if let Projection::Perspective(p) = lens.as_mut() {
-            p.fov = s.fov_deg.to_radians();
-        }
-    }
     for mut sun in &mut suns {
         sun.shadow_maps_enabled = s.shadows && !crate::cli::switched_off("CB_NO_SHADOWS");
     }

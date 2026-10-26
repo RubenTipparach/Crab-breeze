@@ -3,27 +3,66 @@
 //! need to enter airbase hangar, and I would get repairs and free ammo (free repairs fornow)"). Each base the world plan
 //! placed (`cb_core::world::bases`) is drawn as a block-out: a concrete apron over its flattened site, its hangar bays
 //! along the back edge (open toward the apron, tall enough for a 24 m mech to walk in), landing pads and a control
-//! tower. A piloted mech that stops inside a bay is repaired and rearmed at once, free, once each time it walks in.
+//! tower. A piloted mech that stops inside a bay is repaired and rearmed at once, free, once each time it walks in
+//! (`cb_core::bases::service`), and the MECH MFD shows what the bay did. Each bay has a terminal just inside its
+//! mouth: the pilot walks up to it on foot, looks at it and presses Use, and its screen (the menu's TERMINAL page)
+//! signs them up for jobs from the career's board (air-bases design section 5).
 
 use crate::mech::{MechSim, MechSpec, Piloted};
+use crate::pilot::PilotSim;
 use crate::sim::{Data, SimSet};
+use crate::state::GameApp;
 use crate::world::{MeshBuilder, Plan};
 use bevy::prelude::*;
-use cb_core::mech::Damage;
-use cb_core::world::bases::hangar_at;
+use cb_core::bases::service;
+use cb_core::pilot::PilotMode;
+use cb_core::world::bases::{Terminal, hangar_at, terminal_in_reach};
 
-/// Draws the air bases and repairs and rearms a mech that stops in a hangar bay.
+/// Draws the air bases, services a mech that stops in a hangar bay, and opens a terminal the pilot uses.
 pub struct AirBasesPlugin;
 
 impl Plugin for AirBasesPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_bases)
-            .add_systems(FixedUpdate, repair_in_hangars.in_set(SimSet::Mech).after(crate::mech::step_mech));
+        app.init_resource::<LastService>()
+            .init_resource::<TerminalNear>()
+            .add_world_spawn(spawn_bases)
+            .add_game_systems(FixedUpdate, repair_in_hangars.in_set(SimSet::Mech).after(crate::mech::step_mech))
+            .add_game_systems(
+                FixedUpdate,
+                use_terminals.in_set(SimSet::Input).after(crate::input::take_step_actions),
+            )
+            .add_game_systems(Update, open_terminal.before(crate::sim::PresentSet::Input));
     }
 }
 
+/// What the last hangar bay did to the piloted mech, for the MECH MFD (air-bases task 2.3).
+#[derive(Resource, Default)]
+pub struct LastService {
+    /// The base and bay, and the report's lines; `None` before any bay has serviced the mech.
+    pub last: Option<(u32, usize, Vec<String>)>,
+    /// Seconds of play since it, for how long the MFD keeps showing it.
+    pub since_s: f32,
+}
+
+/// How long the MECH MFD shows a bay's report, seconds of play.
+pub const SERVICE_SHOWN_S: f32 = 30.0;
+
+/// The terminal the pilot on foot can use now, if any (the prompt reads it), and the one they asked for
+/// by pressing Use at it, until the menu opens it.
+#[derive(Resource, Default)]
+pub struct TerminalNear {
+    /// In reach and looked at.
+    pub near: Option<Terminal>,
+    /// Use was pressed at it this step.
+    pub wanted: Option<Terminal>,
+}
+
+/// The terminal whose screen is open (the menu's TERMINAL page reads it).
+#[derive(Resource, Clone, Copy)]
+pub struct AtTerminal(pub Terminal);
+
 /// Wall and roof thickness of a hangar, metres.
-const WALL_M: f32 = 1.5;
+const WALL_M: f32 = cb_core::world::bases::HANGAR_WALL_M;
 /// The apron's lift over the flattened ground, metres (clear of the terrain, no z-fighting).
 const APRON_LIFT_M: f32 = 0.12;
 /// A landing pad's side, metres.
@@ -47,6 +86,13 @@ fn spawn_bases(
         perceptual_roughness: 0.8,
         ..default()
     });
+    // The terminals' screens glow phosphor green, the colour of the pages they show.
+    let screen = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.05, 0.2, 0.08),
+        emissive: LinearRgba::rgb(0.3, 1.6, 0.5),
+        unlit: false,
+        ..default()
+    });
     // Darker than a pavement: the whole site is concrete and a light tone washed out in the sun.
     let apron_tone = [0.26, 0.26, 0.25, 1.0];
     let wall_tone = [0.72, 0.72, 0.7, 1.0];
@@ -55,6 +101,7 @@ fn spawn_bases(
     for b in &plan.0.bases {
         let mut slab = MeshBuilder::tiled(4.0, 4.0);
         let mut marks = MeshBuilder::default();
+        let mut screens = MeshBuilder::default();
         let g = b.ground_m;
         let r = b.rect();
         // The apron over the whole site.
@@ -116,7 +163,7 @@ fn spawn_bases(
             }
         }
         // The control tower by the front corner.
-        let t = Vec2::new(r.max.x - 40.0, r.min.y + 40.0);
+        let t = b.tower().centre();
         slab.block(
             Vec3::new(t.x - 6.0, g, t.y - 6.0),
             Vec3::new(t.x + 6.0, g + 36.0, t.y + 6.0),
@@ -127,6 +174,32 @@ fn spawn_bases(
             Vec3::new(t.x + 9.0, g + 44.0, t.y + 9.0),
             roof_tone,
         );
+        // A terminal inside each bay's mouth: a post with a lit screen facing the apron.
+        for t in b.terminals(cfg) {
+            let (x, z) = (t.at.x, t.at.y);
+            slab.block(Vec3::new(x - 0.6, g, z - 0.3), Vec3::new(x + 0.6, g + 1.1, z + 0.3), roof_tone);
+            slab.block(
+                Vec3::new(x - 0.8, g + 1.1, z - 0.15),
+                Vec3::new(x + 0.8, g + 2.2, z + 0.35),
+                roof_tone,
+            );
+            let y0 = g + 1.2;
+            screens.quad(
+                [
+                    Vec3::new(x - 0.7, y0, z - 0.17),
+                    Vec3::new(x + 0.7, y0, z - 0.17),
+                    Vec3::new(x + 0.7, y0 + 0.9, z - 0.17),
+                    Vec3::new(x - 0.7, y0 + 0.9, z - 0.17),
+                ],
+                [1.0, 1.0, 1.0, 1.0],
+            );
+        }
+        commands.spawn((
+            Name::new(format!("air base {} terminal screens", b.id)),
+            Mesh3d(meshes.add(screens.build())),
+            MeshMaterial3d(screen.clone()),
+            Transform::IDENTITY,
+        ));
         commands.spawn((
             Name::new(format!("air base {}", b.id)),
             Mesh3d(meshes.add(slab.build_with_tangents())),
@@ -144,14 +217,19 @@ fn spawn_bases(
 }
 
 /// A piloted mech that stops inside a hangar bay is repaired (every part not lost back to full) and
-/// rearmed (every weapon's rounds back to its full load), free, once each time it walks in.
+/// rearmed (every weapon's rounds back to its full load), free, once each time it walks in; the base becomes
+/// the career's current base and the MECH MFD shows the report.
 fn repair_in_hangars(
     plan: Res<Plan>,
     data: Res<Data>,
+    time: Res<Time<Fixed>>,
     mut mechs: Query<(&mut MechSim, &MechSpec), With<Piloted>>,
+    mut last: ResMut<LastService>,
+    mut career: Option<ResMut<crate::career::CareerRun>>,
     mut inside: Local<Option<(u32, usize)>>,
 ) {
     let cfg = &data.0.world.bases;
+    last.since_s += time.delta_secs();
     for (mut sim, spec) in &mut mechs {
         let at = hangar_at(&plan.0.bases, cfg, Vec2::new(sim.curr.pos.x, sim.curr.pos.z));
         if at.is_none() {
@@ -162,16 +240,53 @@ fn repair_in_hangars(
             continue;
         }
         *inside = at;
-        let full = Damage::new(&spec.parts);
+        let Some((base, bay)) = at else { continue };
         let sim = &mut *sim;
-        for (i, s) in sim.damage.structure.iter_mut().enumerate() {
-            if !sim.damage.lost.get(i).copied().unwrap_or(false) {
-                *s = full.structure[i];
-            }
-        }
-        sim.guns.rounds_left = spec.weapons.iter().map(|w| w.rounds).collect();
-        if let Some((base, bay)) = at {
-            info!("air base {base}, bay {bay}: repaired and rearmed");
+        let done = service(&mut sim.damage, &spec.parts, &mut sim.guns.rounds_left, &spec.weapons);
+        info!("air base {base}, bay {bay}: {}", done.lines().join(", "));
+        last.last = Some((base, bay, done.lines()));
+        last.since_s = 0.0;
+        if let Some(run) = career.as_deref_mut()
+            && run.career.base != base
+        {
+            run.career.base = base;
+            crate::career::save(&run.career);
         }
     }
+}
+
+/// Finds the terminal the pilot on foot stands at and looks at; Use there asks for its screen, and is spent on it,
+/// so the mech parked in the same bay (its rope within reach) is not boarded by the same press.
+fn use_terminals(
+    plan: Res<Plan>,
+    data: Res<Data>,
+    pilot: Res<PilotSim>,
+    mut actions: ResMut<crate::input::StepActions>,
+    mut near: ResMut<TerminalNear>,
+) {
+    let p = &pilot.curr;
+    near.near = (p.mode == PilotMode::OnFoot && p.waiting.is_none())
+        .then(|| terminal_in_reach(&plan.0.bases, &data.0.world.bases, Vec2::new(p.feet.x, p.feet.z), p.yaw_rad))
+        .flatten();
+    if actions.use_pressed && near.near.is_some() {
+        near.wanted = near.near;
+        actions.0.use_pressed = false;
+    }
+}
+
+/// Opens the terminal's screen when the pilot asked for it.
+fn open_terminal(
+    mut commands: Commands,
+    mut near: ResMut<TerminalNear>,
+    mut menu: ResMut<crate::menu::Menu>,
+    mut time: ResMut<Time<Virtual>>,
+    mut cursor: Single<&mut bevy::window::CursorOptions>,
+) {
+    let Some(t) = near.wanted.take() else { return };
+    if menu.is_open() {
+        return;
+    }
+    info!("TERMINAL base {} bay {} opened", t.base, t.bay);
+    commands.insert_resource(AtTerminal(t));
+    crate::menu::open(&mut menu, crate::menu::Menu::Terminal, &mut time, &mut cursor);
 }

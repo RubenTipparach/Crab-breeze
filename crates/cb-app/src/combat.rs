@@ -9,6 +9,7 @@ use crate::blast::Explosion;
 use crate::fx::Fx;
 use crate::mech::{MechId, MechRig, MechSim, MechSpec, apply_hit};
 use crate::sim::SimSet;
+use crate::state::GameApp;
 use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use cb_core::mech::rig::BONES;
@@ -142,7 +143,7 @@ pub struct CombatPlugin;
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Shots>()
-            .add_systems(FixedUpdate, fly_shots.in_set(SimSet::Mech).after(crate::mech::step_mech));
+            .add_game_systems(FixedUpdate, fly_shots.in_set(SimSet::Mech).after(crate::mech::step_mech));
     }
 }
 

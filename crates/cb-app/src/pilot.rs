@@ -5,6 +5,7 @@
 use crate::input::{InputAccum, StepActions};
 use crate::mech::{MechAccessNow, MechRig};
 use crate::sim::{Data, PresentSet, SimSet};
+use crate::state::GameApp;
 use crate::world::{Live, Plan, SKY};
 use bevy::pbr::{DistanceFog, FogFalloff};
 use bevy::prelude::*;
@@ -48,14 +49,15 @@ impl Plugin for PilotPlugin {
         })
         .init_resource::<PilotEvents>()
         .init_resource::<Shake>()
-        .add_systems(Startup, (cpu_light_clustering, spawn_camera))
-        .add_systems(FixedUpdate, step_pilot.in_set(SimSet::Pilot))
-        .add_systems(Startup, spawn_prompt)
-        .add_systems(
+        .add_world_spawn((cpu_light_clustering, spawn_camera))
+        .add_game_systems(FixedUpdate, step_pilot.in_set(SimSet::Pilot))
+        .add_world_spawn(spawn_prompt)
+        .add_game_systems(
             Update,
             (
                 (shake_on_blasts, place_camera, crate::water_render::track_eye, weather_and_screens).chain(),
                 show_prompt,
+                ease_fov,
             )
                 .in_set(PresentSet::Camera),
         );
@@ -77,6 +79,30 @@ fn cpu_light_clustering(mut settings: ResMut<bevy::light::cluster::GlobalCluster
     settings.gpu_clustering = None;
 }
 
+/// The view widens as the pilot sits and narrows as they stand (openspec change `seated-fov`; owner, 2026-10-26:
+/// "normal fps fov is 75, it grows to 95 when inside the mech"): the one system that sets the pilot camera's and the
+/// cockpit pass's field of view, from the player's seated setting and the data's on-foot view, eased
+/// (`cb_core::pilot::fov_blend`, `fov_deg`). Only the field of view changes, never where the view points.
+fn ease_fov(
+    pilot: Res<PilotSim>,
+    data: Res<Data>,
+    settings: Res<crate::settings::Settings>,
+    time: Res<Time>,
+    mut blend: Local<f32>,
+    mut lenses: Query<&mut Projection, Or<(With<PilotCamera>, With<CockpitCamera>)>>,
+) {
+    let cfg = &data.0.pilot;
+    *blend = cb_core::pilot::fov_blend(*blend, pilot.curr.mode == PilotMode::Seated, time.delta_secs(), cfg.fov_change_s);
+    let fov = cb_core::pilot::fov_deg(cfg, settings.0.fov_deg, *blend).to_radians();
+    for mut lens in &mut lenses {
+        if let Projection::Perspective(p) = lens.as_mut()
+            && (p.fov - fov).abs() > 1e-5
+        {
+            p.fov = fov;
+        }
+    }
+}
+
 fn spawn_camera(mut commands: Commands, data: Res<Data>) {
     let light = &data.0.cockpit_light;
     // Bevy's perspective is reverse-Z with an infinite far plane, so `far` only culls: seeing 40 km
@@ -84,7 +110,8 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
     let view = &data.0.world.view;
     let srgb = |c: [f32; 3]| Color::srgb(c[0], c[1], c[2]);
     let lens = Projection::from(PerspectiveProjection {
-        fov: data.0.pilot.view_fov_deg.to_radians(),
+        // On foot at the start; `ease_fov` owns it from then on (openspec change `seated-fov`).
+        fov: data.0.pilot.on_foot_fov_deg.to_radians(),
         near: 0.05,
         far: view.far_m,
         ..default()
@@ -369,11 +396,25 @@ fn spawn_prompt(mut commands: Commands) {
     ));
 }
 
-/// Shows "E: step into the cockpit" when the kneeling mech is ready and the pilot is near.
-fn show_prompt(pilot: Res<PilotSim>, access: Res<MechAccessNow>, data: Res<Data>, mut prompt: Single<&mut Text, With<Prompt>>) {
+/// Shows "E: step into the cockpit" when the kneeling mech is ready and the pilot is near, and "E: use the
+/// terminal" at a hangar bay's terminal (air-bases).
+fn show_prompt(
+    pilot: Res<PilotSim>,
+    access: Res<MechAccessNow>,
+    data: Res<Data>,
+    terminal: Option<Res<crate::air_bases::TerminalNear>>,
+    mut prompt: Single<&mut Text, With<Prompt>>,
+) {
     let p = &pilot.curr;
     let ready = access.0.as_ref().is_some_and(|a| a.hatch_open && p.can_board(a, &data.0.pilot));
-    let want = if ready { "[E]  Step into the cockpit" } else { "" };
+    let at_terminal = terminal.as_ref().is_some_and(|t| t.near.is_some());
+    let want = if at_terminal {
+        "[E]  Use the terminal: jobs, shop, refit"
+    } else if ready {
+        "[E]  Step into the cockpit"
+    } else {
+        ""
+    };
     if prompt.0 != want {
         prompt.0 = want.into();
     }

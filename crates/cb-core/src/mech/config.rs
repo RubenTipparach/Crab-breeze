@@ -197,6 +197,12 @@ pub struct JetConfig {
     pub recharge_delay_s: f32,
     /// Emptied, they relight once this share is back.
     pub relight_fraction: f32,
+    /// WASD swivels the rockets up to this far from straight down, toward the way asked, so they push the mech that
+    /// way a little (owner, 2026-10-25: "I should move forward slightly when using my rockets, wasd shoulsd also
+    /// swivel the rocket in that general direction").
+    pub vector_max_deg: f32,
+    /// How fast the rockets swivel, degrees a second.
+    pub vector_rate_deg_s: f32,
 }
 
 impl Default for JetConfig {
@@ -217,6 +223,9 @@ impl Default for JetConfig {
             recharge_s: 8.0,
             recharge_delay_s: 1.5,
             relight_fraction: 0.3,
+            // sin(20 degrees) of 56 m/s2: about 19 m/s2 across at full lift, a third of the climb's push.
+            vector_max_deg: 20.0,
+            vector_rate_deg_s: 60.0,
         }
     }
 }
@@ -384,6 +393,8 @@ pub struct InteriorConfig {
 pub struct MechConfig {
     /// Display name.
     pub name: String,
+    /// Its risk tier, 1 to 4: the riskiest jobs owning it opens (openspec change `career-progression`).
+    pub tier: u8,
     /// A glb under `assets/` following the rig contract (`models/mech_<name>.glb`). When set it
     /// replaces the stand-in's boxes; the stand-in skeleton is then unused.
     pub model: Option<String>,
@@ -427,6 +438,7 @@ impl Default for MechConfig {
     fn default() -> Self {
         Self {
             name: "stand-in".into(),
+            tier: 1,
             model: None,
             interior: None,
             body: BodyConfig::default(),
@@ -446,6 +458,9 @@ impl Default for MechConfig {
 
 impl Validate for MechConfig {
     fn validate(&self) -> Result<(), String> {
+        if !(1..=4).contains(&self.tier) {
+            return Err(format!("`tier` must be 1 to 4, got {}", self.tier));
+        }
         let r = &self.ram;
         positive("ram.speed_m_s", r.speed_m_s)?;
         within("ram.stopped_fraction", r.stopped_fraction, 0.0, 1.0)?;
@@ -507,6 +522,8 @@ impl Validate for MechConfig {
         positive("jet.recharge_s", j.recharge_s)?;
         crate::data::finite("jet.recharge_delay_s", j.recharge_delay_s)?;
         within("jet.relight_fraction", j.relight_fraction, 0.0, 1.0)?;
+        within("jet.vector_max_deg", j.vector_max_deg, 0.0, 60.0)?;
+        positive("jet.vector_rate_deg_s", j.vector_rate_deg_s)?;
         let k = &self.skate;
         positive("skate.speed_max_m_s", k.speed_max_m_s)?;
         positive("skate.accel_m_s2", k.accel_m_s2)?;

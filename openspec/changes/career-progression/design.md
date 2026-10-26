@@ -12,7 +12,15 @@
 - Pay is the tier's pay times (1 + the standing bonus at the offering base), rounded to 10 credits.
 - Standing per base is kept in the career (`Career.standing`, one number per base).
 
-## 3. Cost
+## 3. Decided while building (2026-10-25)
+
+- An offer's tier is drawn at even odds among the tiers open for its kind; the Destroy kind has no tier 1.
+- The offering base is the base nearest the job's site; its standing sets the bonus.
+- When a purchase opens a tier, the board offers one job of that tier at once (beyond `open_offers`) and mails
+  "Tier n contracts open", so the new tier is seen without waiting for an offer slot.
+- Standing is 0 to `standing_max` (10), one point a job won, one lost for a failed or abandoned one, 5 % pay a point.
+
+## 4. Cost
 
 Nothing per frame; a few numbers in the save.
 

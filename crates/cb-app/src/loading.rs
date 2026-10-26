@@ -7,6 +7,7 @@
 //! scripted takes begin only after it, so a recording never opens on a blank or half-built window.
 
 use crate::mech::{MechAccessNow, MechRig, Piloted};
+use crate::state::GameApp;
 use bevy::prelude::*;
 
 /// Seconds of steady frames needed after everything is in.
@@ -30,8 +31,8 @@ pub struct LoadingPlugin;
 impl Plugin for LoadingPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GameReady>()
-            .add_systems(Startup, show)
-            .add_systems(Update, watch);
+            .add_world_spawn(show)
+            .add_game_systems(Update, watch);
     }
 }
 

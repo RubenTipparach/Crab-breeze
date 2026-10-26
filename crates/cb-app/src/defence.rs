@@ -7,6 +7,7 @@
 use crate::mech::{EnemyGoal, Loadout, MechId, MechSim, Piloted, SpawnAssets, spawn_enemy};
 use crate::pilot::PilotSim;
 use crate::sim::{Data, SimSet};
+use crate::state::GameApp;
 use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use cb_core::mission::{
@@ -60,9 +61,9 @@ impl Plugin for DefencePlugin {
     fn build(&self, app: &mut App) {
         // Always present; it runs once the mission begins (`Defending` and `DefenceRun` inserted:
         // by `--mission defence` before startup, or by the title menu's City defence).
-        app.add_systems(Update, switch.after(crate::missions::MissionsSet))
-            .add_systems(FixedUpdate, give_goals.in_set(SimSet::Input).run_if(resource_exists::<Defending>))
-            .add_systems(
+        app.add_game_systems(Update, switch.after(crate::missions::MissionsSet))
+            .add_game_systems(FixedUpdate, give_goals.in_set(SimSet::Input).run_if(resource_exists::<Defending>))
+            .add_game_systems(
                 FixedUpdate,
                 step_mission
                     .in_set(SimSet::Mech)

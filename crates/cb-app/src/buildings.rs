@@ -15,6 +15,7 @@
 
 use crate::building_state::{ArrayMaterial, ArrayState, BuildingMaterial, BuildingStates, ElementState, slot, standing_words};
 use crate::sim::{PresentSet, SimSet};
+use crate::state::GameApp;
 use crate::world::{Live, MeshBuilder};
 use bevy::light::NotShadowCaster;
 use bevy::prelude::*;
@@ -383,8 +384,8 @@ impl Plugin for BuildingsPlugin {
             .init_resource::<Dressed>()
             .init_resource::<DressJobs>()
             .init_resource::<DressingSettled>()
-            .add_systems(FixedUpdate, step_structures.in_set(SimSet::World))
-            .add_systems(
+            .add_game_systems(FixedUpdate, step_structures.in_set(SimSet::World))
+            .add_game_systems(
                 Update,
                 (dress_near_player, redraw_buildings, show_rooms_near)
                     .chain()

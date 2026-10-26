@@ -17,6 +17,9 @@
 
 ## 3. Delivery
 
+Superseded (owner, 2026-10-26): a bought mech is air dropped near the pilot, wherever they are (`mech-shop` design
+section 6). The text below is kept as it was designed.
+
 - An order at an airfield terminal starts a delivery: a cargo aircraft lands, taxis to the apron
   and the mech walks down its ramp to a boarding spot. Seen in first person from the apron.
 - Delivery time and price per mech live in `data/mechs/<id>.ron` (`price`, `delivery_s`).

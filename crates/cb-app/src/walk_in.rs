@@ -17,6 +17,7 @@
 
 use crate::pilot::PilotSim;
 use crate::sim::{Data, SimSet};
+use crate::state::GameApp;
 use crate::world::{Live, Plan, Seed};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
@@ -44,7 +45,7 @@ impl Plugin for WalkInPlugin {
         let cfg = app.world().resource::<Data>().0.world.interiors.clone();
         app.insert_resource(InteriorColliders(Interiors { cfg, ..Default::default() }))
             .init_resource::<ColliderJobs>()
-            .add_systems(
+            .add_game_systems(
                 FixedUpdate,
                 (stream_colliders, swing_doors)
                     .chain()

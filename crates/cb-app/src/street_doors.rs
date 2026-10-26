@@ -10,6 +10,7 @@
 
 use crate::buildings::{Dressed, LeafLooks};
 use crate::sim::PresentSet;
+use crate::state::GameApp;
 use crate::walk_in::InteriorColliders;
 use crate::world::{Live, Plan, Seed};
 use bevy::prelude::*;
@@ -34,7 +35,7 @@ pub struct StreetDoorsPlugin;
 impl Plugin for StreetDoorsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DrawnDoors>()
-            .add_systems(Update, (hang_leaves, swing_leaves).chain().in_set(PresentSet::Pose));
+            .add_game_systems(Update, (hang_leaves, swing_leaves).chain().in_set(PresentSet::Pose));
     }
 }
 

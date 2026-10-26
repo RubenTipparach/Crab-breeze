@@ -6,6 +6,7 @@
 use crate::fx::Fx;
 use crate::mech::{MechSim, MechSpec, apply_hit};
 use crate::sim::{Data, SimSet};
+use crate::state::GameApp;
 use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use cb_core::mech::{Hit, PartKind};
@@ -27,7 +28,7 @@ pub struct BlastPlugin;
 impl Plugin for BlastPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<Explosion>()
-            .add_systems(FixedUpdate, explode.in_set(SimSet::Mech).after(crate::mech::step_mech));
+            .add_game_systems(FixedUpdate, explode.in_set(SimSet::Mech).after(crate::mech::step_mech));
     }
 }
 
