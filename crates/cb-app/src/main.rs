@@ -28,6 +28,7 @@ mod fx;
 mod fx_gallery;
 mod grass;
 mod ground;
+mod ground_fog;
 mod ground_marks;
 mod hud;
 mod input;
@@ -210,6 +211,8 @@ fn main() -> AppExit {
     ))
     // Free roam's mail and its missions (free-roam-missions); the Hermit (crab-airship).
     .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin))
+    // How thick the ground fog is now: its clock and the mission's preset (ground-fog, survey F1).
+    .add_plugins(ground_fog::GroundFogPlugin)
     // Car traffic and the car you drive (openspec changes `car-traffic`, `car-driving`).
     .add_plugins((traffic::TrafficPlugin, traffic_lights::TrafficLightsPlugin))
     // Buildings a pilot on foot walks into, and their street doors (building-interiors).
