@@ -188,10 +188,12 @@ silicon Mac, 2026-10-26; the rules only, no drawing):
 | Lanes | 6: three harbour to harbour (13-41 km), three out to the offing (5-7 km); 9 fishing runs; the ferry's 3.2 km |
 | Timetable | 102 boats: 26 freighters, 28 tankers, 9 fishing boats, 6 of them at anchor among those, 38 lake boats, 1 ferry |
 | Laying out | 360 ms once at load (the sea grid's 42 000 ground samples are most of it) |
-| A fixed step at a harbour | 15-22 boats real: 5 us median, 25-47 us p95, 30-50 us p99, 216 us worst (a step that makes boats real) |
-| A fixed step on a lake | 4 boats real: 4 us median, 13 us p95 |
+| A fixed step at a harbour | 15-22 boats real: 5 us median, 32-60 us p95, 38-64 us p99, 243 us worst (a step that makes boats real) |
+| A fixed step on a lake | 4 boats real: 4 us median, 16 us p95 |
 
-A step is well under 1 % of the 16.7 ms fixed step at 60 Hz. The drawing's cost is measured on the 3070.
+The rules' step is well under 1 % of the 16.7 ms fixed step at 60 Hz (the p95 is a step where several boats sound the
+water at once). The game's side (hits, shoves, the job bookkeeping, drawing about 60 glb scenes) is not measured
+here: it is measured on the 3070 with the playtest.
 
 ## Pre-approved choices
 
