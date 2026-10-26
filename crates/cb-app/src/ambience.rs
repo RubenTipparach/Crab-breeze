@@ -8,7 +8,7 @@ use crate::audio::{Ear, HearSet};
 use crate::sim::Data;
 use crate::state::GameApp;
 use crate::world::{Live, Plan};
-use bevy::audio::{AudioPlayer, AudioSink, AudioSinkPlayback, PlaybackSettings, Volume};
+use bevy::audio::{AddAudioSource, AudioPlayer, AudioSink, AudioSinkPlayback, AudioSource, Decodable, PlaybackSettings, Source, Volume};
 use bevy::prelude::*;
 use cb_core::audio::{self as rules, ZoneInputs, ZoneWeights, db_to_gain};
 use std::collections::HashMap;
@@ -35,6 +35,8 @@ struct Bed {
 #[derive(Resource, Default)]
 struct Beds {
     playing: HashMap<String, Bed>,
+    /// Every bed's recording, kept loaded once asked for.
+    files: HashMap<String, Handle<AudioSource>>,
     weights: ZoneWeights,
     read_in_s: f32,
     seed: u64,
@@ -49,7 +51,87 @@ impl Plugin for AmbiencePlugin {
             seed: 0x2545_F491_4F6C_DD1D,
             ..Default::default()
         })
+        .add_audio_source::<BedLoop>()
         .add_game_systems(Update, (read_zone, play_beds).chain().after(HearSet));
+    }
+}
+
+/// A bed's recording looped from its start, entered `start` into the loop. Bevy's own start position
+/// (`PlaybackSettings::start_position`) decodes and throws away everything before it on the main thread as the
+/// sound starts, and the Vorbis decoder cannot seek: 20 to 43 ms for a start up to 30 s into the loop, the largest
+/// main-thread stalls on the streaming route (2026-10-26). Here the skip happens on the audio thread instead, a
+/// few samples at a time while the bed is still silent (`LateSkip`).
+#[derive(Asset, TypePath, Clone)]
+pub struct BedLoop {
+    source: AudioSource,
+    start: Duration,
+}
+
+/// Input samples skipped for each (silent) output sample while catching up to a bed's start: 30 s into a loop
+/// is reached in under 2 s, while the bed fades in from silence.
+const SKIP_PER_SAMPLE: u64 = 16;
+
+impl Decodable for BedLoop {
+    type Decoder = LateSkip;
+
+    fn decoder(&self) -> LateSkip {
+        let inner = self.source.decoder();
+        let per_s = u64::from(inner.sample_rate().get()) * u64::from(inner.channels().get());
+        LateSkip {
+            left: (self.start.as_secs_f64() * per_s as f64) as u64 / u64::from(inner.channels().get()) * u64::from(inner.channels().get()),
+            inner,
+            source: self.source.clone(),
+        }
+    }
+}
+
+/// A bed's samples: silence while it skips to its start, then the recording, over and over from its beginning.
+pub struct LateSkip {
+    inner: <AudioSource as Decodable>::Decoder,
+    source: AudioSource,
+    /// Input samples still to skip (whole frames).
+    left: u64,
+}
+
+impl Iterator for LateSkip {
+    type Item = bevy::audio::Sample;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.left > 0 {
+            let n = self.left.min(SKIP_PER_SAMPLE);
+            for _ in 0..n {
+                if self.inner.next().is_none() {
+                    self.left = 0;
+                    break;
+                }
+            }
+            self.left = self.left.saturating_sub(n);
+            return Some(0.0);
+        }
+        match self.inner.next() {
+            Some(s) => Some(s),
+            // The end of the recording: round again from its beginning.
+            None => {
+                self.inner = self.source.decoder();
+                self.inner.next()
+            }
+        }
+    }
+}
+
+impl Source for LateSkip {
+    fn current_span_len(&self) -> Option<usize> {
+        // One recording: its rate and channels hold to the end.
+        None
+    }
+    fn channels(&self) -> bevy::audio::ChannelCount {
+        self.inner.channels()
+    }
+    fn sample_rate(&self) -> bevy::audio::SampleRate {
+        self.inner.sample_rate()
+    }
+    fn total_duration(&self) -> Option<Duration> {
+        None
     }
 }
 
@@ -100,6 +182,7 @@ fn play_beds(
     ear: Res<Ear>,
     data: Res<Data>,
     assets: Res<AssetServer>,
+    (sources, mut loops): (Res<Assets<AudioSource>>, ResMut<Assets<BedLoop>>),
     time: Res<Time>,
     ready: Res<crate::loading::GameReady>,
     settings: Res<crate::settings::Settings>,
@@ -124,6 +207,9 @@ fn play_beds(
         let silent = cfg.stop_below_db - 10.0;
         if !beds.playing.contains_key(name) {
             let Some(_) = target else { continue };
+            let file = beds.files.entry(name.clone()).or_insert_with(|| assets.load(bed.file.clone()));
+            // Started once its recording is loaded (Bevy waited the same way).
+            let Some(source) = sources.get(&*file) else { continue };
             // start somewhere in the loop, so two visits do not open on the same bird
             seed ^= seed << 13;
             seed ^= seed >> 7;
@@ -132,8 +218,12 @@ fn play_beds(
             let voice = commands
                 .spawn((
                     Name::new(format!("ambience {name}")),
-                    AudioPlayer::new(assets.load(bed.file.clone())),
-                    PlaybackSettings::LOOP.with_volume(Volume::Linear(0.0)).with_start_position(start),
+                    AudioPlayer(loops.add(BedLoop {
+                        source: source.clone(),
+                        start,
+                    })),
+                    // `BedLoop` loops itself, from the recording's beginning.
+                    PlaybackSettings::ONCE.with_volume(Volume::Linear(0.0)),
                 ))
                 .id();
             beds.playing.insert(name.clone(), Bed { voice, db: silent });
@@ -149,4 +239,51 @@ fn play_beds(
         }
     }
     beds.seed = seed;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn recording(name: &str) -> AudioSource {
+        let p = crate::cli::repo_root().join("assets/audio").join(name);
+        AudioSource {
+            bytes: std::fs::read(&p).unwrap_or_else(|e| panic!("{}: {e}", p.display())).into(),
+        }
+    }
+
+    #[test]
+    fn a_bed_plays_from_its_start_after_a_silent_catch_up_as_bevys_start_position_did() {
+        let source = recording("sfx/alarm_warning.ogg");
+        let start = Duration::from_millis(500);
+        let mut late = BedLoop {
+            source: source.clone(),
+            start,
+        }
+        .decoder();
+        let skipped = late.left;
+        // the lead-in is silence, a sixteenth of what it skips
+        let lead = skipped.div_ceil(SKIP_PER_SAMPLE);
+        for _ in 0..lead {
+            assert_eq!(late.next(), Some(0.0));
+        }
+        let bevy: Vec<f32> = source.decoder().skip_duration(start).take(4096).collect();
+        let after: Vec<f32> = late.by_ref().take(4096).collect();
+        assert_eq!(after, bevy, "the same samples Bevy's start position gave");
+    }
+
+    #[test]
+    fn a_bed_goes_round_again_from_the_recordings_beginning() {
+        let source = recording("sfx/autocannon.ogg");
+        let whole: Vec<f32> = source.decoder().collect();
+        let mut bed = BedLoop {
+            source: source.clone(),
+            start: Duration::ZERO,
+        }
+        .decoder();
+        let first: Vec<f32> = bed.by_ref().take(whole.len()).collect();
+        assert_eq!(first, whole);
+        let again: Vec<f32> = bed.take(1000).collect();
+        assert_eq!(again, whole[..1000].to_vec(), "round again from the start");
+    }
 }

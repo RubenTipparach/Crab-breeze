@@ -1,4 +1,4 @@
-<title>Hermit Air Fortress</title>
+<title>Stratostacean Air Fortress</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <!-- Source of docs/mockups/crab_fortress.html: python3 tools/mockups/gen_crab_fortress.py inlines the block-outs at __MODELS__.
      Presents openspec/changes/crab-airship. Every number here is the design's (design.md sections 1 to 5). -->
@@ -120,7 +120,7 @@ ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; 
 
 <header>
   <div class="eyebrow">Crab Breeze · enemy design review · defence wave 3 · block-out</div>
-  <h1>The Hermit air fortress</h1>
+  <h1>The Stratostacean air fortress</h1>
   <p class="lede">A 420 m crab-shell carrier hanging 600 m over the city on eight armoured lift thrusters. It launches fighters off its bow catapults, drops crab mechs on parachutes from its belly, and guards its deck with crab mechs of its own, while its turrets track your mech and fire. Shoot it down: click to fire your mech's cannon, autocannon or missiles at any part. Each part has hit points and armour. The lift thrusters are plated on their outboard side, so get under it. Destroy three on one side and it opens the thrusters built into its hull; their port holes only take hits from directly above or below. Knock out enough of those and it rolls over, falls and crashes. Try <b>Fight</b> to do it from your cockpit.</p>
 </header>
 
@@ -265,7 +265,7 @@ ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; 
 <script>
 const MODELS = __MODELS__;
 const TEX = __TEXTURES__;      // the fortress's armour maps (assets/textures/mech): fortress_shell, fortress_belly, fortress_side, nacelle, panel
-const PAL = __PALETTE__;       // the hermit palette (tools/blender/mech_palettes.py), as sRGB hex
+const PAL = __PALETTE__;       // the stratostacean palette (tools/blender/mech_palettes.py), as sRGB hex
 const LAYOUT = __LAYOUT__;     // the fortress's features (tools/mockups/fortress_layout.json): the geometry and its armour's layout read the same
 const T = THREE, TAU = Math.PI * 2, DEG = Math.PI / 180;
 const ease = x => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
@@ -369,7 +369,7 @@ const deckTex = canvasTex(256, 1152, (g, w, h) => {
 });
 M.deck = new T.MeshStandardMaterial({ map: deckTex, roughness: 0.8, metalness: 0.25 });
 // The plating, the mechs' way (owner, 2026-10-25: "make textures for the crab ... use same armor techniques as the mech", in
-// red and dark orange with a grey platform): the modern plating maps, neutral, tinted by the hermit palette; normal and ORM maps with them
+// red and dark orange with a grey platform): the modern plating maps, neutral, tinted by the stratostacean palette; normal and ORM maps with them
 const texLoader = new T.TextureLoader();
 let texLeft = 0, texDone = null; const texReady = new Promise(ok => { texDone = ok; });
 function loadTex(key, srgb) { texLeft++; const t = texLoader.load(TEX[key], () => { if (--texLeft === 0) texDone(); }, undefined, () => { if (--texLeft === 0) texDone(); });

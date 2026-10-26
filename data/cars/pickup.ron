@@ -1,0 +1,40 @@
+// A full-size pickup with a cab and an open bed: tradesmen and farmers.
+// A 1980s civilian car, no real brand (survey J7). Handling is arcade, grippy and simple (survey J8):
+// openspec/changes/car-driving/design.md section 2. Sizes are the block-out's, in metres; the car
+// faces -z; sockets are in its frame (x right, y up from the ground, z back).
+(
+    name: "Pickup",
+    model: "models/cars/pickup.glb",
+    size_m: (1.85, 1.75, 5.2),
+    mass_kg: 1800.0,
+    // light steel and glass: any real gun's round goes through
+    armour_mm: 5.0,
+    city_weight: 2.0,
+    highway_weight: 2.0,
+    top_speed_m_s: 42.0,
+    reverse_fraction: 0.333,
+    accel_m_s2: 3.0,
+    brake_m_s2: 8.5,
+    coast_m_s2: 0.8,
+    wheelbase_m: 3.2,
+    wheel_radius_m: 0.4,
+    track_m: 1.6,
+    max_steer_deg: 33.0,
+    top_speed_steer_fraction: 0.2,
+    steer_rate_rad_s: 3.0,
+    lateral_grip_per_s: 60.0,
+    handbrake_grip: 0.3,
+    grip_recover_per_s: 2.0,
+    handbrake_yaw_gain: 0.8,
+    handbrake_brake_m_s2: 3.0,
+    ride_height_m: 0.4,
+    spring_n_m: 40000.0,
+    damper_n_s_m: 4000.0,
+    crash_safe_m_s: 3.0,
+    crash_damage_per_m_s: 0.04,
+    eye_driver_m: (-0.4, 1.45, -0.3),
+    door_driver_m: (-1.43, 0.0, -0.3),
+    speedo_full_scale_km_h: 180.0,
+    speedo_sweep_deg: 240.0,
+    paints: [(0.55, 0.08, 0.06), (0.85, 0.83, 0.78), (0.2, 0.22, 0.24)],
+)

@@ -48,7 +48,7 @@ PALETTES = {
     # TURRET #ac2847 the turrets and missile launchers, FRAME #2c1e31 the structure, ACCENT #ec273f the
     # livery bands, METAL #deceed, GLOW #9de64e, RUBBER #10121c: the owner's sRGB, kept here linear.
     # Read by gen_crab_fortress.py.
-    "hermit": dict(BODY=(0.815, 0.235, 0.038), BODY2=(0.296, 0.067, 0.042), PLATFORM=(0.434, 0.386, 0.479),
+    "stratostacean": dict(BODY=(0.815, 0.235, 0.038), BODY2=(0.296, 0.067, 0.042), PLATFORM=(0.434, 0.386, 0.479),
                    TURRET=(0.413, 0.021, 0.063), FRAME=(0.025, 0.013, 0.031), ACCENT=(0.839, 0.020, 0.050),
                    RUBBER=(0.005, 0.006, 0.012), METAL=(0.730, 0.617, 0.847), GLOW=(0.337, 0.791, 0.076)),
 }

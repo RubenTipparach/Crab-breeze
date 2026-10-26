@@ -725,10 +725,19 @@ fn draw(
                 // The terminal's screen: the career's jobs board, signed up for here (or free roam's missions).
                 let title = terminal.as_deref().map_or_else(
                     || "TERMINAL".to_string(),
-                    |t| format!("TERMINAL   BASE {}  BAY {}", t.0.base + 1, t.0.bay + 1),
+                    |t| match t.0.office {
+                        Some(h) => format!("HARBOUR OFFICE {}", h + 1),
+                        None => format!("TERMINAL   BASE {}  BAY {}", t.0.base + 1, t.0.bay + 1),
+                    },
                 );
                 p.spawn(label(&title, 26.0, DIM));
-                if let Some(run) = career.as_deref() {
+                // A harbour office's screen is the jobs board alone (harbours).
+                let office = terminal.as_deref().is_some_and(|t| t.0.office.is_some());
+                if let Some(run) = career.as_deref()
+                    && office
+                {
+                    mail_page(p, &run.career);
+                } else if let Some(run) = career.as_deref() {
                     terminal_tabs(p, *tab);
                     match *tab {
                         TerminalTab::Jobs => mail_page(p, &run.career),
@@ -1028,7 +1037,12 @@ fn mail_page(p: &mut ChildSpawnerCommands, c: &cb_core::career::Career) {
         cb_core::jobs::JobKind::Defend => "Defend",
         cb_core::jobs::JobKind::Intercept => "Intercept",
         cb_core::jobs::JobKind::Destroy => "Destroy",
+        cb_core::jobs::JobKind::Escort => "Escort",
+        cb_core::jobs::JobKind::Raid => "Sink the gunboats",
+        cb_core::jobs::JobKind::Blockade => "Clear the blockade",
     };
+    // A shipping job's enemies are gunboats (harbours).
+    let foes = |k: cb_core::jobs::JobKind| if k.at_sea() { "gunboats" } else { "mechs" };
     match c.board.current() {
         Some(j) => {
             let m = (j.clock_s / 60.0).floor();
@@ -1036,11 +1050,12 @@ fn mail_page(p: &mut ChildSpawnerCommands, c: &cb_core::career::Career) {
             let state = if j.state == JobState::Active { "UNDER WAY" } else { "ACCEPTED" };
             p.spawn(label(
                 &format!(
-                    "{state}: TIER {} {} City {}, {} mechs, {} credits, {m:.0}:{s:02.0} left",
+                    "{state}: TIER {} {} City {}, {} {}, {} credits, {m:.0}:{s:02.0} left",
                     j.tier,
                     what(j.kind),
                     j.city + 1,
                     j.mechs,
+                    foes(j.kind),
                     j.pay
                 ),
                 24.0,
@@ -1076,11 +1091,12 @@ fn mail_page(p: &mut ChildSpawnerCommands, c: &cb_core::career::Career) {
                 },
                 label(
                     &format!(
-                        "{subject}\nTIER {}  {} City {}, {} mechs, {} credits, base {} standing {}",
+                        "{subject}\nTIER {}  {} City {}, {} {}, {} credits, base {} standing {}",
                         j.tier,
                         what(j.kind),
                         j.city + 1,
                         j.mechs,
+                        foes(j.kind),
                         j.pay,
                         j.base + 1,
                         c.standing_at(j.base)

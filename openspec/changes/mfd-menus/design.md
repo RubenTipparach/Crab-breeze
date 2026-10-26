@@ -22,8 +22,8 @@
    +--------------------------+
    ```
 
-4. Look at a row (it lights) and click: the screen shows that page from now on. Each screen keeps its own page, so
-   the pilot can keep the MAP on one, MAIL on another and the readouts on the rest.
+4. Look at a row (it lights) and click: the screen shows that page while the pilot stays in MFD focus. Each screen
+   keeps its own page, so the pilot can keep the MAP on one, MAIL on another and the readouts on the rest.
 5. On an app page, the same pointing works on its own rows and buttons (the shop's BUY, the map's zoom, a mail's
    ACCEPT, DECLINE). **BACK** (top right of the menu and of every app page), or Escape while pointing at the screen, closes
    the menu or app and gives the screen back the readout it showed when its menu was opened: one press, back to the
@@ -32,7 +32,14 @@
    from the menu to an app and on to another keeps it. Picking a readout from the menu makes that the screen's page,
    and so its home the next time. The one step inside an app is the shop's sheet, whose **LIST** button returns to the
    shop's list (`mech-shop`).
-6. Let go of free look: the outline goes, the screens keep their pages, the guns are live again.
+6. Let go of free look (or leave the seat): MFD focus ends, the outline goes, **every screen goes back to its default
+   page** and forgets its menu, and the guns are live again (owner, 2026-10-26, survey C14: "mfds return to default
+   as soon as you click back on them, leaving mfd focus"). The default is the page a screen is built with: MECH,
+   FLIGHT and MISSION hung above, MISSION, TARGET and WEAPONS on the dash (`DASH_SCREENS`). Nothing is remembered
+   between focuses, so nothing is remembered between sorties, and nothing is saved. The rule is
+   `cb_core::mfd_focus` (`ScreenPages::leave_focus`, `focus_left`), tested there; `mfd::leave_focus` applies it.
+   A click on a readout still opens its menu as before: the desktop session's idea of a first click that only
+   focuses a screen was not taken, because it changes how a menu opens and the owner's words do not ask for it.
 
 ## 2. The outline
 
@@ -92,4 +99,4 @@ pointer, so two screens showing their menus at once show the same rows; only the
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | C13 | The outline's colour | Amber, the selected-station colour on the WEAPONS page | provisional (survey C13) |
-| C14 | Should the screens remember their pages between sorties | Yes, saved with the career | provisional (survey C14) |
+| C14 | Should the screens remember their pages between sorties | Yes, saved with the career | decided by the owner (2026-10-26): no, and not between focuses either: "mfds return to default as soon as you click back on them, leaving mfd focus" (section 1, step 6) |

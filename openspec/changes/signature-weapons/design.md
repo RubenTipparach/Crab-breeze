@@ -15,7 +15,7 @@ helpless at a range its signature is bad at.
 | Mule | 35 mm autocannon | 35 mm autocannon | **Rocket ripple** | |
 | Picket | **Rail rifle** | 35 mm autocannon (its machine gun) | shoulder missile | |
 | Roustabout | **Breaching gun** | 35 mm autocannon | shoulder missile | |
-| Sapper | 35 mm autocannon (its rifle) | rocket pod (its forearm pod) | shoulder missile | **Siege mortar** |
+| Sapper | 35 mm autocannon (its rifle) | rocket pod (its forearm pod) | shoulder missile | **Grenade launcher** (was the siege mortar; G21) |
 
 Where a model's arm holds a melee tool (the Foreman's breaker, the Driller's auger, the Ironhorse's buffer ram, the
 Mule's and Roustabout's piston fists), that arm also strikes in close combat (`close-combat`), as now.
@@ -33,7 +33,7 @@ Starting numbers, in each mech's `weapons.ron`; playtests tune them.
 | Rocket ripple | `Rocket`, `burst: (16, 0.125)` | 240 m/s | 12 s a ripple | 120 mm | 30 each | 2 MJ | 0 |
 | Rail rifle | `Slug { charge_s: 1.0 }`, scope 10x | 2 400 m/s | 4.0 s | 400 mm | 140 | 0 | 0.35 a shot |
 | Breaching gun | `Pellets { count: 16, spread_deg: 2.0 }` | 550 m/s | 1.2 s | 45 mm a pellet | 8 a pellet (128 all in) | 0 | 0 |
-| Siege mortar | `Shell`, `lob: true` | 45 degrees, charge set by range | 6.0 s | 120 mm (falls on the roof) | 120 | 20 MJ | 0 |
+| Grenade launcher (G21, replaces the siege mortar) | `Shell`, `lob: (elevation_deg: 30, min_m: 60, max_m: 600)` | 30 degrees, charge set by range | 1.5 s | 90 mm | 60 | 6 MJ | 0 |
 
 What they mean in a fight (mechs about 24 m tall, a torso about 6 m across, parts of 100 to 160 structure):
 
@@ -53,11 +53,29 @@ What they mean in a fight (mechs about 24 m tall, a torso about 6 m across, part
   behind its shield and picks parts off at 2 km.
 - **Breaching gun**: the cone is 3.5 m in radius at 100 m, so about 12 of 16 pellets hit a torso (96 damage), about 3
   at 200 m. A street fighter's gun beside a piston fist.
-- **Siege mortar**: the gun lays itself at 45 degrees and sets its charge for the range to the aim point (100 to
-  1 500 m), so the shell lands where the crosshair is, over whatever is between. Flight is `sqrt(2 d / g)`: 7.8 s to
-  300 m, 14.3 s to 1 km, with an apex at a quarter of the range (250 m at 1 km): over any tower. The slowest weapon
-  in the game and the only one that lands behind a building. The TARGET page shows the time of flight and a
-  countdown to the splash.
+- **Grenade launcher** (survey G21, below; it replaces the siege mortar first written here): the shoulder barrel lays
+  itself at 30 degrees and sets its charge for the range to the aim point (60 to 600 m), so the grenade lands where
+  the crosshair is. Flight is `sqrt(2 d tan(30) / g)`: 3.4 s to 100 m, 5.9 s to 300 m, 8.4 s to 600 m, against the
+  mortar's 7.8 s to 300 m and 14.3 s to 1 km. The apex is a quarter of the range times tan(30): 43 m at 300 m. It
+  comes down at 30 degrees, so it clears a 24 m mech or a three-storey wall standing 42 m in front of the target:
+  it still reaches behind cover, just not behind a tower. One every 1.5 s against the mortar's 6 s, 36 a sortie.
+
+### The Sapper's grenade launcher (survey G21)
+
+The owner, 2026-10-26, on "Is the mortar's 7 to 18 s flight too slow to be fun": **"maybe a grenade launcher?"**,
+then "Approve all" and "Go and implement". Read as: keep the one weapon in the game that reaches behind cover, but
+make it a quick, short-range one rather than a siege gun. So:
+
+- **Lobbed and arcing**, the same `lob` rule the mortar was to use, at a lower 30 degrees instead of 45: lower is
+  faster (the flight time grows with the square root of `tan(elevation)`), and 30 degrees still drops the grenade
+  steeply enough to clear a mech-height wall in front of the target.
+- **Shorter range**: 60 to 600 m instead of 100 to 1 500 m. Past 600 m it lays for 600 m and falls short.
+- **Faster to use**: one every 1.5 s (the mortar's 6 s), 3.4 to 8.4 s of flight (the mortar's 7.8 to 18 s), a
+  smaller blast (6 MJ against 20 MJ) and 60 damage against 120, so it is a suppressing gun, not a building-killer.
+- **It fires from the Sapper's existing shoulder barrel** (`CANNON_R`, already in its glb), on G (fire group 3), so no
+  new socket (`BACK_R`) and no model rebuild was needed. The long barrel reads more as a cannon than a launcher; a
+  launcher model is for the Sapper's detailed pass.
+- The TARGET page's time-of-flight countdown is not built yet.
 
 ## 3. Two new fields, in one place
 
@@ -67,10 +85,11 @@ Both on `WeaponSpec`, resolved in `weapons::launch` beside `weapon-kinds`' kinds
 - `burst: Option<(u8, f32)>`: shots a pull and the gap between them, seconds. The pull starts the burst; the shots
   leave on the fixed steps the gaps fall on, each along the aim at its own moment; the interval runs from the last.
   Losing the arm mid-burst ends it.
-- `lob: bool`: before launch, the elevation is fixed at 45 degrees and the muzzle speed set to
-  `sqrt(g d)` for the horizontal range `d` to the aim point (the ground or building the crosshair is on), clamped to
-  the gun's `range_m` (min 100, max 1 500). Pure: aim point, muzzle, g in; velocity out. Tested: a shell from the
-  solved velocity lands within 1 m of the aim point on flat ground at 300, 700 and 1 500 m.
+- `lob: Option<Lob>` (`elevation_deg`, `min_m`, `max_m`): before launch, the elevation is fixed and the muzzle speed
+  solved for the horizontal range `d` to the aim point (the ground, building or mech the crosshair is on) and its
+  height `dy` above the muzzle, `v^2 = g d^2 / (2 cos^2(e) (d tan(e) - dy))`, the range clamped to the gun's. Pure:
+  `weapons::lob_velocity`. It also takes off the half step of gravity the fixed-step flight adds, so the stepped shell
+  lands where the smooth arc would. Tested: a grenade lands within 1 m of the aim point at 100, 300 and 600 m.
 
 **Loadouts as data.** `MechConfig.weapons` reads `data/mechs/<id>/weapons.ron` when the mech file names it
 (`weapons: Some("mechs/<id>/weapons.ron")`, written by the generator as a reference, never the contents). The
@@ -98,5 +117,21 @@ recipes. Cloud sessions cannot measure; the owner's machine measures a ripple an
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| G20 | Each mech's signature weapon, as in section 1 | As listed: each one is the weapon its model already carries | provisional (survey G20) |
-| G21 | Is the mortar's 7 to 18 s flight too slow to be fun | Keep it: it is the siege weapon; the TARGET page counts it down | provisional (survey G21) |
+| G20 | Each mech's signature weapon, as in section 1 | As listed: each one is the weapon its model already carries | **Decided**, owner 2026-10-26 ("Approve all"): as listed, the Sapper's changed by G21 |
+| G21 | Is the mortar's 7 to 18 s flight too slow to be fun | Keep it: it is the siege weapon; the TARGET page counts it down | **Decided**, owner 2026-10-26: "maybe a grenade launcher?": a 30 degree, 60 to 600 m grenade launcher (section 2) |
+
+## Built, and the calls made on the way
+
+Built 2026-10-26 on the owner's "Approve all" and "Go and implement"; "Use recommended for survey" for the choices on
+the way:
+
+- **Loadouts**: `data/mechs/<id>/weapons.ron`, read beside the mech file by `MechConfig::load` (the player's mech,
+  the career's designs, enemies), not named from the generated mech file, so the generator and the eight generated
+  files are untouched. `cb-tools validate` refuses a gun whose socket the glb lacks.
+- **Sockets the models already carry**: the Harrow's racks fire from `MISSILE_R`, the Mule's ripple from `ROCKET_R`
+  (the pods do not alternate yet), the Sapper's launcher from `CANNON_R`. No model was rebuilt.
+- **Bursts and salvos share one queue** (`Guns::queue`, `take_queued`): the boom cannon's three, the ripple's
+  sixteen and the racks' twelve leave the same way, each along the aim at its own moment.
+- **The WEAPONS page** lists the signature first and stars it (`STA 1*`), with its state from `Guns::state` and the
+  pod's `LOCKS n/12`. The TARGET page's time of flight, and the effects and sounds of section 4, are not built.
+- **The Picket's scope** is `railgun-scope`'s, added there.

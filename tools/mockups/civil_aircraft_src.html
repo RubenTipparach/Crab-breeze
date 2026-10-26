@@ -1,0 +1,333 @@
+<title>Civil Aircraft at Scale</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Source of docs/mockups/civil_aircraft.html: python3 tools/mockups/gen_civil_aircraft.py inlines __AIRCRAFT__ (the block-out
+     table from `cb-tools aircraft`, the one the game draws, with the modelled freighter's glb, sling and manifest) and
+     __YARDSTICK__ (the Foreman block-out and its manifest).
+     Presents openspec/changes/civil-air-traffic, design section 6. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg: #e9ebef; --panel: #f7f8fa; --edge: #c4cad3; --ink: #12161c; --muted: #56606d;
+  --accent: #4f7a12; --accent-soft: #e3efd2; --warn: #a3271f; --stage: #1a2230;
+  --display: "Saira Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+    --accent: #9cf04a; --accent-soft: #1f2c14; --warn: #ff8f80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+  --accent: #9cf04a; --accent-soft: #1f2c14; --warn: #ff8f80; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 32px; }
+header { display: grid; gap: 4px; margin: 0 auto 14px; max-width: 1440px; }
+.eyebrow { font: 500 12px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 700 34px/1 var(--display); letter-spacing: 0.03em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 80ch; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; max-width: 1440px; margin: 0 auto; }
+@media (max-width: 1040px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+.bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.bar .lbl { font: 500 12px var(--mono); color: var(--muted); min-width: 6ch; }
+button { font: 700 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 9px 12px; cursor: pointer; min-height: 38px; }
+button:hover { border-color: var(--muted); }
+button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+button:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--edge); border-radius: 4px; overflow: hidden; touch-action: none; }
+canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 16 / 10; }
+@media (max-width: 600px) { canvas { aspect-ratio: 1 / 1.15; } }
+.tag { position: absolute; transform: translate(-50%, -100%); pointer-events: none; font: 500 11px var(--mono);
+  color: #e6ebf1; background: rgba(12, 16, 24, 0.82); border: 1px solid #3a4456; padding: 2px 6px; white-space: nowrap; }
+.tag.standin { border-color: #c9a03a; color: #ffe2a0; }
+.tag.rail { border-color: #6fa8ff; color: #cfe2ff; }
+.hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+aside { display: grid; gap: 12px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.card h2 { font: 700 22px/1 var(--display); letter-spacing: 0.05em; text-transform: uppercase; margin: 0; }
+.pill { font: 700 13px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 8px; border-radius: 3px;
+  border: 1px solid var(--warn); color: var(--warn); justify-self: start; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: left; padding: 4px 6px 4px 0; border-bottom: 1px solid var(--edge); vertical-align: top; }
+th { font: 500 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.note { font-size: 13px; color: var(--muted); margin: 0; }
+.foot { max-width: 1440px; margin: 16px auto 0; font-size: 13px; color: var(--muted); }
+.foot code { font: 12px var(--mono); overflow-wrap: anywhere; }
+</style>
+<header>
+  <div class="eyebrow">Crab Breeze · openspec/changes/civil-air-traffic · the freighter modelled (D8) · stand-ins approved 2026-10-26</div>
+  <h1>Civil aircraft, at true size</h1>
+  <p class="lede">The four kinds of civil traffic the owner asked for (survey W33), as the game draws them today, standing on one ground
+  beside the 24 m Foreman and a 1.8 m pilot. The 70 m freighter is the Blender model the game loads (survey D8, W48), with its three levels
+  of detail; beside it the same freighter flies the air drop with a bought mech slung under it. The airliner, light plane and helicopter
+  are still the approved block-out stand-ins, the game's own table of boxes.</p>
+</header>
+<div class="wrap">
+  <section>
+    <div class="bar" role="group" aria-label="Show">
+      <span class="lbl">Show</span>
+      <span id="toggles" style="display:contents"></span>
+      <button id="reset" type="button">Reset view</button>
+    </div>
+    <div class="bar" role="group" aria-label="Freighter level of detail">
+      <span class="lbl">Freighter</span>
+      <span id="lods" style="display:contents"></span>
+    </div>
+    <div class="bar" role="group" aria-label="Rotors">
+      <span class="lbl">Rotors</span>
+      <button id="spin" type="button" aria-pressed="true">Spinning</button>
+      <button id="rail" type="button" aria-pressed="true">Mech-height rail</button>
+    </div>
+    <div class="stage">
+      <canvas id="view" tabindex="0" aria-label="3D view of the civil aircraft, the modelled freighter and the stand-ins, beside the Foreman and a pilot"></canvas>
+      <div id="tags"></div>
+    </div>
+    <p class="hint">Drag to orbit, scroll or pinch to zoom. Keys: arrows orbit, + and - zoom, R resets. The grid is 10 m.</p>
+  </section>
+  <aside>
+    <div class="card">
+      <span class="pill">One model, three stand-ins</span>
+      <h2>Measured sizes</h2>
+      <div class="tbl"><table id="sizes"><thead><tr><th>Kind</th><th>Length</th><th>Span</th><th>Height</th><th>Stands in for</th></tr></thead><tbody></tbody></table></div>
+      <p class="note">Read from <code>data/world/air_traffic.ron</code> through <code>cb-tools aircraft</code>; the Foreman from its block-out manifest.</p>
+    </div>
+    <div class="card">
+      <h2>The freighter, modelled</h2>
+      <p class="note">Survey D8: "Model a real aircraft in Blender now"; W48: the 70 m freighter with a bought mech slung under it. A high-wing
+      four-engine jet freighter of the early 1980s, built the CSG way by <code>tools/blender/build_freighter.py</code>: lofted fuselage and
+      lifting surfaces, lathed nacelles, blisters and fairing unioned in, windows and intakes cut by Exact booleans. Full PBR plating,
+      gear that the game lowers only near the ground, and three levels of detail, each under its triangle budget:</p>
+      <div class="tbl"><table id="lodtbl"><thead><tr><th>Level</th><th>Drawn</th><th>Triangles</th><th>Budget</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="card">
+      <h2>Stand-ins, approved 2026-10-26</h2>
+      <p class="note">The airliner (low wing and two engines), the light plane (a high-wing four-seater) and the helicopter (a light turbine
+      helicopter) stay as the approved block-out stand-ins ("Approved all of the stand ins") until each is modelled.</p>
+    </div>
+  </aside>
+</div>
+<p class="foot">Built by <code>python3 tools/mockups/gen_civil_aircraft.py</code> from <code>tools/mockups/civil_aircraft_src.html</code>.</p>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const AIR = __AIRCRAFT__;
+const YARD = __YARDSTICK__;
+const T = THREE;
+// Embedded textures decode through <img>, not createImageBitmap's fetch() of a blob URL, which the host refuses.
+try { self.createImageBitmap = undefined; } catch (e) {}
+const lin = hex => new T.Color(hex).convertSRGBToLinear();
+const m1 = v => String(+Number(v).toFixed(1));
+const WHAT = { airliner: "a 1980s twin-jet airliner", freighter: "a 1980s heavy freighter", light_plane: "a four-seat light plane", helicopter: "a news or police helicopter" };
+
+const canvas = document.getElementById("view");
+const renderer = new T.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.outputEncoding = T.sRGBEncoding;
+renderer.toneMapping = T.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+const scene = new T.Scene();
+scene.background = lin(0xc9d3dc);
+scene.fog = new T.Fog(lin(0xc9d3dc), 400, 1400);
+const camera = new T.PerspectiveCamera(40, 1.6, 0.3, 5000);
+const controls = new T.OrbitControls(camera, canvas);
+controls.enableDamping = true;
+Object.assign(controls, { minDistance: 5, maxDistance: 800, maxPolarAngle: Math.PI * 0.495 });
+scene.add(new T.HemisphereLight(0xbfd4ee, 0x4a4438, 0.8));
+const sun = new T.DirectionalLight(0xffe8cc, 2.2);
+sun.position.set(-120, 200, -90); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -150, right: 150, top: 150, bottom: -150, near: 10, far: 600 });
+scene.add(sun);
+
+// The ground: concrete apron tone (air_bases.rs), a 10 m grid.
+const ground = new T.Mesh(new T.PlaneGeometry(2000, 2000), new T.MeshStandardMaterial({ color: lin(0x55554f), roughness: 0.95 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+const grid = new T.GridHelper(400, 40, 0x8a8a80, 0x6c6c64); grid.position.y = 0.02; scene.add(grid);
+
+// Exhibits stand side by side, noses toward the default camera, spaced by their spans.
+const exhibits = [];
+const tagsEl = document.getElementById("tags");
+function tag(text, cls, obj, at) {
+  const el = document.createElement("div"); el.className = "tag " + cls; el.textContent = text; tagsEl.appendChild(el);
+  return { el, obj, at };
+}
+const tags = [];
+const spinners = [];
+let x = 0;
+const order = ["freighter", "airliner", "light_plane", "helicopter"];
+const kinds = order.map(id => AIR.kinds.find(k => k.id === id)).filter(Boolean);
+const loader = new T.GLTFLoader();
+const glbBytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
+let pending = 1;
+const loaded = () => { if (--pending <= 0) markReady(); };
+const lodNodes = [];  // every freighter's LOD0-LOD2 nodes, to switch together
+let lodShown = 0;
+function showLod(n) {
+  lodShown = n;
+  for (const set of lodNodes) set.forEach((o, i) => { if (o) o.visible = i === n; });
+  document.querySelectorAll("#lods button").forEach((b, i) => b.setAttribute("aria-pressed", String(i === n)));
+}
+// One modelled kind: its glb (the file the game draws), turned to face the camera; `slung` adds the sling and the
+// Foreman hanging from its hook, the gear up, as the air drop flies it.
+function modelled(k, g, slung) {
+  pending++;
+  loader.parse(glbBytes(k.model.glb), "", gltf => {
+    const root = gltf.scene;
+    root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } if (slung && o.name.startsWith("GEAR_")) o.visible = false; });
+    lodNodes.push(["LOD0", "LOD1", "LOD2"].map(n => root.getObjectByName(n)));
+    g.add(root); showLod(lodShown); loaded();
+  }, loaded);
+  if (slung && k.model.sling_glb) {
+    pending++;
+    loader.parse(glbBytes(k.model.sling_glb), "", gltf => { g.add(gltf.scene); loaded(); }, loaded);
+    pending++;
+    loader.parse(glbBytes(YARD.glb), "", gltf => {
+      gltf.scene.traverse(o => { if (o.isMesh) o.castShadow = true; });
+      gltf.scene.position.set(0, k.model.sling_hook_m[1] - YARD.height_m, 0);
+      gltf.scene.rotation.y = Math.PI;
+      g.add(gltf.scene); loaded();
+    }, loaded);
+  }
+}
+for (const k of kinds) {
+  const g = new T.Group();
+  const half = k.span_m / 2;
+  x += half + 8;
+  // The nose looks along -z in the game; the page turns it to face the camera.
+  g.position.set(x, k.rest_m, 0); g.rotation.y = Math.PI;
+  scene.add(g);
+  if (k.model) {
+    modelled(k, g, false);
+    exhibits.push({ id: k.id, name: k.id.replace("_", " "), obj: g });
+    tags.push(tag(`${k.id}: MODEL ${m1(k.length_m)} x ${m1(k.span_m)} x ${m1(k.height_m)} m`, "", g, new T.Vector3(0, k.height_m - k.rest_m + 3, 0)));
+    x += half;
+    // the air drop: the same freighter flying with the Foreman slung under it, its feet 2 m off the ground
+    const fly = new T.Group();
+    x += half + 12;
+    const hang = YARD.height_m - k.model.sling_hook_m[1];
+    fly.position.set(x, hang + 2, 0); fly.rotation.y = Math.PI;
+    scene.add(fly);
+    modelled(k, fly, true);
+    exhibits.push({ id: k.id + "_drop", name: "air drop", obj: fly });
+    tags.push(tag(`air drop: the Foreman on the hook ${m1(-k.model.sling_hook_m[1])} m below`, "", fly, new T.Vector3(0, k.height_m - k.rest_m + 3, 0)));
+    x += half;
+    const tb = document.querySelector("#lodtbl tbody");
+    const far = ["within " + k.model.lod_m[0] + " m", k.model.lod_m[0] + "-" + k.model.lod_m[1] + " m", "beyond " + k.model.lod_m[1] + " m"];
+    for (const l of k.model.lods) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>LOD${l.lod}</td><td>${far[l.lod]}</td><td class="n">${l.triangles.toLocaleString()}</td><td class="n">${l.budget_triangles.toLocaleString()}</td>`;
+      tb.appendChild(tr);
+    }
+    continue;
+  }
+  const livery = new T.MeshStandardMaterial({ color: new T.Color(k.tint[0], k.tint[1], k.tint[2]).convertSRGBToLinear(), roughness: 0.55, metalness: 0.2 });
+  const dark = new T.MeshStandardMaterial({ color: lin(0x1a1a1c), roughness: 0.6 });
+  for (const b of k.blocks) {
+    const m = new T.Mesh(new T.BoxGeometry(b.size[0], b.size[1], b.size[2]), b.dark ? dark : livery);
+    m.position.set(b.centre[0], b.centre[1], b.centre[2]); m.castShadow = true; m.receiveShadow = true;
+    if (b.spin) { m.userData.spin = b.spin; spinners.push(m); }
+    g.add(m);
+  }
+  exhibits.push({ id: k.id, name: k.id.replace("_", " "), obj: g });
+  tags.push(tag(`${k.id.replace("_", " ")}: STAND-IN ${m1(k.length_m)} x ${m1(k.span_m)} x ${m1(k.height_m)} m`, "standin", g, new T.Vector3(0, k.height_m - k.rest_m + 3, 0)));
+  x += half;
+}
+{ const lods = document.getElementById("lods");
+  ["LOD0 near", "LOD1", "LOD2 far"].forEach((t, i) => {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = t; b.setAttribute("aria-pressed", String(i === 0));
+    b.onclick = () => showLod(i); lods.appendChild(b);
+  }); }
+// The Foreman block-out and a pilot, the yardsticks.
+const bytes = Uint8Array.from(atob(YARD.glb), c => c.charCodeAt(0));
+const foreman = new T.Group(); scene.add(foreman);
+x += 14; foreman.position.set(x, 0, 0);
+exhibits.push({ id: "foreman", name: "Foreman 24 m", obj: foreman });
+tags.push(tag(`Foreman: ${YARD.height_m.toFixed(1)} m tall`, "", foreman, new T.Vector3(0, YARD.height_m + 3, 0)));
+loader.parse(bytes.buffer, "", gltf => {
+  gltf.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  gltf.scene.rotation.y = Math.PI;
+  foreman.add(gltf.scene); loaded();
+}, loaded);
+const pilot = new T.Group();
+const body = new T.Mesh(new T.CylinderGeometry(0.25, 0.25, 1.5, 12), new T.MeshStandardMaterial({ color: lin(0xd77a2a) }));
+body.position.y = 0.75; const head = new T.Mesh(new T.SphereGeometry(0.15, 12, 8), body.material); head.position.y = 1.65;
+pilot.add(body, head); x += 12; pilot.position.set(x, 0, -4); scene.add(pilot);
+exhibits.push({ id: "pilot", name: "Pilot 1.8 m", obj: pilot });
+tags.push(tag("Pilot: 1.8 m", "", pilot, new T.Vector3(0, 2.4, 0)));
+
+// A rail at the mech's height across the yard.
+const rail = new T.Mesh(new T.BoxGeometry(x + 40, 0.25, 0.25), new T.MeshBasicMaterial({ color: lin(0x6fa8ff) }));
+rail.position.set(x / 2, YARD.height_m, 30); scene.add(rail);
+tags.push(tag(`Mech height ${YARD.height_m.toFixed(1)} m`, "rail", rail, new T.Vector3(-x / 2 + 6, 1.5, 0)));
+
+// Toggles per exhibit, and the table.
+const toggles = document.getElementById("toggles");
+for (const e of exhibits) {
+  const b = document.createElement("button"); b.type = "button"; b.textContent = e.name; b.setAttribute("aria-pressed", "true");
+  b.onclick = () => { e.obj.visible = !e.obj.visible; b.setAttribute("aria-pressed", String(e.obj.visible)); };
+  toggles.appendChild(b);
+}
+const tbody = document.querySelector("#sizes tbody");
+for (const k of kinds) {
+  const tr = document.createElement("tr");
+  tr.innerHTML = `<td>${k.id.replace("_", " ")}</td><td class="n">${m1(k.length_m)} m</td><td class="n">${m1(k.span_m)} m</td><td class="n">${m1(k.height_m)} m</td><td>${WHAT[k.id] || k.role}</td>`;
+  tbody.appendChild(tr);
+}
+{ const tr = document.createElement("tr");
+  tr.innerHTML = `<td>Foreman</td><td class="n">${YARD.length_m.toFixed(1)} m</td><td class="n">${YARD.width_m.toFixed(1)} m</td><td class="n">${YARD.height_m.toFixed(1)} m</td><td>the yardstick mech</td>`;
+  tbody.appendChild(tr); }
+
+let spinning = true;
+document.getElementById("spin").onclick = e => { spinning = !spinning; e.currentTarget.setAttribute("aria-pressed", String(spinning)); };
+document.getElementById("rail").onclick = e => { rail.visible = !rail.visible; e.currentTarget.setAttribute("aria-pressed", String(rail.visible)); };
+const home = () => { controls.target.set(x / 2, 10, 0); camera.position.set(x / 2 - 30, 45, -150); controls.update(); };
+document.getElementById("reset").onclick = home;
+home();
+canvas.addEventListener("keydown", e => {
+  const off = camera.position.clone().sub(controls.target);
+  const sph = new T.Spherical().setFromVector3(off);
+  if (e.key === "ArrowLeft") sph.theta -= 0.08; else if (e.key === "ArrowRight") sph.theta += 0.08;
+  else if (e.key === "ArrowUp") sph.phi = Math.max(0.1, sph.phi - 0.06); else if (e.key === "ArrowDown") sph.phi = Math.min(1.55, sph.phi + 0.06);
+  else if (e.key === "+" || e.key === "=") sph.radius = Math.max(5, sph.radius * 0.9); else if (e.key === "-") sph.radius = Math.min(800, sph.radius * 1.1);
+  else if (e.key === "r" || e.key === "R") { home(); return; } else return;
+  e.preventDefault(); camera.position.copy(controls.target).add(off.setFromSpherical(sph)); controls.update();
+});
+
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== Math.floor(w * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+}
+const v = new T.Vector3();
+let last = performance.now();
+let ready = false;
+function markReady() { ready = true; }
+window.MOCKUP_SCENE = scene;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  resize(); controls.update();
+  // Slower than the game's (42 and 250 rad/s), which would strobe on a page.
+  if (spinning) for (const m of spinners) { if (m.userData.spin === "Up") m.rotation.y += 10 * dt; else m.rotation.z += 12 * dt; }
+  renderer.render(scene, camera);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  for (const t of tags) {
+    t.obj.updateMatrixWorld();
+    if (t.obj === rail) v.copy(rail.position).add(t.at); else t.obj.localToWorld(v.copy(t.at));
+    v.project(camera);
+    const show = v.z < 1 && t.obj.visible;
+    t.el.style.display = show ? "" : "none";
+    t.el.style.left = ((v.x + 1) / 2 * w) + "px"; t.el.style.top = ((1 - v.y) / 2 * h) + "px";
+  }
+  if (ready) window.MOCKUP_READY = true;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>

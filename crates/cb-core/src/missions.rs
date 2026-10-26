@@ -12,7 +12,7 @@ use serde::Deserialize;
 pub enum MissionKind {
     /// The three-city defence (`city-defence`).
     Defence,
-    /// The Hermit, the crab air fortress (`crab-airship`).
+    /// The Stratostacean, the crab air fortress (`crab-airship`).
     Fortress,
 }
 

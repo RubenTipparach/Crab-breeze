@@ -199,8 +199,16 @@ pub struct TreeConfig {
     pub tile_sites: u32,
     /// Tiles within this of a body (the pilot, every mech) are grown and kept.
     pub keep_radius_m: f32,
-    /// Tiles within this of a body are grown at once, whatever the per-step budget.
+    /// Tiles within this of a body are grown first, `urgent_tiles_per_step` a step (and every other body keeps no
+    /// more than this).
     pub urgent_radius_m: f32,
+    /// Tiles within this of a body are grown at once, whatever the budgets: the trees a body can reach in the next
+    /// steps.
+    pub must_radius_m: f32,
+    /// Most tiles grown in one fixed step between `must_radius_m` and `urgent_radius_m`. A body new to a place (an
+    /// enemy brought in, a mech dropped) wanted its whole urgent ring, about 16 tiles and 4 to 8 ms on an M4 Max, in
+    /// one step (2026-10-26).
+    pub urgent_tiles_per_step: u32,
     /// Tiles farther than this from every body are let go (their felled trees remembered).
     pub release_radius_m: f32,
     /// Most tiles grown in one fixed step beyond the urgent ones.
@@ -237,6 +245,8 @@ impl Default for TreeConfig {
             tile_sites: 24,
             keep_radius_m: 1500.0,
             urgent_radius_m: 400.0,
+            must_radius_m: 60.0,
+            urgent_tiles_per_step: 4,
             release_radius_m: 2000.0,
             tiles_per_step: 2,
             draw_radius_m: 1200.0,
@@ -274,6 +284,13 @@ impl Validate for TreeConfig {
             return Err("`trees.tile_sites` must be 1 to 64 (a tile's site index is 12 bits)".into());
         }
         positive("trees.urgent_radius_m", self.urgent_radius_m)?;
+        positive("trees.must_radius_m", self.must_radius_m)?;
+        if self.must_radius_m > self.urgent_radius_m {
+            return Err("trees: need `must_radius_m` <= `urgent_radius_m`".into());
+        }
+        if self.urgent_tiles_per_step == 0 {
+            return Err("`trees.urgent_tiles_per_step` must be at least 1".into());
+        }
         positive("trees.keep_radius_m", self.keep_radius_m)?;
         positive("trees.release_radius_m", self.release_radius_m)?;
         positive("trees.draw_radius_m", self.draw_radius_m)?;

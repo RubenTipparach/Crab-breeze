@@ -4,7 +4,9 @@
 //! on the dash) shows one page of it. With free look held, the screen under the view's centre is outlined, and a
 //! click on a readout opens that screen's MENU (`mfd_apps`, openspec change `mfd-menus`); on MENU or MAIL the click
 //! presses the row under the view's centre, found on the page itself (`ray_uv`), and BACK gives the screen back the
-//! page it showed before. A mech with no interior (the stand-in) keeps the pages along the bottom of the view.
+//! page it showed before. Letting go of free look, or leaving the seat, ends MFD focus and puts every screen back on
+//! its default page (survey C14, `cb_core::mfd_focus`). A mech with no interior (the stand-in) keeps the pages along
+//! the bottom of the view.
 
 use crate::hud::{MFD_PAGE_PX, MFD_PAGES as PAGES, MFD_READOUTS, MfdRoot};
 use crate::input::InputAccum;
@@ -18,6 +20,7 @@ use bevy::math::Affine2;
 use bevy::prelude::*;
 use bevy::render::render_resource::TextureFormat;
 use bevy::ui::UiTargetCamera;
+use cb_core::mfd_focus::{ScreenPages, focus_left, focused};
 use cb_core::pilot::PilotMode;
 
 /// The dash's lower screens, bound by exact name (they were baked pictures), and the page each starts on. The left
@@ -32,13 +35,13 @@ struct MfdTarget {
     camera: Entity,
 }
 
-/// A screen showing page `page` (0..PAGES) of the MFD texture through `material`; `home` is the readout it
-/// showed when its menu was opened, which BACK gives back (owner, 2026-10-25: "clicking back should return to mech
-/// view and restore the mfd to its original screen").
+/// A screen showing a page (0..PAGES) of the MFD texture through `material`. `pages` holds the page it is built
+/// with, the page it shows, and the readout it showed when its menu was opened, which BACK gives back (owner,
+/// 2026-10-25: "clicking back should return to mech view and restore the mfd to its original screen"); all of it
+/// lasts only while MFD focus does (survey C14).
 #[derive(Component)]
 struct MfdScreen {
-    page: usize,
-    home: Option<usize>,
+    pages: ScreenPages,
     material: Handle<StandardMaterial>,
 }
 
@@ -47,8 +50,10 @@ pub struct MfdPlugin;
 
 impl Plugin for MfdPlugin {
     fn build(&self, app: &mut App) {
-        app.add_world_spawn(setup)
-            .add_game_systems(Update, (bind_screens, place_pages, point, press, outline, shoot).chain());
+        app.add_world_spawn(setup).add_game_systems(
+            Update,
+            (bind_screens, place_pages, point, press, leave_focus, outline, shoot).chain(),
+        );
     }
 }
 
@@ -120,8 +125,7 @@ fn bind_screens(
             commands.entity(m).insert((
                 MeshMaterial3d(material.clone()),
                 MfdScreen {
-                    page,
-                    home: None,
+                    pages: ScreenPages::new(page),
                     material,
                 },
             ));
@@ -194,7 +198,7 @@ fn point(
             && let Ok((_, screen, _, at, mesh)) = screens.get(e)
         {
             now.screen = Some(e);
-            now.page = Some(screen.page);
+            now.page = Some(screen.pages.page);
             let inv = at.affine().inverse();
             let uv = meshes.get(&mesh.0).and_then(|m| {
                 ray_uv(
@@ -206,7 +210,7 @@ fn point(
                 )
             });
             now.at = uv.map(|uv| uv * MFD_PAGE_PX);
-            now.item = now.at.and_then(|p| item_at(screen.page, p));
+            now.item = now.at.and_then(|p| item_at(screen.pages.page, p));
         }
     }
     if *out != now {
@@ -235,14 +239,14 @@ fn press(
     let Some(mut screen) = pointed.screen.and_then(|e| screens.get_mut(e).ok()) else {
         return;
     };
-    let page = screen.page;
+    let page = screen.pages.page;
     let item = pointed.item;
     let open = offers(career.as_deref().map(|c| &c.career.board), free.as_deref().map(|f| &f.free));
     let next = match item {
         // Escape is BACK wherever the view points on the page (`turn_page`).
         _ if back || page < MFD_READOUTS || matches!(item, Some(Item::Back | Item::Readout(_) | Item::Mail)) => {
-            let (next, home) = turn_page(page, screen.home, item, back);
-            screen.home = home;
+            let (next, home) = turn_page(page, screen.pages.home, item, back);
+            screen.pages.home = home;
             next
         }
         Some(Item::Accept(k)) => {
@@ -287,11 +291,34 @@ fn press(
     };
     if let Some(p) = next {
         sounds.write(crate::audio::Sound::speaker("mfd_click"));
-        screen.page = p.min(PAGES - 1);
+        screen.pages.page = p.min(PAGES - 1);
         if let Some(mut m) = materials.get_mut(&screen.material) {
-            m.uv_transform = page_uv(screen.page);
+            m.uv_transform = page_uv(screen.pages.page);
         }
     }
+}
+
+/// MFD focus ended this frame (free look let go, or the pilot out of the seat): every screen goes back to its default
+/// page and forgets its menu (owner, 2026-10-26, survey C14: "mfds return to default as soon as you click back on
+/// them, leaving mfd focus"). Nothing is kept between focuses, so nothing is kept between sorties either.
+fn leave_focus(
+    actions: Res<crate::input::StepActions>,
+    pilot: Res<PilotSim>,
+    mut screens: Query<&mut MfdScreen>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut was: Local<bool>,
+) {
+    let now = focused(pilot.curr.mode == PilotMode::Seated, actions.free_look);
+    if focus_left(*was, now) {
+        for mut screen in &mut screens {
+            if screen.pages.leave_focus()
+                && let Some(mut m) = materials.get_mut(&screen.material)
+            {
+                m.uv_transform = page_uv(screen.pages.page);
+            }
+        }
+    }
+    *was = now;
 }
 
 /// Which page a screen turns to, and the readout it remembers (`home`), when it is pressed on `item` while showing

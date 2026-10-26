@@ -1,9 +1,9 @@
-// The Hermit's shape for the game's rules, measured off its mockup by tools/mockups/export_fortress_glb.mjs:
+// The Stratostacean's shape for the game's rules, measured off its mockup by tools/mockups/export_fortress_glb.mjs:
 // do not edit by hand (openspec/changes/crab-airship section 9). Frame: metres, +Y up, the fortress faces +Z,
 // +X its own left (port). Parts are the glb's PART_<id> nodes; platforms are the tops a mech stands on (a
 // footprint and the plane over it); hull capsules stop rounds and lines of sight.
 (
-    model: "models/fortress_hermit.glb",
+    model: "models/fortress_stratostacean.glb",
     parts: [
         (id: "bridge", kind: "bridge", side: 0),
         (id: "drive1", kind: "drive", side: 0),

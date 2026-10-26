@@ -9,7 +9,8 @@
 
 ## 2. Interiors and chests
 - [x] 2.1 Driller, Picket, Mule, Sapper chests on their new variants; mechs rebuilt; boarding data regenerated; `cb-tools validate` passes
-- [ ] 2.2 Bake the four at 4096 px, 16 occlusion samples (they ship with the 512 px quick maps until then)
+- [x] 2.2 Bake the four at 4096 px, 16 occlusion samples (`60a06df` the Octagon and Cinema, `aa958bb` the Tile wall and
+  Twin tier; checked 2026-10-26: every atlas 4096 px, 16 samples, denoised, in each manifest)
 - [x] 2.3 Rebuild and rebake the Canopy with its raised screen (4096 px, 2 646 s); Harrow rebuilt and its boarding regenerated; it hides 19.2 % of the fighting band at the 95 degree view
 
 ## 3. Checks

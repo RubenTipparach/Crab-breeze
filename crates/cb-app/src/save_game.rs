@@ -48,6 +48,8 @@ fn place(pilot: &PilotSim, sim: &MechSim) -> Option<Place> {
         PilotMode::OnFoot => false,
         PilotMode::Seated => true,
         PilotMode::Boarding(_) | PilotMode::Disembarking(_) => return None,
+        // a save is not written from a car (car-driving): the last one on foot or seated stands
+        PilotMode::EnteringCar(_) | PilotMode::Driving | PilotMode::ExitingCar(_) => return None,
     };
     let m = &sim.curr;
     Some(Place {

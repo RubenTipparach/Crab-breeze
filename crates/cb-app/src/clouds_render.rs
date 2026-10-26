@@ -298,8 +298,11 @@ fn gather(
         return;
     }
     draw.sorted_at = Some(eye);
+    let _s = crate::perf_hud::section("clouds: resort");
     if let Some(mut mesh) = meshes.get_mut(&draw.mesh) {
-        *mesh = item_mesh(&items(clouds, eye, c.draw_radius_m + 2.0 * eye.y.max(0.0)));
+        let list = items(clouds, eye, c.draw_radius_m + 2.0 * eye.y.max(0.0));
+        crate::perf_hud::count("cloud quads", list.len() as u32);
+        *mesh = item_mesh(&list);
     }
 }
 

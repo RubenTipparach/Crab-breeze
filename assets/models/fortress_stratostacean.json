@@ -1,6 +1,6 @@
 {
-  "_": "The Hermit's block-out, exported from its mockup by tools/mockups/export_fortress_glb.mjs (openspec/changes/crab-airship section 9). Frame: metres, +Y up, the fortress faces +Z, +X its own left (port), origin at the hull's middle.",
-  "file": "fortress_hermit.glb",
+  "_": "The Stratostacean's block-out, exported from its mockup by tools/mockups/export_fortress_glb.mjs (openspec/changes/crab-airship section 9). Frame: metres, +Y up, the fortress faces +Z, +X its own left (port), origin at the hull's middle.",
+  "file": "fortress_stratostacean.glb",
   "lods": [
     {
       "lod": 0,

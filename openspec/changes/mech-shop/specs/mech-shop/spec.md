@@ -51,12 +51,20 @@ walking up to it. Saving SHALL keep it where it landed.
 
 ### Requirement: The delivery is marked on the HUD until it is boarded
 
-From the order until the pilot boards the mech, the HUD SHALL show a marker where the mech is coming down, and then
-where it stands (owner, survey J16: "a marker appears on your hud to show mech delivery. you can swap mechs out at base, with foreman always availible").
+From the order until the pilot boards the mech, the HUD SHALL show a marker for every purchase, wherever it is: where
+the mech is coming down, then where it stands, or the hangar bay it waits in when it was delivered there (owner, survey
+J16: "a marker appears on your hud to show mech delivery. you can swap mechs out at base, with foreman always
+availible"; survey D5, 2026-10-26: "You always get a marker for your purchases so you have to go activate the mech and
+the marker will go away after you enter it").
 
 #### Scenario: The marker lasts until boarding
 - **WHEN** a dropped mech has landed and the pilot has not yet sat in it
 - **THEN** its drop is still on the career and its marker still shows
+
+#### Scenario: A mech delivered to a bay is marked
+- **WHEN** there was no good ground for a drop and the mech went to bay 2 of base 3
+- **THEN** its marker stands at that bay, moves to where it stands once it is called out, and goes when the pilot sits
+  in it
 
 ### Requirement: A parked mech can be called out at a base, and the Foreman always
 

@@ -7,8 +7,10 @@
 //! - a drop's mech brought into the world at the release and held to its fall each fixed step, steered clear of a
 //!   pilot in the site, then handed to its own simulation over the ground so it lands through the mech's own landing
 //!   (its footprints and dust are `ground-marks`'), with `jet_wash` under its retros and `fall_dust` at touchdown;
-//! - the cargo aircraft and the canopies, both block-out stand-ins (named so in their scene nodes);
-//! - the HUD marker over every drop, from the order until the pilot boards the mech, on foot and in the seat;
+//! - the cargo aircraft (civil air traffic's modelled freighter, `aircraft_kind`, survey D8) with the bought mech slung
+//!   under it until the release (W48), and the canopies, block-out stand-ins (named so in their scene nodes);
+//! - the HUD marker over every purchase, from the order until the pilot boards the mech, on foot and in the seat, wherever
+//!   it is: its drop, a hangar bay (the fallback) or standing in the world (survey D5, `Career::unboarded`);
 //! - which owned mech the pilot on foot is walking up to: that one carries `Piloted`, so it is the one that kneels and
 //!   lowers its rope (`mech-boarding`, `rope`: the existing boarding, nothing cut);
 //! - every owned mech in the field put where the career says, when a career is continued and when one is called out
@@ -23,7 +25,7 @@ use crate::world::Plan;
 use bevy::prelude::*;
 use cb_core::air_drop::{self as rules, FallStage, Keep, Needs, PlanGround, Stage};
 use cb_core::boarding::HatchTarget;
-use cb_core::career::Field;
+use cb_core::career::{Field, Waiting};
 use cb_core::mech::MechConfig;
 use cb_core::pilot::PilotMode;
 use std::sync::Arc;
@@ -45,9 +47,13 @@ pub struct Where {
 #[derive(Component)]
 pub struct Dropping(pub u32);
 
-/// The cargo aircraft of a drop (its mech's key). A block-out stand-in.
+/// The cargo aircraft of a drop (its mech's key): civil air traffic's freighter.
 #[derive(Component)]
 struct Aircraft(u32);
+
+/// A bought mech hanging under its cargo aircraft until the release (its key): its model only.
+#[derive(Component)]
+struct Slung(u32);
 
 /// The canopies over a falling mech (its key). Block-out stand-ins.
 #[derive(Component)]
@@ -66,8 +72,6 @@ struct MarkerRoot;
 struct DropAssets {
     cube: Handle<Mesh>,
     dome: Handle<Mesh>,
-    hull: Handle<StandardMaterial>,
-    dark: Handle<StandardMaterial>,
     canopy: Handle<StandardMaterial>,
     line: Handle<StandardMaterial>,
 }
@@ -121,8 +125,6 @@ fn make_assets(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mat
     commands.insert_resource(DropAssets {
         cube: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
         dome: meshes.add(Sphere::new(1.0)),
-        hull: flat(Color::srgb(0.42, 0.45, 0.43), 0.7),
-        dark: flat(Color::srgb(0.16, 0.17, 0.18), 0.6),
         canopy: flat(Color::srgb(0.92, 0.55, 0.18), 0.9),
         line: flat(Color::srgb(0.85, 0.85, 0.8), 0.9),
     });
@@ -284,7 +286,7 @@ fn place_owned(
 /// Which owned mech the pilot on foot is walking up to carries `Piloted` (design section 6.3), so it is the one that
 /// turns to them, kneels and lowers its rope. Handed over only while the pilot is on foot and not waiting on a hatch,
 /// and the mech they were last in has finished closing up. The career's piloted mech follows, and the refit rebuilds
-/// it from its design and fit. Once the pilot is seated in a dropped mech, its drop is done and its marker goes.
+/// it from its design and fit. Once the pilot is seated in a bought mech, its drop is done and its marker goes.
 #[allow(clippy::type_complexity)]
 fn walk_up(
     mut commands: Commands,
@@ -296,7 +298,7 @@ fn walk_up(
     let p = &pilot.curr;
     if p.mode == PilotMode::Seated
         && let Some(key) = run.career.piloting
-        && run.career.drop_of(key).is_some()
+        && run.career.awaits_boarding(key)
     {
         let run = &mut *run;
         run.career.boarded(key);
@@ -487,27 +489,65 @@ fn keep_places(mut run: ResMut<CareerRun>, mechs: Query<(&Owned, &MechSim), With
     }
 }
 
-/// One plain box of the block-outs: centre and size in the parent's space, metres.
-fn block(p: &mut ChildSpawnerCommands, a: &DropAssets, mat: &Handle<StandardMaterial>, centre: Vec3, size: Vec3) {
-    p.spawn((
-        Mesh3d(a.cube.clone()),
-        MeshMaterial3d(mat.clone()),
-        Transform::from_translation(centre).with_scale(size),
-    ));
-}
-
-/// The cargo aircraft: a block-out stand-in until `airfields` models one (64 m fuselage, 72 m wing, a T tail, four
-/// engine pods), its nose toward -z in its own space, flown along its drop's track.
-fn draw_aircraft(mut commands: Commands, run: Res<CareerRun>, a: Res<DropAssets>, mut planes: Query<(Entity, &Aircraft, &mut Transform)>) {
+/// The cargo aircraft: civil air traffic's freighter (`aircraft_kind`), its model (survey D8) with the sling under it
+/// and the bought mech hanging from the sling's hook until the release (W48: "a bought mech slung under it"), flown
+/// along its drop's track on the drop's own clock, high enough that the slung mech's feet are where its fall begins
+/// (`Drop::aircraft`, `AircraftModel::hang_m`); its gear stays up; its engine heard as the traffic's jets are.
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn draw_aircraft(
+    mut commands: Commands,
+    run: Res<CareerRun>,
+    data: Res<Data>,
+    ear: Res<crate::audio::Ear>,
+    assets: Res<AssetServer>,
+    mut looks: ResMut<crate::air_traffic::KindLooks>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut planes: Query<(Entity, &Aircraft, &mut Transform)>,
+    slung: Query<(Entity, &Slung)>,
+    mut loops: MessageWriter<crate::audio::Loop>,
+) {
     let cfg = &run.data.drop;
     let now = run.career.time_s;
+    let Some(spec) = data.0.air_traffic.kinds.get(&cfg.aircraft_kind) else {
+        return;
+    };
+    let model = spec.model.as_ref().filter(|m| m.sling.is_some());
+    let hang = |key: u32| match (model, design_of(&run, key)) {
+        (Some(m), Some(c)) => m.hang_m(c.locomotion.body_height_m),
+        _ => 0.0,
+    };
+    // the slung mech lets go at the release
+    for (e, s) in &slung {
+        if !run
+            .career
+            .drop_of(s.0)
+            .is_some_and(|d| matches!(d.stage(cfg, now), Stage::Inbound(_)))
+        {
+            commands.entity(e).despawn();
+        }
+    }
     for (e, plane, mut t) in &mut planes {
         match run
             .career
             .drop_of(plane.0)
-            .and_then(|d| d.aircraft(cfg, now).map(|p| (p, d.track_rad)))
+            .and_then(|d| d.aircraft(cfg, now, hang(plane.0)).map(|p| (p, d.track_rad)))
         {
-            Some((p, track)) => *t = Transform::from_translation(p).with_rotation(Quat::from_rotation_y(track)),
+            Some((p, track)) => {
+                *t = Transform::from_translation(p).with_rotation(Quat::from_rotation_y(track));
+                if let Some(engine) = spec.engine
+                    && p.distance(ear.at) < data.0.audio.cues.audible_within_m
+                {
+                    loops.write(crate::audio::Loop {
+                        cue: crate::air_traffic::engine_cue(engine.sound),
+                        at: crate::audio::SoundAt::Node(e),
+                        level: cb_core::audio::LoopLevel {
+                            db: 0.0,
+                            pitch: engine.pitch,
+                        },
+                    });
+                }
+            }
             None => commands.entity(e).despawn(),
         }
     }
@@ -515,24 +555,44 @@ fn draw_aircraft(mut commands: Commands, run: Res<CareerRun>, a: Res<DropAssets>
         if planes.iter().any(|p| p.1.0 == d.key) {
             continue;
         }
-        let Some(p) = d.aircraft(cfg, now) else { continue };
-        commands
-            .spawn((
-                Name::new("cargo aircraft (block-out stand-in)"),
-                Aircraft(d.key),
-                Transform::from_translation(p).with_rotation(Quat::from_rotation_y(d.track_rad)),
-                Visibility::default(),
-            ))
-            .with_children(|c| {
-                block(c, &a, &a.hull, Vec3::ZERO, Vec3::new(8.0, 8.0, 64.0));
-                block(c, &a, &a.hull, Vec3::new(0.0, 3.0, -2.0), Vec3::new(72.0, 1.2, 10.0));
-                block(c, &a, &a.hull, Vec3::new(0.0, 7.0, 29.0), Vec3::new(1.2, 10.0, 7.0));
-                block(c, &a, &a.hull, Vec3::new(0.0, 12.0, 30.0), Vec3::new(24.0, 1.0, 5.0));
-                block(c, &a, &a.dark, Vec3::new(0.0, 1.0, -33.0), Vec3::new(5.0, 3.0, 2.0));
-                for x in [-24.0, -12.0, 12.0, 24.0] {
-                    block(c, &a, &a.dark, Vec3::new(x, 1.0, -4.0), Vec3::new(2.4, 2.4, 7.0));
-                }
-            });
+        let Some(p) = d.aircraft(cfg, now, hang(d.key)) else { continue };
+        let root = crate::air_traffic::spawn_aircraft(
+            &mut commands,
+            &mut looks,
+            &mut meshes,
+            &mut materials,
+            &assets,
+            &cfg.aircraft_kind,
+            spec,
+            format!("cargo aircraft: {}", cfg.aircraft_kind),
+            Transform::from_translation(p).with_rotation(Quat::from_rotation_y(d.track_rad)),
+            false,
+        );
+        commands.entity(root).insert(Aircraft(d.key));
+        let (Some(m), Some(sling)) = (model, model.and_then(|m| m.sling.clone())) else {
+            continue;
+        };
+        commands.spawn((
+            Name::new("sling"),
+            bevy::world_serialization::WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(sling))),
+            Transform::IDENTITY,
+            ChildOf(root),
+        ));
+        // the bought mech, hanging by its top from the hook, facing where the aircraft flies (as its model faces in
+        // the mech it becomes at the release)
+        let design = design_of(&run, d.key);
+        if let Some((path, h)) = design.and_then(|c| c.model.clone().map(|p| (p, c.locomotion.body_height_m)))
+            && matches!(d.stage(cfg, now), Stage::Inbound(_))
+        {
+            let hook = Vec3::from_array(m.sling_hook_m);
+            commands.spawn((
+                Name::new(format!("slung mech {}", d.key)),
+                Slung(d.key),
+                bevy::world_serialization::WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(path))),
+                Transform::from_translation(hook - Vec3::Y * h).with_rotation(Quat::from_rotation_y(std::f32::consts::PI)),
+                ChildOf(root),
+            ));
+        }
     }
 }
 
@@ -600,32 +660,43 @@ fn draw_canopies(
     }
 }
 
-/// A drop's marker on the HUD (owner, survey J16: "a marker appears on your hud to show mech delivery"): over its site
-/// from the order until the pilot boards the mech, on foot and in the seat, with its distance and stage; and a warning
-/// while the pilot stands in the drop zone.
-#[allow(clippy::type_complexity)]
+/// A purchase's marker on the HUD (owner, survey J16: "a marker appears on your hud to show mech delivery"; survey
+/// D5: "You always get a marker for your purchases so you have to go activate the mech and the marker will go away
+/// after you enter it"): over each bought mech not yet boarded (`Career::unboarded`), on foot and in the seat, with its
+/// distance and what to do: its drop's stage, the bay it waits in, or walk up to board; and a warning while the pilot
+/// stands in a drop zone.
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 fn draw_markers(
     mut commands: Commands,
     run: Res<CareerRun>,
     near: Res<Where>,
     pilot: Res<PilotSim>,
+    plan: Res<Plan>,
+    data: Res<Data>,
     root: Query<Entity, With<MarkerRoot>>,
     camera: Query<(&Camera, &GlobalTransform), With<PilotCamera>>,
     mut markers: Query<(Entity, &DropMarker, &mut Node, &mut Text, &mut TextColor, &mut Visibility)>,
 ) {
     let cfg = &run.data.drop;
     let now = run.career.time_s;
+    let bases = &data.0.world.bases;
+    let bay_at = |base: u32, bay: u32| {
+        let b = plan.bases.iter().find(|b| b.id == base)?;
+        let c = b.hangars(bases).get(bay as usize)?.centre();
+        Some(Vec3::new(c.x, plan.terrain.height_at(c.x, c.y), c.y))
+    };
+    let marks = run.career.unboarded(&bay_at);
     for (e, m, ..) in &markers {
-        if run.career.drop_of(m.0).is_none() {
+        if !marks.iter().any(|u| u.key == m.0) {
             commands.entity(e).despawn();
         }
     }
     let Some(root) = root.iter().next() else { return };
-    for d in &run.career.drops {
-        if !markers.iter().any(|m| m.1.0 == d.key) {
+    for u in &marks {
+        if !markers.iter().any(|m| m.1.0 == u.key) {
             commands.entity(root).with_children(|r| {
                 r.spawn((
-                    DropMarker(d.key),
+                    DropMarker(u.key),
                     Node {
                         position_type: PositionType::Absolute,
                         ..default()
@@ -639,29 +710,38 @@ fn draw_markers(
     let Some((cam, at)) = camera.iter().next() else { return };
     let eye = at.translation();
     for (_, m, mut node, mut text, mut colour, mut vis) in &mut markers {
-        let Some(d) = run.career.drop_of(m.0) else { continue };
-        let site = Vec3::from_array(d.site);
-        let dist = Vec2::new(eye.x, eye.z).distance(d.site_xz());
-        let name = design_of(&run, d.key).map_or_else(|| "MECH".to_string(), |c| c.name.to_uppercase());
-        let needs = design_of(&run, d.key).map_or(8.0, |c| c.locomotion.body_radius_m);
-        let in_zone = d.site_xz().distance(near.pilot) < needs + cfg.pilot_clear_m + near.body_radius_m && !d.landed;
-        let line = match d.stage(cfg, now) {
-            Stage::Inbound(s) => format!("INBOUND {s:.0} S"),
-            Stage::Falling(f) => format!("FALLING {:.0} M", f.height_m),
-            Stage::Landed => {
-                if pilot.curr.mode == PilotMode::OnFoot {
-                    "WALK UP TO BOARD".to_string()
-                } else {
-                    "LANDED".to_string()
-                }
+        let Some(u) = marks.iter().find(|u| u.key == m.0) else { continue };
+        let dist = Vec2::new(eye.x, eye.z).distance(Vec2::new(u.at.x, u.at.z));
+        let name = design_of(&run, u.key).map_or_else(|| "MECH".to_string(), |c| c.name.to_uppercase());
+        let needs = design_of(&run, u.key).map_or(8.0, |c| c.locomotion.body_radius_m);
+        let walk_up = if pilot.curr.mode == PilotMode::OnFoot {
+            "WALK UP TO BOARD"
+        } else {
+            "CLIMB OUT AND WALK UP TO BOARD"
+        };
+        let (title, line, in_zone) = match (u.waiting, run.career.drop_of(u.key)) {
+            (Waiting::Drop, Some(d)) => {
+                let in_zone = d.site_xz().distance(near.pilot) < needs + cfg.pilot_clear_m + near.body_radius_m && !d.landed;
+                let line = match d.stage(cfg, now) {
+                    Stage::Inbound(s) => format!("INBOUND {s:.0} S"),
+                    Stage::Falling(f) => format!("FALLING {:.0} M", f.height_m),
+                    Stage::Landed => walk_up.to_string(),
+                };
+                ("AIR DROP", line, in_zone)
             }
+            (Waiting::InBay { base, bay }, _) => (
+                "IN HANGAR",
+                format!("BASE {} BAY {}: CALL IT OUT AT THE TERMINAL", base + 1, bay + 1),
+                false,
+            ),
+            _ => ("YOUR", walk_up.to_string(), false),
         };
         let warn = if in_zone { "\nDROP ZONE: MOVE CLEAR" } else { "" };
-        match cam.world_to_viewport(at, site + Vec3::Y * 30.0) {
+        match cam.world_to_viewport(at, u.at + Vec3::Y * 30.0) {
             Ok(p) => {
                 node.left = px(p.x - 60.0);
                 node.top = px(p.y - 14.0);
-                text.0 = format!("<> AIR DROP {name} {dist:.0} M\n{line}{warn}");
+                text.0 = format!("<> {title} {name} {dist:.0} M\n{line}{warn}");
                 colour.0 = if in_zone { WARN } else { AMBER };
                 *vis = Visibility::Inherited;
             }

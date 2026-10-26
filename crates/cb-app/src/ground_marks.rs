@@ -324,7 +324,7 @@ fn take_contacts(
                 speed_m_s,
                 landed,
             } => {
-                let sole = foot + forward(heading_rad) * (lead_m + cfg.sole_ahead_m);
+                let sole = cfg.sole_centre(foot, heading_rad, lead_m);
                 let Some(surface) = mark_surface(&plan, &scene, Vec2::new(sole.x, sole.z)) else {
                     continue;
                 };

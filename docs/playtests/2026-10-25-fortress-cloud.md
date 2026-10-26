@@ -1,10 +1,13 @@
-# The Hermit in the game: cloud stills, 2026-10-25
+# The Stratostacean in the game: cloud stills, 2026-10-25
+
+The fortress was renamed the Stratostacean on 2026-10-26 (survey H2). On the day of these stills it was called the
+Hermit, the name the stills' mail page and the run's log carry; the quotes below use the new name.
 
 **This is not a playtest.** These are headless stills from a cloud session: Mesa's software Vulkan (lavapipe) under
 Xvfb, 4 CPU cores and no GPU. Frames took 1 to 3.5 s each. **No frame times are claimed here** (CLAUDE.md sections 7
 and 9). No OBS, no Drive upload. The pilot never sat in the mech: the stills instrument places the pilot and breaks
 thrusters through the game's own hit path. The playtest belongs on the owner's machine: `./run.sh --mission fortress`,
-or `./run.sh`, Free roam, M for the mail, Start on the Hermit's message.
+or `./run.sh`, Free roam, M for the mail, Start on the Stratostacean's message.
 
 - Branch `claude/youthful-tesla-zrsjb8` (main merged in), seed 42, `--mech mechs/foreman.ron`.
 - Command: `VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json CB_STILLS_FORTRESS=1 xvfb-run -a -s "-screen 0
@@ -16,18 +19,18 @@ or `./run.sh`, Free roam, M for the mail, Start on the Hermit's message.
 
 | Still | Shows |
 | --- | --- |
-| `mail.jpg` | Free roam's mail (M): the Hermit's message RUNNING with Stop, the city defence's with Start |
-| `street.jpg` | The Hermit from an open field 1.1 km off: the model exported from the mockup, textured with its designed armour, the eight lift plumes lit. Beyond 700 m its spikes are not drawn (its LOD1) |
+| `mail.jpg` | Free roam's mail (M): the Stratostacean's message RUNNING with Stop, the city defence's with Start |
+| `street.jpg` | The Stratostacean from an open field 1.1 km off: the model exported from the mockup, textured with its designed armour, the eight lift plumes lit. Beyond 700 m its spikes are not drawn (its LOD1) |
 | `under.jpg` | From under it, 600 m down: the belly, the drop bays, the beam turrets, eight nozzles glowing |
 | `deck.jpg` | The pilot standing on its deck, looking down the runway to the bridge: the spikes drawn up close (LOD0), the deck guns and turrets in red |
 | `legs-falling.jpg` | L1, L2 and L3 broken from under them: their legs fall away tumbling, the hull doors open |
 | `falling.jpg` | HL1 and HL2 broken: it lists to port, burning, and sinks |
 | `crashed.jpg`, `crashed-far.jpg` | After the crash (the wreck itself is hidden behind the city from both places the instrument stands) |
 
-The log of the run (the last of four; 83 to 91 buildings fell in each): `MISSION fortress begins: the Hermit over city 1 ... 600 m up`; three `Lift thruster
+The log of the run (the last of four; 83 to 91 buildings fell in each): `MISSION fortress begins: the Stratostacean over city 1 ... 600 m up`; three `Lift thruster
 destroyed`, `the hull doors open`, `the hull thrusters light`; two `Hull thruster destroyed`, `it is falling`; three
 `a leg hits the ground and explodes`; status lines `lift port 83 % stbd 100 % ... list 8.3 deg, FALLING` from 568 m down
-to 125 m; `MISSION fortress won: the Hermit is down, 83 buildings under it brought down`.
+to 125 m; `MISSION fortress won: the Stratostacean is down, 83 buildings under it brought down`.
 
 ## What was found and fixed on the way
 
@@ -44,10 +47,10 @@ to 125 m; `MISSION fortress won: the Hermit is down, 83 buildings under it broug
 - **The mockup's cylinders never got their nacelle wrap**: the panelling code read the type of a copied geometry,
   so every cylinder was panelled as a box. Fixed in the page; the exported model and the published mockup carry the
   designed nacelle armour.
-- **Switching missions stopped the game**: starting the defence from the mail turned the Hermit off and began the
+- **Switching missions stopped the game**: starting the defence from the mail turned the Stratostacean off and began the
   defence, then the fortress's drawing system ran once more in the same frame without its mission and Bevy stopped.
   Each of its systems now checks for the mission itself, and the switch runs before drawing. Checked with
-  `CB_STILLS_FORTRESS=switch`: `the Hermit turned off, the defence running`, clean exit.
+  `CB_STILLS_FORTRESS=switch`: `the Stratostacean turned off, the defence running`, clean exit.
 - **The spikes now have a level of detail** (owner, 2026-10-25: "spikes should not render until we are up close"):
   `DETAIL_` meshes drawn within 700 m. LOD0 34 372 triangles, LOD1 30 124.
 

@@ -1,11 +1,14 @@
 # Audio sources
 
-Every recording Crab Breeze's sounds are cut from. 50 packs, every one CC0 by its own page when `tools/audio/fetch_cc0.py` read it (a pack whose page does not say CC0 is refused). CC0 asks for no credit; the people who recorded them are named anyway.
+Every recording Crab Breeze's sounds are cut from. 53 packs, every one CC0 by its own page when `tools/audio/fetch_cc0.py` read it (a pack whose page does not say CC0 is refused). CC0 asks for no credit; the people who recorded them are named anyway.
 
 This file is written by `python3 tools/audio/list_sources.py` (run by `tools/audio/render_sfx.sh`) from `tools/audio/cc0_cues.json` and `tools/audio/cc0_licences.json`: edit those, not this. Each cue's exact files and edits are in `assets/audio/sfx/SOURCES.md` and `assets/audio/ambience/SOURCES.md`; candidates and what was looked at are in `docs/analysis/audio-sources.md`.
 
 | Pack | Site | Recorded or uploaded by | Licence | Cues cut from it |
 | --- | --- | --- | --- | --- |
+| [aporee_51269_58510](https://archive.org/details/aporee_51269_58510) | Internet Archive | nolan.fellahi74 | public domain | `civil_rotor` |
+| [aporee_55938_63923](https://archive.org/details/aporee_55938_63923) | Internet Archive | Matt Todd | public domain | `civil_turbofan` |
+| [aporee_69846_81327](https://archive.org/details/aporee_69846_81327) | Internet Archive | john grzinich | public domain | `civil_propeller` |
 | [impact sounds](https://kenney.nl/assets/impact-sounds) | Kenney | Kenney | CC0 | `foot_stomp`, `impact_mech`, `punch_hit_mech` |
 | [interface sounds](https://kenney.nl/assets/interface-sounds) | Kenney | Kenney | CC0 | `mfd_click`, `radio_squelch` |
 | [sci fi sounds](https://kenney.nl/assets/sci-fi-sounds) | Kenney | Kenney | CC0 | `autocannon`, `cannon`, `explosion_large`, `explosion_small`, `foot_stomp`, `impact_building`, `jet_ignite`, `missile_launch`, `plasma_burst`, `plasma_fire`, `punch_hit_building`, `punch_hit_mech`, `reactor_hum`, `rocket_launch`, `rocket_loop`, `rocket_rumble`, `shotgun`, `skate_roll` |

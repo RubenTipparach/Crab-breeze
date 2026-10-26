@@ -20,12 +20,21 @@ pub enum Beat {
     Tab(String),
     /// Click Accept on the open offer nearest the pilot whose tier is at most this.
     AcceptJob(u8),
+    /// Press M for the mail and click Accept on the open offer nearest or farthest from the mech whose tier is at most
+    /// this, then press M again to close it (a free-roam performance run's trips). Waits for an offer while none is open.
+    AcceptByMail(Pick, u8),
     /// Press Use to step back from the terminal's screen.
     CloseTerminal,
     /// Walk to the mech, press Use, and climb into the seat.
     Board,
     /// Drive the mech to the accepted job's site, until its fight starts.
     GoToJob,
+    /// Skate the mech flat out to (x, z) metres, as `GoToJob` drives, until within 40 m: a fixed route across the island
+    /// for a streaming performance run.
+    SkateTo(f32, f32),
+    /// Fly the mech on its jets to (x, z) metres, holding about this height over the ground (metres), until within
+    /// 250 m (at jet speed the mech turns too wide to settle closer): the same route from the air.
+    JetTo(f32, f32, f32),
     /// Fight the job's enemies until it is won, at most this many seconds.
     FightJob(f32),
     /// Drive the mech into this bay of the career's current base and stop there.
@@ -51,6 +60,15 @@ pub enum Beat {
     Quit,
     /// After Continue: check the career and the pilot's place came back, within this many metres.
     ExpectRestored(f32),
+}
+
+/// Which open offer `AcceptByMail` takes, by its site's distance from the mech.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+pub enum Pick {
+    /// The closest.
+    Nearest,
+    /// The farthest.
+    Farthest,
 }
 
 /// One launch of the game in a script: how it is started and the beats it plays.
@@ -93,8 +111,10 @@ impl Validate for Script {
                     Beat::Wait(s) | Beat::LookAround(s) | Beat::FightJob(s) | Beat::AwaitDrop(s) => !(s.is_finite() && *s > 0.0),
                     Beat::ExpectRestored(m) => !(m.is_finite() && *m > 0.0),
                     Beat::Tab(t) => !matches!(t.as_str(), "Jobs" | "Shop" | "Refit" | "Hangar"),
-                    Beat::AcceptJob(t) | Beat::ExpectOffer(t) => !(1..=crate::jobs::MAX_TIER).contains(t),
+                    Beat::AcceptJob(t) | Beat::AcceptByMail(_, t) | Beat::ExpectOffer(t) => !(1..=crate::jobs::MAX_TIER).contains(t),
                     Beat::Grant(c) => *c <= 0,
+                    Beat::SkateTo(x, z) => !(x.is_finite() && z.is_finite()),
+                    Beat::JetTo(x, z, h) => !(x.is_finite() && z.is_finite() && h.is_finite() && *h > 0.0),
                     Beat::BuyMech(d) => !d.starts_with("mechs/"),
                     Beat::BuyPart(id) | Beat::Fit(_, id) => id.is_empty(),
                     _ => false,

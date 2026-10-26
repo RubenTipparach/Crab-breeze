@@ -3,7 +3,9 @@
 //! and ground; what it hits takes the hit (a part through `mech-damage`, a cell through
 //! `building-destruction`, a tree snaps) and heavy shells explode. Close combat's strikes
 //! (`close-combat`) are blows queued by the mechs' step and land here through the same sweep and the
-//! same hit rules. Tracers, rocket motors and their smoke trails are effects (`fx`).
+//! same hit rules. A laser's beam (`weapon-kinds`) is traced through `cb_core::weapons::trace` each step it
+//! is held and lands here by the same rules; a plasma ball that has flown its distance bursts in the air.
+//! Tracers, rocket motors and their smoke trails are effects (`fx`).
 
 use crate::blast::Explosion;
 use crate::fx::Fx;
@@ -14,14 +16,46 @@ use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use cb_core::mech::rig::BONES;
 use cb_core::mech::{Hit, MechConfig, PartKind};
-use cb_core::weapons::{PartCapsule, Projectile, Struck, fly, home, spent, sweep};
+use cb_core::weapons::{PartCapsule, Projectile, Struck, burst_due, fly, home, spent, sweep, trace};
 use cb_core::world::Scene;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// Every shot in flight, and the blows struck this step.
+/// Every shot in flight, the blows struck this step and the beams burning this step.
 #[derive(Resource, Default)]
-pub struct Shots(pub Vec<Projectile>, pub Vec<Blow>);
+pub struct Shots(pub Vec<Projectile>, pub Vec<Blow>, pub Vec<Beam>);
+
+/// A laser held this step (`weapon-kinds`): it burns this step's share of its damage into the first
+/// thing on its line.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Beam {
+    /// The mech firing (its own parts are not hit).
+    pub owner: u32,
+    /// The muzzle.
+    pub from: Vec3,
+    /// The aim, a unit vector.
+    pub dir: Vec3,
+    /// How far it reaches, metres.
+    pub range_m: f32,
+    /// Armour it beats, millimetres of rolled steel equivalent.
+    pub penetration_mm: f32,
+    /// Structure points it takes this step (its damage a second times the step).
+    pub damage: f32,
+}
+
+/// Where each beam burned last step, for the effects (`fx`): from the muzzle to the hit or its reach.
+#[derive(Resource, Default)]
+pub struct BeamsDrawn(pub Vec<(Vec3, Vec3)>);
+
+impl Shots {
+    /// Every round in the air fired by an owner `from` says is leaving goes with it (a stopped mission's enemies:
+    /// survey FR1), and so do its strikes and its held lasers (`weapon-kinds`).
+    pub fn drop_from(&mut self, from: impl Fn(u32) -> bool) {
+        self.0.retain(|s| !from(s.owner));
+        self.1.retain(|b| !from(b.owner));
+        self.2.retain(|b| !from(b.owner));
+    }
+}
 
 /// A close-combat strike landing this step: the arm's sweep from the shoulder to its reach.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -38,18 +72,23 @@ pub struct Blow {
     pub damage: f32,
 }
 
-/// What a hit carries, from a gun or a strike.
+/// What a hit carries, from a gun or a strike, and who fired it.
 #[derive(Clone, Copy)]
 struct Power {
     penetration_mm: f32,
     damage: f32,
     blast_mj: f32,
+    /// The player's own mech fired or struck it (a civilian harmed by it costs standing: survey W34).
+    by_player: bool,
+    /// Whose shot or blow it was.
+    owner: u32,
 }
 
 type Mechs<'w, 's> = Query<'w, 's, (&'static mut MechSim, &'static MechSpec, &'static MechId, Option<&'static MechRig>)>;
 
-/// The one place a hit takes effect, whatever struck: a vehicle or a mech part takes it through the
-/// damage rules, a building loses the cells round it, a tree snaps; heavy shells explode.
+/// The one place a hit takes effect, whatever struck: a vehicle, a civil aircraft or a mech part takes
+/// it through the damage rules, a building loses the cells round it, a tree snaps; heavy shells explode.
+/// `power.owner` fired it (a civil aircraft hit by the pilot counts against their standing).
 #[allow(clippy::too_many_arguments)]
 fn land(
     struck: Struck,
@@ -64,8 +103,21 @@ fn land(
     explosions: &mut MessageWriter<Explosion>,
     hits: &mut MessageWriter<crate::battle_fx::MechHit>,
     fortress: &mut MessageWriter<crate::fortress::FortressHit>,
+    cars: &mut crate::traffic::TrafficSim,
+    civil: &mut crate::air_traffic::CivilHits,
+    boats: &mut MessageWriter<crate::boats::BoatHit>,
 ) {
     match struck {
+        // A car: a round that beats its thin skin sets it alight (car-traffic).
+        Struck::Mech { mech, .. } if mech >= crate::traffic::CAR_ID_BASE => {
+            cars.traffic.hit(
+                &data.0.traffic,
+                mech - crate::traffic::CAR_ID_BASE,
+                power.penetration_mm,
+                power.by_player,
+            );
+            fx.write(Fx::new("impact_mech", at).toward(-dir));
+        }
         // The fortress's parts and hull take it by their own armour rule (crab-airship).
         Struck::Mech { mech, part } if mech == crate::fortress::FORTRESS_ID => {
             fortress.write(crate::fortress::FortressHit {
@@ -75,6 +127,23 @@ fn land(
                 penetration_mm: power.penetration_mm,
                 damage: power.damage,
             });
+        }
+        // A civil aircraft (civil-air-traffic), by the same armour rule as a vehicle.
+        Struck::Mech { mech, .. } if crate::air_traffic::is_civil(mech) => {
+            civil.hit(mech, power.owner, at, power.penetration_mm, power.damage, data, fx);
+            fx.write(Fx::new("impact_mech", at).toward(-dir));
+        }
+        // A boat takes it by the vehicles' rule, in `boats` (harbours); its ids sit below the civil aircraft's.
+        Struck::Mech { mech, .. } if (crate::boats::BOAT_ID_BASE..crate::air_traffic::CIVIL_ID_BASE).contains(&mech) => {
+            boats.write(crate::boats::BoatHit {
+                boat: Some(mech - crate::boats::BOAT_ID_BASE),
+                at,
+                penetration_mm: power.penetration_mm,
+                damage: power.damage,
+                blast_mj: 0.0,
+                owner: power.owner,
+            });
+            fx.write(Fx::new("impact_mech", at).toward(-dir));
         }
         Struck::Mech { mech, .. } if mech >= crate::units::UNIT_ID_BASE => {
             if let Some(p) = units.get_mut(mech) {
@@ -133,6 +202,18 @@ fn land(
         explosions.write(Explosion {
             at,
             energy_mj: power.blast_mj,
+            by: Some(power.owner),
+        });
+    }
+    // A round's blast may splash a boat, and the boats need to know whose it was (harbours).
+    if power.blast_mj > 0.0 {
+        boats.write(crate::boats::BoatHit {
+            boat: None,
+            at,
+            penetration_mm: 0.0,
+            damage: 0.0,
+            blast_mj: power.blast_mj,
+            owner: power.owner,
         });
     }
 }
@@ -143,6 +224,7 @@ pub struct CombatPlugin;
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Shots>()
+            .init_resource::<BeamsDrawn>()
             .add_game_systems(FixedUpdate, fly_shots.in_set(SimSet::Mech).after(crate::mech::step_mech));
     }
 }
@@ -217,9 +299,17 @@ pub fn fly_shots(
     mut hits: MessageWriter<crate::battle_fx::MechHit>,
     fortress: Option<Res<crate::fortress::FortressRun>>,
     mut fortress_hits: MessageWriter<crate::fortress::FortressHit>,
+    (mut cars, piloted): (ResMut<crate::traffic::TrafficSim>, Query<&MechId, With<crate::mech::Piloted>>),
+    mut civil: crate::air_traffic::CivilHits,
+    (boats, mut boat_hits, mut drawn): (
+        Option<Res<crate::boats::Boats>>,
+        MessageWriter<crate::boats::BoatHit>,
+        ResMut<BeamsDrawn>,
+    ),
 ) {
     let _t = crate::perf_hud::slow("fly_shots");
-    if shots.0.is_empty() && shots.1.is_empty() {
+    drawn.0.clear();
+    if shots.0.is_empty() && shots.1.is_empty() && shots.2.is_empty() {
         return;
     }
     let dt = time.delta_secs();
@@ -233,12 +323,35 @@ pub fn fly_shots(
             parts.extend(capsules(id.0, sim, spec, rig, &globals));
         }
     }
-    // Vehicles are hit like mechs, one capsule each (invasion-forces).
+    // Vehicles are hit like mechs, one capsule each (invasion-forces); civil aircraft by their
+    // fuselage and wing (civil-air-traffic).
     parts.extend(crate::units::unit_capsules(&units, &data));
+    parts.extend(civil.capsules(&data));
+    // Boats afloat, one capsule each (harbours).
+    if let Some(b) = &boats {
+        parts.extend(crate::boats::boat_capsules(b, &data));
+    }
     // The fortress's parts, then its hull (crab-airship).
     if let Some(f) = &fortress {
         parts.extend(f.capsules.iter().copied());
     }
+    // Cars near a shot or a strike this step (car-traffic).
+    let near: Vec<Vec3> = shots
+        .0
+        .iter()
+        .map(|s| s.pos)
+        .chain(shots.1.iter().map(|b| b.from))
+        .chain(shots.2.iter().map(|b| b.from + b.dir * b.range_m * 0.5))
+        .collect();
+    let reach = shots
+        .0
+        .iter()
+        .map(|s| s.vel.length() * dt)
+        .chain(shots.2.iter().map(|b| b.range_m * 0.5))
+        .fold(30.0f32, f32::max)
+        + 10.0;
+    parts.extend(crate::traffic::car_capsules(&cars, &data, &near, reach));
+    let me = piloted.iter().next().map(|m| m.0);
     // Live mechs' torsos and vehicles' centres, for missiles to home on.
     let mut torsos: HashMap<u32, Vec3> = mechs
         .iter()
@@ -255,6 +368,8 @@ pub fn fly_shots(
     if let Some(f) = &fortress {
         torsos.extend(f.targets.iter().copied());
     }
+    // A civil aircraft only ever has a missile on it when the pilot selected it on purpose.
+    torsos.extend(civil.centres());
     // A shot's gun: its mech's, or its vehicle's one weapon.
     let unit_guns: HashMap<u32, cb_core::weapons::WeaponSpec> = units
         .list
@@ -310,6 +425,8 @@ pub fn fly_shots(
                 penetration_mm: blow.penetration_mm,
                 damage: blow.damage,
                 blast_mj: 0.0,
+                by_player: Some(blow.owner) == me,
+                owner: blow.owner,
             };
             let dir = (blow.to - blow.from).normalize_or(Vec3::NEG_Z);
             land(
@@ -325,6 +442,59 @@ pub fn fly_shots(
                 &mut explosions,
                 &mut hits,
                 &mut fortress_hits,
+                &mut cars,
+                &mut civil,
+                &mut boat_hits,
+            );
+        }
+    }
+    // Beams burn the first thing on their line (weapon-kinds): the same hit rules as a round.
+    for beam in std::mem::take(&mut shots.2) {
+        let hit = {
+            let scene = Scene {
+                plan: &plan,
+                dug: &live.dug,
+                trees: None,
+                structures: Some(&live.structures),
+                platforms: &[],
+                interiors: None,
+            };
+            trace(
+                beam.from,
+                beam.dir,
+                beam.range_m,
+                Some(beam.owner),
+                &scene,
+                &live.structures,
+                &live.forest,
+                &parts,
+            )
+        };
+        drawn.0.push((beam.from, hit.map_or(beam.from + beam.dir * beam.range_m, |h| h.1)));
+        if let Some((struck, at)) = hit {
+            let power = Power {
+                penetration_mm: beam.penetration_mm,
+                damage: beam.damage,
+                blast_mj: 0.0,
+                by_player: Some(beam.owner) == me,
+                owner: beam.owner,
+            };
+            land(
+                struck,
+                at,
+                beam.dir,
+                power,
+                &mut units,
+                &data,
+                live,
+                &mut mechs,
+                &mut fx,
+                &mut explosions,
+                &mut hits,
+                &mut fortress_hits,
+                &mut cars,
+                &mut civil,
+                &mut boat_hits,
             );
         }
     }
@@ -332,7 +502,7 @@ pub fn fly_shots(
     for mut shot in std::mem::take(&mut shots.0) {
         // A missile turns toward its locked target's torso first (targeting).
         if let Some(t) = shot.target {
-            let seeker = weapon_of(shot.owner, shot.weapon).map_or(0.0, |w| w.seeker_turn_deg_s);
+            let seeker = weapon_of(shot.owner, shot.weapon).map_or(0.0, |w| w.turn_deg_s());
             if let Some(torso) = torsos.get(&t) {
                 home(&mut shot, *torso, seeker, dt);
             }
@@ -346,13 +516,29 @@ pub fn fly_shots(
                 platforms: &[],
                 interiors: None,
             };
+            let _s = crate::perf_hud::section("fly_one_shot");
             fly(&mut shot, &scene, &live.structures, &live.forest, &parts, dt)
         };
         let Some(w) = weapon_of(shot.owner, shot.weapon) else {
             continue;
         };
         let Some(hit) = impact else {
-            if !spent(&shot) {
+            // A plasma ball that met nothing bursts in the air at its distance (weapon-kinds).
+            if burst_due(w.shot(), &shot) {
+                explosions.write(Explosion {
+                    at: shot.pos,
+                    energy_mj: w.blast_mj,
+                    by: Some(shot.owner),
+                });
+                boat_hits.write(crate::boats::BoatHit {
+                    boat: None,
+                    at: shot.pos,
+                    penetration_mm: 0.0,
+                    damage: 0.0,
+                    blast_mj: w.blast_mj,
+                    owner: shot.owner,
+                });
+            } else if !spent(&shot) {
                 flying.push(shot);
             }
             continue;
@@ -366,6 +552,8 @@ pub fn fly_shots(
             penetration_mm: w.penetration_mm,
             damage: w.damage,
             blast_mj: w.blast_mj,
+            by_player: Some(shot.owner) == me,
+            owner: shot.owner,
         };
         land(
             hit.struck,
@@ -380,6 +568,9 @@ pub fn fly_shots(
             &mut explosions,
             &mut hits,
             &mut fortress_hits,
+            &mut cars,
+            &mut civil,
+            &mut boat_hits,
         );
     }
     shots.0 = flying;

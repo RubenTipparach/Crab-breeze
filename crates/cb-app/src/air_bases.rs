@@ -29,7 +29,10 @@ impl Plugin for AirBasesPlugin {
             .add_game_systems(FixedUpdate, repair_in_hangars.in_set(SimSet::Mech).after(crate::mech::step_mech))
             .add_game_systems(
                 FixedUpdate,
-                use_terminals.in_set(SimSet::Input).after(crate::input::take_step_actions),
+                (
+                    find_terminal.in_set(SimSet::Input).after(crate::input::take_step_actions),
+                    use_terminal.in_set(SimSet::Pilot).after(crate::interact::choose),
+                ),
             )
             .add_game_systems(Update, open_terminal.before(crate::sim::PresentSet::Input));
     }
@@ -162,6 +165,46 @@ fn spawn_bases(
                 );
             }
         }
+        // The runway beside the site and its taxiway (survey W45): asphalt, darker than the apron, with a dashed
+        // centre line, edge lines and threshold bars at both ends.
+        let rw = b.runway;
+        let asphalt = [0.13, 0.13, 0.13, 1.0];
+        for f in [rw.rect(), rw.taxiway(&r)] {
+            slab.block(
+                Vec3::new(f.min.x, g - 0.5, f.min.y),
+                Vec3::new(f.max.x, g + APRON_LIFT_M, f.max.y),
+                asphalt,
+            );
+        }
+        let y = g + APRON_LIFT_M + 0.02;
+        let (d, side) = (rw.dir(), rw.dir().perp());
+        let mut stripe = |from: f32, to: f32, off: f32, half_w: f32| {
+            let (p, q) = (rw.a + d * from + side * off, rw.a + d * to + side * off);
+            let s = side * half_w;
+            marks.quad(
+                [
+                    Vec3::new(p.x - s.x, y, p.y - s.y),
+                    Vec3::new(p.x + s.x, y, p.y + s.y),
+                    Vec3::new(q.x + s.x, y, q.y + s.y),
+                    Vec3::new(q.x - s.x, y, q.y - s.y),
+                ],
+                [1.0, 1.0, 1.0, 1.0],
+            );
+        };
+        let len = rw.length_m();
+        let edge = rw.width_m * 0.5 - 1.0;
+        stripe(0.0, len, edge, 0.45);
+        stripe(0.0, len, -edge, 0.45);
+        for k in 0..8 {
+            let off = (k as f32 - 3.5) * 4.0;
+            stripe(8.0, 38.0, off, 0.9);
+            stripe(len - 38.0, len - 8.0, off, 0.9);
+        }
+        let mut at = 150.0;
+        while at + 30.0 <= len - 150.0 {
+            stripe(at, at + 30.0, 0.0, 0.45);
+            at += 50.0;
+        }
         // The control tower by the front corner.
         let t = b.tower().centre();
         slab.block(
@@ -255,22 +298,35 @@ fn repair_in_hangars(
     }
 }
 
-/// Finds the terminal the pilot on foot stands at and looks at; Use there asks for its screen, and is spent on it,
-/// so the mech parked in the same bay (its rope within reach) is not boarded by the same press.
-fn use_terminals(
+/// Finds the terminal the pilot on foot stands at and looks at, a hangar bay's or a harbour office's (harbours), for
+/// the prompt's options (`interact`).
+fn find_terminal(
     plan: Res<Plan>,
     data: Res<Data>,
     pilot: Res<PilotSim>,
-    mut actions: ResMut<crate::input::StepActions>,
     mut near: ResMut<TerminalNear>,
+    boats: Option<Res<crate::boats::Boats>>,
 ) {
     let p = &pilot.curr;
+    let cfg = &data.0.world.bases;
+    let feet = Vec2::new(p.feet.x, p.feet.z);
     near.near = (p.mode == PilotMode::OnFoot && p.waiting.is_none())
-        .then(|| terminal_in_reach(&plan.0.bases, &data.0.world.bases, Vec2::new(p.feet.x, p.feet.z), p.yaw_rad))
+        .then(|| {
+            // A hangar bay's terminal, else a harbour office's by the same reach and look (harbours).
+            terminal_in_reach(&plan.0.bases, cfg, feet, p.yaw_rad).or_else(|| {
+                boats
+                    .as_deref()
+                    .and_then(|b| crate::boats::office_terminal(b, &plan, feet, p.yaw_rad, cfg.terminal_reach_m, cfg.terminal_look_deg))
+            })
+        })
         .flatten();
-    if actions.use_pressed && near.near.is_some() {
+}
+
+/// Use with the terminal selected (`interact`, survey W40) asks for its screen; the mech parked in the same bay is
+/// boarded only when it is the one selected instead.
+fn use_terminal(choice: Res<crate::interact::UseChoice>, mut near: ResMut<TerminalNear>) {
+    if choice.now == Some(cb_core::interact::Interaction::Terminal) && near.near.is_some() {
         near.wanted = near.near;
-        actions.0.use_pressed = false;
     }
 }
 
