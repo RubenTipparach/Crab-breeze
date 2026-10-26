@@ -683,12 +683,12 @@ fn draw_targets(
 }
 
 /// Compass bearing in degrees, 0 north (-z), clockwise, of a flat direction (x, z).
-fn bearing_deg(dir: Vec2) -> f32 {
+pub(crate) fn bearing_deg(dir: Vec2) -> f32 {
     dir.x.atan2(-dir.y).to_degrees().rem_euclid(360.0)
 }
 
 /// A bearing as the compass shows it, whole degrees 0..359.
-fn whole_deg(deg: f32) -> i32 {
+pub(crate) fn whole_deg(deg: f32) -> i32 {
     (deg.round() as i32).rem_euclid(360)
 }
 

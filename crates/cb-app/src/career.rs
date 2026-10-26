@@ -10,10 +10,11 @@ use crate::pilot::PilotSim;
 use crate::sim::{Data, SimSet};
 use crate::world::Plan;
 use bevy::prelude::*;
-use cb_core::career::{Career, CareerData};
+use cb_core::career::{Career, CareerData, Field};
 use cb_core::jobs::{Event, Site};
 use cb_core::pilot::PilotMode;
 use cb_core::rng::SimRng;
+use cb_core::shop::To;
 
 /// The career being played, and its data.
 #[derive(Resource)]
@@ -31,6 +32,11 @@ pub struct CareerRun {
     since_save_s: f32,
     /// Events from the mail page (a job abandoned for another), handled with the board's own next step.
     pub pending: Vec<Event>,
+    /// Owned mechs whose place in the field a rule just set (a call-out at a base, a save continued): the world
+    /// puts each one there (`air_drop::place_owned`).
+    pub moved: Vec<u32>,
+    /// The world has been matched to the career once (the piloted design, every mech in the field).
+    pub placed: bool,
 }
 
 /// How the career begins, chosen on the title menu.
@@ -122,6 +128,8 @@ fn begin(mut commands: Commands, start: Res<CareerStart>, data: Res<Data>, plan:
         refit_dirty: true,
         since_save_s: 0.0,
         pending: Vec::new(),
+        moved: Vec::new(),
+        placed: false,
     });
 }
 
@@ -287,43 +295,94 @@ fn standing(run: &mut CareerRun, id: u32, won: bool) {
     }
 }
 
-/// Buys `design` at the shop (mech-shop): delivered to a free bay of the base the pilot is at (`at`), else of the
-/// nearest base to `from` with one; a delivery away from the pilot is mailed. Returns what the page says.
+/// Buys `design` at the shop (mech-shop section 6): air dropped on good ground near the player (`near`: where they
+/// are and the mechs standing), the site found by `air_drop::drop_site`; with no good ground near, delivered to a free
+/// bay of the base the pilot is at (`at`), else of the nearest base with one. Returns what the page says.
 pub fn buy_mech(
     run: &mut CareerRun,
     plan: &cb_core::world::WorldPlan,
-    bays_per_base: u32,
+    bases: &cb_core::world::bases::BasesConfig,
     design: &str,
     at: Option<u32>,
-    from: Vec2,
+    near: &crate::air_drop::Where,
 ) -> String {
     let centres: Vec<Vec2> = plan.bases.iter().map(|b| b.centre).collect();
     let bays = cb_core::shop::Bays {
-        per_base: bays_per_base,
+        per_base: bases.hangars as u32,
         centres: &centres,
     };
-    let Some(whole) = run.data.whole(design) else {
+    let (Some(whole), Some(cfg)) = (run.data.whole(design), run.data.design(design)) else {
         return cb_core::shop::Refusal::NotListed.text();
     };
-    let name = run.data.design(design).map_or_else(|| design.to_string(), |c| c.name.clone());
+    let name = cfg.name.clone();
+    // Where it lands: fixed now, from where the player is (design section 6.1).
+    let rng = SimRng::new(run.career.seed).fork(&format!("drop/{}", run.career.mechs.len()));
+    let ground = cb_core::air_drop::PlanGround { plan, bases };
+    let keep = cb_core::air_drop::Keep {
+        pilot: near.pilot,
+        mechs: &near.mechs,
+    };
+    let needs = cb_core::air_drop::Needs::of(cfg);
+    let site = cb_core::air_drop::drop_site(&run.data.drop, &ground, needs, &keep, &rng).map(|s| s.at);
     let kept = run.data.career.ledger_kept;
     let tier_before = max_tier(run);
-    match cb_core::shop::buy(&mut run.career, &run.data.catalogue, &bays, design, at, from, &whole, kept) {
+    let order = cb_core::shop::Order {
+        design,
+        at,
+        from: near.pilot,
+        site,
+        rng: &rng,
+    };
+    let inbox = run.data.jobs.inbox_kept;
+    match cb_core::shop::buy(&mut run.career, &run.data.catalogue, &bays, &order, &whole, kept) {
         Ok(d) => {
-            info!(
-                "SHOP bought {name}: base {} bay {}, {} credits left",
-                d.base, d.bay, run.career.money
-            );
-            if d.away {
-                let inbox = run.data.jobs.inbox_kept;
-                run.career.board.say(
-                    "Hangar Office",
-                    &format!("Your {name} has arrived"),
-                    &format!("Your {name} is in bay {} at base {}.", d.bay + 1, d.base + 1),
-                    None,
-                    inbox,
-                );
-            }
+            let note = match d.to {
+                To::Drop(site) => {
+                    let to = Vec2::new(site.x, site.z) - near.pilot;
+                    let (m, brg) = (to.length(), crate::hud::whole_deg(crate::hud::bearing_deg(to)));
+                    let land_s = run.data.drop.delay_s + cb_core::air_drop::fall_s(&run.data.drop);
+                    info!(
+                        "SHOP bought {name}: air drop at ({:.0}, {:.0}), {m:.0} m brg {brg:03}, {} credits left",
+                        site.x, site.z, run.career.money
+                    );
+                    run.career.board.say(
+                        "Hangar Office",
+                        &format!("Your {name} is on its way by air"),
+                        &format!(
+                            "Your {name} is being air dropped near you. It lands {m:.0} m from where you ordered it, bearing \
+                             {brg:03}, in about {land_s:.0} s. Follow the AIR DROP marker, and stand clear of the drop zone."
+                        ),
+                        None,
+                        inbox,
+                    );
+                    format!("BOUGHT {}: AIR DROP INBOUND, {m:.0} M BRG {brg:03}", name.to_uppercase())
+                }
+                To::Bay { base, bay, away } => {
+                    info!(
+                        "SHOP bought {name}: no ground for a drop, base {base} bay {bay}, {} credits left",
+                        run.career.money
+                    );
+                    if away {
+                        run.career.board.say(
+                            "Hangar Office",
+                            &format!("Your {name} has arrived"),
+                            &format!(
+                                "There was no clear ground near you for an air drop. Your {name} is in bay {} at base {}.",
+                                bay + 1,
+                                base + 1
+                            ),
+                            None,
+                            inbox,
+                        );
+                    }
+                    format!(
+                        "BOUGHT {}: NO GROUND FOR A DROP, BASE {} BAY {}",
+                        name.to_uppercase(),
+                        base + 1,
+                        bay + 1
+                    )
+                }
+            };
             // A riskier tier opened: the mail says so and its first job is offered at once.
             let tier = max_tier(run);
             if tier > tier_before {
@@ -343,11 +402,67 @@ pub fn buy_mech(
                 }
             }
             save(&run.career);
-            format!("BOUGHT {}: BASE {} BAY {}", name.to_uppercase(), d.base + 1, d.bay + 1)
+            note
         }
         Err(r) => {
             info!("SHOP refused {name}: {}", r.text());
             r.text()
+        }
+    }
+}
+
+/// Calls owned mech `key` out at the terminal's base (owner, survey J16: "you can swap mechs out at base, with foreman
+/// always availible"): into the terminal's own bay, or the base's first bay no mech stands in (`near.mechs`), facing
+/// the apron, to be walked up to and boarded. A mech parked at this base comes; the Foreman comes from anywhere, whole
+/// if it was wrecked (`wrecked`). Returns what the page says.
+pub fn call_out(
+    run: &mut CareerRun,
+    plan: &cb_core::world::WorldPlan,
+    bases: &cb_core::world::bases::BasesConfig,
+    terminal: cb_core::world::bases::Terminal,
+    key: u32,
+    wrecked: bool,
+    near: &crate::air_drop::Where,
+) -> String {
+    let Some(base) = plan.bases.iter().find(|b| b.id == terminal.base) else {
+        return "NO BASE".into();
+    };
+    let hangars = base.hangars(bases);
+    let clear = |h: &cb_core::world::layout::Rect| near.mechs.iter().all(|(p, r)| h.distance(*p) > *r);
+    let bay = std::iter::once(terminal.bay)
+        .chain(0..hangars.len())
+        .find(|&i| hangars.get(i).is_some_and(clear));
+    let Some(bay) = bay else {
+        return "NO CLEAR BAY".into();
+    };
+    let h = hangars[bay];
+    let ground = plan.terrain.height_at(h.centre().x, h.centre().y);
+    // Standing in the bay facing out of its mouth (low z): heading pi faces +z, so 0 faces the apron.
+    let at = Field {
+        pos: [h.centre().x, ground, h.centre().y],
+        heading_rad: 0.0,
+    };
+    let site = base.rect();
+    let whole = run.career.mech(key).and_then(|m| run.data.whole(&m.design)).unwrap_or_default();
+    let start = run.data.career.start_mech.clone();
+    let name = run
+        .career
+        .mech(key)
+        .and_then(|m| run.data.design(&m.design))
+        .map_or_else(|| "MECH".to_string(), |c| c.name.to_uppercase());
+    match run
+        .career
+        .call_out(key, base.id, bay as u32, at, &|p| site.distance(p) <= 0.0, &start, wrecked, &whole)
+    {
+        Ok(repaired) => {
+            info!("HANGAR called out {name} (key {key}) to base {} bay {}", base.id, bay);
+            run.moved.push(key);
+            save(&run.career);
+            format!("CALLED OUT {name} TO BAY {}{}", bay + 1, if repaired { ", REBUILT" } else { "" })
+        }
+        Err(e) => {
+            info!("HANGAR refused {name}: {}", e.text());
+            e.text()
         }
     }
 }

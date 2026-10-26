@@ -1,6 +1,9 @@
 //! The air drop (openspec change `mech-shop`, design section 6; owner, 2026-10-26: "when a player orders a mech it
 //! should be air dropped close to wherever the player is on a good are on the ground (not stuck on a building)"):
-//! where a bought mech lands near the pilot (`drop_site`), on ground good enough to take it (`good_spot`). Pure: the
+//! where a bought mech lands near the pilot (`drop_site`), on ground good enough to take it (`good_spot`); the drop's
+//! clock from the order through the aircraft's pass, the fall under its canopies and the retros to the touchdown
+//! (`Drop`, `fall`); keeping it off a pilot who walks into the site (`clear_of`); and which owned mech the pilot on
+//! foot is walking up to, the one that kneels for them (`walking_up_to`). Pure: the
 //! world is read through `DropGround`, which the generated `WorldPlan` answers, so the rules are tested on ground made
 //! up for the test as well as on the island (`PlanGround`).
 
@@ -11,7 +14,7 @@ use crate::world::WorldPlan;
 use crate::world::bases::BasesConfig;
 use crate::world::cover::Surface;
 use glam::{Vec2, Vec3};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// How a drop picks its site and comes down, `data/career/air_drop.ron`.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
@@ -37,6 +40,29 @@ pub struct DropConfig {
     pub paved_bonus_m: f32,
     /// A spot in water (no deeper than the mech's skim depth) counts this much farther, metres.
     pub wet_penalty_m: f32,
+    /// Seconds from the order to the release over the site.
+    pub delay_s: f32,
+    /// The aircraft's speed, m/s.
+    pub aircraft_speed_m_s: f32,
+    /// The aircraft flies over the site this high above its ground and releases the mech there, metres.
+    pub release_height_m: f32,
+    /// The aircraft is drawn from this long before the release to as long after, seconds.
+    pub aircraft_shown_s: f32,
+    /// Seconds of free fall before the canopies open.
+    pub free_fall_s: f32,
+    /// The descent under the canopies, m/s.
+    pub canopy_m_s: f32,
+    /// The retros fire this high above the ground, metres.
+    pub retro_height_m: f32,
+    /// The speed the retros slow it to at touchdown, m/s.
+    pub touchdown_m_s: f32,
+    /// While it falls, the site keeps this far beyond the mech's footprint from the pilot (or the mech they sit
+    /// in), metres.
+    pub pilot_clear_m: f32,
+    /// The canopies steer it aside at up to this, m/s.
+    pub steer_m_s: f32,
+    /// The pilot on foot boards the owned mech they walk up to within this of its feet, metres.
+    pub walk_up_m: f32,
 }
 
 impl Default for DropConfig {
@@ -52,6 +78,17 @@ impl Default for DropConfig {
             max_slope_deg: 12.0,
             paved_bonus_m: 30.0,
             wet_penalty_m: 300.0,
+            delay_s: 25.0,
+            aircraft_speed_m_s: 95.0,
+            release_height_m: 320.0,
+            aircraft_shown_s: 20.0,
+            free_fall_s: 2.0,
+            canopy_m_s: 14.0,
+            retro_height_m: 25.0,
+            touchdown_m_s: 3.0,
+            pilot_clear_m: 15.0,
+            steer_m_s: 6.0,
+            walk_up_m: 40.0,
         }
     }
 }
@@ -69,6 +106,30 @@ impl Validate for DropConfig {
             return Err("search_max_m / ring_step_m: more than 1000 rings".into());
         }
         crate::data::within("max_slope_deg", self.max_slope_deg, 0.0, 60.0)?;
+        for (field, v) in [
+            ("delay_s", self.delay_s),
+            ("aircraft_speed_m_s", self.aircraft_speed_m_s),
+            ("release_height_m", self.release_height_m),
+            ("aircraft_shown_s", self.aircraft_shown_s),
+            ("canopy_m_s", self.canopy_m_s),
+            ("retro_height_m", self.retro_height_m),
+            ("touchdown_m_s", self.touchdown_m_s),
+            ("pilot_clear_m", self.pilot_clear_m),
+            ("steer_m_s", self.steer_m_s),
+            ("walk_up_m", self.walk_up_m),
+        ] {
+            positive(field, v)?;
+        }
+        crate::data::finite("free_fall_s", self.free_fall_s)?;
+        if self.free_fall_s < 0.0 {
+            return Err("free_fall_s: must not be negative".into());
+        }
+        if self.touchdown_m_s > self.canopy_m_s {
+            return Err("touchdown_m_s: the retros slow it, so no faster than canopy_m_s".into());
+        }
+        if free_fall_m(self.free_fall_s) + self.retro_height_m >= self.release_height_m {
+            return Err("release_height_m: must be above the free fall and the retros' height".into());
+        }
         for (field, v) in [
             ("building_clear_m", self.building_clear_m),
             ("mech_clear_m", self.mech_clear_m),
@@ -213,6 +274,205 @@ pub fn drop_site(cfg: &DropConfig, ground: &dyn DropGround, needs: Needs, keep: 
         }
     }
     best.map(|(_, s)| s)
+}
+
+/// Gravity, m/s/s.
+const G_M_S2: f32 = 9.81;
+
+/// How far a body falls freely in `t_s` seconds from rest, metres.
+fn free_fall_m(t_s: f32) -> f32 {
+    0.5 * G_M_S2 * t_s * t_s
+}
+
+/// Where in its fall a dropped mech is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FallStage {
+    /// Out of the aircraft, the canopies not yet open.
+    FreeFall,
+    /// Under its canopies.
+    Canopies,
+    /// Its retros firing over the ground.
+    Retros,
+    /// On the ground.
+    Down,
+}
+
+/// A dropped mech's fall at a moment: how high its feet are over the site's ground, how fast it falls, and the stage.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Fall {
+    /// Its feet over the site's ground, metres.
+    pub height_m: f32,
+    /// Its falling speed, m/s (downward positive).
+    pub speed_m_s: f32,
+    /// The stage.
+    pub stage: FallStage,
+}
+
+/// The fall `t_s` seconds after the release (design section 6.2): free fall for `free_fall_s`, then the canopies at
+/// `canopy_m_s` down to `retro_height_m`, then the retros slowing it evenly to `touchdown_m_s` at the ground.
+pub fn fall(cfg: &DropConfig, t_s: f32) -> Fall {
+    let t = if t_s.is_finite() { t_s.max(0.0) } else { 0.0 };
+    let h0 = cfg.release_height_m;
+    if t < cfg.free_fall_s {
+        return Fall {
+            height_m: h0 - free_fall_m(t),
+            speed_m_s: G_M_S2 * t,
+            stage: FallStage::FreeFall,
+        };
+    }
+    let opened_m = h0 - free_fall_m(cfg.free_fall_s);
+    let canopy_s = (opened_m - cfg.retro_height_m) / cfg.canopy_m_s;
+    let t = t - cfg.free_fall_s;
+    if t < canopy_s {
+        return Fall {
+            height_m: opened_m - cfg.canopy_m_s * t,
+            speed_m_s: cfg.canopy_m_s,
+            stage: FallStage::Canopies,
+        };
+    }
+    let (v0, v1, h) = (cfg.canopy_m_s, cfg.touchdown_m_s, cfg.retro_height_m);
+    let retro_s = 2.0 * h / (v0 + v1);
+    let t = t - canopy_s;
+    if t < retro_s {
+        let a = (v0 - v1) / retro_s;
+        return Fall {
+            height_m: h - (v0 * t - 0.5 * a * t * t),
+            speed_m_s: v0 - a * t,
+            stage: FallStage::Retros,
+        };
+    }
+    Fall {
+        height_m: 0.0,
+        speed_m_s: 0.0,
+        stage: FallStage::Down,
+    }
+}
+
+/// Seconds from the release to the touchdown.
+pub fn fall_s(cfg: &DropConfig) -> f32 {
+    let opened_m = cfg.release_height_m - free_fall_m(cfg.free_fall_s);
+    cfg.free_fall_s + (opened_m - cfg.retro_height_m) / cfg.canopy_m_s + 2.0 * cfg.retro_height_m / (cfg.canopy_m_s + cfg.touchdown_m_s)
+}
+
+/// A drop under way, kept on the career (`Career::drops`) so a save resumes it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Drop {
+    /// The owned mech's key.
+    pub key: u32,
+    /// Where it lands (x, ground height, z), metres: fixed at the order, moved aside only for the pilot.
+    pub site: [f32; 3],
+    /// The career's clock at the order, seconds.
+    pub ordered_s: f64,
+    /// The aircraft's track over the site, radians (0 flies toward -z, left positive), drawn from the seed.
+    pub track_rad: f32,
+    /// Landed, and waiting for the pilot to board it: the HUD keeps its marker until they do (owner, survey J16).
+    #[serde(default)]
+    pub landed: bool,
+}
+
+/// Where a drop is on its clock.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Stage {
+    /// The aircraft is on its way; the release is this many seconds off.
+    Inbound(f32),
+    /// Released and falling.
+    Falling(Fall),
+    /// On the ground.
+    Landed,
+}
+
+impl Drop {
+    /// A drop of mech `key` ordered at `now_s` to land at `site`, on a track drawn from `rng`.
+    pub fn new(key: u32, site: Vec3, now_s: f64, rng: &SimRng) -> Self {
+        let mut r = rng.fork(&format!("drop/{key}/track"));
+        Self {
+            key,
+            site: site.to_array(),
+            ordered_s: now_s,
+            track_rad: r.range_f32(0.0, std::f32::consts::TAU),
+            landed: false,
+        }
+    }
+
+    /// The site (x, z).
+    pub fn site_xz(&self) -> Vec2 {
+        Vec2::new(self.site[0], self.site[2])
+    }
+
+    /// Seconds since the release at career time `now_s` (negative before it).
+    pub fn since_release_s(&self, cfg: &DropConfig, now_s: f64) -> f32 {
+        (now_s - self.ordered_s) as f32 - cfg.delay_s
+    }
+
+    /// Its stage at career time `now_s`.
+    pub fn stage(&self, cfg: &DropConfig, now_s: f64) -> Stage {
+        if self.landed {
+            return Stage::Landed;
+        }
+        let t = self.since_release_s(cfg, now_s);
+        if t < 0.0 {
+            return Stage::Inbound(-t);
+        }
+        let f = fall(cfg, t);
+        if f.stage == FallStage::Down {
+            Stage::Landed
+        } else {
+            Stage::Falling(f)
+        }
+    }
+
+    /// The aircraft's position at career time `now_s`, while it is shown: on its track at `release_height_m` over the
+    /// site's ground, over the site at the release.
+    pub fn aircraft(&self, cfg: &DropConfig, now_s: f64) -> Option<Vec3> {
+        let t = self.since_release_s(cfg, now_s);
+        if t.abs() > cfg.aircraft_shown_s {
+            return None;
+        }
+        let along = Vec3::new(-self.track_rad.sin(), 0.0, -self.track_rad.cos());
+        Some(Vec3::from_array(self.site) + Vec3::Y * cfg.release_height_m + along * cfg.aircraft_speed_m_s * t)
+    }
+}
+
+/// Where a drop comes down when someone is in the way (design section 6.2): `site` itself when `body` (the pilot,
+/// or the mech they sit in, with `body_radius_m`) is at least the mech's footprint (`needs`) plus `pilot_clear_m` and
+/// `body_radius_m` away; else the good spot (`good`) on that circle round `body` nearest `site`, tried every 10
+/// degrees; else straight out from `body` to the circle's edge, just beside them. It never lands on them.
+pub fn clear_of(cfg: &DropConfig, needs: Needs, site: Vec2, body: Vec2, body_radius_m: f32, good: &dyn Fn(Vec2) -> bool) -> Vec2 {
+    let clear = needs.radius_m + cfg.pilot_clear_m + body_radius_m;
+    if !(site.is_finite() && body.is_finite()) || site.distance(body) >= clear {
+        return site;
+    }
+    let away = (site - body).normalize_or(Vec2::X);
+    let edge = body + away * clear;
+    (0..36)
+        .map(|i| {
+            let a = i as f32 * 10f32.to_radians();
+            body + Vec2::from_angle(a).rotate(away) * clear
+        })
+        .filter(|p| good(*p))
+        .min_by(|a, b| a.distance(site).total_cmp(&b.distance(site)))
+        .unwrap_or(edge)
+}
+
+/// Moves `from` toward `to` by at most `max_m`.
+pub fn steer(from: Vec2, to: Vec2, max_m: f32) -> Vec2 {
+    let d = to - from;
+    let len = d.length();
+    if len <= max_m || len < 1e-6 {
+        to
+    } else {
+        from + d / len * max_m.max(0.0)
+    }
+}
+
+/// Which owned mech the pilot on foot is walking up to (design section 6.3): the nearest of `mechs` (key, feet x and
+/// z) within `walk_up_m` of their feet, ties to the lower key. It is the one that kneels and lowers its rope.
+pub fn walking_up_to(cfg: &DropConfig, feet: Vec2, mechs: &[(u32, Vec2)]) -> Option<u32> {
+    mechs
+        .iter()
+        .filter(|(_, at)| at.distance(feet) <= cfg.walk_up_m)
+        .min_by(|a, b| a.1.distance(feet).total_cmp(&b.1.distance(feet)).then(a.0.cmp(&b.0)))
+        .map(|(k, _)| *k)
 }
 
 /// The island as a drop sees it: the generated world and its bases' layout (the hangars' size is data the plan
@@ -526,6 +786,81 @@ mod tests {
         assert_eq!(a, b);
         let other = drop_site(&c, &g, NEEDS, &keep(Vec2::ZERO), &SimRng::new(78)).unwrap();
         assert_ne!(a.at, other.at, "the seed turns the ring");
+    }
+
+    #[test]
+    fn the_fall_frees_opens_retros_and_lands_slow_and_continuous() {
+        let c = cfg();
+        let total = fall_s(&c);
+        let mut last = fall(&c, 0.0);
+        assert_eq!(last.height_m, c.release_height_m);
+        let mut t = 0.0;
+        while t < total + 1.0 {
+            t += 0.05;
+            let f = fall(&c, t);
+            assert!(f.height_m <= last.height_m + 1e-3, "it never rises");
+            assert!(last.height_m - f.height_m < 2.0, "{t:.2} s: no jump");
+            last = f;
+        }
+        assert_eq!(last.stage, FallStage::Down);
+        let just_before = fall(&c, total - 0.01);
+        assert_eq!(just_before.stage, FallStage::Retros);
+        assert!(
+            just_before.speed_m_s <= c.touchdown_m_s + 0.2,
+            "it touches down at the retros' speed"
+        );
+        assert!((20.0..30.0).contains(&total), "about 25 s from the release: {total:.1} s");
+    }
+
+    #[test]
+    fn a_drop_is_inbound_then_falling_then_landed_and_the_aircraft_passes_over_the_site() {
+        let c = cfg();
+        let d = Drop::new(3, Vec3::new(100.0, 12.0, -40.0), 1000.0, &SimRng::new(5));
+        assert_eq!(d, Drop::new(3, Vec3::new(100.0, 12.0, -40.0), 1000.0, &SimRng::new(5)), "seeded");
+        assert!(matches!(d.stage(&c, 1000.0), Stage::Inbound(s) if (s - c.delay_s).abs() < 1e-3));
+        assert!(matches!(d.stage(&c, 1000.0 + f64::from(c.delay_s) + 1.0), Stage::Falling(_)));
+        assert_eq!(d.stage(&c, 1000.0 + f64::from(c.delay_s + fall_s(&c)) + 0.1), Stage::Landed);
+        let over = d.aircraft(&c, 1000.0 + f64::from(c.delay_s)).unwrap();
+        assert!((over - Vec3::new(100.0, 12.0 + c.release_height_m, -40.0)).length() < 1e-3);
+        assert_eq!(d.aircraft(&c, 1000.0), None, "not shown 25 s out");
+        let back = ron::from_str::<Drop>(&ron::to_string(&d).unwrap()).unwrap();
+        assert_eq!(back, d, "a drop survives a save");
+    }
+
+    #[test]
+    fn a_pilot_in_the_site_moves_it_beside_them_never_onto_them() {
+        let c = cfg();
+        let open = |_: Vec2| true;
+        let site = Vec2::new(50.0, 0.0);
+        assert_eq!(
+            clear_of(&c, NEEDS, site, Vec2::new(-80.0, 0.0), 0.5, &open),
+            site,
+            "far off: unchanged"
+        );
+        let pilot = Vec2::new(48.0, 3.0);
+        let moved = clear_of(&c, NEEDS, site, pilot, 0.5, &open);
+        assert!(moved.distance(pilot) >= NEEDS.radius_m + c.pilot_clear_m + 0.5 - 1e-3);
+        assert!(
+            moved.distance(site) < NEEDS.radius_m + c.pilot_clear_m + 3.0,
+            "just beside, not far off"
+        );
+        // Nothing good round them: still beside them, never on them.
+        let moved = clear_of(&c, NEEDS, site, pilot, 0.5, &|_| false);
+        assert!(moved.distance(pilot) >= NEEDS.radius_m + c.pilot_clear_m + 0.5 - 1e-3);
+        // Standing exactly on it.
+        let moved = clear_of(&c, NEEDS, site, site, 0.5, &open);
+        assert!(moved.distance(site) > NEEDS.radius_m);
+        assert_eq!(steer(Vec2::ZERO, Vec2::new(10.0, 0.0), 4.0), Vec2::new(4.0, 0.0));
+        assert_eq!(steer(Vec2::ZERO, Vec2::new(1.0, 0.0), 4.0), Vec2::new(1.0, 0.0));
+    }
+
+    #[test]
+    fn the_pilot_boards_the_owned_mech_they_walk_up_to() {
+        let c = cfg();
+        let mechs = [(0, Vec2::new(0.0, 0.0)), (4, Vec2::new(100.0, 0.0)), (2, Vec2::new(100.0, 0.0))];
+        assert_eq!(walking_up_to(&c, Vec2::new(5.0, 0.0), &mechs), Some(0));
+        assert_eq!(walking_up_to(&c, Vec2::new(90.0, 0.0), &mechs), Some(2), "ties to the lower key");
+        assert_eq!(walking_up_to(&c, Vec2::new(50.0, 0.0), &mechs), None, "too far from both");
     }
 
     #[test]

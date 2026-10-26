@@ -75,6 +75,8 @@ pub enum TerminalTab {
     Shop,
     /// Refit the mech standing in this bay (mech-custom).
     Refit,
+    /// The career's mechs, and calling one parked here out into a bay (owner, survey J16).
+    Hangar,
 }
 
 /// The page Back (and Escape) goes to from Options and Controls: the title or the pause menu.
@@ -94,6 +96,8 @@ pub(crate) enum MenuButton {
     Buy(usize),
     /// A refit of the mech in the bay (mech-custom).
     Refit(crate::career::Refit),
+    /// Call the owned mech with this key out into a bay here (owner, survey J16).
+    CallOut(u32),
     NewCareer,
     Continue,
     Mail,
@@ -219,10 +223,12 @@ fn set(menu: &mut Menu, next: Menu, time: &mut Time<Virtual>, cursor: &mut Curso
 /// Everything a button press may touch.
 struct Press<'a> {
     tab: &'a mut TerminalTab,
-    /// The terminal whose screen is open, and the world (for where a bought mech is delivered).
+    /// The terminal whose screen is open, and the world (for where a bought mech lands).
     terminal: Option<cb_core::world::bases::Terminal>,
     plan: &'a cb_core::world::WorldPlan,
-    bays_per_base: u32,
+    bases: &'a cb_core::world::bases::BasesConfig,
+    /// Where the player is and what stands near them (the air drop's search).
+    near: &'a crate::air_drop::Where,
     menu: &'a mut Menu,
     back: &'a mut BackTo,
     settings: &'a mut Settings,
@@ -255,9 +261,15 @@ fn press(
             if let Some(c) = career
                 && let Some(design) = c.data.catalogue.listings.get(i).map(|l| l.design.clone())
             {
-                let (at, from) = p.terminal.map_or((None, Vec2::ZERO), |t| (Some(t.base), t.at));
-                let note = crate::career::buy_mech(c, p.plan, p.bays_per_base, &design, at, from);
+                let at = p.terminal.map(|t| t.base);
+                let note = crate::career::buy_mech(c, p.plan, p.bases, &design, at, p.near);
                 c.shop_note = Some(note);
+            }
+        }
+        MenuButton::CallOut(key) => {
+            if let (Some(c), Some(t)) = (career, p.terminal) {
+                let wrecked = p.near.wrecks.contains(&key);
+                c.shop_note = Some(crate::career::call_out(c, p.plan, p.bases, t, key, wrecked, p.near));
             }
         }
         MenuButton::Refit(r) => {
@@ -401,11 +413,12 @@ fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton,
                   roster: Res<Roster>,
                   mut free: Option<ResMut<crate::missions::FreeRoamRun>>,
                   mut exit: MessageWriter<AppExit>,
-                  (mut tab, terminal, plan, data): (
+                  (mut tab, terminal, plan, data, near): (
                 ResMut<TerminalTab>,
                 Option<Res<crate::air_bases::AtTerminal>>,
                 Res<crate::world::Plan>,
                 Res<Data>,
+                Res<crate::air_drop::Where>,
             )| {
                 press(
                     what,
@@ -413,7 +426,8 @@ fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton,
                         tab: &mut tab,
                         terminal: terminal.map(|t| t.0),
                         plan: &plan,
-                        bays_per_base: data.0.world.bases.hangars as u32,
+                        bases: &data.0.world.bases,
+                        near: &near,
                         menu: &mut menu,
                         back: &mut back,
                         settings: &mut settings,
@@ -501,9 +515,10 @@ fn draw(
     free: Option<Res<crate::missions::FreeRoamRun>>,
     terminal: Option<Res<crate::air_bases::AtTerminal>>,
     tab: Res<TerminalTab>,
-    (plan, me): (
+    (plan, me, near): (
         Res<crate::world::Plan>,
         Query<(&crate::mech::MechSim, &crate::mech::MechSpec), With<crate::mech::Piloted>>,
+        Res<crate::air_drop::Where>,
     ),
     roots: Query<Entity, With<MenuRoot>>,
     overlay: Query<Entity, With<CockpitCamera>>,
@@ -703,6 +718,7 @@ fn draw(
                     match *tab {
                         TerminalTab::Jobs => mail_page(p, &run.career),
                         TerminalTab::Shop => shop_page(p, run),
+                        TerminalTab::Hangar => hangar_page(p, run, terminal.as_deref().map(|t| t.0), &plan, &near),
                         TerminalTab::Refit => {
                             // Only the mech stopped in this terminal's bay is refitted.
                             let here = terminal.as_deref().map(|t| (t.0.base, t.0.bay));
@@ -744,6 +760,7 @@ fn terminal_tabs(p: &mut ChildSpawnerCommands, open: TerminalTab) {
             (TerminalTab::Jobs, "JOBS"),
             (TerminalTab::Shop, "SHOP"),
             (TerminalTab::Refit, "REFIT"),
+            (TerminalTab::Hangar, "HANGAR"),
         ] {
             let text = if t == open { format!("[{name}]") } else { name.to_string() };
             button_sized(row, &text, MenuButton::Tab(t), 180.0);
@@ -757,6 +774,8 @@ fn terminal_tabs(p: &mut ChildSpawnerCommands, open: TerminalTab) {
 fn shop_page(p: &mut ChildSpawnerCommands, run: &crate::career::CareerRun) {
     let c = &run.career;
     p.spawn(label(&format!("SHOP      CREDITS {}", c.money), 40.0, INK));
+    // Owner, 2026-10-26: a bought mech is air dropped near you; a bay only when there is no ground for a drop.
+    p.spawn(label("DELIVERY: AIR DROP NEAR YOU", 22.0, DIM));
     if let Some(note) = &run.shop_note {
         p.spawn(label(note, 24.0, if note.starts_with("BOUGHT") { INK } else { WARN }));
     }
@@ -796,6 +815,70 @@ fn shop_page(p: &mut ChildSpawnerCommands, run: &crate::career::CareerRun) {
                 ),
             ));
             button_sized(row, &format!("BUY {}", l.price), MenuButton::Buy(i), 220.0);
+        });
+    }
+}
+
+/// The HANGAR page (owner, survey J16: "you can swap mechs out at base, with foreman always availible"): every mech the
+/// career owns, where it is, and CALL OUT for each one parked at this base, which brings it into a bay here to be
+/// walked up to and boarded; the Foreman can always be called, from anywhere, whole again if it was wrecked. Then what
+/// the last call did or why it was refused.
+fn hangar_page(
+    p: &mut ChildSpawnerCommands,
+    run: &crate::career::CareerRun,
+    terminal: Option<cb_core::world::bases::Terminal>,
+    plan: &cb_core::world::WorldPlan,
+    near: &crate::air_drop::Where,
+) {
+    let c = &run.career;
+    p.spawn(label("HANGAR      YOUR MECHS", 40.0, INK));
+    if let Some(note) = &run.shop_note {
+        p.spawn(label(note, 24.0, if note.starts_with("CALLED") { INK } else { WARN }));
+    }
+    let base = terminal.and_then(|t| plan.bases.iter().find(|b| b.id == t.base));
+    for m in &c.mechs {
+        let name = run
+            .data
+            .design(&m.design)
+            .map_or_else(|| m.design.clone(), |d| d.name.to_uppercase());
+        let foreman = m.design == run.data.career.start_mech;
+        let in_use = c.piloting == Some(m.key);
+        let dropping = c.drop_of(m.key).is_some_and(|d| !d.landed);
+        let here = match (m.field, base) {
+            (Some(f), Some(b)) => b.rect().distance(Vec2::new(f.pos[0], f.pos[2])) <= 0.0,
+            (None, Some(b)) => m.base == b.id,
+            _ => false,
+        };
+        let wreck = near.wrecks.contains(&m.key);
+        let place = match (m.field, dropping) {
+            (_, true) => "AIR DROP INBOUND".to_string(),
+            (Some(_), _) if here => "HERE".to_string(),
+            (Some(f), _) => format!("IN THE FIELD {:.1} KM", near.pilot.distance(Vec2::new(f.pos[0], f.pos[2])) / 1000.0),
+            (None, _) => format!("BASE {} BAY {}", m.base + 1, m.bay + 1),
+        };
+        let state = if wreck { "  WRECKED" } else { "" };
+        p.spawn(Node {
+            column_gap: px(14.0),
+            align_items: AlignItems::Center,
+            ..default()
+        })
+        .with_children(|row| {
+            row.spawn((
+                Node {
+                    width: px(720.0),
+                    ..default()
+                },
+                label(
+                    &format!("{name}{}   {place}{state}", if foreman { "  ALWAYS AVAILABLE" } else { "" }),
+                    18.0,
+                    if here || foreman { INK } else { DIM },
+                ),
+            ));
+            if in_use {
+                row.spawn(label("IN USE", 18.0, DIM));
+            } else if (here || foreman) && !dropping && terminal.is_some() {
+                button_sized(row, "CALL OUT", MenuButton::CallOut(m.key), 220.0);
+            }
         });
     }
 }

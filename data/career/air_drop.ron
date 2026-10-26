@@ -19,4 +19,20 @@
     // farther, so dry ground wins whenever the ring has any (D4).
     paved_bonus_m: 30.0,
     wet_penalty_m: 300.0,
+    // The drop's clock (D3): the release 25 s after BUY, the aircraft drawn 20 s either side of it, over the site at
+    // 320 m and 95 m/s; 2 s of free fall, the canopies at 14 m/s, the retros from 25 m down to 3 m/s at touchdown
+    // (D2): about 25 s falling.
+    delay_s: 25.0,
+    aircraft_speed_m_s: 95.0,
+    release_height_m: 320.0,
+    aircraft_shown_s: 20.0,
+    free_fall_s: 2.0,
+    canopy_m_s: 14.0,
+    retro_height_m: 25.0,
+    touchdown_m_s: 3.0,
+    // A pilot in the site (D6): kept 15 m beyond the mech's footprint; the canopies steer aside at up to 6 m/s.
+    pilot_clear_m: 15.0,
+    steer_m_s: 6.0,
+    // The pilot boards the owned mech they walk up to within 40 m (D7).
+    walk_up_m: 40.0,
 )

@@ -117,20 +117,26 @@ fn bind(
     commands.entity(root).insert(VentsBound);
 }
 
-/// Each frame, a vent streams while the boarding clock moves through its window, or rests there if it holds.
+/// Each frame, a vent of the piloted mech streams while its boarding clock moves through its window, or rests there if
+/// it holds. Another owned mech's vents stay shut (mech-shop section 6.3: the pilot may walk up to any of them).
 fn switch(
     data: Res<Data>,
-    mech: Query<&MechSim, With<Piloted>>,
-    mut vents: Query<(&VentEmitter, &mut FxStream)>,
+    mech: Query<(Entity, &MechSim), With<Piloted>>,
+    mut vents: Query<(Entity, &VentEmitter, &mut FxStream)>,
+    parents: Query<&ChildOf>,
     mut streaming: Local<usize>,
 ) {
-    let Ok(sim) = mech.single() else {
+    let Ok((root, sim)) = mech.single() else {
         return;
     };
+    let mine = |e: Entity| parents.iter_ancestors(e).any(|a| a == root);
     let tl = &data.0.boarding;
     let now = vents
         .iter()
-        .filter(|(v, _)| {
+        .filter(|(e, v, _)| {
+            if !mine(*e) {
+                return false;
+            }
             let stage = &tl.stages[v.stage];
             tl.vent_emits(stage, &stage.vents[v.vent], sim.hatch_prev.t_s, sim.hatch.t_s)
         })
@@ -139,14 +145,14 @@ fn switch(
         debug!("boarding vents: {now} streaming at {:.2} s", sim.hatch.t_s);
         *streaming = now;
     }
-    for (v, mut stream) in &mut vents {
+    for (e, v, mut stream) in &mut vents {
         let Some(stage) = tl.stages.get(v.stage) else {
             continue;
         };
         let Some(vent) = stage.vents.get(v.vent) else {
             continue;
         };
-        let on = tl.vent_emits(stage, vent, sim.hatch_prev.t_s, sim.hatch.t_s);
+        let on = mine(e) && tl.vent_emits(stage, vent, sim.hatch_prev.t_s, sim.hatch.t_s);
         if stream.on != on {
             stream.on = on;
         }

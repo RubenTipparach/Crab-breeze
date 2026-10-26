@@ -2,6 +2,7 @@
 //! command line and the data, and wires the plugins. It holds no game logic.
 
 mod air_bases;
+mod air_drop;
 mod ambience;
 mod audio;
 mod battle_fx;
@@ -251,7 +252,7 @@ fn main() -> AppExit {
         });
     }
     app.add_plugins(save_game::SaveGamePlugin);
-    app.add_plugins(air_bases::AirBasesPlugin);
+    app.add_plugins((air_bases::AirBasesPlugin, air_drop::AirDropPlugin));
     // The player's settings; a measurement or capture run keeps the window it set up.
     app.add_plugins(settings::SettingsPlugin {
         window: !scripted && !cli::switched_off("CB_UNCAPPED"),
