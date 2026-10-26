@@ -103,4 +103,4 @@ the Foreman's.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| C15 | The Cab's lower front screens are mostly behind the new dash. Keep them, or make the lower row sides only | Keep them: they light the footwell with the outside and show past the dash's ends | provisional |
+| C15 | The Cab's lower front screens are mostly behind the new dash. Keep them, or make the lower row sides only | Keep them: they light the footwell with the outside and show past the dash's ends | decided by the owner (2026-10-26): keep them, as built; and "every mech has dash/skate, just diferent stats for them", built in `boost-and-skate` ("Per mech") |

@@ -26,6 +26,7 @@ pub mod input;
 pub mod interact;
 pub mod jobs;
 pub mod mech;
+pub mod mfd_focus;
 pub mod mission;
 pub mod missions;
 pub mod pilot;
@@ -291,6 +292,104 @@ mod tests {
                 panic!("{mech} and {other} both sit in {}", interior.model);
             }
         }
+    }
+
+    /// Every roster mech's own file, loaded: (file, config).
+    fn roster_configs() -> Vec<(String, mech::MechConfig)> {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        GameData::roster(&root)
+            .into_iter()
+            .map(|m| {
+                let cfg = data::load_ron(&root.join(&m.file)).unwrap_or_else(|e| panic!("{e}"));
+                (m.file, cfg)
+            })
+            .collect()
+    }
+
+    /// Every roster mech has rockets and skates, each with stats of its own (survey C15, owner, 2026-10-26: "every
+    /// mech has dash/skate, just diferent stats for them").
+    #[test]
+    fn every_roster_mech_has_rockets_and_skates_of_its_own() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let mechs = roster_configs();
+        assert_eq!(mechs.len(), 8);
+        for (file, cfg) in &mechs {
+            let text = std::fs::read_to_string(root.join(file)).unwrap();
+            assert!(
+                text.contains("\n    jet: (") && text.contains("\n    skate: ("),
+                "{file} sets its own rockets and skates"
+            );
+            assert!(cfg.jet.burn_s > 0.0 && cfg.skate.burn_s > 0.0, "{file}");
+            assert!(cfg.jet.thrust_m_s2 > 2.0 * 9.81, "{file}'s rockets lift it with room to climb");
+        }
+        for (i, (a, ca)) in mechs.iter().enumerate() {
+            for (b, cb) in &mechs[i + 1..] {
+                assert!((&ca.jet, &ca.skate) != (&cb.jet, &cb.skate), "{a} and {b} move alike");
+            }
+        }
+    }
+
+    /// The stats in each mech's file are the ones its simulation runs on: its skates give out at its own seconds of
+    /// use and never pass its own top speed, its rockets give out at its own seconds of burn.
+    #[test]
+    fn each_mech_skates_and_flies_on_its_own_budgets() {
+        use mech::{LocomotionMode, MechControls, MechState};
+        const DT: f32 = 1.0 / 60.0;
+        let ground = world::FlatGround::default();
+        let mut at_ten_s = std::collections::BTreeMap::new();
+        for (file, cfg) in roster_configs() {
+            let mut m = MechState::standing(glam::Vec3::ZERO, 0.0, &cfg.gait);
+            let on = MechControls {
+                skate_toggle: true,
+                throttle_axis: 1.0,
+                ..Default::default()
+            };
+            m.step(&on, &cfg, &ground, DT);
+            assert_eq!(m.mode, LocomotionMode::Skate, "{file}");
+            let go = MechControls {
+                throttle_axis: 1.0,
+                ..Default::default()
+            };
+            let (mut t, mut top) = (DT, 0.0f32);
+            while !m.skate.locked && t < 120.0 {
+                m.step(&go, &cfg, &ground, DT);
+                t += DT;
+                top = top.max(m.vel.length());
+                if (t - 10.0).abs() < DT / 2.0 {
+                    at_ten_s.insert(file.clone(), m.vel.length());
+                }
+            }
+            assert!(
+                (t - cfg.skate.burn_s).abs() < 0.5,
+                "{file}: skates gave out at {t} s, not {}",
+                cfg.skate.burn_s
+            );
+            assert!(
+                top <= cfg.skate.speed_max_m_s + 0.5,
+                "{file}: {top} m/s past {}",
+                cfg.skate.speed_max_m_s
+            );
+
+            let mut m = MechState::standing(glam::Vec3::ZERO, 0.0, &cfg.gait);
+            let up = MechControls {
+                lift_axis: 1.0,
+                ..Default::default()
+            };
+            let mut t = 0.0;
+            while !m.boost.locked && t < 120.0 {
+                m.step(&up, &cfg, &ground, DT);
+                t += DT;
+            }
+            assert!(
+                (t - cfg.jet.burn_s).abs() < 0.5,
+                "{file}: rockets gave out at {t} s, not {}",
+                cfg.jet.burn_s
+            );
+        }
+        assert!(
+            at_ten_s["mechs/picket.ron"] > at_ten_s["mechs/mule.ron"],
+            "the light Picket out-skates the hauling Mule: {at_ten_s:?}"
+        );
     }
 
     #[test]
