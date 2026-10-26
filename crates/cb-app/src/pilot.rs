@@ -93,12 +93,12 @@ fn ease_fov(
 ) {
     let cfg = &data.0.pilot;
     *blend = cb_core::pilot::fov_blend(*blend, pilot.curr.mode == PilotMode::Seated, time.delta_secs(), cfg.fov_change_s);
-    let fov = cb_core::pilot::fov_deg(cfg, settings.0.fov_deg, *blend).to_radians();
     for mut lens in &mut lenses {
-        if let Projection::Perspective(p) = lens.as_mut()
-            && (p.fov - fov).abs() > 1e-5
-        {
-            p.fov = fov;
+        if let Projection::Perspective(p) = lens.as_mut() {
+            let fov = cb_core::pilot::fov_deg(cfg, settings.0.fov_deg, *blend, p.aspect_ratio).to_radians();
+            if (p.fov - fov).abs() > 1e-5 {
+                p.fov = fov;
+            }
         }
     }
 }
@@ -111,7 +111,7 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
     let srgb = |c: [f32; 3]| Color::srgb(c[0], c[1], c[2]);
     let lens = Projection::from(PerspectiveProjection {
         // On foot at the start; `ease_fov` owns it from then on (openspec change `seated-fov`).
-        fov: data.0.pilot.on_foot_fov_deg.to_radians(),
+        fov: cb_core::pilot::fov_deg(&data.0.pilot, data.0.pilot.view_fov_deg, 0.0, 16.0 / 9.0).to_radians(),
         near: 0.05,
         far: view.far_m,
         ..default()
