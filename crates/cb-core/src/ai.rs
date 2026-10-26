@@ -15,7 +15,7 @@
 use crate::input::ModeRequest;
 use crate::mech::{LocomotionMode, MechControls, MechState};
 use crate::rng::SimRng;
-use crate::weapons::lead;
+use crate::weapons::{ShotKind, lead};
 use glam::{Vec2, Vec3};
 use serde::Deserialize;
 use std::f32::consts::{PI, TAU};
@@ -77,6 +77,33 @@ pub struct Orders {
     pub aim_point: Vec3,
 }
 
+/// The fire rule each kind of gun adds (`weapon-kinds` section 5), given the range to the target,
+/// the aim's error in degrees and the weapon heat bank's share used: a shotgun inside 200 m, a
+/// railgun beyond 300 m with the aim within 0.3 degrees, a laser while the bank is under 0.8, plasma
+/// inside 450 m; anything else whenever the aim is on.
+pub fn kind_fires(kind: ShotKind, range_m: f32, err_deg: f32, heat: f32) -> bool {
+    match kind {
+        ShotKind::Pellets { .. } => range_m < 200.0,
+        ShotKind::Slug { .. } => range_m > 300.0 && err_deg < 0.3,
+        ShotKind::Beam { .. } => heat < 0.8,
+        ShotKind::Plasma { .. } => range_m < 450.0,
+        ShotKind::Shell | ShotKind::Rocket => true,
+    }
+}
+
+/// When an AI pilot holding a multi-lock pod lets go (`multi-lock` section 4): with two or more
+/// targets in its cone, at three locks or after 3 s of holding; with one, at every lock.
+pub fn pod_release(locks: usize, max_locks: u8, in_cone: usize, held_s: f32) -> bool {
+    if locks == 0 {
+        return false;
+    }
+    if in_cone >= 2 {
+        locks >= 3 || held_s >= 3.0
+    } else {
+        locks >= max_locks as usize
+    }
+}
+
 /// What the AI is doing, for logs and the take.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Task {
@@ -106,6 +133,10 @@ pub struct View<'a> {
     pub muzzle_speed_m_s: f32,
     /// Its main gun's shots drop under gravity (false for a rocket).
     pub drop: bool,
+    /// Its main gun's kind of shot, for the fire rule each kind has (`weapon-kinds` section 5).
+    pub kind: ShotKind,
+    /// Its weapon heat bank's share used, 0 to 1.
+    pub heat: f32,
     /// Its torso's structure left, 0..1.
     pub health: f32,
     /// It took a hit since the last step.
@@ -315,8 +346,10 @@ impl AiPilot {
         let err = Vec2::new(wrap(me.heading_rad + me.twist_rad - yaw), pitch - me.pitch_rad)
             .length()
             .to_degrees();
+        let range_m = flat(v.target).distance(here);
         let ready = err < self.skill.fire_error_deg
-            && flat(v.target).distance(here) < self.skill.max_fire_range_m
+            && range_m < self.skill.max_fire_range_m
+            && kind_fires(v.kind, range_m, err, v.heat)
             && self.line_ok
             && matches!(self.task, Task::Engage | Task::Evade);
 
@@ -354,6 +387,34 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn an_ai_pod_lets_go_at_three_locks_on_a_group_and_all_six_on_one() {
+        assert!(!pod_release(2, 6, 3, 1.0));
+        assert!(pod_release(3, 6, 3, 1.0));
+        assert!(pod_release(2, 6, 3, 3.0), "or after 3 s");
+        assert!(!pod_release(5, 6, 1, 5.0), "one target: every lock");
+        assert!(pod_release(6, 6, 1, 2.1));
+        assert!(!pod_release(0, 6, 2, 9.0), "nothing to fire");
+    }
+
+    #[test]
+    fn each_kind_keeps_to_its_own_fire_rule() {
+        let shotgun = ShotKind::Pellets {
+            count: 12,
+            spread_deg: 1.5,
+        };
+        assert!(kind_fires(shotgun, 150.0, 1.0, 0.0) && !kind_fires(shotgun, 250.0, 1.0, 0.0));
+        let rail = ShotKind::Slug { charge_s: 1.0 };
+        assert!(kind_fires(rail, 800.0, 0.2, 0.0));
+        assert!(!kind_fires(rail, 800.0, 0.5, 0.0), "not on the lead");
+        assert!(!kind_fires(rail, 200.0, 0.1, 0.0), "too close");
+        let laser = ShotKind::Beam { range_m: 1500.0 };
+        assert!(kind_fires(laser, 900.0, 1.0, 0.5) && !kind_fires(laser, 900.0, 1.0, 0.85));
+        let plasma = ShotKind::Plasma { burst_m: 650.0 };
+        assert!(kind_fires(plasma, 400.0, 1.0, 0.0) && !kind_fires(plasma, 500.0, 1.0, 0.0));
+        assert!(kind_fires(ShotKind::Shell, 2000.0, 1.0, 1.0));
+    }
     use crate::mech::{GaitConfig, MechConfig};
     use crate::world::FlatGround;
 
@@ -377,6 +438,8 @@ mod tests {
                 target_vel: Vec3::ZERO,
                 muzzle_speed_m_s: 850.0,
                 drop: true,
+                kind: Default::default(),
+                heat: 0.0,
                 health,
                 hit: false,
                 allies: &[],
@@ -427,6 +490,8 @@ mod tests {
             target_vel: Vec3::new(7.0, 0.0, 0.0),
             muzzle_speed_m_s: 850.0,
             drop: true,
+            kind: Default::default(),
+            heat: 0.0,
             health: 1.0,
             hit: false,
             allies: &[],
@@ -474,6 +539,8 @@ mod tests {
                 target_vel: Vec3::ZERO,
                 muzzle_speed_m_s: 850.0,
                 drop: true,
+                kind: Default::default(),
+                heat: 0.0,
                 health: 1.0,
                 hit: false,
                 allies: &ally,
@@ -501,6 +568,8 @@ mod tests {
             target_vel: Vec3::ZERO,
             muzzle_speed_m_s: 850.0,
             drop: true,
+            kind: Default::default(),
+            heat: 0.0,
             health: 1.0,
             hit: true,
             allies: &[],

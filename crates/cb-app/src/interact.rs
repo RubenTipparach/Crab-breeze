@@ -77,6 +77,10 @@ pub fn choose(
     }
     let choice = &mut *choice;
     choice.selector.offer(&in_reach);
-    choice.selector.scroll(actions.0.option_cycle);
+    // The wheel moves this list only out of the mech's seat: seated it steps the weapon, or the scope's
+    // magnification while the scope is open (railgun-scope), so one turn of it never does two things.
+    if p.mode != PilotMode::Seated {
+        choice.selector.scroll(actions.0.option_cycle);
+    }
     choice.now = choice.selector.pressed(actions.0.use_pressed);
 }

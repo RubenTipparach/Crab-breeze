@@ -47,12 +47,24 @@ pub struct PartWeapon {
     pub damage: f32,
     /// Explosive energy, MJ.
     pub blast_mj: f32,
-    /// A rocket (no drop).
+    /// What it throws (`weapon-kinds`): a shell when not given.
+    #[serde(default)]
+    pub shot: crate::weapons::ShotKind,
+    /// The old spelling of `shot: Rocket`.
     #[serde(default)]
     pub rocket: bool,
+    /// Share of the weapon heat bank a shot (a beam's second) adds.
+    #[serde(default)]
+    pub heat: f32,
     /// A missile's seeker turn, degrees a second.
     #[serde(default)]
     pub seeker_turn_deg_s: f32,
+    /// A multi-lock pod's seeker (`multi-lock`).
+    #[serde(default)]
+    pub seeker: Option<crate::targeting::Seeker>,
+    /// The scope's magnifications (`railgun-scope`).
+    #[serde(default)]
+    pub scope_zoom: Vec<f32>,
     /// Rounds a sortie; `None` for no limit.
     #[serde(default)]
     pub rounds: Option<u32>,
@@ -71,8 +83,15 @@ impl PartWeapon {
             penetration_mm: self.penetration_mm,
             damage: self.damage,
             blast_mj: self.blast_mj,
+            kind: self.shot,
             rocket: self.rocket,
+            heat: self.heat,
             seeker_turn_deg_s: self.seeker_turn_deg_s,
+            seeker: self.seeker,
+            burst: None,
+            lob: None,
+            signature: false,
+            scope_zoom: self.scope_zoom.clone(),
             rounds: self.rounds,
         }
     }

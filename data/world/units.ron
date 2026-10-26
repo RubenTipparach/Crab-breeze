@@ -31,7 +31,7 @@
             hp: 120.0,
             armour_mm: 20.0,
             weapon: Some((name: "70 mm rockets", socket: "NOSE", arm: Torso, group: 0, speed_m_s: 220.0,
-                interval_s: 0.25, penetration_mm: 100.0, damage: 5.0, blast_mj: 2.0, rocket: true)),
+                interval_s: 0.25, penetration_mm: 100.0, damage: 5.0, blast_mj: 2.0, kind: Rocket)),
             salvo: 4,
             salvo_pause_s: 16.0,
             fire_range_m: 900.0,

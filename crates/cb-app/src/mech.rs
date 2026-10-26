@@ -441,7 +441,7 @@ pub fn spawn_enemy_at(
     a: &mut SpawnAssets,
 ) -> Option<Entity> {
     let root = cli::repo_root().join("data");
-    let mut cfg: MechConfig = match cb_core::data::load_ron(&root.join(l.mech)) {
+    let mut cfg: MechConfig = match MechConfig::load(&root, l.mech) {
         Ok(c) => c,
         Err(err) => {
             error!("enemy {}: {err}", id.0);
@@ -1058,7 +1058,8 @@ pub fn step_mech(
     globals: Query<&GlobalTransform>,
     mut explosions: MessageWriter<Explosion>,
     mut fx: MessageWriter<Fx>,
-    targeting: Res<crate::targeting::TargetState>,
+    // The pilot's targets, and the fog an enemy pod locks on the pilot through (survey F2).
+    (targeting, fog_now): (Res<crate::targeting::TargetState>, Res<crate::ground_fog::FogNow>),
     mut contacts: MessageWriter<GroundContact>,
 ) {
     let _t = crate::perf_hud::slow("step_mech");
@@ -1092,6 +1093,7 @@ pub fn step_mech(
             r.1.aim_height_m(),
         )
     });
+    let player_id = roots.iter().find(|r| r.5).map(|r| r.2.0);
     let cam = camera.iter().next().copied();
     for (mut sim, spec, id, rig, enemy, piloted) in &mut roots {
         let cfg: &MechConfig = spec;
@@ -1101,7 +1103,7 @@ pub fn step_mech(
         if sim.dead {
             continue;
         }
-        let mut fire = [false, false, false];
+        let mut fire = [false; 4];
         // Close combat's strikes, [left arm, right arm] (close-combat).
         let mut strike = [false; 2];
         let mut aim_at: Option<Vec3> = None;
@@ -1191,9 +1193,9 @@ pub fn step_mech(
                 // close combat the guns keep firing and the punch keys strike with the arms (owner,
                 // 2026-10-25: "Guns keep firing in close combat, and punches move to other keys").
                 if actions.free_look {
-                    fire = [false; 3];
+                    fire = [false; 4];
                 } else {
-                    fire = [actions.fire[0], actions.fire[1], actions.fire_missile];
+                    fire = [actions.fire[0], actions.fire[1], actions.fire_missile, actions.fire_back];
                     if sim.close.on {
                         strike = actions.strike;
                     }
@@ -1268,7 +1270,10 @@ pub fn step_mech(
                 None => (player_at, player_vel, player_dead, player_aim_m),
             };
             let eye = sim.curr.pos + Vec3::Y * cfg.body.eye_height_m;
-            let speed = cfg.weapons.first().map_or(850.0, |w| w.speed_m_s);
+            // The main gun leads the aim: a beam at the target itself, a shell with its drop (weapon-kinds).
+            let main = cfg.weapons.first();
+            let kind = main.map_or_else(Default::default, |w| w.shot());
+            let speed = kind.lead_speed_m_s(main.map_or(850.0, |w| w.speed_m_s));
             let allies: Vec<Vec3> = bodies.iter().filter(|b| b.0 != id.0 && b.0 != 0).map(|b| b.1.feet).collect();
             let hit = std::mem::take(&mut sim.took_hit);
             let health = torso_health(&sim, cfg);
@@ -1282,7 +1287,9 @@ pub fn step_mech(
                 aim_height_m,
                 target_vel,
                 muzzle_speed_m_s: speed,
-                drop: !cfg.weapons.first().is_some_and(|w| w.rocket),
+                drop: !kind.straight(),
+                kind,
+                heat: sim.guns.heat.heat,
                 health,
                 hit,
                 allies: &allies,
@@ -1302,7 +1309,34 @@ pub fn step_mech(
                 c
             } else {
                 if !target_dead && !goal.hold_fire {
-                    fire = [orders.fire[0], orders.fire[1], false];
+                    fire = [orders.fire[0], orders.fire[1], false, false];
+                    // A pod gathers locks on the pilot while the aim is on and lets go by the AI's rule
+                    // (multi-lock section 4): the same `Locks` and salvo the player's pod uses.
+                    let pod = cfg.weapons.iter().position(|w| w.multi_lock().is_some());
+                    if let (Some(pi), None, Some(pid)) = (pod, goal.point, player_id) {
+                        let seeker = cfg.weapons[pi].multi_lock().unwrap_or_else(|| data.0.targeting.seeker(0.0));
+                        let torso = player_at + Vec3::Y * player_aim_m;
+                        let aim = (orders.aim_point - eye).normalize_or(Vec3::NEG_Z);
+                        // The same fog rule the pilot's locks take, along the line to the pilot.
+                        let fog = crate::targeting::fog_reach(&data, &plan, &fog_now, eye, torso, time.elapsed_secs());
+                        if orders.fire[0] {
+                            let you = [cb_core::targeting::Target {
+                                id: pid,
+                                torso,
+                                neutral: false,
+                                fog,
+                            }];
+                            sim.guns.locks.step(&seeker, eye, aim, &you, dt);
+                        }
+                        let off = cb_core::targeting::off_aim_deg(eye, aim, torso);
+                        let in_cone = usize::from(seeker.reaches(torso.distance(eye), off, fog));
+                        let locks = &sim.guns.locks;
+                        if cb_core::ai::pod_release(locks.held.len(), seeker.max_locks, in_cone, locks.held_s) {
+                            let lost = sim.damage.is_lost(&cfg.parts, cfg.weapons[pi].arm);
+                            let on = sim.guns.locks.release();
+                            sim.guns.release(&cfg.weapons, pi, &on, lost);
+                        }
+                    }
                 }
                 aim_at = Some(orders.aim_point);
                 orders.controls
@@ -1392,42 +1426,93 @@ pub fn step_mech(
         // Guns: fire from the muzzle toward the aim point; a lost arm's gun is gone.
         // The pilot's left mouse fires the selected station; the enemy AI fires by group (weapon-select).
         let pulls = if piloted {
-            cb_core::weapons::station_pulls(&cfg.weapons, sim.selected, fire[0], fire[1], fire[2])
+            cb_core::weapons::station_pulls(&cfg.weapons, sim.selected, fire)
         } else {
             cb_core::weapons::group_pulls(&cfg.weapons, fire)
         };
-        let fired = sim.guns.trigger(&cfg.weapons, &pulls, |k| damage.is_lost(&cfg.parts, k), dt);
-        for wi in fired {
+        let fired = sim
+            .guns
+            .trigger(&cfg.weapons, &pulls, |k| damage.is_lost(&cfg.parts, k), &cfg.weapon_heat, dt);
+        // The pilot's pod fires its salvo on letting go of the missile key, one missile per lock (multi-lock).
+        if piloted
+            && !fire[2]
+            && let Some(pi) = cfg.weapons.iter().position(|w| w.multi_lock().is_some())
+        {
+            let on = sim.guns.locks.release();
+            let lost = damage.is_lost(&cfg.parts, cfg.weapons[pi].arm);
+            sim.guns.release(&cfg.weapons, pi, &on, lost);
+        }
+        let queued = sim.guns.take_queued(&cfg.weapons, |k| damage.is_lost(&cfg.parts, k), dt);
+        let mut rng = cb_core::weapons::shot_rng(id.0, sim.guns.pulls);
+        let shots_now = fired.into_iter().map(|i| (i, None)).chain(queued);
+        for (wi, lock_on) in shots_now {
             let w = &cfg.weapons[wi];
-            // A mech without a missile pod launches its missiles from the right arm.
-            let socket: Option<&'static str> = ["MUZZLE_L", "MUZZLE_R", "MISSILE_POD"].into_iter().find(|s| *s == w.socket);
-            let socket = match socket {
-                Some("MISSILE_POD") if !rig.sockets.contains_key("MISSILE_POD") => Some("MUZZLE_R"),
-                s => s,
-            };
-            let Some(muzzle) = socket
-                .and_then(|s| rig.sockets.get(s))
-                .and_then(|e| globals.get(*e).ok())
+            // The weapon's own socket when the model has it (a back unit's barrel, a pod's mouth), else the
+            // contract muzzle of its arm; a missile without a pod leaves from the right arm.
+            let named = rig.socket(&w.socket).or_else(|| rig.named(&w.socket));
+            let fallback = if w.arm == PartKind::ArmL { "MUZZLE_L" } else { "MUZZLE_R" };
+            let Some(muzzle) = named
+                .or_else(|| rig.socket(fallback))
+                .and_then(|e| globals.get(e).ok())
                 .map(|g| g.translation())
             else {
                 continue;
             };
             let target = aim_at.unwrap_or(muzzle + cb_core::mech::forward(sim.curr.heading_rad + sim.curr.twist_rad) * 500.0);
             let dir = (target - muzzle).normalize_or(Vec3::NEG_Z);
-            let carry = cb_core::mech::forward(sim.curr.heading_rad) * sim.curr.speed_m_s;
-            shots.0.push(Projectile {
-                owner: id.0,
-                weapon: wi,
-                pos: muzzle,
-                vel: dir * w.speed_m_s + carry,
-                age_s: 0.0,
-                rocket: w.rocket,
-                // A missile homes on the pilot's lock (targeting); unlocked it flies straight.
-                target: (piloted && w.seeker_turn_deg_s > 0.0).then_some(locked).flatten(),
-            });
-            let recipe = if w.rocket {
+            let kind = w.shot();
+            if let cb_core::weapons::ShotKind::Beam { range_m } = kind {
+                // A laser burns this step's share of its damage into the first thing on its line (weapon-kinds).
+                shots.2.push(crate::combat::Beam {
+                    owner: id.0,
+                    from: muzzle,
+                    dir,
+                    range_m,
+                    penetration_mm: w.penetration_mm,
+                    damage: w.damage * dt,
+                });
+                continue;
+            }
+            // A ripple's rounds each scattered a little (signature-weapons); a lobbing gun lays itself for the
+            // range to the aim point and leaves the mech's own motion out of it, so it lands on the crosshair.
+            let dir = match w.burst {
+                Some(b) if b.jitter_deg > 0.0 => cb_core::weapons::scatter(dir, b.jitter_deg, &mut rng),
+                _ => dir,
+            };
+            let lobbed = w
+                .lob
+                .as_ref()
+                .and_then(|lob| cb_core::weapons::lob_velocity(muzzle, target, lob, dt));
+            let carry = if lobbed.is_some() {
+                Vec3::ZERO
+            } else {
+                cb_core::mech::forward(sim.curr.heading_rad) * sim.curr.speed_m_s
+            };
+            let launched = match lobbed {
+                Some(v) => vec![v],
+                None => cb_core::weapons::launch(kind, dir, w.speed_m_s, &mut rng),
+            };
+            for vel in launched {
+                shots.0.push(Projectile {
+                    owner: id.0,
+                    weapon: wi,
+                    pos: muzzle,
+                    vel: vel + carry,
+                    age_s: 0.0,
+                    rocket: kind.straight(),
+                    // A salvo's missile homes on its own lock; a single missile on the pilot's lock
+                    // (targeting); unlocked it flies straight.
+                    target: lock_on.or_else(|| (piloted && w.turn_deg_s() > 0.0).then_some(locked).flatten()),
+                });
+            }
+            let recipe = if kind.straight() {
                 "muzzle_rocket"
-            } else if w.blast_mj >= 1.0 {
+            } else if w.blast_mj >= 1.0
+                || matches!(
+                    kind,
+                    cb_core::weapons::ShotKind::Pellets { .. } | cb_core::weapons::ShotKind::Slug { .. }
+                )
+            {
                 "muzzle_cannon"
             } else {
                 "muzzle_autocannon"

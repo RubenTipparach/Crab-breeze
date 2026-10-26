@@ -137,8 +137,11 @@ cloud does, and the sensors see through it), so it changes the targeting.
   page is built: everything boxed is what the sensors hold), the lock range (`lock_range_m`), and
   the lock's build rate (a lock builds `scale` times as fast). `targeting::seen` and
   `targeting::in_lock_range` are the only range checks; the cockpit's boxes, the civil CIV boxes,
-  the `IN RANGE` label and the lock all go through them, so they agree. There is no multi-lock in
-  the game yet; one built later steps the same `Lock` and so inherits the rule.
+  the `IN RANGE` label and the lock all go through them, so they agree. Multi-lock (merged after
+  this was written) takes the same rule: `in_lock_range` is the shoulder missile's
+  `Seeker::in_range`, `Seeker::reaches` and `Seeker::keeps` take the fog toward the target, each
+  `Target` carries its `fog`, and a pod's `Locks` build `fog` times as fast, for the pilot's pod and
+  an enemy's pod locking on the pilot alike (`a_pod_takes_the_fog_rule_the_shoulder_missile_does`).
 - **What it means in play**: in plain air the fog never reaches the threshold inside the 2 km
   boxing range (morning air at sea level lets 72 % through at 2 km). In full valley mist at dawn,
   about 37 % gets through 1 km, so a crab in the mist locks from about 900 m, not 1,200 m, and

@@ -281,6 +281,13 @@ pub fn check_mech(cfg: &MechConfig, boarding: Option<&cb_core::boarding::Boardin
         Err(e) => return vec![e],
     };
     let mut out: Vec<String> = tree.contract_problems().into_iter().map(|p| format!("{model}: {p}")).collect();
+    // Every gun fires from a node the model has: a contract muzzle, or its own (a back unit's barrel, a pod's
+    // mouth, `signature-weapons`). A missile without a pod leaves from the right arm, so `MISSILE_POD` may be absent.
+    for w in &cfg.weapons {
+        if w.socket != "MISSILE_POD" && !tree.names.contains(&w.socket) {
+            out.push(format!("weapon `{}`: {model} has no node `{}` to fire from", w.name, w.socket));
+        }
+    }
     let mut cabin = None;
     if let Some(interior) = &cfg.interior {
         match Tree::read(&assets.join(&interior.model)) {

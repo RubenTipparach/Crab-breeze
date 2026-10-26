@@ -566,6 +566,7 @@ fn draw_targets(
     state: Res<crate::targeting::TargetState>,
     camera: Single<(&Camera, &GlobalTransform), With<crate::pilot::PilotCamera>>,
     me: Query<&MechSpec, With<Piloted>>,
+    my_guns: Query<&MechSim, With<Piloted>>,
     hostiles: Res<crate::units::Hostiles>,
     neutrals: Res<crate::air_traffic::Neutrals>,
     mut boxes: Query<(&TargetBox, &mut Node, &mut BorderColor, &mut Visibility), (Without<LeadRing>, Without<EdgeArrow>)>,
@@ -614,7 +615,7 @@ fn draw_targets(
         if selected {
             let w = me.iter().next().and_then(|spec| spec.weapons.first().cloned());
             if let Some(w) = w {
-                let p = cb_core::weapons::lead(eye, torso, vel, w.speed_m_s, !w.rocket);
+                let p = cb_core::weapons::lead(eye, torso, vel, w.shot().lead_speed_m_s(w.speed_m_s), !w.shot().straight());
                 lead_at = cam.world_to_viewport(at, p).ok().filter(|p| on_screen(*p));
             }
             let in_range = cb_core::targeting::in_lock_range(cfg, *d, *fog);
@@ -623,6 +624,11 @@ fn draw_targets(
             texts[slot] = (format!("CIV {d:.0} m"), colour);
         } else {
             texts[slot] = (format!("{d:.0} m"), colour);
+        }
+        // A pod's locks on it, `xN` (multi-lock), from the locks the salvo will fire on.
+        let n = my_guns.iter().next().map_or(0, |m| m.guns.locks.count(*id));
+        if n > 0 {
+            texts[slot].0.push_str(&format!(" x{n}"));
         }
         let (Ok(top), Ok(bottom)) = (
             cam.world_to_viewport(at, feet + Vec3::Y * h.height_m),
@@ -1096,20 +1102,35 @@ fn update_stations(
         };
         *v = Visibility::Inherited;
         let lost = sim.damage.is_lost(&spec.parts, w.arm);
-        let cd = sim.guns.cooldown_s.get(row.0).copied().unwrap_or(0.0);
         let rounds = sim.guns.rounds_left.get(row.0).copied().unwrap_or(w.rounds);
-        let state = if lost {
-            "LOST".to_string()
-        } else if rounds == Some(0) {
-            "EMPTY".to_string()
-        } else if cd > 0.05 {
-            format!("{cd:.1}s")
+        // The station's state from the clocks its shots fire from (weapon-kinds): charge, heat, reload.
+        use cb_core::weapons::StationState as S;
+        let state = match sim.guns.state(&spec.weapons, row.0, lost) {
+            S::Lost => "LOST".to_string(),
+            S::Empty => "EMPTY".to_string(),
+            S::Hot => "HOT".to_string(),
+            S::Charging(k) => format!("CHARGE {:.0}%", k * 100.0),
+            S::Reloading(cd) => format!("{cd:.1}s"),
+            S::Ready => "READY".to_string(),
+        };
+        // A pod shows the locks it holds (multi-lock).
+        let state = match w.multi_lock() {
+            Some(seeker) if !sim.guns.locks.held.is_empty() => {
+                format!("LOCKS {}/{}", sim.guns.locks.held.len(), seeker.max_locks)
+            }
+            _ => state,
+        };
+        // A weapon that runs hot shows the bank it shares (weapon-kinds section 6).
+        let state = if w.heat > 0.0 {
+            format!("{state}  HEAT {:.0}%", sim.guns.heat.heat * 100.0)
         } else {
-            "READY".to_string()
+            state
         };
         let name = w.name.to_uppercase();
         let count = rounds.map_or_else(String::new, |n| format!(" x{n}"));
-        t.0 = format!("STA {}  {name}{count}  {state}", row.0 + 1);
+        // The signature weapon is starred (signature-weapons).
+        let star = if w.signature { "*" } else { "" };
+        t.0 = format!("STA {}{star}  {name}{count}  {state}", row.0 + 1);
         let selected = row.0 == sim.selected;
         c.0 = if lost {
             RED

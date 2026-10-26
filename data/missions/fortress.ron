@@ -69,7 +69,7 @@
             capsule: (radius_m: 9.0, half_m: 3.0, centre_y_m: 8.0),
             gun: Some((
                 weapon: (name: "crab missile", socket: "MUZZLE", arm: Torso, group: 0, speed_m_s: 220.0,
-                         interval_s: 0.25, penetration_mm: 150.0, damage: 35.0, blast_mj: 2.0, rocket: true,
+                         interval_s: 0.25, penetration_mm: 150.0, damage: 35.0, blast_mj: 2.0, kind: Rocket,
                          seeker_turn_deg_s: 45.0),
                 range_m: 2500.0, burst: 6, pause_s: 7.75, aim_error_deg: 2.0, elev_deg: (14.0, 69.0),
             )),
@@ -79,7 +79,7 @@
             capsule: (radius_m: 8.0, half_m: 2.0, centre_y_m: 2.0),
             gun: Some((
                 weapon: (name: "crab missile", socket: "MUZZLE", arm: Torso, group: 0, speed_m_s: 220.0,
-                         interval_s: 5.0, penetration_mm: 150.0, damage: 35.0, blast_mj: 2.0, rocket: true,
+                         interval_s: 5.0, penetration_mm: 150.0, damage: 35.0, blast_mj: 2.0, kind: Rocket,
                          seeker_turn_deg_s: 45.0),
                 range_m: 2500.0, burst: 1, pause_s: 5.0, aim_error_deg: 0.0, elev_deg: (90.0, 90.0), turns: false,
                 magazine: 12,

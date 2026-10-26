@@ -672,11 +672,13 @@ fn ripple_crests(images: &mut Assets<Image>) -> Handle<Image> {
 
 /// One streak per shell in flight and one motor per rocket, placed where the shot is this frame
 /// (its last fixed step carried on by the overstep). A pool slot past the number of shots is hidden,
-/// so a streak is gone the frame its shot stops.
+/// so a streak is gone the frame its shot stops. A laser's beam (`weapon-kinds`) is drawn as one long
+/// streak from the muzzle to what it burns: a labelled stand-in until `combat-fx` has the beam's recipe.
 #[allow(clippy::too_many_arguments)]
 fn draw_shots(
     mut commands: Commands,
     shots: Res<Shots>,
+    beams: Res<crate::combat::BeamsDrawn>,
     data: Res<Data>,
     fx: Res<FxAssets>,
     fixed: Res<Time<Fixed>>,
@@ -825,6 +827,40 @@ fn draw_shots(
             *v = Visibility::Inherited;
         }
         ti += 1;
+    }
+    // Beams, last step's, as streaks in the tracers' pool (a stand-in: weapon-kinds section 6).
+    for &(from, to) in &beams.0 {
+        if pools.tracers.len() <= ti {
+            break; // the pool grows on the shells' path; a new slot shows next frame
+        }
+        if let Ok((mut t, mut v)) = q.get_mut(pools.tracers[ti]) {
+            let dir = (to - from).normalize_or(Vec3::NEG_Z);
+            let len = from.distance(to).max(0.1);
+            let centre = (from + to) * 0.5;
+            let to_eye = (eye - centre).normalize_or(Vec3::Z);
+            let x = dir.cross(to_eye).normalize_or(Vec3::X);
+            let z = x.cross(dir);
+            *t = Transform {
+                translation: centre,
+                rotation: Quat::from_mat3(&Mat3::from_cols(x, dir, z)),
+                scale: Vec3::new(cfg.tracer_heavy_width_m, len, 1.0),
+            };
+            *v = Visibility::Inherited;
+        }
+        ti += 1;
+    }
+    if pools.tracers.len() < ti + beams.0.len() {
+        let e = commands
+            .spawn((
+                Mesh3d(fx.quad.clone()),
+                MeshMaterial3d(fx.tracer.clone()),
+                Transform::default(),
+                Visibility::Hidden,
+                bevy::light::NotShadowCaster,
+                Tracer,
+            ))
+            .id();
+        pools.tracers.push(e);
     }
     for e in pools
         .tracers

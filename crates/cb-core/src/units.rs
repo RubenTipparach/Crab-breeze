@@ -573,7 +573,7 @@ impl Unit {
         if muzzle.distance(target) > spec.fire_range_m {
             return None;
         }
-        let aim = crate::weapons::lead(muzzle, target, target_vel, w.speed_m_s, !w.rocket);
+        let aim = crate::weapons::lead(muzzle, target, target_vel, w.speed_m_s, !w.shot().straight());
         let dir = (aim - muzzle).normalize_or_zero();
         let nose = forward(self.heading_rad);
         let flat = Vec3::new(dir.x, 0.0, dir.z).normalize_or_zero();

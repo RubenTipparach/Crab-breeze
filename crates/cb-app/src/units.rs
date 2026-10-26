@@ -342,10 +342,10 @@ fn step_units(
                 pos: from,
                 vel: dir * w.speed_m_s,
                 age_s: 0.0,
-                rocket: w.rocket,
+                rocket: w.shot().straight(),
                 target: None,
             });
-            let flash = if w.rocket {
+            let flash = if w.shot().straight() {
                 "muzzle_rocket"
             } else if w.blast_mj >= 1.0 {
                 "muzzle_cannon"
@@ -606,9 +606,23 @@ mod tests {
             rocket: false,
             target: None,
         };
-        let mut shots = crate::combat::Shots(vec![round(fortress), round(defence), round(free)], Vec::new());
+        let beam = |owner: u32| crate::combat::Beam {
+            owner,
+            from: Vec3::ZERO,
+            dir: Vec3::X,
+            range_m: 100.0,
+            penetration_mm: 10.0,
+            damage: 1.0,
+        };
+        let mut shots = crate::combat::Shots(
+            vec![round(fortress), round(defence), round(free)],
+            Vec::new(),
+            vec![beam(fortress), beam(free)],
+        );
         shots.drop_from(|o| gone.contains(&o));
         let left: Vec<u32> = shots.0.iter().map(|s| s.owner).collect();
         assert_eq!(left, [defence, free]);
+        let lasers: Vec<u32> = shots.2.iter().map(|b| b.owner).collect();
+        assert_eq!(lasers, [free], "a stopped mission's lasers go with it (weapon-kinds)");
     }
 }
