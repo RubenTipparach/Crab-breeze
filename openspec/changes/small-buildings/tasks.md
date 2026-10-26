@@ -22,3 +22,4 @@
 - [ ] 3.2 Placement on the island by biome and zone (the island session)
 - [ ] 3.3 Breakable pieces for `building-destruction`
 - [ ] 3.4 Measured in a town at dusk; playtest striding through a suburb and a roadside stop, on Drive
+- [ ] Each type bakes its far look and massing recipe (`building-type-lods`; `every_building_type_has_its_far_look` passes)
