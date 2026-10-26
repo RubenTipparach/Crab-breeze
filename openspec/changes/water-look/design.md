@@ -78,6 +78,42 @@ owner's later choice (2026-10-26, a navy-grey open sea and teal shallows) keeps 
 shallows and absorption; main's greyer zenith (0.16, 0.22, 0.30) is taken, as it is the "greyer" of
 that choice; `sky_horizon_strength` stays 0.7 from the stills above.
 
+**Still dull (owner, 2026-10-26: "Not sure that water convinces me.... It looks kinda dull", then
+"Maybe need reflection probe like glass towers?").** Colour alone could not fix it: the sun's
+glint was one tight Blinn-Phong dot, the sky in the water a two-colour gradient, nothing lit the
+crests. Built now, ahead of the wave detail:
+- **Step 4, the glitter path:** GGX with water's Fresnel of 0.02, as section 4 has it, its
+  roughness `glint_roughness` (0.06) close by plus `glint_far_roughness` (0.25) where the ripples
+  have faded into the distance (the shader's own detail fade stands in for the Toksvig term until
+  the wave atlas exists). `specular_intensity` is now a multiplier on that highlight (1.0);
+  `specular_power` is gone.
+- **Step 2, the sky in the water, from the glass's probe:** the water samples the pilot camera's
+  cached sky cube (`sky_light.rs`, the Poly Haven sky the buildings' glass reflects) in its
+  reflected direction, at the mip its roughness asks for, so water and glass mirror one sky. The
+  game's own cloud billboards are not in that cube; capturing them stays step 2's later part.
+- **Step 5, light through the crests:** `scatter_color` (0.05, 0.35, 0.33) times
+  `scatter_strength` (0.35), on wavelet crests (`max(h + 0.15, 0)`) seen toward the sun's bearing
+  (`pow(toward, 4)`), where the surface is not mirroring. The shadow under hulls is still to come.
+- Stills `sea-sun` and `sea-away` (40 m over open sea, toward and away from the sun):
+  `docs/screenshots/2026-10-26-water-glint.png`.
+
+**Glitter from high up (owner, 2026-10-26: "its definitely the glitter that improves it", "is
+there a way we can make glitter show up more at higher altitudes? lower altitudes look great",
+with Ace Combat 8 shots of the sea sheened and sparkling under the sun from altitude).** From 6.5 km
+the sea was a flat navy sheet: the glint's roughness grew only where the ripples had faded, and a
+pixel there covers 5-10 m of sea, whose wavelets a pixel cannot draw.
+- **The sheen's width, by measurement:** Cox and Munk's sea-surface slopes (the standard model of
+  sun glint seen from aircraft and satellites) give a slope variance of `0.003 + 0.00512 x wind`,
+  0.034 at the game's 6 m/s wind (`cloud-weather`), a GGX roughness of about 0.26. Far water's
+  total roughness (`glint_roughness` 0.06 + `glint_far_roughness` 0.20) is set to that.
+- **The sparkle:** a smooth broad lobe is a sheen, not glitter. Each patch of sea a pixel and a half
+  across takes its own random facet tilt, `glitter_slope` (0.22) times how far the ripples have
+  faded, re-drawn `glitter_twinkle_hz` (3) times a second; the sun's glint is drawn off that tilted
+  facet with a narrower lobe (half the far roughness), so far water sparkles in a sheen as wide as
+  Cox and Munk's. The sky's reflection keeps the untilted surface.
+- Stills: `sea-sun-high` (1.5 km up) and `sea-sun-top` (6.5 km), toward the sun.
+- Cost: two hashes and a second normal a pixel.
+
 ## 1. Wave detail
 
 - **The bake:** a 512 px, 64-frame tileable normal and height atlas covering a 64 m patch, baked
