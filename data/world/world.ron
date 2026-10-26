@@ -177,7 +177,11 @@
     trees: (
         tile_sites: 24,
         keep_radius_m: 2200.0,
+        // Within 60 m of a body its trees grow at once; out to 400 m, 4 tiles a step (a body brought in somewhere new
+        // wanted about 16 tiles in one step: the desktop's 36 ms tree stalls); beyond, 2 a step.
         urgent_radius_m: 400.0,
+        must_radius_m: 60.0,
+        urgent_tiles_per_step: 4,
         release_radius_m: 2700.0,
         tiles_per_step: 2,
         draw_radius_m: 2000.0,

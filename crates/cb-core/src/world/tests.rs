@@ -639,7 +639,7 @@ fn a_felled_tree_stays_felled_when_its_tile_is_let_go_and_grown_again() {
 #[test]
 fn growing_trees_is_bounded_by_the_bodies_not_the_island() {
     // However big the island, the trees kept are those within the keep radius of each body, and a
-    // step grows at most its urgent tiles plus `tiles_per_step` more.
+    // step grows at most its must and urgent tiles plus `tiles_per_step` more.
     let plan = seed_42();
     let cfg = shipped().trees;
     let mut f = plan.forest.clone();
@@ -714,6 +714,40 @@ fn the_lod_rings_keep_the_ground_to_a_few_hundred_thousand_triangles() {
         assert!(tris < 900_000, "{what}: {tris} triangles");
         assert!(meshes < 200, "{what}: {meshes} ground meshes before culling");
     }
+}
+
+#[test]
+fn a_body_new_to_a_place_grows_its_near_trees_at_once_and_the_rest_a_few_a_step() {
+    let plan = seed_42();
+    let cfg = shipped().trees;
+    let mut f = plan.forest.clone();
+    let here = plan.start.mech_xz;
+    for _ in 0..400 {
+        f.keep_around_seen(plan, &[here], 1);
+    }
+    // An enemy brought in 6 km off: its whole 400 m ring used to grow in one step.
+    let new = here + Vec2::new(6000.0, 0.0);
+    let first = f.keep_around_seen(plan, &[here, new], 1);
+    let grown = |f: &Forest| f.grown_tiles().map(|(k, _)| k).collect::<std::collections::BTreeSet<_>>();
+    let now = grown(&f);
+    assert!(
+        f.tiles_within(new, cfg.must_radius_m).iter().all(|k| now.contains(k)),
+        "its near trees stand at once"
+    );
+    let tile_m = cfg.tile_sites as f32 * cfg.spacing_m;
+    let must_most = std::f32::consts::PI * ((cfg.must_radius_m + tile_m * 1.5) / tile_m).powi(2);
+    assert!(
+        first.grown.len() as f32 <= must_most + cfg.urgent_tiles_per_step as f32,
+        "{} tiles grown in one step",
+        first.grown.len()
+    );
+    let ring = f.tiles_within(new, cfg.urgent_radius_m);
+    assert!(ring.iter().any(|k| !now.contains(k)), "the rest of the ring waits");
+    for _ in 0..ring.len() {
+        f.keep_around_seen(plan, &[here, new], 1);
+    }
+    let later = grown(&f);
+    assert!(ring.iter().all(|k| later.contains(k)), "and is grown within a few steps");
 }
 
 #[test]
