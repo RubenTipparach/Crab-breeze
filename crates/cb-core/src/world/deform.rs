@@ -337,6 +337,28 @@ impl Deformation {
     }
 }
 
+/// The swap rule for a dug patch (the patch going missing, 2026-10-26: a rocket hit left a hole in
+/// the ground for seconds). A chunk's rebuilt mesh leaves a hole for each crater tile in `holes`;
+/// it may replace the mesh on screen only when every one of those tiles is on screen already
+/// (`drawn`) or has its mesh finished (`finished`), and then those finished tiles go on screen in
+/// the same frame. Returns the tiles to put up with the chunk, or `None` to keep the old chunk
+/// (no hole) on screen and wait.
+pub fn patch_swap(
+    holes: &std::collections::BTreeSet<(i32, i32)>,
+    drawn: impl Fn((i32, i32)) -> bool,
+    finished: impl Fn((i32, i32)) -> bool,
+) -> Option<Vec<(i32, i32)>> {
+    let mut up = Vec::new();
+    for &k in holes {
+        if finished(k) {
+            up.push(k);
+        } else if !drawn(k) {
+            return None;
+        }
+    }
+    Some(up)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -509,5 +531,20 @@ mod tests {
         let (a, b) = (d.tile_mesh(plan(), key), d.around(key).tile_mesh(plan(), key));
         assert_eq!(a.positions, b.positions);
         assert_eq!(a.normals, b.normals);
+    }
+
+    #[test]
+    fn a_chunk_with_a_new_hole_waits_for_its_tile() {
+        let holes = std::collections::BTreeSet::from([(3, 4)]);
+        assert_eq!(patch_swap(&holes, |_| false, |_| false), None, "the old ground stays up");
+    }
+
+    #[test]
+    fn a_chunk_and_its_new_tile_go_up_on_the_same_frame() {
+        let holes = std::collections::BTreeSet::from([(3, 4), (3, 5)]);
+        let drawn = |k: (i32, i32)| k == (3, 5);
+        assert_eq!(patch_swap(&holes, drawn, |k| k == (3, 4)), Some(vec![(3, 4)]));
+        assert_eq!(patch_swap(&holes, |_| true, |_| false), Some(vec![]), "both already drawn");
+        assert_eq!(patch_swap(&Default::default(), |_| false, |_| false), Some(vec![]), "no holes");
     }
 }

@@ -77,6 +77,7 @@ fn explode(
             e.at
         };
         if wet.is_none() && on_ground {
+            let _s = crate::perf_hud::section("explode: dig");
             let touched = live.dug.dig(
                 &plan,
                 Blast {
@@ -88,12 +89,14 @@ fn explode(
             live.dirty_tiles.extend(touched);
         }
         if on_ground {
+            let _s = crate::perf_hud::section("explode: trees");
             // A blast far from every body grows the trees it reaches first (island-world).
             live.forest.grow_around(&plan, xz, r * 4.0);
             let broke = live.forest.blast(xz, r * 4.0, 400_000.0 * e.energy_mj.sqrt());
             live.moved_trees.extend(broke);
         }
         // Buildings within reach lose the cells the blast reaches (building-destruction).
+        let s_buildings = crate::perf_hud::section("explode: buildings");
         for b in plan.collision.candidates(xz, r * 1.5) {
             let (broke, chunks) = live.structures.break_sphere(b, e.at, r * 1.3);
             if broke > 0 {
@@ -101,6 +104,7 @@ fn explode(
                 live.new_chunks.extend(chunks);
             }
         }
+        drop(s_buildings);
         // Mechs nearby take splash on the part nearest the blast; armour stops most of it.
         for (mut sim, spec) in &mut mechs {
             let d = sim.curr.pos.distance(e.at - Vec3::Y * 4.0);
