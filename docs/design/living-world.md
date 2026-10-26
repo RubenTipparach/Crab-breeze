@@ -31,7 +31,7 @@ Each step is a playable game on its own, and the next one builds on it.
 | Step | Change | What the player gets | State |
 | --- | --- | --- | --- |
 | 1 | `save-game` | Continue restores where you were: position, mech, damage, ammunition, money, the job under way | built: autosave and Continue work in free roam |
-| 2 | `air-bases` | Five bases: landing pads, hangar bays, a repair bay (free repair and rearm), the job terminal | written |
+| 2 | `air-bases` | Five bases: landing pads, hangar bays, a repair bay (free repair and rearm), the job terminal | block-out built: placed, drawn, free repair and rearm in any bay |
 | 3 | `airfields`, `mech-shop` | Buy mechs with job pay; they are delivered by air to an airfield | written |
 | 4 | `career-progression` | Jobs in risk tiers; a tier opens when you own a mech that can take it | to write |
 | 5 | `mech-custom` | Refit weapons and armour, repaint, in a hangar bay, for money | to write |

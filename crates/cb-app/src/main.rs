@@ -1,6 +1,7 @@
 //! Crab Breeze, the game. This file is the composition root (CLAUDE.md section 6.2): it reads the
 //! command line and the data, and wires the plugins. It holds no game logic.
 
+mod air_bases;
 mod ambience;
 mod audio;
 mod battle_fx;
@@ -119,6 +120,9 @@ fn main() -> AppExit {
     if args.start.as_deref() == Some("meadow") {
         app.insert_resource(world::StartInMeadow);
     }
+    if args.start.as_deref() == Some("base") {
+        app.insert_resource(world::StartAtBase);
+    }
     // The blended smoke drawn sorted and soft (openspec change `particle-depth`).
     app.add_plugins(soft_sprites::SoftSpritesPlugin);
     if args.start.as_deref() == Some("fx") {
@@ -213,6 +217,7 @@ fn main() -> AppExit {
         });
     }
     app.add_plugins(save_game::SaveGamePlugin);
+    app.add_plugins(air_bases::AirBasesPlugin);
     // The player's settings; a measurement or capture run keeps the window it set up.
     app.add_plugins(settings::SettingsPlugin {
         window: !scripted && !cli::switched_off("CB_UNCAPPED"),
