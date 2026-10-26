@@ -373,6 +373,13 @@
         // furniture").
         rooms_radius_m: 250.0,
         rooms_margin_m: 20.0,
+        // Past the dressing, to 1.5 km, a building shows its massing (parapet, cornice, roof props
+        // from its own dressing) over walls wearing its own type's facade; beyond, the walls alone
+        // (openspec/changes/building-type-lods; owner, 2026-10-25: "for each building type we're
+        // gonna need a custom LOD texture/mesh for them").
+        massing_radius_m: 1500.0,
+        massing_pieces: 16,
+        massing_per_frame: 12,
     ),
     // Physics debris (openspec/changes/debris-physics): chunks become rigid bodies only within
     // physics_radius_m of the pilot's eye (owner, 2026-10-24: "If the mech is too far away there

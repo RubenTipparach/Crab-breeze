@@ -37,6 +37,9 @@ pub struct BuildingLooks {
     pub tone_tints: Vec<[f32; 3]>,
     /// Every opaque look as a layer (`Layer`).
     pub arrays: crate::building_arrays::Arrays,
+    /// The far facades, one layer per facade kind, main colour and storey band, and the roof
+    /// (`building-type-lods`, `far_facades`).
+    pub far: crate::building_arrays::Arrays,
     /// See-through window glass.
     pub glass: Handle<StandardMaterial>,
     /// The concrete set, for debris chunks.
@@ -325,10 +328,12 @@ impl Plugin for BuildingsPlugin {
             .add_systems(FixedUpdate, step_structures.in_set(SimSet::World))
             .add_systems(
                 Update,
-                (dress_near_player, redraw_buildings, show_rooms_near)
+                (dress_near_player, redraw_buildings, show_rooms_near, bind_far_looks, show_massing)
                     .chain()
                     .in_set(PresentSet::Pose),
-            );
+            )
+            .init_resource::<FarMaterials>()
+            .init_resource::<Massing>();
     }
 }
 
@@ -866,6 +871,181 @@ fn redraw_buildings(
                 .insert(if skinned { Visibility::Hidden } else { Visibility::Inherited });
         }
     }
+}
+
+// ---------------------------------------------------------------- far looks (`building-type-lods`)
+
+/// A material's layer in the near skin's arrays and its tile size, m: what the far facades sample.
+pub fn skin_layer(mat: Mat) -> (u32, f32) {
+    let l = Layer::Skin(mat);
+    (l.index(), l.tile_m().x)
+}
+
+/// Marks a building's far walls (its box): they wear the far material once it exists.
+#[derive(Component)]
+pub struct FarWalls;
+
+/// The far mesh of a building, relative to its cell grid's corner (place it there): walls of its
+/// own facade kind and colour, the ground storey and the storeys above as their own bands, one bay
+/// per cell, and a roof cap. Every vertex is untinted and on slot 0 (it always stands).
+pub fn far_mesh(c: &Cells, id: u32, rng: &SimRng) -> Mesh {
+    use cb_core::world::far_facade::{Band, layer_of, roof_layer};
+    let v = dressing::far_variant(id, c.n, c.size, rng);
+    let (ground, typical) = (layer_of(v, Band::Ground).unwrap_or(0), layer_of(v, Band::Typical).unwrap_or(1));
+    let [nx, ns, nz] = c.n;
+    let (w, d, s) = (c.size.x * nx as f32, c.size.z * nz as f32, c.size.y);
+    let h = s * ns as f32;
+    let col = [1.0, 1.0, 1.0, 0.0];
+    let v3 = Vec3::new;
+    let mut mb = MeshBuilder::default();
+    for (layer, y0, y1) in [(ground, 0.0, s.min(h)), (typical, s, h)] {
+        if y1 <= y0 {
+            continue;
+        }
+        mb.set_layer(layer, Vec2::new(c.size.x, s));
+        mb.quad([v3(w, y0, 0.0), v3(0.0, y0, 0.0), v3(0.0, y1, 0.0), v3(w, y1, 0.0)], col);
+        mb.quad([v3(0.0, y0, d), v3(w, y0, d), v3(w, y1, d), v3(0.0, y1, d)], col);
+        mb.set_layer(layer, Vec2::new(c.size.z, s));
+        mb.quad([v3(0.0, y0, 0.0), v3(0.0, y0, d), v3(0.0, y1, d), v3(0.0, y1, 0.0)], col);
+        mb.quad([v3(w, y0, d), v3(w, y0, 0.0), v3(w, y1, 0.0), v3(w, y1, d)], col);
+    }
+    mb.set_layer(roof_layer(), Vec2::splat(tile_m(Mat::Roof)));
+    mb.quad([v3(0.0, h, 0.0), v3(0.0, h, d), v3(w, h, d), v3(w, h, 0.0)], col);
+    mb.build_with_tangents()
+}
+
+/// A building's massing mesh in world space: the pieces its own dressing puts on and above the
+/// roof line, in the near skin's layers (glass left out: there is none up there).
+fn massing_mesh(pieces: &[dressing::Piece]) -> Mesh {
+    let mut mb = MeshBuilder::default();
+    for p in pieces.iter().filter(|p| p.mat != Mat::Glass) {
+        let layer = Layer::Skin(p.mat);
+        mb.set_layer(layer.index(), layer.tile_m());
+        let col = [p.color[0], p.color[1], p.color[2], 0.0];
+        match p.shape {
+            Shape::Block { min, max } => mb.block(min, max, col),
+            Shape::Drum { base, r0, r1, height_m } => mb.drum(base, r0, r1, height_m, 10, col),
+        }
+    }
+    mb.build_with_tangents()
+}
+
+/// The far walls' material and the massing's (the near skin's arrays), both reading the element
+/// state buffer and following it when it grows.
+#[derive(Resource, Default)]
+struct FarMaterials {
+    standing: Option<Handle<ShaderBuffer>>,
+    far: Option<Handle<ArrayMaterial>>,
+    massing: Option<Handle<ArrayMaterial>>,
+}
+
+/// Makes the far materials once the buffer and the looks exist, gives every building's far walls
+/// theirs, and follows the buffer when it grows.
+fn bind_far_looks(
+    mut commands: Commands,
+    mut mats: ResMut<FarMaterials>,
+    looks: Option<Res<BuildingLooks>>,
+    states: Option<Res<BuildingStates>>,
+    mut arrays: ResMut<Assets<ArrayMaterial>>,
+    walls: Query<Entity, (With<FarWalls>, Without<MeshMaterial3d<ArrayMaterial>>)>,
+) {
+    let (Some(looks), Some(states)) = (looks, states) else { return };
+    let make = |a: &crate::building_arrays::Arrays| ArrayMaterial {
+        base: StandardMaterial::default(),
+        extension: ArrayState {
+            standing: states.handle.clone(),
+            albedo: a.albedo.clone(),
+            normal: a.normal.clone(),
+            orm: a.orm.clone(),
+        },
+    };
+    if mats.far.is_none() {
+        mats.far = Some(arrays.add(make(&looks.far)));
+        mats.massing = Some(arrays.add(make(&looks.arrays)));
+        mats.standing = Some(states.handle.clone());
+    } else if mats.standing.as_ref() != Some(&states.handle) {
+        mats.standing = Some(states.handle.clone());
+        for h in [&mats.far, &mats.massing].into_iter().flatten() {
+            if let Some(mut m) = arrays.get_mut(h) {
+                m.extension.standing = states.handle.clone();
+            }
+        }
+    }
+    if let Some(far) = &mats.far {
+        for e in &walls {
+            commands.entity(e).insert(MeshMaterial3d(far.clone()));
+        }
+    }
+}
+
+/// The massing shown, by building id.
+#[derive(Resource, Default)]
+struct Massing(HashMap<u32, Entity>);
+
+/// Shows each building's massing within `massing_radius_m` of the player and drops it past
+/// 1.15 times that; it shows and hides with its far walls, so a dressed or damaged building's
+/// massing is hidden with its box.
+#[allow(clippy::too_many_arguments)]
+fn show_massing(
+    mut commands: Commands,
+    mut shown: ResMut<Massing>,
+    mats: Res<FarMaterials>,
+    plan: Res<crate::world::Plan>,
+    live: Res<Live>,
+    seed: Res<crate::world::Seed>,
+    cfg: Res<crate::sim::Data>,
+    ents: Res<BuildingEntities>,
+    camera: Query<&GlobalTransform, With<crate::pilot::PilotCamera>>,
+    vis: Query<&Visibility>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    let (Some(material), Some(here)) = (mats.massing.clone(), player_xz(&camera)) else {
+        return;
+    };
+    let cfg = &cfg.0.world.dressing;
+    let rng = SimRng::new(seed.0).fork("dressing");
+    let keep = cfg.massing_radius_m * 1.15;
+    let mut near: Vec<u32> = plan
+        .0
+        .collision
+        .candidates(here, cfg.massing_radius_m)
+        .into_iter()
+        .filter(|&b| !shown.0.contains_key(&b) && plan.0.buildings[b as usize].footprint.centre().distance(here) <= cfg.massing_radius_m)
+        .collect();
+    // Nearest first, ties by id (never hash order), a few a frame: each is a whole dressing pass.
+    near.sort_by(|&a, &b| {
+        let d = |i: u32| plan.0.buildings[i as usize].footprint.centre().distance(here);
+        d(a).total_cmp(&d(b)).then(a.cmp(&b))
+    });
+    for b in near.into_iter().take(cfg.massing_per_frame as usize) {
+        let Some(&box_e) = ents.0.get(b as usize) else { continue };
+        let c = &live.structures.buildings[b as usize];
+        let pieces = dressing::massing(b, c.n, c.origin, c.size, &rng, cfg, cfg.massing_pieces as usize);
+        let e = commands
+            .spawn((
+                Name::new(format!("building {b} massing")),
+                Mesh3d(meshes.add(massing_mesh(&pieces))),
+                MeshMaterial3d(material.clone()),
+                Transform::IDENTITY,
+                vis.get(box_e).copied().unwrap_or_default(),
+            ))
+            .id();
+        shown.0.insert(b, e);
+    }
+    shown.0.retain(|&b, e| {
+        let far = plan.0.buildings[b as usize].footprint.centre().distance(here) > keep;
+        if far {
+            commands.entity(*e).despawn();
+            return false;
+        }
+        if let (Some(&box_e), Ok(now)) = (ents.0.get(b as usize), vis.get(*e))
+            && let Ok(want) = vis.get(box_e)
+            && want != now
+        {
+            commands.entity(*e).insert(*want);
+        }
+        true
+    });
 }
 
 #[cfg(test)]

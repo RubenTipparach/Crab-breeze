@@ -370,8 +370,13 @@ fn run_script(
     if script.beat >= 1 && crate::cli::switched_off("CB_STILLS_POSTER") {
         let i = script.beat - 1;
         if i >= POSTER_SHOTS.len() {
-            // The last screenshot is written a frame or two later.
-            if in_beat > 2.0 {
+            // The last screenshot is written a frame or two later: on a software renderer, whose
+            // frames take seconds, wait for the file itself (up to 30 s).
+            let last = script.dir.join(match POSTER_SHOTS.last() {
+                Some((_, true, _)) => format!("poster-{}-knelt.png", POSTER_SHOTS.len() - 1),
+                _ => format!("poster-{}.png", POSTER_SHOTS.len() - 1),
+            });
+            if in_beat > 2.0 && (last.exists() || in_beat > 30.0) {
                 exit.write(AppExit::Success);
             }
             return;
