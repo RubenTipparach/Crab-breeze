@@ -192,6 +192,18 @@ impl Ground for Scene<'_> {
 }
 
 impl WorldPlan {
+    /// True when `q` is under the ground or inside a building's box as generated (the one test a sight line or a
+    /// camera boom walks: `cb-app::traffic`'s cover, the chase camera's clip).
+    pub fn solid_at(&self, q: glam::Vec3) -> bool {
+        let q2 = Vec2::new(q.x, q.z);
+        let ground = self.terrain.height_at(q.x, q.z);
+        q.y < ground
+            || self.collision.candidates(q2, 0.0).into_iter().any(|b| {
+                let bd = &self.buildings[b as usize];
+                bd.footprint.distance(q2) == 0.0 && q.y < ground + bd.height_m
+            })
+    }
+
     /// The drawn road's surface at `p` (x, z), if a road is there: a city's street at the city's ground plus
     /// `lift_m`, a highway within its half width at its grade plus `lift_m` (the game draws every road `road_lift_m`
     /// over its grade, `cb-app::world`). `None` off the roads.

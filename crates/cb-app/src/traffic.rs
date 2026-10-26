@@ -44,6 +44,16 @@ pub struct TrafficSim {
     filled: bool,
 }
 
+impl TrafficSim {
+    /// Car `c` as it is drawn between fixed steps at `alpha` (0..1 past the last step): its ground point and
+    /// heading, eased from the step before. The cars' models and the chase camera both place by it.
+    pub fn drawn_pose(&self, c: &cb_core::traffic::Car, alpha: f32) -> (Vec3, f32) {
+        let (p0, h0) = self.prev.get(&c.id).copied().unwrap_or((c.pos, c.heading_rad));
+        let turned = (c.heading_rad - h0 + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+        (p0.lerp(c.pos, alpha), h0 + turned * alpha)
+    }
+}
+
 /// The car the pilot can reach now, or the one they are in (for the pilot's step and the prompt).
 #[derive(Resource, Default)]
 pub struct CarAccessNow(pub Option<CarAccess>);
@@ -166,16 +176,7 @@ fn in_cone(eye: Vec3, fwd: Vec3, half_rad: f32, p: Vec3) -> bool {
 /// True when a building or the ground stands between `eye` and `p`.
 fn covered(plan: &cb_core::world::WorldPlan, eye: Vec3, p: Vec3) -> bool {
     let n = (eye.distance(p) / 10.0).ceil().max(1.0) as usize;
-    (1..n).any(|k| {
-        let q = eye.lerp(p, k as f32 / n as f32);
-        let q2 = Vec2::new(q.x, q.z);
-        let ground = plan.terrain.height_at(q.x, q.z);
-        q.y < ground
-            || plan.collision.candidates(q2, 0.0).into_iter().any(|b| {
-                let bd = &plan.buildings[b as usize];
-                bd.footprint.distance(q2) == 0.0 && q.y < ground + bd.height_m
-            })
-    })
+    (1..n).any(|k| plan.solid_at(eye.lerp(p, k as f32 / n as f32)))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -390,10 +391,7 @@ fn draw_cars(
             continue;
         };
         seen.insert(d.id);
-        let (p0, h0) = sim.prev.get(&c.id).copied().unwrap_or((c.pos, c.heading_rad));
-        let turned = (c.heading_rad - h0 + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
-        let pos = p0.lerp(c.pos, alpha);
-        let heading = h0 + turned * alpha;
+        let (pos, heading) = sim.drawn_pose(c, alpha);
         let (pitch, roll) = c.body.as_ref().map_or((0.0, 0.0), |b| (b.pitch_rad, b.roll_rad));
         // Written only when it moved: a parked or waiting car left alone is not walked by the transform
         // propagation (its whole scene, every frame: the main world's largest cost in a city, 2026-10-26).
