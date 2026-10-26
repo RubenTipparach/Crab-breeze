@@ -110,6 +110,20 @@ mod tests {
         }
     }
 
+    /// The Controls page has a Driving group on the walking keys (car-driving: no new bindings).
+    #[test]
+    fn the_controls_page_lists_driving_on_the_same_keys() {
+        let p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/input/bindings.ron");
+        let b: Bindings = crate::data::load_ron(&p).unwrap();
+        let rows = b.controls();
+        let driving: Vec<&Control> = rows.iter().filter(|c| c.group == "Driving").collect();
+        assert_eq!(driving.len(), 6);
+        for d in driving {
+            let on_foot_or_mech = rows.iter().any(|c| c.group != "Driving" && c.field == d.field);
+            assert!(on_foot_or_mech, "{} reuses a key bound elsewhere", d.name);
+        }
+    }
+
     #[test]
     fn keys_read_as_a_player_names_them() {
         assert_eq!(key_label("KeyW"), "W");
@@ -315,6 +329,18 @@ impl Bindings {
             row("In the mech", "Rockets: lift (on foot: jump)", "lift", &self.lift),
             row("In the mech", "Skates on and off", "skate", &self.skate),
             row("In the mech", "Dive, sink on water", "sink", &self.sink),
+            // a car reads the same keys (car-driving design section 4): no new bindings
+            row("Driving", "Accelerate", "forward", &self.forward),
+            row("Driving", "Brake, then reverse", "back", &self.back),
+            row("Driving", "Steer left", "left", &self.left),
+            row("Driving", "Steer right", "right", &self.right),
+            row("Driving", "Handbrake", "lift", &self.lift),
+            row(
+                "Driving",
+                "Get in at the driver's door, get out when stopped",
+                "use_key",
+                &self.use_key,
+            ),
             row("Weapons", "Fire primary", "fire_primary", &self.fire_primary),
             row("Weapons", "Fire secondary", "fire_secondary", &self.fire_secondary),
             row("Weapons", "Fire missile at the lock", "fire_missile", &self.fire_missile),

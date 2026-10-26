@@ -61,6 +61,24 @@ a "Driving" group that reads the same fields.
 | One driven car | four wheel queries and a rigid-body step: about 0.02 ms a fixed step |
 | Interior | about 25 000 triangles at LOD 0, one PBR atlas per kind (2048 px, about 21 MB) |
 
+## 6. As built (2026-10-26)
+
+- **Pilot** (`cb-core::pilot`): `EnteringCar`, `Driving` and `ExitingCar` as designed, in `step_car`, run
+  before the mech's `step`. Reach 1.2 m from `DOOR_driver`, facing within 75 degrees, stopped below 0.5 m/s
+  (`data/pilot/pilot.ron`). A moving car is hailed and entered once it stops. Driving, the view turns with
+  the car and the mouse looks round from its nose by the seated rule (`coupled_look`). A car wrecked with
+  the pilot in it throws them clear beside the door; the pilot has no health on foot yet, so "hurt" is not
+  modelled. No save is written while in a car.
+- **The car** (`cb-core::car`): as designed; collisions are two circles over the axles against the building
+  grid, other cars (an impulse both ways) and mechs (stop dead, as one circle of the mech's body radius until
+  the leg capsules are passed in). `wheel_radius_m` joins the car data so the model and the wheels' spin agree.
+- **Cockpit view:** block-out interiors only: a dashboard box, `STEER_wheel` (turned at 12 times the front
+  wheels' angle) and `NEEDLE_speed` (turned from `CarSpec::speedo_needle_rad`, the simulation's speed). No
+  hands, no mirrors, no modelled interior or PBR atlas yet.
+- **Taking a traffic car:** its driver runs for the nearest building's footprint as a 1.8 m block-out
+  capsule, gone after 40 s or at the wall. Parked cars stand at town kerbs; none at the air bases yet.
+- **Controls:** the Controls page lists a Driving group on the walking keys and Space; no new bindings.
+
 ## Open questions
 
 | Id | Question | Recommendation | State |

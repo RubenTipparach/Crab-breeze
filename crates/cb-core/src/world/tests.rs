@@ -367,6 +367,21 @@ fn the_ground_under_a_highway_is_the_road_grade() {
     }
 }
 
+/// The island's lane graph (car-traffic): every lane leads on, so no car ever dead-ends, and every
+/// highway's lanes join two cities.
+#[test]
+fn every_lane_on_the_island_has_a_way_out() {
+    let plan = seed_42();
+    let cfg = shipped();
+    let g = lanes::LaneGraph::build(&plan.cities, &plan.highways, &lanes::LaneLayout::default(), cfg.arterial_width_m);
+    assert!(g.lanes.len() > 1000, "{} lanes", g.lanes.len());
+    for l in &g.lanes {
+        assert!(!l.out.is_empty(), "lane {} ({:?}) dead-ends", l.id, l.kind);
+    }
+    let highway_lanes = g.road_lanes().filter(|l| l.kind == lanes::LaneKind::Highway).count();
+    assert_eq!(highway_lanes, plan.highways.len() * 4, "two lanes each way on every highway");
+}
+
 #[test]
 fn the_start_is_on_a_street_clear_of_buildings() {
     let plan = seed_42();

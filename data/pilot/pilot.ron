@@ -27,4 +27,10 @@
     // 2026-10-25: "my fps character needs jump!").
     jump_speed_m_s: 4.4,
     gravity_m_s2: 9.81,
+    // Cars (openspec/changes/car-driving): Use within 1.2 m of the driver's door, facing the car;
+    // the eyes are carried between the door and the seat over 0.8 s; below 0.5 m/s a car is stopped.
+    car_reach_m: 1.2,
+    car_step_s: 0.8,
+    car_face_deg: 75.0,
+    car_stopped_m_s: 0.5,
 )

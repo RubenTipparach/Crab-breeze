@@ -55,6 +55,15 @@ pub struct PilotConfig {
     pub jump_speed_m_s: f32,
     /// What pulls a jumping pilot back down.
     pub gravity_m_s2: f32,
+    /// Use reaches a car from this far from its driver's door, metres (car-driving).
+    pub car_reach_m: f32,
+    /// Getting in or out of a car carries the eyes between the door and the seat over this long,
+    /// seconds.
+    pub car_step_s: f32,
+    /// The pilot must face the car within this angle to get in, degrees.
+    pub car_face_deg: f32,
+    /// A car slower than this counts as stopped for getting in and out, m/s.
+    pub car_stopped_m_s: f32,
 }
 
 /// The seated view's blend (0 on foot, 1 seated) one step on: toward 1 while `seated`, toward 0 otherwise, the whole
@@ -103,6 +112,10 @@ impl Default for PilotConfig {
             fov_change_s: 0.8,
             jump_speed_m_s: 4.4,
             gravity_m_s2: 9.81,
+            car_reach_m: 1.2,
+            car_step_s: 0.8,
+            car_face_deg: 75.0,
+            car_stopped_m_s: 0.5,
         }
     }
 }
@@ -128,6 +141,10 @@ impl Validate for PilotConfig {
         positive("fov_change_s", self.fov_change_s)?;
         within("jump_speed_m_s", self.jump_speed_m_s, 0.0, 15.0)?;
         positive("gravity_m_s2", self.gravity_m_s2)?;
+        positive("car_reach_m", self.car_reach_m)?;
+        positive("car_step_s", self.car_step_s)?;
+        within("car_face_deg", self.car_face_deg, 1.0, 180.0)?;
+        positive("car_stopped_m_s", self.car_stopped_m_s)?;
         Ok(())
     }
 }
@@ -192,6 +209,38 @@ pub enum PilotMode {
     Seated,
     /// Climbing out and down the stair.
     Disembarking(EyePath),
+    /// Getting into a car: the eyes carried from beside its door to `EYE_driver` (car-driving).
+    EnteringCar(EyePath),
+    /// In a car's driver's seat; the eyes ride `EYE_driver`.
+    Driving,
+    /// Getting out of a car: the eyes carried from the seat to beside its door.
+    ExitingCar(EyePath),
+}
+
+impl PilotMode {
+    /// Getting into, driving or getting out of a car.
+    pub fn in_car(&self) -> bool {
+        matches!(self, Self::EnteringCar(_) | Self::Driving | Self::ExitingCar(_))
+    }
+}
+
+/// The car nearest the pilot this step, or the one they are in, in the world (car-driving).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CarAccess {
+    /// Its id in the traffic.
+    pub id: u32,
+    /// `DOOR_driver`: where a person stands to open the driver's door, on the ground.
+    pub door: Vec3,
+    /// `EYE_driver`: the driver's eyes.
+    pub eye: Vec3,
+    /// Its middle on the ground.
+    pub centre: Vec3,
+    /// Heading, radians (0 faces -z, positive turns left).
+    pub heading_rad: f32,
+    /// Its speed, m/s.
+    pub speed_m_s: f32,
+    /// A wreck: it cannot be taken, and whoever is in it is thrown clear.
+    pub wrecked: bool,
 }
 
 /// The mech's boarding sockets in the world this step, and whether it is stopped.
@@ -222,6 +271,8 @@ pub struct MechAccess {
 pub enum Waiting {
     /// Board as soon as the stair is down.
     ToBoard,
+    /// Get into this car (its traffic id) as soon as it stops.
+    ToDrive(u32),
     /// Climb out as soon as the stair is down.
     ToLeave,
 }
@@ -268,6 +319,18 @@ pub enum PilotEvent {
     Disembarked,
     /// The mech was destroyed and threw its pilot clear (mission-jobs, survey J3).
     Ejected,
+    /// The pilot wants this moving car: it should stop for them (car-driving).
+    CarHailed(u32),
+    /// Getting into this car began.
+    EnteringCar(u32),
+    /// In this car's driver's seat.
+    InCar(u32),
+    /// Getting out of this car began.
+    ExitingCar(u32),
+    /// Standing beside this car's door.
+    OutOfCar(u32),
+    /// This car was wrecked with the pilot in it: they are thrown clear.
+    ThrownFromCar(u32),
 }
 
 /// An angle wrapped to -pi..pi.
@@ -352,8 +415,8 @@ impl PilotState {
     /// socket itself between steps.
     pub fn eye(&self, cfg: &PilotConfig) -> Vec3 {
         match &self.mode {
-            PilotMode::Boarding(p) | PilotMode::Disembarking(p) => p.at().0,
-            PilotMode::Seated => self.seated_eye,
+            PilotMode::Boarding(p) | PilotMode::Disembarking(p) | PilotMode::EnteringCar(p) | PilotMode::ExitingCar(p) => p.at().0,
+            PilotMode::Seated | PilotMode::Driving => self.seated_eye,
             _ => self.feet + Vec3::Y * cfg.eye_height_m,
         }
     }
@@ -423,6 +486,8 @@ impl PilotState {
         let pitch_limit = cfg.pitch_limit_deg.to_radians();
         let mut event = None;
         match &mut self.mode {
+            // in, at or out of a car: `step_car` moves the pilot
+            PilotMode::EnteringCar(_) | PilotMode::Driving | PilotMode::ExitingCar(_) => {}
             PilotMode::OnFoot => {
                 self.yaw_rad = (self.yaw_rad - look.x.to_radians()).rem_euclid(std::f32::consts::TAU);
                 self.pitch_rad = (self.pitch_rad + look.y.to_radians()).clamp(-pitch_limit, pitch_limit);
@@ -554,6 +619,305 @@ impl PilotState {
             }
         }
         event
+    }
+}
+
+impl PilotState {
+    /// True when Use would reach this car's driver's door now: on foot, within `car_reach_m` of the
+    /// door, facing the car, and it is not a wreck.
+    pub fn can_take(&self, car: &CarAccess, cfg: &PilotConfig) -> bool {
+        if self.mode != PilotMode::OnFoot || car.wrecked {
+            return false;
+        }
+        let near = Vec2::new(self.feet.x - car.door.x, self.feet.z - car.door.z).length() <= cfg.car_reach_m;
+        let to = Vec2::new(car.centre.x - self.feet.x, car.centre.z - self.feet.z).normalize_or_zero();
+        let look = Vec2::new(-self.yaw_rad.sin(), -self.yaw_rad.cos());
+        near && look.dot(to) >= cfg.car_face_deg.to_radians().cos()
+    }
+
+    /// One fixed step of the pilot and a car (openspec change `car-driving`): Use at a car's driver
+    /// door gets in (a moving car is hailed first and entered once it stops), the eyes are carried to
+    /// `EYE_driver` over `car_step_s` while the view stays the player's, driving the eyes ride the
+    /// seat and the mouse looks round from the car's nose, and Use with the car stopped gets out
+    /// beside the door. `car` is the car nearest the door on foot, or the one the pilot is in. Run
+    /// before `step` each fixed step; it does nothing on foot unless Use reaches a car, and returns
+    /// what happened. While it returns an event or the pilot is in a car, `step` has nothing to do
+    /// with the Use press.
+    pub fn step_car(
+        &mut self,
+        a: &Actions,
+        cfg: &PilotConfig,
+        ground: &impl Ground,
+        car: Option<&CarAccess>,
+        dt_s: f32,
+    ) -> Option<PilotEvent> {
+        if !(dt_s.is_finite() && dt_s > 0.0) {
+            return None;
+        }
+        let look = a.look_delta_deg;
+        let pitch_limit = cfg.pitch_limit_deg.to_radians();
+        let free_look = |me: &mut Self| {
+            me.yaw_rad = (me.yaw_rad - look.x.to_radians()).rem_euclid(std::f32::consts::TAU);
+            me.pitch_rad = (me.pitch_rad + look.y.to_radians()).clamp(-pitch_limit, pitch_limit);
+        };
+        let up = Vec3::Y * cfg.eye_height_m;
+        match &mut self.mode {
+            PilotMode::OnFoot => {
+                let c = car?;
+                if a.use_pressed && self.waiting.is_none() && self.can_take(c, cfg) {
+                    self.waiting = Some(Waiting::ToDrive(c.id));
+                    if c.speed_m_s > cfg.car_stopped_m_s {
+                        return Some(PilotEvent::CarHailed(c.id));
+                    }
+                }
+                if self.waiting == Some(Waiting::ToDrive(c.id)) {
+                    let near = Vec2::new(self.feet.x - c.door.x, self.feet.z - c.door.z).length() <= cfg.car_reach_m * 2.0;
+                    if !near || c.wrecked {
+                        self.waiting = None;
+                    } else if c.speed_m_s <= cfg.car_stopped_m_s {
+                        self.waiting = None;
+                        self.velocity = Vec2::ZERO;
+                        self.mode = PilotMode::EnteringCar(EyePath {
+                            points: vec![self.feet + up, c.door + up, c.eye],
+                            travelled_m: 0.0,
+                        });
+                        return Some(PilotEvent::EnteringCar(c.id));
+                    }
+                }
+                None
+            }
+            PilotMode::EnteringCar(path) => {
+                // only the eyes' position is carried: the view stays the player's (CLAUDE.md section 8)
+                let rate = path.length_m() / cfg.car_step_s;
+                path.travelled_m += rate * dt_s;
+                let done = path.done();
+                free_look(self);
+                let c = car?;
+                if c.wrecked {
+                    return self.thrown(c, cfg, ground);
+                }
+                if done {
+                    self.seated_eye = c.eye;
+                    self.seated_rel_rad = wrap_rad(self.yaw_rad - c.heading_rad);
+                    self.mode = PilotMode::Driving;
+                    return Some(PilotEvent::InCar(c.id));
+                }
+                None
+            }
+            PilotMode::Driving => {
+                let c = car?;
+                if c.wrecked {
+                    return self.thrown(c, cfg, ground);
+                }
+                self.seated_eye = c.eye;
+                // the view turns with the car; the mouse looks round from its nose
+                let rel = coupled_look(
+                    wrap_rad(self.yaw_rad - c.heading_rad),
+                    self.seated_rel_rad,
+                    -look.x.to_radians(),
+                    cfg.seated_look_limit_deg.to_radians(),
+                    a.free_look,
+                );
+                self.seated_rel_rad = rel;
+                self.yaw_rad = (c.heading_rad + rel).rem_euclid(std::f32::consts::TAU);
+                self.pitch_rad = (self.pitch_rad + look.y.to_radians()).clamp(-pitch_limit, pitch_limit);
+                if a.use_pressed && c.speed_m_s <= cfg.car_stopped_m_s {
+                    self.mode = PilotMode::ExitingCar(EyePath {
+                        points: vec![c.eye, c.door + up],
+                        travelled_m: 0.0,
+                    });
+                    return Some(PilotEvent::ExitingCar(c.id));
+                }
+                None
+            }
+            PilotMode::ExitingCar(path) => {
+                let rate = path.length_m() / cfg.car_step_s;
+                path.travelled_m += rate * dt_s;
+                let done = path.done();
+                let end = *path.points.last().unwrap_or(&self.feet);
+                free_look(self);
+                if done {
+                    let feet = end - up;
+                    self.feet = Vec3::new(feet.x, ground.support_at(feet.x, feet.z, feet.y + 1.0), feet.z);
+                    self.mode = PilotMode::OnFoot;
+                    return Some(PilotEvent::OutOfCar(car.map_or(u32::MAX, |c| c.id)));
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Thrown clear of a wrecked car: on foot beside its door, hurt (the pilot has no health on foot
+    /// yet, so only the position is decided here).
+    fn thrown(&mut self, c: &CarAccess, cfg: &PilotConfig, ground: &impl Ground) -> Option<PilotEvent> {
+        let out = Vec3::new(c.door.x - c.centre.x, 0.0, c.door.z - c.centre.z).normalize_or(Vec3::X) * 2.0;
+        let at = c.door + out;
+        self.feet = Vec3::new(at.x, ground.support_at(at.x, at.z, at.y + 1.0), at.z);
+        self.velocity = Vec2::ZERO;
+        self.vel_y_m_s = 0.0;
+        self.waiting = None;
+        self.mode = PilotMode::OnFoot;
+        let _ = cfg;
+        Some(PilotEvent::ThrownFromCar(c.id))
+    }
+}
+
+#[cfg(test)]
+mod car_tests {
+    use super::*;
+    use crate::world::FlatGround;
+
+    const DT: f32 = 1.0 / 60.0;
+
+    /// A sedan at the origin facing -z, its driver's door on its left (-x).
+    fn sedan(speed_m_s: f32) -> CarAccess {
+        CarAccess {
+            id: 3,
+            door: Vec3::new(-1.35, 0.0, 0.15),
+            eye: Vec3::new(-0.37, 1.12, 0.15),
+            centre: Vec3::ZERO,
+            heading_rad: 0.0,
+            speed_m_s,
+            wrecked: false,
+        }
+    }
+
+    /// Standing at the door, facing the car (+x is yaw -90 degrees).
+    fn at_door() -> PilotState {
+        PilotState::standing(Vec3::new(-1.6, 0.0, 0.15), -std::f32::consts::FRAC_PI_2)
+    }
+
+    fn use_key() -> Actions {
+        Actions {
+            use_pressed: true,
+            ..Default::default()
+        }
+    }
+
+    fn run(p: &mut PilotState, a: &Actions, car: &CarAccess, s: f32) -> Vec<PilotEvent> {
+        let cfg = PilotConfig::default();
+        let mut out = Vec::new();
+        for _ in 0..(s / DT).round() as usize {
+            out.extend(p.step_car(a, &cfg, &FlatGround::default(), Some(car), DT));
+        }
+        out
+    }
+
+    #[test]
+    fn use_at_a_parked_sedans_door_carries_the_eyes_to_the_seat_and_the_mouse_still_turns_the_view() {
+        let cfg = PilotConfig::default();
+        let mut p = at_door();
+        let car = sedan(0.0);
+        let e = p.step_car(&use_key(), &cfg, &FlatGround::default(), Some(&car), DT);
+        assert_eq!(e, Some(PilotEvent::EnteringCar(3)));
+        let yaw = p.yaw_rad;
+        let turn = Actions {
+            look_delta_deg: Vec2::new(1.0, 0.0),
+            ..Default::default()
+        };
+        let events = run(&mut p, &turn, &car, cfg.car_step_s + 0.1);
+        assert_eq!(events, vec![PilotEvent::InCar(3)]);
+        assert_eq!(p.mode, PilotMode::Driving);
+        assert!(p.eye(&cfg).distance(car.eye) < 1e-4, "the eyes are at EYE_driver");
+        assert!(
+            (wrap_rad(p.yaw_rad - yaw)).abs() > 0.5,
+            "the mouse kept turning the view while getting in"
+        );
+    }
+
+    #[test]
+    fn a_moving_car_is_hailed_and_entered_once_it_stops() {
+        let cfg = PilotConfig::default();
+        let mut p = at_door();
+        let e = p.step_car(&use_key(), &cfg, &FlatGround::default(), Some(&sedan(4.0)), DT);
+        assert_eq!(e, Some(PilotEvent::CarHailed(3)));
+        assert_eq!(p.mode, PilotMode::OnFoot);
+        let e = p.step_car(&Actions::default(), &cfg, &FlatGround::default(), Some(&sedan(0.2)), DT);
+        assert_eq!(e, Some(PilotEvent::EnteringCar(3)));
+    }
+
+    #[test]
+    fn use_too_far_from_the_door_or_facing_away_does_nothing() {
+        let cfg = PilotConfig::default();
+        let mut p = PilotState::standing(Vec3::new(-4.0, 0.0, 0.15), -std::f32::consts::FRAC_PI_2);
+        assert_eq!(p.step_car(&use_key(), &cfg, &FlatGround::default(), Some(&sedan(0.0)), DT), None);
+        let mut p = PilotState::standing(Vec3::new(-1.6, 0.0, 0.15), std::f32::consts::FRAC_PI_2);
+        assert_eq!(p.step_car(&use_key(), &cfg, &FlatGround::default(), Some(&sedan(0.0)), DT), None);
+        let wreck = CarAccess {
+            wrecked: true,
+            ..sedan(0.0)
+        };
+        assert_eq!(at_door().step_car(&use_key(), &cfg, &FlatGround::default(), Some(&wreck), DT), None);
+    }
+
+    fn driving() -> PilotState {
+        let mut p = at_door();
+        run(&mut p, &use_key(), &sedan(0.0), DT);
+        run(&mut p, &Actions::default(), &sedan(0.0), 1.0);
+        assert_eq!(p.mode, PilotMode::Driving);
+        p
+    }
+
+    #[test]
+    fn driving_the_view_turns_with_the_car_and_the_mouse_looks_round_from_its_nose() {
+        let cfg = PilotConfig::default();
+        let mut p = driving();
+        let rel = p.seated_rel_rad;
+        let turned = CarAccess {
+            heading_rad: 0.5,
+            ..sedan(10.0)
+        };
+        p.step_car(&Actions::default(), &cfg, &FlatGround::default(), Some(&turned), DT);
+        assert!((wrap_rad(p.yaw_rad - 0.5) - rel).abs() < 1e-4, "the view rode the car's turn");
+        let look = Actions {
+            look_delta_deg: Vec2::new(-10.0, 0.0),
+            ..Default::default()
+        };
+        p.step_car(&look, &cfg, &FlatGround::default(), Some(&turned), DT);
+        assert!((p.seated_rel_rad - rel - 10f32.to_radians()).abs() < 1e-4);
+    }
+
+    #[test]
+    fn use_gets_out_beside_the_door_only_once_the_car_has_stopped() {
+        let cfg = PilotConfig::default();
+        let mut p = driving();
+        assert_eq!(p.step_car(&use_key(), &cfg, &FlatGround::default(), Some(&sedan(5.0)), DT), None);
+        assert_eq!(p.mode, PilotMode::Driving);
+        assert_eq!(
+            p.step_car(&use_key(), &cfg, &FlatGround::default(), Some(&sedan(0.0)), DT),
+            Some(PilotEvent::ExitingCar(3))
+        );
+        let events = run(&mut p, &Actions::default(), &sedan(0.0), 1.0);
+        assert_eq!(events, vec![PilotEvent::OutOfCar(3)]);
+        assert_eq!(p.mode, PilotMode::OnFoot);
+        assert!(Vec2::new(p.feet.x + 1.35, p.feet.z - 0.15).length() < 1e-3, "standing at the door");
+    }
+
+    #[test]
+    fn a_car_wrecked_under_the_pilot_throws_them_clear_on_foot() {
+        let cfg = PilotConfig::default();
+        let mut p = driving();
+        let wreck = CarAccess {
+            wrecked: true,
+            ..sedan(0.0)
+        };
+        assert_eq!(
+            p.step_car(&Actions::default(), &cfg, &FlatGround::default(), Some(&wreck), DT),
+            Some(PilotEvent::ThrownFromCar(3))
+        );
+        assert_eq!(p.mode, PilotMode::OnFoot);
+        assert!(p.feet.x < -2.0, "clear of the car on the door's side");
+    }
+
+    #[test]
+    fn the_mech_step_leaves_a_pilot_in_a_car_alone() {
+        let cfg = PilotConfig::default();
+        let mut p = driving();
+        let before = p.clone();
+        let e = p.step(&use_key(), &cfg, &FlatGround::default(), None, DT);
+        assert_eq!(e, None);
+        assert_eq!(p, before);
     }
 }
 

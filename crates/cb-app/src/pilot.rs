@@ -229,11 +229,13 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn step_pilot(
     mut pilot: ResMut<PilotSim>,
     mut events: ResMut<PilotEvents>,
     actions: Res<StepActions>,
     access: Res<MechAccessNow>,
+    car: Res<crate::traffic::CarAccessNow>,
     data: Res<Data>,
     plan: Res<Plan>,
     live: Res<Live>,
@@ -248,9 +250,19 @@ pub(crate) fn step_pilot(
         structures: Some(&live.structures),
         platforms: &live.platforms,
     };
-    let event = pilot
-        .curr
-        .step(&actions, &data.0.pilot, &ground, access.0.as_ref(), time.delta_secs());
+    // A car first (car-driving): Use at a car's door gets in; in a car, the mech's step has nothing to do.
+    let dt = time.delta_secs();
+    let car_event = pilot.curr.step_car(&actions, &data.0.pilot, &ground, car.0.as_ref(), dt);
+    events.0.extend(car_event);
+    let mut a = actions.0;
+    if car_event.is_some() {
+        a.use_pressed = false;
+    }
+    let event = if pilot.curr.mode.in_car() || car_event.is_some() {
+        None
+    } else {
+        pilot.curr.step(&a, &data.0.pilot, &ground, access.0.as_ref(), dt)
+    };
     events.0.extend(event);
     match event {
         Some(PilotEvent::HatchWanted) => info!("pilot: asked the mech to sit and open"),
@@ -259,6 +271,7 @@ pub(crate) fn step_pilot(
         Some(PilotEvent::DisembarkStarted) => info!("pilot: climbing out"),
         Some(PilotEvent::Disembarked) => info!("pilot: standing at LADDER_base"),
         Some(PilotEvent::Ejected) => info!("pilot: ejected from the destroyed mech"),
+        Some(e) => info!("pilot: {e:?}"),
         None => {}
     }
 }
@@ -327,6 +340,7 @@ fn place_camera(
     // at EYE_pilot; boarding and climbing out, they ride the path.
     let eye = match &curr.mode {
         PilotMode::Seated => seat().map_or(prev.eye(cfg).lerp(curr.eye(cfg), alpha), |s| s.translation),
+        // driving, the eyes ride EYE_driver as the car moved between the two steps
         _ => prev.eye(cfg).lerp(curr.eye(cfg), alpha),
     };
     let rotation = match &curr.mode {
@@ -355,6 +369,16 @@ fn place_camera(
             }
             None => walking_view(),
         },
+        // Driving, the view turns with the car between steps and the mouse looks round from its nose; the
+        // car only carries the eyes, the player turns the view (CLAUDE.md section 8).
+        PilotMode::Driving if prev.mode == PilotMode::Driving => {
+            let pitch_limit = cfg.pitch_limit_deg.to_radians();
+            let turned = (curr.yaw_rad - prev.yaw_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+            view(
+                prev.yaw_rad + turned * alpha - pending.x.to_radians(),
+                (curr.pitch_rad + pending.y.to_radians()).clamp(-pitch_limit, pitch_limit),
+            )
+        }
         _ => walking_view(),
     };
     // The shake rides on top of the player's view and is never written into their aim: the look
@@ -395,10 +419,26 @@ fn spawn_prompt(mut commands: Commands) {
 }
 
 /// Shows "E: step into the cockpit" when the kneeling mech is ready and the pilot is near.
-fn show_prompt(pilot: Res<PilotSim>, access: Res<MechAccessNow>, data: Res<Data>, mut prompt: Single<&mut Text, With<Prompt>>) {
+fn show_prompt(
+    pilot: Res<PilotSim>,
+    access: Res<MechAccessNow>,
+    car: Res<crate::traffic::CarAccessNow>,
+    data: Res<Data>,
+    mut prompt: Single<&mut Text, With<Prompt>>,
+) {
     let p = &pilot.curr;
-    let ready = access.0.as_ref().is_some_and(|a| a.hatch_open && p.can_board(a, &data.0.pilot));
-    let want = if ready { "[E]  Step into the cockpit" } else { "" };
+    let cfg = &data.0.pilot;
+    let ready = access.0.as_ref().is_some_and(|a| a.hatch_open && p.can_board(a, cfg));
+    let car = car.0.as_ref();
+    let want = if car.is_some_and(|c| p.can_take(c, cfg)) {
+        "[E]  Get in"
+    } else if p.mode == PilotMode::Driving && car.is_some_and(|c| c.speed_m_s <= cfg.car_stopped_m_s) {
+        "[E]  Get out"
+    } else if ready {
+        "[E]  Step into the cockpit"
+    } else {
+        ""
+    };
     if prompt.0 != want {
         prompt.0 = want.into();
     }
