@@ -330,6 +330,10 @@ said out loud and kept in check, never guessed.
   which session owns it and what it holds, so the owner can tell whose a branch is from the PR list.
   A session that finds a pushed branch with no PR opens one for it, marked as opened on its owner's
   behalf.
+- **A session produces one combined pull request** (owner, 2026-10-26: "Your session should always be one
+  combined pr. Add to Claude md"). Every task a session takes on, first message to last, goes on one branch
+  and lands as one PR. New work is a new commit on that branch, not a new branch. If parallel helpers work
+  on separate branches, they are merged into the session's one branch before anything is pushed.
 - **No scheduled PR check-ins** (owner rule in Pale Blue Dot, Star Crew and Mining Mike: "you
   should never rearm pr checkins"). No `send_later`, routine, `/loop` or timer that wakes the
   session to re-read a PR. A PR is looked at when the owner asks, when its events arrive, or as
