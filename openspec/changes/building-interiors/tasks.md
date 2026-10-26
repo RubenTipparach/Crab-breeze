@@ -16,7 +16,17 @@
 
 ## 3. App
 - [x] 3.0 Interiors drawn in a damaged building's band meshes (no extra entities), each wall and item while the floor bay under it stands; 12 storeys plan in 0.4 ms (2 400 boxes, release, indicative)
-- [ ] 3.1 Interiors streamed inside 150 m and on breach, on a worker thread (today they appear only once a building is breached, which is when they can be seen: buildings are opaque)
+- [ ] 3.1 Interiors streamed inside 150 m and on breach, on a worker thread. Drawing is done: a dressed building meshes its rooms on the async pool and shows them within `rooms_radius_m` (250 m, the owner's number); the collision streams inside `collision_radius_m` (task 4.6). Left: building the plans of a breached building off the main thread
 - [ ] 3.2 Interior-mapping glass material for far windows
-- [ ] 3.3 Pilot collision with floors, partitions, stairs and furniture
+- [ ] 3.3 Pilot collision with floors, partitions, stairs and furniture (on foot, intact and breached: tasks 4.5 and 4.6)
 - [ ] 3.4 Playtest: walk into a walk-up, climb its stair, look out of a window; on Drive
+
+## 4. Entrances and stairs (owner, 2026-10-25: "each building needs doors and staairs that i as a player can walk into them")
+- [ ] 4.1 The street side of every building, worked out at generation (`WorldPlan::street_sides`; test: every door is reachable from the pavement)
+- [ ] 4.2 `Entrance` per building: the door on the street facade, a lobby lined up with it or the corridor, the route to the stair (tests: every building has one, on its street side; nothing on the route)
+- [ ] 4.3 The dog-leg stair in the core, ground floor to top storey, and the stairwell in each floor (test: every shipped building's stair has a walkable rise and run)
+- [ ] 4.4 The dressing draws the entrance as an opening with its leaf standing open, the stoop, and the floors with their stairwells; the rooms mesh draws the stair
+- [ ] 4.5 `Walkable`: one box rule for standing and walls, each box hung on its frame element so a breached building is walkable too; `Scene` uses it for the pilot (test: a pilot walks in off the pavement, through the door and up the stair to the top storey)
+- [ ] 4.6 On foot only (owner, 2026-10-26), the app builds `Walkable` for buildings within `collision_radius_m` of the pilot (within `collision_sync_m` at once, the rest on the async pool) and frees them all when the pilot leaves their feet, or one past the margin (tests: the set is chosen by mode and distance; climbing out and boarding switch cleanly)
+- [ ] 4.7 Survey W30 (how the door opens) and W31 (warehouse roller doors) answered
+- [ ] 4.8 Playtest: walk in off the street, climb to an upper floor, look out of a window (this is 3.4)

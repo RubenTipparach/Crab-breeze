@@ -6,6 +6,11 @@ Owner, 2026-10-24: "research detailed building generation, interiors and floorpl
 A wall blown open by a 120 mm shell should show an office or a flat behind it, and the pilot walks
 the city on foot (the law: first person throughout). Empty boxes break both.
 
+Owner, 2026-10-25: "each building needs doors and staairs that i as a player can walk into them".
+The floorplans already had a stair core and a door on every room, but only a damaged building drew
+them, the stair was an empty concrete box, and the pilot met every intact building as a solid
+block. The street has to lead in through a door, and the stair has to climb.
+
 ## What changes
 
 - **Floorplans per storey**, generated in `cb-core` from the building's footprint and the storey's
@@ -24,7 +29,23 @@ the city on foot (the law: first person throughout). Empty boxes break both.
   - They keep out of door zones and column footprints. Tall items never stand in front of a window.
   - 1980s kit: wood-panel desks with beige CRTs, filing cabinets, sofas, CRT televisions, kitchen runs,
     pallet racks, lathes.
-- **Walkable**: floors, partitions, stairs and doors are collision for the pilot on foot. Furniture
+- **A street entrance on every building** (owner, 2026-10-25): a door opening in the ground-floor
+  facade on the side that faces the street (the facade nearest the block's kerb with nothing built
+  in front of it; an inner lot's door opens onto the alley between lots, which reaches the
+  pavement). It leads into the corridor, or into a lobby room whose door onto the corridor lines up
+  with it, and on through the corridor to the stair core. A walk-up gets its front door up a stone
+  stoop, an office or tower its pair of lobby doors, a warehouse a steel personnel door (its roller
+  doors stay shut: there is no hall behind them to open into yet).
+- **A stair you can climb** in the core, from the ground floor to the top storey: a dog-leg of two
+  flights a storey, treads at a walkable rise and run (about 0.175 m and 0.26 m), a half landing,
+  a concrete spine wall between the flights and a balustrade on the open side, and a stairwell cut
+  in every floor above it.
+- **Walkable**: floors, partitions, stairs, the entrance and its open door leaf, and furniture over
+  the step height are collision for the pilot on foot, built near the pilot on a worker thread, for
+  intact and breached buildings alike, and only while the pilot is on foot (owner, 2026-10-26: "when
+  on foot I should be able to wlak into the buildings, I think you would generate detailed colliders
+  for buildings only when the player is on foot"); in the mech, buildings stay coarse. The
+  door is an open doorway with its leaf standing open (provisional, survey W30). Furniture
   can be pushed through by the mech and is debris when hit.
 - **Near and far**: real interiors are built within the interior radius (150 m) of the pilot or the
   mech's cockpit, and in any breached building. Beyond that, windows use an interior-mapping shader
@@ -36,4 +57,5 @@ the city on foot (the law: first person throughout). Empty boxes break both.
 
 ## Out of scope
 
-People and crowds, lighting fixtures and night interiors, doors that open, lifts that move.
+People and crowds, lighting fixtures and night interiors, lifts that move, doors that swing or shut
+(the entrance stands open until survey W30 says otherwise), roller doors that open.
