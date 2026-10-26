@@ -137,6 +137,7 @@ fn choose_and_play(
     time: Res<Time>,
     ready: Res<crate::loading::GameReady>,
     settings: Option<Res<crate::settings::Settings>>,
+    mut was_duck: Local<f32>,
 ) {
     let cfg = &data.0.audio.music;
     let now = time.elapsed_secs();
@@ -153,6 +154,14 @@ fn choose_and_play(
     let wanted = rules::music_state(&i, cfg.hold_s);
     // under the radio and the alarms the score ducks, and comes back when they stop (survey A3)
     let duck = rules::duck_target_db(cfg, voices.iter().map(|v| v.cue()));
+    // One line when the duck's target moves, for a playtest's report (the ear cannot be recorded by the log).
+    if (duck - *was_duck).abs() > 0.01 {
+        info!(
+            "MUSIC duck to {duck:.1} dB (radio or alarm {})",
+            if duck < 0.0 { "playing" } else { "over" }
+        );
+        *was_duck = duck;
+    }
     player.duck_db = rules::duck_step(cfg, player.duck_db, duck, time.delta_secs());
     let base = db_to_gain(cfg.volume_db + player.duck_db) * settings.map_or(1.0, |s| s.0.music_volume);
 
@@ -183,6 +192,7 @@ fn choose_and_play(
         player.switch = None;
         let cue = sw.to.key().and_then(|k| cfg.cues.get(k));
         let fade_s = rules::fade_s(cfg, player.playing.as_ref().map(|t| &t.now), cue);
+        info!("MUSIC cue {:?} at {now:.1} s, on the bar, {fade_s:.1} s crossfade", sw.to);
         if let Some(old) = player.playing.take() {
             let from_gain = sinks.get(old.voice).map(|s| s.volume().to_linear()).unwrap_or(base);
             player.fading.push(Fading {

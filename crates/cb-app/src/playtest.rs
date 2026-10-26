@@ -80,6 +80,22 @@ struct Pilot {
     detour_side: f32,
     /// Jobs the pilot could not reach and gave up on (`AcceptByMail` passes them over).
     gave_up: Vec<u32>,
+    /// The person, car or building a beat chose, kept while it lasts.
+    goal_id: Option<u32>,
+    /// A beat's goal on the ground (x, z).
+    goal: Vec2,
+    /// A walk's points (feet) and the one walked to now.
+    route: Vec<Vec3>,
+    route_i: usize,
+    /// A beat's count (notches turned, presses made, shots fired) and when it last acted, real seconds.
+    count: u32,
+    next_s: f32,
+    /// What a beat saw at its start, compared at its end (an MFD's page, the jets' heat).
+    seen: Option<f32>,
+    /// When `PLAYTEST_START` was said, real seconds: the take's clock, for finding a moment in the video.
+    start_s: f32,
+    /// A jet leg is resting the jets, on the skates (`cb_core::playtest::rest_jets`).
+    jets_resting: bool,
 }
 
 /// Keys the scripted pilot presses, applied after the devices are read so the game sees them as a key's press.
@@ -113,9 +129,20 @@ impl Plugin for PlaytestPlugin {
             detour_until: 0.0,
             detour_side: 1.0,
             gave_up: Vec::new(),
+            goal_id: None,
+            goal: Vec2::ZERO,
+            route: Vec::new(),
+            route_i: 0,
+            count: 0,
+            next_s: 0.0,
+            seen: None,
+            start_s: 0.0,
+            jets_resting: false,
         })
         .init_resource::<PressKey>()
-        .add_systems(PreUpdate, press_keys.after(bevy::input::InputSystems))
+        .init_resource::<Hands>()
+        .add_systems(PreUpdate, turn_wheel.before(bevy::input::InputSystems))
+        .add_systems(PreUpdate, (press_keys, hold_buttons).after(bevy::input::InputSystems))
         .add_systems(Update, play.in_set(crate::sim::PresentSet::Input))
         .init_resource::<FrameLog>()
         .add_systems(Last, log_frames);
@@ -209,6 +236,114 @@ fn press_keys(mut keys: ResMut<ButtonInput<KeyCode>>, mut press: ResMut<PressKey
         Some((k, true)) => keys.release(k),
         None => {}
     }
+}
+
+/// What the pilot's hands hold besides the keys `PressKey` taps: wheel notches still to turn (positive: down, one a
+/// frame, sent as the mouse's own `MouseWheel` messages so the game's routing of the wheel is what is tested), mouse
+/// buttons and keys held down, and a mouse button to click once.
+#[derive(Resource, Default)]
+struct Hands {
+    notches: Vec<i32>,
+    hold_buttons: Vec<MouseButton>,
+    hold_keys: Vec<KeyCode>,
+    held_buttons: Vec<MouseButton>,
+    held_keys: Vec<KeyCode>,
+    click: Option<(MouseButton, bool)>,
+}
+
+/// Turns the wheel a notch a frame, before the devices are read.
+fn turn_wheel(
+    mut hands: ResMut<Hands>,
+    window: Query<Entity, With<PrimaryWindow>>,
+    mut wheel: MessageWriter<bevy::input::mouse::MouseWheel>,
+) {
+    if hands.notches.is_empty() {
+        return;
+    }
+    let n = hands.notches.remove(0);
+    if let Ok(window) = window.single() {
+        wheel.write(bevy::input::mouse::MouseWheel {
+            unit: bevy::input::mouse::MouseScrollUnit::Line,
+            x: 0.0,
+            // a notch down the list is the wheel rolled toward the player: negative y
+            y: -(n.signum() as f32),
+            window,
+            phase: bevy::input::touch::TouchPhase::Moved,
+        });
+    }
+}
+
+/// Holds and lets go of the buttons and keys the pilot holds, and clicks a button for one frame, as fingers do.
+fn hold_buttons(mut hands: ResMut<Hands>, mut mouse: ResMut<ButtonInput<MouseButton>>, mut keys: ResMut<ButtonInput<KeyCode>>) {
+    let h = &mut *hands;
+    for b in h.hold_buttons.clone() {
+        if !h.held_buttons.contains(&b) {
+            mouse.press(b);
+            h.held_buttons.push(b);
+        }
+    }
+    for b in std::mem::take(&mut h.held_buttons) {
+        if h.hold_buttons.contains(&b) {
+            h.held_buttons.push(b);
+        } else {
+            mouse.release(b);
+        }
+    }
+    for k in h.hold_keys.clone() {
+        if !h.held_keys.contains(&k) {
+            keys.press(k);
+            h.held_keys.push(k);
+        }
+    }
+    for k in std::mem::take(&mut h.held_keys) {
+        if h.hold_keys.contains(&k) {
+            h.held_keys.push(k);
+        } else {
+            keys.release(k);
+        }
+    }
+    match h.click.take() {
+        Some((b, false)) => {
+            mouse.press(b);
+            h.click = Some((b, true));
+        }
+        Some((b, true)) => mouse.release(b),
+        None => {}
+    }
+}
+
+/// What else the scripted pilot can see: the people, cars, aircraft, boats, buildings and the cockpit round it.
+#[derive(SystemParam)]
+struct More<'w, 's> {
+    crowd: Option<Res<'w, crate::civilians::Crowd>>,
+    greeting: Option<Res<'w, crate::civilians::Greeting>>,
+    choice: Res<'w, crate::interact::UseChoice>,
+    car: Res<'w, crate::traffic::CarAccessNow>,
+    traffic: Option<Res<'w, crate::traffic::TrafficSim>>,
+    roads: Option<Res<'w, crate::traffic::Roads>>,
+    colliders: Res<'w, crate::walk_in::InteriorColliders>,
+    seed: Res<'w, crate::world::Seed>,
+    air: Option<Res<'w, crate::air_traffic::AirTraffic>>,
+    boats: Option<Res<'w, crate::boats::Boats>>,
+    targeting: Res<'w, crate::targeting::TargetState>,
+    fortress: Option<Res<'w, crate::fortress::FortressRun>>,
+    hostiles: Option<Res<'w, crate::units::Hostiles>>,
+    fog: Option<Res<'w, crate::ground_fog::FogNow>>,
+    free: Option<Res<'w, crate::missions::FreeRoamRun>>,
+    my_id: Query<'w, 's, &'static crate::mech::MechId, With<Piloted>>,
+}
+
+/// The cockpit's screens and scope, the hands, and the blasts this frame.
+#[derive(SystemParam)]
+struct Cockpit<'w, 's> {
+    scope: Option<Res<'w, crate::scope::Scope>>,
+    pointed: Res<'w, crate::mfd_apps::Pointed>,
+    screens: Query<'w, 's, (&'static crate::mfd::MfdScreen, &'static GlobalTransform)>,
+    eye: Query<'w, 's, &'static GlobalTransform, With<crate::pilot::PilotCamera>>,
+    hands: ResMut<'w, Hands>,
+    blasts: MessageReader<'w, 's, crate::blast::Explosion>,
+    neutrals: Option<Res<'w, crate::air_traffic::Neutrals>>,
+    falling: Query<'w, 's, (&'static crate::air_drop::Dropping, &'static GlobalTransform)>,
 }
 
 /// What the scripted pilot can see and the hands it plays with.
@@ -308,6 +443,50 @@ fn travel(
     act
 }
 
+/// One step of a jet leg toward `goal`, holding about `height` metres over the ground: lift while under it, W held so
+/// the rockets swivel forward (rocket-vector). The jets carry a mech about 20 s at a time, so while they rest
+/// (`cb_core::playtest::rest_jets`) the pilot comes down and skates on toward the goal, as a player would, and lifts
+/// again once they have recharged.
+#[allow(clippy::too_many_arguments)]
+fn jet_leg(
+    t: &mut Pilot,
+    m: &cb_core::mech::MechState,
+    p: &cb_core::pilot::PilotState,
+    eye: Vec3,
+    goal: Vec2,
+    height: f32,
+    plan: &Plan,
+    now: f32,
+    dt: f32,
+) -> Actions {
+    let resting = cb_core::playtest::rest_jets(m.boost.heat, m.boost.locked, t.jets_resting);
+    if resting != t.jets_resting {
+        info!(
+            "playtest: jets {} at heat {:.2}, {:.0} m up at ({:.0}, {:.0})",
+            if resting {
+                "resting: down to skate"
+            } else {
+                "recharged: lifting again"
+            },
+            m.boost.heat,
+            m.pos.y - plan.terrain.height_at(m.pos.x, m.pos.z),
+            m.pos.x,
+            m.pos.z
+        );
+        t.jets_resting = resting;
+    }
+    if resting {
+        let mut act = travel(t, m, p, eye, goal, now, dt);
+        act.lift_axis = 0.0;
+        return act;
+    }
+    let mut act = drive(m, p.yaw_rad, p.pitch_rad, goal, eye, 1.0, false, false);
+    let over = m.pos.y - plan.terrain.height_at(m.pos.x, m.pos.z);
+    act.lift_axis = if over < height { 1.0 } else { 0.0 };
+    act.move_xy = Vec2::Y;
+    act
+}
+
 #[allow(clippy::too_many_lines)]
 fn play(
     mut t: ResMut<Pilot>,
@@ -317,6 +496,8 @@ fn play(
     mut pointer: MessageWriter<PointerInput>,
     mut exit: MessageWriter<AppExit>,
     s: Scene,
+    x: More,
+    mut k: Cockpit,
 ) {
     let now = s.real.elapsed_secs();
     let game_s = s.game.elapsed_secs();
@@ -330,8 +511,11 @@ fn play(
         if s.ready.0 && t.ready_s.is_none() {
             t.ready_s = Some(now);
         }
-        if t.ready_s.is_some_and(|r| now - r > 1.5) && s.access.0.is_some() && run.is_some() {
+        // A career's run starts once the career is read; free roam has none.
+        let career_mode = t.script.runs[t.run].play.starts_with("career");
+        if t.ready_s.is_some_and(|r| now - r > 1.5) && s.access.0.is_some() && (run.is_some() || !career_mode) {
             t.started = true;
+            t.start_s = now;
             say(&format!("PLAYTEST_READY {name}"));
             say(&format!("PLAYTEST_START {name}"));
             t.beat_real_s = now;
@@ -350,6 +534,21 @@ fn play(
             t.ending = Some(f32::INFINITY);
         }
         return;
+    }
+    // Every blast this frame, noted while the pilot fires at the ground (the crater check reads the take there).
+    let ground_fire = matches!(t.script.runs[t.run].beats.get(t.beat), Some(Beat::FireAtGround(..)));
+    for b in k.blasts.read() {
+        if ground_fire && b.at.distance(eye) < 600.0 {
+            say(&format!(
+                "PLAYTEST_HIT t={:.2} at ({:.0}, {:.1}, {:.0}), {:.1} MJ, {:.0} m off",
+                now - t.start_s,
+                b.at.x,
+                b.at.y,
+                b.at.z,
+                b.energy_mj,
+                b.at.distance(eye)
+            ));
+        }
     }
     let beats = t.script.runs[t.run].beats.clone();
     let Some(beat) = beats.get(t.beat).cloned() else {
@@ -521,11 +720,7 @@ fn play(
             let d = goal.distance(Vec2::new(m.pos.x, m.pos.z));
             dist = Some(d);
             done = d < 250.0;
-            act = drive(m, p.yaw_rad, p.pitch_rad, goal, eye, 1.0, false, false);
-            // Lift while under the height wanted and none over it, W held so the rockets swivel forward (rocket-vector).
-            let over = m.pos.y - s.plan.terrain.height_at(m.pos.x, m.pos.z);
-            act.lift_axis = if over < *height { 1.0 } else { 0.0 };
-            act.move_xy = Vec2::Y;
+            act = jet_leg(&mut t, m, p, eye, goal, *height, &s.plan, now, s.real.delta_secs());
         }
         Beat::FightJob(cap) => {
             let job = career.and_then(|c| c.career.board.current().cloned());
@@ -678,14 +873,38 @@ fn play(
                 return;
             } else {
                 dist = Some(left.max(0.0) * 10.0 + 1.0);
-                // Look toward it, as a player would watch it come down.
+                // Look toward it, as a player would watch it come down: the freighter with the mech on its sling, then the
+                // mech falling under its canopies, then the site.
                 if let Some(d) = career.and_then(|c| c.career.drops.iter().find(|d| !d.landed)) {
                     let eyes = p.feet + Vec3::Y * 1.7;
-                    let site = Vec3::from_array(d.site) + Vec3::Y * 60.0;
-                    act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eyes, site, 0.25, 0.05);
+                    let at = k
+                        .falling
+                        .iter()
+                        .find(|(f, _)| f.0 == d.key)
+                        .map(|(_, g)| g.translation() + Vec3::Y * 10.0)
+                        .or_else(|| d.aircraft(&cfg, now_s, 0.0))
+                        .unwrap_or(Vec3::from_array(d.site) + Vec3::Y * 60.0);
+                    let v = at - eyes;
+                    let pitch = v.y.atan2(Vec2::new(v.x, v.z).length()).min(1.2);
+                    act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eyes, at, pitch, 0.08);
                 }
             }
         }
+        Beat::WalkTowardDrop(short) => match career.and_then(|c| c.career.drops.iter().find(|d| !d.landed)) {
+            Some(d) => {
+                let goal = Vec3::new(d.site[0], p.feet.y, d.site[2]);
+                let g = Vec2::new(p.feet.x - goal.x, p.feet.z - goal.z).length();
+                dist = Some(g);
+                if g <= *short + 2.0 {
+                    info!("playtest: out in the open, {g:.0} m from where the drop will land");
+                    done = true;
+                } else {
+                    act = walk_close(p, goal, *short);
+                    act.run = true;
+                }
+            }
+            None => done = true,
+        },
         Beat::WalkToDrop => {
             let newest = career.and_then(|c| c.career.drops.iter().rev().find(|d| d.landed).map(|d| (d.key, d.site)));
             match newest {
@@ -801,13 +1020,659 @@ fn play(
                 done = true;
             }
         }
+        Beat::WalkToPerson(within) => {
+            let Some(crowd) = x.crowd.as_deref() else {
+                fail(&mut t, now, "there are no people in this game");
+                return;
+            };
+            let feet = Vec2::new(p.feet.x, p.feet.z);
+            let calm = |q: &&cb_core::civilians::Person| {
+                !matches!(
+                    q.activity,
+                    cb_core::civilians::Activity::Down { .. } | cb_core::civilians::Activity::Fleeing { .. }
+                )
+            };
+            if t.goal_id.is_none_or(|id| !crowd.people.list.iter().any(|q| q.id == id && calm(&q))) {
+                t.goal_id = crowd
+                    .people
+                    .list
+                    .iter()
+                    .filter(calm)
+                    .filter(|q| q.pos.distance(feet) < *within)
+                    .min_by(|a, b| a.pos.distance(feet).total_cmp(&b.pos.distance(feet)))
+                    .map(|q| q.id);
+                if let Some(id) = t.goal_id {
+                    info!("playtest: walking up to person {id}");
+                }
+            }
+            if let Some(q) = t.goal_id.and_then(|id| crowd.people.list.iter().find(|q| q.id == id)) {
+                let d = q.pos.distance(feet);
+                dist = Some(d);
+                if crowd.people.in_reach(&s.data.0.people.cfg, p.feet, p.yaw_rad).is_some() && d < 2.4 {
+                    info!("playtest: person {} is in reach, {d:.1} m away, {:?}", q.id, q.activity);
+                    done = true;
+                } else {
+                    act = walk_close(p, q.feet(), 1.4);
+                    act.run = d > 8.0;
+                }
+            }
+        }
+        Beat::Scroll(n) => {
+            if t.count == 0 {
+                info!("playtest: Use list before the wheel: {}", use_list(&x.choice.selector));
+            }
+            if (t.count as i32) < n.abs() {
+                if now - t.next_s > 0.3 {
+                    k.hands.notches.push(n.signum());
+                    t.count += 1;
+                    t.next_s = now;
+                }
+            } else if now - t.next_s > 0.4 {
+                info!("playtest: Use list after {n} notches: {}", use_list(&x.choice.selector));
+                done = true;
+            }
+        }
+        Beat::UseOn(name) => {
+            let want = cb_core::playtest::interaction(name);
+            let sel = &x.choice.selector;
+            let opts = sel.options();
+            if t.leg == 0 {
+                match want.and_then(|w| opts.iter().position(|o| *o == w)) {
+                    None if in_beat > 10.0 => {
+                        fail(&mut t, now, &format!("{name} never came into reach; in reach: {}", use_list(sel)));
+                        return;
+                    }
+                    None => {}
+                    Some(i) => {
+                        let at = sel.selected().and_then(|s| opts.iter().position(|o| *o == s)).unwrap_or(0);
+                        if at == i {
+                            info!("playtest: Use on {name}: {}", use_list(sel));
+                            act.use_pressed = true;
+                            t.leg = 1;
+                            t.next_s = now;
+                        } else if k.hands.notches.is_empty() && now - t.next_s > 0.5 {
+                            let n = cb_core::playtest::notches_to(at, i, opts.len());
+                            info!("playtest: the wheel {n} notches to {name}: {}", use_list(sel));
+                            k.hands.notches.extend(std::iter::repeat_n(n.signum(), n.unsigned_abs() as usize));
+                            t.next_s = now;
+                        }
+                    }
+                }
+            } else {
+                // What the press did, as the player sees it.
+                let took = match name.as_str() {
+                    "Greet" => x
+                        .greeting
+                        .as_deref()
+                        .filter(|g| g.left_s > 0.0)
+                        .map(|g| format!("the answer on screen: {}", g.line)),
+                    "GetIn" => p.mode.in_car().then(|| format!("{:?}", p.mode)),
+                    "GetOut" => matches!(p.mode, PilotMode::ExitingCar(_) | PilotMode::OnFoot).then(|| "getting out".to_string()),
+                    "Terminal" => (*s.menu == Menu::Terminal).then(|| "the terminal's screen".to_string()),
+                    _ => (p.mode != PilotMode::OnFoot || p.waiting.is_some()).then(|| "boarding".to_string()),
+                };
+                if let Some(what) = took {
+                    info!("playtest: Use on {name} took: {what}");
+                    done = true;
+                } else if now - t.next_s > 12.0 {
+                    fail(&mut t, now, &format!("Use on {name} did nothing in 12 s"));
+                    return;
+                }
+            }
+        }
+        Beat::ExpectMode(mode, cap) => {
+            let now_mode = match p.mode {
+                PilotMode::OnFoot => "OnFoot",
+                PilotMode::Driving => "Driving",
+                PilotMode::Seated => "Seated",
+                _ => "between",
+            };
+            if now_mode == mode {
+                info!("playtest: the pilot is {mode}");
+                done = true;
+            } else if in_beat > *cap {
+                let driven = x.traffic.as_deref().and_then(|tr| tr.traffic.driven()).map(|c| (c.id, c.state));
+                fail(
+                    &mut t,
+                    now,
+                    &format!(
+                        "not {mode} after {cap:.0} s (now {:?}; car in reach {:?}; driven {driven:?})",
+                        p.mode, x.car.0
+                    ),
+                );
+                return;
+            }
+        }
+        Beat::WalkToCar(within) => {
+            let Some(traffic) = x.traffic.as_deref() else {
+                fail(&mut t, now, "there is no traffic in this game");
+                return;
+            };
+            let kinds = &s.data.0.traffic.kinds;
+            let door_of =
+                |c: &cb_core::traffic::Car| cb_core::car::CarSpec::to_world(c.pos, c.heading_rad, kinds[c.kind as usize].door_driver_m);
+            let feet = p.feet;
+            if t.goal_id
+                .is_none_or(|id| !traffic.traffic.cars.iter().any(|c| c.id == id && !c.state.wreck()))
+            {
+                // A stopped car first (parked, or waiting at a red light), else the nearest.
+                let near = traffic
+                    .traffic
+                    .cars
+                    .iter()
+                    .filter(|c| !c.state.wreck() && door_of(c).distance(feet) < *within);
+                t.goal_id = near
+                    .min_by(|a, b| {
+                        // and one with road ahead of it, not boxed in a queue
+                        let boxed = |c: &cb_core::traffic::Car| {
+                            let f = Vec3::new(-c.heading_rad.sin(), 0.0, -c.heading_rad.cos());
+                            traffic.traffic.cars.iter().any(|o| {
+                                let v = o.pos - c.pos;
+                                o.id != c.id && v.dot(f) > 0.0 && v.dot(f) < 14.0 && (v - f * v.dot(f)).length() < 2.5
+                            })
+                        };
+                        let k = |c: &cb_core::traffic::Car| {
+                            door_of(c).distance(feet) + if c.vel().length() > 0.5 { 60.0 } else { 0.0 } + if boxed(c) { 30.0 } else { 0.0 }
+                        };
+                        k(a).total_cmp(&k(b))
+                    })
+                    .map(|c| c.id);
+                if let Some(id) = t.goal_id {
+                    info!("playtest: walking to car {id}'s driver's door");
+                }
+            }
+            if let Some(c) = t.goal_id.and_then(|id| traffic.traffic.cars.iter().find(|c| c.id == id)) {
+                let door = door_of(c);
+                let d = Vec2::new(door.x - feet.x, door.z - feet.z).length();
+                dist = Some(d);
+                let reach = x.car.0.as_ref().filter(|a| a.id == c.id);
+                if reach.is_some_and(|a| p.can_take(a, &s.data.0.pilot)) {
+                    info!(
+                        "playtest: at car {}'s door, {d:.2} m, the car doing {:.1} m/s",
+                        c.id,
+                        c.vel().length()
+                    );
+                    done = true;
+                } else if d > 0.8 {
+                    act = walk_close(p, door, 0.6);
+                    act.run = d > 10.0;
+                } else {
+                    let eyes = p.feet + Vec3::Y * 1.7;
+                    act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eyes, c.pos + Vec3::Y, -0.2, 0.15);
+                }
+            }
+        }
+        Beat::DriveCar(secs, throttle) => {
+            let speed = x.car.0.as_ref().map_or(0.0, |c| c.speed_m_s);
+            if p.mode != PilotMode::Driving {
+                fail(&mut t, now, "not in a car");
+                return;
+            }
+            if in_beat < *secs {
+                act.move_xy = Vec2::new(0.0, *throttle);
+                if now - t.next_s > 2.0 {
+                    t.next_s = now;
+                    let driven = x.traffic.as_deref().and_then(|tr| tr.traffic.driven());
+                    info!(
+                        "playtest: driving at {speed:.1} m/s, throttle {throttle}, the car {:?}",
+                        driven.map(|c| (c.id, c.state, c.pos))
+                    );
+                }
+            } else {
+                act.lift_axis = 1.0;
+                done = speed < 0.3;
+                dist = Some(speed * 10.0);
+                if done {
+                    info!("playtest: the car stopped after {in_beat:.1} s");
+                }
+            }
+        }
+        Beat::WalkIntoBuilding(within, storeys) => {
+            if t.route.is_empty() {
+                let feet = Vec2::new(p.feet.x, p.feet.z);
+                let rng = crate::buildings::building_rng(x.seed.0);
+                let cfg = &x.colliders.0.cfg;
+                let best = x
+                    .colliders
+                    .0
+                    .buildings
+                    .keys()
+                    .filter_map(|&b| {
+                        let c = s.live.structures.buildings.get(b as usize)?;
+                        if c.standing == 0 || c.n[1] < 2 {
+                            return None;
+                        }
+                        let site = cb_core::world::interior::Site::of(&s.plan.0, b, c.n, c.origin, c.size);
+                        let shell = cb_core::world::interior::shell(&site, cfg, &rng);
+                        let d = shell.entrance.route.first()?.distance(feet);
+                        (d < *within).then_some((d, b, shell))
+                    })
+                    .min_by(|a, b| a.0.total_cmp(&b.0));
+                match best {
+                    Some((d, b, shell)) => {
+                        let y = p.feet.y;
+                        t.route = shell.entrance.route.iter().map(|q| Vec3::new(q.x, y, q.y)).collect();
+                        for storey in 0..*storeys as usize {
+                            t.route.extend(shell.stair.climb(storey));
+                        }
+                        t.goal_id = Some(b);
+                        t.route_i = 0;
+                        info!(
+                            "playtest: into building {b} by its {:?} door, {d:.0} m off, then {storeys} storeys up its stair ({} points)",
+                            shell.entrance.kind,
+                            t.route.len()
+                        );
+                    }
+                    None if in_beat > 8.0 => {
+                        fail(&mut t, now, &format!("no building with colliders within {within:.0} m"));
+                        return;
+                    }
+                    None => {}
+                }
+            }
+            if let Some(&goal) = t.route.get(t.route_i) {
+                let flat = Vec2::new(goal.x - p.feet.x, goal.z - p.feet.z).length();
+                let left: f32 = flat + t.route.windows(2).skip(t.route_i).map(|w| w[0].distance(w[1])).sum::<f32>();
+                dist = Some(left);
+                if flat < 0.6 {
+                    t.route_i += 1;
+                    if t.route_i == t.route.len() {
+                        info!("playtest: up the stair, feet at {:.1} m (started at the door)", p.feet.y);
+                        done = true;
+                    }
+                } else {
+                    act = walk_close(p, goal, 0.3);
+                    act.look_delta_deg.y = (0.0 - p.pitch_rad).to_degrees() * 0.1;
+                }
+            }
+        }
+        Beat::Survey(within) => {
+            say(&format!(
+                "PLAYTEST_SURVEY t={:.1} {}",
+                now - t.start_s,
+                survey(&s, &x, &k, p, m, spec, sim, *within)
+            ));
+            done = true;
+        }
+        Beat::LookAtNearest(kind, secs) => {
+            let eyes = if p.mode == PilotMode::OnFoot { p.feet + Vec3::Y * 1.7 } else { eye };
+            match nearest(kind, eyes, &s, &x) {
+                Some((at, what)) => {
+                    if t.count == 0 {
+                        t.count = 1;
+                        info!("playtest: looking at the nearest {kind}: {what}, {:.0} m", at.distance(eyes));
+                    }
+                    let d = at - eyes;
+                    let pitch = d.y.atan2(Vec2::new(d.x, d.z).length());
+                    act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eyes, at, pitch, 0.08);
+                }
+                None if t.count == 0 && in_beat > 1.0 => {
+                    t.count = 1;
+                    info!("playtest: no {kind} to look at");
+                }
+                None => {}
+            }
+            act.throttle_zero = p.mode == PilotMode::Seated;
+            done = in_beat >= *secs;
+        }
+        Beat::SkateToNearest(kind, short) | Beat::JetToNearest(kind, short) => {
+            let jet = matches!(beat, Beat::JetToNearest(..));
+            if t.goal_id.is_none() {
+                match place(kind, Vec2::new(m.pos.x, m.pos.z), &s, &x) {
+                    Some((at, what)) => {
+                        t.goal = at;
+                        t.goal_id = Some(0);
+                        info!("playtest: going to the nearest {kind}: {what} at ({:.0}, {:.0})", at.x, at.y);
+                    }
+                    None => {
+                        fail(&mut t, now, &format!("no {kind} on the island"));
+                        return;
+                    }
+                }
+            }
+            let d = t.goal.distance(Vec2::new(m.pos.x, m.pos.z));
+            dist = Some(d);
+            if jet {
+                done = d < 250.0;
+                let goal = t.goal;
+                act = jet_leg(&mut t, m, p, eye, goal, *short, &s.plan, now, s.real.delta_secs());
+            } else {
+                done = d < short + 40.0;
+                let goal = t.goal;
+                act = travel(&mut t, m, p, eye, goal, now, s.real.delta_secs());
+            }
+        }
+        Beat::SelectWeapon(name) => {
+            let now_name = spec.weapons.get(sim.selected).map_or("", |w| w.name.as_str());
+            if now_name.contains(name.as_str()) {
+                info!("playtest: station {} selected: {now_name}", sim.selected + 1);
+                done = true;
+            } else if k.hands.notches.is_empty() && now - t.next_s > 0.6 {
+                t.next_s = now;
+                t.count += 1;
+                if t.count > 12 {
+                    fail(&mut t, now, &format!("no {name} on board"));
+                    return;
+                }
+                info!("playtest: the wheel one notch on from {now_name}");
+                k.hands.notches.push(1);
+            }
+        }
+        Beat::FireFor(secs) => {
+            let target = s
+                .enemies
+                .iter()
+                .filter(|(e, _)| !e.dead)
+                .map(|(e, _)| e.curr.pos + Vec3::Y * 8.0)
+                .chain(x.hostiles.iter().flat_map(|h| h.0.iter().map(|h| h.aim)))
+                .filter(|q| q.distance(eye) < 1500.0)
+                .min_by(|a, b| a.distance(eye).total_cmp(&b.distance(eye)));
+            let at = target.unwrap_or_else(|| {
+                let f = cb_core::mech::forward(m.heading_rad) * 80.0 + m.pos;
+                Vec3::new(f.x, s.plan.terrain.height_at(f.x, f.z), f.z)
+            });
+            let d = at - eye;
+            let pitch = d.y.atan2(Vec2::new(d.x, d.z).length());
+            act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eye, at, pitch, 0.1);
+            act.throttle_zero = true;
+            act.fire[0] = in_beat > 0.8 && in_beat < *secs;
+            if now - t.next_s > 1.0 {
+                t.next_s = now;
+                let w = spec.weapons.get(sim.selected).map_or("?", |w| w.name.as_str());
+                info!(
+                    "playtest: firing the {w} at {}, {:.0} m; weapon heat {:.2}{}",
+                    if target.is_some() { "an enemy" } else { "the ground" },
+                    d.length(),
+                    sim.guns.heat.heat,
+                    if sim.guns.heat.locked { " (locked out: cooling)" } else { "" }
+                );
+            }
+            done = in_beat >= *secs + 0.5;
+        }
+        Beat::Scope(secs, notches) => {
+            let open = in_beat < *secs;
+            if open {
+                if !k.hands.hold_buttons.contains(&MouseButton::Middle) {
+                    k.hands.hold_buttons.push(MouseButton::Middle);
+                }
+                act.scope = true;
+                if (t.count as i32) < notches.abs() && in_beat > 1.0 + t.count as f32 * 1.5 {
+                    k.hands.notches.push(-notches.signum());
+                    t.count += 1;
+                }
+            } else {
+                k.hands.hold_buttons.retain(|b| *b != MouseButton::Middle);
+            }
+            if now - t.next_s > 0.75 {
+                t.next_s = now;
+                let sc = k.scope.as_deref();
+                info!(
+                    "playtest: scope {} at {:.0}x, weapon {}",
+                    if sc.is_some_and(|c| c.open) { "open" } else { "shut" },
+                    sc.map_or(0.0, |c| c.zoom),
+                    spec.weapons.get(sim.selected).map_or("?", |w| w.name.as_str())
+                );
+            }
+            act.throttle_zero = true;
+            done = in_beat >= *secs + 1.0;
+        }
+        Beat::MultiLock(secs) => {
+            act.fire_missile = in_beat < *secs;
+            act.throttle_zero = true;
+            if let Some(e) = s
+                .enemies
+                .iter()
+                .filter(|(e, _)| !e.dead)
+                .map(|(e, _)| e.curr.pos + Vec3::Y * 8.0)
+                .min_by(|a, b| a.distance(eye).total_cmp(&b.distance(eye)))
+            {
+                let d = e - eye;
+                let pitch = d.y.atan2(Vec2::new(d.x, d.z).length());
+                act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eye, e, pitch, 0.1);
+            }
+            if now - t.next_s > 0.5 {
+                t.next_s = now;
+                info!(
+                    "playtest: missile key {}, {} locks held: {:?}",
+                    if act.fire_missile { "held" } else { "let go" },
+                    sim.guns.locks.held.len(),
+                    sim.guns.locks.held
+                );
+            }
+            done = in_beat >= *secs + 2.0;
+        }
+        Beat::CycleTargets(n) => {
+            if (t.count) < *n && now - t.next_s > 1.0 {
+                t.next_s = now;
+                t.count += 1;
+                act.target_next = true;
+            } else if t.count > 0 && now - t.next_s > 0.5 && t.seen != Some(t.count as f32) {
+                t.seen = Some(t.count as f32);
+                let sel = x.targeting.selected;
+                let civil = sel.is_some_and(|id| (crate::air_traffic::CIVIL_ID_BASE..crate::fortress::FORTRESS_ID).contains(&id));
+                let boxed_civil = k.neutrals.as_deref().map_or(0, |n| n.0.len());
+                info!(
+                    "playtest: target {} of {n}: {:?}, {:.0} m, lock {:?}{}; {boxed_civil} civil aircraft boxed as neutral",
+                    t.count,
+                    sel,
+                    x.targeting.range_m,
+                    x.targeting.lock,
+                    if civil { " A CIVIL AIRCRAFT" } else { "" }
+                );
+                if civil {
+                    t.failures.push(format!("civil aircraft {sel:?} was selected"));
+                }
+            }
+            done = t.count >= *n && t.seen == Some(*n as f32);
+        }
+        Beat::MfdFocus => {
+            let pages = |k: &Cockpit| k.screens.iter().map(|(sc, _)| sc.pages.page).collect::<Vec<_>>();
+            let defaults: Vec<usize> = k.screens.iter().map(|(sc, _)| sc.pages.default).collect();
+            act.throttle_zero = true;
+            match t.leg {
+                0 => {
+                    if !k.hands.hold_keys.contains(&KeyCode::ControlLeft) {
+                        k.hands.hold_keys.push(KeyCode::ControlLeft);
+                        info!("playtest: MFD pages before focus {:?} (defaults {defaults:?})", pages(&k));
+                    }
+                    act.free_look = true;
+                    // the screen lowest on the left of the seat
+                    let cam = k.eye.iter().next().map(|g| g.translation()).unwrap_or(eye);
+                    let left = k
+                        .screens
+                        .iter()
+                        .map(|(_, g)| g.translation())
+                        .min_by(|a, b| (a.y + a.x * 0.0).total_cmp(&(b.y + b.x * 0.0)));
+                    if let Some(sc) = left {
+                        let d = sc - cam;
+                        let pitch = d.y.atan2(Vec2::new(d.x, d.z).length());
+                        act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, cam, sc, pitch, 0.15);
+                    }
+                    if k.pointed.screen.is_some() && in_beat > 1.5 {
+                        info!("playtest: pointing at an MFD on page {:?}; pressing it", k.pointed.page);
+                        k.hands.click = Some((MouseButton::Left, false));
+                        t.leg = 1;
+                        t.next_s = now;
+                    } else if in_beat > 12.0 {
+                        fail(&mut t, now, "could not point at an MFD");
+                        return;
+                    }
+                }
+                1 => {
+                    act.free_look = true;
+                    if now - t.next_s > 1.0 {
+                        let during = pages(&k);
+                        info!("playtest: MFD pages in focus after the press {during:?}");
+                        if during == defaults {
+                            t.failures.push("an MFD press changed no page".into());
+                        }
+                        k.hands.hold_keys.retain(|k| *k != KeyCode::ControlLeft);
+                        t.leg = 2;
+                        t.next_s = now;
+                    }
+                }
+                _ => {
+                    if now - t.next_s > 1.0 {
+                        let after = pages(&k);
+                        info!("playtest: MFD pages after leaving focus {after:?} (defaults {defaults:?})");
+                        if after != defaults {
+                            t.failures.push("the MFDs kept their pages after focus ended".into());
+                        }
+                        done = true;
+                    }
+                }
+            }
+        }
+        Beat::FireAtGround(ahead, n) => {
+            let f = cb_core::mech::forward(m.heading_rad) * *ahead + m.pos;
+            let at = Vec3::new(
+                f.x,
+                s.plan.terrain.height_at(f.x, f.z) + s.live.dug.delta_at(Vec2::new(f.x, f.z)),
+                f.z,
+            );
+            let d = at - eye;
+            let pitch = d.y.atan2(Vec2::new(d.x, d.z).length());
+            act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eye, at, pitch, 0.12);
+            act.throttle_zero = true;
+            if t.count < *n && now - t.next_s > 2.5 && in_beat > 1.5 {
+                t.next_s = now;
+                t.count += 1;
+                info!(
+                    "PLAYTEST_SHOT {} t={:.2} at the ground ({:.0}, {:.0}), {:.0} m off",
+                    t.count,
+                    now - t.start_s,
+                    at.x,
+                    at.z,
+                    d.length()
+                );
+            }
+            act.fire_missile = t.count > 0 && now - t.next_s < 0.25;
+            done = t.count >= *n && now - t.next_s > 4.0;
+        }
+        Beat::StartMission(which) => {
+            let kind = match which.as_str() {
+                "Defence" => cb_core::missions::MissionKind::Defence,
+                _ => cb_core::missions::MissionKind::Fortress,
+            };
+            let active = x.free.as_deref().and_then(|f| f.free.active);
+            if active == Some(kind) {
+                if *s.menu == Menu::Mail && press.0.is_none() && now - t.toggled_s > 1.0 {
+                    t.toggled_s = now;
+                    press.0 = Some((KeyCode::KeyM, false));
+                }
+                done = !s.menu.is_open();
+                if done {
+                    info!("playtest: the {which} mission is running");
+                }
+            } else if *s.menu != Menu::Mail {
+                if press.0.is_none() && now - t.toggled_s > 1.0 {
+                    t.toggled_s = now;
+                    press.0 = Some((KeyCode::KeyM, false));
+                }
+            } else {
+                want_click = Some(MenuButton::StartMission(kind));
+            }
+        }
+        Beat::LandOnFortress(cap) => {
+            let Some(f) = x.fortress.as_deref() else {
+                fail(&mut t, now, "no Stratostacean in the sky");
+                return;
+            };
+            let me = x.my_id.iter().next().map_or(u32::MAX, |i| i.0);
+            let deck = f.f.pose().transform_point3(Vec3::new(0.0, 49.0, 0.0));
+            let here = Vec2::new(m.pos.x, m.pos.z);
+            let flat = Vec2::new(deck.x, deck.z).distance(here);
+            dist = Some(flat + (deck.y - m.pos.y).abs());
+            if f.is_aboard(me) {
+                if t.seen.is_none() {
+                    t.seen = Some(m.boost.heat);
+                    t.next_s = now;
+                    info!(
+                        "playtest: on the deck at {:.0} m up, moving {:.1} m/s with it; jets' heat {:.2}",
+                        m.pos.y,
+                        m.vel.length(),
+                        m.boost.heat
+                    );
+                }
+                act.throttle_zero = true;
+                dist = None;
+                if now - t.next_s > 6.0 {
+                    info!(
+                        "playtest: after 6 s on the deck the jets' heat went {:.2} to {:.2}{}",
+                        t.seen.unwrap_or(0.0),
+                        m.boost.heat,
+                        if m.boost.heat < t.seen.unwrap_or(0.0) {
+                            " (recharging)"
+                        } else {
+                            ""
+                        }
+                    );
+                    done = true;
+                }
+            } else if in_beat > *cap {
+                fail(
+                    &mut t,
+                    now,
+                    &format!(
+                        "not on the deck after {cap:.0} s, {flat:.0} m off and {:.0} m below it",
+                        deck.y - m.pos.y
+                    ),
+                );
+                return;
+            } else {
+                let want_y = deck.y + if flat > 80.0 { 30.0 } else { 6.0 };
+                act = drive(
+                    m,
+                    p.yaw_rad,
+                    p.pitch_rad,
+                    Vec2::new(deck.x, deck.z),
+                    eye,
+                    if flat > 150.0 { 1.0 } else { 0.4 },
+                    false,
+                    flat < 150.0,
+                );
+                act.lift_axis = if m.pos.y < want_y { 1.0 } else { 0.0 };
+                act.move_xy = if flat > 30.0 { Vec2::Y } else { Vec2::ZERO };
+                if now - t.next_s > 3.0 {
+                    t.next_s = now;
+                    info!(
+                        "playtest: closing on the deck, {flat:.0} m off, {:.0} m below it, jets' heat {:.2}",
+                        deck.y - m.pos.y,
+                        m.boost.heat
+                    );
+                }
+            }
+        }
+        Beat::WalkToMech(within) => {
+            let Some(a) = s.access.0.as_ref() else {
+                fail(&mut t, now, "no mech to walk to");
+                return;
+            };
+            let d = Vec2::new(p.feet.x - a.ladder_base.x, p.feet.z - a.ladder_base.z).length();
+            dist = Some(d);
+            if d <= *within {
+                info!(
+                    "playtest: {d:.0} m from the mech's stair; Use list {}",
+                    use_list(&x.choice.selector)
+                );
+                done = true;
+            } else {
+                act = walk_close(p, a.ladder_base, *within * 0.8);
+                act.run = d > 10.0;
+            }
+        }
+        Beat::Skates(on) => {
+            act.skate_toggle = m.skates_on != *on;
+            done = m.skates_on == *on;
+        }
     }
     // A click in progress, or a new one.
     if let Some(want) = want_click {
         match t.click {
             None if in_beat > 0.4 => {
-                if let Some((_, node, at)) = s.buttons.iter().find(|(b, _, _)| **b == want) {
+                if let Some((_, node, at)) = s.buttons.iter().find(|(b, n, _)| **b == want && n.size().x > 0.0) {
                     let centre = bevy::math::Affine2::from(at).translation * node.inverse_scale_factor();
+                    info!("playtest: clicking {want:?} at ({:.0}, {:.0})", centre.x, centre.y);
                     t.click = Some(Click {
                         at: centre,
                         stage: 0,
@@ -873,7 +1738,19 @@ fn play(
     // A beat with no distance to close (a press, a click) that has not happened in 20 s is stuck too.
     let timed = !matches!(
         beat,
-        Beat::Wait(_) | Beat::LookAround(_) | Beat::FightJob(_) | Beat::EnterBay(_) | Beat::AcceptByMail(..)
+        Beat::Wait(_)
+            | Beat::LookAround(_)
+            | Beat::FightJob(_)
+            | Beat::EnterBay(_)
+            | Beat::AcceptByMail(..)
+            | Beat::ExpectMode(..)
+            | Beat::LookAtNearest(..)
+            | Beat::FireFor(_)
+            | Beat::Scope(..)
+            | Beat::MultiLock(_)
+            | Beat::FireAtGround(..)
+            | Beat::LandOnFortress(_)
+            | Beat::DriveCar(..)
     ) && dist.is_none();
     if timed && in_beat > 20.0 && !done {
         say(&format!(
@@ -941,6 +1818,14 @@ fn play(
         t.click = None;
         t.clicked = false;
         t.brain = None;
+        t.goal_id = None;
+        t.route.clear();
+        t.route_i = 0;
+        t.count = 0;
+        t.next_s = 0.0;
+        t.seen = None;
+        k.hands.hold_buttons.clear();
+        k.hands.hold_keys.clear();
         if t.beat < t.script.runs[t.run].beats.len() {
             announce(&t);
         }
@@ -1004,4 +1889,353 @@ fn write_expect(name: &str, career: Option<&CareerRun>, p: &cb_core::pilot::Pilo
     } else {
         info!("playtest: quitting with {} credits at ({:.0}, {:.0})", e.money, e.at[0], e.at[1]);
     }
+}
+
+/// Walks toward `target` until within `stop_m` of it (`walk_to` stops at 2 m, too far for a car's door or a stair).
+fn walk_close(p: &cb_core::pilot::PilotState, target: Vec3, stop_m: f32) -> Actions {
+    let to = target - p.feet;
+    let flat = Vec2::new(to.x, to.z).length();
+    let mut a = walk_to(p, target, 0.0);
+    a.move_xy = if flat < stop_m { Vec2::ZERO } else { Vec2::new(0.0, 1.0) };
+    // Turn first, then go: a walk round a tight corner (a door, a stair) does not cut it.
+    let want = (-to.x).atan2(-to.z);
+    if wrap_rad(want - p.yaw_rad).abs() > 0.6 {
+        a.move_xy = Vec2::ZERO;
+    }
+    a
+}
+
+/// The Use list as the prompt shows it, the selected one in brackets.
+fn use_list(sel: &cb_core::interact::Selector) -> String {
+    let list: Vec<String> = sel
+        .options()
+        .iter()
+        .map(|o| {
+            if Some(*o) == sel.selected() {
+                format!("[{o:?}]")
+            } else {
+                format!("{o:?}")
+            }
+        })
+        .collect();
+    if list.is_empty() {
+        "nothing in reach".into()
+    } else {
+        list.join(" ")
+    }
+}
+
+/// The nearest thing of a kind to look at, from `eyes`: where, and what it is.
+fn nearest(kind: &str, eyes: Vec3, s: &Scene, x: &More) -> Option<(Vec3, String)> {
+    let flat = |v: Vec3| Vec2::new(v.x, v.z);
+    let here = flat(eyes);
+    let pick = |it: Vec<(Vec3, String)>| it.into_iter().min_by(|a, b| a.0.distance(eyes).total_cmp(&b.0.distance(eyes)));
+    let ground = |q: Vec2| s.plan.terrain.height_at(q.x, q.y);
+    match kind {
+        "person" | "bench" => {
+            let crowd = x.crowd.as_deref()?;
+            pick(
+                crowd
+                    .people
+                    .list
+                    .iter()
+                    .filter(|q| q.standing())
+                    .filter(|q| kind != "bench" || matches!(q.activity, cb_core::civilians::Activity::Sitting { .. }))
+                    .map(|q| (q.feet() + Vec3::Y * 1.2, format!("person {} {:?}", q.id, q.activity)))
+                    .collect(),
+            )
+        }
+        "car" => pick(
+            x.traffic
+                .as_deref()?
+                .traffic
+                .cars
+                .iter()
+                .map(|c| {
+                    (
+                        c.pos + Vec3::Y,
+                        format!("car {} at {:.1} m/s {:?}", c.id, c.vel().length(), c.state),
+                    )
+                })
+                .collect(),
+        ),
+        "light" => {
+            let roads = x.roads.as_deref()?;
+            let tr = x.traffic.as_deref()?;
+            let times = &s.data.0.traffic.cfg.lights;
+            pick(
+                roads
+                    .0
+                    .nodes
+                    .iter()
+                    .filter(|n| n.signal && n.at.distance(here) > 15.0)
+                    .map(|n| {
+                        let t_s = tr.traffic.time_s();
+                        (
+                            Vec3::new(n.at.x, ground(n.at) + 4.0, n.at.y),
+                            format!(
+                                "junction {} lights {:?} / {:?}",
+                                n.id,
+                                cb_core::traffic::light(times, n.id, 0, t_s),
+                                cb_core::traffic::light(times, n.id, 1, t_s)
+                            ),
+                        )
+                    })
+                    .collect(),
+            )
+        }
+        "aircraft" => pick(
+            x.air
+                .as_deref()?
+                .0
+                .list
+                .iter()
+                .map(|a| {
+                    (
+                        a.pos,
+                        format!("{} {} {:?} at {:.0} m up", a.kind, a.id, a.phase, a.pos.y - ground(flat(a.pos))),
+                    )
+                })
+                .collect(),
+        ),
+        "boat" => pick(
+            x.boats
+                .as_deref()?
+                .traffic
+                .boats
+                .iter()
+                .map(|b| (Vec3::new(b.pos.x, 3.0, b.pos.y), format!("{} {} {:?}", b.kind, b.id, b.phase)))
+                .collect(),
+        ),
+        "harbour" => pick(
+            x.boats
+                .as_deref()?
+                .traffic
+                .harbours
+                .iter()
+                .map(|h| {
+                    (
+                        Vec3::new(h.berth.x, h.deck_y + 6.0, h.berth.y),
+                        format!("harbour {} of city {}", h.id, h.city),
+                    )
+                })
+                .collect(),
+        ),
+        "door" => {
+            let rng = crate::buildings::building_rng(x.seed.0);
+            pick(
+                x.colliders
+                    .0
+                    .buildings
+                    .keys()
+                    .filter_map(|&b| {
+                        let c = s.live.structures.buildings.get(b as usize)?;
+                        let site = cb_core::world::interior::Site::of(&s.plan.0, b, c.n, c.origin, c.size);
+                        let e = cb_core::world::interior::shell(&site, &x.colliders.0.cfg, &rng).entrance;
+                        Some((
+                            Vec3::new(e.centre.x, eyes.y, e.centre.y),
+                            format!("building {b}'s {:?} door", e.kind),
+                        ))
+                    })
+                    .collect(),
+            )
+        }
+        "enemy" => pick(
+            s.enemies
+                .iter()
+                .filter(|(e, _)| !e.dead)
+                .map(|(e, _)| (e.curr.pos + Vec3::Y * 8.0, "an enemy mech".to_string()))
+                .chain(
+                    x.hostiles
+                        .iter()
+                        .flat_map(|h| h.0.iter().map(|h| (h.aim, format!("hostile {}", h.id)))),
+                )
+                .collect(),
+        ),
+        "fortress" => x.fortress.as_deref().map(|f| {
+            (
+                f.f.pose().transform_point3(Vec3::new(0.0, 49.0, 0.0)),
+                "the Stratostacean's deck".to_string(),
+            )
+        }),
+        _ => None,
+    }
+}
+
+/// The nearest place of a kind to go to, from `here`: its point on the ground and what it is.
+fn place(kind: &str, here: Vec2, s: &Scene, x: &More) -> Option<(Vec2, String)> {
+    let pick = |it: Vec<(Vec2, String)>| it.into_iter().min_by(|a, b| a.0.distance(here).total_cmp(&b.0.distance(here)));
+    match kind {
+        "harbour" => pick(
+            x.boats
+                .as_deref()?
+                .traffic
+                .harbours
+                .iter()
+                .map(|h| (h.apron.centre, format!("harbour {} of city {}", h.id, h.city)))
+                .collect(),
+        ),
+        // the middle of the nearest runway that is not the one underfoot
+        "runway" => pick(
+            s.plan
+                .bases
+                .iter()
+                .filter(|b| b.centre.distance(here) > 800.0)
+                .map(|b| ((b.runway.a + b.runway.b) * 0.5, format!("air base {}'s runway", b.id + 1)))
+                .collect(),
+        ),
+        "city" => pick(
+            s.plan
+                .cities
+                .iter()
+                .filter(|c| c.centre.distance(here) > c.half_size_m)
+                .map(|c| (c.centre, format!("city {}", c.id)))
+                .collect(),
+        ),
+        _ => None,
+    }
+}
+
+/// One line of what is about the pilot within `r` metres, for the report (`Beat::Survey`).
+#[allow(clippy::too_many_arguments)]
+fn survey(
+    s: &Scene,
+    x: &More,
+    k: &Cockpit,
+    p: &cb_core::pilot::PilotState,
+    m: &cb_core::mech::MechState,
+    spec: &MechSpec,
+    sim: &MechSim,
+    r: f32,
+) -> String {
+    use cb_core::civilians::Activity as A;
+    let here = if p.mode == PilotMode::Seated {
+        Vec2::new(m.pos.x, m.pos.z)
+    } else {
+        Vec2::new(p.feet.x, p.feet.z)
+    };
+    let mode = match p.mode {
+        PilotMode::OnFoot => "on foot",
+        PilotMode::Seated => "seated",
+        PilotMode::Driving => "driving",
+        _ => "between",
+    };
+    let mut out = vec![format!("pilot {mode} at ({:.0}, {:.0}, {:.1} up)", here.x, here.y, p.feet.y)];
+    if let Some(c) = x.crowd.as_deref() {
+        let near: Vec<_> = c.people.list.iter().filter(|q| q.pos.distance(here) < r).collect();
+        let n = |f: &dyn Fn(&A) -> bool| near.iter().filter(|q| f(&q.activity)).count();
+        out.push(format!(
+            "people {}: walking {}, waiting at a kerb {}, idle {}, on a bench {}, greeting {}, fleeing {} ({} for a door), down {}",
+            near.len(),
+            n(&|a| matches!(a, A::Walking)),
+            n(&|a| matches!(a, A::Waiting { .. })),
+            n(&|a| matches!(a, A::Idle { .. })),
+            n(&|a| matches!(a, A::Sitting { .. })),
+            n(&|a| matches!(a, A::Greeting { .. })),
+            n(&|a| matches!(a, A::Fleeing { .. })),
+            n(&|a| matches!(a, A::Fleeing { door: Some(_), .. })),
+            n(&|a| matches!(a, A::Down { .. })),
+        ));
+    }
+    if let Some(tr) = x.traffic.as_deref() {
+        let near: Vec<_> = tr
+            .traffic
+            .cars
+            .iter()
+            .filter(|c| Vec2::new(c.pos.x, c.pos.z).distance(here) < r)
+            .collect();
+        let moving = near.iter().filter(|c| c.vel().length() > 0.5).count();
+        let wrecks = near.iter().filter(|c| c.state.wreck()).count();
+        out.push(format!(
+            "cars {}: moving {moving}, standing {}, wrecks {wrecks}",
+            near.len(),
+            near.len() - moving - wrecks
+        ));
+    }
+    if let (Some(roads), Some(tr)) = (x.roads.as_deref(), x.traffic.as_deref()) {
+        let lit: Vec<_> = roads.0.nodes.iter().filter(|n| n.signal && n.at.distance(here) < r).collect();
+        let times = &s.data.0.traffic.cfg.lights;
+        let shows: Vec<String> = lit
+            .iter()
+            .take(4)
+            .map(|n| {
+                format!(
+                    "{}: {:?}/{:?}",
+                    n.id,
+                    cb_core::traffic::light(times, n.id, 0, tr.traffic.time_s()),
+                    cb_core::traffic::light(times, n.id, 1, tr.traffic.time_s())
+                )
+            })
+            .collect();
+        out.push(format!("lit junctions {} [{}]", lit.len(), shows.join(", ")));
+    }
+    if let Some(a) = x.air.as_deref() {
+        let ground = |v: Vec3| s.plan.terrain.height_at(v.x, v.z);
+        let mut kinds: std::collections::BTreeMap<String, usize> = Default::default();
+        for f in &a.0.list {
+            *kinds.entry(f.kind.clone()).or_default() += 1;
+        }
+        let near = a.0.list.iter().min_by(|p1, p2| {
+            Vec2::new(p1.pos.x, p1.pos.z)
+                .distance(here)
+                .total_cmp(&Vec2::new(p2.pos.x, p2.pos.z).distance(here))
+        });
+        out.push(format!(
+            "aircraft {} {:?}{}",
+            a.0.list.len(),
+            kinds,
+            near.map_or(String::new(), |f| format!(
+                ", nearest {} {:?} {:.0} m off at {:.0} m up",
+                f.kind,
+                f.phase,
+                Vec2::new(f.pos.x, f.pos.z).distance(here),
+                f.pos.y - ground(f.pos)
+            ))
+        ));
+    }
+    if let Some(b) = x.boats.as_deref() {
+        let mut kinds: std::collections::BTreeMap<String, usize> = Default::default();
+        for boat in &b.traffic.boats {
+            *kinds.entry(boat.kind.clone()).or_default() += 1;
+        }
+        let harbour = b
+            .traffic
+            .harbours
+            .iter()
+            .map(|h| h.apron.centre.distance(here))
+            .fold(f32::INFINITY, f32::min);
+        out.push(format!(
+            "boats {} {:?}, nearest harbour {harbour:.0} m",
+            b.traffic.boats.len(),
+            kinds
+        ));
+    }
+    if let Some(f) = x.fog.as_deref() {
+        out.push(format!("fog {:?} at {:.1} h", f.strength, f.hour_h));
+    }
+    out.push(format!(
+        "targets seen {} (fog scales {:?}), selected {:?}, neutrals boxed {}",
+        x.targeting.fog.len(),
+        x.targeting
+            .fog
+            .iter()
+            .take(6)
+            .map(|(id, f)| (*id, (f * 100.0).round() / 100.0))
+            .collect::<Vec<_>>(),
+        x.targeting.selected,
+        k.neutrals.as_deref().map_or(0, |n| n.0.len())
+    ));
+    out.push(format!("walk-in colliders built {}", x.colliders.0.buildings.len()));
+    out.push(format!(
+        "mech {}: jets burn {:.0} s (heat {:.2}), skates burn {:.0} s (heat {:.2}), weapon heat {:.2}, station {} {}",
+        spec.name,
+        spec.jet.burn_s,
+        m.boost.heat,
+        spec.skate.burn_s,
+        m.skate.heat,
+        sim.guns.heat.heat,
+        sim.selected + 1,
+        spec.weapons.get(sim.selected).map_or("?", |w| w.name.as_str())
+    ));
+    out.join("; ")
 }

@@ -45,9 +45,11 @@ pub struct CivilianLoss(pub StandingLoss);
 
 /// The greeting on screen: who answered, what they said, and for how long yet.
 #[derive(Resource, Default)]
-struct Greeting {
-    line: String,
-    left_s: f32,
+pub(crate) struct Greeting {
+    /// Who answered and what they said, as the screen shows it.
+    pub(crate) line: String,
+    /// Seconds it stays on screen yet.
+    pub(crate) left_s: f32,
 }
 
 /// The greeting's text on screen.

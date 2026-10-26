@@ -73,6 +73,11 @@ fn charge(
             by_pilot: true,
         }))
         .collect();
+    // Touched only with harm to charge: the terminal and mail pages redraw on any change to the career, and a
+    // write every frame rebuilt their buttons under the pointer, so no click on them ever landed.
+    if harms.is_empty() {
+        return;
+    }
     let Some(mut run) = run else { return };
     let run = &mut *run;
     for h in &harms {
