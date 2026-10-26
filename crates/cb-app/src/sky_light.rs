@@ -18,6 +18,7 @@
 
 use crate::pilot::PilotCamera;
 use crate::sim::Data;
+use crate::state::GameApp;
 use bevy::light::{EnvironmentMapLight, GeneratedEnvironmentMapLight};
 use bevy::pbr::generate::{GeneratorPipelines, RenderEnvironmentMap};
 use bevy::prelude::*;
@@ -53,8 +54,8 @@ impl Plugin for SkyLightPlugin {
         let filtered = FilteredFrames::default();
         app.init_resource::<SkyLight>()
             .insert_resource(filtered.clone())
-            .add_systems(Startup, load)
-            .add_systems(Update, apply);
+            .add_world_spawn(load)
+            .add_game_systems(Update, apply);
         if let Some(render) = app.get_sub_app_mut(RenderApp) {
             render
                 .insert_resource(filtered)

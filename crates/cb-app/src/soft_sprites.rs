@@ -17,6 +17,7 @@
 use crate::particles::{GRID, colour_over_life, motion};
 use crate::pilot::PilotCamera;
 use crate::sim::{Data, PresentSet};
+use crate::state::GameApp;
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::visibility::NoFrustumCulling;
 use bevy::light::NotShadowCaster;
@@ -241,7 +242,7 @@ impl Plugin for SoftSpritesPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MaterialPlugin::<SoftMaterial>::default())
             .init_resource::<SoftSprites>()
-            .add_systems(Update, (emit_streams, step, draw).chain().in_set(PresentSet::Pose));
+            .add_game_systems(Update, (emit_streams, step, draw).chain().in_set(PresentSet::Pose));
     }
 }
 

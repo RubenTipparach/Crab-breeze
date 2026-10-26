@@ -1,6 +1,6 @@
 // How the water looks, above and below, and the water on the glass after surfacing
 // (openspec/changes/water-rendering/design.md section 4). Every field is the code default written
-// out (crates/cb-core/src/water_look.rs); omit one to inherit it, a zero is a zero. Units are in
+// out (crates/cb-core/src/water_look.rs), but for the colours noted below; omit one to inherit it, a zero is a zero. Units are in
 // the keys or the Rust docs. Ported from Pale Blue Dot's water.ron and weather.ron (db25fe2);
 // where a value differs the design says why.
 (
@@ -33,9 +33,10 @@
     shallow_color: (0.020, 0.090, 0.075),
     shallow_depth_m: 14.0,
 
-    // The sky mirrored (its horizon is the game's sky colour).
-    // The game's sky deepened toward the zenith (it was a saturated constant the sea mirrored from the air).
-    sky_zenith_color: (0.16, 0.30, 0.56),
+    // The sky mirrored (its horizon is the game's sky colour): a hazy grey-blue zenith rather than a
+    // saturated one (owner, 2026-10-25: "water is also too blue, not relaistic at all"), so the sea
+    // mirrors a sky like the one above it.
+    sky_zenith_color: (0.16, 0.22, 0.30),
     // Water reflects most at a grazing angle, which greys a real sea toward its horizon (0.22 left it black).
     sky_horizon_strength: 0.7,
 
@@ -50,7 +51,7 @@
     shore_foam_weight: 0.6,
 
     // The sun's glint.
-    specular_intensity: 0.06,
+    specular_intensity: 0.10,
     specular_power: 140.0,
     sun_tint: (1.10, 1.15, 1.20),
 

@@ -11,6 +11,7 @@
 use crate::mech::MechAccessNow;
 use crate::pilot::{PilotCamera, PilotSim};
 use crate::sim::{Data, PresentSet};
+use crate::state::GameApp;
 use bevy::prelude::*;
 use cb_core::pilot::PilotMode;
 
@@ -56,8 +57,8 @@ pub struct RopePlugin;
 impl Plugin for RopePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Crane>()
-            .add_systems(Startup, spawn)
-            .add_systems(Update, hang.in_set(PresentSet::Pose));
+            .add_world_spawn(spawn)
+            .add_game_systems(Update, hang.in_set(PresentSet::Pose));
     }
 }
 

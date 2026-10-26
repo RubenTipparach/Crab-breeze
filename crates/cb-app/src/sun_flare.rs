@@ -18,6 +18,7 @@
 
 use crate::pilot::{CockpitCamera, PilotCamera};
 use crate::sim::{Data, PresentSet};
+use crate::state::GameApp;
 use crate::water_render::{WaterEye, WaterPasses, samplable_depth};
 use crate::world::Plan;
 use bevy::camera::{Exposure, Hdr};
@@ -90,11 +91,11 @@ impl Plugin for SunFlarePlugin {
             flare: self.flare,
             bloom: self.bloom,
         })
-        .add_systems(Update, equip_cameras);
+        .add_game_systems(Update, equip_cameras);
         if !self.flare {
             return;
         }
-        app.add_systems(
+        app.add_game_systems(
             Update,
             (
                 samplable_depth::<SunFlareEye>,

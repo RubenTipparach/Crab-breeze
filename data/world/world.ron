@@ -374,6 +374,43 @@
         rooms_radius_m: 250.0,
         rooms_margin_m: 20.0,
     ),
+    // Street doors, stairs and the colliders a pilot on foot walks into
+    // (openspec/changes/building-interiors; owner, 2026-10-25: "each building needs doors and
+    // staairs that i as a player can walk into them").
+    interiors: (
+        // A dog-leg stair: risers no higher, treads no deeper (and never shallower) than these.
+        stair_max_rise_m: 0.18,
+        stair_max_run_m: 0.28,
+        stair_min_run_m: 0.22,
+        stair_width_m: 1.2,
+        stair_landing_m: 1.3,
+        stair_half_landing_m: 1.1,
+        // Street doors: a walk-up's front door, an office's pair of lobby doors, a warehouse's
+        // personnel door; clear height above the sill.
+        front_door_w_m: 1.2,
+        lobby_door_w_m: 1.9,
+        personnel_door_w_m: 1.0,
+        door_clear_h_m: 2.2,
+        // Street doors swing open as you walk into them and shut behind you (survey W30): a pilot on
+        // foot within 1.5 m of the leaf, either side, opens it away from them, 90 degrees in 0.45 s;
+        // it stands open while they are in the doorway, then 1.5 s after they have gone, and shuts in
+        // 1 s. Never past 90 degrees (the leaf would swing into the wall beside its jamb).
+        door_open_deg: 90.0,
+        door_open_deg_s: 200.0,
+        door_close_deg_s: 90.0,
+        door_close_delay_s: 1.5,
+        door_trigger_m: 1.5,
+        // On foot, anything this high or lower is stepped onto; anything starting below head height
+        // is in the way.
+        step_m: 0.45,
+        head_m: 1.8,
+        // Colliders only while on foot (owner, 2026-10-26), for buildings within 60 m of the pilot
+        // (built at once within 12 m, the rest on a worker thread), freed past 80 m. Smaller than the
+        // 150 m interior radius: a runner reaches a door 60 m away in 13 s, the job takes milliseconds.
+        collision_radius_m: 60.0,
+        collision_sync_m: 12.0,
+        collision_margin_m: 20.0,
+    ),
     // Physics debris (openspec/changes/debris-physics): chunks become rigid bodies only within
     // physics_radius_m of the pilot's eye (owner, 2026-10-24: "If the mech is too far away there
     // should be no physics sim"); farther they are a dust puff, and the cell simulation still

@@ -8,6 +8,7 @@
 use crate::input::InputAccum;
 use crate::mech::{Enemy, MechAccessNow, MechSim, Piloted};
 use crate::pilot::PilotSim;
+use crate::state::GameApp;
 use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use cb_core::input::{Actions, DebugCommand};
@@ -98,12 +99,12 @@ impl Plugin for ShowcasePlugin {
             ..default()
         });
         match self.take.as_str() {
-            "fight" => app.add_systems(Update, play_fight.in_set(crate::sim::PresentSet::Input)),
-            "defence" => app.add_systems(Update, play_defence.in_set(crate::sim::PresentSet::Input)),
+            "fight" => app.add_game_systems(Update, play_fight.in_set(crate::sim::PresentSet::Input)),
+            "defence" => app.add_game_systems(Update, play_defence.in_set(crate::sim::PresentSet::Input)),
             "demolition" => app
                 .init_resource::<crate::demolition::DemolitionTake>()
-                .add_systems(Update, crate::demolition::play_take.in_set(crate::sim::PresentSet::Input)),
-            _ => app.add_systems(Update, play.in_set(crate::sim::PresentSet::Input)),
+                .add_game_systems(Update, crate::demolition::play_take.in_set(crate::sim::PresentSet::Input)),
+            _ => app.add_game_systems(Update, play.in_set(crate::sim::PresentSet::Input)),
         };
     }
 }
@@ -127,7 +128,7 @@ pub fn walk_to(pilot: &PilotState, target: Vec3, pitch_rad: f32) -> Actions {
 
 /// The boarding beat every take shares: walk to the stair, press Use once, look up as the mech
 /// kneels and opens, and be carried into the seat.
-fn board(p: &PilotState, access: Option<&cb_core::pilot::MechAccess>) -> Actions {
+pub(crate) fn board(p: &PilotState, access: Option<&cb_core::pilot::MechAccess>) -> Actions {
     let Some(a) = access else { return Actions::default() };
     match p.mode {
         PilotMode::OnFoot if p.waiting.is_none() && p.distance_to_stair(a) < 2.5 => Actions {
@@ -178,7 +179,7 @@ pub fn fly_to_cloud(m: &MechState, cloud: Vec3) -> Actions {
 }
 
 /// Leg turn toward a point, -1..1 (left positive).
-fn steer(m: &MechState, target: Vec2) -> f32 {
+pub(crate) fn steer(m: &MechState, target: Vec2) -> f32 {
     let v = target - Vec2::new(m.pos.x, m.pos.z);
     let want = (-v.x).atan2(-v.y);
     let diff = (want - m.heading_rad + PI).rem_euclid(TAU) - PI;
@@ -186,7 +187,7 @@ fn steer(m: &MechState, target: Vec2) -> f32 {
 }
 
 /// Throttle lever motion toward a setting.
-fn throttle_to(m: &MechState, want: f32) -> f32 {
+pub(crate) fn throttle_to(m: &MechState, want: f32) -> f32 {
     ((want - m.throttle) * 5.0).clamp(-1.0, 1.0)
 }
 
@@ -646,27 +647,20 @@ fn play_fight(
                     true,
                 )
             };
-            let hit = sim.took_hit;
-            let clear = |a: Vec3, b: Vec3| wall || crate::mech::line_clear(&plan, &live, a, b);
-            let cover = |me: Vec3, threat: Vec3| crate::mech::cover_point(&plan, &live, me, threat);
-            let open = |a: Vec2, b: Vec2| crate::mech::path_open(&plan, a, b, 3.0);
-            let view = cb_core::ai::View {
-                eye,
-                target,
-                // The enemies are mechs like this one; the tower is aimed at its point.
-                aim_height_m: if wall { 0.0 } else { data.0.mech.aim_height_m() },
-                target_vel,
-                muzzle_speed_m_s: 1100.0,
-                drop: true,
-                health: 1.0,
-                hit,
-                allies: &[],
-                clear: &clear,
-                cover: &cover,
-                open: &open,
-            };
-            let o = brain.orders(m, &view, time.delta_secs());
-            play_orders(&o, &mut act);
+            act = brain_actions(
+                brain,
+                sim,
+                &Aim {
+                    eye,
+                    target,
+                    target_vel,
+                    wall,
+                },
+                &data.0.mech,
+                &plan,
+                &live,
+                time.delta_secs(),
+            );
             if beat == 4 && alive.is_empty() && t > 2.0 || t > 100.0 {
                 next = true;
                 take.brain = None;
@@ -721,6 +715,52 @@ const HAND_EASE_PER_S: f32 = 5.0;
 fn by_hand(want_deg: Vec2, dt_s: f32) -> Vec2 {
     let eased = want_deg * (1.0 - (-HAND_EASE_PER_S * dt_s).exp());
     eased.clamp_length_max(HAND_MAX_DEG_S * dt_s)
+}
+
+/// What the brain flying the player's mech aims at: its eye, the target point and its velocity, and whether it is a
+/// wall (a building to bring down: always a clear line).
+pub(crate) struct Aim {
+    pub eye: Vec3,
+    pub target: Vec3,
+    pub target_vel: Vec3,
+    pub wall: bool,
+}
+
+/// One step of the enemies' own brain flying the player's mech (orbit the target at a stand-off, evade when hit,
+/// hop, find a firing line), its orders played as the player's actions: the one fighting pilot every scripted take
+/// shares (the fight take and the playtest's job fight).
+pub(crate) fn brain_actions(
+    brain: &mut cb_core::ai::AiPilot,
+    sim: &MechSim,
+    aim: &Aim,
+    mech: &cb_core::mech::MechConfig,
+    plan: &Plan,
+    live: &Live,
+    dt_s: f32,
+) -> Actions {
+    let wall = aim.wall;
+    let clear = |a: Vec3, b: Vec3| wall || crate::mech::line_clear(plan, live, a, b);
+    let cover = |me: Vec3, threat: Vec3| crate::mech::cover_point(plan, live, me, threat);
+    let open = |a: Vec2, b: Vec2| crate::mech::path_open(plan, a, b, 3.0);
+    let view = cb_core::ai::View {
+        eye: aim.eye,
+        target: aim.target,
+        // The enemies are mechs like this one; a tower is aimed at its point.
+        aim_height_m: if wall { 0.0 } else { mech.aim_height_m() },
+        target_vel: aim.target_vel,
+        muzzle_speed_m_s: 1100.0,
+        drop: true,
+        health: 1.0,
+        hit: sim.took_hit,
+        allies: &[],
+        clear: &clear,
+        cover: &cover,
+        open: &open,
+    };
+    let o = brain.orders(&sim.curr, &view, dt_s);
+    let mut act = Actions::default();
+    play_orders(&o, &mut act);
+    act
 }
 
 /// The orders of an AI brain flying the player's mech, played as the player's actions.

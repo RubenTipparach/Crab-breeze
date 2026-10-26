@@ -4,6 +4,7 @@
 // stand-in's tuning (placeholder.ron) scaled by k = 2.001.
 (
     name: "Foreman",
+    tier: 2,
     model: Some("models/mech_foreman.glb"),
     interior: Some((
         model: "models/cockpit_panorama/cockpit_panorama.gltf",

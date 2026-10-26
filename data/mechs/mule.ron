@@ -4,6 +4,7 @@
 // stand-in's tuning (placeholder.ron) scaled by k = 1.973.
 (
     name: "Mule",
+    tier: 1,
     model: Some("models/mech_mule.glb"),
     interior: Some((
         model: "models/cockpit_tilewall/cockpit_tilewall.gltf",

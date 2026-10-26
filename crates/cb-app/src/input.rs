@@ -4,6 +4,7 @@
 //! value. Nothing else in the game reads a device.
 
 use crate::sim::{Data, PresentSet, SimSet};
+use crate::state::GameApp;
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions};
@@ -56,7 +57,7 @@ pub(crate) struct Keys {
     left: Vec<KeyCode>,
     right: Vec<KeyCode>,
     run: Vec<KeyCode>,
-    use_key: Vec<KeyCode>,
+    pub(crate) use_key: Vec<KeyCode>,
     free_look: Vec<KeyCode>,
     throttle_zero: Vec<KeyCode>,
     mode_walk: Vec<KeyCode>,
@@ -93,8 +94,8 @@ impl Plugin for InputPlugin {
         app.insert_resource(keys)
             .init_resource::<InputAccum>()
             .init_resource::<StepActions>()
-            .add_systems(Update, (grab_mouse, sample_devices).chain().in_set(PresentSet::Input))
-            .add_systems(FixedUpdate, take_step_actions.in_set(SimSet::Input));
+            .add_game_systems(Update, (grab_mouse, sample_devices).chain().in_set(PresentSet::Input))
+            .add_game_systems(FixedUpdate, take_step_actions.in_set(SimSet::Input));
     }
 }
 
@@ -315,7 +316,7 @@ fn axis(input: &ButtonInput<KeyCode>, pos: &[KeyCode], neg: &[KeyCode]) -> f32 {
     f32::from(u8::from(any(input, pos))) - f32::from(u8::from(any(input, neg)))
 }
 
-fn take_step_actions(
+pub(crate) fn take_step_actions(
     input: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<Keys>,

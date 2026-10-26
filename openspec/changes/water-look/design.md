@@ -34,7 +34,7 @@ the water mirrors mostly the upper sky, so it mirrored that constant.
 | --- | --- | --- | --- |
 | `deep_color` (in-scatter albedo) | 0.0, 0.12, 0.28 | 0.004, 0.018, 0.040 | deep ocean returns about 1 % of red-green and 3-4 % of blue: navy |
 | `absorption_per_m` | 0.45, 0.12, 0.06 | 0.32, 0.07, 0.02 | pure water (Pope and Fry) with a little coastal matter: sand shows teal through 2-10 m |
-| `sky_zenith_color` | 0.03, 0.18, 0.55 | 0.16, 0.30, 0.56 | the game's sky deepened toward the zenith, not a saturated constant |
+| `sky_zenith_color` | 0.03, 0.18, 0.55 | 0.16, 0.22, 0.30 (main's, at the merge below) | a hazy grey-blue like the sky above, not a saturated constant |
 
 Through 3 m of water a sand bed (about 0.6, 0.5, 0.35) keeps (0.38, 0.81, 0.94) of its light: a
 green-teal; through 10 m (0.04, 0.50, 0.82): teal going blue; past 30 m the dark body takes over.
@@ -70,6 +70,13 @@ shallows' scatter is stronger:
 | --- | --- | --- |
 | `absorption_per_m` | 0.32, 0.07, 0.02 | 0.32, 0.035, 0.012 |
 | `shallow_color` | 0.012, 0.060, 0.052 | 0.020, 0.090, 0.075 |
+
+**Merged with main's darker water.** Another session answered the owner's earlier "water is also too
+blue, not relaistic at all" (2026-10-25) on main with a dark blue-green body (0.01, 0.05, 0.065),
+absorption (0.45, 0.10, 0.08), a grey zenith (0.16, 0.22, 0.30) and `sky_horizon_strength` 0.5. The
+owner's later choice (2026-10-26, a navy-grey open sea and teal shallows) keeps this section's body,
+shallows and absorption; main's greyer zenith (0.16, 0.22, 0.30) is taken, as it is the "greyer" of
+that choice; `sky_horizon_strength` stays 0.7 from the stills above.
 
 ## 1. Wave detail
 

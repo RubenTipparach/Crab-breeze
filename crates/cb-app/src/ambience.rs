@@ -6,6 +6,7 @@
 
 use crate::audio::{Ear, HearSet};
 use crate::sim::Data;
+use crate::state::GameApp;
 use crate::world::{Live, Plan};
 use bevy::audio::{AudioPlayer, AudioSink, AudioSinkPlayback, PlaybackSettings, Volume};
 use bevy::prelude::*;
@@ -48,7 +49,7 @@ impl Plugin for AmbiencePlugin {
             seed: 0x2545_F491_4F6C_DD1D,
             ..Default::default()
         })
-        .add_systems(Update, (read_zone, play_beds).chain().after(HearSet));
+        .add_game_systems(Update, (read_zone, play_beds).chain().after(HearSet));
     }
 }
 

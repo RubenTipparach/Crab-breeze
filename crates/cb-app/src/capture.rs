@@ -18,6 +18,7 @@ use crate::mech::{MechAccessNow, MechSim, Piloted};
 use crate::pilot::PilotSim;
 use crate::showcase::{fly_to_cloud, nearest_cloud};
 use crate::sim::Data;
+use crate::state::GameApp;
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use cb_core::input::Actions;
@@ -74,9 +75,9 @@ impl Plugin for StillsPlugin {
             fall_shots: 0,
             offscreen: None,
         })
-        .add_systems(PostStartup, offscreen_for_buildings)
-        .add_systems(Update, run_script)
-        .add_systems(Last, (hold_poster_hatch, poster_lens));
+        .add_after_world_spawn(offscreen_for_buildings)
+        .add_game_systems(Update, run_script)
+        .add_game_systems(Last, (hold_poster_hatch, poster_lens));
     }
 }
 
@@ -749,7 +750,7 @@ impl Plugin for FramesPlugin {
             taken: 0,
             next_s: 0.0,
         })
-        .add_systems(Update, save_frames);
+        .add_game_systems(Update, save_frames);
     }
 }
 
@@ -812,7 +813,7 @@ impl Plugin for FxStillsPlugin {
             soil: None,
             done: Vec::new(),
         })
-        .add_systems(Update, (run_fx_script, run_depth_bench));
+        .add_game_systems(Update, (run_fx_script, run_depth_bench));
     }
 }
 
@@ -1472,7 +1473,7 @@ impl Plugin for WeatherStillsPlugin {
             frames: 0,
             shots: Vec::new(),
         })
-        .add_systems(Update, run_weather_script);
+        .add_game_systems(Update, run_weather_script);
     }
 }
 

@@ -29,6 +29,13 @@ pub struct BasesConfig {
     pub hangars: usize,
     /// A hangar bay's inside: width, height and depth, metres (a 24 m mech walks in standing).
     pub hangar_m: glam::Vec3,
+    /// A bay's terminal stands this far in from the bay's left wall and its mouth, metres (x, z): clear
+    /// of a mech walking in down the middle.
+    pub terminal_in_m: Vec2,
+    /// The pilot can use a terminal standing within this of it, metres.
+    pub terminal_reach_m: f32,
+    /// ... and looking within this of it, degrees either side.
+    pub terminal_look_deg: f32,
 }
 
 impl Default for BasesConfig {
@@ -44,6 +51,9 @@ impl Default for BasesConfig {
             max_rise_m: 30.0,
             hangars: 3,
             hangar_m: glam::Vec3::new(44.0, 34.0, 50.0),
+            terminal_in_m: Vec2::new(3.0, 6.0),
+            terminal_reach_m: 3.0,
+            terminal_look_deg: 45.0,
         }
     }
 }
@@ -59,6 +69,11 @@ impl Validate for BasesConfig {
         positive("bases.hangar_m.x", self.hangar_m.x)?;
         positive("bases.hangar_m.y", self.hangar_m.y)?;
         positive("bases.hangar_m.z", self.hangar_m.z)?;
+        positive("bases.terminal_reach_m", self.terminal_reach_m)?;
+        positive("bases.terminal_look_deg", self.terminal_look_deg)?;
+        if !(0.0..self.hangar_m.x).contains(&self.terminal_in_m.x) || !(0.0..self.hangar_m.z).contains(&self.terminal_in_m.y) {
+            return Err("bases.terminal_in_m: the terminal must stand inside its bay".into());
+        }
         if self.hangars as f32 * (self.hangar_m.x + HANGAR_GAP_M) > 2.0 * self.half_m.x {
             return Err("bases: the hangars do not fit along the base's back edge".into());
         }
@@ -87,10 +102,40 @@ pub const HANGAR_GAP_M: f32 = 12.0;
 /// How far a hangar's back wall stands in from the base's back edge, metres.
 const HANGAR_BACK_M: f32 = 30.0;
 
+/// A hangar's walls and roof stand this thick outside its inside, metres.
+pub const HANGAR_WALL_M: f32 = 1.5;
+
+/// The control tower's half width at its cab (the widest part), metres.
+const TOWER_HALF_M: f32 = 9.0;
+
+/// The control tower stands this far in from the base's front corner (high x, low z), metres.
+const TOWER_IN_M: f32 = 40.0;
+
 impl AirBase {
     /// Its footprint.
     pub fn rect(&self) -> Rect {
         Rect::centred(self.centre, self.half_m)
+    }
+
+    /// Its control tower's footprint at its widest (the cab), by the front corner of the apron.
+    pub fn tower(&self) -> Rect {
+        let r = self.rect();
+        Rect::centred(Vec2::new(r.max.x - TOWER_IN_M, r.min.y + TOWER_IN_M), Vec2::splat(TOWER_HALF_M))
+    }
+
+    /// Everything built on the site that stands up off the apron (x, z): each hangar bay with its walls and roof,
+    /// and the control tower. The one list of what a body must not be put inside (`air_drop`).
+    pub fn structures(&self, cfg: &BasesConfig) -> Vec<Rect> {
+        let mut out: Vec<Rect> = self
+            .hangars(cfg)
+            .into_iter()
+            .map(|h| Rect {
+                min: h.min - Vec2::new(HANGAR_WALL_M, 0.0),
+                max: h.max + Vec2::splat(HANGAR_WALL_M),
+            })
+            .collect();
+        out.push(self.tower());
+        out
     }
 
     /// Its hangar bays' insides (x, z), along the back edge (high z), open toward the apron (low z).
@@ -106,6 +151,50 @@ impl AirBase {
             })
             .collect()
     }
+}
+
+/// A terminal: the screen the pilot walks up to on foot in a hangar bay (air-bases design section 5), where
+/// jobs are signed for, mechs bought and the mech in the bay refitted.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Terminal {
+    /// Its base.
+    pub base: u32,
+    /// Its bay at that base.
+    pub bay: usize,
+    /// Where it stands (x, z).
+    pub at: Vec2,
+}
+
+impl AirBase {
+    /// Its terminals, one a bay, each just inside the bay's mouth by its left (low x) wall.
+    pub fn terminals(&self, cfg: &BasesConfig) -> Vec<Terminal> {
+        self.hangars(cfg)
+            .iter()
+            .enumerate()
+            .map(|(bay, h)| Terminal {
+                base: self.id,
+                bay,
+                at: Vec2::new(h.min.x + cfg.terminal_in_m.x, h.min.y + cfg.terminal_in_m.y),
+            })
+            .collect()
+    }
+}
+
+/// The terminal a pilot on foot at `feet` (x, z), looking along `yaw_rad` (0 faces -z, left positive), can
+/// use: within reach and in front of them; the nearest if more than one.
+pub fn terminal_in_reach(bases: &[AirBase], cfg: &BasesConfig, feet: Vec2, yaw_rad: f32) -> Option<Terminal> {
+    let look = Vec2::new(-yaw_rad.sin(), -yaw_rad.cos());
+    let cone = cfg.terminal_look_deg.to_radians().cos();
+    bases
+        .iter()
+        .filter(|b| b.rect().distance(feet) <= cfg.terminal_reach_m)
+        .flat_map(|b| b.terminals(cfg))
+        .filter(|t| {
+            let to = t.at - feet;
+            let d = to.length();
+            d <= cfg.terminal_reach_m && (d < 0.3 || to.dot(look) / d >= cone)
+        })
+        .min_by(|a, b| a.at.distance(feet).total_cmp(&b.at.distance(feet)))
 }
 
 /// The base and hangar bay a point (x, z) stands in, if any.
@@ -264,6 +353,30 @@ mod tests {
             "the apron is not a bay"
         );
         assert_eq!(hangar_at(&[base], &cfg, Vec2::ZERO), None, "nor is anywhere else");
+    }
+
+    #[test]
+    fn a_pilot_can_use_a_terminal_only_standing_at_it_and_facing_it() {
+        let cfg = BasesConfig::default();
+        let base = AirBase {
+            id: 1,
+            centre: Vec2::new(0.0, 0.0),
+            half_m: cfg.half_m,
+            ground_m: 10.0,
+            highway: 0,
+        };
+        let t = base.terminals(&cfg)[2];
+        assert_eq!((t.base, t.bay), (1, 2));
+        assert!(base.hangars(&cfg)[2].distance(t.at) == 0.0, "it stands inside its bay");
+        // Two metres in front of it (toward -z, the apron), facing +z (yaw pi): in reach.
+        let feet = t.at - Vec2::new(0.0, 2.0);
+        assert_eq!(terminal_in_reach(&[base], &cfg, feet, std::f32::consts::PI), Some(t));
+        assert_eq!(terminal_in_reach(&[base], &cfg, feet, 0.0), None, "with its back to it");
+        assert_eq!(
+            terminal_in_reach(&[base], &cfg, t.at - Vec2::new(0.0, 10.0), std::f32::consts::PI),
+            None,
+            "too far"
+        );
     }
 
     /// A measurement instrument (`air-bases`): why candidate sites fail on the shipped seed-42 island.

@@ -6,6 +6,7 @@
 
 use crate::mech::MechSim;
 use crate::sim::PresentSet;
+use crate::state::GameApp;
 use avian3d::prelude::{AngularVelocity, Collider, LinearVelocity, RigidBody};
 use bevy::prelude::*;
 use bevy::world_serialization::WorldAssetRoot;
@@ -67,7 +68,7 @@ pub struct SkinsPlugin;
 
 impl Plugin for SkinsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (hang_skins, bind_skins, walk_skins).chain().after(PresentSet::Pose));
+        app.add_game_systems(Update, (hang_skins, bind_skins, walk_skins).chain().after(PresentSet::Pose));
     }
 }
 

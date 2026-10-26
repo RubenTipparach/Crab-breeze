@@ -11,6 +11,7 @@
 use crate::mech::{MechSim, MechSpec, Piloted};
 use crate::pilot::PilotSim;
 use crate::sim::PresentSet;
+use crate::state::GameApp;
 use crate::world::Plan;
 use bevy::prelude::*;
 use bevy::ui::UiTransform;
@@ -22,7 +23,7 @@ pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_hud).add_systems(
+        app.add_world_spawn(spawn_hud).add_game_systems(
             Update,
             (
                 update_hud,
@@ -135,6 +136,8 @@ enum Readout {
     Damage,
     Nav,
     Mission,
+    /// The last hangar bay's repair and rearm (air-bases), on the MECH page.
+    Service,
 }
 
 pub(crate) const GREEN: Color = Color::srgb(0.55, 0.95, 0.6);
@@ -454,6 +457,14 @@ fn spawn_hud(mut commands: Commands) {
                     text("", 36.0),
                     Readout::Damage,
                 ));
+                c.spawn((
+                    Node {
+                        max_width: percent(100.0),
+                        ..default()
+                    },
+                    text("", 26.0),
+                    Readout::Service,
+                ));
             });
             // FLIGHT: boosters and skates, throttle, speed, altitude, mode, guns.
             let flight = page(pages, "FLIGHT");
@@ -673,12 +684,12 @@ fn draw_targets(
 }
 
 /// Compass bearing in degrees, 0 north (-z), clockwise, of a flat direction (x, z).
-fn bearing_deg(dir: Vec2) -> f32 {
+pub(crate) fn bearing_deg(dir: Vec2) -> f32 {
     dir.x.atan2(-dir.y).to_degrees().rem_euclid(360.0)
 }
 
 /// A bearing as the compass shows it, whole degrees 0..359.
-fn whole_deg(deg: f32) -> i32 {
+pub(crate) fn whole_deg(deg: f32) -> i32 {
     (deg.round() as i32).rem_euclid(360)
 }
 
@@ -807,6 +818,7 @@ fn update_hud(
     run: Option<Res<crate::defence::DefenceRun>>,
     fortress: Option<Res<crate::fortress::FortressRun>>,
     free: Option<Res<crate::missions::FreeRoamRun>>,
+    service: Res<crate::air_bases::LastService>,
     plan: Res<Plan>,
     mech: Query<(&MechSim, &MechSpec), With<Piloted>>,
     mut roots: Query<&mut Visibility, With<HudRoot>>,
@@ -881,6 +893,13 @@ fn update_hud(
                 m.mode == LocomotionMode::Skate,
             ),
             Readout::Legs => (format!("LEGS {:+.0}", -m.twist_rad.to_degrees()), GREEN),
+            // What the last bay did, from the report the bay's own rule returned (CLAUDE.md 6.1).
+            Readout::Service => match &service.last {
+                Some((base, bay, lines)) if service.since_s < crate::air_bases::SERVICE_SHOWN_S => {
+                    (format!("BASE {} BAY {}\n{}", base + 1, bay + 1, lines.join("\n")), AMBER)
+                }
+                _ => (String::new(), GREEN),
+            },
             // One fact a line on the MFD.
             Readout::Nav => (
                 fmt_nav(pilot.curr.yaw_rad, Vec2::new(m.pos.x, m.pos.z), &plan.cities).replace("   ", "\n"),

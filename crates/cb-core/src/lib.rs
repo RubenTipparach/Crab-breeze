@@ -6,7 +6,9 @@
 //! `cb-app` adapts it to Bevy.
 
 pub mod ai;
+pub mod air_drop;
 pub mod audio;
+pub mod bases;
 pub mod battle_fx;
 pub mod boarding;
 pub mod career;
@@ -22,9 +24,12 @@ pub mod mech;
 pub mod mission;
 pub mod missions;
 pub mod pilot;
+pub mod playtest;
+pub mod refit;
 pub mod rng;
 pub mod save;
 pub mod settings;
+pub mod shop;
 pub mod sim;
 pub mod skins;
 pub mod sky_light;

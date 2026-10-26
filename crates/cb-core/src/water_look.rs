@@ -139,7 +139,7 @@ impl Default for WaterLook {
             deep_color: [0.004, 0.018, 0.040],
             shallow_color: [0.020, 0.090, 0.075],
             shallow_depth_m: 14.0,
-            sky_zenith_color: [0.16, 0.30, 0.56],
+            sky_zenith_color: [0.16, 0.22, 0.30],
             sky_horizon_strength: 0.7,
             foam_color: [0.95, 0.97, 1.0],
             foam_intensity: 0.10,

@@ -716,6 +716,8 @@ pub struct WorldConfig {
     pub structure: super::structure::StructureConfig,
     /// Building dressing (openspec change `building-generation`).
     pub dressing: super::dressing::DressingConfig,
+    /// Interiors, entrances, stairs and the colliders on foot (openspec change `building-interiors`).
+    pub interiors: super::interior::InteriorConfig,
     /// Physics debris (openspec change `debris-physics`).
     pub debris: DebrisConfig,
 }
@@ -824,6 +826,7 @@ impl Default for WorldConfig {
             craters: CraterConfig::default(),
             structure: super::structure::StructureConfig::default(),
             dressing: super::dressing::DressingConfig::default(),
+            interiors: super::interior::InteriorConfig::default(),
             debris: DebrisConfig::default(),
         }
     }
@@ -921,6 +924,7 @@ impl Validate for WorldConfig {
         self.craters.validate()?;
         self.structure.validate()?;
         self.dressing.validate()?;
+        self.interiors.validate()?;
         self.debris.validate()?;
         Ok(())
     }

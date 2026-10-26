@@ -8,6 +8,7 @@ use crate::input::StepActions;
 use crate::mech::{MechSim, Piloted};
 use crate::pilot::PilotSim;
 use crate::sim::{Data, SimSet};
+use crate::state::GameApp;
 use bevy::prelude::*;
 use cb_core::pilot::PilotMode;
 use cb_core::targeting::{Lock, Target, TargetingConfig, nearest_to_aim, next, off_aim_deg};
@@ -36,7 +37,7 @@ pub struct TargetingPlugin;
 impl Plugin for TargetingPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TargetState>()
-            .add_systems(FixedUpdate, update_targeting.in_set(SimSet::Pilot));
+            .add_game_systems(FixedUpdate, update_targeting.in_set(SimSet::Pilot));
     }
 }
 
