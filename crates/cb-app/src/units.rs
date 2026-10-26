@@ -306,6 +306,7 @@ fn step_units(
             spec,
             target: target.map(|t| t.0),
             target_vel: target.map_or(Vec3::ZERO, |t| t.1),
+            opportunity: None,
             ground: &ground,
             drop: &cfg.drop,
         };

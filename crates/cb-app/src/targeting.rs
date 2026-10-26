@@ -65,7 +65,11 @@ fn update_targeting(
     let mut targets: Vec<Target> = hostiles
         .0
         .iter()
-        .map(|h| Target { id: h.id, torso: h.aim })
+        .map(|h| Target {
+            id: h.id,
+            torso: h.aim,
+            neutral: false,
+        })
         .filter(|t| t.torso.distance(eye) <= cfg.max_range_m)
         .collect();
     targets.sort_by_key(|t| t.id);
