@@ -947,6 +947,7 @@ fn a_pilot_standing_still_on_a_deck_over_the_city_stays_where_they_stand() {
         trees: Some(&forest),
         structures: Some(&structures),
         platforms: &platforms,
+        interiors: None,
     };
     let start = Vec3::new(over.x, top, over.y);
     let mut p = crate::pilot::PilotState::standing(start, 0.0);

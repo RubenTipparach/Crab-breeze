@@ -326,6 +326,7 @@ pub fn fly_shots(
                 trees: None,
                 structures: Some(&live.structures),
                 platforms: &[],
+                interiors: None,
             };
             sweep(
                 blow.from,
@@ -381,6 +382,7 @@ pub fn fly_shots(
                 trees: None,
                 structures: Some(&live.structures),
                 platforms: &[],
+                interiors: None,
             };
             fly(&mut shot, &scene, &live.structures, &live.forest, &parts, dt)
         };

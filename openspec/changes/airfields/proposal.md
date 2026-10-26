@@ -13,4 +13,7 @@ those are gone for good, and they will need to buy more".
 - **The hangar roster**: the player owns mechs. The Foreman is always available. Every other mech
   is bought, delivered to an airfield by air, and is lost for good when it is destroyed.
 - **Buying**: at an airfield the pilot walks to a terminal (first person, the law), orders a mech,
-  and a cargo aircraft lands and rolls it out; the pilot walks to it and boards as always.
+  and a cargo aircraft lands and rolls it out; the pilot walks to it and boards as always. **Superseded for
+  delivery** (owner, 2026-10-26: "when a player orders a mech it should be air dropped close to wherever the player is
+  on a good are on the ground (not stuck on a building)"): the aircraft flies over the pilot and drops the mech
+  wherever they are (`mech-shop` design section 6); it does not land.

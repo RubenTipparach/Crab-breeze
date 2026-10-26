@@ -474,6 +474,7 @@ mod tests {
             trees: None,
             structures: None,
             platforms: &[],
+            interiors: None,
         };
         let st = Structures::new(plan());
         for _ in 0..60 {
@@ -512,6 +513,7 @@ mod tests {
             trees: None,
             structures: None,
             platforms: &[],
+            interiors: None,
         };
         let st = Structures::new(plan());
         let hit = (0..60)
@@ -578,6 +580,7 @@ mod tests {
             trees: None,
             structures: None,
             platforms: &[],
+            interiors: None,
         };
         let st = Structures::new(plan());
         for _ in 0..60 {
@@ -610,6 +613,7 @@ mod tests {
             trees: None,
             structures: None,
             platforms: &[],
+            interiors: None,
         };
         let st = Structures::new(plan());
         for _ in 0..120 {

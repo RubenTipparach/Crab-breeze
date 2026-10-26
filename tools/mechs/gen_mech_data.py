@@ -173,6 +173,20 @@ def measure(m):
                 hatch=m.at("HATCH_entry"))
 
 
+# Each mech's risk tier, 1 to 4 (openspec change career-progression): the riskiest job tier it opens. The
+# Foreman you start in opens 1 and 2; a heavy machine opens 3; the Harrow, the missile carrier, opens 4.
+TIERS = {
+    "picket": 1,
+    "mule": 1,
+    "roustabout": 2,
+    "driller": 2,
+    "foreman": 2,
+    "sapper": 3,
+    "ironhorse": 3,
+    "harrow": 4,
+}
+
+
 def mech_ron(mid, name, size, cockpit):
     k = size["top"] / STAND_IN_HEIGHT_M
     hip, eye, top = size["hip"], size["eye"], size["top"]
@@ -185,6 +199,7 @@ def mech_ron(mid, name, size, cockpit):
 // stand-in's tuning (placeholder.ron) scaled by k = {f(k, 3)}.
 (
     name: "{name}",
+    tier: {TIERS[mid]},
     model: Some("models/mech_{mid}.glb"),
     interior: Some((
         model: "models/cockpit_{v}/cockpit_{v}.gltf",

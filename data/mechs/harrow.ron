@@ -4,6 +4,7 @@
 // stand-in's tuning (placeholder.ron) scaled by k = 1.982.
 (
     name: "Harrow",
+    tier: 4,
     model: Some("models/mech_harrow.glb"),
     interior: Some((
         model: "models/cockpit_canopy/cockpit_canopy.gltf",

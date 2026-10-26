@@ -120,7 +120,7 @@ code { font: 500 0.9em var(--mono); }
     <div class="eyebrow">Owner survey · opened 2026-10-23 · cleaned up 2026-10-24 · every answer moved to Answered on 2026-10-25 · new questions on the roster, advanced weapons and music the same day</div>
     <h1>Crab Breeze Survey</h1>
     <div class="suits" aria-hidden="true"><span style="background:var(--sun)"></span><span style="background:var(--crescent)"></span><span style="background:var(--star)"></span><span style="background:var(--eagle)"></span></div>
-    <p class="lede">Only the questions still open appear here. Everything you have answered is in the Answered section at the bottom, with where it went. Each open question has a recommendation that gets built if you leave it blank: pick an option, add a note, or leave it.</p>
+    <p class="lede">Only the questions still open appear here. An answered question moves to In progress until it is built, then to Done, each with where it went. Each open question has a recommendation that gets built if you leave it blank: pick an option, add a note, or leave it.</p>
   </header>
 
   <div class="tally">
@@ -137,8 +137,13 @@ code { font: 500 0.9em var(--mono); }
 
   <main id="sections" class="wrap" style="gap:36px"></main>
 
-  <details class="decided" id="decided" open>
-    <summary id="dec-sum">Answered</summary>
+  <details class="decided" id="inprog" open>
+    <summary id="prog-sum">In progress</summary>
+    <ul class="dec-list" id="prog-list"></ul>
+  </details>
+
+  <details class="decided" id="decided">
+    <summary id="dec-sum">Done</summary>
     <ul class="dec-list" id="dec-list"></ul>
   </details>
 </div>
@@ -149,114 +154,136 @@ const ART_IMG = '';
 
 // The questions. Answers live in the db collection `answers`, one document per question id.
 const SECTIONS = [
-  { tag: 'F', name: 'Ground fog',
-    lead: 'New on 2026-10-25: fog that lies low and fills the valleys, the lakes and the coast, greyer under a storm (openspec/changes/ground-fog). Being built on the recommendations.',
+  { tag: 'D', name: 'The mech air drop',
+    lead: 'Built on 2026-10-26 from your words "air dropped close to wherever the player is on a good are on the ground (not stuck on a building)" and J16 (PR #72). Every recommendation below is what is built; not yet seen in the game.',
     qs: [
-      { id: 'F1', q: 'Ground fog (openspec/changes/ground-fog): fog that lies low and fills the valleys, the lakes and the coast, thinning with height, greyer under a storm. How much by default?',
-        options: ['Morning mist in the valleys and the crater, thinning by day; clear for combat-heavy missions', 'Always a light haze, no valley mist', 'Heavy: fog banks as a regular weather'], rec: 0,
-        why: 'Mist that pools in the low ground makes the valleys and the lakes read at a glance, and a per-mission preset keeps fights clear when they need to be.' },
-      { id: 'F2', q: 'Does ground fog hide targets?',
-        options: ['From the eye only, as cloud does; radar sees through it', 'It also shortens radar and lock-on range', 'Looks only'], rec: 0,
-        why: 'The same rule as cloud (W28): fog is cover from sight, not from sensors.' },
-      { id: 'F3', q: 'Fog is worked out exactly along each view ray (about 0.1 ms). Bevy also has ray-marched volumetric fog with light shafts (about 1-3 ms). Use it?',
-        options: ['Not for the island; later only for small local volumes (steam when the cockpit opens, waterfall spray)', 'Yes, everywhere, for the light shafts', 'Never'], rec: 0,
-        why: 'The exact layer gives the look for a tenth of the cost; the ray march earns its time only in small volumes close to the eye.' },
+      { id: 'D1', q: 'How far from you should a bought mech land?',
+        options: ['40 to 150 m', '20 to 80 m', '100 to 300 m'], rec: 0,
+        why: 'Far enough that the fall and the dust miss you, near enough for a short walk.' },
+      { id: 'D2', q: 'How does it come down?',
+        options: ['Canopies, with a retro burst at the end', 'Retro thrusters only', 'Canopies only'], rec: 0,
+        why: 'Canopies read from far away, and the retros kick up dust at the ground.' },
+      { id: 'D3', q: 'How long from BUY to touchdown?',
+        options: ['About 50 s', 'About 20 s', 'A minute or more'], rec: 0,
+        why: 'Long enough to see the aircraft pass and watch it fall, short enough not to wait around.' },
+      { id: 'D4', q: 'May it land in water?',
+        options: ['Dry ground always wins; shallow water only as a last resort', 'Dry ground only', 'Any water the mech can wade'], rec: 0,
+        why: 'It never refuses a drop on a coast, but never splashes down when dry ground is near.' },
+      { id: 'D5', q: 'No good ground within 600 m:',
+        options: ['It goes to a hangar bay instead', 'The purchase is refused', 'The search widens further'], rec: 0,
+        why: 'The money is never wasted and the old path still works.' },
+      { id: 'D6', q: 'You stand where it is landing:',
+        options: ['The canopies steer it aside with a warning, and it lands beside you if you stay', 'It waits overhead until you move', 'It is called off and dropped again'], rec: 0,
+        why: 'It never lands on you and never stalls.' },
+      { id: 'D7', q: 'Which of your mechs do you board?',
+        options: ['Whichever owned mech you walk up to, within 40 m', 'Pick one on a terminal first', 'Only the last one you drove'], rec: 0,
+        why: 'It is the existing boarding, with no menu.' },
+      { id: 'D8', q: 'The cargo aircraft is a grey block-out for now. Model it?',
+        options: ['Keep the block-out until airfields models one', 'Model a real aircraft in Blender now'], rec: 0,
+        why: 'It is on screen for about 40 s a purchase; the civilian air traffic work may supply one.' },
+      { id: 'D9', q: 'Where does a mech you call out at a base appear?',
+        options: ['In the terminal\'s bay, else the base\'s first clear bay', 'On the apron in front of the hangars', 'Always bay 1'], rec: 0,
+        why: 'It stands right where you are.' },
+      { id: 'D10', q: 'Calling out a wrecked Foreman:',
+        options: ['Free and whole', 'Charged a repair price', 'Only after a wait'], rec: 0,
+        why: '"foreman always availible", and repairs at bases are free today.' },
     ] },
-  { tag: 'G', name: 'The roster at the Foreman\'s standard',
-    lead: 'New on 2026-10-25: every roster mech brought up to the Foreman. Cockpits (openspec/changes/cockpit-parity) and boarding steam (boarding-vents) are built; each mech\'s signature weapon (signature-weapons) is designed, to be built after weapon-kinds. Any MFD now outlines when you point at it in free look; its menu (game menu, map, mail, shop: mfd-menus, mech-shop) is designed.',
+  { tag: 'W', name: 'Car traffic and driving',
+    lead: 'Built on 2026-10-26 on branch car-traffic (your W32): cars on every lane at your J6 numbers, junctions, crushing and burning, and you can take any car and drive it. Not yet run in the game. Every recommendation is what is built.',
     qs: [
-      { id: 'G20', q: 'Each mech\'s signature weapon: the Foreman a three-shell boom cannon, the Driller a short hot cutting laser, the Harrow twelve multi-lock missiles, the Ironhorse a steam cannon (a slow scalding ball), the Mule a sixteen-rocket ripple, the Picket the scoped rail rifle, the Roustabout a sixteen-pellet breaching shotgun, the Sapper a siege mortar that lobs over buildings. Right picks?',
-        options: ['Yes, as listed: each is the weapon its model already carries', 'Mostly: swap some (say which in the note)', 'Different idea (say in the note)'], rec: 0,
-        why: 'Every mech then plays differently, and nothing new needs modelling: the boom cannon, auger, racks, steam cannon, pods, long gun, rifle and shoulder cannon are already on the models.' },
-      { id: 'G21', q: 'The Sapper\'s mortar takes 8 s to land 300 m away and 14 s at 1 km (a real high arc, apex a quarter of the range up). Too slow to be fun?',
-        options: ['Keep it: it is the siege weapon, and the TARGET screen counts down to the splash', 'Faster: a flatter, quicker arc that cannot clear tall towers', 'Drop the mortar; give the Sapper something else'], rec: 0,
-        why: 'It is the only weapon that lands behind a building; making it fast means making it a cannon.' },
-      { id: 'C15', q: 'The Ironhorse\'s cab now has the Foreman\'s dash. It hides most of the lower front screens. Keep them?',
-        options: ['Keep them: they show past the dash\'s ends and light the footwell with the outside', 'Lower row at the sides only', 'Drop the lower row'], rec: 0,
-        why: 'The side and floor screens are what make it a digger\'s cab; the front pair costs nothing to keep.' },
-      { id: 'C16', q: 'Every mech now has its own cockpit, from the block-outs you liked (openspec/changes/cockpit-identity). The Foreman, Ironhorse, Harrow and Roustabout keep theirs; the other four get: Driller the Octagon (amber), Picket the Cinema (one huge screen, ice blue), Mule the Tile wall (210 degrees of tiles, yellow), Sapper the Twin tier (screens overhead too, red night light). Right picks?',
-        options: ['Yes, as listed', 'Swap some (say which in the note)', 'Use a different block-out for one (say which)'], rec: 0,
-        why: 'Each suits its mech: the digger\'s industrial octagon, the sniper\'s single clean screen, the hauler\'s all-round view, the siege mech watching its mortar arcs overhead. Low bank is left out (its pillars sit 37 degrees from straight ahead, inside your 40-degree rule).' },
-      { id: 'C13', q: 'In free look, the MFD you point at gets a lit outline (openspec/changes/mfd-menus). What colour?',
-        options: ['Amber, the same as the selected weapon station', 'White', 'Cyan, like the cabin trim'], rec: 0,
-        why: 'Amber already means "selected" on the WEAPONS screen, so it reads the same everywhere.' },
-      { id: 'C14', q: 'Each MFD keeps the page you picked for it (map, mail, shop, readouts). Should that be remembered between sorties?',
-        options: ['Yes, saved with the career', 'No, back to the default pages each time you board'], rec: 0,
-        why: 'You set the cockpit up once, the way you like it.' },
-      { id: 'J15', q: 'Mech prices in the shop (openspec/changes/mech-shop): Picket 300 000, Mule 360 000, Roustabout 450 000, Driller 520 000, Sapper 600 000, Ironhorse 700 000, Foreman 850 000, Harrow 1 200 000. Right?',
-        options: ['Yes, as listed', 'Flatter: all near 600 000', 'Different (say in the note)'], rec: 0,
-        why: 'The cheapest is three or four good jobs away, the Harrow about ten, so there is always something to save for.' },
-      { id: 'J16', q: 'Buying a mech from the cockpit while away from a base:',
-        options: ['Allowed: it is delivered to the nearest base with a free bay, waiting on arrival, and a mail says where', 'Only at a base'], rec: 0,
-        why: 'You asked for the shop on the MFDs, which you have everywhere; delivery keeps the hangar bays meaningful.' },
-      { id: 'M12', q: 'Mechs now steam and mist when they kneel and open. Should enemy mechs vent too when they stop (none board today)?',
-        options: ['No: only the mech you board vents', 'Yes: any mech that kneels vents'], rec: 0,
-        why: 'Only you board; enemies never open their chests, so there is nothing for them to vent.' },
+      { id: 'W35', q: 'Your J6 numbers give about 1 200 cars round the capital, not the 150 to 250 first guessed. Keep it, thin it, or cap it?',
+        options: ['Keep J6', 'One car per 120 m in cities', 'Cap at the 300 nearest'], rec: 0,
+        why: 'The simulation costs only 0.13 ms a step at that density; thin it only if the 3070 shows drawing them is too heavy.' },
+      { id: 'W36', q: 'Are the seven car block-outs right to model in detail? Look at them on the Traffic Car Block-outs page: https://claude.ai/artifact/8RQDBBcm6QxnQybbcmg6Qe',
+        options: ['Approve', 'Revise the shapes (say which in the note)', 'Redo them'], rec: 0,
+        why: 'They are at true size from the car data and every socket the game uses is in place.' },
+      { id: 'W37', q: 'Which harm to a car costs standing with the nearest base?',
+        options: ['Only cars with a driver in them, harmed by your fire, feet or car', 'Any car, parked included', 'Only cars that burn'], rec: 0,
+        why: 'That is harm to a civilian, and the hook already reports it that way.' },
+      { id: 'W38', q: 'What do cars do behind a wreck in their lane?',
+        options: ['Queue until it is cleared', 'Steer round it into a free lane', 'Wrecks vanish sooner'], rec: 0,
+        why: 'It reads as a street in a war zone and costs nothing.' },
+      { id: 'W39', q: 'Junctions: take turns by arrival, or 1980s traffic lights?',
+        options: ['Take turns', 'Lights on the arterials', 'Lights everywhere'], rec: 0,
+        why: 'It is built and never deadlocks in the tests; lights add a system without changing the fight.' },
     ] },
-  { tag: 'G', name: 'Advanced weapons',
-    lead: 'New on 2026-10-25: shotguns, railguns, lasers and plasma cannons (openspec/changes/weapon-kinds), the railgun scope (railgun-scope) and multi-lock missiles (multi-lock). Designed, not built.',
+  { tag: 'W', name: 'Civilians',
+    lead: 'Built on 2026-10-26 on branch civilians (W32): people on the pavements, parks and air bases who greet you, flee danger and count against your standing when you hurt them (W34). Not yet run in the game.',
     qs: [
-      { id: 'G22', q: 'Who carries the new weapons?',
-        options: ['Human combat mechs: shotguns, railguns and multi-lock pods. Alien crabs: lasers and plasma', 'Anyone: every weapon on both sides', 'Humans get everything; crabs keep guns, swords and missiles'], rec: 0,
-        why: 'The two sides then fight differently: you read a crab by its beam and its slow glowing balls, and the combat block-outs already hold shotguns and railguns.' },
-      { id: 'G23', q: 'The railgun, laser and plasma cannon heat up and lock when hot. Should that heat share the bank the jets use?',
-        options: ['No: a weapon heat bank of its own (refills in 20 s)', 'Yes: one bank, so firing hard costs you flight time'], rec: 0,
-        why: 'A jet hop never blocks the guns, and each bar on the MFD means one thing.' },
-      { id: 'G24', q: 'Where does the railgun scope show its magnified picture (4x and 10x)?',
-        options: ['A window in the middle of the front screen', 'The whole front screen', 'One of the MFDs'], rec: 0,
-        why: 'You keep your full view round the window, so a flanker is not hidden while you aim, and your own eyes never zoom (the first person rule).' },
+      { id: 'W40', q: 'When Use could both greet someone and board your stopped mech, which wins?',
+        options: ['The greeting', 'Boarding', 'A separate Greet key'], rec: 0,
+        why: 'A person must be within 2.5 m while the mech answers from 25 m, so stepping away to board is easy.' },
+      { id: 'W41', q: 'How is a civilian who is struck down shown?',
+        options: ['Falls and lies still for 30 s, then is cleared, no blood', 'Vanishes at once', 'Civilians never die, they only flee'], rec: 0,
+        why: 'W34 makes deaths cost standing, so you have to see that one happened.' },
+      { id: 'W42', q: 'Which civilian deaths cost standing?',
+        options: ['Only your own rounds, blasts and mech feet', 'Also the enemy\'s kills during your active job', 'Also the blast when your own mech is destroyed'], rec: 0,
+        why: 'You answer only for what you control.' },
+      { id: 'W43', q: 'People are labelled box stand-ins (the humanoid pipeline\'s packs are not on this Mac). See the Civilian Stand-ins page: https://claude.ai/artifact/59RKrNfthXutjcS3F5erLc',
+        options: ['Ship the stand-ins now, swap in real bodies later', 'Hide people until real bodies exist', 'Fetch the packs (325 MB plus the animation zip) next'], rec: 0,
+        why: 'The rules and a playtest can go ahead, and the bodies swap without touching the rules.' },
+      { id: 'W44', q: 'How busy are the pavements?',
+        options: ['8 people per 100 m downtown, 1.5 at the edge, 2 000 at most', 'Busier: 16 and 3, 4 000 at most', 'Quieter'], rec: 0,
+        why: 'It fits the design\'s draw budget, which still has to be measured on the 3070.' },
     ] },
-  { tag: 'H', name: 'The Hermit, the crab air fortress',
-    lead: 'New on 2026-10-25: the crab air fortress (openspec/changes/crab-airship), now in the game as a mission you start from free roam\'s mail (M; openspec/changes/free-roam-missions). Try it first on the Hermit Air Fortress mockup: https://claude.ai/artifact/GkXpHR9BGs8qJs8v6zF1tt. H1-H6 were G15 and G20-G24 on the old page.',
+  { tag: 'W', name: 'Civilian air traffic',
+    lead: 'Built on 2026-10-26 on branch civil-air-traffic (W32, W33): airliners and freighters fly between the bases, light planes and helicopters circle the cities, keep clear of fights, and crabs shoot them down. Not yet run in the game.',
     qs: [
-      { id: 'H1', q: 'The crab air fortress (openspec/changes/crab-airship; try it on the Hermit Air Fortress mockup: https://claude.ai/artifact/GkXpHR9BGs8qJs8v6zF1tt): how big, and how does it die?',
-        options: ['420 m (mechs are 24 m now), 600-900 m up, hanging on eight lift thrusters; it falls when you destroy enough of them', '300 m and four engines, as first sketched for 12 m mechs', 'Huge, 800 m, a mission of its own'], rec: 0,
-        why: 'Room on its deck for 24 m mechs to fight, and thrusters you fly up to and destroy one by one, as you asked.' },
-      { id: 'H2', q: 'What is the crab air fortress called?',
-        options: ['The Hermit (a crab that carries its own shell)', 'The Carapace', 'The Mother Crab'], rec: 0,
-        why: 'Short, says crab, and a hermit crab lives in a shell it carries, as the crabs live in this flying one.' },
-      { id: 'H3', q: 'How many lift thrusters bring the fortress down?',
-        options: ['The side rule, then the hull thrusters (your idea): three outer thrusters on one side make it open six thrusters in its hull, and two of those on that side bring it down', 'The side rule alone: three on one side, or five spread out', 'Any four of the eight'], rec: 0,
-        why: 'It rewards a plan (go hard at one side and it rolls over) and the lift readout can show you exactly why it holds or falls.' },
-      { id: 'H4', q: 'How do you get up to it and stay up?',
-        options: ['The jets as they are (20 s of burn reaches 600 m with 9 s left); land on the deck, a shoulder or a pylon walkway to recharge, and fight there', 'Stronger jets near the fortress', 'Updrafts from the burning city carry you up'], rec: 0,
-        why: 'Landing on it is the fight you described: its deck guard comes for you while you recharge, and the thrusters are reached along the pylons.' },
-      { id: 'H5', q: 'Does the fortress crashing on the city count as city damage?',
-        options: ['Yes: it drifts at 15 m/s, so stop its drive thrusters first to drop it where it is, or wait until it is over open ground', 'No, the crash never counts', 'It always falls outside the city'], rec: 0,
-        why: 'Where it falls becomes your choice, and a 60 000 t wreck in the streets should cost something.' },
-      { id: 'H6', q: 'Who guards the fortress deck?',
-        options: ['2 Shrikes and 4 Mites from the start; a Mite comes up each hangar lift every 60 s while the lifts work', 'Only the turrets; no mechs on deck', 'A Big Boy on the stern as the last guard'], rec: 0,
-        why: 'A deck fight you can win, which grows harder the longer you stay, and the lifts are targets that stop it.' },
-      { id: 'FR1', q: 'Free roam\'s mail starts missions, and starting one turns off the one running (your rule). What happens to the stopped mission\'s enemies?',
-        options: ['They leave the world at once; what they destroyed stays destroyed', 'They stay and keep fighting until you finish them', 'They fly or walk off the map over a minute'], rec: 0,
-        why: 'Turning a mission off then really clears the field, and the city still shows the damage.' },
-      { id: 'FR2', q: 'When does free roam\'s mission mail arrive?',
-        options: ['All of it is in the inbox from the start: the city defence and the Hermit', 'One at a time, a new one when you finish the last', 'Over time, like a career\'s offers'], rec: 0,
-        why: 'Free roam is for trying things: every mission is one key and one click away.' },
-    ] },
-  { tag: 'L', name: 'Far buildings',
-    lead: 'New on 2026-10-25: every building type gets its own far look instead of the one generic tiled texture (openspec/changes/building-type-lods).',
-    qs: [
-      { id: 'L1', q: 'How should each type\'s far facade texture be made?',
-        options: ['Rendered by a tool from that type\'s own near facade pieces and textures, so far and near cannot disagree', 'A Material Maker graph per type', 'A Blender model of a bay per type, rendered'], rec: 0,
-        why: 'The near facade is generated in code; rendering the same pieces is the only way the far texture matches its colours and window rhythm exactly, and it rebuilds itself when a type changes.' },
-      { id: 'L2', q: 'Where should the detailed far shape (parapet, cornice, roof props) give way to a plain box with the type\'s facade?',
-        options: ['1.5 km', '1 km', '3 km'], rec: 0,
-        why: 'Past 1.5 km a cornice or a water tank is a pixel or two from the cockpit; the box still wears the type\'s own facade.' },
-    ] },
-  { tag: 'A', name: 'Music',
-    lead: 'New on 2026-10-25: the motifs and five cues, now moody cyberpunk (an edgy rebel, not a hero; Main Street deleted). Listen on the Crab Breeze Music page (https://claude.ai/artifact/17Lj37SLPpsARPqE9ZfV9C); notes and rules in docs/design/music.md, playback in openspec/changes/music.',
-    qs: [
-      { id: 'A2', q: 'How should the music follow the fight?',
-        options: ['One cue per game state (title, boarding, combat, set piece, won; silent on foot), switching on the bar with a one-bar crossfade', 'Layered stems that rise and fall with the danger inside one cue', 'Both: switching now, stems later'], rec: 0,
-        why: 'Switching on the bar sounds composed and needs nothing beyond the OGG files we have; stems cost a render per layer per cue.' },
-      { id: 'A3', q: 'Where is the music heard from the cockpit?',
-        options: ['Over everything, like a film score; it ducks under the radio and alarms', 'Only through the cockpit radio, as if broadcast', 'Score outside the mech, radio inside it'], rec: 0,
-        why: 'The sealed cockpit muffles the world; a score that ignores the walls keeps the music clear without breaking the first person view.' },
+      { id: 'W45', q: 'The air bases have no runway; airliners and freighters use a 620 m strip along the apron, stopping about twice as hard as a real airliner. What should they land on?',
+        options: ['Add a real runway, about 1.5 to 2 km, to each base', 'Keep the 620 m strip', 'Civil traffic only flies over, never lands'], rec: 0,
+        why: 'An airliner stopping in 620 m reads as fake from the cockpit, and a runway gives the air drops and missions a landmark.' },
+      { id: 'W46', q: 'How much civil air traffic near you?',
+        options: ['At most 9: 3 airliners, 2 freighters, 2 light planes, 2 helicopters', 'About 5, sparse', 'About 15, busy'], rec: 0,
+        why: 'The sky stays visibly alive at about 22 microseconds a step without filling the target boxes.' },
+      { id: 'W47', q: 'How do you select a civil aircraft on purpose?',
+        options: ['Press Q with the crosshair within 3 degrees of it', 'A separate target-neutral key', 'Never: only unguided fire can hit one'], rec: 0,
+        why: 'No new binding, and it cannot happen by accident: auto-pick and cycling skip civilians.' },
+      { id: 'W48', q: 'What size is the freighter? See the Civil Aircraft Stand-ins page: https://claude.ai/artifact/DCLR8j2QDJnjGLdhugfUvk',
+        options: ['70 m, with a bought mech slung under it for the air drop', 'A fictional 110 m giant carrying the 24 m mech inside', 'A 30 m freighter, plus a separate heavy lifter for mechs'], rec: 0,
+        why: 'A believable 1980s freighter, and one model serves both the routes and your air drop.' },
+      { id: 'W49', q: 'Engine sound for civil aircraft?',
+        options: ['Cut a turbofan, a propeller and a rotor from CC0 recordings', 'Keep the mech\'s jet roar pitched down, jets only', 'No engine sound'], rec: 0,
+        why: 'A helicopter circling a city should be heard; today light planes and helicopters are silent.' },
     ] },
 ];
 
+// Answered, and being built. Each moves to DECIDED (Done) once its answer is in the game.
+const IN_PROGRESS = [
+  { text: 'W32 People, cars and aircraft all at once, in parallel (your pick).', where: 'openspec/changes/civilians, car-traffic, car-driving, and a new civil-air-traffic change (Mac session)' },
+  { text: 'W33 Airliners and cargo planes between the five air bases, light planes and news or police helicopters over the cities; they keep clear of a fight and crabs can shoot them down (your pick).', where: 'civil-air-traffic, to be written (Mac session)' },
+  { text: 'W34 Your own fire can hit a civilian aircraft, and it costs you standing with the nearest base (your pick).', where: 'civil-air-traffic, career standing (Mac session)' },
+  { text: 'C14 MFD pages are not remembered between sorties (your pick), and: "mfds return to default as soon as you click back on them, leaving mfd focus".', where: 'openspec/changes/mfd-menus' },
+  { text: 'C15 The Ironhorse keeps its lower front screens (your pick), and: "every mech has dash/skate, just diferent stats for them".', where: 'openspec/changes/cockpit-parity; the dash and skates for every mech, stats per mech' },
+  { text: 'C16 Every mech its own cockpit as listed (recommendation accepted).', where: 'openspec/changes/cockpit-identity' },
+  { text: 'G20 Each mech\'s signature weapon as listed (your pick).', where: 'openspec/changes/signature-weapons' },
+  { text: 'G21 The Sapper\'s mortar: "maybe a grenade launcher?"', where: 'openspec/changes/signature-weapons (the Sapper)' },
+  { text: 'G22 Anyone can carry every weapon, on both sides (your pick).', where: 'openspec/changes/weapon-kinds' },
+  { text: 'G23 A weapon heat bank of its own, refilling in 20 s (your pick).', where: 'openspec/changes/weapon-kinds' },
+  { text: 'G24 The railgun scope is a window in the middle of the front screen (your pick).', where: 'openspec/changes/railgun-scope' },
+  { text: 'M12 Only the mech you board vents (your pick).', where: 'openspec/changes/boarding-vents' },
+  { text: 'F1 Morning mist in the valleys and the crater, thinning by day, clear for combat-heavy missions (your pick).', where: 'openspec/changes/ground-fog' },
+  { text: 'F2 Ground fog also shortens radar and lock-on range (your pick).', where: 'openspec/changes/ground-fog, targeting' },
+  { text: 'F3 No ray-marched fog on the island; later only small local volumes (your pick).', where: 'openspec/changes/ground-fog' },
+  { text: 'H2 The crab air fortress is called the Stratostacean.', where: 'openspec/changes/crab-airship, data/missions' },
+  { text: 'H4 Reach the fortress on the jets as they are and land on it to recharge (your pick).', where: 'openspec/changes/crab-airship' },
+  { text: 'H5 The fortress crashing on the city counts as city damage (your pick).', where: 'openspec/changes/crab-airship, city-defence' },
+  { text: 'H6 2 Shrikes and 4 Mites on deck, a Mite up each hangar lift every 60 s (your pick).', where: 'openspec/changes/crab-airship' },
+  { text: 'FR1 A stopped mission\'s enemies leave the world at once; what they destroyed stays destroyed (your pick).', where: 'openspec/changes/free-roam-missions' },
+  { text: 'L1 Each type\'s far facade rendered by a tool from its own near pieces (your pick).', where: 'openspec/changes/building-type-lods' },
+  { text: 'L2 The detailed far shape gives way to a plain box at 1.5 km (your pick).', where: 'openspec/changes/building-type-lods' },
+  { text: 'A2 One music cue per game state, switching on the bar with a one-bar crossfade (your pick).', where: 'openspec/changes/music' },
+  { text: 'A3 The score plays over everything and ducks under the radio and alarms (your pick).', where: 'openspec/changes/music' },
+];
+
 const DECIDED = [
+  { text: 'J16 A bought mech is air dropped near you (owner, 2026-10-26), and: "a marker appears on your hud to show mech delivery. you can swap mechs out at base, with foreman always availible". A HUD marker follows the drop until you board, and a base terminal\'s HANGAR tab calls out any mech parked there, the Foreman from anywhere.', where: 'crates/cb-core/src/air_drop.rs, data/career/air_drop.ron, the terminal HANGAR tab; PR #72' },
+  { text: 'W30 Street doors swing open as you walk into them and shut behind you, never on you (your pick). The timings are provisional until a playtest.', where: 'crates/cb-core/src/world/door.rs, data/world/world.ron interiors; PR #73' },
+  { text: 'W31 Warehouse roller doors stay shut until warehouses have a hall inside (your pick).', where: 'openspec/changes/building-interiors; PR #73' },
+  { text: 'J15 Mech prices as listed, Picket 300 000 to Harrow 1 200 000 (your pick).', where: 'data/career/catalogue.ron; PR #72' },
+  { text: 'C13 The MFD you point at in free look is outlined in amber (your pick).', where: 'crates/cb-app/src/mfd.rs (on main)' },
+  { text: 'H1 The fortress is 420 m, 600-900 m up on eight lift thrusters (your pick).', where: 'data/missions/fortress.ron, mail.ron (on main)' },
+  { text: 'H3 The side rule, then the hull thrusters (your pick).', where: 'data/missions/fortress.ron (on main)' },
+  { text: 'FR2 All of free roam\'s mission mail is in the inbox from the start (your pick).', where: 'data/missions/mail.ron (on main)' },
   { text: 'A1 The score is moody, edgy rebel cyberpunk: "music sucks, electronic, scifi futuristic please!", then "Main street sucks delete it. Theme sucks..I want some thing moody,more cyber punk themed", then "It\'s too cherry and heroic. I want to feel like an edgy rebel" (2026-10-25). A snarling riff, a sinking hook, half-time drums, rain; no town theme, no triumphant major chord.', where: 'CLAUDE.md section 1, docs/design/music.md, music/*.strudel' },
   { text: 'W12 Buildings fall the simpler way: pieces break, and a building falls when its ground floor is mostly gone (your pick), and: "whatever looks cool and is EFFICIENT, might ve already been implemented in another branch". W13 rubble, W15 the warning before a column gives and W18 brick above 6 storeys: "see W12".', where: 'openspec/changes/structural-destruction, rubble, building-variety (open questions: measure the structural model already on building-research against the simpler one before choosing)' },
   { text: 'W14 Building textures: Material Maker for brick, concrete and roofing; modelled bays rendered face-on for facades, trims and far facades (your pick).', where: 'openspec/changes/building-generation' },
@@ -372,8 +399,14 @@ function render() {
     for (const q of s.qs) sec.append(questionCard(q));
     root.append(sec);
   }
+  if (!SECTIONS.length) root.append(el('p', { class: 'notice', text: 'No open questions right now. Your answers are under In progress until they are built, then under Done.' }));
+  const prog = document.getElementById('prog-list');
+  document.getElementById('prog-sum').textContent = `In progress (${IN_PROGRESS.length})`;
+  for (const d of IN_PROGRESS) {
+    prog.append(el('li', {}, el('p', { class: 'd-text', text: d.text }), el('p', { class: 'd-where', text: d.where })));
+  }
   const list = document.getElementById('dec-list');
-  document.getElementById('dec-sum').textContent = `Answered and decided (${DECIDED.length})`;
+  document.getElementById('dec-sum').textContent = `Done (${DECIDED.length})`;
   for (const d of DECIDED) {
     list.append(el('li', {},
       d.replaced ? el('span', { class: 'replaced', text: 'Replaced' }) : null,
@@ -418,7 +451,7 @@ function paint(id) {
   c.root.classList.toggle('answered', isAnswered(a));
   const n = ALL_QS.filter((q) => isAnswered(answers[q.id])).length;
   document.getElementById('count').textContent = `${n} of ${ALL_QS.length} answered`;
-  document.getElementById('meter').style.width = `${(100 * n) / ALL_QS.length}%`;
+  document.getElementById('meter').style.width = `${ALL_QS.length ? (100 * n) / ALL_QS.length : 100}%`;
 }
 
 function setStatus(id, text, cls = '') {
@@ -514,7 +547,7 @@ function snapshotHtml() {
     + `.q p{margin:4px 0}.h{font-weight:600}.id{font-family:ui-monospace,monospace;color:#94621a}.o,.r{color:#6e5f4c;font-size:14px}`
     + `.a{background:#dcebd5;padding:6px 10px;border-radius:6px}</style></head><body>`
     + `<h1>Crab Breeze Survey</h1><p>Answers as of ${date}.</p>${rows}`
-    + `<h2>Answered and decided</h2><ul>${DECIDED.map((d) => `<li>${d.replaced ? '<b>Replaced:</b> ' : ''}${esc(d.text)} <small>(${esc(d.where)})</small></li>`).join('')}</ul>`
+    + `<h2>In progress</h2><ul>${IN_PROGRESS.map((d) => `<li>${esc(d.text)} <small>(${esc(d.where)})</small></li>`).join('')}</ul><h2>Done</h2><ul>${DECIDED.map((d) => `<li>${d.replaced ? '<b>Replaced:</b> ' : ''}${esc(d.text)} <small>(${esc(d.where)})</small></li>`).join('')}</ul>`
     + `</body></html>`;
 }
 

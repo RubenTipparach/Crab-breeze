@@ -31,3 +31,21 @@ its bay with its damage.
 #### Scenario: Taking the Driller out
 - **WHEN** the pilot climbs out of the Foreman in bay 1 and boards the Driller in bay 2
 - **THEN** the Driller is the piloted mech and the Foreman stands in bay 1 with its damage
+
+### Requirement: Jobs are signed for at a hangar bay's terminal
+
+Each hangar bay SHALL have a terminal, and a pilot on foot standing within reach of it and facing it SHALL be able
+to open its screen with Use and accept a job offered by the career's job board there.
+
+#### Scenario: Signing up at the terminal
+- **WHEN** the pilot walks up to the terminal in bay 1, faces it and presses Use
+- **THEN** its screen lists the career's job offers, and accepting one makes it the job under way
+
+### Requirement: The MECH MFD shows what the bay did
+
+When a hangar bay repairs and rearms the piloted mech, the MECH MFD SHALL show the bay's report: the parts repaired,
+the rounds put back and the cost.
+
+#### Scenario: Back from a job
+- **WHEN** the mech stops in a bay with its torso damaged and missiles fired
+- **THEN** the MECH page reads the parts repaired, the rounds put back and COST 0 CR

@@ -14,6 +14,7 @@ use crate::ground_marks::{Contact, GroundContact};
 use crate::mech::{MechSim, MechSpec, Piloted};
 use crate::pilot::{PilotEvents, PilotSim};
 use crate::sim::{Data, SimSet};
+use crate::state::GameApp;
 use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use bevy::world_serialization::{WorldAsset, WorldAssetRoot};
@@ -117,13 +118,13 @@ impl Plugin for TrafficPlugin {
             .init_resource::<CarAccessNow>()
             .init_resource::<CivilianToll>()
             .add_message::<CivilianHarmed>()
-            .add_systems(FixedUpdate, find_car.in_set(SimSet::Pilot).before(crate::pilot::step_pilot))
-            .add_systems(FixedUpdate, step_traffic.in_set(SimSet::Mech).before(crate::mech::step_mech))
-            .add_systems(
+            .add_game_systems(FixedUpdate, find_car.in_set(SimSet::Pilot).before(crate::pilot::step_pilot))
+            .add_game_systems(FixedUpdate, step_traffic.in_set(SimSet::Mech).before(crate::mech::step_mech))
+            .add_game_systems(
                 Update,
                 (draw_cars, find_dash, turn_dash, find_wheels, spin_wheels, draw_runners).chain(),
             )
-            .add_systems(Update, report_harm);
+            .add_game_systems(Update, report_harm);
     }
 }
 
@@ -204,6 +205,7 @@ fn step_traffic(
         trees: None,
         structures: Some(&live.structures),
         platforms: &live.platforms,
+        interiors: None,
     };
     // the pilot and the cars
     for e in &events.0 {

@@ -2,6 +2,7 @@
 //! command line and the data, and wires the plugins. It holds no game logic.
 
 mod air_bases;
+mod air_drop;
 mod air_traffic;
 mod ambience;
 mod audio;
@@ -41,6 +42,7 @@ mod pbr_set;
 mod perf_hud;
 mod physics;
 mod pilot;
+mod playtest;
 mod plumes;
 mod rocks;
 mod rope;
@@ -56,12 +58,14 @@ mod skins;
 mod sky_light;
 mod soft_sprites;
 mod state;
+mod street_doors;
 mod sun_flare;
 mod targeting;
 mod textures;
 mod traffic;
 mod units;
 mod vents;
+mod walk_in;
 mod water_render;
 mod world;
 
@@ -70,10 +74,28 @@ use bevy::window::{PresentMode, WindowResolution};
 use cb_core::GameData;
 
 fn main() -> AppExit {
-    let args = match cli::Args::parse(std::env::args().skip(1)) {
+    let mut args = match cli::Args::parse(std::env::args().skip(1)) {
         Ok(a) => a,
         Err(e) => {
             eprintln!("{e}\n{}", cli::USAGE);
+            return AppExit::error();
+        }
+    };
+    // A playtest script's run is a player's game in its `--play` mode, played by the scripted pilot.
+    let script = match args.playtest.as_deref().map(playtest::load) {
+        None => None,
+        Some(Ok(s)) => match s.runs.get(args.run) {
+            Some(r) => {
+                args.play = Some(r.play.clone());
+                Some(s)
+            }
+            None => {
+                eprintln!("--run {}: the script has {} runs", args.run, s.runs.len());
+                return AppExit::error();
+            }
+        },
+        Some(Err(e)) => {
+            eprintln!("playtest script failed to load, stopping: {e}");
             return AppExit::error();
         }
     };
@@ -135,7 +157,8 @@ fn main() -> AppExit {
     if args.start.as_deref() == Some("meadow") {
         app.insert_resource(world::StartInMeadow);
     }
-    if args.start.as_deref() == Some("base") {
+    // A career starts at home, on the first air base, its mech in bay 1 (career, air-bases).
+    if args.start.as_deref() == Some("base") || args.play.as_deref().is_some_and(|m| m.starts_with("career")) {
         app.insert_resource(world::StartAtBase);
     }
     // The blended smoke drawn sorted and soft (openspec change `particle-depth`).
@@ -184,6 +207,8 @@ fn main() -> AppExit {
     .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin))
     // Car traffic and the car you drive (openspec changes `car-traffic`, `car-driving`).
     .add_plugins(traffic::TrafficPlugin)
+    // Buildings a pilot on foot walks into, and their street doors (building-interiors).
+    .add_plugins((walk_in::WalkInPlugin, street_doors::StreetDoorsPlugin))
     // sound: effects in 3D, music, ambience (openspec changes `audio`, `music`, `ambience`)
     .add_plugins((audio::SoundPlugin, music::MusicPlugin, ambience::AmbiencePlugin));
     // People in the streets, parks and bases (openspec change `civilians`); `CB_NO_PEOPLE=1` leaves them
@@ -242,7 +267,7 @@ fn main() -> AppExit {
         return AppExit::error();
     }
     app.add_plugins(save_game::SaveGamePlugin);
-    app.add_plugins(air_bases::AirBasesPlugin);
+    app.add_plugins((air_bases::AirBasesPlugin, air_drop::AirDropPlugin));
     app.add_plugins(air_traffic::AirTrafficPlugin);
     // The player's settings; a measurement or capture run keeps the window it set up.
     app.add_plugins(settings::SettingsPlugin {
@@ -260,6 +285,12 @@ fn main() -> AppExit {
         }
     } else if let Some(take) = args.showcase.clone().or(args.bench.clone()) {
         app.add_plugins(showcase::ShowcasePlugin { take });
+        if let Ok(dir) = std::env::var("CB_FRAMES_DIR") {
+            app.add_plugins(capture::FramesPlugin { dir: dir.into() });
+        }
+    }
+    if let Some(script) = script {
+        app.add_plugins(playtest::PlaytestPlugin { script, run: args.run });
         if let Ok(dir) = std::env::var("CB_FRAMES_DIR") {
             app.add_plugins(capture::FramesPlugin { dir: dir.into() });
         }

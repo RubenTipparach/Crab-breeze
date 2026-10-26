@@ -16,7 +16,22 @@
 
 ## 3. App
 - [x] 3.0 Interiors drawn in a damaged building's band meshes (no extra entities), each wall and item while the floor bay under it stands; 12 storeys plan in 0.4 ms (2 400 boxes, release, indicative)
-- [ ] 3.1 Interiors streamed inside 150 m and on breach, on a worker thread (today they appear only once a building is breached, which is when they can be seen: buildings are opaque)
+- [ ] 3.1 Interiors streamed inside 150 m and on breach, on a worker thread. Drawing is done: a dressed building meshes its rooms on the async pool and shows them within `rooms_radius_m` (250 m, the owner's number); the collision streams inside `collision_radius_m` (task 4.6). Left: building the plans of a breached building off the main thread
 - [ ] 3.2 Interior-mapping glass material for far windows
-- [ ] 3.3 Pilot collision with floors, partitions, stairs and furniture
+- [ ] 3.3 Pilot collision with floors, partitions, stairs and furniture (on foot, intact and breached: tasks 4.5 and 4.6)
 - [ ] 3.4 Playtest: walk into a walk-up, climb its stair, look out of a window; on Drive
+
+## 4. Entrances and stairs (owner, 2026-10-25: "each building needs doors and staairs that i as a player can walk into them")
+- [x] 4.1 The street side of every building, worked out at generation (`WorldPlan::street_sides`; test: every door is reachable from the pavement)
+- [x] 4.2 `Entrance` per building: the door on the street facade, a lobby lined up with it or the corridor, the route to the stair (tests: `every_building_has_its_door_on_its_street_side_and_every_stair_is_walkable`, `nothing_stands_on_the_way_in`)
+- [x] 4.3 The dog-leg stair in the core, ground floor to top storey, and the stairwell in each floor (same test: every shipped building's rise, run and lane)
+- [x] 4.4 The dressing draws the entrance as an opening, the stoop, and the floors with their stairwells (the frame's floor bays too); the rooms mesh draws the stair and the ground floor (tests: `party_lines`, with the entrances in)
+- [x] 4.5 `Walkable`: one box rule for standing and walls, each box hung on its frame element so a breached building is walkable too; `Scene` uses it for the pilot (tests: `a_pilot_walks_in_off_the_street_and_climbs_to_the_top_storey` on one building of each layout and door, up to 7 storeys; `the_facade_stops_a_pilot_away_from_the_door`; `a_breach_is_a_way_in`)
+- [x] 4.6 On foot only (owner, 2026-10-26), the app builds `Walkable` for buildings within `collision_radius_m` of the pilot (within `collision_sync_m` at once, the rest on the async pool) and frees them all when the pilot leaves their feet, or one past the margin (`cb-app::walk_in`; tests: `colliders_are_chosen_by_mode_and_distance`, `climbing_out_switches_to_colliders_cleanly`)
+- [x] 4.7 Survey W30 (how the door opens) and W31 (warehouse roller doors) answered: W30 2026-10-26, "A door that swings open as you walk into it, and shuts behind you"; W31, roller doors stay shut
+- [ ] 4.8 Playtest: walk in off the street, climb to an upper floor, look out of a window (this is 3.4)
+- [x] 4.10 `door::StreetDoor` (W30): closed, opening, open, closing; opened by a pilot on foot within `door_trigger_m` either side, swung away from them, held open while they are in the doorway or its arc, shut `door_close_delay_s` after they have gone; never moves a leaf into them; a shut leaf is a wall in `Walkable`, an open one stands clear of the way in; tuning in `world.ron` `interiors:` (tests: `a_door_is_shut_until_someone_comes_near_it`, `it_opens_away_from_the_pilot_on_either_side`, `it_shuts_after_the_delay_once_the_pilot_has_gone`, `it_never_closes_on_the_pilot`, `a_shut_leaf_is_a_wall_and_an_open_one_is_not`, `a_short_front_keeps_the_leaf_on_its_side_of_the_party_line`, `a_shut_door_is_a_wall`, `a_door_swings_away_from_a_pilot_walking_through_it_both_ways_and_shuts_behind_them`, `a_pilot_standing_in_the_doorway_holds_the_door_open`, `every_door_in_the_world_swings_fully_both_ways`; the walk-in tests now start with every door shut)
+- [x] 4.11 The app steps the doors before each pilot step (`walk_in::swing_doors`) and draws each dressed building's leaves turning on their hinges (`street_doors`; test: `a_leaf_turns_to_lie_along_its_direction`)
+- [ ] 4.12 A door sound: no cue in `data/audio/cues.ron` fits; wants a recorded CC0 door cut, played at the hinge on `DoorEvent`
+- [ ] 4.13 Playtest: walk into a door, through it, and look back as it shuts (with 4.8)
+- [x] 4.9 Trim stops at the party line and the corners (owner, 2026-10-26: "some zfighting on the divider for buildings here"; tests: `party_lines`)

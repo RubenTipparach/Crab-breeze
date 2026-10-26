@@ -474,6 +474,54 @@ pub fn build_city(
     out
 }
 
+/// How far each facade of `footprint` looks out before another building's footprint, in the side
+/// order of the dressing (0 faces -z, 1 +z, 2 -x, 3 +x), at most `limit_m`: the strip in front of a
+/// facade, its full width, out to the first footprint of `others` that overlaps it. Half of it is
+/// what that facade's trim may stand out (two neighbours' awnings must not meet).
+pub fn clear_in_front(footprint: &Rect, others: &[Rect], limit_m: f32) -> [f32; 4] {
+    let (lo, hi) = (footprint.min, footprint.max);
+    let mut out = [limit_m; 4];
+    for o in others {
+        let across_x = o.min.x < hi.x && o.max.x > lo.x;
+        let across_z = o.min.y < hi.y && o.max.y > lo.y;
+        if across_x && o.max.y <= lo.y {
+            out[0] = out[0].min(lo.y - o.max.y);
+        }
+        if across_x && o.min.y >= hi.y {
+            out[1] = out[1].min(o.min.y - hi.y);
+        }
+        if across_z && o.max.x <= lo.x {
+            out[2] = out[2].min(lo.x - o.max.x);
+        }
+        if across_z && o.min.x >= hi.x {
+            out[3] = out[3].min(o.min.x - hi.x);
+        }
+    }
+    out
+}
+
+/// The facade of `footprint` that faces the street, as a side (0 faces -z, 1 +z, 2 -x, 3 +x): of the
+/// facades with nothing built between them and the edge of `block` (the kerb; `fronts` is
+/// `clear_in_front`), the nearest the kerb, ties to a long face and then the lower side. An inner lot
+/// has none: its door faces the widest gap in front, an alley to the pavement. Without a block, the
+/// widest gap.
+pub fn street_side(footprint: &Rect, block: Option<&Rect>, fronts: [f32; 4]) -> u8 {
+    let size = footprint.size();
+    let long = |s: usize| (s < 2) == (size.x >= size.y);
+    let widest = || (0..4).max_by(|&a, &b| fronts[a].total_cmp(&fronts[b]).then(b.cmp(&a))).unwrap_or(0) as u8;
+    let Some(block) = block else { return widest() };
+    let kerb = [
+        footprint.min.y - block.min.y,
+        block.max.y - footprint.max.y,
+        footprint.min.x - block.min.x,
+        block.max.x - footprint.max.x,
+    ];
+    (0..4)
+        .filter(|&s| fronts[s] >= kerb[s] - 1e-3)
+        .min_by(|&a, &b| kerb[a].total_cmp(&kerb[b]).then(long(b).cmp(&long(a))).then(a.cmp(&b)))
+        .map_or_else(widest, |s| s as u8)
+}
+
 fn corners(r: &Rect) -> [Vec2; 4] {
     [r.min, Vec2::new(r.max.x, r.min.y), r.max, Vec2::new(r.min.x, r.max.y)]
 }

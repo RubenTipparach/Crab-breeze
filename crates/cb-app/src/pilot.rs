@@ -240,6 +240,7 @@ pub(crate) fn step_pilot(
     plan: Res<Plan>,
     live: Res<Live>,
     time: Res<Time<Fixed>>,
+    interiors: Res<crate::walk_in::InteriorColliders>,
 ) {
     let pilot = &mut *pilot;
     pilot.prev = pilot.curr.clone();
@@ -249,6 +250,7 @@ pub(crate) fn step_pilot(
         trees: Some(&live.forest),
         structures: Some(&live.structures),
         platforms: &live.platforms,
+        interiors: Some(&interiors.0),
     };
     // A car first (car-driving): Use at a car's door gets in; in a car, the mech's step has nothing to do.
     let dt = time.delta_secs();
@@ -418,19 +420,24 @@ fn spawn_prompt(mut commands: Commands) {
     ));
 }
 
-/// Shows "E: step into the cockpit" when the kneeling mech is ready and the pilot is near.
+/// Shows "E: step into the cockpit" when the kneeling mech is ready and the pilot is near, "E: use the
+/// terminal" at a hangar bay's terminal (air-bases), and "E: get in" or "get out" at a car (car-driving).
 fn show_prompt(
     pilot: Res<PilotSim>,
     access: Res<MechAccessNow>,
     car: Res<crate::traffic::CarAccessNow>,
     data: Res<Data>,
+    terminal: Option<Res<crate::air_bases::TerminalNear>>,
     mut prompt: Single<&mut Text, With<Prompt>>,
 ) {
     let p = &pilot.curr;
     let cfg = &data.0.pilot;
     let ready = access.0.as_ref().is_some_and(|a| a.hatch_open && p.can_board(a, cfg));
+    let at_terminal = terminal.as_ref().is_some_and(|t| t.near.is_some());
     let car = car.0.as_ref();
-    let want = if car.is_some_and(|c| p.can_take(c, cfg)) {
+    let want = if at_terminal {
+        "[E]  Use the terminal: jobs, shop, refit"
+    } else if car.is_some_and(|c| p.can_take(c, cfg)) {
         "[E]  Get in"
     } else if p.mode == PilotMode::Driving && car.is_some_and(|c| c.speed_m_s <= cfg.car_stopped_m_s) {
         "[E]  Get out"

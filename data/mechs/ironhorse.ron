@@ -4,6 +4,7 @@
 // stand-in's tuning (placeholder.ron) scaled by k = 1.889.
 (
     name: "Ironhorse",
+    tier: 3,
     model: Some("models/mech_ironhorse.glb"),
     interior: Some((
         model: "models/cockpit_cab/cockpit_cab.gltf",

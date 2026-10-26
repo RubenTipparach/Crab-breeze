@@ -11,6 +11,7 @@ use crate::fx::Fx;
 use crate::mech::{MechId, MechSim, Piloted};
 use crate::pilot::PilotSim;
 use crate::sim::{Data, SimSet};
+use crate::state::GameApp;
 use crate::units::{Hostile, Hostiles};
 use crate::world::{Live, Plan};
 use bevy::ecs::system::SystemParam;
@@ -147,17 +148,17 @@ impl Plugin for AirTrafficPlugin {
         app.init_resource::<Neutrals>()
             .init_resource::<CivilStanding>()
             .add_message::<CivilAirHit>()
-            .add_systems(Startup, start)
-            .add_systems(FixedUpdate, list_neutrals.in_set(SimSet::Input).after(crate::units::list_hostiles))
-            .add_systems(
+            .add_world_spawn(start)
+            .add_game_systems(FixedUpdate, list_neutrals.in_set(SimSet::Input).after(crate::units::list_hostiles))
+            .add_game_systems(
                 FixedUpdate,
                 step_traffic
                     .in_set(SimSet::Mech)
                     .after(crate::mech::step_mech)
                     .before(crate::combat::fly_shots),
             )
-            .add_systems(FixedUpdate, tally_hits.in_set(SimSet::Mech).after(crate::combat::fly_shots))
-            .add_systems(Update, (draw_traffic, spin_parts));
+            .add_game_systems(FixedUpdate, tally_hits.in_set(SimSet::Mech).after(crate::combat::fly_shots))
+            .add_game_systems(Update, (draw_traffic, spin_parts));
     }
 }
 

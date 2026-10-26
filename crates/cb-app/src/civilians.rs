@@ -19,6 +19,7 @@ use crate::input::StepActions;
 use crate::mech::{MechId, Piloted};
 use crate::pilot::{PilotCamera, PilotSim};
 use crate::sim::{Data, PresentSet, SimSet};
+use crate::state::GameApp;
 use crate::world::{Live, MeshBuilder, Plan};
 use bevy::camera::visibility::NoFrustumCulling;
 use bevy::light::NotShadowCaster;
@@ -141,8 +142,8 @@ impl Plugin for CiviliansPlugin {
         })
         .init_resource::<Greeting>()
         .add_message::<CivilianLoss>()
-        .add_systems(Startup, (spawn_bodies, spawn_benches, spawn_greeting_text))
-        .add_systems(
+        .add_world_spawn((spawn_bodies, spawn_benches, spawn_greeting_text))
+        .add_game_systems(
             FixedUpdate,
             (
                 greet.in_set(SimSet::Pilot).before(crate::pilot::step_pilot),
@@ -153,7 +154,7 @@ impl Plugin for CiviliansPlugin {
                 step_crowd.in_set(SimSet::Mech).after(crate::combat::fly_shots),
             ),
         )
-        .add_systems(Update, (draw_people.in_set(PresentSet::Pose), show_greeting, report_losses));
+        .add_game_systems(Update, (draw_people.in_set(PresentSet::Pose), show_greeting, report_losses));
     }
 }
 
@@ -167,6 +168,7 @@ fn with_world<R>(plan: &Plan, live: &Live, data: &Data, f: impl FnOnce(&World) -
         trees: None,
         structures: Some(&live.structures),
         platforms: &[],
+        interiors: None,
     };
     let w = World {
         cities: &plan.cities,
