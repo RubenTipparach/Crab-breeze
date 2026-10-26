@@ -387,9 +387,13 @@ fn draw_cars(
         let pos = p0.lerp(c.pos, alpha);
         let heading = h0 + turned * alpha;
         let (pitch, roll) = c.body.as_ref().map_or((0.0, 0.0), |b| (b.pitch_rad, b.roll_rad));
-        tf.translation = pos;
-        tf.rotation = Quat::from_rotation_y(heading) * Quat::from_rotation_x(pitch) * Quat::from_rotation_z(-roll);
-        tf.scale = Vec3::new(1.0, if c.state == CarState::Crushed { CRUSHED_SCALE } else { 1.0 }, 1.0);
+        // Written only when it moved: a parked or waiting car left alone is not walked by the transform
+        // propagation (its whole scene, every frame: the main world's largest cost in a city, 2026-10-26).
+        tf.set_if_neq(Transform {
+            translation: pos,
+            rotation: Quat::from_rotation_y(heading) * Quat::from_rotation_x(pitch) * Quat::from_rotation_z(-roll),
+            scale: Vec3::new(1.0, if c.state == CarState::Crushed { CRUSHED_SCALE } else { 1.0 }, 1.0),
+        });
         let burning = matches!(c.state, CarState::Burning { .. });
         match (burning, d.fire) {
             (true, None) => {
@@ -536,7 +540,11 @@ fn spin_wheels(
         for (i, (e, rest)) in spin.wheels.iter().enumerate() {
             if let Ok(mut t) = tf.get_mut(*e) {
                 let turn = if i < 2 { Quat::from_rotation_y(-steer) } else { Quat::IDENTITY };
-                t.rotation = turn * *rest * Quat::from_rotation_x(spin.angle_rad);
+                let rotation = turn * *rest * Quat::from_rotation_x(spin.angle_rad);
+                // A wheel at rest is left alone (see `draw_cars`).
+                if t.rotation != rotation {
+                    t.rotation = rotation;
+                }
             }
         }
     }
