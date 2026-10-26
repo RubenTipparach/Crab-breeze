@@ -74,6 +74,8 @@ pub struct Live {
     pub dirty_buildings: Vec<u32>,
     /// Pieces of buildings that fell since the physics last took them.
     pub new_chunks: Vec<cb_core::world::Chunk>,
+    /// Moving surfaces bodies stand on, posed this fixed step (the Hermit's deck: `crab-airship`).
+    pub platforms: Vec<cb_core::world::Platform>,
 }
 
 /// Generates and draws the world.
@@ -137,6 +139,7 @@ impl Plugin for WorldPlugin {
             structures: cb_core::world::Structures::with_config(&plan, cfg.structure.clone(), cfg.craters.radius_m_per_cbrt_mj),
             dirty_buildings: Vec::new(),
             new_chunks: Vec::new(),
+            platforms: Vec::new(),
         };
         info!(
             "world: {} trees grown round the start in {:.0} ms, {} rivers, {} bridges, sea level {:.1} m, {} cloud puffs",

@@ -22,6 +22,8 @@ fs.mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch();
 const page = await browser.newPage();
 await page.setContent("<!doctype html><body></body>");
+// the crab air fortress's features, so its armour is laid out against its own hull (tools/mockups/fortress_layout.json)
+await page.evaluate(l => { window.__LAYOUT = l; }, JSON.parse(fs.readFileSync(path.resolve("tools/mockups/fortress_layout.json"), "utf8")));
 await page.addScriptTag({ path: KIT });
 const out = await page.evaluate(() => window.__out);
 for (const [name, url] of Object.entries(out)) {

@@ -41,4 +41,14 @@ PALETTES = {
     "sapper": dict(BODY=(0.42, 0.44, 0.45), BODY2=(0.20, 0.22, 0.24), FRAME=(0.11, 0.11, 0.12), ACCENT=(0.82, 0.42, 0.12),
                    YELLOW=(0.24, 0.25, 0.26), ARMOR=(0.31, 0.33, 0.24), RUBBER=(0.06, 0.06, 0.06), METAL=(0.45, 0.46, 0.48),
                    GLOW=(0.45, 0.9, 1.0)),
+    # The crab air fortress (openspec/changes/crab-airship; owner, 2026-10-25: "use same armor techniques as the mech",
+    # "more grey on this platform? red turrets?", "main color orange, secondary a dark orange", then a palette to pick
+    # from). BODY #e98537 the carapace and the shoulder walls, BODY2 #94493a the second armour (the underside, the
+    # belly, the legs), PLATFORM #b0a7b8 the platform on top (the spine, the bridge, the shoulder tops, the lifts),
+    # TURRET #ac2847 the turrets and missile launchers, FRAME #2c1e31 the structure, ACCENT #ec273f the
+    # livery bands, METAL #deceed, GLOW #9de64e, RUBBER #10121c: the owner's sRGB, kept here linear.
+    # Read by gen_crab_fortress.py.
+    "hermit": dict(BODY=(0.815, 0.235, 0.038), BODY2=(0.296, 0.067, 0.042), PLATFORM=(0.434, 0.386, 0.479),
+                   TURRET=(0.413, 0.021, 0.063), FRAME=(0.025, 0.013, 0.031), ACCENT=(0.839, 0.020, 0.050),
+                   RUBBER=(0.005, 0.006, 0.012), METAL=(0.730, 0.617, 0.847), GLOW=(0.337, 0.791, 0.076)),
 }

@@ -62,8 +62,19 @@ fn land(
     fx: &mut MessageWriter<Fx>,
     explosions: &mut MessageWriter<Explosion>,
     hits: &mut MessageWriter<crate::battle_fx::MechHit>,
+    fortress: &mut MessageWriter<crate::fortress::FortressHit>,
 ) {
     match struck {
+        // The fortress's parts and hull take it by their own armour rule (crab-airship).
+        Struck::Mech { mech, part } if mech == crate::fortress::FORTRESS_ID => {
+            fortress.write(crate::fortress::FortressHit {
+                part,
+                at,
+                dir,
+                penetration_mm: power.penetration_mm,
+                damage: power.damage,
+            });
+        }
         Struck::Mech { mech, .. } if mech >= crate::units::UNIT_ID_BASE => {
             if let Some(p) = units.get_mut(mech) {
                 let armour = data.0.units.units.get(&p.unit.kind).map_or(0.0, |s| s.armour_mm);
@@ -203,6 +214,8 @@ pub fn fly_shots(
     mut fx: MessageWriter<Fx>,
     mut explosions: MessageWriter<Explosion>,
     mut hits: MessageWriter<crate::battle_fx::MechHit>,
+    fortress: Option<Res<crate::fortress::FortressRun>>,
+    mut fortress_hits: MessageWriter<crate::fortress::FortressHit>,
 ) {
     let _t = crate::perf_hud::slow("fly_shots");
     if shots.0.is_empty() && shots.1.is_empty() {
@@ -221,6 +234,10 @@ pub fn fly_shots(
     }
     // Vehicles are hit like mechs, one capsule each (invasion-forces).
     parts.extend(crate::units::unit_capsules(&units, &data));
+    // The fortress's parts, then its hull (crab-airship).
+    if let Some(f) = &fortress {
+        parts.extend(f.capsules.iter().copied());
+    }
     // Live mechs' torsos and vehicles' centres, for missiles to home on.
     let mut torsos: HashMap<u32, Vec3> = mechs
         .iter()
@@ -234,6 +251,9 @@ pub fn fly_shots(
             .filter(|p| p.unit.alive() && !p.gone)
             .map(|p| (p.unit.id, p.unit.pos)),
     );
+    if let Some(f) = &fortress {
+        torsos.extend(f.targets.iter().copied());
+    }
     // A shot's gun: its mech's, or its vehicle's one weapon.
     let unit_guns: HashMap<u32, cb_core::weapons::WeaponSpec> = units
         .list
@@ -246,6 +266,20 @@ pub fn fly_shots(
             .and_then(|c| c.weapons.get(weapon))
             .or_else(|| unit_guns.get(&owner))
             .cloned()
+            .or_else(|| {
+                // The fortress's rounds name the part that fired them.
+                (owner == crate::fortress::FORTRESS_ID)
+                    .then(|| {
+                        data.0
+                            .fortress
+                            .shape
+                            .parts
+                            .get(weapon)
+                            .and_then(|_| data.0.fortress.kind(weapon).gun.as_ref())
+                    })
+                    .flatten()
+                    .map(|g| g.weapon.clone())
+            })
     };
     let live = &mut *live;
     // Strikes land first: the first thing in each arm's sweep takes the blow (close-combat).
@@ -256,6 +290,7 @@ pub fn fly_shots(
                 dug: &live.dug,
                 trees: None,
                 structures: Some(&live.structures),
+                platforms: &[],
             };
             sweep(
                 blow.from,
@@ -287,6 +322,7 @@ pub fn fly_shots(
                 &mut fx,
                 &mut explosions,
                 &mut hits,
+                &mut fortress_hits,
             );
         }
     }
@@ -305,6 +341,7 @@ pub fn fly_shots(
                 dug: &live.dug,
                 trees: None,
                 structures: Some(&live.structures),
+                platforms: &[],
             };
             fly(&mut shot, &scene, &live.structures, &live.forest, &parts, dt)
         };
@@ -339,6 +376,7 @@ pub fn fly_shots(
             &mut fx,
             &mut explosions,
             &mut hits,
+            &mut fortress_hits,
         );
     }
     shots.0 = flying;

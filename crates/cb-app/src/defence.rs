@@ -60,7 +60,8 @@ impl Plugin for DefencePlugin {
     fn build(&self, app: &mut App) {
         // Always present; it runs once the mission begins (`Defending` and `DefenceRun` inserted:
         // by `--mission defence` before startup, or by the title menu's City defence).
-        app.add_systems(FixedUpdate, give_goals.in_set(SimSet::Input).run_if(resource_exists::<Defending>))
+        app.add_systems(Update, switch.after(crate::missions::MissionsSet))
+            .add_systems(FixedUpdate, give_goals.in_set(SimSet::Input).run_if(resource_exists::<Defending>))
             .add_systems(
                 FixedUpdate,
                 step_mission
@@ -74,6 +75,33 @@ impl Plugin for DefencePlugin {
 
 fn say(line: &str) {
     println!("{line}");
+}
+
+/// Free roam's mail turns the defence off and on (`free-roam-missions`): off, its raiders and its waves' vehicles
+/// leave the world and its clock stops; on, it begins from its briefing.
+fn switch(
+    mut commands: Commands,
+    mut switches: MessageReader<crate::missions::MissionSwitch>,
+    raiders: Query<Entity, With<Raider>>,
+    mut units: ResMut<crate::units::Units>,
+) {
+    use cb_core::missions::MissionKind;
+    for s in switches.read() {
+        if s.stop == Some(MissionKind::Defence) {
+            commands.remove_resource::<Defending>();
+            commands.remove_resource::<DefenceRun>();
+            for e in &raiders {
+                commands.entity(e).despawn();
+            }
+            units.retire(MissionKind::Defence);
+            say("MISSION defence turned off");
+        }
+        if s.start == Some(MissionKind::Defence) {
+            commands.insert_resource(Defending);
+            commands.insert_resource(DefenceRun::default());
+            say("MISSION defence begins");
+        }
+    }
 }
 
 /// The mission clock and the waves.

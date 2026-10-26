@@ -68,6 +68,17 @@ fn main() -> ExitCode {
                     ok = false;
                 }
             }
+            // the Hermit's model against its shape data (crab-airship)
+            if let Ok(d) = GameData::load(&root, &mechs[0]) {
+                let problems = glb::check_fortress(&d.fortress, &root.join("..").join("assets"));
+                if problems.is_empty() {
+                    println!("ok   the Hermit ({} parts)", d.fortress.shape.parts.len());
+                }
+                for p in problems {
+                    eprintln!("FAIL {p}");
+                    ok = false;
+                }
+            }
             if ok { ExitCode::SUCCESS } else { ExitCode::FAILURE }
         }
         // A measurement instrument (openspec change `city-defence`): each city's size, buildings
