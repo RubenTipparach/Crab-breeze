@@ -149,6 +149,16 @@ const ART_IMG = '';
 
 // The questions. Answers live in the db collection `answers`, one document per question id.
 const SECTIONS = [
+  { tag: 'W', name: 'Doors and stairs',
+    lead: 'New on 2026-10-26: every building has a street door and a stair you can climb to the top storey, and on foot you walk into buildings, whole or breached (openspec/changes/building-interiors). Being built on the recommendations.',
+    qs: [
+      { id: 'W30', q: 'The street door: for now it is an open doorway with its door leaf standing open inside, so you just walk in. How should doors work?',
+        options: ['Keep them standing open: walk straight in', 'A door that swings open as you walk into it, and shuts behind you', 'Doors are shut; press Use to open one'], rec: 0,
+        why: 'It is the simplest thing that lets you walk in today; a swinging door costs a door that moves and collides as it turns, and Use costs a prompt at every door.' },
+      { id: 'W31', q: 'A warehouse has a steel personnel door you walk in by. Its big roller doors stay shut. Should they open?',
+        options: ['Stay shut for now; open them when warehouses get a real hall inside', 'Open some of them now onto the ground floor', 'Open with Use'], rec: 0,
+        why: 'Behind a roller door today is a shop-sized room, not a loading hall; opening it would show the wrong room.' },
+    ] },
   { tag: 'F', name: 'Ground fog',
     lead: 'New on 2026-10-25: fog that lies low and fills the valleys, the lakes and the coast, greyer under a storm (openspec/changes/ground-fog). Being built on the recommendations.',
     qs: [
