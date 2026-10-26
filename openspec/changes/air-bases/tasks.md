@@ -7,6 +7,8 @@
   courses; trees and grass kept off them by the shared cover rule)
 
 - [ ] 1.2 `cb-core::bases`: arrival, instant repair (order, per-part charges, stop when short), catalogue purchase, tested
+  (2026-10-25: the repair order and rearm in `cb_core::bases::service`, free for now so no charges; arrival is
+  stopping in a bay; the purchase is `cb_core::shop::buy`)
 
 - [ ] 1.3 `data/bases/bases.ron` (layout sizes, repair share), `price` in each mech's data, validated
 

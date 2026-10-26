@@ -175,6 +175,11 @@ impl Career {
         key
     }
 
+    /// The lowest bay of `base` (of `per_base`) no owned mech is parked in, if any.
+    pub fn free_bay(&self, base: u32, per_base: u32) -> Option<u32> {
+        (0..per_base).find(|bay| !self.mechs.iter().any(|m| m.base == base && m.bay == *bay))
+    }
+
     /// The mech with this key.
     pub fn mech(&self, key: u32) -> Option<&OwnedMech> {
         self.mechs.iter().find(|m| m.key == key)
@@ -251,6 +256,58 @@ impl Career {
     }
 }
 
+/// Everything a career reads from `data/`: how it starts, the jobs, the shop's catalogue, and each listed
+/// design's mech data, loaded and checked together so a catalogue naming a missing mech stops startup (and
+/// `cb-tools validate`).
+#[derive(Clone, Debug)]
+pub struct CareerData {
+    /// `career/career.ron`.
+    pub career: CareerConfig,
+    /// `jobs/jobs.ron`.
+    pub jobs: crate::jobs::JobsConfig,
+    /// `career/catalogue.ron`.
+    pub catalogue: crate::shop::Catalogue,
+    /// Each listed design's data, by its file (`mechs/sapper.ron`), in catalogue order.
+    pub designs: Vec<(String, crate::mech::MechConfig)>,
+}
+
+impl CareerData {
+    /// Loads and cross-checks the career's data under `root` (the `data/` directory).
+    pub fn load(root: &std::path::Path) -> Result<Self, crate::data::DataError> {
+        use crate::data::load_ron;
+        let career: CareerConfig = load_ron(&root.join("career/career.ron"))?;
+        let jobs: crate::jobs::JobsConfig = load_ron(&root.join("jobs/jobs.ron"))?;
+        let cat_path = root.join("career/catalogue.ron");
+        let catalogue: crate::shop::Catalogue = load_ron(&cat_path)?;
+        let mut designs = Vec::new();
+        for l in &catalogue.listings {
+            designs.push((l.design.clone(), load_ron(&root.join(&l.design))?));
+        }
+        if catalogue.listing(&career.start_mech).is_none() {
+            return Err(crate::data::DataError {
+                path: cat_path,
+                reason: format!("listings: the starting mech {} is not listed", career.start_mech),
+            });
+        }
+        Ok(Self {
+            career,
+            jobs,
+            catalogue,
+            designs,
+        })
+    }
+
+    /// A listed design's data.
+    pub fn design(&self, design: &str) -> Option<&crate::mech::MechConfig> {
+        self.designs.iter().find(|(d, _)| d == design).map(|(_, c)| c)
+    }
+
+    /// A design's full structure, part by part (a mech as it is delivered).
+    pub fn whole(&self, design: &str) -> Option<Vec<f32>> {
+        self.design(design).map(|c| c.parts.iter().map(|p| p.structure).collect())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -316,6 +373,24 @@ mod tests {
         let mut c = career();
         c.version = VERSION + 1;
         assert!(Career::from_ron(&c.to_ron()).is_err());
+    }
+
+    #[test]
+    fn a_mech_takes_the_lowest_bay_no_other_mech_holds() {
+        let mut c = career();
+        assert_eq!(c.free_bay(0, 3), Some(1), "the starting mech holds bay 0");
+        c.add_mech("mechs/mule.ron", 0, 1, &[1.0]);
+        c.add_mech("mechs/mule.ron", 0, 2, &[1.0]);
+        assert_eq!(c.free_bay(0, 3), None);
+        assert_eq!(c.free_bay(1, 3), Some(0));
+    }
+
+    #[test]
+    fn the_career_data_loads_with_every_listed_mech() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let d = CareerData::load(&root).unwrap();
+        assert_eq!(d.designs.len(), d.catalogue.listings.len());
+        assert!(d.whole("mechs/foreman.ron").is_some_and(|w| !w.is_empty()));
     }
 
     #[test]

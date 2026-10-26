@@ -68,6 +68,18 @@ fn main() -> ExitCode {
                     ok = false;
                 }
             }
+            // the career: how it starts, the jobs, the catalogue and every mech it lists (career, mech-shop)
+            match cb_core::career::CareerData::load(&root) {
+                Ok(c) => println!(
+                    "ok   career: {} job kinds, {} mechs for sale",
+                    c.jobs.kinds.len(),
+                    c.catalogue.listings.len()
+                ),
+                Err(e) => {
+                    eprintln!("FAIL {e}");
+                    ok = false;
+                }
+            }
             // the Hermit's model against its shape data (crab-airship)
             if let Ok(d) = GameData::load(&root, &mechs[0]) {
                 let problems = glb::check_fortress(&d.fortress, &root.join("..").join("assets"));

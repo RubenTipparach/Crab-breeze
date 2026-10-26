@@ -9,8 +9,8 @@ use crate::pilot::PilotSim;
 use crate::sim::{Data, SimSet};
 use crate::world::Plan;
 use bevy::prelude::*;
-use cb_core::career::{Career, CareerConfig};
-use cb_core::jobs::{Event, JobsConfig, Site};
+use cb_core::career::{Career, CareerData};
+use cb_core::jobs::{Event, Site};
 use cb_core::pilot::PilotMode;
 use cb_core::rng::SimRng;
 
@@ -19,10 +19,10 @@ use cb_core::rng::SimRng;
 pub struct CareerRun {
     /// The career.
     pub career: Career,
-    /// `data/career/career.ron`.
-    pub cfg: CareerConfig,
-    /// `data/jobs/jobs.ron`.
-    pub jobs: JobsConfig,
+    /// The career's data: how it starts, the jobs, the shop's catalogue and the mechs it lists.
+    pub data: CareerData,
+    /// What the shop's page last said (a purchase made or refused), until another page is drawn.
+    pub shop_note: Option<String>,
     /// Seconds since the last save.
     since_save_s: f32,
     /// Events from the mail page (a job abandoned for another), handled with the board's own next step.
@@ -83,19 +83,15 @@ impl Plugin for CareerPlugin {
 /// file left where it is).
 fn begin(mut commands: Commands, start: Res<CareerStart>, data: Res<Data>, plan: Res<Plan>) {
     let root = crate::cli::repo_root().join("data");
-    let cfg: CareerConfig = cb_core::data::load_ron(&root.join("career/career.ron")).unwrap_or_else(|e| {
-        warn!("career: {e}");
-        CareerConfig::default()
-    });
-    let jobs: JobsConfig = match cb_core::data::load_ron(&root.join("jobs/jobs.ron")) {
-        Ok(j) => j,
+    let cdata = match CareerData::load(&root) {
+        Ok(d) => d,
         Err(e) => {
             error!("career: {e}");
             return;
         }
     };
     let whole: Vec<f32> = data.0.mech.parts.iter().map(|p| p.structure).collect();
-    let fresh = || Career::new("career", plan.seed ^ 0x5eed, &cfg, &whole);
+    let fresh = || Career::new("career", plan.seed ^ 0x5eed, &cdata.career, &whole);
     let career = match *start {
         CareerStart::New => fresh(),
         CareerStart::Continue => std::fs::read_to_string(save_path())
@@ -115,11 +111,57 @@ fn begin(mut commands: Commands, start: Res<CareerStart>, data: Res<Data>, plan:
     save(&career);
     commands.insert_resource(CareerRun {
         career,
-        cfg,
-        jobs,
+        data: cdata,
+        shop_note: None,
         since_save_s: 0.0,
         pending: Vec::new(),
     });
+}
+
+/// Buys `design` at the shop (mech-shop): delivered to a free bay of the base the pilot is at (`at`), else of the
+/// nearest base to `from` with one; a delivery away from the pilot is mailed. Returns what the page says.
+pub fn buy_mech(
+    run: &mut CareerRun,
+    plan: &cb_core::world::WorldPlan,
+    bays_per_base: u32,
+    design: &str,
+    at: Option<u32>,
+    from: Vec2,
+) -> String {
+    let centres: Vec<Vec2> = plan.bases.iter().map(|b| b.centre).collect();
+    let bays = cb_core::shop::Bays {
+        per_base: bays_per_base,
+        centres: &centres,
+    };
+    let Some(whole) = run.data.whole(design) else {
+        return cb_core::shop::Refusal::NotListed.text();
+    };
+    let name = run.data.design(design).map_or_else(|| design.to_string(), |c| c.name.clone());
+    let kept = run.data.career.ledger_kept;
+    match cb_core::shop::buy(&mut run.career, &run.data.catalogue, &bays, design, at, from, &whole, kept) {
+        Ok(d) => {
+            info!(
+                "SHOP bought {name}: base {} bay {}, {} credits left",
+                d.base, d.bay, run.career.money
+            );
+            if d.away {
+                let inbox = run.data.jobs.inbox_kept;
+                run.career.board.say(
+                    "Hangar Office",
+                    &format!("Your {name} has arrived"),
+                    &format!("Your {name} is in bay {} at base {}.", d.bay + 1, d.base + 1),
+                    None,
+                    inbox,
+                );
+            }
+            save(&run.career);
+            format!("BOUGHT {}: BASE {} BAY {}", name.to_uppercase(), d.base + 1, d.bay + 1)
+        }
+        Err(r) => {
+            info!("SHOP refused {name}: {}", r.text());
+            r.text()
+        }
+    }
 }
 
 /// Steps the job board: offers, arrival (the job's enemies come in), the win (pay) or the loss.
@@ -165,10 +207,10 @@ fn step_jobs(
     events.extend(
         run.career
             .board
-            .step(&run.jobs, &sites, seed, at, if active { left } else { None }, pilot_down, dt),
+            .step(&run.data.jobs, &sites, seed, at, if active { left } else { None }, pilot_down, dt),
     );
-    let kept = run.cfg.ledger_kept;
-    let inbox = run.jobs.inbox_kept;
+    let kept = run.data.career.ledger_kept;
+    let inbox = run.data.jobs.inbox_kept;
     let mut dirty = false;
     for e in events {
         match e {

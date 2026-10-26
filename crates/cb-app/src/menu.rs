@@ -15,6 +15,7 @@ use bevy::window::{CursorGrabMode, CursorOptions};
 const INK: Color = Color::srgb(0.55, 0.95, 0.6);
 const DIM: Color = Color::srgb(0.35, 0.6, 0.4);
 const PANEL: Color = Color::srgba(0.01, 0.04, 0.03, 0.94);
+const WARN: Color = Color::srgb(1.0, 0.75, 0.3);
 
 /// Which page of the menu is open, if any.
 #[derive(Resource, Default, Clone, Copy, PartialEq, Eq, Debug)]
@@ -61,6 +62,16 @@ pub enum Play {
     Career,
 }
 
+/// Which page a terminal's screen shows (air-bases, mech-shop, mech-custom).
+#[derive(Resource, Default, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TerminalTab {
+    /// The career's jobs board: sign up here.
+    #[default]
+    Jobs,
+    /// The mech shop.
+    Shop,
+}
+
 /// The page Back (and Escape) goes to from Options and Controls: the title or the pause menu.
 #[derive(Resource, Clone, Copy)]
 struct BackTo(Menu);
@@ -71,7 +82,11 @@ struct MenuRoot;
 
 /// What a menu button does.
 #[derive(Component, Clone, Copy)]
-enum MenuButton {
+pub(crate) enum MenuButton {
+    /// A terminal screen's tab.
+    Tab(TerminalTab),
+    /// Buy the shop's listing at this index (mech-shop).
+    Buy(usize),
     NewCareer,
     Continue,
     Mail,
@@ -104,6 +119,7 @@ pub struct MenuPlugin;
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Menu>()
+            .init_resource::<TerminalTab>()
             .insert_resource(BackTo(Menu::Pause))
             .add_systems(Update, (escape, draw).chain().before(crate::sim::PresentSet::Input));
     }
@@ -179,6 +195,11 @@ fn set(menu: &mut Menu, next: Menu, time: &mut Time<Virtual>, cursor: &mut Curso
 
 /// Everything a button press may touch.
 struct Press<'a> {
+    tab: &'a mut TerminalTab,
+    /// The terminal whose screen is open, and the world (for where a bought mech is delivered).
+    terminal: Option<cb_core::world::bases::Terminal>,
+    plan: &'a cb_core::world::WorldPlan,
+    bays_per_base: u32,
     menu: &'a mut Menu,
     back: &'a mut BackTo,
     settings: &'a mut Settings,
@@ -196,6 +217,21 @@ fn press(
     commands: &mut Commands,
 ) {
     match what {
+        MenuButton::Tab(t) => {
+            *p.tab = t;
+            if let Some(c) = career {
+                c.shop_note = None;
+            }
+        }
+        MenuButton::Buy(i) => {
+            if let Some(c) = career
+                && let Some(design) = c.data.catalogue.listings.get(i).map(|l| l.design.clone())
+            {
+                let (at, from) = p.terminal.map_or((None, Vec2::ZERO), |t| (Some(t.base), t.at));
+                let note = crate::career::buy_mech(c, p.plan, p.bays_per_base, &design, at, from);
+                c.shop_note = Some(note);
+            }
+        }
         MenuButton::NewCareer | MenuButton::Continue => {
             commands.insert_resource(Play::Career);
             commands.insert_resource(if matches!(what, MenuButton::NewCareer) {
@@ -317,10 +353,20 @@ fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton,
                   mut cursor: Single<&mut CursorOptions>,
                   mut career: Option<ResMut<crate::career::CareerRun>>,
                   mut free: Option<ResMut<crate::missions::FreeRoamRun>>,
-                  mut exit: MessageWriter<AppExit>| {
+                  mut exit: MessageWriter<AppExit>,
+                  (mut tab, terminal, plan, data): (
+                ResMut<TerminalTab>,
+                Option<Res<crate::air_bases::AtTerminal>>,
+                Res<crate::world::Plan>,
+                Res<Data>,
+            )| {
                 press(
                     what,
                     Press {
+                        tab: &mut tab,
+                        terminal: terminal.map(|t| t.0),
+                        plan: &plan,
+                        bays_per_base: data.0.world.bases.hangars as u32,
                         menu: &mut menu,
                         back: &mut back,
                         settings: &mut settings,
@@ -406,12 +452,14 @@ fn draw(
     career: Option<Res<crate::career::CareerRun>>,
     free: Option<Res<crate::missions::FreeRoamRun>>,
     terminal: Option<Res<crate::air_bases::AtTerminal>>,
+    tab: Res<TerminalTab>,
     roots: Query<Entity, With<MenuRoot>>,
     overlay: Query<Entity, With<CockpitCamera>>,
 ) {
     let career_changed = career.as_ref().is_some_and(|c| c.is_changed()) || free.as_ref().is_some_and(|f| f.is_changed());
     let live = matches!(*menu, Menu::Mail | Menu::Terminal);
-    if !menu.is_changed() && !(settings.is_changed() && *menu == Menu::Options) && !(career_changed && live) {
+    let tab_changed = tab.is_changed() && *menu == Menu::Terminal;
+    if !menu.is_changed() && !tab_changed && !(settings.is_changed() && *menu == Menu::Options) && !(career_changed && live) {
         return;
     }
     for r in &roots {
@@ -582,7 +630,11 @@ fn draw(
                 );
                 p.spawn(label(&title, 26.0, DIM));
                 if let Some(run) = career.as_deref() {
-                    mail_page(p, &run.career);
+                    terminal_tabs(p, *tab);
+                    match *tab {
+                        TerminalTab::Jobs => mail_page(p, &run.career),
+                        TerminalTab::Shop => shop_page(p, run),
+                    }
                 } else if let Some(f) = free.as_deref() {
                     missions_page(p, &f.free, &data.0.missions);
                 }
@@ -591,6 +643,68 @@ fn draw(
             Menu::Closed => {}
         });
     });
+}
+
+/// The row of a terminal screen's tabs, the open one marked.
+fn terminal_tabs(p: &mut ChildSpawnerCommands, open: TerminalTab) {
+    p.spawn(Node {
+        column_gap: px(12.0),
+        ..default()
+    })
+    .with_children(|row| {
+        for (t, name) in [(TerminalTab::Jobs, "JOBS"), (TerminalTab::Shop, "SHOP")] {
+            let text = if t == open { format!("[{name}]") } else { name.to_string() };
+            button_sized(row, &text, MenuButton::Tab(t), 180.0);
+        }
+    });
+}
+
+/// The SHOP page (mech-shop): the money, then every mech for sale with the numbers the game flies it by
+/// (read from its own data, CLAUDE.md 6.1), how many the career owns, and BUY with its price; then what the
+/// last purchase did or why it was refused.
+fn shop_page(p: &mut ChildSpawnerCommands, run: &crate::career::CareerRun) {
+    let c = &run.career;
+    p.spawn(label(&format!("SHOP      CREDITS {}", c.money), 40.0, INK));
+    if let Some(note) = &run.shop_note {
+        p.spawn(label(note, 24.0, if note.starts_with("BOUGHT") { INK } else { WARN }));
+    }
+    for (i, l) in run.data.catalogue.listings.iter().enumerate() {
+        let Some(m) = run.data.design(&l.design) else { continue };
+        let owned = c.mechs.iter().filter(|o| o.design == l.design).count();
+        let torso = m
+            .parts
+            .iter()
+            .find(|p| p.kind == cb_core::mech::PartKind::Torso)
+            .map_or(0.0, |p| p.armour_mm);
+        let guns: Vec<&str> = m.weapons.iter().map(|w| w.name.as_str()).collect();
+        p.spawn(Node {
+            column_gap: px(14.0),
+            align_items: AlignItems::Center,
+            ..default()
+        })
+        .with_children(|row| {
+            row.spawn((
+                Node {
+                    width: px(720.0),
+                    ..default()
+                },
+                label(
+                    &format!(
+                        "{}{}\n{:.0} T  WALK {:.0} KM/H  ARMOUR {:.0} MM  {}",
+                        m.name.to_uppercase(),
+                        if owned > 0 { format!("   OWNED {owned}") } else { String::new() },
+                        m.locomotion.mass_kg / 1000.0,
+                        m.locomotion.walk_speed_max_m_s * 3.6,
+                        torso,
+                        guns.join(", ").to_uppercase()
+                    ),
+                    18.0,
+                    if owned > 0 { INK } else { DIM },
+                ),
+            ));
+            button_sized(row, &format!("BUY {}", l.price), MenuButton::Buy(i), 220.0);
+        });
+    }
 }
 
 /// The MAIL page: the credits, the job under way, every open offer with Accept and Decline, and the

@@ -26,6 +26,7 @@ pub mod pilot;
 pub mod rng;
 pub mod save;
 pub mod settings;
+pub mod shop;
 pub mod sim;
 pub mod skins;
 pub mod sky_light;
