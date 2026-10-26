@@ -269,7 +269,7 @@ fn shoot_image(commands: &mut Commands, script: &Script, name: &str) {
     commands.spawn(Screenshot::image(img)).observe(save_to_disk(path));
 }
 
-fn shoot(commands: &mut Commands, dir: &std::path::Path, name: &str) {
+pub(crate) fn shoot(commands: &mut Commands, dir: &std::path::Path, name: &str) {
     let path = dir.join(name);
     info!("capture: {}", path.display());
     commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
@@ -844,7 +844,7 @@ fn run_depth_bench(
 }
 
 /// The pilot on foot at `feet`, looking at `at`.
-fn stand_looking(pilot: &mut PilotSim, feet: Vec3, at: Vec3) {
+pub(crate) fn stand_looking(pilot: &mut PilotSim, feet: Vec3, at: Vec3) {
     let to = at - feet;
     let mut s = PilotState::standing(feet, (-to.x).atan2(-to.z));
     s.pitch_rad = (to.y - 1.7).atan2(to.with_y(0.0).length());

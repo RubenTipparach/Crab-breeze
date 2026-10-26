@@ -298,10 +298,56 @@ pub fn check_skins(skins: &cb_core::skins::Skins, assets: &Path) -> Vec<String> 
     out
 }
 
+/// Checks the Hermit's model against its data (openspec change `crab-airship` section 9): every part in
+/// `fortress_shape.ron` has its `PART_<id>` node, every lift thruster its `LEG_<id>`, every turning gun its
+/// `YAW_`, `PITCH_` and `MUZZLE_` nodes, the spikes are `DETAIL_` meshes (drawn only up close), and every image
+/// the model points at outside itself is on disk.
+pub fn check_fortress(d: &cb_core::fortress::FortressData, assets: &Path) -> Vec<String> {
+    let path = assets.join(&d.shape.model);
+    let t = match Tree::read(&path) {
+        Ok(t) => t,
+        Err(e) => return vec![format!("fortress: {e}")],
+    };
+    let mut out = Vec::new();
+    let has = |n: &str| t.names.iter().any(|x| x == n);
+    for (i, p) in d.shape.parts.iter().enumerate() {
+        let mut want = vec![format!("PART_{}", p.id)];
+        if p.kind == "lift" {
+            want.push(format!("LEG_{}", p.id));
+        }
+        if d.kind(i).gun.as_ref().is_some_and(|g| g.turns) {
+            want.extend(["YAW", "PITCH", "MUZZLE"].map(|k| format!("{k}_{}", p.id)));
+        }
+        for n in want.into_iter().filter(|n| !has(n)) {
+            out.push(format!("fortress: {} has no node `{n}`", d.shape.model));
+        }
+    }
+    // its detail level: the spikes the game draws only up close
+    if !t.names.iter().any(|n| n.starts_with("DETAIL_")) {
+        out.push(format!("fortress: {} has no DETAIL_ meshes (its spikes)", d.shape.model));
+    }
+    let dir = path.parent().unwrap_or(assets);
+    for im in t.json["images"].as_array().into_iter().flatten() {
+        if let Some(uri) = im["uri"].as_str().filter(|u| !u.starts_with("data:"))
+            && !dir.join(uri).exists()
+        {
+            out.push(format!("fortress: {} points at {uri}, which is not there", d.shape.model));
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn the_shipped_fortress_model_has_every_node_its_data_names() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let d = cb_core::GameData::load(&root.join("data"), "mechs/placeholder.ron").unwrap();
+        assert_eq!(check_fortress(&d.fortress, &root.join("assets")), Vec::<String>::new());
+    }
 
     fn contract_tree(skip: &str) -> Value {
         let names: Vec<(&str, Option<&str>)> = BONES

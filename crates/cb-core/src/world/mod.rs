@@ -22,6 +22,7 @@ pub mod island;
 pub mod layout;
 pub mod lod;
 pub mod mist;
+pub mod platform;
 pub mod roads;
 pub mod rocks;
 pub mod structure;
@@ -41,6 +42,7 @@ pub use destruct::{Chunk, Moment, Structures};
 pub use dressing::DressingConfig;
 pub use forest::{Body, Bump, Forest, Push, TileChanges, Tree, TreeState};
 pub use layout::{Block, Building, City, Highway, Rect, StreetKind, StreetPiece};
+pub use platform::{Platform, Slab};
 pub use structure::{Frame, StructureConfig};
 pub use terrain::{ChunkMesh, Heightfield};
 pub use water::{Bridge, Lake, Lakes, River, WaterSample, Waterfall, Waters};
@@ -71,6 +73,9 @@ pub trait Ground {
     }
 }
 
+/// Trees push a body whose feet are no higher than this over the ground under it.
+const TREE_REACH_M: f32 = 30.0;
+
 /// The world as it is now: the generated plan plus the ground dug since, and optionally the trees
 /// standing now (as walls). The one `Ground` the game's bodies walk on.
 pub struct Scene<'a> {
@@ -82,6 +87,8 @@ pub struct Scene<'a> {
     pub trees: Option<&'a Forest>,
     /// Buildings as they stand now; `None` means every building is whole.
     pub structures: Option<&'a Structures>,
+    /// Moving surfaces bodies stand on (the Hermit's deck: `platform`); empty for none.
+    pub platforms: &'a [Platform],
 }
 
 impl Scene<'_> {
@@ -138,12 +145,17 @@ impl Ground for Scene<'_> {
                 .filter_map(|b| st.roof_under(b, p, feet_y))
                 .reduce(f32::max),
         };
-        roof.map_or(ground, |r| r.max(ground))
+        let under = roof.map_or(ground, |r| r.max(ground));
+        platform::top_under(self.platforms, x, z, feet_y).map_or(under, |t| t.max(under))
     }
     fn push_out_at(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
         let p = self.push_out_buildings(p, radius_m, feet_y);
         let p = rocks::push_out(&self.plan.rocks, p, radius_m, feet_y);
-        self.trees.map_or(p, |t| t.push_out(p, radius_m))
+        // trunks stand on the ground: a body far above it (on a deck, a roof) passes over them
+        match self.trees {
+            Some(t) if feet_y <= self.height_at(p.x, p.y) + TREE_REACH_M => t.push_out(p, radius_m),
+            _ => p,
+        }
     }
 }
 

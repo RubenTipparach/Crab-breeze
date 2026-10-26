@@ -725,6 +725,33 @@ fn fmt_budget(name: &str, heat: f32, locked: bool, burn_s: f32, recharge_s: f32,
     }
 }
 
+/// `HERMIT   LIFT PORT 100 %  STBD 67 %   ALT 600 M`, the hull thrusters once they open, `FALLING`, then
+/// `DOWN: WON`: every number the lift rule's own (`crab-airship` section 9; CLAUDE.md 6.1).
+fn fmt_fortress(run: &crate::fortress::FortressRun, d: &cb_core::fortress::FortressData) -> (String, Color) {
+    let f = &run.f;
+    match run.outcome {
+        Some(true) => return ("THE HERMIT IS DOWN: MISSION WON".into(), GREEN),
+        Some(false) => return ("MISSION LOST: your mech was destroyed".into(), RED),
+        None => {}
+    }
+    let l = f.lift(d);
+    let mut s = format!(
+        "HERMIT   LIFT PORT {:.0} %  STBD {:.0} %   ALT {:.0} M",
+        l.port * 200.0,
+        l.stbd * 200.0,
+        f.pos.y - f.ground_m
+    );
+    if f.doors_s.is_some() {
+        s += &format!("   HULL THRUSTERS {}", if l.lit { "LIT" } else { "OPENING" });
+    }
+    if f.falling {
+        s += "   FALLING";
+    }
+    // amber while its hull thrusters open and hold it, green again once it is falling
+    let colour = if f.doors_s.is_some() && !f.falling { AMBER } else { GREEN };
+    (s, colour)
+}
+
 /// `WAVE 2/3   CITY 2  DAMAGE 23 %   RAIDERS 6/10   7:41`, coloured by how close the city or the
 /// clock is to losing. Empty outside the mission.
 fn fmt_mission(run: Option<&crate::defence::DefenceRun>, cfg: &cb_core::mission::DefenceConfig) -> (String, Color) {
@@ -774,6 +801,8 @@ fn update_hud(
     pilot: Res<PilotSim>,
     data: Res<crate::sim::Data>,
     run: Option<Res<crate::defence::DefenceRun>>,
+    fortress: Option<Res<crate::fortress::FortressRun>>,
+    free: Option<Res<crate::missions::FreeRoamRun>>,
     plan: Res<Plan>,
     mech: Query<(&MechSim, &MechSpec), With<Piloted>>,
     mut roots: Query<&mut Visibility, With<HudRoot>>,
@@ -854,7 +883,12 @@ fn update_hud(
                 GREEN,
             ),
             Readout::Mission => {
-                let (s, c) = fmt_mission(run.as_deref(), &data.0.defence);
+                // The running mission's readout (one runs at a time: free-roam-missions), or free roam's.
+                let (s, c) = match (&fortress, run.as_deref()) {
+                    (Some(f), _) => fmt_fortress(f, &data.0.fortress),
+                    (None, Some(_)) => fmt_mission(run.as_deref(), &data.0.defence),
+                    (None, None) => (crate::missions::idle_line(free.as_deref()).unwrap_or_default().to_string(), GREEN),
+                };
                 (s.replace("   ", "\n").replace("  ", "\n"), c)
             }
             Readout::Flight => (

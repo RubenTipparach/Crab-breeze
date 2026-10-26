@@ -903,6 +903,46 @@ fn the_baked_sun_shade_agrees_with_a_ray_toward_the_sun() {
 }
 
 #[test]
+fn a_pilot_standing_still_on_a_deck_over_the_city_stays_where_they_stand() {
+    // A cloud run's regression (crab-airship section 9): standing still on the Hermit's deck, 600 m over the city,
+    // the pilot slid 26 m across it, pushed out of the footprints of the buildings and trees far below.
+    let plan = seed_42();
+    let b = &plan.buildings[0];
+    let over = b.footprint.centre();
+    let top = plan.terrain.height_at(over.x, over.y) + 600.0;
+    let deck = Platform {
+        slabs: vec![Slab {
+            name: "deck".into(),
+            min: Vec2::splat(-200.0),
+            max: Vec2::splat(200.0),
+            centre: Vec2::ZERO,
+            top_m: 0.0,
+            slope: Vec2::ZERO,
+        }],
+        pose: glam::Affine3A::from_translation(Vec3::new(over.x, top, over.y)),
+        was: glam::Affine3A::from_translation(Vec3::new(over.x, top, over.y)),
+    };
+    let dug = Deformation::new(4096.0);
+    let structures = Structures::new(plan);
+    let forest = Forest::default();
+    let platforms = [deck];
+    let scene = Scene {
+        plan,
+        dug: &dug,
+        trees: Some(&forest),
+        structures: Some(&structures),
+        platforms: &platforms,
+    };
+    let start = Vec3::new(over.x, top, over.y);
+    let mut p = crate::pilot::PilotState::standing(start, 0.0);
+    let cfg = crate::pilot::PilotConfig::default();
+    for _ in 0..120 {
+        p.step(&crate::input::Actions::default(), &cfg, &scene, None, 1.0 / 60.0);
+    }
+    assert!(p.feet.distance(start) < 1e-3, "{start} -> {}", p.feet);
+}
+
+#[test]
 fn no_rivers_water_lies_under_the_ground() {
     // Owner, 2026-10-25: "I see rivers still have holes in them". Every river's water is over the
     // ground along its whole course, joins included, except where a road's flat band or a bridge

@@ -25,6 +25,8 @@ pub struct CareerRun {
     pub jobs: JobsConfig,
     /// Seconds since the last save.
     since_save_s: f32,
+    /// Events from the mail page (a job abandoned for another), handled with the board's own next step.
+    pub pending: Vec<Event>,
 }
 
 /// How the career begins, chosen on the title menu.
@@ -116,6 +118,7 @@ fn begin(mut commands: Commands, start: Res<CareerStart>, data: Res<Data>, plan:
         cfg,
         jobs,
         since_save_s: 0.0,
+        pending: Vec::new(),
     });
 }
 
@@ -130,6 +133,7 @@ fn step_jobs(
     time: Res<Time<Fixed>>,
     me: Query<&MechSim, With<Piloted>>,
     enemies: Query<(&MechSim, &JobEnemy)>,
+    enemy_entities: Query<(Entity, &JobEnemy)>,
     tex: Res<crate::textures::Textures>,
     assets: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -157,10 +161,12 @@ fn step_jobs(
     let active = current.is_some_and(|id| run.career.board.job(id).is_some_and(|j| j.state == cb_core::jobs::JobState::Active));
     let pilot_down = mech.is_some_and(|m| m.dead);
     let seed = run.career.seed;
-    let events = run
-        .career
-        .board
-        .step(&run.jobs, &sites, seed, at, if active { left } else { None }, pilot_down, dt);
+    let mut events = std::mem::take(&mut run.pending);
+    events.extend(
+        run.career
+            .board
+            .step(&run.jobs, &sites, seed, at, if active { left } else { None }, pilot_down, dt),
+    );
     let kept = run.cfg.ledger_kept;
     let inbox = run.jobs.inbox_kept;
     let mut dirty = false;
@@ -214,6 +220,21 @@ fn step_jobs(
                     Some(id),
                     inbox,
                 );
+                dirty = true;
+            }
+            Event::Abandoned(id) => {
+                // given up for another job: its enemies leave, unpaid (free-roam-missions)
+                info!("JOB {id} abandoned");
+                for (e, je) in &enemy_entities {
+                    if je.0 == id {
+                        commands.entity(e).despawn();
+                    }
+                }
+                run.career.done.push(cb_core::career::JobRecord {
+                    job: id,
+                    won: false,
+                    paid: 0,
+                });
                 dirty = true;
             }
             Event::Failed(id) => {

@@ -11,12 +11,14 @@ mod building_arrays;
 mod building_state;
 mod buildings;
 mod capture;
+mod capture_fortress;
 mod career;
 mod cli;
 mod clouds_render;
 mod combat;
 mod defence;
 mod demolition;
+mod fortress;
 mod fx;
 mod fx_gallery;
 mod grass;
@@ -29,6 +31,7 @@ mod loading;
 mod mech;
 mod menu;
 mod mfd;
+mod missions;
 mod music;
 mod particles;
 mod pbr_set;
@@ -164,6 +167,8 @@ fn main() -> AppExit {
         vents::VentsPlugin,
         career::CareerPlugin,
     ))
+    // Free roam's mail and its missions (free-roam-missions); the Hermit (crab-airship).
+    .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin))
     // sound: effects in 3D, music, ambience (openspec changes `audio`, `music`, `ambience`)
     .add_plugins((audio::SoundPlugin, music::MusicPlugin, ambience::AmbiencePlugin));
     // Cheap, correctly lit clouds (openspec change `cloud-puffs`); `CB_NO_CLOUDS=1` leaves them
@@ -197,6 +202,9 @@ fn main() -> AppExit {
             .insert_resource(menu::Play::Defence);
     } else if scripted || args.mission.is_some() || args.start.is_some() || args.play.as_deref().is_some_and(|m| m.starts_with("free")) {
         app.insert_resource(menu::Play::FreeRoam);
+        if args.mission.as_deref() == Some("fortress") {
+            app.insert_resource(missions::StartWith(cb_core::missions::MissionKind::Fortress));
+        }
         // A scripted take fights the encounter mechs; free roam as a player plays it has none.
         if scripted {
             app.insert_resource(menu::Encounters);
@@ -223,7 +231,9 @@ fn main() -> AppExit {
         window: !scripted && !cli::switched_off("CB_UNCAPPED"),
     });
     if let Some(dir) = args.stills {
-        if std::env::var("CB_STILLS_FX").is_ok() {
+        if std::env::var("CB_STILLS_FORTRESS").is_ok() {
+            app.add_plugins(capture_fortress::FortressStillsPlugin { dir });
+        } else if std::env::var("CB_STILLS_FX").is_ok() {
             app.add_plugins(capture::FxStillsPlugin { dir });
         } else if std::env::var("CB_STILLS_WEATHER").is_ok() {
             app.add_plugins(capture::WeatherStillsPlugin { dir });

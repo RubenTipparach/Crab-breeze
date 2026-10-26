@@ -1,0 +1,98 @@
+// The Hermit, the crab air fortress (openspec/changes/crab-airship, design sections 1 to 6 and 9). Its shape (parts,
+// platforms, hull) is data/missions/fortress_shape.ron, measured off the model. First estimates, tuned from a run.
+(
+    mass_t: 60000.0,
+    altitude_m: 600.0,
+    circle_radius_m: 380.0,
+    speed_m_s: 15.0,
+    drive_stop_s: 20.0,
+    // A lift thruster carries a quarter of the weight at most, a hull thruster a sixth (sections 2, 2b).
+    lift_max_share: 0.25,
+    hull_max_share: 0.1666667,
+    sink_drag_per_m: 0.008,
+    list_deg_per_weight: 100.0,
+    list_rate_deg_s: 4.0,
+    hold_time_s: 1.2,
+    doors_open_s: 3.0,
+    hull_light_s: 4.0,
+    turret_turn_deg_s: 60.0,
+    fire_cone_deg: 5.0,
+    // The spikes (the model's DETAIL_ meshes) draw only this close to their origin, fading over the last 100 m (owner,
+    // 2026-10-25: "spikes should not render until we are up close").
+    detail_range_m: 700.0,
+    kinds: {
+        "lift": (
+            name: "Lift thruster", hp: 800.0, armour_mm: 60.0,
+            // owner, 2026-10-25: "armor on the thrusters facing outward", "should be damageable from this side"
+            weak: Lift(plate_mm: 300.0, below_m: 18.0, above_m: 18.0),
+            capsule: (radius_m: 16.5, half_m: 20.0),
+        ),
+        "hull": (
+            name: "Hull thruster", hp: 900.0, armour_mm: 300.0,
+            weak: Port(within_deg: 30.0),
+            capsule: (radius_m: 12.0, half_m: 30.0, centre_y_m: 5.0),
+        ),
+        "drive": (name: "Drive thruster", hp: 600.0, armour_mm: 140.0, capsule: (radius_m: 12.0, half_m: 0.0)),
+        "flak": (
+            name: "Flak turret", hp: 150.0, armour_mm: 60.0,
+            capsule: (radius_m: 6.0, half_m: 1.5, centre_y_m: 4.0),
+            gun: Some((
+                weapon: (name: "105 mm flak", socket: "MUZZLE", arm: Torso, group: 0, speed_m_s: 900.0,
+                         interval_s: 0.5, penetration_mm: 60.0, damage: 8.0, blast_mj: 1.0),
+                range_m: 1800.0, burst: 4, pause_s: 1.5, aim_error_deg: 1.5, elev_deg: (-10.0, 85.0), proximity_m: 10.0,
+            )),
+        ),
+        "beam": (
+            name: "Beam turret", hp: 250.0, armour_mm: 120.0, weak: WhileCharging,
+            capsule: (radius_m: 7.0, half_m: 3.0, centre_y_m: -7.0),
+            gun: Some((
+                weapon: (name: "beam", socket: "MUZZLE", arm: Torso, group: 0, speed_m_s: 1.0,
+                         interval_s: 1.0, penetration_mm: 1.0, damage: 1.0, blast_mj: 0.0),
+                range_m: 900.0, burst: 1, pause_s: 1.5, aim_error_deg: 0.0, elev_deg: (-90.0, 10.0),
+                beam: Some((charge_s: 1.5, on_s: 3.0, damage_per_s: 10.0)),
+            )),
+        ),
+        "gun": (
+            name: "Deck gun", hp: 100.0, armour_mm: 30.0,
+            capsule: (radius_m: 3.0, half_m: 1.0, centre_y_m: 2.0),
+            gun: Some((
+                weapon: (name: "30 mm gatling", socket: "MUZZLE", arm: Torso, group: 0, speed_m_s: 1000.0,
+                         interval_s: 0.05, penetration_mm: 40.0, damage: 1.5, blast_mj: 0.0),
+                range_m: 600.0, burst: 20, pause_s: 2.5, aim_error_deg: 1.0, elev_deg: (-20.0, 80.0),
+            )),
+        ),
+        "msl": (
+            // owner, 2026-10-25: "crab needs missile launchers"
+            name: "Missile launcher", hp: 300.0, armour_mm: 60.0, weak: WhileFiring,
+            capsule: (radius_m: 9.0, half_m: 3.0, centre_y_m: 8.0),
+            gun: Some((
+                weapon: (name: "crab missile", socket: "MUZZLE", arm: Torso, group: 0, speed_m_s: 220.0,
+                         interval_s: 0.25, penetration_mm: 150.0, damage: 35.0, blast_mj: 2.0, rocket: true,
+                         seeker_turn_deg_s: 45.0),
+                range_m: 2500.0, burst: 6, pause_s: 7.75, aim_error_deg: 2.0, elev_deg: (14.0, 69.0),
+            )),
+        ),
+        "vls": (
+            name: "Missile battery", hp: 200.0, armour_mm: 60.0,
+            capsule: (radius_m: 8.0, half_m: 2.0, centre_y_m: 2.0),
+            gun: Some((
+                weapon: (name: "crab missile", socket: "MUZZLE", arm: Torso, group: 0, speed_m_s: 220.0,
+                         interval_s: 5.0, penetration_mm: 150.0, damage: 35.0, blast_mj: 2.0, rocket: true,
+                         seeker_turn_deg_s: 45.0),
+                range_m: 2500.0, burst: 1, pause_s: 5.0, aim_error_deg: 0.0, elev_deg: (90.0, 90.0), turns: false,
+                magazine: 12,
+            )),
+        ),
+        "cat": (name: "Catapult", hp: 400.0, armour_mm: 100.0, capsule: (radius_m: 3.0, half_m: 0.0, centre_y_m: 1.0)),
+        "bay": (name: "Drop bay", hp: 600.0, armour_mm: 140.0, capsule: (radius_m: 12.0, half_m: 0.0)),
+        "hlift": (name: "Hangar lift", hp: 400.0, armour_mm: 100.0, capsule: (radius_m: 8.0, half_m: 0.0)),
+        "bridge": (
+            name: "Bridge", hp: 1200.0, armour_mm: 140.0, weak: Above(y_m: 40.0),
+            capsule: (radius_m: 18.0, half_m: 14.0, centre_y_m: 24.0),
+        ),
+    },
+    launch: (unit: "fighter", interval_s: 20.0, first_s: 8.0, max_airborne: 8, hangar: 24, off_m: (0.0, 3.0, 64.0)),
+    downwash: (radius_top_m: 15.0, radius_bottom_m: 30.0, length_m: 150.0, push_m_s2: 25.0, burn_per_s: 15.0),
+    leg: (blast_mj: 30.0, break_radius_m: 25.0, tumble_deg_s: 25.0),
+    crash: (clearance_m: 40.0, blast_mj: 200.0, break_margin_m: 60.0),
+)

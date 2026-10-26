@@ -1,0 +1,9 @@
+{
+  "_": "The crab air fortress block-out's features, in metres in its frame (+Z forward, +X its own left). The one place they are written: tools/mockups/gen_crab_fortress.py inlines it into the mockup, which builds from it, and tools/textures/gen_mech_plating.mjs hands it to the plating kit, which lays the fortress's panelling out around the same features (openspec/changes/crab-airship, design section 6).",
+  "shell": { "ax": 140, "az": 210, "top_m": 45, "under_m": 34 },
+  "lift_z": [125, 45, -40, -125],
+  "hull_ports": { "x": 104, "z": [80, 0, -80], "collar_m": 15 },
+  "drive": { "x": 48, "z": -200 },
+  "belly": { "cz": -10, "ax": 92, "az": 150, "rib_dz": 34 },
+  "stations_z": [181, 150, 125, 80, 45, 0, -40, -80, -125, -150, -181]
+}

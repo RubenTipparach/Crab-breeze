@@ -75,6 +75,8 @@ enum MenuButton {
     Mail,
     Accept(u32),
     Decline(u32),
+    StartMission(cb_core::missions::MissionKind),
+    StopMission,
     Resume,
     FreeRoam,
     Defence,
@@ -113,14 +115,18 @@ fn escape(
     keys: Res<crate::input::Keys>,
     back: Res<BackTo>,
     settings: Res<Settings>,
-    (career, play): (Option<Res<crate::career::CareerRun>>, Option<Res<Play>>),
+    (career, play, free): (
+        Option<Res<crate::career::CareerRun>>,
+        Option<Res<Play>>,
+        Option<Res<crate::missions::FreeRoamRun>>,
+    ),
     mut menu: ResMut<Menu>,
     mut time: ResMut<Time<Virtual>>,
     mut cursor: Single<&mut CursorOptions>,
 ) {
     // M opens and closes the mail, in a career and in free roam (survey J1: "press M to focus on the
-    // mail screen"; free roam's mail offers the city defence).
-    let has_mail = career.is_some() || play.as_deref() == Some(&Play::FreeRoam);
+    // mail screen"; free roam's mail starts its missions: free-roam-missions).
+    let has_mail = career.is_some() || free.is_some() || play.as_deref() == Some(&Play::FreeRoam);
     if has_mail && input.any_just_pressed(keys.mail.iter().copied()) {
         match *menu {
             Menu::Closed => set(&mut menu, Menu::Mail, &mut time, &mut cursor),
@@ -173,6 +179,7 @@ fn press(
     what: MenuButton,
     p: Press,
     career: Option<&mut crate::career::CareerRun>,
+    free: Option<&mut crate::missions::FreeRoamRun>,
     exit: &mut MessageWriter<AppExit>,
     commands: &mut Commands,
 ) {
@@ -193,8 +200,22 @@ fn press(
             set(p.menu, Menu::Mail, p.time, p.cursor);
         }
         MenuButton::Accept(id) => {
+            // One job at a time: accepting abandons the one under way (free-roam-missions).
             if let Some(c) = career {
-                c.career.board.accept(id);
+                let events = c.career.board.accept(id);
+                c.pending.extend(events);
+            }
+        }
+        // Free roam's missions: starting one turns off the one running (free-roam-missions).
+        MenuButton::StartMission(kind) => {
+            if let Some(f) = free {
+                f.start(kind);
+            }
+            set(p.menu, Menu::Closed, p.time, p.cursor);
+        }
+        MenuButton::StopMission => {
+            if let Some(f) = free {
+                f.stop();
             }
         }
         MenuButton::Decline(id) => {
@@ -283,6 +304,7 @@ fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton,
                   mut time: ResMut<Time<Virtual>>,
                   mut cursor: Single<&mut CursorOptions>,
                   mut career: Option<ResMut<crate::career::CareerRun>>,
+                  mut free: Option<ResMut<crate::missions::FreeRoamRun>>,
                   mut exit: MessageWriter<AppExit>| {
                 press(
                     what,
@@ -294,6 +316,7 @@ fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton,
                         cursor: &mut cursor,
                     },
                     career.as_deref_mut(),
+                    free.as_deref_mut(),
                     &mut exit,
                     &mut commands,
                 );
@@ -369,12 +392,11 @@ fn draw(
     settings: Res<Settings>,
     data: Res<Data>,
     career: Option<Res<crate::career::CareerRun>>,
-    (play, defending): (Option<Res<Play>>, Option<Res<crate::defence::Defending>>),
+    free: Option<Res<crate::missions::FreeRoamRun>>,
     roots: Query<Entity, With<MenuRoot>>,
     overlay: Query<Entity, With<CockpitCamera>>,
 ) {
-    let career_changed = career.as_ref().is_some_and(|c| c.is_changed());
-    let free_roam = play.as_deref() == Some(&Play::FreeRoam);
+    let career_changed = career.as_ref().is_some_and(|c| c.is_changed()) || free.as_ref().is_some_and(|f| f.is_changed());
     if !menu.is_changed() && !(settings.is_changed() && *menu == Menu::Options) && !(career_changed && *menu == Menu::Mail) {
         return;
     }
@@ -434,7 +456,7 @@ fn draw(
             Menu::Pause => {
                 p.spawn(label("PAUSED", 44.0, INK));
                 button(p, "Resume", MenuButton::Resume);
-                if career.is_some() || free_roam {
+                if career.is_some() || free.is_some() {
                     button(p, "Mail", MenuButton::Mail);
                 }
                 button(p, "Options", MenuButton::Options);
@@ -531,20 +553,10 @@ fn draw(
             Menu::Mail => {
                 if let Some(run) = career.as_deref() {
                     mail_page(p, &run.career);
-                } else if free_roam {
-                    // Free roam's mail: the city defence, started when accepted (owner, 2026-10-25: "city defense
-                    // is a menu mail option in free roam").
-                    p.spawn(label("MAIL", 40.0, INK));
-                    if defending.is_some() {
-                        p.spawn(label("UNDER WAY: City defence. Raiders are coming for the cities.", 24.0, INK));
-                    } else {
-                        p.spawn(label(
-                            "City defence: three waves of raiders are coming for the cities. Stop them.",
-                            24.0,
-                            INK,
-                        ));
-                        button(p, "Accept", MenuButton::Defence);
-                    }
+                } else if let Some(f) = free.as_deref() {
+                    // Free roam's mail: every mission, started when accepted (owner, 2026-10-25: "city defense is a
+                    // menu mail option in free roam", "add an email in free roam to fight the crab fortress").
+                    missions_page(p, &f.free, &data.0.missions);
                 }
                 button(p, "Back", MenuButton::Resume);
             }
@@ -619,9 +631,8 @@ fn mail_page(p: &mut ChildSpawnerCommands, c: &cb_core::career::Career) {
                     INK,
                 ),
             ));
-            if c.board.current().is_none() {
-                button_sized(row, "Accept", MenuButton::Accept(j.id), 130.0);
-            }
+            // accepting while a job is under way abandons that one (one at a time)
+            button_sized(row, "Accept", MenuButton::Accept(j.id), 130.0);
             button_sized(row, "Decline", MenuButton::Decline(j.id), 130.0);
         });
     }
@@ -640,5 +651,51 @@ fn mail_page(p: &mut ChildSpawnerCommands, c: &cb_core::career::Career) {
             },
             label(&format!("{}: {}. {}", m.from, m.subject, m.body), 18.0, DIM),
         ));
+    }
+}
+
+/// Free roam's MAIL page (free-roam-missions): one message per mission, each with Start, or Stop for the one
+/// running. Starting one turns off the one running.
+fn missions_page(p: &mut ChildSpawnerCommands, f: &cb_core::missions::FreeRoam, mail: &cb_core::missions::MissionsMail) {
+    p.spawn(label("MAIL      FREE ROAM", 40.0, INK));
+    p.spawn(label(
+        match f.active {
+            Some(_) => "One mission runs at a time: starting another turns this one off.",
+            None => "No mission running. Start one below.",
+        },
+        22.0,
+        DIM,
+    ));
+    for (m, msg) in mail.mail.iter().zip(&f.inbox).rev() {
+        let running = f.active == Some(m.mission);
+        p.spawn(Node {
+            column_gap: px(14.0),
+            align_items: AlignItems::Center,
+            ..default()
+        })
+        .with_children(|row| {
+            row.spawn((
+                Node {
+                    width: px(760.0),
+                    ..default()
+                },
+                label(
+                    &format!(
+                        "{}{}: {}\n{}",
+                        if running { "RUNNING   " } else { "" },
+                        msg.from,
+                        msg.subject,
+                        msg.body
+                    ),
+                    18.0,
+                    if running { INK } else { DIM },
+                ),
+            ));
+            if running {
+                button_sized(row, "Stop", MenuButton::StopMission, 130.0);
+            } else {
+                button_sized(row, "Start", MenuButton::StartMission(m.mission), 130.0);
+            }
+        });
     }
 }
