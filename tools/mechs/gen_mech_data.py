@@ -206,11 +206,14 @@ MOBILITY = {
     "driller": dict(jet=(50.0, 50.0, 16.0, 9.0), skate=(110.0, 11.0, 1.8, 80.0, 45.0, 10.0)),
     # the siege mech in bolt-on armour: slow on both, short skates
     "sapper": dict(jet=(46.0, 50.0, 16.0, 10.0), skate=(105.0, 10.0, 1.4, 80.0, 35.0, 12.0)),
-    # the hauler on the heaviest slabs: weak lift, the longest-running skates for the haul
-    "mule": dict(jet=(44.0, 45.0, 14.0, 10.0), skate=(100.0, 9.0, 1.6, 70.0, 55.0, 12.0)),
+    # the hauler on the heaviest slabs: weak lift, the longest-running skates for the haul. Its 17 s of burn is the
+    # least that still carries it the 649 m up to the Stratostacean's deck with burn to spare (survey H4: every mech
+    # reaches it on its jets as they are; fortress test every_mech_reaches_the_deck_on_its_jets_as_they_are)
+    "mule": dict(jet=(44.0, 45.0, 17.0, 10.0), skate=(100.0, 9.0, 1.6, 70.0, 55.0, 12.0)),
     # the locomotive on drive-wheel knees: the weakest lift, the highest skate top speed, slow to build and to turn,
-    # and it drifts
-    "ironhorse": dict(jet=(42.0, 45.0, 14.0, 11.0), skate=(140.0, 10.0, 1.0, 70.0, 50.0, 10.0)),
+    # and it drifts. 17 s of burn, like the Mule, for the same reason: the weakest lift still reaches the
+    # Stratostacean's deck (survey H4)
+    "ironhorse": dict(jet=(42.0, 45.0, 17.0, 11.0), skate=(140.0, 10.0, 1.0, 70.0, 50.0, 10.0)),
 }
 
 

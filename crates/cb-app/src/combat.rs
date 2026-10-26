@@ -23,6 +23,14 @@ use std::sync::Arc;
 #[derive(Resource, Default)]
 pub struct Shots(pub Vec<Projectile>, pub Vec<Blow>);
 
+impl Shots {
+    /// Every round in the air fired by an owner `from` says is leaving goes with it (a stopped mission's enemies:
+    /// survey FR1).
+    pub fn drop_from(&mut self, from: impl Fn(u32) -> bool) {
+        self.0.retain(|s| !from(s.owner));
+    }
+}
+
 /// A close-combat strike landing this step: the arm's sweep from the shoulder to its reach.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Blow {

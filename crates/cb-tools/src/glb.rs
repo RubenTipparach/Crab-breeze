@@ -335,7 +335,7 @@ pub fn check_skins(skins: &cb_core::skins::Skins, assets: &Path) -> Vec<String> 
     out
 }
 
-/// Checks the Hermit's model against its data (openspec change `crab-airship` section 9): every part in
+/// Checks the Stratostacean's model against its data (openspec change `crab-airship` section 9): every part in
 /// `fortress_shape.ron` has its `PART_<id>` node, every lift thruster its `LEG_<id>`, every turning gun its
 /// `YAW_`, `PITCH_` and `MUZZLE_` nodes, the spikes are `DETAIL_` meshes (drawn only up close), and every image
 /// the model points at outside itself is on disk.

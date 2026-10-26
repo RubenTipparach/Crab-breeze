@@ -6,6 +6,7 @@
 - [x] 1.3 Launch timers (drops wait for 2.8) (tests: `a_lost_catapult_halves_the_launches`, `nothing_launches_while_falling`)
 - [x] 1.4 Moving supports (`world::platform`) (tests: `a_mech_standing_on_the_drifting_deck_stays_where_it_stood`, `a_body_in_the_air_above_it_is_not_carried`; sliding off past its grip: not yet)
 - [x] 1.5 Downwash (test: `a_mech_under_a_live_thruster_is_pushed_down_and_burned`)
+- [x] 1.6 Reached on the jets as they are, landed on to recharge (owner, 2026-10-26, survey H4): the velocity handover on landing and lifting off, `Platform::ride`, used by `cb-app::fortress` (tests: `every_mech_reaches_the_deck_on_its_jets_as_they_are`, `a_mech_lands_on_the_deck_a_shoulder_and_a_walkway_and_its_jets_recharge_there`, `a_mech_landing_at_the_decks_speed_stands_still_on_it_and_leaves_with_it`)
 - [x] 2.1 `cb-app::fortress`: the block-out in the game, parts as entities with hit shapes and targeting boxes (tests: `the_autocannon_cannot_hurt_a_cowl_but_doubles_on_a_grille`, `a_round_on_the_outboard_plate_does_nothing`, `a_hull_port_takes_damage_only_from_within_30_deg_of_vertical`; turrets: `a_turret_does_not_fire_until_it_is_on_its_aim`, `the_hull_hides_the_pilot_from_the_far_side`, `losing_the_bridge_doubles_the_spread`; `cb-tools`: `the_shipped_fortress_model_has_every_node_its_data_names`)
 - [x] 2.2 The cockpit lift readout from the rule (test: `the_lift_readout_is_the_rule`)
 - [x] 2.3 Turrets, beams, deck guns, missile launchers and batteries on the existing weapons (the deck guard: 2.8)
@@ -13,8 +14,11 @@
 - [ ] 2.5 Wave 3 of the defence brings the fortress (G16)
 - [x] 2.6 The model exported from the mockup (`tools/mockups/export_fortress_glb.mjs`): named nodes, baked livery, manifest and budget (section 9)
 - [x] 2.7 The mission started from free roam's mail (`free-roam-missions`); `--mission fortress`; won when it crashes
-- [ ] 2.8 Not in the first build: the dropped crabs and the deck guard (H6)
+- [x] 2.8a The deck guard (owner, 2026-10-26, survey H6): 2 Shrikes and 4 Mites at their posts, a Mite up each working hangar lift every 60 s while fewer than 6 stand, 8 below decks; they keep to the deck and leave with the mission (tests: `the_deck_guard_is_two_shrikes_and_four_mites_standing_on_its_tops`, `each_working_lift_brings_a_mite_up_every_60_s`, `a_lost_lift_brings_no_more`, `no_more_come_up_than_six_on_deck`, `the_lifts_stop_when_the_hangar_is_empty_or_it_falls`, `a_body_kept_to_the_deck_stops_at_its_edge`)
+- [ ] 2.8 The crabs dropped from the bays
 - [ ] 3.1 The Blender block-out, then the detailed model with LODs (after the owner picks from the mockup)
 - [ ] 4.1 Playtest beats: climb to the deck, land, fight the guard, walk a pylon, kill three thrusters on one side, jump clear, watch it fall; measure with `--bench defence`
 - [x] 2.9 Headless stills in a cloud session (`CB_STILLS_FORTRESS=1`, `capture_fortress`): whole, under a thruster, on the deck, the hull opening, falling, crashed; `cb-tools validate` checks the model's nodes against the data
 - [x] 2.10 Levels of detail: the spikes as `DETAIL_` meshes drawn only within `detail_range_m` (owner, 2026-10-25: "spikes should not render until we are up close"); LOD0 and LOD1 triangles in the manifest
+- [x] 2.11 Its name, the Stratostacean (owner, 2026-10-26, survey H2): `name` in `fortress.ron`, read by the HUD line, the TARGET page (each part under STRATOSTACEAN) and the log; the mail, the model (`assets/models/fortress_stratostacean.glb`), its palette, the mockup and the docs renamed (test: `the_fortress_mail_names_the_fortress_by_its_data_name`)
+- [x] 2.12 Its crash is city damage (owner, 2026-10-26, survey H5): `Fortress::wreck_breaks` (the crash's footprint, moved out of `cb-app`), the city's damage on the HUD line, the status log and the win line (tests: `its_crash_on_the_city_counts_as_the_citys_damage`, `stopping_its_drives_drops_it_where_it_hangs`, `with_its_drives_it_drifts_on_at_15_m_s_while_it_falls`)

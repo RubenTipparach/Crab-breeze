@@ -56,7 +56,7 @@
     jet: (
         thrust_m_s2: 42.0,
         climb_max_m_s: 45.0,
-        burn_s: 14.0,
+        burn_s: 17.0,
         recharge_s: 11.0,
     ),
     skate: (

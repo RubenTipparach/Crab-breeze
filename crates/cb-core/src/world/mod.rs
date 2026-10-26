@@ -97,7 +97,7 @@ pub struct Scene<'a> {
     pub trees: Option<&'a Forest>,
     /// Buildings as they stand now; `None` means every building is whole.
     pub structures: Option<&'a Structures>,
-    /// Moving surfaces bodies stand on (the Hermit's deck: `platform`); empty for none.
+    /// Moving surfaces bodies stand on (the Stratostacean's deck: `platform`); empty for none.
     pub platforms: &'a [Platform],
     /// The detailed colliders of buildings near a pilot on foot (`interior::Interiors`); `None` for
     /// everything else (the mech, shells, debris), which meets buildings as their cells. Read only

@@ -210,7 +210,7 @@ fn main() -> AppExit {
         career::CareerPlugin,
         interact::InteractPlugin,
     ))
-    // Free roam's mail and its missions (free-roam-missions); the Hermit (crab-airship).
+    // Free roam's mail and its missions (free-roam-missions); the Stratostacean (crab-airship).
     .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin))
     // How thick the ground fog is now: its clock and the mission's preset (ground-fog, survey F1).
     .add_plugins(ground_fog::GroundFogPlugin)

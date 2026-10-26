@@ -750,21 +750,34 @@ fn fmt_budget(name: &str, heat: f32, locked: bool, burn_s: f32, recharge_s: f32,
     }
 }
 
-/// `HERMIT   LIFT PORT 100 %  STBD 67 %   ALT 600 M`, the hull thrusters once they open, `FALLING`, then
+/// `STRATOSTACEAN   LIFT PORT 100 %  STBD 67 %   ALT 600 M   CITY 2 DAMAGE 4 %`, the hull thrusters once they open, `FALLING`, then
 /// `DOWN: WON`: every number the lift rule's own (`crab-airship` section 9; CLAUDE.md 6.1).
 fn fmt_fortress(run: &crate::fortress::FortressRun, d: &cb_core::fortress::FortressData) -> (String, Color) {
     let f = &run.f;
     match run.outcome {
-        Some(true) => return ("THE HERMIT IS DOWN: MISSION WON".into(), GREEN),
+        Some(true) => {
+            return (
+                format!(
+                    "THE {} IS DOWN: MISSION WON   CITY {} DAMAGE {:.0} %",
+                    d.cfg.name.to_uppercase(),
+                    run.city + 1,
+                    run.city_damage * 100.0
+                ),
+                GREEN,
+            );
+        }
         Some(false) => return ("MISSION LOST: your mech was destroyed".into(), RED),
         None => {}
     }
     let l = f.lift(d);
     let mut s = format!(
-        "HERMIT   LIFT PORT {:.0} %  STBD {:.0} %   ALT {:.0} M",
+        "{}   LIFT PORT {:.0} %  STBD {:.0} %   ALT {:.0} M   CITY {} DAMAGE {:.0} %",
+        d.cfg.name.to_uppercase(),
         l.port * 200.0,
         l.stbd * 200.0,
-        f.pos.y - f.ground_m
+        f.pos.y - f.ground_m,
+        run.city + 1,
+        run.city_damage * 100.0
     );
     if f.doors_s.is_some() {
         s += &format!("   HULL THRUSTERS {}", if l.lit { "LIT" } else { "OPENING" });
@@ -1069,6 +1082,7 @@ fn update_stations(
     data: Res<crate::sim::Data>,
     targeting: Res<crate::targeting::TargetState>,
     units: Res<crate::units::Units>,
+    fortress: Option<Res<crate::fortress::FortressRun>>,
     me: Query<(&MechSim, &MechSpec), With<Piloted>>,
     mechs: Query<(&MechSim, &MechSpec, &crate::mech::MechId)>,
     mut rows: Query<(&StationRow, &mut Text, &mut TextColor, &mut BorderColor, &mut Visibility), Without<TargetReadout>>,
@@ -1112,8 +1126,21 @@ fn update_stations(
         c.0 = GREEN;
         return;
     };
-    // A civil aircraft is never selected (survey W47), so the TARGET page names enemies only.
-    let (name, health) = if id >= crate::units::UNIT_ID_BASE {
+    // A civil aircraft is never selected (survey W47), so the TARGET page names enemies only. A part of the
+    // fortress is named with the fortress (survey H2: `STRATOSTACEAN` over `LIFT THRUSTER L2`).
+    let part = id
+        .checked_sub(crate::fortress::FORTRESS_TARGET_BASE)
+        .map(|i| i as usize)
+        .zip(fortress.as_deref())
+        .filter(|(i, run)| *i < run.f.parts.len());
+    let (name, health) = if let Some((i, run)) = part {
+        let d = &data.0.fortress;
+        let k = d.kind(i);
+        (
+            format!("{}\n{} {}", d.cfg.name, k.name, d.shape.parts[i].id).to_uppercase(),
+            run.f.parts[i].hp / k.hp.max(1.0),
+        )
+    } else if id >= crate::units::UNIT_ID_BASE {
         match units.list.iter().find(|p| p.unit.id == id) {
             Some(p) => {
                 let full = data.0.units.units.get(&p.unit.kind).map_or(1.0, |s| s.hp.max(1.0));

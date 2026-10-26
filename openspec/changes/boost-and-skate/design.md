@@ -25,10 +25,13 @@ build and job. My picks (the owner said "use recommended" for choices like these
 | Roustabout, brawler | 52 | 55 | 18 s | 8 s | 115 | 12 | 1.3 | 85 | 40 s | 10 s |
 | Driller, mining rig | 50 | 50 | 16 s | 9 s | 110 | 11 | 1.8 | 80 | 45 s | 10 s |
 | Sapper, siege | 46 | 50 | 16 s | 10 s | 105 | 10 | 1.4 | 80 | 35 s | 12 s |
-| Mule, hauler | 44 | 45 | 14 s | 10 s | 100 | 9 | 1.6 | 70 | 55 s | 12 s |
-| Ironhorse, locomotive | 42 | 45 | 14 s | 11 s | 140 | 10 | 1.0 | 70 | 50 s | 10 s |
+| Mule, hauler | 44 | 45 | 17 s | 10 s | 100 | 9 | 1.6 | 70 | 55 s | 12 s |
+| Ironhorse, locomotive | 42 | 45 | 17 s | 11 s | 140 | 10 | 1.0 | 70 | 50 s | 10 s |
 
-The weakest lift, the Ironhorse's 42 m/s2, is a thrust to weight of 4.3. The cockpit's gauges already read the
+The weakest lift, the Ironhorse's 42 m/s2, is a thrust to weight of 4.3. The Mule and the Ironhorse were first given
+14 s of burn; merged with the Stratostacean (survey H4, "reach it on the jets as they are") that left both overheated
+and locked as they passed its deck, 649 m up, so each has 17 s: still the two slowest climbs (about 15 s to the deck),
+with about 2 s of burn to spare, held by the fortress test `every_mech_reaches_the_deck_on_its_jets_as_they_are`. The cockpit's gauges already read the
 piloted mech's own numbers (`hud.rs` reads `spec.jet` and `spec.skate`), so nothing else changes. Checks:
 `every_roster_mech_has_rockets_and_skates_of_its_own` and `each_mech_skates_and_flies_on_its_own_budgets` in
 `cb-core` (each mech's skates and rockets give out at its own seconds, never past its own top speed).

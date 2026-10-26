@@ -80,7 +80,7 @@ pub struct Live {
     pub dirty_buildings: Vec<u32>,
     /// Pieces of buildings that fell since the physics last took them.
     pub new_chunks: Vec<cb_core::world::Chunk>,
-    /// Moving surfaces bodies stand on, posed this fixed step (the Hermit's deck: `crab-airship`).
+    /// Moving surfaces bodies stand on, posed this fixed step (the Stratostacean's deck: `crab-airship`).
     pub platforms: Vec<cb_core::world::Platform>,
 }
 
