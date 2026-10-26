@@ -78,6 +78,8 @@ struct Pilot {
     detour: Vec2,
     detour_until: f32,
     detour_side: f32,
+    /// Jobs the pilot could not reach and gave up on (`AcceptByMail` passes them over).
+    gave_up: Vec<u32>,
 }
 
 /// Keys the scripted pilot presses, applied after the devices are read so the game sees them as a key's press.
@@ -110,6 +112,7 @@ impl Plugin for PlaytestPlugin {
             detour: Vec2::ZERO,
             detour_until: 0.0,
             detour_side: 1.0,
+            gave_up: Vec::new(),
         })
         .init_resource::<PressKey>()
         .add_systems(PreUpdate, press_keys.after(bevy::input::InputSystems))
@@ -420,7 +423,7 @@ fn play(
                         .board
                         .jobs
                         .iter()
-                        .filter(|j| j.state == JobState::Offered && j.tier <= *max)
+                        .filter(|j| j.state == JobState::Offered && j.tier <= *max && !t.gave_up.contains(&j.id))
                         .max_by(|a, b| {
                             let by = a.site.distance(here).total_cmp(&b.site.distance(here));
                             if *rule == Pick::Farthest { by } else { by.reverse() }
@@ -469,7 +472,8 @@ fn play(
                     }
                     if t.stall_s > 2.0 {
                         t.stall_s = 0.0;
-                        t.peak_m_s = 0.0;
+                        // Stopped again after the detour: another, the other side.
+                        t.peak_m_s = 10.5;
                         t.detour_side = -t.detour_side;
                         let here = Vec2::new(m.pos.x, m.pos.z);
                         let ahead = (j.site - here).normalize_or_zero();
@@ -854,6 +858,33 @@ fn play(
             t.best_m = d;
             t.progress_game_s = game_s;
         } else if game_s - t.progress_game_s > t.script.stuck_s {
+            // A job that cannot be reached by mail is given up for the next one the same way (at most three): the
+            // run goes on across the island, and the report says so.
+            let job = run.as_deref().and_then(|c| c.career.board.current().map(|j| j.id));
+            let by_mail = t.beat > 0 && matches!(beats.get(t.beat - 1), Some(Beat::AcceptByMail(..)));
+            if matches!(beat, Beat::GoToJob)
+                && by_mail
+                && t.gave_up.len() < 3
+                && let Some(id) = job
+            {
+                say(&format!(
+                    "PLAYTEST_NOTE gave up on job {id}: no way through at ({:.0}, {:.0}), {d:.0} m short",
+                    m.pos.x, m.pos.z
+                ));
+                t.gave_up.push(id);
+                t.beat -= 1;
+                t.beat_real_s = now;
+                t.beat_game_s = game_s;
+                t.progress_game_s = game_s;
+                t.best_m = f32::INFINITY;
+                t.click = None;
+                t.clicked = false;
+                t.peak_m_s = 0.0;
+                t.detour_until = 0.0;
+                announce(&t);
+                acc.script = Some(Actions::default());
+                return;
+            }
             let msg = format!(
                 "stuck in beat {} {beat:?}: {d:.0} m from its goal, pilot at ({:.0}, {:.0}), mech at ({:.0}, {:.0})",
                 t.beat, p.feet.x, p.feet.z, m.pos.x, m.pos.z
