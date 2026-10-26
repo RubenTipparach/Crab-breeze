@@ -103,6 +103,7 @@ pub struct WaterSurfaceUniform {
     sun_tint: Vec4,
     cabin: Vec4,
     shallow: Vec4,
+    scatter: Vec4,
     swell: [Vec4; 3],
 }
 
@@ -153,10 +154,11 @@ impl WaterSurfaceUniform {
                 look.shore_foam_weight,
             ),
             sun_dir: light.sun_dir.extend(look.specular_intensity),
-            sun_light: light.sun.extend(look.specular_power),
-            sun_tint: v3(look.sun_tint).extend(0.0),
+            sun_light: light.sun.extend(look.glint_roughness),
+            sun_tint: v3(look.sun_tint).extend(look.glint_far_roughness),
             cabin: eye.extend(cabin_m),
             shallow: v3(look.shallow_color).extend(look.shallow_depth_m),
+            scatter: (v3(look.scatter_color) * look.scatter_strength).extend(0.0),
             swell,
         }
     }

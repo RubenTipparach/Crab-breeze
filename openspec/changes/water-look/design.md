@@ -78,6 +78,25 @@ owner's later choice (2026-10-26, a navy-grey open sea and teal shallows) keeps 
 shallows and absorption; main's greyer zenith (0.16, 0.22, 0.30) is taken, as it is the "greyer" of
 that choice; `sky_horizon_strength` stays 0.7 from the stills above.
 
+**Still dull (owner, 2026-10-26: "Not sure that water convinces me.... It looks kinda dull", then
+"Maybe need reflection probe like glass towers?").** Colour alone could not fix it: the sun's
+glint was one tight Blinn-Phong dot, the sky in the water a two-colour gradient, nothing lit the
+crests. Built now, ahead of the wave detail:
+- **Step 4, the glitter path:** GGX with water's Fresnel of 0.02, as section 4 has it, its
+  roughness `glint_roughness` (0.06) close by plus `glint_far_roughness` (0.25) where the ripples
+  have faded into the distance (the shader's own detail fade stands in for the Toksvig term until
+  the wave atlas exists). `specular_intensity` is now a multiplier on that highlight (1.0);
+  `specular_power` is gone.
+- **Step 2, the sky in the water, from the glass's probe:** the water samples the pilot camera's
+  cached sky cube (`sky_light.rs`, the Poly Haven sky the buildings' glass reflects) in its
+  reflected direction, at the mip its roughness asks for, so water and glass mirror one sky. The
+  game's own cloud billboards are not in that cube; capturing them stays step 2's later part.
+- **Step 5, light through the crests:** `scatter_color` (0.05, 0.35, 0.33) times
+  `scatter_strength` (0.35), on wavelet crests (`max(h + 0.15, 0)`) seen toward the sun's bearing
+  (`pow(toward, 4)`), where the surface is not mirroring. The shadow under hulls is still to come.
+- Stills `sea-sun` and `sea-away` (40 m over open sea, toward and away from the sun):
+  `docs/screenshots/2026-10-26-water-glint.png`.
+
 ## 1. Wave detail
 
 - **The bake:** a 512 px, 64-frame tileable normal and height atlas covering a 64 m patch, baked

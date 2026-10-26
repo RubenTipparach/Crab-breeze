@@ -1282,6 +1282,20 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // Open sea in the clear south-east, 40 m up, looking toward the sun (its glitter path and the
+    // light through the crests) and away from it (the sky in the water): `sea_view`.
+    View {
+        name: "sea-sun",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "sea-away",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // From the street in the biggest city, looking up past the towers at the sky (`city_up_view`).
     View {
         name: "city-up",
@@ -1386,6 +1400,15 @@ fn city_in_cloud_view(plan: &crate::world::Plan, now_s: f32) -> ([f32; 3], [f32;
     let eye = centre - Vec3::Y * p.radii.y * 0.33 + Vec3::new(p.radii.x * 0.2, 0.0, 0.0);
     info!("city in cloud: puff at {centre} radii {}, eye {eye}", p.radii);
     (eye.to_array(), (centre + Vec3::new(-200.0, 1500.0, 300.0)).to_array())
+}
+
+/// Over open sea in the clear south-east, 40 m up, looking 600 m ahead toward the sun's bearing
+/// (`toward`) or away from it.
+fn sea_view(toward: bool) -> ([f32; 3], [f32; 3]) {
+    let sun = cb_core::world::sun_shade::to_sun();
+    let level = Vec3::new(sun.x, 0.0, sun.z).normalize_or(Vec3::X) * if toward { 1.0 } else { -1.0 };
+    let eye = Vec3::new(24000.0, 40.0, 16000.0);
+    (eye.to_array(), (eye + level * 600.0 - Vec3::Y * 40.0).to_array())
 }
 
 /// On the street nearest the middle of the city with the most cloud overhead, 2 m up, looking nearly straight up.
@@ -1507,6 +1530,8 @@ fn run_weather_script(
             "river-close" => close_river_view(&plan, false),
             "river-close-below" => close_river_view(&plan, true),
             "city-up" => city_up_view(&plan),
+            "sea-sun" => sea_view(true),
+            "sea-away" => sea_view(false),
             "city-in-cloud" => city_in_cloud_view(&plan, now),
             _ => (v.eye, v.at),
         };

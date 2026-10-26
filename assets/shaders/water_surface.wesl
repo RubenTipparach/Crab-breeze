@@ -18,7 +18,41 @@ import bevy_pbr::render::mesh_view_bindings::{view_transmission_texture, view_tr
 import bevy_pbr::prepass::utils::prepass_depth;
 @if(DISTANCE_FOG)
 import bevy_pbr::render::{mesh_view_bindings::fog, pbr_functions::apply_fog};
+@if(ENVIRONMENT_MAP)
+import bevy_pbr::render::mesh_view_bindings::{light_probes, environment_map_sampler};
+@if(ENVIRONMENT_MAP && MULTIPLE_LIGHT_PROBES_IN_ARRAY)
+import bevy_pbr::render::mesh_view_bindings::specular_environment_maps;
+@if(ENVIRONMENT_MAP && !MULTIPLE_LIGHT_PROBES_IN_ARRAY)
+import bevy_pbr::render::mesh_view_bindings::specular_environment_map;
+@if(ENVIRONMENT_MAP)
+import bevy_render::maths::quat_rotate;
 import super::water_common::{safe_normal, fbm3, water_transmittance, water_murk};
+
+// The sky seen along `dir` (pointing up) off a surface of GGX roughness `alpha`: the pilot camera's
+// cached sky cube (`sky_light.rs`, the Poly Haven sky the buildings' glass reflects; owner,
+// 2026-10-26: "Maybe need reflection probe like glass towers?"), its mip chosen by the roughness as
+// Bevy's own image lighting does, so the water mirrors the same clouds and haze as the glass.
+// `fallback` where no sky cube is bound.
+fn sky_reflected(dir: vec3<f32>, alpha: f32, fallback: vec3<f32>) -> vec3<f32> {
+    var sky = fallback;
+    @if(ENVIRONMENT_MAP) {
+        if (light_probes.view_cubemap_index >= 0) {
+            var d = quat_rotate(light_probes.view_rotation, dir);
+            // Cube maps are left-handed.
+            d.z = -d.z;
+            let level = sqrt(alpha) * f32(light_probes.smallest_specular_mip_level_for_view);
+            var c = fallback;
+            @if(MULTIPLE_LIGHT_PROBES_IN_ARRAY) {
+                c = textureSampleLevel(specular_environment_maps[light_probes.view_cubemap_index], environment_map_sampler, d, level).rgb;
+            }
+            @if(!MULTIPLE_LIGHT_PROBES_IN_ARRAY) {
+                c = textureSampleLevel(specular_environment_map, environment_map_sampler, d, level).rgb;
+            }
+            sky = c * light_probes.intensity_for_view * view.exposure;
+        }
+    }
+    return sky;
+}
 
 // Matches `WaterSurfaceUniform` in `crates/cb-app/src/water_render.rs`.
 struct WaterSurface {
@@ -33,11 +67,12 @@ struct WaterSurface {
     foam_color: vec4<f32>,  // rgb (an albedo); w intensity
     foam_crest: vec4<f32>,  // lo, hi, weight; w shore foam depth m
     foam_slope: vec4<f32>,  // lo, hi, weight; w shore foam weight
-    sun_dir: vec4<f32>,     // xyz toward the sun; w glint intensity
-    sun_light: vec4<f32>,   // rgb the sun's light times exposure; w glint power
-    sun_tint: vec4<f32>,    // rgb the glint's tint; w spare
+    sun_dir: vec4<f32>,     // xyz toward the sun; w glint intensity (1: as the sun gives it)
+    sun_light: vec4<f32>,   // rgb the sun's light times exposure; w the glint's GGX roughness close by
+    sun_tint: vec4<f32>,    // rgb the glint's tint; w the roughness added where the ripples have faded
     cabin: vec4<f32>,       // xyz the eye; w the sealed cabin's dry radius m (0: none)
     shallow: vec4<f32>,     // rgb the body's colour in the shallows (an albedo); w the depth m by which it is `deep`'s
+    scatter: vec4<f32>,     // rgb light through the crests seen against the sun (an albedo times its strength); w spare
     swell: array<vec4<f32>, 3>, // heading x, heading z, wavenumber rad/m, height m
 }
 
@@ -214,7 +249,12 @@ fn fragment(in: WaterFragment, @builtin(front_facing) front: bool) -> @location(
     let reflection_height = clamp(abs(reflected_ray.y), 0.0, 1.0);
     let fresnel = (0.02 + 0.98 * pow(1.0 - facing, 5.0))
         * mix(clamp(water.absorption.w, 0.0, 1.0), 1.0, reflection_height);
-    let sky = mix(water.sky_horizon.rgb, water.sky_zenith.rgb, reflection_height);
+    // The surface's GGX roughness: the glint's close by, rougher where the ripples have faded into
+    // the distance (the slopes no longer drawn still scatter the light). The reflected sky is
+    // blurred by it, and the sun's glint shaped by it.
+    let alpha = clamp(water.sun_light.w + water.sun_tint.w * (1.0 - detail), 0.005, 1.0);
+    let sky_dir = safe_normal(vec3<f32>(reflected_ray.x, max(abs(reflected_ray.y), 0.02), reflected_ray.z));
+    let sky = sky_reflected(sky_dir, alpha, mix(water.sky_horizon.rgb, water.sky_zenith.rgb, reflection_height));
     // Foam on crests, steep ripples and along the shore (the water under this pixel is shallow).
     let crest = smoothstep(water.foam_crest.x, max(water.foam_crest.y, water.foam_crest.x + 1e-4), height) * water.foam_crest.z;
     let steep = smoothstep(water.foam_slope.x, max(water.foam_slope.y, water.foam_slope.x + 1e-4), raw_slope) * water.foam_slope.z;
@@ -226,11 +266,28 @@ fn fragment(in: WaterFragment, @builtin(front_facing) front: bool) -> @location(
     }
     let foam = clamp(max(max(crest, steep) * water.foam_color.w, shore), 0.0, 1.0);
     var color = mix(mix(transmitted, sky, fresnel), water.foam_color.rgb * water.light.rgb, foam);
-    // The sun's glint.
+    // The sun's glint (water-look design section 4; owner, 2026-10-26: "It looks kinda dull"): GGX
+    // with water's Fresnel of 0.02, rougher where the ripples have faded into the distance (the
+    // slopes no longer drawn still scatter the sun), so close water sparkles and far water shows a
+    // broad glitter path toward the sun.
     let sun = safe_normal(water.sun_dir.xyz);
     let half_vector = safe_normal(look + sun);
-    color += water.sun_tint.rgb * water.sun_light.rgb
-        * pow(max(dot(normal, half_vector), 0.0), max(water.sun_light.w, 1.0)) * water.sun_dir.w;
+    let n_l = max(dot(normal, sun), 0.0);
+    let n_v = max(dot(normal, look), 1e-3);
+    let n_h = max(dot(normal, half_vector), 0.0);
+    let a2 = alpha * alpha;
+    let d_denom = n_h * n_h * (a2 - 1.0) + 1.0;
+    let ggx = a2 / (3.14159265 * d_denom * d_denom);
+    let k = alpha * 0.5;
+    let shadowing = (n_l / (n_l * (1.0 - k) + k)) * (n_v / (n_v * (1.0 - k) + k));
+    let f_sun = 0.02 + 0.98 * pow(1.0 - max(dot(look, half_vector), 0.0), 5.0);
+    color += water.sun_tint.rgb * water.sun_light.rgb * water.sun_dir.w
+        * (ggx * f_sun * shadowing / (4.0 * n_v * max(n_l, 1e-3))) * n_l;
+    // Light through the crests seen against the sun (design section 5): wavelets the sun shines
+    // through glow turquoise when the eye looks toward it.
+    let toward_sun = max(dot(safe_normal(vec3<f32>(-look.x, 0.0, -look.z)), safe_normal(vec3<f32>(sun.x, 0.0, sun.z))), 0.0);
+    let crest_glow = clamp(height + 0.15, 0.0, 1.0) * pow(toward_sun, 4.0) * (1.0 - fresnel);
+    color += water.scatter.rgb * water.light.rgb * crest_glow;
     var out = vec4<f32>(color, 1.0);
     // Bevy's own fog, the camera's one fog in air, so the water fogs with everything else.
     @if(DISTANCE_FOG) {
