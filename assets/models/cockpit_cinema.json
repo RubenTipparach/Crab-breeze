@@ -285,7 +285,7 @@
         "normal",
         "orm"
       ],
-      "px": 512,
+      "px": 4096,
       "emissive_strength": 1.0
     },
     "cabin": {
@@ -295,12 +295,12 @@
         "normal",
         "orm"
       ],
-      "px": 512,
+      "px": 4096,
       "emissive_strength": 1.0
     }
   },
   "bake": {
-    "ao_samples": 8,
+    "ao_samples": 16,
     "denoised": true,
     "maps": "base colour, tangent normal, ORM (R occlusion, G roughness, B metal), emission; light is real time"
   },
@@ -318,5 +318,5 @@
     "wall_L",
     "wall_R"
   ],
-  "bytes": 3291096
+  "bytes": 12880773
 }
