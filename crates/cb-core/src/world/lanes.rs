@@ -113,6 +113,18 @@ impl Polyline {
         self.along_m.last().copied().unwrap_or(0.0)
     }
 
+    /// The segment `s_m` along the line lies on, and the share of it (clamped to the line's ends).
+    pub fn locate(&self, s_m: f32) -> (usize, f32) {
+        let n = self.points.len();
+        if n < 2 {
+            return (0, 0.0);
+        }
+        let s = s_m.clamp(0.0, self.length_m());
+        let i = self.along_m.partition_point(|&a| a <= s).saturating_sub(1).min(n - 2);
+        let len = (self.along_m[i + 1] - self.along_m[i]).max(1e-6);
+        (i, ((s - self.along_m[i]) / len).clamp(0.0, 1.0))
+    }
+
     /// The point and the direction `s_m` along the line (clamped to its ends).
     pub fn at(&self, s_m: f32) -> (Vec2, Vec2) {
         let n = self.points.len();

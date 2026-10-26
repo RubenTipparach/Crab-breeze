@@ -72,9 +72,46 @@ Car { id: u32, kind: CarKind, lane: u32, s_m: f32 /* along the lane */, speed_m_
 
 Measured downtown at rush density on the 3070 before it is called done.
 
+## 6. As built (2026-10-26)
+
+What landed, where it differs from the plan above, and what it measured.
+
+- **Lanes** (`cb-core::world::lanes`): each city's street lines become a junction grid; every block-long piece
+  is a road with lanes each way at the offsets in `traffic.ron` (keep right); a highway is one road from its
+  city's nearest junction to the other's. Lanes stop short of each junction by its half width, and connector
+  lanes (cubic curves) cross it into every other road's lane in the same slot or the nearest. 9 278 lanes and
+  584 junctions on seed 42, built in 14 ms.
+- **Junctions:** in place of "wait while a crossing car is within 15 m", two connectors at one junction
+  *conflict* when they pass within `conflict_m` (2.5 m) or lead into one lane. A waiting car is given its
+  turn, earliest arrival first (ties to the lower id), when its connector meets no connector a car is on or
+  has been given, none an earlier car still waits for, and the lane beyond has room for it. A car that cannot
+  stop in time stops at the line, never inside the box.
+- **Fear** is two fields on a driving car (`fear_s`, `hailed`) rather than `Stopping` and `Stopped` states:
+  the car brakes at 7 m/s2 while either holds. A mech that walks into a car shoves it off its lane as a free
+  body (`car::CarBody`, the driven car's own physics) and costs it 0.4 health.
+- **Wrecks** keep their lane position, so cars queue behind them (survey W38).
+- **Harm** to any car is reported with `by_player` and `occupied` (`traffic::Harm`); `cb-app` publishes it
+  as `CivilianHarmed` and counts it in `CivilianToll`, the hook for the career's standing per base (W34,
+  career-loop, survey W37).
+- **Drawing:** the block-outs (`tools/blender/build_cars.py`, 428-468 triangles each, awaiting approval,
+  survey W36) are drawn per car from their glb; Bevy batches the shared meshes per kind. A crushed car is its
+  block-out at 35 % height, a burning one carries the `burning` stream; no LODs, no crushed models and no PBR
+  sets yet, and no paint variety on screen (each block-out is its kind's first paint).
+- **Density:** survey J6's numbers fill the 1.5 km round the capital's start with about 980 driving and 210
+  parked cars on seed 42, not the 150-250 section 4 estimated (survey W35).
+- **Measured** (`cargo run --release -p cb-tools -- traffic-bench 42 3600`, Apple M4 Max, CPU only,
+  headless, not a frame time): 1 189 cars round the start, the traffic step and its refill p50 0.134 ms, p95
+  0.198 ms, p99 0.231 ms a fixed step; the first step reads each lane's road height once (a 9 ms step behind
+  the loading screen). Frame time with the cars drawn is not measured: that needs the 3070 (task 3.1).
+
 ## Open questions
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | J6 | Traffic density | One car per 60 m in cities, 300 m on highways, within 1.5 km | decided (survey J6) |
 | J7 | Which cars | 1980s civilian, no real brands: sedan, wagon, pickup, van, taxi, bus, semi | decided (survey J7) |
+| W35 | J6 gives about 1 200 cars round the capital, not 150-250: keep it, thin it, or cap it? | Keep J6 until the 3070 measures the drawing | provisional (built as J6) |
+| W36 | Are the seven block-outs right to model in detail? | Approve as they are | open (stand-ins in the game) |
+| W37 | Which harm costs standing with the nearest base? | Only cars with a driver in them, by the player's fire, feet or car | provisional (hook reports both) |
+| W38 | What do cars do behind a wreck in their lane? | Queue until it is cleared | provisional (built) |
+| W39 | Junctions: take turns by arrival, or 1980s traffic lights on arterials? | Take turns by arrival | provisional (built) |

@@ -10,4 +10,5 @@
   (drawn from the block-outs, whose shared meshes Bevy batches per kind; wheels turn with speed and steer)
 - [x] 2.3 Hits and burning wrecks through the weapons' hit rules
 - [ ] 3.1 Measure downtown traffic on the 3070
+  (the simulation alone is measured on the CPU: `cb-tools traffic-bench`, design section 6; frame time is not)
 - [ ] 3.2 Playtest: walk and stride through traffic, shell a street

@@ -396,11 +396,15 @@ pub struct Traffic {
     time_s: f32,
     harms: Vec<Harm>,
     driver_thrown: bool,
-    /// Road lanes within reach of the last refill's eye, and where that eye was.
-    near: Vec<u32>,
+    /// Road lanes within reach of the last refill's eye, with the driving and parked cars each wants there,
+    /// and where that eye was.
+    near: Vec<(u32, u32, u32)>,
     near_from: Option<Vec2>,
     /// Each lane's bounds (least, greatest corner), built on first use.
     bounds: Vec<(Vec2, Vec2)>,
+    /// The ground's height at each point of a lane, read the first time a car is placed on it: the ground
+    /// is procedural and costly to read, and a lane's road surface does not move.
+    heights: Vec<Option<Vec<f32>>>,
 }
 
 /// The player's input this step, as the drive a traffic car's body takes.
@@ -430,6 +434,7 @@ impl Traffic {
             near: Vec::new(),
             near_from: None,
             bounds: Vec::new(),
+            heights: Vec::new(),
         }
     }
 
@@ -906,7 +911,10 @@ impl Traffic {
                 };
             }
         }
-        // place every lane car
+        // place every lane car, on its lane's road surface
+        if self.heights.len() != g.lanes.len() {
+            self.heights = vec![None; g.lanes.len()];
+        }
         for c in &mut self.cars {
             if c.body.is_some() {
                 continue;
@@ -919,7 +927,11 @@ impl Traffic {
                 0.0
             };
             let p = p + right_of(d) * side;
-            c.pos = Vec3::new(p.x, view.ground.height_at(p.x, p.y), p.y);
+            let hs = self.heights[c.lane as usize]
+                .get_or_insert_with(|| lane.line.points.iter().map(|q| view.ground.height_at(q.x, q.y)).collect());
+            let (i, u) = lane.line.locate(c.s_m);
+            let y = hs[i] + (hs[(i + 1).min(hs.len() - 1)] - hs[i]) * u;
+            c.pos = Vec3::new(p.x, y, p.y);
             c.heading_rad = (-d.x).atan2(-d.y);
         }
     }
@@ -1093,6 +1105,8 @@ impl Traffic {
                 .collect();
         }
         if self.near_from.is_none_or(|f| f.distance(eye2) > 100.0) {
+            // the lanes in reach, and each one's share of the density for its length in reach (worked out
+            // again each time the eye has moved 100 m)
             self.near = g
                 .road_lanes()
                 .filter(|l| {
@@ -1100,17 +1114,43 @@ impl Traffic {
                     let d = (lo - eye2).max(eye2 - hi).max(Vec2::ZERO).length();
                     d < range
                 })
-                .map(|l| l.id)
+                .filter_map(|lane| {
+                    let li = lane.id;
+                    let in_range = length_within(&lane.line.points, eye2, range);
+                    if in_range <= 0.0 {
+                        return None;
+                    }
+                    let spacing = if lane.kind.in_city() {
+                        cfg.city_spacing_m
+                    } else {
+                        cfg.highway_spacing_m
+                    };
+                    // a fixed share per lane, so the expected count is exact and does not flicker
+                    let frac = |salt: &str| (label_hash(&format!("{salt}{li}")) >> 40) as f32 / (1u64 << 24) as f32;
+                    let want = (in_range / spacing + frac("drive")).floor() as u32;
+                    let want_parked = match lane.parking_m {
+                        Some(_) => (in_range / cfg.parked_spacing_m + frac("park")).floor() as u32,
+                        None => 0,
+                    };
+                    Some((li, want, want_parked))
+                })
                 .collect();
             self.near_from = Some(eye2);
         }
+        // each lane's cars: (along, length, speed, parked)
+        let mut on: BTreeMap<u32, Vec<(f32, f32, f32, bool)>> = BTreeMap::new();
         let mut count: BTreeMap<u32, (u32, u32)> = BTreeMap::new();
         for c in &self.cars {
-            if c.body.is_some() || Vec2::new(c.pos.x, c.pos.z).distance(eye2) > range {
+            if c.body.is_some() {
+                continue;
+            }
+            let parked = c.state == CarState::Parked;
+            on.entry(c.lane).or_default().push((c.s_m, length_of(data, c), c.speed_m_s, parked));
+            if Vec2::new(c.pos.x, c.pos.z).distance(eye2) > range {
                 continue;
             }
             let e = count.entry(c.lane).or_default();
-            if c.state == CarState::Parked {
+            if parked {
                 e.1 += 1;
             } else {
                 e.0 += 1;
@@ -1118,24 +1158,12 @@ impl Traffic {
         }
         let mut made = 0;
         let near = std::mem::take(&mut self.near);
-        for &li in &near {
+        for &(li, want, want_parked) in &near {
             if made >= budget {
                 break;
             }
             let lane = &g.lanes[li as usize];
-            let in_range = length_within(&lane.line.points, eye2, range);
-            if in_range <= 0.0 {
-                continue;
-            }
             let city = lane.kind.in_city();
-            let spacing = if city { cfg.city_spacing_m } else { cfg.highway_spacing_m };
-            // a fixed share per lane, so the expected count is exact and does not flicker
-            let frac = |salt: &str| (label_hash(&format!("{salt}{li}")) >> 40) as f32 / (1u64 << 24) as f32;
-            let want = (in_range / spacing + frac("drive")).floor() as u32;
-            let want_parked = match lane.parking_m {
-                Some(_) => (in_range / cfg.parked_spacing_m + frac("park")).floor() as u32,
-                None => 0,
-            };
             let (have, have_parked) = count.get(&li).copied().unwrap_or_default();
             for parked in [false, true] {
                 let (want, mut have) = if parked { (want_parked, have_parked) } else { (want, have) };
@@ -1148,11 +1176,6 @@ impl Traffic {
                     let (p, d) = lane.line.at(s);
                     let p = p + right_of(d) * if parked { lane.parking_m.unwrap_or(0.0) } else { 0.0 };
                     if p.distance(eye2) > range {
-                        continue;
-                    }
-                    let at = Vec3::new(p.x, ground.height_at(p.x, p.y), p.y);
-                    let hidden = !in_view(at) || (at.distance(eye) > cfg.hidden_beyond_m && covered(at));
-                    if !hidden {
                         continue;
                     }
                     let kind = self.pick_kind(data, city);
@@ -1168,22 +1191,28 @@ impl Traffic {
                     } else {
                         (cruise * 0.7).min((2.0 * cfg.idm_brake_m_s2 * to_line).sqrt())
                     };
-                    let clear = self
-                        .cars
-                        .iter()
-                        .filter(|c| c.lane == li && c.body.is_none() && (c.state == CarState::Parked) == parked)
-                        .all(|c| {
-                            let both = (len + length_of(data, c)) * 0.5 + cfg.min_gap_m;
-                            if c.s_m <= s {
-                                let v = c.speed_m_s;
-                                s - c.s_m >= both + v * cfg.gap_s + v * v / (2.0 * cfg.idm_brake_m_s2)
+                    let clear = on
+                        .get(&li)
+                        .into_iter()
+                        .flatten()
+                        .filter(|o| o.3 == parked)
+                        .all(|&(cs, clen, v, _)| {
+                            let both = (len + clen) * 0.5 + cfg.min_gap_m;
+                            if cs <= s {
+                                s - cs >= both + v * cfg.gap_s + v * v / (2.0 * cfg.idm_brake_m_s2)
                             } else {
-                                c.s_m - s >= both + speed * cfg.gap_s
+                                cs - s >= both + speed * cfg.gap_s
                             }
                         });
                     if !clear {
                         continue;
                     }
+                    let at = Vec3::new(p.x, ground.height_at(p.x, p.y), p.y);
+                    let hidden = !in_view(at) || (at.distance(eye) > cfg.hidden_beyond_m && covered(at));
+                    if !hidden {
+                        continue;
+                    }
+                    on.entry(li).or_default().push((s, len, speed, parked));
                     let id = self.next_id;
                     self.next_id += 1;
                     self.cars.push(Car {
