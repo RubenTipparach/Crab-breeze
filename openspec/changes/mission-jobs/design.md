@@ -12,7 +12,9 @@ Messages are written from templates in `data/jobs/mail.ron` (senders, subject an
 `{city}`, `{pay}`, `{enemy}` slots) by the job generator. The generator draws from a `SimRng` forked
 from the career's seed by message count, so the same career gets the same mail (deterministic).
 
-The inbox keeps the newest 40 messages. Three offers are open at a time; when one closes, the next
+The inbox keeps the newest 40 messages. One job is under way at a time: accepting another abandons it, unpaid
+(owner, 2026-10-25: "if activating a new mission it should turn off existing mission"; `free-roam-missions`).
+Three offers are open at a time; when one closes, the next
 arrives after 30-90 s of play (data).
 
 ## 2. Jobs (`cb-core::jobs`, pure)

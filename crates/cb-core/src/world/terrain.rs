@@ -12,7 +12,7 @@
 
 use super::config::WorldConfig;
 use super::island::{Fields, Island};
-use super::layout::{City, Highway, Rect};
+use super::layout::{Highway, Rect};
 use super::water::Channels;
 use crate::rng::SimRng;
 use glam::{Vec2, Vec3};
@@ -93,20 +93,21 @@ const FLATS_CELL_M: f32 = 512.0;
 
 impl Flats {
     /// The flats of a world's cities and highways.
-    pub fn new(cities: &[City], highways: &[Highway], cfg: &WorldConfig) -> Self {
+    /// The flats of a world's plateaus (each city's square and each air base's site, with the ground height it is
+    /// flattened to) and highways.
+    pub fn new(plateaus: &[(Rect, f32)], highways: &[Highway], cfg: &WorldConfig) -> Self {
         let plateau_reach = cfg.plateau_flat_margin_m + cfg.plateau_blend_m;
         let road_flat_m = cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m;
         let road_reach = road_flat_m + cfg.highway_blend_m;
         let mut boxes = Vec::new();
-        for (i, c) in cities.iter().enumerate() {
-            let r = c.rect();
+        for (i, (r, _)) in plateaus.iter().enumerate() {
             boxes.push((i as u32, r.min - Vec2::splat(plateau_reach), r.max + Vec2::splat(plateau_reach)));
         }
         for (k, h) in highways.iter().enumerate() {
             let lo = h.path.iter().fold(Vec2::splat(f32::MAX), |m, p| m.min(*p));
             let hi = h.path.iter().fold(Vec2::splat(f32::MIN), |m, p| m.max(*p));
             boxes.push((
-                (cities.len() + k) as u32,
+                (plateaus.len() + k) as u32,
                 lo - Vec2::splat(road_reach),
                 hi + Vec2::splat(road_reach),
             ));
@@ -114,7 +115,7 @@ impl Flats {
         let half = cfg.world_size_m * 0.5;
         let side = (cfg.world_size_m / FLATS_CELL_M).ceil() as usize;
         Self {
-            cities: cities.iter().map(|c| (c.rect(), c.ground_m)).collect(),
+            cities: plateaus.to_vec(),
             highways: highways.to_vec(),
             plateau_margin_m: cfg.plateau_flat_margin_m,
             plateau_blend_m: cfg.plateau_blend_m,
@@ -160,6 +161,49 @@ pub struct Heightfield {
     shape: Shape,
     flats: Flats,
     channels: Option<Channels>,
+    cache: LatticeCache,
+}
+
+/// Corners per side of a cache tile.
+const TILE: usize = 16;
+
+/// Lattice corners kept once worked out (openspec change terrain-height-cache), in tiles of `TILE` x `TILE` corners
+/// filled whole the first time any corner in them is read, by whichever thread reads it first. A tile holds exactly
+/// what `Heightfield::lattice` returns. A clone starts empty; any two compare equal (it holds nothing of its own).
+struct LatticeCache {
+    n: usize,
+    per_side: usize,
+    tiles: Box<[std::sync::OnceLock<Box<[f32]>>]>,
+}
+
+impl LatticeCache {
+    fn new(n: usize) -> Self {
+        let per_side = n.div_ceil(TILE);
+        Self {
+            n,
+            per_side,
+            tiles: (0..per_side * per_side).map(|_| std::sync::OnceLock::new()).collect(),
+        }
+    }
+}
+
+impl Clone for LatticeCache {
+    fn clone(&self) -> Self {
+        Self::new(self.n)
+    }
+}
+
+impl PartialEq for LatticeCache {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl std::fmt::Debug for LatticeCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let filled = self.tiles.iter().filter(|t| t.get().is_some()).count();
+        write!(f, "LatticeCache({filled} of {} tiles)", self.tiles.len())
+    }
 }
 
 /// The height inside one lattice cell at `(u, v)` (0..1 across it, x then z) from its corners
@@ -197,12 +241,15 @@ impl Heightfield {
             shape,
             flats,
             channels: None,
+            cache: LatticeCache::new(cfg.samples_per_side()),
         }
     }
 
     /// The same ground with river channels carved into it.
     pub fn with_channels(mut self, channels: Channels) -> Self {
         self.channels = Some(channels);
+        // Heights kept before the rivers were carved are not this ground's.
+        self.cache = LatticeCache::new(self.n);
         self
     }
 
@@ -222,7 +269,28 @@ impl Heightfield {
 
     /// The height of sample `(ix, iz)`.
     pub fn sample(&self, ix: usize, iz: usize) -> f32 {
-        self.lattice(ix as i64, iz as i64)
+        self.cached(ix as i64, iz as i64)
+    }
+
+    /// A lattice corner's height through the cache: inside the world, from its tile (filled on first read); past
+    /// the edge, worked out directly.
+    fn cached(&self, ix: i64, iz: i64) -> f32 {
+        let n = self.cache.n as i64;
+        if ix < 0 || iz < 0 || ix >= n || iz >= n {
+            return self.lattice(ix, iz);
+        }
+        let (ix, iz) = (ix as usize, iz as usize);
+        let (tx, tz) = (ix / TILE, iz / TILE);
+        let tile = self.cache.tiles[tz * self.cache.per_side + tx].get_or_init(|| {
+            let mut h = Vec::with_capacity(TILE * TILE);
+            for z in 0..TILE {
+                for x in 0..TILE {
+                    h.push(self.lattice((tx * TILE + x) as i64, (tz * TILE + z) as i64));
+                }
+            }
+            h.into_boxed_slice()
+        });
+        tile[(iz % TILE) * TILE + ix % TILE]
     }
 
     /// The height of any lattice point, inside the world or past its edge.
@@ -239,7 +307,7 @@ impl Heightfield {
     /// carve (rivers held just under their water a coarse cell wide, `Channels::carve_far`) coarser.
     pub(crate) fn lattice_at_step(&self, ix: i64, iz: i64, step: usize) -> f32 {
         if step <= 1 {
-            return self.lattice(ix, iz);
+            return self.cached(ix, iz);
         }
         let p = self.lattice_xz(ix, iz);
         let h = self.flats.apply(p, self.shape.height(p));
@@ -263,13 +331,13 @@ impl Heightfield {
         let (ix, iz) = (fx as i64, fz as i64);
         let u = gx - fx;
         let v = gz - fz;
-        let h00 = self.lattice(ix, iz);
-        let h11 = self.lattice(ix + 1, iz + 1);
+        let h00 = self.cached(ix, iz);
+        let h11 = self.cached(ix + 1, iz + 1);
         // Only the corner on the point's side of the diagonal is read.
         let (h10, h01) = if u >= v {
-            (self.lattice(ix + 1, iz), 0.0)
+            (self.cached(ix + 1, iz), 0.0)
         } else {
-            (0.0, self.lattice(ix, iz + 1))
+            (0.0, self.cached(ix, iz + 1))
         };
         cell_height([h00, h10, h01, h11], u, v)
     }
@@ -529,6 +597,48 @@ mod tests {
         let lowest = skirted.positions.iter().map(|p| p.y).fold(f32::INFINITY, f32::min);
         let lowest_top = plain.positions.iter().map(|p| p.y).fold(f32::INFINITY, f32::min);
         assert!((lowest - (lowest_top - 10.0)).abs() < 1e-3);
+    }
+
+    /// `height_at` with every corner worked out afresh, as before the cache.
+    fn uncached(h: &Heightfield, x: f32, z: f32) -> f32 {
+        let (gx, gz) = ((x - h.origin_m) / h.cell_m, (z - h.origin_m) / h.cell_m);
+        let (fx, fz) = (gx.floor(), gz.floor());
+        let (ix, iz) = (fx as i64, fz as i64);
+        let (u, v) = (gx - fx, gz - fz);
+        let corners = [
+            h.lattice(ix, iz),
+            h.lattice(ix + 1, iz),
+            h.lattice(ix, iz + 1),
+            h.lattice(ix + 1, iz + 1),
+        ];
+        cell_height(corners, u, v)
+    }
+
+    #[test]
+    fn cached_heights_are_the_formulas_bit_for_bit_inside_on_the_edge_and_past_it() {
+        let h = hills();
+        // Twice over the same points: the first pass fills the tiles, the second reads them.
+        for pass in 0..2 {
+            for i in 0..400 {
+                // Spread over the world and 100 m past every edge, off the lattice's grid.
+                let x = -356.0 + (i as f32 * 61.803) % 712.0;
+                let z = -356.0 + (i as f32 * 37.427) % 712.0;
+                assert_eq!(
+                    h.height_at(x, z).to_bits(),
+                    uncached(&h, x, z).to_bits(),
+                    "pass {pass} at ({x}, {z})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_clone_starts_with_an_empty_cache_and_the_same_heights() {
+        let h = hills();
+        let before = h.height_at(10.3, -20.7);
+        let c = h.clone();
+        assert!(format!("{:?}", c.cache).starts_with("LatticeCache(0 of"));
+        assert_eq!(c.height_at(10.3, -20.7), before);
     }
 
     #[test]

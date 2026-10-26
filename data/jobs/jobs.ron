@@ -1,19 +1,29 @@
 // Jobs and mail (openspec change mission-jobs). Offers arrive as messages; jobs are sited in and near
 // cities (owner, survey J2: "Jobs are usualy started near or in a city"); pay is per enemy mech plus a
-// base (survey J4: 40 000-150 000). {city}, {mechs} and {pay} are filled into the text.
+// base (survey J4: 40 000-150 000 at tier 2, the Foreman's). Risk tiers 1 to 4 (career-progression,
+// provisional CP1): a tier is offered only once the career owns a mech rated for it, and its pay roughly
+// doubles the tier below. {city}, {mechs}, {pay} and {tier} are filled into the text.
 (
     open_offers: 3,
     offer_gap_s: (30.0, 90.0),
     offer_life_s: 900.0,
     arrive_m: 1500.0,
+    // A job's mechs come in 150-350 m round its site, never within 1 km of the pilot, so nothing is firing as the
+    // fight begins (owner, 2026-10-25: "the enemies shuodl be farther away so they dont start shooting as soon as I
+    // board"; openspec change mission-jobs task 4.2).
+    spawn_ring_m: (150.0, 350.0),
+    clear_of_pilot_m: 1000.0,
     inbox_kept: 40,
     kinds: [
         (
             kind: Defend,
             weight: 1.0,
-            mechs: (2, 5),
-            pay_per_mech: 20000,
-            pay_base: 30000,
+            tiers: [
+                (tier: 1, mechs: (1, 2), pay_per_mech: 12000, pay_base: 20000),
+                (tier: 2, mechs: (2, 4), pay_per_mech: 20000, pay_base: 30000),
+                (tier: 3, mechs: (3, 5), pay_per_mech: 40000, pay_base: 70000),
+                (tier: 4, mechs: (5, 7), pay_per_mech: 80000, pay_base: 150000),
+            ],
             time_limit_s: 900.0,
             site_out: (0.0, 0.6),
             senders: ["City Defence Office", "Mayor's Office", "Civil Guard"],
@@ -26,9 +36,12 @@
         (
             kind: Intercept,
             weight: 1.0,
-            mechs: (2, 4),
-            pay_per_mech: 18000,
-            pay_base: 22000,
+            tiers: [
+                (tier: 1, mechs: (1, 2), pay_per_mech: 11000, pay_base: 15000),
+                (tier: 2, mechs: (2, 4), pay_per_mech: 18000, pay_base: 22000),
+                (tier: 3, mechs: (3, 5), pay_per_mech: 36000, pay_base: 50000),
+                (tier: 4, mechs: (4, 6), pay_per_mech: 72000, pay_base: 110000),
+            ],
             time_limit_s: 720.0,
             site_out: (1.3, 2.5),
             senders: ["Highway Patrol", "Island Command", "Freight Union"],
@@ -41,9 +54,12 @@
         (
             kind: Destroy,
             weight: 0.7,
-            mechs: (3, 6),
-            pay_per_mech: 22000,
-            pay_base: 40000,
+            // No tier 1 nest: a nest is never a small job. Tier 4 is the assault on a nest with a Tyrant.
+            tiers: [
+                (tier: 2, mechs: (3, 4), pay_per_mech: 22000, pay_base: 40000),
+                (tier: 3, mechs: (4, 6), pay_per_mech: 45000, pay_base: 90000),
+                (tier: 4, mechs: (6, 8), pay_per_mech: 90000, pay_base: 200000),
+            ],
             time_limit_s: 1200.0,
             site_out: (1.5, 3.0),
             senders: ["Island Command", "Survey Bureau"],
@@ -51,6 +67,60 @@
             bodies: [
                 "Crabs have dug in near {city}: {mechs} of them guard the nest. Destroy every one. {pay} credits.",
                 "A nest of {mechs} crabs sits outside {city}. Clear it before it spreads. {pay} credits on completion.",
+            ],
+        ),
+        // Shipping jobs (openspec/changes/harbours, pre-approved by the owner, 2026-10-26, HB17), sited at a
+        // harbour; {mechs} is the raiders' gunboats. An escort is won when the freighter moors and no gunboat is
+        // left, lost if the freighter sinks.
+        (
+            kind: Escort,
+            weight: 0.6,
+            tiers: [
+                (tier: 1, mechs: (2, 3), pay_per_mech: 9000, pay_base: 25000),
+                (tier: 2, mechs: (3, 5), pay_per_mech: 15000, pay_base: 40000),
+                (tier: 3, mechs: (5, 7), pay_per_mech: 30000, pay_base: 80000),
+            ],
+            time_limit_s: 1500.0,
+            site_out: (0.0, 0.0),
+            senders: ["Harbour Master", "Coastal Freight Line", "Freight Union"],
+            subjects: ["Escort a freighter into {city}", "Raiders on the {city} lane", "Bring her in to {city}"],
+            bodies: [
+                "A freighter is inbound to the harbour at {city} and {mechs} raider gunboats are hunting her. Meet her out on the lane and bring her in to her berth. {pay} credits when she is alongside and the raiders are gone.",
+                "Our ship is coming in to {city} with {mechs} gunboats on her trail. Escort her in. If she goes down, the contract is void. {pay} credits.",
+            ],
+        ),
+        (
+            kind: Raid,
+            weight: 0.5,
+            tiers: [
+                (tier: 1, mechs: (2, 3), pay_per_mech: 8000, pay_base: 15000),
+                (tier: 2, mechs: (3, 4), pay_per_mech: 14000, pay_base: 25000),
+                (tier: 3, mechs: (4, 6), pay_per_mech: 28000, pay_base: 50000),
+            ],
+            time_limit_s: 900.0,
+            site_out: (0.0, 0.0),
+            senders: ["Harbour Master", "Fishermen's Cooperative", "Coast Guard"],
+            subjects: ["Gunboats on the {city} fishing grounds", "Sink the raiders off {city}", "The fleet off {city} is under fire"],
+            bodies: [
+                "{mechs} raider gunboats are shooting up the fishing fleet off {city}. Get out there and sink them. {pay} credits.",
+                "The boats off {city} cannot get home: {mechs} gunboats are on the grounds. Sink every one. {pay} credits on completion.",
+            ],
+        ),
+        (
+            kind: Blockade,
+            weight: 0.4,
+            tiers: [
+                (tier: 1, mechs: (2, 3), pay_per_mech: 9000, pay_base: 20000),
+                (tier: 2, mechs: (3, 5), pay_per_mech: 16000, pay_base: 35000),
+                (tier: 3, mechs: (5, 7), pay_per_mech: 32000, pay_base: 70000),
+            ],
+            time_limit_s: 1200.0,
+            site_out: (0.0, 0.0),
+            senders: ["Harbour Master", "Coast Guard", "Island Command"],
+            subjects: ["The harbour at {city} is blockaded", "Break the blockade at {city}", "Clear the mouth at {city}"],
+            bodies: [
+                "{mechs} raider gunboats lie across the mouth of the harbour at {city}. Nothing gets in or out. Clear them. {pay} credits.",
+                "The raiders have closed {city}'s harbour with {mechs} gunboats. Break the blockade. {pay} credits on completion.",
             ],
         ),
     ],

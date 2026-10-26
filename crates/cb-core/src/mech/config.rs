@@ -61,6 +61,10 @@ pub struct LocomotionConfig {
     pub twist_max_deg: f32,
     /// Torso twist rate.
     pub twist_rate_deg_s: f32,
+    /// How fast the torso's twist speeds up and slows down: it eases into a turn and brakes onto
+    /// the aim instead of starting and stopping dead (owner, 2026-10-25: "mech isnt accelerating
+    /// to match to the rotation", "rotates abruptly").
+    pub twist_accel_deg_s2: f32,
     /// Torso pitch limits, [down, up] (down negative).
     pub pitch_limits_deg: [f32; 2],
     /// Torso pitch rate.
@@ -111,6 +115,7 @@ impl Default for LocomotionConfig {
             turn_accel_deg_s2: 120.0,
             twist_max_deg: 100.0,
             twist_rate_deg_s: 70.0,
+            twist_accel_deg_s2: 600.0,
             pitch_limits_deg: [-20.0, 25.0],
             pitch_rate_deg_s: 40.0,
             body_radius_m: 3.0,
@@ -192,6 +197,12 @@ pub struct JetConfig {
     pub recharge_delay_s: f32,
     /// Emptied, they relight once this share is back.
     pub relight_fraction: f32,
+    /// WASD swivels the rockets up to this far from straight down, toward the way asked, so they push the mech that
+    /// way a little (owner, 2026-10-25: "I should move forward slightly when using my rockets, wasd shoulsd also
+    /// swivel the rocket in that general direction").
+    pub vector_max_deg: f32,
+    /// How fast the rockets swivel, degrees a second.
+    pub vector_rate_deg_s: f32,
 }
 
 impl Default for JetConfig {
@@ -212,6 +223,9 @@ impl Default for JetConfig {
             recharge_s: 8.0,
             recharge_delay_s: 1.5,
             relight_fraction: 0.3,
+            // sin(20 degrees) of 56 m/s2: about 19 m/s2 across at full lift, a third of the climb's push.
+            vector_max_deg: 20.0,
+            vector_rate_deg_s: 60.0,
         }
     }
 }
@@ -379,6 +393,8 @@ pub struct InteriorConfig {
 pub struct MechConfig {
     /// Display name.
     pub name: String,
+    /// Its risk tier, 1 to 4: the riskiest jobs owning it opens (openspec change `career-progression`).
+    pub tier: u8,
     /// A glb under `assets/` following the rig contract (`models/mech_<name>.glb`). When set it
     /// replaces the stand-in's boxes; the stand-in skeleton is then unused.
     pub model: Option<String>,
@@ -400,6 +416,8 @@ pub struct MechConfig {
     pub parts: Vec<PartSpec>,
     /// Guns.
     pub weapons: Vec<crate::weapons::WeaponSpec>,
+    /// The weapon heat bank the hot weapons share (openspec change `weapon-kinds`, survey G23).
+    pub weapon_heat: crate::weapons::WeaponHeatConfig,
     /// Close combat: melee range and the arms' strikes (openspec change `close-combat`).
     pub melee: super::melee::MeleeConfig,
     /// The stand-in's bones and sockets.
@@ -418,10 +436,54 @@ impl MechConfig {
     }
 }
 
+/// A mech's own loadout, `data/mechs/<id>/weapons.ron` beside its data (openspec change
+/// `signature-weapons`): hand-tuned, so the generator that writes the rest of the mech's data from its
+/// glb leaves it alone. When present it replaces the stock guns.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Loadout {
+    /// The guns, the signature first.
+    pub weapons: Vec<crate::weapons::WeaponSpec>,
+    /// The weapon heat bank.
+    #[serde(default)]
+    pub weapon_heat: crate::weapons::WeaponHeatConfig,
+}
+
+impl Validate for Loadout {
+    fn validate(&self) -> Result<(), String> {
+        if self.weapons.is_empty() {
+            return Err("weapons: a loadout carries at least one gun".into());
+        }
+        if self.weapons.iter().filter(|w| w.signature).count() > 1 {
+            return Err("weapons: one signature weapon a mech".into());
+        }
+        for w in &self.weapons {
+            w.validate()?;
+        }
+        self.weapon_heat.validate()
+    }
+}
+
+impl MechConfig {
+    /// Loads the mech file `file` (relative to the data root `root`) with its loadout beside it,
+    /// `mechs/<id>/weapons.ron`, when it has one: the one way a mech's data is read for flying.
+    pub fn load(root: &std::path::Path, file: &str) -> Result<Self, crate::data::DataError> {
+        let mut cfg: Self = crate::data::load_ron(&root.join(file))?;
+        let loadout = root.join(file.trim_end_matches(".ron")).join("weapons.ron");
+        if loadout.exists() {
+            let l: Loadout = crate::data::load_ron(&loadout)?;
+            cfg.weapons = l.weapons;
+            cfg.weapon_heat = l.weapon_heat;
+        }
+        Ok(cfg)
+    }
+}
+
 impl Default for MechConfig {
     fn default() -> Self {
         Self {
             name: "stand-in".into(),
+            tier: 1,
             model: None,
             interior: None,
             body: BodyConfig::default(),
@@ -432,6 +494,7 @@ impl Default for MechConfig {
             ram: RamConfig::default(),
             parts: default_parts(),
             weapons: crate::weapons::default_weapons(),
+            weapon_heat: crate::weapons::WeaponHeatConfig::default(),
             melee: super::melee::MeleeConfig::default(),
             nodes: Vec::new(),
             boxes: Vec::new(),
@@ -441,6 +504,9 @@ impl Default for MechConfig {
 
 impl Validate for MechConfig {
     fn validate(&self) -> Result<(), String> {
+        if !(1..=4).contains(&self.tier) {
+            return Err(format!("`tier` must be 1 to 4, got {}", self.tier));
+        }
         let r = &self.ram;
         positive("ram.speed_m_s", r.speed_m_s)?;
         within("ram.stopped_fraction", r.stopped_fraction, 0.0, 1.0)?;
@@ -462,6 +528,7 @@ impl Validate for MechConfig {
         positive("locomotion.turn_accel_deg_s2", l.turn_accel_deg_s2)?;
         within("locomotion.twist_max_deg", l.twist_max_deg, 0.0, 180.0)?;
         positive("locomotion.twist_rate_deg_s", l.twist_rate_deg_s)?;
+        positive("locomotion.twist_accel_deg_s2", l.twist_accel_deg_s2)?;
         within("locomotion.pitch_limits_deg[0]", l.pitch_limits_deg[0], -89.0, 0.0)?;
         within("locomotion.pitch_limits_deg[1]", l.pitch_limits_deg[1], 0.0, 89.0)?;
         positive("locomotion.pitch_rate_deg_s", l.pitch_rate_deg_s)?;
@@ -501,6 +568,8 @@ impl Validate for MechConfig {
         positive("jet.recharge_s", j.recharge_s)?;
         crate::data::finite("jet.recharge_delay_s", j.recharge_delay_s)?;
         within("jet.relight_fraction", j.relight_fraction, 0.0, 1.0)?;
+        within("jet.vector_max_deg", j.vector_max_deg, 0.0, 60.0)?;
+        positive("jet.vector_rate_deg_s", j.vector_rate_deg_s)?;
         let k = &self.skate;
         positive("skate.speed_max_m_s", k.speed_max_m_s)?;
         positive("skate.accel_m_s2", k.accel_m_s2)?;
@@ -545,6 +614,7 @@ impl Validate for MechConfig {
         for w in &self.weapons {
             w.validate()?;
         }
+        self.weapon_heat.validate()?;
         for n in &self.nodes {
             finite3(&format!("nodes[{}].offset_m", n.name), n.offset_m)?;
             let parent = (!n.parent.is_empty()).then_some(n.parent.as_str());

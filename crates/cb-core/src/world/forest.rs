@@ -270,7 +270,7 @@ impl Forest {
     }
 
     /// Tiles whose ground lies within `r` of `p`, in key order.
-    fn tiles_within(&self, p: Vec2, r: f32) -> Vec<(u32, u32)> {
+    pub(crate) fn tiles_within(&self, p: Vec2, r: f32) -> Vec<(u32, u32)> {
         let Some(g) = &self.grower else { return Vec::new() };
         let side = g.cfg.tile_sites as f32 * g.cfg.spacing_m;
         let max = g.tiles_per_side as i64 - 1;
@@ -290,9 +290,9 @@ impl Forest {
     }
 
     /// Grows the tiles near the bodies at `bodies` (x, z) and lets go of tiles far from all of
-    /// them: every tile within `urgent_radius_m` of a body at once, then up to `tiles_per_step`
-    /// more within `keep_radius_m`, nearest first; tiles beyond `release_radius_m` of every body
-    /// are let go. The result depends only on the bodies' positions and what was grown before.
+    /// them, nearest first: every tile within `must_radius_m` of a body at once, up to
+    /// `urgent_tiles_per_step` more within `urgent_radius_m`, then up to `tiles_per_step` more within
+    /// `keep_radius_m`; tiles beyond `release_radius_m` of every body are let go. The result depends only on the bodies' positions and what was grown before.
     pub fn keep_around(&mut self, plan: &WorldPlan, bodies: &[Vec2]) -> TileChanges {
         self.keep_around_seen(plan, bodies, bodies.len())
     }
@@ -347,13 +347,19 @@ impl Forest {
         }
         wanted.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
         wanted.dedup_by_key(|w| w.1);
-        let mut budget = cfg.tiles_per_step as usize;
+        let (mut urgent, mut budget) = (cfg.urgent_tiles_per_step as usize, cfg.tiles_per_step as usize);
         for (d, key) in wanted {
+            // Nearest first, so once a ring's budget is spent nothing farther is grown this step.
             if d > cfg.urgent_radius_m {
                 if budget == 0 {
                     break;
                 }
                 budget -= 1;
+            } else if d > cfg.must_radius_m {
+                if urgent == 0 {
+                    break;
+                }
+                urgent -= 1;
             }
             self.grow_tile(plan, key);
             changes.grown.push(key);

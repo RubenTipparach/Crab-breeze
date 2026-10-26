@@ -31,3 +31,33 @@ its bay with its damage.
 #### Scenario: Taking the Driller out
 - **WHEN** the pilot climbs out of the Foreman in bay 1 and boards the Driller in bay 2
 - **THEN** the Driller is the piloted mech and the Foreman stands in bay 1 with its damage
+
+### Requirement: Jobs are signed for at a hangar bay's terminal
+
+Each hangar bay SHALL have a terminal, and a pilot on foot standing within reach of it and facing it SHALL be able
+to open its screen with Use and accept a job offered by the career's job board there.
+
+#### Scenario: Signing up at the terminal
+- **WHEN** the pilot walks up to the terminal in bay 1, faces it and presses Use
+- **THEN** its screen lists the career's job offers, and accepting one makes it the job under way
+
+### Requirement: The MECH MFD shows what the bay did
+
+When a hangar bay repairs and rearms the piloted mech, the MECH MFD SHALL show the bay's report: the parts repaired,
+the rounds put back and the cost.
+
+#### Scenario: Back from a job
+- **WHEN** the mech stops in a bay with its torso damaged and missiles fired
+- **THEN** the MECH page reads the parts repaired, the rounds put back and COST 0 CR
+
+### Requirement: Every air base has a runway
+
+The world generator SHALL lay a runway of 1.5 to 2 km beside every air base, flattened to the base's ground, on dry land,
+clear of the hangars, the tower, the cities, the highways, the rivers and every building; it SHALL try in front of the
+apron first and move the runway behind the hangars or down a side when it does not fit there, and SHALL not use a site
+that can hold none (survey W45, 2026-10-26: "Add a real runway, about 1.5 to 2 km, to each base").
+
+#### Scenario: The seed-42 island
+- **WHEN** the island is generated from seed 42
+- **THEN** each of its five bases has a runway of 1.5 to 2 km that is flat at the base's ground, dry and clear, and every
+  airliner and freighter flight between the bases touches down on its destination's runway

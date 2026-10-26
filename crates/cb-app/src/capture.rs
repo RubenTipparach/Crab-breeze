@@ -18,6 +18,7 @@ use crate::mech::{MechAccessNow, MechSim, Piloted};
 use crate::pilot::PilotSim;
 use crate::showcase::{fly_to_cloud, nearest_cloud};
 use crate::sim::Data;
+use crate::state::GameApp;
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use cb_core::input::Actions;
@@ -74,9 +75,9 @@ impl Plugin for StillsPlugin {
             fall_shots: 0,
             offscreen: None,
         })
-        .add_systems(PostStartup, offscreen_for_buildings)
-        .add_systems(Update, run_script)
-        .add_systems(Last, (hold_poster_hatch, poster_lens));
+        .add_after_world_spawn(offscreen_for_buildings)
+        .add_game_systems(Update, run_script)
+        .add_game_systems(Last, (hold_poster_hatch, poster_lens));
     }
 }
 
@@ -200,6 +201,10 @@ fn buildings_beats(
 
 /// The poster variant's shots: (where the camera stands round the mech from straight ahead of it,
 /// degrees; knelt and open; how far the view turns off the mech, degrees, so it sits to one side).
+/// The stills script's beat for taking a job on the MAIL page (`CB_STILLS_MAIL`), out of the numbered run: entered
+/// after the outline shot, it goes on to the stride.
+const MAIL_BEAT: usize = 50;
+
 const POSTER_SHOTS: [(f32, bool, f32); 2] = [(45.0, false, 13.0), (45.0, true, 13.0)];
 
 /// How far the poster variant turns the mech from facing the pilot's start, degrees, so it stands
@@ -269,7 +274,7 @@ fn shoot_image(commands: &mut Commands, script: &Script, name: &str) {
     commands.spawn(Screenshot::image(img)).observe(save_to_disk(path));
 }
 
-fn shoot(commands: &mut Commands, dir: &std::path::Path, name: &str) {
+pub(crate) fn shoot(commands: &mut Commands, dir: &std::path::Path, name: &str) {
     let path = dir.join(name);
     info!("capture: {}", path.display());
     commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
@@ -323,6 +328,14 @@ fn run_script(
         // 10 frames at the cap), counting on through the outline shot.
         Local<(bool, u32)>,
     ),
+    // `CB_STILLS_MAIL`: where the view points on the MFDs, a career's board (none in free roam), whether the city
+    // defence runs (free roam's mail), and how far through taking the offer the script is (its step, frames in it).
+    (pointed, career, defending, mut mail): (
+        Res<crate::mfd_apps::Pointed>,
+        Option<Res<crate::career::CareerRun>>,
+        Option<Res<crate::defence::Defending>>,
+        Local<(u32, u32)>,
+    ),
     time: Res<Time<Real>>,
     game_time: Res<Time<Virtual>>,
     mut exit: MessageWriter<AppExit>,
@@ -370,8 +383,13 @@ fn run_script(
     if script.beat >= 1 && crate::cli::switched_off("CB_STILLS_POSTER") {
         let i = script.beat - 1;
         if i >= POSTER_SHOTS.len() {
-            // The last screenshot is written a frame or two later.
-            if in_beat > 2.0 {
+            // The last screenshot is written a frame or two later: on a software renderer, whose
+            // frames take seconds, wait for the file itself (up to 30 s).
+            let last = script.dir.join(match POSTER_SHOTS.last() {
+                Some((_, true, _)) => format!("poster-{}-knelt.png", POSTER_SHOTS.len() - 1),
+                _ => format!("poster-{}.png", POSTER_SHOTS.len() - 1),
+            });
+            if in_beat > 2.0 && (last.exists() || in_beat > 30.0) {
                 exit.write(AppExit::Success);
             }
             return;
@@ -512,8 +530,114 @@ fn run_script(
                 steam_shot.1 += 1;
                 steam_shot.1 > 18
             } {
+                if crate::cli::switched_off("CB_STILLS_MAIL") {
+                    steam_shot.1 = 0;
+                    script.beat = MAIL_BEAT;
+                    script.beat_started_s = now;
+                    shoot(&mut commands, &script.dir, "cockpit-outline.png");
+                    return;
+                }
                 shoot(&mut commands, &script.dir, "cockpit-outline.png");
                 next = true;
+            }
+        }
+        // `CB_STILLS_MAIL`: a job taken on the cockpit's MAIL page, as a player takes one in free roam (mission-jobs
+        // 4.1): click the pointed screen (its MENU opens), aim at MAIL and click, aim at the first ACCEPT and click,
+        // aim at BACK and click (the screen's own page again). Aiming is by look input until the row lights, as a
+        // player's mouse does; a click is the press free look and fire make. A still at each step.
+        MAIL_BEAT => {
+            use crate::mfd_apps::{Item, MAIL_PAGE, MENU_PAGE, item_centre};
+            let (step, frames) = &mut *mail;
+            *frames += 1;
+            let seek = |page: usize, item: Item| -> Vec2 {
+                match (pointed.at, item_centre(page, item)) {
+                    (Some(at), Some(c)) => ((c - at) * Vec2::new(0.02, -0.02)).clamp(Vec2::splat(-0.6), Vec2::splat(0.6)),
+                    _ => Vec2::ZERO,
+                }
+            };
+            let mut look = Vec2::ZERO;
+            let mut press = false;
+            let board = career.as_ref().map(|c| &c.career.board);
+            let advance = |step: &mut u32, frames: &mut u32| {
+                *step += 1;
+                *frames = 0;
+            };
+            match *step {
+                // Raise the view onto the screen (the outline beat stops a little under the dash's centre screen),
+                // then click it.
+                0 if pointed.screen.is_none() => look = Vec2::new(0.0, 0.4),
+                0 if *frames > 4 => {
+                    press = true;
+                    advance(step, frames);
+                }
+                1 if *frames > 8 && pointed.page == Some(MENU_PAGE) => {
+                    shoot(&mut commands, &script.dir, "mfd-menu.png");
+                    advance(step, frames);
+                }
+                2 => {
+                    look = seek(MENU_PAGE, Item::Mail);
+                    if pointed.item == Some(Item::Mail) && *frames > 4 {
+                        press = true;
+                        advance(step, frames);
+                    }
+                }
+                3 => {
+                    // A career's job offered, or free roam's standing city defence.
+                    let offered = board.is_none_or(|b| b.jobs.iter().any(|j| j.state == cb_core::jobs::JobState::Offered));
+                    if *frames > 8 && pointed.page == Some(MAIL_PAGE) && offered {
+                        shoot(&mut commands, &script.dir, "mfd-mail.png");
+                        advance(step, frames);
+                    }
+                }
+                4 => {
+                    look = seek(MAIL_PAGE, Item::Accept(0));
+                    if pointed.item == Some(Item::Accept(0)) && *frames > 4 {
+                        press = true;
+                        advance(step, frames);
+                    }
+                }
+                5 if *frames > 8 && (defending.is_some() || board.is_some_and(|b| b.current().is_some())) => {
+                    match board.and_then(|b| b.current()) {
+                        Some(j) => println!(
+                            "STILLS_MAIL accepted job {} at ({:.0}, {:.0}), {} mechs",
+                            j.id, j.site.x, j.site.y, j.mechs
+                        ),
+                        None => println!("STILLS_MAIL accepted the city defence"),
+                    }
+                    shoot(&mut commands, &script.dir, "mfd-accepted.png");
+                    advance(step, frames);
+                }
+                6 => {
+                    look = seek(MAIL_PAGE, Item::Back);
+                    if pointed.item == Some(Item::Back) && *frames > 4 {
+                        press = true;
+                        advance(step, frames);
+                    }
+                }
+                7 if *frames > 8 && pointed.page.is_some_and(|p| p < MENU_PAGE) => {
+                    println!("STILLS_MAIL back on page {:?}", pointed.page);
+                    shoot(&mut commands, &script.dir, "mfd-back.png");
+                    next = true;
+                }
+                _ => {}
+            }
+            if in_beat > 900.0 && !next {
+                println!("STILLS_MAIL stuck at step {} (pointed {:?})", *step, *pointed);
+                next = true;
+            }
+            // The aim goes in once a frame, as a mouse's does (`look_deg` is taken by the next fixed step only): held in
+            // the script's actions it would turn the view again on every step of a long software-rendered frame.
+            acc.script = Some(Actions {
+                free_look: true,
+                ..default()
+            });
+            acc.look_deg += look;
+            acc.mfd_press |= press;
+            if next {
+                // On to the stride, as after the outline shot.
+                script.beat = 6;
+                script.beat_started_s = now;
+                return;
             }
         }
         // Stand up and stride: throttle forward (the mech stands first), hold, measure frame time
@@ -631,7 +755,7 @@ impl Plugin for FramesPlugin {
             taken: 0,
             next_s: 0.0,
         })
-        .add_systems(Update, save_frames);
+        .add_game_systems(Update, save_frames);
     }
 }
 
@@ -694,7 +818,7 @@ impl Plugin for FxStillsPlugin {
             soil: None,
             done: Vec::new(),
         })
-        .add_systems(Update, (run_fx_script, run_depth_bench));
+        .add_game_systems(Update, (run_fx_script, run_depth_bench));
     }
 }
 
@@ -844,7 +968,7 @@ fn run_depth_bench(
 }
 
 /// The pilot on foot at `feet`, looking at `at`.
-fn stand_looking(pilot: &mut PilotSim, feet: Vec3, at: Vec3) {
+pub(crate) fn stand_looking(pilot: &mut PilotSim, feet: Vec3, at: Vec3) {
     let to = at - feet;
     let mut s = PilotState::standing(feet, (-to.x).atan2(-to.z));
     s.pitch_rad = (to.y - 1.7).atan2(to.with_y(0.0).length());
@@ -938,7 +1062,7 @@ fn run_fx_script(
                 if let Some(spec) = player {
                     let launch = feet + Vec3::new(-flat.z, 0.0, flat.x) * 25.0 + Vec3::Y * 12.0;
                     for (wi, w) in spec.weapons.iter().enumerate() {
-                        let n = if w.rocket {
+                        let n = if w.shot().straight() {
                             3
                         } else if w.blast_mj < 1.0 {
                             12
@@ -947,14 +1071,14 @@ fn run_fx_script(
                         };
                         for k in 0..n {
                             let aim = torso + Vec3::new((k as f32 - 5.0) * 0.8, (k % 4) as f32 * 3.0 - 6.0, 0.0);
-                            let from = launch + Vec3::Y * k as f32 * 0.6 - flat * (k as f32 * if w.rocket { 25.0 } else { 0.0 });
+                            let from = launch + Vec3::Y * k as f32 * 0.6 - flat * (k as f32 * if w.shot().straight() { 25.0 } else { 0.0 });
                             shots.0.push(cb_core::weapons::Projectile {
                                 owner: 0,
                                 weapon: wi,
                                 pos: from,
                                 vel: (aim - from).normalize() * w.speed_m_s,
                                 age_s: 0.0,
-                                rocket: w.rocket,
+                                rocket: w.shot().straight(),
                                 target: None,
                             });
                         }
@@ -1021,10 +1145,12 @@ fn run_fx_script(
                     explosions.write(crate::blast::Explosion {
                         at: c + Vec3::Y * 0.5,
                         energy_mj: 6.0,
+                        by: None,
                     });
                     explosions.write(crate::blast::Explosion {
                         at: c + Vec3::new(-14.0, 0.5, -10.0),
                         energy_mj: 25.0,
+                        by: None,
                     });
                 } else {
                     eprintln!("fx stills: no open soil near");
@@ -1149,6 +1275,47 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // In the west storm's rain, on the ground, looking up through it (the shafts seen from inside).
+    View {
+        name: "in-the-rain-up",
+        eye: [-5600.0, 2.0, -3900.0],
+        at: [-5900.0, 900.0, -4300.0],
+        above_ground: true,
+    },
+    // Inside the cloud nearest a city's towers, looking up through it (`city_in_cloud_view`).
+    View {
+        name: "city-in-cloud",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Open sea in the clear south-east, 40 m up, looking toward the sun (its glitter path and the
+    // light through the crests) and away from it (the sky in the water): `sea_view`.
+    View {
+        name: "sea-sun",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "sea-away",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // The same toward the sun from 1.5 km and 6.5 km up (the glitter and the haze from altitude).
+    View {
+        name: "sea-sun-high",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "sea-sun-top",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // From the street in the biggest city, looking up past the towers at the sky (`city_up_view`).
     View {
         name: "city-up",
@@ -1163,6 +1330,20 @@ const VIEWS: &[View] = &[
         name: "under-the-storm",
         eye: [-5600.0, 40.0, -3900.0],
         at: [-11600.0, 500.0, -9600.0],
+        above_ground: true,
+    },
+    // Under the west storm's anvil, 2 km east of its centre, on the ground looking up into it.
+    View {
+        name: "storm-under-anvil",
+        eye: [-3887.0, 2.0, -4186.0],
+        at: [-5287.0, 1800.0, -4186.0],
+        above_ground: true,
+    },
+    // 2.8 km north of the west storm's centre, on the ground looking up at its base and tower.
+    View {
+        name: "storm-under-edge",
+        eye: [-5887.0, 2.0, -6986.0],
+        at: [-5887.0, 1800.0, -5026.0],
         above_ground: true,
     },
     // The storm's shadow on the ground, from 900 m up outside it, looking down across its edge.
@@ -1220,6 +1401,34 @@ fn steep_river_view(plan: &crate::world::Plan, back_m: f32, up_m: f32, top: bool
     };
     info!("steep river: {drop:.0} m over 10 points at {at}");
     (eye.to_array(), at.to_array())
+}
+
+/// Inside the puff nearest any city's middle (where the wind has carried it by `now_s`), a third of
+/// its height under its centre, looking up past it.
+fn city_in_cloud_view(plan: &crate::world::Plan, now_s: f32) -> ([f32; 3], [f32; 3]) {
+    let d = plan.clouds.drift(now_s);
+    let near = |p: &cb_core::world::clouds::Puff| {
+        plan.cities
+            .iter()
+            .map(|c| Vec2::new(p.centre.x + d.x, p.centre.z + d.y).distance(c.centre))
+            .fold(f32::MAX, f32::min)
+    };
+    let Some(p) = plan.clouds.puffs.iter().min_by(|a, b| near(a).total_cmp(&near(b))) else {
+        return ([0.0, 400.0, 0.0], [0.0, 2000.0, 100.0]);
+    };
+    let centre = p.centre + Vec3::new(d.x, 0.0, d.y);
+    let eye = centre - Vec3::Y * p.radii.y * 0.33 + Vec3::new(p.radii.x * 0.2, 0.0, 0.0);
+    info!("city in cloud: puff at {centre} radii {}, eye {eye}", p.radii);
+    (eye.to_array(), (centre + Vec3::new(-200.0, 1500.0, 300.0)).to_array())
+}
+
+/// Over open sea in the clear south-east, `up_m` up, looking toward the sun's bearing (`toward`)
+/// or away from it, at the sea 15 eye heights ahead (a few degrees down).
+fn sea_view(toward: bool, up_m: f32) -> ([f32; 3], [f32; 3]) {
+    let sun = cb_core::world::sun_shade::to_sun();
+    let level = Vec3::new(sun.x, 0.0, sun.z).normalize_or(Vec3::X) * if toward { 1.0 } else { -1.0 };
+    let eye = Vec3::new(24000.0, up_m, 16000.0);
+    (eye.to_array(), (eye + level * up_m * 15.0 - Vec3::Y * up_m).to_array())
 }
 
 /// On the street nearest the middle of the city with the most cloud overhead, 2 m up, looking nearly straight up.
@@ -1307,7 +1516,7 @@ impl Plugin for WeatherStillsPlugin {
             frames: 0,
             shots: Vec::new(),
         })
-        .add_systems(Update, run_weather_script);
+        .add_game_systems(Update, run_weather_script);
     }
 }
 
@@ -1341,6 +1550,11 @@ fn run_weather_script(
             "river-close" => close_river_view(&plan, false),
             "river-close-below" => close_river_view(&plan, true),
             "city-up" => city_up_view(&plan),
+            "sea-sun" => sea_view(true, 40.0),
+            "sea-away" => sea_view(false, 40.0),
+            "sea-sun-high" => sea_view(true, 1500.0),
+            "sea-sun-top" => sea_view(true, 6500.0),
+            "city-in-cloud" => city_in_cloud_view(&plan, now),
             _ => (v.eye, v.at),
         };
         let v = View {

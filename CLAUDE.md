@@ -330,6 +330,10 @@ said out loud and kept in check, never guessed.
   which session owns it and what it holds, so the owner can tell whose a branch is from the PR list.
   A session that finds a pushed branch with no PR opens one for it, marked as opened on its owner's
   behalf.
+- **A session produces one combined pull request** (owner, 2026-10-26: "Your session should always be one
+  combined pr. Add to Claude md"). Every task a session takes on, first message to last, goes on one branch
+  and lands as one PR. New work is a new commit on that branch, not a new branch. If parallel helpers work
+  on separate branches, they are merged into the session's one branch before anything is pushed.
 - **No scheduled PR check-ins** (owner rule in Pale Blue Dot, Star Crew and Mining Mike: "you
   should never rearm pr checkins"). No `send_later`, routine, `/loop` or timer that wakes the
   session to re-read a PR. A PR is looked at when the owner asks, when its events arrive, or as
@@ -490,7 +494,8 @@ Nothing is an exception until it is listed here with its reason.
   2026-10-24: "rivets are kinda old school, I want more modern looking armor"): engraved seams, no rivets,
   neutral so each mech's palette (`tools/blender/mech_palettes.py`) tints it, and the decal sheet `decals.png` (owner,
   2026-10-24: "it should say "no step", company logo, "warning flamable" etc"): stencil markings and digits laid on
-  the mechs as quads by `Kit.decal`. Material Maker stays the source of every other material.
+  the mechs as quads by `Kit.decal`. It also draws the crab air fortress's armour, designed for its hull and laid out against
+  `tools/mockups/fortress_layout.json` (owner, 2026-10-25: "pieces of custom made armor cut and fitted with precision"). Material Maker stays the source of every other material.
 - **Cockpit panels are modelled and rendered, not Material Maker graphs, and the pod's surfaces are
   baked to atlases** (owner, 2026-10-24: "Use the texturing skill we had on star crew bridge sim.
   Baked lighting with AO", then "Aim for that pbr triple a goodness that bevy provides"). A panel's
@@ -504,6 +509,15 @@ Nothing is an exception until it is listed here with its reason.
   (`crates/cb-app/src/pbr_set.rs`), and its folder carries a `SOURCE.md` with the URL, the licence
   and every change made to it. The ground's grass is ambientCG Grass001
   (`assets/textures/ground/grass001/`).
+- **The Stratostacean's block-out is exported from its mockup, not built in Blender** (owner, 2026-10-25, on the Stratostacean
+  Air Fortress mockup: "looks good, build it in game"). The block-out the owner approved is the three.js page, so
+  `tools/mockups/export_fortress_glb.mjs` writes `assets/models/fortress_stratostacean.glb` from it, with its manifest and
+  triangle budget: one implementation of its shape, from `tools/mockups/fortress_layout.json`. The Blender model
+  replaces it when it is made (`openspec/changes/crab-airship` task 3.1).
+- **Far building facades are rendered from the near ones, not Material Maker graphs** (survey L1, owner, 2026-10-26:
+  "Approve all"). Each building type's far facade is a face-on render of its own near dressing pieces, coloured from
+  the near skin's own maps (`cb_core::world::far_facade`, `crates/cb-app/src/far_facades.rs`), made at startup
+  because those maps are, so a far facade cannot disagree with its near one (`openspec/changes/building-type-lods`).
 - **Copied skills keep their source's text** below their "In Crab Breeze" note (and its front
   matter description, retargeted), so a later copy from the source can be diffed. Where the source
   and the note disagree, the note and this file win.

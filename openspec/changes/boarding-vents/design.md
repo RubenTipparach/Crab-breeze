@@ -94,4 +94,4 @@ vent a frame. Cloud sessions cannot measure frame time; the owner's machine meas
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| M12 | Should a mech vent when an enemy pilot boards or leaves it (none do today) | No: only the player boards | provisional |
+| M12 | Should a mech vent when an enemy pilot boards or leaves it (none do today) | No: only the player boards | decided by the owner (2026-10-26, "Approve all": "Only the mech you board vents"); already so: `cb-app::vents` binds streams only under the `Piloted` mech and `switch` keeps every other mech's shut |

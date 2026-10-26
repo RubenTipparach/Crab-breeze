@@ -249,7 +249,7 @@
    ],
    "clear_deg": 210,
    "span_deg": 210,
-   "tris": 934,
+   "tris": 692,
    "mech": "petals",
    "opening": "three petals: the two side ones swing out on their outer edges like doors, then the middle one pops and swings up carrying the dash; the seams fall on the screens' own seams",
    "open_s": 3.2,
@@ -322,12 +322,13 @@
     }
    ],
    "mfd": [
+    "top",
     "dash"
    ],
    "rear": {
     "file": "cockpit_blockouts/tilewall_rear.glb",
     "clear_deg": 210,
-    "tris": 800,
+    "tris": 576,
     "mech": "rear_ramp",
     "opening": "by the back: the back wall unclamps and drops back to the deck as a ramp, then the seat swivels round to face it; the screens ahead never move",
     "open_s": 4.1,
@@ -873,7 +874,7 @@
    ],
    "clear_deg": 95,
    "span_deg": 175,
-   "tris": 544,
+   "tris": 556,
    "mech": "door",
    "opening": "a heavy door: clamps slide off the free edge, it pops off its seal, then swings out on three hinges at its right edge with the dash on it",
    "open_s": 2.95,
@@ -953,12 +954,13 @@
     }
    ],
    "mfd": [
+    "top",
     "dash"
    ],
    "rear": {
     "file": "cockpit_blockouts/cinema_rear.glb",
     "clear_deg": 98,
-    "tris": 448,
+    "tris": 460,
     "mech": "rear_hatch",
     "opening": "by the back: a hatchback, the back wall and the back of the roof swinging up on two rams, then the seat swivels round to face it; the screens ahead never move",
     "open_s": 4.1,
@@ -1779,7 +1781,7 @@
    ],
    "clear_deg": 190,
    "span_deg": 190,
-   "tris": 1050,
+   "tris": 802,
    "mech": "elevator",
    "opening": "the upper ring of screens and the bubble rise straight up on four rams and tilt back, then the front of the lower ring drops as a step",
    "open_s": 3.5,
@@ -1922,12 +1924,13 @@
     }
    ],
    "mfd": [
+    "top",
     "dash"
    ],
    "rear": {
     "file": "cockpit_blockouts/twintier_rear.glb",
     "clear_deg": 190,
-    "tris": 848,
+    "tris": 712,
     "mech": "rear_barn",
     "opening": "by the back: two doors swing out on hinges at the back corners, then the seat swivels round to face them; the screens ahead never move",
     "open_s": 4.1,

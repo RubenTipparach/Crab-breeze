@@ -177,7 +177,11 @@
     trees: (
         tile_sites: 24,
         keep_radius_m: 2200.0,
+        // Within 60 m of a body its trees grow at once; out to 400 m, 4 tiles a step (a body brought in somewhere new
+        // wanted about 16 tiles in one step: the desktop's 36 ms tree stalls); beyond, 2 a step.
         urgent_radius_m: 400.0,
+        must_radius_m: 60.0,
+        urgent_tiles_per_step: 4,
         release_radius_m: 2700.0,
         tiles_per_step: 2,
         draw_radius_m: 2000.0,
@@ -312,6 +316,11 @@
     // 1 / 1,500 m. Lit by the sky and by the sun scattered forward (a glow toward it).
     fog: (
         density_per_m: 0.0000833,
+        // Aerial haze (openspec/changes/ground-fog design section 2a; owner, 2026-10-26: "we also
+        // have more distance fog affecting at higher altitudes", "hieght fog"): 1 / 45,000 m at sea
+        // level, thinning every 1.5 km, so far land and sea blue and soften from any height.
+        haze_density_per_m: 0.0000222,
+        haze_scale_height_m: 1500.0,
         scale_height_m: 120.0,
         mist_strength: 5.0,
         mist_top_m: 600.0,
@@ -326,6 +335,25 @@
         ambient_share: 1.0,
         sun_share: 0.25,
         phase_g: 0.6,
+        // How thick it is (survey F1; owner, 2026-10-26: "Approve all"). The game has no time of
+        // day, so the fog keeps its own clock: the world begins at 06:00, an hour passes every
+        // 300 s, and the morning mist (twice the air, full mist) thins to the day's (plain air,
+        // half the mist) between 07:00 and 11:00, 5 to 25 minutes in. A combat-heavy mission flies
+        // in clear air (half the air, no mist) while it runs.
+        presets: (
+            morning: (density_scale: 2.0, mist_scale: 1.0),
+            day: (density_scale: 1.0, mist_scale: 0.5),
+            clear: (density_scale: 0.5, mist_scale: 0.0),
+        ),
+        clock: (
+            start_h: 6.0,
+            hours_per_s: 0.003333,
+            burn_off_h: (7.0, 11.0),
+        ),
+        missions: {
+            Defence: Clear,
+            Fortress: Clear,
+        },
     ),
     // Building frames (openspec/changes/structural-destruction): a member fails past
     // safety_factor x its intact load, after a creak; a floor bay held on one edge keeps 45 %.
@@ -373,6 +401,53 @@
         // furniture").
         rooms_radius_m: 250.0,
         rooms_margin_m: 20.0,
+        // Past the dressing, to 1.5 km, a building shows its massing (parapet, cornice, roof props
+        // from its own dressing) over walls wearing its own type's facade; beyond, the walls alone
+        // (openspec/changes/building-type-lods; owner, 2026-10-25: "for each building type we're
+        // gonna need a custom LOD texture/mesh for them"). The massing gives way to the plain box at
+        // 1.5 km (survey L2, owner 2026-10-26: "Approve all").
+        massing_radius_m: 1500.0,
+        massing_pieces: 16,
+        massing_per_frame: 12,
+        // A detail that shows is kept to 1.15 times its radius, so a building on the line does not flicker.
+        keep_ratio: 1.15,
+    ),
+    // Street doors, stairs and the colliders a pilot on foot walks into
+    // (openspec/changes/building-interiors; owner, 2026-10-25: "each building needs doors and
+    // staairs that i as a player can walk into them").
+    interiors: (
+        // A dog-leg stair: risers no higher, treads no deeper (and never shallower) than these.
+        stair_max_rise_m: 0.18,
+        stair_max_run_m: 0.28,
+        stair_min_run_m: 0.22,
+        stair_width_m: 1.2,
+        stair_landing_m: 1.3,
+        stair_half_landing_m: 1.1,
+        // Street doors: a walk-up's front door, an office's pair of lobby doors, a warehouse's
+        // personnel door; clear height above the sill.
+        front_door_w_m: 1.2,
+        lobby_door_w_m: 1.9,
+        personnel_door_w_m: 1.0,
+        door_clear_h_m: 2.2,
+        // Street doors swing open as you walk into them and shut behind you (survey W30): a pilot on
+        // foot within 1.5 m of the leaf, either side, opens it away from them, 90 degrees in 0.45 s;
+        // it stands open while they are in the doorway, then 1.5 s after they have gone, and shuts in
+        // 1 s. Never past 90 degrees (the leaf would swing into the wall beside its jamb).
+        door_open_deg: 90.0,
+        door_open_deg_s: 200.0,
+        door_close_deg_s: 90.0,
+        door_close_delay_s: 1.5,
+        door_trigger_m: 1.5,
+        // On foot, anything this high or lower is stepped onto; anything starting below head height
+        // is in the way.
+        step_m: 0.45,
+        head_m: 1.8,
+        // Colliders only while on foot (owner, 2026-10-26), for buildings within 60 m of the pilot
+        // (built at once within 12 m, the rest on a worker thread), freed past 80 m. Smaller than the
+        // 150 m interior radius: a runner reaches a door 60 m away in 13 s, the job takes milliseconds.
+        collision_radius_m: 60.0,
+        collision_sync_m: 12.0,
+        collision_margin_m: 20.0,
     ),
     // Physics debris (openspec/changes/debris-physics): chunks become rigid bodies only within
     // physics_radius_m of the pilot's eye (owner, 2026-10-24: "If the mech is too far away there
@@ -384,5 +459,16 @@
         freeze_factor: 1.2,
         max_dynamic: 600,
         max_kept: 2500,
+    ),
+    // Air bases (openspec/changes/air-bases); the rest of their placement is the code default. Each has a runway
+    // (survey W45, owner 2026-10-26: "Add a real runway, about 1.5 to 2 km, to each base"): tried in front of the
+    // apron, behind the hangars, then down either side, longest first, flattened to the base's ground.
+    bases: (
+        runway_m: (2000.0, 1500.0),
+        runway_width_m: 45.0,
+        runway_gap_m: 60.0,
+        runway_step_m: 100.0,
+        runway_max_cut_m: 45.0,
+        runway_city_clear_m: 300.0,
     ),
 )

@@ -77,6 +77,15 @@ impl WorldPlan {
                 if park { Cover::Park } else { Cover::Bare }
             }
             None if self.cities.iter().any(|c| c.rect().distance(p) < clear.city_m) => Cover::Bare,
+            // An air base's site is built ground, kept as clear as a city's edge (air-bases).
+            None if self.bases.iter().any(|b| {
+                b.rect().distance(p) <= clear.city_m
+                    || b.runway.rect().distance(p) <= clear.city_m
+                    || b.runway.taxiway(&b.rect()).distance(p) <= clear.city_m
+            }) =>
+            {
+                Cover::Bare
+            }
             None => Cover::Open,
         };
         if cover == Cover::Bare {

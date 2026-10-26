@@ -4,4 +4,13 @@
     start_money: 1000,
     start_mech: "mechs/foreman.ron",
     ledger_kept: 200,
+    // Standing with a base (career-progression, provisional CP2: it only changes pay, never closes a base):
+    // one point a job won, one lost a job failed or abandoned, at most 10, each point paying 5 % more.
+    standing_per_job: 1,
+    standing_lost: 1,
+    standing_max: 10,
+    // A point lost with the nearest base for each civilian the pilot harms (survey W34, W37, W42; provisional:
+    // the amount was not asked): a person killed, a car with a driver in it, a civil aircraft, each once.
+    standing_per_civilian: 1,
+    pay_bonus_per_standing: 0.05,
 )

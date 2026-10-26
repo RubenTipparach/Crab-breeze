@@ -1,32 +1,36 @@
-//! Music (openspec change `music`): the cue the game's state calls for, switched on the bar with a
-//! crossfade, and silence when nothing is happening (owner, 2026-10-25: "if theres not mutch
-//! action on screen, some silence would be nice"). The state is `cb_core::audio::music_state`; this
-//! file reads its inputs from the game and plays what it returns. Music is not placed in 3D.
+//! Music (openspec change `music`): one cue per game state, switched on the bar with a one-bar crossfade (survey A2),
+//! over everything like a film score and ducked under the radio and the alarms (survey A3; owner, 2026-10-26: "Approve
+//! all"), and silence when nothing is happening (owner, 2026-10-25: "if theres not mutch action on screen, some
+//! silence would be nice"). The rules are `cb_core::audio` (`music_state`, `plan_switch`, `fade_s`, `duck_target_db`);
+//! this file reads their inputs from the game and plays what they return. Music is not placed in 3D, not delayed and
+//! not muffled by the cockpit's seal. It runs in every state, not only in the game, because the title menu has its
+//! cue and the score carries across the loading screen into the game.
 
-use crate::audio::{Ear, HearSet};
+use crate::audio::{Ear, HearSet, Voice};
 use crate::blast::Explosion;
 use crate::fx::Fx;
 use crate::pilot::PilotSim;
 use crate::sim::Data;
+use crate::state::{GameApp, GameState};
 use crate::units::Hostiles;
 use bevy::audio::{AudioPlayer, AudioSink, AudioSinkPlayback, PlaybackMode, PlaybackSettings, Volume};
 use bevy::prelude::*;
-use cb_core::audio::{self as rules, MusicCue, MusicInputs, MusicState, db_to_gain};
+use cb_core::audio::{self as rules, MusicCue, MusicInputs, MusicState, Playing, Switch, db_to_gain};
 use cb_core::pilot::PilotMode;
 
 /// An enemy this close with the mech as its target is a threat, m (`music` design section 2).
 const THREAT_WITHIN_M: f32 = 2000.0;
-/// A shot fired or landing this close to the pilot counts as a shot, m.
-const SHOT_WITHIN_M: f32 = 300.0;
-/// An explosion this close counts as a shot, m.
-const BLAST_WITHIN_M: f32 = 500.0;
+/// A round landing this close to the pilot is fire at them, m. The pilot's own rounds land at their target, and their
+/// muzzle flashes never count.
+const SHOT_WITHIN_M: f32 = 80.0;
+/// An explosion this close is fire at them, m.
+const BLAST_WITHIN_M: f32 = 80.0;
 
 /// One playing cue.
 struct Track {
-    state: MusicState,
+    now: Playing,
     voice: Entity,
     cue: MusicCue,
-    started_s: f32,
     /// Fading in from `from_s` over `fade_s`.
     from_s: f32,
     fade_s: f32,
@@ -44,11 +48,13 @@ struct Fading {
 struct Player {
     playing: Option<Track>,
     fading: Vec<Fading>,
-    /// A change waiting for its bar line: (when, to what).
-    switch_at: Option<(f32, MusicState)>,
+    /// A change waiting for its bar line.
+    switch: Option<Switch>,
     /// A cue that does not loop and has played out: it is not started again while its state holds.
     finished: Option<MusicState>,
     since_shot_s: f32,
+    /// How far the score is ducked under the radio and alarms now, dB.
+    duck_db: f32,
 }
 
 /// The music.
@@ -60,15 +66,16 @@ impl Plugin for MusicPlugin {
             since_shot_s: 1e9,
             ..Default::default()
         })
-        .add_systems(Update, (hear_shots, choose_and_play).chain().after(HearSet));
+        .add_game_systems(Update, hear_shots.after(HearSet))
+        .add_systems(Update, choose_and_play.after(hear_shots));
     }
 }
 
-/// Shots and blasts near the pilot keep the combat music going.
+/// Rounds and blasts landing near the pilot keep the combat music going (with enemies about: `music_state`).
 fn hear_shots(mut player: ResMut<Player>, mut fx: MessageReader<Fx>, mut blasts: MessageReader<Explosion>, ear: Res<Ear>, time: Res<Time>) {
     player.since_shot_s += time.delta_secs();
     for f in fx.read() {
-        let shot = f.recipe.starts_with("muzzle_") || f.recipe.starts_with("impact_");
+        let shot = f.recipe.starts_with("impact_");
         if shot && f.at.distance(ear.at) < SHOT_WITHIN_M {
             player.since_shot_s = 0.0;
         }
@@ -80,97 +87,125 @@ fn hear_shots(mut player: ResMut<Player>, mut fx: MessageReader<Fx>, mut blasts:
     }
 }
 
+/// What the music rule reads from the game this frame. The title menu, and the loading screen after it, is the
+/// title; in the game, the pilot, the hostiles, the fortress and the defence say the rest.
+#[allow(clippy::too_many_arguments)]
+fn inputs(
+    state: GameState,
+    ready: bool,
+    pilot: &PilotSim,
+    hostiles: Option<&Hostiles>,
+    defence: Option<&crate::defence::DefenceRun>,
+    fortress: Option<&crate::fortress::FortressRun>,
+    ear: &Ear,
+    since_shot_s: f32,
+) -> MusicInputs {
+    if state != GameState::Playing || !ready {
+        return MusicInputs {
+            title: true,
+            since_shot_s: 1e9,
+            ..Default::default()
+        };
+    }
+    let fortress_won = fortress.is_some_and(|f| f.outcome == Some(true));
+    MusicInputs {
+        title: false,
+        boarding: matches!(pilot.curr.mode, PilotMode::Boarding(_)),
+        seated: pilot.curr.mode == PilotMode::Seated,
+        threatened: hostiles.is_some_and(|h| h.0.iter().any(|x| !x.shelling && x.feet.distance(ear.at) < THREAT_WITHIN_M)),
+        since_shot_s,
+        // the set piece: the crab air fortress, aloft and fighting
+        set_piece: fortress.is_some_and(|f| f.bound() && f.outcome.is_none()),
+        won: fortress_won || defence.is_some_and(|r| matches!(r.state.phase, cb_core::mission::Phase::Won)),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn choose_and_play(
     mut commands: Commands,
     mut player: ResMut<Player>,
     mut sinks: Query<&mut AudioSink>,
+    voices: Query<&Voice>,
+    state: Res<State<GameState>>,
     pilot: Res<PilotSim>,
     hostiles: Option<Res<Hostiles>>,
-    run: Option<Res<crate::defence::DefenceRun>>,
+    defence: Option<Res<crate::defence::DefenceRun>>,
+    fortress: Option<Res<crate::fortress::FortressRun>>,
     ear: Res<Ear>,
     data: Res<Data>,
     assets: Res<AssetServer>,
     time: Res<Time>,
     ready: Res<crate::loading::GameReady>,
-    settings: Res<crate::settings::Settings>,
+    settings: Option<Res<crate::settings::Settings>>,
+    mut was_duck: Local<f32>,
 ) {
-    if !ready.0 {
-        return;
-    }
     let cfg = &data.0.audio.music;
     let now = time.elapsed_secs();
-    let inputs = MusicInputs {
-        title: false,
-        boarding: matches!(pilot.curr.mode, PilotMode::Boarding(_)),
-        seated: pilot.curr.mode == PilotMode::Seated,
-        threatened: hostiles
-            .as_ref()
-            .is_some_and(|h| h.0.iter().any(|x| !x.shelling && x.feet.distance(ear.at) < THREAT_WITHIN_M)),
-        since_shot_s: player.since_shot_s,
-        set_piece: false,
-        won: run.is_some_and(|r| matches!(r.state.phase, cb_core::mission::Phase::Won)),
-    };
-    let wanted = rules::music_state(&inputs, cfg.hold_s);
-    let base = db_to_gain(cfg.volume_db) * settings.0.music_volume;
+    let i = inputs(
+        *state.get(),
+        ready.0,
+        &pilot,
+        hostiles.as_deref(),
+        defence.as_deref(),
+        fortress.as_deref(),
+        &ear,
+        player.since_shot_s,
+    );
+    let wanted = rules::music_state(&i, cfg.hold_s);
+    // under the radio and the alarms the score ducks, and comes back when they stop (survey A3)
+    let duck = rules::duck_target_db(cfg, voices.iter().map(|v| v.cue()));
+    // One line when the duck's target moves, for a playtest's report (the ear cannot be recorded by the log).
+    if (duck - *was_duck).abs() > 0.01 {
+        info!(
+            "MUSIC duck to {duck:.1} dB (radio or alarm {})",
+            if duck < 0.0 { "playing" } else { "over" }
+        );
+        *was_duck = duck;
+    }
+    player.duck_db = rules::duck_step(cfg, player.duck_db, duck, time.delta_secs());
+    let base = db_to_gain(cfg.volume_db + player.duck_db) * settings.map_or(1.0, |s| s.0.music_volume);
 
     // a stinger that has played out stays finished while its state holds
     let played_out = player
         .playing
         .as_ref()
         .filter(|t| !t.cue.looping && sinks.get(t.voice).is_ok_and(|s| s.empty()))
-        .map(|t| (t.state, t.voice));
-    if let Some((state, voice)) = played_out {
-        player.finished = Some(state);
+        .map(|t| (t.now.state, t.voice));
+    if let Some((s, voice)) = played_out {
+        player.finished = Some(s);
         commands.entity(voice).despawn();
         player.playing = None;
     }
     if player.finished.is_some_and(|f| f != wanted) {
         player.finished = None;
     }
-
-    let current = player.playing.as_ref().map_or(MusicState::Silent, |t| t.state);
     let target = if player.finished == Some(wanted) {
         MusicState::Silent
     } else {
         wanted
     };
-    if target != current {
-        let at = match &player.playing {
-            // change on the bar of the cue that is playing
-            Some(t) => rules::next_bar_s(now, t.started_s, t.cue.bpm, t.cue.beats_per_bar),
-            None => now,
-        };
-        if player.switch_at.is_none_or(|(_, s)| s != target) {
-            player.switch_at = Some((at, target));
-        }
-    } else {
-        player.switch_at = None;
-    }
+    player.switch = rules::plan_switch(player.playing.as_ref().map(|t| &t.now), target, player.switch, now);
 
-    if let Some((at, to)) = player.switch_at
-        && now >= at
+    if let Some(sw) = player.switch
+        && now >= sw.at_s
     {
-        player.switch_at = None;
+        player.switch = None;
+        let cue = sw.to.key().and_then(|k| cfg.cues.get(k));
+        let fade_s = rules::fade_s(cfg, player.playing.as_ref().map(|t| &t.now), cue);
+        info!("MUSIC cue {:?} at {now:.1} s, on the bar, {fade_s:.1} s crossfade", sw.to);
         if let Some(old) = player.playing.take() {
-            let bar = 60.0 / old.cue.bpm * old.cue.beats_per_bar;
-            let bars = if to == MusicState::Silent {
-                cfg.fade_out_bars
-            } else {
-                cfg.crossfade_bars
-            };
             let from_gain = sinks.get(old.voice).map(|s| s.volume().to_linear()).unwrap_or(base);
             player.fading.push(Fading {
                 voice: old.voice,
                 from_gain,
                 from_s: now,
-                fade_s: bars * bar,
+                fade_s,
             });
         }
-        if let Some(cue) = to.key().and_then(|k| cfg.cues.get(k)) {
+        if let Some(cue) = cue {
             let voice = commands
                 .spawn((
-                    Name::new(format!("music {:?}", to)),
+                    Name::new(format!("music {:?}", sw.to)),
                     AudioPlayer::new(assets.load(cue.file.clone())),
                     PlaybackSettings {
                         mode: if cue.looping { PlaybackMode::Loop } else { PlaybackMode::Once },
@@ -179,27 +214,29 @@ fn choose_and_play(
                     },
                 ))
                 .id();
-            let bar = 60.0 / cue.bpm * cue.beats_per_bar;
             player.playing = Some(Track {
-                state: to,
+                now: Playing {
+                    state: sw.to,
+                    started_s: now,
+                    bpm: cue.bpm,
+                    beats_per_bar: cue.beats_per_bar,
+                },
                 voice,
                 cue: cue.clone(),
-                started_s: now,
                 from_s: now,
-                fade_s: cfg.crossfade_bars * bar,
+                fade_s,
             });
         }
     }
 
-    // levels: the playing cue fades in, the old ones fade out and stop
+    // levels: the playing cue fades in (ducked), the old ones fade out from where they were and stop
     if let Some(t) = &player.playing
         && let Ok(mut s) = sinks.get_mut(t.voice)
     {
-        let k = ((now - t.from_s) / t.fade_s.max(1e-3)).clamp(0.0, 1.0);
-        s.set_volume(Volume::Linear(base * k));
+        s.set_volume(Volume::Linear(base * rules::fade_progress(now, t.from_s, t.fade_s)));
     }
     player.fading.retain(|f| {
-        let k = ((now - f.from_s) / f.fade_s.max(1e-3)).clamp(0.0, 1.0);
+        let k = rules::fade_progress(now, f.from_s, f.fade_s);
         if k >= 1.0 {
             commands.entity(f.voice).despawn();
             return false;

@@ -1,0 +1,75 @@
+// The career loop, played start to finish by the scripted pilot (openspec changes playtest-pipeline,
+// air-bases, mech-shop, career-progression, mech-custom). First person throughout: the pilot walks, climbs
+// in and out, and presses the same keys and clicks the same buttons a player does. Run 0 is a new career;
+// run 1 is the same career continued from its save.
+//
+//   ./target/release/crab-breeze --playtest career-loop            (run 0)
+//   ./target/release/crab-breeze --playtest career-loop --run 1    (run 1)
+(
+    name: "career-loop",
+    stuck_s: 10.0,
+    runs: [
+        (
+            play: "career-new",
+            beats: [
+                // 1. A new career: on the first air base, the Foreman on the apron.
+                Wait(2.0),
+                LookAround(4.0),
+                // 2. Walk to bay 1's terminal and sign up for a job.
+                WalkToTerminal(0),
+                UseTerminal,
+                Tab("Jobs"),
+                Wait(1.5),
+                AcceptJob(2),
+                Wait(1.5),
+                CloseTerminal,
+                // 3. Walk back, climb in, go to the job, fight it, get paid.
+                Board,
+                GoToJob,
+                FightJob(420.0),
+                // 4. Walk the mech into bay 1: it is repaired and rearmed.
+                EnterBay(0),
+                Wait(4.0),
+                Disembark,
+                // 5. Buy a mech (air dropped near the pilot), see a tier 3 job, refit a weapon, then board the drop. The grant stands in for the dozen jobs a tier 3
+                // mech and a gun would take; it is in the ledger as a playtest grant.
+                WalkToTerminal(0),
+                UseTerminal,
+                Grant(650000),
+                Tab("Shop"),
+                Wait(1.5),
+                BuyMech("mechs/sapper.ron"),
+                Wait(2.0),
+                Tab("Jobs"),
+                Wait(1.0),
+                ExpectOffer(3),
+                Wait(2.0),
+                Tab("Refit"),
+                Wait(1.5),
+                BuyPart("cannon_40"),
+                Wait(1.0),
+                Fit(0, "cannon_40"),
+                Wait(2.0),
+                CloseTerminal,
+                // Out of the bay onto the apron, to see it come in.
+                WalkTowardDrop(25.0),
+                // The Sapper is air dropped near the pilot (owner, 2026-10-26: "when a player orders a mech it should
+                // be air dropped close to wherever the player is on a good are on the ground (not stuck on a
+                // building)"): watch it come down under its canopies, walk up to it, climb in.
+                AwaitDrop(90.0),
+                WalkToDrop,
+                Board,
+                Wait(2.0),
+                // 6. Quit (Escape, Quit): the game saves where the pilot sits, in the dropped Sapper.
+                Quit,
+            ],
+        ),
+        (
+            play: "career-continue",
+            beats: [
+                ExpectRestored(2.0),
+                LookAround(4.0),
+            ],
+        ),
+    ],
+)

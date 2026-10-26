@@ -1,0 +1,65 @@
+// People in the cities, parks and air bases (openspec/changes/civilians/design.md). Every field is the
+// code default written out (crates/cb-core/src/civilians/config.rs); omit one to inherit it, a zero is a
+// zero. Units are in the keys.
+(
+    // Peopled within 400 m of the pilot, let go past 600 m; 2,000 at most (the design's budget), brought
+    // in 60 a fixed step so a fresh district fills over a second, looked at again every 8 m walked.
+    spawn_radius_m: 400.0,
+    keep_radius_m: 600.0,
+    max_people: 2000,
+    spawn_per_step: 60,
+    recheck_m: 8.0,
+    // More in the centres than at the edges: 8 people per 100 m of pavement in a city's heart, 1.5 at
+    // its edge, falling off as the distance out to the power 1.5 (a 90 m block's loop is about 340 m:
+    // 27 people downtown, 5 at the edge). Parks hold 12 a hectare at the heart's rate. 24 on each
+    // base's apron.
+    pavement_per_100m: (8.0, 1.5),
+    density_exponent: 1.5,
+    park_per_hectare: 12.0,
+    base_people: 24,
+    // Routes: the park path 8 m inside the kerb, the apron walk 18 m deep in front of the hangars.
+    park_path_inset_m: 8.0,
+    base_apron_depth_m: 18.0,
+    // A person walks at 1.1-1.7 m/s (a city pace), runs at 3.5-5.5 m/s, and stands 1.55-1.95 m.
+    walk_speed_m_s: (1.1, 1.7),
+    run_speed_m_s: (3.5, 5.5),
+    height_m: (1.55, 1.95),
+    // At a corner a third cross the street, after waiting 2-9 s at the kerb. Two in five sit on a park
+    // bench they pass, for 20 s to 2 minutes. One in seven stops a while (3-15 s) on a pavement or apron.
+    cross_chance: 0.35,
+    crossing_wait_s: (2.0, 9.0),
+    bench_chance: 0.4,
+    bench_sit_s: (20.0, 120.0),
+    idle_chance: 0.15,
+    idle_s: (3.0, 15.0),
+    // Danger: a round passing within 35 m, a blast within 30 m per cube root of its megajoules (a 4 MJ
+    // shell: 48 m), or a mech's foot within 70 m sends people running for 10-20 s.
+    shot_fright_m: 35.0,
+    blast_fright_m_per_cbrt_mj: 30.0,
+    footfall_fright_m: 70.0,
+    flee_s: (10.0, 20.0),
+    // Lethal: a round within 0.9 m of the body, a blast within 5 m per cube root of its megajoules (a 4 MJ
+    // shell: 8 m), a mech's foot within 4 m (a 24 m mech's foot is about 6 m long).
+    shot_lethal_m: 0.9,
+    blast_lethal_m_per_cbrt_mj: 5.0,
+    foot_lethal_m: 4.0,
+    // A street door within 60 m is run for, once the world has doors (building-entrances).
+    door_reach_m: 60.0,
+    // The struck lie still for 30 s before they are cleared away.
+    down_s: 30.0,
+    // Greeting: Use reaches 2.5 m, 50 degrees either side of where the pilot faces; the person stays
+    // stopped and facing the pilot 6 s.
+    greet_reach_m: 2.5,
+    greet_cone_deg: 50.0,
+    greet_hold_s: 6.0,
+    // Drawing (design section 2): the full body within 60 m of the eye (200 at most), a low figure out
+    // to 250 m, a flat card beyond. A walker's pose changes every half of a 1.4 m stride. The merged crowd
+    // past 60 m is rebuilt 30 times a second (0.6 ms a build for 2,000 people on the development Mac).
+    draw: (
+        near_m: 60.0,
+        near_max: 200,
+        mid_m: 250.0,
+        stride_m: 1.4,
+        crowd_refresh_hz: 30.0,
+    ),
+)

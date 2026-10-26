@@ -19,6 +19,7 @@ use crate::fx::Fx;
 use crate::mech::{MechRig, MechRoot, MechSim, MechSpec, Piloted};
 use crate::pilot::{PilotCamera, PilotSim};
 use crate::sim::{Data, PresentSet, SimSet};
+use crate::state::GameApp;
 use crate::targeting::TargetState;
 use bevy::audio::{
     AudioPlayer, AudioSinkPlayback, AudioSource, PlaybackMode, PlaybackSettings, SpatialAudioSink, SpatialListener, SpatialScale, Volume,
@@ -123,6 +124,9 @@ pub const ASKED: &[&str] = &[
     "mfd_click",
     "radio_squelch",
     "systems_boot",
+    crate::air_traffic::ENGINE_CUES[0],
+    crate::air_traffic::ENGINE_CUES[1],
+    crate::air_traffic::ENGINE_CUES[2],
 ];
 
 /// The listener is placed for this frame: music and ambience read `Ear` after it.
@@ -156,14 +160,21 @@ struct Due {
 #[derive(Resource, Default)]
 struct Pending(Vec<Due>);
 
-/// A playing sound.
+/// A playing sound. The music reads which cues are playing, to duck under the radio and the alarms.
 #[derive(Component)]
-struct Voice {
+pub struct Voice {
     cue: &'static str,
     /// The cue's own level, linear (before distance and the seal).
     level: f32,
     /// Inside the cockpit (a speaker): never muffled, never far.
     inside: bool,
+}
+
+impl Voice {
+    /// The cue this voice plays (its `data/audio/cues.ron` name).
+    pub fn cue(&self) -> &'static str {
+        self.cue
+    }
 }
 
 /// Where a loop is, for keying it.
@@ -208,15 +219,15 @@ impl Plugin for SoundPlugin {
             .init_resource::<Pending>()
             .init_resource::<Loops>()
             .insert_resource(Dice(0x9E37_79B9_7F4A_7C15))
-            .add_systems(Startup, load_library)
-            .add_systems(
+            .add_world_spawn(load_library)
+            .add_game_systems(
                 FixedUpdate,
                 (
                     pilot_sounds.in_set(SimSet::Pilot).after(crate::pilot::step_pilot),
                     control_clicks.in_set(SimSet::Pilot).before(crate::pilot::step_pilot),
                 ),
             )
-            .add_systems(
+            .add_game_systems(
                 Update,
                 (
                     (attach_listener, track_ear).chain().in_set(HearSet).after(PresentSet::Camera),
@@ -527,8 +538,10 @@ fn start_due(
     voices: Query<(Entity, &Voice)>,
     roots: Query<(Entity, &GlobalTransform), With<MechRoot>>,
     nodes: Query<&GlobalTransform>,
+    settings: Res<crate::settings::Settings>,
 ) {
     let cfg = &data.0.audio.cues;
+    let sfx = settings.0.sfx_volume;
     let now = time.elapsed_secs();
     let (due, waiting): (Vec<Due>, Vec<Due>) = std::mem::take(&mut pending.0).into_iter().partition(|d| d.at_s <= now);
     pending.0 = waiting;
@@ -541,7 +554,22 @@ fn start_due(
         if voices.iter().filter(|(_, v)| v.cue == d.cue).count() >= cue.max_voices as usize || count >= cfg.max_voices as usize {
             continue;
         }
-        if spawn_voice(&mut commands, cfg, d.cue, cue, d.at, None, &ear, &lib, &mut dice, &roots, &nodes).is_some() {
+        if spawn_voice(
+            &mut commands,
+            cfg,
+            d.cue,
+            cue,
+            d.at,
+            None,
+            sfx,
+            &ear,
+            &lib,
+            &mut dice,
+            &roots,
+            &nodes,
+        )
+        .is_some()
+        {
             count += 1;
         }
     }
@@ -557,6 +585,8 @@ fn spawn_voice(
     cue: &rules::Cue,
     at: SoundAt,
     looping: Option<LoopLevel>,
+    // the player's sound effects volume (Options), for a one-shot's first frame; `level_voices` keeps it after
+    sfx: f32,
     ear: &Ear,
     lib: &Library,
     dice: &mut Dice,
@@ -608,7 +638,7 @@ fn spawn_voice(
     // a loop starts silent and fades in (`drive_loops`); a one-shot starts at its level
     let (mode, volume) = match looping {
         Some(_) => (PlaybackMode::Loop, 0.0),
-        None => (PlaybackMode::Despawn, level * gain),
+        None => (PlaybackMode::Despawn, level * gain * sfx),
     };
     let settings = PlaybackSettings {
         mode,
@@ -672,6 +702,7 @@ fn drive_loops(
             cue,
             l.at,
             Some(l.level),
+            0.0,
             &ear,
             &lib,
             &mut dice,

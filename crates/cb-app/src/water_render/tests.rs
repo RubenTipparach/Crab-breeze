@@ -65,6 +65,19 @@ fn the_surface_shader_compiles_against_bevy_pbr() {
             "the Rust uniform must be the WESL struct's size"
         );
     }
+    // With the pilot camera's sky cube bound (the reflected sky), as one map and as Bevy's array.
+    for array in [true, false] {
+        let mut flags = base.to_vec();
+        flags.extend([
+            ("MULTISAMPLED", true),
+            ("DEPTH_PREPASS", true),
+            ("VIEW_TRANSMISSION_TEXTURE", true),
+            ("DISTANCE_FOG", true),
+            ("ENVIRONMENT_MAP", true),
+            ("MULTIPLE_LIGHT_PROBES_IN_ARRAY", array),
+        ]);
+        compile(&resolver, "water_surface", &flags);
+    }
 }
 
 #[test]
@@ -78,13 +91,13 @@ fn the_water_surface_is_never_displaced() {
 #[test]
 fn a_dry_eye_runs_no_water_pass() {
     let dry = WaterEye::default();
-    assert_eq!(passes_needed(&dry, 0.0, false), (false, false));
+    assert_eq!(passes_needed(&dry, 0.0, false), Passes::default());
 }
 
 #[test]
-fn ground_fog_runs_the_compose_pass_on_a_dry_eye() {
+fn ground_fog_runs_only_the_fog_pass_on_a_dry_eye() {
     let dry = WaterEye::default();
-    assert_eq!(passes_needed(&dry, 0.0, true), (true, false));
+    assert_eq!(passes_needed(&dry, 0.0, true), Passes { fog: true, ..default() });
 }
 
 #[test]
@@ -93,13 +106,27 @@ fn under_water_composes_but_puts_no_drops_on_the_glass() {
         submersion: 1.0,
         ..default()
     };
-    assert_eq!(passes_needed(&under, 0.0, false), (true, false));
+    assert_eq!(
+        passes_needed(&under, 0.0, false),
+        Passes {
+            compose: true,
+            ..default()
+        }
+    );
+    assert!(!passes_needed(&under, 0.0, true).fog, "under water the murk is the fog");
 }
 
 #[test]
 fn a_wet_glass_runs_both_passes() {
     let surfacing = WaterEye { drips: 0.6, ..default() };
-    assert_eq!(passes_needed(&surfacing, 0.0, false), (true, true));
+    assert_eq!(
+        passes_needed(&surfacing, 0.0, false),
+        Passes {
+            compose: true,
+            lens: true,
+            ..default()
+        }
+    );
 }
 
 #[test]
@@ -139,4 +166,18 @@ fn only_a_wet_eye_sees_water_from_below() {
         source.contains("let below = in_water &&"),
         "the shader gates `below` on the eye being wet"
     );
+}
+
+#[test]
+fn the_panes_reach_the_lens_pass_in_world_space_and_at_most_its_capacity() {
+    // A cabin's window triangles are in the interior's space; the lens pass reads them in the world's,
+    // and never more than its array holds.
+    let tri = [Vec3::ZERO, Vec3::X, Vec3::Y];
+    let glass = crate::mech::CabinGlass(vec![tri; MAX_PANE_TRIANGLES + 5]);
+    let at = GlobalTransform::from(Transform::from_xyz(100.0, 20.0, -5.0));
+    let panes = PaneGlass::new(&glass, &at);
+    assert_eq!(panes.count, MAX_PANE_TRIANGLES);
+    assert_eq!(panes.origin, Vec3::new(100.0, 20.0, -5.0));
+    assert_eq!(panes.corners[1].truncate(), Vec3::new(101.0, 20.0, -5.0));
+    assert_eq!(PaneGlass::default().count, 0, "on foot: no panes, the drops stay on the view");
 }

@@ -10,6 +10,11 @@
     right: ["KeyD"],
     run: ["ShiftLeft"],
     use_key: ["KeyE"],
+    // When Use could do more than one thing (greet, a terminal, a car, the mech), the prompt lists them and the
+    // wheel moves the selection (survey W40; owner, 2026-10-26: "You should be able to scroll wheel select multiple
+    // options"). Only out of the mech's seat: seated, the wheel steps the weapon, or the scope's magnification
+    // while the scope is open (the scope, below), never the list.
+    option_cycle: ["MouseWheel"],
     // Held: look round the cockpit uncoupled from the mech's nose, and press MFDs (owner,
     // 2026-10-24: "holding ctrl should let you free look").
     free_look: ["ControlLeft"],
@@ -34,6 +39,13 @@
     sink: ["KeyC"],
     // Targeting (openspec targeting): F fires a missile at the lock, Q selects the next target.
     fire_missile: ["KeyF"],
+    // Back units, fire group 3 (openspec weapon-kinds): the Sapper's grenade launcher, a back railgun.
+    fire_back: ["KeyG", "MouseBack"],
+    // The scope (openspec railgun-scope; survey G24): hold the middle mouse for the window on the front screen; B or
+    // the wheel while it is open steps 4x and 10x (the wheel steps the weapon when not scoped, and the Use list
+    // only out of the seat).
+    scope: ["MouseMiddle"],
+    scope_zoom: ["KeyB", "MouseWheel"],
     target_next: ["KeyQ"],
     // Close combat (openspec close-combat): on by itself when the targeted hostile is within melee
     // range, off when it goes down or moves away; Tab switches it off, or on with no one near.
@@ -42,8 +54,8 @@
     // The selected weapon station, which the left mouse fires (weapon-select; owner, 2026-10-25: "can
     // scroll wheel change weaopon selection?"): the wheel steps it, down on and up back; ] steps on.
     weapon_cycle: ["MouseWheel", "BracketRight"],
-    // The mail and its job offers, in a career (mission-jobs; owner, survey J1: "press M to focus on the
-    // mail screen").
+    // The mail: a career's job offers (mission-jobs; owner, survey J1: "press M to focus on the mail screen"), free
+    // roam's missions (free-roam-missions).
     mail: ["KeyM"],
     // Punches in close combat, on their own keys so the guns keep firing (owner, 2026-10-25, picking
     // "Guns keep firing in close combat, and punches move to other keys").

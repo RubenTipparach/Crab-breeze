@@ -37,7 +37,7 @@ pub struct Actions {
     pub throttle_axis: f32,
     /// In the mech: turn the legs left (+) or right (-), -1..1.
     pub turn_axis: f32,
-    /// In the mech: jet lift, 0..1.
+    /// In the mech: jet lift, 0..1. On foot, any lift jumps.
     pub lift_axis: f32,
     /// Use was pressed this step (board).
     pub use_pressed: bool,
@@ -64,12 +64,18 @@ pub struct Actions {
     pub sink: bool,
     /// Missile trigger held (fire group 2, at the lock: `targeting`).
     pub fire_missile: bool,
+    /// Back units' trigger held (fire group 3, `weapon-kinds`).
+    pub fire_back: bool,
+    /// Scope held: the scope window opens on the front screen (`railgun-scope`).
+    pub scope: bool,
     /// Select the next target this step.
     pub target_next: bool,
     /// Close combat toggled this step (openspec change `close-combat`).
     pub close_combat: bool,
     /// Step the selected weapon station this step: +1 on, -1 back, 0 none (weapon-select).
     pub weapon_cycle: i32,
+    /// Move the prompt's selection when several things are in reach: +1 down, -1 up, 0 none (`interact`, survey W40).
+    pub option_cycle: i32,
     /// Punch keys held, [left arm, right arm]: in close combat they strike (close-combat).
     pub strike: [bool; 2],
     /// The keys are the player's: in walking mode WASD walks directly (walk-controls). The scripted
@@ -107,6 +113,20 @@ mod tests {
             {
                 assert!(fields.contains(&name), "`{name}` is bound but not on the Controls page");
             }
+        }
+    }
+
+    /// The Controls page has a Driving group on the walking keys (car-driving: no new bindings).
+    #[test]
+    fn the_controls_page_lists_driving_on_the_same_keys() {
+        let p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/input/bindings.ron");
+        let b: Bindings = crate::data::load_ron(&p).unwrap();
+        let rows = b.controls();
+        let driving: Vec<&Control> = rows.iter().filter(|c| c.group == "Driving").collect();
+        assert_eq!(driving.len(), 6);
+        for d in driving {
+            let on_foot_or_mech = rows.iter().any(|c| c.group != "Driving" && c.field == d.field);
+            assert!(on_foot_or_mech, "{} reuses a key bound elsewhere", d.name);
         }
     }
 
@@ -189,13 +209,22 @@ pub struct Bindings {
     pub sink: Vec<String>,
     /// Fire a missile at the lock (in the mech).
     pub fire_missile: Vec<String>,
+    /// Fire the back units, group 3 (in the mech; `weapon-kinds`).
+    pub fire_back: Vec<String>,
+    /// Hold to open the scope window on the front screen (in the mech; `railgun-scope`).
+    pub scope: Vec<String>,
+    /// Step the scope's magnification (`railgun-scope`); `MouseWheel` steps it while Scope is held.
+    pub scope_zoom: Vec<String>,
     /// Select the next target (in the mech).
     pub target_next: Vec<String>,
     /// Close combat on and off (in the mech).
     pub close_combat: Vec<String>,
     /// Step the selected weapon: key names step on; `MouseWheel` steps by the wheel, down on, up back.
     pub weapon_cycle: Vec<String>,
-    /// Open and close the mail (a career; mission-jobs).
+    /// Move the prompt's selection when several things are in reach (survey W40): key names step down;
+    /// `MouseWheel` steps by the wheel, down on, up back.
+    pub option_cycle: Vec<String>,
+    /// Open and close the mail (a career's jobs, mission-jobs; free roam's missions, free-roam-missions).
     pub mail: Vec<String>,
     /// Punch with the left arm, in close combat.
     pub strike_left: Vec<String>,
@@ -232,9 +261,13 @@ impl Default for Bindings {
             skate: k("ShiftLeft"),
             sink: k("KeyC"),
             fire_missile: k("KeyF"),
+            fire_back: vec!["KeyG".to_string(), "MouseBack".to_string()],
+            scope: k("MouseMiddle"),
+            scope_zoom: vec!["KeyB".to_string(), "MouseWheel".to_string()],
             target_next: k("KeyQ"),
             close_combat: k("Tab"),
             weapon_cycle: vec!["MouseWheel".to_string(), "BracketRight".to_string()],
+            option_cycle: k("MouseWheel"),
             mail: k("KeyM"),
             strike_left: k("KeyZ"),
             strike_right: k("KeyV"),
@@ -263,6 +296,8 @@ pub fn key_label(name: &str) -> String {
         "MouseLeft" => "Left mouse".into(),
         "MouseRight" => "Right mouse".into(),
         "MouseMiddle" => "Middle mouse".into(),
+        "MouseBack" => "Mouse 4".into(),
+        "MouseForward" => "Mouse 5".into(),
         "MouseWheel" => "Mouse wheel".into(),
         "BracketRight" => "]".into(),
         "Escape" => "Esc".into(),
@@ -303,7 +338,18 @@ impl Bindings {
             row("On foot", "Step left", "left", &self.left),
             row("On foot", "Step right", "right", &self.right),
             row("On foot", "Run (hold)", "run", &self.run),
-            row("On foot", "Board the mech, climb out", "use_key", &self.use_key),
+            row(
+                "On foot",
+                "Use: greet, a terminal, a car, board the mech; hold in the seat to climb out",
+                "use_key",
+                &self.use_key,
+            ),
+            row(
+                "On foot",
+                "Choose what Use does, when more than one thing is in reach",
+                "option_cycle",
+                &self.option_cycle,
+            ),
             row("In the mech", "Throttle up", "forward", &self.forward),
             row("In the mech", "Throttle down", "back", &self.back),
             row("In the mech", "Turn left", "left", &self.left),
@@ -312,12 +358,32 @@ impl Bindings {
             row("In the mech", "Walk", "mode_walk", &self.mode_walk),
             row("In the mech", "Skate mode", "mode_skate", &self.mode_skate),
             row("In the mech", "Jet mode", "mode_jet", &self.mode_jet),
-            row("In the mech", "Rockets: lift", "lift", &self.lift),
+            row("In the mech", "Rockets: lift (on foot: jump)", "lift", &self.lift),
             row("In the mech", "Skates on and off", "skate", &self.skate),
             row("In the mech", "Dive, sink on water", "sink", &self.sink),
+            // a car reads the same keys (car-driving design section 4): no new bindings
+            row("Driving", "Accelerate", "forward", &self.forward),
+            row("Driving", "Brake, then reverse", "back", &self.back),
+            row("Driving", "Steer left", "left", &self.left),
+            row("Driving", "Steer right", "right", &self.right),
+            row("Driving", "Handbrake", "lift", &self.lift),
+            row(
+                "Driving",
+                "Get in at the driver's door, get out when stopped",
+                "use_key",
+                &self.use_key,
+            ),
             row("Weapons", "Fire primary", "fire_primary", &self.fire_primary),
             row("Weapons", "Fire secondary", "fire_secondary", &self.fire_secondary),
             row("Weapons", "Fire missile at the lock", "fire_missile", &self.fire_missile),
+            row("Weapons", "Fire the back units", "fire_back", &self.fire_back),
+            row("Weapons", "Scope (hold)", "scope", &self.scope),
+            row(
+                "Weapons",
+                "Scope magnification (the wheel while scoped)",
+                "scope_zoom",
+                &self.scope_zoom,
+            ),
             row("Weapons", "Next target", "target_next", &self.target_next),
             row(
                 "Weapons",
@@ -340,7 +406,7 @@ impl Bindings {
                 &self.free_look,
             ),
             row("Game", "Pause menu", "release_mouse", &self.release_mouse),
-            row("Game", "Mail and jobs (a career)", "mail", &self.mail),
+            row("Game", "Mail: jobs (a career), missions (free roam)", "mail", &self.mail),
             row("Test keys", "Hit left arm", "debug_hit_arm_l", &self.debug_hit_arm_l),
             row("Test keys", "Hit right arm", "debug_hit_arm_r", &self.debug_hit_arm_r),
             row("Test keys", "Hit head", "debug_hit_head", &self.debug_hit_head),

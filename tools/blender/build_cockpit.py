@@ -568,6 +568,67 @@ def build_wall(S):
 
 # ----------------------------------------------------------------------------- the dash
 
+def mfd_bezel(S, name, c, axes, s, rim, cn, img, group="front"):
+    """One MFD: its bezel (rim wide), clips, buttons round it, glass, and the screen quad `name` showing `img`, centred
+    on c facing axes' n, on node cn. The one way an MFD is built (the dash's, the pods', the hung ones)."""
+    rd, ud2, nd2 = axes
+    O, I, t = (s + rim) / 2, s / 2, 0.03
+    for (cx, cy, w, h) in ((0, (O + I) / 2, 2 * O, O - I), (0, -(O + I) / 2, 2 * O, O - I),
+                           ((O + I) / 2, 0, O - I, 2 * I), (-(O + I) / 2, 0, O - I, 2 * I)):
+        S.obox(c + rd * cx + ud2 * cy + nd2 * t / 2, (rd, ud2, nd2), (w, h, t), "bezel", group=group, node=cn, bevel=0.003)
+    S.obox(c + nd2 * 0.004, (rd, ud2, nd2), (2 * I, 2 * I, 0.008), "glass", group=group, node=cn)
+    for side in range(4):
+        n_ = 5 if side < 2 else 4
+        for i in range(n_):
+            tt = (i + 0.5) / n_ * 2 - 1
+            if side < 2:
+                p = c + rd * (tt * I * 0.92) + ud2 * ((1 if side == 0 else -1) * (O + I) / 2)
+                sz = (s * 0.11, (O - I) * 0.5, 0.012)
+            else:
+                p = c + ud2 * (tt * I * 0.85) + rd * ((1 if side == 2 else -1) * (O + I) / 2)
+                sz = ((O - I) * 0.5, s * 0.1, 0.012)
+            S.obox(p + nd2 * (t + 0.005), (rd, ud2, nd2), sz, "paint_lt", group=group, node=cn, bevel=0.0025)
+    for cx in (-1, 1):
+        S.obox(c + rd * cx * (O - (O - I) / 2) + ud2 * (O - (O - I) / 2) + nd2 * (t + 0.004), (rd, ud2, nd2),
+               ((O - I) * 0.55, (O - I) * 0.55, 0.01), "steel", group=group, node=cn, bevel=0.003)
+    S.quad(c + nd2 * 0.0105, nd2, ud2, 2 * I * 0.97, 2 * I * 0.97,
+           emission_material(name, os.path.join(DISPLAYS, f"{img}.png"), 2.5), "screen", name, node=name)
+    S.disp[name] = img
+    NODES.setdefault(name, (cn, None))
+    return O
+
+
+# Every MFD placed by its angle from the eye (openspec change `mfd-visibility`; owner, 2026-10-26: "the mfds are not
+# visible entirely in the view", "not rendered with the same aspect", "think like a bulge over the dash"): the hung
+# row 30 degrees over the eye line, the dash row 25 under, about 25 degrees apart, each turned to face the eye, so all six lie
+# whole inside the 95 degree view, clear of the fighting band (-10 to +20 degrees), and look square.
+# The picture is a flat perspective: a corner up and out to the side lands higher on it than its angle alone says
+# (tan(elevation) / cos(azimuth)), so the hung row's outer top corners set its numbers (inside the 47.5 degree edge
+# with 4 % to spare).
+MFD_ROWS = dict(hung=dict(el=30.0, d=0.82, s=(0.28, 0.28, 0.28), az=(23.0, 0.0, -23.0)),
+                dash=dict(el=-25.0, d=0.80, s=(0.26, 0.30, 0.26), az=(26.0, 0.0, -26.0)))   # az: the pilot's left (+x)
+
+
+def at_eye(el_deg, az_deg, d, plan=None, clear_m=0.10):
+    """The point at most d metres from the eye at elevation el and azimuth az (degrees, +az the pilot's left), the axes
+    of a face there turned to the eye (right, up: the world's up on the face, toward the eye), and how much nearer than
+    d it had to come (1: not at all). With the cabin's plan (convex, glTF x and z), the point comes in to clear the walls
+    by clear_m: a screen in a shallow cabin sits nearer and is made smaller by the same share, so it covers the same
+    part of the view."""
+    e, a = math.radians(el_deg), math.radians(az_deg)
+    ray = V(math.sin(a) * math.cos(e), math.sin(e), math.cos(a) * math.cos(e))
+    k = 1.0
+    if plan:
+        flat = Vector((ray.x, ray.z)).length
+        while k > 0.3:
+            p = EYE + ray * (d * k)
+            q = EYE + ray * (d * k + clear_m / max(flat, 1e-3))
+            if _inside(plan, p.x, p.z) and _inside(plan, q.x, q.z):
+                break
+            k -= 0.01
+    return EYE + ray * (d * k), basis(-ray, V(0, 1, 0)), k
+
+
 def dash_unit(S, cn, cd, scale=1.0):
     """The dash on node cn: the dash panel tilted 18 degrees at the eye through cd, its body, the three MFDs
     (CP.MFDS) in bezels with their clips and glass, and the glare shield over them; scale shrinks the whole
@@ -582,29 +643,7 @@ def dash_unit(S, cn, cd, scale=1.0):
     for name, px, py, s in CP.MFDS:
         px, py, s = px * k, py * k, s * k
         c = cd + rd * px + ud2 * py + nd2 * 0.002
-        O, I, t = (s + 0.06 * k) / 2, s / 2, 0.03
-        for (cx, cy, w, h) in ((0, (O + I) / 2, 2 * O, O - I), (0, -(O + I) / 2, 2 * O, O - I),
-                               ((O + I) / 2, 0, O - I, 2 * I), (-(O + I) / 2, 0, O - I, 2 * I)):
-            S.obox(c + rd * cx + ud2 * cy + nd2 * t / 2, (rd, ud2, nd2), (w, h, t), "bezel", group="front", node=cn, bevel=0.003)
-        S.obox(c + nd2 * 0.004, (rd, ud2, nd2), (2 * I, 2 * I, 0.008), "glass", group="front", node=cn)
-        for side in range(4):
-            n_ = 5 if side < 2 else 4
-            for i in range(n_):
-                tt = (i + 0.5) / n_ * 2 - 1
-                if side < 2:
-                    p = c + rd * (tt * I * 0.92) + ud2 * ((1 if side == 0 else -1) * (O + I) / 2)
-                    sz = (s * 0.11, (O - I) * 0.5, 0.012)
-                else:
-                    p = c + ud2 * (tt * I * 0.85) + rd * ((1 if side == 2 else -1) * (O + I) / 2)
-                    sz = ((O - I) * 0.5, s * 0.1, 0.012)
-                S.obox(p + nd2 * (t + 0.005), (rd, ud2, nd2), sz, "paint_lt", group="front", node=cn, bevel=0.0025)
-        for cx in (-1, 1):
-            S.obox(c + rd * cx * (O - (O - I) / 2) + ud2 * (O - (O - I) / 2) + nd2 * (t + 0.004), (rd, ud2, nd2),
-                   ((O - I) * 0.55, (O - I) * 0.55, 0.01), "steel", group="front", node=cn, bevel=0.003)
-        S.quad(c + nd2 * 0.0105, nd2, ud2, 2 * I * 0.97, 2 * I * 0.97,
-               emission_material(name, os.path.join(DISPLAYS, f"{disp[name]}.png"), 2.5), "screen", name, node=name)
-        S.disp[name] = disp[name]
-        NODES.setdefault(name, (cn, None))
+        mfd_bezel(S, name, c, (rd, ud2, nd2), s, 0.06 * k, cn, disp[name])
     g = cd + V(0, 0.25, 0)                   # the glare shield over the MFDs
     S.plate("glare", g, V(0, 1, 0), V(0, 0, 1), t=0.012, node=cn, scale=k)
     S.box((-0.79 * k, g.y - 0.04, g.z - 0.10), (0.79 * k, g.y - 0.012, g.z + 0.10), "paint_dk", group="front", node=cn, bevel=0.01)
@@ -1169,7 +1208,11 @@ def build_layout(S, VAR):
                 nm = f"r{r}_{n_screen}"
                 n_screen += 1
                 flat_screen(S, nm, cnr, node_at(centre), strip=(r == 0))
-                if ahead and front_screen is None or (ahead and abs(EYE.y + 0.3 - (y0 + y1) / 2) < abs(EYE.y + 0.3 - front_screen[1])):
+                # the front screen the MFDs hang from: the row the layout names (`mfd_row`), else the one nearest a little
+                # over the eye
+                pick = r == L["mfd_row"] % len(rows) if "mfd_row" in L else (
+                    front_screen is None or abs(EYE.y + 0.3 - (y0 + y1) / 2) < abs(EYE.y + 0.3 - front_screen[1]))
+                if ahead and pick:
                     front_screen = (f"SCREEN_wall_{nm}", (y0 + y1) / 2, centre, n_in, node_at(centre), (y0, y1))
         # rails: under the first row, over the last, between rows
         levels = [rows[0][0] - 0.03] + [(rows[i][1] + rows[i + 1][0]) / 2 for i in range(len(rows) - 1)] + [rows[-1][1] + 0.04]
@@ -1243,45 +1286,52 @@ def build_layout(S, VAR):
     if "dash" in L["mfd"]:
         carrier = next((P for P in parts if P.get("dash")), None)
         cn = owner[carrier["name"]] if carrier else None
-        half = min(abs(x) for x in cross_x(outline, zf + 0.1)) - 0.08
-        if carrier and carrier["region"][0] == "sector":
-            half = min(half, F * math.tan(max(abs(carrier["region"][1]), abs(carrier["region"][2])) * D(1)) - 0.17)
-        k = min(1.0, 2 * half / 1.58)
         name = "CONSOLE_front"
-        # Under the first row of screens, unless the layout sets its height (the Cab's floor-to-roof glass: the dash at
-        # the Panorama's height, openspec change cockpit-parity).
-        dy = L.get("dash_y_m", rows[0][0] - 0.16)
-        NODES[name] = (cn or "pod", V(0, dy, zf))
-        dash_unit(S, name, V(0, dy, zf), k)
-        for s_ in (1, -1):                   # brackets from the dash to its wall
-            x_ = s_ * 0.3 * 1.58 * k
-            S.obox(V(x_, dy - 0.14, (zf + F) / 2), (X, Y, Z), (0.05, 0.05, F - zf), "steel", "front", name, bevel=0.005)
+        # The dash row on a pod standing up out of a low dash (owner: "think like a bulge over the dash", "see how this
+        # dashboard curves up?"): each screen at its angle from the eye in a housing on a neck, a hood curving over it,
+        # the dash body under them all so nothing covers a screen.
+        row = MFD_ROWS["dash"]
+        placed = []
+        d_row = row["d"] * min(at_eye(row["el"], az, row["d"], keep)[2] for az in row["az"])
+        for (nm, _, _, _), az, size in zip(CP.MFDS, row["az"], row["s"]):
+            c, axes, _ = at_eye(row["el"], az, d_row)
+            placed.append((nm, c, axes, size * d_row / row["d"]))
+        lows = [c - ax[1] * (sz / 2 + 0.03) for _, c, ax, sz in placed]
+        dy = min(p.y for p in lows) - 0.03            # the dash's top, under every screen's lower edge
+        z0 = min(p.z for p in lows) - 0.02            # its face toward the pilot
+        half = min(abs(x) for x in cross_x(outline, max(z0, 0.0) + 0.05)) - 0.06
+        NODES[name] = (cn or "pod", V(0, dy, z0))
+        S.box((-half, dy - 0.32, z0), (half, dy, F - 0.02), "paint_dk", "front", name, bevel=0.01)
+        S.box((-half + 0.02, dy, z0 + 0.02), (half - 0.02, dy + 0.012, F - 0.04), "bezel", "front", name, bevel=0.003)
+        S.plate("dash_main", (0, dy + 0.013, (z0 + F) / 2), Y, Z, t=0.012, group="front", node=name,
+                scale=min(1.0, 2 * half / CP.PANELS["dash_main"][0], (F - z0) / CP.PANELS["dash_main"][1]))
+        for nm, c, (rd, ud2, nd2), size in placed:
+            O = mfd_bezel(S, nm, c, (rd, ud2, nd2), size, 0.06, name, {"SCREEN_left": "mfd_left", "SCREEN_center": "mfd_center",
+                                                                       "SCREEN_right": "mfd_right"}[nm])
+            S.obox(c - nd2 * 0.045, (rd, ud2, nd2), (2 * O + 0.04, 2 * O + 0.04, 0.07), "paint_dk", "front", name, bevel=0.012)
+            low = c - ud2 * (O + 0.02) - nd2 * 0.045
+            S.box((low.x - 0.07, dy - 0.01, low.z - 0.04), (low.x + 0.07, low.y + 0.02, low.z + 0.04), "paint_dk", "front", name, bevel=0.008)
+            S.obox(c + ud2 * (O + 0.03) + nd2 * 0.03, (rd, ud2, nd2), (2 * O + 0.06, 0.014, 0.12), "paint", "front", name, bevel=0.005)
         # The footwell's front wall, behind the pedals, from the floor up into the dash's body, on the dash's part so
-        # it swings clear with it and the doorway stays open. Without it the footwell ran out under the dash to the
-        # outside (owner, 2026-10-25: "theres an opening here need fix"; the cabin is airtight).
-        zw, top = F - 0.08, dy
-        S.box((-0.79 * k, 0.0, zw), (0.79 * k, top, zw + 0.03), "paint_dk", "front", name)
-        S.plate("footwell", (0, min(0.27, top * 0.5), zw), -Z, Y, t=0.012, group="front", node=name,
-                scale=min(1.0, 1.5 * k / CP.PANELS["footwell"][0], (top - 0.04) / CP.PANELS["footwell"][1]))
+        # it swings clear with it and the doorway stays open (owner, 2026-10-25: "theres an opening here need fix").
+        zw = F - 0.08
+        S.box((-half, 0.0, zw), (half, dy - 0.30, zw + 0.03), "paint_dk", "front", name)
     if "top" in L["mfd"] and front_screen:
-        # Hung from the screen's top bar and tilted down at the eye, so they cover only the screen's top edge (owner,
-        # 2026-10-24: "move the mfds in the window up to the top bar a bit so theyre not in the way", "try to clear
-        # the main vieiwing screen as much as you can"). 16 cm out, clear of the frame bars (4.5 cm) and the bar's trim
-        # (owner: "theres some geometry in front of mfd, I would move them forward").
-        nm, yc_, centre, n_in, nd, (ry0, ry1) = front_screen
-        size = 0.30
-        # A layout with a low front screen hangs them higher and further in, on the canopy's front slope, so they never
-        # cover the screen at eye height (`mfd_top_m`: rise, out; openspec change cockpit-parity).
-        rise, out = L.get("mfd_top_m", (0.0, 0.16))
-        yc = ry1 - 0.02 + rise
-        face = (n_in - Y * 0.5).normalized()
-        for i, (x, img) in enumerate(((0.36, "mfd_left"), (0.0, "mfd_center"), (-0.36, "mfd_right"))):
-            c_ = V(x, yc, centre.z) + n_in * out
-            S.obox(c_ - face * 0.004, basis(face, Y), (size + 0.04, size + 0.04, 0.008), "bezel", "cabin", nd, bevel=0.002)
+        # The hung row at its angle from the eye, each on a stalk up to the roof, riding the part the front screen rides.
+        nd = front_screen[4]
+        row = MFD_ROWS["hung"]
+        # one distance for the row, the nearest any screen needs, so the row keeps its gaps
+        d_row = row["d"] * min(at_eye(row["el"], az, row["d"], keep)[2] for az in row["az"])
+        for i, (az, img, size) in enumerate(zip(row["az"], ("mfd_left", "mfd_center", "mfd_right"), row["s"])):
+            c, (rd, ud2, nd2), _ = at_eye(row["el"], az, d_row)
+            k_ = d_row / row["d"]
             sn = f"HUD_mfd_{i}"
             NODES[sn] = (nd or "pod", None)
-            S.quad(c_ + face * 0.001, face, Y, size, size, emission_material(sn, os.path.join(DISPLAYS, f"{img}.png"), 2.0), "screen", sn, node=sn)
-            S.disp[sn] = img
+            O = mfd_bezel(S, sn, c, (rd, ud2, nd2), size * k_, 0.04 * k_, nd, img, group="cabin")
+            # the housing shrinks with the screen, so screens brought in by a shallow cabin keep their gaps in the view
+            S.obox(c - nd2 * 0.04 * k_, (rd, ud2, nd2), (2 * O + 0.03 * k_, 2 * O + 0.03 * k_, 0.05 * k_), "paint_dk", "cabin", nd, bevel=0.01 * k_)
+            back = c - nd2 * 0.06 * k_ + ud2 * O * 0.5
+            S.box((back.x - 0.025, back.y, back.z - 0.025), (back.x + 0.025, H - 0.01, back.z + 0.025), "steel", "cabin", nd, bevel=0.006)
     VAR["front_screen"] = front_screen[0] if front_screen else "SCREEN_wall_r0_0"
     VAR["front_screen_c"] = front_screen[2] if front_screen else V(0, 1.3, F)
     # mist over the floor and steam at the seals as the cabin opens
@@ -1395,7 +1445,42 @@ VARIANTS = {
                 ("LIGHT_footwell", "POINT", V(0, 0.15, 0.30), None, 1.0, (1.0, 0.18, 0.12), 0.03, None)],
         front_screen="SCREEN_wall_facet_p0", front_screen_c=V(0, 1.32, HC + HA)),
 }
-for _lid in ("panorama", "titan", "cab", "canopy"):     # the owner's picks, built in detail from their block-outs
+# Each cockpit's own trim (openspec change cockpit-identity: "customizing cockpits so they all are unique and different"):
+# the cabin's paint, its accent line, the seat's fabric and its lamps' two colours, so a cabin reads as its mech's from
+# the seat. A layout with no trim keeps the kit's grey and cyan and the warm and cool lamps (the Foreman's Panorama and
+# the three built before it: owner, "dont change foreman").
+TRIMS = {
+    # the Driller: a mining machine's cab, umber paint, amber lines, warm work lamps
+    "octagon": dict(roles={"paint": "#4a3f33", "paint_lt": "#6b5c4a", "paint_dk": "#2c251e", "fabric": "#4a3a2a"},
+                    accent=("#3a2405", "#ffae2e"), warm=(1.0, 0.78, 0.52), cool=(1.0, 0.9, 0.75)),
+    # the Picket: the sniper's dark slate room, ice-blue lines, cool and dim
+    "cinema": dict(roles={"paint": "#2c3542", "paint_lt": "#47536a", "paint_dk": "#171d26", "fabric": "#20262f"},
+                   accent=("#0d2a44", "#8fd0ff"), warm=(0.8, 0.86, 1.0), cool=(0.55, 0.7, 1.0), dim=0.7),
+    # the Mule: a hauler's olive cab, safety yellow lines
+    "tilewall": dict(roles={"paint": "#4a4f3a", "paint_lt": "#6d735a", "paint_dk": "#2b2e22", "fabric": "#3d3f2e"},
+                     accent=("#3d3306", "#ffd83a"), warm=(1.0, 0.9, 0.7), cool=(0.85, 0.92, 1.0)),
+    # the Sapper: a siege gun's sand-grey room on red night lighting
+    "twintier": dict(roles={"paint": "#4a4640", "paint_lt": "#6e6960", "paint_dk": "#2b2824", "fabric": "#352f29"},
+                     accent=("#3f0a08", "#ff4a36"), warm=(1.0, 0.55, 0.45), cool=(1.0, 0.72, 0.62)),
+}
+
+
+def apply_trim(variant, VAR):
+    """Set the kit's roles and the variant's lamps to the cockpit's trim, if it has one."""
+    t = TRIMS.get(variant)
+    if not t:
+        return
+    for role, c in t["roles"].items():
+        K.ROLES[role] = dict(K.ROLES[role], c=c)
+    K.ROLES["cyan"] = dict(K.ROLES["cyan"], c=t["accent"][0], emit=t["accent"][1])
+    swap = {WARM: t["warm"], COOL: t["cool"]}
+    dim = t.get("dim", 1.0)
+    VAR["lights"] = [(n, k, at, aim, w * dim, swap.get(col, col), r, cone) for n, k, at, aim, w, col, r, cone in VAR["lights"]]
+
+
+# The owner's picks, built in detail from their block-outs; the last four give every roster mech a cockpit of its own
+# (openspec change cockpit-identity: the Driller, Picket, Mule and Sapper).
+for _lid in ("panorama", "titan", "cab", "canopy", "octagon", "cinema", "tilewall", "twintier"):
     VARIANTS[_lid] = layout_variant(_lid)
 
 
@@ -1814,6 +1899,7 @@ def main():
     t0 = time.time()
     global EYE, MID, MODEL, MANIFEST
     VAR = VARIANTS[a.variant]
+    apply_trim(a.variant, VAR)
     EYE, MID = VAR["eye"], VAR["mid"]
     NODES.clear()
     NODES.update(VAR["nodes"])

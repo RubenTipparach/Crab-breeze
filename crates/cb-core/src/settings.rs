@@ -25,7 +25,8 @@ pub struct Settings {
     pub mouse_deg_per_px: f32,
     /// Mouse up looks down.
     pub invert_pitch: bool,
-    /// The view's vertical field of view, degrees (on foot and seated).
+    /// The view's vertical field of view seated in the cockpit, degrees; on foot it is narrower by the data's
+    /// difference (`pilot.ron`, openspec change `seated-fov`).
     pub fov_deg: f32,
     /// The sun casts shadows.
     pub shadows: bool,

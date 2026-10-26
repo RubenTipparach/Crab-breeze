@@ -1,0 +1,56 @@
+// Refits (openspec change mech-custom): the weapons a career can buy and fit in a hangar bay, the armour
+// grades, and the liveries. A weapon fits a station of its kind (Arm: an arm's gun, Missile: the torso pod)
+// and takes that station's muzzle, arm and fire group. Prices in credits; speeds m/s, intervals s,
+// penetration mm, blast MJ. Bought weapons are kept and can be sold back at `sell_share` of their price (MC1,
+// provisional). An armour grade raises every part's structure by `structure_share` and adds `mass_kg`, which
+// slows the walk in proportion. Liveries are free (MC2, provisional): linear RGB tints over the paint, taken
+// from the chassis palettes in tools/blender/mech_palettes.py (each BODY colour scaled to a peak of 1 and
+// mixed half with white, so the plating's detail stays).
+(
+    sell_share: 0.5,
+    weapons: [
+        (id: "rotary_25", kind: Arm, price: 35000, name: "25 mm rotary cannon", speed_m_s: 1150.0,
+         interval_s: 0.06, penetration_mm: 60.0, damage: 6.0, blast_mj: 0.2),
+        (id: "autocannon_35", kind: Arm, price: 40000, name: "35 mm autocannon", speed_m_s: 1100.0,
+         interval_s: 0.12, penetration_mm: 90.0, damage: 12.0, blast_mj: 0.4),
+        (id: "cannon_40", kind: Arm, price: 60000, name: "40 mm cannon", speed_m_s: 1000.0,
+         interval_s: 0.35, penetration_mm: 130.0, damage: 26.0, blast_mj: 0.9),
+        (id: "cannon_120", kind: Arm, price: 90000, name: "120 mm cannon", speed_m_s: 850.0,
+         interval_s: 2.5, penetration_mm: 260.0, damage: 90.0, blast_mj: 6.0),
+        (id: "rail_rifle", kind: Arm, price: 180000, name: "rail rifle", speed_m_s: 2400.0,
+         interval_s: 3.5, penetration_mm: 420.0, damage: 140.0, blast_mj: 0.5, shot: Slug(charge_s: 1.0), heat: 0.35,
+         scope_zoom: [4.0, 10.0]),
+        // The advanced weapons (openspec/changes/weapon-kinds; survey G22: anyone can carry every weapon). `heat` is
+        // the share of the weapon heat bank a shot adds (a second, for the laser); the bank cools in 20 s (G23).
+        (id: "shotgun", kind: Arm, price: 70000, name: "shotgun", speed_m_s: 600.0, interval_s: 1.0,
+         penetration_mm: 40.0, damage: 9.0, blast_mj: 0.0, shot: Pellets(count: 12, spread_deg: 1.5)),
+        (id: "laser", kind: Arm, price: 160000, name: "laser", speed_m_s: 1500.0, interval_s: 0.1,
+         penetration_mm: 120.0, damage: 60.0, blast_mj: 0.0, shot: Beam(range_m: 1500.0), heat: 0.25),
+        (id: "plasma", kind: Arm, price: 140000, name: "plasma cannon", speed_m_s: 180.0, interval_s: 1.6,
+         penetration_mm: 80.0, damage: 55.0, blast_mj: 4.0, shot: Plasma(burst_m: 650.0), heat: 0.2),
+        (id: "missile", kind: Missile, price: 80000, name: "shoulder missile", speed_m_s: 260.0,
+         interval_s: 1.2, penetration_mm: 150.0, damage: 45.0, blast_mj: 2.5, shot: Rocket,
+         seeker_turn_deg_s: 70.0, rounds: Some(40)),
+        (id: "missile_heavy", kind: Missile, price: 150000, name: "heavy missile", speed_m_s: 220.0,
+         interval_s: 2.5, penetration_mm: 300.0, damage: 110.0, blast_mj: 7.0, shot: Rocket,
+         seeker_turn_deg_s: 45.0, rounds: Some(16)),
+        // A six-cell multi-lock pod (openspec/changes/multi-lock): hold F to sweep up to six locks, let go to fire one
+        // missile on each, 0.08 s apart; 8 s to reload after a salvo.
+        (id: "multilock_pod", kind: Missile, price: 200000, name: "multi-lock pod", speed_m_s: 240.0,
+         interval_s: 8.0, penetration_mm: 100.0, damage: 30.0, blast_mj: 1.5, shot: Rocket, rounds: Some(24),
+         seeker: Some((max_locks: 6, lock_s: 0.35, range_m: 1500.0, cone_deg: 25.0, turn_deg_s: 60.0))),
+    ],
+    armour: [
+        (grade: 1, price: 60000, structure_share: 0.15, mass_kg: 20000.0),
+        (grade: 2, price: 120000, structure_share: 0.30, mass_kg: 45000.0),
+        (grade: 3, price: 220000, structure_share: 0.50, mass_kg: 80000.0),
+    ],
+    liveries: [
+        (name: "Factory", tint: (1.0, 1.0, 1.0)),
+        (name: "Stevedore blue", tint: (0.58, 0.72, 1.0)),
+        (name: "Grader yellow", tint: (1.0, 0.87, 0.56)),
+        (name: "Logger green", tint: (0.78, 1.0, 0.83)),
+        (name: "Pumper red", tint: (1.0, 0.57, 0.56)),
+        (name: "Ploughman blue", tint: (0.65, 0.77, 1.0)),
+    ],
+)

@@ -740,5 +740,105 @@
    "wind4.wav",
    "wind5.wav"
   ]
+ },
+ "archive/aporee_55938_63923": {
+  "pack": "aporee_55938_63923",
+  "url": "https://archive.org/details/aporee_55938_63923",
+  "licences": [
+   "https://creativecommons.org/publicdomain/mark/1.0/"
+  ],
+  "author": "Matt Todd",
+  "files": [
+   "MSP30LOperationsfromSpotterPark202202161515CSTnoisereduction.mp3"
+  ]
+ },
+ "archive/aporee_32452_37313": {
+  "pack": "aporee_32452_37313",
+  "url": "https://archive.org/details/aporee_32452_37313",
+  "licences": [
+   "http://creativecommons.org/publicdomain/mark/1.0/"
+  ],
+  "author": "laag@netcourri...",
+  "files": [
+   "dpartavionsreaction.flac"
+  ]
+ },
+ "archive/aporee_69846_81327": {
+  "pack": "aporee_69846_81327",
+  "url": "https://archive.org/details/aporee_69846_81327",
+  "licences": [
+   "https://creativecommons.org/publicdomain/mark/1.0/"
+  ],
+  "author": "john grzinich",
+  "files": [
+   "250930PlanenoiseTallinnAirport.mp3"
+  ]
+ },
+ "archive/aporee_34587_39758": {
+  "pack": "aporee_34587_39758",
+  "url": "https://archive.org/details/aporee_34587_39758",
+  "licences": [
+   "http://creativecommons.org/publicdomain/mark/1.0/"
+  ],
+  "author": "gpehead@gma...",
+  "files": [
+   "00920170109Airfield.flac"
+  ]
+ },
+ "archive/aporee_49266_56150": {
+  "pack": "aporee_49266_56150",
+  "url": "https://archive.org/details/aporee_49266_56150",
+  "licences": [
+   "http://creativecommons.org/publicdomain/mark/1.0/"
+  ],
+  "author": "dthundr",
+  "files": [
+   "lentsikkacut.mp3"
+  ]
+ },
+ "archive/aporee_51269_58510": {
+  "pack": "aporee_51269_58510",
+  "url": "https://archive.org/details/aporee_51269_58510",
+  "licences": [
+   "http://creativecommons.org/publicdomain/mark/1.0/"
+  ],
+  "author": "nolan.fellahi74",
+  "files": [
+   "HelicopterFrenchArmyTakingoffDecollage5AircraftsInvalides14July2019Paris.flac"
+  ]
+ },
+ "archive/aporee_34782_39985": {
+  "pack": "aporee_34782_39985",
+  "url": "https://archive.org/details/aporee_34782_39985",
+  "licences": [
+   "http://creativecommons.org/publicdomain/mark/1.0/"
+  ],
+  "author": "gpehead@gma...",
+  "files": [
+   "02320170123Helicopter.flac"
+  ]
+ },
+ "oga/helicopter-sounds": {
+  "pack": "helicopter-sounds",
+  "url": "https://opengameart.org/content/helicopter-sounds",
+  "licences": [
+   "CC0"
+  ],
+  "author": "aquinn",
+  "files": [
+   "helicopter.mp3",
+   "helicopter_0.mp3"
+  ]
+ },
+ "archive/aporee_29285_33700": {
+  "pack": "aporee_29285_33700",
+  "url": "https://archive.org/details/aporee_29285_33700",
+  "licences": [
+   "http://creativecommons.org/publicdomain/mark/1.0/"
+  ],
+  "author": "maciej janasik",
+  "files": [
+   "zeport.ogg"
+  ]
  }
 }

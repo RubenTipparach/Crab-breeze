@@ -11,6 +11,7 @@ use crate::ground_marks::{Contact, GroundContact};
 use crate::input::StepActions;
 use crate::pilot::{PilotCamera, PilotEvents, PilotSim};
 use crate::sim::{Data, PresentSet, SimSet};
+use crate::state::GameApp;
 use crate::world::{Live, Plan};
 use avian3d::prelude::{AngularVelocity, Collider, LinearVelocity, RigidBody};
 use bevy::prelude::*;
@@ -19,7 +20,7 @@ use cb_core::ai::AiPilot;
 use cb_core::boarding::{Hatch, HatchTarget};
 use cb_core::input::DebugCommand;
 use cb_core::mech::rig::{BONES, SOCKETS};
-use cb_core::mech::{Damage, Hit, LocomotionMode, MechConfig, PartKind};
+use cb_core::mech::{Damage, Hit, LocomotionMode, MechConfig, OnWater, PartKind};
 use cb_core::mech::{LegRest, MechControls, MechState, RigRest, foot_strikes, pose, stance_lead_m};
 use cb_core::pilot::{MechAccess, PilotEvent, PilotMode};
 use cb_core::rng::SimRng;
@@ -78,6 +79,17 @@ pub struct MechId(pub u32);
 #[derive(Component)]
 pub struct Piloted;
 
+/// A mech the career owns (its key, `cb_core::career::OwnedMech::key`): one the pilot may walk up to and board
+/// (mech-shop section 6.3). The piloted mech carries it too, in a career.
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Owned(pub u32);
+
+/// The stable id of an owned mech that is not the piloted one (0 is always the piloted mech's): clear of every
+/// encounter's and job's ids.
+pub fn owned_id(key: u32) -> MechId {
+    MechId(0x4000_0000 + key)
+}
+
 /// A mech driven by an AI pilot.
 #[derive(Component)]
 pub struct Enemy {
@@ -85,6 +97,9 @@ pub struct Enemy {
     pub ai: AiPilot,
     /// The line it flies with `CB_ENEMY_STUNT`, from the player out toward where it first stood.
     pub stunt_axis: Option<Vec2>,
+    /// It keeps to the platform it stands on: an edge stops it as a wall does (the Stratostacean's deck guard,
+    /// survey H6; `platform::keep_on`).
+    pub keep_aboard: bool,
 }
 
 /// A hatch node found by a timeline motion's pattern.
@@ -173,6 +188,12 @@ pub struct Interior {
     windows: HashSet<Entity>,
 }
 
+/// The screen wall's window panes as triangles in the interior's own space (its `GlobalTransform` carries them to
+/// the world): the lens pass lays the rain's drops on them, so drops sit on the glass and not on the pilot's view
+/// (`water_render`).
+#[derive(Component, Clone, Debug, Default)]
+pub struct CabinGlass(pub Vec<[Vec3; 3]>);
+
 /// A layer no camera draws: the hull and the screen wall go there while the pilot sits sealed in an interior.
 const UNSEEN_LAYER: usize = 30;
 
@@ -193,16 +214,17 @@ pub struct MechPlugin;
 impl Plugin for MechPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MechAccessNow>()
-            .add_systems(Startup, spawn_mech)
-            .add_systems(Update, spawn_encounters.run_if(resource_added::<crate::menu::Play>))
-            .add_systems(FixedUpdate, (publish_access.in_set(SimSet::Input), step_mech.in_set(SimSet::Mech)))
-            .add_systems(
+            .add_world_spawn(spawn_mech)
+            .add_game_systems(Update, swap_mech.run_if(resource_exists::<SwapMech>).before(PresentSet::Pose))
+            .add_game_systems(Update, spawn_encounters.run_if(resource_added::<crate::menu::Encounters>))
+            .add_game_systems(FixedUpdate, (publish_access.in_set(SimSet::Input), step_mech.in_set(SimSet::Mech)))
+            .add_game_systems(
                 Update,
                 (bind_rig, bind_interior, cut_parts, drive_mech, fall_wrecks, burn, jet_flames)
                     .chain()
                     .in_set(PresentSet::Pose),
             )
-            .add_systems(Update, cockpit_layer.after(PresentSet::Pose));
+            .add_game_systems(Update, cockpit_layer.after(PresentSet::Pose));
     }
 }
 
@@ -236,9 +258,67 @@ fn spawn_mech(
     commands.entity(player).insert((Piloted, MechId(0)));
 }
 
-/// Free roam's encounter mechs near the start, spawned when the run begins as free roam (the title
-/// menu's choice, or a command-line run). The defence mission brings its own enemies, wave by wave
-/// (city-defence).
+/// Free roam's pause menu picked another mech (openspec change `menu-in-game`, section 3): its data is already in
+/// `Data` (`menu::press`), and `swap_mech` puts it where the piloted mech stands, in this program.
+#[derive(Resource)]
+pub struct SwapMech;
+
+/// The piloted mech swapped in place: the old one's tree is taken down and the picked one spawned through the same
+/// path the world spawn uses (`spawn_mech_entity`), where the old one stood and facing its way, standing as a fresh
+/// start stands it, ready to board. A pilot not on foot is put on foot beside it, where a fresh start stands them.
+#[allow(clippy::too_many_arguments)]
+fn swap_mech(
+    mut commands: Commands,
+    data: Res<Data>,
+    world: Res<Plan>,
+    tex: Res<crate::textures::Textures>,
+    assets: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut pilot: ResMut<PilotSim>,
+    piloted: Query<(Entity, &MechSim), With<Piloted>>,
+) {
+    commands.remove_resource::<SwapMech>();
+    let (at, heading) = match piloted.iter().next() {
+        Some((old, sim)) => {
+            commands.entity(old).despawn();
+            (sim.curr.pos, sim.curr.heading_rad)
+        }
+        None => {
+            let s = world.start;
+            let y = world.terrain.height_at(s.mech_xz.x, s.mech_xz.y);
+            (Vec3::new(s.mech_xz.x, y, s.mech_xz.y), s.mech_heading_rad)
+        }
+    };
+    let player = spawn_mech_entity(
+        &mut commands,
+        Arc::new(data.0.mech.clone()),
+        at,
+        heading,
+        None,
+        &tex.metal,
+        &assets,
+        &mut meshes,
+        &mut materials,
+    );
+    commands.entity(player).insert((Piloted, MechId(0)));
+    if pilot.curr.mode != PilotMode::OnFoot {
+        let s = world.start;
+        let turn = Quat::from_rotation_y(heading - s.mech_heading_rad);
+        let off = turn * Vec3::new(s.pilot_xz.x - s.mech_xz.x, 0.0, s.pilot_xz.y - s.mech_xz.y);
+        let xz = Vec2::new(at.x + off.x, at.z + off.z);
+        let feet = Vec3::new(xz.x, world.terrain.height_at(xz.x, xz.y), xz.y);
+        let to_mech = Vec2::new(at.x, at.z) - xz;
+        let state = cb_core::pilot::PilotState::standing(feet, (-to_mech.x).atan2(-to_mech.y));
+        pilot.prev = state.clone();
+        pilot.curr = state;
+    }
+    info!("mech: swapped in place for the {}", data.0.mech.name);
+}
+
+/// Free roam's encounter mechs near the start, spawned only when a scripted take asks for them
+/// (`menu::Encounters`): free roam as a player plays it starts with none. The defence mission brings its own
+/// enemies, wave by wave (city-defence).
 fn spawn_encounters(
     mut commands: Commands,
     play: Res<crate::menu::Play>,
@@ -311,6 +391,27 @@ pub struct SpawnAssets<'a> {
     pub materials: &'a mut Assets<StandardMaterial>,
 }
 
+/// What spawning a mech needs, as one system parameter (`SpawnRes::get` lends it as `SpawnAssets`).
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct SpawnRes<'w> {
+    tex: Res<'w, crate::textures::Textures>,
+    assets: Res<'w, AssetServer>,
+    meshes: ResMut<'w, Assets<Mesh>>,
+    materials: ResMut<'w, Assets<StandardMaterial>>,
+}
+
+impl SpawnRes<'_> {
+    /// The spawn's assets, lent.
+    pub fn get(&mut self) -> SpawnAssets<'_> {
+        SpawnAssets {
+            tex: &self.tex,
+            assets: &self.assets,
+            meshes: &mut self.meshes,
+            materials: &mut self.materials,
+        }
+    }
+}
+
 /// Spawns an enemy mech flown by an AI pilot, standing on the ground at `xz`: the one way enemies
 /// enter the world, for the encounter and the defence waves alike.
 #[allow(clippy::too_many_arguments)]
@@ -324,8 +425,23 @@ pub fn spawn_enemy(
     id: MechId,
     a: &mut SpawnAssets,
 ) -> Option<Entity> {
+    let at = Vec3::new(xz.x, world.terrain.height_at(xz.x, xz.y), xz.y);
+    spawn_enemy_at(commands, l, at, heading_rad, rng, id, a)
+}
+
+/// Spawns an enemy standing at `at` (feet, world): on the ground, a roof or a platform such as the Stratostacean's
+/// deck. `spawn_enemy` is this on the ground.
+pub fn spawn_enemy_at(
+    commands: &mut Commands,
+    l: &Loadout,
+    at: Vec3,
+    heading_rad: f32,
+    rng: SimRng,
+    id: MechId,
+    a: &mut SpawnAssets,
+) -> Option<Entity> {
     let root = cli::repo_root().join("data");
-    let mut cfg: MechConfig = match cb_core::data::load_ron(&root.join(l.mech)) {
+    let mut cfg: MechConfig = match MechConfig::load(&root, l.mech) {
         Ok(c) => c,
         Err(err) => {
             error!("enemy {}: {err}", id.0);
@@ -341,7 +457,6 @@ pub fn spawn_enemy(
     if l.skin.is_some() {
         cfg.boxes.clear(); // the skin is drawn instead; the skeleton stays for the sim, sockets and hits
     }
-    let at = Vec3::new(xz.x, world.terrain.height_at(xz.x, xz.y), xz.y);
     let tint = l.tint.map(|c| Color::srgb(c[0], c[1], c[2]));
     let ent = spawn_mech_entity(
         commands,
@@ -358,10 +473,25 @@ pub fn spawn_enemy(
         crate::skins::wear(commands, a.assets, ent, skin);
     }
     let ai = AiPilot::new(l.skill.clone(), rng);
-    commands
-        .entity(ent)
-        .insert((Enemy { ai, stunt_axis: None }, id, EnemyGoal::default()));
+    commands.entity(ent).insert((
+        Enemy {
+            ai,
+            stunt_axis: None,
+            keep_aboard: false,
+        },
+        id,
+        EnemyGoal::default(),
+    ));
     Some(ent)
+}
+
+/// Spawns an owned mech standing (or, for a drop, held in the air) at `pos`, empty and sealed, ready to be walked
+/// up to and boarded: the one way the career's other mechs enter the world (a drop, a mech left where the pilot
+/// climbed out, one called out at a base, a save continued).
+pub fn spawn_owned(commands: &mut Commands, cfg: Arc<MechConfig>, pos: Vec3, heading_rad: f32, key: u32, a: &mut SpawnAssets) -> Entity {
+    let ent = spawn_mech_entity(commands, cfg, pos, heading_rad, None, &a.tex.metal, a.assets, a.meshes, a.materials);
+    commands.entity(ent).insert((Owned(key), owned_id(key)));
+    ent
 }
 
 /// What an enemy goes for this step, when something other than the player's mech (a mission's
@@ -645,7 +775,7 @@ fn bind_interior(
     lights: Query<(), Or<(With<PointLight>, With<SpotLight>, With<DirectionalLight>)>>,
     mut points: Query<&mut PointLight>,
     mut spots: Query<&mut SpotLight>,
-    piloted: Query<(), With<Piloted>>,
+    piloted: Query<(), Or<(With<Piloted>, With<Owned>)>>,
     data: Res<Data>,
     mut assets: ResMut<Assets<Mesh>>,
     mut cut_done: Local<HashSet<AssetId<Mesh>>>,
@@ -687,6 +817,7 @@ fn bind_interior(
             };
             glass.extend(crate::screen_cut::triangles(mesh, in_space(w)));
         }
+        commands.entity(interior).insert(CabinGlass(glass.clone()));
         let mut cut = 0;
         if let Some(eye) = eye {
             for &e in parts.difference(&windows) {
@@ -739,8 +870,8 @@ fn bind_interior(
         // The interior's own lamps light its cabin (owner, 2026-10-24: "Need proper dashboard
         // lighting"): on the cockpit layer only, so they light the cabin and never the world, and
         // nothing outside reaches the cabin (lights are clustered on the CPU, which keeps each to its
-        // layer). No shadows: they are cheap fills. Only the pilot's mech keeps them; an enemy's
-        // cabin is never seen from inside.
+        // layer). No shadows: they are cheap fills. Only the pilot's mech and the mechs they own (any of which they
+        // may board) keep them; an enemy's cabin is never seen from inside.
         let keep = piloted.contains(root);
         for l in lamps {
             if !keep {
@@ -872,12 +1003,12 @@ pub fn rope_foot(mech_feet: Vec3, hatch: Vec3, reach_m: f32) -> Vec3 {
 }
 
 fn publish_access(
-    roots: Query<(&MechSim, &MechRig), With<Piloted>>,
+    roots: Query<(&MechSim, &MechRig, &MechSpec), With<Piloted>>,
     globals: Query<&GlobalTransform>,
     data: Res<Data>,
     mut out: ResMut<MechAccessNow>,
 ) {
-    out.0 = roots.iter().next().and_then(|(sim, rig)| {
+    out.0 = roots.iter().next().and_then(|(sim, rig, spec)| {
         let at = |n: &str| globals.get(rig.sockets[n]).ok().map(|g| g.translation());
         let hatch = at("HATCH_entry")?;
         Some(MechAccess {
@@ -890,7 +1021,8 @@ fn publish_access(
             eye_pilot: at("EYE_pilot")?,
             heading_rad: sim.curr.heading_rad,
             seat_yaw_rad: sim.curr.heading_rad + sim.curr.twist_rad,
-            stopped: sim.curr.is_stopped(&data.0.mech.locomotion),
+            // The piloted mech's own data: it may be any owned design (mech-shop section 6.3).
+            stopped: sim.curr.is_stopped(&spec.locomotion),
             speed_m_s: sim.curr.vel.length(),
             destroyed: sim.dead,
             hatch_open: sim.hatch.is_open(&data.0.boarding),
@@ -926,10 +1058,12 @@ pub fn step_mech(
     globals: Query<&GlobalTransform>,
     mut explosions: MessageWriter<Explosion>,
     mut fx: MessageWriter<Fx>,
-    targeting: Res<crate::targeting::TargetState>,
+    // The pilot's targets, and the fog an enemy pod locks on the pilot through (survey F2).
+    (targeting, fog_now): (Res<crate::targeting::TargetState>, Res<crate::ground_fog::FogNow>),
     mut contacts: MessageWriter<GroundContact>,
 ) {
     let _t = crate::perf_hud::slow("step_mech");
+    let _all = crate::perf_hud::section("step_mech");
     let tl = &data.0.boarding;
     let locked = targeting.locked(&data.0.targeting);
     let dt = time.delta_secs();
@@ -960,15 +1094,17 @@ pub fn step_mech(
             r.1.aim_height_m(),
         )
     });
+    let player_id = roots.iter().find(|r| r.5).map(|r| r.2.0);
     let cam = camera.iter().next().copied();
     for (mut sim, spec, id, rig, enemy, piloted) in &mut roots {
         let cfg: &MechConfig = spec;
+        let keep_aboard = enemy.as_ref().is_some_and(|(e, _)| e.keep_aboard);
         sim.prev = sim.curr;
         sim.hatch_prev = sim.hatch;
         if sim.dead {
             continue;
         }
-        let mut fire = [false, false, false];
+        let mut fire = [false; 4];
         // Close combat's strikes, [left arm, right arm] (close-combat).
         let mut strike = [false; 2];
         let mut aim_at: Option<Vec3> = None;
@@ -1026,13 +1162,17 @@ pub fn step_mech(
                         explosions.write(Explosion {
                             at: Vec3::new(at.x, y, at.y),
                             energy_mj: 6.0,
+                            by: None,
                         });
                     }
                 }
                 None => {}
             }
-            if !seated && sim.hatch.target == HatchTarget::Open && pilot.curr.mode == PilotMode::OnFoot {
-                // Asked to board: turn to face the pilot while kneeling, so the hatch is toward them.
+            // Asked to board: turn to face the pilot while kneeling, so the hatch is toward them. Once
+            // the kneel is complete it holds still (owner, 2026-10-25: "when mech has completed
+            // kneeling animation it should no longer turn to face the player").
+            let kneeling = sim.hatch.t_s < tl.sit.duration_s;
+            if !seated && kneeling && sim.hatch.target == HatchTarget::Open && pilot.curr.mode == PilotMode::OnFoot {
                 let to = pilot.curr.feet - sim.curr.pos;
                 let want = (-to.x).atan2(-to.z);
                 let err = (want - sim.curr.heading_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
@@ -1054,9 +1194,9 @@ pub fn step_mech(
                 // close combat the guns keep firing and the punch keys strike with the arms (owner,
                 // 2026-10-25: "Guns keep firing in close combat, and punches move to other keys").
                 if actions.free_look {
-                    fire = [false; 3];
+                    fire = [false; 4];
                 } else {
-                    fire = [actions.fire[0], actions.fire[1], actions.fire_missile];
+                    fire = [actions.fire[0], actions.fire[1], actions.fire_missile, actions.fire_back];
                     if sim.close.on {
                         strike = actions.strike;
                     }
@@ -1072,10 +1212,18 @@ pub fn step_mech(
                     c.throttle_zero = true;
                     c.throttle_axis = 0.0;
                 }
-                // At the coupled look's edge the mech turns toward the view at its own rate
+                // On deep water a tap of Ctrl turns skimming off, as C does, and the mech goes under (owner,
+                // 2026-10-25: "ctrl above water turns skiming off as well").
+                if actions.full_stop && matches!(sim.curr.on_water, OnWater::Skimming | OnWater::Hovering) {
+                    c.sink = true;
+                }
+                // The mech turns toward the view, faster the further off its nose the view is
                 // (seated-look): the view comes round no faster than the mech can turn.
                 let limit = data.0.pilot.seated_look_limit_deg.to_radians();
-                if let Some(t) = cb_core::pilot::look_turn(pilot.curr.seated_rel_rad, limit, actions.free_look) {
+                // The stronger of the keys' turn and the look's (skating, the keys still turn).
+                if let Some(t) = cb_core::pilot::look_turn(pilot.curr.seated_rel_rad, limit, actions.free_look)
+                    && t.abs() > c.turn_axis.abs()
+                {
                     c.turn_axis = t;
                 }
                 // Walking, WASD is direct: toward the view, back from it, a step to either side; the
@@ -1107,7 +1255,10 @@ pub fn step_mech(
                     );
                 }
                 let others: Vec<Body> = bodies.iter().filter(|b| b.0 != id.0).map(|b| b.1).collect();
-                aim_at = cam.map(|c| look_point(&c, &plan, live, &others));
+                aim_at = {
+                    let _s = crate::perf_hud::section("look_point");
+                    cam.map(|c| look_point(&c, &plan, live, &others))
+                };
                 c
             } else {
                 MechControls::default()
@@ -1123,7 +1274,10 @@ pub fn step_mech(
                 None => (player_at, player_vel, player_dead, player_aim_m),
             };
             let eye = sim.curr.pos + Vec3::Y * cfg.body.eye_height_m;
-            let speed = cfg.weapons.first().map_or(850.0, |w| w.speed_m_s);
+            // The main gun leads the aim: a beam at the target itself, a shell with its drop (weapon-kinds).
+            let main = cfg.weapons.first();
+            let kind = main.map_or_else(Default::default, |w| w.shot());
+            let speed = kind.lead_speed_m_s(main.map_or(850.0, |w| w.speed_m_s));
             let allies: Vec<Vec3> = bodies.iter().filter(|b| b.0 != id.0 && b.0 != 0).map(|b| b.1.feet).collect();
             let hit = std::mem::take(&mut sim.took_hit);
             let health = torso_health(&sim, cfg);
@@ -1137,7 +1291,9 @@ pub fn step_mech(
                 aim_height_m,
                 target_vel,
                 muzzle_speed_m_s: speed,
-                drop: !cfg.weapons.first().is_some_and(|w| w.rocket),
+                drop: !kind.straight(),
+                kind,
+                heat: sim.guns.heat.heat,
                 health,
                 hit,
                 allies: &allies,
@@ -1145,6 +1301,7 @@ pub fn step_mech(
                 cover: &cover,
                 open: &open,
             };
+            let _span = crate::perf_hud::section("enemy_orders");
             let orders = enemy.ai.orders(&sim.curr, &view, dt);
             if let Some(c) = stunt(
                 &sim.curr,
@@ -1157,7 +1314,34 @@ pub fn step_mech(
                 c
             } else {
                 if !target_dead && !goal.hold_fire {
-                    fire = [orders.fire[0], orders.fire[1], false];
+                    fire = [orders.fire[0], orders.fire[1], false, false];
+                    // A pod gathers locks on the pilot while the aim is on and lets go by the AI's rule
+                    // (multi-lock section 4): the same `Locks` and salvo the player's pod uses.
+                    let pod = cfg.weapons.iter().position(|w| w.multi_lock().is_some());
+                    if let (Some(pi), None, Some(pid)) = (pod, goal.point, player_id) {
+                        let seeker = cfg.weapons[pi].multi_lock().unwrap_or_else(|| data.0.targeting.seeker(0.0));
+                        let torso = player_at + Vec3::Y * player_aim_m;
+                        let aim = (orders.aim_point - eye).normalize_or(Vec3::NEG_Z);
+                        // The same fog rule the pilot's locks take, along the line to the pilot.
+                        let fog = crate::targeting::fog_reach(&data, &plan, &fog_now, eye, torso, time.elapsed_secs());
+                        if orders.fire[0] {
+                            let you = [cb_core::targeting::Target {
+                                id: pid,
+                                torso,
+                                neutral: false,
+                                fog,
+                            }];
+                            sim.guns.locks.step(&seeker, eye, aim, &you, dt);
+                        }
+                        let off = cb_core::targeting::off_aim_deg(eye, aim, torso);
+                        let in_cone = usize::from(seeker.reaches(torso.distance(eye), off, fog));
+                        let locks = &sim.guns.locks;
+                        if cb_core::ai::pod_release(locks.held.len(), seeker.max_locks, in_cone, locks.held_s) {
+                            let lost = sim.damage.is_lost(&cfg.parts, cfg.weapons[pi].arm);
+                            let on = sim.guns.locks.release();
+                            sim.guns.release(&cfg.weapons, pi, &on, lost);
+                        }
+                    }
                 }
                 aim_at = Some(orders.aim_point);
                 orders.controls
@@ -1171,9 +1355,21 @@ pub fn step_mech(
             dug: &live.dug,
             trees: None,
             structures: Some(&live.structures),
+            platforms: &live.platforms,
+            interiors: None,
         };
         let was_airborne = sim.curr.airborne();
-        sim.curr.step(&controls, cfg, &ground, dt);
+        let was_at = sim.curr.pos;
+        {
+            let _span = crate::perf_hud::section("mech_step");
+            sim.curr.step(&controls, cfg, &ground, dt);
+        }
+        // A deck guard keeps to its deck: walking out over the edge stops it there (survey H6).
+        if keep_aboard && let Some(back) = cb_core::world::platform::keep_on(&live.platforms, was_at, sim.curr.pos) {
+            sim.curr.pos = back;
+            sim.curr.vel = Vec2::ZERO;
+            sim.curr.vel_y_m_s = 0.0;
+        }
 
         // Trees in the way: the legs snap trunks (or are stopped by them), the hull and arms snap
         // crowns, and each snapped tree takes some momentum (vegetation design section 5).
@@ -1238,42 +1434,93 @@ pub fn step_mech(
         // Guns: fire from the muzzle toward the aim point; a lost arm's gun is gone.
         // The pilot's left mouse fires the selected station; the enemy AI fires by group (weapon-select).
         let pulls = if piloted {
-            cb_core::weapons::station_pulls(&cfg.weapons, sim.selected, fire[0], fire[1], fire[2])
+            cb_core::weapons::station_pulls(&cfg.weapons, sim.selected, fire)
         } else {
             cb_core::weapons::group_pulls(&cfg.weapons, fire)
         };
-        let fired = sim.guns.trigger(&cfg.weapons, &pulls, |k| damage.is_lost(&cfg.parts, k), dt);
-        for wi in fired {
+        let fired = sim
+            .guns
+            .trigger(&cfg.weapons, &pulls, |k| damage.is_lost(&cfg.parts, k), &cfg.weapon_heat, dt);
+        // The pilot's pod fires its salvo on letting go of the missile key, one missile per lock (multi-lock).
+        if piloted
+            && !fire[2]
+            && let Some(pi) = cfg.weapons.iter().position(|w| w.multi_lock().is_some())
+        {
+            let on = sim.guns.locks.release();
+            let lost = damage.is_lost(&cfg.parts, cfg.weapons[pi].arm);
+            sim.guns.release(&cfg.weapons, pi, &on, lost);
+        }
+        let queued = sim.guns.take_queued(&cfg.weapons, |k| damage.is_lost(&cfg.parts, k), dt);
+        let mut rng = cb_core::weapons::shot_rng(id.0, sim.guns.pulls);
+        let shots_now = fired.into_iter().map(|i| (i, None)).chain(queued);
+        for (wi, lock_on) in shots_now {
             let w = &cfg.weapons[wi];
-            // A mech without a missile pod launches its missiles from the right arm.
-            let socket: Option<&'static str> = ["MUZZLE_L", "MUZZLE_R", "MISSILE_POD"].into_iter().find(|s| *s == w.socket);
-            let socket = match socket {
-                Some("MISSILE_POD") if !rig.sockets.contains_key("MISSILE_POD") => Some("MUZZLE_R"),
-                s => s,
-            };
-            let Some(muzzle) = socket
-                .and_then(|s| rig.sockets.get(s))
-                .and_then(|e| globals.get(*e).ok())
+            // The weapon's own socket when the model has it (a back unit's barrel, a pod's mouth), else the
+            // contract muzzle of its arm; a missile without a pod leaves from the right arm.
+            let named = rig.socket(&w.socket).or_else(|| rig.named(&w.socket));
+            let fallback = if w.arm == PartKind::ArmL { "MUZZLE_L" } else { "MUZZLE_R" };
+            let Some(muzzle) = named
+                .or_else(|| rig.socket(fallback))
+                .and_then(|e| globals.get(e).ok())
                 .map(|g| g.translation())
             else {
                 continue;
             };
             let target = aim_at.unwrap_or(muzzle + cb_core::mech::forward(sim.curr.heading_rad + sim.curr.twist_rad) * 500.0);
             let dir = (target - muzzle).normalize_or(Vec3::NEG_Z);
-            let carry = cb_core::mech::forward(sim.curr.heading_rad) * sim.curr.speed_m_s;
-            shots.0.push(Projectile {
-                owner: id.0,
-                weapon: wi,
-                pos: muzzle,
-                vel: dir * w.speed_m_s + carry,
-                age_s: 0.0,
-                rocket: w.rocket,
-                // A missile homes on the pilot's lock (targeting); unlocked it flies straight.
-                target: (piloted && w.seeker_turn_deg_s > 0.0).then_some(locked).flatten(),
-            });
-            let recipe = if w.rocket {
+            let kind = w.shot();
+            if let cb_core::weapons::ShotKind::Beam { range_m } = kind {
+                // A laser burns this step's share of its damage into the first thing on its line (weapon-kinds).
+                shots.2.push(crate::combat::Beam {
+                    owner: id.0,
+                    from: muzzle,
+                    dir,
+                    range_m,
+                    penetration_mm: w.penetration_mm,
+                    damage: w.damage * dt,
+                });
+                continue;
+            }
+            // A ripple's rounds each scattered a little (signature-weapons); a lobbing gun lays itself for the
+            // range to the aim point and leaves the mech's own motion out of it, so it lands on the crosshair.
+            let dir = match w.burst {
+                Some(b) if b.jitter_deg > 0.0 => cb_core::weapons::scatter(dir, b.jitter_deg, &mut rng),
+                _ => dir,
+            };
+            let lobbed = w
+                .lob
+                .as_ref()
+                .and_then(|lob| cb_core::weapons::lob_velocity(muzzle, target, lob, dt));
+            let carry = if lobbed.is_some() {
+                Vec3::ZERO
+            } else {
+                cb_core::mech::forward(sim.curr.heading_rad) * sim.curr.speed_m_s
+            };
+            let launched = match lobbed {
+                Some(v) => vec![v],
+                None => cb_core::weapons::launch(kind, dir, w.speed_m_s, &mut rng),
+            };
+            for vel in launched {
+                shots.0.push(Projectile {
+                    owner: id.0,
+                    weapon: wi,
+                    pos: muzzle,
+                    vel: vel + carry,
+                    age_s: 0.0,
+                    rocket: kind.straight(),
+                    // A salvo's missile homes on its own lock; a single missile on the pilot's lock
+                    // (targeting); unlocked it flies straight.
+                    target: lock_on.or_else(|| (piloted && w.turn_deg_s() > 0.0).then_some(locked).flatten()),
+                });
+            }
+            let recipe = if kind.straight() {
                 "muzzle_rocket"
-            } else if w.blast_mj >= 1.0 {
+            } else if w.blast_mj >= 1.0
+                || matches!(
+                    kind,
+                    cb_core::weapons::ShotKind::Pellets { .. } | cb_core::weapons::ShotKind::Slug { .. }
+                )
+            {
                 "muzzle_cannon"
             } else {
                 "muzzle_autocannon"
@@ -1463,6 +1710,8 @@ fn look_point(camera: &GlobalTransform, plan: &cb_core::world::WorldPlan, live: 
         dug: &live.dug,
         trees: None,
         structures: Some(&live.structures),
+        platforms: &live.platforms,
+        interiors: None,
     };
     let (o, d) = (camera.translation(), camera.forward().as_vec3());
     let mut t = 20.0;
@@ -1493,6 +1742,8 @@ fn aim_point(camera: &GlobalTransform, plan: &cb_core::world::WorldPlan, dug: &c
         dug,
         trees: None,
         structures: None,
+        platforms: &[],
+        interiors: None,
     };
     let (o, d) = (camera.translation(), camera.forward().as_vec3());
     let mut t = 5.0;
@@ -1583,7 +1834,11 @@ fn cut_parts(
             if spec.kind == PartKind::Torso {
                 // The torso is gone: the mech blows up where it stands and burns.
                 let at = globals.get(root).map(|g| g.translation()).unwrap_or_default() + Vec3::Y * mech.body.blast_height_m;
-                explosions.write(Explosion { at, energy_mj: 25.0 });
+                explosions.write(Explosion {
+                    at,
+                    energy_mj: 25.0,
+                    by: None,
+                });
                 // The wreck falls to the ground and topples from its feet (owner, 2026-10-24: dead
                 // mechs "stuck floating in the air"), away from the side it was facing, at random.
                 let side = if root.index().index() % 2 == 0 { 1.0 } else { -1.0 };
@@ -1768,6 +2023,7 @@ fn jet_flames(
     mut streams: Query<&mut crate::fx::FxStream>,
     mut plumes: Query<(&mut Transform, &mut Visibility), With<JetPlume>>,
     children: Query<&Children>,
+    globals: Query<&GlobalTransform>,
     plume: Res<crate::plumes::PlumeAssets>,
     data: Res<Data>,
     plan: Res<Plan>,
@@ -1783,16 +2039,26 @@ fn jet_flames(
     }
     for (sim, rig) in &mechs {
         let on = sim.curr.boosting && !sim.dead;
+        // The nozzles point against the rockets' push, swivelled by WASD (`MechState::thrust_tilt`).
+        let tilt = sim.curr.thrust_tilt;
+        let nozzle_world = -Vec3::new(tilt.x, (1.0 - tilt.length_squared()).max(0.0).sqrt(), tilt.y);
         for jet in ["JET_L", "JET_R"] {
             let Some(&e) = rig.sockets.get(jet) else { continue };
+            // In the socket's own frame, where straight down is -y.
+            let nozzle = globals.get(e).map_or(Vec3::NEG_Y, |g| {
+                (g.to_scale_rotation_translation().1.inverse() * nozzle_world).normalize_or(Vec3::NEG_Y)
+            });
             let trail = trails.get(e).ok().map(|t| t.0);
             match (streams.get(e).is_ok(), trail) {
                 (true, Some(t)) => {
                     for s in [e, t] {
-                        if let Ok(mut s) = streams.get_mut(s)
-                            && s.on != on
-                        {
-                            s.on = on;
+                        if let Ok(mut s) = streams.get_mut(s) {
+                            if s.on != on {
+                                s.on = on;
+                            }
+                            if s.dir != nozzle {
+                                s.dir = nozzle;
+                            }
                         }
                     }
                 }
@@ -1822,7 +2088,7 @@ fn jet_flames(
             }
             // The flame under the nozzle, flickering in length while the jets fire.
             let flicker = 0.85 + 0.3 * (time.elapsed_secs() * 37.0 + e.index().index() as f32).sin().abs();
-            let shape = crate::plumes::placed(Vec3::ZERO, Vec3::NEG_Y, cfg.jet_plume_m[0] * flicker, cfg.jet_plume_m[1]);
+            let shape = crate::plumes::placed(Vec3::ZERO, nozzle, cfg.jet_plume_m[0] * flicker, cfg.jet_plume_m[1]);
             let mine = children.get(e).ok().and_then(|c| c.iter().find(|c| plumes.contains(*c)));
             match mine.and_then(|p| plumes.get_mut(p).ok()) {
                 Some((mut t, mut v)) => {

@@ -72,19 +72,19 @@
         9.131
       ]
     },
-    "bytes": 1972132,
-    "cockpit": "Panorama, as the Foreman's",
-    "cockpit_variant": "panorama",
+    "bytes": 1918192,
+    "cockpit": "Octagon: seated behind two rows of glass round an octagon, amber-lit",
+    "cockpit_variant": "octagon",
     "file": "mech_driller.glb",
     "generator": "tools/blender/build_mechs.py",
     "id": "driller",
     "legs": "digitigrade, lattice shins",
     "name": "Driller",
     "note": "Block-out 6, built in detail at 24 m, armed: a derrick on its back.",
-    "opening": "the Panorama clamshell, chest and cockpit as one: the lower flap folds down below the sill, the hood swings up",
+    "opening": "gull wings: each side of the chest lifts on a hinge in the roof, the front drops as the step",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 17280,
+    "triangles": 16684,
     "weapons": "heavy autocannon (L), auger drill (R)"
   },
   "foreman": {
@@ -132,7 +132,7 @@
         11.635
       ]
     },
-    "bytes": 1886020,
+    "bytes": 1886816,
     "cockpit": "Canopy: seated under a bubble in the hull's nose",
     "cockpit_variant": "canopy",
     "file": "mech_harrow.glb",
@@ -144,7 +144,7 @@
     "opening": "the canopy and the hull's nose over it lift back as one",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 15768,
+    "triangles": 15772,
     "weapons": "autocannon pod (L), heavy cannon pod (R), a six-cell missile rack on each shoulder"
   },
   "ironhorse": {
@@ -192,19 +192,19 @@
         7.346
       ]
     },
-    "bytes": 1794144,
-    "cockpit": "Excavator cab, under a canopy roof",
-    "cockpit_variant": "cab",
+    "bytes": 1793340,
+    "cockpit": "Tile wall: seated in a ring of square screens round 210 degrees, one wide screen ahead, yellow-lit",
+    "cockpit_variant": "tilewall",
     "file": "mech_mule.glb",
     "generator": "tools/blender/build_mechs.py",
     "id": "mule",
     "legs": "digitigrade, the heaviest slabs",
     "name": "Mule",
     "note": "Block-out 8, built in detail at 24 m: a haul truck's dump bed on its back.",
-    "opening": "the cab's front drops below the sill as a flap",
+    "opening": "three petals: the sides swing out like doors, the middle swings up with the dash",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 13700,
+    "triangles": 13570,
     "weapons": "two piston fists, a rocket pod on each shoulder"
   },
   "picket": {
@@ -222,19 +222,19 @@
         9.934
       ]
     },
-    "bytes": 1778856,
-    "cockpit": "Panorama, in the chest",
-    "cockpit_variant": "panorama",
+    "bytes": 1767420,
+    "cockpit": "Cinema: seated behind one huge seamless screen, ice-blue and dim",
+    "cockpit_variant": "cinema",
     "file": "mech_picket.glb",
     "generator": "tools/blender/build_mechs.py",
     "id": "picket",
     "legs": "human knee, knee guards, skirts",
     "name": "Picket",
     "note": "Block-out 11, built in detail at 24 m: a Gundam's build, none of its badges.",
-    "opening": "the Panorama clamshell: the lower flap folds down, the hood swings up",
+    "opening": "a heavy door: clamps slide off, it pops off its seal and swings out on its hinges with the dash",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 13038,
+    "triangles": 12794,
     "weapons": "machine gun with a box magazine (R), tall shield (L)"
   },
   "ravager": {
@@ -311,19 +311,19 @@
         13.037
       ]
     },
-    "bytes": 1763200,
-    "cockpit": "Titan, in the chest",
-    "cockpit_variant": "titan",
+    "bytes": 1780028,
+    "cockpit": "Twin tier: seated in two rings of screens under a bubble of screens, red night lighting",
+    "cockpit_variant": "twintier",
     "file": "mech_sapper.glb",
     "generator": "tools/blender/build_mechs.py",
     "id": "sapper",
     "legs": "human knee, heavier, knee guards, skirts",
     "name": "Sapper",
     "note": "Block-out 12, built in detail at 24 m: bolt-on armour.",
-    "opening": "the chest over the screens rises and tilts back, the front under them drops below the sill",
+    "opening": "the top ring and the bubble rise on four rams and tilt back, the lower front drops as the step",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 13149,
+    "triangles": 13284,
     "weapons": "rifle (R), missile pod on the forearm (L), cannon over the right shoulder"
   },
   "stevedore": {

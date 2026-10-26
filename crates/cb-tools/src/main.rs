@@ -5,6 +5,7 @@
 mod audio_check;
 mod glb;
 mod map;
+mod ships;
 
 use cb_core::GameData;
 use std::path::PathBuf;
@@ -68,6 +69,85 @@ fn main() -> ExitCode {
                     ok = false;
                 }
             }
+            // the modelled civil aircraft against their data and their manifests (civil-air-traffic, survey D8)
+            if let Ok(d) = GameData::load(&root, &mechs[0]) {
+                let problems = glb::check_aircraft(&d.air_traffic, &root.join("..").join("assets"));
+                if problems.is_empty() {
+                    let n = d.air_traffic.kinds.values().filter(|k| k.model.is_some()).count();
+                    println!("ok   {n} modelled civil aircraft and their levels of detail");
+                }
+                for p in problems {
+                    eprintln!("FAIL {p}");
+                    ok = false;
+                }
+            }
+            // the traffic cars' models against their data (car-traffic, car-driving)
+            if let Ok(d) = GameData::load(&root, &mechs[0]) {
+                let problems = glb::check_cars(&d.traffic, &root.join("..").join("assets"));
+                if problems.is_empty() {
+                    println!("ok   {} car kinds and their models", d.traffic.kinds.len());
+                }
+                for p in problems {
+                    eprintln!("FAIL {p}");
+                    ok = false;
+                }
+            }
+            // the people: roles and lines (civilians), loaded and checked with the rest
+            if let Ok(d) = GameData::load(&root, &mechs[0]) {
+                let jobs = d.people.lines.lines.iter().filter(|l| l.job).count();
+                println!(
+                    "ok   {} people roles, {} lines ({jobs} tell of jobs)",
+                    d.people.lines.roles.len(),
+                    d.people.lines.lines.len()
+                );
+            }
+            // civil air traffic's kinds (civil-air-traffic): loaded and validated with the rest; said here
+            if let Ok(d) = GameData::load(&root, &mechs[0]) {
+                println!("ok   {} civil aircraft kinds", d.air_traffic.kinds.len());
+            }
+            // the career: how it starts, the jobs, the catalogue and every mech it lists (career, mech-shop)
+            match cb_core::career::CareerData::load(&root) {
+                Ok(c) => {
+                    println!(
+                        "ok   career: {} job kinds, {} mechs for sale",
+                        c.jobs.kinds.len(),
+                        c.catalogue.listings.len()
+                    );
+                    // the air drop's aircraft is a civil air traffic kind (mech-shop, civil-air-traffic)
+                    if let Ok(d) = GameData::load(&root, &mechs[0])
+                        && let Err(e) = c.drop.check_aircraft(&d.air_traffic)
+                    {
+                        eprintln!("FAIL career/air_drop.ron: {e}");
+                        ok = false;
+                    }
+                }
+                Err(e) => {
+                    eprintln!("FAIL {e}");
+                    ok = false;
+                }
+            }
+            // the boats' block-outs against their data (harbours)
+            if let Ok(d) = GameData::load(&root, &mechs[0]) {
+                let problems = glb::check_boats(&d.ships, &root.join("..").join("assets"));
+                if problems.is_empty() {
+                    println!("ok   {} boat kinds, the crane and the quay", d.ships.kinds.len());
+                }
+                for p in problems {
+                    eprintln!("FAIL {p}");
+                    ok = false;
+                }
+            }
+            // the Stratostacean's model against its shape data (crab-airship)
+            if let Ok(d) = GameData::load(&root, &mechs[0]) {
+                let problems = glb::check_fortress(&d.fortress, &root.join("..").join("assets"));
+                if problems.is_empty() {
+                    println!("ok   the {} ({} parts)", d.fortress.cfg.name, d.fortress.shape.parts.len());
+                }
+                for p in problems {
+                    eprintln!("FAIL {p}");
+                    ok = false;
+                }
+            }
             if ok { ExitCode::SUCCESS } else { ExitCode::FAILURE }
         }
         // A measurement instrument (openspec change `city-defence`): each city's size, buildings
@@ -101,6 +181,140 @@ fn main() -> ExitCode {
             }
             ExitCode::SUCCESS
         }
+        // A measurement instrument (openspec change `car-traffic` design section 5): the island's lane graph for a
+        // seed and what it costs to build, then the traffic filled round the start in the capital (the densest
+        // downtown) at the shipped densities and stepped for `steps` fixed steps with the eye standing still, timing
+        // each step. CPU only and headless: the simulation's own cost per fixed step, not a frame time.
+        Some("traffic-bench") => {
+            let seed = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(42);
+            let steps = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(3600usize);
+            let data = match GameData::load(&PathBuf::from("data"), "mechs/placeholder.ron") {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("FAIL {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let plan = cb_core::world::generate(seed, &data.world);
+            let t0 = std::time::Instant::now();
+            let graph =
+                cb_core::world::lanes::LaneGraph::build(&plan.cities, &plan.highways, &data.traffic.cfg.lanes, data.world.arterial_width_m);
+            let build_ms = t0.elapsed().as_secs_f64() * 1000.0;
+            let s = plan.start.mech_xz;
+            let eye = glam::Vec3::new(s.x, plan.terrain.height_at(s.x, s.y) + 1.7, s.y);
+            let mut traffic = cb_core::traffic::Traffic::new(seed);
+            let never = |_: glam::Vec3| false;
+            traffic.fill(&graph, &data.traffic, &plan, eye, &never, &never, u32::MAX);
+            let dt = 1.0 / data.sim.fixed_step_hz;
+            let view = cb_core::traffic::TrafficView {
+                graph: &graph,
+                data: &data.traffic,
+                ground: &plan,
+                mechs: &[],
+                obstacles: &[],
+                driver: None,
+            };
+            let mut times: Vec<f64> = Vec::with_capacity(steps);
+            let mut fills: Vec<f64> = Vec::with_capacity(steps);
+            for _ in 0..steps {
+                let t = std::time::Instant::now();
+                traffic.step(&view, eye, dt);
+                let f = std::time::Instant::now();
+                traffic.fill(&graph, &data.traffic, &plan, eye, &never, &never, data.traffic.cfg.spawn_per_step);
+                fills.push(f.elapsed().as_secs_f64() * 1000.0);
+                times.push(t.elapsed().as_secs_f64() * 1000.0);
+            }
+            times.sort_by(f64::total_cmp);
+            fills.sort_by(f64::total_cmp);
+            let pct = |v: &[f64], p: f64| v[((v.len() - 1) as f64 * p).round() as usize];
+            let q = |p: f64| pct(&times, p);
+            println!(
+                "of which the refill: p50 {:.3} ms, p99 {:.3} ms",
+                pct(&fills, 0.5),
+                pct(&fills, 0.99)
+            );
+            let driving = traffic
+                .cars
+                .iter()
+                .filter(|c| c.state == cb_core::traffic::CarState::Driving)
+                .count();
+            println!(
+                "seed {seed}: {} lanes, {} junctions, graph built in {build_ms:.0} ms; {} cars round the start ({driving} driving, the rest parked)",
+                graph.lanes.len(),
+                graph.nodes.len(),
+                traffic.cars.len()
+            );
+            // the junctions with traffic lights (survey W39) and the light heads the game draws at them
+            let lit = graph.nodes.iter().filter(|n| n.signal).count();
+            let heads = graph
+                .roads
+                .iter()
+                .map(|r| r.nodes.iter().filter(|&&n| graph.nodes[n as usize].signal).count())
+                .sum::<usize>();
+            println!("traffic lights at {lit} junctions, {heads} light heads");
+            println!(
+                "traffic step and refill over {steps} steps: p50 {:.3} ms, p95 {:.3} ms, p99 {:.3} ms, max {:.3} ms",
+                q(0.5),
+                q(0.95),
+                q(0.99),
+                times[times.len() - 1]
+            );
+            ExitCode::SUCCESS
+        }
+        // A documentation instrument (openspec change `civil-air-traffic`): every civil aircraft kind's
+        // size and block-out boxes as JSON, from the one table the game draws
+        // (`cb_core::air_traffic::shape`), and the model a modelled kind is drawn from instead (survey D8),
+        // for the mockup page `tools/mockups/gen_civil_aircraft.py`.
+        Some("aircraft") => {
+            let root = PathBuf::from(args.get(1).map(String::as_str).unwrap_or("data"));
+            let data = match GameData::load(&root, "mechs/placeholder.ron") {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("FAIL {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let kinds: Vec<serde_json::Value> = data
+                .air_traffic
+                .kinds
+                .iter()
+                .map(|(id, k)| {
+                    let blocks: Vec<serde_json::Value> = cb_core::air_traffic::shape::blockout(k)
+                        .iter()
+                        .map(|b| {
+                            serde_json::json!({
+                                "name": b.name,
+                                "centre": b.centre.to_array(),
+                                "size": b.size.to_array(),
+                                "dark": b.dark,
+                                "spin": b.spin.map(|s| format!("{s:?}")),
+                            })
+                        })
+                        .collect();
+                    serde_json::json!({
+                        "id": id,
+                        "role": format!("{:?}", k.role),
+                        "length_m": k.length_m,
+                        "span_m": k.span_m,
+                        "height_m": k.height_m,
+                        "rest_m": cb_core::air_traffic::rest_m(k),
+                        "tint": k.tint,
+                        "blocks": blocks,
+                        // the modelled kinds (survey D8): the glb the game draws, its levels and the air drop's sling
+                        "model": k.model.as_ref().map(|m| serde_json::json!({
+                            "scene": m.scene,
+                            "lod_m": m.lod_m,
+                            "gear_below_m": m.gear_below_m,
+                            "sling": m.sling,
+                            "sling_hook_m": m.sling_hook_m,
+                        })),
+                    })
+                })
+                .collect();
+            let out = serde_json::json!({ "source": "data/world/air_traffic.ron", "kinds": kinds });
+            println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            ExitCode::SUCCESS
+        }
         // A documentation instrument (openspec change `hydrology`): the generated island seen from
         // above, as a PPM picture: ground by height, snow, the sea and lakes, rivers, waterfalls
         // (red), cities and highways.
@@ -129,9 +343,21 @@ fn main() -> ExitCode {
                 }
             }
         }
+        // A measurement instrument (openspec change `harbours`, design section 11): a seed's harbours, lanes and
+        // timetable, how long they take to lay out, and what the boats cost a fixed step round each harbour.
+        Some("ships") => {
+            let seed = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(42);
+            match ships::report(seed) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(e) => {
+                    eprintln!("FAIL {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         _ => {
             eprintln!(
-                "usage: cb-tools validate [data dir] | cb-tools cities [seed] | cb-tools map [seed] [out.ppm] [pixels] [centre x] [centre z] [span m]"
+                "usage: cb-tools validate [data dir] | cb-tools cities [seed] | cb-tools map [seed] [out.ppm] [pixels] [centre x] [centre z] [span m] | cb-tools traffic-bench [seed] [steps] | cb-tools aircraft [data dir] | cb-tools ships [seed]"
             );
             ExitCode::FAILURE
         }

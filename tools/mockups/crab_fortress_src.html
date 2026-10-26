@@ -1,0 +1,1708 @@
+<title>Stratostacean Air Fortress</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Source of docs/mockups/crab_fortress.html: python3 tools/mockups/gen_crab_fortress.py inlines the block-outs at __MODELS__.
+     Presents openspec/changes/crab-airship. Every number here is the design's (design.md sections 1 to 5). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an air-raid threat briefing. The stage is the page; the lift board and the threat sheet sit beside it.
+   Same type and tokens as the Alien Crab Mechs page, so the enemy reviews read as one set. */
+:root {
+  --bg: #e9ebef; --panel: #f7f8fa; --edge: #c4cad3; --ink: #12161c; --muted: #56606d;
+  --accent: #4f7a12; --accent-soft: #e3efd2; --warn: #a3271f; --bad: #b3261e; --bad-soft: #f6dedb; --stage: #1a2230;
+  --display: "Saira Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+    --accent: #9cf04a; --accent-soft: #1f2c14; --warn: #ff8f80; --bad: #ff8a80; --bad-soft: #3a1714; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+  --accent: #9cf04a; --accent-soft: #1f2c14; --warn: #ff8f80; --bad: #ff8a80; --bad-soft: #3a1714; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 32px; }
+header { display: grid; gap: 4px; margin: 0 auto 14px; max-width: 1440px; }
+.eyebrow { font: 500 12px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 700 34px/1 var(--display); letter-spacing: 0.03em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 80ch; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; max-width: 1440px; margin: 0 auto; }
+@media (max-width: 1040px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+.bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.bar .lbl { font: 500 12px var(--mono); color: var(--muted); min-width: 6ch; }
+button { font: 700 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 9px 12px; cursor: pointer; min-height: 38px; }
+button:hover { border-color: var(--muted); }
+button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+button:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--edge); border-radius: 4px; overflow: hidden; touch-action: none; }
+canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 16 / 10; }
+@media (max-width: 600px) { canvas { aspect-ratio: 1 / 1.15; } }
+.tag { position: absolute; transform: translate(-50%, -100%); pointer-events: none; font: 500 11px var(--mono);
+  color: #e6ebf1; background: rgba(12, 16, 24, 0.82); border: 1px solid #3a4456; padding: 2px 6px; white-space: nowrap; }
+.tag.dead { color: #ff9a8a; border-color: #6a2a24; }
+.tag.sel { border-color: #9cf04a; color: #d7ffb8; }
+.tag.you { border-color: #6fa8ff; color: #cfe2ff; }
+.pop { position: absolute; transform: translate(-50%, -100%); pointer-events: none; font: 700 15px var(--display); letter-spacing: 0.04em;
+  color: #ffd27a; text-shadow: 0 0 3px #000, 0 0 6px #000; white-space: nowrap; }
+.pop.bad { color: #c9d1db; font-size: 12px; }
+.reticle { position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px; pointer-events: none;
+  border: 2px solid rgba(140, 255, 58, 0.85); border-radius: 50%; }
+.reticle::after { content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; background: #8cff3a; border-radius: 50%; }
+.reticle[hidden] { display: none !important; }
+.hp { height: 10px; background: var(--edge); border-radius: 2px; overflow: hidden; }
+.hp i { display: block; height: 100%; background: var(--accent); }
+.hp.bad i { background: var(--bad); }
+button:disabled { opacity: 0.45; cursor: default; }
+.mode, .meter { position: absolute; font: 700 13px var(--display); letter-spacing: 0.08em; text-transform: uppercase;
+  color: #e6ebf1; background: rgba(12, 16, 24, 0.82); border: 1px solid #3a4456; padding: 5px 9px; pointer-events: none; }
+.mode { left: 10px; top: 10px; }
+.labelsBtn { position: absolute; left: 10px; top: 44px; min-height: 30px; padding: 5px 9px; font-size: 12px; color: #e6ebf1; background: rgba(12, 16, 24, 0.82); border-color: #3a4456; }
+.labelsBtn:hover { border-color: #8a96a8; }
+.meter { right: 10px; top: 10px; font: 500 11px var(--mono); letter-spacing: 0; text-transform: none; }
+.hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+/* the cockpit's screen wall, for the pilot's-eye climb: pillars at the edges only, nothing within 40 deg of ahead */
+.cockpit { position: absolute; inset: 0; pointer-events: none; }
+.cockpit[hidden] { display: none !important; }
+.cockpit .pillar { position: absolute; top: 0; bottom: 0; width: 6.5%; background: linear-gradient(90deg, #07090c, #1b2028 60%, #2a313b); }
+.cockpit .pillar.l { left: 0; } .cockpit .pillar.r { right: 0; transform: scaleX(-1); }
+.cockpit .brow { position: absolute; left: 0; right: 0; top: 0; height: 5%; background: linear-gradient(#07090c, #20262f); }
+.cockpit .dash { position: absolute; left: 0; right: 0; bottom: 0; height: 17%; background: linear-gradient(#1f252e, #0b0e12);
+  border-top: 2px solid #343c48; display: flex; justify-content: center; gap: 1.2%; padding: 0.8% 8%; }
+.mfd { flex: 1; max-width: 230px; background: #050a07; border: 2px solid #3a4250; border-radius: 3px; color: #8cff3a;
+  font: 500 clamp(8px, 1.05vw, 13px)/1.3 var(--mono); padding: 0.5% 0.8%; overflow: hidden; }
+.mfd b { color: #d7ffb8; font-weight: 500; }
+.mfd .warn { color: #ffb36b; }
+.mfd .barv { height: 6px; background: #12301a; margin: 2px 0; } .mfd .barv i { display: block; height: 100%; background: #8cff3a; }
+.hudtxt { position: absolute; left: 50%; top: 7%; transform: translateX(-50%); font: 500 clamp(9px, 1.1vw, 13px) var(--mono); color: #8cff3a;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.9); white-space: nowrap; }
+.lockbox { position: absolute; border: 2px solid #8cff3a; transform: translate(-50%, -50%); pointer-events: none; }
+.lockbox span { position: absolute; left: 100%; top: -2px; margin-left: 4px; font: 500 11px var(--mono); color: #8cff3a; white-space: nowrap; text-shadow: 0 0 3px #000; }
+aside { display: grid; gap: 12px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.card h2 { font: 700 22px/1 var(--display); letter-spacing: 0.05em; text-transform: uppercase; margin: 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.card h2 small { font: 500 11px var(--mono); color: var(--warn); letter-spacing: 0.08em; text-transform: uppercase; }
+.pill { font: 700 13px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 8px; border-radius: 3px; border: 1px solid var(--accent); color: var(--accent); background: var(--accent-soft); }
+.pill.bad { border-color: var(--bad); color: var(--bad); background: var(--bad-soft); }
+.sides { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.side { display: grid; gap: 5px; align-content: start; }
+.side h3 { margin: 0; font: 500 12px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.liftbar { height: 10px; background: var(--edge); border-radius: 2px; overflow: hidden; }
+.liftbar i { display: block; height: 100%; background: var(--accent); }
+.liftbar.bad i { background: var(--bad); }
+.thr { display: grid; grid-template-columns: 1fr; gap: 4px; }
+.thr button { display: flex; justify-content: space-between; gap: 6px; font-size: 13px; padding: 6px 8px; min-height: 32px; }
+.thr button span { font: 500 11px var(--mono); letter-spacing: 0; text-transform: none; color: var(--muted); }
+.thr button.dead { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); }
+.thr button.hot span { color: var(--warn); }
+.kv { display: grid; grid-template-columns: 11ch minmax(0, 1fr); gap: 2px 10px; font-size: 13px; margin: 0; }
+.kv dt { color: var(--muted); font-family: var(--mono); font-size: 12px; padding-top: 1px; }
+.kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.presets button { font-size: 12px; padding: 6px 8px; min-height: 32px; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: left; padding: 4px 6px 4px 0; border-bottom: 1px solid var(--edge); vertical-align: top; }
+th { font: 500 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; }
+.note { font-size: 13px; color: var(--muted); margin: 0; }
+.foot { max-width: 1440px; margin: 16px auto 0; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+.foot code { font: 12px var(--mono); overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<header>
+  <div class="eyebrow">Crab Breeze · enemy design review · defence wave 3 · block-out</div>
+  <h1>The Stratostacean air fortress</h1>
+  <p class="lede">A 420 m crab-shell carrier hanging 600 m over the city on eight armoured lift thrusters. It launches fighters off its bow catapults, drops crab mechs on parachutes from its belly, and guards its deck with crab mechs of its own, while its turrets track your mech and fire. Shoot it down: click to fire your mech's cannon, autocannon or missiles at any part. Each part has hit points and armour. The lift thrusters are plated on their outboard side, so get under it. Destroy three on one side and it opens the thrusters built into its hull; their port holes only take hits from directly above or below. Knock out enough of those and it rolls over, falls and crashes. Try <b>Fight</b> to do it from your cockpit.</p>
+</header>
+
+<div class="wrap">
+  <section>
+    <div class="bar" role="group" aria-label="View">
+      <span class="lbl">View</span>
+      <button data-view="orbit">Orbit</button>
+      <button data-view="under">Underside</button>
+      <button data-view="deck">Deck</button>
+      <button data-view="catapult">Catapults</button>
+      <button data-view="pylon">Pylon</button>
+      <button data-view="fight">Fight (your cockpit)</button>
+      <button data-view="climb">Climb</button>
+    </div>
+    <div class="bar" role="group" aria-label="Weapon">
+      <span class="lbl">Weapon</span>
+      <button data-weapon="ac" aria-pressed="false">1 Autocannon</button>
+      <button data-weapon="cannon" aria-pressed="true">2 Cannon</button>
+      <button data-weapon="missile" aria-pressed="false">3 Missile</button>
+      <span class="lbl" style="margin-left:8px">Click</span>
+      <button data-click="shoot" aria-pressed="true">Shoot</button>
+      <button data-click="inspect" aria-pressed="false">Inspect</button>
+    </div>
+    <div class="bar" role="group" aria-label="Your mech">
+      <span class="lbl">You</span>
+      <button data-player="air" aria-pressed="true">Circling</button>
+      <button data-player="hover" aria-pressed="false">Off its flank</button>
+      <button data-player="under" aria-pressed="false">Under it</button>
+      <button data-player="above" aria-pressed="false">Above it</button>
+      <button data-player="deck" aria-pressed="false">On the deck</button>
+      <button data-player="off" aria-pressed="false">Away</button>
+    </div>
+    <div class="bar" role="group" aria-label="Show">
+      <span class="lbl">Show</span>
+      <button id="labelsRow" type="button" aria-pressed="true">Labels on (L)</button>
+      <button data-toggle="ranges" aria-pressed="false">Gun ranges</button>
+      <span class="lbl" style="margin-left:8px">Time</span>
+      <button data-speed="1" aria-pressed="true">x1</button>
+      <button data-speed="4">x4</button>
+      <button data-speed="0">Pause</button>
+    </div>
+    <div class="stage">
+      <canvas id="view" tabindex="0" aria-label="3D view of the crab air fortress"></canvas>
+      <div id="tags"></div>
+      <div id="pops"></div>
+      <div class="reticle" id="reticle" hidden></div>
+      <div class="cockpit" id="cockpit" hidden>
+        <div class="brow"></div><div class="pillar l"></div><div class="pillar r"></div>
+        <div class="hudtxt" id="hudtxt"></div>
+        <div class="lockbox" id="lockbox" hidden><span id="locktxt"></span></div>
+        <div class="dash">
+          <div class="mfd" id="mfdJet"></div>
+          <div class="mfd" id="mfdTgt"></div>
+          <div class="mfd" id="mfdLift"></div>
+        </div>
+      </div>
+      <div class="mode" id="mode">Orbit</div>
+      <button class="labelsBtn" id="labelsBtn" type="button" aria-pressed="true">Hide labels (L)</button>
+      <div class="meter" id="meter"></div>
+    </div>
+    <p class="hint" id="hint">Click any part, fighter or crab to fire on it; drag to orbit, scroll to zoom.</p>
+  </section>
+  <aside>
+    <div class="card">
+      <h2><span id="infoName">Lift thruster R2</span> <span class="pill" id="infoState">Active</span></h2>
+      <div class="hp" id="hpbar"><i></i></div>
+      <p class="note" id="hptxt"></p>
+      <dl class="kv" id="info"></dl>
+      <div class="presets"><button id="infoBtn" type="button">Destroy</button></div>
+    </div>
+    <div class="card">
+      <h2>Lift board <small>the design's lift rule, live</small> <span class="pill" id="state">Holding</span></h2>
+      <div class="sides">
+        <div class="side"><h3>Left (port) side</h3><div class="liftbar" id="barL"><i></i></div><div class="thr" id="thrL"></div><h3>In the hull</h3><div class="thr" id="hullL"></div></div>
+        <div class="side"><h3>Right (starboard) side</h3><div class="liftbar" id="barR"><i></i></div><div class="thr" id="thrR"></div><h3>In the hull</h3><div class="thr" id="hullR"></div></div>
+      </div>
+      <dl class="kv">
+        <dt>Altitude</dt><dd id="alt"></dd>
+        <dt>Sink</dt><dd id="sink"></dd>
+        <dt>List</dt><dd id="list"></dd>
+        <dt>Rule</dt><dd>Each side carries half the weight (294 MN). An outer thruster carries a quarter at most, so a side down to one cannot hold: it opens its three hull thrusters, a sixth each, and holds again. It falls when a side is short even with them.</dd>
+      </dl>
+      <div class="presets">
+        <button data-preset="one-side">3 on one side</button>
+        <button data-preset="two-a-side">2 a side</button>
+        <button data-preset="spread">5 spread</button>
+        <button data-preset="reset">Reset</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Order of battle <small>live</small></h2>
+      <div class="tbl"><table>
+        <thead><tr><th>Defence</th><th>Left</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td>Flak turrets</td><td class="n" id="ob-flak"></td><td>Twin 105 mm airbursts, 1 800 m</td></tr>
+          <tr><td>Beam turrets</td><td class="n" id="ob-beam"></td><td>1.5 s charge you can see, then 3 s, 900 m</td></tr>
+          <tr><td>Deck guns</td><td class="n" id="ob-gun"></td><td>30 mm gatlings, 600 m</td></tr>
+          <tr><td>Missile launchers</td><td class="n" id="ob-msl"></td><td>Salvos of six lock-on missiles, 2 500 m, every 9 s</td></tr>
+          <tr><td>Missile batteries</td><td class="n" id="ob-vls"></td><td>Lock-on missiles, 2 500 m, every 5 s</td></tr>
+          <tr><td>Catapults</td><td class="n" id="ob-cat"></td><td>A fighter every 20 s</td></tr>
+          <tr><td>Fighters</td><td class="n" id="ob-fighter"></td><td>Patrols and cannon runs, up to 8 up</td></tr>
+          <tr><td>Drop bays</td><td class="n" id="ob-bay"></td><td>A pair of crabs every 45 s</td></tr>
+          <tr><td>Dropped crabs</td><td class="n" id="ob-drop"></td><td>Mites and Scuttlers on chutes</td></tr>
+          <tr><td>Hangar lifts</td><td class="n" id="ob-hlift"></td><td>A Mite up every 60 s while short</td></tr>
+          <tr><td>Deck guard</td><td class="n" id="ob-guard"></td><td>Shrikes and Mites; fight you on deck</td></tr>
+          <tr><td>Drive thrusters</td><td class="n" id="ob-drive"></td><td>Its drift; both lost, it hangs still</td></tr>
+          <tr><td>Bridge</td><td class="n" id="ob-bridge"></td><td>Fire control</td></tr>
+        </tbody>
+      </table></div>
+      <dl class="kv"><dt>Hits on you</dt><dd id="hits"></dd><dt>Allies</dt><dd id="allyhits"></dd></dl>
+    </div>
+    <div class="card">
+      <h2>Taking it down</h2>
+      <ol>
+        <li>Climb on the jets: 600 m takes about 11 s of your 20 s burn. Stay out of the downwash under each thruster.</li>
+        <li>Your rounds: the 120 mm cannon (260 mm, 90 damage) gets through everything; the 35 mm autocannon (90 mm, 12 a round) only the light parts and the weak points; missiles (150 mm, 45) the cowls.</li>
+        <li>Land on the deck, a shoulder or a pylon walkway to recharge (8 s). The deck guard comes for you.</li>
+        <li>Get under it: each lift thruster's outboard side is a 300 mm plate. From below, its nozzle is 40 mm and takes double damage.</li>
+        <li>Three thrusters on one side and it sinks, then opens six thrusters built into its hull. Their port holes only take hits from within 30 degrees of straight up or down: hover under it or above it.</li>
+        <li>Knock out two hull thrusters on the weak side and it rolls toward them and falls. Jump clear before the deck tilts past 20 degrees.</li>
+        <li>Stop its two drive thrusters first if you want it to fall where it is, and not on the city.</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h2>Scale</h2>
+      <dl class="kv" id="scale"></dl>
+      <p class="note">Every crab and the Foreman are the real block-outs, sized by their manifests. The fortress is primitives: it gets its Blender model once this shape is chosen.</p>
+    </div>
+  </aside>
+</div>
+
+<div class="foot">
+  <div>Design: <code>openspec/changes/crab-airship</code> (lift rule section 2, parts section 3, defences section 4). Page: <code>tools/mockups/gen_crab_fortress.py</code> from <code>tools/mockups/crab_fortress_src.html</code>; crabs from <code>tools/blender/build_mech_blockouts.py</code>.</div>
+  <div>The fortress holds still here; in the game it drifts at 15 m/s on a 2.4 km racetrack over the city.</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/utils/BufferGeometryUtils.js"></script>
+<script>
+const MODELS = __MODELS__;
+const TEX = __TEXTURES__;      // the fortress's armour maps (assets/textures/mech): fortress_shell, fortress_belly, fortress_side, nacelle, panel
+const PAL = __PALETTE__;       // the stratostacean palette (tools/blender/mech_palettes.py), as sRGB hex
+const LAYOUT = __LAYOUT__;     // the fortress's features (tools/mockups/fortress_layout.json): the geometry and its armour's layout read the same
+const T = THREE, TAU = Math.PI * 2, DEG = Math.PI / 180;
+const ease = x => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+const lerp = (a, b, u) => a + (b - a) * u;
+function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+// three r147 reads a hex colour as linear; every colour on this page is written in sRGB, so it goes through lin()
+const lin = hex => new T.Color(hex).convertSRGBToLinear();
+
+// ---- The design's numbers (openspec/changes/crab-airship/design.md) ----
+const ALT = 600;                          // m, hull centre over the city it attacks
+const W = 60000e3 * 9.81;                 // N, 60 000 t
+const TMAX = W / 4, G = 9.81, K = 0.008;  // a thruster's most; sink drag per metre
+const LIST_DEG = 100, ROLL_RATE = 4;      // deg per weight of imbalance; deg/s
+const JET = { thrust: 56, climb: 60, burn: 20 };
+
+// The lift rule (design section 2): each side carries W/2, a thruster at most W/4.
+// Once the outer thrusters cannot hold a side, it opens six thrusters built into its hull, three a side, each
+// carrying at most a sixth of the weight (owner, 2026-10-25). A side holds while its outer and hull thrusters
+// together reach half the weight.
+const HMAX = W / 6;
+function liftOf(alive, hull = sim.hull, open = sim.deployed) {
+  const n = [0, 1].map(s => alive.slice(s * 4, s * 4 + 4).filter(Boolean).length);
+  const h = [0, 1].map(s => (open ? hull.slice(s * 3, s * 3 + 3).filter(Boolean).length : 0));
+  const most = [0, 1].map(s => n[s] * TMAX + h[s] * HMAX);
+  const L = most.map(m => Math.min(m, W / 2));
+  const thr = most.map(m => (m ? Math.min(1, (W / 2) / m) : 0));
+  return { n, h, L, thr, falls: L[0] < W / 2 || L[1] < W / 2 };
+}
+
+// ---- Renderer, scene, light ----
+const canvas = document.getElementById("view");
+const renderer = new T.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true, logarithmicDepthBuffer: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.outputEncoding = T.sRGBEncoding;
+renderer.toneMapping = T.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = T.PCFSoftShadowMap;
+const scene = new T.Scene();
+const HAZE = lin(0xc9d3dc);   // the sky's horizon colour, so far ground fades into it
+scene.fog = new T.Fog(HAZE, 3000, 12000);
+const camera = new T.PerspectiveCamera(42, 1.6, 0.5, 40000);
+const controls = new T.OrbitControls(camera, canvas);
+controls.enableDamping = true;
+Object.assign(controls, { minDistance: 10, maxDistance: 6000 });
+
+// late afternoon: a warm low sun, a pale blue sky, haze on the ground
+const sky = (() => {
+  const g = new T.SphereGeometry(30000, 32, 16), col = [], c = new T.Color();
+  const zen = lin(0x3d6b9e), hor = lin(0xc9d3dc), low = lin(0xc9d3dc);
+  for (let i = 0; i < g.attributes.position.count; i++) { const y = g.attributes.position.getY(i) / 30000;
+    if (y > 0) c.copy(hor).lerp(zen, Math.pow(y, 0.55)); else c.copy(hor).lerp(low, Math.min(1, -y * 40)); col.push(c.r, c.g, c.b); }
+  g.setAttribute("color", new T.Float32BufferAttribute(col, 3));
+  const m = new T.Mesh(g, new T.MeshBasicMaterial({ vertexColors: true, side: T.BackSide, fog: false, depthWrite: false }));
+  m.renderOrder = -1; scene.add(m); return m;
+})();
+scene.add(new T.HemisphereLight(0xbfd4ee, 0x4a4438, 0.7));
+const sun = new T.DirectionalLight(0xffe0bc, 2.4);
+sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -340, right: 340, top: 340, bottom: -340, near: 10, far: 1600 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.6;
+scene.add(sun, sun.target);
+const SUN_DIR = new T.Vector3(-0.55, 0.62, 0.56).normalize();
+scene.environment = (() => {
+  const es = new T.Scene(), g = new T.SphereGeometry(50, 32, 16), col = [], c = new T.Color();
+  const top = lin(0x6f94c0), mid = lin(0xd6dde4), low = lin(0x4c4840);
+  for (let i = 0; i < g.attributes.position.count; i++) { const y = g.attributes.position.getY(i) / 50;
+    if (y > 0) c.copy(mid).lerp(top, Math.min(1, y * 1.4)); else c.copy(mid).lerp(low, Math.min(1, -y * 4)); col.push(c.r, c.g, c.b); }
+  g.setAttribute("color", new T.Float32BufferAttribute(col, 3));
+  es.add(new T.Mesh(g, new T.MeshBasicMaterial({ vertexColors: true, side: T.BackSide })));
+  return new T.PMREMGenerator(renderer).fromScene(es, 0.04).texture;
+})();
+
+// ---- Materials: the invaders' palette (acid green glows as build_alien_mechs.py has them; red livery, cores and beams: owner, 2026-10-25, "pink bad color, use red instead") ----
+const std = (color, rough, metal, extra) => { const m = new T.MeshStandardMaterial(Object.assign({ color, roughness: rough, metalness: metal, flatShading: true }, extra || {}));
+  m.color.convertSRGBToLinear(); m.emissive.convertSRGBToLinear(); return m; };
+const M = {
+  hull: std(0x7f8aa6, 0.55, 0.55), hull2: std(0x5d6a8e, 0.6, 0.5), dark: std(0x24222b, 0.7, 0.45), metal: std(0xa9aeb5, 0.3, 0.9),
+  mark: std(0x9e1f1a, 0.5, 0.3), glow: std(0x0c1a06, 0.3, 0.2, { emissive: 0x8cff3a, emissiveIntensity: 2.2 }),
+  core: std(0x220806, 0.3, 0.3, { emissive: 0xff3020, emissiveIntensity: 2.0 }), scorch: std(0x16130f, 0.95, 0.2),
+  canopy: new T.MeshStandardMaterial({ color: lin(0xd9d2e6), roughness: 0.8, side: T.DoubleSide }),
+};
+function canvasTex(w, h, draw) { const c = document.createElement("canvas"); c.width = w; c.height = h; draw(c.getContext("2d"), w, h);
+  const t = new T.CanvasTexture(c); t.encoding = T.sRGBEncoding; t.anisotropy = 8; return t; }
+const hazardTex = canvasTex(256, 32, (g, w, h) => { g.fillStyle = "#140c0c"; g.fillRect(0, 0, w, h); g.fillStyle = "#c8281e";
+  for (let x = -h; x < w + h; x += 32) { g.beginPath(); g.moveTo(x, h); g.lineTo(x + 16, h); g.lineTo(x + 16 + h, 0); g.lineTo(x + h, 0); g.fill(); } });
+hazardTex.wrapS = T.RepeatWrapping;
+M.hazard = new T.MeshStandardMaterial({ map: hazardTex, roughness: 0.6, metalness: 0.3 });
+// the flight deck: catapult tracks, the centre line, lift outlines and the invaders' glyphs (a block-out's markings)
+const deckTex = canvasTex(256, 1152, (g, w, h) => {
+  const sx = w / 80, sz = h / 362, X = x => (x + 40) * sx, Z = z => (z + 181) * sz;   // BoxGeometry's top face: u along +x, v = 1 at the stern
+  g.fillStyle = "#2b2a31"; g.fillRect(0, 0, w, h);
+  const r = rng(7); for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(${r() < 0.5 ? "255,255,255" : "0,0,0"},${0.025 + r() * 0.03})`; g.fillRect(r() * w, r() * h, 2 + r() * 12, 2 + r() * 30); }
+  g.strokeStyle = "#3b3a44"; g.lineWidth = 1; for (let z = -180; z < 181; z += 12) { g.beginPath(); g.moveTo(0, Z(z)); g.lineTo(w, Z(z)); g.stroke(); }
+  g.fillStyle = "#e9e6dc"; for (let z = -170; z < 50; z += 14) g.fillRect(X(-0.4), Z(z + 7), 0.8 * sx, 7 * sz);
+  g.fillStyle = "#d8b13a"; g.fillRect(X(-39), 0, 0.8 * sx, h); g.fillRect(X(38.2), 0, 0.8 * sx, h);
+  [-20, 20].forEach(x => { g.fillStyle = "#e9e6dc"; g.fillRect(X(x - 3), Z(178), 0.6 * sx, 118 * sz); g.fillRect(X(x + 2.4), Z(178), 0.6 * sx, 118 * sz); });
+  [-22, 22].forEach(x => { g.strokeStyle = "#d33a2c"; g.lineWidth = 3; g.strokeRect(X(x - 12), Z(-5), 24 * sx, 30 * sz); });
+  g.fillStyle = "rgba(200,40,30,0.35)";   // the invaders' glyphs: blocky marks, read by nobody on our side
+  const gr = rng(11); for (let i = 0; i < 3; i++) for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) if (gr() < 0.55) g.fillRect(X(-8 + a * 4), Z(-96 - i * 22 - b * 4), 3.4 * sx, 3.4 * sz);
+});
+M.deck = new T.MeshStandardMaterial({ map: deckTex, roughness: 0.8, metalness: 0.25 });
+// The plating, the mechs' way (owner, 2026-10-25: "make textures for the crab ... use same armor techniques as the mech", in
+// red and dark orange with a grey platform): the modern plating maps, neutral, tinted by the stratostacean palette; normal and ORM maps with them
+const texLoader = new T.TextureLoader();
+let texLeft = 0, texDone = null; const texReady = new Promise(ok => { texDone = ok; });
+function loadTex(key, srgb) { texLeft++; const t = texLoader.load(TEX[key], () => { if (--texLeft === 0) texDone(); }, undefined, () => { if (--texLeft === 0) texDone(); });
+  t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 8; if (srgb) t.encoding = T.sRGBEncoding; return t; }
+// The armour, designed for this hull (owner, 2026-10-25: "paneling should look like pieces of custom made armor cut and
+// fitted with precision", "you just generate them and tiled them ... that is not the point of panel design"): five
+// sheets from the plating kit, each laid out against the fortress's own features (fortress_layout.json), none tiled:
+// fortress_shell (the shell, top and underside), fortress_belly, fortress_side (the long walls, on the hull's stations),
+// nacelle (every cylinder, once round), panel (every other face, one fitted panel). Each colour role is a material per
+// sheet: its maps, the palette tint, and the livery mask mixing in the role's accent.
+const ROLES = new Map();   // role material -> { hex, accent, extra }
+const VARIANTS = new Map();
+function role(hex, accent, extra) { const r = { hex, accent, extra }, m = variantOf(r, "panel"); ROLES.set(m, r); return m; }
+function variantOf(r, sheet) {
+  const key = r.hex + r.accent + sheet + (r.extra && r.extra.side ? "2" : "");
+  if (VARIANTS.has(key)) return VARIANTS.get(key);
+  const orm = loadTex(sheet + "_orm"), liv = loadTex(sheet + "_m");
+  const m = new T.MeshStandardMaterial(Object.assign({ color: r.hex, map: loadTex(sheet, true), normalMap: loadTex(sheet + "_n"),
+    roughnessMap: orm, metalnessMap: orm, aoMap: orm, roughness: 1, metalness: 1 }, r.extra || {}));
+  m.color.convertSRGBToLinear(); m.userData.plated = true;
+  // what the game's model bakes (tools/mockups/export_fortress_glb.mjs): the sheet, its livery mask and accent
+  Object.assign(m.userData, { sheet, livery: liv, accent: r.accent });
+  const accent = new T.Color(r.accent).convertSRGBToLinear();
+  m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, { liveryMap: { value: liv }, accentColor: { value: accent } });
+    sh.fragmentShader = "uniform sampler2D liveryMap; uniform vec3 accentColor;\n" + sh.fragmentShader
+      .replace("#include <map_fragment>", T.ShaderChunk.map_fragment + "\n diffuseColor.rgb = mix( diffuseColor.rgb, accentColor * sampledDiffuseColor.rgb, texture2D( liveryMap, vUv ).r );");
+  };
+  VARIANTS.set(key, m); return m;
+}
+// owner, 2026-10-25: "blue doesnt look right", "more grey on this platform? red turrets?", "main color orange, secondary a
+// dark orange"
+M.hull = role(PAL.BODY, PAL.BODY2);                    // orange: the carapace, the shoulder walls, the nacelles; dark orange livery
+M.hull2 = role(PAL.BODY2, PAL.FRAME);                  // dark orange: the underside, the belly, the legs
+M.turret = role(PAL.TURRET, PAL.FRAME);                // red: the turrets and the missile launchers
+M.plat = role(PAL.PLATFORM, PAL.BODY);                 // grey: the platform on top, the spine, the bridge, the lifts
+M.dark = role("#b4b8c0", PAL.BODY);                    // the structure, light grey
+M.armour = role(PAL.BODY2, PAL.FRAME, { side: T.DoubleSide });   // the thrusters' outboard plates
+M.mark.color.set(PAL.ACCENT).convertSRGBToLinear();
+
+const smokeTex = canvasTex(64, 64, (g, w) => { const gr = g.createRadialGradient(32, 32, 2, 32, 32, 31);
+  gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.5, "rgba(255,255,255,0.55)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, w, w); });
+smokeTex.encoding = T.LinearEncoding;
+
+const add = (parent, geo, mat, x = 0, y = 0, z = 0, shadow = true) => { const m = new T.Mesh(geo, mat); m.position.set(x, y, z);
+  if (shadow) { m.castShadow = true; m.receiveShadow = true; } parent.add(m); return m; };
+const box = (w, h, d) => new T.BoxGeometry(w, h, d);
+const cyl = (rt, rb, h, n = 16, open = false) => new T.CylinderGeometry(rt, rb, h, n, 1, open);
+
+// ---- The ground: farmland, a city under the fortress, haze ----
+// the ground ends past the fog's far distance, so its edge is never seen; the sky below the horizon is the haze
+const ground = add(scene, new T.PlaneGeometry(28000, 28000), std(0x5a6a48, 1, 0, { flatShading: false, envMapIntensity: 0.15 }), 0, 0, 0, false);
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
+const cityPad = add(scene, new T.PlaneGeometry(3400, 3400), std(0x55565a, 1, 0, { flatShading: false, envMapIntensity: 0.15 }), 0, 0.5, 0, false);
+cityPad.rotation.x = -Math.PI / 2;
+const city = (() => {
+  const r = rng(42), spots = [];
+  for (let i = -26; i <= 26; i++) for (let j = -26; j <= 26; j++) {
+    if (i % 4 === 0 || j % 5 === 0) continue;           // streets
+    const x = i * 62, z = j * 62, d = Math.hypot(x, z) / 1600;
+    if (d > 1 || r() < 0.25) continue;
+    const tall = r() < 0.06 * (1 - d) ? 60 + r() * 150 : 8 + r() * 26 * (1.2 - d);
+    spots.push([x + (r() - 0.5) * 10, z + (r() - 0.5) * 10, 26 + r() * 24, tall, 26 + r() * 24]);
+  }
+  const im = new T.InstancedMesh(box(1, 1, 1), std(0xffffff, 0.85, 0.1), spots.length), mat = new T.Matrix4(), c = new T.Color();
+  spots.forEach((s, k) => { mat.compose(new T.Vector3(s[0], s[3] / 2, s[1]), new T.Quaternion(), new T.Vector3(s[2], s[3], s[4])); im.setMatrixAt(k, mat);
+    c.setHSL(0.08 + r() * 0.06, 0.1, 0.4 + r() * 0.3).convertSRGBToLinear(); im.setColorAt(k, c); });
+  im.castShadow = true; im.receiveShadow = true; scene.add(im);
+  return { im, spots };
+})();
+// clouds at the fortress's own height: it sits in the cloud base
+const clouds = (() => {
+  const r = rng(9), geos = [], ico = new T.IcosahedronGeometry(1, 1);
+  for (let i = 0; i < 46; i++) {   // the cloud base sits just under the fortress
+    const a = r() * TAU, d = 900 + r() * 7000, cx = Math.cos(a) * d, cz = Math.sin(a) * d, cy = 430 + r() * 140, s = 60 + r() * 110;
+    for (let k = 0; k < 6; k++) { const g = ico.clone(); const sc = s * (0.5 + r() * 0.6);
+      g.scale(sc * 1.4, sc * 0.75, sc * 1.2); g.translate(cx + (r() - 0.5) * s * 2.4, cy + r() * s * 0.5, cz + (r() - 0.5) * s * 2.2); geos.push(g); }
+  }
+  const m = new T.Mesh(T.BufferGeometryUtils.mergeBufferGeometries(geos), new T.MeshLambertMaterial({ color: lin(0xe8ecf0), transparent: true, opacity: 0.82, flatShading: true }));
+  scene.add(m); return m;
+})();
+
+// ---- The fortress (design section 1): +Z forward, +X its own left, origin at the hull's middle ----
+const F = new T.Group(); F.position.set(0, ALT, 0); scene.add(F);
+const hullEdgeX = z => LAYOUT.shell.ax * Math.sqrt(Math.max(0, 1 - (z / LAYOUT.shell.az) ** 2));
+function plumeMat(color, opacity = 0.35) { return new T.MeshBasicMaterial({ color: lin(color), transparent: true, opacity, depthWrite: false, side: T.DoubleSide }); }
+
+// Every lockable part (design section 3). `fire` is where it burns once destroyed, in its own frame.
+const KINDS = {
+  lift: { name: "Lift thruster", hp: 800, armour: "300 mm plate on the outboard side (no round gets through); the inboard side is exposed, 60 mm (every weapon gets through)", weak: "the nozzle below and the grille on top: 40 mm, damage x2; reach them from under it", does: "carries up to a quarter of the weight", lost: "stops lifting; a side down to one makes it open its hull thrusters" },
+  hull: { name: "Hull thruster", hp: 900, armour: "300 mm hull and doors: sealed until the outer thrusters fail", weak: "the port holes top and bottom, 40 mm, damage x2, but only from directly above or below (within 30 deg of vertical)", does: "built into the hull; opens when a side can no longer hold, a sixth of the weight each", lost: "a side short of half the weight: it lists, falls and crashes" },
+  drive: { name: "Drive thruster", hp: 600, armour: "140 mm", weak: "none", does: "pushes it along its racetrack at 15 m/s", lost: "slows its drift; both lost, it hangs where it is, so you pick where it falls" },
+  flak: { name: "Flak turret", hp: 150, armour: "60 mm (your autocannon gets through)", weak: "none", does: "twin 105 mm airbursts within 10 m, 1 800 m, 2 rounds/s", lost: "stops firing" },
+  beam: { name: "Beam turret", hp: 250, armour: "120 mm", weak: "the lens while it charges, 40 mm", does: "1.5 s charge you can see, then 3 s at 10 damage/s, 900 m, every 6 s", lost: "stops firing" },
+  gun: { name: "Deck gun", hp: 100, armour: "30 mm", weak: "none", does: "30 mm gatling, bursts of 20 at 20 rounds/s, 600 m", lost: "stops firing" },
+  msl: { name: "Missile launcher", hp: 300, armour: "60 mm (your autocannon gets through)", weak: "the tube faces while a salvo leaves, 40 mm", does: "a turning box of twelve tubes: ripple salvos of six lock-on missiles at 220 m/s, 2 500 m, every 9 s", lost: "stops firing" },
+  vls: { name: "Missile battery", hp: 200, armour: "60 mm", weak: "none", does: "lock-on missiles at 220 m/s, 2 500 m, one every 5 s, 12 cells", lost: "stops firing" },
+  cat: { name: "Catapult", hp: 400, armour: "100 mm", weak: "none", does: "launches a fighter every 20 s, alternating with the other", lost: "launches stop from it; both lost, no more fighters" },
+  bay: { name: "Drop bay", hp: 600, armour: "140 mm", weak: "the doors while open, 40 mm", does: "drops a pair of crab mechs on chutes every 45 s, alternating", lost: "drops stop from it" },
+  hlift: { name: "Hangar lift", hp: 400, armour: "100 mm", weak: "none", does: "brings a Mite up to the deck every 60 s while the guard is short", lost: "no more deck guards from it" },
+  bridge: { name: "Bridge", hp: 1200, armour: "140 mm", weak: "the two eye lenses, 40 mm", does: "fire control for every turret", lost: "every turret's aim error doubles (watch the flak spread)" },
+  fighter: { name: "Fighter", hp: 80, armour: "10 mm", weak: "none", does: "200 m/s, patrols and makes cannon runs on you (25 mm, salvos of 15)", lost: "shot down" },
+  guard: { name: "Deck guard", hp: null, armour: "per crab-enemies", weak: "its legs and arms come off", does: "fights you on the deck with its own guns", lost: "wrecked; a hangar lift brings up a Mite to replace it" },
+  drop: { name: "Dropped crab", hp: null, armour: "per crab-enemies", weak: "its chutes: shot while descending, it never lands", does: "falls 2 s, then descends at 8 m/s on three chutes", lost: "falls without its chutes and never fights" },
+};
+// armour in mm against a round's penetration (design section 3); a weak point is 40 mm and takes double damage
+const ARMOUR = { hull: 300, lift: 60, drive: 140, flak: 60, beam: 120, gun: 30, msl: 60, vls: 60, cat: 100, bay: 140, hlift: 100, bridge: 140, fighter: 10, guard: 60, drop: 60 };
+const CRAB_HP = { shrike: 400, mite: 250, scuttler: 250 };   // mockup values until crab-enemies sets them
+// your mech's weapons, as cb-core::weapons has them today
+const WEAPONS = {
+  ac: { name: "35 mm autocannon", pen: 90, dmg: 12, speed: 1100, rounds: 8, reload: 0.6, c: [1, 0.8, 0.4] },
+  cannon: { name: "120 mm cannon", pen: 260, dmg: 90, speed: 850, rounds: 1, reload: 2.0, c: [1, 0.85, 0.5] },
+  missile: { name: "Shoulder missile", pen: 150, dmg: 45, speed: 260, rounds: 1, reload: 1.2, c: [0.6, 0.85, 1] },
+};
+const parts = [];
+function part(id, kind, obj, opts = {}) {
+  const hp = opts.hp || KINDS[kind].hp || 250;
+  const p = Object.assign({ id, kind, obj, alive: true, label: null, fire: new T.Vector3(0, 4, 0), name: KINDS[kind].name, hp, hpMax: hp }, opts);
+  obj.userData.part = p; obj.name = "PART_" + id; parts.push(p); return p;   // PART_<id>: the game finds it by name
+}
+
+(() => {
+  // the shell, its underside and the belly take the carapace panelling: rings round their own middles
+  const SH = LAYOUT.shell, BE = LAYOUT.belly;
+  const shell = add(F, new T.SphereGeometry(1, 64, 24, 0, TAU, 0, Math.PI / 2), M.hull); shell.scale.set(SH.ax, SH.top_m, SH.az); shell.userData.polar = { cx: 0, cz: 0, ax: SH.ax, az: SH.az, tex: "fortress_shell" };
+  const under = add(F, new T.SphereGeometry(1, 64, 16, 0, TAU, Math.PI / 2, Math.PI / 2), M.hull2); under.scale.set(SH.ax, SH.under_m, SH.az); under.userData.polar = { cx: 0, cz: 0, ax: SH.ax, az: SH.az, tex: "fortress_shell" };
+  const belly = add(F, new T.SphereGeometry(1, 48, 16), M.hull2, 0, -30, BE.cz); belly.scale.set(BE.ax, 28, BE.az); belly.userData.polar = { cx: 0, cz: BE.cz, ax: BE.ax, az: BE.az, tex: "fortress_belly" };
+  // the abdomen's segment ribs, a crab's folded tail plate
+  for (let k = -3; k <= 3; k++) { const rib = add(F, new T.TorusGeometry(1, 0.06, 4, 24), M.dark, 0, -34, BE.cz + k * BE.rib_dz); rib.scale.set(86 * Math.sqrt(1 - (k / 4.4) ** 2), 26, 1); }
+  const band = add(F, cyl(1, 1, 1, 40, true), M.mark); band.scale.set(141.5, 7, 211.5);
+  const band2 = add(F, cyl(1, 1, 1, 40, true), M.dark, 0, -6, 0); band2.scale.set(140.8, 3, 210.8);
+  add(F, box(90, 30, 360), M.plat, 0, 33, 0);        // the spine under the deck
+  add(F, box(80, 2, 362), [M.dark, M.dark, M.deck, M.dark, M.hazard, M.hazard], 0, 48, 0).userData.walk = "deck";   // walk: a surface the game stands mechs on
+  [-1, 1].forEach(s => {
+    add(F, box(40, 32, 240), M.plat, 67 * s, 26, 0);  // the shoulders, 6.4 m below the deck
+    add(F, box(40.4, 0.6, 240.4), M.dark, 67 * s, 42.3, 0).userData.walk = "shoulder";
+    add(F, box(1.2, 2.4, 240), M.hazard, 87 * s, 43.6, 0);
+  });
+  // the bridge: the crab's eyes on stalks at the bow
+  const bridge = new T.Group(); bridge.position.set(0, 49, 150); F.add(bridge);
+  add(bridge, box(34, 20, 26), M.plat, 0, 10, 0); add(bridge, box(36, 3, 28), M.dark, 0, 21.5, 0);
+  add(bridge, box(30, 3, 0.6), M.glow, 0, 14, 13.3, false);
+  [-1, 1].forEach(s => { const st = add(bridge, cyl(2.2, 3, 30, 10), M.metal, 9 * s, 34, 4); st.rotation.z = -0.18 * s;
+    const eye = add(bridge, new T.SphereGeometry(5, 16, 10), M.dark, 11.7 * s, 50, 4); add(eye, new T.SphereGeometry(3.4, 16, 10), M.glow, 0, 0, 3.2, false); });
+  part("bridge", "bridge", bridge, { label: "Bridge: its eyes", fire: new T.Vector3(0, 24, 0) });
+  // the stern: two drive thrusters
+  [-1, 1].forEach((s, i) => { const d = new T.Group(); d.position.set(LAYOUT.drive.x * s, 4, LAYOUT.drive.z); F.add(d);
+    const n = add(d, cyl(10, 12, 34, 18), M.dark); n.rotation.x = Math.PI / 2;
+    const r = add(d, cyl(9, 9, 1, 18), M.glow, 0, 0, -17.2, false); r.rotation.x = Math.PI / 2;
+    const pl = add(d, new T.ConeGeometry(8, 40, 16, 1, true), plumeMat(0xff4a2a), 0, 0, -38, false); pl.rotation.x = -Math.PI / 2; pl.raycast = () => {};
+    part("drive" + (i + 1), "drive", d, { label: i === 0 ? "Drive thrusters" : null, fire: new T.Vector3(0, 10, 0) }); });
+})();
+
+// ---- Armour and spikes (owner, 2026-10-25: "make the crab more ornate with spikes and more armor like geometry") ----
+// one cone and one plate, drawn as instances: [position, direction, length m, base radius m] in the fortress's frame
+const spikeGeo = new T.ConeGeometry(1, 1, 6); spikeGeo.translate(0, 0.5, 0);
+M.spike = std(0x2b2629, 0.45, 0.6);
+const SPIKES = [];
+function spikeMatrix(pos, dir, len, r) { return new T.Matrix4().compose(pos, new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), dir.clone().normalize()), new T.Vector3(r, len, r)); }
+
+// the eight lift thrusters on their leg pylons (design section 1): L = +X, front to back L1..L4
+const THR = [];
+const THR_Z = LAYOUT.lift_z;
+[1, -1].forEach((s, si) => THR_Z.forEach((z, k) => {
+  const id = (si === 0 ? "L" : "R") + (k + 1), xe = hullEdgeX(z);
+  const root = new T.Vector3((xe - 8) * s, 2, z), knee = new T.Vector3((xe + 36) * s, 8, z), top = new T.Vector3((xe + 46) * s, -30, z);
+  const beam = (a, b, w, h, mat) => { const d = b.clone().sub(a), m = add(F, box(w, h, d.length()), mat);
+    m.position.copy(a).addScaledVector(d, 0.5); m.lookAt(F.localToWorld(b.clone())); return m; };
+  F.updateMatrixWorld(true);
+  beam(root, knee, 14, 5, M.hull2).userData.walk = "walkway_" + id;  // the walkway (landable, 14 m wide)
+  beam(root.clone().add(new T.Vector3(0, 2.8, 6.6)), knee.clone().add(new T.Vector3(0, 2.8, 6.6)), 0.8, 1.2, M.hazard);
+  beam(root.clone().add(new T.Vector3(0, 2.8, -6.6)), knee.clone().add(new T.Vector3(0, 2.8, -6.6)), 0.8, 1.2, M.hazard);
+  const strut = [beam(knee, top, 9, 7, M.dark), beam(knee.clone(), top.clone().add(new T.Vector3(-14 * s, 0, 0)), 3, 3, M.metal)];
+  add(F, new T.SphereGeometry(7, 12, 8), M.metal, knee.x, knee.y, knee.z);
+  // armour sleeves on the leg's down strut, like a crab leg's segments
+  [[0.18, 0.42], [0.55, 0.8]].forEach(([u0, u1]) => strut.push(beam(knee.clone().lerp(top, u0), knee.clone().lerp(top, u1), 13, 11, M.hull2)));
+  SPIKES.push([knee.clone().add(new T.Vector3(4 * s, 5, 0)), new T.Vector3(0.55 * s, 1, 0), 22, 3.2],
+    [knee.clone().add(new T.Vector3(-2 * s, 3, 4)), new T.Vector3(-0.2 * s, 1, 0.5), 11, 2], [knee.clone().add(new T.Vector3(-2 * s, 3, -4)), new T.Vector3(-0.2 * s, 1, -0.5), 11, 2]);
+  const g = new T.Group(); g.position.set(top.x, top.y - 20, z); F.add(g);
+  const cowl = add(g, cyl(15, 13, 40, 20), M.hull);
+  add(g, cyl(15.6, 15.6, 3, 20), M.mark, 0, 12, 0);
+  add(g, cyl(13.4, 13.4, 0.6, 20), M.dark, 0, 20.1, 0);              // the intake grille
+  for (let b = -2; b <= 2; b++) add(g, box(26 * Math.sqrt(1 - (b / 2.6) ** 2), 0.8, 1), M.metal, 0, 20.6, b * 4.6);
+  const ring = add(g, new T.TorusGeometry(12.2, 1.2, 8, 24), M.glow, 0, -20.2, 0, false); ring.rotation.x = Math.PI / 2;
+  const plume = add(g, new T.ConeGeometry(11, 46, 20, 1, true), plumeMat(0x6cdc2a), 0, -43, 0, false); plume.rotation.x = Math.PI;
+  const wash = add(g, cyl(15, 30, 150, 24, true), new T.MeshBasicMaterial({ color: lin(0xcfe8ff), transparent: true, opacity: 0.07, depthWrite: false, side: T.DoubleSide }), 0, -95, 0, false);
+  plume.raycast = wash.raycast = () => {};
+  // the armour plate: the outboard half of the nacelle and a skirt below the nozzle, 300 mm; only from under it
+  // (or from inboard) are the cowl and the nozzle open to fire (owner, 2026-10-25)
+  const plateMat = M.armour;
+  const plate = add(g, new T.CylinderGeometry(17.2, 16.2, 50, 16, 1, true, s > 0 ? 0 : Math.PI, Math.PI), plateMat, 0, -4, 0);
+  plate.userData.armour = 300; plate.userData.msg = "ARMOUR PLATE 300 mm: SHOOT FROM UNDER IT";
+  [-16, 2, 18].forEach(y => { const rib = add(g, new T.CylinderGeometry(17.9, 17.9, 2.2, 16, 1, true, s > 0 ? 0 : Math.PI, Math.PI), M.dark, 0, y, 0);
+    rib.userData.armour = 300; rib.userData.msg = plate.userData.msg; });
+  const strip = add(g, new T.CylinderGeometry(17.4, 17.4, 3, 16, 1, true, s > 0 ? 0.25 : Math.PI + 0.25, Math.PI - 0.5), M.hazard, 0, -27.5, 0);
+  strip.userData.armour = 300; strip.userData.msg = plate.userData.msg;
+  // spikes on the plate, pointing out: it is the side you are meant to keep away from
+  const studs = [];
+  [12, -6, -22].forEach((y, r) => [-0.7, 0, 0.7].forEach(a => { if (r === 2 && a) return; const th = Math.PI / 2 * s + a, dir = new T.Vector3(Math.sin(th), 0.15, Math.cos(th));
+    studs.push(spikeMatrix(dir.clone().multiplyScalar(17), dir, r === 1 && !a ? 12 : 7, r === 1 && !a ? 2.2 : 1.5)); }));
+  const st = new T.InstancedMesh(spikeGeo, M.spike, studs.length); studs.forEach((m, i) => st.setMatrixAt(i, m)); st.castShadow = true; g.add(st);
+  st.userData.armour = 300; st.userData.msg = plate.userData.msg;
+  // the leg below the knee (strut, sleeves and nacelle) is one piece: destroyed, it breaks off and falls
+  const leg = new T.Group(); leg.name = "LEG_" + id; F.add(leg); strut.forEach(m => leg.add(m)); leg.add(g);
+  leg.traverse(o => { if (o.isMesh) o.userData.mat0 = o.material; });
+  const t = { id, side: si, s, g, cowl, ring, plume, wash, leg, knee: knee.clone(), fall: null };
+  t.part = part(id, "lift", g, { label: "Lift " + id, name: "Lift thruster " + id, fire: new T.Vector3(0, 22, 0), up: 26 });
+  THR.push(t);
+}));
+
+// the six hull thrusters (owner, 2026-10-25): ducts through the carapace, sealed until the outer thrusters fail;
+// then the doors slide open and the port holes top and bottom are the only way in, from directly above or below
+const HULL = [];
+[1, -1].forEach((s, si) => LAYOUT.hull_ports.z.forEach((z, k) => {
+  const id = "H" + (si === 0 ? "L" : "R") + (k + 1), x = LAYOUT.hull_ports.x * s;
+  const e = 1 - (x / 140) ** 2 - (z / 210) ** 2, top = 45 * Math.sqrt(e), bot = -34 * Math.sqrt(e);
+  const g = new T.Group(); g.position.set(x, 0, z); F.add(g);
+  const shaft = add(g, cyl(11.5, 11.5, top - bot + 4, 20, true), std(0x0c0c10, 1, 0, { side: T.DoubleSide }), 0, (top + bot) / 2, 0, false);
+  const ends = [[top, 1], [bot, -1]].map(([y, up]) => {
+    const tube = add(g, cyl(15, 15, 5, 20, true), M.hull2, 0, y - up * 0.5, 0); tube.userData.armour = 300; tube.userData.msg = "HULL 300 mm";
+    const ring = add(g, new T.RingGeometry(11.5, 15, 20), M.dark, 0, y + up * 2, 0); ring.rotation.x = -up * Math.PI / 2; ring.userData.armour = 300; ring.userData.msg = "HULL 300 mm";
+    const port = add(g, new T.CircleGeometry(11.5, 20), std(0x08130a, 0.4, 0.2, { emissive: 0x8cff3a, emissiveIntensity: 0.0 }), 0, y + up * 1.2, 0, false);
+    port.rotation.x = -up * Math.PI / 2; port.userData.port = true;
+    for (let b = -2; b <= 2; b++) { const bar = add(g, box(22 * Math.sqrt(1 - (b / 2.6) ** 2), 0.7, 0.8), M.metal, 0, y + up * 1.5, b * 4.4, false); bar.userData.port = true; }
+    const doors = [-1, 1].map(dz => { const d = add(g, new T.CylinderGeometry(13, 13, 0.8, 20, 1, false, dz > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI), M.hull, 0, y + up * 2.6, 0);
+      d.userData.armour = 300; d.userData.msg = "SEALED 300 mm"; d.userData.dz = dz; d.name = `DOOR_${id}_${up > 0 ? "top" : "bottom"}_${dz > 0 ? "a" : "b"}`; return d; });
+    return { y, up, port, doors };
+  });
+  const plume = add(g, new T.ConeGeometry(10, 44, 18, 1, true), plumeMat(0x6cdc2a), 0, bot - 24, 0, false); plume.rotation.x = Math.PI; plume.raycast = () => {}; plume.visible = false;
+  const hp = { id, side: si, g, ends, plume, top, bot };
+  hp.part = part(id, "hull", g, { label: k === 1 ? `Hull thrusters (${si === 0 ? "port" : "starboard"})` : null, name: "Hull thruster " + id, fire: new T.Vector3(0, bot - 2, 0), up: 0 });
+  HULL.push(hp);
+}));
+
+// four missile launchers on the shell, at the bow and stern corners clear of the shoulders (owner, 2026-10-25: "crab
+// needs missile launchers")
+const LAUNCHERS = [[82, 138], [-82, 138], [82, -140], [-82, -140]];
+// the carapace's spikes: across the shell, all round the rim, horns at bow and stern (the square shell plates and the
+// rim skirt are gone, owner 2026-10-25: "get rid of the square plates"; the armour is in the plating textures now)
+(() => {
+  const top = (x, z) => 45 * Math.sqrt(Math.max(0, 1 - (x / 140) ** 2 - (z / 210) ** 2));
+  const clear = (x, z) => !(Math.abs(x) < 52 || (Math.abs(x) < 92 && Math.abs(z) < 124))                 // the spine, deck and shoulders
+    && !HULL.some(h => Math.hypot(x - h.g.position.x, z - h.g.position.z) < 19)                            // the hull ports' collars
+    && !THR_Z.some(zp => Math.abs(z - zp) < 11 && Math.abs(x) > 118)                                       // the pylon roots
+    && !(Math.abs(x) < 70 && z < -150)                                                                      // the drive thrusters
+    && !LAUNCHERS.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 22);                                      // the missile launchers
+  [0.6, 0.76, 0.92].forEach((r, ring) => {   // spikes over the shell, raked back from the middle
+    const n = Math.round(TAU * 175 * r / 30);
+    for (let k = 0; k < n; k++) {
+      const a = (k + (ring % 2) * 0.5) / n * TAU, x = 140 * r * Math.cos(a), z = 210 * r * Math.sin(a);
+      if (!clear(x, z)) continue;
+      const y = top(x, z), nrm = new T.Vector3(x / 140 ** 2, y / 45 ** 2, z / 210 ** 2).normalize();
+      const fwd = new T.Vector3(x, 0, z).normalize(); fwd.addScaledVector(nrm, -fwd.dot(nrm)).normalize();
+      SPIKES.push([new T.Vector3(x, y, z).addScaledVector(nrm, 1), nrm.clone().addScaledVector(fwd, 0.35), ring === 2 ? 11 : 8, ring === 2 ? 2.2 : 1.8]);
+    }
+  });
+  // the rim: a ring of spikes, long and short by turns
+  const n = 64;
+  for (let k = 0; k < n; k++) {
+    const a = k / n * TAU, x = 143 * Math.cos(a), z = 213 * Math.sin(a);
+    if (THR_Z.some(zp => Math.abs(z - zp) < 15) || (Math.abs(x) < 70 && z < -150)) continue;
+    const out = new T.Vector3(x / 140 ** 2, 0, z / 210 ** 2).normalize();
+    SPIKES.push([new T.Vector3(x * 1.01, 1, z * 1.01), out.clone().add(new T.Vector3(0, 0.22, 0)), k % 2 ? 9 : 16, k % 2 ? 1.8 : 2.8]);
+  }
+  // the bow: two great horns either side of the eyes, a row of teeth under them; the stern: two back-swept spines
+  [[-1, 1], [1, 1]].forEach(([sx]) => { SPIKES.push([new T.Vector3(30 * sx, 6, 196), new T.Vector3(0.38 * sx, 0.18, 1), 58, 5.5], [new T.Vector3(52 * sx, 4, 185), new T.Vector3(0.7 * sx, 0.1, 1), 32, 3.6],
+    [new T.Vector3(88 * sx, 6, -170), new T.Vector3(0.7 * sx, 0.25, -1), 34, 3.6]); });
+  for (let k = -2; k <= 2; k++) SPIKES.push([new T.Vector3(k * 9, -9, 204 - Math.abs(k) * 2), new T.Vector3(k * 0.08, -0.45, 1), 16 - Math.abs(k) * 2, 2.2]);
+  // fins along the shoulders' outer edges and studs along the spine walls
+  [1, -1].forEach(s => { for (let z = -110; z <= 110; z += 22) SPIKES.push([new T.Vector3(89 * s, 42.6, z), new T.Vector3(0.55 * s, 1, 0), 13, 2.2]);
+    for (let z = -170; z <= 170; z += 20) SPIKES.push([new T.Vector3(45.6 * s, 45, z), new T.Vector3(s, 0.2, 0), 4.5, 1.2]); });
+  // the bridge's crown
+  [[-17, -13], [17, -13], [-17, 13], [17, 13], [0, -14], [0, 14], [-18, 0], [18, 0]].forEach(([x, z]) => SPIKES.push([new T.Vector3(x, 49 + 23, 150 + z), new T.Vector3(x * 0.04, 1, z * 0.04), 9, 1.6]));
+  // a keel of spikes down the belly either side of the bays
+  [1, -1].forEach(s => { for (let z = -150; z <= 130; z += 28) { const e = 1 - (40 / 92) ** 2 - ((z + 10) / 150) ** 2; if (e <= 0.05) continue;
+    SPIKES.push([new T.Vector3(40 * s, -30 - 28 * Math.sqrt(e) + 1, z), new T.Vector3(0.2 * s, -1, 0), 12, 2.2]); } });
+  const inst = (geo, mat, list) => { const im = new T.InstancedMesh(geo, mat, list.length); list.forEach((m, i) => im.setMatrixAt(i, m)); im.castShadow = im.receiveShadow = true; F.add(im); return im; };
+  inst(spikeGeo, M.spike, SPIKES.map(([p, d, l, r]) => spikeMatrix(p, d, l, r)));
+})();
+
+// turrets (design section 4): flak on the rim and shoulders, beams under the belly, deck guns, missile batteries
+const TURRETS = [];
+function turret(kind, b, yaw, pitch, muzzle, label, extra) {
+  const tu = Object.assign({ kind, base: b, yaw, pitch, muzzle, cool: 0, burst: 0, state: "idle", st: 0, aimed: false }, extra || {});
+  tu.part = part(kind + (TURRETS.length + 1), kind, b, { label, fire: new T.Vector3(0, kind === "beam" ? -8 : 4, 0) });
+  yaw.name = "YAW_" + tu.part.id; pitch.name = "PITCH_" + tu.part.id;
+  const mz = new T.Object3D(); mz.name = "MUZZLE_" + tu.part.id; mz.position.copy(muzzle); pitch.add(mz);   // where its rounds leave
+  TURRETS.push(tu); return tu;
+}
+function flak(x, y, z, label) { const b = new T.Group(); b.position.set(x, y, z); F.add(b);
+  add(b, cyl(5, 6, 3, 14), M.dark, 0, 1.5, 0); const yaw = new T.Group(); yaw.position.y = 3; b.add(yaw);
+  add(yaw, box(8, 4.5, 9), M.turret, 0, 2.2, 0); const pitch = new T.Group(); pitch.position.set(0, 2.8, 2); yaw.add(pitch);
+  [-1.4, 1.4].forEach(dx => { const br = add(pitch, cyl(0.45, 0.55, 11, 8), M.metal, dx, 0, 5.5); br.rotation.x = Math.PI / 2; });
+  turret("flak", b, yaw, pitch, new T.Vector3(0, 0, 11), label); }
+[90, 20, -50, -110].forEach((z, k) => [1, -1].forEach(s => flak(80 * s, 42.6, z, k === 0 && s === 1 ? "Flak turret (10)" : null)));
+[1, -1].forEach(s => flak(28 * s, 49, 172));
+function beamT(x, z, label) { const b = new T.Group(); b.position.set(x, -30, z); F.add(b);
+  add(b, cyl(3, 4, 8, 10), M.dark, 0, -2, 0); const yaw = new T.Group(); yaw.position.y = -9; b.add(yaw);
+  add(yaw, new T.SphereGeometry(6, 14, 10), M.turret); const pitch = new T.Group(); yaw.add(pitch);
+  const lens = add(pitch, cyl(2.6, 3.4, 4, 14), M.core.clone(), 0, 0, 6); lens.rotation.x = Math.PI / 2;
+  const ray = new T.Group(); ray.visible = false; scene.add(ray);
+  const outer = new T.Mesh(cyl(1, 1, 1, 10, true), new T.MeshBasicMaterial({ color: lin(0xff4a3a), transparent: true, opacity: 0.55, blending: T.AdditiveBlending, depthWrite: false })); outer.scale.set(2.2, 1, 2.2);
+  const core = new T.Mesh(cyl(1, 1, 1, 8), new T.MeshBasicMaterial({ color: 0xffffff })); core.scale.set(0.6, 1, 0.6);
+  ray.add(outer, core);
+  turret("beam", b, yaw, pitch, new T.Vector3(0, 0, 8), label, { lens, ray }); }
+[[80, 85], [-80, 85], [80, -85], [-80, -85]].forEach(([x, z], k) => beamT(x, z, k === 0 ? "Beam turret (4)" : null));
+function deckGun(x, y, z, label) { const b = new T.Group(); b.position.set(x, y, z); F.add(b);
+  add(b, cyl(2.4, 2.8, 2, 10), M.dark, 0, 1, 0); const yaw = new T.Group(); yaw.position.y = 2; b.add(yaw);
+  add(yaw, new T.SphereGeometry(2.2, 10, 8), M.turret, 0, 1.4, 0); const pitch = new T.Group(); pitch.position.y = 1.6; yaw.add(pitch);
+  const br = add(pitch, cyl(0.5, 0.5, 6, 8), M.metal, 0, 0, 3.4); br.rotation.x = Math.PI / 2;
+  turret("gun", b, yaw, pitch, new T.Vector3(0, 0, 6.5), label); }
+[110, 10, -90, -160].forEach((z, k) => [1, -1].forEach(s => deckGun(37 * s, 49, z, k === 1 && s === -1 ? "Deck gun (8)" : null)));
+// a missile launcher: a red box of twelve tubes on a turning base, pitched up, ripple-firing salvos of six
+function launcher(x, z, label) {
+  const y = LAYOUT.shell.top_m * Math.sqrt(Math.max(0, 1 - (x / LAYOUT.shell.ax) ** 2 - (z / LAYOUT.shell.az) ** 2));
+  const b = new T.Group(); b.position.set(x, y - 1, z); F.add(b);
+  add(b, cyl(7, 8.5, 5, 16), M.dark, 0, 2.5, 0); const yaw = new T.Group(); yaw.position.y = 5; b.add(yaw);
+  add(yaw, box(5, 4, 6), M.dark, 0, 2, -1);
+  const pitch = new T.Group(); pitch.position.set(0, 5, 0); yaw.add(pitch);
+  add(pitch, box(13, 9, 15), M.turret, 0, 0, 0);                      // the armoured box
+  add(pitch, box(13.6, 1.2, 15.6), M.mark, 0, 3.6, 0, false);          // a livery band round it
+  const tubes = [];
+  for (let row = 0; row < 3; row++) for (let col = 0; col < 4; col++) { const tx = -4.5 + col * 3, ty = -2.6 + row * 2.6;
+    const t = add(pitch, cyl(1.05, 1.05, 1.2, 10), M.dark, tx, ty, 7.6, false); t.rotation.x = Math.PI / 2;
+    const cap = add(pitch, new T.CircleGeometry(0.85, 10), M.core, tx, ty, 8.25, false); tubes.push(new T.Vector3(tx, ty, 8.5)); }
+  pitch.rotation.x = -0.6;
+  turret("msl", b, yaw, pitch, new T.Vector3(0, 0, 9), label, { tubes, salvo: 0, tube: 0 });
+}
+LAUNCHERS.forEach(([x, z], k) => launcher(x, z, k === 0 ? "Missile launchers (4)" : null));
+const VLS = [1, -1].map((s, i) => { const b = new T.Group(); b.position.set(20 * s, 49, -150); F.add(b);
+  add(b, box(12, 4, 16), M.turret, 0, 2, 0);
+  for (let a = 0; a < 3; a++) for (let c = 0; c < 4; c++) add(b, box(2.4, 0.3, 2.4), M.core, -3.4 + a * 3.4, 4.1, -5.4 + c * 3.6, false);
+  return { b, cool: 1 + i * 2.5, cells: 12, part: part("vls" + (i + 1), "vls", b, { label: i === 0 ? "Missile batteries" : null }) }; });
+// catapults, with steam at the start of the stroke
+const CATS = [1, -1].map((s, i) => { const b = new T.Group(); b.position.set(20 * s, 49, 0); F.add(b);
+  add(b, box(1.4, 0.4, 116), M.glow, 0, 0.2, 119, false);
+  const shuttle = add(b, box(4, 1.2, 6), M.metal, 0, 0.6, 64);
+  return { s, b, shuttle, part: part("cat" + (i + 1), "cat", b, { label: i === 0 ? "Catapults" : null, fire: new T.Vector3(0, 2, 70) }) }; });
+// hangar lifts: the plate sinks, a Mite rises through the hatch on it
+const LIFTS = [1, -1].map((s, i) => { const b = new T.Group(); b.position.set(22 * s, 49, 10); F.add(b);
+  const plate = new T.Group(); b.add(plate); add(plate, box(24, 0.5, 30), M.plat, 0, 0.25, 0);
+  const hatch = add(b, box(24, 0.2, 30), std(0x050507, 1, 0), 0, 0.15, 0, false); hatch.visible = false;
+  return { b, plate, hatch, busy: -1, mite: null, part: part("lift" + (i + 1), "hlift", b, { label: i === 0 ? "Hangar lifts" : null }) }; });
+// the drop bays in the belly
+const BAYS = [40, -60].map((z, i) => { const b = new T.Group(); b.position.set(0, -56, z); F.add(b);
+  add(b, box(42, 12, 52), M.dark, 0, 0, 0);
+  const doors = [-1, 1].map(s => { const h = new T.Group(); h.position.set(15 * s, -6.4, 0); b.add(h);
+    add(h, box(15, 1.2, 40), M.hull, -7.5 * s, -0.6, 0); return h; });
+  add(b, box(30.2, 0.4, 40.2), M.core, 0, -6.1, 0, false);
+  return { b, doors, open: 0, openUntil: -1, part: part("bay" + (i + 1), "bay", b, { label: i === 0 ? "Drop bays" : null, fire: new T.Vector3(0, -8, 0) }) }; });
+// lay each plated piece's UVs onto its sheet, and give it its role's material for that sheet
+//   the shell, its underside, the belly: polar, u the angle round its middle from the stern, v from its rim in
+//   a cylinder: the nacelle wrap, u once round, v up it; its caps take the panel
+//   a long box (along the hull, 150 m or more): its sides and top take fortress_side, u by the hull's own z so every
+//   wall's seams fall on the same stations; its ends take the panel
+//   anything else: the panel, fitted whole to each face of the piece
+function projectUVs(root) {
+  root.updateMatrixWorld(true); const inv = new T.Matrix4().copy(root.matrixWorld).invert();
+  const a = new T.Vector3(), b = new T.Vector3(), c = new T.Vector3(), n = new T.Vector3(), e = new T.Vector3();
+  const zs = LAYOUT.stations_z, Z0 = Math.min(...zs), Z1 = Math.max(...zs);
+  root.traverse(o => {
+    if (!o.isMesh || o.isInstancedMesh || Array.isArray(o.material) || !ROLES.has(o.material)) return;
+    const r = ROLES.get(o.material), g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(), pos = g.attributes.position, uv = new Float32Array(pos.count * 2);
+    const rel = new T.Matrix4().multiplyMatrices(inv, o.matrixWorld), polar = o.userData.polar, cyl = !polar && o.geometry.type === "CylinderGeometry";
+    g.computeBoundingBox(); const bb = g.boundingBox, wb = bb.clone().applyMatrix4(rel), longBox = !polar && !cyl && wb.max.z - wb.min.z >= 150;
+    const P = o.geometry.parameters || {}, rad = Math.max(P.radiusTop || 0, P.radiusBottom || 0) || 1;
+    const sheets = new Set();
+    for (let i = 0; i + 2 < pos.count; i += 3) {
+      a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
+      const tri = [a, b, c], uvs = []; let sheet;
+      n.subVectors(c, b).cross(e.subVectors(a, b)).normalize();
+      if (polar) { sheet = polar.tex;
+        tri.forEach(p => { const q = p.clone().applyMatrix4(rel), nx = (q.x - polar.cx) / polar.ax, nz = (q.z - polar.cz) / polar.az;
+          uvs.push([Math.atan2(nx, nz) / TAU + 0.5, 1 - Math.min(1, Math.hypot(nx, nz))]); });
+      } else if (cyl && Math.abs(n.y) < 0.9) { sheet = "nacelle";
+        tri.forEach(p => uvs.push([Math.atan2(p.x, p.z) / TAU + 0.5, (p.y - bb.min.y) / ((bb.max.y - bb.min.y) || 1)]));
+      } else if (cyl) { sheet = "panel"; tri.forEach(p => uvs.push([p.x / (2 * rad) + 0.5, p.z / (2 * rad) + 0.5]));
+      } else {
+        const nw = n.clone().transformDirection(rel), ax = Math.abs(nw.x), ay = Math.abs(nw.y), az = Math.abs(nw.z);
+        if (longBox && az < 0.7) { sheet = "fortress_side";
+          tri.forEach(p => { const q = p.clone().applyMatrix4(rel), across = ax >= ay ? (q.y - wb.min.y) / ((wb.max.y - wb.min.y) || 1) : (q.x - wb.min.x) / ((wb.max.x - wb.min.x) || 1);
+            uvs.push([(q.z - Z0) / (Z1 - Z0), across]); });
+        } else { sheet = "panel";
+          const nl = n, lx = Math.abs(nl.x), ly = Math.abs(nl.y), lz = Math.abs(nl.z), [ku, kv] = lx >= ly && lx >= lz ? [2, 1] : ly >= lz ? [0, 2] : [0, 1];
+          tri.forEach(p => { const f = k => (p.getComponent(k) - bb.min.getComponent(k)) / ((bb.max.getComponent(k) - bb.min.getComponent(k)) || 1); uvs.push([f(ku), f(kv)]); }); }
+      }
+      if (polar || (cyl && sheet === "nacelle")) { const us = uvs.map(q => q[0]); if (Math.max(...us) - Math.min(...us) > 0.5) uvs.forEach(q => { if (q[0] < 0.5) q[0] += 1; }); }
+      uvs.forEach((q, k) => { uv[(i + k) * 2] = q[0]; uv[(i + k) * 2 + 1] = q[1]; });
+      sheets.add(sheet); g.userData.sheets = g.userData.sheets || []; g.userData.sheets.push(sheet);
+    }
+    g.setAttribute("uv", new T.BufferAttribute(uv, 2)); g.setAttribute("uv2", new T.BufferAttribute(uv.slice(), 2));
+    // a piece on more than one sheet (a cylinder and its caps, a long box and its ends) takes one material per sheet, by groups
+    const list = [...sheets];
+    if (list.length === 1) o.material = variantOf(r, list[0]);
+    else { g.clearGroups(); let start = 0; const per = g.userData.sheets;
+      for (let t = 1; t <= per.length; t++) if (t === per.length || per[t] !== per[start]) { g.addGroup(start * 3, (t - start) * 3, list.indexOf(per[start])); start = t; }
+      o.material = list.map(sname => variantOf(r, sname)); }
+    delete g.userData.sheets; o.geometry = g;
+    if (o.userData.mat0) o.userData.mat0 = o.material;
+  });
+}
+projectUVs(F);
+
+// the fortress as built, before anything rides it (the deck guard, the pilot): what the game's model is made of
+const STATIC = new Set(F.children);
+// static parts keep their own materials so a destroyed part can be put back
+parts.forEach(p => p.obj.traverse(o => { if (o.isMesh) o.userData.mat0 = o.material; }));
+
+// gun ranges (design section 4): flak 1 800 m, beams 900 m, deck guns 600 m
+const ranges = new T.Group(); F.add(ranges); ranges.visible = false;
+[[1800, 0xffb36b], [900, 0xff5a4a], [600, 0x8cff3a]].forEach(([r, c]) => {
+  const m = new T.Mesh(new T.SphereGeometry(r, 36, 18), new T.MeshBasicMaterial({ color: c, wireframe: true, transparent: true, opacity: 0.12, depthWrite: false, fog: false })); m.raycast = () => {}; ranges.add(m); });
+
+// ---- Particles: one pool of points for smoke, one for fire and flashes (world sizes, sRGB colours) ----
+function pointPool(cap, additive) {
+  const geo = new T.BufferGeometry(), pos = new Float32Array(cap * 3), col = new Float32Array(cap * 4), size = new Float32Array(cap);
+  geo.setAttribute("position", new T.BufferAttribute(pos, 3)); geo.setAttribute("aColor", new T.BufferAttribute(col, 4)); geo.setAttribute("aSize", new T.BufferAttribute(size, 1));
+  const mat = new T.ShaderMaterial({ transparent: true, depthWrite: false, blending: additive ? T.AdditiveBlending : T.NormalBlending,
+    uniforms: { map: { value: smokeTex }, uScale: { value: 600 } },
+    vertexShader: `attribute vec4 aColor; attribute float aSize; uniform float uScale; varying vec4 vColor;
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      void main() { vColor = aColor; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = aSize * uScale / max(1.0, -mv.z); gl_Position = projectionMatrix * mv;
+      #include <logdepthbuf_vertex>
+      }`,
+    fragmentShader: `uniform sampler2D map; varying vec4 vColor;
+      #include <logdepthbuf_pars_fragment>
+      void main() {
+      #include <logdepthbuf_fragment>
+      float a = texture2D(map, gl_PointCoord).a * vColor.a; if (a < 0.01) discard; gl_FragColor = vec4(vColor.rgb, a); }` });
+  const pts = new T.Points(geo, mat); pts.frustumCulled = false; pts.renderOrder = additive ? 3 : 2; scene.add(pts);
+  const P = [];   // live particles: { p, v, age, life, s0, s1, c: [r, g, b, a], drag, rise }
+  return {
+    mat,
+    emit(p, v, life, s0, s1, c, drag = 0, rise = 0) { if (P.length >= cap) P.shift(); P.push({ p: p.clone(), v: v ? v.clone() : new T.Vector3(), age: 0, life, s0, s1, c, drag, rise }); },
+    step(dt) { for (let i = P.length - 1; i >= 0; i--) { const q = P[i]; q.age += dt; if (q.age >= q.life) { P.splice(i, 1); continue; }
+      q.v.multiplyScalar(Math.max(0, 1 - q.drag * dt)); q.v.y += q.rise * dt; q.p.addScaledVector(q.v, dt); } },
+    draw() { P.forEach((q, i) => { const u = q.age / q.life; pos.set([q.p.x, q.p.y, q.p.z], i * 3);
+        col.set([q.c[0], q.c[1], q.c[2], q.c[3] * (1 - u) * Math.min(1, u * 12 + 0.3)], i * 4); size[i] = lerp(q.s0, q.s1, u); });
+      geo.setDrawRange(0, P.length); ["position", "aColor", "aSize"].forEach(k => { geo.attributes[k].needsUpdate = true; }); },
+    clear() { P.length = 0; },
+  };
+}
+const SMOKE = pointPool(3500, false), FIRE = pointPool(2500, true);
+const C = { smoke: [0.16, 0.15, 0.14, 0.85], grey: [0.55, 0.55, 0.56, 0.6], steam: [0.92, 0.94, 0.96, 0.7], flash: [1, 0.75, 0.4, 1], fire: [1, 0.45, 0.12, 0.9],
+  green: [0.55, 1, 0.25, 0.9], red: [1, 0.3, 0.18, 0.9], spark: [1, 0.9, 0.6, 1], tracer: [1, 0.78, 0.35], alien: [0.6, 1, 0.3] };
+function explode(p, s = 1) {
+  FIRE.emit(p, null, 0.25, 6 * s, 30 * s, C.flash);
+  for (let k = 0; k < 6; k++) { const v = new T.Vector3(R() - 0.5, R() - 0.3, R() - 0.5).multiplyScalar(30 * s);
+    FIRE.emit(p, v, 0.7 + R() * 0.5, 6 * s, 16 * s, C.fire, 2); SMOKE.emit(p, v.multiplyScalar(0.5), 3 + R() * 2, 8 * s, 30 * s, C.smoke, 0.8, 3); }
+}
+
+// tracers: every round in flight is a short streak (a line segment) with a bright head (a point)
+const TRACERS = (() => { const cap = 1200, pos = new Float32Array(cap * 6), col = new Float32Array(cap * 6), geo = new T.BufferGeometry();
+  geo.setAttribute("position", new T.BufferAttribute(pos, 3)); geo.setAttribute("color", new T.BufferAttribute(col, 3));
+  const lines = new T.LineSegments(geo, new T.LineBasicMaterial({ vertexColors: true, transparent: true, blending: T.AdditiveBlending, depthWrite: false }));
+  lines.frustumCulled = false; scene.add(lines); return { cap, pos, col, geo }; })();
+const HEADS = pointPool(1200, true);
+const shots = [];   // { p, v, t, tEnd, c, size, onEnd }
+function fire(from, to, speed, c, size, onEnd) { const d = to.clone().sub(from), dist = d.length();
+  shots.push({ p: from.clone(), v: d.multiplyScalar(speed / Math.max(1, dist)), t: 0, tEnd: dist / speed, c, size, onEnd }); }
+const MISSILES = [];
+const missileGeo = cyl(0.5, 0.5, 5, 6); missileGeo.rotateX(Math.PI / 2);
+function launchMissile(from, dir, target, onHit, c) { const m = new T.Mesh(missileGeo, M.metal); scene.add(m);
+  MISSILES.push({ m, p: from.clone(), d: dir.clone().normalize(), speed: 60, t: 0, target, onHit, c }); }
+
+// ---- The block-outs: crabs and the Foreman, merged per limb and material so a crab is a few draws ----
+const loader = new T.GLTFLoader();
+const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0)).buffer;
+// merge meshes into one mesh per material, their geometry expressed in the frame `inv` maps into
+function mergeMeshes(meshes, inv) {
+  const byMat = new Map();
+  meshes.forEach(o => {
+    let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    for (const k of Object.keys(g.attributes)) if (k !== "position" && k !== "normal") g.deleteAttribute(k);
+    g.applyMatrix4(new T.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+    const m = Array.isArray(o.material) ? o.material[0] : o.material;
+    if (!byMat.has(m)) byMat.set(m, []); byMat.get(m).push(g);
+  });
+  const out = [];
+  byMat.forEach((gs, m) => { const mm = m.clone(); mm.flatShading = true; mm.needsUpdate = true;
+    const mesh = new T.Mesh(T.BufferGeometryUtils.mergeBufferGeometries(gs), mm); mesh.castShadow = mesh.receiveShadow = true; out.push(mesh); });
+  return out;
+}
+function meshesUnder(node, skip) { const list = []; node.traverse(o => { if (!o.isMesh) return;
+  for (let p = o; p && p !== node; p = p.parent) if (skip(p)) return; list.push(o); }); return list; }
+function mergeUnder(node, space, skip) { return mergeMeshes(meshesUnder(node, skip), new T.Matrix4().copy(space.matrixWorld).invert()); }
+
+// The crab rig for the block-outs (owner, 2026-10-25: "use IK solver to actually move them correctly when they are
+// grounded, if they are flying have them go limp slightly"). Each leg is split at the knee by its pieces' names:
+// a coxa (yaw at the hip), the femur (hip, femur, ram, band, knee, spur) and the lower leg (tibia, hock, tarsus and
+// the foot). H is the hip, K the knee, P the foot's contact point, all in the crab's frame at rest.
+const RIG = {};
+const UPPER = /^(hip|femur|ram|band|knee|spur)/;
+function prep(id) {
+  return new Promise((ok, no) => loader.parse(b64(MODELS[id].glb), "", gltf => {
+    const root = gltf.scene; root.updateMatrixWorld(true);
+    const rootInv = new T.Matrix4().copy(root.matrixWorld).invert();
+    const isLeg = o => /^LEG_\d[LR]$/.test(o.name), isArm = o => /^ARM_[LR]$/.test(o.name);
+    const out = new T.Group(); out.name = id; RIG[id] = [];
+    mergeUnder(root, root, o => isLeg(o) || isArm(o)).forEach(m => out.add(m));
+    root.traverse(o => {
+      if (isArm(o)) {   // arms stay one piece each
+        const piv = new T.Group(); piv.name = o.name;
+        new T.Matrix4().multiplyMatrices(rootInv, o.matrixWorld).decompose(piv.position, piv.quaternion, piv.scale);
+        mergeUnder(o, o, p => p !== o && (isArm(p) || isLeg(p))).forEach(m => piv.add(m)); out.add(piv);
+      }
+      if (!isLeg(o)) return;
+      const inRoot = obj => new T.Vector3().setFromMatrixPosition(obj.matrixWorld).applyMatrix4(rootInv);
+      const H = inRoot(o), foot = o.children.find(c => /_foot$/.test(c.name)), P = foot ? inRoot(foot) : H.clone().setY(0);
+      const all = meshesUnder(o, p => p !== o && isLeg(p));
+      const nameOf = m => { for (let q = m; q && q !== o; q = q.parent) if (q.name && q.name !== "") return q.name; return ""; };
+      const upper = all.filter(m => UPPER.test(nameOf(m))), lower = all.filter(m => !UPPER.test(nameOf(m)));
+      const kneeMesh = all.find(m => /^knee/.test(nameOf(m)));
+      const K = kneeMesh ? new T.Box3().setFromObject(kneeMesh).getCenter(new T.Vector3()).applyMatrix4(rootInv) : H.clone().lerp(P, 0.5).setY(H.y * 1.3);
+      const at = v => new T.Matrix4().makeTranslation(v.x, v.y, v.z).premultiply(root.matrixWorld).invert();
+      const coxa = new T.Group(); coxa.name = o.name + "_coxa"; coxa.position.copy(H);
+      const femur = new T.Group(); femur.name = o.name + "_femur"; coxa.add(femur);
+      const low = new T.Group(); low.name = o.name + "_lower"; low.position.copy(K).sub(H); femur.add(low);
+      mergeMeshes(upper, at(H)).forEach(m => femur.add(m)); mergeMeshes(lower, at(K)).forEach(m => low.add(m));
+      out.add(coxa);
+      const F0 = K.clone().sub(H), L0 = P.clone().sub(K);
+      RIG[id].push({ name: o.name, side: /L$/.test(o.name) ? 0 : 1, pair: +o.name[4], H, K, P, F0, L0, a: F0.length(), b: L0.length(), F0n: F0.clone().normalize(), L0n: L0.clone().normalize() });
+    });
+    ok(out);
+  }, no));
+}
+const templates = {};
+function cloneCrab(id) {
+  const c = templates[id].clone();
+  c.userData.id = id;
+  c.userData.legs = RIG[id].map(r => ({ r, coxa: c.getObjectByName(r.name + "_coxa"), femur: c.getObjectByName(r.name + "_femur"), lower: c.getObjectByName(r.name + "_lower"),
+    foot: null, from: new T.Vector3(), to: new T.Vector3(), swing: -1, group: (r.pair + r.side) % 2 }));
+  c.traverse(o => { if (o.isMesh) o.userData.mat0 = o.material; });
+  return c;
+}
+// two-bone IK: the coxa yaws the leg's plane onto the target, the femur and lower leg bend in it, the knee kept up
+const _q = new T.Quaternion();
+function legIK(L, T_) {
+  const r = L.r, d = T_.clone().sub(r.H);
+  const hr = new T.Vector3(r.P.x - r.H.x, 0, r.P.z - r.H.z).normalize(), th = new T.Vector3(d.x, 0, d.z);
+  const yaw = th.lengthSq() > 1e-6 ? Math.atan2(hr.z * th.x - hr.x * th.z, hr.x * th.x + hr.z * th.z) : 0;
+  L.coxa.rotation.set(0, yaw, 0);
+  const tc = d.applyAxisAngle(UP, -yaw), len = Math.max(Math.abs(r.a - r.b) + 0.05, Math.min(r.a + r.b - 0.05, tc.length()));
+  const dir = tc.normalize();
+  let n = new T.Vector3().crossVectors(dir, UP); if (n.lengthSq() < 1e-6) n.set(1, 0, 0); n.normalize();
+  const alpha = Math.acos(Math.max(-1, Math.min(1, (r.a * r.a + len * len - r.b * r.b) / (2 * r.a * len))));
+  const k1 = dir.clone().applyAxisAngle(n, alpha), k2 = dir.clone().applyAxisAngle(n, -alpha), kd = k1.y > k2.y ? k1 : k2;
+  L.femur.quaternion.setFromUnitVectors(r.F0n, kd);
+  const lowerDir = dir.clone().multiplyScalar(len).sub(kd.clone().multiplyScalar(r.a)).normalize().applyQuaternion(_q.copy(L.femur.quaternion).invert());
+  L.lower.quaternion.setFromUnitVectors(r.L0n, lowerDir);
+}
+// grounded: each foot stays planted where it touched (in the crab's parent's frame) until the body has moved it more
+// than a quarter of the leg's reach from where it wants to be; then it swings there in 0.3 s along a low arc, one
+// group of legs at a time (tripods for six legs, diagonal pairs for four)
+function gait(c, groundY) {
+  c.updateMatrix(); const inv = new T.Matrix4().copy(c.matrix).invert(), legs = c.userData.legs;
+  const swinging = legs.some(L => L.swing >= 0) ? legs.find(L => L.swing >= 0).group : -1;
+  legs.forEach(L => {
+    const want = L.r.P.clone().applyMatrix4(c.matrix); want.y = groundY;
+    if (!L.foot) L.foot = want.clone();
+    if (L.swing < 0 && L.foot.distanceTo(want) > 0.25 * (L.r.a + L.r.b) && (swinging < 0 || swinging === L.group)) {
+      L.swing = 0; L.from.copy(L.foot); L.to.copy(want).addScaledVector(want.clone().sub(L.foot), 0.4); L.to.y = groundY; }
+    if (L.swing >= 0) { L.swing = Math.min(1, L.swing + DT / 0.3); const u = ease(L.swing);
+      L.foot.lerpVectors(L.from, L.to, u); L.foot.y = groundY + Math.sin(Math.PI * L.swing) * 0.16 * (L.r.a + L.r.b);
+      if (L.swing >= 1) L.swing = -1; }
+    legIK(L, L.foot.clone().applyMatrix4(inv));
+  });
+}
+// in the air: the legs hang a little limp, drooping from rest and swaying
+function limp(c, t) {
+  c.userData.legs.forEach((L, i) => { L.foot = null; L.swing = -1; const r = L.r, s = r.a + r.b;
+    legIK(L, r.H.clone().lerp(r.P, 0.9).add(new T.Vector3(Math.sin(t * 1.3 + i) * 0.05 * s, -0.12 * s, Math.cos(t * 1.1 + i * 2) * 0.05 * s))); });
+}
+// at rest, standing where it stands (riding a lift)
+function stand(c) { c.userData.legs.forEach(L => { L.foot = null; L.swing = -1; legIK(L, L.r.P.clone()); }); }
+function scorch(obj, on) { obj.traverse(o => { if (!o.isMesh) return;
+  if (o.material.isMeshBasicMaterial) o.visible = !on; else o.material = on ? M.scorch : o.userData.mat0; }); }
+function pilotFigure() { const p = new T.Group(), suit = std(0x2e5ea8, 0.7, 0), skin = std(0xd8b49a, 0.8, 0);
+  [-0.13, 0.13].forEach(x => add(p, cyl(0.1, 0.07, 0.86, 8), suit, x, 0.43, 0));
+  add(p, cyl(0.24, 0.17, 0.62, 10), suit, 0, 1.18, 0); add(p, new T.SphereGeometry(0.12, 12, 8), skin, 0, 1.66, 0); return p; }
+function fighterMesh() { const f = new T.Group(), hull = std(0xc4cad6, 0.4, 0.6);
+  add(f, box(2.6, 2, 15), hull, 0, 0, 0);
+  const wing = new T.Shape(); wing.moveTo(0, 5); wing.lineTo(6.5, -4); wing.lineTo(-6.5, -4); wing.closePath();
+  const wg = add(f, new T.ExtrudeGeometry(wing, { depth: 0.5, bevelEnabled: false }), hull, 0, 0, -1); wg.rotation.x = -Math.PI / 2;
+  [-1, 1].forEach(s => { const fin = add(f, box(0.4, 3, 3), M.mark, 1.5 * s, 1.6, -5.5); fin.rotation.z = 0.3 * s; });
+  add(f, box(2.0, 1.4, 0.5), M.glow, 0, 0, -7.6, false); add(f, box(1.6, 0.8, 3), M.core, 0, 1, 4, false);
+  f.traverse(o => { if (o.isMesh) o.userData.mat0 = o.material; }); return f; }
+function chute() { const g = new T.Group(), lines = [];
+  [[-12, 0], [12, 0], [0, 14]].forEach(([x, z]) => { const c = add(g, new T.SphereGeometry(13, 16, 6, 0, TAU, 0, Math.PI / 2), M.canopy, x, 46, z, false); c.scale.y = 0.45;
+    add(g, cyl(13.1, 13.1, 1.2, 16, true), M.mark, x, 46.4, z, false);
+    [0, 1, 2, 3].forEach(k => { const a = k / 4 * TAU; lines.push(x + Math.cos(a) * 12, 46, z + Math.sin(a) * 12, 0, 8, 0); }); });
+  const lg = new T.BufferGeometry(); lg.setAttribute("position", new T.Float32BufferAttribute(lines, 3));
+  g.add(new T.LineSegments(lg, new T.LineBasicMaterial({ color: 0x2a2630 }))); return g; }
+
+// ---- Simulation state: everything is stepped at a fixed 1/30 s, from one seeded random stream ----
+const DT = 1 / 30;
+let R = rng(1234), clock = 0, acc = 0, speed = 1, view = "orbit", climbT = 0, showLabels = true, clickMode = "shoot", selected = null;
+const sim = { alive: Array(8).fill(true), hull: Array(6).fill(true), deployed: false, opening: -1, doors: 0, y: ALT, v: 0, roll: 0, crashed: false };
+const S = { fighters: [], guards: [], drops: [], hangar: 20, dropMag: 12, liftHangar: 8, nextLaunch: 4, catTurn: 0, nextDrop: 10, bayTurn: 0, nextLift: 6, liftTurn: 0,
+  hits: { flak: 0, gun: 0, beam: 0, missile: 0, fighter: 0, crab: 0 }, player: "air", nGuard: 0, nDrop: 0, nFighter: 0 };
+const FIGHTER_POOL = Array.from({ length: 12 }, () => { const f = fighterMesh(); f.visible = false; scene.add(f); return f; });
+const target = new T.Vector3(), tmpV = new T.Vector3(), tmpW = new T.Vector3(), UP = new T.Vector3(0, 1, 0);
+let player = null, pilot = null;
+const DECK_SPOT = new T.Vector3(12, 49, -55);
+
+// the fall (design section 2)
+function stepFall() {
+  if (sim.crashed) return;
+  // the outer thrusters cannot hold a side: it opens its hull thrusters, which take 4 s to light; it sinks meanwhile
+  if (!sim.deployed && sim.opening < 0 && liftOf(sim.alive, sim.hull, false).falls) { sim.opening = clock;
+    F.updateMatrixWorld(true); pop(F.localToWorld(new T.Vector3(0, 80, 0)), "IT OPENS ITS HULL THRUSTERS"); }
+  if (sim.opening >= 0 && !sim.deployed) { sim.doors = Math.min(1, (clock - sim.opening) / 3); if (sim.doors < 0.01) refresh();
+    if (clock - sim.opening >= 4) { sim.deployed = true; refresh(); } }
+  const L = liftOf(sim.alive);
+  if (!L.falls) {   // holding: any sink dies away and the list comes back level
+    sim.v *= Math.exp(-DT / 1.2); sim.y += sim.v * DT;
+    sim.roll -= Math.sign(sim.roll) * Math.min(Math.abs(sim.roll), ROLL_RATE * DT); return; }
+  const a = G * (L.L[0] + L.L[1]) / W - G - K * sim.v * Math.abs(sim.v);
+  sim.v += a * DT; sim.y += sim.v * DT;
+  const tgt = LIST_DEG * (L.L[0] - L.L[1]) / W;          // positive: the left side is stronger, so the right goes down
+  sim.roll += Math.max(-ROLL_RATE * DT, Math.min(ROLL_RATE * DT, tgt - sim.roll));
+  const th = Math.abs(sim.roll) * DEG;
+  if (sim.y - (80 * Math.cos(th) + 190 * Math.sin(th)) <= 0) crash();
+}
+function crash() {
+  sim.crashed = true; sim.v = 0;
+  F.updateMatrixWorld(true);
+  for (let k = 0; k < 24; k++) explode(F.localToWorld(new T.Vector3((R() - 0.5) * 300, -40 + R() * 60, (R() - 0.5) * 400)), 3);
+  // it wrecks every building under its footprint and within 60 m of it (design section 6)
+  const m = new T.Matrix4(), p = new T.Vector3(), q = new T.Quaternion(), s = new T.Vector3();
+  city.spots.forEach((sp, k) => { const dx = sp[0] - F.position.x, dz = sp[1] - F.position.z;
+    if ((dx / 270) ** 2 + (dz / 270) ** 2 < 1) { city.im.getMatrixAt(k, m); m.decompose(p, q, s); s.y = 3; p.y = 1.5; m.compose(p, q, s); city.im.setMatrixAt(k, m); } });
+  city.im.instanceMatrix.needsUpdate = true;
+}
+
+// your mech: circling the fortress on its jets, standing on its deck, or away
+function playerUpdate() {
+  if (!player) return;
+  player.visible = S.player !== "off" && view !== "climb" && view !== "fight";
+  if (pilot) pilot.visible = S.player === "deck";
+  if (S.player === "air") {
+    const a = clock * 0.085 + 2.4, p = new T.Vector3(Math.cos(a) * 700, F.position.y - 60 + 90 * Math.sin(clock * 0.23), Math.sin(a) * 560);
+    const ahead = new T.Vector3(Math.cos(a + 0.05) * 700, p.y, Math.sin(a + 0.05) * 560);
+    player.position.copy(p); player.lookAt(ahead); player.rotateX(0.35);
+    if (R() < 0.8) { const back = player.localToWorld(new T.Vector3(0, 9, -4)); FIRE.emit(back, new T.Vector3(0, -40, 0).applyQuaternion(player.quaternion), 0.35, 4, 9, [0.6, 0.85, 1, 0.9]); }
+  } else if (S.player === "hover") {   // holding off the starboard beam, below the deck, facing it (the game's jets would only give 20 s)
+    player.position.set(-640, ALT - 110 + 6 * Math.sin(clock * 0.8), 60); player.lookAt(F.position.x, player.position.y, F.position.z);
+    if (R() < 0.8 && view !== "fight") [-1, 1].forEach(s => FIRE.emit(player.localToWorld(new T.Vector3(2.2 * s, 6, -4)), new T.Vector3(0, -40, 0), 0.35, 4, 9, [0.6, 0.85, 1, 0.9]));
+  } else if (S.player === "under" || S.player === "above") {   // straight under the belly, or high over the deck
+    const up = S.player === "above";   // it keeps station on the fortress while it holds, and holds its own height once it falls
+    if (!liftOf(sim.alive).falls) S.stationY = F.position.y;
+    player.position.set(F.position.x, (S.stationY || ALT) + (up ? 330 : -260) + 5 * Math.sin(clock * 0.8), F.position.z); player.lookAt(player.position.x, player.position.y, player.position.z + 100);
+    if (R() < 0.8 && view !== "fight") [-1, 1].forEach(s => FIRE.emit(player.localToWorld(new T.Vector3(2.2 * s, 6, -4)), new T.Vector3(0, -40, 0), 0.35, 4, 9, [0.6, 0.85, 1, 0.9]));
+  } else if (S.player === "deck") {
+    player.position.copy(F.localToWorld(DECK_SPOT.clone())); player.quaternion.copy(F.quaternion); player.rotateY(Math.PI);
+  }
+}
+function targetNow() {
+  if (view === "climb") return target.copy(camera.position);
+  if (!player || S.player === "off") return null;
+  return target.copy(player.position).add(new T.Vector3(0, 13, 0));
+}
+const playerAlive = () => player && S.player !== "off";
+
+// does the hull, spine or deck stand between a and b (both in the fortress's frame)?
+function blocked(a, b) {
+  for (let u = 0.08; u < 0.95; u += 0.06) { const x = lerp(a.x, b.x, u), y = lerp(a.y, b.y, u), z = lerp(a.z, b.z, u);
+    if ((x / 140) ** 2 + (y / (y > 0 ? 45 : 34)) ** 2 + (z / 210) ** 2 < 0.97) return true;
+    if (Math.abs(x) < 45 && y > 18 && y < 48.5 && Math.abs(z) < 181) return true; }
+  return false;
+}
+const aimError = () => (parts.find(p => p.kind === "bridge").alive ? 1 : 2);
+function spread(p, dist, deg) { const e = Math.tan(deg * DEG) * dist * aimError(); return p.clone().add(new T.Vector3((R() - 0.5) * 2 * e, (R() - 0.5) * 2 * e, (R() - 0.5) * 2 * e)); }
+
+// turrets: slew onto the target, fire when on it, in range and in sight (design section 4)
+const RANGE = { flak: 1800, beam: 900, gun: 600, msl: 2500 };
+// every mech the fortress fights: yours and the allies, each { pos() aim point, you, hit(kind, amount) }
+function nearestTarget(list, fromLocal, range, sight) {
+  let best = null, bd = range;
+  list.forEach(t => { const tl = F.worldToLocal(t.pos().clone()), d = tl.distanceTo(fromLocal);
+    if (d < bd && (!sight || !blocked(fromLocal, tl))) { bd = d; best = t; } });
+  return best;
+}
+function turretsUpdate(list) {
+  TURRETS.forEach((tu, k) => {
+    const p = tu.part;
+    if (!p.alive || sim.crashed) { if (tu.ray) tu.ray.visible = false; return; }
+    const from = tu.base.position.clone(); from.y += tu.yaw.position.y;
+    // a turret keeps its target while it can, else takes the nearest it can see in range
+    if (!tu.tgt || !list.includes(tu.tgt) || F.worldToLocal(tu.tgt.pos().clone()).distanceTo(from) > RANGE[tu.kind] || blocked(from, F.worldToLocal(tu.tgt.pos().clone()))) tu.tgt = nearestTarget(list, from, RANGE[tu.kind], true);
+    const tgt = tu.tgt, tw = tgt ? tgt.pos().clone() : null, tl = tw ? F.worldToLocal(tw.clone()) : null;
+    let want = null, dist = 1e9;
+    if (tl) { const d = tl.clone().sub(from); dist = d.length(); want = { yaw: Math.atan2(d.x, d.z), pitch: -Math.atan2(d.y, Math.hypot(d.x, d.z)) }; }
+    if (!want) want = { yaw: Math.sin(clock * 0.2 + k * 1.7) * 1.2 + k, pitch: tu.kind === "beam" ? 0.4 : -0.4 - 0.3 * Math.sin(clock * 0.25 + k) };
+    if (tu.kind === "msl") want.pitch = Math.max(-1.2, Math.min(-0.25, want.pitch));   // a launcher always throws its missiles up and out
+    else if (tu.kind !== "beam") want.pitch = Math.max(-1.4, Math.min(0.2, want.pitch));
+    const slew = 1.2 * DT, dy = Math.atan2(Math.sin(want.yaw - tu.yaw.rotation.y), Math.cos(want.yaw - tu.yaw.rotation.y));
+    tu.yaw.rotation.y += Math.max(-slew, Math.min(slew, dy)); tu.pitch.rotation.x += Math.max(-slew, Math.min(slew, want.pitch - tu.pitch.rotation.x));
+    const onIt = tl && dist < RANGE[tu.kind] && Math.abs(dy) < 0.05 && Math.abs(want.pitch - tu.pitch.rotation.x) < 0.05 && !blocked(tu.base.position, tl);
+    const muzzle = tu.pitch.localToWorld(tu.muzzle.clone());
+    tu.cool -= DT;
+    if (tu.kind === "flak" && onIt && tu.cool <= 0) {   // 2 rounds a second, bursting within 10 m of where it aims
+      tu.cool = 0.5; const at = spread(tw, dist, 1.5);
+      fire(muzzle, at, 900, C.tracer, 2, q => { FIRE.emit(q, null, 0.2, 8, 22, C.flash); SMOKE.emit(q, new T.Vector3(0, 2, 0), 3.5, 10, 26, C.smoke, 0.5);
+        if (q.distanceTo(tgt.pos()) < 25) tgt.hit("flak", 1); });
+      FIRE.emit(muzzle, null, 0.08, 3, 6, C.flash);
+    }
+    if (tu.kind === "msl") {   // a salvo of six every 9 s, one missile every 0.25 s, from the tubes in turn
+      if (tgt && Math.abs(dy) < 0.12 && tu.cool <= 0 && tu.salvo <= 0) { tu.salvo = 6; tu.cool = 9; tu.st = 0; }
+      tu.st -= DT;
+      if (tu.salvo > 0 && tu.st <= 0 && tgt) { tu.st = 0.25; tu.salvo--; const k = tu.tube++ % tu.tubes.length, from = tu.pitch.localToWorld(tu.tubes[k].clone());
+        const dir = new T.Vector3(0, 0, 1).transformDirection(tu.pitch.matrixWorld), t = tgt;
+        FIRE.emit(from, null, 0.25, 4, 10, C.flash); for (let q = 0; q < 4; q++) SMOKE.emit(from, dir.clone().multiplyScalar(-10).add(new T.Vector3((R() - 0.5) * 6, (R() - 0.5) * 6, (R() - 0.5) * 6)), 2.5, 6, 18, C.grey, 0.6);
+        launchMissile(from, dir, () => t.pos(), () => t.hit("missile", 1), C.red); }
+      if (!tgt) tu.salvo = 0;
+    }
+    if (tu.kind === "gun") {   // bursts of 20 at 20 rounds a second, a burst every 3 s
+      if (onIt && tu.burst <= 0 && tu.cool <= 0) { tu.burst = 20; tu.cool = 3; }
+      if (tu.burst > 0 && onIt) { for (let r = 0; r < 2 && tu.burst > 0; r++, tu.burst--) fire(muzzle, spread(tw, dist, 0.8), 1000, C.tracer, 1.2, q => { FIRE.emit(q, null, 0.1, 1.5, 3, C.spark); if (q.distanceTo(tgt.pos()) < 14) tgt.hit("gun", 1); }); }
+      else if (!onIt) tu.burst = 0;
+    }
+    if (tu.kind === "beam") {   // 1.5 s charge, 3 s beam, 6 s between
+      tu.st += DT;
+      if (tu.state === "idle" && onIt && tu.cool <= 0) { tu.state = "charge"; tu.st = 0; }
+      if (tu.state === "charge" && tu.st > 1.5) { tu.state = "fire"; tu.st = 0; }
+      if (tu.state === "fire" && (tu.st > 3 || !onIt)) { tu.state = "idle"; tu.cool = 6; }
+      tu.lens.material.emissiveIntensity = tu.state === "charge" ? 2 + 10 * tu.st : tu.state === "fire" ? 14 : 1.2;
+      if (tu.state === "charge") FIRE.emit(muzzle, null, 0.15, 2 + 6 * tu.st, 4 + 8 * tu.st, C.red);
+      tu.ray.visible = tu.state === "fire";
+      // from your cockpit the beam strikes your mech's armour in front of you, not your eye
+      if (tu.ray.visible) { let end = tw.clone().add(new T.Vector3(Math.sin(clock * 9) * 3, Math.cos(clock * 7) * 3, 0));
+        if (view === "fight" && tgt.you) end.addScaledVector(muzzle.clone().sub(end).normalize(), 45);
+        const d = end.clone().sub(muzzle);
+        tu.ray.position.copy(muzzle).addScaledVector(d, 0.5); tu.ray.quaternion.setFromUnitVectors(UP, d.clone().normalize()); tu.ray.scale.set(1, d.length(), 1);
+        FIRE.emit(end, new T.Vector3((R() - 0.5) * 20, R() * 20, (R() - 0.5) * 20), 0.3, 3, 1, C.red); tgt.hit("beam", DT); }
+    } else if (tu.ray) tu.ray.visible = false;
+  });
+  VLS.forEach((v, i) => { if (!v.part.alive || sim.crashed) return; v.cool -= DT;
+    const from = v.b.position.clone(); from.y += 5; const tgt = nearestTarget(list, from, 2500, false);
+    if (tgt && v.cool <= 0 && v.cells > 0) { v.cool = 5; v.cells--; const p = F.localToWorld(from);
+      FIRE.emit(p, null, 0.4, 6, 16, C.flash); for (let k = 0; k < 6; k++) SMOKE.emit(p, new T.Vector3((R() - 0.5) * 10, 5, (R() - 0.5) * 10), 3, 8, 24, C.grey, 0.5);
+      launchMissile(p, new T.Vector3(0, 1, 0).applyQuaternion(F.quaternion), () => tgt.pos(), () => tgt.hit("missile", 1), C.red); } });
+}
+function shotsUpdate() {
+  for (let i = shots.length - 1; i >= 0; i--) { const s = shots[i]; s.t += DT; if (s.t < 0) continue; s.p.addScaledVector(s.v, DT);
+    if (s.t >= s.tEnd) { shots.splice(i, 1); if (s.onEnd) s.onEnd(s.p); } }
+  for (let i = MISSILES.length - 1; i >= 0; i--) { const m = MISSILES[i]; m.t += DT; m.speed = Math.min(220, m.speed + 120 * DT);
+    const tw = m.target();
+    if (tw && m.t > 0.8) { const want = tw.clone().sub(m.p).normalize(), ang = Math.acos(Math.min(1, m.d.dot(want))), turn = 1.4 * DT;
+      m.d.lerp(want, ang > turn ? turn / ang : 1).normalize(); }
+    m.p.addScaledVector(m.d, m.speed * DT); m.m.position.copy(m.p); m.m.lookAt(tmpV.copy(m.p).add(m.d));
+    SMOKE.emit(m.p, null, 2.5, 3, 12, C.grey, 0, 1.5); FIRE.emit(m.p, null, 0.1, 2.5, 1, m.c);
+    const hit = tw && m.p.distanceTo(tw) < 15;
+    if (hit || m.t > 14) { if (hit) m.onHit(m.p); explode(m.p, 1); scene.remove(m.m); MISSILES.splice(i, 1); } }
+}
+
+// fighters (design section 4, the `fighter` unit): off the catapult, a patrol circle, cannon runs on you
+function launch() {
+  const live = CATS.filter(c => c.part.alive); if (!live.length || S.hangar <= 0) return false;
+  const obj = FIGHTER_POOL.find(f => !f.visible); if (!obj) return false;
+  const cat = live[S.catTurn++ % live.length]; S.hangar--;
+  const f = { obj, state: "cat", t: 0, cat, slot: S.nFighter, d: new T.Vector3(0, 0, 1), speed: 0, p: new T.Vector3(), cool: 0, salvo: 0, mode: "cap", modeT: 0 };
+  f.part = part("fighter" + (++S.nFighter), "fighter", obj, { name: "Fighter " + S.nFighter, fire: new T.Vector3(0, 0, 0) });
+  obj.visible = true; scorch(obj, false); S.fighters.push(f);
+  for (let k = 0; k < 14; k++) SMOKE.emit(F.localToWorld(cat.b.position.clone().add(new T.Vector3((R() - 0.5) * 3, 1, 62 + R() * 8))), new T.Vector3((R() - 0.5) * 6, 6 + R() * 6, (R() - 0.5) * 6), 2.5, 4, 16, C.steam, 0.6);
+  return true;
+}
+function capPoint(f) { const k = f.slot % 8; return { R: 700 + (k % 4) * 120, A: F.position.y - 40 + (k % 3) * 80 }; }
+function fightersUpdate(list) {
+  const live = S.fighters.filter(f => f.state !== "gone" && f.state !== "down").length;
+  if (!sim.crashed && !liftOf(sim.alive).falls && clock >= S.nextLaunch) { S.nextLaunch = clock + 20; if (live < 8) launch(); }
+  S.fighters.forEach(f => {
+    f.t += DT;
+    if (f.state === "cat") {   // 120 m of stroke in 2.5 s
+      const z = 64 + 0.5 * 38.4 * f.t * f.t;
+      f.cat.shuttle.position.z = Math.min(180, z);
+      f.p.copy(F.localToWorld(new T.Vector3(f.cat.b.position.x, f.cat.b.position.y + 3, z)));
+      f.d.set(0, 0, 1).applyQuaternion(F.quaternion); f.speed = 38.4 * f.t;
+      FIRE.emit(f.obj.localToWorld(new T.Vector3(0, 0, -8)), null, 0.25, 2, 5, C.green);
+      if (f.t >= 2.5) { f.state = "out"; f.t = 0; f.d.set(0, 0.12, 1).applyQuaternion(F.quaternion).normalize(); }
+    } else if (f.state === "down") {
+      f.v.y -= G * DT; f.p.addScaledVector(f.v, DT); f.obj.rotateZ(4 * DT); f.obj.rotateX(0.6 * DT);
+      FIRE.emit(f.p, null, 0.3, 4, 8, C.fire); SMOKE.emit(f.p, null, 4, 5, 20, C.smoke, 0, 2);
+      if (f.p.y <= 2) { explode(f.p, 1.5); f.state = "gone"; f.obj.visible = false; }
+      f.obj.position.copy(f.p); return;
+    } else if (f.state !== "gone") {
+      if (f.state === "out") { f.cat.shuttle.position.z = Math.max(64, f.cat.shuttle.position.z - 40 * DT); if (f.t > 6) { f.state = "fly"; f.t = 0; } }
+      f.speed = Math.min(200, f.speed + 20 * DT);
+      let want;
+      f.modeT += DT;
+      // a cannon run on one of the mechs, picked in turn; the target's aim point is `tw` while it lasts
+      if (f.mode === "cap" && list.length && f.state === "fly" && f.modeT > 14 + (f.slot % 4) * 4) { f.mode = "attack"; f.modeT = 0; f.tgt = list[(f.slot + S.runs++) % list.length]; }
+      if (f.tgt && !list.includes(f.tgt)) f.tgt = null;
+      const tw = f.mode === "attack" && f.tgt ? f.tgt.pos().clone() : null, tgt = f.tgt;
+      if (f.mode === "attack" && (!tw || f.modeT > 9 || f.p.distanceTo(tw) < 200)) { f.mode = "extend"; f.modeT = 0; }
+      if (f.mode === "extend" && f.modeT > 5) { f.mode = "cap"; f.modeT = 0; }
+      if (f.state === "out") want = f.d.clone();
+      else if (f.mode === "attack") want = tw.clone().sub(f.p).normalize();
+      else if (f.mode === "extend") want = f.d.clone().setY(Math.max(0.1, f.d.y));
+      else { const c = capPoint(f), r = new T.Vector3(f.p.x - F.position.x, 0, f.p.z - F.position.z), rl = r.length() || 1;
+        want = new T.Vector3().crossVectors(UP, r).normalize().addScaledVector(r, (c.R - rl) / c.R * 1.6 / rl).add(new T.Vector3(0, Math.max(-0.4, Math.min(0.4, (c.A - f.p.y) / 150)), 0)).normalize(); }
+      const ang = Math.acos(Math.max(-1, Math.min(1, f.d.dot(want)))), turn = 20 * DEG * DT, old = f.d.clone();
+      f.d.lerp(want, ang > turn ? turn / ang : 1).normalize();
+      f.p.addScaledVector(f.d, f.speed * DT);
+      f.bank = lerp(f.bank || 0, Math.max(-1.1, Math.min(1.1, new T.Vector3().crossVectors(old, f.d).y * 300)), 0.1);
+      // cannon runs: salvos of 15 at 10 rounds a second, inside 1 200 m and 6 deg
+      f.cool -= DT;
+      if (f.mode === "attack" && tw && f.p.distanceTo(tw) < 1200 && f.d.angleTo(tw.clone().sub(f.p)) < 6 * DEG && f.cool <= 0) { f.salvo = 15; f.cool = 2; }
+      if (f.salvo > 0 && tw && tgt) { f.salvo -= 3; const nose = f.p.clone().addScaledVector(f.d, 9); for (let r = 0; r < 3; r++) fire(nose, spread(tw, f.p.distanceTo(tw), 0.7), 1000, C.tracer, 1.2, q => { if (q.distanceTo(tgt.pos()) < 14) tgt.hit("fighter", 1); }); }
+      FIRE.emit(f.p.clone().addScaledVector(f.d, -8), f.d.clone().multiplyScalar(-30), 0.2, 2.2, 0.5, C.green);
+    }
+    if (f.state === "gone") return;
+    f.obj.position.copy(f.p); f.obj.lookAt(tmpV.copy(f.p).add(f.d)); f.obj.rotateZ(-(f.bank || 0));
+  });
+  for (let i = S.fighters.length - 1; i >= 0; i--) if (S.fighters[i].state === "gone") { const f = S.fighters[i]; parts.splice(parts.indexOf(f.part), 1); S.fighters.splice(i, 1); }
+}
+function startFighters() {   // four on patrol when the fight opens
+  for (let k = 0; k < 4; k++) { const obj = FIGHTER_POOL[k]; obj.visible = true; scorch(obj, false);
+    const f = { obj, state: "fly", t: 0, slot: k, d: new T.Vector3(), speed: 200, p: new T.Vector3(), cool: 0, salvo: 0, mode: "cap", modeT: k * 3 };
+    const c = capPoint(f), a = k * 1.6; f.p.set(F.position.x + Math.cos(a) * c.R, c.A, F.position.z + Math.sin(a) * c.R);
+    f.d.crossVectors(UP, new T.Vector3(Math.cos(a), 0, Math.sin(a))).normalize();
+    f.part = part("fighter" + (++S.nFighter), "fighter", obj, { name: "Fighter " + S.nFighter }); S.fighters.push(f); }
+}
+
+// crab mechs: the deck guard, replacements up the lifts, drops from the bays (design section 4)
+// [crab, home x, y, z, beat direction, half-beat m, seconds a beat]: at most about 6 m/s along it
+const GUARD_START = [["shrike", 0, 49, 40, 0.0, 18, 22], ["shrike", 0, 49, -105, 0.0, 12, 16], ["mite", 60, 42.6, 60, Math.PI / 2, 30, 32],
+  ["mite", -60, 42.6, -40, Math.PI / 2, 36, 38], ["mite", -60, 42.6, 85, Math.PI / 2, 24, 26], ["mite", 60, 42.6, -80, Math.PI / 2, 24, 28]];
+function addGuard(id, home, dir, span, period) {
+  const c = cloneCrab(id); F.add(c); c.position.copy(home);
+  const g = { c, id, home: home.clone(), dir, span, period, ph: R() * TAU, cool: 1 + R() * 2, wreckT: 0 };
+  g.part = part("guard" + (++S.nGuard), "guard", c, { hp: CRAB_HP[id], name: MODELS[id].name + " (deck guard)", fire: new T.Vector3(0, MODELS[id].height_m * 0.6, 0), up: MODELS[id].height_m + 4 });
+  S.guards.push(g); return g;
+}
+// the guard walks its beat, turns on the nearest mech within 700 m (any it can see from the deck, yours or an ally),
+// and fires; with no one near it faces out over the side, where an attack comes from
+function guardsUpdate(list) {
+  S.guards.forEach((g, k) => {
+    if (!g.part.alive) { g.wreckT += DT; if (g.wreckT > 30) { g.c.position.y -= 2 * DT; } return; }
+    g.ph += DT * TAU / g.period;
+    g.c.position.set(g.home.x + Math.sin(g.ph) * g.span * Math.cos(g.dir), g.home.y, g.home.z + Math.sin(g.ph) * g.span * Math.sin(g.dir));
+    const eye = g.c.position.clone().add(new T.Vector3(0, MODELS[g.id].height_m * 0.6, 0));
+    const tgt = nearestTarget(list, eye, 700, true);
+    let face = g.home.x > 0 ? Math.PI / 2 : g.home.x < 0 ? -Math.PI / 2 : (g.home.z > 0 ? 0 : Math.PI);   // outward
+    if (tgt) { const d = F.worldToLocal(tgt.pos().clone()).sub(g.c.position); face = Math.atan2(d.x, d.z); }
+    const turn = Math.atan2(Math.sin(face - g.c.rotation.y), Math.cos(face - g.c.rotation.y));
+    g.c.rotation.y += Math.max(-1.2 * DT, Math.min(1.2 * DT, turn));    // 70 deg/s
+    g.cool -= DT;
+    if (tgt && Math.abs(turn) < 0.2 && g.cool <= 0) { g.cool = 2.5 + R(); const from = F.localToWorld(eye.clone()), tw = tgt.pos().clone();
+      for (let r = 0; r < 6; r++) fire(from, spread(tw, from.distanceTo(tw), 1.2), 900, [0.6, 1, 0.3], 1.2, q => { FIRE.emit(q, null, 0.1, 1.5, 3, C.spark); if (q.distanceTo(tgt.pos()) < 14) tgt.hit("crab", 1); }); }
+    gait(g.c, g.home.y);
+  });
+  for (let i = S.guards.length - 1; i >= 0; i--) if (S.guards[i].c.position.y < S.guards[i].home.y - 30) { const g = S.guards[i]; F.remove(g.c); parts.splice(parts.indexOf(g.part), 1); S.guards.splice(i, 1); }
+  // a lift brings up a Mite every 60 s while the guard is short (8 s: the plate sinks, the Mite rises through the hatch)
+  const short = S.guards.filter(g => g.part.alive).length < 6, falling = liftOf(sim.alive).falls;
+  if (short && S.liftHangar > 0 && !falling && clock >= S.nextLift) { const live = LIFTS.filter(l => l.part.alive && l.busy < 0);
+    if (live.length) { const l = live[S.liftTurn++ % live.length]; l.busy = 0; S.liftHangar--; S.nextLift = clock + 60;
+      l.mite = cloneCrab("mite"); F.add(l.mite); l.mite.position.set(l.b.position.x, 49 - 34, l.b.position.z); l.mite.rotation.y = Math.PI; } }
+  LIFTS.forEach(l => { if (l.busy < 0) return; l.busy += DT; const t = l.busy;
+    const y = t < 2 ? -34 * ease(t / 2) : t < 6 ? -34 + 34 * ease((t - 2) / 4) : 0;
+    l.plate.position.y = y; l.hatch.visible = t < 6.5; if (l.mite) l.mite.position.y = 49 + y + (t < 2 ? -34 : 0) * 0;
+    if (l.mite) { l.mite.position.y = t < 2 ? 49 - 34 : 49 + y; stand(l.mite); }
+    if (!l.part.alive) { if (l.mite) { F.remove(l.mite); l.mite = null; } l.busy = -1; l.plate.position.y = 0; l.hatch.visible = false; return; }
+    if (t >= 8) { const home = new T.Vector3(l.b.position.x * 0.45, 49, l.b.position.z + 30); F.remove(l.mite);
+      const g = addGuard("mite", home, 0, 10, 14); g.c.position.copy(home); l.mite = null; l.busy = -1; l.plate.position.y = 0; l.hatch.visible = false; } });
+}
+function dropsUpdate() {
+  const falling = liftOf(sim.alive).falls;
+  if (!falling && !sim.crashed && S.dropMag > 0 && clock >= S.nextDrop) { S.nextDrop = clock + 45;
+    const live = BAYS.filter(b => b.part.alive);
+    if (live.length) { const b = live[S.bayTurn++ % live.length]; b.openUntil = clock + 5; S.dropMag -= 2;
+      ["mite", "scuttler"].forEach((id, k) => { const c = cloneCrab(id), ch = chute(); scene.add(c, ch); ch.visible = false;
+        const d = { c, ch, id, t: -1.5, from: null, dx: k ? 14 : -14, bay: b, v: 0, y: 0, landed: -1 };
+        d.part = part("drop" + (++S.nDrop), "drop", c, { hp: CRAB_HP[id], name: MODELS[id].name + " on its chutes", fire: new T.Vector3(0, 8, 0), up: 60 }); S.drops.push(d); }); } }
+  BAYS.forEach(b => { b.open = lerp(b.open, clock < b.openUntil && b.part.alive ? 1 : 0, 0.08); b.doors.forEach((h, s) => { h.rotation.z = (s ? 1 : -1) * b.open * 1.4; }); });
+  S.drops.forEach((d, k) => {
+    d.t += DT;
+    if (d.t < 0) { d.c.visible = false; return; }
+    if (!d.from) { d.from = F.localToWorld(d.bay.b.position.clone().add(new T.Vector3(d.dx, -12, 0))); d.y = d.from.y; d.c.visible = true; }
+    const alive = d.part.alive;
+    if (d.landed < 0) {
+      if (d.t < 2 || !alive) d.v = Math.min(60, d.v + G * DT); else d.v = lerp(d.v, 8, 1 - Math.exp(-DT / 0.8));   // free fall 2 s, then 8 m/s under the chutes
+      d.y -= d.v * DT;
+      if (d.y <= 0) { d.y = 0; d.landed = clock; if (!alive) explode(new T.Vector3(d.from.x, 4, d.from.z), 2); }
+    }
+    const sw = alive && d.t > 2 && d.landed < 0 ? 0.12 * Math.sin(d.t * 1.3 + k) : 0;
+    d.c.position.set(d.from.x + Math.max(0, d.t - 2) * 0.8, d.y, d.from.z); d.c.rotation.z = sw;
+    if (d.landed < 0) limp(d.c, d.t + k * 1.7); else if (alive) gait(d.c, 0);   // limp under the chutes, standing once down
+    d.ch.visible = alive && d.t > 2 && d.landed < 0; d.ch.position.copy(d.c.position); d.ch.rotation.z = sw; d.ch.scale.setScalar(Math.max(0.01, Math.min(1, (d.t - 2) / 0.6)));
+    if (!alive && d.landed < 0) SMOKE.emit(d.c.position.clone().add(new T.Vector3(0, 8, 0)), null, 3, 5, 18, C.smoke, 0, 2);
+  });
+  for (let i = S.drops.length - 1; i >= 0; i--) { const d = S.drops[i]; if (d.landed >= 0 && clock - d.landed > 40) { scene.remove(d.c, d.ch); parts.splice(parts.indexOf(d.part), 1); S.drops.splice(i, 1); } }
+}
+
+// ---- Shooting it down: your mech's rounds against each part's armour (design section 3) ----
+let weapon = "cannon", reloadUntil = 0;
+const POPS = [];   // floating hit numbers: { el, p, t }
+function pop(at, text, bad) { const el = document.createElement("div"); el.className = "pop" + (bad ? " bad" : ""); el.textContent = text;
+  document.getElementById("pops").appendChild(el); POPS.push({ el, p: at.clone(), born: clock }); }
+// what a round meets where it lands: { armour mm, weak (double damage), msg when it does not get through }
+function hitInfo(p, obj, at, from) {
+  const ud = obj ? obj.userData : {};
+  if (p.kind === "hull") {
+    if (!sim.deployed) return { armour: 300, msg: "SEALED 300 mm: IT OPENS WHEN THE OUTER THRUSTERS FAIL" };
+    if (!ud.port) return { armour: 300, msg: ud.msg || "HULL 300 mm" };
+    const d = at.clone().sub(from).normalize().applyQuaternion(F.quaternion.clone().invert());
+    return Math.abs(d.y) > Math.cos(30 * DEG) ? { armour: 40, weak: true } : { armour: 300, msg: "PORT ARMOURED: FIRE FROM DIRECTLY ABOVE OR BELOW" };
+  }
+  if (ud.armour) return { armour: ud.armour, msg: ud.msg };
+  let weak = false;
+  if (p.kind === "lift") { const y = p.obj.worldToLocal(at.clone()).y; weak = y > 17 || y < -17; }
+  if (p.kind === "beam") { const tu = TURRETS.find(t => t.part === p); weak = obj === tu.lens && tu.state === "charge"; }
+  if (p.kind === "msl") { const tu = TURRETS.find(t => t.part === p); weak = tu.salvo > 0 && obj && obj.userData.mat0 === M.core; }
+  if (p.kind === "bay") weak = BAYS.find(b => b.part === p).open > 0.5;
+  if (p.kind === "bridge") weak = !!obj && obj.userData.mat0 === M.glow;
+  return { armour: weak ? 40 : ARMOUR[p.kind], weak };
+}
+// in the cockpit the rounds leave your mech's gun under your eye; in the outside views they leave from where you look
+const cockpitEye = () => player.localToWorld(new T.Vector3(0, 19, 3));   // your eye in the Foreman's cockpit
+function gunMuzzle(dir) { return view === "fight" ? camera.position.clone().add(new T.Vector3(0, -3, 0)) : camera.position.clone().addScaledVector(dir, 6).add(new T.Vector3(0, -2, 0)); }
+// fire the selected weapon along a ray: the round flies to what the ray meets, and does its damage on arrival
+function shoot(rayc) {
+  if (view === "climb" || clock < reloadUntil) return false;
+  const w = WEAPONS[weapon]; reloadUntil = clock + w.reload;
+  const hits = rayc.intersectObjects([F, ...S.fighters.map(f => f.obj), ...S.drops.map(d => d.c)].filter(o => o.visible), true);
+  const h = hits[0]; let p = null;
+  if (h) { let o = h.object; while (o && !o.userData.part && o !== F) o = o.parent; if (o && o.userData.part) p = o.userData.part; }
+  const at = h ? h.point.clone() : rayc.ray.at(2500, new T.Vector3()), from = gunMuzzle(rayc.ray.direction);
+  const info = p ? hitInfo(p, h.object, at, from) : null, inFortress = !!h && !p;
+  const land = () => resolve(p, at, info, w, inFortress);
+  FIRE.emit(from, null, 0.12, 5, 10, C.flash);
+  if (weapon === "missile") {
+    const local = p ? p.obj.worldToLocal(at.clone()) : null;
+    launchMissile(from, at.clone().sub(from), () => (p ? p.obj.localToWorld(local.clone()) : at), land, w.c);
+  } else for (let r = 0; r < w.rounds; r++) {
+    const aim = r ? at.clone().add(new T.Vector3((R() - 0.5) * 3, (R() - 0.5) * 3, (R() - 0.5) * 3)) : at;
+    shots.push({ p: from.clone(), v: aim.clone().sub(from).normalize().multiplyScalar(w.speed), t: -r * 0.06, tEnd: from.distanceTo(aim) / w.speed, c: w.c, size: weapon === "cannon" ? 3 : 1.5, onEnd: land, delay: r * 0.06 });
+  }
+  return true;
+}
+// one round lands: through the armour or not, then damage (x2 on a weak point) until the part is destroyed
+function resolve(p, at, info, w, inFortress) {
+  if (!p) { FIRE.emit(at, null, 0.12, 3, 6, C.spark); if (inFortress && R() < 0.4) pop(at, "HULL: NO EFFECT", true); else SMOKE.emit(at, null, 1.5, 3, 10, C.grey); return; }
+  if (!p.alive || sim.crashed) return;
+  const armour = info.armour, weak = !!info.weak;
+  if (w.pen < armour) { FIRE.emit(at, null, 0.15, 3, 8, C.spark); pop(at, info.msg && armour >= 300 ? info.msg : `NO PEN (${armour} mm)`, true); return; }
+  const dmg = w.dmg * (weak ? 2 : 1); p.hp = Math.max(0, p.hp - dmg);
+  FIRE.emit(at, null, 0.25, 4, 14, C.flash); SMOKE.emit(at, new T.Vector3(0, 4, 0), 2, 4, 14, C.smoke, 0.5);
+  pop(at, `-${dmg}${weak ? " WEAK POINT x2" : ""}`);
+  if (p.hp <= 0) apply(p);
+  if (selected === p) showInfo(p);
+}
+// shoot a named part, as the headless shots do: a ray from your gun to its fire point
+function shootPart(id, wpn, local) { const p = parts.find(q => q.id === id); if (!p) return; weapon = wpn || weapon; reloadUntil = 0;
+  if (view === "fight") camera.position.copy(cockpitEye());
+  const at = p.obj.localToWorld(local ? new T.Vector3(...local) : p.fire.clone()), from = camera.position.clone();
+  shoot(new T.Raycaster(from, at.clone().sub(from).normalize())); }
+// the info card's Destroy, and the lift board, take a part out at once
+function destroy(p) { if (p.alive && !sim.crashed) apply(p); }
+function apply(p) {
+  if (!p.alive) return;
+  p.alive = false; explode(p.obj.localToWorld(p.fire.clone()), p.kind === "lift" || p.kind === "bridge" ? 2.5 : 1.2);
+  if (p.kind === "lift") { const t = THR.find(t => t.part === p); sim.alive[THR.indexOf(t)] = false; breakOff(t); }
+  else if (p.kind === "hull") { sim.hull[HULL.findIndex(h => h.part === p)] = false; scorch(p.obj, true); }
+  else if (p.kind === "fighter") { const f = S.fighters.find(f => f.part === p); f.state = "down"; f.v = f.d.clone().multiplyScalar(f.speed * 0.6); scorch(f.obj, true); }
+  else if (p.kind === "guard") { const g = S.guards.find(g => g.part === p); scorch(g.c, true); g.c.rotation.z = 0.18; g.c.position.y -= 1.5; }
+  else if (p.kind === "drop") { const d = S.drops.find(d => d.part === p); scorch(d.c, true); }
+  else scorch(p.obj, true);
+  refresh(); if (selected === p) showInfo(p);
+}
+function repair(p) {
+  if (p.alive || sim.crashed || !["lift", "hull", "drive", "flak", "beam", "gun", "msl", "vls", "cat", "bay", "hlift", "bridge"].includes(p.kind)) return;
+  p.alive = true; p.hp = p.hpMax; scorch(p.obj, false);
+  if (p.kind === "lift") { const t = THR.find(t => t.part === p); sim.alive[THR.indexOf(t)] = true; reattach(t); }
+  if (p.kind === "hull") sim.hull[HULL.findIndex(h => h.part === p)] = true;
+  refresh(); if (selected === p) showInfo(p);
+}
+// a destroyed lift thruster breaks off at the knee and falls, tumbling and burning, and explodes on the ground
+function breakOff(t) {
+  F.updateMatrixWorld(true);
+  const at = t.g.getWorldPosition(new T.Vector3()), pivot = new T.Group(); pivot.position.copy(at); scene.add(pivot); pivot.attach(t.leg);
+  for (let k = 0; k < 4; k++) explode(F.localToWorld(t.knee.clone().add(new T.Vector3((R() - 0.5) * 10, (R() - 0.5) * 10, (R() - 0.5) * 10))), 2);
+  t.fall = { pivot, v: new T.Vector3(t.s * 9, 3, (R() - 0.5) * 4).applyQuaternion(F.quaternion), w: new T.Vector3((R() - 0.5) * 0.6, (R() - 0.5) * 0.4, -t.s * (0.5 + R() * 0.3)), landed: false };
+  scorch(t.leg, true);
+}
+function legsUpdate() {
+  THR.forEach(t => { const f = t.fall; if (!f || f.landed) return;
+    f.v.y -= G * DT; f.pivot.position.addScaledVector(f.v, DT);
+    f.pivot.rotation.x += f.w.x * DT; f.pivot.rotation.y += f.w.y * DT; f.pivot.rotation.z += f.w.z * DT;
+    const at = f.pivot.position;
+    FIRE.emit(at, null, 0.4, 8, 16, C.fire); SMOKE.emit(at, new T.Vector3(0, 4, 0), 5, 10, 34, C.smoke, 0.2, 2);
+    if (at.y <= 16) {   // it hits the ground: a big blast, and the buildings under it go
+      f.landed = true; at.y = 14; f.pivot.rotation.x = 1.3 * Math.sign(f.pivot.rotation.x || 1); f.pivot.rotation.z = 0.2;
+      for (let k = 0; k < 6; k++) explode(at.clone().add(new T.Vector3((R() - 0.5) * 40, R() * 10, (R() - 0.5) * 40)), 3.5);
+      const m = new T.Matrix4(), p = new T.Vector3(), q = new T.Quaternion(), sc = new T.Vector3();
+      city.spots.forEach((sp, k) => { if (Math.hypot(sp[0] - at.x, sp[1] - at.z) < 50) { city.im.getMatrixAt(k, m); m.decompose(p, q, sc); sc.y = 3; p.y = 1.5; m.compose(p, q, sc); city.im.setMatrixAt(k, m); } });
+      city.im.instanceMatrix.needsUpdate = true;
+    } });
+}
+function reattach(t) {
+  if (!t.fall) return;
+  F.add(t.leg); t.leg.position.set(0, 0, 0); t.leg.quaternion.identity(); t.leg.scale.set(1, 1, 1);
+  scene.remove(t.fall.pivot); t.fall = null; scorch(t.leg, false);
+}
+function toggleThruster(id) { const t = THR.find(t => t.id === id); if (!t) return; if (t.part.alive) apply(t.part); else repair(t.part); }
+
+// burning parts and wrecks smoke while they last
+function burnUpdate() {
+  parts.forEach(p => { if (p.alive || p.kind === "fighter" || p.kind === "drop" || R() > 0.5) return;
+    const at = p.obj.localToWorld(p.fire.clone());
+    FIRE.emit(at, new T.Vector3((R() - 0.5) * 4, 8, (R() - 0.5) * 4), 0.6, 5, 2, C.fire);
+    SMOKE.emit(at, new T.Vector3((R() - 0.5) * 3, 6, (R() - 0.5) * 3), 5, 6, 34, C.smoke, 0.1, 2); });
+}
+
+// two friendly mechs fly round the fortress on their jets and draw its fire; their own fire at it is shown, not
+// counted, so bringing it down stays yours
+const ALLY_PATHS = [{ id: "stevedore", R: 820, h: 40, w: 0.07, ph: 0.6, name: "Stevedore (ally)" }, { id: "ironhorse", R: 660, h: -170, w: -0.085, ph: 3.4, name: "Ironhorse (ally)" }];
+const ALLIES = [];
+function alliesUpdate() {
+  ALLIES.forEach((a, i) => { const P = a.path, ang = clock * P.w + P.ph;
+    const pos = new T.Vector3(F.position.x + Math.cos(ang) * P.R, (S.stationY || ALT) + P.h + 40 * Math.sin(clock * 0.2 + i * 2), F.position.z + Math.sin(ang) * P.R * 0.85);
+    const ahead = new T.Vector3(F.position.x + Math.cos(ang + 0.05 * Math.sign(P.w)) * P.R, pos.y, F.position.z + Math.sin(ang + 0.05 * Math.sign(P.w)) * P.R * 0.85);
+    a.obj.position.copy(pos); a.obj.lookAt(ahead); a.obj.rotateX(0.3);
+    if (R() < 0.8) [-1, 1].forEach(s => FIRE.emit(a.obj.localToWorld(new T.Vector3(2.2 * s, 6, -4)), new T.Vector3(0, -40, 0).applyQuaternion(a.obj.quaternion), 0.35, 4, 9, [0.6, 0.85, 1, 0.9]));
+    a.cool -= DT;
+    const live = parts.filter(p => p.alive && ["lift", "flak", "beam", "gun", "msl", "vls", "cat", "bay", "drive"].includes(p.kind) && p.obj.parent);
+    if (a.cool <= 0 && live.length && !sim.crashed) { a.cool = 2.2 + R(); const p = live[Math.floor(R() * live.length)], at = p.obj.localToWorld(p.fire.clone()), from = a.obj.localToWorld(new T.Vector3(0, 16, 6));
+      if (from.distanceTo(at) < 1500) for (let r = 0; r < 6; r++) fire(from, at.clone().add(new T.Vector3((R() - 0.5) * 8, (R() - 0.5) * 8, (R() - 0.5) * 8)), 1100, [0.7, 0.85, 1], 1.4, q => { FIRE.emit(q, null, 0.12, 2, 5, C.spark); }); } });
+}
+const YOU = { you: true, pos: () => targetNow() || target, hit: (k, n) => { S.hits[k] += n; } };
+function targetList() {
+  const list = []; if (targetNow()) list.push(YOU);
+  ALLIES.forEach(a => list.push(a.target)); return list;
+}
+
+function update() {
+  clock += DT;
+  stepFall();
+  // the hull doors move with the simulation, so a round meets them where they are
+  HULL.forEach(h => h.ends.forEach(e => e.doors.forEach(d => { d.position.z = d.userData.dz * 15 * ease(sim.doors); })));
+  if (sim.opening >= 0 && !sim.deployed) HULL.forEach(h => h.ends.forEach(e => { if (R() < 0.5) SMOKE.emit(h.g.localToWorld(new T.Vector3((R() - 0.5) * 20, e.y + e.up * 3, (R() - 0.5) * 20)), new T.Vector3((R() - 0.5) * 8, e.up * 14, (R() - 0.5) * 8), 3, 8, 30, C.steam, 0.4); }));
+  F.position.y = sim.y; F.rotation.z = sim.roll * DEG; F.updateMatrixWorld(true);
+  playerUpdate();
+  alliesUpdate();
+  const list = targetList();
+  fightersUpdate(list); guardsUpdate(list); dropsUpdate(); turretsUpdate(list); shotsUpdate(); burnUpdate(); legsUpdate();
+  SMOKE.step(DT); FIRE.step(DT);
+  if (view === "climb") climbT += DT;
+}
+
+// ---- Views (the climb is the pilot's eye, in the cockpit, as the game is played) ----
+const VIEWS = {
+  orbit: { pos: [-540, 120, 470], tgt: [0, -20, 0], hint: "Click any part, fighter or crab to fire on it: in this view your rounds leave from where you look. Orbit under it to reach the thrusters' nozzles, and straight above or below for the hull ports. Drag to orbit, scroll to zoom." },
+  under: { pos: [-260, -420, 380], tgt: [0, -40, 0], hint: "The belly: lift thrusters on their leg pylons, the downwash columns, the beam turrets and the two drop bays. Click a thruster to fire on it." },
+  deck: { pos: [-70, 96, -190], tgt: [10, 60, -40], hint: "The deck at true scale. Put your mech on the deck (Your mech: On the deck) and the guard turns on it. Click a crab to fire on it." },
+  catapult: { pos: [-62, 72, 30], tgt: [20, 52, 140], hint: "The bow catapults: a fighter goes off one every 20 s, alternating. Destroy a catapult and launches come only from the other." },
+  pylon: { pos: [-132, 58, 78], tgt: [-183, -36, 45], hint: "Standing on pylon R2's walkway: the intake grille is below, the downwash under it. Shoot down into the grille." },
+  fight: { hint: "In your cockpit: drag to look, click to fire (or Space at the crosshair), 1 2 3 to change weapon. Under it you reach the thrusters' nozzles and the hull ports; off its flank the armour plates stop you." },
+  climb: { hint: "The climb from the pilot's eye: 20 s of jet burn, 60 m/s, the turrets on you all the way. Drag to look around." },
+};
+const VIEW_NAMES = { orbit: "Orbit", under: "Underside", deck: "Deck", catapult: "Catapults", pylon: "Pylon R2", fight: "Fight: your cockpit", climb: "Pilot's eye: the climb" };
+let look = { yaw: 0, pitch: 0 }, fightLook = { yaw: 0, pitch: 0 };
+function setView(v) {
+  view = v; climbT = 0; look = { yaw: 0, pitch: 0 };
+  document.querySelectorAll("[data-view]").forEach(b => b.setAttribute("aria-pressed", b.dataset.view === v));
+  document.getElementById("mode").textContent = VIEW_NAMES[v];
+  document.getElementById("hint").textContent = VIEWS[v].hint;
+  const fp = v === "climb" || v === "fight";
+  document.getElementById("cockpit").hidden = !fp; document.getElementById("reticle").hidden = v !== "fight";
+  controls.enabled = !fp;
+  camera.fov = fp ? 78 : 42; camera.updateProjectionMatrix();
+  if (v === "fight") { if (S.player === "off" || S.player === "air") setPlayer("under"); playerUpdate();
+    const eye = player.localToWorld(new T.Vector3(0, 19, 3)), d = F.position.clone().add(new T.Vector3(0, -30, 0)).sub(eye).normalize();
+    fightLook = { yaw: Math.atan2(d.x, d.z), pitch: Math.asin(d.y) }; }
+  if (!fp) { const V = VIEWS[v]; F.updateMatrixWorld(true);
+    controls.target.copy(F.localToWorld(new T.Vector3(...V.tgt))); camera.position.copy(F.localToWorld(new T.Vector3(...V.pos))); controls.update(); }
+}
+// the climb path (design section 5): jets at 56 m/s2 to 60 m/s, straight up outside the thrusters at z = 0,
+// then in over the port shoulder to land on it; burn left is 20 s minus the time the jets are lit
+const START = new T.Vector3(330, 0, 140), HOLD = new T.Vector3(255, 0, 0), SHOULDER = new T.Vector3(70, ALT + 42, 0);
+const T_TOP = 1.3 + (680 - 39) / 60, T_LAND = T_TOP + 3.4;
+function climbAt(t) {
+  let h, burnUsed;
+  if (t < 1.3) h = 0.5 * 46.2 * t * t; else h = Math.min(680, 39 + 60 * (t - 1.3));
+  const p = new T.Vector3();
+  if (t <= T_TOP) { const u = ease(t / T_TOP); p.set(lerp(START.x, HOLD.x, u), h, lerp(START.z, HOLD.z, u)); burnUsed = t; }
+  else { const u = ease(Math.min(1, (t - T_TOP) / (T_LAND - T_TOP))); p.set(lerp(HOLD.x, SHOULDER.x, u), lerp(680, SHOULDER.y + 20, u), 0); burnUsed = T_TOP + Math.min(1.6, (t - T_TOP) * 0.5); }
+  const vs = t < 1.3 ? 46.2 * t : t <= T_TOP ? 60 : t < T_LAND ? -(680 - SHOULDER.y - 20) / (T_LAND - T_TOP) : 0;
+  return { p, h: p.y, burnLeft: Math.max(0, JET.burn - burnUsed), vs, landed: t >= T_LAND };
+}
+
+// ---- Picking: click a part, fighter or crab ----
+let drag = null;
+canvas.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY, moved: 0 }; });
+canvas.addEventListener("pointermove", e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy);
+  if (view === "climb") { look.yaw -= dx * 0.004; look.pitch = Math.max(-1.2, Math.min(1.2, look.pitch - dy * 0.004)); }
+  if (view === "fight") { fightLook.yaw -= dx * 0.004; fightLook.pitch = Math.max(-1.3, Math.min(1.3, fightLook.pitch - dy * 0.004)); }
+  drag.x = e.clientX; drag.y = e.clientY; });
+canvas.addEventListener("pointerup", e => { if (drag && drag.moved < 6 && view !== "climb") pick(e); drag = null; });
+canvas.addEventListener("pointerleave", () => { drag = null; });
+const ray = new T.Raycaster();
+function pick(e) {
+  const r = canvas.getBoundingClientRect();
+  ray.setFromCamera(new T.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+  const hits = ray.intersectObjects(parts.map(p => p.obj).filter(o => o.visible !== false), true);
+  for (const h of hits) { let o = h.object; while (o && !o.userData.part) o = o.parent; if (o) { select(o.userData.part); break; } }
+  if (clickMode === "shoot") shoot(ray);
+}
+window.addEventListener("keydown", e => {
+  if (e.target && /INPUT|TEXTAREA|BUTTON/.test(e.target.tagName) && e.code === "Space") return;
+  if (e.key === "1" || e.key === "2" || e.key === "3") setWeapon(["ac", "cannon", "missile"][+e.key - 1]);
+  if (e.key === "l" || e.key === "L") setLabels(!showLabels);
+  if (e.code === "Space" && view === "fight") { e.preventDefault(); ray.setFromCamera(new T.Vector2(0, 0), camera); shoot(ray); }
+});
+
+// ---- Panels ----
+const thrBtn = {};
+["L", "R"].forEach(Sd => { const host = document.getElementById("thr" + Sd);
+  for (let k = 1; k <= 4; k++) { const id = Sd + k, b = document.createElement("button"); b.type = "button"; b.id = "thr-" + id;
+    b.innerHTML = `${id} <span></span>`; b.addEventListener("click", () => { toggleThruster(id); select(THR.find(t => t.id === id).part); }); host.appendChild(b); thrBtn[id] = b; } });
+const hullBtn = {};
+HULL.forEach(h => { const b = document.createElement("button"); b.type = "button"; b.id = "thr-" + h.id; b.innerHTML = `${h.id} <span></span>`;
+  b.addEventListener("click", () => { if (h.part.alive) apply(h.part); else repair(h.part); select(h.part); });
+  document.getElementById(h.side ? "hullR" : "hullL").appendChild(b); hullBtn[h.id] = b; });
+const PRESETS = { "one-side": ["R1", "R2", "R3"], "two-a-side": ["L1", "L4", "R2", "R3"], spread: ["L1", "L4", "R2", "R3", "L2"] };
+document.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => { resetAll(); (PRESETS[b.dataset.preset] || []).forEach(toggleThruster); }));
+document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
+document.querySelectorAll("[data-speed]").forEach(b => b.addEventListener("click", () => { speed = +b.dataset.speed;
+  document.querySelectorAll("[data-speed]").forEach(x => x.setAttribute("aria-pressed", x === b)); }));
+document.querySelectorAll("[data-toggle]").forEach(b => b.addEventListener("click", () => { const on = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", on);
+  ranges.visible = on; }));
+// labels: the button on the view, the one in the Show row, or the L key
+["labelsBtn", "labelsRow"].forEach(id => document.getElementById(id).addEventListener("click", () => setLabels(!showLabels)));
+function setLabels(on) { showLabels = on; const b = document.getElementById("labelsBtn"), r = document.getElementById("labelsRow");
+  b.textContent = on ? "Hide labels (L)" : "Show labels (L)"; b.setAttribute("aria-pressed", on);
+  r.textContent = on ? "Labels on (L)" : "Labels off (L)"; r.setAttribute("aria-pressed", on); }
+document.querySelectorAll("[data-player]").forEach(b => b.addEventListener("click", () => setPlayer(b.dataset.player)));
+document.querySelectorAll("[data-click]").forEach(b => b.addEventListener("click", () => { clickMode = b.dataset.click;
+  document.querySelectorAll("[data-click]").forEach(x => x.setAttribute("aria-pressed", x === b)); }));
+document.querySelectorAll("[data-weapon]").forEach(b => b.addEventListener("click", () => setWeapon(b.dataset.weapon)));
+function setWeapon(k) { weapon = k; document.querySelectorAll("[data-weapon]").forEach(x => x.setAttribute("aria-pressed", x.dataset.weapon === k)); }
+document.getElementById("infoBtn").addEventListener("click", () => { if (!selected) return; if (selected.alive) destroy(selected); else repair(selected); });
+function setPlayer(m) { S.player = m; document.querySelectorAll("[data-player]").forEach(x => x.setAttribute("aria-pressed", x.dataset.player === m)); }
+function select(p) { selected = p; showInfo(p); }
+function showInfo(p) {
+  const k = KINDS[p.kind], el = document.getElementById("info");
+  document.getElementById("infoName").textContent = p.name;
+  const st = document.getElementById("infoState"); st.textContent = p.alive ? "Active" : "Destroyed"; st.classList.toggle("bad", !p.alive);
+  document.querySelector("#hpbar i").style.width = (p.hp / p.hpMax * 100) + "%"; document.getElementById("hpbar").classList.toggle("bad", p.hp < p.hpMax * 0.35);
+  document.getElementById("hptxt").textContent = `${Math.round(p.hp)} of ${p.hpMax} hit points, ${ARMOUR[p.kind]} mm`;
+  const rows = [["Does", k.does], ["Armour", k.armour], ["Weak point", k.weak], ["Lost, it", k.lost]];
+  el.replaceChildren(...rows.flatMap(([a, b]) => { const dt = document.createElement("dt"), dd = document.createElement("dd"); dt.textContent = a; dd.textContent = b; return [dt, dd]; }));
+  const btn = document.getElementById("infoBtn"), canRepair = ["fighter", "guard", "drop"].indexOf(p.kind) < 0;
+  btn.textContent = p.alive ? "Destroy" : "Put it back"; btn.disabled = !p.alive && !canRepair;
+}
+function refresh() {
+  const L = liftOf(sim.alive);
+  THR.forEach((t, i) => { const b = thrBtn[t.id], on = sim.alive[i];
+    b.classList.toggle("dead", !on); b.classList.toggle("hot", on && L.thr[t.side] >= 0.999);
+    b.querySelector("span").textContent = on ? `${Math.round(L.thr[t.side] * 100)} % throttle` : "destroyed"; });
+  HULL.forEach((h, i) => { const b = hullBtn[h.id], on = sim.hull[i];
+    b.classList.toggle("dead", !on); b.classList.toggle("hot", on && sim.deployed && L.thr[h.side] >= 0.999);
+    b.querySelector("span").textContent = !on ? "destroyed" : !sim.deployed ? (sim.opening >= 0 ? "opening" : "sealed") : `${Math.round(L.thr[h.side] * 100)} % throttle`; });
+  [0, 1].forEach(s => { const el = document.getElementById(s ? "barR" : "barL"); el.querySelector("i").style.width = (L.L[s] / (W / 2) * 100) + "%"; el.classList.toggle("bad", L.L[s] < W / 2); });
+  const st = document.getElementById("state");
+  st.textContent = sim.crashed ? "Down" : L.falls ? (sim.opening >= 0 && !sim.deployed ? "Opening hull" : "Falling") : sim.deployed ? "Holding on hull thrusters" : "Holding"; st.classList.toggle("bad", L.falls || sim.deployed);
+}
+function count(kind) { const all = parts.filter(p => p.kind === kind); return [all.filter(p => p.alive).length, all.length]; }
+function readouts() {
+  const L = liftOf(sim.alive);
+  document.getElementById("alt").textContent = `${Math.round(sim.y)} m (hull centre)`;
+  document.getElementById("sink").textContent = sim.crashed ? "on the ground" : `${(-sim.v).toFixed(1)} m/s` + (L.falls ? `, at most ${Math.sqrt(Math.max(0, G * (1 - (L.L[0] + L.L[1]) / W)) / K).toFixed(1)} m/s` : "");
+  document.getElementById("list").textContent = `${Math.abs(sim.roll).toFixed(1)} deg` + (sim.roll > 0.05 ? " to starboard" : sim.roll < -0.05 ? " to port" : "");
+  document.getElementById("meter").textContent = `${renderer.info.render.triangles.toLocaleString()} triangles, ${renderer.info.render.calls} draws`;
+  const set = (id, v) => { const e = document.getElementById(id); if (e && e.textContent !== v) e.textContent = v; };
+  ["flak", "beam", "gun", "msl", "vls", "cat", "bay", "hlift", "drive"].forEach(k => { const [a, n] = count(k); set("ob-" + k, `${a} / ${n}`); });
+  const air = S.fighters.filter(f => f.state !== "down" && f.state !== "gone").length;
+  set("ob-fighter", `${air} up, ${S.hangar} aboard`);
+  set("ob-guard", `${S.guards.filter(g => g.part.alive).length} on deck, ${S.liftHangar} below`);
+  set("ob-drop", `${S.drops.filter(d => d.part.alive && d.landed < 0 && d.t > 0).length} falling, ${S.dropMag} aboard`);
+  set("ob-bridge", parts.find(p => p.kind === "bridge").alive ? "aim error 1.5 deg" : "lost: aim error doubled");
+  const h = S.hits;
+  set("hits", S.player === "off" ? "your mech is away" : `flak ${h.flak}, deck guns ${h.gun}, beams ${h.beam.toFixed(1)} s, missiles ${h.missile}, fighters ${h.fighter}, crabs ${h.crab}`);
+  set("allyhits", `${Math.round(S.allyHits)} hits on the two allies`);
+}
+const tags = document.getElementById("tags");
+function drawTags() {
+  const show = showLabels && view !== "climb" && view !== "fight", r = canvas.getBoundingClientRect(), list = [];
+  if (show) {
+    const ON_DECK = ["bridge", "flak", "gun", "msl", "vls", "cat", "hlift", "guard"];
+    const want = p => view === "deck" ? ON_DECK.includes(p.kind) : view === "pylon" ? p.kind === "lift" : view === "catapult" ? ["cat", "bridge", "fighter"].includes(p.kind) : p.kind !== "guard";
+    parts.filter(p => (p.label || p.kind === "guard") && want(p)).forEach(p => list.push({ obj: p.obj, text: p.label || p.name, dead: !p.alive, up: p.up || 10 }));
+    const fl = S.fighters.find(f => f.state !== "gone" && f.state !== "down"); if (fl && view !== "deck" && view !== "pylon") list.push({ obj: fl.obj, text: "Fighter", up: 6 });
+    const dr = S.drops.find(d => d.part.alive && d.t > 2 && d.landed < 0); if (dr && view !== "deck") list.push({ obj: dr.c, text: "Crab mechs on chutes", up: 64 });
+    if (player && player.visible) list.push({ obj: player, text: "Your mech (Foreman, 23.6 m)", up: 30, you: true });
+    if (view !== "deck" && view !== "pylon") ALLIES.forEach(a => list.push({ obj: a.obj, text: a.path.name, up: 30, you: true }));
+    if (pilot && pilot.visible && view === "deck") list.push({ obj: pilot, text: "Pilot (1.8 m)", up: 3 });
+  }
+  if (showLabels && selected && view !== "climb" && view !== "fight" && !list.some(l => l.obj === selected.obj) && selected.obj.visible !== false) list.push({ obj: selected.obj, text: selected.name, dead: !selected.alive, up: selected.up || 10 });
+  while (tags.children.length < list.length) { const d = document.createElement("div"); d.className = "tag"; tags.appendChild(d); }
+  [...tags.children].forEach((d, k) => { const it = list[k]; if (!it) { d.hidden = true; return; }
+    it.obj.getWorldPosition(tmpV); tmpV.y += it.up || 0; tmpV.project(camera);
+    d.hidden = tmpV.z > 1 || Math.abs(tmpV.x) > 1 || Math.abs(tmpV.y) > 1;
+    d.style.left = ((tmpV.x + 1) / 2 * r.width) + "px"; d.style.top = ((1 - tmpV.y) / 2 * r.height) + "px";
+    d.textContent = it.text; d.classList.toggle("dead", !!it.dead); d.classList.toggle("sel", !!selected && it.obj === selected.obj); d.classList.toggle("you", !!it.you); });
+}
+function fightHud() {
+  const w = WEAPONS[weapon], ready = Math.max(0, reloadUntil - clock), L = liftOf(sim.alive);
+  document.getElementById("hudtxt").textContent = sim.crashed ? "IT IS DOWN" : L.falls ? "IT IS FALLING" : `${w.name.toUpperCase()}   ${ready > 0 ? "RELOADING " + ready.toFixed(1) + " s" : "READY"}`;
+  document.getElementById("mfdJet").innerHTML = `<b>WEAPON</b> ${w.name}<br>${w.pen} mm, ${w.dmg} damage${w.rounds > 1 ? " x" + w.rounds : ""}<div class="barv"><i style="width:${(1 - ready / w.reload) * 100}%"></i></div>1 2 3 to change`;
+  const p = selected, box_ = document.getElementById("lockbox");
+  if (p && p.alive) { p.obj.localToWorld(tmpV.copy(p.fire)); const d = tmpV.distanceTo(camera.position), q = tmpV.clone().project(camera), r = canvas.getBoundingClientRect();
+    box_.hidden = !(q.z < 1 && Math.abs(q.x) < 0.95 && Math.abs(q.y) < 0.95); const px = Math.max(18, Math.min(120, 7000 / d));
+    Object.assign(box_.style, { left: ((q.x + 1) / 2 * r.width) + "px", top: ((1 - q.y) / 2 * r.height) + "px", width: px + "px", height: px + "px" });
+    document.getElementById("locktxt").textContent = `${p.name.toUpperCase()}  ${Math.round(d)} m`;
+    document.getElementById("mfdTgt").innerHTML = `<b>TARGET</b> ${p.name}<br>${Math.round(d)} m, ${ARMOUR[p.kind]} mm<div class="barv"><i style="width:${p.hp / p.hpMax * 100}%"></i></div>${Math.round(p.hp)} hit points`; }
+  else { box_.hidden = true; document.getElementById("mfdTgt").innerHTML = "<b>TARGET</b><br>click a part to pick it"; }
+  document.getElementById("mfdLift").innerHTML = `<b>FORTRESS LIFT</b><br>port ${Math.round(L.L[0] / (W / 2) * 100)} %  stbd ${Math.round(L.L[1] / (W / 2) * 100)} %<br>${L.falls ? '<span class="warn">FALLING, LIST ' + Math.abs(sim.roll).toFixed(0) + " deg</span>" : MISSILES.length ? '<span class="warn">MISSILE x' + MISSILES.length + "</span>" : "holding at " + Math.round(sim.y) + " m"}`;
+}
+function drawPops() { const r = canvas.getBoundingClientRect();
+  for (let i = POPS.length - 1; i >= 0; i--) { const q = POPS[i]; q.t = clock - q.born; if (q.t > 1.4 || q.t < 0) { q.el.remove(); POPS.splice(i, 1); continue; }
+    tmpV.copy(q.p).project(camera); q.el.hidden = tmpV.z > 1;
+    q.el.style.left = ((tmpV.x + 1) / 2 * r.width) + "px"; q.el.style.top = ((1 - tmpV.y) / 2 * r.height - q.t * 30) + "px"; q.el.style.opacity = String(1 - q.t / 1.4); } }
+function cockpitHud(c) {
+  const L = liftOf(sim.alive);
+  document.getElementById("hudtxt").textContent = c.landed ? "LANDED ON THE PORT SHOULDER  /  JETS RECHARGING (8 s)" : `ALT ${Math.round(c.h)} m   V/S ${c.vs >= 0 ? "+" : ""}${c.vs.toFixed(0)} m/s`;
+  document.getElementById("mfdJet").innerHTML = `<b>JETS</b><br>burn ${c.burnLeft.toFixed(1)} s of 20<div class="barv"><i style="width:${c.burnLeft / 20 * 100}%"></i></div>${c.burnLeft < 6 ? '<span class="warn">LOW: LAND TO RECHARGE</span>' : "climb 60 m/s max"}`;
+  let best = null, bd = 1e9; THR.forEach((t, i) => { if (!sim.alive[i]) return; t.g.getWorldPosition(tmpV); const d = tmpV.distanceTo(camera.position); if (d < bd) { bd = d; best = t; } });
+  const box_ = document.getElementById("lockbox");
+  if (best) { best.g.getWorldPosition(tmpV); const p = tmpV.clone().project(camera), r = canvas.getBoundingClientRect(), on = p.z < 1 && Math.abs(p.x) < 0.95 && Math.abs(p.y) < 0.95;
+    box_.hidden = !on; const px = Math.max(18, Math.min(160, 9000 / bd));
+    Object.assign(box_.style, { left: ((p.x + 1) / 2 * r.width) + "px", top: ((1 - p.y) / 2 * r.height) + "px", width: px + "px", height: px + "px" });
+    document.getElementById("locktxt").textContent = `LIFT ${best.id}  ${Math.round(bd)} m${bd < 1200 ? "  LOCK" : ""}`;
+    document.getElementById("mfdTgt").innerHTML = `<b>TARGET</b> lift thruster ${best.id}<br>${Math.round(bd)} m  ${bd < 1200 ? "missile lock" : "out of lock range"}<br>cowl 140 mm, grille 40 mm x2`; }
+  const beamOn = TURRETS.some(t => t.kind === "beam" && t.state === "charge");
+  document.getElementById("mfdLift").innerHTML = `<b>THREATS</b><br>${MISSILES.length ? '<span class="warn">MISSILE x' + MISSILES.length + "</span>" : "no missiles"}${beamOn ? '<br><span class="warn">BEAM CHARGING</span>' : ""}<br>lift port ${Math.round(L.L[0] / (W / 2) * 100)} % stbd ${Math.round(L.L[1] / (W / 2) * 100)} %`;
+}
+
+// ---- Drawing ----
+function resize() { const w = canvas.clientWidth, h = canvas.clientHeight; if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); } }
+function render() {
+  resize();
+  const L = liftOf(sim.alive), white = new T.Color(0xffffff), green = lin(0x6cdc2a);
+  THR.forEach((t, i) => { const on = sim.alive[i], thr = L.thr[t.side];
+    t.plume.visible = t.wash.visible = t.ring.visible = on;
+    if (on) { const hot = Math.max(0, (thr - 0.5) / 0.5);
+      t.plume.material.color.copy(green).lerp(white, hot * 0.7); t.plume.material.opacity = 0.18 + 0.2 * thr + 0.04 * Math.sin(clock * 30 + i);
+      t.plume.scale.set(0.8 + 0.4 * thr, 0.7 + 0.6 * thr, 0.8 + 0.4 * thr); t.wash.material.opacity = 0.04 + 0.06 * thr; } });
+  HULL.forEach((h, i) => { const on = sim.deployed && sim.hull[i];
+    h.ends.forEach(e => {
+      e.port.material.emissiveIntensity = on ? 1.2 + 0.4 * Math.sin(clock * 20 + i) : 0; });
+    h.plume.visible = on; if (on) { h.plume.material.opacity = 0.2 + 0.2 * L.thr[h.side]; h.plume.scale.y = 0.8 + 0.5 * L.thr[h.side]; } });
+  sun.position.copy(F.position).addScaledVector(SUN_DIR, 800); sun.target.position.copy(F.position);
+  if (view === "climb") { const c = climbAt(climbT); camera.position.copy(c.p); if (c.landed) camera.position.y = F.position.y + 42 + 19;
+    camera.lookAt(c.landed ? F.localToWorld(new T.Vector3(-60, 60, 120)) : F.position.clone().add(new T.Vector3(0, -20, 0)));
+    camera.rotateY(look.yaw); camera.rotateX(look.pitch); cockpitHud(c); }
+  else if (view === "fight") { camera.position.copy(cockpitEye());
+    camera.lookAt(camera.position.clone().add(new T.Vector3(Math.sin(fightLook.yaw) * Math.cos(fightLook.pitch), Math.sin(fightLook.pitch), Math.cos(fightLook.yaw) * Math.cos(fightLook.pitch)))); fightHud(); }
+  else controls.update();
+  // tracers: a streak behind each round in flight, a bright head on it
+  const tr = TRACERS; let n = 0; HEADS.clear();
+  shots.forEach(s => { if (n >= tr.cap || s.t < 0) return; const tail = s.p.clone().addScaledVector(s.v, -0.035);
+    tr.pos.set([tail.x, tail.y, tail.z, s.p.x, s.p.y, s.p.z], n * 6); tr.col.set([s.c[0] * 0.3, s.c[1] * 0.3, s.c[2] * 0.3, s.c[0], s.c[1], s.c[2]], n * 6); n++;
+    HEADS.emit(s.p, null, 1, s.size, s.size, [s.c[0], s.c[1], s.c[2], 1]); });
+  tr.geo.setDrawRange(0, n * 2); tr.geo.attributes.position.needsUpdate = tr.geo.attributes.color.needsUpdate = true;
+  const scale = renderer.getDrawingBufferSize(new T.Vector2()).y / (2 * Math.tan(camera.fov * DEG / 2));
+  [SMOKE, FIRE, HEADS].forEach(P => { P.mat.uniforms.uScale.value = scale; P.draw(); });
+  renderer.render(scene, camera);
+  drawTags(); drawPops(); readouts();
+}
+let last = performance.now(), frames = 0;
+function loop(now) {
+  const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)) * speed; last = now;
+  acc += dt; while (acc >= DT) { update(); acc -= DT; }
+  render();
+  if (++frames === 2) window.MOCKUP_READY = true; requestAnimationFrame(loop);
+}
+
+// ---- Start and reset: the guard on deck, four fighters on patrol, your mech circling ----
+function resetAll() {
+  parts.filter(p => ["fighter", "guard", "drop"].includes(p.kind)).forEach(p => { (p.obj.parent || scene).remove(p.obj); });
+  S.drops.forEach(d => scene.remove(d.ch)); MISSILES.forEach(m => scene.remove(m.m));
+  LIFTS.forEach(l => { if (l.mite) F.remove(l.mite); l.mite = null; l.busy = -1; l.plate.position.y = 0; l.hatch.visible = false; });
+  for (let i = parts.length - 1; i >= 0; i--) if (["fighter", "guard", "drop"].includes(parts[i].kind)) parts.splice(i, 1);
+  parts.forEach(p => { p.hp = p.hpMax; if (!p.alive) { p.alive = true; scorch(p.obj, false); } });
+  THR.forEach(t => { reattach(t); t.cowl.material = t.cowl.userData.mat0; });
+  FIGHTER_POOL.forEach(f => { f.visible = false; f.rotation.set(0, 0, 0); });
+  VLS.forEach((v, i) => { v.cool = 1 + i * 2.5; v.cells = 12; });
+  TURRETS.forEach(t => { t.cool = 0; t.burst = 0; t.state = "idle"; t.st = 0; if (t.ray) t.ray.visible = false; });
+  Object.assign(sim, { alive: Array(8).fill(true), hull: Array(6).fill(true), deployed: false, opening: -1, doors: 0, y: ALT, v: 0, roll: 0, crashed: false });
+  Object.assign(S, { fighters: [], guards: [], drops: [], hangar: 20, dropMag: 12, liftHangar: 8, nextLaunch: 4, catTurn: 0, nextDrop: 10, bayTurn: 0, nextLift: 6, liftTurn: 0,
+    hits: { flak: 0, gun: 0, beam: 0, missile: 0, fighter: 0, crab: 0 }, nGuard: 0, nDrop: 0, nFighter: 0, stationY: ALT, runs: 0, allyHits: 0 });
+  ALLIES.forEach((a, i) => { a.cool = 1 + i; });
+  shots.length = 0; MISSILES.length = 0; SMOKE.clear(); FIRE.clear();
+  HULL.forEach(h => h.ends.forEach(e => e.doors.forEach(d => { d.position.z = 0; })));
+  R = rng(1234); clock = 0; acc = 0;
+  city.spots.forEach((sp, k) => { city.im.setMatrixAt(k, new T.Matrix4().compose(new T.Vector3(sp[0], sp[3] / 2, sp[1]), new T.Quaternion(), new T.Vector3(sp[2], sp[3], sp[4]))); });
+  city.im.instanceMatrix.needsUpdate = true;
+  F.position.y = ALT; F.rotation.z = 0; F.updateMatrixWorld(true);
+  GUARD_START.forEach(([id, x, y, z, dir, span, period]) => addGuard(id, new T.Vector3(x, y, z), dir, span, period));
+  startFighters();
+  reloadUntil = 0; POPS.forEach(q => q.el.remove()); POPS.length = 0;
+  refresh(); select(THR[5].part);
+}
+Promise.all([texReady, ...Object.keys(MODELS).map(id => prep(id).then(o => { templates[id] = o; }))]).then(() => {
+  player = templates.foreman.clone(); scene.add(player);
+  ALLY_PATHS.forEach(P => { const obj = templates[P.id].clone(); scene.add(obj);
+    const a = { path: P, obj, cool: 1 }; a.target = { you: false, pos: () => obj.position.clone().add(new T.Vector3(0, 13, 0)), hit: (k, n) => { S.allyHits += n; } }; ALLIES.push(a); });
+  [-1, 1].forEach(s => { const j = add(player, new T.ConeGeometry(1.6, 9, 12, 1, true), plumeMat(0xbfe4ff, 0.5), 2.2 * s, 7, -4.5, false); j.rotation.x = Math.PI; });
+  pilot = pilotFigure(); pilot.position.set(-2, 49, -46); F.add(pilot);
+  const sc = document.getElementById("scale");
+  [["Fortress", "420 x 280 m hull, 400 m across the pylons, 600 m up"], ["Lift thruster", "30 m across, 40 m tall, 8 of them"],
+   ...["foreman", "shrike", "mite", "scuttler"].map(id => [MODELS[id].name, `${MODELS[id].height_m.toFixed(1)} m tall, ${MODELS[id].width_m.toFixed(0)} m wide${id === "foreman" ? " (yours)" : ""}`]),
+   ["Fighter", "15 m long, 13 m span"], ["Pilot", "1.8 m"]].forEach(([k, v]) => { const dt = document.createElement("dt"), dd = document.createElement("dd"); dt.textContent = k; dd.textContent = v; sc.append(dt, dd); });
+  resetAll(); setPlayer("air"); setView("orbit"); requestAnimationFrame(loop);
+}).catch(e => { document.getElementById("mode").textContent = "Could not load the block-outs: " + e.message; console.error(e); });
+
+// ---- Headless shots (tools/mockups/shoot_fortress.mjs): fixed steps from a reset, never wall time ----
+window.MOCKUP_SCENE = scene;
+window.MOCKUP = {
+  setView, reset: resetAll, render, setPlayer,
+  kill(id) { toggleThruster(id); },
+  destroy(id) { const p = parts.find(p => p.id === id); if (p) destroy(p); },
+  shoot(id, wpn, local) { shootPart(id, wpn, local); }, select(id) { const p = parts.find(p => p.id === id); if (p) select(p); },
+  lookAtPart(id) { const p = parts.find(q => q.id === id); if (!p) return; render(); const at = p.obj.localToWorld(p.fire.clone()); window.MOCKUP.lookAt(at.x, at.y, at.z); },
+  lookAt(x, y, z) { const d = new T.Vector3(x, y, z).sub(camera.position).normalize(); fightLook = { yaw: Math.atan2(d.x, d.z), pitch: Math.asin(d.y) }; },
+  state() { return { alive: sim.alive.slice(), hull: sim.hull.slice(), open: sim.deployed, y: sim.y, crashed: sim.crashed, hp: parts.filter(p => p.kind === "lift" || p.kind === "hull").map(p => p.hp) }; },
+  pause() { speed = 0; }, labels(on) { setLabels(on); },
+  run(seconds) { for (let k = 0; k < Math.round(seconds / DT); k++) update(); refresh(); },
+  climb(t) { setView("climb"); climbT = t; },
+  // the fortress as built, for tools/mockups/export_fortress_glb.mjs
+  exportable() { return { F, STATIC, parts, M }; },
+  orbitFrom(pos, tgt) { controls.target.copy(F.position).add(new T.Vector3(...tgt)); camera.position.copy(F.position).add(new T.Vector3(...pos)); controls.update(); },
+};
+</script>

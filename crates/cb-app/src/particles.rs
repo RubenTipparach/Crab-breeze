@@ -8,6 +8,7 @@
 //! `fx-sprites`): smoke a random billow, fire its flipbook over its life, dust a wisp, dirt a clod; sparks and spray keep
 //! the soft disc. Presentation only.
 
+use crate::state::GameApp;
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
 use cb_core::fx::{Layer, ParticleKind};
@@ -58,10 +59,12 @@ pub(crate) fn colour_over_life(kind: ParticleKind) -> Vec<(f32, Vec4)> {
             (0.6, v(0.6, 0.59, 0.57, 0.16)),
             (1.0, v(0.6, 0.59, 0.57, 0.0)),
         ],
+        // Thinner than first built (owner, 2026-10-25: "they should be a little more transparent", "its too
+        // opaque"): 0.55 at its thickest drew solid balls once a few overlapped.
         ParticleKind::Smoke => vec![
             (0.0, v(0.2, 0.19, 0.18, 0.0)),
-            (0.1, v(0.2, 0.19, 0.18, 0.55)),
-            (0.6, v(0.28, 0.27, 0.26, 0.4)),
+            (0.1, v(0.2, 0.19, 0.18, 0.32)),
+            (0.6, v(0.28, 0.27, 0.26, 0.22)),
             (1.0, v(0.33, 0.32, 0.31, 0.0)),
         ],
         ParticleKind::Spark => vec![
@@ -97,8 +100,8 @@ pub(crate) fn colour_over_life(kind: ParticleKind) -> Vec<(f32, Vec4)> {
         // against the ground.
         ParticleKind::Trail => vec![
             (0.0, v(1.6, 1.58, 1.55, 0.0)),
-            (0.05, v(1.6, 1.58, 1.55, 0.75)),
-            (0.5, v(1.45, 1.43, 1.4, 0.45)),
+            (0.05, v(1.6, 1.58, 1.55, 0.45)),
+            (0.5, v(1.45, 1.43, 1.4, 0.28)),
             (1.0, v(1.4, 1.38, 1.35, 0.0)),
         ],
         // Cold mist: a faint blue-white that thickens as it spreads, then thins.
@@ -191,7 +194,7 @@ impl Plugin for ParticlesPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(HanabiPlugin)
             .init_resource::<ParticleLibrary>()
-            .add_systems(Update, retire);
+            .add_game_systems(Update, retire);
     }
 }
 

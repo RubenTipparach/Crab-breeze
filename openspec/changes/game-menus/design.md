@@ -68,7 +68,8 @@ choice does later: one way a mission begins.
   one click from any other, not only through Back.
 - **Volume** (owner, 2026-10-25: "add in controls for sfx/music, make sure it saves when I change
   it"): `sfx_volume` and `music_volume`, 0-1 (shown as 0-100 %, steps of 10 %), default 1. Sound
-  effects scale every placed voice's level (`audio::level_voices`, so a playing loop follows at
+  effects scale every placed voice's level and the ambience beds (`audio::level_voices`,
+  `ambience::play_beds`, so a playing loop follows at
   once); music scales the music player's level. A settings file without them loads with them at 1.
 - **Saving on change:** every Options button saves `settings.ron` at once, as well as leaving the
   page, so a change survives a quit or a crash.

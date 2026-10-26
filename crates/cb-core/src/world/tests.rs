@@ -134,7 +134,8 @@ const GOLDEN_BUILDINGS: usize = 3609;
 const GOLDEN_HIGHWAYS: usize = 12;
 const GOLDEN_RIVERS: usize = 64;
 const GOLDEN_TREES_AT_START: usize = 38407;
-const GOLDEN_FINGERPRINT: u64 = 337051159644685406;
+// 2026-10-25: the five air bases (air-bases) flatten their sites; counts unchanged.
+const GOLDEN_FINGERPRINT: u64 = 7415741982539864567;
 
 #[test]
 fn seed_42_census_for_the_design() {
@@ -364,6 +365,21 @@ fn the_ground_under_a_highway_is_the_road_grade() {
             }
         }
     }
+}
+
+/// The island's lane graph (car-traffic): every lane leads on, so no car ever dead-ends, and every
+/// highway's lanes join two cities.
+#[test]
+fn every_lane_on_the_island_has_a_way_out() {
+    let plan = seed_42();
+    let cfg = shipped();
+    let g = lanes::LaneGraph::build(&plan.cities, &plan.highways, &lanes::LaneLayout::default(), cfg.arterial_width_m);
+    assert!(g.lanes.len() > 1000, "{} lanes", g.lanes.len());
+    for l in &g.lanes {
+        assert!(!l.out.is_empty(), "lane {} ({:?}) dead-ends", l.id, l.kind);
+    }
+    let highway_lanes = g.road_lanes().filter(|l| l.kind == lanes::LaneKind::Highway).count();
+    assert_eq!(highway_lanes, plan.highways.len() * 4, "two lanes each way on every highway");
 }
 
 #[test]
@@ -623,7 +639,7 @@ fn a_felled_tree_stays_felled_when_its_tile_is_let_go_and_grown_again() {
 #[test]
 fn growing_trees_is_bounded_by_the_bodies_not_the_island() {
     // However big the island, the trees kept are those within the keep radius of each body, and a
-    // step grows at most its urgent tiles plus `tiles_per_step` more.
+    // step grows at most its must and urgent tiles plus `tiles_per_step` more.
     let plan = seed_42();
     let cfg = shipped().trees;
     let mut f = plan.forest.clone();
@@ -698,6 +714,40 @@ fn the_lod_rings_keep_the_ground_to_a_few_hundred_thousand_triangles() {
         assert!(tris < 900_000, "{what}: {tris} triangles");
         assert!(meshes < 200, "{what}: {meshes} ground meshes before culling");
     }
+}
+
+#[test]
+fn a_body_new_to_a_place_grows_its_near_trees_at_once_and_the_rest_a_few_a_step() {
+    let plan = seed_42();
+    let cfg = shipped().trees;
+    let mut f = plan.forest.clone();
+    let here = plan.start.mech_xz;
+    for _ in 0..400 {
+        f.keep_around_seen(plan, &[here], 1);
+    }
+    // An enemy brought in 6 km off: its whole 400 m ring used to grow in one step.
+    let new = here + Vec2::new(6000.0, 0.0);
+    let first = f.keep_around_seen(plan, &[here, new], 1);
+    let grown = |f: &Forest| f.grown_tiles().map(|(k, _)| k).collect::<std::collections::BTreeSet<_>>();
+    let now = grown(&f);
+    assert!(
+        f.tiles_within(new, cfg.must_radius_m).iter().all(|k| now.contains(k)),
+        "its near trees stand at once"
+    );
+    let tile_m = cfg.tile_sites as f32 * cfg.spacing_m;
+    let must_most = std::f32::consts::PI * ((cfg.must_radius_m + tile_m * 1.5) / tile_m).powi(2);
+    assert!(
+        first.grown.len() as f32 <= must_most + cfg.urgent_tiles_per_step as f32,
+        "{} tiles grown in one step",
+        first.grown.len()
+    );
+    let ring = f.tiles_within(new, cfg.urgent_radius_m);
+    assert!(ring.iter().any(|k| !now.contains(k)), "the rest of the ring waits");
+    for _ in 0..ring.len() {
+        f.keep_around_seen(plan, &[here, new], 1);
+    }
+    let later = grown(&f);
+    assert!(ring.iter().all(|k| later.contains(k)), "and is grown within a few steps");
 }
 
 #[test]
@@ -902,6 +952,47 @@ fn the_baked_sun_shade_agrees_with_a_ray_toward_the_sun() {
 }
 
 #[test]
+fn a_pilot_standing_still_on_a_deck_over_the_city_stays_where_they_stand() {
+    // A cloud run's regression (crab-airship section 9): standing still on the Stratostacean's deck, 600 m over the city,
+    // the pilot slid 26 m across it, pushed out of the footprints of the buildings and trees far below.
+    let plan = seed_42();
+    let b = &plan.buildings[0];
+    let over = b.footprint.centre();
+    let top = plan.terrain.height_at(over.x, over.y) + 600.0;
+    let deck = Platform {
+        slabs: vec![Slab {
+            name: "deck".into(),
+            min: Vec2::splat(-200.0),
+            max: Vec2::splat(200.0),
+            centre: Vec2::ZERO,
+            top_m: 0.0,
+            slope: Vec2::ZERO,
+        }],
+        pose: glam::Affine3A::from_translation(Vec3::new(over.x, top, over.y)),
+        was: glam::Affine3A::from_translation(Vec3::new(over.x, top, over.y)),
+    };
+    let dug = Deformation::new(4096.0);
+    let structures = Structures::new(plan);
+    let forest = Forest::default();
+    let platforms = [deck];
+    let scene = Scene {
+        plan,
+        dug: &dug,
+        trees: Some(&forest),
+        structures: Some(&structures),
+        platforms: &platforms,
+        interiors: None,
+    };
+    let start = Vec3::new(over.x, top, over.y);
+    let mut p = crate::pilot::PilotState::standing(start, 0.0);
+    let cfg = crate::pilot::PilotConfig::default();
+    for _ in 0..120 {
+        p.step(&crate::input::Actions::default(), &cfg, &scene, None, 1.0 / 60.0);
+    }
+    assert!(p.feet.distance(start) < 1e-3, "{start} -> {}", p.feet);
+}
+
+#[test]
 fn no_rivers_water_lies_under_the_ground() {
     // Owner, 2026-10-25: "I see rivers still have holes in them". Every river's water is over the
     // ground along its whole course, joins included, except where a road's flat band or a bridge
@@ -925,4 +1016,144 @@ fn no_rivers_water_lies_under_the_ground() {
         }
     }
     assert!(buried.is_empty(), "river points under the ground: {buried:?}");
+}
+
+#[test]
+fn the_island_has_air_bases_on_flat_ground_clear_of_the_cities() {
+    // Owner, survey J5: five air bases (air-bases). Each stands on its flattened site, clear of every
+    // city, the bases spread apart, the first the nearest the largest city.
+    let plan = seed_42();
+    let cfg = shipped().bases;
+    eprintln!(
+        "{} air bases: {:?}",
+        plan.bases.len(),
+        plan.bases
+            .iter()
+            .map(|b| (b.centre.x.round(), b.centre.y.round(), b.ground_m.round()))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(plan.bases.len(), cfg.count, "every base the data asks for stands on seed 42");
+    for b in &plan.bases {
+        for c in &plan.cities {
+            assert!(c.rect().distance(b.centre) > cfg.city_clear_m, "base {} is by a city", b.id);
+        }
+        for p in [b.rect().min, b.rect().max, b.centre] {
+            let h = plan.terrain.height_at(p.x, p.y);
+            assert!(
+                (h - b.ground_m).abs() < 1.0,
+                "base {}'s site is flat: {h} against {}",
+                b.id,
+                b.ground_m
+            );
+        }
+    }
+    for (i, a) in plan.bases.iter().enumerate() {
+        for b in &plan.bases[i + 1..] {
+            assert!(
+                a.centre.distance(b.centre) >= cfg.spacing_m,
+                "bases {} and {} too close",
+                a.id,
+                b.id
+            );
+        }
+    }
+    let largest = plan.cities[0].centre;
+    let nearest = plan
+        .bases
+        .iter()
+        .min_by(|a, b| a.centre.distance(largest).total_cmp(&b.centre.distance(largest)))
+        .unwrap();
+    assert_eq!(nearest.id, 0, "the first base is the one nearest the start");
+}
+
+#[test]
+fn nothing_grows_on_an_air_base() {
+    // A base's apron is built ground: no tree is grown on it and no grass (the shared cover rule).
+    let plan = seed_42();
+    let b = plan.bases[0];
+    for (u, v) in [(0.0, 0.0), (0.4, 0.3), (-0.4, -0.3), (0.45, -0.45)] {
+        let p = b.centre + b.half_m * Vec2::new(u, v) * 2.0;
+        let clear = crate::world::cover::Clearance {
+            city_m: 0.0,
+            park_inset_m: 0.0,
+            road_m: 0.0,
+            bridge_share: 0.0,
+            building_m: 0.0,
+        };
+        assert_eq!(plan.cover_at(p, &clear), crate::world::cover::Cover::Bare, "{p}");
+    }
+}
+
+#[test]
+fn every_air_base_has_a_runway_of_1_5_to_2_km_flat_dry_and_clear() {
+    // Survey W45, owner 2026-10-26: "Add a real runway, about 1.5 to 2 km, to each base".
+    for plan in [seed_42(), &generate(42, &shipped())] {
+        let cfg = shipped().bases;
+        for b in &plan.bases {
+            let r = b.runway;
+            eprintln!("base {}: runway {:?}, {:.0} m, from {} to {}", b.id, r.side, r.length_m(), r.a, r.b);
+            assert!(
+                (1500.0 - 1.0..=2000.0 + 1.0).contains(&r.length_m()),
+                "base {}'s runway is {} m",
+                b.id,
+                r.length_m()
+            );
+            assert!(!r.rect().overlaps(&b.rect()), "base {}'s runway is off its site", b.id);
+            for s in b.structures(&cfg) {
+                assert!(!r.rect().overlaps(&s), "base {}'s runway meets a hangar or the tower", b.id);
+            }
+            for p in r.samples(25.0) {
+                let h = plan.terrain.height_at(p.x, p.y);
+                assert!(
+                    (h - b.ground_m).abs() < 1.0,
+                    "base {}'s runway is flat at {p}: {h} against {}",
+                    b.id,
+                    b.ground_m
+                );
+                assert!(plan.water_at(p.x, p.y).is_none(), "base {}'s runway is dry at {p}", b.id);
+                for hw in &plan.highways {
+                    assert!(
+                        hw.project(p).0 > hw.width_m * 0.5,
+                        "base {}'s runway is clear of the highways at {p}",
+                        b.id
+                    );
+                }
+                for c in &plan.cities {
+                    assert!(
+                        c.rect().distance(p) > cfg.runway_city_clear_m,
+                        "base {}'s runway is clear of the cities",
+                        b.id
+                    );
+                }
+            }
+            for bld in &plan.buildings {
+                assert!(!bld.footprint.overlaps(&r.rect()), "a building stands on base {}'s runway", b.id);
+            }
+        }
+    }
+}
+
+/// Cars ride on the drawn road (car-traffic): on a city street the road's top is the city's ground plus the lift
+/// the game draws it at, on a highway its grade plus the lift, and off the roads there is none.
+#[test]
+fn the_road_top_is_the_drawn_road_and_cars_ride_on_it() {
+    let plan = seed_42();
+    let lift = shipped().road_lift_m;
+    let city = &plan.cities[0];
+    let street = city.streets[0].rect.centre();
+    assert_eq!(plan.road_top_at(street, lift), Some(city.ground_m + lift));
+    let h = &plan.highways[0];
+    let mid = h.point_at(0.5);
+    let top = plan.road_top_at(mid, lift).expect("a highway's middle is road");
+    assert!((top - (h.grade_at(0.5) + lift)).abs() < 0.05, "{top} vs {}", h.grade_at(0.5) + lift);
+    let block = city.blocks[0].rect.centre();
+    assert_eq!(plan.road_top_at(block, lift), None, "a block is no road");
+    // A car's wheels meet the road's top on the street and the bare ground off it.
+    let on = OnRoads {
+        ground: plan,
+        plan,
+        lift_m: lift,
+    };
+    assert!((on.height_at(street.x, street.y) - (city.ground_m + lift)).abs() < 1e-4);
+    assert_eq!(on.height_at(block.x, block.y), plan.height_at(block.x, block.y));
 }

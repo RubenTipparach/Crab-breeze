@@ -7,6 +7,7 @@
 use crate::mech::{EnemyGoal, Loadout, MechId, MechSim, Piloted, SpawnAssets, spawn_enemy};
 use crate::pilot::PilotSim;
 use crate::sim::{Data, SimSet};
+use crate::state::GameApp;
 use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use cb_core::mission::{
@@ -60,8 +61,9 @@ impl Plugin for DefencePlugin {
     fn build(&self, app: &mut App) {
         // Always present; it runs once the mission begins (`Defending` and `DefenceRun` inserted:
         // by `--mission defence` before startup, or by the title menu's City defence).
-        app.add_systems(FixedUpdate, give_goals.in_set(SimSet::Input).run_if(resource_exists::<Defending>))
-            .add_systems(
+        app.add_game_systems(Update, switch.after(crate::missions::MissionsSet))
+            .add_game_systems(FixedUpdate, give_goals.in_set(SimSet::Input).run_if(resource_exists::<Defending>))
+            .add_game_systems(
                 FixedUpdate,
                 step_mission
                     .in_set(SimSet::Mech)
@@ -74,6 +76,38 @@ impl Plugin for DefencePlugin {
 
 fn say(line: &str) {
     println!("{line}");
+}
+
+/// Free roam's mail turns the defence off and on (`free-roam-missions`): off, its raiders and its waves' vehicles
+/// leave the world and its clock stops; on, it begins from its briefing.
+fn switch(
+    mut commands: Commands,
+    mut switches: MessageReader<crate::missions::MissionSwitch>,
+    raiders: Query<(Entity, &MechId), With<Raider>>,
+    mut units: ResMut<crate::units::Units>,
+    mut shots: ResMut<crate::combat::Shots>,
+) {
+    use cb_core::missions::MissionKind;
+    for s in switches.read() {
+        if s.stop == Some(MissionKind::Defence) {
+            commands.remove_resource::<Defending>();
+            commands.remove_resource::<DefenceRun>();
+            // Its enemies leave the world at once, their rounds in the air with them; what they broke stays broken
+            // (survey FR1).
+            let mut gone = units.retire(MissionKind::Defence);
+            for (e, id) in &raiders {
+                commands.entity(e).despawn();
+                gone.push(id.0);
+            }
+            shots.drop_from(|o| gone.contains(&o));
+            say("MISSION defence turned off");
+        }
+        if s.start == Some(MissionKind::Defence) {
+            commands.insert_resource(Defending);
+            commands.insert_resource(DefenceRun::default());
+            say("MISSION defence begins");
+        }
+    }
 }
 
 /// The mission clock and the waves.

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 /// The mech flown when none is named.
 pub const DEFAULT_MECH: &str = "mechs/foreman.ron";
 
-pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence] [--showcase world|fight|defence|marks|sun|demolition|trail] [--bench world|fight|defence|marks|sun|demolition] [--start meadow|overlook]";
+pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence|fortress] [--showcase world|fight|defence|marks|sun|demolition|trail] [--bench world|fight|defence|marks|sun|demolition] [--start meadow|overlook|base] [--play free|free-continue|career-new|career-continue] [--playtest <name> [--run <i>]]";
 
 /// Parsed command line.
 #[derive(Debug, PartialEq)]
@@ -17,15 +17,22 @@ pub struct Args {
     pub mech: String,
     /// Capture instrument output directory (`pilot-boarding` design section 4).
     pub stills: Option<PathBuf>,
-    /// Play a mission yourself (`defence`).
+    /// Play a mission yourself (`defence`; `fortress`: free roam with the Stratostacean running).
     pub mission: Option<String>,
     /// Play a showcase take (`world`, `fight`, `defence`, `marks` or `sun`) for a recording.
     pub showcase: Option<String>,
     /// Play a showcase take offscreen and report frame time (perf-bench).
     pub bench: Option<String>,
+    /// The mode the menu started this run in (the main menu): `free`, `free-continue`, `career-new` or
+    /// `career-continue`.
+    pub play: Option<String>,
     /// Start somewhere other than the city: `meadow`, the nearest open grassland (gpu-grass); `fx`, the same meadow
     /// with every effect set out in front of the pilot (`fx_gallery`).
     pub start: Option<String>,
+    /// Play a playtest script, `data/playtests/<name>.ron` (playtest-pipeline): its run sets `--play`.
+    pub playtest: Option<String>,
+    /// Which of the script's runs this launch plays.
+    pub run: usize,
 }
 
 impl Args {
@@ -49,7 +56,10 @@ impl Args {
             mission: None,
             showcase: None,
             bench: None,
+            play: None,
             start: None,
+            playtest: None,
+            run: 0,
         };
         let mut it = args;
         while let Some(a) = it.next() {
@@ -59,16 +69,23 @@ impl Args {
                 "--mech" => out.mech = value()?,
                 "--stills" => out.stills = Some(PathBuf::from(value()?)),
                 "--mission" => match it.next().as_deref() {
-                    Some("defence") => out.mission = Some("defence".into()),
-                    _ => return Err("--mission takes `defence`".into()),
+                    Some(m @ ("defence" | "fortress")) => out.mission = Some(m.into()),
+                    _ => return Err("--mission takes `defence` or `fortress`".into()),
                 },
                 "--showcase" => out.showcase = Some(take_name(it.next())?),
                 "--bench" => out.bench = Some(take_name(it.next())?),
+                "--play" => match it.next().as_deref() {
+                    Some(m @ ("free" | "free-continue" | "career-new" | "career-continue")) => out.play = Some(m.into()),
+                    _ => return Err("--play takes `free`, `free-continue`, `career-new` or `career-continue`".into()),
+                },
+                "--playtest" => out.playtest = Some(value()?),
+                "--run" => out.run = value()?.parse().map_err(|e| format!("--run: {e}"))?,
                 "--start" => match it.next().as_deref() {
                     Some("meadow") => out.start = Some("meadow".into()),
                     Some("fx") => out.start = Some("fx".into()),
                     Some("overlook") => out.start = Some("overlook".into()),
-                    _ => return Err("--start takes `meadow`, `fx` or `overlook`".into()),
+                    Some("base") => out.start = Some("base".into()),
+                    _ => return Err("--start takes `meadow`, `fx`, `overlook` or `base`".into()),
                 },
                 other => return Err(format!("unknown argument {other}")),
             }

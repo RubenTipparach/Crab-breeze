@@ -5,7 +5,7 @@ While Scope is held with a scoped weapon on board, the cockpit SHALL show a wind
 
 #### Scenario: Scoping at 4 times
 - **WHEN** the pilot holds Scope with a railgun whose `scope_zoom` is [4.0, 10.0]
-- **THEN** the window shows the aim at a 25.8 degree field of view and the pilot's view stays at 85 degrees
+- **THEN** the window shows the aim at a 25.8 degree field of view and the pilot's view stays at 85 degrees (with the seated view at 95 degrees, the window is 30.5 degrees)
 
 ### Requirement: Scoped look is slowed, never driven
 While scoped, mouse look SHALL be scaled by one over the magnification, and nothing but the player's input SHALL turn the view.

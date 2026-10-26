@@ -9,18 +9,25 @@
 //!
 //! A particle's life (thrown, pulled, slowed, growing, its colour over its life) reads the same tables
 //! hanabi's effects are built from (`particles::motion`, `particles::colour_over_life`), so the two
-//! renderers cannot drift. `CB_HANABI_SMOKE=1` sends the smoke back to bevy_hanabi, for the A/B.
+//! renderers cannot drift. The sheet is mapped the right way up: hanabi's quad runs its texture rows from the
+//! bottom, so the smoke sheet, painted lit from above, drew lit from below (owner, 2026-10-25: "why are the smoke
+//! darker at top?", "it lookslike inverted lighting to me"). `CB_HANABI_SMOKE=1` sends the smoke back to
+//! bevy_hanabi, for the A/B.
 
 use crate::particles::{GRID, colour_over_life, motion};
 use crate::pilot::PilotCamera;
 use crate::sim::{Data, PresentSet};
+use crate::state::GameApp;
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::visibility::NoFrustumCulling;
 use bevy::light::NotShadowCaster;
 use bevy::mesh::{Indices, MeshVertexAttribute, MeshVertexBufferLayoutRef, PrimitiveTopology, VertexFormat};
 use bevy::pbr::{Material, MaterialPipeline, MaterialPipelineKey, MaterialPlugin};
 use bevy::prelude::*;
-use bevy::render::render_resource::{AsBindGroup, RenderPipelineDescriptor, ShaderType, SpecializedMeshPipelineError};
+use bevy::render::render_resource::{
+    AsBindGroup, BlendComponent, BlendFactor, BlendOperation, BlendState, RenderPipelineDescriptor, ShaderType,
+    SpecializedMeshPipelineError,
+};
 use bevy::shader::ShaderRef;
 use cb_core::fx::ParticleKind;
 
@@ -199,6 +206,31 @@ impl Material for SoftMaterial {
             ATTRIBUTE_COLOUR.at_shader_location(3),
         ])?];
         descriptor.primitive.cull_mode = None;
+        // Colour: premultiplied OVER. Alpha: what of the scene behind still shows through (each sprite
+        // multiplies it by 1 - its alpha). Nothing reads that share now: the ground fog is laid before
+        // the transparent pass (`fog` in `water_post.wesl`), so the smoke is drawn over fogged ground
+        // and carries only its own fog, and the fog over a puff cannot jump where the sky, a far
+        // street or a near wall changes behind it (owner, 2026-10-25: "still smoke sorting issues
+        // here").
+        if let Some(target) = descriptor
+            .fragment
+            .as_mut()
+            .and_then(|f| f.targets.get_mut(0))
+            .and_then(|t| t.as_mut())
+        {
+            target.blend = Some(BlendState {
+                color: BlendComponent {
+                    src_factor: BlendFactor::One,
+                    dst_factor: BlendFactor::OneMinusSrcAlpha,
+                    operation: BlendOperation::Add,
+                },
+                alpha: BlendComponent {
+                    src_factor: BlendFactor::Zero,
+                    dst_factor: BlendFactor::OneMinusSrcAlpha,
+                    operation: BlendOperation::Add,
+                },
+            });
+        }
         Ok(())
     }
 }
@@ -210,7 +242,7 @@ impl Plugin for SoftSpritesPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MaterialPlugin::<SoftMaterial>::default())
             .init_resource::<SoftSprites>()
-            .add_systems(Update, (emit_streams, step, draw).chain().in_set(PresentSet::Pose));
+            .add_game_systems(Update, (emit_streams, step, draw).chain().in_set(PresentSet::Pose));
     }
 }
 
@@ -377,6 +409,7 @@ fn draw(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let Some(draw) = draw else { return };
+    let _s = crate::perf_hud::section("soft sprites: sort and mesh");
     let quads = sorted_quads(&sprites.parts, camera.translation(), camera.forward().as_vec3());
     if let Some(mut mesh) = meshes.get_mut(&draw.mesh) {
         *mesh = sprite_mesh(&quads);

@@ -81,6 +81,23 @@ Sirens and alarm noise; industrial: Factory Ambiance, Airvent Loop; all CC0 by t
 three punch cues (37 hits/punches, Swishes Sound Pack, bamboo swooshes, with metal and rock from the
 packs above). Their originals are named in each folder's `SOURCES.md`.
 
+**Civil aircraft engines (survey W49, 2026-10-26).** A turbofan, a propeller and a rotor, cut from Radio Aporee
+field recordings on the Internet Archive that their recordists released under the Public Domain Mark (the
+fetcher accepts it, as it does the NASA reels): `civil_turbofan` from an airliner passing low over the
+Minneapolis/St Paul spotters' park (Matt Todd, `aporee_55938_63923`, its roar and 2.6-3.3 kHz fan whine),
+`civil_propeller` from a prop plane running up at Tallinn airport (john grzinich, `aporee_69846_81327`, its blade
+tone at 108 and 218 Hz), `civil_rotor` from French army helicopters lifting off at Les Invalides (nolan.fellahi74,
+`aporee_51269_58510`, a 23 Hz blade beat). Fetched from a session on the owner's Mac, where archive.org's storage
+hosts and upload.wikimedia.org both answer. Also fetched and looked at, not used: a small jet idling at Madeira
+(`aporee_29285_33700`, crowd under it), jets starting at an air show (`aporee_32452_37313`, a speaker over it), a
+light aircraft idling and a helicopter at Old Sarum (`aporee_34587_39758`, `aporee_34782_39985`, quiet), a small
+plane over Oulu (`aporee_49266_56150`, a flyover only), and OpenGameArt's CC0 Helicopter SFX and Helicopter Sounds
+(their recording is not stated). Looked at and refused: Wikimedia Commons' airliner and Cessna recordings
+(CC BY-SA or CC BY), and two Internet Archive items marked CC0 that hold commercial library material
+(`Designers-Choice-Collection-Aircraft`, whose files carry a General Series name, and `GOLD_TAPE_*`, from a film
+studio's library), whose CC0 the uploader could not give. The Ogg files were encoded with libsndfile (Python
+`soundfile`) at the same Vorbis quality as `render_sfx.sh`'s ffmpeg, because the Mac's ffmpeg has no libvorbis.
+
 **Still refused by the network.** archive.org's pages load but its files come from storage hosts
 (`dn*.ca.archive.org`, `ia*.us.archive.org`), so the NASA launch recordings below need
 `*.archive.org` allowed too. freesound.org answers 403 and upload.wikimedia.org does not connect.

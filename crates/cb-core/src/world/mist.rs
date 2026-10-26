@@ -8,13 +8,139 @@
 //! it, `MistMap`), and `optical_depth` is the one fog integral (the compose pass in
 //! `assets/shaders/water_post.wesl` repeats it on the GPU; a test checks the closed form against a
 //! fine march). The tuning is in `data/world/world.ron` under `fog:`.
+//!
+//! How thick it is right now (survey F1; owner, 2026-10-26: "Approve all"): a morning mist that
+//! thins by day, on the fog's own clock (the game has no time of day: the sun stands still), or a
+//! mission's own preset (`clear` for the combat-heavy ones). `FogConfig::strength` is that rule.
+//!
+//! What lies between two points (survey F2: fog also hides targets from the sensors):
+//! `line_depth` is the compose pass's own fog along a pixel's ray, worked out on the CPU for the
+//! straight line from the pilot's eye to a target, so the fog the targeting sees through is the
+//! fog drawn.
 
 use super::config::WorldConfig;
 use super::terrain::{Heightfield, smoothstep};
 use super::water::Waters;
-use crate::data::{Validate, finite, positive, within};
-use glam::Vec2;
+use crate::data::{Validate, finite, positive, positive_range, within};
+use crate::missions::MissionKind;
+use glam::{Vec2, Vec3};
 use serde::Deserialize;
+use std::collections::BTreeMap;
+
+/// How thick the fog is (survey F1): a morning mist, a day's thinner one, or clear air.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+pub enum FogPreset {
+    /// Thick at sea level, full mist in the hollows and by the water.
+    Morning,
+    /// Plain air, half the mist.
+    Day,
+    /// Thin air and no mist: for the combat-heavy missions.
+    Clear,
+}
+
+/// What a preset does to the fog: scales of the sea-level density and of the mist's strength.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct FogStrength {
+    /// Times `density_per_m`.
+    pub density_scale: f32,
+    /// Times `mist_strength`.
+    pub mist_scale: f32,
+}
+
+impl FogStrength {
+    /// The fog as `fog:` sets it, unscaled.
+    pub const PLAIN: Self = Self {
+        density_scale: 1.0,
+        mist_scale: 1.0,
+    };
+
+    /// Part way from `self` to `to`, `f` 0..1.
+    pub fn lerp(self, to: Self, f: f32) -> Self {
+        let f = f.clamp(0.0, 1.0);
+        Self {
+            density_scale: self.density_scale + (to.density_scale - self.density_scale) * f,
+            mist_scale: self.mist_scale + (to.mist_scale - self.mist_scale) * f,
+        }
+    }
+
+    fn validate(&self, field: &str) -> Result<(), String> {
+        within(&format!("{field}.density_scale"), self.density_scale, 0.0, 20.0)?;
+        within(&format!("{field}.mist_scale"), self.mist_scale, 0.0, 20.0)
+    }
+}
+
+/// The presets' strengths (`fog.presets`).
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct FogPresets {
+    /// `Morning`.
+    pub morning: FogStrength,
+    /// `Day`.
+    pub day: FogStrength,
+    /// `Clear`.
+    pub clear: FogStrength,
+}
+
+impl Default for FogPresets {
+    fn default() -> Self {
+        Self {
+            morning: FogStrength {
+                density_scale: 2.0,
+                mist_scale: 1.0,
+            },
+            day: FogStrength {
+                density_scale: 1.0,
+                mist_scale: 0.5,
+            },
+            clear: FogStrength {
+                density_scale: 0.5,
+                mist_scale: 0.0,
+            },
+        }
+    }
+}
+
+impl FogPresets {
+    /// A preset's strength.
+    pub fn get(&self, p: FogPreset) -> FogStrength {
+        match p {
+            FogPreset::Morning => self.morning,
+            FogPreset::Day => self.day,
+            FogPreset::Clear => self.clear,
+        }
+    }
+}
+
+/// The fog's own clock (`fog.clock`): the game has no time of day, so the mist burns off on this.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct FogClock {
+    /// The hour (0..24) when the world begins.
+    pub start_h: f32,
+    /// Game hours that pass in a second.
+    pub hours_per_s: f32,
+    /// The morning mist thins to the day's between these hours.
+    pub burn_off_h: [f32; 2],
+}
+
+impl Default for FogClock {
+    fn default() -> Self {
+        Self {
+            start_h: 6.0,
+            hours_per_s: 1.0 / 300.0,
+            burn_off_h: [7.0, 11.0],
+        }
+    }
+}
+
+impl FogClock {
+    /// The hour `elapsed_s` after the world began (not wrapped: once the mist has burnt off it
+    /// stays off).
+    pub fn hour_at(&self, elapsed_s: f32) -> f32 {
+        self.start_h + elapsed_s.max(0.0) * self.hours_per_s
+    }
+}
 
 /// The fog's tuning (`fog:`).
 #[derive(Clone, Debug, Deserialize, PartialEq)]
@@ -23,6 +149,11 @@ pub struct FogConfig {
     /// Extinction at sea level in plain air, per metre (1 / 12,000: level ground fades to half its
     /// colour by about 8 km).
     pub density_per_m: f32,
+    /// The aerial haze's extinction at sea level, per metre (design section 2a): a far thinner,
+    /// deeper layer than the fog, so far land and sea blue and soften at every height.
+    pub haze_density_per_m: f32,
+    /// The haze thins by e every this much height, metres.
+    pub haze_scale_height_m: f32,
     /// The layer thins by e every this much height.
     pub scale_height_m: f32,
     /// In full mist the density is this many times more.
@@ -51,12 +182,21 @@ pub struct FogConfig {
     pub sun_share: f32,
     /// Henyey-Greenstein asymmetry of the scattering (0 even, toward 1 a glow round the sun).
     pub phase_g: f32,
+    /// What each preset does (survey F1).
+    pub presets: FogPresets,
+    /// The clock the morning mist burns off on.
+    pub clock: FogClock,
+    /// A mission's own preset while it runs; with none running, or one not listed, the morning
+    /// mist thins by the clock.
+    pub missions: BTreeMap<MissionKind, FogPreset>,
 }
 
 impl Default for FogConfig {
     fn default() -> Self {
         Self {
             density_per_m: 1.0 / 12000.0,
+            haze_density_per_m: 1.0 / 45000.0,
+            haze_scale_height_m: 1500.0,
             scale_height_m: 120.0,
             mist_strength: 5.0,
             mist_top_m: 600.0,
@@ -71,7 +211,23 @@ impl Default for FogConfig {
             ambient_share: 1.0,
             sun_share: 0.25,
             phase_g: 0.6,
+            presets: FogPresets::default(),
+            clock: FogClock::default(),
+            // Combat-heavy: the three-city defence and the air fortress (survey F1).
+            missions: BTreeMap::from([(MissionKind::Defence, FogPreset::Clear), (MissionKind::Fortress, FogPreset::Clear)]),
         }
+    }
+}
+
+impl FogConfig {
+    /// How thick the fog is (survey F1): the running mission's preset if it has one, else the
+    /// morning mist thinning to the day's as the clock passes `clock.burn_off_h`.
+    pub fn strength(&self, mission: Option<MissionKind>, hour_h: f32) -> FogStrength {
+        if let Some(p) = mission.and_then(|m| self.missions.get(&m)) {
+            return self.presets.get(*p);
+        }
+        let [a, b] = self.clock.burn_off_h;
+        self.presets.day.lerp(self.presets.morning, 1.0 - smoothstep(a, b, hour_h))
     }
 }
 
@@ -79,6 +235,8 @@ impl Validate for FogConfig {
     fn validate(&self) -> Result<(), String> {
         within("fog.density_per_m", self.density_per_m, 0.0, 0.01)?;
         positive("fog.scale_height_m", self.scale_height_m)?;
+        within("fog.haze_density_per_m", self.haze_density_per_m, 0.0, 0.01)?;
+        positive("fog.haze_scale_height_m", self.haze_scale_height_m)?;
         within("fog.mist_strength", self.mist_strength, 0.0, 50.0)?;
         finite("fog.mist_top_m", self.mist_top_m)?;
         positive("fog.hollow_depth_m", self.hollow_depth_m)?;
@@ -91,7 +249,13 @@ impl Validate for FogConfig {
         within("fog.rain_per_m", self.rain_per_m, 0.0, 0.1)?;
         within("fog.ambient_share", self.ambient_share, 0.0, 4.0)?;
         within("fog.sun_share", self.sun_share, 0.0, 4.0)?;
-        within("fog.phase_g", self.phase_g, -0.95, 0.95)
+        within("fog.phase_g", self.phase_g, -0.95, 0.95)?;
+        self.presets.morning.validate("fog.presets.morning")?;
+        self.presets.day.validate("fog.presets.day")?;
+        self.presets.clear.validate("fog.presets.clear")?;
+        within("fog.clock.start_h", self.clock.start_h, 0.0, 24.0)?;
+        within("fog.clock.hours_per_s", self.clock.hours_per_s, 0.0, 10.0)?;
+        positive_range("fog.clock.burn_off_h", self.clock.burn_off_h)
     }
 }
 
@@ -101,16 +265,63 @@ impl Validate for FogConfig {
 /// `mist * density * exp(-(y - sea) / H)`, written with both ends' exponentials so it neither
 /// overflows looking down nor loses precision looking up.
 pub fn optical_depth(cfg: &FogConfig, sea_level_m: f32, from_y_m: f32, dir_y: f32, length_m: f32, mist: f32) -> f32 {
-    let h = cfg.scale_height_m;
+    layer_depth(mist * cfg.density_per_m, cfg.scale_height_m, sea_level_m, from_y_m, dir_y, length_m)
+}
+
+/// The aerial haze's optical depth along the same ray (design section 2a): the layer of
+/// `haze_density_per_m` thinning every `haze_scale_height_m`, not thickened by mist.
+pub fn haze_depth(cfg: &FogConfig, sea_level_m: f32, from_y_m: f32, dir_y: f32, length_m: f32) -> f32 {
+    layer_depth(
+        cfg.haze_density_per_m,
+        cfg.haze_scale_height_m,
+        sea_level_m,
+        from_y_m,
+        dir_y,
+        length_m,
+    )
+}
+
+/// The optical depth through an exponential layer of `density` per metre at sea level, thinning
+/// by e every `h` metres, along a ray from height `from_y_m` rising `dir_y` a metre for
+/// `length_m`. The one closed form of the fog and the haze (`layer_depth` in `water_post.wesl`).
+fn layer_depth(density: f32, h: f32, sea_level_m: f32, from_y_m: f32, dir_y: f32, length_m: f32) -> f32 {
     let e = |y: f32| (-(y - sea_level_m).max(-200.0) / h).exp();
     let e0 = e(from_y_m);
     let length = length_m.max(0.0);
-    let base = mist * cfg.density_per_m;
     if dir_y.abs() < 1e-4 {
-        return base * e0 * length;
+        return density * e0 * length;
     }
     let e1 = e(from_y_m + dir_y * length);
-    base * h * (e0 - e1) / dir_y
+    density * h * (e0 - e1) / dir_y
+}
+
+/// Where the compose pass reads the mist along a ray, as shares of the way out to
+/// `mist_taps_m` (`fog_depth` in `water_post.wesl`).
+pub const MIST_TAPS: [f32; 4] = [0.1, 0.3, 0.6, 1.0];
+
+/// The fog's optical depth along the straight line from `from` to `to`, worked out as the compose
+/// pass works it out for a pixel (`fog_depth` in `water_post.wesl`): the mist read at the four
+/// taps and averaged, thickening the layer's exact integral, scaled by the strength now
+/// (`FogConfig::strength`), plus the rain's haze `rain` (0..1, under a shaft at `from`) along it.
+/// `exp(-line_depth)` is the share of the target's light that reaches the eye.
+pub fn line_depth(cfg: &FogConfig, strength: FogStrength, map: &MistMap, sea_level_m: f32, from: Vec3, to: Vec3, rain: f32) -> f32 {
+    let len = from.distance(to);
+    if !len.is_finite() || len <= 0.0 {
+        return 0.0;
+    }
+    let dir = (to - from) / len;
+    let reach = len.min(cfg.mist_taps_m);
+    let mist = MIST_TAPS
+        .iter()
+        .map(|f| {
+            let p = from + dir * (reach * f);
+            map.at(Vec2::new(p.x, p.z))
+        })
+        .sum::<f32>()
+        / MIST_TAPS.len() as f32;
+    let thick = 1.0 + cfg.mist_strength * strength.mist_scale * mist;
+    let layer = optical_depth(cfg, sea_level_m, from.y, dir.y, len, thick) * strength.density_scale;
+    layer + haze_depth(cfg, sea_level_m, from.y, dir.y, len) + cfg.rain_per_m * rain.clamp(0.0, 1.0) * len
 }
 
 /// How misty a place is, 0 (plain air) to 1 (full mist): a hollow below the ground round it, near
@@ -289,6 +500,108 @@ mod tests {
     }
 
     #[test]
+    fn the_morning_mist_thins_by_day_on_the_clock() {
+        let cfg = FogConfig::default();
+        let at = |s: f32| cfg.strength(None, cfg.clock.hour_at(s));
+        // The world begins at dawn in the full morning mist.
+        assert_eq!(at(0.0), cfg.presets.morning);
+        // It thins as the clock runs, never thickening.
+        let mut last = at(0.0);
+        for k in 1..=40 {
+            let now = at(k as f32 * 60.0);
+            assert!(now.density_scale <= last.density_scale && now.mist_scale <= last.mist_scale);
+            last = now;
+        }
+        // By late morning it is the day's, and it stays so.
+        assert_eq!(cfg.strength(None, 11.0), cfg.presets.day);
+        assert_eq!(cfg.strength(None, 30.0), cfg.presets.day);
+        // Half way through the burn-off it is between the two.
+        let mid = cfg.strength(None, 9.0);
+        assert!(mid.mist_scale < cfg.presets.morning.mist_scale && mid.mist_scale > cfg.presets.day.mist_scale);
+    }
+
+    #[test]
+    fn combat_heavy_missions_fly_in_clear_air() {
+        let cfg = FogConfig::default();
+        for m in [MissionKind::Defence, MissionKind::Fortress] {
+            // At dawn too: the mission's preset, not the clock.
+            assert_eq!(cfg.strength(Some(m), 6.0), cfg.presets.clear);
+        }
+        assert_eq!(cfg.presets.clear.mist_scale, 0.0);
+        assert!(cfg.presets.clear.density_scale < cfg.presets.day.density_scale);
+        // The morning mist is thicker than the day's, the day's than clear air.
+        let (m, d) = (cfg.presets.morning, cfg.presets.day);
+        assert!(m.density_scale > d.density_scale && m.mist_scale > d.mist_scale);
+    }
+
+    /// A map of `side` cells of 100 m, misty (1) in x below 0 and clear above.
+    fn half_misty(side: usize) -> MistMap {
+        let origin = -(side as f32) * 50.0;
+        let mist = (0..side * side)
+            .map(|k| {
+                if origin + ((k % side) as f32 + 0.5) * 100.0 < 0.0 {
+                    1.0
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        MistMap {
+            side,
+            origin_m: origin,
+            cell_m: 100.0,
+            mist,
+        }
+    }
+
+    #[test]
+    fn the_haze_blues_the_distance_from_altitude_where_the_low_fog_has_none() {
+        // From 1.5 km up, looking 20 km out and gently down, the 120 m fog layer adds almost
+        // nothing; the haze still takes a share (design section 2a).
+        let cfg = FogConfig::default();
+        let dir_y = -1400.0 / 20000.0;
+        let fog = optical_depth(&cfg, 0.0, 1500.0, dir_y, 20000.0, 1.0);
+        let haze = haze_depth(&cfg, 0.0, 1500.0, dir_y, 20000.0);
+        assert!(haze > 0.1 && haze < 1.0, "haze {haze}");
+        assert!(haze > 3.0 * fog, "haze {haze} against fog {fog}");
+        // Straight up from the ground it thins to almost nothing past a few scale heights.
+        assert!(haze_depth(&cfg, 0.0, 0.0, 1.0, 40000.0) < cfg.haze_density_per_m * cfg.haze_scale_height_m * 1.001);
+    }
+
+    #[test]
+    fn a_line_through_the_mist_is_foggier_than_one_through_clear_air() {
+        let cfg = FogConfig::default();
+        let map = half_misty(80);
+        let eye = Vec3::new(0.0, 10.0, 0.0);
+        let s = cfg.presets.morning;
+        let misty = line_depth(&cfg, s, &map, 0.0, eye, Vec3::new(-1500.0, 10.0, 0.0), 0.0);
+        let clear = line_depth(&cfg, s, &map, 0.0, eye, Vec3::new(1500.0, 10.0, 0.0), 0.0);
+        assert!(misty > 3.0 * clear, "{misty} against {clear}");
+        // Clear air with no mist: the layer's own integral and the aerial haze, nothing more.
+        let plain = optical_depth(&cfg, 0.0, 10.0, 0.0, 1500.0, 1.0) * s.density_scale + haze_depth(&cfg, 0.0, 10.0, 0.0, 1500.0);
+        assert!((clear - plain).abs() < 1e-3 * plain.max(1e-6), "{clear} against {plain}");
+        // The clear preset lifts the mist off: both ways read alike.
+        let c = cfg.presets.clear;
+        let a = line_depth(&cfg, c, &map, 0.0, eye, Vec3::new(-1500.0, 10.0, 0.0), 0.0);
+        let b = line_depth(&cfg, c, &map, 0.0, eye, Vec3::new(1500.0, 10.0, 0.0), 0.0);
+        assert!((a - b).abs() < 1e-5, "{a} against {b}");
+        // Rain at the eye thickens it; a line of no length has none.
+        assert!(line_depth(&cfg, s, &map, 0.0, eye, Vec3::new(1500.0, 10.0, 0.0), 1.0) > clear + 0.9);
+        assert_eq!(line_depth(&cfg, s, &map, 0.0, eye, eye, 1.0), 0.0);
+    }
+
+    #[test]
+    fn looking_up_out_of_the_mist_sees_through_less_of_it() {
+        let cfg = FogConfig::default();
+        let map = half_misty(80);
+        let eye = Vec3::new(-2000.0, 5.0, 0.0);
+        let s = cfg.presets.morning;
+        let level = line_depth(&cfg, s, &map, 0.0, eye, eye + Vec3::new(1000.0, 0.0, 0.0), 0.0);
+        let up = line_depth(&cfg, s, &map, 0.0, eye, eye + Vec3::new(800.0, 600.0, 0.0), 0.0);
+        assert!(up < level, "{up} against {level}");
+    }
+
+    #[test]
     fn the_shipped_fog_is_valid() {
         assert!(FogConfig::default().validate().is_ok());
         let bad = FogConfig {
@@ -296,5 +609,13 @@ mod tests {
             ..FogConfig::default()
         };
         assert!(bad.validate().is_err());
+        let backwards = FogConfig {
+            clock: FogClock {
+                burn_off_h: [11.0, 7.0],
+                ..FogClock::default()
+            },
+            ..FogConfig::default()
+        };
+        assert!(backwards.validate().is_err());
     }
 }

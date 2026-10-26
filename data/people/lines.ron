@@ -1,0 +1,49 @@
+// Who people are and what they say when the pilot greets them (openspec/changes/civilians/design.md;
+// crates/cb-core/src/civilians/lines.rs). A role lives on one kind of place (Pavement, Park, Base) and is
+// drawn there by weight. A greeting picks one of the role's lines by the person and how many times they
+// have been greeted. A line with `job: true` tells of an open job, `{job}` filled with its subject, and is
+// only said while one is open. Every role needs at least one line that is not a job's.
+(
+    roles: [
+        (id: "passer_by", name: "Passer-by", place: Pavement, weight: 6.0),
+        (id: "shopkeeper", name: "Shopkeeper", place: Pavement, weight: 1.0),
+        (id: "dock_worker", name: "Dock worker", place: Pavement, weight: 1.5),
+        (id: "park_goer", name: "Park-goer", place: Park, weight: 3.0),
+        (id: "pensioner", name: "Pensioner", place: Park, weight: 1.0),
+        (id: "mechanic", name: "Mechanic", place: Base, weight: 3.0),
+        (id: "ground_crew", name: "Ground crew", place: Base, weight: 2.0),
+        (id: "quartermaster", name: "Quartermaster", place: Base, weight: 0.5),
+    ],
+    lines: [
+        (role: "passer_by", text: "Rain again tonight. It always rains when the crabs come in."),
+        (role: "passer_by", text: "You're a pilot? Mind where you put your feet out there."),
+        (role: "passer_by", text: "The trams stopped running after the last raid. We walk now."),
+        (role: "passer_by", text: "Don't stand under the signs. They come down first."),
+        (role: "passer_by", text: "My brother drives freight on the coast road. He says it's getting worse."),
+        (role: "passer_by", text: "Heard it on the wireless: {job}. Someone's paying for that.", job: true),
+        (role: "shopkeeper", text: "Shutters go down at the first siren. Nothing personal."),
+        (role: "shopkeeper", text: "Coolant, filters, cigarettes. Cash only since the bank burned."),
+        (role: "shopkeeper", text: "Third window this month. I've stopped replacing the glass."),
+        (role: "shopkeeper", text: "A customer was talking about it: {job}. Good money, she said.", job: true),
+        (role: "dock_worker", text: "Twelve-hour shifts and the cranes still break down."),
+        (role: "dock_worker", text: "We unload the parts that keep your machine walking. Remember that."),
+        (role: "dock_worker", text: "The union's posted it on the board: {job}.", job: true),
+        (role: "park_goer", text: "This is the only quiet place left in the city."),
+        (role: "park_goer", text: "The pigeons don't even flinch at the mechs any more."),
+        (role: "park_goer", text: "I come here to forget the sirens for an hour."),
+        (role: "park_goer", text: "Everyone on the benches is talking about it: {job}.", job: true),
+        (role: "pensioner", text: "I watched them build the first walkers. Smaller than yours. Louder."),
+        (role: "pensioner", text: "In my day a pilot took his helmet off to talk to people."),
+        (role: "pensioner", text: "Sit a while. Your machine isn't going anywhere."),
+        (role: "mechanic", text: "Bring it back in one piece and I'll buy you a drink."),
+        (role: "mechanic", text: "Your knee actuators are running hot. Go easy on the skates."),
+        (role: "mechanic", text: "Hangar two has spare plate if you can sweet-talk the quartermaster."),
+        (role: "mechanic", text: "Ops has a contract up: {job}. They asked for you by name.", job: true),
+        (role: "ground_crew", text: "Stay off the apron markings when the jets are spooling."),
+        (role: "ground_crew", text: "Fuel truck's late again. Everything's late again."),
+        (role: "ground_crew", text: "Tower says the weather's closing in from the west."),
+        (role: "ground_crew", text: "Board in the ready room says: {job}.", job: true),
+        (role: "quartermaster", text: "Sign for it, break it, pay for it. That's the system."),
+        (role: "quartermaster", text: "Missiles are rationed. Make them count."),
+    ],
+)
