@@ -23,7 +23,7 @@ use cb_core::civilians::Doors;
 use cb_core::pilot::{CarAccess, PilotEvent, PilotMode};
 use cb_core::traffic::{CarState, Harm, MechNear, Traffic, TrafficView};
 use cb_core::world::lanes::LaneGraph;
-use cb_core::world::{Ground, Scene as WorldScene};
+use cb_core::world::{Ground, OnRoads, Scene as WorldScene};
 use std::collections::BTreeMap;
 
 /// Ids from here up in the weapons' part list are cars (mechs below 5000, vehicles from 5000, the fortress
@@ -209,13 +209,19 @@ fn step_traffic(
     let _t = crate::perf_hud::slow("step_traffic");
     let d = &data.0.traffic;
     let sim = &mut *sim;
-    let ground = WorldScene {
+    let scene = WorldScene {
         plan: &plan,
         dug: &live.dug,
         trees: None,
         structures: Some(&live.structures),
         platforms: &live.platforms,
         interiors: None,
+    };
+    // the wheels meet the road as it is drawn, `road_lift_m` over its grade
+    let ground = OnRoads {
+        ground: &scene,
+        plan: &plan,
+        lift_m: data.0.world.road_lift_m,
     };
     // the pilot and the cars
     for e in &events.0 {
@@ -233,7 +239,9 @@ fn step_traffic(
                         .and_then(|d| d.0.refuge(p, pilot_at, reach))
                         .unwrap_or_else(|| p + (p - pilot_at).normalize_or(Vec2::X) * 30.0)
                 };
-                if !sim.traffic.take(d, id, &ground, &refuge) {
+                if sim.traffic.take(d, id, &ground, &refuge) {
+                    info!("traffic: the pilot takes car {id}");
+                } else {
                     warn!("traffic: car {id} could not be taken");
                 }
             }

@@ -14,6 +14,7 @@ mod building_arrays;
 mod building_state;
 mod buildings;
 mod capture;
+mod capture_cars;
 mod capture_fortress;
 mod career;
 mod civil_standing;
@@ -309,6 +310,8 @@ fn main() -> AppExit {
             app.add_plugins(capture_fortress::FortressStillsPlugin { dir });
         } else if std::env::var("CB_STILLS_FX").is_ok() {
             app.add_plugins(capture::FxStillsPlugin { dir });
+        } else if std::env::var("CB_STILLS_CARS").is_ok() {
+            app.add_plugins(capture_cars::CarStillsPlugin { dir });
         } else if std::env::var("CB_STILLS_WEATHER").is_ok() {
             app.add_plugins(capture::WeatherStillsPlugin { dir });
         } else {

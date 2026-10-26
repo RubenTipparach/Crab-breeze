@@ -34,6 +34,24 @@ Henyey-Greenstein phase, `shade` the storm shade the sun carries (`Clouds::sun_a
 shaft's cylinder (below its top) adds `rho_rain` (default 1/1,500 m) of density, coloured grey.
 Standing in a shaft the world fades out by about 3 km.
 
+## 2a. Aerial haze
+
+Owner, 2026-10-26, with Ace Combat 8 shots of a coast and a fleet from altitude: "we also have more
+distance fog affecting at higher altitudes", "hieght fog". The layer above is 120 m deep: from a
+few hundred metres up the eye looks down through almost none of it, and far land and sea stay as
+sharp and saturated as near ones. Real air has a second, far thinner and deeper layer of haze
+(aerosol, a scale height of about 1-2 km) that greys and blues everything with distance at every
+height. It is added to the same closed form, its own `rho1` and `H1`:
+
+`tau_haze = rho1 * H1 * exp(-(e.y - h0) / H1) * (1 - exp(-L * d.y / H1)) / d.y`
+
+- `haze_density_per_m` 1/45,000 m at sea level (a level ray loses about 60 % by 40 km), and
+  `haze_scale_height_m` 1,500 m: from 1.5 km up, the coast 10 km away is a little blued, the far
+  island and the horizon soft, as in the references.
+- The same colour as the fog (the sky's light scattered back, the sun's forward), not tied to the
+  mist map: haze does not pool in valleys.
+- Cost: one more exponential a pixel in the fog pass.
+
 ## 3. The mist map
 
 A 256 x 256 R8 texture over the 41 km world (160 m a texel), baked with the world plan from the
