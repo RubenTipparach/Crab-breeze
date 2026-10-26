@@ -394,11 +394,25 @@ fn spawn_prompt(mut commands: Commands) {
     ));
 }
 
-/// Shows "E: step into the cockpit" when the kneeling mech is ready and the pilot is near.
-fn show_prompt(pilot: Res<PilotSim>, access: Res<MechAccessNow>, data: Res<Data>, mut prompt: Single<&mut Text, With<Prompt>>) {
+/// Shows "E: step into the cockpit" when the kneeling mech is ready and the pilot is near, and "E: use the
+/// terminal" at a hangar bay's terminal (air-bases).
+fn show_prompt(
+    pilot: Res<PilotSim>,
+    access: Res<MechAccessNow>,
+    data: Res<Data>,
+    terminal: Option<Res<crate::air_bases::TerminalNear>>,
+    mut prompt: Single<&mut Text, With<Prompt>>,
+) {
     let p = &pilot.curr;
     let ready = access.0.as_ref().is_some_and(|a| a.hatch_open && p.can_board(a, &data.0.pilot));
-    let want = if ready { "[E]  Step into the cockpit" } else { "" };
+    let at_terminal = terminal.as_ref().is_some_and(|t| t.near.is_some());
+    let want = if at_terminal {
+        "[E]  Use the terminal: jobs, shop, refit"
+    } else if ready {
+        "[E]  Step into the cockpit"
+    } else {
+        ""
+    };
     if prompt.0 != want {
         prompt.0 = want.into();
     }

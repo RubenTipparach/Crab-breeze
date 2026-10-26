@@ -1,0 +1,17 @@
+// The mech shop's catalogue (openspec change mech-shop, design section 3; survey J15, provisional).
+// Every roster mech is for sale from the start (survey J14: "all mechs are unlcoked, you just dont have
+// money to buy them"); prices are credits, inside survey J4's range. `armour_max` is the highest armour
+// grade a refit may give the mech (mech-custom; data/career/parts.ron prices the grades).
+(
+    price_range: (300000, 1200000),
+    listings: [
+        (design: "mechs/picket.ron", price: 300000, armour_max: 2),
+        (design: "mechs/mule.ron", price: 360000, armour_max: 2),
+        (design: "mechs/roustabout.ron", price: 450000, armour_max: 3),
+        (design: "mechs/driller.ron", price: 520000, armour_max: 3),
+        (design: "mechs/sapper.ron", price: 600000, armour_max: 3),
+        (design: "mechs/ironhorse.ron", price: 700000, armour_max: 3),
+        (design: "mechs/foreman.ron", price: 850000, armour_max: 3),
+        (design: "mechs/harrow.ron", price: 1200000, armour_max: 2),
+    ],
+)

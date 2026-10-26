@@ -385,7 +385,13 @@ fn write_live(
                     .and_then(|b| b.job(*id))
                     .map(|j| {
                         let km = j.site.distance(here) / 1000.0;
-                        format!("CITY {}  {} MECHS  {km:.1} KM  CR {}", j.city + 1, j.mechs, credits(j.pay))
+                        format!(
+                            "T{}  CITY {}  {} MECHS  {km:.1} KM  CR {}",
+                            j.tier,
+                            j.city + 1,
+                            j.mechs,
+                            credits(j.pay)
+                        )
                     })
                     .unwrap_or_default(),
                 Some(Offer::Mission(i)) => {

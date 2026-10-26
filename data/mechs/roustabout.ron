@@ -4,6 +4,7 @@
 // stand-in's tuning (placeholder.ron) scaled by k = 1.974.
 (
     name: "Roustabout",
+    tier: 2,
     model: Some("models/mech_roustabout.glb"),
     interior: Some((
         model: "models/cockpit_titan/cockpit_titan.gltf",

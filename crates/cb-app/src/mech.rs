@@ -79,6 +79,17 @@ pub struct MechId(pub u32);
 #[derive(Component)]
 pub struct Piloted;
 
+/// A mech the career owns (its key, `cb_core::career::OwnedMech::key`): one the pilot may walk up to and board
+/// (mech-shop section 6.3). The piloted mech carries it too, in a career.
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Owned(pub u32);
+
+/// The stable id of an owned mech that is not the piloted one (0 is always the piloted mech's): clear of every
+/// encounter's and job's ids.
+pub fn owned_id(key: u32) -> MechId {
+    MechId(0x4000_0000 + key)
+}
+
 /// A mech driven by an AI pilot.
 #[derive(Component)]
 pub struct Enemy {
@@ -430,6 +441,15 @@ pub fn spawn_enemy(
     Some(ent)
 }
 
+/// Spawns an owned mech standing (or, for a drop, held in the air) at `pos`, empty and sealed, ready to be walked
+/// up to and boarded: the one way the career's other mechs enter the world (a drop, a mech left where the pilot
+/// climbed out, one called out at a base, a save continued).
+pub fn spawn_owned(commands: &mut Commands, cfg: Arc<MechConfig>, pos: Vec3, heading_rad: f32, key: u32, a: &mut SpawnAssets) -> Entity {
+    let ent = spawn_mech_entity(commands, cfg, pos, heading_rad, None, &a.tex.metal, a.assets, a.meshes, a.materials);
+    commands.entity(ent).insert((Owned(key), owned_id(key)));
+    ent
+}
+
 /// What an enemy goes for this step, when something other than the player's mech (a mission's
 /// target); `None` is the player. Written before the mechs step.
 #[derive(Component, Clone, Copy, Debug, Default)]
@@ -711,7 +731,7 @@ fn bind_interior(
     lights: Query<(), Or<(With<PointLight>, With<SpotLight>, With<DirectionalLight>)>>,
     mut points: Query<&mut PointLight>,
     mut spots: Query<&mut SpotLight>,
-    piloted: Query<(), With<Piloted>>,
+    piloted: Query<(), Or<(With<Piloted>, With<Owned>)>>,
     data: Res<Data>,
     mut assets: ResMut<Assets<Mesh>>,
     mut cut_done: Local<HashSet<AssetId<Mesh>>>,
@@ -806,8 +826,8 @@ fn bind_interior(
         // The interior's own lamps light its cabin (owner, 2026-10-24: "Need proper dashboard
         // lighting"): on the cockpit layer only, so they light the cabin and never the world, and
         // nothing outside reaches the cabin (lights are clustered on the CPU, which keeps each to its
-        // layer). No shadows: they are cheap fills. Only the pilot's mech keeps them; an enemy's
-        // cabin is never seen from inside.
+        // layer). No shadows: they are cheap fills. Only the pilot's mech and the mechs they own (any of which they
+        // may board) keep them; an enemy's cabin is never seen from inside.
         let keep = piloted.contains(root);
         for l in lamps {
             if !keep {
@@ -939,12 +959,12 @@ pub fn rope_foot(mech_feet: Vec3, hatch: Vec3, reach_m: f32) -> Vec3 {
 }
 
 fn publish_access(
-    roots: Query<(&MechSim, &MechRig), With<Piloted>>,
+    roots: Query<(&MechSim, &MechRig, &MechSpec), With<Piloted>>,
     globals: Query<&GlobalTransform>,
     data: Res<Data>,
     mut out: ResMut<MechAccessNow>,
 ) {
-    out.0 = roots.iter().next().and_then(|(sim, rig)| {
+    out.0 = roots.iter().next().and_then(|(sim, rig, spec)| {
         let at = |n: &str| globals.get(rig.sockets[n]).ok().map(|g| g.translation());
         let hatch = at("HATCH_entry")?;
         Some(MechAccess {
@@ -957,7 +977,8 @@ fn publish_access(
             eye_pilot: at("EYE_pilot")?,
             heading_rad: sim.curr.heading_rad,
             seat_yaw_rad: sim.curr.heading_rad + sim.curr.twist_rad,
-            stopped: sim.curr.is_stopped(&data.0.mech.locomotion),
+            // The piloted mech's own data: it may be any owned design (mech-shop section 6.3).
+            stopped: sim.curr.is_stopped(&spec.locomotion),
             speed_m_s: sim.curr.vel.length(),
             destroyed: sim.dead,
             hatch_open: sim.hatch.is_open(&data.0.boarding),

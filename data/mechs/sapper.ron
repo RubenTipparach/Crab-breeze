@@ -4,6 +4,7 @@
 // stand-in's tuning (placeholder.ron) scaled by k = 1.988.
 (
     name: "Sapper",
+    tier: 3,
     model: Some("models/mech_sapper.glb"),
     interior: Some((
         model: "models/cockpit_twintier/cockpit_twintier.gltf",

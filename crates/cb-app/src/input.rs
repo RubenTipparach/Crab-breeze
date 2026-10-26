@@ -57,7 +57,7 @@ pub(crate) struct Keys {
     left: Vec<KeyCode>,
     right: Vec<KeyCode>,
     run: Vec<KeyCode>,
-    use_key: Vec<KeyCode>,
+    pub(crate) use_key: Vec<KeyCode>,
     free_look: Vec<KeyCode>,
     throttle_zero: Vec<KeyCode>,
     mode_walk: Vec<KeyCode>,
@@ -316,7 +316,7 @@ fn axis(input: &ButtonInput<KeyCode>, pos: &[KeyCode], neg: &[KeyCode]) -> f32 {
     f32::from(u8::from(any(input, pos))) - f32::from(u8::from(any(input, neg)))
 }
 
-fn take_step_actions(
+pub(crate) fn take_step_actions(
     input: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<Keys>,
