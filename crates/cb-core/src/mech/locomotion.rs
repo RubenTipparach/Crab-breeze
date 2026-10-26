@@ -515,8 +515,7 @@ impl MechState {
         // to the mouse").
         let twist_max = loco.twist_max_deg.to_radians();
         let [pitch_lo, pitch_hi] = loco.pitch_limits_deg.map(f32::to_radians);
-        self.aim_twist_rad =
-            (self.aim_twist_rad - legs_turn_rad - c.aim_delta_deg.x.to_radians()).clamp(-twist_max, twist_max);
+        self.aim_twist_rad = (self.aim_twist_rad - legs_turn_rad - c.aim_delta_deg.x.to_radians()).clamp(-twist_max, twist_max);
         self.aim_pitch_rad = (self.aim_pitch_rad + c.aim_delta_deg.y.to_radians()).clamp(pitch_lo, pitch_hi);
         let (twist, rate) = ease_toward(
             (self.twist_rad - legs_turn_rad).clamp(-twist_max, twist_max),
@@ -600,7 +599,10 @@ mod tests {
                 "step {i}: the torso's turn in the world jumps from {last_world_rate} to {world_rate}"
             );
             if i > 120 {
-                assert!(wrap(now - view).abs() < 1e-3, "step {i}: the torso sits on the view, {now} of {view}");
+                assert!(
+                    wrap(now - view).abs() < 1e-3,
+                    "step {i}: the torso sits on the view, {now} of {view}"
+                );
             }
             (world, last_world_rate) = (now, world_rate);
         }
