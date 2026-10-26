@@ -14,6 +14,7 @@ use crate::mech::{MechId, MechSim, MechSpec, Piloted, apply_hit};
 use crate::missions::MissionSwitch;
 use crate::pilot::PilotSim;
 use crate::sim::{Data, PresentSet, SimSet};
+use crate::state::GameApp;
 use crate::units::{Hostile, Hostiles, Units};
 use crate::world::{Live, Plan};
 use bevy::prelude::*;
@@ -111,24 +112,24 @@ pub struct FortressPlugin;
 impl Plugin for FortressPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<FortressHit>()
-            .add_systems(Update, switch.after(crate::missions::MissionsSet).before(PresentSet::Pose))
+            .add_game_systems(Update, switch.after(crate::missions::MissionsSet).before(PresentSet::Pose))
             // each checks for the run itself: a switch can end it between the two
-            .add_systems(
+            .add_game_systems(
                 Update,
                 (bind, pose)
                     .chain()
                     .in_set(PresentSet::Pose)
                     .distributive_run_if(resource_exists::<FortressRun>),
             )
-            .add_systems(
+            .add_game_systems(
                 FixedUpdate,
                 hostiles
                     .in_set(SimSet::Input)
                     .after(crate::units::list_hostiles)
                     .run_if(resource_exists::<FortressRun>),
             )
-            .add_systems(FixedUpdate, step.in_set(SimSet::World).run_if(resource_exists::<FortressRun>))
-            .add_systems(
+            .add_game_systems(FixedUpdate, step.in_set(SimSet::World).run_if(resource_exists::<FortressRun>))
+            .add_game_systems(
                 FixedUpdate,
                 hits.in_set(SimSet::Mech)
                     .after(crate::combat::fly_shots)

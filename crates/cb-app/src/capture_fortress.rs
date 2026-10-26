@@ -10,6 +10,7 @@ use crate::capture::{shoot, stand_looking};
 use crate::fortress::{FortressHit, FortressRun};
 use crate::pilot::PilotSim;
 use crate::sim::Data;
+use crate::state::GameApp;
 use crate::world::Plan;
 use bevy::prelude::*;
 use cb_core::world::Ground;
@@ -51,7 +52,7 @@ impl Plugin for FortressStillsPlugin {
             done: Vec::new(),
             crashed_at: None,
         })
-        .add_systems(Update, run);
+        .add_game_systems(Update, run);
     }
 }
 

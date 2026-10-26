@@ -10,6 +10,7 @@ use crate::hud::{MFD_PAGE_PX, MFD_PAGES as PAGES, MFD_READOUTS, MfdRoot};
 use crate::input::InputAccum;
 use crate::mfd_apps::{Item, MAIL_PAGE, MENU_PAGE, Offer, Pointed, item_at, offers};
 use crate::pilot::{CockpitCamera, PilotCamera, PilotSim};
+use crate::state::GameApp;
 use bevy::camera::RenderTarget;
 use bevy::camera::primitives::Aabb;
 use bevy::camera::visibility::RenderLayers;
@@ -19,8 +20,10 @@ use bevy::render::render_resource::TextureFormat;
 use bevy::ui::UiTargetCamera;
 use cb_core::pilot::PilotMode;
 
-/// The dash's lower screens, bound by exact name (they were baked pictures), and the page each starts on.
-const DASH_SCREENS: [(&str, usize); 3] = [("SCREEN_left_screen", 0), ("SCREEN_center_screen", 4), ("SCREEN_right_screen", 3)];
+/// The dash's lower screens, bound by exact name (they were baked pictures), and the page each starts on. The left
+/// one starts on MISSION (the heading): the MFD above it already shows MECH (owner, 2026-10-25: "the two left mfds
+/// show the same thing, one should show the mech body, the other the heading").
+const DASH_SCREENS: [(&str, usize); 3] = [("SCREEN_left_screen", 2), ("SCREEN_center_screen", 4), ("SCREEN_right_screen", 3)];
 
 /// The MFD texture and the camera that draws it.
 #[derive(Resource)]
@@ -44,8 +47,8 @@ pub struct MfdPlugin;
 
 impl Plugin for MfdPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup)
-            .add_systems(Update, (bind_screens, place_pages, point, press, outline, shoot).chain());
+        app.add_world_spawn(setup)
+            .add_game_systems(Update, (bind_screens, place_pages, point, press, outline, shoot).chain());
     }
 }
 

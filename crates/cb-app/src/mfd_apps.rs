@@ -7,6 +7,7 @@
 
 use crate::career::CareerRun;
 use crate::hud::{AMBER, FRAME, GREEN, MFD_PAGE_PX, MFD_READOUTS, MfdRoot, text};
+use crate::state::GameApp;
 use bevy::prelude::*;
 use cb_core::jobs::{Board, JobState};
 use cb_core::missions::FreeRoam;
@@ -190,8 +191,8 @@ pub struct MfdAppsPlugin;
 impl Plugin for MfdAppsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Pointed>()
-            .add_systems(PostStartup, spawn_pages)
-            .add_systems(Update, (light_items, write_live));
+            .add_after_world_spawn(spawn_pages)
+            .add_game_systems(Update, (light_items, write_live));
     }
 }
 

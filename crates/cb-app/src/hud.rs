@@ -11,6 +11,7 @@
 use crate::mech::{MechSim, MechSpec, Piloted};
 use crate::pilot::PilotSim;
 use crate::sim::PresentSet;
+use crate::state::GameApp;
 use crate::world::Plan;
 use bevy::prelude::*;
 use bevy::ui::UiTransform;
@@ -22,7 +23,7 @@ pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_hud).add_systems(
+        app.add_world_spawn(spawn_hud).add_game_systems(
             Update,
             (
                 update_hud,

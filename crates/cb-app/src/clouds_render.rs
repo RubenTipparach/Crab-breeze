@@ -21,6 +21,7 @@
 
 use crate::pilot::PilotCamera;
 use crate::sim::{Data, PresentSet};
+use crate::state::GameApp;
 use crate::water_render::water_light;
 use crate::world::{Plan, Sun};
 use bevy::asset::RenderAssetUsages;
@@ -126,8 +127,8 @@ pub struct CloudsRenderPlugin;
 impl Plugin for CloudsRenderPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MaterialPlugin::<CloudMaterial>::default())
-            .add_systems(Startup, setup)
-            .add_systems(Update, (gather, refresh_light, shade_sun).chain().in_set(PresentSet::Pose));
+            .add_world_spawn(setup)
+            .add_game_systems(Update, (gather, refresh_light, shade_sun).chain().in_set(PresentSet::Pose));
     }
 }
 
@@ -139,7 +140,7 @@ struct CloudDraw {
     entity: Entity,
     /// The eye in the sky's frame (as at time zero) and the view direction when the mesh was last
     /// gathered and sorted.
-    sorted_at: Option<(Vec3, Vec3)>,
+    sorted_at: Option<Vec3>,
 }
 
 fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<CloudMaterial>>) {
@@ -179,13 +180,13 @@ pub struct Item {
 }
 
 /// Every item within `radius_m` of `eye` (in the sky's frame at time zero, x and z) in the order
-/// they are drawn: the deepest along the view direction `forward` first. A puff's billboard faces
-/// the eye's position (`facing` in `cloud.wesl`), so near the middle of the view it lies almost
-/// parallel to the screen and this order is right there; toward the edges of a wide view it is close
-/// (a straight-line distance to the centres misordered puffs off to the side and big puffs beside
-/// small ones while the billboards lay in the screen's plane). Puffs and
-/// shafts within the radius, every cirrus streak.
-pub fn items(clouds: &Clouds, eye: Vec3, forward: Vec3, radius_m: f32) -> Vec<Item> {
+/// they are drawn: the farthest first, by the distance to its near side (its centre's distance less
+/// its size, so a big puff beside a small one is ordered by the surface the eye meets). A puff's
+/// billboard faces the eye's position (`facing` in `cloud.wesl`), so the order depends on where the
+/// eye is and never on where it looks: turning the head cannot re-sort the sky (owner, 2026-10-26:
+/// "its causing clouds to popover each other when I turn my camerea"). Puffs and shafts within the
+/// radius, every cirrus streak.
+pub fn items(clouds: &Clouds, eye: Vec3, radius_m: f32) -> Vec<Item> {
     let flat = |p: Vec3| Vec2::new(p.x, p.z).distance(Vec2::new(eye.x, eye.z));
     let mut out: Vec<Item> = clouds
         .puffs_near(Vec2::new(eye.x, eye.z), radius_m, 0.0)
@@ -223,11 +224,23 @@ pub fn items(clouds: &Clouds, eye: Vec3, forward: Vec3, radius_m: f32) -> Vec<It
         look: Vec4::new(KIND_CIRRUS, 0.0, 1.0, 0.0),
         layer: Vec2::new(c.centre.y, c.centre.y),
     }));
-    // Deepest first; ties keep the gathering order, so the same view always draws the same way.
-    let forward = forward.normalize_or(Vec3::NEG_Z);
-    let mut keyed: Vec<(f32, usize)> = out.iter().enumerate().map(|(i, it)| ((it.centre - eye).dot(forward), i)).collect();
+    // Farthest first; ties keep the gathering order, so the same place always draws the same way.
+    let mut keyed: Vec<(f32, usize)> = out.iter().enumerate().map(|(i, it)| (near_side_m(it, eye), i)).collect();
     keyed.sort_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)));
     keyed.into_iter().map(|(_, i)| out[i]).collect()
+}
+
+/// How far from `eye` an item's near side is: its centre's distance less its size (a puff's larger
+/// radius, a shaft's radius; a cirrus streak is a flat sheet, its centre).
+fn near_side_m(it: &Item, eye: Vec3) -> f32 {
+    let size = if it.look.x > KIND_CIRRUS - 0.5 {
+        0.0
+    } else if it.look.x > KIND_SHAFT - 0.5 {
+        it.shape.x
+    } else {
+        it.shape.x.max(it.shape.y)
+    };
+    it.centre.distance(eye) - size
 }
 
 /// The quads of `items` as one mesh, four corners and two triangles an item, in order.
@@ -262,8 +275,7 @@ fn item_mesh(items: &[Item]) -> Mesh {
 }
 
 /// Carries the sky with the wind, and gathers and sorts the items near the eye again once it has
-/// moved `resort_m` through the sky or the view has turned more than `RESORT_TURN_RAD`. The draw
-/// radius grows with the eye's height (twice it), so a high eye sees the weather to the horizon.
+/// moved `resort_m` through the sky (turning does not change the order). The draw radius grows with the eye's height (twice it), so a high eye sees the weather to the horizon.
 fn gather(
     plan: Res<Plan>,
     data: Res<Data>,
@@ -281,17 +293,13 @@ fn gather(
         t.translation = drift;
     }
     let eye = camera.translation() - drift;
-    let forward = camera.forward().as_vec3();
     let c = &data.0.world.clouds;
-    if draw
-        .sorted_at
-        .is_some_and(|(at, f)| at.distance(eye) < c.resort_m && f.angle_between(forward) < RESORT_TURN_RAD)
-    {
+    if draw.sorted_at.is_some_and(|at| at.distance(eye) < c.resort_m) {
         return;
     }
-    draw.sorted_at = Some((eye, forward));
+    draw.sorted_at = Some(eye);
     if let Some(mut mesh) = meshes.get_mut(&draw.mesh) {
-        *mesh = item_mesh(&items(clouds, eye, forward, c.draw_radius_m + 2.0 * eye.y.max(0.0)));
+        *mesh = item_mesh(&items(clouds, eye, c.draw_radius_m + 2.0 * eye.y.max(0.0)));
     }
 }
 
@@ -319,9 +327,6 @@ fn refresh_light(
         fade: Vec4::new(c.look_near_fade_m, c.look_erode, c.look_soft_m, 0.0),
     };
 }
-
-/// The view may turn this far before the items are sorted again (about 3 degrees).
-const RESORT_TURN_RAD: f32 = 0.05;
 
 /// Texels a side of the storm shade map.
 const SHADE_TEXELS: usize = 1024;
@@ -468,21 +473,19 @@ mod tests {
     }
 
     #[test]
-    fn items_are_drawn_from_the_deepest_along_the_view_to_the_nearest() {
+    fn items_are_drawn_from_the_farthest_near_side_to_the_nearest() {
         let eye = Vec3::new(300.0, 2.0, -400.0);
-        for forward in [Vec3::NEG_Z, Vec3::new(0.6, 0.5, 0.2).normalize()] {
-            let list = items(&sky(), eye, forward, 6000.0);
-            assert!(list.len() > 20);
-            for w in list.windows(2) {
-                assert!((w[0].centre - eye).dot(forward) >= (w[1].centre - eye).dot(forward));
-            }
+        let list = items(&sky(), eye, 6000.0);
+        assert!(list.len() > 20);
+        for w in list.windows(2) {
+            assert!(near_side_m(&w[0], eye) >= near_side_m(&w[1], eye));
         }
     }
 
     #[test]
-    fn a_big_puff_off_to_the_side_sorts_by_its_depth_not_its_distance() {
-        // A puff 3 km off to the side but only 1 km ahead is in front of one 2 km straight ahead,
-        // though its centre is farther from the eye.
+    fn a_big_puff_sorts_by_its_near_side_not_its_centre() {
+        // A big puff whose centre is farther than a small one's, but whose near side is nearer, is
+        // drawn over it.
         let puff = |centre: Vec3, r: f32| Puff {
             centre,
             radii: Vec3::splat(r),
@@ -495,24 +498,24 @@ mod tests {
         let c = Clouds::new(
             Sky {
                 puffs: vec![
-                    puff(Vec3::new(3000.0, 1000.0, -1000.0), 900.0),
-                    puff(Vec3::new(0.0, 1000.0, -2000.0), 300.0),
+                    puff(Vec3::new(1000.0, 1000.0, -2400.0), 900.0),
+                    puff(Vec3::new(0.0, 1000.0, -2000.0), 100.0),
                 ],
                 ..Sky::default()
             },
             Vec2::ZERO,
             0.7,
         );
-        let list = items(&c, Vec3::new(0.0, 1000.0, 0.0), Vec3::NEG_Z, 9000.0);
-        assert_eq!(list[0].centre.z, -2000.0, "the deeper one first");
-        assert_eq!(list[1].centre.x, 3000.0, "the one off to the side drawn over it");
+        let list = items(&c, Vec3::new(0.0, 1000.0, 0.0), 9000.0);
+        assert_eq!(list[0].centre.z, -2000.0, "the small one, its near side farther, first");
+        assert_eq!(list[1].centre.x, 1000.0, "the big one drawn over it");
     }
 
     #[test]
     fn only_puffs_within_the_radius_are_gathered_and_every_one_of_them_is() {
         let c = sky();
         let eye = Vec3::new(-2000.0, 50.0, 1000.0);
-        let list = items(&c, eye, Vec3::NEG_Z, 4000.0);
+        let list = items(&c, eye, 4000.0);
         let puffs: Vec<&Item> = list.iter().filter(|i| i.look.x < KIND_SHAFT - 0.5).collect();
         let within = c
             .puffs
@@ -561,7 +564,7 @@ mod tests {
 
     #[test]
     fn one_quad_an_item() {
-        let list = items(&sky(), Vec3::ZERO, Vec3::NEG_Z, 6000.0);
+        let list = items(&sky(), Vec3::ZERO, 6000.0);
         let m = item_mesh(&list);
         assert_eq!(m.count_vertices(), list.len() * 4);
         assert_eq!(m.indices().map(|i| i.len()), Some(list.len() * 6));

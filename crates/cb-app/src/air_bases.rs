@@ -11,6 +11,7 @@
 use crate::mech::{MechSim, MechSpec, Piloted};
 use crate::pilot::PilotSim;
 use crate::sim::{Data, SimSet};
+use crate::state::GameApp;
 use crate::world::{MeshBuilder, Plan};
 use bevy::prelude::*;
 use cb_core::bases::service;
@@ -24,13 +25,13 @@ impl Plugin for AirBasesPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LastService>()
             .init_resource::<TerminalNear>()
-            .add_systems(Startup, spawn_bases)
-            .add_systems(FixedUpdate, repair_in_hangars.in_set(SimSet::Mech).after(crate::mech::step_mech))
-            .add_systems(
+            .add_world_spawn(spawn_bases)
+            .add_game_systems(FixedUpdate, repair_in_hangars.in_set(SimSet::Mech).after(crate::mech::step_mech))
+            .add_game_systems(
                 FixedUpdate,
                 use_terminals.in_set(SimSet::Input).after(crate::input::take_step_actions),
             )
-            .add_systems(Update, open_terminal.before(crate::sim::PresentSet::Input));
+            .add_game_systems(Update, open_terminal.before(crate::sim::PresentSet::Input));
     }
 }
 

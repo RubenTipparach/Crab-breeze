@@ -8,6 +8,7 @@ use crate::blast::Explosion;
 use crate::fx::Fx;
 use crate::pilot::PilotSim;
 use crate::sim::Data;
+use crate::state::GameApp;
 use crate::units::Hostiles;
 use bevy::audio::{AudioPlayer, AudioSink, AudioSinkPlayback, PlaybackMode, PlaybackSettings, Volume};
 use bevy::prelude::*;
@@ -16,10 +17,11 @@ use cb_core::pilot::PilotMode;
 
 /// An enemy this close with the mech as its target is a threat, m (`music` design section 2).
 const THREAT_WITHIN_M: f32 = 2000.0;
-/// A shot fired or landing this close to the pilot counts as a shot, m.
-const SHOT_WITHIN_M: f32 = 300.0;
-/// An explosion this close counts as a shot, m.
-const BLAST_WITHIN_M: f32 = 500.0;
+/// A round landing this close to the pilot is fire at them, m. The pilot's own rounds land at their target, and their
+/// muzzle flashes never count.
+const SHOT_WITHIN_M: f32 = 80.0;
+/// An explosion this close is fire at them, m.
+const BLAST_WITHIN_M: f32 = 80.0;
 
 /// One playing cue.
 struct Track {
@@ -60,15 +62,15 @@ impl Plugin for MusicPlugin {
             since_shot_s: 1e9,
             ..Default::default()
         })
-        .add_systems(Update, (hear_shots, choose_and_play).chain().after(HearSet));
+        .add_game_systems(Update, (hear_shots, choose_and_play).chain().after(HearSet));
     }
 }
 
-/// Shots and blasts near the pilot keep the combat music going.
+/// Rounds and blasts landing near the pilot keep the combat music going (with enemies about: `music_state`).
 fn hear_shots(mut player: ResMut<Player>, mut fx: MessageReader<Fx>, mut blasts: MessageReader<Explosion>, ear: Res<Ear>, time: Res<Time>) {
     player.since_shot_s += time.delta_secs();
     for f in fx.read() {
-        let shot = f.recipe.starts_with("muzzle_") || f.recipe.starts_with("impact_");
+        let shot = f.recipe.starts_with("impact_");
         if shot && f.at.distance(ear.at) < SHOT_WITHIN_M {
             player.since_shot_s = 0.0;
         }

@@ -17,6 +17,7 @@
 use crate::particles::{GRID, colour_over_life, motion};
 use crate::pilot::PilotCamera;
 use crate::sim::{Data, PresentSet};
+use crate::state::GameApp;
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::visibility::NoFrustumCulling;
 use bevy::light::NotShadowCaster;
@@ -205,11 +206,12 @@ impl Material for SoftMaterial {
             ATTRIBUTE_COLOUR.at_shader_location(3),
         ])?];
         descriptor.primitive.cull_mode = None;
-        // Colour: premultiplied OVER. Alpha: what of the scene behind still shows through (the target
-        // holds 1 under opaque ground and sky; each sprite multiplies it by 1 - its alpha). The ground fog,
-        // laid after every draw from the depth behind the smoke (`water_post.wesl` `compose`), fogs only
-        // that share, so the fog over a puff no longer jumps where the sky, a far street or a near wall
-        // changes behind it (owner, 2026-10-25: "still smoke sorting issues here").
+        // Colour: premultiplied OVER. Alpha: what of the scene behind still shows through (each sprite
+        // multiplies it by 1 - its alpha). Nothing reads that share now: the ground fog is laid before
+        // the transparent pass (`fog` in `water_post.wesl`), so the smoke is drawn over fogged ground
+        // and carries only its own fog, and the fog over a puff cannot jump where the sky, a far
+        // street or a near wall changes behind it (owner, 2026-10-25: "still smoke sorting issues
+        // here").
         if let Some(target) = descriptor
             .fragment
             .as_mut()
@@ -240,7 +242,7 @@ impl Plugin for SoftSpritesPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MaterialPlugin::<SoftMaterial>::default())
             .init_resource::<SoftSprites>()
-            .add_systems(Update, (emit_streams, step, draw).chain().in_set(PresentSet::Pose));
+            .add_game_systems(Update, (emit_streams, step, draw).chain().in_set(PresentSet::Pose));
     }
 }
 

@@ -23,7 +23,7 @@ pub struct Args {
     pub showcase: Option<String>,
     /// Play a showcase take offscreen and report frame time (perf-bench).
     pub bench: Option<String>,
-    /// The mode the menu started this run in (`launcher`): `free`, `free-continue`, `career-new` or
+    /// The mode the menu started this run in (the main menu): `free`, `free-continue`, `career-new` or
     /// `career-continue`.
     pub play: Option<String>,
     /// Start somewhere other than the city: `meadow`, the nearest open grassland (gpu-grass); `fx`, the same meadow

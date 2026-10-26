@@ -19,6 +19,7 @@ use crate::fx::Fx;
 use crate::mech::{MechRig, MechRoot, MechSim, MechSpec, Piloted};
 use crate::pilot::{PilotCamera, PilotSim};
 use crate::sim::{Data, PresentSet, SimSet};
+use crate::state::GameApp;
 use crate::targeting::TargetState;
 use bevy::audio::{
     AudioPlayer, AudioSinkPlayback, AudioSource, PlaybackMode, PlaybackSettings, SpatialAudioSink, SpatialListener, SpatialScale, Volume,
@@ -208,15 +209,15 @@ impl Plugin for SoundPlugin {
             .init_resource::<Pending>()
             .init_resource::<Loops>()
             .insert_resource(Dice(0x9E37_79B9_7F4A_7C15))
-            .add_systems(Startup, load_library)
-            .add_systems(
+            .add_world_spawn(load_library)
+            .add_game_systems(
                 FixedUpdate,
                 (
                     pilot_sounds.in_set(SimSet::Pilot).after(crate::pilot::step_pilot),
                     control_clicks.in_set(SimSet::Pilot).before(crate::pilot::step_pilot),
                 ),
             )
-            .add_systems(
+            .add_game_systems(
                 Update,
                 (
                     (attach_listener, track_ear).chain().in_set(HearSet).after(PresentSet::Camera),

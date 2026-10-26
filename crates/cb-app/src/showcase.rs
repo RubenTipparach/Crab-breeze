@@ -8,6 +8,7 @@
 use crate::input::InputAccum;
 use crate::mech::{Enemy, MechAccessNow, MechSim, Piloted};
 use crate::pilot::PilotSim;
+use crate::state::GameApp;
 use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use cb_core::input::{Actions, DebugCommand};
@@ -98,12 +99,12 @@ impl Plugin for ShowcasePlugin {
             ..default()
         });
         match self.take.as_str() {
-            "fight" => app.add_systems(Update, play_fight.in_set(crate::sim::PresentSet::Input)),
-            "defence" => app.add_systems(Update, play_defence.in_set(crate::sim::PresentSet::Input)),
+            "fight" => app.add_game_systems(Update, play_fight.in_set(crate::sim::PresentSet::Input)),
+            "defence" => app.add_game_systems(Update, play_defence.in_set(crate::sim::PresentSet::Input)),
             "demolition" => app
                 .init_resource::<crate::demolition::DemolitionTake>()
-                .add_systems(Update, crate::demolition::play_take.in_set(crate::sim::PresentSet::Input)),
-            _ => app.add_systems(Update, play.in_set(crate::sim::PresentSet::Input)),
+                .add_game_systems(Update, crate::demolition::play_take.in_set(crate::sim::PresentSet::Input)),
+            _ => app.add_game_systems(Update, play.in_set(crate::sim::PresentSet::Input)),
         };
     }
 }
