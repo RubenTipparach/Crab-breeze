@@ -1271,6 +1271,7 @@ pub fn step_mech(
             trees: None,
             structures: Some(&live.structures),
             platforms: &live.platforms,
+            interiors: None,
         };
         let was_airborne = sim.curr.airborne();
         sim.curr.step(&controls, cfg, &ground, dt);
@@ -1564,6 +1565,7 @@ fn look_point(camera: &GlobalTransform, plan: &cb_core::world::WorldPlan, live: 
         trees: None,
         structures: Some(&live.structures),
         platforms: &live.platforms,
+        interiors: None,
     };
     let (o, d) = (camera.translation(), camera.forward().as_vec3());
     let mut t = 20.0;
@@ -1595,6 +1597,7 @@ fn aim_point(camera: &GlobalTransform, plan: &cb_core::world::WorldPlan, dug: &c
         trees: None,
         structures: None,
         platforms: &[],
+        interiors: None,
     };
     let (o, d) = (camera.translation(), camera.forward().as_vec3());
     let mut t = 5.0;

@@ -13,6 +13,7 @@
 //! building is dressed in long merged pieces instead (`segmented = false`), a fraction of the
 //! triangles. Pure and deterministic: the same building and seed give the same pieces.
 
+use super::interior::{self, DoorKind, Entrance, Shell};
 use crate::rng::SimRng;
 use glam::Vec3;
 
@@ -349,14 +350,15 @@ fn sash(out: &mut Vec<Piece>, p: &Panel, c: f32, w: f32, ya: f32, yb: f32, look:
 }
 
 /// What a ground-floor bay is.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Ground {
+#[derive(Clone, Copy, PartialEq)]
+enum Ground<'a> {
     /// Like the storeys above.
     Plain,
     /// A shopfront.
     Shop,
-    /// The street door (a walk-up's stoop, an office's lobby doors).
-    Door,
+    /// The street door (`interior::Entrance`): a walk-up's front door, an office's lobby doors, a
+    /// warehouse's personnel door.
+    Door(&'a Entrance),
     /// A warehouse loading door.
     Loading,
 }
@@ -364,8 +366,8 @@ enum Ground {
 /// One panel for a bay `g` wide on a storey from `y0` (its floor) to `y1`. Trims stand 2 cm off
 /// the faces they sit on, so no faces share a plane (CLAUDE.md section 10).
 #[allow(clippy::too_many_arguments)]
-fn skin(out: &mut Vec<Piece>, p: &Panel, look: &Look, g: f32, y0: f32, y1: f32, ground: Ground, sign: [f32; 3]) {
-    let t = 0.3;
+fn skin(out: &mut Vec<Piece>, p: &Panel, look: &Look, g: f32, y0: f32, y1: f32, ground: Ground<'_>, sign: [f32; 3]) {
+    let t = SKIN_M;
     let wall_mat = if matches!(look.style, Style::WalkUp | Style::Warehouse) {
         Mat::Brick
     } else {
@@ -373,55 +375,8 @@ fn skin(out: &mut Vec<Piece>, p: &Panel, look: &Look, g: f32, y0: f32, y1: f32, 
     };
     let wall = if wall_mat == Mat::Brick { look.brick } else { look.concrete };
     match ground {
-        Ground::Shop => return shopfront(out, p, g, y0, y1, wall_mat, wall, sign, false),
-        Ground::Door if look.style == Style::Office || look.style == Style::Tower => {
-            return shopfront(out, p, g, y0, y1, wall_mat, wall, sign, true);
-        }
-        Ground::Door => {
-            // A walk-up's street door: a timber door under a glazed transom, stone stoop steps.
-            let (c, dw) = (g * 0.5, 1.2);
-            let top = y0 + 2.6;
-            out.push(p.made(wall_mat, 0.0, c - dw * 0.5 - 0.15, y0, y1, 0.0, t, wall));
-            out.push(p.made(wall_mat, c + dw * 0.5 + 0.15, g, y0, y1, 0.0, t, wall));
-            out.push(p.made(wall_mat, c - dw * 0.5 - 0.15, c + dw * 0.5 + 0.15, top + 0.5, y1, 0.0, t, wall));
-            out.push(p.made(
-                Mat::Wood,
-                c - dw * 0.5,
-                c + dw * 0.5,
-                y0 + 0.36,
-                top,
-                0.18,
-                0.24,
-                [0.55, 0.35, 0.22],
-            ));
-            out.push(p.made(
-                Mat::Glass,
-                c - dw * 0.5,
-                c + dw * 0.5,
-                top + 0.06,
-                top + 0.44,
-                0.16,
-                0.18,
-                look.glass,
-            ));
-            out.push(p.piece(c - dw * 0.5 - 0.15, c + dw * 0.5 + 0.15, top, top + 0.06, -0.04, 0.2, look.frame));
-            out.push(p.piece(c - dw * 0.5 - 0.15, c - dw * 0.5, y0, top + 0.5, -0.04, 0.2, look.frame));
-            out.push(p.piece(c + dw * 0.5, c + dw * 0.5 + 0.15, y0, top + 0.5, -0.04, 0.2, look.frame));
-            for step in 0..3 {
-                let (h, depth) = (0.12 * (step + 1) as f32, 0.35 * (3 - step) as f32);
-                out.push(p.made(
-                    Mat::Concrete,
-                    c - dw * 0.5 - 0.3,
-                    c + dw * 0.5 + 0.3,
-                    y0 + h - 0.12,
-                    y0 + h,
-                    -depth,
-                    0.0,
-                    STONE,
-                ));
-            }
-            return;
-        }
+        Ground::Shop => return shopfront(out, p, g, y0, y1, wall_mat, wall, sign, None),
+        Ground::Door(e) => return street_door(out, p, look, g, y0, y1, wall_mat, wall, sign, e),
         _ => {}
     }
     match look.style {
@@ -512,7 +467,11 @@ fn skin(out: &mut Vec<Piece>, p: &Panel, look: &Look, g: f32, y0: f32, y1: f32, 
                 let x = 0.15 + step * m as f32;
                 out.push(p.piece(x - 0.04, x + 0.04, sill, head, 0.14, 0.24, look.mullion));
             }
-            out.push(p.made(Mat::Concrete, -0.17, 0.17, y0, y1, -0.8, 0.02, wall));
+            // A fin on each column line between bays; none at a corner, where half a fin would
+            // end in the corner's plane on top of the spandrel.
+            if !matches!(p.anchor, Anchor::Wall { idx: 0, .. }) {
+                out.push(p.made(Mat::Concrete, -0.17, 0.17, y0, y1, -0.8, 0.02, wall));
+            }
         }
         Style::Tower => {
             let (vis0, vis1) = (y0 + 0.1, y1 - 0.75);
@@ -525,7 +484,7 @@ fn skin(out: &mut Vec<Piece>, p: &Panel, look: &Look, g: f32, y0: f32, y1: f32, 
                 let x = g * m as f32 / n as f32;
                 out.push(p.piece(x - 0.04, x + 0.04, y0, y1, -0.14, 0.04, look.mullion));
             }
-            out.push(p.piece(0.0, g, vis1 - 0.03, vis1 + 0.03, -0.08, 0.04, look.mullion));
+            out.push(p.piece(0.0, g, vis1 - 0.03, vis1 + 0.03, -0.08, 0.03, look.mullion));
         }
         Style::Warehouse => {
             if ground == Ground::Loading {
@@ -569,42 +528,102 @@ fn skin(out: &mut Vec<Piece>, p: &Panel, look: &Look, g: f32, y0: f32, y1: f32, 
     }
 }
 
-/// A shopfront (or, with `doors`, a lobby front with a pair of glass doors): kickplate, plate
-/// glass with mullions, a sign band and an awning stepped out in three slats.
+/// The skin's depth: walls run this far in from the facade plane (the colliders' facade walls too).
+const SKIN_M: f32 = interior::SKIN_M;
+/// The gap between an end face's skin and the front or back skin at a corner.
+const CORNER_GAP_M: f32 = 0.01;
+
+/// Half the least gap kept between two buildings' trim at the line between them.
+const PARTY_GAP_M: f32 = 0.02;
+
+/// Clips the block pieces from `out[from..]` (one panel of `side`) along the face to `range` and
+/// outward to `reach` from the facade `plane` (signed the way the face looks), dropping any left
+/// with no size. Drums never sit on a facade.
+fn clip_to_side(out: &mut Vec<Piece>, from: usize, side: u8, range: (f32, f32), plane: f32, reach: f32) {
+    let (axis, normal) = if side < 2 { (0, 2) } else { (2, 0) };
+    let mut i = from;
+    while i < out.len() {
+        if let Shape::Block { mut min, mut max } = out[i].shape {
+            // Trim standing proud of the face stops 1 cm before a corner it reaches, so its end
+            // never shares the corner's plane with the wall it stands on.
+            let proud = if reach < 0.0 {
+                min[normal] < plane - 2e-3
+            } else {
+                max[normal] > plane + 2e-3
+            };
+            let inset = if proud { CORNER_GAP_M } else { 0.0 };
+            if min[axis] < range.0 + 2e-3 {
+                min[axis] = range.0 + inset;
+            }
+            if max[axis] > range.1 - 2e-3 {
+                max[axis] = range.1 - inset;
+            }
+            if reach < 0.0 {
+                min[normal] = min[normal].max(plane + reach);
+            } else {
+                max[normal] = max[normal].min(plane + reach);
+            }
+            if max[axis] - min[axis] < 1e-3 || max[normal] - min[normal] < 1e-3 {
+                out.remove(i);
+                continue;
+            }
+            out[i].shape = Shape::Block { min, max };
+        }
+        i += 1;
+    }
+}
+
+/// A shopfront (or, with a street door `opening` (centre along the bay, width, clear height), a
+/// lobby front with its pair of glass doors): kickplate, plate glass with mullions, a sign band and
+/// an awning stepped out in three slats.
 #[allow(clippy::too_many_arguments)]
-fn shopfront(out: &mut Vec<Piece>, p: &Panel, g: f32, y0: f32, y1: f32, wall_mat: Mat, wall: [f32; 3], sign: [f32; 3], doors: bool) {
+fn shopfront(
+    out: &mut Vec<Piece>,
+    p: &Panel,
+    g: f32,
+    y0: f32,
+    y1: f32,
+    wall_mat: Mat,
+    wall: [f32; 3],
+    sign: [f32; 3],
+    opening: Option<(f32, f32, f32)>,
+) {
     let top = (y0 + 3.0).min(y1 - 0.8);
     let glass = [0.32, 0.40, 0.46];
-    out.push(p.made(Mat::Concrete, 0.0, g, y0, y0 + 0.45, -0.04, 0.3, KICK));
-    out.push(p.made(wall_mat, 0.0, 0.3, y0 + 0.45, top, 0.0, 0.3, wall));
-    out.push(p.made(wall_mat, g - 0.3, g, y0 + 0.45, top, 0.0, 0.3, wall));
-    out.push(p.made(wall_mat, 0.0, g, top, y1, 0.0, 0.3, wall));
-    out.push(p.made(Mat::Glass, 0.3, g - 0.3, y0 + 0.45, top, 0.12, 0.14, glass));
-    for x in [0.3, g * 0.5, g - 0.3] {
-        out.push(p.piece(x - 0.04, x + 0.04, y0 + 0.45, top, 0.08, 0.18, FRAME_BLACK));
+    let mut put = |piece: Piece| {
+        if let Shape::Block { min, max } = piece.shape
+            && (max - min).min_element() > 1e-3
+        {
+            out.push(piece);
+        }
+    };
+    // Spans along the bay the opening leaves: all of it, or either side of the doors.
+    let (o0, o1) = opening.map_or((g, g), |(c, w, _)| (c - w * 0.5, c + w * 0.5));
+    for (a, b) in [(0.0, o0), (o1, g)] {
+        put(p.made(Mat::Concrete, a, b, y0, y0 + 0.45, -0.04, 0.3, KICK));
+        put(p.made(Mat::Glass, a.max(0.3), b.min(g - 0.3), y0 + 0.45, top, 0.12, 0.14, glass));
     }
-    if doors {
-        // Two glass doors in steel frames, down to the pavement.
-        let c = g * 0.5;
-        out.push(p.piece(c - 1.0, c + 1.0, y0, y0 + 0.45, -0.05, 0.08, [0.55, 0.56, 0.58]));
-        for (a, b) in [(c - 0.95, c - 0.05), (c + 0.05, c + 0.95)] {
-            out.push(p.piece(a, b, y0 + 2.2, y0 + 2.26, 0.06, 0.16, FRAME_BLACK));
-            out.push(p.piece(
-                (a + b) * 0.5 - 0.02,
-                (a + b) * 0.5 + 0.02,
-                y0 + 0.9,
-                y0 + 1.05,
-                0.04,
-                0.08,
-                [0.75, 0.74, 0.70],
-            ));
+    put(p.made(wall_mat, 0.0, 0.3, y0 + 0.45, top, 0.0, 0.3, wall));
+    put(p.made(wall_mat, g - 0.3, g, y0 + 0.45, top, 0.0, 0.3, wall));
+    put(p.made(wall_mat, 0.0, g, top, y1, 0.0, 0.3, wall));
+    for x in [0.3, g * 0.5, g - 0.3] {
+        if x + 0.04 <= o0 || x - 0.04 >= o1 {
+            put(p.piece(x - 0.04, x + 0.04, y0 + 0.45, top, 0.08, 0.18, FRAME_BLACK));
         }
     }
-    out.push(p.piece(0.2, g - 0.2, top + 0.15, top + 0.7, -0.14, -0.01, sign));
+    if let Some((_, _, h)) = opening {
+        // The doors' steel frame: posts down to the pavement and a head, plate glass above it.
+        let head = y0 + h;
+        put(p.made(Mat::Glass, o0, o1, head + 0.06, top, 0.12, 0.14, glass));
+        put(p.piece(o0, o1, head, head + 0.06, 0.06, 0.18, FRAME_BLACK));
+        put(p.piece(o0 - 0.06, o0, y0, head + 0.06, 0.04, 0.2, FRAME_BLACK));
+        put(p.piece(o1, o1 + 0.06, y0, head + 0.06, 0.04, 0.2, FRAME_BLACK));
+    }
+    put(p.piece(0.2, g - 0.2, top + 0.15, top + 0.7, -0.14, -0.01, sign));
     for i in 0..3 {
         let (d0, d1) = (-0.02 - 0.45 * i as f32, -0.47 - 0.45 * i as f32);
         let y = top - 0.05 - 0.16 * i as f32;
-        out.push(p.piece(
+        put(p.piece(
             0.3,
             g - 0.3,
             y - 0.05,
@@ -616,10 +635,88 @@ fn shopfront(out: &mut Vec<Piece>, p: &Panel, g: f32, y0: f32, y1: f32, wall_mat
     }
 }
 
+/// The bay holding the street door `e`, as an opening in the wall (its stoop is a piece of its own,
+/// from `e`, which the colliders also read; its swinging leaves are drawn by the app): a walk-up's timber doorway under a
+/// glazed transom, an office's lobby front, a warehouse's steel-framed personnel door.
+#[allow(clippy::too_many_arguments)]
+fn street_door(
+    out: &mut Vec<Piece>,
+    p: &Panel,
+    look: &Look,
+    g: f32,
+    y0: f32,
+    y1: f32,
+    wall_mat: Mat,
+    wall: [f32; 3],
+    sign: [f32; 3],
+    e: &Entrance,
+) {
+    let (c, dw, t) = (e.along_m, e.width_m, SKIN_M);
+    let top = y0 + e.sill_m + e.clear_m;
+    match e.kind {
+        DoorKind::Lobby => shopfront(out, p, g, y0, y1, wall_mat, wall, sign, Some((c, dw, e.clear_m))),
+        DoorKind::Front => {
+            let (o0, o1) = (c - dw * 0.5, c + dw * 0.5);
+            out.push(p.made(wall_mat, 0.0, o0 - 0.15, y0, y1, 0.0, t, wall));
+            out.push(p.made(wall_mat, o1 + 0.15, g, y0, y1, 0.0, t, wall));
+            out.push(p.made(wall_mat, o0 - 0.15, o1 + 0.15, top + 0.5, y1, 0.0, t, wall));
+            out.push(p.made(Mat::Glass, o0, o1, top + 0.06, top + 0.44, 0.16, 0.18, look.glass));
+            out.push(p.made(wall_mat, o0, o1, top + 0.44, top + 0.5, 0.0, t, wall));
+            out.push(p.piece(o0 - 0.15, o1 + 0.15, top, top + 0.06, -0.04, t, look.frame));
+            out.push(p.piece(o0 - 0.15, o0, y0, top + 0.5, -0.04, t, look.frame));
+            out.push(p.piece(o1, o1 + 0.15, y0, top + 0.5, -0.04, t, look.frame));
+        }
+        DoorKind::Personnel => {
+            let (o0, o1) = (c - dw * 0.5, c + dw * 0.5);
+            let steel = [0.30, 0.32, 0.30];
+            out.push(p.made(wall_mat, 0.0, o0 - 0.1, y0, y1, 0.0, t, wall));
+            out.push(p.made(wall_mat, o1 + 0.1, g, y0, y1, 0.0, t, wall));
+            out.push(p.made(wall_mat, o0 - 0.1, o1 + 0.1, top + 0.1, y1, 0.0, t, wall));
+            out.push(p.piece(o0 - 0.1, o1 + 0.1, top, top + 0.1, -0.03, t, steel));
+            out.push(p.piece(o0 - 0.1, o0, y0, top, -0.03, t, steel));
+            out.push(p.piece(o1, o1 + 0.1, y0, top, -0.03, t, steel));
+        }
+    }
+}
+
+/// What building `id`'s street door leaves are made of and their tint: a walk-up's timber, an
+/// office's glass (the building's own), a warehouse's painted steel. The same draw of the skin's
+/// stream as `dress`, so a lobby door's glass matches its shopfront.
+pub fn leaf_finish(id: u32, n: [usize; 3], size: Vec3, seed: &SimRng, kind: DoorKind) -> (Mat, [f32; 3]) {
+    let mut srng = seed.fork(&format!("building/{id}/skin"));
+    let look = look_of(n[1], size.x * n[0] as f32 * size.z * n[2] as f32, &mut srng);
+    match kind {
+        DoorKind::Front => (Mat::Wood, [0.55, 0.35, 0.22]),
+        DoorKind::Lobby => (Mat::Glass, look.glass),
+        DoorKind::Personnel => (Mat::Trim, [0.40, 0.44, 0.33]),
+    }
+}
+
+/// The style a building is dressed in: the first draw of its skin's stream, as `dress` makes it.
+pub fn style_for(id: u32, n: [usize; 3], size: Vec3, seed: &SimRng) -> Style {
+    let mut srng = seed.fork(&format!("building/{id}/skin"));
+    look_of(n[1], size.x * n[0] as f32 * size.z * n[2] as f32, &mut srng).style
+}
+
 /// Dresses building `id`: `n` = [cells along x, storeys, cells along z], `origin` its least corner
 /// on the ground, `size` one cell (as `destruct::Cells`). `segmented` cuts pieces per storey and
-/// per bay so each can follow its element; otherwise long pieces are merged.
-pub fn dress(id: u32, n: [usize; 3], origin: Vec3, size: Vec3, seed: &SimRng, segmented: bool, cfg: &DressingConfig) -> Vec<Piece> {
+/// per bay so each can follow its element; otherwise long pieces are merged. `fronts` is the clear
+/// distance in front of each facade (`WorldPlan::fronts`): a facade's trim stands out at most half
+/// of it, so it stops short of the line between two buildings. `shell` is the building's street
+/// entrance and stair (`interior::shell`): the door's bay is drawn open with its stoop (the leaves swing,
+/// so the app draws them: `leaf_finish`), and a whole building's floors have the stairwell cut out; without one there is no street door.
+#[allow(clippy::too_many_arguments)]
+pub fn dress(
+    id: u32,
+    n: [usize; 3],
+    origin: Vec3,
+    size: Vec3,
+    seed: &SimRng,
+    segmented: bool,
+    cfg: &DressingConfig,
+    fronts: [f32; 4],
+    shell: Option<&Shell>,
+) -> Vec<Piece> {
     let [nx, ns, nz] = n;
     let mut out = Vec::new();
     if nx == 0 || ns == 0 || nz == 0 || !size.is_finite() {
@@ -653,6 +750,18 @@ pub fn dress(id: u32, n: [usize; 3], origin: Vec3, size: Vec3, seed: &SimRng, se
         }
     };
     let count = |side: u8| if side < 2 { nx } else { nz };
+    // The stretch of the face each side's skin may use (owner, 2026-10-26: "some zfighting on the
+    // divider for buildings here"). Trim that straddles a bay line (fins, mullions) or stands proud
+    // (kick plates, sills, bands) used to run past the corner and meet the next face in its own
+    // plane. The front and back (0, 1) own the corners, full width; the ends (2, 3) stop 1 cm short
+    // of the front and back skins' inner faces, so no two faces of the skin share a plane at a corner.
+    let corners = |side: u8| -> (f32, f32) {
+        if side < 2 {
+            (origin.x, far.x)
+        } else {
+            (origin.z + SKIN_M + CORNER_GAP_M, far.z - SKIN_M - CORNER_GAP_M)
+        }
+    };
     // The skin: one panel per bay per storey per side, hung on that storey's facade panel.
     let long_x = nx >= nz;
     for side in 0..4u8 {
@@ -666,11 +775,11 @@ pub fn dress(id: u32, n: [usize; 3], origin: Vec3, size: Vec3, seed: &SimRng, se
                 _ => (far.x, 1.0),
             };
             let long_face = (side < 2) == long_x;
-            let ground = match style {
-                Style::WalkUp | Style::Office if long_face && idx == count(side) / 2 => Ground::Door,
-                Style::Tower if long_face && idx == count(side) / 2 => Ground::Door,
-                Style::WalkUp | Style::Office if long_face => Ground::Shop,
-                Style::Warehouse if long_face && idx % 3 == 1 => Ground::Loading,
+            let door = shell.map(|s| &s.entrance).filter(|e| e.side == side && e.bay == idx as u32);
+            let ground = match (door, style) {
+                (Some(e), _) => Ground::Door(e),
+                (None, Style::WalkUp | Style::Office) if long_face => Ground::Shop,
+                (None, Style::Warehouse) if long_face && idx % 3 == 1 => Ground::Loading,
                 _ => Ground::Plain,
             };
             for k in 0..ns {
@@ -686,14 +795,44 @@ pub fn dress(id: u32, n: [usize; 3], origin: Vec3, size: Vec3, seed: &SimRng, se
                         idx: idx as u32,
                     },
                 };
+                let from = out.len();
                 skin(&mut out, &p, &look, bay, y0, y1, if k == 0 { ground } else { Ground::Plain }, sign);
+                clip_to_side(
+                    &mut out,
+                    from,
+                    side,
+                    corners(side),
+                    plane,
+                    out_sign * (fronts[side as usize] * 0.5 - PARTY_GAP_M),
+                );
             }
+        }
+    }
+    // The street door's stoop and threshold. Its leaves swing (survey W30), so the app draws them on
+    // their own, posed from `door::StreetDoor`, in `leaf_finish`.
+    if let Some(e) = shell.map(|s| &s.entrance) {
+        let leaf = Anchor::Wall {
+            k: 0,
+            side: e.side,
+            idx: e.bay,
+        };
+        for &(min, max) in &e.steps {
+            out.push(Piece {
+                mat: Mat::Concrete,
+                ..block(min, max, STONE, if segmented { leaf } else { Anchor::Whole })
+            });
         }
     }
     // Floors, and the roof. A whole building near the player shows its rooms through the glass
     // (`interior_pieces`); a damaged one draws them in its bands instead.
+    // The roof sits inside the skin, not over it: its edge in the facade's plane flickered against
+    // the top storey's wall below the parapet.
     let t_roof = 0.25;
     let roof_tone = [0.9, 0.9, 0.9];
+    let (roof_lo, roof_hi) = (
+        Vec3::new(origin.x + SKIN_M, roof_y - t_roof, origin.z + SKIN_M),
+        Vec3::new(far.x - SKIN_M, roof_y, far.z - SKIN_M),
+    );
     if segmented {
         for i in 0..nx {
             for j in 0..nz {
@@ -701,8 +840,8 @@ pub fn dress(id: u32, n: [usize; 3], origin: Vec3, size: Vec3, seed: &SimRng, se
                 out.push(Piece {
                     mat: Mat::Roof,
                     ..block(
-                        lo,
-                        lo + Vec3::new(size.x, t_roof, size.z),
+                        lo.max(roof_lo),
+                        (lo + Vec3::new(size.x, t_roof, size.z)).min(roof_hi),
                         roof_tone,
                         Anchor::Slab {
                             k: top_k,
@@ -716,25 +855,31 @@ pub fn dress(id: u32, n: [usize; 3], origin: Vec3, size: Vec3, seed: &SimRng, se
     } else {
         out.push(Piece {
             mat: Mat::Roof,
-            ..block(
-                Vec3::new(origin.x, roof_y - t_roof, origin.z),
-                Vec3::new(far.x, roof_y, far.z),
-                roof_tone,
-                Anchor::Whole,
-            )
+            ..block(roof_lo, roof_hi, roof_tone, Anchor::Whole)
         });
-        let inset = 0.3;
+        // Floors, with the stairwell cut out (`interior::Stair::hole`).
+        let inset = SKIN_M;
+        let whole = (
+            glam::Vec2::new(origin.x + inset, origin.z + inset),
+            glam::Vec2::new(far.x - inset, far.z - inset),
+        );
+        let pieces = match shell {
+            Some(s) => interior::rect_minus(whole, s.stair.hole()),
+            None => vec![whole],
+        };
         for k in 1..ns {
             let y = origin.y + size.y * k as f32;
-            out.push(Piece {
-                mat: Mat::Concrete,
-                ..block(
-                    Vec3::new(origin.x + inset, y - t_roof, origin.z + inset),
-                    Vec3::new(far.x - inset, y, far.z - inset),
-                    [0.62, 0.60, 0.56],
-                    Anchor::Whole,
-                )
-            });
+            for (lo, hi) in &pieces {
+                out.push(Piece {
+                    mat: Mat::Concrete,
+                    ..block(
+                        Vec3::new(lo.x, y - t_roof, lo.y),
+                        Vec3::new(hi.x, y, hi.y),
+                        [0.62, 0.60, 0.56],
+                        Anchor::Whole,
+                    )
+                });
+            }
         }
     }
     // Parapet and coping. Side walls (2, 3) stop short of the corners so no faces share a plane.
@@ -767,7 +912,10 @@ pub fn dress(id: u32, n: [usize; 3], origin: Vec3, size: Vec3, seed: &SimRng, se
         };
         let last = along(side, count(side));
         for (mut a0, mut a1, anchor) in pieces {
-            let (mut c0, mut c1) = (a0 - cap, a1 + cap);
+            // The coping overhangs the corners only: cut per bay, overlapping copings shared a face.
+            let first = a0 <= along(side, 0) + 1e-3;
+            let end = a1 >= last - 1e-3;
+            let (mut c0, mut c1) = (if first { a0 - cap } else { a0 }, if end { a1 + cap } else { a1 });
             if side >= 2 {
                 if a0 <= along(side, 0) + 1e-3 {
                     a0 += t;
@@ -992,6 +1140,8 @@ mod tests {
             &SimRng::new(42),
             segmented,
             &DressingConfig::default(),
+            [crate::world::FRONT_LIMIT_M; 4],
+            None,
         )
     }
 
@@ -1071,5 +1221,145 @@ mod tests {
                 Anchor::Wall { k, side, idx } => assert!(k < 9 && side < 4 && idx < if side < 2 { 5 } else { 4 }),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod party_lines {
+    //! The owner, 2026-10-26: "some zfighting on the divider for buildings here". Two faces that
+    //! point the same way in the same plane and overlap flicker; these tests find any between the
+    //! skins of two bays, two faces at a corner, a storey and the roof, or two buildings of a block.
+    use super::*;
+    use crate::data::load_ron;
+    use crate::world::{Rect, Structures, WorldConfig, WorldPlan, generate};
+    use glam::Vec2;
+    use std::sync::OnceLock;
+
+    fn world() -> &'static (WorldPlan, WorldConfig) {
+        static W: OnceLock<(WorldPlan, WorldConfig)> = OnceLock::new();
+        W.get_or_init(|| {
+            let p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/world/world.ron");
+            let cfg = load_ron::<WorldConfig>(&p).unwrap();
+            (generate(42, &cfg), cfg)
+        })
+    }
+
+    /// The vertical faces two boxes share: the same plane, the same way out, an overlap with area.
+    fn shared_vertical_face(a: (Vec3, Vec3), b: (Vec3, Vec3)) -> Option<(usize, f32)> {
+        for ax in [0usize, 2] {
+            let (u, v) = ((ax + 1) % 3, (ax + 2) % 3);
+            let over = |i: usize| a.0[i].max(b.0[i]) < a.1[i].min(b.1[i]) - 2e-3;
+            if !(over(u) && over(v)) {
+                continue;
+            }
+            for (pa, pb) in [(a.0[ax], b.0[ax]), (a.1[ax], b.1[ax])] {
+                if (pa - pb).abs() < 1e-3 {
+                    return Some((ax, pa));
+                }
+            }
+        }
+        None
+    }
+
+    /// Building `b`'s skin as boxes, with the bay each hangs on.
+    fn skin_of(b: usize, st: &Structures, cfg: &WorldConfig, segmented: bool) -> Vec<(Anchor, (Vec3, Vec3))> {
+        let c = &st.buildings[b];
+        let seed = SimRng::new(42).fork("dressing");
+        let site = interior::Site::of(&world().0, b as u32, c.n, c.origin, c.size);
+        let shell = interior::shell(&site, &cfg.interiors, &seed);
+        dress(
+            b as u32,
+            c.n,
+            c.origin,
+            c.size,
+            &seed,
+            segmented,
+            &cfg.dressing,
+            world().0.fronts[b],
+            Some(&shell),
+        )
+        .into_iter()
+        .filter_map(|p| match p.shape {
+            Shape::Block { min, max } => Some((p.anchor, (min, max))),
+            Shape::Drum { .. } => None,
+        })
+        .collect()
+    }
+
+    /// True when two boxes' shared face in plane `at` on axis `ax` can be seen at a corner: the front
+    /// and back own the corners, so their end faces (x planes) are the corner itself; the ends' cut
+    /// (z planes, 1 cm short of the front's inner face) shows only where it stands out of the wall.
+    fn seen_at_corner(c: &crate::world::destruct::Cells, ax: usize, at: f32, a: (Vec3, Vec3), b: (Vec3, Vec3)) -> bool {
+        let far = c.origin + c.size * Vec3::new(c.n[0] as f32, 0.0, c.n[2] as f32);
+        if ax == 0 {
+            return [c.origin.x, far.x].iter().any(|l| (l - at).abs() < 1e-3);
+        }
+        let cut = [c.origin.z + SKIN_M + CORNER_GAP_M, far.z - SKIN_M - CORNER_GAP_M];
+        let (x0, x1) = (a.0.x.max(b.0.x), a.1.x.min(b.1.x));
+        cut.iter().any(|l| (l - at).abs() < 1e-3) && (x0 < c.origin.x - 1e-3 || x1 > far.x + 1e-3)
+    }
+
+    #[test]
+    fn no_two_bays_corners_or_roofs_of_a_building_share_a_face() {
+        let (plan, cfg) = world();
+        let st = Structures::new(plan);
+        for b in 0..plan.buildings.len().min(120) {
+            for segmented in [false, true] {
+                let skin = skin_of(b, &st, cfg, segmented);
+                for (i, x) in skin.iter().enumerate() {
+                    for y in &skin[i + 1..] {
+                        let Some((ax, at)) = shared_vertical_face(x.1, y.1) else { continue };
+                        // Layers inside one bay (glass in its frame) sit in the wall's reveal; only
+                        // the bay's ends at a corner can be seen.
+                        let same_bay = x.0 == y.0 && matches!(x.0, Anchor::Wall { .. });
+                        if same_bay && !seen_at_corner(&st.buildings[b], ax, at, x.1, y.1) {
+                            continue;
+                        }
+                        panic!("building {b} (segmented {segmented}): {:?} and {:?} share a face", x, y);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn no_two_buildings_of_a_block_share_a_face() {
+        let (plan, cfg) = world();
+        let st = Structures::new(plan);
+        let city = &plan.cities[0];
+        let skins: Vec<(usize, Vec<(Anchor, (Vec3, Vec3))>)> = plan
+            .buildings
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| b.city == city.id)
+            .map(|(i, _)| (i, skin_of(i, &st, cfg, false)))
+            .collect();
+        let mut pairs = 0;
+        for (n, (a, sa)) in skins.iter().enumerate() {
+            for (b, sb) in &skins[n + 1..] {
+                // Neighbours: footprints within 8 m (trim stands out 1.4 m at most).
+                let (fa, fb) = (plan.buildings[*a].footprint, plan.buildings[*b].footprint);
+                let near = Rect {
+                    min: fa.min - Vec2::splat(8.0),
+                    max: fa.max + Vec2::splat(8.0),
+                };
+                if !near.overlaps(&fb) {
+                    continue;
+                }
+                pairs += 1;
+                let reach = |r: &Rect, x: &(Anchor, (Vec3, Vec3))| {
+                    x.1.0.x < r.max.x + 2.0 && x.1.1.x > r.min.x - 2.0 && x.1.0.z < r.max.y + 2.0 && x.1.1.z > r.min.y - 2.0
+                };
+                for x in sa.iter().filter(|x| reach(&fb, x)) {
+                    for y in sb.iter().filter(|y| reach(&fa, y)) {
+                        assert!(
+                            shared_vertical_face(x.1, y.1).is_none(),
+                            "buildings {a} and {b} share a face: {x:?} {y:?}"
+                        );
+                    }
+                }
+            }
+        }
+        assert!(pairs > 10, "neighbours were compared");
     }
 }
