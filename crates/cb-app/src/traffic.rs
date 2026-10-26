@@ -60,10 +60,6 @@ pub struct CivilianToll {
     pub all: u32,
 }
 
-/// Explosions from the player's own shots this step, so the traffic can tell whose blast set a car alight.
-#[derive(Resource, Default)]
-pub struct PlayerBlasts(pub Vec<Vec3>);
-
 /// Draws a car.
 #[derive(Component)]
 struct CarDraw {
@@ -120,7 +116,6 @@ impl Plugin for TrafficPlugin {
             })
             .init_resource::<CarAccessNow>()
             .init_resource::<CivilianToll>()
-            .init_resource::<PlayerBlasts>()
             .add_message::<CivilianHarmed>()
             .add_systems(FixedUpdate, find_car.in_set(SimSet::Pilot).before(crate::pilot::step_pilot))
             .add_systems(FixedUpdate, step_traffic.in_set(SimSet::Mech).before(crate::mech::step_mech))
@@ -193,9 +188,9 @@ fn step_traffic(
     actions: Res<crate::input::StepActions>,
     ready: Res<crate::loading::GameReady>,
     mechs: Query<(&MechSim, &MechSpec, Option<&Piloted>)>,
+    piloted_id: Query<&crate::mech::MechId, With<Piloted>>,
     mut contacts: MessageReader<GroundContact>,
     mut blasts: MessageReader<crate::blast::Explosion>,
-    mut player_blasts: ResMut<PlayerBlasts>,
     mut harmed: MessageWriter<CivilianHarmed>,
     mut toll: ResMut<CivilianToll>,
     time: Res<Time<Fixed>>,
@@ -246,11 +241,12 @@ fn step_traffic(
             sim.traffic.crush(d, Vec2::new(sole.x, sole.z), c.piloted);
         }
     }
+    let pilot_mech = piloted_id.iter().next().map(|m| m.0);
     for b in blasts.read() {
-        let mine = player_blasts.0.iter().any(|p| p.distance(b.at) < 1.0);
+        // whose blast it was, from the explosion itself (civilians' `Explosion::by`)
+        let mine = b.by.is_some() && b.by == pilot_mech;
         sim.traffic.blast(d, b.at, b.energy_mj, mine);
     }
-    player_blasts.0.clear();
     let near: Vec<MechNear> = mechs
         .iter()
         .filter(|(m, ..)| !m.dead)

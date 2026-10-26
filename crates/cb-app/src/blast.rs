@@ -20,6 +20,9 @@ pub struct Explosion {
     pub at: Vec3,
     /// Energy, megajoules (a 120 mm shell is about 4).
     pub energy_mj: f32,
+    /// The mech, vehicle or fortress whose shot it was, when it was one (civilians: the pilot's own
+    /// blasts cost standing).
+    pub by: Option<u32>,
 }
 
 /// Resolves explosions.

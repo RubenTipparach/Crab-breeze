@@ -79,6 +79,15 @@ fn main() -> ExitCode {
                     ok = false;
                 }
             }
+            // the people: roles and lines (civilians), loaded and checked with the rest
+            if let Ok(d) = GameData::load(&root, &mechs[0]) {
+                let jobs = d.people.lines.lines.iter().filter(|l| l.job).count();
+                println!(
+                    "ok   {} people roles, {} lines ({jobs} tell of jobs)",
+                    d.people.lines.roles.len(),
+                    d.people.lines.lines.len()
+                );
+            }
             // the Hermit's model against its shape data (crab-airship)
             if let Ok(d) = GameData::load(&root, &mechs[0]) {
                 let problems = glb::check_fortress(&d.fortress, &root.join("..").join("assets"));

@@ -13,6 +13,7 @@ mod buildings;
 mod capture;
 mod capture_fortress;
 mod career;
+mod civilians;
 mod cli;
 mod clouds_render;
 mod combat;
@@ -184,6 +185,11 @@ fn main() -> AppExit {
     .add_plugins(traffic::TrafficPlugin)
     // sound: effects in 3D, music, ambience (openspec changes `audio`, `music`, `ambience`)
     .add_plugins((audio::SoundPlugin, music::MusicPlugin, ambience::AmbiencePlugin));
+    // People in the streets, parks and bases (openspec change `civilians`); `CB_NO_PEOPLE=1` leaves them
+    // out, so the benchmark can measure what they cost.
+    if !cli::switched_off("CB_NO_PEOPLE") {
+        app.add_plugins(civilians::CiviliansPlugin);
+    }
     // Cheap, correctly lit clouds (openspec change `cloud-puffs`); `CB_NO_CLOUDS=1` leaves them
     // out, so the benchmark can measure what they cost.
     if !cli::switched_off("CB_NO_CLOUDS") {

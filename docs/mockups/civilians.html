@@ -1,0 +1,209 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Civilian Stand-ins</title>
+<style>
+:root {
+  --bg: #ebe7df; --panel: #f7f5f0; --edge: #cbc4b6; --ink: #1c1915; --muted: #645c50; --accent: #a3471c;
+  --stage: #a9b8c4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #12100d; --panel: #1b1814; --edge: #332d25; --ink: #ece6dc; --muted: #a39887; --accent: #f08a54; --stage: #2c333a; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #12100d; --panel: #1b1814; --edge: #332d25; --ink: #ece6dc; --muted: #a39887; --accent: #f08a54; --stage: #2c333a; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, sans-serif; margin: 0; padding: 18px 16px 32px; }
+header, .wrap, .foot { max-width: 1300px; margin: 0 auto; }
+.eyebrow { font: 500 12px ui-monospace, Menlo, monospace; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+h1 { font-size: 30px; line-height: 1.1; margin: 4px 0 6px; }
+.lede { margin: 0 0 12px; color: var(--muted); max-width: 90ch; }
+.standin { display: inline-block; background: var(--accent); color: #fff; font: 700 12px ui-monospace, monospace; padding: 2px 7px; border-radius: 3px; letter-spacing: 0.08em; }
+.bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+button { font: 600 13px system-ui; color: var(--ink); background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 8px 11px; cursor: pointer; min-height: 36px; }
+button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--edge); border-radius: 4px; overflow: hidden; touch-action: none; }
+#view { display: block; width: 100%; aspect-ratio: 16 / 9; }
+.hud { position: absolute; right: 10px; top: 10px; font: 12px/1.45 ui-monospace, monospace; color: #f2eee6; background: rgba(20, 17, 13, 0.82); padding: 6px 9px; white-space: pre; pointer-events: none; }
+.tag { position: absolute; font: 600 11px ui-monospace, monospace; color: #f2eee6; background: rgba(20, 17, 13, 0.78); padding: 2px 5px; border-radius: 3px; transform: translate(-50%, -100%); pointer-events: none; white-space: nowrap; }
+.foot { margin-top: 14px; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+</style>
+
+<header>
+  <div class="eyebrow">Crab Breeze · openspec civilians · model review (not published, awaiting approval)</div>
+  <h1>Civilians: the stand-in bodies <span class="standin">STAND-IN</span></h1>
+  <p class="lede">The people in the build are box figures made in code, not the humanoid pipeline's bodies: the pipeline's packs (MPFB2, the MakeHuman CC0 assets, the Universal Animation Library) are not on this machine. They are drawn at true human size, each scaled to their own height (1.55-1.95 m), in eight clothing palettes, in the four poses the game uses: standing, the two strides of a walk, and sitting on a park bench (they also lie flat when struck). Beside them: the pilot's 1.8 m rail, a park bench as the game draws it, and the mech's 24 m height. Drag to orbit, scroll or pinch to zoom, arrow keys and + / - from the keyboard.</p>
+</header>
+
+<div class="wrap">
+  <div class="bar" role="group" aria-label="Exhibits">
+    <button data-show="palettes" aria-pressed="true">Palettes and heights</button>
+    <button data-show="poses" aria-pressed="true">Poses</button>
+    <button data-show="pilot" aria-pressed="true">Pilot rail 1.8 m</button>
+    <button data-show="mech" aria-pressed="true">Mech 24 m</button>
+    <button id="reset">Reset view</button>
+  </div>
+  <div class="stage">
+    <canvas id="view" tabindex="0" aria-label="Orbitable view of the stand-in civilians"></canvas>
+    <div class="hud" id="hud"></div>
+    <div id="tags"></div>
+  </div>
+</div>
+
+<div class="foot">
+  <div>Geometry: <code>docs/mockups/civilians_standins.js</code>, written from the game's own <code>body_mesh</code> (<code>crates/cb-app/src/civilians.rs</code>) by its test <code>the_review_page_draws_these_stand_ins</code>, which fails while the file is stale.</div>
+  <div>In the game, past 60 m a person is a three-box figure (legs, torso, head), and past 250 m a flat card their height, all in one merged mesh.</div>
+</div>
+
+<script src="civilians_standins.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const S = window.STANDINS;
+const canvas = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fb0bf);
+const camera = new THREE.PerspectiveCamera(45, 16 / 9, 0.05, 500);
+const controls = new THREE.OrbitControls(camera, canvas);
+const home = () => { camera.position.set(6, 3.2, 9); controls.target.set(0, 1.0, 0); controls.update(); };
+home();
+scene.add(new THREE.HemisphereLight(0xdfe8f0, 0x5a5048, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+sun.position.set(5, 10, 6);
+scene.add(sun);
+
+// the ground: a 1 m grid on a 40 m square, kerb-grey
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshLambertMaterial({ color: 0x8a8780 }));
+ground.rotation.x = -Math.PI / 2;
+scene.add(ground);
+const grid = new THREE.GridHelper(40, 40, 0x555048, 0x6c675f);
+grid.position.y = 0.002;
+scene.add(grid);
+
+function body(pose, palette) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pose.position, 3));
+  const pal = S.palettes[palette];
+  const col = [];
+  for (const r of pose.role) col.push(...pal[r]);
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(pose.index);
+  g.computeVertexNormals();
+  return new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
+}
+
+const groups = {};
+const tags = [];
+function tag(text, pos, group) { tags.push({ text, pos, group }); }
+function group(name) { const g = new THREE.Group(); scene.add(g); groups[name] = g; return g; }
+
+// the eight palettes at the heights the data draws from, 1.55 to 1.95 m
+const pals = group('palettes');
+S.palettes.forEach((_, i) => {
+  const h = 1.55 + (0.40 * i) / 7;
+  const m = body(S.poses.stand, i);
+  m.scale.setScalar(h / S.model_height_m);
+  m.position.set(-3.5 + i, 0, -2);
+  pals.add(m);
+  tag(h.toFixed(2) + ' m', new THREE.Vector3(-3.5 + i, h + 0.12, -2), 'palettes');
+});
+
+// the poses: standing, the two strides, sitting on a bench, lying (struck)
+const poses = group('poses');
+const at = [[-3, 'stand'], [-1.8, 'stride_a'], [-0.6, 'stride_b']];
+for (const [x, name] of at) {
+  const m = body(S.poses[name], 1);
+  m.position.set(x, 0, 1.5);
+  m.rotation.y = Math.PI / 2;
+  poses.add(m);
+  tag(name.replace('_', ' '), new THREE.Vector3(x, 1.95, 1.5), 'poses');
+}
+// the bench as the game draws it: a 1.6 m seat 0.40-0.46 m up, a back to 0.90 m, iron legs
+const wood = new THREE.MeshLambertMaterial({ color: 0x613f24 });
+const iron = new THREE.MeshLambertMaterial({ color: 0x1f1f21 });
+const box = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); poses.add(m); };
+box(1.6, 0.06, 0.44, wood, 1.4, 0.43, 1.5);
+box(1.6, 0.40, 0.06, wood, 1.4, 0.70, 1.74);
+for (const dx of [-0.7, 0.7]) box(0.08, 0.40, 0.52, iron, 1.4 + dx, 0.20, 1.5);
+const sitter = body(S.poses.sit, 2);
+sitter.position.set(1.4, 0, 1.5);
+poses.add(sitter);
+tag('sit (bench)', new THREE.Vector3(1.4, 1.6, 1.5), 'poses');
+const down = body(S.poses.stand, 5);
+down.rotation.set(-Math.PI / 2, 0, 0, 'YXZ');
+down.position.set(3.2, 0.12, 1.0);
+poses.add(down);
+tag('struck', new THREE.Vector3(3.2, 0.6, 1.9), 'poses');
+
+// the pilot's 1.8 m rail across the yard
+const pilot = group('pilot');
+const rail = new THREE.Mesh(new THREE.BoxGeometry(10, 0.02, 0.02), new THREE.MeshBasicMaterial({ color: 0xd04020 }));
+rail.position.set(0, 1.8, -0.2);
+pilot.add(rail);
+tag('pilot 1.8 m', new THREE.Vector3(-5.2, 1.85, -0.2), 'pilot');
+
+// the mech: a 24 m pole and a translucent footprint, its feet about 6 m long
+const mech = group('mech');
+const pole = new THREE.Mesh(new THREE.BoxGeometry(0.15, 24, 0.15), new THREE.MeshBasicMaterial({ color: 0x3060c0 }));
+pole.position.set(9, 12, -2);
+mech.add(pole);
+const foot = new THREE.Mesh(new THREE.BoxGeometry(3, 1.2, 6), new THREE.MeshLambertMaterial({ color: 0x3060c0, transparent: true, opacity: 0.35 }));
+foot.position.set(9, 0.6, 2);
+mech.add(foot);
+tag('mech 24 m', new THREE.Vector3(9, 24.3, -2), 'mech');
+tag('mech foot (about 3 x 6 m)', new THREE.Vector3(9, 1.5, 2), 'mech');
+
+const tagLayer = document.getElementById('tags');
+const tagEls = tags.map((t) => { const e = document.createElement('div'); e.className = 'tag'; e.textContent = t.text; tagLayer.appendChild(e); return e; });
+
+for (const b of document.querySelectorAll('[data-show]')) {
+  b.addEventListener('click', () => {
+    const on = b.getAttribute('aria-pressed') !== 'true';
+    b.setAttribute('aria-pressed', String(on));
+    groups[b.dataset.show].visible = on;
+  });
+}
+document.getElementById('reset').addEventListener('click', home);
+canvas.addEventListener('keydown', (e) => {
+  const off = camera.position.clone().sub(controls.target);
+  const sph = new THREE.Spherical().setFromVector3(off);
+  if (e.key === 'ArrowLeft') sph.theta -= 0.08;
+  else if (e.key === 'ArrowRight') sph.theta += 0.08;
+  else if (e.key === 'ArrowUp') sph.phi = Math.max(0.1, sph.phi - 0.06);
+  else if (e.key === 'ArrowDown') sph.phi = Math.min(Math.PI / 2 - 0.02, sph.phi + 0.06);
+  else if (e.key === '+' || e.key === '=') sph.radius = Math.max(1, sph.radius * 0.9);
+  else if (e.key === '-') sph.radius = Math.min(120, sph.radius * 1.1);
+  else return;
+  e.preventDefault();
+  camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(sph));
+  controls.update();
+});
+
+let tris = 0;
+scene.traverse((o) => { if (o.isMesh && o.geometry.index) tris += o.geometry.index.count / 3; });
+document.getElementById('hud').textContent = 'stand-in body: ' + (S.poses.stand.index.length / 3) + ' triangles\nscene: ' + tris + ' triangles';
+
+function frame() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) {
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  controls.update();
+  renderer.render(scene, camera);
+  tags.forEach((t, i) => {
+    const visible = groups[t.group].visible;
+    const p = t.pos.clone().project(camera);
+    const e = tagEls[i];
+    if (!visible || p.z > 1) { e.style.display = 'none'; return; }
+    e.style.display = '';
+    e.style.left = ((p.x + 1) / 2) * w + 'px';
+    e.style.top = ((1 - p.y) / 2) * h + 'px';
+  });
+  requestAnimationFrame(frame);
+}
+window.MOCKUP_READY = true;
+frame();
+</script>

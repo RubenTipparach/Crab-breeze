@@ -358,6 +358,7 @@ pub fn unit_destroyed(p: &mut Placed, data: &Data, fx: &mut MessageWriter<Fx>, e
     explosions.write(crate::blast::Explosion {
         at: p.unit.pos,
         energy_mj: if air { 1.5 } else { 4.0 },
+        by: None,
     });
     p.gone = true;
 }

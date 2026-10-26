@@ -11,6 +11,7 @@ pub mod battle_fx;
 pub mod boarding;
 pub mod car;
 pub mod career;
+pub mod civilians;
 pub mod cockpit;
 pub mod data;
 pub mod fortress;
@@ -88,6 +89,8 @@ pub struct GameData {
     pub audio: audio::AudioData,
     /// `data/world/traffic.ron` and every car it names in `data/cars/`.
     pub traffic: traffic::TrafficData,
+    /// `data/people/people.ron` and `lines.ron` (openspec change `civilians`).
+    pub people: civilians::PeopleData,
 }
 
 impl GameData {
@@ -159,6 +162,10 @@ impl GameData {
                 ambience: data::load_ron(&root.join("audio/ambience.ron"))?,
             },
             traffic: traffic::TrafficData::load(root)?,
+            people: civilians::PeopleData {
+                cfg: data::load_ron(&root.join("people/people.ron"))?,
+                lines: data::load_ron(&root.join("people/lines.ron"))?,
+            },
         })
     }
 

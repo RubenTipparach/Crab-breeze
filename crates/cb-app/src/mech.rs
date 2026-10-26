@@ -1093,6 +1093,7 @@ pub fn step_mech(
                         explosions.write(Explosion {
                             at: Vec3::new(at.x, y, at.y),
                             energy_mj: 6.0,
+                            by: None,
                         });
                     }
                 }
@@ -1664,7 +1665,11 @@ fn cut_parts(
             if spec.kind == PartKind::Torso {
                 // The torso is gone: the mech blows up where it stands and burns.
                 let at = globals.get(root).map(|g| g.translation()).unwrap_or_default() + Vec3::Y * mech.body.blast_height_m;
-                explosions.write(Explosion { at, energy_mj: 25.0 });
+                explosions.write(Explosion {
+                    at,
+                    energy_mj: 25.0,
+                    by: None,
+                });
                 // The wreck falls to the ground and topples from its feet (owner, 2026-10-24: dead
                 // mechs "stuck floating in the air"), away from the side it was facing, at random.
                 let side = if root.index().index() % 2 == 0 { 1.0 } else { -1.0 };

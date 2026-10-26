@@ -46,6 +46,8 @@ struct Power {
     blast_mj: f32,
     /// The player's own mech fired or struck it (a civilian harmed by it costs standing: survey W34).
     by_player: bool,
+    /// Whose shot or blow it was.
+    owner: u32,
 }
 
 type Mechs<'w, 's> = Query<'w, 's, (&'static mut MechSim, &'static MechSpec, &'static MechId, Option<&'static MechRig>)>;
@@ -67,7 +69,6 @@ fn land(
     hits: &mut MessageWriter<crate::battle_fx::MechHit>,
     fortress: &mut MessageWriter<crate::fortress::FortressHit>,
     cars: &mut crate::traffic::TrafficSim,
-    player_blasts: &mut crate::traffic::PlayerBlasts,
 ) {
     match struck {
         // A car: a round that beats its thin skin sets it alight (car-traffic).
@@ -144,12 +145,10 @@ fn land(
         }
     }
     if power.blast_mj >= 1.0 {
-        if power.by_player {
-            player_blasts.0.push(at);
-        }
         explosions.write(Explosion {
             at,
             energy_mj: power.blast_mj,
+            by: Some(power.owner),
         });
     }
 }
@@ -234,11 +233,7 @@ pub fn fly_shots(
     mut hits: MessageWriter<crate::battle_fx::MechHit>,
     fortress: Option<Res<crate::fortress::FortressRun>>,
     mut fortress_hits: MessageWriter<crate::fortress::FortressHit>,
-    (mut cars, mut player_blasts, piloted): (
-        ResMut<crate::traffic::TrafficSim>,
-        ResMut<crate::traffic::PlayerBlasts>,
-        Query<&MechId, With<crate::mech::Piloted>>,
-    ),
+    (mut cars, piloted): (ResMut<crate::traffic::TrafficSim>, Query<&MechId, With<crate::mech::Piloted>>),
 ) {
     let _t = crate::perf_hud::slow("fly_shots");
     if shots.0.is_empty() && shots.1.is_empty() {
@@ -337,6 +332,7 @@ pub fn fly_shots(
                 damage: blow.damage,
                 blast_mj: 0.0,
                 by_player: Some(blow.owner) == me,
+                owner: blow.owner,
             };
             let dir = (blow.to - blow.from).normalize_or(Vec3::NEG_Z);
             land(
@@ -353,7 +349,6 @@ pub fn fly_shots(
                 &mut hits,
                 &mut fortress_hits,
                 &mut cars,
-                &mut player_blasts,
             );
         }
     }
@@ -395,6 +390,7 @@ pub fn fly_shots(
             damage: w.damage,
             blast_mj: w.blast_mj,
             by_player: Some(shot.owner) == me,
+            owner: shot.owner,
         };
         land(
             hit.struck,
@@ -410,7 +406,6 @@ pub fn fly_shots(
             &mut hits,
             &mut fortress_hits,
             &mut cars,
-            &mut player_blasts,
         );
     }
     shots.0 = flying;
