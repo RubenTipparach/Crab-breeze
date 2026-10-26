@@ -132,6 +132,24 @@ impl Damage {
     pub fn destroyed(&self, parts: &[PartSpec]) -> bool {
         self.is_lost(parts, PartKind::Torso)
     }
+
+    /// How whole part `i` is: its structure left over its full structure, 0 to 1, and 0 when it is lost or out of
+    /// range. The one measure the cockpit shows a part's hurt by (openspec change `mfd-damage-page`).
+    pub fn health(&self, parts: &[PartSpec], i: usize) -> f32 {
+        match (parts.get(i), self.structure.get(i), self.lost.get(i)) {
+            (Some(p), Some(s), Some(false)) if s.is_finite() => (s / p.structure.max(1.0)).clamp(0.0, 1.0),
+            _ => 0.0,
+        }
+    }
+
+    /// How whole the mech's part of `kind` is (the worse, when it has two of a kind), and whether one is lost; `None`
+    /// when it has no such part.
+    pub fn health_of(&self, parts: &[PartSpec], kind: PartKind) -> Option<(f32, bool)> {
+        (0..parts.len())
+            .filter(|&i| parts[i].kind == kind)
+            .map(|i| (self.health(parts, i), self.lost.get(i).copied().unwrap_or(true)))
+            .reduce(|a, b| (a.0.min(b.0), a.1 || b.1))
+    }
 }
 
 #[cfg(test)]
@@ -171,6 +189,34 @@ mod tests {
         assert!(d.is_lost(&parts, PartKind::ArmL));
         assert_eq!(d.legs(&parts), [true, true]);
         assert!(!d.destroyed(&parts));
+    }
+
+    #[test]
+    fn health_is_structure_left_over_full_and_zero_once_lost() {
+        let parts = default_parts();
+        let mut d = Damage::new(&parts);
+        assert_eq!(d.health(&parts, 0), 1.0);
+        d.resolve(
+            &parts,
+            Hit {
+                part: 0,
+                penetration_mm: 200.0,
+                damage: 30.0,
+            },
+        );
+        assert!((d.health(&parts, 0) - (parts[0].structure - 30.0) / parts[0].structure).abs() < 1e-6);
+        assert_eq!(d.health_of(&parts, PartKind::ArmL), Some((d.health(&parts, 0), false)));
+        d.resolve(
+            &parts,
+            Hit {
+                part: 0,
+                penetration_mm: 200.0,
+                damage: 1000.0,
+            },
+        );
+        assert_eq!(d.health(&parts, 0), 0.0);
+        assert_eq!(d.health_of(&parts, PartKind::ArmL), Some((0.0, true)));
+        assert_eq!(d.health(&parts, 99), 0.0, "a part out of range is not whole");
     }
 
     #[test]

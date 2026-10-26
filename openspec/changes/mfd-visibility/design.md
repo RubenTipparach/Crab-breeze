@@ -23,7 +23,7 @@ screen lies inside it; the fighting band (-10 to +20 degrees) is clear of both r
 ## 2. The dash and its pod
 
 The dash body drops so its top sits under the dash screens' lower edges; each screen stands on a neck from it in a
-housing, a hood curving over its top. The glare shield goes: nothing is over the screens to hide them. The dash keeps
+housing, with nothing over its top (a hood read as a bar across the screen from the seat). The glare shield goes: nothing is over the screens to hide them. The dash keeps
 its node (`CONSOLE_front`), riding the part the pilot leaves through.
 
 ## 3. Check
@@ -47,7 +47,7 @@ Measured on the 512 px builds (geometry is the same at 4096 px), at 95 degrees:
 
 ## 4. Cost
 
-A few hundred triangles a cockpit (the pods, hoods and stalks); eight rebakes of about 45 minutes each.
+A few hundred triangles a cockpit (the pods and stalks); eight rebakes of about 45 minutes each.
 
 ## Open questions
 
