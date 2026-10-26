@@ -183,10 +183,16 @@ rebuilds the flown mech from that design and its fit.
 
 The owner's answer to J16: "a marker appears on your hud to show mech delivery. you can swap mechs out at base, with foreman always availible".
 
-**The marker** (`cb-app` `air_drop::draw_markers`): one per drop in `Career::drops`, from the order until the pilot
-sits in that mech (`Career::boarded` ends the drop), drawn over the site 30 m up on the HUD layer, shown on foot and
-in the seat: `<> AIR DROP SAPPER 85 M` and `INBOUND 12 S`, `FALLING 140 M`, or `WALK UP TO BOARD`; red with
-`DROP ZONE: MOVE CLEAR` while the pilot stands in the zone.
+**The marker** (`cb-app` `air_drop::draw_markers`): one per purchase not yet boarded, from the order until the pilot
+sits in that mech, however it was delivered (survey D5, answered 2026-10-26: the bay fallback stays, and "You always
+get a marker for your purchases so you have to go activate the mech and the marker will go away after you enter it").
+`Career::awaiting` holds every bought mech's key until `Career::boarded`; `Career::unboarded` (pure, tested) says where
+each marker stands: over the drop's site while there is a drop, at the mech's feet once it stands in the world (landed,
+or called out at a base), and at its bay while it waits there unseen (the drop's fallback). Drawn 30 m up on the HUD
+layer, on foot and in the seat: `<> AIR DROP SAPPER 85 M` and `INBOUND 12 S`, `FALLING 140 M` or `WALK UP TO BOARD`;
+`<> IN HANGAR MULE 2400 M` and `BASE 3 BAY 2: CALL IT OUT AT THE TERMINAL`; `<> YOUR MULE 40 M` and
+`WALK UP TO BOARD`; red with `DROP ZONE: MOVE CLEAR` while the pilot stands in a drop zone. A mech walked up to (it
+holds the seat) stays marked until the pilot is seated in it.
 
 **Swapping at a base** (`Career::call_out`, pure): the terminal's HANGAR tab lists every owned mech, where it is
 (HERE, IN THE FIELD 1.2 KM, BASE 2 BAY 1, AIR DROP INBOUND) and CALL OUT for each that may come.
@@ -219,7 +225,7 @@ as any parked mech does (`mech-roster`'s per-mech cost).
 | D2 | Canopies, retro thrusters, or both | Canopies, with a retro burst in the last 25 m | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
 | D3 | How long from BUY to touchdown | About 50 s (25 s to the release, 25 s falling) | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
 | D4 | Water at the site | Dry ground always wins; water up to the mech's skim depth only when the ring has nothing dry | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
-| D5 | No good ground within 600 m | Fall back to a hangar bay, as before | answered by the owner, 2026-10-26 (survey): the bay fallback stays, and: "You always get a marker for your purchases so you have to go activate the mech and the marker will go away after you enter it". The HUD marker shows a mech delivered to a bay, or anywhere else, until the pilot boards it (section 6.5); building |
+| D5 | No good ground within 600 m | Fall back to a hangar bay, as before | answered by the owner, 2026-10-26 (survey): the bay fallback stays, and: "You always get a marker for your purchases so you have to go activate the mech and the marker will go away after you enter it". The HUD marker shows a mech delivered to a bay, or anywhere else, until the pilot boards it (section 6.5); built (`Career::unboarded`, tested in cb-core) |
 | D6 | The pilot walks into the site | The canopies steer it aside and the marker warns; it lands beside them if they stay | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
 | D7 | Which owned mech the pilot boards | Whichever owned mech they walk up to, within 40 m | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
 | D8 | The aircraft | A block-out stand-in until `airfields` models one | answered by the owner, 2026-10-26 (survey): "Model a real aircraft in Blender now", the 70 m freighter of W48 with the bought mech slung under it; built in `civil-air-traffic` task 3.8, and the air drop draws the same model |
