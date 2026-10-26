@@ -97,6 +97,9 @@ pub struct Enemy {
     pub ai: AiPilot,
     /// The line it flies with `CB_ENEMY_STUNT`, from the player out toward where it first stood.
     pub stunt_axis: Option<Vec2>,
+    /// It keeps to the platform it stands on: an edge stops it as a wall does (the Stratostacean's deck guard,
+    /// survey H6; `platform::keep_on`).
+    pub keep_aboard: bool,
 }
 
 /// A hatch node found by a timeline motion's pattern.
@@ -388,6 +391,27 @@ pub struct SpawnAssets<'a> {
     pub materials: &'a mut Assets<StandardMaterial>,
 }
 
+/// What spawning a mech needs, as one system parameter (`SpawnRes::get` lends it as `SpawnAssets`).
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct SpawnRes<'w> {
+    tex: Res<'w, crate::textures::Textures>,
+    assets: Res<'w, AssetServer>,
+    meshes: ResMut<'w, Assets<Mesh>>,
+    materials: ResMut<'w, Assets<StandardMaterial>>,
+}
+
+impl SpawnRes<'_> {
+    /// The spawn's assets, lent.
+    pub fn get(&mut self) -> SpawnAssets<'_> {
+        SpawnAssets {
+            tex: &self.tex,
+            assets: &self.assets,
+            meshes: &mut self.meshes,
+            materials: &mut self.materials,
+        }
+    }
+}
+
 /// Spawns an enemy mech flown by an AI pilot, standing on the ground at `xz`: the one way enemies
 /// enter the world, for the encounter and the defence waves alike.
 #[allow(clippy::too_many_arguments)]
@@ -396,6 +420,21 @@ pub fn spawn_enemy(
     world: &cb_core::world::WorldPlan,
     l: &Loadout,
     xz: Vec2,
+    heading_rad: f32,
+    rng: SimRng,
+    id: MechId,
+    a: &mut SpawnAssets,
+) -> Option<Entity> {
+    let at = Vec3::new(xz.x, world.terrain.height_at(xz.x, xz.y), xz.y);
+    spawn_enemy_at(commands, l, at, heading_rad, rng, id, a)
+}
+
+/// Spawns an enemy standing at `at` (feet, world): on the ground, a roof or a platform such as the Stratostacean's
+/// deck. `spawn_enemy` is this on the ground.
+pub fn spawn_enemy_at(
+    commands: &mut Commands,
+    l: &Loadout,
+    at: Vec3,
     heading_rad: f32,
     rng: SimRng,
     id: MechId,
@@ -418,7 +457,6 @@ pub fn spawn_enemy(
     if l.skin.is_some() {
         cfg.boxes.clear(); // the skin is drawn instead; the skeleton stays for the sim, sockets and hits
     }
-    let at = Vec3::new(xz.x, world.terrain.height_at(xz.x, xz.y), xz.y);
     let tint = l.tint.map(|c| Color::srgb(c[0], c[1], c[2]));
     let ent = spawn_mech_entity(
         commands,
@@ -435,9 +473,15 @@ pub fn spawn_enemy(
         crate::skins::wear(commands, a.assets, ent, skin);
     }
     let ai = AiPilot::new(l.skill.clone(), rng);
-    commands
-        .entity(ent)
-        .insert((Enemy { ai, stunt_axis: None }, id, EnemyGoal::default()));
+    commands.entity(ent).insert((
+        Enemy {
+            ai,
+            stunt_axis: None,
+            keep_aboard: false,
+        },
+        id,
+        EnemyGoal::default(),
+    ));
     Some(ent)
 }
 
@@ -1051,6 +1095,7 @@ pub fn step_mech(
     let cam = camera.iter().next().copied();
     for (mut sim, spec, id, rig, enemy, piloted) in &mut roots {
         let cfg: &MechConfig = spec;
+        let keep_aboard = enemy.as_ref().is_some_and(|(e, _)| e.keep_aboard);
         sim.prev = sim.curr;
         sim.hatch_prev = sim.hatch;
         if sim.dead {
@@ -1275,7 +1320,14 @@ pub fn step_mech(
             interiors: None,
         };
         let was_airborne = sim.curr.airborne();
+        let was_at = sim.curr.pos;
         sim.curr.step(&controls, cfg, &ground, dt);
+        // A deck guard keeps to its deck: walking out over the edge stops it there (survey H6).
+        if keep_aboard && let Some(back) = cb_core::world::platform::keep_on(&live.platforms, was_at, sim.curr.pos) {
+            sim.curr.pos = back;
+            sim.curr.vel = Vec2::ZERO;
+            sim.curr.vel_y_m_s = 0.0;
+        }
 
         // Trees in the way: the legs snap trunks (or are stopped by them), the hull and arms snap
         // crowns, and each snapped tree takes some momentum (vegetation design section 5).

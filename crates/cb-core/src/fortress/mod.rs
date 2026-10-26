@@ -15,6 +15,7 @@ pub use hits::{HitOutcome, Weak};
 pub use lift::{Lift, lift};
 
 use crate::data::{Validate, finite, positive, within};
+use crate::mission::RaiderSpec;
 use crate::rng::SimRng;
 use crate::weapons::WeaponSpec;
 use crate::world::{Slab, Structures, WorldPlan};
@@ -166,6 +167,35 @@ pub struct LegSpec {
     pub tumble_deg_s: f32,
 }
 
+/// A post of the deck guard: which crab stands where, in the fortress's frame (x, z) on one of its tops.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GuardPost {
+    /// The crab, a key of `GuardSpec::crabs`.
+    pub crab: String,
+    /// Where it stands (x, z), metres.
+    pub at_m: Vec2,
+}
+
+/// The deck guard (design section 4; owner, 2026-10-26, survey H6: 2 Shrikes and 4 Mites on deck, a Mite up each
+/// hangar lift every 60 s while the lifts work).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GuardSpec {
+    /// Aboard from the start.
+    pub start: Vec<GuardPost>,
+    /// The crab each hangar lift brings up.
+    pub lift_crab: String,
+    /// Each working lift brings one up this often, seconds.
+    pub lift_interval_s: f32,
+    /// No lift brings one up while this many stand.
+    pub max_on_deck: u32,
+    /// Crabs below decks for the lifts.
+    pub hangar: u32,
+    /// Each crab: its mech, skin, guns and pilot, as a defence raider's.
+    pub crabs: BTreeMap<String, RaiderSpec>,
+}
+
 /// The crash (design section 6).
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -226,6 +256,8 @@ pub struct FortressConfig {
     pub launch: LaunchSpec,
     /// Downwash.
     pub downwash: DownwashSpec,
+    /// The deck guard.
+    pub guard: GuardSpec,
     /// A leg breaking off.
     pub leg: LegSpec,
     /// The crash.
@@ -262,12 +294,22 @@ impl Validate for FortressConfig {
             ("launch.interval_s", self.launch.interval_s),
             ("downwash.length_m", self.downwash.length_m),
             ("crash.clearance_m", self.crash.clearance_m),
+            ("guard.lift_interval_s", self.guard.lift_interval_s),
             ("crash.half_size_m.x", self.crash.half_size_m.x),
             ("crash.half_size_m.y", self.crash.half_size_m.y),
         ] {
             positive(k, v)?;
         }
         within("lift_max_share", self.lift_max_share, 1e-3, 0.5)?;
+        let g = &self.guard;
+        for c in g.start.iter().map(|p| &p.crab).chain(std::iter::once(&g.lift_crab)) {
+            if !g.crabs.contains_key(c) {
+                return Err(format!("guard: no crab `{c}` in guard.crabs"));
+            }
+        }
+        for (name, c) in &g.crabs {
+            positive(&format!("guard.crabs.{name}.armour_scale"), c.armour_scale)?;
+        }
         within("hull_max_share", self.hull_max_share, 1e-3, 0.5)?;
         finite("launch.first_s", self.launch.first_s)?;
         for (name, k) in &self.kinds {
@@ -368,6 +410,11 @@ impl FortressData {
         for p in &self.shape.parts {
             if !self.cfg.kinds.contains_key(&p.kind) {
                 return Err(format!("fortress_shape.ron part `{}`: no kind `{}` in fortress.ron", p.id, p.kind));
+            }
+        }
+        for p in &self.cfg.guard.start {
+            if self.shape.platforms.iter().all(|s| s.top_at(p.at_m).is_none()) {
+                return Err(format!("fortress.ron guard post {} at {}: not on any of its tops", p.crab, p.at_m));
             }
         }
         for k in ["lift", "hull"] {
@@ -482,6 +529,10 @@ pub struct Fortress {
     pub launch_turn: usize,
     /// Fighters left in the hangar.
     pub hangar: u32,
+    /// Until the hangar lifts next bring a crab up.
+    pub guard_in_s: f32,
+    /// Crabs left below decks for the lifts.
+    pub guard_hangar: u32,
     rng: SimRng,
 }
 
@@ -517,6 +568,8 @@ impl Fortress {
             launch_in_s: d.cfg.launch.first_s,
             launch_turn: 0,
             hangar: d.cfg.launch.hangar,
+            guard_in_s: d.cfg.guard.lift_interval_s,
+            guard_hangar: d.cfg.guard.hangar,
             rng: SimRng::new(seed).fork("fortress"),
         };
         f.place(&d.cfg, ground_m + d.cfg.altitude_m);
@@ -664,6 +717,35 @@ impl Fortress {
         let all = d.shape.parts.iter().filter(|r| r.kind == "cat").count().max(1);
         self.launch_in_s = d.cfg.launch.interval_s * all as f32 / cats.len() as f32;
         Some(cat)
+    }
+
+    /// The hangar lifts this step (survey H6): every `lift_interval_s` each working lift brings a crab up, while
+    /// fewer than `max_on_deck` stand (`on_deck`, alive), crabs are left below and it is not falling. The indices of
+    /// the lift parts that bring one, in the shape's order.
+    pub fn guard_lift(&mut self, d: &FortressData, on_deck: u32, dt_s: f32) -> Vec<usize> {
+        if self.falling || self.crashed {
+            return Vec::new();
+        }
+        self.guard_in_s -= dt_s;
+        if self.guard_in_s > 0.0 {
+            return Vec::new();
+        }
+        self.guard_in_s += d.cfg.guard.lift_interval_s;
+        let mut up = Vec::new();
+        for i in (0..d.shape.parts.len()).filter(|&i| d.shape.parts[i].kind == "hlift" && self.parts[i].alive) {
+            if on_deck + up.len() as u32 >= d.cfg.guard.max_on_deck || self.guard_hangar == 0 {
+                break;
+            }
+            self.guard_hangar -= 1;
+            up.push(i);
+        }
+        up
+    }
+
+    /// Where a body stands on the fortress over its own point `(x, z)`: the highest of its tops there, in the world.
+    pub fn stand_at(&self, d: &FortressData, at: Vec2) -> Option<Vec3> {
+        let top = d.shape.platforms.iter().filter_map(|s| s.top_at(at)).reduce(f32::max)?;
+        Some(self.pose().transform_point3(Vec3::new(at.x, top, at.y)))
     }
 
     /// The push and burn on a mech at world point `p` from the live lift thrusters' downwash, given each
@@ -1094,5 +1176,67 @@ pub(crate) mod tests {
             after * 100.0
         );
         assert!(broke > 0 && after > before, "{before} -> {after}");
+    }
+
+    /// Lifts in the first `s` seconds with `on_deck` standing throughout: (seconds, lift part) each time one comes up.
+    fn lifts(d: &FortressData, f: &mut Fortress, on_deck: u32, s: f32) -> Vec<(f32, usize)> {
+        let mut out = Vec::new();
+        for k in 1..=(s / DT).round() as usize {
+            for i in f.guard_lift(d, on_deck, DT) {
+                out.push((k as f32 * DT, i));
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn the_deck_guard_is_two_shrikes_and_four_mites_standing_on_its_tops() {
+        // Survey H6 (owner, 2026-10-26): 2 Shrikes and 4 Mites on deck from the start.
+        let (d, f) = fortress();
+        let g = &d.cfg.guard;
+        let count = |c: &str| g.start.iter().filter(|p| p.crab == c).count();
+        assert_eq!((count("shrike"), count("mite"), g.start.len()), (2, 4, 6));
+        assert_eq!(g.lift_crab, "mite");
+        for p in &g.start {
+            let at = f
+                .stand_at(&d, p.at_m)
+                .unwrap_or_else(|| panic!("{} at {} stands on nothing", p.crab, p.at_m));
+            assert!(at.y > d.cfg.altitude_m + 40.0, "{} stands on its top, {at}", p.crab);
+        }
+    }
+
+    #[test]
+    fn each_working_lift_brings_a_mite_up_every_60_s() {
+        let (d, mut f) = fortress();
+        let up = lifts(&d, &mut f, 2, 125.0);
+        let ids: Vec<(u32, &str)> = up.iter().map(|(t, i)| (t.round() as u32, d.shape.parts[*i].id.as_str())).collect();
+        assert_eq!(ids, [(60, "lift1"), (60, "lift2"), (120, "lift1"), (120, "lift2")]);
+    }
+
+    #[test]
+    fn a_lost_lift_brings_no_more() {
+        let (d, mut f) = fortress();
+        kill(&d, &mut f, &["lift1"]);
+        let up = lifts(&d, &mut f, 0, 125.0);
+        assert!(up.iter().all(|(_, i)| d.shape.parts[*i].id == "lift2") && up.len() == 2, "{up:?}");
+        kill(&d, &mut f, &["lift2"]);
+        assert!(lifts(&d, &mut f, 0, 300.0).is_empty(), "both lost: no more deck guards");
+    }
+
+    #[test]
+    fn no_more_come_up_than_six_on_deck() {
+        let (d, mut f) = fortress();
+        assert!(lifts(&d, &mut f, 6, 300.0).is_empty(), "a full guard brings none");
+        let (d, mut f) = fortress();
+        assert_eq!(lifts(&d, &mut f, 5, 61.0).len(), 1, "one short: one comes up");
+    }
+
+    #[test]
+    fn the_lifts_stop_when_the_hangar_is_empty_or_it_falls() {
+        let (d, mut f) = fortress();
+        assert_eq!(lifts(&d, &mut f, 0, 1000.0).len(), d.cfg.guard.hangar as usize);
+        let (d, mut f) = fortress();
+        f.falling = true;
+        assert!(lifts(&d, &mut f, 0, 300.0).is_empty());
     }
 }

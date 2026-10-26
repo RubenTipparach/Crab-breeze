@@ -115,6 +115,12 @@ impl GameData {
         let skins: skins::Skins = data::load_ron(&skins_path)?;
         let encounters: ai::Encounters = data::load_ron(&root.join("world/encounters.ron"))?;
         let defence: mission::DefenceConfig = data::load_ron(&root.join("missions/defence.ron"))?;
+        let shape_path = root.join("missions/fortress_shape.ron");
+        let fortress = fortress::FortressData {
+            cfg: data::load_ron(&root.join("missions/fortress.ron"))?,
+            shape: data::load_ron(&shape_path)?,
+        };
+        fortress.check().map_err(|reason| data::DataError { path: shape_path, reason })?;
         // Every skin an enemy names is in the list (openspec change `blockout-enemies`).
         let named = encounters
             .enemies
@@ -131,6 +137,11 @@ impl GameData {
             .chain(defence.skins_by_wave.iter().enumerate().flat_map(|(w, list)| {
                 list.iter()
                     .map(move |s| (s.as_str(), format!("missions/defence.ron skins_by_wave[{w}]")))
+            }))
+            .chain(fortress.cfg.guard.crabs.iter().filter_map(|(name, c)| {
+                c.skin
+                    .as_deref()
+                    .map(|s| (s, format!("missions/fortress.ron guard.crabs.{name}.skin")))
             }));
         skins.check_names(named).map_err(|reason| data::DataError {
             path: skins_path.clone(),
@@ -141,12 +152,6 @@ impl GameData {
         grass
             .validate_with(&world)
             .map_err(|reason| data::DataError { path: grass_path, reason })?;
-        let shape_path = root.join("missions/fortress_shape.ron");
-        let fortress = fortress::FortressData {
-            cfg: data::load_ron(&root.join("missions/fortress.ron"))?,
-            shape: data::load_ron(&shape_path)?,
-        };
-        fortress.check().map_err(|reason| data::DataError { path: shape_path, reason })?;
         let ships_path = root.join("world/ships.ron");
         let ships: ships::ShipsConfig = data::load_ron(&ships_path)?;
         let units: units::UnitsConfig = data::load_ron(&root.join("world/units.ron"))?;

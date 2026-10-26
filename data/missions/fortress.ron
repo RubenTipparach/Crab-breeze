@@ -94,6 +94,48 @@
         ),
     },
     launch: (unit: "fighter", interval_s: 20.0, first_s: 8.0, max_airborne: 8, hangar: 24, off_m: (0.0, 3.0, 64.0)),
+    // The deck guard (owner, 2026-10-26, survey H6: "2 Shrikes and 4 Mites on deck, a Mite up each hangar lift every
+    // 60 s"). Posts from the approved mockup: the Shrikes on the flight deck, the Mites on the shoulders. Each lift
+    // brings a Mite every 60 s while it works, fewer than 6 stand and the 8 below decks last (design section 4). They
+    // keep to the tops they stand on, and do not hop on their jets.
+    guard: (
+        start: [
+            (crab: "shrike", at_m: (0.0, 40.0)),
+            (crab: "shrike", at_m: (0.0, -105.0)),
+            (crab: "mite", at_m: (60.0, 60.0)),
+            (crab: "mite", at_m: (-60.0, -40.0)),
+            (crab: "mite", at_m: (-60.0, 85.0)),
+            (crab: "mite", at_m: (60.0, -80.0)),
+        ],
+        lift_crab: "mite",
+        lift_interval_s: 60.0,
+        max_on_deck: 6,
+        hangar: 8,
+        crabs: {
+            "shrike": (
+                mech: "mechs/placeholder.ron",
+                skin: Some("shrike"),
+                tint: Some((0.45, 0.16, 0.12)),
+                armour_scale: 0.55,
+                weapons: Some([
+                    (name: "25 mm autocannon", socket: "MUZZLE_R", arm: ArmR, group: 0, speed_m_s: 1100.0,
+                     interval_s: 0.2, penetration_mm: 55.0, damage: 6.0, blast_mj: 0.3),
+                ]),
+                skill: (aim_noise_deg: 3.5, fire_error_deg: 3.0, range_m: 120.0, max_fire_range_m: 700.0, hop_chance: 0.0),
+            ),
+            "mite": (
+                mech: "mechs/placeholder.ron",
+                skin: Some("mite"),
+                tint: Some((0.55, 0.20, 0.14)),
+                armour_scale: 0.55,
+                weapons: Some([
+                    (name: "25 mm autocannon", socket: "MUZZLE_R", arm: ArmR, group: 0, speed_m_s: 1100.0,
+                     interval_s: 0.2, penetration_mm: 55.0, damage: 6.0, blast_mj: 0.3),
+                ]),
+                skill: (aim_noise_deg: 3.0, fire_error_deg: 3.0, range_m: 80.0, max_fire_range_m: 700.0, hop_chance: 0.0),
+            ),
+        },
+    ),
     downwash: (radius_top_m: 15.0, radius_bottom_m: 30.0, length_m: 150.0, push_m_s2: 25.0, burn_per_s: 15.0),
     leg: (blast_mj: 30.0, break_radius_m: 25.0, tumble_deg_s: 25.0),
     // Its wreck breaks what is under its 280 x 420 m footprint and 60 m round it; those are the attacked city's

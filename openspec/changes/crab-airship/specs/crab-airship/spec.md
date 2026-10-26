@@ -87,3 +87,14 @@ The buildings the fortress's wreck breaks SHALL count in the attacked city's dam
 #### Scenario: Brought down with its drives running
 - **WHEN** it falls with both drive thrusters working
 - **THEN** it drifts on along its circle at 15 m/s until it lands
+
+### Requirement: The fortress's deck guard
+The fortress SHALL carry a deck guard of 2 Shrikes and 4 Mites standing on its tops from the start, and each working hangar lift SHALL bring a Mite up every 60 s while fewer than 6 stand and crabs are left below decks. A lost lift SHALL bring no more, none SHALL come up while it falls, and a guard SHALL keep to the tops it stands on.
+
+#### Scenario: A lift is destroyed
+- **WHEN** one of the two hangar lifts is destroyed
+- **THEN** Mites come up only on the other one, every 60 s while the guard is short
+
+#### Scenario: A guard walks to the edge
+- **WHEN** a deck guard walks out over the edge of the deck
+- **THEN** it stops at the edge as at a wall

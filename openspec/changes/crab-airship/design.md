@@ -257,8 +257,18 @@ seeker), the 4 beam turrets (a charge the pilot sees, then 10 damage/s to the me
 the line is clear), and fighters: one off a live catapult every 20 s, up to 8 in the air, flown by the existing
 `fighter` unit. Every turret turns at 60 deg/s, fires only within 5 deg of its aim and only at the pilot's mech while the pilot sits in it (an empty mech is no
 threat; a cloud run found the parked mech destroyed before the pilot reached it), and
-leads it with `weapons::lead`. Losing the bridge doubles every aim error. Not yet: the crabs dropped from the bays
-and the deck guard (H6), next.
+leads it with `weapons::lead`. Losing the bridge doubles every aim error. Not yet: the crabs dropped from the bays.
+
+**The deck guard** (owner, 2026-10-26, survey H6: "Approve all", the recommendation: 2 Shrikes and 4 Mites on deck,
+a Mite up each hangar lift every 60 s). `guard` in `fortress.ron`: the six start at the approved mockup's posts, the
+Shrikes on the flight deck at z = +40 and -105 m, the Mites on the shoulders, each an enemy mech wearing its crab's
+block-out on the defence raiders' brain and guns (a 25 mm autocannon, 700 m), spawned standing on the top under its
+post (`Fortress::stand_at`). `Fortress::guard_lift` runs one 60 s clock: each time it comes round, each working lift
+brings a Mite up onto the deck over it while fewer than 6 stand and the 8 below decks last; a lost lift brings no
+more, and none come up while it falls. A guard keeps to the tops it stands on (`platform::keep_on`: walking out over
+an edge stops it there, as a wall does) and does not hop on its jets; like every enemy it waits until the pilot is
+in the seat. Their ids sit below the vehicles' so a hit on one is a mech's hit. They leave the world with the
+mission. Not yet: crabs sliding off a deck listing past 35 deg (they keep to it).
 
 **Standing on it.** The deck, the two shoulders and the eight pylon walkways are platforms: boxes in the fortress's
 frame whose tops a mech or the pilot stands on (`support_at`), carried with the fortress as it flies, sinks and
@@ -297,4 +307,4 @@ each shot's metre steps as a mech's parts are. Measured on the owner's machine w
 | H3 | How it falls | the side rule, then the hull thrusters: three outer on one side open the hull, two hull thrusters on that side bring it down | provisional (survey H3; the hull thrusters and the plates are the owner's, 2026-10-25) |
 | H4 | How the pilot gets up and stays up | the jets as they are; land on the deck, shoulders or a pylon to recharge | decided (owner, 2026-10-26, survey H4: recommendation accepted, "Approve all"): every roster mech reaches the deck on its jets with 8.5 s of burn left; landing hands the mech's velocity over to the deck (section 5) |
 | H5 | Does its crash count as city damage | yes: the pilot chooses where it falls (stop its drive first, or wait) | decided (owner, 2026-10-26, survey H5: recommendation accepted, "Approve all"); section 6 |
-| H6 | Who guards the deck | 2 Shrikes and 4 Mites aboard, a Mite up each lift every 60 s | provisional (survey H6) |
+| H6 | Who guards the deck | 2 Shrikes and 4 Mites aboard, a Mite up each lift every 60 s | decided (owner, 2026-10-26, survey H6: recommendation accepted, "Approve all"); section 9, the deck guard. The cap of 6 on deck and 8 below are section 4's, kept |

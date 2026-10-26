@@ -135,6 +135,24 @@ impl Platform {
     }
 }
 
+/// A body that keeps to the platform it stands on (the Stratostacean's deck guard, survey H6): if it stood on a
+/// platform at `was` and this step took it out past the edge of every top that platform has, where to put it back.
+/// The edge stops it as a wall would. A body that was not standing on a platform goes where it goes.
+pub fn keep_on(platforms: &[Platform], was: Vec3, now: Vec3) -> Option<Vec3> {
+    let over = |p: &Platform, f: Vec3| {
+        let l = p.pose.inverse().transform_point3(f);
+        p.slabs
+            .iter()
+            .filter_map(|s| s.top_at(Vec2::new(l.x, l.z)))
+            .map(|top| l.y - top)
+            .collect::<Vec<_>>()
+    };
+    let stood = platforms
+        .iter()
+        .find(|p| over(p, was).iter().any(|dy| (-0.5..=STAND_M).contains(dy)))?;
+    over(stood, now).is_empty().then_some(was)
+}
+
 /// The highest platform top under `(x, z)` within a step of `feet_y`.
 pub fn top_under(platforms: &[Platform], x: f32, z: f32, feet_y: f32) -> Option<f32> {
     platforms.iter().filter_map(|p| p.top_under(x, z, feet_y)).reduce(f32::max)
@@ -231,6 +249,25 @@ mod tests {
         let off = p.ride(Vec3::new(0.0, 652.0, 0.0), Vec3::new(0.0, 20.0, 0.0), true, dt);
         assert!(!off.aboard);
         assert!((off.vel.x - 15.0).abs() < 1e-3 && (off.vel.y - 20.0).abs() < 1e-3, "{}", off.vel);
+    }
+
+    #[test]
+    fn a_body_kept_to_the_deck_stops_at_its_edge() {
+        let p = Platform {
+            slabs: vec![deck()],
+            pose: at(Vec3::new(0.0, 600.0, 0.0)),
+            was: at(Vec3::new(0.0, 600.0, 0.0)),
+        };
+        let ps = [p];
+        let edge = Vec3::new(39.8, 649.0, 0.0);
+        assert_eq!(
+            keep_on(&ps, edge, edge + Vec3::new(0.5, -0.1, 0.0)),
+            Some(edge),
+            "over the side: put back"
+        );
+        assert_eq!(keep_on(&ps, edge, edge - Vec3::X), None, "along the deck: free");
+        let flying = Vec3::new(0.0, 700.0, 0.0);
+        assert_eq!(keep_on(&ps, flying, Vec3::new(100.0, 700.0, 0.0)), None, "not standing on it: free");
     }
 
     #[test]

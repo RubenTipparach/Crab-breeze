@@ -14,7 +14,8 @@
 - [ ] 2.5 Wave 3 of the defence brings the fortress (G16)
 - [x] 2.6 The model exported from the mockup (`tools/mockups/export_fortress_glb.mjs`): named nodes, baked livery, manifest and budget (section 9)
 - [x] 2.7 The mission started from free roam's mail (`free-roam-missions`); `--mission fortress`; won when it crashes
-- [ ] 2.8 Not in the first build: the dropped crabs and the deck guard (H6)
+- [x] 2.8a The deck guard (owner, 2026-10-26, survey H6): 2 Shrikes and 4 Mites at their posts, a Mite up each working hangar lift every 60 s while fewer than 6 stand, 8 below decks; they keep to the deck and leave with the mission (tests: `the_deck_guard_is_two_shrikes_and_four_mites_standing_on_its_tops`, `each_working_lift_brings_a_mite_up_every_60_s`, `a_lost_lift_brings_no_more`, `no_more_come_up_than_six_on_deck`, `the_lifts_stop_when_the_hangar_is_empty_or_it_falls`, `a_body_kept_to_the_deck_stops_at_its_edge`)
+- [ ] 2.8 The crabs dropped from the bays
 - [ ] 3.1 The Blender block-out, then the detailed model with LODs (after the owner picks from the mockup)
 - [ ] 4.1 Playtest beats: climb to the deck, land, fight the guard, walk a pylon, kill three thrusters on one side, jump clear, watch it fall; measure with `--bench defence`
 - [x] 2.9 Headless stills in a cloud session (`CB_STILLS_FORTRESS=1`, `capture_fortress`): whole, under a thruster, on the deck, the hull opening, falling, crashed; `cb-tools validate` checks the model's nodes against the data
