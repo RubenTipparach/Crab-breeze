@@ -45,3 +45,12 @@ same work the buildings' surfaces already do.
 |---|---|---|---|
 | R1 | Arterials on the worn set, or the clean one? | worn: they carry the heavy traffic | provisional |
 | R2 | Parks on their own grass set instead of tinted paving? | yes, in a later change | open |
+
+## Seen in the game, 2026-10-26
+
+`CB_STILLS_ROADS=1 --stills`, seed 42, on the Mac, before and after in `docs/screenshots/roads/`
+(`before-*.jpg`, `after-*.jpg`). On foot the street shows fine aggregate at real scale and the
+pavement 600 mm slabs with dark joints; from the cockpit's eye height (18.4 m) neither the street's
+nor the highway's tile repeats visibly. The lane dashes stay crisp. A 4 MJ shell on the street
+leaves its scorch on the asphalt and no hole, as `terrain-deformation` keeps roads level. The
+streets' blue cast is the scene's sky light on a dark tone, the same before and after.
