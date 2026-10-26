@@ -475,12 +475,36 @@ pub const CAR_NODES: [&str; 8] = [
     "WHEEL_RR",
 ];
 
-/// Checks every traffic car's model against its data (`data/cars/<kind>.ron`): the model is under `assets`, it has
-/// every node in `CAR_NODES`, and its `EYE_driver` and `DOOR_driver` sit where the data says, so the driver's eye
-/// the game uses and the seat the model shows are one place.
+/// Checks every traffic car's model against its data (`data/cars/<kind>.ron`, raised by `car_height_scale`): the model
+/// is under `assets`, it has every node in `CAR_NODES`, its `EYE_driver` and `DOOR_driver` sit where the data says, so
+/// the driver's eye the game uses and the seat the model shows are one place, and `assets/models/cars.json` lists it
+/// built at the data's size, so a model left behind by a change to the height scale is refused.
 pub fn check_cars(d: &cb_core::traffic::TrafficData, assets: &Path) -> Vec<String> {
     let mut out = Vec::new();
+    let manifest_path = assets.join("models").join("cars.json");
+    let manifest: Value = match std::fs::read(&manifest_path)
+        .map_err(|e| e.to_string())
+        .and_then(|b| serde_json::from_slice(&b).map_err(|e| e.to_string()))
+    {
+        Ok(v) => v,
+        Err(e) => return vec![format!("cars: {}: {e}", manifest_path.display())],
+    };
     for (name, spec) in d.cfg.kinds.iter().zip(&d.kinds) {
+        let built: Vec<f32> = manifest[name.as_str()]["size_m"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|v| v.as_f64())
+            .map(|v| v as f32)
+            .collect();
+        for (i, axis) in ["wide", "high", "long"].iter().enumerate() {
+            let (want, got) = (spec.size_m[i], built.get(i).copied().unwrap_or(0.0));
+            if (got - want).abs() > want * 0.01 {
+                out.push(format!(
+                    "car `{name}`: built {got} m {axis} (cars.json), {want} m in its data; rebuild with tools/blender/build_cars.py"
+                ));
+            }
+        }
         let t = match Tree::read(&assets.join(&spec.model)) {
             Ok(t) => t,
             Err(e) => {

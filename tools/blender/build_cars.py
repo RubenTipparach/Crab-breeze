@@ -9,8 +9,9 @@ the driver: a dashboard, the steering wheel (`STEER_wheel`, turned by the game f
 speedometer's needle (`NEEDLE_speed`, turned by the game from the car's simulated speed, CLAUDE.md 6.1). The
 empties `EYE_driver` and `DOOR_driver` are the sockets the pilot uses.
 
-Every size comes from the car's data, `data/cars/<kind>.ron` (size, wheelbase, track and the two sockets), so the
-model and the simulation describe one car. Flat colours, no textures, no LODs: these are stand-ins until the
+Every size comes from the car's data, `data/cars/<kind>.ron` (size, wheelbase, track and the two sockets), with every
+height (body, roof, wheels, ride height, the driver's eye) raised by `car_height_scale` in `data/world/traffic.ron` as
+the game raises them on load, so the model and the simulation describe one car. Flat colours, no textures, no LODs: these are stand-ins until the
 block-outs are approved and the detailed models with PBR sets and LODs replace them.
 
 The car faces -z in glTF (Blender +y), its middle on the ground at the origin.
@@ -51,9 +52,21 @@ def ron(kind):
         return float(re.search(rf"\b{key}:\s*([-0-9.]+)", text).group(1))
 
     paints = re.search(r"paints:\s*\[\(([^)]*)\)", text).group(1)
-    return dict(size=tup("size_m"), wheelbase=num("wheelbase_m"), track=num("track_m"), wheel=num("wheel_radius_m"), ride=num("ride_height_m"),
-                eye=tup("eye_driver_m"), door=tup("door_driver_m"), paint=[float(x) for x in paints.split(",")],
-                name=re.search(r'name:\s*"([^"]*)"', text).group(1))
+    # every height raised by the traffic's `car_height_scale`, as `CarSpec::raised` does on load (cb-core car.rs)
+    k = height_scale()
+    w, h, l = tup("size_m")
+    ex, ey, ez = tup("eye_driver_m")
+    return dict(size=[w, h * k, l], wheelbase=num("wheelbase_m"), track=num("track_m"), wheel=num("wheel_radius_m") * k,
+                ride=num("ride_height_m") * k, eye=[ex, ey * k, ez], door=tup("door_driver_m"), k=k,
+                paint=[float(x) for x in paints.split(",")], name=re.search(r'name:\s*"([^"]*)"', text).group(1))
+
+
+def height_scale():
+    """`car_height_scale` in data/world/traffic.ron (1 when it is not set): how much taller than its real-world size
+    every car is drawn and simulated, its length and width kept."""
+    text = open(os.path.join(ROOT, "data", "world", "traffic.ron")).read()
+    m = re.search(r"\bcar_height_scale:\s*([-0-9.]+)", text)
+    return float(m.group(1)) if m else 1.0
 
 
 def g2b(x, y, z):
@@ -135,7 +148,7 @@ def build(kind, d):
     root = empty("root", (0, 0, 0), None)
     floor = ride
     # the body: one box, wheel arches cut out by boolean cylinders
-    body_top = {"pickup": 1.15, "van": h, "bus": h, "semi": h * 0.62}.get(kind, h * 0.58)
+    body_top = {"pickup": 1.15 * d["k"], "van": h, "bus": h, "semi": h * 0.62}.get(kind, h * 0.58)
     if kind == "semi":
         cab_len = 2.4
         body = box("body", (0, (floor + body_top) / 2, -l / 2 + cab_len / 2), (w * 0.98, body_top - floor, cab_len), "PAINT", root)
@@ -205,9 +218,9 @@ def main():
         d = ron(kind)
         materials(d["paint"])
         build(kind, d)
-        meta = dict(id=kind, name=d["name"], status="block-out stand-in, awaiting approval",
+        meta = dict(id=kind, name=d["name"], status="block-out stand-in, approved (survey W36)",
                     generator="tools/blender/build_cars.py", source=f"data/cars/{kind}.ron", size_m=d["size"],
-                    budget_tris=BUDGET_TRIS)
+                    height_scale=d["k"], budget_tris=BUDGET_TRIS)
         m = K.export(os.path.join(OUT, f"{kind}.glb"), MANIFEST, meta, {"car": kind})
         if m["triangles"] > BUDGET_TRIS:
             over.append(f"{kind}: {m['triangles']} triangles over the {BUDGET_TRIS} budget")

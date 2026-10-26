@@ -191,6 +191,58 @@ impl Ground for Scene<'_> {
     }
 }
 
+impl WorldPlan {
+    /// The drawn road's surface at `p` (x, z), if a road is there: a city's street at the city's ground plus
+    /// `lift_m`, a highway within its half width at its grade plus `lift_m` (the game draws every road `road_lift_m`
+    /// over its grade, `cb-app::world`). `None` off the roads.
+    pub fn road_top_at(&self, p: Vec2, lift_m: f32) -> Option<f32> {
+        for c in &self.cities {
+            if c.rect().distance(p) <= 0.0 && c.streets.iter().any(|s| s.rect.distance(p) <= 0.0) {
+                return Some(c.ground_m + lift_m);
+            }
+        }
+        self.highways.iter().find_map(|h| {
+            let (d, t) = h.project(p);
+            (d <= h.width_m * 0.5).then(|| h.grade_at(t) + lift_m)
+        })
+    }
+}
+
+/// The ground as a car's wheels meet it (car-traffic, car-driving): the drawn road's surface where there is a road,
+/// carrying any crater dug into it, and the ground elsewhere. Cars were set on the bare grade while the road is drawn
+/// `road_lift_m` (0.15 m) over it, so every car sat sunk in the asphalt (2026-10-26, measured).
+pub struct OnRoads<'a, G: Ground> {
+    /// The ground under the roads.
+    pub ground: &'a G,
+    /// The roads.
+    pub plan: &'a WorldPlan,
+    /// How far the drawn road sits over its grade, metres (`WorldConfig::road_lift_m`).
+    pub lift_m: f32,
+}
+
+impl<G: Ground> Ground for OnRoads<'_, G> {
+    fn height_at(&self, x: f32, z: f32) -> f32 {
+        let g = self.ground.height_at(x, z);
+        match self.plan.road_top_at(Vec2::new(x, z), self.lift_m) {
+            // a crater in the road lowers it as it lowers the ground
+            Some(top) => top + (g - self.plan.terrain.height_at(x, z)),
+            None => g,
+        }
+    }
+    fn push_out(&self, p: Vec2, radius_m: f32) -> Vec2 {
+        self.ground.push_out(p, radius_m)
+    }
+    fn water_at(&self, x: f32, z: f32) -> Option<WaterSample> {
+        self.ground.water_at(x, z)
+    }
+    fn support_at(&self, x: f32, z: f32, feet_y: f32) -> f32 {
+        self.ground.support_at(x, z, feet_y).max(self.height_at(x, z))
+    }
+    fn push_out_at(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
+        self.ground.push_out_at(p, radius_m, feet_y)
+    }
+}
+
 impl Ground for WorldPlan {
     fn height_at(&self, x: f32, z: f32) -> f32 {
         self.terrain.height_at(x, z)
