@@ -54,8 +54,8 @@ The atlas renders come from the Blender furniture kit in staged rooms (Star Crew
 
 ## 4. Collision on foot
 
-One rule for everything solid inside a building: every wall, tread, landing, floor, door leaf and
-furniture box is an axis-aligned box. For a person with feet at `y`:
+One rule for everything solid inside a building: every wall, tread, landing, floor and furniture
+box is an axis-aligned box. For a person with feet at `y`:
 
 - a box whose top is at or below `y + step_m` (0.45 m) is something to stand on: the floor under
   the feet is the highest such top under them (the ground if none);
@@ -63,7 +63,10 @@ furniture box is an axis-aligned box. For a person with feet at `y`:
   pilot's circle (0.35 m) is pushed out of it.
 
 So a tread (0.175 m) is climbed, a desk (0.73 m) is walked round, a door header (2.1 m up) is walked
-under, and a floor 3.5 m above is a ceiling that never touches. Doors are gaps in the walls.
+under, and a floor 3.5 m above is a ceiling that never touches. Room doors are gaps in the walls.
+The street door's leaves swing, so they are not boxes: each is a 5 cm slab from its hinge to its free
+edge at the angle it stands at now, and pushes the pilot's circle out like a wall while the feet are
+within its height by the same rule (section 5, "The door").
 
 The owner, 2026-10-26: "when on foot I should be able to wlak into the buildings, I think you would
 generate detailed colliders for buildings only when the player is on foot". So:
@@ -119,10 +122,31 @@ worked out once, when the world is generated (`WorldPlan::street_sides`).
 | Office, tower | a pair of glass lobby doors in the shopfront, kick plate and plate glass cut round them | 1.9 m | 0 |
 | Warehouse | a steel personnel door in the brick; the roller doors stay shut (no hall behind them yet) | 1.0 m | 0 |
 
-The door is an **open doorway with its leaf standing open** at a right angle inside, hinged on one
-jamb (a lobby's pair, one leaf each side). It is drawn and it is solid: you walk past it. This is
-the simplest build that lets the owner walk in; whether the door should swing as you reach it, or
-shut and open with Use, is survey W30 (provisional).
+**The door** swings open as you walk into it and shuts behind you (survey W30, owner 2026-10-26:
+"A door that swings open as you walk into it, and shuts behind you"). It replaces the first build,
+an open doorway with its leaf standing open. `cb-core::world::door::StreetDoor`:
+
+- **Leaves.** One leaf hinged on the low jamb (a lobby's pair, one on each jamb, meeting in the
+  middle), 5 cm thick, the hinge at the middle of the wall's depth (0.15 m in), as tall as the clear
+  height above the sill.
+- **States.** Closed, opening, open, closing. Shut, it stands in the opening and is a wall.
+- **Opening.** A pilot on foot at the leaves' height (the same over-a-step, under-a-head rule as the
+  boxes), within `door_trigger_m` (1.5 m) of the leaf's line on either side and across the
+  opening's width, opens it. It swings **away from them**: into the building from the street, out of
+  it from the hall, `door_open_deg` (90) at `door_open_deg_s` (200 degrees a second, 0.45 s), and
+  stands against its jamb, clear of the way in.
+- **Open.** It stays open while the pilot is in either trigger zone or in the arc the leaf sweeps,
+  then `door_close_delay_s` (1.5 s) after they have gone, and shuts at `door_close_deg_s` (90 degrees
+  a second, 1 s). Coming back while it shuts opens it again.
+- **Never on the pilot.** A step that would bring a leaf nearer the pilot's body while it touches
+  them is not taken: the door waits. So it never sweeps through or traps them, in either direction.
+- **Outward room.** Swung out, a leaf reaches `width * sin(angle) - 0.15 m` past the facade; it
+  never goes past this building's half of the gap in front, so a short gap would cut the outward
+  swing short. In the shipped world no door is cut short (a test walks every building).
+- **On foot only.** The door's state lives with the building's colliders, which exist only while
+  the pilot is on foot, so it is stepped (before the pilot each fixed step, `cb-app::walk_in`) and
+  solid only then, and is shut whenever the colliders are built afresh. A door in a blown-out bay
+  goes with the bay. All five numbers are in `data/world/world.ron` under `interiors:`.
 
 **Nothing in the way.** The route (pavement, door, lobby or corridor, stair door, landing) is a
 polyline the plan keeps (`Entrance::route`). Furniture keeps out of a strip 0.4 m either side of it
@@ -150,8 +174,14 @@ A dog-leg in the stair core, the same place on every storey:
 
 ## 7. Drawing it
 
-The dressing draws the entrance bay from `Entrance`: the opening, its frame, the open leaf and the
-stoop (one set of boxes, which the collision also reads). A whole building's floors are drawn with
+The dressing draws the entrance bay from `Entrance`: the opening, its frame and the stoop (one set
+of boxes, which the collision also reads). The leaves are entities of their own on every dressed
+building (`cb-app::street_doors`), in the building's materials (`dressing::leaf_finish`: timber, the
+building's glass, painted steel), hung on their hinges and turned each frame to the door's angle
+between its last two fixed steps; shut where the pilot is not on foot nearby, hidden when their bay
+falls. There is no door sound yet: `data/audio/cues.ron` has no cue that fits a door (the hatch and
+hydraulic cues are the mech's), so it waits for a recorded CC0 door cut; the core already reports
+when a door starts to open and when it comes to rest shut (`DoorEvent`). A whole building's floors are drawn with
 the stairwell cut out, and a ground-floor slab 2 cm above the pavement. The stair (treads, landings,
 spine and balustrades) is drawn in the rooms mesh in concrete, so it shows wherever rooms show
 (within `rooms_radius_m`, 250 m). A damaged building draws its frame's floor bays with the
@@ -185,11 +215,17 @@ machine, section 7 of CLAUDE.md):
   the boxes of the storeys round its feet in the buildings round it, with no allocation.
 - The trim fix (owner, 2026-10-26: "some zfighting on the divider for buildings here") adds no
   pieces: it clips them.
+- Street doors (worked out, not measured): one or two leaf entities per dressed building, 12
+  triangles each, a draw each (in the shared building materials, so they can batch); a door step is
+  a few dozen flops per built building per fixed step, and a pilot step tests one or two more
+  segments in the building it is in.
 
 ## Open questions
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | W11 | How far do real interiors go? | every building has them, built within 150 m and when breached; interior mapping further out, from the same plan | accepted (survey W11) |
-| W30 | The street door: open doorway with its leaf standing open, a door that swings as you walk into it, or a shut door you open with Use? | open doorway, leaf standing open (built) | provisional (survey W30) |
-| W31 | A warehouse's roller doors: stay shut, or open onto a ground-floor hall you can walk (and drive) into? | stay shut until the industrial hall plan is built; the personnel door is the way in | provisional (survey W31) |
+| W30 | The street door: open doorway with its leaf standing open, a door that swings as you walk into it, or a shut door you open with Use? | open doorway, leaf standing open | answered 2026-10-26: "A door that swings open as you walk into it, and shuts behind you" (built, section 5) |
+| W31 | A warehouse's roller doors: stay shut, or open onto a ground-floor hall you can walk (and drive) into? | stay shut until the industrial hall plan is built; the personnel door is the way in | accepted (survey W31) |
+| - | The door's numbers: 1.5 m trigger, 90 degrees in 0.45 s, 1.5 s delay, shut in 1 s | as built | provisional until a playtest |
+| - | A door sound | a recorded CC0 door cut, placed at the hinge, on `DoorEvent` | open: no fitting cue yet |

@@ -40,12 +40,13 @@ block. The street has to lead in through a door, and the stair has to climb.
   flights a storey, treads at a walkable rise and run (about 0.175 m and 0.26 m), a half landing,
   a concrete spine wall between the flights and a balustrade on the open side, and a stairwell cut
   in every floor above it.
-- **Walkable**: floors, partitions, stairs, the entrance and its open door leaf, and furniture over
+- **Walkable**: floors, partitions, stairs, the entrance and its door leaves, and furniture over
   the step height are collision for the pilot on foot, built near the pilot on a worker thread, for
   intact and breached buildings alike, and only while the pilot is on foot (owner, 2026-10-26: "when
   on foot I should be able to wlak into the buildings, I think you would generate detailed colliders
   for buildings only when the player is on foot"); in the mech, buildings stay coarse. The
-  door is an open doorway with its leaf standing open (provisional, survey W30). Furniture
+  street door swings open as the pilot walks into it and shuts behind them (survey W30, owner
+  2026-10-26: "A door that swings open as you walk into it, and shuts behind you"). Furniture
   can be pushed through by the mech and is debris when hit.
 - **Near and far**: real interiors are built within the interior radius (150 m) of the pilot or the
   mech's cockpit, and in any breached building. Beyond that, windows use an interior-mapping shader
@@ -57,5 +58,6 @@ block. The street has to lead in through a door, and the stair has to climb.
 
 ## Out of scope
 
-People and crowds, lighting fixtures and night interiors, lifts that move, doors that swing or shut
-(the entrance stands open until survey W30 says otherwise), roller doors that open.
+People and crowds, lighting fixtures and night interiors, lifts that move, room doors that swing
+(only the street door does: survey W30), roller doors that open (survey W31: they stay shut until
+warehouses have a hall inside).

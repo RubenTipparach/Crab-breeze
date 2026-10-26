@@ -51,6 +51,29 @@ While the pilot is on foot, every building near them, intact or breached, SHALL 
 - **WHEN** the pilot is seated in the mech, boarding or climbing out
 - **THEN** no building near them has interior colliders, and once they stand on foot the buildings within 12 m have them before their first step
 
+#### Scenario: A shut door is a wall
+- **WHEN** a pilot walks at a shut street door and the door is not stepped
+- **THEN** the leaf stops them outside
+
 #### Scenario: A breach is a way in
 - **WHEN** a facade bay of a building has been blown out
 - **THEN** a pilot on foot walks in through it
+
+### Requirement: The street door swings open as the pilot walks into it
+Every building's street door SHALL be shut until a pilot on foot comes within the trigger distance of its leaf on either side, SHALL then swing away from the pilot (into the building from the street, out of it from inside), SHALL stay open while the pilot is in the doorway or the leaf's arc, and SHALL shut after a delay once the pilot has gone; a leaf SHALL never move into the pilot's body.
+
+#### Scenario: In off the street
+- **WHEN** a pilot walks the entrance route of a shipped building from the pavement with the door shut
+- **THEN** the door swings into the building, the pilot passes through, and the door never begins to shut while they are in its trigger zone
+
+#### Scenario: It shuts behind them
+- **WHEN** the pilot has walked on past the door's trigger zone and the delay and the swing have run
+- **THEN** the door is shut
+
+#### Scenario: Out from the hall
+- **WHEN** the pilot walks back out through the shut door from inside
+- **THEN** it swings out of the building and the pilot reaches the street
+
+#### Scenario: Never on the pilot
+- **WHEN** the pilot stands in the doorway or in the leaf's arc
+- **THEN** the door stays open, and a leaf made to shut stops short of their body
