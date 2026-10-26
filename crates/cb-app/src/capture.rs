@@ -266,12 +266,10 @@ fn hold_poster_hatch(script: Res<Script>, data: Res<Data>, mut mechs: Query<&mut
 
 /// A still of the building variant's offscreen image.
 fn shoot_image(commands: &mut Commands, script: &Script, name: &str) {
-    let Some(img) = script.offscreen.clone() else {
-        return shoot(commands, &script.dir, name);
-    };
-    let path = script.dir.join(name);
-    info!("capture: {}", path.display());
-    commands.spawn(Screenshot::image(img)).observe(save_to_disk(path));
+    match script.offscreen.clone() {
+        Some(img) => shoot_offscreen(commands, img, &script.dir, name),
+        None => shoot(commands, &script.dir, name),
+    }
 }
 
 pub(crate) fn shoot(commands: &mut Commands, dir: &std::path::Path, name: &str) {
@@ -298,13 +296,26 @@ fn offscreen_for_buildings(
     if !crate::cli::switched_off("CB_STILLS_BUILDINGS") && !crate::cli::switched_off("CB_STILLS_POSTER") {
         return;
     }
+    script.offscreen = Some(render_offscreen(&mut commands, *camera, *cockpit, &mut images));
+}
+
+/// Points the pilot's eye and the cockpit pass at a new 1920 x 1080 offscreen image and returns it, for stills
+/// that must not come out black when the window is behind another (macOS).
+pub(crate) fn render_offscreen(commands: &mut Commands, camera: Entity, cockpit: Entity, images: &mut Assets<Image>) -> Handle<Image> {
     use bevy::camera::RenderTarget;
     use bevy::render::render_resource::TextureFormat;
     let image = Image::new_target_texture(1920, 1080, TextureFormat::Rgba8Unorm, Some(TextureFormat::Rgba8UnormSrgb));
     let handle = images.add(image);
-    commands.entity(*camera).insert(RenderTarget::Image(handle.clone().into()));
-    commands.entity(*cockpit).insert(RenderTarget::Image(handle.clone().into()));
-    script.offscreen = Some(handle);
+    commands.entity(camera).insert(RenderTarget::Image(handle.clone().into()));
+    commands.entity(cockpit).insert(RenderTarget::Image(handle.clone().into()));
+    handle
+}
+
+/// Saves the offscreen image `img` as `dir/name`.
+pub(crate) fn shoot_offscreen(commands: &mut Commands, img: Handle<Image>, dir: &std::path::Path, name: &str) {
+    let path = dir.join(name);
+    info!("capture: {}", path.display());
+    commands.spawn(Screenshot::image(img)).observe(save_to_disk(path));
 }
 
 #[allow(clippy::too_many_arguments)]
