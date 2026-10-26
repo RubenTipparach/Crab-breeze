@@ -47,6 +47,7 @@ mod missions;
 mod music;
 mod particles;
 mod pbr_set;
+mod perf_gate;
 mod perf_hud;
 mod physics;
 mod pilot;
@@ -169,6 +170,8 @@ fn main() -> AppExit {
         },
     })
     .add_plugins(main_menu::MainMenuPlugin)
+    // Every frame after GAME_READY against 16.7 ms, and `--perf-gate` to fail a run on one (CLAUDE.md section 7).
+    .add_plugins(perf_gate::PerfGatePlugin { enforce: args.perf_gate })
     .insert_resource(sim::Data(data))
     .insert_resource(main_menu::MechFile(args.mech.clone()))
     .insert_resource(world::Seed(args.seed))
