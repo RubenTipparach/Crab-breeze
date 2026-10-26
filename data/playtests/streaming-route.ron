@@ -1,0 +1,37 @@
+// The map-streaming performance route (owner, 2026-10-26: "Let's focus on getting no frames under 60fps", "The
+// biggest hitches is loading and unloading sections of the map it seems"). A new career, board, then flat out on the
+// skates from the first air base past three cities of the west (city 10, the capital, city 3), then on the jets
+// at 120 m south to city 5 and back over the capital: every kind of section (ground, trees, grass, buildings and their dressing, people,
+// traffic) enters and leaves at speed. No job, no fight, so the same route every run.
+// Every frame goes to output/perf/streaming-route-frames.csv; tools/perf/free_roam_report.py reads it, and
+// tools/perf/hitch_causes.py reads the log's `hitch:` lines.
+//
+//   CB_UNCAPPED=1 ./target/release/crab-breeze --playtest streaming-route > output/perf/streaming-route.log 2>&1
+(
+    name: "streaming-route",
+    stuck_s: 20.0,
+    runs: [
+        (
+            play: "career-new",
+            beats: [
+                Wait(2.0),
+                Board,
+                Wait(2.0),
+                // Out of the air base to the road at city 10's south-east corner, down the road to the capital,
+                // round its west side and along the road to city 3 (waypoints off the city blocks: the pilot
+                // drives straight and buildings stop it).
+                SkateTo(-9700.0, -6300.0),
+                SkateTo(-8800.0, -5850.0),
+                SkateTo(-8050.0, -5300.0),
+                SkateTo(-7950.0, -4250.0),
+                SkateTo(-8150.0, -3350.0),
+                SkateTo(-9000.0, -3200.0),
+                SkateTo(-10000.0, -2800.0),
+                // Then up on the jets: south to city 5, and back over the capital.
+                JetTo(-9029.0, 2023.0, 120.0),
+                JetTo(-7496.0, -3575.0, 120.0),
+                Wait(3.0),
+            ],
+        ),
+    ],
+)

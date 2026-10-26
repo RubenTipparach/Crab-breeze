@@ -29,6 +29,8 @@ mod fx_gallery;
 mod grass;
 mod ground;
 mod ground_marks;
+#[cfg(feature = "hitch_spans")]
+mod hitch_spans;
 mod hud;
 mod input;
 mod interact;
@@ -124,6 +126,10 @@ fn main() -> AppExit {
                     // An offscreen bench needs only a small window; a windowed one is the player's.
                     resolution: if args.bench.is_some() && !cli::switched_off("CB_BENCH_WINDOWED") {
                         WindowResolution::new(640, 360)
+                    } else if cli::switched_off("CB_NATIVE_1080") {
+                        // `CB_NATIVE_1080=1` (perf-bench switch): 1920 x 1080 pixels whatever the display's scale,
+                        // so a Retina Mac draws the owner's 1080p frame rather than four times as many pixels.
+                        WindowResolution::new(1920, 1080).with_scale_factor_override(1.0)
                     } else {
                         WindowResolution::new(1920, 1080)
                     },
@@ -144,6 +150,11 @@ fn main() -> AppExit {
             .set(AssetPlugin {
                 file_path: root.join("assets").to_string_lossy().into_owned(),
                 ..default()
+            })
+            .set(bevy::log::LogPlugin {
+                #[cfg(feature = "hitch_spans")]
+                custom_layer: hitch_spans::layer,
+                ..default()
             }),
     )
     .add_plugins(state::StatePlugin {
@@ -158,6 +169,8 @@ fn main() -> AppExit {
     .insert_resource(main_menu::MechFile(args.mech.clone()))
     .insert_resource(world::Seed(args.seed))
     .add_plugins(textures::TexturesPlugin);
+    #[cfg(feature = "hitch_spans")]
+    app.add_plugins(hitch_spans::HitchCountsPlugin);
     if args.start.as_deref() == Some("meadow") {
         app.insert_resource(world::StartInMeadow);
     }

@@ -266,6 +266,48 @@ fn drive(m: &cb_core::mech::MechState, yaw: f32, pitch: f32, goal: Vec2, eye: Ve
     }
 }
 
+/// Skates the mech toward `goal` flat out. Blocked on a long drive (a building, a cliff): after moving, standing
+/// still for 2 s sends the mech toward a point 150 m off to one side (alternating sides) for 8 s, the first 3 s on the
+/// rockets, then back on course, as a player getting round it would.
+#[allow(clippy::too_many_arguments)]
+fn travel(
+    t: &mut Pilot,
+    m: &cb_core::mech::MechState,
+    p: &cb_core::pilot::PilotState,
+    eye: Vec3,
+    goal: Vec2,
+    now: f32,
+    dt: f32,
+) -> Actions {
+    let speed = m.vel.length();
+    t.peak_m_s = t.peak_m_s.max(speed);
+    if speed < 3.0 && t.peak_m_s > 10.0 && now > t.detour_until {
+        t.stall_s += dt;
+    } else {
+        t.stall_s = 0.0;
+    }
+    if t.stall_s > 2.0 {
+        t.stall_s = 0.0;
+        // Stopped again after the detour: another, the other side.
+        t.peak_m_s = 10.5;
+        t.detour_side = -t.detour_side;
+        let here = Vec2::new(m.pos.x, m.pos.z);
+        let ahead = (goal - here).normalize_or_zero();
+        t.detour = here + Vec2::new(-ahead.y, ahead.x) * 150.0 * t.detour_side - ahead * 40.0;
+        t.detour_until = now + 8.0;
+        info!("playtest: blocked at ({:.0}, {:.0}), steering round it", m.pos.x, m.pos.z);
+    }
+    let to = if now < t.detour_until { t.detour } else { goal };
+    let mut act = drive(m, p.yaw_rad, p.pitch_rad, to, eye, 1.0, true, false);
+    // The first 3 s of a detour on the rockets, W held so they swivel forward (rocket-vector): up and out of whatever
+    // caught the mech.
+    if now < t.detour_until && t.detour_until - now > 5.0 {
+        act.lift_axis = 1.0;
+        act.move_xy = Vec2::Y;
+    }
+    act
+}
+
 #[allow(clippy::too_many_lines)]
 fn play(
     mut t: ResMut<Pilot>,
@@ -458,43 +500,32 @@ fn play(
             match job {
                 Some(j) if j.state == JobState::Active => done = true,
                 Some(j) => {
-                    let d = j.site.distance(Vec2::new(m.pos.x, m.pos.z));
-                    dist = Some(d);
-                    // Blocked on a long drive (a building, a cliff): after moving, standing still for 2 s sends the
-                    // mech toward a point 150 m off to one side (alternating sides) for 8 s, the first 3 s on the
-                    // rockets, then back on course, as a player getting round it would.
-                    let speed = m.vel.length();
-                    t.peak_m_s = t.peak_m_s.max(speed);
-                    if speed < 3.0 && t.peak_m_s > 10.0 && now > t.detour_until {
-                        t.stall_s += s.real.delta_secs();
-                    } else {
-                        t.stall_s = 0.0;
-                    }
-                    if t.stall_s > 2.0 {
-                        t.stall_s = 0.0;
-                        // Stopped again after the detour: another, the other side.
-                        t.peak_m_s = 10.5;
-                        t.detour_side = -t.detour_side;
-                        let here = Vec2::new(m.pos.x, m.pos.z);
-                        let ahead = (j.site - here).normalize_or_zero();
-                        t.detour = here + Vec2::new(-ahead.y, ahead.x) * 150.0 * t.detour_side - ahead * 40.0;
-                        t.detour_until = now + 8.0;
-                        info!("playtest: blocked at ({:.0}, {:.0}), steering round it", m.pos.x, m.pos.z);
-                    }
-                    let goal = if now < t.detour_until { t.detour } else { j.site };
-                    act = drive(m, p.yaw_rad, p.pitch_rad, goal, eye, 1.0, true, false);
-                    // The first 3 s of a detour on the rockets, W held so they swivel forward (rocket-vector): up and
-                    // out of whatever caught the mech.
-                    if now < t.detour_until && t.detour_until - now > 5.0 {
-                        act.lift_axis = 1.0;
-                        act.move_xy = Vec2::Y;
-                    }
+                    dist = Some(j.site.distance(Vec2::new(m.pos.x, m.pos.z)));
+                    act = travel(&mut t, m, p, eye, j.site, now, s.real.delta_secs());
                 }
                 None => {
                     fail(&mut t, now, "no job under way");
                     return;
                 }
             }
+        }
+        Beat::SkateTo(x, z) => {
+            let goal = Vec2::new(*x, *z);
+            let d = goal.distance(Vec2::new(m.pos.x, m.pos.z));
+            dist = Some(d);
+            done = d < 40.0;
+            act = travel(&mut t, m, p, eye, goal, now, s.real.delta_secs());
+        }
+        Beat::JetTo(x, z, height) => {
+            let goal = Vec2::new(*x, *z);
+            let d = goal.distance(Vec2::new(m.pos.x, m.pos.z));
+            dist = Some(d);
+            done = d < 250.0;
+            act = drive(m, p.yaw_rad, p.pitch_rad, goal, eye, 1.0, false, false);
+            // Lift while under the height wanted, W held so the rockets swivel forward (rocket-vector).
+            let over = m.pos.y - s.plan.terrain.height_at(m.pos.x, m.pos.z);
+            act.lift_axis = if over < *height { 1.0 } else { 0.35 };
+            act.move_xy = Vec2::Y;
         }
         Beat::FightJob(cap) => {
             let job = career.and_then(|c| c.career.board.current().cloned());
