@@ -474,6 +474,32 @@ pub fn build_city(
     out
 }
 
+/// How far each facade of `footprint` looks out before another building's footprint, in the side
+/// order of the dressing (0 faces -z, 1 +z, 2 -x, 3 +x), at most `limit_m`: the strip in front of a
+/// facade, its full width, out to the first footprint of `others` that overlaps it. Half of it is
+/// what that facade's trim may stand out (two neighbours' awnings must not meet).
+pub fn clear_in_front(footprint: &Rect, others: &[Rect], limit_m: f32) -> [f32; 4] {
+    let (lo, hi) = (footprint.min, footprint.max);
+    let mut out = [limit_m; 4];
+    for o in others {
+        let across_x = o.min.x < hi.x && o.max.x > lo.x;
+        let across_z = o.min.y < hi.y && o.max.y > lo.y;
+        if across_x && o.max.y <= lo.y {
+            out[0] = out[0].min(lo.y - o.max.y);
+        }
+        if across_x && o.min.y >= hi.y {
+            out[1] = out[1].min(o.min.y - hi.y);
+        }
+        if across_z && o.max.x <= lo.x {
+            out[2] = out[2].min(lo.x - o.max.x);
+        }
+        if across_z && o.min.x >= hi.x {
+            out[3] = out[3].min(o.min.x - hi.x);
+        }
+    }
+    out
+}
+
 fn corners(r: &Rect) -> [Vec2; 4] {
     [r.min, Vec2::new(r.max.x, r.min.y), r.max, Vec2::new(r.min.x, r.max.y)]
 }

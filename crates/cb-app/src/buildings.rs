@@ -509,11 +509,11 @@ fn tile_m(mat: Mat) -> f32 {
 /// the arrays) and the glass in another, cut per element, every vertex carrying its element's slot,
 /// once it has a frame; whole, with its floors, rooms and furniture behind the glass (in the skin
 /// mesh) while it is whole (a damaged building draws its rooms with its frame).
-fn dressing_meshes(c: &Cells, id: u32, base: u32, seed: &SimRng, cfg: &DressingConfig) -> Vec<(Look, Mesh)> {
+fn dressing_meshes(c: &Cells, id: u32, base: u32, seed: &SimRng, cfg: &DressingConfig, fronts: [f32; 4]) -> Vec<(Look, Mesh)> {
     let f = c.frame.as_deref();
     let mut skin = MeshBuilder::default();
     let mut glass = MeshBuilder::tiled(tile_m(Mat::Glass), tile_m(Mat::Glass));
-    for p in dressing::dress(id, c.n, c.origin, c.size, seed, f.is_some(), cfg) {
+    for p in dressing::dress(id, c.n, c.origin, c.size, seed, f.is_some(), cfg, fronts) {
         let Some(s) = anchor_slot(f, base, p.anchor) else { continue };
         let mb = if p.mat == Mat::Glass {
             &mut glass
@@ -744,8 +744,9 @@ fn dress_near_player(
             waiting += 1;
             continue;
         }
-        let (c, rng, cfg) = (c.clone(), rng.clone(), cfg.clone());
-        jobs.0.insert(b, pool.spawn(async move { dressing_meshes(&c, b, 0, &rng, &cfg) }));
+        let (c, rng, cfg, fronts) = (c.clone(), rng.clone(), cfg.clone(), plan.0.fronts[b as usize]);
+        jobs.0
+            .insert(b, pool.spawn(async move { dressing_meshes(&c, b, 0, &rng, &cfg, fronts) }));
     }
     // Left behind while being dressed: the job is dropped (which cancels it).
     jobs.0
@@ -789,6 +790,7 @@ fn redraw_buildings(
     mut states: ResMut<BuildingStates>,
     seed: Res<crate::world::Seed>,
     cfg: Res<crate::sim::Data>,
+    plan: Res<crate::world::Plan>,
     mut meshes: ResMut<Assets<Mesh>>,
     bases: Res<Assets<StandardMaterial>>,
     mut arrays: ResMut<Assets<ArrayMaterial>>,
@@ -845,7 +847,7 @@ fn redraw_buildings(
         let skinned = match dressed.0.get_mut(&id) {
             Some(d) => {
                 if !d.framed {
-                    let parts = dressing_meshes(c, id, fb.base, &rng, &cfg.0.world.dressing);
+                    let parts = dressing_meshes(c, id, fb.base, &rng, &cfg.0.world.dressing, plan.0.fronts[id as usize]);
                     show_parts(
                         &mut commands,
                         &mut meshes,
@@ -977,7 +979,7 @@ mod tests {
         let f = frame();
         let cfg = DressingConfig::default();
         let rng = SimRng::new(1);
-        let all = dressing::dress(3, f.n, f.origin, f.size, &rng, true, &cfg);
+        let all = dressing::dress(3, f.n, f.origin, f.size, &rng, true, &cfg, [cb_core::world::FRONT_LIMIT_M; 4]);
         let hung: Vec<f32> = all.iter().filter_map(|p| anchor_slot(Some(&f), 0, p.anchor)).collect();
         assert!(!hung.is_empty());
         assert!(hung.iter().all(|&s| s as usize <= f.elements.len()));

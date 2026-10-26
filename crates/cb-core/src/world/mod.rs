@@ -73,6 +73,10 @@ pub trait Ground {
     }
 }
 
+/// The farthest a facade's clear distance is looked for (`WorldPlan::fronts`): past it, a facade
+/// faces open street.
+pub const FRONT_LIMIT_M: f32 = 40.0;
+
 /// Trees push a body whose feet are no higher than this over the ground under it.
 const TREE_REACH_M: f32 = 30.0;
 
@@ -237,6 +241,9 @@ pub struct WorldPlan {
     pub start: Start,
     /// Building collision.
     pub collision: BuildingGrid,
+    /// The clear distance in front of each building's four facades (`layout::clear_in_front`), by
+    /// building id, capped at `FRONT_LIMIT_M`.
+    pub fronts: Vec<[f32; 4]>,
     /// Rivers, lakes and bridges.
     pub waters: Waters,
     /// The trees as grown (their state as the game goes on is a copy the game keeps).
@@ -417,6 +424,19 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
     let start = start_point(&cities, cfg);
     let roofs = buildings.iter().map(|b| cities[b.city as usize].ground_m + b.height_m).collect();
     let collision = BuildingGrid::new(&buildings, cfg.world_size_m, 64.0).with_roofs(roofs);
+    let fronts = buildings
+        .iter()
+        .map(|b| {
+            let reach = b.footprint.size().max_element() + FRONT_LIMIT_M;
+            let others: Vec<Rect> = collision
+                .candidates(b.footprint.centre(), reach)
+                .into_iter()
+                .filter(|&o| o != b.id)
+                .map(|o| buildings[o as usize].footprint)
+                .collect();
+            layout::clear_in_front(&b.footprint, &others, FRONT_LIMIT_M)
+        })
+        .collect();
     // Swamps at the western river mouths (the island mockup's rule, on the game's own rivers).
     let mouths = waters.rivers.iter().filter_map(|r| {
         r.path
@@ -448,6 +468,7 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         buildings,
         start,
         collision,
+        fronts,
         waters,
         forest: Forest::new(&root.fork("trees"), &cfg.trees, cfg.world_size_m),
         clouds,
