@@ -56,7 +56,7 @@ pub struct GameData {
     pub sim: sim::SimConfig,
     /// `data/world/world.ron`.
     pub world: world::WorldConfig,
-    /// The mech, `data/mechs/<name>.ron`.
+    /// The mech, `data/mechs/<name>.ron`, with its loadout `data/mechs/<name>/weapons.ron` when it has one.
     pub mech: mech::MechConfig,
     /// The mech's boarding timeline, `data/mechs/<name>/boarding.ron`.
     pub boarding: boarding::BoardingTimeline,
@@ -165,7 +165,7 @@ impl GameData {
         Ok(Self {
             sim: data::load_ron(&root.join("sim.ron"))?,
             world,
-            mech: data::load_ron(&root.join(mech))?,
+            mech: mech::MechConfig::load(root, mech)?,
             boarding: data::load_ron(&root.join(mech.trim_end_matches(".ron")).join("boarding.ron"))?,
             pilot: data::load_ron(&root.join("pilot/pilot.ron"))?,
             bindings: data::load_ron(&root.join("input/bindings.ron"))?,
@@ -240,6 +240,32 @@ pub struct RosterMech {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_roster_mech_carries_its_own_signature_weapon() {
+        // Survey G20 (owner, 2026-10-26): each mech its signature, and no two the same.
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let want = [
+            ("driller", "cutting lance"),
+            ("foreman", "boom cannon"),
+            ("harrow", "twin racks"),
+            ("ironhorse", "steam cannon"),
+            ("mule", "rocket ripple"),
+            ("picket", "rail rifle"),
+            ("roustabout", "breaching gun"),
+            ("sapper", "grenade launcher"),
+        ];
+        let mut seen = Vec::new();
+        for (id, name) in want {
+            let m = mech::MechConfig::load(&root, &format!("mechs/{id}.ron")).unwrap_or_else(|e| panic!("{e}"));
+            let sig: Vec<_> = m.weapons.iter().filter(|w| w.signature).collect();
+            assert_eq!(sig.len(), 1, "{id}: one signature");
+            assert_eq!(sig[0].name, name, "{id}");
+            assert!(m.weapons[0].signature, "{id}: the signature is listed first");
+            assert!(!seen.contains(&name));
+            seen.push(name);
+        }
+    }
 
     #[test]
     fn the_roster_is_the_eight_mechs_with_cockpits() {

@@ -402,7 +402,7 @@ pub fn spawn_enemy(
     a: &mut SpawnAssets,
 ) -> Option<Entity> {
     let root = cli::repo_root().join("data");
-    let mut cfg: MechConfig = match cb_core::data::load_ron(&root.join(l.mech)) {
+    let mut cfg: MechConfig = match MechConfig::load(&root, l.mech) {
         Ok(c) => c,
         Err(err) => {
             error!("enemy {}: {err}", id.0);
@@ -1417,8 +1417,26 @@ pub fn step_mech(
                 });
                 continue;
             }
-            let carry = cb_core::mech::forward(sim.curr.heading_rad) * sim.curr.speed_m_s;
-            for vel in cb_core::weapons::launch(kind, dir, w.speed_m_s, &mut rng) {
+            // A ripple's rounds each scattered a little (signature-weapons); a lobbing gun lays itself for the
+            // range to the aim point and leaves the mech's own motion out of it, so it lands on the crosshair.
+            let dir = match w.burst {
+                Some(b) if b.jitter_deg > 0.0 => cb_core::weapons::scatter(dir, b.jitter_deg, &mut rng),
+                _ => dir,
+            };
+            let lobbed = w
+                .lob
+                .as_ref()
+                .and_then(|lob| cb_core::weapons::lob_velocity(muzzle, target, lob, dt));
+            let carry = if lobbed.is_some() {
+                Vec3::ZERO
+            } else {
+                cb_core::mech::forward(sim.curr.heading_rad) * sim.curr.speed_m_s
+            };
+            let launched = match lobbed {
+                Some(v) => vec![v],
+                None => cb_core::weapons::launch(kind, dir, w.speed_m_s, &mut rng),
+            };
+            for vel in launched {
                 shots.0.push(Projectile {
                     owner: id.0,
                     weapon: wi,

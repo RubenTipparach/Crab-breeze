@@ -436,6 +436,49 @@ impl MechConfig {
     }
 }
 
+/// A mech's own loadout, `data/mechs/<id>/weapons.ron` beside its data (openspec change
+/// `signature-weapons`): hand-tuned, so the generator that writes the rest of the mech's data from its
+/// glb leaves it alone. When present it replaces the stock guns.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Loadout {
+    /// The guns, the signature first.
+    pub weapons: Vec<crate::weapons::WeaponSpec>,
+    /// The weapon heat bank.
+    #[serde(default)]
+    pub weapon_heat: crate::weapons::WeaponHeatConfig,
+}
+
+impl Validate for Loadout {
+    fn validate(&self) -> Result<(), String> {
+        if self.weapons.is_empty() {
+            return Err("weapons: a loadout carries at least one gun".into());
+        }
+        if self.weapons.iter().filter(|w| w.signature).count() > 1 {
+            return Err("weapons: one signature weapon a mech".into());
+        }
+        for w in &self.weapons {
+            w.validate()?;
+        }
+        self.weapon_heat.validate()
+    }
+}
+
+impl MechConfig {
+    /// Loads the mech file `file` (relative to the data root `root`) with its loadout beside it,
+    /// `mechs/<id>/weapons.ron`, when it has one: the one way a mech's data is read for flying.
+    pub fn load(root: &std::path::Path, file: &str) -> Result<Self, crate::data::DataError> {
+        let mut cfg: Self = crate::data::load_ron(&root.join(file))?;
+        let loadout = root.join(file.trim_end_matches(".ron")).join("weapons.ron");
+        if loadout.exists() {
+            let l: Loadout = crate::data::load_ron(&loadout)?;
+            cfg.weapons = l.weapons;
+            cfg.weapon_heat = l.weapon_heat;
+        }
+        Ok(cfg)
+    }
+}
+
 impl Default for MechConfig {
     fn default() -> Self {
         Self {

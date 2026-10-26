@@ -61,6 +61,15 @@ pub struct WeaponSpec {
     /// its trigger is held and fires one missile per lock on release.
     #[serde(default)]
     pub seeker: Option<crate::targeting::Seeker>,
+    /// Several rounds from one pull (`signature-weapons`): the Foreman's boom cannon, the Mule's ripple.
+    #[serde(default)]
+    pub burst: Option<Burst>,
+    /// A lobbing gun (`signature-weapons`): it lays itself to land its shell on the aim point by an arc.
+    #[serde(default)]
+    pub lob: Option<Lob>,
+    /// The mech's signature weapon (`signature-weapons`): listed first and starred on the WEAPONS page.
+    #[serde(default)]
+    pub signature: bool,
     /// Rounds carried a sortie; `None` for no limit.
     #[serde(default)]
     pub rounds: Option<u32>,
@@ -84,6 +93,9 @@ pub fn default_weapons() -> Vec<WeaponSpec> {
             heat: 0.0,
             seeker_turn_deg_s: 0.0,
             seeker: None,
+            burst: None,
+            lob: None,
+            signature: false,
             rounds: None,
         },
         WeaponSpec {
@@ -101,6 +113,9 @@ pub fn default_weapons() -> Vec<WeaponSpec> {
             heat: 0.0,
             seeker_turn_deg_s: 0.0,
             seeker: None,
+            burst: None,
+            lob: None,
+            signature: false,
             rounds: None,
         },
         WeaponSpec {
@@ -118,6 +133,9 @@ pub fn default_weapons() -> Vec<WeaponSpec> {
             heat: 0.0,
             seeker_turn_deg_s: 70.0,
             seeker: None,
+            burst: None,
+            lob: None,
+            signature: false,
             // Owner, 2026-10-25, survey G13: "40" missiles a sortie.
             rounds: Some(40),
         },
@@ -141,6 +159,23 @@ impl Validate for WeaponSpec {
             seeker.validate().map_err(|e| format!("{}: {e}", f("seeker")))?;
             if self.shot() != ShotKind::Rocket {
                 return Err(format!("{}: only a rocket carries a seeker", f("seeker")));
+            }
+        }
+        if let Some(b) = &self.burst {
+            if b.count < 2 {
+                return Err(format!("{}: a burst is at least 2 rounds", f("burst.count")));
+            }
+            positive(&f("burst.gap_s"), b.gap_s)?;
+            crate::data::within(&f("burst.jitter_deg"), b.jitter_deg, 0.0, 10.0)?;
+        }
+        if let Some(l) = &self.lob {
+            crate::data::within(&f("lob.elevation_deg"), l.elevation_deg, 5.0, 80.0)?;
+            positive(&f("lob.min_m"), l.min_m)?;
+            if l.max_m < l.min_m {
+                return Err(format!("{}: max_m below min_m", f("lob")));
+            }
+            if self.shot().straight() {
+                return Err(format!("{}: only a falling shell can lob", f("lob")));
             }
         }
         if self.rocket && self.kind != ShotKind::Shell {
@@ -235,6 +270,67 @@ impl WeaponSpec {
     }
 }
 
+/// A burst: `count` rounds from one pull, `gap_s` apart, each along the aim at its own moment, the
+/// aim jittered by up to `jitter_deg` from the seeded stream (`signature-weapons`).
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Burst {
+    /// Rounds a pull.
+    pub count: u8,
+    /// Seconds between rounds.
+    pub gap_s: f32,
+    /// Each round's aim scattered within this cone, degrees (0: dead on).
+    #[serde(default)]
+    pub jitter_deg: f32,
+}
+
+/// A lobbing gun's lay (`signature-weapons`): a fixed elevation, the muzzle speed set for the range to
+/// the aim point, within `min_m` to `max_m`.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Lob {
+    /// The barrel's elevation, degrees above the horizon.
+    pub elevation_deg: f32,
+    /// Shortest range it lays for, metres.
+    pub min_m: f32,
+    /// Longest range it lays for, metres.
+    pub max_m: f32,
+}
+
+/// The velocity that lands a lobbed shell from `muzzle` on `aim` (the range clamped to the gun's),
+/// at the gun's fixed elevation, for shells flown by `fly` at fixed steps of `step_s`. Solves
+/// `dy = d tan(e) - g d^2 / (2 v^2 cos^2 e)` for the speed `v`, then takes off the half step of
+/// gravity that `fly`'s stepping adds, so the stepped shell lands where the smooth arc would.
+/// `None` when the aim is too high above the muzzle for that elevation to reach.
+pub fn lob_velocity(muzzle: Vec3, aim: Vec3, lob: &Lob, step_s: f32) -> Option<Vec3> {
+    let flat = Vec2::new(aim.x - muzzle.x, aim.z - muzzle.z);
+    let dir = flat.normalize_or(Vec2::new(0.0, -1.0));
+    let d = flat.length().clamp(lob.min_m, lob.max_m);
+    let dy = if flat.length() > lob.max_m || flat.length() < lob.min_m {
+        0.0
+    } else {
+        aim.y - muzzle.y
+    };
+    let e = lob.elevation_deg.to_radians();
+    let climb = d * e.tan() - dy;
+    if climb <= 0.0 {
+        return None;
+    }
+    let v = (G_M_S2 * d * d / (2.0 * e.cos().powi(2) * climb)).sqrt();
+    let out = Vec3::new(dir.x * v * e.cos(), v * e.sin() - 0.5 * G_M_S2 * step_s, dir.y * v * e.cos());
+    out.is_finite().then_some(out)
+}
+
+/// `dir` scattered evenly over a cone of half-angle `half_deg` by `rng`: a shotgun's pellets and a
+/// ripple's rockets.
+pub fn scatter(dir: Vec3, half_deg: f32, rng: &mut SimRng) -> Vec3 {
+    let (a, b) = dir.any_orthonormal_pair();
+    // Uniform over the disc: radius by the square root of a uniform draw.
+    let r = half_deg.to_radians().tan() * rng.next_f32().sqrt();
+    let t = std::f32::consts::TAU * rng.next_f32();
+    (dir + (a * t.cos() + b * t.sin()) * r).normalize()
+}
+
 /// Seconds between the missiles of one salvo (`multi-lock`).
 pub const SALVO_GAP_S: f32 = 0.08;
 
@@ -282,18 +378,7 @@ impl Validate for WeaponHeatConfig {
 pub fn launch(kind: ShotKind, dir: Vec3, speed_m_s: f32, rng: &mut SimRng) -> Vec<Vec3> {
     match kind {
         ShotKind::Beam { .. } => Vec::new(),
-        ShotKind::Pellets { count, spread_deg } => {
-            let (a, b) = dir.any_orthonormal_pair();
-            let reach = spread_deg.to_radians().tan();
-            (0..count)
-                .map(|_| {
-                    // Uniform over the disc: radius by the square root of a uniform draw.
-                    let r = reach * rng.next_f32().sqrt();
-                    let t = std::f32::consts::TAU * rng.next_f32();
-                    (dir + (a * t.cos() + b * t.sin()) * r).normalize() * speed_m_s
-                })
-                .collect()
-        }
+        ShotKind::Pellets { count, spread_deg } => (0..count).map(|_| scatter(dir, spread_deg, rng) * speed_m_s).collect(),
         ShotKind::Shell | ShotKind::Rocket | ShotKind::Slug { .. } | ShotKind::Plasma { .. } => vec![dir * speed_m_s],
     }
 }
@@ -452,6 +537,17 @@ impl Guns {
                 }
                 self.cooldown_s[i] = w.interval_s;
                 self.load_heat(w.heat);
+                // A burst queues its other rounds; its interval runs from the last.
+                if let Some(b) = w.burst {
+                    for k in 1..b.count {
+                        self.queue.push(Queued {
+                            weapon: i,
+                            target: None,
+                            in_s: k as f32 * b.gap_s,
+                        });
+                    }
+                    self.cooldown_s[i] += (b.count - 1) as f32 * b.gap_s;
+                }
             }
             fired.push(i);
         }
@@ -1555,5 +1651,116 @@ mod tests {
         assert_eq!(g.take_queued(&w, |_| false, STEP).len(), 1);
         assert!(g.take_queued(&w, |k| k == w[0].arm, 0.2).is_empty());
         assert!(g.queue.is_empty());
+    }
+
+    #[test]
+    fn a_burst_fires_three_rounds_and_reloads_from_the_last() {
+        let w = vec![WeaponSpec {
+            interval_s: 4.0,
+            burst: Some(Burst {
+                count: 3,
+                gap_s: 0.2,
+                jitter_deg: 0.0,
+            }),
+            ..gun(ShotKind::Shell, 0.0)
+        }];
+        let mut g = Guns::default();
+        let mut times = Vec::new();
+        for n in 0..(60 * 6) {
+            let t = n as f32 * STEP;
+            let now = g.trigger(&w, &[true], |_| false, &heat(), STEP);
+            let queued = g.take_queued(&w, |_| false, STEP);
+            for _ in now.iter().map(|_| ()).chain(queued.iter().map(|_| ())) {
+                times.push(t);
+            }
+        }
+        assert!(times.len() >= 4, "{times:?}");
+        assert!(
+            (times[1] - times[0] - 0.2).abs() < 0.02 && (times[2] - times[1] - 0.2).abs() < 0.02,
+            "{times:?}"
+        );
+        assert!((times[3] - times[2] - 4.0).abs() < 0.02, "4.0 s after the third: {times:?}");
+    }
+
+    #[test]
+    fn losing_the_arm_mid_burst_ends_it() {
+        let w = vec![WeaponSpec {
+            burst: Some(Burst {
+                count: 3,
+                gap_s: 0.2,
+                jitter_deg: 0.0,
+            }),
+            ..gun(ShotKind::Shell, 0.0)
+        }];
+        let mut g = Guns::default();
+        assert_eq!(g.trigger(&w, &[true], |_| false, &heat(), STEP), vec![0]);
+        assert!(g.take_queued(&w, |_| true, 1.0).is_empty());
+    }
+
+    /// Where a lobbed shell from `muzzle` comes down through the aim's height, flown by `fly`.
+    fn lob_lands(muzzle: Vec3, aim: Vec3, lob: &Lob) -> (Vec3, f32, f32) {
+        let (dug, st) = open_air();
+        let scene = Scene {
+            plan: plan(),
+            dug: &dug,
+            trees: None,
+            structures: None,
+            platforms: &[],
+            interiors: None,
+        };
+        let mut s = Projectile {
+            owner: 0,
+            weapon: 0,
+            pos: muzzle,
+            vel: lob_velocity(muzzle, aim, lob, STEP).expect("reachable"),
+            age_s: 0.0,
+            rocket: false,
+            target: None,
+        };
+        let mut apex: f32 = muzzle.y;
+        loop {
+            let before = s.pos;
+            assert!(fly(&mut s, &scene, &st, &Forest::default(), &[], STEP).is_none());
+            apex = apex.max(s.pos.y);
+            if s.vel.y < 0.0 && s.pos.y <= aim.y {
+                let k = (before.y - aim.y) / (before.y - s.pos.y);
+                return (before.lerp(s.pos, k), apex - muzzle.y, s.age_s);
+            }
+            assert!(s.age_s < 30.0);
+        }
+    }
+
+    #[test]
+    fn a_lobbed_grenade_lands_on_the_aim_point() {
+        // The Sapper's grenade launcher (survey G21): 30 degrees, 60 to 600 m.
+        let lob = Lob {
+            elevation_deg: 30.0,
+            min_m: 60.0,
+            max_m: 600.0,
+        };
+        let muzzle = Vec3::new(0.0, 5020.0, 0.0);
+        for d in [100.0, 300.0, 600.0] {
+            let aim = Vec3::new(d * 0.6, 5000.0, -d * 0.8);
+            let (at, apex, t) = lob_lands(muzzle, aim, &lob);
+            assert!(at.distance(aim) < 1.0, "{d} m: landed {} m off", at.distance(aim));
+            assert!(apex > d * 30f32.to_radians().tan() / 4.0 - 21.0, "{d} m: apex {apex}");
+            assert!(t < 9.5, "{d} m in {t} s");
+        }
+    }
+
+    #[test]
+    fn a_lob_beyond_its_range_falls_short_at_its_longest() {
+        let lob = Lob {
+            elevation_deg: 30.0,
+            min_m: 60.0,
+            max_m: 600.0,
+        };
+        let muzzle = Vec3::new(0.0, 5000.0, 0.0);
+        let (at, _, _) = lob_lands(muzzle, Vec3::new(1500.0, 5000.0, 0.0), &lob);
+        assert!((at.x - 600.0).abs() < 1.0, "{at}");
+        assert!(
+            lob_velocity(muzzle, Vec3::new(100.0, 5100.0, 0.0), &lob, STEP).is_none(),
+            "too steep to reach"
+        );
     }
 }

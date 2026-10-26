@@ -1113,7 +1113,9 @@ fn update_stations(
         };
         let name = w.name.to_uppercase();
         let count = rounds.map_or_else(String::new, |n| format!(" x{n}"));
-        t.0 = format!("STA {}  {name}{count}  {state}", row.0 + 1);
+        // The signature weapon is starred (signature-weapons).
+        let star = if w.signature { "*" } else { "" };
+        t.0 = format!("STA {}{star}  {name}{count}  {state}", row.0 + 1);
         let selected = row.0 == sim.selected;
         c.0 = if lost {
             RED

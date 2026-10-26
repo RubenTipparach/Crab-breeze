@@ -85,6 +85,9 @@ impl PartWeapon {
             heat: self.heat,
             seeker_turn_deg_s: self.seeker_turn_deg_s,
             seeker: self.seeker,
+            burst: None,
+            lob: None,
+            signature: false,
             rounds: self.rounds,
         }
     }
