@@ -50,6 +50,12 @@ fn load_depth(uv: vec2<f32>) -> f32 {
     return textureLoad(scene_depth, coord, 0);
 }
 
+// What of the scene behind still shows through the smoke drawn over it (1 where there is none): the soft
+// sprites multiply the target's alpha by 1 - their own (`soft_sprites.rs`).
+fn scene_through(uv: vec2<f32>) -> f32 {
+    return clamp(textureSampleLevel(scene_color, scene_sampler, clamp(uv, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0).a, 0.0, 1.0);
+}
+
 fn sample_scene(uv: vec2<f32>) -> vec3<f32> {
     return textureSampleLevel(scene_color, scene_sampler, clamp(uv, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0).rgb;
 }
@@ -192,7 +198,10 @@ fn compose(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         let len = end - start;
         if (len > 0.0) {
             let t = exp(-fog_depth(eye + direction * start, direction, len));
-            color = mix(fog_colour(direction), color, t);
+            // Only the share of the scene that shows through smoke is fogged to the depth behind it; the
+            // smoke itself carries the view's distance fog from its own shader.
+            let through = scene_through(uv);
+            color = mix(fog_colour(direction), color, mix(1.0, t, through));
         }
     }
     // Depth blur while the glass is wet: the distance softens, the foreground stays crisp.

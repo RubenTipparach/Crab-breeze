@@ -23,7 +23,10 @@ use bevy::light::NotShadowCaster;
 use bevy::mesh::{Indices, MeshVertexAttribute, MeshVertexBufferLayoutRef, PrimitiveTopology, VertexFormat};
 use bevy::pbr::{Material, MaterialPipeline, MaterialPipelineKey, MaterialPlugin};
 use bevy::prelude::*;
-use bevy::render::render_resource::{AsBindGroup, RenderPipelineDescriptor, ShaderType, SpecializedMeshPipelineError};
+use bevy::render::render_resource::{
+    AsBindGroup, BlendComponent, BlendFactor, BlendOperation, BlendState, RenderPipelineDescriptor, ShaderType,
+    SpecializedMeshPipelineError,
+};
 use bevy::shader::ShaderRef;
 use cb_core::fx::ParticleKind;
 
@@ -202,6 +205,30 @@ impl Material for SoftMaterial {
             ATTRIBUTE_COLOUR.at_shader_location(3),
         ])?];
         descriptor.primitive.cull_mode = None;
+        // Colour: premultiplied OVER. Alpha: what of the scene behind still shows through (the target
+        // holds 1 under opaque ground and sky; each sprite multiplies it by 1 - its alpha). The ground fog,
+        // laid after every draw from the depth behind the smoke (`water_post.wesl` `compose`), fogs only
+        // that share, so the fog over a puff no longer jumps where the sky, a far street or a near wall
+        // changes behind it (owner, 2026-10-25: "still smoke sorting issues here").
+        if let Some(target) = descriptor
+            .fragment
+            .as_mut()
+            .and_then(|f| f.targets.get_mut(0))
+            .and_then(|t| t.as_mut())
+        {
+            target.blend = Some(BlendState {
+                color: BlendComponent {
+                    src_factor: BlendFactor::One,
+                    dst_factor: BlendFactor::OneMinusSrcAlpha,
+                    operation: BlendOperation::Add,
+                },
+                alpha: BlendComponent {
+                    src_factor: BlendFactor::Zero,
+                    dst_factor: BlendFactor::OneMinusSrcAlpha,
+                    operation: BlendOperation::Add,
+                },
+            });
+        }
         Ok(())
     }
 }
