@@ -1,0 +1,244 @@
+== output/perf/route-o1.log
+22545 lines; 3932 frames over 16.7 ms (worst 121.9 ms); main world over 16.7 ms in 2295
+   16.7 to    25 ms: 3134
+   25.0 to  33.3 ms: 361
+   33.3 to    50 ms: 260
+   50.0 to   inf ms: 62
+largest cost in the slow frame (count):
+  20617  renderer::render_system
+   1190  allocator::allocate_and_free_meshes
+    348  traffic::step_traffic
+    215  step_traffic
+     83  mesh::collect_meshes_for_gpu_building
+     61  audio_source::AudioSource>
+      5  render::allocate_effects
+      5  world_asset_spawner::world_instance_spawner_system
+      4  mesh::MeshPipeline>
+      3  perf_hud::frame_start
+      3  parallel::propagate_parent_transforms
+      3  world::keep_trees
+      2  PipelineCache::extract_shaders
+      1  bevy_hanabi::compile_effects
+      1  prepass::prepare_previous_view_uniforms
+systems at 2.0 ms or more in a slow frame: frames, mean ms, worst ms
+  22545     10.6     87.4  bevy_render::run_render_schedule
+  22545      4.1     14.5  renderer::render_system
+  15038      4.3     32.6  fixed::run_fixed_main_schedule
+  21098      2.3     12.3  schedule::submit_pending_command_buffers
+   2051      8.6     73.6  allocator::allocate_and_free_meshes
+   3542      3.2     13.6  step_traffic
+   3519      3.2     22.8  traffic::step_traffic
+   3364      2.7      9.7  parallel::propagate_parent_transforms
+   2679      2.6      5.9  mesh::collect_meshes_for_gpu_building
+   1338      2.2      6.6  schedule::camera_driver
+    114     10.8     99.7  audio_source::AudioSource>
+    245      2.6      3.6  mfd::bind_screens
+    242      2.4     17.1  bevy_light::check_dir_light_mesh_visibility
+    164      2.4      5.7  systems::mark_dirty_trees
+     92      2.9      5.7  world::keep_trees
+     91      2.9      5.7  keep_trees
+     88      2.8     26.8  mesh::MeshPipeline>
+     77      3.1      5.8  world_asset_spawner::world_instance_spawner_system
+     64      2.7      6.5  schedule::run_physics_schedule
+     72      2.1      3.1  grass::stream_tiles
+     20      6.0     35.0  bevy_hanabi::compile_effects
+     50      2.2      2.7  hitch_spans::count_changes
+      2     54.1     57.4  PipelineCache::extract_shaders
+      9     10.8     20.1  render::allocate_effects
+     38      2.4      3.3  visibility::check_visibility_cpu_culling
+entities moved or spawned in slow frames (hitch_spans builds): frames, mean, most
+  18712       565      1275  moved:WHEEL_RR
+  18712       565      1275  moved:WHEEL_RL
+  18712       565      1275  moved:car
+  18712       565      1275  moved:WHEEL_FL
+  18712       565      1275  moved:WHEEL_FR
+  22534         1         3  mesh~
+    139        63       112  moved:unnamed
+   2823         3        18  mesh+
+   2320         3        18  mesh-
+     36         3        47  image~
+      3         1         1  image+
+
+== output/perf/route-n1.log
+22839 lines; 4499 frames over 16.7 ms (worst 146.3 ms); main world over 16.7 ms in 2953
+   16.7 to    25 ms: 3518
+   25.0 to  33.3 ms: 538
+   33.3 to    50 ms: 304
+   50.0 to   inf ms: 54
+largest cost in the slow frame (count):
+  19869  renderer::render_system
+   1313  traffic::step_traffic
+   1199  allocator::allocate_and_free_meshes
+    223  step_traffic
+    148  mesh::collect_meshes_for_gpu_building
+     46  audio_output::play_queued_audio_system<AudioSource>
+      8  render::allocate_effects
+      6  world_asset_spawner::world_instance_spawner_system
+      4  gpu_preprocessing::write_binned_instance_buffers<MeshPipeline>
+      4  perf_hud::frame_start
+      3  gpu_preprocessing::write_batched_instance_buffers<MeshPipeline>
+      2  PipelineCache::extract_shaders
+      2  audio_output::play_queued_audio_system<BedLoop>
+      2  world::keep_trees
+      2  parallel::propagate_parent_transforms
+systems at 2.0 ms or more in a slow frame: frames, mean ms, worst ms
+  22839     10.6    125.1  bevy_render::run_render_schedule
+  22838      4.2     18.8  renderer::render_system
+  15245      4.6     42.0  fixed::run_fixed_main_schedule
+  22211      2.4     16.1  schedule::submit_pending_command_buffers
+   2114      8.6    110.7  allocator::allocate_and_free_meshes
+   4020      4.2     24.5  step_traffic
+   3999      4.2     24.6  traffic::step_traffic
+   2840      2.6      6.8  mesh::collect_meshes_for_gpu_building
+   2639      2.8     11.6  parallel::propagate_parent_transforms
+   1081      2.2      7.5  schedule::camera_driver
+    351      2.2      3.7  grass::stream_tiles
+    107      6.9     80.1  audio_output::play_queued_audio_system<AudioSource>
+    273      2.5     14.4  bevy_light::check_dir_light_mesh_visibility
+    249      2.6      3.7  mfd::bind_screens
+    203      2.4      5.6  systems::mark_dirty_trees
+    117      3.0     12.3  world_asset_spawner::world_instance_spawner_system
+     96      2.9      5.4  world::keep_trees
+     95      2.9      5.4  keep_trees
+     94      2.5      6.9  schedule::run_physics_schedule
+     25      5.0     36.1  bevy_hanabi::compile_effects
+     29      3.7     19.2  gpu_preprocessing::write_batched_instance_buffers<MeshPipeline>
+     20      4.5     19.1  gpu_preprocessing::write_indirect_parameters_buffers
+      9      9.4     10.3  render::allocate_effects
+     17      4.9     18.7  perf_hud::frame_start
+     35      2.4      2.9  visibility::check_visibility_cpu_culling
+entities moved or spawned in slow frames (hitch_spans builds): frames, mean, most
+  18812       416      1280  moved:car
+  18817       410       925  moved:WHEEL_RL
+  18817       410       925  moved:WHEEL_FL
+  18817       410       925  moved:WHEEL_RR
+  18817       410       925  moved:WHEEL_FR
+  22827         1         3  mesh~
+    158        63       119  moved:unnamed
+   2851         3        26  mesh+
+   2292         3        14  mesh-
+     34         3        47  image~
+      3         1         1  image+
+
+== output/perf/route-n2.log
+22602 lines; 3776 frames over 16.7 ms (worst 305.1 ms); main world over 16.7 ms in 2232
+   16.7 to    25 ms: 2999
+   25.0 to  33.3 ms: 374
+   33.3 to    50 ms: 256
+   50.0 to   inf ms: 55
+largest cost in the slow frame (count):
+  20802  renderer::render_system
+   1190  allocator::allocate_and_free_meshes
+    316  traffic::step_traffic
+    159  step_traffic
+     56  mesh::collect_meshes_for_gpu_building
+     44  audio_output::play_queued_audio_system<AudioSource>
+      7  render::allocate_effects
+      4  perf_hud::frame_start
+      2  PipelineCache::extract_shaders
+      2  playtest::log_frames
+      2  cluster::extract_clusters_for_cpu_clustering
+      2  parallel::propagate_parent_transforms
+      2  world_asset_spawner::world_instance_spawner_system
+      1  schedule::run_physics_schedule
+      1  fog::prepare_fog
+systems at 2.0 ms or more in a slow frame: frames, mean ms, worst ms
+  22602     10.6    117.2  bevy_render::run_render_schedule
+  22602      4.2     15.2  renderer::render_system
+  15149      4.2     45.0  fixed::run_fixed_main_schedule
+  22110      2.3     13.3  schedule::submit_pending_command_buffers
+   2050      8.6    100.7  allocator::allocate_and_free_meshes
+   3542      3.0     12.8  step_traffic
+   3519      3.0     12.8  traffic::step_traffic
+   2733      2.6      6.5  mesh::collect_meshes_for_gpu_building
+   2535      2.8     23.0  parallel::propagate_parent_transforms
+   1035      2.1      3.1  schedule::camera_driver
+    288      2.5     21.3  bevy_light::check_dir_light_mesh_visibility
+    105      6.7     40.8  audio_output::play_queued_audio_system<AudioSource>
+    241      2.6      3.6  mfd::bind_screens
+    222      2.1      3.0  grass::stream_tiles
+      2    152.5    244.3  PipelineCache::extract_shaders
+     95      2.8      4.9  world_asset_spawner::world_instance_spawner_system
+     93      2.9      6.1  world::keep_trees
+     93      2.9      6.1  keep_trees
+    104      2.4     12.7  systems::mark_dirty_trees
+     87      2.7     16.0  schedule::run_physics_schedule
+     11      9.7     38.6  bevy_hanabi::compile_effects
+      9     10.3     13.2  render::allocate_effects
+     34      2.3      3.3  visibility::check_visibility_cpu_culling
+     26      2.9     11.2  gpu_preprocessing::write_batched_instance_buffers<MeshPipeline>
+     22      3.1      4.9  visibility::calculate_bounds
+entities moved or spawned in slow frames (hitch_spans builds): frames, mean, most
+  18842       417      1264  moved:car
+  18752       410       915  moved:WHEEL_RR
+  18752       410       915  moved:WHEEL_RL
+  18752       410       915  moved:WHEEL_FL
+  18752       410       915  moved:WHEEL_FR
+  22595         1         3  mesh~
+    130        64       111  moved:unnamed
+   2794         3        15  mesh+
+   2308         3        18  mesh-
+     36         3        47  image~
+      2         1         1  image+
+
+== output/perf/route-o2.log
+14955 lines; 3116 frames over 16.7 ms (worst 197.1 ms); main world over 16.7 ms in 2019
+   16.7 to    25 ms: 2420
+   25.0 to  33.3 ms: 369
+   33.3 to    50 ms: 232
+   50.0 to   inf ms: 23
+largest cost in the slow frame (count):
+  13952  renderer::render_system
+    893  allocator::allocate_and_free_meshes
+     44  audio_source::AudioSource>
+     37  step_traffic
+      6  render::allocate_effects
+      4  parallel::propagate_parent_transforms
+      3  mesh::MeshPipeline>
+      2  perf_hud::frame_start
+      2  world::keep_trees
+      1  PipelineCache::extract_shaders
+      1  render::prepare_effect_metadata
+      1  bevy_hanabi::compile_effects
+      1  playtest::log_frames
+      1  gpu_preprocessing::write_indirect_parameters_buffers
+      1  upscaling::prepare_view_upscaling_pipelines
+systems at 2.0 ms or more in a slow frame: frames, mean ms, worst ms
+  14955     11.5     63.3  bevy_render::run_render_schedule
+  14954      4.4     13.5  renderer::render_system
+  11631      4.1     23.8  fixed::run_fixed_main_schedule
+  14751      2.4     10.9  schedule::submit_pending_command_buffers
+   1638      8.0     52.9  allocator::allocate_and_free_meshes
+   2861      2.7     12.5  parallel::propagate_parent_transforms
+   2620      2.5     11.2  mesh::collect_meshes_for_gpu_building
+   1397      2.5      7.6  step_traffic
+   1359      2.5      7.6  traffic::step_traffic
+    929      2.2      4.9  schedule::camera_driver
+     96      9.4    101.3  audio_source::AudioSource>
+    229      2.5     17.2  systems::mark_dirty_trees
+    235      2.3      4.0  bevy_light::check_dir_light_mesh_visibility
+    195      2.6      3.7  mfd::bind_screens
+    165      2.1      3.9  grass::stream_tiles
+     98      3.0     10.4  world_asset_spawner::world_instance_spawner_system
+     86      3.0     10.7  mesh::MeshPipeline>
+     76      2.9      6.7  world::keep_trees
+     75      2.9      6.7  keep_trees
+      2     69.8    135.8  PipelineCache::extract_shaders
+     20      6.5     38.4  bevy_hanabi::compile_effects
+      9     13.3     30.2  render::allocate_effects
+     42      2.6      7.4  schedule::run_physics_schedule
+     17      4.4     17.3  gpu_preprocessing::write_indirect_parameters_buffers
+     23      2.9     13.8  visibility::check_visibility_cpu_culling
+entities moved or spawned in slow frames (hitch_spans builds): frames, mean, most
+  13517       616      1317  moved:WHEEL_FR
+  13517       616      1317  moved:WHEEL_RL
+  13517       616      1317  moved:WHEEL_RR
+  13517       616      1317  moved:car
+  13517       616      1317  moved:WHEEL_FL
+  14944         1         3  mesh~
+    134        61       106  moved:unnamed
+   2070         2        18  mesh+
+   1809         3        13  mesh-
+     36         3        47  image~
+      3         1         1  image+
+
