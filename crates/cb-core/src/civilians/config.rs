@@ -95,6 +95,103 @@ pub struct DrawConfig {
     /// A walk or run plays at the body's pace over the clip's own speed, kept within this (least,
     /// most), so feet keep to the ground without a stride turning into a shuffle or a blur.
     pub cadence: [f32; 2],
+    /// The colours people wear, sRGB 0-1: a person's `look` picks one of each (`anim::Outfit`).
+    pub palette: Palette,
+}
+
+/// The colours people wear, by region of the body, sRGB 0-1 (survey G1: 1980s street and workwear).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct Palette {
+    /// Skin tones, at most 8.
+    pub skin: Vec<[f32; 3]>,
+    /// Hair, at most 8.
+    pub hair: Vec<[f32; 3]>,
+    /// Tops (shirts, jackets, coats), at most 16.
+    pub top: Vec<[f32; 3]>,
+    /// Bottoms (trousers, skirts), at most 12.
+    pub bottom: Vec<[f32; 3]>,
+    /// Shoes, at most 8.
+    pub shoes: Vec<[f32; 3]>,
+}
+
+impl Palette {
+    /// The most of each the renderer's table holds: skin, hair, top, bottom, shoes.
+    pub const MAX: [usize; 5] = [8, 8, 16, 12, 8];
+
+    /// The lists in the order of `MAX`: skin, hair, top, bottom, shoes.
+    pub fn lists(&self) -> [&[[f32; 3]]; 5] {
+        [&self.skin, &self.hair, &self.top, &self.bottom, &self.shoes]
+    }
+}
+
+impl Default for Palette {
+    fn default() -> Self {
+        Self {
+            skin: vec![
+                [0.96, 0.80, 0.69],
+                [0.90, 0.72, 0.60],
+                [0.80, 0.60, 0.46],
+                [0.69, 0.50, 0.36],
+                [0.56, 0.38, 0.26],
+                [0.44, 0.29, 0.20],
+                [0.34, 0.22, 0.15],
+                [0.86, 0.68, 0.52],
+            ],
+            hair: vec![
+                [0.10, 0.07, 0.05],
+                [0.20, 0.13, 0.08],
+                [0.33, 0.22, 0.12],
+                [0.55, 0.40, 0.22],
+                [0.72, 0.58, 0.36],
+                [0.50, 0.48, 0.46],
+                [0.78, 0.76, 0.72],
+                [0.42, 0.16, 0.08],
+            ],
+            top: vec![
+                [0.55, 0.20, 0.15],
+                [0.20, 0.30, 0.48],
+                [0.62, 0.56, 0.42],
+                [0.70, 0.45, 0.10],
+                [0.32, 0.34, 0.32],
+                [0.75, 0.75, 0.70],
+                [0.20, 0.38, 0.27],
+                [0.52, 0.14, 0.28],
+                [0.12, 0.12, 0.14],
+                [0.45, 0.33, 0.22],
+                [0.30, 0.42, 0.55],
+                [0.80, 0.62, 0.30],
+                [0.38, 0.40, 0.20],
+                [0.60, 0.30, 0.22],
+                [0.25, 0.22, 0.35],
+                [0.85, 0.82, 0.74],
+            ],
+            bottom: vec![
+                [0.12, 0.13, 0.17],
+                [0.22, 0.27, 0.40],
+                [0.28, 0.26, 0.24],
+                [0.40, 0.34, 0.26],
+                [0.18, 0.20, 0.18],
+                [0.48, 0.44, 0.36],
+                [0.08, 0.08, 0.09],
+                [0.30, 0.22, 0.16],
+                [0.34, 0.36, 0.40],
+                [0.20, 0.30, 0.50],
+                [0.42, 0.20, 0.16],
+                [0.55, 0.52, 0.46],
+            ],
+            shoes: vec![
+                [0.07, 0.06, 0.05],
+                [0.22, 0.14, 0.08],
+                [0.36, 0.25, 0.15],
+                [0.12, 0.12, 0.13],
+                [0.70, 0.68, 0.64],
+                [0.30, 0.18, 0.12],
+                [0.18, 0.18, 0.20],
+                [0.45, 0.36, 0.26],
+            ],
+        }
+    }
 }
 
 impl Default for DrawConfig {
@@ -105,6 +202,7 @@ impl Default for DrawConfig {
             crossfade_s: 0.25,
             wave_s: 2.0,
             cadence: [0.5, 1.8],
+            palette: Palette::default(),
         }
     }
 }
@@ -191,6 +289,19 @@ impl Validate for PeopleConfig {
         positive("draw.crossfade_s", self.draw.crossfade_s)?;
         positive("draw.wave_s", self.draw.wave_s)?;
         positive_range("draw.cadence", self.draw.cadence)?;
+        for (name, (list, most)) in ["skin", "hair", "top", "bottom", "shoes"]
+            .iter()
+            .zip(self.draw.palette.lists().iter().zip(Palette::MAX))
+        {
+            if list.is_empty() || list.len() > most {
+                return Err(format!("`draw.palette.{name}` has {} colours: 1 to {most}", list.len()));
+            }
+            for c in list.iter() {
+                for v in c {
+                    within(&format!("draw.palette.{name}"), *v, 0.0, 1.0)?;
+                }
+            }
+        }
         Ok(())
     }
 }

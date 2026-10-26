@@ -255,6 +255,46 @@ impl Anim {
     }
 }
 
+/// What a person looks like, from their `look`: which body, and one colour of each palette list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Outfit {
+    /// The body (an index into the bake manifest's bodies).
+    pub body: usize,
+    /// Indices into the palette's skin, hair, top, bottom and shoes lists.
+    pub colours: [u32; 5],
+}
+
+impl Outfit {
+    /// The outfit for `look` given how many bodies there are and how long each palette list is (in the order
+    /// of `Palette::MAX`). Every pick is a different slice of a mixed `look`, so neighbours differ.
+    pub fn of(look: u32, bodies: usize, lists: [usize; 5]) -> Self {
+        // a 32-bit mix (Murmur3's finaliser) so consecutive looks spread over every list
+        let mut h = look;
+        h ^= h >> 16;
+        h = h.wrapping_mul(0x85eb_ca6b);
+        h ^= h >> 13;
+        h = h.wrapping_mul(0xc2b2_ae35);
+        h ^= h >> 16;
+        let pick = |shift: u32, n: usize| ((h >> shift) & 0xff) % (n.max(1) as u32);
+        Self {
+            body: (h % (bodies.max(1) as u32)) as usize,
+            colours: [
+                pick(4, lists[0]),
+                pick(10, lists[1]),
+                pick(16, lists[2]),
+                pick(22, lists[3]),
+                pick(26, lists[4]),
+            ],
+        }
+    }
+
+    /// The colours packed for the renderer: skin 3 bits, hair 3, top 4, bottom 4, shoes 3.
+    pub fn packed(&self) -> u32 {
+        let [skin, hair, top, bottom, shoes] = self.colours;
+        skin | hair << 3 | top << 6 | bottom << 10 | shoes << 14
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -367,6 +407,26 @@ mod tests {
         a.step(Clip::Run, 1.0, 0.0, 0.25, &tb);
         let into = a.now.t_s / tb.get(Clip::Run).length_s();
         assert!((into - 0.3).abs() < 1e-5, "{into}");
+    }
+
+    #[test]
+    fn looks_spread_over_both_bodies_and_every_colour_and_pack_within_their_bits() {
+        let lists = crate::civilians::Palette::MAX;
+        let mut bodies = [0; 2];
+        let mut tops = std::collections::BTreeSet::new();
+        for look in 0..1000 {
+            let o = Outfit::of(look, 2, lists);
+            bodies[o.body] += 1;
+            tops.insert(o.colours[2]);
+            for (c, n) in o.colours.iter().zip(lists) {
+                assert!((*c as usize) < n);
+            }
+            let p = o.packed();
+            assert_eq!((p >> 6) & 15, o.colours[2]);
+            assert_eq!((p >> 14) & 7, o.colours[4]);
+        }
+        assert!(bodies[0] > 400 && bodies[1] > 400, "{bodies:?}");
+        assert_eq!(tops.len(), 16);
     }
 
     #[test]

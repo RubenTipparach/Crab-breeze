@@ -19,7 +19,7 @@ pub mod toll;
 #[cfg(test)]
 mod tests;
 
-pub use config::{DrawConfig, PeopleConfig};
+pub use config::{DrawConfig, Palette, PeopleConfig};
 pub use lines::{Answer, Lines, Place, Role};
 pub use routes::{Doors, Home, NoDoors, StreetDoors};
 pub use toll::{Casualty, Cause, StandingLoss, Toll};
