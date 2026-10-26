@@ -87,6 +87,17 @@
     ),
     road_lift_m: 0.15,
     kerb_height_m: 0.2,
+    // The roads' CC0 sets (road-surfaces): each photo at its real scale, so the aggregate reads right
+    // on foot, and the tone of every road drifts by up to 15% over about 45 m, so the tiles' repeat
+    // does not line up from the cockpit.
+    road_surfaces: (
+        street_tile_m: 2.5,
+        worn_tile_m: 1.85,
+        paving_tile_m: 2.4,
+        tint_cell_m: 8.0,
+        tint_scale_m: 45.0,
+        tint_amount: 0.15,
+    ),
 
     start_pilot_distance_m: 25.0,
 

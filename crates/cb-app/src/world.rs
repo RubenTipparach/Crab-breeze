@@ -260,9 +260,14 @@ impl MeshBuilder {
 impl MeshBuilder {
     /// A flat quad, corners counter-clockwise around its outward normal `(c1 - c0) x (c3 - c0)`.
     pub fn quad(&mut self, corners: [Vec3; 4], color: [f32; 4]) {
+        self.quad_shaded(corners, [color; 4]);
+    }
+
+    /// A flat quad as `quad`, each corner with its own colour (blended across the face).
+    pub fn quad_shaded(&mut self, corners: [Vec3; 4], colors: [[f32; 4]; 4]) {
         let base = self.positions.len() as u32;
         let n = (corners[1] - corners[0]).cross(corners[3] - corners[0]).normalize_or(Vec3::Y);
-        for c in corners {
+        for (c, color) in corners.into_iter().zip(colors) {
             self.positions.push(c.into());
             self.normals.push(n.into());
             self.colors.push(color);
@@ -429,21 +434,54 @@ fn vertex_material(materials: &mut Assets<StandardMaterial>, roughness: f32) -> 
     })
 }
 
+/// A road's tone `tone` at `p`, tinted by the road surfaces' large-scale noise (`road-surfaces` design section 2).
+fn road_shade(rs: &cb_core::world::config::RoadSurfaceConfig, tone: [f32; 4], p: Vec3) -> [f32; 4] {
+    let k = rs.tint_at(Vec2::new(p.x, p.z));
+    [tone[0] * k, tone[1] * k, tone[2] * k, tone[3]]
+}
+
+/// Lays the flat rectangle `rect` at height `y` as cells about `cell_m` on a side, every corner tinted
+/// (`road_shade`), so the tint is continuous across the cells.
+fn tinted_rect(mesh: &mut MeshBuilder, rs: &cb_core::world::config::RoadSurfaceConfig, rect: cb_core::world::Rect, y: f32, tone: [f32; 4]) {
+    let size = rect.size();
+    let (nx, nz) = (
+        (size.x / rs.tint_cell_m).ceil().max(1.0) as usize,
+        (size.y / rs.tint_cell_m).ceil().max(1.0) as usize,
+    );
+    let at = |i: usize, j: usize| {
+        Vec3::new(
+            rect.min.x + size.x * i as f32 / nx as f32,
+            y,
+            rect.min.y + size.y * j as f32 / nz as f32,
+        )
+    };
+    for i in 0..nx {
+        for j in 0..nz {
+            let c = [at(i, j), at(i, j + 1), at(i + 1, j + 1), at(i + 1, j)];
+            mesh.quad_shaded(c, c.map(|p| road_shade(rs, tone, p)));
+        }
+    }
+}
+
+/// The roads, their lane marks and the city blocks' pavements (`road-surfaces`): city streets on the clean
+/// asphalt set, arterials and highways on the worn one, pavements and kerbs on the paving slabs.
 fn spawn_roads(
     mut commands: Commands,
     world: Res<Plan>,
     data: Res<Data>,
-    tex: Res<crate::textures::Textures>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
 ) {
     let cfg = &data.0.world;
+    let rs = &cfg.road_surfaces;
     let asphalt = [0.16, 0.16, 0.17, 1.0];
     let arterial = [0.13, 0.13, 0.14, 1.0];
     let pavement = [0.55, 0.54, 0.51, 1.0];
     let park = [0.26, 0.40, 0.19, 1.0];
-    let mut roads = MeshBuilder::default();
-    let mut kerbs = MeshBuilder::default();
+    let mut streets = MeshBuilder::tiled(rs.street_tile_m, rs.street_tile_m);
+    let mut worn = MeshBuilder::tiled(rs.worn_tile_m, rs.worn_tile_m);
+    let mut kerbs = MeshBuilder::tiled(rs.paving_tile_m, rs.paving_tile_m);
     // Lane dashes down the middle of every street and highway: 3 m painted, 6 m gap.
     let mut marks = MeshBuilder::default();
     let white = [0.92, 0.92, 0.88, 1.0];
@@ -471,20 +509,11 @@ fn spawn_roads(
         let y = city.ground_m + cfg.road_lift_m;
         for s in &city.streets {
             let (a, b) = (s.rect.min, s.rect.max);
-            let colour = if s.kind == cb_core::world::StreetKind::Arterial {
-                arterial
+            if s.kind == cb_core::world::StreetKind::Arterial {
+                tinted_rect(&mut worn, rs, s.rect, y, arterial);
             } else {
-                asphalt
-            };
-            roads.quad(
-                [
-                    Vec3::new(a.x, y, a.y),
-                    Vec3::new(a.x, y, b.y),
-                    Vec3::new(b.x, y, b.y),
-                    Vec3::new(b.x, y, a.y),
-                ],
-                colour,
-            );
+                tinted_rect(&mut streets, rs, s.rect, y, asphalt);
+            }
             let c = s.rect.centre();
             let half = s.rect.size() * 0.5;
             let yy = y + 0.04;
@@ -513,7 +542,8 @@ fn spawn_roads(
         };
         for i in 0..steps {
             let (t0, t1) = (i as f32 / steps as f32, (i + 1) as f32 / steps as f32);
-            roads.quad([p(t0, 1.0), p(t1, 1.0), p(t1, -1.0), p(t0, -1.0)], asphalt);
+            let c = [p(t0, 1.0), p(t1, 1.0), p(t1, -1.0), p(t0, -1.0)];
+            worn.quad_shaded(c, c.map(|q| road_shade(rs, asphalt, q)));
         }
         let lift = cfg.road_lift_m + 0.04;
         let n = h.path.len();
@@ -522,12 +552,14 @@ fn spawn_roads(
             dashes(h.path[k], h.path[k + 1], &|t| g0 + (g1 - g0) * t + lift);
         }
     }
-    let road_mat = materials.add(StandardMaterial {
-        base_color_texture: Some(tex.asphalt.clone()),
-        perceptual_roughness: 0.9,
-        ..default()
-    });
-    commands.spawn((Name::new("roads"), Mesh3d(meshes.add(roads.build())), MeshMaterial3d(road_mat)));
+    for (name, mesh, folder, roughness) in [
+        ("roads", streets, "textures/road/asphalt", 0.9),
+        ("worn roads", worn, "textures/road/asphalt_worn", 0.9),
+        ("blocks", kerbs, "textures/road/paving", 0.85),
+    ] {
+        let mat = crate::pbr_set::set_material(&mut images, &mut materials, folder, roughness);
+        commands.spawn((Name::new(name), Mesh3d(meshes.add(mesh.build_with_tangents())), MeshMaterial3d(mat)));
+    }
     let mark_mat = vertex_material(&mut materials, 0.6);
     commands.spawn((
         Name::new("lane marks"),
@@ -535,12 +567,6 @@ fn spawn_roads(
         MeshMaterial3d(mark_mat),
         NotShadowCaster,
     ));
-    let kerb_mat = materials.add(StandardMaterial {
-        base_color_texture: Some(tex.concrete.clone()),
-        perceptual_roughness: 0.85,
-        ..default()
-    });
-    commands.spawn((Name::new("blocks"), Mesh3d(meshes.add(kerbs.build())), MeshMaterial3d(kerb_mat)));
 }
 
 fn spawn_buildings(

@@ -1,4 +1,5 @@
-"""Packs downloaded ambientCG sets into the game's PBR layout (openspec change `building-surfaces`).
+"""Packs downloaded ambientCG sets into the game's PBR layout (openspec changes `building-surfaces`,
+`road-surfaces`). The output folder's name picks the list: `building` or `road`.
 
 For each set: the colour map is scaled per channel so it averages `TARGET` (sRGB), so a vertex
 colour sets the hue and the map adds the detail, as the ground's grass; the OpenGL normal map is
@@ -7,6 +8,7 @@ roughness, B metalness, or black without one). Also writes a 2 x 2 tiling sheet 
 seam check (CLAUDE.md section 13).
 
     python3 tools/textures/pack_cc0_sets.py <folder of unzipped sets> assets/textures/building <sheet dir>
+    python3 tools/textures/pack_cc0_sets.py <folder of unzipped sets> assets/textures/road <sheet dir>
 """
 import sys
 from pathlib import Path
@@ -15,16 +17,24 @@ import numpy as np
 from PIL import Image
 
 TARGET = 0.8
-# surface name in the game -> ambientCG set id
-SETS = {
-    "concrete": "Concrete034",
-    "plaster": "Plaster001",
-    "wood": "Wood094",
-    "fabric": "Fabric061",
-    "metal": "Metal027",
-    "plastic": "Plastic010",
-    "cardboard": "Cardboard002",
-    "leaves": "ScatteredLeaves009",
+# output folder -> surface name in the game -> ambientCG set id
+SET_LISTS = {
+    "building": {
+        "concrete": "Concrete034",
+        "plaster": "Plaster001",
+        "wood": "Wood094",
+        "fabric": "Fabric061",
+        "metal": "Metal027",
+        "plastic": "Plastic010",
+        "cardboard": "Cardboard002",
+        "leaves": "ScatteredLeaves009",
+    },
+    # city streets; arterials, highways and runways; pavements
+    "road": {
+        "asphalt": "Asphalt023L",
+        "asphalt_worn": "Asphalt022",
+        "paving": "PavingStones133",
+    },
 }
 # Sets whose colour varies so much that the tint would come out speckled: grey them by this much.
 DESATURATE = {"leaves": 0.8}
@@ -37,7 +47,7 @@ def map_of(src: Path, set_id: str, kind: str):
 
 def main(src: Path, out: Path, sheets: Path):
     sheets.mkdir(parents=True, exist_ok=True)
-    for name, set_id in SETS.items():
+    for name, set_id in SET_LISTS[out.name].items():
         dest = out / name
         dest.mkdir(parents=True, exist_ok=True)
         color = np.asarray(map_of(src, set_id, "Color").convert("RGB"), dtype=np.float32) / 255.0

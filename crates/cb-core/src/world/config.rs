@@ -4,6 +4,7 @@
 //! `openspec/changes/procgen-world/design.md`.
 
 use crate::data::{Validate, finite, positive, positive_range, within};
+use glam::Vec2;
 use serde::Deserialize;
 
 /// Rivers, lakes and waterfalls (openspec changes `terrain-water`, `hydrology`). Where water goes is
@@ -620,6 +621,58 @@ impl Validate for ViewConfig {
     }
 }
 
+/// How the roads and pavements wear their CC0 surface sets (openspec change `road-surfaces`).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct RoadSurfaceConfig {
+    /// Metres per tile of the clean asphalt on city streets (Asphalt023L's photo is 2.5 m across).
+    pub street_tile_m: f32,
+    /// Metres per tile of the worn asphalt on arterials, highways and runways (Asphalt022's is 1.85 m).
+    pub worn_tile_m: f32,
+    /// Metres per tile of the pavement's slabs (four slabs a tile).
+    pub paving_tile_m: f32,
+    /// The road meshes are cut into cells this long, each corner carrying the tint below.
+    pub tint_cell_m: f32,
+    /// Wavelength of the tint's noise.
+    pub tint_scale_m: f32,
+    /// The tint's reach: a road's tone times 1 plus or minus at most this.
+    pub tint_amount: f32,
+}
+
+impl Default for RoadSurfaceConfig {
+    fn default() -> Self {
+        Self {
+            street_tile_m: 2.5,
+            worn_tile_m: 1.85,
+            paving_tile_m: 2.4,
+            tint_cell_m: 8.0,
+            tint_scale_m: 45.0,
+            tint_amount: 0.15,
+        }
+    }
+}
+
+impl RoadSurfaceConfig {
+    /// The factor a road's tone is multiplied by at `p` (x, z): smooth over tens of metres, within
+    /// `tint_amount` of 1, the same at the same point every time.
+    pub fn tint_at(&self, p: Vec2) -> f32 {
+        let s = f64::from(self.tint_scale_m);
+        let n = super::island::perlin(f64::from(p.x) / s, f64::from(p.y) / s, 0x0a5f) as f32;
+        1.0 + self.tint_amount * n.clamp(-1.0, 1.0)
+    }
+}
+
+impl Validate for RoadSurfaceConfig {
+    fn validate(&self) -> Result<(), String> {
+        positive("road_surfaces.street_tile_m", self.street_tile_m)?;
+        positive("road_surfaces.worn_tile_m", self.worn_tile_m)?;
+        positive("road_surfaces.paving_tile_m", self.paving_tile_m)?;
+        within("road_surfaces.tint_cell_m", self.tint_cell_m, 1.0, 100.0)?;
+        positive("road_surfaces.tint_scale_m", self.tint_scale_m)?;
+        within("road_surfaces.tint_amount", self.tint_amount, 0.0, 0.5)
+    }
+}
+
 /// Everything the world generator is tuned by.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
@@ -690,6 +743,8 @@ pub struct WorldConfig {
     pub road_lift_m: f32,
     /// Height of a block's pavement (the kerb) above the ground.
     pub kerb_height_m: f32,
+    /// The roads' and pavements' surface sets (road-surfaces).
+    pub road_surfaces: RoadSurfaceConfig,
     /// How far behind the mech the pilot starts.
     pub start_pilot_distance_m: f32,
     /// The island and the sea.
@@ -822,6 +877,7 @@ impl Default for WorldConfig {
             sun_shade: super::sun_shade::SunShadeConfig::default(),
             road_lift_m: 0.15,
             kerb_height_m: 0.2,
+            road_surfaces: RoadSurfaceConfig::default(),
             start_pilot_distance_m: 25.0,
             island: IslandConfig::default(),
             biomes: BiomeConfig::default(),
@@ -903,6 +959,7 @@ impl Validate for WorldConfig {
         self.bases.validate()?;
         self.sun_shade.validate()?;
         positive("kerb_height_m", self.kerb_height_m)?;
+        self.road_surfaces.validate()?;
         if self.kerb_height_m <= self.road_lift_m {
             return Err("`kerb_height_m` must be above `road_lift_m`".into());
         }
@@ -985,5 +1042,46 @@ mod debris_tests {
         };
         assert!(off.validate().is_ok(), "0 is allowed");
         assert!(!off.is_physical(0.0) && !off.is_physical(5.0), "0 switches debris physics off");
+    }
+}
+
+#[cfg(test)]
+mod road_surface_tests {
+    use super::{RoadSurfaceConfig, Validate};
+    use glam::Vec2;
+
+    #[test]
+    fn a_roads_tint_stays_within_its_reach_and_changes_only_over_metres() {
+        let cfg = RoadSurfaceConfig::default();
+        let mut lo = f32::MAX;
+        let mut hi = f32::MIN;
+        for i in 0..400 {
+            let p = Vec2::new(i as f32 * 37.3 - 5000.0, i as f32 * -11.9 + 300.0);
+            let t = cfg.tint_at(p);
+            assert!((t - 1.0).abs() <= cfg.tint_amount + 1e-6, "{t} at {p}");
+            assert!((t - cfg.tint_at(p + Vec2::new(0.1, 0.0))).abs() < 0.002, "smooth at {p}");
+            lo = lo.min(t);
+            hi = hi.max(t);
+        }
+        assert!(hi - lo > cfg.tint_amount, "it varies: {lo}..{hi}");
+        assert_eq!(cfg.tint_at(Vec2::new(12.0, 34.0)), cfg.tint_at(Vec2::new(12.0, 34.0)));
+    }
+
+    #[test]
+    fn road_surface_settings_are_validated() {
+        assert!(RoadSurfaceConfig::default().validate().is_ok());
+        let bad = RoadSurfaceConfig {
+            street_tile_m: 0.0,
+            ..RoadSurfaceConfig::default()
+        };
+        assert!(bad.validate().is_err());
+        let wild = RoadSurfaceConfig {
+            tint_amount: 0.9,
+            ..RoadSurfaceConfig::default()
+        };
+        assert!(
+            wild.validate().is_err(),
+            "a tint that could turn a road black or white stops startup"
+        );
     }
 }
