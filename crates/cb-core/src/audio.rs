@@ -395,7 +395,7 @@ pub struct MusicInputs {
     pub seated: bool,
     /// An enemy within 2 km has the mech as its target.
     pub threatened: bool,
-    /// Seconds since the last shot fired or landed near the mech (large when none).
+    /// Seconds since enemy fire last landed near the mech (large when none). The pilot's own shots never count.
     pub since_shot_s: f32,
     /// Big Boy is alive in the wave.
     pub set_piece: bool,
@@ -410,7 +410,9 @@ pub fn music_state(i: &MusicInputs, hold_s: f32) -> MusicState {
     if i.boarding {
         s = MusicState::Boarding;
     }
-    if i.seated && (i.threatened || i.since_shot_s < hold_s) {
+    // Combat only while enemies are about and their fire is landing near the mech (owner, 2026-10-26: "shooting
+    // should not trigger combat music, only if enemies are present and are firing at me").
+    if i.seated && i.threatened && i.since_shot_s < hold_s {
         s = MusicState::Combat;
     }
     if i.seated && i.set_piece {
@@ -813,9 +815,24 @@ mod tests {
     #[test]
     fn combat_holds_thirty_seconds_after_the_last_shot() {
         let mut i = seated();
+        i.threatened = true;
         i.since_shot_s = 29.0;
         assert_eq!(music_state(&i, 30.0), MusicState::Combat);
         i.since_shot_s = 31.0;
+        assert_eq!(music_state(&i, 30.0), MusicState::Silent);
+    }
+
+    #[test]
+    fn enemies_about_but_not_firing_is_still_silent() {
+        let mut i = seated();
+        i.threatened = true;
+        assert_eq!(music_state(&i, 30.0), MusicState::Silent);
+    }
+
+    #[test]
+    fn fire_with_no_enemy_about_is_silent() {
+        let mut i = seated();
+        i.since_shot_s = 1.0;
         assert_eq!(music_state(&i, 30.0), MusicState::Silent);
     }
 
