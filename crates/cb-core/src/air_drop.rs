@@ -863,6 +863,80 @@ mod tests {
         assert_eq!(walking_up_to(&c, Vec2::new(50.0, 0.0), &mechs), None, "too far from both");
     }
 
+    /// The career-loop playtest's beat 5 in the rules: at bay 1's terminal of the first base, the Sapper is bought;
+    /// it lands near the pilot, clear of the hangars, on the career's clock; walked up to, it is the mech that kneels;
+    /// seated, its drop is done; a save keeps it where it landed.
+    #[test]
+    fn beat_5_a_sapper_bought_at_the_terminal_lands_near_the_pilot_and_is_boarded() {
+        use crate::career::{Career, CareerData, Field};
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let data = CareerData::load(&root).unwrap();
+        let world: crate::world::WorldConfig = crate::data::load_ron(&root.join("world/world.ron")).unwrap();
+        let plan = crate::world::generate(42, &world);
+        let g = PlanGround {
+            plan: &plan,
+            bases: &world.bases,
+        };
+        let terminal = plan.bases[0].terminals(&world.bases)[0];
+        let mut c = Career::new("t", 7, &data.career, &data.whole("mechs/foreman.ron").unwrap());
+        c.pay(650_000, "playtest grant", 200);
+        let foreman_at = plan.bases[0].hangars(&world.bases)[0].centre();
+        let sapper = data.design("mechs/sapper.ron").unwrap();
+        let mechs = [(foreman_at, 7.56)];
+        let keep = Keep {
+            pilot: terminal.at,
+            mechs: &mechs,
+        };
+        let rng = SimRng::new(c.seed).fork("drop/1");
+        let site = drop_site(&data.drop, &g, Needs::of(sapper), &keep, &rng).expect("the apron takes it");
+        let at = Vec2::new(site.at.x, site.at.z);
+        let d = at.distance(terminal.at);
+        assert!(
+            (data.drop.ring_min_m - 0.01..=data.drop.ring_max_m + 0.01).contains(&d),
+            "{d:.2} m from the pilot"
+        );
+        let centres: Vec<Vec2> = plan.bases.iter().map(|b| b.centre).collect();
+        let bays = crate::shop::Bays {
+            per_base: world.bases.hangars as u32,
+            centres: &centres,
+        };
+        let order = crate::shop::Order {
+            design: "mechs/sapper.ron",
+            at: Some(0),
+            from: terminal.at,
+            site: Some(site.at),
+            rng: &rng,
+        };
+        let whole = data.whole("mechs/sapper.ron").unwrap();
+        let bought = crate::shop::buy(&mut c, &data.catalogue, &bays, &order, &whole, 200).unwrap();
+        let key = bought.key;
+        let drop = c.drop_of(key).unwrap().clone();
+        assert!(matches!(drop.stage(&data.drop, c.time_s), Stage::Inbound(_)));
+        c.time_s += f64::from(data.drop.delay_s + fall_s(&data.drop)) + 0.1;
+        assert_eq!(drop.stage(&data.drop, c.time_s), Stage::Landed);
+        c.landed(
+            key,
+            Field {
+                pos: site.at.to_array(),
+                heading_rad: drop.track_rad,
+            },
+        );
+        // Walking from the terminal toward it: the Foreman in bay 1 first, then the Sapper once nearer.
+        let standing = [(c.mechs[0].key, foreman_at), (key, at)];
+        let walk_to = |f: f32| terminal.at.lerp(at, f);
+        assert_eq!(walking_up_to(&data.drop, walk_to(0.0), &standing), Some(c.mechs[0].key));
+        assert_eq!(walking_up_to(&data.drop, walk_to(0.95), &standing), Some(key));
+        c.boarded(key);
+        assert_eq!(c.piloting, Some(key));
+        assert!(c.drop_of(key).is_none(), "the marker goes once it is boarded");
+        let back = Career::from_ron(&c.to_ron()).unwrap();
+        assert_eq!(
+            back.mech(key).unwrap().field.map(|f| f.pos),
+            Some(site.at.to_array()),
+            "a save keeps it there"
+        );
+    }
+
     #[test]
     fn on_the_island_a_drop_in_the_biggest_city_misses_every_building() {
         let world = crate::world::WorldConfig::default();

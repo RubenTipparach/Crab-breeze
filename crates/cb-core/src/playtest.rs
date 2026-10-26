@@ -16,7 +16,7 @@ pub enum Beat {
     WalkToTerminal(u32),
     /// Press Use at the terminal: its screen opens.
     UseTerminal,
-    /// Click a tab of the terminal's screen: `Jobs`, `Shop` or `Refit`.
+    /// Click a tab of the terminal's screen: `Jobs`, `Shop`, `Refit` or `Hangar`.
     Tab(String),
     /// Click Accept on the open offer nearest the pilot whose tier is at most this.
     AcceptJob(u8),
@@ -39,6 +39,10 @@ pub enum Beat {
     BuyMech(String),
     /// Check the jobs board offers a job of at least this tier.
     ExpectOffer(u8),
+    /// Wait, at most this many seconds, until every air drop on its way has landed (mech-shop section 6).
+    AwaitDrop(f32),
+    /// Walk on foot toward the newest landed air drop's mech until it is the one that kneels for the pilot.
+    WalkToDrop,
     /// On the REFIT tab, click BUY for this weapon id (`data/career/parts.ron`).
     BuyPart(String),
     /// On the REFIT tab, click FIT for this spare weapon on this station (0 first).
@@ -86,9 +90,9 @@ impl Validate for Script {
             }
             for (j, b) in r.beats.iter().enumerate() {
                 let bad = match b {
-                    Beat::Wait(s) | Beat::LookAround(s) | Beat::FightJob(s) => !(s.is_finite() && *s > 0.0),
+                    Beat::Wait(s) | Beat::LookAround(s) | Beat::FightJob(s) | Beat::AwaitDrop(s) => !(s.is_finite() && *s > 0.0),
                     Beat::ExpectRestored(m) => !(m.is_finite() && *m > 0.0),
-                    Beat::Tab(t) => !matches!(t.as_str(), "Jobs" | "Shop" | "Refit"),
+                    Beat::Tab(t) => !matches!(t.as_str(), "Jobs" | "Shop" | "Refit" | "Hangar"),
                     Beat::AcceptJob(t) | Beat::ExpectOffer(t) => !(1..=crate::jobs::MAX_TIER).contains(t),
                     Beat::Grant(c) => *c <= 0,
                     Beat::BuyMech(d) => !d.starts_with("mechs/"),
@@ -169,6 +173,13 @@ mod tests {
         assert_eq!(s.name, "career-loop");
         assert_eq!(s.runs[0].play, "career-new");
         assert_eq!(s.runs.last().map(|r| r.play.as_str()), Some("career-continue"));
+        // Beat 5: the bought mech is air dropped, walked up to and boarded (mech-shop section 6).
+        let beats = &s.runs[0].beats;
+        let bought = beats.iter().position(|b| matches!(b, Beat::BuyMech(_))).unwrap();
+        let wait = beats.iter().position(|b| matches!(b, Beat::AwaitDrop(_))).unwrap();
+        assert!(bought < wait);
+        assert!(matches!(beats[wait + 1], Beat::WalkToDrop));
+        assert!(matches!(beats[wait + 2], Beat::Board));
     }
 
     #[test]

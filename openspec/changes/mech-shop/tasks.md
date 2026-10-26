@@ -22,7 +22,7 @@ Built with `career` and `air-bases`, after `mfd-menus`.
 - [x] 4.3 The game: the aircraft and canopies (block-out stand-ins), the fall and the landing through the mech's own
   landing, the marker and the warning, the dropped mech boardable by walking up to it, Continue keeping it (2026-10-26: built, not yet seen in a playtest)
 - [x] 4.4 The shop's text: AIR DROP NEAR YOU; the bay only as the fallback (2026-10-26: the terminal's SHOP page; the cockpit MFD has no shop page yet, task 2.1)
-- [ ] 4.5 `career-loop` playtest beat 5 waits for the drop, walks up to the mech and boards it
+- [x] 4.5 `career-loop` playtest beat 5 waits for the drop, walks up to the mech and boards it (2026-10-26: scripted with `AwaitDrop` and `WalkToDrop`, checked by cb-core tests; not yet played, the owner has not asked for a playtest)
 - [x] 4.6 Survey J16, answered ("a marker appears on your hud to show mech delivery. you can swap mechs out at base, with foreman always availible"): the HUD marker until the mech is boarded; the terminal's HANGAR tab and
   `Career::call_out`, the Foreman always available; tested in cb-core (2026-10-26: built; the call-out rules tested in cb-core, the HANGAR tab not yet seen in a playtest)
 - [ ] 4.7 Playtest on the owner's machine (only when the owner says so)

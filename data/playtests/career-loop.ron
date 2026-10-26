@@ -31,7 +31,7 @@
                 EnterBay(0),
                 Wait(4.0),
                 Disembark,
-                // 5. Buy a mech, see a tier 3 job, refit a weapon. The grant stands in for the dozen jobs a tier 3
+                // 5. Buy a mech (air dropped near the pilot), see a tier 3 job, refit a weapon, then board the drop. The grant stands in for the dozen jobs a tier 3
                 // mech and a gun would take; it is in the ledger as a playtest grant.
                 WalkToTerminal(0),
                 UseTerminal,
@@ -51,8 +51,14 @@
                 Fit(0, "cannon_40"),
                 Wait(2.0),
                 CloseTerminal,
-                Wait(1.0),
-                // 6. Quit (Escape, Quit): the game saves where the pilot stands.
+                // The Sapper is air dropped near the pilot (owner, 2026-10-26: "when a player orders a mech it should
+                // be air dropped close to wherever the player is on a good are on the ground (not stuck on a
+                // building)"): watch it come down under its canopies, walk up to it, climb in.
+                AwaitDrop(90.0),
+                WalkToDrop,
+                Board,
+                Wait(2.0),
+                // 6. Quit (Escape, Quit): the game saves where the pilot sits, in the dropped Sapper.
                 Quit,
             ],
         ),

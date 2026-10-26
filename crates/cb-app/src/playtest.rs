@@ -273,6 +273,7 @@ fn play(
             let tab = match which.as_str() {
                 "Shop" => TerminalTab::Shop,
                 "Refit" => TerminalTab::Refit,
+                "Hangar" => TerminalTab::Hangar,
                 _ => TerminalTab::Jobs,
             };
             if *s.tab == tab && (t.clicked || in_beat > 0.5) {
@@ -454,6 +455,57 @@ fn play(
             } else {
                 let i = career.and_then(|c| c.data.catalogue.listings.iter().position(|l| &l.design == design));
                 want_click = i.map(MenuButton::Buy);
+            }
+        }
+        Beat::AwaitDrop(cap) => {
+            let cfg = career.map(|c| c.data.drop.clone()).unwrap_or_default();
+            let now_s = career.map_or(0.0, |c| c.career.time_s);
+            // Progress is the time left to the last touchdown (seconds, as metres for the stuck check).
+            let left = career
+                .map(|c| {
+                    c.career
+                        .drops
+                        .iter()
+                        .filter(|d| !d.landed)
+                        .map(|d| cb_core::air_drop::fall_s(&cfg) - d.since_release_s(&cfg, now_s))
+                        .fold(0.0f32, f32::max)
+                })
+                .unwrap_or(0.0);
+            let falling = career.is_some_and(|c| c.career.drops.iter().any(|d| !d.landed));
+            if !falling {
+                info!("playtest: the air drop has landed");
+                done = true;
+            } else if in_beat > *cap {
+                fail(&mut t, now, &format!("the air drop had not landed in {cap:.0} s"));
+                return;
+            } else {
+                dist = Some(left.max(0.0) * 10.0 + 1.0);
+                // Look toward it, as a player would watch it come down.
+                if let Some(d) = career.and_then(|c| c.career.drops.iter().find(|d| !d.landed)) {
+                    let eyes = p.feet + Vec3::Y * 1.7;
+                    let site = Vec3::from_array(d.site) + Vec3::Y * 60.0;
+                    act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eyes, site, 0.25, 0.05);
+                }
+            }
+        }
+        Beat::WalkToDrop => {
+            let newest = career.and_then(|c| c.career.drops.iter().rev().find(|d| d.landed).map(|d| (d.key, d.site)));
+            match newest {
+                Some((key, site)) => {
+                    if career.is_some_and(|c| c.career.piloting == Some(key)) {
+                        info!("playtest: walking up to the dropped mech {key}");
+                        done = true;
+                    } else {
+                        let goal = Vec3::new(site[0], p.feet.y, site[2]);
+                        dist = Some(Vec2::new(p.feet.x - goal.x, p.feet.z - goal.z).length());
+                        act = walk_to(p, goal, 0.0);
+                        act.run = dist.is_some_and(|d| d > 50.0);
+                    }
+                }
+                None => {
+                    fail(&mut t, now, "no landed air drop to walk to");
+                    return;
+                }
             }
         }
         Beat::ExpectOffer(tier) => {
