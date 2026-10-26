@@ -36,6 +36,9 @@ pub struct InputAccum {
     /// Fire pressed while free look is held: press the MFD looked at (cockpit-mfds). Taken by the
     /// MFDs each frame, never by the fixed step.
     pub mfd_press: bool,
+    /// Escape pressed while pointing at an MFD's MENU or MAIL: BACK on that screen (`mfd-menus`), taken by the MFDs;
+    /// the pause menu stays shut.
+    pub mfd_back: bool,
     /// When set, a script plays instead of the keyboard (held axes and buttons); mouse look and
     /// latches above still add.
     pub script: Option<Actions>,

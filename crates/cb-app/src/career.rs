@@ -2,7 +2,8 @@
 //! title menu (New career, or Continue from `saves/career.ron`), steps the job board every fixed step
 //! with where the pilot is and how many of the job's enemies are left, brings a job's enemy mechs in
 //! when the pilot arrives at its site, pays a won job through the career's ledger, and saves. The rules
-//! are `cb_core::career` and `cb_core::jobs`; the mail is read and answered on the menu's MAIL page.
+//! are `cb_core::career` and `cb_core::jobs`; the mail is read and answered on the menu's MAIL page and the
+//! cockpit's (`mfd_apps`).
 
 use crate::mech::{Loadout, MechId, MechSim, Piloted, SpawnAssets, spawn_enemy};
 use crate::pilot::PilotSim;
@@ -425,8 +426,8 @@ fn step_jobs(
                     };
                     let mut rng = SimRng::new(seed).fork(&format!("job/{id}/mech/{i}"));
                     let a = rng.range_f32(0.0, std::f32::consts::TAU);
-                    let r = rng.range_f32(150.0, 350.0);
-                    let xz = job.site + Vec2::new(a.cos(), a.sin()) * r;
+                    let ring = rng.range_f32(0.0, 1.0);
+                    let xz = cb_core::jobs::enemy_spot(&run.data.jobs, job.site, at, a, ring);
                     let heading = (xz.x - job.site.x).atan2(xz.y - job.site.y);
                     let mech_id = MechId(1000 + id * 16 + i as u32);
                     if let Some(ent) = spawn_enemy(&mut commands, &plan, &loadout, xz, heading, rng, mech_id, &mut sa) {

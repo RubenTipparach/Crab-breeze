@@ -35,6 +35,8 @@ pub enum Menu {
     Mail,
     /// A hangar bay terminal's screen (air-bases): the jobs board, the shop and the refit, walked up to on foot.
     Terminal,
+    /// Free roam's mech page: the roster, a pick restarting free roam in it (mech-select).
+    Mech,
 }
 
 impl Menu {
@@ -54,7 +56,8 @@ pub struct Encounters;
 /// the start (free roam) or the city defence. Inserted once the run begins.
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Play {
-    /// The start with its encounter mechs.
+    /// Free roam: the city defence offered by mail (the menu's MAIL page and the cockpit's), the encounter
+    /// mechs only for a scripted take (`Encounters`).
     FreeRoam,
     /// The city defence mission.
     Defence,
@@ -94,6 +97,10 @@ pub(crate) enum MenuButton {
     NewCareer,
     Continue,
     Mail,
+    /// Free roam's Mech page.
+    MechPage,
+    /// Free roam again in this roster mech.
+    PickMech(usize),
     Accept(u32),
     Decline(u32),
     StartMission(cb_core::missions::MissionKind),
@@ -125,6 +132,7 @@ impl Plugin for MenuPlugin {
         app.init_resource::<Menu>()
             .init_resource::<TerminalTab>()
             .insert_resource(BackTo(Menu::Pause))
+            .insert_resource(Roster(cb_core::GameData::roster(&crate::cli::repo_root().join("data"))))
             .add_systems(Update, (escape, draw).chain().before(crate::sim::PresentSet::Input));
     }
 }
@@ -142,6 +150,7 @@ fn escape(
         Option<Res<Play>>,
         Option<Res<crate::missions::FreeRoamRun>>,
     ),
+    (pointed, mut acc): (Res<crate::mfd_apps::Pointed>, ResMut<crate::input::InputAccum>),
     mut menu: ResMut<Menu>,
     mut time: ResMut<Time<Virtual>>,
     mut cursor: Single<&mut CursorOptions>,
@@ -165,8 +174,14 @@ fn escape(
     if !input.any_just_pressed(keys.release_mouse.iter().copied()) {
         return;
     }
+    // In play, pointing at an MFD's MENU or MAIL in free look, Escape is that screen's BACK (mfd-menus), not the
+    // pause menu.
+    if *menu == Menu::Closed && pointed.page.is_some_and(|p| p >= crate::mfd_apps::MENU_PAGE) {
+        acc.mfd_back = true;
+        return;
+    }
     let next = match *menu {
-        Menu::Mail | Menu::Terminal => Menu::Closed,
+        Menu::Mail | Menu::Terminal | Menu::Mech => Menu::Closed,
         Menu::Closed => Menu::Pause,
         Menu::Pause => Menu::Closed,
         Menu::Title => Menu::Title,
@@ -211,10 +226,15 @@ struct Press<'a> {
     cursor: &'a mut CursorOptions,
 }
 
+/// The roster free roam's Mech page lists (`cb_core::GameData::roster`, mech-select), read once.
+#[derive(Resource)]
+struct Roster(Vec<cb_core::RosterMech>);
+
 /// A menu button was pressed.
 fn press(
     what: MenuButton,
     p: Press,
+    roster: &[cb_core::RosterMech],
     career: Option<&mut crate::career::CareerRun>,
     free: Option<&mut crate::missions::FreeRoamRun>,
     exit: &mut MessageWriter<AppExit>,
@@ -255,6 +275,19 @@ fn press(
                 p.back.0 = *p.menu;
             }
             set(p.menu, Menu::Mail, p.time, p.cursor);
+        }
+        MenuButton::MechPage => {
+            p.back.0 = Menu::Pause;
+            set(p.menu, Menu::Mech, p.time, p.cursor);
+        }
+        // Free roam again in the picked mech: the game starts itself again with it, as the menu starts it, and this
+        // run closes (mech-select: "In free play i can select any mech from the menu and it will swap out models").
+        MenuButton::PickMech(i) => {
+            if let Some(m) = roster.get(i) {
+                info!("menu: free roam again in the {}", m.name);
+                crate::launcher::start_game("free", Some(&m.file));
+                exit.write(AppExit::Success);
+            }
         }
         MenuButton::Accept(id) => {
             // One job at a time: accepting abandons the one under way (free-roam-missions).
@@ -361,6 +394,7 @@ fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton,
                   mut time: ResMut<Time<Virtual>>,
                   mut cursor: Single<&mut CursorOptions>,
                   mut career: Option<ResMut<crate::career::CareerRun>>,
+                  roster: Res<Roster>,
                   mut free: Option<ResMut<crate::missions::FreeRoamRun>>,
                   mut exit: MessageWriter<AppExit>,
                   (mut tab, terminal, plan, data): (
@@ -382,6 +416,7 @@ fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton,
                         time: &mut time,
                         cursor: &mut cursor,
                     },
+                    &roster.0,
                     career.as_deref_mut(),
                     free.as_deref_mut(),
                     &mut exit,
@@ -457,7 +492,7 @@ fn draw(
     menu: Res<Menu>,
     back: Res<BackTo>,
     settings: Res<Settings>,
-    data: Res<Data>,
+    (data, roster): (Res<Data>, Res<Roster>),
     career: Option<Res<crate::career::CareerRun>>,
     free: Option<Res<crate::missions::FreeRoamRun>>,
     terminal: Option<Res<crate::air_bases::AtTerminal>>,
@@ -533,6 +568,9 @@ fn draw(
                 button(p, "Resume", MenuButton::Resume);
                 if career.is_some() || free.is_some() {
                     button(p, "Mail", MenuButton::Mail);
+                }
+                if free.is_some() {
+                    button(p, "Mech", MenuButton::MechPage);
                 }
                 button(p, "Options", MenuButton::Options);
                 button(p, "Controls", MenuButton::Controls);
@@ -623,6 +661,20 @@ fn draw(
                         });
                     }
                 });
+                button(p, "Back", MenuButton::Back);
+            }
+            Menu::Mech => {
+                tabs(p, back.0);
+                p.spawn(label("MECH", 40.0, INK));
+                p.spawn(label("Free roam starts again in the mech you pick.", 24.0, DIM));
+                for (i, m) in roster.0.iter().enumerate() {
+                    let here = m.name == data.0.mech.name;
+                    button(
+                        p,
+                        &if here { format!("{} (now)", m.name) } else { m.name.clone() },
+                        MenuButton::PickMech(i),
+                    );
+                }
                 button(p, "Back", MenuButton::Back);
             }
             Menu::Mail => {

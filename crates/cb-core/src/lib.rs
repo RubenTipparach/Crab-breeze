@@ -160,6 +160,20 @@ impl GameData {
         })
     }
 
+    /// The roster (openspec change `mech-select`): every mech under `root/mechs` with a cockpit interior, in file-name
+    /// order, as the menu and free roam's pause menu list them. A mech file without an interior is the stand-in or a
+    /// retired mech. A file that does not load is left out (startup and `cb-tools validate` report it).
+    pub fn roster(root: &Path) -> Vec<RosterMech> {
+        Self::mech_files(root)
+            .into_iter()
+            .filter_map(|file| {
+                let cfg: mech::MechConfig = data::load_ron(&root.join(&file)).ok()?;
+                cfg.interior.as_ref()?;
+                Some(RosterMech { file, name: cfg.name })
+            })
+            .collect()
+    }
+
     /// The mech files under `root/mechs`, sorted by name.
     pub fn mech_files(root: &Path) -> Vec<String> {
         let mut out: Vec<String> = std::fs::read_dir(root.join("mechs"))
@@ -175,15 +189,63 @@ impl GameData {
     }
 }
 
+/// A mech the player can pilot (`GameData::roster`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RosterMech {
+    /// Its data file, relative to the data root (`mechs/foreman.ron`).
+    pub file: String,
+    /// Its display name.
+    pub name: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_roster_is_the_eight_mechs_with_cockpits() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let files: Vec<String> = GameData::roster(&root).into_iter().map(|m| m.file).collect();
+        for id in [
+            "driller",
+            "foreman",
+            "harrow",
+            "ironhorse",
+            "mule",
+            "picket",
+            "roustabout",
+            "sapper",
+        ] {
+            assert!(files.contains(&format!("mechs/{id}.ron")), "{id} is on the roster: {files:?}");
+        }
+        assert!(
+            !files.iter().any(|f| f.contains("placeholder") || f.contains("breeze")),
+            "{files:?}"
+        );
+        for f in &files {
+            GameData::load(&root, f).unwrap_or_else(|e| panic!("{f}: {e}"));
+        }
+    }
 
     #[test]
     fn every_shipped_data_file_loads() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
         for mech in GameData::mech_files(&root) {
             GameData::load(&root, &mech).unwrap_or_else(|e| panic!("{e}"));
+        }
+    }
+
+    /// Every roster mech sits in a cockpit of its own (openspec change `cockpit-identity`).
+    #[test]
+    fn no_two_mechs_share_a_cockpit_interior() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let mut seen: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+        for mech in GameData::mech_files(&root) {
+            let cfg: mech::MechConfig = data::load_ron(&root.join(&mech)).unwrap_or_else(|e| panic!("{e}"));
+            let Some(interior) = cfg.interior else { continue };
+            if let Some(other) = seen.insert(interior.model.clone(), mech.clone()) {
+                panic!("{mech} and {other} both sit in {}", interior.model);
+            }
         }
     }
 

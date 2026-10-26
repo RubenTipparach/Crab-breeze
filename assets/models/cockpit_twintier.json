@@ -1,0 +1,370 @@
+{
+  "variant": "twintier",
+  "model": "assets/models/cockpit_twintier/cockpit_twintier.gltf",
+  "frame": "glTF: +y up, the pilot faces +z, +x is the pilot's left; metres; origin on the tub floor under the eye",
+  "eye_m": [
+    0.0,
+    1.2,
+    0.0
+  ],
+  "envelope_m": {
+    "x": [
+      -1.0663849631871583,
+      1.0663849631871583
+    ],
+    "y": [
+      -0.07,
+      2.68
+    ],
+    "z": [
+      -0.87,
+      0.8477422209630291
+    ]
+  },
+  "bounds_closed_m": {
+    "x": [
+      -1.0,
+      1.0
+    ],
+    "y": [
+      -0.055,
+      2.535
+    ],
+    "z": [
+      -0.79,
+      0.768
+    ]
+  },
+  "bounds_open_m": {
+    "x": [
+      -1.0,
+      1.0
+    ],
+    "y": [
+      -0.055,
+      3.63
+    ],
+    "z": [
+      -1.041,
+      2.364
+    ]
+  },
+  "doorway_m": {
+    "width": 1.02,
+    "height": 1.9,
+    "through": "the front face (+z)"
+  },
+  "sockets": {
+    "EYE_pilot": [
+      0.0,
+      1.2,
+      0.0
+    ],
+    "SEAT_pilot": [
+      0.0,
+      0.45,
+      -0.02
+    ],
+    "HATCH_entry": [
+      0.0,
+      0.02,
+      0.7777
+    ]
+  },
+  "motions": {
+    "INNER_top": {
+      "value": 0.7,
+      "t0": 0.4,
+      "d": 1.6,
+      "slide": "y",
+      "pivot_m": [
+        0.0,
+        1.46,
+        -0.83
+      ]
+    },
+    "INNER_top_1": {
+      "value": -0.45,
+      "t0": 2.1,
+      "d": 1.0,
+      "axis": "x",
+      "pivot_m": [
+        0.0,
+        1.46,
+        -0.83
+      ]
+    },
+    "INNER_lower": {
+      "value": 0.04,
+      "t0": 1.8,
+      "d": 0.3,
+      "slide": "z",
+      "pivot_m": [
+        0.0,
+        -0.08,
+        0.8077
+      ]
+    },
+    "INNER_lower_1": {
+      "value": 1.42,
+      "t0": 2.1,
+      "d": 1.4,
+      "axis": "x",
+      "pivot_m": [
+        0.0,
+        -0.08,
+        0.8077
+      ]
+    }
+  },
+  "inner_opening_s": 3.0,
+  "front_screen_dir": [
+    0.0,
+    0.562,
+    0.827
+  ],
+  "allview_material": "SCREEN_allview",
+  "nodes": {
+    "pod": {
+      "parent": null,
+      "pivot_m": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "INNER_top": {
+      "parent": "pod",
+      "pivot_m": [
+        0.0,
+        1.46,
+        -0.83
+      ]
+    },
+    "INNER_top_1": {
+      "parent": "INNER_top",
+      "pivot_m": [
+        0.0,
+        1.46,
+        -0.83
+      ]
+    },
+    "INNER_lower": {
+      "parent": "pod",
+      "pivot_m": [
+        0.0,
+        -0.08,
+        0.8077
+      ]
+    },
+    "INNER_lower_1": {
+      "parent": "INNER_lower",
+      "pivot_m": [
+        0.0,
+        -0.08,
+        0.8077
+      ]
+    },
+    "CTRL_stick": {
+      "parent": "pod",
+      "pivot_m": [
+        -0.49,
+        0.665,
+        0.3
+      ]
+    },
+    "CTRL_throttle": {
+      "parent": "pod",
+      "pivot_m": [
+        0.4725,
+        0.66,
+        0.24
+      ]
+    },
+    "CONSOLE_front": {
+      "parent": "INNER_lower_1",
+      "pivot_m": [
+        0.0,
+        0.62,
+        0.4277
+      ]
+    },
+    "SCREEN_left": {
+      "parent": "CONSOLE_front",
+      "pivot_m": [
+        0.0,
+        0.62,
+        0.4277
+      ]
+    },
+    "SCREEN_center": {
+      "parent": "CONSOLE_front",
+      "pivot_m": [
+        0.0,
+        0.62,
+        0.4277
+      ]
+    },
+    "SCREEN_right": {
+      "parent": "CONSOLE_front",
+      "pivot_m": [
+        0.0,
+        0.62,
+        0.4277
+      ]
+    },
+    "HUD_mfd_0": {
+      "parent": "INNER_top_1",
+      "pivot_m": [
+        0.0,
+        1.46,
+        -0.83
+      ]
+    },
+    "HUD_mfd_1": {
+      "parent": "INNER_top_1",
+      "pivot_m": [
+        0.0,
+        1.46,
+        -0.83
+      ]
+    },
+    "HUD_mfd_2": {
+      "parent": "INNER_top_1",
+      "pivot_m": [
+        0.0,
+        1.46,
+        -0.83
+      ]
+    }
+  },
+  "meshes": {
+    "CONSOLE_front_front": {
+      "tris": 8304,
+      "group": "front",
+      "node": "CONSOLE_front"
+    },
+    "CTRL_stick_front": {
+      "tris": 628,
+      "group": "front",
+      "node": "CTRL_stick"
+    },
+    "CTRL_throttle_front": {
+      "tris": 628,
+      "group": "front",
+      "node": "CTRL_throttle"
+    },
+    "HUD_mfd_0_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "HUD_mfd_0"
+    },
+    "HUD_mfd_1_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "HUD_mfd_1"
+    },
+    "HUD_mfd_2_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "HUD_mfd_2"
+    },
+    "INNER_lower_1_allview": {
+      "tris": 2,
+      "group": "allview",
+      "node": "INNER_lower_1"
+    },
+    "INNER_lower_1_cabin": {
+      "tris": 578,
+      "group": "cabin",
+      "node": "INNER_lower_1"
+    },
+    "INNER_top_1_allview": {
+      "tris": 14,
+      "group": "allview",
+      "node": "INNER_top_1"
+    },
+    "INNER_top_1_cabin": {
+      "tris": 7838,
+      "group": "cabin",
+      "node": "INNER_top_1"
+    },
+    "SCREEN_center_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "SCREEN_center"
+    },
+    "SCREEN_left_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "SCREEN_left"
+    },
+    "SCREEN_right_screen": {
+      "tris": 2,
+      "group": "screen",
+      "node": "SCREEN_right"
+    },
+    "pod_allview": {
+      "tris": 8,
+      "group": "allview",
+      "node": "pod"
+    },
+    "pod_cabin": {
+      "tris": 11652,
+      "group": "cabin",
+      "node": "pod"
+    },
+    "pod_front": {
+      "tris": 24,
+      "group": "front",
+      "node": "pod"
+    }
+  },
+  "vents": 9,
+  "lights": 6,
+  "tris": 29688,
+  "tri_budget": 600000,
+  "draw_calls": 16,
+  "atlases": {
+    "front": {
+      "maps": [
+        "albedo",
+        "emissive",
+        "normal",
+        "orm"
+      ],
+      "px": 4096,
+      "emissive_strength": 1.0
+    },
+    "cabin": {
+      "maps": [
+        "albedo",
+        "emissive",
+        "normal",
+        "orm"
+      ],
+      "px": 4096,
+      "emissive_strength": 1.0
+    }
+  },
+  "bake": {
+    "ao_samples": 16,
+    "denoised": true,
+    "maps": "base colour, tangent normal, ORM (R occlusion, G roughness, B metal), emission; light is real time"
+  },
+  "panels": [
+    "breakers_L",
+    "breakers_R",
+    "console_L",
+    "console_R",
+    "dash_main",
+    "floor",
+    "footwell",
+    "glare",
+    "knee",
+    "rear",
+    "wall_L",
+    "wall_R"
+  ],
+  "bytes": 15012312
+}

@@ -48,9 +48,13 @@ pub struct MfdRoot;
 /// One MFD page's side, pixels (a row a multiple of 256 bytes).
 pub const MFD_PAGE_PX: f32 = 512.0;
 
-/// Pages side by side on the MFD texture, left to right: MECH, FLIGHT, MISSION, WEAPONS, TARGET (weapon-select).
-/// The pages' row and the texture are both this many pages wide, so each screen's slice holds exactly one page.
-pub const MFD_PAGES: usize = 5;
+/// Pages side by side on the MFD texture, left to right: MECH, FLIGHT, MISSION, WEAPONS, TARGET (weapon-select),
+/// then the cockpit's own MENU and MAIL (`mfd_apps`, openspec change `mfd-menus`). The pages' row and the texture are
+/// both this many pages wide, so each screen's slice holds exactly one page.
+pub const MFD_PAGES: usize = 7;
+
+/// The readout pages, the first of `MFD_PAGES`; the rest are `mfd_apps`'.
+pub const MFD_READOUTS: usize = 5;
 
 #[derive(Component)]
 struct LegArrow;
@@ -135,12 +139,12 @@ enum Readout {
     Service,
 }
 
-const GREEN: Color = Color::srgb(0.55, 0.95, 0.6);
-const AMBER: Color = Color::srgb(1.0, 0.75, 0.25);
+pub(crate) const GREEN: Color = Color::srgb(0.55, 0.95, 0.6);
+pub(crate) const AMBER: Color = Color::srgb(1.0, 0.75, 0.25);
 const RED: Color = Color::srgb(1.0, 0.3, 0.25);
-const FRAME: Color = Color::srgba(0.55, 0.95, 0.6, 0.35);
+pub(crate) const FRAME: Color = Color::srgba(0.55, 0.95, 0.6, 0.35);
 
-fn text(s: &str, size: f32) -> (Text, TextFont, TextColor) {
+pub(crate) fn text(s: &str, size: f32) -> (Text, TextFont, TextColor) {
     (Text::new(s), TextFont::from_font_size(size), TextColor(GREEN))
 }
 

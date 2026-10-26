@@ -59,6 +59,11 @@ def arc(r, a0, a1, n):
     return [(r * math.sin((a0 + (a1 - a0) * i / n) * D), r * math.cos((a0 + (a1 - a0) * i / n) * D)) for i in range(n + 1)]
 
 
+def arc_at(r, degs):
+    """Corners on a circle of radius r at the given bearings (degrees, left to right), as arc() but spaced freely."""
+    return [(r * math.sin(a * D), r * math.cos(a * D)) for a in degs]
+
+
 def mirror(half):
     """A plan given as its left half from the front round to the back: mirrored, the front left as one span."""
     return [(-x, z) for x, z in reversed(half)] + list(half)
@@ -71,8 +76,11 @@ LAYOUTS = [
          pillars=[2, 3], mfd=("top", "dash"), mfd_top_m=(-0.06, 0.16),
          text="One wide front screen, 1.9 m across, the pillars pushed out to the corners; square side screens to the "
               "shoulders. Armored Core's front."),
-    dict(id="tilewall", rear="ramp", mech="petals", name="Tile wall", rows=[(0.80, 1.38), (1.41, 1.99)], plan=arc(1.0, -105, 105, 11), pillars=[0, 11],
-         hatch_deg=42, mfd=("dash",),
+    # The Mule's (openspec change cockpit-identity): one wide tile ahead, 90 degrees across, and square tiles round the
+    # sides (11 tiles of 19 degrees were tall and thin, a bar every 19 degrees across the view); the rail between the
+    # rows 16 degrees over the eye line, and the three MFDs hung over the centre tile beside the dash's.
+    dict(id="tilewall", rear="ramp", mech="petals", name="Tile wall", rows=[(0.80, 1.48), (1.51, 1.99)], plan=arc_at(1.0, (-105, -75, -45, 45, 75, 105)), pillars=[0, 5],
+         hatch_deg=42, mfd=("top", "dash"),
          text="Two rows of square tiles round 210 degrees, a centimetre of wall between them and no pillar ahead: the "
               "structure is behind the pilot's shoulders."),
     dict(id="allview", rear="visor", mech="visor", name="All-view sphere", dome=dict(r=1.15, segs=16, rings=9), hatch_deg=46, mfd=("arms",),
@@ -82,7 +90,8 @@ LAYOUTS = [
          heavy=0.12, mfd=("top", "dash"),
          text="Titanfall's: a front screen 1.6 m across, side screens raked back, a heavy frame but all of it outside 45 "
               "degrees."),
-    dict(id="cinema", rear="hatch", mech="door", name="Cinema", rows=[(0.90, 1.95)], plan=mirror([(1.10, 0.95), (1.15, 0.05)]), pillars=[1, 2], mfd=("dash",),
+    # The Picket's (cockpit-identity): the three MFDs hung over its one screen beside the dash's.
+    dict(id="cinema", rear="hatch", mech="door", name="Cinema", rows=[(0.90, 1.95)], plan=mirror([(1.10, 0.95), (1.15, 0.05)]), pillars=[1, 2], mfd=("top", "dash"),
          text="One huge front screen 2.2 m by 1.05 m with no seam at all, square screens beside the knees."),
     # The Cab's dash and its row seam behind the dash's glare shield (openspec change cockpit-parity: "bring all other
     # implemented mechs in game up to the gold standard that is the Foreman"): the dash at the Panorama's height, the
@@ -91,17 +100,24 @@ LAYOUTS = [
          pillars=[2, 3], floor=True, mfd=("top", "dash"), dash_y_m=0.79,
          text="Floor to roof screens like a digger's glass cab, and a screen under the feet looking down at the ground "
               "ahead."),
-    dict(id="octagon", rear="hatch", mech="gullwing", name="Octagon", rows=[(0.75, 1.40), (1.43, 2.05)],
-         plan=mirror([(0.80, 0.80), (1.05, 0.45), (1.05, -0.20), (0.70, -0.60)]), pillars=[3, 4], mfd=("top", "dash"),
+    # The Driller's (cockpit-identity): the rail between the rows 21.6 degrees over the eye line, above the fighting band
+    # (10 degrees under the eye line to 20 over it), where it hid 30 % of the band (the owner's most is 25 %); the MFDs
+    # hang from the upper row's top bar (`mfd_row`), out of the band too.
+    dict(id="octagon", rear="hatch", mech="gullwing", name="Octagon", rows=[(0.75, 1.60), (1.63, 2.05)],
+         plan=mirror([(0.80, 0.80), (1.05, 0.45), (1.05, -0.20), (0.70, -0.60)]), pillars=[3, 4], mfd=("top", "dash"), mfd_row=1,
          text="The Stevedore's octagon, seated now and stretched so its front is 1.6 m across: pillars at 45 degrees "
               "instead of 21."),
-    dict(id="canopy", rear="barn", mech="canopy_rear", top="hump", name="Canopy", rows=[(0.85, 1.45)], plan=mirror([(0.85, 0.80), (1.00, 0.10), (0.90, -0.40)]), pillars=[2, 3],
-         # the hanging MFDs above the low front screen, on the bubble's front slope (cockpit-parity)
+    dict(id="canopy", rear="barn", mech="canopy_rear", top="hump", name="Canopy", rows=[(0.85, 1.58)], plan=mirror([(0.85, 0.80), (1.00, 0.10), (0.90, -0.40)]), pillars=[2, 3],
+         # the hanging MFDs above the low front screen, on the bubble's front slope (cockpit-parity); the screen's top raised
+    # from 1.45 m to 1.58 m, as its frame and roof hid 37 % of the fighting band (cockpit-identity: the owner's most is 25 %)
          ceiling=True, mfd=("top", "dash"), mfd_top_m=(0.15, 0.22),
          text="A fighter's canopy in flat screens: the front half of the ceiling is screens too, so you see up as well "
               "as out."),
-    dict(id="twintier", rear="barn", mech="elevator", top="hump", name="Twin tier", rows=[(0.78, 1.24), (1.30, 1.90)], plan=arc(0.95, -95, 95, 9), pillars=[0, 9],
-         hatch_deg=40, mfd=("dash",),
+    # The Sapper's (cockpit-identity): one wide tile ahead, 80 degrees across, square tiles round the sides, screens in
+    # the bubble overhead to watch the mortar's arc, the rail between the rings 16 degrees over the eye line, and the
+    # hung MFDs.
+    dict(id="twintier", rear="barn", mech="elevator", top="hump", name="Twin tier", rows=[(0.78, 1.46), (1.49, 1.90)], plan=arc_at(0.95, (-95, -67, -40, 40, 67, 95)), pillars=[0, 5],
+         hatch_deg=40, ceiling=True, mfd=("top", "dash"),
          text="Two rings of square screens round 190 degrees with one thin rail between them under the eye line."),
     dict(id="lowbank", rear="ramp", mech="canopy_front", top="hump", name="Low bank", rows=[(0.80, 1.42)], plan=mirror([(0.75, 1.00), (0.98, 0.50), (0.95, -0.40)]), pillars=[2, 3],
          mfd=("dash",),

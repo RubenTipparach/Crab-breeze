@@ -7,8 +7,8 @@
     tier: 3,
     model: Some("models/mech_sapper.glb"),
     interior: Some((
-        model: "models/cockpit_titan/cockpit_titan.gltf",
-        rides: [(part: "INNER_lower", joint: "CHEST_lower_1"), (part: "INNER_upper", joint: "CHEST_upper_2")],
+        model: "models/cockpit_twintier/cockpit_twintier.gltf",
+        rides: [(part: "INNER_lower", joint: "CHEST_lower_1"), (part: "INNER_top", joint: "CHEST_top_1")],
     )),
     locomotion: (
         walk_speed_max_m_s: 12.0,
@@ -21,7 +21,7 @@
         twist_rate_deg_s: 160.0,
         pitch_limits_deg: (-20.0, 25.0),
         pitch_rate_deg_s: 100.0,
-        body_radius_m: 4.78,
+        body_radius_m: 4.77,
         brush_radius_m: 10.93,
         body_height_m: 23.85,
         stopped_speed_m_s: 0.2,

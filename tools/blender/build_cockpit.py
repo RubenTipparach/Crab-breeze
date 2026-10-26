@@ -1169,7 +1169,11 @@ def build_layout(S, VAR):
                 nm = f"r{r}_{n_screen}"
                 n_screen += 1
                 flat_screen(S, nm, cnr, node_at(centre), strip=(r == 0))
-                if ahead and front_screen is None or (ahead and abs(EYE.y + 0.3 - (y0 + y1) / 2) < abs(EYE.y + 0.3 - front_screen[1])):
+                # the front screen the MFDs hang from: the row the layout names (`mfd_row`), else the one nearest a little
+                # over the eye
+                pick = r == L["mfd_row"] % len(rows) if "mfd_row" in L else (
+                    front_screen is None or abs(EYE.y + 0.3 - (y0 + y1) / 2) < abs(EYE.y + 0.3 - front_screen[1]))
+                if ahead and pick:
                     front_screen = (f"SCREEN_wall_{nm}", (y0 + y1) / 2, centre, n_in, node_at(centre), (y0, y1))
         # rails: under the first row, over the last, between rows
         levels = [rows[0][0] - 0.03] + [(rows[i][1] + rows[i + 1][0]) / 2 for i in range(len(rows) - 1)] + [rows[-1][1] + 0.04]
@@ -1395,7 +1399,42 @@ VARIANTS = {
                 ("LIGHT_footwell", "POINT", V(0, 0.15, 0.30), None, 1.0, (1.0, 0.18, 0.12), 0.03, None)],
         front_screen="SCREEN_wall_facet_p0", front_screen_c=V(0, 1.32, HC + HA)),
 }
-for _lid in ("panorama", "titan", "cab", "canopy"):     # the owner's picks, built in detail from their block-outs
+# Each cockpit's own trim (openspec change cockpit-identity: "customizing cockpits so they all are unique and different"):
+# the cabin's paint, its accent line, the seat's fabric and its lamps' two colours, so a cabin reads as its mech's from
+# the seat. A layout with no trim keeps the kit's grey and cyan and the warm and cool lamps (the Foreman's Panorama and
+# the three built before it: owner, "dont change foreman").
+TRIMS = {
+    # the Driller: a mining machine's cab, umber paint, amber lines, warm work lamps
+    "octagon": dict(roles={"paint": "#4a3f33", "paint_lt": "#6b5c4a", "paint_dk": "#2c251e", "fabric": "#4a3a2a"},
+                    accent=("#3a2405", "#ffae2e"), warm=(1.0, 0.78, 0.52), cool=(1.0, 0.9, 0.75)),
+    # the Picket: the sniper's dark slate room, ice-blue lines, cool and dim
+    "cinema": dict(roles={"paint": "#2c3542", "paint_lt": "#47536a", "paint_dk": "#171d26", "fabric": "#20262f"},
+                   accent=("#0d2a44", "#8fd0ff"), warm=(0.8, 0.86, 1.0), cool=(0.55, 0.7, 1.0), dim=0.7),
+    # the Mule: a hauler's olive cab, safety yellow lines
+    "tilewall": dict(roles={"paint": "#4a4f3a", "paint_lt": "#6d735a", "paint_dk": "#2b2e22", "fabric": "#3d3f2e"},
+                     accent=("#3d3306", "#ffd83a"), warm=(1.0, 0.9, 0.7), cool=(0.85, 0.92, 1.0)),
+    # the Sapper: a siege gun's sand-grey room on red night lighting
+    "twintier": dict(roles={"paint": "#4a4640", "paint_lt": "#6e6960", "paint_dk": "#2b2824", "fabric": "#352f29"},
+                     accent=("#3f0a08", "#ff4a36"), warm=(1.0, 0.55, 0.45), cool=(1.0, 0.72, 0.62)),
+}
+
+
+def apply_trim(variant, VAR):
+    """Set the kit's roles and the variant's lamps to the cockpit's trim, if it has one."""
+    t = TRIMS.get(variant)
+    if not t:
+        return
+    for role, c in t["roles"].items():
+        K.ROLES[role] = dict(K.ROLES[role], c=c)
+    K.ROLES["cyan"] = dict(K.ROLES["cyan"], c=t["accent"][0], emit=t["accent"][1])
+    swap = {WARM: t["warm"], COOL: t["cool"]}
+    dim = t.get("dim", 1.0)
+    VAR["lights"] = [(n, k, at, aim, w * dim, swap.get(col, col), r, cone) for n, k, at, aim, w, col, r, cone in VAR["lights"]]
+
+
+# The owner's picks, built in detail from their block-outs; the last four give every roster mech a cockpit of its own
+# (openspec change cockpit-identity: the Driller, Picket, Mule and Sapper).
+for _lid in ("panorama", "titan", "cab", "canopy", "octagon", "cinema", "tilewall", "twintier"):
     VARIANTS[_lid] = layout_variant(_lid)
 
 
@@ -1814,6 +1853,7 @@ def main():
     t0 = time.time()
     global EYE, MID, MODEL, MANIFEST
     VAR = VARIANTS[a.variant]
+    apply_trim(a.variant, VAR)
     EYE, MID = VAR["eye"], VAR["mid"]
     NODES.clear()
     NODES.update(VAR["nodes"])
