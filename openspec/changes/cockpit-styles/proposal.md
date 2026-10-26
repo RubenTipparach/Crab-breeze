@@ -22,8 +22,14 @@ colour but not in what they are made of.
     brushed steel trims, red-orange strips.
 - **New material features** in `tools/blender/cockpit_kit.py`: `wood`, `quilt`, `grain`, `stipple`, baked into the
   atlases' albedo and normal maps like the existing `weave` and `stripes`.
-- **Mockups before any bake**: `build_cockpit.py --style <name> --preview <png>` renders the built, unbaked cabin from
-  the seat (ahead, and turned to the left wall), so styles are judged before six hours of baking.
+- **Mockups before any bake**: a quick three.js mockup page (`docs/mockups/cockpit_styles.html`, the owner's ask) shows
+  each style in a cab block-out from the seat, with the wall dressing and wire runs proposed for the builder;
+  `build_cockpit.py --style <name> --preview <png>` renders the real unbaked cabin when a check of the builder's own
+  materials is needed.
+- **Wall dressing and tidy wires** (owner: "the wall is kinda empoty, need electrical panels, vents, rivets,
+  buttons", "tidy up the wires they go no where", "place wires along the struts"): breaker panels, vents, button
+  blocks and rivet rows on the side walls, and cable bundles clipped along the pillars into a junction box, as in the
+  mockup.
 - **Which mech gets which style** is the owner's pick from the mockups (open question CS1).
 
 ## Capabilities
