@@ -13,6 +13,7 @@ pub mod config;
 pub mod cover;
 pub mod deform;
 pub mod destruct;
+pub mod door;
 pub mod dressing;
 pub mod forest;
 pub mod grid;

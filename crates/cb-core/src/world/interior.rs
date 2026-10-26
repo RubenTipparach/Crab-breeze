@@ -43,6 +43,16 @@ pub struct InteriorConfig {
     pub personnel_door_w_m: f32,
     /// Clear height of the street door above its sill.
     pub door_clear_h_m: f32,
+    /// How far a street door swings open, from shut (survey W30: it swings as you walk into it).
+    pub door_open_deg: f32,
+    /// How fast it swings open.
+    pub door_open_deg_s: f32,
+    /// How fast it swings shut.
+    pub door_close_deg_s: f32,
+    /// How long it stands open after the pilot has gone before it starts to shut.
+    pub door_close_delay_s: f32,
+    /// A pilot this near the leaf's line, on either side, opens it (and holds it open).
+    pub door_trigger_m: f32,
     /// A person steps onto anything this far above their feet, or lower (a tread, a kerb, a stoop).
     pub step_m: f32,
     /// A person's height for collision: anything starting below this above the feet is in the way.
@@ -68,6 +78,11 @@ impl Default for InteriorConfig {
             lobby_door_w_m: 1.9,
             personnel_door_w_m: 1.0,
             door_clear_h_m: 2.2,
+            door_open_deg: 90.0,
+            door_open_deg_s: 200.0,
+            door_close_deg_s: 90.0,
+            door_close_delay_s: 1.5,
+            door_trigger_m: 1.5,
             step_m: 0.45,
             head_m: 1.8,
             collision_radius_m: 60.0,
@@ -91,6 +106,11 @@ impl crate::data::Validate for InteriorConfig {
             ("interiors.lobby_door_w_m", self.lobby_door_w_m),
             ("interiors.personnel_door_w_m", self.personnel_door_w_m),
             ("interiors.door_clear_h_m", self.door_clear_h_m),
+            ("interiors.door_open_deg", self.door_open_deg),
+            ("interiors.door_open_deg_s", self.door_open_deg_s),
+            ("interiors.door_close_deg_s", self.door_close_deg_s),
+            ("interiors.door_close_delay_s", self.door_close_delay_s),
+            ("interiors.door_trigger_m", self.door_trigger_m),
             ("interiors.step_m", self.step_m),
             ("interiors.head_m", self.head_m),
             ("interiors.collision_radius_m", self.collision_radius_m),
@@ -107,6 +127,9 @@ impl crate::data::Validate for InteriorConfig {
         }
         if self.door_clear_h_m <= self.head_m {
             return Err("`interiors.door_clear_h_m` must clear `interiors.head_m`".into());
+        }
+        if self.door_open_deg > 90.0 {
+            return Err("`interiors.door_open_deg` must not exceed 90: past it the leaf swings into the wall beside its jamb".into());
         }
         if self.collision_sync_m > self.collision_radius_m {
             return Err("`interiors.collision_sync_m` must not exceed `interiors.collision_radius_m`".into());
@@ -641,8 +664,8 @@ pub enum DoorKind {
     Personnel,
 }
 
-/// A building's street entrance: where the door is, what it is, what you stand on to reach it, its
-/// leaves (standing open: survey W30) and the way in from the pavement to the stair.
+/// A building's street entrance: where the door is, what it is, what you stand on to reach it and the
+/// way in from the pavement to the stair. Its leaves swing (`door::StreetDoor`, survey W30).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Entrance {
     /// The facade it is in (0 faces -z, 1 +z, 2 -x, 3 +x).
@@ -663,8 +686,6 @@ pub struct Entrance {
     pub kind: DoorKind,
     /// Concrete and stone to stand on: the stoop's steps and the threshold.
     pub steps: Vec<(Vec3, Vec3)>,
-    /// The door's leaves, standing open inside, at right angles to the facade.
-    pub leaves: Vec<(Vec3, Vec3)>,
     /// The way in (world x, z): outside the door, the door, through the lobby or corridor, the stair's
     /// door, the foot of the stair.
     pub route: Vec<Vec2>,
@@ -892,15 +913,6 @@ fn entrance_of(site: &Site, l: &Layout, stair: &Stair, cfg: &InteriorConfig, see
     if sill_m > 0.0 {
         steps.push(site.facade_box(side, s0, s1, 0.0, SKIN_M, y0, y0 + sill_m));
     }
-    let (ya, yb) = (y0 + sill_m, y0 + sill_m + cfg.door_clear_h_m);
-    let leaf_t = 0.05;
-    let leaves = match kind {
-        DoorKind::Lobby => vec![
-            site.facade_box(side, s0, s0 + leaf_t, SKIN_M, SKIN_M + width_m * 0.5, ya, yb),
-            site.facade_box(side, s1 - leaf_t, s1, SKIN_M, SKIN_M + width_m * 0.5, ya, yb),
-        ],
-        _ => vec![site.facade_box(side, s0, s0 + leaf_t, SKIN_M, SKIN_M + width_m, ya, yb)],
-    };
     let outside = centre + out * (1.6f32).min(site.fronts[side as usize] - 0.5).max(0.6);
     let mut route = vec![outside, centre];
     route.extend(inside);
@@ -914,7 +926,6 @@ fn entrance_of(site: &Site, l: &Layout, stair: &Stair, cfg: &InteriorConfig, see
         clear_m: cfg.door_clear_h_m,
         kind,
         steps,
-        leaves,
         route,
         lobby_u,
     }
@@ -1502,15 +1513,18 @@ pub struct Solid {
 
 /// A building's detailed colliders for the pilot on foot (design section 4): the facade bays with
 /// the entrance cut out, the floors with the stairwell cut out, the roof, every storey's walls,
-/// stair and furniture, the stoop and the open door leaves. One rule for all of them: a box no
-/// higher than `step_m` above the feet is stood on, a taller one that starts below `head_m` is a
-/// wall. Built from the same plans that are drawn.
+/// stair and furniture, and the stoop. One rule for all of them: a box no higher than `step_m` above
+/// the feet is stood on, a taller one that starts below `head_m` is a wall. Built from the same plans
+/// that are drawn. The street door's leaves swing (`door`), so they are not boxes: they are walls
+/// where they stand now, while the bay they hang in stands.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Walkable {
     /// The building.
     pub id: u32,
     /// Every box.
     pub solids: Vec<Solid>,
+    /// The street door, shut when the colliders are built.
+    pub door: super::door::StreetDoor,
     /// Box indices by storey band (the last band is the roof and above).
     buckets: Vec<Vec<u32>>,
     y0: f32,
@@ -1590,14 +1604,6 @@ impl Walkable {
         for &(min, max) in &e.steps {
             put(min, max, Anchor::Whole, false);
         }
-        let leaf_hold = Anchor::Wall {
-            k: 0,
-            side: e.side,
-            idx: e.bay,
-        };
-        for &(min, max) in &e.leaves {
-            put(min, max, leaf_hold, false);
-        }
         // Every storey's walls, stair and furniture.
         for k in 0..ns {
             let plan = plan_storey(site, k, cfg, seed);
@@ -1640,6 +1646,7 @@ impl Walkable {
         Self {
             id: site.id,
             solids,
+            door: super::door::StreetDoor::new(site, &shell.entrance, cfg),
             buckets,
             y0: origin.y,
             storey_m: size.y,
@@ -1653,11 +1660,17 @@ impl Walkable {
     /// True when `s` stands: always while the building is whole (`frame` is `None`), else while its
     /// element does.
     fn stands(s: &Solid, frame: Option<&super::structure::Frame>) -> bool {
+        Self::holds(s.hold, s.framed_only, frame)
+    }
+
+    /// True when what hangs on `hold` stands: always while the building is whole (`frame` is `None`)
+    /// unless it is `framed_only`, else while its element does.
+    pub fn holds(hold: dressing::Anchor, framed_only: bool, frame: Option<&super::structure::Frame>) -> bool {
         use super::structure::GROUND;
         use dressing::Anchor;
-        let Some(f) = frame else { return !s.framed_only };
+        let Some(f) = frame else { return !framed_only };
         let alive = |id: u32| id != GROUND && f.elements.get(id as usize).is_some_and(|e| e.alive);
-        match s.hold {
+        match hold {
             Anchor::Whole => true,
             Anchor::Slab { k, i, j } => alive(f.slab(k as usize, i as usize, j as usize)),
             Anchor::Wall { k, side, idx } => alive(f.wall(k as usize, side as usize, idx as usize)),
@@ -1665,8 +1678,13 @@ impl Walkable {
         }
     }
 
+    /// True while the street door's bay stands (a door in a blown-out bay is gone with it).
+    pub fn door_stands(&self, frame: Option<&super::structure::Frame>) -> bool {
+        Self::holds(self.door.hold, false, frame)
+    }
+
     /// A body of `radius_m` at `p` (x, z) with its feet at `feet_y`, moved out of every standing box
-    /// that is a wall to it.
+    /// that is a wall to it, and out of the street door's leaves as they stand now.
     pub fn push_out(&self, p: Vec2, radius_m: f32, feet_y: f32, cfg: &InteriorConfig, frame: Option<&super::structure::Frame>) -> Vec2 {
         if !p.is_finite() || !feet_y.is_finite() {
             return p;
@@ -1688,6 +1706,9 @@ impl Walkable {
                         p = super::collision::push_out_of_rect(p, radius_m, &r);
                     }
                 }
+            }
+            if self.door_stands(frame) {
+                p = self.door.push_out(p, radius_m, feet_y, cfg);
             }
         }
         p
@@ -1744,6 +1765,16 @@ impl Interiors {
             .collect();
         out.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)));
         out
+    }
+
+    /// Steps every built building's street door by `dt` with the pilot's body (`None` for no one on
+    /// foot), before the pilot moves; returns what was heard, by building, in id order.
+    pub fn step_doors(&mut self, pilot: Option<super::door::Body>, dt: f32) -> Vec<(u32, super::door::DoorEvent)> {
+        let cfg = &self.cfg;
+        self.buildings
+            .iter_mut()
+            .filter_map(|(&b, w)| w.door.step(pilot, cfg, dt).map(|e| (b, e)))
+            .collect()
     }
 
     /// Drops colliders that should go: all of them when the pilot is not on foot, else those past
@@ -1865,6 +1896,7 @@ mod tests {
         use crate::input::Actions;
         use crate::pilot::{PilotConfig, PilotState};
         use crate::world::destruct::Cells;
+        use crate::world::door::DoorPhase;
         use crate::world::{Deformation, Ground, Scene, Structures, WorldConfig, WorldPlan, generate};
         use std::sync::OnceLock;
 
@@ -2007,13 +2039,48 @@ mod tests {
                         let d = segment_to_rect(seg[0], seg[1], &r);
                         assert!(d > body, "building {b}: {s:?} is {d} m from the way in {seg:?}");
                     }
+                    // The door's leaves, standing open either way.
+                    let door = &w.door;
+                    for ang in [ic.door_open_deg, -door.out_max_deg] {
+                        for i in 0..door.leaves.len() {
+                            let (a, z) = door.leaf_at(i, ang);
+                            let r = Rect {
+                                min: a.min(z) - Vec2::splat(crate::world::door::LEAF_T_M * 0.5),
+                                max: a.max(z) + Vec2::splat(crate::world::door::LEAF_T_M * 0.5),
+                            };
+                            let d = segment_to_rect(seg[0], seg[1], &r);
+                            assert!(
+                                d > body,
+                                "building {b}: its leaf open at {ang} degrees is {d} m from the way in {seg:?}"
+                            );
+                        }
+                    }
                 }
             }
         }
 
-        /// A pilot walking `points` (feet) through `scene` at walking pace, steering at each in turn.
-        /// Returns where it ended, or where it got stuck.
-        fn walk(scene: &Scene, p: &mut PilotState, points: &[Vec2]) -> Result<(), String> {
+        const DT: f32 = 1.0 / 60.0;
+
+        /// The pilot's body as the doors see it.
+        fn body(p: &PilotState) -> crate::world::door::Body {
+            crate::world::door::Body {
+                at: Vec2::new(p.feet.x, p.feet.z),
+                feet_y: p.feet.y,
+                radius_m: PilotConfig::default().body_radius_m,
+            }
+        }
+
+        /// A pilot walking `points` (feet) at walking pace, steering at each in turn, among `st` and the
+        /// colliders `inside`, whose street doors are stepped before each pilot step as the game does.
+        /// `watch` sees the doors after every step. Returns where it got stuck, if it did.
+        fn walk_watching(
+            st: &Structures,
+            dug: &Deformation,
+            inside: &mut Interiors,
+            p: &mut PilotState,
+            points: &[Vec2],
+            mut watch: impl FnMut(&Interiors, &PilotState),
+        ) -> Result<(), String> {
             let cfg = PilotConfig::default();
             let fwd = Actions {
                 move_xy: Vec2::new(0.0, 1.0),
@@ -2038,10 +2105,24 @@ mod tests {
                         }
                     }
                     p.yaw_rad = (-d.x).atan2(-d.y);
-                    p.step(&fwd, &cfg, scene, None, 1.0 / 60.0);
+                    inside.step_doors(Some(body(p)), DT);
+                    p.step(&fwd, &cfg, &scene(st, dug, inside), None, DT);
+                    watch(inside, p);
                 }
             }
             Ok(())
+        }
+
+        /// `walk_watching`, unwatched.
+        fn walk(st: &Structures, dug: &Deformation, inside: &mut Interiors, p: &mut PilotState, points: &[Vec2]) -> Result<(), String> {
+            walk_watching(st, dug, inside, p, points, |_, _| {})
+        }
+
+        /// Stands the pilot where they are for `s` seconds, the doors stepping round them.
+        fn stand(inside: &mut Interiors, p: &PilotState, s: f32) {
+            for _ in 0..(s / DT) as usize {
+                inside.step_doors(Some(body(p)), DT);
+            }
         }
 
         fn interiors_for(st: &Structures, b: usize) -> Interiors {
@@ -2098,21 +2179,20 @@ mod tests {
             for b in picks {
                 let site = site_of(&st, b);
                 let sh = shell(&site, &cfg.interiors, &seed());
-                let inside = interiors_for(&st, b);
-                let sc = scene(&st, &dug, &inside);
+                let mut inside = interiors_for(&st, b);
+                assert_eq!(inside.buildings[&(b as u32)].door.phase, DoorPhase::Closed, "the door starts shut");
                 let start = sh.entrance.route[0];
-                let mut p = PilotState::standing(
-                    Vec3::new(start.x, sc.support_at(start.x, start.y, site.origin.y + 1.0), start.y),
-                    0.0,
-                );
-                walk(&sc, &mut p, &sh.entrance.route[1..]).unwrap_or_else(|e| panic!("building {b} ({:?}): {e}", sh.entrance.kind));
+                let y = scene(&st, &dug, &inside).support_at(start.x, start.y, site.origin.y + 1.0);
+                let mut p = PilotState::standing(Vec3::new(start.x, y, start.y), 0.0);
+                walk(&st, &dug, &mut inside, &mut p, &sh.entrance.route[1..])
+                    .unwrap_or_else(|e| panic!("building {b} ({:?}): {e}", sh.entrance.kind));
                 assert!(
                     site.footprint().distance(Vec2::new(p.feet.x, p.feet.z)) == 0.0,
                     "building {b}: inside"
                 );
                 for k in 0..site.n[1] - 1 {
                     let up: Vec<Vec2> = sh.stair.climb(k).iter().map(|q| Vec2::new(q.x, q.z)).collect();
-                    walk(&sc, &mut p, &up).unwrap_or_else(|e| panic!("building {b}, storey {k}: {e}"));
+                    walk(&st, &dug, &mut inside, &mut p, &up).unwrap_or_else(|e| panic!("building {b}, storey {k}: {e}"));
                     let floor = sh.stair.floor_y(k + 1);
                     assert!(
                         (p.feet.y - floor).abs() < 0.05,
@@ -2132,14 +2212,13 @@ mod tests {
             let b = samples(&st)[0];
             let site = site_of(&st, b);
             let e = shell(&site, &cfg.interiors, &seed()).entrance;
-            let inside = interiors_for(&st, b);
-            let sc = scene(&st, &dug, &inside);
+            let mut inside = interiors_for(&st, b);
             // Two metres along the facade from the door, walking straight at it.
             let along = if e.side < 2 { Vec2::X } else { Vec2::Y };
             let out = Site::out_of(e.side);
             let at = e.centre + along * (e.width_m * 0.5 + 1.5);
             let mut p = PilotState::standing(Vec3::new((at + out * 2.0).x, site.origin.y, (at + out * 2.0).y), 0.0);
-            let _ = walk(&sc, &mut p, &[at - out * 2.0]);
+            let _ = walk(&st, &dug, &mut inside, &mut p, &[at - out * 2.0]);
             let feet = Vec2::new(p.feet.x, p.feet.z);
             assert!((feet - e.centre).dot(out) > 0.3, "building {b}: stopped outside at {feet:?}");
         }
@@ -2164,11 +2243,144 @@ mod tests {
                 2.0,
             );
             assert!(broke > 0, "the blast broke something");
-            let inside = interiors_for(&st, b);
-            let sc = scene(&st, &dug, &inside);
+            let mut inside = interiors_for(&st, b);
             let from = hole + out * 2.0;
             let mut p = PilotState::standing(Vec3::new(from.x, site.origin.y, from.y), 0.0);
-            walk(&sc, &mut p, &[hole - out * 1.0]).unwrap_or_else(|e| panic!("building {b}: {e}"));
+            walk(&st, &dug, &mut inside, &mut p, &[hole - out * 1.0]).unwrap_or_else(|e| panic!("building {b}: {e}"));
+        }
+
+        #[test]
+        fn a_shut_door_is_a_wall() {
+            // The same walk as the walk-in, with the doors never stepped: the shut leaf stops them.
+            let (plan, cfg) = world();
+            let st = Structures::new(plan);
+            let dug = Deformation::new(cfg.world_size_m);
+            let b = samples(&st)[0];
+            let site = site_of(&st, b);
+            let e = shell(&site, &cfg.interiors, &seed()).entrance;
+            let inside = interiors_for(&st, b);
+            let sc = scene(&st, &dug, &inside);
+            let start = e.route[0];
+            let mut p = PilotState::standing(
+                Vec3::new(start.x, sc.support_at(start.x, start.y, site.origin.y + 1.0), start.y),
+                0.0,
+            );
+            let fwd = Actions {
+                move_xy: Vec2::new(0.0, 1.0),
+                ..Default::default()
+            };
+            let goal = e.route[2];
+            for _ in 0..600 {
+                let d = goal - Vec2::new(p.feet.x, p.feet.z);
+                p.yaw_rad = (-d.x).atan2(-d.y);
+                p.step(&fwd, &PilotConfig::default(), &sc, None, DT);
+            }
+            let out = Site::out_of(e.side);
+            assert!(
+                (Vec2::new(p.feet.x, p.feet.z) - e.centre).dot(out) > 0.0,
+                "building {b}: held outside the shut door at {}",
+                p.feet
+            );
+        }
+
+        #[test]
+        fn a_door_swings_away_from_a_pilot_walking_through_it_both_ways_and_shuts_behind_them() {
+            let (plan, cfg) = world();
+            let ic = &cfg.interiors;
+            let st = Structures::new(plan);
+            let dug = Deformation::new(cfg.world_size_m);
+            for b in samples(&st) {
+                let site = site_of(&st, b);
+                let e = shell(&site, ic, &seed()).entrance;
+                let id = b as u32;
+                let mut inside = interiors_for(&st, b);
+                let start = e.route[0];
+                let y = scene(&st, &dug, &inside).support_at(start.x, start.y, site.origin.y + 1.0);
+                let mut p = PilotState::standing(Vec3::new(start.x, y, start.y), 0.0);
+                // In off the street: it swings in, never out, and never closes while they are in it.
+                let (mut most, mut least) = (0.0f32, 0.0f32);
+                let mut watch = |i: &Interiors, p: &PilotState| {
+                    let d = &i.buildings[&id].door;
+                    most = most.max(d.angle_deg);
+                    least = least.min(d.angle_deg);
+                    if d.in_zone(&body(p), ic) && d.at_level(p.feet.y, ic) {
+                        assert_ne!(d.phase, DoorPhase::Closing, "building {b}: it shut on them");
+                    }
+                };
+                walk_watching(&st, &dug, &mut inside, &mut p, &e.route[1..3], &mut watch)
+                    .unwrap_or_else(|err| panic!("building {b} in: {err}"));
+                assert!(
+                    most >= ic.door_open_deg - 1e-3 && least == 0.0,
+                    "building {b}: swung in ({most}, {least})"
+                );
+                // They have gone in: it shuts behind them.
+                walk(&st, &dug, &mut inside, &mut p, &e.route[3..]).unwrap_or_else(|err| panic!("building {b} on: {err}"));
+                stand(&mut inside, &p, ic.door_close_delay_s + 90.0 / ic.door_close_deg_s + 0.5);
+                assert_eq!(
+                    inside.buildings[&id].door.phase,
+                    DoorPhase::Closed,
+                    "building {b}: shut behind them"
+                );
+                // Back out from the hall: it swings out.
+                let back: Vec<Vec2> = e.route.iter().rev().copied().collect();
+                let (mut most, mut least) = (0.0f32, 0.0f32);
+                walk_watching(&st, &dug, &mut inside, &mut p, &back[1..], |i, _| {
+                    let d = &i.buildings[&id].door;
+                    most = most.max(d.angle_deg);
+                    least = least.min(d.angle_deg);
+                })
+                .unwrap_or_else(|err| panic!("building {b} out: {err}"));
+                assert!(
+                    least <= -inside.buildings[&id].door.out_max_deg + 1e-3 && most == 0.0,
+                    "building {b}: swung out ({most}, {least})"
+                );
+                let feet = Vec2::new(p.feet.x, p.feet.z);
+                assert!(site.footprint().distance(feet) > 0.0, "building {b}: back on the street");
+            }
+        }
+
+        #[test]
+        fn a_pilot_standing_in_the_doorway_holds_the_door_open() {
+            let (plan, cfg) = world();
+            let ic = &cfg.interiors;
+            let st = Structures::new(plan);
+            let dug = Deformation::new(cfg.world_size_m);
+            let b = samples(&st)[0];
+            let site = site_of(&st, b);
+            let e = shell(&site, ic, &seed()).entrance;
+            let mut inside = interiors_for(&st, b);
+            let start = e.route[0];
+            let y = scene(&st, &dug, &inside).support_at(start.x, start.y, site.origin.y + 1.0);
+            let mut p = PilotState::standing(Vec3::new(start.x, y, start.y), 0.0);
+            walk(&st, &dug, &mut inside, &mut p, &e.route[1..2]).unwrap_or_else(|err| panic!("building {b}: {err}"));
+            stand(&mut inside, &p, 30.0);
+            let d = &inside.buildings[&(b as u32)].door;
+            assert_eq!(d.phase, DoorPhase::Open, "building {b}: open while they stand in the doorway");
+            let fine = scene(&st, &dug, &inside);
+            let here = Vec2::new(p.feet.x, p.feet.z);
+            assert_eq!(
+                fine.push_out_at(here, PilotConfig::default().body_radius_m, p.feet.y),
+                here,
+                "not pushed by the door"
+            );
+        }
+
+        #[test]
+        fn every_door_in_the_world_swings_fully_both_ways() {
+            // The leaf swung out stays on this building's side of the party line; in the shipped world
+            // that never cuts a door's swing short, so walking out is as clear as walking in.
+            let (plan, cfg) = world();
+            let st = Structures::new(plan);
+            for b in 0..plan.buildings.len() {
+                let site = site_of(&st, b);
+                let e = shell(&site, &cfg.interiors, &seed()).entrance;
+                let d = crate::world::door::StreetDoor::new(&site, &e, &cfg.interiors);
+                assert!(
+                    (d.out_max_deg - cfg.interiors.door_open_deg).abs() < 1e-3,
+                    "building {b}: swings out only {} degrees",
+                    d.out_max_deg
+                );
+            }
         }
 
         #[test]

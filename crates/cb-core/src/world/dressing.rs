@@ -635,8 +635,8 @@ fn shopfront(
     }
 }
 
-/// The bay holding the street door `e`, as an opening in the wall (its stoop and open leaves are
-/// pieces of their own, from `e`, which the colliders also read): a walk-up's timber doorway under a
+/// The bay holding the street door `e`, as an opening in the wall (its stoop is a piece of its own,
+/// from `e`, which the colliders also read; its swinging leaves are drawn by the app): a walk-up's timber doorway under a
 /// glazed transom, an office's lobby front, a warehouse's steel-framed personnel door.
 #[allow(clippy::too_many_arguments)]
 fn street_door(
@@ -679,6 +679,19 @@ fn street_door(
     }
 }
 
+/// What building `id`'s street door leaves are made of and their tint: a walk-up's timber, an
+/// office's glass (the building's own), a warehouse's painted steel. The same draw of the skin's
+/// stream as `dress`, so a lobby door's glass matches its shopfront.
+pub fn leaf_finish(id: u32, n: [usize; 3], size: Vec3, seed: &SimRng, kind: DoorKind) -> (Mat, [f32; 3]) {
+    let mut srng = seed.fork(&format!("building/{id}/skin"));
+    let look = look_of(n[1], size.x * n[0] as f32 * size.z * n[2] as f32, &mut srng);
+    match kind {
+        DoorKind::Front => (Mat::Wood, [0.55, 0.35, 0.22]),
+        DoorKind::Lobby => (Mat::Glass, look.glass),
+        DoorKind::Personnel => (Mat::Trim, [0.40, 0.44, 0.33]),
+    }
+}
+
 /// The style a building is dressed in: the first draw of its skin's stream, as `dress` makes it.
 pub fn style_for(id: u32, n: [usize; 3], size: Vec3, seed: &SimRng) -> Style {
     let mut srng = seed.fork(&format!("building/{id}/skin"));
@@ -690,8 +703,8 @@ pub fn style_for(id: u32, n: [usize; 3], size: Vec3, seed: &SimRng) -> Style {
 /// per bay so each can follow its element; otherwise long pieces are merged. `fronts` is the clear
 /// distance in front of each facade (`WorldPlan::fronts`): a facade's trim stands out at most half
 /// of it, so it stops short of the line between two buildings. `shell` is the building's street
-/// entrance and stair (`interior::shell`): the door's bay is drawn open, its stoop and leaves with it,
-/// and a whole building's floors have the stairwell cut out; without one there is no street door.
+/// entrance and stair (`interior::shell`): the door's bay is drawn open with its stoop (the leaves swing,
+/// so the app draws them: `leaf_finish`), and a whole building's floors have the stairwell cut out; without one there is no street door.
 #[allow(clippy::too_many_arguments)]
 pub fn dress(
     id: u32,
@@ -795,7 +808,8 @@ pub fn dress(
             }
         }
     }
-    // The street door's stoop and threshold, and its leaves standing open (survey W30).
+    // The street door's stoop and threshold. Its leaves swing (survey W30), so the app draws them on
+    // their own, posed from `door::StreetDoor`, in `leaf_finish`.
     if let Some(e) = shell.map(|s| &s.entrance) {
         let leaf = Anchor::Wall {
             k: 0,
@@ -806,17 +820,6 @@ pub fn dress(
             out.push(Piece {
                 mat: Mat::Concrete,
                 ..block(min, max, STONE, if segmented { leaf } else { Anchor::Whole })
-            });
-        }
-        let (mat, color) = match e.kind {
-            DoorKind::Front => (Mat::Wood, [0.55, 0.35, 0.22]),
-            DoorKind::Lobby => (Mat::Glass, look.glass),
-            DoorKind::Personnel => (Mat::Trim, [0.40, 0.44, 0.33]),
-        };
-        for &(min, max) in &e.leaves {
-            out.push(Piece {
-                mat,
-                ..block(min, max, color, leaf)
             });
         }
     }

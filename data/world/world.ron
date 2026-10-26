@@ -391,6 +391,15 @@
         lobby_door_w_m: 1.9,
         personnel_door_w_m: 1.0,
         door_clear_h_m: 2.2,
+        // Street doors swing open as you walk into them and shut behind you (survey W30): a pilot on
+        // foot within 1.5 m of the leaf, either side, opens it away from them, 90 degrees in 0.45 s;
+        // it stands open while they are in the doorway, then 1.5 s after they have gone, and shuts in
+        // 1 s. Never past 90 degrees (the leaf would swing into the wall beside its jamb).
+        door_open_deg: 90.0,
+        door_open_deg_s: 200.0,
+        door_close_deg_s: 90.0,
+        door_close_delay_s: 1.5,
+        door_trigger_m: 1.5,
         // On foot, anything this high or lower is stepped onto; anything starting below head height
         // is in the way.
         step_m: 0.45,

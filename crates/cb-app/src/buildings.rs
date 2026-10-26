@@ -284,7 +284,65 @@ struct Dressing {
 
 /// Dressed buildings near the player.
 #[derive(Resource, Default)]
-struct Dressed(HashMap<u32, Dressing>);
+pub(crate) struct Dressed(HashMap<u32, Dressing>);
+
+impl Dressed {
+    /// The buildings dressed now, in id order (their street doors are drawn with them: `street_doors`).
+    pub(crate) fn ids(&self) -> Vec<u32> {
+        let mut ids: Vec<u32> = self.0.keys().copied().collect();
+        ids.sort_unstable();
+        ids
+    }
+}
+
+/// What a street door leaf is drawn in (`street_doors`): the shared building materials, so a leaf
+/// matches the skin it hangs in.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct LeafLooks<'w> {
+    shared: ResMut<'w, Materials>,
+    looks: Option<Res<'w, BuildingLooks>>,
+    states: Res<'w, BuildingStates>,
+    bases: Res<'w, Assets<StandardMaterial>>,
+    arrays: ResMut<'w, Assets<ArrayMaterial>>,
+    glasses: ResMut<'w, Assets<BuildingMaterial>>,
+}
+
+impl LeafLooks<'_> {
+    /// Spawns a leaf: a box `size` (width along local +x from the hinge at the origin, height up,
+    /// thickness centred on z) in `mat` tinted `tint`. `None` until the building looks are loaded.
+    pub(crate) fn spawn(
+        &mut self,
+        commands: &mut Commands,
+        meshes: &mut Assets<Mesh>,
+        mat: Mat,
+        tint: [f32; 3],
+        size: Vec3,
+        name: String,
+    ) -> Option<(Entity, Handle<Mesh>)> {
+        let looks = self.looks.as_deref()?;
+        self.shared.follow(&self.states, &mut self.arrays, &mut self.glasses);
+        let (min, max) = (Vec3::new(0.0, 0.0, -size.z * 0.5), Vec3::new(size.x, size.y, size.z * 0.5));
+        let col = [tint[0], tint[1], tint[2], 0.0];
+        let (look, mesh) = if mat == Mat::Glass {
+            let mut mb = MeshBuilder::tiled(tile_m(Mat::Glass), tile_m(Mat::Glass));
+            mb.block(min, max, col);
+            (Look::Glass, mb.build())
+        } else {
+            let mut mb = MeshBuilder::default();
+            let layer = Layer::Skin(mat);
+            mb.set_layer(layer.index(), layer.tile_m());
+            mb.block(min, max, col);
+            (Look::Skin, mb.build_with_tangents())
+        };
+        let handle = meshes.add(mesh);
+        let mut e = commands.spawn((Name::new(name), Mesh3d(handle.clone()), Transform::IDENTITY));
+        match self.shared.get(look, looks, &self.bases, &mut self.arrays, &mut self.glasses) {
+            Material::Array(h) => e.insert(MeshMaterial3d(h)),
+            Material::Glass(h) => e.insert(MeshMaterial3d(h)),
+        };
+        Some((e.id(), handle))
+    }
+}
 
 /// Set when every building near the player is dressed (none waits for its turn), so a capture
 /// can wait for the street to finish dressing on a slow renderer.

@@ -53,6 +53,7 @@ mod sim;
 mod skins;
 mod sky_light;
 mod soft_sprites;
+mod street_doors;
 mod sun_flare;
 mod targeting;
 mod textures;
@@ -172,8 +173,8 @@ fn main() -> AppExit {
     ))
     // Free roam's mail and its missions (free-roam-missions); the Hermit (crab-airship).
     .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin))
-    // Buildings a pilot on foot walks into (building-interiors).
-    .add_plugins(walk_in::WalkInPlugin)
+    // Buildings a pilot on foot walks into, and their street doors (building-interiors).
+    .add_plugins((walk_in::WalkInPlugin, street_doors::StreetDoorsPlugin))
     // sound: effects in 3D, music, ambience (openspec changes `audio`, `music`, `ambience`)
     .add_plugins((audio::SoundPlugin, music::MusicPlugin, ambience::AmbiencePlugin));
     // Cheap, correctly lit clouds (openspec change `cloud-puffs`); `CB_NO_CLOUDS=1` leaves them

@@ -9,6 +9,11 @@
 //! freed. The moment the pilot is not on foot (boarding, seated, climbing out) all of them are freed and
 //! jobs dropped: in the mech, buildings are their coarse cells. Climbing out ends on foot in one step,
 //! and this runs before the next, so the first step on foot already has the buildings beside it.
+//!
+//! Then, still before the pilot moves, every built building's street door is stepped with the pilot's
+//! body (survey W30: "A door that swings open as you walk into it, and shuts behind you";
+//! `cb_core::world::door`). A door's state lives with its colliders, so it is shut whenever they are
+//! built afresh.
 
 use crate::pilot::PilotSim;
 use crate::sim::{Data, SimSet};
@@ -16,6 +21,7 @@ use crate::world::{Live, Plan, Seed};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use cb_core::pilot::PilotMode;
+use cb_core::world::door::Body;
 use cb_core::world::interior::{Interiors, Site, Walkable};
 use std::collections::BTreeMap;
 
@@ -38,7 +44,13 @@ impl Plugin for WalkInPlugin {
         let cfg = app.world().resource::<Data>().0.world.interiors.clone();
         app.insert_resource(InteriorColliders(Interiors { cfg, ..Default::default() }))
             .init_resource::<ColliderJobs>()
-            .add_systems(FixedUpdate, stream_colliders.in_set(SimSet::Pilot).before(crate::pilot::step_pilot));
+            .add_systems(
+                FixedUpdate,
+                (stream_colliders, swing_doors)
+                    .chain()
+                    .in_set(SimSet::Pilot)
+                    .before(crate::pilot::step_pilot),
+            );
     }
 }
 
@@ -87,4 +99,20 @@ fn stream_colliders(
     }
     let keep = inside.cfg.collision_radius_m + inside.cfg.collision_margin_m;
     jobs.0.retain(|&b, _| plan.0.buildings[b as usize].footprint.distance(here) <= keep);
+}
+
+/// Swings the street doors of the buildings round a pilot on foot (module docs).
+fn swing_doors(pilot: Res<PilotSim>, data: Res<Data>, time: Res<Time<Fixed>>, mut colliders: ResMut<InteriorColliders>) {
+    let p = &pilot.curr;
+    if p.mode != PilotMode::OnFoot {
+        return;
+    }
+    let body = Body {
+        at: Vec2::new(p.feet.x, p.feet.z),
+        feet_y: p.feet.y,
+        radius_m: data.0.pilot.body_radius_m,
+    };
+    for (b, event) in colliders.0.step_doors(Some(body), time.delta_secs()) {
+        debug!("building {b}: street door {event:?}");
+    }
 }
