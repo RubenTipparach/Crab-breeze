@@ -34,7 +34,7 @@ A mech's foot strike whose foot covers a car SHALL crush that car.
 
 ### Requirement: Traffic exists only near the pilot
 
-Cars SHALL be spawned only within 1.5 km of the pilot and out of view, and dropped beyond 2 km.
+Cars SHALL be spawned only within 1 km of the pilot and out of view, and dropped beyond 1.2 km (owner, 2026-10-26: "car should be 1000m").
 
 #### Scenario: Flying away
 - **WHEN** the pilot cruises 3 km from a city
