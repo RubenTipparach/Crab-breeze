@@ -33,11 +33,11 @@ Each step is a playable game on its own, and the next one builds on it.
 | 1 | `save-game` | Continue restores where you were: position, mech, damage, ammunition, money, the job under way | built: autosave and Continue work in free roam |
 | 2 | `air-bases` | Five bases: landing pads, hangar bays, a repair bay (free repair and rearm), the job terminal | block-out built: placed, drawn, free repair and rearm in any bay |
 | 3 | `airfields`, `mech-shop` | Buy mechs with job pay; they are delivered by air to an airfield | written |
-| 4 | `career-progression` | Jobs in risk tiers; a tier opens when you own a mech that can take it | to write |
-| 5 | `mech-custom` | Refit weapons and armour, repaint, in a hangar bay, for money | to write |
+| 4 | `career-progression` | Jobs in risk tiers; a tier opens when you own a mech that can take it | written |
+| 5 | `mech-custom` | Refit weapons and armour, repaint, in a hangar bay, for money | written |
 | 6 | `car-traffic`, `car-driving` | Traffic on the roads; get in a parked car or take one from its driver, and drive | written |
-| 7 | `civilians` | People on the pavements, in parks and at the bases; walk up and greet them | to write |
-| 8 | `harbours` | Harbours, ships at sea and their crews; shipping jobs | to write |
+| 7 | `civilians` | People on the pavements, in parks and at the bases; walk up and greet them | written |
+| 8 | `harbours` | Harbours, ships at sea and their crews; shipping jobs | written |
 
 Rules that hold throughout: free roam starts with no enemies (owner, 2026-10-25: "its CALLED FREE
 ROAM"); enemies come only for a job you accepted, when you reach its site; the menu runs with no world
