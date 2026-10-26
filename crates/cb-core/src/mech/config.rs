@@ -384,6 +384,8 @@ pub struct InteriorConfig {
 pub struct MechConfig {
     /// Display name.
     pub name: String,
+    /// Its risk tier, 1 to 4: the riskiest jobs owning it opens (openspec change `career-progression`).
+    pub tier: u8,
     /// A glb under `assets/` following the rig contract (`models/mech_<name>.glb`). When set it
     /// replaces the stand-in's boxes; the stand-in skeleton is then unused.
     pub model: Option<String>,
@@ -427,6 +429,7 @@ impl Default for MechConfig {
     fn default() -> Self {
         Self {
             name: "stand-in".into(),
+            tier: 1,
             model: None,
             interior: None,
             body: BodyConfig::default(),
@@ -446,6 +449,9 @@ impl Default for MechConfig {
 
 impl Validate for MechConfig {
     fn validate(&self) -> Result<(), String> {
+        if !(1..=4).contains(&self.tier) {
+            return Err(format!("`tier` must be 1 to 4, got {}", self.tier));
+        }
         let r = &self.ram;
         positive("ram.speed_m_s", r.speed_m_s)?;
         within("ram.stopped_fraction", r.stopped_fraction, 0.0, 1.0)?;

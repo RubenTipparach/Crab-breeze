@@ -19,6 +19,14 @@ pub struct CareerConfig {
     pub start_mech: String,
     /// The newest ledger entries kept in a save.
     pub ledger_kept: usize,
+    /// Standing gained with the offering base for a job won (career-progression).
+    pub standing_per_job: i64,
+    /// Standing lost with it for a job failed or abandoned.
+    pub standing_lost: i64,
+    /// The most standing a base keeps for the pilot.
+    pub standing_max: i64,
+    /// The share a base's pay rises per point of standing there (0.05: 5 % a point).
+    pub pay_bonus_per_standing: f32,
 }
 
 impl Default for CareerConfig {
@@ -27,6 +35,10 @@ impl Default for CareerConfig {
             start_money: 1_000,
             start_mech: "mechs/foreman.ron".into(),
             ledger_kept: 200,
+            standing_per_job: 1,
+            standing_lost: 1,
+            standing_max: 10,
+            pay_bonus_per_standing: 0.05,
         }
     }
 }
@@ -39,6 +51,10 @@ impl Validate for CareerConfig {
         if self.start_mech.is_empty() {
             return Err("start_mech: must name a mech file".into());
         }
+        if self.standing_per_job < 0 || self.standing_lost < 0 || self.standing_max < 0 {
+            return Err("standing: gains, losses and the most must not be negative".into());
+        }
+        crate::data::within("pay_bonus_per_standing", self.pay_bonus_per_standing, 0.0, 1.0)?;
         positive("ledger_kept", self.ledger_kept as f32)
     }
 }
@@ -135,6 +151,10 @@ pub struct Career {
     /// saves from before it.
     #[serde(default)]
     pub place: Option<crate::save::Place>,
+    /// The pilot's standing with each base, by base id (career-progression); never below zero. It raises
+    /// that base's pay and never closes a base to the pilot (CP2).
+    #[serde(default)]
+    pub standing: std::collections::BTreeMap<u32, i64>,
 }
 
 impl Career {
@@ -150,6 +170,7 @@ impl Career {
             time_s: 0.0,
             seed,
             place: None,
+            standing: Default::default(),
             done: Vec::new(),
             ledger: Vec::new(),
             board: crate::jobs::Board::default(),
@@ -173,6 +194,32 @@ impl Career {
             lost: vec![false; structure.len()],
         });
         key
+    }
+
+    /// The pilot's standing with `base`.
+    pub fn standing_at(&self, base: u32) -> i64 {
+        self.standing.get(&base).copied().unwrap_or(0)
+    }
+
+    /// A job offered by `base` ended: won adds standing there, failed or abandoned takes some away, within
+    /// 0 and the most. Returns the standing after.
+    pub fn job_ended(&mut self, base: u32, won: bool, cfg: &CareerConfig) -> i64 {
+        let now = self.standing_at(base);
+        let next = if won { now + cfg.standing_per_job } else { now - cfg.standing_lost }.clamp(0, cfg.standing_max);
+        self.standing.insert(base, next);
+        next
+    }
+
+    /// Each base's pay bonus from the standing there, by id, for `bases` bases.
+    pub fn pay_bonuses(&self, bases: usize, cfg: &CareerConfig) -> Vec<f32> {
+        (0..bases as u32)
+            .map(|b| self.standing_at(b) as f32 * cfg.pay_bonus_per_standing)
+            .collect()
+    }
+
+    /// The riskiest job tier the owned mechs open: the highest `tier_of` any owned design (at least 1).
+    pub fn max_tier(&self, tier_of: impl Fn(&str) -> Option<u8>) -> u8 {
+        self.mechs.iter().filter_map(|m| tier_of(&m.design)).max().unwrap_or(1).max(1)
     }
 
     /// The lowest bay of `base` (of `per_base`) no owned mech is parked in, if any.
@@ -373,6 +420,38 @@ mod tests {
         let mut c = career();
         c.version = VERSION + 1;
         assert!(Career::from_ron(&c.to_ron()).is_err());
+    }
+
+    #[test]
+    fn standing_rises_with_jobs_won_falls_with_jobs_lost_and_raises_the_pay() {
+        let mut c = career();
+        let cfg = CareerConfig::default();
+        assert_eq!(c.job_ended(2, true, &cfg), 1);
+        assert_eq!(c.job_ended(2, true, &cfg), 2);
+        assert_eq!(c.job_ended(2, false, &cfg), 1);
+        assert_eq!(c.job_ended(0, false, &cfg), 0, "never below zero");
+        for _ in 0..50 {
+            c.job_ended(1, true, &cfg);
+        }
+        assert_eq!(c.standing_at(1), cfg.standing_max);
+        let bonus = c.pay_bonuses(3, &cfg);
+        assert_eq!(bonus[0], 0.0);
+        assert!((bonus[2] - cfg.pay_bonus_per_standing).abs() < 1e-6);
+        let back = Career::from_ron(&c.to_ron()).unwrap();
+        assert_eq!(back.standing, c.standing, "standing is saved");
+    }
+
+    #[test]
+    fn the_owned_mechs_open_their_tiers() {
+        let mut c = career();
+        let tier = |d: &str| match d {
+            "mechs/foreman.ron" => Some(2),
+            "mechs/sapper.ron" => Some(3),
+            _ => None,
+        };
+        assert_eq!(c.max_tier(tier), 2, "the Foreman opens 1 and 2");
+        c.add_mech("mechs/sapper.ron", 0, 1, &[1.0]);
+        assert_eq!(c.max_tier(tier), 3);
     }
 
     #[test]

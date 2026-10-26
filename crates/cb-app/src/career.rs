@@ -118,6 +118,31 @@ fn begin(mut commands: Commands, start: Res<CareerStart>, data: Res<Data>, plan:
     });
 }
 
+/// The cities jobs are sited by.
+fn job_sites(plan: &cb_core::world::WorldPlan) -> Vec<Site> {
+    plan.cities
+        .iter()
+        .map(|c| Site {
+            city: c.id,
+            centre: c.centre,
+            half_size_m: c.half_size_m,
+        })
+        .collect()
+}
+
+/// The riskiest job tier the career's mechs open (each design's `tier`).
+pub fn max_tier(run: &CareerRun) -> u8 {
+    run.career.max_tier(|d| run.data.design(d).map(|c| c.tier))
+}
+
+/// A job ended: the standing with the base that offered it moves (career-progression).
+fn standing(run: &mut CareerRun, id: u32, won: bool) {
+    if let Some(base) = run.career.board.job(id).map(|j| j.base) {
+        let now = run.career.job_ended(base, won, &run.data.career);
+        info!("career: standing with base {} now {now}", base + 1);
+    }
+}
+
 /// Buys `design` at the shop (mech-shop): delivered to a free bay of the base the pilot is at (`at`), else of the
 /// nearest base to `from` with one; a delivery away from the pilot is mailed. Returns what the page says.
 pub fn buy_mech(
@@ -138,6 +163,7 @@ pub fn buy_mech(
     };
     let name = run.data.design(design).map_or_else(|| design.to_string(), |c| c.name.clone());
     let kept = run.data.career.ledger_kept;
+    let tier_before = max_tier(run);
     match cb_core::shop::buy(&mut run.career, &run.data.catalogue, &bays, design, at, from, &whole, kept) {
         Ok(d) => {
             info!(
@@ -153,6 +179,24 @@ pub fn buy_mech(
                     None,
                     inbox,
                 );
+            }
+            // A riskier tier opened: the mail says so and its first job is offered at once.
+            let tier = max_tier(run);
+            if tier > tier_before {
+                let sites = job_sites(plan);
+                let bonus = run.career.pay_bonuses(centres.len(), &run.data.career);
+                let offers = cb_core::jobs::Offers {
+                    sites: &sites,
+                    bases: &centres,
+                    max_tier: tier,
+                    bonus: &bonus,
+                };
+                let seed = run.career.seed;
+                for t in tier_before + 1..=tier {
+                    if let Some(id) = run.career.board.open_tier(&run.data.jobs, &offers, seed, t) {
+                        info!("career: tier {t} opened, job {id} offered");
+                    }
+                }
             }
             save(&run.career);
             format!("BOUGHT {}: BASE {} BAY {}", name.to_uppercase(), d.base + 1, d.bay + 1)
@@ -184,15 +228,15 @@ fn step_jobs(
     let dt = time.delta_secs();
     let run = &mut *run;
     run.career.time_s += f64::from(dt);
-    let sites: Vec<Site> = plan
-        .cities
-        .iter()
-        .map(|c| Site {
-            city: c.id,
-            centre: c.centre,
-            half_size_m: c.half_size_m,
-        })
-        .collect();
+    let sites = job_sites(&plan);
+    let centres: Vec<Vec2> = plan.bases.iter().map(|b| b.centre).collect();
+    let bonus = run.career.pay_bonuses(centres.len(), &run.data.career);
+    let offers = cb_core::jobs::Offers {
+        sites: &sites,
+        bases: &centres,
+        max_tier: max_tier(run),
+        bonus: &bonus,
+    };
     let mech = me.iter().next();
     let at = match (pilot.curr.mode == PilotMode::Seated, mech) {
         (true, Some(m)) => Vec2::new(m.curr.pos.x, m.curr.pos.z),
@@ -207,7 +251,7 @@ fn step_jobs(
     events.extend(
         run.career
             .board
-            .step(&run.data.jobs, &sites, seed, at, if active { left } else { None }, pilot_down, dt),
+            .step(&run.data.jobs, &offers, seed, at, if active { left } else { None }, pilot_down, dt),
     );
     let kept = run.data.career.ledger_kept;
     let inbox = run.data.jobs.inbox_kept;
@@ -250,6 +294,7 @@ fn step_jobs(
             Event::Won(id, pay) => {
                 info!("JOB {id} won: {pay} credits");
                 run.career.pay(pay, &format!("job {id}"), kept);
+                standing(run, id, true);
                 run.career.done.push(cb_core::career::JobRecord {
                     job: id,
                     won: true,
@@ -267,6 +312,7 @@ fn step_jobs(
             Event::Abandoned(id) => {
                 // given up for another job: its enemies leave, unpaid (free-roam-missions)
                 info!("JOB {id} abandoned");
+                standing(run, id, false);
                 for (e, je) in &enemy_entities {
                     if je.0 == id {
                         commands.entity(e).despawn();
@@ -281,6 +327,7 @@ fn step_jobs(
             }
             Event::Failed(id) => {
                 info!("JOB {id} failed");
+                standing(run, id, false);
                 run.career.done.push(cb_core::career::JobRecord {
                     job: id,
                     won: false,

@@ -4,6 +4,7 @@
 // stand-in's tuning (placeholder.ron) scaled by k = 1.988.
 (
     name: "Driller",
+    tier: 2,
     model: Some("models/mech_driller.glb"),
     interior: Some((
         model: "models/cockpit_panorama/cockpit_panorama.gltf",

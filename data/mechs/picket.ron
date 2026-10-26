@@ -4,6 +4,7 @@
 // stand-in's tuning (placeholder.ron) scaled by k = 1.996.
 (
     name: "Picket",
+    tier: 1,
     model: Some("models/mech_picket.glb"),
     interior: Some((
         model: "models/cockpit_panorama/cockpit_panorama.gltf",

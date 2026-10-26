@@ -690,8 +690,9 @@ fn shop_page(p: &mut ChildSpawnerCommands, run: &crate::career::CareerRun) {
                 },
                 label(
                     &format!(
-                        "{}{}\n{:.0} T  WALK {:.0} KM/H  ARMOUR {:.0} MM  {}",
+                        "{}  TIER {}{}\n{:.0} T  WALK {:.0} KM/H  ARMOUR {:.0} MM  {}",
                         m.name.to_uppercase(),
+                        m.tier,
                         if owned > 0 { format!("   OWNED {owned}") } else { String::new() },
                         m.locomotion.mass_kg / 1000.0,
                         m.locomotion.walk_speed_max_m_s * 3.6,
@@ -712,6 +713,11 @@ fn shop_page(p: &mut ChildSpawnerCommands, run: &crate::career::CareerRun) {
 fn mail_page(p: &mut ChildSpawnerCommands, c: &cb_core::career::Career) {
     use cb_core::jobs::JobState;
     p.spawn(label(&format!("MAIL      CREDITS {}", c.money), 40.0, INK));
+    // Standing with each base the pilot has worked for (career-progression).
+    if !c.standing.is_empty() {
+        let s: Vec<String> = c.standing.iter().map(|(b, v)| format!("BASE {} {v}", b + 1)).collect();
+        p.spawn(label(&format!("STANDING  {}", s.join("   ")), 22.0, DIM));
+    }
     let what = |k: cb_core::jobs::JobKind| match k {
         cb_core::jobs::JobKind::Defend => "Defend",
         cb_core::jobs::JobKind::Intercept => "Intercept",
@@ -724,7 +730,8 @@ fn mail_page(p: &mut ChildSpawnerCommands, c: &cb_core::career::Career) {
             let state = if j.state == JobState::Active { "UNDER WAY" } else { "ACCEPTED" };
             p.spawn(label(
                 &format!(
-                    "{state}: {} City {}, {} mechs, {} credits, {m:.0}:{s:02.0} left",
+                    "{state}: TIER {} {} City {}, {} mechs, {} credits, {m:.0}:{s:02.0} left",
+                    j.tier,
                     what(j.kind),
                     j.city + 1,
                     j.mechs,
@@ -763,11 +770,14 @@ fn mail_page(p: &mut ChildSpawnerCommands, c: &cb_core::career::Career) {
                 },
                 label(
                     &format!(
-                        "{subject}\n{} City {}, {} mechs, {} credits",
+                        "{subject}\nTIER {}  {} City {}, {} mechs, {} credits, base {} standing {}",
+                        j.tier,
                         what(j.kind),
                         j.city + 1,
                         j.mechs,
-                        j.pay
+                        j.pay,
+                        j.base + 1,
+                        c.standing_at(j.base)
                     ),
                     20.0,
                     INK,
@@ -784,6 +794,7 @@ fn mail_page(p: &mut ChildSpawnerCommands, c: &cb_core::career::Career) {
         .iter()
         .rev()
         .filter(|m| m.job.is_none() || m.from == "Accounts")
+        .filter(|m| !m.subject.is_empty())
         .take(3)
     {
         p.spawn((
