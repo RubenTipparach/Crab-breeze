@@ -17,12 +17,13 @@
         parked_in_from_edge_m: 2.5,
     ),
     // Moderate traffic (survey J6): a car every 60 m of lane in cities and every 300 m on highways,
-    // within 1.5 km.
+    // within 1 km (owner, 2026-10-26: "car should be 1000m"; it was 1.5 km), dropped 200 m past it so a car on
+    // the edge does not come and go.
     city_spacing_m: 60.0,
     highway_spacing_m: 300.0,
     parked_spacing_m: 90.0,
-    spawn_within_m: 1500.0,
-    despawn_beyond_m: 2000.0,
+    spawn_within_m: 1000.0,
+    despawn_beyond_m: 1200.0,
     hidden_beyond_m: 400.0,
     spawn_per_step: 4,
     // Each driver's own cruising speed: 40-60 km/h in town, 90-110 on highways.

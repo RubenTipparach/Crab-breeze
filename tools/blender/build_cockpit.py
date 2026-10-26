@@ -605,8 +605,46 @@ def mfd_bezel(S, name, c, axes, s, rim, cn, img, group="front"):
 # The picture is a flat perspective: a corner up and out to the side lands higher on it than its angle alone says
 # (tan(elevation) / cos(azimuth)), so the hung row's outer top corners set its numbers (inside the 47.5 degree edge
 # with 4 % to spare).
-MFD_ROWS = dict(hung=dict(el=30.0, d=0.82, s=(0.28, 0.28, 0.28), az=(23.0, 0.0, -23.0)),
-                dash=dict(el=-25.0, d=0.80, s=(0.26, 0.30, 0.26), az=(26.0, 0.0, -26.0)))   # az: the pilot's left (+x)
+MFD_ROWS = dict(hung=dict(el=30.0, d=0.82, s=(0.22, 0.22, 0.22), az=(27.0, 0.0, -27.0)),
+                dash=dict(el=-25.0, d=0.80, s=(0.24, 0.26, 0.24), az=(30.0, 0.0, -30.0)))   # az: the pilot's left (+x)
+
+
+MFD_SOLIDS = []   # (screen, centre, (r, u, n), size) of each MFD's housing, for `check_mfd_solids`
+
+
+def mfd_solid(screen, c, axes, size):
+    """Records one solid box of an MFD (its housing) for the overlap check."""
+    MFD_SOLIDS.append((screen, c.copy(), axes, size))
+
+
+def _boxes_overlap(a, b, margin):
+    """Separating axis test of two oriented boxes (centre, axes, size), grown by margin on every side."""
+    (ca, ax_a, sa), (cb, ax_b, sb) = a, b
+    ha = [x / 2 + margin for x in sa]
+    hb = [x / 2 + margin for x in sb]
+    d = cb - ca
+    tests = list(ax_a) + list(ax_b) + [u.cross(v) for u in ax_a for v in ax_b]
+    for L in tests:
+        if L.length < 1e-6:
+            continue
+        L = L.normalized()
+        ra = sum(h * abs(u.dot(L)) for h, u in zip(ha, ax_a))
+        rb = sum(h * abs(u.dot(L)) for h, u in zip(hb, ax_b))
+        if abs(d.dot(L)) > ra + rb:
+            return False
+    return True
+
+
+def check_mfd_solids(margin=0.005):
+    """Refuses a cockpit where two MFDs' solid boxes meet (owner, 2026-10-26: "These are solid objects. They should
+    not be distorted or intersected"): every pair from different screens is at least 2 x margin apart."""
+    bad = []
+    for i, (na, ca, xa, sa) in enumerate(MFD_SOLIDS):
+        for nb, cb, xb, sb in MFD_SOLIDS[i + 1:]:
+            if na != nb and _boxes_overlap((ca, xa, sa), (cb, xb, sb), margin):
+                bad.append(f"{na} meets {nb}")
+    assert not bad, "MFDs intersect: " + ", ".join(sorted(set(bad)))
+    print(f"MFD_SOLIDS {len(MFD_SOLIDS)} boxes, none meet", flush=True)
 
 
 def at_eye(el_deg, az_deg, d, plan=None, clear_m=0.10):
@@ -1104,6 +1142,7 @@ def _inside(poly, x, z):
 
 
 def build_layout(S, VAR):
+    MFD_SOLIDS.clear()
     L = next(l for l in BO.LAYOUTS if l["id"] == VAR["layout"])
     outline, pillar_angles, deg, c = BO.cabin(L, L["mech"])
     parts = BO.mechanism(L, c)
@@ -1288,8 +1327,9 @@ def build_layout(S, VAR):
         cn = owner[carrier["name"]] if carrier else None
         name = "CONSOLE_front"
         # The dash row on a pod standing up out of a low dash (owner: "think like a bulge over the dash", "see how this
-        # dashboard curves up?"): each screen at its angle from the eye in a housing on a neck, a hood curving over it,
-        # the dash body under them all so nothing covers a screen.
+        # dashboard curves up?"): each screen at its angle from the eye in a housing on a neck, the dash body under them
+        # all so nothing covers a screen. No hood over them: from the seat it read as a bar across each screen's top
+        # (owner, 2026-10-26: "Why is there metal bars on top of the bottom mfds").
         row = MFD_ROWS["dash"]
         placed = []
         d_row = row["d"] * min(at_eye(row["el"], az, row["d"], keep)[2] for az in row["az"])
@@ -1305,13 +1345,15 @@ def build_layout(S, VAR):
         S.box((-half + 0.02, dy, z0 + 0.02), (half - 0.02, dy + 0.012, F - 0.04), "bezel", "front", name, bevel=0.003)
         S.plate("dash_main", (0, dy + 0.013, (z0 + F) / 2), Y, Z, t=0.012, group="front", node=name,
                 scale=min(1.0, 2 * half / CP.PANELS["dash_main"][0], (F - z0) / CP.PANELS["dash_main"][1]))
+        kd = d_row / row["d"]       # the frame and housing shrink with the screen, so the row keeps its gaps
         for nm, c, (rd, ud2, nd2), size in placed:
-            O = mfd_bezel(S, nm, c, (rd, ud2, nd2), size, 0.06, name, {"SCREEN_left": "mfd_left", "SCREEN_center": "mfd_center",
-                                                                       "SCREEN_right": "mfd_right"}[nm])
-            S.obox(c - nd2 * 0.045, (rd, ud2, nd2), (2 * O + 0.04, 2 * O + 0.04, 0.07), "paint_dk", "front", name, bevel=0.012)
-            low = c - ud2 * (O + 0.02) - nd2 * 0.045
+            O = mfd_bezel(S, nm, c, (rd, ud2, nd2), size, 0.045 * kd, name, {"SCREEN_left": "mfd_left", "SCREEN_center": "mfd_center",
+                                                                             "SCREEN_right": "mfd_right"}[nm])
+            house = (2 * O + 0.04 * kd, 2 * O + 0.04 * kd, 0.07 * kd)
+            S.obox(c - nd2 * 0.045 * kd, (rd, ud2, nd2), house, "paint_dk", "front", name, bevel=0.012 * kd)
+            mfd_solid(nm, c - nd2 * 0.045 * kd, (rd, ud2, nd2), house)
+            low = c - ud2 * (O + 0.02) - nd2 * 0.045 * kd
             S.box((low.x - 0.07, dy - 0.01, low.z - 0.04), (low.x + 0.07, low.y + 0.02, low.z + 0.04), "paint_dk", "front", name, bevel=0.008)
-            S.obox(c + ud2 * (O + 0.03) + nd2 * 0.03, (rd, ud2, nd2), (2 * O + 0.06, 0.014, 0.12), "paint", "front", name, bevel=0.005)
         # The footwell's front wall, behind the pedals, from the floor up into the dash's body, on the dash's part so
         # it swings clear with it and the doorway stays open (owner, 2026-10-25: "theres an opening here need fix").
         zw = F - 0.08
@@ -1327,11 +1369,13 @@ def build_layout(S, VAR):
             k_ = d_row / row["d"]
             sn = f"HUD_mfd_{i}"
             NODES[sn] = (nd or "pod", None)
-            O = mfd_bezel(S, sn, c, (rd, ud2, nd2), size * k_, 0.04 * k_, nd, img, group="cabin")
+            O = mfd_bezel(S, sn, c, (rd, ud2, nd2), size * k_, 0.03 * k_, nd, img, group="cabin")
             # the housing shrinks with the screen, so screens brought in by a shallow cabin keep their gaps in the view
             S.obox(c - nd2 * 0.04 * k_, (rd, ud2, nd2), (2 * O + 0.03 * k_, 2 * O + 0.03 * k_, 0.05 * k_), "paint_dk", "cabin", nd, bevel=0.01 * k_)
+            mfd_solid(sn, c - nd2 * 0.04 * k_, (rd, ud2, nd2), (2 * O + 0.03 * k_, 2 * O + 0.03 * k_, 0.05 * k_))
             back = c - nd2 * 0.06 * k_ + ud2 * O * 0.5
             S.box((back.x - 0.025, back.y, back.z - 0.025), (back.x + 0.025, H - 0.01, back.z + 0.025), "steel", "cabin", nd, bevel=0.006)
+    check_mfd_solids()
     VAR["front_screen"] = front_screen[0] if front_screen else "SCREEN_wall_r0_0"
     VAR["front_screen_c"] = front_screen[2] if front_screen else V(0, 1.3, F)
     # mist over the floor and steam at the seals as the cabin opens
@@ -1463,6 +1507,82 @@ TRIMS = {
     "twintier": dict(roles={"paint": "#4a4640", "paint_lt": "#6e6960", "paint_dk": "#2b2824", "fabric": "#352f29"},
                      accent=("#3f0a08", "#ff4a36"), warm=(1.0, 0.55, 0.45), cool=(1.0, 0.72, 0.62)),
 }
+
+
+# Interior styles (openspec change `cockpit-styles`; owner, 2026-10-26: "can we mess with the textures a bit to give them
+# a different interior style? wood trims, passenger plane interiors, soft interior paddings? ... this is only
+# texture/normal maps work and some material changes"). A style re-dresses the kit's roles: the walls (`paint`), trims
+# (`paint_lt`), structure (`paint_dk`) and seats (`fabric`), and tints the accent strips and lamps. Geometry is unchanged.
+STYLES = {
+    # varnished walnut on the trims, cream leather walls, tan leather seat, brass accents, warm lamps
+    "wood": dict(roles={
+        "paint": dict(c="#5a4636", r=0.55, m=0.0, grime=0.4, grain=True),
+        "paint_lt": dict(c="#5b3a22", r=0.32, m=0.0, grime=0.3, wood=("#2e1a0e", "#7a4d2a")),
+        "paint_dk": dict(c="#2a211b", r=0.5, m=0.0, grime=0.5),
+        "fabric": dict(c="#8a5a35", r=0.6, m=0.0, grime=0.3, grain=True, quilt=0.09),
+    }, accent=("#3a2405", "#ffc97a"), warm=(1.0, 0.82, 0.6), cool=(1.0, 0.9, 0.78)),
+    # an airliner's cabin: off-white moulded plastic, light greys, blue patterned seat cloth, soft white strips
+    "airliner": dict(roles={
+        "paint": dict(c="#d9d5cc", r=0.45, m=0.0, grime=0.15, stipple=1.0),
+        "paint_lt": dict(c="#bfc1c2", r=0.4, m=0.0, grime=0.15, stipple=0.6),
+        "paint_dk": dict(c="#7b7f84", r=0.5, m=0.0, grime=0.2, stipple=0.6),
+        "fabric": dict(c="#2b3f66", r=0.85, m=0.0, grime=0.2, weave=True),
+    }, accent=("#3a3a36", "#f4efe2"), warm=(1.0, 0.95, 0.88), cool=(0.92, 0.96, 1.0)),
+    # soft padding: quilted charcoal leather on the walls and seat, brushed steel trims, red-orange strips
+    "padded": dict(roles={
+        "paint": dict(c="#4a4446", r=0.6, m=0.0, grime=0.3, grain=True, quilt=0.12),
+        "paint_lt": dict(c="#8c9096", r=0.32, m=1.0, grime=0.3),
+        "paint_dk": dict(c="#1c1b1c", r=0.55, m=0.0, grime=0.4, grain=True),
+        "fabric": dict(c="#3a2624", r=0.6, m=0.0, grime=0.3, grain=True, quilt=0.07),
+    }, accent=("#3f1508", "#ff7a3a"), warm=(1.0, 0.86, 0.72), cool=(0.95, 0.9, 0.86)),
+}
+
+
+def apply_style(name, VAR):
+    """Re-dress the kit's roles and tint the accents and lamps for interior style `name` (STYLES)."""
+    t = STYLES[name]
+    for role, spec in t["roles"].items():
+        K.ROLES[role] = spec
+    K.ROLES["cyan"] = dict(K.ROLES["cyan"], c=t["accent"][0], emit=t["accent"][1])
+    swap = {WARM: t["warm"], COOL: t["cool"]}
+    VAR["lights"] = [(n, k, at, aim, w, swap.get(col, col), r, cone) for n, k, at, aim, w, col, r, cone in VAR["lights"]]
+
+
+def preview(path, samples=48):
+    """A seat view of the built cabin before any bake (the style mockups): Cycles from EYE_pilot at the game's 95 degree
+    view, 16:9, the outside screens a plain sky, the cabin's own lamps."""
+    import re as _re
+    sc = bpy.context.scene
+    fov = float(_re.search(r"view_fov_deg:\s*([0-9.]+)", open(os.path.join(ROOT, "data", "pilot", "pilot.ron")).read()).group(1))
+    cam = bpy.data.cameras.new("eye")
+    cam.sensor_fit = "VERTICAL"
+    cam.angle_y = math.radians(fov)
+    cam.clip_start = 0.02
+    co = bpy.data.objects.new("eye", cam)
+    sc.collection.objects.link(co)
+    co.location = (EYE.x, -EYE.z, EYE.y)                                   # glTF (x, y, z) is Blender (x, -z, y)
+    co.rotation_euler = (math.radians(90), 0.0, math.radians(180))         # level, looking along glTF +Z
+    sc.camera = co
+    sky = bpy.data.materials.get("screen_wall")
+    if sky and sky.use_nodes:
+        for n in sky.node_tree.nodes:
+            if n.type == "BSDF_PRINCIPLED":
+                n.inputs["Emission Color"].default_value = (0.55, 0.62, 0.72, 1)
+                n.inputs["Emission Strength"].default_value = 0.6
+    sc.render.engine = "CYCLES"
+    sc.cycles.device = "CPU"
+    sc.cycles.samples = samples
+    sc.cycles.use_denoising = True
+    sc.render.resolution_x, sc.render.resolution_y, sc.render.resolution_percentage = 1280, 720, 100
+    sc.view_settings.view_transform = "AgX"
+    sc.view_settings.exposure = 1.0
+    sc.render.image_settings.file_format = "PNG"
+    # ahead, then turned to the left wall and down a little, where the trims, walls and seat show
+    for tag, yaw, pitch in (("front", 0.0, 0.0), ("side", 70.0, -18.0)):
+        co.rotation_euler = (math.radians(90 + pitch), 0.0, math.radians(180 + yaw))
+        sc.render.filepath = path.replace(".png", f"_{tag}.png")
+        bpy.ops.render.render(write_still=True)
+    print(f"PREVIEW {path}", flush=True)
 
 
 def apply_trim(variant, VAR):
@@ -1895,11 +2015,15 @@ def main():
     ap.add_argument("--map-samples", type=int, default=4, help="samples for the colour, normal, roughness, metal and emission passes")
     ap.add_argument("--no-denoise", action="store_true")
     ap.add_argument("--no-bake", action="store_true", help="geometry only: skip the bake, keep the last atlases")
+    ap.add_argument("--style", choices=sorted(STYLES), help="an interior style (STYLES) over the cockpit's trim")
+    ap.add_argument("--preview", help="render a seat view of the unbaked cabin to this PNG and stop (no bake, no export)")
     a = ap.parse_args(argv)
     t0 = time.time()
     global EYE, MID, MODEL, MANIFEST
     VAR = VARIANTS[a.variant]
     apply_trim(a.variant, VAR)
+    if a.style:
+        apply_style(a.style, VAR)
     EYE, MID = VAR["eye"], VAR["mid"]
     NODES.clear()
     NODES.update(VAR["nodes"])
@@ -1913,6 +2037,9 @@ def main():
     builder = globals()[VAR["build"]]
     builder(S, VAR) if VAR.get("layout") else builder(S)
     rig = lights(VAR["lights"])
+    if a.preview:
+        preview(a.preview)
+        return
 
     # realize, then join: one mesh per node and group, its origin at the node's pivot
     for p in S.parts:

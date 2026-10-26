@@ -42,7 +42,9 @@ def srgb(h):
 
 # Every surface a panel is made of. colour, roughness, metalness, then what the shader adds:
 # grime (crevice darkening), wear (edges worn to bare metal), emit (a backlit colour), stripes
-# (yellow and black hazard bands), weave (fabric).
+# (yellow and black hazard bands), weave (fabric). An interior style (build_cockpit STYLES) adds: wood (a varnished
+# grain between two colours), quilt (diamond tufted padding, its pitch in metres, darker stitched seams), grain
+# (a leather's pebbled bump) and stipple (moulded plastic's fine texture).
 ROLES = {
     "paint":    dict(c="#3b424a", r=0.58, m=0.0, grime=1.0, wear=1.0),
     "paint_lt": dict(c="#5d6670", r=0.55, m=0.0, grime=1.0, wear=1.0),
@@ -83,6 +85,9 @@ ROLES = {
     "ext_dark": dict(c="#23272c", r=0.55, m=0.2, grime=0.6),
     "strap":    dict(c="#4b4f3f", r=0.85, m=0.0, grime=0.4, weave=True),
 }
+
+
+PI = 3.141592653589793
 
 
 def _nodes(mat):
@@ -145,6 +150,101 @@ def make_material(name, spec):
         L.new(m.outputs[0], bump.inputs["Height"])
         L.new(bev.outputs[0], bump.inputs["Normal"])
         L.new(bump.outputs[0], bsdf.inputs["Normal"])
+    normal = bump.outputs[0] if spec.get("weave") else bev.outputs[0]
+
+    def add_bump(height, strength, distance):
+        nonlocal normal
+        b = N.new("ShaderNodeBump")
+        b.inputs["Strength"].default_value = strength
+        b.inputs["Distance"].default_value = distance
+        L.new(height, b.inputs["Height"])
+        L.new(normal, b.inputs["Normal"])
+        L.new(b.outputs[0], bsdf.inputs["Normal"])
+        normal = b.outputs[0]
+
+    def op(kind, a, b=None):
+        m = N.new("ShaderNodeMath")
+        m.operation = kind
+        for k, v in enumerate((a, b)):
+            if v is None:
+                continue
+            if isinstance(v, (int, float)):
+                m.inputs[k].default_value = v
+            else:
+                L.new(v, m.inputs[k])
+        return m.outputs[0]
+
+    def mix_col(fac, a, b):
+        m = N.new("ShaderNodeMix")
+        m.data_type = "RGBA"
+        L.new(fac, m.inputs["Factor"])
+        for sock, v in ((6, a), (7, b)):
+            if isinstance(v, str):
+                m.inputs[sock].default_value = list(srgb(v)) + [1.0]
+            else:
+                L.new(v, m.inputs[sock])
+        return m.outputs[2]
+
+    if spec.get("wood"):
+        # Varnished wood: rings along the piece's longest run (object x), stretched, wavered by noise, between a dark
+        # and a light tone, with a faint grain bump. Object space, metres.
+        tc = N.new("ShaderNodeTexCoord")
+        mp = N.new("ShaderNodeMapping")
+        mp.inputs["Scale"].default_value = (1.0, 14.0, 14.0)
+        L.new(tc.outputs["Object"], mp.inputs[0])
+        wv = N.new("ShaderNodeTexWave")
+        wv.wave_type = "RINGS"
+        wv.inputs["Scale"].default_value = 1.6
+        wv.inputs["Distortion"].default_value = 7.0
+        wv.inputs["Detail"].default_value = 3.0
+        wv.inputs["Detail Scale"].default_value = 1.5
+        L.new(mp.outputs[0], wv.inputs["Vector"])
+        fine = N.new("ShaderNodeTexNoise")
+        fine.inputs["Scale"].default_value = 160.0
+        fine.inputs["Detail"].default_value = 4.0
+        L.new(mp.outputs[0], fine.inputs["Vector"])
+        f = op("MULTIPLY", op("ADD", wv.outputs["Fac"], op("MULTIPLY", fine.outputs["Fac"], 0.35)), 0.75)
+        colour = mix_col(f, spec["wood"][0], spec["wood"][1])
+        add_bump(fine.outputs["Fac"], 0.08, 0.0004)
+    if spec.get("quilt"):
+        # Diamond tufting: on each face's own plane (picked by its normal, so walls, roof and seat all quilt), a
+        # pillow sin(pi frac(u)) sin(pi frac(v)) on the diagonals u, v of a `quilt` metre grid, zero at the stitched
+        # seams, which are darker.
+        tc = N.new("ShaderNodeTexCoord")
+        geo = N.new("ShaderNodeNewGeometry")
+        sx = N.new("ShaderNodeSeparateXYZ")
+        L.new(tc.outputs["Object"], sx.inputs[0])
+        sn = N.new("ShaderNodeSeparateXYZ")
+        L.new(geo.outputs["Normal"], sn.inputs[0])
+        pitch = spec["quilt"]
+        coords = (sx.outputs[0], sx.outputs[1], sx.outputs[2])
+        height = None
+        for ax in range(3):
+            a_, b_ = [coords[k] for k in range(3) if k != ax]
+            u = op("DIVIDE", op("ADD", a_, b_), pitch)
+            v = op("DIVIDE", op("SUBTRACT", a_, b_), pitch)
+            pu = op("SINE", op("MULTIPLY", op("FRACT", u), PI))
+            pv = op("SINE", op("MULTIPLY", op("FRACT", v), PI))
+            pillow = op("POWER", op("MULTIPLY", pu, pv), 0.45)
+            w = op("POWER", op("ABSOLUTE", sn.outputs[ax]), 4.0)
+            term = op("MULTIPLY", pillow, w)
+            wsum = w if height is None else op("ADD", wsum, w)
+            height = term if height is None else op("ADD", height, term)
+        height = op("DIVIDE", height, op("MAXIMUM", wsum, 1e-4))
+        seam = op("SUBTRACT", 1.0, op("MINIMUM", op("MULTIPLY", height, 4.0), 1.0))
+        colour = mix_col(op("MULTIPLY", seam, 0.55), colour, "#0c0a09")
+        add_bump(height, 0.9, 0.012)
+    if spec.get("grain"):
+        # a leather's pebbled grain
+        gv = N.new("ShaderNodeTexVoronoi")
+        gv.inputs["Scale"].default_value = 900.0
+        add_bump(gv.outputs["Distance"], 0.12, 0.0003)
+    if spec.get("stipple"):
+        # moulded plastic's fine stipple
+        sp = N.new("ShaderNodeTexNoise")
+        sp.inputs["Scale"].default_value = 700.0
+        sp.inputs["Detail"].default_value = 2.0
+        add_bump(sp.outputs["Fac"], 0.08 * spec["stipple"], 0.0003)
     noise = N.new("ShaderNodeTexNoise")
     noise.inputs["Scale"].default_value = 60.0
     noise.inputs["Detail"].default_value = 6.0
