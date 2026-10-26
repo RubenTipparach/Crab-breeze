@@ -2,7 +2,7 @@
 timed system's milliseconds in it; a `--features hitch_spans` build times every system, main and render world) and
 says what the slow frames spent their time on.
 
-Prints how many frames were over 16.7 ms, how many of those the main world alone was over 16.7 ms in, the systems
+Prints how many frames were over 16.7 ms, in how many frames the main world alone took over 16.7 ms, the systems
 most often the largest cost of a slow frame, and for every system that took 2 ms or more in any slow frame: how many
 slow frames it did so in, its mean and its worst.
 
@@ -50,8 +50,11 @@ def main(paths):
             print("no hitch lines")
             continue
         ms = [r[1] for r in rows]
+        over = sum(1 for m in ms if m > 1000.0 / 60.0)
         main_over = sum(1 for r in rows if r[2] > 1000.0 / 60.0)
-        print(f"{len(rows)} frames over 16.7 ms (worst {max(ms):.1f} ms); the main world alone over 16.7 ms in {main_over}")
+        # With pipelined rendering a main-world spike shows in the NEXT frame's length, so it is logged on a line of
+        # its own (main over the line, length not yet); both kinds are read here.
+        print(f"{len(rows)} lines; {over} frames over 16.7 ms (worst {max(ms):.1f} ms); main world over 16.7 ms in {main_over}")
         for lo, hi in [(16.7, 25), (25, 33.3), (33.3, 50), (50, 1e9)]:
             n = sum(1 for m in ms if lo < m <= hi)
             print(f"  {lo:5.1f} to {hi if hi < 1e9 else 'inf':>5} ms: {n}")

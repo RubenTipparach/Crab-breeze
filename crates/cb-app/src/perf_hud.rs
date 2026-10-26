@@ -125,7 +125,10 @@ fn frame_start(time: Res<Time<Real>>, mut span: ResMut<MainSpan>, mut threshold:
     let mut all = FRAME.lock().map(|mut f| std::mem::take(&mut *f)).unwrap_or_default();
     let mut counts = COUNTS.lock().map(|mut f| std::mem::take(&mut *f)).unwrap_or_default();
     span.frame += 1;
-    if ms > *threshold.get_or_insert_with(hitch_ms) && span.frame > 10 {
+    // With pipelined rendering a main-world spike shows in the next frame's length (the render world sends the
+    // time), so a frame is logged when either is over the line: its length, or its main world.
+    let line = *threshold.get_or_insert_with(hitch_ms);
+    if (ms > line || main_ms > line) && span.frame > 10 {
         all.sort_by(|a, b| b.1.total_cmp(&a.1));
         let top: Vec<String> = all
             .iter()

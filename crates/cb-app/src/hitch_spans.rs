@@ -113,6 +113,27 @@ fn intern(s: &str) -> &'static str {
     n
 }
 
+/// A system's name without its module paths: the last two parts of the path, and of a generic its last part
+/// (`audio_output::play_queued_audio_system<AudioSource>`, `assets::Assets<Mesh>::track_assets`).
+fn short_name(name: &str) -> String {
+    let tail2 = |p: &str| {
+        p.rsplit("::")
+            .take(2)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect::<Vec<_>>()
+            .join("::")
+    };
+    match (name.find('<'), name.rfind('>')) {
+        (Some(a), Some(b)) if a < b => {
+            let inner = name[a + 1..b].rsplit("::").next().unwrap_or("");
+            format!("{}<{inner}>{}", tail2(&name[..a]), &name[b + 1..])
+        }
+        _ => tail2(name),
+    }
+}
+
 /// Reads a span's `name` field.
 #[derive(Default)]
 struct NameField(Option<String>);
@@ -138,16 +159,7 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for SystemTimes {
         let mut v = NameField::default();
         attrs.record(&mut v);
         if let (Some(name), Some(span)) = (v.0, ctx.span(id)) {
-            // The module path says little; the system's own name and its last path part are enough.
-            let short = name
-                .rsplit("::")
-                .take(2)
-                .collect::<Vec<_>>()
-                .into_iter()
-                .rev()
-                .collect::<Vec<_>>()
-                .join("::");
-            span.extensions_mut().insert(Named(intern(&short)));
+            span.extensions_mut().insert(Named(intern(&short_name(&name))));
         }
     }
 
