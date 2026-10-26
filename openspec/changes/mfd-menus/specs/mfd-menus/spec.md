@@ -35,3 +35,17 @@ their pages.
 #### Scenario: Closing the menu unused
 - **WHEN** the centre MFD shows TARGET and the pilot clicks it, then presses Escape while pointing at it
 - **THEN** the centre MFD shows TARGET again
+
+### Requirement: Leaving MFD focus puts every screen back on its default page
+
+When MFD focus ends (the pilot lets go of free look, or leaves the seat), every MFD SHALL show the page it is built
+with again and forget the readout its menu remembered; no page SHALL be kept between focuses, between sorties or in a
+save (survey C14, owner, 2026-10-26: "mfds return to default as soon as you click back on them, leaving mfd focus").
+
+#### Scenario: The mail does not outlast free look
+- **WHEN** the pilot puts the MAIL page on the left hung MFD in free look and then lets go of free look
+- **THEN** the left hung MFD shows MECH again, and every other screen its own default page
+
+#### Scenario: A screen already on its default page
+- **WHEN** focus ends while a screen shows its default page
+- **THEN** that screen does not change

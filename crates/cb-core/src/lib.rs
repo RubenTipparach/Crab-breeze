@@ -26,6 +26,7 @@ pub mod input;
 pub mod interact;
 pub mod jobs;
 pub mod mech;
+pub mod mfd_focus;
 pub mod mission;
 pub mod missions;
 pub mod pilot;
