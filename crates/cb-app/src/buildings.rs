@@ -772,7 +772,7 @@ fn dress_near_player(
         );
         da.total_cmp(&db).then(a.cmp(&b))
     });
-    let keep = cfg.dress_radius_m * 1.15;
+    let keep = cfg.dress_radius_m * cfg.keep_ratio;
     shared.follow(&states, &mut arrays, &mut glasses);
     // The dressings that are built, in id order. A building still near, standing and without a frame
     // is dressed with them; any other result is dropped (a framed one is dressed by `redraw_buildings`).
@@ -780,7 +780,11 @@ fn dress_near_player(
     for (b, built) in built {
         jobs.0.remove(&b);
         let c = &live.structures.buildings[b as usize];
-        let near = plan.0.buildings[b as usize].footprint.centre().distance(here) <= keep;
+        let near = cfg.shows(
+            cfg.dress_radius_m,
+            plan.0.buildings[b as usize].footprint.centre().distance(here),
+            true,
+        );
         if c.standing == 0 || c.frame.is_some() || !near || dressed.0.contains_key(&b) {
             continue;
         }
@@ -1084,7 +1088,6 @@ fn show_massing(
     };
     let cfg = &cfg.0.world.dressing;
     let rng = SimRng::new(seed.0).fork("dressing");
-    let keep = cfg.massing_radius_m * 1.15;
     let mut near: Vec<u32> = plan
         .0
         .collision
@@ -1114,7 +1117,11 @@ fn show_massing(
         shown.0.insert(b, e);
     }
     shown.0.retain(|&b, e| {
-        let far = plan.0.buildings[b as usize].footprint.centre().distance(here) > keep;
+        let far = !cfg.shows(
+            cfg.massing_radius_m,
+            plan.0.buildings[b as usize].footprint.centre().distance(here),
+            true,
+        );
         if far {
             commands.entity(*e).despawn();
             return false;

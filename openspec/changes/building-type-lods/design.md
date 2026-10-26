@@ -26,8 +26,10 @@ The facade kinds today, from that answer:
 | Massing | `massing_radius_m` 1500 m | box faces, plus the type's parapet, cornice band, setbacks and the 4 largest roof props from the dressing | the type's baked atlas |
 | Box | beyond | 12 triangles, roof cap | the type's baked atlas |
 
-Each boundary has the dressing's 15 % hysteresis (`keep = radius * 1.15`), so a building on the
-line does not flicker. Both new radii live in `dressing:` in `data/world/world.ron`.
+Each boundary has the dressing's 15 % hysteresis (`keep_ratio: 1.15`), so a building on the
+line does not flicker. Both radii and the ratio live in `dressing:` in `data/world/world.ron`, and one pure rule
+(`DressingConfig::far_detail`, `shows`) decides every boundary for both the dressing and the massing (survey L2,
+owner 2026-10-26: "Approve all").
 
 ## 3. The far facades, rendered at startup (as built, 2026-10-26)
 
@@ -92,4 +94,4 @@ a baked layer in the manifest or a massing recipe. `building-variety` (six types
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | L1 | How the far facade textures are made | rendered by a tool from each type's own near facade pieces and material sets | decided (owner, 2026-10-26: "Approve all", then "Go and implement"; survey L1). Built as the renderer `cb_core::world::far_facade` with `cb-app/src/far_facades.rs`, run at startup rather than offline because the near maps it samples are themselves made at startup (section 3); listed in CLAUDE.md section 13 |
-| L2 | Where the massing gives way to the box | 1.5 km | provisional (survey L2) |
+| L2 | Where the massing gives way to the box | 1.5 km | decided (owner, 2026-10-26: "Approve all", then "Go and implement"; survey L2). `DressingConfig::far_detail` in `cb-core`, one rule for both boundaries with `keep_ratio` 1.15 (tests `the_massing_gives_way_to_a_plain_box_at_one_and_a_half_kilometres`, `a_building_on_the_line_does_not_flicker`) |

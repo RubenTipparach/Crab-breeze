@@ -11,5 +11,6 @@ Survey L1 and L2 decided (owner, 2026-10-26: "Approve all", then "Go and impleme
 - [x] 2.4 `every_building_type_has_its_far_look`; the far boxes' generic facade texture and tone materials retired
 - [x] 3.1 Cloud stills from the overlook, old and new (`docs/playtests/2026-10-26-building-lods-cloud.md`); cockpit stills at set distances still to take on the owner's machine
 - [x] 0.1 L1: the far facades rendered by the tool from each type's own near pieces and maps; merged into `living-island` from `claude/bold-ramanujan-ocf5k3` (5e5b1cc), fitted to the street doors' `dress` (fronts, shell)
+- [x] 0.2 L2: the massing gives way to the plain box at 1.5 km, one rule with the dressing's hysteresis (`DressingConfig::far_detail`; tests `the_massing_gives_way_to_a_plain_box_at_one_and_a_half_kilometres`, `a_building_on_the_line_does_not_flicker`, `the_shipped_radii_are_the_owners`)
 - [ ] 3.2 Measured on the owner's machine: the combat bench, old against new interleaved
 - [ ] 3.3 Playtest: skate toward a city; no type pops colour or window rhythm at 250 m or 1.5 km

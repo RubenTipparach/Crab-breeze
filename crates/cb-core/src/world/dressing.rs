@@ -154,6 +154,39 @@ pub struct DressingConfig {
     pub massing_pieces: u32,
     /// At most this many buildings get their massing built in one frame, nearest first.
     pub massing_per_frame: u32,
+    /// A detail that is showing is kept until this many times its radius, so a building on the line does not
+    /// flicker (the dressing's and the massing's boundaries alike). A ratio.
+    pub keep_ratio: f32,
+}
+
+/// How much of a building is drawn at a distance (`building-type-lods` section 2; survey L2, owner 2026-10-26).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FarDetail {
+    /// Within `dress_radius_m`: the full skin, glass and roof props.
+    Dressed,
+    /// Within `massing_radius_m`: the far facade walls and the massing (parapet, cornice, roof props).
+    Massing,
+    /// Beyond: the far facade walls alone, a plain box in its type's facade.
+    Box,
+}
+
+impl DressingConfig {
+    /// Whether a detail drawn within `radius_m` shows at `distance_m`: within the radius, or within `keep_ratio`
+    /// times it while it is `showing` already. The one rule for every building detail boundary.
+    pub fn shows(&self, radius_m: f32, distance_m: f32, showing: bool) -> bool {
+        distance_m <= if showing { radius_m * self.keep_ratio } else { radius_m }
+    }
+
+    /// The detail a building at `distance_m` is drawn in, given the detail it shows now.
+    pub fn far_detail(&self, distance_m: f32, now: FarDetail) -> FarDetail {
+        if self.shows(self.dress_radius_m, distance_m, now == FarDetail::Dressed) {
+            FarDetail::Dressed
+        } else if self.shows(self.massing_radius_m, distance_m, now != FarDetail::Box) {
+            FarDetail::Massing
+        } else {
+            FarDetail::Box
+        }
+    }
 }
 
 impl Default for DressingConfig {
@@ -171,6 +204,7 @@ impl Default for DressingConfig {
             massing_radius_m: 1500.0,
             massing_pieces: 16,
             massing_per_frame: 12,
+            keep_ratio: 1.15,
         }
     }
 }
@@ -190,6 +224,12 @@ impl crate::data::Validate for DressingConfig {
             ("dressing.massing_radius_m", self.massing_radius_m),
         ] {
             positive(name, v)?;
+        }
+        if !(self.keep_ratio.is_finite() && self.keep_ratio >= 1.0) {
+            return Err(format!("dressing.keep_ratio must be at least 1, got {}", self.keep_ratio));
+        }
+        if self.massing_radius_m < self.dress_radius_m {
+            return Err("dressing.massing_radius_m must be at least dress_radius_m".into());
         }
         Ok(())
     }
@@ -1273,6 +1313,44 @@ fn roof_props(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_massing_gives_way_to_a_plain_box_at_one_and_a_half_kilometres() {
+        // survey L2 (owner, 2026-10-26: "Approve all"): dressed to 250 m, the massing to 1.5 km, the box beyond
+        let cfg = DressingConfig::default();
+        assert_eq!(cfg.far_detail(200.0, FarDetail::Box), FarDetail::Dressed);
+        assert_eq!(cfg.far_detail(1_400.0, FarDetail::Box), FarDetail::Massing);
+        assert_eq!(cfg.far_detail(1_600.0, FarDetail::Box), FarDetail::Box);
+    }
+
+    #[test]
+    fn a_building_on_the_line_does_not_flicker() {
+        // just past 1.5 km a building keeps the detail it shows; it changes only past 15 % more
+        let cfg = DressingConfig::default();
+        assert_eq!(cfg.far_detail(1_600.0, FarDetail::Massing), FarDetail::Massing);
+        assert_eq!(cfg.far_detail(1_600.0, FarDetail::Box), FarDetail::Box);
+        assert_eq!(cfg.far_detail(1_800.0, FarDetail::Massing), FarDetail::Box);
+        assert_eq!(cfg.far_detail(270.0, FarDetail::Dressed), FarDetail::Dressed);
+        assert_eq!(cfg.far_detail(270.0, FarDetail::Massing), FarDetail::Massing);
+    }
+
+    #[test]
+    fn the_shipped_radii_are_the_owners() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let world: crate::world::WorldConfig = crate::data::load_ron(&root.join("world/world.ron")).unwrap();
+        assert_eq!(world.dressing.dress_radius_m, 250.0);
+        assert_eq!(world.dressing.massing_radius_m, 1_500.0);
+    }
+
+    #[test]
+    fn a_massing_radius_inside_the_dressing_is_refused() {
+        use crate::data::Validate;
+        let cfg = DressingConfig {
+            massing_radius_m: 100.0,
+            ..Default::default()
+        };
+        assert!(cfg.validate().is_err());
+    }
 
     fn go(storeys: usize, segmented: bool) -> Vec<Piece> {
         dress(
