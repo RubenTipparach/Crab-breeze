@@ -48,6 +48,11 @@ pub fn exposure_scale(view: &cb_core::world::config::ViewConfig) -> f32 {
 #[derive(Resource)]
 pub struct StartOnOverlook;
 
+/// Start on the first air base's apron, behind the mech, which faces the hangar bays (`--start base`,
+/// air-bases).
+#[derive(Resource)]
+pub struct StartAtBase;
+
 /// Start in the nearest meadow instead of the city (`--start meadow`, gpu-grass).
 #[derive(Resource)]
 pub struct StartInMeadow;
@@ -74,6 +79,8 @@ pub struct Live {
     pub dirty_buildings: Vec<u32>,
     /// Pieces of buildings that fell since the physics last took them.
     pub new_chunks: Vec<cb_core::world::Chunk>,
+    /// Moving surfaces bodies stand on, posed this fixed step (the Hermit's deck: `crab-airship`).
+    pub platforms: Vec<cb_core::world::Platform>,
 }
 
 /// Generates and draws the world.
@@ -116,6 +123,24 @@ impl Plugin for WorldPlugin {
                 None => warn!("world: no meadow within 6 km; starting in the city"),
             }
         }
+        if app.world().contains_resource::<StartAtBase>() {
+            match plan.bases.first() {
+                Some(b) => {
+                    // 150 m in front of the middle hangar bay's mouth, facing it (heading pi faces +z);
+                    // the pilot stands 25 m behind.
+                    let bays = b.hangars(&cfg.bases);
+                    let mouth = bays.get(bays.len() / 2).map_or(b.centre, |h| Vec2::new(h.centre().x, h.min.y));
+                    let mech_xz = mouth - Vec2::new(0.0, 150.0);
+                    plan.start = cb_core::world::Start {
+                        mech_xz,
+                        mech_heading_rad: std::f32::consts::PI,
+                        pilot_xz: mech_xz - Vec2::new(0.0, cfg.start_pilot_distance_m),
+                    };
+                    info!("world: starting on air base {} at ({:.0}, {:.0})", b.id, mech_xz.x, mech_xz.y);
+                }
+                None => warn!("world: no air base; starting in the city"),
+            }
+        }
         info!(
             "world seed {seed}: {} m island world, {} cities, {} buildings, {} highways, generated in {:.0} ms",
             cfg.world_size_m,
@@ -137,6 +162,7 @@ impl Plugin for WorldPlugin {
             structures: cb_core::world::Structures::with_config(&plan, cfg.structure.clone(), cfg.craters.radius_m_per_cbrt_mj),
             dirty_buildings: Vec::new(),
             new_chunks: Vec::new(),
+            platforms: Vec::new(),
         };
         info!(
             "world: {} trees grown round the start in {:.0} ms, {} rivers, {} bridges, sea level {:.1} m, {} cloud puffs",

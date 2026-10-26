@@ -212,18 +212,17 @@ fn point(
 }
 
 /// Free look and fire pressed on a screen: a readout opens the screen's MENU (remembering the readout); on MENU or
-/// MAIL the pointed row acts: a readout or MAIL shows that page, ACCEPT takes the offer (a career's job, or free
-/// roam's city defence through `menu::start_defence`, as the menu's Accept does), DECLINE turns a job down, BACK gives
-/// the screen back its readout.
+/// MAIL the pointed row acts: a readout or MAIL shows that page; a slot's main button ACCEPTs a career's job (its
+/// events go to the career, as the menu's Accept sends them) or STARTs or STOPs a free-roam mission (through
+/// `FreeRoamRun`, as the menu's buttons do); DECLINE turns a job down; BACK gives the screen back its readout.
 #[allow(clippy::too_many_arguments)]
 fn press(
-    mut commands: Commands,
     mut acc: ResMut<InputAccum>,
     pointed: Res<Pointed>,
     mut screens: Query<&mut MfdScreen>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut career: Option<ResMut<crate::career::CareerRun>>,
-    (play, defending): (Option<Res<crate::menu::Play>>, Option<Res<crate::defence::Defending>>),
+    (mut free, data): (Option<ResMut<crate::missions::FreeRoamRun>>, Res<crate::sim::Data>),
     mut sounds: MessageWriter<crate::audio::Sound>,
 ) {
     let back = std::mem::take(&mut acc.mfd_back);
@@ -235,8 +234,7 @@ fn press(
     };
     let page = screen.page;
     let item = pointed.item;
-    let free_roam = play.as_deref() == Some(&crate::menu::Play::FreeRoam);
-    let open = offers(career.as_deref().map(|c| &c.career.board), free_roam, defending.is_some());
+    let open = offers(career.as_deref().map(|c| &c.career.board), free.as_deref().map(|f| &f.free));
     let next = match item {
         // Escape is BACK wherever the view points on the page (`turn_page`).
         _ if back || page < MFD_READOUTS || matches!(item, Some(Item::Back | Item::Readout(_) | Item::Mail)) => {
@@ -247,9 +245,9 @@ fn press(
         Some(Item::Accept(k)) => {
             match open.get(k) {
                 Some(Offer::Job(id)) => {
-                    if let Some(run) = career.as_mut()
-                        && run.career.board.accept(*id)
-                    {
+                    if let Some(run) = career.as_mut() {
+                        let events = run.career.board.accept(*id);
+                        run.pending.extend(events);
                         info!("MFD: job {id} accepted on the MAIL page");
                         for m in run.career.board.inbox.iter_mut().filter(|m| m.job == Some(*id)) {
                             m.read = true;
@@ -257,10 +255,17 @@ fn press(
                         sounds.write(crate::audio::Sound::speaker("mfd_click"));
                     }
                 }
-                Some(Offer::Defence) => {
-                    info!("MFD: the city defence accepted on the MAIL page");
-                    crate::menu::start_defence(&mut commands);
-                    sounds.write(crate::audio::Sound::speaker("mfd_click"));
+                Some(Offer::Mission(i)) => {
+                    if let (Some(f), Some(m)) = (free.as_mut(), data.0.missions.mail.get(*i)) {
+                        if f.free.active == Some(m.mission) {
+                            info!("MFD: mission {:?} stopped on the MAIL page", m.mission);
+                            f.stop();
+                        } else {
+                            info!("MFD: mission {:?} started on the MAIL page", m.mission);
+                            f.start(m.mission);
+                        }
+                        sounds.write(crate::audio::Sound::speaker("mfd_click"));
+                    }
                 }
                 None => {}
             }

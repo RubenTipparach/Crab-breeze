@@ -13,7 +13,7 @@
 
 ## Free roam (owner, 2026-10-25)
 
-- [x] 4.1 Free roam spawns no encounter enemies at the start (`menu::Encounters`, only for a scripted take); its mail offers the city defence, on the menu's MAIL page and the cockpit's (`mfd_apps::offers`), ACCEPT starting it (`menu::start_defence`, one implementation for both)
+- [x] 4.1 Free roam spawns no encounter enemies at the start (`menu::Encounters`, only for a scripted take); its mail is free roam's missions (`free-roam-missions`), listed on the menu's MAIL page and the cockpit's (`mfd_apps::offers`), START and STOP going through `missions::FreeRoamRun` for both
 - [x] 4.2 An accepted mission's enemies spawn only on reaching its waypoint (1.5 km), 150-350 m round it and never within 1 km of the pilot (`jobs::enemy_spot`, `spawn_ring_m`, `clear_of_pilot_m`; tested)
 - [x] 4.3 Scripted takes (`--showcase`, `--bench`, `--stills`) start their fights directly, without the email MFD (`menu::Encounters`)
 - [ ] 4.4 Playtest in free roam: board with no one firing, accept on the email MFD, fly to the waypoint, fight

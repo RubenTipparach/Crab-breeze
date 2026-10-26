@@ -124,6 +124,9 @@ pub enum JobState {
     Declined,
     /// Left too long.
     Expired,
+    /// Given up for another (owner, 2026-10-25: "if activating a new mission it should turn off existing
+    /// mission"; `free-roam-missions`): unpaid.
+    Abandoned,
 }
 
 /// A job.
@@ -188,6 +191,8 @@ pub enum Event {
     Won(u32, i64),
     /// The active or accepted job failed (its id).
     Failed(u32),
+    /// The job under way was given up for another (its id): its enemies leave.
+    Abandoned(u32),
 }
 
 /// The jobs and the inbox.
@@ -217,19 +222,24 @@ impl Board {
         self.jobs.iter_mut().find(|j| j.id == id)
     }
 
-    /// Accepts an offer, when nothing else is under way. True when it was accepted.
-    pub fn accept(&mut self, id: u32) -> bool {
-        if self.current().is_some() {
-            return false;
+    /// Accepts an offer, abandoning the job under way if there is one (one job at a time). Returns the events:
+    /// `Abandoned` for the job given up, if any; empty when `id` is not an open offer.
+    pub fn accept(&mut self, id: u32) -> Vec<Event> {
+        if !self.job(id).is_some_and(|j| j.state == JobState::Offered) {
+            return Vec::new();
         }
-        match self.job_mut(id) {
-            Some(j) if j.state == JobState::Offered => {
-                j.state = JobState::Accepted;
-                j.clock_s = j.time_limit_s;
-                true
-            }
-            _ => false,
+        let mut events = Vec::new();
+        if let Some(cur) = self.current().map(|j| j.id)
+            && let Some(j) = self.job_mut(cur)
+        {
+            j.state = JobState::Abandoned;
+            events.push(Event::Abandoned(cur));
         }
+        if let Some(j) = self.job_mut(id) {
+            j.state = JobState::Accepted;
+            j.clock_s = j.time_limit_s;
+        }
+        events
     }
 
     /// Turns an offer down. True when it was declined.
@@ -468,7 +478,8 @@ mod tests {
         let mut b = Board::default();
         run(&mut b, 120.0);
         let id = b.jobs[0].id;
-        assert!(b.accept(id));
+        assert!(b.accept(id).is_empty());
+        assert_eq!(b.current().map(|j| j.id), Some(id));
         let site = b.job(id).unwrap().site;
         let e = b.step(&cfg(), &sites(), 42, site, None, false, DT);
         assert!(e.contains(&Event::Arrived(id)));
@@ -494,13 +505,20 @@ mod tests {
     }
 
     #[test]
-    fn only_one_job_at_a_time() {
+    fn accepting_a_job_abandons_the_one_under_way() {
         let mut b = Board::default();
         run(&mut b, 600.0);
         let ids: Vec<u32> = b.jobs.iter().filter(|j| j.state == JobState::Offered).map(|j| j.id).collect();
         assert!(ids.len() >= 2);
-        assert!(b.accept(ids[0]));
-        assert!(!b.accept(ids[1]), "one at a time");
+        assert!(b.accept(ids[0]).is_empty());
+        assert_eq!(
+            b.accept(ids[1]),
+            vec![Event::Abandoned(ids[0])],
+            "one at a time: the first is given up"
+        );
+        assert_eq!(b.job(ids[0]).unwrap().state, JobState::Abandoned);
+        assert_eq!(b.current().map(|j| j.id), Some(ids[1]));
+        assert!(b.accept(ids[0]).is_empty(), "an abandoned job is not an offer");
     }
 
     #[test]

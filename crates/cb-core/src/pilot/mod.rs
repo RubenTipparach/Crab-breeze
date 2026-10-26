@@ -400,8 +400,11 @@ impl PilotState {
                     moved = Vec2::new(self.feet.x, self.feet.z);
                     self.velocity = Vec2::ZERO;
                 }
-                let p = ground.push_out(moved, cfg.body_radius_m);
-                self.feet = Vec3::new(p.x, self.vertical(a, cfg, ground.height_at(p.x, p.y), dt_s), p.y);
+                // out of walls at the feet's own height (a deck 600 m up has no buildings round it)
+                let p = ground.push_out_at(moved, cfg.body_radius_m, self.feet.y);
+                // what the feet stand on: the ground, a roof, or a platform such as the Hermit's deck (crab-airship)
+                let floor = ground.support_at(p.x, p.y, self.feet.y);
+                self.feet = Vec3::new(p.x, self.vertical(a, cfg, floor, dt_s), p.y);
                 if let Some(m) = access {
                     if a.use_pressed && self.can_board(m, cfg) && self.waiting.is_none() {
                         self.waiting = Some(Waiting::ToBoard);
@@ -494,7 +497,7 @@ impl PilotState {
                 if path.done() {
                     let end = *path.points.last().unwrap_or(&self.feet);
                     let feet = end - Vec3::Y * cfg.eye_height_m;
-                    self.feet = Vec3::new(feet.x, ground.height_at(feet.x, feet.z), feet.z);
+                    self.feet = Vec3::new(feet.x, ground.support_at(feet.x, feet.z, feet.y), feet.z);
                     self.mode = PilotMode::OnFoot;
                     event = Some(PilotEvent::Disembarked);
                 }

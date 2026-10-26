@@ -11,7 +11,7 @@ All numbers in `data/world/units.ron` and `data/missions/defence.ron`; the code 
 | fighter jet | 15 m long | 180-250 m/s, turn 8 deg/s | 80 / 10 mm | 25 mm cannon; 2 missiles (the `targeting` seeker) | attack runs: dive, strafe, climb out, loop back |
 | cargo plane | 40 m span | 90 m/s | 400 / 20 mm | none | fly the drop line at 400 m, drop, leave |
 | crab mech | per `crab-enemies` | | | | the AI pilot |
-| crab airship | 300 x 80 x 60 m | 15 m/s | engines 4 x 600, turrets 10 x 150, bays 2 x 300 | flak (12 rounds/s, 1 MJ), beam turrets | hold over the attacked city at 600-900 m, launch fighters every 20 s, drop crab mechs every 45 s |
+| crab airship | moved to `openspec/changes/crab-airship` | | | | |
 
 Every unit is hit through the one `weapons::fly` (capsules or boxes per part), damaged through the
 one `Damage::resolve`, and its weapons are `WeaponSpec`s. Aircraft move as points with a speed, a
@@ -41,5 +41,5 @@ about 200 placeholder meshes. The airship's 16 parts are one entity each. Measur
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| G15 | The crab airship's size and how it dies | 300 m long, 600-900 m up; killed by its 4 engines, turrets and bays lockable parts on the way | provisional (survey G15) |
+| G15 | The crab airship's size and how it dies | moved to `crab-airship`: 420 m, eight lift thrusters, it falls when a side is down to one | provisional (survey G15) |
 | G16 | What each defence wave brings | Wave 1: cargo drops of tanks and enemy mechs, helicopters; wave 2: plus fighters; wave 3: the crab airship with its fighters and crab mechs | provisional (survey G16) |

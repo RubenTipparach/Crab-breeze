@@ -115,11 +115,11 @@ let TEX = null;
 
 // Crab Breeze: a normal map from a bump canvas (Sobel), strength in the kit's bumpScale spirit.
 function normalOf(c, strength) {
-  const S = c.width, g = c.getContext("2d"), src = g.getImageData(0, 0, S, S).data;
-  const out = document.createElement("canvas"); out.width = out.height = S;
-  const o = out.getContext("2d"), im = o.createImageData(S, S), d = im.data;
-  const h = (x, y) => src[(((y + S) % S) * S + ((x + S) % S)) * 4] / 255;
-  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+  const S = c.width, V = c.height, g = c.getContext("2d"), src = g.getImageData(0, 0, S, V).data;
+  const out = document.createElement("canvas"); out.width = S; out.height = V;
+  const o = out.getContext("2d"), im = o.createImageData(S, V), d = im.data;
+  const h = (x, y) => src[(((y + V) % V) * S + ((x + S) % S)) * 4] / 255;
+  for (let y = 0; y < V; y++) for (let x = 0; x < S; x++) {
     const dx = (h(x + 1, y - 1) + 2 * h(x + 1, y) + h(x + 1, y + 1)) - (h(x - 1, y - 1) + 2 * h(x - 1, y) + h(x - 1, y + 1));
     const dy = (h(x - 1, y + 1) + 2 * h(x, y + 1) + h(x + 1, y + 1)) - (h(x - 1, y - 1) + 2 * h(x, y - 1) + h(x + 1, y - 1));
     let nx = -dx * strength, ny = dy * strength, nz = 1; const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
@@ -133,15 +133,15 @@ function normalOf(c, strength) {
 // than its base, smoother where it is worn through; metal is the bare steel showing through the paint.
 // metal0 is the plate's own metalness (paint 0, knurled steel high).
 function ormOf(colC, bmpC, o) {
-  const S = colC.width;
-  const blur = document.createElement("canvas"); blur.width = blur.height = S;
+  const S = colC.width, V = colC.height;
+  const blur = document.createElement("canvas"); blur.width = S; blur.height = V;
   const q = blur.getContext("2d"); q.filter = "blur(5px)";
-  for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) q.drawImage(bmpC, ox, oy);
-  const hb = q.getImageData(0, 0, S, S).data, h = bmpC.getContext("2d").getImageData(0, 0, S, S).data;
-  const c = colC.getContext("2d").getImageData(0, 0, S, S).data;
+  for (const ox of [-S, 0, S]) for (const oy of [-V, 0, V]) q.drawImage(bmpC, ox, oy);
+  const hb = q.getImageData(0, 0, S, V).data, h = bmpC.getContext("2d").getImageData(0, 0, S, V).data;
+  const c = colC.getContext("2d").getImageData(0, 0, S, V).data;
   const base = parseInt(o.base.slice(1), 16), bl = (((base >> 16) & 255) * 0.3 + ((base >> 8) & 255) * 0.59 + (base & 255) * 0.11) / 255;
-  const out = document.createElement("canvas"); out.width = out.height = S;
-  const g = out.getContext("2d"), im = g.createImageData(S, S), d = im.data;
+  const out = document.createElement("canvas"); out.width = S; out.height = V;
+  const g = out.getContext("2d"), im = g.createImageData(S, V), d = im.data;
   for (let i = 0; i < d.length; i += 4) {
     const cav = Math.max(0, hb[i] - h[i]) / 255, lum = (c[i] * 0.3 + c[i + 1] * 0.59 + c[i + 2] * 0.11) / 255;
     const ao = Math.min(1, Math.max(0.25, 1 - cav * 3.2));
@@ -253,6 +253,208 @@ function modern(seed, o) {
 }
 
 
+// Crab Breeze: the crab air fortress's armour, designed for its own hull (owner, 2026-10-25: "paneling must look organized
+// and intentional", "each element has paneling that compliments its shape", "NEVER HAVE A CROSS in the seams", "you
+// want t junctions, and about 20-30% diagonal lines", "they look like objects glued on", "paneling should look like
+// pieces of custom made armor cut and fitted with precision", "you just generate them and tiled them ... that is not
+// the point of panel design", "do not take the lazy approach"; and CLAUDE.md section 10: texture lines start on the
+// model). Each sheet is laid out against the fortress's features (tools/mockups/fortress_layout.json, handed in as
+// window.__LAYOUT), never tiled:
+//   fortress_shell  the shell, top and underside, in its polar layout (u round from the stern, the bow at 0.5; v out
+//                   from its middle): an armoured belt round the rim broken by a root plate at every leg pylon and
+//                   a stern plate round the drives; big side plates between seams run out from a round doubler
+//                   framing each hull thruster port, divided by deliberate diagonals; a bow plate on the centreline.
+//   fortress_belly  the belly, polar about its own middle: bands between the abdomen's ribs, split on the keel and
+//                   at either side by turns (a diagonal on the side splits), a dark keel stripe down alternate bands.
+//   fortress_side   every long wall along the hull (spine sides, shoulder walls): bays between the hull's structural
+//                   stations (bow, bridge, each pylon, each port, stern), a rail along the top, the pylon bays split.
+//   nacelle         every cylinder, once round: a collar band, the body in four, a nozzle band, seams offset band to band.
+//   panel           every other face: one fitted panel, a border, a split, chamfered top corners.
+// Precision, not pillows: plates flush with a few millimetres' step between neighbours, seams as thin engraved grooves
+// with a small chamfer, fasteners in even rows, every seam ending on another in a T. Neutral paint the palette tints;
+// a livery mask for the accent; an emission map (dark: the armour carries no lights).
+function fittedSheet(W, H, base) {
+  const mk = () => { const c = document.createElement("canvas"); c.width = W; c.height = H; return c; };
+  const K = { W, H, col: mk(), bmp: mk(), emi: mk(), liv: mk() };
+  K.g = K.col.getContext("2d"); K.b = K.bmp.getContext("2d"); K.e = K.emi.getContext("2d"); K.l = K.liv.getContext("2d");
+  K.g.fillStyle = base; K.g.fillRect(0, 0, W, H); K.b.fillStyle = "rgb(150,150,150)"; K.b.fillRect(0, 0, W, H);
+  K.e.fillStyle = "#000"; K.e.fillRect(0, 0, W, H); K.l.fillStyle = "#000"; K.l.fillRect(0, 0, W, H);
+  const grey = v => `rgb(${v},${v},${v})`;
+  K.path = (ctx, pts, closed) => { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); if (closed) ctx.closePath(); };
+  // a plate: a tone of the paint and its own small height step (layer -1, 0 or 1: a few millimetres either way)
+  K.fit = (pts, layer, tone) => {
+    if (tone) { K.g.fillStyle = tone; K.path(K.g, pts, true); K.g.fill(); }
+    K.b.fillStyle = grey(150 + 5 * layer); K.path(K.b, pts, true); K.b.fill();
+  };
+  K.livery = pts => { K.l.fillStyle = "#fff"; K.path(K.l, pts, true); K.l.fill(); };
+  // a seam: a small chamfer either side and a fine groove down the middle; drawn after every plate it parts
+  K.seam = (pts, closed) => {
+    K.b.lineJoin = K.g.lineJoin = "round";
+    K.b.strokeStyle = grey(136); K.b.lineWidth = 7; K.path(K.b, pts, closed); K.b.stroke();
+    K.b.strokeStyle = grey(70); K.b.lineWidth = 2.5; K.path(K.b, pts, closed); K.b.stroke();
+    K.g.strokeStyle = "rgba(20,20,23,0.85)"; K.g.lineWidth = 1.8; K.path(K.g, pts, closed); K.g.stroke();
+  };
+  K.fastener = (x, y, r = 3) => { const gr = K.b.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, grey(172)); gr.addColorStop(1, grey(152));
+    K.b.fillStyle = gr; K.b.beginPath(); K.b.arc(x, y, r, 0, TAU); K.b.fill(); K.g.fillStyle = "rgba(70,70,74,0.75)"; K.g.beginPath(); K.g.arc(x, y, r - 0.5, 0, TAU); K.g.fill(); };
+  // a row of fasteners along a polyline, every `step` pixels, `inset` to one side of it
+  K.row = (pts, step, inset) => { for (let i = 0; i + 1 < pts.length; i++) { const [x0, y0] = pts[i], [x1, y1] = pts[i + 1], l = Math.hypot(x1 - x0, y1 - y0);
+    if (l < 1) continue; const nx = -(y1 - y0) / l * inset, ny = (x1 - x0) / l * inset;
+    for (let d = step / 2; d < l; d += step) { const t = d / l; K.fastener(x0 + (x1 - x0) * t + nx, y0 + (y1 - y0) * t + ny); } } };
+  // an access hatch: an engraved rounded rectangle with a pull slot, flush
+  K.hatch = (cx, cy, w, h) => { const r = Math.min(w, h) * 0.18;
+    K.b.strokeStyle = grey(110); K.b.lineWidth = 3; K.b.beginPath(); K.b.roundRect(cx - w / 2, cy - h / 2, w, h, r); K.b.stroke();
+    K.g.strokeStyle = "rgba(20,20,23,0.75)"; K.g.lineWidth = 1.6; K.g.beginPath(); K.g.roundRect(cx - w / 2, cy - h / 2, w, h, r); K.g.stroke();
+    K.b.fillStyle = grey(118); K.b.fillRect(cx - w * 0.12, cy - 3, w * 0.24, 6); K.g.fillStyle = "rgba(20,20,23,0.8)"; K.g.fillRect(cx - w * 0.12, cy - 2.5, w * 0.24, 5); };
+  // a grille: a recessed frame of slots
+  K.grille = (cx, cy, w, h, n) => { K.b.fillStyle = grey(124); K.b.fillRect(cx - w / 2, cy - h / 2, w, h); K.g.fillStyle = "rgba(40,40,44,0.6)"; K.g.fillRect(cx - w / 2, cy - h / 2, w, h);
+    const sw = w / (2 * n + 1); for (let k = 0; k < n; k++) { const x = cx - w / 2 + sw * (2 * k + 1); K.b.fillStyle = grey(84); K.b.fillRect(x, cy - h / 2 + 4, sw, h - 8); K.g.fillStyle = "#151518"; K.g.fillRect(x, cy - h / 2 + 4, sw, h - 8); } };
+  K.weather = r => {
+    for (let i = 0; i < W * H / 9000; i++) { const x = r() * W, y = r() * H, l = 20 + r() * 90, gr = K.g.createLinearGradient(0, y, 0, y + l);
+      gr.addColorStop(0, `rgba(34,30,26,${0.04 + r() * 0.06})`); gr.addColorStop(1, "rgba(34,30,26,0)"); K.g.fillStyle = gr; K.g.fillRect(x, y, 1.5 + r() * 3, l); }
+    for (const [ctx, amp] of [[K.g, 5], [K.b, 1.5]]) { const im = ctx.getImageData(0, 0, W, H), d = im.data;
+      for (let i = 0; i < d.length; i += 4) { const n = (r() - 0.5) * amp; d[i] += n; d[i + 1] += n; d[i + 2] += n; } ctx.putImageData(im, 0, 0); }
+  };
+  // a shape that crosses the sheet's left or right edge (u wraps round) is drawn at both edges
+  K.wrapped = (pts, fn) => { const xs = pts.map(p => p[0]); fn(pts); if (Math.min(...xs) < 0) fn(pts.map(([x, y]) => [x + W, y])); if (Math.max(...xs) > W) fn(pts.map(([x, y]) => [x - W, y])); };
+  return K;
+}
+const DEG = Math.PI / 180;
+function fortressShell(L, o) {
+  const W = 4096, H = 1024, K = fittedSheet(W, H, o.base), r = rng(401);
+  const X = th => (th / 360 + 0.5) * W, Y = rr => rr * H, P = (th, rr) => [X(th), Y(rr)];
+  const plan = (x, z) => { const nx = x / L.shell.ax, nz = z / L.shell.az; return [Math.atan2(nx, nz) / DEG, Math.hypot(nx, nz)]; };
+  const arc = (t0, t1, rr, n = 24) => Array.from({ length: n + 1 }, (_, k) => P(t0 + (t1 - t0) * k / n, rr));
+  const sector = (t0, t1, r0, r1) => [...arc(t0, t1, r0), ...arc(t1, t0, r1)];
+  const BELT = 0.9, MID = 0.5;
+  // the features, on the port side (theta > 0); everything is mirrored
+  const pylons = L.lift_z.map(z => Math.acos(z / L.shell.az) / DEG);
+  const ports = L.hull_ports.z.map(z => plan(L.hull_ports.x, z));
+  const drive = plan(L.drive.x, L.drive.z)[0];
+  // the belt: a bow plate across the centreline, a root plate round each pylon (+-7 deg), plates between, a plate round
+  // the drive and a stern plate across the centreline
+  const beltSeams = [22, ...pylons.flatMap(t => [t - 7, t + 7]), drive - 10, drive + 10];
+  // the side band: seams run out from each port's doubler (radial), and diagonals between them, each ending on the belt
+  // well clear of the belt's own seams
+  const mid = [[16, 16], [35, 40]];
+  ports.forEach(([t], k) => { mid.push([t, t]); if (k + 1 < ports.length) { const m = (t + ports[k + 1][0]) / 2; mid.push([m - 1.5, m + 1.5]); } });
+  mid.push([135, 140], [165, 165]);
+  for (const [a, b] of mid) for (const s of beltSeams) if (Math.abs(b - s) < 2) throw new Error(`fortress_shell: side seam ending at ${b} deg meets the belt seam at ${s} deg`);
+  const sides = [1, -1], m = (s, t) => s * t;
+  const regions = [];   // [polygon, layer, livery, kind]
+  for (const s of sides) {
+    // the belt
+    for (let k = 0; k + 1 < beltSeams.length; k++) { const t0 = beltSeams[k], t1 = beltSeams[k + 1], root = pylons.some(p => Math.abs((t0 + t1) / 2 - p) < 1);
+      regions.push([sector(m(s, t0), m(s, t1), BELT, 1.0), root ? 1 : 0, !root, root ? "root" : "belt"]); }
+    // the side band, between consecutive seams (a diagonal seam gives a slanted side)
+    for (let k = 0; k + 1 < mid.length; k++) { const [a0, a1] = mid[k], [b0, b1] = mid[k + 1];
+      regions.push([[P(m(s, a0), MID), ...arc(m(s, a0), m(s, b0), MID).slice(1, -1), P(m(s, b0), MID), P(m(s, b1), BELT), ...arc(m(s, b1), m(s, a1), BELT).slice(1, -1), P(m(s, a1), BELT)], k % 2 ? -1 : 0, false, "side"]); }
+  }
+  regions.push([sector(-22, 22, BELT, 1.0), 0, true, "belt"], [sector(drive + 10, 360 - drive - 10, BELT, 1.0), 1, false, "stern"]);
+  regions.push([sector(-16, 16, MID, BELT), 1, false, "bow"], [sector(165, 195, MID, BELT), 0, false, "stern"], [sector(-180, 180, 0, MID), 0, false, "inner"]);
+  // fill every plate, then the seams over them
+  regions.forEach(([pts, layer, liv]) => K.wrapped(pts, q => { K.fit(q, layer, layer > 0 ? "rgba(255,255,255,0.04)" : layer < 0 ? "rgba(0,0,0,0.04)" : null); if (liv) K.livery(q); }));
+  // a stripe down the centreline, bow and stern
+  K.wrapped(sector(-2.5, 2.5, MID, BELT), q => K.livery(q));
+  // the seams: the belt's inner ring, the belt's and the side band's dividers, the ring under the shoulders
+  K.seam(arc(-180, 180, BELT, 360));
+  for (const s of sides) { beltSeams.forEach(t => K.seam([P(m(s, t), BELT), P(m(s, t), 1.0)])); mid.forEach(([a, b]) => K.seam([P(m(s, a), MID), P(m(s, b), BELT)])); }
+  K.seam(arc(-180, 180, MID, 360));
+  // fasteners: a row each side of the belt's inner seam, and along each root plate's sides
+  K.row(arc(-180, 180, BELT, 360), 22, 7); K.row(arc(180, -180, BELT, 360), 22, 7);
+  for (const s of sides) pylons.forEach(t => { for (const e of [t - 7, t + 7]) { K.row([P(m(s, e), BELT), P(m(s, e), 1.0)], 14, 6); K.row([P(m(s, e), 1.0), P(m(s, e), BELT)], 14, 6); } });
+  // the hull ports' doublers: a round plate framing each collar, its own seam and a ring of fasteners
+  for (const s of sides) for (const k in L.hull_ports.z) {
+    const z = L.hull_ports.z[k], x = s * L.hull_ports.x, ring = R => Array.from({ length: 73 }, (_, q) => { const a = q / 72 * TAU; return P(...plan(x + R * Math.cos(a), z + R * Math.sin(a))); });
+    const outer = ring(L.hull_ports.collar_m + 10);
+    K.fit(outer, 1, "rgba(255,255,255,0.05)"); K.seam(outer, true); K.row(ring(L.hull_ports.collar_m + 6), 16, 0);
+  }
+  // in each side plate, a hatch or a grille on the plate's middle, by turns
+  for (const s of sides) for (let k = 0; k + 1 < mid.length; k++) { const t = m(s, (mid[k][1] + mid[k + 1][1]) / 2 + (mid[k][0] + mid[k + 1][0]) / 2) / 2, [cx, cy] = P(t, 0.8);
+    if (ports.some(([pt, pr]) => Math.abs(Math.abs(t) - pt) < 6 && Math.abs(0.8 - pr) < 0.12)) continue;
+    if (k % 2) K.grille(cx, cy, 120, 46, 6); else K.hatch(cx, cy, 130, 70); }
+  // the root plates carry a stencilled lift point
+  for (const s of sides) pylons.forEach(t => { const [cx, cy] = P(m(s, t), 0.95); K.hatch(cx, cy, 70, 34); });
+  K.weather(r);
+  return K;
+}
+function fortressBelly(L, o) {
+  const W = 2048, H = 1024, K = fittedSheet(W, H, o.base), r = rng(411);
+  const P = (nx, nz) => [(Math.atan2(nx, nz) / TAU + 0.5) * W, Math.min(1, Math.hypot(nx, nz)) * H];
+  // a point list kept on one side of the seam round the back (behind the keel u jumps from 0 to 1)
+  const unwrap = pts => { for (let i = 1; i < pts.length; i++) { while (pts[i][0] - pts[i - 1][0] > W / 2) pts[i][0] -= W; while (pts[i - 1][0] - pts[i][0] > W / 2) pts[i][0] += W; } return pts; };
+  const raw = (a, b, n) => Array.from({ length: n + 1 }, (_, k) => P(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n));
+  const edge = (a, b, n = 32) => unwrap(raw(a, b, n));
+  const quad = (a, b, c, d) => unwrap([...raw(a, b, 32), ...raw(b, c, 32).slice(1), ...raw(c, d, 32).slice(1), ...raw(d, a, 32).slice(1, -1)]);
+  const rib = L.belly.rib_dz / L.belly.az, BANDS = [-1.0, -3 * rib, -2 * rib, -rib, 0, rib, 2 * rib, 3 * rib, 1.0];
+  // the plates: each band split on the keel, or at either side (a diagonal) by turns, so the splits never line up
+  const plates = [];
+  for (let b = 0; b + 1 < BANDS.length; b++) { const z0 = BANDS[b], z1 = BANDS[b + 1];
+    if (b % 2 === 0) plates.push([quad([-1.2, z0], [0, z0], [0, z1], [-1.2, z1]), 0, false], [quad([0, z0], [1.2, z0], [1.2, z1], [0, z1]), 1, false]);
+    else plates.push([quad([-1.2, z0], [-0.3, z0], [-0.4, z1], [-1.2, z1]), -1, false], [quad([-0.3, z0], [0.3, z0], [0.4, z1], [-0.4, z1]), 1, true], [quad([0.3, z0], [1.2, z0], [1.2, z1], [0.4, z1]), -1, false]); }
+  plates.forEach(([pts, layer, liv]) => K.wrapped(pts, q => { K.fit(q, layer, layer > 0 ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.035)"); if (liv) K.livery(q); }));
+  for (let b = 1; b + 1 < BANDS.length; b++) { const line = edge([-1.2, BANDS[b]], [1.2, BANDS[b]], 64); K.wrapped(line, q => { K.seam(q); K.row(q, 20, 6); }); }
+  for (let b = 0; b + 1 < BANDS.length; b++) { const z0 = BANDS[b], z1 = BANDS[b + 1];
+    const cuts = b % 2 === 0 ? [[[0, z0], [0, z1]]] : [[[-0.3, z0], [-0.4, z1]], [[0.3, z0], [0.4, z1]]];
+    cuts.forEach(([a, c]) => K.wrapped(edge(a, c), q => K.seam(q)));
+    for (const sx of [-0.7, 0.7]) { const [cx, cy] = P(sx, (z0 + z1) / 2); if (Math.hypot(sx, (z0 + z1) / 2) < 0.97) K.hatch(cx, cy, 90, 46); } }
+  K.weather(r);
+  return K;
+}
+function fortressSide(L, o) {
+  // u runs along the hull from z = -181 (u = 0) to z = +181 (u = 1); v up the wall
+  const W = 4096, H = 512, K = fittedSheet(W, H, o.base), r = rng(421);
+  const z0 = Math.min(...L.stations_z), z1 = Math.max(...L.stations_z), U = z => (z - z0) / (z1 - z0) * W;
+  const RAIL = 0.12 * H, SPLIT = 0.55 * H, st = [...L.stations_z].sort((a, b) => a - b);
+  const pylonBay = (a, b) => L.lift_z.some(z => z > a && z < b) || L.lift_z.includes(b);
+  // the rail along the top: plates whose seams fall at the middle of each bay below, clear of the stations
+  const railCuts = [0, ...st.slice(0, -1).map((z, i) => U((z + st[i + 1]) / 2)), W];
+  for (let k = 0; k + 1 < railCuts.length; k++) { const pts = [[railCuts[k], 0], [railCuts[k + 1], 0], [railCuts[k + 1], RAIL], [railCuts[k], RAIL]]; K.fit(pts, 1, "rgba(255,255,255,0.04)"); K.livery(pts); }
+  // the bays between the stations; a pylon's bay is split across at SPLIT, with a diagonal end
+  for (let k = 0; k + 1 < st.length; k++) { const a = U(st[k]), b = U(st[k + 1]);
+    if (pylonBay(st[k], st[k + 1])) { K.fit([[a, RAIL], [b, RAIL], [b, SPLIT - 30], [a, SPLIT + 30]], k % 2 ? 0 : -1); K.fit([[a, SPLIT + 30], [b, SPLIT - 30], [b, H], [a, H]], k % 2 ? -1 : 0); }
+    else K.fit([[a, RAIL], [b, RAIL], [b, H], [a, H]], k % 2 ? 0 : -1, k % 2 ? null : "rgba(0,0,0,0.03)"); }
+  K.seam([[0, RAIL], [W, RAIL]]);
+  railCuts.slice(1, -1).forEach(x => K.seam([[x, 0], [x, RAIL]]));
+  st.slice(1, -1).forEach(z => K.seam([[U(z), RAIL], [U(z), H]]));
+  for (let k = 0; k + 1 < st.length; k++) { const a = U(st[k]), b = U(st[k + 1]), cx = (a + b) / 2;
+    if (pylonBay(st[k], st[k + 1])) { K.seam([[a, SPLIT + 30], [b, SPLIT - 30]]); K.grille(cx, H * 0.78, Math.min(160, (b - a) * 0.5), 60, 7); }
+    else K.hatch(cx, H * 0.55, Math.min(150, (b - a) * 0.45), 90); }
+  K.row([[0, RAIL], [W, RAIL]], 26, 8);
+  st.slice(1, -1).forEach(z => { K.row([[U(z), RAIL], [U(z), H]], 24, 7); K.row([[U(z), H], [U(z), RAIL]], 24, 7); });
+  K.weather(r);
+  return K;
+}
+function nacelleWrap(L, o) {
+  // u once round (0..1), v up (canvas top = the top of the cylinder)
+  const W = 2048, H = 1024, K = fittedSheet(W, H, o.base), r = rng(431);
+  const TOP = 0.15 * H, BOT = 0.8 * H, U = deg => deg / 360 * W;
+  const band = (cuts, y0, y1, layers) => { cuts.forEach((c, k) => { const c1 = cuts[(k + 1) % cuts.length] + (k + 1 === cuts.length ? 360 : 0);
+    const pts = [[U(c), y0], [U(c1), y0], [U(c1), y1], [U(c), y1]]; K.wrapped(pts, q => K.fit(q, layers[k % layers.length])); }); };
+  const collar = [11.25, 56.25, 101.25, 146.25, 191.25, 236.25, 281.25, 326.25], body = [0, 90, 180, 270], nozzle = [15, 75, 135, 195, 255, 315];
+  band(collar, 0, TOP, [1, 0]); band(body, TOP, BOT, [0, -1]); band(nozzle, BOT, H, [1]);
+  K.l.fillStyle = "#fff"; K.l.fillRect(0, 0, W, TOP);   // the collar in the accent
+  K.seam([[0, TOP], [W, TOP]]); K.seam([[0, BOT], [W, BOT]]);
+  collar.forEach(c => K.seam([[U(c), 0], [U(c), TOP]])); nozzle.forEach(c => K.seam([[U(c), BOT], [U(c), H]]));
+  // the body panels: two opposite with a diagonal seam, the other two with a grille
+  body.forEach((c, k) => { K.seam([[U(c), TOP], [U(c), BOT]]);
+    if (k % 2) K.seam([[U(c + 90 * 0.375), TOP], [U(c + 90 * 0.625), BOT]]); else K.grille(U(c + 45), (TOP + BOT) / 2, U(40), 120, 5); });
+  K.row([[0, TOP], [W, TOP]], 24, 8); K.row([[W, TOP], [0, TOP]], 24, 8); K.row([[0, BOT], [W, BOT]], 24, 8);
+  K.weather(r);
+  return K;
+}
+function fittedPanel(L, o) {
+  const S = 1024, K = fittedSheet(S, S, o.base), r = rng(441), B = 0.07 * S, SPLIT = 0.36 * S, C = 0.1 * S;
+  const inner = [[B + C, B], [S - B - C, B], [S - B, B + C], [S - B, S - B], [B, S - B], [B, B + C]];
+  K.fit(inner, 0); K.fit([[B, SPLIT], [S - B, SPLIT], [S - B, S - B], [B, S - B]], -1, "rgba(0,0,0,0.035)");
+  K.l.fillStyle = "#fff"; K.l.fillRect(0, 0, S, B);
+  K.seam(inner, true); K.seam([[B, SPLIT], [S - B, SPLIT]]); K.seam([[S / 2, B], [S / 2, SPLIT]]);
+  K.row(inner.concat([inner[0]]), 40, 14);
+  K.hatch(S / 2, (SPLIT + S - B) / 2, S * 0.36, S * 0.2); K.grille(S * 0.28, (B + SPLIT) / 2, S * 0.2, S * 0.1, 4); K.grille(S * 0.72, (B + SPLIT) / 2, S * 0.2, S * 0.1, 4);
+  K.weather(r);
+  return K;
+}
+
+
 // Crab Breeze: the decal sheet (owner, 2026-10-24, with water-slide decal sheets for reference: "instead of \"danger\"
 // plastered everywhere it should say \"no step\", company logo, \"warning flamable\" etc"). Crab Breeze's own markings on
 // an 8 by 8 grid of 128 px cells, transparent between them; DECALS names each one's cells (col, row, cols, rows), and
@@ -346,6 +548,13 @@ window.__out = (() => {
         plate: png(A.map), plate_n: png(normalOf(A.bump, 2.0)), plate_orm: png(ormOf(A.map, A.bump, { base: "#dcdcdc", rough: 0.42, metal0: 0 })),
         plateB: png(B.map), plateB_n: png(normalOf(B.bump, 2.0)), plateB_orm: png(ormOf(B.map, B.bump, { base: "#d2d2d2", rough: 0.5, metal0: 0 })),
         frameM: png(F.map), frameM_n: png(normalOf(F.bump, 2.0)), frameM_orm: png(ormOf(F.map, F.bump, { base: "#4a4b4f", rough: 0.4, metal0: 0.7 })),
+        // the crab air fortress: its armour designed for its own hull, laid out against fortress_layout.json
+        ...(() => { const out = {}, L = window.__LAYOUT; if (!L) return out;
+          for (const [name, fn] of [["fortress_shell", fortressShell], ["fortress_belly", fortressBelly], ["fortress_side", fortressSide], ["nacelle", nacelleWrap], ["panel", fittedPanel]]) {
+            const base = "#d0d0d0", K = fn(L, { base });
+            out[name] = png(K.col); out[name + "_n"] = png(normalOf(K.bmp, 4.0)); out[name + "_orm"] = png(ormOf(K.col, K.bmp, { base, rough: 0.42, metal0: 0 }));
+            out[name + "_e"] = png(K.emi); out[name + "_m"] = png(K.liv); }
+          return out; })(),
         decals: png(decalSheet()),
       };
     })(),

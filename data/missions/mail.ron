@@ -1,0 +1,18 @@
+// Free roam's mail (openspec/changes/free-roam-missions): one message per mission. Starting one turns off the one
+// running (owner, 2026-10-25: "if activating a new mission it should turn off existing mission").
+(
+    mail: [
+        (
+            mission: Defence,
+            from: "City Defence Office",
+            subject: "Raiders are coming for the cities",
+            body: "Three waves of raider mechs and their vehicles will strike the island's three largest cities, one after another. Stop each wave before its city is half destroyed. Your mech is waiting where you are.",
+        ),
+        (
+            mission: Fortress,
+            from: "Island Command",
+            subject: "The Hermit is over the city",
+            body: "A crab air fortress, 420 m long, hangs 600 m over the city nearest you on eight lift thrusters. Its thrusters are plated on the outside: get under them. Lose three on one side and it opens thrusters in its hull, hit only from straight above or below. Bring it down.",
+        ),
+    ],
+)

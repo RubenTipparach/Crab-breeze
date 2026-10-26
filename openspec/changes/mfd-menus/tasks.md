@@ -10,8 +10,7 @@
 - [ ] 2.3 MAP page: the plan drawn once; mech, job and enemy markers; three zooms
 - [x] 2.4a MAIL (`mission-jobs`) as a page: credits, the job under way and its distance, three offers with ACCEPT
 - [ ] 2.4b MENU row opens the pause menu (`game-menus`); SHOP (`mech-shop`) as a page
-- [x] 2.4b' Free roam's MAIL page lists the city defence (main's free-roam mail) with ACCEPT through `menu::start_defence`
-- [ ] 2.4c Once `free-roam-missions` (PR #33) is on main: free roam's MAIL page lists `missions::FreeRoamRun`'s missions with START/STOP (its `start`/`stop`, never the switch message by hand); a career's ACCEPT takes `Board::accept`'s events into `CareerRun.pending` as `menu::press` does (agreed with the fortress session, 2026-10-25)
+- [x] 2.4c With `free-roam-missions` on main (PR #33): free roam's MAIL page lists `missions::FreeRoamRun`'s missions with START/STOP (its `start`/`stop`, never the switch message by hand); a career's ACCEPT takes `Board::accept`'s events into `CareerRun.pending` as `menu::press` does (agreed with the fortress session, 2026-10-25)
 
 ## 3. Checks
 - [x] 3.1 `cargo fmt`, `cargo clippy -D warnings`, `cargo test --workspace`, `cb-tools validate`, `openspec validate --all`, the dash check

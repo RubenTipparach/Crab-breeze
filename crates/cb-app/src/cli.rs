@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 /// The mech flown when none is named.
 pub const DEFAULT_MECH: &str = "mechs/foreman.ron";
 
-pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence] [--showcase world|fight|defence|marks|sun|demolition|trail] [--bench world|fight|defence|marks|sun|demolition] [--start meadow|overlook] [--play free|free-continue|career-new|career-continue]";
+pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence|fortress] [--showcase world|fight|defence|marks|sun|demolition|trail] [--bench world|fight|defence|marks|sun|demolition] [--start meadow|overlook|base] [--play free|free-continue|career-new|career-continue]";
 
 /// Parsed command line.
 #[derive(Debug, PartialEq)]
@@ -17,7 +17,7 @@ pub struct Args {
     pub mech: String,
     /// Capture instrument output directory (`pilot-boarding` design section 4).
     pub stills: Option<PathBuf>,
-    /// Play a mission yourself (`defence`).
+    /// Play a mission yourself (`defence`; `fortress`: free roam with the Hermit running).
     pub mission: Option<String>,
     /// Play a showcase take (`world`, `fight`, `defence`, `marks` or `sun`) for a recording.
     pub showcase: Option<String>,
@@ -63,8 +63,8 @@ impl Args {
                 "--mech" => out.mech = value()?,
                 "--stills" => out.stills = Some(PathBuf::from(value()?)),
                 "--mission" => match it.next().as_deref() {
-                    Some("defence") => out.mission = Some("defence".into()),
-                    _ => return Err("--mission takes `defence`".into()),
+                    Some(m @ ("defence" | "fortress")) => out.mission = Some(m.into()),
+                    _ => return Err("--mission takes `defence` or `fortress`".into()),
                 },
                 "--showcase" => out.showcase = Some(take_name(it.next())?),
                 "--bench" => out.bench = Some(take_name(it.next())?),
@@ -76,7 +76,8 @@ impl Args {
                     Some("meadow") => out.start = Some("meadow".into()),
                     Some("fx") => out.start = Some("fx".into()),
                     Some("overlook") => out.start = Some("overlook".into()),
-                    _ => return Err("--start takes `meadow`, `fx` or `overlook`".into()),
+                    Some("base") => out.start = Some("base".into()),
+                    _ => return Err("--start takes `meadow`, `fx`, `overlook` or `base`".into()),
                 },
                 other => return Err(format!("unknown argument {other}")),
             }

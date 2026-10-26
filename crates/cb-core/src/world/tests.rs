@@ -134,7 +134,8 @@ const GOLDEN_BUILDINGS: usize = 3609;
 const GOLDEN_HIGHWAYS: usize = 12;
 const GOLDEN_RIVERS: usize = 64;
 const GOLDEN_TREES_AT_START: usize = 38407;
-const GOLDEN_FINGERPRINT: u64 = 337051159644685406;
+// 2026-10-25: the five air bases (air-bases) flatten their sites; counts unchanged.
+const GOLDEN_FINGERPRINT: u64 = 13301900611483554179;
 
 #[test]
 fn seed_42_census_for_the_design() {
@@ -902,6 +903,46 @@ fn the_baked_sun_shade_agrees_with_a_ray_toward_the_sun() {
 }
 
 #[test]
+fn a_pilot_standing_still_on_a_deck_over_the_city_stays_where_they_stand() {
+    // A cloud run's regression (crab-airship section 9): standing still on the Hermit's deck, 600 m over the city,
+    // the pilot slid 26 m across it, pushed out of the footprints of the buildings and trees far below.
+    let plan = seed_42();
+    let b = &plan.buildings[0];
+    let over = b.footprint.centre();
+    let top = plan.terrain.height_at(over.x, over.y) + 600.0;
+    let deck = Platform {
+        slabs: vec![Slab {
+            name: "deck".into(),
+            min: Vec2::splat(-200.0),
+            max: Vec2::splat(200.0),
+            centre: Vec2::ZERO,
+            top_m: 0.0,
+            slope: Vec2::ZERO,
+        }],
+        pose: glam::Affine3A::from_translation(Vec3::new(over.x, top, over.y)),
+        was: glam::Affine3A::from_translation(Vec3::new(over.x, top, over.y)),
+    };
+    let dug = Deformation::new(4096.0);
+    let structures = Structures::new(plan);
+    let forest = Forest::default();
+    let platforms = [deck];
+    let scene = Scene {
+        plan,
+        dug: &dug,
+        trees: Some(&forest),
+        structures: Some(&structures),
+        platforms: &platforms,
+    };
+    let start = Vec3::new(over.x, top, over.y);
+    let mut p = crate::pilot::PilotState::standing(start, 0.0);
+    let cfg = crate::pilot::PilotConfig::default();
+    for _ in 0..120 {
+        p.step(&crate::input::Actions::default(), &cfg, &scene, None, 1.0 / 60.0);
+    }
+    assert!(p.feet.distance(start) < 1e-3, "{start} -> {}", p.feet);
+}
+
+#[test]
 fn no_rivers_water_lies_under_the_ground() {
     // Owner, 2026-10-25: "I see rivers still have holes in them". Every river's water is over the
     // ground along its whole course, joins included, except where a road's flat band or a bridge
@@ -925,4 +966,70 @@ fn no_rivers_water_lies_under_the_ground() {
         }
     }
     assert!(buried.is_empty(), "river points under the ground: {buried:?}");
+}
+
+#[test]
+fn the_island_has_air_bases_on_flat_ground_clear_of_the_cities() {
+    // Owner, survey J5: five air bases (air-bases). Each stands on its flattened site, clear of every
+    // city, the bases spread apart, the first the nearest the largest city.
+    let plan = seed_42();
+    let cfg = shipped().bases;
+    eprintln!(
+        "{} air bases: {:?}",
+        plan.bases.len(),
+        plan.bases
+            .iter()
+            .map(|b| (b.centre.x.round(), b.centre.y.round(), b.ground_m.round()))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(plan.bases.len(), cfg.count, "every base the data asks for stands on seed 42");
+    for b in &plan.bases {
+        for c in &plan.cities {
+            assert!(c.rect().distance(b.centre) > cfg.city_clear_m, "base {} is by a city", b.id);
+        }
+        for p in [b.rect().min, b.rect().max, b.centre] {
+            let h = plan.terrain.height_at(p.x, p.y);
+            assert!(
+                (h - b.ground_m).abs() < 1.0,
+                "base {}'s site is flat: {h} against {}",
+                b.id,
+                b.ground_m
+            );
+        }
+    }
+    for (i, a) in plan.bases.iter().enumerate() {
+        for b in &plan.bases[i + 1..] {
+            assert!(
+                a.centre.distance(b.centre) >= cfg.spacing_m,
+                "bases {} and {} too close",
+                a.id,
+                b.id
+            );
+        }
+    }
+    let largest = plan.cities[0].centre;
+    let nearest = plan
+        .bases
+        .iter()
+        .min_by(|a, b| a.centre.distance(largest).total_cmp(&b.centre.distance(largest)))
+        .unwrap();
+    assert_eq!(nearest.id, 0, "the first base is the one nearest the start");
+}
+
+#[test]
+fn nothing_grows_on_an_air_base() {
+    // A base's apron is built ground: no tree is grown on it and no grass (the shared cover rule).
+    let plan = seed_42();
+    let b = plan.bases[0];
+    for (u, v) in [(0.0, 0.0), (0.4, 0.3), (-0.4, -0.3), (0.45, -0.45)] {
+        let p = b.centre + b.half_m * Vec2::new(u, v) * 2.0;
+        let clear = crate::world::cover::Clearance {
+            city_m: 0.0,
+            park_inset_m: 0.0,
+            road_m: 0.0,
+            bridge_share: 0.0,
+            building_m: 0.0,
+        };
+        assert_eq!(plan.cover_at(p, &clear), crate::world::cover::Cover::Bare, "{p}");
+    }
 }

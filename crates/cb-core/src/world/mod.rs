@@ -5,6 +5,7 @@
 //! draws the plan; the pilot and the mech walk on it through `height_at` and `push_out`. The world
 //! is an island in the sea (openspec change `island-world`).
 
+pub mod bases;
 pub mod biome;
 pub mod clouds;
 pub mod collision;
@@ -21,6 +22,7 @@ pub mod island;
 pub mod layout;
 pub mod lod;
 pub mod mist;
+pub mod platform;
 pub mod roads;
 pub mod rocks;
 pub mod structure;
@@ -29,6 +31,7 @@ pub mod terrain;
 pub mod water;
 pub mod weather;
 
+pub use bases::{AirBase, BasesConfig};
 pub use biome::{BIOME_COUNT, BIOMES, Biome, Biomes};
 pub use clouds::Clouds;
 pub use collision::BuildingGrid;
@@ -39,6 +42,7 @@ pub use destruct::{Chunk, Moment, Structures};
 pub use dressing::DressingConfig;
 pub use forest::{Body, Bump, Forest, Push, TileChanges, Tree, TreeState};
 pub use layout::{Block, Building, City, Highway, Rect, StreetKind, StreetPiece};
+pub use platform::{Platform, Slab};
 pub use structure::{Frame, StructureConfig};
 pub use terrain::{ChunkMesh, Heightfield};
 pub use water::{Bridge, Lake, Lakes, River, WaterSample, Waterfall, Waters};
@@ -69,6 +73,9 @@ pub trait Ground {
     }
 }
 
+/// Trees push a body whose feet are no higher than this over the ground under it.
+const TREE_REACH_M: f32 = 30.0;
+
 /// The world as it is now: the generated plan plus the ground dug since, and optionally the trees
 /// standing now (as walls). The one `Ground` the game's bodies walk on.
 pub struct Scene<'a> {
@@ -80,6 +87,8 @@ pub struct Scene<'a> {
     pub trees: Option<&'a Forest>,
     /// Buildings as they stand now; `None` means every building is whole.
     pub structures: Option<&'a Structures>,
+    /// Moving surfaces bodies stand on (the Hermit's deck: `platform`); empty for none.
+    pub platforms: &'a [Platform],
 }
 
 impl Scene<'_> {
@@ -136,12 +145,17 @@ impl Ground for Scene<'_> {
                 .filter_map(|b| st.roof_under(b, p, feet_y))
                 .reduce(f32::max),
         };
-        roof.map_or(ground, |r| r.max(ground))
+        let under = roof.map_or(ground, |r| r.max(ground));
+        platform::top_under(self.platforms, x, z, feet_y).map_or(under, |t| t.max(under))
     }
     fn push_out_at(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
         let p = self.push_out_buildings(p, radius_m, feet_y);
         let p = rocks::push_out(&self.plan.rocks, p, radius_m, feet_y);
-        self.trees.map_or(p, |t| t.push_out(p, radius_m))
+        // trunks stand on the ground: a body far above it (on a deck, a roof) passes over them
+        match self.trees {
+            Some(t) if feet_y <= self.height_at(p.x, p.y) + TREE_REACH_M => t.push_out(p, radius_m),
+            _ => p,
+        }
     }
 }
 
@@ -237,6 +251,8 @@ pub struct WorldPlan {
     pub mist: mist::MistMap,
     /// The terrain's own shadow for the sun, for far ground (distant-shadows).
     pub sun_shade: sun_shade::SunShade,
+    /// The air bases (air-bases), the one nearest the start first.
+    pub bases: Vec<AirBase>,
 }
 
 impl WorldPlan {
@@ -359,15 +375,42 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         buildings.extend(layout::build_city(&mut rng, city, &highways, first, largest, cfg));
     }
 
-    let flats = Flats::new(&cities, &highways, cfg);
+    // Air bases beside the highways, flattened like the cities' squares (air-bases).
+    let start_xz = cities.first().map_or(Vec2::ZERO, |c| c.centre);
+    let courses: Vec<Vec<Vec2>> = drainage.courses.iter().map(|c| c.points.clone()).collect();
+    let clear = bases::KeepClear {
+        highways: &highways,
+        road_m: cfg.highway_width_m * 0.5
+            + cfg.highway_flat_margin_m
+            + cfg.highway_blend_m
+            + cfg.plateau_flat_margin_m
+            + cfg.plateau_blend_m,
+        courses: &courses,
+        river_m: cfg.plateau_flat_margin_m + cfg.plateau_blend_m + cfg.water.river_max_half_width_m + cfg.water.river_city_clearance_m,
+    };
+    let bases = bases::place_bases(
+        &shape,
+        &cities,
+        &clear,
+        start_xz,
+        &cfg.bases,
+        sea_level_m + cfg.water.city_freeboard_m,
+    );
+    let plateaus: Vec<(layout::Rect, f32)> = cities
+        .iter()
+        .map(|c| (c.rect(), c.ground_m))
+        .chain(bases.iter().map(|b| (b.rect(), b.ground_m)))
+        .collect();
+    let keep_out: Vec<layout::Rect> = plateaus.iter().map(|p| p.0).collect();
+    let flats = Flats::new(&plateaus, &highways, cfg);
     let terrain = Heightfield::new(cfg, shape, flats);
     let bounds = water::WaterBounds {
         world_size_m: cfg.world_size_m,
         sea_level_m,
     };
-    let waters = water::make_waters(&root.fork("water"), &drainage, &terrain, &cities, &highways, &cfg.water, &bounds);
+    let waters = water::make_waters(&root.fork("water"), &drainage, &terrain, &keep_out, &highways, &cfg.water, &bounds);
     let road_flat_m = cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m;
-    let channels = waters.channels(&cfg.water, &cities, cfg.plateau_flat_margin_m, &highways, road_flat_m);
+    let channels = waters.channels(&cfg.water, &keep_out, cfg.plateau_flat_margin_m, &highways, road_flat_m);
     let terrain = terrain.with_channels(channels);
     let sun_shade = sun_shade::SunShade::bake(&terrain, cfg.world_size_m, sun_shade::to_sun(), &cfg.sun_shade);
 
@@ -412,6 +455,7 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         sun_shade,
         rocks,
         mist,
+        bases,
     }
 }
 
