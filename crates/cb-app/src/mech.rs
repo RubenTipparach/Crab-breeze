@@ -169,6 +169,12 @@ pub struct Interior {
     windows: HashSet<Entity>,
 }
 
+/// The screen wall's window panes as triangles in the interior's own space (its `GlobalTransform` carries them to
+/// the world): the lens pass lays the rain's drops on them, so drops sit on the glass and not on the pilot's view
+/// (`water_render`).
+#[derive(Component, Clone, Debug, Default)]
+pub struct CabinGlass(pub Vec<[Vec3; 3]>);
+
 /// A layer no camera draws: the hull and the screen wall go there while the pilot sits sealed in an interior.
 const UNSEEN_LAYER: usize = 30;
 
@@ -682,6 +688,7 @@ fn bind_interior(
             };
             glass.extend(crate::screen_cut::triangles(mesh, in_space(w)));
         }
+        commands.entity(interior).insert(CabinGlass(glass.clone()));
         let mut cut = 0;
         if let Some(eye) = eye {
             for &e in parts.difference(&windows) {

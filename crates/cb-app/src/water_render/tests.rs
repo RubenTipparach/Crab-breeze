@@ -140,3 +140,17 @@ fn only_a_wet_eye_sees_water_from_below() {
         "the shader gates `below` on the eye being wet"
     );
 }
+
+#[test]
+fn the_panes_reach_the_lens_pass_in_world_space_and_at_most_its_capacity() {
+    // A cabin's window triangles are in the interior's space; the lens pass reads them in the world's,
+    // and never more than its array holds.
+    let tri = [Vec3::ZERO, Vec3::X, Vec3::Y];
+    let glass = crate::mech::CabinGlass(vec![tri; MAX_PANE_TRIANGLES + 5]);
+    let at = GlobalTransform::from(Transform::from_xyz(100.0, 20.0, -5.0));
+    let panes = PaneGlass::new(&glass, &at);
+    assert_eq!(panes.count, MAX_PANE_TRIANGLES);
+    assert_eq!(panes.origin, Vec3::new(100.0, 20.0, -5.0));
+    assert_eq!(panes.corners[1].truncate(), Vec3::new(101.0, 20.0, -5.0));
+    assert_eq!(PaneGlass::default().count, 0, "on foot: no panes, the drops stay on the view");
+}

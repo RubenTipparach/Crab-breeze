@@ -101,6 +101,10 @@ pub struct WaterLook {
     pub lens_scale: f32,
     /// Rain on the glass, 0..1. Zero until weather exists (the code path is kept, gated).
     pub lens_rain: f32,
+    /// Seated, metres of window pane to one unit of the drop pattern, so the drops sit on each pane
+    /// at about the size they had on the screen (owner, 2026-10-25: "the rain drops on the cocpit
+    /// are not projected to the panes of window correctly").
+    pub lens_pane_m: f32,
     /// Rain on the glass inside a cloud at full density, 0..1 (openspec change `cloud-rain`).
     pub cloud_rain: f32,
     /// Seconds for the glass to wet through on entering a cloud.
@@ -152,6 +156,7 @@ impl Default for WaterLook {
             lens_size: 0.7,
             lens_scale: 2.0,
             lens_rain: 0.0,
+            lens_pane_m: 1.8,
             cloud_rain: 0.85,
             cloud_wet_s: 1.2,
             cloud_dry_s: 4.0,
@@ -223,6 +228,7 @@ impl Validate for WaterLook {
         positive("lens_size", self.lens_size)?;
         positive("lens_scale", self.lens_scale)?;
         within("lens_rain", self.lens_rain, 0.0, 1.0)?;
+        positive("lens_pane_m", self.lens_pane_m)?;
         within("cloud_rain", self.cloud_rain, 0.0, 1.0)?;
         positive("cloud_wet_s", self.cloud_wet_s)?;
         positive("cloud_dry_s", self.cloud_dry_s)
