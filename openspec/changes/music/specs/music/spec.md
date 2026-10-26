@@ -39,3 +39,14 @@ Each music state SHALL have its own cue: the title on the main menu and the load
 - **WHEN** the pilot is seated and the air fortress mission is running with the fortress aloft
 - **THEN** the set piece cue plays, over combat, until the fortress is brought down, when the win cue plays
 
+### Requirement: The score plays over everything and ducks under the radio and the alarms
+The music SHALL play unplaced, undelayed and unmuffled over every other sound, and SHALL duck by `duck_db` (6 dB) while the radio or an alarm cue named in `duck_under` plays, returning to full level when they stop. Every name in `duck_under` SHALL be a cue in `cues.ron`.
+
+#### Scenario: A wave comes in on the radio
+- **WHEN** combat music plays and the radio squelch sounds as a wave starts
+- **THEN** the score drops 6 dB within about 0.1 s and comes back over about a second after the squelch ends
+
+#### Scenario: A lock tone
+- **WHEN** a lock tone sounds over the combat music
+- **THEN** the score keeps its level
+

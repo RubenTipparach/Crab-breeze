@@ -1,11 +1,12 @@
-//! Music (openspec change `music`): one cue per game state, switched on the bar with a one-bar crossfade (survey A2;
-//! owner, 2026-10-26: "Approve all"), and silence when nothing is happening (owner, 2026-10-25: "if theres not mutch
-//! action on screen, some silence would be nice"). The rules are `cb_core::audio` (`music_state`, `plan_switch`, `fade_s`);
+//! Music (openspec change `music`): one cue per game state, switched on the bar with a one-bar crossfade (survey A2),
+//! over everything like a film score and ducked under the radio and the alarms (survey A3; owner, 2026-10-26: "Approve
+//! all"), and silence when nothing is happening (owner, 2026-10-25: "if theres not mutch action on screen, some
+//! silence would be nice"). The rules are `cb_core::audio` (`music_state`, `plan_switch`, `fade_s`, `duck_target_db`);
 //! this file reads their inputs from the game and plays what they return. Music is not placed in 3D, not delayed and
 //! not muffled by the cockpit's seal. It runs in every state, not only in the game, because the title menu has its
 //! cue and the score carries across the loading screen into the game.
 
-use crate::audio::{Ear, HearSet};
+use crate::audio::{Ear, HearSet, Voice};
 use crate::blast::Explosion;
 use crate::fx::Fx;
 use crate::pilot::PilotSim;
@@ -52,6 +53,8 @@ struct Player {
     /// A cue that does not loop and has played out: it is not started again while its state holds.
     finished: Option<MusicState>,
     since_shot_s: f32,
+    /// How far the score is ducked under the radio and alarms now, dB.
+    duck_db: f32,
 }
 
 /// The music.
@@ -122,6 +125,7 @@ fn choose_and_play(
     mut commands: Commands,
     mut player: ResMut<Player>,
     mut sinks: Query<&mut AudioSink>,
+    voices: Query<&Voice>,
     state: Res<State<GameState>>,
     pilot: Res<PilotSim>,
     hostiles: Option<Res<Hostiles>>,
@@ -147,7 +151,10 @@ fn choose_and_play(
         player.since_shot_s,
     );
     let wanted = rules::music_state(&i, cfg.hold_s);
-    let base = db_to_gain(cfg.volume_db) * settings.map_or(1.0, |s| s.0.music_volume);
+    // under the radio and the alarms the score ducks, and comes back when they stop (survey A3)
+    let duck = rules::duck_target_db(cfg, voices.iter().map(|v| v.cue()));
+    player.duck_db = rules::duck_step(cfg, player.duck_db, duck, time.delta_secs());
+    let base = db_to_gain(cfg.volume_db + player.duck_db) * settings.map_or(1.0, |s| s.0.music_volume);
 
     // a stinger that has played out stays finished while its state holds
     let played_out = player
@@ -212,7 +219,7 @@ fn choose_and_play(
         }
     }
 
-    // levels: the playing cue fades in, the old ones fade out from where they were and stop
+    // levels: the playing cue fades in (ducked), the old ones fade out from where they were and stop
     if let Some(t) = &player.playing
         && let Ok(mut s) = sinks.get_mut(t.voice)
     {

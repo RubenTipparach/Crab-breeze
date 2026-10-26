@@ -493,6 +493,27 @@ pub fn fade_s(cfg: &MusicConfig, old: Option<&Playing>, new: Option<&MusicCue>) 
     }
 }
 
+/// The level the score ducks to this frame, dB (survey A3, owner 2026-10-26): `duck_db` while any cue in
+/// `duck_under` plays (the radio and the alarms), else 0.
+pub fn duck_target_db<'a>(cfg: &MusicConfig, playing: impl IntoIterator<Item = &'a str>) -> f32 {
+    if playing.into_iter().any(|c| cfg.duck_under.iter().any(|d| d == c)) {
+        cfg.duck_db
+    } else {
+        0.0
+    }
+}
+
+/// Moves the duck from `current_db` toward `target_db` over `dt_s`: down in `duck_attack_s`, back up in
+/// `duck_release_s`, never past the target.
+pub fn duck_step(cfg: &MusicConfig, current_db: f32, target_db: f32, dt_s: f32) -> f32 {
+    let tau = if target_db < current_db {
+        cfg.duck_attack_s
+    } else {
+        cfg.duck_release_s
+    };
+    ease(current_db, target_db, dt_s, tau)
+}
+
 /// How far a fade begun at `from_s` and lasting `fade_s` has come at `now_s`, 0 to 1.
 pub fn fade_progress(now_s: f32, from_s: f32, fade_s: f32) -> f32 {
     if fade_s <= 0.0 {
@@ -540,6 +561,15 @@ pub struct MusicConfig {
     pub hold_s: f32,
     /// The music's level, dB.
     pub volume_db: f32,
+    /// How far the score ducks while a cue in `duck_under` plays, dB (survey A3: "ducks under the radio and the
+    /// alarms").
+    pub duck_db: f32,
+    /// The sound effects the score ducks under (`data/audio/cues.ron` names): the radio and the alarms.
+    pub duck_under: Vec<String>,
+    /// The duck comes down with this time constant, s.
+    pub duck_attack_s: f32,
+    /// ...and goes back up with this one, s.
+    pub duck_release_s: f32,
 }
 
 impl Default for MusicConfig {
@@ -550,6 +580,10 @@ impl Default for MusicConfig {
             fade_out_bars: 2.0,
             hold_s: 30.0,
             volume_db: -4.0,
+            duck_db: -6.0,
+            duck_under: Vec::new(),
+            duck_attack_s: 0.05,
+            duck_release_s: 0.6,
         }
     }
 }
@@ -560,6 +594,9 @@ impl Validate for MusicConfig {
         positive("fade_out_bars", self.fade_out_bars)?;
         positive("hold_s", self.hold_s)?;
         within("volume_db", self.volume_db, -60.0, 12.0)?;
+        within("duck_db", self.duck_db, -40.0, 0.0)?;
+        positive("duck_attack_s", self.duck_attack_s)?;
+        positive("duck_release_s", self.duck_release_s)?;
         let known = ["title", "boarding", "combat", "set_piece", "won"];
         for (key, cue) in &self.cues {
             if !known.contains(&key.as_str()) {
@@ -750,6 +787,18 @@ pub struct AudioData {
     pub music: MusicConfig,
     /// `data/audio/ambience.ron`.
     pub ambience: AmbienceConfig,
+}
+
+impl AudioData {
+    /// What one file cannot check alone: every cue the music ducks under is a sound effect in `cues.ron`.
+    pub fn check(&self) -> Result<(), String> {
+        for name in &self.music.duck_under {
+            if !self.cues.cues.contains_key(name) {
+                return Err(format!("`duck_under` names `{name}`, which is not a cue in cues.ron"));
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -1007,6 +1056,75 @@ mod tests {
         assert_eq!(fade_progress(1.0, 0.0, 4.0), 0.25);
         assert_eq!(fade_progress(9.0, 0.0, 4.0), 1.0);
         assert_eq!(fade_progress(0.0, 0.0, 0.0), 1.0);
+    }
+
+    fn ducking() -> MusicConfig {
+        MusicConfig {
+            duck_under: vec!["radio_squelch".into(), "alarm_warning".into(), "heat_lock".into()],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn the_score_ducks_six_db_under_the_radio_and_the_alarms() {
+        // survey A3 (owner, 2026-10-26: "Approve all")
+        let cfg = ducking();
+        assert_eq!(duck_target_db(&cfg, ["radio_squelch"]), -6.0);
+        assert_eq!(duck_target_db(&cfg, ["foot_stomp", "alarm_warning"]), -6.0);
+        assert_eq!(duck_target_db(&cfg, ["heat_lock"]), -6.0);
+    }
+
+    #[test]
+    fn the_score_plays_over_everything_else() {
+        let cfg = ducking();
+        assert_eq!(duck_target_db(&cfg, ["foot_stomp", "lock_tone", "cannon", "reactor_hum"]), 0.0);
+        assert_eq!(duck_target_db(&cfg, std::iter::empty::<&str>()), 0.0);
+    }
+
+    #[test]
+    fn the_duck_comes_down_fast_and_recovers_slowly() {
+        let cfg = ducking();
+        let down = duck_step(&cfg, 0.0, -6.0, 0.05);
+        let up = duck_step(&cfg, -6.0, 0.0, 0.05);
+        assert!(down < -3.0, "most of the way down in one attack time: {down}");
+        assert!(up < -5.0, "barely back up in the same time: {up}");
+        assert!(duck_step(&cfg, -6.0, -6.0, 1.0) == -6.0);
+        let mut db = -6.0;
+        for _ in 0..300 {
+            db = duck_step(&cfg, db, 0.0, 1.0 / 60.0);
+            assert!(db <= 0.0, "never past the target");
+        }
+        assert!(db > -0.01);
+    }
+
+    #[test]
+    fn ducking_names_only_real_cues() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/audio");
+        let mut audio = AudioData {
+            cues: crate::data::load_ron(&root.join("cues.ron")).expect("cues.ron"),
+            music: crate::data::load_ron(&root.join("music.ron")).expect("music.ron"),
+            ambience: crate::data::load_ron(&root.join("ambience.ron")).expect("ambience.ron"),
+        };
+        assert!(audio.check().is_ok());
+        assert!(
+            audio.music.duck_under.iter().any(|c| c == "radio_squelch"),
+            "the radio ducks the score"
+        );
+        assert!(
+            audio.music.duck_under.iter().any(|c| c == "alarm_warning"),
+            "the alarm ducks the score"
+        );
+        audio.music.duck_under.push("no_such_cue".into());
+        assert!(audio.check().unwrap_err().contains("no_such_cue"));
+    }
+
+    #[test]
+    fn a_duck_that_boosts_is_refused() {
+        let cfg = MusicConfig {
+            duck_db: 3.0,
+            ..Default::default()
+        };
+        assert!(cfg.validate().is_err());
     }
 
     fn zone() -> ZoneInputs {

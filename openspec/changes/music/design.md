@@ -61,6 +61,17 @@ state when they end. The switch and the fade lengths are pure rules in `cb-core`
 `fade_progress`), tested; the plugin only plays what they say (survey A2, owner 2026-10-26: "Approve all", then "Go
 and implement").
 
+## 3a. Over everything, ducked under the radio and the alarms
+
+Survey A3, decided (owner, 2026-10-26: "Approve all", then "Go and implement"): the score plays over everything,
+like a film score, not through the cockpit's radio. It is not placed, not delayed by distance and not muffled by the
+seal, on the menu, the loading screen and in the game alike. It ducks under the radio and the alarms: while any cue
+named in `duck_under` plays (`radio_squelch`, `alarm_warning`, `heat_lock`), the score's level eases to `duck_db`
+(-6 dB) with a 0.05 s time constant, and back to full with 0.6 s once they stop, so it gets out of the way at once
+and returns without a lurch. A lock tone, a radar ping or a gun does not duck it. The rules are `duck_target_db` and
+`duck_step` in `cb-core`; `AudioData::check` refuses a `duck_under` name that is not a cue in `cues.ron` at startup and
+in `cb-tools validate`.
+
 ## 4. Engine
 
 Bevy 0.20's audio (rodio) can loop and set volume but has no sample-accurate scheduling or
@@ -79,4 +90,4 @@ not loaded whole; the seven cues are 11 MB on disk.
 | --- | --- | --- | --- |
 | A1 | The score's direction | Electronic and futuristic | decided (owner, 2026-10-25: "electronic, scifi futuristic please!") |
 | A2 | Adaptive music | One cue per state with bar-aligned crossfades first; stems later if wanted | decided (owner, 2026-10-26: "Approve all", then "Go and implement"; survey A2): one cue per state, on the bar, a one-bar crossfade; no stems |
-| A3 | Music in the cockpit | The score plays over everything (not through the radio) | provisional (survey A3) |
+| A3 | Music in the cockpit | The score plays over everything (not through the radio) | decided (owner, 2026-10-26: "Approve all", then "Go and implement"; survey A3): over everything, ducked 6 dB under the radio and the alarms (section 3a) |
