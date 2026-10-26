@@ -47,11 +47,13 @@ struct Power {
 
 type Mechs<'w, 's> = Query<'w, 's, (&'static mut MechSim, &'static MechSpec, &'static MechId, Option<&'static MechRig>)>;
 
-/// The one place a hit takes effect, whatever struck: a vehicle or a mech part takes it through the
-/// damage rules, a building loses the cells round it, a tree snaps; heavy shells explode.
+/// The one place a hit takes effect, whatever struck: a vehicle, a civil aircraft or a mech part takes
+/// it through the damage rules, a building loses the cells round it, a tree snaps; heavy shells explode.
+/// `owner` fired it (a civil aircraft hit by the pilot counts against their standing).
 #[allow(clippy::too_many_arguments)]
 fn land(
     struck: Struck,
+    owner: u32,
     at: Vec3,
     dir: Vec3,
     power: Power,
@@ -63,6 +65,7 @@ fn land(
     explosions: &mut MessageWriter<Explosion>,
     hits: &mut MessageWriter<crate::battle_fx::MechHit>,
     fortress: &mut MessageWriter<crate::fortress::FortressHit>,
+    civil: &mut crate::air_traffic::CivilHits,
 ) {
     match struck {
         // The fortress's parts and hull take it by their own armour rule (crab-airship).
@@ -74,6 +77,11 @@ fn land(
                 penetration_mm: power.penetration_mm,
                 damage: power.damage,
             });
+        }
+        // A civil aircraft (civil-air-traffic), by the same armour rule as a vehicle.
+        Struck::Mech { mech, .. } if crate::air_traffic::is_civil(mech) => {
+            civil.hit(mech, owner, at, power.penetration_mm, power.damage, data, fx);
+            fx.write(Fx::new("impact_mech", at).toward(-dir));
         }
         Struck::Mech { mech, .. } if mech >= crate::units::UNIT_ID_BASE => {
             if let Some(p) = units.get_mut(mech) {
@@ -216,6 +224,7 @@ pub fn fly_shots(
     mut hits: MessageWriter<crate::battle_fx::MechHit>,
     fortress: Option<Res<crate::fortress::FortressRun>>,
     mut fortress_hits: MessageWriter<crate::fortress::FortressHit>,
+    mut civil: crate::air_traffic::CivilHits,
 ) {
     let _t = crate::perf_hud::slow("fly_shots");
     if shots.0.is_empty() && shots.1.is_empty() {
@@ -232,8 +241,10 @@ pub fn fly_shots(
             parts.extend(capsules(id.0, sim, spec, rig, &globals));
         }
     }
-    // Vehicles are hit like mechs, one capsule each (invasion-forces).
+    // Vehicles are hit like mechs, one capsule each (invasion-forces); civil aircraft by their
+    // fuselage and wing (civil-air-traffic).
     parts.extend(crate::units::unit_capsules(&units, &data));
+    parts.extend(civil.capsules(&data));
     // The fortress's parts, then its hull (crab-airship).
     if let Some(f) = &fortress {
         parts.extend(f.capsules.iter().copied());
@@ -254,6 +265,8 @@ pub fn fly_shots(
     if let Some(f) = &fortress {
         torsos.extend(f.targets.iter().copied());
     }
+    // A civil aircraft only ever has a missile on it when the pilot selected it on purpose.
+    torsos.extend(civil.centres());
     // A shot's gun: its mech's, or its vehicle's one weapon.
     let unit_guns: HashMap<u32, cb_core::weapons::WeaponSpec> = units
         .list
@@ -312,6 +325,7 @@ pub fn fly_shots(
             let dir = (blow.to - blow.from).normalize_or(Vec3::NEG_Z);
             land(
                 struck,
+                blow.owner,
                 at,
                 dir,
                 power,
@@ -323,6 +337,7 @@ pub fn fly_shots(
                 &mut explosions,
                 &mut hits,
                 &mut fortress_hits,
+                &mut civil,
             );
         }
     }
@@ -366,6 +381,7 @@ pub fn fly_shots(
         };
         land(
             hit.struck,
+            shot.owner,
             hit.at,
             dir,
             power,
@@ -377,6 +393,7 @@ pub fn fly_shots(
             &mut explosions,
             &mut hits,
             &mut fortress_hits,
+            &mut civil,
         );
     }
     shots.0 = flying;

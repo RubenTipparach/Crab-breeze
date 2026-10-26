@@ -285,6 +285,7 @@ fn step_units(
     me: Query<(&MechSim, &crate::mech::MechSpec), With<Piloted>>,
     mut shots: ResMut<Shots>,
     mut fx: MessageWriter<Fx>,
+    neutrals: Res<crate::air_traffic::Neutrals>,
 ) {
     let _t = crate::perf_hud::slow("step_units");
     if units.list.is_empty() {
@@ -302,11 +303,20 @@ fn step_units(
     let mut dropped = Vec::new();
     for p in units.list.iter_mut().filter(|p| !p.gone) {
         let Some(spec) = cfg.units.get(&p.unit.kind) else { continue };
+        // A civil aircraft within its guns' reach is a shot of opportunity (civil-air-traffic): the
+        // nearest, ties by id.
+        let opportunity = neutrals
+            .0
+            .iter()
+            .map(|n| (n.aim.distance(p.unit.pos), n))
+            .filter(|(d, _)| *d <= spec.fire_range_m)
+            .min_by(|a, b| a.0.total_cmp(&b.0).then(a.1.id.cmp(&b.1.id)))
+            .map(|(_, n)| (n.aim, n.vel));
         let view = UnitView {
             spec,
             target: target.map(|t| t.0),
             target_vel: target.map_or(Vec3::ZERO, |t| t.1),
-            opportunity: None,
+            opportunity,
             ground: &ground,
             drop: &cfg.drop,
         };
