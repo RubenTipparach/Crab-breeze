@@ -605,8 +605,46 @@ def mfd_bezel(S, name, c, axes, s, rim, cn, img, group="front"):
 # The picture is a flat perspective: a corner up and out to the side lands higher on it than its angle alone says
 # (tan(elevation) / cos(azimuth)), so the hung row's outer top corners set its numbers (inside the 47.5 degree edge
 # with 4 % to spare).
-MFD_ROWS = dict(hung=dict(el=30.0, d=0.82, s=(0.28, 0.28, 0.28), az=(23.0, 0.0, -23.0)),
-                dash=dict(el=-25.0, d=0.80, s=(0.26, 0.30, 0.26), az=(26.0, 0.0, -26.0)))   # az: the pilot's left (+x)
+MFD_ROWS = dict(hung=dict(el=30.0, d=0.82, s=(0.22, 0.22, 0.22), az=(27.0, 0.0, -27.0)),
+                dash=dict(el=-25.0, d=0.80, s=(0.24, 0.26, 0.24), az=(30.0, 0.0, -30.0)))   # az: the pilot's left (+x)
+
+
+MFD_SOLIDS = []   # (screen, centre, (r, u, n), size) of each MFD's housing and hood, for `check_mfd_solids`
+
+
+def mfd_solid(screen, c, axes, size):
+    """Records one solid box of an MFD (its housing or its hood) for the overlap check."""
+    MFD_SOLIDS.append((screen, c.copy(), axes, size))
+
+
+def _boxes_overlap(a, b, margin):
+    """Separating axis test of two oriented boxes (centre, axes, size), grown by margin on every side."""
+    (ca, ax_a, sa), (cb, ax_b, sb) = a, b
+    ha = [x / 2 + margin for x in sa]
+    hb = [x / 2 + margin for x in sb]
+    d = cb - ca
+    tests = list(ax_a) + list(ax_b) + [u.cross(v) for u in ax_a for v in ax_b]
+    for L in tests:
+        if L.length < 1e-6:
+            continue
+        L = L.normalized()
+        ra = sum(h * abs(u.dot(L)) for h, u in zip(ha, ax_a))
+        rb = sum(h * abs(u.dot(L)) for h, u in zip(hb, ax_b))
+        if abs(d.dot(L)) > ra + rb:
+            return False
+    return True
+
+
+def check_mfd_solids(margin=0.005):
+    """Refuses a cockpit where two MFDs' solid boxes meet (owner, 2026-10-26: "These are solid objects. They should
+    not be distorted or intersected"): every pair from different screens is at least 2 x margin apart."""
+    bad = []
+    for i, (na, ca, xa, sa) in enumerate(MFD_SOLIDS):
+        for nb, cb, xb, sb in MFD_SOLIDS[i + 1:]:
+            if na != nb and _boxes_overlap((ca, xa, sa), (cb, xb, sb), margin):
+                bad.append(f"{na} meets {nb}")
+    assert not bad, "MFDs intersect: " + ", ".join(sorted(set(bad)))
+    print(f"MFD_SOLIDS {len(MFD_SOLIDS)} boxes, none meet", flush=True)
 
 
 def at_eye(el_deg, az_deg, d, plan=None, clear_m=0.10):
@@ -1104,6 +1142,7 @@ def _inside(poly, x, z):
 
 
 def build_layout(S, VAR):
+    MFD_SOLIDS.clear()
     L = next(l for l in BO.LAYOUTS if l["id"] == VAR["layout"])
     outline, pillar_angles, deg, c = BO.cabin(L, L["mech"])
     parts = BO.mechanism(L, c)
@@ -1306,9 +1345,11 @@ def build_layout(S, VAR):
         S.plate("dash_main", (0, dy + 0.013, (z0 + F) / 2), Y, Z, t=0.012, group="front", node=name,
                 scale=min(1.0, 2 * half / CP.PANELS["dash_main"][0], (F - z0) / CP.PANELS["dash_main"][1]))
         for nm, c, (rd, ud2, nd2), size in placed:
-            O = mfd_bezel(S, nm, c, (rd, ud2, nd2), size, 0.06, name, {"SCREEN_left": "mfd_left", "SCREEN_center": "mfd_center",
-                                                                       "SCREEN_right": "mfd_right"}[nm])
+            O = mfd_bezel(S, nm, c, (rd, ud2, nd2), size, 0.045, name, {"SCREEN_left": "mfd_left", "SCREEN_center": "mfd_center",
+                                                                        "SCREEN_right": "mfd_right"}[nm])
             S.obox(c - nd2 * 0.045, (rd, ud2, nd2), (2 * O + 0.04, 2 * O + 0.04, 0.07), "paint_dk", "front", name, bevel=0.012)
+            mfd_solid(nm, c - nd2 * 0.045, (rd, ud2, nd2), (2 * O + 0.04, 2 * O + 0.04, 0.07))
+            mfd_solid(nm, c + ud2 * (O + 0.03) + nd2 * 0.03, (rd, ud2, nd2), (2 * O + 0.06, 0.014, 0.12))
             low = c - ud2 * (O + 0.02) - nd2 * 0.045
             S.box((low.x - 0.07, dy - 0.01, low.z - 0.04), (low.x + 0.07, low.y + 0.02, low.z + 0.04), "paint_dk", "front", name, bevel=0.008)
             S.obox(c + ud2 * (O + 0.03) + nd2 * 0.03, (rd, ud2, nd2), (2 * O + 0.06, 0.014, 0.12), "paint", "front", name, bevel=0.005)
@@ -1327,11 +1368,13 @@ def build_layout(S, VAR):
             k_ = d_row / row["d"]
             sn = f"HUD_mfd_{i}"
             NODES[sn] = (nd or "pod", None)
-            O = mfd_bezel(S, sn, c, (rd, ud2, nd2), size * k_, 0.04 * k_, nd, img, group="cabin")
+            O = mfd_bezel(S, sn, c, (rd, ud2, nd2), size * k_, 0.03 * k_, nd, img, group="cabin")
             # the housing shrinks with the screen, so screens brought in by a shallow cabin keep their gaps in the view
             S.obox(c - nd2 * 0.04 * k_, (rd, ud2, nd2), (2 * O + 0.03 * k_, 2 * O + 0.03 * k_, 0.05 * k_), "paint_dk", "cabin", nd, bevel=0.01 * k_)
+            mfd_solid(sn, c - nd2 * 0.04 * k_, (rd, ud2, nd2), (2 * O + 0.03 * k_, 2 * O + 0.03 * k_, 0.05 * k_))
             back = c - nd2 * 0.06 * k_ + ud2 * O * 0.5
             S.box((back.x - 0.025, back.y, back.z - 0.025), (back.x + 0.025, H - 0.01, back.z + 0.025), "steel", "cabin", nd, bevel=0.006)
+    check_mfd_solids()
     VAR["front_screen"] = front_screen[0] if front_screen else "SCREEN_wall_r0_0"
     VAR["front_screen_c"] = front_screen[2] if front_screen else V(0, 1.3, F)
     # mist over the floor and steam at the seals as the cabin opens
