@@ -147,6 +147,7 @@ impl Plugin for AirTrafficPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Neutrals>()
             .init_resource::<CivilStanding>()
+            .init_resource::<KindLooks>()
             .add_message::<CivilAirHit>()
             .add_world_spawn(start)
             .add_game_systems(FixedUpdate, list_neutrals.in_set(SimSet::Input).after(crate::units::list_hostiles))
@@ -279,6 +280,38 @@ struct CivilDraw(u32);
 #[derive(Component)]
 struct Spinner(Spin, f32);
 
+/// Each kind's stand-in, built the first time it is drawn: shared by the traffic and the air drop's
+/// cargo aircraft (`air_drop`), so a kind looks the same wherever it flies.
+#[derive(Resource, Default)]
+pub struct KindLooks(BTreeMap<String, KindLook>);
+
+/// Spawns kind `kind`'s block-out stand-in (`shape::blockout`) named `name` at `t`, its rotors and propellers
+/// turning; returns its root.
+#[allow(clippy::too_many_arguments)]
+pub fn spawn_standin(
+    commands: &mut Commands,
+    looks: &mut KindLooks,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    kind: &str,
+    spec: &AircraftSpec,
+    name: String,
+    t: Transform,
+) -> Entity {
+    let kl = looks.0.entry(kind.to_string()).or_insert_with(|| look(spec, meshes, materials));
+    let root = commands.spawn((Name::new(name), t, Visibility::default())).id();
+    for (mesh, t, dark, spin) in &kl.parts {
+        let mat = if *dark { kl.dark.clone() } else { kl.livery.clone() };
+        let mut part = commands.spawn((Mesh3d(mesh.clone()), MeshMaterial3d(mat), *t, ChildOf(root)));
+        if let Some(s) = spin {
+            // A rotor at about 400 rpm, a propeller at about 2 400.
+            let rate = if *s == Spin::Up { 42.0 } else { 250.0 };
+            part.insert(Spinner(*s, rate));
+        }
+    }
+    root
+}
+
 /// One kind's stand-in: its parts' meshes and placements, and its two materials.
 struct KindLook {
     parts: Vec<(Handle<Mesh>, Transform, bool, Option<Spin>)>,
@@ -319,7 +352,7 @@ fn draw_traffic(
     mut drawn: Query<(Entity, &CivilDraw, &mut Transform)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut looks: Local<BTreeMap<String, KindLook>>,
+    mut looks: ResMut<KindLooks>,
     mut loops: MessageWriter<Loop>,
 ) {
     let _t = crate::perf_hud::slow("draw_traffic");
@@ -347,26 +380,17 @@ fn draw_traffic(
     }
     for a in air.0.list.iter().filter(|a| a.flying() && !seen.contains(&a.id)) {
         let Some(spec) = cfg.kinds.get(&a.kind) else { continue };
-        let kl = looks
-            .entry(a.kind.clone())
-            .or_insert_with(|| look(spec, &mut meshes, &mut materials));
-        let root = commands
-            .spawn((
-                Name::new(format!("civil {} {} (block-out stand-in)", a.kind, a.id)),
-                CivilDraw(a.id),
-                Transform::from_translation(a.pos).with_rotation(shape::attitude(a)),
-                Visibility::default(),
-            ))
-            .id();
-        for (mesh, t, dark, spin) in &kl.parts {
-            let mat = if *dark { kl.dark.clone() } else { kl.livery.clone() };
-            let mut part = commands.spawn((Mesh3d(mesh.clone()), MeshMaterial3d(mat), *t, ChildOf(root)));
-            if let Some(s) = spin {
-                // A rotor at about 400 rpm, a propeller at about 2 400.
-                let rate = if *s == Spin::Up { 42.0 } else { 250.0 };
-                part.insert(Spinner(*s, rate));
-            }
-        }
+        let root = spawn_standin(
+            &mut commands,
+            &mut looks,
+            &mut meshes,
+            &mut materials,
+            &a.kind,
+            spec,
+            format!("civil {} {} (block-out stand-in)", a.kind, a.id),
+            Transform::from_translation(a.pos).with_rotation(shape::attitude(a)),
+        );
+        commands.entity(root).insert(CivilDraw(a.id));
     }
 }
 

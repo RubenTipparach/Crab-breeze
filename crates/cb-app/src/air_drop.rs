@@ -7,7 +7,8 @@
 //! - a drop's mech brought into the world at the release and held to its fall each fixed step, steered clear of a
 //!   pilot in the site, then handed to its own simulation over the ground so it lands through the mech's own landing
 //!   (its footprints and dust are `ground-marks`'), with `jet_wash` under its retros and `fall_dust` at touchdown;
-//! - the cargo aircraft and the canopies, both block-out stand-ins (named so in their scene nodes);
+//! - the cargo aircraft (civil air traffic's freighter, `aircraft_kind`) and the canopies, both block-out stand-ins
+//!   (named so in their scene nodes);
 //! - the HUD marker over every drop, from the order until the pilot boards the mech, on foot and in the seat;
 //! - which owned mech the pilot on foot is walking up to: that one carries `Piloted`, so it is the one that kneels and
 //!   lowers its rope (`mech-boarding`, `rope`: the existing boarding, nothing cut);
@@ -66,8 +67,6 @@ struct MarkerRoot;
 struct DropAssets {
     cube: Handle<Mesh>,
     dome: Handle<Mesh>,
-    hull: Handle<StandardMaterial>,
-    dark: Handle<StandardMaterial>,
     canopy: Handle<StandardMaterial>,
     line: Handle<StandardMaterial>,
 }
@@ -121,8 +120,6 @@ fn make_assets(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mat
     commands.insert_resource(DropAssets {
         cube: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
         dome: meshes.add(Sphere::new(1.0)),
-        hull: flat(Color::srgb(0.42, 0.45, 0.43), 0.7),
-        dark: flat(Color::srgb(0.16, 0.17, 0.18), 0.6),
         canopy: flat(Color::srgb(0.92, 0.55, 0.18), 0.9),
         line: flat(Color::srgb(0.85, 0.85, 0.8), 0.9),
     });
@@ -487,27 +484,44 @@ fn keep_places(mut run: ResMut<CareerRun>, mechs: Query<(&Owned, &MechSim), With
     }
 }
 
-/// One plain box of the block-outs: centre and size in the parent's space, metres.
-fn block(p: &mut ChildSpawnerCommands, a: &DropAssets, mat: &Handle<StandardMaterial>, centre: Vec3, size: Vec3) {
-    p.spawn((
-        Mesh3d(a.cube.clone()),
-        MeshMaterial3d(mat.clone()),
-        Transform::from_translation(centre).with_scale(size),
-    ));
-}
-
-/// The cargo aircraft: a block-out stand-in until `airfields` models one (64 m fuselage, 72 m wing, a T tail, four
-/// engine pods), its nose toward -z in its own space, flown along its drop's track.
-fn draw_aircraft(mut commands: Commands, run: Res<CareerRun>, a: Res<DropAssets>, mut planes: Query<(Entity, &Aircraft, &mut Transform)>) {
+/// The cargo aircraft: civil air traffic's freighter (`aircraft_kind`, civil-air-traffic's stand-in from its shape
+/// table, the same one the traffic flies), flown along its drop's track on the drop's own clock, its engine heard
+/// as the traffic's jets are.
+#[allow(clippy::too_many_arguments)]
+fn draw_aircraft(
+    mut commands: Commands,
+    run: Res<CareerRun>,
+    data: Res<Data>,
+    ear: Res<crate::audio::Ear>,
+    mut looks: ResMut<crate::air_traffic::KindLooks>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut planes: Query<(Entity, &Aircraft, &mut Transform)>,
+    mut loops: MessageWriter<crate::audio::Loop>,
+) {
     let cfg = &run.data.drop;
     let now = run.career.time_s;
+    let Some(spec) = data.0.air_traffic.kinds.get(&cfg.aircraft_kind) else {
+        return;
+    };
     for (e, plane, mut t) in &mut planes {
         match run
             .career
             .drop_of(plane.0)
             .and_then(|d| d.aircraft(cfg, now).map(|p| (p, d.track_rad)))
         {
-            Some((p, track)) => *t = Transform::from_translation(p).with_rotation(Quat::from_rotation_y(track)),
+            Some((p, track)) => {
+                *t = Transform::from_translation(p).with_rotation(Quat::from_rotation_y(track));
+                if let Some(pitch) = spec.engine_pitch
+                    && p.distance(ear.at) < data.0.audio.cues.audible_within_m
+                {
+                    loops.write(crate::audio::Loop {
+                        cue: crate::air_traffic::ENGINE_CUE,
+                        at: crate::audio::SoundAt::Node(e),
+                        level: cb_core::audio::LoopLevel { db: 0.0, pitch },
+                    });
+                }
+            }
             None => commands.entity(e).despawn(),
         }
     }
@@ -516,23 +530,17 @@ fn draw_aircraft(mut commands: Commands, run: Res<CareerRun>, a: Res<DropAssets>
             continue;
         }
         let Some(p) = d.aircraft(cfg, now) else { continue };
-        commands
-            .spawn((
-                Name::new("cargo aircraft (block-out stand-in)"),
-                Aircraft(d.key),
-                Transform::from_translation(p).with_rotation(Quat::from_rotation_y(d.track_rad)),
-                Visibility::default(),
-            ))
-            .with_children(|c| {
-                block(c, &a, &a.hull, Vec3::ZERO, Vec3::new(8.0, 8.0, 64.0));
-                block(c, &a, &a.hull, Vec3::new(0.0, 3.0, -2.0), Vec3::new(72.0, 1.2, 10.0));
-                block(c, &a, &a.hull, Vec3::new(0.0, 7.0, 29.0), Vec3::new(1.2, 10.0, 7.0));
-                block(c, &a, &a.hull, Vec3::new(0.0, 12.0, 30.0), Vec3::new(24.0, 1.0, 5.0));
-                block(c, &a, &a.dark, Vec3::new(0.0, 1.0, -33.0), Vec3::new(5.0, 3.0, 2.0));
-                for x in [-24.0, -12.0, 12.0, 24.0] {
-                    block(c, &a, &a.dark, Vec3::new(x, 1.0, -4.0), Vec3::new(2.4, 2.4, 7.0));
-                }
-            });
+        let root = crate::air_traffic::spawn_standin(
+            &mut commands,
+            &mut looks,
+            &mut meshes,
+            &mut materials,
+            &cfg.aircraft_kind,
+            spec,
+            format!("cargo aircraft: {} (block-out stand-in)", cfg.aircraft_kind),
+            Transform::from_translation(p).with_rotation(Quat::from_rotation_y(d.track_rad)),
+        );
+        commands.entity(root).insert(Aircraft(d.key));
     }
 }
 

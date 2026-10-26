@@ -54,9 +54,12 @@ turning in.
 
 **Shaped for the career loop.** A route may carry `via` points: it overflies each at cruise, in order,
 before its approach, and reports each as it passes (`Happened::Passed(i)`). `Traffic::launch(kind,
-from, to, via)` sends one at once, wherever the pilot is. The career loop's mech air drop is a
-`freighter` launched from the bought mech's base with the drop point as its one `via`, releasing the
-mech on `Passed(0)`. The release and the drop are the career loop's (PR #72).
+from, to, via)` sends one at once, wherever the pilot is. The career loop's mech air drop (mech-shop, on
+main) flies the `freighter`'s stand-in and engine, but not a launched `Traffic` freighter: its release
+comes `delay_s` after the order on the career's clock and is saved with the career, and a launched
+freighter would arrive when its climb, cruise and turns bring it, which would make the drop's timing the
+flight model's. `launch` and `Passed` stay for the day the drop is re-timed to the flight (or for
+`airfields`' landed deliveries).
 
 ## 3. City traffic
 

@@ -94,11 +94,20 @@ fn main() -> ExitCode {
             }
             // the career: how it starts, the jobs, the catalogue and every mech it lists (career, mech-shop)
             match cb_core::career::CareerData::load(&root) {
-                Ok(c) => println!(
-                    "ok   career: {} job kinds, {} mechs for sale",
-                    c.jobs.kinds.len(),
-                    c.catalogue.listings.len()
-                ),
+                Ok(c) => {
+                    println!(
+                        "ok   career: {} job kinds, {} mechs for sale",
+                        c.jobs.kinds.len(),
+                        c.catalogue.listings.len()
+                    );
+                    // the air drop's aircraft is a civil air traffic kind (mech-shop, civil-air-traffic)
+                    if let Ok(d) = GameData::load(&root, &mechs[0])
+                        && let Err(e) = c.drop.check_aircraft(&d.air_traffic)
+                    {
+                        eprintln!("FAIL career/air_drop.ron: {e}");
+                        ok = false;
+                    }
+                }
                 Err(e) => {
                     eprintln!("FAIL {e}");
                     ok = false;

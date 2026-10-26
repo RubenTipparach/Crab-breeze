@@ -48,6 +48,8 @@ pub struct DropConfig {
     pub release_height_m: f32,
     /// The aircraft is drawn from this long before the release to as long after, seconds.
     pub aircraft_shown_s: f32,
+    /// The aircraft: a civil air traffic kind (`data/world/air_traffic.ron`), drawn and heard as that kind is.
+    pub aircraft_kind: String,
     /// Seconds of free fall before the canopies open.
     pub free_fall_s: f32,
     /// The descent under the canopies, m/s.
@@ -82,6 +84,7 @@ impl Default for DropConfig {
             aircraft_speed_m_s: 95.0,
             release_height_m: 320.0,
             aircraft_shown_s: 20.0,
+            aircraft_kind: "freighter".into(),
             free_fall_s: 2.0,
             canopy_m_s: 14.0,
             retro_height_m: 25.0,
@@ -106,6 +109,9 @@ impl Validate for DropConfig {
             return Err("search_max_m / ring_step_m: more than 1000 rings".into());
         }
         crate::data::within("max_slope_deg", self.max_slope_deg, 0.0, 60.0)?;
+        if self.aircraft_kind.is_empty() {
+            return Err("aircraft_kind: must name a civil aircraft kind".into());
+        }
         for (field, v) in [
             ("delay_s", self.delay_s),
             ("aircraft_speed_m_s", self.aircraft_speed_m_s),
@@ -526,10 +532,38 @@ impl DropGround for PlanGround<'_> {
     }
 }
 
+impl DropConfig {
+    /// The aircraft kind it names is one civil air traffic flies (`data/world/air_traffic.ron`).
+    pub fn check_aircraft(&self, air: &crate::air_traffic::AirTrafficConfig) -> Result<(), String> {
+        if air.kinds.contains_key(&self.aircraft_kind) {
+            Ok(())
+        } else {
+            Err(format!(
+                "aircraft_kind: \"{}\" is not a kind in world/air_traffic.ron",
+                self.aircraft_kind
+            ))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::world::layout::Rect;
+
+    #[test]
+    fn the_drop_flies_civil_air_traffics_freighter() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let drop: DropConfig = crate::data::load_ron(&root.join("career/air_drop.ron")).unwrap();
+        let air: crate::air_traffic::AirTrafficConfig = crate::data::load_ron(&root.join("world/air_traffic.ron")).unwrap();
+        assert_eq!(drop.aircraft_kind, "freighter");
+        assert_eq!(drop.check_aircraft(&air), Ok(()));
+        let wrong = DropConfig {
+            aircraft_kind: "zeppelin".into(),
+            ..drop
+        };
+        assert!(wrong.check_aircraft(&air).is_err());
+    }
 
     /// Ground made up for a test: flat at zero unless a slope or water says otherwise.
     #[derive(Default)]

@@ -169,8 +169,10 @@ rebuilds the flown mech from that design and its fit.
 
 ### 6.4 Drawing it (`cb-app` `air_drop`)
 
-- **The aircraft** is a block-out stand-in, named so in its scene node: a 64 m fuselage, 72 m wing, a T tail and
-  four engine pods in plain grey boxes. A modelled aircraft is `airfields`' work.
+- **The aircraft** is civil air traffic's `freighter` (`aircraft_kind` in `air_drop.ron`): the same block-out
+  stand-in from the same shape table (70 m long, 68 m span, survey W48), and the same jet engine loop, so the drop's
+  aircraft and the freighters in the sky are one model. Only the look is shared: it flies the drop's own straight
+  track on the drop's own clock (above), which a save keeps. A modelled aircraft is `airfields`' work.
 - **The canopies** are three flattened domes of 14 m radius on rigging lines, block-outs too.
 - **The marker** is a diamond over the site with `AIR DROP` and the distance, on screen on foot and in the seat
   (there is no map or minimap yet; when one exists, the site goes on it).
