@@ -1165,6 +1165,20 @@ const VIEWS: &[View] = &[
         at: [-11600.0, 500.0, -9600.0],
         above_ground: true,
     },
+    // Under the west storm's anvil, 2 km east of its centre, on the ground looking up into it.
+    View {
+        name: "storm-under-anvil",
+        eye: [-3887.0, 2.0, -4186.0],
+        at: [-5287.0, 1800.0, -4186.0],
+        above_ground: true,
+    },
+    // 2.8 km north of the west storm's centre, on the ground looking up at its base and tower.
+    View {
+        name: "storm-under-edge",
+        eye: [-5887.0, 2.0, -6986.0],
+        at: [-5887.0, 1800.0, -5026.0],
+        above_ground: true,
+    },
     // The storm's shadow on the ground, from 900 m up outside it, looking down across its edge.
     View {
         name: "storm-shadow",

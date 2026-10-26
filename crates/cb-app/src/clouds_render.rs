@@ -179,10 +179,11 @@ pub struct Item {
 }
 
 /// Every item within `radius_m` of `eye` (in the sky's frame at time zero, x and z) in the order
-/// they are drawn: the deepest along the view direction `forward` first. A billboard lies in a
-/// plane parallel to the screen, so its depth along the view is the same all over it, and this
-/// order is exact where they do not cut through each other (a straight-line distance to the
-/// centres is not: it misorders puffs off to the side and big puffs beside small ones). Puffs and
+/// they are drawn: the deepest along the view direction `forward` first. A puff's billboard faces
+/// the eye's position (`facing` in `cloud.wesl`), so near the middle of the view it lies almost
+/// parallel to the screen and this order is right there; toward the edges of a wide view it is close
+/// (a straight-line distance to the centres misordered puffs off to the side and big puffs beside
+/// small ones while the billboards lay in the screen's plane). Puffs and
 /// shafts within the radius, every cirrus streak.
 pub fn items(clouds: &Clouds, eye: Vec3, forward: Vec3, radius_m: f32) -> Vec<Item> {
     let flat = |p: Vec3| Vec2::new(p.x, p.z).distance(Vec2::new(eye.x, eye.z));
