@@ -18,6 +18,7 @@
 
 use crate::pilot::PilotSim;
 use crate::sim::Data;
+use crate::state::GameApp;
 use crate::world::{Plan, SKY};
 use bevy::camera::{Exposure, Hdr};
 use bevy::core_pipeline::prepass::DepthPrepass;
@@ -223,8 +224,8 @@ impl Plugin for WaterRenderPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MaterialPlugin::<WaterMaterial>::default())
             .insert_resource(GroundFogOn(!crate::cli::switched_off("CB_NO_GROUND_FOG")))
-            .add_systems(Startup, upload_mist)
-            .add_systems(
+            .add_world_spawn(upload_mist)
+            .add_game_systems(
                 Update,
                 (
                     samplable_depth::<WaterOptics>,

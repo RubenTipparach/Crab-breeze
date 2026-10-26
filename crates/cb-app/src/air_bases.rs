@@ -7,6 +7,7 @@
 
 use crate::mech::{MechSim, MechSpec, Piloted};
 use crate::sim::{Data, SimSet};
+use crate::state::GameApp;
 use crate::world::{MeshBuilder, Plan};
 use bevy::prelude::*;
 use cb_core::mech::Damage;
@@ -17,8 +18,8 @@ pub struct AirBasesPlugin;
 
 impl Plugin for AirBasesPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_bases)
-            .add_systems(FixedUpdate, repair_in_hangars.in_set(SimSet::Mech).after(crate::mech::step_mech));
+        app.add_world_spawn(spawn_bases)
+            .add_game_systems(FixedUpdate, repair_in_hangars.in_set(SimSet::Mech).after(crate::mech::step_mech));
     }
 }
 

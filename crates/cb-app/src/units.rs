@@ -9,6 +9,7 @@ use crate::combat::Shots;
 use crate::fx::Fx;
 use crate::mech::{Enemy, EnemyGoal, MechId, MechSim, Piloted};
 use crate::sim::{Data, SimSet};
+use crate::state::GameApp;
 use crate::world::Plan;
 use bevy::prelude::*;
 use cb_core::rng::SimRng;
@@ -145,8 +146,8 @@ impl Plugin for UnitsPlugin {
         app.init_resource::<Units>()
             .init_resource::<Hostiles>()
             .add_message::<WaveForces>()
-            .add_systems(FixedUpdate, list_hostiles.in_set(SimSet::Input))
-            .add_systems(
+            .add_game_systems(FixedUpdate, list_hostiles.in_set(SimSet::Input))
+            .add_game_systems(
                 FixedUpdate,
                 (spawn_forces, step_units)
                     .chain()
@@ -154,7 +155,7 @@ impl Plugin for UnitsPlugin {
                     .after(crate::mech::step_mech)
                     .before(crate::combat::fly_shots),
             )
-            .add_systems(Update, draw_units);
+            .add_game_systems(Update, draw_units);
     }
 }
 

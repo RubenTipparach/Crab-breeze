@@ -10,6 +10,7 @@
 use crate::fx::Fx;
 use crate::pilot::PilotCamera;
 use crate::sim::PresentSet;
+use crate::state::GameApp;
 use crate::world::Live;
 use avian3d::prelude::{AngularVelocity, Collider, LinearVelocity, PhysicsPlugins, RigidBody};
 use bevy::prelude::*;
@@ -40,8 +41,8 @@ impl Plugin for DebrisPhysicsPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(PhysicsPlugins::default())
             .init_resource::<DebrisQueue>()
-            .add_systems(Startup, setup)
-            .add_systems(Update, (spawn_chunks, freeze_far_debris).in_set(PresentSet::Pose));
+            .add_world_spawn(setup)
+            .add_game_systems(Update, (spawn_chunks, freeze_far_debris).in_set(PresentSet::Pose));
     }
 }
 

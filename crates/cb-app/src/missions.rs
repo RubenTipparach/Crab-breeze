@@ -6,6 +6,7 @@
 
 use crate::menu::Play;
 use crate::sim::Data;
+use crate::state::GameApp;
 use bevy::prelude::*;
 use cb_core::missions::{FreeRoam, MissionKind, Switch};
 
@@ -57,7 +58,7 @@ pub struct MissionsSet;
 
 impl Plugin for MissionsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<MissionSwitch>().add_systems(
+        app.add_message::<MissionSwitch>().add_game_systems(
             Update,
             (begin, send).chain().in_set(MissionsSet).before(crate::sim::PresentSet::Input),
         );

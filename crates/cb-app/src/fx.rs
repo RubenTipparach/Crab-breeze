@@ -9,6 +9,7 @@ use crate::combat::Shots;
 use crate::particles::{self, ParticleLibrary};
 use crate::pilot::PilotCamera;
 use crate::sim::Data;
+use crate::state::GameApp;
 use bevy::prelude::*;
 use bevy_hanabi::prelude::{EffectAsset, EffectSpawner};
 use cb_core::fx::{FxConfig, Layer};
@@ -154,8 +155,8 @@ impl Plugin for FxPlugin {
         app.add_message::<Fx>()
             .insert_resource(Rand(0x5EED))
             .init_resource::<Pools>()
-            .add_systems(Startup, setup)
-            .add_systems(
+            .add_world_spawn(setup)
+            .add_game_systems(
                 Update,
                 (
                     play,

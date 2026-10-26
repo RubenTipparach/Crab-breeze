@@ -8,6 +8,7 @@ use crate::blast::Explosion;
 use crate::fx::Fx;
 use crate::pilot::PilotSim;
 use crate::sim::Data;
+use crate::state::GameApp;
 use crate::units::Hostiles;
 use bevy::audio::{AudioPlayer, AudioSink, AudioSinkPlayback, PlaybackMode, PlaybackSettings, Volume};
 use bevy::prelude::*;
@@ -61,7 +62,7 @@ impl Plugin for MusicPlugin {
             since_shot_s: 1e9,
             ..Default::default()
         })
-        .add_systems(Update, (hear_shots, choose_and_play).chain().after(HearSet));
+        .add_game_systems(Update, (hear_shots, choose_and_play).chain().after(HearSet));
     }
 }
 

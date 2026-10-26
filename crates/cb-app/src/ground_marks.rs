@@ -19,6 +19,7 @@
 use crate::fx::Fx;
 use crate::pilot::{PilotCamera, PilotSim};
 use crate::sim::{Data, PresentSet};
+use crate::state::GameApp;
 use crate::world::{Live, Plan};
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::visibility::NoFrustumCulling;
@@ -214,13 +215,13 @@ impl Plugin for GroundMarksPlugin {
                 laid: 0,
                 material: None,
             })
-            .add_systems(
+            .add_game_systems(
                 Update,
                 (take_contacts, scorch_craters, age_and_upload).chain().in_set(PresentSet::Pose),
             );
         if self.enabled {
             app.add_plugins(MaterialPlugin::<GroundMarksMaterial>::default())
-                .add_systems(Startup, setup);
+                .add_world_spawn(setup);
         }
     }
 }
