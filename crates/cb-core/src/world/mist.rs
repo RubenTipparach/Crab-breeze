@@ -176,6 +176,18 @@ pub struct FogConfig {
     pub sky_length_m: f32,
     /// Extra extinction while the eye is under a storm's rain, per metre, times the rain.
     pub rain_per_m: f32,
+    /// How far along a sight line the rain's haze reaches: a shaft is a few kilometres across, so a
+    /// line leaves the rain within about this far. Taken over a sky ray's whole length, a trace of
+    /// rain at the eye turned the whole sky to fog, and flying past a shaft's edge the sky pulsed
+    /// grey (owner, 2026-10-26: "the whole sky ios flikering").
+    pub rain_reach_m: f32,
+    /// Time constant in seconds over which the weather sampled at the eye (cloud, rain, the clouds'
+    /// shade) is followed, so the fog over the whole view eases rather than jumping as a fast mech
+    /// passes the edge of a puff, a shaft or a cloud's shadow.
+    pub eye_weather_s: f32,
+    /// How much darker the fog's colour is under the full shade of the clouds over the eye, 0..1
+    /// (the scattering sky it takes its colour from knows nothing of clouds).
+    pub storm_dim: f32,
     /// How much of the sky's ambient light the fog scatters back.
     pub ambient_share: f32,
     /// How much of the sun the fog scatters toward the eye, through the phase function.
@@ -208,6 +220,9 @@ impl Default for FogConfig {
             mist_taps_m: 6000.0,
             sky_length_m: 40000.0,
             rain_per_m: 1.0 / 1500.0,
+            rain_reach_m: 1500.0,
+            eye_weather_s: 1.5,
+            storm_dim: 0.45,
             ambient_share: 1.0,
             sun_share: 0.25,
             phase_g: 0.6,
@@ -247,6 +262,9 @@ impl Validate for FogConfig {
         positive("fog.mist_taps_m", self.mist_taps_m)?;
         positive("fog.sky_length_m", self.sky_length_m)?;
         within("fog.rain_per_m", self.rain_per_m, 0.0, 0.1)?;
+        within("fog.rain_reach_m", self.rain_reach_m, 1.0, 100000.0)?;
+        within("fog.eye_weather_s", self.eye_weather_s, 0.0, 30.0)?;
+        within("fog.storm_dim", self.storm_dim, 0.0, 1.0)?;
         within("fog.ambient_share", self.ambient_share, 0.0, 4.0)?;
         within("fog.sun_share", self.sun_share, 0.0, 4.0)?;
         within("fog.phase_g", self.phase_g, -0.95, 0.95)?;
@@ -302,7 +320,8 @@ pub const MIST_TAPS: [f32; 4] = [0.1, 0.3, 0.6, 1.0];
 /// The fog's optical depth along the straight line from `from` to `to`, worked out as the compose
 /// pass works it out for a pixel (`fog_depth` in `water_post.wesl`): the mist read at the four
 /// taps and averaged, thickening the layer's exact integral, scaled by the strength now
-/// (`FogConfig::strength`), plus the rain's haze `rain` (0..1, under a shaft at `from`) along it.
+/// (`FogConfig::strength`), plus the rain's haze `rain` (0..1, under a shaft at `from`) along it as
+/// far as `rain_reach_m`.
 /// `exp(-line_depth)` is the share of the target's light that reaches the eye.
 pub fn line_depth(cfg: &FogConfig, strength: FogStrength, map: &MistMap, sea_level_m: f32, from: Vec3, to: Vec3, rain: f32) -> f32 {
     let len = from.distance(to);
@@ -321,7 +340,14 @@ pub fn line_depth(cfg: &FogConfig, strength: FogStrength, map: &MistMap, sea_lev
         / MIST_TAPS.len() as f32;
     let thick = 1.0 + cfg.mist_strength * strength.mist_scale * mist;
     let layer = optical_depth(cfg, sea_level_m, from.y, dir.y, len, thick) * strength.density_scale;
-    layer + haze_depth(cfg, sea_level_m, from.y, dir.y, len) + cfg.rain_per_m * rain.clamp(0.0, 1.0) * len
+    layer + haze_depth(cfg, sea_level_m, from.y, dir.y, len) + rain_depth(cfg, rain, len)
+}
+
+/// The rain's haze along `len` metres of a sight line from an eye under rain `rain` (0..1): only
+/// as far as `rain_reach_m`, where the line has left the shaft. The one copy (`fog_depth` in
+/// `water_post.wesl` writes it the same way).
+pub fn rain_depth(cfg: &FogConfig, rain: f32, len: f32) -> f32 {
+    cfg.rain_per_m * rain.clamp(0.0, 1.0) * len.max(0.0).min(cfg.rain_reach_m)
 }
 
 /// How misty a place is, 0 (plain air) to 1 (full mist): a hollow below the ground round it, near
@@ -552,6 +578,18 @@ mod tests {
             cell_m: 100.0,
             mist,
         }
+    }
+
+    #[test]
+    fn rain_hazes_a_sight_line_only_as_far_as_the_rain_reaches() {
+        let cfg = FogConfig::default();
+        let near = rain_depth(&cfg, 1.0, 500.0);
+        let reach = rain_depth(&cfg, 1.0, cfg.rain_reach_m);
+        let sky = rain_depth(&cfg, 1.0, cfg.sky_length_m);
+        assert!(near < reach);
+        assert_eq!(sky, reach, "a sky ray is no hazier than the rain's reach");
+        // A trace of rain at the eye leaves the sky nearly clear (it hid 6 % of it before, at 40 km).
+        assert!((-rain_depth(&cfg, 0.01, cfg.sky_length_m)).exp() > 0.99);
     }
 
     #[test]

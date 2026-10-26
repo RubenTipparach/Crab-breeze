@@ -8,7 +8,8 @@
 - [ ] 1.2 Three scales over the swell, filtered by footprint, the lost variance into roughness
 - [x] 2.0 The sky in the water from the glass's cached sky cube (design section 0, "Still dull")
 - [ ] 2.1 The sky cube from the eye, one face a frame, blended (the game's own clouds in it)
-- [ ] 3.1 The screen-space trace in `water_surface.wesl`, falling back to the cube
+- [ ] 3.1 The screen-space trace in `water_surface.wesl`, falling back to the cube (design section 0, "Foam and things in the water")
+- [ ] 3.2 Whitecaps and a wider surf band
 - [x] 4.0 GGX glint, roughness from the detail fade (design section 0, "Still dull")
 - [ ] 4.1 GGX over the sun's disc with Toksvig roughness (once the wave atlas exists)
 - [x] 5.0 Scatter on crests toward the sun (design section 0, "Still dull")

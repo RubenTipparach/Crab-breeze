@@ -1275,6 +1275,13 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // 8 m over the water off the north-east cliffs, looking at them (the reflection trace).
+    View {
+        name: "cliffs-low",
+        eye: [9800.0, 8.0, -8200.0],
+        at: [9174.0, 30.0, -7698.0],
+        above_ground: true,
+    },
     // In the west storm's rain, on the ground, looking up through it (the shafts seen from inside).
     View {
         name: "in-the-rain-up",
@@ -1569,11 +1576,40 @@ fn run_weather_script(
         } else {
             Vec3::new(v.eye[0], v.eye[1].max(ground + 2.0), v.eye[2])
         };
+        // `CB_STILLS_BURST_STEP_M=<m>`: each still of a burst a step further along the view, as a flight past
+        // the view would see on consecutive frames (60 m/s at 60 frames a second is 1 m).
+        let step_m: f32 = std::env::var("CB_STILLS_BURST_STEP_M")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0.0);
+        let along = (Vec3::from_array(v.at) - eye).with_y(0.0).normalize_or_zero();
+        let done = script
+            .shots
+            .iter()
+            .filter(|p| p.to_string_lossy().contains(&format!("weather-{}-", v.name)))
+            .count();
+        let eye = eye + along * step_m * done as f32;
         // Held at the view every frame (a pilot on foot in the air would fall).
-        stand_looking(&mut pilot, eye - Vec3::Y * 1.7, Vec3::from_array(v.at));
+        stand_looking(
+            &mut pilot,
+            eye - Vec3::Y * 1.7,
+            eye + (Vec3::from_array(v.at) - eye).normalize_or_zero() * 1000.0,
+        );
         // Time for the ground's detail, the trees and the sky to stream in round the eye.
+        // `CB_STILLS_BURST=<n>`: n stills of the view on consecutive frames (`weather-<name>-<k>.png`), the
+        // instrument for flicker between frames (a value that changes frame to frame shows as a difference).
+        let burst: usize = std::env::var("CB_STILLS_BURST").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
         if t > 8.0 && script.frames > 12 {
-            let name = format!("weather-{}.png", v.name);
+            let k = script
+                .shots
+                .iter()
+                .filter(|p| p.to_string_lossy().contains(&format!("weather-{}-", v.name)))
+                .count();
+            let name = if burst > 0 {
+                format!("weather-{}-{k}.png", v.name)
+            } else {
+                format!("weather-{}.png", v.name)
+            };
             shoot(&mut commands, &script.dir.clone(), &name);
             let path = script.dir.join(name);
             script.shots.push(path);
@@ -1587,7 +1623,7 @@ fn run_weather_script(
                 plan.clouds.rain_at(eye, now),
                 plan.clouds.sun_at(Vec2::new(eye.x, eye.z), now)
             );
-            next = true;
+            next = burst == 0 || k + 1 >= burst;
         }
     } else if script.shots.iter().all(|p| p.exists()) || t > 120.0 {
         // Once every still is on disk (a software renderer reads a frame back slowly).

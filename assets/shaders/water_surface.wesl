@@ -80,6 +80,8 @@ struct WaterSurface {
     cabin: vec4<f32>,       // xyz the eye; w the sealed cabin's dry radius m (0: none)
     shallow: vec4<f32>,     // rgb the body's colour in the shallows (an albedo); w the depth m by which it is `deep`'s
     scatter: vec4<f32>,     // rgb light through the crests seen against the sun (an albedo times its strength); w the glitter's facet slope
+    reflect: vec4<f32>,     // the reflection trace: x steps, y their growth factor, z strength 0..1, w the first step m
+    whitecap: vec4<f32>,    // x the share of the sea under whitecaps, y their patch m, zw their drift m/s (x, z)
     swell: array<vec4<f32>, 3>, // heading x, heading z, wavenumber rad/m, height m
 }
 
@@ -119,6 +121,30 @@ fn swell_slope(xz: vec2<f32>, seconds: f32, metres_per_pixel: f32) -> vec2<f32> 
     return g;
 }
 
+// The swell's height at `xz` in units of its own amplitude (the sum of the waves' crests, 1 where
+// they all crest together), faded like its slope.
+fn swell_height(xz: vec2<f32>, seconds: f32, metres_per_pixel: f32) -> f32 {
+    var h = 0.0;
+    var total = 1e-4;
+    for (var i = 0u; i < 3u; i++) {
+        let w = water.swell[i];
+        let k = max(w.z, 1e-4);
+        let fade = 1.0 - smoothstep(0.25, 0.5, metres_per_pixel * k / 6.2831853);
+        let phase = dot(w.xy, xz) * k - sqrt(9.81 * k) * seconds;
+        h += w.w * sin(phase) * fade;
+        total += w.w;
+    }
+    return h / total;
+}
+
+// How many standard deviations above the mean a normal value must be to fall in the top `share`
+// (Abramowitz and Stegun 26.2.23, good to 4.5e-4): sets the whitecap patches' noise threshold.
+fn share_quantile(share: f32) -> f32 {
+    let q = sqrt(-2.0 * log(clamp(share, 1e-6, 0.5)));
+    return q - (2.515517 + 0.802853 * q + 0.010328 * q * q)
+        / (1.0 + 1.432788 * q + 0.189269 * q * q + 0.001308 * q * q * q);
+}
+
 fn world_at(uv: vec2<f32>, depth: f32) -> vec3<f32> {
     let h = view.world_from_clip * vec4<f32>(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, depth, 1.0);
     return h.xyz / max(abs(h.w), 1e-8) * sign(h.w);
@@ -141,6 +167,67 @@ fn scene_behind(uv: vec2<f32>, fallback: vec3<f32>) -> vec3<f32> {
         scene = textureSampleLevel(view_transmission_texture, view_transmission_sampler, uv, 0.0).rgb;
     }
     return scene;
+}
+
+// What the water mirrors along `dir` from `p` (water-look section 3; owner, 2026-10-26: "theres sea
+// foam, and screenspace reflections which make it look nice too"): steps that grow by a factor
+// (`reflect`), each projected to the screen and compared with the depth prepass, which the water is
+// not in, so it never mirrors itself. The first step behind the ground by less than its own length
+// plus 2 m is a hit, refined by four halvings, its colour read from the scene copy. rgb the colour,
+// a how sure (faded at the screen's edge and with the steps taken); 0 where it finds nothing.
+fn trace_reflection(p: vec3<f32>, dir: vec3<f32>, size: vec2<f32>) -> vec4<f32> {
+    var out = vec4<f32>(0.0);
+    @if(DEPTH_PREPASS && VIEW_TRANSMISSION_TEXTURE) {
+        let steps = u32(clamp(water.reflect.x, 0.0, 64.0));
+        let eye = view.world_position;
+        var t = 0.0;
+        var stride = max(water.reflect.w, 0.01);
+        for (var i = 0u; i < steps; i++) {
+            let before = t;
+            t += stride;
+            let q = p + dir * t;
+            let clip = view.clip_from_world * vec4<f32>(q, 1.0);
+            if (clip.w <= 1e-4) {
+                break;
+            }
+            let ndc = clip.xyz / clip.w;
+            let suv = vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+            if (any(suv < vec2<f32>(0.0)) || any(suv > vec2<f32>(1.0))) {
+                break;
+            }
+            let ground = ground_depth(suv * size);
+            // Reverse-Z: the ground nearer the eye than the ray's point when its depth is greater.
+            if (ground > 1e-7 && ground > ndc.z) {
+                let behind = distance(q, eye) - distance(world_at(suv, ground), eye);
+                if (behind > stride + 2.0) {
+                    // Passed behind something nearer: what it mirrors is hidden.
+                    break;
+                }
+                // Four halvings between the last step in front and this one.
+                var lo = before;
+                var hi = t;
+                var hit_uv = suv;
+                for (var k = 0u; k < 4u; k++) {
+                    let mid = 0.5 * (lo + hi);
+                    let c = view.clip_from_world * vec4<f32>(p + dir * mid, 1.0);
+                    let n = c.xyz / max(c.w, 1e-4);
+                    let m_uv = vec2<f32>(n.x * 0.5 + 0.5, 0.5 - n.y * 0.5);
+                    if (ground_depth(clamp(m_uv, vec2<f32>(0.0), vec2<f32>(1.0)) * size) > n.z) {
+                        hi = mid;
+                        hit_uv = m_uv;
+                    } else {
+                        lo = mid;
+                    }
+                }
+                let edge = min(min(hit_uv.x, 1.0 - hit_uv.x), min(hit_uv.y, 1.0 - hit_uv.y));
+                let sure = smoothstep(0.0, 0.1, edge) * (1.0 - f32(i) / f32(max(steps, 1u)));
+                out = vec4<f32>(scene_behind(clamp(hit_uv, vec2<f32>(0.0), vec2<f32>(1.0)), vec3<f32>(0.0)), sure);
+                break;
+            }
+            stride *= max(water.reflect.y, 1.0);
+        }
+    }
+    return out;
 }
 
 @fragment
@@ -261,7 +348,12 @@ fn fragment(in: WaterFragment, @builtin(front_facing) front: bool) -> @location(
     // blurred by it, and the sun's glint shaped by it.
     let alpha = clamp(water.sun_light.w + water.sun_tint.w * (1.0 - detail), 0.005, 1.0);
     let sky_dir = safe_normal(vec3<f32>(reflected_ray.x, max(abs(reflected_ray.y), 0.02), reflected_ray.z));
-    let sky = sky_reflected(sky_dir, alpha, mix(water.sky_horizon.rgb, water.sky_zenith.rgb, reflection_height));
+    var sky = sky_reflected(sky_dir, alpha, mix(water.sky_horizon.rgb, water.sky_zenith.rgb, reflection_height));
+    // Things in the water: the coast, buildings, a mech or a hull mirrored over the sky.
+    if (water.reflect.x >= 1.0 && water.reflect.z > 0.0) {
+        let mirrored = trace_reflection(p, safe_normal(vec3<f32>(reflected_ray.x, abs(reflected_ray.y), reflected_ray.z)), size);
+        sky = mix(sky, mirrored.rgb, mirrored.a * clamp(water.reflect.z, 0.0, 1.0));
+    }
     // Foam on crests, steep ripples and along the shore (the water under this pixel is shallow).
     let crest = smoothstep(water.foam_crest.x, max(water.foam_crest.y, water.foam_crest.x + 1e-4), height) * water.foam_crest.z;
     let steep = smoothstep(water.foam_slope.x, max(water.foam_slope.y, water.foam_slope.x + 1e-4), raw_slope) * water.foam_slope.z;
@@ -271,7 +363,37 @@ fn fragment(in: WaterFragment, @builtin(front_facing) front: bool) -> @location(
         let near = 1.0 - smoothstep(0.0, water.foam_crest.w, water_depth);
         shore = near * smoothstep(-0.25, 0.25, height + 0.5 * near - 0.25) * water.foam_slope.w;
     }
-    let foam = clamp(max(max(crest, steep) * water.foam_color.w, shore), 0.0, 1.0);
+    // Whitecaps (section 0, "Foam and things in the water"): the sea's own waves breaking, not
+    // things on it (owner, 2026-10-26: "that seafoam isnt part of the noise stuff on the ocean
+    // lol, they just look like floating dots"). A slow noise of gusts, patches `whitecap.y` across
+    // drifting with the wind, says where the wind tears the sea (`coverage` of it at its strongest);
+    // a gust only shortens the odds. The foam is the wavelets the eye sees, the tallest of them on
+    // the swell's crests, torn into streaks along the wind, so it is lace in the waves' own pattern
+    // and moves with them. Where the wavelets have faded with distance, a gust is a faint sheen.
+    let wind = safe_normal(vec3<f32>(water.whitecap.z, 0.0, water.whitecap.w) + vec3<f32>(1e-4, 0.0, 0.0)).xz;
+    let across = vec2<f32>(-wind.y, wind.x);
+    let drifted = xz - water.whitecap.zw * seconds;
+    let patch_at = vec2<f32>(dot(drifted, wind) * 0.5, dot(drifted, across)) / max(water.whitecap.y, 0.1);
+    let gust = fbm3(vec3<f32>(patch_at.x, 0.0, patch_at.y), t * 0.15);
+    // fbm3 has a standard deviation of 0.166 (measured over 400000 samples, mean 0).
+    let gust_from = 0.166 * share_quantile(clamp(water.whitecap.x * 6.0, 1e-4, 0.5));
+    // How far into a gust, in the gust noise's own deviations: below 0 the wind is not tearing.
+    let into_gust = (gust - gust_from) / 0.166;
+    // A wavelet breaks where it stands tall: the ripples' height in their own deviations (the
+    // ripples are `fbm3` faded by `detail`), lifted on the swell's crests and in a gust, so only the
+    // tallest few in a hundred of the wavelets the eye sees foam, in lace that follows them.
+    let wavelet = height / (0.166 * max(detail, 1e-3));
+    let swell_up = swell_height(xz, seconds, metres_per_pixel);
+    // Odds (the ripples near normal): at a gust's heart on a swell's crest the top 20 % of wavelets
+    // foam, in an ordinary gust the top 2 %, outside a gust none.
+    let breaking = wavelet + 0.8 * swell_up + clamp(into_gust, -2.0, 1.0);
+    let lace = smoothstep(2.6, 3.4, breaking);
+    let streak = fbm3(vec3<f32>(dot(drifted, wind) * 0.12, 0.0, dot(drifted, across) * 0.9), t * 0.5);
+    let near_cap = lace * smoothstep(-0.2, 0.15, streak) * 0.75;
+    // Far off, where the wavelets are below a pixel, the gusts' foam is seen as a faint sheen.
+    let far_cap = 0.18 * smoothstep(0.0, 1.5, into_gust);
+    let whitecap = mix(far_cap, near_cap, clamp(detail, 0.0, 1.0));
+    let foam = clamp(max(max(max(crest, steep) * water.foam_color.w, shore), whitecap), 0.0, 1.0);
     var color = mix(mix(transmitted, sky, fresnel), water.foam_color.rgb * water.light.rgb, foam);
     // The sun's glint (water-look design section 4; owner, 2026-10-26: "It looks kinda dull"): GGX
     // with water's Fresnel of 0.02, rougher where the ripples have faded into the distance (the

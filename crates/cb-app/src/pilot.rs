@@ -55,7 +55,14 @@ impl Plugin for PilotPlugin {
         .add_game_systems(
             Update,
             (
-                (shake_on_blasts, place_camera, crate::water_render::track_eye, weather_and_screens).chain(),
+                (
+                    shake_on_blasts,
+                    place_camera,
+                    crate::water_render::track_eye,
+                    crate::ground_fog::follow_eye_weather,
+                    weather_and_screens,
+                )
+                    .chain(),
                 show_prompt,
                 ease_fov,
             )
@@ -441,27 +448,18 @@ fn show_prompt(choice: Res<crate::interact::UseChoice>, data: Res<Data>, mut pro
 /// water it crossed) is the fog; seated with the sensor head shot off, the view is the backup
 /// cameras' (washed out, darker, tinted) until the all-view screen change draws them properly.
 fn weather_and_screens(
-    plan: Res<Plan>,
     data: Res<Data>,
-    time: Res<Time>,
+    weather: Res<crate::ground_fog::EyeWeather>,
     pilot: Res<PilotSim>,
     mechs: Query<(&crate::mech::MechSim, &crate::mech::MechSpec), With<crate::mech::Piloted>>,
-    mut camera: Single<
-        (
-            &Transform,
-            &mut DistanceFog,
-            &mut ColorGrading,
-            Option<&crate::water_render::WaterEye>,
-        ),
-        With<PilotCamera>,
-    >,
+    mut camera: Single<(&mut DistanceFog, &mut ColorGrading, Option<&crate::water_render::WaterEye>), With<PilotCamera>>,
 ) {
-    let (eye, fog, grading, water) = &mut *camera;
+    let (fog, grading, water) = &mut *camera;
     // Under water there is no cloud at the eye; the water fogs the view.
     let density = if water.is_some_and(|w| w.under_water()) {
         0.0
     } else {
-        plan.clouds.density_at(eye.translation, time.elapsed_secs())
+        weather.cloud
     };
     let clear = data.0.world.view.clear_visibility_m;
     // Under the scattering sky, clear air has no flat fog at all: the atmosphere's aerial
