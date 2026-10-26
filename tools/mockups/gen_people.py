@@ -63,7 +63,7 @@ td, th { text-align: left; padding: 2px 4px; border-bottom: 1px solid var(--edge
   <div class="side">
     <div class="card"><h2>Clip</h2><div class="row" id="clips"></div><div class="row" style="margin-top:6px"><button id="crowd">Crowd: every clip</button></div></div>
     <div class="card"><h2>Level of detail</h2><div class="row" id="lods"></div><p class="note">Near within 60 m of the eye; crowd beyond.</p></div>
-    <div class="card"><h2>Show</h2><div class="row" id="toggles"></div><div class="row" style="margin-top:6px"><button id="outfit">New outfits and hair</button><button id="reset">Reset view</button><button id="heads">Heads close up</button></div></div>
+    <div class="card"><h2>Show</h2><div class="row" id="toggles"></div><div class="row" style="margin-top:6px"><button id="outfit">New outfits and hair</button><button id="reset">Reset view</button><button id="heads">Heads close up</button><button id="hem">Hem close up</button><button id="sleeve">Sleeve close up</button></div></div>
     <div class="card"><h2>Measured</h2><table id="sizes"><tr><th>Body</th><th>Level</th><th>Tris</th><th>Verts</th></tr></table>
       <table id="cliptab" style="margin-top:8px"><tr><th>Clip</th><th>Frames</th><th>s</th><th>Walks m/s</th></tr></table></div>
   </div>
@@ -172,6 +172,8 @@ Promise.all([...MANIFEST.bodies.map(b => parse(b.id).then(g => { srcs[b.id] = g;
   document.getElementById("crowd").onclick = () => { crowdMode = true; rebuild(); };
   document.getElementById("outfit").onclick = () => { seed += 17; rebuild(); };
   document.getElementById("reset").onclick = resetView;
+  document.getElementById("hem").onclick = () => { controls.target.set(0.7, 1.0, 0); camera.position.set(0.7, 1.05, 1.9); controls.update(); };
+  document.getElementById("sleeve").onclick = () => { controls.target.set(1.65, 1.15, 0); camera.position.set(2.6, 1.25, 0.9); controls.update(); };
   document.getElementById("heads").onclick = () => { controls.target.set(0.7, 1.55, 0); camera.position.set(0.7, 1.6, 2.4); controls.update(); };
   const t = document.getElementById("sizes");
   for (const b of MANIFEST.bodies) for (const l of b.levels) t.insertAdjacentHTML("beforeend", `<tr><td>${b.id} ${b.height_m.toFixed(3)} m</td><td>${l.name}</td><td>${l.triangles}</td><td>${l.vertices}</td></tr>`);
