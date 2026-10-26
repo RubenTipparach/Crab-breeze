@@ -50,8 +50,13 @@ pub struct WaterLook {
     pub light_falloff: f32,
     /// Light absorbed per metre of water, red, green, blue.
     pub absorption_per_m: [f32; 3],
-    /// The water body's colour, lit like an albedo by the light reaching it.
+    /// The water body's colour in deep water, lit like an albedo by the light reaching it.
     pub deep_color: [f32; 3],
+    /// The water body's colour in the shallows (what coastal water carries scatters green as well as
+    /// blue: teal), easing to `deep_color` by `shallow_depth_m` of water under the surface.
+    pub shallow_color: [f32; 3],
+    /// The depth of water by which the body's colour is `deep_color`, metres.
+    pub shallow_depth_m: f32,
     /// The sky's colour straight up, linear, for the reflection (the horizon is the game's sky).
     pub sky_zenith_color: [f32; 3],
     /// The least reflection at a grazing angle, 0..1.
@@ -130,10 +135,12 @@ impl Default for WaterLook {
             refract_max_uv: 0.03,
             max_path_m: 200.0,
             light_falloff: 1.0,
-            absorption_per_m: [0.45, 0.12, 0.06],
-            deep_color: [0.0, 0.12, 0.28],
-            sky_zenith_color: [0.03, 0.18, 0.55],
-            sky_horizon_strength: 0.22,
+            absorption_per_m: [0.32, 0.035, 0.012],
+            deep_color: [0.004, 0.018, 0.040],
+            shallow_color: [0.020, 0.090, 0.075],
+            shallow_depth_m: 14.0,
+            sky_zenith_color: [0.16, 0.22, 0.30],
+            sky_horizon_strength: 0.7,
             foam_color: [0.95, 0.97, 1.0],
             foam_intensity: 0.10,
             foam_crest: [0.35, 0.60],
@@ -199,6 +206,7 @@ impl Validate for WaterLook {
         }
         for (field, c) in [
             ("deep_color", self.deep_color),
+            ("shallow_color", self.shallow_color),
             ("sky_zenith_color", self.sky_zenith_color),
             ("foam_color", self.foam_color),
             ("sun_tint", self.sun_tint),
@@ -208,6 +216,7 @@ impl Validate for WaterLook {
             }
         }
         within("sky_horizon_strength", self.sky_horizon_strength, 0.0, 1.0)?;
+        positive("shallow_depth_m", self.shallow_depth_m)?;
         within("foam_intensity", self.foam_intensity, 0.0, 1.0)?;
         rising("foam_crest", self.foam_crest)?;
         within("foam_crest_weight", self.foam_crest_weight, 0.0, 1.0)?;
