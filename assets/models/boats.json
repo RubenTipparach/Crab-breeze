@@ -1,0 +1,322 @@
+{
+ "_": "Boat, crane and quay block-outs from tools/blender/build_boats.py (openspec/changes/harbours section 9): labelled stand-ins at true size. glTF frame: metres, +Y up; a boat's bow toward -Z, its origin the middle of its waterline; the crane's jib and the quay's berth face toward -Z.",
+ "blender": "4.5.4 LTS",
+ "boats": {
+  "crane": {
+   "bounds_m": {
+    "max": [
+     6.0,
+     53.961,
+     6.0
+    ],
+    "min": [
+     -6.0,
+     0.0,
+     -31.185
+    ]
+   },
+   "file": "boats/crane.glb",
+   "label": "Harbour crane",
+   "lod1": "boats/crane_lod1.glb",
+   "lods": [
+    {
+     "budget_triangles": 3000,
+     "lod": 0,
+     "triangles": 200
+    },
+    {
+     "budget_triangles": 1200,
+     "lod": 1,
+     "triangles": 168
+    }
+   ],
+   "size_m": [
+    12.0,
+    53.96,
+    37.19
+   ],
+   "stand_in": true
+  },
+  "ferry": {
+   "bounds_m": {
+    "max": [
+     7.0,
+     12.8,
+     30.0
+    ],
+    "min": [
+     -7.0,
+     -3.2,
+     -30.0
+    ]
+   },
+   "file": "boats/ferry.glb",
+   "label": "Ferry",
+   "lod1": "boats/ferry_lod1.glb",
+   "lods": [
+    {
+     "budget_triangles": 6000,
+     "lod": 0,
+     "triangles": 284
+    },
+    {
+     "budget_triangles": 2500,
+     "lod": 1,
+     "triangles": 256
+    }
+   ],
+   "size_m": [
+    14.0,
+    16.0,
+    60.0
+   ],
+   "stand_in": true
+  },
+  "fishing_boat": {
+   "bounds_m": {
+    "max": [
+     3.25,
+     7.2,
+     11.0
+    ],
+    "min": [
+     -3.25,
+     -2.8,
+     -11.0
+    ]
+   },
+   "file": "boats/fishing_boat.glb",
+   "label": "Fishing boat",
+   "lod1": "boats/fishing_boat_lod1.glb",
+   "lods": [
+    {
+     "budget_triangles": 3000,
+     "lod": 0,
+     "triangles": 220
+    },
+    {
+     "budget_triangles": 1200,
+     "lod": 1,
+     "triangles": 120
+    }
+   ],
+   "size_m": [
+    6.5,
+    10.0,
+    22.0
+   ],
+   "stand_in": true
+  },
+  "freighter": {
+   "bounds_m": {
+    "max": [
+     9.0,
+     19.0,
+     60.0
+    ],
+    "min": [
+     -9.0,
+     -7.0,
+     -60.0
+    ]
+   },
+   "file": "boats/freighter.glb",
+   "label": "Freighter",
+   "lod1": "boats/freighter_lod1.glb",
+   "lods": [
+    {
+     "budget_triangles": 6000,
+     "lod": 0,
+     "triangles": 432
+    },
+    {
+     "budget_triangles": 2500,
+     "lod": 1,
+     "triangles": 280
+    }
+   ],
+   "size_m": [
+    18.0,
+    26.0,
+    120.0
+   ],
+   "stand_in": true
+  },
+  "gunboat": {
+   "bounds_m": {
+    "max": [
+     3.25,
+     7.2,
+     15.0
+    ],
+    "min": [
+     -3.25,
+     -1.8,
+     -15.0
+    ]
+   },
+   "file": "boats/gunboat.glb",
+   "label": "Gunboat",
+   "lod1": "boats/gunboat_lod1.glb",
+   "lods": [
+    {
+     "budget_triangles": 4000,
+     "lod": 0,
+     "triangles": 248
+    },
+    {
+     "budget_triangles": 1500,
+     "lod": 1,
+     "triangles": 168
+    }
+   ],
+   "size_m": [
+    6.5,
+    9.0,
+    30.0
+   ],
+   "stand_in": true
+  },
+  "launch": {
+   "bounds_m": {
+    "max": [
+     1.3,
+     2.035,
+     4.0
+    ],
+    "min": [
+     -1.3,
+     -0.8,
+     -4.0
+    ]
+   },
+   "file": "boats/launch.glb",
+   "label": "Launch",
+   "lod1": "boats/launch_lod1.glb",
+   "lods": [
+    {
+     "budget_triangles": 2000,
+     "lod": 0,
+     "triangles": 156
+    },
+    {
+     "budget_triangles": 800,
+     "lod": 1,
+     "triangles": 124
+    }
+   ],
+   "size_m": [
+    2.6,
+    2.83,
+    8.0
+   ],
+   "stand_in": true
+  },
+  "quay": {
+   "bounds_m": {
+    "max": [
+     20.0,
+     0.8,
+     15.0
+    ],
+    "min": [
+     -20.0,
+     -14.0,
+     -15.5
+    ]
+   },
+   "file": "boats/quay.glb",
+   "label": "Quay section",
+   "lod1": "boats/quay_lod1.glb",
+   "lods": [
+    {
+     "budget_triangles": 4000,
+     "lod": 0,
+     "triangles": 312
+    },
+    {
+     "budget_triangles": 1500,
+     "lod": 1,
+     "triangles": 60
+    }
+   ],
+   "size_m": [
+    40.0,
+    14.8,
+    30.5
+   ],
+   "stand_in": true
+  },
+  "rowing_boat": {
+   "bounds_m": {
+    "max": [
+     0.7,
+     0.85,
+     2.1
+    ],
+    "min": [
+     -0.7,
+     -0.25,
+     -2.1
+    ]
+   },
+   "file": "boats/rowing_boat.glb",
+   "label": "Rowing boat",
+   "lod1": "boats/rowing_boat_lod1.glb",
+   "lods": [
+    {
+     "budget_triangles": 1500,
+     "lod": 0,
+     "triangles": 228
+    },
+    {
+     "budget_triangles": 600,
+     "lod": 1,
+     "triangles": 204
+    }
+   ],
+   "size_m": [
+    1.4,
+    1.1,
+    4.2
+   ],
+   "stand_in": true
+  },
+  "tanker": {
+   "bounds_m": {
+    "max": [
+     12.0,
+     21.0,
+     75.0
+    ],
+    "min": [
+     -12.0,
+     -9.0,
+     -75.0
+    ]
+   },
+   "file": "boats/tanker.glb",
+   "label": "Tanker",
+   "lod1": "boats/tanker_lod1.glb",
+   "lods": [
+    {
+     "budget_triangles": 6000,
+     "lod": 0,
+     "triangles": 348
+    },
+    {
+     "budget_triangles": 2500,
+     "lod": 1,
+     "triangles": 212
+    }
+   ],
+   "size_m": [
+    24.0,
+    30.0,
+    150.0
+   ],
+   "stand_in": true
+  }
+ },
+ "generator": "tools/blender/build_boats.py"
+}

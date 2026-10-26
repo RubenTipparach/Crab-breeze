@@ -337,6 +337,76 @@ pub fn check_fortress(d: &cb_core::fortress::FortressData, assets: &Path) -> Vec
     out
 }
 
+/// Checks the boats' block-outs against their data (openspec change `harbours`, design section 9): every kind in
+/// `ships.ron` names a model listed in `assets/models/boats.json` whose glb (and its LOD 1) is on disk and reads as
+/// glTF, whose size measured off the export is within 5 % of the kind's `size_m`, and whose triangles are within each
+/// LOD's budget; the harbour's crane and quay are listed too.
+pub fn check_boats(ships: &cb_core::ships::ShipsConfig, assets: &Path) -> Vec<String> {
+    let path = assets.join("models").join("boats.json");
+    let manifest: Value = match std::fs::read(&path)
+        .map_err(|e| e.to_string())
+        .and_then(|b| serde_json::from_slice(&b).map_err(|e| e.to_string()))
+    {
+        Ok(v) => v,
+        Err(e) => return vec![format!("boats: {}: {e}", path.display())],
+    };
+    let rows = &manifest["boats"];
+    let mut out = Vec::new();
+    let check_row = |out: &mut Vec<String>, key: &str, row: &Value| {
+        for f in ["file", "lod1"] {
+            let Some(file) = row[f].as_str() else {
+                out.push(format!("boats: {key} has no `{f}`"));
+                continue;
+            };
+            if let Err(e) = Tree::read(&assets.join("models").join(file)) {
+                out.push(format!("boats: {key}: {e}"));
+            }
+        }
+        for lod in row["lods"].as_array().into_iter().flatten() {
+            let (t, b) = (
+                lod["triangles"].as_u64().unwrap_or(u64::MAX),
+                lod["budget_triangles"].as_u64().unwrap_or(0),
+            );
+            if t > b {
+                out.push(format!("boats: {key} LOD {} has {t} triangles, over its budget of {b}", lod["lod"]));
+            }
+        }
+    };
+    for (name, spec) in &ships.kinds {
+        let file = spec.model.trim_start_matches("models/");
+        let Some((key, row)) = rows
+            .as_object()
+            .and_then(|o| o.iter().find(|(_, r)| r["file"].as_str() == Some(file)))
+        else {
+            out.push(format!("boats: kind `{name}` names {}, which boats.json does not list", spec.model));
+            continue;
+        };
+        check_row(&mut out, key, row);
+        let size: Vec<f32> = row["size_m"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|v| v.as_f64())
+            .map(|v| v as f32)
+            .collect();
+        for (i, axis) in ["across", "high", "long"].iter().enumerate() {
+            let (want, got) = (spec.size_m[i], size.get(i).copied().unwrap_or(0.0));
+            if (got - want).abs() > want * 0.05 {
+                out.push(format!(
+                    "boats: {name} is {got} m {axis} as built, {want} m in ships.ron (more than 5 % off)"
+                ));
+            }
+        }
+    }
+    for piece in ["crane", "quay"] {
+        match rows.get(piece) {
+            Some(row) => check_row(&mut out, piece, row),
+            None => out.push(format!("boats: boats.json has no `{piece}`")),
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -481,5 +551,25 @@ mod tests {
         assert!(!d.skins.skins.is_empty());
         let problems = check_skins(&d.skins, &root.join("assets"));
         assert!(problems.is_empty(), "{problems:?}");
+    }
+
+    #[test]
+    fn every_boat_model_matches_its_data() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let ships: cb_core::ships::ShipsConfig = cb_core::data::load_ron(&root.join("data/world/ships.ron")).unwrap();
+        let problems = check_boats(&ships, &root.join("assets"));
+        assert!(problems.is_empty(), "{problems:#?}");
+    }
+
+    #[test]
+    fn a_boat_built_the_wrong_size_is_refused() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut ships: cb_core::ships::ShipsConfig = cb_core::data::load_ron(&root.join("data/world/ships.ron")).unwrap();
+        ships.kinds.get_mut("freighter").unwrap().size_m[2] = 200.0;
+        let problems = check_boats(&ships, &root.join("assets"));
+        assert!(
+            problems.iter().any(|p| p.contains("freighter") && p.contains("long")),
+            "{problems:?}"
+        );
     }
 }

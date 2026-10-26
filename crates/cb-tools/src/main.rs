@@ -81,6 +81,17 @@ fn main() -> ExitCode {
                     ok = false;
                 }
             }
+            // the boats' block-outs against their data (harbours)
+            if let Ok(d) = GameData::load(&root, &mechs[0]) {
+                let problems = glb::check_boats(&d.ships, &root.join("..").join("assets"));
+                if problems.is_empty() {
+                    println!("ok   {} boat kinds, the crane and the quay", d.ships.kinds.len());
+                }
+                for p in problems {
+                    eprintln!("FAIL {p}");
+                    ok = false;
+                }
+            }
             // the Hermit's model against its shape data (crab-airship)
             if let Ok(d) = GameData::load(&root, &mechs[0]) {
                 let problems = glb::check_fortress(&d.fortress, &root.join("..").join("assets"));

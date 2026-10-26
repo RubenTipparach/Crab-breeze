@@ -163,6 +163,11 @@ detail pass. `cb-tools validate` refuses a boat whose model is missing, over bud
 than 5 % off its data. The mockup page `docs/mockups/boats.html` (from `tools/mockups/gen_boats.py`) shows them all
 orbitable at true scale beside the pilot (1.8 m) and the 24 m Foreman.
 
+As built (`assets/models/boats.json`, measured off the exports; LOD 0 / LOD 1 triangles): freighter 432 / 280,
+tanker 348 / 212, fishing boat 220 / 120, rowing boat 228 / 204, launch 156 / 124, ferry 284 / 256, gunboat 248 /
+168, crane 200 / 168, quay section 312 / 60. Every boat measures within 1 % of its data. The game draws LOD 0 only
+for now (block-outs this small need no switching); the raiders' gunboat draws the same model over its vehicle.
+
 ## 10. Cost
 
 | Item | Cost |

@@ -408,6 +408,7 @@ fn draw_units(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut known: Local<BTreeMap<u32, Entity>>,
+    assets: Res<AssetServer>,
 ) {
     let _t = crate::perf_hud::slow("draw_units");
     let mut seen = std::collections::BTreeSet::new();
@@ -491,20 +492,8 @@ fn draw_units(
                     false,
                 ));
             }
-            UnitKind::Gunboat => {
-                // A stand-in hull and wheelhouse; the boats draw the block-out model over it (`boats`).
-                parts.push((Cuboid::new(w, h * 0.35, l).into(), Transform::from_xyz(0.0, -h * 0.2, 0.0), false));
-                parts.push((
-                    Cuboid::new(w * 0.6, h * 0.35, l * 0.25).into(),
-                    Transform::from_xyz(0.0, h * 0.15, 0.0),
-                    false,
-                ));
-                parts.push((
-                    Cylinder::new(0.12, l * 0.15).into(),
-                    Transform::from_xyz(0.0, h * 0.1, -l * 0.35).with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)),
-                    true,
-                ));
-            }
+            // Drawn from the boats' block-out (below), not boxes.
+            UnitKind::Gunboat => {}
             UnitKind::CargoPlane => {
                 parts.push((Cuboid::new(w * 0.15, h, l).into(), Transform::IDENTITY, false));
                 parts.push((
@@ -530,6 +519,17 @@ fn draw_units(
             let m = meshes.add(mesh);
             let mat = if is_dark { dark.clone() } else { paint.clone() };
             commands.spawn((Mesh3d(m), MeshMaterial3d(mat), t, ChildOf(root)));
+        }
+        // A gunboat is the boats' block-out (harbours): its origin is its waterline, under the unit's body centre.
+        if s.kind == UnitKind::Gunboat
+            && let Some(b) = data.0.ships.kinds.get(cb_core::ships::GUNBOAT)
+        {
+            let scene = assets.load(GltfAssetLabel::Scene(0).from_asset(b.model.clone()));
+            commands.spawn((
+                bevy::world_serialization::WorldAssetRoot(scene),
+                Transform::from_xyz(0.0, s.draft_m - h * 0.5, 0.0),
+                ChildOf(root),
+            ));
         }
         // A tank comes down under a chute: a dome over it on lines, shown while it is open.
         let chute = (s.kind == UnitKind::Tank).then(|| {
