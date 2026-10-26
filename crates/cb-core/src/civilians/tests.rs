@@ -680,3 +680,68 @@ fn cost_of_a_step() {
         q(1.0)
     );
 }
+
+#[test]
+fn street_doors_give_the_nearest_door_in_reach_that_is_not_toward_the_danger() {
+    let doors = StreetDoors::new([Vec2::new(10.0, 0.0), Vec2::new(-20.0, 0.0), Vec2::new(0.0, 200.0)]);
+    assert_eq!(doors.len(), 3);
+    let p = Vec2::ZERO;
+    // danger far to the south: the nearest door, 10 m east
+    assert_eq!(doors.refuge(p, Vec2::new(0.0, -100.0), 60.0), Some(Vec2::new(10.0, 0.0)));
+    // danger just east of the east door: that door is toward it, so the west one
+    assert_eq!(doors.refuge(p, Vec2::new(14.0, 0.0), 60.0), Some(Vec2::new(-20.0, 0.0)));
+    // nothing within reach
+    assert_eq!(doors.refuge(p, Vec2::new(0.0, -100.0), 5.0), None);
+    assert_eq!(StreetDoors::default().refuge(p, Vec2::new(0.0, -100.0), 60.0), None);
+}
+
+#[test]
+fn people_run_in_through_the_real_street_doors_of_the_island() {
+    use crate::world::{Structures, generate};
+    let cfg = world_cfg();
+    let plan = generate(42, &cfg);
+    let structures = Structures::new(&plan);
+    // the seed the game lays its interiors out with (cb-app `buildings::building_rng`)
+    let seed = SimRng::new(42).fork("dressing");
+    let started = std::time::Instant::now();
+    let doors = StreetDoors::of_world(&plan, &structures, &cfg.interiors, &seed);
+    eprintln!(
+        "street doors: {} for {} buildings in {:.0} ms",
+        doors.len(),
+        plan.buildings.len(),
+        started.elapsed().as_secs_f64() * 1000.0
+    );
+    assert_eq!(doors.len(), plan.buildings.len(), "every building has its street door");
+    // a building's door, from the same rule the game hangs the leaves by
+    let b = plan.buildings.len() / 2;
+    let c = &structures.buildings[b];
+    let site = crate::world::interior::Site::of(&plan, b as u32, c.n, c.origin, c.size);
+    let entrance = crate::world::interior::shell(&site, &cfg.interiors, &seed).entrance;
+    let door = entrance.route[0];
+    // someone on the street 8 m out from it, a mech foot coming down 40 m further out
+    let out = (door - entrance.centre).normalize_or(Vec2::X);
+    let at = door + out * 8.0;
+    let danger = door + out * 48.0;
+    let data = shipped();
+    let refuge = doors.refuge(at, danger, data.cfg.door_reach_m).expect("a door in reach");
+    assert!(refuge.distance(at) <= 8.0 + 1e-3, "the nearest door, at most as far as this one");
+    let f = Fixture::new();
+    let w = f.world(&doors);
+    let mut p = one_person(&f, &data, at);
+    p.danger(
+        &w,
+        &data,
+        &Danger::Footfall {
+            at: Vec3::new(danger.x, 0.0, danger.y),
+            by: None,
+        },
+    );
+    assert!(
+        matches!(p.list[0].activity, Activity::Fleeing { door: Some(d), .. } if d == refuge),
+        "runs for the street door"
+    );
+    for _ in 0..(60 * 6) {
+        p.step(&w, &data, DT);
+    }
+    assert!(p.list.is_empty(), "gone inside");
+}

@@ -19,6 +19,7 @@ use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use bevy::world_serialization::{WorldAsset, WorldAssetRoot};
 use cb_core::car::{CarSpec, Drive, Obstacle};
+use cb_core::civilians::Doors;
 use cb_core::pilot::{CarAccess, PilotEvent, PilotMode};
 use cb_core::traffic::{CarState, Harm, MechNear, Traffic, TrafficView};
 use cb_core::world::lanes::LaneGraph;
@@ -194,7 +195,7 @@ fn step_traffic(
     mut blasts: MessageReader<crate::blast::Explosion>,
     mut harmed: MessageWriter<CivilianHarmed>,
     mut toll: ResMut<CivilianToll>,
-    time: Res<Time<Fixed>>,
+    (time, doors): (Res<Time<Fixed>>, Option<Res<crate::street_doors::RefugeDoors>>),
 ) {
     let _t = crate::perf_hud::slow("step_traffic");
     let d = &data.0.traffic;
@@ -212,17 +213,16 @@ fn step_traffic(
         match *e {
             PilotEvent::CarHailed(id) => sim.traffic.hail(id),
             PilotEvent::EnteringCar(id) => {
-                // the driver runs for the nearest building's door
+                // the driver runs from the pilot for the nearest street door, as people on foot do (the
+                // buildings' real doors, `street_doors::RefugeDoors`, in the people's reach); with none in
+                // reach, straight away from the pilot
+                let pilot_at = Vec2::new(pilot.curr.feet.x, pilot.curr.feet.z);
+                let reach = data.0.people.cfg.door_reach_m;
                 let refuge = |p: Vec2| {
-                    plan.collision
-                        .candidates(p, 80.0)
-                        .into_iter()
-                        .map(|b| {
-                            let r = plan.buildings[b as usize].footprint;
-                            p.clamp(r.min, r.max)
-                        })
-                        .min_by(|a, b| a.distance(p).total_cmp(&b.distance(p)))
-                        .unwrap_or(p + Vec2::new(30.0, 0.0))
+                    doors
+                        .as_deref()
+                        .and_then(|d| d.0.refuge(p, pilot_at, reach))
+                        .unwrap_or_else(|| p + (p - pilot_at).normalize_or(Vec2::X) * 30.0)
                 };
                 if !sim.traffic.take(d, id, &ground, &refuge) {
                     warn!("traffic: car {id} could not be taken");

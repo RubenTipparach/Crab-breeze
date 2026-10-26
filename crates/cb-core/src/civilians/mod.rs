@@ -20,7 +20,7 @@ mod tests;
 
 pub use config::{DrawConfig, PeopleConfig};
 pub use lines::{Answer, Lines, Place, Role};
-pub use routes::{Doors, Home, NoDoors};
+pub use routes::{Doors, Home, NoDoors, StreetDoors};
 pub use toll::{Casualty, Cause, StandingLoss, Toll};
 
 use crate::data::Validate;

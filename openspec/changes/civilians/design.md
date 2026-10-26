@@ -32,9 +32,11 @@
   within 5 m per cube root of its megajoules (8 m for a 4 MJ shell) or a foot within 4 m kills. The struck lie still
   30 s and are cleared away.
 - **Running inside.** `Doors::refuge(p, danger, reach)` names the street door a person runs for: the nearest within
-  60 m that the danger is not nearer to. The building-entrances change (PR #73, not on main) has the doors; until it
-  lands the game passes `NoDoors` and everyone flees down the street. A person who reaches a door goes inside and
-  leaves the world.
+  60 m that the danger is not nearer to. The game passes `StreetDoors`: the point just outside every building's real
+  street door (building-interiors, `world::interior::shell`, the same rule the door leaves hang by), found once when
+  the world spawns (3 609 doors on seed 42, about a millisecond in a test run on the development Mac) and kept in a 64 m grid. A person who reaches a
+  door goes inside and leaves the world. A car's driver who gives the car up to the pilot runs for the same doors,
+  within the same reach, away from the pilot.
 - **Greeting.** Use on foot greets the nearest standing, unfrightened person within 2.5 m and 50 degrees either side
   of the view; they stop and face the pilot for 6 s. The answer is one of their role's lines, picked by their id and
   how many times they have been greeted. Roles live on one kind of place (passer-by, shopkeeper and dock worker on

@@ -20,11 +20,12 @@ use crate::mech::{MechId, Piloted};
 use crate::pilot::{PilotCamera, PilotSim};
 use crate::sim::{Data, PresentSet, SimSet};
 use crate::state::GameApp;
+use crate::street_doors::RefugeDoors;
 use crate::world::{Live, MeshBuilder, Plan};
 use bevy::camera::visibility::NoFrustumCulling;
 use bevy::light::NotShadowCaster;
 use bevy::prelude::*;
-use cb_core::civilians::{Activity, Danger, DrawConfig, NoDoors, People, Person, StandingLoss, Toll, World, routes};
+use cb_core::civilians::{Activity, Danger, Doors, DrawConfig, NoDoors, People, Person, StandingLoss, Toll, World, routes};
 use cb_core::jobs::JobState;
 use cb_core::pilot::PilotMode;
 use cb_core::world::Scene;
@@ -158,10 +159,9 @@ impl Plugin for CiviliansPlugin {
     }
 }
 
-/// The ground and walls people walk on, and the street doors they run for. Building entrances (the
-/// `building-entrances` change, not on main yet) will give the doors; until then there are none and
-/// people flee down the street.
-fn with_world<R>(plan: &Plan, live: &Live, data: &Data, f: impl FnOnce(&World) -> R) -> R {
+/// The ground and walls people walk on, and the street doors they run for (`street_doors::RefugeDoors`,
+/// the buildings' real doors; none before the world has found them, and people flee down the street).
+fn with_world<R>(plan: &Plan, live: &Live, data: &Data, doors: Option<&RefugeDoors>, f: impl FnOnce(&World) -> R) -> R {
     let ground = Scene {
         plan,
         dug: &live.dug,
@@ -175,7 +175,7 @@ fn with_world<R>(plan: &Plan, live: &Live, data: &Data, f: impl FnOnce(&World) -
         bases: &plan.bases,
         cfg: &data.0.world,
         ground: &ground,
-        doors: &NoDoors,
+        doors: doors.map_or(&NoDoors as &dyn Doors, |d| &d.0 as &dyn Doors),
     };
     f(&w)
 }
@@ -205,6 +205,7 @@ fn rounds_through_crowd(
     time: Res<Time<Fixed>>,
     piloted: Query<&MechId, With<Piloted>>,
     mut losses: MessageWriter<CivilianLoss>,
+    doors: Option<Res<RefugeDoors>>,
 ) {
     let _t = crate::perf_hud::slow("rounds_through_crowd");
     if crowd.people.list.is_empty() || (shots.0.is_empty() && shots.1.is_empty()) {
@@ -226,7 +227,7 @@ fn rounds_through_crowd(
         }))
         .collect();
     let crowd = &mut *crowd;
-    let deaths = with_world(&plan, &live, &data, |w| {
+    let deaths = with_world(&plan, &live, &data, doors.as_deref(), |w| {
         dangers
             .iter()
             .flat_map(|d| crowd.people.danger(w, &data.0.people, d))
@@ -247,6 +248,7 @@ fn step_crowd(
     time: Res<Time<Fixed>>,
     piloted: Query<&MechId, With<Piloted>>,
     mut losses: MessageWriter<CivilianLoss>,
+    doors: Option<Res<RefugeDoors>>,
 ) {
     let _t = crate::perf_hud::slow("step_crowd");
     let mut dangers: Vec<Danger> = explosions
@@ -267,7 +269,7 @@ fn step_crowd(
     let eye = pilot.curr.eye(&data.0.pilot);
     let people = &data.0.people;
     let crowd = &mut *crowd;
-    let deaths = with_world(&plan, &live, &data, |w| {
+    let deaths = with_world(&plan, &live, &data, doors.as_deref(), |w| {
         let deaths: Vec<_> = dangers.iter().flat_map(|d| crowd.people.danger(w, people, d)).collect();
         crowd.people.keep_around(w, people, Vec2::new(eye.x, eye.z));
         crowd.people.step(w, people, time.delta_secs());

@@ -10,8 +10,9 @@
 - [x] 1.5 The toll charged to the career's standing by the one rule for every civilian, `cb_core::civil_standing`
   (people, cars with a driver in them and civil aircraft; each victim once; `standing_per_civilian` in
   `data/career/career.ron`); tested per source
-- [ ] 1.4 Running inside: an implementation of `Doors` over the building-entrances change's street doors in place of
-  `NoDoors`, once that change lands on main
+- [x] 1.4 Running inside: `StreetDoors`, an implementation of `Doors` over every building's real street door
+  (`world::interior::shell`, the rule the leaves hang by), in place of `NoDoors`; car drivers who give up their
+  car run for the same doors; tested (`people_run_in_through_the_real_street_doors_of_the_island`)
 - [ ] 2.1 The humanoid table and rig built (`blender-humanoid-characters`), walk and idle clips. Open: the pipeline's
   packs are not on the development machine, so the game draws labelled stand-in box figures at true size
   (`docs/mockups/civilians.html`, awaiting the owner's approval, survey W43)

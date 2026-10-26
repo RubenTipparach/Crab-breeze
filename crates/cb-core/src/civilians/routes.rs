@@ -6,12 +6,15 @@
 //! which shares the grid's row or column, so the crossing is straight and square.
 //!
 //! Fleeing runs along the pavement's own line, away from the danger, or for the door of a building
-//! when the world knows its street doors (`Doors`; building entrances are a separate change, so until
-//! they land `NoDoors` says there are none and people flee down the street).
+//! when the world knows its street doors (`Doors`): `StreetDoors` is every building's real street door
+//! (openspec change `building-interiors`, `world::interior`), `NoDoors` a world with none.
 
 use super::lines::Place;
-use crate::world::{AirBase, BasesConfig, City, Rect, WorldConfig};
+use crate::rng::SimRng;
+use crate::world::interior::{InteriorConfig, Site, shell};
+use crate::world::{AirBase, BasesConfig, City, Rect, Structures, WorldConfig, WorldPlan};
 use glam::Vec2;
+use std::collections::BTreeMap;
 
 /// Where a person was brought in and walks: the key their home is peopled and let go by.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -165,9 +168,8 @@ pub fn corner_outs(k: u8) -> [Vec2; 2] {
     }
 }
 
-/// The world's street doors, as a fleeing person needs them. Building entrances (openspec change
-/// `building-entrances`) are being added separately; when they land, an implementation over their data
-/// is passed in place of `NoDoors` and people run inside instead of down the street.
+/// The world's street doors, as a fleeing person needs them: `StreetDoors` in the game, `NoDoors` where
+/// there are none.
 pub trait Doors {
     /// The street door nearest `p` within `reach_m` that does not lie toward `danger` (a door the
     /// danger is nearer than the person is not run for), if any.
@@ -180,6 +182,80 @@ pub struct NoDoors;
 impl Doors for NoDoors {
     fn refuge(&self, _p: Vec2, _danger: Vec2, _reach_m: f32) -> Option<Vec2> {
         None
+    }
+}
+
+/// The side of a `StreetDoors` grid cell, metres.
+const DOOR_CELL_M: f32 = 64.0;
+
+/// Every building's street door, as somebody running from danger makes for it: the point just outside
+/// the door, where its way in begins (`interior::Entrance::route`). Built once from the same rule the
+/// game hangs the doors by (`interior::shell`), so a person runs for the door the pilot can walk through.
+/// Kept in a grid of `DOOR_CELL_M` cells, so a search looks only at the doors near the person.
+#[derive(Clone, Debug, Default)]
+pub struct StreetDoors {
+    grid: BTreeMap<(i32, i32), Vec<Vec2>>,
+}
+
+impl StreetDoors {
+    /// Doors at these points (x, z).
+    pub fn new(doors: impl IntoIterator<Item = Vec2>) -> Self {
+        let mut grid: BTreeMap<(i32, i32), Vec<Vec2>> = BTreeMap::new();
+        for d in doors.into_iter().filter(|d| d.is_finite()) {
+            grid.entry(Self::cell(d)).or_default().push(d);
+        }
+        Self { grid }
+    }
+
+    /// The street door of every building in `plan`, on its cells in `structures`, laid out with the dressing
+    /// seed `seed` (the one the game builds its interiors with).
+    pub fn of_world(plan: &WorldPlan, structures: &Structures, cfg: &InteriorConfig, seed: &SimRng) -> Self {
+        Self::new(structures.buildings.iter().enumerate().map(|(b, c)| {
+            let site = Site::of(plan, b as u32, c.n, c.origin, c.size);
+            let e = shell(&site, cfg, seed).entrance;
+            e.route.first().copied().unwrap_or(e.centre)
+        }))
+    }
+
+    /// How many doors.
+    pub fn len(&self) -> usize {
+        self.grid.values().map(Vec::len).sum()
+    }
+
+    /// True when there are none.
+    pub fn is_empty(&self) -> bool {
+        self.grid.is_empty()
+    }
+
+    fn cell(p: Vec2) -> (i32, i32) {
+        ((p.x / DOOR_CELL_M).floor() as i32, (p.y / DOOR_CELL_M).floor() as i32)
+    }
+}
+
+impl Doors for StreetDoors {
+    fn refuge(&self, p: Vec2, danger: Vec2, reach_m: f32) -> Option<Vec2> {
+        if !(reach_m.is_finite() && reach_m >= 0.0) {
+            return None;
+        }
+        let (lo, hi) = (Self::cell(p - Vec2::splat(reach_m)), Self::cell(p + Vec2::splat(reach_m)));
+        let mut best: Option<(f32, Vec2)> = None;
+        for x in lo.0..=hi.0 {
+            for z in lo.1..=hi.1 {
+                for &d in self.grid.get(&(x, z)).into_iter().flatten() {
+                    let dist = d.distance(p);
+                    if dist > reach_m || d.distance(danger) < dist {
+                        continue;
+                    }
+                    // nearest first; a tie to the lower x, then z, so the search order never decides
+                    let better =
+                        best.is_none_or(|(bd, bp)| dist.total_cmp(&bd).then(d.x.total_cmp(&bp.x)).then(d.y.total_cmp(&bp.y)).is_lt());
+                    if better {
+                        best = Some((dist, d));
+                    }
+                }
+            }
+        }
+        best.map(|(_, d)| d)
     }
 }
 
