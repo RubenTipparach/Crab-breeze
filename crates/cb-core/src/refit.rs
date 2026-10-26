@@ -62,6 +62,9 @@ pub struct PartWeapon {
     /// A multi-lock pod's seeker (`multi-lock`).
     #[serde(default)]
     pub seeker: Option<crate::targeting::Seeker>,
+    /// The scope's magnifications (`railgun-scope`).
+    #[serde(default)]
+    pub scope_zoom: Vec<f32>,
     /// Rounds a sortie; `None` for no limit.
     #[serde(default)]
     pub rounds: Option<u32>,
@@ -88,6 +91,7 @@ impl PartWeapon {
             burst: None,
             lob: None,
             signature: false,
+            scope_zoom: self.scope_zoom.clone(),
             rounds: self.rounds,
         }
     }

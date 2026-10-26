@@ -18,7 +18,8 @@
         (id: "cannon_120", kind: Arm, price: 90000, name: "120 mm cannon", speed_m_s: 850.0,
          interval_s: 2.5, penetration_mm: 260.0, damage: 90.0, blast_mj: 6.0),
         (id: "rail_rifle", kind: Arm, price: 180000, name: "rail rifle", speed_m_s: 2400.0,
-         interval_s: 3.5, penetration_mm: 420.0, damage: 140.0, blast_mj: 0.5, shot: Slug(charge_s: 1.0), heat: 0.35),
+         interval_s: 3.5, penetration_mm: 420.0, damage: 140.0, blast_mj: 0.5, shot: Slug(charge_s: 1.0), heat: 0.35,
+         scope_zoom: [4.0, 10.0]),
         // The advanced weapons (openspec/changes/weapon-kinds; survey G22: anyone can carry every weapon). `heat` is
         // the share of the weapon heat bank a shot adds (a second, for the laser); the bank cools in 20 s (G23).
         (id: "shotgun", kind: Arm, price: 70000, name: "shotgun", speed_m_s: 600.0, interval_s: 1.0,

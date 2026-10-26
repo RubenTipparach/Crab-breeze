@@ -70,6 +70,9 @@ pub struct WeaponSpec {
     /// The mech's signature weapon (`signature-weapons`): listed first and starred on the WEAPONS page.
     #[serde(default)]
     pub signature: bool,
+    /// The scope's magnifications, steps of the Scope zoom key (`railgun-scope`: `[4.0, 10.0]`); empty for none.
+    #[serde(default)]
+    pub scope_zoom: Vec<f32>,
     /// Rounds carried a sortie; `None` for no limit.
     #[serde(default)]
     pub rounds: Option<u32>,
@@ -96,6 +99,7 @@ pub fn default_weapons() -> Vec<WeaponSpec> {
             burst: None,
             lob: None,
             signature: false,
+            scope_zoom: Vec::new(),
             rounds: None,
         },
         WeaponSpec {
@@ -116,6 +120,7 @@ pub fn default_weapons() -> Vec<WeaponSpec> {
             burst: None,
             lob: None,
             signature: false,
+            scope_zoom: Vec::new(),
             rounds: None,
         },
         WeaponSpec {
@@ -136,6 +141,7 @@ pub fn default_weapons() -> Vec<WeaponSpec> {
             burst: None,
             lob: None,
             signature: false,
+            scope_zoom: Vec::new(),
             // Owner, 2026-10-25, survey G13: "40" missiles a sortie.
             rounds: Some(40),
         },
@@ -160,6 +166,9 @@ impl Validate for WeaponSpec {
             if self.shot() != ShotKind::Rocket {
                 return Err(format!("{}: only a rocket carries a seeker", f("seeker")));
             }
+        }
+        if self.scope_zoom.iter().any(|z| !z.is_finite() || *z <= 1.0) {
+            return Err(format!("{}: every magnification is above 1", f("scope_zoom")));
         }
         if let Some(b) = &self.burst {
             if b.count < 2 {
@@ -1762,5 +1771,19 @@ mod tests {
             lob_velocity(muzzle, Vec3::new(100.0, 5100.0, 0.0), &lob, STEP).is_none(),
             "too steep to reach"
         );
+    }
+
+    #[test]
+    fn a_scope_zoom_of_one_or_less_is_refused() {
+        let w = WeaponSpec {
+            scope_zoom: vec![4.0, 1.0],
+            ..gun(ShotKind::Slug { charge_s: 1.0 }, 0.35)
+        };
+        assert!(w.validate().is_err());
+        let ok = WeaponSpec {
+            scope_zoom: vec![4.0, 10.0],
+            ..w
+        };
+        assert!(ok.validate().is_ok());
     }
 }

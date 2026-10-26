@@ -66,6 +66,8 @@ pub struct Actions {
     pub fire_missile: bool,
     /// Back units' trigger held (fire group 3, `weapon-kinds`).
     pub fire_back: bool,
+    /// Scope held: the scope window opens on the front screen (`railgun-scope`).
+    pub scope: bool,
     /// Select the next target this step.
     pub target_next: bool,
     /// Close combat toggled this step (openspec change `close-combat`).
@@ -209,6 +211,10 @@ pub struct Bindings {
     pub fire_missile: Vec<String>,
     /// Fire the back units, group 3 (in the mech; `weapon-kinds`).
     pub fire_back: Vec<String>,
+    /// Hold to open the scope window on the front screen (in the mech; `railgun-scope`).
+    pub scope: Vec<String>,
+    /// Step the scope's magnification (`railgun-scope`); `MouseWheel` steps it while Scope is held.
+    pub scope_zoom: Vec<String>,
     /// Select the next target (in the mech).
     pub target_next: Vec<String>,
     /// Close combat on and off (in the mech).
@@ -256,6 +262,8 @@ impl Default for Bindings {
             sink: k("KeyC"),
             fire_missile: k("KeyF"),
             fire_back: vec!["KeyG".to_string(), "MouseBack".to_string()],
+            scope: k("MouseMiddle"),
+            scope_zoom: vec!["KeyB".to_string(), "MouseWheel".to_string()],
             target_next: k("KeyQ"),
             close_combat: k("Tab"),
             weapon_cycle: vec!["MouseWheel".to_string(), "BracketRight".to_string()],
@@ -369,6 +377,13 @@ impl Bindings {
             row("Weapons", "Fire secondary", "fire_secondary", &self.fire_secondary),
             row("Weapons", "Fire missile at the lock", "fire_missile", &self.fire_missile),
             row("Weapons", "Fire the back units", "fire_back", &self.fire_back),
+            row("Weapons", "Scope (hold)", "scope", &self.scope),
+            row(
+                "Weapons",
+                "Scope magnification (the wheel while scoped)",
+                "scope_zoom",
+                &self.scope_zoom,
+            ),
             row("Weapons", "Next target", "target_next", &self.target_next),
             row(
                 "Weapons",

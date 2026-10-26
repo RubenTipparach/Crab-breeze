@@ -33,6 +33,7 @@ pub mod playtest;
 pub mod refit;
 pub mod rng;
 pub mod save;
+pub mod scope;
 pub mod settings;
 pub mod ships;
 pub mod shop;

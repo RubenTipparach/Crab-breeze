@@ -50,6 +50,7 @@ mod plumes;
 mod rocks;
 mod rope;
 mod save_game;
+mod scope;
 mod screen_cut;
 mod screens_cube;
 mod settings;
@@ -210,6 +211,8 @@ fn main() -> AppExit {
     ))
     // Free roam's mail and its missions (free-roam-missions); the Hermit (crab-airship).
     .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin))
+    // The railgun's scope window on the front screen (railgun-scope).
+    .add_plugins(scope::ScopePlugin)
     // Car traffic and the car you drive (openspec changes `car-traffic`, `car-driving`).
     .add_plugins((traffic::TrafficPlugin, traffic_lights::TrafficLightsPlugin))
     // Buildings a pilot on foot walks into, and their street doors (building-interiors).
