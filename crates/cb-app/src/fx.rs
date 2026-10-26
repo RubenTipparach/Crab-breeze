@@ -135,6 +135,9 @@ impl Rand {
 struct Pools {
     tracers: Vec<Entity>,
     motors: Vec<Entity>,
+    /// Each motor's smoke trail: its own entity, always drawn, so the smoke it laid hangs on
+    /// after the rocket is gone; only its spawner turns off.
+    trails: Vec<Entity>,
     /// Each motor's exhaust flame (openspec change `rocket-plumes`).
     plumes: Vec<Entity>,
 }
@@ -256,10 +259,24 @@ fn attach_streams(
                 continue;
             };
             let rate = count as f32 * per_s * s.density.max(0.0);
+            let dir = if along_dir { s.dir.normalize_or(Vec3::Y) } else { Vec3::Y };
+            if let Some(spec) = particles::spec_of(layer).filter(|b| crate::soft_sprites::soft(b.kind)) {
+                let mut emitter = crate::soft_sprites::SoftEmitter::new(spec.soft(), rate);
+                emitter.on = s.on;
+                let kid = commands
+                    .spawn((
+                        Name::new(format!("fx soft stream {}", s.recipe)),
+                        emitter,
+                        Transform::from_translation(dir * offset_m).with_rotation(Quat::from_rotation_arc(Vec3::Y, dir)),
+                        ChildOf(e),
+                    ))
+                    .id();
+                kids.push(kid);
+                continue;
+            }
             let Some(effect) = particles::stream(&mut lib, &mut effects, s.recipe, i, layer, rate) else {
                 continue;
             };
-            let dir = if along_dir { s.dir.normalize_or(Vec3::Y) } else { Vec3::Y };
             let kid = commands
                 .spawn((
                     Name::new(format!("fx stream {}", s.recipe)),
@@ -274,13 +291,22 @@ fn attach_streams(
     }
 }
 
-fn switch_streams(streams: Query<(&FxStream, &StreamEmitters)>, mut spawners: Query<&mut EffectSpawner>) {
+fn switch_streams(
+    streams: Query<(&FxStream, &StreamEmitters)>,
+    mut spawners: Query<&mut EffectSpawner>,
+    mut soft: Query<&mut crate::soft_sprites::SoftEmitter>,
+) {
     for (s, kids) in &streams {
         for k in &kids.0 {
             if let Ok(mut sp) = spawners.get_mut(*k)
                 && sp.active != s.on
             {
                 sp.active = s.on;
+            }
+            if let Ok(mut sp) = soft.get_mut(*k)
+                && sp.on != s.on
+            {
+                sp.on = s.on;
             }
         }
     }
@@ -334,6 +360,7 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     mut lib: ResMut<ParticleLibrary>,
     data: Res<crate::sim::Data>,
+    mut soft_materials: ResMut<Assets<crate::soft_sprites::SoftMaterial>>,
 ) {
     let disc = soft_disc(&mut images);
     let ripple = ripple_crests(&mut images);
@@ -358,6 +385,9 @@ fn setup(
             particles::set_sheet(&mut lib, name, img, &mut images);
         }
     }
+    let smoke = lib.sheet_image("smoke_puffs").unwrap_or_else(|| disc.clone());
+    let dust = lib.sheet_image("dust_wisps").unwrap_or_else(|| disc.clone());
+    crate::soft_sprites::make_draw(&mut commands, &mut meshes, &mut soft_materials, smoke, dust, data.0.fx.soft_m);
     commands.insert_resource(FxAssets {
         quad: meshes.add(Rectangle::new(1.0, 1.0)),
         sphere: meshes.add(Sphere::new(1.0).mesh().uv(32, 16)),
@@ -384,6 +414,7 @@ fn play(
     fireballs: Query<(), With<Fireball>>,
     camera: Query<&GlobalTransform, With<PilotCamera>>,
     ready: Res<crate::loading::GameReady>,
+    mut soft: ResMut<crate::soft_sprites::SoftSprites>,
 ) {
     let _t = crate::perf_hud::slow("play");
     let eye = camera.single().map(|g| g.translation()).ok();
@@ -429,6 +460,11 @@ fn play(
                     room -= n;
                     let dir = if along_dir { e.dir } else { Vec3::Y };
                     let at = e.at + e.dir * offset_m * s;
+                    // The blended smoke kinds are drawn sorted and soft (`soft_sprites`).
+                    if let Some(spec) = particles::spec_of(layer).filter(|b| crate::soft_sprites::soft(b.kind)) {
+                        soft.emit(spec.soft(), n, at, dir, s);
+                        continue;
+                    }
                     particles::burst(
                         &mut commands,
                         &mut lib,
@@ -556,9 +592,6 @@ fn play(
                     spawn_ring(&mut commands, &fx, &mut materials, e.at, radius_m * s, 2.8, 0.55);
                     spawn_ring(&mut commands, &fx, &mut materials, e.at, radius_m * s * 0.6, 3.6, 0.35);
                 }
-                // Lit smoke puffs (smoke-puffs): drawn by the smoke renderer, which is built on the
-                // cloud shader from main and lands with it.
-                Layer::Puffs { .. } => {}
             }
         }
     }
@@ -651,9 +684,20 @@ fn draw_shots(
     plume: Res<crate::plumes::PlumeAssets>,
     mechs: Query<(&crate::mech::MechId, &crate::mech::MechSpec)>,
     mut rng: ResMut<Rand>,
+    mut lib: ResMut<ParticleLibrary>,
+    mut effects: ResMut<Assets<EffectAsset>>,
+    mut trails: Query<
+        (
+            &mut Transform,
+            Option<&mut EffectSpawner>,
+            Option<&mut crate::soft_sprites::SoftEmitter>,
+        ),
+        (Without<Tracer>, Without<Motor>, Without<RocketPlume>),
+    >,
 ) {
-    // A rocket's smoke trail is lit puffs laid along its flight (`smoke_render::missile_trails`).
     let cfg = &data.0.fx;
+    // A rocket lays a smoke puff every `trail_spacing_m` at about 240 m/s.
+    let trail_rate = 240.0 / cfg.trail_spacing_m;
     // A heavy shell (1 MJ or more) draws a wider streak.
     let heavy = |owner: u32, weapon: usize| {
         mechs
@@ -687,6 +731,21 @@ fn draw_shots(
                     ))
                     .id();
                 pools.motors.push(e);
+                let layer = cfg.recipes.get("rocket_trail").and_then(|layers| layers.first());
+                let mut t = commands.spawn((Name::new("rocket trail"), Transform::from_translation(pos)));
+                match layer.and_then(particles::spec_of) {
+                    Some(spec) if crate::soft_sprites::soft(spec.kind) => {
+                        t.insert(crate::soft_sprites::SoftEmitter::new(spec.soft(), trail_rate));
+                    }
+                    _ => {
+                        if let Some(effect) =
+                            layer.and_then(|l| particles::stream(&mut lib, &mut effects, "rocket_trail", 0, l, trail_rate))
+                        {
+                            t.insert(effect);
+                        }
+                    }
+                }
+                pools.trails.push(t.id());
                 pools.plumes.push(
                     commands
                         .spawn((
@@ -718,6 +777,15 @@ fn draw_shots(
                         cfg.plume_width_m,
                     );
                     *pv = Visibility::Inherited;
+                }
+                if let Some(Ok((mut tt, spawner, soft))) = pools.trails.get(mi).map(|e| trails.get_mut(*e)) {
+                    tt.translation = tail;
+                    if let Some(mut sp) = spawner {
+                        sp.active = true;
+                    }
+                    if let Some(mut sp) = soft {
+                        sp.on = true;
+                    }
                 }
             }
             mi += 1;
@@ -765,6 +833,16 @@ fn draw_shots(
     {
         if let Ok((_, mut v)) = q.get_mut(*e) {
             *v = Visibility::Hidden;
+        }
+    }
+    for e in pools.trails.iter().skip(mi) {
+        if let Ok((_, spawner, soft)) = trails.get_mut(*e) {
+            if let Some(mut sp) = spawner {
+                sp.active = false;
+            }
+            if let Some(mut sp) = soft {
+                sp.on = false;
+            }
         }
     }
 }

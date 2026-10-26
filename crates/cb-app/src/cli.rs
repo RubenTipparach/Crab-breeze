@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 /// The mech flown when none is named.
 pub const DEFAULT_MECH: &str = "mechs/foreman.ron";
 
-pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence|fortress] [--showcase world|fight|defence|marks|sun|demolition|trail] [--bench world|fight|defence|marks|sun|demolition] [--start meadow]";
+pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence|fortress] [--showcase world|fight|defence|marks|sun|demolition|trail] [--bench world|fight|defence|marks|sun|demolition] [--start meadow|overlook] [--play free|free-continue|career-new|career-continue]";
 
 /// Parsed command line.
 #[derive(Debug, PartialEq)]
@@ -23,7 +23,11 @@ pub struct Args {
     pub showcase: Option<String>,
     /// Play a showcase take offscreen and report frame time (perf-bench).
     pub bench: Option<String>,
-    /// Start somewhere other than the city: `meadow`, the nearest open grassland (gpu-grass).
+    /// The mode the menu started this run in (`launcher`): `free`, `free-continue`, `career-new` or
+    /// `career-continue`.
+    pub play: Option<String>,
+    /// Start somewhere other than the city: `meadow`, the nearest open grassland (gpu-grass); `fx`, the same meadow
+    /// with every effect set out in front of the pilot (`fx_gallery`).
     pub start: Option<String>,
 }
 
@@ -48,6 +52,7 @@ impl Args {
             mission: None,
             showcase: None,
             bench: None,
+            play: None,
             start: None,
         };
         let mut it = args;
@@ -63,9 +68,15 @@ impl Args {
                 },
                 "--showcase" => out.showcase = Some(take_name(it.next())?),
                 "--bench" => out.bench = Some(take_name(it.next())?),
+                "--play" => match it.next().as_deref() {
+                    Some(m @ ("free" | "free-continue" | "career-new" | "career-continue")) => out.play = Some(m.into()),
+                    _ => return Err("--play takes `free`, `free-continue`, `career-new` or `career-continue`".into()),
+                },
                 "--start" => match it.next().as_deref() {
                     Some("meadow") => out.start = Some("meadow".into()),
-                    _ => return Err("--start takes `meadow`".into()),
+                    Some("fx") => out.start = Some("fx".into()),
+                    Some("overlook") => out.start = Some("overlook".into()),
+                    _ => return Err("--start takes `meadow`, `fx` or `overlook`".into()),
                 },
                 other => return Err(format!("unknown argument {other}")),
             }

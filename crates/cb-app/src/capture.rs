@@ -75,7 +75,8 @@ impl Plugin for StillsPlugin {
             offscreen: None,
         })
         .add_systems(PostStartup, offscreen_for_buildings)
-        .add_systems(Update, run_script);
+        .add_systems(Update, run_script)
+        .add_systems(Last, (hold_poster_hatch, poster_lens));
     }
 }
 
@@ -197,6 +198,67 @@ fn buildings_beats(
     *next = over && (stage != Stage::Fall || script.fall_shots == FALL_SHOTS.len());
 }
 
+/// The poster variant's shots: (where the camera stands round the mech from straight ahead of it,
+/// degrees; knelt and open; how far the view turns off the mech, degrees, so it sits to one side).
+const POSTER_SHOTS: [(f32, bool, f32); 2] = [(45.0, false, 13.0), (45.0, true, 13.0)];
+
+/// How far the poster variant turns the mech from facing the pilot's start, degrees, so it stands
+/// side-on in the frame.
+pub const POSTER_MECH_TURN_DEG: f32 = -90.0;
+
+/// How far the poster camera stands from the mech, metres (the 45 degree lens wants distance).
+const POSTER_RANGE_M: f32 = 62.0;
+
+/// The poster variant's lens: a 45 degree view, everything sharp (the city too), a vignette and a little
+/// chromatic aberration. Runs last, after the settings set the player's lens.
+fn poster_lens(mut commands: Commands, camera: Single<(Entity, &mut Projection), With<crate::pilot::PilotCamera>>, mut added: Local<bool>) {
+    if !crate::cli::switched_off("CB_STILLS_POSTER") {
+        return;
+    }
+    let (e, mut lens) = camera.into_inner();
+    if let Projection::Perspective(p) = lens.as_mut() {
+        p.fov = 45f32.to_radians();
+    }
+    use bevy::post_process::effect_stack::{ChromaticAberration, Vignette};
+    if !*added {
+        *added = true;
+        commands.entity(e).insert((
+            Vignette {
+                intensity: 0.55,
+                radius: 0.9,
+                smoothness: 2.5,
+                ..default()
+            },
+            ChromaticAberration {
+                intensity: 0.004,
+                ..default()
+            },
+        ));
+    }
+}
+
+/// In the poster variant's knelt shots, holds the mech sat down with its chest open: the boarding
+/// clock at "open" whatever the boarding rules would do with no pilot at the stair. Runs last, so
+/// the frame drawn next shows it open.
+fn hold_poster_hatch(script: Res<Script>, data: Res<Data>, mut mechs: Query<&mut MechSim>) {
+    if !crate::cli::switched_off("CB_STILLS_POSTER") || script.beat == 0 {
+        return;
+    }
+    let i = script.beat - 1;
+    if !POSTER_SHOTS.get(i).is_some_and(|s| s.1) {
+        return;
+    }
+    let tl = &data.0.boarding;
+    for mut m in &mut mechs {
+        m.hatch.target = cb_core::boarding::HatchTarget::Open;
+        let open = m.hatch.target_s(tl);
+        m.hatch.step(tl, 0.25);
+        if m.hatch.t_s > open {
+            m.hatch.t_s = open;
+        }
+    }
+}
+
 /// A still of the building variant's offscreen image.
 fn shoot_image(commands: &mut Commands, script: &Script, name: &str) {
     let Some(img) = script.offscreen.clone() else {
@@ -228,7 +290,7 @@ fn offscreen_for_buildings(
     mut images: ResMut<Assets<Image>>,
     mut script: ResMut<Script>,
 ) {
-    if !crate::cli::switched_off("CB_STILLS_BUILDINGS") {
+    if !crate::cli::switched_off("CB_STILLS_BUILDINGS") && !crate::cli::switched_off("CB_STILLS_POSTER") {
         return;
     }
     use bevy::camera::RenderTarget;
@@ -297,6 +359,45 @@ fn run_script(
             &mut exit,
         );
         if next {
+            script.beat += 1;
+            script.beat_started_s = now;
+        }
+        return;
+    }
+    // The poster variant (`CB_STILLS_POSTER=1`, with `--start overlook`): on foot downhill of the
+    // mech, looking up at it with the city and the sun beyond, a few angles standing, then knelt with
+    // its chest open (`hold_poster_hatch`), into the offscreen image.
+    if script.beat >= 1 && crate::cli::switched_off("CB_STILLS_POSTER") {
+        let i = script.beat - 1;
+        if i >= POSTER_SHOTS.len() {
+            // The last screenshot is written a frame or two later.
+            if in_beat > 2.0 {
+                exit.write(AppExit::Success);
+            }
+            return;
+        }
+        let (angle_deg, knelt, turn_deg) = POSTER_SHOTS[i];
+        if access.0.is_none() {
+            return;
+        }
+        let mech = plan.0.start.mech_xz;
+        let ahead = (plan.0.start.pilot_xz - mech).normalize_or(Vec2::Y);
+        if in_beat < 0.05 {
+            let at = mech + Vec2::from_angle(angle_deg.to_radians()).rotate(ahead) * POSTER_RANGE_M;
+            let feet = Vec3::new(at.x, plan.0.terrain.height_at(at.x, at.y), at.y);
+            let to = Vec3::new(mech.x, feet.y, mech.y) - feet;
+            let mut st = PilotState::standing(feet, (-to.x).atan2(-to.z) + turn_deg.to_radians());
+            st.pitch_rad = if knelt { 0.06 } else { 0.13 };
+            pilot.prev = st.clone();
+            pilot.curr = st;
+        }
+        // Standing shots after 4 s; knelt ones once the mech has sat and opened (about 9 s).
+        if in_beat > if knelt { 12.0 } else { 4.0 } {
+            shoot_image(
+                &mut commands,
+                &script,
+                &format!("poster-{i}{}.png", if knelt { "-knelt" } else { "" }),
+            );
             script.beat += 1;
             script.beat_started_s = now;
         }
@@ -593,7 +694,152 @@ impl Plugin for FxStillsPlugin {
             soil: None,
             done: Vec::new(),
         })
-        .add_systems(Update, run_fx_script);
+        .add_systems(Update, (run_fx_script, run_depth_bench));
+    }
+}
+
+/// One test of the particle depth bench (openspec change `particle-depth`): a recipe, where it plays relative
+/// to the pilot (metres ahead, metres up), and whether it is a moving stream rather than a one-off.
+struct DepthTest {
+    name: &'static str,
+    recipe: &'static str,
+    ahead_m: f32,
+    up_m: f32,
+    stream: bool,
+}
+
+const DEPTH_TESTS: [DepthTest; 5] = [
+    DepthTest {
+        name: "ground-near",
+        recipe: "explosion_ground",
+        ahead_m: 15.0,
+        up_m: 0.0,
+        stream: false,
+    },
+    DepthTest {
+        name: "ground-far",
+        recipe: "explosion_ground",
+        ahead_m: 450.0,
+        up_m: 0.0,
+        stream: false,
+    },
+    DepthTest {
+        name: "trail",
+        recipe: "jet_trail",
+        ahead_m: 120.0,
+        up_m: 30.0,
+        stream: true,
+    },
+    DepthTest {
+        name: "skate",
+        recipe: "skate_dirt",
+        ahead_m: 40.0,
+        up_m: 0.5,
+        stream: true,
+    },
+    DepthTest {
+        name: "sky",
+        recipe: "explosion_air",
+        ahead_m: 300.0,
+        up_m: 300.0,
+        stream: false,
+    },
+];
+
+/// Seconds each depth test runs; stills at 0.5 s and 3 s from one heading, and at 3.5 s from 20 degrees round.
+const DEPTH_TEST_S: f32 = 4.5;
+
+/// The particle depth bench (`CB_STILLS_FX=depth`, openspec change `particle-depth`): the pilot stands by their
+/// mech and each test plays in turn in front of them; a stream test's emitter crosses the view at 30 m/s. A
+/// measurement instrument: it writes stills (`depth-<test>-<shot>.png`) and exits, and says nothing of frame time.
+#[allow(clippy::too_many_arguments)]
+fn run_depth_bench(
+    mut commands: Commands,
+    script: Res<FxScript>,
+    mut pilot: ResMut<PilotSim>,
+    access: Res<MechAccessNow>,
+    time: Res<Time>,
+    plan: Res<crate::world::Plan>,
+    mut fx: MessageWriter<crate::fx::Fx>,
+    mut streams: Query<(&mut Transform, &mut crate::fx::FxStream)>,
+    mut exit: MessageWriter<AppExit>,
+    mut state: Local<Option<(f32, usize, Vec<&'static str>, Option<Entity>)>>,
+) {
+    use cb_core::world::Ground;
+    if script.beat != usize::MAX {
+        return;
+    }
+    let now = time.elapsed_secs();
+    let (start_s, test, done, emitter) = state.get_or_insert((now, 0, Vec::new(), None));
+    let Some(home) = access.0.map(|a| a.ladder_base) else { return };
+    // Stand 20 m off the mech's ladder on the heading with the longest run of open ground (no building within
+    // 4 m of the line, out to 450 m), looking along it.
+    let clear = |p: Vec3| plan.collision.push_out_at(p.xz(), 4.0, plan.height_at(p.x, p.z)).distance(p.xz()) < 1e-3;
+    let (heading, _) = (0..32)
+        .map(|i| {
+            let a = i as f32 / 32.0 * std::f32::consts::TAU;
+            let d = Vec3::new(a.cos(), 0.0, a.sin());
+            let run = (4..=450).step_by(5).take_while(|&m| clear(home + d * m as f32)).last().unwrap_or(0);
+            (a, run)
+        })
+        .max_by_key(|&(_, run)| run)
+        .unwrap_or((0.0, 0));
+    let along = Vec3::new(heading.cos(), 0.0, heading.sin());
+    let side = Vec3::new(-along.z, 0.0, along.x);
+    let p = home + along * 20.0;
+    let feet = Vec3::new(p.x, plan.height_at(p.x, p.z), p.z);
+    let t = now - *start_s;
+    let Some(d) = DEPTH_TESTS.get(*test) else {
+        exit.write(AppExit::Success);
+        return;
+    };
+    let turn = if t > 3.2 { 20f32.to_radians() } else { 0.0 };
+    let fwd = along * turn.cos() + side * turn.sin();
+    let target = |ahead: f32| {
+        let p = feet + along * ahead;
+        Vec3::new(p.x, plan.height_at(p.x, p.z), p.z)
+    };
+    let at = target(d.ahead_m) + Vec3::Y * d.up_m;
+    stand_looking(&mut pilot, feet, feet + fwd * d.ahead_m + Vec3::Y * (at.y - feet.y + 1.7));
+    if !done.contains(&"start") {
+        done.push("start");
+        if d.stream {
+            *emitter = Some(
+                commands
+                    .spawn((
+                        Name::new("depth bench emitter"),
+                        Transform::from_translation(at - side * 60.0),
+                        crate::fx::FxStream {
+                            recipe: d.recipe,
+                            dir: Vec3::NEG_Y,
+                            on: true,
+                            density: 1.0,
+                        },
+                    ))
+                    .id(),
+            );
+        } else {
+            fx.write(crate::fx::Fx::new(d.recipe, at));
+        }
+    }
+    if let Some(Ok((mut tf, _))) = emitter.map(|e| streams.get_mut(e)) {
+        tf.translation = at + side * (t * 30.0 - 60.0);
+    }
+    for (when, shot) in [(0.5, "a"), (3.0, "b"), (3.9, "turned")] {
+        if t > when && !done.contains(&shot) {
+            done.push(shot);
+            shoot(&mut commands, &script.dir, &format!("depth-{}-{}.png", d.name, shot));
+        }
+    }
+    if t > DEPTH_TEST_S {
+        if let Some(e) = emitter.take()
+            && let Ok((_, mut s)) = streams.get_mut(e)
+        {
+            s.on = false;
+        }
+        *test += 1;
+        *start_s = now;
+        done.clear();
     }
 }
 
@@ -644,6 +890,11 @@ fn run_fx_script(
             // `CB_STILLS_FX=soil` stages the blasts on soil alone, with a still every half second.
             if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "soil") {
                 script.beat = 2;
+            }
+            // `CB_STILLS_FX=depth` is the particle depth bench (`run_depth_bench`) alone.
+            if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "depth") {
+                script.beat = usize::MAX;
+                return;
             }
             if next {
                 // The nearest live enemy to the player's mech.
@@ -807,5 +1058,344 @@ fn run_fx_script(
         script.beat += 1;
         script.beat_started_s = now;
         script.done.clear();
+    }
+}
+
+/// The weather, shot from named views for headless stills (openspec change `cloud-weather`, task
+/// 3.1; `docs/design/world-look-plan.md` step 1; an instrument, CLAUDE.md section 4): with
+/// `--stills <dir>` and `CB_STILLS_WEATHER=1`, once the game is ready the pilot's eye is put at each
+/// view in turn (held there, on foot, looking at its target), the ground and the sky are given time
+/// to stream in round it, and one still is saved per view as `weather-<name>.png`; then it exits.
+/// The views are the island mockup's (`island-biomes`) and two of a storm.
+/// `CB_STILLS_ONLY=<name>,<name>` shoots only those views. It writes no input and plays no game.
+/// They move into a data file shared with the mockup when step 1 of
+/// `docs/design/world-look-plan.md` lands.
+pub struct WeatherStillsPlugin {
+    /// Where the PNGs go.
+    pub dir: PathBuf,
+}
+
+/// A view: a name, where the eye is (x, y, z) and what it looks at (x, y, z). With
+/// `above_ground`, the eye's y is metres above the ground or the sea under it; otherwise it is a
+/// height, held at least 2 m above the ground.
+struct View {
+    name: &'static str,
+    eye: [f32; 3],
+    at: [f32; 3],
+    above_ground: bool,
+}
+
+const fn view(name: &'static str, eye: [f32; 3], at: [f32; 3]) -> View {
+    View {
+        name,
+        eye,
+        at,
+        above_ground: false,
+    }
+}
+
+/// The views (x east, z south, metres): the island mockup's named views (`docs/mockups/island.html`,
+/// `VIEWS`), worked out from its generator for seed 42, so a still of the game and a shot of the
+/// mockup can be laid side by side; and two of the storm over the jungle at (-5.9, -4.2) km.
+const VIEWS: &[View] = &[
+    view("overview", [6000.0, 22000.0, 26000.0], [0.0, 0.0, 0.0]),
+    view("range", [-8811.0, 1900.0, 4558.0], [189.0, 1466.0, -442.0]),
+    view("desert", [3300.0, 862.0, 7300.0], [4200.0, 476.0, 6650.0]),
+    view("canyon", [7758.0, 407.0, 3585.0], [8828.0, 288.0, 3598.0]),
+    view("jungle", [-8000.0, 323.0, 4000.0], [-7100.0, 541.0, 3600.0]),
+    view("cliffs", [10578.0, 70.0, -8876.0], [9174.0, 60.0, -7698.0]),
+    view("islets", [-9348.0, 420.0, 8074.0], [-11548.0, 0.0, 10274.0]),
+    view("coast", [13421.0, 380.0, 7136.0], [11838.0, 0.0, 2951.0]),
+    view("storm", [-3387.0, 205.0, 8814.0], [-5887.0, 2600.0, -4186.0]),
+    view("weather", [-24000.0, 6500.0, 26000.0], [-9000.0, 1500.0, -2000.0]),
+    // Along the longest river from 40 m over its bank, downstream (placed from the plan: `river_view`).
+    View {
+        name: "river",
+        eye: [0.0, 40.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: true,
+    },
+    // The steepest river reach that is not a waterfall, from 250 m to its side and from above
+    // (placed from the plan: `steep_river_view`).
+    View {
+        name: "river-steep",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "river-steep-far",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "river-steep-top",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Up close on the steepest reach from beside it and from downhill, the eye lower than the water
+    // (the case that drew high rivers black: `close_river_view`).
+    View {
+        name: "river-close",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "river-close-below",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // From the street in the biggest city, looking up past the towers at the sky (`city_up_view`).
+    View {
+        name: "city-up",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Mist in the low ground, from a hill over the wet west at dawn-like low height.
+    view("valley-mist", [-9000.0, 260.0, -1000.0], [-6000.0, 120.0, 2500.0]),
+    // Under the storm, in its rain, 40 m up, facing away from the sun.
+    View {
+        name: "under-the-storm",
+        eye: [-5600.0, 40.0, -3900.0],
+        at: [-11600.0, 500.0, -9600.0],
+        above_ground: true,
+    },
+    // Under the west storm's anvil, 2 km east of its centre, on the ground looking up into it.
+    View {
+        name: "storm-under-anvil",
+        eye: [-3887.0, 2.0, -4186.0],
+        at: [-5287.0, 1800.0, -4186.0],
+        above_ground: true,
+    },
+    // 2.8 km north of the west storm's centre, on the ground looking up at its base and tower.
+    View {
+        name: "storm-under-edge",
+        eye: [-5887.0, 2.0, -6986.0],
+        at: [-5887.0, 1800.0, -5026.0],
+        above_ground: true,
+    },
+    // The storm's shadow on the ground, from 900 m up outside it, looking down across its edge.
+    View {
+        name: "storm-shadow",
+        eye: [500.0, 900.0, 2000.0],
+        at: [-5000.0, 0.0, -3000.0],
+        above_ground: true,
+    },
+];
+
+/// The river view: 150 m off the longest river's middle, 40 m over the bank, looking 1.2 km
+/// downstream along it.
+fn river_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
+    let Some(r) = plan.waters.rivers.iter().max_by_key(|r| r.path.len()) else {
+        return ([0.0, 40.0, 0.0], [0.0, 0.0, 100.0]);
+    };
+    let i = r.path.len() / 2;
+    let (p, q) = (r.path[i], r.path[(i + 1).min(r.path.len() - 1)]);
+    let along = (q - p).normalize_or(Vec2::X);
+    let eye = p - along * 300.0 + along.perp() * 150.0;
+    let at = p + along * 1200.0;
+    ([eye.x, 40.0, eye.y], [at.x, r.surface_m[i], at.y])
+}
+
+/// A steep river reach seen from a clear eye (no cloud there, at time zero): the reach whose
+/// surface falls most over 10 points (off every waterfall) on the range's west flank, seen from
+/// `back_m` across the slope and `up_m` over its water, or from straight above.
+fn steep_river_view(plan: &crate::world::Plan, back_m: f32, up_m: f32, top: bool) -> ([f32; 3], [f32; 3]) {
+    let w = &plan.waters;
+    let mut best: Option<(f32, Vec3, Vec3)> = None;
+    for (ri, r) in w.rivers.iter().enumerate() {
+        for i in 0..r.path.len().saturating_sub(10) {
+            if w.falls.iter().any(|f| f.river == ri && i + 12 >= f.lip && i <= f.foot + 2) {
+                continue;
+            }
+            let drop = r.surface_m[i] - r.surface_m[i + 10];
+            let p = r.path[i + 5];
+            let along = (r.path[i + 10] - r.path[i]).normalize_or(Vec2::X);
+            let s = r.surface_m[i + 5];
+            let side = p + along.perp() * back_m;
+            let eye = if top {
+                Vec3::new(p.x + 1.0, s + up_m, p.y + 1.0)
+            } else {
+                Vec3::new(side.x, s.max(plan.terrain.height_at(side.x, side.y)) + up_m, side.y)
+            };
+            if plan.clouds.density_at(eye, 0.0) > 0.0 || best.is_some_and(|b| drop <= b.0) {
+                continue;
+            }
+            best = Some((drop, eye, Vec3::new(p.x, s, p.y)));
+        }
+    }
+    let Some((drop, eye, at)) = best else {
+        return ([0.0, 400.0, 0.0], [0.0, 0.0, 100.0]);
+    };
+    info!("steep river: {drop:.0} m over 10 points at {at}");
+    (eye.to_array(), at.to_array())
+}
+
+/// On the street nearest the middle of the city with the most cloud overhead, 2 m up, looking nearly straight up.
+fn city_up_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
+    // The city with the most cloud overhead (the storm decks are where the cloud's base shows).
+    let overhead = |c: &cb_core::world::layout::City| -> f32 {
+        (0..30)
+            .map(|k| {
+                plan.clouds
+                    .density_at(Vec3::new(c.centre.x, 500.0 + k as f32 * 100.0, c.centre.y), 0.0)
+            })
+            .sum()
+    };
+    let Some(city) = plan.cities.iter().max_by(|a, b| overhead(a).total_cmp(&overhead(b))) else {
+        return ([0.0, 400.0, 0.0], [0.0, 2000.0, 100.0]);
+    };
+    let street = city
+        .streets
+        .iter()
+        .min_by(|a, b| {
+            let d = |s: &cb_core::world::layout::StreetPiece| s.rect.centre().distance(city.centre) - s.width_m;
+            d(a).total_cmp(&d(b))
+        })
+        .map_or(city.centre, |s| s.rect.centre());
+    let eye = Vec3::new(street.x, plan.terrain.height_at(street.x, street.y) + 2.0, street.y);
+    info!("city up: city {} at {eye}", city.id);
+    (eye.to_array(), (eye + Vec3::new(60.0, 1000.0, 30.0)).to_array())
+}
+
+/// Up close on the steepest river reach that is not a waterfall: 40 m to its side and 6 m over the
+/// ground, or (`below`) on the ground 120 m downstream and to the side, looking up at the water.
+fn close_river_view(plan: &crate::world::Plan, below: bool) -> ([f32; 3], [f32; 3]) {
+    let w = &plan.waters;
+    let mut best: Option<(f32, Vec3, Vec3)> = None;
+    for (ri, r) in w.rivers.iter().enumerate() {
+        for i in 0..r.path.len().saturating_sub(16) {
+            if w.falls.iter().any(|f| f.river == ri && i + 18 >= f.lip && i <= f.foot + 2) {
+                continue;
+            }
+            let drop = r.surface_m[i] - r.surface_m[i + 10];
+            let p = r.path[i + 5];
+            let s = r.surface_m[i + 5];
+            let along = (r.path[i + 10] - r.path[i]).normalize_or(Vec2::X);
+            let side = if below {
+                p + along * 120.0 + along.perp() * 30.0
+            } else {
+                p + along.perp() * 40.0
+            };
+            let ground = plan.terrain.height_at(side.x, side.y);
+            let eye = Vec3::new(side.x, ground + if below { 2.0 } else { 6.0 }, side.y);
+            if below && eye.y >= s {
+                continue;
+            }
+            if plan.clouds.density_at(eye, 0.0) > 0.0 || best.is_some_and(|b| drop <= b.0) {
+                continue;
+            }
+            best = Some((drop, eye, Vec3::new(p.x, s, p.y)));
+        }
+    }
+    let Some((drop, eye, at)) = best else {
+        return ([0.0, 400.0, 0.0], [0.0, 0.0, 100.0]);
+    };
+    info!("close river: {drop:.0} m over 10 points at {at}, eye {eye}");
+    (eye.to_array(), at.to_array())
+}
+
+#[derive(Resource)]
+struct WeatherScript {
+    dir: PathBuf,
+    /// The view being shot (0 waits for the game to be ready).
+    beat: usize,
+    beat_started_s: f32,
+    frames: u32,
+    /// The stills asked for, to wait for before the exit.
+    shots: Vec<PathBuf>,
+}
+
+impl Plugin for WeatherStillsPlugin {
+    fn build(&self, app: &mut App) {
+        std::fs::create_dir_all(&self.dir).ok();
+        app.insert_resource(WeatherScript {
+            dir: self.dir.clone(),
+            beat: 0,
+            beat_started_s: 0.0,
+            frames: 0,
+            shots: Vec::new(),
+        })
+        .add_systems(Update, run_weather_script);
+    }
+}
+
+fn run_weather_script(
+    mut commands: Commands,
+    mut script: ResMut<WeatherScript>,
+    mut pilot: ResMut<PilotSim>,
+    plan: Res<crate::world::Plan>,
+    time: Res<Time<Real>>,
+    ready: Option<Res<crate::loading::GameReady>>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    use cb_core::world::Ground;
+    let now = time.elapsed_secs();
+    let t = now - script.beat_started_s;
+    script.frames += 1;
+    let mut next = false;
+    if script.beat == 0 {
+        next = ready.is_some_and(|r| r.0) && t > 6.0;
+    } else if let Some(v) = VIEWS.get(script.beat - 1) {
+        let only = std::env::var("CB_STILLS_ONLY").unwrap_or_default();
+        if !only.is_empty() && !only.split(',').any(|n| n.trim() == v.name) {
+            script.beat += 1;
+            return;
+        }
+        let (v_eye, v_at) = match v.name {
+            "river" => river_view(&plan),
+            "river-steep" => steep_river_view(&plan, 700.0, 150.0, false),
+            "river-steep-far" => steep_river_view(&plan, 3000.0, 400.0, false),
+            "river-steep-top" => steep_river_view(&plan, 0.0, 500.0, true),
+            "river-close" => close_river_view(&plan, false),
+            "river-close-below" => close_river_view(&plan, true),
+            "city-up" => city_up_view(&plan),
+            _ => (v.eye, v.at),
+        };
+        let v = View {
+            name: v.name,
+            eye: v_eye,
+            at: v_at,
+            above_ground: v.above_ground,
+        };
+        let ground = plan.height_at(v.eye[0], v.eye[2]).max(plan.waters.sea_level_m);
+        let eye = if v.above_ground {
+            Vec3::new(v.eye[0], ground + v.eye[1], v.eye[2])
+        } else {
+            Vec3::new(v.eye[0], v.eye[1].max(ground + 2.0), v.eye[2])
+        };
+        // Held at the view every frame (a pilot on foot in the air would fall).
+        stand_looking(&mut pilot, eye - Vec3::Y * 1.7, Vec3::from_array(v.at));
+        // Time for the ground's detail, the trees and the sky to stream in round the eye.
+        if t > 8.0 && script.frames > 12 {
+            let name = format!("weather-{}.png", v.name);
+            shoot(&mut commands, &script.dir.clone(), &name);
+            let path = script.dir.join(name);
+            script.shots.push(path);
+            println!(
+                "STILLS_WEATHER {} eye ({:.0}, {:.0}, {:.0}) cloud {:.2} rain {:.2} sun {:.2}",
+                v.name,
+                eye.x,
+                eye.y,
+                eye.z,
+                plan.clouds.density_at(eye, now),
+                plan.clouds.rain_at(eye, now),
+                plan.clouds.sun_at(Vec2::new(eye.x, eye.z), now)
+            );
+            next = true;
+        }
+    } else if script.shots.iter().all(|p| p.exists()) || t > 120.0 {
+        // Once every still is on disk (a software renderer reads a frame back slowly).
+        exit.write(AppExit::Success);
+    }
+    if next {
+        script.beat += 1;
+        script.beat_started_s = now;
+        script.frames = 0;
     }
 }

@@ -97,6 +97,9 @@ pub struct View<'a> {
     pub eye: Vec3,
     /// The target's position (its feet).
     pub target: Vec3,
+    /// How far above `target` to aim, metres: a mech's middle (`MechConfig::aim_height_m`),
+    /// zero for a point.
+    pub aim_height_m: f32,
     /// The target's velocity.
     pub target_vel: Vec3,
     /// Its main gun's muzzle speed.
@@ -160,9 +163,6 @@ pub struct AiPilot {
     line_ok: bool,
 }
 
-/// Height of a mech's torso centre above its feet: where the AI aims.
-pub const TORSO_AIM_M: f32 = 9.8;
-
 fn wrap(a: f32) -> f32 {
     (a + PI).rem_euclid(TAU) - PI
 }
@@ -209,7 +209,7 @@ impl AiPilot {
         let here = flat(me.pos);
         let target = flat(v.target);
         let aim_from = v.eye;
-        let aim_to = v.target + Vec3::Y * TORSO_AIM_M;
+        let aim_to = v.target + Vec3::Y * v.aim_height_m;
         let line_clear = (v.clear)(aim_from, aim_to);
         let ally_in_line = v.allies.iter().any(|a| {
             let p = *a + Vec3::Y * 8.0;
@@ -303,7 +303,7 @@ impl AiPilot {
         }
 
         // Torso: on the lead point, with the hand's error.
-        let aim_point = lead(v.eye, v.target + Vec3::Y * TORSO_AIM_M, v.target_vel, v.muzzle_speed_m_s, v.drop);
+        let aim_point = lead(v.eye, v.target + Vec3::Y * v.aim_height_m, v.target_vel, v.muzzle_speed_m_s, v.drop);
         let d = aim_point - v.eye;
         let yaw = yaw_of(d) + self.noise.x;
         let pitch = d.y.atan2(Vec2::new(d.x, d.z).length()) + self.noise.y;
@@ -373,6 +373,7 @@ mod tests {
             let v = View {
                 eye: me.pos + Vec3::Y * 9.6,
                 target,
+                aim_height_m: 9.8,
                 target_vel: Vec3::ZERO,
                 muzzle_speed_m_s: 850.0,
                 drop: true,
@@ -422,6 +423,7 @@ mod tests {
         let v = View {
             eye: Vec3::Y * 9.6,
             target: Vec3::new(0.0, 0.0, -400.0),
+            aim_height_m: 9.8,
             target_vel: Vec3::new(7.0, 0.0, 0.0),
             muzzle_speed_m_s: 850.0,
             drop: true,
@@ -468,6 +470,7 @@ mod tests {
             let v = View {
                 eye: me.pos + Vec3::Y * 9.6,
                 target,
+                aim_height_m: 9.8,
                 target_vel: Vec3::ZERO,
                 muzzle_speed_m_s: 850.0,
                 drop: true,
@@ -494,6 +497,7 @@ mod tests {
         let v = View {
             eye: Vec3::Y * 9.6,
             target: Vec3::new(0.0, 0.0, -200.0),
+            aim_height_m: 9.8,
             target_vel: Vec3::ZERO,
             muzzle_speed_m_s: 850.0,
             drop: true,

@@ -1,6 +1,8 @@
 //! Crab Breeze, the game. This file is the composition root (CLAUDE.md section 6.2): it reads the
 //! command line and the data, and wires the plugins. It holds no game logic.
 
+mod ambience;
+mod audio;
 mod battle_fx;
 mod bench;
 mod blast;
@@ -17,22 +19,26 @@ mod defence;
 mod demolition;
 mod fortress;
 mod fx;
+mod fx_gallery;
 mod grass;
 mod ground;
 mod ground_marks;
 mod hud;
 mod input;
+mod launcher;
 mod loading;
 mod mech;
 mod menu;
 mod mfd;
 mod missions;
+mod music;
 mod particles;
 mod pbr_set;
 mod perf_hud;
 mod physics;
 mod pilot;
 mod plumes;
+mod rocks;
 mod rope;
 mod screen_cut;
 mod screens_cube;
@@ -43,7 +49,7 @@ mod showcase;
 mod sim;
 mod skins;
 mod sky_light;
-mod smoke_render;
+mod soft_sprites;
 mod sun_flare;
 mod targeting;
 mod textures;
@@ -64,6 +70,11 @@ fn main() -> AppExit {
             return AppExit::error();
         }
     };
+    // A plain run opens the menu on its own, with no world (launcher); picking a mode starts the game.
+    let scripted = args.stills.is_some() || args.showcase.is_some() || args.bench.is_some();
+    if !scripted && args.play.is_none() && args.mission.is_none() && args.start.is_none() {
+        return launcher::run();
+    }
     let root = cli::repo_root();
     let data = match GameData::load(&root.join("data"), &args.mech) {
         Ok(d) => d,
@@ -110,6 +121,15 @@ fn main() -> AppExit {
     if args.start.as_deref() == Some("meadow") {
         app.insert_resource(world::StartInMeadow);
     }
+    // The blended smoke drawn sorted and soft (openspec change `particle-depth`).
+    app.add_plugins(soft_sprites::SoftSpritesPlugin);
+    if args.start.as_deref() == Some("fx") {
+        app.add_plugins(fx_gallery::FxGalleryPlugin);
+    }
+    // The gallery stands on the overlook's rise, so its rows are seen from above the grass.
+    if matches!(args.start.as_deref(), Some("overlook") | Some("fx")) {
+        app.insert_resource(world::StartOnOverlook);
+    }
     app.add_plugins((
         sim::SimPlugin,
         input::InputPlugin,
@@ -143,15 +163,14 @@ fn main() -> AppExit {
         career::CareerPlugin,
     ))
     // Free roam's mail and its missions (free-roam-missions); the Hermit (crab-airship).
-    .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin));
+    .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin))
+    // sound: effects in 3D, music, ambience (openspec changes `audio`, `music`, `ambience`)
+    .add_plugins((audio::SoundPlugin, music::MusicPlugin, ambience::AmbiencePlugin));
     // Cheap, correctly lit clouds (openspec change `cloud-puffs`); `CB_NO_CLOUDS=1` leaves them
     // out, so the benchmark can measure what they cost.
     if !cli::switched_off("CB_NO_CLOUDS") {
         app.add_plugins(clouds_render::CloudsRenderPlugin);
     }
-    // Lit smoke puffs on the cloud shader (openspec change `smoke-puffs`): the jets' and missiles'
-    // smoke trails.
-    app.add_plugins(smoke_render::SmokeRenderPlugin);
     // GPU grass (openspec change `gpu-grass`); `CB_NO_GRASS=1` leaves it out, so the benchmark can
     // measure what it costs.
     if !cli::switched_off("CB_NO_GRASS") {
@@ -170,20 +189,27 @@ fn main() -> AppExit {
         bloom: !cli::switched_off("CB_NO_BLOOM"),
     });
     // The run begins: a command-line run as asked (the defence mission, or free roam for a take, a
-    // bench or stills), a plain run on the title menu once the game is ready (game-menus).
+    // bench or stills), or the mode picked on the menu (launcher): free roam or a career.
     app.add_plugins(defence::DefencePlugin);
-    let scripted = args.stills.is_some() || args.showcase.is_some() || args.bench.is_some();
     if args.defending() {
         app.insert_resource(defence::Defending)
             .init_resource::<defence::DefenceRun>()
             .insert_resource(menu::Play::Defence);
-    } else if scripted || args.mission.is_some() {
+    } else if scripted || args.mission.is_some() || args.start.is_some() || args.play.as_deref().is_some_and(|m| m.starts_with("free")) {
         app.insert_resource(menu::Play::FreeRoam);
         if args.mission.as_deref() == Some("fortress") {
             app.insert_resource(missions::StartWith(cb_core::missions::MissionKind::Fortress));
         }
-    } else {
-        app.insert_resource(menu::TitleWanted);
+        // A scripted take fights the encounter mechs; free roam as a player plays it has none.
+        if scripted {
+            app.insert_resource(menu::Encounters);
+        }
+    } else if let Some(career) = args.play.as_deref().and_then(|m| m.strip_prefix("career-")) {
+        app.insert_resource(menu::Play::Career).insert_resource(if career == "new" {
+            career::CareerStart::New
+        } else {
+            career::CareerStart::Continue
+        });
     }
     // The player's settings; a measurement or capture run keeps the window it set up.
     app.add_plugins(settings::SettingsPlugin {
@@ -194,6 +220,8 @@ fn main() -> AppExit {
             app.add_plugins(capture_fortress::FortressStillsPlugin { dir });
         } else if std::env::var("CB_STILLS_FX").is_ok() {
             app.add_plugins(capture::FxStillsPlugin { dir });
+        } else if std::env::var("CB_STILLS_WEATHER").is_ok() {
+            app.add_plugins(capture::WeatherStillsPlugin { dir });
         } else {
             app.add_plugins(capture::StillsPlugin { dir });
         }

@@ -498,7 +498,7 @@ fn step(
     let seated = pilot.curr.mode == PilotMode::Seated;
     let me = mechs.iter().find(|m| m.3 && !m.0.dead && seated).map(|(m, s, id, _)| {
         (
-            m.curr.pos + Vec3::Y * cb_core::ai::TORSO_AIM_M,
+            m.curr.pos + Vec3::Y * s.0.aim_height_m(),
             Vec3::new(m.curr.vel.x, m.curr.vel_y_m_s, m.curr.vel.y),
             id.0,
             s.0.parts.iter().position(|p| p.kind == PartKind::Torso),
@@ -713,7 +713,7 @@ fn hits(
     data: Res<Data>,
     mut incoming: MessageReader<FortressHit>,
     globals: Query<&GlobalTransform>,
-    me: Query<&MechSim, With<Piloted>>,
+    me: Query<(&MechSim, &MechSpec), With<Piloted>>,
     mut shots: ResMut<Shots>,
     mut fx: MessageWriter<Fx>,
     mut explosions: MessageWriter<Explosion>,
@@ -764,7 +764,12 @@ fn hits(
         }
     }
     // Flak bursts within its fuse of the pilot's mech.
-    let Some(torso) = me.iter().find(|m| !m.dead).map(|m| m.curr.pos + Vec3::Y * cb_core::ai::TORSO_AIM_M) else {
+    // the chest, where every shooter aims (`MechConfig::aim_height_m`)
+    let Some(torso) = me
+        .iter()
+        .find(|(m, _)| !m.dead)
+        .map(|(m, s)| m.curr.pos + Vec3::Y * s.0.aim_height_m())
+    else {
         return;
     };
     shots.0.retain(|s| {

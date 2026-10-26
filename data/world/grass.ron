@@ -113,7 +113,10 @@
 
     // The ground under grass takes the grass's colour (by the same rule that grows the blades), so
     // no pale soil shows between them, and far meadows past the grass's reach still read green.
-    // It multiplies the ground's grass texture, as every ground vertex colour does.
-    ground_tint_colour: (0.16, 0.38, 0.09),
+    // A linear albedo over the ground's neutral grain: the island mockup's grass layer, deep green
+    // (it read pale at 0.16, 0.38, 0.09 x 0.85 once the grain lost its own green, 2026-10-25), and
+    // at 0.6 so each biome's own ground shows through. At 0.85 (owner, 2026-10-25: "make grass colour
+    // match ground colour better"): at 0.6 the far meadows read tan against the green blades.
+    ground_tint_colour: (0.08, 0.17, 0.03),
     ground_tint: 0.85,
 )

@@ -22,7 +22,8 @@ use std::sync::Arc;
 #[derive(Resource, Clone, Copy)]
 pub struct Seed(pub u64);
 
-/// The sun's light (the Options page turns its shadows on and off: `settings`).
+/// The sun's light: the one directional light that lights the world (the cockpit's screen glow is
+/// another, kept to the cockpit layer). The Options page turns its shadows on and off (`settings`).
 #[derive(Component)]
 pub struct Sun;
 
@@ -41,6 +42,11 @@ pub fn exposure_scale(view: &cb_core::world::config::ViewConfig) -> f32 {
         1.0
     }
 }
+
+/// Start on a grassy rise overlooking a city, facing away from it with the sun beyond it
+/// (`--start overlook`, for poster stills: `cb_core::grass::overlook_start`).
+#[derive(Resource)]
+pub struct StartOnOverlook;
 
 /// Start in the nearest meadow instead of the city (`--start meadow`, gpu-grass).
 #[derive(Resource)]
@@ -81,9 +87,30 @@ impl Plugin for WorldPlugin {
         let cfg = app.world().resource::<Data>().0.world.clone();
         let started = std::time::Instant::now();
         let mut plan = generate(seed, &cfg);
+        if app.world().contains_resource::<StartOnOverlook>() {
+            let grass = &app.world().resource::<Data>().0.grass;
+            match cb_core::grass::overlook_start(&plan, grass, cb_core::world::sun_shade::to_sun()) {
+                Some((s, rise)) => {
+                    info!(
+                        "world: starting on an overlook at ({:.0}, {:.0}), {rise:.0} m over the city's ground",
+                        s.mech_xz.x, s.mech_xz.y
+                    );
+                    let mut s = s;
+                    // Poster stills turn the mech off the camera for a silhouette (`capture`).
+                    if crate::cli::switched_off("CB_STILLS_POSTER") {
+                        s.mech_heading_rad += crate::capture::POSTER_MECH_TURN_DEG.to_radians();
+                    }
+                    plan.start = s;
+                }
+                None => warn!("world: no grassy overlook found; starting in the city"),
+            }
+        }
         if app.world().contains_resource::<StartInMeadow>() {
             let grass = &app.world().resource::<Data>().0.grass;
-            match cb_core::grass::meadow_start(&plan, grass, 40.0, 6000.0) {
+            // A wide meadow near the start, else (the island's biomes leave few) a smaller one farther out.
+            let found = cb_core::grass::meadow_start(&plan, grass, 40.0, 6000.0)
+                .or_else(|| cb_core::grass::meadow_start(&plan, grass, 15.0, 15000.0));
+            match found {
                 Some(s) => {
                     info!("world: starting in a meadow at ({:.0}, {:.0})", s.mech_xz.x, s.mech_xz.y);
                     plan.start = s;
@@ -136,7 +163,7 @@ impl Plugin for WorldPlugin {
                 brightness: ambient_cd_m2 * exposure_scale(&cfg.view),
                 ..default()
             })
-            .add_plugins(crate::ground::GroundPlugin)
+            .add_plugins((crate::ground::GroundPlugin, crate::rocks::RocksPlugin))
             .add_systems(Startup, (spawn_roads, spawn_buildings, spawn_sun, spawn_water, spawn_trees))
             .add_systems(FixedUpdate, keep_trees.in_set(SimSet::World))
             .add_systems(FixedUpdate, fell_trees.in_set(SimSet::Mech).after(crate::mech::step_mech))

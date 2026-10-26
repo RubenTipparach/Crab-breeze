@@ -22,12 +22,19 @@ The sky SHALL be laid out from the seed by weather systems, each a rule that pla
 - **WHEN** fair cumulus is placed
 - **THEN** a tile over desert ground holds fewer clusters on average than a tile over jungle
 
+### Requirement: The ground is darkened under a storm
+The sun reaching the ground under a storm cell or the front SHALL be cut by its shade (0.85 under a cell, 0.6 under the front) where the sun's ray crosses the storm's base, back to full sun past its radius, drifting with the wind, and everything the sun lights SHALL be darkened by it.
+
+#### Scenario: Under the storm's heart
+- **WHEN** the sun's share is asked at a storm cell's centre
+- **THEN** it is 0.15, and far from every storm it is 1
+
 ### Requirement: It rains under a storm
 Below a storm's base, inside its rain shaft, the cloud query SHALL report rain, and the glass SHALL take rain as it does inside a cloud.
 
 #### Scenario: Under the shaft
 - **WHEN** the eye is below a storm's base and inside its shaft
-- **THEN** the rain on the glass builds toward 0.7 of full
+- **THEN** the cloud query reports rain of 0.7 (`weather.shaft_rain`), and the rain on the glass builds toward it as it does toward a cloud of that density
 
 #### Scenario: Beside the shaft
 - **WHEN** the eye is below the base but outside every shaft and every puff

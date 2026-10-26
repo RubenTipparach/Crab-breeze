@@ -184,6 +184,19 @@ fn capsules(id: u32, sim: &MechSim, cfg: &MechConfig, rig: &MechRig, globals: &Q
                 radius_m,
             });
         }
+        // The hips, across from thigh to thigh: a round there hurts the torso; without it, rounds at
+        // the middle passed between the thighs (owner, 2026-10-25: "enemy bullets fly through me").
+        if p.kind == PartKind::Torso
+            && let Some((l, r)) = at("thigh_L").zip(at("thigh_R"))
+        {
+            out.push(PartCapsule {
+                mech: id,
+                part: pi,
+                a: l,
+                b: r,
+                radius_m: b.leg_hit_radius_m,
+            });
+        }
     }
     out
 }
@@ -229,7 +242,7 @@ pub fn fly_shots(
     let mut torsos: HashMap<u32, Vec3> = mechs
         .iter()
         .filter(|m| !m.0.dead)
-        .map(|m| (m.2.0, m.0.curr.pos + Vec3::Y * cb_core::ai::TORSO_AIM_M))
+        .map(|m| (m.2.0, m.0.curr.pos + Vec3::Y * m.1.aim_height_m()))
         .collect();
     torsos.extend(
         units

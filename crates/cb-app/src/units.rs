@@ -160,7 +160,16 @@ impl Plugin for UnitsPlugin {
 
 /// Mechs and vehicles alike, for everything that picks a target.
 pub fn list_hostiles(
-    mechs: Query<(&MechSim, &MechId, Option<&EnemyGoal>, Option<&crate::defence::Raider>), With<Enemy>>,
+    mechs: Query<
+        (
+            &MechSim,
+            &MechId,
+            Option<&EnemyGoal>,
+            Option<&crate::defence::Raider>,
+            &crate::mech::MechSpec,
+        ),
+        With<Enemy>,
+    >,
     units: Res<Units>,
     data: Res<Data>,
     mut out: ResMut<Hostiles>,
@@ -168,11 +177,11 @@ pub fn list_hostiles(
     let mut list: Vec<Hostile> = mechs
         .iter()
         .filter(|(m, ..)| !m.dead)
-        .map(|(m, id, goal, raider)| Hostile {
+        .map(|(m, id, goal, raider, spec)| Hostile {
             id: id.0,
-            aim: m.curr.pos + Vec3::Y * cb_core::ai::TORSO_AIM_M,
+            aim: m.curr.pos + Vec3::Y * spec.aim_height_m(),
             feet: m.curr.pos,
-            height_m: 12.0,
+            height_m: spec.locomotion.body_height_m,
             vel: Vec3::new(m.curr.vel.x, m.curr.vel_y_m_s, m.curr.vel.y),
             shelling: goal.is_some_and(|g| g.point.is_some()),
             wave: raider.map(|r| r.wave),
@@ -273,7 +282,7 @@ fn step_units(
     data: Res<Data>,
     plan: Res<Plan>,
     time: Res<Time<Fixed>>,
-    me: Query<&MechSim, With<Piloted>>,
+    me: Query<(&MechSim, &crate::mech::MechSpec), With<Piloted>>,
     mut shots: ResMut<Shots>,
     mut fx: MessageWriter<Fx>,
 ) {
@@ -283,9 +292,9 @@ fn step_units(
     }
     let dt = time.delta_secs();
     let cfg = &data.0.units;
-    let target = me.iter().find(|m| !m.dead).map(|m| {
+    let target = me.iter().find(|(m, _)| !m.dead).map(|(m, spec)| {
         (
-            m.curr.pos + Vec3::Y * cb_core::ai::TORSO_AIM_M,
+            m.curr.pos + Vec3::Y * spec.aim_height_m(),
             Vec3::new(m.curr.vel.x, m.curr.vel_y_m_s, m.curr.vel.y),
         )
     });

@@ -214,8 +214,8 @@ pub struct GrassConfig {
     pub broad_hz: f32,
     /// The broad sway, as a share of the height.
     pub broad_push: f32,
-    /// The colour the ground takes under grass, linear RGB (it multiplies the ground's grass
-    /// texture, like every ground vertex colour).
+    /// The colour the ground takes under grass, a linear albedo (over the ground's neutral grain,
+    /// like every ground vertex colour).
     pub ground_tint_colour: [f32; 3],
     /// How far the ground's colour moves toward `ground_tint_colour` where grass grows fully, 0..1.
     pub ground_tint: f32,
@@ -778,6 +778,67 @@ pub fn meadow_start(plan: &WorldPlan, cfg: &GrassConfig, half_m: f32, reach_m: f
     None
 }
 
+/// A grassy rise overlooking a city, for a poster still (`--start overlook`): around each city, on
+/// rings from 120 m to 620 m beyond its edge (near enough that the skyline fills the background) , on the side away from the sun (so the view from it to the city
+/// looks into the sun), the highest point with thick grass in a 40 m patch and no tree within 35 m
+/// (grown as the game grows them). The mech stands there facing away from the city, toward a pilot
+/// downhill. Returns the start and how high the spot stands over the city's ground, metres.
+pub fn overlook_start(plan: &WorldPlan, cfg: &GrassConfig, to_sun: Vec3) -> Option<(crate::world::Start, f32)> {
+    use crate::world::Ground;
+    let thick_at = |p: Vec2| {
+        let h = plan.height_at(p.x, p.y);
+        let dx = plan.height_at(p.x + 2.0, p.y) - plan.height_at(p.x - 2.0, p.y);
+        let dz = plan.height_at(p.x, p.y + 2.0) - plan.height_at(p.x, p.y - 2.0);
+        grows_at(plan, p, h, Vec2::new(dx, dz).length() / 4.0, cfg) >= 0.8
+    };
+    let away = -Vec2::new(to_sun.x, to_sun.z).normalize_or(Vec2::Y);
+    let mut best: Option<(f32, Vec2, Vec2)> = None;
+    for city in &plan.cities {
+        for ring in 0..11 {
+            let r = city.half_size_m + 120.0 + ring as f32 * 50.0;
+            for k in -6..=6 {
+                let dir = Vec2::from_angle(k as f32 * 0.08).rotate(away);
+                let c = city.centre + dir * r;
+                if plan.cities.iter().any(|o| o.rect().distance(c) < 60.0) || plan.water_at(c.x, c.y).is_some() {
+                    continue;
+                }
+                let rise = plan.height_at(c.x, c.y) - city.ground_m;
+                if best.as_ref().is_some_and(|b| rise <= b.0) {
+                    continue;
+                }
+                if !(-2..=2).all(|j| (-2..=2).all(|i| thick_at(c + Vec2::new(i as f32, j as f32) * 10.0))) {
+                    continue;
+                }
+                // Flat where the mech stands: the 40 m square round it within 3 m of level.
+                let hs: Vec<f32> = (-2..=2)
+                    .flat_map(|j| (-2..=2).map(move |i| c + Vec2::new(i as f32, j as f32) * 10.0))
+                    .map(|q| plan.height_at(q.x, q.y))
+                    .collect();
+                if hs.iter().cloned().fold(f32::MIN, f32::max) - hs.iter().cloned().fold(f32::MAX, f32::min) > 3.0 {
+                    continue;
+                }
+                let mut woods = plan.forest.clone();
+                woods.grow_around(plan, c, 80.0);
+                if woods.near(c, 35.0).is_empty() {
+                    best = Some((rise, c, city.centre));
+                }
+            }
+        }
+    }
+    let (rise, c, city) = best?;
+    let to_city = (city - c).normalize_or(Vec2::Y);
+    // Facing away from the city: `forward(h)` is (-sin h, -cos h) on (x, z).
+    let heading = to_city.x.atan2(to_city.y);
+    Some((
+        crate::world::Start {
+            mech_xz: c,
+            mech_heading_rad: heading,
+            pilot_xz: c - to_city * 34.0,
+        },
+        rise,
+    ))
+}
+
 /// True when a crater changed the ground by `dug_delta_m` enough to clear its grass.
 pub fn crater_clears(dug_delta_m: f32, cfg: &GrassConfig) -> bool {
     dug_delta_m.abs() > cfg.crater_clear_m
@@ -891,6 +952,26 @@ mod tests {
             ((p.x - g.origin_m) / g.tile_m).floor() as u32,
             ((p.y - g.origin_m) / g.tile_m).floor() as u32,
         )
+    }
+
+    #[test]
+    fn seed_42_has_a_grassy_overlook_facing_a_city_and_the_sun() {
+        let cfg = GrassConfig::default();
+        let to_sun = Vec3::new(0.4, 0.68, -0.6).normalize();
+        let (s, rise) = overlook_start(plan(), &cfg, to_sun).expect("a grassy overlook");
+        let p = s.mech_xz;
+        let h = plan().height_at(p.x, p.y);
+        assert!(grows_at(plan(), p, h, 0.0, &cfg) >= 0.8, "on thick grass");
+        assert!(plan().cities.iter().all(|c| c.rect().distance(p) >= 60.0), "outside the city");
+        let mut woods = plan().forest.clone();
+        woods.grow_around(plan(), p, 80.0);
+        assert!(woods.near(p, 35.0).is_empty(), "no tree within 35 m");
+        let ahead = crate::mech::forward(s.mech_heading_rad);
+        assert!(
+            Vec2::new(ahead.x, ahead.z).dot((s.pilot_xz - p).normalize()) > 0.99,
+            "the mech faces the pilot"
+        );
+        assert!(rise.is_finite());
     }
 
     #[test]
@@ -1091,7 +1172,9 @@ mod tests {
             && p.waters.water_at(off, g).is_none()
             && g > p.waters.sea_level_m + cfg.beach_m;
         if open {
-            assert!(grows_at(p, off, g, 0.0, &cfg) > 0.99);
+            // As much as the biomes there grow (`Biomes::grass_share`).
+            let share = p.biomes.grass_share(off, g, 0.0);
+            assert!((grows_at(p, off, g, 0.0, &cfg) - share).abs() < 0.01);
         }
     }
 
@@ -1113,13 +1196,14 @@ mod tests {
         let cfg = GrassConfig::default();
         let p = plan();
         let (mut found, mut q) = (false, Vec2::ZERO);
-        // Some open dry ground above the beach.
+        // Some open dry grassland above the beach.
         for k in 0..400 {
             let c = Vec2::new(-6000.0 + (k % 20) as f32 * 600.0, -6000.0 + (k / 20) as f32 * 600.0);
             let g = p.height_at(c.x, c.y);
             if p.cover_at(c, &cfg.clearance.into()) == Cover::Open
                 && p.waters.water_at(c, g).is_none()
                 && g > p.waters.sea_level_m + cfg.beach_m + 1.0
+                && p.biomes.grass_share(c, g, 0.0) > 0.5
             {
                 found = true;
                 q = c;
@@ -1128,8 +1212,12 @@ mod tests {
         }
         assert!(found, "seed 42 has open dry ground");
         let g = p.height_at(q.x, q.y);
-        assert_eq!(grows_at(p, q, g, 0.0, &cfg), 1.0, "level");
-        assert!(grows_at(p, q, g, 0.85, &cfg) < 0.9, "steep");
+        let share = p.biomes.grass_share(q, g, 0.0);
+        assert!(
+            (grows_at(p, q, g, 0.0, &cfg) - share).abs() < 1e-6,
+            "level: as much as the biomes grow"
+        );
+        assert!(grows_at(p, q, g, 0.85, &cfg) < 0.9 * share, "steep");
         assert_eq!(grows_at(p, q, g, 2.0, &cfg), 0.0, "a cliff");
     }
 

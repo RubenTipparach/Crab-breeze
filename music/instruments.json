@@ -1,5 +1,5 @@
 {
-  "_doc": "The instruments and default mix for every Crab Breeze score (tools/music, skill music-authoring). soundfont: the .sf2 every General MIDI part and the drums play through. synths: Strudel synth names voiced by LMMS presets (path under lmms_presets) with a General MIDI stand-in (gm) for the MIDI file. mix: default LMMS track volume (percent) and pan (-100..100) per instrument; a score's // @mix lines override it. reverb: the soundfont's reverb level (0..1); a score's // @reverb line overrides it.",
+  "_doc": "The instruments and default mix for every Crab Breeze score (tools/music, skill music-authoring). soundfont: the .sf2 every General MIDI part and the drums play through. synths: Strudel synth names voiced by LMMS presets (path under lmms_presets) with a General MIDI stand-in (gm) for the MIDI file. mix: default LMMS track volume (percent) and pan (-100..100) per instrument; a score's // @mix lines override it. reverb: the soundfont's reverb level (0..1); a score's // @reverb line overrides it. voices: the default LMMS preset for a GM name in the final comp (a score's // @voice lines override); preset_vol: calibrated track volume per preset (calibrate.sh). preset_offset_st: how many semitones a preset sounds from its key (calibrate.sh, measured with pitch.py); the exporter plays it back the other way.",
   "soundfont": "/opt/soundfonts/GeneralUser-GS.sf2",
   "lmms_presets": "/usr/share/lmms/presets",
   "sf2_gain": 1.0,
@@ -67,6 +67,9 @@
     "gm_epiano1": {
       "vol": 88
     },
+    "gm_epiano2": {
+      "vol": 164.9
+    },
     "gm_flute": {
       "vol": 72,
       "pan": -10
@@ -77,6 +80,9 @@
     },
     "gm_fretless_bass": {
       "vol": 45
+    },
+    "gm_fx_rain": {
+      "vol": 82.2
     },
     "gm_glockenspiel": {
       "vol": 127,
@@ -100,10 +106,10 @@
       "vol": 200
     },
     "gm_reverse_cymbal": {
-      "vol": 200
+      "vol": 200.0
     },
     "gm_seashore": {
-      "vol": 200
+      "vol": 200.0
     },
     "gm_string_ensemble_1": {
       "vol": 106,
@@ -112,12 +118,6 @@
     "gm_string_ensemble_2": {
       "vol": 146,
       "pan": 10
-    },
-    "gm_synth_bass_2": {
-      "vol": 85
-    },
-    "gm_synth_brass_1": {
-      "vol": 75
     },
     "gm_taiko_drum": {
       "vol": 42
@@ -143,5 +143,56 @@
     "gm_vibraphone": {
       "vol": 59
     }
+  },
+  "voices": {
+    "gm_lead_2_sawtooth": "TripleOscillator/SuperSawLead.xpf",
+    "gm_lead_5_charang": "TripleOscillator/Erazzor.xpf",
+    "gm_pad_poly": "TripleOscillator/TINTNpad.xpf",
+    "gm_pad_choir": "TripleOscillator/CryingPads.xpf",
+    "gm_synth_strings_1": "TripleOscillator/PowerStrings.xpf",
+    "gm_synth_brass_1": "TripleOscillator/Jupiter.xpf",
+    "gm_lead_1_square": "TripleOscillator/PluckArpeggio.xpf",
+    "gm_synth_bass_1": "TripleOscillator/FuzzyAnalogBass.xpf",
+    "gm_synth_bass_2": "TripleOscillator/DirtyReece.xpf",
+    "gm_lead_8_bass_lead": "LB302/AcidLead.xpf",
+    "gm_fx_crystal": "Monstro/ScaryBell.xpf",
+    "gm_fx_sci_fi": "TripleOscillator/Supernova.xpf",
+    "gm_lead_7_fifths": "TripleOscillator/SawReso.xpf"
+  },
+  "preset_vol": {
+    "Kicker/Clap.xpf": 89.4,
+    "Kicker/KickPower.xpf": 26.7,
+    "LB302/AcidLead.xpf": 15.9,
+    "Monstro/ScaryBell.xpf": 30.5,
+    "TripleOscillator/AnalogBell.xpf": 15.7,
+    "TripleOscillator/AnalogTimes.xpf": 26.7,
+    "TripleOscillator/CryingPads.xpf": 24.7,
+    "TripleOscillator/DirtyReece.xpf": 12.5,
+    "TripleOscillator/Erazzor.xpf": 27.0,
+    "TripleOscillator/FuzzyAnalogBass.xpf": 10.1,
+    "TripleOscillator/Jupiter.xpf": 5.8,
+    "TripleOscillator/PluckArpeggio.xpf": 45.7,
+    "TripleOscillator/PowerStrings.xpf": 5.7,
+    "TripleOscillator/SawReso.xpf": 8.0,
+    "TripleOscillator/SuperSawLead.xpf": 51.0,
+    "TripleOscillator/Supernova.xpf": 200.0,
+    "TripleOscillator/TINTNpad.xpf": 30.2
+  },
+  "preset_offset_st": {
+    "LB302/AcidLead.xpf": 0,
+    "Monstro/ScaryBell.xpf": 12,
+    "TripleOscillator/AnalogBell.xpf": 0,
+    "TripleOscillator/AnalogTimes.xpf": 0,
+    "TripleOscillator/CryingPads.xpf": -12,
+    "TripleOscillator/DirtyReece.xpf": -24,
+    "TripleOscillator/Erazzor.xpf": 0,
+    "TripleOscillator/FuzzyAnalogBass.xpf": -12,
+    "TripleOscillator/Jupiter.xpf": 0,
+    "TripleOscillator/PluckArpeggio.xpf": 12,
+    "TripleOscillator/PowerStrings.xpf": 0,
+    "TripleOscillator/SawReso.xpf": -12,
+    "TripleOscillator/SuperSawLead.xpf": 0,
+    "TripleOscillator/Supernova.xpf": 0,
+    "TripleOscillator/TINTNpad.xpf": 0
   }
 }

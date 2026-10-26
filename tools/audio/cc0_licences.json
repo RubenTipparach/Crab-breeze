@@ -1,0 +1,744 @@
+{
+ "kenney/impact-sounds": {
+  "pack": "impact-sounds",
+  "url": "https://kenney.nl/assets/impact-sounds",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Kenney",
+  "files": [
+   "kenney_impact-sounds.zip"
+  ]
+ },
+ "kenney/interface-sounds": {
+  "pack": "interface-sounds",
+  "url": "https://kenney.nl/assets/interface-sounds",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Kenney",
+  "files": [
+   "kenney_interface-sounds.zip"
+  ]
+ },
+ "kenney/sci-fi-sounds": {
+  "pack": "sci-fi-sounds",
+  "url": "https://kenney.nl/assets/sci-fi-sounds",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Kenney",
+  "files": [
+   "kenney_sci-fi-sounds.zip"
+  ]
+ },
+ "oga/100-cc0-metal-and-wood-sfx": {
+  "pack": "100-cc0-metal-and-wood-sfx",
+  "url": "https://opengameart.org/content/100-cc0-metal-and-wood-sfx",
+  "licences": [
+   "CC0"
+  ],
+  "author": "rubberduck",
+  "files": [
+   "100-CC0-wood-metal-SFX.zip",
+   "metal_wood_prev.ogg"
+  ]
+ },
+ "oga/100-cc0-sfx": {
+  "pack": "100-cc0-sfx",
+  "url": "https://opengameart.org/content/100-cc0-sfx",
+  "licences": [
+   "CC0"
+  ],
+  "author": "rubberduck",
+  "files": [
+   "100-CC0-SFX_0.zip",
+   "sfx_prev_0.ogg"
+  ]
+ },
+ "oga/100-cc0-sfx-2": {
+  "pack": "100-cc0-sfx-2",
+  "url": "https://opengameart.org/content/100-cc0-sfx-2",
+  "licences": [
+   "CC0"
+  ],
+  "author": "rubberduck",
+  "files": [
+   "sfx100v2_prev.ogg",
+   "sfx_100_v2.zip"
+  ]
+ },
+ "oga/27-metal-audio-samples-sfx": {
+  "pack": "27-metal-audio-samples-sfx",
+  "url": "https://opengameart.org/content/27-metal-audio-samples-sfx",
+  "licences": [
+   "CC0"
+  ],
+  "author": "blacklodgegames",
+  "files": [
+   "27-Metal-Audio-Samples-blacklodgegames.com_.zip",
+   "ArenaCombatAnnouncerPack-blacklodgegames.com_.zip",
+   "metal-preview.ogg"
+  ]
+ },
+ "oga/30-cc0-sfx-loops": {
+  "pack": "30-cc0-sfx-loops",
+  "url": "https://opengameart.org/content/30-cc0-sfx-loops",
+  "licences": [
+   "CC0"
+  ],
+  "author": "rubberduck",
+  "files": [
+   "sfx_loops.zip",
+   "sfx_loops_prev.ogg"
+  ]
+ },
+ "oga/37-hitspunches": {
+  "pack": "37-hitspunches",
+  "url": "https://opengameart.org/content/37-hitspunches",
+  "licences": [
+   "CC0"
+  ],
+  "author": "qubodup",
+  "files": [
+   "hit.mp3",
+   "independent_nu_ljudbank-hits_and_punches.7z"
+  ]
+ },
+ "oga/40-cc0-water-splash-slime-sfx": {
+  "pack": "40-cc0-water-splash-slime-sfx",
+  "url": "https://opengameart.org/content/40-cc0-water-splash-slime-sfx",
+  "licences": [
+   "CC0"
+  ],
+  "author": "rubberduck",
+  "files": [
+   "water-splash-slime-sfx.zip",
+   "water_sfx_prev.ogg"
+  ]
+ },
+ "oga/50-cc0-sci-fi-sfx": {
+  "pack": "50-cc0-sci-fi-sfx",
+  "url": "https://opengameart.org/content/50-cc0-sci-fi-sfx",
+  "licences": [
+   "CC0"
+  ],
+  "author": "rubberduck",
+  "files": [
+   "sci-fi-prev.ogg",
+   "sci-fi-sfx.zip"
+  ]
+ },
+ "oga/6-short-water-splashes": {
+  "pack": "6-short-water-splashes",
+  "url": "https://opengameart.org/content/6-short-water-splashes",
+  "licences": [
+   "CC0"
+  ],
+  "author": "qubodup",
+  "files": [
+   "ezwa-water_splash.7z",
+   "ws.mp3"
+  ]
+ },
+ "oga/68-workshop-sounds": {
+  "pack": "68-workshop-sounds",
+  "url": "https://opengameart.org/content/68-workshop-sounds",
+  "licences": [
+   "CC0"
+  ],
+  "author": "bart",
+  "files": [
+   "workshop.7z",
+   "workshopprev.mp3"
+  ]
+ },
+ "oga/75-cc0-breaking-falling-hit-sfx": {
+  "pack": "75-cc0-breaking-falling-hit-sfx",
+  "url": "https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx",
+  "licences": [
+   "CC0"
+  ],
+  "author": "rubberduck",
+  "files": [
+   "bfh1_prev.ogg",
+   "sfx_breaking_and_falling.zip"
+  ]
+ },
+ "oga/airvent-loop": {
+  "pack": "airvent-loop",
+  "url": "https://opengameart.org/content/airvent-loop",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Longor",
+  "files": [
+   "airvent-large-loop.wav"
+  ]
+ },
+ "oga/amb-morning-sounds-perfect-loop": {
+  "pack": "amb-morning-sounds-perfect-loop",
+  "url": "https://opengameart.org/content/amb-morning-sounds-perfect-loop",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Kresiek The Furry",
+  "files": [
+   "amb_morning.ogg",
+   "amb_morning.wav",
+   "amb_morning_0.ogg"
+  ]
+ },
+ "oga/amb-outside-1": {
+  "pack": "amb-outside-1",
+  "url": "https://opengameart.org/content/amb-outside-1",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Kresiek The Furry",
+  "files": [
+   "amb_outdoor1_loop.mp3",
+   "amb_outdoor1_loop.ogg",
+   "amb_outdoor1_loop.wav",
+   "amb_outdoor1_loop_0.mp3"
+  ]
+ },
+ "oga/ambient-bird-sounds": {
+  "pack": "ambient-bird-sounds",
+  "url": "https://opengameart.org/content/ambient-bird-sounds",
+  "licences": [
+   "CC0"
+  ],
+  "author": "isaiah658",
+  "files": [
+   "birds-isaiah658.ogg",
+   "birds-isaiah658_0.ogg"
+  ]
+ },
+ "oga/battle-at-sea": {
+  "pack": "battle-at-sea",
+  "url": "https://opengameart.org/content/battle-at-sea",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Thimras",
+  "files": [
+   "cannon_fire_1.ogg",
+   "cannon_hit_1.ogg",
+   "cannon_hit_cannon_1.ogg",
+   "cannon_hit_ship_short.ogg",
+   "cannon_hit_wall_1.ogg",
+   "cannon_hit_wall_no_splash.ogg",
+   "cannon_miss_1.ogg",
+   "ship_destroyed_1.ogg",
+   "ship_destroyed_short.ogg",
+   "ship_fx_preview.ogg",
+   "ship_ram_ship_1.ogg",
+   "ship_ram_ship_shortened.ogg"
+  ]
+ },
+ "oga/boost-or-launch-or-thruster-sound-effect": {
+  "pack": "boost-or-launch-or-thruster-sound-effect",
+  "url": "https://opengameart.org/content/boost-or-launch-or-thruster-sound-effect",
+  "licences": [
+   "CC0"
+  ],
+  "author": "EZduzziteh",
+  "files": [
+   "boost.mp3",
+   "boost_0.mp3"
+  ]
+ },
+ "oga/chain-winch-sounds": {
+  "pack": "chain-winch-sounds",
+  "url": "https://opengameart.org/content/chain-winch-sounds",
+  "licences": [
+   "CC0"
+  ],
+  "author": "bart",
+  "files": [
+   "winch.zip",
+   "winchprev.mp3"
+  ]
+ },
+ "oga/chunky-explosion": {
+  "pack": "chunky-explosion",
+  "url": "https://opengameart.org/content/chunky-explosion",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Joth",
+  "files": [
+   "Chunky%20Explosion.mp3"
+  ]
+ },
+ "oga/compressed-gas-leak-sfx": {
+  "pack": "compressed-gas-leak-sfx",
+  "url": "https://opengameart.org/content/compressed-gas-leak-sfx",
+  "licences": [
+   "CC0"
+  ],
+  "author": "0new4y",
+  "files": [
+   "compressed_gas_leak.ogg",
+   "compressed_gas_leak.zip",
+   "compressed_gas_leak_0.ogg"
+  ]
+ },
+ "oga/crickets-ambient-noise-loopable": {
+  "pack": "crickets-ambient-noise-loopable",
+  "url": "https://opengameart.org/content/crickets-ambient-noise-loopable",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Wolfgang_",
+  "files": [
+   "crickets-oneloop.mp3",
+   "crickets_1.mp3"
+  ]
+ },
+ "oga/crowd-shoutingspeaking-ambience": {
+  "pack": "crowd-shoutingspeaking-ambience",
+  "url": "https://opengameart.org/content/crowd-shoutingspeaking-ambience",
+  "licences": [
+   "CC0"
+  ],
+  "author": "StarNinjas",
+  "files": [
+   "crowd_shouting.ogg",
+   "crowd_shouting_0.ogg"
+  ]
+ },
+ "oga/doomsday-laser-cannon-sound-effect": {
+  "pack": "doomsday-laser-cannon-sound-effect",
+  "url": "https://opengameart.org/content/doomsday-laser-cannon-sound-effect",
+  "licences": [
+   "CC0"
+  ],
+  "author": "TAD",
+  "files": [
+   "doomsday_laser_cannon_example.mp3",
+   "doomsday_laser_cannon_long.mp3",
+   "doomsday_laser_cannon_long.wav",
+   "doomsday_laser_cannon_midium_.wav",
+   "doomsday_laser_cannon_short.wav"
+  ]
+ },
+ "oga/electricity-game-sound-pack": {
+  "pack": "electricity-game-sound-pack",
+  "url": "https://opengameart.org/content/electricity-game-sound-pack",
+  "licences": [
+   "CC0"
+  ],
+  "author": "faxcorp",
+  "files": [
+   "charge.wav",
+   "chargestart.wav",
+   "crackleelectricityloop.wav",
+   "death_1.wav",
+   "deathboom.wav",
+   "electricitysoundspreview.mp3",
+   "groundhit.wav",
+   "hit.wav",
+   "killconfirmed.wav",
+   "powerdown.wav",
+   "powerup.wav",
+   "recharge.wav",
+   "shieldhit.wav",
+   "shieldloop.wav",
+   "snaploop.wav",
+   "teleport_1.wav",
+   "turbo.wav"
+  ]
+ },
+ "oga/explosions-4": {
+  "pack": "explosions-4",
+  "url": "https://opengameart.org/content/explosions-4",
+  "licences": [
+   "CC0"
+  ],
+  "author": "EZduzziteh",
+  "files": [
+   "explosion1_0.ogg",
+   "explosion2.ogg",
+   "explosion3.ogg",
+   "explosions.ogg",
+   "explosions4.ogg"
+  ]
+ },
+ "oga/factory-ambiance": {
+  "pack": "factory-ambiance",
+  "url": "https://opengameart.org/content/factory-ambiance",
+  "licences": [
+   "CC0"
+  ],
+  "author": "yd",
+  "files": [
+   "Factory.ogg",
+   "Factory_0.ogg"
+  ]
+ },
+ "oga/flare-ignition": {
+  "pack": "flare-ignition",
+  "url": "https://opengameart.org/content/flare-ignition",
+  "licences": [
+   "CC0"
+  ],
+  "author": "qubodup",
+  "files": [
+   "ig.mp3",
+   "ignition.flac"
+  ]
+ },
+ "oga/forest-ambience": {
+  "pack": "forest-ambience",
+  "url": "https://opengameart.org/content/forest-ambience",
+  "licences": [
+   "CC0"
+  ],
+  "author": "TinyWorlds",
+  "files": [
+   "Forest_Ambience.mp3",
+   "Forest_Ambience_0.mp3"
+  ]
+ },
+ "oga/gears": {
+  "pack": "gears",
+  "url": "https://opengameart.org/content/gears",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Pro Sensory",
+  "files": [
+   "gears.mp3",
+   "gears_0.mp3"
+  ]
+ },
+ "oga/generator-loop": {
+  "pack": "generator-loop",
+  "url": "https://opengameart.org/content/generator-loop",
+  "licences": [
+   "CC0"
+  ],
+  "author": "YCbCr",
+  "files": [
+   "loop_generator_1.mp3"
+  ]
+ },
+ "oga/helicopter-sfx": {
+  "pack": "helicopter-sfx",
+  "url": "https://opengameart.org/content/helicopter-sfx",
+  "licences": [
+   "CC0"
+  ],
+  "author": "WuxiaScrub",
+  "files": [
+   "heli.ogg",
+   "heli_0.ogg"
+  ]
+ },
+ "oga/low-rumbling": {
+  "pack": "low-rumbling",
+  "url": "https://opengameart.org/content/low-rumbling",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Musheran",
+  "files": [
+   "low-rumbling-176033.mp3",
+   "low-rumbling-176033_0.mp3"
+  ]
+ },
+ "oga/mech-stomp-step-sound": {
+  "pack": "mech-stomp-step-sound",
+  "url": "https://opengameart.org/content/mech-stomp-step-sound",
+  "licences": [
+   "CC0"
+  ],
+  "author": "hc",
+  "files": [
+   "stomp.flac",
+   "stomp.ogg"
+  ]
+ },
+ "oga/mechanical-explosion": {
+  "pack": "mechanical-explosion",
+  "url": "https://opengameart.org/content/mechanical-explosion",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Spring Spring",
+  "files": [
+   "mechanical_explosion.mp3",
+   "mechanical_explosion.wav"
+  ]
+ },
+ "oga/mechanical-sounds": {
+  "pack": "mechanical-sounds",
+  "url": "https://opengameart.org/content/mechanical-sounds",
+  "licences": [
+   "CC0"
+  ],
+  "author": "BMacZero",
+  "files": [
+   "clank1.wav",
+   "lightclunk1.wav",
+   "lightclunk2.wav",
+   "mechanical1.wav",
+   "mechanical2.wav",
+   "rattle1.wav",
+   "squeakyclick1.wav",
+   "squeakyclick2.wav",
+   "typewriter.wav"
+  ]
+ },
+ "oga/metal-footsteps-on-concrete": {
+  "pack": "metal-footsteps-on-concrete",
+  "url": "https://opengameart.org/content/metal-footsteps-on-concrete",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Thimras",
+  "files": [
+   "metal_steps.ogg",
+   "metal_steps_48k24b.7z"
+  ]
+ },
+ "oga/mild-wind-background-noise": {
+  "pack": "mild-wind-background-noise",
+  "url": "https://opengameart.org/content/mild-wind-background-noise",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Bashar3A",
+  "files": [
+   "wind%20background%20noise%202.wav",
+   "wind%20background%20noise%202_01.mp3"
+  ]
+ },
+ "oga/missile-sound": {
+  "pack": "missile-sound",
+  "url": "https://opengameart.org/content/missile-sound",
+  "licences": [
+   "CC0"
+  ],
+  "author": "mikeask",
+  "files": [
+   "missile%20launch.ogg",
+   "missile.wav"
+  ]
+ },
+ "oga/ocean-splash": {
+  "pack": "ocean-splash",
+  "url": "https://opengameart.org/content/ocean-splash",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Thimras",
+  "files": [
+   "cannon_miss.ogg",
+   "cannon_miss_0.ogg"
+  ]
+ },
+ "oga/park-ambiences": {
+  "pack": "park-ambiences",
+  "url": "https://opengameart.org/content/park-ambiences",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Thimras",
+  "files": [
+   "ambience_preview.ogg",
+   "park_ambience_birds.wav",
+   "park_ambience_river.wav",
+   "park_ambience_wind.wav"
+  ]
+ },
+ "oga/quick-drill-fix": {
+  "pack": "quick-drill-fix",
+  "url": "https://opengameart.org/content/quick-drill-fix",
+  "licences": [
+   "CC0"
+  ],
+  "author": "qubodup",
+  "files": [
+   "montageAudio-20120408%40153627.mp3",
+   "roboticsqueeze.flac"
+  ]
+ },
+ "oga/radio-noise-1": {
+  "pack": "radio-noise-1",
+  "url": "https://opengameart.org/content/radio-noise-1",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Kresiek The Furry",
+  "files": [
+   "preview_46.ogg",
+   "radio_noise_loop.wav"
+  ]
+ },
+ "oga/rain-long-thunder": {
+  "pack": "rain-long-thunder",
+  "url": "https://opengameart.org/content/rain-long-thunder",
+  "licences": [
+   "CC0"
+  ],
+  "author": "WuxiaScrub",
+  "files": [
+   "rain-thunder.ogg",
+   "rain-thunder_0.ogg"
+  ]
+ },
+ "oga/rain-loopable": {
+  "pack": "rain-loopable",
+  "url": "https://opengameart.org/content/rain-loopable",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Ylmir",
+  "files": [
+   "1_7.mp3",
+   "Rain%20MP3.zip",
+   "Rain%20OGG.zip"
+  ]
+ },
+ "oga/rocket-engine": {
+  "pack": "rocket-engine",
+  "url": "https://opengameart.org/content/rocket-engine",
+  "licences": [
+   "CC0"
+  ],
+  "author": "theMinesAreShakin",
+  "files": [
+   "rocket_engine.001.wav"
+  ]
+ },
+ "oga/rocket-launch": {
+  "pack": "rocket-launch",
+  "url": "https://opengameart.org/content/rocket-launch",
+  "licences": [
+   "CC0"
+  ],
+  "author": "qubodup",
+  "files": [
+   "l.mp3",
+   "launch.7z"
+  ]
+ },
+ "oga/scifi-city-ambient-loop": {
+  "pack": "scifi-city-ambient-loop",
+  "url": "https://opengameart.org/content/scifi-city-ambient-loop",
+  "licences": [
+   "CC0"
+  ],
+  "author": "TinyWorlds",
+  "files": [
+   "busy_cyberworld.mp3",
+   "busy_cyberworld.ogg",
+   "busy_cyberworld_0.mp3"
+  ]
+ },
+ "oga/sirens-and-alarm-noise": {
+  "pack": "sirens-and-alarm-noise",
+  "url": "https://opengameart.org/content/sirens-and-alarm-noise",
+  "licences": [
+   "CC0"
+  ],
+  "author": "aquinn",
+  "files": [
+   "siren.mp3",
+   "siren_0.mp3"
+  ]
+ },
+ "oga/steam-release-sounds": {
+  "pack": "steam-release-sounds",
+  "url": "https://opengameart.org/content/steam-release-sounds",
+  "licences": [
+   "CC0"
+  ],
+  "author": "bart",
+  "files": [
+   "prev-steam.mp3",
+   "steam_hisses.zip"
+  ]
+ },
+ "oga/storm-siren": {
+  "pack": "storm-siren",
+  "url": "https://opengameart.org/content/storm-siren",
+  "licences": [
+   "CC0"
+  ],
+  "author": "TinyWorlds",
+  "files": [
+   "storm_3_siren.mp3",
+   "storm_3_siren.ogg",
+   "storm_3_siren_1.mp3"
+  ]
+ },
+ "oga/swish-bamboo-stick-weapon-swhoshes": {
+  "pack": "swish-bamboo-stick-weapon-swhoshes",
+  "url": "https://opengameart.org/content/swish-bamboo-stick-weapon-swhoshes",
+  "licences": [
+   "CC0"
+  ],
+  "author": "qubodup",
+  "files": [
+   "montageAudio-20120408%40130311.mp3",
+   "swoshes.7z"
+  ]
+ },
+ "oga/swishes-sound-pack": {
+  "pack": "swishes-sound-pack",
+  "url": "https://opengameart.org/content/swishes-sound-pack",
+  "licences": [
+   "CC0"
+  ],
+  "author": "artisticdude",
+  "files": [
+   "swishes.zip",
+   "swishprev.mp3"
+  ]
+ },
+ "oga/the-free-firearm-sound-library": {
+  "pack": "the-free-firearm-sound-library",
+  "url": "https://opengameart.org/content/the-free-firearm-sound-library",
+  "licences": [
+   "CC0"
+  ],
+  "author": "bart",
+  "files": [
+   "Prepared%20SFX%20Library.7z",
+   "ak47.ogg"
+  ]
+ },
+ "oga/water-splash-and-sand-footsteps": {
+  "pack": "water-splash-and-sand-footsteps",
+  "url": "https://opengameart.org/content/water-splash-and-sand-footsteps",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Peludo",
+  "files": [
+   "drowning_0.wav",
+   "sand_footsteps_0.mp3",
+   "splash1_0.wav",
+   "splash2_0.wav"
+  ]
+ },
+ "oga/wind1": {
+  "pack": "wind1",
+  "url": "https://opengameart.org/content/wind1",
+  "licences": [
+   "CC0"
+  ],
+  "author": "Luke.RUSTLTD",
+  "files": [
+   "wind1.wav",
+   "wind2.wav",
+   "wind3.wav",
+   "wind4.wav",
+   "wind5.wav"
+  ]
+ }
+}

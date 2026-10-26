@@ -149,6 +149,19 @@ const ART_IMG = '';
 
 // The questions. Answers live in the db collection `answers`, one document per question id.
 const SECTIONS = [
+  { tag: 'F', name: 'Ground fog',
+    lead: 'New on 2026-10-25: fog that lies low and fills the valleys, the lakes and the coast, greyer under a storm (openspec/changes/ground-fog). Being built on the recommendations.',
+    qs: [
+      { id: 'F1', q: 'Ground fog (openspec/changes/ground-fog): fog that lies low and fills the valleys, the lakes and the coast, thinning with height, greyer under a storm. How much by default?',
+        options: ['Morning mist in the valleys and the crater, thinning by day; clear for combat-heavy missions', 'Always a light haze, no valley mist', 'Heavy: fog banks as a regular weather'], rec: 0,
+        why: 'Mist that pools in the low ground makes the valleys and the lakes read at a glance, and a per-mission preset keeps fights clear when they need to be.' },
+      { id: 'F2', q: 'Does ground fog hide targets?',
+        options: ['From the eye only, as cloud does; radar sees through it', 'It also shortens radar and lock-on range', 'Looks only'], rec: 0,
+        why: 'The same rule as cloud (W28): fog is cover from sight, not from sensors.' },
+      { id: 'F3', q: 'Fog is worked out exactly along each view ray (about 0.1 ms). Bevy also has ray-marched volumetric fog with light shafts (about 1-3 ms). Use it?',
+        options: ['Not for the island; later only for small local volumes (steam when the cockpit opens, waterfall spray)', 'Yes, everywhere, for the light shafts', 'Never'], rec: 0,
+        why: 'The exact layer gives the look for a tenth of the cost; the ray march earns its time only in small volumes close to the eye.' },
+    ] },
   { tag: 'G', name: 'The roster at the Foreman\'s standard',
     lead: 'New on 2026-10-25: every roster mech brought up to the Foreman. Cockpits (openspec/changes/cockpit-parity) and boarding steam (boarding-vents) are built; each mech\'s signature weapon (signature-weapons) is designed, to be built after weapon-kinds. Any MFD now outlines when you point at it in free look; its menu (game menu, map, mail, shop: mfd-menus, mech-shop) is designed.',
     qs: [
@@ -218,14 +231,21 @@ const SECTIONS = [
         options: ['All of it is in the inbox from the start: the city defence and the Hermit', 'One at a time, a new one when you finish the last', 'Over time, like a career\'s offers'], rec: 0,
         why: 'Free roam is for trying things: every mission is one key and one click away.' },
     ] },
-  { tag: 'A', name: 'Music',
-    lead: 'New on 2026-10-25: the motifs and the first six cues. Listen on the Crab Breeze Music page (https://claude.ai/artifact/17Lj37SLPpsARPqE9ZfV9C); notes and rules in docs/design/music.md, playback in openspec/changes/music.',
+  { tag: 'L', name: 'Far buildings',
+    lead: 'New on 2026-10-25: every building type gets its own far look instead of the one generic tiled texture (openspec/changes/building-type-lods).',
     qs: [
-      { id: 'A1', q: 'The score is orchestral rock with 80s colours, in D minor, lifting into D major for the big moments. Is that the direction?',
-        options: ['Yes: orchestra, rock drums and guitars, a few 80s synths (as rendered)', 'More 80s: synth-led, the orchestra in support', 'Pure orchestra, no rock band', 'Heavier: industrial and metal'], rec: 0,
-        why: 'It matches Ace Combat\'s hybrid and the 1980s industrial setting, and every cue already works this way.' },
+      { id: 'L1', q: 'How should each type\'s far facade texture be made?',
+        options: ['Rendered by a tool from that type\'s own near facade pieces and textures, so far and near cannot disagree', 'A Material Maker graph per type', 'A Blender model of a bay per type, rendered'], rec: 0,
+        why: 'The near facade is generated in code; rendering the same pieces is the only way the far texture matches its colours and window rhythm exactly, and it rebuilds itself when a type changes.' },
+      { id: 'L2', q: 'Where should the detailed far shape (parapet, cornice, roof props) give way to a plain box with the type\'s facade?',
+        options: ['1.5 km', '1 km', '3 km'], rec: 0,
+        why: 'Past 1.5 km a cornice or a water tank is a pixel or two from the cockpit; the box still wears the type\'s own facade.' },
+    ] },
+  { tag: 'A', name: 'Music',
+    lead: 'New on 2026-10-25: the motifs and five cues, now moody cyberpunk (an edgy rebel, not a hero; Main Street deleted). Listen on the Crab Breeze Music page (https://claude.ai/artifact/17Lj37SLPpsARPqE9ZfV9C); notes and rules in docs/design/music.md, playback in openspec/changes/music.',
+    qs: [
       { id: 'A2', q: 'How should the music follow the fight?',
-        options: ['One cue per game state (on foot, combat, set piece, won), switching on the bar with a one-bar crossfade', 'Layered stems that rise and fall with the danger inside one cue', 'Both: switching now, stems later'], rec: 0,
+        options: ['One cue per game state (title, boarding, combat, set piece, won; silent on foot), switching on the bar with a one-bar crossfade', 'Layered stems that rise and fall with the danger inside one cue', 'Both: switching now, stems later'], rec: 0,
         why: 'Switching on the bar sounds composed and needs nothing beyond the OGG files we have; stems cost a render per layer per cue.' },
       { id: 'A3', q: 'Where is the music heard from the cockpit?',
         options: ['Over everything, like a film score; it ducks under the radio and alarms', 'Only through the cockpit radio, as if broadcast', 'Score outside the mech, radio inside it'], rec: 0,
@@ -234,6 +254,7 @@ const SECTIONS = [
 ];
 
 const DECIDED = [
+  { text: 'A1 The score is moody, edgy rebel cyberpunk: "music sucks, electronic, scifi futuristic please!", then "Main street sucks delete it. Theme sucks..I want some thing moody,more cyber punk themed", then "It\'s too cherry and heroic. I want to feel like an edgy rebel" (2026-10-25). A snarling riff, a sinking hook, half-time drums, rain; no town theme, no triumphant major chord.', where: 'CLAUDE.md section 1, docs/design/music.md, music/*.strudel' },
   { text: 'W12 Buildings fall the simpler way: pieces break, and a building falls when its ground floor is mostly gone (your pick), and: "whatever looks cool and is EFFICIENT, might ve already been implemented in another branch". W13 rubble, W15 the warning before a column gives and W18 brick above 6 storeys: "see W12".', where: 'openspec/changes/structural-destruction, rubble, building-variety (open questions: measure the structural model already on building-research against the simpler one before choosing)' },
   { text: 'W14 Building textures: Material Maker for brick, concrete and roofing; modelled bays rendered face-on for facades, trims and far facades (your pick).', where: 'openspec/changes/building-generation' },
   { text: 'W19 The visible sky: "nah just whatever sky like is fine". The HDRI stays in the reflections; the scattering sky from main is what you see.', where: 'openspec/changes/glass-reflections (GR1, GR2)' },

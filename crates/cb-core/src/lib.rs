@@ -6,6 +6,7 @@
 //! `cb-app` adapts it to Bevy.
 
 pub mod ai;
+pub mod audio;
 pub mod battle_fx;
 pub mod boarding;
 pub mod career;
@@ -26,7 +27,6 @@ pub mod settings;
 pub mod sim;
 pub mod skins;
 pub mod sky_light;
-pub mod smoke;
 pub mod sun_flare;
 pub mod targeting;
 pub mod units;
@@ -81,6 +81,8 @@ pub struct GameData {
     pub fortress: fortress::FortressData,
     /// `data/missions/mail.ron`: free roam's mission mail.
     pub missions: missions::MissionsMail,
+    /// `data/audio/cues.ron`, `music.ron` and `ambience.ron`.
+    pub audio: audio::AudioData,
 }
 
 impl GameData {
@@ -146,6 +148,11 @@ impl GameData {
             skins,
             fortress,
             missions: data::load_ron(&root.join("missions/mail.ron"))?,
+            audio: audio::AudioData {
+                cues: data::load_ron(&root.join("audio/cues.ron"))?,
+                music: data::load_ron(&root.join("audio/music.ron"))?,
+                ambience: data::load_ron(&root.join("audio/ambience.ron"))?,
+            },
         })
     }
 

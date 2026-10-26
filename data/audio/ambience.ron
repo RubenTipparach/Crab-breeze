@@ -1,0 +1,21 @@
+// The ambience beds (openspec change `ambience`): stereo, unplaced, chosen by where the listener
+// is. The files are already written quiet and pushed into the background (owner, 2026-10-25:
+// "ambient sounds needs to be softer and queiter", "more background audio").
+(
+    beds: {
+        "amb_meadow_day": (file: "audio/ambience/amb_meadow_day.ogg", volume_db: 0.0),
+        "amb_forest": (file: "audio/ambience/amb_forest.ogg", volume_db: 0.0),
+        "amb_night": (file: "audio/ambience/amb_night.ogg", volume_db: 0.0),
+        "amb_city_street": (file: "audio/ambience/amb_city_street.ogg", volume_db: 0.0),
+        "amb_city_night_rain": (file: "audio/ambience/amb_city_night_rain.ogg", volume_db: 0.0),
+        "amb_industrial": (file: "audio/ambience/amb_industrial.ogg", volume_db: 0.0),
+        "amb_rain": (file: "audio/ambience/amb_rain.ogg", volume_db: 0.0),
+        "amb_wind_high": (file: "audio/ambience/amb_wind_high.ogg", volume_db: 0.0),
+    },
+    // the wind at height 0, and what it gains at the cockpit's 24 m
+    wind_db: (-12.0, 9.0),
+    ease_s: 4.0,
+    stop_below_db: -40.0,
+    read_hz: 4.0,
+    seal_db: -6.0,
+)

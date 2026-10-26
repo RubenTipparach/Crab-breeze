@@ -17,6 +17,8 @@ if (!infile || !outfile) {
   process.exit(1);
 }
 const score = await loadScore(infile, cyclesArg);
+const kitLine = fs.readFileSync(infile, 'utf8').match(/^\/\/\s*@drumkit\s+(\d+)/m);
+const drumkit = kitLine ? Number(kitLine[1]) : 0;   // GS drum kit: a program change on channel 10
 const inst = loadInstruments();
 console.log(describe(score));
 
@@ -44,7 +46,7 @@ const tracks = [trackChunk([
 const melodic = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
 for (const part of score.parts) {
   let ch, program;
-  if (part.kind === 'drums') ch = 9;
+  if (part.kind === 'drums') { ch = 9; program = drumkit || undefined; }
   else {
     if (!melodic.length) throw new Error(`${infile}: more than 15 melodic instruments`);
     ch = melodic.shift();

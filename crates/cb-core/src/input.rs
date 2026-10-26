@@ -37,7 +37,7 @@ pub struct Actions {
     pub throttle_axis: f32,
     /// In the mech: turn the legs left (+) or right (-), -1..1.
     pub turn_axis: f32,
-    /// In the mech: jet lift, 0..1.
+    /// In the mech: jet lift, 0..1. On foot, any lift jumps.
     pub lift_axis: f32,
     /// Use was pressed this step (board).
     pub use_pressed: bool,
@@ -312,7 +312,7 @@ impl Bindings {
             row("In the mech", "Walk", "mode_walk", &self.mode_walk),
             row("In the mech", "Skate mode", "mode_skate", &self.mode_skate),
             row("In the mech", "Jet mode", "mode_jet", &self.mode_jet),
-            row("In the mech", "Rockets: lift", "lift", &self.lift),
+            row("In the mech", "Rockets: lift (on foot: jump)", "lift", &self.lift),
             row("In the mech", "Skates on and off", "skate", &self.skate),
             row("In the mech", "Dive, sink on water", "sink", &self.sink),
             row("Weapons", "Fire primary", "fire_primary", &self.fire_primary),

@@ -1,0 +1,16 @@
+// The music for each game state (openspec change `music`). Calm (seated, no threat) has no
+// entry: silence, and the ambience carries the scene (owner, 2026-10-25). Each `bpm` matches its
+// score's setcps in music/<name>.strudel (cb-tools validate checks it).
+(
+    cues: {
+        "title": (file: "audio/music/main_theme.ogg", bpm: 100.0, beats_per_bar: 4.0, looping: true),
+        "boarding": (file: "audio/music/boarding.ogg", bpm: 72.0, beats_per_bar: 4.0, looping: false),
+        "combat": (file: "audio/music/sortie.ogg", bpm: 150.0, beats_per_bar: 4.0, looping: true),
+        "set_piece": (file: "audio/music/big_boy.ogg", bpm: 140.0, beats_per_bar: 4.0, looping: true),
+        "won": (file: "audio/music/mission_accomplished.ogg", bpm: 100.0, beats_per_bar: 4.0, looping: false),
+    },
+    crossfade_bars: 1.0,
+    fade_out_bars: 2.0,
+    hold_s: 30.0,
+    volume_db: -4.0,
+)

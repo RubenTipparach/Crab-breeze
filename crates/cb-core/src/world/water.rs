@@ -210,19 +210,30 @@ fn project(p: Vec2, a: Vec2, b: Vec2) -> (f32, f32) {
     ((a + ab * t).distance(p), t)
 }
 
-/// The river segment closest to `p` within reach: (river, segment, distance, t). Ties go to the
-/// lower (river, segment), so the answer never depends on the index's order.
-fn nearest(rivers: &[River], index: &CellIndex, p: Vec2, reach_m: f32) -> Option<(usize, usize, f32, f32)> {
-    let mut best: Option<(usize, usize, f32, f32)> = None;
+/// Each river's nearest segment to `p` within `reach_m`: (river, segment, distance, along), one
+/// per river, in river order. Where two rivers meet at different heights (a tributary in a canyon
+/// that the coarse drainage joins to a river on the plateau above), each must be carved and read
+/// on its own, or the higher one's channel buries the lower one's water.
+fn nearest_each(rivers: &[River], index: &CellIndex, p: Vec2, reach_m: f32) -> Vec<(usize, usize, f32, f32)> {
+    let mut out: Vec<(usize, usize, f32, f32)> = Vec::new();
     for &key in index.at(p) {
         let (ri, si) = ((key >> 16) as usize, (key & 0xFFFF) as usize);
         let r = &rivers[ri];
         let (d, t) = project(p, r.path[si], r.path[si + 1]);
-        if d <= reach_m && best.is_none_or(|b| d < b.2 || (d == b.2 && (ri, si) < (b.0, b.1))) {
-            best = Some((ri, si, d, t));
+        if d > reach_m {
+            continue;
+        }
+        match out.iter_mut().find(|b| b.0 == ri) {
+            Some(b) => {
+                if d < b.2 || (d == b.2 && si < b.1) {
+                    *b = (ri, si, d, t);
+                }
+            }
+            None => out.push((ri, si, d, t)),
         }
     }
-    best
+    out.sort_by_key(|b| b.0);
+    out
 }
 
 /// Indexes every river segment in the cells within its half width plus `pad_m`.
@@ -244,19 +255,24 @@ fn index_rivers(rivers: &[River], world_size_m: f32, pad_m: f32) -> CellIndex {
 }
 
 impl Waters {
-    /// River surface, half width and flow at `p`, if a river's water reaches it.
+    /// River surface, half width and flow at `p`, if a river's water reaches it. Where two rivers'
+    /// water overlaps, the lower surface (the higher one falls into it).
     fn river_at(&self, p: Vec2) -> Option<(f32, f32, Vec2)> {
-        let (ri, si, d, t) = nearest(&self.rivers, &self.index, p, 200.0)?;
-        let r = &self.rivers[ri];
-        let lerp = |v: &[f32]| v[si] + (v[si + 1] - v[si]) * t;
-        let hw = lerp(&r.half_width_m);
-        (d <= hw).then(|| {
-            (
-                lerp(&r.surface_m),
-                hw,
-                (r.path[si + 1] - r.path[si]).normalize_or_zero() * self.flow_m_s,
-            )
-        })
+        nearest_each(&self.rivers, &self.index, p, 200.0)
+            .into_iter()
+            .filter_map(|(ri, si, d, t)| {
+                let r = &self.rivers[ri];
+                let lerp = |v: &[f32]| v[si] + (v[si + 1] - v[si]) * t;
+                let hw = lerp(&r.half_width_m);
+                (d <= hw).then(|| {
+                    (
+                        lerp(&r.surface_m),
+                        hw,
+                        (r.path[si + 1] - r.path[si]).normalize_or_zero() * self.flow_m_s,
+                    )
+                })
+            })
+            .reduce(|a, b| if b.0 < a.0 { b } else { a })
     }
 
     /// The one water query: water over the ground `ground_m` at `p`, if any: the highest of a
@@ -323,31 +339,33 @@ impl Channels {
     /// The ground `h` at `p` with the lakes and channels carved into it.
     pub fn carve(&self, p: Vec2, h: f32) -> f32 {
         let h = self.lakes.shape(p, h, self.bank_slope);
-        let Some((ri, si, d, t)) = nearest(&self.rivers, &self.index, p, CARVE_REACH_M + self.max_half_width_m) else {
-            return h;
-        };
-        if self.cities.iter().any(|c| c.distance(p) <= self.city_margin_m) {
+        let near = nearest_each(&self.rivers, &self.index, p, CARVE_REACH_M + self.max_half_width_m);
+        if near.is_empty() || self.cities.iter().any(|c| c.distance(p) <= self.city_margin_m) {
             return h;
         }
         let on_road = self.highways.iter().any(|hw| hw.project(p).0 <= self.road_flat_m);
         if on_road && !self.spans.iter().any(|(c, half)| c.distance(p) <= *half) {
             return h;
         }
-        let r = &self.rivers[ri];
-        let lerp = |v: &[f32]| v[si] + (v[si + 1] - v[si]) * t;
-        let (s, hw) = (lerp(&r.surface_m), lerp(&r.half_width_m));
-        // A stream's channel is at most as deep as it is half wide.
-        let depth = self.depth_m.min(hw);
-        // Past the water the bank rises at `bank_slope`, steepening with distance so it always
-        // meets the ground well inside the reach the channel is indexed for (no cut ends at a
-        // cell's edge, however high the ground beside the river stands).
-        let x = (d - hw).max(0.0);
-        let target = if d < hw {
-            s - depth * (1.0 - (d / hw).powi(2))
-        } else {
-            s + x * self.bank_slope + (x / CARVE_REACH_M).powi(2) * CARVE_RISE_M
-        };
-        h.min(target)
+        // Every river within reach cuts its own channel; the ground is the lowest of them, so no
+        // river's water is buried where two meet at different heights.
+        near.into_iter().fold(h, |h, (ri, si, d, t)| {
+            let r = &self.rivers[ri];
+            let lerp = |v: &[f32]| v[si] + (v[si + 1] - v[si]) * t;
+            let (s, hw) = (lerp(&r.surface_m), lerp(&r.half_width_m));
+            // A stream's channel is at most as deep as it is half wide.
+            let depth = self.depth_m.min(hw);
+            // Past the water the bank rises at `bank_slope`, steepening with distance so it always
+            // meets the ground well inside the reach the channel is indexed for (no cut ends at a
+            // cell's edge, however high the ground beside the river stands).
+            let x = (d - hw).max(0.0);
+            let target = if d < hw {
+                s - depth * (1.0 - (d / hw).powi(2))
+            } else {
+                s + x * self.bank_slope + (x / CARVE_REACH_M).powi(2) * CARVE_RISE_M
+            };
+            h.min(target)
+        })
     }
 }
 
@@ -360,35 +378,36 @@ impl Channels {
     /// river issues on the terrain?"). Near ground (step 1) keeps `carve`.
     pub fn carve_far(&self, p: Vec2, h: f32, band_m: f32) -> f32 {
         let h = self.lakes.shape(p, h, self.bank_slope);
-        let Some((ri, si, d, t)) = nearest(&self.rivers, &self.index, p, CARVE_REACH_M + self.max_half_width_m + band_m) else {
-            return h;
-        };
-        if self.cities.iter().any(|c| c.distance(p) <= self.city_margin_m) {
+        let near = nearest_each(&self.rivers, &self.index, p, CARVE_REACH_M + self.max_half_width_m + band_m);
+        if near.is_empty() || self.cities.iter().any(|c| c.distance(p) <= self.city_margin_m) {
             return h;
         }
         let on_road = self.highways.iter().any(|hw| hw.project(p).0 <= self.road_flat_m);
         if on_road && !self.spans.iter().any(|(c, half)| c.distance(p) <= *half) {
             return h;
         }
-        let r = &self.rivers[ri];
-        let lerp = |v: &[f32]| v[si] + (v[si + 1] - v[si]) * t;
-        let (s, hw) = (lerp(&r.surface_m), lerp(&r.half_width_m));
-        // Water falls downstream: hold the ground under the lowest water within the band, so a far
-        // cell across a steep reach does not stand over the water lower down it.
-        let mut s = s;
-        for j in si + 1..r.path.len() {
-            if r.path[j].distance(p) > hw + band_m {
-                break;
+        // Every river within reach holds the ground under its own water (as `carve`).
+        near.into_iter().fold(h, |h, (ri, si, d, t)| {
+            let r = &self.rivers[ri];
+            let lerp = |v: &[f32]| v[si] + (v[si + 1] - v[si]) * t;
+            let (s, hw) = (lerp(&r.surface_m), lerp(&r.half_width_m));
+            // Water falls downstream: hold the ground under the lowest water within the band, so a
+            // far cell across a steep reach does not stand over the water lower down it.
+            let mut s = s;
+            for j in si + 1..r.path.len() {
+                if r.path[j].distance(p) > hw + band_m {
+                    break;
+                }
+                s = s.min(r.surface_m[j]);
             }
-            s = s.min(r.surface_m[j]);
-        }
-        let x = (d - hw - band_m).max(0.0);
-        let target = if d < hw + band_m {
-            s - FAR_UNDER_WATER_M
-        } else {
-            s - FAR_UNDER_WATER_M + x * self.bank_slope + (x / CARVE_REACH_M).powi(2) * CARVE_RISE_M
-        };
-        h.min(target)
+            let x = (d - hw - band_m).max(0.0);
+            let target = if d < hw + band_m {
+                s - FAR_UNDER_WATER_M
+            } else {
+                s - FAR_UNDER_WATER_M + x * self.bank_slope + (x / CARVE_REACH_M).powi(2) * CARVE_RISE_M
+            };
+            h.min(target)
+        })
     }
 }
 
@@ -497,7 +516,10 @@ pub fn make_waters(
         ) * cfg.drainage_cell_m
             * MEANDER_SHARE
     };
-    for course in &drainage.courses {
+    // Rivers off (`WaterConfig::rivers`): no course is traced, so no river, river channel,
+    // waterfall, plunge pool or bridge; the basin lakes above stay.
+    let courses: &[_] = if cfg.rivers { &drainage.courses } else { &[] };
+    for course in courses {
         let mut points: Vec<Vec2> = course.points.iter().map(|&p| p + push(p)).collect();
         // A course that stopped on another river's cell ends on that river's line.
         let mut joins: Option<f32> = None;
@@ -557,9 +579,12 @@ pub fn make_waters(
             let height = f.top_m - f.bottom_m;
             let r = (height * cfg.plunge_radius_per_m).clamp(cfg.lake_radius_m[0], cfg.lake_radius_m[1]);
             let c = foot + f.along * r * 0.35;
-            // Only a river (twice a stream's width) digs a pool; a stream lands in its own foam.
+            // Only a river (twice a stream's width) digs a pool; a stream lands in its own foam. Nor
+            // does a fall whose pool would sit on ground standing above its water (a ledge of the
+            // range's terraces): the carving keeps such ground dry, so the pool would hold none.
             let river = f.half_width_m >= 2.0 * cfg.stream_half_width_m;
-            if river && lakes.at(foot).is_none() && clear(c, r) && !overlaps(&lakes.list, c, r) {
+            let holds = terrain.height_at(c.x, c.y) < f.bottom_m + KEEP_ABOVE_M * 0.5;
+            if river && holds && lakes.at(foot).is_none() && clear(c, r) && !overlaps(&lakes.list, c, r) {
                 lakes.list.push(Lake {
                     centre: c,
                     radius_m: r,

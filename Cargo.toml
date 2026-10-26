@@ -37,3 +37,12 @@ opt-level = 1
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+# play-quick.bat's build: the release build without whole-program optimisation and with incremental
+# compilation, so a rebuild after a small change takes far less time (owner, 2026-10-25: "it just
+# takes a long time"). The game runs somewhat slower in it; benchmarks always use `release`.
+[profile.play]
+inherits = "release"
+lto = false
+codegen-units = 16
+incremental = true
