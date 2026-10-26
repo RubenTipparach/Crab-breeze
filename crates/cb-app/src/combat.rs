@@ -43,6 +43,8 @@ struct Power {
     penetration_mm: f32,
     damage: f32,
     blast_mj: f32,
+    /// Whose shot or blow it was.
+    owner: u32,
 }
 
 type Mechs<'w, 's> = Query<'w, 's, (&'static mut MechSim, &'static MechSpec, &'static MechId, Option<&'static MechRig>)>;
@@ -132,6 +134,7 @@ fn land(
         explosions.write(Explosion {
             at,
             energy_mj: power.blast_mj,
+            by: Some(power.owner),
         });
     }
 }
@@ -308,6 +311,7 @@ pub fn fly_shots(
                 penetration_mm: blow.penetration_mm,
                 damage: blow.damage,
                 blast_mj: 0.0,
+                owner: blow.owner,
             };
             let dir = (blow.to - blow.from).normalize_or(Vec3::NEG_Z);
             land(
@@ -363,6 +367,7 @@ pub fn fly_shots(
             penetration_mm: w.penetration_mm,
             damage: w.damage,
             blast_mj: w.blast_mj,
+            owner: shot.owner,
         };
         land(
             hit.struck,

@@ -52,4 +52,14 @@
     greet_reach_m: 2.5,
     greet_cone_deg: 50.0,
     greet_hold_s: 6.0,
+    // Drawing (design section 2): the full body within 60 m of the eye (200 at most), a low figure out
+    // to 250 m, a flat card beyond. A walker's pose changes every half of a 1.4 m stride. The merged crowd
+    // past 60 m is rebuilt 30 times a second (0.6 ms a build for 2,000 people on the development Mac).
+    draw: (
+        near_m: 60.0,
+        near_max: 200,
+        mid_m: 250.0,
+        stride_m: 1.4,
+        crowd_refresh_hz: 30.0,
+    ),
 )

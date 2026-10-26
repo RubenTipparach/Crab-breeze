@@ -1139,10 +1139,12 @@ fn run_fx_script(
                     explosions.write(crate::blast::Explosion {
                         at: c + Vec3::Y * 0.5,
                         energy_mj: 6.0,
+                        by: None,
                     });
                     explosions.write(crate::blast::Explosion {
                         at: c + Vec3::new(-14.0, 0.5, -10.0),
                         energy_mj: 25.0,
+                        by: None,
                     });
                 } else {
                     eprintln!("fx stills: no open soil near");

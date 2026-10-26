@@ -75,6 +75,38 @@ pub struct PeopleConfig {
     pub greet_cone_deg: f32,
     /// A greeted person stays stopped and facing the pilot this long.
     pub greet_hold_s: f32,
+    /// How people are drawn.
+    pub draw: DrawConfig,
+}
+
+/// How people are drawn (design section 2): the full body near the eye, a low figure in the middle
+/// distance, a flat card far off.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct DrawConfig {
+    /// Within this of the eye a person is drawn as the full body.
+    pub near_m: f32,
+    /// ... and at most this many of them (the nearest first in list order past it).
+    pub near_max: usize,
+    /// Within this, the low figure; beyond it, the card.
+    pub mid_m: f32,
+    /// A walker's stride: the walk's poses change every half stride.
+    pub stride_m: f32,
+    /// The crowd past the near distance is rebuilt this often (a person at 1.5 m/s moves 5 cm between
+    /// rebuilds at 30 Hz, too little to see past 60 m).
+    pub crowd_refresh_hz: f32,
+}
+
+impl Default for DrawConfig {
+    fn default() -> Self {
+        Self {
+            near_m: 60.0,
+            near_max: 200,
+            mid_m: 250.0,
+            stride_m: 1.4,
+            crowd_refresh_hz: 30.0,
+        }
+    }
 }
 
 impl Default for PeopleConfig {
@@ -112,6 +144,7 @@ impl Default for PeopleConfig {
             greet_reach_m: 2.5,
             greet_cone_deg: 50.0,
             greet_hold_s: 6.0,
+            draw: DrawConfig::default(),
         }
     }
 }
@@ -154,6 +187,13 @@ impl Validate for PeopleConfig {
         positive("greet_reach_m", self.greet_reach_m)?;
         within("greet_cone_deg", self.greet_cone_deg, 1.0, 180.0)?;
         positive("greet_hold_s", self.greet_hold_s)?;
+        positive("draw.near_m", self.draw.near_m)?;
+        positive("draw.mid_m", self.draw.mid_m)?;
+        positive("draw.stride_m", self.draw.stride_m)?;
+        positive("draw.crowd_refresh_hz", self.draw.crowd_refresh_hz)?;
+        if self.draw.mid_m < self.draw.near_m {
+            return Err("`draw.mid_m` must be at least `draw.near_m`".into());
+        }
         Ok(())
     }
 }

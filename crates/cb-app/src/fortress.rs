@@ -592,6 +592,7 @@ fn step(
         explosions.write(Explosion {
             at: hit,
             energy_mj: d.cfg.leg.blast_mj,
+            by: None,
         });
         fx.write(Fx::new("explosion_ground", hit).scaled(d.cfg.leg.blast_mj.cbrt()));
         say("MISSION fortress: a leg hits the ground and explodes");
@@ -692,6 +693,7 @@ fn crash(
     explosions.write(Explosion {
         at: ground,
         energy_mj: d.cfg.crash.blast_mj,
+        by: None,
     });
     for k in 0..6 {
         let a = k as f32 / 6.0 * std::f32::consts::TAU;
@@ -739,7 +741,11 @@ fn hits(
             HitOutcome::Destroyed { .. } => {
                 say(&format!("MISSION fortress: {name} {id} destroyed"));
                 let at = g.translation();
-                explosions.write(Explosion { at, energy_mj: 8.0 });
+                explosions.write(Explosion {
+                    at,
+                    energy_mj: 8.0,
+                    by: None,
+                });
                 fx.write(Fx::new("explosion_air", at).scaled(3.0));
                 if d.shape.parts[h.part].kind == "lift" {
                     break_off(&mut commands, run, d, h.part, &globals);
@@ -785,6 +791,7 @@ fn hits(
         explosions.write(Explosion {
             at: s.pos,
             energy_mj: g.weapon.blast_mj,
+            by: Some(FORTRESS_ID),
         });
         fx.write(Fx::new("explosion_air", s.pos));
         false

@@ -55,6 +55,24 @@
 Near (under 60 m): the rigged humanoid, walking or idle. Mid (60-250 m): a low-poly LOD. Far: instanced impostor
 cards. Budget: 200 near, 2,000 in all, measured on the 3070.
 
+### 2.1 As built, with stand-ins (`crates/cb-app/src/civilians.rs`)
+
+The humanoid pipeline's packs are not on the development machine, so the bodies are **stand-ins**: box figures built
+in code at true human size (modelled 1.75 m, scaled to each person's 1.55-1.95 m), 120 triangles, in eight clothing
+palettes and four poses (standing, two strides, sitting), laid flat when struck. They are reviewed orbitable beside
+the pilot's 1.8 m and the mech's 24 m in `docs/mockups/civilians.html` (its geometry written from the game's own
+meshes by a test that fails while it is stale; `docs/screenshots/civilians/standins-overview.png`).
+
+- Near (`draw.near_m`, 60 m): a pool of 200 entities, one shared material, posed each frame (a stride by distance
+  walked). 200 x 120 = 24,000 triangles at most; each body casts shadows.
+- Mid and far: one merged mesh of everyone else, rebuilt 30 times a second and whenever someone crosses 60 m: a
+  three-box figure to 250 m (60 vertices), a card beyond (4). No shadows. One draw. Building it for 2,000 people
+  (873 mid, 1,127 far, 56,888 vertices) took p50 0.59 ms, p95 0.90 ms on the development Mac
+  (`civilians::tests::cost_of_the_crowd_mesh`, release): about 0.3 ms a frame at 60 fps.
+- Park benches: every park's four, in one mesh at startup.
+- `CB_NO_PEOPLE=1` leaves the plugin out, for the benchmark's comparison. No frame-time number exists yet: CLAUDE.md
+  section 8 forbids running the game without the owner's word, so the 3070 measurement is task 2.2's.
+
 ## Open questions
 
 | Id | Question | Recommendation | State |

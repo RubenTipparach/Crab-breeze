@@ -18,7 +18,7 @@ pub mod toll;
 #[cfg(test)]
 mod tests;
 
-pub use config::PeopleConfig;
+pub use config::{DrawConfig, PeopleConfig};
 pub use lines::{Answer, Lines, Place, Role};
 pub use routes::{Doors, Home, NoDoors};
 pub use toll::{Casualty, Cause, StandingLoss, Toll};
@@ -441,7 +441,21 @@ impl People {
     /// they face stops, turns to them and answers. `job` names an open job a line may tell of.
     /// Returns the person's id and their answer, or `None` when nobody is in reach.
     pub fn greet(&mut self, data: &PeopleData, pilot: Vec3, yaw_rad: f32, job: Option<&str>) -> Option<(u32, Answer)> {
-        let cfg = &data.cfg;
+        let i = self.in_reach(&data.cfg, pilot, yaw_rad)?;
+        let p = &mut self.list[i];
+        let answer = data.lines.answer(p.role, p.id, p.greeted, job)?;
+        p.greeted += 1;
+        p.activity = Activity::Greeting {
+            left_s: data.cfg.greet_hold_s,
+            face: Vec2::new(pilot.x, pilot.z),
+        };
+        Some((p.id, answer))
+    }
+
+    /// The one rule for who a greeting reaches: the index of the nearest standing, unfrightened person
+    /// within `greet_reach_m` of the pilot's feet `pilot` and `greet_cone_deg` of where they face
+    /// (`yaw_rad`), if any. The prompt shows it; `greet` greets it.
+    pub fn in_reach(&self, cfg: &PeopleConfig, pilot: Vec3, yaw_rad: f32) -> Option<usize> {
         let at = Vec2::new(pilot.x, pilot.z);
         let fwd = Vec2::new(-yaw_rad.sin(), -yaw_rad.cos());
         let cos_cone = cfg.greet_cone_deg.to_radians().cos();
@@ -459,15 +473,7 @@ impl People {
                 best = Some((d, i));
             }
         }
-        let (_, i) = best?;
-        let p = &mut self.list[i];
-        let answer = data.lines.answer(p.role, p.id, p.greeted, job)?;
-        p.greeted += 1;
-        p.activity = Activity::Greeting {
-            left_s: cfg.greet_hold_s,
-            face: at,
-        };
-        Some((p.id, answer))
+        best.map(|b| b.1)
     }
 
     /// How many people stand within `r` of `p`.
