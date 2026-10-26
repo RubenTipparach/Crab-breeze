@@ -213,7 +213,6 @@ fn step_traffic(
     let ground = OnRoads {
         ground: &scene,
         plan: &plan,
-        lift_m: data.0.world.road_lift_m,
     };
     // the pilot and the cars
     for e in &events.0 {

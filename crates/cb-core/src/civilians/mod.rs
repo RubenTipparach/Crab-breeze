@@ -531,17 +531,18 @@ fn heading_of(d: Vec2) -> Option<f32> {
     (d.length_squared() > 1e-8).then(|| (-d.x).atan2(-d.y))
 }
 
-/// Feet height: the ground, raised by the kerb on a city block's pavement.
+/// Feet height: the drawn surface, the city's pavement or road over the ground (`City::surface_top`, the rule the
+/// pilot's feet follow too, `WorldPlan::walk_top_at`); on a base or off the city's surfaces, the ground.
 fn feet_y(w: &World, p: &Person) -> f32 {
     let ground = w.ground.height_at(p.pos.x, p.pos.y);
     let lift = match p.home {
-        Home::Base(_) => 0.0,
-        Home::Block(c, _) => match w.cities.get(c as usize).and_then(|c| c.blocks.get(p.block as usize)) {
-            Some(b) if b.rect.distance(p.pos) <= 0.0 => w.cfg.kerb_height_m,
-            _ => w.cfg.road_lift_m,
-        },
+        Home::Base(_) => None,
+        Home::Block(c, _) => w.cities.get(c as usize).and_then(|c| {
+            c.surface_top(p.pos, w.cfg.road_lift_m, w.cfg.kerb_height_m)
+                .map(|top| top - c.ground_m)
+        }),
     };
-    ground + lift
+    ground + lift.unwrap_or(0.0)
 }
 
 /// The city a pavement or park person lives in.

@@ -1141,19 +1141,105 @@ fn the_road_top_is_the_drawn_road_and_cars_ride_on_it() {
     let lift = shipped().road_lift_m;
     let city = &plan.cities[0];
     let street = city.streets[0].rect.centre();
-    assert_eq!(plan.road_top_at(street, lift), Some(city.ground_m + lift));
+    assert_eq!(plan.road_top_at(street), Some(city.ground_m + lift));
     let h = &plan.highways[0];
     let mid = h.point_at(0.5);
-    let top = plan.road_top_at(mid, lift).expect("a highway's middle is road");
+    let top = plan.road_top_at(mid).expect("a highway's middle is road");
     assert!((top - (h.grade_at(0.5) + lift)).abs() < 0.05, "{top} vs {}", h.grade_at(0.5) + lift);
     let block = city.blocks[0].rect.centre();
-    assert_eq!(plan.road_top_at(block, lift), None, "a block is no road");
+    assert_eq!(plan.road_top_at(block), None, "a block is no road");
     // A car's wheels meet the road's top on the street and the bare ground off it.
-    let on = OnRoads {
-        ground: plan,
-        plan,
-        lift_m: lift,
-    };
+    let on = OnRoads { ground: plan, plan };
     assert!((on.height_at(street.x, street.y) - (city.ground_m + lift)).abs() < 1e-4);
     assert_eq!(on.height_at(block.x, block.y), plan.height_at(block.x, block.y));
+}
+
+/// A body on foot stands on the drawn surface (owner wanted every item verified, 2026-10-26: the pilot stood 0.15 m
+/// under the road and 0.2 m under the pavement): on a street the road's top, on a block's pavement the kerb's top,
+/// inside a building's footprint its own floors (not the pavement), off the city the bare ground.
+#[test]
+fn a_body_on_foot_stands_on_the_drawn_road_and_pavement() {
+    let plan = seed_42();
+    let cfg = shipped();
+    let city = &plan.cities[0];
+    let street = city.streets[0].rect.centre();
+    let dug = Deformation::default();
+    let scene = Scene {
+        plan,
+        dug: &dug,
+        trees: None,
+        structures: None,
+        platforms: &[],
+        interiors: None,
+    };
+    let feet = city.ground_m + 1.0;
+    assert!((scene.support_at(street.x, street.y, feet) - (city.ground_m + cfg.road_lift_m)).abs() < 1e-4);
+    // a pavement point: a block's corner, inside its rect and clear of any building
+    let pave = city
+        .blocks
+        .iter()
+        .flat_map(|b| [b.rect.min + Vec2::splat(0.5), b.rect.max - Vec2::splat(0.5)])
+        .find(|p| plan.buildings.iter().all(|b| b.footprint.distance(*p) > 0.5))
+        .expect("a pavement corner");
+    assert_eq!(plan.walk_top_at(pave), Some(city.ground_m + cfg.kerb_height_m));
+    assert!((scene.support_at(pave.x, pave.y, feet) - (city.ground_m + cfg.kerb_height_m)).abs() < 1e-4);
+    // inside a building's footprint the pavement does not lift the feet
+    let inside = plan
+        .buildings
+        .iter()
+        .find(|b| b.city == city.id)
+        .map(|b| b.footprint.centre())
+        .unwrap();
+    assert_eq!(plan.walk_top_at(inside), None);
+    // far from any city or road, the bare ground
+    let wild = Vec2::new(19_000.0, 19_000.0);
+    if plan.road_top_at(wild).is_none() {
+        assert_eq!(plan.walk_top_at(wild), None);
+    }
+    // (roads and cities are never cratered: `Deformation::dig` protects them)
+}
+
+/// The pilot walking from a street onto a pavement stands on the road's top, then steps up onto the kerb's.
+#[test]
+fn the_pilot_walks_on_the_road_and_steps_up_onto_the_kerb() {
+    use crate::input::Actions;
+    use crate::pilot::{PilotConfig, PilotState};
+    let plan = seed_42();
+    let cfg = shipped();
+    let city = &plan.cities[0];
+    let dug = Deformation::default();
+    let scene = Scene {
+        plan,
+        dug: &dug,
+        trees: None,
+        structures: None,
+        platforms: &[],
+        interiors: None,
+    };
+    let pc = PilotConfig::default();
+    let street = city.streets[0].rect.centre();
+    let mut p = PilotState::standing(Vec3::new(street.x, city.ground_m, street.y), 0.0);
+    for _ in 0..30 {
+        p.step(&Actions::default(), &pc, &scene, None, 1.0 / 60.0);
+    }
+    assert!(
+        (p.feet.y - (city.ground_m + cfg.road_lift_m)).abs() < 1e-3,
+        "on the road: {}",
+        p.feet.y
+    );
+    let pave = city
+        .blocks
+        .iter()
+        .flat_map(|b| [b.rect.min + Vec2::splat(0.5), b.rect.max - Vec2::splat(0.5)])
+        .find(|q| plan.buildings.iter().all(|b| b.footprint.distance(*q) > 0.5))
+        .expect("a pavement corner");
+    let mut p = PilotState::standing(Vec3::new(pave.x, city.ground_m + cfg.road_lift_m, pave.y), 0.0);
+    for _ in 0..30 {
+        p.step(&Actions::default(), &pc, &scene, None, 1.0 / 60.0);
+    }
+    assert!(
+        (p.feet.y - (city.ground_m + cfg.kerb_height_m)).abs() < 1e-3,
+        "on the pavement: {}",
+        p.feet.y
+    );
 }

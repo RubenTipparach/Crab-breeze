@@ -129,9 +129,10 @@ What landed, where it differs from the plan above, and what it measured.
   it), and every car is raised by `car_height_scale` (1.18, `traffic.ron`): body, roof, wheels, ride height and
   the driver's eye, length and width kept (`CarSpec::raised` on load, the same number in `build_cars.py`;
   `cb-tools validate` refuses a model built at another height). A sedan is now 1.65 m, the bus 3.66 m. Stills:
-  `docs/screenshots/cars/before-*.png` and `after-*.png`. The pilot on foot also stands on the bare grade, 0.15 m
-  under the drawn road and 0.2 m under the pavement, so their eye is 1.55 m over the asphalt; that is not changed
-  here (it is the pilot's walking rule, `Scene::support_at`).
+  `docs/screenshots/cars/before-*.png` and `after-*.png`. The pilot on foot stood on the bare grade too, 0.15 m
+  under the drawn road and 0.2 m under the pavement (their eye 1.55 m over the asphalt); the walking rule now stands
+  every body on the drawn surface (`WorldPlan::walk_top_at` in `Scene::support_at`, the people's feet by the same
+  `City::surface_top`), so the eye is 1.70 m over the road and a sedan's roof 1.65 m.
 
 ## Open questions
 

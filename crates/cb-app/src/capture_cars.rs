@@ -167,7 +167,7 @@ fn drive(
             let spec = &data.0.traffic.kinds[c.kind as usize];
             let door = CarSpec::to_world(c.pos, c.heading_rad, spec.door_driver_m);
             let out = CarSpec::to_world(c.pos, c.heading_rad, [spec.door_driver_m[0] - 0.4, 0.0, spec.door_driver_m[2]]);
-            let feet = Vec3::new(out.x, c.pos.y - 0.15, out.z);
+            let feet = Vec3::new(out.x, c.pos.y, out.z);
             stand_looking(&mut pilot, feet, c.pos + Vec3::Y * 1.0);
             let _ = door;
             if t > 4.0 {
@@ -337,7 +337,12 @@ fn run(
         let spec = &d.kinds[k];
         // held beside the car every frame (it may be driving)
         let stand = CarSpec::to_world(c.pos, c.heading_rad, [at[0], 0.0, at[1]]);
-        let feet = Vec3::new(stand.x, plan.height_at(stand.x, stand.z), stand.z);
+        let feet = Vec3::new(
+            stand.x,
+            plan.walk_top_at(Vec2::new(stand.x, stand.z))
+                .unwrap_or_else(|| plan.height_at(stand.x, stand.z)),
+            stand.z,
+        );
         let look = c.pos + Vec3::Y * spec.size_m[1] * 0.55;
         stand_looking(&mut pilot, feet, look);
         let wait = 5.0;
@@ -346,8 +351,7 @@ fn run(
             shoot(&mut commands, &script.dir.clone(), &name);
             let path = script.dir.join(&name);
             script.shots.push(path);
-            let lift = data.0.world.road_lift_m;
-            let road = plan.road_top_at(Vec2::new(c.pos.x, c.pos.z), lift);
+            let road = plan.road_top_at(Vec2::new(c.pos.x, c.pos.z));
             println!(
                 "STILLS_CARS {kind} {view} car_y {:.2} ground {:.2} road_top {} roof {:.2} eye {:.2} (pilot feet {:.2}) height {:.2} m",
                 c.pos.y,
