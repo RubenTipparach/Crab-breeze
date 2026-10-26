@@ -51,4 +51,31 @@ second frame.
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| G24 | Where the scope picture shows | A window in the middle of the front screen | provisional (survey G24) |
+| G24 | Where the scope picture shows | A window in the middle of the front screen | **Decided**, owner 2026-10-26 ("Approve all"): a magnified window in the middle of the front screen, at 4x and 10x; the pilot's own eyes never zoom |
+
+## Built, and the calls made on the way
+
+Built 2026-10-26 on the owner's "Approve all" and "Go and implement"; "Use recommended for survey" for the choices on
+the way:
+
+- **The pilot's view is now 95 degrees seated** (`seated-fov`), not the 85 written in section 1, so the window's field
+  of view is computed from the live view: 30.5 degrees at 4x and 12.5 at 10x (`cb_core::scope::fov_rad`; the 85
+  degree figures are still tested).
+- **Where the window sits**: where the torso's forward line from the eye meets the screen wall's glass
+  (`CabinGlass`), 1 cm in front of it toward the eye, facing the eye, 30 degrees wide as seen from the seat (about
+  0.42 of a front screen). A mech with no interior shows it 1.2 m ahead.
+- **Bindings**: Scope is the middle mouse only (Z is the left punch, `close-combat`); the magnification steps on B,
+  or on the wheel while Scope is held (the wheel steps the weapon otherwise). Merged with the Use list (survey W40,
+  `option_cycle`, also on the wheel), the wheel has one job at a time: out of the mech's seat it moves the Use list
+  only (`interact.rs` scrolls it only when not seated); seated it steps the weapon, or, while the window is open, the
+  magnification (`scope.rs` applies B and the wheel only while open, so a wheel turn with the middle mouse held on
+  foot changes nothing).
+- **The look is scaled once, at the source** (`input::take_step_actions`), so the view and the torso's aim both turn
+  one over the magnification as far.
+- **The rangefinder** is `weapons::trace` against the world and the hostiles' bodies; the drop mark is
+  `weapons::lead` with drop for the selected target, projected into the picture; the state line reads the weapon,
+  the magnification, the rail's charge and the heat bank from `Guns`. `NO CAM` with the head lost, and the window
+  closes. The charge is a number, not yet a ring.
+- **Who has one**: the Picket's rail rifle and the hangar's rail rifle, `scope_zoom: [4.0, 10.0]`.
+- **Not measured**: the third world pass's cost (task 2.1) needs the owner's machine; nothing was rendered here, as
+  no playtest was allowed in this session.

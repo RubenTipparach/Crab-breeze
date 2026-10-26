@@ -509,11 +509,15 @@ Nothing is an exception until it is listed here with its reason.
   (`crates/cb-app/src/pbr_set.rs`), and its folder carries a `SOURCE.md` with the URL, the licence
   and every change made to it. The ground's grass is ambientCG Grass001
   (`assets/textures/ground/grass001/`).
-- **The Hermit's block-out is exported from its mockup, not built in Blender** (owner, 2026-10-25, on the Hermit
+- **The Stratostacean's block-out is exported from its mockup, not built in Blender** (owner, 2026-10-25, on the Stratostacean
   Air Fortress mockup: "looks good, build it in game"). The block-out the owner approved is the three.js page, so
-  `tools/mockups/export_fortress_glb.mjs` writes `assets/models/fortress_hermit.glb` from it, with its manifest and
+  `tools/mockups/export_fortress_glb.mjs` writes `assets/models/fortress_stratostacean.glb` from it, with its manifest and
   triangle budget: one implementation of its shape, from `tools/mockups/fortress_layout.json`. The Blender model
   replaces it when it is made (`openspec/changes/crab-airship` task 3.1).
+- **Far building facades are rendered from the near ones, not Material Maker graphs** (survey L1, owner, 2026-10-26:
+  "Approve all"). Each building type's far facade is a face-on render of its own near dressing pieces, coloured from
+  the near skin's own maps (`cb_core::world::far_facade`, `crates/cb-app/src/far_facades.rs`), made at startup
+  because those maps are, so a far facade cannot disagree with its near one (`openspec/changes/building-type-lods`).
 - **Copied skills keep their source's text** below their "In Crab Breeze" note (and its front
   matter description, retargeted), so a later copy from the source can be diffed. Where the source
   and the note disagree, the note and this file win.

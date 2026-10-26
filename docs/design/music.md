@@ -184,7 +184,9 @@ There is no music on foot for now: Main Street was deleted, and walking plays th
 Each score's `.mid` (for any DAW) and `.mmp` (the LMMS project) sit beside it in `music/`; the
 game's copies are `assets/audio/music/<cue>.ogg`, brought to -16 LUFS by a plain gain and a peak
 limiter, so each keeps its build from quiet to loud. How they play in the game (which cue when,
-crossfades, loops) is `openspec/changes/music`, not built yet.
+crossfades, loops) is `openspec/changes/music`, built in `crates/cb-app/src/music.rs` on the rules in
+`cb_core::audio`: one cue per game state (title, boarding, combat, set piece, won; silent on foot), each change on
+the next bar line with a one-bar crossfade (survey A2, owner, 2026-10-26: "Approve all").
 
 ## Rules for new music
 

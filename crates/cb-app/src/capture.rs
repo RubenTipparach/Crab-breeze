@@ -383,8 +383,13 @@ fn run_script(
     if script.beat >= 1 && crate::cli::switched_off("CB_STILLS_POSTER") {
         let i = script.beat - 1;
         if i >= POSTER_SHOTS.len() {
-            // The last screenshot is written a frame or two later.
-            if in_beat > 2.0 {
+            // The last screenshot is written a frame or two later: on a software renderer, whose
+            // frames take seconds, wait for the file itself (up to 30 s).
+            let last = script.dir.join(match POSTER_SHOTS.last() {
+                Some((_, true, _)) => format!("poster-{}-knelt.png", POSTER_SHOTS.len() - 1),
+                _ => format!("poster-{}.png", POSTER_SHOTS.len() - 1),
+            });
+            if in_beat > 2.0 && (last.exists() || in_beat > 30.0) {
                 exit.write(AppExit::Success);
             }
             return;
@@ -1057,7 +1062,7 @@ fn run_fx_script(
                 if let Some(spec) = player {
                     let launch = feet + Vec3::new(-flat.z, 0.0, flat.x) * 25.0 + Vec3::Y * 12.0;
                     for (wi, w) in spec.weapons.iter().enumerate() {
-                        let n = if w.rocket {
+                        let n = if w.shot().straight() {
                             3
                         } else if w.blast_mj < 1.0 {
                             12
@@ -1066,14 +1071,14 @@ fn run_fx_script(
                         };
                         for k in 0..n {
                             let aim = torso + Vec3::new((k as f32 - 5.0) * 0.8, (k % 4) as f32 * 3.0 - 6.0, 0.0);
-                            let from = launch + Vec3::Y * k as f32 * 0.6 - flat * (k as f32 * if w.rocket { 25.0 } else { 0.0 });
+                            let from = launch + Vec3::Y * k as f32 * 0.6 - flat * (k as f32 * if w.shot().straight() { 25.0 } else { 0.0 });
                             shots.0.push(cb_core::weapons::Projectile {
                                 owner: 0,
                                 weapon: wi,
                                 pos: from,
                                 vel: (aim - from).normalize() * w.speed_m_s,
                                 age_s: 0.0,
-                                rocket: w.rocket,
+                                rocket: w.shot().straight(),
                                 target: None,
                             });
                         }

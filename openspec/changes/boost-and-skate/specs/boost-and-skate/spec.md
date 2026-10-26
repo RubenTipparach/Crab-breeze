@@ -28,3 +28,18 @@ The mech SHALL skate when the pilot turns skates on, for at most 40 s of use fro
 #### Scenario: Skating dry
 - **WHEN** the pilot skates for 41 s from full
 - **THEN** the mech walks again after 40 s
+
+### Requirement: Every mech has rockets and skates with stats of its own
+
+Every roster mech SHALL have the rockets and the skates, run by the one simulation, with its lift, climb cap, burn
+and recharge, and its skates' top speed, drive, grip, turn rate, use and recharge read from its own data file; no two
+roster mechs SHALL share the same set (survey C15, owner, 2026-10-26: "every mech has dash/skate, just diferent stats
+for them").
+
+#### Scenario: The light Picket out-skates the hauling Mule
+- **WHEN** the Picket and the Mule skate from a stand at full throttle for 10 s
+- **THEN** the Picket is the faster
+
+#### Scenario: A mech's skates last its own time
+- **WHEN** the Mule skates from full until its skates give out
+- **THEN** they give out after its own 55 s, not the Foreman's 40 s

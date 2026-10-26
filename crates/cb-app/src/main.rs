@@ -23,11 +23,13 @@ mod clouds_render;
 mod combat;
 mod defence;
 mod demolition;
+mod far_facades;
 mod fortress;
 mod fx;
 mod fx_gallery;
 mod grass;
 mod ground;
+mod ground_fog;
 mod ground_marks;
 #[cfg(feature = "hitch_spans")]
 mod hitch_spans;
@@ -52,6 +54,7 @@ mod plumes;
 mod rocks;
 mod rope;
 mod save_game;
+mod scope;
 mod screen_cut;
 mod screens_cube;
 mod settings;
@@ -221,8 +224,12 @@ fn main() -> AppExit {
         career::CareerPlugin,
         interact::InteractPlugin,
     ))
-    // Free roam's mail and its missions (free-roam-missions); the Hermit (crab-airship).
+    // Free roam's mail and its missions (free-roam-missions); the Stratostacean (crab-airship).
     .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin))
+    // How thick the ground fog is now: its clock and the mission's preset (ground-fog, survey F1).
+    .add_plugins(ground_fog::GroundFogPlugin)
+    // The railgun's scope window on the front screen (railgun-scope).
+    .add_plugins(scope::ScopePlugin)
     // Car traffic and the car you drive (openspec changes `car-traffic`, `car-driving`).
     .add_plugins((traffic::TrafficPlugin, traffic_lights::TrafficLightsPlugin))
     // Buildings a pilot on foot walks into, and their street doors (building-interiors).

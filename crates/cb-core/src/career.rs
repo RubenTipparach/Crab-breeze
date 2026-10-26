@@ -569,7 +569,7 @@ impl CareerData {
         }
         let mut designs = Vec::new();
         for l in &catalogue.listings {
-            designs.push((l.design.clone(), load_ron(&root.join(&l.design))?));
+            designs.push((l.design.clone(), crate::mech::MechConfig::load(root, &l.design)?));
         }
         if catalogue.listing(&career.start_mech).is_none() {
             return Err(crate::data::DataError {

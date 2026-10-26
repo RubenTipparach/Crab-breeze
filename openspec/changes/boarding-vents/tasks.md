@@ -14,6 +14,10 @@
 - [x] 3.2 `FxStream.density`
 - [ ] 3.3 Headless stills of a boarding: the seals' steam, the mist over the sill (taken; the vents switch on the boarding clock as designed, by the log, but their particles did not show on lavapipe: `docs/playtests/2026-10-25-roster-cloud.md`; seen on the owner's machine in 4.2)
 
+## 3b. Survey M12
+- [x] 3b.1 Only the mech you board vents (owner, 2026-10-26, "Approve all"): checked already true on living-island:
+  `vents::bind` binds under the `Piloted` mech only and `vents::switch` turns a stream on only under it (`mine`)
+
 ## 4. Checks
 - [x] 4.1 `cargo fmt`, `cargo clippy -D warnings`, `cargo test --workspace`, `cb-tools validate`, `openspec validate --all`, the dash check
 - [ ] 4.2 Playtest on the owner's machine: board and leave each mech, watch the steam and mist from the ground and the seat

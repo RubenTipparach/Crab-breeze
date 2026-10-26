@@ -81,8 +81,9 @@ fn from_file(root: &std::path::Path, path: &str, fallback: [u8; 4]) -> RgbaImage
 }
 
 /// One array image from its layers, each with its mip chain (layer-major, as wgpu wants).
-fn array(layers: Vec<RgbaImage>, format: TextureFormat) -> Image {
+pub fn array(layers: Vec<RgbaImage>, format: TextureFormat) -> Image {
     let n = layers.len() as u32;
+    let (width, height) = layers.first().map_or((SIZE, SIZE), |l| l.dimensions());
     let mut data = Vec::new();
     let mut levels = 1;
     for l in layers {
@@ -92,8 +93,8 @@ fn array(layers: Vec<RgbaImage>, format: TextureFormat) -> Image {
     }
     let mut img = Image::new_uninit(
         Extent3d {
-            width: SIZE,
-            height: SIZE,
+            width,
+            height,
             depth_or_array_layers: n,
         },
         TextureDimension::D2,
@@ -123,8 +124,9 @@ fn orm_of(roughness: f32) -> [u8; 4] {
     [255, (roughness.clamp(0.0, 1.0) * 255.0).round() as u8, 0, 255]
 }
 
-/// Builds the arrays from `sources`, in layer order.
-pub fn build(images: &mut Assets<Image>, sources: &[Source]) -> Arrays {
+/// Builds the arrays from `sources`, in layer order, and keeps the colour layers on the CPU for whoever renders
+/// from them next (the far facades, `far_facades`).
+pub fn build_keeping(images: &mut Assets<Image>, sources: &[Source]) -> (Arrays, Vec<RgbaImage>) {
     let root = crate::cli::repo_root().join("assets");
     const FLAT_NORMAL: [u8; 4] = [128, 128, 255, 255];
     let (mut albedo, mut normal, mut orm) = (Vec::new(), Vec::new(), Vec::new());
@@ -151,11 +153,15 @@ pub fn build(images: &mut Assets<Image>, sources: &[Source]) -> Arrays {
             }
         }
     }
-    Arrays {
-        albedo: images.add(array(albedo, TextureFormat::Rgba8UnormSrgb)),
-        normal: images.add(array(normal, TextureFormat::Rgba8Unorm)),
-        orm: images.add(array(orm, TextureFormat::Rgba8Unorm)),
-    }
+    let kept = albedo.clone();
+    (
+        Arrays {
+            albedo: images.add(array(albedo, TextureFormat::Rgba8UnormSrgb)),
+            normal: images.add(array(normal, TextureFormat::Rgba8Unorm)),
+            orm: images.add(array(orm, TextureFormat::Rgba8Unorm)),
+        },
+        kept,
+    )
 }
 
 #[cfg(test)]
