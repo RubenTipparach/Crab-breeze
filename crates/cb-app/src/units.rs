@@ -94,11 +94,15 @@ impl Units {
         id
     }
 
-    /// Every vehicle `mission` brought leaves the world (the mission was turned off).
-    pub fn retire(&mut self, mission: cb_core::missions::MissionKind) {
+    /// Every vehicle `mission` brought leaves the world at once (the mission was turned off: survey FR1); returns
+    /// their ids, so their rounds in the air go with them.
+    pub fn retire(&mut self, mission: cb_core::missions::MissionKind) -> Vec<u32> {
+        let mut ids = Vec::new();
         for p in self.list.iter_mut().filter(|p| p.mission == Some(mission)) {
             p.gone = true;
+            ids.push(p.unit.id);
         }
+        ids
     }
 
     /// `mission`'s vehicles flying or fighting now.
@@ -564,5 +568,47 @@ fn draw_units(
         });
         commands.entity(root).insert(UnitDraw { id: p.unit.id, chute });
         known.insert(p.unit.id, root);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cb_core::missions::MissionKind;
+
+    fn units_data() -> cb_core::units::UnitsConfig {
+        let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/world/units.ron");
+        cb_core::data::load_ron(&p).unwrap()
+    }
+
+    #[test]
+    fn a_stopped_missions_vehicles_and_their_rounds_leave_at_once_and_only_theirs() {
+        // Survey FR1 (owner, 2026-10-26): when free roam starts a new mission, the stopped mission's enemies leave
+        // the world at once.
+        let data = units_data();
+        let spec = &data.units["fighter"];
+        let mut units = Units::default();
+        let mut add = |m: Option<MissionKind>| units.add_for(|id| Unit::new(id, "fighter", spec, Vec3::ZERO, 0.0, id), None, None, m);
+        let fortress = add(Some(MissionKind::Fortress));
+        let defence = add(Some(MissionKind::Defence));
+        let free = add(None);
+        let gone = units.retire(MissionKind::Fortress);
+        assert_eq!(gone, [fortress]);
+        assert_eq!(units.count_for(MissionKind::Fortress), 0);
+        assert_eq!(units.count_for(MissionKind::Defence), 1);
+        assert!(units.list.iter().filter(|p| p.gone).all(|p| p.unit.id == fortress));
+        let round = |owner: u32| cb_core::weapons::Projectile {
+            owner,
+            weapon: 0,
+            pos: Vec3::ZERO,
+            vel: Vec3::X,
+            age_s: 0.0,
+            rocket: false,
+            target: None,
+        };
+        let mut shots = crate::combat::Shots(vec![round(fortress), round(defence), round(free)], Vec::new());
+        shots.drop_from(|o| gone.contains(&o));
+        let left: Vec<u32> = shots.0.iter().map(|s| s.owner).collect();
+        assert_eq!(left, [defence, free]);
     }
 }

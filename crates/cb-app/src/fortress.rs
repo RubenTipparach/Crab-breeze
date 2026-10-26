@@ -176,10 +176,12 @@ fn switch(
     mut materials: ResMut<Assets<StandardMaterial>>,
     tex: Res<crate::textures::Textures>,
     guards: Query<Entity, With<DeckGuard>>,
+    mut shots: ResMut<Shots>,
 ) {
     let mut have = run
         .as_ref()
         .map(|r| (r.root, r.beam_draws.clone(), r.legs.iter().map(|l| l.pivot).collect::<Vec<_>>()));
+    let guards_spawned = run.as_ref().map_or(0, |r| r.guards);
     for s in switches.read() {
         if s.stop == Some(MissionKind::Fortress)
             && let Some((root, beams, legs)) = have.take()
@@ -187,7 +189,11 @@ fn switch(
             for e in std::iter::once(root).chain(beams).chain(legs) {
                 commands.entity(e).despawn();
             }
-            units.retire(MissionKind::Fortress);
+            // Its enemies leave the world at once, their rounds in the air with them; what they broke stays broken
+            // (survey FR1).
+            let vehicles = units.retire(MissionKind::Fortress);
+            let guard_ids = GUARD_ID_BASE..GUARD_ID_BASE + guards_spawned;
+            shots.drop_from(|o| o == FORTRESS_ID || vehicles.contains(&o) || guard_ids.contains(&o));
             for e in &guards {
                 commands.entity(e).despawn();
             }

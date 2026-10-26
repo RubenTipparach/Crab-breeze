@@ -51,5 +51,5 @@ A few hundred bytes of mail; one message a switch. Starting a mission costs what
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| FR1 | A stopped mission's enemies | They leave the world at once; what they destroyed stays | provisional (survey FR1) |
+| FR1 | A stopped mission's enemies | They leave the world at once; what they destroyed stays | decided (owner, 2026-10-26, survey FR1: recommendation accepted, "Approve all"). Built with 2.1: the defence's raiders and the Stratostacean (its model, beams, falling legs, platforms, deck guard) despawn and their vehicles retire on the switch; nothing restores a broken cell. Added: their rounds still in the air leave with them (`Shots::drop_from`) |
 | FR2 | When free roam's mission mail arrives | All of it in the inbox from the start | provisional (survey FR2) |
