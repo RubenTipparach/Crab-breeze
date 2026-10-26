@@ -154,6 +154,40 @@ const ART_IMG = '';
 
 // The questions. Answers live in the db collection `answers`, one document per question id.
 const SECTIONS = [
+  { tag: 'D', name: 'The mech air drop',
+    lead: 'Built on 2026-10-26 from your words "air dropped close to wherever the player is on a good are on the ground (not stuck on a building)" and J16 (PR #72). Every recommendation below is what is built; not yet seen in the game.',
+    qs: [
+      { id: 'D1', q: 'How far from you should a bought mech land?',
+        options: ['40 to 150 m', '20 to 80 m', '100 to 300 m'], rec: 0,
+        why: 'Far enough that the fall and the dust miss you, near enough for a short walk.' },
+      { id: 'D2', q: 'How does it come down?',
+        options: ['Canopies, with a retro burst at the end', 'Retro thrusters only', 'Canopies only'], rec: 0,
+        why: 'Canopies read from far away, and the retros kick up dust at the ground.' },
+      { id: 'D3', q: 'How long from BUY to touchdown?',
+        options: ['About 50 s', 'About 20 s', 'A minute or more'], rec: 0,
+        why: 'Long enough to see the aircraft pass and watch it fall, short enough not to wait around.' },
+      { id: 'D4', q: 'May it land in water?',
+        options: ['Dry ground always wins; shallow water only as a last resort', 'Dry ground only', 'Any water the mech can wade'], rec: 0,
+        why: 'It never refuses a drop on a coast, but never splashes down when dry ground is near.' },
+      { id: 'D5', q: 'No good ground within 600 m:',
+        options: ['It goes to a hangar bay instead', 'The purchase is refused', 'The search widens further'], rec: 0,
+        why: 'The money is never wasted and the old path still works.' },
+      { id: 'D6', q: 'You stand where it is landing:',
+        options: ['The canopies steer it aside with a warning, and it lands beside you if you stay', 'It waits overhead until you move', 'It is called off and dropped again'], rec: 0,
+        why: 'It never lands on you and never stalls.' },
+      { id: 'D7', q: 'Which of your mechs do you board?',
+        options: ['Whichever owned mech you walk up to, within 40 m', 'Pick one on a terminal first', 'Only the last one you drove'], rec: 0,
+        why: 'It is the existing boarding, with no menu.' },
+      { id: 'D8', q: 'The cargo aircraft is a grey block-out for now. Model it?',
+        options: ['Keep the block-out until airfields models one', 'Model a real aircraft in Blender now'], rec: 0,
+        why: 'It is on screen for about 40 s a purchase; the civilian air traffic work may supply one.' },
+      { id: 'D9', q: 'Where does a mech you call out at a base appear?',
+        options: ['In the terminal\'s bay, else the base\'s first clear bay', 'On the apron in front of the hangars', 'Always bay 1'], rec: 0,
+        why: 'It stands right where you are.' },
+      { id: 'D10', q: 'Calling out a wrecked Foreman:',
+        options: ['Free and whole', 'Charged a repair price', 'Only after a wait'], rec: 0,
+        why: '"foreman always availible", and repairs at bases are free today.' },
+    ] },
 ];
 
 // Answered, and being built. Each moves to DECIDED (Done) once its answer is in the game.
@@ -161,7 +195,6 @@ const IN_PROGRESS = [
   { text: 'W32 People, cars and aircraft all at once, in parallel (your pick).', where: 'openspec/changes/civilians, car-traffic, car-driving, and a new civil-air-traffic change (Mac session)' },
   { text: 'W33 Airliners and cargo planes between the five air bases, light planes and news or police helicopters over the cities; they keep clear of a fight and crabs can shoot them down (your pick).', where: 'civil-air-traffic, to be written (Mac session)' },
   { text: 'W34 Your own fire can hit a civilian aircraft, and it costs you standing with the nearest base (your pick).', where: 'civil-air-traffic, career standing (Mac session)' },
-  { text: 'J16 Buying away from a base is allowed, and: "a marker appears on your hud to show mech delivery. you can swap mechs out at base, with foreman always availible". Delivery is now the air drop near you (owner, 2026-10-26).', where: 'openspec/changes/mech-shop, the air drop; PR #72 (Mac session)' },
   { text: 'C14 MFD pages are not remembered between sorties (your pick), and: "mfds return to default as soon as you click back on them, leaving mfd focus".', where: 'openspec/changes/mfd-menus' },
   { text: 'C15 The Ironhorse keeps its lower front screens (your pick), and: "every mech has dash/skate, just diferent stats for them".', where: 'openspec/changes/cockpit-parity; the dash and skates for every mech, stats per mech' },
   { text: 'C16 Every mech its own cockpit as listed (recommendation accepted).', where: 'openspec/changes/cockpit-identity' },
@@ -186,6 +219,7 @@ const IN_PROGRESS = [
 ];
 
 const DECIDED = [
+  { text: 'J16 A bought mech is air dropped near you (owner, 2026-10-26), and: "a marker appears on your hud to show mech delivery. you can swap mechs out at base, with foreman always availible". A HUD marker follows the drop until you board, and a base terminal\'s HANGAR tab calls out any mech parked there, the Foreman from anywhere.', where: 'crates/cb-core/src/air_drop.rs, data/career/air_drop.ron, the terminal HANGAR tab; PR #72' },
   { text: 'W30 Street doors swing open as you walk into them and shut behind you, never on you (your pick). The timings are provisional until a playtest.', where: 'crates/cb-core/src/world/door.rs, data/world/world.ron interiors; PR #73' },
   { text: 'W31 Warehouse roller doors stay shut until warehouses have a hall inside (your pick).', where: 'openspec/changes/building-interiors; PR #73' },
   { text: 'J15 Mech prices as listed, Picket 300 000 to Harrow 1 200 000 (your pick).', where: 'data/career/catalogue.ron; PR #72' },
