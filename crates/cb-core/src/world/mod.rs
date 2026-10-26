@@ -5,6 +5,7 @@
 //! draws the plan; the pilot and the mech walk on it through `height_at` and `push_out`. The world
 //! is an island in the sea (openspec change `island-world`).
 
+pub mod bases;
 pub mod biome;
 pub mod clouds;
 pub mod collision;
@@ -30,6 +31,7 @@ pub mod terrain;
 pub mod water;
 pub mod weather;
 
+pub use bases::{AirBase, BasesConfig};
 pub use biome::{BIOME_COUNT, BIOMES, Biome, Biomes};
 pub use clouds::Clouds;
 pub use collision::BuildingGrid;
@@ -249,6 +251,8 @@ pub struct WorldPlan {
     pub mist: mist::MistMap,
     /// The terrain's own shadow for the sun, for far ground (distant-shadows).
     pub sun_shade: sun_shade::SunShade,
+    /// The air bases (air-bases), the one nearest the start first.
+    pub bases: Vec<AirBase>,
 }
 
 impl WorldPlan {
@@ -371,15 +375,42 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         buildings.extend(layout::build_city(&mut rng, city, &highways, first, largest, cfg));
     }
 
-    let flats = Flats::new(&cities, &highways, cfg);
+    // Air bases beside the highways, flattened like the cities' squares (air-bases).
+    let start_xz = cities.first().map_or(Vec2::ZERO, |c| c.centre);
+    let courses: Vec<Vec<Vec2>> = drainage.courses.iter().map(|c| c.points.clone()).collect();
+    let clear = bases::KeepClear {
+        highways: &highways,
+        road_m: cfg.highway_width_m * 0.5
+            + cfg.highway_flat_margin_m
+            + cfg.highway_blend_m
+            + cfg.plateau_flat_margin_m
+            + cfg.plateau_blend_m,
+        courses: &courses,
+        river_m: cfg.plateau_flat_margin_m + cfg.plateau_blend_m + cfg.water.river_max_half_width_m + cfg.water.river_city_clearance_m,
+    };
+    let bases = bases::place_bases(
+        &shape,
+        &cities,
+        &clear,
+        start_xz,
+        &cfg.bases,
+        sea_level_m + cfg.water.city_freeboard_m,
+    );
+    let plateaus: Vec<(layout::Rect, f32)> = cities
+        .iter()
+        .map(|c| (c.rect(), c.ground_m))
+        .chain(bases.iter().map(|b| (b.rect(), b.ground_m)))
+        .collect();
+    let keep_out: Vec<layout::Rect> = plateaus.iter().map(|p| p.0).collect();
+    let flats = Flats::new(&plateaus, &highways, cfg);
     let terrain = Heightfield::new(cfg, shape, flats);
     let bounds = water::WaterBounds {
         world_size_m: cfg.world_size_m,
         sea_level_m,
     };
-    let waters = water::make_waters(&root.fork("water"), &drainage, &terrain, &cities, &highways, &cfg.water, &bounds);
+    let waters = water::make_waters(&root.fork("water"), &drainage, &terrain, &keep_out, &highways, &cfg.water, &bounds);
     let road_flat_m = cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m;
-    let channels = waters.channels(&cfg.water, &cities, cfg.plateau_flat_margin_m, &highways, road_flat_m);
+    let channels = waters.channels(&cfg.water, &keep_out, cfg.plateau_flat_margin_m, &highways, road_flat_m);
     let terrain = terrain.with_channels(channels);
     let sun_shade = sun_shade::SunShade::bake(&terrain, cfg.world_size_m, sun_shade::to_sun(), &cfg.sun_shade);
 
@@ -424,6 +455,7 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         sun_shade,
         rocks,
         mist,
+        bases,
     }
 }
 

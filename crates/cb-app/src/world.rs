@@ -48,6 +48,11 @@ pub fn exposure_scale(view: &cb_core::world::config::ViewConfig) -> f32 {
 #[derive(Resource)]
 pub struct StartOnOverlook;
 
+/// Start on the first air base's apron, behind the mech, which faces the hangar bays (`--start base`,
+/// air-bases).
+#[derive(Resource)]
+pub struct StartAtBase;
+
 /// Start in the nearest meadow instead of the city (`--start meadow`, gpu-grass).
 #[derive(Resource)]
 pub struct StartInMeadow;
@@ -116,6 +121,24 @@ impl Plugin for WorldPlugin {
                     plan.start = s;
                 }
                 None => warn!("world: no meadow within 6 km; starting in the city"),
+            }
+        }
+        if app.world().contains_resource::<StartAtBase>() {
+            match plan.bases.first() {
+                Some(b) => {
+                    // 150 m in front of the middle hangar bay's mouth, facing it (heading pi faces +z);
+                    // the pilot stands 25 m behind.
+                    let bays = b.hangars(&cfg.bases);
+                    let mouth = bays.get(bays.len() / 2).map_or(b.centre, |h| Vec2::new(h.centre().x, h.min.y));
+                    let mech_xz = mouth - Vec2::new(0.0, 150.0);
+                    plan.start = cb_core::world::Start {
+                        mech_xz,
+                        mech_heading_rad: std::f32::consts::PI,
+                        pilot_xz: mech_xz - Vec2::new(0.0, cfg.start_pilot_distance_m),
+                    };
+                    info!("world: starting on air base {} at ({:.0}, {:.0})", b.id, mech_xz.x, mech_xz.y);
+                }
+                None => warn!("world: no air base; starting in the city"),
             }
         }
         info!(

@@ -53,7 +53,8 @@ pub fn can_continue() -> bool {
 }
 
 /// Writes the career (through a temporary file, so a crash keeps the last good save).
-fn save(c: &Career) {
+/// Writes the career to its save file (through a temporary file); also used by `save_game`.
+pub(crate) fn save(c: &Career) {
     let p = save_path();
     let _ = std::fs::create_dir_all(p.parent().unwrap_or(std::path::Path::new(".")));
     let tmp = p.with_extension("ron.tmp");

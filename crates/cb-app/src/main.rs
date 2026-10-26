@@ -1,6 +1,7 @@
 //! Crab Breeze, the game. This file is the composition root (CLAUDE.md section 6.2): it reads the
 //! command line and the data, and wires the plugins. It holds no game logic.
 
+mod air_bases;
 mod ambience;
 mod audio;
 mod battle_fx;
@@ -40,6 +41,7 @@ mod pilot;
 mod plumes;
 mod rocks;
 mod rope;
+mod save_game;
 mod screen_cut;
 mod screens_cube;
 mod settings;
@@ -120,6 +122,9 @@ fn main() -> AppExit {
     .add_plugins(textures::TexturesPlugin);
     if args.start.as_deref() == Some("meadow") {
         app.insert_resource(world::StartInMeadow);
+    }
+    if args.start.as_deref() == Some("base") {
+        app.insert_resource(world::StartAtBase);
     }
     // The blended smoke drawn sorted and soft (openspec change `particle-depth`).
     app.add_plugins(soft_sprites::SoftSpritesPlugin);
@@ -211,6 +216,16 @@ fn main() -> AppExit {
             career::CareerStart::Continue
         });
     }
+    // A player's game (picked on the menu) saves where they are and continues from it (save-game).
+    if let Some(mode) = args.play.as_deref() {
+        app.insert_resource(save_game::Saving {
+            free_roam: mode.starts_with("free"),
+            restore: mode.ends_with("continue"),
+            mech: args.mech.clone(),
+        });
+    }
+    app.add_plugins(save_game::SaveGamePlugin);
+    app.add_plugins(air_bases::AirBasesPlugin);
     // The player's settings; a measurement or capture run keeps the window it set up.
     app.add_plugins(settings::SettingsPlugin {
         window: !scripted && !cli::switched_off("CB_UNCAPPED"),
