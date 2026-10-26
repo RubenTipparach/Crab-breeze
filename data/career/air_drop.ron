@@ -1,0 +1,22 @@
+// The air drop (openspec change mech-shop, design section 6; owner, 2026-10-26: "when a player orders a mech it
+// should be air dropped close to wherever the player is on a good are on the ground (not stuck on a building)").
+// Where a bought mech lands near the pilot. Distances in metres, angles in degrees. Provisional: survey D1-D8.
+(
+    // The ring round the pilot (D1): 40 m keeps a 24 m mech's fall and dust off them, 150 m is a short walk.
+    ring_min_m: 40.0,
+    ring_max_m: 150.0,
+    // Past the ring the search goes on to here; with nothing good by then the mech goes to a hangar bay (D5).
+    search_max_m: 600.0,
+    ring_step_m: 10.0,
+    spot_spacing_m: 15.0,
+    // Clear ground beyond the mech's own footprint (its body_radius_m): to buildings, hangars, towers and rocks;
+    // to other mechs.
+    building_clear_m: 6.0,
+    mech_clear_m: 10.0,
+    // The steepest ground across the footprint: a steep street.
+    max_slope_deg: 12.0,
+    // Roads, streets, plazas and aprons count 30 m nearer; water (never deeper than the mech's skim depth) 300 m
+    // farther, so dry ground wins whenever the ring has any (D4).
+    paved_bonus_m: 30.0,
+    wet_penalty_m: 300.0,
+)

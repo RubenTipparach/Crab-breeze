@@ -6,6 +6,7 @@
 //! `cb-app` adapts it to Bevy.
 
 pub mod ai;
+pub mod air_drop;
 pub mod audio;
 pub mod bases;
 pub mod battle_fx;

@@ -334,6 +334,8 @@ pub struct CareerData {
     pub designs: Vec<(String, crate::mech::MechConfig)>,
     /// `career/parts.ron`: weapons, armour grades and liveries for refits (mech-custom).
     pub parts: crate::refit::Parts,
+    /// `career/air_drop.ron`: where a bought mech lands near the pilot and how it comes down (mech-shop section 6).
+    pub drop: crate::air_drop::DropConfig,
 }
 
 impl CareerData {
@@ -345,6 +347,7 @@ impl CareerData {
         let cat_path = root.join("career/catalogue.ron");
         let catalogue: crate::shop::Catalogue = load_ron(&cat_path)?;
         let parts: crate::refit::Parts = load_ron(&root.join("career/parts.ron"))?;
+        let drop: crate::air_drop::DropConfig = load_ron(&root.join("career/air_drop.ron"))?;
         if let Some(l) = catalogue
             .listings
             .iter()
@@ -374,6 +377,7 @@ impl CareerData {
             catalogue,
             designs,
             parts,
+            drop,
         })
     }
 

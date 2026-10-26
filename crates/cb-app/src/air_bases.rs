@@ -61,7 +61,7 @@ pub struct TerminalNear {
 pub struct AtTerminal(pub Terminal);
 
 /// Wall and roof thickness of a hangar, metres.
-const WALL_M: f32 = 1.5;
+const WALL_M: f32 = cb_core::world::bases::HANGAR_WALL_M;
 /// The apron's lift over the flattened ground, metres (clear of the terrain, no z-fighting).
 const APRON_LIFT_M: f32 = 0.12;
 /// A landing pad's side, metres.
@@ -162,7 +162,7 @@ fn spawn_bases(
             }
         }
         // The control tower by the front corner.
-        let t = Vec2::new(r.max.x - 40.0, r.min.y + 40.0);
+        let t = b.tower().centre();
         slab.block(
             Vec3::new(t.x - 6.0, g, t.y - 6.0),
             Vec3::new(t.x + 6.0, g + 36.0, t.y + 6.0),

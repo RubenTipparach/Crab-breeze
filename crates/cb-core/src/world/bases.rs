@@ -102,10 +102,40 @@ pub const HANGAR_GAP_M: f32 = 12.0;
 /// How far a hangar's back wall stands in from the base's back edge, metres.
 const HANGAR_BACK_M: f32 = 30.0;
 
+/// A hangar's walls and roof stand this thick outside its inside, metres.
+pub const HANGAR_WALL_M: f32 = 1.5;
+
+/// The control tower's half width at its cab (the widest part), metres.
+const TOWER_HALF_M: f32 = 9.0;
+
+/// The control tower stands this far in from the base's front corner (high x, low z), metres.
+const TOWER_IN_M: f32 = 40.0;
+
 impl AirBase {
     /// Its footprint.
     pub fn rect(&self) -> Rect {
         Rect::centred(self.centre, self.half_m)
+    }
+
+    /// Its control tower's footprint at its widest (the cab), by the front corner of the apron.
+    pub fn tower(&self) -> Rect {
+        let r = self.rect();
+        Rect::centred(Vec2::new(r.max.x - TOWER_IN_M, r.min.y + TOWER_IN_M), Vec2::splat(TOWER_HALF_M))
+    }
+
+    /// Everything built on the site that stands up off the apron (x, z): each hangar bay with its walls and roof,
+    /// and the control tower. The one list of what a body must not be put inside (`air_drop`).
+    pub fn structures(&self, cfg: &BasesConfig) -> Vec<Rect> {
+        let mut out: Vec<Rect> = self
+            .hangars(cfg)
+            .into_iter()
+            .map(|h| Rect {
+                min: h.min - Vec2::new(HANGAR_WALL_M, 0.0),
+                max: h.max + Vec2::splat(HANGAR_WALL_M),
+            })
+            .collect();
+        out.push(self.tower());
+        out
     }
 
     /// Its hangar bays' insides (x, z), along the back edge (high z), open toward the apron (low z).
