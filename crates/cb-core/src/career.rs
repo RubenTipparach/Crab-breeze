@@ -74,6 +74,15 @@ pub struct OwnedMech {
     pub structure: Vec<f32>,
     /// Parts lost.
     pub lost: Vec<bool>,
+    /// Each weapon station's bought weapon (`mech-custom`, a `parts.ron` id), or `None` for the design's stock one.
+    #[serde(default)]
+    pub fit: Vec<Option<String>>,
+    /// Its armour grade (0: as built).
+    #[serde(default)]
+    pub armour: u8,
+    /// Its livery, an index into `parts.ron`'s liveries (0: the factory one).
+    #[serde(default)]
+    pub livery: u32,
 }
 
 impl OwnedMech {
@@ -155,6 +164,9 @@ pub struct Career {
     /// that base's pay and never closes a base to the pilot (CP2).
     #[serde(default)]
     pub standing: std::collections::BTreeMap<u32, i64>,
+    /// Weapons bought and not fitted to any mech, by `parts.ron` id (mech-custom).
+    #[serde(default)]
+    pub parts: Vec<String>,
 }
 
 impl Career {
@@ -171,6 +183,7 @@ impl Career {
             seed,
             place: None,
             standing: Default::default(),
+            parts: Vec::new(),
             done: Vec::new(),
             ledger: Vec::new(),
             board: crate::jobs::Board::default(),
@@ -192,6 +205,9 @@ impl Career {
             bay,
             structure: structure.to_vec(),
             lost: vec![false; structure.len()],
+            fit: Vec::new(),
+            armour: 0,
+            livery: 0,
         });
         key
     }
@@ -316,6 +332,8 @@ pub struct CareerData {
     pub catalogue: crate::shop::Catalogue,
     /// Each listed design's data, by its file (`mechs/sapper.ron`), in catalogue order.
     pub designs: Vec<(String, crate::mech::MechConfig)>,
+    /// `career/parts.ron`: weapons, armour grades and liveries for refits (mech-custom).
+    pub parts: crate::refit::Parts,
 }
 
 impl CareerData {
@@ -326,6 +344,20 @@ impl CareerData {
         let jobs: crate::jobs::JobsConfig = load_ron(&root.join("jobs/jobs.ron"))?;
         let cat_path = root.join("career/catalogue.ron");
         let catalogue: crate::shop::Catalogue = load_ron(&cat_path)?;
+        let parts: crate::refit::Parts = load_ron(&root.join("career/parts.ron"))?;
+        if let Some(l) = catalogue
+            .listings
+            .iter()
+            .find(|l| parts.grade(l.armour_max).is_none() && l.armour_max > 0)
+        {
+            return Err(crate::data::DataError {
+                path: cat_path,
+                reason: format!(
+                    "listings: {} allows armour grade {}, which parts.ron does not price",
+                    l.design, l.armour_max
+                ),
+            });
+        }
         let mut designs = Vec::new();
         for l in &catalogue.listings {
             designs.push((l.design.clone(), load_ron(&root.join(&l.design))?));
@@ -341,6 +373,7 @@ impl CareerData {
             jobs,
             catalogue,
             designs,
+            parts,
         })
     }
 

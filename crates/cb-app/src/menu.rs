@@ -70,6 +70,8 @@ pub enum TerminalTab {
     Jobs,
     /// The mech shop.
     Shop,
+    /// Refit the mech standing in this bay (mech-custom).
+    Refit,
 }
 
 /// The page Back (and Escape) goes to from Options and Controls: the title or the pause menu.
@@ -87,6 +89,8 @@ pub(crate) enum MenuButton {
     Tab(TerminalTab),
     /// Buy the shop's listing at this index (mech-shop).
     Buy(usize),
+    /// A refit of the mech in the bay (mech-custom).
+    Refit(crate::career::Refit),
     NewCareer,
     Continue,
     Mail,
@@ -230,6 +234,11 @@ fn press(
                 let (at, from) = p.terminal.map_or((None, Vec2::ZERO), |t| (Some(t.base), t.at));
                 let note = crate::career::buy_mech(c, p.plan, p.bays_per_base, &design, at, from);
                 c.shop_note = Some(note);
+            }
+        }
+        MenuButton::Refit(r) => {
+            if let Some(c) = career {
+                c.shop_note = Some(crate::career::refit(c, r));
             }
         }
         MenuButton::NewCareer | MenuButton::Continue => {
@@ -453,6 +462,10 @@ fn draw(
     free: Option<Res<crate::missions::FreeRoamRun>>,
     terminal: Option<Res<crate::air_bases::AtTerminal>>,
     tab: Res<TerminalTab>,
+    (plan, me): (
+        Res<crate::world::Plan>,
+        Query<(&crate::mech::MechSim, &crate::mech::MechSpec), With<crate::mech::Piloted>>,
+    ),
     roots: Query<Entity, With<MenuRoot>>,
     overlay: Query<Entity, With<CockpitCamera>>,
 ) {
@@ -634,6 +647,25 @@ fn draw(
                     match *tab {
                         TerminalTab::Jobs => mail_page(p, &run.career),
                         TerminalTab::Shop => shop_page(p, run),
+                        TerminalTab::Refit => {
+                            // Only the mech stopped in this terminal's bay is refitted.
+                            let here = terminal.as_deref().map(|t| (t.0.base, t.0.bay));
+                            let in_bay = me.iter().next().is_some_and(|(sim, spec)| {
+                                sim.curr.is_stopped(&spec.locomotion)
+                                    && cb_core::world::bases::hangar_at(
+                                        &plan.bases,
+                                        &data.0.world.bases,
+                                        Vec2::new(sim.curr.pos.x, sim.curr.pos.z),
+                                    ) == here
+                                    && here.is_some()
+                            });
+                            match me.iter().next().filter(|_| in_bay) {
+                                Some((_, spec)) => refit_page(p, run, spec),
+                                None => {
+                                    p.spawn(label("REFIT: walk your mech into this bay and stop it here.", 24.0, WARN));
+                                }
+                            }
+                        }
                     }
                 } else if let Some(f) = free.as_deref() {
                     missions_page(p, &f.free, &data.0.missions);
@@ -652,7 +684,11 @@ fn terminal_tabs(p: &mut ChildSpawnerCommands, open: TerminalTab) {
         ..default()
     })
     .with_children(|row| {
-        for (t, name) in [(TerminalTab::Jobs, "JOBS"), (TerminalTab::Shop, "SHOP")] {
+        for (t, name) in [
+            (TerminalTab::Jobs, "JOBS"),
+            (TerminalTab::Shop, "SHOP"),
+            (TerminalTab::Refit, "REFIT"),
+        ] {
             let text = if t == open { format!("[{name}]") } else { name.to_string() };
             button_sized(row, &text, MenuButton::Tab(t), 180.0);
         }
@@ -706,6 +742,122 @@ fn shop_page(p: &mut ChildSpawnerCommands, run: &crate::career::CareerRun) {
             button_sized(row, &format!("BUY {}", l.price), MenuButton::Buy(i), 220.0);
         });
     }
+}
+
+/// The REFIT page (mech-custom): each weapon station of the mech in the bay with what it fires (the flown mech's
+/// own spec) and the spares that fit it, the weapons for sale, the armour grade, and the liveries; then what the
+/// last refit did or why it was refused.
+fn refit_page(p: &mut ChildSpawnerCommands, run: &crate::career::CareerRun, flown: &crate::mech::MechSpec) {
+    use crate::career::Refit;
+    let c = &run.career;
+    let Some(owned) = crate::career::piloted(run) else { return };
+    let parts = &run.data.parts;
+    let stock = run.data.design(&owned.design).map(|d| d.weapons.clone()).unwrap_or_default();
+    let max = run.data.catalogue.listing(&owned.design).map_or(0, |l| l.armour_max);
+    p.spawn(label(
+        &format!("REFIT {}      CREDITS {}", flown.name.to_uppercase(), c.money),
+        34.0,
+        INK,
+    ));
+    if let Some(note) = &run.shop_note {
+        p.spawn(label(
+            note,
+            22.0,
+            if note.contains("SHORT") || note.contains("NOT") || note.contains("NONE") || note.contains("WRONG") || note.contains("LIMIT") {
+                WARN
+            } else {
+                INK
+            },
+        ));
+    }
+    let row = |p: &mut ChildSpawnerCommands, text: String, buttons: Vec<(String, MenuButton)>| {
+        p.spawn(Node {
+            column_gap: px(10.0),
+            align_items: AlignItems::Center,
+            flex_wrap: FlexWrap::Wrap,
+            max_width: px(1300.0),
+            ..default()
+        })
+        .with_children(|r| {
+            r.spawn((
+                Node {
+                    width: px(420.0),
+                    ..default()
+                },
+                label(&text, 18.0, INK),
+            ));
+            for (t, b) in buttons {
+                button_sized(r, &t, b, 200.0);
+            }
+        });
+    };
+    for (i, st) in stock.iter().enumerate() {
+        let kind = cb_core::refit::StationKind::of(st);
+        let now = flown.weapons.get(i).map_or("?", |w| w.name.as_str());
+        let mut buttons = vec![("STOCK".to_string(), MenuButton::Refit(Refit::Fit(i, None)))];
+        let mut seen = Vec::new();
+        for id in &c.parts {
+            if seen.contains(id) {
+                continue;
+            }
+            seen.push(id.clone());
+            if let Some((pi, w)) = parts.weapons.iter().enumerate().find(|(_, w)| &w.id == id && w.kind == kind) {
+                buttons.push((format!("FIT {}", w.name.to_uppercase()), MenuButton::Refit(Refit::Fit(i, Some(pi)))));
+            }
+        }
+        let place = match (kind, st.arm) {
+            (cb_core::refit::StationKind::Missile, _) => "POD",
+            (_, cb_core::mech::PartKind::ArmL) => "ARM L",
+            _ => "ARM R",
+        };
+        row(p, format!("STATION {} {place}: {}", i + 1, now.to_uppercase()), buttons);
+    }
+    let spares: Vec<String> = c
+        .parts
+        .iter()
+        .filter_map(|id| parts.weapon(id).map(|w| w.name.to_uppercase()))
+        .collect();
+    p.spawn(label(
+        &format!("SPARES: {}", if spares.is_empty() { "NONE".to_string() } else { spares.join(", ") }),
+        18.0,
+        DIM,
+    ));
+    let buy: Vec<(String, MenuButton)> = parts
+        .weapons
+        .iter()
+        .enumerate()
+        .map(|(i, w)| {
+            (
+                format!("{} {}", w.name.to_uppercase(), w.price),
+                MenuButton::Refit(Refit::BuyPart(i)),
+            )
+        })
+        .collect();
+    row(p, "BUY A WEAPON".to_string(), buy);
+    let next = parts.grade(owned.armour + 1).filter(|_| owned.armour < max);
+    row(
+        p,
+        format!(
+            "ARMOUR GRADE {} OF {max}   {:.0} T",
+            owned.armour,
+            flown.locomotion.mass_kg / 1000.0
+        ),
+        next.map(|g| vec![(format!("RAISE {}", g.price), MenuButton::Refit(Refit::Armour))])
+            .unwrap_or_default(),
+    );
+    let paint: Vec<(String, MenuButton)> = parts
+        .liveries
+        .iter()
+        .enumerate()
+        .map(|(i, l)| {
+            let mark = if i as u32 == owned.livery { "*" } else { "" };
+            (
+                format!("{mark}{}", l.name.to_uppercase()),
+                MenuButton::Refit(Refit::Livery(i as u32)),
+            )
+        })
+        .collect();
+    row(p, "LIVERY (FREE)".to_string(), paint);
 }
 
 /// The MAIL page: the credits, the job under way, every open offer with Accept and Decline, and the

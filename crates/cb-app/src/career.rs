@@ -21,8 +21,11 @@ pub struct CareerRun {
     pub career: Career,
     /// The career's data: how it starts, the jobs, the shop's catalogue and the mechs it lists.
     pub data: CareerData,
-    /// What the shop's page last said (a purchase made or refused), until another page is drawn.
+    /// What the shop's or refit page last said (a purchase made or refused), until another tab is opened.
     pub shop_note: Option<String>,
+    /// The piloted mech's fit or livery changed (or the career just began): the flown mech is rebuilt from its
+    /// design's data plus the fit (mech-custom).
+    pub refit_dirty: bool,
     /// Seconds since the last save.
     since_save_s: f32,
     /// Events from the mail page (a job abandoned for another), handled with the board's own next step.
@@ -68,14 +71,16 @@ pub struct CareerPlugin;
 
 impl Plugin for CareerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, begin.run_if(resource_added::<CareerStart>)).add_systems(
-            FixedUpdate,
-            step_jobs
-                .in_set(SimSet::Mech)
-                .after(crate::combat::fly_shots)
-                .after(crate::mech::step_mech)
-                .run_if(resource_exists::<CareerRun>),
-        );
+        app.add_systems(Update, begin.run_if(resource_added::<CareerStart>))
+            .add_systems(Update, (apply_fit, paint_livery).chain().run_if(resource_exists::<CareerRun>))
+            .add_systems(
+                FixedUpdate,
+                step_jobs
+                    .in_set(SimSet::Mech)
+                    .after(crate::combat::fly_shots)
+                    .after(crate::mech::step_mech)
+                    .run_if(resource_exists::<CareerRun>),
+            );
     }
 }
 
@@ -113,9 +118,147 @@ fn begin(mut commands: Commands, start: Res<CareerStart>, data: Res<Data>, plan:
         career,
         data: cdata,
         shop_note: None,
+        refit_dirty: true,
         since_save_s: 0.0,
         pending: Vec::new(),
     });
+}
+
+/// The piloted mech's owned record, if the career has one.
+pub fn piloted(run: &CareerRun) -> Option<&cb_core::career::OwnedMech> {
+    run.career.piloting.and_then(|k| run.career.mech(k))
+}
+
+/// Rebuilds the piloted mech from its design's data plus the career's fit (mech-custom): the guns it fires, its
+/// armour's structure (damage kept as a share of each part) and its mass. Its guns come back loaded.
+fn apply_fit(
+    mut commands: Commands,
+    mut run: ResMut<CareerRun>,
+    data: Res<Data>,
+    mut mech: Query<(Entity, &mut MechSim, &crate::mech::MechSpec), With<Piloted>>,
+) {
+    if !run.refit_dirty {
+        return;
+    }
+    let Some((entity, mut sim, spec)) = mech.iter_mut().next() else {
+        return;
+    };
+    run.refit_dirty = false;
+    let Some(owned) = piloted(&run).cloned() else { return };
+    let design = run.data.design(&owned.design).unwrap_or(&data.0.mech);
+    let flown = cb_core::refit::fitted(design, &owned, &run.data.parts);
+    let sim = &mut *sim;
+    for (i, p) in flown.parts.iter().enumerate() {
+        let (Some(s), Some(old)) = (sim.damage.structure.get_mut(i), spec.parts.get(i)) else {
+            continue;
+        };
+        *s = *s / old.structure.max(1e-3) * p.structure;
+    }
+    sim.guns = cb_core::weapons::Guns::default();
+    sim.selected = cb_core::weapons::first_station(&flown.weapons);
+    let names: Vec<&str> = flown.weapons.iter().map(|w| w.name.as_str()).collect();
+    info!(
+        "REFIT {}: {}, armour grade {}, {:.0} t",
+        flown.name,
+        names.join(", "),
+        owned.armour,
+        flown.locomotion.mass_kg / 1000.0
+    );
+    let tint = run.data.parts.liveries.get(owned.livery as usize).map_or([1.0; 3], |l| l.tint);
+    commands
+        .entity(entity)
+        .insert((crate::mech::MechSpec(std::sync::Arc::new(flown)), Livery(tint)));
+}
+
+/// The piloted mech's livery: a tint over its paint (mech-custom, free).
+#[derive(Component, Clone, Copy, PartialEq)]
+pub struct Livery(pub [f32; 3]);
+
+/// A model mesh's own material, kept so a livery tints from it, not from the last tint.
+#[derive(Component)]
+struct Painted {
+    original: Handle<StandardMaterial>,
+    tint: [f32; 3],
+}
+
+/// Tints every mesh of the piloted mech's model (not its cockpit) by its livery, as the model loads.
+#[allow(clippy::type_complexity)]
+fn paint_livery(
+    mut commands: Commands,
+    mechs: Query<(&crate::mech::MechRoot, &Livery), With<Piloted>>,
+    children: Query<&Children>,
+    mut meshes: Query<(&mut MeshMaterial3d<StandardMaterial>, Option<&Painted>)>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    for (root, livery) in &mechs {
+        for e in children.iter_descendants(root.model) {
+            let Ok((mut mat, painted)) = meshes.get_mut(e) else { continue };
+            if painted.is_some_and(|p| p.tint == livery.0) {
+                continue;
+            }
+            let original = painted.map_or_else(|| mat.0.clone(), |p| p.original.clone());
+            let Some(base) = materials.get(&original).cloned() else { continue };
+            let [r, g, b] = livery.0;
+            let c = base.base_color.to_linear();
+            let mut tinted = base;
+            tinted.base_color = Color::LinearRgba(LinearRgba::new(c.red * r, c.green * g, c.blue * b, c.alpha));
+            mat.0 = materials.add(tinted);
+            commands.entity(e).insert(Painted { original, tint: livery.0 });
+        }
+    }
+}
+
+/// What a refit at the terminal does (mech-custom), on the piloted mech; returns what the page says.
+pub fn refit(run: &mut CareerRun, what: Refit) -> String {
+    use cb_core::refit as r;
+    let Some(owned) = piloted(run).cloned() else {
+        return "NO MECH".into();
+    };
+    let kept = run.data.career.ledger_kept;
+    let stock = run.data.design(&owned.design).map(|c| c.weapons.clone()).unwrap_or_default();
+    let parts = run.data.parts.clone();
+    let armour_max = run.data.catalogue.listing(&owned.design).map_or(0, |l| l.armour_max);
+    let name = |i: usize| parts.weapons.get(i).map_or("?".to_string(), |w| w.name.to_uppercase());
+    let done = match what {
+        Refit::BuyPart(i) => r::buy_part(&mut run.career, &parts, &parts.weapons[i.min(parts.weapons.len() - 1)].id, kept)
+            .map(|_| format!("BOUGHT {}", name(i))),
+        Refit::Fit(station, part) => {
+            let id = part.and_then(|i| parts.weapons.get(i)).map(|w| w.id.as_str());
+            r::fit(&mut run.career, &parts, owned.key, station, id, &stock).map(|_| {
+                let on = part.map_or_else(|| "STOCK".to_string(), name);
+                format!("FITTED {on} TO STATION {}", station + 1)
+            })
+        }
+        Refit::Armour => r::raise_armour(&mut run.career, &parts, owned.key, armour_max, kept).map(|g| format!("ARMOUR GRADE {g}")),
+        Refit::Livery(n) => {
+            r::paint(&mut run.career, &parts, owned.key, n).map(|_| format!("PAINTED {}", parts.liveries[n as usize].name.to_uppercase()))
+        }
+    };
+    match done {
+        Ok(text) => {
+            info!("REFIT {text}");
+            run.refit_dirty = true;
+            save(&run.career);
+            text
+        }
+        Err(e) => {
+            info!("REFIT refused: {}", e.text());
+            e.text()
+        }
+    }
+}
+
+/// A refit asked for on the terminal's REFIT tab.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Refit {
+    /// Buy the parts list's weapon at this index into the spares.
+    BuyPart(usize),
+    /// Fit the spare weapon at this parts index to this station, or put the stock one back (`None`).
+    Fit(usize, Option<usize>),
+    /// Raise the armour a grade.
+    Armour,
+    /// Paint this livery.
+    Livery(u32),
 }
 
 /// The cities jobs are sited by.
