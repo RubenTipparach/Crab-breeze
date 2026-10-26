@@ -111,8 +111,8 @@ What landed, where it differs from the plan above, and what it measured.
 | --- | --- | --- | --- |
 | J6 | Traffic density | One car per 60 m in cities, 300 m on highways, within 1.5 km | decided (survey J6) |
 | J7 | Which cars | 1980s civilian, no real brands: sedan, wagon, pickup, van, taxi, bus, semi | decided (survey J7) |
-| W35 | J6 gives about 1 200 cars round the capital, not 150-250: keep it, thin it, or cap it? | Keep J6 until the 3070 measures the drawing | provisional (built as J6) |
+| W35 | J6 gives about 1 200 cars round the capital, not 150-250: keep it, thin it, or cap it? | Keep J6 until the 3070 measures the drawing | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
 | W36 | Are the seven block-outs right to model in detail? | Approve as they are | decided: approved, 2026-10-26 ("Approved all of the stand ins"); detailed models later |
-| W37 | Which harm costs standing with the nearest base? | Only cars with a driver in them, by the player's fire, feet or car | provisional (hook reports both) |
-| W38 | What do cars do behind a wreck in their lane? | Queue until it is cleared | provisional (built) |
-| W39 | Junctions: take turns by arrival, or 1980s traffic lights on arterials? | Take turns by arrival | provisional (built) |
+| W37 | Which harm costs standing with the nearest base? | Only cars with a driver in them, by the player's fire, feet or car | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
+| W38 | What do cars do behind a wreck in their lane? | Queue until it is cleared | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
+| W39 | Junctions: take turns by arrival, or 1980s traffic lights on arterials? | Take turns by arrival | answered by the owner, 2026-10-26 (survey): "Lights on the arterials"; every other junction keeps taking turns by arrival; building |

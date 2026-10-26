@@ -81,8 +81,9 @@ meshes by a test that fails while it is stale; `docs/screenshots/civilians/stand
 | --- | --- | --- | --- |
 | CV1 | Can civilians be hurt | yes: the owner decided (survey W34) that the pilot's fire hitting them costs standing; how it is shown is W41 | decided |
 | CV2 | Voiced lines or text | text first, voice later | provisional |
-| W40 | Use near a person and a stopped mech at once | the person within 2.5 m is greeted; boarding needs Use away from people | provisional (survey) |
-| W41 | How someone struck down is shown | falls and lies still 30 s, then cleared; no blood | provisional (survey) |
-| W42 | Which deaths cost standing | the pilot's own rounds, blasts and feet only | provisional (survey) |
+| W40 | Use near a person and a stopped mech at once | the person within 2.5 m is greeted; boarding needs Use away from people | answered by the owner, 2026-10-26 (survey): the greeting wins, and: "You should be able to scroll wheel select multiple options". Every interaction in reach is listed on the prompt, the wheel moves the selection, Use does the selected one, the greeting first; building |
+| W41 | How someone struck down is shown | falls and lies still 30 s, then cleared; no blood | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
+| W42 | Which deaths cost standing | the pilot's own rounds, blasts and feet only | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
 | W43 | Bodies before the humanoid pipeline runs here | labelled stand-ins at true size | decided: approved, 2026-10-26 ("Approved all of the stand ins"); real bodies later |
-| W44 | How busy the streets are | 8 per 100 m of pavement downtown, 2,000 at most | provisional (survey) |
+| W44 | How busy the streets are | 8 per 100 m of pavement downtown, 2,000 at most | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
+| W50 | How much standing each civilian harmed costs with the nearest base (`standing_per_civilian`) | 1 point, the same as a job lost | provisional: picked by the merge, asked on the survey 2026-10-26 |

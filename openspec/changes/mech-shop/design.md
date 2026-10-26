@@ -215,11 +215,13 @@ as any parked mech does (`mech-roster`'s per-mech cost).
 | --- | --- | --- | --- |
 | J15 | Prices, as in section 3 | As listed: cheaper for the plain machines, the Harrow dearest | provisional (survey J15) |
 | J16 | Buying away from a base | Superseded by the owner, 2026-10-26: air dropped near the pilot anywhere; a bay only as the fallback. The owner's J16 answer: "a marker appears on your hud to show mech delivery. you can swap mechs out at base, with foreman always availible" (section 6.5) | answered |
-| D1 | How far from the pilot it lands | 40 to 150 m | provisional (survey D1) |
-| D2 | Canopies, retro thrusters, or both | Canopies, with a retro burst in the last 25 m | provisional (survey D2) |
-| D3 | How long from BUY to touchdown | About 50 s (25 s to the release, 25 s falling) | provisional (survey D3) |
-| D4 | Water at the site | Dry ground always wins; water up to the mech's skim depth only when the ring has nothing dry | provisional (survey D4) |
-| D5 | No good ground within 600 m | Fall back to a hangar bay, as before | provisional (survey D5) |
-| D6 | The pilot walks into the site | The canopies steer it aside and the marker warns; it lands beside them if they stay | provisional (survey D6) |
-| D7 | Which owned mech the pilot boards | Whichever owned mech they walk up to, within 40 m | provisional (survey D7) |
-| D8 | The aircraft | A block-out stand-in until `airfields` models one | provisional (survey D8) |
+| D1 | How far from the pilot it lands | 40 to 150 m | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
+| D2 | Canopies, retro thrusters, or both | Canopies, with a retro burst in the last 25 m | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
+| D3 | How long from BUY to touchdown | About 50 s (25 s to the release, 25 s falling) | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
+| D4 | Water at the site | Dry ground always wins; water up to the mech's skim depth only when the ring has nothing dry | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
+| D5 | No good ground within 600 m | Fall back to a hangar bay, as before | answered by the owner, 2026-10-26 (survey): the bay fallback stays, and: "You always get a marker for your purchases so you have to go activate the mech and the marker will go away after you enter it". The HUD marker shows a mech delivered to a bay, or anywhere else, until the pilot boards it (section 6.5); building |
+| D6 | The pilot walks into the site | The canopies steer it aside and the marker warns; it lands beside them if they stay | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
+| D7 | Which owned mech the pilot boards | Whichever owned mech they walk up to, within 40 m | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
+| D8 | The aircraft | A block-out stand-in until `airfields` models one | answered by the owner, 2026-10-26 (survey): "Model a real aircraft in Blender now", the 70 m freighter of W48 with the bought mech slung under it; built in `civil-air-traffic` task 3.8, and the air drop draws the same model |
+| D9 | Where a mech called out at a base appears | In the terminal's bay, else the base's first clear bay | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
+| D10 | Calling out a wrecked Foreman | Free and whole | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |

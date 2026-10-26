@@ -153,8 +153,8 @@ section 8). It is to be measured on the 3070 in the cockpit at the start and ove
 | W32 | People, cars and aircraft: in what order | All three at once, in parallel | decided (survey W32) |
 | W33 | What civil aircraft, where | Airliners and freighters between the bases; light planes and helicopters over cities; clear of fights; crabs can shoot them | decided (survey W33) |
 | W34 | What hitting one costs | Standing with the nearest base (the career loop's) | decided (survey W34); this change reports the hits |
-| W45 | The bases have no runway | Add a runway to each base | provisional: a 620 m strip along the apron with shortened rolls |
-| W46 | How much traffic | 9 near you at most (3 airliners, 2 freighters, 2 light planes, 2 helicopters) | provisional |
-| W47 | Selecting a civil aircraft on purpose | The cycle key with the crosshair held on it | provisional |
-| W48 | The freighter's size | 70 m, slinging a bought mech under it for the air drop | provisional |
-| W49 | Engine sound | Cut a turbofan, a propeller and a rotor from CC0 recordings | provisional: the mech's jet roar pitched down, jets only |
+| W45 | The bases have no runway | Add a runway to each base | answered by the owner, 2026-10-26 (survey): "Add a real runway, about 1.5 to 2 km, to each base"; building |
+| W46 | How much traffic | 9 near you at most (3 airliners, 2 freighters, 2 light planes, 2 helicopters) | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
+| W47 | Selecting a civil aircraft on purpose | The cycle key with the crosshair held on it | answered by the owner, 2026-10-26 (survey): "Never: only unguided fire can hit one". Q and the auto-pick skip them and no missile locks one; building |
+| W48 | The freighter's size | 70 m, slinging a bought mech under it for the air drop | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
+| W49 | Engine sound | Cut a turbofan, a propeller and a rotor from CC0 recordings | answered by the owner, 2026-10-26 (survey): the recommendation; building |

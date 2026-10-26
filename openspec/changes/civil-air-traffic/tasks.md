@@ -3,7 +3,7 @@
 ## 1. Write-up
 
 - [x] 1.1 Proposal, design and spec (this change); `openspec validate --all`
-- [ ] 1.2 Survey questions W45-W49 on `docs/design/survey.html` (handed to the session that owns the survey)
+- [x] 1.2 Survey questions W45-W49 on `docs/design/survey.html`; all answered by the owner on 2026-10-26
 
 ## 2. Simulation (`cb-core::air_traffic`, `data/world/air_traffic.ron`)
 
