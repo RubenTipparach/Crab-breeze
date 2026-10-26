@@ -21,6 +21,7 @@ use bevy::prelude::*;
 use bevy::world_serialization::WorldAssetRoot;
 use cb_core::fortress::{Beam, BeamPhase, Event, Fortress, FortressData, HitOutcome, Mount, Target};
 use cb_core::mech::{Hit, PartKind};
+use cb_core::mission::city_damage;
 use cb_core::missions::MissionKind;
 use cb_core::pilot::PilotMode;
 use cb_core::units::{Unit, heading_of};
@@ -92,6 +93,10 @@ pub struct FortressRun {
     pub targets: Vec<(u32, Vec3)>,
     legs: Vec<FallingLeg>,
     was: bevy::math::Affine3A,
+    /// The city it attacks (its circle's centre), by index.
+    pub city: u32,
+    /// That city's damage, 0..1 (`mission::city_damage`): its wreck counts (survey H5).
+    pub city_damage: f32,
     /// The mechs standing on it the step before (by `MechId`), for the velocity handover (`Platform::ride`).
     aboard: std::collections::BTreeSet<u32>,
 }
@@ -247,6 +252,8 @@ fn switch(
             targets: Vec::new(),
             legs: Vec::new(),
             aboard: Default::default(),
+            city: city.id,
+            city_damage: city_damage(&plan, &live.structures, city.id),
         });
         have = None;
     }
@@ -647,16 +654,20 @@ fn step(
             radius_m: h.radius_m,
         });
     }
+    // The attacked city's damage, whatever broke it: the defences' rounds, its legs, its wreck (survey H5).
+    run.city_damage = city_damage(&plan, &live.structures, run.city);
     run.status_in_s -= dt;
     if run.status_in_s <= 0.0 && !run.f.crashed {
         run.status_in_s = 10.0;
         let l = run.f.lift(d);
         say(&format!(
-            "MISSION fortress status: lift port {:.0} % stbd {:.0} %, alt {:.0} m, list {:.1} deg{}",
+            "MISSION fortress status: lift port {:.0} % stbd {:.0} %, alt {:.0} m, list {:.1} deg, city {} at {:.1} % damage{}",
             l.port * 200.0,
             l.stbd * 200.0,
             run.f.pos.y - run.f.ground_m,
             run.f.list_rad.to_degrees(),
+            run.city + 1,
+            run.city_damage * 100.0,
             if run.f.falling { ", FALLING" } else { "" }
         ));
     }
@@ -684,20 +695,9 @@ fn crash(
     explosions: &mut MessageWriter<Explosion>,
 ) {
     let at = run.f.pos;
-    let reach = 220.0 + d.cfg.crash.break_margin_m;
-    let inv = run.f.pose().inverse();
     let mut n = 0;
-    for b in plan.collision.candidates(at.xz(), reach) {
-        let c = plan.buildings[b as usize].footprint.centre();
-        let local = inv.transform_point3(Vec3::new(c.x, at.y, c.y));
-        let (ax, az) = (140.0 + d.cfg.crash.break_margin_m, 210.0 + d.cfg.crash.break_margin_m);
-        if (local.x / ax).powi(2) + (local.z / az).powi(2) > 1.0 {
-            continue;
-        }
-        let st = &live.structures.buildings[b as usize];
-        let base = Vec3::new(c.x, st.origin.y + 2.0, c.y);
-        let half = (st.size.x * st.n[0] as f32).max(st.size.z * st.n[2] as f32) * 0.75;
-        let (broke, chunks) = live.structures.break_sphere(b, base, half.max(6.0));
+    for (b, base, radius) in run.f.wreck_breaks(d, plan, &live.structures) {
+        let (broke, chunks) = live.structures.break_sphere(b, base, radius);
         if broke > 0 {
             live.dirty_buildings.push(b);
             live.new_chunks.extend(chunks);
@@ -717,9 +717,13 @@ fn crash(
     }
     fx.write(Fx::new("explosion_ground", ground).scaled(d.cfg.crash.blast_mj.cbrt()));
     run.outcome.get_or_insert(true);
+    // Its wreck is the city's damage too (survey H5): the city's own number, measured as the defence measures it.
+    run.city_damage = city_damage(plan, &live.structures, run.city);
     say(&format!(
-        "MISSION fortress won: the {} is down, {n} buildings under it brought down",
-        d.cfg.name
+        "MISSION fortress won: the {} is down, {n} buildings under it brought down, city {} at {:.1} % damage",
+        d.cfg.name,
+        run.city + 1,
+        run.city_damage * 100.0
     ));
 }
 

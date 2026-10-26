@@ -76,3 +76,14 @@ Everything the player reads about the crab air fortress (its mission mail, the H
 #### Scenario: Locking a thruster
 - **WHEN** the pilot selects one of the fortress's lift thrusters as the target
 - **THEN** the TARGET page names it under STRATOSTACEAN with its part name and id, and shows that part's health
+
+### Requirement: The fortress's crash is city damage
+The buildings the fortress's wreck breaks SHALL count in the attacked city's damage, the share of its building cells destroyed, the same measure the city defence loses on. The fortress SHALL drift along its circle while its drive thrusters work and SHALL fall straight down from where it hangs once both are lost.
+
+#### Scenario: Brought down over the city with its drives stopped
+- **WHEN** both drive thrusters are destroyed, it comes to a stop over the city, and then it falls
+- **THEN** it lands straight below where it hung and the city's damage rises by the cells its wreck broke
+
+#### Scenario: Brought down with its drives running
+- **WHEN** it falls with both drive thrusters working
+- **THEN** it drifts on along its circle at 15 m/s until it lands

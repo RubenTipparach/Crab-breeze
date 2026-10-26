@@ -131,7 +131,19 @@ too). Burning breaks and smoke columns follow its damage (`mech-damage-fx` recip
 destroys every building cell under its footprint and within 60 m of it, throws debris (`debris-physics`)
 and stays as a burning wreck. While both drive thrusters live it drifts along its racetrack at 15 m/s, so
 where it falls is the pilot's choice: stop the drive first to drop it where it is, or wait until it is
-over open ground. Whether a fall on the city counts as city damage is H5.
+over open ground.
+
+**Its crash is city damage** (owner, 2026-10-26, survey H5: "Approve all", the recommendation). The cells its wreck
+breaks (`Fortress::wreck_breaks`: every building whose middle is under its 280 x 420 m footprint or within 60 m of
+it, `crash.half_size_m` and `crash.break_margin_m`) are the attacked city's own, so the one measure of a city's
+damage, `mission::city_damage` (the share of its building cells destroyed), counts them with everything else that
+broke: the defence loses on it, and when the fortress joins wave 3 (task 2.5) its wreck counts toward that wave's
+50 % with nothing more to build. In its own mission the HUD line and the log carry the city's damage
+(`CITY 2 DAMAGE 4 %`), and the win line says what the wreck cost the city. It drifts at 15 m/s on its circle; with
+both drive thrusters lost its drift dies away over 20 s and it hangs, so a fall from there lands straight below,
+while a fall with the drives running carries it on along the circle (392 m in the 26 s fall from 600 m with one side gone). Measured on seed
+42: brought down with its drives stopped over the largest city, its wreck broke 75 buildings, 23.2 % of that city's
+cells.
 
 ### Its look (owner, 2026-10-25)
 
@@ -284,5 +296,5 @@ each shot's metre steps as a mech's parts are. Measured on the owner's machine w
 | H2 | Its name | the Hermit (a crab that carries its own shell) | decided: **the Stratostacean**, the owner's own name (2026-10-26, survey H2); `name` in `data/missions/fortress.ron` is what the mail, the HUD, the TARGET page and the log say |
 | H3 | How it falls | the side rule, then the hull thrusters: three outer on one side open the hull, two hull thrusters on that side bring it down | provisional (survey H3; the hull thrusters and the plates are the owner's, 2026-10-25) |
 | H4 | How the pilot gets up and stays up | the jets as they are; land on the deck, shoulders or a pylon to recharge | decided (owner, 2026-10-26, survey H4: recommendation accepted, "Approve all"): every roster mech reaches the deck on its jets with 8.5 s of burn left; landing hands the mech's velocity over to the deck (section 5) |
-| H5 | Does its crash count as city damage | yes: the pilot chooses where it falls (stop its drive first, or wait) | provisional (survey H5) |
+| H5 | Does its crash count as city damage | yes: the pilot chooses where it falls (stop its drive first, or wait) | decided (owner, 2026-10-26, survey H5: recommendation accepted, "Approve all"); section 6 |
 | H6 | Who guards the deck | 2 Shrikes and 4 Mites aboard, a Mite up each lift every 60 s | provisional (survey H6) |

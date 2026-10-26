@@ -17,7 +17,7 @@ pub use lift::{Lift, lift};
 use crate::data::{Validate, finite, positive, within};
 use crate::rng::SimRng;
 use crate::weapons::WeaponSpec;
-use crate::world::Slab;
+use crate::world::{Slab, Structures, WorldPlan};
 use glam::{Affine3A, Quat, Vec2, Vec3};
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -176,6 +176,8 @@ pub struct CrashSpec {
     pub blast_mj: f32,
     /// Building cells under its footprint and this far round it break.
     pub break_margin_m: f32,
+    /// Its footprint on the ground: half its width (x) and half its length (z), an ellipse in its own frame.
+    pub half_size_m: Vec2,
 }
 
 /// `data/missions/fortress.ron`: every number the fortress uses (design sections 1 to 6 and 9).
@@ -260,6 +262,8 @@ impl Validate for FortressConfig {
             ("launch.interval_s", self.launch.interval_s),
             ("downwash.length_m", self.downwash.length_m),
             ("crash.clearance_m", self.crash.clearance_m),
+            ("crash.half_size_m.x", self.crash.half_size_m.x),
+            ("crash.half_size_m.y", self.crash.half_size_m.y),
         ] {
             positive(k, v)?;
         }
@@ -682,6 +686,33 @@ impl Fortress {
             .map(|_| (w.push_m_s2, w.burn_per_s))
     }
 
+    /// What its wreck breaks where it came down (design section 6): every building whose middle lies under its
+    /// footprint or within `crash.break_margin_m` of it is broken from its ground floor up, so the structure falls
+    /// (`structural-destruction`). Each is (building, the middle of the sphere, its radius) for
+    /// `Structures::break_sphere`, in the building index's order. The cells it breaks are the attacked city's own,
+    /// so its damage counts as city damage (survey H5, owner 2026-10-26): `mission::city_damage` measures it with
+    /// everything else that broke. Empty until it has crashed.
+    pub fn wreck_breaks(&self, d: &FortressData, plan: &WorldPlan, structures: &Structures) -> Vec<(u32, Vec3, f32)> {
+        if !self.crashed {
+            return Vec::new();
+        }
+        let c = &d.cfg.crash;
+        let reach = Vec2::new(c.half_size_m.x + c.break_margin_m, c.half_size_m.y + c.break_margin_m);
+        let inv = self.pose().inverse();
+        let mut out = Vec::new();
+        for b in plan.collision.candidates(Vec2::new(self.pos.x, self.pos.z), reach.max_element()) {
+            let mid = plan.buildings[b as usize].footprint.centre();
+            let local = inv.transform_point3(Vec3::new(mid.x, self.pos.y, mid.y));
+            if (local.x / reach.x).powi(2) + (local.z / reach.y).powi(2) > 1.0 {
+                continue;
+            }
+            let Some(st) = structures.buildings.get(b as usize) else { continue };
+            let half = (st.size.x * st.n[0] as f32).max(st.size.z * st.n[2] as f32) * 0.75;
+            out.push((b, Vec3::new(mid.x, st.origin.y + 2.0, mid.y), half.max(6.0)));
+        }
+        out
+    }
+
     /// The rng for a defence's spread, in the step's stable order of parts.
     fn rng(&mut self) -> &mut SimRng {
         &mut self.rng
@@ -966,5 +997,102 @@ pub(crate) mod tests {
             assert_eq!(m.boost.heat, 0.0, "{name}: the jets recharged");
             assert!(f.angle_rad > 0.5, "the fortress flew on meanwhile");
         }
+    }
+
+    fn island() -> &'static WorldPlan {
+        static P: std::sync::OnceLock<WorldPlan> = std::sync::OnceLock::new();
+        P.get_or_init(|| {
+            let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/world/world.ron");
+            crate::world::generate(42, &load_ron::<crate::world::WorldConfig>(&p).unwrap())
+        })
+    }
+
+    /// Runs until it is down on the island's ground; the crash's place (x, z).
+    fn fall(d: &FortressData, f: &mut Fortress, plan: &WorldPlan) -> Vec2 {
+        let ground = |x: f32, z: f32| plan.terrain.height_at(x, z);
+        for _ in 0..(300.0 / DT) as usize {
+            if f.step(d, &ground, DT).contains(&Event::Crashed) {
+                return Vec2::new(f.pos.x, f.pos.z);
+            }
+        }
+        panic!("it never came down: {}", f.pos);
+    }
+
+    #[test]
+    fn stopping_its_drives_drops_it_where_it_hangs() {
+        // Survey H5 (owner, 2026-10-26): it drifts at 15 m/s; stop its drive thrusters and it falls where it is.
+        let (d, mut f) = fortress();
+        kill(&d, &mut f, &["drive1", "drive2"]);
+        run(&d, &mut f, d.cfg.drive_stop_s + 1.0);
+        assert_eq!(f.speed_m_s, 0.0);
+        let hung = Vec2::new(f.pos.x, f.pos.z);
+        kill(&d, &mut f, &["L1", "L2", "L3", "L4", "HL1", "HL2", "HL3"]);
+        let mut down = None;
+        for _ in 0..(120.0 / DT) as usize {
+            if f.step(&d, &flat, DT).contains(&Event::Crashed) {
+                down = Some(Vec2::new(f.pos.x, f.pos.z));
+                break;
+            }
+        }
+        let down = down.expect("it came down");
+        assert!(down.distance(hung) < 0.01, "it fell straight down: {hung} -> {down}");
+    }
+
+    #[test]
+    fn with_its_drives_it_drifts_on_at_15_m_s_while_it_falls() {
+        let (d, mut f) = fortress();
+        assert_eq!(d.cfg.speed_m_s, 15.0);
+        let from = f.angle_rad;
+        kill(&d, &mut f, &["L1", "L2", "L3", "L4", "HL1", "HL2", "HL3"]);
+        let mut t = 0.0;
+        while !f.crashed {
+            f.step(&d, &flat, DT);
+            t += DT;
+        }
+        let flown = (f.angle_rad - from) * d.cfg.circle_radius_m;
+        eprintln!("with its drives it flew {flown:.0} m on in a {t:.1} s fall");
+        assert!((flown - 15.0 * t).abs() < 1.0, "{flown:.0} m in {t:.1} s");
+        assert!(flown > 300.0, "the drift carries it {flown:.0} m on before it lands");
+    }
+
+    #[test]
+    fn its_crash_on_the_city_counts_as_the_citys_damage() {
+        // Survey H5 (owner, 2026-10-26): the fortress coming down on the city it attacks is that city's damage, the
+        // one number the defence loses on (`mission::city_damage`). Its drives stopped, it falls on the circle over
+        // the city; what its wreck breaks is the city's.
+        let plan = island();
+        let d = data();
+        let city = plan
+            .cities
+            .iter()
+            .max_by_key(|c| plan.buildings.iter().filter(|b| b.city == c.id).count())
+            .unwrap();
+        let mut f = Fortress::new(&d, city.centre, city.ground_m, 42);
+        kill(&d, &mut f, &["drive1", "drive2"]);
+        run(&d, &mut f, d.cfg.drive_stop_s + 1.0);
+        let mut s = Structures::new(plan);
+        assert!(f.wreck_breaks(&d, plan, &s).is_empty(), "nothing breaks before it is down");
+        let before = crate::mission::city_damage(plan, &s, city.id);
+        kill(&d, &mut f, &["R1", "R2", "R3", "R4", "HR1", "HR2", "HR3"]);
+        fall(&d, &mut f, plan);
+        let breaks = f.wreck_breaks(&d, plan, &s);
+        assert!(!breaks.is_empty(), "it came down on buildings");
+        let mut broke = 0;
+        for (b, at, r) in &breaks {
+            assert_eq!(
+                plan.buildings[*b as usize].city, city.id,
+                "only the city's own buildings are under it"
+            );
+            broke += s.break_sphere(*b, *at, *r).0;
+        }
+        let after = crate::mission::city_damage(plan, &s, city.id);
+        eprintln!(
+            "the wreck broke {} buildings, {broke} cells: city {} damage {:.1} % -> {:.1} %",
+            breaks.len(),
+            city.id + 1,
+            before * 100.0,
+            after * 100.0
+        );
+        assert!(broke > 0 && after > before, "{before} -> {after}");
     }
 }

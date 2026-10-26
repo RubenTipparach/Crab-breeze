@@ -749,22 +749,34 @@ fn fmt_budget(name: &str, heat: f32, locked: bool, burn_s: f32, recharge_s: f32,
     }
 }
 
-/// `STRATOSTACEAN   LIFT PORT 100 %  STBD 67 %   ALT 600 M`, the hull thrusters once they open, `FALLING`, then
+/// `STRATOSTACEAN   LIFT PORT 100 %  STBD 67 %   ALT 600 M   CITY 2 DAMAGE 4 %`, the hull thrusters once they open, `FALLING`, then
 /// `DOWN: WON`: every number the lift rule's own (`crab-airship` section 9; CLAUDE.md 6.1).
 fn fmt_fortress(run: &crate::fortress::FortressRun, d: &cb_core::fortress::FortressData) -> (String, Color) {
     let f = &run.f;
     match run.outcome {
-        Some(true) => return (format!("THE {} IS DOWN: MISSION WON", d.cfg.name.to_uppercase()), GREEN),
+        Some(true) => {
+            return (
+                format!(
+                    "THE {} IS DOWN: MISSION WON   CITY {} DAMAGE {:.0} %",
+                    d.cfg.name.to_uppercase(),
+                    run.city + 1,
+                    run.city_damage * 100.0
+                ),
+                GREEN,
+            );
+        }
         Some(false) => return ("MISSION LOST: your mech was destroyed".into(), RED),
         None => {}
     }
     let l = f.lift(d);
     let mut s = format!(
-        "{}   LIFT PORT {:.0} %  STBD {:.0} %   ALT {:.0} M",
+        "{}   LIFT PORT {:.0} %  STBD {:.0} %   ALT {:.0} M   CITY {} DAMAGE {:.0} %",
         d.cfg.name.to_uppercase(),
         l.port * 200.0,
         l.stbd * 200.0,
-        f.pos.y - f.ground_m
+        f.pos.y - f.ground_m,
+        run.city + 1,
+        run.city_damage * 100.0
     );
     if f.doors_s.is_some() {
         s += &format!("   HULL THRUSTERS {}", if l.lit { "LIT" } else { "OPENING" });

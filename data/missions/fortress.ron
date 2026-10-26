@@ -96,5 +96,7 @@
     launch: (unit: "fighter", interval_s: 20.0, first_s: 8.0, max_airborne: 8, hangar: 24, off_m: (0.0, 3.0, 64.0)),
     downwash: (radius_top_m: 15.0, radius_bottom_m: 30.0, length_m: 150.0, push_m_s2: 25.0, burn_per_s: 15.0),
     leg: (blast_mj: 30.0, break_radius_m: 25.0, tumble_deg_s: 25.0),
-    crash: (clearance_m: 40.0, blast_mj: 200.0, break_margin_m: 60.0),
+    // Its wreck breaks what is under its 280 x 420 m footprint and 60 m round it; those are the attacked city's
+    // cells, so the crash counts as city damage (owner, 2026-10-26, survey H5).
+    crash: (clearance_m: 40.0, blast_mj: 200.0, break_margin_m: 60.0, half_size_m: (140.0, 210.0)),
 )
