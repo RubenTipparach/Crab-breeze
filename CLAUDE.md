@@ -274,6 +274,16 @@ said out loud and kept in check, never guessed.
   p95 within 8.3 ms and p99 within 16.7 ms, in the cockpit, in the densest scene. **The target
   hardware is a high-end PC with an RTX 3070** (owner, 2026-10-24): triangle counts in the hundreds
   of thousands and 4096 px map sets are fine; budgets still exist and are still measured.
+- **Every frame above 60 fps in every perf run** (owner, 2026-10-26: "Let's focus on getting no frames
+  under 60fps, then we'll focus on 90", "ensure that when you run perf, everything is always above 60
+  fps"). After the loading screen's `GAME_READY`, no frame of a release build may take longer than
+  16.7 ms on the scripted perf routes (`streaming-route`, `free-roam-fight`). A frame over it is a bug
+  to find and fix, not a percentile to report past; a perf report lists every one with its cause. 90 fps
+  (11.1 ms) is the next target, once 60 holds.
+- **One game, bake or heavy build on a machine at a time.** On the Mac, agents take the lock
+  (`tools/perf/mac_lock.sh <who> <command>`, a `mkdir` lock at `~/.cb-mac-lock`) for every game
+  launch, Blender bake and release build; a perf run holds it for the whole run, so nothing else
+  spoils its frames.
 - **A claim is a measurement**: release build, real time, windowed, nothing else running, a scripted
   scene, old against new interleaved in one sitting, p50/p95/p99 and the spread reported. A
   difference smaller than the spread is not a result. Never call an unmeasured design a speedup
