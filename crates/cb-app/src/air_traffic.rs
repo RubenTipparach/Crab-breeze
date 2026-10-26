@@ -26,9 +26,18 @@ use std::collections::{BTreeMap, HashMap};
 /// Ids from here up are civil aircraft (below the fortress's, above every vehicle the invasion sends).
 pub const CIVIL_ID_BASE: u32 = 800_000;
 
-/// The looping cue a jet's engines play (a stand-in: the mech's jet roar, pitched down by the kind's
-/// `engine_pitch`; there is no recorded turbofan, propeller or rotor yet).
-pub const ENGINE_CUE: &str = "airliner_jet";
+/// The looping cues the civil aircraft's engines play (survey W49: cut from public domain recordings).
+pub const ENGINE_CUES: [&str; 3] = ["civil_turbofan", "civil_propeller", "civil_rotor"];
+
+/// The looping cue for a kind's engine.
+pub fn engine_cue(e: cb_core::air_traffic::Engine) -> &'static str {
+    use cb_core::air_traffic::Engine;
+    match e {
+        Engine::Turbofan => ENGINE_CUES[0],
+        Engine::Propeller => ENGINE_CUES[1],
+        Engine::Rotor => ENGINE_CUES[2],
+    }
+}
 
 /// True for an id in the civil aircraft's range.
 pub fn is_civil(id: u32) -> bool {
@@ -367,14 +376,17 @@ fn draw_traffic(
         };
         seen.insert(d.0);
         *t = Transform::from_translation(a.pos).with_rotation(shape::attitude(a));
-        if let Some(pitch) = cfg.kinds.get(&a.kind).and_then(|s| s.engine_pitch)
+        if let Some(engine) = cfg.kinds.get(&a.kind).and_then(|s| s.engine)
             && !a.downed()
             && a.pos.distance(ear.at) < data.0.audio.cues.audible_within_m
         {
             loops.write(Loop {
-                cue: ENGINE_CUE,
+                cue: engine_cue(engine.sound),
                 at: SoundAt::Node(e),
-                level: LoopLevel { db: 0.0, pitch },
+                level: LoopLevel {
+                    db: 0.0,
+                    pitch: engine.pitch,
+                },
             });
         }
     }

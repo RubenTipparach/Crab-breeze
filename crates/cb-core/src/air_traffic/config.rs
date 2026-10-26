@@ -64,9 +64,9 @@ pub struct AircraftSpec {
     pub armour_mm: f32,
     /// The crash's explosion, megajoules (fuel and speed).
     pub crash_mj: f32,
-    /// Its jet engines' sound, played pitched by this much (none: no engine sound yet).
+    /// Its engine's sound (none: silent).
     #[serde(default)]
-    pub engine_pitch: Option<f32>,
+    pub engine: Option<EngineSound>,
     /// Livery colour, sRGB 0..1.
     pub tint: [f32; 3],
 }
@@ -97,6 +97,29 @@ impl Default for NearConfig {
             check_s: 4.0,
         }
     }
+}
+
+/// Which recorded engine a kind plays (survey W49: a turbofan, a propeller and a rotor cut from CC0 and public domain
+/// recordings, `tools/audio/cc0_cues.json`).
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+pub enum Engine {
+    /// An airliner's or freighter's turbofans (`civil_turbofan`).
+    Turbofan,
+    /// A light plane's propeller (`civil_propeller`).
+    Propeller,
+    /// A helicopter's rotor (`civil_rotor`).
+    Rotor,
+}
+
+/// A kind's engine sound: which recording, and how fast it is played (1: as recorded; lower is a slower, bigger
+/// engine).
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct EngineSound {
+    /// The recording.
+    pub sound: Engine,
+    /// Its playback speed.
+    pub pitch: f32,
 }
 
 /// How routes are flown between the bases.
@@ -210,8 +233,8 @@ impl Validate for AirTrafficConfig {
                 return Err(format!("`{}` must not be above `height_m`", f("fuselage_m")));
             }
             finite3(&f("tint"), k.tint)?;
-            if let Some(p) = k.engine_pitch {
-                positive(&f("engine_pitch"), p)?;
+            if let Some(e) = k.engine {
+                positive(&f("engine.pitch"), e.pitch)?;
             }
             if k.role.flies_routes() {
                 if k.approach_m_s > k.cruise_m_s {

@@ -54,11 +54,8 @@ plane's flight so the career loop can fly one over a drop point later.
   helicopter (12 m with its rotor). The block-out shapes are one table in `cb-core`, drawn by the game
   and by the mockup page `docs/mockups/civil_aircraft.html`, approved by the owner on 2026-10-26
   ("Approved all of the stand ins"); the models are built after it.
-- **Engine sound for the jets only:** a stand-in loop (the mech's jet rumble, pitched down) on airliners
-  and freighters. There is no propeller or rotor sound in the library yet (W49).
-
-## Out of scope
-
+- **Engine sound for every kind** (survey W49): a turbofan, a propeller and a rotor cut from public domain field
+  recordings, each played at the kind's pitch.
 - Real models, textures and LODs (next, now the stand-ins are approved).
 - A runway at each base (W45 asks).
 - The career loop's standing, prices and penalties: this change only reports the hits.

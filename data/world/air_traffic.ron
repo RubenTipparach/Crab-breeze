@@ -23,7 +23,8 @@
             hp: 160.0,
             armour_mm: 4.0,
             crash_mj: 40.0,
-            engine_pitch: Some(0.55),
+            // the recorded airliner as it is (survey W49)
+            engine: Some((sound: Turbofan, pitch: 1.0)),
             tint: (0.86, 0.86, 0.84),
         ),
         "freighter": (
@@ -42,7 +43,8 @@
             hp: 260.0,
             armour_mm: 5.0,
             crash_mj: 60.0,
-            engine_pitch: Some(0.45),
+            // four bigger engines: the airliner's turbofans played slower
+            engine: Some((sound: Turbofan, pitch: 0.85)),
             tint: (0.46, 0.50, 0.52),
         ),
         "light_plane": (
@@ -62,6 +64,8 @@
             hp: 30.0,
             armour_mm: 1.0,
             crash_mj: 2.0,
+            // a recorded prop plane slowed toward a four-seater's two-blade propeller, about 80 Hz a blade
+            engine: Some((sound: Propeller, pitch: 0.75)),
             tint: (0.92, 0.62, 0.18),
         ),
         "helicopter": (
@@ -81,6 +85,8 @@
             hp: 40.0,
             armour_mm: 2.0,
             crash_mj: 3.0,
+            // a recorded medium helicopter slowed toward a light one's slower rotor beat
+            engine: Some((sound: Rotor, pitch: 0.7)),
             tint: (0.18, 0.30, 0.62),
         ),
     },

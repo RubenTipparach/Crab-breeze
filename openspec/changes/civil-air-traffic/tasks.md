@@ -36,7 +36,10 @@
 - [x] 3.7 The owner approves the stand-ins' shapes on the mockup page (2026-10-26: "Approved all of the stand ins"); the freighter's size
   stays open (W48): approving the stand-in is not a choice of size
 - [ ] 3.8 Blender models with LODs and PBR sets, after 3.7
-- [ ] 3.9 Recorded engine, propeller and rotor sounds (W49)
+- [x] 3.9 Recorded engine, propeller and rotor sounds (survey W49, 2026-10-26: "Cut a turbofan, a propeller and a rotor
+  from CC0 recordings"): `civil_turbofan`, `civil_propeller`, `civil_rotor` cut from public domain field recordings,
+  credited in `assets/audio/sfx/SOURCES.md` and `AUDIO_SOURCES.md`; each kind's `engine` in data (test:
+  `every_kind_sounds_its_own_recorded_engine`); not yet heard in a playtest
 
 ## 4. Proof
 

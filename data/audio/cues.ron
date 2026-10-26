@@ -33,9 +33,12 @@
         "rocket_rumble": (files: ["audio/sfx/rocket_rumble.ogg"], looping: true, max_voices: 2),
         "skate_roll": (files: ["audio/sfx/skate_roll.ogg"], looping: true, max_voices: 2),
         "reactor_hum": (files: ["audio/sfx/reactor_hum.ogg"], volume_db: -14.0, space: Cockpit("reactor"), looping: true, max_voices: 1),
-        // civil aircraft (openspec/changes/civil-air-traffic): a stand-in, the jets' roar pitched down by each kind's
-        // engine_pitch in data/world/air_traffic.ron, until a recorded turbofan, propeller and rotor are cut (survey W49)
-        "airliner_jet": (files: ["audio/sfx/rocket_loop.ogg"], volume_db: -6.0, looping: true, max_voices: 3),
+        // civil aircraft (openspec/changes/civil-air-traffic, survey W49): a turbofan, a propeller and a rotor cut from
+        // public domain field recordings (assets/audio/sfx/SOURCES.md), each played at its kind's `engine` pitch in
+        // data/world/air_traffic.ron
+        "civil_turbofan": (files: ["audio/sfx/civil_turbofan.ogg"], volume_db: -4.0, looping: true, max_voices: 5),
+        "civil_propeller": (files: ["audio/sfx/civil_propeller.ogg"], volume_db: -4.0, looping: true, max_voices: 2),
+        "civil_rotor": (files: ["audio/sfx/civil_rotor.ogg"], volume_db: -2.0, looping: true, max_voices: 2),
         // weapons
         "autocannon": (files: ["audio/sfx/autocannon.ogg"], volume_db: -3.0, pitch: (0.95, 1.05), max_voices: 10),
         "cannon": (files: ["audio/sfx/cannon.ogg"], pitch: (0.97, 1.03), max_voices: 4),

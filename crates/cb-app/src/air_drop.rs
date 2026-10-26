@@ -513,13 +513,16 @@ fn draw_aircraft(
         {
             Some((p, track)) => {
                 *t = Transform::from_translation(p).with_rotation(Quat::from_rotation_y(track));
-                if let Some(pitch) = spec.engine_pitch
+                if let Some(engine) = spec.engine
                     && p.distance(ear.at) < data.0.audio.cues.audible_within_m
                 {
                     loops.write(crate::audio::Loop {
-                        cue: crate::air_traffic::ENGINE_CUE,
+                        cue: crate::air_traffic::engine_cue(engine.sound),
                         at: crate::audio::SoundAt::Node(e),
-                        level: cb_core::audio::LoopLevel { db: 0.0, pitch },
+                        level: cb_core::audio::LoopLevel {
+                            db: 0.0,
+                            pitch: engine.pitch,
+                        },
                     });
                 }
             }

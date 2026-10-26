@@ -79,6 +79,21 @@ fn the_shipped_kinds_are_the_four_the_owner_asked_for_at_true_size() {
 }
 
 #[test]
+fn every_kind_sounds_its_own_recorded_engine() {
+    // Survey W49: a turbofan, a propeller and a rotor, cut from CC0 and public domain recordings.
+    use super::Engine;
+    let c = cfg();
+    let sound = |k: &str| c.kinds[k].engine.map(|e| e.sound);
+    assert_eq!(sound("airliner"), Some(Engine::Turbofan));
+    assert_eq!(sound("freighter"), Some(Engine::Turbofan));
+    assert_eq!(sound("light_plane"), Some(Engine::Propeller));
+    assert_eq!(sound("helicopter"), Some(Engine::Rotor));
+    let mut bad = c.clone();
+    bad.kinds.get_mut("helicopter").unwrap().engine.as_mut().unwrap().pitch = 0.0;
+    assert!(crate::data::Validate::validate(&bad).unwrap_err().contains("engine.pitch"));
+}
+
+#[test]
 fn a_route_aircraft_that_cannot_hold_the_glide_path_from_cruise_is_refused() {
     let mut c = cfg();
     c.kinds.get_mut("airliner").unwrap().descent_m_s = 1.0;

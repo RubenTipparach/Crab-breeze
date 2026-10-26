@@ -137,9 +137,13 @@ builds only on the selection) never builds on one and no missile homes on one. G
 blows still hit one through the shot sweep. Its box stays, white with `CIV` and its range, as
 information; it is never red, amber or locked.
 
-**Engine sound.** Jets carry `engine_pitch`; within 4 km of your head each plays the `airliner_jet`
-loop riding it: the mech's rocket roar (`rocket_loop.ogg`) pitched to 0.55 or 0.45. A stand-in until a
-turbofan, propeller and rotor are cut from CC0 recordings (W49).
+**Engine sound** (survey W49, answered 2026-10-26: "Cut a turbofan, a propeller and a rotor from CC0
+recordings"). Each kind carries `engine: (sound, pitch)`; within 4 km of your head it plays its loop riding it:
+`civil_turbofan` (airliner at 1.0, freighter at 0.85), `civil_propeller` (light plane at 0.75) and `civil_rotor`
+(helicopter at 0.7), each cut by `tools/audio/cut_cc0.py` from a public domain field recording (an airliner
+passing low at Minneapolis/St Paul, a prop plane running up at Tallinn, army helicopters lifting off in Paris;
+`assets/audio/sfx/SOURCES.md`, `AUDIO_SOURCES.md`, candidates in `docs/analysis/audio-sources.md`). The air
+drop's freighter plays the same. The mech's roar stand-in (`airliner_jet`) is gone.
 
 ## 8. Cost
 
@@ -149,7 +153,7 @@ turbofan, propeller and rotor are cut from CC0 recordings (W49).
 | Why | the ground is noise read point by point at about 3 us a read; an aircraft reads 1 point a step at most and about 45 a second |
 | Drawing | 9 aircraft x 6-8 boxes: at most 72 draws, about 900 triangles; 2 materials per kind |
 | Hits | 2 capsules per aircraft added to the shot sweep (18 at most) |
-| Sound | at most 3 engine voices |
+| Sound | at most 9 engine voices (5 turbofan, 2 propeller, 2 rotor) |
 | Memory | a few kilobytes |
 
 Frame time in the game is not measured here: this session is not allowed to run the game (CLAUDE.md
@@ -166,4 +170,4 @@ section 8). It is to be measured on the 3070 in the cockpit at the start and ove
 | W46 | How much traffic | 9 near you at most (3 airliners, 2 freighters, 2 light planes, 2 helicopters) | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
 | W47 | Selecting a civil aircraft on purpose | The cycle key with the crosshair held on it | answered by the owner, 2026-10-26 (survey): "Never: only unguided fire can hit one". Built: `targeting::select` never selects one, so no lock and no missile (section 7) |
 | W48 | The freighter's size | 70 m, slinging a bought mech under it for the air drop | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
-| W49 | Engine sound | Cut a turbofan, a propeller and a rotor from CC0 recordings | answered by the owner, 2026-10-26 (survey): the recommendation; building |
+| W49 | Engine sound | Cut a turbofan, a propeller and a rotor from CC0 recordings | answered by the owner, 2026-10-26 (survey): the recommendation; built (section 7) from public domain field recordings |
