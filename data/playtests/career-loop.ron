@@ -51,6 +51,8 @@
                 Fit(0, "cannon_40"),
                 Wait(2.0),
                 CloseTerminal,
+                // Out of the bay onto the apron, to see it come in.
+                WalkTowardDrop(25.0),
                 // The Sapper is air dropped near the pilot (owner, 2026-10-26: "when a player orders a mech it should
                 // be air dropped close to wherever the player is on a good are on the ground (not stuck on a
                 // building)"): watch it come down under its canopies, walk up to it, climb in.

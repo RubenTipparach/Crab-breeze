@@ -50,6 +50,9 @@ pub enum Beat {
     ExpectOffer(u8),
     /// Wait, at most this many seconds, until every air drop on its way has landed (mech-shop section 6).
     AwaitDrop(f32),
+    /// Walk on foot out toward the site of the air drop on its way, stopping this many metres short, to watch it come
+    /// down in the open (a hangar's walls hide the sky).
+    WalkTowardDrop(f32),
     /// Walk on foot toward the newest landed air drop's mech until it is the one that kneels for the pilot.
     WalkToDrop,
     /// On the REFIT tab, click BUY for this weapon id (`data/career/parts.ron`).
@@ -60,6 +63,95 @@ pub enum Beat {
     Quit,
     /// After Continue: check the career and the pilot's place came back, within this many metres.
     ExpectRestored(f32),
+    /// Walk on foot to the nearest standing, unfrightened person within this many metres, until they are in greeting
+    /// reach and faced (`civilians::People::in_reach`).
+    WalkToPerson(f32),
+    /// Turn the mouse wheel this many notches (positive: down), one every 0.3 s, as a mouse's own wheel messages.
+    Scroll(i32),
+    /// Turn the wheel until Use's selection is this interaction (`Greet`, `Terminal`, `GetIn`, `GetOut`, `Board`),
+    /// then press Use. It must come into reach within 10 s.
+    UseOn(String),
+    /// Wait, at most this many seconds, until the pilot is `OnFoot`, `Driving` or `Seated`.
+    ExpectMode(String, f32),
+    /// Walk on foot to the driver's door of the nearest car within this many metres, and face the car.
+    WalkToCar(f32),
+    /// Drive the car for this many seconds at this throttle (0..1), steering along its lane's line ahead, then brake
+    /// to a stop.
+    DriveCar(f32, f32),
+    /// Walk in at the street door of the nearest standing building within this many metres and climb this many
+    /// storeys of its stair, by its own route (`world::interior::Entrance::route`, `Stair::climb`).
+    WalkIntoBuilding(f32, u32),
+    /// Write what is about the pilot within this many metres (people by what they do, cars, lit junctions and their
+    /// lights, aircraft, boats, harbours, the fog), a note for the report. Takes no time.
+    Survey(f32),
+    /// Turn the view toward the nearest of a kind (`person`, `car`, `light`, `aircraft`, `boat`, `harbour`, `door`,
+    /// `bench`, `enemy`, `fortress`) and hold it there for this many seconds.
+    LookAtNearest(String, f32),
+    /// Skate the mech to the nearest of a kind (`harbour`, `runway`, `city`), as `SkateTo`, stopping this many metres
+    /// short of it.
+    SkateToNearest(String, f32),
+    /// Fly the mech on its jets to the nearest of a kind (as `SkateToNearest`) at this height, as `JetTo`.
+    JetToNearest(String, f32),
+    /// Turn the wheel until the selected weapon station's name holds this text.
+    SelectWeapon(String),
+    /// Hold the primary trigger this many seconds, aimed at the nearest enemy in sight, else at the ground ahead.
+    FireFor(f32),
+    /// Hold the scope (the middle mouse button) this many seconds, turning the wheel this many notches while it is
+    /// open (one every second).
+    Scope(f32, i32),
+    /// Hold the missile key this many seconds, then let go: a multi-lock pod fires its salvo.
+    MultiLock(f32),
+    /// Press target-next this many times, a second apart, writing what each selects.
+    CycleTargets(u32),
+    /// Hold free look, look at the left MFD and press fire on it, then let go: the page before, in focus, after.
+    MfdFocus,
+    /// Aim at the ground this many metres ahead and fire the missile key this many times, 2.5 s apart.
+    FireAtGround(f32, u32),
+    /// Press M, click START on this free-roam mission (`Fortress`, `Defence`), press M again.
+    StartMission(String),
+    /// Fly the mech up onto the Stratostacean's deck and stand there, at most this many seconds.
+    LandOnFortress(f32),
+    /// Toggle the skates on (true) or off.
+    Skates(bool),
+}
+
+/// What `UseOn` can ask for: `cb_core::interact::Interaction`'s names.
+pub const USE_ON: [&str; 5] = ["Greet", "Terminal", "GetIn", "GetOut", "Board"];
+/// What `LookAtNearest` can look at.
+pub const LOOK_KINDS: [&str; 10] = [
+    "person", "car", "light", "aircraft", "boat", "harbour", "door", "bench", "enemy", "fortress",
+];
+/// Where `SkateToNearest` and `JetToNearest` can go.
+pub const GO_KINDS: [&str; 3] = ["harbour", "runway", "city"];
+
+/// The interaction a `UseOn` beat names.
+pub fn interaction(name: &str) -> Option<crate::interact::Interaction> {
+    use crate::interact::Interaction as I;
+    Some(match name {
+        "Greet" => I::Greet,
+        "Terminal" => I::Terminal,
+        "GetIn" => I::GetIn,
+        "GetOut" => I::GetOut,
+        "Board" => I::Board,
+        _ => return None,
+    })
+}
+
+/// The wheel notches that move a selection from `at` to `want` in a wrapping list of `len`, the short way round
+/// (positive: down the list). Zero when it is already there or the list is empty.
+pub fn notches_to(at: usize, want: usize, len: usize) -> i32 {
+    if len == 0 || at >= len || want >= len {
+        return 0;
+    }
+    let down = (want + len - at) % len;
+    let up = len - down;
+    if down == 0 {
+        0
+    } else if down <= up {
+        down as i32
+    } else {
+        -(up as i32)
+    }
 }
 
 /// Which open offer `AcceptByMail` takes, by its site's distance from the mech.
@@ -109,7 +201,7 @@ impl Validate for Script {
             for (j, b) in r.beats.iter().enumerate() {
                 let bad = match b {
                     Beat::Wait(s) | Beat::LookAround(s) | Beat::FightJob(s) | Beat::AwaitDrop(s) => !(s.is_finite() && *s > 0.0),
-                    Beat::ExpectRestored(m) => !(m.is_finite() && *m > 0.0),
+                    Beat::ExpectRestored(m) | Beat::WalkTowardDrop(m) => !(m.is_finite() && *m > 0.0),
                     Beat::Tab(t) => !matches!(t.as_str(), "Jobs" | "Shop" | "Refit" | "Hangar"),
                     Beat::AcceptJob(t) | Beat::AcceptByMail(_, t) | Beat::ExpectOffer(t) => !(1..=crate::jobs::MAX_TIER).contains(t),
                     Beat::Grant(c) => *c <= 0,
@@ -117,6 +209,21 @@ impl Validate for Script {
                     Beat::JetTo(x, z, h) => !(x.is_finite() && z.is_finite() && h.is_finite() && *h > 0.0),
                     Beat::BuyMech(d) => !d.starts_with("mechs/"),
                     Beat::BuyPart(id) | Beat::Fit(_, id) => id.is_empty(),
+                    Beat::WalkToPerson(m) | Beat::WalkToCar(m) | Beat::Survey(m) => !(m.is_finite() && *m > 0.0),
+                    Beat::Scroll(n) => *n == 0,
+                    Beat::UseOn(i) => !USE_ON.contains(&i.as_str()),
+                    Beat::ExpectMode(m, s) => !(matches!(m.as_str(), "OnFoot" | "Driving" | "Seated") && s.is_finite() && *s > 0.0),
+                    Beat::DriveCar(s, t) => !(s.is_finite() && *s > 0.0 && (0.0..=1.0).contains(t)),
+                    Beat::WalkIntoBuilding(m, _) => !(m.is_finite() && *m > 0.0),
+                    Beat::LookAtNearest(k, s) => !(LOOK_KINDS.contains(&k.as_str()) && s.is_finite() && *s > 0.0),
+                    Beat::SkateToNearest(k, m) => !(GO_KINDS.contains(&k.as_str()) && m.is_finite() && *m >= 0.0),
+                    Beat::JetToNearest(k, h) => !(GO_KINDS.contains(&k.as_str()) && h.is_finite() && *h > 0.0),
+                    Beat::SelectWeapon(w) => w.is_empty(),
+                    Beat::FireFor(s) | Beat::MultiLock(s) | Beat::LandOnFortress(s) => !(s.is_finite() && *s > 0.0),
+                    Beat::Scope(s, _) => !(s.is_finite() && *s > 0.0),
+                    Beat::CycleTargets(n) => *n == 0,
+                    Beat::FireAtGround(m, n) => !(m.is_finite() && *m > 0.0 && *n > 0),
+                    Beat::StartMission(m) => !matches!(m.as_str(), "Fortress" | "Defence"),
                     _ => false,
                 };
                 if bad {
@@ -212,6 +319,40 @@ mod tests {
             crate::data::parse_ron::<Script>(text, std::path::Path::new("x.ron")).is_err(),
             "an unknown beat"
         );
+    }
+
+    #[test]
+    fn every_use_on_name_is_an_interaction_and_nothing_else_is() {
+        for n in USE_ON {
+            assert!(interaction(n).is_some(), "{n}");
+        }
+        assert!(interaction("Fly").is_none());
+        let text = r#"(name: "x", stuck_s: 10.0, runs: [(play: "free", beats: [UseOn("Fly")])])"#;
+        assert!(crate::data::parse_ron::<Script>(text, std::path::Path::new("x.ron")).is_err());
+        let text = r#"(name: "x", stuck_s: 10.0, runs: [(play: "free", beats: [UseOn("GetIn"), Scroll(-1), LookAtNearest("car", 2.0)])])"#;
+        assert!(crate::data::parse_ron::<Script>(text, std::path::Path::new("x.ron")).is_ok());
+    }
+
+    #[test]
+    fn the_wheel_goes_the_short_way_round_to_a_selection() {
+        assert_eq!(notches_to(0, 1, 2), 1);
+        assert_eq!(notches_to(1, 0, 2), 1, "two options: one notch down wraps");
+        assert_eq!(notches_to(0, 2, 3), -1, "up one is shorter than down two");
+        assert_eq!(notches_to(2, 2, 3), 0);
+        assert_eq!(notches_to(0, 0, 0), 0);
+        assert_eq!(notches_to(5, 0, 3), 0, "out of the list: nothing");
+    }
+
+    #[test]
+    fn every_verification_script_loads() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/playtests");
+        for e in std::fs::read_dir(&dir).unwrap() {
+            let p = e.unwrap().path();
+            if p.extension().is_some_and(|x| x == "ron") {
+                let s: Script = crate::data::load_ron(&p).unwrap_or_else(|e| panic!("{e}"));
+                assert_eq!(Some(s.name.as_str()), p.file_stem().and_then(|f| f.to_str()));
+            }
+        }
     }
 
     #[test]

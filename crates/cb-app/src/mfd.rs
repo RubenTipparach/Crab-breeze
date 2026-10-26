@@ -40,8 +40,9 @@ struct MfdTarget {
 /// 2026-10-25: "clicking back should return to mech view and restore the mfd to its original screen"); all of it
 /// lasts only while MFD focus does (survey C14).
 #[derive(Component)]
-struct MfdScreen {
-    pages: ScreenPages,
+pub(crate) struct MfdScreen {
+    /// The page it shows and the one it is built with.
+    pub(crate) pages: ScreenPages,
     material: Handle<StandardMaterial>,
 }
 

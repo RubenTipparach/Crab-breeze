@@ -117,6 +117,11 @@ impl FortressRun {
         self.nodes.is_some()
     }
 
+    /// True while the mech `id` stands on one of its platforms (the velocity handover's own record, survey H4).
+    pub fn is_aboard(&self, id: u32) -> bool {
+        self.aboard.contains(&id)
+    }
+
     /// Part `i`'s node.
     pub fn part_node(&self, i: usize) -> Option<Entity> {
         self.nodes.as_ref().and_then(|n| n.part.get(i).copied().flatten())
