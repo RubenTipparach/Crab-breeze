@@ -31,7 +31,7 @@ Built and unit-tested; not yet run in the game (no playtest on this branch).
 
 - [x] 3.1 `tools/blender/build_boats.py`: freighter, tanker, fishing boat, rowing boat, launch, ferry, gunboat, crane, quay at true size, with the manifest and budgets
 - [x] 3.2 `cb-tools validate` checks the boat models against their data
-- [ ] 3.3 The orbitable mockup page (`tools/mockups/gen_boats.py`), not published
+- [x] 3.3 The orbitable mockup page (`tools/mockups/gen_boats.py`), not published
 
 ## 4. Proof
 

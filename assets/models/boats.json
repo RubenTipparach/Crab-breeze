@@ -267,12 +267,12 @@
     {
      "budget_triangles": 1500,
      "lod": 0,
-     "triangles": 228
+     "triangles": 188
     },
     {
      "budget_triangles": 600,
      "lod": 1,
-     "triangles": 204
+     "triangles": 164
     }
    ],
    "size_m": [

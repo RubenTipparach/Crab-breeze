@@ -11,7 +11,7 @@ stand-ins until a detail pass: flat PBR colours (base colour, roughness, metal; 
                 the bridge house aft with its windows cut through, a funnel
   tanker        150 m product tanker: a flush deck with the pipe rack and manifold, a tall bridge house aft, a funnel
   fishing_boat  22 m trawler: the wheelhouse forward, a stern gantry, a mast
-  rowing_boat   4.2 m clinker skiff: its open hull hollowed by a cutter, three thwarts, oars stowed
+  rowing_boat   4.2 m wooden skiff: its open hull hollowed by a cutter, three thwarts, oars stowed
   launch        8 m motor launch: a cuddy cabin with a windscreen, the cockpit cut into the deck
   ferry         60 m islet ferry: a bow ramp, two passenger decks with window bands cut, the bridge on top
   gunboat       30 m raider patrol boat: a gun turret forward with its barrel, the bridge amidships, a radar mast
@@ -167,7 +167,7 @@ def boolean(target, cutter, op="DIFFERENCE"):
     return target
 
 
-def hull(name, length, beam, draft, deck, mat, sheer=1.0, transom=0.85, stem=0.04, flat_bow=False):
+def hull(name, length, beam, draft, deck, mat, sheer=1.0, transom=0.85, stem=0.04, flat_bow=False, band=True):
     """A ship's hull lofted from stern (+z) to bow (-z): full sections amidships, a transom aft, the bow fined to a
     stem with a rising forefoot, the deck rising by `sheer` to the bow. Below 0.4 m over the waterline the faces are
     the antifouling red."""
@@ -185,6 +185,8 @@ def hull(name, length, beam, draft, deck, mat, sheer=1.0, transom=0.85, stem=0.0
         sec(-L, bow_w, -d * 0.25, deck + sheer),
     ]
     h = loft_z(name, keys, mat)
+    if not band:
+        return h
     # The waterline band: split the faces at 0.4 m and paint those below it.
     bm = bmesh.new()
     bm.from_mesh(h.data)
@@ -276,9 +278,9 @@ def fishing_boat(s):
 def rowing_boat(s):
     L, B, d, H = s["length"], s["beam"], s["draft"], s["height"]
     top = H - d
-    hl = hull("skiff_hull", L, B, d, top, "WOOD", sheer=0.0, transom=0.7, stem=0.05)
+    hl = hull("skiff_hull", L, B, d, top, "WOOD", sheer=0.0, transom=0.7, stem=0.05, band=False)
     # Hollow it out: a cutter inside the gunwales, leaving 4 cm walls and a floor.
-    cutter = hull("skiff_cut", L - 0.2, B - 0.12, d - 0.08, top + 0.5, "WOOD", sheer=0.0, transom=0.7, stem=0.05)
+    cutter = hull("skiff_cut", L - 0.2, B - 0.12, d - 0.08, top + 0.5, "WOOD", sheer=0.0, transom=0.7, stem=0.05, band=False)
     cutter.location = (0, 0, 0.12)
     bpy.context.view_layer.update()
     bpy.context.view_layer.objects.active = cutter
