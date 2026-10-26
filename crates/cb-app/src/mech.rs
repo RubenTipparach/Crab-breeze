@@ -1784,6 +1784,7 @@ fn jet_flames(
     mut streams: Query<&mut crate::fx::FxStream>,
     mut plumes: Query<(&mut Transform, &mut Visibility), With<JetPlume>>,
     children: Query<&Children>,
+    globals: Query<&GlobalTransform>,
     plume: Res<crate::plumes::PlumeAssets>,
     data: Res<Data>,
     plan: Res<Plan>,
@@ -1799,16 +1800,26 @@ fn jet_flames(
     }
     for (sim, rig) in &mechs {
         let on = sim.curr.boosting && !sim.dead;
+        // The nozzles point against the rockets' push, swivelled by WASD (`MechState::thrust_tilt`).
+        let tilt = sim.curr.thrust_tilt;
+        let nozzle_world = -Vec3::new(tilt.x, (1.0 - tilt.length_squared()).max(0.0).sqrt(), tilt.y);
         for jet in ["JET_L", "JET_R"] {
             let Some(&e) = rig.sockets.get(jet) else { continue };
+            // In the socket's own frame, where straight down is -y.
+            let nozzle = globals.get(e).map_or(Vec3::NEG_Y, |g| {
+                (g.to_scale_rotation_translation().1.inverse() * nozzle_world).normalize_or(Vec3::NEG_Y)
+            });
             let trail = trails.get(e).ok().map(|t| t.0);
             match (streams.get(e).is_ok(), trail) {
                 (true, Some(t)) => {
                     for s in [e, t] {
-                        if let Ok(mut s) = streams.get_mut(s)
-                            && s.on != on
-                        {
-                            s.on = on;
+                        if let Ok(mut s) = streams.get_mut(s) {
+                            if s.on != on {
+                                s.on = on;
+                            }
+                            if s.dir != nozzle {
+                                s.dir = nozzle;
+                            }
                         }
                     }
                 }
@@ -1838,7 +1849,7 @@ fn jet_flames(
             }
             // The flame under the nozzle, flickering in length while the jets fire.
             let flicker = 0.85 + 0.3 * (time.elapsed_secs() * 37.0 + e.index().index() as f32).sin().abs();
-            let shape = crate::plumes::placed(Vec3::ZERO, Vec3::NEG_Y, cfg.jet_plume_m[0] * flicker, cfg.jet_plume_m[1]);
+            let shape = crate::plumes::placed(Vec3::ZERO, nozzle, cfg.jet_plume_m[0] * flicker, cfg.jet_plume_m[1]);
             let mine = children.get(e).ok().and_then(|c| c.iter().find(|c| plumes.contains(*c)));
             match mine.and_then(|p| plumes.get_mut(p).ok()) {
                 Some((mut t, mut v)) => {

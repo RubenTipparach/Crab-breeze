@@ -194,6 +194,9 @@ pub struct MechState {
     pub skate: Budget,
     /// The rockets fired this step.
     pub boosting: bool,
+    /// The rockets' swivel: the world-horizontal (x, z) share of their push, 0 straight up, at most
+    /// sin(`vector_max_deg`). The nozzles point the other way.
+    pub thrust_tilt: Vec2,
     /// Off the ground, a roof or the water it rides.
     pub in_air: bool,
     /// Against water.
@@ -371,9 +374,18 @@ impl MechState {
         self.heading_rad = (self.heading_rad + legs_turn_rad).rem_euclid(std::f32::consts::TAU);
         let fwd = flat_forward(self.heading_rad);
 
-        // Horizontal velocity. Only the skates push for free movement's price; the rockets never
-        // push sideways.
+        // The rockets swivel toward the way WASD asks, relative to the view, and back upright with no key held.
         let ask = c.move_xy.clamp_length_max(1.0);
+        let swivel_to = if lifting {
+            let view = flat_forward(c.view_yaw_rad);
+            let right = Vec2::new(-view.y, view.x);
+            (view * ask.y + right * ask.x) * jet.vector_max_deg.to_radians().sin()
+        } else {
+            Vec2::ZERO
+        };
+        self.thrust_tilt = approach_vec(self.thrust_tilt, swivel_to, jet.vector_rate_deg_s.to_radians() * dt_s);
+
+        // Horizontal velocity. The skates push for free movement's price; the rockets only by their swivel.
         let air_skating = !grounded && !sunk && self.skates_on && ask != Vec2::ZERO;
         if sunk && !grounded {
             // Sinking: the water drags the mech to a stop.
@@ -413,6 +425,10 @@ impl MechState {
             self.vel = fwd * speed + side;
         }
 
+        if lifting && !sunk {
+            self.vel += self.thrust_tilt * jet.thrust_m_s2 * c.lift_axis * dt_s;
+        }
+
         let moved = here + self.vel * dt_s;
         let pushed = ground.push_out_at(moved, loco.body_radius_m, self.pos.y);
         if pushed.distance(moved) > 1e-4 {
@@ -450,7 +466,9 @@ impl MechState {
         }
 
         // Vertical.
-        let lift = if lifting { jet.thrust_m_s2 * c.lift_axis } else { 0.0 };
+        // What the swivel takes across comes off the climb.
+        let upright = (1.0 - self.thrust_tilt.length_squared()).max(0.0).sqrt();
+        let lift = if lifting { jet.thrust_m_s2 * c.lift_axis * upright } else { 0.0 };
         if sunk {
             // In the water: the rockets lift slowly; without them the mech settles at sinking speed.
             if lifting {
@@ -820,17 +838,31 @@ mod tests {
     }
 
     #[test]
-    fn rockets_never_push_sideways() {
+    fn rockets_push_across_only_by_their_swivel() {
+        let mut straight = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        let up = MechControls {
+            lift_axis: 1.0,
+            ..Default::default()
+        };
+        run(&mut straight, up, 3.0, &FlatGround::default());
+        assert!(
+            straight.pos.x.abs() < 1e-3 && straight.pos.z.abs() < 1e-3,
+            "no key, straight up: {}",
+            straight.pos
+        );
+
         let mut m = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
-        let c = MechControls {
+        let right = MechControls {
             lift_axis: 1.0,
             move_xy: Vec2::new(1.0, 0.0),
             ..Default::default()
         };
-        run(&mut m, c, 3.0, &FlatGround::default());
-        assert!(m.pos.y > 50.0, "climbed: {}", m.pos.y);
-        assert!(m.pos.x.abs() < 1.0, "no sideways push: {}", m.pos);
-        assert_eq!(m.skate.heat, 0.0);
+        run(&mut m, right, 3.0, &FlatGround::default());
+        assert!(m.pos.y > 50.0, "still climbed: {}", m.pos.y);
+        assert!(m.pos.x > 10.0, "D swivelled the rockets and they pushed right: {}", m.pos);
+        assert!(m.pos.x < m.pos.y, "across less than up: {}", m.pos);
+        assert!(m.thrust_tilt.length() <= 20f32.to_radians().sin() + 1e-4);
+        assert_eq!(m.skate.heat, 0.0, "the skates did not pay");
     }
 
     #[test]
