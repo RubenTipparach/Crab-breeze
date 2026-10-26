@@ -1,7 +1,37 @@
 # Tasks: harbours
 
-- [ ] 1.1 Harbours and sea lanes in the world plan; tested for the coast and clearance rules
-- [ ] 1.2 Ships on their lanes, sinking; tested
-- [ ] 2.1 Harbour and ship block-outs (Blender generators)
-- [ ] 2.2 Shipping jobs: escort, sink the gunboats, clear a blockade
-- [ ] 3.1 Playtest: skim out to a freighter and escort it into harbour
+## 1. Rules (cb-core, tested)
+
+- [ ] 1.1 `data/world/ships.ron` loaded and validated with the other data files
+- [ ] 1.2 Harbours: coastal cities, the berth bearing, clear of the bases; tested on seed 42
+- [ ] 1.3 Sea lanes: A* over open water, coast and islet clearance, string pulling; tested
+- [ ] 1.4 Boats: route following, coast probes, spacing, slowing for harbour, mooring, fishing grounds, lake loops, the ferry; tested
+- [ ] 1.5 Floating on the water's surface and its swell; tested
+- [ ] 1.6 Hits by the vehicles' armour rule (`units::armour_hit`), sinking, wrecks and slicks; tested
+- [ ] 1.7 Shoving and swamping by a wading or skimming mech; tested
+- [ ] 1.8 Fleeing from blasts, hostiles and hits; tested
+- [ ] 1.9 Crabs taking a ship as their target; tested
+- [ ] 1.10 The standing rule and its once-only reports; tested
+- [ ] 1.11 Shipping jobs: three kinds sited at harbours, the ward's loss fails the job; tested
+- [ ] 1.12 Gunboats as vehicles: on the water, clear of the shallows; tested
+- [ ] 1.13 The timetable: spawn and despawn round the pilot, seeded; tested
+
+## 2. In the game (cb-app)
+
+- [ ] 2.1 Harbours drawn: quay (walkable), cranes, warehouses, office and its terminal
+- [ ] 2.2 Sea traffic, lake boats and the ferry drawn and stepped, floating, with bow spray
+- [ ] 2.3 Boats in the hit list; sinking, wrecks and slicks drawn
+- [ ] 2.4 Mechs shove and swamp boats; boats flee; crabs go after ships
+- [ ] 2.5 `BoatHarmed` written for the lead to wire into standing
+- [ ] 2.6 Shipping jobs started: gunboats, the escort's freighter, the blockade
+
+## 3. Models and pages
+
+- [ ] 3.1 `tools/blender/build_boats.py`: freighter, tanker, fishing boat, rowing boat, launch, ferry, gunboat, crane, quay at true size, with the manifest and budgets
+- [ ] 3.2 `cb-tools validate` checks the boat models against their data
+- [ ] 3.3 The orbitable mockup page (`tools/mockups/gen_boats.py`), not published
+
+## 4. Proof
+
+- [ ] 4.1 Step cost measured (`cb-tools ships`)
+- [ ] 4.2 Playtest: skim out to a freighter and escort it into harbour (the lead's session)
