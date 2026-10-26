@@ -242,9 +242,9 @@ fn spawn_mech(
     commands.entity(player).insert((Piloted, MechId(0)));
 }
 
-/// Free roam's encounter mechs near the start, spawned when the run begins as free roam (the title
-/// menu's choice, or a command-line run). The defence mission brings its own enemies, wave by wave
-/// (city-defence).
+/// Free roam's encounter mechs near the start, spawned only when a scripted take asks for them
+/// (`menu::Encounters`): free roam as a player plays it starts with none. The defence mission brings its own
+/// enemies, wave by wave (city-defence).
 fn spawn_encounters(
     mut commands: Commands,
     play: Res<crate::menu::Play>,

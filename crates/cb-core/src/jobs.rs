@@ -60,6 +60,11 @@ pub struct JobsConfig {
     pub offer_life_s: f32,
     /// The fight starts when the pilot comes within this of the site.
     pub arrive_m: f32,
+    /// A job's enemy mechs come in this far from its site, least and most.
+    pub spawn_ring_m: (f32, f32),
+    /// And never nearer the pilot than this, so nothing is firing as the fight begins (owner, 2026-10-25:
+    /// "the enemies shuodl be farther away so they dont start shooting as soon as I board").
+    pub clear_of_pilot_m: f32,
     /// The newest messages kept.
     pub inbox_kept: usize,
     /// The kinds, by weight.
@@ -75,6 +80,11 @@ impl Validate for JobsConfig {
         }
         positive("offer_life_s", self.offer_life_s)?;
         positive("arrive_m", self.arrive_m)?;
+        positive("spawn_ring_m.0", self.spawn_ring_m.0)?;
+        if self.spawn_ring_m.1 < self.spawn_ring_m.0 {
+            return Err("spawn_ring_m: the most is less than the least".into());
+        }
+        positive("clear_of_pilot_m", self.clear_of_pilot_m)?;
         positive("inbox_kept", self.inbox_kept as f32)?;
         if self.kinds.is_empty() {
             return Err("kinds: none".into());
@@ -356,11 +366,56 @@ fn offer(cfg: &JobsConfig, sites: &[Site], id: u32, rng: &mut SimRng) -> (Job, S
     (job, from, subject, body)
 }
 
+/// Where a job's enemy mech comes in: `ring_m` (0 to 1, from the least of `spawn_ring_m` to the most) out from the
+/// site along `bearing_rad`, pushed straight out from the pilot to `clear_of_pilot_m` when that lands nearer. The
+/// draws are the caller's (one forked stream per mech), so the same job brings its mechs to the same places.
+pub fn enemy_spot(cfg: &JobsConfig, site: Vec2, pilot: Vec2, bearing_rad: f32, ring: f32) -> Vec2 {
+    let (lo, hi) = cfg.spawn_ring_m;
+    let at = site + Vec2::new(bearing_rad.cos(), bearing_rad.sin()) * (lo + (hi - lo) * ring.clamp(0.0, 1.0));
+    let off = at - pilot;
+    if off.length() >= cfg.clear_of_pilot_m {
+        return at;
+    }
+    // Straight out from the pilot; on top of the pilot, out along the bearing.
+    let away = off.try_normalize().unwrap_or(Vec2::new(bearing_rad.cos(), bearing_rad.sin()));
+    pilot + away * cfg.clear_of_pilot_m
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const DT: f32 = 1.0 / 60.0;
+
+    #[test]
+    fn a_job_mech_comes_in_on_its_ring_round_the_site() {
+        let c = cfg();
+        let site = Vec2::new(5000.0, 0.0);
+        let p = enemy_spot(&c, site, Vec2::splat(-1.0e5), 0.7, 0.5);
+        let d = p.distance(site);
+        assert!(
+            (d - (c.spawn_ring_m.0 + c.spawn_ring_m.1) * 0.5).abs() < 0.01,
+            "halfway out the ring: {d}"
+        );
+    }
+
+    #[test]
+    fn a_job_mech_never_comes_in_near_the_pilot() {
+        let c = cfg();
+        let site = Vec2::new(300.0, 0.0);
+        for k in 0..64 {
+            let a = k as f32 * 0.1;
+            for pilot in [Vec2::ZERO, site, site + Vec2::new(c.spawn_ring_m.0, 0.0)] {
+                let p = enemy_spot(&c, site, pilot, a, (k % 5) as f32 / 4.0);
+                assert!(
+                    p.distance(pilot) >= c.clear_of_pilot_m - 0.01,
+                    "bearing {a}: {:.0} m from the pilot",
+                    p.distance(pilot)
+                );
+                assert!(p.is_finite());
+            }
+        }
+    }
 
     fn cfg() -> JobsConfig {
         let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/jobs/jobs.ron");

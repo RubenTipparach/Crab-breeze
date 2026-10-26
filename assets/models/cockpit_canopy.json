@@ -14,7 +14,7 @@
     ],
     "y": [
       -0.07,
-      2.23
+      2.3600000000000003
     ],
     "z": [
       -0.87,
@@ -28,7 +28,7 @@
     ],
     "y": [
       -0.055,
-      2.087
+      2.217
     ],
     "z": [
       -0.79,
@@ -42,16 +42,16 @@
     ],
     "y": [
       -0.055,
-      2.721
+      2.791
     ],
     "z": [
-      -1.662,
+      -1.772,
       0.869
     ]
   },
   "doorway_m": {
     "width": 1.41,
-    "height": 1.45,
+    "height": 1.58,
     "through": "the front face (+z)"
   },
   "sockets": {
@@ -98,8 +98,8 @@
   "inner_opening_s": 3.0,
   "front_screen_dir": [
     0.0,
-    -0.062,
-    0.998
+    0.019,
+    1.0
   ],
   "allview_material": "SCREEN_allview",
   "nodes": {
@@ -202,7 +202,7 @@
   },
   "meshes": {
     "CONSOLE_front_front": {
-      "tris": 8280,
+      "tris": 8304,
       "group": "front",
       "node": "CONSOLE_front"
     },
@@ -237,7 +237,7 @@
       "node": "INNER_canopy_1"
     },
     "INNER_canopy_1_cabin": {
-      "tris": 8418,
+      "tris": 8490,
       "group": "cabin",
       "node": "INNER_canopy_1"
     },
@@ -269,7 +269,7 @@
   },
   "vents": 9,
   "lights": 6,
-  "tris": 25352,
+  "tris": 25448,
   "tri_budget": 600000,
   "draw_calls": 13,
   "atlases": {
@@ -313,5 +313,5 @@
     "wall_L",
     "wall_R"
   ],
-  "bytes": 14364213
+  "bytes": 14118095
 }

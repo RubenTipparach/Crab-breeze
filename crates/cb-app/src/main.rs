@@ -31,6 +31,7 @@ mod loading;
 mod mech;
 mod menu;
 mod mfd;
+mod mfd_apps;
 mod missions;
 mod music;
 mod particles;
@@ -162,6 +163,7 @@ fn main() -> AppExit {
         perf_hud::PerfHudPlugin,
         units::UnitsPlugin,
         mfd::MfdPlugin,
+        mfd_apps::MfdAppsPlugin,
         menu::MenuPlugin,
         rope::RopePlugin,
         vents::VentsPlugin,
@@ -200,6 +202,10 @@ fn main() -> AppExit {
         app.insert_resource(defence::Defending)
             .init_resource::<defence::DefenceRun>()
             .insert_resource(menu::Play::Defence);
+    } else if args.stills.is_some() && std::env::var("CB_STILLS_MAIL").is_ok() {
+        // The stills of taking the free-roam mail on the cockpit's MAIL page: free roam as a player plays it, no
+        // encounter mechs (capture::run_script's MAIL_BEAT).
+        app.insert_resource(menu::Play::FreeRoam);
     } else if scripted || args.mission.is_some() || args.start.is_some() || args.play.as_deref().is_some_and(|m| m.starts_with("free")) {
         app.insert_resource(menu::Play::FreeRoam);
         if args.mission.as_deref() == Some("fortress") {
