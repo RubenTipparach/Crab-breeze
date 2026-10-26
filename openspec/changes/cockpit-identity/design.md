@@ -66,4 +66,4 @@ torsos (`DRILLER_TORSO`, `PICKET_TORSO`, `MULE_TORSO`, `SAPPER_TORSO`) are not c
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| C16 | Which block-out for the Driller, Picket, Mule and Sapper | Octagon, Cinema, Tile wall, Twin tier, as above | provisional (survey C16) |
+| C16 | Which block-out for the Driller, Picket, Mule and Sapper | Octagon, Cinema, Tile wall, Twin tier, as above | decided by the owner (2026-10-26, "Approve all": recommendation accepted) |

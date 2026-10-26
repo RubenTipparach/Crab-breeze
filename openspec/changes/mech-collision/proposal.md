@@ -16,7 +16,7 @@ then shows the inside of its plating. A mech 24 m tall that the pilot walks thro
   boxes in that bone's frame and writes them into `data/mechs/<id>.ron` (`body`). Nothing is typed by hand, and
   `cb-tools validate` refuses a file left stale by a rebuild.
 - **One push-out for every wall**: the pilot's walk asks the scene (`world::Scene`) for walls as now; the scene also
-  holds every nearby mech's boxes, posed by the bones the game already draws, the way it holds the Hermit's deck.
+  holds every nearby mech's boxes, posed by the bones the game already draws, the way it holds the Stratostacean's deck.
 - **The rope's foot is clear**: in the kneel, the pilot's body at the rope's foot touches no box, checked by the
   generator for every roster mech.
 

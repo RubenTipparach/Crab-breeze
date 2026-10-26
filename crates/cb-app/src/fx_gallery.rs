@@ -14,6 +14,7 @@ use crate::fx::{Fx, FxStream};
 use crate::loading::GameReady;
 use crate::pilot::PilotSim;
 use crate::sim::Data;
+use crate::state::GameApp;
 use crate::world::Plan;
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
@@ -38,7 +39,7 @@ pub struct FxGalleryPlugin;
 impl Plugin for FxGalleryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Gallery>()
-            .add_systems(Update, (lay_out, replay, sweep, pan).chain());
+            .add_game_systems(Update, (lay_out, replay, sweep, pan).chain());
     }
 }
 

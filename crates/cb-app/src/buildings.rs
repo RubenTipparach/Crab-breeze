@@ -15,6 +15,7 @@
 
 use crate::building_state::{ArrayMaterial, ArrayState, BuildingMaterial, BuildingStates, ElementState, slot, standing_words};
 use crate::sim::{PresentSet, SimSet};
+use crate::state::GameApp;
 use crate::world::{Live, MeshBuilder};
 use bevy::light::NotShadowCaster;
 use bevy::prelude::*;
@@ -23,7 +24,7 @@ use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use cb_core::rng::SimRng;
 use cb_core::world::destruct::Cells;
 use cb_core::world::dressing::{self, Anchor, DressingConfig, Mat, Shape};
-use cb_core::world::interior::{self, Rest, StoreyPlan, Surface};
+use cb_core::world::interior::{self, InteriorConfig, Rest, Site, StoreyPlan, Surface};
 use cb_core::world::structure::{Frame, GROUND, Kind};
 use std::collections::{BTreeMap, HashMap};
 
@@ -37,6 +38,9 @@ pub struct BuildingLooks {
     pub tone_tints: Vec<[f32; 3]>,
     /// Every opaque look as a layer (`Layer`).
     pub arrays: crate::building_arrays::Arrays,
+    /// The far facades, one layer per facade kind, main colour and storey band, and the roof
+    /// (`building-type-lods`, `far_facades`).
+    pub far: crate::building_arrays::Arrays,
     /// See-through window glass.
     pub glass: Handle<StandardMaterial>,
     /// The concrete set, for debris chunks.
@@ -246,6 +250,9 @@ fn rooms_into(mb: &mut MeshBuilder, plan: &StoreyPlan, slot_of: impl Fn(Rest) ->
             layered_block(mb, Layer::Surface(Surface::Plaster), w.min, w.max, PARTITION_TINT, s);
         }
     }
+    for st in &plan.steps {
+        layered_block(mb, Layer::Surface(Surface::Concrete), st.min, st.max, SLAB_TINT, slot_of(st.rest));
+    }
     for it in &plan.items {
         let s = slot_of(it.rest);
         for (lo, hi, col, surface) in &it.boxes {
@@ -281,7 +288,65 @@ struct Dressing {
 
 /// Dressed buildings near the player.
 #[derive(Resource, Default)]
-struct Dressed(HashMap<u32, Dressing>);
+pub(crate) struct Dressed(HashMap<u32, Dressing>);
+
+impl Dressed {
+    /// The buildings dressed now, in id order (their street doors are drawn with them: `street_doors`).
+    pub(crate) fn ids(&self) -> Vec<u32> {
+        let mut ids: Vec<u32> = self.0.keys().copied().collect();
+        ids.sort_unstable();
+        ids
+    }
+}
+
+/// What a street door leaf is drawn in (`street_doors`): the shared building materials, so a leaf
+/// matches the skin it hangs in.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct LeafLooks<'w> {
+    shared: ResMut<'w, Materials>,
+    looks: Option<Res<'w, BuildingLooks>>,
+    states: Res<'w, BuildingStates>,
+    bases: Res<'w, Assets<StandardMaterial>>,
+    arrays: ResMut<'w, Assets<ArrayMaterial>>,
+    glasses: ResMut<'w, Assets<BuildingMaterial>>,
+}
+
+impl LeafLooks<'_> {
+    /// Spawns a leaf: a box `size` (width along local +x from the hinge at the origin, height up,
+    /// thickness centred on z) in `mat` tinted `tint`. `None` until the building looks are loaded.
+    pub(crate) fn spawn(
+        &mut self,
+        commands: &mut Commands,
+        meshes: &mut Assets<Mesh>,
+        mat: Mat,
+        tint: [f32; 3],
+        size: Vec3,
+        name: String,
+    ) -> Option<(Entity, Handle<Mesh>)> {
+        let looks = self.looks.as_deref()?;
+        self.shared.follow(&self.states, &mut self.arrays, &mut self.glasses);
+        let (min, max) = (Vec3::new(0.0, 0.0, -size.z * 0.5), Vec3::new(size.x, size.y, size.z * 0.5));
+        let col = [tint[0], tint[1], tint[2], 0.0];
+        let (look, mesh) = if mat == Mat::Glass {
+            let mut mb = MeshBuilder::tiled(tile_m(Mat::Glass), tile_m(Mat::Glass));
+            mb.block(min, max, col);
+            (Look::Glass, mb.build())
+        } else {
+            let mut mb = MeshBuilder::default();
+            let layer = Layer::Skin(mat);
+            mb.set_layer(layer.index(), layer.tile_m());
+            mb.block(min, max, col);
+            (Look::Skin, mb.build_with_tangents())
+        };
+        let handle = meshes.add(mesh);
+        let mut e = commands.spawn((Name::new(name), Mesh3d(handle.clone()), Transform::IDENTITY));
+        match self.shared.get(look, looks, &self.bases, &mut self.arrays, &mut self.glasses) {
+            Material::Array(h) => e.insert(MeshMaterial3d(h)),
+            Material::Glass(h) => e.insert(MeshMaterial3d(h)),
+        };
+        Some((e.id(), handle))
+    }
+}
 
 /// Set when every building near the player is dressed (none waits for its turn), so a capture
 /// can wait for the street to finish dressing on a slow renderer.
@@ -322,13 +387,15 @@ impl Plugin for BuildingsPlugin {
             .init_resource::<Dressed>()
             .init_resource::<DressJobs>()
             .init_resource::<DressingSettled>()
-            .add_systems(FixedUpdate, step_structures.in_set(SimSet::World))
-            .add_systems(
+            .add_game_systems(FixedUpdate, step_structures.in_set(SimSet::World))
+            .add_game_systems(
                 Update,
-                (dress_near_player, redraw_buildings, show_rooms_near)
+                (dress_near_player, redraw_buildings, show_rooms_near, bind_far_looks, show_massing)
                     .chain()
                     .in_set(PresentSet::Pose),
-            );
+            )
+            .init_resource::<FarMaterials>()
+            .init_resource::<Massing>();
     }
 }
 
@@ -434,7 +501,9 @@ fn step_structures(time: Res<Time<Fixed>>, mut live: ResMut<Live>, mut fx: Messa
 /// vertex carrying the slot of its element (rooms and furniture: the slab under them, or 0 on the
 /// ground). Columns are drawn 1 cm thinner than they are and side walls stop short of the corner
 /// walls, so no two faces share a plane (CLAUDE.md section 10).
-fn frame_meshes(f: &Frame, base: u32, tone: [f32; 3], wall_m: f32, seed: &SimRng) -> Vec<(Look, Mesh)> {
+fn frame_meshes(f: &Frame, site: &Site, icfg: &InteriorConfig, base: u32, tone: [f32; 3], wall_m: f32, seed: &SimRng) -> Vec<(Look, Mesh)> {
+    // The stairwell is cut out of the floor bays above the ground, as in the colliders.
+    let hole = interior::shell(site, icfg, seed).stair.hole();
     let mut facade = MeshBuilder::default();
     let mut frame = MeshBuilder::default();
     for (id, e) in f.elements.iter().enumerate() {
@@ -460,6 +529,13 @@ fn frame_meshes(f: &Frame, base: u32, tone: [f32; 3], wall_m: f32, seed: &SimRng
                 CORE_TINT,
                 s,
             ),
+            Kind::Slab if (e.storey as usize) + 1 < f.n[1] => {
+                let r = (Vec2::new(e.min.x, e.min.z), Vec2::new(e.max.x, e.max.z));
+                for (lo, hi) in interior::rect_minus(r, hole) {
+                    let (a, b) = (Vec3::new(lo.x, e.min.y, lo.y), Vec3::new(hi.x, e.max.y, hi.y));
+                    layered_block(&mut frame, Layer::Surface(Surface::Concrete), a, b, SLAB_TINT, s);
+                }
+            }
             Kind::Slab => layered_block(&mut frame, Layer::Surface(Surface::Concrete), e.min, e.max, SLAB_TINT, s),
         }
     }
@@ -469,11 +545,7 @@ fn frame_meshes(f: &Frame, base: u32, tone: [f32; 3], wall_m: f32, seed: &SimRng
     };
     let mut rooms = MeshBuilder::default();
     for k in 0..f.n[1] {
-        rooms_into(
-            &mut rooms,
-            &interior::plan_storey(f.building, k, f.n, f.origin, f.size, seed),
-            rest_slot,
-        );
+        rooms_into(&mut rooms, &interior::plan_storey(site, k, icfg, seed), rest_slot);
     }
     vec![
         (Look::Facade, facade.build_with_tangents()),
@@ -509,11 +581,13 @@ fn tile_m(mat: Mat) -> f32 {
 /// the arrays) and the glass in another, cut per element, every vertex carrying its element's slot,
 /// once it has a frame; whole, with its floors, rooms and furniture behind the glass (in the skin
 /// mesh) while it is whole (a damaged building draws its rooms with its frame).
-fn dressing_meshes(c: &Cells, id: u32, base: u32, seed: &SimRng, cfg: &DressingConfig) -> Vec<(Look, Mesh)> {
+fn dressing_meshes(c: &Cells, site: &Site, icfg: &InteriorConfig, base: u32, seed: &SimRng, cfg: &DressingConfig) -> Vec<(Look, Mesh)> {
     let f = c.frame.as_deref();
+    let id = site.id;
+    let shell = interior::shell(site, icfg, seed);
     let mut skin = MeshBuilder::default();
     let mut glass = MeshBuilder::tiled(tile_m(Mat::Glass), tile_m(Mat::Glass));
-    for p in dressing::dress(id, c.n, c.origin, c.size, seed, f.is_some(), cfg) {
+    for p in dressing::dress(id, c.n, c.origin, c.size, seed, f.is_some(), cfg, site.fronts, Some(&shell)) {
         let Some(s) = anchor_slot(f, base, p.anchor) else { continue };
         let mb = if p.mat == Mat::Glass {
             &mut glass
@@ -531,7 +605,7 @@ fn dressing_meshes(c: &Cells, id: u32, base: u32, seed: &SimRng, cfg: &DressingC
     let mut rooms = MeshBuilder::default();
     if f.is_none() {
         for k in 0..c.n[1] {
-            rooms_into(&mut rooms, &interior::plan_storey(id, k, c.n, c.origin, c.size, seed), |_| 0.0);
+            rooms_into(&mut rooms, &interior::plan_storey(site, k, icfg, seed), |_| 0.0);
         }
     }
     vec![
@@ -539,6 +613,12 @@ fn dressing_meshes(c: &Cells, id: u32, base: u32, seed: &SimRng, cfg: &DressingC
         (Look::Glass, glass.build()),
         (Look::Rooms, rooms.build_with_tangents()),
     ]
+}
+
+/// The stream every building's plans, dressing and colliders are drawn from: one, so what is drawn
+/// is what the pilot walks into.
+pub fn building_rng(world_seed: u64) -> SimRng {
+    SimRng::new(world_seed).fork("dressing")
 }
 
 /// Shows `parts` in `drawn`, one entity per look, each in its material; a look already drawn has
@@ -670,8 +750,9 @@ fn dress_near_player(
     if ents.0.is_empty() {
         return;
     }
+    let icfg = &cfg.0.world.interiors;
     let cfg = &cfg.0.world.dressing;
-    let rng = SimRng::new(seed.0).fork("dressing");
+    let rng = building_rng(seed.0);
     let mut near: Vec<u32> = plan
         .0
         .collision
@@ -691,7 +772,7 @@ fn dress_near_player(
         );
         da.total_cmp(&db).then(a.cmp(&b))
     });
-    let keep = cfg.dress_radius_m * 1.15;
+    let keep = cfg.dress_radius_m * cfg.keep_ratio;
     shared.follow(&states, &mut arrays, &mut glasses);
     // The dressings that are built, in id order. A building still near, standing and without a frame
     // is dressed with them; any other result is dropped (a framed one is dressed by `redraw_buildings`).
@@ -699,7 +780,11 @@ fn dress_near_player(
     for (b, built) in built {
         jobs.0.remove(&b);
         let c = &live.structures.buildings[b as usize];
-        let near = plan.0.buildings[b as usize].footprint.centre().distance(here) <= keep;
+        let near = cfg.shows(
+            cfg.dress_radius_m,
+            plan.0.buildings[b as usize].footprint.centre().distance(here),
+            true,
+        );
         if c.standing == 0 || c.frame.is_some() || !near || dressed.0.contains_key(&b) {
             continue;
         }
@@ -744,8 +829,10 @@ fn dress_near_player(
             waiting += 1;
             continue;
         }
-        let (c, rng, cfg) = (c.clone(), rng.clone(), cfg.clone());
-        jobs.0.insert(b, pool.spawn(async move { dressing_meshes(&c, b, 0, &rng, &cfg) }));
+        let site = Site::of(&plan.0, b, c.n, c.origin, c.size);
+        let (c, rng, cfg, icfg) = (c.clone(), rng.clone(), cfg.clone(), icfg.clone());
+        jobs.0
+            .insert(b, pool.spawn(async move { dressing_meshes(&c, &site, &icfg, 0, &rng, &cfg) }));
     }
     // Left behind while being dressed: the job is dropped (which cancels it).
     jobs.0
@@ -789,6 +876,7 @@ fn redraw_buildings(
     mut states: ResMut<BuildingStates>,
     seed: Res<crate::world::Seed>,
     cfg: Res<crate::sim::Data>,
+    plan: Res<crate::world::Plan>,
     mut meshes: ResMut<Assets<Mesh>>,
     bases: Res<Assets<StandardMaterial>>,
     mut arrays: ResMut<Assets<ArrayMaterial>>,
@@ -804,7 +892,7 @@ fn redraw_buildings(
     ids.sort_unstable();
     ids.dedup();
     let wall_m = live.structures.cfg.wall_m;
-    let rng = SimRng::new(seed.0).fork("dressing");
+    let rng = building_rng(seed.0);
     for id in ids {
         let c = &live.structures.buildings[id as usize];
         let e = ents.0[id as usize];
@@ -817,6 +905,7 @@ fn redraw_buildings(
             }
             continue;
         };
+        let site = Site::of(&plan.0, id, c.n, c.origin, c.size);
         let base = states.base(id, f.elements.len(), &mut buffers);
         shared.follow(&states, &mut arrays, &mut glasses);
         states.write(id, &standing_words(f));
@@ -834,7 +923,7 @@ fn redraw_buildings(
                     &mut commands,
                     &mut meshes,
                     &mut fb.parts,
-                    frame_meshes(f, base, tone, wall_m, &rng),
+                    frame_meshes(f, &site, &cfg.0.world.interiors, base, tone, wall_m, &rng),
                     |l| shared.get(l, &looks, &bases, &mut arrays, &mut glasses),
                     &format!("building {id}"),
                 );
@@ -845,7 +934,7 @@ fn redraw_buildings(
         let skinned = match dressed.0.get_mut(&id) {
             Some(d) => {
                 if !d.framed {
-                    let parts = dressing_meshes(c, id, fb.base, &rng, &cfg.0.world.dressing);
+                    let parts = dressing_meshes(c, &site, &cfg.0.world.interiors, fb.base, &rng, &cfg.0.world.dressing);
                     show_parts(
                         &mut commands,
                         &mut meshes,
@@ -868,6 +957,185 @@ fn redraw_buildings(
     }
 }
 
+// ---------------------------------------------------------------- far looks (`building-type-lods`)
+
+/// A material's layer in the near skin's arrays and its tile size, m: what the far facades sample.
+pub fn skin_layer(mat: Mat) -> (u32, f32) {
+    let l = Layer::Skin(mat);
+    (l.index(), l.tile_m().x)
+}
+
+/// Marks a building's far walls (its box): they wear the far material once it exists.
+#[derive(Component)]
+pub struct FarWalls;
+
+/// The far mesh of a building, relative to its cell grid's corner (place it there): walls of its
+/// own facade kind and colour, the ground storey and the storeys above as their own bands, one bay
+/// per cell, and a roof cap. Every vertex is untinted and on slot 0 (it always stands).
+pub fn far_mesh(c: &Cells, id: u32, rng: &SimRng) -> Mesh {
+    use cb_core::world::far_facade::{Band, layer_of, roof_layer};
+    let v = dressing::far_variant(id, c.n, c.size, rng);
+    let (ground, typical) = (layer_of(v, Band::Ground).unwrap_or(0), layer_of(v, Band::Typical).unwrap_or(1));
+    let [nx, ns, nz] = c.n;
+    let (w, d, s) = (c.size.x * nx as f32, c.size.z * nz as f32, c.size.y);
+    let h = s * ns as f32;
+    let col = [1.0, 1.0, 1.0, 0.0];
+    let v3 = Vec3::new;
+    let mut mb = MeshBuilder::default();
+    for (layer, y0, y1) in [(ground, 0.0, s.min(h)), (typical, s, h)] {
+        if y1 <= y0 {
+            continue;
+        }
+        mb.set_layer(layer, Vec2::new(c.size.x, s));
+        mb.quad([v3(w, y0, 0.0), v3(0.0, y0, 0.0), v3(0.0, y1, 0.0), v3(w, y1, 0.0)], col);
+        mb.quad([v3(0.0, y0, d), v3(w, y0, d), v3(w, y1, d), v3(0.0, y1, d)], col);
+        mb.set_layer(layer, Vec2::new(c.size.z, s));
+        mb.quad([v3(0.0, y0, 0.0), v3(0.0, y0, d), v3(0.0, y1, d), v3(0.0, y1, 0.0)], col);
+        mb.quad([v3(w, y0, d), v3(w, y0, 0.0), v3(w, y1, 0.0), v3(w, y1, d)], col);
+    }
+    mb.set_layer(roof_layer(), Vec2::splat(tile_m(Mat::Roof)));
+    mb.quad([v3(0.0, h, 0.0), v3(0.0, h, d), v3(w, h, d), v3(w, h, 0.0)], col);
+    mb.build_with_tangents()
+}
+
+/// A building's massing mesh in world space: the pieces its own dressing puts on and above the
+/// roof line, in the near skin's layers (glass left out: there is none up there).
+fn massing_mesh(pieces: &[dressing::Piece]) -> Mesh {
+    let mut mb = MeshBuilder::default();
+    for p in pieces.iter().filter(|p| p.mat != Mat::Glass) {
+        let layer = Layer::Skin(p.mat);
+        mb.set_layer(layer.index(), layer.tile_m());
+        let col = [p.color[0], p.color[1], p.color[2], 0.0];
+        match p.shape {
+            Shape::Block { min, max } => mb.block(min, max, col),
+            Shape::Drum { base, r0, r1, height_m } => mb.drum(base, r0, r1, height_m, 10, col),
+        }
+    }
+    mb.build_with_tangents()
+}
+
+/// The far walls' material and the massing's (the near skin's arrays), both reading the element
+/// state buffer and following it when it grows.
+#[derive(Resource, Default)]
+struct FarMaterials {
+    standing: Option<Handle<ShaderBuffer>>,
+    far: Option<Handle<ArrayMaterial>>,
+    massing: Option<Handle<ArrayMaterial>>,
+}
+
+/// Makes the far materials once the buffer and the looks exist, gives every building's far walls
+/// theirs, and follows the buffer when it grows.
+fn bind_far_looks(
+    mut commands: Commands,
+    mut mats: ResMut<FarMaterials>,
+    looks: Option<Res<BuildingLooks>>,
+    states: Option<Res<BuildingStates>>,
+    mut arrays: ResMut<Assets<ArrayMaterial>>,
+    walls: Query<Entity, (With<FarWalls>, Without<MeshMaterial3d<ArrayMaterial>>)>,
+) {
+    let (Some(looks), Some(states)) = (looks, states) else { return };
+    let make = |a: &crate::building_arrays::Arrays| ArrayMaterial {
+        base: StandardMaterial::default(),
+        extension: ArrayState {
+            standing: states.handle.clone(),
+            albedo: a.albedo.clone(),
+            normal: a.normal.clone(),
+            orm: a.orm.clone(),
+        },
+    };
+    if mats.far.is_none() {
+        mats.far = Some(arrays.add(make(&looks.far)));
+        mats.massing = Some(arrays.add(make(&looks.arrays)));
+        mats.standing = Some(states.handle.clone());
+    } else if mats.standing.as_ref() != Some(&states.handle) {
+        mats.standing = Some(states.handle.clone());
+        for h in [&mats.far, &mats.massing].into_iter().flatten() {
+            if let Some(mut m) = arrays.get_mut(h) {
+                m.extension.standing = states.handle.clone();
+            }
+        }
+    }
+    if let Some(far) = &mats.far {
+        for e in &walls {
+            commands.entity(e).insert(MeshMaterial3d(far.clone()));
+        }
+    }
+}
+
+/// The massing shown, by building id.
+#[derive(Resource, Default)]
+struct Massing(HashMap<u32, Entity>);
+
+/// Shows each building's massing within `massing_radius_m` of the player and drops it past
+/// 1.15 times that; it shows and hides with its far walls, so a dressed or damaged building's
+/// massing is hidden with its box.
+#[allow(clippy::too_many_arguments)]
+fn show_massing(
+    mut commands: Commands,
+    mut shown: ResMut<Massing>,
+    mats: Res<FarMaterials>,
+    plan: Res<crate::world::Plan>,
+    live: Res<Live>,
+    seed: Res<crate::world::Seed>,
+    cfg: Res<crate::sim::Data>,
+    ents: Res<BuildingEntities>,
+    camera: Query<&GlobalTransform, With<crate::pilot::PilotCamera>>,
+    vis: Query<&Visibility>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    let (Some(material), Some(here)) = (mats.massing.clone(), player_xz(&camera)) else {
+        return;
+    };
+    let cfg = &cfg.0.world.dressing;
+    let rng = SimRng::new(seed.0).fork("dressing");
+    let mut near: Vec<u32> = plan
+        .0
+        .collision
+        .candidates(here, cfg.massing_radius_m)
+        .into_iter()
+        .filter(|&b| !shown.0.contains_key(&b) && plan.0.buildings[b as usize].footprint.centre().distance(here) <= cfg.massing_radius_m)
+        .collect();
+    // Nearest first, ties by id (never hash order), a few a frame: each is a whole dressing pass.
+    near.sort_by(|&a, &b| {
+        let d = |i: u32| plan.0.buildings[i as usize].footprint.centre().distance(here);
+        d(a).total_cmp(&d(b)).then(a.cmp(&b))
+    });
+    for b in near.into_iter().take(cfg.massing_per_frame as usize) {
+        let Some(&box_e) = ents.0.get(b as usize) else { continue };
+        let c = &live.structures.buildings[b as usize];
+        let fronts = plan.0.fronts.get(b as usize).copied().unwrap_or([cb_core::world::FRONT_LIMIT_M; 4]);
+        let pieces = dressing::massing(b, c.n, c.origin, c.size, &rng, cfg, fronts, cfg.massing_pieces as usize);
+        let e = commands
+            .spawn((
+                Name::new(format!("building {b} massing")),
+                Mesh3d(meshes.add(massing_mesh(&pieces))),
+                MeshMaterial3d(material.clone()),
+                Transform::IDENTITY,
+                vis.get(box_e).copied().unwrap_or_default(),
+            ))
+            .id();
+        shown.0.insert(b, e);
+    }
+    shown.0.retain(|&b, e| {
+        let far = !cfg.shows(
+            cfg.massing_radius_m,
+            plan.0.buildings[b as usize].footprint.centre().distance(here),
+            true,
+        );
+        if far {
+            commands.entity(*e).despawn();
+            return false;
+        }
+        if let (Some(&box_e), Ok(now)) = (ents.0.get(b as usize), vis.get(*e))
+            && let Ok(want) = vis.get(box_e)
+            && want != now
+        {
+            commands.entity(*e).insert(*want);
+        }
+        true
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -876,6 +1144,21 @@ mod tests {
 
     fn frame() -> Frame {
         Frame::new(3, [4, 9, 3], Vec3::ZERO, Vec3::new(6.0, 3.5, 6.0), &StructureConfig::default())
+    }
+
+    fn site(f: &Frame) -> Site {
+        Site {
+            id: f.building,
+            n: f.n,
+            origin: f.origin,
+            size: f.size,
+            street: 0,
+            fronts: [cb_core::world::FRONT_LIMIT_M; 4],
+        }
+    }
+
+    fn meshes_of(f: &Frame) -> Vec<(Look, Mesh)> {
+        frame_meshes(f, &site(f), &InteriorConfig::default(), 0, [1.0; 3], 0.3, &SimRng::new(1))
     }
 
     /// The slots a mesh's vertices carry.
@@ -889,7 +1172,7 @@ mod tests {
     #[test]
     fn every_vertex_carries_the_slot_of_its_element() {
         let f = frame();
-        let meshes = frame_meshes(&f, 0, [1.0; 3], 0.3, &SimRng::new(1));
+        let meshes = meshes_of(&f);
         let all: Vec<u32> = meshes.iter().flat_map(|(_, m)| slots(m)).collect();
         assert!(
             all.iter().all(|&s| s as usize <= f.elements.len()),
@@ -924,7 +1207,7 @@ mod tests {
     #[test]
     fn rooms_are_their_own_mesh() {
         let f = frame();
-        let meshes = frame_meshes(&f, 0, [1.0; 3], 0.3, &SimRng::new(1));
+        let meshes = meshes_of(&f);
         let frame_mesh = &meshes.iter().find(|(l, _)| *l == Look::Frame).unwrap().1;
         for s in slots(frame_mesh) {
             assert!(
@@ -948,7 +1231,7 @@ mod tests {
     #[test]
     fn the_facade_mesh_is_its_walls_only() {
         let f = frame();
-        let meshes = frame_meshes(&f, 0, [1.0; 3], 0.3, &SimRng::new(1));
+        let meshes = meshes_of(&f);
         let facade = &meshes.iter().find(|(l, _)| *l == Look::Facade).unwrap().1;
         for s in slots(facade) {
             assert_eq!(f.elements[s as usize - 1].kind, Kind::Wall);
@@ -977,7 +1260,7 @@ mod tests {
         let f = frame();
         let cfg = DressingConfig::default();
         let rng = SimRng::new(1);
-        let all = dressing::dress(3, f.n, f.origin, f.size, &rng, true, &cfg);
+        let all = dressing::dress(3, f.n, f.origin, f.size, &rng, true, &cfg, [cb_core::world::FRONT_LIMIT_M; 4], None);
         let hung: Vec<f32> = all.iter().filter_map(|p| anchor_slot(Some(&f), 0, p.anchor)).collect();
         assert!(!hung.is_empty());
         assert!(hung.iter().all(|&s| s as usize <= f.elements.len()));

@@ -9,6 +9,7 @@ use crate::combat::Shots;
 use crate::fx::Fx;
 use crate::mech::{Enemy, EnemyGoal, MechId, MechSim, Piloted};
 use crate::sim::{Data, SimSet};
+use crate::state::GameApp;
 use crate::world::Plan;
 use bevy::prelude::*;
 use cb_core::rng::SimRng;
@@ -93,11 +94,15 @@ impl Units {
         id
     }
 
-    /// Every vehicle `mission` brought leaves the world (the mission was turned off).
-    pub fn retire(&mut self, mission: cb_core::missions::MissionKind) {
+    /// Every vehicle `mission` brought leaves the world at once (the mission was turned off: survey FR1); returns
+    /// their ids, so their rounds in the air go with them.
+    pub fn retire(&mut self, mission: cb_core::missions::MissionKind) -> Vec<u32> {
+        let mut ids = Vec::new();
         for p in self.list.iter_mut().filter(|p| p.mission == Some(mission)) {
             p.gone = true;
+            ids.push(p.unit.id);
         }
+        ids
     }
 
     /// `mission`'s vehicles flying or fighting now.
@@ -120,6 +125,11 @@ impl Units {
         (mine.count() as u32 - dead, dead)
     }
 }
+
+/// Targets other than the pilot's mech for some vehicles, by id, this step: a point and its velocity (a raider's
+/// gunboat after an escort's freighter or a fishing boat: openspec change `harbours`). Filled before the vehicles step.
+#[derive(Resource, Default)]
+pub struct UnitTargets(pub BTreeMap<u32, (Vec3, Vec3)>);
 
 /// A wave's vehicles are due (sent by the defence mission when the wave starts).
 #[derive(Message, Clone, Copy)]
@@ -144,9 +154,10 @@ impl Plugin for UnitsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Units>()
             .init_resource::<Hostiles>()
+            .init_resource::<UnitTargets>()
             .add_message::<WaveForces>()
-            .add_systems(FixedUpdate, list_hostiles.in_set(SimSet::Input))
-            .add_systems(
+            .add_game_systems(FixedUpdate, list_hostiles.in_set(SimSet::Input))
+            .add_game_systems(
                 FixedUpdate,
                 (spawn_forces, step_units)
                     .chain()
@@ -154,7 +165,7 @@ impl Plugin for UnitsPlugin {
                     .after(crate::mech::step_mech)
                     .before(crate::combat::fly_shots),
             )
-            .add_systems(Update, draw_units);
+            .add_game_systems(Update, draw_units);
     }
 }
 
@@ -285,6 +296,8 @@ fn step_units(
     me: Query<(&MechSim, &crate::mech::MechSpec), With<Piloted>>,
     mut shots: ResMut<Shots>,
     mut fx: MessageWriter<Fx>,
+    neutrals: Res<crate::air_traffic::Neutrals>,
+    targets: Res<UnitTargets>,
 ) {
     let _t = crate::perf_hud::slow("step_units");
     if units.list.is_empty() {
@@ -302,12 +315,24 @@ fn step_units(
     let mut dropped = Vec::new();
     for p in units.list.iter_mut().filter(|p| !p.gone) {
         let Some(spec) = cfg.units.get(&p.unit.kind) else { continue };
+        // Its own target (a boat a gunboat hunts: harbours), else the pilot; a civil aircraft within its guns' reach is
+        // a shot of opportunity (civil-air-traffic): the nearest, ties by id.
+        let aim = targets.0.get(&p.unit.id).copied().or(target);
+        let opportunity = neutrals
+            .0
+            .iter()
+            .map(|n| (n.aim.distance(p.unit.pos), n))
+            .filter(|(d, _)| *d <= spec.fire_range_m)
+            .min_by(|a, b| a.0.total_cmp(&b.0).then(a.1.id.cmp(&b.1.id)))
+            .map(|(_, n)| (n.aim, n.vel));
         let view = UnitView {
             spec,
-            target: target.map(|t| t.0),
-            target_vel: target.map_or(Vec3::ZERO, |t| t.1),
+            target: aim.map(|t| t.0),
+            target_vel: aim.map_or(Vec3::ZERO, |t| t.1),
+            opportunity,
             ground: &ground,
             drop: &cfg.drop,
+            sea_level_m: plan.waters.sea_level_m,
         };
         let step = p.unit.step(&view, dt);
         if let (Some((from, dir)), Some(w)) = (step.fire, spec.weapon.as_ref()) {
@@ -317,10 +342,10 @@ fn step_units(
                 pos: from,
                 vel: dir * w.speed_m_s,
                 age_s: 0.0,
-                rocket: w.rocket,
+                rocket: w.shot().straight(),
                 target: None,
             });
-            let flash = if w.rocket {
+            let flash = if w.shot().straight() {
                 "muzzle_rocket"
             } else if w.blast_mj >= 1.0 {
                 "muzzle_cannon"
@@ -352,11 +377,18 @@ fn step_units(
 
 /// A vehicle was destroyed: the blast and the wreck's fire, and it leaves the world.
 pub fn unit_destroyed(p: &mut Placed, data: &Data, fx: &mut MessageWriter<Fx>, explosions: &mut MessageWriter<crate::blast::Explosion>) {
-    let air = data.0.units.units.get(&p.unit.kind).is_some_and(|s| s.kind != UnitKind::Tank);
-    fx.write(Fx::new(if air { "explosion_air" } else { "explosion_ground" }, p.unit.pos));
+    let kind = data.0.units.units.get(&p.unit.kind).map(|s| s.kind);
+    let air = kind.is_some_and(|k| !matches!(k, UnitKind::Tank | UnitKind::Gunboat));
+    let recipe = match kind {
+        Some(UnitKind::Gunboat) => "explosion_water",
+        _ if air => "explosion_air",
+        _ => "explosion_ground",
+    };
+    fx.write(Fx::new(recipe, p.unit.pos));
     explosions.write(crate::blast::Explosion {
         at: p.unit.pos,
         energy_mj: if air { 1.5 } else { 4.0 },
+        by: None,
     });
     p.gone = true;
 }
@@ -392,6 +424,7 @@ fn draw_units(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut known: Local<BTreeMap<u32, Entity>>,
+    assets: Res<AssetServer>,
 ) {
     let _t = crate::perf_hud::slow("draw_units");
     let mut seen = std::collections::BTreeSet::new();
@@ -475,6 +508,8 @@ fn draw_units(
                     false,
                 ));
             }
+            // Drawn from the boats' block-out (below), not boxes.
+            UnitKind::Gunboat => {}
             UnitKind::CargoPlane => {
                 parts.push((Cuboid::new(w * 0.15, h, l).into(), Transform::IDENTITY, false));
                 parts.push((
@@ -501,6 +536,17 @@ fn draw_units(
             let mat = if is_dark { dark.clone() } else { paint.clone() };
             commands.spawn((Mesh3d(m), MeshMaterial3d(mat), t, ChildOf(root)));
         }
+        // A gunboat is the boats' block-out (harbours): its origin is its waterline, under the unit's body centre.
+        if s.kind == UnitKind::Gunboat
+            && let Some(b) = data.0.ships.kinds.get(cb_core::ships::GUNBOAT)
+        {
+            let scene = assets.load(GltfAssetLabel::Scene(0).from_asset(b.model.clone()));
+            commands.spawn((
+                bevy::world_serialization::WorldAssetRoot(scene),
+                Transform::from_xyz(0.0, s.draft_m - h * 0.5, 0.0),
+                ChildOf(root),
+            ));
+        }
         // A tank comes down under a chute: a dome over it on lines, shown while it is open.
         let chute = (s.kind == UnitKind::Tank).then(|| {
             let cloth = materials.add(StandardMaterial {
@@ -522,5 +568,61 @@ fn draw_units(
         });
         commands.entity(root).insert(UnitDraw { id: p.unit.id, chute });
         known.insert(p.unit.id, root);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cb_core::missions::MissionKind;
+
+    fn units_data() -> cb_core::units::UnitsConfig {
+        let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/world/units.ron");
+        cb_core::data::load_ron(&p).unwrap()
+    }
+
+    #[test]
+    fn a_stopped_missions_vehicles_and_their_rounds_leave_at_once_and_only_theirs() {
+        // Survey FR1 (owner, 2026-10-26): when free roam starts a new mission, the stopped mission's enemies leave
+        // the world at once.
+        let data = units_data();
+        let spec = &data.units["fighter"];
+        let mut units = Units::default();
+        let mut add = |m: Option<MissionKind>| units.add_for(|id| Unit::new(id, "fighter", spec, Vec3::ZERO, 0.0, id), None, None, m);
+        let fortress = add(Some(MissionKind::Fortress));
+        let defence = add(Some(MissionKind::Defence));
+        let free = add(None);
+        let gone = units.retire(MissionKind::Fortress);
+        assert_eq!(gone, [fortress]);
+        assert_eq!(units.count_for(MissionKind::Fortress), 0);
+        assert_eq!(units.count_for(MissionKind::Defence), 1);
+        assert!(units.list.iter().filter(|p| p.gone).all(|p| p.unit.id == fortress));
+        let round = |owner: u32| cb_core::weapons::Projectile {
+            owner,
+            weapon: 0,
+            pos: Vec3::ZERO,
+            vel: Vec3::X,
+            age_s: 0.0,
+            rocket: false,
+            target: None,
+        };
+        let beam = |owner: u32| crate::combat::Beam {
+            owner,
+            from: Vec3::ZERO,
+            dir: Vec3::X,
+            range_m: 100.0,
+            penetration_mm: 10.0,
+            damage: 1.0,
+        };
+        let mut shots = crate::combat::Shots(
+            vec![round(fortress), round(defence), round(free)],
+            Vec::new(),
+            vec![beam(fortress), beam(free)],
+        );
+        shots.drop_from(|o| gone.contains(&o));
+        let left: Vec<u32> = shots.0.iter().map(|s| s.owner).collect();
+        assert_eq!(left, [defence, free]);
+        let lasers: Vec<u32> = shots.2.iter().map(|b| b.owner).collect();
+        assert_eq!(lasers, [free], "a stopped mission's lasers go with it (weapon-kinds)");
     }
 }

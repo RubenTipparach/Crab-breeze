@@ -1,0 +1,23 @@
+// The first leg of the free-roam performance run alone (free-roam-perf): board, take the nearest job by mail, drive
+// there and fight it. Short enough to repeat with one part of the game switched off at a time (CB_NO_PARTICLES,
+// CB_NO_SHADOWS, ...) to find what the fight's slow frames cost.
+//
+//   CB_UNCAPPED=1 ./target/release/crab-breeze --playtest free-roam-fight
+(
+    name: "free-roam-fight",
+    stuck_s: 20.0,
+    runs: [
+        (
+            play: "career-new",
+            beats: [
+                Wait(2.0),
+                Board,
+                Wait(2.0),
+                AcceptByMail(Nearest, 2),
+                GoToJob,
+                FightJob(600.0),
+                Wait(3.0),
+            ],
+        ),
+    ],
+)

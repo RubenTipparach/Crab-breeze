@@ -1,4 +1,4 @@
-//! The Hermit, the crab air fortress (openspec change `crab-airship`): how it stays up, flies, sinks, lists,
+//! The Stratostacean, the crab air fortress (openspec change `crab-airship`): how it stays up, flies, sinks, lists,
 //! falls and crashes, how each of its parts takes a hit, how its turrets aim and fire, and when it launches a
 //! fighter. Pure and deterministic: `cb-app::fortress` feeds it the fixed step, where its parts' nodes are and
 //! where the pilot's mech is, and acts on what it says. The cockpit's lift readout reads `lift`, the rule the
@@ -15,9 +15,10 @@ pub use hits::{HitOutcome, Weak};
 pub use lift::{Lift, lift};
 
 use crate::data::{Validate, finite, positive, within};
+use crate::mission::RaiderSpec;
 use crate::rng::SimRng;
 use crate::weapons::WeaponSpec;
-use crate::world::Slab;
+use crate::world::{Slab, Structures, WorldPlan};
 use glam::{Affine3A, Quat, Vec2, Vec3};
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -166,6 +167,35 @@ pub struct LegSpec {
     pub tumble_deg_s: f32,
 }
 
+/// A post of the deck guard: which crab stands where, in the fortress's frame (x, z) on one of its tops.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GuardPost {
+    /// The crab, a key of `GuardSpec::crabs`.
+    pub crab: String,
+    /// Where it stands (x, z), metres.
+    pub at_m: Vec2,
+}
+
+/// The deck guard (design section 4; owner, 2026-10-26, survey H6: 2 Shrikes and 4 Mites on deck, a Mite up each
+/// hangar lift every 60 s while the lifts work).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GuardSpec {
+    /// Aboard from the start.
+    pub start: Vec<GuardPost>,
+    /// The crab each hangar lift brings up.
+    pub lift_crab: String,
+    /// Each working lift brings one up this often, seconds.
+    pub lift_interval_s: f32,
+    /// No lift brings one up while this many stand.
+    pub max_on_deck: u32,
+    /// Crabs below decks for the lifts.
+    pub hangar: u32,
+    /// Each crab: its mech, skin, guns and pilot, as a defence raider's.
+    pub crabs: BTreeMap<String, RaiderSpec>,
+}
+
 /// The crash (design section 6).
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -176,12 +206,17 @@ pub struct CrashSpec {
     pub blast_mj: f32,
     /// Building cells under its footprint and this far round it break.
     pub break_margin_m: f32,
+    /// Its footprint on the ground: half its width (x) and half its length (z), an ellipse in its own frame.
+    pub half_size_m: Vec2,
 }
 
 /// `data/missions/fortress.ron`: every number the fortress uses (design sections 1 to 6 and 9).
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct FortressConfig {
+    /// What the pilot calls it, on the HUD, the TARGET page and in the log (owner, 2026-10-26, survey H2: "the
+    /// Stratostacean").
+    pub name: String,
     /// Mass, tonnes (its weight W = mass x g).
     pub mass_t: f32,
     /// The hull's middle over the attacked city's ground.
@@ -221,6 +256,8 @@ pub struct FortressConfig {
     pub launch: LaunchSpec,
     /// Downwash.
     pub downwash: DownwashSpec,
+    /// The deck guard.
+    pub guard: GuardSpec,
     /// A leg breaking off.
     pub leg: LegSpec,
     /// The crash.
@@ -236,6 +273,9 @@ impl FortressConfig {
 
 impl Validate for FortressConfig {
     fn validate(&self) -> Result<(), String> {
+        if self.name.trim().is_empty() {
+            return Err("`name` needs text".into());
+        }
         for (k, v) in [
             ("mass_t", self.mass_t),
             ("altitude_m", self.altitude_m),
@@ -254,10 +294,22 @@ impl Validate for FortressConfig {
             ("launch.interval_s", self.launch.interval_s),
             ("downwash.length_m", self.downwash.length_m),
             ("crash.clearance_m", self.crash.clearance_m),
+            ("guard.lift_interval_s", self.guard.lift_interval_s),
+            ("crash.half_size_m.x", self.crash.half_size_m.x),
+            ("crash.half_size_m.y", self.crash.half_size_m.y),
         ] {
             positive(k, v)?;
         }
         within("lift_max_share", self.lift_max_share, 1e-3, 0.5)?;
+        let g = &self.guard;
+        for c in g.start.iter().map(|p| &p.crab).chain(std::iter::once(&g.lift_crab)) {
+            if !g.crabs.contains_key(c) {
+                return Err(format!("guard: no crab `{c}` in guard.crabs"));
+            }
+        }
+        for (name, c) in &g.crabs {
+            positive(&format!("guard.crabs.{name}.armour_scale"), c.armour_scale)?;
+        }
         within("hull_max_share", self.hull_max_share, 1e-3, 0.5)?;
         finite("launch.first_s", self.launch.first_s)?;
         for (name, k) in &self.kinds {
@@ -358,6 +410,11 @@ impl FortressData {
         for p in &self.shape.parts {
             if !self.cfg.kinds.contains_key(&p.kind) {
                 return Err(format!("fortress_shape.ron part `{}`: no kind `{}` in fortress.ron", p.id, p.kind));
+            }
+        }
+        for p in &self.cfg.guard.start {
+            if self.shape.platforms.iter().all(|s| s.top_at(p.at_m).is_none()) {
+                return Err(format!("fortress.ron guard post {} at {}: not on any of its tops", p.crab, p.at_m));
             }
         }
         for k in ["lift", "hull"] {
@@ -472,6 +529,10 @@ pub struct Fortress {
     pub launch_turn: usize,
     /// Fighters left in the hangar.
     pub hangar: u32,
+    /// Until the hangar lifts next bring a crab up.
+    pub guard_in_s: f32,
+    /// Crabs left below decks for the lifts.
+    pub guard_hangar: u32,
     rng: SimRng,
 }
 
@@ -507,6 +568,8 @@ impl Fortress {
             launch_in_s: d.cfg.launch.first_s,
             launch_turn: 0,
             hangar: d.cfg.launch.hangar,
+            guard_in_s: d.cfg.guard.lift_interval_s,
+            guard_hangar: d.cfg.guard.hangar,
             rng: SimRng::new(seed).fork("fortress"),
         };
         f.place(&d.cfg, ground_m + d.cfg.altitude_m);
@@ -656,6 +719,35 @@ impl Fortress {
         Some(cat)
     }
 
+    /// The hangar lifts this step (survey H6): every `lift_interval_s` each working lift brings a crab up, while
+    /// fewer than `max_on_deck` stand (`on_deck`, alive), crabs are left below and it is not falling. The indices of
+    /// the lift parts that bring one, in the shape's order.
+    pub fn guard_lift(&mut self, d: &FortressData, on_deck: u32, dt_s: f32) -> Vec<usize> {
+        if self.falling || self.crashed {
+            return Vec::new();
+        }
+        self.guard_in_s -= dt_s;
+        if self.guard_in_s > 0.0 {
+            return Vec::new();
+        }
+        self.guard_in_s += d.cfg.guard.lift_interval_s;
+        let mut up = Vec::new();
+        for i in (0..d.shape.parts.len()).filter(|&i| d.shape.parts[i].kind == "hlift" && self.parts[i].alive) {
+            if on_deck + up.len() as u32 >= d.cfg.guard.max_on_deck || self.guard_hangar == 0 {
+                break;
+            }
+            self.guard_hangar -= 1;
+            up.push(i);
+        }
+        up
+    }
+
+    /// Where a body stands on the fortress over its own point `(x, z)`: the highest of its tops there, in the world.
+    pub fn stand_at(&self, d: &FortressData, at: Vec2) -> Option<Vec3> {
+        let top = d.shape.platforms.iter().filter_map(|s| s.top_at(at)).reduce(f32::max)?;
+        Some(self.pose().transform_point3(Vec3::new(at.x, top, at.y)))
+    }
+
     /// The push and burn on a mech at world point `p` from the live lift thrusters' downwash, given each
     /// thruster's nozzle (world) by part: (push down, m/s2; burn, damage a second), if it is in a column.
     pub fn downwash(&self, d: &FortressData, nozzles: &[(usize, Vec3)], p: Vec3) -> Option<(f32, f32)> {
@@ -674,6 +766,33 @@ impl Fortress {
                 (0.0..=w.length_m).contains(&along) && (rel - down * along).length() <= r
             })
             .map(|_| (w.push_m_s2, w.burn_per_s))
+    }
+
+    /// What its wreck breaks where it came down (design section 6): every building whose middle lies under its
+    /// footprint or within `crash.break_margin_m` of it is broken from its ground floor up, so the structure falls
+    /// (`structural-destruction`). Each is (building, the middle of the sphere, its radius) for
+    /// `Structures::break_sphere`, in the building index's order. The cells it breaks are the attacked city's own,
+    /// so its damage counts as city damage (survey H5, owner 2026-10-26): `mission::city_damage` measures it with
+    /// everything else that broke. Empty until it has crashed.
+    pub fn wreck_breaks(&self, d: &FortressData, plan: &WorldPlan, structures: &Structures) -> Vec<(u32, Vec3, f32)> {
+        if !self.crashed {
+            return Vec::new();
+        }
+        let c = &d.cfg.crash;
+        let reach = Vec2::new(c.half_size_m.x + c.break_margin_m, c.half_size_m.y + c.break_margin_m);
+        let inv = self.pose().inverse();
+        let mut out = Vec::new();
+        for b in plan.collision.candidates(Vec2::new(self.pos.x, self.pos.z), reach.max_element()) {
+            let mid = plan.buildings[b as usize].footprint.centre();
+            let local = inv.transform_point3(Vec3::new(mid.x, self.pos.y, mid.y));
+            if (local.x / reach.x).powi(2) + (local.z / reach.y).powi(2) > 1.0 {
+                continue;
+            }
+            let Some(st) = structures.buildings.get(b as usize) else { continue };
+            let half = (st.size.x * st.n[0] as f32).max(st.size.z * st.n[2] as f32) * 0.75;
+            out.push((b, Vec3::new(mid.x, st.origin.y + 2.0, mid.y), half.max(6.0)));
+        }
+        out
     }
 
     /// The rng for a defence's spread, in the step's stable order of parts.
@@ -846,5 +965,278 @@ pub(crate) mod tests {
         run(&d, &mut a, 30.0);
         run(&d, &mut b, 30.0);
         assert_eq!(a, b);
+    }
+
+    /// The open air with the fortress's platforms in it (and flat ground under them): what a mech flying to it and
+    /// landing on it stands on.
+    struct Aboard<'a>(&'a [crate::world::Platform]);
+
+    impl crate::world::Ground for Aboard<'_> {
+        fn height_at(&self, _x: f32, _z: f32) -> f32 {
+            0.0
+        }
+        fn push_out(&self, p: Vec2, _radius_m: f32) -> Vec2 {
+            p
+        }
+        fn support_at(&self, x: f32, z: f32, feet_y: f32) -> f32 {
+            crate::world::platform::top_under(self.0, x, z, feet_y).map_or(0.0, |t| t.max(0.0))
+        }
+    }
+
+    fn roster_mech(name: &str) -> crate::mech::MechConfig {
+        let p = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../data/mechs/{name}.ron"));
+        load_ron(&p).unwrap()
+    }
+
+    #[test]
+    fn every_mech_reaches_the_deck_on_its_jets_as_they_are() {
+        // Survey H4 (owner, 2026-10-26): the fortress is reached on the jets as they are. Straight up from the city's
+        // ground at full lift, every mech on the roster passes the deck's height with burn to spare.
+        let (d, f) = fortress();
+        let deck = d.shape.platforms.iter().find(|s| s.name == "deck").unwrap();
+        let deck_y = f.pose().transform_point3(Vec3::new(0.0, deck.top_m, 0.0)).y;
+        for name in [
+            "driller",
+            "foreman",
+            "harrow",
+            "ironhorse",
+            "mule",
+            "picket",
+            "roustabout",
+            "sapper",
+        ] {
+            let cfg = roster_mech(name);
+            let mut m = crate::mech::MechState::standing(Vec3::new(2000.0, 0.0, 0.0), 0.0, &cfg.gait);
+            let up = crate::mech::MechControls {
+                lift_axis: 1.0,
+                ..Default::default()
+            };
+            let mut t = 0.0;
+            while m.pos.y < deck_y && t < 60.0 {
+                m.step(&up, &cfg, &Aboard(&[]), DT);
+                t += DT;
+            }
+            assert!(m.pos.y >= deck_y, "{name} stalls at {:.0} m of {deck_y:.0} m", m.pos.y);
+            let left_s = (1.0 - m.boost.heat) * cfg.jet.burn_s;
+            eprintln!("{name}: the deck's {deck_y:.0} m in {t:.1} s, {left_s:.1} s of burn left");
+            assert!(!m.boost.locked && left_s > 1.0, "{name}: {left_s:.1} s left");
+        }
+    }
+
+    #[test]
+    fn a_mech_lands_on_the_deck_a_shoulder_and_a_walkway_and_its_jets_recharge_there() {
+        // Survey H4: land on the deck, a shoulder or a pylon walkway to recharge and fight there. A mech flying
+        // alongside at the speed of the spot below it, let go 10 m over each, its jets nearly spent from the climb, lands,
+        // then stands where it landed while the fortress flies on, carried with it, and its jets come back to full.
+        let cfg = roster_mech("foreman");
+        for name in ["deck", "shoulder", "walkway_L2", "walkway_R3"] {
+            let (d, mut f) = fortress();
+            let slab = d.shape.platforms.iter().find(|s| s.name == name).unwrap().clone();
+            let spot = (slab.min + slab.max) * 0.5;
+            let top = slab.top_at(spot).unwrap();
+            let start = f.pose().transform_point3(Vec3::new(spot.x, top + 10.0, spot.y));
+            let mut m = crate::mech::MechState::standing(start, 0.0, &cfg.gait);
+            m.in_air = true;
+            // alongside the spot it lands on, which turns with the fortress on its circle
+            let mut ahead = f.clone();
+            ahead.step(&d, &flat, DT);
+            let v = crate::world::Platform {
+                slabs: Vec::new(),
+                pose: ahead.pose(),
+                was: f.pose(),
+            }
+            .velocity_at(start, DT);
+            m.vel = Vec2::new(v.x, v.z);
+            m.boost.heat = 0.9;
+            let mut was = f.pose();
+            let mut landed: Option<Vec3> = None;
+            let mut aboard = false;
+            for _ in 0..(20.0 / DT) as usize {
+                f.step(&d, &flat, DT);
+                let platform = crate::world::Platform {
+                    slabs: d.shape.platforms.clone(),
+                    pose: f.pose(),
+                    was,
+                };
+                was = f.pose();
+                // the game's order: the fortress flies and carries what stood on it, then the mechs step
+                let r = platform.ride(m.pos, Vec3::new(m.vel.x, m.vel_y_m_s, m.vel.y), aboard, DT);
+                (m.pos, m.vel, m.vel_y_m_s, aboard) = (r.feet, Vec2::new(r.vel.x, r.vel.z), r.vel.y, r.aboard);
+                m.step(&Default::default(), &cfg, &Aboard(std::slice::from_ref(&platform)), DT);
+                if landed.is_none() && !m.in_air {
+                    landed = Some(f.pose().inverse().transform_point3(m.pos));
+                }
+            }
+            let local = f.pose().inverse().transform_point3(m.pos);
+            assert!(!m.in_air, "{name}: still in the air at {}", m.pos);
+            let here = slab.top_at(Vec2::new(local.x, local.z));
+            assert!(
+                here.is_some_and(|t| (local.y - t).abs() < 0.05),
+                "{name}: off it at {local} ({here:?})"
+            );
+            let landed = landed.unwrap_or_else(|| panic!("{name}: never landed"));
+            assert!(local.distance(landed) < 0.5, "{name}: slid from {landed} to {local}");
+            assert_eq!(m.boost.heat, 0.0, "{name}: the jets recharged");
+            assert!(f.angle_rad > 0.5, "the fortress flew on meanwhile");
+        }
+    }
+
+    fn island() -> &'static WorldPlan {
+        static P: std::sync::OnceLock<WorldPlan> = std::sync::OnceLock::new();
+        P.get_or_init(|| {
+            let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/world/world.ron");
+            crate::world::generate(42, &load_ron::<crate::world::WorldConfig>(&p).unwrap())
+        })
+    }
+
+    /// Runs until it is down on the island's ground; the crash's place (x, z).
+    fn fall(d: &FortressData, f: &mut Fortress, plan: &WorldPlan) -> Vec2 {
+        let ground = |x: f32, z: f32| plan.terrain.height_at(x, z);
+        for _ in 0..(300.0 / DT) as usize {
+            if f.step(d, &ground, DT).contains(&Event::Crashed) {
+                return Vec2::new(f.pos.x, f.pos.z);
+            }
+        }
+        panic!("it never came down: {}", f.pos);
+    }
+
+    #[test]
+    fn stopping_its_drives_drops_it_where_it_hangs() {
+        // Survey H5 (owner, 2026-10-26): it drifts at 15 m/s; stop its drive thrusters and it falls where it is.
+        let (d, mut f) = fortress();
+        kill(&d, &mut f, &["drive1", "drive2"]);
+        run(&d, &mut f, d.cfg.drive_stop_s + 1.0);
+        assert_eq!(f.speed_m_s, 0.0);
+        let hung = Vec2::new(f.pos.x, f.pos.z);
+        kill(&d, &mut f, &["L1", "L2", "L3", "L4", "HL1", "HL2", "HL3"]);
+        let mut down = None;
+        for _ in 0..(120.0 / DT) as usize {
+            if f.step(&d, &flat, DT).contains(&Event::Crashed) {
+                down = Some(Vec2::new(f.pos.x, f.pos.z));
+                break;
+            }
+        }
+        let down = down.expect("it came down");
+        assert!(down.distance(hung) < 0.01, "it fell straight down: {hung} -> {down}");
+    }
+
+    #[test]
+    fn with_its_drives_it_drifts_on_at_15_m_s_while_it_falls() {
+        let (d, mut f) = fortress();
+        assert_eq!(d.cfg.speed_m_s, 15.0);
+        let from = f.angle_rad;
+        kill(&d, &mut f, &["L1", "L2", "L3", "L4", "HL1", "HL2", "HL3"]);
+        let mut t = 0.0;
+        while !f.crashed {
+            f.step(&d, &flat, DT);
+            t += DT;
+        }
+        let flown = (f.angle_rad - from) * d.cfg.circle_radius_m;
+        eprintln!("with its drives it flew {flown:.0} m on in a {t:.1} s fall");
+        assert!((flown - 15.0 * t).abs() < 1.0, "{flown:.0} m in {t:.1} s");
+        assert!(flown > 300.0, "the drift carries it {flown:.0} m on before it lands");
+    }
+
+    #[test]
+    fn its_crash_on_the_city_counts_as_the_citys_damage() {
+        // Survey H5 (owner, 2026-10-26): the fortress coming down on the city it attacks is that city's damage, the
+        // one number the defence loses on (`mission::city_damage`). Its drives stopped, it falls on the circle over
+        // the city; what its wreck breaks is the city's.
+        let plan = island();
+        let d = data();
+        let city = plan
+            .cities
+            .iter()
+            .max_by_key(|c| plan.buildings.iter().filter(|b| b.city == c.id).count())
+            .unwrap();
+        let mut f = Fortress::new(&d, city.centre, city.ground_m, 42);
+        kill(&d, &mut f, &["drive1", "drive2"]);
+        run(&d, &mut f, d.cfg.drive_stop_s + 1.0);
+        let mut s = Structures::new(plan);
+        assert!(f.wreck_breaks(&d, plan, &s).is_empty(), "nothing breaks before it is down");
+        let before = crate::mission::city_damage(plan, &s, city.id);
+        kill(&d, &mut f, &["R1", "R2", "R3", "R4", "HR1", "HR2", "HR3"]);
+        fall(&d, &mut f, plan);
+        let breaks = f.wreck_breaks(&d, plan, &s);
+        assert!(!breaks.is_empty(), "it came down on buildings");
+        let mut broke = 0;
+        for (b, at, r) in &breaks {
+            assert_eq!(
+                plan.buildings[*b as usize].city, city.id,
+                "only the city's own buildings are under it"
+            );
+            broke += s.break_sphere(*b, *at, *r).0;
+        }
+        let after = crate::mission::city_damage(plan, &s, city.id);
+        eprintln!(
+            "the wreck broke {} buildings, {broke} cells: city {} damage {:.1} % -> {:.1} %",
+            breaks.len(),
+            city.id + 1,
+            before * 100.0,
+            after * 100.0
+        );
+        assert!(broke > 0 && after > before, "{before} -> {after}");
+    }
+
+    /// Lifts in the first `s` seconds with `on_deck` standing throughout: (seconds, lift part) each time one comes up.
+    fn lifts(d: &FortressData, f: &mut Fortress, on_deck: u32, s: f32) -> Vec<(f32, usize)> {
+        let mut out = Vec::new();
+        for k in 1..=(s / DT).round() as usize {
+            for i in f.guard_lift(d, on_deck, DT) {
+                out.push((k as f32 * DT, i));
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn the_deck_guard_is_two_shrikes_and_four_mites_standing_on_its_tops() {
+        // Survey H6 (owner, 2026-10-26): 2 Shrikes and 4 Mites on deck from the start.
+        let (d, f) = fortress();
+        let g = &d.cfg.guard;
+        let count = |c: &str| g.start.iter().filter(|p| p.crab == c).count();
+        assert_eq!((count("shrike"), count("mite"), g.start.len()), (2, 4, 6));
+        assert_eq!(g.lift_crab, "mite");
+        for p in &g.start {
+            let at = f
+                .stand_at(&d, p.at_m)
+                .unwrap_or_else(|| panic!("{} at {} stands on nothing", p.crab, p.at_m));
+            assert!(at.y > d.cfg.altitude_m + 40.0, "{} stands on its top, {at}", p.crab);
+        }
+    }
+
+    #[test]
+    fn each_working_lift_brings_a_mite_up_every_60_s() {
+        let (d, mut f) = fortress();
+        let up = lifts(&d, &mut f, 2, 125.0);
+        let ids: Vec<(u32, &str)> = up.iter().map(|(t, i)| (t.round() as u32, d.shape.parts[*i].id.as_str())).collect();
+        assert_eq!(ids, [(60, "lift1"), (60, "lift2"), (120, "lift1"), (120, "lift2")]);
+    }
+
+    #[test]
+    fn a_lost_lift_brings_no_more() {
+        let (d, mut f) = fortress();
+        kill(&d, &mut f, &["lift1"]);
+        let up = lifts(&d, &mut f, 0, 125.0);
+        assert!(up.iter().all(|(_, i)| d.shape.parts[*i].id == "lift2") && up.len() == 2, "{up:?}");
+        kill(&d, &mut f, &["lift2"]);
+        assert!(lifts(&d, &mut f, 0, 300.0).is_empty(), "both lost: no more deck guards");
+    }
+
+    #[test]
+    fn no_more_come_up_than_six_on_deck() {
+        let (d, mut f) = fortress();
+        assert!(lifts(&d, &mut f, 6, 300.0).is_empty(), "a full guard brings none");
+        let (d, mut f) = fortress();
+        assert_eq!(lifts(&d, &mut f, 5, 61.0).len(), 1, "one short: one comes up");
+    }
+
+    #[test]
+    fn the_lifts_stop_when_the_hangar_is_empty_or_it_falls() {
+        let (d, mut f) = fortress();
+        assert_eq!(lifts(&d, &mut f, 0, 1000.0).len(), d.cfg.guard.hangar as usize);
+        let (d, mut f) = fortress();
+        f.falling = true;
+        assert!(lifts(&d, &mut f, 0, 300.0).is_empty());
     }
 }

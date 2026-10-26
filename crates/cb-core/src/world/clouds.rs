@@ -174,15 +174,19 @@ impl Clouds {
         out.clamp(0.0, 1.0)
     }
 
-    /// Rain at `p` at time `t_s`: `shaft_rain` inside a rain shaft's core (80 % of its radius)
-    /// below its top, else 0.
+    /// Rain at `p` at time `t_s`: `shaft_rain` in a rain shaft's core (half its radius), easing to
+    /// nothing at 1.3 times its radius and over the 150 m under its top. It was all or nothing at
+    /// 80 % of the radius, and the rain's haze, the drops on the glass and the wet blur all snapped
+    /// off together on leaving a shaft (owner, 2026-10-26: "the rain sky transition to clear skies
+    /// is kinda abrupt").
     pub fn rain_at(&self, p: Vec3, t_s: f32) -> f32 {
         let at = Vec2::new(p.x, p.z) - self.drift(t_s);
-        let inside = self
-            .shafts
-            .iter()
-            .any(|s| p.y < s.top_m && at.distance(s.centre) < s.radius_m * 0.8);
-        if inside { self.shaft_rain } else { 0.0 }
+        let most = self.shafts.iter().fold(0.0f32, |most, s| {
+            let across = 1.0 - smoothstep(s.radius_m * 0.5, s.radius_m * 1.3, at.distance(s.centre));
+            let below = 1.0 - smoothstep(s.top_m - 150.0, s.top_m, p.y);
+            most.max(across * below)
+        });
+        self.shaft_rain * most
     }
 
     /// How wet the glass gets at `p`: inside a cloud by its density, under a storm by its rain.
@@ -275,10 +279,30 @@ mod tests {
         let under = Vec3::new(2000.0, 200.0, -3000.0);
         assert_eq!(c.rain_at(under, 0.0), 0.7);
         assert_eq!(c.rain_at(under + Vec3::Y * 800.0, 0.0), 0.0, "above the base");
-        assert_eq!(c.rain_at(under + Vec3::X * 2000.0, 0.0), 0.0, "beside the shaft");
-        // The shaft drifts with the wind: 100 s later it is 600 m east.
-        assert_eq!(c.rain_at(under + Vec3::X * 2000.0, 100.0), 0.7);
+        assert_eq!(c.rain_at(under + Vec3::X * 3000.0, 0.0), 0.0, "beside the shaft");
+        // The shaft drifts with the wind: 500 s later it is 3 km east.
+        assert_eq!(c.rain_at(under + Vec3::X * 3000.0, 500.0), 0.7);
         assert_eq!(c.wetness_at(under, 0.0), 0.7);
+    }
+
+    #[test]
+    fn rain_eases_off_across_a_shafts_edge_instead_of_stopping() {
+        // The shaft is 1800 m across its radius: full rain inside 900 m, none past 2340 m, and
+        // between them never rising as the eye walks out.
+        let c = scattered();
+        let under = Vec3::new(2000.0, 200.0, -3000.0);
+        let mut last = c.rain_at(under, 0.0);
+        let mut between = 0;
+        for k in 1..=60 {
+            let r = c.rain_at(under + Vec3::X * (k as f32 * 50.0), 0.0);
+            assert!(r <= last + 1e-6, "rain rose walking out at {} m", k * 50);
+            if r > 0.05 && r < 0.65 {
+                between += 1;
+            }
+            last = r;
+        }
+        assert_eq!(last, 0.0);
+        assert!(between >= 10, "a gradual edge, not a step: {between} steps between");
     }
 
     #[test]

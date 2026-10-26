@@ -18,6 +18,7 @@ use crate::mech::{MechAccessNow, MechSim, Piloted};
 use crate::pilot::PilotSim;
 use crate::showcase::{fly_to_cloud, nearest_cloud};
 use crate::sim::Data;
+use crate::state::GameApp;
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use cb_core::input::Actions;
@@ -74,9 +75,9 @@ impl Plugin for StillsPlugin {
             fall_shots: 0,
             offscreen: None,
         })
-        .add_systems(PostStartup, offscreen_for_buildings)
-        .add_systems(Update, run_script)
-        .add_systems(Last, (hold_poster_hatch, poster_lens));
+        .add_after_world_spawn(offscreen_for_buildings)
+        .add_game_systems(Update, run_script)
+        .add_game_systems(Last, (hold_poster_hatch, poster_lens));
     }
 }
 
@@ -382,8 +383,13 @@ fn run_script(
     if script.beat >= 1 && crate::cli::switched_off("CB_STILLS_POSTER") {
         let i = script.beat - 1;
         if i >= POSTER_SHOTS.len() {
-            // The last screenshot is written a frame or two later.
-            if in_beat > 2.0 {
+            // The last screenshot is written a frame or two later: on a software renderer, whose
+            // frames take seconds, wait for the file itself (up to 30 s).
+            let last = script.dir.join(match POSTER_SHOTS.last() {
+                Some((_, true, _)) => format!("poster-{}-knelt.png", POSTER_SHOTS.len() - 1),
+                _ => format!("poster-{}.png", POSTER_SHOTS.len() - 1),
+            });
+            if in_beat > 2.0 && (last.exists() || in_beat > 30.0) {
                 exit.write(AppExit::Success);
             }
             return;
@@ -749,7 +755,7 @@ impl Plugin for FramesPlugin {
             taken: 0,
             next_s: 0.0,
         })
-        .add_systems(Update, save_frames);
+        .add_game_systems(Update, save_frames);
     }
 }
 
@@ -812,7 +818,7 @@ impl Plugin for FxStillsPlugin {
             soil: None,
             done: Vec::new(),
         })
-        .add_systems(Update, (run_fx_script, run_depth_bench));
+        .add_game_systems(Update, (run_fx_script, run_depth_bench));
     }
 }
 
@@ -1056,7 +1062,7 @@ fn run_fx_script(
                 if let Some(spec) = player {
                     let launch = feet + Vec3::new(-flat.z, 0.0, flat.x) * 25.0 + Vec3::Y * 12.0;
                     for (wi, w) in spec.weapons.iter().enumerate() {
-                        let n = if w.rocket {
+                        let n = if w.shot().straight() {
                             3
                         } else if w.blast_mj < 1.0 {
                             12
@@ -1065,14 +1071,14 @@ fn run_fx_script(
                         };
                         for k in 0..n {
                             let aim = torso + Vec3::new((k as f32 - 5.0) * 0.8, (k % 4) as f32 * 3.0 - 6.0, 0.0);
-                            let from = launch + Vec3::Y * k as f32 * 0.6 - flat * (k as f32 * if w.rocket { 25.0 } else { 0.0 });
+                            let from = launch + Vec3::Y * k as f32 * 0.6 - flat * (k as f32 * if w.shot().straight() { 25.0 } else { 0.0 });
                             shots.0.push(cb_core::weapons::Projectile {
                                 owner: 0,
                                 weapon: wi,
                                 pos: from,
                                 vel: (aim - from).normalize() * w.speed_m_s,
                                 age_s: 0.0,
-                                rocket: w.rocket,
+                                rocket: w.shot().straight(),
                                 target: None,
                             });
                         }
@@ -1139,10 +1145,12 @@ fn run_fx_script(
                     explosions.write(crate::blast::Explosion {
                         at: c + Vec3::Y * 0.5,
                         energy_mj: 6.0,
+                        by: None,
                     });
                     explosions.write(crate::blast::Explosion {
                         at: c + Vec3::new(-14.0, 0.5, -10.0),
                         energy_mj: 25.0,
+                        by: None,
                     });
                 } else {
                     eprintln!("fx stills: no open soil near");
@@ -1267,6 +1275,47 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // In the west storm's rain, on the ground, looking up through it (the shafts seen from inside).
+    View {
+        name: "in-the-rain-up",
+        eye: [-5600.0, 2.0, -3900.0],
+        at: [-5900.0, 900.0, -4300.0],
+        above_ground: true,
+    },
+    // Inside the cloud nearest a city's towers, looking up through it (`city_in_cloud_view`).
+    View {
+        name: "city-in-cloud",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // Open sea in the clear south-east, 40 m up, looking toward the sun (its glitter path and the
+    // light through the crests) and away from it (the sky in the water): `sea_view`.
+    View {
+        name: "sea-sun",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "sea-away",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // The same toward the sun from 1.5 km and 6.5 km up (the glitter and the haze from altitude).
+    View {
+        name: "sea-sun-high",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "sea-sun-top",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // From the street in the biggest city, looking up past the towers at the sky (`city_up_view`).
     View {
         name: "city-up",
@@ -1354,6 +1403,34 @@ fn steep_river_view(plan: &crate::world::Plan, back_m: f32, up_m: f32, top: bool
     (eye.to_array(), at.to_array())
 }
 
+/// Inside the puff nearest any city's middle (where the wind has carried it by `now_s`), a third of
+/// its height under its centre, looking up past it.
+fn city_in_cloud_view(plan: &crate::world::Plan, now_s: f32) -> ([f32; 3], [f32; 3]) {
+    let d = plan.clouds.drift(now_s);
+    let near = |p: &cb_core::world::clouds::Puff| {
+        plan.cities
+            .iter()
+            .map(|c| Vec2::new(p.centre.x + d.x, p.centre.z + d.y).distance(c.centre))
+            .fold(f32::MAX, f32::min)
+    };
+    let Some(p) = plan.clouds.puffs.iter().min_by(|a, b| near(a).total_cmp(&near(b))) else {
+        return ([0.0, 400.0, 0.0], [0.0, 2000.0, 100.0]);
+    };
+    let centre = p.centre + Vec3::new(d.x, 0.0, d.y);
+    let eye = centre - Vec3::Y * p.radii.y * 0.33 + Vec3::new(p.radii.x * 0.2, 0.0, 0.0);
+    info!("city in cloud: puff at {centre} radii {}, eye {eye}", p.radii);
+    (eye.to_array(), (centre + Vec3::new(-200.0, 1500.0, 300.0)).to_array())
+}
+
+/// Over open sea in the clear south-east, `up_m` up, looking toward the sun's bearing (`toward`)
+/// or away from it, at the sea 15 eye heights ahead (a few degrees down).
+fn sea_view(toward: bool, up_m: f32) -> ([f32; 3], [f32; 3]) {
+    let sun = cb_core::world::sun_shade::to_sun();
+    let level = Vec3::new(sun.x, 0.0, sun.z).normalize_or(Vec3::X) * if toward { 1.0 } else { -1.0 };
+    let eye = Vec3::new(24000.0, up_m, 16000.0);
+    (eye.to_array(), (eye + level * up_m * 15.0 - Vec3::Y * up_m).to_array())
+}
+
 /// On the street nearest the middle of the city with the most cloud overhead, 2 m up, looking nearly straight up.
 fn city_up_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
     // The city with the most cloud overhead (the storm decks are where the cloud's base shows).
@@ -1439,7 +1516,7 @@ impl Plugin for WeatherStillsPlugin {
             frames: 0,
             shots: Vec::new(),
         })
-        .add_systems(Update, run_weather_script);
+        .add_game_systems(Update, run_weather_script);
     }
 }
 
@@ -1473,6 +1550,11 @@ fn run_weather_script(
             "river-close" => close_river_view(&plan, false),
             "river-close-below" => close_river_view(&plan, true),
             "city-up" => city_up_view(&plan),
+            "sea-sun" => sea_view(true, 40.0),
+            "sea-away" => sea_view(false, 40.0),
+            "sea-sun-high" => sea_view(true, 1500.0),
+            "sea-sun-top" => sea_view(true, 6500.0),
+            "city-in-cloud" => city_in_cloud_view(&plan, now),
             _ => (v.eye, v.at),
         };
         let v = View {

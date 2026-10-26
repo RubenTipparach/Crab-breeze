@@ -1162,5 +1162,67 @@
       "threshold_db": -18,
       "ratio": 3
     }
+  },
+  "civil_turbofan": {
+    "group": "World",
+    "what": "A civil airliner's or freighter's turbofans (loops): an airliner passing low over the Minneapolis spotters' park, its roar and fan whine, two moments of the pass laid over each other so the doppler sweep does not jump at the seam (survey W49).",
+    "layers": [
+      {
+        "src": "archive/aporee_55938_63923:MSP30LOperationsfromSpotterPark202202161515CSTnoisereduction.mp3",
+        "start": 2250.8,
+        "dur": 4.0,
+        "lp": 7000
+      },
+      {
+        "src": "archive/aporee_55938_63923:MSP30LOperationsfromSpotterPark202202161515CSTnoisereduction.mp3",
+        "start": 2252.4,
+        "dur": 4.0,
+        "lp": 7000,
+        "gain": -3
+      }
+    ],
+    "len": 4.0,
+    "loop": true,
+    "loop_fade": 0.6,
+    "edits": "two 4 s moments of one pass, layered, lowpassed at 7 kHz, crossfaded into a loop"
+  },
+  "civil_propeller": {
+    "group": "World",
+    "what": "A light plane's propeller and engine (loops): a prop plane running up at Tallinn airport, two stretches of the steady run-up laid over each other (survey W49).",
+    "layers": [
+      {
+        "src": "archive/aporee_69846_81327:250930PlanenoiseTallinnAirport.mp3",
+        "start": 28.0,
+        "dur": 6.0,
+        "hp": 60
+      },
+      {
+        "src": "archive/aporee_69846_81327:250930PlanenoiseTallinnAirport.mp3",
+        "start": 38.0,
+        "dur": 6.0,
+        "hp": 60,
+        "gain": -4
+      }
+    ],
+    "len": 6.0,
+    "loop": true,
+    "loop_fade": 0.5,
+    "edits": "two 6 s stretches of the run-up, layered, crossfaded into a loop"
+  },
+  "civil_rotor": {
+    "group": "World",
+    "what": "A helicopter's rotor (loops): French army helicopters lifting off at Les Invalides, the blades' 23 Hz beat in front (survey W49).",
+    "layers": [
+      {
+        "src": "archive/aporee_51269_58510:HelicopterFrenchArmyTakingoffDecollage5AircraftsInvalides14July2019Paris.flac",
+        "start": 282.0,
+        "dur": 4.0,
+        "hp": 40
+      }
+    ],
+    "len": 4.0,
+    "loop": true,
+    "loop_fade": 0.3,
+    "edits": "4 s of the lift-off, highpassed at 40 Hz, crossfaded into a loop"
   }
 }

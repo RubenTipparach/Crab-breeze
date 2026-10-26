@@ -4,7 +4,7 @@
 
 Each roster mech SHALL carry, in its loadout data, the signature weapon its model carries (the Foreman's boom
 cannon, the Driller's cutting lance, the Harrow's twin racks, the Ironhorse's steam cannon, the Mule's rocket ripple,
-the Picket's rail rifle, the Roustabout's breaching gun, the Sapper's siege mortar), and no two roster mechs SHALL
+the Picket's rail rifle, the Roustabout's breaching gun, the Sapper's grenade launcher), and no two roster mechs SHALL
 carry the same signature.
 
 #### Scenario: Boarding the Harrow
@@ -22,9 +22,9 @@ own moment, and its interval SHALL run from the last shot.
 
 ### Requirement: A lobbing gun lands on the aim point
 
-A weapon that lobs SHALL lay itself at 45 degrees and set its muzzle speed for the horizontal range to the aim point,
-within its range limits, so that on flat ground its shell lands within 1 m of the aim point.
+A weapon that lobs SHALL lay itself at its fixed elevation and set its muzzle speed for the range and height to the
+aim point, within its range limits, so that its shell lands within 1 m of the aim point.
 
-#### Scenario: The Sapper's mortar over a tower
-- **WHEN** the aim point is 700 m away behind a 120 m building
-- **THEN** the shell climbs to 175 m and lands within 1 m of the aim point 12 s later
+#### Scenario: The Sapper's grenade launcher over a wall
+- **WHEN** the aim point is 300 m away, behind a 24 m wall standing 50 m in front of it
+- **THEN** the grenade climbs to about 43 m, clears the wall, and lands within 1 m of the aim point about 6 s later

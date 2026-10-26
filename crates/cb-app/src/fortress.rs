@@ -1,4 +1,4 @@
-//! The Hermit, the crab air fortress, in the game (openspec change `crab-airship` section 9): the mission free
+//! The Stratostacean, the crab air fortress, in the game (openspec change `crab-airship` section 9): the mission free
 //! roam's mail starts (`free-roam-missions`). It spawns the model exported from the mockup over the city nearest
 //! the pilot, steps `cb_core::fortress` every fixed step, and acts on what it says: its parts' hit capsules and
 //! its hull's join the mechs' in `combat` (a hit is taken by the part's own armour rule), its turrets fire through
@@ -10,16 +10,18 @@
 use crate::blast::Explosion;
 use crate::combat::Shots;
 use crate::fx::{Fx, FxStream};
-use crate::mech::{MechId, MechSim, MechSpec, Piloted, apply_hit};
+use crate::mech::{Enemy, Loadout, MechId, MechSim, MechSpec, Piloted, SpawnAssets, SpawnRes, apply_hit, spawn_enemy_at};
 use crate::missions::MissionSwitch;
 use crate::pilot::PilotSim;
 use crate::sim::{Data, PresentSet, SimSet};
+use crate::state::GameApp;
 use crate::units::{Hostile, Hostiles, Units};
 use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use bevy::world_serialization::WorldAssetRoot;
 use cb_core::fortress::{Beam, BeamPhase, Event, Fortress, FortressData, HitOutcome, Mount, Target};
 use cb_core::mech::{Hit, PartKind};
+use cb_core::mission::city_damage;
 use cb_core::missions::MissionKind;
 use cb_core::pilot::PilotMode;
 use cb_core::units::{Unit, heading_of};
@@ -31,6 +33,14 @@ use std::collections::HashMap;
 pub const FORTRESS_ID: u32 = 900_000;
 /// A part as a target (boxes, locks, missiles): this plus the part's index.
 pub const FORTRESS_TARGET_BASE: u32 = 900_001;
+/// The deck guard's mech ids start here: below the vehicles' (`units::UNIT_ID_BASE`), so a hit on one is a mech's.
+const GUARD_ID_BASE: u32 = 4000;
+const _: () = assert!(GUARD_ID_BASE + 100 < crate::units::UNIT_ID_BASE);
+
+/// A crab of the fortress's deck guard (survey H6): it leaves with the mission.
+#[derive(Component)]
+pub struct DeckGuard;
+
 /// Hull capsules' part numbers start here (they stop rounds; they have no hit points).
 const HULL_PART_BASE: usize = 1000;
 const G_M_S2: f32 = 9.81;
@@ -91,12 +101,25 @@ pub struct FortressRun {
     pub targets: Vec<(u32, Vec3)>,
     legs: Vec<FallingLeg>,
     was: bevy::math::Affine3A,
+    /// The city it attacks (its circle's centre), by index.
+    pub city: u32,
+    /// That city's damage, 0..1 (`mission::city_damage`): its wreck counts (survey H5).
+    pub city_damage: f32,
+    /// Deck guards spawned so far (their ids follow `GUARD_ID_BASE`).
+    guards: u32,
+    /// The mechs standing on it the step before (by `MechId`), for the velocity handover (`Platform::ride`).
+    aboard: std::collections::BTreeSet<u32>,
 }
 
 impl FortressRun {
     /// The model has spawned and its nodes are found.
     pub fn bound(&self) -> bool {
         self.nodes.is_some()
+    }
+
+    /// True while the mech `id` stands on one of its platforms (the velocity handover's own record, survey H4).
+    pub fn is_aboard(&self, id: u32) -> bool {
+        self.aboard.contains(&id)
     }
 
     /// Part `i`'s node.
@@ -111,24 +134,24 @@ pub struct FortressPlugin;
 impl Plugin for FortressPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<FortressHit>()
-            .add_systems(Update, switch.after(crate::missions::MissionsSet).before(PresentSet::Pose))
+            .add_game_systems(Update, switch.after(crate::missions::MissionsSet).before(PresentSet::Pose))
             // each checks for the run itself: a switch can end it between the two
-            .add_systems(
+            .add_game_systems(
                 Update,
                 (bind, pose)
                     .chain()
                     .in_set(PresentSet::Pose)
                     .distributive_run_if(resource_exists::<FortressRun>),
             )
-            .add_systems(
+            .add_game_systems(
                 FixedUpdate,
                 hostiles
                     .in_set(SimSet::Input)
                     .after(crate::units::list_hostiles)
                     .run_if(resource_exists::<FortressRun>),
             )
-            .add_systems(FixedUpdate, step.in_set(SimSet::World).run_if(resource_exists::<FortressRun>))
-            .add_systems(
+            .add_game_systems(FixedUpdate, step.in_set(SimSet::World).run_if(resource_exists::<FortressRun>))
+            .add_game_systems(
                 FixedUpdate,
                 hits.in_set(SimSet::Mech)
                     .after(crate::combat::fly_shots)
@@ -156,10 +179,14 @@ fn switch(
     assets: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    tex: Res<crate::textures::Textures>,
+    guards: Query<Entity, With<DeckGuard>>,
+    mut shots: ResMut<Shots>,
 ) {
     let mut have = run
         .as_ref()
         .map(|r| (r.root, r.beam_draws.clone(), r.legs.iter().map(|l| l.pivot).collect::<Vec<_>>()));
+    let guards_spawned = run.as_ref().map_or(0, |r| r.guards);
     for s in switches.read() {
         if s.stop == Some(MissionKind::Fortress)
             && let Some((root, beams, legs)) = have.take()
@@ -167,8 +194,15 @@ fn switch(
             for e in std::iter::once(root).chain(beams).chain(legs) {
                 commands.entity(e).despawn();
             }
-            units.retire(MissionKind::Fortress);
-            live.platforms.clear();
+            // Its enemies leave the world at once, their rounds in the air with them; what they broke stays broken
+            // (survey FR1).
+            let vehicles = units.retire(MissionKind::Fortress);
+            let guard_ids = GUARD_ID_BASE..GUARD_ID_BASE + guards_spawned;
+            shots.drop_from(|o| o == FORTRESS_ID || vehicles.contains(&o) || guard_ids.contains(&o));
+            for e in &guards {
+                commands.entity(e).despawn();
+            }
+            live.platforms.retain(cb_core::world::Platform::is_fixed);
             commands.remove_resource::<FortressRun>();
             say("MISSION fortress turned off");
         }
@@ -194,7 +228,7 @@ fn switch(
         let scene = assets.load(GltfAssetLabel::Scene(0).from_asset(d.shape.model.clone()));
         let root = commands
             .spawn((
-                Name::new("Hermit"),
+                Name::new(d.cfg.name.clone()),
                 Transform::from_matrix(Mat4::from(pose)),
                 Visibility::default(),
                 WorldAssetRoot(scene),
@@ -214,7 +248,7 @@ fn switch(
             .map(|_| {
                 commands
                     .spawn((
-                        Name::new("Hermit beam"),
+                        Name::new(format!("{} beam", d.cfg.name)),
                         Mesh3d(beam_mesh.clone()),
                         MeshMaterial3d(beam_mat.clone()),
                         Transform::default(),
@@ -224,12 +258,35 @@ fn switch(
             })
             .collect();
         say(&format!(
-            "MISSION fortress begins: the Hermit over city {} at ({:.0}, {:.0}), {:.0} m up",
+            "MISSION fortress begins: the {} over city {} at ({:.0}, {:.0}), {:.0} m up",
+            d.cfg.name,
             city.id + 1,
             f.pos.x,
             f.pos.z,
             d.cfg.altitude_m
         ));
+        // The deck guard at its posts (survey H6).
+        let mut sa = SpawnAssets {
+            tex: &tex,
+            assets: &assets,
+            meshes: &mut meshes,
+            materials: &mut materials,
+        };
+        let mut guards = 0;
+        for p in &d.cfg.guard.start {
+            if let Some(at) = f.stand_at(d, p.at_m) {
+                spawn_guard(
+                    &mut commands,
+                    &data,
+                    &p.crab,
+                    at,
+                    heading_of(f.rotation() * Vec3::Z),
+                    &mut guards,
+                    plan.seed,
+                    &mut sa,
+                );
+            }
+        }
         commands.insert_resource(FortressRun {
             was: pose,
             f,
@@ -242,6 +299,10 @@ fn switch(
             capsules: Vec::new(),
             targets: Vec::new(),
             legs: Vec::new(),
+            aboard: Default::default(),
+            guards,
+            city: city.id,
+            city_damage: city_damage(&plan, &live.structures, city.id),
         });
         have = None;
     }
@@ -438,7 +499,8 @@ fn step(
     plan: Res<Plan>,
     time: Res<Time<Fixed>>,
     globals: Query<&GlobalTransform>,
-    mut mechs: Query<(&mut MechSim, &MechSpec, &MechId, Has<Piloted>)>,
+    mut mechs: Query<(&mut MechSim, &MechSpec, &MechId, Has<Piloted>, Has<DeckGuard>)>,
+    mut spawn: SpawnRes,
     mut pilot: ResMut<PilotSim>,
     mut live: ResMut<Live>,
     mut units: ResMut<Units>,
@@ -459,15 +521,23 @@ fn step(
             Event::Crashed => crash(run, d, &plan, &mut live, &mut fx, &mut explosions),
         }
     }
-    // Its platforms, posed this step; what stood on them moves with them.
+    // Its platforms, posed this step; what stood on them moves with them, and a mech landing on them or leaving
+    // them hands its velocity over (survey H4: land on it to recharge and fight there).
     let platform = Platform {
         slabs: d.shape.platforms.clone(),
         pose: run.f.pose(),
         was: run.was,
     };
-    for (mut sim, ..) in &mut mechs {
-        if let Some(p) = platform.carry(sim.curr.pos) {
-            sim.curr.pos = p;
+    for (mut sim, _, id, ..) in &mut mechs {
+        let c = &sim.curr;
+        let r = platform.ride(c.pos, Vec3::new(c.vel.x, c.vel_y_m_s, c.vel.y), run.aboard.contains(&id.0), dt);
+        sim.curr.pos = r.feet;
+        sim.curr.vel = Vec2::new(r.vel.x, r.vel.z);
+        sim.curr.vel_y_m_s = r.vel.y;
+        if r.aboard {
+            run.aboard.insert(id.0);
+        } else {
+            run.aboard.remove(&id.0);
         }
     }
     if pilot.curr.mode != PilotMode::Seated
@@ -475,7 +545,9 @@ fn step(
     {
         pilot.curr.feet = p;
     }
-    live.platforms = vec![platform];
+    // Its own platform replaces last step's; one built in place (a harbour's quay) stays.
+    live.platforms.retain(Platform::is_fixed);
+    live.platforms.push(platform);
     let at = |e: Option<Entity>| e.and_then(|e| globals.get(e).ok());
     let Some(nodes) = &run.nodes else { return };
     // Fighters off the catapults.
@@ -494,9 +566,38 @@ fn step(
         fx.write(Fx::new("vent_steam", from));
         say(&format!("MISSION fortress: a fighter launches off {}", d.shape.parts[cat].id));
     }
+    // A Mite up each working hangar lift every 60 s while the guard is short (survey H6).
+    let on_deck = mechs.iter().filter(|m| m.4 && !m.0.dead).count() as u32;
+    let up = run.f.guard_lift(d, on_deck, dt);
+    if !up.is_empty() {
+        let mut sa = spawn.get();
+        let inv = run.f.pose().inverse();
+        for lift in up {
+            let Some(g) = at(nodes.part[lift]) else { continue };
+            let local = inv.transform_point3(g.translation());
+            let Some(feet) = run.f.stand_at(d, Vec2::new(local.x, local.z)) else {
+                continue;
+            };
+            let heading = heading_of(run.f.rotation() * Vec3::Z);
+            spawn_guard(
+                &mut commands,
+                &data,
+                &d.cfg.guard.lift_crab,
+                feet,
+                heading,
+                &mut run.guards,
+                plan.seed,
+                &mut sa,
+            );
+            say(&format!(
+                "MISSION fortress: a {} comes up {} ({} below decks)",
+                d.cfg.guard.lift_crab, d.shape.parts[lift].id, run.f.guard_hangar
+            ));
+        }
+    }
     // The pilot's mech is what the defences shoot at, while the pilot sits in it: an empty mech is no threat.
     let seated = pilot.curr.mode == PilotMode::Seated;
-    let me = mechs.iter().find(|m| m.3 && !m.0.dead && seated).map(|(m, s, id, _)| {
+    let me = mechs.iter().find(|m| m.3 && !m.0.dead && seated).map(|(m, s, id, ..)| {
         (
             m.curr.pos + Vec3::Y * s.0.aim_height_m(),
             Vec3::new(m.curr.vel.x, m.curr.vel_y_m_s, m.curr.vel.y),
@@ -532,10 +633,10 @@ fn step(
             pos: f.from,
             vel: f.dir * w.speed_m_s,
             age_s: 0.0,
-            rocket: w.rocket,
-            target: (w.seeker_turn_deg_s > 0.0).then(|| me.map(|m| m.2)).flatten(),
+            rocket: w.shot().straight(),
+            target: (w.turn_deg_s() > 0.0).then(|| me.map(|m| m.2)).flatten(),
         });
-        let flash = if w.rocket {
+        let flash = if w.shot().straight() {
             "muzzle_rocket"
         } else if w.blast_mj >= 1.0 {
             "muzzle_cannon"
@@ -592,6 +693,7 @@ fn step(
         explosions.write(Explosion {
             at: hit,
             energy_mj: d.cfg.leg.blast_mj,
+            by: None,
         });
         fx.write(Fx::new("explosion_ground", hit).scaled(d.cfg.leg.blast_mj.cbrt()));
         say("MISSION fortress: a leg hits the ground and explodes");
@@ -631,19 +733,47 @@ fn step(
             radius_m: h.radius_m,
         });
     }
+    // The attacked city's damage, whatever broke it: the defences' rounds, its legs, its wreck (survey H5).
+    run.city_damage = city_damage(&plan, &live.structures, run.city);
     run.status_in_s -= dt;
     if run.status_in_s <= 0.0 && !run.f.crashed {
         run.status_in_s = 10.0;
         let l = run.f.lift(d);
         say(&format!(
-            "MISSION fortress status: lift port {:.0} % stbd {:.0} %, alt {:.0} m, list {:.1} deg{}",
+            "MISSION fortress status: lift port {:.0} % stbd {:.0} %, alt {:.0} m, list {:.1} deg, city {} at {:.1} % damage{}",
             l.port * 200.0,
             l.stbd * 200.0,
             run.f.pos.y - run.f.ground_m,
             run.f.list_rad.to_degrees(),
+            run.city + 1,
+            run.city_damage * 100.0,
             if run.f.falling { ", FALLING" } else { "" }
         ));
     }
+}
+
+/// Spawns one crab of the deck guard, `crab` of `guard.crabs`, standing at `at` (survey H6): an enemy mech on the
+/// defence raiders' brain that keeps to the tops it stands on. `n` counts the guards spawned, for their ids.
+#[allow(clippy::too_many_arguments)]
+fn spawn_guard(commands: &mut Commands, data: &Data, crab: &str, at: Vec3, heading: f32, n: &mut u32, seed: u64, sa: &mut SpawnAssets) {
+    let Some(spec) = data.0.fortress.cfg.guard.crabs.get(crab) else {
+        return;
+    };
+    let loadout = Loadout {
+        mech: &spec.mech,
+        weapons: spec.weapons.as_deref(),
+        armour_scale: spec.armour_scale,
+        tint: spec.tint,
+        skill: &spec.skill,
+        skin: spec.skin.as_deref().and_then(|s| data.0.skins.skins.get(s)),
+    };
+    let rng = cb_core::rng::SimRng::new(seed).fork(&format!("deck guard/{n}"));
+    if let Some(e) = spawn_enemy_at(commands, &loadout, at, heading, rng, MechId(GUARD_ID_BASE + *n), sa) {
+        commands.entity(e).insert(DeckGuard);
+        // keep to the deck (inserted over the spawn's own `Enemy`, keeping its brain)
+        commands.entity(e).entry::<Enemy>().and_modify(|mut en| en.keep_aboard = true);
+    }
+    *n += 1;
 }
 
 /// Breaks the building cells within `radius_m` of `at`.
@@ -668,20 +798,9 @@ fn crash(
     explosions: &mut MessageWriter<Explosion>,
 ) {
     let at = run.f.pos;
-    let reach = 220.0 + d.cfg.crash.break_margin_m;
-    let inv = run.f.pose().inverse();
     let mut n = 0;
-    for b in plan.collision.candidates(at.xz(), reach) {
-        let c = plan.buildings[b as usize].footprint.centre();
-        let local = inv.transform_point3(Vec3::new(c.x, at.y, c.y));
-        let (ax, az) = (140.0 + d.cfg.crash.break_margin_m, 210.0 + d.cfg.crash.break_margin_m);
-        if (local.x / ax).powi(2) + (local.z / az).powi(2) > 1.0 {
-            continue;
-        }
-        let st = &live.structures.buildings[b as usize];
-        let base = Vec3::new(c.x, st.origin.y + 2.0, c.y);
-        let half = (st.size.x * st.n[0] as f32).max(st.size.z * st.n[2] as f32) * 0.75;
-        let (broke, chunks) = live.structures.break_sphere(b, base, half.max(6.0));
+    for (b, base, radius) in run.f.wreck_breaks(d, plan, &live.structures) {
+        let (broke, chunks) = live.structures.break_sphere(b, base, radius);
         if broke > 0 {
             live.dirty_buildings.push(b);
             live.new_chunks.extend(chunks);
@@ -692,6 +811,7 @@ fn crash(
     explosions.write(Explosion {
         at: ground,
         energy_mj: d.cfg.crash.blast_mj,
+        by: None,
     });
     for k in 0..6 {
         let a = k as f32 / 6.0 * std::f32::consts::TAU;
@@ -700,8 +820,13 @@ fn crash(
     }
     fx.write(Fx::new("explosion_ground", ground).scaled(d.cfg.crash.blast_mj.cbrt()));
     run.outcome.get_or_insert(true);
+    // Its wreck is the city's damage too (survey H5): the city's own number, measured as the defence measures it.
+    run.city_damage = city_damage(plan, &live.structures, run.city);
     say(&format!(
-        "MISSION fortress won: the Hermit is down, {n} buildings under it brought down"
+        "MISSION fortress won: the {} is down, {n} buildings under it brought down, city {} at {:.1} % damage",
+        d.cfg.name,
+        run.city + 1,
+        run.city_damage * 100.0
     ));
 }
 
@@ -739,7 +864,11 @@ fn hits(
             HitOutcome::Destroyed { .. } => {
                 say(&format!("MISSION fortress: {name} {id} destroyed"));
                 let at = g.translation();
-                explosions.write(Explosion { at, energy_mj: 8.0 });
+                explosions.write(Explosion {
+                    at,
+                    energy_mj: 8.0,
+                    by: None,
+                });
                 fx.write(Fx::new("explosion_air", at).scaled(3.0));
                 if d.shape.parts[h.part].kind == "lift" {
                     break_off(&mut commands, run, d, h.part, &globals);
@@ -785,6 +914,7 @@ fn hits(
         explosions.write(Explosion {
             at: s.pos,
             energy_mj: g.weapon.blast_mj,
+            by: Some(FORTRESS_ID),
         });
         fx.write(Fx::new("explosion_air", s.pos));
         false

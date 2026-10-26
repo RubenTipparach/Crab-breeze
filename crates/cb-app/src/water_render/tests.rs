@@ -65,6 +65,19 @@ fn the_surface_shader_compiles_against_bevy_pbr() {
             "the Rust uniform must be the WESL struct's size"
         );
     }
+    // With the pilot camera's sky cube bound (the reflected sky), as one map and as Bevy's array.
+    for array in [true, false] {
+        let mut flags = base.to_vec();
+        flags.extend([
+            ("MULTISAMPLED", true),
+            ("DEPTH_PREPASS", true),
+            ("VIEW_TRANSMISSION_TEXTURE", true),
+            ("DISTANCE_FOG", true),
+            ("ENVIRONMENT_MAP", true),
+            ("MULTIPLE_LIGHT_PROBES_IN_ARRAY", array),
+        ]);
+        compile(&resolver, "water_surface", &flags);
+    }
 }
 
 #[test]
@@ -78,13 +91,13 @@ fn the_water_surface_is_never_displaced() {
 #[test]
 fn a_dry_eye_runs_no_water_pass() {
     let dry = WaterEye::default();
-    assert_eq!(passes_needed(&dry, 0.0, false), (false, false));
+    assert_eq!(passes_needed(&dry, 0.0, false), Passes::default());
 }
 
 #[test]
-fn ground_fog_runs_the_compose_pass_on_a_dry_eye() {
+fn ground_fog_runs_only_the_fog_pass_on_a_dry_eye() {
     let dry = WaterEye::default();
-    assert_eq!(passes_needed(&dry, 0.0, true), (true, false));
+    assert_eq!(passes_needed(&dry, 0.0, true), Passes { fog: true, ..default() });
 }
 
 #[test]
@@ -93,13 +106,27 @@ fn under_water_composes_but_puts_no_drops_on_the_glass() {
         submersion: 1.0,
         ..default()
     };
-    assert_eq!(passes_needed(&under, 0.0, false), (true, false));
+    assert_eq!(
+        passes_needed(&under, 0.0, false),
+        Passes {
+            compose: true,
+            ..default()
+        }
+    );
+    assert!(!passes_needed(&under, 0.0, true).fog, "under water the murk is the fog");
 }
 
 #[test]
 fn a_wet_glass_runs_both_passes() {
     let surfacing = WaterEye { drips: 0.6, ..default() };
-    assert_eq!(passes_needed(&surfacing, 0.0, false), (true, true));
+    assert_eq!(
+        passes_needed(&surfacing, 0.0, false),
+        Passes {
+            compose: true,
+            lens: true,
+            ..default()
+        }
+    );
 }
 
 #[test]

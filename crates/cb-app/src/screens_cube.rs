@@ -9,6 +9,7 @@
 
 use crate::pilot::{CockpitCamera, PilotCamera};
 use crate::sim::{Data, PresentSet};
+use crate::state::GameApp;
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::RenderTarget;
 use bevy::light::GeneratedEnvironmentMapLight;
@@ -44,8 +45,8 @@ impl Plugin for ScreensCubePlugin {
         if app.world().resource::<Data>().0.cockpit_light.screens_cube_px == 0 {
             return;
         }
-        app.add_systems(PostStartup, setup)
-            .add_systems(Update, turn_faces.after(PresentSet::Camera));
+        app.add_after_world_spawn(setup)
+            .add_game_systems(Update, turn_faces.after(PresentSet::Camera));
         if let Some(render) = app.get_sub_app_mut(RenderApp) {
             render
                 .add_systems(ExtractSchedule, extract)

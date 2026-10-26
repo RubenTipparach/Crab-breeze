@@ -1,6 +1,6 @@
 //! The fortress stills (a measurement instrument, CLAUDE.md section 4; `crab-airship` section 9): with
 //! `CB_STILLS_FORTRESS=1 --stills <dir> --mission fortress`, free roam's mail is shot open as M opens it, then the
-//! pilot stands where the Hermit is seen whole from the street, then under a lift thruster, then on its deck (the
+//! pilot stands where the Stratostacean is seen whole from the street, then under a lift thruster, then on its deck (the
 //! platform carrying them, logged), and the thrusters are broken through the game's own hit path (`FortressHit`,
 //! as a shell from under the nozzle would): three on the port side open the hull, two hull thrusters there bring it
 //! down; it is shot opening, falling and crashed, then the run exits. The pilot is placed and turned directly, as
@@ -10,6 +10,7 @@ use crate::capture::{shoot, stand_looking};
 use crate::fortress::{FortressHit, FortressRun};
 use crate::pilot::PilotSim;
 use crate::sim::Data;
+use crate::state::GameApp;
 use crate::world::Plan;
 use bevy::prelude::*;
 use cb_core::world::Ground;
@@ -51,7 +52,7 @@ impl Plugin for FortressStillsPlugin {
             done: Vec::new(),
             crashed_at: None,
         })
-        .add_systems(Update, run);
+        .add_game_systems(Update, run);
     }
 }
 
@@ -91,7 +92,7 @@ fn run(
 ) {
     let now = time.elapsed_secs();
     let t = now - script.beat_started_s;
-    // Last: the mail starts the defence, which must turn the Hermit off (free-roam-missions).
+    // Last: the mail starts the defence, which must turn the Stratostacean off (free-roam-missions).
     if script.beat == 7 {
         if script.once("switch") {
             if let Some(mut f) = free {
@@ -102,7 +103,7 @@ fn run(
         }
         if t > 3.0 {
             println!(
-                "STILLS fortress switch: the defence started from the mail; the Hermit {}, the defence {}",
+                "STILLS fortress switch: the defence started from the mail; the Stratostacean {}, the defence {}",
                 if fortress.is_some() { "STILL RUNNING" } else { "turned off" },
                 if defending.is_some() { "running" } else { "NOT RUNNING" }
             );
@@ -126,7 +127,7 @@ fn run(
                 return;
             }
         }
-        // Free roam's mail, as M opens it: the Hermit running (Stop), the defence offered (Start).
+        // Free roam's mail, as M opens it: the Stratostacean running (Stop), the defence offered (Start).
         1 => {
             if script.once("mail") {
                 *menu = crate::menu::Menu::Mail;

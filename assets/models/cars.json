@@ -1,0 +1,219 @@
+{
+  "bus": {
+    "bounds_m": {
+      "x": [
+        -1.28,
+        1.28
+      ],
+      "y": [
+        0.0,
+        3.658
+      ],
+      "z": [
+        -6.1,
+        6.1
+      ]
+    },
+    "budget_tris": 4000,
+    "bytes": 33200,
+    "file": "bus.glb",
+    "generator": "tools/blender/build_cars.py",
+    "height_scale": 1.18,
+    "id": "bus",
+    "name": "City bus",
+    "size_m": [
+      2.5,
+      3.658,
+      12.0
+    ],
+    "source": "data/cars/bus.ron",
+    "status": "block-out stand-in, approved (survey W36)",
+    "triangles": 464
+  },
+  "pickup": {
+    "bounds_m": {
+      "x": [
+        -0.943,
+        0.943
+      ],
+      "y": [
+        0.0,
+        2.065
+      ],
+      "z": [
+        -2.7,
+        2.7
+      ]
+    },
+    "budget_tris": 4000,
+    "bytes": 33256,
+    "file": "pickup.glb",
+    "generator": "tools/blender/build_cars.py",
+    "height_scale": 1.18,
+    "id": "pickup",
+    "name": "Pickup",
+    "size_m": [
+      1.85,
+      2.065,
+      5.2
+    ],
+    "source": "data/cars/pickup.ron",
+    "status": "block-out stand-in, approved (survey W36)",
+    "triangles": 468
+  },
+  "sedan": {
+    "bounds_m": {
+      "x": [
+        -0.892,
+        0.892
+      ],
+      "y": [
+        0.0,
+        1.652
+      ],
+      "z": [
+        -2.45,
+        2.45
+      ]
+    },
+    "budget_tris": 4000,
+    "bytes": 31280,
+    "file": "sedan.glb",
+    "generator": "tools/blender/build_cars.py",
+    "height_scale": 1.18,
+    "id": "sedan",
+    "name": "Sedan",
+    "size_m": [
+      1.75,
+      1.652,
+      4.7
+    ],
+    "source": "data/cars/sedan.ron",
+    "status": "block-out stand-in, approved (survey W36)",
+    "triangles": 440
+  },
+  "semi": {
+    "bounds_m": {
+      "x": [
+        -1.301,
+        1.301
+      ],
+      "y": [
+        0.0,
+        4.72
+      ],
+      "z": [
+        -8.35,
+        8.35
+      ]
+    },
+    "budget_tris": 4000,
+    "bytes": 31856,
+    "file": "semi.glb",
+    "generator": "tools/blender/build_cars.py",
+    "height_scale": 1.18,
+    "id": "semi",
+    "name": "Semi truck",
+    "size_m": [
+      2.55,
+      4.72,
+      16.5
+    ],
+    "source": "data/cars/semi.ron",
+    "status": "block-out stand-in, approved (survey W36)",
+    "triangles": 428
+  },
+  "taxi": {
+    "bounds_m": {
+      "x": [
+        -0.918,
+        0.918
+      ],
+      "y": [
+        0.0,
+        1.951
+      ],
+      "z": [
+        -2.55,
+        2.55
+      ]
+    },
+    "budget_tris": 4000,
+    "bytes": 32536,
+    "file": "taxi.glb",
+    "generator": "tools/blender/build_cars.py",
+    "height_scale": 1.18,
+    "id": "taxi",
+    "name": "Taxi",
+    "size_m": [
+      1.8,
+      1.7109999999999999,
+      4.9
+    ],
+    "source": "data/cars/taxi.ron",
+    "status": "block-out stand-in, approved (survey W36)",
+    "triangles": 452
+  },
+  "van": {
+    "bounds_m": {
+      "x": [
+        -1.005,
+        0.994
+      ],
+      "y": [
+        0.0,
+        2.419
+      ],
+      "z": [
+        -2.6,
+        2.6
+      ]
+    },
+    "budget_tris": 4000,
+    "bytes": 32280,
+    "file": "van.glb",
+    "generator": "tools/blender/build_cars.py",
+    "height_scale": 1.18,
+    "id": "van",
+    "name": "Van",
+    "size_m": [
+      1.95,
+      2.4189999999999996,
+      5.0
+    ],
+    "source": "data/cars/van.ron",
+    "status": "block-out stand-in, approved (survey W36)",
+    "triangles": 452
+  },
+  "wagon": {
+    "bounds_m": {
+      "x": [
+        -0.908,
+        0.908
+      ],
+      "y": [
+        0.0,
+        1.711
+      ],
+      "z": [
+        -2.55,
+        2.55
+      ]
+    },
+    "budget_tris": 4000,
+    "bytes": 31220,
+    "file": "wagon.glb",
+    "generator": "tools/blender/build_cars.py",
+    "height_scale": 1.18,
+    "id": "wagon",
+    "name": "Station wagon",
+    "size_m": [
+      1.78,
+      1.7109999999999999,
+      4.9
+    ],
+    "source": "data/cars/wagon.ron",
+    "status": "block-out stand-in, approved (survey W36)",
+    "triangles": 440
+  }
+}

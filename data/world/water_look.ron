@@ -1,6 +1,6 @@
 // How the water looks, above and below, and the water on the glass after surfacing
 // (openspec/changes/water-rendering/design.md section 4). Every field is the code default written
-// out (crates/cb-core/src/water_look.rs); omit one to inherit it, a zero is a zero. Units are in
+// out (crates/cb-core/src/water_look.rs), but for the colours noted below; omit one to inherit it, a zero is a zero. Units are in
 // the keys or the Rust docs. Ported from Pale Blue Dot's water.ron and weather.ron (db25fe2);
 // where a value differs the design says why.
 (
@@ -22,12 +22,23 @@
     refract_max_uv: 0.03,
     max_path_m: 200.0,
     light_falloff: 1.0,
-    absorption_per_m: (0.45, 0.12, 0.06),
-    deep_color: (0.0, 0.12, 0.28),
+    // A dark open sea and teal shallows (openspec/changes/water-look design section 0; owner,
+    // 2026-10-26: "I want water to look realistic"): absorption near pure water's (Pope and Fry
+    // 1997) with a little coastal matter, so sand shows teal through 2-10 m; the deep body returns
+    // about 1 % of red-green and 4 % of blue (navy), and the reflected sky carries the look.
+    absorption_per_m: (0.32, 0.035, 0.012),
+    deep_color: (0.004, 0.018, 0.040),
+    // Teal in the shallows, easing to the deep colour by 14 m of water (coastal water scatters green
+    // as well as blue; seen at a slant the light alone strips the green and leaves cobalt).
+    shallow_color: (0.020, 0.090, 0.075),
+    shallow_depth_m: 14.0,
 
-    // The sky mirrored (its horizon is the game's sky colour).
-    sky_zenith_color: (0.03, 0.18, 0.55),
-    sky_horizon_strength: 0.22,
+    // The sky mirrored (its horizon is the game's sky colour): a hazy grey-blue zenith rather than a
+    // saturated one (owner, 2026-10-25: "water is also too blue, not relaistic at all"), so the sea
+    // mirrors a sky like the one above it.
+    sky_zenith_color: (0.16, 0.22, 0.30),
+    // Water reflects most at a grazing angle, which greys a real sea toward its horizon (0.22 left it black).
+    sky_horizon_strength: 0.7,
 
     // Foam.
     foam_color: (0.95, 0.97, 1.0),
@@ -39,10 +50,22 @@
     shore_foam_m: 1.5,
     shore_foam_weight: 0.6,
 
-    // The sun's glint.
-    specular_intensity: 0.06,
-    specular_power: 140.0,
+    // The sun's glint (openspec/changes/water-look design section 4; owner, 2026-10-26: "It looks
+    // kinda dull"): a GGX highlight as the sun gives it, sharp close by and widening to a glitter
+    // path where the ripples have faded into the distance.
+    specular_intensity: 1.0,
+    // Close by plus far: 0.26, Cox and Munk's sea-surface slopes at the 6 m/s wind (design section 0,
+    // "Glitter from high up").
+    glint_roughness: 0.06,
+    glint_far_roughness: 0.20,
+    // Far sea sparkles: random facets a pixel and a half across, tilted this steep, drawn anew 3
+    // times a second (owner, 2026-10-26: "make glitter show up more at higher altitudes").
+    glitter_slope: 0.22,
+    glitter_twinkle_hz: 3.0,
     sun_tint: (1.10, 1.15, 1.20),
+    // Light through the wavelets' crests seen against the sun (design section 5): turquoise.
+    scatter_color: (0.05, 0.35, 0.33),
+    scatter_strength: 0.35,
 
     // Under water and surfacing.
     underwater_distortion: 0.0015,

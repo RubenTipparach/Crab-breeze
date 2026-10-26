@@ -1,8 +1,9 @@
-// The water's fullscreen passes (openspec change `water-rendering`), run before tonemapping on
-// cameras with `WaterOptics`: `compose` (the view under water: murk by the distance travelled
-// through water, light lost on its way down, the wobble, the waterline while straddling, and the
-// distance softened while the glass is wet) and `lens` (drops running off the glass after
-// surfacing, refracting the real scene). Linear HDR colour, reverse-Z depth (near 1, sky 0).
+// The water's fullscreen passes (openspec change `water-rendering`) on cameras with `WaterOptics`:
+// `fog` (the ground fog, before the transparent pass), and before tonemapping `compose` (the view
+// under water: murk by the distance travelled through water, light lost on its way down, the
+// wobble, the waterline while straddling, and the distance softened while the glass is wet) and
+// `lens` (drops running off the glass after surfacing, refracting the real scene). Linear HDR
+// colour, reverse-Z depth (near 1, sky 0).
 //
 // Provenance: Pale Blue Dot (`RubenTipparach/pale-blue-dot` at `db25fe2`,
 // `assets/shaders/water.wgsl`: `blur`, `compose`, `refract_through_drops`, `lens`), Tenebris's
@@ -25,8 +26,8 @@ struct WaterPost {
     fog_layer: vec4<f32>,  // ground fog: x density at sea level per m, y scale height m, z sea level m, w 1 on
     fog_mist: vec4<f32>,   // x mist strength, y the mist taps' reach m, z a sky ray's length m, w extra extinction per m (rain)
     fog_ambient: vec4<f32>, // rgb the sky's light the fog scatters back; w the phase asymmetry g
-    fog_sun: vec4<f32>,    // rgb the sun's light the fog scatters (storm shade in it)
-    fog_sun_dir: vec4<f32>, // xyz toward the sun
+    fog_sun: vec4<f32>,    // rgb the sun's light the fog scatters (storm shade in it); w the haze's density at sea level per m
+    fog_sun_dir: vec4<f32>, // xyz toward the sun; w the haze's scale height m
     fog_map: vec4<f32>,    // x the mist map's least corner m, y its cell m, z cells a side
     glass: vec4<f32>,      // seated: xyz the interior's origin, world m; w window triangles in `panes` (0 on foot)
     glass_look: vec4<f32>, // x metres of pane to one unit of the drop pattern
@@ -51,12 +52,6 @@ fn load_depth(uv: vec2<f32>) -> f32 {
     let size = vec2<i32>(textureDimensions(scene_depth));
     let coord = clamp(vec2<i32>(uv * vec2<f32>(size)), vec2<i32>(0), size - 1);
     return textureLoad(scene_depth, coord, 0);
-}
-
-// What of the scene behind still shows through the smoke drawn over it (1 where there is none): the soft
-// sprites multiply the target's alpha by 1 - their own (`soft_sprites.rs`).
-fn scene_through(uv: vec2<f32>) -> f32 {
-    return clamp(textureSampleLevel(scene_color, scene_sampler, clamp(uv, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0).a, 0.0, 1.0);
 }
 
 fn sample_scene(uv: vec2<f32>) -> vec3<f32> {
@@ -121,7 +116,6 @@ fn mist_at(xz: vec2<f32>) -> f32 {
 // exact integral (`cb_core::world::mist::optical_depth`, written with both ends' exponentials),
 // thickened by the mist read at four points along the ray, plus the rain's haze.
 fn fog_depth(origin: vec3<f32>, dir: vec3<f32>, len: f32) -> f32 {
-    let h = post.fog_layer.y;
     let sea = post.fog_layer.z;
     let reach = min(len, post.fog_mist.y);
     var mist = 0.0;
@@ -130,13 +124,23 @@ fn fog_depth(origin: vec3<f32>, dir: vec3<f32>, len: f32) -> f32 {
         mist += mist_at((origin + dir * (reach * f)).xz);
     }
     let thick = 1.0 + post.fog_mist.x * mist * 0.25;
-    let e0 = exp(-max(origin.y - sea, -200.0) / h);
-    var layer = post.fog_layer.x * e0 * len;
-    if (abs(dir.y) >= 1e-4) {
-        let e1 = exp(-max(origin.y + dir.y * len - sea, -200.0) / h);
-        layer = post.fog_layer.x * h * (e0 - e1) / dir.y;
+    let layer = layer_depth(post.fog_layer.x, post.fog_layer.y, sea, origin.y, dir.y, len);
+    // The aerial haze (ground-fog design section 2a): thin and deep, not thickened by mist.
+    let haze = layer_depth(post.fog_sun.w, post.fog_sun_dir.w, sea, origin.y, dir.y, len);
+    return thick * max(layer, 0.0) + max(haze, 0.0) + post.fog_mist.w * len;
+}
+
+// The optical depth through an exponential layer of `density` per metre at sea level, thinning by
+// e every `h` metres, along a ray from height `from_y` rising `dir_y` a metre for `len`: the closed
+// form of `cb_core::world::mist::layer_depth`, with both ends' exponentials.
+fn layer_depth(density: f32, h: f32, sea: f32, from_y: f32, dir_y: f32, len: f32) -> f32 {
+    let hh = max(h, 1.0);
+    let e0 = exp(-max(from_y - sea, -200.0) / hh);
+    if (abs(dir_y) < 1e-4) {
+        return density * e0 * len;
     }
-    return thick * max(layer, 0.0) + post.fog_mist.w * len;
+    let e1 = exp(-max(from_y + dir_y * len - sea, -200.0) / hh);
+    return density * hh * (e0 - e1) / dir_y;
 }
 
 // The fog's colour seen along `dir`: the sky's light scattered back, and the sun's scattered
@@ -146,6 +150,34 @@ fn fog_colour(dir: vec3<f32>) -> vec3<f32> {
     let c = dot(dir, normalize(post.fog_sun_dir.xyz));
     let phase = (1.0 - g * g) / (12.566371 * pow(max(1.0 + g * g - 2.0 * g * c, 1e-4), 1.5));
     return post.fog_ambient.rgb + post.fog_sun.rgb * phase;
+}
+
+// Ground fog in the air, from the cabin's wall (seated) to the pixel or out to the sky's length.
+// Its own pass between the opaque (and transmissive) pass and the transparent one, so the clouds,
+// which write no depth, are drawn over the fogged ground and sky and carry only their own fog: fogged
+// afterwards by what lay behind them, they wore the band of thick fog where the far sea meets the
+// sky as a line across them (owner, 2026-10-26: "notice the horizon line showing throuhg the
+// clouds?"). Under water the compose pass's murk is the only fog.
+@fragment
+fn fog(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
+    let uv = in.uv;
+    var color = sample_scene(uv);
+    let depth = load_depth(uv);
+    let sky = depth <= 1e-7;
+    let eye = post.camera.xyz;
+    let direction = view_direction(uv);
+    var view_dist = 1.0e5;
+    if (!sky) {
+        view_dist = length(world_at(uv, depth) - eye);
+    }
+    let start = post.lens_fx.w;
+    let end = select(view_dist, post.fog_mist.z, sky);
+    let len = end - start;
+    if (len > 0.0) {
+        let t = exp(-fog_depth(eye + direction * start, direction, len));
+        color = mix(fog_colour(direction), color, t);
+    }
+    return vec4<f32>(color, 1.0);
 }
 
 @fragment
@@ -193,19 +225,6 @@ fn compose(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         }
         let deep = water_murk(post.deep.rgb, post.light.rgb, absorption, cam_gap);
         color = mix(color, mix(deep, lit, water_transmittance(absorption, travel)), wet);
-    }
-    // Ground fog in the air, from the cabin's wall (seated) to the pixel or out to the sky's length.
-    if (post.fog_layer.w > 0.5 && wet < 0.5) {
-        let start = post.lens_fx.w;
-        let end = select(view_dist, post.fog_mist.z, sky);
-        let len = end - start;
-        if (len > 0.0) {
-            let t = exp(-fog_depth(eye + direction * start, direction, len));
-            // Only the share of the scene that shows through smoke is fogged to the depth behind it; the
-            // smoke itself carries the view's distance fog from its own shader.
-            let through = scene_through(uv);
-            color = mix(fog_colour(direction), color, mix(1.0, t, through));
-        }
     }
     // Depth blur while the glass is wet: the distance softens, the foreground stays crisp.
     let dz_amt = max(post.lens_fx.y, post.lens_fx.x);

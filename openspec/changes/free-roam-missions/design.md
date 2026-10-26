@@ -5,7 +5,7 @@
 1. In free roam, press M (bindable, `mail`). The mail opens, as in a career: the game pauses and the mouse is free.
 2. The inbox lists one message per mission, newest first: who sent it, the subject, a line on what it is, and a
    button: **Start**, or for the mission running now **Stop**.
-3. Start: the mail closes and the mission begins where its message says (the defence on the start city, the Hermit
+3. Start: the mail closes and the mission begins where its message says (the defence on the start city, the Stratostacean
    over the city nearest the pilot). A message line says what was turned off, if anything.
 4. Starting another mission turns the running one off first. Stop turns it off and starts nothing.
 5. A won or lost mission stays on its readout (WON, LOST) until another starts or it is stopped.
@@ -51,5 +51,5 @@ A few hundred bytes of mail; one message a switch. Starting a mission costs what
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| FR1 | A stopped mission's enemies | They leave the world at once; what they destroyed stays | provisional (survey FR1) |
+| FR1 | A stopped mission's enemies | They leave the world at once; what they destroyed stays | decided (owner, 2026-10-26, survey FR1: recommendation accepted, "Approve all"). Built with 2.1: the defence's raiders and the Stratostacean (its model, beams, falling legs, platforms, deck guard) despawn and their vehicles retire on the switch; nothing restores a broken cell. Added: their rounds still in the air leave with them (`Shots::drop_from`) |
 | FR2 | When free roam's mission mail arrives | All of it in the inbox from the start | provisional (survey FR2) |

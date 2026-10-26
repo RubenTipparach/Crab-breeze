@@ -8,6 +8,7 @@
 //! `fx-sprites`): smoke a random billow, fire its flipbook over its life, dust a wisp, dirt a clod; sparks and spray keep
 //! the soft disc. Presentation only.
 
+use crate::state::GameApp;
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
 use cb_core::fx::{Layer, ParticleKind};
@@ -193,7 +194,7 @@ impl Plugin for ParticlesPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(HanabiPlugin)
             .init_resource::<ParticleLibrary>()
-            .add_systems(Update, retire);
+            .add_game_systems(Update, retire);
     }
 }
 

@@ -11,6 +11,7 @@
 use crate::mech::{MechSim, MechSpec, Piloted};
 use crate::pilot::PilotSim;
 use crate::sim::PresentSet;
+use crate::state::GameApp;
 use crate::world::Plan;
 use bevy::prelude::*;
 use bevy::ui::UiTransform;
@@ -22,7 +23,7 @@ pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_hud).add_systems(
+        app.add_world_spawn(spawn_hud).add_game_systems(
             Update,
             (
                 update_hud,
@@ -155,11 +156,15 @@ enum Readout {
     Damage,
     Nav,
     Mission,
+    /// The last hangar bay's repair and rearm (air-bases), on the MECH page.
+    Service,
 }
 
 pub(crate) const GREEN: Color = Color::srgb(0.55, 0.95, 0.6);
 pub(crate) const AMBER: Color = Color::srgb(1.0, 0.75, 0.25);
 const RED: Color = Color::srgb(1.0, 0.3, 0.25);
+/// A neutral (a civil aircraft: `civil-air-traffic`): never red, never amber.
+const NEUTRAL: Color = Color::srgb(0.85, 0.9, 0.95);
 pub(crate) const FRAME: Color = Color::srgba(0.55, 0.95, 0.6, 0.35);
 
 /// The colour a part's health (`Damage::health`, 0 to 1) is shown in: green, amber under 70 %, red under 30 %. The one
@@ -486,6 +491,14 @@ fn spawn_hud(mut commands: Commands) {
                     text("", 36.0),
                     Readout::Damage,
                 ));
+                c.spawn((
+                    Node {
+                        max_width: percent(100.0),
+                        ..default()
+                    },
+                    text("", 26.0),
+                    Readout::Service,
+                ));
             });
             // FLIGHT: boosters and skates, throttle, speed, altitude, mode, guns.
             let flight = page(pages, "FLIGHT");
@@ -628,7 +641,9 @@ fn draw_targets(
     state: Res<crate::targeting::TargetState>,
     camera: Single<(&Camera, &GlobalTransform), With<crate::pilot::PilotCamera>>,
     me: Query<&MechSpec, With<Piloted>>,
+    my_guns: Query<&MechSim, With<Piloted>>,
     hostiles: Res<crate::units::Hostiles>,
+    neutrals: Res<crate::air_traffic::Neutrals>,
     mut boxes: Query<(&TargetBox, &mut Node, &mut BorderColor, &mut Visibility), (Without<LeadRing>, Without<EdgeArrow>)>,
     mut labels: Query<(&TargetLabel, &mut Text, &mut TextColor), Without<EdgeArrow>>,
     mut lead: Single<(&mut Node, &mut Visibility, &mut BorderColor), (With<LeadRing>, Without<TargetBox>, Without<EdgeArrow>)>,
@@ -644,24 +659,29 @@ fn draw_targets(
     let size = cam.logical_viewport_size().unwrap_or(Vec2::new(1920.0, 1080.0));
     let on_screen = |p: Vec2| p.x >= 0.0 && p.y >= 0.0 && p.x <= size.x && p.y <= size.y;
     let locked = state.locked(cfg);
-    // The enemies in range, mechs and vehicles, nearest first.
-    let mut shown: Vec<(f32, crate::units::Hostile)> = hostiles
+    // The enemies in range, mechs and vehicles, and civil aircraft as neutrals, nearest first: the
+    // ones the targeting saw through the fog this step, at the range the fog leaves (survey F2).
+    let mut shown: Vec<(f32, f32, crate::units::Hostile)> = hostiles
         .0
         .iter()
+        .chain(&neutrals.0)
         .filter(|_| seated)
-        .map(|h| (h.aim.distance(eye), *h))
-        .filter(|(d, _)| *d <= cfg.max_range_m)
+        .filter_map(|h| state.fog_toward(h.id).map(|fog| (h.aim.distance(eye), fog, *h)))
+        .filter(|(d, fog, _)| cb_core::targeting::seen(cfg, *d, *fog))
         .collect();
-    shown.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.id.cmp(&b.1.id)));
+    shown.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.2.id.cmp(&b.2.id)));
     let mut texts: Vec<(String, Color)> = vec![(String::new(), GREEN); BOXES];
     let mut placed = vec![None; BOXES];
     let mut lead_at = None;
     let mut arrow_dir = None;
-    for (slot, (d, h)) in shown.iter().take(BOXES).enumerate() {
+    for (slot, (d, fog, h)) in shown.iter().take(BOXES).enumerate() {
         let (id, feet, torso, vel) = (&h.id, h.feet, h.aim, h.vel);
         let selected = state.selected == Some(*id);
+        let neutral = crate::air_traffic::is_civil(*id);
         let colour = if selected && locked == Some(*id) {
             RED
+        } else if neutral {
+            NEUTRAL
         } else if h.shelling {
             AMBER
         } else {
@@ -670,13 +690,20 @@ fn draw_targets(
         if selected {
             let w = me.iter().next().and_then(|spec| spec.weapons.first().cloned());
             if let Some(w) = w {
-                let p = cb_core::weapons::lead(eye, torso, vel, w.speed_m_s, !w.rocket);
+                let p = cb_core::weapons::lead(eye, torso, vel, w.shot().lead_speed_m_s(w.speed_m_s), !w.shot().straight());
                 lead_at = cam.world_to_viewport(at, p).ok().filter(|p| on_screen(*p));
             }
-            let in_range = *d <= cfg.lock_range_m;
+            let in_range = cb_core::targeting::in_lock_range(cfg, *d, *fog);
             texts[slot] = (fmt_target(*d, vel.length(), in_range, locked == Some(*id)), colour);
+        } else if neutral {
+            texts[slot] = (format!("CIV {d:.0} m"), colour);
         } else {
             texts[slot] = (format!("{d:.0} m"), colour);
+        }
+        // A pod's locks on it, `xN` (multi-lock), from the locks the salvo will fire on.
+        let n = my_guns.iter().next().map_or(0, |m| m.guns.locks.count(*id));
+        if n > 0 {
+            texts[slot].0.push_str(&format!(" x{n}"));
         }
         let (Ok(top), Ok(bottom)) = (
             cam.world_to_viewport(at, feet + Vec3::Y * h.height_m),
@@ -787,12 +814,12 @@ fn draw_body(
 }
 
 /// Compass bearing in degrees, 0 north (-z), clockwise, of a flat direction (x, z).
-fn bearing_deg(dir: Vec2) -> f32 {
+pub(crate) fn bearing_deg(dir: Vec2) -> f32 {
     dir.x.atan2(-dir.y).to_degrees().rem_euclid(360.0)
 }
 
 /// A bearing as the compass shows it, whole degrees 0..359.
-fn whole_deg(deg: f32) -> i32 {
+pub(crate) fn whole_deg(deg: f32) -> i32 {
     (deg.round() as i32).rem_euclid(360)
 }
 
@@ -843,21 +870,34 @@ fn fmt_budget(name: &str, heat: f32, locked: bool, burn_s: f32, recharge_s: f32,
     }
 }
 
-/// `HERMIT   LIFT PORT 100 %  STBD 67 %   ALT 600 M`, the hull thrusters once they open, `FALLING`, then
+/// `STRATOSTACEAN   LIFT PORT 100 %  STBD 67 %   ALT 600 M   CITY 2 DAMAGE 4 %`, the hull thrusters once they open, `FALLING`, then
 /// `DOWN: WON`: every number the lift rule's own (`crab-airship` section 9; CLAUDE.md 6.1).
 fn fmt_fortress(run: &crate::fortress::FortressRun, d: &cb_core::fortress::FortressData) -> (String, Color) {
     let f = &run.f;
     match run.outcome {
-        Some(true) => return ("THE HERMIT IS DOWN: MISSION WON".into(), GREEN),
+        Some(true) => {
+            return (
+                format!(
+                    "THE {} IS DOWN: MISSION WON   CITY {} DAMAGE {:.0} %",
+                    d.cfg.name.to_uppercase(),
+                    run.city + 1,
+                    run.city_damage * 100.0
+                ),
+                GREEN,
+            );
+        }
         Some(false) => return ("MISSION LOST: your mech was destroyed".into(), RED),
         None => {}
     }
     let l = f.lift(d);
     let mut s = format!(
-        "HERMIT   LIFT PORT {:.0} %  STBD {:.0} %   ALT {:.0} M",
+        "{}   LIFT PORT {:.0} %  STBD {:.0} %   ALT {:.0} M   CITY {} DAMAGE {:.0} %",
+        d.cfg.name.to_uppercase(),
         l.port * 200.0,
         l.stbd * 200.0,
-        f.pos.y - f.ground_m
+        f.pos.y - f.ground_m,
+        run.city + 1,
+        run.city_damage * 100.0
     );
     if f.doors_s.is_some() {
         s += &format!("   HULL THRUSTERS {}", if l.lit { "LIT" } else { "OPENING" });
@@ -921,6 +961,7 @@ fn update_hud(
     run: Option<Res<crate::defence::DefenceRun>>,
     fortress: Option<Res<crate::fortress::FortressRun>>,
     free: Option<Res<crate::missions::FreeRoamRun>>,
+    service: Res<crate::air_bases::LastService>,
     plan: Res<Plan>,
     mech: Query<(&MechSim, &MechSpec), With<Piloted>>,
     mut roots: Query<&mut Visibility, With<HudRoot>>,
@@ -995,6 +1036,13 @@ fn update_hud(
                 m.mode == LocomotionMode::Skate,
             ),
             Readout::Legs => (format!("LEGS {:+.0}", -m.twist_rad.to_degrees()), GREEN),
+            // What the last bay did, from the report the bay's own rule returned (CLAUDE.md 6.1).
+            Readout::Service => match &service.last {
+                Some((base, bay, lines)) if service.since_s < crate::air_bases::SERVICE_SHOWN_S => {
+                    (format!("BASE {} BAY {}\n{}", base + 1, bay + 1, lines.join("\n")), AMBER)
+                }
+                _ => (String::new(), GREEN),
+            },
             // One fact a line on the MFD.
             Readout::Nav => (
                 fmt_nav(pilot.curr.yaw_rad, Vec2::new(m.pos.x, m.pos.z), &plan.cities).replace("   ", "\n"),
@@ -1148,6 +1196,7 @@ fn update_stations(
     data: Res<crate::sim::Data>,
     targeting: Res<crate::targeting::TargetState>,
     units: Res<crate::units::Units>,
+    fortress: Option<Res<crate::fortress::FortressRun>>,
     me: Query<(&MechSim, &MechSpec), With<Piloted>>,
     mechs: Query<(&MechSim, &MechSpec, &crate::mech::MechId)>,
     mut rows: Query<(&StationRow, &mut Text, &mut TextColor, &mut BorderColor, &mut Visibility), Without<TargetReadout>>,
@@ -1161,20 +1210,35 @@ fn update_stations(
         };
         *v = Visibility::Inherited;
         let lost = sim.damage.is_lost(&spec.parts, w.arm);
-        let cd = sim.guns.cooldown_s.get(row.0).copied().unwrap_or(0.0);
         let rounds = sim.guns.rounds_left.get(row.0).copied().unwrap_or(w.rounds);
-        let state = if lost {
-            "LOST".to_string()
-        } else if rounds == Some(0) {
-            "EMPTY".to_string()
-        } else if cd > 0.05 {
-            format!("{cd:.1}s")
+        // The station's state from the clocks its shots fire from (weapon-kinds): charge, heat, reload.
+        use cb_core::weapons::StationState as S;
+        let state = match sim.guns.state(&spec.weapons, row.0, lost) {
+            S::Lost => "LOST".to_string(),
+            S::Empty => "EMPTY".to_string(),
+            S::Hot => "HOT".to_string(),
+            S::Charging(k) => format!("CHARGE {:.0}%", k * 100.0),
+            S::Reloading(cd) => format!("{cd:.1}s"),
+            S::Ready => "READY".to_string(),
+        };
+        // A pod shows the locks it holds (multi-lock).
+        let state = match w.multi_lock() {
+            Some(seeker) if !sim.guns.locks.held.is_empty() => {
+                format!("LOCKS {}/{}", sim.guns.locks.held.len(), seeker.max_locks)
+            }
+            _ => state,
+        };
+        // A weapon that runs hot shows the bank it shares (weapon-kinds section 6).
+        let state = if w.heat > 0.0 {
+            format!("{state}  HEAT {:.0}%", sim.guns.heat.heat * 100.0)
         } else {
-            "READY".to_string()
+            state
         };
         let name = w.name.to_uppercase();
         let count = rounds.map_or_else(String::new, |n| format!(" x{n}"));
-        t.0 = format!("STA {}  {name}{count}  {state}", row.0 + 1);
+        // The signature weapon is starred (signature-weapons).
+        let star = if w.signature { "*" } else { "" };
+        t.0 = format!("STA {}{star}  {name}{count}  {state}", row.0 + 1);
         let selected = row.0 == sim.selected;
         c.0 = if lost {
             RED
@@ -1191,7 +1255,21 @@ fn update_stations(
         c.0 = GREEN;
         return;
     };
-    let (name, health) = if id >= crate::units::UNIT_ID_BASE {
+    // A civil aircraft is never selected (survey W47), so the TARGET page names enemies only. A part of the
+    // fortress is named with the fortress (survey H2: `STRATOSTACEAN` over `LIFT THRUSTER L2`).
+    let part = id
+        .checked_sub(crate::fortress::FORTRESS_TARGET_BASE)
+        .map(|i| i as usize)
+        .zip(fortress.as_deref())
+        .filter(|(i, run)| *i < run.f.parts.len());
+    let (name, health) = if let Some((i, run)) = part {
+        let d = &data.0.fortress;
+        let k = d.kind(i);
+        (
+            format!("{}\n{} {}", d.cfg.name, k.name, d.shape.parts[i].id).to_uppercase(),
+            run.f.parts[i].hp / k.hp.max(1.0),
+        )
+    } else if id >= crate::units::UNIT_ID_BASE {
         match units.list.iter().find(|p| p.unit.id == id) {
             Some(p) => {
                 let full = data.0.units.units.get(&p.unit.kind).map_or(1.0, |s| s.hp.max(1.0));

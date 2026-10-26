@@ -6,6 +6,7 @@
 use crate::fx::Fx;
 use crate::mech::{MechSim, MechSpec, apply_hit};
 use crate::sim::{Data, SimSet};
+use crate::state::GameApp;
 use crate::world::{Live, Plan};
 use bevy::prelude::*;
 use cb_core::mech::{Hit, PartKind};
@@ -19,6 +20,9 @@ pub struct Explosion {
     pub at: Vec3,
     /// Energy, megajoules (a 120 mm shell is about 4).
     pub energy_mj: f32,
+    /// The mech, vehicle or fortress whose shot it was, when it was one (civilians: the pilot's own
+    /// blasts cost standing).
+    pub by: Option<u32>,
 }
 
 /// Resolves explosions.
@@ -27,8 +31,18 @@ pub struct BlastPlugin;
 impl Plugin for BlastPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<Explosion>()
-            .add_systems(FixedUpdate, explode.in_set(SimSet::Mech).after(crate::mech::step_mech));
+            .add_game_systems(FixedUpdate, explode.in_set(SimSet::Mech).after(crate::mech::step_mech));
     }
+}
+
+/// A blast's splash on a body `d_m` from it: (penetration, damage), within three crater radii `r_m` of a blast of
+/// `energy_mj`, falling off to nothing at the edge; `None` beyond. The one splash rule: mechs here, boats in `boats`.
+pub fn splash(d_m: f32, r_m: f32, energy_mj: f32) -> Option<(f32, f32)> {
+    let reach = r_m * 3.0;
+    (d_m < reach).then(|| {
+        let k = 1.0 - d_m / reach;
+        (70.0 + 60.0 * k, 60.0 * k * energy_mj.cbrt())
+    })
 }
 
 fn explode(
@@ -52,6 +66,7 @@ fn explode(
                 trees: None,
                 structures: None,
                 platforms: &[],
+                interiors: None,
             };
             (s.water_at(xz.x, xz.y), s.height_at(xz.x, xz.y))
         };
@@ -62,6 +77,7 @@ fn explode(
             e.at
         };
         if wet.is_none() && on_ground {
+            let _s = crate::perf_hud::section("explode: dig");
             let touched = live.dug.dig(
                 &plan,
                 Blast {
@@ -73,12 +89,14 @@ fn explode(
             live.dirty_tiles.extend(touched);
         }
         if on_ground {
+            let _s = crate::perf_hud::section("explode: trees");
             // A blast far from every body grows the trees it reaches first (island-world).
             live.forest.grow_around(&plan, xz, r * 4.0);
             let broke = live.forest.blast(xz, r * 4.0, 400_000.0 * e.energy_mj.sqrt());
             live.moved_trees.extend(broke);
         }
         // Buildings within reach lose the cells the blast reaches (building-destruction).
+        let s_buildings = crate::perf_hud::section("explode: buildings");
         for b in plan.collision.candidates(xz, r * 1.5) {
             let (broke, chunks) = live.structures.break_sphere(b, e.at, r * 1.3);
             if broke > 0 {
@@ -86,25 +104,28 @@ fn explode(
                 live.new_chunks.extend(chunks);
             }
         }
+        drop(s_buildings);
         // Mechs nearby take splash on the part nearest the blast; armour stops most of it.
         for (mut sim, spec) in &mut mechs {
             let d = sim.curr.pos.distance(e.at - Vec3::Y * 4.0);
-            if d < r * 3.0 && !sim.dead {
+            if sim.dead {
+                continue;
+            }
+            if let Some((penetration_mm, damage)) = splash(d, r, e.energy_mj) {
                 let kind = if e.at.y - sim.curr.pos.y < 6.0 {
                     PartKind::LegL
                 } else {
                     PartKind::Torso
                 };
                 if let Some(part) = spec.parts.iter().position(|p| p.kind == kind) {
-                    let k = 1.0 - d / (r * 3.0);
                     let cfg = spec.0.clone();
                     apply_hit(
                         &mut sim,
                         &cfg,
                         Hit {
                             part,
-                            penetration_mm: 70.0 + 60.0 * k,
-                            damage: 60.0 * k * e.energy_mj.cbrt(),
+                            penetration_mm,
+                            damage,
                         },
                     );
                 }

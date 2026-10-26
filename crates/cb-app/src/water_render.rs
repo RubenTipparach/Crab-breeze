@@ -18,6 +18,7 @@
 
 use crate::pilot::PilotSim;
 use crate::sim::Data;
+use crate::state::GameApp;
 use crate::world::{Plan, SKY};
 use bevy::camera::{Exposure, Hdr};
 use bevy::core_pipeline::prepass::DepthPrepass;
@@ -101,6 +102,8 @@ pub struct WaterSurfaceUniform {
     sun_light: Vec4,
     sun_tint: Vec4,
     cabin: Vec4,
+    shallow: Vec4,
+    scatter: Vec4,
     swell: [Vec4; 3],
 }
 
@@ -127,10 +130,10 @@ impl WaterSurfaceUniform {
     /// `submersion`: the eye's, 0 dry, 0.5 straddling, 1 under water (`WaterEye::submersion`).
     fn new(look: &WaterLook, seconds: f32, light: &WaterLight, eye: Vec3, cabin_m: f32, submersion: f32) -> Self {
         let sky = LinearRgba::from(SKY);
+        let trains = look.swell_trains();
         let swell = std::array::from_fn(|i| {
-            let heading = look.swell_heading_deg[i].to_radians();
-            let k = std::f32::consts::TAU / look.swell_wavelength_m[i];
-            Vec4::new(heading.cos(), heading.sin(), k, look.swell_height_m[i])
+            let t = trains[i];
+            Vec4::new(t.dir.x, t.dir.y, t.k_rad_m, t.height_m)
         });
         Self {
             ripple: Vec4::new(look.ripple_scale_per_m, look.ripple_speed, look.ripple_steepness, look.slope_max),
@@ -141,7 +144,7 @@ impl WaterSurfaceUniform {
             deep: v3(look.deep_color).extend(submersion),
             light: light.body.extend(0.0),
             sky_horizon: Vec4::new(sky.red, sky.green, sky.blue, 0.0),
-            sky_zenith: v3(look.sky_zenith_color).extend(0.0),
+            sky_zenith: v3(look.sky_zenith_color).extend(look.glitter_twinkle_hz),
             foam_color: v3(look.foam_color).extend(look.foam_intensity),
             foam_crest: Vec4::new(look.foam_crest[0], look.foam_crest[1], look.foam_crest_weight, look.shore_foam_m),
             foam_slope: Vec4::new(
@@ -151,9 +154,11 @@ impl WaterSurfaceUniform {
                 look.shore_foam_weight,
             ),
             sun_dir: light.sun_dir.extend(look.specular_intensity),
-            sun_light: light.sun.extend(look.specular_power),
-            sun_tint: v3(look.sun_tint).extend(0.0),
+            sun_light: light.sun.extend(look.glint_roughness),
+            sun_tint: v3(look.sun_tint).extend(look.glint_far_roughness),
             cabin: eye.extend(cabin_m),
+            shallow: v3(look.shallow_color).extend(look.shallow_depth_m),
+            scatter: (v3(look.scatter_color) * look.scatter_strength).extend(look.glitter_slope),
             swell,
         }
     }
@@ -223,8 +228,8 @@ impl Plugin for WaterRenderPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MaterialPlugin::<WaterMaterial>::default())
             .insert_resource(GroundFogOn(!crate::cli::switched_off("CB_NO_GROUND_FOG")))
-            .add_systems(Startup, upload_mist)
-            .add_systems(
+            .add_world_spawn(upload_mist)
+            .add_game_systems(
                 Update,
                 (
                     samplable_depth::<WaterOptics>,
@@ -241,10 +246,16 @@ impl Plugin for WaterRenderPlugin {
             .add_systems(Render, prepare_water_post.in_set(RenderSystems::Prepare))
             .add_systems(
                 Core3d,
-                water_post
-                    .in_set(Core3dSystems::PostProcess)
-                    .in_set(WaterPasses)
-                    .before(tonemapping),
+                (
+                    water_fog
+                        .in_set(Core3dSystems::MainPass)
+                        .after(bevy::pbr::main_transmissive_pass_3d)
+                        .before(bevy::core_pipeline::core_3d::main_transparent_pass_3d),
+                    water_post
+                        .in_set(Core3dSystems::PostProcess)
+                        .in_set(WaterPasses)
+                        .before(tonemapping),
+                ),
             );
     }
 }
@@ -425,9 +436,9 @@ struct FogLook {
     mist: Vec4,
     /// rgb the sky's light the fog scatters back; w the phase asymmetry.
     ambient: Vec4,
-    /// rgb the sun's light the fog scatters (storm shade in it); w unused.
+    /// rgb the sun's light the fog scatters (storm shade in it); w the haze's density at sea level per m.
     sun: Vec4,
-    /// xyz toward the sun; w unused.
+    /// xyz toward the sun; w the haze's scale height m.
     sun_dir: Vec4,
     /// x the map's least corner (x and z) m, y its cell m, z cells a side, w unused.
     map: Vec4,
@@ -472,6 +483,7 @@ fn extract_water_eye(
     time: Extract<Res<Time>>,
     plan: Extract<Res<Plan>>,
     fog_on: Extract<Res<GroundFogOn>>,
+    fog_now: Extract<Res<crate::ground_fog::FogNow>>,
     mist: Extract<Option<Res<MistImage>>>,
     ambient: Extract<Res<GlobalAmbientLight>>,
     sun: Extract<Query<(&DirectionalLight, &GlobalTransform), With<crate::world::Sun>>>,
@@ -491,16 +503,22 @@ fn extract_water_eye(
         let shade = plan.clouds.sun_at(Vec2::new(at.x, at.z), t);
         let rain = plan.clouds.rain_at(at, t);
         let fog = FogLook {
+            // Scaled by the strength now: the clock's morning mist or a mission's preset (survey F1).
             layer: Vec4::new(
-                cfg.density_per_m,
+                cfg.density_per_m * fog_now.strength.density_scale,
                 cfg.scale_height_m,
                 plan.waters.sea_level_m,
                 if fog_on.0 { 1.0 } else { 0.0 },
             ),
-            mist: Vec4::new(cfg.mist_strength, cfg.mist_taps_m, cfg.sky_length_m, cfg.rain_per_m * rain),
+            mist: Vec4::new(
+                cfg.mist_strength * fog_now.strength.mist_scale,
+                cfg.mist_taps_m,
+                cfg.sky_length_m,
+                cfg.rain_per_m * rain,
+            ),
             ambient: (sky * cfg.ambient_share).extend(cfg.phase_g),
-            sun: (light.sun * shade * cfg.sun_share).extend(0.0),
-            sun_dir: light.sun_dir.extend(0.0),
+            sun: (light.sun * shade * cfg.sun_share).extend(cfg.haze_density_per_m),
+            sun_dir: light.sun_dir.extend(cfg.haze_scale_height_m),
             map: Vec4::new(m.origin_m, m.cell_m, m.side as f32, 0.0),
         };
         // Seated: the panes of the interior the eye sits in (the nearest, within a cabin's reach).
@@ -554,6 +572,7 @@ struct WaterPostUniform {
 /// Which fullscreen pass.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum PostPass {
+    Fog,
     Compose,
     Lens,
 }
@@ -618,7 +637,8 @@ impl SpecializedRenderPipeline for WaterPostPipeline {
             shader_defs.push(ShaderDefVal::from("MULTISAMPLED"));
         }
         let (label, entry) = match key.pass {
-            PostPass::Compose => ("water compose: under water, waterline, wet blur, ground fog", "compose"),
+            PostPass::Fog => ("water fog: the ground fog, before the transparent pass", "fog"),
+            PostPass::Compose => ("water compose: under water, waterline, wet blur", "compose"),
             PostPass::Lens => ("water lens: drops on the glass", "lens"),
         };
         RenderPipelineDescriptor {
@@ -649,21 +669,33 @@ impl SpecializedRenderPipeline for WaterPostPipeline {
 #[derive(Component)]
 struct WaterPostGpu {
     uniform: UniformBuffer<WaterPostUniform>,
+    fog: CachedRenderPipelineId,
     compose: CachedRenderPipelineId,
     lens: CachedRenderPipelineId,
     multisampled: bool,
-    run_compose: bool,
-    run_lens: bool,
+    run: Passes,
     /// The mist map's texture.
     mist: AssetId<Image>,
 }
 
-/// Which passes a frame needs: compose while the eye is wet or the glass is (the wet blur) or the
-/// ground fog is on, the lens while drops run. Dry with no fog, neither runs and the water costs
-/// nothing here.
-fn passes_needed(eye: &WaterEye, rain: f32, fog: bool) -> (bool, bool) {
+/// Which passes a frame needs: the fog while the ground fog is on and the eye is not under water
+/// (there the compose pass's murk is the fog), compose while the eye is wet or the glass is (the wet
+/// blur), the lens while drops run. Dry with no fog, none runs and the water costs nothing here.
+fn passes_needed(eye: &WaterEye, rain: f32, fog: bool) -> Passes {
     let glass = eye.drips > 0.001 || rain > 0.001;
-    (eye.submersion > 0.25 || glass || fog, glass && !eye.under_water())
+    Passes {
+        fog: fog && !eye.under_water(),
+        compose: eye.submersion > 0.25 || glass,
+        lens: glass && !eye.under_water(),
+    }
+}
+
+/// The water passes a frame runs.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Passes {
+    fog: bool,
+    compose: bool,
+    lens: bool,
 }
 
 fn prepare_water_post(
@@ -705,7 +737,7 @@ fn prepare_water_post(
             glass_look: Vec4::new(look.lens_pane_m, 0.0, 0.0, 0.0),
             panes: settings.glass.corners,
         };
-        let (run_compose, run_lens) = passes_needed(&eye, look.lens_rain.max(eye.rain), settings.fog.layer.w > 0.5);
+        let run = passes_needed(&eye, look.lens_rain.max(eye.rain), settings.fog.layer.w > 0.5);
         let multisampled = msaa.samples() > 1;
         // Cached by key: a lookup each frame, a new pipeline only if the format or MSAA changed.
         let mut id = |pass| {
@@ -719,15 +751,15 @@ fn prepare_water_post(
                 },
             )
         };
-        let (compose, lens) = (id(PostPass::Compose), id(PostPass::Lens));
+        let (fog, compose, lens) = (id(PostPass::Fog), id(PostPass::Compose), id(PostPass::Lens));
         if let Some(mut gpu) = gpu {
             gpu.uniform.set(uniform);
             gpu.uniform.write_buffer(&device, &queue);
+            gpu.fog = fog;
             gpu.compose = compose;
             gpu.lens = lens;
             gpu.multisampled = multisampled;
-            gpu.run_compose = run_compose;
-            gpu.run_lens = run_lens;
+            gpu.run = run;
             gpu.mist = settings.mist;
             continue;
         }
@@ -735,11 +767,11 @@ fn prepare_water_post(
         buffer.write_buffer(&device, &queue);
         commands.entity(entity).insert(WaterPostGpu {
             uniform: buffer,
+            fog,
             compose,
             lens,
             multisampled,
-            run_compose,
-            run_lens,
+            run,
             mist: settings.mist,
         });
     }
@@ -753,9 +785,54 @@ fn water_post(
     cache: Res<PipelineCache>,
     images: Res<RenderAssets<GpuImage>>,
     no_mist: Res<FallbackImageZero>,
-    mut ctx: RenderContext,
+    ctx: RenderContext,
 ) {
     let (target, depth, gpu) = view.into_inner();
+    let passes = [
+        (gpu.run.compose, gpu.compose, "water_compose"),
+        (gpu.run.lens, gpu.lens, "water_lens"),
+    ];
+    draw_passes(target, depth, gpu, &passes, &pipeline, &cache, &images, &no_mist, ctx);
+}
+
+/// Runs the ground fog pass for the current view, after the opaque and transmissive passes and
+/// before the transparent one (`fog` in `water_post.wesl`).
+fn water_fog(
+    view: ViewQuery<(&ViewTarget, &ViewDepthStencilTexture, &WaterPostGpu)>,
+    pipeline: Res<WaterPostPipeline>,
+    cache: Res<PipelineCache>,
+    images: Res<RenderAssets<GpuImage>>,
+    no_mist: Res<FallbackImageZero>,
+    ctx: RenderContext,
+) {
+    let (target, depth, gpu) = view.into_inner();
+    draw_passes(
+        target,
+        depth,
+        gpu,
+        &[(gpu.run.fog, gpu.fog, "water_fog")],
+        &pipeline,
+        &cache,
+        &images,
+        &no_mist,
+        ctx,
+    );
+}
+
+/// Draws each pass that runs, in order, each a fullscreen triangle reading the main texture (and the
+/// depth and the mist map) and writing the other one.
+#[allow(clippy::too_many_arguments)]
+fn draw_passes(
+    target: &ViewTarget,
+    depth: &ViewDepthStencilTexture,
+    gpu: &WaterPostGpu,
+    passes: &[(bool, CachedRenderPipelineId, &str)],
+    pipeline: &WaterPostPipeline,
+    cache: &PipelineCache,
+    images: &RenderAssets<GpuImage>,
+    no_mist: &FallbackImageZero,
+    mut ctx: RenderContext,
+) {
     let Some(depth_view) = depth.attachment.depth_stencil_views().depth_only_view() else {
         return;
     };
@@ -769,10 +846,7 @@ fn water_post(
     } else {
         &pipeline.layout
     });
-    for (run, id, label) in [
-        (gpu.run_compose, gpu.compose, "water_compose"),
-        (gpu.run_lens, gpu.lens, "water_lens"),
-    ] {
+    for &(run, id, label) in passes {
         if !run {
             continue;
         }

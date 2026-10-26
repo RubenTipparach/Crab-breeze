@@ -1,0 +1,41 @@
+// The air drop (openspec change mech-shop, design section 6; owner, 2026-10-26: "when a player orders a mech it
+// should be air dropped close to wherever the player is on a good are on the ground (not stuck on a building)").
+// Where a bought mech lands near the pilot. Distances in metres, angles in degrees. Provisional: survey D1-D8.
+(
+    // The ring round the pilot (D1): 40 m keeps a 24 m mech's fall and dust off them, 150 m is a short walk.
+    ring_min_m: 40.0,
+    ring_max_m: 150.0,
+    // Past the ring the search goes on to here; with nothing good by then the mech goes to a hangar bay (D5).
+    search_max_m: 600.0,
+    ring_step_m: 10.0,
+    spot_spacing_m: 15.0,
+    // Clear ground beyond the mech's own footprint (its body_radius_m): to buildings, hangars, towers and rocks;
+    // to other mechs.
+    building_clear_m: 6.0,
+    mech_clear_m: 10.0,
+    // The steepest ground across the footprint: a steep street.
+    max_slope_deg: 12.0,
+    // Roads, streets, plazas and aprons count 30 m nearer; water (never deeper than the mech's skim depth) 300 m
+    // farther, so dry ground wins whenever the ring has any (D4).
+    paved_bonus_m: 30.0,
+    wet_penalty_m: 300.0,
+    // The drop's clock (D3): the release 25 s after BUY, the aircraft drawn 20 s either side of it, over the site at
+    // 320 m and 95 m/s; 2 s of free fall, the canopies at 14 m/s, the retros from 25 m down to 3 m/s at touchdown
+    // (D2): about 25 s falling.
+    delay_s: 25.0,
+    aircraft_speed_m_s: 95.0,
+    release_height_m: 320.0,
+    aircraft_shown_s: 20.0,
+    // The aircraft is civil air traffic's freighter (civil-air-traffic, built for the drop): its stand-in and its
+    // engine. Only its look is the freighter's; the drop keeps its own clock and track above.
+    aircraft_kind: "freighter",
+    free_fall_s: 2.0,
+    canopy_m_s: 14.0,
+    retro_height_m: 25.0,
+    touchdown_m_s: 3.0,
+    // A pilot in the site (D6): kept 15 m beyond the mech's footprint; the canopies steer aside at up to 6 m/s.
+    pilot_clear_m: 15.0,
+    steer_m_s: 6.0,
+    // The pilot boards the owned mech they walk up to within 40 m (D7).
+    walk_up_m: 40.0,
+)

@@ -1,0 +1,128 @@
+// Civil air traffic (openspec/changes/civil-air-traffic, design sections 1-5). Sizes are the 1980s
+// aircraft each block-out stands in for, measured, not guessed: an airliner a little longer than a
+// 737-300 (33.4 m) and shorter than a 757-200 (47.3 m), the owner's "about 40 m"; a heavy freighter
+// between a C-141 (51 m) and a C-5 (75.5 m); a four-seat light plane (a 172 is 8.3 m long, 11 m span);
+// a light turbine helicopter (a 206 is 11.8 m over its 10.2 m rotor). Speeds are the island's: the
+// routes are 4-30 km, so cruise is slow and low, well under an airliner's real 230 m/s at 10 km.
+// First estimates, retuned from play.
+(
+    kinds: {
+        "airliner": (
+            role: Airliner,
+            length_m: 40.0,
+            span_m: 35.0,
+            height_m: 12.0,
+            fuselage_m: 4.0,
+            cruise_m_s: 120.0,
+            approach_m_s: 70.0,
+            climb_m_s: 12.0,
+            descent_m_s: 9.0,
+            turn_deg_s: 3.0,
+            cruise_agl_m: 1100.0,
+            max_near: 3,
+            hp: 160.0,
+            armour_mm: 4.0,
+            crash_mj: 40.0,
+            // the recorded airliner as it is (survey W49)
+            engine: Some((sound: Turbofan, pitch: 1.0)),
+            tint: (0.86, 0.86, 0.84),
+        ),
+        "freighter": (
+            role: Freighter,
+            length_m: 70.0,
+            span_m: 68.0,
+            height_m: 19.0,
+            fuselage_m: 8.0,
+            cruise_m_s: 110.0,
+            approach_m_s: 65.0,
+            climb_m_s: 9.0,
+            descent_m_s: 8.0,
+            turn_deg_s: 2.5,
+            cruise_agl_m: 900.0,
+            max_near: 2,
+            hp: 260.0,
+            armour_mm: 5.0,
+            crash_mj: 60.0,
+            // four bigger engines: the airliner's turbofans played slower
+            engine: Some((sound: Turbofan, pitch: 0.85)),
+            // The modelled freighter (survey D8, W48), built by tools/blender/build_freighter.py: LOD0 within 400 m,
+            // LOD1 to 1.5 km, LOD2 beyond; its gear down below 250 m over the ground; the air drop's sling and the hook
+            // a bought mech hangs from (its SLING_hook node, checked by cb-tools validate).
+            model: Some((
+                scene: "models/aircraft/freighter.glb",
+                lod_m: (400.0, 1500.0),
+                gear_below_m: 250.0,
+                sling: Some("models/aircraft/freighter_sling.glb"),
+                sling_hook_m: (0.0, -12.9, 0.0),
+            )),
+            tint: (0.46, 0.50, 0.52),
+        ),
+        "light_plane": (
+            role: LightPlane,
+            length_m: 8.3,
+            span_m: 11.0,
+            height_m: 2.7,
+            fuselage_m: 1.2,
+            cruise_m_s: 55.0,
+            approach_m_s: 33.0,
+            climb_m_s: 4.0,
+            descent_m_s: 5.0,
+            turn_deg_s: 8.0,
+            cruise_agl_m: 300.0,
+            orbit_radius_m: (700.0, 1100.0),
+            max_near: 2,
+            hp: 30.0,
+            armour_mm: 1.0,
+            crash_mj: 2.0,
+            // a recorded prop plane slowed toward a four-seater's two-blade propeller, about 80 Hz a blade
+            engine: Some((sound: Propeller, pitch: 0.75)),
+            tint: (0.92, 0.62, 0.18),
+        ),
+        "helicopter": (
+            role: Helicopter,
+            length_m: 12.0,
+            span_m: 10.2,
+            height_m: 3.4,
+            fuselage_m: 1.6,
+            cruise_m_s: 35.0,
+            approach_m_s: 20.0,
+            climb_m_s: 6.0,
+            descent_m_s: 6.0,
+            turn_deg_s: 12.0,
+            cruise_agl_m: 180.0,
+            orbit_radius_m: (350.0, 600.0),
+            max_near: 2,
+            hp: 40.0,
+            armour_mm: 2.0,
+            crash_mj: 3.0,
+            // a recorded medium helicopter slowed toward a light one's slower rotor beat
+            engine: Some((sound: Rotor, pitch: 0.7)),
+            tint: (0.18, 0.30, 0.62),
+        ),
+    },
+    near: (
+        spawn_far_m: 10000.0,
+        spawn_near_m: 3000.0,
+        view_half_deg: 75.0,
+        despawn_m: 14000.0,
+        check_s: 4.0,
+    ),
+    routes: (
+        glide_deg: 3.0,
+        final_m: 4000.0,
+        climb_out_m: 150.0,
+        min_clear_m: 120.0,
+        // Airliners and freighters take off from and land on each base's runway, 1.5 to 2 km (survey W45; the
+        // runways are `bases` in world.ron): the roll starts and touchdown comes this far in from its end.
+        strip_margin_m: 40.0,
+        park_s: 30.0,
+    ),
+    avoid: (
+        keep_clear_m: 2500.0,
+    ),
+    fall: (
+        drag_per_s: 0.15,
+        spin_deg_s: 25.0,
+        wreck_pieces: 6,
+    ),
+)

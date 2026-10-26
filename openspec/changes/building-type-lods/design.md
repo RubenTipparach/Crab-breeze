@@ -26,38 +26,46 @@ The facade kinds today, from that answer:
 | Massing | `massing_radius_m` 1500 m | box faces, plus the type's parapet, cornice band, setbacks and the 4 largest roof props from the dressing | the type's baked atlas |
 | Box | beyond | 12 triangles, roof cap | the type's baked atlas |
 
-Each boundary has the dressing's 15 % hysteresis (`keep = radius * 1.15`), so a building on the
-line does not flicker. Both new radii live in `dressing:` in `data/world/world.ron`.
+Each boundary has the dressing's 15 % hysteresis (`keep_ratio: 1.15`), so a building on the
+line does not flicker. Both radii and the ratio live in `dressing:` in `data/world/world.ron`, and one pure rule
+(`DressingConfig::far_detail`, `shows`) decides every boundary for both the dressing and the massing (survey L2,
+owner 2026-10-26: "Approve all").
 
-## 3. Baked facade atlases
+## 3. The far facades, rendered at startup (as built, 2026-10-26)
 
-`cargo run -p cb-tools -- bake-facades` builds, per facade kind, the pieces of one bay: the ground
-storey, a typical storey and the crown band (parapet and coping), with the dressing's own piece
-generator, then renders them face-on, orthographic, on the CPU. The pieces are boxes with a
-material and a colour, so the render is exact: a depth and material buffer, colour sampled from the
-same PBR set the near skin uses (brick, concrete, trim, glass), a normal from the depth steps and
-the set's own normal map, occlusion from the depth cavities, roughness and metal from the set.
+The near skin's brick and concrete maps are generated when the game starts (`textures`), so an
+offline tool could not see them; the far facades are rendered at startup instead, from the same
+maps, the moment the near arrays are built (`cb-app/src/far_facades.rs`), and nothing is written to
+disk to go stale.
 
-The bake is neutral in colour where the near skin is tinted: walls in the set's own colour with a
-wall mask, glass with a glass mask. The far material multiplies them by the building's own wall
-and glass colours from `look_for`, carried as vertex colours, so one atlas per kind covers every
-colour the dressing picks.
+- **The texels are pure** (`cb_core::world::far_facade`): for each variant, `dress_variant` dresses a
+  4 x 3 x 2 bay sample building in that variant's look, and `render` draws one bay of its long face
+  face-on, orthographic: each pixel the nearest piece's material, colour and depth.
+- **The maps** (`far_facades`): colour is the material's own near map sampled where the pixel is on
+  the facade, times the piece's colour (glass at 60 %: far glass shows the sky, not the room); the
+  normal comes from the depth steps; occlusion from a pixel sitting deeper than its neighbours (a
+  recessed window, a reveal); roughness and metal by material.
+- **One tile per kind and main colour, not a tinted neutral tile**: the near shader multiplies the
+  whole layer by one vertex colour, which would tint the glass with the brick. So each kind is
+  rendered in each of its palette's main colours (6 bricks for walk-ups and warehouses, 4 concretes
+  for each office kind, 4 glasses for towers): 24 variants, a ground storey and a typical storey
+  each, and the roof, 49 layers. The rest of a far look (window frames, a walk-up's glass) is the
+  first choice of its palette; the main colour, which is most of what is seen past 250 m, matches.
+- **Resolution**: a pixel 250 m away covers about 0.25 m from the cockpit at 1920 x 1080; a tile is
+  64 x 64 px for one 4 m bay by one 3.5 m storey, 16 px a metre along the face.
 
-**Resolution**: from the cockpit at 1920 x 1080 with a 60 degree view, a pixel 250 m away covers
-about 0.25 m. The atlas is 16 px per metre, twice that: a 4 m bay is 64 px wide, a 3.5 m storey 56
-px tall. Per kind, three bands in one 64 x 192 px tile (ground, typical, crown).
-
-Output: `assets/textures/buildings/far/<kind>_colour.png`, `_normal.png`, `_orm.png`, and a
-manifest the game checks against the kinds it knows. Loaded as one texture array per map, one layer
-per kind, full mips.
+The walls (`buildings::far_mesh`) are laid on the building's own cell grid, one bay per cell and
+one storey per band repeat, the ground storey its own band, and a roof cap. Side 0 and side 2 show
+the bay mirrored (the texture runs with world x and z); every bay is near symmetric, so it does not
+read. The massing (`dressing::massing`) is the real dressing's pieces on and above the roof line
+(parapet, coping, cornice, roof props), the 16 largest by volume, in the near skin's own arrays.
 
 ## 4. The far material
 
-One material for every far building (massing and box), reading the three arrays: its layer is the
-kind, its tint the building's wall and glass colours (vertex colours), its UV the bay and storey
-grid from world metres (u along the face at 1 / 4 m, v by storey, the bottom band for the ground
-storey and the top for the crown). It hands its result to Bevy's PBR lighting the way the building
-texture array material does (`building-texture-array`), so sun, shadows and fog are unchanged.
+The far walls wear the opaque building material (`ArrayMaterial`, `building_array.wesl`, unchanged)
+pointed at the far arrays: layer from the vertex's second UV, untinted, slot 0 (always standing).
+The massing wears the same material pointed at the near arrays. Both are made once the element
+state buffer exists and follow it when it grows (`buildings::bind_far_looks`).
 
 ## 5. New types
 
@@ -67,9 +75,11 @@ a baked layer in the manifest or a massing recipe. `building-variety` (six types
 
 ## 6. Cost
 
-- **Textures**: 5 kinds x 3 maps x 64 x 192 px x 4 bytes x 4/3 for mips is 0.98 MB; with the 23
-  planned types, 5.5 MB. The generic facade texture is retired.
-- **Triangles**: massing about 120-300 per building, box 12. Seed 42 from the start: about 400
+- **Textures**: 49 layers x 3 maps x 64 x 64 px x 4 bytes x 4/3 for mips is 3.2 MB. The far boxes'
+  five tone materials and their use of the generic facade texture are retired (a damaged frame's
+  facade panels still use it).
+- **Startup**: rendering the 48 tiles is a few milliseconds on the CPU.
+- **Triangles**: massing at most 16 pieces (about 200 triangles), walls and roof 20. Seed 42 from the start: about 400
   massing buildings within 1.5 km and 3,200 boxes, about 120 k triangles, under today's dressed
   buildings near the pilot.
 - **Draws**: one far material for every kind (today five tone materials), so Bevy batches more of
@@ -83,5 +93,5 @@ a baked layer in the manifest or a massing recipe. `building-variety` (six types
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| L1 | How the far facade textures are made | rendered by `cb-tools` from each type's own near facade pieces and material sets (section 3); this renders the real geometry rather than imitating a graph, and needs listing as an exception in CLAUDE.md section 13 | provisional (survey L1) |
-| L2 | Where the massing gives way to the box | 1.5 km | provisional (survey L2) |
+| L1 | How the far facade textures are made | rendered by a tool from each type's own near facade pieces and material sets | decided (owner, 2026-10-26: "Approve all", then "Go and implement"; survey L1). Built as the renderer `cb_core::world::far_facade` with `cb-app/src/far_facades.rs`, run at startup rather than offline because the near maps it samples are themselves made at startup (section 3); listed in CLAUDE.md section 13 |
+| L2 | Where the massing gives way to the box | 1.5 km | decided (owner, 2026-10-26: "Approve all", then "Go and implement"; survey L2). `DressingConfig::far_detail` in `cb-core`, one rule for both boundaries with `keep_ratio` 1.15 (tests `the_massing_gives_way_to_a_plain_box_at_one_and_a_half_kilometres`, `a_building_on_the_line_does_not_flicker`) |

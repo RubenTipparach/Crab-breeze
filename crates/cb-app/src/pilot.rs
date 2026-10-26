@@ -5,6 +5,7 @@
 use crate::input::{InputAccum, StepActions};
 use crate::mech::{MechAccessNow, MechRig};
 use crate::sim::{Data, PresentSet, SimSet};
+use crate::state::GameApp;
 use crate::world::{Live, Plan, SKY};
 use bevy::pbr::{DistanceFog, FogFalloff};
 use bevy::prelude::*;
@@ -48,10 +49,10 @@ impl Plugin for PilotPlugin {
         })
         .init_resource::<PilotEvents>()
         .init_resource::<Shake>()
-        .add_systems(Startup, (cpu_light_clustering, spawn_camera))
-        .add_systems(FixedUpdate, step_pilot.in_set(SimSet::Pilot))
-        .add_systems(Startup, spawn_prompt)
-        .add_systems(
+        .add_world_spawn((cpu_light_clustering, spawn_camera))
+        .add_game_systems(FixedUpdate, step_pilot.in_set(SimSet::Pilot))
+        .add_world_spawn(spawn_prompt)
+        .add_game_systems(
             Update,
             (
                 (shake_on_blasts, place_camera, crate::water_render::track_eye, weather_and_screens).chain(),
@@ -92,12 +93,12 @@ fn ease_fov(
 ) {
     let cfg = &data.0.pilot;
     *blend = cb_core::pilot::fov_blend(*blend, pilot.curr.mode == PilotMode::Seated, time.delta_secs(), cfg.fov_change_s);
-    let fov = cb_core::pilot::fov_deg(cfg, settings.0.fov_deg, *blend).to_radians();
     for mut lens in &mut lenses {
-        if let Projection::Perspective(p) = lens.as_mut()
-            && (p.fov - fov).abs() > 1e-5
-        {
-            p.fov = fov;
+        if let Projection::Perspective(p) = lens.as_mut() {
+            let fov = cb_core::pilot::fov_deg(cfg, settings.0.fov_deg, *blend, p.aspect_ratio).to_radians();
+            if (p.fov - fov).abs() > 1e-5 {
+                p.fov = fov;
+            }
         }
     }
 }
@@ -110,7 +111,7 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
     let srgb = |c: [f32; 3]| Color::srgb(c[0], c[1], c[2]);
     let lens = Projection::from(PerspectiveProjection {
         // On foot at the start; `ease_fov` owns it from then on (openspec change `seated-fov`).
-        fov: data.0.pilot.on_foot_fov_deg.to_radians(),
+        fov: cb_core::pilot::fov_deg(&data.0.pilot, data.0.pilot.view_fov_deg, 0.0, 16.0 / 9.0).to_radians(),
         near: 0.05,
         far: view.far_m,
         ..default()
@@ -228,15 +229,19 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn step_pilot(
     mut pilot: ResMut<PilotSim>,
     mut events: ResMut<PilotEvents>,
     actions: Res<StepActions>,
     access: Res<MechAccessNow>,
+    car: Res<crate::traffic::CarAccessNow>,
+    choice: Res<crate::interact::UseChoice>,
     data: Res<Data>,
     plan: Res<Plan>,
     live: Res<Live>,
     time: Res<Time<Fixed>>,
+    interiors: Res<crate::walk_in::InteriorColliders>,
 ) {
     let pilot = &mut *pilot;
     pilot.prev = pilot.curr.clone();
@@ -246,10 +251,23 @@ pub(crate) fn step_pilot(
         trees: Some(&live.forest),
         structures: Some(&live.structures),
         platforms: &live.platforms,
+        interiors: Some(&interiors.0),
     };
-    let event = pilot
-        .curr
-        .step(&actions, &data.0.pilot, &ground, access.0.as_ref(), time.delta_secs());
+    // Use reaches only the interaction selected (`interact`, survey W40): a car's door or getting out, or the mech.
+    // A car first (car-driving): Use at a car's door gets in; in a car, the mech's step has nothing to do.
+    use cb_core::interact::Interaction;
+    let dt = time.delta_secs();
+    let mut car_a = actions.0;
+    car_a.use_pressed = matches!(choice.now, Some(Interaction::GetIn | Interaction::GetOut));
+    let car_event = pilot.curr.step_car(&car_a, &data.0.pilot, &ground, car.0.as_ref(), dt);
+    events.0.extend(car_event);
+    let mut a = actions.0;
+    a.use_pressed = choice.now == Some(Interaction::Board) && car_event.is_none();
+    let event = if pilot.curr.mode.in_car() || car_event.is_some() {
+        None
+    } else {
+        pilot.curr.step(&a, &data.0.pilot, &ground, access.0.as_ref(), dt)
+    };
     events.0.extend(event);
     match event {
         Some(PilotEvent::HatchWanted) => info!("pilot: asked the mech to sit and open"),
@@ -258,6 +276,7 @@ pub(crate) fn step_pilot(
         Some(PilotEvent::DisembarkStarted) => info!("pilot: climbing out"),
         Some(PilotEvent::Disembarked) => info!("pilot: standing at LADDER_base"),
         Some(PilotEvent::Ejected) => info!("pilot: ejected from the destroyed mech"),
+        Some(e) => info!("pilot: {e:?}"),
         None => {}
     }
 }
@@ -326,6 +345,7 @@ fn place_camera(
     // at EYE_pilot; boarding and climbing out, they ride the path.
     let eye = match &curr.mode {
         PilotMode::Seated => seat().map_or(prev.eye(cfg).lerp(curr.eye(cfg), alpha), |s| s.translation),
+        // driving, the eyes ride EYE_driver as the car moved between the two steps
         _ => prev.eye(cfg).lerp(curr.eye(cfg), alpha),
     };
     let rotation = match &curr.mode {
@@ -354,6 +374,16 @@ fn place_camera(
             }
             None => walking_view(),
         },
+        // Driving, the view turns with the car between steps and the mouse looks round from its nose; the
+        // car only carries the eyes, the player turns the view (CLAUDE.md section 8).
+        PilotMode::Driving if prev.mode == PilotMode::Driving => {
+            let pitch_limit = cfg.pitch_limit_deg.to_radians();
+            let turned = (curr.yaw_rad - prev.yaw_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+            view(
+                prev.yaw_rad + turned * alpha - pending.x.to_radians(),
+                (curr.pitch_rad + pending.y.to_radians()).clamp(-pitch_limit, pitch_limit),
+            )
+        }
         _ => walking_view(),
     };
     // The shake rides on top of the player's view and is never written into their aim: the look
@@ -393,13 +423,15 @@ fn spawn_prompt(mut commands: Commands) {
     ));
 }
 
-/// Shows "E: step into the cockpit" when the kneeling mech is ready and the pilot is near.
-fn show_prompt(pilot: Res<PilotSim>, access: Res<MechAccessNow>, data: Res<Data>, mut prompt: Single<&mut Text, With<Prompt>>) {
-    let p = &pilot.curr;
-    let ready = access.0.as_ref().is_some_and(|a| a.hatch_open && p.can_board(a, &data.0.pilot));
-    let want = if ready { "[E]  Step into the cockpit" } else { "" };
+/// The one prompt for Use (survey W40): what is in reach, from the one selector (`interact::UseChoice`). One option
+/// reads as it always has ("[E]  Step into the cockpit", "[E]  Get in", "[E]  Use the terminal..."); several are
+/// listed with the selected one marked, and the mouse wheel moves the mark.
+fn show_prompt(choice: Res<crate::interact::UseChoice>, data: Res<Data>, mut prompt: Single<&mut Text, With<Prompt>>) {
+    let b = &data.0.bindings;
+    let label = |keys: &[String]| keys.first().map_or_else(|| "?".to_string(), |k| cb_core::input::key_label(k));
+    let want = choice.selector.lines(&label(&b.use_key), &label(&b.option_cycle)).join("\n");
     if prompt.0 != want {
-        prompt.0 = want.into();
+        prompt.0 = want;
     }
 }
 

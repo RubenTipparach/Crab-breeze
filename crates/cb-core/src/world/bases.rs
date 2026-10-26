@@ -2,6 +2,11 @@
 //! the highways, clear of the cities and of each other, the first the one nearest the start. Placed
 //! after the cities and highways and before the ground is shaped, so the terrain flattens each base's
 //! ground the way it does a city's square and the rivers keep out of it. Pure and deterministic.
+//!
+//! Each base has a runway (survey W45, owner 2026-10-26: "Add a real runway, about 1.5 to 2 km, to each base"): a
+//! straight strip beside its site, flattened to the site's ground, on dry land clear of the hangars, the tower, the
+//! cities, the highways and the rivers. It is tried in front of the apron first, then behind the hangars, then down
+//! either side, and longest first; a candidate site that can hold none is not used (`runway_for`).
 
 use super::layout::{City, Highway, Rect};
 use super::terrain::Shape;
@@ -29,6 +34,26 @@ pub struct BasesConfig {
     pub hangars: usize,
     /// A hangar bay's inside: width, height and depth, metres (a 24 m mech walks in standing).
     pub hangar_m: glam::Vec3,
+    /// A bay's terminal stands this far in from the bay's left wall and its mouth, metres (x, z): clear
+    /// of a mech walking in down the middle.
+    pub terminal_in_m: Vec2,
+    /// The pilot can use a terminal standing within this of it, metres.
+    pub terminal_reach_m: f32,
+    /// ... and looking within this of it, degrees either side.
+    pub terminal_look_deg: f32,
+    /// A runway's length: the longest tried first, down to the shortest, metres (survey W45: 1.5 to 2 km).
+    pub runway_m: [f32; 2],
+    /// A runway's paved width, metres.
+    pub runway_width_m: f32,
+    /// Between the site's edge and the runway's edge (the taxiway's length), metres.
+    pub runway_gap_m: f32,
+    /// Lengths are tried this far apart, and the runway slid along its line this far either way, metres.
+    pub runway_step_m: f32,
+    /// The natural ground under a runway may lie at most this far above or below the site's ground (it is
+    /// flattened to it), metres.
+    pub runway_max_cut_m: f32,
+    /// Least distance from a runway to any city's square, metres.
+    pub runway_city_clear_m: f32,
 }
 
 impl Default for BasesConfig {
@@ -44,6 +69,15 @@ impl Default for BasesConfig {
             max_rise_m: 30.0,
             hangars: 3,
             hangar_m: glam::Vec3::new(44.0, 34.0, 50.0),
+            terminal_in_m: Vec2::new(3.0, 6.0),
+            terminal_reach_m: 3.0,
+            terminal_look_deg: 45.0,
+            runway_m: [2000.0, 1500.0],
+            runway_width_m: 45.0,
+            runway_gap_m: 60.0,
+            runway_step_m: 100.0,
+            runway_max_cut_m: 45.0,
+            runway_city_clear_m: 300.0,
         }
     }
 }
@@ -59,6 +93,17 @@ impl Validate for BasesConfig {
         positive("bases.hangar_m.x", self.hangar_m.x)?;
         positive("bases.hangar_m.y", self.hangar_m.y)?;
         positive("bases.hangar_m.z", self.hangar_m.z)?;
+        positive("bases.terminal_reach_m", self.terminal_reach_m)?;
+        positive("bases.terminal_look_deg", self.terminal_look_deg)?;
+        crate::data::positive_range("bases.runway_m", [self.runway_m[1], self.runway_m[0]])?;
+        positive("bases.runway_width_m", self.runway_width_m)?;
+        positive("bases.runway_gap_m", self.runway_gap_m)?;
+        positive("bases.runway_step_m", self.runway_step_m)?;
+        positive("bases.runway_max_cut_m", self.runway_max_cut_m)?;
+        positive("bases.runway_city_clear_m", self.runway_city_clear_m)?;
+        if !(0.0..self.hangar_m.x).contains(&self.terminal_in_m.x) || !(0.0..self.hangar_m.z).contains(&self.terminal_in_m.y) {
+            return Err("bases.terminal_in_m: the terminal must stand inside its bay".into());
+        }
         if self.hangars as f32 * (self.hangar_m.x + HANGAR_GAP_M) > 2.0 * self.half_m.x {
             return Err("bases: the hangars do not fit along the base's back edge".into());
         }
@@ -79,6 +124,113 @@ pub struct AirBase {
     pub ground_m: f32,
     /// The highway it stands beside.
     pub highway: u32,
+    /// Its runway (survey W45).
+    pub runway: Runway,
+}
+
+/// Where a runway lies beside its base's site.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RunwaySide {
+    /// In front of the apron (low z), along x: where it is put when it fits.
+    Front,
+    /// Behind the hangars (high z), along x.
+    Back,
+    /// Down the low-x side, along z.
+    West,
+    /// Down the high-x side, along z.
+    East,
+}
+
+/// A base's runway: a straight paved strip, its centre line from `a` to `b` (x, z), flattened to its base's ground
+/// and flown either way (survey W45). Along x or along z, so its footprint is a `Rect` the ground flattens like a
+/// site.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Runway {
+    /// One end of the centre line (x, z): the west or north end.
+    pub a: Vec2,
+    /// The other end (x, z).
+    pub b: Vec2,
+    /// Paved width, metres.
+    pub width_m: f32,
+    /// Which side of the site it lies on.
+    pub side: RunwaySide,
+}
+
+impl Runway {
+    /// The runway on `side` of a site centred on `centre` with half size `half`, `length_m` long, slid `shift_m`
+    /// along its line, `cfg.runway_gap_m` out from the site's edge.
+    pub fn beside(centre: Vec2, half: Vec2, side: RunwaySide, length_m: f32, shift_m: f32, cfg: &BasesConfig) -> Self {
+        let out = cfg.runway_gap_m + cfg.runway_width_m * 0.5;
+        let (mid, along) = match side {
+            RunwaySide::Front => (Vec2::new(centre.x + shift_m, centre.y - half.y - out), Vec2::X),
+            RunwaySide::Back => (Vec2::new(centre.x + shift_m, centre.y + half.y + out), Vec2::X),
+            RunwaySide::West => (Vec2::new(centre.x - half.x - out, centre.y + shift_m), Vec2::Y),
+            RunwaySide::East => (Vec2::new(centre.x + half.x + out, centre.y + shift_m), Vec2::Y),
+        };
+        Self {
+            a: mid - along * length_m * 0.5,
+            b: mid + along * length_m * 0.5,
+            width_m: cfg.runway_width_m,
+            side,
+        }
+    }
+
+    /// Its length, metres.
+    pub fn length_m(&self) -> f32 {
+        self.a.distance(self.b)
+    }
+
+    /// Its direction from `a` to `b`, a unit vector (x, z).
+    pub fn dir(&self) -> Vec2 {
+        (self.b - self.a).normalize_or(Vec2::X)
+    }
+
+    /// Its paved footprint.
+    pub fn rect(&self) -> Rect {
+        let side = self.dir().perp().abs() * self.width_m * 0.5;
+        Rect {
+            min: self.a.min(self.b) - side,
+            max: self.a.max(self.b) + side,
+        }
+    }
+
+    /// The taxiway joining it to its site, half the runway's width, straight across the gap from the site's edge to
+    /// the runway's edge at the runway's middle: its footprint, touching both and overlapping neither.
+    pub fn taxiway(&self, site: &Rect) -> Rect {
+        let mid = (self.a + self.b) * 0.5;
+        let r = self.rect();
+        let q = self.width_m * 0.25;
+        match self.side {
+            RunwaySide::Front => Rect {
+                min: Vec2::new(mid.x - q, r.max.y),
+                max: Vec2::new(mid.x + q, site.min.y),
+            },
+            RunwaySide::Back => Rect {
+                min: Vec2::new(mid.x - q, site.max.y),
+                max: Vec2::new(mid.x + q, r.min.y),
+            },
+            RunwaySide::West => Rect {
+                min: Vec2::new(r.max.x, mid.y - q),
+                max: Vec2::new(site.min.x, mid.y + q),
+            },
+            RunwaySide::East => Rect {
+                min: Vec2::new(site.max.x, mid.y - q),
+                max: Vec2::new(r.min.x, mid.y + q),
+            },
+        }
+    }
+
+    /// Points over its footprint every `step_m` along it, on its centre line and both edges.
+    pub fn samples(&self, step_m: f32) -> Vec<Vec2> {
+        let n = (self.length_m() / step_m.max(1.0)).ceil().max(1.0) as usize;
+        let side = self.dir().perp() * self.width_m * 0.5;
+        (0..=n)
+            .flat_map(|i| {
+                let p = self.a + (self.b - self.a) * (i as f32 / n as f32);
+                [p - side, p, p + side]
+            })
+            .collect()
+    }
 }
 
 /// The space between two hangar bays, metres.
@@ -87,10 +239,40 @@ pub const HANGAR_GAP_M: f32 = 12.0;
 /// How far a hangar's back wall stands in from the base's back edge, metres.
 const HANGAR_BACK_M: f32 = 30.0;
 
+/// A hangar's walls and roof stand this thick outside its inside, metres.
+pub const HANGAR_WALL_M: f32 = 1.5;
+
+/// The control tower's half width at its cab (the widest part), metres.
+const TOWER_HALF_M: f32 = 9.0;
+
+/// The control tower stands this far in from the base's front corner (high x, low z), metres.
+const TOWER_IN_M: f32 = 40.0;
+
 impl AirBase {
     /// Its footprint.
     pub fn rect(&self) -> Rect {
         Rect::centred(self.centre, self.half_m)
+    }
+
+    /// Its control tower's footprint at its widest (the cab), by the front corner of the apron.
+    pub fn tower(&self) -> Rect {
+        let r = self.rect();
+        Rect::centred(Vec2::new(r.max.x - TOWER_IN_M, r.min.y + TOWER_IN_M), Vec2::splat(TOWER_HALF_M))
+    }
+
+    /// Everything built on the site that stands up off the apron (x, z): each hangar bay with its walls and roof,
+    /// and the control tower. The one list of what a body must not be put inside (`air_drop`).
+    pub fn structures(&self, cfg: &BasesConfig) -> Vec<Rect> {
+        let mut out: Vec<Rect> = self
+            .hangars(cfg)
+            .into_iter()
+            .map(|h| Rect {
+                min: h.min - Vec2::new(HANGAR_WALL_M, 0.0),
+                max: h.max + Vec2::splat(HANGAR_WALL_M),
+            })
+            .collect();
+        out.push(self.tower());
+        out
     }
 
     /// Its hangar bays' insides (x, z), along the back edge (high z), open toward the apron (low z).
@@ -106,6 +288,54 @@ impl AirBase {
             })
             .collect()
     }
+}
+
+/// A terminal: the screen the pilot walks up to on foot in a hangar bay (air-bases design section 5), where
+/// jobs are signed for, mechs bought and the mech in the bay refitted.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Terminal {
+    /// Its base.
+    pub base: u32,
+    /// Its bay at that base.
+    pub bay: usize,
+    /// Where it stands (x, z).
+    pub at: Vec2,
+    /// A harbour office's terminal (openspec change `harbours`): the harbour's id. Its screen shows only the jobs
+    /// board; `base` is then the air base nearest the harbour, and `bay` means nothing.
+    pub office: Option<u32>,
+}
+
+impl AirBase {
+    /// Its terminals, one a bay, each just inside the bay's mouth by its left (low x) wall.
+    pub fn terminals(&self, cfg: &BasesConfig) -> Vec<Terminal> {
+        self.hangars(cfg)
+            .iter()
+            .enumerate()
+            .map(|(bay, h)| Terminal {
+                base: self.id,
+                bay,
+                at: Vec2::new(h.min.x + cfg.terminal_in_m.x, h.min.y + cfg.terminal_in_m.y),
+                office: None,
+            })
+            .collect()
+    }
+}
+
+/// The terminal a pilot on foot at `feet` (x, z), looking along `yaw_rad` (0 faces -z, left positive), can
+/// use: within reach and in front of them; the nearest if more than one.
+pub fn terminal_in_reach(bases: &[AirBase], cfg: &BasesConfig, feet: Vec2, yaw_rad: f32) -> Option<Terminal> {
+    let look = Vec2::new(-yaw_rad.sin(), -yaw_rad.cos());
+    let cone = cfg.terminal_look_deg.to_radians().cos();
+    bases
+        .iter()
+        .filter(|b| b.rect().distance(feet) <= cfg.terminal_reach_m)
+        .flat_map(|b| b.terminals(cfg))
+        .filter(|t| {
+            let to = t.at - feet;
+            let d = to.length();
+            d <= cfg.terminal_reach_m && (d < 0.3 || to.dot(look) / d >= cone)
+        })
+        .min_by(|a, b| a.at.distance(feet).total_cmp(&b.at.distance(feet)))
 }
 
 /// The base and hangar bay a point (x, z) stands in, if any.
@@ -153,13 +383,17 @@ pub fn place_bases(shape: &Shape, cities: &[City], clear: &KeepClear, start: Vec
                 if !keeps_clear(&site, clear) {
                     continue;
                 }
-                if let Some(ground_m) = site_ground(shape, cities, c, cfg, min_ground_m) {
+                let Some(ground_m) = site_ground(shape, cities, c, cfg, min_ground_m) else {
+                    continue;
+                };
+                if let Some(runway) = runway_for(shape, cities, clear, c, ground_m, cfg, min_ground_m) {
                     candidates.push(AirBase {
                         id: 0,
                         centre: c,
                         half_m: cfg.half_m,
                         ground_m,
                         highway: hi as u32,
+                        runway,
                     });
                 }
             }
@@ -187,6 +421,53 @@ pub fn place_bases(shape: &Shape, cities: &[City], clear: &KeepClear, start: Vec
         b.id = i as u32;
     }
     chosen
+}
+
+/// The runway a site centred on `c` with ground `ground_m` can hold (survey W45): in front of the apron, behind the
+/// hangars, then down the west and east sides; at each, slid along its line by none, then a step either way, then two;
+/// longest first, from `cfg.runway_m[0]` down to `cfg.runway_m[1]`. A runway fits when every point over it is on dry
+/// land above `min_ground_m` and within `runway_max_cut_m` of the site's ground, it keeps `runway_city_clear_m` from
+/// every city and clear of the highways and the rivers (`keeps_clear`). It stands off the site by `runway_gap_m`, so it
+/// never meets a hangar or the tower. `None` when nothing fits.
+fn runway_for(
+    shape: &Shape,
+    cities: &[City],
+    clear: &KeepClear,
+    c: Vec2,
+    ground_m: f32,
+    cfg: &BasesConfig,
+    min_ground_m: f32,
+) -> Option<Runway> {
+    let [longest, shortest] = cfg.runway_m;
+    let lengths: Vec<f32> = (0..)
+        .map(|i| longest - i as f32 * cfg.runway_step_m)
+        .take_while(|l| *l >= shortest - 1e-3)
+        .collect();
+    let shifts = [0.0, -1.0, 1.0, -2.0, 2.0].map(|k| k * cfg.runway_step_m);
+    for side in [RunwaySide::Front, RunwaySide::Back, RunwaySide::West, RunwaySide::East] {
+        for &len in &lengths {
+            for shift in shifts {
+                let r = Runway::beside(c, cfg.half_m, side, len, shift, cfg);
+                if runway_fits(shape, cities, clear, &r, ground_m, cfg, min_ground_m) {
+                    return Some(r);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn runway_fits(shape: &Shape, cities: &[City], clear: &KeepClear, r: &Runway, ground_m: f32, cfg: &BasesConfig, min_ground_m: f32) -> bool {
+    let pts = r.samples(50.0);
+    let dry = pts.iter().all(|p| {
+        let h = shape.height(*p);
+        shape.past_land_edge_m(*p) < 0.0 && h >= min_ground_m && (h - ground_m).abs() <= cfg.runway_max_cut_m
+    });
+    dry && pts
+        .iter()
+        .all(|p| cities.iter().all(|city| city.rect().distance(*p) > cfg.runway_city_clear_m))
+        && pts.iter().all(|p| clear.highways.iter().all(|h| h.project(*p).0 > clear.road_m))
+        && keeps_clear(&r.rect(), clear)
 }
 
 /// True when no highway's centre line comes within `road_m` of `site`, and no drainage course within
@@ -248,6 +529,7 @@ mod tests {
             half_m: cfg.half_m,
             ground_m: 40.0,
             highway: 0,
+            runway: Runway::beside(Vec2::new(1000.0, -2000.0), cfg.half_m, RunwaySide::Front, 1800.0, 0.0, &cfg),
         };
         let bays = base.hangars(&cfg);
         assert_eq!(bays.len(), cfg.hangars);
@@ -264,6 +546,31 @@ mod tests {
             "the apron is not a bay"
         );
         assert_eq!(hangar_at(&[base], &cfg, Vec2::ZERO), None, "nor is anywhere else");
+    }
+
+    #[test]
+    fn a_pilot_can_use_a_terminal_only_standing_at_it_and_facing_it() {
+        let cfg = BasesConfig::default();
+        let base = AirBase {
+            id: 1,
+            centre: Vec2::new(0.0, 0.0),
+            half_m: cfg.half_m,
+            ground_m: 10.0,
+            highway: 0,
+            runway: Runway::beside(Vec2::ZERO, cfg.half_m, RunwaySide::Front, 1800.0, 0.0, &cfg),
+        };
+        let t = base.terminals(&cfg)[2];
+        assert_eq!((t.base, t.bay), (1, 2));
+        assert!(base.hangars(&cfg)[2].distance(t.at) == 0.0, "it stands inside its bay");
+        // Two metres in front of it (toward -z, the apron), facing +z (yaw pi): in reach.
+        let feet = t.at - Vec2::new(0.0, 2.0);
+        assert_eq!(terminal_in_reach(&[base], &cfg, feet, std::f32::consts::PI), Some(t));
+        assert_eq!(terminal_in_reach(&[base], &cfg, feet, 0.0), None, "with its back to it");
+        assert_eq!(
+            terminal_in_reach(&[base], &cfg, t.at - Vec2::new(0.0, 10.0), std::f32::consts::PI),
+            None,
+            "too far"
+        );
     }
 
     /// A measurement instrument (`air-bases`): why candidate sites fail on the shipped seed-42 island.

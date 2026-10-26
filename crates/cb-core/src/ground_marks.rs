@@ -676,6 +676,13 @@ impl Default for GroundMarksConfig {
 }
 
 impl GroundMarksConfig {
+    /// The middle of a footprint's sole: `lead_m` plus `sole_ahead_m` ahead of the ankle's ground point
+    /// `foot`, for a mech heading `heading_rad`. The one place a foot strike is turned into where the sole
+    /// lands: the footprint is stamped there and a car under it is crushed there (car-traffic).
+    pub fn sole_centre(&self, foot: Vec3, heading_rad: f32, lead_m: f32) -> Vec3 {
+        foot + crate::mech::forward(heading_rad) * (lead_m + self.sole_ahead_m)
+    }
+
     /// The depths for a surface.
     pub fn on(&self, surface: Surface) -> &SurfaceMarks {
         match surface {

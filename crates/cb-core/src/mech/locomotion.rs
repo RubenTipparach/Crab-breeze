@@ -184,6 +184,11 @@ pub struct MechState {
     pub mode: LocomotionMode,
     /// Skates are switched on (the mode is `Skate` on the ground).
     pub skates_on: bool,
+    /// The pilot turned skimming off over deep water (Shift, or C to sink): the mech goes under and stays
+    /// under, the wheels and the rockets no longer holding it up, until Shift turns skimming back on, the
+    /// rockets lift it, or it walks out of deep water (owner, 2026-10-25: "shift toggle skimming off when
+    /// I'm above water", "I want to be able to sink underwater").
+    pub skim_off: bool,
     /// Water depth at the root, 0 on dry ground.
     pub wading_depth_m: f32,
     /// Vertical speed, up positive.
@@ -194,6 +199,9 @@ pub struct MechState {
     pub skate: Budget,
     /// The rockets fired this step.
     pub boosting: bool,
+    /// The rockets' swivel: the world-horizontal (x, z) share of their push, 0 straight up, at most
+    /// sin(`vector_max_deg`). The nozzles point the other way.
+    pub thrust_tilt: Vec2,
     /// Off the ground, a roof or the water it rides.
     pub in_air: bool,
     /// Against water.
@@ -304,10 +312,24 @@ impl MechState {
         // Wading with the skates on into water deep enough: the wheels bring the mech up to ride it.
         let rising = water.is_some_and(|w| self.pos.y < w.surface_m - loco.float_catch_m) && self.skates_on && skimmable && !self.in_air;
 
-        // Skates on and off (Shift, a toggle anywhere: survey M5); they need both legs and power.
+        // Skates on and off (Shift, a toggle anywhere: survey M5); they need both legs and power. Over water
+        // deep enough to skim, Shift turns skimming off and on instead, and C (sink) turns it off: off, the
+        // mech goes under and stays under.
         let skate_asked = c.skate_toggle || c.mode_request == Some(ModeRequest::Skate);
-        if skate_asked {
+        if !skimmable {
+            self.skim_off = false;
+        }
+        if skate_asked && skimmable {
+            self.skim_off = !self.skim_off;
+            self.skates_on = !self.skim_off;
+        } else if skate_asked {
             self.skates_on = !self.skates_on;
+        }
+        if c.sink && skimmable {
+            self.skim_off = true;
+        }
+        if c.lift_axis > 0.0 {
+            self.skim_off = false;
         }
         if c.mode_request == Some(ModeRequest::Walk) {
             self.skates_on = false;
@@ -318,14 +340,14 @@ impl MechState {
         // waded, skates or not (owner, 2026-10-24: "shallow water dont need autoskate", "The skis
         // only kicking if you're above water deeper than 50% of the mech"); with the skates empty
         // the rockets hold the mech up on deep water; Ctrl, or both empty, and it sinks.
-        let skim = (at_surface || rising) && !c.sink && skate_power && skimmable;
+        let skim = (at_surface || rising) && !c.sink && !self.skim_off && skate_power && skimmable;
         if skim {
             self.skates_on = true;
         }
         if !skate_power {
             self.skates_on = false;
         }
-        let hover = at_surface && deep && !c.sink && !skim && !self.boost.locked;
+        let hover = at_surface && deep && !c.sink && !self.skim_off && !skim && !self.boost.locked;
         let afloat = skim || hover;
 
         // Rockets: vertical only, while boost is held (or holding the mech on water).
@@ -367,12 +389,22 @@ impl MechState {
         let want = c.turn_axis * turn_rate.to_radians();
         let ease = loco.turn_accel_deg_s2.to_radians() * dt_s;
         self.turn_rate_rad_s += (want - self.turn_rate_rad_s).clamp(-ease, ease);
-        self.heading_rad = (self.heading_rad + self.turn_rate_rad_s * dt_s).rem_euclid(std::f32::consts::TAU);
+        let legs_turn_rad = self.turn_rate_rad_s * dt_s;
+        self.heading_rad = (self.heading_rad + legs_turn_rad).rem_euclid(std::f32::consts::TAU);
         let fwd = flat_forward(self.heading_rad);
 
-        // Horizontal velocity. Only the skates push for free movement's price; the rockets never
-        // push sideways.
+        // The rockets swivel toward the way WASD asks, relative to the view, and back upright with no key held.
         let ask = c.move_xy.clamp_length_max(1.0);
+        let swivel_to = if lifting {
+            let view = flat_forward(c.view_yaw_rad);
+            let right = Vec2::new(-view.y, view.x);
+            (view * ask.y + right * ask.x) * jet.vector_max_deg.to_radians().sin()
+        } else {
+            Vec2::ZERO
+        };
+        self.thrust_tilt = approach_vec(self.thrust_tilt, swivel_to, jet.vector_rate_deg_s.to_radians() * dt_s);
+
+        // Horizontal velocity. The skates push for free movement's price; the rockets only by their swivel.
         let air_skating = !grounded && !sunk && self.skates_on && ask != Vec2::ZERO;
         if sunk && !grounded {
             // Sinking: the water drags the mech to a stop.
@@ -412,6 +444,10 @@ impl MechState {
             self.vel = fwd * speed + side;
         }
 
+        if lifting && !sunk {
+            self.vel += self.thrust_tilt * jet.thrust_m_s2 * c.lift_axis * dt_s;
+        }
+
         let moved = here + self.vel * dt_s;
         let pushed = ground.push_out_at(moved, loco.body_radius_m, self.pos.y);
         if pushed.distance(moved) > 1e-4 {
@@ -449,7 +485,9 @@ impl MechState {
         }
 
         // Vertical.
-        let lift = if lifting { jet.thrust_m_s2 * c.lift_axis } else { 0.0 };
+        // What the swivel takes across comes off the climb.
+        let upright = (1.0 - self.thrust_tilt.length_squared()).max(0.0).sqrt();
+        let lift = if lifting { jet.thrust_m_s2 * c.lift_axis * upright } else { 0.0 };
         if sunk {
             // In the water: the rockets lift slowly; without them the mech settles at sinking speed.
             if lifting {
@@ -506,13 +544,18 @@ impl MechState {
         };
         self.speed_m_s = self.vel.dot(flat_forward(self.heading_rad));
 
-        // Torso, independent of the legs: aim moves the target, the torso follows at its rate.
+        // Torso, independent of the legs: aim moves the target, the torso follows at its rate. The torso
+        // and its aim are held still in the world while the legs turn under them (both twists take back
+        // the legs' turn this step), so the torso eases toward a target only the aim moves, instead of
+        // stopping and starting after one the legs drag along (owner, 2026-10-25, in the Harrow: "the
+        // controller for turning the cockpit or torso is tweaking out becuse it wont stop when its close
+        // to the mouse").
         let twist_max = loco.twist_max_deg.to_radians();
         let [pitch_lo, pitch_hi] = loco.pitch_limits_deg.map(f32::to_radians);
-        self.aim_twist_rad = (self.aim_twist_rad - c.aim_delta_deg.x.to_radians()).clamp(-twist_max, twist_max);
+        self.aim_twist_rad = (self.aim_twist_rad - legs_turn_rad - c.aim_delta_deg.x.to_radians()).clamp(-twist_max, twist_max);
         self.aim_pitch_rad = (self.aim_pitch_rad + c.aim_delta_deg.y.to_radians()).clamp(pitch_lo, pitch_hi);
         let (twist, rate) = ease_toward(
-            self.twist_rad,
+            (self.twist_rad - legs_turn_rad).clamp(-twist_max, twist_max),
             self.twist_rate_rad_s,
             self.aim_twist_rad,
             loco.twist_rate_deg_s.to_radians(),
@@ -565,6 +608,41 @@ mod tests {
         assert_eq!(m.throttle, 1.0);
         assert!((m.speed_m_s - 7.0).abs() < 1e-3, "{}", m.speed_m_s);
         assert!(m.pos.z < -20.0, "heading 0 walks toward -z: {}", m.pos);
+    }
+
+    #[test]
+    fn the_torso_holds_steady_on_a_still_aim_while_the_legs_turn_under_it() {
+        // The pilot's view stays put in the world while the legs turn toward it, as when seated: each
+        // step the aim is asked for afresh from the view and the legs' heading (as the cockpit asks).
+        let cfg = MechConfig::default();
+        let mut m = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        let view = 40f32.to_radians();
+        let wrap = |a: f32| (a + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+        let accel = cfg.locomotion.twist_accel_deg_s2.to_radians();
+        let mut last_world_rate = 0.0;
+        let mut world = m.heading_rad + m.twist_rad;
+        for i in 0..600 {
+            let want = wrap(view - m.heading_rad);
+            let c = MechControls {
+                turn_axis: (want / 45f32.to_radians()).clamp(-1.0, 1.0),
+                aim_delta_deg: Vec2::new(-(want - m.aim_twist_rad).to_degrees(), 0.0),
+                ..Default::default()
+            };
+            m.step(&c, &cfg, &FlatGround::default(), DT);
+            let now = wrap(m.heading_rad + m.twist_rad);
+            let world_rate = wrap(now - world) / DT;
+            assert!(
+                (world_rate - last_world_rate).abs() <= 2.0 * accel * DT + 1e-3,
+                "step {i}: the torso's turn in the world jumps from {last_world_rate} to {world_rate}"
+            );
+            if i > 120 {
+                assert!(
+                    wrap(now - view).abs() < 1e-3,
+                    "step {i}: the torso sits on the view, {now} of {view}"
+                );
+            }
+            (world, last_world_rate) = (now, world_rate);
+        }
     }
 
     #[test]
@@ -779,17 +857,31 @@ mod tests {
     }
 
     #[test]
-    fn rockets_never_push_sideways() {
+    fn rockets_push_across_only_by_their_swivel() {
+        let mut straight = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        let up = MechControls {
+            lift_axis: 1.0,
+            ..Default::default()
+        };
+        run(&mut straight, up, 3.0, &FlatGround::default());
+        assert!(
+            straight.pos.x.abs() < 1e-3 && straight.pos.z.abs() < 1e-3,
+            "no key, straight up: {}",
+            straight.pos
+        );
+
         let mut m = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
-        let c = MechControls {
+        let right = MechControls {
             lift_axis: 1.0,
             move_xy: Vec2::new(1.0, 0.0),
             ..Default::default()
         };
-        run(&mut m, c, 3.0, &FlatGround::default());
-        assert!(m.pos.y > 50.0, "climbed: {}", m.pos.y);
-        assert!(m.pos.x.abs() < 1.0, "no sideways push: {}", m.pos);
-        assert_eq!(m.skate.heat, 0.0);
+        run(&mut m, right, 3.0, &FlatGround::default());
+        assert!(m.pos.y > 50.0, "still climbed: {}", m.pos.y);
+        assert!(m.pos.x > 10.0, "D swivelled the rockets and they pushed right: {}", m.pos);
+        assert!(m.pos.x < m.pos.y, "across less than up: {}", m.pos);
+        assert!(m.thrust_tilt.length() <= 20f32.to_radians().sin() + 1e-4);
+        assert_eq!(m.skate.heat, 0.0, "the skates did not pay");
     }
 
     #[test]
@@ -873,6 +965,34 @@ mod tests {
         run(&mut m, ctrl, 15.0, &Sea);
         assert_eq!(m.pos.y, -30.0, "on the bottom");
         assert_eq!(m.on_water, OnWater::Sunk);
+    }
+
+    #[test]
+    fn shift_over_deep_water_turns_skimming_off_and_the_mech_sinks_and_stays_down() {
+        let mut m = skimming_at_sea();
+        let shift = MechControls {
+            skate_toggle: true,
+            ..Default::default()
+        };
+        m.step(&shift, &MechConfig::default(), &Sea, DT);
+        run(&mut m, MechControls::default(), 15.0, &Sea);
+        assert_eq!(m.pos.y, -30.0, "on the bottom, not held up by the rockets");
+        assert_eq!(m.on_water, OnWater::Sunk);
+        m.step(&shift, &MechConfig::default(), &Sea, DT);
+        run(&mut m, MechControls::default(), 15.0, &Sea);
+        assert_eq!(m.on_water, OnWater::Skimming, "Shift again: the wheels bring it back up to skim");
+    }
+
+    #[test]
+    fn a_tap_of_c_over_deep_water_sinks_the_mech_for_good() {
+        let mut m = skimming_at_sea();
+        let c = MechControls {
+            sink: true,
+            ..Default::default()
+        };
+        m.step(&c, &MechConfig::default(), &Sea, DT);
+        run(&mut m, MechControls::default(), 15.0, &Sea);
+        assert_eq!(m.pos.y, -30.0, "it kept sinking after C was let go");
     }
 
     #[test]

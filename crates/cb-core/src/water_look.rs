@@ -50,8 +50,13 @@ pub struct WaterLook {
     pub light_falloff: f32,
     /// Light absorbed per metre of water, red, green, blue.
     pub absorption_per_m: [f32; 3],
-    /// The water body's colour, lit like an albedo by the light reaching it.
+    /// The water body's colour in deep water, lit like an albedo by the light reaching it.
     pub deep_color: [f32; 3],
+    /// The water body's colour in the shallows (what coastal water carries scatters green as well as
+    /// blue: teal), easing to `deep_color` by `shallow_depth_m` of water under the surface.
+    pub shallow_color: [f32; 3],
+    /// The depth of water by which the body's colour is `deep_color`, metres.
+    pub shallow_depth_m: f32,
     /// The sky's colour straight up, linear, for the reflection (the horizon is the game's sky).
     pub sky_zenith_color: [f32; 3],
     /// The least reflection at a grazing angle, 0..1.
@@ -72,10 +77,23 @@ pub struct WaterLook {
     pub shore_foam_m: f32,
     /// Shore foam's weight.
     pub shore_foam_weight: f32,
-    /// The sun's glint, a multiplier on the sun's light.
+    /// The sun's glint: a multiplier on the physically based highlight (GGX, Fresnel 0.02), 1 as
+    /// the sun gives it.
     pub specular_intensity: f32,
-    /// The glint's sharpness (Blinn-Phong exponent).
-    pub specular_power: f32,
+    /// The glint's GGX roughness (alpha) where the ripples are seen whole, close by.
+    pub glint_roughness: f32,
+    /// The roughness added where the ripples have faded into the distance (the slopes no longer
+    /// drawn still scatter the sun): far water shows a broad glitter path, not a dot.
+    pub glint_far_roughness: f32,
+    /// Each patch of far sea a pixel and a half across takes a random facet tilt this steep (times
+    /// how far the ripples have faded), and the sun glints off it: far water sparkles.
+    pub glitter_slope: f32,
+    /// How many times a second the facets are drawn anew (the sparkle's twinkle), hertz.
+    pub glitter_twinkle_hz: f32,
+    /// Light through the wavelets' crests seen against the sun, an albedo (turquoise).
+    pub scatter_color: [f32; 3],
+    /// How strong that light is.
+    pub scatter_strength: f32,
     /// The glint's tint.
     pub sun_tint: [f32; 3],
     /// How far the view wobbles under water, uv.
@@ -130,10 +148,12 @@ impl Default for WaterLook {
             refract_max_uv: 0.03,
             max_path_m: 200.0,
             light_falloff: 1.0,
-            absorption_per_m: [0.45, 0.12, 0.06],
-            deep_color: [0.0, 0.12, 0.28],
-            sky_zenith_color: [0.03, 0.18, 0.55],
-            sky_horizon_strength: 0.22,
+            absorption_per_m: [0.32, 0.035, 0.012],
+            deep_color: [0.004, 0.018, 0.040],
+            shallow_color: [0.020, 0.090, 0.075],
+            shallow_depth_m: 14.0,
+            sky_zenith_color: [0.16, 0.22, 0.30],
+            sky_horizon_strength: 0.7,
             foam_color: [0.95, 0.97, 1.0],
             foam_intensity: 0.10,
             foam_crest: [0.35, 0.60],
@@ -142,8 +162,13 @@ impl Default for WaterLook {
             foam_slope_weight: 0.26,
             shore_foam_m: 1.5,
             shore_foam_weight: 0.6,
-            specular_intensity: 0.06,
-            specular_power: 140.0,
+            specular_intensity: 1.0,
+            glint_roughness: 0.06,
+            glint_far_roughness: 0.20,
+            glitter_slope: 0.22,
+            glitter_twinkle_hz: 3.0,
+            scatter_color: [0.05, 0.35, 0.33],
+            scatter_strength: 0.35,
             sun_tint: [1.10, 1.15, 1.20],
             underwater_distortion: 0.0015,
             wet_blur: 0.02,
@@ -199,15 +224,18 @@ impl Validate for WaterLook {
         }
         for (field, c) in [
             ("deep_color", self.deep_color),
+            ("shallow_color", self.shallow_color),
             ("sky_zenith_color", self.sky_zenith_color),
             ("foam_color", self.foam_color),
             ("sun_tint", self.sun_tint),
+            ("scatter_color", self.scatter_color),
         ] {
             for x in c {
                 within(field, x, 0.0, 10.0)?;
             }
         }
         within("sky_horizon_strength", self.sky_horizon_strength, 0.0, 1.0)?;
+        positive("shallow_depth_m", self.shallow_depth_m)?;
         within("foam_intensity", self.foam_intensity, 0.0, 1.0)?;
         rising("foam_crest", self.foam_crest)?;
         within("foam_crest_weight", self.foam_crest_weight, 0.0, 1.0)?;
@@ -216,7 +244,11 @@ impl Validate for WaterLook {
         within("shore_foam_m", self.shore_foam_m, 0.0, 100.0)?;
         within("shore_foam_weight", self.shore_foam_weight, 0.0, 1.0)?;
         within("specular_intensity", self.specular_intensity, 0.0, 100.0)?;
-        within("specular_power", self.specular_power, 1.0, 10000.0)?;
+        within("glint_roughness", self.glint_roughness, 0.005, 1.0)?;
+        within("glint_far_roughness", self.glint_far_roughness, 0.0, 1.0)?;
+        within("glitter_slope", self.glitter_slope, 0.0, 2.0)?;
+        within("glitter_twinkle_hz", self.glitter_twinkle_hz, 0.0, 60.0)?;
+        within("scatter_strength", self.scatter_strength, 0.0, 10.0)?;
         within("underwater_distortion", self.underwater_distortion, 0.0, 0.1)?;
         within("wet_blur", self.wet_blur, 0.0, 1.0)?;
         positive("partial_band_m", self.partial_band_m)?;
@@ -232,6 +264,42 @@ impl Validate for WaterLook {
         within("cloud_rain", self.cloud_rain, 0.0, 1.0)?;
         positive("cloud_wet_s", self.cloud_wet_s)?;
         positive("cloud_dry_s", self.cloud_dry_s)
+    }
+}
+
+/// One train of the swell: deep-water waves of one wavelength, height and heading.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SwellTrain {
+    /// The unit direction it runs (x, z).
+    pub dir: glam::Vec2,
+    /// Its wavenumber, radians a metre (2 pi over the wavelength).
+    pub k_rad_m: f32,
+    /// Its height, crest to mean, metres.
+    pub height_m: f32,
+}
+
+impl WaterLook {
+    /// The swell's three trains (openspec changes `water-rendering` and `harbours`): the one reading of the swell
+    /// numbers, used by the water's shader uniform (which bends the normals by them) and by floating hulls (which
+    /// ride them).
+    pub fn swell_trains(&self) -> [SwellTrain; 3] {
+        std::array::from_fn(|i| {
+            let a = self.swell_heading_deg[i].to_radians();
+            SwellTrain {
+                dir: glam::Vec2::new(a.cos(), a.sin()),
+                k_rad_m: std::f32::consts::TAU / self.swell_wavelength_m[i],
+                height_m: self.swell_height_m[i],
+            }
+        })
+    }
+
+    /// The swell's height over the mean surface at `xz` at `seconds`, metres: deep-water waves, omega squared =
+    /// g k, the phase the shader's `swell_slope` differentiates (`assets/shaders/water_surface.wesl`).
+    pub fn swell_height(&self, xz: glam::Vec2, seconds: f32) -> f32 {
+        self.swell_trains()
+            .iter()
+            .map(|t| t.height_m * (t.dir.dot(xz) * t.k_rad_m - (9.81 * t.k_rad_m).sqrt() * seconds).sin())
+            .sum()
     }
 }
 

@@ -15,16 +15,26 @@
     // rate. Free look (held) is unlimited (openspec/changes/seated-look; owner, 2026-10-24).
     seated_look_limit_deg: 90.0,
     // Vertical field of view seated in the cockpit (the Options page's setting starts here): 85 degrees is about 117 across a 16:9 screen (owner, 2026-10-24:
-    // "Wider fov?"; was 75, about 106 across). 95 is about 125 across (owner, 2026-10-25: "can you increase
+    // "Wider fov?"; was 75, about 107 across). 95 is about 125 across (owner, 2026-10-25: "can you increase
     // player fov a bit", "95?"; was 85, about 117).
     view_fov_deg: 95.0,
-    // On foot the view is a first-person shooter's 75 degrees, about 106 across, and widens to the seated view as
+    // On foot the view is a first-person shooter's 75 degrees, about 107 across, and widens to the seated view as
     // the pilot sits, narrowing again as they stand, over 0.8 s (owner, 2026-10-26: "normal fps fov is 75, it grows
     // to 95 when inside the mech"; openspec/changes/seated-fov). The Options setting moves both.
     on_foot_fov_deg: 75.0,
+    // The 75 is measured ACROSS the screen, about 47 degrees tall on 16:9 (survey V1, provisional; owner, 2026-10-26:
+    // "is my fps fov still 75? it seems kinda wide": measured top to bottom it was about 107 across). Driving a car
+    // uses the on-foot view too ("car driving should remain at 75"). The cockpit's 95 stays measured top to bottom.
+    on_foot_fov_across: true,
     fov_change_s: 0.8,
     // On foot, Space jumps: 4.4 m/s up under 9.81 m/s2 is a jump about a metre high (owner,
     // 2026-10-25: "my fps character needs jump!").
     jump_speed_m_s: 4.4,
     gravity_m_s2: 9.81,
+    // Cars (openspec/changes/car-driving): Use within 1.2 m of the driver's door, facing the car;
+    // the eyes are carried between the door and the seat over 0.8 s; below 0.5 m/s a car is stopped.
+    car_reach_m: 1.2,
+    car_step_s: 0.8,
+    car_face_deg: 75.0,
+    car_stopped_m_s: 0.5,
 )

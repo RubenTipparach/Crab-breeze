@@ -15,6 +15,7 @@
 use crate::mech::MechRig;
 use crate::pilot::{PilotCamera, PilotSim};
 use crate::sim::{Data, PresentSet};
+use crate::state::GameApp;
 use crate::world::{Live, Plan};
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::primitives::Aabb;
@@ -162,8 +163,8 @@ pub struct GrassPlugin;
 impl Plugin for GrassPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MaterialPlugin::<GrassMaterial>::default())
-            .add_systems(Startup, setup)
-            .add_systems(Update, (show_to_the_pilot, (stream_tiles, press).chain().after(PresentSet::Camera)));
+            .add_world_spawn(setup)
+            .add_game_systems(Update, (show_to_the_pilot, (stream_tiles, press).chain().after(PresentSet::Camera)));
     }
 }
 

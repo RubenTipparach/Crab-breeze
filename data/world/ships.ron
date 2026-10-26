@@ -1,0 +1,122 @@
+// Every boat on the island (openspec/changes/harbours/design.md). Every choice here is the recommendation,
+// pre-approved by the owner, 2026-10-26: "You also forgot boats, I'll take whatever you recommend for that", "No
+// survey needed qs preapprove all boat choices" (HB1-HB19 in the design). Units are in the keys. The gunboat's
+// fighting numbers are a vehicle's, in units.ron; its size here must match them (checked on load).
+(
+    // HB2, HB3, HB4: a harbour by each coastal city, largest first, 3 km apart, at most four. A quay deck on
+    // piles out to 10 m of water within 450 m of the shore; nothing dug or flattened.
+    harbours: (
+        most: 4,
+        coast_reach_m: 1800.0,
+        berth_depth_m: 10.0,
+        pier_max_m: 450.0,
+        deck_m: 2.5,
+        // A cliff coast (ground over 8 m high at the shore) gets no harbour.
+        max_deck_m: 8.0,
+        quay_len_m: 220.0,
+        apron_m: 40.0,
+        pier_w_m: 30.0,
+        head_w_m: 30.0,
+        cranes: 3,
+        // A 1980s luffing crane: a 12 m portal, 40 m to the jib's heel, a 35 m jib.
+        crane_m: (12.0, 40.0, 35.0),
+        warehouses: 3,
+        warehouse_m: (50.0, 12.0, 24.0),
+        office_m: (16.0, 9.0, 12.0),
+        terminal_out_m: 3.0,
+        base_clear_m: 600.0,
+        spacing_m: 3000.0,
+        anchorage_m: 900.0,
+        at_anchor: 2,
+        approach_m: 1200.0,
+        ground_m: (2000.0, 4000.0),
+    ),
+    // HB5: A* over 200 m sea cells, 300 m clear of land and 12 m deep, out to the offing 17 km from the centre.
+    lanes: (
+        cell_m: 200.0,
+        coast_clear_m: 300.0,
+        lane_depth_m: 12.0,
+        offing_m: 17000.0,
+        keep_right_m: 80.0,
+        escort_out_m: 2500.0,
+    ),
+    // HB6, HB8, HB18: the timetable, real within 6 km of the pilot (lakes 3 km), gone past 8 km.
+    traffic: (
+        spawn_m: 6000.0,
+        despawn_m: 8000.0,
+        lake_spawn_m: 3000.0,
+        headway_m: (3000.0, 5000.0),
+        tanker_share: 0.35,
+        fishing_per_harbour: 3,
+        lake_boat_radius_m: 150.0,
+        lake_boats_most: 4,
+        launch_share: 0.4,
+        moor_s: (120.0, 240.0),
+        work_s: (300.0, 600.0),
+        work_m_s: 1.5,
+        work_radius_m: 300.0,
+        ferry: true,
+    ),
+    steer: (
+        probe_s: 20.0,
+        keel_clear_m: 2.0,
+        gap_lengths: 4.0,
+        berth_m_s: 1.0,
+        lookahead_m: 60.0,
+        flee_speed_share: 1.25,
+    ),
+    // HB12-HB15.
+    fight: (
+        list_deg: 25.0,
+        wreck_s: 600.0,
+        slick_s: 300.0,
+        shove_max_m: 25.0,
+        swamp_m_s: 5.0,
+        flee_blast_m: 600.0,
+        flee_hostile_m: 400.0,
+        flee_s: 60.0,
+        crab_reach_m: 700.0,
+        crab_pilot_m: 1500.0,
+    ),
+    // HB7: real 1980s sizes, (beam, keel to masthead, length). Hit points and armour against the pilot's 35 mm
+    // autocannon (90 mm, 4 a round) and 120 mm cannon (260 mm): a fishing boat goes in a burst, a freighter takes a
+    // long fight. Models are the block-outs from tools/blender/build_boats.py.
+    kinds: {
+        "freighter": (
+            size_m: (18.0, 26.0, 120.0), draft_m: 7.0, speed_m_s: 7.0, accel_m_s2: 0.05, turn_deg_s: 2.0,
+            hp: 900.0, armour_mm: 12.0, crew: 18, sink_s: 45.0,
+            model: "models/boats/freighter.glb", tint: (0.20, 0.26, 0.34),
+        ),
+        "tanker": (
+            size_m: (24.0, 30.0, 150.0), draft_m: 9.0, speed_m_s: 6.5, accel_m_s2: 0.04, turn_deg_s: 1.6,
+            hp: 1000.0, armour_mm: 12.0, crew: 22, sink_s: 45.0,
+            model: "models/boats/tanker.glb", tint: (0.40, 0.14, 0.12), burns: true,
+        ),
+        "fishing_boat": (
+            size_m: (6.5, 10.0, 22.0), draft_m: 2.8, speed_m_s: 4.5, accel_m_s2: 0.2, turn_deg_s: 8.0,
+            hp: 150.0, armour_mm: 6.0, crew: 5, sink_s: 20.0,
+            model: "models/boats/fishing_boat.glb", tint: (0.70, 0.22, 0.16),
+        ),
+        "rowing_boat": (
+            size_m: (1.4, 1.1, 4.2), draft_m: 0.25, speed_m_s: 1.3, accel_m_s2: 0.4, turn_deg_s: 20.0,
+            hp: 20.0, armour_mm: 0.0, crew: 1, sink_s: 6.0,
+            model: "models/boats/rowing_boat.glb", tint: (0.55, 0.38, 0.22),
+        ),
+        "launch": (
+            size_m: (2.6, 2.8, 8.0), draft_m: 0.8, speed_m_s: 8.0, accel_m_s2: 1.0, turn_deg_s: 18.0,
+            hp: 40.0, armour_mm: 2.0, crew: 2, sink_s: 10.0,
+            model: "models/boats/launch.glb", tint: (0.86, 0.86, 0.82),
+        ),
+        "ferry": (
+            size_m: (14.0, 16.0, 60.0), draft_m: 3.2, speed_m_s: 7.0, accel_m_s2: 0.1, turn_deg_s: 4.0,
+            hp: 600.0, armour_mm: 10.0, crew: 12, sink_s: 35.0,
+            model: "models/boats/ferry.glb", tint: (0.85, 0.85, 0.80),
+        ),
+        // The raiders' patrol gunboat: a vehicle in a fight (units.ron), a boat when it sinks.
+        "gunboat": (
+            size_m: (6.5, 9.0, 30.0), draft_m: 1.8, speed_m_s: 14.0, accel_m_s2: 1.0, turn_deg_s: 12.0,
+            hp: 260.0, armour_mm: 30.0, crew: 0, sink_s: 18.0,
+            model: "models/boats/gunboat.glb", tint: (0.30, 0.32, 0.30),
+        ),
+    },
+)

@@ -4,6 +4,7 @@
 //! value. Nothing else in the game reads a device.
 
 use crate::sim::{Data, PresentSet, SimSet};
+use crate::state::GameApp;
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions};
@@ -33,6 +34,10 @@ pub struct InputAccum {
     pub close_combat: bool,
     /// Weapon station steps asked for (+ on, - back).
     pub weapon_cycle: i32,
+    /// Prompt selection steps asked for (+ down, - up; survey W40).
+    pub option_cycle: i32,
+    /// Scope magnification steps asked for (`railgun-scope`), taken by the scope each frame.
+    pub scope_zoom: i32,
     /// Fire pressed while free look is held: press the MFD looked at (cockpit-mfds). Taken by the
     /// MFDs each frame, never by the fixed step.
     pub mfd_press: bool,
@@ -56,7 +61,7 @@ pub(crate) struct Keys {
     left: Vec<KeyCode>,
     right: Vec<KeyCode>,
     run: Vec<KeyCode>,
-    use_key: Vec<KeyCode>,
+    pub(crate) use_key: Vec<KeyCode>,
     free_look: Vec<KeyCode>,
     throttle_zero: Vec<KeyCode>,
     mode_walk: Vec<KeyCode>,
@@ -74,8 +79,14 @@ pub(crate) struct Keys {
     strike: [Vec<KeyCode>; 2],
     /// Keys that step the weapon on, and whether the mouse wheel steps it.
     weapon_cycle: (Vec<KeyCode>, bool),
+    /// Keys that step the prompt's selection down, and whether the mouse wheel steps it (survey W40).
+    option_cycle: (Vec<KeyCode>, bool),
     fire: [(Vec<KeyCode>, Vec<MouseButton>); 2],
     fire_missile: (Vec<KeyCode>, Vec<MouseButton>),
+    fire_back: (Vec<KeyCode>, Vec<MouseButton>),
+    scope: (Vec<KeyCode>, Vec<MouseButton>),
+    /// Keys that step the scope's magnification, and whether the wheel does while scoped.
+    scope_zoom: (Vec<KeyCode>, bool),
     debug: Vec<(Vec<KeyCode>, DebugCommand)>,
     pub(crate) deg_per_px: f32,
     pub(crate) invert_pitch: bool,
@@ -93,12 +104,13 @@ impl Plugin for InputPlugin {
         app.insert_resource(keys)
             .init_resource::<InputAccum>()
             .init_resource::<StepActions>()
-            .add_systems(Update, (grab_mouse, sample_devices).chain().in_set(PresentSet::Input))
-            .add_systems(FixedUpdate, take_step_actions.in_set(SimSet::Input));
+            .add_game_systems(Update, (grab_mouse, sample_devices).chain().in_set(PresentSet::Input))
+            .add_game_systems(FixedUpdate, take_step_actions.in_set(SimSet::Input));
     }
 }
 
-/// Key and mouse bindings from one list of names (`MouseLeft`, `MouseRight`, `MouseMiddle` or keys).
+/// Key and mouse bindings from one list of names (`MouseLeft`, `MouseRight`, `MouseMiddle`, `MouseBack`,
+/// `MouseForward` or keys).
 fn split(field: &str, names: &[String]) -> Result<(Vec<KeyCode>, Vec<MouseButton>), String> {
     let mut keys = Vec::new();
     let mut buttons = Vec::new();
@@ -107,6 +119,8 @@ fn split(field: &str, names: &[String]) -> Result<(Vec<KeyCode>, Vec<MouseButton
             "MouseLeft" => buttons.push(MouseButton::Left),
             "MouseRight" => buttons.push(MouseButton::Right),
             "MouseMiddle" => buttons.push(MouseButton::Middle),
+            "MouseBack" => buttons.push(MouseButton::Back),
+            "MouseForward" => buttons.push(MouseButton::Forward),
             other => keys.push(key_code(other).ok_or_else(|| format!("`{field}`: unknown key `{other}`"))?),
         }
     }
@@ -151,8 +165,32 @@ fn resolve(b: &Bindings) -> Result<Keys, String> {
             )?,
             b.weapon_cycle.iter().any(|n| n == "MouseWheel"),
         ),
+        option_cycle: (
+            r(
+                "option_cycle",
+                &b.option_cycle
+                    .iter()
+                    .filter(|n| n.as_str() != "MouseWheel")
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            )?,
+            b.option_cycle.iter().any(|n| n == "MouseWheel"),
+        ),
         fire: [split("fire_primary", &b.fire_primary)?, split("fire_secondary", &b.fire_secondary)?],
         fire_missile: split("fire_missile", &b.fire_missile)?,
+        fire_back: split("fire_back", &b.fire_back)?,
+        scope: split("scope", &b.scope)?,
+        scope_zoom: (
+            r(
+                "scope_zoom",
+                &b.scope_zoom
+                    .iter()
+                    .filter(|n| n.as_str() != "MouseWheel")
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            )?,
+            b.scope_zoom.iter().any(|n| n == "MouseWheel"),
+        ),
         debug: vec![
             (r("debug_hit_arm_l", &b.debug_hit_arm_l)?, DebugCommand::Hit(PartKind::ArmL)),
             (r("debug_hit_arm_r", &b.debug_hit_arm_r)?, DebugCommand::Hit(PartKind::ArmR)),
@@ -293,12 +331,27 @@ fn sample_devices(
     // one near, and held the guns).
     let alt = input.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]);
     acc.close_combat |= !alt && any_just(&input, &keys.close_combat);
+    // While Scope is held the wheel steps its magnification instead (railgun-scope).
+    let scoped = any(&input, &keys.scope.0) || mouse.any_pressed(keys.scope.1.iter().copied());
+    if scoped && keys.scope_zoom.1 && scroll.delta.y != 0.0 {
+        acc.scope_zoom += if scroll.delta.y > 0.0 { 1 } else { -1 };
+    }
+    if any_just(&input, &keys.scope_zoom.0) {
+        acc.scope_zoom += 1;
+    }
     // The wheel steps the weapon: down on, up back (weapon-select).
-    if keys.weapon_cycle.1 && scroll.delta.y != 0.0 {
+    if !scoped && keys.weapon_cycle.1 && scroll.delta.y != 0.0 {
         acc.weapon_cycle += if scroll.delta.y < 0.0 { 1 } else { -1 };
     }
     if any_just(&input, &keys.weapon_cycle.0) {
         acc.weapon_cycle += 1;
+    }
+    // The wheel moves the prompt's selection too (survey W40); it only matters while a list is shown.
+    if keys.option_cycle.1 && scroll.delta.y != 0.0 {
+        acc.option_cycle += if scroll.delta.y < 0.0 { 1 } else { -1 };
+    }
+    if any_just(&input, &keys.option_cycle.0) {
+        acc.option_cycle += 1;
     }
     let (fire_keys, fire_buttons) = &keys.fire[0];
     if any(&input, &keys.free_look) && (any_just(&input, fire_keys) || mouse.any_just_pressed(fire_buttons.iter().copied())) {
@@ -315,13 +368,16 @@ fn axis(input: &ButtonInput<KeyCode>, pos: &[KeyCode], neg: &[KeyCode]) -> f32 {
     f32::from(u8::from(any(input, pos))) - f32::from(u8::from(any(input, neg)))
 }
 
-fn take_step_actions(
+pub(crate) fn take_step_actions(
     input: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<Keys>,
     mut acc: ResMut<InputAccum>,
     mut out: ResMut<StepActions>,
+    scope: Option<Res<crate::scope::Scope>>,
 ) {
+    // Scoped, the mouse turns the view one over the magnification as far (railgun-scope).
+    let zoom = scope.as_ref().filter(|s| s.open).map_or(1.0, |s| s.zoom);
     let held = match acc.script {
         Some(s) => s,
         None => {
@@ -341,6 +397,8 @@ fn take_step_actions(
                 use_held: any(&input, &keys.use_key),
                 sink: any(&input, &keys.sink),
                 fire_missile: any(&input, &keys.fire_missile.0) || mouse.any_pressed(keys.fire_missile.1.iter().copied()),
+                fire_back: any(&input, &keys.fire_back.0) || mouse.any_pressed(keys.fire_back.1.iter().copied()),
+                scope: any(&input, &keys.scope.0) || mouse.any_pressed(keys.scope.1.iter().copied()),
                 strike: [any(&input, &keys.strike[0]), any(&input, &keys.strike[1])],
                 walk_keys: true,
                 ..default()
@@ -348,7 +406,7 @@ fn take_step_actions(
         }
     };
     out.0 = Actions {
-        look_delta_deg: held.look_delta_deg + acc.look_deg,
+        look_delta_deg: cb_core::scope::scoped_look(held.look_delta_deg + acc.look_deg, zoom),
         use_pressed: held.use_pressed || acc.use_pressed,
         throttle_zero: held.throttle_zero || acc.throttle_zero,
         mode_request: held.mode_request.or(acc.mode),
@@ -357,6 +415,7 @@ fn take_step_actions(
         target_next: held.target_next || acc.target_next,
         full_stop: held.full_stop || acc.full_stop,
         weapon_cycle: (held.weapon_cycle + acc.weapon_cycle).signum(),
+        option_cycle: (held.option_cycle + acc.option_cycle).signum(),
         close_combat: held.close_combat || acc.close_combat,
         ..held
     }
@@ -370,6 +429,7 @@ fn take_step_actions(
     acc.target_next = false;
     acc.full_stop = false;
     acc.weapon_cycle = 0;
+    acc.option_cycle = 0;
     acc.close_combat = false;
 }
 

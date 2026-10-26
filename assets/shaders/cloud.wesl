@@ -75,14 +75,18 @@ struct CloudFragment {
 // A puff's frame: it faces the eye's position and stays upright (owner, 2026-10-25: "cloud
 // rotations billboard kinda suck, I think they shoudl do rolling rotations to face you"), so turning
 // the head leaves the sky where it is; only moving past a puff turns it. Columns: right, up, and
-// back toward the eye. Straight under or over a puff, where upright has no meaning, it takes the
-// view's right.
+// back toward the eye. Nothing in it comes from the camera's turn (owner, 2026-10-26: "when I roll
+// my camera the cloud billboards roll too", "it should be fixed to not roll"): straight under or
+// over a puff, where upright has no meaning, its right is east laid onto its plane.
 fn facing(c: vec3<f32>, eye: vec3<f32>) -> mat3x3<f32> {
     let back = normalize(eye - c + vec3<f32>(0.0, 1e-3, 0.0));
     let flat_right = cross(vec3<f32>(0.0, 1.0, 0.0), back);
-    let view_right = view.world_from_view[0].xyz;
-    let screen_right = view_right - back * dot(view_right, back);
-    let right = normalize(mix(screen_right, flat_right, smoothstep(0.02, 0.2, length(flat_right))));
+    var east = vec3<f32>(1.0, 0.0, 0.0) - back * back.x;
+    // The same way round as the level right, so blending them never cancels.
+    if (dot(east, flat_right) < 0.0) {
+        east = -east;
+    }
+    let right = normalize(mix(east, flat_right, smoothstep(0.02, 0.2, length(flat_right))));
     let up = cross(back, right);
     return mat3x3<f32>(right, up, back);
 }
@@ -197,13 +201,17 @@ fn puff(in: CloudFragment, look: vec3<f32>, dist: f32) -> vec4<f32> {
     let lit = cloud.sun.rgb * (albedo / 3.14159265) * (diffuse * body + silver + scattered)
         + cloud.ambient.rgb * albedo * mix(0.45, 1.0, h) * mix(1.0, 0.6, dark) * mix(0.5, 1.0, shadow);
     let near = smoothstep(cloud.fade.x * 0.3, cloud.fade.x, dist);
-    // The flat base: seen from the side, nothing below the system's base. Seen from under the base
-    // looking up, the base is the flat underside the eye sees, so nothing is cut: cutting the flat
-    // billboard there sliced storm puffs into straight-edged blocks and hid the lowest ones
-    // (owner, 2026-10-25: "why clouds are all rough like this?").
+    // The flat base: nothing below the system's base, cut on the height of the puff's own round
+    // surface at this pixel (as a sphere's would be) over a band a third of its height deep, never
+    // on the flat billboard. A flat height cut each billboard along a straight line at its own angle,
+    // and a storm's base, full of low puffs, broke into straight-edged shards (owner, 2026-10-25:
+    // "why clouds are all rough like this?"; 2026-10-26: "its also really blocky up close"). Seen
+    // from under the base looking up, the base is the flat underside the eye sees: nothing is cut.
+    let surface_y = in.centre.y + in.shape.x * right.y * p.x + in.shape.y * (up.y * p.y + back.y * z);
+    let band = max(in.shape.y * 0.35, 20.0);
     let eye_y = view.world_position.y;
     let from_below = smoothstep(in.layer.x - 30.0, in.layer.x - 250.0, eye_y) * smoothstep(0.15, 0.5, look.y);
-    let floor = mix(smoothstep(in.layer.x - 20.0, in.layer.x + 50.0, in.world.y), 1.0, from_below);
+    let floor = mix(smoothstep(in.layer.x - band, in.layer.x + band * 0.5, surface_y), 1.0, from_below);
     return vec4<f32>(lit, dens * in.look.z * near * floor);
 }
 
@@ -215,7 +223,15 @@ fn shaft(in: CloudFragment) -> vec4<f32> {
     let streak = 0.6 * vn(vec2<f32>(x * 22.0 + seed, in.world.y / 90.0 + t * 2.2))
         + 0.4 * vn(vec2<f32>(x * 60.0, in.world.y / 40.0 + t * 3.1));
     let body = pow(max(0.0, 1.0 - x * x), 1.5) * (0.55 + 0.45 * vn(vec2<f32>(x * 3.0 + t * 0.02, seed)));
-    let a = 0.75 * body * (0.5 + 0.5 * streak) * smoothstep(0.0, 0.12, y) * smoothstep(1.0, 0.8, y);
+    // From inside the shaft or looking steeply up, a sheet is seen nearly edge-on: a flat grey wedge
+    // with straight edges that swings round as the eye moves under it (owner, 2026-10-26: "its also
+    // really blocky up close"). There the rain's haze and the drops on the glass carry the rain, so
+    // the sheet fades out within the shaft's radius of its axis and as the view climbs past 35 degrees.
+    let eye = view.world_position;
+    let off_axis = length(eye.xz - in.centre.xz);
+    let inside = smoothstep(0.6 * in.shape.x, 1.6 * in.shape.x, off_axis);
+    let steep = smoothstep(0.75, 0.55, abs(normalize(in.world - eye).y));
+    let a = 0.75 * body * (0.5 + 0.5 * streak) * smoothstep(0.0, 0.12, y) * smoothstep(1.0, 0.8, y) * inside * steep;
     let col = cloud.ambient.rgb * vec3<f32>(0.5, 0.53, 0.58) * 0.8 + cloud.sun.rgb * (0.03 / 3.14159265);
     return vec4<f32>(col, a);
 }

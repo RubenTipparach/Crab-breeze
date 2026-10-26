@@ -5,7 +5,7 @@
 #   ./run.sh --mech mechs/foreman.ron   the detailed mechs (mech-roster): foreman, ironhorse, harrow,
 #                                       roustabout, driller, mule, picket, sapper
 #   ./run.sh --seed 7
-#   ./run.sh --mission fortress   free roam with the Hermit, the crab air fortress, over the nearest city
+#   ./run.sh --mission fortress   free roam with the Stratostacean, the crab air fortress, over the nearest city
 #   ./run.sh --showcase fight     watch the scripted fight
 #   ./run.sh --showcase world     watch the scripted world tour
 #   ./run.sh --start fx           every effect set out below the overlook in front of you, on a loop
@@ -13,7 +13,7 @@
 # Controls (Esc opens the menu; its Controls page lists every key from data/input/bindings.ron):
 # WASD walk / throttle and turn, mouse look / aim the torso, E board and climb out, Shift run,
 # X throttle to zero, hold Left Ctrl to free look (and click an MFD to change its page), M the mail (in free
-# roam it starts the missions: the city defence and the Hermit; starting one turns off the one running).
+# roam it starts the missions: the city defence and the Stratostacean; starting one turns off the one running).
 # In the mech: hold Space for the rockets, Shift toggles the skates, C dives or sinks, left mouse
 # autocannon, right mouse cannon, F missile at the lock, Q next target, Tab close combat (on by
 # itself when the targeted hostile is within 30 m: the mouse buttons strike with the arms),

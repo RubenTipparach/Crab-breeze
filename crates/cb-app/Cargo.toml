@@ -35,3 +35,6 @@ workspace = true
 [features]
 # The packaged game for itch.io (itch.bat): no on-screen performance readout or frame graph.
 shipping = []
+# The `hitch:` lines name every system's time in a slow frame (`hitch_spans.rs`, a measurement instrument):
+# `cargo build --release --features hitch_spans`. Never in the shipped game.
+hitch_spans = ["bevy/trace", "bevy/debug"]
