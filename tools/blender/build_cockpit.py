@@ -1344,15 +1344,18 @@ def build_layout(S, VAR):
         S.box((-half + 0.02, dy, z0 + 0.02), (half - 0.02, dy + 0.012, F - 0.04), "bezel", "front", name, bevel=0.003)
         S.plate("dash_main", (0, dy + 0.013, (z0 + F) / 2), Y, Z, t=0.012, group="front", node=name,
                 scale=min(1.0, 2 * half / CP.PANELS["dash_main"][0], (F - z0) / CP.PANELS["dash_main"][1]))
+        kd = d_row / row["d"]       # the frame, housing and hood shrink with the screen, so the row keeps its gaps
         for nm, c, (rd, ud2, nd2), size in placed:
-            O = mfd_bezel(S, nm, c, (rd, ud2, nd2), size, 0.045, name, {"SCREEN_left": "mfd_left", "SCREEN_center": "mfd_center",
-                                                                        "SCREEN_right": "mfd_right"}[nm])
-            S.obox(c - nd2 * 0.045, (rd, ud2, nd2), (2 * O + 0.04, 2 * O + 0.04, 0.07), "paint_dk", "front", name, bevel=0.012)
-            mfd_solid(nm, c - nd2 * 0.045, (rd, ud2, nd2), (2 * O + 0.04, 2 * O + 0.04, 0.07))
-            mfd_solid(nm, c + ud2 * (O + 0.03) + nd2 * 0.03, (rd, ud2, nd2), (2 * O + 0.06, 0.014, 0.12))
-            low = c - ud2 * (O + 0.02) - nd2 * 0.045
+            O = mfd_bezel(S, nm, c, (rd, ud2, nd2), size, 0.045 * kd, name, {"SCREEN_left": "mfd_left", "SCREEN_center": "mfd_center",
+                                                                             "SCREEN_right": "mfd_right"}[nm])
+            house = (2 * O + 0.04 * kd, 2 * O + 0.04 * kd, 0.07 * kd)
+            hood_c, hood = c + ud2 * (O + 0.03 * kd) + nd2 * 0.03 * kd, (2 * O + 0.06 * kd, 0.014, 0.12 * kd)
+            S.obox(c - nd2 * 0.045 * kd, (rd, ud2, nd2), house, "paint_dk", "front", name, bevel=0.012 * kd)
+            mfd_solid(nm, c - nd2 * 0.045 * kd, (rd, ud2, nd2), house)
+            mfd_solid(nm, hood_c, (rd, ud2, nd2), hood)
+            low = c - ud2 * (O + 0.02) - nd2 * 0.045 * kd
             S.box((low.x - 0.07, dy - 0.01, low.z - 0.04), (low.x + 0.07, low.y + 0.02, low.z + 0.04), "paint_dk", "front", name, bevel=0.008)
-            S.obox(c + ud2 * (O + 0.03) + nd2 * 0.03, (rd, ud2, nd2), (2 * O + 0.06, 0.014, 0.12), "paint", "front", name, bevel=0.005)
+            S.obox(hood_c, (rd, ud2, nd2), hood, "paint", "front", name, bevel=0.005)
         # The footwell's front wall, behind the pedals, from the floor up into the dash's body, on the dash's part so
         # it swings clear with it and the doorway stays open (owner, 2026-10-25: "theres an opening here need fix").
         zw = F - 0.08
