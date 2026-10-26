@@ -109,7 +109,13 @@ and the pylons have blind spots a pilot can use.
 - **The climb.** Jets (`boost-and-skate`): 56 m/s2 of thrust, climb to 60 m/s, 20 s of burn, 8 s to
   recharge. 600 m from the ground takes about 10.7 s (9.3 s of burn left); 900 m about 15.7 s (4.3 s
   left). A tower roof cuts the climb. Flak and missiles reach out to the whole climb.
-- **Landing on it.** The deck, the shoulders and the pylon walkways are supports. The fortress is a
+- **Landing on it** (owner, 2026-10-26, survey H4: "Approve all", the recommendation: reach it on the jets as they
+  are and land on the deck, a shoulder or a pylon walkway to recharge and fight there). Measured on the shipped
+  mechs: straight up from the city's ground at full lift every roster mech passes the deck's 649 m in 11.5 s with
+  8.5 s of burn left. A mech that comes down on a platform keeps only its speed relative to it, and one that lifts
+  off takes the platform's velocity with it (`Platform::ride`), so a pilot who matches the deck's 15 m/s and lands
+  stands where they landed instead of skidding 11 m along it. The jets recharge as they do on the ground: 1.5 s,
+  then empty to full in 8 s. The deck, the shoulders and the pylon walkways are supports. The fortress is a
   moving support: `support_at` returns the surface's velocity at the contact point (drift plus roll), and
   whatever stands there is carried with it. The crabs' feet hold to 35 deg of list; the pilot's mech
   slides above 20 deg (friction 0.36). Falling off is a fall: the jets brake it once recharged.
@@ -277,6 +283,6 @@ each shot's metre steps as a mech's parts are. Measured on the owner's machine w
 | H1 | The fortress's size and how it dies | 420 m (mechs are 24 m now), 600-900 m up, eight lift thrusters; it falls when a side is down to one | provisional (survey H1; G15 accepted the first 300 m sketch) |
 | H2 | Its name | the Hermit (a crab that carries its own shell) | decided: **the Stratostacean**, the owner's own name (2026-10-26, survey H2); `name` in `data/missions/fortress.ron` is what the mail, the HUD, the TARGET page and the log say |
 | H3 | How it falls | the side rule, then the hull thrusters: three outer on one side open the hull, two hull thrusters on that side bring it down | provisional (survey H3; the hull thrusters and the plates are the owner's, 2026-10-25) |
-| H4 | How the pilot gets up and stays up | the jets as they are; land on the deck, shoulders or a pylon to recharge | provisional (survey H4) |
+| H4 | How the pilot gets up and stays up | the jets as they are; land on the deck, shoulders or a pylon to recharge | decided (owner, 2026-10-26, survey H4: recommendation accepted, "Approve all"): every roster mech reaches the deck on its jets with 8.5 s of burn left; landing hands the mech's velocity over to the deck (section 5) |
 | H5 | Does its crash count as city damage | yes: the pilot chooses where it falls (stop its drive first, or wait) | provisional (survey H5) |
 | H6 | Who guards the deck | 2 Shrikes and 4 Mites aboard, a Mite up each lift every 60 s | provisional (survey H6) |

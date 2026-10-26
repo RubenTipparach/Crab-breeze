@@ -92,6 +92,8 @@ pub struct FortressRun {
     pub targets: Vec<(u32, Vec3)>,
     legs: Vec<FallingLeg>,
     was: bevy::math::Affine3A,
+    /// The mechs standing on it the step before (by `MechId`), for the velocity handover (`Platform::ride`).
+    aboard: std::collections::BTreeSet<u32>,
 }
 
 impl FortressRun {
@@ -244,6 +246,7 @@ fn switch(
             capsules: Vec::new(),
             targets: Vec::new(),
             legs: Vec::new(),
+            aboard: Default::default(),
         });
         have = None;
     }
@@ -461,15 +464,23 @@ fn step(
             Event::Crashed => crash(run, d, &plan, &mut live, &mut fx, &mut explosions),
         }
     }
-    // Its platforms, posed this step; what stood on them moves with them.
+    // Its platforms, posed this step; what stood on them moves with them, and a mech landing on them or leaving
+    // them hands its velocity over (survey H4: land on it to recharge and fight there).
     let platform = Platform {
         slabs: d.shape.platforms.clone(),
         pose: run.f.pose(),
         was: run.was,
     };
-    for (mut sim, ..) in &mut mechs {
-        if let Some(p) = platform.carry(sim.curr.pos) {
-            sim.curr.pos = p;
+    for (mut sim, _, id, _) in &mut mechs {
+        let c = &sim.curr;
+        let r = platform.ride(c.pos, Vec3::new(c.vel.x, c.vel_y_m_s, c.vel.y), run.aboard.contains(&id.0), dt);
+        sim.curr.pos = r.feet;
+        sim.curr.vel = Vec2::new(r.vel.x, r.vel.z);
+        sim.curr.vel_y_m_s = r.vel.y;
+        if r.aboard {
+            run.aboard.insert(id.0);
+        } else {
+            run.aboard.remove(&id.0);
         }
     }
     if pilot.curr.mode != PilotMode::Seated

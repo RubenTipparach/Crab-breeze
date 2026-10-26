@@ -6,6 +6,7 @@
 - [x] 1.3 Launch timers (drops wait for 2.8) (tests: `a_lost_catapult_halves_the_launches`, `nothing_launches_while_falling`)
 - [x] 1.4 Moving supports (`world::platform`) (tests: `a_mech_standing_on_the_drifting_deck_stays_where_it_stood`, `a_body_in_the_air_above_it_is_not_carried`; sliding off past its grip: not yet)
 - [x] 1.5 Downwash (test: `a_mech_under_a_live_thruster_is_pushed_down_and_burned`)
+- [x] 1.6 Reached on the jets as they are, landed on to recharge (owner, 2026-10-26, survey H4): the velocity handover on landing and lifting off, `Platform::ride`, used by `cb-app::fortress` (tests: `every_mech_reaches_the_deck_on_its_jets_as_they_are`, `a_mech_lands_on_the_deck_a_shoulder_and_a_walkway_and_its_jets_recharge_there`, `a_mech_landing_at_the_decks_speed_stands_still_on_it_and_leaves_with_it`)
 - [x] 2.1 `cb-app::fortress`: the block-out in the game, parts as entities with hit shapes and targeting boxes (tests: `the_autocannon_cannot_hurt_a_cowl_but_doubles_on_a_grille`, `a_round_on_the_outboard_plate_does_nothing`, `a_hull_port_takes_damage_only_from_within_30_deg_of_vertical`; turrets: `a_turret_does_not_fire_until_it_is_on_its_aim`, `the_hull_hides_the_pilot_from_the_far_side`, `losing_the_bridge_doubles_the_spread`; `cb-tools`: `the_shipped_fortress_model_has_every_node_its_data_names`)
 - [x] 2.2 The cockpit lift readout from the rule (test: `the_lift_readout_is_the_rule`)
 - [x] 2.3 Turrets, beams, deck guns, missile launchers and batteries on the existing weapons (the deck guard: 2.8)

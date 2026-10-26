@@ -853,4 +853,118 @@ pub(crate) mod tests {
         run(&d, &mut b, 30.0);
         assert_eq!(a, b);
     }
+
+    /// The open air with the fortress's platforms in it (and flat ground under them): what a mech flying to it and
+    /// landing on it stands on.
+    struct Aboard<'a>(&'a [crate::world::Platform]);
+
+    impl crate::world::Ground for Aboard<'_> {
+        fn height_at(&self, _x: f32, _z: f32) -> f32 {
+            0.0
+        }
+        fn push_out(&self, p: Vec2, _radius_m: f32) -> Vec2 {
+            p
+        }
+        fn support_at(&self, x: f32, z: f32, feet_y: f32) -> f32 {
+            crate::world::platform::top_under(self.0, x, z, feet_y).map_or(0.0, |t| t.max(0.0))
+        }
+    }
+
+    fn roster_mech(name: &str) -> crate::mech::MechConfig {
+        let p = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../data/mechs/{name}.ron"));
+        load_ron(&p).unwrap()
+    }
+
+    #[test]
+    fn every_mech_reaches_the_deck_on_its_jets_as_they_are() {
+        // Survey H4 (owner, 2026-10-26): the fortress is reached on the jets as they are. Straight up from the city's
+        // ground at full lift, every mech on the roster passes the deck's height with burn to spare.
+        let (d, f) = fortress();
+        let deck = d.shape.platforms.iter().find(|s| s.name == "deck").unwrap();
+        let deck_y = f.pose().transform_point3(Vec3::new(0.0, deck.top_m, 0.0)).y;
+        for name in [
+            "driller",
+            "foreman",
+            "harrow",
+            "ironhorse",
+            "mule",
+            "picket",
+            "roustabout",
+            "sapper",
+        ] {
+            let cfg = roster_mech(name);
+            let mut m = crate::mech::MechState::standing(Vec3::new(2000.0, 0.0, 0.0), 0.0, &cfg.gait);
+            let up = crate::mech::MechControls {
+                lift_axis: 1.0,
+                ..Default::default()
+            };
+            let mut t = 0.0;
+            while m.pos.y < deck_y && t < 60.0 {
+                m.step(&up, &cfg, &Aboard(&[]), DT);
+                t += DT;
+            }
+            assert!(m.pos.y >= deck_y, "{name} stalls at {:.0} m of {deck_y:.0} m", m.pos.y);
+            let left_s = (1.0 - m.boost.heat) * cfg.jet.burn_s;
+            eprintln!("{name}: the deck's {deck_y:.0} m in {t:.1} s, {left_s:.1} s of burn left");
+            assert!(!m.boost.locked && left_s > 1.0, "{name}: {left_s:.1} s left");
+        }
+    }
+
+    #[test]
+    fn a_mech_lands_on_the_deck_a_shoulder_and_a_walkway_and_its_jets_recharge_there() {
+        // Survey H4: land on the deck, a shoulder or a pylon walkway to recharge and fight there. A mech flying
+        // alongside at the speed of the spot below it, let go 10 m over each, its jets nearly spent from the climb, lands,
+        // then stands where it landed while the fortress flies on, carried with it, and its jets come back to full.
+        let cfg = roster_mech("foreman");
+        for name in ["deck", "shoulder", "walkway_L2", "walkway_R3"] {
+            let (d, mut f) = fortress();
+            let slab = d.shape.platforms.iter().find(|s| s.name == name).unwrap().clone();
+            let spot = (slab.min + slab.max) * 0.5;
+            let top = slab.top_at(spot).unwrap();
+            let start = f.pose().transform_point3(Vec3::new(spot.x, top + 10.0, spot.y));
+            let mut m = crate::mech::MechState::standing(start, 0.0, &cfg.gait);
+            m.in_air = true;
+            // alongside the spot it lands on, which turns with the fortress on its circle
+            let mut ahead = f.clone();
+            ahead.step(&d, &flat, DT);
+            let v = crate::world::Platform {
+                slabs: Vec::new(),
+                pose: ahead.pose(),
+                was: f.pose(),
+            }
+            .velocity_at(start, DT);
+            m.vel = Vec2::new(v.x, v.z);
+            m.boost.heat = 0.9;
+            let mut was = f.pose();
+            let mut landed: Option<Vec3> = None;
+            let mut aboard = false;
+            for _ in 0..(20.0 / DT) as usize {
+                f.step(&d, &flat, DT);
+                let platform = crate::world::Platform {
+                    slabs: d.shape.platforms.clone(),
+                    pose: f.pose(),
+                    was,
+                };
+                was = f.pose();
+                // the game's order: the fortress flies and carries what stood on it, then the mechs step
+                let r = platform.ride(m.pos, Vec3::new(m.vel.x, m.vel_y_m_s, m.vel.y), aboard, DT);
+                (m.pos, m.vel, m.vel_y_m_s, aboard) = (r.feet, Vec2::new(r.vel.x, r.vel.z), r.vel.y, r.aboard);
+                m.step(&Default::default(), &cfg, &Aboard(std::slice::from_ref(&platform)), DT);
+                if landed.is_none() && !m.in_air {
+                    landed = Some(f.pose().inverse().transform_point3(m.pos));
+                }
+            }
+            let local = f.pose().inverse().transform_point3(m.pos);
+            assert!(!m.in_air, "{name}: still in the air at {}", m.pos);
+            let here = slab.top_at(Vec2::new(local.x, local.z));
+            assert!(
+                here.is_some_and(|t| (local.y - t).abs() < 0.05),
+                "{name}: off it at {local} ({here:?})"
+            );
+            let landed = landed.unwrap_or_else(|| panic!("{name}: never landed"));
+            assert!(local.distance(landed) < 0.5, "{name}: slid from {landed} to {local}");
+            assert_eq!(m.boost.heat, 0.0, "{name}: the jets recharged");
+            assert!(f.angle_rad > 0.5, "the fortress flew on meanwhile");
+        }
+    }
 }

@@ -40,6 +40,14 @@ The fortress's deck, shoulders and pylon walkways SHALL be supports that move wi
 - **WHEN** a mech stands still on the deck while the fortress drifts at 15 m/s
 - **THEN** the mech moves with the deck and stays where it stood on it
 
+#### Scenario: Landing at the deck's speed
+- **WHEN** a mech flying alongside at the speed of the surface below it comes down on the deck, a shoulder or a pylon walkway with its jets nearly spent
+- **THEN** it stands where it came down, is carried with the fortress, and its jets recharge to full
+
+#### Scenario: Reaching it on the jets
+- **WHEN** any roster mech lifts at full from the attacked city's ground
+- **THEN** it passes the height of the fortress's deck before its jets are spent
+
 ### Requirement: Thruster downwash pushes and burns
 A mech inside a live lift thruster's downwash column SHALL be pushed down and damaged on the parts inside it.
 
