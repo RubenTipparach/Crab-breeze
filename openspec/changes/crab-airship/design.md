@@ -138,7 +138,7 @@ t junctions, and about 20-30% diagonal lines", "we want normal maps for large an
   the stern, fins along the shoulders, spines on every leg's knee, spikes on the thruster plates and a keel of spikes
   down the belly; instanced, one draw for the shell's and one per thruster.
 - Painted the mechs' way, with the plating kit (`tools/textures/gen_mech_plating.mjs`): neutral paint tinted by the
-  `hermit` palette in `tools/blender/mech_palettes.py` (owner: "main color orange, secondary a dark orange", "more
+  `stratostacean` palette in `tools/blender/mech_palettes.py` (owner: "main color orange, secondary a dark orange", "more
   grey on this platform? red turrets?": an orange carapace, dark orange underside, belly and legs, a grey platform on
   top, red turrets and launchers; the colours picked from the owner's 42-colour palette: orange `#e98537`, dark
   orange `#94493a`, grey `#b0a7b8`, crimson `#ac2847` turrets, red `#ec273f` livery bands, `#2c1e31` structure),
@@ -199,12 +199,12 @@ t junctions, and about 20-30% diagonal lines", "we want normal maps for large an
 
 ## 9. In the game: the first build (owner, 2026-10-25)
 
-"looks good, build it in game, add an email in free roam to fight the crab fortress." The Hermit is a mission
+"looks good, build it in game, add an email in free roam to fight the crab fortress." The Stratostacean is a mission
 of its own, started from free roam's mail (`free-roam-missions`).
 
 **The model.** The block-out the owner approved is the mockup, so the game's model is exported from it:
 `tools/mockups/export_fortress_glb.mjs` loads `docs/mockups/crab_fortress.html` headless and writes
-`assets/models/fortress_hermit.glb` with three.js's glTF exporter, and `fortress_hermit.json`, its manifest
+`assets/models/fortress_stratostacean.glb` with three.js's glTF exporter, and `fortress_stratostacean.json`, its manifest
 (triangles, materials, budget, node names). One implementation of its shape (CLAUDE.md 6.1): the page and the game
 draw the same geometry from `tools/mockups/fortress_layout.json`. The livery mask is baked into each material's
 colour map (the page mixes it in a shader), the normal and ORM maps go in as they are, the spikes' instances become
@@ -256,7 +256,7 @@ lands it explodes (30 MJ) and breaks every building cell within 25 m.
 of it, throws a 200 MJ explosion at its middle and stays as a wreck. Won when it has crashed; lost when the pilot's
 mech is destroyed.
 
-**The readout.** The MISSION page and the HUD's mission line: `HERMIT  LIFT PORT 100 %  STBD 67 %  ALT 600 M`, the
+**The readout.** The MISSION page and the HUD's mission line: `STRATOSTACEAN  LIFT PORT 100 %  STBD 67 %  ALT 600 M`, the
 hull thrusters when open, `FALLING`, `DOWN: WON`. Every number is the rule's own (section 2).
 
 Tests (cb-core): `the_lift_readout_is_the_rule` and the section 2 tests, `a_round_on_the_outboard_plate_does_nothing`,
@@ -275,7 +275,7 @@ each shot's metre steps as a mech's parts are. Measured on the owner's machine w
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | H1 | The fortress's size and how it dies | 420 m (mechs are 24 m now), 600-900 m up, eight lift thrusters; it falls when a side is down to one | provisional (survey H1; G15 accepted the first 300 m sketch) |
-| H2 | Its name | the Hermit (a crab that carries its own shell) | provisional (survey H2) |
+| H2 | Its name | the Hermit (a crab that carries its own shell) | decided: **the Stratostacean**, the owner's own name (2026-10-26, survey H2); `name` in `data/missions/fortress.ron` is what the mail, the HUD, the TARGET page and the log say |
 | H3 | How it falls | the side rule, then the hull thrusters: three outer on one side open the hull, two hull thrusters on that side bring it down | provisional (survey H3; the hull thrusters and the plates are the owner's, 2026-10-25) |
 | H4 | How the pilot gets up and stays up | the jets as they are; land on the deck, shoulders or a pylon to recharge | provisional (survey H4) |
 | H5 | Does its crash count as city damage | yes: the pilot chooses where it falls (stop its drive first, or wait) | provisional (survey H5) |

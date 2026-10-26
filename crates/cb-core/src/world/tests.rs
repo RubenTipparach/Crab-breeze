@@ -919,7 +919,7 @@ fn the_baked_sun_shade_agrees_with_a_ray_toward_the_sun() {
 
 #[test]
 fn a_pilot_standing_still_on_a_deck_over_the_city_stays_where_they_stand() {
-    // A cloud run's regression (crab-airship section 9): standing still on the Hermit's deck, 600 m over the city,
+    // A cloud run's regression (crab-airship section 9): standing still on the Stratostacean's deck, 600 m over the city,
     // the pilot slid 26 m across it, pushed out of the footprints of the buildings and trees far below.
     let plan = seed_42();
     let b = &plan.buildings[0];

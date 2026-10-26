@@ -208,7 +208,7 @@ fn main() -> AppExit {
         career::CareerPlugin,
         interact::InteractPlugin,
     ))
-    // Free roam's mail and its missions (free-roam-missions); the Hermit (crab-airship).
+    // Free roam's mail and its missions (free-roam-missions); the Stratostacean (crab-airship).
     .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin))
     // Car traffic and the car you drive (openspec changes `car-traffic`, `car-driving`).
     .add_plugins((traffic::TrafficPlugin, traffic_lights::TrafficLightsPlugin))

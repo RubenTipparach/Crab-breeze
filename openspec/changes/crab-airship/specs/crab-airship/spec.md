@@ -61,3 +61,10 @@ Every part of the fortress (thrusters, turrets, catapults, bays, lifts, drive th
 #### Scenario: The autocannon on a thruster's inboard side
 - **WHEN** 35 mm autocannon rounds hit a lift thruster's exposed inboard side (60 mm)
 - **THEN** they penetrate and do their damage, and the same rounds into its 40 mm nozzle do double damage
+
+### Requirement: The fortress is called the Stratostacean
+Everything the player reads about the crab air fortress (its mission mail, the HUD's mission line, the TARGET page and the mission log) SHALL name it the Stratostacean, from the one `name` in its data.
+
+#### Scenario: Locking a thruster
+- **WHEN** the pilot selects one of the fortress's lift thrusters as the target
+- **THEN** the TARGET page names it under STRATOSTACEAN with its part name and id, and shows that part's health

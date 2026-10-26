@@ -1,5 +1,5 @@
 //! Platforms: surfaces a body stands on that move (openspec change `crab-airship` section 9, "Standing on
-//! it"): the Hermit's deck, shoulders and pylon walkways. Each is a footprint with a plane over it, in its
+//! it"): the Stratostacean's deck, shoulders and pylon walkways. Each is a footprint with a plane over it, in its
 //! owner's frame; the owner's pose places them in the world. `Scene::support_at` stands bodies on them as it
 //! does on roofs, and `carry` moves a body standing on one by the platform's own motion this step, so the
 //! deck takes what stands on it along as it flies, sinks and lists. Pure.

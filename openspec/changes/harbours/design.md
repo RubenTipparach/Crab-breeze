@@ -20,7 +20,7 @@ Placed once from the world plan, after the cities and bases, so the plan and its
 - **What is built.** Nothing is dug or flattened: the quay stands on piles, so the terrain is the plan's.
   - The **quay**: a concrete deck `deck_m` (2.5 m) above sea level, `quay_m.x` (220 m) along the shore and running
     from `quay_m.y` (40 m) inland of the shoreline out to the berth: walkable, as a fixed platform
-    (`world::platform`, the Hermit's deck rule).
+    (`world::platform`, the Stratostacean's deck rule).
   - **Cranes**: `cranes` (3) luffing cranes along the berth edge, 40 m tall on a 12 m portal.
   - **Warehouses**: `warehouses` (3) sheds behind the quay, 50 x 24 x 12 m, footed on the lowest ground under them.
   - The **harbour office**: a 16 x 12 x 9 m block at the landward corner of the quay, with a terminal under its

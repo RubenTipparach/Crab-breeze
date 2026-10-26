@@ -297,6 +297,22 @@ mod tests {
     }
 
     #[test]
+    fn the_fortress_mail_names_the_fortress_by_its_data_name() {
+        // Survey H2 (owner, 2026-10-26): the crab air fortress is the Stratostacean, wherever the player reads it.
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let d = GameData::load(&root, "mechs/placeholder.ron").unwrap();
+        assert_eq!(d.fortress.cfg.name, "Stratostacean");
+        let mail = d
+            .missions
+            .mail
+            .iter()
+            .find(|m| m.mission == missions::MissionKind::Fortress)
+            .unwrap();
+        assert!(mail.subject.contains(&d.fortress.cfg.name), "{}", mail.subject);
+        assert!(mail.body.contains(&d.fortress.cfg.name), "{}", mail.body);
+    }
+
+    #[test]
     fn every_defence_wave_names_units_that_exist() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
         let d = GameData::load(&root, "mechs/placeholder.ron").unwrap();

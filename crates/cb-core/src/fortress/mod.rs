@@ -1,4 +1,4 @@
-//! The Hermit, the crab air fortress (openspec change `crab-airship`): how it stays up, flies, sinks, lists,
+//! The Stratostacean, the crab air fortress (openspec change `crab-airship`): how it stays up, flies, sinks, lists,
 //! falls and crashes, how each of its parts takes a hit, how its turrets aim and fire, and when it launches a
 //! fighter. Pure and deterministic: `cb-app::fortress` feeds it the fixed step, where its parts' nodes are and
 //! where the pilot's mech is, and acts on what it says. The cockpit's lift readout reads `lift`, the rule the
@@ -182,6 +182,9 @@ pub struct CrashSpec {
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct FortressConfig {
+    /// What the pilot calls it, on the HUD, the TARGET page and in the log (owner, 2026-10-26, survey H2: "the
+    /// Stratostacean").
+    pub name: String,
     /// Mass, tonnes (its weight W = mass x g).
     pub mass_t: f32,
     /// The hull's middle over the attacked city's ground.
@@ -236,6 +239,9 @@ impl FortressConfig {
 
 impl Validate for FortressConfig {
     fn validate(&self) -> Result<(), String> {
+        if self.name.trim().is_empty() {
+            return Err("`name` needs text".into());
+        }
         for (k, v) in [
             ("mass_t", self.mass_t),
             ("altitude_m", self.altitude_m),

@@ -509,7 +509,7 @@ impl PilotState {
                 let moved = Vec2::new(self.feet.x, self.feet.z) + self.velocity * dt_s;
                 // out of walls at the feet's own height (a deck 600 m up has no buildings round it)
                 let p = ground.push_out_at(moved, cfg.body_radius_m, self.feet.y);
-                // what the feet stand on: the ground, a roof, or a platform such as the Hermit's deck (crab-airship)
+                // what the feet stand on: the ground, a roof, or a platform such as the Stratostacean's deck (crab-airship)
                 let floor = ground.support_at(p.x, p.y, self.feet.y);
                 let y = match swim {
                     Some(w) => {

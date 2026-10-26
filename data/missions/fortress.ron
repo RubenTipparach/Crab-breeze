@@ -1,6 +1,8 @@
-// The Hermit, the crab air fortress (openspec/changes/crab-airship, design sections 1 to 6 and 9). Its shape (parts,
+// The Stratostacean, the crab air fortress (openspec/changes/crab-airship, design sections 1 to 6 and 9). Its shape (parts,
 // platforms, hull) is data/missions/fortress_shape.ron, measured off the model. First estimates, tuned from a run.
 (
+    // Its name (owner, 2026-10-26, survey H2: "the Stratostacean").
+    name: "Stratostacean",
     mass_t: 60000.0,
     altitude_m: 600.0,
     circle_radius_m: 380.0,

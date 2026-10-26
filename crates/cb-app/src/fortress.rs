@@ -1,4 +1,4 @@
-//! The Hermit, the crab air fortress, in the game (openspec change `crab-airship` section 9): the mission free
+//! The Stratostacean, the crab air fortress, in the game (openspec change `crab-airship` section 9): the mission free
 //! roam's mail starts (`free-roam-missions`). It spawns the model exported from the mockup over the city nearest
 //! the pilot, steps `cb_core::fortress` every fixed step, and acts on what it says: its parts' hit capsules and
 //! its hull's join the mechs' in `combat` (a hit is taken by the part's own armour rule), its turrets fire through
@@ -195,7 +195,7 @@ fn switch(
         let scene = assets.load(GltfAssetLabel::Scene(0).from_asset(d.shape.model.clone()));
         let root = commands
             .spawn((
-                Name::new("Hermit"),
+                Name::new(d.cfg.name.clone()),
                 Transform::from_matrix(Mat4::from(pose)),
                 Visibility::default(),
                 WorldAssetRoot(scene),
@@ -215,7 +215,7 @@ fn switch(
             .map(|_| {
                 commands
                     .spawn((
-                        Name::new("Hermit beam"),
+                        Name::new(format!("{} beam", d.cfg.name)),
                         Mesh3d(beam_mesh.clone()),
                         MeshMaterial3d(beam_mat.clone()),
                         Transform::default(),
@@ -225,7 +225,8 @@ fn switch(
             })
             .collect();
         say(&format!(
-            "MISSION fortress begins: the Hermit over city {} at ({:.0}, {:.0}), {:.0} m up",
+            "MISSION fortress begins: the {} over city {} at ({:.0}, {:.0}), {:.0} m up",
+            d.cfg.name,
             city.id + 1,
             f.pos.x,
             f.pos.z,
@@ -706,7 +707,8 @@ fn crash(
     fx.write(Fx::new("explosion_ground", ground).scaled(d.cfg.crash.blast_mj.cbrt()));
     run.outcome.get_or_insert(true);
     say(&format!(
-        "MISSION fortress won: the Hermit is down, {n} buildings under it brought down"
+        "MISSION fortress won: the {} is down, {n} buildings under it brought down",
+        d.cfg.name
     ));
 }
 

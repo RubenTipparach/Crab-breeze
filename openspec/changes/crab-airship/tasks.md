@@ -18,3 +18,4 @@
 - [ ] 4.1 Playtest beats: climb to the deck, land, fight the guard, walk a pylon, kill three thrusters on one side, jump clear, watch it fall; measure with `--bench defence`
 - [x] 2.9 Headless stills in a cloud session (`CB_STILLS_FORTRESS=1`, `capture_fortress`): whole, under a thruster, on the deck, the hull opening, falling, crashed; `cb-tools validate` checks the model's nodes against the data
 - [x] 2.10 Levels of detail: the spikes as `DETAIL_` meshes drawn only within `detail_range_m` (owner, 2026-10-25: "spikes should not render until we are up close"); LOD0 and LOD1 triangles in the manifest
+- [x] 2.11 Its name, the Stratostacean (owner, 2026-10-26, survey H2): `name` in `fortress.ron`, read by the HUD line, the TARGET page (each part under STRATOSTACEAN) and the log; the mail, the model (`assets/models/fortress_stratostacean.glb`), its palette, the mockup and the docs renamed (test: `the_fortress_mail_names_the_fortress_by_its_data_name`)

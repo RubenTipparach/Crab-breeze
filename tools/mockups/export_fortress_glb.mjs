@@ -1,4 +1,4 @@
-// Export the Hermit, the crab air fortress, from its mockup to the game's model (openspec/changes/crab-airship,
+// Export the Stratostacean, the crab air fortress, from its mockup to the game's model (openspec/changes/crab-airship,
 // design section 9): the block-out the owner approved ("looks good, build it in game") is the mockup, so the game
 // draws the same geometry, built from the same tools/mockups/fortress_layout.json (CLAUDE.md 6.1; section 13 lists
 // the exception to "meshes come from Blender" until the Blender model, task 3.1).
@@ -6,7 +6,7 @@
 //   python3 tools/mockups/gen_crab_fortress.py
 //   THREE_DIR=<dir>/package NODE_PATH=$(npm root -g) node tools/mockups/export_fortress_glb.mjs
 //
-// Writes assets/models/fortress_hermit.glb and its manifest fortress_hermit.json (triangles against the budget,
+// Writes assets/models/fortress_stratostacean.glb and its manifest fortress_stratostacean.json (triangles against the budget,
 // materials, the named nodes the game drives). The page's armour maps are its 512 px copies; the export uses the
 // full 1024 px sheets from assets/textures/mech and bakes each material's livery mask into its colour map (the page
 // mixes the accent in a shader, which glTF has no slot for). Normal and ORM maps go in as they are.
@@ -18,8 +18,8 @@ import fs from "node:fs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const PAGE = path.join(ROOT, "docs/mockups/crab_fortress.html");
-const OUT = path.join(ROOT, "assets/models/fortress_hermit.glb");
-const MANIFEST = path.join(ROOT, "assets/models/fortress_hermit.json");
+const OUT = path.join(ROOT, "assets/models/fortress_stratostacean.glb");
+const MANIFEST = path.join(ROOT, "assets/models/fortress_stratostacean.json");
 // what the game's rules need of the shape, measured off the same scene (as gen_mech_data.py measures a mech's glb)
 const SHAPE = path.join(ROOT, "data/missions/fortress_shape.ron");
 const LAYOUT = JSON.parse(fs.readFileSync(path.join(ROOT, "tools/mockups/fortress_layout.json"), "utf8"));
@@ -112,7 +112,7 @@ const out = await page.evaluate(async tex => {
   // glTF's V runs down the image, three's (with flipY) up it
   const flipV = g => ["uv", "uv2"].forEach(k => { const a = g.attributes[k]; if (!a) return; for (let i = 0; i < a.count; i++) a.setY(i, 1 - a.getY(i)); a.needsUpdate = true; });
   // the fortress as built: what rides it (the deck guard, the pilot), the range shells and every effect stay out
-  const root = new T.Group(); root.name = "FORTRESS_hermit";
+  const root = new T.Group(); root.name = "FORTRESS_stratostacean";
   // cloning copies userData through JSON, and the page's part records point back at their objects: set it aside
   const kept = new Map();
   F.traverse(o => { kept.set(o, o.userData); o.userData = {}; });
@@ -194,8 +194,8 @@ function externalise(glb) {
 }
 
 const manifest = {
-  _: "The Hermit's block-out, exported from its mockup by tools/mockups/export_fortress_glb.mjs (openspec/changes/crab-airship section 9). Frame: metres, +Y up, the fortress faces +Z, +X its own left (port), origin at the hull's middle.",
-  file: "fortress_hermit.glb",
+  _: "The Stratostacean's block-out, exported from its mockup by tools/mockups/export_fortress_glb.mjs (openspec/changes/crab-airship section 9). Frame: metres, +Y up, the fortress faces +Z, +X its own left (port), origin at the hull's middle.",
+  file: "fortress_stratostacean.glb",
   // LOD0 with its DETAIL_ meshes (the spikes), drawn up close; LOD1 without them, beyond the data's detail_range_m
   lods: [
     { lod: 0, triangles: out.tris, budget_triangles: BUDGET_TRIS },
@@ -222,7 +222,7 @@ for (const x0 of [0, 40, -40]) {
 const n = v => (Math.abs(v) < 5e-4 ? 0 : v).toFixed(3);
 const v2 = v => `(${n(v[0])}, ${n(v[1])})`, v3 = v => `(${n(v[0])}, ${n(v[1])}, ${n(v[2])})`;
 const ron = [
-  "// The Hermit's shape for the game's rules, measured off its mockup by tools/mockups/export_fortress_glb.mjs:",
+  "// The Stratostacean's shape for the game's rules, measured off its mockup by tools/mockups/export_fortress_glb.mjs:",
   "// do not edit by hand (openspec/changes/crab-airship section 9). Frame: metres, +Y up, the fortress faces +Z,",
   "// +X its own left (port). Parts are the glb's PART_<id> nodes; platforms are the tops a mech stands on (a",
   "// footprint and the plane over it); hull capsules stop rounds and lines of sight.",
