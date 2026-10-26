@@ -128,10 +128,10 @@ impl WaterSurfaceUniform {
     /// `submersion`: the eye's, 0 dry, 0.5 straddling, 1 under water (`WaterEye::submersion`).
     fn new(look: &WaterLook, seconds: f32, light: &WaterLight, eye: Vec3, cabin_m: f32, submersion: f32) -> Self {
         let sky = LinearRgba::from(SKY);
+        let trains = look.swell_trains();
         let swell = std::array::from_fn(|i| {
-            let heading = look.swell_heading_deg[i].to_radians();
-            let k = std::f32::consts::TAU / look.swell_wavelength_m[i];
-            Vec4::new(heading.cos(), heading.sin(), k, look.swell_height_m[i])
+            let t = trains[i];
+            Vec4::new(t.dir.x, t.dir.y, t.k_rad_m, t.height_m)
         });
         Self {
             ripple: Vec4::new(look.ripple_scale_per_m, look.ripple_speed, look.ripple_steepness, look.slope_max),

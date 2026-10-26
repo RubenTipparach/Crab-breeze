@@ -15,7 +15,8 @@ Placed once from the world plan, after the cities and bases, so the plan and its
 - **Where on the shore.** From the city's centre, 48 bearings are walked outward in 20 m steps until the ground
   drops below sea level (the shoreline), then on until it is `berth_depth_m` (10 m) deep (the berth). The bearing
   with the shortest shore-to-berth run within `pier_max_m` (450 m) wins, ties to the lower bearing; a bearing whose
-  shore lies within `base_clear_m` (600 m) of an air base's site is skipped.
+  shore lies within `base_clear_m` (600 m) of an air base's site is skipped, and so is one whose ground under the
+  apron would lift the deck past `max_deck_m` (8 m): a cliff coast has no harbour.
 - **What is built.** Nothing is dug or flattened: the quay stands on piles, so the terrain is the plan's.
   - The **quay**: a concrete deck `deck_m` (2.5 m) above sea level, `quay_m.x` (220 m) along the shore and running
     from `quay_m.y` (40 m) inland of the shoreline out to the berth: walkable, as a fixed platform
@@ -138,8 +139,8 @@ Three more kinds in `data/jobs/jobs.ron`, through the one job generator and the 
 | `Raid` (sink the gunboats) | a harbour's fishing ground | gunboats, attacking the fishing boats | every gunboat is sunk | the clock |
 | `Blockade` | a harbour's mouth | gunboats lying across the mouth | every gunboat is sunk | the clock |
 
-- A kind marked `at_sea: true` is sited at a harbour, drawn from the harbours as the land kinds are drawn from the
-  cities; with no harbour it is never offered. Its `mechs` count is its gunboats.
+- A shipping kind (`JobKind::at_sea`) is sited at a harbour (`jobs::SeaSite`), drawn from the harbours as the land
+  kinds are drawn from the cities; with no harbour it is never offered. Its `mechs` count is its gunboats.
 - The board steps as before: `enemies_left` is the job's gunboats left, plus one while an escort's freighter has
   not moored. A sunk ward fails the job through `Board::fail`.
 - Tiers and pay follow the other kinds (tiers 1 to 3; tier 1 is 2-3 gunboats).
@@ -173,7 +174,19 @@ orbitable at true scale beside the pilot (1.8 m) and the 24 m Foreman.
 
 ## 11. Measured
 
-Measured with `cargo run --release -p cb-tools -- ships 42` (seed 42, the shipped data); filled in when built.
+Measured with `cargo run --release -p cb-tools -- ships 42` (seed 42, the shipped data, release build, an Apple
+silicon Mac, 2026-10-26; the rules only, no drawing):
+
+| Item | Measured |
+| --- | --- |
+| Harbours | 3 (cities 1, 2 and 10; two more coastal cities are cliff coast or within 3 km), piers 124-205 m |
+| Lanes | 6: three harbour to harbour (13-41 km), three out to the offing (5-7 km); 9 fishing runs; the ferry's 3.2 km |
+| Timetable | 102 boats: 26 freighters, 28 tankers, 9 fishing boats, 6 of them at anchor among those, 38 lake boats, 1 ferry |
+| Laying out | 360 ms once at load (the sea grid's 42 000 ground samples are most of it) |
+| A fixed step at a harbour | 15-22 boats real: 5 us median, 25-47 us p95, 30-50 us p99, 216 us worst (a step that makes boats real) |
+| A fixed step on a lake | 4 boats real: 4 us median, 13 us p95 |
+
+A step is well under 1 % of the 16.7 ms fixed step at 60 Hz. The drawing's cost is measured on the 3070.
 
 ## Pre-approved choices
 

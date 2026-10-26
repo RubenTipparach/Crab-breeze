@@ -309,6 +309,7 @@ fn step_units(
             target_vel: target.map_or(Vec3::ZERO, |t| t.1),
             ground: &ground,
             drop: &cfg.drop,
+            sea_level_m: plan.waters.sea_level_m,
         };
         let step = p.unit.step(&view, dt);
         if let (Some((from, dir)), Some(w)) = (step.fire, spec.weapon.as_ref()) {
@@ -353,8 +354,14 @@ fn step_units(
 
 /// A vehicle was destroyed: the blast and the wreck's fire, and it leaves the world.
 pub fn unit_destroyed(p: &mut Placed, data: &Data, fx: &mut MessageWriter<Fx>, explosions: &mut MessageWriter<crate::blast::Explosion>) {
-    let air = data.0.units.units.get(&p.unit.kind).is_some_and(|s| s.kind != UnitKind::Tank);
-    fx.write(Fx::new(if air { "explosion_air" } else { "explosion_ground" }, p.unit.pos));
+    let kind = data.0.units.units.get(&p.unit.kind).map(|s| s.kind);
+    let air = kind.is_some_and(|k| !matches!(k, UnitKind::Tank | UnitKind::Gunboat));
+    let recipe = match kind {
+        Some(UnitKind::Gunboat) => "explosion_water",
+        _ if air => "explosion_air",
+        _ => "explosion_ground",
+    };
+    fx.write(Fx::new(recipe, p.unit.pos));
     explosions.write(crate::blast::Explosion {
         at: p.unit.pos,
         energy_mj: if air { 1.5 } else { 4.0 },
@@ -474,6 +481,20 @@ fn draw_units(
                     Cuboid::new(0.2, h * 0.8, l * 0.15).into(),
                     Transform::from_xyz(0.0, h * 0.4, l * 0.4),
                     false,
+                ));
+            }
+            UnitKind::Gunboat => {
+                // A stand-in hull and wheelhouse; the boats draw the block-out model over it (`boats`).
+                parts.push((Cuboid::new(w, h * 0.35, l).into(), Transform::from_xyz(0.0, -h * 0.2, 0.0), false));
+                parts.push((
+                    Cuboid::new(w * 0.6, h * 0.35, l * 0.25).into(),
+                    Transform::from_xyz(0.0, h * 0.15, 0.0),
+                    false,
+                ));
+                parts.push((
+                    Cylinder::new(0.12, l * 0.15).into(),
+                    Transform::from_xyz(0.0, h * 0.1, -l * 0.35).with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)),
+                    true,
                 ));
             }
             UnitKind::CargoPlane => {

@@ -23,6 +23,10 @@ pub enum UnitKind {
     Fighter,
     /// Flies the drop line at its height, releases its cargo over the drop point, and leaves.
     CargoPlane,
+    /// Rides the sea's surface (openspec change `harbours`): holds station until its target comes within twice its
+    /// fire range, then closes to its standoff and circles there, its turret firing within its cone, keeping off
+    /// water shallower than its draught.
+    Gunboat,
 }
 
 /// One kind of unit, in data.
@@ -65,6 +69,9 @@ pub struct UnitSpec {
     pub extend_s: f32,
     /// Hull colour, sRGB 0..1.
     pub tint: [f32; 3],
+    /// Gunboat: how deep its keel sits under the waterline, metres.
+    #[serde(default)]
+    pub draft_m: f32,
 }
 
 fn one() -> u32 {
@@ -133,6 +140,12 @@ impl Validate for UnitsConfig {
             if u.kind == UnitKind::Fighter {
                 positive(&f("extend_s"), u.extend_s)?;
             }
+            if u.kind == UnitKind::Gunboat {
+                positive(&f("draft_m"), u.draft_m)?;
+                if u.draft_m >= u.size_m[1] {
+                    return Err(format!("`{}` must be less than its height", f("draft_m")));
+                }
+            }
             if let Some(w) = &u.weapon {
                 positive(&f("weapon.speed_m_s"), w.speed_m_s)?;
                 positive(&f("weapon.interval_s"), w.interval_s)?;
@@ -166,6 +179,15 @@ fn wrap(a: f32) -> f32 {
 /// Turns `heading` toward `want` by at most `max_rad`.
 fn turn_toward(heading: f32, want: f32, max_rad: f32) -> f32 {
     heading + wrap(want - heading).clamp(-max_rad, max_rad)
+}
+
+/// The vehicles' hit rule, one copy for every vehicle (units, boats): a round that beats `armour_mm` takes `damage`
+/// from `hp`; one that does not takes nothing. True when it leaves `hp` at zero or below.
+pub fn armour_hit(hp: &mut f32, penetration_mm: f32, damage: f32, armour_mm: f32) -> bool {
+    if penetration_mm >= armour_mm {
+        *hp -= damage;
+    }
+    *hp <= 0.0
 }
 
 /// Where a unit is in its life.
@@ -238,6 +260,8 @@ pub struct UnitView<'a> {
     pub ground: &'a dyn Fn(f32, f32) -> f32,
     /// Drops.
     pub drop: &'a DropConfig,
+    /// The sea's level, metres (a gunboat rides it).
+    pub sea_level_m: f32,
 }
 
 /// What a unit did this step.
@@ -290,20 +314,22 @@ impl Unit {
         !matches!(self.phase, Phase::Dead)
     }
 
-    /// Takes a hit: damage when the shot beats its armour. Returns true if this hit destroyed it.
+    /// Takes a hit: damage when the shot beats its armour (`armour_hit`). Returns true if this hit destroyed it.
     pub fn hit(&mut self, penetration_mm: f32, damage: f32, armour_mm: f32) -> bool {
         if !self.alive() {
             return false;
         }
         self.took_hit = true;
-        if penetration_mm >= armour_mm {
-            self.hp -= damage;
-        }
-        if self.hp <= 0.0 {
+        if armour_hit(&mut self.hp, penetration_mm, damage, armour_mm) {
             self.phase = Phase::Dead;
             return true;
         }
         false
+    }
+
+    /// Where a gunboat's body centre rides on a sea at `sea_level_m`: its keel `draft_m` under the surface.
+    pub fn riding_y(spec: &UnitSpec, sea_level_m: f32) -> f32 {
+        sea_level_m - spec.draft_m + spec.size_m[1] * 0.5
     }
 
     /// One fixed step of `dt_s`.
@@ -343,6 +369,7 @@ impl Unit {
             UnitKind::Tank => self.drive(view, turn, dt_s),
             UnitKind::Helicopter => self.hover(view, turn, dt_s),
             UnitKind::Fighter => self.run_in(view, turn, dt_s),
+            UnitKind::Gunboat => self.sail(view, turn, dt_s),
             UnitKind::CargoPlane => {
                 out.released = self.fly_drop(view, dt_s);
                 return out;
@@ -370,6 +397,48 @@ impl Unit {
         self.vel = forward(self.heading_rad) * speed;
         self.pos += self.vel * dt_s;
         self.pos.y = (view.ground)(self.pos.x, self.pos.z) + spec.size_m[1] * 0.5;
+    }
+
+    fn sail(&mut self, view: &UnitView, turn: f32, dt_s: f32) {
+        let spec = view.spec;
+        let depth = |p: Vec2| view.sea_level_m - (view.ground)(p.x, p.y);
+        let here = Vec2::new(self.pos.x, self.pos.z);
+        let mut speed = 0.0;
+        let mut want = self.heading_rad;
+        if let Some(target) = view.target {
+            let rel = here - Vec2::new(target.x, target.z);
+            let r = rel.length().max(1.0);
+            if r <= spec.fire_range_m * 2.0 {
+                // Circle the target at the standoff (the helicopter's rule, on the water).
+                let radial = rel / r;
+                let tangent = Vec2::new(-radial.y, radial.x) * self.circle;
+                let correct = (spec.standoff_m - r) / spec.standoff_m;
+                let along = (tangent + radial * correct * 2.0).normalize_or(tangent);
+                want = heading_of(Vec3::new(along.x, 0.0, along.y));
+                speed = spec.speed_m_s;
+            }
+        }
+        // Off the shallows: the side with more water, hard over.
+        let reach = (self.vel.length() * 8.0).max(spec.size_m[2] * 3.0);
+        let probe = |h: f32| {
+            let f = forward(h);
+            depth(here + Vec2::new(f.x, f.z) * reach)
+        };
+        let need = spec.draft_m + 1.0;
+        if probe(want) < need {
+            let (left, right) = (probe(want + 0.6), probe(want - 0.6));
+            want += if left >= right { 1.2 } else { -1.2 };
+            speed *= 0.5;
+        }
+        self.heading_rad = turn_toward(self.heading_rad, want, turn);
+        let f = forward(self.heading_rad);
+        let next = here + Vec2::new(f.x, f.z) * speed * dt_s;
+        if depth(next) < spec.draft_m && depth(next) < depth(here) {
+            speed = 0.0;
+        }
+        self.vel = f * speed;
+        self.pos += self.vel * dt_s;
+        self.pos.y = Self::riding_y(spec, view.sea_level_m);
     }
 
     fn altitude_hold(&mut self, view: &UnitView, want_agl: f32, climb_m_s: f32, dt_s: f32) {
@@ -520,6 +589,7 @@ mod tests {
             target_vel: Vec3::ZERO,
             ground: &ground,
             drop,
+            sea_level_m: 0.0,
         };
         (0..(seconds * 60.0) as usize).map(|_| u.step(&view, 1.0 / 60.0)).collect()
     }
@@ -637,6 +707,7 @@ mod tests {
                 target_vel: Vec3::ZERO,
                 ground: &ground,
                 drop: &c.drop,
+                sea_level_m: 0.0,
             };
             for (k, at, v) in plane.step(&view, 1.0 / 60.0).released {
                 falling.push(Unit::dropped(9, &k, tank, at, v));
@@ -648,6 +719,7 @@ mod tests {
                     target_vel: Vec3::ZERO,
                     ground: &ground,
                     drop: &c.drop,
+                    sea_level_m: 0.0,
                 };
                 if f.step(&tv, 1.0 / 60.0).landed {
                     landed.push(f.pos);
@@ -677,5 +749,62 @@ mod tests {
         far.phase = Phase::Active;
         let steps = run(&mut far, spec, Some(Vec3::new(0.0, 0.0, -spec.fire_range_m * 3.0)), &c.drop, 0.5);
         assert!(steps.iter().all(|s| s.fire.is_none()));
+    }
+
+    fn deep_sea(_: f32, _: f32) -> f32 {
+        -60.0
+    }
+
+    fn run_at_sea(u: &mut Unit, spec: &UnitSpec, target: Vec3, ground: &dyn Fn(f32, f32) -> f32, seconds: f32) -> Vec<UnitStep> {
+        let drop = DropConfig::default();
+        let view = UnitView {
+            spec,
+            target: Some(target),
+            target_vel: Vec3::ZERO,
+            ground,
+            drop: &drop,
+            sea_level_m: 0.0,
+        };
+        (0..(seconds * 10.0) as usize).map(|_| u.step(&view, 0.1)).collect()
+    }
+
+    #[test]
+    fn the_armour_rule_takes_damage_only_from_a_round_that_beats_it() {
+        let mut hp = 100.0;
+        assert!(!armour_hit(&mut hp, 29.0, 500.0, 30.0));
+        assert_eq!(hp, 100.0);
+        assert!(!armour_hit(&mut hp, 30.0, 40.0, 30.0));
+        assert_eq!(hp, 60.0);
+        assert!(armour_hit(&mut hp, 90.0, 60.0, 30.0));
+    }
+
+    #[test]
+    fn a_gunboat_holds_station_until_its_target_is_near_then_circles_it_on_the_water() {
+        let c = cfg();
+        let spec = &c.units["gunboat"];
+        let y = Unit::riding_y(spec, 0.0);
+        let mut u = Unit::new(1, "gunboat", spec, Vec3::new(0.0, y, 0.0), 0.0, 0);
+        let far = Vec3::new(spec.fire_range_m * 3.0, 0.0, 0.0);
+        run_at_sea(&mut u, spec, far, &deep_sea, 20.0);
+        assert!(Vec2::new(u.pos.x, u.pos.z).length() < 1.0, "held station: {:?}", u.pos);
+        let near = Vec3::new(spec.fire_range_m * 1.5, 0.0, 0.0);
+        let steps = run_at_sea(&mut u, spec, near, &deep_sea, 240.0);
+        let r = Vec2::new(u.pos.x - near.x, u.pos.z - near.z).length();
+        assert!((r - spec.standoff_m).abs() < spec.standoff_m * 0.5, "circling at its standoff: {r}");
+        assert!(steps.iter().any(|s| s.fire.is_some()), "its turret fires");
+        assert!((u.pos.y - y).abs() < 1e-4, "rides the sea");
+    }
+
+    #[test]
+    fn a_gunboat_keeps_off_the_shallows() {
+        let c = cfg();
+        let spec = &c.units["gunboat"];
+        // Land east of x = 200 m: its target sits on the beach.
+        let coast = |x: f32, _: f32| if x > 200.0 { 5.0 } else { -60.0 };
+        let mut u = Unit::new(1, "gunboat", spec, Vec3::new(-400.0, Unit::riding_y(spec, 0.0), 0.0), 0.0, 0);
+        for _ in 0..300 {
+            run_at_sea(&mut u, spec, Vec3::new(260.0, 5.0, 0.0), &coast, 1.0);
+            assert!(u.pos.x <= 200.0, "aground at {:?}", u.pos);
+        }
     }
 }

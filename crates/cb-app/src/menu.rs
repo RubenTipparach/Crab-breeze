@@ -1028,7 +1028,12 @@ fn mail_page(p: &mut ChildSpawnerCommands, c: &cb_core::career::Career) {
         cb_core::jobs::JobKind::Defend => "Defend",
         cb_core::jobs::JobKind::Intercept => "Intercept",
         cb_core::jobs::JobKind::Destroy => "Destroy",
+        cb_core::jobs::JobKind::Escort => "Escort",
+        cb_core::jobs::JobKind::Raid => "Sink the gunboats",
+        cb_core::jobs::JobKind::Blockade => "Clear the blockade",
     };
+    // A shipping job's enemies are gunboats (harbours).
+    let foes = |k: cb_core::jobs::JobKind| if k.at_sea() { "gunboats" } else { "mechs" };
     match c.board.current() {
         Some(j) => {
             let m = (j.clock_s / 60.0).floor();
@@ -1036,11 +1041,12 @@ fn mail_page(p: &mut ChildSpawnerCommands, c: &cb_core::career::Career) {
             let state = if j.state == JobState::Active { "UNDER WAY" } else { "ACCEPTED" };
             p.spawn(label(
                 &format!(
-                    "{state}: TIER {} {} City {}, {} mechs, {} credits, {m:.0}:{s:02.0} left",
+                    "{state}: TIER {} {} City {}, {} {}, {} credits, {m:.0}:{s:02.0} left",
                     j.tier,
                     what(j.kind),
                     j.city + 1,
                     j.mechs,
+                    foes(j.kind),
                     j.pay
                 ),
                 24.0,
@@ -1076,11 +1082,12 @@ fn mail_page(p: &mut ChildSpawnerCommands, c: &cb_core::career::Career) {
                 },
                 label(
                     &format!(
-                        "{subject}\nTIER {}  {} City {}, {} mechs, {} credits, base {} standing {}",
+                        "{subject}\nTIER {}  {} City {}, {} {}, {} credits, base {} standing {}",
                         j.tier,
                         what(j.kind),
                         j.city + 1,
                         j.mechs,
+                        foes(j.kind),
                         j.pay,
                         j.base + 1,
                         c.standing_at(j.base)

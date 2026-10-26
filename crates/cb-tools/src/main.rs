@@ -5,6 +5,7 @@
 mod audio_check;
 mod glb;
 mod map;
+mod ships;
 
 use cb_core::GameData;
 use std::path::PathBuf;
@@ -152,9 +153,21 @@ fn main() -> ExitCode {
                 }
             }
         }
+        // A measurement instrument (openspec change `harbours`, design section 11): a seed's harbours, lanes and
+        // timetable, how long they take to lay out, and what the boats cost a fixed step round each harbour.
+        Some("ships") => {
+            let seed = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(42);
+            match ships::report(seed) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(e) => {
+                    eprintln!("FAIL {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         _ => {
             eprintln!(
-                "usage: cb-tools validate [data dir] | cb-tools cities [seed] | cb-tools map [seed] [out.ppm] [pixels] [centre x] [centre z] [span m]"
+                "usage: cb-tools validate [data dir] | cb-tools cities [seed] | cb-tools map [seed] [out.ppm] [pixels] [centre x] [centre z] [span m] | cb-tools ships [seed]"
             );
             ExitCode::FAILURE
         }

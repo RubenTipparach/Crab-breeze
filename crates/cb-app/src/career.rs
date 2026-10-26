@@ -391,6 +391,7 @@ pub fn buy_mech(
                 let bonus = run.career.pay_bonuses(centres.len(), &run.data.career);
                 let offers = cb_core::jobs::Offers {
                     sites: &sites,
+                    harbours: &[],
                     bases: &centres,
                     max_tier: tier,
                     bonus: &bonus,
@@ -493,6 +494,7 @@ fn step_jobs(
     let bonus = run.career.pay_bonuses(centres.len(), &run.data.career);
     let offers = cb_core::jobs::Offers {
         sites: &sites,
+        harbours: &[],
         bases: &centres,
         max_tier: max_tier(run),
         bonus: &bonus,
