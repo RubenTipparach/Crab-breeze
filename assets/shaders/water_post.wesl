@@ -28,6 +28,9 @@ struct WaterPost {
     fog_sun: vec4<f32>,    // rgb the sun's light the fog scatters (storm shade in it)
     fog_sun_dir: vec4<f32>, // xyz toward the sun
     fog_map: vec4<f32>,    // x the mist map's least corner m, y its cell m, z cells a side
+    glass: vec4<f32>,      // seated: xyz the interior's origin, world m; w window triangles in `panes` (0 on foot)
+    glass_look: vec4<f32>, // x metres of pane to one unit of the drop pattern
+    panes: array<vec4<f32>, 96>, // the window triangles' corners, world m, three a triangle
 }
 
 struct FullscreenVertexOutput {
@@ -232,6 +235,54 @@ fn refract_through_drops(uv: vec2<f32>, drop_uv: vec2<f32>, t: f32, l0: f32, l1:
     return vec4<f32>(refracted, clamp(c.x, 0.0, 1.0));
 }
 
+// Where the view along `dir` crosses the nearest window pane: xy the point in the pane's own plane
+// (metres from the interior's origin, x across, y up the pane, so drops run down it), z 1 on a pane
+// and 0 through none.
+fn pane_uv(dir: vec3<f32>) -> vec3<f32> {
+    let eye = post.camera.xyz;
+    let count = min(u32(post.glass.w + 0.5), 32u);
+    var best = 1.0e9;
+    var out = vec3<f32>(0.0);
+    for (var i = 0u; i < count; i++) {
+        let a = post.panes[i * 3u].xyz;
+        let b = post.panes[i * 3u + 1u].xyz;
+        let c = post.panes[i * 3u + 2u].xyz;
+        let n = cross(b - a, c - a);
+        let facing = dot(n, dir);
+        if (abs(facing) < 1e-9) {
+            continue;
+        }
+        let t = dot(n, a - eye) / facing;
+        if (t <= 0.0 || t >= best) {
+            continue;
+        }
+        let p = eye + dir * t;
+        // Inside: on the same side of all three edges.
+        let s0 = dot(cross(b - a, p - a), n);
+        let s1 = dot(cross(c - b, p - b), n);
+        let s2 = dot(cross(a - c, p - c), n);
+        if (!((s0 >= 0.0 && s1 >= 0.0 && s2 >= 0.0) || (s0 <= 0.0 && s1 <= 0.0 && s2 <= 0.0))) {
+            continue;
+        }
+        best = t;
+        // The pane's frame from its plane alone, so the two triangles of a quad (and every pane in
+        // one plane) share it: across is level, up runs up the pane.
+        let nn = normalize(n);
+        var across = cross(vec3<f32>(0.0, 1.0, 0.0), nn);
+        if (length(across) < 0.1) {
+            across = cross(vec3<f32>(1.0, 0.0, 0.0), nn);
+        }
+        across = normalize(across);
+        var up = cross(nn, across);
+        if (up.y < 0.0) {
+            up = -up;
+        }
+        let q = p - post.glass.xyz;
+        out = vec3<f32>(dot(q, across), dot(q, up), 1.0);
+    }
+    return out;
+}
+
 @fragment
 fn lens(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let uv = in.uv;
@@ -256,6 +307,15 @@ fn lens(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let size = vec2<f32>(textureDimensions(scene_color));
     var drop_uv = vec2<f32>(uv.x - 0.5, 0.5 - uv.y);
     drop_uv.x *= max(size.x / max(size.y, 1.0), 0.1);
+    // Seated, the drops are on the window panes, not on the eye: laid in the plane of the pane the
+    // view crosses, so they stay on the glass as the head turns (owner, 2026-10-25: "the rain drops
+    // on the cocpit are not projected to the panes of window correctly, they are projected into
+    // camera space"). A pixel through no pane gets none.
+    if (post.glass.w > 0.5) {
+        let on_pane = pane_uv(view_direction(uv));
+        glass *= on_pane.z;
+        drop_uv = on_pane.xy / max(post.glass_look.x, 0.01);
+    }
     drop_uv *= max(post.lens_fx.z, 0.05);
     let t = post.camera.w * 0.2 * post.lens.z;
     // Rain on the glass (gated off until weather exists).

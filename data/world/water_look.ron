@@ -58,6 +58,9 @@
     lens_size: 0.7,
     lens_scale: 2.0,
     lens_rain: 0.0,
+    // Seated, the drops lie on each window pane: metres of pane to one unit of the drop pattern
+    // (about the screen height a pane a metre away fills at the 85 degree view).
+    lens_pane_m: 1.8,
     // Rain on the glass flying through cloud (openspec/changes/cloud-rain): drops at up to this
     // strength at a cloud's heart, wetting through in cloud_wet_s and clearing in cloud_dry_s.
     cloud_rain: 0.85,
