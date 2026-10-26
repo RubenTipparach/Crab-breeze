@@ -1,0 +1,174 @@
+{
+ "_comment": "Written by tools/blender/build_people.py from tools/blender/people.json (openspec/changes/people-vat); never edited by hand. Rows are rows of each level's texture.",
+ "bake_fps": 24,
+ "bodies": [
+  {
+   "glb": "man.glb",
+   "glb_sha256": "826f3a1d39e02c9b3b7c82c0f460cabdb748ab264b39b0722e4cc7e9e7ed6083",
+   "height_m": 1.7473,
+   "id": "man",
+   "levels": [
+    {
+     "bounds_max": [
+      0.67245,
+      1.93264,
+      1.63652
+     ],
+     "bounds_min": [
+      -0.49446,
+      -0.09238,
+      -0.68735
+     ],
+     "budget_triangles": 16000,
+     "bytes": 21972348,
+     "file": "man_near.vat",
+     "name": "near",
+     "rows": 324,
+     "sha256": "8cc3ecf74a746171e34ed41748e58224719204c3b09265ff3c7ded36c1f0e74b",
+     "triangles": 15772,
+     "vertices": 8391
+    },
+    {
+     "bounds_max": [
+      0.67448,
+      1.93053,
+      1.63345
+     ],
+     "bounds_min": [
+      -0.48644,
+      -0.09299,
+      -0.68344
+     ],
+     "budget_triangles": 1000,
+     "bytes": 1601800,
+     "file": "man_crowd.vat",
+     "name": "crowd",
+     "rows": 324,
+     "sha256": "26cc93c6d4829f31bdf0f0952108896bffc3ad0018937868ea56ab912c72ecf9",
+     "triangles": 867,
+     "vertices": 613
+    }
+   ],
+   "sex": "male",
+   "sitting_pelvis_m": 0.5539,
+   "standing_pelvis_m": 0.9376
+  },
+  {
+   "glb": "woman.glb",
+   "glb_sha256": "eb55d7d19496dfc8ed99cc18f8b63eb6ded9797f166f3b8d7798d31a7b5cdfce",
+   "height_m": 1.7457,
+   "id": "woman",
+   "levels": [
+    {
+     "bounds_max": [
+      0.59655,
+      1.91467,
+      1.58943
+     ],
+     "bounds_min": [
+      -0.43318,
+      -0.0672,
+      -0.67267
+     ],
+     "budget_triangles": 16000,
+     "bytes": 20823604,
+     "file": "woman_near.vat",
+     "name": "near",
+     "rows": 324,
+     "sha256": "130ea8b1912e020e5011fc5eb0745533106cfc71d322e0124e7efa630602d03c",
+     "triangles": 13932,
+     "vertices": 7957
+    },
+    {
+     "bounds_max": [
+      0.59877,
+      1.91358,
+      1.58967
+     ],
+     "bounds_min": [
+      -0.43104,
+      -0.06862,
+      -0.67024
+     ],
+     "budget_triangles": 1000,
+     "bytes": 1600576,
+     "file": "woman_crowd.vat",
+     "name": "crowd",
+     "rows": 324,
+     "sha256": "5ef9d825f2d0f72626b0acaf83fef560ee7b27c65e531663cc864c2928e5978b",
+     "triangles": 765,
+     "vertices": 613
+    }
+   ],
+   "sex": "female",
+   "sitting_pelvis_m": 0.5473,
+   "standing_pelvis_m": 0.9264
+  }
+ ],
+ "clips": [
+  {
+   "fps": 24.0,
+   "frames": 60,
+   "loop": true,
+   "name": "idle",
+   "row": 0
+  },
+  {
+   "fps": 24.0,
+   "frames": 32,
+   "loop": true,
+   "name": "walk",
+   "row": 60,
+   "speed_m_s_by_body": {
+    "man": 0.9513,
+    "woman": 0.9301
+   }
+  },
+  {
+   "fps": 24.0,
+   "frames": 16,
+   "loop": true,
+   "name": "run",
+   "row": 92,
+   "speed_m_s_by_body": {
+    "man": 3.7124,
+    "woman": 3.6143
+   }
+  },
+  {
+   "fps": 24.0,
+   "frames": 40,
+   "loop": true,
+   "name": "sit",
+   "row": 108
+  },
+  {
+   "fps": 24.0,
+   "frames": 48,
+   "loop": true,
+   "name": "wave",
+   "row": 148
+  },
+  {
+   "fps": 23.863636,
+   "frames": 70,
+   "loop": true,
+   "name": "talk",
+   "row": 196
+  },
+  {
+   "fps": 23.749999,
+   "frames": 58,
+   "loop": false,
+   "name": "fall",
+   "row": 266
+  }
+ ],
+ "regions": [
+  "skin",
+  "top",
+  "bottom",
+  "shoes",
+  "hair"
+ ]
+}

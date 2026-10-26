@@ -76,6 +76,13 @@ const POSES: usize = 4;
 const STAND: usize = 0;
 const SIT: usize = 3;
 
+/// The stand-ins' walk changes pose every half of this stride, m.
+const STRIDE_M: f32 = 1.4;
+/// Within this the low figure, beyond it the card, m.
+const MID_M: f32 = 250.0;
+/// The merged crowd is rebuilt this often, Hz.
+const CROWD_REFRESH_HZ: f32 = 30.0;
+
 /// The figures are modelled 1.75 m tall and scaled to each person's height.
 const MODEL_HEIGHT_M: f32 = 1.75;
 
@@ -525,12 +532,12 @@ fn spawn_benches(
 }
 
 /// The pose a near body takes: lying, sitting, a stride by the distance walked, or standing.
-fn pose_of(p: &Person, time_s: f32, draw: &DrawConfig) -> usize {
+fn pose_of(p: &Person, time_s: f32, _draw: &DrawConfig) -> usize {
     match p.activity {
         Activity::Sitting { .. } => SIT,
         _ if p.pace_m_s > 0.2 => {
             // the stride by how far they have come, offset by who they are so a crowd is not in step
-            let phase = (time_s * p.pace_m_s / (draw.stride_m * 0.5) + (p.look % 97) as f32 * 0.37) as i64;
+            let phase = (time_s * p.pace_m_s / (STRIDE_M * 0.5) + (p.look % 97) as f32 * 0.37) as i64;
             [1, STAND, 2, STAND][phase.rem_euclid(4) as usize]
         }
         _ => STAND,
@@ -551,7 +558,7 @@ fn body_transform(p: &Person) -> Transform {
 
 /// Everyone past the near distance into one mesh: a low three-box figure within `mid_m` of the eye, a
 /// card facing the eye beyond. Those drawn near are in `skip`.
-fn crowd_mesh(people: &[Person], skip: &[bool], eye: Vec3, draw: &DrawConfig) -> MeshBuilder {
+fn crowd_mesh(people: &[Person], skip: &[bool], eye: Vec3, _draw: &DrawConfig) -> MeshBuilder {
     let mut m = MeshBuilder::default();
     for (p, near) in people.iter().zip(skip) {
         if *near {
@@ -560,7 +567,7 @@ fn crowd_mesh(people: &[Person], skip: &[bool], eye: Vec3, draw: &DrawConfig) ->
         let pal = &PALETTES[(p.look as usize) % PALETTES.len()];
         let t = body_transform(p);
         let d = eye.distance(p.feet());
-        if d <= draw.mid_m {
+        if d <= MID_M {
             let corner = |v: Vec3| t.transform_point(v);
             let mut boxed = |lo: Vec3, hi: Vec3, c: [f32; 4]| {
                 let v = |x: f32, y: f32, z: f32| corner(Vec3::new(x, y, z));
@@ -633,7 +640,7 @@ fn draw_people(
     let near_set = list.iter().zip(&skip).filter(|(_, n)| **n).fold((0usize, 0u64), |(n, h), (p, _)| {
         (n + 1, h.wrapping_mul(31).wrapping_add(u64::from(p.id)))
     });
-    if now - last_crowd.0 >= 1.0 / draw.crowd_refresh_hz || now < last_crowd.0 || near_set != last_crowd.1 {
+    if now - last_crowd.0 >= 1.0 / CROWD_REFRESH_HZ || now < last_crowd.0 || near_set != last_crowd.1 {
         *last_crowd = (now, near_set);
         let _s = crate::perf_hud::section("people: crowd mesh");
         meshes.insert(&bodies.crowd, crowd_mesh(list, &skip, eye, draw).build()).ok();
@@ -686,7 +693,7 @@ mod tests {
             ms.push(t.elapsed().as_secs_f64() * 1000.0);
         }
         ms.sort_by(f64::total_cmp);
-        let mid = list.iter().filter(|p| p.feet().distance(eye) <= draw.mid_m).count();
+        let mid = list.iter().filter(|p| p.feet().distance(eye) <= MID_M).count();
         eprintln!(
             "{} people ({mid} mid, {} far): crowd mesh p50 {:.3} ms, p95 {:.3} ms, {} vertices",
             list.len(),

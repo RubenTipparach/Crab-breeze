@@ -10,6 +10,7 @@
 //! depends on frame timing or on another person. People are kept in a list in the order they were
 //! brought in, and every step walks it in that order.
 
+pub mod anim;
 pub mod config;
 pub mod lines;
 pub mod routes;

@@ -79,22 +79,22 @@ pub struct PeopleConfig {
     pub draw: DrawConfig,
 }
 
-/// How people are drawn (design section 2): the full body near the eye, a low figure in the middle
-/// distance, a flat card far off.
+/// How people are drawn (openspec change `people-vat`): the near level of detail within `near_m` of the
+/// eye, the crowd level beyond, both played from the baked clips.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct DrawConfig {
-    /// Within this of the eye a person is drawn as the full body.
+    /// Within this of the eye a person is drawn at the near level of detail.
     pub near_m: f32,
-    /// ... and at most this many of them (the nearest first in list order past it).
+    /// ... and at most this many of them (the first in list order past it take the crowd level).
     pub near_max: usize,
-    /// Within this, the low figure; beyond it, the card.
-    pub mid_m: f32,
-    /// A walker's stride: the walk's poses change every half stride.
-    pub stride_m: f32,
-    /// The crowd past the near distance is rebuilt this often (a person at 1.5 m/s moves 5 cm between
-    /// rebuilds at 30 Hz, too little to see past 60 m).
-    pub crowd_refresh_hz: f32,
+    /// A change of clip fades from the old one over this.
+    pub crossfade_s: f32,
+    /// A greeting waves this long, then talks.
+    pub wave_s: f32,
+    /// A walk or run plays at the body's pace over the clip's own speed, kept within this (least,
+    /// most), so feet keep to the ground without a stride turning into a shuffle or a blur.
+    pub cadence: [f32; 2],
 }
 
 impl Default for DrawConfig {
@@ -102,9 +102,9 @@ impl Default for DrawConfig {
         Self {
             near_m: 60.0,
             near_max: 200,
-            mid_m: 250.0,
-            stride_m: 1.4,
-            crowd_refresh_hz: 30.0,
+            crossfade_s: 0.25,
+            wave_s: 2.0,
+            cadence: [0.5, 1.8],
         }
     }
 }
@@ -188,12 +188,9 @@ impl Validate for PeopleConfig {
         within("greet_cone_deg", self.greet_cone_deg, 1.0, 180.0)?;
         positive("greet_hold_s", self.greet_hold_s)?;
         positive("draw.near_m", self.draw.near_m)?;
-        positive("draw.mid_m", self.draw.mid_m)?;
-        positive("draw.stride_m", self.draw.stride_m)?;
-        positive("draw.crowd_refresh_hz", self.draw.crowd_refresh_hz)?;
-        if self.draw.mid_m < self.draw.near_m {
-            return Err("`draw.mid_m` must be at least `draw.near_m`".into());
-        }
+        positive("draw.crossfade_s", self.draw.crossfade_s)?;
+        positive("draw.wave_s", self.draw.wave_s)?;
+        positive_range("draw.cadence", self.draw.cadence)?;
         Ok(())
     }
 }

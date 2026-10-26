@@ -10,6 +10,8 @@ rust-version.workspace = true
 glam.workspace = true
 serde.workspace = true
 ron.workspace = true
+# The people bake manifest is JSON, as every model manifest the Blender builds write (people-vat).
+serde_json = "1"
 
 [lints]
 workspace = true
