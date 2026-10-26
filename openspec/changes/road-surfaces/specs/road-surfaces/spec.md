@@ -13,3 +13,10 @@ A road's colour SHALL be its kind's tone times a factor from smooth noise of its
 #### Scenario: Two points far apart on one street
 - **WHEN** the tint is read at two points 100 m apart
 - **THEN** both are within `tint_amount` of the tone, and two points 10 cm apart differ by almost nothing
+
+### Requirement: Lanes carry tyre tracks and the odd patch repair
+Every whole lane of a road SHALL carry two tyre tracks that darken it toward their middles, and about `patch_chance` of lane cells SHALL be drawn as patch repairs in the other asphalt set, chosen by a stable hash of the place and never outside a lane.
+
+#### Scenario: A 24 m street
+- **WHEN** a 24 m street is laid with 3.5 m lanes
+- **THEN** it has three lanes a side, twelve tyre tracks, and the kerbside strips carry no patch

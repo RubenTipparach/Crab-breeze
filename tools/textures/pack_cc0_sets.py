@@ -38,6 +38,14 @@ SET_LISTS = {
 }
 # Sets whose colour varies so much that the tint would come out speckled: grey them by this much.
 DESATURATE = {"leaves": 0.8}
+# Sets whose photo is too even to read under a dark tone: the colour map's deviation from its mean is
+# multiplied by this (road-surfaces, 2026-10-26: the asphalt "reads as a flat, uniform navy blue").
+CONTRAST = {"asphalt": 2.2, "asphalt_worn": 1.6}
+# Sets whose roughness is moved to (mean, gain): dry asphalt is rougher than the photo's 0.69, which
+# mirrored the blue sky at a glancing view; the gain keeps more of its variation.
+ROUGHNESS = {"asphalt": (0.88, 3.0), "asphalt_worn": (0.86, 2.0)}
+# Sets whose normal map is steepened: x and y are multiplied by this, then renormalised.
+NORMAL_GAIN = {"asphalt": 1.8, "asphalt_worn": 1.5}
 
 
 def map_of(src: Path, set_id: str, kind: str):
@@ -57,13 +65,29 @@ def main(src: Path, out: Path, sheets: Path):
         if grey:
             luma = albedo @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
             albedo = albedo * (1.0 - grey) + luma[..., None] * grey
+        k = CONTRAST.get(name, 1.0)
+        if k != 1.0:
+            mean = albedo.reshape(-1, 3).mean(axis=0)
+            albedo = np.clip(mean + (albedo - mean) * k, 0.0, 1.0)
         Image.fromarray((albedo * 255 + 0.5).astype(np.uint8)).save(dest / "albedo.jpg", quality=92)
-        map_of(src, set_id, "NormalGL").convert("RGB").save(dest / "normal_gl.png")
+        normal = map_of(src, set_id, "NormalGL").convert("RGB")
+        gain = NORMAL_GAIN.get(name, 1.0)
+        if gain != 1.0:
+            n = np.asarray(normal, dtype=np.float32) / 255.0 * 2.0 - 1.0
+            n[..., :2] *= gain
+            n /= np.maximum(np.linalg.norm(n, axis=-1, keepdims=True), 1e-6)
+            normal = Image.fromarray(((n * 0.5 + 0.5) * 255 + 0.5).astype(np.uint8))
+        normal.save(dest / "normal_gl.png")
         size = albedo.shape[1], albedo.shape[0]
         ao = map_of(src, set_id, "AmbientOcclusion")
         metal = map_of(src, set_id, "Metalness")
         r = ao.convert("L") if ao else Image.new("L", size, 255)
         g = map_of(src, set_id, "Roughness").convert("L")
+        if name in ROUGHNESS:
+            target, gain = ROUGHNESS[name]
+            rough = np.asarray(g, dtype=np.float32) / 255.0
+            rough = np.clip(target + (rough - rough.mean()) * gain, 0.0, 1.0)
+            g = Image.fromarray((rough * 255 + 0.5).astype(np.uint8))
         b = metal.convert("L") if metal else Image.new("L", size, 0)
         Image.merge("RGB", (r, g, b)).save(dest / "orm.png")
         tile = Image.open(dest / "albedo.jpg")

@@ -10,6 +10,7 @@
 - Made by `tools/textures/pack_cc0_sets.py`:
   - `albedo.jpg`: the colour map scaled per channel so it averages 0.8 (sRGB): the road's vertex
     colour sets the tone, the map adds the detail.
+  - 2026-10-26, after the first look in the game ("a flat, uniform navy blue"): contrast x2.2 about its mean; roughness moved to a mean of 0.88 with its variation x3.0 (the photo's 0.69 mirrored the blue sky at a glancing view); normal map x and y x1.8, renormalised.
   - `normal_gl.png`: the OpenGL (Y up) normal map as it came.
   - `orm.png`: packed the glTF way, R ambient occlusion, G roughness, B metalness (black: the set
     has none).
