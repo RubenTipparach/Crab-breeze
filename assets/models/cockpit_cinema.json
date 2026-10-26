@@ -46,7 +46,7 @@
     ],
     "z": [
       -0.79,
-      3.296
+      3.309
     ]
   },
   "doorway_m": {
@@ -147,32 +147,32 @@
       "parent": "INNER_door_1",
       "pivot_m": [
         0.0,
-        0.74,
-        0.65
+        0.6869,
+        0.553
       ]
     },
     "SCREEN_left": {
       "parent": "CONSOLE_front",
       "pivot_m": [
         0.0,
-        0.74,
-        0.65
+        0.6869,
+        0.553
       ]
     },
     "SCREEN_center": {
       "parent": "CONSOLE_front",
       "pivot_m": [
         0.0,
-        0.74,
-        0.65
+        0.6869,
+        0.553
       ]
     },
     "SCREEN_right": {
       "parent": "CONSOLE_front",
       "pivot_m": [
         0.0,
-        0.74,
-        0.65
+        0.6869,
+        0.553
       ]
     },
     "HUD_mfd_0": {
@@ -202,7 +202,7 @@
   },
   "meshes": {
     "CONSOLE_front_front": {
-      "tris": 8304,
+      "tris": 8700,
       "group": "front",
       "node": "CONSOLE_front"
     },
@@ -237,7 +237,7 @@
       "node": "INNER_door_1"
     },
     "INNER_door_1_cabin": {
-      "tris": 1034,
+      "tris": 9170,
       "group": "cabin",
       "node": "INNER_door_1"
     },
@@ -274,7 +274,7 @@
   },
   "vents": 7,
   "lights": 6,
-  "tris": 23540,
+  "tris": 32072,
   "tri_budget": 600000,
   "draw_calls": 14,
   "atlases": {
@@ -318,5 +318,5 @@
     "wall_L",
     "wall_R"
   ],
-  "bytes": 12880773
+  "bytes": 15023310
 }

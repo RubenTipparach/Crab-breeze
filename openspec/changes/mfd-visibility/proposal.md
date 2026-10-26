@@ -20,7 +20,7 @@ Cab's hung ones 44 %, the Canopy's dash ones 44-56 %; even the Panorama's are 89
   face the eye, and brought nearer (and smaller by the same share) where a cabin is too shallow to hold them. All six then lie wholly inside the 95 degree view and outside the fighting band (10 degrees under the
   eye line to 20 over, `cockpit-identity`), and each looks square.
 - **The dash screens stand on a pod above a lower dash**, the owner's "bulge over the dash": the dash body drops
-  below the screens, so its top and the glare shield no longer cover them; a hood curves over each screen.
+  below the screens, so its top and the glare shield no longer cover them; nothing stands over a screen.
 - **The hung screens hang on stalks from the roof** at their angle, in front of the front screen.
 - **Checked by the instrument**: every screen 100 % visible, its aspect within 0.9-1.2, in all eight cockpits; and the
   fighting band still 25 % hidden at most.
