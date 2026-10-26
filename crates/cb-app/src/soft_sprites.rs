@@ -409,6 +409,7 @@ fn draw(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let Some(draw) = draw else { return };
+    let _s = crate::perf_hud::section("soft sprites: sort and mesh");
     let quads = sorted_quads(&sprites.parts, camera.translation(), camera.forward().as_vec3());
     if let Some(mut mesh) = meshes.get_mut(&draw.mesh) {
         *mesh = sprite_mesh(&quads);

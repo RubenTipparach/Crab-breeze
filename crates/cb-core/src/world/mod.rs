@@ -15,11 +15,13 @@ pub mod deform;
 pub mod destruct;
 pub mod door;
 pub mod dressing;
+pub mod far_facade;
 pub mod forest;
 pub mod grid;
 pub mod hydrology;
 pub mod interior;
 pub mod island;
+pub mod lanes;
 pub mod layout;
 pub mod lod;
 pub mod mist;
@@ -95,7 +97,7 @@ pub struct Scene<'a> {
     pub trees: Option<&'a Forest>,
     /// Buildings as they stand now; `None` means every building is whole.
     pub structures: Option<&'a Structures>,
-    /// Moving surfaces bodies stand on (the Hermit's deck: `platform`); empty for none.
+    /// Moving surfaces bodies stand on (the Stratostacean's deck: `platform`); empty for none.
     pub platforms: &'a [Platform],
     /// The detailed colliders of buildings near a pilot on foot (`interior::Interiors`); `None` for
     /// everything else (the mech, shells, debris), which meets buildings as their cells. Read only
@@ -436,6 +438,9 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         .iter()
         .map(|c| (c.rect(), c.ground_m))
         .chain(bases.iter().map(|b| (b.rect(), b.ground_m)))
+        // each base's runway and taxiway, flattened to its site's ground (survey W45)
+        .chain(bases.iter().map(|b| (b.runway.rect(), b.ground_m)))
+        .chain(bases.iter().map(|b| (b.runway.taxiway(&b.rect()), b.ground_m)))
         .collect();
     let keep_out: Vec<layout::Rect> = plateaus.iter().map(|p| p.0).collect();
     let flats = Flats::new(&plateaus, &highways, cfg);

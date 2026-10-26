@@ -1,0 +1,62 @@
+// Car traffic (openspec/changes/car-traffic/design.md). Units in the keys.
+(
+    // 1980s civilian cars, no real brands (survey J7); each is data/cars/<kind>.ron.
+    kinds: ["sedan", "wagon", "pickup", "van", "taxi", "bus", "semi"],
+    lanes: (
+        // Traffic keeps to the right. A 24 m street has one lane each way 3.5 m from its centre line;
+        // a 36 m arterial and a 28 m highway have two each way.
+        street_offsets_m: [3.5],
+        arterial_offsets_m: [3.5, 7.0],
+        highway_offsets_m: [3.5, 7.0],
+        // two paths across one junction that pass within this are never used at once
+        conflict_m: 2.5,
+        parked_in_from_edge_m: 2.5,
+    ),
+    // Moderate traffic (survey J6): a car every 60 m of lane in cities and every 300 m on highways,
+    // within 1.5 km.
+    city_spacing_m: 60.0,
+    highway_spacing_m: 300.0,
+    parked_spacing_m: 90.0,
+    spawn_within_m: 1500.0,
+    despawn_beyond_m: 2000.0,
+    hidden_beyond_m: 400.0,
+    spawn_per_step: 4,
+    // Each driver's own cruising speed: 40-60 km/h in town, 90-110 on highways.
+    city_speed_km_h: (40.0, 60.0),
+    highway_speed_km_h: (90.0, 110.0),
+    turn_speed_km_h: 20.0,
+    turn_from_deg: 20.0,
+    // The intelligent driver model, keeping a 2 s gap.
+    idm_accel_m_s2: 1.5,
+    idm_brake_m_s2: 2.5,
+    gap_s: 2.0,
+    min_gap_m: 2.5,
+    max_brake_m_s2: 9.0,
+    lookahead_m: 150.0,
+    approach_m: 30.0,
+    stop_short_m: 1.0,
+    // The fight: within 120 m of a blast or 60 m of a moving mech a driver brakes at 7 m/s2 and
+    // stays stopped 20-40 s.
+    fear_blast_m: 120.0,
+    fear_mech_m: 60.0,
+    mech_moving_m_s: 0.5,
+    fear_brake_m_s2: 7.0,
+    fear_stop_s: (20.0, 40.0),
+    push_speed_m_s: 6.0,
+    push_damage: 0.4,
+    foot_crush_radius_m: 2.5,
+    // a 4 MJ shell (120 mm) sets cars alight within about 6.3 m
+    blast_burn_m_per_cbrt_mj: 4.0,
+    burn_s: 120.0,
+    wreck_life_s: 600.0,
+    runner_speed_m_s: 5.0,
+    runner_life_s: 40.0,
+    // 1980s traffic lights where an arterial meets at least two other roads (survey W39, owner 2026-10-26:
+    // "Lights on the arterials"); every other junction takes turns by arrival. The two phases take turns: green,
+    // amber, then red both ways for a moment, about a minute round.
+    lights: (
+        green_s: 24.0,
+        amber_s: 3.0,
+        all_red_s: 2.0,
+    ),
+)

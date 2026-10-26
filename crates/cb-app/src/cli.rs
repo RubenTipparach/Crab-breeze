@@ -17,7 +17,7 @@ pub struct Args {
     pub mech: String,
     /// Capture instrument output directory (`pilot-boarding` design section 4).
     pub stills: Option<PathBuf>,
-    /// Play a mission yourself (`defence`; `fortress`: free roam with the Hermit running).
+    /// Play a mission yourself (`defence`; `fortress`: free roam with the Stratostacean running).
     pub mission: Option<String>,
     /// Play a showcase take (`world`, `fight`, `defence`, `marks` or `sun`) for a recording.
     pub showcase: Option<String>,

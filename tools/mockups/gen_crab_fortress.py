@@ -14,7 +14,7 @@ The fortress is built in the page from primitives: it is the low-poly block-out 
 before the Blender model is made (CLAUDE.md section 1). It is painted the mechs' way: the plating kit
 (tools/textures/gen_mech_plating.mjs, assets/textures/mech): armour designed for this hull, each sheet laid out
 against the fortress's features in tools/mockups/fortress_layout.json (which the page also builds from), never
-tiled; tinted by the `hermit` palette in tools/blender/mech_palettes.py: orange, dark orange, grey and red. The maps are inlined at 512 px as JPEG to keep the page small; the game loads the 1024 px PNGs.
+tiled; tinted by the `stratostacean` palette in tools/blender/mech_palettes.py: orange, dark orange, grey and red. The maps are inlined at 512 px as JPEG to keep the page small; the game loads the 1024 px PNGs.
 Two friendly mechs fly round it (Stevedore and Ironhorse block-outs) and draw its fire.
 """
 import base64
@@ -76,7 +76,7 @@ def main():
     for a in ALLIES:
         models[a] = entry(humans[a])
     tex = {t: texture(t) for t in TEXTURES}
-    palette = {k: srgb_hex(v) for k, v in PALETTES["hermit"].items()}
+    palette = {k: srgb_hex(v) for k, v in PALETTES["stratostacean"].items()}
     with open(SRC) as f:
         page = f.read()
     if "__MODELS__" not in page:

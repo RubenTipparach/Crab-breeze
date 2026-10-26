@@ -47,8 +47,25 @@ struct NodeDraw {
     /// Its mesh is built (and current unless `stale`).
     ready: bool,
     job: Option<Task<Mesh>>,
+    /// The crater tiles the building mesh leaves holes for.
+    job_holes: BTreeSet<(i32, i32)>,
+    /// A finished mesh and its holes, waiting for its new crater tiles (`deform::patch_swap`).
+    pending: Option<(Mesh, BTreeSet<(i32, i32)>)>,
     /// Craters were dug in it since its mesh was started.
     stale: bool,
+}
+
+impl NodeDraw {
+    fn new(entity: Entity, ready: bool) -> Self {
+        Self {
+            entity,
+            ready,
+            job: None,
+            job_holes: BTreeSet::new(),
+            pending: None,
+            stale: false,
+        }
+    }
 }
 
 /// One chunk's collider.
@@ -74,8 +91,13 @@ struct Ground {
     /// Terrain cells along a chunk's side.
     cells: usize,
     tiles: HashMap<(i32, i32), Entity>,
-    /// Crater tiles being meshed on a worker thread.
+    /// Crater tiles being meshed on a worker thread. A job is never dropped for a newer dig (a
+    /// barrage kept cancelling it, and the chunk's hole stayed open until the firing stopped).
     crater_jobs: BTreeMap<(i32, i32), Task<Mesh>>,
+    /// Tiles dug again while being meshed: meshed once more when the job in hand is done.
+    crater_stale: BTreeSet<(i32, i32)>,
+    /// New tiles meshed and waiting to go on screen with their chunk's holed mesh.
+    crater_ready: BTreeMap<(i32, i32), Mesh>,
     material: Handle<StandardMaterial>,
     /// The grass's tuning, for the ground's colour under it.
     grass: Arc<GrassConfig>,
@@ -401,6 +423,14 @@ fn crater_chunks(plan: &WorldPlan, dug: &Deformation, cells: usize, side: usize)
         .collect()
 }
 
+/// The crater tiles inside chunk `(cx, cz)`: the holes its full-detail mesh leaves.
+fn chunk_tiles(plan: &WorldPlan, dug: &Deformation, cells: usize, side: usize, cx: usize, cz: usize) -> BTreeSet<(i32, i32)> {
+    dug.tile_keys()
+        .into_iter()
+        .filter(|key| chunk_of(plan, cells, side, dug.sample_xz(*key, 0, 0) + Vec2::splat(1.0)) == Some((cx, cz)))
+        .collect()
+}
+
 /// Chunk indices whose ground lies within `r` of `p`.
 fn chunks_near(plan: &WorldPlan, cells: usize, side: usize, p: Vec2, r: f32, out: &mut BTreeSet<usize>) {
     let t = &plan.terrain;
@@ -475,15 +505,7 @@ fn spawn_ground(
                 MeshMaterial3d(material.clone()),
             ))
             .id();
-        nodes.insert(
-            *n,
-            NodeDraw {
-                entity: e,
-                ready: true,
-                job: None,
-                stale: false,
-            },
-        );
+        nodes.insert(*n, NodeDraw::new(e, true));
     }
     let mut near = BTreeSet::new();
     chunks_near(&plan, cells, side, s, cfg.terrain_lod.collider_radius_m, &mut near);
@@ -509,6 +531,8 @@ fn spawn_ground(
         cells,
         tiles: HashMap::new(),
         crater_jobs: BTreeMap::new(),
+        crater_stale: BTreeSet::new(),
+        crater_ready: BTreeMap::new(),
         material,
         grass,
     });
@@ -564,8 +588,9 @@ fn spawn_far_floor(
 }
 
 /// Rebuilds the ground where craters were dug: the finer tile on a worker thread (meshing a tile
-/// on the main thread took 56-260 ms a crater, 2026-10-24) and on screen when it is ready; its
-/// chunk (mesh and collider) through the stream.
+/// on the main thread took 56-260 ms a crater, 2026-10-24); its chunk (mesh and collider) through
+/// the stream. A finished tile already on screen is swapped at once; a new one waits in
+/// `crater_ready` for its chunk's holed mesh, and the two go up on the same frame (`stream_ground`).
 fn redraw_craters(
     mut commands: Commands,
     mut live: ResMut<Live>,
@@ -576,38 +601,37 @@ fn redraw_craters(
     let _t = crate::perf_hud::slow("redraw_craters");
     let Some(mut ground) = ground else { return };
     let ground = &mut *ground;
-    // Finished tiles on screen.
+    let (cells, side) = (ground.cells, ground.side);
     let ready: Vec<((i32, i32), Mesh)> = ground
         .crater_jobs
         .iter_mut()
         .filter_map(|(k, task)| check_ready(task).map(|m| (*k, m)))
         .collect();
+    let mut again: Vec<(i32, i32)> = Vec::new();
     for (key, mesh) in ready {
         ground.crater_jobs.remove(&key);
-        let mesh = meshes.add(mesh);
+        if ground.crater_stale.remove(&key) {
+            again.push(key);
+        }
+        let outside = chunk_of(&plan, cells, side, live.dug.sample_xz(key, 0, 0) + Vec2::splat(1.0)).is_none();
         match ground.tiles.get(&key) {
             Some(e) => {
-                commands.entity(*e).insert(Mesh3d(mesh));
+                commands.entity(*e).insert(Mesh3d(meshes.add(mesh)));
             }
+            // No chunk holds it, so nothing leaves a hole for it: up at once.
+            None if outside => show_tile(&mut commands, ground, &mut meshes, key, mesh),
             None => {
-                let e = commands
-                    .spawn((
-                        Name::new(format!("crater tile {key:?}")),
-                        Mesh3d(mesh),
-                        MeshMaterial3d(ground.material.clone()),
-                    ))
-                    .id();
-                ground.tiles.insert(key, e);
+                ground.crater_ready.insert(key, mesh);
             }
         }
     }
-    if live.dirty_tiles.is_empty() {
+    let mut keys = std::mem::take(&mut live.dirty_tiles);
+    keys.extend(again);
+    if keys.is_empty() {
         return;
     }
-    let mut keys = std::mem::take(&mut live.dirty_tiles);
     keys.sort_unstable();
     keys.dedup();
-    let (cells, side) = (ground.cells, ground.side);
     let pool = AsyncComputeTaskPool::get();
     for key in keys {
         if let Some((cx, cz)) = chunk_of(&plan, cells, side, live.dug.sample_xz(key, 0, 0) + Vec2::splat(1.0)) {
@@ -623,8 +647,12 @@ fn redraw_craters(
                 c.stale = true;
             }
         }
-        // A tile dug again while it is being meshed starts over from the newer ground (the old
-        // job is dropped, which cancels it).
+        // A tile dug again while it is being meshed is meshed once more after (the job in hand
+        // finishes and goes up first).
+        if ground.crater_jobs.contains_key(&key) {
+            ground.crater_stale.insert(key);
+            continue;
+        }
         let dug = live.dug.around(key);
         let world = plan.0.clone();
         let grass = ground.grass.clone();
@@ -656,6 +684,26 @@ fn redraw_craters(
             chunk_to_mesh(tile, colors)
         });
         ground.crater_jobs.insert(key, task);
+    }
+}
+
+/// Puts crater tile `key` on screen with `mesh`.
+fn show_tile(commands: &mut Commands, ground: &mut Ground, meshes: &mut Assets<Mesh>, key: (i32, i32), mesh: Mesh) {
+    let mesh = meshes.add(mesh);
+    match ground.tiles.get(&key) {
+        Some(e) => {
+            commands.entity(*e).insert(Mesh3d(mesh));
+        }
+        None => {
+            let e = commands
+                .spawn((
+                    Name::new(format!("crater tile {key:?}")),
+                    Mesh3d(mesh),
+                    MeshMaterial3d(ground.material.clone()),
+                ))
+                .id();
+            ground.tiles.insert(key, e);
+        }
     }
 }
 
@@ -712,12 +760,39 @@ fn stream_ground(
     let (side, cells) = (g.side, g.cells);
     let pool = AsyncComputeTaskPool::get();
 
-    // Take what has finished.
+    // Take what has finished. A mesh with holes goes up only with the crater tiles that fill
+    // them, on the same frame (`deform::patch_swap`); until then the old mesh stays drawn.
     for n in g.nodes.values_mut() {
         if let Some(mesh) = n.job.as_mut().and_then(check_ready) {
+            n.pending = Some((mesh, std::mem::take(&mut n.job_holes)));
+            n.job = None;
+        }
+    }
+    let mut up_tiles: Vec<(i32, i32)> = Vec::new();
+    for (node, n) in g.nodes.iter_mut() {
+        let Some((_, holes)) = &n.pending else { continue };
+        let Some(with) = cb_core::world::deform::patch_swap(holes, |k| g.tiles.contains_key(&k), |k| g.crater_ready.contains_key(&k))
+        else {
+            continue;
+        };
+        if let Some((mesh, holes)) = n.pending.take() {
+            if !with.is_empty() {
+                info!(
+                    "craters: chunk {},{} up with {} new crater tiles ({} holes)",
+                    node.x,
+                    node.z,
+                    with.len(),
+                    holes.len()
+                );
+            }
             commands.entity(n.entity).insert(Mesh3d(meshes.add(mesh)));
             n.ready = true;
-            n.job = None;
+        }
+        up_tiles.extend(with);
+    }
+    for key in up_tiles {
+        if let Some(mesh) = g.crater_ready.remove(&key) {
+            show_tile(&mut commands, g, &mut meshes, key, mesh);
         }
     }
     for c in g.colliders.values_mut() {
@@ -738,33 +813,38 @@ fn stream_ground(
     // Build the wanted nodes that are missing or dug, nearest first.
     let mut builds: Vec<(f32, Node)> = Vec::new();
     for l in &leaves {
-        let n = g.nodes.entry(*l).or_insert_with(|| NodeDraw {
-            entity: commands
-                .spawn((
-                    Name::new(format!("terrain {}:{},{}", l.level, l.x, l.z)),
-                    MeshMaterial3d(g.material.clone()),
-                    Visibility::Hidden,
-                ))
-                .id(),
-            ready: false,
-            job: None,
-            stale: false,
+        let n = g.nodes.entry(*l).or_insert_with(|| {
+            NodeDraw::new(
+                commands
+                    .spawn((
+                        Name::new(format!("terrain {}:{},{}", l.level, l.x, l.z)),
+                        MeshMaterial3d(g.material.clone()),
+                        Visibility::Hidden,
+                    ))
+                    .id(),
+                false,
+            )
         });
-        if n.job.is_none() && (!n.ready || n.stale) {
+        if n.job.is_none() && n.pending.is_none() && (!n.ready || n.stale) {
             builds.push((lod::eye_distance(&l.rect(&plan.terrain, cells), eye, sea), *l));
         }
     }
     builds.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
     for (_, node) in builds.into_iter().take(cfg.builds_per_frame as usize) {
-        let skip = if node.level == 0 && craters.contains(&(node.x as usize, node.z as usize)) {
-            crater_cells(&plan, &live.dug, node.x as usize, node.z as usize, cells)
+        let (cx, cz) = (node.x as usize, node.z as usize);
+        let (skip, holes) = if node.level == 0 && craters.contains(&(cx, cz)) {
+            (
+                crater_cells(&plan, &live.dug, cx, cz, cells),
+                chunk_tiles(&plan, &live.dug, cells, side, cx, cz),
+            )
         } else {
-            HashSet::new()
+            (HashSet::new(), BTreeSet::new())
         };
         let p = Arc::clone(&plan.0);
         if let Some(n) = g.nodes.get_mut(&node) {
             let grass = Arc::clone(&g.grass);
             n.job = Some(pool.spawn(async move { node_mesh(&p, &grass, node, cells, &skip) }));
+            n.job_holes = holes;
             n.stale = false;
         }
     }

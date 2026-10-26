@@ -11,8 +11,8 @@
         (
             mission: Fortress,
             from: "Island Command",
-            subject: "The Hermit is over the city",
-            body: "A crab air fortress, 420 m long, hangs 600 m over the city nearest you on eight lift thrusters. Its thrusters are plated on the outside: get under them. Lose three on one side and it opens thrusters in its hull, hit only from straight above or below. Bring it down.",
+            subject: "The Stratostacean is over the city",
+            body: "The Stratostacean, a crab air fortress 420 m long, hangs 600 m over the city nearest you on eight lift thrusters. Its thrusters are plated on the outside: get under them. Lose three on one side and it opens thrusters in its hull, hit only from straight above or below. Bring it down.",
         ),
     ],
 )

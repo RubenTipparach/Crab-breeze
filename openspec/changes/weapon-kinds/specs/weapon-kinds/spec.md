@@ -34,3 +34,17 @@ The railgun, the laser and the plasma cannon SHALL add their heat to the mech's 
 #### Scenario: A rail shot into a hot bank
 - **WHEN** the weapon heat bank stands at 0.8 and the railgun (0.35 a shot) fires
 - **THEN** the bank fills and locks, and neither the railgun, the laser nor the plasma cannon fires until the bank is back under its relight mark of 0.4
+
+### Requirement: Any mech can carry any weapon
+Every kind of weapon SHALL be loadable on any mech, the player's, a human enemy's or an alien crab's, from its loadout data, and SHALL fire through the same rules whoever carries it (survey G22, owner, 2026-10-26).
+
+#### Scenario: A crab with a laser
+- **WHEN** a crab raider's loadout names a weapon of kind `beam`
+- **THEN** it loads, the crab's pilot fires it while its aim is on and its bank is under 0.8, and its beam burns by the same rule as the player's
+
+### Requirement: The weapon heat bank is its own and refills in 20 s
+The weapon heat bank SHALL be separate from the boosters' and skates' budgets, and SHALL cool from full to empty in 20 s (survey G23, owner, 2026-10-26).
+
+#### Scenario: A full bank at rest
+- **WHEN** the weapon heat bank is full and no weapon fires for 20 s
+- **THEN** it is empty, and the boosters' budget was never touched

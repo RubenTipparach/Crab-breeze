@@ -83,18 +83,23 @@ fn say(line: &str) {
 fn switch(
     mut commands: Commands,
     mut switches: MessageReader<crate::missions::MissionSwitch>,
-    raiders: Query<Entity, With<Raider>>,
+    raiders: Query<(Entity, &MechId), With<Raider>>,
     mut units: ResMut<crate::units::Units>,
+    mut shots: ResMut<crate::combat::Shots>,
 ) {
     use cb_core::missions::MissionKind;
     for s in switches.read() {
         if s.stop == Some(MissionKind::Defence) {
             commands.remove_resource::<Defending>();
             commands.remove_resource::<DefenceRun>();
-            for e in &raiders {
+            // Its enemies leave the world at once, their rounds in the air with them; what they broke stays broken
+            // (survey FR1).
+            let mut gone = units.retire(MissionKind::Defence);
+            for (e, id) in &raiders {
                 commands.entity(e).despawn();
+                gone.push(id.0);
             }
-            units.retire(MissionKind::Defence);
+            shots.drop_from(|o| gone.contains(&o));
             say("MISSION defence turned off");
         }
         if s.start == Some(MissionKind::Defence) {

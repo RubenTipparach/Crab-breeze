@@ -140,7 +140,7 @@ impl Fortress {
             let aim_at = if g.beam.is_some() {
                 t.pos
             } else {
-                lead(m.muzzle, t.pos, t.vel, g.weapon.speed_m_s, !g.weapon.rocket)
+                lead(m.muzzle, t.pos, t.vel, g.weapon.speed_m_s, !g.weapon.shot().straight())
             };
             let want = inv * (aim_at - m.pivot);
             let want_yaw = want.x.atan2(want.z);

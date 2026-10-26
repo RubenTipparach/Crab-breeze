@@ -18,6 +18,16 @@ the boarding clock moves through its window, and while it rests there only if th
 - **WHEN** the chest is fully open and the clock rests at `ready_s`
 - **THEN** mist keeps rolling from the sill's vents and the cabin's floor vents
 
+### Requirement: Only the mech the pilot boards vents
+
+Survey M12, decided by the owner on 2026-10-26 ("Approve all": "Only the mech you board vents"). The game SHALL stream
+boarding vents only from the mech the pilot is boarding, sitting in or leaving; every other mech, owned or enemy,
+SHALL stay quiet whatever its own boarding clock says. No enemy pilot boards a mech.
+
+#### Scenario: An owned mech parked nearby stays quiet
+- **WHEN** the pilot boards the Foreman while an owned Mule stands sat and open beside it
+- **THEN** steam and mist stream from the Foreman's vents only
+
 ### Requirement: A stage that only vents does not change when the mech is sealed
 
 The timeline time of the sat and sealed mech SHALL be the start of the first stage that moves a node, no earlier

@@ -26,6 +26,9 @@
     aircraft_speed_m_s: 95.0,
     release_height_m: 320.0,
     aircraft_shown_s: 20.0,
+    // The aircraft is civil air traffic's freighter (civil-air-traffic, built for the drop): its stand-in and its
+    // engine. Only its look is the freighter's; the drop keeps its own clock and track above.
+    aircraft_kind: "freighter",
     free_fall_s: 2.0,
     canopy_m_s: 14.0,
     retro_height_m: 25.0,

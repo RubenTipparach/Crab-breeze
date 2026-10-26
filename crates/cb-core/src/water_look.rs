@@ -235,6 +235,42 @@ impl Validate for WaterLook {
     }
 }
 
+/// One train of the swell: deep-water waves of one wavelength, height and heading.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SwellTrain {
+    /// The unit direction it runs (x, z).
+    pub dir: glam::Vec2,
+    /// Its wavenumber, radians a metre (2 pi over the wavelength).
+    pub k_rad_m: f32,
+    /// Its height, crest to mean, metres.
+    pub height_m: f32,
+}
+
+impl WaterLook {
+    /// The swell's three trains (openspec changes `water-rendering` and `harbours`): the one reading of the swell
+    /// numbers, used by the water's shader uniform (which bends the normals by them) and by floating hulls (which
+    /// ride them).
+    pub fn swell_trains(&self) -> [SwellTrain; 3] {
+        std::array::from_fn(|i| {
+            let a = self.swell_heading_deg[i].to_radians();
+            SwellTrain {
+                dir: glam::Vec2::new(a.cos(), a.sin()),
+                k_rad_m: std::f32::consts::TAU / self.swell_wavelength_m[i],
+                height_m: self.swell_height_m[i],
+            }
+        })
+    }
+
+    /// The swell's height over the mean surface at `xz` at `seconds`, metres: deep-water waves, omega squared =
+    /// g k, the phase the shader's `swell_slope` differentiates (`assets/shaders/water_surface.wesl`).
+    pub fn swell_height(&self, xz: glam::Vec2, seconds: f32) -> f32 {
+        self.swell_trains()
+            .iter()
+            .map(|t| t.height_m * (t.dir.dot(xz) * t.k_rad_m - (9.81 * t.k_rad_m).sqrt() * seconds).sin())
+            .sum()
+    }
+}
+
 /// The eye fully under water.
 pub const UNDER: f32 = 1.0;
 /// The eye within the band about the surface.

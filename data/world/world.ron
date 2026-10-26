@@ -177,7 +177,11 @@
     trees: (
         tile_sites: 24,
         keep_radius_m: 2200.0,
+        // Within 60 m of a body its trees grow at once; out to 400 m, 4 tiles a step (a body brought in somewhere new
+        // wanted about 16 tiles in one step: the desktop's 36 ms tree stalls); beyond, 2 a step.
         urgent_radius_m: 400.0,
+        must_radius_m: 60.0,
+        urgent_tiles_per_step: 4,
         release_radius_m: 2700.0,
         tiles_per_step: 2,
         draw_radius_m: 2000.0,
@@ -326,6 +330,25 @@
         ambient_share: 1.0,
         sun_share: 0.25,
         phase_g: 0.6,
+        // How thick it is (survey F1; owner, 2026-10-26: "Approve all"). The game has no time of
+        // day, so the fog keeps its own clock: the world begins at 06:00, an hour passes every
+        // 300 s, and the morning mist (twice the air, full mist) thins to the day's (plain air,
+        // half the mist) between 07:00 and 11:00, 5 to 25 minutes in. A combat-heavy mission flies
+        // in clear air (half the air, no mist) while it runs.
+        presets: (
+            morning: (density_scale: 2.0, mist_scale: 1.0),
+            day: (density_scale: 1.0, mist_scale: 0.5),
+            clear: (density_scale: 0.5, mist_scale: 0.0),
+        ),
+        clock: (
+            start_h: 6.0,
+            hours_per_s: 0.003333,
+            burn_off_h: (7.0, 11.0),
+        ),
+        missions: {
+            Defence: Clear,
+            Fortress: Clear,
+        },
     ),
     // Building frames (openspec/changes/structural-destruction): a member fails past
     // safety_factor x its intact load, after a creak; a floor bay held on one edge keeps 45 %.
@@ -373,6 +396,16 @@
         // furniture").
         rooms_radius_m: 250.0,
         rooms_margin_m: 20.0,
+        // Past the dressing, to 1.5 km, a building shows its massing (parapet, cornice, roof props
+        // from its own dressing) over walls wearing its own type's facade; beyond, the walls alone
+        // (openspec/changes/building-type-lods; owner, 2026-10-25: "for each building type we're
+        // gonna need a custom LOD texture/mesh for them"). The massing gives way to the plain box at
+        // 1.5 km (survey L2, owner 2026-10-26: "Approve all").
+        massing_radius_m: 1500.0,
+        massing_pieces: 16,
+        massing_per_frame: 12,
+        // A detail that shows is kept to 1.15 times its radius, so a building on the line does not flicker.
+        keep_ratio: 1.15,
     ),
     // Street doors, stairs and the colliders a pilot on foot walks into
     // (openspec/changes/building-interiors; owner, 2026-10-25: "each building needs doors and
@@ -421,5 +454,16 @@
         freeze_factor: 1.2,
         max_dynamic: 600,
         max_kept: 2500,
+    ),
+    // Air bases (openspec/changes/air-bases); the rest of their placement is the code default. Each has a runway
+    // (survey W45, owner 2026-10-26: "Add a real runway, about 1.5 to 2 km, to each base"): tried in front of the
+    // apron, behind the hangars, then down either side, longest first, flattened to the base's ground.
+    bases: (
+        runway_m: (2000.0, 1500.0),
+        runway_width_m: 45.0,
+        runway_gap_m: 60.0,
+        runway_step_m: 100.0,
+        runway_max_cut_m: 45.0,
+        runway_city_clear_m: 300.0,
     ),
 )

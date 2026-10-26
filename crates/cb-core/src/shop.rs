@@ -187,7 +187,7 @@ pub fn buy(
     // Found before the charge: a site, or (with none) the bay.
     let Some(site) = order.site else {
         let (base, bay) = bay.unwrap_or_default();
-        let key = career.add_mech(design, base, bay, structure);
+        let key = career.add_bought_mech(design, base, bay, structure);
         let away = order.at != Some(base);
         return Ok(Delivery {
             key,

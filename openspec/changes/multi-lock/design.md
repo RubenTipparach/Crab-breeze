@@ -69,4 +69,31 @@ range and angle. Six missiles in flight follow the existing missile path. Neglig
 
 ## Open questions
 
-None new: what a pod is carried by is survey G22 (`weapon-kinds`).
+None new: what a pod is carried by is survey G22 (`weapon-kinds`), decided by the owner on 2026-10-26: anyone
+can carry every weapon, on both sides, multi-lock pods included.
+
+## Built, and the calls made on the way
+
+Built 2026-10-26 with the advanced weapons, on the owner's "Approve all" and "Go and implement"; the owner said
+"Use recommended for survey" for any choice on the way, and these were taken:
+
+- **One lock rule, data left where it is.** `Seeker` is on `WeaponSpec` (`seeker: Some((max_locks, lock_s,
+  range_m, cone_deg, turn_deg_s))`) and `Seeker::reaches` is the one test of what a lock may build on, used by the
+  pod's `Locks` and by the shoulder missile's `Lock`. The shoulder missile's numbers stay in
+  `data/hud/targeting.ron` and are read as a one-lock seeker (`TargetingConfig::seeker`), rather than moved into
+  every mech's weapon data, so the eight generated mech files and other branches' data are untouched. The test
+  `the_shoulder_missile_keeps_its_lock_numbers` pins them. `seeker_turn_deg_s` still loads; `turn_deg_s()` reads
+  either.
+- **Fog (merged with ground-fog, survey F2).** `Seeker::reaches` and `Seeker::keeps` take the fog toward the
+  target (`fog_scale`, carried on each `Target`), so fog shortens a pod's range and slows its locks exactly as it
+  does the shoulder missile's; an enemy pod locking on the pilot reads the same fog along the same line
+  (`targeting::fog_reach` in `cb-app`).
+- **Locks live on the mech's guns** (`Guns::locks`): the player's build in `targeting` while F is held, an AI's in
+  its own step; the release and the salvo are one path (`Guns::release`, `Guns::take_queued`, 0.08 s apart, the
+  interval from the last missile). A burst (`signature-weapons`) uses the same queue.
+- **Who carries one** (G22): the hangar sells a six-cell pod for the missile station; the raiders' railgun Brigand
+  and the first fight's Tyrant carry one.
+- **Cockpit**: each locked box reads `xN`; the WEAPONS page reads `LOCKS n/6`. The pip ring and sweep arc on the
+  reticle are not built yet.
+- **Big Boy's weak points** as separate lock targets are not built: `crab-enemies` has no `WEAK_*` targets in the
+  game yet.

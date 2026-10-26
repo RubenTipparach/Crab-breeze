@@ -1,0 +1,21 @@
+// Sapper's loadout (openspec/changes/signature-weapons; survey G20, owner, 2026-10-26: "Approve all"). Hand-tuned:
+// tools/mechs/gen_mech_data.py writes sapper.ron and leaves this file alone. The signature weapon is first and
+// starred on the WEAPONS page. Speeds m/s, intervals s, penetration mm, blast MJ, heat a share of the weapon heat
+// bank (a shot, or a second of beam), which cools from full in 20 s (survey G23). Starting numbers: playtests tune them.
+// The grenade launcher (survey G21, owner, 2026-10-26: "maybe a grenade launcher?"): the shoulder barrel lays itself at 30
+// degrees and sets its charge for the range to the aim point, 60 to 600 m, so a grenade arcs over cover onto the
+// crosshair: 3.4 s to 100 m, 5.9 s to 300 m, 8.4 s to 600 m, one every 1.5 s. Fired with G, from CANNON_R.
+(
+    weapons: [
+        (name: "grenade launcher", socket: "CANNON_R", arm: Torso, group: 3, speed_m_s: 80.0, interval_s: 1.5,
+         penetration_mm: 90.0, damage: 60.0, blast_mj: 6.0, rounds: Some(36), signature: true,
+         lob: Some((elevation_deg: 30.0, min_m: 60.0, max_m: 600.0))),
+        (name: "35 mm autocannon", socket: "MUZZLE_R", arm: ArmR, group: 0, speed_m_s: 1100.0, interval_s: 0.12,
+         penetration_mm: 90.0, damage: 12.0, blast_mj: 0.4),
+        (name: "rocket pod", socket: "MUZZLE_L", arm: ArmL, group: 1, speed_m_s: 240.0, interval_s: 1.6,
+         penetration_mm: 120.0, damage: 30.0, blast_mj: 2.0, kind: Rocket),
+        (name: "shoulder missile", socket: "MISSILE_POD", arm: Torso, group: 2, speed_m_s: 260.0, interval_s: 1.2,
+         penetration_mm: 150.0, damage: 45.0, blast_mj: 2.5, kind: Rocket, seeker_turn_deg_s: 70.0, rounds: Some(40)),
+    ],
+    weapon_heat: (recharge_s: 20.0, relight_heat: 0.4),
+)

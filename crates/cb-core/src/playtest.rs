@@ -29,6 +29,12 @@ pub enum Beat {
     Board,
     /// Drive the mech to the accepted job's site, until its fight starts.
     GoToJob,
+    /// Skate the mech flat out to (x, z) metres, as `GoToJob` drives, until within 40 m: a fixed route across the island
+    /// for a streaming performance run.
+    SkateTo(f32, f32),
+    /// Fly the mech on its jets to (x, z) metres, holding about this height over the ground (metres), until within
+    /// 250 m (at jet speed the mech turns too wide to settle closer): the same route from the air.
+    JetTo(f32, f32, f32),
     /// Fight the job's enemies until it is won, at most this many seconds.
     FightJob(f32),
     /// Drive the mech into this bay of the career's current base and stop there.
@@ -107,6 +113,8 @@ impl Validate for Script {
                     Beat::Tab(t) => !matches!(t.as_str(), "Jobs" | "Shop" | "Refit" | "Hangar"),
                     Beat::AcceptJob(t) | Beat::AcceptByMail(_, t) | Beat::ExpectOffer(t) => !(1..=crate::jobs::MAX_TIER).contains(t),
                     Beat::Grant(c) => *c <= 0,
+                    Beat::SkateTo(x, z) => !(x.is_finite() && z.is_finite()),
+                    Beat::JetTo(x, z, h) => !(x.is_finite() && z.is_finite() && h.is_finite() && *h > 0.0),
                     Beat::BuyMech(d) => !d.starts_with("mechs/"),
                     Beat::BuyPart(id) | Beat::Fit(_, id) => id.is_empty(),
                     _ => false,

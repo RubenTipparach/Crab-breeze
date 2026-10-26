@@ -7,6 +7,9 @@
 //! they are turned to the door's angle, between its last two fixed steps. A building whose colliders
 //! are not built (the pilot is in the mech, or far away) has its door shut. A leaf whose wall bay has
 //! been blown out is hidden with it. Presentation only: the angle is the simulation's.
+//!
+//! It also keeps `RefugeDoors`, every building's street door as people and car drivers running from
+//! danger make for it (`cb_core::civilians::StreetDoors`, from the same `interior::shell` as the leaves).
 
 use crate::buildings::{Dressed, LeafLooks};
 use crate::sim::PresentSet;
@@ -14,6 +17,7 @@ use crate::state::GameApp;
 use crate::walk_in::InteriorColliders;
 use crate::world::{Live, Plan, Seed};
 use bevy::prelude::*;
+use cb_core::civilians::StreetDoors;
 use cb_core::world::door::{LEAF_T_M, StreetDoor};
 use cb_core::world::dressing;
 use cb_core::world::interior::{self, Site, Walkable};
@@ -29,14 +33,32 @@ struct Drawn {
 #[derive(Resource, Default)]
 struct DrawnDoors(BTreeMap<u32, Drawn>);
 
+/// Every building's street door, for people and drivers running from danger (civilians, car-traffic).
+#[derive(Resource, Default)]
+pub struct RefugeDoors(pub StreetDoors);
+
 /// Draws the street door leaves of dressed buildings, posed from the simulation.
 pub struct StreetDoorsPlugin;
 
 impl Plugin for StreetDoorsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DrawnDoors>()
+            .init_resource::<RefugeDoors>()
+            .add_world_spawn(index_refuges)
             .add_game_systems(Update, (hang_leaves, swing_leaves).chain().in_set(PresentSet::Pose));
     }
+}
+
+/// Finds every building's street door once the world is spawned.
+fn index_refuges(plan: Res<Plan>, live: Res<Live>, seed: Res<Seed>, data: Res<crate::sim::Data>, mut out: ResMut<RefugeDoors>) {
+    let started = std::time::Instant::now();
+    let rng = crate::buildings::building_rng(seed.0);
+    out.0 = StreetDoors::of_world(&plan.0, &live.structures, &data.0.world.interiors, &rng);
+    info!(
+        "street doors: {} to run for, found in {:.0} ms",
+        out.0.len(),
+        started.elapsed().as_secs_f64() * 1000.0
+    );
 }
 
 /// Hangs leaves on buildings newly dressed and takes them off those no longer dressed.

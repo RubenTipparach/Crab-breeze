@@ -229,11 +229,14 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn step_pilot(
     mut pilot: ResMut<PilotSim>,
     mut events: ResMut<PilotEvents>,
     actions: Res<StepActions>,
     access: Res<MechAccessNow>,
+    car: Res<crate::traffic::CarAccessNow>,
+    choice: Res<crate::interact::UseChoice>,
     data: Res<Data>,
     plan: Res<Plan>,
     live: Res<Live>,
@@ -250,9 +253,21 @@ pub(crate) fn step_pilot(
         platforms: &live.platforms,
         interiors: Some(&interiors.0),
     };
-    let event = pilot
-        .curr
-        .step(&actions, &data.0.pilot, &ground, access.0.as_ref(), time.delta_secs());
+    // Use reaches only the interaction selected (`interact`, survey W40): a car's door or getting out, or the mech.
+    // A car first (car-driving): Use at a car's door gets in; in a car, the mech's step has nothing to do.
+    use cb_core::interact::Interaction;
+    let dt = time.delta_secs();
+    let mut car_a = actions.0;
+    car_a.use_pressed = matches!(choice.now, Some(Interaction::GetIn | Interaction::GetOut));
+    let car_event = pilot.curr.step_car(&car_a, &data.0.pilot, &ground, car.0.as_ref(), dt);
+    events.0.extend(car_event);
+    let mut a = actions.0;
+    a.use_pressed = choice.now == Some(Interaction::Board) && car_event.is_none();
+    let event = if pilot.curr.mode.in_car() || car_event.is_some() {
+        None
+    } else {
+        pilot.curr.step(&a, &data.0.pilot, &ground, access.0.as_ref(), dt)
+    };
     events.0.extend(event);
     match event {
         Some(PilotEvent::HatchWanted) => info!("pilot: asked the mech to sit and open"),
@@ -261,6 +276,7 @@ pub(crate) fn step_pilot(
         Some(PilotEvent::DisembarkStarted) => info!("pilot: climbing out"),
         Some(PilotEvent::Disembarked) => info!("pilot: standing at LADDER_base"),
         Some(PilotEvent::Ejected) => info!("pilot: ejected from the destroyed mech"),
+        Some(e) => info!("pilot: {e:?}"),
         None => {}
     }
 }
@@ -329,6 +345,7 @@ fn place_camera(
     // at EYE_pilot; boarding and climbing out, they ride the path.
     let eye = match &curr.mode {
         PilotMode::Seated => seat().map_or(prev.eye(cfg).lerp(curr.eye(cfg), alpha), |s| s.translation),
+        // driving, the eyes ride EYE_driver as the car moved between the two steps
         _ => prev.eye(cfg).lerp(curr.eye(cfg), alpha),
     };
     let rotation = match &curr.mode {
@@ -357,6 +374,16 @@ fn place_camera(
             }
             None => walking_view(),
         },
+        // Driving, the view turns with the car between steps and the mouse looks round from its nose; the
+        // car only carries the eyes, the player turns the view (CLAUDE.md section 8).
+        PilotMode::Driving if prev.mode == PilotMode::Driving => {
+            let pitch_limit = cfg.pitch_limit_deg.to_radians();
+            let turned = (curr.yaw_rad - prev.yaw_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+            view(
+                prev.yaw_rad + turned * alpha - pending.x.to_radians(),
+                (curr.pitch_rad + pending.y.to_radians()).clamp(-pitch_limit, pitch_limit),
+            )
+        }
         _ => walking_view(),
     };
     // The shake rides on top of the player's view and is never written into their aim: the look
@@ -396,27 +423,15 @@ fn spawn_prompt(mut commands: Commands) {
     ));
 }
 
-/// Shows "E: step into the cockpit" when the kneeling mech is ready and the pilot is near, and "E: use the
-/// terminal" at a hangar bay's terminal (air-bases).
-fn show_prompt(
-    pilot: Res<PilotSim>,
-    access: Res<MechAccessNow>,
-    data: Res<Data>,
-    terminal: Option<Res<crate::air_bases::TerminalNear>>,
-    mut prompt: Single<&mut Text, With<Prompt>>,
-) {
-    let p = &pilot.curr;
-    let ready = access.0.as_ref().is_some_and(|a| a.hatch_open && p.can_board(a, &data.0.pilot));
-    let at_terminal = terminal.as_ref().is_some_and(|t| t.near.is_some());
-    let want = if at_terminal {
-        "[E]  Use the terminal: jobs, shop, refit"
-    } else if ready {
-        "[E]  Step into the cockpit"
-    } else {
-        ""
-    };
+/// The one prompt for Use (survey W40): what is in reach, from the one selector (`interact::UseChoice`). One option
+/// reads as it always has ("[E]  Step into the cockpit", "[E]  Get in", "[E]  Use the terminal..."); several are
+/// listed with the selected one marked, and the mouse wheel moves the mark.
+fn show_prompt(choice: Res<crate::interact::UseChoice>, data: Res<Data>, mut prompt: Single<&mut Text, With<Prompt>>) {
+    let b = &data.0.bindings;
+    let label = |keys: &[String]| keys.first().map_or_else(|| "?".to_string(), |k| cb_core::input::key_label(k));
+    let want = choice.selector.lines(&label(&b.use_key), &label(&b.option_cycle)).join("\n");
     if prompt.0 != want {
-        prompt.0 = want.into();
+        prompt.0 = want;
     }
 }
 

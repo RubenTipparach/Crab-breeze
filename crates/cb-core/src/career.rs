@@ -27,6 +27,9 @@ pub struct CareerConfig {
     pub standing_lost: i64,
     /// The most standing a base keeps for the pilot.
     pub standing_max: i64,
+    /// Standing lost with the nearest base for each civilian the pilot harms: a person killed, a car with a driver
+    /// in it, a civil aircraft (survey W34, W37, W42; `civil_standing`).
+    pub standing_per_civilian: i64,
     /// The share a base's pay rises per point of standing there (0.05: 5 % a point).
     pub pay_bonus_per_standing: f32,
 }
@@ -40,6 +43,7 @@ impl Default for CareerConfig {
             standing_per_job: 1,
             standing_lost: 1,
             standing_max: 10,
+            standing_per_civilian: 1,
             pay_bonus_per_standing: 0.05,
         }
     }
@@ -53,7 +57,7 @@ impl Validate for CareerConfig {
         if self.start_mech.is_empty() {
             return Err("start_mech: must name a mech file".into());
         }
-        if self.standing_per_job < 0 || self.standing_lost < 0 || self.standing_max < 0 {
+        if self.standing_per_job < 0 || self.standing_lost < 0 || self.standing_max < 0 || self.standing_per_civilian < 0 {
             return Err("standing: gains, losses and the most must not be negative".into());
         }
         crate::data::within("pay_bonus_per_standing", self.pay_bonus_per_standing, 0.0, 1.0)?;
@@ -208,6 +212,38 @@ pub struct Career {
     /// Air drops on their way, or landed and not yet boarded (mech-shop section 6).
     #[serde(default)]
     pub drops: Vec<crate::air_drop::Drop>,
+    /// Every bought mech not yet boarded, by key, however it was delivered (owner, 2026-10-26, survey D5: "You always
+    /// get a marker for your purchases so you have to go activate the mech and the marker will go away after you enter
+    /// it"). The HUD marks each one (`unboarded`) until the pilot is seated in it.
+    #[serde(default)]
+    pub awaiting: Vec<u32>,
+}
+
+/// How a bought mech not yet boarded is waiting.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Waiting {
+    /// Its air drop is on its way, falling, or landed (`drop_of` says which).
+    Drop,
+    /// Parked unseen in a hangar bay (the drop's fallback, survey D5): called out at a terminal there.
+    InBay {
+        /// The base.
+        base: u32,
+        /// Its bay there.
+        bay: u32,
+    },
+    /// Standing in the world (called out at a base, or its drop done): walked up to and boarded.
+    Standing,
+}
+
+/// A bought mech the HUD marks until the pilot boards it (survey D5).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Unboarded {
+    /// The owned mech's key.
+    pub key: u32,
+    /// Where the marker stands: the drop's site, its feet in the world, or its bay (world metres).
+    pub at: glam::Vec3,
+    /// How it waits.
+    pub waiting: Waiting,
 }
 
 impl Career {
@@ -226,6 +262,7 @@ impl Career {
             standing: Default::default(),
             parts: Vec::new(),
             drops: Vec::new(),
+            awaiting: Vec::new(),
             done: Vec::new(),
             ledger: Vec::new(),
             board: crate::jobs::Board::default(),
@@ -266,7 +303,42 @@ impl Career {
             });
         }
         self.drops.push(drop);
+        self.awaiting.push(key);
         key
+    }
+
+    /// Buys into a bay, the drop's fallback (survey D5): a mech at full structure parked unseen in bay `bay` of `base`,
+    /// marked on the HUD until it is boarded like any other purchase.
+    pub fn add_bought_mech(&mut self, design: &str, base: u32, bay: u32, structure: &[f32]) -> u32 {
+        let key = self.add_mech(design, base, bay, structure);
+        self.awaiting.push(key);
+        key
+    }
+
+    /// Mech `key` was bought and has not been boarded yet: the HUD marks it.
+    pub fn awaits_boarding(&self, key: u32) -> bool {
+        self.awaiting.contains(&key) || self.drop_of(key).is_some()
+    }
+
+    /// Every bought mech not yet boarded, by key, and where its marker stands (survey D5: "You always get a marker for
+    /// your purchases"): over its drop while there is one; at its feet once it stands in the world; at its bay
+    /// (`bay_at(base, bay)`, the bay's floor) while it waits there unseen. A drop in a save from before `awaiting` is
+    /// marked too. A mech the pilot has walked up to (it holds the seat) stays marked until they sit in it.
+    pub fn unboarded(&self, bay_at: &dyn Fn(u32, u32) -> Option<glam::Vec3>) -> Vec<Unboarded> {
+        let mut keys: Vec<u32> = self.awaiting.iter().copied().chain(self.drops.iter().map(|d| d.key)).collect();
+        keys.sort_unstable();
+        keys.dedup();
+        keys.into_iter()
+            .filter_map(|key| {
+                let m = self.mech(key)?;
+                let (at, waiting) = match (self.drop_of(key), m.field) {
+                    (Some(d), _) => (glam::Vec3::from_array(d.site), Waiting::Drop),
+                    (None, Some(f)) => (glam::Vec3::from_array(f.pos), Waiting::Standing),
+                    (None, None) => (bay_at(m.base, m.bay)?, Waiting::InBay { base: m.base, bay: m.bay }),
+                };
+                Some(Unboarded { key, at, waiting })
+            })
+            .collect()
     }
 
     /// The drop of mech `key`, if one is on its way or waiting to be boarded.
@@ -292,6 +364,7 @@ impl Career {
         }
         self.piloting = Some(key);
         self.drops.retain(|d| d.key != key);
+        self.awaiting.retain(|k| *k != key);
     }
 
     /// Calls owned mech `key` out at base `base` into its bay `bay`, standing at `at` (owner, survey J16: "you can
@@ -346,6 +419,14 @@ impl Career {
     pub fn job_ended(&mut self, base: u32, won: bool, cfg: &CareerConfig) -> i64 {
         let now = self.standing_at(base);
         let next = if won { now + cfg.standing_per_job } else { now - cfg.standing_lost }.clamp(0, cfg.standing_max);
+        self.standing.insert(base, next);
+        next
+    }
+
+    /// The pilot harmed a civilian near `base` (`civil_standing`): standing there falls by
+    /// `standing_per_civilian`, never below zero. Returns the standing after.
+    pub fn civilian_harmed(&mut self, base: u32, cfg: &CareerConfig) -> i64 {
+        let next = (self.standing_at(base) - cfg.standing_per_civilian).clamp(0, cfg.standing_max);
         self.standing.insert(base, next);
         next
     }
@@ -488,7 +569,7 @@ impl CareerData {
         }
         let mut designs = Vec::new();
         for l in &catalogue.listings {
-            designs.push((l.design.clone(), load_ron(&root.join(&l.design))?));
+            designs.push((l.design.clone(), crate::mech::MechConfig::load(root, &l.design)?));
         }
         if catalogue.listing(&career.start_mech).is_none() {
             return Err(crate::data::DataError {
@@ -654,6 +735,55 @@ mod tests {
     }
 
     #[test]
+    fn every_purchase_is_marked_wherever_it_ends_up_until_the_pilot_boards_it() {
+        // Owner, 2026-10-26, survey D5: "You always get a marker for your purchases so you have to go activate the
+        // mech and the marker will go away after you enter it".
+        let mut c = career();
+        let rng = crate::rng::SimRng::new(1);
+        let bay_at = |base: u32, bay: u32| Some(glam::Vec3::new(1000.0 * base as f32, 7.0, 40.0 * bay as f32));
+        assert!(c.unboarded(&bay_at).is_empty(), "the starting mech is not a purchase");
+        let dropped = c.add_dropped_mech("mechs/sapper.ron", 0, &[1.0], glam::Vec3::new(90.0, 4.0, 10.0), &rng);
+        let in_bay = c.add_bought_mech("mechs/mule.ron", 2, 1, &[1.0]);
+        let marks = c.unboarded(&bay_at);
+        assert_eq!(marks.len(), 2);
+        assert_eq!((marks[0].key, marks[0].waiting), (dropped, Waiting::Drop));
+        assert_eq!(marks[0].at, glam::Vec3::new(90.0, 4.0, 10.0), "over the drop's site");
+        assert_eq!(marks[1].waiting, Waiting::InBay { base: 2, bay: 1 });
+        assert_eq!(marks[1].at, glam::Vec3::new(2000.0, 7.0, 40.0), "at its bay, the drop's fallback");
+        let back = Career::from_ron(&c.to_ron()).unwrap();
+        assert_eq!(back.unboarded(&bay_at), marks, "a save keeps the markers");
+        // Called out at its base it stands in the world, still marked.
+        let anywhere = |_: glam::Vec2| true;
+        c.call_out(in_bay, 2, 0, spot(2010.0), &anywhere, "mechs/foreman.ron", false, &[1.0])
+            .unwrap();
+        let marks = c.unboarded(&bay_at);
+        assert_eq!(marks[1].waiting, Waiting::Standing);
+        assert_eq!(marks[1].at, glam::Vec3::new(2010.0, 0.0, 0.0));
+        // Walking up to it hands it the seat, but only sitting in it clears its marker.
+        c.piloting = Some(in_bay);
+        assert_eq!(c.unboarded(&bay_at).len(), 2, "walked up to, not yet entered: still marked");
+        assert!(c.awaits_boarding(in_bay));
+        c.boarded(in_bay);
+        assert!(!c.awaits_boarding(in_bay));
+        c.piloting = Some(0);
+        assert_eq!(c.unboarded(&bay_at).iter().map(|u| u.key).collect::<Vec<_>>(), vec![dropped]);
+        c.landed(dropped, spot(95.0));
+        assert_eq!(c.unboarded(&bay_at)[0].at, glam::Vec3::new(95.0, 0.0, 0.0), "landed, still marked");
+        c.boarded(dropped);
+        assert!(c.unboarded(&bay_at).is_empty(), "every marker goes once its mech is boarded");
+    }
+
+    #[test]
+    fn a_drop_in_a_save_from_before_the_markers_is_still_marked() {
+        let mut c = career();
+        let rng = crate::rng::SimRng::new(1);
+        let key = c.add_dropped_mech("mechs/sapper.ron", 0, &[1.0], glam::Vec3::new(90.0, 4.0, 10.0), &rng);
+        c.awaiting.clear();
+        assert!(c.awaits_boarding(key));
+        assert_eq!(c.unboarded(&|_, _| None).len(), 1);
+    }
+
+    #[test]
     fn a_save_from_before_the_air_drop_still_loads() {
         let c = career();
         // RON ends its lines with \r\n on Windows: compare on \n.
@@ -661,6 +791,7 @@ mod tests {
             .to_ron()
             .replace("\r\n", "\n")
             .replace("    drops: [],\n", "")
+            .replace("    awaiting: [],\n", "")
             .replace("            field: None,\n", "");
         assert!(!old.contains("drops"), "the old save has no drops");
         assert_eq!(Career::from_ron(&old).unwrap(), c);

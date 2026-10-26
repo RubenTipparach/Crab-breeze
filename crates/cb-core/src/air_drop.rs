@@ -48,6 +48,8 @@ pub struct DropConfig {
     pub release_height_m: f32,
     /// The aircraft is drawn from this long before the release to as long after, seconds.
     pub aircraft_shown_s: f32,
+    /// The aircraft: a civil air traffic kind (`data/world/air_traffic.ron`), drawn and heard as that kind is.
+    pub aircraft_kind: String,
     /// Seconds of free fall before the canopies open.
     pub free_fall_s: f32,
     /// The descent under the canopies, m/s.
@@ -82,6 +84,7 @@ impl Default for DropConfig {
             aircraft_speed_m_s: 95.0,
             release_height_m: 320.0,
             aircraft_shown_s: 20.0,
+            aircraft_kind: "freighter".into(),
             free_fall_s: 2.0,
             canopy_m_s: 14.0,
             retro_height_m: 25.0,
@@ -106,6 +109,9 @@ impl Validate for DropConfig {
             return Err("search_max_m / ring_step_m: more than 1000 rings".into());
         }
         crate::data::within("max_slope_deg", self.max_slope_deg, 0.0, 60.0)?;
+        if self.aircraft_kind.is_empty() {
+            return Err("aircraft_kind: must name a civil aircraft kind".into());
+        }
         for (field, v) in [
             ("delay_s", self.delay_s),
             ("aircraft_speed_m_s", self.aircraft_speed_m_s),
@@ -421,15 +427,17 @@ impl Drop {
         }
     }
 
-    /// The aircraft's position at career time `now_s`, while it is shown: on its track at `release_height_m` over the
-    /// site's ground, over the site at the release.
-    pub fn aircraft(&self, cfg: &DropConfig, now_s: f64) -> Option<Vec3> {
+    /// The aircraft's position at career time `now_s`, while it is shown: on its track, over the site at the release,
+    /// flying `hang_m` above the height the mech's feet are released at (`release_height_m` over the site's ground).
+    /// `hang_m` is how far the slung mech's feet hang below the aircraft's origin (`AircraftModel::hang_m`, survey W48:
+    /// "a bought mech slung under it"), so at the release the falling mech is exactly where the slung one was.
+    pub fn aircraft(&self, cfg: &DropConfig, now_s: f64, hang_m: f32) -> Option<Vec3> {
         let t = self.since_release_s(cfg, now_s);
         if t.abs() > cfg.aircraft_shown_s {
             return None;
         }
         let along = Vec3::new(-self.track_rad.sin(), 0.0, -self.track_rad.cos());
-        Some(Vec3::from_array(self.site) + Vec3::Y * cfg.release_height_m + along * cfg.aircraft_speed_m_s * t)
+        Some(Vec3::from_array(self.site) + Vec3::Y * (cfg.release_height_m + hang_m) + along * cfg.aircraft_speed_m_s * t)
     }
 }
 
@@ -526,10 +534,38 @@ impl DropGround for PlanGround<'_> {
     }
 }
 
+impl DropConfig {
+    /// The aircraft kind it names is one civil air traffic flies (`data/world/air_traffic.ron`).
+    pub fn check_aircraft(&self, air: &crate::air_traffic::AirTrafficConfig) -> Result<(), String> {
+        if air.kinds.contains_key(&self.aircraft_kind) {
+            Ok(())
+        } else {
+            Err(format!(
+                "aircraft_kind: \"{}\" is not a kind in world/air_traffic.ron",
+                self.aircraft_kind
+            ))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::world::layout::Rect;
+
+    #[test]
+    fn the_drop_flies_civil_air_traffics_freighter() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let drop: DropConfig = crate::data::load_ron(&root.join("career/air_drop.ron")).unwrap();
+        let air: crate::air_traffic::AirTrafficConfig = crate::data::load_ron(&root.join("world/air_traffic.ron")).unwrap();
+        assert_eq!(drop.aircraft_kind, "freighter");
+        assert_eq!(drop.check_aircraft(&air), Ok(()));
+        let wrong = DropConfig {
+            aircraft_kind: "zeppelin".into(),
+            ..drop
+        };
+        assert!(wrong.check_aircraft(&air).is_err());
+    }
 
     /// Ground made up for a test: flat at zero unless a slope or water says otherwise.
     #[derive(Default)]
@@ -820,11 +856,34 @@ mod tests {
         assert!(matches!(d.stage(&c, 1000.0), Stage::Inbound(s) if (s - c.delay_s).abs() < 1e-3));
         assert!(matches!(d.stage(&c, 1000.0 + f64::from(c.delay_s) + 1.0), Stage::Falling(_)));
         assert_eq!(d.stage(&c, 1000.0 + f64::from(c.delay_s + fall_s(&c)) + 0.1), Stage::Landed);
-        let over = d.aircraft(&c, 1000.0 + f64::from(c.delay_s)).unwrap();
+        let over = d.aircraft(&c, 1000.0 + f64::from(c.delay_s), 0.0).unwrap();
         assert!((over - Vec3::new(100.0, 12.0 + c.release_height_m, -40.0)).length() < 1e-3);
-        assert_eq!(d.aircraft(&c, 1000.0), None, "not shown 25 s out");
+        assert_eq!(d.aircraft(&c, 1000.0, 0.0), None, "not shown 25 s out");
         let back = ron::from_str::<Drop>(&ron::to_string(&d).unwrap()).unwrap();
         assert_eq!(back, d, "a drop survives a save");
+    }
+
+    #[test]
+    fn the_slung_mech_is_released_exactly_where_it_hung_under_the_freighter() {
+        // Survey W48: "70 m, with a bought mech slung under it for the air drop"; D8: the real freighter.
+        let c = cfg();
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let air: crate::air_traffic::AirTrafficConfig = crate::data::load_ron(&root.join("world/air_traffic.ron")).unwrap();
+        let model = air.kinds[&c.aircraft_kind].model.clone().expect("the freighter is modelled");
+        assert!(model.sling.is_some(), "it carries the sling");
+        let mech_h = 24.0;
+        let hang = model.hang_m(mech_h);
+        let d = Drop::new(3, Vec3::new(100.0, 12.0, -40.0), 1000.0, &SimRng::new(5));
+        let release = 1000.0 + f64::from(c.delay_s);
+        let plane = d.aircraft(&c, release, hang).unwrap();
+        // the slung mech's feet: the hook, then the mech's own height below it
+        let slung_feet = plane.y + model.sling_hook_m[1] - mech_h;
+        let falling_feet = d.site[1] + fall(&c, 0.0).height_m;
+        assert!((slung_feet - falling_feet).abs() < 1e-3, "{slung_feet} against {falling_feet}");
+        assert!(
+            plane.y - d.site[1] > c.release_height_m + mech_h,
+            "the aircraft flies above its load"
+        );
     }
 
     #[test]

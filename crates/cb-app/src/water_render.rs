@@ -128,10 +128,10 @@ impl WaterSurfaceUniform {
     /// `submersion`: the eye's, 0 dry, 0.5 straddling, 1 under water (`WaterEye::submersion`).
     fn new(look: &WaterLook, seconds: f32, light: &WaterLight, eye: Vec3, cabin_m: f32, submersion: f32) -> Self {
         let sky = LinearRgba::from(SKY);
+        let trains = look.swell_trains();
         let swell = std::array::from_fn(|i| {
-            let heading = look.swell_heading_deg[i].to_radians();
-            let k = std::f32::consts::TAU / look.swell_wavelength_m[i];
-            Vec4::new(heading.cos(), heading.sin(), k, look.swell_height_m[i])
+            let t = trains[i];
+            Vec4::new(t.dir.x, t.dir.y, t.k_rad_m, t.height_m)
         });
         Self {
             ripple: Vec4::new(look.ripple_scale_per_m, look.ripple_speed, look.ripple_steepness, look.slope_max),
@@ -479,6 +479,7 @@ fn extract_water_eye(
     time: Extract<Res<Time>>,
     plan: Extract<Res<Plan>>,
     fog_on: Extract<Res<GroundFogOn>>,
+    fog_now: Extract<Res<crate::ground_fog::FogNow>>,
     mist: Extract<Option<Res<MistImage>>>,
     ambient: Extract<Res<GlobalAmbientLight>>,
     sun: Extract<Query<(&DirectionalLight, &GlobalTransform), With<crate::world::Sun>>>,
@@ -498,13 +499,19 @@ fn extract_water_eye(
         let shade = plan.clouds.sun_at(Vec2::new(at.x, at.z), t);
         let rain = plan.clouds.rain_at(at, t);
         let fog = FogLook {
+            // Scaled by the strength now: the clock's morning mist or a mission's preset (survey F1).
             layer: Vec4::new(
-                cfg.density_per_m,
+                cfg.density_per_m * fog_now.strength.density_scale,
                 cfg.scale_height_m,
                 plan.waters.sea_level_m,
                 if fog_on.0 { 1.0 } else { 0.0 },
             ),
-            mist: Vec4::new(cfg.mist_strength, cfg.mist_taps_m, cfg.sky_length_m, cfg.rain_per_m * rain),
+            mist: Vec4::new(
+                cfg.mist_strength * fog_now.strength.mist_scale,
+                cfg.mist_taps_m,
+                cfg.sky_length_m,
+                cfg.rain_per_m * rain,
+            ),
             ambient: (sky * cfg.ambient_share).extend(cfg.phase_g),
             sun: (light.sun * shade * cfg.sun_share).extend(0.0),
             sun_dir: light.sun_dir.extend(0.0),

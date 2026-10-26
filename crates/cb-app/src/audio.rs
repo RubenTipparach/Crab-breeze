@@ -124,6 +124,9 @@ pub const ASKED: &[&str] = &[
     "mfd_click",
     "radio_squelch",
     "systems_boot",
+    crate::air_traffic::ENGINE_CUES[0],
+    crate::air_traffic::ENGINE_CUES[1],
+    crate::air_traffic::ENGINE_CUES[2],
 ];
 
 /// The listener is placed for this frame: music and ambience read `Ear` after it.
@@ -157,14 +160,21 @@ struct Due {
 #[derive(Resource, Default)]
 struct Pending(Vec<Due>);
 
-/// A playing sound.
+/// A playing sound. The music reads which cues are playing, to duck under the radio and the alarms.
 #[derive(Component)]
-struct Voice {
+pub struct Voice {
     cue: &'static str,
     /// The cue's own level, linear (before distance and the seal).
     level: f32,
     /// Inside the cockpit (a speaker): never muffled, never far.
     inside: bool,
+}
+
+impl Voice {
+    /// The cue this voice plays (its `data/audio/cues.ron` name).
+    pub fn cue(&self) -> &'static str {
+        self.cue
+    }
 }
 
 /// Where a loop is, for keying it.

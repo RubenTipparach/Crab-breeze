@@ -109,7 +109,13 @@ and the pylons have blind spots a pilot can use.
 - **The climb.** Jets (`boost-and-skate`): 56 m/s2 of thrust, climb to 60 m/s, 20 s of burn, 8 s to
   recharge. 600 m from the ground takes about 10.7 s (9.3 s of burn left); 900 m about 15.7 s (4.3 s
   left). A tower roof cuts the climb. Flak and missiles reach out to the whole climb.
-- **Landing on it.** The deck, the shoulders and the pylon walkways are supports. The fortress is a
+- **Landing on it** (owner, 2026-10-26, survey H4: "Approve all", the recommendation: reach it on the jets as they
+  are and land on the deck, a shoulder or a pylon walkway to recharge and fight there). Measured on the shipped
+  mechs: straight up from the city's ground at full lift every roster mech passes the deck's 649 m in 11.5 s with
+  8.5 s of burn left. A mech that comes down on a platform keeps only its speed relative to it, and one that lifts
+  off takes the platform's velocity with it (`Platform::ride`), so a pilot who matches the deck's 15 m/s and lands
+  stands where they landed instead of skidding 11 m along it. The jets recharge as they do on the ground: 1.5 s,
+  then empty to full in 8 s. The deck, the shoulders and the pylon walkways are supports. The fortress is a
   moving support: `support_at` returns the surface's velocity at the contact point (drift plus roll), and
   whatever stands there is carried with it. The crabs' feet hold to 35 deg of list; the pilot's mech
   slides above 20 deg (friction 0.36). Falling off is a fall: the jets brake it once recharged.
@@ -125,7 +131,19 @@ too). Burning breaks and smoke columns follow its damage (`mech-damage-fx` recip
 destroys every building cell under its footprint and within 60 m of it, throws debris (`debris-physics`)
 and stays as a burning wreck. While both drive thrusters live it drifts along its racetrack at 15 m/s, so
 where it falls is the pilot's choice: stop the drive first to drop it where it is, or wait until it is
-over open ground. Whether a fall on the city counts as city damage is H5.
+over open ground.
+
+**Its crash is city damage** (owner, 2026-10-26, survey H5: "Approve all", the recommendation). The cells its wreck
+breaks (`Fortress::wreck_breaks`: every building whose middle is under its 280 x 420 m footprint or within 60 m of
+it, `crash.half_size_m` and `crash.break_margin_m`) are the attacked city's own, so the one measure of a city's
+damage, `mission::city_damage` (the share of its building cells destroyed), counts them with everything else that
+broke: the defence loses on it, and when the fortress joins wave 3 (task 2.5) its wreck counts toward that wave's
+50 % with nothing more to build. In its own mission the HUD line and the log carry the city's damage
+(`CITY 2 DAMAGE 4 %`), and the win line says what the wreck cost the city. It drifts at 15 m/s on its circle; with
+both drive thrusters lost its drift dies away over 20 s and it hangs, so a fall from there lands straight below,
+while a fall with the drives running carries it on along the circle (392 m in the 26 s fall from 600 m with one side gone). Measured on seed
+42: brought down with its drives stopped over the largest city, its wreck broke 75 buildings, 23.2 % of that city's
+cells.
 
 ### Its look (owner, 2026-10-25)
 
@@ -138,7 +156,7 @@ t junctions, and about 20-30% diagonal lines", "we want normal maps for large an
   the stern, fins along the shoulders, spines on every leg's knee, spikes on the thruster plates and a keel of spikes
   down the belly; instanced, one draw for the shell's and one per thruster.
 - Painted the mechs' way, with the plating kit (`tools/textures/gen_mech_plating.mjs`): neutral paint tinted by the
-  `hermit` palette in `tools/blender/mech_palettes.py` (owner: "main color orange, secondary a dark orange", "more
+  `stratostacean` palette in `tools/blender/mech_palettes.py` (owner: "main color orange, secondary a dark orange", "more
   grey on this platform? red turrets?": an orange carapace, dark orange underside, belly and legs, a grey platform on
   top, red turrets and launchers; the colours picked from the owner's 42-colour palette: orange `#e98537`, dark
   orange `#94493a`, grey `#b0a7b8`, crimson `#ac2847` turrets, red `#ec273f` livery bands, `#2c1e31` structure),
@@ -199,12 +217,12 @@ t junctions, and about 20-30% diagonal lines", "we want normal maps for large an
 
 ## 9. In the game: the first build (owner, 2026-10-25)
 
-"looks good, build it in game, add an email in free roam to fight the crab fortress." The Hermit is a mission
+"looks good, build it in game, add an email in free roam to fight the crab fortress." The Stratostacean is a mission
 of its own, started from free roam's mail (`free-roam-missions`).
 
 **The model.** The block-out the owner approved is the mockup, so the game's model is exported from it:
 `tools/mockups/export_fortress_glb.mjs` loads `docs/mockups/crab_fortress.html` headless and writes
-`assets/models/fortress_hermit.glb` with three.js's glTF exporter, and `fortress_hermit.json`, its manifest
+`assets/models/fortress_stratostacean.glb` with three.js's glTF exporter, and `fortress_stratostacean.json`, its manifest
 (triangles, materials, budget, node names). One implementation of its shape (CLAUDE.md 6.1): the page and the game
 draw the same geometry from `tools/mockups/fortress_layout.json`. The livery mask is baked into each material's
 colour map (the page mixes it in a shader), the normal and ORM maps go in as they are, the spikes' instances become
@@ -239,8 +257,18 @@ seeker), the 4 beam turrets (a charge the pilot sees, then 10 damage/s to the me
 the line is clear), and fighters: one off a live catapult every 20 s, up to 8 in the air, flown by the existing
 `fighter` unit. Every turret turns at 60 deg/s, fires only within 5 deg of its aim and only at the pilot's mech while the pilot sits in it (an empty mech is no
 threat; a cloud run found the parked mech destroyed before the pilot reached it), and
-leads it with `weapons::lead`. Losing the bridge doubles every aim error. Not yet: the crabs dropped from the bays
-and the deck guard (H6), next.
+leads it with `weapons::lead`. Losing the bridge doubles every aim error. Not yet: the crabs dropped from the bays.
+
+**The deck guard** (owner, 2026-10-26, survey H6: "Approve all", the recommendation: 2 Shrikes and 4 Mites on deck,
+a Mite up each hangar lift every 60 s). `guard` in `fortress.ron`: the six start at the approved mockup's posts, the
+Shrikes on the flight deck at z = +40 and -105 m, the Mites on the shoulders, each an enemy mech wearing its crab's
+block-out on the defence raiders' brain and guns (a 25 mm autocannon, 700 m), spawned standing on the top under its
+post (`Fortress::stand_at`). `Fortress::guard_lift` runs one 60 s clock: each time it comes round, each working lift
+brings a Mite up onto the deck over it while fewer than 6 stand and the 8 below decks last; a lost lift brings no
+more, and none come up while it falls. A guard keeps to the tops it stands on (`platform::keep_on`: walking out over
+an edge stops it there, as a wall does) and does not hop on its jets; like every enemy it waits until the pilot is
+in the seat. Their ids sit below the vehicles' so a hit on one is a mech's hit. They leave the world with the
+mission. Not yet: crabs sliding off a deck listing past 35 deg (they keep to it).
 
 **Standing on it.** The deck, the two shoulders and the eight pylon walkways are platforms: boxes in the fortress's
 frame whose tops a mech or the pilot stands on (`support_at`), carried with the fortress as it flies, sinks and
@@ -256,7 +284,7 @@ lands it explodes (30 MJ) and breaks every building cell within 25 m.
 of it, throws a 200 MJ explosion at its middle and stays as a wreck. Won when it has crashed; lost when the pilot's
 mech is destroyed.
 
-**The readout.** The MISSION page and the HUD's mission line: `HERMIT  LIFT PORT 100 %  STBD 67 %  ALT 600 M`, the
+**The readout.** The MISSION page and the HUD's mission line: `STRATOSTACEAN  LIFT PORT 100 %  STBD 67 %  ALT 600 M`, the
 hull thrusters when open, `FALLING`, `DOWN: WON`. Every number is the rule's own (section 2).
 
 Tests (cb-core): `the_lift_readout_is_the_rule` and the section 2 tests, `a_round_on_the_outboard_plate_does_nothing`,
@@ -275,8 +303,8 @@ each shot's metre steps as a mech's parts are. Measured on the owner's machine w
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | H1 | The fortress's size and how it dies | 420 m (mechs are 24 m now), 600-900 m up, eight lift thrusters; it falls when a side is down to one | provisional (survey H1; G15 accepted the first 300 m sketch) |
-| H2 | Its name | the Hermit (a crab that carries its own shell) | provisional (survey H2) |
+| H2 | Its name | the Hermit (a crab that carries its own shell) | decided: **the Stratostacean**, the owner's own name (2026-10-26, survey H2); `name` in `data/missions/fortress.ron` is what the mail, the HUD, the TARGET page and the log say |
 | H3 | How it falls | the side rule, then the hull thrusters: three outer on one side open the hull, two hull thrusters on that side bring it down | provisional (survey H3; the hull thrusters and the plates are the owner's, 2026-10-25) |
-| H4 | How the pilot gets up and stays up | the jets as they are; land on the deck, shoulders or a pylon to recharge | provisional (survey H4) |
-| H5 | Does its crash count as city damage | yes: the pilot chooses where it falls (stop its drive first, or wait) | provisional (survey H5) |
-| H6 | Who guards the deck | 2 Shrikes and 4 Mites aboard, a Mite up each lift every 60 s | provisional (survey H6) |
+| H4 | How the pilot gets up and stays up | the jets as they are; land on the deck, shoulders or a pylon to recharge | decided (owner, 2026-10-26, survey H4: recommendation accepted, "Approve all"): every roster mech reaches the deck on its jets with 8.5 s of burn left; landing hands the mech's velocity over to the deck (section 5) |
+| H5 | Does its crash count as city damage | yes: the pilot chooses where it falls (stop its drive first, or wait) | decided (owner, 2026-10-26, survey H5: recommendation accepted, "Approve all"); section 6 |
+| H6 | Who guards the deck | 2 Shrikes and 4 Mites aboard, a Mite up each lift every 60 s | decided (owner, 2026-10-26, survey H6: recommendation accepted, "Approve all"); section 9, the deck guard. The cap of 6 on deck and 8 below are section 4's, kept |
