@@ -43,8 +43,10 @@ core's rules (`cb_core::world::mist`, pure and tested):
   (a full hollow is 100 m deep).
 - **Water**: lakes, rivers and wetland add up to 2 x within 300 m; the coast 1 x within 600 m.
 - **Height**: nothing above 600 m (mist is low).
-- Then a **preset** scales it (not built yet): `morning` (all of the above, rho0 x 2), `day`
-  (rho0 x 1, hollows x 0.5), `clear` (rho0 x 0.5, no mist).
+- Then a **preset** scales it (survey F1, built 2026-10-26): `morning` (rho0 x 2, mist x 1), `day`
+  (rho0 x 1, mist x 0.5), `clear` (rho0 x 0.5, no mist). As built the day's half applies to all
+  the mist, not to the hollows alone: the map holds one number a cell, so the hollows' share of it
+  is not kept apart. Section 3a says which preset is in force.
 
 As built (2026-10-25): `mist_at = low x (0.6 hollow + 0.5 near water + 0.3 near coast)`, `low`
 falling to 0 between 360 m and 600 m; the density is `1 + 5 x` the mist averaged over the taps.
@@ -53,6 +55,29 @@ ray's length inside each shaft's cylinder: the shafts themselves are drawn as bi
 
 The pass reads it with four taps along the ray (at 10, 30, 60 and 100 % of the way, capped at 6
 km), so near mist and far valleys both show.
+
+## 3a. Morning mist, thinning by day (survey F1)
+
+Owner, 2026-10-26 ("Approve all", then "Go and implement"): F1, morning mist in the valleys and
+the crater, thinning by day, and clear for combat-heavy missions.
+
+- **The game has no time of day**: the sun stands still. So the fog keeps its own clock, data in
+  `fog.clock`: the world begins at 06:00 (`start_h`), an hour passes every 300 s (`hours_per_s`
+  1 / 300), and between 07:00 and 11:00 (`burn_off_h`), 5 to 25 minutes in, the `morning`
+  strength eases (smoothstep) to the `day` one, where it stays. The clock is not wrapped: the
+  mist does not come back at night, because there is no night to see it in. When a sky clock is
+  built, `fog.clock` should read it instead of keeping its own (one clock, section 6.1).
+- **A mission's own preset**: `fog.missions` maps a mission to a preset that holds while it runs,
+  whatever the clock says. The defence and the air fortress, the two combat-heavy missions, fly in
+  `clear` air. A career job and free roam with no mission running keep the clock's.
+- **The crater**: the crater island is gone (`docs/design/world-look-plan.md`), so there is no
+  crater floor to fill today. A crater, if one comes back, is a hollow, and the hollow rule fills
+  it with no new code.
+- `cb_core::world::mist::FogConfig::strength(mission, hour)` is the rule (tests
+  `the_morning_mist_thins_by_day_on_the_clock`, `combat_heavy_missions_fly_in_clear_air`).
+  `cb-app`'s `ground_fog.rs` runs the clock in the fixed step and keeps the strength in `FogNow`;
+  the compose pass scales its density and mist strength by it, and so does the targeting
+  (section 7), so what the pilot sees and what the sensors see are one fog.
 
 ## 4. In the cockpit
 
@@ -82,6 +107,6 @@ the densest scene (CLAUDE.md section 7).
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| F1 | How much fog by default | morning mist in the valleys and the crater, thinning by day; clear for combat-heavy missions | proposed (survey F1) |
+| F1 | How much fog by default | morning mist in the valleys and the crater, thinning by day; clear for combat-heavy missions | decided, built (owner, 2026-10-26: "Approve all"; section 3a) |
 | F2 | Does fog hide targets | from the eye only, as cloud does (W28); radar sees through it | proposed (survey F2) |
 | F3 | Ray-marched volumetric fog | not now; Bevy's `VolumetricFog` later only for local volumes (steam at boarding, waterfall spray) | proposed (survey F3) |
