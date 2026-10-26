@@ -35,9 +35,9 @@ Car { id: u32, kind: CarKind, lane: u32, s_m: f32 /* along the lane */, speed_m_
 - **Hits:** cars carry a capsule in the weapons' part list, like vehicles (invasion-forces). A hit
   that beats their 5 mm of armour sets them Burning.
 - **Spawn and despawn:**
-  - Lanes within 1.5 km of the eye are kept filled to their density, on lane positions not in the
+  - Lanes within 1 km of the eye (1.5 km until the owner, 2026-10-26: "car should be 1000m") are kept filled to their density, on lane positions not in the
     view frustum, or beyond 400 m and behind cover.
-  - Cars beyond 2 km are dropped.
+  - Cars beyond 1.2 km are dropped.
   - Wrecks (Crushed, Burning) stay for 10 minutes or until 2 km away.
 
 ## 3. Drawing (`cb-app::traffic`)

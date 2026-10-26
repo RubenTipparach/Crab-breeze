@@ -12,8 +12,8 @@ makes a 24 m mech feel 24 m tall. Driving (car-driving) is a separate change bui
   - city streets and arterials at 40-60 km/h;
   - highways at 90-110 km/h;
   - they keep to their lane, follow the car ahead, stop at junctions and turn.
-- **Traffic exists only near you.** Cars are spawned on lanes out of sight within 1.5 km of the pilot
-  and removed beyond 2 km, so the whole island never has to be simulated.
+- **Traffic exists only near you.** Cars are spawned on lanes out of sight within 1 km of the pilot
+  and removed beyond 1.2 km, so the whole island never has to be simulated.
 - **They react to the fight:**
   - cars near shelling or a mech brake hard and stop;
   - a car under a mech's foot is crushed flat;
