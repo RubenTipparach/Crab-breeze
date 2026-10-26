@@ -126,6 +126,10 @@
                 (0.18, 0.18, 0.20),
                 (0.45, 0.36, 0.26),
             ],
+            eyes: (0.86, 0.84, 0.8),
         ),
+        // A person's top and bottom differ in luminance by at least 0.08, so the shirt reads apart from the
+        // trousers (owner, 2026-10-26: "pants and shirt need more distinct").
+        min_top_bottom_contrast: 0.08,
     ),
 )

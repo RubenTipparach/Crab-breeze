@@ -25,7 +25,7 @@ use bevy::render::renderer::RenderQueue;
 use bevy::render::storage::{GpuShaderBuffer, ShaderBuffer};
 use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderSystems};
 use bevy::shader::ShaderRef;
-use cb_core::civilians::anim::{Anim, Clip, ClipTable, Outfit};
+use cb_core::civilians::anim::{Anim, Clip, ClipTable, HairStyles, Outfit};
 use cb_core::civilians::{Activity, DrawConfig, Palette, Person};
 use cb_core::people_vat::{Manifest, VatLevel};
 use cb_core::world::Ground;
@@ -51,7 +51,7 @@ pub struct PeopleLook {
     pub bounds_min: Vec4,
     /// The level's bounds, most corner.
     pub bounds_max: Vec4,
-    /// Skin 0-7, hair 8-15, tops 16-31, bottoms 32-43, shoes 44-51, linear RGB.
+    /// Skin 0-7, hair 8-15, tops 16-31, bottoms 32-43, shoes 44-51, the eyes' whites 52, linear RGB.
     pub palette: [Vec4; 56],
 }
 
@@ -127,7 +127,7 @@ fn read_bake() -> Option<Bake> {
             for l in &b.levels {
                 let bytes = std::fs::read(dir.join(&l.file)).map_err(|e| format!("{}: {e}", l.file))?;
                 let vat = VatLevel::parse(&bytes).map_err(|e| format!("{}: {e}", l.file))?;
-                manifest.check_level(l, &vat)?;
+                manifest.check_level(l, b.hairs.len(), &vat)?;
                 ls.push(vat);
             }
             levels.push(ls);
@@ -143,8 +143,8 @@ fn read_bake() -> Option<Bake> {
     }
 }
 
-/// The level's draw mesh: `CHUNK` copies of the body, each vertex's number and copy in its UV, its shade
-/// and region in its colour, and the idle's first frame as its position (the shader replaces it).
+/// The level's draw mesh: `CHUNK` copies of the body, each vertex's number and copy in its UV, its shade,
+/// region and hair style in its colour, and the idle's first frame as its position (the shader replaces it).
 fn chunk_mesh(vat: &VatLevel) -> Mesh {
     let n = vat.vertices as usize;
     let mut pos = Vec::with_capacity(n * CHUNK);
@@ -157,7 +157,12 @@ fn chunk_mesh(vat: &VatLevel) -> Mesh {
             pos.push(vat.position(0, v as u32));
             nor.push([0.0, 1.0, 0.0]);
             uv.push([v as f32, c as f32]);
-            col.push([f32::from(vat.shade[v]) / 255.0 * 2.0, f32::from(vat.region[v]), 0.0, 1.0]);
+            col.push([
+                f32::from(vat.shade[v]) / 255.0 * 2.0,
+                f32::from(vat.region[v]),
+                f32::from(vat.hair[v]),
+                1.0,
+            ]);
         }
         idx.extend(vat.indices.iter().map(|i| i + (c * n) as u32));
     }
@@ -187,6 +192,8 @@ fn vat_image(vat: &VatLevel) -> Image {
 /// The palette lists as the shader's table, linear RGB.
 fn palette_table(p: &Palette) -> [Vec4; 56] {
     let mut t = [Vec4::ONE; 56];
+    let e = Color::srgb(p.eyes[0], p.eyes[1], p.eyes[2]).to_linear();
+    t[52] = Vec4::new(e.red, e.green, e.blue, 1.0);
     for (base, list) in [0usize, 8, 16, 32, 44].into_iter().zip(p.lists()) {
         for (i, c) in list.iter().enumerate() {
             let l = Color::srgb(c[0], c[1], c[2]).to_linear();
@@ -217,6 +224,7 @@ struct Chunk {
 pub struct PeopleDraw {
     tables: Vec<ClipTable>,
     heights: Vec<f32>,
+    hair_styles: Vec<HairStyles>,
     /// `[body][level]` sections; level 0 near, 1 crowd.
     sections: Vec<[Section; 2]>,
     /// Every slot, written each frame.
@@ -356,6 +364,15 @@ fn spawn_people(
     commands.insert_resource(PeopleDraw {
         tables: b.tables.clone(),
         heights: b.manifest.bodies.iter().map(|x| x.height_m).collect(),
+        hair_styles: b
+            .manifest
+            .bodies
+            .iter()
+            .map(|x| HairStyles {
+                styles: x.hairs.len() as u32,
+                bald: x.bald,
+            })
+            .collect(),
         sections,
         slots: vec![PersonGpu::default(); total],
         buffer,
@@ -423,14 +440,13 @@ fn draw_people(
     let eye = camera.translation();
     let dt = time.delta_secs();
     let figs = figures(crowd.as_deref(), traffic.as_deref(), &plan, &data);
-    let lists = cfg.draw.palette.lists().map(<[[f32; 3]]>::len);
     let bodies = draw.tables.len();
     let mut used = vec![[0usize; 2]; bodies];
     let mut near_left = dc.near_max;
     let near2 = dc.near_m * dc.near_m;
     let mut seen = Vec::with_capacity(figs.len());
     for f in &figs {
-        let outfit = Outfit::of(f.look, bodies, lists);
+        let outfit = Outfit::of(f.look, &draw.hair_styles, &dc.palette, dc.min_top_bottom_contrast);
         let table = &draw.tables[outfit.body];
         let pace = if f.pace_m_s.is_finite() {
             f.pace_m_s

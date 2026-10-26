@@ -85,6 +85,10 @@ pub struct BodyInfo {
     pub sitting_pelvis_m: f32,
     /// The pelvis's height above the feet standing, metres.
     pub standing_pelvis_m: f32,
+    /// The hair styles baked with the body (MakeHuman asset names), numbered from 1 in this order.
+    pub hairs: Vec<String>,
+    /// True when a person of this body may have no hair (style 0).
+    pub bald: bool,
     /// Its levels of detail, nearest first.
     pub levels: Vec<LevelInfo>,
 }
@@ -99,8 +103,12 @@ pub struct LevelInfo {
     pub file: String,
     /// Vertices.
     pub vertices: u32,
-    /// Triangles.
+    /// Triangles in the file: the body and every hair style.
     pub triangles: u32,
+    /// The most triangles one person draws: the body and its largest hair style. The budget is held to this.
+    pub drawn_triangles: u32,
+    /// Each hair style's triangles, in the body's `hairs` order.
+    pub hair_triangles: Vec<u32>,
     /// Rows (every clip's frames).
     pub rows: u32,
     /// The bounds' least corner, metres.
@@ -132,6 +140,8 @@ pub struct VatLevel {
     pub region: Vec<u8>,
     /// Each vertex's shade, 0-255 for 0-2.
     pub shade: Vec<u8>,
+    /// Each vertex's hair style (0 the body, k hair style k).
+    pub hair: Vec<u8>,
     /// The texels, row by row, vertex by vertex, four `u16` each, as bytes (little-endian).
     pub texels: Vec<u8>,
 }
@@ -172,6 +182,7 @@ impl VatLevel {
         at += ni * 4;
         let region = (0..n).map(|i| b[at + i * 4]).collect();
         let shade = (0..n).map(|i| b[at + i * 4 + 1]).collect();
+        let hair = (0..n).map(|i| b[at + i * 4 + 2]).collect();
         at += n * 4;
         Ok(Self {
             vertices: n as u32,
@@ -181,6 +192,7 @@ impl VatLevel {
             indices,
             region,
             shade,
+            hair,
             texels: b[at..].to_vec(),
         })
     }
@@ -235,11 +247,17 @@ impl Manifest {
                 return Err(format!("{}: no levels", b.id));
             }
             for l in &b.levels {
-                if l.triangles > l.budget_triangles {
+                if l.drawn_triangles > l.budget_triangles {
                     return Err(format!(
-                        "{} {}: {} triangles, over its budget of {}",
-                        b.id, l.name, l.triangles, l.budget_triangles
+                        "{} {}: {} triangles drawn, over its budget of {}",
+                        b.id, l.name, l.drawn_triangles, l.budget_triangles
                     ));
+                }
+                if l.hair_triangles.len() != b.hairs.len()
+                    || l.drawn_triangles > l.triangles
+                    || l.drawn_triangles < l.triangles - l.hair_triangles.iter().sum::<u32>()
+                {
+                    return Err(format!("{} {}: its hair triangles do not add up", b.id, l.name));
                 }
                 if l.rows != row {
                     return Err(format!("{} {}: {} rows, the clips hold {row}", b.id, l.name, l.rows));
@@ -255,8 +273,9 @@ impl Manifest {
         Ok(())
     }
 
-    /// A level's file checked against its manifest entry: counts, rows and bounds.
-    pub fn check_level(&self, level: &LevelInfo, vat: &VatLevel) -> Result<(), String> {
+    /// A level's file checked against its manifest entry: counts, rows, bounds, regions and hair styles (the body
+    /// has `body_hairs`).
+    pub fn check_level(&self, level: &LevelInfo, body_hairs: usize, vat: &VatLevel) -> Result<(), String> {
         let close = |a: [f32; 3], b: [f32; 3]| a.iter().zip(&b).all(|(x, y)| (x - y).abs() < 1e-4);
         if vat.vertices != level.vertices || vat.triangles() != level.triangles || vat.rows != level.rows {
             return Err(format!(
@@ -272,6 +291,9 @@ impl Manifest {
         }
         if !close(vat.bounds_min, level.bounds_min) || !close(vat.bounds_max, level.bounds_max) {
             return Err(format!("{}: bounds differ from the manifest", level.file));
+        }
+        if let Some(h) = vat.hair.iter().find(|&&h| usize::from(h) > body_hairs) {
+            return Err(format!("{}: a vertex has hair style {h} of {body_hairs}", level.file));
         }
         if let Some(r) = vat.region.iter().find(|&&r| r as usize >= self.regions.len()) {
             return Err(format!("{}: a vertex has region {r} of {}", level.file, self.regions.len()));
@@ -333,7 +355,7 @@ mod tests {
                 let bytes = std::fs::read(dir.join(&l.file)).unwrap();
                 assert_eq!(bytes.len() as u64, l.bytes, "{}", l.file);
                 let vat = VatLevel::parse(&bytes).unwrap();
-                m.check_level(l, &vat).unwrap();
+                m.check_level(l, b.hairs.len(), &vat).unwrap();
                 assert_eq!(
                     meshes.get(&format!("{}_{}", b.id, l.name)),
                     Some(&l.triangles),
@@ -357,6 +379,8 @@ mod tests {
             file: "a_near.vat".into(),
             vertices: 3,
             triangles: 1,
+            drawn_triangles: 1,
+            hair_triangles: vec![],
             rows: 0,
             bounds_min: [0.0; 3],
             bounds_max: [1.0; 3],
@@ -393,6 +417,8 @@ mod tests {
                 glb_sha256: String::new(),
                 sitting_pelvis_m: 0.5,
                 standing_pelvis_m: 0.9,
+                hairs: vec![],
+                bald: true,
                 levels: vec![LevelInfo { rows: row, ..level }],
             }],
         }
@@ -403,6 +429,7 @@ mod tests {
         let mut m = manifest();
         assert_eq!(m.check(), Ok(()));
         m.bodies[0].levels[0].triangles = 2;
+        m.bodies[0].levels[0].drawn_triangles = 2;
         let e = m.check().unwrap_err();
         assert!(e.contains("over its budget"), "{e}");
     }

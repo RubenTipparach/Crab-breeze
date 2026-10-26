@@ -12,7 +12,8 @@
                 "race": {"african": 0.33, "asian": 0.33, "caucasian": 0.34}},
       "proxy": "male1591",
       "skin": "middleage_caucasian_male",
-      "hair": "short02",
+      "hairs": ["short02", "short01", "short04"],
+      "bald": true,
       "clothes": ["male_casualsuit05", "shoes03"]
     },
     {
@@ -23,19 +24,18 @@
                 "race": {"african": 0.33, "asian": 0.33, "caucasian": 0.34}},
       "proxy": "female1605",
       "skin": "middleage_caucasian_female",
-      "hair": "bob01",
+      "hairs": ["ponytail01", "braid01", "long01", "short02"],
+      "bald": false,
       "clothes": ["female_casualsuit01", "shoes05"]
     }
   ],
-  "_comment_regions": "Every vertex is coloured by region at run time from the person's palette (design section 4): 0 skin, 1 top, 2 bottom, 3 shoes, 4 hair. Clothes vertices are top or bottom by the bone that moves them most; an asset listed here takes one region whatever its bones.",
-  "region_of_asset": {"shoes03": 3, "shoes05": 3, "short02": 4, "bob01": 4},
+  "_comment_regions": "Every vertex is coloured by region at run time from the person's palette (design section 4): 0 skin, 1 top, 2 bottom, 3 shoes, 4 hair, 5 eyes. A garment's loose parts (a shirt, a pair of trousers) are top or bottom by the bones that move most of their vertices; an asset listed here takes one region whatever its bones. Every hair style in a body's `hairs` is baked with it; a person shows one (or none, for a body that may be `bald`).",
+  "region_of_asset": {},
   "bottom_bones": ["pelvis", "thigh_l", "thigh_r", "calf_l", "calf_r", "foot_l", "foot_r", "ball_l", "ball_r"],
-  "_comment_decimate": "Triangle ratio for the heavy pieces only, as Undercity's table does (bob hair is layered cards).",
-  "decimate": {"bob01": 0.5},
-  "_comment_lods": "Two levels of detail baked separately: near (within the near distance of the eye) and crowd (everyone else). ratio is the Decimate collapse ratio of the whole joined body; the build refuses a level over its triangle budget, read back from what it wrote.",
+  "_comment_lods": "Two levels of detail baked separately: near (within the near distance of the eye) and crowd (everyone else). Each part goes through a Decimate collapse at its kind's ratio, with its open edges held (cuffs, hems, collars) by hold_edges (the Decimate's vertex group factor), and each hair style to about hair_triangles; the build refuses a level whose body and largest hair together are over budget_triangles (owner, 2026-10-26: 'lower poly characters').",
   "lods": [
-    {"name": "near", "ratio": 0.6, "budget_triangles": 10000},
-    {"name": "crowd", "ratio": 0.055, "budget_triangles": 1000}
+    {"name": "near", "ratio": {"skin": 0.6, "eyes": 1.0, "clothes": 0.25, "shoes": 0.1}, "hair_triangles": 400, "hold_edges": 100.0, "budget_triangles": 4000},
+    {"name": "crowd", "ratio": {"skin": 0.1, "eyes": 0.25, "clothes": 0.05, "shoes": 0.03}, "hair_triangles": 140, "hold_edges": 3.0, "budget_triangles": 1100}
   ],
   "_comment_bake": "Each clip is sampled at its source's 24 frames a second, evenly over its length; a loop's last sample is not its first again. Positions are quantised to 16 bits a component over the level's bounds, normals octahedral to 8 bits a component (design section 3).",
   "bake_fps": 24,
@@ -44,12 +44,12 @@
     {"name": "walk", "source": "Walk_Loop", "loop": true, "moves": true},
     {"name": "run", "source": "Sprint_Loop", "loop": true, "moves": true},
     {"name": "sit", "source": "Sitting_Idle_Loop", "loop": true},
-    {"name": "wave", "source": "Idle_Loop", "loop": true, "author": "wave", "seconds": 2.0},
+    {"name": "wave", "source": "Idle_Loop", "loop": false, "author": "wave", "seconds": 2.0},
     {"name": "talk", "source": "Idle_Talking_Loop", "loop": true},
     {"name": "fall", "source": "Death01", "loop": false}
   ],
-  "_comment_wave": "The wave, authored over the idle: the right upper arm raised to raise_deg from hanging, out to the side by out_deg, the forearm swinging swing_deg either side of upright at hz.",
-  "wave": {"raise_deg": 150.0, "out_deg": 25.0, "forearm_deg": 35.0, "swing_deg": 22.0, "hz": 2.0},
+  "_comment_wave": "The wave, authored over the idle and played once, for the greeting's first 2 s (owner, 2026-10-26: 'wave animation is messed up'): eased in and out of the idle over ease_s; the right upper arm raised raise_deg from hanging, out to the side and forward_deg to the front; the elbow bent so the forearm leans forearm_lean_deg in from upright and swings swing_deg either side at hz; the hand open, palm to the front, following wrist_lag_s late by wrist_follow of the swing; the weight shifted weight_shift_m onto the left foot.",
+  "wave": {"ease_s": 0.35, "raise_deg": 110.0, "forward_deg": 12.0, "forearm_lean_deg": 38.0, "swing_deg": 20.0, "hz": 2.0, "wrist_lag_s": 0.06, "wrist_follow": 0.6, "weight_shift_m": 0.025},
   "_comment_bone_map": "MPFB game_engine bone to UAL (Rigify DEF) bone, from Undercity's bone maps to Godot's humanoid profile (fps-game-demo game/animations/bonemaps at 1363650). A bone not listed keeps its rest pose relative to its parent.",
   "bone_map": {
     "pelvis": "DEF-hips", "spine_01": "DEF-spine.001", "spine_02": "DEF-spine.002", "spine_03": "DEF-spine.003",

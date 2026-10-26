@@ -255,19 +255,39 @@ impl Anim {
     }
 }
 
-/// What a person looks like, from their `look`: which body, and one colour of each palette list.
+/// What a person looks like, from their `look`: which body, which of its hair styles, and one colour of each palette
+/// list.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Outfit {
     /// The body (an index into the bake manifest's bodies).
     pub body: usize,
+    /// The hair style: 1 to the body's styles, 0 for none (only for a body that may be bald).
+    pub hair_style: u32,
     /// Indices into the palette's skin, hair, top, bottom and shoes lists.
     pub colours: [u32; 5],
 }
 
+/// A body's hair styles, as the bake manifest gives them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HairStyles {
+    /// How many styles are baked with the body.
+    pub styles: u32,
+    /// True when a person of this body may have none.
+    pub bald: bool,
+}
+
+/// An sRGB colour's relative luminance (Rec. 709 weights over linear light), 0-1.
+pub fn luminance(c: [f32; 3]) -> f32 {
+    let lin = |v: f32| if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) };
+    0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2])
+}
+
 impl Outfit {
-    /// The outfit for `look` given how many bodies there are and how long each palette list is (in the order
-    /// of `Palette::MAX`). Every pick is a different slice of a mixed `look`, so neighbours differ.
-    pub fn of(look: u32, bodies: usize, lists: [usize; 5]) -> Self {
+    /// The outfit for `look`: a body, one of its hair styles, and a colour from each palette list. Every pick is a
+    /// different slice of a mixed `look`, so neighbours differ. The bottom is stepped on through its list until its
+    /// luminance differs from the top's by `min_contrast` (the first that does; the most different if none), so a
+    /// shirt never melts into the trousers (owner, 2026-10-26: "pants and shirt need more distinct").
+    pub fn of(look: u32, bodies: &[HairStyles], palette: &super::Palette, min_contrast: f32) -> Self {
         // a 32-bit mix (Murmur3's finaliser) so consecutive looks spread over every list
         let mut h = look;
         h ^= h >> 16;
@@ -275,23 +295,35 @@ impl Outfit {
         h ^= h >> 13;
         h = h.wrapping_mul(0xc2b2_ae35);
         h ^= h >> 16;
+        let lists = palette.lists().map(<[[f32; 3]]>::len);
         let pick = |shift: u32, n: usize| ((h >> shift) & 0xff) % (n.max(1) as u32);
+        let body = (h % (bodies.len().max(1) as u32)) as usize;
+        let hair_style = bodies.get(body).map_or(0, |b| {
+            let choices = b.styles + u32::from(b.bald);
+            let k = pick(19, choices as usize);
+            if b.bald { k } else { k + 1 }
+        });
+        let top = pick(16, lists[2]);
+        let first = pick(22, lists[3]);
+        let lt = luminance(palette.top[top as usize]);
+        let n = lists[3] as u32;
+        let differs = |i: u32| (luminance(palette.bottom[i as usize]) - lt).abs();
+        let bottom = (0..n)
+            .map(|k| (first + k) % n)
+            .find(|&i| differs(i) >= min_contrast)
+            .unwrap_or_else(|| (0..n).max_by(|&a, &b| differs(a).total_cmp(&differs(b))).unwrap_or(0));
         Self {
-            body: (h % (bodies.max(1) as u32)) as usize,
-            colours: [
-                pick(4, lists[0]),
-                pick(10, lists[1]),
-                pick(16, lists[2]),
-                pick(22, lists[3]),
-                pick(26, lists[4]),
-            ],
+            body,
+            hair_style,
+            colours: [pick(4, lists[0]), pick(10, lists[1]), top, bottom, pick(26, lists[4])],
         }
     }
 
-    /// The colours packed for the renderer: skin 3 bits, hair 3, top 4, bottom 4, shoes 3.
+    /// The colours and hair style packed for the renderer: skin 3 bits, hair colour 3, top 4, bottom 4, shoes 3,
+    /// hair style 3.
     pub fn packed(&self) -> u32 {
         let [skin, hair, top, bottom, shoes] = self.colours;
-        skin | hair << 3 | top << 6 | bottom << 10 | shoes << 14
+        skin | hair << 3 | top << 6 | bottom << 10 | shoes << 14 | self.hair_style << 17
     }
 }
 
@@ -410,23 +442,41 @@ mod tests {
     }
 
     #[test]
-    fn looks_spread_over_both_bodies_and_every_colour_and_pack_within_their_bits() {
-        let lists = crate::civilians::Palette::MAX;
-        let mut bodies = [0; 2];
+    fn looks_spread_over_both_bodies_every_colour_and_hair_and_pack_within_their_bits() {
+        let palette = crate::civilians::Palette::default();
+        let lists = palette.lists().map(<[[f32; 3]]>::len);
+        let bodies = [HairStyles { styles: 3, bald: true }, HairStyles { styles: 4, bald: false }];
+        let mut per_body = [0; 2];
         let mut tops = std::collections::BTreeSet::new();
-        for look in 0..1000 {
-            let o = Outfit::of(look, 2, lists);
-            bodies[o.body] += 1;
+        let mut hairs = [std::collections::BTreeSet::new(), std::collections::BTreeSet::new()];
+        for look in 0..2000 {
+            let o = Outfit::of(look, &bodies, &palette, 0.0);
+            per_body[o.body] += 1;
             tops.insert(o.colours[2]);
+            hairs[o.body].insert(o.hair_style);
             for (c, n) in o.colours.iter().zip(lists) {
                 assert!((*c as usize) < n);
             }
             let p = o.packed();
             assert_eq!((p >> 6) & 15, o.colours[2]);
             assert_eq!((p >> 14) & 7, o.colours[4]);
+            assert_eq!((p >> 17) & 7, o.hair_style);
         }
-        assert!(bodies[0] > 400 && bodies[1] > 400, "{bodies:?}");
+        assert!(per_body[0] > 800 && per_body[1] > 800, "{per_body:?}");
         assert_eq!(tops.len(), 16);
+        assert_eq!(hairs[0], (0..=3).collect(), "the man may be bald");
+        assert_eq!(hairs[1], (1..=4).collect(), "the woman always has hair");
+    }
+
+    #[test]
+    fn a_shirt_and_trousers_always_differ_by_the_minimum_contrast() {
+        let palette = crate::civilians::Palette::default();
+        let bodies = [HairStyles { styles: 1, bald: false }];
+        for look in 0..2000 {
+            let o = Outfit::of(look, &bodies, &palette, 0.08);
+            let d = luminance(palette.top[o.colours[2] as usize]) - luminance(palette.bottom[o.colours[3] as usize]);
+            assert!(d.abs() >= 0.08, "look {look}: {d}");
+        }
     }
 
     #[test]

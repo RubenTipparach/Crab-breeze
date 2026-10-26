@@ -23,7 +23,8 @@ fps-game-demo 1363650):
   - the clips are UAL's (CC0) retargeted bone by bone onto the game_engine rig: every mapped bone takes the source
     bone's rotation from its rest pose in world space, after its own rest direction is turned onto the source's
     (UAL rests in a T-pose, MPFB in an A-pose); the hips move by the source's hips, scaled by the hip heights.
-    The wave is authored here over the idle: the right arm raised, the forearm swinging.
+    The wave is authored here over the idle: eased in and out, the right arm raised with the elbow bent, the
+    forearm swinging, the hand open with the palm to the front.
 The build refuses an asset outside the pinned packs and a level over its triangle budget (read back from the file it
 wrote), naming the body. The same table and packs give the same bytes (`--verify`).
 
@@ -52,7 +53,6 @@ import numpy as np
 # numpy on macOS (Accelerate) flags spurious divide and overflow warnings in plain matrix products.
 np.seterr(all="ignore")
 from mathutils import Matrix, Quaternion, Vector
-from mathutils.kdtree import KDTree
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
@@ -65,7 +65,7 @@ ASSET_PACK = "makehuman_system_assets_cc0"
 UAL_PACK = "universal_animation_library_standard"
 MPFB_MODULE = "bl_ext.user_default.mpfb"
 VAT_MAGIC = b"CBVAT001"
-REGIONS = ("skin", "top", "bottom", "shoes", "hair")
+REGIONS = ("skin", "top", "bottom", "shoes", "hair", "eyes")
 SKIN, TOP, BOTTOM = 0, 1, 2
 
 
@@ -227,8 +227,9 @@ def texture_of(obj):
     return None
 
 
-def vertex_shades(obj):
-    """Each vertex's shade: its texture's brightness under its UVs over the piece's median, 0.55-1.45."""
+def vertex_shades(obj, contrast=0.5, smooth=3, lo=0.75, hi=1.25):
+    """Each vertex's shade: its texture's brightness under its UVs over the piece's median, at `contrast` within
+    lo-hi, smoothed over its neighbours `smooth` times (skin: half contrast; eyes: the iris and the white)."""
     n = len(obj.data.vertices)
     tex = texture_of(obj)
     if tex is None or not obj.data.uv_layers:
@@ -247,7 +248,21 @@ def vertex_shades(obj):
     np.add.at(cnt, vi, 1.0)
     lum_v = np.where(cnt > 0, acc / np.maximum(cnt, 1), np.nan)
     med = float(np.nanmedian(lum_v)) if np.isfinite(lum_v).any() else 1.0
-    return np.clip(np.nan_to_num(lum_v / max(med, 1e-3), nan=1.0), 0.55, 1.45)
+    rel = np.nan_to_num(lum_v / max(med, 1e-3), nan=1.0)
+    # Half the texture's contrast, within 0.75-1.25, then smoothed over each vertex's neighbours: one vertex
+    # sampling a stain or a dark seam of the CC0 texture made a blotch the size of its triangles (2026-10-26 stills).
+    shade = np.clip(1.0 + (rel - 1.0) * contrast, lo, hi)
+    ev = np.empty(len(obj.data.edges) * 2, np.int64)
+    obj.data.edges.foreach_get("vertices", ev)
+    ev = ev.reshape(-1, 2)
+    for _ in range(smooth):
+        acc, cnt = shade.copy(), np.ones(n)
+        np.add.at(acc, ev[:, 0], shade[ev[:, 1]])
+        np.add.at(acc, ev[:, 1], shade[ev[:, 0]])
+        np.add.at(cnt, ev[:, 0], 1.0)
+        np.add.at(cnt, ev[:, 1], 1.0)
+        shade = acc / cnt
+    return shade
 
 
 def dominant_bone(obj, bone_names):
@@ -262,100 +277,260 @@ def dominant_bone(obj, bone_names):
     return out
 
 
-def make_body(body, table, allow):
-    """The fitted body joined into one mesh with `region` and `shade` per vertex, and its rig."""
-    hs, ts, props, gop = services()
-    clean_scene()
-    slider, fitted, macro = fit_height(body, hs, ts, props)
-    macro["height"] = slider
-    basemesh = build_human(body, table, hs, macro)
+def garment_regions(obj, by_bone):
+    """A garment's regions by loose part: every connected piece (a shirt, a pair of trousers) takes the region most
+    of its vertices' bones give it, so a hem is one colour, not a ragged band where the top's lowest vertices follow
+    the pelvis (2026-10-26 stills)."""
+    n = len(obj.data.vertices)
+    parent = np.arange(n)
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+    ev = np.empty(len(obj.data.edges) * 2, np.int64)
+    obj.data.edges.foreach_get("vertices", ev)
+    for a, b in ev.reshape(-1, 2):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[max(ra, rb)] = min(ra, rb)
+    roots = np.array([find(i) for i in range(n)])
+    votes = np.array(by_bone)
+    out = np.empty(n, np.int64)
+    for r in sorted(set(roots.tolist())):
+        sel = roots == r
+        out[sel] = BOTTOM if (votes[sel] == BOTTOM).sum() * 2 > sel.sum() else TOP
+    return out.tolist()
+
+
+def part_kind(kind, asset):
+    """What a part is, for its level ratio and its region: skin, eyes, shoes, clothes or hair."""
+    if kind == "Proxymeshes":
+        return "skin"
+    if kind == "Eyes":
+        return "eyes"
+    if kind == "Hair":
+        return "hair"
+    return "shoes" if asset.startswith("shoes") else "clothes"
+
+
+def boundary_loops(obj):
+    """The mesh's open edge loops: (vertex indices, perimeter in metres, centroid)."""
+    me = obj.data
+    ev = np.empty(len(me.edges) * 2, np.int64)
+    me.edges.foreach_get("vertices", ev)
+    ev = ev.reshape(-1, 2)
+    count = {}
+    for p in me.polygons:
+        for k in p.edge_keys:
+            count[k] = count.get(k, 0) + 1
+    open_e = [tuple(sorted(e)) for e in ev.tolist() if count.get(tuple(sorted(e)), 0) == 1]
+    parent = {}
+
+    def find(x):
+        while parent.setdefault(x, x) != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    for u, v in open_e:
+        ru, rv = find(u), find(v)
+        if ru != rv:
+            parent[max(ru, rv)] = min(ru, rv)
+    loops = {}
+    for u, v in open_e:
+        loops.setdefault(find(u), []).append((u, v))
+    co = coords(obj)
+    out = []
+    for r in sorted(loops):
+        es = loops[r]
+        verts = sorted({x for e in es for x in e})
+        per = float(sum(np.linalg.norm(co[u] - co[v]) for u, v in es))
+        out.append((verts, per, co[verts].mean(axis=0)))
+    return out
+
+
+def close_mouth(skin, body_id):
+    """Closes the proxy's mouth: the open lips and the mouth tube behind them (the only small open loops on the
+    face's middle line) are filled, so a face shows closed lips, not a hole (2026-10-26: "mouth is missing")."""
+    import bmesh
+    filled = 0
+    want = []
+    for verts, per, c in boundary_loops(skin):
+        if abs(c[0]) < 0.012 and per < 0.2 and c[2] > 1.3:
+            want.append(set(verts))
+    if not want:
+        raise BuildError(f"{body_id}: no open mouth loop found on the face's middle line")
+    bm = bmesh.new()
+    bm.from_mesh(skin.data)
+    for vs in want:
+        edges = [e for e in bm.edges if e.is_boundary and e.verts[0].index in vs and e.verts[1].index in vs]
+        bmesh.ops.holes_fill(bm, edges=edges, sides=64)
+        filled += 1
+    bm.to_mesh(skin.data)
+    bm.free()
+    return filled
+
+
+def hem_band(obj, region):
+    """A garment top's hem and cuffs (its open edges) a shade darker, so the shirt's edge reads against the
+    trousers as a separate garment."""
+    shade = np.ones(len(obj.data.vertices))
+    for verts, _, _ in boundary_loops(obj):
+        for v in verts:
+            if region[v] == TOP:
+                shade[v] = 0.72
+    return shade
+
+
+def tag_part(o, kind, region, shade, hair):
+    for name, kind_, vals in (("region", 'INT', region), ("shade", 'FLOAT', shade), ("hairvar", 'INT', hair)):
+        a = o.data.attributes.new(name, kind_, 'POINT')
+        a.data.foreach_set("value", np.asarray(vals, np.float32 if kind_ == 'FLOAT' else np.int32))
+    o["part_kind"] = kind
+
+
+def take_parts(hs, gop, body, table, macro, hair, allow):
+    """Builds the human with `hair` and returns its rig and its parts (masks applied), each (object, kind)."""
+    before = set(bpy.data.objects)
+    basemesh = build_human(dict(body, hair=hair), table, hs, macro)
     rig = basemesh.parent
     for img in bpy.data.images:
         if img.filepath and allow.pack_of(bpy.path.abspath(img.filepath)) is None:
             raise BuildError(f"{body['id']}: texture {img.filepath} is not a file of a pinned pack; refused")
-    parts = sorted([o for o in bpy.data.objects if o.type == 'MESH' and o is not basemesh], key=lambda o: o.name)
-    kinds = {o.name: str(gop.get_value("object_type", entity_reference=o)) for o in parts}
+    parts = sorted([o for o in bpy.data.objects if o not in before and o.type == 'MESH' and o is not basemesh],
+                   key=lambda o: o.name)
+    out = []
+    for o in parts:
+        apply_masks(o)
+        out.append((o, part_kind(str(gop.get_value("object_type", entity_reference=o)), o.name.split(".")[-1])))
     bpy.data.objects.remove(basemesh, do_unlink=True)
+    return rig, out
+
+
+def make_body(body, table, allow):
+    """The fitted body's parts, each tagged with `region`, `shade` and `hairvar` per vertex, every hair style of the
+    body among them (hair k carries `hairvar` k), and the rig."""
+    hs, ts, props, gop = services()
+    clean_scene()
+    slider, fitted, macro = fit_height(body, hs, ts, props)
+    macro["height"] = slider
+    hairs = body["hairs"]
+    rig, parts = take_parts(hs, gop, body, table, macro, hairs[0] if hairs else None, allow)
+    for k, h in enumerate(hairs[1:], start=2):
+        rig_k, parts_k = take_parts(hs, gop, body, table, macro, h, allow)
+        for o, kind in parts_k:
+            if kind == "hair":
+                o.parent = rig
+                for mod in o.modifiers:
+                    if mod.type == 'ARMATURE':
+                        mod.object = rig
+                o["hair_index"] = k
+                parts.append((o, kind))
+            else:
+                bpy.data.objects.remove(o, do_unlink=True)
+        bpy.data.objects.remove(rig_k, do_unlink=True)
     bones = {b.name for b in rig.data.bones}
     bottom = set(table["bottom_bones"])
     by_asset = table["region_of_asset"]
-    for o in parts:
-        apply_masks(o)
+    out = []
+    for o, kind in parts:
         asset = o.name.split(".")[-1]
-        if asset in table["decimate"]:
-            dec = o.modifiers.new("Decimate", 'DECIMATE')
-            dec.ratio = table["decimate"][asset]
-            dec.use_symmetry = True
-            with_obj(o, bpy.ops.object.modifier_move_to_index, modifier=dec.name, index=0)
-            with_obj(o, bpy.ops.object.modifier_apply, modifier=dec.name)
-        kind = kinds[o.name]
+        if kind == "skin":
+            close_mouth(o, body["id"])
         n = len(o.data.vertices)
-        if asset in by_asset:
-            region = [by_asset[asset]] * n
-        elif kind == "Clothes":
-            region = [BOTTOM if b in bottom else TOP for b in dominant_bone(o, bones)]
-        elif kind == "Hair":
-            region = [4] * n
+        hair = [0] * n
+        if kind == "hair":
+            hair = [int(o.get("hair_index", 1))] * n
+            region, shade = [4] * n, np.ones(n)
+        elif kind == "eyes":
+            region, shade = [5] * n, vertex_shades(o, contrast=1.0, smooth=0, lo=0.15, hi=1.3)
+        elif kind == "skin":
+            region, shade = [SKIN] * n, vertex_shades(o)
+        elif kind == "shoes" or asset in by_asset:
+            region, shade = [by_asset.get(asset, 3)] * n, np.ones(n)
         else:
-            region = [SKIN] * n
-        shade = vertex_shades(o)
-        a = o.data.attributes.new("region", 'INT', 'POINT')
-        a.data.foreach_set("value", region)
-        s = o.data.attributes.new("shade", 'FLOAT', 'POINT')
-        s.data.foreach_set("value", shade.astype(np.float32))
-    skin = next(o for o in parts if kinds[o.name] == "Proxymeshes")
-    with bpy.context.temp_override(object=skin, active_object=skin, selected_objects=parts,
-                                   selected_editable_objects=parts):
-        bpy.ops.object.join()
-    skin.name = skin.data.name = body["id"] + "_full"
+            region = garment_regions(o, [BOTTOM if b in bottom else TOP for b in dominant_bone(o, bones)])
+            shade = hem_band(o, region)
+        tag_part(o, kind, region, shade, hair)
+        for g in list(o.vertex_groups):
+            if g.name not in bones:
+                o.vertex_groups.remove(g)
+        o.data.materials.clear()
+        out.append(o)
     rig.name = body["id"]
-    for g in list(skin.vertex_groups):
-        if g.name not in bones:
-            skin.vertex_groups.remove(g)
-    for mod in skin.modifiers:
-        if mod.type == 'ARMATURE':
-            mod.object = rig
-    skin.data.materials.clear()
-    with_obj(skin, bpy.ops.object.shade_smooth)
-    return skin, rig, fitted
+    return out, rig, fitted
 
 
-def make_crowd_lod(near, ratio, name):
-    """A decimated level: a copy of the full body through a Decimate collapse, regions and shades from the nearest
-    full vertex."""
-    me = near.data.copy()
-    obj = bpy.data.objects.new(name, me)
-    me.name = name
-    bpy.context.scene.collection.objects.link(obj)
-    obj.parent = near.parent
-    obj.matrix_world = near.matrix_world.copy()
-    for mod in list(obj.modifiers):
-        obj.modifiers.remove(mod)
-    dec = obj.modifiers.new("Decimate", 'DECIMATE')
-    dec.ratio = ratio
-    dec.use_symmetry = True
-    with_obj(obj, bpy.ops.object.modifier_apply, modifier=dec.name)
-    arm = obj.modifiers.new("Armature", 'ARMATURE')
-    arm.object = near.parent
-    src = coords(near)
-    tree = KDTree(len(src))
-    for i, p in enumerate(src):
-        tree.insert(p, i)
-    tree.balance()
-    reg = np.empty(len(near.data.vertices), np.int32)
-    near.data.attributes["region"].data.foreach_get("value", reg)
-    sh = np.empty(len(near.data.vertices), np.float32)
-    near.data.attributes["shade"].data.foreach_get("value", sh)
-    dst = coords(obj)
-    nearest = [tree.find(p)[1] for p in dst]
-    for name_, arr in (("region", reg), ("shade", sh)):
-        if name_ in obj.data.attributes:
-            obj.data.attributes.remove(obj.data.attributes[name_])
-    a = obj.data.attributes.new("region", 'INT', 'POINT')
-    a.data.foreach_set("value", reg[nearest])
-    s = obj.data.attributes.new("shade", 'FLOAT', 'POINT')
-    s.data.foreach_set("value", sh[nearest])
-    return obj
+def make_level(parts, rig, lod, name):
+    """One level of detail: every part copied and put through a Decimate collapse at its kind's ratio (a hair to its
+    target triangles), its open edges held in place so a sleeve's cuff stays on the arm and a hem stays a hem, then
+    joined into one object skinned to the rig. Regions, shades and hair styles are constant across a part, so the
+    collapse carries them unchanged."""
+    copies = []
+    for o in parts:
+        me = o.data.copy()
+        c = bpy.data.objects.new(name + "_" + o.name, me)
+        bpy.context.scene.collection.objects.link(c)
+        c.parent = rig
+        c.matrix_world = o.matrix_world.copy()
+        for g in o.vertex_groups:
+            c.vertex_groups.new(name=g.name)
+        kind = o["part_kind"]
+        tris = tri_count(o)
+        ratio = min(1.0, lod["hair_triangles"] / max(tris, 1)) if kind == "hair" else lod["ratio"][kind]
+        # a sleeve's cuff, a hem and the skin's edges under them are held; hair is all cards (every edge open) and
+        # shoes are all laces and soles, so theirs are not
+        if ratio < 1.0 and kind in ("clothes", "skin"):
+            keep = c.vertex_groups.new(name="_keep")
+            edge = sorted({v for verts, _, _ in boundary_loops(c) for v in verts})
+            if edge:
+                keep.add(edge, 1.0, 'REPLACE')
+            dec = c.modifiers.new("Decimate", 'DECIMATE')
+            dec.ratio = ratio
+            dec.use_symmetry = True
+            dec.vertex_group = "_keep"
+            dec.vertex_group_factor = lod["hold_edges"]
+            dec.invert_vertex_group = True  # the group marks what decimates; inverted, the open edges are held
+            with_obj(c, bpy.ops.object.modifier_apply, modifier=dec.name)
+            c.vertex_groups.remove(c.vertex_groups["_keep"])
+        elif ratio < 1.0:
+            dec = c.modifiers.new("Decimate", 'DECIMATE')
+            dec.ratio = ratio
+            with_obj(c, bpy.ops.object.modifier_apply, modifier=dec.name)
+        if os.environ.get("PEOPLE_DEBUG"):
+            print(f"[part] {name} {o.name} {kind} {tris} -> {tri_count(c)} (ratio {ratio:.3f})", flush=True)
+        copies.append(c)
+    first = copies[0]
+    with bpy.context.temp_override(object=first, active_object=first, selected_objects=copies,
+                                   selected_editable_objects=copies):
+        bpy.ops.object.join()
+    first.name = first.data.name = name
+    import bmesh  # vertices a collapse left on no face (hair cards collapse to points) would still be baked
+    bm = bmesh.new()
+    bm.from_mesh(first.data)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+    bm.to_mesh(first.data)
+    bm.free()
+    for mod in list(first.modifiers):
+        first.modifiers.remove(mod)
+    arm = first.modifiers.new("Armature", 'ARMATURE')
+    arm.object = rig
+    with_obj(first, bpy.ops.object.shade_smooth)
+    return first
+
+
+def level_triangles(obj):
+    """(body triangles, triangles of each hair style by its number) of a level."""
+    me = obj.data
+    me.calc_loop_triangles()
+    tv = np.empty(len(me.loop_triangles) * 3, np.int64)
+    me.loop_triangles.foreach_get("vertices", tv)
+    hv = np.empty(len(me.vertices), np.int32)
+    me.attributes["hairvar"].data.foreach_get("value", hv)
+    per = hv[tv.reshape(-1, 3)[:, 0]]
+    hairs = {int(k): int((per == k).sum()) for k in sorted(set(per.tolist())) if k > 0}
+    return int((per == 0).sum()), hairs
 
 
 def tri_count(obj):
@@ -444,11 +619,11 @@ class Retarget:
 
 
 def pose_from_bases(tgt, order, bases, override):
-    """Armature-space pose matrices from bases, with `override(name, chain) -> basis or None` replacing some."""
+    """Armature-space pose matrices from bases, with `override(bone, chain, basis) -> basis or None` replacing some."""
     pose = {}
     for b in order:
         c = pose[b.parent.name] @ b.parent.matrix_local.inverted() @ b.matrix_local if b.parent else b.matrix_local
-        o = override(b.name, c)
+        o = override(b, c, bases[b.name])
         if o is not None:
             bases[b.name] = o
         pose[b.name] = c @ bases[b.name]
@@ -456,26 +631,75 @@ def pose_from_bases(tgt, order, bases, override):
 
 
 def aim(c, want_dir):
-    """The basis that points a bone with chain matrix `c` (armature space) along want_dir."""
+    """The basis that points a bone with chain matrix `c` (armature space) along want_dir (swing only)."""
     have = world_dir(c)
     q = have.rotation_difference(want_dir.normalized()) @ c.to_quaternion()
     want = Matrix.Translation(c.translation) @ q.to_matrix().to_4x4()
     return c.inverted() @ want
 
 
-def wave_override(cfg, t):
-    """The wave over the idle: the right upper arm raised and out, the forearm swinging (module docstring)."""
-    r, out = math.radians(cfg["raise_deg"]), math.radians(cfg["out_deg"])
-    upper = Vector((-math.sin(r), -math.sin(out), -math.cos(r)))
-    swing = math.radians(cfg["forearm_deg"]) + math.radians(cfg["swing_deg"]) * math.sin(2 * math.pi * cfg["hz"] * t)
-    fore = Vector((-math.sin(swing), -0.25, math.cos(swing)))
+def frame_of(d, a):
+    """An orthonormal frame (columns) from a direction and a second vector across it."""
+    e1 = d.normalized()
+    e2 = (a - a.dot(e1) * e1).normalized()
+    return Matrix((e1, e2, e1.cross(e2))).transposed()
 
-    def override(name, c):
+
+def aim_frame(c, rest, d_rest, a_rest, d_want, a_want):
+    """The basis that turns a bone (chain matrix `c`, rest matrix `rest`) so its rest direction `d_rest` points along
+    `d_want` and its rest cross vector `a_rest` along `a_want`: swing and twist, for the open hand's palm."""
+    turn = frame_of(d_want, a_want) @ frame_of(d_rest, a_rest).transposed()
+    q = turn.to_quaternion() @ rest.to_quaternion()
+    want = Matrix.Translation(c.translation) @ q.to_matrix().to_4x4()
+    return c.inverted() @ want
+
+
+def blend(a, b, w):
+    """Two bases mixed: location lerped, rotation slerped."""
+    la, ra, _ = a.decompose()
+    lb, rb, _ = b.decompose()
+    return Matrix.Translation(la.lerp(lb, w)) @ ra.slerp(rb, w).to_matrix().to_4x4()
+
+
+def smooth(x):
+    x = min(max(x, 0.0), 1.0)
+    return x * x * (3.0 - 2.0 * x)
+
+
+def wave_override(tgt, cfg, t, length):
+    """The wave over the idle (module docstring): out of the idle and back into it (`ease_s` each end), the right
+    upper arm raised out to the side (`raise_deg` from hanging), the elbow bent about a right angle with the forearm
+    near upright and swinging side to side (`swing_deg` at `hz`), the hand open (fingers straight), its palm to the
+    front, following the forearm a little late; a small shift of weight onto the left foot."""
+    w = smooth(t / cfg["ease_s"]) * smooth((length - t) / cfg["ease_s"])
+    r = math.radians(cfg["raise_deg"])
+    upper = Vector((-math.sin(r), -math.sin(math.radians(cfg["forward_deg"])), -math.cos(r)))
+    lean = math.radians(cfg["forearm_lean_deg"])
+    swing = math.radians(cfg["swing_deg"]) * math.sin(2 * math.pi * cfg["hz"] * t)
+    late = math.radians(cfg["swing_deg"]) * math.sin(2 * math.pi * cfg["hz"] * (t - cfg["wrist_lag_s"]))
+    fore = Vector((math.sin(lean + swing), -0.08, math.cos(lean + swing)))
+    hand = Vector((math.sin(lean + swing + cfg["wrist_follow"] * (late - swing) + 0.15 * late), -0.05, 1.0))
+    bones = tgt.data.bones
+    rest_hand = bones["hand_r"].matrix_local
+    d_rest = (rest_hand.to_3x3() @ Vector((0.0, 1.0, 0.0))).normalized()
+    a_rest = bones["index_01_r"].head_local - bones["pinky_01_r"].head_local
+    fingers = ("thumb", "index", "middle", "ring", "pinky")
+
+    def override(b, c, basis):
+        name = b.name
         if name == "upperarm_r":
-            return aim(c, upper)
-        if name == "lowerarm_r":
-            return aim(c, fore)
-        return None
+            want = aim(c, upper)
+        elif name == "lowerarm_r":
+            want = aim(c, fore)
+        elif name == "hand_r":
+            want = aim_frame(c, rest_hand, d_rest, a_rest, hand, Vector((1.0, 0.0, 0.0)))
+        elif name.endswith("_r") and name.split("_")[0] in fingers:
+            want = Matrix.Identity(4)
+        elif name == "pelvis":
+            want = Matrix.Translation(c.inverted().to_3x3() @ Vector((cfg["weight_shift_m"], 0.0, 0.0))) @ basis
+        else:
+            return None
+        return blend(basis, want, w)
     return override
 
 
@@ -508,7 +732,7 @@ def key_clip(tgt, retarget, order, clip, src_actions, cfg, scene):
         scene.frame_set(int(math.floor(t)), subframe=t - math.floor(t))
         bases = retarget.bases()
         if clip.get("author") == "wave":
-            pose_from_bases(tgt, order, bases, wave_override(cfg["wave"], i / rate))
+            pose_from_bases(tgt, order, bases, wave_override(tgt, cfg["wave"], i / rate, (len(times) - 1) / rate))
         for b in order:
             pb = tgt.pose.bones[b.name]
             m = bases[b.name]
@@ -520,7 +744,7 @@ def key_clip(tgt, retarget, order, clip, src_actions, cfg, scene):
         scene.frame_set(int(math.floor(times[0])), subframe=times[0] - math.floor(times[0]))
         bases = retarget.bases()
         if clip.get("author") == "wave":
-            pose_from_bases(tgt, order, bases, wave_override(cfg["wave"], 0.0))
+            pose_from_bases(tgt, order, bases, wave_override(tgt, cfg["wave"], 0.0, 1.0))
         for b in order:
             pb = tgt.pose.bones[b.name]
             m = bases[b.name]
@@ -604,6 +828,9 @@ def write_vat(path, obj, pos, nor):
     vtx = np.zeros((n, 4), np.uint8)
     vtx[:, 0] = reg.astype(np.uint8)
     vtx[:, 1] = np.round(np.clip(sh, 0.0, 2.0) / 2.0 * 255.0).astype(np.uint8)
+    hv = np.empty(n, np.int32)
+    obj.data.attributes["hairvar"].data.foreach_get("value", hv)
+    vtx[:, 2] = hv.astype(np.uint8)
     head = VAT_MAGIC + struct.pack("<4I", n, len(tris), pos.shape[0], 0) + struct.pack("<6f", *lo, *hi)
     blob = head + tris.astype("<u4").tobytes() + vtx.tobytes() + texels.tobytes()
     with open(path, "wb") as f:
@@ -639,13 +866,10 @@ def pelvis_height(rig, action, scene):
 def build_body(body, table, allow, ual_path, out_dir, verify):
     scene = bpy.context.scene
     scene.render.fps = 24
-    near, rig, fitted = make_body(body, table, allow)
-    lods = {}
-    for lod in table["lods"]:
-        obj = near if lod["ratio"] >= 1.0 else make_crowd_lod(near, lod["ratio"], f"{body['id']}_{lod['name']}")
-        if lod["ratio"] >= 1.0:
-            obj.name = obj.data.name = f"{body['id']}_{lod['name']}"
-        lods[lod["name"]] = obj
+    parts, rig, fitted = make_body(body, table, allow)
+    lods = {lod["name"]: make_level(parts, rig, lod, f"{body['id']}_{lod['name']}") for lod in table["lods"]}
+    for o in parts:
+        bpy.data.objects.remove(o, do_unlink=True)
     src, src_actions = import_ual(ual_path)
     retarget = Retarget(src, rig, table["bone_map"])
     order = retarget.order
@@ -664,17 +888,20 @@ def build_body(body, table, allow, ual_path, out_dir, verify):
         name = f"{body['id']}_{lod['name']}.vat"
         tmp = os.path.join(out_dir, name + ".tmp")
         stats = write_vat(tmp, obj, pos, nor)
-        if stats["triangles"] > lod["budget_triangles"]:
+        body_tris, hair_tris = level_triangles(obj)
+        drawn = body_tris + max(hair_tris.values(), default=0)
+        if drawn > lod["budget_triangles"]:
             os.remove(tmp)
-            raise BuildError(f"{body['id']}: level {lod['name']} is over budget: {stats['triangles']} triangles, "
-                             f"budget {lod['budget_triangles']}")
+            raise BuildError(f"{body['id']}: level {lod['name']} is over budget: {drawn} triangles drawn at most "
+                             f"({body_tris} body and the largest hair), budget {lod['budget_triangles']}")
+        stats.update(drawn_triangles=drawn, hair_triangles=[hair_tris.get(k + 1, 0) for k in range(len(body["hairs"]))])
         files[name] = tmp
         levels.append(dict(stats, name=lod["name"], file=name, budget_triangles=lod["budget_triangles"]))
     # the glb: both levels skinned, every clip, with each vertex's region and shade as the custom attributes
     # `_REGION` and `_SHADE` (the review page colours the body from the palettes with them, as the game does)
     set_action(rig, None)
     for obj in lods.values():
-        for src, dst, kind in (("region", "_REGION", 'INT'), ("shade", "_SHADE", 'FLOAT')):
+        for src, dst, kind in (("region", "_REGION", 'INT'), ("shade", "_SHADE", 'FLOAT'), ("hairvar", "_HAIR", 'INT')):
             n = len(obj.data.vertices)
             arr = np.empty(n, np.int32 if kind == 'INT' else np.float32)
             obj.data.attributes[src].data.foreach_get("value", arr)
@@ -703,6 +930,7 @@ def build_body(body, table, allow, ual_path, out_dir, verify):
         row += c["frames"]
     sit = next(c for c in clips if c["name"] == "sit")
     entry = {"id": body["id"], "sex": body["sex"], "height_m": round(fitted, 4), "glb": glb_name,
+             "hairs": body["hairs"], "bald": body["bald"],
              "glb_sha256": hashlib.sha256(open(tmp, "rb").read()).hexdigest(),
              "sitting_pelvis_m": pelvis_height(rig, sit["action"], scene),
              "standing_pelvis_m": round(float((rig.matrix_world @ rig.data.bones["pelvis"].head_local).z), 4),

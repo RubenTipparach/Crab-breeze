@@ -1,7 +1,7 @@
 // The people's vertex animation (openspec change `people-vat`, design section 4), shared by the main and
 // prepass vertex shaders (`people_vat`, `people_vat_prepass`). A level's draw mesh is 32 copies of one body;
-// each vertex carries its vertex number and copy in its second UV and its shade and colour region in its
-// colour. The person drawn by a copy is `people[tag + copy]` (the chunk entity's `MeshTag` is its first
+// each vertex carries its vertex number and copy in its UV, and its shade, colour region and hair style in its
+// colour (r, g, b). The person drawn by a copy is `people[tag + copy]` (the chunk entity's `MeshTag` is its first
 // slot). Each texel of the level's texture is one vertex in one frame: the position quantised to 16 bits a
 // component over `look.bounds`, and the octahedral normal, 8 bits a component, in the fourth.
 
@@ -11,7 +11,7 @@ import bevy_pbr::render::mesh_functions::get_tag;
 struct PeopleLook {
     bounds_min: vec4<f32>,
     bounds_max: vec4<f32>,
-    // skin 0-7, hair 8-15, tops 16-31, bottoms 32-43, shoes 44-51 (linear RGB)
+    // skin 0-7, hair 8-15, tops 16-31, bottoms 32-43, shoes 44-51, the eyes' whites 52 (linear RGB)
     palette: array<vec4<f32>, 56>,
 }
 
@@ -82,6 +82,7 @@ fn palette_index(region: u32, packed: u32) -> u32 {
         case 1u: { return 16u + ((packed >> 6u) & 15u); }
         case 2u: { return 32u + min((packed >> 10u) & 15u, 11u); }
         case 3u: { return 44u + ((packed >> 14u) & 7u); }
+        case 5u: { return 52u; }
         default: { return 8u + ((packed >> 3u) & 7u); }
     }
 }
@@ -94,6 +95,12 @@ fn pose(instance_index: u32, uv: vec2<f32>, color: vec4<f32>) -> Posed {
     let p = people[slot];
     out.shown = (p.clips.w & FLAG_SHOWN) != 0u;
     if !out.shown {
+        return out;
+    }
+    // a hair style other than the person's own (bits 17-19 of the palette word; 0 bald) is not drawn
+    let style = u32(color.b + 0.5);
+    if style != 0u && style != ((p.clips.z >> 17u) & 7u) {
+        out.shown = false;
         return out;
     }
     let v = u32(uv.x + 0.5);

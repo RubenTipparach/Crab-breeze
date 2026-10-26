@@ -97,6 +97,9 @@ pub struct DrawConfig {
     pub cadence: [f32; 2],
     /// The colours people wear, sRGB 0-1: a person's `look` picks one of each (`anim::Outfit`).
     pub palette: Palette,
+    /// A person's top and bottom differ in luminance by at least this (0-1), so the shirt reads apart from the
+    /// trousers.
+    pub min_top_bottom_contrast: f32,
 }
 
 /// The colours people wear, by region of the body, sRGB 0-1 (survey G1: 1980s street and workwear).
@@ -113,6 +116,8 @@ pub struct Palette {
     pub bottom: Vec<[f32; 3]>,
     /// Shoes, at most 8.
     pub shoes: Vec<[f32; 3]>,
+    /// The whites of the eyes (the iris is the eyes' baked shade).
+    pub eyes: [f32; 3],
 }
 
 impl Palette {
@@ -190,6 +195,7 @@ impl Default for Palette {
                 [0.18, 0.18, 0.20],
                 [0.45, 0.36, 0.26],
             ],
+            eyes: [0.86, 0.84, 0.80],
         }
     }
 }
@@ -203,6 +209,7 @@ impl Default for DrawConfig {
             wave_s: 2.0,
             cadence: [0.5, 1.8],
             palette: Palette::default(),
+            min_top_bottom_contrast: 0.08,
         }
     }
 }
@@ -289,6 +296,10 @@ impl Validate for PeopleConfig {
         positive("draw.crossfade_s", self.draw.crossfade_s)?;
         positive("draw.wave_s", self.draw.wave_s)?;
         positive_range("draw.cadence", self.draw.cadence)?;
+        within("draw.min_top_bottom_contrast", self.draw.min_top_bottom_contrast, 0.0, 0.5)?;
+        for v in self.draw.palette.eyes {
+            within("draw.palette.eyes", v, 0.0, 1.0)?;
+        }
         for (name, (list, most)) in ["skin", "hair", "top", "bottom", "shoes"]
             .iter()
             .zip(self.draw.palette.lists().iter().zip(Palette::MAX))

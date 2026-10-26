@@ -3,50 +3,68 @@
  "bake_fps": 24,
  "bodies": [
   {
+   "bald": true,
    "glb": "man.glb",
-   "glb_sha256": "48bd04ea9d3945aadb08c87dacf03d67a84ac03f70813683f12ea7613debe026",
+   "glb_sha256": "857ae333e26d6e84a4b650de364a6fd981b20ef7445ff4a21900a79363b17531",
+   "hairs": [
+    "short02",
+    "short01",
+    "short04"
+   ],
    "height_m": 1.7473,
    "id": "man",
    "levels": [
     {
      "bounds_max": [
       0.67245,
-      1.93258,
+      1.9155,
       1.63652
      ],
      "bounds_min": [
-      -0.49446,
-      -0.09252,
+      -0.49179,
+      -0.09207,
       -0.68557
      ],
-     "budget_triangles": 10000,
-     "bytes": 13620556,
+     "budget_triangles": 4000,
+     "bytes": 8510060,
+     "drawn_triangles": 3770,
      "file": "man_near.vat",
+     "hair_triangles": [
+      400,
+      400,
+      400
+     ],
      "name": "near",
      "rows": 324,
-     "sha256": "edddbcb469741ed9f571a258b2bff0eadcf99f8659bc8529f6fce574f7ed63b5",
-     "triangles": 9460,
-     "vertices": 5203
+     "sha256": "afcafacb1daab23bdbb92aa730d540c7ea59986311b15f062f6b0baa4a73f453",
+     "triangles": 4570,
+     "vertices": 3257
     },
     {
      "bounds_max": [
       0.67448,
-      1.93053,
+      1.91716,
       1.63345
      ],
      "bounds_min": [
-      -0.48644,
+      -0.494,
       -0.09299,
-      -0.68344
+      -0.68445
      ],
-     "budget_triangles": 1000,
-     "bytes": 1601800,
+     "budget_triangles": 1100,
+     "bytes": 3068424,
+     "drawn_triangles": 1010,
      "file": "man_crowd.vat",
+     "hair_triangles": [
+      140,
+      140,
+      140
+     ],
      "name": "crowd",
      "rows": 324,
-     "sha256": "26cc93c6d4829f31bdf0f0952108896bffc3ad0018937868ea56ab912c72ecf9",
-     "triangles": 867,
-     "vertices": 613
+     "sha256": "80a800a6b14a84f6632715dcaaf52ae772dc4b422c7e797bcbeede0ebcd6827a",
+     "triangles": 1290,
+     "vertices": 1176
     }
    ],
    "sex": "male",
@@ -54,50 +72,71 @@
    "standing_pelvis_m": 0.9376
   },
   {
+   "bald": false,
    "glb": "woman.glb",
-   "glb_sha256": "c506fc3056363e91ada298b8eee8b7d1d4088b213d6e2bc080a66b301a9d91e3",
+   "glb_sha256": "ef7a277e9fbf39d5e0ce7074791a6c2bc2ebcf634d4aeeffc36812800a5ab21d",
+   "hairs": [
+    "ponytail01",
+    "braid01",
+    "long01",
+    "short02"
+   ],
    "height_m": 1.7457,
    "id": "woman",
    "levels": [
     {
      "bounds_max": [
-      0.59628,
-      1.91467,
+      0.5961,
+      1.87943,
       1.58716
      ],
      "bounds_min": [
-      -0.43322,
-      -0.0672,
-      -0.67237
+      -0.43317,
+      -0.06791,
+      -0.67161
      ],
-     "budget_triangles": 10000,
-     "bytes": 13031020,
+     "budget_triangles": 4000,
+     "bytes": 8296096,
+     "drawn_triangles": 3282,
      "file": "woman_near.vat",
+     "hair_triangles": [
+      399,
+      399,
+      399,
+      400
+     ],
      "name": "near",
      "rows": 324,
-     "sha256": "4dcfdd58d8ae94bcf1fad3d1645e9d69ee3961e9e37b8f024f28b82089c0d231",
-     "triangles": 8358,
-     "vertices": 4981
+     "sha256": "ea7cc21752944423cf88d8fe44a12c6c55fb6e50837a3f9be7aa134a4a1670ca",
+     "triangles": 4479,
+     "vertices": 3175
     },
     {
      "bounds_max": [
       0.59877,
-      1.91358,
+      1.88268,
       1.58967
      ],
      "bounds_min": [
       -0.43104,
-      -0.06862,
-      -0.67024
+      -0.06811,
+      -0.68024
      ],
-     "budget_triangles": 1000,
-     "bytes": 1600576,
+     "budget_triangles": 1100,
+     "bytes": 2664052,
+     "drawn_triangles": 706,
      "file": "woman_crowd.vat",
+     "hair_triangles": [
+      140,
+      140,
+      139,
+      139
+     ],
      "name": "crowd",
      "rows": 324,
-     "sha256": "5ef9d825f2d0f72626b0acaf83fef560ee7b27c65e531663cc864c2928e5978b",
-     "triangles": 765,
-     "vertices": 613
+     "sha256": "9224f1a20e2927e983aac58b53b473906009ed71fb784eb50063a274d8279516",
+     "triangles": 1124,
+     "vertices": 1021
     }
    ],
    "sex": "female",
@@ -143,9 +182,9 @@
    "row": 108
   },
   {
-   "fps": 24.0,
+   "fps": 23.5,
    "frames": 48,
-   "loop": true,
+   "loop": false,
    "name": "wave",
    "row": 148
   },
@@ -169,6 +208,7 @@
   "top",
   "bottom",
   "shoes",
-  "hair"
+  "hair",
+  "eyes"
  ]
 }

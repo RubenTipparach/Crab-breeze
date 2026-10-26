@@ -63,7 +63,7 @@ td, th { text-align: left; padding: 2px 4px; border-bottom: 1px solid var(--edge
   <div class="side">
     <div class="card"><h2>Clip</h2><div class="row" id="clips"></div><div class="row" style="margin-top:6px"><button id="crowd">Crowd: every clip</button></div></div>
     <div class="card"><h2>Level of detail</h2><div class="row" id="lods"></div><p class="note">Near within 60 m of the eye; crowd beyond.</p></div>
-    <div class="card"><h2>Show</h2><div class="row" id="toggles"></div><div class="row" style="margin-top:6px"><button id="outfit">New outfits</button><button id="reset">Reset view</button></div></div>
+    <div class="card"><h2>Show</h2><div class="row" id="toggles"></div><div class="row" style="margin-top:6px"><button id="outfit">New outfits and hair</button><button id="reset">Reset view</button><button id="heads">Heads close up</button></div></div>
     <div class="card"><h2>Measured</h2><table id="sizes"><tr><th>Body</th><th>Level</th><th>Tris</th><th>Verts</th></tr></table>
       <table id="cliptab" style="margin-top:8px"><tr><th>Clip</th><th>Frames</th><th>s</th><th>Walks m/s</th></tr></table></div>
   </div>
@@ -73,7 +73,7 @@ td, th { text-align: left; padding: 2px 4px; border-bottom: 1px solid var(--edge
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/utils/SkeletonUtils.js"></script>
 <script>
-const MANIFEST = __MANIFEST__, PALETTE = __PALETTE__, MECH = __MECH__, GLB = __GLB__;
+const MANIFEST = __MANIFEST__, PALETTE = __PALETTE__, CONTRAST = __CONTRAST__, MECH = __MECH__, GLB = __GLB__;
 const T = THREE;
 const canvas = document.getElementById("view");
 const renderer = new T.WebGLRenderer({ canvas, antialias: true });
@@ -102,14 +102,25 @@ pilot.traverse(o => { if (o.isMesh) o.castShadow = true; }); pilot.position.set(
 
 const srgb = c => new T.Color().setRGB(c[0], c[1], c[2]).convertSRGBToLinear();
 const LISTS = ["skin", "top", "bottom", "shoes", "hair"];
-function outfit(seed) { let k = 0; const r = () => { const x = Math.sin(seed * 12.9898 + (k++) * 78.233) * 43758.5453; return x - Math.floor(x); };
-  return LISTS.map(k => PALETTE[k][Math.floor(r() * PALETTE[k].length)]); }
-function paint(mesh, colours) {
-  const g = mesh.geometry, reg = g.attributes._region, sh = g.attributes._shade, n = g.attributes.position.count;
-  const col = new Float32Array(n * 3), cs = colours.map(srgb);
+const lum = c => c.map(v => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
+// an outfit as the game rolls one: a colour from each list, the bottom stepped on until it differs from the top by the
+// minimum contrast, and a hair style (none only for a body that may be bald)
+function outfit(seed, body) { let k = 0; const r = () => { const x = Math.sin(seed * 12.9898 + (k++) * 78.233) * 43758.5453; return x - Math.floor(x); };
+  const pick = name => PALETTE[name][Math.floor(r() * PALETTE[name].length)];
+  const top = pick("top"); let bi = Math.floor(r() * PALETTE.bottom.length), bottom = PALETTE.bottom[bi];
+  for (let i = 0; i < PALETTE.bottom.length && Math.abs(lum(bottom) - lum(top)) < CONTRAST; i++) bottom = PALETTE.bottom[(bi + i + 1) % PALETTE.bottom.length];
+  const n = body.hairs.length + (body.bald ? 1 : 0), h = Math.floor(r() * n), hair = body.bald ? h : h + 1;
+  return { colours: [pick("skin"), top, bottom, pick("shoes"), pick("hair"), PALETTE.eyes], hair }; }
+function paint(mesh, o) {
+  const g = mesh.geometry = mesh.geometry.clone(), reg = g.attributes._region, sh = g.attributes._shade, hv = g.attributes._hair, n = g.attributes.position.count;
+  const col = new Float32Array(n * 3), cs = o.colours.map(srgb);
   for (let i = 0; i < n; i++) { const c = cs[Math.round(reg.getX(i))] || cs[0], s = sh.getX(i); col[3 * i] = c.r * s; col[3 * i + 1] = c.g * s; col[3 * i + 2] = c.b * s; }
   g.setAttribute("color", new T.BufferAttribute(col, 3));
-  mesh.material = new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 });
+  // only the person's own hair style (hair style 0 is the body)
+  const idx = g.index.array, keep = [];
+  for (let t = 0; t < idx.length; t += 3) { const h = Math.round(hv.getX(idx[t])); if (h === 0 || h === o.hair) keep.push(idx[t], idx[t + 1], idx[t + 2]); }
+  g.setIndex(keep);
+  mesh.material = new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, flatShading: false });
 }
 const loader = new T.GLTFLoader();
 const buf = b64 => { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; };
@@ -140,11 +151,11 @@ function rebuild() {
     let i = 0;
     for (const name of clips) for (const b of MANIFEST.bodies) {
       const x = -6 + (i % 7) * 2.0, z = -Math.floor(i / 7) * 2.2;
-      const p = makePerson(srcs[b.id], b.id, x, z, outfit(seed + i)); setLod(p); play(p, name, (i * 0.37) % 1); i++;
+      const p = makePerson(srcs[b.id], b.id, x, z, outfit(seed + i, b)); setLod(p); play(p, name, (i * 0.37) % 1); i++;
       if (b.id === MANIFEST.bodies[0].id) addLabel(p, name);
     }
   } else {
-    MANIFEST.bodies.forEach((b, i) => { const p = makePerson(srcs[b.id], b.id, i * 1.4, 0, outfit(seed + i)); setLod(p); play(p, clip); addLabel(p, b.id + " " + clip); });
+    MANIFEST.bodies.forEach((b, i) => { const p = makePerson(srcs[b.id], b.id, i * 1.4, 0, outfit(seed + i, b)); setLod(p); play(p, clip); addLabel(p, b.id + " " + clip); });
   }
 }
 function addLabel(p, text) { const s = document.createElement("span"); s.textContent = text; labels.appendChild(s); p.label = s; }
@@ -161,6 +172,7 @@ Promise.all([...MANIFEST.bodies.map(b => parse(b.id).then(g => { srcs[b.id] = g;
   document.getElementById("crowd").onclick = () => { crowdMode = true; rebuild(); };
   document.getElementById("outfit").onclick = () => { seed += 17; rebuild(); };
   document.getElementById("reset").onclick = resetView;
+  document.getElementById("heads").onclick = () => { controls.target.set(0.7, 1.55, 0); camera.position.set(0.7, 1.6, 2.4); controls.update(); };
   const t = document.getElementById("sizes");
   for (const b of MANIFEST.bodies) for (const l of b.levels) t.insertAdjacentHTML("beforeend", `<tr><td>${b.id} ${b.height_m.toFixed(3)} m</td><td>${l.name}</td><td>${l.triangles}</td><td>${l.vertices}</td></tr>`);
   const ct = document.getElementById("cliptab");
@@ -197,7 +209,8 @@ def palette():
     for name in ("skin", "hair", "top", "bottom", "shoes"):
         m = re.search(name + r": \[(.*?)\]", block, re.S)
         out[name] = [[float(v) for v in t.split(",")] for t in re.findall(r"\(([0-9., ]+)\)", m.group(1))]
-    return out
+    out["eyes"] = [float(v) for v in re.search(r"eyes: \(([0-9., ]+)\)", block).group(1).split(",")]
+    return out, float(re.search(r"min_top_bottom_contrast: ([0-9.]+)", text).group(1))
 
 
 def main():
@@ -210,7 +223,9 @@ def main():
             glb[b["id"]] = base64.b64encode(f.read()).decode("ascii")
     with open(os.path.join(MODELS, mechs["foreman"]["file"]), "rb") as f:
         glb["mech"] = base64.b64encode(f.read()).decode("ascii")
-    html = (PAGE.replace("__MANIFEST__", json.dumps(manifest)).replace("__PALETTE__", json.dumps(palette()))
+    pal, contrast = palette()
+    html = (PAGE.replace("__MANIFEST__", json.dumps(manifest)).replace("__PALETTE__", json.dumps(pal))
+            .replace("__CONTRAST__", json.dumps(contrast))
             .replace("__MECH__", json.dumps(mechs["foreman"])).replace("__GLB__", json.dumps(glb)))
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as f:
