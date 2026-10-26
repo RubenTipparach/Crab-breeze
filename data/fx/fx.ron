@@ -167,6 +167,9 @@
             // A thin pale smoke behind the wheels (owner, 2026-10-25: "skate also should leave some
             // lighter smoke behind"): the steam sprite, faint and short-lived.
             Burst(kind: Steam, count: 1, speed_m_s: 1.5, spread: 0.6, size_m: 1.4, life_s: 2.5, along_dir: true),
+            // A vapor trail streaming off the wheels (owner, 2026-10-25: "skate needs some sort of vapor trail"):
+            // the jets' trail puff, smaller and shorter-lived, one a step per wheel.
+            Burst(kind: Trail, count: 1, speed_m_s: 0.8, spread: 0.3, size_m: 1.8, life_s: 3.5, offset_m: 1.0, along_dir: true),
         ],
         // The same on paving: grit and dust (sparks drew orange smears at the wheels; owner,
         // 2026-10-25).
@@ -174,6 +177,9 @@
             Burst(kind: Rubble, count: 2, speed_m_s: 8.0, spread: 0.4, size_m: 0.12, life_s: 0.6, along_dir: true),
             Burst(kind: Dust, count: 1, speed_m_s: 3.0, spread: 0.5, size_m: 1.2, life_s: 1.2, along_dir: true),
             Burst(kind: Steam, count: 1, speed_m_s: 1.5, spread: 0.6, size_m: 1.4, life_s: 2.5, along_dir: true),
+            // A vapor trail streaming off the wheels (owner, 2026-10-25: "skate needs some sort of vapor trail"):
+            // the jets' trail puff, smaller and shorter-lived, one a step per wheel.
+            Burst(kind: Trail, count: 1, speed_m_s: 0.8, spread: 0.3, size_m: 1.8, life_s: 3.5, offset_m: 1.0, along_dir: true),
         ],
         // A rooster tail on water; density grows with speed.
         "skate_spray": [
