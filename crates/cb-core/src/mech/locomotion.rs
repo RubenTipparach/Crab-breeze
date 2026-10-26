@@ -219,11 +219,14 @@ fn approach(v: f32, target: f32, max_step: f32) -> f32 {
 
 /// `x` moving toward `target` at rate `rate` (per second), no faster than `max_rate`, its rate
 /// changing by no more than `accel` per second: it speeds up from rest, and slows in time to stop on
-/// the target (the fastest rate that can still stop there is the square root of 2 `accel` times the
-/// distance left). Returns the new value and rate.
+/// the target. The fastest rate that can still stop there in steps of `dt_s` solves
+/// `v^2 / (2 accel) + v dt / 2 = distance` (the stepped form of the square root of 2 `accel` times
+/// the distance, which arrived at 40 degrees a second and stopped dead). Returns the new value and rate.
 fn ease_toward(x: f32, rate: f32, target: f32, max_rate: f32, accel: f32, dt_s: f32) -> (f32, f32) {
     let left = target - x;
-    let want = left.signum() * (2.0 * accel * left.abs()).sqrt().min(max_rate);
+    let half_step = 0.5 * accel * dt_s;
+    let stoppable = (half_step * half_step + 2.0 * accel * left.abs()).sqrt() - half_step;
+    let want = left.signum() * stoppable.min(max_rate);
     let rate = approach(rate, want, accel * dt_s);
     let step = rate * dt_s;
     if step * left >= 0.0 && step.abs() >= left.abs() {
@@ -579,7 +582,17 @@ mod tests {
         let mut last = m.twist_rate_rad_s;
         for _ in 0..240 {
             m.step(&MechControls::default(), &cfg, &FlatGround::default(), DT);
-            assert!((m.twist_rate_rad_s - last).abs() <= accel * DT + 1e-4, "no jump in rate");
+            // One step's change of rate at most; the step that arrives on the aim drops the last of it
+            // (under two steps' change, from the braking curve).
+            let arrived = m.twist_rate_rad_s == 0.0;
+            let allowed = if arrived { 2.0 * accel * DT } else { accel * DT };
+            assert!(
+                (m.twist_rate_rad_s - last).abs() <= allowed + 1e-4,
+                "no jump in rate: {last} to {} at twist {} of {}",
+                m.twist_rate_rad_s,
+                m.twist_rad,
+                m.aim_twist_rad
+            );
             assert!(m.twist_rate_rad_s <= max + 1e-4);
             last = m.twist_rate_rad_s;
         }
