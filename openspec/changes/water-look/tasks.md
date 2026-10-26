@@ -15,3 +15,9 @@
 - [x] 5.0 Scatter on crests toward the sun (design section 0, "Still dull")
 - [ ] 5.1 The shadow map on glint and scatter
 - [ ] 6.1 Headless stills of the sea at noon, against the sun, and with the mech wading; measured on the owner's hardware
+
+## 7. Foam (paused 2026-10-26)
+
+- [x] 7.1 Whitecaps from the wave field: the tallest visible wavelets, lifted by swell crests and wind gusts (design section 0, "Whitecaps")
+- [ ] 7.2 Near lace does not show yet in the `sea-away` still at 40 m (the threshold, 2.6 deviations, is too high: try 2.0-2.8); far gusts show as faint sheens. Re-shoot `sea-away`, `coast`, `cliffs-low`, `sea-sun-high` and look before calling it done
+- [x] 7.3 Screen-space reflections: the rocks mirror in the water in the `cliffs-low` still
