@@ -124,6 +124,7 @@ pub const ASKED: &[&str] = &[
     "mfd_click",
     "radio_squelch",
     "systems_boot",
+    crate::air_traffic::ENGINE_CUE,
 ];
 
 /// The listener is placed for this frame: music and ambience read `Ear` after it.

@@ -23,6 +23,9 @@ pub struct TargetingConfig {
     pub lock_s: f32,
     /// A target box's size on screen, [smallest, largest] pixels.
     pub box_px: [f32; 2],
+    /// A neutral (a civil aircraft: `civil-air-traffic`) is selected only on purpose: the cycle key
+    /// pressed with the crosshair within this angle of it, degrees.
+    pub neutral_pick_cone_deg: f32,
 }
 
 impl Default for TargetingConfig {
@@ -34,6 +37,7 @@ impl Default for TargetingConfig {
             lock_cone_deg: 12.0,
             lock_s: 1.0,
             box_px: [18.0, 160.0],
+            neutral_pick_cone_deg: 3.0,
         }
     }
 }
@@ -45,6 +49,7 @@ impl Validate for TargetingConfig {
         positive("lock_range_m", self.lock_range_m)?;
         positive("lock_cone_deg", self.lock_cone_deg)?;
         positive("lock_s", self.lock_s)?;
+        positive("neutral_pick_cone_deg", self.neutral_pick_cone_deg)?;
         positive_range("box_px", self.box_px)
     }
 }
@@ -56,6 +61,9 @@ pub struct Target {
     pub id: u32,
     /// Its torso centre.
     pub torso: Vec3,
+    /// Not an enemy (a civil aircraft): never picked or cycled to by itself, only on purpose
+    /// (`deliberate`).
+    pub neutral: bool,
 }
 
 /// The angle in degrees between `aim` and the direction from `eye` to `p`.
@@ -63,25 +71,43 @@ pub fn off_aim_deg(eye: Vec3, aim: Vec3, p: Vec3) -> f32 {
     aim.normalize_or_zero().angle_between((p - eye).normalize_or_zero()).to_degrees()
 }
 
-/// The target nearest the aim within `cone_deg`, ties by id.
+/// The enemy nearest the aim within `cone_deg`, ties by id (a neutral is never picked this way).
 pub fn nearest_to_aim(eye: Vec3, aim: Vec3, targets: &[Target], cone_deg: f32) -> Option<u32> {
     targets
         .iter()
+        .filter(|t| !t.neutral)
         .map(|t| (off_aim_deg(eye, aim, t.torso), t.id))
         .filter(|(a, _)| *a <= cone_deg)
         .min_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)))
         .map(|(_, id)| id)
 }
 
-/// The next target after `selected` by distance from `eye`, wrapping; the nearest if none is selected.
+/// The next enemy after `selected` by distance from `eye`, wrapping; the nearest if none is selected
+/// (neutrals are not in the cycle).
 pub fn next(selected: Option<u32>, targets: &[Target], eye: Vec3) -> Option<u32> {
-    let mut by_range: Vec<(f32, u32)> = targets.iter().map(|t| (t.torso.distance(eye), t.id)).collect();
+    let mut by_range: Vec<(f32, u32)> = targets
+        .iter()
+        .filter(|t| !t.neutral)
+        .map(|t| (t.torso.distance(eye), t.id))
+        .collect();
     by_range.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
     let at = selected.and_then(|s| by_range.iter().position(|(_, id)| *id == s));
     match at {
         Some(i) => by_range.get((i + 1) % by_range.len()).map(|(_, id)| *id),
         None => by_range.first().map(|(_, id)| *id),
     }
+}
+
+/// The neutral the pilot means, choosing on purpose: the one nearest the aim within `cone_deg` (the
+/// cockpit's cycle key pressed with the crosshair held on it), ties by id.
+pub fn deliberate(eye: Vec3, aim: Vec3, targets: &[Target], cone_deg: f32) -> Option<u32> {
+    targets
+        .iter()
+        .filter(|t| t.neutral)
+        .map(|t| (off_aim_deg(eye, aim, t.torso), t.id))
+        .filter(|(a, _)| *a <= cone_deg)
+        .min_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)))
+        .map(|(_, id)| id)
 }
 
 /// A missile lock building on one target.
@@ -123,7 +149,38 @@ mod tests {
         Target {
             id,
             torso: Vec3::new(x, 0.0, z),
+            neutral: false,
         }
+    }
+
+    fn civ(id: u32, x: f32, z: f32) -> Target {
+        Target {
+            neutral: true,
+            ..t(id, x, z)
+        }
+    }
+
+    #[test]
+    fn a_civil_aircraft_is_never_picked_or_cycled_to_by_itself() {
+        let ts = [civ(9, 0.0, -300.0), t(2, 60.0, -400.0)];
+        assert_eq!(
+            nearest_to_aim(Vec3::ZERO, Vec3::NEG_Z, &ts, 30.0),
+            Some(2),
+            "the enemy, not the airliner on the crosshair"
+        );
+        assert_eq!(nearest_to_aim(Vec3::ZERO, Vec3::NEG_Z, &ts[..1], 30.0), None);
+        assert_eq!(next(None, &ts, Vec3::ZERO), Some(2));
+        assert_eq!(next(Some(2), &ts, Vec3::ZERO), Some(2), "the cycle has one enemy in it");
+        assert_eq!(next(Some(9), &ts, Vec3::ZERO), Some(2));
+    }
+
+    #[test]
+    fn a_civil_aircraft_is_selected_only_with_the_crosshair_held_on_it() {
+        let ts = [civ(9, 0.0, -1000.0), t(2, 60.0, -400.0)];
+        let cone = TargetingConfig::default().neutral_pick_cone_deg;
+        assert_eq!(deliberate(Vec3::ZERO, Vec3::NEG_Z, &ts, cone), Some(9));
+        let off = Vec3::new(0.1, 0.0, -1.0);
+        assert_eq!(deliberate(Vec3::ZERO, off, &ts, cone), None, "six degrees off is not on purpose");
     }
 
     #[test]

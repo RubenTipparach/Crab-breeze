@@ -158,14 +158,25 @@ pub fn heading_of(dir: Vec3) -> f32 {
     (-dir.x).atan2(-dir.z)
 }
 
-fn wrap(a: f32) -> f32 {
+/// An angle wrapped into `[-pi, pi)`.
+pub fn wrap(a: f32) -> f32 {
     let t = std::f32::consts::TAU;
     (a + std::f32::consts::PI).rem_euclid(t) - std::f32::consts::PI
 }
 
 /// Turns `heading` toward `want` by at most `max_rad`.
-fn turn_toward(heading: f32, want: f32, max_rad: f32) -> f32 {
+pub fn turn_toward(heading: f32, want: f32, max_rad: f32) -> f32 {
     heading + wrap(want - heading).clamp(-max_rad, max_rad)
+}
+
+/// The one armour rule for a vehicle or aircraft with a single armour value: a shot that beats the
+/// armour takes `damage` from `hp`. True when `hp` is gone (civil aircraft use it too:
+/// `civil-air-traffic`).
+pub fn armour_hit(hp: &mut f32, penetration_mm: f32, damage: f32, armour_mm: f32) -> bool {
+    if penetration_mm >= armour_mm {
+        *hp -= damage;
+    }
+    *hp <= 0.0
 }
 
 /// Where a unit is in its life.
@@ -234,6 +245,9 @@ pub struct UnitView<'a> {
     pub target: Option<Vec3>,
     /// The target's velocity (for the lead).
     pub target_vel: Vec3,
+    /// Something else it may shoot at when the target is not its shot: a civil aircraft in reach
+    /// (where, velocity), `civil-air-traffic`.
+    pub opportunity: Option<(Vec3, Vec3)>,
     /// Ground height under a point.
     pub ground: &'a dyn Fn(f32, f32) -> f32,
     /// Drops.
@@ -296,10 +310,7 @@ impl Unit {
             return false;
         }
         self.took_hit = true;
-        if penetration_mm >= armour_mm {
-            self.hp -= damage;
-        }
-        if self.hp <= 0.0 {
+        if armour_hit(&mut self.hp, penetration_mm, damage, armour_mm) {
             self.phase = Phase::Dead;
             return true;
         }
@@ -469,30 +480,42 @@ impl Unit {
         released
     }
 
+    /// A shot at the target when nosed on and in range; failing that, a shot of opportunity at
+    /// `view.opportunity` (a civil aircraft in its guns' reach: `civil-air-traffic`) by the same rule.
     fn try_fire(&mut self, view: &UnitView) -> Option<(Vec3, Vec3)> {
-        let spec = view.spec;
-        let w = spec.weapon.as_ref()?;
-        let target = view.target?;
         if self.reload_s > 0.0 {
             return None;
         }
-        let muzzle = self.pos + forward(self.heading_rad) * (spec.size_m[2] * 0.5) + Vec3::Y * (spec.size_m[1] * 0.3);
-        if muzzle.distance(target) > spec.fire_range_m {
-            return None;
-        }
-        let aim = crate::weapons::lead(muzzle, target, view.target_vel, w.speed_m_s, !w.rocket);
-        let dir = (aim - muzzle).normalize_or_zero();
-        let nose = forward(self.heading_rad);
-        let flat = Vec3::new(dir.x, 0.0, dir.z).normalize_or_zero();
-        if nose.angle_between(flat).to_degrees() > spec.fire_cone_deg {
-            return None;
-        }
+        let aimed = [view.target.map(|t| (t, view.target_vel)), view.opportunity]
+            .into_iter()
+            .flatten()
+            .find_map(|(t, v)| self.aim_at(view.spec, t, v))?;
+        let spec = view.spec;
+        let w = spec.weapon.as_ref()?;
         self.salvo_left = self.salvo_left.saturating_sub(1);
         if self.salvo_left == 0 {
             self.salvo_left = spec.salvo;
             self.reload_s = w.interval_s + spec.salvo_pause_s;
         } else {
             self.reload_s = w.interval_s;
+        }
+        Some(aimed)
+    }
+
+    /// Its muzzle and the led aim at a target at `target` moving at `target_vel`, when in range and
+    /// within its fire cone; the one firing rule.
+    fn aim_at(&self, spec: &UnitSpec, target: Vec3, target_vel: Vec3) -> Option<(Vec3, Vec3)> {
+        let w = spec.weapon.as_ref()?;
+        let muzzle = self.pos + forward(self.heading_rad) * (spec.size_m[2] * 0.5) + Vec3::Y * (spec.size_m[1] * 0.3);
+        if muzzle.distance(target) > spec.fire_range_m {
+            return None;
+        }
+        let aim = crate::weapons::lead(muzzle, target, target_vel, w.speed_m_s, !w.rocket);
+        let dir = (aim - muzzle).normalize_or_zero();
+        let nose = forward(self.heading_rad);
+        let flat = Vec3::new(dir.x, 0.0, dir.z).normalize_or_zero();
+        if nose.angle_between(flat).to_degrees() > spec.fire_cone_deg {
+            return None;
         }
         Some((muzzle, dir))
     }
@@ -518,6 +541,7 @@ mod tests {
             spec,
             target,
             target_vel: Vec3::ZERO,
+            opportunity: None,
             ground: &ground,
             drop,
         };
@@ -635,6 +659,7 @@ mod tests {
                 spec,
                 target: None,
                 target_vel: Vec3::ZERO,
+                opportunity: None,
                 ground: &ground,
                 drop: &c.drop,
             };
@@ -646,6 +671,7 @@ mod tests {
                     spec: tank,
                     target: None,
                     target_vel: Vec3::ZERO,
+                    opportunity: None,
                     ground: &ground,
                     drop: &c.drop,
                 };
@@ -677,5 +703,31 @@ mod tests {
         far.phase = Phase::Active;
         let steps = run(&mut far, spec, Some(Vec3::new(0.0, 0.0, -spec.fire_range_m * 3.0)), &c.drop, 0.5);
         assert!(steps.iter().all(|s| s.fire.is_none()));
+    }
+
+    #[test]
+    fn a_unit_takes_a_shot_of_opportunity_only_when_its_target_is_not_its_shot() {
+        let c = cfg();
+        let spec = &c.units["helicopter"];
+        let ground = flat;
+        let plane = Vec3::new(0.0, 90.0, -spec.fire_range_m * 0.5);
+        let view = |target: Option<Vec3>| UnitView {
+            spec,
+            target,
+            target_vel: Vec3::ZERO,
+            opportunity: Some((plane, Vec3::ZERO)),
+            ground: &ground,
+            drop: &c.drop,
+        };
+        // The pilot behind it, out of its cone: it shoots the airliner ahead instead.
+        let mut u = Unit::new(1, "helicopter", spec, Vec3::new(0.0, 90.0, 0.0), 0.0, 0);
+        let behind = Some(Vec3::new(0.0, 90.0, spec.standoff_m));
+        let (_, dir) = u.try_fire(&view(behind)).expect("a shot of opportunity");
+        assert!(dir.z < -0.9, "at the plane: {dir:?}");
+        // The pilot ahead and in reach: the pilot gets the shot.
+        let mut u = Unit::new(1, "helicopter", spec, Vec3::new(0.0, 90.0, 0.0), 0.0, 0);
+        let ahead = Vec3::new(0.0, 90.0, -spec.fire_range_m * 0.3);
+        let (from, dir) = u.try_fire(&view(Some(ahead))).unwrap();
+        assert!((ahead - from).normalize().dot(dir) > 0.999);
     }
 }

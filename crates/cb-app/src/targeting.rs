@@ -1,7 +1,8 @@
 //! Targeting in the game (openspec change `targeting`): each fixed step, before the mechs step,
 //! the live enemies within range (mechs and vehicles, `units::Hostiles`) become targets, the selected one is kept, cycled with the
 //! `target_next` action or picked nearest the pilot's aim, and the missile lock builds on it while
-//! it is in missile range (`cb_core::targeting`). The cockpit draws this state and the missiles
+//! it is in missile range (`cb_core::targeting`). Civil aircraft (`air_traffic::Neutrals`) are
+//! targets too, but neutral: only the cycle key pressed with the crosshair held on one selects it. The cockpit draws this state and the missiles
 //! fired this step home on its lock.
 
 use crate::input::StepActions;
@@ -11,7 +12,7 @@ use crate::sim::{Data, SimSet};
 use crate::state::GameApp;
 use bevy::prelude::*;
 use cb_core::pilot::PilotMode;
-use cb_core::targeting::{Lock, Target, TargetingConfig, nearest_to_aim, next, off_aim_deg};
+use cb_core::targeting::{Lock, Target, TargetingConfig, deliberate, nearest_to_aim, next, off_aim_deg};
 
 /// What the pilot has targeted.
 #[derive(Resource, Default)]
@@ -53,6 +54,7 @@ fn update_targeting(
     time: Res<Time<Fixed>>,
     me: Query<&MechSim, With<Piloted>>,
     hostiles: Res<crate::units::Hostiles>,
+    neutrals: Res<crate::air_traffic::Neutrals>,
     mut state: ResMut<TargetState>,
 ) {
     let cfg = &data.0.targeting;
@@ -62,17 +64,22 @@ fn update_targeting(
     };
     let eye = m.curr.pos + Vec3::Y * data.0.mech.body.eye_height_m;
     let aim = aim_dir(pilot.curr.yaw_rad, pilot.curr.pitch_rad);
-    // Mechs and vehicles alike (invasion-forces).
-    let mut targets: Vec<Target> = hostiles
-        .0
-        .iter()
-        .map(|h| Target { id: h.id, torso: h.aim })
+    // Mechs and vehicles alike (invasion-forces), and civil aircraft as neutrals (civil-air-traffic).
+    let enemies = hostiles.0.iter().map(|h| (h, false));
+    let civil = neutrals.0.iter().map(|h| (h, true));
+    let mut targets: Vec<Target> = enemies
+        .chain(civil)
+        .map(|(h, neutral)| Target {
+            id: h.id,
+            torso: h.aim,
+            neutral,
+        })
         .filter(|t| t.torso.distance(eye) <= cfg.max_range_m)
         .collect();
     targets.sort_by_key(|t| t.id);
     let still = state.selected.filter(|s| targets.iter().any(|t| t.id == *s));
     state.selected = if actions.0.target_next {
-        next(still, &targets, eye)
+        deliberate(eye, aim, &targets, cfg.neutral_pick_cone_deg).or_else(|| next(still, &targets, eye))
     } else {
         still.or_else(|| nearest_to_aim(eye, aim, &targets, cfg.pick_cone_deg))
     };

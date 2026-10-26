@@ -6,6 +6,7 @@
 //! `cb-app` adapts it to Bevy.
 
 pub mod ai;
+pub mod air_traffic;
 pub mod audio;
 pub mod battle_fx;
 pub mod boarding;
@@ -79,6 +80,8 @@ pub struct GameData {
     pub sun: sun_flare::SunLook,
     /// `data/world/units.ron`.
     pub units: units::UnitsConfig,
+    /// `data/world/air_traffic.ron`: civil aircraft (`civil-air-traffic`).
+    pub air_traffic: air_traffic::AirTrafficConfig,
     /// `data/enemies/skins.ron`.
     pub skins: skins::Skins,
     /// `data/missions/fortress.ron` and `fortress_shape.ron`.
@@ -153,6 +156,7 @@ impl GameData {
             battle_fx: data::load_ron(&root.join("fx/battle_fx.ron"))?,
             sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
             units: data::load_ron(&root.join("world/units.ron"))?,
+            air_traffic: data::load_ron(&root.join("world/air_traffic.ron"))?,
             skins,
             fortress,
             missions: data::load_ron(&root.join("missions/mail.ron"))?,

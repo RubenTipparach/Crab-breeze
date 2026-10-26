@@ -141,6 +141,8 @@ enum Readout {
 pub(crate) const GREEN: Color = Color::srgb(0.55, 0.95, 0.6);
 pub(crate) const AMBER: Color = Color::srgb(1.0, 0.75, 0.25);
 const RED: Color = Color::srgb(1.0, 0.3, 0.25);
+/// A neutral (a civil aircraft: `civil-air-traffic`): never red, never amber.
+const NEUTRAL: Color = Color::srgb(0.85, 0.9, 0.95);
 pub(crate) const FRAME: Color = Color::srgba(0.55, 0.95, 0.6, 0.35);
 
 pub(crate) fn text(s: &str, size: f32) -> (Text, TextFont, TextColor) {
@@ -555,6 +557,7 @@ fn draw_targets(
     camera: Single<(&Camera, &GlobalTransform), With<crate::pilot::PilotCamera>>,
     me: Query<&MechSpec, With<Piloted>>,
     hostiles: Res<crate::units::Hostiles>,
+    neutrals: Res<crate::air_traffic::Neutrals>,
     mut boxes: Query<(&TargetBox, &mut Node, &mut BorderColor, &mut Visibility), (Without<LeadRing>, Without<EdgeArrow>)>,
     mut labels: Query<(&TargetLabel, &mut Text, &mut TextColor), Without<EdgeArrow>>,
     mut lead: Single<(&mut Node, &mut Visibility, &mut BorderColor), (With<LeadRing>, Without<TargetBox>, Without<EdgeArrow>)>,
@@ -570,10 +573,11 @@ fn draw_targets(
     let size = cam.logical_viewport_size().unwrap_or(Vec2::new(1920.0, 1080.0));
     let on_screen = |p: Vec2| p.x >= 0.0 && p.y >= 0.0 && p.x <= size.x && p.y <= size.y;
     let locked = state.locked(cfg);
-    // The enemies in range, mechs and vehicles, nearest first.
+    // The enemies in range, mechs and vehicles, and civil aircraft as neutrals, nearest first.
     let mut shown: Vec<(f32, crate::units::Hostile)> = hostiles
         .0
         .iter()
+        .chain(&neutrals.0)
         .filter(|_| seated)
         .map(|h| (h.aim.distance(eye), *h))
         .filter(|(d, _)| *d <= cfg.max_range_m)
@@ -586,8 +590,11 @@ fn draw_targets(
     for (slot, (d, h)) in shown.iter().take(BOXES).enumerate() {
         let (id, feet, torso, vel) = (&h.id, h.feet, h.aim, h.vel);
         let selected = state.selected == Some(*id);
+        let neutral = crate::air_traffic::is_civil(*id);
         let colour = if selected && locked == Some(*id) {
             RED
+        } else if neutral {
+            NEUTRAL
         } else if h.shelling {
             AMBER
         } else {
@@ -601,6 +608,8 @@ fn draw_targets(
             }
             let in_range = *d <= cfg.lock_range_m;
             texts[slot] = (fmt_target(*d, vel.length(), in_range, locked == Some(*id)), colour);
+        } else if neutral {
+            texts[slot] = (format!("CIV {d:.0} m"), colour);
         } else {
             texts[slot] = (format!("{d:.0} m"), colour);
         }
@@ -1041,6 +1050,7 @@ fn update_stations(
     data: Res<crate::sim::Data>,
     targeting: Res<crate::targeting::TargetState>,
     units: Res<crate::units::Units>,
+    air: Option<Res<crate::air_traffic::AirTraffic>>,
     me: Query<(&MechSim, &MechSpec), With<Piloted>>,
     mechs: Query<(&MechSim, &MechSpec, &crate::mech::MechId)>,
     mut rows: Query<(&StationRow, &mut Text, &mut TextColor, &mut BorderColor, &mut Visibility), Without<TargetReadout>>,
@@ -1084,7 +1094,19 @@ fn update_stations(
         c.0 = GREEN;
         return;
     };
-    let (name, health) = if id >= crate::units::UNIT_ID_BASE {
+    let civil = air
+        .as_ref()
+        .filter(|_| crate::air_traffic::is_civil(id))
+        .map(|a| a.0.get(id - crate::air_traffic::CIVIL_ID_BASE));
+    let (name, health) = if let Some(found) = civil {
+        match found {
+            Some(a) => {
+                let full = data.0.air_traffic.kinds.get(&a.kind).map_or(1.0, |s| s.hp.max(1.0));
+                (format!("CIVIL {}", a.kind.replace('_', " ").to_uppercase()), a.hp / full)
+            }
+            None => ("UNKNOWN".into(), 0.0),
+        }
+    } else if id >= crate::units::UNIT_ID_BASE {
         match units.list.iter().find(|p| p.unit.id == id) {
             Some(p) => {
                 let full = data.0.units.units.get(&p.unit.kind).map_or(1.0, |s| s.hp.max(1.0));
@@ -1124,6 +1146,7 @@ fn draw_lock(
     data: Res<crate::sim::Data>,
     state: Res<crate::targeting::TargetState>,
     hostiles: Res<crate::units::Hostiles>,
+    neutrals: Res<crate::air_traffic::Neutrals>,
     time: Res<Time>,
     camera: Single<(&Camera, &GlobalTransform), With<crate::pilot::PilotCamera>>,
     mut boxes: Query<(&LockBox, &mut Node, &mut BorderColor, &mut UiTransform, &mut Visibility)>,
@@ -1133,7 +1156,7 @@ fn draw_lock(
     let target = state
         .selected
         .filter(|_| pilot.curr.mode == PilotMode::Seated && state.lock.held_s > 0.0 && state.lock.target == state.selected)
-        .and_then(|id| hostiles.0.iter().find(|h| h.id == id));
+        .and_then(|id| hostiles.0.iter().chain(&neutrals.0).find(|h| h.id == id));
     let placed = target.and_then(|h| {
         let top = cam.world_to_viewport(at, h.feet + Vec3::Y * h.height_m).ok()?;
         let foot = cam.world_to_viewport(at, h.feet).ok()?;

@@ -88,6 +88,10 @@ fn main() -> ExitCode {
                     d.people.lines.lines.len()
                 );
             }
+            // civil air traffic's kinds (civil-air-traffic): loaded and validated with the rest; said here
+            if let Ok(d) = GameData::load(&root, &mechs[0]) {
+                println!("ok   {} civil aircraft kinds", d.air_traffic.kinds.len());
+            }
             // the Hermit's model against its shape data (crab-airship)
             if let Ok(d) = GameData::load(&root, &mechs[0]) {
                 let problems = glb::check_fortress(&d.fortress, &root.join("..").join("assets"));
@@ -204,6 +208,51 @@ fn main() -> ExitCode {
             );
             ExitCode::SUCCESS
         }
+        // A documentation instrument (openspec change `civil-air-traffic`): every civil aircraft kind's
+        // size and block-out boxes as JSON, from the one table the game draws
+        // (`cb_core::air_traffic::shape`), for the mockup page `tools/mockups/gen_civil_aircraft.py`.
+        Some("aircraft") => {
+            let root = PathBuf::from(args.get(1).map(String::as_str).unwrap_or("data"));
+            let data = match GameData::load(&root, "mechs/placeholder.ron") {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("FAIL {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let kinds: Vec<serde_json::Value> = data
+                .air_traffic
+                .kinds
+                .iter()
+                .map(|(id, k)| {
+                    let blocks: Vec<serde_json::Value> = cb_core::air_traffic::shape::blockout(k)
+                        .iter()
+                        .map(|b| {
+                            serde_json::json!({
+                                "name": b.name,
+                                "centre": b.centre.to_array(),
+                                "size": b.size.to_array(),
+                                "dark": b.dark,
+                                "spin": b.spin.map(|s| format!("{s:?}")),
+                            })
+                        })
+                        .collect();
+                    serde_json::json!({
+                        "id": id,
+                        "role": format!("{:?}", k.role),
+                        "length_m": k.length_m,
+                        "span_m": k.span_m,
+                        "height_m": k.height_m,
+                        "rest_m": cb_core::air_traffic::rest_m(k),
+                        "tint": k.tint,
+                        "blocks": blocks,
+                    })
+                })
+                .collect();
+            let out = serde_json::json!({ "source": "data/world/air_traffic.ron", "kinds": kinds });
+            println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            ExitCode::SUCCESS
+        }
         // A documentation instrument (openspec change `hydrology`): the generated island seen from
         // above, as a PPM picture: ground by height, snow, the sea and lakes, rivers, waterfalls
         // (red), cities and highways.
@@ -234,7 +283,7 @@ fn main() -> ExitCode {
         }
         _ => {
             eprintln!(
-                "usage: cb-tools validate [data dir] | cb-tools cities [seed] | cb-tools map [seed] [out.ppm] [pixels] [centre x] [centre z] [span m] | cb-tools traffic-bench [seed] [steps]"
+                "usage: cb-tools validate [data dir] | cb-tools cities [seed] | cb-tools map [seed] [out.ppm] [pixels] [centre x] [centre z] [span m] | cb-tools traffic-bench [seed] [steps] | cb-tools aircraft [data dir]"
             );
             ExitCode::FAILURE
         }

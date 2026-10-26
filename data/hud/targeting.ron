@@ -8,4 +8,7 @@
     lock_cone_deg: 12.0,
     lock_s: 1.0,
     box_px: (18.0, 160.0),
+    // a civil aircraft (openspec/changes/civil-air-traffic) is selected only on purpose: Q pressed
+    // with the crosshair within this many degrees of it; it is never picked or cycled to otherwise
+    neutral_pick_cone_deg: 3.0,
 )
