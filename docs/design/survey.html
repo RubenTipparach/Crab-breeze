@@ -154,6 +154,25 @@ const ART_IMG = '';
 
 // The questions. Answers live in the db collection `answers`, one document per question id.
 const SECTIONS = [
+  { tag: 'P', name: 'The free-roam performance run (2026-10-26, overnight)',
+    lead: 'You asked for a long free-roam run, the bot taking a mission, then the farthest one, three times over, with the frame rate held between 60 and 120 fps. These are the calls made while you slept; each recommendation is what ran. Results: docs/benchmarks/2026-10-26-free-roam/report.md.',
+    qs: [
+      { id: 'P5', q: 'Free roam's mail has only the two big missions (the city defence, 30 raiders, and the fortress). The run took the open world's jobs instead (a new career), which are sited all over the island, 4 to 12 km apart. Right call?',
+        options: ['Career jobs, taken by mail from the cockpit', 'Give free roam a job board too and run it there', 'The two big missions'], rec: 0,
+        why: 'Only the jobs give "as far away as possible": they are spread across the island; the two missions happen where you are.' },
+      { id: 'P6', q: '"Do this 3 times": what was repeated?',
+        options: ['Nearest job then farthest job, three times (6 jobs)', 'One near job, then the farthest three times (4 jobs)'], rec: 0,
+        why: 'Each pass covers a fight close to where the last ended and a 10 km drive.' },
+      { id: 'P7', q: 'Your display runs at 60 Hz, so with vsync on nothing shows over 60 fps. The run had vsync off, and flags any frame slower than 16.7 ms (under 60 fps). Over 120 fps is not flagged.',
+        options: ['Vsync off, flag under 60 fps', 'Also cap the game at 120 fps', 'Measure with vsync on'], rec: 0,
+        why: 'With vsync off the true cost of each frame shows, so headroom and slow spots both appear.' },
+      { id: 'P8', q: 'The bot drives straight at the job; a building stopped it at 82 m/s. Blocked, it now steers for a point 150 m to one side for 8 s, then back on course.',
+        options: ['Steer round', 'Jet over the top', 'Plan a route along the roads'], rec: 0,
+        why: 'Jetting over was tried first and left the mech hovering in place.' },
+      { id: 'P9', q: 'The bot takes jobs up to tier 2 (what the Foreman is rated for), with the Foreman only.',
+        options: ['Tier 2, the Foreman', 'Tier 3 and 4 with a bought heavy mech'], rec: 0,
+        why: 'A new career owns only the Foreman; a grant to buy a heavier mech would skip the shop.' },
+    ] },
   { tag: 'D', name: 'The mech air drop',
     lead: 'Built on 2026-10-26 from your words "air dropped close to wherever the player is on a good are on the ground (not stuck on a building)" and J16 (PR #72). Every recommendation below is what is built; not yet seen in the game.',
     qs: [

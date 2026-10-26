@@ -35,6 +35,50 @@ impl Drop for SlowGuard {
     }
 }
 
+/// Times a section of a system into a running total, printed every 5 s as a `sections:` line with each one's mean
+/// and calls (a measurement instrument for finding which part of a slow system costs: `let _s = section("name");`).
+pub fn section(name: &'static str) -> SectionGuard {
+    SectionGuard(name, std::time::Instant::now())
+}
+
+/// See `section`.
+pub struct SectionGuard(&'static str, std::time::Instant);
+
+/// Each section's total time (ns) and calls since the last `sections:` line.
+static SECTIONS: std::sync::Mutex<Vec<(&'static str, u64, u32)>> = std::sync::Mutex::new(Vec::new());
+
+impl Drop for SectionGuard {
+    fn drop(&mut self) {
+        let ns = self.1.elapsed().as_nanos() as u64;
+        if let Ok(mut all) = SECTIONS.lock() {
+            match all.iter_mut().find(|s| s.0 == self.0) {
+                Some(s) => {
+                    s.1 += ns;
+                    s.2 += 1;
+                }
+                None => all.push((self.0, ns, 1)),
+            }
+        }
+    }
+}
+
+/// The sections timed since the last call, as `name mean ms x calls (total ms)`, and the totals reset.
+fn take_sections() -> String {
+    let Ok(mut all) = SECTIONS.lock() else { return String::new() };
+    let line: Vec<String> = all
+        .iter()
+        .map(|(n, ns, c)| {
+            format!(
+                "{n} {:.3} ms x{c} ({:.0} ms)",
+                *ns as f64 / 1e6 / f64::from((*c).max(1)),
+                *ns as f64 / 1e6
+            )
+        })
+        .collect();
+    all.clear();
+    line.join(", ")
+}
+
 /// Bars in the frame graph, one a frame.
 const BARS: usize = 120;
 /// The graph's height stands for this frame time.
@@ -199,5 +243,9 @@ fn update(
             "perf: {fps:.0} fps, {ms:.1} ms, GPU {gpu:.1} ms ({bound}), {drawn} meshes drawn, {entities:.0} entities | {}",
             top.join(", ")
         );
+        let sections = take_sections();
+        if !sections.is_empty() {
+            info!("sections: {sections}");
+        }
     }
 }

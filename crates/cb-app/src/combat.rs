@@ -346,6 +346,7 @@ pub fn fly_shots(
                 platforms: &[],
                 interiors: None,
             };
+            let _s = crate::perf_hud::section("fly_one_shot");
             fly(&mut shot, &scene, &live.structures, &live.forest, &parts, dt)
         };
         let Some(w) = weapon_of(shot.owner, shot.weapon) else {
