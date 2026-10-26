@@ -15,7 +15,6 @@
 use crate::career::CareerRun;
 use crate::combat::Shots;
 use crate::ground_marks::{Contact, GroundContact};
-use crate::input::StepActions;
 use crate::mech::{MechId, Piloted};
 use crate::pilot::{PilotCamera, PilotSim};
 use crate::sim::{Data, PresentSet, SimSet};
@@ -147,7 +146,10 @@ impl Plugin for CiviliansPlugin {
         .add_game_systems(
             FixedUpdate,
             (
-                greet.in_set(SimSet::Pilot).before(crate::pilot::step_pilot),
+                greet
+                    .in_set(SimSet::Pilot)
+                    .after(crate::interact::choose)
+                    .before(crate::pilot::step_pilot),
                 rounds_through_crowd
                     .in_set(SimSet::Mech)
                     .after(crate::mech::step_mech)
@@ -302,24 +304,23 @@ fn open_job(career: Option<&CareerRun>) -> Option<String> {
         .find_map(|j| board.inbox.iter().rev().find(|m| m.job == Some(j.id)).map(|m| m.subject.clone()))
 }
 
-/// On foot, Use greets the person in front of the pilot. A greeting takes the press, so the mech is
-/// not also asked to sit (survey W40).
+/// On foot, Use with the greeting selected greets the person in front of the pilot (`interact`): the greeting is
+/// selected first when the mech is in reach too (survey W40), and the wheel picks the mech instead.
 fn greet(
     mut crowd: ResMut<Crowd>,
-    mut actions: ResMut<StepActions>,
+    choice: Res<crate::interact::UseChoice>,
     pilot: Res<PilotSim>,
     data: Res<Data>,
     career: Option<Res<CareerRun>>,
     mut greeting: ResMut<Greeting>,
 ) {
     let p = &pilot.curr;
-    if !actions.0.use_pressed || p.mode != PilotMode::OnFoot {
+    if choice.now != Some(cb_core::interact::Interaction::Greet) || p.mode != PilotMode::OnFoot {
         return;
     }
     let job = open_job(career.as_deref());
     if let Some((id, answer)) = crowd.people.greet(&data.0.people, p.feet, p.yaw_rad, job.as_deref()) {
         info!("civilians: greeted person {id}: {}: {}", answer.who, answer.text);
-        actions.0.use_pressed = false;
         greeting.line = format!("{}: \"{}\"", answer.who, answer.text);
         greeting.left_s = data.0.people.cfg.greet_hold_s;
     }
@@ -342,24 +343,10 @@ fn spawn_greeting_text(mut commands: Commands) {
     ));
 }
 
-/// The answer while it lasts; otherwise "[E] Greet" when someone is in reach on foot.
-fn show_greeting(
-    mut greeting: ResMut<Greeting>,
-    crowd: Res<Crowd>,
-    pilot: Res<PilotSim>,
-    data: Res<Data>,
-    time: Res<Time>,
-    mut text: Single<&mut Text, With<GreetingText>>,
-) {
+/// The answer while it lasts. "[E] Greet" itself is one of the prompt's options (`pilot::show_prompt`, survey W40).
+fn show_greeting(mut greeting: ResMut<Greeting>, time: Res<Time>, mut text: Single<&mut Text, With<GreetingText>>) {
     greeting.left_s = (greeting.left_s - time.delta_secs()).max(0.0);
-    let p = &pilot.curr;
-    let want = if greeting.left_s > 0.0 {
-        greeting.line.as_str()
-    } else if p.mode == PilotMode::OnFoot && crowd.people.in_reach(&data.0.people.cfg, p.feet, p.yaw_rad).is_some() {
-        "[E]  Greet"
-    } else {
-        ""
-    };
+    let want = if greeting.left_s > 0.0 { greeting.line.as_str() } else { "" };
     if text.0 != want {
         text.0 = want.into();
     }

@@ -130,7 +130,7 @@ impl Plugin for TrafficPlugin {
 }
 
 /// The car the pilot is in, or the one whose driver's door is nearest their feet.
-fn find_car(sim: Res<TrafficSim>, pilot: Res<PilotSim>, data: Res<Data>, mut out: ResMut<CarAccessNow>) {
+pub fn find_car(sim: Res<TrafficSim>, pilot: Res<PilotSim>, data: Res<Data>, mut out: ResMut<CarAccessNow>) {
     let kinds = &data.0.traffic.kinds;
     let access = |c: &cb_core::traffic::Car| {
         let spec = &kinds[c.kind as usize];

@@ -29,7 +29,10 @@ impl Plugin for AirBasesPlugin {
             .add_game_systems(FixedUpdate, repair_in_hangars.in_set(SimSet::Mech).after(crate::mech::step_mech))
             .add_game_systems(
                 FixedUpdate,
-                use_terminals.in_set(SimSet::Input).after(crate::input::take_step_actions),
+                (
+                    find_terminal.in_set(SimSet::Input).after(crate::input::take_step_actions),
+                    use_terminal.in_set(SimSet::Pilot).after(crate::interact::choose),
+                ),
             )
             .add_game_systems(Update, open_terminal.before(crate::sim::PresentSet::Input));
     }
@@ -255,22 +258,19 @@ fn repair_in_hangars(
     }
 }
 
-/// Finds the terminal the pilot on foot stands at and looks at; Use there asks for its screen, and is spent on it,
-/// so the mech parked in the same bay (its rope within reach) is not boarded by the same press.
-fn use_terminals(
-    plan: Res<Plan>,
-    data: Res<Data>,
-    pilot: Res<PilotSim>,
-    mut actions: ResMut<crate::input::StepActions>,
-    mut near: ResMut<TerminalNear>,
-) {
+/// Finds the terminal the pilot on foot stands at and looks at, for the prompt's options (`interact`).
+fn find_terminal(plan: Res<Plan>, data: Res<Data>, pilot: Res<PilotSim>, mut near: ResMut<TerminalNear>) {
     let p = &pilot.curr;
     near.near = (p.mode == PilotMode::OnFoot && p.waiting.is_none())
         .then(|| terminal_in_reach(&plan.0.bases, &data.0.world.bases, Vec2::new(p.feet.x, p.feet.z), p.yaw_rad))
         .flatten();
-    if actions.use_pressed && near.near.is_some() {
+}
+
+/// Use with the terminal selected (`interact`, survey W40) asks for its screen; the mech parked in the same bay is
+/// boarded only when it is the one selected instead.
+fn use_terminal(choice: Res<crate::interact::UseChoice>, mut near: ResMut<TerminalNear>) {
+    if choice.now == Some(cb_core::interact::Interaction::Terminal) && near.near.is_some() {
         near.wanted = near.near;
-        actions.0.use_pressed = false;
     }
 }
 

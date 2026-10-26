@@ -23,6 +23,7 @@ pub mod fx;
 pub mod grass;
 pub mod ground_marks;
 pub mod input;
+pub mod interact;
 pub mod jobs;
 pub mod mech;
 pub mod mission;

@@ -10,6 +10,10 @@
     right: ["KeyD"],
     run: ["ShiftLeft"],
     use_key: ["KeyE"],
+    // When Use could do more than one thing (greet, a terminal, a car, the mech), the prompt lists them and the
+    // wheel moves the selection (survey W40; owner, 2026-10-26: "You should be able to scroll wheel select multiple
+    // options"). Seated, the wheel still steps the weapon: no list is shown there.
+    option_cycle: ["MouseWheel"],
     // Held: look round the cockpit uncoupled from the mech's nose, and press MFDs (owner,
     // 2026-10-24: "holding ctrl should let you free look").
     free_look: ["ControlLeft"],

@@ -30,6 +30,7 @@ mod ground;
 mod ground_marks;
 mod hud;
 mod input;
+mod interact;
 mod loading;
 mod main_menu;
 mod mech;
@@ -203,6 +204,7 @@ fn main() -> AppExit {
         rope::RopePlugin,
         vents::VentsPlugin,
         career::CareerPlugin,
+        interact::InteractPlugin,
     ))
     // Free roam's mail and its missions (free-roam-missions); the Hermit (crab-airship).
     .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin))

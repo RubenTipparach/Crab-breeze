@@ -70,6 +70,8 @@ pub struct Actions {
     pub close_combat: bool,
     /// Step the selected weapon station this step: +1 on, -1 back, 0 none (weapon-select).
     pub weapon_cycle: i32,
+    /// Move the prompt's selection when several things are in reach: +1 down, -1 up, 0 none (`interact`, survey W40).
+    pub option_cycle: i32,
     /// Punch keys held, [left arm, right arm]: in close combat they strike (close-combat).
     pub strike: [bool; 2],
     /// The keys are the player's: in walking mode WASD walks directly (walk-controls). The scripted
@@ -209,6 +211,9 @@ pub struct Bindings {
     pub close_combat: Vec<String>,
     /// Step the selected weapon: key names step on; `MouseWheel` steps by the wheel, down on, up back.
     pub weapon_cycle: Vec<String>,
+    /// Move the prompt's selection when several things are in reach (survey W40): key names step down;
+    /// `MouseWheel` steps by the wheel, down on, up back.
+    pub option_cycle: Vec<String>,
     /// Open and close the mail (a career's jobs, mission-jobs; free roam's missions, free-roam-missions).
     pub mail: Vec<String>,
     /// Punch with the left arm, in close combat.
@@ -249,6 +254,7 @@ impl Default for Bindings {
             target_next: k("KeyQ"),
             close_combat: k("Tab"),
             weapon_cycle: vec!["MouseWheel".to_string(), "BracketRight".to_string()],
+            option_cycle: k("MouseWheel"),
             mail: k("KeyM"),
             strike_left: k("KeyZ"),
             strike_right: k("KeyV"),
@@ -317,7 +323,18 @@ impl Bindings {
             row("On foot", "Step left", "left", &self.left),
             row("On foot", "Step right", "right", &self.right),
             row("On foot", "Run (hold)", "run", &self.run),
-            row("On foot", "Board the mech, climb out", "use_key", &self.use_key),
+            row(
+                "On foot",
+                "Use: greet, a terminal, a car, board the mech; hold in the seat to climb out",
+                "use_key",
+                &self.use_key,
+            ),
+            row(
+                "On foot",
+                "Choose what Use does, when more than one thing is in reach",
+                "option_cycle",
+                &self.option_cycle,
+            ),
             row("In the mech", "Throttle up", "forward", &self.forward),
             row("In the mech", "Throttle down", "back", &self.back),
             row("In the mech", "Turn left", "left", &self.left),

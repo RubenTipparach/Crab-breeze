@@ -236,6 +236,7 @@ pub(crate) fn step_pilot(
     actions: Res<StepActions>,
     access: Res<MechAccessNow>,
     car: Res<crate::traffic::CarAccessNow>,
+    choice: Res<crate::interact::UseChoice>,
     data: Res<Data>,
     plan: Res<Plan>,
     live: Res<Live>,
@@ -252,14 +253,16 @@ pub(crate) fn step_pilot(
         platforms: &live.platforms,
         interiors: Some(&interiors.0),
     };
+    // Use reaches only the interaction selected (`interact`, survey W40): a car's door or getting out, or the mech.
     // A car first (car-driving): Use at a car's door gets in; in a car, the mech's step has nothing to do.
+    use cb_core::interact::Interaction;
     let dt = time.delta_secs();
-    let car_event = pilot.curr.step_car(&actions, &data.0.pilot, &ground, car.0.as_ref(), dt);
+    let mut car_a = actions.0;
+    car_a.use_pressed = matches!(choice.now, Some(Interaction::GetIn | Interaction::GetOut));
+    let car_event = pilot.curr.step_car(&car_a, &data.0.pilot, &ground, car.0.as_ref(), dt);
     events.0.extend(car_event);
     let mut a = actions.0;
-    if car_event.is_some() {
-        a.use_pressed = false;
-    }
+    a.use_pressed = choice.now == Some(Interaction::Board) && car_event.is_none();
     let event = if pilot.curr.mode.in_car() || car_event.is_some() {
         None
     } else {
@@ -420,34 +423,15 @@ fn spawn_prompt(mut commands: Commands) {
     ));
 }
 
-/// Shows "E: step into the cockpit" when the kneeling mech is ready and the pilot is near, "E: use the
-/// terminal" at a hangar bay's terminal (air-bases), and "E: get in" or "get out" at a car (car-driving).
-fn show_prompt(
-    pilot: Res<PilotSim>,
-    access: Res<MechAccessNow>,
-    car: Res<crate::traffic::CarAccessNow>,
-    data: Res<Data>,
-    terminal: Option<Res<crate::air_bases::TerminalNear>>,
-    mut prompt: Single<&mut Text, With<Prompt>>,
-) {
-    let p = &pilot.curr;
-    let cfg = &data.0.pilot;
-    let ready = access.0.as_ref().is_some_and(|a| a.hatch_open && p.can_board(a, cfg));
-    let at_terminal = terminal.as_ref().is_some_and(|t| t.near.is_some());
-    let car = car.0.as_ref();
-    let want = if at_terminal {
-        "[E]  Use the terminal: jobs, shop, refit"
-    } else if car.is_some_and(|c| p.can_take(c, cfg)) {
-        "[E]  Get in"
-    } else if p.mode == PilotMode::Driving && car.is_some_and(|c| c.speed_m_s <= cfg.car_stopped_m_s) {
-        "[E]  Get out"
-    } else if ready {
-        "[E]  Step into the cockpit"
-    } else {
-        ""
-    };
+/// The one prompt for Use (survey W40): what is in reach, from the one selector (`interact::UseChoice`). One option
+/// reads as it always has ("[E]  Step into the cockpit", "[E]  Get in", "[E]  Use the terminal..."); several are
+/// listed with the selected one marked, and the mouse wheel moves the mark.
+fn show_prompt(choice: Res<crate::interact::UseChoice>, data: Res<Data>, mut prompt: Single<&mut Text, With<Prompt>>) {
+    let b = &data.0.bindings;
+    let label = |keys: &[String]| keys.first().map_or_else(|| "?".to_string(), |k| cb_core::input::key_label(k));
+    let want = choice.selector.lines(&label(&b.use_key), &label(&b.option_cycle)).join("\n");
     if prompt.0 != want {
-        prompt.0 = want.into();
+        prompt.0 = want;
     }
 }
 

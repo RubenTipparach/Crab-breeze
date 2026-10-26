@@ -42,6 +42,14 @@
   how many times they have been greeted. Roles live on one kind of place (passer-by, shopkeeper and dock worker on
   pavements; park-goer and pensioner in parks; mechanic, ground crew and quartermaster on aprons). A line marked
   `job` names `{job}` and is only said while a job offer is open, filled with its subject.
+- **One prompt for Use (survey W40, answered 2026-10-26: the greeting wins, and "You should be able to scroll wheel
+  select multiple options").** Everything Use can start is offered to one selector each fixed step
+  (`cb_core::interact::Selector`, pure and tested; `cb-app` `interact::choose`): the greeting, a terminal, a car's
+  door, getting out of a stopped car, the stopped mech. With one in reach the prompt reads as before (`[E]  Greet`)
+  and Use does it. With several, the prompt lists them with the selected one marked, the mouse wheel
+  (`option_cycle` in `data/input/bindings.ron`) moves the mark and wraps, and Use does only the marked one; the
+  greeting is marked first when it comes into reach with the others. The mark stays on its choice while others come
+  and go. Seated, the wheel still steps the weapon (no list is shown there).
 - **The toll (owner, survey W34).** Each death says what caused it (round, blast or foot) and whose it was. A death
   the pilot's own mech caused is counted against the air base nearest it (`Toll::by_base`) and sent to the game as
   a `CivilianLoss` message; the career's standing per base (its own branch) reads either and decides the cost.
@@ -81,7 +89,7 @@ meshes by a test that fails while it is stale; `docs/screenshots/civilians/stand
 | --- | --- | --- | --- |
 | CV1 | Can civilians be hurt | yes: the owner decided (survey W34) that the pilot's fire hitting them costs standing; how it is shown is W41 | decided |
 | CV2 | Voiced lines or text | text first, voice later | provisional |
-| W40 | Use near a person and a stopped mech at once | the person within 2.5 m is greeted; boarding needs Use away from people | answered by the owner, 2026-10-26 (survey): the greeting wins, and: "You should be able to scroll wheel select multiple options". Every interaction in reach is listed on the prompt, the wheel moves the selection, Use does the selected one, the greeting first; building |
+| W40 | Use near a person and a stopped mech at once | the person within 2.5 m is greeted; boarding needs Use away from people | answered by the owner, 2026-10-26 (survey): the greeting wins, and: "You should be able to scroll wheel select multiple options". Every interaction in reach is listed on the prompt, the wheel moves the selection, Use does the selected one, the greeting first; built (`cb_core::interact`, tested) |
 | W41 | How someone struck down is shown | falls and lies still 30 s, then cleared; no blood | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
 | W42 | Which deaths cost standing | the pilot's own rounds, blasts and feet only | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
 | W43 | Bodies before the humanoid pipeline runs here | labelled stand-ins at true size | decided: approved, 2026-10-26 ("Approved all of the stand ins"); real bodies later |

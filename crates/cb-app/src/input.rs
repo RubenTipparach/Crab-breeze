@@ -34,6 +34,8 @@ pub struct InputAccum {
     pub close_combat: bool,
     /// Weapon station steps asked for (+ on, - back).
     pub weapon_cycle: i32,
+    /// Prompt selection steps asked for (+ down, - up; survey W40).
+    pub option_cycle: i32,
     /// Fire pressed while free look is held: press the MFD looked at (cockpit-mfds). Taken by the
     /// MFDs each frame, never by the fixed step.
     pub mfd_press: bool,
@@ -75,6 +77,8 @@ pub(crate) struct Keys {
     strike: [Vec<KeyCode>; 2],
     /// Keys that step the weapon on, and whether the mouse wheel steps it.
     weapon_cycle: (Vec<KeyCode>, bool),
+    /// Keys that step the prompt's selection down, and whether the mouse wheel steps it (survey W40).
+    option_cycle: (Vec<KeyCode>, bool),
     fire: [(Vec<KeyCode>, Vec<MouseButton>); 2],
     fire_missile: (Vec<KeyCode>, Vec<MouseButton>),
     debug: Vec<(Vec<KeyCode>, DebugCommand)>,
@@ -151,6 +155,17 @@ fn resolve(b: &Bindings) -> Result<Keys, String> {
                     .collect::<Vec<_>>(),
             )?,
             b.weapon_cycle.iter().any(|n| n == "MouseWheel"),
+        ),
+        option_cycle: (
+            r(
+                "option_cycle",
+                &b.option_cycle
+                    .iter()
+                    .filter(|n| n.as_str() != "MouseWheel")
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            )?,
+            b.option_cycle.iter().any(|n| n == "MouseWheel"),
         ),
         fire: [split("fire_primary", &b.fire_primary)?, split("fire_secondary", &b.fire_secondary)?],
         fire_missile: split("fire_missile", &b.fire_missile)?,
@@ -301,6 +316,13 @@ fn sample_devices(
     if any_just(&input, &keys.weapon_cycle.0) {
         acc.weapon_cycle += 1;
     }
+    // The wheel moves the prompt's selection too (survey W40); it only matters while a list is shown.
+    if keys.option_cycle.1 && scroll.delta.y != 0.0 {
+        acc.option_cycle += if scroll.delta.y < 0.0 { 1 } else { -1 };
+    }
+    if any_just(&input, &keys.option_cycle.0) {
+        acc.option_cycle += 1;
+    }
     let (fire_keys, fire_buttons) = &keys.fire[0];
     if any(&input, &keys.free_look) && (any_just(&input, fire_keys) || mouse.any_just_pressed(fire_buttons.iter().copied())) {
         acc.mfd_press = true;
@@ -358,6 +380,7 @@ pub(crate) fn take_step_actions(
         target_next: held.target_next || acc.target_next,
         full_stop: held.full_stop || acc.full_stop,
         weapon_cycle: (held.weapon_cycle + acc.weapon_cycle).signum(),
+        option_cycle: (held.option_cycle + acc.option_cycle).signum(),
         close_combat: held.close_combat || acc.close_combat,
         ..held
     }
@@ -371,6 +394,7 @@ pub(crate) fn take_step_actions(
     acc.target_next = false;
     acc.full_stop = false;
     acc.weapon_cycle = 0;
+    acc.option_cycle = 0;
     acc.close_combat = false;
 }
 

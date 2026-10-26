@@ -13,6 +13,9 @@
 - [x] 1.4 Running inside: `StreetDoors`, an implementation of `Doors` over every building's real street door
   (`world::interior::shell`, the rule the leaves hang by), in place of `NoDoors`; car drivers who give up their
   car run for the same doors; tested (`people_run_in_through_the_real_street_doors_of_the_island`)
+- [x] 1.6 One prompt for Use (survey W40, 2026-10-26: the greeting wins, and "You should be able to scroll wheel select
+  multiple options"): every interaction in reach listed, the wheel selects, Use does the selected one
+  (`cb_core::interact`, `cb-app` `interact`, `pilot::show_prompt`); tested in cb-core; not yet seen in a playtest
 - [x] 2.0 The stand-in bodies: labelled box figures at true size (`docs/mockups/civilians.html`), approved by the owner
   (2026-10-26: "Approved all of the stand ins", survey W43); people ship as the stand-ins until real bodies exist
 - [ ] 2.1 The humanoid table and rig built (`blender-humanoid-characters`), walk and idle clips, to replace the
