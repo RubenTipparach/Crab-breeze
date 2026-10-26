@@ -276,8 +276,7 @@ fn step_crowd(
     count(crowd, deaths, pilot_mech(&piloted), &plan, &mut losses);
 }
 
-/// Prints each standing loss for the playtest log (`CIVILIAN_LOSS`), until the career's standing reads
-/// the messages itself.
+/// Prints each standing loss for the playtest log (`CIVILIAN_LOSS`); `civil_standing` charges it to the career.
 fn report_losses(mut losses: MessageReader<CivilianLoss>, crowd: Res<Crowd>) {
     for CivilianLoss(l) in losses.read() {
         println!(

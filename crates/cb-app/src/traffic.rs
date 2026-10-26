@@ -3,8 +3,8 @@
 //! through `cb_core::traffic`, hands it what the fight does (foot strikes, explosions, mechs moving through),
 //! takes and leaves cars for the pilot, and draws the cars, their fires and their running drivers.
 //!
-//! Harm to a car is published as `CivilianHarmed` and counted in `CivilianToll`: the hook the career's
-//! standing per base (survey W34, career-loop) wires to, without this module knowing about careers.
+//! Harm to a car is published as `CivilianHarmed` and counted in `CivilianToll`; `civil_standing` charges it
+//! to the career's standing per base (survey W34, W37), without this module knowing about careers.
 //!
 //! The cars are drawn from their block-out models (`tools/blender/build_cars.py`), stand-ins until the
 //! detailed models are approved: a crushed car is its block-out pressed flat, a burning one carries the
@@ -320,8 +320,8 @@ fn step_traffic(
     sim.traffic.take_driver_thrown();
 }
 
-/// Says in the log when the player harms a civilian's car: until the career's standing (career-loop) reads
-/// `CivilianHarmed`, this is the one reader, so the hook is seen working in a playtest's log.
+/// Says in the log when the player harms a civilian's car. The career's standing reads `CivilianHarmed` in
+/// `civil_standing`.
 fn report_harm(mut harmed: MessageReader<CivilianHarmed>, toll: Res<CivilianToll>) {
     for CivilianHarmed(h) in harmed.read() {
         if h.by_player && h.occupied {

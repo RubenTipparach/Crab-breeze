@@ -5,7 +5,7 @@
 //! `Traffic` keeps the aircraft near the pilot only: it spawns them where the pilot cannot see them
 //! appear, removes them far away, and never simulates the whole island. Each aircraft flies through
 //! `flight`; its shape, hit capsules and wreck are `shape`. The pilot's own hits are tallied per base in
-//! `Standing`, the hook the career loop's standing reads (survey W34). Pure and seeded.
+//! `Standing`; `crate::civil_standing` charges them to the career (survey W34). Pure and seeded.
 
 pub mod config;
 pub mod flight;
@@ -343,13 +343,9 @@ fn city_spawn(
     ))
 }
 
-/// The air base nearest a point (x, z), ties by id: whose standing a hit there costs.
-pub fn nearest_base(bases: &[AirBase], p: Vec2) -> Option<u32> {
-    bases
-        .iter()
-        .min_by(|a, b| a.centre.distance(p).total_cmp(&b.centre.distance(p)).then(a.id.cmp(&b.id)))
-        .map(|b| b.id)
-}
+/// The air base nearest a point (x, z), ties by id: whose standing a hit there costs. The one rule, in
+/// `civil_standing`.
+pub use crate::civil_standing::nearest_base;
 
 /// The pilot's hits on civil aircraft at one base.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -360,8 +356,8 @@ pub struct Tally {
     pub downed: u32,
 }
 
-/// The pilot's hits on civil aircraft, per air base (survey W34). A counter only: what it costs is the
-/// career loop's to decide when its per-base standing lands.
+/// The pilot's hits on civil aircraft, per air base (survey W34). A counter only: what a hit costs the
+/// career's standing is `crate::civil_standing`'s to decide.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Standing {
     /// By base id.

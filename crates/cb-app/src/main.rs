@@ -15,6 +15,7 @@ mod buildings;
 mod capture;
 mod capture_fortress;
 mod career;
+mod civil_standing;
 mod civilians;
 mod cli;
 mod clouds_render;
@@ -269,6 +270,8 @@ fn main() -> AppExit {
     app.add_plugins(save_game::SaveGamePlugin);
     app.add_plugins((air_bases::AirBasesPlugin, air_drop::AirDropPlugin));
     app.add_plugins(air_traffic::AirTrafficPlugin);
+    // Harm to civilians, cars and civil aircraft costs career standing, by one rule (survey W34, W37, W42).
+    app.add_plugins(civil_standing::CivilStandingPlugin);
     // The player's settings; a measurement or capture run keeps the window it set up.
     app.add_plugins(settings::SettingsPlugin {
         window: !scripted && !cli::switched_off("CB_UNCAPPED"),

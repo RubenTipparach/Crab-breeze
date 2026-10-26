@@ -9,5 +9,8 @@
     standing_per_job: 1,
     standing_lost: 1,
     standing_max: 10,
+    // A point lost with the nearest base for each civilian the pilot harms (survey W34, W37, W42; provisional:
+    // the amount was not asked): a person killed, a car with a driver in it, a civil aircraft, each once.
+    standing_per_civilian: 1,
     pay_bonus_per_standing: 0.05,
 )

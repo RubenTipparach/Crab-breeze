@@ -27,6 +27,8 @@
 - [x] 3.4 Neutral boxes (`CIV`), the TARGET page's name, the lock boxes on a deliberately selected one
 - [x] 3.5 Jet engine loop (stand-in cue `airliner_jet`)
 - [x] 3.6 The mockup page `docs/mockups/civil_aircraft.html` from `tools/mockups/gen_civil_aircraft.py`
+- [x] 3.10 The pilot's hits charged to the nearest base's standing through `cb_core::civil_standing`, once per
+  aircraft however many rounds hit it (survey W34); tested
 - [ ] 3.7 The owner approves the stand-ins' shapes and sizes on the mockup page
 - [ ] 3.8 Blender models with LODs and PBR sets, after 3.7
 - [ ] 3.9 Recorded engine, propeller and rotor sounds (W49)

@@ -45,8 +45,8 @@ pub struct AirTraffic(pub Traffic);
 #[derive(Resource, Default)]
 pub struct Neutrals(pub Vec<Hostile>);
 
-/// The pilot's hits on civil aircraft per base (survey W34): the counter the career loop's standing
-/// reads when it lands. `CivilAirHit` carries each one as it happens.
+/// The pilot's hits on civil aircraft per base (survey W34), counted for the log. `CivilAirHit` carries each one
+/// as it happens, and `civil_standing` charges it to the career's standing.
 #[derive(Resource, Default)]
 pub struct CivilStanding(pub Standing);
 

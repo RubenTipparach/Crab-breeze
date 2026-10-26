@@ -1,8 +1,7 @@
 //! The toll (openspec change `civilians`; owner, survey W34): people killed by the pilot's own fire or
-//! under their own mech's feet cost standing with the air base nearest where it happened. Standing per
-//! base belongs to the career (its own change, not on main yet), so this is the hook it reads: every
-//! death the pilot caused, counted by the base it counts against. Nothing here decides how much
-//! standing a death costs.
+//! under their own mech's feet cost standing with the air base nearest where it happened. This counts
+//! every death the pilot caused by the base it counts against; what a death costs the career's standing is
+//! decided in one place for every kind of civilian, `crate::civil_standing`.
 
 use crate::world::AirBase;
 use glam::{Vec2, Vec3};
@@ -35,6 +34,8 @@ pub struct Casualty {
 /// A death the pilot caused, as the career's standing reads it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StandingLoss {
+    /// The person's id.
+    pub person: u32,
     /// The base nearest where it happened (`None` on an island with no bases).
     pub base: Option<u32>,
     /// Where.
@@ -54,18 +55,8 @@ pub struct Toll {
     pub by_others: u32,
 }
 
-/// The base whose centre is nearest `at` (ties to the lower id).
-pub fn nearest_base(bases: &[AirBase], at: Vec2) -> Option<u32> {
-    bases
-        .iter()
-        .min_by(|a, b| {
-            a.centre
-                .distance_squared(at)
-                .total_cmp(&b.centre.distance_squared(at))
-                .then(a.id.cmp(&b.id))
-        })
-        .map(|b| b.id)
-}
+/// The base nearest a point: the one rule, in `civil_standing`.
+pub use crate::civil_standing::nearest_base;
 
 impl Toll {
     /// Counts a death. When `pilot_mech` caused it, returns the standing loss for the career.
@@ -80,6 +71,7 @@ impl Toll {
             None => self.unplaced += 1,
         }
         Some(StandingLoss {
+            person: c.person,
             base,
             at: c.at,
             cause: c.cause,

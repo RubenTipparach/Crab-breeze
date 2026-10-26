@@ -14,6 +14,7 @@ pub mod battle_fx;
 pub mod boarding;
 pub mod car;
 pub mod career;
+pub mod civil_standing;
 pub mod civilians;
 pub mod cockpit;
 pub mod data;

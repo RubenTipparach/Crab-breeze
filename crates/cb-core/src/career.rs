@@ -27,6 +27,9 @@ pub struct CareerConfig {
     pub standing_lost: i64,
     /// The most standing a base keeps for the pilot.
     pub standing_max: i64,
+    /// Standing lost with the nearest base for each civilian the pilot harms: a person killed, a car with a driver
+    /// in it, a civil aircraft (survey W34, W37, W42; `civil_standing`).
+    pub standing_per_civilian: i64,
     /// The share a base's pay rises per point of standing there (0.05: 5 % a point).
     pub pay_bonus_per_standing: f32,
 }
@@ -40,6 +43,7 @@ impl Default for CareerConfig {
             standing_per_job: 1,
             standing_lost: 1,
             standing_max: 10,
+            standing_per_civilian: 1,
             pay_bonus_per_standing: 0.05,
         }
     }
@@ -53,7 +57,7 @@ impl Validate for CareerConfig {
         if self.start_mech.is_empty() {
             return Err("start_mech: must name a mech file".into());
         }
-        if self.standing_per_job < 0 || self.standing_lost < 0 || self.standing_max < 0 {
+        if self.standing_per_job < 0 || self.standing_lost < 0 || self.standing_max < 0 || self.standing_per_civilian < 0 {
             return Err("standing: gains, losses and the most must not be negative".into());
         }
         crate::data::within("pay_bonus_per_standing", self.pay_bonus_per_standing, 0.0, 1.0)?;
@@ -346,6 +350,14 @@ impl Career {
     pub fn job_ended(&mut self, base: u32, won: bool, cfg: &CareerConfig) -> i64 {
         let now = self.standing_at(base);
         let next = if won { now + cfg.standing_per_job } else { now - cfg.standing_lost }.clamp(0, cfg.standing_max);
+        self.standing.insert(base, next);
+        next
+    }
+
+    /// The pilot harmed a civilian near `base` (`civil_standing`): standing there falls by
+    /// `standing_per_civilian`, never below zero. Returns the standing after.
+    pub fn civilian_harmed(&mut self, base: u32, cfg: &CareerConfig) -> i64 {
+        let next = (self.standing_at(base) - cfg.standing_per_civilian).clamp(0, cfg.standing_max);
         self.standing.insert(base, next);
         next
     }
