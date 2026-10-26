@@ -40,7 +40,7 @@ the instrument now reads `view_fov_deg` from `data/pilot/pilot.ron`):
 | Cab | Ironhorse | 22.1 % | 18.8 % | |
 | Octagon | Driller | 30.1 % then 24.2 % | 20.0 % | its rail at 21.6 degrees, its MFDs hung from the upper row |
 | Titan | Roustabout | 25.0 % | 21.2 % | |
-| Canopy | Harrow | 37.0 %, 22.5 % in the builder | 31.2 % (the shipped bake) | its screen's top raised from 1.45 m to 1.58 m, rebake pending |
+| Canopy | Harrow | 37.0 %, 22.5 % in the builder | 31.2 % (the old bake), 19.2 % rebaked | its screen's top raised from 1.45 m to 1.58 m |
 
 ## 2. The opening
 

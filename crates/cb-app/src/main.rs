@@ -23,6 +23,7 @@ mod ground;
 mod ground_marks;
 mod hud;
 mod input;
+mod launcher;
 mod loading;
 mod mech;
 mod menu;
@@ -67,6 +68,11 @@ fn main() -> AppExit {
             return AppExit::error();
         }
     };
+    // A plain run opens the menu on its own, with no world (launcher); picking a mode starts the game.
+    let scripted = args.stills.is_some() || args.showcase.is_some() || args.bench.is_some();
+    if !scripted && args.play.is_none() && args.mission.is_none() && args.start.is_none() {
+        return launcher::run();
+    }
     let root = cli::repo_root();
     let data = match GameData::load(&root.join("data"), &args.mech) {
         Ok(d) => d,
@@ -180,22 +186,28 @@ fn main() -> AppExit {
         bloom: !cli::switched_off("CB_NO_BLOOM"),
     });
     // The run begins: a command-line run as asked (the defence mission, or free roam for a take, a
-    // bench or stills), a plain run on the title menu once the game is ready (game-menus).
+    // bench or stills), or the mode picked on the menu (launcher): free roam or a career.
     app.add_plugins(defence::DefencePlugin);
-    let scripted = args.stills.is_some() || args.showcase.is_some() || args.bench.is_some();
     if args.defending() {
         app.insert_resource(defence::Defending)
             .init_resource::<defence::DefenceRun>()
             .insert_resource(menu::Play::Defence);
     } else if args.stills.is_some() && std::env::var("CB_STILLS_MAIL").is_ok() {
-        // The stills of taking a job on the cockpit's MAIL page start as free roam does from the title menu: no
-        // enemy, a board of jobs by mail (capture::run_script's beat 5).
-        app.insert_resource(menu::Play::FreeRoam)
-            .insert_resource(career::CareerStart::FreeRoam);
-    } else if scripted || args.mission.is_some() || args.start.as_deref() == Some("fx") {
-        app.insert_resource(menu::Play::Encounters);
-    } else {
-        app.insert_resource(menu::TitleWanted);
+        // The stills of taking the free-roam mail on the cockpit's MAIL page: free roam as a player plays it, no
+        // encounter mechs (capture::run_script's MAIL_BEAT).
+        app.insert_resource(menu::Play::FreeRoam);
+    } else if scripted || args.mission.is_some() || args.start.is_some() || args.play.as_deref().is_some_and(|m| m.starts_with("free")) {
+        app.insert_resource(menu::Play::FreeRoam);
+        // A scripted take fights the encounter mechs; free roam as a player plays it has none.
+        if scripted {
+            app.insert_resource(menu::Encounters);
+        }
+    } else if let Some(career) = args.play.as_deref().and_then(|m| m.strip_prefix("career-")) {
+        app.insert_resource(menu::Play::Career).insert_resource(if career == "new" {
+            career::CareerStart::New
+        } else {
+            career::CareerStart::Continue
+        });
     }
     // The player's settings; a measurement or capture run keeps the window it set up.
     app.add_plugins(settings::SettingsPlugin {

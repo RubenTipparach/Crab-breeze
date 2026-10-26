@@ -100,20 +100,32 @@ pub fn item_at(page: usize, at: Vec2) -> Option<Item> {
     items(page).into_iter().find(|(_, a)| a.holds(at)).map(|(i, _)| i)
 }
 
-/// The offers the MAIL page lists, oldest first: the jobs still waiting for an answer.
-fn offers(board: &Board) -> Vec<u32> {
-    board
-        .jobs
-        .iter()
-        .filter(|j| j.state == JobState::Offered)
-        .map(|j| j.id)
-        .take(MAIL_SLOTS)
-        .collect()
+/// An offer on the MAIL page: a career's job, or free roam's city defence (`menu::DEFENCE_OFFER`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Offer {
+    /// A job on the career's board, by id.
+    Job(u32),
+    /// Free roam's mail: the city defence, started on ACCEPT (`menu::start_defence`).
+    Defence,
 }
 
-/// The job in MAIL slot `slot`, if one is there.
-pub fn offer_in_slot(board: &Board, slot: usize) -> Option<u32> {
-    offers(board).get(slot).copied()
+/// The offers the MAIL page lists, oldest first: in a career the jobs still waiting for an answer, in free roam the
+/// city defence while it is not running (the menu's MAIL page lists the same).
+pub fn offers(board: Option<&Board>, free_roam: bool, defending: bool) -> Vec<Offer> {
+    let mut out: Vec<Offer> = board
+        .map(|b| {
+            b.jobs
+                .iter()
+                .filter(|j| j.state == JobState::Offered)
+                .map(|j| Offer::Job(j.id))
+                .collect()
+        })
+        .unwrap_or_default();
+    if free_roam && !defending {
+        out.push(Offer::Defence);
+    }
+    out.truncate(MAIL_SLOTS);
+    out
 }
 
 /// A job's subject line, from the message that offered it.
@@ -311,60 +323,77 @@ fn light_items(pointed: Res<Pointed>, mut nodes: Query<(&ItemNode, &mut BorderCo
     }
 }
 
-/// The MAIL page's words and the MENU's unread count, from the career's board (free roam's too).
+/// The MAIL page's words and the MENU's unread count: a career's board, or free roam's city defence.
 fn write_live(
     career: Option<Res<CareerRun>>,
+    (play, defending): (Option<Res<crate::menu::Play>>, Option<Res<crate::defence::Defending>>),
     pilot: Res<crate::pilot::PilotSim>,
     mut texts: Query<(&Live, &mut Text)>,
     mut accept: Query<(&ItemNode, &mut Visibility)>,
 ) {
     let board = career.as_ref().map(|c| &c.career.board);
-    let open = board.map(offers).unwrap_or_default();
+    let free_roam = play.as_deref() == Some(&crate::menu::Play::FreeRoam);
+    let open = offers(board, free_roam, defending.is_some());
     let here = Vec2::new(pilot.curr.feet.x, pilot.curr.feet.z);
+    let terms = |o: &Offer| match (o, board) {
+        (Offer::Job(id), Some(b)) => b
+            .job(*id)
+            .map(|j| {
+                let km = j.site.distance(here) / 1000.0;
+                format!("CITY {}  {} MECHS  {km:.1} KM  CR {}", j.city + 1, j.mechs, credits(j.pay))
+            })
+            .unwrap_or_default(),
+        (Offer::Defence, _) => crate::menu::DEFENCE_OFFER.to_uppercase(),
+        _ => String::new(),
+    };
     for (live, mut t) in &mut texts {
-        let s = match (*live, board) {
-            (_, None) => match live {
-                Live::UnderWay => "NO MAIL: START A CAREER OR FREE ROAM".into(),
-                _ => String::new(),
-            },
-            (Live::MailRow, Some(b)) => {
-                let unread = b.inbox.iter().filter(|m| !m.read).count();
+        let s = match *live {
+            Live::MailRow => {
+                let unread = board.map_or(usize::from(open.contains(&Offer::Defence)), |b| {
+                    b.inbox.iter().filter(|m| !m.read).count()
+                });
                 if unread > 0 {
                     format!("MAIL   {unread} NEW")
                 } else {
                     "MAIL".into()
                 }
             }
-            (Live::Credits, Some(_)) => format!("CR {}", credits(career.as_ref().map_or(0, |c| c.career.money))),
-            (Live::UnderWay, Some(b)) => match b.current() {
+            Live::Credits => career
+                .as_ref()
+                .map(|c| format!("CR {}", credits(c.career.money)))
+                .unwrap_or_default(),
+            Live::UnderWay => match board.and_then(|b| b.current()) {
                 Some(j) => {
                     let km = j.site.distance(here) / 1000.0;
                     let what = if j.state == JobState::Active { "FIGHT ON" } else { "UNDER WAY" };
-                    format!("{what}: {}\nCITY {}  {km:.1} KM TO THE WAYPOINT", subject(b, j.id), j.city + 1)
+                    format!(
+                        "{what}: {}\nCITY {}  {km:.1} KM TO THE WAYPOINT",
+                        subject(board.unwrap(), j.id),
+                        j.city + 1
+                    )
                 }
+                None if defending.is_some() => crate::menu::DEFENCE_UNDER_WAY.to_uppercase(),
+                None if board.is_none() && !free_roam => "NO MAIL HERE".into(),
                 None if open.is_empty() => "NO OFFERS YET: THEY COME BY MAIL".into(),
-                None => "NO JOB UNDER WAY: ACCEPT ONE".into(),
+                None => "NOTHING UNDER WAY: ACCEPT ONE".into(),
             },
-            (Live::Subject(k), Some(b)) => open.get(k).map(|id| subject(b, *id)).unwrap_or_default(),
-            (Live::Terms(k), Some(b)) => open
-                .get(k)
-                .and_then(|id| b.job(*id))
-                .map(|j| {
-                    let km = j.site.distance(here) / 1000.0;
-                    format!("CITY {}  {} MECHS  {km:.1} KM  CR {}", j.city + 1, j.mechs, credits(j.pay))
-                })
-                .unwrap_or_default(),
+            Live::Subject(k) => match open.get(k) {
+                Some(Offer::Job(id)) => board.map(|b| subject(b, *id)).unwrap_or_default(),
+                Some(Offer::Defence) => "CITY DEFENCE".into(),
+                None => String::new(),
+            },
+            Live::Terms(k) => open.get(k).map(terms).unwrap_or_default(),
         };
         if t.0 != s {
             t.0 = s;
         }
     }
-    // DECLINE shows on a slot with an offer in it; ACCEPT too, while no job is under way.
-    let free = board.is_some_and(|b| b.current().is_none());
+    // ACCEPT shows on a slot with an offer in it while nothing is under way; DECLINE on a career's job.
+    let free = board.is_none_or(|b| b.current().is_none());
     for (ItemNode(_, item), mut vis) in &mut accept {
         let shown = match item {
             Item::Accept(k) => free && *k < open.len(),
-            Item::Decline(k) => *k < open.len(),
+            Item::Decline(k) => matches!(open.get(*k), Some(Offer::Job(_))),
             _ => continue,
         };
         let v = if shown { Visibility::Inherited } else { Visibility::Hidden };
@@ -418,6 +447,13 @@ mod tests {
                 assert!(a.y >= TOP, "{item:?} at {} on page {page}", a.y);
             }
         }
+    }
+
+    #[test]
+    fn free_roams_mail_offers_the_city_defence_until_it_runs() {
+        assert_eq!(offers(None, true, false), vec![Offer::Defence]);
+        assert!(offers(None, true, true).is_empty(), "running: nothing to accept");
+        assert!(offers(None, false, false).is_empty(), "no mail outside free roam and a career");
     }
 
     #[test]

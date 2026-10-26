@@ -8,7 +8,7 @@
 
 use crate::hud::{MFD_PAGE_PX, MFD_PAGES as PAGES, MFD_READOUTS, MfdRoot};
 use crate::input::InputAccum;
-use crate::mfd_apps::{Item, MAIL_PAGE, MENU_PAGE, Pointed, item_at, offer_in_slot};
+use crate::mfd_apps::{Item, MAIL_PAGE, MENU_PAGE, Offer, Pointed, item_at, offers};
 use crate::pilot::{CockpitCamera, PilotCamera, PilotSim};
 use bevy::camera::RenderTarget;
 use bevy::camera::primitives::Aabb;
@@ -212,14 +212,18 @@ fn point(
 }
 
 /// Free look and fire pressed on a screen: a readout opens the screen's MENU (remembering the readout); on MENU or
-/// MAIL the pointed row acts: a readout or MAIL shows that page, ACCEPT takes the offer (the career's board, free
-/// roam's too: mission-jobs 4.1), BACK gives the screen back its readout.
+/// MAIL the pointed row acts: a readout or MAIL shows that page, ACCEPT takes the offer (a career's job, or free
+/// roam's city defence through `menu::start_defence`, as the menu's Accept does), DECLINE turns a job down, BACK gives
+/// the screen back its readout.
+#[allow(clippy::too_many_arguments)]
 fn press(
+    mut commands: Commands,
     mut acc: ResMut<InputAccum>,
     pointed: Res<Pointed>,
     mut screens: Query<&mut MfdScreen>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut career: Option<ResMut<crate::career::CareerRun>>,
+    (play, defending): (Option<Res<crate::menu::Play>>, Option<Res<crate::defence::Defending>>),
     mut sounds: MessageWriter<crate::audio::Sound>,
 ) {
     let back = std::mem::take(&mut acc.mfd_back);
@@ -230,40 +234,48 @@ fn press(
         return;
     };
     let page = screen.page;
-    // Escape is BACK wherever the view points on the page (`turn_page`).
     let item = pointed.item;
+    let free_roam = play.as_deref() == Some(&crate::menu::Play::FreeRoam);
+    let open = offers(career.as_deref().map(|c| &c.career.board), free_roam, defending.is_some());
     let next = match item {
+        // Escape is BACK wherever the view points on the page (`turn_page`).
         _ if back || page < MFD_READOUTS || matches!(item, Some(Item::Back | Item::Readout(_) | Item::Mail)) => {
             let (next, home) = turn_page(page, screen.home, item, back);
             screen.home = home;
             next
         }
-        _ => match item {
-            Some(Item::Accept(k)) => {
-                if let Some(run) = career.as_mut()
-                    && let Some(id) = offer_in_slot(&run.career.board, k)
-                    && run.career.board.accept(id)
-                {
-                    info!("MFD: job {id} accepted on the MAIL page");
-                    for m in run.career.board.inbox.iter_mut().filter(|m| m.job == Some(id)) {
-                        m.read = true;
+        Some(Item::Accept(k)) => {
+            match open.get(k) {
+                Some(Offer::Job(id)) => {
+                    if let Some(run) = career.as_mut()
+                        && run.career.board.accept(*id)
+                    {
+                        info!("MFD: job {id} accepted on the MAIL page");
+                        for m in run.career.board.inbox.iter_mut().filter(|m| m.job == Some(*id)) {
+                            m.read = true;
+                        }
+                        sounds.write(crate::audio::Sound::speaker("mfd_click"));
                     }
+                }
+                Some(Offer::Defence) => {
+                    info!("MFD: the city defence accepted on the MAIL page");
+                    crate::menu::start_defence(&mut commands);
                     sounds.write(crate::audio::Sound::speaker("mfd_click"));
                 }
-                None
+                None => {}
             }
-            Some(Item::Decline(k)) => {
-                if let Some(run) = career.as_mut()
-                    && let Some(id) = offer_in_slot(&run.career.board, k)
-                    && run.career.board.decline(id)
-                {
-                    info!("MFD: job {id} declined on the MAIL page");
-                    sounds.write(crate::audio::Sound::speaker("mfd_click"));
-                }
-                None
+            None
+        }
+        Some(Item::Decline(k)) => {
+            if let (Some(Offer::Job(id)), Some(run)) = (open.get(k), career.as_mut())
+                && run.career.board.decline(*id)
+            {
+                info!("MFD: job {id} declined on the MAIL page");
+                sounds.write(crate::audio::Sound::speaker("mfd_click"));
             }
-            _ => None,
-        },
+            None
+        }
+        _ => None,
     };
     if let Some(p) = next {
         sounds.write(crate::audio::Sound::speaker("mfd_click"));

@@ -327,11 +327,12 @@ fn run_script(
         // 10 frames at the cap), counting on through the outline shot.
         Local<(bool, u32)>,
     ),
-    // `CB_STILLS_MAIL`: where the view points on the MFDs, the free-roam board, and how far through taking a job
-    // the script is (its step, frames in it).
-    (pointed, career, mut mail): (
+    // `CB_STILLS_MAIL`: where the view points on the MFDs, a career's board (none in free roam), whether the city
+    // defence runs (free roam's mail), and how far through taking the offer the script is (its step, frames in it).
+    (pointed, career, defending, mut mail): (
         Res<crate::mfd_apps::Pointed>,
         Option<Res<crate::career::CareerRun>>,
+        Option<Res<crate::defence::Defending>>,
         Local<(u32, u32)>,
     ),
     time: Res<Time<Real>>,
@@ -575,7 +576,8 @@ fn run_script(
                     }
                 }
                 3 => {
-                    let offered = board.is_some_and(|b| b.jobs.iter().any(|j| j.state == cb_core::jobs::JobState::Offered));
+                    // A career's job offered, or free roam's standing city defence.
+                    let offered = board.is_none_or(|b| b.jobs.iter().any(|j| j.state == cb_core::jobs::JobState::Offered));
                     if *frames > 8 && pointed.page == Some(MAIL_PAGE) && offered {
                         shoot(&mut commands, &script.dir, "mfd-mail.png");
                         advance(step, frames);
@@ -588,12 +590,14 @@ fn run_script(
                         advance(step, frames);
                     }
                 }
-                5 if *frames > 8 && board.is_some_and(|b| b.current().is_some()) => {
-                    let j = board.and_then(|b| b.current()).unwrap();
-                    println!(
-                        "STILLS_MAIL accepted job {} at ({:.0}, {:.0}), {} mechs",
-                        j.id, j.site.x, j.site.y, j.mechs
-                    );
+                5 if *frames > 8 && (defending.is_some() || board.is_some_and(|b| b.current().is_some())) => {
+                    match board.and_then(|b| b.current()) {
+                        Some(j) => println!(
+                            "STILLS_MAIL accepted job {} at ({:.0}, {:.0}), {} mechs",
+                            j.id, j.site.x, j.site.y, j.mechs
+                        ),
+                        None => println!("STILLS_MAIL accepted the city defence"),
+                    }
                     shoot(&mut commands, &script.dir, "mfd-accepted.png");
                     advance(step, frames);
                 }
@@ -1277,6 +1281,20 @@ const VIEWS: &[View] = &[
         name: "under-the-storm",
         eye: [-5600.0, 40.0, -3900.0],
         at: [-11600.0, 500.0, -9600.0],
+        above_ground: true,
+    },
+    // Under the west storm's anvil, 2 km east of its centre, on the ground looking up into it.
+    View {
+        name: "storm-under-anvil",
+        eye: [-3887.0, 2.0, -4186.0],
+        at: [-5287.0, 1800.0, -4186.0],
+        above_ground: true,
+    },
+    // 2.8 km north of the west storm's centre, on the ground looking up at its base and tower.
+    View {
+        name: "storm-under-edge",
+        eye: [-5887.0, 2.0, -6986.0],
+        at: [-5887.0, 1800.0, -5026.0],
         above_ground: true,
     },
     // The storm's shadow on the ground, from 900 m up outside it, looking down across its edge.

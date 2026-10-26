@@ -132,7 +132,7 @@
         11.635
       ]
     },
-    "bytes": 1886020,
+    "bytes": 1886816,
     "cockpit": "Canopy: seated under a bubble in the hull's nose",
     "cockpit_variant": "canopy",
     "file": "mech_harrow.glb",
@@ -144,7 +144,7 @@
     "opening": "the canopy and the hull's nose over it lift back as one",
     "status": "design candidate",
     "style": "Mining Mike boss kit (tank_bosses_kit.js at 3336b88)",
-    "triangles": 15768,
+    "triangles": 15772,
     "weapons": "autocannon pod (L), heavy cannon pod (R), a six-cell missile rack on each shoulder"
   },
   "ironhorse": {

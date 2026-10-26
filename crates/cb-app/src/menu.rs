@@ -4,7 +4,6 @@
 //! on the cockpit pass, which draws last. The Controls page lists every control from the bindings
 //! data (`cb_core::input::Bindings::controls`); the Options page changes `settings`.
 
-use crate::loading::GameReady;
 use crate::pilot::CockpitCamera;
 use crate::settings::{Settings, save};
 use crate::sim::Data;
@@ -42,25 +41,37 @@ impl Menu {
     }
 }
 
-/// How this run plays, chosen on the title menu or by the command line. Inserted once the run begins.
+/// The encounter mechs near the start are wanted (`data/world/encounters.ron`): only a scripted take
+/// asks for them. Free roam as a player plays it starts with no enemies (owner, 2026-10-25: "no
+/// enemies in free roam!", "its CALLED FREE ROAM", "why are there enemeies at spawn!").
+#[derive(Resource)]
+pub struct Encounters;
+
+/// How this run plays, chosen on the title menu or by the command line: the encounter mechs near
+/// the start (free roam) or the city defence. Inserted once the run begins.
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Play {
-    /// Free roam from the title menu: no enemy at the start; jobs come by mail on the cockpit's MAIL
-    /// page, and a job's enemies only when the pilot reaches its site (mission-jobs 4.1, 4.2).
+    /// Free roam: the city defence offered by mail (the menu's MAIL page and the cockpit's), the encounter
+    /// mechs only for a scripted take (`Encounters`).
     FreeRoam,
-    /// A scripted or command-line run (a take, a bench, stills): the start with its encounter mechs,
-    /// the fight there at once with no mail (mission-jobs 4.3: "the playtest harness doesnt need to
-    /// activate in mfd").
-    Encounters,
     /// The city defence mission.
     Defence,
     /// A career: jobs by mail (career, mission-jobs).
     Career,
 }
 
-/// A plain run: open the title menu once the game is ready.
-#[derive(Resource)]
-pub struct TitleWanted;
+/// Free roam's mail offering the city defence, on the menu's MAIL page and the cockpit's (`mfd_apps`).
+pub const DEFENCE_OFFER: &str = "City defence: three waves of raiders are coming for the cities. Stop them.";
+/// The same, once accepted.
+pub const DEFENCE_UNDER_WAY: &str = "UNDER WAY: City defence. Raiders are coming for the cities.";
+
+/// Starts the city defence: what accepting free roam's mail does, from the menu's MAIL page or the cockpit's,
+/// and the title's City defence button.
+pub fn start_defence(commands: &mut Commands) {
+    commands.insert_resource(Play::Defence);
+    commands.insert_resource(crate::defence::Defending);
+    commands.init_resource::<crate::defence::DefenceRun>();
+}
 
 /// The page Back (and Escape) goes to from Options and Controls: the title or the pause menu.
 #[derive(Resource, Clone, Copy)]
@@ -104,23 +115,7 @@ impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Menu>()
             .insert_resource(BackTo(Menu::Pause))
-            .add_systems(Update, (open_title, escape, draw).chain().before(crate::sim::PresentSet::Input));
-    }
-}
-
-/// A plain run opens on the title menu the moment the game is ready (the loading screen waits on the
-/// simulation running, so it cannot pause before then).
-fn open_title(
-    mut commands: Commands,
-    wanted: Option<Res<TitleWanted>>,
-    ready: Res<GameReady>,
-    mut menu: ResMut<Menu>,
-    mut time: ResMut<Time<Virtual>>,
-    mut cursor: Single<&mut CursorOptions>,
-) {
-    if wanted.is_some() && ready.0 {
-        commands.remove_resource::<TitleWanted>();
-        set(&mut menu, Menu::Title, &mut time, &mut cursor);
+            .add_systems(Update, (escape, draw).chain().before(crate::sim::PresentSet::Input));
     }
 }
 
@@ -132,14 +127,16 @@ fn escape(
     keys: Res<crate::input::Keys>,
     back: Res<BackTo>,
     settings: Res<Settings>,
-    career: Option<Res<crate::career::CareerRun>>,
+    (career, play): (Option<Res<crate::career::CareerRun>>, Option<Res<Play>>),
     (pointed, mut acc): (Res<crate::mfd_apps::Pointed>, ResMut<crate::input::InputAccum>),
     mut menu: ResMut<Menu>,
     mut time: ResMut<Time<Virtual>>,
     mut cursor: Single<&mut CursorOptions>,
 ) {
-    // M opens and closes the mail in a career (survey J1: "press M to focus on the mail screen").
-    if career.is_some() && input.any_just_pressed(keys.mail.iter().copied()) {
+    // M opens and closes the mail, in a career and in free roam (survey J1: "press M to focus on the
+    // mail screen"; free roam's mail offers the city defence).
+    let has_mail = career.is_some() || play.as_deref() == Some(&Play::FreeRoam);
+    if has_mail && input.any_just_pressed(keys.mail.iter().copied()) {
         match *menu {
             Menu::Closed => set(&mut menu, Menu::Mail, &mut time, &mut cursor),
             Menu::Mail => set(&mut menu, Menu::Closed, &mut time, &mut cursor),
@@ -231,13 +228,10 @@ fn press(
         // begins, as `--mission defence` does before startup).
         MenuButton::FreeRoam => {
             commands.insert_resource(Play::FreeRoam);
-            commands.insert_resource(crate::career::CareerStart::FreeRoam);
             set(p.menu, Menu::Closed, p.time, p.cursor);
         }
         MenuButton::Defence => {
-            commands.insert_resource(Play::Defence);
-            commands.insert_resource(crate::defence::Defending);
-            commands.init_resource::<crate::defence::DefenceRun>();
+            start_defence(commands);
             set(p.menu, Menu::Closed, p.time, p.cursor);
         }
         MenuButton::Options | MenuButton::Controls => {
@@ -394,10 +388,12 @@ fn draw(
     settings: Res<Settings>,
     data: Res<Data>,
     career: Option<Res<crate::career::CareerRun>>,
+    (play, defending): (Option<Res<Play>>, Option<Res<crate::defence::Defending>>),
     roots: Query<Entity, With<MenuRoot>>,
     overlay: Query<Entity, With<CockpitCamera>>,
 ) {
     let career_changed = career.as_ref().is_some_and(|c| c.is_changed());
+    let free_roam = play.as_deref() == Some(&Play::FreeRoam);
     if !menu.is_changed() && !(settings.is_changed() && *menu == Menu::Options) && !(career_changed && *menu == Menu::Mail) {
         return;
     }
@@ -457,7 +453,7 @@ fn draw(
             Menu::Pause => {
                 p.spawn(label("PAUSED", 44.0, INK));
                 button(p, "Resume", MenuButton::Resume);
-                if career.is_some() {
+                if career.is_some() || free_roam {
                     button(p, "Mail", MenuButton::Mail);
                 }
                 button(p, "Options", MenuButton::Options);
@@ -554,6 +550,16 @@ fn draw(
             Menu::Mail => {
                 if let Some(run) = career.as_deref() {
                     mail_page(p, &run.career);
+                } else if free_roam {
+                    // Free roam's mail: the city defence, started when accepted (owner, 2026-10-25: "city defense
+                    // is a menu mail option in free roam").
+                    p.spawn(label("MAIL", 40.0, INK));
+                    if defending.is_some() {
+                        p.spawn(label(DEFENCE_UNDER_WAY, 24.0, INK));
+                    } else {
+                        p.spawn(label(DEFENCE_OFFER, 24.0, INK));
+                        button(p, "Accept", MenuButton::Defence);
+                    }
                 }
                 button(p, "Back", MenuButton::Resume);
             }

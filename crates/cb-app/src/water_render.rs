@@ -344,6 +344,48 @@ struct WaterPostSettings {
     light: Vec3,
     fog: FogLook,
     mist: AssetId<Image>,
+    glass: PaneGlass,
+}
+
+/// Most window triangles the lens pass reads (`panes` in `water_post.wesl`): a screen wall's panes
+/// are a few quads.
+const MAX_PANE_TRIANGLES: usize = 32;
+
+/// The seated pilot's window panes in world space for the lens pass: the drops are laid in each
+/// pane's own plane, measured from `origin` (the interior's), so they stay on the glass as the head
+/// turns. No triangles on foot.
+#[derive(Clone, Copy, Debug)]
+struct PaneGlass {
+    origin: Vec3,
+    count: usize,
+    corners: [Vec4; 3 * MAX_PANE_TRIANGLES],
+}
+
+impl Default for PaneGlass {
+    fn default() -> Self {
+        Self {
+            origin: Vec3::ZERO,
+            count: 0,
+            corners: [Vec4::ZERO; 3 * MAX_PANE_TRIANGLES],
+        }
+    }
+}
+
+impl PaneGlass {
+    /// The panes of `glass` (in its interior's space) carried to the world by `to_world`.
+    fn new(glass: &crate::mech::CabinGlass, to_world: &GlobalTransform) -> Self {
+        let mut out = Self {
+            origin: to_world.translation(),
+            ..default()
+        };
+        for tri in glass.0.iter().take(MAX_PANE_TRIANGLES) {
+            for (k, v) in tri.iter().enumerate() {
+                out.corners[out.count * 3 + k] = to_world.transform_point(*v).extend(1.0);
+            }
+            out.count += 1;
+        }
+        out
+    }
 }
 
 /// Ground fog on (false under `CB_NO_GROUND_FOG=1`).
@@ -403,6 +445,7 @@ struct PostLook {
     lens: Vec4,
     lens_scale: f32,
     lens_rain: f32,
+    lens_pane_m: f32,
 }
 
 impl From<&WaterLook> for PostLook {
@@ -417,6 +460,7 @@ impl From<&WaterLook> for PostLook {
             lens: Vec4::new(look.lens_density, look.lens_refract, look.lens_speed, look.lens_size),
             lens_scale: look.lens_scale,
             lens_rain: look.lens_rain,
+            lens_pane_m: look.lens_pane_m,
         }
     }
 }
@@ -432,6 +476,7 @@ fn extract_water_eye(
     ambient: Extract<Res<GlobalAmbientLight>>,
     sun: Extract<Query<(&DirectionalLight, &GlobalTransform), With<crate::world::Sun>>>,
     cameras: Extract<Query<(RenderEntity, &WaterEye, &GlobalTransform, Option<&Exposure>), With<WaterOptics>>>,
+    cabins: Extract<Query<(&crate::mech::CabinGlass, &GlobalTransform)>>,
 ) {
     let look = PostLook::from(&data.0.water_look);
     let cfg = &data.0.world.fog;
@@ -458,6 +503,18 @@ fn extract_water_eye(
             sun_dir: light.sun_dir.extend(0.0),
             map: Vec4::new(m.origin_m, m.cell_m, m.side as f32, 0.0),
         };
+        // Seated: the panes of the interior the eye sits in (the nearest, within a cabin's reach).
+        let glass = if eye.cabin_m > 0.0 {
+            cabins
+                .iter()
+                .map(|(g, t)| (t.translation().distance(at), g, t))
+                .filter(|(d, ..)| *d < 30.0)
+                .min_by(|a, b| a.0.total_cmp(&b.0))
+                .map(|(_, g, t)| PaneGlass::new(g, t))
+                .unwrap_or_default()
+        } else {
+            PaneGlass::default()
+        };
         if let Ok(mut e) = commands.get_entity(entity) {
             e.insert(WaterPostSettings {
                 eye: *eye,
@@ -466,13 +523,14 @@ fn extract_water_eye(
                 light: light.body,
                 fog,
                 mist: mist.as_ref().map_or(AssetId::default(), |m| m.0.id()),
+                glass,
             });
         }
     }
 }
 
 /// `WaterPost` in `water_post.wesl`, field for field.
-#[derive(Clone, Copy, Debug, Default, ShaderType)]
+#[derive(Clone, Copy, Debug, ShaderType)]
 struct WaterPostUniform {
     world_from_clip: Mat4,
     camera: Vec4,
@@ -488,6 +546,9 @@ struct WaterPostUniform {
     fog_sun: Vec4,
     fog_sun_dir: Vec4,
     fog_map: Vec4,
+    glass: Vec4,
+    glass_look: Vec4,
+    panes: [Vec4; 3 * MAX_PANE_TRIANGLES],
 }
 
 /// Which fullscreen pass.
@@ -635,6 +696,14 @@ fn prepare_water_post(
             fog_sun: settings.fog.sun,
             fog_sun_dir: settings.fog.sun_dir,
             fog_map: settings.fog.map,
+            glass: Vec4::new(
+                settings.glass.origin.x,
+                settings.glass.origin.y,
+                settings.glass.origin.z,
+                settings.glass.count as f32,
+            ),
+            glass_look: Vec4::new(look.lens_pane_m, 0.0, 0.0, 0.0),
+            panes: settings.glass.corners,
         };
         let (run_compose, run_lens) = passes_needed(&eye, look.lens_rain.max(eye.rain), settings.fog.layer.w > 0.5);
         let multisampled = msaa.samples() > 1;
