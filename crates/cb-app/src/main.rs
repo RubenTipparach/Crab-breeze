@@ -37,6 +37,7 @@ mod pilot;
 mod plumes;
 mod rocks;
 mod rope;
+mod save_game;
 mod screen_cut;
 mod screens_cube;
 mod settings;
@@ -203,6 +204,15 @@ fn main() -> AppExit {
             career::CareerStart::Continue
         });
     }
+    // A player's game (picked on the menu) saves where they are and continues from it (save-game).
+    if let Some(mode) = args.play.as_deref() {
+        app.insert_resource(save_game::Saving {
+            free_roam: mode.starts_with("free"),
+            restore: mode.ends_with("continue"),
+            mech: args.mech.clone(),
+        });
+    }
+    app.add_plugins(save_game::SaveGamePlugin);
     // The player's settings; a measurement or capture run keeps the window it set up.
     app.add_plugins(settings::SettingsPlugin {
         window: !scripted && !cli::switched_off("CB_UNCAPPED"),

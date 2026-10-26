@@ -21,6 +21,7 @@ pub mod mech;
 pub mod mission;
 pub mod pilot;
 pub mod rng;
+pub mod save;
 pub mod settings;
 pub mod sim;
 pub mod skins;
