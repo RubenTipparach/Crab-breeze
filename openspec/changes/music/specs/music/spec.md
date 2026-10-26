@@ -27,3 +27,15 @@ Validation SHALL refuse a music cue whose `bpm` differs from the tempo set in it
 #### Scenario: A score is re-tempoed
 - **WHEN** `music/sortie.strudel` changes to `setcps(156/60/4)` and `music.ron` still says 150
 - **THEN** `cb-tools validate` fails naming the cue, both tempi and both files
+
+### Requirement: One cue per state, the title on the menu
+Each music state SHALL have its own cue: the title on the main menu and the loading screen, boarding, combat, the set piece while the air fortress is aloft and fighting, and won; on foot SHALL be silent.
+
+#### Scenario: From the menu into the game
+- **WHEN** the player picks a run on the main menu and the game becomes ready with the pilot on foot
+- **THEN** the title cue plays through the loading screen and fades out over 2 of its bars once the game is ready
+
+#### Scenario: The fortress comes over the city
+- **WHEN** the pilot is seated and the air fortress mission is running with the fortress aloft
+- **THEN** the set piece cue plays, over combat, until the fortress is brought down, when the win cue plays
+

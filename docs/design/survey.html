@@ -175,11 +175,11 @@ const IN_PROGRESS = [
   { text: 'H5 The fortress crashing on the city counts as city damage (your pick).', where: 'openspec/changes/crab-airship, city-defence' },
   { text: 'H6 2 Shrikes and 4 Mites on deck, a Mite up each hangar lift every 60 s (your pick).', where: 'openspec/changes/crab-airship' },
   { text: 'FR1 A stopped mission\'s enemies leave the world at once; what they destroyed stays destroyed (your pick).', where: 'openspec/changes/free-roam-missions' },
-  { text: 'A2 One music cue per game state, switching on the bar with a one-bar crossfade (your pick).', where: 'openspec/changes/music' },
   { text: 'A3 The score plays over everything and ducks under the radio and alarms (your pick).', where: 'openspec/changes/music' },
 ];
 
 const DECIDED = [
+  { text: 'A2 One music cue per game state: the title on the menu and the loading screen, boarding, combat, the set piece while the air fortress fights, the win; silent on foot. Each change waits for the next bar line and crossfades over one bar ("Approve all", 2026-10-26: your pick).', where: 'crates/cb-core/src/audio.rs (music_state, plan_switch, fade_s), crates/cb-app/src/music.rs, data/audio/music.ron; openspec/changes/music; branch li-lods-music' },
   { text: 'L2 The detailed far shape (parapet, cornice, roof props) gives way to a plain box in the type\'s facade at 1.5 km, kept to 1.725 km once shown so nothing flickers on the line ("Approve all", 2026-10-26: your pick).', where: 'crates/cb-core/src/world/dressing.rs (DressingConfig::far_detail), data/world/world.ron (massing_radius_m, keep_ratio), crates/cb-app/src/buildings.rs; openspec/changes/building-type-lods; branch li-lods-music' },
   { text: 'L1 Each building type\'s far facade is rendered by a tool from its own near facade pieces and textures, so far and near cannot disagree ("Approve all", 2026-10-26: your pick). The renderer runs at startup, since the near textures it reads are made then.', where: 'crates/cb-core/src/world/far_facade.rs, crates/cb-app/src/far_facades.rs, dressing::far_variant; openspec/changes/building-type-lods; CLAUDE.md section 13; branch li-lods-music' },
   { text: 'W50 Each civilian you harm costs 1 point of standing with the nearest base, the same as a job lost ("Approve all", 2026-10-26: recommendation accepted).', where: 'data/career/career.ron (standing_per_civilian), crates/cb-core/src/civil_standing.rs; PR #76' },
