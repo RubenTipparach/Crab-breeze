@@ -500,6 +500,28 @@ pub fn clear_in_front(footprint: &Rect, others: &[Rect], limit_m: f32) -> [f32; 
     out
 }
 
+/// The facade of `footprint` that faces the street, as a side (0 faces -z, 1 +z, 2 -x, 3 +x): of the
+/// facades with nothing built between them and the edge of `block` (the kerb; `fronts` is
+/// `clear_in_front`), the nearest the kerb, ties to a long face and then the lower side. An inner lot
+/// has none: its door faces the widest gap in front, an alley to the pavement. Without a block, the
+/// widest gap.
+pub fn street_side(footprint: &Rect, block: Option<&Rect>, fronts: [f32; 4]) -> u8 {
+    let size = footprint.size();
+    let long = |s: usize| (s < 2) == (size.x >= size.y);
+    let widest = || (0..4).max_by(|&a, &b| fronts[a].total_cmp(&fronts[b]).then(b.cmp(&a))).unwrap_or(0) as u8;
+    let Some(block) = block else { return widest() };
+    let kerb = [
+        footprint.min.y - block.min.y,
+        block.max.y - footprint.max.y,
+        footprint.min.x - block.min.x,
+        block.max.x - footprint.max.x,
+    ];
+    (0..4)
+        .filter(|&s| fronts[s] >= kerb[s] - 1e-3)
+        .min_by(|&a, &b| kerb[a].total_cmp(&kerb[b]).then(long(b).cmp(&long(a))).then(a.cmp(&b)))
+        .map_or_else(widest, |s| s as u8)
+}
+
 fn corners(r: &Rect) -> [Vec2; 4] {
     [r.min, Vec2::new(r.max.x, r.min.y), r.max, Vec2::new(r.min.x, r.max.y)]
 }

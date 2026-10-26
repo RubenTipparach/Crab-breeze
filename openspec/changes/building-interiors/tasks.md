@@ -22,11 +22,12 @@
 - [ ] 3.4 Playtest: walk into a walk-up, climb its stair, look out of a window; on Drive
 
 ## 4. Entrances and stairs (owner, 2026-10-25: "each building needs doors and staairs that i as a player can walk into them")
-- [ ] 4.1 The street side of every building, worked out at generation (`WorldPlan::street_sides`; test: every door is reachable from the pavement)
-- [ ] 4.2 `Entrance` per building: the door on the street facade, a lobby lined up with it or the corridor, the route to the stair (tests: every building has one, on its street side; nothing on the route)
-- [ ] 4.3 The dog-leg stair in the core, ground floor to top storey, and the stairwell in each floor (test: every shipped building's stair has a walkable rise and run)
-- [ ] 4.4 The dressing draws the entrance as an opening with its leaf standing open, the stoop, and the floors with their stairwells; the rooms mesh draws the stair
-- [ ] 4.5 `Walkable`: one box rule for standing and walls, each box hung on its frame element so a breached building is walkable too; `Scene` uses it for the pilot (test: a pilot walks in off the pavement, through the door and up the stair to the top storey)
-- [ ] 4.6 On foot only (owner, 2026-10-26), the app builds `Walkable` for buildings within `collision_radius_m` of the pilot (within `collision_sync_m` at once, the rest on the async pool) and frees them all when the pilot leaves their feet, or one past the margin (tests: the set is chosen by mode and distance; climbing out and boarding switch cleanly)
+- [x] 4.1 The street side of every building, worked out at generation (`WorldPlan::street_sides`; test: every door is reachable from the pavement)
+- [x] 4.2 `Entrance` per building: the door on the street facade, a lobby lined up with it or the corridor, the route to the stair (tests: `every_building_has_its_door_on_its_street_side_and_every_stair_is_walkable`, `nothing_stands_on_the_way_in`)
+- [x] 4.3 The dog-leg stair in the core, ground floor to top storey, and the stairwell in each floor (same test: every shipped building's rise, run and lane)
+- [x] 4.4 The dressing draws the entrance as an opening with its leaf standing open, the stoop, and the floors with their stairwells (the frame's floor bays too); the rooms mesh draws the stair and the ground floor (tests: `party_lines`, with the entrances in)
+- [x] 4.5 `Walkable`: one box rule for standing and walls, each box hung on its frame element so a breached building is walkable too; `Scene` uses it for the pilot (tests: `a_pilot_walks_in_off_the_street_and_climbs_to_the_top_storey` on one building of each layout and door, up to 7 storeys; `the_facade_stops_a_pilot_away_from_the_door`; `a_breach_is_a_way_in`)
+- [x] 4.6 On foot only (owner, 2026-10-26), the app builds `Walkable` for buildings within `collision_radius_m` of the pilot (within `collision_sync_m` at once, the rest on the async pool) and frees them all when the pilot leaves their feet, or one past the margin (`cb-app::walk_in`; tests: `colliders_are_chosen_by_mode_and_distance`, `climbing_out_switches_to_colliders_cleanly`)
 - [ ] 4.7 Survey W30 (how the door opens) and W31 (warehouse roller doors) answered
 - [ ] 4.8 Playtest: walk in off the street, climb to an upper floor, look out of a window (this is 3.4)
+- [x] 4.9 Trim stops at the party line and the corners (owner, 2026-10-26: "some zfighting on the divider for buildings here"; tests: `party_lines`)

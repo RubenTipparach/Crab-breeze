@@ -310,6 +310,7 @@ fn take_contacts(
         trees: None,
         structures: None,
         platforms: &[],
+        interiors: None,
     };
     let marks = &mut *marks;
     for c in contacts.read() {
@@ -398,6 +399,7 @@ fn scorch_craters(mut marks: ResMut<Marks>, data: Res<Data>, plan: Res<Plan>, li
         trees: None,
         structures: None,
         platforms: &[],
+        interiors: None,
     };
     for b in blasts.iter().skip(blasts.len() - fresh) {
         let r = craters.radius_m_per_cbrt_mj * b.energy_mj.max(0.0).cbrt();

@@ -211,6 +211,7 @@ pub(crate) fn step_pilot(
     plan: Res<Plan>,
     live: Res<Live>,
     time: Res<Time<Fixed>>,
+    interiors: Res<crate::walk_in::InteriorColliders>,
 ) {
     let pilot = &mut *pilot;
     pilot.prev = pilot.curr.clone();
@@ -220,6 +221,7 @@ pub(crate) fn step_pilot(
         trees: Some(&live.forest),
         structures: Some(&live.structures),
         platforms: &live.platforms,
+        interiors: Some(&interiors.0),
     };
     let event = pilot
         .curr

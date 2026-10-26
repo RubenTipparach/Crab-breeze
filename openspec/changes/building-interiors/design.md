@@ -178,10 +178,13 @@ machine, section 7 of CLAUDE.md):
 - A stair storey is 18 treads, a half landing and 3 walls: about 260 triangles; a 20-storey tower's
   stair about 5 k, inside the rooms mesh (no new draw call).
 - An entrance bay is about 20 boxes, roughly what the shopfront it replaces cost.
-- Collision: about 230 boxes a storey (24 bytes each), 5.5 kB a storey; a 20-storey tower about
-  110 kB. Built on the async pool in about the time the storey's plan takes (0.03 ms a storey). A
-  pilot step tests the boxes of the storeys round its feet in the buildings round it: a few hundred
-  comparisons, no allocation.
+- Collision: about 200 boxes a storey (about 40 bytes each). Measured with `Walkable::build` in a
+  release test on the owner's Mac (indicative, not a frame-time result): the tallest shipped tower
+  (53 storeys) is 10 511 boxes, about 420 kB, built in 1.3 ms; a two-storey warehouse is 516 boxes in
+  0.05 ms. Within 12 m that is paid in the step, once; beyond, on the async pool. A pilot step tests
+  the boxes of the storeys round its feet in the buildings round it, with no allocation.
+- The trim fix (owner, 2026-10-26: "some zfighting on the divider for buildings here") adds no
+  pieces: it clips them.
 
 ## Open questions
 

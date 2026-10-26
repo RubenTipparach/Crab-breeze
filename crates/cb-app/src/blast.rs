@@ -52,6 +52,7 @@ fn explode(
                 trees: None,
                 structures: None,
                 platforms: &[],
+                interiors: None,
             };
             (s.water_at(xz.x, xz.y), s.height_at(xz.x, xz.y))
         };

@@ -77,6 +77,9 @@ pub trait Ground {
 /// faces open street.
 pub const FRONT_LIMIT_M: f32 = 40.0;
 
+/// How far outside a footprint its colliders may hold something to stand on (a stoop).
+const STOOP_REACH_M: f32 = 2.0;
+
 /// Trees push a body whose feet are no higher than this over the ground under it.
 const TREE_REACH_M: f32 = 30.0;
 
@@ -93,9 +96,19 @@ pub struct Scene<'a> {
     pub structures: Option<&'a Structures>,
     /// Moving surfaces bodies stand on (the Hermit's deck: `platform`); empty for none.
     pub platforms: &'a [Platform],
+    /// The detailed colliders of buildings near a pilot on foot (`interior::Interiors`); `None` for
+    /// everything else (the mech, shells, debris), which meets buildings as their cells. Read only
+    /// with `structures`.
+    pub interiors: Option<&'a interior::Interiors>,
 }
 
 impl Scene<'_> {
+    /// Building `b`'s detailed colliders, when it has them.
+    fn walkable(&self, b: u32) -> Option<(&interior::Walkable, &interior::InteriorConfig)> {
+        let i = self.interiors?;
+        i.buildings.get(&b).map(|w| (w, &i.cfg))
+    }
+
     /// Pushes a body at height `[feet_y, feet_y + 12 m]` out of standing building cells.
     fn push_out_buildings(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
         let Some(st) = self.structures else {
@@ -106,6 +119,10 @@ impl Scene<'_> {
             for b in self.plan.collision.candidates(p, radius_m) {
                 let cells = &st.buildings[b as usize];
                 if cells.standing == 0 {
+                    continue;
+                }
+                if let Some((w, cfg)) = self.walkable(b) {
+                    p = w.push_out(p, radius_m, feet_y, cfg, cells.frame.as_deref());
                     continue;
                 }
                 let top = cells.origin.y + cells.size.y * cells.n[1] as f32;
@@ -144,9 +161,17 @@ impl Ground for Scene<'_> {
             Some(st) => self
                 .plan
                 .collision
-                .candidates(p, 0.0)
+                .candidates(p, STOOP_REACH_M)
                 .into_iter()
-                .filter_map(|b| st.roof_under(b, p, feet_y))
+                .filter_map(|b| match self.walkable(b) {
+                    Some((w, cfg)) => {
+                        let cells = &st.buildings[b as usize];
+                        (cells.standing > 0)
+                            .then(|| w.support(p, feet_y, cfg, cells.frame.as_deref()))
+                            .flatten()
+                    }
+                    None => st.roof_under(b, p, feet_y),
+                })
                 .reduce(f32::max),
         };
         let under = roof.map_or(ground, |r| r.max(ground));
@@ -244,6 +269,9 @@ pub struct WorldPlan {
     /// The clear distance in front of each building's four facades (`layout::clear_in_front`), by
     /// building id, capped at `FRONT_LIMIT_M`.
     pub fronts: Vec<[f32; 4]>,
+    /// The facade of each building that faces the street (`layout::street_side`), by building id:
+    /// where its street door is.
+    pub street_sides: Vec<u8>,
     /// Rivers, lakes and bridges.
     pub waters: Waters,
     /// The trees as grown (their state as the game goes on is a copy the game keeps).
@@ -436,6 +464,19 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
                 .collect();
             layout::clear_in_front(&b.footprint, &others, FRONT_LIMIT_M)
         })
+        .collect::<Vec<_>>();
+    let street_sides = buildings
+        .iter()
+        .zip(&fronts)
+        .map(|(b, f)| {
+            let c = b.footprint.centre();
+            let block = cities[b.city as usize]
+                .blocks
+                .iter()
+                .find(|k| k.rect.distance(c) == 0.0)
+                .map(|k| k.rect);
+            layout::street_side(&b.footprint, block.as_ref(), *f)
+        })
         .collect();
     // Swamps at the western river mouths (the island mockup's rule, on the game's own rivers).
     let mouths = waters.rivers.iter().filter_map(|r| {
@@ -469,6 +510,7 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         start,
         collision,
         fronts,
+        street_sides,
         waters,
         forest: Forest::new(&root.fork("trees"), &cfg.trees, cfg.world_size_m),
         clouds,
