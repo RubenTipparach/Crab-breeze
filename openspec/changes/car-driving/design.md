@@ -65,7 +65,7 @@ a "Driving" group that reads the same fields.
 
 - **Pilot** (`cb-core::pilot`): `EnteringCar`, `Driving` and `ExitingCar` as designed, in `step_car`, run
   before the mech's `step`. Reach 1.2 m from `DOOR_driver`, facing within 75 degrees, stopped below 0.5 m/s
-  (`data/pilot/pilot.ron`). A moving car is hailed and entered once it stops. Driving, the view turns with
+  (`data/pilot/pilot.ron`). A moving car was hailed and entered once it stopped (replaced below). Driving, the view turns with
   the car and the mouse looks round from its nose by the seated rule (`coupled_look`). A car wrecked with
   the pilot in it throws them clear beside the door; the pilot has no health on foot yet, so "hurt" is not
   modelled. No save is written while in a car.
@@ -83,6 +83,17 @@ a "Driving" group that reads the same fields.
   camera the mouse orbits, eased out of the eyes on getting in and back on getting out
   (`openspec/changes/car-chase-camera`); the seated 90 degree look limit no longer applies in a car. The dashboard
   and its gauges are still built and driven from the simulation, but are seen only while getting in and out.
+
+- **Use on a car is offered only while it is stopped** (2026-10-26, verified in the game: Use worked 2 times in 4).
+  A moving car was hailed and braked to a stop out of the pilot's reach, and Use had done nothing the player could
+  see. Now the Use list offers Get in only for a stopped car (parked, at a red light, in a queue), one press gets in,
+  and the car nearest the pilot that is stopped wins over one driving past nearer (`find_car`). Survey J9's "any car,
+  traffic included" stands: a traffic car is taken where it stops. A car lost while getting in or driving (it could
+  not be taken, or it is gone) leaves the pilot on foot where they were, never stuck half in (`lost_car`).
+- **No car is filled in under a mech's body** (`Traffic::fill`'s `clear_of`): the free-roam start's mech stands in
+  an arterial, and cars put under it were crushed or shoved and charged to the player before they did anything.
+  Cars queued behind a mech standing in their lane wait there for as long as it stands (survey W38's queue rule);
+  a car taken from the front of that queue must be steered round the mech.
 
 ## Open questions
 

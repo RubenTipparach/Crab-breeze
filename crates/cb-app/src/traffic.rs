@@ -135,7 +135,9 @@ impl Plugin for TrafficPlugin {
                 Update,
                 (draw_cars, find_dash, turn_dash, find_wheels, spin_wheels, draw_runners).chain(),
             )
-            .add_game_systems(Update, report_harm);
+            .add_game_systems(Update, report_harm)
+            .add_world_spawn(spawn_speed_readout)
+            .add_game_systems(Update, show_speed);
     }
 }
 
@@ -155,6 +157,7 @@ pub fn find_car(sim: Res<TrafficSim>, pilot: Res<PilotSim>, data: Res<Data>, mut
         }
     };
     let t = &sim.traffic;
+    let stopped = data.0.pilot.car_stopped_m_s;
     out.0 = if pilot.curr.mode.in_car() {
         t.driven().map(access)
     } else {
@@ -163,7 +166,11 @@ pub fn find_car(sim: Res<TrafficSim>, pilot: Res<PilotSim>, data: Res<Data>, mut
             .iter()
             .filter(|c| c.pos.distance(feet) < 25.0 && !c.state.wreck())
             .map(access)
-            .min_by(|a, b| a.door.distance(feet).total_cmp(&b.door.distance(feet)))
+            // the stopped car's door first: one driving past nearer never hides the parked car the pilot stands at
+            .min_by(|a, b| {
+                let key = |c: &CarAccess| c.door.distance(feet) + if c.speed_m_s > stopped { 100.0 } else { 0.0 };
+                key(a).total_cmp(&key(b))
+            })
     };
 }
 
@@ -217,7 +224,6 @@ fn step_traffic(
     // the pilot and the cars
     for e in &events.0 {
         match *e {
-            PilotEvent::CarHailed(id) => sim.traffic.hail(id),
             PilotEvent::EnteringCar(id) => {
                 // the driver runs from the pilot for the nearest street door, as people on foot do (the
                 // buildings' real doors, `street_doors::RefugeDoors`, in the people's reach); with none in
@@ -314,7 +320,8 @@ fn step_traffic(
     let seen = |p: Vec3| !initial && in_cone(eye, fwd, half, p);
     let behind = |p: Vec3| covered(&plan, eye, p);
     let budget = if initial { u32::MAX } else { d.cfg.spawn_per_step };
-    sim.traffic.fill(&roads.0, d, &ground, eye, &seen, &behind, budget);
+    let mech_bodies: Vec<(Vec2, f32)> = near.iter().map(|m| (m.at, m.radius_m)).collect();
+    sim.traffic.fill(&roads.0, d, &ground, eye, &seen, &behind, &mech_bodies, budget);
     sim.filled = true;
     for h in sim.traffic.take_harms() {
         toll.all += 1;
@@ -614,5 +621,39 @@ mod tests {
     #[test]
     fn car_ids_sit_above_every_other_hit_id() {
         const { assert!(CAR_ID_BASE > crate::fortress::FORTRESS_ID && CAR_ID_BASE > crate::units::UNIT_ID_BASE) };
+    }
+}
+
+/// The speed readout while driving (openspec change `car-chase-camera`, DC2, provisional): from outside the car its
+/// speedometer cannot be read, so the simulation's speed is shown low on the screen, the same number the needle
+/// shows (`cb_core::car::speed_readout`).
+#[derive(Component)]
+struct SpeedReadout;
+
+fn spawn_speed_readout(mut commands: Commands) {
+    commands.spawn((
+        Name::new("speed readout"),
+        SpeedReadout,
+        Text::new(""),
+        TextFont::from_font_size(30.0),
+        TextColor(Color::srgb(0.95, 0.95, 0.9)),
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: percent(6.0),
+            width: percent(100.0),
+            justify_content: JustifyContent::Center,
+            ..default()
+        },
+        TextLayout::justify(Justify::Center),
+    ));
+}
+
+fn show_speed(sim: Res<TrafficSim>, pilot: Res<PilotSim>, mut text: Single<&mut Text, With<SpeedReadout>>) {
+    let want = match sim.traffic.driven() {
+        Some(c) if pilot.curr.mode == PilotMode::Driving => cb_core::car::speed_readout(c.vel().length()),
+        _ => String::new(),
+    };
+    if text.0 != want {
+        text.0 = want;
     }
 }

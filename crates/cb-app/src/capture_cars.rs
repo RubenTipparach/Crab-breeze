@@ -104,6 +104,7 @@ fn drive(
     car: Res<crate::traffic::CarAccessNow>,
     access: Res<crate::mech::MechAccessNow>,
     traffic: Res<TrafficSim>,
+    roads: Res<crate::traffic::Roads>,
     data: Res<Data>,
     camera: Single<&Transform, With<crate::pilot::PilotCamera>>,
     time: Res<Time<Real>>,
@@ -152,7 +153,13 @@ fn drive(
                         .traffic
                         .cars
                         .iter()
-                        .filter(|c| c.state == cb_core::traffic::CarState::Parked && c.pos.distance(mech) > 120.0)
+                        // parked away from the mech, with 150 m of its street ahead (a run long enough to drive,
+                        // orbit and let the view drift back before the junction)
+                        .filter(|c| {
+                            c.state == cb_core::traffic::CarState::Parked
+                                && c.pos.distance(mech) > 120.0
+                                && roads.0.lanes[c.lane as usize].length_m() - c.s_m > 150.0
+                        })
                         .min_by(|a, b| a.pos.distance(feet0).total_cmp(&b.pos.distance(feet0)))
                     else {
                         eprintln!("car stills: no parked car away from the mech");
@@ -209,7 +216,7 @@ fn drive(
                 0.0
             };
             acc.script = Some(Actions {
-                move_xy: Vec2::new(steer, 0.3),
+                move_xy: Vec2::new(steer, 0.2),
                 ..Default::default()
             });
             if t > 4.0 {
@@ -221,7 +228,7 @@ fn drive(
         // the mouse turns the camera 120 degrees round the car
         4 => {
             acc.script = Some(Actions {
-                move_xy: Vec2::new(0.0, 0.3),
+                move_xy: Vec2::new(0.0, 0.2),
                 ..Default::default()
             });
             if script.orbited_deg < 120.0 {
@@ -236,7 +243,7 @@ fn drive(
         // the mouse still: the view drifts back behind the moving car
         5 => {
             acc.script = Some(Actions {
-                move_xy: Vec2::new(0.0, 0.3),
+                move_xy: Vec2::new(0.0, 0.2),
                 ..Default::default()
             });
             if t > data.0.pilot.car_camera.recenter_after_s + 2.5 {

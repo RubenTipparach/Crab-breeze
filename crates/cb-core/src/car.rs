@@ -175,6 +175,17 @@ impl Validate for CarSpec {
     }
 }
 
+/// A car's speed as its driver reads it, km/h: the size of the simulation's speed, forward or back. The dashboard's
+/// needle and the readout on the screen while driving (`car-chase-camera`, DC2) both show this number.
+pub fn speed_km_h(speed_m_s: f32) -> f32 {
+    if speed_m_s.is_finite() { speed_m_s.abs() * 3.6 } else { 0.0 }
+}
+
+/// The readout shown on the screen while driving: whole km/h.
+pub fn speed_readout(speed_m_s: f32) -> String {
+    format!("{:.0} km/h", speed_km_h(speed_m_s))
+}
+
 impl CarSpec {
     /// This car with every height raised by `k` and its length and width kept (`TrafficConfig::car_height_scale`):
     /// the body and roof (`size_m[1]`), the wheels, the ride height and the driver's eye. The door socket stays on
@@ -200,7 +211,7 @@ impl CarSpec {
     /// The speedometer needle's angle from its zero for a speed, radians: what the dashboard turns
     /// the needle to, from the speed the simulation uses (CLAUDE.md section 6.1).
     pub fn speedo_needle_rad(&self, speed_m_s: f32) -> f32 {
-        let km_h = speed_m_s.abs() * 3.6;
+        let km_h = speed_km_h(speed_m_s);
         (km_h / self.speedo_full_scale_km_h).clamp(0.0, 1.0) * self.speedo_sweep_deg.to_radians()
     }
 
@@ -496,6 +507,16 @@ impl CarBody {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_readout_and_the_needle_show_the_simulations_speed_in_km_h() {
+        assert_eq!(speed_readout(13.889), "50 km/h");
+        assert_eq!(speed_readout(-5.0), "18 km/h", "reversing reads its size");
+        assert_eq!(speed_readout(f32::NAN), "0 km/h");
+        let spec = CarSpec::default();
+        let needle = spec.speedo_needle_rad(13.889);
+        assert!((spec.speedo_reading_km_h(needle) - speed_km_h(13.889)).abs() < 0.01);
+    }
     use crate::world::layout::{Building, Rect};
     use crate::world::{BuildingGrid, FlatGround};
 

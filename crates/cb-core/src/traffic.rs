@@ -1183,6 +1183,7 @@ impl Traffic {
         eye: Vec3,
         in_view: &dyn Fn(Vec3) -> bool,
         covered: &dyn Fn(Vec3) -> bool,
+        clear_of: &[(Vec2, f32)],
         budget: u32,
     ) -> u32 {
         let cfg = &data.cfg;
@@ -1299,7 +1300,10 @@ impl Traffic {
                                 cs - s >= both + speed * cfg.gap_s
                             }
                         });
-                    if !clear {
+                    // never under a mech's body (a car put there was crushed or shoved by a mech standing still,
+                    // and charged to the player: the start's mech stands in the street)
+                    let under = clear_of.iter().any(|&(at, r)| p.distance(at) < r + len * 0.5 + cfg.min_gap_m);
+                    if !clear || under {
                         continue;
                     }
                     let at = Vec3::new(p.x, ground.height_at(p.x, p.y), p.y);
@@ -1497,8 +1501,44 @@ mod tests {
         let (_, _, g) = town();
         let d = data();
         let mut t = Traffic::new(seed);
-        t.fill(&g, &d, &FlatGround::default(), Vec3::ZERO, &never_seen, &never_seen, u32::MAX);
+        t.fill(&g, &d, &FlatGround::default(), Vec3::ZERO, &never_seen, &never_seen, &[], u32::MAX);
         (t, g, d)
+    }
+
+    /// No car is put under a mech's body: one standing in the street is a wall the lanes fill round, not a crusher of
+    /// cars that were never driven into it (they were crushed and charged to the player at the start).
+    #[test]
+    fn no_car_is_filled_in_under_a_mech_standing_in_the_road() {
+        let (_, _, g) = town();
+        let d = data();
+        // a mech over the busiest point: the middle of the first few city lanes
+        let at = g
+            .lanes
+            .iter()
+            .find(|l| l.kind.in_city())
+            .map(|l| l.line.at(l.length_m() * 0.5).0)
+            .unwrap();
+        let r = 7.5;
+        let mut t = Traffic::new(5);
+        t.fill(
+            &g,
+            &d,
+            &FlatGround::default(),
+            Vec3::ZERO,
+            &never_seen,
+            &never_seen,
+            &[(at, r)],
+            u32::MAX,
+        );
+        assert!(!t.cars.is_empty());
+        for c in &t.cars {
+            let len = d.kinds[c.kind as usize].size_m[2];
+            assert!(
+                Vec2::new(c.pos.x, c.pos.z).distance(at) >= r + len * 0.5,
+                "car {} under the mech",
+                c.id
+            );
+        }
     }
 
     #[test]
@@ -1552,9 +1592,9 @@ mod tests {
         let d = data();
         let mut t = Traffic::new(3);
         let all = |_: Vec3| true;
-        t.fill(&g, &d, &FlatGround::default(), Vec3::ZERO, &all, &|_: Vec3| false, u32::MAX);
+        t.fill(&g, &d, &FlatGround::default(), Vec3::ZERO, &all, &|_: Vec3| false, &[], u32::MAX);
         assert!(t.cars.is_empty(), "everything is in plain sight");
-        t.fill(&g, &d, &FlatGround::default(), Vec3::ZERO, &all, &all, u32::MAX);
+        t.fill(&g, &d, &FlatGround::default(), Vec3::ZERO, &all, &all, &[], u32::MAX);
         assert!(!t.cars.is_empty());
         for c in &t.cars {
             assert!(c.pos.length() > d.cfg.hidden_beyond_m, "a car popped in at {}", c.pos);

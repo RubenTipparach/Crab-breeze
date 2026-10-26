@@ -105,6 +105,9 @@ pub fn vertical_deg(across_deg: f32, aspect: f32) -> f32 {
 /// kerb keeps the feet on the ground.
 const STEP_DOWN_M: f32 = 0.5;
 
+/// A car missing this long while the pilot gets in or drives is lost, seconds: they are put back on foot.
+pub const CAR_LOST_S: f32 = 0.5;
+
 /// A swimmer's eyes ride this far above the water's surface.
 const SWIM_EYE_ABOVE_M: f32 = 0.15;
 
@@ -299,8 +302,6 @@ pub struct MechAccess {
 pub enum Waiting {
     /// Board as soon as the stair is down.
     ToBoard,
-    /// Get into this car (its traffic id) as soon as it stops.
-    ToDrive(u32),
     /// Climb out as soon as the stair is down.
     ToLeave,
 }
@@ -333,6 +334,9 @@ pub struct PilotState {
     /// Driving: how long the mouse has been still, seconds (the chase camera drifts back behind the car after a
     /// while: `chase::ChaseCamera::recenter`).
     pub look_idle_s: f32,
+    /// Getting in or driving: how long the car has been missing, seconds (a step or two while the traffic hands it
+    /// over is normal; past `CAR_LOST_S` the pilot is put back on foot).
+    pub car_missing_s: f32,
 }
 
 /// What happened this step that other systems react to.
@@ -350,8 +354,6 @@ pub enum PilotEvent {
     Disembarked,
     /// The mech was destroyed and threw its pilot clear (mission-jobs, survey J3).
     Ejected,
-    /// The pilot wants this moving car: it should stop for them (car-driving).
-    CarHailed(u32),
     /// Getting into this car began.
     EnteringCar(u32),
     /// In this car's driver's seat.
@@ -440,6 +442,7 @@ impl PilotState {
             waiting: None,
             exit_hold_s: 0.0,
             look_idle_s: 0.0,
+            car_missing_s: 0.0,
         }
     }
 
@@ -658,7 +661,10 @@ impl PilotState {
     /// True when Use would reach this car's driver's door now: on foot, within `car_reach_m` of the
     /// door, facing the car, and it is not a wreck.
     pub fn can_take(&self, car: &CarAccess, cfg: &PilotConfig) -> bool {
-        if self.mode != PilotMode::OnFoot || car.wrecked {
+        // only a stopped car (parked, at a light, in a queue): Use never goes to a car that drives off from under
+        // it, so the prompt that shows always works (2026-10-26: a hailed car stopped out of reach and Use did
+        // nothing)
+        if self.mode != PilotMode::OnFoot || car.wrecked || car.speed_m_s > cfg.car_stopped_m_s {
             return false;
         }
         let near = Vec2::new(self.feet.x - car.door.x, self.feet.z - car.door.z).length() <= cfg.car_reach_m;
@@ -697,24 +703,12 @@ impl PilotState {
             PilotMode::OnFoot => {
                 let c = car?;
                 if a.use_pressed && self.waiting.is_none() && self.can_take(c, cfg) {
-                    self.waiting = Some(Waiting::ToDrive(c.id));
-                    if c.speed_m_s > cfg.car_stopped_m_s {
-                        return Some(PilotEvent::CarHailed(c.id));
-                    }
-                }
-                if self.waiting == Some(Waiting::ToDrive(c.id)) {
-                    let near = Vec2::new(self.feet.x - c.door.x, self.feet.z - c.door.z).length() <= cfg.car_reach_m * 2.0;
-                    if !near || c.wrecked {
-                        self.waiting = None;
-                    } else if c.speed_m_s <= cfg.car_stopped_m_s {
-                        self.waiting = None;
-                        self.velocity = Vec2::ZERO;
-                        self.mode = PilotMode::EnteringCar(EyePath {
-                            points: vec![self.feet + up, c.door + up, c.eye],
-                            travelled_m: 0.0,
-                        });
-                        return Some(PilotEvent::EnteringCar(c.id));
-                    }
+                    self.velocity = Vec2::ZERO;
+                    self.mode = PilotMode::EnteringCar(EyePath {
+                        points: vec![self.feet + up, c.door + up, c.eye],
+                        travelled_m: 0.0,
+                    });
+                    return Some(PilotEvent::EnteringCar(c.id));
                 }
                 None
             }
@@ -723,8 +717,13 @@ impl PilotState {
                 let rate = path.length_m() / cfg.car_step_s;
                 path.travelled_m += rate * dt_s;
                 let done = path.done();
+                let at = path.at().0;
                 free_look(self);
-                let c = car?;
+                // the car could not be taken or is gone: back on foot where the eyes are, never stuck half in
+                let Some(c) = car else {
+                    return self.missing_car(at, cfg, ground, dt_s);
+                };
+                self.car_missing_s = 0.0;
                 if c.wrecked {
                     return self.thrown(c, cfg, ground);
                 }
@@ -739,7 +738,11 @@ impl PilotState {
                 None
             }
             PilotMode::Driving => {
-                let c = car?;
+                let Some(c) = car else {
+                    let eye = self.seated_eye;
+                    return self.missing_car(eye, cfg, ground, dt_s);
+                };
+                self.car_missing_s = 0.0;
                 if c.wrecked {
                     return self.thrown(c, cfg, ground);
                 }
@@ -781,6 +784,23 @@ impl PilotState {
             }
             _ => None,
         }
+    }
+
+    /// The car has been missing `CAR_LOST_S` while getting in or driving (it could not be taken, or it is gone): on foot
+    /// under where the eyes were.
+    fn missing_car(&mut self, eye: Vec3, cfg: &PilotConfig, ground: &impl Ground, dt_s: f32) -> Option<PilotEvent> {
+        self.car_missing_s += dt_s;
+        if self.car_missing_s < CAR_LOST_S {
+            return None;
+        }
+        self.car_missing_s = 0.0;
+        let at = eye - Vec3::Y * cfg.eye_height_m;
+        self.feet = Vec3::new(at.x, ground.support_at(at.x, at.z, at.y + 1.0), at.z);
+        self.velocity = Vec2::ZERO;
+        self.vel_y_m_s = 0.0;
+        self.waiting = None;
+        self.mode = PilotMode::OnFoot;
+        Some(PilotEvent::OutOfCar(u32::MAX))
     }
 
     /// Thrown clear of a wrecked car: on foot beside its door, hurt (the pilot has no health on foot
@@ -862,14 +882,38 @@ mod car_tests {
     }
 
     #[test]
-    fn a_moving_car_is_hailed_and_entered_once_it_stops() {
+    fn a_moving_car_is_not_offered_and_once_stopped_one_press_gets_in() {
         let cfg = PilotConfig::default();
         let mut p = at_door();
-        let e = p.step_car(&use_key(), &cfg, &FlatGround::default(), Some(&sedan(4.0)), DT);
-        assert_eq!(e, Some(PilotEvent::CarHailed(3)));
+        assert!(!p.can_take(&sedan(4.0), &cfg), "no prompt for a car driving by");
+        assert_eq!(p.step_car(&use_key(), &cfg, &FlatGround::default(), Some(&sedan(4.0)), DT), None);
         assert_eq!(p.mode, PilotMode::OnFoot);
-        let e = p.step_car(&Actions::default(), &cfg, &FlatGround::default(), Some(&sedan(0.2)), DT);
+        assert!(p.can_take(&sedan(0.2), &cfg));
+        let e = p.step_car(&use_key(), &cfg, &FlatGround::default(), Some(&sedan(0.2)), DT);
         assert_eq!(e, Some(PilotEvent::EnteringCar(3)));
+    }
+
+    #[test]
+    fn a_car_lost_while_getting_in_or_driving_leaves_the_pilot_on_foot_never_stuck() {
+        let cfg = PilotConfig::default();
+        let mut p = at_door();
+        p.step_car(&use_key(), &cfg, &FlatGround::default(), Some(&sedan(0.0)), DT);
+        assert!(matches!(p.mode, PilotMode::EnteringCar(_)));
+        // a step without it while the traffic hands it over is nothing
+        assert_eq!(p.step_car(&Actions::default(), &cfg, &FlatGround::default(), None, DT), None);
+        assert!(matches!(p.mode, PilotMode::EnteringCar(_)));
+        let mut out = Vec::new();
+        for _ in 0..(CAR_LOST_S / DT) as usize + 2 {
+            out.extend(p.step_car(&Actions::default(), &cfg, &FlatGround::default(), None, DT));
+        }
+        assert_eq!(out, vec![PilotEvent::OutOfCar(u32::MAX)]);
+        assert_eq!(p.mode, PilotMode::OnFoot);
+        let mut p = driving();
+        for _ in 0..(CAR_LOST_S / DT) as usize + 2 {
+            p.step_car(&Actions::default(), &cfg, &FlatGround::default(), None, DT);
+        }
+        assert_eq!(p.mode, PilotMode::OnFoot);
+        assert!(p.feet.y.abs() < 1e-4, "on the ground");
     }
 
     #[test]
