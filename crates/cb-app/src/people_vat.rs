@@ -314,9 +314,13 @@ fn spawn_people(
             let level = &body.levels[li];
             let mesh = meshes.add(chunk_mesh(vat));
             let material = materials.add(PeopleMaterial {
+                // Both faces drawn: an open collar, cuff or hem shows the garment's inside in its own colour
+                // rather than a hole into the body where MPFB deleted the skin under the clothes.
                 base: StandardMaterial {
                     base_color: Color::WHITE,
                     perceptual_roughness: 0.8,
+                    double_sided: true,
+                    cull_mode: None,
                     ..default()
                 },
                 extension: PeopleVat {
