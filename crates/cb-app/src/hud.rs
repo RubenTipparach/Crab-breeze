@@ -1068,7 +1068,6 @@ fn update_stations(
     data: Res<crate::sim::Data>,
     targeting: Res<crate::targeting::TargetState>,
     units: Res<crate::units::Units>,
-    air: Option<Res<crate::air_traffic::AirTraffic>>,
     me: Query<(&MechSim, &MechSpec), With<Piloted>>,
     mechs: Query<(&MechSim, &MechSpec, &crate::mech::MechId)>,
     mut rows: Query<(&StationRow, &mut Text, &mut TextColor, &mut BorderColor, &mut Visibility), Without<TargetReadout>>,
@@ -1112,19 +1111,8 @@ fn update_stations(
         c.0 = GREEN;
         return;
     };
-    let civil = air
-        .as_ref()
-        .filter(|_| crate::air_traffic::is_civil(id))
-        .map(|a| a.0.get(id - crate::air_traffic::CIVIL_ID_BASE));
-    let (name, health) = if let Some(found) = civil {
-        match found {
-            Some(a) => {
-                let full = data.0.air_traffic.kinds.get(&a.kind).map_or(1.0, |s| s.hp.max(1.0));
-                (format!("CIVIL {}", a.kind.replace('_', " ").to_uppercase()), a.hp / full)
-            }
-            None => ("UNKNOWN".into(), 0.0),
-        }
-    } else if id >= crate::units::UNIT_ID_BASE {
+    // A civil aircraft is never selected (survey W47), so the TARGET page names enemies only.
+    let (name, health) = if id >= crate::units::UNIT_ID_BASE {
         match units.list.iter().find(|p| p.unit.id == id) {
             Some(p) => {
                 let full = data.0.units.units.get(&p.unit.kind).map_or(1.0, |s| s.hp.max(1.0));
@@ -1164,7 +1152,6 @@ fn draw_lock(
     data: Res<crate::sim::Data>,
     state: Res<crate::targeting::TargetState>,
     hostiles: Res<crate::units::Hostiles>,
-    neutrals: Res<crate::air_traffic::Neutrals>,
     time: Res<Time>,
     camera: Single<(&Camera, &GlobalTransform), With<crate::pilot::PilotCamera>>,
     mut boxes: Query<(&LockBox, &mut Node, &mut BorderColor, &mut UiTransform, &mut Visibility)>,
@@ -1174,7 +1161,7 @@ fn draw_lock(
     let target = state
         .selected
         .filter(|_| pilot.curr.mode == PilotMode::Seated && state.lock.held_s > 0.0 && state.lock.target == state.selected)
-        .and_then(|id| hostiles.0.iter().chain(&neutrals.0).find(|h| h.id == id));
+        .and_then(|id| hostiles.0.iter().find(|h| h.id == id));
     let placed = target.and_then(|h| {
         let top = cam.world_to_viewport(at, h.feet + Vec3::Y * h.height_m).ok()?;
         let foot = cam.world_to_viewport(at, h.feet).ok()?;

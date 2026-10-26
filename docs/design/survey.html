@@ -170,7 +170,6 @@ const IN_PROGRESS = [
   { text: 'W39 1980s traffic lights on the arterials (your pick); every other junction keeps taking turns by arrival.', where: 'crates/cb-core/src/traffic.rs, data/world/traffic.ron; openspec/changes/car-traffic' },
   { text: 'W40 The greeting wins (your pick), and: "You should be able to scroll wheel select multiple options". When more than one thing is in reach, the prompt lists them, the wheel picks one and Use does it.', where: 'crates/cb-core/src/pilot, crates/cb-app/src/pilot.rs; openspec/changes/civilians' },
   { text: 'W45 A real runway, about 1.5 to 2 km, at each of the five air bases (your pick); airliners and freighters take off and land on it with real rolls.', where: 'crates/cb-core/src/world/bases.rs, crates/cb-core/src/air_traffic; openspec/changes/civil-air-traffic' },
-  { text: 'W47 Civil aircraft can never be selected or locked: only unguided fire can hit one (your pick).', where: 'crates/cb-core/src/targeting.rs, data/hud/targeting.ron; openspec/changes/civil-air-traffic' },
   { text: 'W49 A turbofan, a propeller and a rotor cut from CC0 recordings (your pick).', where: 'tools/audio, assets/audio, SOURCES.md; openspec/changes/civil-air-traffic' },
   { text: 'C14 MFD pages are not remembered between sorties (your pick), and: "mfds return to default as soon as you click back on them, leaving mfd focus".', where: 'openspec/changes/mfd-menus' },
   { text: 'C15 The Ironhorse keeps its lower front screens (your pick), and: "every mech has dash/skate, just diferent stats for them".', where: 'openspec/changes/cockpit-parity; the dash and skates for every mech, stats per mech' },
@@ -196,6 +195,7 @@ const IN_PROGRESS = [
 ];
 
 const DECIDED = [
+  { text: 'W47 Civil aircraft can never be selected or locked: Q and the auto-pick skip them, no missile locks one, only unguided fire can hit one (your pick). Their white CIV boxes stay, as information.', where: 'crates/cb-core/src/targeting.rs (select), crates/cb-app/src/targeting.rs, data/hud/targeting.ron; openspec/changes/civil-air-traffic' },
   { text: 'D1 A bought mech lands 40 to 150 m from you; D2 under canopies with a retro burst at the end; D3 about 50 s from BUY to touchdown; D4 dry ground always wins, shallow water only as a last resort (your picks).', where: 'crates/cb-core/src/air_drop.rs, data/career/air_drop.ron; openspec/changes/mech-shop section 6' },
   { text: 'D6 Standing where it lands: the canopies steer it aside with a warning, and it lands beside you if you stay; D7 you board whichever owned mech you walk up to, within 40 m (your picks).', where: 'crates/cb-core/src/air_drop.rs (steer, clear_of, walking_up_to); openspec/changes/mech-shop' },
   { text: 'D9 A mech called out at a base stands in the terminal\'s bay, else the base\'s first clear bay; D10 a wrecked Foreman is called out free and whole (your picks).', where: 'crates/cb-core/src/career.rs (Career::call_out), the terminal HANGAR tab; openspec/changes/mech-shop' },

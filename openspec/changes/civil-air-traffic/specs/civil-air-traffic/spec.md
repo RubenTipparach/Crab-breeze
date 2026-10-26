@@ -70,11 +70,15 @@ downed and whether the pilot fired it; the pilot's hits SHALL be tallied per bas
 - **WHEN** the pilot hits an aircraft twice near base 2, downing it, and once near base 0
 - **THEN** base 2's tally reads two hits and one downed, and base 0's one hit
 
-### Requirement: Civil aircraft are neutral targets
-Targeting SHALL never pick or cycle to a civil aircraft by itself; it SHALL select one only when the cycle key is pressed
-with the crosshair within `neutral_pick_cone_deg` of it; the cockpit SHALL box civil aircraft in a neutral colour marked
-`CIV`.
+### Requirement: Civil aircraft are never selected or locked
+Targeting SHALL never select a civil aircraft, by the pick nearest the crosshair, by the cycle key or by a selection kept
+from an earlier step, so no missile lock SHALL build on one; only unguided fire SHALL hit one (owner, 2026-10-26, survey
+W47). The cockpit SHALL box civil aircraft in a neutral colour marked `CIV`, as information.
 
 #### Scenario: An airliner on the crosshair, an enemy beside it
 - **WHEN** the crosshair rests on an airliner with an enemy mech a few degrees off
-- **THEN** the enemy is selected, and the airliner only if the pilot presses the cycle key while holding the crosshair on it
+- **THEN** the enemy is selected, and pressing the cycle key goes to the enemy, never the airliner
+
+#### Scenario: An airliner alone on the crosshair
+- **WHEN** the crosshair is held on an airliner with no enemy in range, with or without the cycle key
+- **THEN** nothing is selected and no lock builds

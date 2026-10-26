@@ -16,7 +16,7 @@
 - [x] 2.7 Crabs' shots of opportunity (test: `units::a_unit_takes_a_shot_of_opportunity_only_when_its_target_is_not_its_shot`)
 - [x] 2.8 The standing hook: nearest base and per-base tally (test: `the_pilots_hits_are_tallied_against_the_nearest_base`)
 - [x] 2.9 The career loop's shape: `via` points reported as passed, `Traffic::launch` (test: `a_freighter_overflies_its_via_point_and_says_so_then_lands`)
-- [x] 2.10 Neutral targets never picked or cycled to by themselves, selected on purpose (tests: `targeting::a_civil_aircraft_is_never_picked_or_cycled_to_by_itself`, `targeting::a_civil_aircraft_is_selected_only_with_the_crosshair_held_on_it`)
+- [x] 2.10 Neutral targets never selected or locked, however the pilot tries (survey W47, 2026-10-26: "Never: only unguided fire can hit one"; tests: `targeting::a_civil_aircraft_is_never_picked_or_cycled_to_by_itself`, `targeting::a_civil_aircraft_is_never_selected_or_locked_however_the_pilot_tries`)
 - [x] 2.11 Measure the step (`measure_traffic_step`, design section 8)
 
 ## 3. The game (`cb-app::air_traffic`)
@@ -24,7 +24,7 @@
 - [x] 3.1 Step the traffic, zones from the hostiles, crashes as explosions and debris wrecks
 - [x] 3.2 Civil capsules in the shot sweep; `CivilAirHit` and `CivilStanding`; crabs' opportunity fire
 - [x] 3.3 Block-out stand-ins drawn from the shape table; rotors and propellers turn
-- [x] 3.4 Neutral boxes (`CIV`), the TARGET page's name, the lock boxes on a deliberately selected one
+- [x] 3.4 Neutral boxes (`CIV`) as information; the deliberate selection, its TARGET page name and its lock boxes removed (survey W47)
 - [x] 3.5 Jet engine loop (stand-in cue `airliner_jet`)
 - [x] 3.6 The mockup page `docs/mockups/civil_aircraft.html` from `tools/mockups/gen_civil_aircraft.py`
 - [x] 3.10 The pilot's hits charged to the nearest base's standing through `cb_core::civil_standing`, once per

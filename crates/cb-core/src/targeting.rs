@@ -23,9 +23,6 @@ pub struct TargetingConfig {
     pub lock_s: f32,
     /// A target box's size on screen, [smallest, largest] pixels.
     pub box_px: [f32; 2],
-    /// A neutral (a civil aircraft: `civil-air-traffic`) is selected only on purpose: the cycle key
-    /// pressed with the crosshair within this angle of it, degrees.
-    pub neutral_pick_cone_deg: f32,
 }
 
 impl Default for TargetingConfig {
@@ -37,7 +34,6 @@ impl Default for TargetingConfig {
             lock_cone_deg: 12.0,
             lock_s: 1.0,
             box_px: [18.0, 160.0],
-            neutral_pick_cone_deg: 3.0,
         }
     }
 }
@@ -49,7 +45,6 @@ impl Validate for TargetingConfig {
         positive("lock_range_m", self.lock_range_m)?;
         positive("lock_cone_deg", self.lock_cone_deg)?;
         positive("lock_s", self.lock_s)?;
-        positive("neutral_pick_cone_deg", self.neutral_pick_cone_deg)?;
         positive_range("box_px", self.box_px)
     }
 }
@@ -61,8 +56,8 @@ pub struct Target {
     pub id: u32,
     /// Its torso centre.
     pub torso: Vec3,
-    /// Not an enemy (a civil aircraft): never picked or cycled to by itself, only on purpose
-    /// (`deliberate`).
+    /// Not an enemy (a civil aircraft): boxed as information, but never selected, so never locked
+    /// (owner, 2026-10-26, survey W47: "Never: only unguided fire can hit one").
     pub neutral: bool,
 }
 
@@ -98,16 +93,17 @@ pub fn next(selected: Option<u32>, targets: &[Target], eye: Vec3) -> Option<u32>
     }
 }
 
-/// The neutral the pilot means, choosing on purpose: the one nearest the aim within `cone_deg` (the
-/// cockpit's cycle key pressed with the crosshair held on it), ties by id.
-pub fn deliberate(eye: Vec3, aim: Vec3, targets: &[Target], cone_deg: f32) -> Option<u32> {
-    targets
-        .iter()
-        .filter(|t| t.neutral)
-        .map(|t| (off_aim_deg(eye, aim, t.torso), t.id))
-        .filter(|(a, _)| *a <= cone_deg)
-        .min_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)))
-        .map(|(_, id)| id)
+/// The selection after this step: the one kept from the last step while it is still a target, else
+/// the nearest the aim within `cfg.pick_cone_deg`; with the cycle key (`cycle`), the next by
+/// distance. A neutral is never the result, however it was reached (survey W47), so the lock, which
+/// builds only on the selection, never builds on one and no missile homes on one.
+pub fn select(selected: Option<u32>, cycle: bool, eye: Vec3, aim: Vec3, targets: &[Target], cfg: &TargetingConfig) -> Option<u32> {
+    let still = selected.filter(|s| targets.iter().any(|t| t.id == *s && !t.neutral));
+    if cycle {
+        next(still, targets, eye)
+    } else {
+        still.or_else(|| nearest_to_aim(eye, aim, targets, cfg.pick_cone_deg))
+    }
 }
 
 /// A missile lock building on one target.
@@ -175,12 +171,27 @@ mod tests {
     }
 
     #[test]
-    fn a_civil_aircraft_is_selected_only_with_the_crosshair_held_on_it() {
-        let ts = [civ(9, 0.0, -1000.0), t(2, 60.0, -400.0)];
-        let cone = TargetingConfig::default().neutral_pick_cone_deg;
-        assert_eq!(deliberate(Vec3::ZERO, Vec3::NEG_Z, &ts, cone), Some(9));
-        let off = Vec3::new(0.1, 0.0, -1.0);
-        assert_eq!(deliberate(Vec3::ZERO, off, &ts, cone), None, "six degrees off is not on purpose");
+    fn a_civil_aircraft_is_never_selected_or_locked_however_the_pilot_tries() {
+        // Owner, 2026-10-26, survey W47: "Never: only unguided fire can hit one".
+        let cfg = TargetingConfig::default();
+        let alone = [civ(9, 0.0, -600.0)];
+        let (eye, aim) = (Vec3::ZERO, Vec3::NEG_Z);
+        assert_eq!(select(None, false, eye, aim, &alone, &cfg), None, "the crosshair held on it");
+        assert_eq!(select(None, true, eye, aim, &alone, &cfg), None, "Q with the crosshair on it");
+        assert_eq!(
+            select(Some(9), false, eye, aim, &alone, &cfg),
+            None,
+            "a stale selection of it is dropped"
+        );
+        let mixed = [civ(9, 0.0, -300.0), t(2, 60.0, -400.0)];
+        assert_eq!(select(Some(9), true, eye, aim, &mixed, &cfg), Some(2), "Q goes to the enemy");
+        let mut held = None;
+        let mut lock = Lock::default();
+        for _ in 0..300 {
+            held = select(held, false, eye, aim, &alone, &cfg);
+            assert!(!lock.step(held, 0.0, 600.0, &cfg, 0.01), "no lock ever builds on an airliner");
+        }
+        assert_eq!(lock.target, None);
     }
 
     #[test]

@@ -2,7 +2,7 @@
 //! the live enemies within range (mechs and vehicles, `units::Hostiles`) become targets, the selected one is kept, cycled with the
 //! `target_next` action or picked nearest the pilot's aim, and the missile lock builds on it while
 //! it is in missile range (`cb_core::targeting`). Civil aircraft (`air_traffic::Neutrals`) are
-//! targets too, but neutral: only the cycle key pressed with the crosshair held on one selects it. The cockpit draws this state and the missiles
+//! targets too, but neutral: they are boxed and never selected or locked (survey W47). The cockpit draws this state and the missiles
 //! fired this step home on its lock.
 
 use crate::input::StepActions;
@@ -12,7 +12,7 @@ use crate::sim::{Data, SimSet};
 use crate::state::GameApp;
 use bevy::prelude::*;
 use cb_core::pilot::PilotMode;
-use cb_core::targeting::{Lock, Target, TargetingConfig, deliberate, nearest_to_aim, next, off_aim_deg};
+use cb_core::targeting::{Lock, Target, TargetingConfig, off_aim_deg, select};
 
 /// What the pilot has targeted.
 #[derive(Resource, Default)]
@@ -77,12 +77,7 @@ fn update_targeting(
         .filter(|t| t.torso.distance(eye) <= cfg.max_range_m)
         .collect();
     targets.sort_by_key(|t| t.id);
-    let still = state.selected.filter(|s| targets.iter().any(|t| t.id == *s));
-    state.selected = if actions.0.target_next {
-        deliberate(eye, aim, &targets, cfg.neutral_pick_cone_deg).or_else(|| next(still, &targets, eye))
-    } else {
-        still.or_else(|| nearest_to_aim(eye, aim, &targets, cfg.pick_cone_deg))
-    };
+    state.selected = select(state.selected, actions.0.target_next, eye, aim, &targets, cfg);
     let chosen = state.selected.and_then(|s| targets.iter().find(|t| t.id == s)).copied();
     let (off, range) = chosen.map_or((180.0, f32::INFINITY), |t| (off_aim_deg(eye, aim, t.torso), t.torso.distance(eye)));
     state.range_m = range;

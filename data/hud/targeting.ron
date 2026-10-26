@@ -1,6 +1,7 @@
 // Targeting and missile lock (openspec/changes/targeting), after Ace Combat: every enemy within
 // `max_range_m` is boxed; the one nearest the crosshair (within `pick_cone_deg`) or picked with Q is
 // selected; it locks after `lock_s` inside `lock_range_m` (missile range) and `lock_cone_deg`.
+// A civil aircraft (civil-air-traffic) is boxed but never selected or locked (owner, 2026-10-26, survey W47).
 (
     max_range_m: 2000.0,
     pick_cone_deg: 30.0,
@@ -8,7 +9,4 @@
     lock_cone_deg: 12.0,
     lock_s: 1.0,
     box_px: (18.0, 160.0),
-    // a civil aircraft (openspec/changes/civil-air-traffic) is selected only on purpose: Q pressed
-    // with the crosshair within this many degrees of it; it is never picked or cycled to otherwise
-    neutral_pick_cone_deg: 3.0,
 )

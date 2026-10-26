@@ -123,10 +123,12 @@ either when it lands; this change charges nothing.
 
 **Neutral on the screens.** Civil aircraft are listed in `Neutrals`, never in `Hostiles` (the music,
 the defence count and the scripted pilot see only enemies). Targeting takes both, marking civil ones
-neutral: the pick nearest the crosshair and the cycle key skip neutrals, so a missile never locks one
-by itself. Pressing the cycle key with the crosshair within 3 degrees of one selects it on purpose
-(`targeting.ron` `neutral_pick_cone_deg`, W47). Its box is white with `CIV` and its range, red only
-once locked; the TARGET page names it `CIVIL AIRLINER`.
+neutral, and **never selects a neutral** (owner, 2026-10-26, survey W47: "Never: only unguided fire can
+hit one"): `targeting::select` is the one rule for the selection, and whether it is kept from the last
+step, picked nearest the crosshair or reached with Q, it is never a civil aircraft, so the lock (which
+builds only on the selection) never builds on one and no missile homes on one. Guns, rockets and
+blows still hit one through the shot sweep. Its box stays, white with `CIV` and its range, as
+information; it is never red, amber or locked.
 
 **Engine sound.** Jets carry `engine_pitch`; within 4 km of your head each plays the `airliner_jet`
 loop riding it: the mech's rocket roar (`rocket_loop.ogg`) pitched to 0.55 or 0.45. A stand-in until a
@@ -155,6 +157,6 @@ section 8). It is to be measured on the 3070 in the cockpit at the start and ove
 | W34 | What hitting one costs | Standing with the nearest base (the career loop's) | decided (survey W34); this change reports the hits |
 | W45 | The bases have no runway | Add a runway to each base | answered by the owner, 2026-10-26 (survey): "Add a real runway, about 1.5 to 2 km, to each base"; building |
 | W46 | How much traffic | 9 near you at most (3 airliners, 2 freighters, 2 light planes, 2 helicopters) | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
-| W47 | Selecting a civil aircraft on purpose | The cycle key with the crosshair held on it | answered by the owner, 2026-10-26 (survey): "Never: only unguided fire can hit one". Q and the auto-pick skip them and no missile locks one; building |
+| W47 | Selecting a civil aircraft on purpose | The cycle key with the crosshair held on it | answered by the owner, 2026-10-26 (survey): "Never: only unguided fire can hit one". Built: `targeting::select` never selects one, so no lock and no missile (section 7) |
 | W48 | The freighter's size | 70 m, slinging a bought mech under it for the air drop | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
 | W49 | Engine sound | Cut a turbofan, a propeller and a rotor from CC0 recordings | answered by the owner, 2026-10-26 (survey): the recommendation; building |

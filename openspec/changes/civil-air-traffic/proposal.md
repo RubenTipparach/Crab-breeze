@@ -47,8 +47,8 @@ plane's flight so the career loop can fly one over a drop point later.
   added to a per-base tally the career loop can read when it lands (W34).
 - **On the screens they are neutral.** A civil aircraft in range is boxed in white with `CIV` and its
   range, never red. The pick nearest the crosshair and the cycle key skip them, so a missile never locks
-  one by itself. The pilot can still select one on purpose: holding the crosshair on it (within 3
-  degrees) and pressing the cycle key (W47). There is no radar scope in the cockpit yet; the boxes and
+  one by itself. They can never be selected or locked: only unguided fire can hit one
+  (owner, 2026-10-26, survey W47: "Never: only unguided fire can hit one"). There is no radar scope in the cockpit yet; the boxes and
   the TARGET readout are what exists.
 - **Stand-in models at true size.** Labelled block-outs until each is modelled in Blender: a 1980s
   airliner (40 m long, 35 m span), a heavy freighter (70 m long, W48), a light plane (8.3 m) and a
