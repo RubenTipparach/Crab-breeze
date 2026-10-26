@@ -44,12 +44,34 @@ pub struct PilotConfig {
     /// The hold counts while the mech is slower than this ("when I'm even close to stop"); the mech
     /// brakes to a stop while it is held, and the pilot climbs out once it has stopped.
     pub exit_near_stop_m_s: f32,
-    /// The view's vertical field of view (on foot and seated).
+    /// The view's vertical field of view seated in the cockpit, degrees (the Options page's setting starts here).
     pub view_fov_deg: f32,
+    /// On foot, degrees: narrower, a first-person shooter's view (owner, 2026-10-26: "normal fps fov is 75, it grows
+    /// to 95 when inside the mech"; openspec change `seated-fov`).
+    pub on_foot_fov_deg: f32,
+    /// Seconds the view takes to widen as the pilot sits, or narrow as they stand.
+    pub fov_change_s: f32,
     /// On foot, Space jumps at this upward speed (owner, 2026-10-25: "my fps character needs jump!").
     pub jump_speed_m_s: f32,
     /// What pulls a jumping pilot back down.
     pub gravity_m_s2: f32,
+}
+
+/// The seated view's blend (0 on foot, 1 seated) one step on: toward 1 while `seated`, toward 0 otherwise, the whole
+/// way in `change_s` (openspec change `seated-fov`).
+pub fn fov_blend(blend: f32, seated: bool, dt_s: f32, change_s: f32) -> f32 {
+    let step = if change_s > 0.0 { dt_s / change_s } else { 1.0 };
+    let to = if seated { 1.0 } else { 0.0 };
+    (blend + (to - blend).clamp(-step, step)).clamp(0.0, 1.0)
+}
+
+/// The view's vertical field of view, degrees, at `blend`: the player's seated setting `setting_deg`, and on foot
+/// that less the data's difference between the two (never under 30), eased in and out (a smoothstep of the blend).
+pub fn fov_deg(cfg: &PilotConfig, setting_deg: f32, blend: f32) -> f32 {
+    let foot = (setting_deg - (cfg.view_fov_deg - cfg.on_foot_fov_deg)).max(30.0);
+    let b = blend.clamp(0.0, 1.0);
+    let s = b * b * (3.0 - 2.0 * b);
+    foot + (setting_deg - foot) * s
 }
 
 /// Ground this far below the feet is stepped down onto, not fallen to: walking down a slope or a
@@ -77,6 +99,8 @@ impl Default for PilotConfig {
             exit_hold_s: 1.0,
             exit_near_stop_m_s: 3.0,
             view_fov_deg: 75.0,
+            on_foot_fov_deg: 75.0,
+            fov_change_s: 0.8,
             jump_speed_m_s: 4.4,
             gravity_m_s2: 9.81,
         }
@@ -100,6 +124,8 @@ impl Validate for PilotConfig {
         positive("exit_hold_s", self.exit_hold_s)?;
         positive("exit_near_stop_m_s", self.exit_near_stop_m_s)?;
         within("view_fov_deg", self.view_fov_deg, 30.0, 120.0)?;
+        within("on_foot_fov_deg", self.on_foot_fov_deg, 30.0, self.view_fov_deg)?;
+        positive("fov_change_s", self.fov_change_s)?;
         within("jump_speed_m_s", self.jump_speed_m_s, 0.0, 15.0)?;
         positive("gravity_m_s2", self.gravity_m_s2)?;
         Ok(())
@@ -534,6 +560,50 @@ impl PilotState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn fov_cfg() -> PilotConfig {
+        PilotConfig {
+            view_fov_deg: 95.0,
+            on_foot_fov_deg: 75.0,
+            fov_change_s: 0.8,
+            ..PilotConfig::default()
+        }
+    }
+
+    #[test]
+    fn the_view_is_75_on_foot_and_95_seated() {
+        let c = fov_cfg();
+        assert_eq!(fov_deg(&c, 95.0, 0.0), 75.0);
+        assert_eq!(fov_deg(&c, 95.0, 1.0), 95.0);
+    }
+
+    #[test]
+    fn a_wider_setting_widens_both_views() {
+        let c = fov_cfg();
+        assert_eq!(fov_deg(&c, 100.0, 1.0), 100.0);
+        assert_eq!(fov_deg(&c, 100.0, 0.0), 80.0);
+    }
+
+    #[test]
+    fn sitting_widens_the_view_over_the_change_time_with_no_jump() {
+        let c = fov_cfg();
+        let dt = 1.0 / 60.0;
+        let (mut b, mut last) = (0.0, fov_deg(&c, 95.0, 0.0));
+        let mut steps = 0;
+        while b < 1.0 {
+            b = fov_blend(b, true, dt, c.fov_change_s);
+            let f = fov_deg(&c, 95.0, b);
+            assert!(f >= last && f - last < 1.0, "a smooth widening: {last} to {f}");
+            last = f;
+            steps += 1;
+        }
+        assert!((steps as f32 * dt - 0.8).abs() <= dt + 1e-6, "0.8 s: {steps} steps");
+        assert_eq!(
+            fov_blend(1.0, false, dt, c.fov_change_s),
+            1.0 - dt / 0.8,
+            "standing narrows it again"
+        );
+    }
     use crate::world::layout::{Building, Rect};
     use crate::world::{BuildingGrid, FlatGround};
 
