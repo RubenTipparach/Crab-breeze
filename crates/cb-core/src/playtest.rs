@@ -113,6 +113,8 @@ pub enum Beat {
     LandOnFortress(f32),
     /// Toggle the skates on (true) or off.
     Skates(bool),
+    /// Walk on foot toward the mech's stair until within this many metres of it (not boarding).
+    WalkToMech(f32),
 }
 
 /// What `UseOn` can ask for: `cb_core::interact::Interaction`'s names.
@@ -123,6 +125,26 @@ pub const LOOK_KINDS: [&str; 10] = [
 ];
 /// Where `SkateToNearest` and `JetToNearest` can go.
 pub const GO_KINDS: [&str; 3] = ["harbour", "runway", "city"];
+
+/// Heat at or over which a scripted pilot on a long jet leg comes down to skate (the jets lock out at 1, survey M3, M5).
+pub const JET_REST_AT: f32 = 0.85;
+/// Heat at or under which it takes to the jets again.
+pub const JET_RELIGHT_AT: f32 = 0.25;
+
+/// Whether a pilot flying a jet leg should be resting the jets now (down on the skates while they recharge), from the
+/// jets' `heat` (0 full, 1 spent), whether they are `locked` out, and whether it was resting the step before. The jets
+/// carry a mech about 20 s at a time, a short hop, never a 5 km leg: a pilot that held the lift on until the lock-out
+/// dropped and climbed over the same ridge and never got anywhere (the streaming route's jet leg, stuck in mid-air
+/// near (-8 597, 1 092) on both machines).
+pub fn rest_jets(heat: f32, locked: bool, resting: bool) -> bool {
+    if locked || heat >= JET_REST_AT {
+        true
+    } else if resting {
+        heat > JET_RELIGHT_AT
+    } else {
+        false
+    }
+}
 
 /// The interaction a `UseOn` beat names.
 pub fn interaction(name: &str) -> Option<crate::interact::Interaction> {
@@ -209,7 +231,7 @@ impl Validate for Script {
                     Beat::JetTo(x, z, h) => !(x.is_finite() && z.is_finite() && h.is_finite() && *h > 0.0),
                     Beat::BuyMech(d) => !d.starts_with("mechs/"),
                     Beat::BuyPart(id) | Beat::Fit(_, id) => id.is_empty(),
-                    Beat::WalkToPerson(m) | Beat::WalkToCar(m) | Beat::Survey(m) => !(m.is_finite() && *m > 0.0),
+                    Beat::WalkToPerson(m) | Beat::WalkToCar(m) | Beat::Survey(m) | Beat::WalkToMech(m) => !(m.is_finite() && *m > 0.0),
                     Beat::Scroll(n) => *n == 0,
                     Beat::UseOn(i) => !USE_ON.contains(&i.as_str()),
                     Beat::ExpectMode(m, s) => !(matches!(m.as_str(), "OnFoot" | "Driving" | "Seated") && s.is_finite() && *s > 0.0),
@@ -331,6 +353,15 @@ mod tests {
         assert!(crate::data::parse_ron::<Script>(text, std::path::Path::new("x.ron")).is_err());
         let text = r#"(name: "x", stuck_s: 10.0, runs: [(play: "free", beats: [UseOn("GetIn"), Scroll(-1), LookAtNearest("car", 2.0)])])"#;
         assert!(crate::data::parse_ron::<Script>(text, std::path::Path::new("x.ron")).is_ok());
+    }
+
+    #[test]
+    fn a_long_jet_leg_rests_the_jets_before_they_lock_and_lights_them_again_once_recharged() {
+        assert!(!rest_jets(0.5, false, false), "fresh jets fly");
+        assert!(rest_jets(0.9, false, false), "nearly spent: come down before the lock-out");
+        assert!(rest_jets(0.3, true, false), "locked out: down whatever the heat");
+        assert!(rest_jets(0.5, false, true), "resting holds until they have recharged");
+        assert!(!rest_jets(0.2, false, true), "recharged: up again");
     }
 
     #[test]

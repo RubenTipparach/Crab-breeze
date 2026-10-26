@@ -236,7 +236,9 @@ fn step_traffic(
                         .and_then(|d| d.0.refuge(p, pilot_at, reach))
                         .unwrap_or_else(|| p + (p - pilot_at).normalize_or(Vec2::X) * 30.0)
                 };
-                if !sim.traffic.take(d, id, &ground, &refuge) {
+                if sim.traffic.take(d, id, &ground, &refuge) {
+                    info!("traffic: the pilot takes car {id}");
+                } else {
                     warn!("traffic: car {id} could not be taken");
                 }
             }

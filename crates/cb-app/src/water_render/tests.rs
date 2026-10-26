@@ -65,6 +65,19 @@ fn the_surface_shader_compiles_against_bevy_pbr() {
             "the Rust uniform must be the WESL struct's size"
         );
     }
+    // With the pilot camera's sky cube bound (the reflected sky), as one map and as Bevy's array.
+    for array in [true, false] {
+        let mut flags = base.to_vec();
+        flags.extend([
+            ("MULTISAMPLED", true),
+            ("DEPTH_PREPASS", true),
+            ("VIEW_TRANSMISSION_TEXTURE", true),
+            ("DISTANCE_FOG", true),
+            ("ENVIRONMENT_MAP", true),
+            ("MULTIPLE_LIGHT_PROBES_IN_ARRAY", array),
+        ]);
+        compile(&resolver, "water_surface", &flags);
+    }
 }
 
 #[test]
