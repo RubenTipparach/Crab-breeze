@@ -1,0 +1,39 @@
+// A four-door 1980s family sedan: the commonest car on the island.
+// A 1980s civilian car, no real brand (survey J7). Handling is arcade, grippy and simple (survey J8):
+// openspec/changes/car-driving/design.md section 2. Sizes are the block-out's, in metres; the car
+// faces -z; sockets are in its frame (x right, y up from the ground, z back).
+(
+    name: "Sedan",
+    model: "models/cars/sedan.glb",
+    size_m: (1.75, 1.4, 4.7),
+    mass_kg: 1350.0,
+    // light steel and glass: any real gun's round goes through
+    armour_mm: 5.0,
+    city_weight: 4.0,
+    highway_weight: 3.0,
+    top_speed_m_s: 50.0,
+    reverse_fraction: 0.333,
+    accel_m_s2: 3.5,
+    brake_m_s2: 9.0,
+    coast_m_s2: 0.8,
+    wheelbase_m: 2.7,
+    track_m: 1.48,
+    max_steer_deg: 35.0,
+    top_speed_steer_fraction: 0.2,
+    steer_rate_rad_s: 3.0,
+    lateral_grip_per_s: 60.0,
+    handbrake_grip: 0.3,
+    grip_recover_per_s: 2.0,
+    handbrake_yaw_gain: 0.8,
+    handbrake_brake_m_s2: 3.0,
+    ride_height_m: 0.3,
+    spring_n_m: 32000.0,
+    damper_n_s_m: 3200.0,
+    crash_safe_m_s: 3.0,
+    crash_damage_per_m_s: 0.04,
+    eye_driver_m: (-0.37, 1.12, 0.15),
+    door_driver_m: (-1.35, 0.0, 0.15),
+    speedo_full_scale_km_h: 200.0,
+    speedo_sweep_deg: 240.0,
+    paints: [(0.42, 0.06, 0.07), (0.72, 0.64, 0.48), (0.22, 0.3, 0.42)],
+)

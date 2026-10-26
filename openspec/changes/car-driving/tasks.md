@@ -1,8 +1,8 @@
 # Tasks: car-driving
 
-- [ ] 1.1 `cb-core::car`: arcade drive, steering about the rear axle, handbrake slide, suspension bounce, collisions, tested (acceleration, braking distance, turning circle, handbrake slide)
+- [x] 1.1 `cb-core::car`: arcade drive, steering about the rear axle, handbrake slide, suspension bounce, collisions, tested (acceleration, braking distance, turning circle, handbrake slide)
 - [ ] 1.2 `PilotMode::EnteringCar`, `Driving`, `ExitingCar` on the boarding EyePath; look stays the player's; tested
-- [ ] 1.3 `data/cars/*.ron`, validated
+- [x] 1.3 `data/cars/*.ron`, validated
 - [ ] 2.1 Interiors in `build_cars.py`: dashboard, wheel, gauges as named nodes
 - [ ] 2.2 Parked cars in towns and at the bases, and traffic cars; Use to get in and out; a traffic car's driver gets out and runs
 - [ ] 2.3 Gauges and the wheel driven from the simulation; the Controls page "Driving" group

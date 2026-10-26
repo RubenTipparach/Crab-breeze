@@ -9,6 +9,7 @@ pub mod ai;
 pub mod audio;
 pub mod battle_fx;
 pub mod boarding;
+pub mod car;
 pub mod career;
 pub mod cockpit;
 pub mod data;
@@ -30,6 +31,7 @@ pub mod skins;
 pub mod sky_light;
 pub mod sun_flare;
 pub mod targeting;
+pub mod traffic;
 pub mod units;
 pub mod water_look;
 pub mod weapons;
@@ -84,6 +86,8 @@ pub struct GameData {
     pub missions: missions::MissionsMail,
     /// `data/audio/cues.ron`, `music.ron` and `ambience.ron`.
     pub audio: audio::AudioData,
+    /// `data/world/traffic.ron` and every car it names in `data/cars/`.
+    pub traffic: traffic::TrafficData,
 }
 
 impl GameData {
@@ -154,6 +158,7 @@ impl GameData {
                 music: data::load_ron(&root.join("audio/music.ron"))?,
                 ambience: data::load_ron(&root.join("audio/ambience.ron"))?,
             },
+            traffic: traffic::TrafficData::load(root)?,
         })
     }
 
