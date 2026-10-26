@@ -3,7 +3,7 @@
 //! out, and `EYE_pilot` in the seat. There is no other camera (CLAUDE.md, the law).
 
 use crate::input::{InputAccum, StepActions};
-use crate::mech::{MechAccessNow, MechRig, socket_now};
+use crate::mech::{MechAccessNow, MechRig};
 use crate::sim::{Data, PresentSet, SimSet};
 use crate::world::{Live, Plan, SKY};
 use bevy::pbr::{DistanceFog, FogFalloff};
@@ -202,7 +202,7 @@ fn spawn_camera(mut commands: Commands, data: Res<Data>) {
     }
 }
 
-fn step_pilot(
+pub(crate) fn step_pilot(
     mut pilot: ResMut<PilotSim>,
     mut events: ResMut<PilotEvents>,
     actions: Res<StepActions>,
@@ -219,6 +219,7 @@ fn step_pilot(
         dug: &live.dug,
         trees: Some(&live.forest),
         structures: Some(&live.structures),
+        platforms: &live.platforms,
     };
     let event = pilot
         .curr
@@ -272,9 +273,9 @@ fn place_camera(
     fixed: Res<Time<Fixed>>,
     data: Res<Data>,
     rigs: Query<&MechRig, With<crate::mech::Piloted>>,
+    sims: Query<&crate::mech::MechSim, With<crate::mech::Piloted>>,
     transforms: Query<&Transform, Without<PilotCamera>>,
     parents: Query<&ChildOf>,
-    jolt: Option<Res<crate::ground_marks::ViewJolt>>,
     mut camera: Single<&mut Transform, With<PilotCamera>>,
 ) {
     let cfg = &data.0.pilot;
@@ -284,7 +285,8 @@ fn place_camera(
     let pending = acc.look_deg;
     let seat = || {
         let rig = rigs.iter().next()?;
-        let eye = socket_now(rig, "EYE_pilot", &transforms, &parents)?;
+        // Level with the stride: no footstep bob or sway in the cockpit (owner, 2026-10-25).
+        let eye = crate::mech::socket_steady(rig, "EYE_pilot", &transforms, &parents)?;
         Some(eye)
     };
     let walking_view = || {
@@ -309,6 +311,23 @@ fn place_camera(
             let seat_yaw = access.0.as_ref().map_or(curr.yaw_rad, |a| a.seat_yaw_rad);
             view(curr.yaw_rad, curr.pitch_rad).slerp(view(seat_yaw, 0.0), k)
         }
+        // Seated, the view is the mech's heading, drawn between steps as the cockpit is, plus the
+        // pilot's own look from its nose with the mouse not yet stepped. Turning only once a fixed
+        // step while the cockpit glided between steps, it jittered against the cabin (owner,
+        // 2026-10-25: "the motion of the mech turning vs mouselook ... it jitters alot").
+        PilotMode::Seated => match sims.iter().next() {
+            Some(sim) => {
+                let pitch_limit = cfg.pitch_limit_deg.to_radians();
+                let (from, to) = (sim.prev.heading_rad, sim.curr.heading_rad);
+                let turned = (to - from + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+                let heading = from + turned * alpha;
+                view(
+                    heading + curr.seated_rel_rad - pending.x.to_radians(),
+                    (curr.pitch_rad + pending.y.to_radians()).clamp(-pitch_limit, pitch_limit),
+                )
+            }
+            None => walking_view(),
+        },
         _ => walking_view(),
     };
     // The shake rides on top of the player's view and is never written into their aim: the look
@@ -322,12 +341,9 @@ fn place_camera(
         amp * (t * 41.0 + 1.3).sin(),
         amp * 0.5 * (t * 29.0 + 2.1).sin(),
     );
-    // Seated, the eye jolts on the mech's foot strikes (ground-marks): its position only.
-    let jolt = match (&curr.mode, jolt) {
-        (PilotMode::Seated, Some(j)) => j.0,
-        _ => Vec3::ZERO,
-    };
-    **camera = crate::ground_marks::jolted(Transform::from_translation(eye).with_rotation(rotation * shake), jolt);
+    // No footstep motion on the view, ever: the foot-strike jolt is not applied to the camera (owner,
+    // 2026-10-25: "I would remove the footstep motion forom the cokcpit entirely").
+    **camera = Transform::from_translation(eye).with_rotation(rotation * shake);
 }
 
 /// The step-in prompt.

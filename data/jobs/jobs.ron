@@ -6,6 +6,11 @@
     offer_gap_s: (30.0, 90.0),
     offer_life_s: 900.0,
     arrive_m: 1500.0,
+    // A job's mechs come in 150-350 m round its site, never within 1 km of the pilot, so nothing is firing as the
+    // fight begins (owner, 2026-10-25: "the enemies shuodl be farther away so they dont start shooting as soon as I
+    // board"; openspec change mission-jobs task 4.2).
+    spawn_ring_m: (150.0, 350.0),
+    clear_of_pilot_m: 1000.0,
     inbox_kept: 40,
     kinds: [
         (

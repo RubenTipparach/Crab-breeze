@@ -37,7 +37,7 @@ pub struct Actions {
     pub throttle_axis: f32,
     /// In the mech: turn the legs left (+) or right (-), -1..1.
     pub turn_axis: f32,
-    /// In the mech: jet lift, 0..1.
+    /// In the mech: jet lift, 0..1. On foot, any lift jumps.
     pub lift_axis: f32,
     /// Use was pressed this step (board).
     pub use_pressed: bool,
@@ -195,7 +195,7 @@ pub struct Bindings {
     pub close_combat: Vec<String>,
     /// Step the selected weapon: key names step on; `MouseWheel` steps by the wheel, down on, up back.
     pub weapon_cycle: Vec<String>,
-    /// Open and close the mail (a career; mission-jobs).
+    /// Open and close the mail (a career's jobs, mission-jobs; free roam's missions, free-roam-missions).
     pub mail: Vec<String>,
     /// Punch with the left arm, in close combat.
     pub strike_left: Vec<String>,
@@ -312,7 +312,7 @@ impl Bindings {
             row("In the mech", "Walk", "mode_walk", &self.mode_walk),
             row("In the mech", "Skate mode", "mode_skate", &self.mode_skate),
             row("In the mech", "Jet mode", "mode_jet", &self.mode_jet),
-            row("In the mech", "Rockets: lift", "lift", &self.lift),
+            row("In the mech", "Rockets: lift (on foot: jump)", "lift", &self.lift),
             row("In the mech", "Skates on and off", "skate", &self.skate),
             row("In the mech", "Dive, sink on water", "sink", &self.sink),
             row("Weapons", "Fire primary", "fire_primary", &self.fire_primary),
@@ -340,7 +340,7 @@ impl Bindings {
                 &self.free_look,
             ),
             row("Game", "Pause menu", "release_mouse", &self.release_mouse),
-            row("Game", "Mail and jobs (a career)", "mail", &self.mail),
+            row("Game", "Mail: jobs (a career), missions (free roam)", "mail", &self.mail),
             row("Test keys", "Hit left arm", "debug_hit_arm_l", &self.debug_hit_arm_l),
             row("Test keys", "Hit right arm", "debug_hit_arm_r", &self.debug_hit_arm_r),
             row("Test keys", "Hit head", "debug_hit_head", &self.debug_hit_head),

@@ -1447,16 +1447,17 @@ def roustabout(k):
 # ----------------------------------------------------------------------------- 6 DRILLER
 
 def driller(k):
-    """Mech 6, after the block-out (a mine drill rig, armed): a big chest on lattice shins, the Panorama in it (the
-    front under the screens folds down, the hood swings up), a lattice derrick standing on its back with a drill
+    """Mech 6, after the block-out (a mine drill rig, armed): a big chest on lattice shins, the Octagon in it (the
+    gull wings lift, the front drops as the step), a lattice derrick standing on its back with a drill
     string, big arms: an auger drill on the right and a heavy autocannon on the left, a rock-bolt magazine on the back."""
     M = k.M
     segs, footH = [[14.5, -0.65], [16, 1.15], [7.5, -0.5]], 3.0
     body, hipY = _body(k, segs, footH, dict(t=1.0, shin="lattice"), 8.8, 20)
     chest = _waist(k, body)
     at = (0, 3.4, 0.8)
-    cp, cav, out, hull = chest_bay(k, chest, "panorama", at, "inner", DRILLER_TORSO,
-                                   swing={"INNER_upper_1": -2.75, "INNER_lower_1": 2.7})
+    # The Octagon, its own (openspec change cockpit-identity): the gull wings lift with the chest's sides, the front
+    # drops as the step, turned further than the cabin alone needs to clear the big chest.
+    cp, cav, out, hull = chest_bay(k, chest, "octagon", at, "inner", DRILLER_TORSO, swing={"INNER_front_1": 2.7})
     hull["cp"] = cp
     U, Yb, Yt = 1.0 / k.s, hull["Yb"], hull["Yt"]
     frame_contours(k, hull, Yb, Yt)
@@ -1491,14 +1492,15 @@ def driller(k):
 
 def mule(k):
     """Mech 8, after the block-out (a mine haul truck, armed): the heaviest legs of the round, a tall cab front with
-    the Excavator cab in it (its front drops as a ramp below the sill) under a canopy roof on posts, a dump bed tipped
+    the Tile wall in it (its three petals open, the sides out and the middle up) under a canopy roof on posts, a dump bed tipped
     on its back on two hoist rams, a rocket pod on each shoulder, two piston fists for punching."""
     M = k.M
     segs, footH = [[14, -0.62], [15, 1.12], [7, -0.5]], 3.2
     body, hipY = _body(k, segs, footH, dict(t=1.3), 9.4, 22)
     chest = _waist(k, body, 6.6)
     at = (0, 3.4, 0.8)
-    cp, cav, out, hull = chest_bay(k, chest, "cab", at, "inner", MULE_TORSO, swing={"INNER_ramp_1": 2.65})
+    # The Tile wall, its own (cockpit-identity): three petals, the sides swinging out like doors, the middle up.
+    cp, cav, out, hull = chest_bay(k, chest, "tilewall", at, "inner", MULE_TORSO)
     hull["cp"] = cp
     U, Yb, Yt = 1.0 / k.s, hull["Yb"], hull["Yt"]
     frame_contours(k, hull, Yb, Yt)
@@ -1581,9 +1583,10 @@ def humanoid(k, variant, torso, swing, look_t=1.0, a=1.0):
 
 
 def picket(k):
-    """Mech 11, after the block-out (the RX-79[G]'s build, in field colours): the Panorama in its chest, a 100 mm
+    """Mech 11, after the block-out (the RX-79[G]'s build, in field colours): the Cinema in its chest, a 100 mm
     machine gun with a box magazine in the right hand, a tall shield on the left forearm, a radio whip on the backpack."""
-    hipY, footH, cp, hull, out, arms, chest, at = humanoid(k, "panorama", PICKET_TORSO, {"INNER_upper_1": -2.75, "INNER_lower_1": 2.7})
+    # The Cinema, its own (cockpit-identity): one huge front screen behind a heavy door that swings out on its hinges.
+    hipY, footH, cp, hull, out, arms, chest, at = humanoid(k, "cinema", PICKET_TORSO, {})
     U = 1.0 / k.s
     sh_, elb, hand, S = arms[-1]
     rifle(k, hand, S, 15, 1.1)
@@ -1596,10 +1599,11 @@ def picket(k):
 
 
 def sapper(k):
-    """Mech 12, after the block-out (the full-armour idea): the same humanoid, heavier, the Titan in its chest, bolt-on
+    """Mech 12, after the block-out (the full-armour idea): the same humanoid, heavier, the Twin tier in its chest, bolt-on
     armour on chest and shoulders, a long cannon over the right shoulder, a missile pod on the left forearm and a rifle
     in the right hand."""
-    hipY, footH, cp, hull, out, arms, chest, at = humanoid(k, "titan", SAPPER_TORSO, {"INNER_lower_1": 2.7}, 1.15, 1.12)
+    # The Twin tier, its own (cockpit-identity): the top ring and bubble rise on four rams, the lower front drops.
+    hipY, footH, cp, hull, out, arms, chest, at = humanoid(k, "twintier", SAPPER_TORSO, {"INNER_lower_1": 2.7}, 1.15, 1.12)
     M, U = k.M, 1.0 / k.s
     for s in (1, -1):                                                  # bolt-on plates on the chest's flanks
         x, y, z = hull["at"](s * 2.0, 1.2, 0.08)
@@ -1666,23 +1670,23 @@ DESIGNS = {
                         weapons="piston fist (L), heavy rifle with a box magazine (R)",
                         note="Block-out 2, built in detail at 24 m.")),
     "driller": (driller, 24.0, 0x7fd8ff, 0x2f6fe0, 0x8fd0ff, False, "Driller",
-                dict(legs="digitigrade, lattice shins", cockpit="Panorama, as the Foreman's",
-                     opening="the Panorama clamshell, chest and cockpit as one: the lower flap folds down below the sill, the hood swings up",
+                dict(legs="digitigrade, lattice shins", cockpit="Octagon: seated behind two rows of glass round an octagon, amber-lit",
+                     opening="gull wings: each side of the chest lifts on a hinge in the roof, the front drops as the step",
                      weapons="heavy autocannon (L), auger drill (R)",
                      note="Block-out 6, built in detail at 24 m, armed: a derrick on its back.")),
     "mule": (mule, 24.0, 0xffc040, 0x2f6fe0, 0xff8a3a, False, "Mule",
-             dict(legs="digitigrade, the heaviest slabs", cockpit="Excavator cab, under a canopy roof",
-                  opening="the cab's front drops below the sill as a flap",
+             dict(legs="digitigrade, the heaviest slabs", cockpit="Tile wall: seated in a ring of square screens round 210 degrees, one wide screen ahead, yellow-lit",
+                  opening="three petals: the sides swing out like doors, the middle swings up with the dash",
                   weapons="two piston fists, a rocket pod on each shoulder",
                   note="Block-out 8, built in detail at 24 m: a haul truck's dump bed on its back.")),
     "picket": (picket, 24.0, 0xffa040, 0x2f6fe0, 0xffb347, False, "Picket",
-               dict(legs="human knee, knee guards, skirts", cockpit="Panorama, in the chest",
-                    opening="the Panorama clamshell: the lower flap folds down, the hood swings up",
+               dict(legs="human knee, knee guards, skirts", cockpit="Cinema: seated behind one huge seamless screen, ice-blue and dim",
+                    opening="a heavy door: clamps slide off, it pops off its seal and swings out on its hinges with the dash",
                     weapons="machine gun with a box magazine (R), tall shield (L)",
                     note="Block-out 11, built in detail at 24 m: a Gundam's build, none of its badges.")),
     "sapper": (sapper, 24.0, 0x70e0ff, 0x2f6fe0, 0x70e0ff, False, "Sapper",
-               dict(legs="human knee, heavier, knee guards, skirts", cockpit="Titan, in the chest",
-                    opening="the chest over the screens rises and tilts back, the front under them drops below the sill",
+               dict(legs="human knee, heavier, knee guards, skirts", cockpit="Twin tier: seated in two rings of screens under a bubble of screens, red night lighting",
+                    opening="the top ring and the bubble rise on four rams and tilt back, the lower front drops as the step",
                     weapons="rifle (R), missile pod on the forearm (L), cannon over the right shoulder",
                     note="Block-out 12, built in detail at 24 m: bolt-on armour.")),
     "breeze": (breeze, 12.0, 0x59f2ff, 0x2f6fe0, 0x59f2ff, True, "Breeze",

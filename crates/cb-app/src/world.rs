@@ -43,6 +43,16 @@ pub fn exposure_scale(view: &cb_core::world::config::ViewConfig) -> f32 {
     }
 }
 
+/// Start on a grassy rise overlooking a city, facing away from it with the sun beyond it
+/// (`--start overlook`, for poster stills: `cb_core::grass::overlook_start`).
+#[derive(Resource)]
+pub struct StartOnOverlook;
+
+/// Start on the first air base's apron, behind the mech, which faces the hangar bays (`--start base`,
+/// air-bases).
+#[derive(Resource)]
+pub struct StartAtBase;
+
 /// Start in the nearest meadow instead of the city (`--start meadow`, gpu-grass).
 #[derive(Resource)]
 pub struct StartInMeadow;
@@ -69,6 +79,8 @@ pub struct Live {
     pub dirty_buildings: Vec<u32>,
     /// Pieces of buildings that fell since the physics last took them.
     pub new_chunks: Vec<cb_core::world::Chunk>,
+    /// Moving surfaces bodies stand on, posed this fixed step (the Hermit's deck: `crab-airship`).
+    pub platforms: Vec<cb_core::world::Platform>,
 }
 
 /// Generates and draws the world.
@@ -80,14 +92,53 @@ impl Plugin for WorldPlugin {
         let cfg = app.world().resource::<Data>().0.world.clone();
         let started = std::time::Instant::now();
         let mut plan = generate(seed, &cfg);
+        if app.world().contains_resource::<StartOnOverlook>() {
+            let grass = &app.world().resource::<Data>().0.grass;
+            match cb_core::grass::overlook_start(&plan, grass, cb_core::world::sun_shade::to_sun()) {
+                Some((s, rise)) => {
+                    info!(
+                        "world: starting on an overlook at ({:.0}, {:.0}), {rise:.0} m over the city's ground",
+                        s.mech_xz.x, s.mech_xz.y
+                    );
+                    let mut s = s;
+                    // Poster stills turn the mech off the camera for a silhouette (`capture`).
+                    if crate::cli::switched_off("CB_STILLS_POSTER") {
+                        s.mech_heading_rad += crate::capture::POSTER_MECH_TURN_DEG.to_radians();
+                    }
+                    plan.start = s;
+                }
+                None => warn!("world: no grassy overlook found; starting in the city"),
+            }
+        }
         if app.world().contains_resource::<StartInMeadow>() {
             let grass = &app.world().resource::<Data>().0.grass;
-            match cb_core::grass::meadow_start(&plan, grass, 40.0, 6000.0) {
+            // A wide meadow near the start, else (the island's biomes leave few) a smaller one farther out.
+            let found = cb_core::grass::meadow_start(&plan, grass, 40.0, 6000.0)
+                .or_else(|| cb_core::grass::meadow_start(&plan, grass, 15.0, 15000.0));
+            match found {
                 Some(s) => {
                     info!("world: starting in a meadow at ({:.0}, {:.0})", s.mech_xz.x, s.mech_xz.y);
                     plan.start = s;
                 }
                 None => warn!("world: no meadow within 6 km; starting in the city"),
+            }
+        }
+        if app.world().contains_resource::<StartAtBase>() {
+            match plan.bases.first() {
+                Some(b) => {
+                    // 150 m in front of the middle hangar bay's mouth, facing it (heading pi faces +z);
+                    // the pilot stands 25 m behind.
+                    let bays = b.hangars(&cfg.bases);
+                    let mouth = bays.get(bays.len() / 2).map_or(b.centre, |h| Vec2::new(h.centre().x, h.min.y));
+                    let mech_xz = mouth - Vec2::new(0.0, 150.0);
+                    plan.start = cb_core::world::Start {
+                        mech_xz,
+                        mech_heading_rad: std::f32::consts::PI,
+                        pilot_xz: mech_xz - Vec2::new(0.0, cfg.start_pilot_distance_m),
+                    };
+                    info!("world: starting on air base {} at ({:.0}, {:.0})", b.id, mech_xz.x, mech_xz.y);
+                }
+                None => warn!("world: no air base; starting in the city"),
             }
         }
         info!(
@@ -111,6 +162,7 @@ impl Plugin for WorldPlugin {
             structures: cb_core::world::Structures::with_config(&plan, cfg.structure.clone(), cfg.craters.radius_m_per_cbrt_mj),
             dirty_buildings: Vec::new(),
             new_chunks: Vec::new(),
+            platforms: Vec::new(),
         };
         info!(
             "world: {} trees grown round the start in {:.0} ms, {} rivers, {} bridges, sea level {:.1} m, {} cloud puffs",

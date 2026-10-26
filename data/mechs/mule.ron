@@ -6,8 +6,8 @@
     name: "Mule",
     model: Some("models/mech_mule.glb"),
     interior: Some((
-        model: "models/cockpit_cab/cockpit_cab.gltf",
-        rides: [(part: "INNER_ramp", joint: "CHEST_ramp_1")],
+        model: "models/cockpit_tilewall/cockpit_tilewall.gltf",
+        rides: [(part: "INNER_petal_l", joint: "CHEST_petal_l"), (part: "INNER_petal_m", joint: "CHEST_petal_m_1"), (part: "INNER_petal_r", joint: "CHEST_petal_r")],
     )),
     locomotion: (
         walk_speed_max_m_s: 12.0,

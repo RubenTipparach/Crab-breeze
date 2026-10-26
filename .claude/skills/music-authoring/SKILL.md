@@ -53,9 +53,26 @@ header:
 // @title Crab Breeze: Sortie          the title in the file's tags
 // @cycles 64                          bars to render = the sum of the bars in arrange()
 // @reverb 0.35                        the soundfont's reverb for this cue (0..1)
-// @mix gm_trumpet vol=190             this cue's comp: LMMS track volume (%) and pan
-// @mix supersaw vol=30 pan=-20
+// @mix gm_lead_2_sawtooth vol=72      this cue's comp: LMMS track volume (%) and pan
+// @drumkit 25                         the soundfont's drum kit (0 Standard, 24 Electronic, 25 808/909, 26 Dance)
+// @voice gm_pad_poly TripleOscillator/HiPad.xpf   this cue plays that role on another LMMS preset
+// @space gm_pad_poly 0.35             a reverb on that track, 0..1 wet
+// @layer bd Kicker/KickPower.xpf      every bd hit also on an LMMS drum synth (track layer_bd)
+// @fx drums comp+drive                calf compressor and/or TAP tube drive on a track
+// @fx master glue                     a gentle compressor on the master: the music ducks under the kick
 ```
+
+**Melodies follow `docs/design/music.md` "Writing a melody"**: one short idea, built into a sentence
+(idea, idea again, continuation, cadence), rhythm first, one high point, mostly steps. **Drums
+follow "The drums: 90s weight"**: layered, compressed, driven, played hard, level with the music
+(solo-render the drum tracks and the rest of a copy of the `.mmp` and compare their RMS).
+
+The score is electronic and futuristic (CLAUDE.md section 1): every melodic role is a General MIDI
+name that `music/instruments.json` `voices` maps to an LMMS synth preset for the final comp
+(`gm_lead_2_sawtooth` SuperSawLead, `gm_pad_poly` TINTNpad, `gm_synth_bass_2` DirtyReece,
+`gm_lead_8_bass_lead` LB302 acid, and so on: the table is in `docs/design/music.md`). The GM name
+keeps the strudel.cc preview working; the comp gets the real synth. Echoes are written as notes
+(`stack(p, p.late(3/16).gain(0.35), ...)`): LMMS 1.2's Delay effect renders silence headless.
 
 then `setcps(BPM/60/4)` (one cycle is one 4/4 bar), the `MOTIF LIBRARY` block copied word for
 word, the sections as `stack(...)`, and the form as `arrange([bars, section], ...)`.
@@ -90,8 +107,9 @@ node tools/music/check_motifs.mjs          # every score carries the motif libra
 ```
 
 `render.sh` writes the `.mid` and `.mmp` beside the score, renders with LMMS, refuses a raw mix
-that clips (`check_mix.py`), normalises to -16 LUFS integrated, -1.5 dBTP, and prints the loudness
-per 5 s. Then look before handing it over:
+that clips (`check_mix.py`), brings it to -16 LUFS with a plain gain and a peak limiter at -1.5
+dBFS, and prints the loudness per 5 s. (Not ffmpeg's `loudnorm`: it falls back to dynamic
+compression whenever a linear gain would break its peak limit, and flattened every cue.) Then look before handing it over:
 
 - **The profile** has the cue's shape (a quiet intro, loud peaks, a falling ending). A flat or
   empty one means a wrong `@cycles`, a section that never sounds, or an unknown instrument.
@@ -111,13 +129,20 @@ one instrument track per part:
 - **GM parts and drums** play through LMMS's Sf2Player on the soundfont in
   `music/instruments.json` (GeneralUser GS 2.0.3, fetched by `tools/music/fetch_soundfonts.sh` to
   `/opt/soundfonts`, pinned by commit and SHA-256), with its reverb set by `@reverb`.
-- **Synth parts** play an LMMS preset (`synths.<name>.lmms_preset`, a path under
-  `/usr/share/lmms/presets`: TripleOscillator, LB302, Monstro, Kicker ...). To give the score a
-  new synth voice, add a Strudel synth name to `synths` with its preset and GM stand-in.
-- **Levels**: `music/instruments.json` `mix.<instrument>.vol` is **calibrated**, not tuned:
-  `tools/music/calibrate.sh --write` plays one phrase on every GM instrument the scores use at
-  volume 100, measures it and sets each volume so all sit at -30 dBFS. Rerun it after changing the
-  soundfont. A cue's balance is then its own `@mix` lines (lift the lead, trim the bass) and its
+- **Voiced parts** (every GM name in `voices`, every `@voice` line, and Strudel's own synth names
+  through `synths`) play an LMMS preset, a path under `/usr/share/lmms/presets` (TripleOscillator,
+  LB302, Monstro ...). The exporter switches off a preset's own chord and arpeggio generators (the
+  score writes every note) and pins its base note, then plays it back by its measured pitch offset.
+  Pick modern presets: an LMMS 0.x preset (`<multimediaproject>`, like TranceLead) cannot be used.
+- **Reverb**: `@space <role> <wet>` puts a ReverbSC on that track. The soundfont's own reverb is
+  `@reverb`.
+- **Levels and pitch are calibrated**, not tuned: `tools/music/calibrate.sh --write` plays one
+  phrase on every soundfont instrument and every LMMS preset the scores use at volume 100, measures
+  it and sets `mix.<instrument>.vol` or `preset_vol.<preset>` so all sit at -30 dBFS. For presets it
+  also renders A3 and measures how far it really sounds (`tools/music/pitch.py`: autocorrelation and
+  harmonic product spectrum must agree), storing `preset_offset_st`: many presets sound an octave
+  or two from their key. Rerun it after changing the soundfont or adding a voice; a `WARN pitch
+  unclear` means pick another preset. A cue's balance is then its own `@mix` lines (lift the lead, trim the bass) and its
   gains. Never hand-edit the `.mmp` and keep it: it is regenerated from the score.
 - To mix by hand in the LMMS GUI (on a desktop), open the `.mmp`, then carry the volumes you chose
   back into the score's `@mix` lines.
@@ -157,5 +182,6 @@ check music; only listening is the owner's.
   1.2 cannot load. Either convert to sf2 with Polyphone or render those stems with sfizz; neither
   is set up. `docs/analysis/audio-sources.md` lists the candidates and their licences.
 - **ZynAddSubFX** ships inside LMMS and makes far richer pads and leads than TripleOscillator; its
-  presets would need their XML embedded in the project. A good next step for the 80s colours.
+  presets would need their XML embedded in the project. The next step for richer synths.
+- **LMMS's Delay effect** renders silence headless in 1.2.2 (measured 2026-10-25): echoes are notes.
 - **Tempo changes inside a cue**: one tempo per score. Split a cue whose tempo changes.

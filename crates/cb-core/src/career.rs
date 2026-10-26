@@ -131,6 +131,10 @@ pub struct Career {
     /// The jobs offered, taken and done, and the inbox (mission-jobs).
     pub board: crate::jobs::Board,
     next_key: u32,
+    /// Where the player was when the career was last saved (save-game); none in a new career and in
+    /// saves from before it.
+    #[serde(default)]
+    pub place: Option<crate::save::Place>,
 }
 
 impl Career {
@@ -145,6 +149,7 @@ impl Career {
             base: 0,
             time_s: 0.0,
             seed,
+            place: None,
             done: Vec::new(),
             ledger: Vec::new(),
             board: crate::jobs::Board::default(),
@@ -238,6 +243,9 @@ impl Career {
             .any(|m| m.structure.len() != m.lost.len() || m.structure.iter().any(|s| !s.is_finite()))
         {
             return Err("mechs: damage does not match its parts".into());
+        }
+        if let Some(p) = &c.place {
+            p.check()?;
         }
         Ok(c)
     }

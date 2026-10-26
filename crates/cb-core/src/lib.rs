@@ -6,11 +6,13 @@
 //! `cb-app` adapts it to Bevy.
 
 pub mod ai;
+pub mod audio;
 pub mod battle_fx;
 pub mod boarding;
 pub mod career;
 pub mod cockpit;
 pub mod data;
+pub mod fortress;
 pub mod fx;
 pub mod grass;
 pub mod ground_marks;
@@ -18,13 +20,14 @@ pub mod input;
 pub mod jobs;
 pub mod mech;
 pub mod mission;
+pub mod missions;
 pub mod pilot;
 pub mod rng;
+pub mod save;
 pub mod settings;
 pub mod sim;
 pub mod skins;
 pub mod sky_light;
-pub mod smoke;
 pub mod sun_flare;
 pub mod targeting;
 pub mod units;
@@ -75,6 +78,12 @@ pub struct GameData {
     pub units: units::UnitsConfig,
     /// `data/enemies/skins.ron`.
     pub skins: skins::Skins,
+    /// `data/missions/fortress.ron` and `fortress_shape.ron`.
+    pub fortress: fortress::FortressData,
+    /// `data/missions/mail.ron`: free roam's mission mail.
+    pub missions: missions::MissionsMail,
+    /// `data/audio/cues.ron`, `music.ron` and `ambience.ron`.
+    pub audio: audio::AudioData,
 }
 
 impl GameData {
@@ -112,6 +121,12 @@ impl GameData {
         grass
             .validate_with(&world)
             .map_err(|reason| data::DataError { path: grass_path, reason })?;
+        let shape_path = root.join("missions/fortress_shape.ron");
+        let fortress = fortress::FortressData {
+            cfg: data::load_ron(&root.join("missions/fortress.ron"))?,
+            shape: data::load_ron(&shape_path)?,
+        };
+        fortress.check().map_err(|reason| data::DataError { path: shape_path, reason })?;
         Ok(Self {
             sim: data::load_ron(&root.join("sim.ron"))?,
             world,
@@ -132,7 +147,28 @@ impl GameData {
             sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
             units: data::load_ron(&root.join("world/units.ron"))?,
             skins,
+            fortress,
+            missions: data::load_ron(&root.join("missions/mail.ron"))?,
+            audio: audio::AudioData {
+                cues: data::load_ron(&root.join("audio/cues.ron"))?,
+                music: data::load_ron(&root.join("audio/music.ron"))?,
+                ambience: data::load_ron(&root.join("audio/ambience.ron"))?,
+            },
         })
+    }
+
+    /// The roster (openspec change `mech-select`): every mech under `root/mechs` with a cockpit interior, in file-name
+    /// order, as the menu and free roam's pause menu list them. A mech file without an interior is the stand-in or a
+    /// retired mech. A file that does not load is left out (startup and `cb-tools validate` report it).
+    pub fn roster(root: &Path) -> Vec<RosterMech> {
+        Self::mech_files(root)
+            .into_iter()
+            .filter_map(|file| {
+                let cfg: mech::MechConfig = data::load_ron(&root.join(&file)).ok()?;
+                cfg.interior.as_ref()?;
+                Some(RosterMech { file, name: cfg.name })
+            })
+            .collect()
     }
 
     /// The mech files under `root/mechs`, sorted by name.
@@ -150,9 +186,43 @@ impl GameData {
     }
 }
 
+/// A mech the player can pilot (`GameData::roster`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RosterMech {
+    /// Its data file, relative to the data root (`mechs/foreman.ron`).
+    pub file: String,
+    /// Its display name.
+    pub name: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_roster_is_the_eight_mechs_with_cockpits() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let files: Vec<String> = GameData::roster(&root).into_iter().map(|m| m.file).collect();
+        for id in [
+            "driller",
+            "foreman",
+            "harrow",
+            "ironhorse",
+            "mule",
+            "picket",
+            "roustabout",
+            "sapper",
+        ] {
+            assert!(files.contains(&format!("mechs/{id}.ron")), "{id} is on the roster: {files:?}");
+        }
+        assert!(
+            !files.iter().any(|f| f.contains("placeholder") || f.contains("breeze")),
+            "{files:?}"
+        );
+        for f in &files {
+            GameData::load(&root, f).unwrap_or_else(|e| panic!("{f}: {e}"));
+        }
+    }
 
     #[test]
     fn every_shipped_data_file_loads() {
@@ -160,6 +230,28 @@ mod tests {
         for mech in GameData::mech_files(&root) {
             GameData::load(&root, &mech).unwrap_or_else(|e| panic!("{e}"));
         }
+    }
+
+    /// Every roster mech sits in a cockpit of its own (openspec change `cockpit-identity`).
+    #[test]
+    fn no_two_mechs_share_a_cockpit_interior() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let mut seen: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+        for mech in GameData::mech_files(&root) {
+            let cfg: mech::MechConfig = data::load_ron(&root.join(&mech)).unwrap_or_else(|e| panic!("{e}"));
+            let Some(interior) = cfg.interior else { continue };
+            if let Some(other) = seen.insert(interior.model.clone(), mech.clone()) {
+                panic!("{mech} and {other} both sit in {}", interior.model);
+            }
+        }
+    }
+
+    #[test]
+    fn the_fortress_launches_a_unit_that_exists() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let d = GameData::load(&root, "mechs/placeholder.ron").unwrap();
+        let unit = &d.fortress.cfg.launch.unit;
+        assert!(d.units.units.contains_key(unit), "no unit `{unit}` in data/world/units.ron");
     }
 
     #[test]

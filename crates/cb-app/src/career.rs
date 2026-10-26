@@ -2,7 +2,8 @@
 //! title menu (New career, or Continue from `saves/career.ron`), steps the job board every fixed step
 //! with where the pilot is and how many of the job's enemies are left, brings a job's enemy mechs in
 //! when the pilot arrives at its site, pays a won job through the career's ledger, and saves. The rules
-//! are `cb_core::career` and `cb_core::jobs`; the mail is read and answered on the menu's MAIL page.
+//! are `cb_core::career` and `cb_core::jobs`; the mail is read and answered on the menu's MAIL page and the
+//! cockpit's (`mfd_apps`).
 
 use crate::mech::{Loadout, MechId, MechSim, Piloted, SpawnAssets, spawn_enemy};
 use crate::pilot::PilotSim;
@@ -25,6 +26,8 @@ pub struct CareerRun {
     pub jobs: JobsConfig,
     /// Seconds since the last save.
     since_save_s: f32,
+    /// Events from the mail page (a job abandoned for another), handled with the board's own next step.
+    pub pending: Vec<Event>,
 }
 
 /// How the career begins, chosen on the title menu.
@@ -51,7 +54,8 @@ pub fn can_continue() -> bool {
 }
 
 /// Writes the career (through a temporary file, so a crash keeps the last good save).
-fn save(c: &Career) {
+/// Writes the career to its save file (through a temporary file); also used by `save_game`.
+pub(crate) fn save(c: &Career) {
     let p = save_path();
     let _ = std::fs::create_dir_all(p.parent().unwrap_or(std::path::Path::new(".")));
     let tmp = p.with_extension("ron.tmp");
@@ -115,6 +119,7 @@ fn begin(mut commands: Commands, start: Res<CareerStart>, data: Res<Data>, plan:
         cfg,
         jobs,
         since_save_s: 0.0,
+        pending: Vec::new(),
     });
 }
 
@@ -129,6 +134,7 @@ fn step_jobs(
     time: Res<Time<Fixed>>,
     me: Query<&MechSim, With<Piloted>>,
     enemies: Query<(&MechSim, &JobEnemy)>,
+    enemy_entities: Query<(Entity, &JobEnemy)>,
     tex: Res<crate::textures::Textures>,
     assets: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -156,10 +162,12 @@ fn step_jobs(
     let active = current.is_some_and(|id| run.career.board.job(id).is_some_and(|j| j.state == cb_core::jobs::JobState::Active));
     let pilot_down = mech.is_some_and(|m| m.dead);
     let seed = run.career.seed;
-    let events = run
-        .career
-        .board
-        .step(&run.jobs, &sites, seed, at, if active { left } else { None }, pilot_down, dt);
+    let mut events = std::mem::take(&mut run.pending);
+    events.extend(
+        run.career
+            .board
+            .step(&run.jobs, &sites, seed, at, if active { left } else { None }, pilot_down, dt),
+    );
     let kept = run.cfg.ledger_kept;
     let inbox = run.jobs.inbox_kept;
     let mut dirty = false;
@@ -189,8 +197,8 @@ fn step_jobs(
                     };
                     let mut rng = SimRng::new(seed).fork(&format!("job/{id}/mech/{i}"));
                     let a = rng.range_f32(0.0, std::f32::consts::TAU);
-                    let r = rng.range_f32(150.0, 350.0);
-                    let xz = job.site + Vec2::new(a.cos(), a.sin()) * r;
+                    let ring = rng.range_f32(0.0, 1.0);
+                    let xz = cb_core::jobs::enemy_spot(&run.jobs, job.site, at, a, ring);
                     let heading = (xz.x - job.site.x).atan2(xz.y - job.site.y);
                     let mech_id = MechId(1000 + id * 16 + i as u32);
                     if let Some(ent) = spawn_enemy(&mut commands, &plan, &loadout, xz, heading, rng, mech_id, &mut sa) {
@@ -213,6 +221,21 @@ fn step_jobs(
                     Some(id),
                     inbox,
                 );
+                dirty = true;
+            }
+            Event::Abandoned(id) => {
+                // given up for another job: its enemies leave, unpaid (free-roam-missions)
+                info!("JOB {id} abandoned");
+                for (e, je) in &enemy_entities {
+                    if je.0 == id {
+                        commands.entity(e).despawn();
+                    }
+                }
+                run.career.done.push(cb_core::career::JobRecord {
+                    job: id,
+                    won: false,
+                    paid: 0,
+                });
                 dirty = true;
             }
             Event::Failed(id) => {

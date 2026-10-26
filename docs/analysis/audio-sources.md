@@ -56,6 +56,67 @@ Gaps: no confirmed CC0 lock-on or radar ping, jet loop or wheel-skate loop. Synt
 (jsfxr, below; the lock tone can take the Call Sign rhythm, `docs/design/music.md`) and take the
 engines from a Sonniss bundle.
 
+## Every recording in the game
+
+The list of every pack the game's sounds are cut from, with links, authors, licences and the cues
+cut from each, is [`AUDIO_SOURCES.md`](../../AUDIO_SOURCES.md) at the repository root.
+
+## Recorded CC0 replacements (owner, 2026-10-25: "can you not pull from cc0 sound fx?")
+
+**Done for 30 of 36 cues (2026-10-25).** The owner opened the network to opengameart.org,
+kenney.nl and archive.org. `tools/audio/fetch_cc0.py` downloads the packs listed in
+`tools/audio/cc0_packs.json` into `/opt/sfx-src` (not committed) and reads each OpenGameArt page's
+licence field, refusing a pack without a CC0 option: Robotic Transformations and Misc/menu sci-fi
+sounds were refused that way, though GodotFall lists them as CC0. `tools/audio/cut_cc0.py` cuts each
+recorded cue to the spec in `tools/audio/cc0_cues.json` (layers with start, length, which shot of a
+take, tape-speed pitch, gain, steep filters and fades, plus our synthesised layers where a recording
+lacks weight) and writes `assets/audio/sfx/SOURCES.md`, which names every original. Synthesised
+still (6): lock_tone, lock_on, heat_lock, alarm_warning, radar_ping and systems_boot, the cockpit
+tones, kept soft and low at -14 to -16 dBFS on the owner's notes ("too much", "more subtle").
+
+**Ambience and punches (2026-10-25).** Nine stereo beds in `assets/audio/ambience/` (nature: AMB
+Morning Sounds, Forest Ambience, Ambient Bird Sounds, Crickets, wind1, Mild Wind, Rain (loopable),
+Rain Long Thunder; city: Scifi City Ambient Loop, 100 CC0 SFX #2's highway loop, Crowd shouting,
+Sirens and alarm noise; industrial: Factory Ambiance, Airvent Loop; all CC0 by their pages) and
+three punch cues (37 hits/punches, Swishes Sound Pack, bamboo swooshes, with metal and rock from the
+packs above). Their originals are named in each folder's `SOURCES.md`.
+
+**Still refused by the network.** archive.org's pages load but its files come from storage hosts
+(`dn*.ca.archive.org`, `ia*.us.archive.org`), so the NASA launch recordings below need
+`*.archive.org` allowed too. freesound.org answers 403 and upload.wikimedia.org does not connect.
+
+**Where the leads came from.** The GitHub mirrors checked first:
+[hipdiscovery/Free-Sound-Effects](https://github.com/hipdiscovery/Free-Sound-Effects) holds only
+Kenney's 100 Interface Sounds; the Godot Asset Library's Kenney ports
+([Kenney's Sci-Fi Sounds](https://godotengine.org/asset-library/asset/1834), Impact Sounds, RPG
+Audio, UI Audio, from `github.com/Loppansson/*-for-godot`) are gone from GitHub;
+`PanderMusubi/sound-effects-library-weapons` is a packaging script whose files sit on mediafire.
+[bonesvt/GodotFall](https://github.com/bonesvt/GodotFall) (revision `ad59aac`) ships 226 cuts from
+CC0 packs with a source table and its cut specs; the repository has no licence, so none of its cuts
+are used, but its table said which original file makes a good mech step, explosion or rocket.
+
+| Cue | CC0 originals (OpenGameArt unless marked) | Notes |
+| --- | --- | --- |
+| foot_stomp | Mech Stomp / Step Sound (hc), `stomp.flac`; 100 CC0 metal and wood SFX (dull metal collisions) | pitched 0.8-0.9 for a 24 m mech, our sub thump under it |
+| jet_ignite | Flare ignition (qubodup); Rocket launch (qubodup) | our sub rumble under it |
+| rocket_loop | rocket engine (loopable); 30 CC0 SFX loops; NASA launch recordings (below) | steep lowpass as now |
+| rocket_rumble | Low rumbling (Musheran) | |
+| rocket_launch | Rocket launch (qubodup), `launch.wav` | |
+| jet_ignite, rocket_loop, rocket_rumble (real launches) | [NASA Audio Highlight Reels](https://archive.org/details/NasaAudioHighlightReels) on the Internet Archive: `Launch-Sound_Saturn-V.ogg`, `Launch-Sound_Shuttle-Launch-Mid.ogg` and more, in ogg and flac | NASA works are public domain (the item carries the Public Domain Mark); check each file's page. Real ignition and roar, the owner's "fuel igniting". Wikimedia Commons (owner's suggestion) had no launch audio by search, only launch videos whose soundtracks could be cut; both hosts are refused here too |
+| missile_launch | Missile sound (mikeask), `missile.wav` | |
+| autocannon, cannon, shotgun | The Free Firearm Sound Library (Still North Media): Carl Gustav M45, AK-47, shotgun takes | autocannon pitched about 0.7 |
+| impact_mech | 75 CC0 breaking / falling / hit SFX; 100 CC0 metal and wood SFX (`metal_slam`); a Free Firearm Sound Library crack | the owner asked for "a harder sound like gunshot" |
+| impact_building | 75 CC0 breaking / falling / hit SFX (rock hits) | |
+| explosion_small, explosion_large | Explosions (EZduzziteh); Chunky Explosion (Joth); Mechanical Explosion (Spring Spring) | |
+| collapse | 75 CC0 breaking / falling / hit SFX; Low rumbling | |
+| hatch_steam | Steam release sounds (bart); Compressed Gas Leak SFX (0new4y) | |
+| hatch_seal, hatch_motor, servo_torso, hydraulic | Mechanical Sounds (BMacZero); Robotic Transformations (Mekaal) | |
+| laser_loop, laser_stop, rail_charge, rail_fire, plasma_fire, plasma_burst | Sci-Fi Sounds (Kenney); Doomsday Laser Cannon (TAD); Electricity Game Sound Pack (faxcorp) | |
+| reactor_hum | Generator (loop) (YCbCr) | |
+| radio_squelch | Misc/menu sci-fi sounds (HaelDB); Radio Noise 1 | |
+| mfd_click | Interface Sounds (Kenney), reachable now through the GitHub mirror above | |
+| lock_tone, lock_on, heat_lock, alarm_warning, radar_ping, systems_boot | none found | stay synthesised (the owner liked the lock sound once softened) |
+
 ## Tools
 
 | Name | What | Licence | Fit |

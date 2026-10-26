@@ -12,7 +12,7 @@
 
 use super::config::WorldConfig;
 use super::island::{Fields, Island};
-use super::layout::{City, Highway, Rect};
+use super::layout::{Highway, Rect};
 use super::water::Channels;
 use crate::rng::SimRng;
 use glam::{Vec2, Vec3};
@@ -93,20 +93,21 @@ const FLATS_CELL_M: f32 = 512.0;
 
 impl Flats {
     /// The flats of a world's cities and highways.
-    pub fn new(cities: &[City], highways: &[Highway], cfg: &WorldConfig) -> Self {
+    /// The flats of a world's plateaus (each city's square and each air base's site, with the ground height it is
+    /// flattened to) and highways.
+    pub fn new(plateaus: &[(Rect, f32)], highways: &[Highway], cfg: &WorldConfig) -> Self {
         let plateau_reach = cfg.plateau_flat_margin_m + cfg.plateau_blend_m;
         let road_flat_m = cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m;
         let road_reach = road_flat_m + cfg.highway_blend_m;
         let mut boxes = Vec::new();
-        for (i, c) in cities.iter().enumerate() {
-            let r = c.rect();
+        for (i, (r, _)) in plateaus.iter().enumerate() {
             boxes.push((i as u32, r.min - Vec2::splat(plateau_reach), r.max + Vec2::splat(plateau_reach)));
         }
         for (k, h) in highways.iter().enumerate() {
             let lo = h.path.iter().fold(Vec2::splat(f32::MAX), |m, p| m.min(*p));
             let hi = h.path.iter().fold(Vec2::splat(f32::MIN), |m, p| m.max(*p));
             boxes.push((
-                (cities.len() + k) as u32,
+                (plateaus.len() + k) as u32,
                 lo - Vec2::splat(road_reach),
                 hi + Vec2::splat(road_reach),
             ));
@@ -114,7 +115,7 @@ impl Flats {
         let half = cfg.world_size_m * 0.5;
         let side = (cfg.world_size_m / FLATS_CELL_M).ceil() as usize;
         Self {
-            cities: cities.iter().map(|c| (c.rect(), c.ground_m)).collect(),
+            cities: plateaus.to_vec(),
             highways: highways.to_vec(),
             plateau_margin_m: cfg.plateau_flat_margin_m,
             plateau_blend_m: cfg.plateau_blend_m,

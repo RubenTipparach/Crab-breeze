@@ -113,7 +113,22 @@ From the owner's brief, 2026-10-23. Quotes are the owner's words.
   thing to make midi tracks, then bring it into headless lllms and get some instruments for final comp)"). Motifs are
   written as notes in `docs/design/music.md` and `music/motifs.strudel`, scored in Strudel, exported to multitrack MIDI
   and rendered in headless LMMS with real instruments (`music-authoring`). How the game plays them is
-  `openspec/changes/music`.
+  `openspec/changes/music`. **The sound is moody, edgy rebel cyberpunk** (owner, 2026-10-25, over three rounds:
+  "music sucks, electronic, scifi futuristic please!", "Main street sucks delete it. Theme sucks..I want some thing
+  moody,more cyber punk themed", "It's too cherry and heroic. I want to feel like an edgy rebel"): LMMS synths, a
+  snarling riff, rain; nothing cheery, heroic or orchestral, no triumphant major chord, no town theme. **Hard
+  90s drums** ("The beats are too soft to be edm..we need really strong percussion like edm from the 90s"):
+  layered, compressed and driven, level with the music. **Melodies built by theory** ("the melody is just
+  garbage. Look into music theory and how to compose good melodies"): one idea grown into a sentence, one high
+  point (`docs/design/music.md`, "Writing a melody").
+- **Sound: recorded CC0, placed in 3D, quiet when calm** (owner, 2026-10-25: "all audio and sfx approved",
+  "if theres not mutch action on screen, some silence would be nice, can you get some ambience in this game?
+  like nature? city streets?", "verify all sounds are 3d based (except ambience and music and ui)"). Sound
+  effects are cut from CC0 recordings (`tools/audio/cut_cc0.py`, every original named in `SOURCES.md`),
+  synthesised only where nothing recorded beats them. Every sound plays from a point or a named node in 3D,
+  the player's own mech and cockpit included; only ambience beds, music and menu sounds are unplaced and may
+  be stereo (`openspec/changes/audio`). With no threat the music fades to silence and ambience beds chosen
+  by place carry the scene (`openspec/changes/music`, `openspec/changes/ambience`).
 - **Mechs twice the size, legs heavier than the torso, low-poly first** (owner, 2026-10-24: "2x mech size
   please, they dont seem very big right now, redesign mechs, start with lowpoly first", "I really expect legs
   on these mechs to be bigger than the torso, just for balance", "I really like how stevedore is all struts",
@@ -475,7 +490,8 @@ Nothing is an exception until it is listed here with its reason.
   2026-10-24: "rivets are kinda old school, I want more modern looking armor"): engraved seams, no rivets,
   neutral so each mech's palette (`tools/blender/mech_palettes.py`) tints it, and the decal sheet `decals.png` (owner,
   2026-10-24: "it should say "no step", company logo, "warning flamable" etc"): stencil markings and digits laid on
-  the mechs as quads by `Kit.decal`. Material Maker stays the source of every other material.
+  the mechs as quads by `Kit.decal`. It also draws the crab air fortress's armour, designed for its hull and laid out against
+  `tools/mockups/fortress_layout.json` (owner, 2026-10-25: "pieces of custom made armor cut and fitted with precision"). Material Maker stays the source of every other material.
 - **Cockpit panels are modelled and rendered, not Material Maker graphs, and the pod's surfaces are
   baked to atlases** (owner, 2026-10-24: "Use the texturing skill we had on star crew bridge sim.
   Baked lighting with AO", then "Aim for that pbr triple a goodness that bevy provides"). A panel's
@@ -489,6 +505,11 @@ Nothing is an exception until it is listed here with its reason.
   (`crates/cb-app/src/pbr_set.rs`), and its folder carries a `SOURCE.md` with the URL, the licence
   and every change made to it. The ground's grass is ambientCG Grass001
   (`assets/textures/ground/grass001/`).
+- **The Hermit's block-out is exported from its mockup, not built in Blender** (owner, 2026-10-25, on the Hermit
+  Air Fortress mockup: "looks good, build it in game"). The block-out the owner approved is the three.js page, so
+  `tools/mockups/export_fortress_glb.mjs` writes `assets/models/fortress_hermit.glb` from it, with its manifest and
+  triangle budget: one implementation of its shape, from `tools/mockups/fortress_layout.json`. The Blender model
+  replaces it when it is made (`openspec/changes/crab-airship` task 3.1).
 - **Copied skills keep their source's text** below their "In Crab Breeze" note (and its front
   matter description, retargeted), so a later copy from the source can be diffed. Where the source
   and the note disagree, the note and this file win.

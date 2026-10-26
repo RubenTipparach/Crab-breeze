@@ -4,7 +4,6 @@
 //! on the cockpit pass, which draws last. The Controls page lists every control from the bindings
 //! data (`cb_core::input::Bindings::controls`); the Options page changes `settings`.
 
-use crate::loading::GameReady;
 use crate::pilot::CockpitCamera;
 use crate::settings::{Settings, save};
 use crate::sim::Data;
@@ -33,6 +32,8 @@ pub enum Menu {
     Controls,
     /// The mail: the job offers to accept or decline, the current job, the messages (a career).
     Mail,
+    /// Free roam's mech page: the roster, a pick restarting free roam in it (mech-select).
+    Mech,
 }
 
 impl Menu {
@@ -42,21 +43,24 @@ impl Menu {
     }
 }
 
+/// The encounter mechs near the start are wanted (`data/world/encounters.ron`): only a scripted take
+/// asks for them. Free roam as a player plays it starts with no enemies (owner, 2026-10-25: "no
+/// enemies in free roam!", "its CALLED FREE ROAM", "why are there enemeies at spawn!").
+#[derive(Resource)]
+pub struct Encounters;
+
 /// How this run plays, chosen on the title menu or by the command line: the encounter mechs near
 /// the start (free roam) or the city defence. Inserted once the run begins.
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Play {
-    /// The start with its encounter mechs.
+    /// Free roam: the city defence offered by mail (the menu's MAIL page and the cockpit's), the encounter
+    /// mechs only for a scripted take (`Encounters`).
     FreeRoam,
     /// The city defence mission.
     Defence,
     /// A career: jobs by mail (career, mission-jobs).
     Career,
 }
-
-/// A plain run: open the title menu once the game is ready.
-#[derive(Resource)]
-pub struct TitleWanted;
 
 /// The page Back (and Escape) goes to from Options and Controls: the title or the pause menu.
 #[derive(Resource, Clone, Copy)]
@@ -72,8 +76,14 @@ enum MenuButton {
     NewCareer,
     Continue,
     Mail,
+    /// Free roam's Mech page.
+    MechPage,
+    /// Free roam again in this roster mech.
+    PickMech(usize),
     Accept(u32),
     Decline(u32),
+    StartMission(cb_core::missions::MissionKind),
+    StopMission,
     Resume,
     FreeRoam,
     Defence,
@@ -83,6 +93,10 @@ enum MenuButton {
     Quit,
     Mouse(i32),
     Fov(i32),
+    /// Sound effects volume down or up a step.
+    Sfx(i32),
+    /// Music volume down or up a step.
+    Music(i32),
     Invert,
     Shadows,
     Vsync,
@@ -96,23 +110,8 @@ impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Menu>()
             .insert_resource(BackTo(Menu::Pause))
-            .add_systems(Update, (open_title, escape, draw).chain().before(crate::sim::PresentSet::Input));
-    }
-}
-
-/// A plain run opens on the title menu the moment the game is ready (the loading screen waits on the
-/// simulation running, so it cannot pause before then).
-fn open_title(
-    mut commands: Commands,
-    wanted: Option<Res<TitleWanted>>,
-    ready: Res<GameReady>,
-    mut menu: ResMut<Menu>,
-    mut time: ResMut<Time<Virtual>>,
-    mut cursor: Single<&mut CursorOptions>,
-) {
-    if wanted.is_some() && ready.0 {
-        commands.remove_resource::<TitleWanted>();
-        set(&mut menu, Menu::Title, &mut time, &mut cursor);
+            .insert_resource(Roster(cb_core::GameData::roster(&crate::cli::repo_root().join("data"))))
+            .add_systems(Update, (escape, draw).chain().before(crate::sim::PresentSet::Input));
     }
 }
 
@@ -124,13 +123,20 @@ fn escape(
     keys: Res<crate::input::Keys>,
     back: Res<BackTo>,
     settings: Res<Settings>,
-    career: Option<Res<crate::career::CareerRun>>,
+    (career, play, free): (
+        Option<Res<crate::career::CareerRun>>,
+        Option<Res<Play>>,
+        Option<Res<crate::missions::FreeRoamRun>>,
+    ),
+    (pointed, mut acc): (Res<crate::mfd_apps::Pointed>, ResMut<crate::input::InputAccum>),
     mut menu: ResMut<Menu>,
     mut time: ResMut<Time<Virtual>>,
     mut cursor: Single<&mut CursorOptions>,
 ) {
-    // M opens and closes the mail in a career (survey J1: "press M to focus on the mail screen").
-    if career.is_some() && input.any_just_pressed(keys.mail.iter().copied()) {
+    // M opens and closes the mail, in a career and in free roam (survey J1: "press M to focus on the
+    // mail screen"; free roam's mail starts its missions: free-roam-missions).
+    let has_mail = career.is_some() || free.is_some() || play.as_deref() == Some(&Play::FreeRoam);
+    if has_mail && input.any_just_pressed(keys.mail.iter().copied()) {
         match *menu {
             Menu::Closed => set(&mut menu, Menu::Mail, &mut time, &mut cursor),
             Menu::Mail => set(&mut menu, Menu::Closed, &mut time, &mut cursor),
@@ -141,8 +147,14 @@ fn escape(
     if !input.any_just_pressed(keys.release_mouse.iter().copied()) {
         return;
     }
+    // In play, pointing at an MFD's MENU or MAIL in free look, Escape is that screen's BACK (mfd-menus), not the
+    // pause menu.
+    if *menu == Menu::Closed && pointed.page.is_some_and(|p| p >= crate::mfd_apps::MENU_PAGE) {
+        acc.mfd_back = true;
+        return;
+    }
     let next = match *menu {
-        Menu::Mail => Menu::Closed,
+        Menu::Mail | Menu::Mech => Menu::Closed,
         Menu::Closed => Menu::Pause,
         Menu::Pause => Menu::Closed,
         Menu::Title => Menu::Title,
@@ -177,11 +189,17 @@ struct Press<'a> {
     cursor: &'a mut CursorOptions,
 }
 
+/// The roster free roam's Mech page lists (`cb_core::GameData::roster`, mech-select), read once.
+#[derive(Resource)]
+struct Roster(Vec<cb_core::RosterMech>);
+
 /// A menu button was pressed.
 fn press(
     what: MenuButton,
     p: Press,
+    roster: &[cb_core::RosterMech],
     career: Option<&mut crate::career::CareerRun>,
+    free: Option<&mut crate::missions::FreeRoamRun>,
     exit: &mut MessageWriter<AppExit>,
     commands: &mut Commands,
 ) {
@@ -201,9 +219,36 @@ fn press(
             }
             set(p.menu, Menu::Mail, p.time, p.cursor);
         }
+        MenuButton::MechPage => {
+            p.back.0 = Menu::Pause;
+            set(p.menu, Menu::Mech, p.time, p.cursor);
+        }
+        // Free roam again in the picked mech: the game starts itself again with it, as the menu starts it, and this
+        // run closes (mech-select: "In free play i can select any mech from the menu and it will swap out models").
+        MenuButton::PickMech(i) => {
+            if let Some(m) = roster.get(i) {
+                info!("menu: free roam again in the {}", m.name);
+                crate::launcher::start_game("free", Some(&m.file));
+                exit.write(AppExit::Success);
+            }
+        }
         MenuButton::Accept(id) => {
+            // One job at a time: accepting abandons the one under way (free-roam-missions).
             if let Some(c) = career {
-                c.career.board.accept(id);
+                let events = c.career.board.accept(id);
+                c.pending.extend(events);
+            }
+        }
+        // Free roam's missions: starting one turns off the one running (free-roam-missions).
+        MenuButton::StartMission(kind) => {
+            if let Some(f) = free {
+                f.start(kind);
+            }
+            set(p.menu, Menu::Closed, p.time, p.cursor);
+        }
+        MenuButton::StopMission => {
+            if let Some(f) = free {
+                f.stop();
             }
         }
         MenuButton::Decline(id) => {
@@ -247,13 +292,22 @@ fn press(
         MenuButton::Quit => {
             exit.write(AppExit::Success);
         }
-        MenuButton::Mouse(n) => p.settings.0.nudge_mouse(n),
-        MenuButton::Fov(n) => p.settings.0.nudge_fov(n),
-        MenuButton::Invert => p.settings.0.invert_pitch ^= true,
-        MenuButton::Shadows => p.settings.0.shadows ^= true,
-        MenuButton::Vsync => p.settings.0.vsync ^= true,
-        MenuButton::Fullscreen => p.settings.0.fullscreen ^= true,
+        // Every change is saved at once, so it survives a quit or a crash (owner, 2026-10-25).
+        MenuButton::Mouse(n) => changed(p, |s| s.nudge_mouse(n)),
+        MenuButton::Fov(n) => changed(p, |s| s.nudge_fov(n)),
+        MenuButton::Sfx(n) => changed(p, |s| s.nudge_sfx(n)),
+        MenuButton::Music(n) => changed(p, |s| s.nudge_music(n)),
+        MenuButton::Invert => changed(p, |s| s.invert_pitch ^= true),
+        MenuButton::Shadows => changed(p, |s| s.shadows ^= true),
+        MenuButton::Vsync => changed(p, |s| s.vsync ^= true),
+        MenuButton::Fullscreen => changed(p, |s| s.fullscreen ^= true),
     }
+}
+
+/// Changes the settings with `f` and saves them.
+fn changed(p: Press, f: impl FnOnce(&mut cb_core::settings::Settings)) {
+    f(&mut p.settings.0);
+    save(p.settings);
 }
 
 fn label(s: &str, size: f32, colour: Color) -> (Text, TextFont, TextColor) {
@@ -283,6 +337,8 @@ fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton,
                   mut time: ResMut<Time<Virtual>>,
                   mut cursor: Single<&mut CursorOptions>,
                   mut career: Option<ResMut<crate::career::CareerRun>>,
+                  roster: Res<Roster>,
+                  mut free: Option<ResMut<crate::missions::FreeRoamRun>>,
                   mut exit: MessageWriter<AppExit>| {
                 press(
                     what,
@@ -293,7 +349,9 @@ fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton,
                         time: &mut time,
                         cursor: &mut cursor,
                     },
+                    &roster.0,
                     career.as_deref_mut(),
+                    free.as_deref_mut(),
                     &mut exit,
                     &mut commands,
                 );
@@ -367,12 +425,13 @@ fn draw(
     menu: Res<Menu>,
     back: Res<BackTo>,
     settings: Res<Settings>,
-    data: Res<Data>,
+    (data, roster): (Res<Data>, Res<Roster>),
     career: Option<Res<crate::career::CareerRun>>,
+    free: Option<Res<crate::missions::FreeRoamRun>>,
     roots: Query<Entity, With<MenuRoot>>,
     overlay: Query<Entity, With<CockpitCamera>>,
 ) {
-    let career_changed = career.as_ref().is_some_and(|c| c.is_changed());
+    let career_changed = career.as_ref().is_some_and(|c| c.is_changed()) || free.as_ref().is_some_and(|f| f.is_changed());
     if !menu.is_changed() && !(settings.is_changed() && *menu == Menu::Options) && !(career_changed && *menu == Menu::Mail) {
         return;
     }
@@ -432,8 +491,11 @@ fn draw(
             Menu::Pause => {
                 p.spawn(label("PAUSED", 44.0, INK));
                 button(p, "Resume", MenuButton::Resume);
-                if career.is_some() {
+                if career.is_some() || free.is_some() {
                     button(p, "Mail", MenuButton::Mail);
+                }
+                if free.is_some() {
+                    button(p, "Mech", MenuButton::MechPage);
                 }
                 button(p, "Options", MenuButton::Options);
                 button(p, "Controls", MenuButton::Controls);
@@ -454,6 +516,18 @@ fn draw(
                     "Field of view",
                     format!("{:.0} deg", s.fov_deg),
                     &[("-", MenuButton::Fov(-1)), ("+", MenuButton::Fov(1))],
+                );
+                option_row(
+                    p,
+                    "Sound effects",
+                    format!("{:.0} %", s.sfx_volume * 100.0),
+                    &[("-", MenuButton::Sfx(-1)), ("+", MenuButton::Sfx(1))],
+                );
+                option_row(
+                    p,
+                    "Music",
+                    format!("{:.0} %", s.music_volume * 100.0),
+                    &[("-", MenuButton::Music(-1)), ("+", MenuButton::Music(1))],
                 );
                 option_row(p, "Shadows", on(s.shadows), &[("Flip", MenuButton::Shadows)]);
                 option_row(p, "Vsync", on(s.vsync), &[("Flip", MenuButton::Vsync)]);
@@ -514,9 +588,27 @@ fn draw(
                 });
                 button(p, "Back", MenuButton::Back);
             }
+            Menu::Mech => {
+                tabs(p, back.0);
+                p.spawn(label("MECH", 40.0, INK));
+                p.spawn(label("Free roam starts again in the mech you pick.", 24.0, DIM));
+                for (i, m) in roster.0.iter().enumerate() {
+                    let here = m.name == data.0.mech.name;
+                    button(
+                        p,
+                        &if here { format!("{} (now)", m.name) } else { m.name.clone() },
+                        MenuButton::PickMech(i),
+                    );
+                }
+                button(p, "Back", MenuButton::Back);
+            }
             Menu::Mail => {
                 if let Some(run) = career.as_deref() {
                     mail_page(p, &run.career);
+                } else if let Some(f) = free.as_deref() {
+                    // Free roam's mail: every mission, started when accepted (owner, 2026-10-25: "city defense is a
+                    // menu mail option in free roam", "add an email in free roam to fight the crab fortress").
+                    missions_page(p, &f.free, &data.0.missions);
                 }
                 button(p, "Back", MenuButton::Resume);
             }
@@ -591,9 +683,8 @@ fn mail_page(p: &mut ChildSpawnerCommands, c: &cb_core::career::Career) {
                     INK,
                 ),
             ));
-            if c.board.current().is_none() {
-                button_sized(row, "Accept", MenuButton::Accept(j.id), 130.0);
-            }
+            // accepting while a job is under way abandons that one (one at a time)
+            button_sized(row, "Accept", MenuButton::Accept(j.id), 130.0);
             button_sized(row, "Decline", MenuButton::Decline(j.id), 130.0);
         });
     }
@@ -612,5 +703,51 @@ fn mail_page(p: &mut ChildSpawnerCommands, c: &cb_core::career::Career) {
             },
             label(&format!("{}: {}. {}", m.from, m.subject, m.body), 18.0, DIM),
         ));
+    }
+}
+
+/// Free roam's MAIL page (free-roam-missions): one message per mission, each with Start, or Stop for the one
+/// running. Starting one turns off the one running.
+fn missions_page(p: &mut ChildSpawnerCommands, f: &cb_core::missions::FreeRoam, mail: &cb_core::missions::MissionsMail) {
+    p.spawn(label("MAIL      FREE ROAM", 40.0, INK));
+    p.spawn(label(
+        match f.active {
+            Some(_) => "One mission runs at a time: starting another turns this one off.",
+            None => "No mission running. Start one below.",
+        },
+        22.0,
+        DIM,
+    ));
+    for (m, msg) in mail.mail.iter().zip(&f.inbox).rev() {
+        let running = f.active == Some(m.mission);
+        p.spawn(Node {
+            column_gap: px(14.0),
+            align_items: AlignItems::Center,
+            ..default()
+        })
+        .with_children(|row| {
+            row.spawn((
+                Node {
+                    width: px(760.0),
+                    ..default()
+                },
+                label(
+                    &format!(
+                        "{}{}: {}\n{}",
+                        if running { "RUNNING   " } else { "" },
+                        msg.from,
+                        msg.subject,
+                        msg.body
+                    ),
+                    18.0,
+                    if running { INK } else { DIM },
+                ),
+            ));
+            if running {
+                button_sized(row, "Stop", MenuButton::StopMission, 130.0);
+            } else {
+                button_sized(row, "Start", MenuButton::StartMission(m.mission), 130.0);
+            }
+        });
     }
 }

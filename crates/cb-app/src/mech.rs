@@ -117,14 +117,12 @@ pub struct MechRig {
     named: HashMap<String, Entity>,
     /// Contract bones no longer driven (shot off), by `BONES` index.
     cut: Vec<bool>,
+    /// The stride's part of the pelvis bone's translation this frame (`MechPose::walk_offset` in the
+    /// pelvis's local space), which the pilot's view leaves out.
+    walk_local: Vec3,
 }
 
 impl MechRig {
-    /// A socket's entity (`JET_L`, `WHEEL_R`, ...), if the model has it.
-    pub(crate) fn socket(&self, name: &str) -> Option<Entity> {
-        self.sockets.get(name).copied()
-    }
-
     /// The entity of the node named `name` under the model, if any.
     pub(crate) fn named(&self, name: &str) -> Option<Entity> {
         self.named.get(name).copied()
@@ -143,6 +141,12 @@ impl MechRig {
     /// The optional sensor head.
     pub fn head(&self) -> Option<Entity> {
         self.named.get("head").copied()
+    }
+
+    /// The entity of a contract socket (`MUZZLE_L`, `JET_L`, `WHEEL_R`, `HATCH_entry`, `EYE_pilot`...),
+    /// for something that rides it (a sound).
+    pub fn socket(&self, name: &str) -> Option<Entity> {
+        self.sockets.get(name).copied()
     }
 }
 
@@ -196,7 +200,7 @@ impl Plugin for MechPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MechAccessNow>()
             .add_systems(Startup, spawn_mech)
-            .add_systems(Update, spawn_encounters.run_if(resource_added::<crate::menu::Play>))
+            .add_systems(Update, spawn_encounters.run_if(resource_added::<crate::menu::Encounters>))
             .add_systems(FixedUpdate, (publish_access.in_set(SimSet::Input), step_mech.in_set(SimSet::Mech)))
             .add_systems(
                 Update,
@@ -238,9 +242,9 @@ fn spawn_mech(
     commands.entity(player).insert((Piloted, MechId(0)));
 }
 
-/// Free roam's encounter mechs near the start, spawned when the run begins as free roam (the title
-/// menu's choice, or a command-line run). The defence mission brings its own enemies, wave by wave
-/// (city-defence).
+/// Free roam's encounter mechs near the start, spawned only when a scripted take asks for them
+/// (`menu::Encounters`): free roam as a player plays it starts with none. The defence mission brings its own
+/// enemies, wave by wave (city-defence).
 fn spawn_encounters(
     mut commands: Commands,
     play: Res<crate::menu::Play>,
@@ -621,6 +625,7 @@ fn bind_rig(
         // The optional sensor head.
         commands.entity(root).insert(MechRig {
             cut: vec![false; bones.len()],
+            walk_local: Vec3::ZERO,
             bones,
             sockets,
             rest,
@@ -796,12 +801,12 @@ fn lerp_state(a: &MechState, b: &MechState, t: f32) -> MechState {
 fn drive_mech(
     fixed: Res<Time<Fixed>>,
     data: Res<Data>,
-    mut roots: Query<(Entity, &MechSim, &MechSpec, Option<&MechRig>), With<MechRoot>>,
+    mut roots: Query<(Entity, &MechSim, &MechSpec, Option<&mut MechRig>, Has<Piloted>), With<MechRoot>>,
     mut transforms: Query<&mut Transform>,
     wrecks: Query<(), With<Wreck>>,
 ) {
     let alpha = fixed.overstep_fraction();
-    for (root, sim, spec, rig) in &mut roots {
+    for (root, sim, spec, rig, piloted) in &mut roots {
         let s = lerp_state(&sim.prev, &sim.curr, alpha);
         let tl = &data.0.boarding;
         let t = sim.hatch_prev.t_s + (sim.hatch.t_s - sim.hatch_prev.t_s) * alpha;
@@ -811,7 +816,7 @@ fn drive_mech(
             t.translation = s.pos;
             t.rotation = Quat::from_rotation_y(s.heading_rad);
         }
-        let Some(rig) = rig else { continue };
+        let Some(mut rig) = rig else { continue };
         // No legs left: it sits (mech-damage design section 2).
         let sit_amount = if s.legs_lost == [true, true] { 1.0 } else { tl.sit_amount(t) };
         let p = pose(&s, &spec.gait, &rig.rest, &tl.sit, sit_amount);
@@ -834,6 +839,7 @@ fn drive_mech(
             from + (to - from) * alpha
         });
         rotations.extend(cb_core::mech::arm_rotations(p.torso, swing));
+        let mut walk_local = Vec3::ZERO;
         for (i, spec) in BONES.iter().enumerate() {
             let parent = spec.parent.and_then(|pn| BONES.iter().position(|b| b.name == pn));
             let inherited = parent.map(|pi| d[pi]).unwrap_or(Quat::IDENTITY);
@@ -848,9 +854,19 @@ fn drive_mech(
             t.rotation = (d_parent * bind.parent_rest_model_rot).inverse() * d[i] * bind.rest_model_rot;
             t.translation = bind.rest_local.translation;
             if spec.name == "pelvis" {
-                t.translation += (d_parent * bind.parent_rest_model_rot).inverse() * p.pelvis_offset;
+                let to_local = (d_parent * bind.parent_rest_model_rot).inverse();
+                // The piloted mech's body rides level: the stride's bob and sway would swing the
+                // cockpit round the pilot (owner, 2026-10-25: "theeres still massive sway", "int he
+                // cockpit"). Other mechs keep their stride.
+                if piloted {
+                    t.translation += to_local * (p.pelvis_offset - p.walk_offset);
+                } else {
+                    t.translation += to_local * p.pelvis_offset;
+                    walk_local = to_local * p.walk_offset;
+                }
             }
         }
+        rig.walk_local = walk_local;
     }
 }
 
@@ -948,6 +964,7 @@ pub fn step_mech(
             r.0.curr.pos,
             cb_core::mech::forward(r.0.curr.heading_rad) * r.0.curr.speed_m_s + Vec3::Y * r.0.curr.vel_y_m_s,
             r.0.dead,
+            r.1.aim_height_m(),
         )
     });
     let cam = camera.iter().next().copied();
@@ -1021,8 +1038,11 @@ pub fn step_mech(
                 }
                 None => {}
             }
-            if !seated && sim.hatch.target == HatchTarget::Open && pilot.curr.mode == PilotMode::OnFoot {
-                // Asked to board: turn to face the pilot while kneeling, so the hatch is toward them.
+            // Asked to board: turn to face the pilot while kneeling, so the hatch is toward them. Once
+            // the kneel is complete it holds still (owner, 2026-10-25: "when mech has completed
+            // kneeling animation it should no longer turn to face the player").
+            let kneeling = sim.hatch.t_s < tl.sit.duration_s;
+            if !seated && kneeling && sim.hatch.target == HatchTarget::Open && pilot.curr.mode == PilotMode::OnFoot {
                 let to = pilot.curr.feet - sim.curr.pos;
                 let want = (-to.x).atan2(-to.z);
                 let err = (want - sim.curr.heading_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
@@ -1062,10 +1082,13 @@ pub fn step_mech(
                     c.throttle_zero = true;
                     c.throttle_axis = 0.0;
                 }
-                // At the coupled look's edge the mech turns toward the view at its own rate
+                // The mech turns toward the view, faster the further off its nose the view is
                 // (seated-look): the view comes round no faster than the mech can turn.
                 let limit = data.0.pilot.seated_look_limit_deg.to_radians();
-                if let Some(t) = cb_core::pilot::look_turn(pilot.curr.seated_rel_rad, limit, actions.free_look) {
+                // The stronger of the keys' turn and the look's (skating, the keys still turn).
+                if let Some(t) = cb_core::pilot::look_turn(pilot.curr.seated_rel_rad, limit, actions.free_look)
+                    && t.abs() > c.turn_axis.abs()
+                {
                     c.turn_axis = t;
                 }
                 // Walking, WASD is direct: toward the view, back from it, a step to either side; the
@@ -1106,11 +1129,11 @@ pub fn step_mech(
             // The enemies wait until the pilot is in the seat: no one fights an empty mech. (The hover
             // test instrument flies them anyway, so an on-foot still can look at their jets.)
             MechControls::default()
-        } else if let (Some((mut enemy, goal)), Some((player_at, player_vel, player_dead))) = (enemy, player) {
+        } else if let (Some((mut enemy, goal)), Some((player_at, player_vel, player_dead, player_aim_m))) = (enemy, player) {
             // A mission may send it at something else (city-defence: a building to shell).
-            let (target, target_vel, target_dead) = match goal.point {
-                Some(p) => (p, Vec3::ZERO, false),
-                None => (player_at, player_vel, player_dead),
+            let (target, target_vel, target_dead, aim_height_m) = match goal.point {
+                Some(p) => (p, Vec3::ZERO, false, cfg.aim_height_m()),
+                None => (player_at, player_vel, player_dead, player_aim_m),
             };
             let eye = sim.curr.pos + Vec3::Y * cfg.body.eye_height_m;
             let speed = cfg.weapons.first().map_or(850.0, |w| w.speed_m_s);
@@ -1124,6 +1147,7 @@ pub fn step_mech(
             let view = cb_core::ai::View {
                 eye,
                 target,
+                aim_height_m,
                 target_vel,
                 muzzle_speed_m_s: speed,
                 drop: !cfg.weapons.first().is_some_and(|w| w.rocket),
@@ -1160,6 +1184,7 @@ pub fn step_mech(
             dug: &live.dug,
             trees: None,
             structures: Some(&live.structures),
+            platforms: &live.platforms,
         };
         let was_airborne = sim.curr.airborne();
         sim.curr.step(&controls, cfg, &ground, dt);
@@ -1452,6 +1477,7 @@ fn look_point(camera: &GlobalTransform, plan: &cb_core::world::WorldPlan, live: 
         dug: &live.dug,
         trees: None,
         structures: Some(&live.structures),
+        platforms: &live.platforms,
     };
     let (o, d) = (camera.translation(), camera.forward().as_vec3());
     let mut t = 20.0;
@@ -1482,6 +1508,7 @@ fn aim_point(camera: &GlobalTransform, plan: &cb_core::world::WorldPlan, dug: &c
         dug,
         trees: None,
         structures: None,
+        platforms: &[],
     };
     let (o, d) = (camera.translation(), camera.forward().as_vec3());
     let mut t = 5.0;
@@ -1739,7 +1766,12 @@ fn cockpit_layer(
 }
 
 /// The booster flame while boosting: a stream on each jet socket (`FxStream`), switched with the
-/// boost. The smoke trail is lit puffs laid along the jets' path (`smoke_render::jet_trails`).
+/// boost.
+/// A jet socket's smoke trail: the child entity streaming `jet_trail`, kept apart
+/// from the socket's own flame stream so each has its own rate.
+#[derive(Component)]
+struct JetTrail(Entity);
+
 /// A jet's exhaust flame, under its nozzle socket (openspec change `rocket-plumes`).
 #[derive(Component)]
 struct JetPlume;
@@ -1748,6 +1780,7 @@ struct JetPlume;
 fn jet_flames(
     mut commands: Commands,
     mechs: Query<(&MechSim, &MechRig)>,
+    trails: Query<&JetTrail>,
     mut streams: Query<&mut crate::fx::FxStream>,
     mut plumes: Query<(&mut Transform, &mut Visibility), With<JetPlume>>,
     children: Query<&Children>,
@@ -1768,19 +1801,39 @@ fn jet_flames(
         let on = sim.curr.boosting && !sim.dead;
         for jet in ["JET_L", "JET_R"] {
             let Some(&e) = rig.sockets.get(jet) else { continue };
-            match streams.get_mut(e) {
-                Ok(mut s) => {
-                    if s.on != on {
-                        s.on = on;
+            let trail = trails.get(e).ok().map(|t| t.0);
+            match (streams.get(e).is_ok(), trail) {
+                (true, Some(t)) => {
+                    for s in [e, t] {
+                        if let Ok(mut s) = streams.get_mut(s)
+                            && s.on != on
+                        {
+                            s.on = on;
+                        }
                     }
                 }
-                Err(_) => {
-                    commands.entity(e).insert(crate::fx::FxStream {
-                        recipe: "jet_flame",
-                        dir: Vec3::NEG_Y,
-                        on,
-                        density: 1.0,
-                    });
+                _ => {
+                    let child = commands
+                        .spawn((
+                            Name::new("jet trail"),
+                            Transform::default(),
+                            crate::fx::FxStream {
+                                recipe: "jet_trail",
+                                dir: Vec3::NEG_Y,
+                                on,
+                                density: 1.0,
+                            },
+                        ))
+                        .id();
+                    commands.entity(e).add_child(child).insert((
+                        crate::fx::FxStream {
+                            recipe: "jet_flame",
+                            dir: Vec3::NEG_Y,
+                            on,
+                            density: 1.0,
+                        },
+                        JetTrail(child),
+                    ));
                 }
             }
             // The flame under the nozzle, flickering in length while the jets fire.
@@ -1837,19 +1890,30 @@ fn burn(mut commands: Commands, q: Query<(Entity, &GlobalTransform, &Burning)>, 
 }
 
 /// The world transform of a rig socket this frame, composed from local transforms (so it already
-/// includes this frame's pose, before Bevy propagates transforms).
-pub fn socket_now(
+/// includes this frame's pose, before Bevy propagates transforms), without the stride's bob and sway
+/// of the pelvis: where the socket would be with the body carried level. The seated pilot's eye
+/// (owner, 2026-10-25: "I would remove the footstep motion forom the cokcpit entirely").
+pub fn socket_steady(
     rig: &MechRig,
     name: &str,
     transforms: &Query<&Transform, Without<crate::pilot::PilotCamera>>,
     parents: &Query<&ChildOf>,
 ) -> Option<Transform> {
+    let pelvis = BONES.iter().position(|b| b.name == "pelvis").map(|i| rig.bones[i].entity);
+    let local = |e: Entity| {
+        let mut t = transforms.get(e).ok().copied().unwrap_or_default();
+        if Some(e) == pelvis {
+            t.translation -= rig.walk_local;
+        }
+        t
+    };
     let e = *rig.sockets.get(name)?;
-    let mut acc = transforms.get(e).ok().copied()?;
+    transforms.get(e).ok()?;
+    let mut acc = local(e);
     let mut at = e;
     while let Ok(p) = parents.get(at) {
         at = p.parent();
-        acc = transforms.get(at).ok().copied().unwrap_or_default().mul_transform(acc);
+        acc = local(at).mul_transform(acc);
     }
     Some(acc)
 }

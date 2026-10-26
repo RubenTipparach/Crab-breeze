@@ -8,7 +8,7 @@
 use super::config::WaterConfig;
 use super::grid::CellIndex;
 use super::hydrology::Drainage;
-use super::layout::{City, Highway, Rect};
+use super::layout::{Highway, Rect};
 use super::terrain::{Heightfield, ValueNoise, smoothstep};
 use crate::rng::SimRng;
 use glam::Vec2;
@@ -297,7 +297,7 @@ impl Waters {
     /// The channels the rivers cut and the lakes' bowls and banks, for the terrain to carve.
     /// Cities' flat ground (with `city_margin_m` round it) is never cut, nor a highway's flat band
     /// (`road_flat_m` either side of its centre line) except under a bridge.
-    pub fn channels(&self, cfg: &WaterConfig, cities: &[City], city_margin_m: f32, highways: &[Highway], road_flat_m: f32) -> Channels {
+    pub fn channels(&self, cfg: &WaterConfig, keep_out: &[Rect], city_margin_m: f32, highways: &[Highway], road_flat_m: f32) -> Channels {
         Channels {
             rivers: self.rivers.clone(),
             index: self.index.clone(),
@@ -305,7 +305,7 @@ impl Waters {
             depth_m: cfg.river_depth_m,
             max_half_width_m: cfg.river_max_half_width_m,
             bank_slope: cfg.bank_slope,
-            cities: cities.iter().map(|c| c.rect()).collect(),
+            cities: keep_out.to_vec(),
             city_margin_m,
             highways: highways.to_vec(),
             road_flat_m,
@@ -472,7 +472,7 @@ pub fn make_waters(
     rng: &SimRng,
     drainage: &Drainage,
     terrain: &Heightfield,
-    cities: &[City],
+    keep_out: &[Rect],
     highways: &[Highway],
     cfg: &WaterConfig,
     bounds: &WaterBounds,
@@ -482,7 +482,7 @@ pub fn make_waters(
     // A lake stays clear of every city and highway: its bank would cut them.
     let clear = |c: Vec2, r: f32| {
         let reach = (r + BANK_REACH_M) / (1.0 - wobble);
-        cities.iter().all(|k| k.rect().distance(c) > reach + cfg.river_city_clearance_m)
+        keep_out.iter().all(|k| k.distance(c) > reach + cfg.river_city_clearance_m)
             && highways.iter().all(|h| h.project(c).0 > reach + h.width_m)
     };
     let mut lakes = Lakes {
@@ -516,7 +516,10 @@ pub fn make_waters(
         ) * cfg.drainage_cell_m
             * MEANDER_SHARE
     };
-    for course in &drainage.courses {
+    // Rivers off (`WaterConfig::rivers`): no course is traced, so no river, river channel,
+    // waterfall, plunge pool or bridge; the basin lakes above stay.
+    let courses: &[_] = if cfg.rivers { &drainage.courses } else { &[] };
+    for course in courses {
         let mut points: Vec<Vec2> = course.points.iter().map(|&p| p + push(p)).collect();
         // A course that stopped on another river's cell ends on that river's line.
         let mut joins: Option<f32> = None;

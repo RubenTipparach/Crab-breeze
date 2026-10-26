@@ -75,7 +75,8 @@ impl Plugin for StillsPlugin {
             offscreen: None,
         })
         .add_systems(PostStartup, offscreen_for_buildings)
-        .add_systems(Update, run_script);
+        .add_systems(Update, run_script)
+        .add_systems(Last, (hold_poster_hatch, poster_lens));
     }
 }
 
@@ -197,6 +198,71 @@ fn buildings_beats(
     *next = over && (stage != Stage::Fall || script.fall_shots == FALL_SHOTS.len());
 }
 
+/// The poster variant's shots: (where the camera stands round the mech from straight ahead of it,
+/// degrees; knelt and open; how far the view turns off the mech, degrees, so it sits to one side).
+/// The stills script's beat for taking a job on the MAIL page (`CB_STILLS_MAIL`), out of the numbered run: entered
+/// after the outline shot, it goes on to the stride.
+const MAIL_BEAT: usize = 50;
+
+const POSTER_SHOTS: [(f32, bool, f32); 2] = [(45.0, false, 13.0), (45.0, true, 13.0)];
+
+/// How far the poster variant turns the mech from facing the pilot's start, degrees, so it stands
+/// side-on in the frame.
+pub const POSTER_MECH_TURN_DEG: f32 = -90.0;
+
+/// How far the poster camera stands from the mech, metres (the 45 degree lens wants distance).
+const POSTER_RANGE_M: f32 = 62.0;
+
+/// The poster variant's lens: a 45 degree view, everything sharp (the city too), a vignette and a little
+/// chromatic aberration. Runs last, after the settings set the player's lens.
+fn poster_lens(mut commands: Commands, camera: Single<(Entity, &mut Projection), With<crate::pilot::PilotCamera>>, mut added: Local<bool>) {
+    if !crate::cli::switched_off("CB_STILLS_POSTER") {
+        return;
+    }
+    let (e, mut lens) = camera.into_inner();
+    if let Projection::Perspective(p) = lens.as_mut() {
+        p.fov = 45f32.to_radians();
+    }
+    use bevy::post_process::effect_stack::{ChromaticAberration, Vignette};
+    if !*added {
+        *added = true;
+        commands.entity(e).insert((
+            Vignette {
+                intensity: 0.55,
+                radius: 0.9,
+                smoothness: 2.5,
+                ..default()
+            },
+            ChromaticAberration {
+                intensity: 0.004,
+                ..default()
+            },
+        ));
+    }
+}
+
+/// In the poster variant's knelt shots, holds the mech sat down with its chest open: the boarding
+/// clock at "open" whatever the boarding rules would do with no pilot at the stair. Runs last, so
+/// the frame drawn next shows it open.
+fn hold_poster_hatch(script: Res<Script>, data: Res<Data>, mut mechs: Query<&mut MechSim>) {
+    if !crate::cli::switched_off("CB_STILLS_POSTER") || script.beat == 0 {
+        return;
+    }
+    let i = script.beat - 1;
+    if !POSTER_SHOTS.get(i).is_some_and(|s| s.1) {
+        return;
+    }
+    let tl = &data.0.boarding;
+    for mut m in &mut mechs {
+        m.hatch.target = cb_core::boarding::HatchTarget::Open;
+        let open = m.hatch.target_s(tl);
+        m.hatch.step(tl, 0.25);
+        if m.hatch.t_s > open {
+            m.hatch.t_s = open;
+        }
+    }
+}
+
 /// A still of the building variant's offscreen image.
 fn shoot_image(commands: &mut Commands, script: &Script, name: &str) {
     let Some(img) = script.offscreen.clone() else {
@@ -207,7 +273,7 @@ fn shoot_image(commands: &mut Commands, script: &Script, name: &str) {
     commands.spawn(Screenshot::image(img)).observe(save_to_disk(path));
 }
 
-fn shoot(commands: &mut Commands, dir: &std::path::Path, name: &str) {
+pub(crate) fn shoot(commands: &mut Commands, dir: &std::path::Path, name: &str) {
     let path = dir.join(name);
     info!("capture: {}", path.display());
     commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
@@ -228,7 +294,7 @@ fn offscreen_for_buildings(
     mut images: ResMut<Assets<Image>>,
     mut script: ResMut<Script>,
 ) {
-    if !crate::cli::switched_off("CB_STILLS_BUILDINGS") {
+    if !crate::cli::switched_off("CB_STILLS_BUILDINGS") && !crate::cli::switched_off("CB_STILLS_POSTER") {
         return;
     }
     use bevy::camera::RenderTarget;
@@ -260,6 +326,14 @@ fn run_script(
         // The steam shot is taken; frames drawn since the cabin sealed (the screens power up over 2.5 s of game,
         // 10 frames at the cap), counting on through the outline shot.
         Local<(bool, u32)>,
+    ),
+    // `CB_STILLS_MAIL`: where the view points on the MFDs, a career's board (none in free roam), whether the city
+    // defence runs (free roam's mail), and how far through taking the offer the script is (its step, frames in it).
+    (pointed, career, defending, mut mail): (
+        Res<crate::mfd_apps::Pointed>,
+        Option<Res<crate::career::CareerRun>>,
+        Option<Res<crate::defence::Defending>>,
+        Local<(u32, u32)>,
     ),
     time: Res<Time<Real>>,
     game_time: Res<Time<Virtual>>,
@@ -297,6 +371,45 @@ fn run_script(
             &mut exit,
         );
         if next {
+            script.beat += 1;
+            script.beat_started_s = now;
+        }
+        return;
+    }
+    // The poster variant (`CB_STILLS_POSTER=1`, with `--start overlook`): on foot downhill of the
+    // mech, looking up at it with the city and the sun beyond, a few angles standing, then knelt with
+    // its chest open (`hold_poster_hatch`), into the offscreen image.
+    if script.beat >= 1 && crate::cli::switched_off("CB_STILLS_POSTER") {
+        let i = script.beat - 1;
+        if i >= POSTER_SHOTS.len() {
+            // The last screenshot is written a frame or two later.
+            if in_beat > 2.0 {
+                exit.write(AppExit::Success);
+            }
+            return;
+        }
+        let (angle_deg, knelt, turn_deg) = POSTER_SHOTS[i];
+        if access.0.is_none() {
+            return;
+        }
+        let mech = plan.0.start.mech_xz;
+        let ahead = (plan.0.start.pilot_xz - mech).normalize_or(Vec2::Y);
+        if in_beat < 0.05 {
+            let at = mech + Vec2::from_angle(angle_deg.to_radians()).rotate(ahead) * POSTER_RANGE_M;
+            let feet = Vec3::new(at.x, plan.0.terrain.height_at(at.x, at.y), at.y);
+            let to = Vec3::new(mech.x, feet.y, mech.y) - feet;
+            let mut st = PilotState::standing(feet, (-to.x).atan2(-to.z) + turn_deg.to_radians());
+            st.pitch_rad = if knelt { 0.06 } else { 0.13 };
+            pilot.prev = st.clone();
+            pilot.curr = st;
+        }
+        // Standing shots after 4 s; knelt ones once the mech has sat and opened (about 9 s).
+        if in_beat > if knelt { 12.0 } else { 4.0 } {
+            shoot_image(
+                &mut commands,
+                &script,
+                &format!("poster-{i}{}.png", if knelt { "-knelt" } else { "" }),
+            );
             script.beat += 1;
             script.beat_started_s = now;
         }
@@ -411,8 +524,114 @@ fn run_script(
                 steam_shot.1 += 1;
                 steam_shot.1 > 18
             } {
+                if crate::cli::switched_off("CB_STILLS_MAIL") {
+                    steam_shot.1 = 0;
+                    script.beat = MAIL_BEAT;
+                    script.beat_started_s = now;
+                    shoot(&mut commands, &script.dir, "cockpit-outline.png");
+                    return;
+                }
                 shoot(&mut commands, &script.dir, "cockpit-outline.png");
                 next = true;
+            }
+        }
+        // `CB_STILLS_MAIL`: a job taken on the cockpit's MAIL page, as a player takes one in free roam (mission-jobs
+        // 4.1): click the pointed screen (its MENU opens), aim at MAIL and click, aim at the first ACCEPT and click,
+        // aim at BACK and click (the screen's own page again). Aiming is by look input until the row lights, as a
+        // player's mouse does; a click is the press free look and fire make. A still at each step.
+        MAIL_BEAT => {
+            use crate::mfd_apps::{Item, MAIL_PAGE, MENU_PAGE, item_centre};
+            let (step, frames) = &mut *mail;
+            *frames += 1;
+            let seek = |page: usize, item: Item| -> Vec2 {
+                match (pointed.at, item_centre(page, item)) {
+                    (Some(at), Some(c)) => ((c - at) * Vec2::new(0.02, -0.02)).clamp(Vec2::splat(-0.6), Vec2::splat(0.6)),
+                    _ => Vec2::ZERO,
+                }
+            };
+            let mut look = Vec2::ZERO;
+            let mut press = false;
+            let board = career.as_ref().map(|c| &c.career.board);
+            let advance = |step: &mut u32, frames: &mut u32| {
+                *step += 1;
+                *frames = 0;
+            };
+            match *step {
+                // Raise the view onto the screen (the outline beat stops a little under the dash's centre screen),
+                // then click it.
+                0 if pointed.screen.is_none() => look = Vec2::new(0.0, 0.4),
+                0 if *frames > 4 => {
+                    press = true;
+                    advance(step, frames);
+                }
+                1 if *frames > 8 && pointed.page == Some(MENU_PAGE) => {
+                    shoot(&mut commands, &script.dir, "mfd-menu.png");
+                    advance(step, frames);
+                }
+                2 => {
+                    look = seek(MENU_PAGE, Item::Mail);
+                    if pointed.item == Some(Item::Mail) && *frames > 4 {
+                        press = true;
+                        advance(step, frames);
+                    }
+                }
+                3 => {
+                    // A career's job offered, or free roam's standing city defence.
+                    let offered = board.is_none_or(|b| b.jobs.iter().any(|j| j.state == cb_core::jobs::JobState::Offered));
+                    if *frames > 8 && pointed.page == Some(MAIL_PAGE) && offered {
+                        shoot(&mut commands, &script.dir, "mfd-mail.png");
+                        advance(step, frames);
+                    }
+                }
+                4 => {
+                    look = seek(MAIL_PAGE, Item::Accept(0));
+                    if pointed.item == Some(Item::Accept(0)) && *frames > 4 {
+                        press = true;
+                        advance(step, frames);
+                    }
+                }
+                5 if *frames > 8 && (defending.is_some() || board.is_some_and(|b| b.current().is_some())) => {
+                    match board.and_then(|b| b.current()) {
+                        Some(j) => println!(
+                            "STILLS_MAIL accepted job {} at ({:.0}, {:.0}), {} mechs",
+                            j.id, j.site.x, j.site.y, j.mechs
+                        ),
+                        None => println!("STILLS_MAIL accepted the city defence"),
+                    }
+                    shoot(&mut commands, &script.dir, "mfd-accepted.png");
+                    advance(step, frames);
+                }
+                6 => {
+                    look = seek(MAIL_PAGE, Item::Back);
+                    if pointed.item == Some(Item::Back) && *frames > 4 {
+                        press = true;
+                        advance(step, frames);
+                    }
+                }
+                7 if *frames > 8 && pointed.page.is_some_and(|p| p < MENU_PAGE) => {
+                    println!("STILLS_MAIL back on page {:?}", pointed.page);
+                    shoot(&mut commands, &script.dir, "mfd-back.png");
+                    next = true;
+                }
+                _ => {}
+            }
+            if in_beat > 900.0 && !next {
+                println!("STILLS_MAIL stuck at step {} (pointed {:?})", *step, *pointed);
+                next = true;
+            }
+            // The aim goes in once a frame, as a mouse's does (`look_deg` is taken by the next fixed step only): held in
+            // the script's actions it would turn the view again on every step of a long software-rendered frame.
+            acc.script = Some(Actions {
+                free_look: true,
+                ..default()
+            });
+            acc.look_deg += look;
+            acc.mfd_press |= press;
+            if next {
+                // On to the stride, as after the outline shot.
+                script.beat = 6;
+                script.beat_started_s = now;
+                return;
             }
         }
         // Stand up and stride: throttle forward (the mech stands first), hold, measure frame time
@@ -593,12 +812,157 @@ impl Plugin for FxStillsPlugin {
             soil: None,
             done: Vec::new(),
         })
-        .add_systems(Update, run_fx_script);
+        .add_systems(Update, (run_fx_script, run_depth_bench));
+    }
+}
+
+/// One test of the particle depth bench (openspec change `particle-depth`): a recipe, where it plays relative
+/// to the pilot (metres ahead, metres up), and whether it is a moving stream rather than a one-off.
+struct DepthTest {
+    name: &'static str,
+    recipe: &'static str,
+    ahead_m: f32,
+    up_m: f32,
+    stream: bool,
+}
+
+const DEPTH_TESTS: [DepthTest; 5] = [
+    DepthTest {
+        name: "ground-near",
+        recipe: "explosion_ground",
+        ahead_m: 15.0,
+        up_m: 0.0,
+        stream: false,
+    },
+    DepthTest {
+        name: "ground-far",
+        recipe: "explosion_ground",
+        ahead_m: 450.0,
+        up_m: 0.0,
+        stream: false,
+    },
+    DepthTest {
+        name: "trail",
+        recipe: "jet_trail",
+        ahead_m: 120.0,
+        up_m: 30.0,
+        stream: true,
+    },
+    DepthTest {
+        name: "skate",
+        recipe: "skate_dirt",
+        ahead_m: 40.0,
+        up_m: 0.5,
+        stream: true,
+    },
+    DepthTest {
+        name: "sky",
+        recipe: "explosion_air",
+        ahead_m: 300.0,
+        up_m: 300.0,
+        stream: false,
+    },
+];
+
+/// Seconds each depth test runs; stills at 0.5 s and 3 s from one heading, and at 3.5 s from 20 degrees round.
+const DEPTH_TEST_S: f32 = 4.5;
+
+/// The particle depth bench (`CB_STILLS_FX=depth`, openspec change `particle-depth`): the pilot stands by their
+/// mech and each test plays in turn in front of them; a stream test's emitter crosses the view at 30 m/s. A
+/// measurement instrument: it writes stills (`depth-<test>-<shot>.png`) and exits, and says nothing of frame time.
+#[allow(clippy::too_many_arguments)]
+fn run_depth_bench(
+    mut commands: Commands,
+    script: Res<FxScript>,
+    mut pilot: ResMut<PilotSim>,
+    access: Res<MechAccessNow>,
+    time: Res<Time>,
+    plan: Res<crate::world::Plan>,
+    mut fx: MessageWriter<crate::fx::Fx>,
+    mut streams: Query<(&mut Transform, &mut crate::fx::FxStream)>,
+    mut exit: MessageWriter<AppExit>,
+    mut state: Local<Option<(f32, usize, Vec<&'static str>, Option<Entity>)>>,
+) {
+    use cb_core::world::Ground;
+    if script.beat != usize::MAX {
+        return;
+    }
+    let now = time.elapsed_secs();
+    let (start_s, test, done, emitter) = state.get_or_insert((now, 0, Vec::new(), None));
+    let Some(home) = access.0.map(|a| a.ladder_base) else { return };
+    // Stand 20 m off the mech's ladder on the heading with the longest run of open ground (no building within
+    // 4 m of the line, out to 450 m), looking along it.
+    let clear = |p: Vec3| plan.collision.push_out_at(p.xz(), 4.0, plan.height_at(p.x, p.z)).distance(p.xz()) < 1e-3;
+    let (heading, _) = (0..32)
+        .map(|i| {
+            let a = i as f32 / 32.0 * std::f32::consts::TAU;
+            let d = Vec3::new(a.cos(), 0.0, a.sin());
+            let run = (4..=450).step_by(5).take_while(|&m| clear(home + d * m as f32)).last().unwrap_or(0);
+            (a, run)
+        })
+        .max_by_key(|&(_, run)| run)
+        .unwrap_or((0.0, 0));
+    let along = Vec3::new(heading.cos(), 0.0, heading.sin());
+    let side = Vec3::new(-along.z, 0.0, along.x);
+    let p = home + along * 20.0;
+    let feet = Vec3::new(p.x, plan.height_at(p.x, p.z), p.z);
+    let t = now - *start_s;
+    let Some(d) = DEPTH_TESTS.get(*test) else {
+        exit.write(AppExit::Success);
+        return;
+    };
+    let turn = if t > 3.2 { 20f32.to_radians() } else { 0.0 };
+    let fwd = along * turn.cos() + side * turn.sin();
+    let target = |ahead: f32| {
+        let p = feet + along * ahead;
+        Vec3::new(p.x, plan.height_at(p.x, p.z), p.z)
+    };
+    let at = target(d.ahead_m) + Vec3::Y * d.up_m;
+    stand_looking(&mut pilot, feet, feet + fwd * d.ahead_m + Vec3::Y * (at.y - feet.y + 1.7));
+    if !done.contains(&"start") {
+        done.push("start");
+        if d.stream {
+            *emitter = Some(
+                commands
+                    .spawn((
+                        Name::new("depth bench emitter"),
+                        Transform::from_translation(at - side * 60.0),
+                        crate::fx::FxStream {
+                            recipe: d.recipe,
+                            dir: Vec3::NEG_Y,
+                            on: true,
+                            density: 1.0,
+                        },
+                    ))
+                    .id(),
+            );
+        } else {
+            fx.write(crate::fx::Fx::new(d.recipe, at));
+        }
+    }
+    if let Some(Ok((mut tf, _))) = emitter.map(|e| streams.get_mut(e)) {
+        tf.translation = at + side * (t * 30.0 - 60.0);
+    }
+    for (when, shot) in [(0.5, "a"), (3.0, "b"), (3.9, "turned")] {
+        if t > when && !done.contains(&shot) {
+            done.push(shot);
+            shoot(&mut commands, &script.dir, &format!("depth-{}-{}.png", d.name, shot));
+        }
+    }
+    if t > DEPTH_TEST_S {
+        if let Some(e) = emitter.take()
+            && let Ok((_, mut s)) = streams.get_mut(e)
+        {
+            s.on = false;
+        }
+        *test += 1;
+        *start_s = now;
+        done.clear();
     }
 }
 
 /// The pilot on foot at `feet`, looking at `at`.
-fn stand_looking(pilot: &mut PilotSim, feet: Vec3, at: Vec3) {
+pub(crate) fn stand_looking(pilot: &mut PilotSim, feet: Vec3, at: Vec3) {
     let to = at - feet;
     let mut s = PilotState::standing(feet, (-to.x).atan2(-to.z));
     s.pitch_rad = (to.y - 1.7).atan2(to.with_y(0.0).length());
@@ -644,6 +1008,11 @@ fn run_fx_script(
             // `CB_STILLS_FX=soil` stages the blasts on soil alone, with a still every half second.
             if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "soil") {
                 script.beat = 2;
+            }
+            // `CB_STILLS_FX=depth` is the particle depth bench (`run_depth_bench`) alone.
+            if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "depth") {
+                script.beat = usize::MAX;
+                return;
             }
             if next {
                 // The nearest live enemy to the player's mech.

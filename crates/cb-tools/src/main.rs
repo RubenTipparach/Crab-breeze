@@ -2,6 +2,7 @@
 //! same loader the game uses (CLAUDE.md section 11), so a file that would stop the game stops here.
 //! `cities` and `map` are instruments: a seed's cities, and its island drawn from above.
 
+mod audio_check;
 mod glb;
 mod map;
 
@@ -46,6 +47,32 @@ fn main() -> ExitCode {
                 let problems = glb::check_skins(&d.skins, &root.join("..").join("assets"));
                 if problems.is_empty() {
                     println!("ok   {} enemy skins", d.skins.skins.len());
+                }
+                for p in problems {
+                    eprintln!("FAIL {p}");
+                    ok = false;
+                }
+                // the sounds: every file there, every placed one mono, music tempos match the scores
+                let repo = root.join("..");
+                let problems = audio_check::check_audio(&d.audio, &repo.join("assets"), &repo.join("music"));
+                if problems.is_empty() {
+                    println!(
+                        "ok   {} sound effects, {} ambience beds, {} music cues",
+                        d.audio.cues.cues.len(),
+                        d.audio.ambience.beds.len(),
+                        d.audio.music.cues.len()
+                    );
+                }
+                for p in problems {
+                    eprintln!("FAIL {p}");
+                    ok = false;
+                }
+            }
+            // the Hermit's model against its shape data (crab-airship)
+            if let Ok(d) = GameData::load(&root, &mechs[0]) {
+                let problems = glb::check_fortress(&d.fortress, &root.join("..").join("assets"));
+                if problems.is_empty() {
+                    println!("ok   the Hermit ({} parts)", d.fortress.shape.parts.len());
                 }
                 for p in problems {
                     eprintln!("FAIL {p}");

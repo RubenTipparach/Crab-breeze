@@ -13,6 +13,10 @@ use serde::Deserialize;
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct WaterConfig {
+    /// Rivers on the island, with their lakes, waterfalls, channels and bridges. Off, the only water
+    /// is the sea (owner, 2026-10-25: "can you remove all river stuff from the game?", "they dont
+    /// integrate well with the terrain").
+    pub rivers: bool,
     /// Every city's ground stands at least this far above sea level.
     pub city_freeboard_m: f32,
     /// Cell size of the drainage grid.
@@ -64,6 +68,7 @@ pub struct WaterConfig {
 impl Default for WaterConfig {
     fn default() -> Self {
         Self {
+            rivers: true,
             city_freeboard_m: 2.0,
             drainage_cell_m: 128.0,
             lowland_rain: 0.08,
@@ -660,6 +665,8 @@ pub struct WorldConfig {
     pub highway_flat_margin_m: f32,
     /// Width over which a highway's grading blends back into the hills.
     pub highway_blend_m: f32,
+    /// Air bases (air-bases).
+    pub bases: super::bases::BasesConfig,
     /// The terrain's baked shadow for far ground (distant-shadows).
     pub sun_shade: super::sun_shade::SunShadeConfig,
     /// Height of a road surface above the ground under it (no z-fighting).
@@ -792,6 +799,7 @@ impl Default for WorldConfig {
             highway_width_m: 28.0,
             highway_flat_margin_m: 12.0,
             highway_blend_m: 60.0,
+            bases: super::bases::BasesConfig::default(),
             sun_shade: super::sun_shade::SunShadeConfig::default(),
             road_lift_m: 0.15,
             kerb_height_m: 0.2,
@@ -872,6 +880,7 @@ impl Validate for WorldConfig {
         positive("highway_width_m", self.highway_width_m)?;
         positive("highway_blend_m", self.highway_blend_m)?;
         positive("road_lift_m", self.road_lift_m)?;
+        self.bases.validate()?;
         self.sun_shade.validate()?;
         positive("kerb_height_m", self.kerb_height_m)?;
         if self.kerb_height_m <= self.road_lift_m {
