@@ -10,6 +10,7 @@ pub mod audio;
 pub mod battle_fx;
 pub mod boarding;
 pub mod career;
+pub mod civilians;
 pub mod cockpit;
 pub mod data;
 pub mod fortress;
@@ -84,6 +85,8 @@ pub struct GameData {
     pub missions: missions::MissionsMail,
     /// `data/audio/cues.ron`, `music.ron` and `ambience.ron`.
     pub audio: audio::AudioData,
+    /// `data/people/people.ron` and `lines.ron` (openspec change `civilians`).
+    pub people: civilians::PeopleData,
 }
 
 impl GameData {
@@ -153,6 +156,10 @@ impl GameData {
                 cues: data::load_ron(&root.join("audio/cues.ron"))?,
                 music: data::load_ron(&root.join("audio/music.ron"))?,
                 ambience: data::load_ron(&root.join("audio/ambience.ron"))?,
+            },
+            people: civilians::PeopleData {
+                cfg: data::load_ron(&root.join("people/people.ron"))?,
+                lines: data::load_ron(&root.join("people/lines.ron"))?,
             },
         })
     }
