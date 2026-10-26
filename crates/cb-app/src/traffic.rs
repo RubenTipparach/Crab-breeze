@@ -94,6 +94,9 @@ struct Dash {
 struct Spin {
     wheels: [(Entity, Quat); 4],
     angle_rad: f32,
+    /// The spin and steer the wheels were last drawn at.
+    drawn_rad: f32,
+    drawn_steer_rad: f32,
 }
 
 /// Draws a running driver.
@@ -523,6 +526,8 @@ fn find_wheels(
             commands.entity(root).insert(Spin {
                 wheels: [a, b, c, d],
                 angle_rad: 0.0,
+                drawn_rad: 0.0,
+                drawn_steer_rad: 0.0,
             });
         }
     }
@@ -533,16 +538,38 @@ fn spin_wheels(
     sim: Res<TrafficSim>,
     data: Res<Data>,
     time: Res<Time>,
+    eye: Query<&GlobalTransform, With<crate::pilot::PilotCamera>>,
     mut cars: Query<(&CarDraw, &mut Spin)>,
     mut tf: Query<&mut Transform, Without<CarDraw>>,
+    mut count: Local<(u64, u64, f32)>,
 ) {
     let dt = time.delta_secs();
+    let eye = eye.iter().next().map(|g| g.translation());
+    let mut writes = 0u64;
     for (d, mut spin) in &mut cars {
         let Some(c) = sim.traffic.get(d.id) else { continue };
         let spec = &data.0.traffic.kinds[d.kind];
         let v = c.body.as_ref().map_or(c.speed_m_s, |b| b.speed_m_s());
         spin.angle_rad = (spin.angle_rad - v / spec.wheel_radius_m * dt).rem_euclid(std::f32::consts::TAU);
         let steer = c.body.as_ref().map_or(0.0, |b| b.steer_rad);
+        // Written only when the change would show from the eye (`car::wheel_redraw_due`): a far car's wheels are a
+        // few pixels and their spin is never seen.
+        let far = eye.map_or(0.0, |e| e.distance(c.pos));
+        // `CB_WHEELS_EVERY_FRAME=1` (perf-bench switch): the old rule, every wheel every frame, for the before count.
+        static EVERY: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        let every = *EVERY.get_or_init(|| crate::cli::switched_off("CB_WHEELS_EVERY_FRAME"));
+        if !every
+            && !cb_core::car::wheel_redraw_due(
+                spin.angle_rad - spin.drawn_rad,
+                steer - spin.drawn_steer_rad,
+                spec.wheel_radius_m,
+                far,
+            )
+        {
+            continue;
+        }
+        spin.drawn_rad = spin.angle_rad;
+        spin.drawn_steer_rad = steer;
         for (i, (e, rest)) in spin.wheels.iter().enumerate() {
             if let Ok(mut t) = tf.get_mut(*e) {
                 let turn = if i < 2 { Quat::from_rotation_y(-steer) } else { Quat::IDENTITY };
@@ -550,9 +577,23 @@ fn spin_wheels(
                 // A wheel at rest is left alone (see `draw_cars`).
                 if t.rotation != rotation {
                     t.rotation = rotation;
+                    writes += 1;
                 }
             }
         }
+    }
+    // The writes a frame, said every 10 s: an instrument for the 3070 report's finding 1 (about 1 200 a frame there).
+    let (sum, frames, since) = &mut *count;
+    *sum += writes;
+    *frames += 1;
+    *since += dt;
+    if *since >= 10.0 {
+        info!(
+            "wheels: {:.0} transform writes a frame over the last {:.0} s",
+            *sum as f32 / (*frames).max(1) as f32,
+            *since
+        );
+        *count = (0, 0, 0.0);
     }
 }
 
