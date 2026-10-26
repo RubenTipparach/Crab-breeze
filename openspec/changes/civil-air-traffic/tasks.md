@@ -26,7 +26,7 @@
 - [x] 3.3 Block-out stand-ins drawn from the shape table; rotors and propellers turn
 - [x] 3.4 Neutral boxes (`CIV`), the TARGET page's name, the lock boxes on a deliberately selected one
 - [x] 3.5 Jet engine loop (stand-in cue `airliner_jet`)
-- [ ] 3.6 The mockup page `docs/mockups/civil_aircraft.html` from `tools/mockups/gen_civil_aircraft.py`
+- [x] 3.6 The mockup page `docs/mockups/civil_aircraft.html` from `tools/mockups/gen_civil_aircraft.py`
 - [ ] 3.7 The owner approves the stand-ins' shapes and sizes on the mockup page
 - [ ] 3.8 Blender models with LODs and PBR sets, after 3.7
 - [ ] 3.9 Recorded engine, propeller and rotor sounds (W49)
