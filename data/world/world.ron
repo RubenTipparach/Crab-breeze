@@ -392,6 +392,16 @@
         // furniture").
         rooms_radius_m: 250.0,
         rooms_margin_m: 20.0,
+        // Past the dressing, to 1.5 km, a building shows its massing (parapet, cornice, roof props
+        // from its own dressing) over walls wearing its own type's facade; beyond, the walls alone
+        // (openspec/changes/building-type-lods; owner, 2026-10-25: "for each building type we're
+        // gonna need a custom LOD texture/mesh for them"). The massing gives way to the plain box at
+        // 1.5 km (survey L2, owner 2026-10-26: "Approve all").
+        massing_radius_m: 1500.0,
+        massing_pieces: 16,
+        massing_per_frame: 12,
+        // A detail that shows is kept to 1.15 times its radius, so a building on the line does not flicker.
+        keep_ratio: 1.15,
     ),
     // Street doors, stairs and the colliders a pilot on foot walks into
     // (openspec/changes/building-interiors; owner, 2026-10-25: "each building needs doors and

@@ -111,6 +111,15 @@ impl GameData {
     /// (relative to `root`) and its boarding timeline beside it (`mechs/<name>/boarding.ron`). The first failure is returned, naming its file and field.
     pub fn load(root: &Path, mech: &str) -> Result<Self, data::DataError> {
         let world: world::WorldConfig = data::load_ron(&root.join("world/world.ron"))?;
+        let audio = audio::AudioData {
+            cues: data::load_ron(&root.join("audio/cues.ron"))?,
+            music: data::load_ron(&root.join("audio/music.ron"))?,
+            ambience: data::load_ron(&root.join("audio/ambience.ron"))?,
+        };
+        audio.check().map_err(|reason| data::DataError {
+            path: root.join("audio/music.ron"),
+            reason,
+        })?;
         let skins_path = root.join("enemies/skins.ron");
         let skins: skins::Skins = data::load_ron(&skins_path)?;
         let encounters: ai::Encounters = data::load_ron(&root.join("world/encounters.ron"))?;
@@ -185,11 +194,7 @@ impl GameData {
             skins,
             fortress,
             missions: data::load_ron(&root.join("missions/mail.ron"))?,
-            audio: audio::AudioData {
-                cues: data::load_ron(&root.join("audio/cues.ron"))?,
-                music: data::load_ron(&root.join("audio/music.ron"))?,
-                ambience: data::load_ron(&root.join("audio/ambience.ron"))?,
-            },
+            audio,
             traffic: traffic::TrafficData::load(root)?,
             people: civilians::PeopleData {
                 cfg: data::load_ron(&root.join("people/people.ron"))?,

@@ -20,3 +20,10 @@ Every building type SHALL have a baked far facade and a massing recipe; a type w
 #### Scenario: A new type without a bake
 - **WHEN** a building type is added with no baked far facade
 - **THEN** `every_building_type_has_its_far_look` fails and names the type
+
+### Requirement: The far shape gives way to a plain box at 1.5 km
+A building past the dressing radius and within 1.5 km SHALL show its massing (parapet, cornice, roof props) over walls in its type's far facade; beyond 1.5 km it SHALL be a plain box in that facade. A detail already showing SHALL be kept to 1.15 times its radius.
+
+#### Scenario: Crossing 1.5 km
+- **WHEN** a building showing its massing moves from 1.4 km to 1.6 km away
+- **THEN** it keeps its massing, and drops to the plain box only past 1.725 km

@@ -426,9 +426,100 @@ pub fn music_state(i: &MusicInputs, hold_s: f32) -> MusicState {
 
 /// The time of the next bar line at or after `t_s` for a cue started at `t0_s`.
 pub fn next_bar_s(t_s: f32, t0_s: f32, bpm: f32, beats_per_bar: f32) -> f32 {
-    let bar = 60.0 / bpm * beats_per_bar;
+    let bar = bar_s(bpm, beats_per_bar);
     let bars = ((t_s - t0_s) / bar).max(0.0).ceil();
     t0_s + bars * bar
+}
+
+/// What is playing, for the switch rule: its state, when it started and its bar.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Playing {
+    /// The state whose cue it is.
+    pub state: MusicState,
+    /// When it started, s.
+    pub started_s: f32,
+    /// Its tempo.
+    pub bpm: f32,
+    /// Beats in its bar.
+    pub beats_per_bar: f32,
+}
+
+impl Playing {
+    /// One bar of this cue, s.
+    pub fn bar_s(&self) -> f32 {
+        bar_s(self.bpm, self.beats_per_bar)
+    }
+}
+
+/// One bar at `bpm` with `beats_per_bar` beats, s.
+pub fn bar_s(bpm: f32, beats_per_bar: f32) -> f32 {
+    60.0 / bpm * beats_per_bar
+}
+
+/// The switch the music waits for: at `at_s`, to `to`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Switch {
+    /// When, s: the next bar line of the cue that is playing (now, from silence).
+    pub at_s: f32,
+    /// To what.
+    pub to: MusicState,
+}
+
+/// The switch pending after this frame (`music` design section 3; survey A2, owner 2026-10-26): none when the
+/// music already plays `target`, so a state that flips back before the bar line cancels its switch; otherwise the
+/// one already waiting for that target, or a new one on the next bar line of what plays (now, from silence).
+pub fn plan_switch(playing: Option<&Playing>, target: MusicState, pending: Option<Switch>, now_s: f32) -> Option<Switch> {
+    let current = playing.map_or(MusicState::Silent, |p| p.state);
+    if target == current {
+        return None;
+    }
+    if let Some(p) = pending.filter(|p| p.to == target) {
+        return Some(p);
+    }
+    let at_s = match playing {
+        Some(p) => next_bar_s(now_s, p.started_s, p.bpm, p.beats_per_bar),
+        None => now_s,
+    };
+    Some(Switch { at_s, to: target })
+}
+
+/// How long a switch from `old` to `new` fades, s: into a cue, over `crossfade_bars` bars of the new cue (both
+/// fade together); into silence, over `fade_out_bars` bars of the old one.
+pub fn fade_s(cfg: &MusicConfig, old: Option<&Playing>, new: Option<&MusicCue>) -> f32 {
+    match (new, old) {
+        (Some(c), _) => cfg.crossfade_bars * bar_s(c.bpm, c.beats_per_bar),
+        (None, Some(o)) => cfg.fade_out_bars * o.bar_s(),
+        (None, None) => 0.0,
+    }
+}
+
+/// The level the score ducks to this frame, dB (survey A3, owner 2026-10-26): `duck_db` while any cue in
+/// `duck_under` plays (the radio and the alarms), else 0.
+pub fn duck_target_db<'a>(cfg: &MusicConfig, playing: impl IntoIterator<Item = &'a str>) -> f32 {
+    if playing.into_iter().any(|c| cfg.duck_under.iter().any(|d| d == c)) {
+        cfg.duck_db
+    } else {
+        0.0
+    }
+}
+
+/// Moves the duck from `current_db` toward `target_db` over `dt_s`: down in `duck_attack_s`, back up in
+/// `duck_release_s`, never past the target.
+pub fn duck_step(cfg: &MusicConfig, current_db: f32, target_db: f32, dt_s: f32) -> f32 {
+    let tau = if target_db < current_db {
+        cfg.duck_attack_s
+    } else {
+        cfg.duck_release_s
+    };
+    ease(current_db, target_db, dt_s, tau)
+}
+
+/// How far a fade begun at `from_s` and lasting `fade_s` has come at `now_s`, 0 to 1.
+pub fn fade_progress(now_s: f32, from_s: f32, fade_s: f32) -> f32 {
+    if fade_s <= 0.0 {
+        return 1.0;
+    }
+    ((now_s - from_s) / fade_s).clamp(0.0, 1.0)
 }
 
 /// One music cue (`data/audio/music.ron`).
@@ -470,6 +561,15 @@ pub struct MusicConfig {
     pub hold_s: f32,
     /// The music's level, dB.
     pub volume_db: f32,
+    /// How far the score ducks while a cue in `duck_under` plays, dB (survey A3: "ducks under the radio and the
+    /// alarms").
+    pub duck_db: f32,
+    /// The sound effects the score ducks under (`data/audio/cues.ron` names): the radio and the alarms.
+    pub duck_under: Vec<String>,
+    /// The duck comes down with this time constant, s.
+    pub duck_attack_s: f32,
+    /// ...and goes back up with this one, s.
+    pub duck_release_s: f32,
 }
 
 impl Default for MusicConfig {
@@ -480,6 +580,10 @@ impl Default for MusicConfig {
             fade_out_bars: 2.0,
             hold_s: 30.0,
             volume_db: -4.0,
+            duck_db: -6.0,
+            duck_under: Vec::new(),
+            duck_attack_s: 0.05,
+            duck_release_s: 0.6,
         }
     }
 }
@@ -490,6 +594,9 @@ impl Validate for MusicConfig {
         positive("fade_out_bars", self.fade_out_bars)?;
         positive("hold_s", self.hold_s)?;
         within("volume_db", self.volume_db, -60.0, 12.0)?;
+        within("duck_db", self.duck_db, -40.0, 0.0)?;
+        positive("duck_attack_s", self.duck_attack_s)?;
+        positive("duck_release_s", self.duck_release_s)?;
         let known = ["title", "boarding", "combat", "set_piece", "won"];
         for (key, cue) in &self.cues {
             if !known.contains(&key.as_str()) {
@@ -682,6 +789,18 @@ pub struct AudioData {
     pub ambience: AmbienceConfig,
 }
 
+impl AudioData {
+    /// What one file cannot check alone: every cue the music ducks under is a sound effect in `cues.ron`.
+    pub fn check(&self) -> Result<(), String> {
+        for name in &self.music.duck_under {
+            if !self.cues.cues.contains_key(name) {
+                return Err(format!("`duck_under` names `{name}`, which is not a cue in cues.ron"));
+            }
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -861,6 +980,151 @@ mod tests {
         // 120 BPM in 4: a bar is 2 s. Started at 1 s, a change at 4.5 s lands at 5 s.
         assert!((next_bar_s(4.5, 1.0, 120.0, 4.0) - 5.0).abs() < 1e-5);
         assert!((next_bar_s(5.0, 1.0, 120.0, 4.0) - 5.0).abs() < 1e-5);
+    }
+
+    fn playing(state: MusicState, started_s: f32) -> Playing {
+        // 120 BPM in 4: a bar is 2 s
+        Playing {
+            state,
+            started_s,
+            bpm: 120.0,
+            beats_per_bar: 4.0,
+        }
+    }
+
+    #[test]
+    fn every_state_but_silence_has_its_own_cue() {
+        // survey A2 (owner, 2026-10-26: "Approve all"): title, boarding, combat, set piece, won; on foot is silent
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/audio");
+        let music: MusicConfig = crate::data::load_ron(&root.join("music.ron")).expect("music.ron");
+        let states = [
+            MusicState::Title,
+            MusicState::Boarding,
+            MusicState::Combat,
+            MusicState::SetPiece,
+            MusicState::Won,
+        ];
+        let mut files: Vec<&str> = states.iter().map(|s| music.cues[s.key().unwrap()].file.as_str()).collect();
+        files.sort_unstable();
+        files.dedup();
+        assert_eq!(files.len(), states.len(), "one cue per state, none shared");
+        assert_eq!(MusicState::Silent.key(), None);
+        assert_eq!(music.crossfade_bars, 1.0, "a one-bar crossfade");
+    }
+
+    #[test]
+    fn a_switch_waits_for_the_bar_line_of_what_plays() {
+        let p = playing(MusicState::Boarding, 1.0);
+        let sw = plan_switch(Some(&p), MusicState::Combat, None, 4.5).unwrap();
+        assert_eq!(sw.to, MusicState::Combat);
+        assert!((sw.at_s - 5.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn from_silence_a_cue_starts_at_once() {
+        let sw = plan_switch(None, MusicState::Combat, None, 7.25).unwrap();
+        assert_eq!(sw.at_s, 7.25);
+    }
+
+    #[test]
+    fn a_state_that_flips_back_before_the_bar_cancels_its_switch() {
+        let p = playing(MusicState::Combat, 0.0);
+        let sw = plan_switch(Some(&p), MusicState::Silent, None, 0.5);
+        assert!(sw.is_some());
+        assert_eq!(plan_switch(Some(&p), MusicState::Combat, sw, 0.9), None);
+    }
+
+    #[test]
+    fn a_waiting_switch_keeps_its_bar_line() {
+        // asked again next frame, the switch does not slide to a later bar
+        let p = playing(MusicState::Combat, 0.0);
+        let sw = plan_switch(Some(&p), MusicState::Won, None, 0.5);
+        assert_eq!(plan_switch(Some(&p), MusicState::Won, sw, 1.9), sw);
+    }
+
+    #[test]
+    fn a_crossfade_takes_one_bar_of_the_new_cue_and_silence_two_of_the_old() {
+        let cfg = MusicConfig::default();
+        let old = playing(MusicState::Combat, 0.0);
+        let new = MusicCue {
+            bpm: 60.0,
+            beats_per_bar: 4.0,
+            ..Default::default()
+        };
+        assert!((fade_s(&cfg, Some(&old), Some(&new)) - 4.0).abs() < 1e-5);
+        assert!((fade_s(&cfg, Some(&old), None) - 4.0).abs() < 1e-5);
+        assert_eq!(fade_progress(1.0, 0.0, 4.0), 0.25);
+        assert_eq!(fade_progress(9.0, 0.0, 4.0), 1.0);
+        assert_eq!(fade_progress(0.0, 0.0, 0.0), 1.0);
+    }
+
+    fn ducking() -> MusicConfig {
+        MusicConfig {
+            duck_under: vec!["radio_squelch".into(), "alarm_warning".into(), "heat_lock".into()],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn the_score_ducks_six_db_under_the_radio_and_the_alarms() {
+        // survey A3 (owner, 2026-10-26: "Approve all")
+        let cfg = ducking();
+        assert_eq!(duck_target_db(&cfg, ["radio_squelch"]), -6.0);
+        assert_eq!(duck_target_db(&cfg, ["foot_stomp", "alarm_warning"]), -6.0);
+        assert_eq!(duck_target_db(&cfg, ["heat_lock"]), -6.0);
+    }
+
+    #[test]
+    fn the_score_plays_over_everything_else() {
+        let cfg = ducking();
+        assert_eq!(duck_target_db(&cfg, ["foot_stomp", "lock_tone", "cannon", "reactor_hum"]), 0.0);
+        assert_eq!(duck_target_db(&cfg, std::iter::empty::<&str>()), 0.0);
+    }
+
+    #[test]
+    fn the_duck_comes_down_fast_and_recovers_slowly() {
+        let cfg = ducking();
+        let down = duck_step(&cfg, 0.0, -6.0, 0.05);
+        let up = duck_step(&cfg, -6.0, 0.0, 0.05);
+        assert!(down < -3.0, "most of the way down in one attack time: {down}");
+        assert!(up < -5.0, "barely back up in the same time: {up}");
+        assert!(duck_step(&cfg, -6.0, -6.0, 1.0) == -6.0);
+        let mut db = -6.0;
+        for _ in 0..300 {
+            db = duck_step(&cfg, db, 0.0, 1.0 / 60.0);
+            assert!(db <= 0.0, "never past the target");
+        }
+        assert!(db > -0.01);
+    }
+
+    #[test]
+    fn ducking_names_only_real_cues() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/audio");
+        let mut audio = AudioData {
+            cues: crate::data::load_ron(&root.join("cues.ron")).expect("cues.ron"),
+            music: crate::data::load_ron(&root.join("music.ron")).expect("music.ron"),
+            ambience: crate::data::load_ron(&root.join("ambience.ron")).expect("ambience.ron"),
+        };
+        assert!(audio.check().is_ok());
+        assert!(
+            audio.music.duck_under.iter().any(|c| c == "radio_squelch"),
+            "the radio ducks the score"
+        );
+        assert!(
+            audio.music.duck_under.iter().any(|c| c == "alarm_warning"),
+            "the alarm ducks the score"
+        );
+        audio.music.duck_under.push("no_such_cue".into());
+        assert!(audio.check().unwrap_err().contains("no_such_cue"));
+    }
+
+    #[test]
+    fn a_duck_that_boosts_is_refused() {
+        let cfg = MusicConfig {
+            duck_db: 3.0,
+            ..Default::default()
+        };
+        assert!(cfg.validate().is_err());
     }
 
     fn zone() -> ZoneInputs {

@@ -490,7 +490,8 @@ fn play(
                 } => {
                     if live_lights.len() - light_at >= cfg.max_lights as usize {
                         if let Some((old, _)) = live_lights.get(light_at) {
-                            commands.entity(*old).despawn();
+                            // its fade may have despawned it this same frame (`fade_flashes`)
+                            commands.entity(*old).try_despawn();
                         }
                         light_at += 1;
                     }
@@ -873,7 +874,8 @@ fn fade_flashes(mut commands: Commands, time: Res<Time>, mut q: Query<(Entity, &
     for (e, mut l, mut f) in &mut q {
         f.age += time.delta_secs();
         if f.age > f.life {
-            commands.entity(e).despawn();
+            // the light budget may have evicted it this same frame (`play`)
+            commands.entity(e).try_despawn();
         } else {
             l.intensity = f.lumens * (1.0 - f.age / f.life).powi(2);
         }

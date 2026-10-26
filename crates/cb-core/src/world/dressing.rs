@@ -15,6 +15,7 @@
 
 use super::interior::{self, DoorKind, Entrance, Shell};
 use crate::rng::SimRng;
+use crate::world::far_facade::{FacadeKind, FarVariant};
 use glam::Vec3;
 
 /// What holds a piece up.
@@ -145,6 +146,47 @@ pub struct DressingConfig {
     pub rooms_radius_m: f32,
     /// ...and hidden beyond the radius plus this margin (in between they keep their state).
     pub rooms_margin_m: f32,
+    /// Beyond `dress_radius_m` and within this, a building shows its massing (parapet, coping,
+    /// cornice and roof props from its own dressing) over walls wearing its far facade
+    /// (`building-type-lods`); beyond it, the walls alone. Metres.
+    pub massing_radius_m: f32,
+    /// At most this many massing pieces per building, largest first.
+    pub massing_pieces: u32,
+    /// At most this many buildings get their massing built in one frame, nearest first.
+    pub massing_per_frame: u32,
+    /// A detail that is showing is kept until this many times its radius, so a building on the line does not
+    /// flicker (the dressing's and the massing's boundaries alike). A ratio.
+    pub keep_ratio: f32,
+}
+
+/// How much of a building is drawn at a distance (`building-type-lods` section 2; survey L2, owner 2026-10-26).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FarDetail {
+    /// Within `dress_radius_m`: the full skin, glass and roof props.
+    Dressed,
+    /// Within `massing_radius_m`: the far facade walls and the massing (parapet, cornice, roof props).
+    Massing,
+    /// Beyond: the far facade walls alone, a plain box in its type's facade.
+    Box,
+}
+
+impl DressingConfig {
+    /// Whether a detail drawn within `radius_m` shows at `distance_m`: within the radius, or within `keep_ratio`
+    /// times it while it is `showing` already. The one rule for every building detail boundary.
+    pub fn shows(&self, radius_m: f32, distance_m: f32, showing: bool) -> bool {
+        distance_m <= if showing { radius_m * self.keep_ratio } else { radius_m }
+    }
+
+    /// The detail a building at `distance_m` is drawn in, given the detail it shows now.
+    pub fn far_detail(&self, distance_m: f32, now: FarDetail) -> FarDetail {
+        if self.shows(self.dress_radius_m, distance_m, now == FarDetail::Dressed) {
+            FarDetail::Dressed
+        } else if self.shows(self.massing_radius_m, distance_m, now != FarDetail::Box) {
+            FarDetail::Massing
+        } else {
+            FarDetail::Box
+        }
+    }
 }
 
 impl Default for DressingConfig {
@@ -159,6 +201,10 @@ impl Default for DressingConfig {
             dress_radius_m: 250.0,
             rooms_radius_m: 250.0,
             rooms_margin_m: 20.0,
+            massing_radius_m: 1500.0,
+            massing_pieces: 16,
+            massing_per_frame: 12,
+            keep_ratio: 1.15,
         }
     }
 }
@@ -175,8 +221,15 @@ impl crate::data::Validate for DressingConfig {
             ("dressing.dress_radius_m", self.dress_radius_m),
             ("dressing.rooms_radius_m", self.rooms_radius_m),
             ("dressing.rooms_margin_m", self.rooms_margin_m),
+            ("dressing.massing_radius_m", self.massing_radius_m),
         ] {
             positive(name, v)?;
+        }
+        if !(self.keep_ratio.is_finite() && self.keep_ratio >= 1.0) {
+            return Err(format!("dressing.keep_ratio must be at least 1, got {}", self.keep_ratio));
+        }
+        if self.massing_radius_m < self.dress_radius_m {
+            return Err("dressing.massing_radius_m must be at least dress_radius_m".into());
         }
         Ok(())
     }
@@ -248,6 +301,55 @@ struct Look {
     window_w: f32,
     /// Lintels in brick (a soldier course) rather than stone.
     brick_lintels: bool,
+}
+
+impl Look {
+    /// The far variant this look wears: its facade kind and the index of its main colour.
+    fn far_variant(&self) -> FarVariant {
+        let index = |of: &[[f32; 3]], c: [f32; 3]| of.iter().position(|x| *x == c).unwrap_or(0);
+        let (kind, colour) = match self.style {
+            Style::WalkUp => (FacadeKind::WalkUp, index(&BRICKS, self.brick)),
+            Style::Warehouse => (FacadeKind::Warehouse, index(&BRICKS, self.brick)),
+            Style::Office if self.punched_grid => (FacadeKind::PunchedOffice, index(&CONCRETES, self.concrete)),
+            Style::Office => (FacadeKind::RibbonOffice, index(&CONCRETES, self.concrete)),
+            Style::Tower => (FacadeKind::Tower, index(&GLASSES, self.glass)),
+        };
+        FarVariant { kind, colour }
+    }
+
+    /// A plain look of variant `v`: its kind and main colour, everything else the first choice.
+    fn of_variant(v: FarVariant) -> Look {
+        let c = v.colour;
+        let style = match v.kind {
+            FacadeKind::WalkUp => Style::WalkUp,
+            FacadeKind::Warehouse => Style::Warehouse,
+            FacadeKind::RibbonOffice | FacadeKind::PunchedOffice => Style::Office,
+            FacadeKind::Tower => Style::Tower,
+        };
+        let walls_brick = matches!(v.kind, FacadeKind::WalkUp | FacadeKind::Warehouse);
+        let walls_concrete = matches!(v.kind, FacadeKind::RibbonOffice | FacadeKind::PunchedOffice);
+        Look {
+            style,
+            punched_grid: v.kind == FacadeKind::PunchedOffice,
+            brick: BRICKS[if walls_brick { c % BRICKS.len() } else { 0 }],
+            concrete: CONCRETES[if walls_concrete { c % CONCRETES.len() } else { 0 }],
+            glass: GLASSES[if v.kind == FacadeKind::Tower { c % GLASSES.len() } else { 0 }],
+            frame: FRAME_WHITE,
+            mullion: MULLIONS[0],
+            windows: 2,
+            window_w: 1.1,
+            brick_lintels: false,
+        }
+    }
+}
+
+/// How many main colours a facade kind comes in (the palette its look picks from).
+pub fn colours_of(kind: FacadeKind) -> usize {
+    match kind {
+        FacadeKind::WalkUp | FacadeKind::Warehouse => BRICKS.len(),
+        FacadeKind::RibbonOffice | FacadeKind::PunchedOffice => CONCRETES.len(),
+        FacadeKind::Tower => GLASSES.len(),
+    }
 }
 
 fn pick<T: Copy>(rng: &mut SimRng, of: &[T]) -> T {
@@ -718,12 +820,93 @@ pub fn dress(
     shell: Option<&Shell>,
 ) -> Vec<Piece> {
     let [nx, ns, nz] = n;
-    let mut out = Vec::new();
     if nx == 0 || ns == 0 || nz == 0 || !size.is_finite() {
-        return out;
+        return Vec::new();
     }
     let mut srng = seed.fork(&format!("building/{id}/skin"));
     let look = look_of(ns, size.x * nx as f32 * size.z * nz as f32, &mut srng);
+    dress_look(id, n, origin, size, look, srng, seed, segmented, cfg, fronts, shell)
+}
+
+/// Which far look building `id` wears (openspec change `building-type-lods`): the same pick its
+/// dressing makes, from the same stream, so near and far agree on its kind and main colour.
+pub fn far_variant(id: u32, n: [usize; 3], size: Vec3, seed: &SimRng) -> FarVariant {
+    let mut srng = seed.fork(&format!("building/{id}/skin"));
+    look_of(n[1], size.x * n[0] as f32 * size.z * n[2] as f32, &mut srng).far_variant()
+}
+
+/// The dressing of a building wearing far variant `v` (its kind and main colour, the rest of its
+/// look plain), for rendering that variant's facade once at startup: no neighbours and no street door, so the bay
+/// rendered is the typical one.
+pub fn dress_variant(v: FarVariant, n: [usize; 3], origin: Vec3, size: Vec3, cfg: &DressingConfig) -> Vec<Piece> {
+    if n.contains(&0) || !size.is_finite() {
+        return Vec::new();
+    }
+    let seed = SimRng::new(0);
+    let srng = seed.fork("far facade");
+    dress_look(
+        0,
+        n,
+        origin,
+        size,
+        Look::of_variant(v),
+        srng,
+        &seed,
+        false,
+        cfg,
+        [crate::world::FRONT_LIMIT_M; 4],
+        None,
+    )
+}
+
+/// A building's massing at mid distance (`building-type-lods`): what its own dressing puts on and
+/// above the roof line (parapet, coping, cornice, roof props), the `max` largest by volume. Its
+/// walls are drawn flat with the far facade, so the skin itself is left out. `fronts` is the building's clear
+/// distance in front of each facade, as `dress` takes it, so its trim stops where the near skin's does.
+#[allow(clippy::too_many_arguments)]
+pub fn massing(
+    id: u32,
+    n: [usize; 3],
+    origin: Vec3,
+    size: Vec3,
+    seed: &SimRng,
+    cfg: &DressingConfig,
+    fronts: [f32; 4],
+    max: usize,
+) -> Vec<Piece> {
+    let roof_y = origin.y + size.y * n[1] as f32;
+    let mut kept: Vec<(usize, f32, Piece)> = dress(id, n, origin, size, seed, false, cfg, fronts, None)
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, p)| {
+            let (min_y, vol) = match p.shape {
+                Shape::Block { min, max } => (min.y, (max - min).abs().element_product()),
+                Shape::Drum { base, r0, r1, height_m } => (base.y, std::f32::consts::PI * r0.max(r1).powi(2) * height_m),
+            };
+            (min_y >= roof_y - 0.01).then_some((i, vol, p))
+        })
+        .collect();
+    // Largest first, ties by order (never hash order).
+    kept.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
+    kept.into_iter().take(max).map(|(_, _, p)| p).collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn dress_look(
+    id: u32,
+    n: [usize; 3],
+    origin: Vec3,
+    size: Vec3,
+    look: Look,
+    mut srng: SimRng,
+    seed: &SimRng,
+    segmented: bool,
+    cfg: &DressingConfig,
+    fronts: [f32; 4],
+    shell: Option<&Shell>,
+) -> Vec<Piece> {
+    let [nx, ns, nz] = n;
+    let mut out = Vec::new();
     let style = look.style;
     let top_k = ns as u32 - 1;
     let roof_y = origin.y + size.y * ns as f32;
@@ -1130,6 +1313,44 @@ fn roof_props(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_massing_gives_way_to_a_plain_box_at_one_and_a_half_kilometres() {
+        // survey L2 (owner, 2026-10-26: "Approve all"): dressed to 250 m, the massing to 1.5 km, the box beyond
+        let cfg = DressingConfig::default();
+        assert_eq!(cfg.far_detail(200.0, FarDetail::Box), FarDetail::Dressed);
+        assert_eq!(cfg.far_detail(1_400.0, FarDetail::Box), FarDetail::Massing);
+        assert_eq!(cfg.far_detail(1_600.0, FarDetail::Box), FarDetail::Box);
+    }
+
+    #[test]
+    fn a_building_on_the_line_does_not_flicker() {
+        // just past 1.5 km a building keeps the detail it shows; it changes only past 15 % more
+        let cfg = DressingConfig::default();
+        assert_eq!(cfg.far_detail(1_600.0, FarDetail::Massing), FarDetail::Massing);
+        assert_eq!(cfg.far_detail(1_600.0, FarDetail::Box), FarDetail::Box);
+        assert_eq!(cfg.far_detail(1_800.0, FarDetail::Massing), FarDetail::Box);
+        assert_eq!(cfg.far_detail(270.0, FarDetail::Dressed), FarDetail::Dressed);
+        assert_eq!(cfg.far_detail(270.0, FarDetail::Massing), FarDetail::Massing);
+    }
+
+    #[test]
+    fn the_shipped_radii_are_the_owners() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let world: crate::world::WorldConfig = crate::data::load_ron(&root.join("world/world.ron")).unwrap();
+        assert_eq!(world.dressing.dress_radius_m, 250.0);
+        assert_eq!(world.dressing.massing_radius_m, 1_500.0);
+    }
+
+    #[test]
+    fn a_massing_radius_inside_the_dressing_is_refused() {
+        use crate::data::Validate;
+        let cfg = DressingConfig {
+            massing_radius_m: 100.0,
+            ..Default::default()
+        };
+        assert!(cfg.validate().is_err());
+    }
 
     fn go(storeys: usize, segmented: bool) -> Vec<Piece> {
         dress(

@@ -13,4 +13,10 @@
     fade_out_bars: 2.0,
     hold_s: 30.0,
     volume_db: -4.0,
+    // The score plays over everything, like a film score, and ducks 6 dB under the radio and the alarms
+    // (survey A3, owner 2026-10-26: "Approve all"), down in about 50 ms and back up in about 0.6 s.
+    duck_db: -6.0,
+    duck_under: ["radio_squelch", "alarm_warning", "heat_lock"],
+    duck_attack_s: 0.05,
+    duck_release_s: 0.6,
 )

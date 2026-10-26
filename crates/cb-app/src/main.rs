@@ -23,6 +23,7 @@ mod clouds_render;
 mod combat;
 mod defence;
 mod demolition;
+mod far_facades;
 mod fortress;
 mod fx;
 mod fx_gallery;

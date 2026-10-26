@@ -15,6 +15,7 @@ pub mod deform;
 pub mod destruct;
 pub mod door;
 pub mod dressing;
+pub mod far_facade;
 pub mod forest;
 pub mod grid;
 pub mod hydrology;
