@@ -566,6 +566,7 @@ fn draw_targets(
     state: Res<crate::targeting::TargetState>,
     camera: Single<(&Camera, &GlobalTransform), With<crate::pilot::PilotCamera>>,
     me: Query<&MechSpec, With<Piloted>>,
+    my_guns: Query<&MechSim, With<Piloted>>,
     hostiles: Res<crate::units::Hostiles>,
     neutrals: Res<crate::air_traffic::Neutrals>,
     mut boxes: Query<(&TargetBox, &mut Node, &mut BorderColor, &mut Visibility), (Without<LeadRing>, Without<EdgeArrow>)>,
@@ -622,6 +623,11 @@ fn draw_targets(
             texts[slot] = (format!("CIV {d:.0} m"), colour);
         } else {
             texts[slot] = (format!("{d:.0} m"), colour);
+        }
+        // A pod's locks on it, `xN` (multi-lock), from the locks the salvo will fire on.
+        let n = my_guns.iter().next().map_or(0, |m| m.guns.locks.count(*id));
+        if n > 0 {
+            texts[slot].0.push_str(&format!(" x{n}"));
         }
         let (Ok(top), Ok(bottom)) = (
             cam.world_to_viewport(at, feet + Vec3::Y * h.height_m),
@@ -1091,6 +1097,13 @@ fn update_stations(
             S::Charging(k) => format!("CHARGE {:.0}%", k * 100.0),
             S::Reloading(cd) => format!("{cd:.1}s"),
             S::Ready => "READY".to_string(),
+        };
+        // A pod shows the locks it holds (multi-lock).
+        let state = match w.multi_lock() {
+            Some(seeker) if !sim.guns.locks.held.is_empty() => {
+                format!("LOCKS {}/{}", sim.guns.locks.held.len(), seeker.max_locks)
+            }
+            _ => state,
         };
         // A weapon that runs hot shows the bank it shares (weapon-kinds section 6).
         let state = if w.heat > 0.0 {

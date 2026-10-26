@@ -33,6 +33,11 @@
         (id: "missile_heavy", kind: Missile, price: 150000, name: "heavy missile", speed_m_s: 220.0,
          interval_s: 2.5, penetration_mm: 300.0, damage: 110.0, blast_mj: 7.0, shot: Rocket,
          seeker_turn_deg_s: 45.0, rounds: Some(16)),
+        // A six-cell multi-lock pod (openspec/changes/multi-lock): hold F to sweep up to six locks, let go to fire one
+        // missile on each, 0.08 s apart; 8 s to reload after a salvo.
+        (id: "multilock_pod", kind: Missile, price: 200000, name: "multi-lock pod", speed_m_s: 240.0,
+         interval_s: 8.0, penetration_mm: 100.0, damage: 30.0, blast_mj: 1.5, shot: Rocket, rounds: Some(24),
+         seeker: Some((max_locks: 6, lock_s: 0.35, range_m: 1500.0, cone_deg: 25.0, turn_deg_s: 60.0))),
     ],
     armour: [
         (grade: 1, price: 60000, structure_share: 0.15, mass_kg: 20000.0),

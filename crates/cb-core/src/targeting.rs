@@ -2,6 +2,9 @@
 //! picking the one nearest the aim or cycling by distance, and the missile lock that builds only
 //! while the target is in missile range and near the aim. Pure: `cb-app` feeds it what the pilot
 //! can see each fixed step; the cockpit draws what it says and the missiles home on the lock.
+//! A missile's seeker (openspec change `multi-lock`) is one rule for a single lock and for a pod
+//! that gathers several: `Seeker::reaches` says what a lock may build on, `Lock` holds the shoulder
+//! missile's one lock on the selected target, `Locks` gathers a pod's locks while its trigger is held.
 
 use crate::data::{Validate, positive, positive_range};
 use glam::Vec3;
@@ -46,6 +49,122 @@ impl Validate for TargetingConfig {
         positive("lock_cone_deg", self.lock_cone_deg)?;
         positive("lock_s", self.lock_s)?;
         positive_range("box_px", self.box_px)
+    }
+}
+
+impl TargetingConfig {
+    /// The shoulder missile's seeker: one lock, built in `lock_s` inside `lock_range_m` and
+    /// `lock_cone_deg` (the single-lock missile is the same rule as a pod, `multi-lock`).
+    pub fn seeker(&self, turn_deg_s: f32) -> Seeker {
+        Seeker {
+            max_locks: 1,
+            lock_s: self.lock_s,
+            range_m: self.lock_range_m,
+            cone_deg: self.lock_cone_deg,
+            turn_deg_s,
+        }
+    }
+}
+
+/// A missile's seeker in its weapon's data (openspec change `multi-lock`).
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Seeker {
+    /// Locks it can hold: 1 for the shoulder missile, 6 for a pod.
+    pub max_locks: u8,
+    /// Seconds to add one lock.
+    pub lock_s: f32,
+    /// A lock builds only inside this range, metres.
+    pub range_m: f32,
+    /// ...and inside this angle of the aim, degrees. A held lock drops beyond 1.5 times it.
+    pub cone_deg: f32,
+    /// How hard the missile turns toward its lock, degrees a second.
+    pub turn_deg_s: f32,
+}
+
+impl Validate for Seeker {
+    fn validate(&self) -> Result<(), String> {
+        if self.max_locks == 0 {
+            return Err("seeker.max_locks: at least 1".into());
+        }
+        positive("seeker.lock_s", self.lock_s)?;
+        positive("seeker.range_m", self.range_m)?;
+        positive("seeker.cone_deg", self.cone_deg)?;
+        positive("seeker.turn_deg_s", self.turn_deg_s)
+    }
+}
+
+impl Seeker {
+    /// A lock may build on something `range_m` away and `off_deg` off the aim.
+    pub fn reaches(&self, range_m: f32, off_deg: f32) -> bool {
+        range_m <= self.range_m && off_deg <= self.cone_deg
+    }
+
+    /// A held lock is kept on something `range_m` away and `off_deg` off the aim.
+    pub fn keeps(&self, range_m: f32, off_deg: f32) -> bool {
+        range_m <= self.range_m && off_deg <= self.cone_deg * 1.5
+    }
+}
+
+/// A pod's locks, gathered while its trigger is held (openspec change `multi-lock`): target ids in
+/// the order they were taken, a target listed once per lock.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Locks {
+    /// The locks held.
+    pub held: Vec<u32>,
+    /// Time toward the next lock.
+    pub building_s: f32,
+    /// Time the trigger has been held.
+    pub held_s: f32,
+}
+
+impl Locks {
+    /// One fixed step with the trigger held: drop locks on targets gone, out of range or beyond 1.5
+    /// times the cone; then, below `max_locks`, build toward a lock on the target in range and cone
+    /// with the fewest locks, nearest the aim on a tie, then lowest id (stable order). Neutrals are
+    /// never locked (survey W47).
+    pub fn step(&mut self, s: &Seeker, eye: Vec3, aim: Vec3, targets: &[Target], dt_s: f32) {
+        self.held_s += dt_s;
+        let at = |id: u32| targets.iter().find(|t| t.id == id && !t.neutral);
+        self.held
+            .retain(|id| at(*id).is_some_and(|t| s.keeps(t.torso.distance(eye), off_aim_deg(eye, aim, t.torso))));
+        if self.held.len() >= s.max_locks as usize {
+            self.building_s = 0.0;
+            return;
+        }
+        let candidate = targets
+            .iter()
+            .filter(|t| !t.neutral)
+            .map(|t| (t, off_aim_deg(eye, aim, t.torso)))
+            .filter(|(t, off)| s.reaches(t.torso.distance(eye), *off))
+            .min_by(|a, b| {
+                self.count(a.0.id)
+                    .cmp(&self.count(b.0.id))
+                    .then(a.1.total_cmp(&b.1))
+                    .then(a.0.id.cmp(&b.0.id))
+            });
+        match candidate {
+            Some((t, _)) => {
+                self.building_s += dt_s;
+                if self.building_s >= s.lock_s - 1e-4 {
+                    self.held.push(t.id);
+                    self.building_s = 0.0;
+                }
+            }
+            None => self.building_s = 0.0,
+        }
+    }
+
+    /// Locks held on `id`.
+    pub fn count(&self, id: u32) -> usize {
+        self.held.iter().filter(|h| **h == id).count()
+    }
+
+    /// Let go: the locks to fire on, in lock order, and a fresh start.
+    pub fn release(&mut self) -> Vec<u32> {
+        let held = std::mem::take(&mut self.held);
+        *self = Self::default();
+        held
     }
 }
 
@@ -122,7 +241,7 @@ impl Lock {
         if target != self.target {
             *self = Lock { target, held_s: 0.0 };
         }
-        let on = target.is_some() && range_m <= cfg.lock_range_m && off_deg <= cfg.lock_cone_deg;
+        let on = target.is_some() && cfg.seeker(0.0).reaches(range_m, off_deg);
         self.held_s = if on {
             (self.held_s + dt_s).min(cfg.lock_s)
         } else {
@@ -241,5 +360,74 @@ mod tests {
         assert!(l.locked(&cfg));
         assert!(!l.step(Some(4), 40.0, 800.0, &cfg, 0.01), "40 degrees off loses it");
         assert!(!l.step(Some(9), 0.0, 800.0, &cfg, 0.01), "a new target starts over");
+    }
+
+    fn pod() -> Seeker {
+        Seeker {
+            max_locks: 6,
+            lock_s: 0.35,
+            range_m: 1500.0,
+            cone_deg: 25.0,
+            turn_deg_s: 60.0,
+        }
+    }
+
+    fn hold(l: &mut Locks, s: &Seeker, ts: &[Target], seconds: f32) {
+        for _ in 0..(seconds * 60.0).round() as usize {
+            l.step(s, Vec3::ZERO, Vec3::NEG_Z, ts, 1.0 / 60.0);
+        }
+    }
+
+    #[test]
+    fn six_locks_take_two_point_one_seconds() {
+        let ts = [t(1, -40.0, -600.0), t(2, 0.0, -500.0), t(3, 50.0, -700.0)];
+        let mut l = Locks::default();
+        hold(&mut l, &pod(), &ts, 2.08);
+        assert_eq!(l.held.len(), 5, "not yet: {:?}", l.held);
+        hold(&mut l, &pod(), &ts, 0.02);
+        assert_eq!(l.held.len(), 6);
+        for id in [1, 2, 3] {
+            assert_eq!(l.count(id), 2, "two on each crab: {:?}", l.held);
+        }
+        assert_eq!(l.held[0], 2, "the one nearest the aim first");
+    }
+
+    #[test]
+    fn a_lone_target_takes_every_lock() {
+        let mut l = Locks::default();
+        hold(&mut l, &pod(), &[t(4, 10.0, -800.0)], 3.0);
+        assert_eq!(l.held, vec![4; 6]);
+    }
+
+    #[test]
+    fn a_target_leaving_the_cone_loses_its_locks() {
+        let mut l = Locks::default();
+        let ts = [t(1, 0.0, -600.0), t(2, 30.0, -600.0)];
+        hold(&mut l, &pod(), &ts, 1.4);
+        assert_eq!((l.count(1), l.count(2)), (2, 2));
+        // Crab 2 ducks out 40 degrees off the aim: past 1.5 x 25.
+        let away = [t(1, 0.0, -600.0), t(2, 600.0 * 40f32.to_radians().tan(), -600.0)];
+        hold(&mut l, &pod(), &away, 1.0 / 60.0);
+        assert_eq!(l.count(2), 0);
+        assert_eq!(l.count(1), 2);
+        hold(&mut l, &pod(), &away, 0.7);
+        assert_eq!(l.count(1), 4, "new locks build on what remains");
+    }
+
+    #[test]
+    fn a_pod_never_locks_a_civil_aircraft() {
+        let mut l = Locks::default();
+        hold(&mut l, &pod(), &[civ(9, 0.0, -500.0)], 3.0);
+        assert!(l.held.is_empty());
+    }
+
+    #[test]
+    fn the_shoulder_missile_keeps_its_lock_numbers() {
+        let s = TargetingConfig::default().seeker(70.0);
+        assert_eq!((s.max_locks, s.lock_s, s.range_m, s.cone_deg), (1, 1.0, 1200.0, 12.0));
+        let shipped: TargetingConfig =
+            crate::data::load_ron(&std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/hud/targeting.ron")).unwrap();
+        let s = shipped.seeker(70.0);
+        assert_eq!((s.lock_s, s.range_m, s.cone_deg), (1.0, 1200.0, 12.0));
     }
 }

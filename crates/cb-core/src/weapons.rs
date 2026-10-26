@@ -53,9 +53,14 @@ pub struct WeaponSpec {
     #[serde(default)]
     pub heat: f32,
     /// A missile's seeker: the most it turns toward its locked target, degrees a second (0 for
-    /// guns and rockets; openspec change `targeting`).
+    /// guns and rockets; openspec change `targeting`). The shoulder missile's single lock; a pod
+    /// gives a whole `seeker` instead.
     #[serde(default)]
     pub seeker_turn_deg_s: f32,
+    /// A multi-lock pod's seeker (openspec change `multi-lock`): it gathers up to `max_locks` while
+    /// its trigger is held and fires one missile per lock on release.
+    #[serde(default)]
+    pub seeker: Option<crate::targeting::Seeker>,
     /// Rounds carried a sortie; `None` for no limit.
     #[serde(default)]
     pub rounds: Option<u32>,
@@ -78,6 +83,7 @@ pub fn default_weapons() -> Vec<WeaponSpec> {
             rocket: false,
             heat: 0.0,
             seeker_turn_deg_s: 0.0,
+            seeker: None,
             rounds: None,
         },
         WeaponSpec {
@@ -94,6 +100,7 @@ pub fn default_weapons() -> Vec<WeaponSpec> {
             rocket: false,
             heat: 0.0,
             seeker_turn_deg_s: 0.0,
+            seeker: None,
             rounds: None,
         },
         WeaponSpec {
@@ -110,6 +117,7 @@ pub fn default_weapons() -> Vec<WeaponSpec> {
             rocket: false,
             heat: 0.0,
             seeker_turn_deg_s: 70.0,
+            seeker: None,
             // Owner, 2026-10-25, survey G13: "40" missiles a sortie.
             rounds: Some(40),
         },
@@ -128,6 +136,12 @@ impl Validate for WeaponSpec {
         crate::data::within(&f("heat"), self.heat, 0.0, 1.0)?;
         if self.group > 3 {
             return Err(format!("{}: groups are 0, 1, 2 (missiles) and 3 (back units)", f("group")));
+        }
+        if let Some(seeker) = &self.seeker {
+            seeker.validate().map_err(|e| format!("{}: {e}", f("seeker")))?;
+            if self.shot() != ShotKind::Rocket {
+                return Err(format!("{}: only a rocket carries a seeker", f("seeker")));
+            }
         }
         if self.rocket && self.kind != ShotKind::Shell {
             return Err(format!("{}: give `kind` or the old `rocket: true`, not both", f("rocket")));
@@ -209,6 +223,30 @@ impl WeaponSpec {
     pub fn shot(&self) -> ShotKind {
         if self.rocket { ShotKind::Rocket } else { self.kind }
     }
+
+    /// How hard its missiles turn toward their lock, degrees a second (0: it does not home).
+    pub fn turn_deg_s(&self) -> f32 {
+        self.seeker.map_or(self.seeker_turn_deg_s, |s| s.turn_deg_s)
+    }
+
+    /// A pod that gathers several locks while held and fires on release (`multi-lock`).
+    pub fn multi_lock(&self) -> Option<crate::targeting::Seeker> {
+        self.seeker.filter(|s| s.max_locks > 1)
+    }
+}
+
+/// Seconds between the missiles of one salvo (`multi-lock`).
+pub const SALVO_GAP_S: f32 = 0.08;
+
+/// A shot waiting its turn: a salvo's missile on its lock, or a burst's next round.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Queued {
+    /// The weapon's index.
+    pub weapon: usize,
+    /// The locked target it homes on, if any.
+    pub target: Option<u32>,
+    /// Seconds until it leaves.
+    pub in_s: f32,
 }
 
 /// The mech's weapon heat bank (openspec change `weapon-kinds` section 3; survey G23, owner,
@@ -305,6 +343,10 @@ pub struct Guns {
     pub heat: Budget,
     /// Pulls fired so far, numbering each pull's seeded stream (`shot_rng`).
     pub pulls: u32,
+    /// Shots waiting their turn: a salvo's missiles, a burst's rounds.
+    pub queue: Vec<Queued>,
+    /// A multi-lock pod's locks while its trigger is held (`multi-lock`).
+    pub locks: crate::targeting::Locks,
 }
 
 /// The station `step` stations on from `current` (+1 next, -1 back), wrapping, passing over any
@@ -378,6 +420,8 @@ impl Guns {
             let cool = w.heat <= 0.0 || !self.heat.locked;
             let held = pulled.get(i).copied().unwrap_or(false) && loaded && cool && !arm_lost(w.arm);
             let fires = match w.shot() {
+                // A pod fires on release, through `release`, never on the pull.
+                _ if w.multi_lock().is_some() => false,
                 ShotKind::Beam { .. } => {
                     if held {
                         self.load_heat(w.heat * dt_s);
@@ -415,6 +459,55 @@ impl Guns {
             self.pulls = self.pulls.wrapping_add(1);
         }
         fired
+    }
+
+    /// Releases a pod's salvo: one missile per lock in `targets`, `SALVO_GAP_S` apart in lock order,
+    /// if the pod is ready (reloaded, loaded, its station on). Its interval runs from the last missile.
+    /// True when the salvo is on its way.
+    pub fn release(&mut self, specs: &[WeaponSpec], i: usize, targets: &[u32], station_lost: bool) -> bool {
+        let Some(w) = specs.get(i) else { return false };
+        self.cooldown_s.resize(specs.len(), 0.0);
+        if self.rounds_left.len() != specs.len() {
+            self.rounds_left = specs.iter().map(|w| w.rounds).collect();
+        }
+        if targets.is_empty() || station_lost || self.cooldown_s[i] > 0.0 || self.rounds_left[i] == Some(0) {
+            return false;
+        }
+        for (k, t) in targets.iter().enumerate() {
+            self.queue.push(Queued {
+                weapon: i,
+                target: Some(*t),
+                in_s: k as f32 * SALVO_GAP_S,
+            });
+        }
+        self.cooldown_s[i] = w.interval_s + (targets.len() - 1) as f32 * SALVO_GAP_S;
+        true
+    }
+
+    /// The queued shots due this step, with their targets; a shot whose station is lost or whose
+    /// rounds ran out is dropped (losing the arm mid-burst ends it).
+    pub fn take_queued(&mut self, specs: &[WeaponSpec], arm_lost: impl Fn(PartKind) -> bool, dt_s: f32) -> Vec<(usize, Option<u32>)> {
+        let mut due = Vec::new();
+        let mut keep = Vec::with_capacity(self.queue.len());
+        for mut q in std::mem::take(&mut self.queue) {
+            q.in_s -= dt_s;
+            let Some(w) = specs.get(q.weapon) else { continue };
+            if arm_lost(w.arm) {
+                continue;
+            }
+            if q.in_s > 1e-4 {
+                keep.push(q);
+                continue;
+            }
+            match self.rounds_left.get_mut(q.weapon) {
+                Some(Some(0)) => continue,
+                Some(Some(n)) => *n -= 1,
+                _ => {}
+            }
+            due.push((q.weapon, q.target));
+        }
+        self.queue = keep;
+        due
     }
 
     /// Adds `share` to the weapon heat bank, locking it when it fills.
@@ -1396,5 +1489,71 @@ mod tests {
         let ms = t0.elapsed().as_secs_f64() * 1000.0 / n as f64;
         println!("beam trace: {ms:.4} ms a step (budget 0.1 ms)");
         assert!(ms < 0.15, "{ms} ms");
+    }
+
+    fn pod() -> WeaponSpec {
+        WeaponSpec {
+            group: 2,
+            interval_s: 8.0,
+            seeker: Some(crate::targeting::Seeker {
+                max_locks: 6,
+                lock_s: 0.35,
+                range_m: 1500.0,
+                cone_deg: 25.0,
+                turn_deg_s: 60.0,
+            }),
+            rounds: Some(24),
+            ..gun(ShotKind::Rocket, 0.0)
+        }
+    }
+
+    #[test]
+    fn a_pod_fires_nothing_on_the_pull() {
+        let w = vec![pod()];
+        let mut g = Guns::default();
+        for _ in 0..120 {
+            assert!(g.trigger(&w, &[true], |_| false, &heat(), STEP).is_empty());
+        }
+    }
+
+    #[test]
+    fn a_salvo_leaves_a_missile_per_lock_and_reloads_for_eight_seconds() {
+        let w = vec![pod()];
+        let mut g = Guns::default();
+        assert!(g.release(&w, 0, &[5, 6, 5], false));
+        let mut out = Vec::new();
+        let mut t = 0.0;
+        while out.len() < 3 {
+            for (i, target) in g.take_queued(&w, |_| false, STEP) {
+                out.push((i, target, t));
+            }
+            t += STEP;
+            assert!(t < 1.0);
+        }
+        assert_eq!(
+            out.iter().map(|o| o.1).collect::<Vec<_>>(),
+            vec![Some(5), Some(6), Some(5)],
+            "in lock order"
+        );
+        assert!(out[2].2 <= 0.16 + 1e-4, "within 0.16 s: {}", out[2].2);
+        assert_eq!(g.rounds_left[0], Some(21));
+        assert!(!g.release(&w, 0, &[5], false), "reloading");
+        let mut wait = 0.0;
+        while g.cooldown_s[0] > 0.0 {
+            g.trigger(&w, &[false], |_| false, &heat(), STEP);
+            wait += STEP;
+        }
+        assert!((wait - 8.16).abs() < 0.05, "8 s from the last missile: {wait}");
+        assert!(g.release(&w, 0, &[5], false));
+    }
+
+    #[test]
+    fn a_lost_station_drops_its_queued_shots() {
+        let w = vec![pod()];
+        let mut g = Guns::default();
+        g.release(&w, 0, &[1, 2, 3], false);
+        assert_eq!(g.take_queued(&w, |_| false, STEP).len(), 1);
+        assert!(g.take_queued(&w, |k| k == w[0].arm, 0.2).is_empty());
+        assert!(g.queue.is_empty());
     }
 }

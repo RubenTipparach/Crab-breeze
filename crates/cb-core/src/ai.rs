@@ -91,6 +91,19 @@ pub fn kind_fires(kind: ShotKind, range_m: f32, err_deg: f32, heat: f32) -> bool
     }
 }
 
+/// When an AI pilot holding a multi-lock pod lets go (`multi-lock` section 4): with two or more
+/// targets in its cone, at three locks or after 3 s of holding; with one, at every lock.
+pub fn pod_release(locks: usize, max_locks: u8, in_cone: usize, held_s: f32) -> bool {
+    if locks == 0 {
+        return false;
+    }
+    if in_cone >= 2 {
+        locks >= 3 || held_s >= 3.0
+    } else {
+        locks >= max_locks as usize
+    }
+}
+
 /// What the AI is doing, for logs and the take.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Task {
@@ -374,6 +387,16 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn an_ai_pod_lets_go_at_three_locks_on_a_group_and_all_six_on_one() {
+        assert!(!pod_release(2, 6, 3, 1.0));
+        assert!(pod_release(3, 6, 3, 1.0));
+        assert!(pod_release(2, 6, 3, 3.0), "or after 3 s");
+        assert!(!pod_release(5, 6, 1, 5.0), "one target: every lock");
+        assert!(pod_release(6, 6, 1, 2.1));
+        assert!(!pod_release(0, 6, 2, 9.0), "nothing to fire");
+    }
 
     #[test]
     fn each_kind_keeps_to_its_own_fire_rule() {

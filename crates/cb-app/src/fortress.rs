@@ -536,7 +536,7 @@ fn step(
             vel: f.dir * w.speed_m_s,
             age_s: 0.0,
             rocket: w.shot().straight(),
-            target: (w.seeker_turn_deg_s > 0.0).then(|| me.map(|m| m.2)).flatten(),
+            target: (w.turn_deg_s() > 0.0).then(|| me.map(|m| m.2)).flatten(),
         });
         let flash = if w.shot().straight() {
             "muzzle_rocket"

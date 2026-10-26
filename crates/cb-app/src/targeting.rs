@@ -3,10 +3,11 @@
 //! `target_next` action or picked nearest the pilot's aim, and the missile lock builds on it while
 //! it is in missile range (`cb_core::targeting`). Civil aircraft (`air_traffic::Neutrals`) are
 //! targets too, but neutral: they are boxed and never selected or locked (survey W47). The cockpit draws this state and the missiles
-//! fired this step home on its lock.
+//! fired this step home on its lock. With a multi-lock pod on board (`multi-lock`), holding the missile
+//! key gathers the pod's locks here, on the same targets; letting go fires the salvo (`mech`).
 
 use crate::input::StepActions;
-use crate::mech::{MechSim, Piloted};
+use crate::mech::{MechSim, MechSpec, Piloted};
 use crate::pilot::PilotSim;
 use crate::sim::{Data, SimSet};
 use crate::state::GameApp;
@@ -52,13 +53,13 @@ fn update_targeting(
     pilot: Res<PilotSim>,
     actions: Res<StepActions>,
     time: Res<Time<Fixed>>,
-    me: Query<&MechSim, With<Piloted>>,
+    mut me: Query<(&mut MechSim, &MechSpec), With<Piloted>>,
     hostiles: Res<crate::units::Hostiles>,
     neutrals: Res<crate::air_traffic::Neutrals>,
     mut state: ResMut<TargetState>,
 ) {
     let cfg = &data.0.targeting;
-    let (Some(m), true) = (me.iter().next(), pilot.curr.mode == PilotMode::Seated) else {
+    let (Some((mut m, spec)), true) = (me.iter_mut().next(), pilot.curr.mode == PilotMode::Seated) else {
         *state = TargetState::default();
         return;
     };
@@ -83,4 +84,11 @@ fn update_targeting(
     state.range_m = range;
     let selected = state.selected;
     state.lock.step(selected, off, range, cfg, time.delta_secs());
+    // A pod's locks build while the missile key is held, never on a neutral (multi-lock, survey W47).
+    if let Some(seeker) = spec.weapons.iter().find_map(|w| w.multi_lock())
+        && actions.0.fire_missile
+        && !actions.0.free_look
+    {
+        m.guns.locks.step(&seeker, eye, aim, &targets, time.delta_secs());
+    }
 }

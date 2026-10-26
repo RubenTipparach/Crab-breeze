@@ -26,7 +26,7 @@
     siege_pause_s: 5.0,
     facade_out_m: 2.0,
     // Cycled through each wave in order. Of 10 raiders, numbers 3 and 10 carry rockets, 4 a shotgun, 5 a laser, 6 a
-    // plasma cannon and 7 a railgun (openspec/changes/weapon-kinds; survey G22, owner, 2026-10-26: anyone can carry
+    // plasma cannon and 7 a railgun with a six-cell multi-lock pod (openspec/changes/weapon-kinds; survey G22, owner, 2026-10-26: anyone can carry
     // every weapon, on both sides, so the crabs and the human mechs alike). Speeds m/s, intervals s, penetration mm,
     // blast MJ, heat a share of the weapon heat bank (a shot, or a second of beam).
     raiders: [
@@ -105,6 +105,9 @@
             weapons: Some([
                 (name: "railgun", socket: "MUZZLE_R", arm: ArmR, group: 0, speed_m_s: 2400.0, interval_s: 4.0,
                  penetration_mm: 400.0, damage: 140.0, blast_mj: 0.0, kind: Slug(charge_s: 1.0), heat: 0.35),
+                (name: "multi-lock pod", socket: "MISSILE_POD", arm: Torso, group: 2, speed_m_s: 240.0, interval_s: 8.0,
+                 penetration_mm: 100.0, damage: 30.0, blast_mj: 1.5, kind: Rocket, rounds: Some(24),
+                 seeker: Some((max_locks: 6, lock_s: 0.35, range_m: 1500.0, cone_deg: 25.0, turn_deg_s: 60.0))),
             ]),
             skill: (aim_noise_deg: 1.5, fire_error_deg: 1.0, range_m: 700.0, max_fire_range_m: 2000.0, hop_chance: 0.1),
         ),

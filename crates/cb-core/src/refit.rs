@@ -59,6 +59,9 @@ pub struct PartWeapon {
     /// A missile's seeker turn, degrees a second.
     #[serde(default)]
     pub seeker_turn_deg_s: f32,
+    /// A multi-lock pod's seeker (`multi-lock`).
+    #[serde(default)]
+    pub seeker: Option<crate::targeting::Seeker>,
     /// Rounds a sortie; `None` for no limit.
     #[serde(default)]
     pub rounds: Option<u32>,
@@ -81,6 +84,7 @@ impl PartWeapon {
             rocket: self.rocket,
             heat: self.heat,
             seeker_turn_deg_s: self.seeker_turn_deg_s,
+            seeker: self.seeker,
             rounds: self.rounds,
         }
     }

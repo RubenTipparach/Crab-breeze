@@ -3,7 +3,7 @@
 // crabs for now, some missions will be human mechs, but crab mechs for the default"). Offsets are from the player's mech, in metres
 // (x, z); the player's mech faces -z down its street at the start. Enemies wear a rust tint and
 // carry light armour (55 %): raiders, not the player's equal. The Pincher a light 25 mm autocannon, the Bruiser a
-// shotgun and the Tyrant a plasma cannon (openspec/changes/weapon-kinds; survey G22: anyone carries every weapon). Their brain (cb-core::ai, after Mining Mike's autopilot) orbits at
+// shotgun and the Tyrant a plasma cannon and a multi-lock pod (openspec/changes/weapon-kinds, multi-lock; survey G22: anyone carries every weapon). Their brain (cb-core::ai, after Mining Mike's autopilot) orbits at
 // `range_m`, evades when hit, hops on its jets and backs off behind cover when badly hurt.
 (
     enemies: [
@@ -43,6 +43,9 @@
             weapons: Some([
                 (name: "plasma cannon", socket: "MUZZLE_R", arm: ArmR, group: 0, speed_m_s: 180.0, interval_s: 1.6,
                  penetration_mm: 80.0, damage: 55.0, blast_mj: 4.0, kind: Plasma(burst_m: 650.0), heat: 0.2),
+                (name: "multi-lock pod", socket: "MISSILE_POD", arm: Torso, group: 2, speed_m_s: 240.0, interval_s: 8.0,
+                 penetration_mm: 100.0, damage: 30.0, blast_mj: 1.5, kind: Rocket, rounds: Some(24),
+                 seeker: Some((max_locks: 6, lock_s: 0.35, range_m: 1500.0, cone_deg: 25.0, turn_deg_s: 60.0))),
             ]),
             skill: (aim_noise_deg: 3.0, fire_error_deg: 3.0, range_m: 160.0, max_fire_range_m: 700.0, hop_chance: 0.6),
         ),

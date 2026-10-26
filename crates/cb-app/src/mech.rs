@@ -1048,6 +1048,7 @@ pub fn step_mech(
             r.1.aim_height_m(),
         )
     });
+    let player_id = roots.iter().find(|r| r.5).map(|r| r.2.0);
     let cam = camera.iter().next().copied();
     for (mut sim, spec, id, rig, enemy, piloted) in &mut roots {
         let cfg: &MechConfig = spec;
@@ -1263,6 +1264,30 @@ pub fn step_mech(
             } else {
                 if !target_dead && !goal.hold_fire {
                     fire = [orders.fire[0], orders.fire[1], false, false];
+                    // A pod gathers locks on the pilot while the aim is on and lets go by the AI's rule
+                    // (multi-lock section 4): the same `Locks` and salvo the player's pod uses.
+                    let pod = cfg.weapons.iter().position(|w| w.multi_lock().is_some());
+                    if let (Some(pi), None, Some(pid)) = (pod, goal.point, player_id) {
+                        let seeker = cfg.weapons[pi].multi_lock().unwrap_or_else(|| data.0.targeting.seeker(0.0));
+                        let torso = player_at + Vec3::Y * player_aim_m;
+                        let aim = (orders.aim_point - eye).normalize_or(Vec3::NEG_Z);
+                        if orders.fire[0] {
+                            let you = [cb_core::targeting::Target {
+                                id: pid,
+                                torso,
+                                neutral: false,
+                            }];
+                            sim.guns.locks.step(&seeker, eye, aim, &you, dt);
+                        }
+                        let off = cb_core::targeting::off_aim_deg(eye, aim, torso);
+                        let in_cone = usize::from(seeker.reaches(torso.distance(eye), off));
+                        let locks = &sim.guns.locks;
+                        if cb_core::ai::pod_release(locks.held.len(), seeker.max_locks, in_cone, locks.held_s) {
+                            let lost = sim.damage.is_lost(&cfg.parts, cfg.weapons[pi].arm);
+                            let on = sim.guns.locks.release();
+                            sim.guns.release(&cfg.weapons, pi, &on, lost);
+                        }
+                    }
                 }
                 aim_at = Some(orders.aim_point);
                 orders.controls
@@ -1352,8 +1377,19 @@ pub fn step_mech(
         let fired = sim
             .guns
             .trigger(&cfg.weapons, &pulls, |k| damage.is_lost(&cfg.parts, k), &cfg.weapon_heat, dt);
+        // The pilot's pod fires its salvo on letting go of the missile key, one missile per lock (multi-lock).
+        if piloted
+            && !fire[2]
+            && let Some(pi) = cfg.weapons.iter().position(|w| w.multi_lock().is_some())
+        {
+            let on = sim.guns.locks.release();
+            let lost = damage.is_lost(&cfg.parts, cfg.weapons[pi].arm);
+            sim.guns.release(&cfg.weapons, pi, &on, lost);
+        }
+        let queued = sim.guns.take_queued(&cfg.weapons, |k| damage.is_lost(&cfg.parts, k), dt);
         let mut rng = cb_core::weapons::shot_rng(id.0, sim.guns.pulls);
-        for wi in fired {
+        let shots_now = fired.into_iter().map(|i| (i, None)).chain(queued);
+        for (wi, lock_on) in shots_now {
             let w = &cfg.weapons[wi];
             // The weapon's own socket when the model has it (a back unit's barrel, a pod's mouth), else the
             // contract muzzle of its arm; a missile without a pod leaves from the right arm.
@@ -1390,8 +1426,9 @@ pub fn step_mech(
                     vel: vel + carry,
                     age_s: 0.0,
                     rocket: kind.straight(),
-                    // A missile homes on the pilot's lock (targeting); unlocked it flies straight.
-                    target: (piloted && w.seeker_turn_deg_s > 0.0).then_some(locked).flatten(),
+                    // A salvo's missile homes on its own lock; a single missile on the pilot's lock
+                    // (targeting); unlocked it flies straight.
+                    target: lock_on.or_else(|| (piloted && w.turn_deg_s() > 0.0).then_some(locked).flatten()),
                 });
             }
             let recipe = if kind.straight() {

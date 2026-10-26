@@ -492,7 +492,7 @@ pub fn fly_shots(
     for mut shot in std::mem::take(&mut shots.0) {
         // A missile turns toward its locked target's torso first (targeting).
         if let Some(t) = shot.target {
-            let seeker = weapon_of(shot.owner, shot.weapon).map_or(0.0, |w| w.seeker_turn_deg_s);
+            let seeker = weapon_of(shot.owner, shot.weapon).map_or(0.0, |w| w.turn_deg_s());
             if let Some(torso) = torsos.get(&t) {
                 home(&mut shot, *torso, seeker, dt);
             }
