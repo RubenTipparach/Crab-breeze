@@ -81,6 +81,7 @@ pub(crate) struct Keys {
     option_cycle: (Vec<KeyCode>, bool),
     fire: [(Vec<KeyCode>, Vec<MouseButton>); 2],
     fire_missile: (Vec<KeyCode>, Vec<MouseButton>),
+    fire_back: (Vec<KeyCode>, Vec<MouseButton>),
     debug: Vec<(Vec<KeyCode>, DebugCommand)>,
     pub(crate) deg_per_px: f32,
     pub(crate) invert_pitch: bool,
@@ -103,7 +104,8 @@ impl Plugin for InputPlugin {
     }
 }
 
-/// Key and mouse bindings from one list of names (`MouseLeft`, `MouseRight`, `MouseMiddle` or keys).
+/// Key and mouse bindings from one list of names (`MouseLeft`, `MouseRight`, `MouseMiddle`, `MouseBack`,
+/// `MouseForward` or keys).
 fn split(field: &str, names: &[String]) -> Result<(Vec<KeyCode>, Vec<MouseButton>), String> {
     let mut keys = Vec::new();
     let mut buttons = Vec::new();
@@ -112,6 +114,8 @@ fn split(field: &str, names: &[String]) -> Result<(Vec<KeyCode>, Vec<MouseButton
             "MouseLeft" => buttons.push(MouseButton::Left),
             "MouseRight" => buttons.push(MouseButton::Right),
             "MouseMiddle" => buttons.push(MouseButton::Middle),
+            "MouseBack" => buttons.push(MouseButton::Back),
+            "MouseForward" => buttons.push(MouseButton::Forward),
             other => keys.push(key_code(other).ok_or_else(|| format!("`{field}`: unknown key `{other}`"))?),
         }
     }
@@ -169,6 +173,7 @@ fn resolve(b: &Bindings) -> Result<Keys, String> {
         ),
         fire: [split("fire_primary", &b.fire_primary)?, split("fire_secondary", &b.fire_secondary)?],
         fire_missile: split("fire_missile", &b.fire_missile)?,
+        fire_back: split("fire_back", &b.fire_back)?,
         debug: vec![
             (r("debug_hit_arm_l", &b.debug_hit_arm_l)?, DebugCommand::Hit(PartKind::ArmL)),
             (r("debug_hit_arm_r", &b.debug_hit_arm_r)?, DebugCommand::Hit(PartKind::ArmR)),
@@ -364,6 +369,7 @@ pub(crate) fn take_step_actions(
                 use_held: any(&input, &keys.use_key),
                 sink: any(&input, &keys.sink),
                 fire_missile: any(&input, &keys.fire_missile.0) || mouse.any_pressed(keys.fire_missile.1.iter().copied()),
+                fire_back: any(&input, &keys.fire_back.0) || mouse.any_pressed(keys.fire_back.1.iter().copied()),
                 strike: [any(&input, &keys.strike[0]), any(&input, &keys.strike[1])],
                 walk_keys: true,
                 ..default()

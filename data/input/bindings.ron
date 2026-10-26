@@ -38,6 +38,8 @@
     sink: ["KeyC"],
     // Targeting (openspec targeting): F fires a missile at the lock, Q selects the next target.
     fire_missile: ["KeyF"],
+    // Back units, fire group 3 (openspec weapon-kinds): the Sapper's grenade launcher, a back railgun.
+    fire_back: ["KeyG", "MouseBack"],
     target_next: ["KeyQ"],
     // Close combat (openspec close-combat): on by itself when the targeted hostile is within melee
     // range, off when it goes down or moves away; Tab switches it off, or on with no one near.

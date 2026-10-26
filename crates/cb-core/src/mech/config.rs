@@ -416,6 +416,8 @@ pub struct MechConfig {
     pub parts: Vec<PartSpec>,
     /// Guns.
     pub weapons: Vec<crate::weapons::WeaponSpec>,
+    /// The weapon heat bank the hot weapons share (openspec change `weapon-kinds`, survey G23).
+    pub weapon_heat: crate::weapons::WeaponHeatConfig,
     /// Close combat: melee range and the arms' strikes (openspec change `close-combat`).
     pub melee: super::melee::MeleeConfig,
     /// The stand-in's bones and sockets.
@@ -449,6 +451,7 @@ impl Default for MechConfig {
             ram: RamConfig::default(),
             parts: default_parts(),
             weapons: crate::weapons::default_weapons(),
+            weapon_heat: crate::weapons::WeaponHeatConfig::default(),
             melee: super::melee::MeleeConfig::default(),
             nodes: Vec::new(),
             boxes: Vec::new(),
@@ -568,6 +571,7 @@ impl Validate for MechConfig {
         for w in &self.weapons {
             w.validate()?;
         }
+        self.weapon_heat.validate()?;
         for n in &self.nodes {
             finite3(&format!("nodes[{}].offset_m", n.name), n.offset_m)?;
             let parent = (!n.parent.is_empty()).then_some(n.parent.as_str());

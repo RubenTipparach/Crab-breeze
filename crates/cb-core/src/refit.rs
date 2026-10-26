@@ -47,9 +47,15 @@ pub struct PartWeapon {
     pub damage: f32,
     /// Explosive energy, MJ.
     pub blast_mj: f32,
-    /// A rocket (no drop).
+    /// What it throws (`weapon-kinds`): a shell when not given.
+    #[serde(default)]
+    pub shot: crate::weapons::ShotKind,
+    /// The old spelling of `shot: Rocket`.
     #[serde(default)]
     pub rocket: bool,
+    /// Share of the weapon heat bank a shot (a beam's second) adds.
+    #[serde(default)]
+    pub heat: f32,
     /// A missile's seeker turn, degrees a second.
     #[serde(default)]
     pub seeker_turn_deg_s: f32,
@@ -71,7 +77,9 @@ impl PartWeapon {
             penetration_mm: self.penetration_mm,
             damage: self.damage,
             blast_mj: self.blast_mj,
+            kind: self.shot,
             rocket: self.rocket,
+            heat: self.heat,
             seeker_turn_deg_s: self.seeker_turn_deg_s,
             rounds: self.rounds,
         }

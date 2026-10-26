@@ -65,8 +65,15 @@ the mech's data: an empty bank refills in 20 s, 0.05 a second). A shot adds its 
 `share_per_s * dt`. At 1.0 the bank locks and every heat weapon stops (the laser cuts out mid-beam)
 until it is back under 0.4. Sustained fire: the laser fills the bank in 5 s (0.25 in, 0.05 out a
 second), the plasma cannon in about 13 s, the railgun on its 4 s interval on its sixth shot, and
-mixing them fills it faster: two rail shots (0.5 after the cooling between them) and three seconds of laser lock it. Whether weapons and jets should share one bank is
-survey G23 (recommended: separate, so a jet hop never blocks the guns).
+mixing them fills it faster: two rail shots (0.5 after the cooling between them) and three seconds of laser lock it.
+
+**Decided (survey G23, owner, 2026-10-26: "Approve all", then "Go and implement"): the weapons have a bank of
+their own, separate from the jets', refilling in 20 s.** A jet hop never blocks the guns and a hot laser never
+grounds the mech. As built: the bank is `Guns::heat`, the same `Budget` type the boosters and skates use
+(`cb-core::mech::locomotion`), cooled by the same `Budget::tick` at rest, so there is one implementation of a
+budget that fills, locks and relights. Its numbers are `MechConfig.weapon_heat` (`recharge_s: 20.0`,
+`relight_heat: 0.4`; the code default, which a mech's data may override). Each weapon's share is `heat` on its
+`WeaponSpec`.
 
 ## 4. Fire groups and actions
 
@@ -78,9 +85,20 @@ charge on the press.
 ## 5. Enemies and loadouts
 
 Loadouts live in each mech's `weapons` list, so the combat mechs carry what their block-outs hold
-(Hatchet a shotgun, Brigand and Rampart a railgun on the back). Lasers and plasma go to the mechs and
-crabs survey G22 picks (recommended: the alien crabs carry the energy weapons, the human combat mechs
-the shotguns and railguns, so the two sides fight differently). The AI pilot (`cb-core::ai`) fires
+(Hatchet a shotgun, Brigand and Rampart a railgun on the back).
+
+**Decided (survey G22, owner, 2026-10-26: "Approve all", then "Go and implement"): anyone can carry every
+weapon, on both sides.** This was not the recommendation (which split them: crabs the energy weapons, humans the
+shotguns and railguns). Shotguns, railguns, lasers, plasma and multi-lock pods are open to human mechs and alien
+crabs alike, and to the player through the hangar's parts list. As built:
+
+- **The raiders** (`data/missions/defence.ron`, also every job's enemies) cycle seven loadouts: two autocannons, a
+  rocket pod, a shotgun (a Hatchet), a laser (a Shrike), a plasma cannon (a Bruiser) and a railgun (a Brigand).
+- **The first fight** (`data/world/encounters.ron`): the Pincher keeps its autocannon, the Bruiser carries a
+  shotgun and the Tyrant a plasma cannon.
+- **The hangar** (`data/career/parts.ron`): the rail rifle is now a charging slug with heat, and a shotgun, a laser
+  and a plasma cannon are for sale for any arm station.
+- Each AI's orbit range is set for its gun (a shotgun's 120 to 150 m, a railgun's 700 m). The AI pilot (`cb-core::ai`) fires
 each kind through the same actions, with one rule per kind in its fire decision: shotgun inside
 200 m; railgun when the lead error is under 0.3 degrees and the target is beyond 300 m; laser held
 while the aim is on the target and the bank is under 0.8; plasma inside 450 m, led with `lead`.
@@ -113,5 +131,31 @@ while the aim is on the target and the bank is under 0.8; plasma inside 450 m, l
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| G22 | Who carries the new weapons | Human combat mechs: shotguns and railguns. Alien crabs: lasers and plasma | provisional (survey G22) |
-| G23 | Do weapon heat and jet heat share one bank | Separate banks | provisional (survey G23) |
+| G22 | Who carries the new weapons | Human combat mechs: shotguns and railguns. Alien crabs: lasers and plasma | **Decided**, owner 2026-10-26: anyone can carry every weapon, on both sides (section 5) |
+| G23 | Do weapon heat and jet heat share one bank | Separate banks | **Decided**, owner 2026-10-26: separate, refilling in 20 s (section 3) |
+
+## Built, and the calls made on the way
+
+Built 2026-10-26 on the owner's "Approve all" and "Go and implement"; where a choice came up that would have been a
+survey question, the owner said "Use recommended for survey", and these were taken:
+
+- **The old `rocket: true` still loads** as `kind: Rocket` (`WeaponSpec::shot`), so data on other branches keeps
+  working; the shipped data is migrated, and a file giving both is refused.
+- **The beam is resolved through `cb_core::weapons::trace`**: an exact ray-capsule test for parts, buildings and
+  trees marched every 4 m and refined at 0.25 m. The same trace is the scope's rangefinder (`railgun-scope`).
+- **Measured, and the march changed for it**: marched every 4 m the way section 7 first said, a 1 500 m beam cost
+  2.8 ms a step (an Apple M4 Max, release, CPU only), because the terrain's height is a 3.3 us lookup and the hit
+  test asked it twice a sample. Now the ground is sampled at a stride that grows with the beam's clearance (no slope
+  steeper than 1.5 can reach it sooner) and bisected to 0.1 m: 0.113 ms 30 m over a city, still 13 % over the
+  0.1 ms budget. The height cache in PR #75 (`perf-free-roam`) is the next cut. Every shell's hit test now asks the
+  height once a sample instead of twice (`terrain_at`), the same rule, half the lookups.
+- **A laser's `speed_m_s` and `interval_s` are unused** (it has no flight and fires every held step) but are kept
+  in the data so every weapon has one shape; its lead is the target itself (`ShotKind::lead_speed_m_s`).
+- **A plasma ball's burst distance** is its speed times its time aloft; it bursts through the existing blast path.
+- **Muzzles**: a weapon fires from its own socket when the model has a node of that name (`CANNON_R`,
+  `MISSILE_L`), else its arm's contract muzzle, so a back unit needs no new contract socket.
+- **Mouse 4** reads `MouseBack` in the bindings (`MouseForward` is Mouse 5).
+- **The beam is drawn as a stand-in line** (`combat::BeamsDrawn`) until `combat-fx` has its recipe; the hit
+  already shows the existing impact effect.
+- Not built yet: the effects recipes and sound cues of section 6, and the playtest (task 5.1). The beam's 0.1 ms
+  budget is a measurement instrument (`a_beam_trace_costs_about_a_tenth_of_a_millisecond`, run in release).

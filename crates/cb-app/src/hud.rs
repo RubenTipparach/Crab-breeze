@@ -613,7 +613,7 @@ fn draw_targets(
         if selected {
             let w = me.iter().next().and_then(|spec| spec.weapons.first().cloned());
             if let Some(w) = w {
-                let p = cb_core::weapons::lead(eye, torso, vel, w.speed_m_s, !w.rocket);
+                let p = cb_core::weapons::lead(eye, torso, vel, w.shot().lead_speed_m_s(w.speed_m_s), !w.shot().straight());
                 lead_at = cam.world_to_viewport(at, p).ok().filter(|p| on_screen(*p));
             }
             let in_range = *d <= cfg.lock_range_m;
@@ -1081,16 +1081,22 @@ fn update_stations(
         };
         *v = Visibility::Inherited;
         let lost = sim.damage.is_lost(&spec.parts, w.arm);
-        let cd = sim.guns.cooldown_s.get(row.0).copied().unwrap_or(0.0);
         let rounds = sim.guns.rounds_left.get(row.0).copied().unwrap_or(w.rounds);
-        let state = if lost {
-            "LOST".to_string()
-        } else if rounds == Some(0) {
-            "EMPTY".to_string()
-        } else if cd > 0.05 {
-            format!("{cd:.1}s")
+        // The station's state from the clocks its shots fire from (weapon-kinds): charge, heat, reload.
+        use cb_core::weapons::StationState as S;
+        let state = match sim.guns.state(&spec.weapons, row.0, lost) {
+            S::Lost => "LOST".to_string(),
+            S::Empty => "EMPTY".to_string(),
+            S::Hot => "HOT".to_string(),
+            S::Charging(k) => format!("CHARGE {:.0}%", k * 100.0),
+            S::Reloading(cd) => format!("{cd:.1}s"),
+            S::Ready => "READY".to_string(),
+        };
+        // A weapon that runs hot shows the bank it shares (weapon-kinds section 6).
+        let state = if w.heat > 0.0 {
+            format!("{state}  HEAT {:.0}%", sim.guns.heat.heat * 100.0)
         } else {
-            "READY".to_string()
+            state
         };
         let name = w.name.to_uppercase();
         let count = rounds.map_or_else(String::new, |n| format!(" x{n}"));

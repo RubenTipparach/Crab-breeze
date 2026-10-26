@@ -64,6 +64,8 @@ pub struct Actions {
     pub sink: bool,
     /// Missile trigger held (fire group 2, at the lock: `targeting`).
     pub fire_missile: bool,
+    /// Back units' trigger held (fire group 3, `weapon-kinds`).
+    pub fire_back: bool,
     /// Select the next target this step.
     pub target_next: bool,
     /// Close combat toggled this step (openspec change `close-combat`).
@@ -205,6 +207,8 @@ pub struct Bindings {
     pub sink: Vec<String>,
     /// Fire a missile at the lock (in the mech).
     pub fire_missile: Vec<String>,
+    /// Fire the back units, group 3 (in the mech; `weapon-kinds`).
+    pub fire_back: Vec<String>,
     /// Select the next target (in the mech).
     pub target_next: Vec<String>,
     /// Close combat on and off (in the mech).
@@ -251,6 +255,7 @@ impl Default for Bindings {
             skate: k("ShiftLeft"),
             sink: k("KeyC"),
             fire_missile: k("KeyF"),
+            fire_back: vec!["KeyG".to_string(), "MouseBack".to_string()],
             target_next: k("KeyQ"),
             close_combat: k("Tab"),
             weapon_cycle: vec!["MouseWheel".to_string(), "BracketRight".to_string()],
@@ -283,6 +288,8 @@ pub fn key_label(name: &str) -> String {
         "MouseLeft" => "Left mouse".into(),
         "MouseRight" => "Right mouse".into(),
         "MouseMiddle" => "Middle mouse".into(),
+        "MouseBack" => "Mouse 4".into(),
+        "MouseForward" => "Mouse 5".into(),
         "MouseWheel" => "Mouse wheel".into(),
         "BracketRight" => "]".into(),
         "Escape" => "Esc".into(),
@@ -361,6 +368,7 @@ impl Bindings {
             row("Weapons", "Fire primary", "fire_primary", &self.fire_primary),
             row("Weapons", "Fire secondary", "fire_secondary", &self.fire_secondary),
             row("Weapons", "Fire missile at the lock", "fire_missile", &self.fire_missile),
+            row("Weapons", "Fire the back units", "fire_back", &self.fire_back),
             row("Weapons", "Next target", "target_next", &self.target_next),
             row(
                 "Weapons",

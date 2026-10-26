@@ -338,10 +338,10 @@ fn step_units(
                 pos: from,
                 vel: dir * w.speed_m_s,
                 age_s: 0.0,
-                rocket: w.rocket,
+                rocket: w.shot().straight(),
                 target: None,
             });
-            let flash = if w.rocket {
+            let flash = if w.shot().straight() {
                 "muzzle_rocket"
             } else if w.blast_mj >= 1.0 {
                 "muzzle_cannon"

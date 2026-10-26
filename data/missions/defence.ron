@@ -25,7 +25,10 @@
     siege_burst_s: 1.0,
     siege_pause_s: 5.0,
     facade_out_m: 2.0,
-    // Cycled through each wave in order: of 10 raiders, numbers 3, 6 and 9 carry rockets.
+    // Cycled through each wave in order. Of 10 raiders, numbers 3 and 10 carry rockets, 4 a shotgun, 5 a laser, 6 a
+    // plasma cannon and 7 a railgun (openspec/changes/weapon-kinds; survey G22, owner, 2026-10-26: anyone can carry
+    // every weapon, on both sides, so the crabs and the human mechs alike). Speeds m/s, intervals s, penetration mm,
+    // blast MJ, heat a share of the weapon heat bank (a shot, or a second of beam).
     raiders: [
         (
             mech: "mechs/placeholder.ron",
@@ -57,9 +60,53 @@
             armour_scale: 0.55,
             weapons: Some([
                 (name: "90 mm rocket pod", socket: "MUZZLE_R", arm: ArmR, group: 0, speed_m_s: 240.0,
-                 interval_s: 1.6, penetration_mm: 120.0, damage: 30.0, blast_mj: 2.0, rocket: true),
+                 interval_s: 1.6, penetration_mm: 120.0, damage: 30.0, blast_mj: 2.0, kind: Rocket),
             ]),
             skill: (aim_noise_deg: 2.0, fire_error_deg: 2.5, range_m: 320.0, max_fire_range_m: 800.0, hop_chance: 0.2),
+        ),
+        (
+            mech: "mechs/placeholder.ron",
+            skin: Some("hatchet"),
+            tint: Some((0.40, 0.24, 0.14)),
+            armour_scale: 0.55,
+            weapons: Some([
+                (name: "shotgun", socket: "MUZZLE_R", arm: ArmR, group: 0, speed_m_s: 600.0, interval_s: 1.0,
+                 penetration_mm: 40.0, damage: 9.0, blast_mj: 0.0, kind: Pellets(count: 12, spread_deg: 1.5)),
+            ]),
+            skill: (aim_noise_deg: 3.0, fire_error_deg: 3.0, range_m: 120.0, max_fire_range_m: 250.0, hop_chance: 0.4),
+        ),
+        (
+            mech: "mechs/placeholder.ron",
+            skin: Some("shrike"),
+            tint: Some((0.50, 0.18, 0.22)),
+            armour_scale: 0.55,
+            weapons: Some([
+                (name: "laser", socket: "MUZZLE_R", arm: ArmR, group: 0, speed_m_s: 1500.0, interval_s: 0.1,
+                 penetration_mm: 120.0, damage: 60.0, blast_mj: 0.0, kind: Beam(range_m: 1500.0), heat: 0.25),
+            ]),
+            skill: (aim_noise_deg: 2.0, fire_error_deg: 2.0, range_m: 400.0, max_fire_range_m: 1200.0),
+        ),
+        (
+            mech: "mechs/placeholder.ron",
+            skin: Some("bruiser"),
+            tint: Some((0.30, 0.22, 0.36)),
+            armour_scale: 0.55,
+            weapons: Some([
+                (name: "plasma cannon", socket: "MUZZLE_R", arm: ArmR, group: 0, speed_m_s: 180.0, interval_s: 1.6,
+                 penetration_mm: 80.0, damage: 55.0, blast_mj: 4.0, kind: Plasma(burst_m: 650.0), heat: 0.2),
+            ]),
+            skill: (aim_noise_deg: 2.5, fire_error_deg: 3.0, range_m: 300.0, max_fire_range_m: 450.0),
+        ),
+        (
+            mech: "mechs/placeholder.ron",
+            skin: Some("brigand"),
+            tint: Some((0.32, 0.30, 0.26)),
+            armour_scale: 0.55,
+            weapons: Some([
+                (name: "railgun", socket: "MUZZLE_R", arm: ArmR, group: 0, speed_m_s: 2400.0, interval_s: 4.0,
+                 penetration_mm: 400.0, damage: 140.0, blast_mj: 0.0, kind: Slug(charge_s: 1.0), heat: 0.35),
+            ]),
+            skill: (aim_noise_deg: 1.5, fire_error_deg: 1.0, range_m: 700.0, max_fire_range_m: 2000.0, hop_chance: 0.1),
         ),
     ],
     // Each wave's skins (openspec/changes/blockout-enemies, E1, provisional): raider i of a wave wears its list's
