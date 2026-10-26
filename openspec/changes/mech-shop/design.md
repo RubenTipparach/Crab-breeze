@@ -177,7 +177,30 @@ rebuilds the flown mech from that design and its fit.
 - **The landing** reuses the mech's own landing (the sim lands it; `ground-marks` prints the feet and throws the
   dust), with `fall_dust` and `jet_wash` from `data/fx/fx.ron`.
 
-### 6.5 Cost
+### 6.5 Survey J16, answered: the marker and swapping at a base
+
+The owner's answer to J16: "a marker appears on your hud to show mech delivery. you can swap mechs out at base, with foreman always availible".
+
+**The marker** (`cb-app` `air_drop::draw_markers`): one per drop in `Career::drops`, from the order until the pilot
+sits in that mech (`Career::boarded` ends the drop), drawn over the site 30 m up on the HUD layer, shown on foot and
+in the seat: `<> AIR DROP SAPPER 85 M` and `INBOUND 12 S`, `FALLING 140 M`, or `WALK UP TO BOARD`; red with
+`DROP ZONE: MOVE CLEAR` while the pilot stands in the zone.
+
+**Swapping at a base** (`Career::call_out`, pure): the terminal's HANGAR tab lists every owned mech, where it is
+(HERE, IN THE FIELD 1.2 KM, BASE 2 BAY 1, AIR DROP INBOUND) and CALL OUT for each that may come.
+
+| Rule | Why |
+| --- | --- |
+| A mech standing on this base's site, or waiting unseen in one of its bays, can be called | "swap mechs out at base" |
+| The career's starting mech (`start_mech`, the Foreman) can be called from anywhere, and comes back whole when it was wrecked | "with foreman always availible" |
+| The mech in use cannot be called (it is already here) | nothing to swap |
+| It comes out standing in the terminal's own bay, or the base's first bay no mech stands in, facing the apron; with none clear, `NO CLEAR BAY` | it stands where the pilot can walk up to it |
+
+The swap itself is the walk up (section 6.3): the pilot walks to the called mech and boards it, and the mech they
+leave stays parked where they left it, kept by the career. Tests: a mech parked here comes and one parked elsewhere
+does not, the mech in use is refused, the Foreman comes from far away and whole after a wreck.
+
+### 6.6 Cost
 
 The search runs once a purchase: at most 60 rings of at most 250 spots, each a building grid lookup, a water query,
 five height samples and the rocks; well under 50 ms by estimate, once. The drop draws one block-out aircraft (about
@@ -189,7 +212,7 @@ as any parked mech does (`mech-roster`'s per-mech cost).
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | J15 | Prices, as in section 3 | As listed: cheaper for the plain machines, the Harrow dearest | provisional (survey J15) |
-| J16 | Buying away from a base | Superseded by the owner, 2026-10-26: air dropped near the pilot anywhere; a bay only as the fallback | answered |
+| J16 | Buying away from a base | Superseded by the owner, 2026-10-26: air dropped near the pilot anywhere; a bay only as the fallback. The owner's J16 answer: "a marker appears on your hud to show mech delivery. you can swap mechs out at base, with foreman always availible" (section 6.5) | answered |
 | D1 | How far from the pilot it lands | 40 to 150 m | provisional (survey D1) |
 | D2 | Canopies, retro thrusters, or both | Canopies, with a retro burst in the last 25 m | provisional (survey D2) |
 | D3 | How long from BUY to touchdown | About 50 s (25 s to the release, 25 s falling) | provisional (survey D3) |

@@ -23,7 +23,9 @@ Built with `career` and `air-bases`, after `mfd-menus`.
   landing, the marker and the warning, the dropped mech boardable by walking up to it, Continue keeping it
 - [ ] 4.4 The shop's text: AIR DROP NEAR YOU; the bay only as the fallback
 - [ ] 4.5 `career-loop` playtest beat 5 waits for the drop, walks up to the mech and boards it
-- [ ] 4.6 Playtest on the owner's machine (only when the owner says so)
+- [ ] 4.6 Survey J16, answered ("a marker appears on your hud to show mech delivery. you can swap mechs out at base, with foreman always availible"): the HUD marker until the mech is boarded; the terminal's HANGAR tab and
+  `Career::call_out`, the Foreman always available; tested in cb-core
+- [ ] 4.7 Playtest on the owner's machine (only when the owner says so)
 
 ## 3. Checks
 - [ ] 3.1 `cargo fmt`, `cargo clippy -D warnings`, `cargo test --workspace`, `cb-tools validate`, `openspec validate --all`, the dash check

@@ -49,6 +49,28 @@ walking up to it. Saving SHALL keep it where it landed.
 - **WHEN** the career is saved after the mech landed and continued
 - **THEN** the mech stands where it landed and the pilot can walk up to it and board it
 
+### Requirement: The delivery is marked on the HUD until it is boarded
+
+From the order until the pilot boards the mech, the HUD SHALL show a marker where the mech is coming down, and then
+where it stands (owner, survey J16: "a marker appears on your hud to show mech delivery. you can swap mechs out at base, with foreman always availible").
+
+#### Scenario: The marker lasts until boarding
+- **WHEN** a dropped mech has landed and the pilot has not yet sat in it
+- **THEN** its drop is still on the career and its marker still shows
+
+### Requirement: A parked mech can be called out at a base, and the Foreman always
+
+At a base terminal the pilot SHALL be able to call out any owned mech parked at that base into a bay, and SHALL always
+be able to call out the Foreman, from anywhere, made whole if it was wrecked. The mech in use SHALL not be called.
+
+#### Scenario: Parked elsewhere
+- **WHEN** the pilot calls out a mech parked at another base
+- **THEN** the terminal says NOT PARKED AT THIS BASE and nothing moves
+
+#### Scenario: The Foreman, wrecked far away
+- **WHEN** the Foreman is a wreck in the field and the pilot calls it out at a base
+- **THEN** it stands in a bay there, whole
+
 ### Requirement: The shop shows the numbers the game flies the mech by
 
 The shop's sheet SHALL read each mech's height, mass, speed, armour and loadout from the data the game flies it by.

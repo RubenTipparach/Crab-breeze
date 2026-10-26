@@ -51,6 +51,16 @@ its rope like any owned mech, and the pilot climbs in. If the pilot walks into t
 marker warns them off and the canopies steer it aside. It is the career's mech from the moment it is bought, and a
 save keeps it where it landed.
 
+## Survey J16, answered (owner)
+
+The owner's answer to J16: "a marker appears on your hud to show mech delivery. you can swap mechs out at base, with foreman always availible".
+
+- **The marker:** from the order until the pilot has boarded the mech, a marker on the HUD stands over where it is
+  coming down (and then where it stands), with its distance and its stage, on foot and in the seat.
+- **Swapping at a base:** a base terminal's new HANGAR tab lists every mech the career owns and where it is, and
+  CALL OUT brings one parked at that base into a bay, standing, to be walked up to and boarded. The Foreman can
+  always be called out, from anywhere, and comes back whole if it was wrecked.
+
 ## Out of scope
 
 Selling mechs, buying weapons or parts separately (a mech comes with its loadout), repairs (`air-bases`), and the
