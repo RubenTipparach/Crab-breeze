@@ -19,8 +19,10 @@ use bevy::render::render_resource::TextureFormat;
 use bevy::ui::UiTargetCamera;
 use cb_core::pilot::PilotMode;
 
-/// The dash's lower screens, bound by exact name (they were baked pictures), and the page each starts on.
-const DASH_SCREENS: [(&str, usize); 3] = [("SCREEN_left_screen", 0), ("SCREEN_center_screen", 4), ("SCREEN_right_screen", 3)];
+/// The dash's lower screens, bound by exact name (they were baked pictures), and the page each starts on. The left
+/// one starts on MISSION (the heading): the MFD above it already shows MECH (owner, 2026-10-25: "the two left mfds
+/// show the same thing, one should show the mech body, the other the heading").
+const DASH_SCREENS: [(&str, usize); 3] = [("SCREEN_left_screen", 2), ("SCREEN_center_screen", 4), ("SCREEN_right_screen", 3)];
 
 /// The MFD texture and the camera that draws it.
 #[derive(Resource)]

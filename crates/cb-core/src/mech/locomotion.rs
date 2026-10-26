@@ -367,7 +367,8 @@ impl MechState {
         let want = c.turn_axis * turn_rate.to_radians();
         let ease = loco.turn_accel_deg_s2.to_radians() * dt_s;
         self.turn_rate_rad_s += (want - self.turn_rate_rad_s).clamp(-ease, ease);
-        self.heading_rad = (self.heading_rad + self.turn_rate_rad_s * dt_s).rem_euclid(std::f32::consts::TAU);
+        let legs_turn_rad = self.turn_rate_rad_s * dt_s;
+        self.heading_rad = (self.heading_rad + legs_turn_rad).rem_euclid(std::f32::consts::TAU);
         let fwd = flat_forward(self.heading_rad);
 
         // Horizontal velocity. Only the skates push for free movement's price; the rockets never
@@ -506,13 +507,18 @@ impl MechState {
         };
         self.speed_m_s = self.vel.dot(flat_forward(self.heading_rad));
 
-        // Torso, independent of the legs: aim moves the target, the torso follows at its rate.
+        // Torso, independent of the legs: aim moves the target, the torso follows at its rate. The torso
+        // and its aim are held still in the world while the legs turn under them (both twists take back
+        // the legs' turn this step), so the torso eases toward a target only the aim moves, instead of
+        // stopping and starting after one the legs drag along (owner, 2026-10-25, in the Harrow: "the
+        // controller for turning the cockpit or torso is tweaking out becuse it wont stop when its close
+        // to the mouse").
         let twist_max = loco.twist_max_deg.to_radians();
         let [pitch_lo, pitch_hi] = loco.pitch_limits_deg.map(f32::to_radians);
-        self.aim_twist_rad = (self.aim_twist_rad - c.aim_delta_deg.x.to_radians()).clamp(-twist_max, twist_max);
+        self.aim_twist_rad = (self.aim_twist_rad - legs_turn_rad - c.aim_delta_deg.x.to_radians()).clamp(-twist_max, twist_max);
         self.aim_pitch_rad = (self.aim_pitch_rad + c.aim_delta_deg.y.to_radians()).clamp(pitch_lo, pitch_hi);
         let (twist, rate) = ease_toward(
-            self.twist_rad,
+            (self.twist_rad - legs_turn_rad).clamp(-twist_max, twist_max),
             self.twist_rate_rad_s,
             self.aim_twist_rad,
             loco.twist_rate_deg_s.to_radians(),
@@ -565,6 +571,41 @@ mod tests {
         assert_eq!(m.throttle, 1.0);
         assert!((m.speed_m_s - 7.0).abs() < 1e-3, "{}", m.speed_m_s);
         assert!(m.pos.z < -20.0, "heading 0 walks toward -z: {}", m.pos);
+    }
+
+    #[test]
+    fn the_torso_holds_steady_on_a_still_aim_while_the_legs_turn_under_it() {
+        // The pilot's view stays put in the world while the legs turn toward it, as when seated: each
+        // step the aim is asked for afresh from the view and the legs' heading (as the cockpit asks).
+        let cfg = MechConfig::default();
+        let mut m = MechState::standing(Vec3::ZERO, 0.0, &GaitConfig::default());
+        let view = 40f32.to_radians();
+        let wrap = |a: f32| (a + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+        let accel = cfg.locomotion.twist_accel_deg_s2.to_radians();
+        let mut last_world_rate = 0.0;
+        let mut world = m.heading_rad + m.twist_rad;
+        for i in 0..600 {
+            let want = wrap(view - m.heading_rad);
+            let c = MechControls {
+                turn_axis: (want / 45f32.to_radians()).clamp(-1.0, 1.0),
+                aim_delta_deg: Vec2::new(-(want - m.aim_twist_rad).to_degrees(), 0.0),
+                ..Default::default()
+            };
+            m.step(&c, &cfg, &FlatGround::default(), DT);
+            let now = wrap(m.heading_rad + m.twist_rad);
+            let world_rate = wrap(now - world) / DT;
+            assert!(
+                (world_rate - last_world_rate).abs() <= 2.0 * accel * DT + 1e-3,
+                "step {i}: the torso's turn in the world jumps from {last_world_rate} to {world_rate}"
+            );
+            if i > 120 {
+                assert!(
+                    wrap(now - view).abs() < 1e-3,
+                    "step {i}: the torso sits on the view, {now} of {view}"
+                );
+            }
+            (world, last_world_rate) = (now, world_rate);
+        }
     }
 
     #[test]
