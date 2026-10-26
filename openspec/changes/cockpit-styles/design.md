@@ -48,3 +48,21 @@ the wires they go no where", "place wires along the struts"): breaker panels wit
 button blocks and rivet rows on the lower side walls; the cable bundle from each side console down to the floor, along
 it to the corner pillar, up the pillar in clips every 0.22 m, and along the roof beam into a junction box over the front
 screen. The textures there are drawn in the page; the builder's are the material features above.
+
+### 5.1 The owner's notes on the first mockup (2026-10-26) and what changed
+
+- "wood trims should sill be metal based, wood is just accent": the wood style keeps painted steel walls and
+  structure; the trims are a glossy lacquered burl walnut (after the owner's car photos: a Bentley's dash, a
+  Cadillac's console) on the dash fascia, sills and console rails, with chrome edging, a cream leather seat and a cool
+  blue ambient strip.
+- "airline one is too white, it hurts my eyes" (with 777 flight deck photos): tan-grey lining, taupe trims, charcoal
+  switch panels, a tan leather seat, warm dim light.
+- "modern exacator cockpit ... very sleek, polycarbonates, fiberglass, matte black/greys": a fifth style, excavator:
+  matte black and grey moulded panels, no rivets, a two-tone grey cloth seat, yellow grab handles on the pillars.
+- "fire extingushers, first aid kits, signal flares, life preservers, just more crap on the walls": on the solid rear
+  quarters of the side walls, the rear bulkhead and the roof: extinguishers in brackets, a first aid kit, a signal
+  flare case, a life vest pouch, a life ring, an oxygen mask box, circuit breaker panels, a torch in clips, grab
+  handles, an overhead switch panel, gaspers, a dome light, an avionics rack and a stowage bin.
+- "NOT ON THE WINDOWS ... cant put a fire hydrant or circuit breaker obstructing my view": nothing is mounted over a
+  screen; the kit sits only on solid wall, under the sill, on the bulkhead and roof, and on the pillars (handles and
+  wires). The builder's version keeps the same rule: dressing is placed only on faces that are not screen wall.

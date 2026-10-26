@@ -52,6 +52,7 @@ label.check { display: flex; gap: 6px; align-items: center; font-size: 13px; col
     <button id="st-wood" data-style="wood" aria-pressed="false">Wood trims</button>
     <button id="st-airliner" data-style="airliner" aria-pressed="false">Airliner</button>
     <button id="st-padded" data-style="padded" aria-pressed="false">Padded</button>
+    <button id="st-excavator" data-style="excavator" aria-pressed="false">Excavator</button>
   </div>
   <div class="group" role="group" aria-label="View">
     <span class="label">View</span>
@@ -138,6 +139,17 @@ function wood(dark, light, seed) {
     return [...mix(d, l, t), f(u * 0.1, v * 6) * 0.5];
   });
 }
+// Burl walnut veneer: a domain-warped figure with dark knots, as on a luxury car's dash.
+function burl(dark, light, seed) {
+  const a = noise2(seed, 5), b = noise2(seed + 1, 11), c = noise2(seed + 2, 23), k = noise2(seed + 3, 40), d = hex(dark), l = hex(light);
+  return paint((u, v) => {
+    const wu = u + 0.25 * a(u, v), wv = v + 0.25 * b(u + 0.3, v);
+    const f = 0.5 + 0.5 * Math.sin((c(wu, wv) * 3.5 + b(wu, wv) * 1.5 + wv * 6) * Math.PI);
+    const knot = Math.max(0, k(u, v) - 0.72) * 3.6;
+    const t = Math.min(1, Math.max(0, f * 0.55 + 0.2 - knot));
+    return [...mix(d, l, t), t * 0.3];
+  });
+}
 // Leather: a pebbled grain, optionally diamond-quilted at `pitch` (texture spans 1 m) with stitched seams and buttons.
 function leather(base, pitch, seed) {
   const g = noise2(seed, 180), b = hex(base), q = pitch ? 1 / pitch : 0;
@@ -172,7 +184,25 @@ function cloth(base, pattern, seed) {
     return [...c, w * 0.4];
   });
 }
+// Moulded matte plastic, polycarbonate or fibreglass: almost smooth, a faint orange-peel, no joints.
+function moulded(base, seed) {
+  const n = noise2(seed, 140), b = hex(base);
+  return paint((u, v) => [...tint(b, 0.96 + 0.06 * n(u, v)), 0.5 + 0.05 * n(u, v)]);
+}
+// A two-tone work seat: a mid-grey woven centre panel between darker bolsters, stitched at the joins.
+function workSeat(centre, sides, seed) {
+  const a = hex(centre), b = hex(sides), n = noise2(seed, 64);
+  return paint((u, v) => {
+    const w = (Math.sin(u * TEX * 1.1) * Math.sin(v * TEX * 1.1)) * 0.5 + 0.5, mid = Math.abs(((u * 2.5) % 1) - 0.5) < 0.3;
+    const edge = Math.abs(Math.abs(((u * 2.5) % 1) - 0.5) - 0.3) < 0.01;
+    return [...tint(mid ? a : b, edge ? 0.5 : 0.85 + 0.2 * w + 0.05 * n(u, v)), edge ? 0.1 : 0.4 + 0.3 * w];
+  });
+}
 function material(t, o) {
+  if (o.clearcoat) {
+    const m = material(t, Object.assign({}, o, { clearcoat: 0 }));
+    return new THREE.MeshPhysicalMaterial({ map: m.map, normalMap: m.normalMap, roughness: o.r, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.06 });
+  }
   const map = new THREE.CanvasTexture(t.colour);
   map.encoding = THREE.sRGBEncoding;
   const nm = new THREE.CanvasTexture(normals(t.height, o.bump ?? 2));
@@ -189,25 +219,25 @@ const STYLES = {
     structure: () => material(plate('#262b31', 3), { r: 0.6, bump: 3 }),
     panel: () => material(plate('#4c545e', 4), { r: 0.55, bump: 3 }),
     seat: () => material(cloth('#2c3036', null, 5), { r: 0.9, bump: 1.5 }),
-    accent: 0x3fe6ff, lamp: [0x9fc4ff, 0xcfe0ff],
+    accent: 0x3fe6ff, lamp: [0x9fc4ff, 0xcfe0ff], rivets: true,
   },
   wood: {
-    about: ['<b>Wood trims</b>: varnished walnut on the rails, sills and dash edge; brown leather walls; a tan quilted seat; brass-amber strips; warm lamps.'],
-    wall: () => material(leather('#5a4636', 0, 11), { r: 0.55, bump: 4 }),
-    trim: () => material(wood('#2e1a0e', '#7a4d2a', 12), { r: 0.3, bump: 1.5 }),
-    structure: () => material(plate('#2a211b', 13), { r: 0.5, bump: 3 }),
-    panel: () => material(plate('#3d332b', 14), { r: 0.5, bump: 3 }),
-    seat: () => material(leather('#8a5a35', 0.09, 15), { r: 0.55, bump: 9 }),
-    accent: 0xffc97a, lamp: [0xffc68a, 0xffe2b8],
+    about: ['<b>Wood trims</b>, after a luxury car\'s dash: warm painted steel walls and structure, as now; glossy lacquered burl walnut only as accents (the dash fascia, sills, console rails); a cream stitched leather seat; a cool blue ambient strip.'],
+    wall: () => material(plate('#4d4842', 11), { r: 0.58, bump: 3 }),
+    trim: () => material(burl('#2c160a', '#7a4522', 12), { r: 0.25, bump: 0.8, clearcoat: true }),
+    structure: () => material(plate('#2b2825', 13), { r: 0.55, bump: 3 }),
+    panel: () => material(plate('#3a3632', 14), { r: 0.5, bump: 3 }),
+    seat: () => material(leather('#cdb894', 0, 15), { r: 0.5, bump: 4 }),
+    accent: 0x4aa8ff, lamp: [0xffd9b0, 0xffe8cc], rivets: true,
   },
   airliner: {
-    about: ['<b>Airliner</b>: off-white moulded plastic with a fine stipple and soft joints, light and mid greys, blue patterned seat cloth, soft white strips, neutral light.'],
-    wall: () => material(plastic('#d9d5cc', 21), { r: 0.45, bump: 2 }),
-    trim: () => material(plastic('#bfc1c2', 22), { r: 0.4, bump: 2 }),
-    structure: () => material(plastic('#7b7f84', 23), { r: 0.5, bump: 2 }),
-    panel: () => material(plastic('#c4c1b8', 24), { r: 0.45, bump: 2 }),
-    seat: () => material(cloth('#2b3f66', '#c9a64a', 25), { r: 0.85, bump: 1.5 }),
-    accent: 0xf4efe2, lamp: [0xf3f1ea, 0xe6eefc],
+    about: ['<b>Airliner</b>, after a 777 flight deck: tan-grey padded wall lining with soft joints, darker taupe trims and pillars, charcoal-grey switch panels, tan leather seat, warm dim strips and light.'],
+    wall: () => material(plastic('#8a8272', 21), { r: 0.65, bump: 2 }),
+    trim: () => material(plastic('#7e7667', 22), { r: 0.5, bump: 2 }),
+    structure: () => material(plastic('#5a544b', 23), { r: 0.55, bump: 2 }),
+    panel: () => material(plate('#3c3b39', 24), { r: 0.5, bump: 2 }),
+    seat: () => material(leather('#9a7348', 0, 25), { r: 0.55, bump: 4 }),
+    accent: 0xe8d6b0, lamp: [0xffe4c4, 0xf2e6d6],
   },
   padded: {
     about: ['<b>Padded</b>: diamond-quilted charcoal leather on the walls and roof, an oxblood quilted seat, brushed steel trims, red-orange strips.'],
@@ -216,13 +246,24 @@ const STYLES = {
     structure: () => material(leather('#1c1b1c', 0, 33), { r: 0.55, bump: 4 }),
     panel: () => material(plate('#2e2d30', 34), { r: 0.5, bump: 3 }),
     seat: () => material(leather('#3a2624', 0.07, 35), { r: 0.6, bump: 10 }),
-    accent: 0xff7a3a, lamp: [0xffd2b0, 0xffe6d4],
+    accent: 0xff7a3a, lamp: [0xffd2b0, 0xffe6d4], rivets: true,
+  },
+  excavator: {
+    about: ['<b>Excavator</b>, after a modern digger cab: sleek matte black and grey moulded polycarbonate and fibreglass, no exposed plate, a two-tone grey cloth seat, yellow grab handles, soft white strips.'],
+    wall: () => material(moulded('#2b2d30', 41), { r: 0.8, bump: 1.5 }),
+    trim: () => material(moulded('#45484c', 42), { r: 0.7, bump: 1.5 }),
+    structure: () => material(moulded('#1a1b1d', 43), { r: 0.75, bump: 1.5 }),
+    panel: () => material(moulded('#25272a', 44), { r: 0.7, bump: 1.5 }),
+    seat: () => material(workSeat('#6b6e72', '#2f3134', 45), { r: 0.9, bump: 2 }),
+    accent: 0xe8edf2, lamp: [0xf2f4f6, 0xe4ebf2], handle: 0xf2b400,
   },
 };
 
 // ---------------------------------------------------------------- building blocks
 const byRole = { wall: [], trim: [], structure: [], panel: [], seat: [] };
 const accents = [];
+const handles = [];
+const HANDLE_STEEL = new THREE.MeshStandardMaterial({ color: 0x8a9098, roughness: 0.35, metalness: 1 });
 const dressing = new THREE.Group();
 scene.add(dressing);
 const FIXED = {
@@ -330,6 +371,9 @@ for (const s of [-1, 1]) {
 // the dash pod under the dash screens, its top a trim
 box(1.5, 0.5, 0.36, 0, 0.42, F + 0.2, 'structure');
 box(1.52, 0.035, 0.38, 0, 0.68, F + 0.2, 'trim');
+box(1.4, 0.09, 0.012, 0, 0.58, F + 0.386, 'trim');                                // the dash fascia insert
+glowStrip(1.4, 0.008, 0.01, 0, 0.528, F + 0.388);                                 // ambient strip under it
+for (const s of [-1, 1]) box(0.012, 0.3, 0.5, s * 0.424, 0.42, 0.05, 'trim');     // console inner faces
 // side consoles, their edges trimmed; the stick right, the throttle left
 for (const s of [-1, 1]) {
   box(0.26, 0.62, 0.6, s * 0.56, 0.31, 0.05, 'structure');
@@ -357,12 +401,12 @@ function placard(text, w, h, bg, fg) {
   return screenTex((c, cw, ch) => { c.fillStyle = bg; c.fillRect(0, 0, cw, ch); c.fillStyle = fg; c.font = `600 ${ch * 0.42}px IBM Plex Sans Condensed, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, cw / 2, ch / 2); }, 512, Math.round(512 * h / w));
 }
 const rivetGeo = new THREE.SphereGeometry(0.0055, 8, 6);
-const rivets = [];
+const rivets = [], rivetMeshes = [];
 function rivetRow(a, b, n) { for (let i = 0; i <= n; i++) rivets.push(a.clone().lerp(b, i / n)); }
 for (const s of [-1, 1]) {
   // a group on the inside face of the lower side wall, +z of the group pointing into the cab
   const g = new THREE.Group(); g.position.set(s * (W - 0.02), 0, 0); g.rotation.y = -s * Math.PI / 2; dressing.add(g);
-  const X = z => -s * z;   // world z along the wall to the group's x
+  const X = z => s * z;   // world z along the wall to the group's x (the group is turned to face into the cab)
   // electrical breaker panel: a box, its door, two rows of breakers, a placard
   box(0.38, 0.3, 0.06, X(-0.45), 0.66, 0.03, 'panel', g);
   box(0.34, 0.26, 0.012, X(-0.45), 0.66, 0.066, 'panel', g);
@@ -383,7 +427,114 @@ for (const s of [-1, 1]) {
   // rivets along the panel seams of the lower wall
   for (const zz of [-0.75, -0.25, 0.25, 0.75]) rivetRow(new THREE.Vector3(X(zz), 0.08, 0.004), new THREE.Vector3(X(zz), 0.86, 0.004), 12);
   rivetRow(new THREE.Vector3(X(-0.95), 0.86, 0.004), new THREE.Vector3(X(0.85), 0.86, 0.004), 30);
-  for (const p of rivets.splice(0)) { const m = new THREE.Mesh(rivetGeo, FIXED.steel); m.position.copy(p); g.add(m); }
+  for (const p of rivets.splice(0)) { const m = new THREE.Mesh(rivetGeo, FIXED.steel); m.position.copy(p); g.add(m); rivetMeshes.push(m); }
+}
+
+// ---------------------------------------------------------------- safety kit and more on the walls, the roof and the bulkhead
+function mat(color, o = {}) { return new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.5 }, o)); }
+const KIT = {
+  red: mat(0xb3191c, { roughness: 0.35 }), white: mat(0xe9e6de), orange: mat(0xe2621a, { roughness: 0.7 }),
+  yellow: mat(0xe0ac16, { roughness: 0.7 }), green: mat(0x1f6b3a), black: mat(0x111214, { roughness: 0.6 }),
+  knob: mat(0xd8d4ca, { roughness: 0.4 }),
+};
+function cyl(r, h, x, y, z, m, parent, rot = [0, 0, 0], seg = 20) {
+  const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg), m); c.position.set(x, y, z); c.rotation.set(...rot); parent.add(c); return c;
+}
+function label(text, w, h, x, y, z, parent, bg = '#d9d4c3', fg = '#121314') { const m = pane(w, h, placard(text, w, h, bg, fg), parent); m.position.set(x, y, z); return m; }
+// a fire extinguisher in its bracket: red bottle, black head and hose, the FIRE label above
+function extinguisher(g, x, y) {
+  box(0.13, 0.05, 0.03, x, y + 0.08, 0.015, FIXED.steel, g); box(0.13, 0.05, 0.03, x, y + 0.3, 0.015, FIXED.steel, g);
+  cyl(0.055, 0.38, x, y + 0.2, 0.075, KIT.red, g); cyl(0.02, 0.06, x, y + 0.42, 0.075, KIT.black, g);
+  box(0.09, 0.015, 0.02, x + 0.03, y + 0.45, 0.075, KIT.black, g);
+  const hose = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(x + 0.02, y + 0.43, 0.09), new THREE.Vector3(x + 0.08, y + 0.35, 0.12), new THREE.Vector3(x + 0.07, y + 0.12, 0.12)]), 20, 0.008, 6), KIT.black); g.add(hose);
+  label('FIRE', 0.12, 0.04, x, y + 0.53, 0.003, g, '#b01e20', '#f4efe2');
+}
+// a first aid kit: white case, green band, cross
+function firstAid(g, x, y) {
+  box(0.3, 0.2, 0.1, x, y, 0.05, KIT.white, g); box(0.3, 0.04, 0.102, x, y + 0.06, 0.05, KIT.green, g);
+  box(0.05, 0.016, 0.01, x, y - 0.02, 0.102, KIT.green, g); box(0.016, 0.05, 0.01, x, y - 0.02, 0.102, KIT.green, g);
+  label('FIRST AID', 0.14, 0.025, x, y + 0.06, 0.102, g, '#1f6b3a', '#f4efe2');
+}
+// the signal flare case: orange, two latches, its label
+function flares(g, x, y) {
+  box(0.36, 0.13, 0.11, x, y, 0.055, KIT.orange, g);
+  for (const k of [-1, 1]) box(0.03, 0.04, 0.012, x + k * 0.12, y + 0.03, 0.112, FIXED.steel, g);
+  label('SIGNAL FLARES', 0.18, 0.035, x, y - 0.015, 0.112, g, '#121314', '#ffae2e');
+}
+// the life vest pouch: a yellow soft case with a pull tab
+function lifeVest(g, x, y) {
+  box(0.28, 0.17, 0.08, x, y, 0.04, KIT.yellow, g); box(0.04, 0.05, 0.01, x, y - 0.1, 0.07, KIT.red, g);
+  label('LIFE VEST', 0.14, 0.03, x, y + 0.02, 0.082, g, '#121314', '#e0ac16');
+}
+// a circuit breaker panel: rows of black breaker caps, white collars
+function breakers(g, x, y, cols, rows) {
+  box(cols * 0.04 + 0.06, rows * 0.05 + 0.08, 0.03, x, y, 0.015, 'panel', g);
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const cx = x + (c - (cols - 1) / 2) * 0.04, cy = y + (r - (rows - 1) / 2) * 0.05;
+    cyl(0.011, 0.012, cx, cy, 0.034, KIT.knob, g, [Math.PI / 2, 0, 0], 10); cyl(0.008, 0.02, cx, cy, 0.044, KIT.black, g, [Math.PI / 2, 0, 0], 10);
+  }
+  label('CIRCUIT BREAKERS', 0.2, 0.03, x, y + rows * 0.025 + 0.025, 0.031, g, '#121314', '#d9d4c3');
+}
+// the oxygen mask box: a small grey box with a green door
+function oxygen(g, x, y) { box(0.18, 0.12, 0.09, x, y, 0.045, 'panel', g); box(0.14, 0.08, 0.01, x, y, 0.091, KIT.green, g); label('O2 PULL', 0.1, 0.025, x, y, 0.097, g, '#1f6b3a', '#f4efe2'); }
+// a torch in two clips
+function torch(g, x, y) { for (const k of [-1, 1]) box(0.05, 0.02, 0.03, x + k * 0.07, y, 0.015, FIXED.steel, g); cyl(0.022, 0.26, x, y, 0.035, KIT.black, g, [0, 0, Math.PI / 2]); cyl(0.03, 0.05, x + 0.15, y, 0.035, KIT.black, g, [0, 0, Math.PI / 2]); }
+for (const s of [-1, 1]) {
+  // the solid rear quarter of each side wall, sill to header, from the side pillar back
+  const g = new THREE.Group(); g.position.set(s * (W - 0.02), 0, 0); g.rotation.y = -s * Math.PI / 2; dressing.add(g);
+  const X = z => s * z;   // world z along the wall to the group's x (the group is turned to face into the cab)
+  if (s < 0) {
+    breakers(g, X(0.02), 1.45, 6, 6);
+    extinguisher(g, X(0.38), 0.98);
+    oxygen(g, X(0.38), 1.68);
+    flares(g, X(0.72), 1.2);
+    torch(g, X(0.72), 1.5);
+  } else {
+    firstAid(g, X(0.05), 1.55);
+    lifeVest(g, X(0.05), 1.2);
+    breakers(g, X(0.48), 1.45, 5, 6);
+    extinguisher(g, X(0.78), 0.98);
+  }
+  // a grab handle along the header, a gasper over the head
+  handles.push(box(0.4, 0.025, 0.025, X(0.2), HEAD - 0.07, 0.06, HANDLE_STEEL, g));
+  for (const k of [-1, 1]) handles.push(box(0.025, 0.025, 0.06, X(0.2) + k * 0.19, HEAD - 0.07, 0.03, HANDLE_STEEL, g));
+}
+{
+  // the rear bulkhead, behind the seat: a life ring, an equipment rack, a stowage bin
+  const g = new THREE.Group(); g.position.set(0, 0, B - 0.03); g.rotation.y = Math.PI; dressing.add(g);
+  const ringTex = screenTex((c, w, h) => { for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? '#f4efe2' : '#e2621a'; c.fillRect(i * w / 8, 0, w / 8, h); } }, 256, 16);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.05, 12, 32), new THREE.MeshStandardMaterial({ map: ringTex, roughness: 0.7 }));
+  ring.position.set(0.52, 1.45, 0.06); g.add(ring); box(0.06, 0.08, 0.04, 0.52, 1.68, 0.02, FIXED.steel, g);
+  box(0.4, 0.6, 0.2, -0.5, 1.25, 0.1, 'panel', g);
+  for (let i = 0; i < 4; i++) {
+    box(0.36, 0.12, 0.012, -0.5, 1.03 + i * 0.145, 0.206, 'structure', g);
+    for (let k = 0; k < 4; k++) box(0.012, 0.012, 0.006, -0.62 + k * 0.025, 1.03 + i * 0.145, 0.214, new THREE.MeshStandardMaterial({ color: 0x111111, emissive: k === 3 && i === 1 ? 0xff3326 : 0x46ff7c, emissiveIntensity: 1.6 }), g);
+  }
+  label('AVIONICS RACK 2', 0.22, 0.035, -0.5, 1.6, 0.212, g, '#121314', '#d9d4c3');
+  box(1.2, 0.2, 0.3, 0, 1.92, 0.15, 'wall', g); box(1.18, 0.02, 0.01, 0, 1.86, 0.305, 'trim', g);
+  label('STOWAGE  MAX 15 KG', 0.24, 0.03, 0.3, 1.94, 0.302, g);
+}
+{
+  // the roof over the pilot: an overhead switch panel, gaspers, a dome light
+  const panelY = H - 0.04, z0 = -0.05, z1 = 0.5;
+  box(0.9, 0.05, z1 - z0, 0, panelY, (z0 + z1) / 2, 'panel', dressing);
+  const r = rnd(4);
+  for (let row = 0; row < 6; row++) for (let col = 0; col < 12; col++) {
+    const x = -0.38 + col * 0.069, z = z0 + 0.05 + row * 0.085, kind = r();
+    if (kind < 0.4) cyl(0.012, 0.02, x, panelY - 0.035, z, KIT.knob, dressing, [0, 0, 0], 10);
+    else if (kind < 0.75) box(0.008, 0.03, 0.008, x, panelY - 0.04, z, FIXED.steel, dressing, [0.4, 0, 0]);
+    else box(0.03, 0.01, 0.022, x, panelY - 0.03, z, new THREE.MeshStandardMaterial({ color: 0x111111, emissive: [0x46ff7c, 0xffae2e, 0xfff4dc][Math.floor(r() * 3)], emissiveIntensity: 1.2 }), dressing);
+  }
+  for (const x of [-0.6, 0.6]) { cyl(0.035, 0.03, x, H - 0.02, 0.2, FIXED.steel, dressing); cyl(0.015, 0.02, x, H - 0.045, 0.2, KIT.black, dressing); }
+  const dome = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.025, 20), new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xfff1d8, emissiveIntensity: 1.2 }));
+  dome.position.set(0, H - 0.02, 0.62); dressing.add(dome);
+}
+
+// a curved grab handle on each corner pillar, at the hatch, as on a digger's cab
+for (const s of [-1, 1]) {
+  const x = s * (W - 0.1), z = F + 0.13;
+  const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(x, 0.98, z - 0.04), new THREE.Vector3(x - s * 0.05, 1.02, z + 0.02), new THREE.Vector3(x - s * 0.06, 1.4, z + 0.03), new THREE.Vector3(x, 1.46, z - 0.04)]);
+  const m = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.016, 10), HANDLE_STEEL); dressing.add(m); handles.push(m);
 }
 
 // ---------------------------------------------------------------- wire runs: along the struts, clipped, into a junction box
@@ -435,6 +586,9 @@ function setStyle(name) {
   for (const r in byRole) for (const m of byRole[r]) m.material = built[name][r];
   for (const a of accents) a.material.emissive.setHex(st.accent);
   lampA.color.setHex(st.lamp[0]); lampB.color.setHex(st.lamp[1]);
+  const hm = st.handle ? new THREE.MeshStandardMaterial({ color: st.handle, roughness: 0.45 }) : HANDLE_STEEL;
+  for (const h of handles) h.material = hm;
+  for (const r of rivetMeshes) r.visible = !!st.rivets;
   document.getElementById('about').innerHTML = st.about.map(s => `<span>${s}</span>`).join('') +
     '<span>Same cab, same screens: only the materials change. Walls, trims, structure, panels and seat each take the style.</span>';
   document.querySelectorAll('[data-style]').forEach(b => b.setAttribute('aria-pressed', b.dataset.style === name));
