@@ -1,6 +1,6 @@
 //! The cockpit MFD's own pages (openspec changes `mfd-menus` and `mission-jobs` 2.1): MENU, the list a screen shows
 //! when it is clicked in free look, and MAIL, the job offers with ACCEPT, read and answered on the screens. They sit
-//! on the MFD texture after the five readouts (`hud::MFD_PAGES`). Every row and button is a rectangle in page pixels
+//! on the MFD texture after the six readouts (`hud::MFD_PAGES`). Every row and button is a rectangle in page pixels
 //! from one table (`items`), which both lays the page out and answers which row a point on the page falls in, so the
 //! row that lights is the row a click presses. `mfd` finds the screen and the point; this module says what is there
 //! and what pressing it does.
@@ -17,7 +17,7 @@ pub const MENU_PAGE: usize = MFD_READOUTS;
 pub const MAIL_PAGE: usize = MFD_READOUTS + 1;
 
 /// The readouts' names, in page order.
-const READOUTS: [&str; MFD_READOUTS] = ["MECH", "FLIGHT", "MISSION", "WEAPONS", "TARGET"];
+const READOUTS: [&str; MFD_READOUTS] = ["MECH", "FLIGHT", "MISSION", "WEAPONS", "TARGET", "DAMAGE"];
 
 /// Offers shown on the MAIL page at once (the board keeps three open: `data/jobs/jobs.ron`).
 const MAIL_SLOTS: usize = 3;

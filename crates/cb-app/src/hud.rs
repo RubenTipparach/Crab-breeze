@@ -32,6 +32,7 @@ impl Plugin for HudPlugin {
                 update_stations,
                 draw_job,
                 draw_signs,
+                draw_body,
             )
                 .in_set(PresentSet::Camera),
         );
@@ -49,15 +50,34 @@ pub struct MfdRoot;
 pub const MFD_PAGE_PX: f32 = 512.0;
 
 /// Pages side by side on the MFD texture, left to right: MECH, FLIGHT, MISSION, WEAPONS, TARGET (weapon-select),
-/// then the cockpit's own MENU and MAIL (`mfd_apps`, openspec change `mfd-menus`). The pages' row and the texture are
+/// DAMAGE (mfd-damage-page), then the cockpit's own MENU and MAIL (`mfd_apps`, openspec change `mfd-menus`). The pages' row and the texture are
 /// both this many pages wide, so each screen's slice holds exactly one page.
-pub const MFD_PAGES: usize = 7;
+pub const MFD_PAGES: usize = 8;
 
 /// The readout pages, the first of `MFD_PAGES`; the rest are `mfd_apps`'.
-pub const MFD_READOUTS: usize = 5;
+pub const MFD_READOUTS: usize = 6;
 
 #[derive(Component)]
 struct LegArrow;
+
+/// A part of the body on the DAMAGE page (mfd-damage-page): its box, and the per cent in it.
+#[derive(Component, Clone, Copy)]
+struct BodyPart(PartKind);
+
+/// The per cent (or `X`) inside a `BodyPart`'s box.
+#[derive(Component, Clone, Copy)]
+struct BodyPartText(PartKind);
+
+/// The body on the DAMAGE page, its parts' boxes in pixels from the body's top left (300 x 300), a front view as the
+/// cockpit design draws it: the pilot's left on the left.
+const BODY: [(PartKind, [f32; 4]); 6] = [
+    (PartKind::Head, [120.0, 0.0, 60.0, 44.0]),
+    (PartKind::Torso, [80.0, 52.0, 140.0, 112.0]),
+    (PartKind::ArmL, [20.0, 60.0, 52.0, 120.0]),
+    (PartKind::ArmR, [228.0, 60.0, 52.0, 120.0]),
+    (PartKind::LegL, [88.0, 172.0, 56.0, 128.0]),
+    (PartKind::LegR, [156.0, 172.0, 56.0, 128.0]),
+];
 
 /// One dot of the climb-out ring round the crosshair, by its place round the ring (0 at the top).
 #[derive(Component)]
@@ -141,6 +161,18 @@ pub(crate) const GREEN: Color = Color::srgb(0.55, 0.95, 0.6);
 pub(crate) const AMBER: Color = Color::srgb(1.0, 0.75, 0.25);
 const RED: Color = Color::srgb(1.0, 0.3, 0.25);
 pub(crate) const FRAME: Color = Color::srgba(0.55, 0.95, 0.6, 0.35);
+
+/// The colour a part's health (`Damage::health`, 0 to 1) is shown in: green, amber under 70 %, red under 30 %. The one
+/// rule for it, on the MECH page's text and the DAMAGE page's body.
+fn health_colour(health: f32) -> Color {
+    if health < 0.3 {
+        RED
+    } else if health < 0.7 {
+        AMBER
+    } else {
+        GREEN
+    }
+}
 
 pub(crate) fn text(s: &str, size: f32) -> (Text, TextFont, TextColor) {
     (Text::new(s), TextFont::from_font_size(size), TextColor(GREEN))
@@ -339,7 +371,7 @@ fn spawn_hud(mut commands: Commands) {
                 ));
             }
         });
-    // The mech's readouts, on the cockpit's MFDs (cockpit-mfds, weapon-select): five 512 x 512 pages
+    // The mech's readouts, on the cockpit's MFDs (cockpit-mfds, weapon-select, mfd-damage-page): six 512 x 512 pages
     // in a row, drawn by the MFD camera into one texture each screen shows one page of. Every roster
     // cockpit has six screens (cockpit-parity); only a mech with no interior (the stand-in) keeps the
     // pages along the bottom of the view.
@@ -500,6 +532,49 @@ fn spawn_hud(mut commands: Commands) {
                     },
                     text("", 36.0),
                     TargetReadout,
+                ));
+            });
+            // DAMAGE: the mech's body, each part coloured by how whole it is, and the hurt parts' lines
+            // (mfd-damage-page; owner, 2026-10-26: "Where's is the mech body damage mfd?").
+            let damage = page(pages, "DAMAGE");
+            pages.commands().entity(damage).with_children(|c| {
+                c.spawn(Node {
+                    width: px(300.0),
+                    height: px(300.0),
+                    flex_shrink: 0.0,
+                    ..default()
+                })
+                .with_children(|body| {
+                    for (kind, [x, y, w, h]) in BODY {
+                        body.spawn((
+                            Node {
+                                position_type: PositionType::Absolute,
+                                left: px(x),
+                                top: px(y),
+                                width: px(w),
+                                height: px(h),
+                                border: UiRect::all(px(4.0)),
+                                border_radius: BorderRadius::all(px(4.0)),
+                                justify_content: JustifyContent::Center,
+                                align_items: AlignItems::Center,
+                                ..default()
+                            },
+                            BorderColor::all(GREEN),
+                            BackgroundColor(GREEN.with_alpha(0.25)),
+                            BodyPart(kind),
+                        ))
+                        .with_children(|b| {
+                            b.spawn((text("", 22.0), BodyPartText(kind)));
+                        });
+                    }
+                });
+                c.spawn((
+                    Node {
+                        max_width: percent(100.0),
+                        ..default()
+                    },
+                    text("", 30.0),
+                    Readout::Damage,
                 ));
             });
             pages.commands().entity(mission).with_children(|c| {
@@ -669,6 +744,45 @@ fn draw_targets(
             **vis = Visibility::Inherited;
         }
         None => **vis = Visibility::Hidden,
+    }
+}
+
+/// The DAMAGE page's body: each part's box in the colour of how whole it is, its per cent in it, crossed out when lost
+/// (mfd-damage-page). The numbers are the damage simulation's own (`Damage::health_of`).
+#[allow(clippy::type_complexity)]
+fn draw_body(
+    mech: Query<(&MechSim, &MechSpec), With<Piloted>>,
+    mut boxes: Query<(&BodyPart, &mut BorderColor, &mut BackgroundColor, &mut Visibility)>,
+    mut texts: Query<(&BodyPartText, &mut Text, &mut TextColor)>,
+) {
+    let Some((sim, spec)) = mech.iter().next() else { return };
+    let of = |kind| sim.damage.health_of(&spec.parts, kind);
+    for (part, mut border, mut fill, mut vis) in &mut boxes {
+        match of(part.0) {
+            None => *vis = Visibility::Hidden,
+            Some((_, true)) => {
+                *border = BorderColor::all(RED.with_alpha(0.5));
+                fill.0 = Color::NONE;
+                *vis = Visibility::Inherited;
+            }
+            Some((h, false)) => {
+                let c = health_colour(h);
+                *border = BorderColor::all(c);
+                fill.0 = c.with_alpha(0.25);
+                *vis = Visibility::Inherited;
+            }
+        }
+    }
+    for (part, mut t, mut colour) in &mut texts {
+        let (s, c) = match of(part.0) {
+            None => (String::new(), GREEN),
+            Some((_, true)) => ("X".to_string(), RED),
+            Some((h, false)) => (format!("{:.0}%", h * 100.0), health_colour(h)),
+        };
+        if t.0 != s {
+            t.0 = s;
+        }
+        colour.0 = c;
     }
 }
 
@@ -936,7 +1050,7 @@ fn update_hud(
                     .iter()
                     .enumerate()
                     .filter_map(|(i, p)| {
-                        let f = sim.damage.structure[i] / p.structure.max(1.0);
+                        let f = sim.damage.health(&spec.parts, i);
                         worst = worst.min(f);
                         let name = match p.kind {
                             PartKind::ArmL => "ARM L",
@@ -962,13 +1076,7 @@ fn update_hud(
                     } else {
                         rows.into_iter().take(4).collect::<Vec<_>>().join("\n")
                     },
-                    if worst < 0.3 {
-                        RED
-                    } else if worst < 0.7 {
-                        AMBER
-                    } else {
-                        GREEN
-                    },
+                    health_colour(worst),
                 )
             }
         };
@@ -1226,6 +1334,23 @@ fn draw_job(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_part_is_green_whole_amber_under_seventy_and_red_under_thirty() {
+        assert_eq!(super::health_colour(1.0), super::GREEN);
+        assert_eq!(super::health_colour(0.69), super::AMBER);
+        assert_eq!(super::health_colour(0.29), super::RED);
+        assert_eq!(super::health_colour(0.0), super::RED);
+    }
+
+    #[test]
+    fn the_body_draws_every_kind_of_part_once_on_its_page() {
+        for (i, (k, [x, y, w, h])) in super::BODY.iter().enumerate() {
+            assert!(super::BODY[i + 1..].iter().all(|(o, _)| o != k), "{k:?} twice");
+            assert!(*x >= 0.0 && *y >= 0.0 && x + w <= 300.0 && y + h <= 300.0, "{k:?} off the body");
+        }
+        assert_eq!(super::BODY.len(), 6);
+    }
+
     use super::*;
 
     #[test]
