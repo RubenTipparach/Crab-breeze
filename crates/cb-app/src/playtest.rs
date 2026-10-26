@@ -21,7 +21,7 @@ use bevy::window::{PrimaryWindow, WindowRef};
 use cb_core::input::Actions;
 use cb_core::jobs::JobState;
 use cb_core::pilot::{PilotMode, wrap_rad};
-use cb_core::playtest::{Beat, Expect, Script};
+use cb_core::playtest::{Beat, Expect, Pick, Script};
 use std::f32::consts::PI;
 
 /// Plays one run of a playtest script.
@@ -70,6 +70,16 @@ struct Pilot {
     ready_s: Option<f32>,
     failures: Vec<String>,
     ending: Option<f32>,
+    /// A long drive blocked: how long the mech has stood still, real seconds.
+    stall_s: f32,
+    /// The beat's top speed since the last detour, m/s: a mech that never got going is not blocked.
+    peak_m_s: f32,
+    /// A detour round an obstacle: the point steered for, until when, and the side taken last.
+    detour: Vec2,
+    detour_until: f32,
+    detour_side: f32,
+    /// Jobs the pilot could not reach and gave up on (`AcceptByMail` passes them over).
+    gave_up: Vec<u32>,
 }
 
 /// Keys the scripted pilot presses, applied after the devices are read so the game sees them as a key's press.
@@ -97,10 +107,95 @@ impl Plugin for PlaytestPlugin {
             ready_s: None,
             failures: Vec::new(),
             ending: None,
+            stall_s: 0.0,
+            peak_m_s: 0.0,
+            detour: Vec2::ZERO,
+            detour_until: 0.0,
+            detour_side: 1.0,
+            gave_up: Vec::new(),
         })
         .init_resource::<PressKey>()
         .add_systems(PreUpdate, press_keys.after(bevy::input::InputSystems))
-        .add_systems(Update, play.in_set(crate::sim::PresentSet::Input));
+        .add_systems(Update, play.in_set(crate::sim::PresentSet::Input))
+        .init_resource::<FrameLog>()
+        .add_systems(Last, log_frames);
+    }
+}
+
+/// Every frame of a take, for the performance report (`tools/perf/free_roam_report.py`): real seconds, the frame's
+/// milliseconds, the beat, where the mech is and how fast it goes, the pilot's mode, the job's enemies alive and the
+/// entity count. Appended to `output/perf/<script>-frames.csv` every few seconds. A measurement instrument.
+#[derive(Resource, Default)]
+struct FrameLog {
+    lines: String,
+    path: Option<std::path::PathBuf>,
+    written_s: f32,
+    /// The worst frame of the last second, and when the second began, for the one-line `PERF` log.
+    worst_ms: f32,
+    frames: u32,
+    second_s: f32,
+}
+
+fn log_frames(mut log: ResMut<FrameLog>, t: Res<Pilot>, s: Scene, entities: &bevy::ecs::entity::Entities) {
+    if !t.started {
+        return;
+    }
+    let now = s.real.elapsed_secs();
+    let ms = s.real.delta_secs() * 1000.0;
+    let Some((sim, _)) = s.me.iter().next() else { return };
+    let m = &sim.curr;
+    let alive = s.enemies.iter().filter(|(e, _)| !e.dead).count();
+    let mode = match s.pilot.curr.mode {
+        PilotMode::Seated => "seated",
+        PilotMode::OnFoot => "foot",
+        _ => "other",
+    };
+    if log.path.is_none() {
+        let dir = crate::cli::repo_root().join("output/perf");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join(format!("{}-frames.csv", t.script.name));
+        let _ = std::fs::write(&path, "real_s,frame_ms,beat,x,z,y,speed_m_s,mode,skates,enemies,entities\n");
+        log.path = Some(path);
+        log.second_s = now;
+    }
+    let line = format!(
+        "{now:.3},{ms:.2},{},{:.0},{:.0},{:.0},{:.1},{mode},{},{alive},{}\n",
+        t.beat,
+        m.pos.x,
+        m.pos.z,
+        m.pos.y,
+        m.vel.length(),
+        u8::from(m.skates_on),
+        entities.len()
+    );
+    log.lines.push_str(&line);
+    log.worst_ms = log.worst_ms.max(ms);
+    log.frames += 1;
+    if now - log.second_s >= 1.0 {
+        let fps = log.frames as f32 / (now - log.second_s);
+        if log.worst_ms > 16.7 || fps < 60.0 {
+            info!(
+                "PERF slow: {fps:.0} fps, worst {:.1} ms, beat {} at ({:.0}, {:.0}) {:.0} m/s, {alive} enemies",
+                log.worst_ms,
+                t.beat,
+                m.pos.x,
+                m.pos.z,
+                m.vel.length()
+            );
+        }
+        log.worst_ms = 0.0;
+        log.frames = 0;
+        log.second_s = now;
+    }
+    if now - log.written_s > 5.0 || t.ending.is_some() {
+        log.written_s = now;
+        if let Some(path) = log.path.clone() {
+            use std::io::Write;
+            if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(&path) {
+                let _ = f.write_all(log.lines.as_bytes());
+            }
+            log.lines.clear();
+        }
     }
 }
 
@@ -301,6 +396,50 @@ fn play(
                 want_click = pick.map(MenuButton::Accept);
             }
         },
+        Beat::AcceptByMail(rule, max) => {
+            let current = career.and_then(|c| c.career.board.current().map(|j| j.id));
+            if t.clicked && current.is_some() {
+                // Signed up: M again closes the mail.
+                if *s.menu == Menu::Mail && press.0.is_none() && now - t.toggled_s > 1.0 {
+                    t.toggled_s = now;
+                    press.0 = Some((KeyCode::KeyM, false));
+                }
+                done = !s.menu.is_open();
+                if done {
+                    info!("playtest: signed up by mail for job {}", current.unwrap_or_default());
+                }
+            } else if *s.menu != Menu::Mail {
+                if press.0.is_none() && now - t.toggled_s > 1.0 {
+                    t.toggled_s = now;
+                    press.0 = Some((KeyCode::KeyM, false));
+                }
+            } else if in_beat > 240.0 {
+                fail(&mut t, now, "no offer came in 240 s");
+                return;
+            } else {
+                let here = Vec2::new(m.pos.x, m.pos.z);
+                let pick = career.and_then(|c| {
+                    c.career
+                        .board
+                        .jobs
+                        .iter()
+                        .filter(|j| j.state == JobState::Offered && j.tier <= *max && !t.gave_up.contains(&j.id))
+                        .max_by(|a, b| {
+                            let by = a.site.distance(here).total_cmp(&b.site.distance(here));
+                            if *rule == Pick::Farthest { by } else { by.reverse() }
+                        })
+                        .map(|j| (j.id, j.site.distance(here)))
+                });
+                if let Some((id, d)) = pick
+                    && t.click.is_none()
+                    && !t.clicked
+                    && in_beat > 0.4
+                {
+                    info!("playtest: the {rule:?} offer is job {id}, {d:.0} m away");
+                }
+                want_click = pick.map(|(id, _)| MenuButton::Accept(id));
+            }
+        }
         Beat::CloseTerminal => {
             if *s.menu == Menu::Terminal && press.0.is_none() && in_beat < 0.1 {
                 press.0 = Some((KeyCode::KeyE, false));
@@ -321,7 +460,35 @@ fn play(
                 Some(j) => {
                     let d = j.site.distance(Vec2::new(m.pos.x, m.pos.z));
                     dist = Some(d);
-                    act = drive(m, p.yaw_rad, p.pitch_rad, j.site, eye, 1.0, true, false);
+                    // Blocked on a long drive (a building, a cliff): after moving, standing still for 2 s sends the
+                    // mech toward a point 150 m off to one side (alternating sides) for 8 s, the first 3 s on the
+                    // rockets, then back on course, as a player getting round it would.
+                    let speed = m.vel.length();
+                    t.peak_m_s = t.peak_m_s.max(speed);
+                    if speed < 3.0 && t.peak_m_s > 10.0 && now > t.detour_until {
+                        t.stall_s += s.real.delta_secs();
+                    } else {
+                        t.stall_s = 0.0;
+                    }
+                    if t.stall_s > 2.0 {
+                        t.stall_s = 0.0;
+                        // Stopped again after the detour: another, the other side.
+                        t.peak_m_s = 10.5;
+                        t.detour_side = -t.detour_side;
+                        let here = Vec2::new(m.pos.x, m.pos.z);
+                        let ahead = (j.site - here).normalize_or_zero();
+                        t.detour = here + Vec2::new(-ahead.y, ahead.x) * 150.0 * t.detour_side - ahead * 40.0;
+                        t.detour_until = now + 8.0;
+                        info!("playtest: blocked at ({:.0}, {:.0}), steering round it", m.pos.x, m.pos.z);
+                    }
+                    let goal = if now < t.detour_until { t.detour } else { j.site };
+                    act = drive(m, p.yaw_rad, p.pitch_rad, goal, eye, 1.0, true, false);
+                    // The first 3 s of a detour on the rockets, W held so they swivel forward (rocket-vector): up and
+                    // out of whatever caught the mech.
+                    if now < t.detour_until && t.detour_until - now > 5.0 {
+                        act.lift_axis = 1.0;
+                        act.move_xy = Vec2::Y;
+                    }
                 }
                 None => {
                     fail(&mut t, now, "no job under way");
@@ -673,7 +840,10 @@ fn play(
         );
     }
     // A beat with no distance to close (a press, a click) that has not happened in 20 s is stuck too.
-    let timed = !matches!(beat, Beat::Wait(_) | Beat::LookAround(_) | Beat::FightJob(_) | Beat::EnterBay(_)) && dist.is_none();
+    let timed = !matches!(
+        beat,
+        Beat::Wait(_) | Beat::LookAround(_) | Beat::FightJob(_) | Beat::EnterBay(_) | Beat::AcceptByMail(..)
+    ) && dist.is_none();
     if timed && in_beat > 20.0 && !done {
         say(&format!(
             "PLAYTEST_RESULT stuck in beat {} {beat:?}: nothing happened in 20 s",
@@ -688,6 +858,33 @@ fn play(
             t.best_m = d;
             t.progress_game_s = game_s;
         } else if game_s - t.progress_game_s > t.script.stuck_s {
+            // A job that cannot be reached by mail is given up for the next one the same way (at most three): the
+            // run goes on across the island, and the report says so.
+            let job = run.as_deref().and_then(|c| c.career.board.current().map(|j| j.id));
+            let by_mail = t.beat > 0 && matches!(beats.get(t.beat - 1), Some(Beat::AcceptByMail(..)));
+            if matches!(beat, Beat::GoToJob)
+                && by_mail
+                && t.gave_up.len() < 3
+                && let Some(id) = job
+            {
+                say(&format!(
+                    "PLAYTEST_NOTE gave up on job {id}: no way through at ({:.0}, {:.0}), {d:.0} m short",
+                    m.pos.x, m.pos.z
+                ));
+                t.gave_up.push(id);
+                t.beat -= 1;
+                t.beat_real_s = now;
+                t.beat_game_s = game_s;
+                t.progress_game_s = game_s;
+                t.best_m = f32::INFINITY;
+                t.click = None;
+                t.clicked = false;
+                t.peak_m_s = 0.0;
+                t.detour_until = 0.0;
+                announce(&t);
+                acc.script = Some(Actions::default());
+                return;
+            }
             let msg = format!(
                 "stuck in beat {} {beat:?}: {d:.0} m from its goal, pilot at ({:.0}, {:.0}), mech at ({:.0}, {:.0})",
                 t.beat, p.feet.x, p.feet.z, m.pos.x, m.pos.z
@@ -708,6 +905,8 @@ fn play(
         t.progress_game_s = game_s;
         t.best_m = f32::INFINITY;
         t.leg = 0;
+        t.peak_m_s = 0.0;
+        t.detour_until = 0.0;
         t.click = None;
         t.clicked = false;
         t.brain = None;

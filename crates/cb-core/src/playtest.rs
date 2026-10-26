@@ -20,6 +20,9 @@ pub enum Beat {
     Tab(String),
     /// Click Accept on the open offer nearest the pilot whose tier is at most this.
     AcceptJob(u8),
+    /// Press M for the mail and click Accept on the open offer nearest or farthest from the mech whose tier is at most
+    /// this, then press M again to close it (a free-roam performance run's trips). Waits for an offer while none is open.
+    AcceptByMail(Pick, u8),
     /// Press Use to step back from the terminal's screen.
     CloseTerminal,
     /// Walk to the mech, press Use, and climb into the seat.
@@ -51,6 +54,15 @@ pub enum Beat {
     Quit,
     /// After Continue: check the career and the pilot's place came back, within this many metres.
     ExpectRestored(f32),
+}
+
+/// Which open offer `AcceptByMail` takes, by its site's distance from the mech.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+pub enum Pick {
+    /// The closest.
+    Nearest,
+    /// The farthest.
+    Farthest,
 }
 
 /// One launch of the game in a script: how it is started and the beats it plays.
@@ -93,7 +105,7 @@ impl Validate for Script {
                     Beat::Wait(s) | Beat::LookAround(s) | Beat::FightJob(s) | Beat::AwaitDrop(s) => !(s.is_finite() && *s > 0.0),
                     Beat::ExpectRestored(m) => !(m.is_finite() && *m > 0.0),
                     Beat::Tab(t) => !matches!(t.as_str(), "Jobs" | "Shop" | "Refit" | "Hangar"),
-                    Beat::AcceptJob(t) | Beat::ExpectOffer(t) => !(1..=crate::jobs::MAX_TIER).contains(t),
+                    Beat::AcceptJob(t) | Beat::AcceptByMail(_, t) | Beat::ExpectOffer(t) => !(1..=crate::jobs::MAX_TIER).contains(t),
                     Beat::Grant(c) => *c <= 0,
                     Beat::BuyMech(d) => !d.starts_with("mechs/"),
                     Beat::BuyPart(id) | Beat::Fit(_, id) => id.is_empty(),

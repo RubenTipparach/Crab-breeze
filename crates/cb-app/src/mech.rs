@@ -1018,6 +1018,7 @@ pub fn step_mech(
     mut contacts: MessageWriter<GroundContact>,
 ) {
     let _t = crate::perf_hud::slow("step_mech");
+    let _all = crate::perf_hud::section("step_mech");
     let tl = &data.0.boarding;
     let locked = targeting.locked(&data.0.targeting);
     let dt = time.delta_secs();
@@ -1207,7 +1208,10 @@ pub fn step_mech(
                     );
                 }
                 let others: Vec<Body> = bodies.iter().filter(|b| b.0 != id.0).map(|b| b.1).collect();
-                aim_at = cam.map(|c| look_point(&c, &plan, live, &others));
+                aim_at = {
+                    let _s = crate::perf_hud::section("look_point");
+                    cam.map(|c| look_point(&c, &plan, live, &others))
+                };
                 c
             } else {
                 MechControls::default()
@@ -1245,6 +1249,7 @@ pub fn step_mech(
                 cover: &cover,
                 open: &open,
             };
+            let _span = crate::perf_hud::section("enemy_orders");
             let orders = enemy.ai.orders(&sim.curr, &view, dt);
             if let Some(c) = stunt(
                 &sim.curr,
@@ -1275,7 +1280,10 @@ pub fn step_mech(
             interiors: None,
         };
         let was_airborne = sim.curr.airborne();
-        sim.curr.step(&controls, cfg, &ground, dt);
+        {
+            let _span = crate::perf_hud::section("mech_step");
+            sim.curr.step(&controls, cfg, &ground, dt);
+        }
 
         // Trees in the way: the legs snap trunks (or are stopped by them), the hull and arms snap
         // crowns, and each snapped tree takes some momentum (vegetation design section 5).
