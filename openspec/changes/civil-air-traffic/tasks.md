@@ -29,7 +29,8 @@
 - [x] 3.6 The mockup page `docs/mockups/civil_aircraft.html` from `tools/mockups/gen_civil_aircraft.py`
 - [x] 3.10 The pilot's hits charged to the nearest base's standing through `cb_core::civil_standing`, once per
   aircraft however many rounds hit it (survey W34); tested
-- [ ] 3.7 The owner approves the stand-ins' shapes and sizes on the mockup page
+- [x] 3.7 The owner approves the stand-ins' shapes on the mockup page (2026-10-26: "Approved all of the stand ins"); the freighter's size
+  stays open (W48): approving the stand-in is not a choice of size
 - [ ] 3.8 Blender models with LODs and PBR sets, after 3.7
 - [ ] 3.9 Recorded engine, propeller and rotor sounds (W49)
 

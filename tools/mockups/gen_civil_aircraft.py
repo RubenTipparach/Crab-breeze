@@ -7,8 +7,8 @@ The page itself is tools/mockups/civil_aircraft_src.html. This script inlines in
   game draws (cb_core::air_traffic::shape::blockout), so the page and the game cannot disagree;
 - __YARDSTICK__: the Foreman block-out (assets/models/mech_blockouts.json and its glb), the 24 m yardstick, sized by its
   manifest (Mining Mike's rule: orbit it, at true relative scale).
-The page loads three.js r147 from the CDN, as the other mockup pages here do. It is not published: the stand-ins need the
-owner's approval first (CLAUDE.md section 10).
+The page loads three.js r147 from the CDN, as the other mockup pages here do. The owner approved the stand-ins on
+2026-10-26 ("Approved all of the stand ins"); the freighter's size is still open (survey W48).
 """
 import base64
 import json

@@ -96,8 +96,8 @@ for good. No aircraft is spawned in a fight, at a base in one or to circle a cit
 and tailplane; a propeller and gear; a cabin, boom, mast, crossed rotor bars and skids. The game draws
 it (`cb-app::air_traffic`), and `cb-tools aircraft` prints it for the mockup page
 (`tools/mockups/gen_civil_aircraft.py`, writing `docs/mockups/civil_aircraft.html`), so the two cannot
-disagree. A test checks each table is its kind's length, span and height. These are **stand-ins**: the
-real models come from Blender once the page is approved (CLAUDE.md section 10).
+disagree. A test checks each table is its kind's length, span and height. These are **stand-ins**, approved
+by the owner on 2026-10-26 ("Approved all of the stand ins"); the real models come from Blender next (CLAUDE.md section 10).
 
 **Hit shapes:** a capsule down the fuselage and one across the wing (a helicopter: its cabin only),
 posed by the aircraft's heading, pitch and bank. They join the shot sweep's part list under ids from

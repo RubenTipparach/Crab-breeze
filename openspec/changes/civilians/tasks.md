@@ -13,9 +13,10 @@
 - [x] 1.4 Running inside: `StreetDoors`, an implementation of `Doors` over every building's real street door
   (`world::interior::shell`, the rule the leaves hang by), in place of `NoDoors`; car drivers who give up their
   car run for the same doors; tested (`people_run_in_through_the_real_street_doors_of_the_island`)
-- [ ] 2.1 The humanoid table and rig built (`blender-humanoid-characters`), walk and idle clips. Open: the pipeline's
-  packs are not on the development machine, so the game draws labelled stand-in box figures at true size
-  (`docs/mockups/civilians.html`, awaiting the owner's approval, survey W43)
+- [x] 2.0 The stand-in bodies: labelled box figures at true size (`docs/mockups/civilians.html`), approved by the owner
+  (2026-10-26: "Approved all of the stand ins", survey W43); people ship as the stand-ins until real bodies exist
+- [ ] 2.1 The humanoid table and rig built (`blender-humanoid-characters`), walk and idle clips, to replace the
+  approved stand-ins (2.0). Open: the pipeline's packs are not on the development machine
 - [ ] 2.2 Near, mid and far drawing; measured on the 3070. Built with the stand-ins (a pooled body near, one merged
   mesh past 60 m, a card past 250 m); CPU costs measured on the development Mac only, not on the 3070
 - [ ] 3.1 Playtest: walk a street, greet three people, fire a gun and watch them run

@@ -8,7 +8,8 @@ on the page is measured off the glb (the manifests), never typed (CLAUDE.md sect
 it, at true relative scale, with a known object beside it). Each car can be shown whole, crushed or burnt, and seen
 from its own `EYE_driver`, where the block-out dashboard, steering wheel and speedometer needle sit.
 
-The cars are block-out stand-ins awaiting the owner's approval; the page says so on every card.
+The cars are block-out stand-ins, approved by the owner on 2026-10-26 ("Approved all of the stand ins"); the
+detailed models come next. The page says so on every card.
 """
 import base64
 import json
@@ -63,7 +64,7 @@ td, th { text-align: left; padding: 2px 4px; border-bottom: 1px solid var(--edge
 <header>
   <h1>Traffic car block-outs</h1>
   <p>The seven 1980s civilian cars (survey J7) at true size beside the pilot (1.8 m) and the Foreman (24 m), on the 24 m street they drive. Drag to orbit, scroll or pinch to zoom; arrow keys and +/- also work.</p>
-  <span class="flag">Block-out stand-ins: flat colours, no textures, no LODs. Awaiting approval before the detailed models.</span>
+  <span class="flag">Block-out stand-ins: flat colours, no textures, no LODs. Approved 2026-10-26; the detailed models come next.</span>
 </header>
 <main>
   <div id="stage"><canvas id="view" tabindex="0" aria-label="3D view of the cars"></canvas><div id="labels"></div></div>

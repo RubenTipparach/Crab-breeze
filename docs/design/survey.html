@@ -194,9 +194,6 @@ const SECTIONS = [
       { id: 'W35', q: 'Your J6 numbers give about 1 200 cars round the capital, not the 150 to 250 first guessed. Keep it, thin it, or cap it?',
         options: ['Keep J6', 'One car per 120 m in cities', 'Cap at the 300 nearest'], rec: 0,
         why: 'The simulation costs only 0.13 ms a step at that density; thin it only if the 3070 shows drawing them is too heavy.' },
-      { id: 'W36', q: 'Are the seven car block-outs right to model in detail? Look at them on the Traffic Car Block-outs page: https://claude.ai/artifact/8RQDBBcm6QxnQybbcmg6Qe',
-        options: ['Approve', 'Revise the shapes (say which in the note)', 'Redo them'], rec: 0,
-        why: 'They are at true size from the car data and every socket the game uses is in place.' },
       { id: 'W37', q: 'Which harm to a car costs standing with the nearest base?',
         options: ['Only cars with a driver in them, harmed by your fire, feet or car', 'Any car, parked included', 'Only cars that burn'], rec: 0,
         why: 'That is harm to a civilian, and the hook already reports it that way.' },
@@ -219,9 +216,6 @@ const SECTIONS = [
       { id: 'W42', q: 'Which civilian deaths cost standing?',
         options: ['Only your own rounds, blasts and mech feet', 'Also the enemy\'s kills during your active job', 'Also the blast when your own mech is destroyed'], rec: 0,
         why: 'You answer only for what you control.' },
-      { id: 'W43', q: 'People are labelled box stand-ins (the humanoid pipeline\'s packs are not on this Mac). See the Civilian Stand-ins page: https://claude.ai/artifact/59RKrNfthXutjcS3F5erLc',
-        options: ['Ship the stand-ins now, swap in real bodies later', 'Hide people until real bodies exist', 'Fetch the packs (325 MB plus the animation zip) next'], rec: 0,
-        why: 'The rules and a playtest can go ahead, and the bodies swap without touching the rules.' },
       { id: 'W44', q: 'How busy are the pavements?',
         options: ['8 people per 100 m downtown, 1.5 at the edge, 2 000 at most', 'Busier: 16 and 3, 4 000 at most', 'Quieter'], rec: 0,
         why: 'It fits the design\'s draw budget, which still has to be measured on the 3070.' },
@@ -276,6 +270,7 @@ const IN_PROGRESS = [
 ];
 
 const DECIDED = [
+  { text: 'W36, W43 and the civil aircraft: all stand-ins approved: "Approved all of the stand ins" (2026-10-26). The cars are modelled in detail later; people ship as the stand-ins until real bodies exist.', where: 'openspec/changes/car-traffic, openspec/changes/civilians, openspec/changes/civil-air-traffic' },
   { text: 'J16 A bought mech is air dropped near you (owner, 2026-10-26), and: "a marker appears on your hud to show mech delivery. you can swap mechs out at base, with foreman always availible". A HUD marker follows the drop until you board, and a base terminal\'s HANGAR tab calls out any mech parked there, the Foreman from anywhere.', where: 'crates/cb-core/src/air_drop.rs, data/career/air_drop.ron, the terminal HANGAR tab; PR #72' },
   { text: 'W30 Street doors swing open as you walk into them and shut behind you, never on you (your pick). The timings are provisional until a playtest.', where: 'crates/cb-core/src/world/door.rs, data/world/world.ron interiors; PR #73' },
   { text: 'W31 Warehouse roller doors stay shut until warehouses have a hall inside (your pick).', where: 'openspec/changes/building-interiors; PR #73' },

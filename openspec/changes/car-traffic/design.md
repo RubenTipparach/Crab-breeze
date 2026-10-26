@@ -93,8 +93,9 @@ What landed, where it differs from the plan above, and what it measured.
 - **Harm** to any car is reported with `by_player` and `occupied` (`traffic::Harm`); `cb-app` publishes it
   as `CivilianHarmed` and counts it in `CivilianToll`, the hook for the career's standing per base (W34,
   career-loop, survey W37).
-- **Drawing:** the block-outs (`tools/blender/build_cars.py`, 428-468 triangles each, awaiting approval,
-  survey W36) are drawn per car from their glb; Bevy batches the shared meshes per kind. A crushed car is its
+- **Drawing:** the block-outs (`tools/blender/build_cars.py`, 428-468 triangles each, approved by the owner on
+  2026-10-26: "Approved all of the stand ins", survey W36) are drawn per car from their glb; Bevy batches the
+  shared meshes per kind. A crushed car is its
   block-out at 35 % height, a burning one carries the `burning` stream; no LODs, no crushed models and no PBR
   sets yet, and no paint variety on screen (each block-out is its kind's first paint).
 - **Density:** survey J6's numbers fill the 1.5 km round the capital's start with about 980 driving and 210
@@ -111,7 +112,7 @@ What landed, where it differs from the plan above, and what it measured.
 | J6 | Traffic density | One car per 60 m in cities, 300 m on highways, within 1.5 km | decided (survey J6) |
 | J7 | Which cars | 1980s civilian, no real brands: sedan, wagon, pickup, van, taxi, bus, semi | decided (survey J7) |
 | W35 | J6 gives about 1 200 cars round the capital, not 150-250: keep it, thin it, or cap it? | Keep J6 until the 3070 measures the drawing | provisional (built as J6) |
-| W36 | Are the seven block-outs right to model in detail? | Approve as they are | open (stand-ins in the game) |
+| W36 | Are the seven block-outs right to model in detail? | Approve as they are | decided: approved, 2026-10-26 ("Approved all of the stand ins"); detailed models later |
 | W37 | Which harm costs standing with the nearest base? | Only cars with a driver in them, by the player's fire, feet or car | provisional (hook reports both) |
 | W38 | What do cars do behind a wreck in their lane? | Queue until it is cleared | provisional (built) |
 | W39 | Junctions: take turns by arrival, or 1980s traffic lights on arterials? | Take turns by arrival | provisional (built) |

@@ -53,14 +53,14 @@ plane's flight so the career loop can fly one over a drop point later.
 - **Stand-in models at true size.** Labelled block-outs until each is modelled in Blender: a 1980s
   airliner (40 m long, 35 m span), a heavy freighter (70 m long, W48), a light plane (8.3 m) and a
   helicopter (12 m with its rotor). The block-out shapes are one table in `cb-core`, drawn by the game
-  and by the mockup page `docs/mockups/civil_aircraft.html`, which needs the owner's approval before
-  any model is built.
+  and by the mockup page `docs/mockups/civil_aircraft.html`, approved by the owner on 2026-10-26
+  ("Approved all of the stand ins"); the models are built after it.
 - **Engine sound for the jets only:** a stand-in loop (the mech's jet rumble, pitched down) on airliners
   and freighters. There is no propeller or rotor sound in the library yet (W49).
 
 ## Out of scope
 
-- Real models, textures and LODs (after the mockup is approved).
+- Real models, textures and LODs (next, now the stand-ins are approved).
 - A runway at each base (W45 asks).
 - The career loop's standing, prices and penalties: this change only reports the hits.
 - The mech air drop itself: the career loop flies it with this change's flight plan.

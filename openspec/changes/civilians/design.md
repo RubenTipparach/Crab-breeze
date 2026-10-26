@@ -84,5 +84,5 @@ meshes by a test that fails while it is stale; `docs/screenshots/civilians/stand
 | W40 | Use near a person and a stopped mech at once | the person within 2.5 m is greeted; boarding needs Use away from people | provisional (survey) |
 | W41 | How someone struck down is shown | falls and lies still 30 s, then cleared; no blood | provisional (survey) |
 | W42 | Which deaths cost standing | the pilot's own rounds, blasts and feet only | provisional (survey) |
-| W43 | Bodies before the humanoid pipeline runs here | labelled stand-ins at true size | provisional (survey) |
+| W43 | Bodies before the humanoid pipeline runs here | labelled stand-ins at true size | decided: approved, 2026-10-26 ("Approved all of the stand ins"); real bodies later |
 | W44 | How busy the streets are | 8 per 100 m of pavement downtown, 2,000 at most | provisional (survey) |
