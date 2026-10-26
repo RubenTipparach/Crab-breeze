@@ -25,8 +25,12 @@ pub struct PilotConfig {
     pub body_radius_m: f32,
     /// Look pitch limit up and down.
     pub pitch_limit_deg: f32,
-    /// Deepest water the pilot walks into (no swimming yet).
+    /// Deepest water the pilot wades; deeper, they swim.
     pub max_wade_depth_m: f32,
+    /// Swimming speed (owner, 2026-10-25: "I cant move or swim in water in fps").
+    pub swim_speed_m_s: f32,
+    /// How fast a swimmer under the surface rises to it.
+    pub swim_rise_m_s: f32,
     /// Use reaches the mech from this far from `LADDER_base` (its boarding spot, horizontal).
     pub board_reach_m: f32,
     /// Speed of the eyes along the boarding path (climbing the stair).
@@ -52,6 +56,9 @@ pub struct PilotConfig {
 /// kerb keeps the feet on the ground.
 const STEP_DOWN_M: f32 = 0.5;
 
+/// A swimmer's eyes ride this far above the water's surface.
+const SWIM_EYE_ABOVE_M: f32 = 0.15;
+
 impl Default for PilotConfig {
     fn default() -> Self {
         Self {
@@ -62,6 +69,8 @@ impl Default for PilotConfig {
             body_radius_m: 0.35,
             pitch_limit_deg: 85.0,
             max_wade_depth_m: 1.2,
+            swim_speed_m_s: 2.5,
+            swim_rise_m_s: 1.5,
             board_reach_m: 25.0,
             climb_speed_m_s: 7.0,
             seated_look_limit_deg: 90.0,
@@ -83,6 +92,8 @@ impl Validate for PilotConfig {
         positive("body_radius_m", self.body_radius_m)?;
         within("pitch_limit_deg", self.pitch_limit_deg, 0.0, 89.9)?;
         positive("max_wade_depth_m", self.max_wade_depth_m)?;
+        positive("swim_speed_m_s", self.swim_speed_m_s)?;
+        positive("swim_rise_m_s", self.swim_rise_m_s)?;
         positive("board_reach_m", self.board_reach_m)?;
         positive("climb_speed_m_s", self.climb_speed_m_s)?;
         within("seated_look_limit_deg", self.seated_look_limit_deg, 1.0, 179.0)?;
@@ -389,22 +400,35 @@ impl PilotState {
             PilotMode::OnFoot => {
                 self.yaw_rad = (self.yaw_rad - look.x.to_radians()).rem_euclid(std::f32::consts::TAU);
                 self.pitch_rad = (self.pitch_rad + look.y.to_radians()).clamp(-pitch_limit, pitch_limit);
-                let speed = if a.run { cfg.run_speed_m_s } else { cfg.walk_speed_m_s };
+                // In water deeper than wading, the pilot swims: slower, rising to float with their eyes just
+                // above the surface, and out onto the shore by walking up it.
+                let swim = ground
+                    .water_at(self.feet.x, self.feet.z)
+                    .filter(|w| w.depth_m > cfg.max_wade_depth_m && self.feet.y <= w.surface_m);
+                let speed = match (swim, a.run) {
+                    (Some(_), _) => cfg.swim_speed_m_s,
+                    (None, true) => cfg.run_speed_m_s,
+                    (None, false) => cfg.walk_speed_m_s,
+                };
                 let fwd = Vec2::new(-self.yaw_rad.sin(), -self.yaw_rad.cos());
                 let right = Vec2::new(-fwd.y, fwd.x);
                 let wish = (fwd * a.move_xy.y + right * a.move_xy.x).clamp_length_max(1.0) * speed;
                 let dv = (wish - self.velocity).clamp_length_max(cfg.accel_m_s2 * dt_s);
                 self.velocity += dv;
-                let mut moved = Vec2::new(self.feet.x, self.feet.z) + self.velocity * dt_s;
-                if ground.water_at(moved.x, moved.y).is_some_and(|w| w.depth_m > cfg.max_wade_depth_m) {
-                    moved = Vec2::new(self.feet.x, self.feet.z);
-                    self.velocity = Vec2::ZERO;
-                }
+                let moved = Vec2::new(self.feet.x, self.feet.z) + self.velocity * dt_s;
                 // out of walls at the feet's own height (a deck 600 m up has no buildings round it)
                 let p = ground.push_out_at(moved, cfg.body_radius_m, self.feet.y);
                 // what the feet stand on: the ground, a roof, or a platform such as the Hermit's deck (crab-airship)
                 let floor = ground.support_at(p.x, p.y, self.feet.y);
-                self.feet = Vec3::new(p.x, self.vertical(a, cfg, floor, dt_s), p.y);
+                let y = match swim {
+                    Some(w) => {
+                        self.vel_y_m_s = 0.0;
+                        let float = w.surface_m + SWIM_EYE_ABOVE_M - cfg.eye_height_m;
+                        (self.feet.y + (float - self.feet.y).clamp(-cfg.swim_rise_m_s * dt_s, cfg.swim_rise_m_s * dt_s)).max(floor)
+                    }
+                    None => self.vertical(a, cfg, floor, dt_s),
+                };
+                self.feet = Vec3::new(p.x, y, p.y);
                 if let Some(m) = access {
                     if a.use_pressed && self.can_board(m, cfg) && self.waiting.is_none() {
                         self.waiting = Some(Waiting::ToBoard);
@@ -551,6 +575,47 @@ mod tests {
             use_pressed: true,
             ..Default::default()
         }
+    }
+
+    /// Sea 30 m deep (surface at 0) for z < 0, a beach at 0 behind it.
+    struct Sea;
+
+    impl Ground for Sea {
+        fn height_at(&self, _x: f32, z: f32) -> f32 {
+            if z < 0.0 { -30.0 } else { 0.0 }
+        }
+        fn push_out(&self, p: Vec2, _r: f32) -> Vec2 {
+            p
+        }
+        fn water_at(&self, _x: f32, z: f32) -> Option<crate::world::WaterSample> {
+            (z < 0.0).then_some(crate::world::WaterSample {
+                surface_m: 0.0,
+                depth_m: 30.0,
+                flow_m_s: Vec2::ZERO,
+            })
+        }
+    }
+
+    #[test]
+    fn a_pilot_in_deep_water_rises_swims_and_climbs_out() {
+        let cfg = PilotConfig::default();
+        // Under the sea, 20 m out, as when climbing out of a sunk mech.
+        let mut p = PilotState::standing(Vec3::new(0.0, -20.0, -20.0), std::f32::consts::PI);
+        for _ in 0..(20.0 / DT) as usize {
+            p.step(&Actions::default(), &cfg, &Sea, None, DT);
+        }
+        let eye = p.eye(&cfg).y;
+        assert!((eye - SWIM_EYE_ABOVE_M).abs() < 1e-3, "floats with the eyes at the surface: {eye}");
+        // Facing the shore (yaw pi faces +z), swimming forward.
+        let ahead = Actions {
+            move_xy: Vec2::new(0.0, 1.0),
+            ..Default::default()
+        };
+        for _ in 0..(12.0 / DT) as usize {
+            p.step(&ahead, &cfg, &Sea, None, DT);
+        }
+        assert!(p.feet.z > 0.0, "swam ashore: {}", p.feet);
+        assert_eq!(p.feet.y, 0.0, "standing on the beach");
     }
 
     fn run_until_settled(p: &mut PilotState, cfg: &PilotConfig, a: &Access) -> Vec<Vec3> {

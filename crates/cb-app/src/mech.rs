@@ -19,7 +19,7 @@ use cb_core::ai::AiPilot;
 use cb_core::boarding::{Hatch, HatchTarget};
 use cb_core::input::DebugCommand;
 use cb_core::mech::rig::{BONES, SOCKETS};
-use cb_core::mech::{Damage, Hit, LocomotionMode, MechConfig, PartKind};
+use cb_core::mech::{Damage, Hit, LocomotionMode, MechConfig, OnWater, PartKind};
 use cb_core::mech::{LegRest, MechControls, MechState, RigRest, foot_strikes, pose, stance_lead_m};
 use cb_core::pilot::{MechAccess, PilotEvent, PilotMode};
 use cb_core::rng::SimRng;
@@ -1081,6 +1081,11 @@ pub fn step_mech(
                 if pilot.curr.exit_hold_s > 0.0 || (actions.full_stop && !sim.curr.airborne()) {
                     c.throttle_zero = true;
                     c.throttle_axis = 0.0;
+                }
+                // On deep water a tap of Ctrl turns skimming off, as C does, and the mech goes under (owner,
+                // 2026-10-25: "ctrl above water turns skiming off as well").
+                if actions.full_stop && matches!(sim.curr.on_water, OnWater::Skimming | OnWater::Hovering) {
+                    c.sink = true;
                 }
                 // The mech turns toward the view, faster the further off its nose the view is
                 // (seated-look): the view comes round no faster than the mech can turn.
