@@ -1132,3 +1132,28 @@ fn every_air_base_has_a_runway_of_1_5_to_2_km_flat_dry_and_clear() {
         }
     }
 }
+
+/// Cars ride on the drawn road (car-traffic): on a city street the road's top is the city's ground plus the lift
+/// the game draws it at, on a highway its grade plus the lift, and off the roads there is none.
+#[test]
+fn the_road_top_is_the_drawn_road_and_cars_ride_on_it() {
+    let plan = seed_42();
+    let lift = shipped().road_lift_m;
+    let city = &plan.cities[0];
+    let street = city.streets[0].rect.centre();
+    assert_eq!(plan.road_top_at(street, lift), Some(city.ground_m + lift));
+    let h = &plan.highways[0];
+    let mid = h.point_at(0.5);
+    let top = plan.road_top_at(mid, lift).expect("a highway's middle is road");
+    assert!((top - (h.grade_at(0.5) + lift)).abs() < 0.05, "{top} vs {}", h.grade_at(0.5) + lift);
+    let block = city.blocks[0].rect.centre();
+    assert_eq!(plan.road_top_at(block, lift), None, "a block is no road");
+    // A car's wheels meet the road's top on the street and the bare ground off it.
+    let on = OnRoads {
+        ground: plan,
+        plan,
+        lift_m: lift,
+    };
+    assert!((on.height_at(street.x, street.y) - (city.ground_m + lift)).abs() < 1e-4);
+    assert_eq!(on.height_at(block.x, block.y), plan.height_at(block.x, block.y));
+}

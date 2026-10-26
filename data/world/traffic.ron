@@ -2,6 +2,10 @@
 (
     // 1980s civilian cars, no real brands (survey J7); each is data/cars/<kind>.ron.
     kinds: ["sedan", "wagon", "pickup", "van", "taxi", "bus", "semi"],
+    // Every car is drawn and simulated this much taller than its real-world size in data/cars/, its length and
+    // width kept: wheels, ride height, body, roof and the driver's eye (owner, 2026-10-26: "cars are a little too
+    // short I think lol"). tools/blender/build_cars.py reads it too; rebuild the models after changing it.
+    car_height_scale: 1.18,
     lanes: (
         // Traffic keeps to the right. A 24 m street has one lane each way 3.5 m from its centre line;
         // a 36 m arterial and a 28 m highway have two each way.
