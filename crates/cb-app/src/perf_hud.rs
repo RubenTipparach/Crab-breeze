@@ -83,7 +83,6 @@ pub(crate) fn tally(name: &'static str, ms: f32) {
 static COUNTS: std::sync::Mutex<Vec<(&'static str, u32)>> = std::sync::Mutex::new(Vec::new());
 
 /// Adds `n` to the frame's count `name` (see `COUNTS`).
-#[cfg_attr(not(feature = "hitch_spans"), allow(dead_code))]
 pub(crate) fn count(name: &'static str, n: u32) {
     if let Ok(mut all) = COUNTS.lock() {
         match all.iter_mut().find(|s| s.0 == name) {
@@ -96,6 +95,16 @@ pub(crate) fn count(name: &'static str, n: u32) {
 /// A frame over this is logged with what the guards timed in it, ms (60 fps).
 const HITCH_MS: f32 = 1000.0 / 60.0;
 
+/// The `hitch:` threshold: `CB_HITCH_MS` when set (a measurement switch: a lower line shows on a fast machine the
+/// spikes a slower one would feel), else 16.7 ms.
+fn hitch_ms() -> f32 {
+    std::env::var("CB_HITCH_MS")
+        .ok()
+        .and_then(|v| v.parse::<f32>().ok())
+        .filter(|v| v.is_finite() && *v > 0.0)
+        .unwrap_or(HITCH_MS)
+}
+
 /// When the main world's schedules began and ended, last frame.
 #[derive(Resource, Default)]
 struct MainSpan {
@@ -104,10 +113,10 @@ struct MainSpan {
     frame: u64,
 }
 
-/// At the start of a frame: when the last one ran over 16.7 ms, a `hitch:` line with its length, the time the main
+/// At the start of a frame: when the last one ran over 16.7 ms (`hitch_ms`), a `hitch:` line with its length, the time the main
 /// world's schedules took in it (the rest is the render world and presenting), and every timed section over 0.2 ms,
 /// largest first. Then the tally starts again.
-fn frame_start(time: Res<Time<Real>>, mut span: ResMut<MainSpan>) {
+fn frame_start(time: Res<Time<Real>>, mut span: ResMut<MainSpan>, mut threshold: Local<Option<f32>>) {
     let ms = time.delta_secs() * 1000.0;
     let main_ms = match (span.start, span.end) {
         (Some(a), Some(b)) if b > a => (b - a).as_secs_f32() * 1000.0,
@@ -116,7 +125,7 @@ fn frame_start(time: Res<Time<Real>>, mut span: ResMut<MainSpan>) {
     let mut all = FRAME.lock().map(|mut f| std::mem::take(&mut *f)).unwrap_or_default();
     let mut counts = COUNTS.lock().map(|mut f| std::mem::take(&mut *f)).unwrap_or_default();
     span.frame += 1;
-    if ms > HITCH_MS && span.frame > 10 {
+    if ms > *threshold.get_or_insert_with(hitch_ms) && span.frame > 10 {
         all.sort_by(|a, b| b.1.total_cmp(&a.1));
         let top: Vec<String> = all
             .iter()

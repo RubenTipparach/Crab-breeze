@@ -633,6 +633,7 @@ fn draw_people(
     });
     if now - last_crowd.0 >= 1.0 / draw.crowd_refresh_hz || now < last_crowd.0 || near_set != last_crowd.1 {
         *last_crowd = (now, near_set);
+        let _s = crate::perf_hud::section("people: crowd mesh");
         meshes.insert(&bodies.crowd, crowd_mesh(list, &skip, eye, draw).build()).ok();
     }
 }

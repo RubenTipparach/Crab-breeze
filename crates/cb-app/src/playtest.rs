@@ -522,9 +522,9 @@ fn play(
             dist = Some(d);
             done = d < 250.0;
             act = drive(m, p.yaw_rad, p.pitch_rad, goal, eye, 1.0, false, false);
-            // Lift while under the height wanted, W held so the rockets swivel forward (rocket-vector).
+            // Lift while under the height wanted and none over it, W held so the rockets swivel forward (rocket-vector).
             let over = m.pos.y - s.plan.terrain.height_at(m.pos.x, m.pos.z);
-            act.lift_axis = if over < *height { 1.0 } else { 0.35 };
+            act.lift_axis = if over < *height { 1.0 } else { 0.0 };
             act.move_xy = Vec2::Y;
         }
         Beat::FightJob(cap) => {

@@ -27,7 +27,8 @@ impl bevy::prelude::Plugin for HitchCountsPlugin {
         app.add_systems(
             bevy::prelude::PostUpdate,
             count_changes.before(bevy::transform::TransformSystems::Propagate),
-        );
+        )
+        .add_systems(bevy::prelude::Last, count_assets);
     }
 }
 
@@ -57,6 +58,31 @@ fn count_changes(
             if n >= 50 {
                 crate::perf_hud::count(intern(&format!("{prefix}{k}")), n);
             }
+        }
+    }
+}
+
+/// Counts the mesh and image assets added, changed and removed this frame (`mesh+`, `mesh~`, `mesh-`, `image+`,
+/// ...): what the render world has to upload or free next.
+fn count_assets(
+    mut meshes: bevy::prelude::MessageReader<bevy::prelude::AssetEvent<bevy::prelude::Mesh>>,
+    mut images: bevy::prelude::MessageReader<bevy::prelude::AssetEvent<bevy::prelude::Image>>,
+) {
+    use bevy::prelude::AssetEvent;
+    for e in meshes.read() {
+        match e {
+            AssetEvent::Added { .. } => crate::perf_hud::count("mesh+", 1),
+            AssetEvent::Modified { .. } => crate::perf_hud::count("mesh~", 1),
+            AssetEvent::Removed { .. } => crate::perf_hud::count("mesh-", 1),
+            _ => {}
+        }
+    }
+    for e in images.read() {
+        match e {
+            AssetEvent::Added { .. } => crate::perf_hud::count("image+", 1),
+            AssetEvent::Modified { .. } => crate::perf_hud::count("image~", 1),
+            AssetEvent::Removed { .. } => crate::perf_hud::count("image-", 1),
+            _ => {}
         }
     }
 }

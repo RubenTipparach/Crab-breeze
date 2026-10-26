@@ -1,7 +1,7 @@
 // The map-streaming performance route (owner, 2026-10-26: "Let's focus on getting no frames under 60fps", "The
 // biggest hitches is loading and unloading sections of the map it seems"). A new career, board, then flat out on the
 // skates from the first air base past three cities of the west (city 10, the capital, city 3), then on the jets
-// at 120 m south to city 5 and back over the capital: every kind of section (ground, trees, grass, buildings and their dressing, people,
+// at 120 m south toward city 5 and back over the capital: every kind of section (ground, trees, grass, buildings and their dressing, people,
 // traffic) enters and leaves at speed. No job, no fight, so the same route every run.
 // Every frame goes to output/perf/streaming-route-frames.csv; tools/perf/free_roam_report.py reads it, and
 // tools/perf/hitch_causes.py reads the log's `hitch:` lines.
@@ -27,8 +27,9 @@
                 SkateTo(-8150.0, -3350.0),
                 SkateTo(-9000.0, -3200.0),
                 SkateTo(-10000.0, -2800.0),
-                // Then up on the jets: south to city 5, and back over the capital.
-                JetTo(-9029.0, 2023.0, 120.0),
+                // Then up on the jets: south toward city 5 (stopping short of it, in open country), and back over the
+                // capital.
+                JetTo(-9029.0, 1000.0, 120.0),
                 JetTo(-7496.0, -3575.0, 120.0),
                 Wait(3.0),
             ],
