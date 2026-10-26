@@ -1268,6 +1268,20 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // In the west storm's rain, on the ground, looking up through it (the shafts seen from inside).
+    View {
+        name: "in-the-rain-up",
+        eye: [-5600.0, 2.0, -3900.0],
+        at: [-5900.0, 900.0, -4300.0],
+        above_ground: true,
+    },
+    // Inside the cloud nearest a city's towers, looking up through it (`city_in_cloud_view`).
+    View {
+        name: "city-in-cloud",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // From the street in the biggest city, looking up past the towers at the sky (`city_up_view`).
     View {
         name: "city-up",
@@ -1353,6 +1367,25 @@ fn steep_river_view(plan: &crate::world::Plan, back_m: f32, up_m: f32, top: bool
     };
     info!("steep river: {drop:.0} m over 10 points at {at}");
     (eye.to_array(), at.to_array())
+}
+
+/// Inside the puff nearest any city's middle (where the wind has carried it by `now_s`), a third of
+/// its height under its centre, looking up past it.
+fn city_in_cloud_view(plan: &crate::world::Plan, now_s: f32) -> ([f32; 3], [f32; 3]) {
+    let d = plan.clouds.drift(now_s);
+    let near = |p: &cb_core::world::clouds::Puff| {
+        plan.cities
+            .iter()
+            .map(|c| Vec2::new(p.centre.x + d.x, p.centre.z + d.y).distance(c.centre))
+            .fold(f32::MAX, f32::min)
+    };
+    let Some(p) = plan.clouds.puffs.iter().min_by(|a, b| near(a).total_cmp(&near(b))) else {
+        return ([0.0, 400.0, 0.0], [0.0, 2000.0, 100.0]);
+    };
+    let centre = p.centre + Vec3::new(d.x, 0.0, d.y);
+    let eye = centre - Vec3::Y * p.radii.y * 0.33 + Vec3::new(p.radii.x * 0.2, 0.0, 0.0);
+    info!("city in cloud: puff at {centre} radii {}, eye {eye}", p.radii);
+    (eye.to_array(), (centre + Vec3::new(-200.0, 1500.0, 300.0)).to_array())
 }
 
 /// On the street nearest the middle of the city with the most cloud overhead, 2 m up, looking nearly straight up.
@@ -1474,6 +1507,7 @@ fn run_weather_script(
             "river-close" => close_river_view(&plan, false),
             "river-close-below" => close_river_view(&plan, true),
             "city-up" => city_up_view(&plan),
+            "city-in-cloud" => city_in_cloud_view(&plan, now),
             _ => (v.eye, v.at),
         };
         let v = View {
