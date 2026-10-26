@@ -1,0 +1,44 @@
+// The free-roam performance run (owner, 2026-10-26: "bot should accept 1 mission, complete it, the accept a mission
+// as far away as possible. Go there and complete it. Do this 3 times"). The open world's jobs (a career, whose jobs
+// are sited across the island) are taken by mail from the cockpit: the nearest, then the farthest, three times over.
+// Every frame goes to output/perf/free-roam-perf-frames.csv; tools/perf/free_roam_report.py reads it.
+//
+//   CB_UNCAPPED=1 ./target/release/crab-breeze --playtest free-roam-perf
+(
+    name: "free-roam-perf",
+    stuck_s: 20.0,
+    runs: [
+        (
+            play: "career-new",
+            beats: [
+                Wait(2.0),
+                Board,
+                Wait(2.0),
+                AcceptByMail(Nearest, 2),
+                GoToJob,
+                FightJob(600.0),
+                Wait(3.0),
+                AcceptByMail(Farthest, 2),
+                GoToJob,
+                FightJob(600.0),
+                Wait(3.0),
+                AcceptByMail(Nearest, 2),
+                GoToJob,
+                FightJob(600.0),
+                Wait(3.0),
+                AcceptByMail(Farthest, 2),
+                GoToJob,
+                FightJob(600.0),
+                Wait(3.0),
+                AcceptByMail(Nearest, 2),
+                GoToJob,
+                FightJob(600.0),
+                Wait(3.0),
+                AcceptByMail(Farthest, 2),
+                GoToJob,
+                FightJob(600.0),
+                Wait(3.0),
+            ],
+        ),
+    ],
+)

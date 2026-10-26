@@ -11,3 +11,4 @@ tools/materials/raw/
 
 # itch.bat packages the game here
 /dist/
+target-trace/

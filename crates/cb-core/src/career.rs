@@ -656,7 +656,12 @@ mod tests {
     #[test]
     fn a_save_from_before_the_air_drop_still_loads() {
         let c = career();
-        let old = c.to_ron().replace("    drops: [],\n", "").replace("            field: None,\n", "");
+        // RON ends its lines with \r\n on Windows: compare on \n.
+        let old = c
+            .to_ron()
+            .replace("\r\n", "\n")
+            .replace("    drops: [],\n", "")
+            .replace("            field: None,\n", "");
         assert!(!old.contains("drops"), "the old save has no drops");
         assert_eq!(Career::from_ron(&old).unwrap(), c);
     }
