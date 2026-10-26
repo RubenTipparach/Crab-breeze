@@ -82,3 +82,18 @@ W47). The cockpit SHALL box civil aircraft in a neutral colour marked `CIV`, as 
 #### Scenario: An airliner alone on the crosshair
 - **WHEN** the crosshair is held on an airliner with no enemy in range, with or without the cycle key
 - **THEN** nothing is selected and no lock builds
+
+### Requirement: The freighter is a modelled aircraft with levels of detail and a sling
+The freighter SHALL be drawn from a Blender-built model at its kind's length, span and height, with three levels of
+detail each within its triangle budget, its landing gear shown only near the ground, and PBR plating; the air drop SHALL
+fly the same model with the bought mech slung under it, releasing the mech exactly where it hung (survey D8 and W48,
+2026-10-26).
+
+#### Scenario: The model against its data
+- **WHEN** `cb-tools validate` reads the freighter's glb and manifest
+- **THEN** it finds `LOD0` to `LOD2` with their gear, the kind's size within half a metre, the sling hook where the data
+  says, and every level within its budget
+
+#### Scenario: The release
+- **WHEN** a bought 24 m mech is released from under the freighter
+- **THEN** its feet start their fall exactly where the slung mech's feet were

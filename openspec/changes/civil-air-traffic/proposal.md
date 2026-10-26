@@ -50,13 +50,14 @@ plane's flight so the career loop can fly one over a drop point later.
   (owner, 2026-10-26, survey W47: "Never: only unguided fire can hit one"). There is no radar scope in the cockpit yet; the boxes and
   the TARGET readout are what exists.
 - **Stand-in models at true size.** Labelled block-outs until each is modelled in Blender: a 1980s
-  airliner (40 m long, 35 m span), a heavy freighter (70 m long, W48), a light plane (8.3 m) and a
-  helicopter (12 m with its rotor). The block-out shapes are one table in `cb-core`, drawn by the game
+  airliner (40 m long, 35 m span), a light plane (8.3 m) and a helicopter (12 m with its rotor). The heavy
+  freighter (70 m long, W48) is modelled in Blender with three levels of detail and full PBR plating (survey D8,
+  2026-10-26: "Model a real aircraft in Blender now"), and the air drop flies it with the bought mech slung under it. The block-out shapes are one table in `cb-core`, drawn by the game
   and by the mockup page `docs/mockups/civil_aircraft.html`, approved by the owner on 2026-10-26
   ("Approved all of the stand ins"); the models are built after it.
 - **Engine sound for every kind** (survey W49): a turbofan, a propeller and a rotor cut from public domain field
   recordings, each played at the kind's pitch.
-- Real models, textures and LODs (next, now the stand-ins are approved).
+- Real models, textures and LODs for the airliner, the light plane and the helicopter (the freighter is done, D8).
 - A runway at each base (W45 asks).
 - The career loop's standing, prices and penalties: this change only reports the hits.
 - The mech air drop itself: the career loop flies it with this change's flight plan.

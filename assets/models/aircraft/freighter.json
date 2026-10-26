@@ -1,0 +1,113 @@
+{
+  "_": "The 1980s heavy freighter (survey W48, D8), built by tools/blender/build_freighter.py: written by the build, never by hand. Frame: glTF metres, +Y up, nose toward -Z, +X the right wing, origin on the fuselage's centre line at its middle; the ground under its gear is at y = -rest_m.",
+  "blender": "4.5.4 LTS",
+  "bounds_m": {
+    "x": [
+      -34.0,
+      34.0
+    ],
+    "y": [
+      -5.65,
+      13.33
+    ],
+    "z": [
+      -35.0,
+      35.0
+    ]
+  },
+  "bytes": 1346720,
+  "csg": [
+    "fuselage_0: blisters and fairing (union, 3)",
+    "fuselage_0: windows (difference, 6)",
+    "engine_0_-22: intake (difference, 1)",
+    "engine_0_-22: pylon (union, 1)",
+    "engine_0_-13: intake (difference, 1)",
+    "engine_0_-13: pylon (union, 1)",
+    "engine_0_+13: intake (difference, 1)",
+    "engine_0_+13: pylon (union, 1)",
+    "engine_0_+22: intake (difference, 1)",
+    "engine_0_+22: pylon (union, 1)",
+    "fuselage_1: blisters and fairing (union, 3)",
+    "fuselage_1: windows (difference, 6)",
+    "engine_1_-22: intake (difference, 1)",
+    "engine_1_-22: pylon (union, 1)",
+    "engine_1_-13: intake (difference, 1)",
+    "engine_1_-13: pylon (union, 1)",
+    "engine_1_+13: intake (difference, 1)",
+    "engine_1_+13: pylon (union, 1)",
+    "engine_1_+22: intake (difference, 1)",
+    "engine_1_+22: pylon (union, 1)",
+    "fuselage_2: blisters and fairing (union, 3)",
+    "engine_2_-22: pylon (union, 1)",
+    "engine_2_-13: pylon (union, 1)",
+    "engine_2_+13: pylon (union, 1)",
+    "engine_2_+22: pylon (union, 1)"
+  ],
+  "file": "freighter.glb",
+  "generator": "tools/blender/build_freighter.py",
+  "id": "freighter",
+  "lods": [
+    {
+      "budget_triangles": 12000,
+      "lod": 0,
+      "triangles": 6981
+    },
+    {
+      "budget_triangles": 5000,
+      "lod": 1,
+      "triangles": 3391
+    },
+    {
+      "budget_triangles": 2000,
+      "lod": 2,
+      "triangles": 1182
+    }
+  ],
+  "materials": [
+    "freighter_skin",
+    "freighter_wing",
+    "freighter_metal",
+    "freighter_dark",
+    "freighter_glass",
+    "freighter_nav_red",
+    "freighter_nav_green",
+    "freighter_nav_white"
+  ],
+  "nodes": [
+    "GEAR_0",
+    "GEAR_1",
+    "GEAR_2",
+    "LOD0",
+    "LOD1",
+    "LOD2",
+    "SLING_hook"
+  ],
+  "rest_m": 5.65,
+  "sha256": {
+    "freighter.glb": "f327f874f7ccbdb320bf1752318a4eefefaec32fd00fe1b938d9324fab15a2a6",
+    "freighter_sling.glb": "0085f73a5b47787c5ea834c1e41bd1c399b695f3882876682100b05517f52569"
+  },
+  "size_m": {
+    "fuselage": 8.0,
+    "height": 19.0,
+    "length": 70.0,
+    "span": 68.0
+  },
+  "sling_file": "freighter_sling.glb",
+  "sling_hook_m": [
+    0.0,
+    -12.9,
+    0.0
+  ],
+  "textures": [
+    "plate",
+    "plate_n",
+    "plate_orm",
+    "plateB",
+    "plateB_n",
+    "plateB_orm",
+    "frameM",
+    "frameM_n",
+    "frameM_orm"
+  ]
+}

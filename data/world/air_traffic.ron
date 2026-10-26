@@ -45,6 +45,16 @@
             crash_mj: 60.0,
             // four bigger engines: the airliner's turbofans played slower
             engine: Some((sound: Turbofan, pitch: 0.85)),
+            // The modelled freighter (survey D8, W48), built by tools/blender/build_freighter.py: LOD0 within 400 m,
+            // LOD1 to 1.5 km, LOD2 beyond; its gear down below 250 m over the ground; the air drop's sling and the hook
+            // a bought mech hangs from (its SLING_hook node, checked by cb-tools validate).
+            model: Some((
+                scene: "models/aircraft/freighter.glb",
+                lod_m: (400.0, 1500.0),
+                gear_below_m: 250.0,
+                sling: Some("models/aircraft/freighter_sling.glb"),
+                sling_hook_m: (0.0, -12.9, 0.0),
+            )),
             tint: (0.46, 0.50, 0.52),
         ),
         "light_plane": (

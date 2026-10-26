@@ -104,7 +104,29 @@ and tailplane; a propeller and gear; a cabin, boom, mast, crossed rotor bars and
 it (`cb-app::air_traffic`), and `cb-tools aircraft` prints it for the mockup page
 (`tools/mockups/gen_civil_aircraft.py`, writing `docs/mockups/civil_aircraft.html`), so the two cannot
 disagree. A test checks each table is its kind's length, span and height. These are **stand-ins**, approved
-by the owner on 2026-10-26 ("Approved all of the stand ins"); the real models come from Blender next (CLAUDE.md section 10).
+by the owner on 2026-10-26 ("Approved all of the stand ins"); the real models come from Blender (CLAUDE.md section 10).
+
+**The freighter is modelled** (survey D8, answered 2026-10-26: "Model a real aircraft in Blender now"; W48: "70 m, with
+a bought mech slung under it for the air drop"). `tools/blender/build_freighter.py` builds a high-wing four-engine
+jet freighter of the early 1980s, between a C-141 and a C-5, the CSG way (`blender-hard-surface`): a fuselage lofted
+from superellipse rings whose belly rises aft into the ramp, a swept wing with 3 degrees of anhedral and a T tail
+lofted from NACA sections, lathed nacelles on hull pylons, the gear blisters and a rounded wing fairing unioned into
+the fuselage, the cockpit windows and the four intakes cut by Exact booleans (each cut's floor takes the glass or
+the dark fan material), flap-track fairings, navigation lights, and the gear on struts. Every size is read from the
+kind's data. Its skin and wing wear the modern plating set (`plate`, `plateB`: base colour, normal and ORM maps,
+tinted by the kind's livery), the engines and gear `frameM`, embedded in the glb as the mechs' are. Three levels of
+detail in one file, `LOD0` (6 981 triangles, budget 12 000, within 400 m), `LOD1` (3 391 of 5 000, to 1.5 km) and
+`LOD2` (1 182 of 2 000, beyond), blended over 10 % of each switch distance by Bevy's visibility ranges
+(`air_traffic::bind_models`); each level's `GEAR_<n>` shows only below 250 m over the ground. `SLING_hook` is the
+hook a bought mech hangs from, 12.9 m below the origin; the sling (four cables, a spreader bar, a hook block) is its
+own file, `freighter_sling.glb`, drawn only by the air drop. The build refuses a level over budget, writes the
+manifest `assets/models/aircraft/freighter.json` (triangles, budgets, bounds, nodes, the CSG steps, sha256) and is
+byte-reproducible; `cb-tools validate` (`glb::check_aircraft`) checks the file against the data: its levels and
+gear, its length, span and height and the ground under its gear within 0.5 m, the hook where the data hangs a mech,
+the sling's file, and the budgets. No coplanar faces within a level (`check_zfight.py`; the 40 pairs it lists are
+one level against another, never drawn together). `cb-tools aircraft` hands the model to the mockup page, which
+shows it at its three levels and flying the air drop with the Foreman slung under it. The airliner, light plane and
+helicopter stay the approved stand-ins.
 
 **Hit shapes:** a capsule down the fuselage and one across the wing (a helicopter: its cabin only),
 posed by the aircraft's heading, pitch and bank. They join the shot sweep's part list under ids from

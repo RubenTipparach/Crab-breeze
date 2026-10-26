@@ -169,10 +169,13 @@ rebuilds the flown mech from that design and its fit.
 
 ### 6.4 Drawing it (`cb-app` `air_drop`)
 
-- **The aircraft** is civil air traffic's `freighter` (`aircraft_kind` in `air_drop.ron`): the same block-out
-  stand-in from the same shape table (70 m long, 68 m span, survey W48), and the same jet engine loop, so the drop's
-  aircraft and the freighters in the sky are one model. Only the look is shared: it flies the drop's own straight
-  track on the drop's own clock (above), which a save keeps. A modelled aircraft is `airfields`' work.
+- **The aircraft** is civil air traffic's `freighter` (`aircraft_kind` in `air_drop.ron`): the modelled freighter
+  (survey D8, 2026-10-26: "Model a real aircraft in Blender now"; `civil-air-traffic` section 6), 70 m long with a 68 m
+  span (W48), and the same engine loop, so the drop's aircraft and the freighters in the sky are one model. Under it
+  hangs its sling, and from the sling's hook the bought mech, by its top, until the release (W48: "a bought mech slung
+  under it"); the aircraft flies high enough that the slung mech's feet are where the fall begins
+  (`Drop::aircraft`'s `hang_m`, `AircraftModel::hang_m`; tested). Its gear stays up. Only the look is shared: it flies
+  the drop's own straight track on the drop's own clock (above), which a save keeps.
 - **The canopies** are three flattened domes of 14 m radius on rigging lines, block-outs too.
 - **The marker** is a diamond over the site with `AIR DROP` and the distance, on screen on foot and in the seat
   (there is no map or minimap yet; when one exists, the site goes on it).
@@ -211,8 +214,8 @@ does not, the mech in use is refused, the Foreman comes from far away and whole 
 ### 6.6 Cost
 
 The search runs once a purchase: at most 60 rings of at most 250 spots, each a building grid lookup, a water query,
-five height samples and the rocks; well under 50 ms by estimate, once. The drop draws one block-out aircraft (about
-100 triangles) and three canopies while it flies: nothing measurable. One more mech stands in the world afterwards,
+five height samples and the rocks; well under 50 ms by estimate, once. The drop draws one modelled freighter (at most
+6 981 triangles, its `LOD0`), its sling, the slung mech and three canopies while it flies: nothing measurable. One more mech stands in the world afterwards,
 as any parked mech does (`mech-roster`'s per-mech cost).
 
 ## Open questions
@@ -228,6 +231,6 @@ as any parked mech does (`mech-roster`'s per-mech cost).
 | D5 | No good ground within 600 m | Fall back to a hangar bay, as before | answered by the owner, 2026-10-26 (survey): the bay fallback stays, and: "You always get a marker for your purchases so you have to go activate the mech and the marker will go away after you enter it". The HUD marker shows a mech delivered to a bay, or anywhere else, until the pilot boards it (section 6.5); built (`Career::unboarded`, tested in cb-core) |
 | D6 | The pilot walks into the site | The canopies steer it aside and the marker warns; it lands beside them if they stay | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
 | D7 | Which owned mech the pilot boards | Whichever owned mech they walk up to, within 40 m | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
-| D8 | The aircraft | A block-out stand-in until `airfields` models one | answered by the owner, 2026-10-26 (survey): "Model a real aircraft in Blender now", the 70 m freighter of W48 with the bought mech slung under it; built in `civil-air-traffic` task 3.8, and the air drop draws the same model |
+| D8 | The aircraft | A block-out stand-in until `airfields` models one | answered by the owner, 2026-10-26 (survey): "Model a real aircraft in Blender now", the 70 m freighter of W48 with the bought mech slung under it; built (`civil-air-traffic` section 6, task 3.8a), and the air drop draws the same model with the mech slung under it |
 | D9 | Where a mech called out at a base appears | In the terminal's bay, else the base's first clear bay | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
 | D10 | Calling out a wrecked Foreman | Free and whole | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |

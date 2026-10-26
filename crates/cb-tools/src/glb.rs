@@ -117,6 +117,43 @@ impl Tree {
         self.index().get(name).map(|&i| self.world[i].w_axis.truncate())
     }
 
+    /// The bounds (least and greatest corner) of every mesh under the node `under` at rest, model space; `None` if
+    /// there is no such node or it holds no mesh.
+    pub fn bounds_under(&self, under: &str) -> Option<(Vec3, Vec3)> {
+        let top = *self.index().get(under)?;
+        let nodes = self.json["nodes"].as_array().cloned().unwrap_or_default();
+        let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
+        for (i, nd) in nodes.iter().enumerate() {
+            let mut p = Some(i);
+            while let Some(k) = p.filter(|k| *k != top) {
+                p = self.parent[k];
+            }
+            if p != Some(top) {
+                continue;
+            }
+            let Some(mesh) = nd["mesh"].as_u64() else { continue };
+            for prim in self.json["meshes"][mesh as usize]["primitives"].as_array().into_iter().flatten() {
+                let Some(acc) = prim["attributes"]["POSITION"].as_u64() else {
+                    continue;
+                };
+                let a = &self.json["accessors"][acc as usize];
+                let (Some(l), Some(h)) = (vec3(&a["min"]), vec3(&a["max"])) else {
+                    continue;
+                };
+                for x in [l.x, h.x] {
+                    for y in [l.y, h.y] {
+                        for z in [l.z, h.z] {
+                            let w = self.world[i].transform_point3(Vec3::new(x, y, z));
+                            lo = lo.min(w);
+                            hi = hi.max(w);
+                        }
+                    }
+                }
+            }
+        }
+        (lo.x <= hi.x).then_some((lo, hi))
+    }
+
     /// The highest point of any mesh at rest (its bounding boxes' corners in model space).
     pub fn top_m(&self) -> f32 {
         let mut top = f32::MIN;
@@ -337,6 +374,87 @@ pub fn check_fortress(d: &cb_core::fortress::FortressData, assets: &Path) -> Vec
     out
 }
 
+/// Checks every modelled civil aircraft (survey D8) against its data and its manifest: the glb is under `assets` with
+/// its three levels (`LOD0`-`LOD2`), each with its landing gear (`GEAR_0`-`GEAR_2`); its full-detail level is its
+/// kind's true length, span and height (gear on the ground at the kind's rest height) within half a metre; its sling
+/// hook (`SLING_hook`) is where the data hangs a mech from; the sling's glb is there; and the manifest beside it
+/// (`<name>.json`, written by the Blender build) keeps every level within its triangle budget.
+pub fn check_aircraft(d: &cb_core::air_traffic::AirTrafficConfig, assets: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    for (name, k) in &d.kinds {
+        let Some(m) = &k.model else { continue };
+        let path = assets.join(&m.scene);
+        let t = match Tree::read(&path) {
+            Ok(t) => t,
+            Err(e) => {
+                out.push(format!("aircraft `{name}`: {e}"));
+                continue;
+            }
+        };
+        for n in ["LOD0", "LOD1", "LOD2", "GEAR_0", "GEAR_1", "GEAR_2"] {
+            if t.at(n).is_none() {
+                out.push(format!("aircraft `{name}`: {} has no node `{n}`", m.scene));
+            }
+        }
+        match t.bounds_under("LOD0") {
+            Some((lo, hi)) => {
+                let size = hi - lo;
+                let rest = cb_core::air_traffic::rest_m(k);
+                for (what, got, want) in [
+                    ("length", size.z, k.length_m),
+                    ("span", size.x, k.span_m),
+                    ("height", size.y, k.height_m),
+                    ("ground under its gear", -lo.y, rest),
+                ] {
+                    if (got - want).abs() > 0.5 {
+                        out.push(format!(
+                            "aircraft `{name}`: its {what} is {got:.2} m in {} but {want:.2} m in its data; rebuild it",
+                            m.scene
+                        ));
+                    }
+                }
+            }
+            None => out.push(format!("aircraft `{name}`: {} has no mesh under LOD0", m.scene)),
+        }
+        if let Some(sling) = &m.sling {
+            match t.at("SLING_hook") {
+                Some(at) if at.distance(Vec3::from_array(m.sling_hook_m)) <= 0.01 => {}
+                Some(at) => out.push(format!(
+                    "aircraft `{name}`: SLING_hook is at {at} in {} but {:?} in its data",
+                    m.scene, m.sling_hook_m
+                )),
+                None => out.push(format!("aircraft `{name}`: {} has no node `SLING_hook`", m.scene)),
+            }
+            if !assets.join(sling).exists() {
+                out.push(format!("aircraft `{name}`: its sling {sling} is not there"));
+            }
+        }
+        let manifest = path.with_extension("json");
+        let lods = std::fs::read_to_string(&manifest)
+            .ok()
+            .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+            .and_then(|v| v["lods"].as_array().cloned());
+        match lods {
+            Some(lods) if lods.len() == 3 => {
+                for l in lods {
+                    let (tris, budget) = (
+                        l["triangles"].as_u64().unwrap_or(u64::MAX),
+                        l["budget_triangles"].as_u64().unwrap_or(0),
+                    );
+                    if tris > budget {
+                        out.push(format!(
+                            "aircraft `{name}`: LOD{} has {tris} triangles over its budget {budget}",
+                            l["lod"]
+                        ));
+                    }
+                }
+            }
+            _ => out.push(format!("aircraft `{name}`: {} has no three-level manifest", manifest.display())),
+        }
+    }
+    out
+}
+
 /// The nodes every car model carries (car-traffic, car-driving): its sockets, the wheels that turn, and the
 /// steering wheel and speedometer needle the dashboard turns from the simulation.
 pub const CAR_NODES: [&str; 8] = [
@@ -384,6 +502,14 @@ pub fn check_cars(d: &cb_core::traffic::TrafficData, assets: &Path) -> Vec<Strin
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn the_shipped_freighter_model_is_its_kinds_size_with_its_levels_and_its_hook() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let d: cb_core::air_traffic::AirTrafficConfig = cb_core::data::load_ron(&root.join("world/air_traffic.ron")).unwrap();
+        assert!(d.kinds["freighter"].model.is_some(), "the freighter is modelled (survey D8)");
+        assert_eq!(check_aircraft(&d, &root.join("../assets")), Vec::<String>::new());
+    }
 
     #[test]
     fn every_shipped_car_model_has_its_nodes_where_its_data_says() {

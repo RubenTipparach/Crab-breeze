@@ -68,6 +68,18 @@ fn main() -> ExitCode {
                     ok = false;
                 }
             }
+            // the modelled civil aircraft against their data and their manifests (civil-air-traffic, survey D8)
+            if let Ok(d) = GameData::load(&root, &mechs[0]) {
+                let problems = glb::check_aircraft(&d.air_traffic, &root.join("..").join("assets"));
+                if problems.is_empty() {
+                    let n = d.air_traffic.kinds.values().filter(|k| k.model.is_some()).count();
+                    println!("ok   {n} modelled civil aircraft and their levels of detail");
+                }
+                for p in problems {
+                    eprintln!("FAIL {p}");
+                    ok = false;
+                }
+            }
             // the traffic cars' models against their data (car-traffic, car-driving)
             if let Ok(d) = GameData::load(&root, &mechs[0]) {
                 let problems = glb::check_cars(&d.traffic, &root.join("..").join("assets"));
@@ -239,7 +251,8 @@ fn main() -> ExitCode {
         }
         // A documentation instrument (openspec change `civil-air-traffic`): every civil aircraft kind's
         // size and block-out boxes as JSON, from the one table the game draws
-        // (`cb_core::air_traffic::shape`), for the mockup page `tools/mockups/gen_civil_aircraft.py`.
+        // (`cb_core::air_traffic::shape`), and the model a modelled kind is drawn from instead (survey D8),
+        // for the mockup page `tools/mockups/gen_civil_aircraft.py`.
         Some("aircraft") => {
             let root = PathBuf::from(args.get(1).map(String::as_str).unwrap_or("data"));
             let data = match GameData::load(&root, "mechs/placeholder.ron") {
@@ -275,6 +288,14 @@ fn main() -> ExitCode {
                         "rest_m": cb_core::air_traffic::rest_m(k),
                         "tint": k.tint,
                         "blocks": blocks,
+                        // the modelled kinds (survey D8): the glb the game draws, its levels and the air drop's sling
+                        "model": k.model.as_ref().map(|m| serde_json::json!({
+                            "scene": m.scene,
+                            "lod_m": m.lod_m,
+                            "gear_below_m": m.gear_below_m,
+                            "sling": m.sling,
+                            "sling_hook_m": m.sling_hook_m,
+                        })),
                     })
                 })
                 .collect();

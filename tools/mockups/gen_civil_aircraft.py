@@ -1,14 +1,18 @@
-"""Build docs/mockups/civil_aircraft.html: the civil aircraft block-out stand-ins (openspec/changes/civil-air-traffic).
+"""Build docs/mockups/civil_aircraft.html: the civil aircraft at true size (openspec/changes/civil-air-traffic): the
+modelled freighter (survey D8, W48) and the three approved block-out stand-ins.
 
     python3 tools/mockups/gen_civil_aircraft.py
 
 The page itself is tools/mockups/civil_aircraft_src.html. This script inlines into it:
 - __AIRCRAFT__: every kind's size and block-out boxes, printed by `cargo run -p cb-tools -- aircraft`, the very table the
-  game draws (cb_core::air_traffic::shape::blockout), so the page and the game cannot disagree;
+  game draws (cb_core::air_traffic::shape::blockout), so the page and the game cannot disagree; a modelled kind (the
+  freighter, tools/blender/build_freighter.py) carries its glb, its sling's glb and its manifest, the files the game
+  draws;
 - __YARDSTICK__: the Foreman block-out (assets/models/mech_blockouts.json and its glb), the 24 m yardstick, sized by its
   manifest (Mining Mike's rule: orbit it, at true relative scale).
 The page loads three.js r147 from the CDN, as the other mockup pages here do. The owner approved the stand-ins on
-2026-10-26 ("Approved all of the stand ins"); the freighter's size is still open (survey W48).
+2026-10-26 ("Approved all of the stand ins"), chose the 70 m freighter with a slung mech (W48) and asked for it to be
+modelled in Blender now (D8).
 """
 import base64
 import json
@@ -21,13 +25,30 @@ OUT = os.path.join(ROOT, "docs", "mockups", "civil_aircraft.html")
 MODELS = os.path.join(ROOT, "assets", "models")
 
 
+def b64(path):
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode("ascii")
+
+
 def aircraft():
-    """The block-out table, from the game's own code."""
+    """The block-out table, from the game's own code; each modelled kind with its glb, sling and manifest."""
     out = subprocess.run(
         ["cargo", "run", "-q", "-p", "cb-tools", "--", "aircraft", "data"],
         cwd=ROOT, check=True, capture_output=True, text=True,
     ).stdout
-    return json.loads(out)
+    table = json.loads(out)
+    for k in table["kinds"]:
+        m = k.get("model")
+        if not m:
+            continue
+        scene = os.path.join(ROOT, "assets", m["scene"])
+        m["glb"] = b64(scene)
+        m["sling_glb"] = b64(os.path.join(ROOT, "assets", m["sling"])) if m.get("sling") else None
+        with open(os.path.splitext(scene)[0] + ".json") as f:
+            man = json.load(f)
+        m["lods"] = man["lods"]
+        m["generator"] = man["generator"]
+    return table
 
 
 def yardstick():

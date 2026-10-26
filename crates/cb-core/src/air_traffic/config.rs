@@ -67,6 +67,9 @@ pub struct AircraftSpec {
     /// Its engine's sound (none: silent).
     #[serde(default)]
     pub engine: Option<EngineSound>,
+    /// Its modelled aircraft (survey D8); none: drawn as its block-out stand-in (`shape::blockout`).
+    #[serde(default)]
+    pub model: Option<AircraftModel>,
     /// Livery colour, sRGB 0..1.
     pub tint: [f32; 3],
 }
@@ -96,6 +99,34 @@ impl Default for NearConfig {
             despawn_m: 14_000.0,
             check_s: 4.0,
         }
+    }
+}
+
+/// A kind's modelled aircraft (survey D8: "Model a real aircraft in Blender now"), built by a Blender generator in the
+/// kind's own frame (`shape`'s: the nose toward -z, the origin on the fuselage's centre line at its middle).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AircraftModel {
+    /// Its glb under `assets/`, with the nodes `LOD0`, `LOD1` and `LOD2`.
+    pub scene: String,
+    /// Where it changes level of detail: `LOD0` within the first distance, `LOD1` to the second, `LOD2` beyond,
+    /// metres from the eye.
+    pub lod_m: [f32; 2],
+    /// Its landing gear (`GEAR_*` nodes) shows only below this height over the ground, metres.
+    pub gear_below_m: f32,
+    /// The air drop's sling, a glb in the same frame, if it can carry a mech slung under it (W48).
+    #[serde(default)]
+    pub sling: Option<String>,
+    /// The sling's hook, where a slung mech's top hangs (the model's `SLING_hook` node), metres in its frame.
+    #[serde(default)]
+    pub sling_hook_m: [f32; 3],
+}
+
+impl AircraftModel {
+    /// How far above a slung mech's feet the aircraft's origin flies, metres: the mech hangs by its top from the
+    /// hook, so its feet are its own height below the hook.
+    pub fn hang_m(&self, mech_height_m: f32) -> f32 {
+        mech_height_m - self.sling_hook_m[1]
     }
 }
 
@@ -235,6 +266,14 @@ impl Validate for AirTrafficConfig {
             finite3(&f("tint"), k.tint)?;
             if let Some(e) = k.engine {
                 positive(&f("engine.pitch"), e.pitch)?;
+            }
+            if let Some(m) = &k.model {
+                if m.scene.is_empty() {
+                    return Err(format!("`{}` must name a glb", f("model.scene")));
+                }
+                crate::data::positive_range(&f("model.lod_m"), m.lod_m)?;
+                positive(&f("model.gear_below_m"), m.gear_below_m)?;
+                finite3(&f("model.sling_hook_m"), m.sling_hook_m)?;
             }
             if k.role.flies_routes() {
                 if k.approach_m_s > k.cruise_m_s {

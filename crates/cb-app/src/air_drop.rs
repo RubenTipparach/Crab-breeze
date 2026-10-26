@@ -7,8 +7,8 @@
 //! - a drop's mech brought into the world at the release and held to its fall each fixed step, steered clear of a
 //!   pilot in the site, then handed to its own simulation over the ground so it lands through the mech's own landing
 //!   (its footprints and dust are `ground-marks`'), with `jet_wash` under its retros and `fall_dust` at touchdown;
-//! - the cargo aircraft (civil air traffic's freighter, `aircraft_kind`) and the canopies, both block-out stand-ins
-//!   (named so in their scene nodes);
+//! - the cargo aircraft (civil air traffic's modelled freighter, `aircraft_kind`, survey D8) with the bought mech slung
+//!   under it until the release (W48), and the canopies, block-out stand-ins (named so in their scene nodes);
 //! - the HUD marker over every purchase, from the order until the pilot boards the mech, on foot and in the seat, wherever
 //!   it is: its drop, a hangar bay (the fallback) or standing in the world (survey D5, `Career::unboarded`);
 //! - which owned mech the pilot on foot is walking up to: that one carries `Piloted`, so it is the one that kneels and
@@ -47,9 +47,13 @@ pub struct Where {
 #[derive(Component)]
 pub struct Dropping(pub u32);
 
-/// The cargo aircraft of a drop (its mech's key). A block-out stand-in.
+/// The cargo aircraft of a drop (its mech's key): civil air traffic's freighter.
 #[derive(Component)]
 struct Aircraft(u32);
+
+/// A bought mech hanging under its cargo aircraft until the release (its key): its model only.
+#[derive(Component)]
+struct Slung(u32);
 
 /// The canopies over a falling mech (its key). Block-out stand-ins.
 #[derive(Component)]
@@ -485,19 +489,22 @@ fn keep_places(mut run: ResMut<CareerRun>, mechs: Query<(&Owned, &MechSim), With
     }
 }
 
-/// The cargo aircraft: civil air traffic's freighter (`aircraft_kind`, civil-air-traffic's stand-in from its shape
-/// table, the same one the traffic flies), flown along its drop's track on the drop's own clock, its engine heard
-/// as the traffic's jets are.
-#[allow(clippy::too_many_arguments)]
+/// The cargo aircraft: civil air traffic's freighter (`aircraft_kind`), its model (survey D8) with the sling under it
+/// and the bought mech hanging from the sling's hook until the release (W48: "a bought mech slung under it"), flown
+/// along its drop's track on the drop's own clock, high enough that the slung mech's feet are where its fall begins
+/// (`Drop::aircraft`, `AircraftModel::hang_m`); its gear stays up; its engine heard as the traffic's jets are.
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn draw_aircraft(
     mut commands: Commands,
     run: Res<CareerRun>,
     data: Res<Data>,
     ear: Res<crate::audio::Ear>,
+    assets: Res<AssetServer>,
     mut looks: ResMut<crate::air_traffic::KindLooks>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut planes: Query<(Entity, &Aircraft, &mut Transform)>,
+    slung: Query<(Entity, &Slung)>,
     mut loops: MessageWriter<crate::audio::Loop>,
 ) {
     let cfg = &run.data.drop;
@@ -505,11 +512,26 @@ fn draw_aircraft(
     let Some(spec) = data.0.air_traffic.kinds.get(&cfg.aircraft_kind) else {
         return;
     };
+    let model = spec.model.as_ref().filter(|m| m.sling.is_some());
+    let hang = |key: u32| match (model, design_of(&run, key)) {
+        (Some(m), Some(c)) => m.hang_m(c.locomotion.body_height_m),
+        _ => 0.0,
+    };
+    // the slung mech lets go at the release
+    for (e, s) in &slung {
+        if !run
+            .career
+            .drop_of(s.0)
+            .is_some_and(|d| matches!(d.stage(cfg, now), Stage::Inbound(_)))
+        {
+            commands.entity(e).despawn();
+        }
+    }
     for (e, plane, mut t) in &mut planes {
         match run
             .career
             .drop_of(plane.0)
-            .and_then(|d| d.aircraft(cfg, now).map(|p| (p, d.track_rad)))
+            .and_then(|d| d.aircraft(cfg, now, hang(plane.0)).map(|p| (p, d.track_rad)))
         {
             Some((p, track)) => {
                 *t = Transform::from_translation(p).with_rotation(Quat::from_rotation_y(track));
@@ -533,18 +555,44 @@ fn draw_aircraft(
         if planes.iter().any(|p| p.1.0 == d.key) {
             continue;
         }
-        let Some(p) = d.aircraft(cfg, now) else { continue };
-        let root = crate::air_traffic::spawn_standin(
+        let Some(p) = d.aircraft(cfg, now, hang(d.key)) else { continue };
+        let root = crate::air_traffic::spawn_aircraft(
             &mut commands,
             &mut looks,
             &mut meshes,
             &mut materials,
+            &assets,
             &cfg.aircraft_kind,
             spec,
-            format!("cargo aircraft: {} (block-out stand-in)", cfg.aircraft_kind),
+            format!("cargo aircraft: {}", cfg.aircraft_kind),
             Transform::from_translation(p).with_rotation(Quat::from_rotation_y(d.track_rad)),
+            false,
         );
         commands.entity(root).insert(Aircraft(d.key));
+        let (Some(m), Some(sling)) = (model, model.and_then(|m| m.sling.clone())) else {
+            continue;
+        };
+        commands.spawn((
+            Name::new("sling"),
+            bevy::world_serialization::WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(sling))),
+            Transform::IDENTITY,
+            ChildOf(root),
+        ));
+        // the bought mech, hanging by its top from the hook, facing where the aircraft flies (as its model faces in
+        // the mech it becomes at the release)
+        let design = design_of(&run, d.key);
+        if let Some((path, h)) = design.and_then(|c| c.model.clone().map(|p| (p, c.locomotion.body_height_m)))
+            && matches!(d.stage(cfg, now), Stage::Inbound(_))
+        {
+            let hook = Vec3::from_array(m.sling_hook_m);
+            commands.spawn((
+                Name::new(format!("slung mech {}", d.key)),
+                Slung(d.key),
+                bevy::world_serialization::WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(path))),
+                Transform::from_translation(hook - Vec3::Y * h).with_rotation(Quat::from_rotation_y(std::f32::consts::PI)),
+                ChildOf(root),
+            ));
+        }
     }
 }
 

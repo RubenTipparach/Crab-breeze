@@ -35,7 +35,11 @@
   aircraft however many rounds hit it (survey W34); tested
 - [x] 3.7 The owner approves the stand-ins' shapes on the mockup page (2026-10-26: "Approved all of the stand ins"); the freighter's size
   stays open (W48): approving the stand-in is not a choice of size
-- [ ] 3.8 Blender models with LODs and PBR sets, after 3.7
+- [x] 3.8a The freighter in Blender (survey D8, 2026-10-26: "Model a real aircraft in Blender now"; W48): `build_freighter.py`,
+  three levels within budget, PBR plating, gear near the ground, the air drop's sling and slung mech; checked by
+  `cb-tools validate` (`check_aircraft`) and tested (`the_slung_mech_is_released_exactly_where_it_hung_under_the_freighter`);
+  shots in `docs/screenshots/aircraft/`; not yet seen in a playtest
+- [ ] 3.8 Blender models with LODs and PBR sets for the airliner, the light plane and the helicopter
 - [x] 3.9 Recorded engine, propeller and rotor sounds (survey W49, 2026-10-26: "Cut a turbofan, a propeller and a rotor
   from CC0 recordings"): `civil_turbofan`, `civil_propeller`, `civil_rotor` cut from public domain field recordings,
   credited in `assets/audio/sfx/SOURCES.md` and `AUDIO_SOURCES.md`; each kind's `engine` in data (test:

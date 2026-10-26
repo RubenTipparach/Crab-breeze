@@ -1,8 +1,9 @@
 //! Civil air traffic in the game (openspec change `civil-air-traffic`): every fixed step the aircraft
 //! near the pilot fly through `cb_core::air_traffic`, keeping clear of every live enemy; a crash is an
 //! `Explosion` and a wreck laid down as debris chunks (`debris-physics`); the pilot's own hits are
-//! tallied per base and sent as `CivilAirHit` for the career loop. They are drawn as labelled block-out
-//! stand-ins at true size (the shapes are `cb_core::air_traffic::shape`), the jets with an engine loop.
+//! tallied per base and sent as `CivilAirHit` for the career loop. A kind with a model (the freighter, survey D8) is
+//! drawn from its glb, its three levels of detail switched by distance and its gear shown only near the ground; the
+//! others as labelled block-out stand-ins at true size (`cb_core::air_traffic::shape`). Each plays its engine loop.
 //! `Neutrals` lists them for targeting and the cockpit, which show them as neutral.
 
 use crate::audio::{Ear, Loop, SoundAt};
@@ -168,7 +169,7 @@ impl Plugin for AirTrafficPlugin {
                     .before(crate::combat::fly_shots),
             )
             .add_game_systems(FixedUpdate, tally_hits.in_set(SimSet::Mech).after(crate::combat::fly_shots))
-            .add_game_systems(Update, (draw_traffic, spin_parts));
+            .add_game_systems(Update, (draw_traffic, bind_models, spin_parts).chain());
     }
 }
 
@@ -294,21 +295,38 @@ struct Spinner(Spin, f32);
 #[derive(Resource, Default)]
 pub struct KindLooks(BTreeMap<String, KindLook>);
 
-/// Spawns kind `kind`'s block-out stand-in (`shape::blockout`) named `name` at `t`, its rotors and propellers
-/// turning; returns its root.
+/// Spawns kind `kind` named `name` at `t`: its model when it has one (survey D8; bound to its levels of detail and gear
+/// by `bind_models` once the scene is in, the gear kept up when `gear` is false), else its block-out stand-in
+/// (`shape::blockout`), its rotors and propellers turning; returns its root.
 #[allow(clippy::too_many_arguments)]
-pub fn spawn_standin(
+pub fn spawn_aircraft(
     commands: &mut Commands,
     looks: &mut KindLooks,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
+    assets: &AssetServer,
     kind: &str,
     spec: &AircraftSpec,
     name: String,
     t: Transform,
+    gear: bool,
 ) -> Entity {
+    if let Some(m) = &spec.model {
+        let scene = assets.load(GltfAssetLabel::Scene(0).from_asset(m.scene.clone()));
+        return commands
+            .spawn((
+                Name::new(name),
+                t,
+                Visibility::default(),
+                bevy::world_serialization::WorldAssetRoot(scene),
+                ModelToBind { lod_m: m.lod_m, gear },
+            ))
+            .id();
+    }
     let kl = looks.0.entry(kind.to_string()).or_insert_with(|| look(spec, meshes, materials));
-    let root = commands.spawn((Name::new(name), t, Visibility::default())).id();
+    let root = commands
+        .spawn((Name::new(format!("{name} (block-out stand-in)")), t, Visibility::default()))
+        .id();
     for (mesh, t, dark, spin) in &kl.parts {
         let mat = if *dark { kl.dark.clone() } else { kl.livery.clone() };
         let mut part = commands.spawn((Mesh3d(mesh.clone()), MeshMaterial3d(mat), *t, ChildOf(root)));
@@ -319,6 +337,88 @@ pub fn spawn_standin(
         }
     }
     root
+}
+
+/// A modelled aircraft whose scene is still to be bound: where its levels of detail switch, and whether its gear may
+/// show.
+#[derive(Component)]
+pub struct ModelToBind {
+    lod_m: [f32; 2],
+    gear: bool,
+}
+
+/// A modelled aircraft's landing gear nodes (`GEAR_*`), shown near the ground only.
+#[derive(Component)]
+pub struct GearNodes(pub Vec<Entity>);
+
+/// Once a modelled aircraft's scene is in: every mesh under `LOD0`, `LOD1` and `LOD2` gets the visibility range of its
+/// level (each blends into the next over 10 % of its switch distance, so a level never pops), and its gear nodes are
+/// found, hidden when its gear never shows.
+pub fn bind_models(
+    mut commands: Commands,
+    todo: Query<(Entity, &ModelToBind)>,
+    children: Query<&Children>,
+    names: Query<&Name>,
+    is_mesh: Query<(), With<Mesh3d>>,
+    mut vis: Query<&mut Visibility>,
+) {
+    use bevy::camera::visibility::VisibilityRange;
+    for (root, m) in &todo {
+        let mut by_name: HashMap<&str, Entity> = HashMap::new();
+        let mut gear = Vec::new();
+        for e in children.iter_descendants(root) {
+            if let Ok(n) = names.get(e) {
+                by_name.insert(n.as_str(), e);
+                if n.as_str().starts_with("GEAR_") {
+                    gear.push(e);
+                }
+            }
+        }
+        let (Some(&l0), Some(&l1), Some(&l2)) = (by_name.get("LOD0"), by_name.get("LOD1"), by_name.get("LOD2")) else {
+            continue; // not spawned yet
+        };
+        let [a, b] = m.lod_m;
+        let (ma, mb) = (a * 0.1, b * 0.1);
+        let ranges = [
+            (
+                l0,
+                VisibilityRange {
+                    start_margin: 0.0..0.0,
+                    end_margin: (a - ma)..(a + ma),
+                    use_aabb: false,
+                },
+            ),
+            (
+                l1,
+                VisibilityRange {
+                    start_margin: (a - ma)..(a + ma),
+                    end_margin: (b - mb)..(b + mb),
+                    use_aabb: false,
+                },
+            ),
+            (
+                l2,
+                VisibilityRange {
+                    start_margin: (b - mb)..(b + mb),
+                    end_margin: f32::MAX..f32::MAX,
+                    use_aabb: false,
+                },
+            ),
+        ];
+        for (lod, range) in ranges {
+            for e in children.iter_descendants(lod).filter(|e| is_mesh.contains(*e)) {
+                commands.entity(e).insert(range.clone());
+            }
+        }
+        if !m.gear {
+            for g in &gear {
+                if let Ok(mut v) = vis.get_mut(*g) {
+                    *v = Visibility::Hidden;
+                }
+            }
+        }
+        commands.entity(root).remove::<ModelToBind>().insert(GearNodes(gear));
+    }
 }
 
 /// One kind's stand-in: its parts' meshes and placements, and its two materials.
@@ -358,7 +458,10 @@ fn draw_traffic(
     air: Option<Res<AirTraffic>>,
     data: Res<Data>,
     ear: Res<Ear>,
-    mut drawn: Query<(Entity, &CivilDraw, &mut Transform)>,
+    plan: Res<Plan>,
+    assets: Res<AssetServer>,
+    mut drawn: Query<(Entity, &CivilDraw, &mut Transform, Option<&GearNodes>)>,
+    mut gear_vis: Query<&mut Visibility>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut looks: ResMut<KindLooks>,
@@ -369,13 +472,25 @@ fn draw_traffic(
     let cfg = &data.0.air_traffic;
     let flying: HashMap<u32, &cb_core::air_traffic::Aircraft> = air.0.list.iter().filter(|a| a.flying()).map(|a| (a.id, a)).collect();
     let mut seen = std::collections::BTreeSet::new();
-    for (e, d, mut t) in &mut drawn {
+    for (e, d, mut t, gear) in &mut drawn {
         let Some(a) = flying.get(&d.0) else {
             commands.entity(e).despawn();
             continue;
         };
         seen.insert(d.0);
         *t = Transform::from_translation(a.pos).with_rotation(shape::attitude(a));
+        // a modelled aircraft's gear is down only near the ground (survey D8)
+        if let (Some(gear), Some(m)) = (gear, cfg.kinds.get(&a.kind).and_then(|s| s.model.as_ref())) {
+            let low = a.pos.y - plan.terrain.height_at(a.pos.x, a.pos.z) < m.gear_below_m;
+            let want = if low { Visibility::Inherited } else { Visibility::Hidden };
+            for g in &gear.0 {
+                if let Ok(mut v) = gear_vis.get_mut(*g)
+                    && *v != want
+                {
+                    *v = want;
+                }
+            }
+        }
         if let Some(engine) = cfg.kinds.get(&a.kind).and_then(|s| s.engine)
             && !a.downed()
             && a.pos.distance(ear.at) < data.0.audio.cues.audible_within_m
@@ -392,15 +507,17 @@ fn draw_traffic(
     }
     for a in air.0.list.iter().filter(|a| a.flying() && !seen.contains(&a.id)) {
         let Some(spec) = cfg.kinds.get(&a.kind) else { continue };
-        let root = spawn_standin(
+        let root = spawn_aircraft(
             &mut commands,
             &mut looks,
             &mut meshes,
             &mut materials,
+            &assets,
             &a.kind,
             spec,
-            format!("civil {} {} (block-out stand-in)", a.kind, a.id),
+            format!("civil {} {}", a.kind, a.id),
             Transform::from_translation(a.pos).with_rotation(shape::attitude(a)),
+            true,
         );
         commands.entity(root).insert(CivilDraw(a.id));
     }

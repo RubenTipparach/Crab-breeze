@@ -13,7 +13,7 @@ pub mod shape;
 #[cfg(test)]
 mod tests;
 
-pub use config::{AirTrafficConfig, AircraftSpec, Engine, EngineSound, Role};
+pub use config::{AirTrafficConfig, AircraftModel, AircraftSpec, Engine, EngineSound, Role};
 pub use flight::{Air, Aircraft, Flight, FlightStep, Phase, Strip, Zone, departure_strip, in_zone, landing_strip, rest_m};
 
 use crate::rng::SimRng;
