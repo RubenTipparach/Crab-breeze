@@ -23,6 +23,7 @@ pub mod mech;
 pub mod mission;
 pub mod missions;
 pub mod pilot;
+pub mod playtest;
 pub mod refit;
 pub mod rng;
 pub mod save;

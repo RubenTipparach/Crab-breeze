@@ -86,7 +86,7 @@ struct BackTo(Menu);
 struct MenuRoot;
 
 /// What a menu button does.
-#[derive(Component, Clone, Copy)]
+#[derive(Component, Clone, Copy, PartialEq, Debug)]
 pub(crate) enum MenuButton {
     /// A terminal screen's tab.
     Tab(TerminalTab),
@@ -141,7 +141,7 @@ impl Plugin for MenuPlugin {
 /// title menu there is nothing to go back to.
 #[allow(clippy::too_many_arguments)]
 fn escape(
-    input: Res<ButtonInput<KeyCode>>,
+    mut input: ResMut<ButtonInput<KeyCode>>,
     keys: Res<crate::input::Keys>,
     back: Res<BackTo>,
     settings: Res<Settings>,
@@ -168,6 +168,10 @@ fn escape(
     }
     // Use again steps back from a terminal's screen (air-bases design section 5).
     if *menu == Menu::Terminal && input.any_just_pressed(keys.use_key.iter().copied()) {
+        // The press is spent here, so the game does not read it again and open the terminal straight back up.
+        for k in &keys.use_key {
+            input.clear_just_pressed(*k);
+        }
         set(&mut menu, Menu::Closed, &mut time, &mut cursor);
         return;
     }

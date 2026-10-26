@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 /// The mech flown when none is named.
 pub const DEFAULT_MECH: &str = "mechs/foreman.ron";
 
-pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence|fortress] [--showcase world|fight|defence|marks|sun|demolition|trail] [--bench world|fight|defence|marks|sun|demolition] [--start meadow|overlook|base] [--play free|free-continue|career-new|career-continue]";
+pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence|fortress] [--showcase world|fight|defence|marks|sun|demolition|trail] [--bench world|fight|defence|marks|sun|demolition] [--start meadow|overlook|base] [--play free|free-continue|career-new|career-continue] [--playtest <name> [--run <i>]]";
 
 /// Parsed command line.
 #[derive(Debug, PartialEq)]
@@ -29,6 +29,10 @@ pub struct Args {
     /// Start somewhere other than the city: `meadow`, the nearest open grassland (gpu-grass); `fx`, the same meadow
     /// with every effect set out in front of the pilot (`fx_gallery`).
     pub start: Option<String>,
+    /// Play a playtest script, `data/playtests/<name>.ron` (playtest-pipeline): its run sets `--play`.
+    pub playtest: Option<String>,
+    /// Which of the script's runs this launch plays.
+    pub run: usize,
 }
 
 impl Args {
@@ -54,6 +58,8 @@ impl Args {
             bench: None,
             play: None,
             start: None,
+            playtest: None,
+            run: 0,
         };
         let mut it = args;
         while let Some(a) = it.next() {
@@ -72,6 +78,8 @@ impl Args {
                     Some(m @ ("free" | "free-continue" | "career-new" | "career-continue")) => out.play = Some(m.into()),
                     _ => return Err("--play takes `free`, `free-continue`, `career-new` or `career-continue`".into()),
                 },
+                "--playtest" => out.playtest = Some(value()?),
+                "--run" => out.run = value()?.parse().map_err(|e| format!("--run: {e}"))?,
                 "--start" => match it.next().as_deref() {
                     Some("meadow") => out.start = Some("meadow".into()),
                     Some("fx") => out.start = Some("fx".into()),

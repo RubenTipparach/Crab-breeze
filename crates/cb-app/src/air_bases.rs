@@ -8,7 +8,7 @@
 //! mouth: the pilot walks up to it on foot, looks at it and presses Use, and its screen (the menu's TERMINAL page)
 //! signs them up for jobs from the career's board (air-bases design section 5).
 
-use crate::mech::{MechAccessNow, MechSim, MechSpec, Piloted};
+use crate::mech::{MechSim, MechSpec, Piloted};
 use crate::pilot::PilotSim;
 use crate::sim::{Data, SimSet};
 use crate::world::{MeshBuilder, Plan};
@@ -26,7 +26,10 @@ impl Plugin for AirBasesPlugin {
             .init_resource::<TerminalNear>()
             .add_systems(Startup, spawn_bases)
             .add_systems(FixedUpdate, repair_in_hangars.in_set(SimSet::Mech).after(crate::mech::step_mech))
-            .add_systems(FixedUpdate, use_terminals.in_set(SimSet::Mech).after(crate::mech::step_mech))
+            .add_systems(
+                FixedUpdate,
+                use_terminals.in_set(SimSet::Input).after(crate::input::take_step_actions),
+            )
             .add_systems(Update, open_terminal.before(crate::sim::PresentSet::Input));
     }
 }
@@ -251,23 +254,22 @@ fn repair_in_hangars(
     }
 }
 
-/// Finds the terminal the pilot on foot stands at and looks at; Use there (when it would not board the mech
-/// instead) asks for its screen.
+/// Finds the terminal the pilot on foot stands at and looks at; Use there asks for its screen, and is spent on it,
+/// so the mech parked in the same bay (its rope within reach) is not boarded by the same press.
 fn use_terminals(
     plan: Res<Plan>,
     data: Res<Data>,
     pilot: Res<PilotSim>,
-    access: Res<MechAccessNow>,
-    actions: Res<crate::input::StepActions>,
+    mut actions: ResMut<crate::input::StepActions>,
     mut near: ResMut<TerminalNear>,
 ) {
     let p = &pilot.curr;
-    near.near = (p.mode == PilotMode::OnFoot)
+    near.near = (p.mode == PilotMode::OnFoot && p.waiting.is_none())
         .then(|| terminal_in_reach(&plan.0.bases, &data.0.world.bases, Vec2::new(p.feet.x, p.feet.z), p.yaw_rad))
         .flatten();
-    let boards = access.0.as_ref().is_some_and(|a| p.can_board(a, &data.0.pilot));
-    if actions.use_pressed && !boards && near.near.is_some() {
+    if actions.use_pressed && near.near.is_some() {
         near.wanted = near.near;
+        actions.0.use_pressed = false;
     }
 }
 

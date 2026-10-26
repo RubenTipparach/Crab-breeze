@@ -379,10 +379,10 @@ fn show_prompt(
     let p = &pilot.curr;
     let ready = access.0.as_ref().is_some_and(|a| a.hatch_open && p.can_board(a, &data.0.pilot));
     let at_terminal = terminal.as_ref().is_some_and(|t| t.near.is_some());
-    let want = if ready {
-        "[E]  Step into the cockpit"
-    } else if at_terminal {
+    let want = if at_terminal {
         "[E]  Use the terminal: jobs, shop, refit"
+    } else if ready {
+        "[E]  Step into the cockpit"
     } else {
         ""
     };

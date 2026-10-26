@@ -315,7 +315,7 @@ fn axis(input: &ButtonInput<KeyCode>, pos: &[KeyCode], neg: &[KeyCode]) -> f32 {
     f32::from(u8::from(any(input, pos))) - f32::from(u8::from(any(input, neg)))
 }
 
-fn take_step_actions(
+pub(crate) fn take_step_actions(
     input: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<Keys>,
