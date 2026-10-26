@@ -786,8 +786,10 @@ mod tests {
     #[test]
     fn a_save_from_before_the_air_drop_still_loads() {
         let c = career();
+        // RON ends its lines with \r\n on Windows: compare on \n.
         let old = c
             .to_ron()
+            .replace("\r\n", "\n")
             .replace("    drops: [],\n", "")
             .replace("    awaiting: [],\n", "")
             .replace("            field: None,\n", "");

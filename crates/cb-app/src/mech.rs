@@ -1063,6 +1063,7 @@ pub fn step_mech(
     mut contacts: MessageWriter<GroundContact>,
 ) {
     let _t = crate::perf_hud::slow("step_mech");
+    let _all = crate::perf_hud::section("step_mech");
     let tl = &data.0.boarding;
     let locked = targeting.locked(&data.0.targeting);
     let dt = time.delta_secs();
@@ -1254,7 +1255,10 @@ pub fn step_mech(
                     );
                 }
                 let others: Vec<Body> = bodies.iter().filter(|b| b.0 != id.0).map(|b| b.1).collect();
-                aim_at = cam.map(|c| look_point(&c, &plan, live, &others));
+                aim_at = {
+                    let _s = crate::perf_hud::section("look_point");
+                    cam.map(|c| look_point(&c, &plan, live, &others))
+                };
                 c
             } else {
                 MechControls::default()
@@ -1297,6 +1301,7 @@ pub fn step_mech(
                 cover: &cover,
                 open: &open,
             };
+            let _span = crate::perf_hud::section("enemy_orders");
             let orders = enemy.ai.orders(&sim.curr, &view, dt);
             if let Some(c) = stunt(
                 &sim.curr,
@@ -1355,7 +1360,10 @@ pub fn step_mech(
         };
         let was_airborne = sim.curr.airborne();
         let was_at = sim.curr.pos;
-        sim.curr.step(&controls, cfg, &ground, dt);
+        {
+            let _span = crate::perf_hud::section("mech_step");
+            sim.curr.step(&controls, cfg, &ground, dt);
+        }
         // A deck guard keeps to its deck: walking out over the edge stops it there (survey H6).
         if keep_aboard && let Some(back) = cb_core::world::platform::keep_on(&live.platforms, was_at, sim.curr.pos) {
             sim.curr.pos = back;
