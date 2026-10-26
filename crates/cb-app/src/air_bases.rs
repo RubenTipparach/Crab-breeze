@@ -298,11 +298,27 @@ fn repair_in_hangars(
     }
 }
 
-/// Finds the terminal the pilot on foot stands at and looks at, for the prompt's options (`interact`).
-fn find_terminal(plan: Res<Plan>, data: Res<Data>, pilot: Res<PilotSim>, mut near: ResMut<TerminalNear>) {
+/// Finds the terminal the pilot on foot stands at and looks at, a hangar bay's or a harbour office's (harbours), for
+/// the prompt's options (`interact`).
+fn find_terminal(
+    plan: Res<Plan>,
+    data: Res<Data>,
+    pilot: Res<PilotSim>,
+    mut near: ResMut<TerminalNear>,
+    boats: Option<Res<crate::boats::Boats>>,
+) {
     let p = &pilot.curr;
+    let cfg = &data.0.world.bases;
+    let feet = Vec2::new(p.feet.x, p.feet.z);
     near.near = (p.mode == PilotMode::OnFoot && p.waiting.is_none())
-        .then(|| terminal_in_reach(&plan.0.bases, &data.0.world.bases, Vec2::new(p.feet.x, p.feet.z), p.yaw_rad))
+        .then(|| {
+            // A hangar bay's terminal, else a harbour office's by the same reach and look (harbours).
+            terminal_in_reach(&plan.0.bases, cfg, feet, p.yaw_rad).or_else(|| {
+                boats
+                    .as_deref()
+                    .and_then(|b| crate::boats::office_terminal(b, &plan, feet, p.yaw_rad, cfg.terminal_reach_m, cfg.terminal_look_deg))
+            })
+        })
         .flatten();
 }
 

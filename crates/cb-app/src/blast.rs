@@ -35,6 +35,16 @@ impl Plugin for BlastPlugin {
     }
 }
 
+/// A blast's splash on a body `d_m` from it: (penetration, damage), within three crater radii `r_m` of a blast of
+/// `energy_mj`, falling off to nothing at the edge; `None` beyond. The one splash rule: mechs here, boats in `boats`.
+pub fn splash(d_m: f32, r_m: f32, energy_mj: f32) -> Option<(f32, f32)> {
+    let reach = r_m * 3.0;
+    (d_m < reach).then(|| {
+        let k = 1.0 - d_m / reach;
+        (70.0 + 60.0 * k, 60.0 * k * energy_mj.cbrt())
+    })
+}
+
 fn explode(
     mut explosions: MessageReader<Explosion>,
     mut live: ResMut<Live>,
@@ -94,22 +104,24 @@ fn explode(
         // Mechs nearby take splash on the part nearest the blast; armour stops most of it.
         for (mut sim, spec) in &mut mechs {
             let d = sim.curr.pos.distance(e.at - Vec3::Y * 4.0);
-            if d < r * 3.0 && !sim.dead {
+            if sim.dead {
+                continue;
+            }
+            if let Some((penetration_mm, damage)) = splash(d, r, e.energy_mj) {
                 let kind = if e.at.y - sim.curr.pos.y < 6.0 {
                     PartKind::LegL
                 } else {
                     PartKind::Torso
                 };
                 if let Some(part) = spec.parts.iter().position(|p| p.kind == kind) {
-                    let k = 1.0 - d / (r * 3.0);
                     let cfg = spec.0.clone();
                     apply_hit(
                         &mut sim,
                         &cfg,
                         Hit {
                             part,
-                            penetration_mm: 70.0 + 60.0 * k,
-                            damage: 60.0 * k * e.energy_mj.cbrt(),
+                            penetration_mm,
+                            damage,
                         },
                     );
                 }

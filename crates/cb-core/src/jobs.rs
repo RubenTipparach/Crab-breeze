@@ -26,6 +26,19 @@ pub enum JobKind {
     Intercept,
     /// Crabs have dug in near a city: destroy them.
     Destroy,
+    /// Escort a freighter in from sea against the raiders' gunboats (openspec change `harbours`).
+    Escort,
+    /// Raiders' gunboats are shooting up a harbour's fishing fleet: sink them (`harbours`).
+    Raid,
+    /// Raiders' gunboats lie across a harbour's mouth: clear the blockade (`harbours`).
+    Blockade,
+}
+
+impl JobKind {
+    /// A shipping job: sited at a harbour, fought on the water against gunboats, not mechs.
+    pub fn at_sea(self) -> bool {
+        matches!(self, JobKind::Escort | JobKind::Raid | JobKind::Blockade)
+    }
 }
 
 /// One risk tier of a kind of job (openspec change `career-progression`): its size and pay, roughly doubling a tier.
@@ -179,6 +192,9 @@ pub struct Job {
     /// The base that offers it: the nearest to its site (its standing raises the pay).
     #[serde(default)]
     pub base: u32,
+    /// A shipping job's harbour.
+    #[serde(default)]
+    pub harbour: Option<u32>,
     /// Seconds to win it in, from accepting.
     pub time_limit_s: f32,
     /// Seconds left on its clock (accepted or active), or until it expires (offered).
@@ -215,12 +231,30 @@ pub struct Site {
     pub half_size_m: f32,
 }
 
+/// A harbour a shipping job can be sited at (openspec change `harbours`): the city it serves and where each kind of
+/// shipping job is fought.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SeaSite {
+    /// The city it serves.
+    pub city: u32,
+    /// The harbour.
+    pub harbour: u32,
+    /// Its mouth (x, z): a blockade lies across it.
+    pub mouth: Vec2,
+    /// Its fishing ground (x, z): raiders shoot up the fleet there.
+    pub ground: Vec2,
+    /// Where an escort's freighter starts (x, z), out along a lane.
+    pub escort_from: Vec2,
+}
+
 /// What the board may offer now (career-progression): the cities jobs are sited by, the bases that offer them, the
 /// riskiest tier the career's mechs open, and each base's pay bonus from the pilot's standing there.
 #[derive(Clone, Copy, Debug)]
 pub struct Offers<'a> {
     /// The cities.
     pub sites: &'a [Site],
+    /// The harbours, for shipping jobs (none: none are offered).
+    pub harbours: &'a [SeaSite],
     /// Each base's centre (x, z), by id; none puts every job on base 0.
     pub bases: &'a [Vec2],
     /// The riskiest tier offered.
@@ -294,6 +328,17 @@ impl Board {
             j.clock_s = j.time_limit_s;
         }
         events
+    }
+
+    /// The accepted or active job `id` is lost (an escort's freighter sank): it fails. The event, when it was under
+    /// way.
+    pub fn fail(&mut self, id: u32) -> Option<Event> {
+        let j = self.job_mut(id)?;
+        if !matches!(j.state, JobState::Accepted | JobState::Active) {
+            return None;
+        }
+        j.state = JobState::Failed;
+        Some(Event::Failed(id))
     }
 
     /// Turns an offer down. True when it was declined.
@@ -377,7 +422,7 @@ impl Board {
 
     /// Draws one offer (at `forced` tier, else any the career opens) and mails it.
     fn make_offer(&mut self, cfg: &JobsConfig, offers: &Offers, rng: &mut SimRng, forced: Option<u8>) -> Option<u32> {
-        if offers.sites.is_empty() {
+        if offers.sites.is_empty() && offers.harbours.is_empty() {
             return None;
         }
         let id = self.next_job;
@@ -414,7 +459,15 @@ fn offer(cfg: &JobsConfig, offers: &Offers, id: u32, rng: &mut SimRng, forced: O
         Some(f) => t.tier == f,
         None => t.tier <= offers.max_tier,
     };
-    let kinds: Vec<&KindSpec> = cfg.kinds.iter().filter(|k| k.tiers.iter().any(open)).collect();
+    // A shipping job needs a harbour, a land job a city.
+    let sited = |k: &KindSpec| {
+        if k.kind.at_sea() {
+            !offers.harbours.is_empty()
+        } else {
+            !offers.sites.is_empty()
+        }
+    };
+    let kinds: Vec<&KindSpec> = cfg.kinds.iter().filter(|k| k.tiers.iter().any(open) && sited(k)).collect();
     if kinds.is_empty() {
         return None;
     }
@@ -429,11 +482,21 @@ fn offer(cfg: &JobsConfig, offers: &Offers, id: u32, rng: &mut SimRng, forced: O
         .unwrap_or(&kinds[0]);
     let tiers: Vec<&TierSpec> = spec.tiers.iter().filter(|t| open(t)).collect();
     let tier = tiers[(rng.next_u64() % tiers.len() as u64) as usize];
-    let sites = offers.sites;
-    let s = sites[(rng.next_u64() % sites.len() as u64) as usize];
-    let a = rng.range_f32(0.0, std::f32::consts::TAU);
-    let out = rng.range_f32(spec.site_out.0, spec.site_out.1) * s.half_size_m;
-    let site = s.centre + Vec2::new(a.cos(), a.sin()) * out;
+    let (city, site, harbour) = if spec.kind.at_sea() {
+        let h = offers.harbours[(rng.next_u64() % offers.harbours.len() as u64) as usize];
+        let at = match spec.kind {
+            JobKind::Escort => h.escort_from,
+            JobKind::Raid => h.ground,
+            _ => h.mouth,
+        };
+        (h.city, at, Some(h.harbour))
+    } else {
+        let sites = offers.sites;
+        let s = sites[(rng.next_u64() % sites.len() as u64) as usize];
+        let a = rng.range_f32(0.0, std::f32::consts::TAU);
+        let out = rng.range_f32(spec.site_out.0, spec.site_out.1) * s.half_size_m;
+        (s.city, s.centre + Vec2::new(a.cos(), a.sin()) * out, None)
+    };
     let mechs = tier.mechs.0 + (rng.next_u64() % u64::from(tier.mechs.1 - tier.mechs.0 + 1)) as u32;
     let base = (0..offers.bases.len())
         .min_by(|a, b| offers.bases[*a].distance(site).total_cmp(&offers.bases[*b].distance(site)))
@@ -442,7 +505,7 @@ fn offer(cfg: &JobsConfig, offers: &Offers, id: u32, rng: &mut SimRng, forced: O
     let pay = round10((tier.pay_base + tier.pay_per_mech * i64::from(mechs)) as f32 * (1.0 + bonus));
     let pick_text = |list: &[String], rng: &mut SimRng| list[(rng.next_u64() % list.len() as u64) as usize].clone();
     let fill = |t: String| {
-        t.replace("{city}", &format!("City {}", s.city + 1))
+        t.replace("{city}", &format!("City {}", city + 1))
             .replace("{mechs}", &mechs.to_string())
             .replace("{pay}", &format!("{pay}"))
             .replace("{tier}", &tier.tier.to_string())
@@ -453,12 +516,13 @@ fn offer(cfg: &JobsConfig, offers: &Offers, id: u32, rng: &mut SimRng, forced: O
     let job = Job {
         id,
         kind: spec.kind,
-        city: s.city,
+        city,
         site,
         mechs,
         pay,
         tier: tier.tier,
         base,
+        harbour,
         time_limit_s: spec.time_limit_s,
         clock_s: cfg.offer_life_s,
         state: JobState::Offered,
@@ -544,6 +608,7 @@ mod tests {
         let sites = sites();
         let o = Offers {
             sites: &sites,
+            harbours: &[],
             bases: &BASES,
             max_tier,
             bonus: &[],
@@ -565,6 +630,7 @@ mod tests {
         let sites = sites();
         let o = Offers {
             sites: &sites,
+            harbours: &[],
             bases: &BASES,
             max_tier: 2,
             bonus: &[],
@@ -666,6 +732,7 @@ mod tests {
         let sites = sites();
         let o = Offers {
             sites: &sites,
+            harbours: &[],
             bases: &BASES,
             max_tier: 3,
             bonus: &[],
@@ -688,6 +755,7 @@ mod tests {
         let sites = sites();
         let plain = Offers {
             sites: &sites,
+            harbours: &[],
             bases: &BASES,
             max_tier: 2,
             bonus: &[],
@@ -727,5 +795,60 @@ mod tests {
         let text = ron::to_string(&b).unwrap();
         let back: Board = ron::from_str(&text).unwrap();
         assert_eq!(back, b);
+    }
+
+    fn harbours() -> Vec<SeaSite> {
+        vec![SeaSite {
+            city: 1,
+            harbour: 0,
+            mouth: Vec2::new(9000.0, 2000.0),
+            ground: Vec2::new(11_000.0, 2000.0),
+            escort_from: Vec2::new(11_500.0, 1000.0),
+        }]
+    }
+
+    #[test]
+    fn shipping_jobs_are_offered_only_where_there_is_a_harbour_and_sited_at_it() {
+        let c = cfg();
+        assert!(c.kinds.iter().any(|k| k.kind.at_sea()), "the shipped jobs have shipping kinds");
+        let (sites, harbours) = (sites(), harbours());
+        let o = Offers {
+            sites: &sites,
+            harbours: &harbours,
+            bases: &BASES,
+            max_tier: 3,
+            bonus: &[],
+        };
+        let mut b = Board::default();
+        for _ in 0..(4000.0 / DT) as usize {
+            b.step(&c, &o, 7, Vec2::splat(1.0e6), None, false, DT);
+        }
+        let sea: Vec<&Job> = b.jobs.iter().filter(|j| j.kind.at_sea()).collect();
+        assert!(!sea.is_empty(), "shipping jobs offered");
+        for j in sea {
+            let h = &harbours[0];
+            let want = match j.kind {
+                JobKind::Escort => h.escort_from,
+                JobKind::Raid => h.ground,
+                _ => h.mouth,
+            };
+            assert_eq!((j.site, j.harbour, j.city), (want, Some(0), 1), "{j:?}");
+        }
+        // With no harbour, none.
+        let mut b = Board::default();
+        run_to(&mut b, 4000.0, 3);
+        assert!(b.jobs.iter().all(|j| !j.kind.at_sea()));
+    }
+
+    #[test]
+    fn a_lost_ward_fails_the_job_under_way() {
+        let mut b = Board::default();
+        run(&mut b, 120.0);
+        let id = b.jobs[0].id;
+        assert_eq!(b.fail(id), None, "an offer is not under way");
+        b.accept(id);
+        assert_eq!(b.fail(id), Some(Event::Failed(id)));
+        assert_eq!(b.job(id).unwrap().state, JobState::Failed);
+        assert_eq!(b.fail(id), None, "once");
     }
 }

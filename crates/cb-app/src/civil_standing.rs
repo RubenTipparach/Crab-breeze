@@ -1,6 +1,6 @@
-//! Harm to civilians costs career standing (survey W34, W37, W42): reads the three features' hooks, people
-//! killed (`civilians::CivilianLoss`), cars harmed (`traffic::CivilianHarmed`) and civil aircraft hit
-//! (`air_traffic::CivilAirHit`), turns each into a `cb_core::civil_standing::CivilHarm` and hands it to the one
+//! Harm to civilians costs career standing (survey W34, W37, W42): reads the four features' hooks, people
+//! killed (`civilians::CivilianLoss`), cars harmed (`traffic::CivilianHarmed`), civil aircraft hit
+//! (`air_traffic::CivilAirHit`) and boats harmed (`boats::BoatHarmed`, harbours HB16), turns each into a `cb_core::civil_standing::CivilHarm` and hands it to the one
 //! rule, `Charges::charge`, against the career being played. Outside a career nothing is charged; the features'
 //! own counters still count.
 
@@ -26,6 +26,7 @@ impl Plugin for CivilStandingPlugin {
         app.add_message::<CivilianLoss>()
             .add_message::<CivilianHarmed>()
             .add_message::<CivilAirHit>()
+            .add_message::<crate::boats::BoatHarmed>()
             .init_resource::<CivilCharges>()
             .add_game_systems(Update, charge);
     }
@@ -35,6 +36,7 @@ fn charge(
     mut people: MessageReader<CivilianLoss>,
     mut cars: MessageReader<CivilianHarmed>,
     mut aircraft: MessageReader<CivilAirHit>,
+    mut boats: MessageReader<crate::boats::BoatHarmed>,
     run: Option<ResMut<CareerRun>>,
     plan: Res<Plan>,
     mut charges: ResMut<CivilCharges>,
@@ -60,6 +62,15 @@ fn charge(
             victim: Victim::Aircraft(h.aircraft),
             at: flat(h.at),
             by_pilot: h.by_pilot,
+        }))
+        // A `BoatHarmed` is already the pilot's harm to a crewed boat (`ships::harm::report`); its crew says so again.
+        .chain(boats.read().map(|h| CivilHarm {
+            victim: Victim::Boat {
+                id: h.boat,
+                crewed: h.crew > 0,
+            },
+            at: h.at,
+            by_pilot: true,
         }))
         .collect();
     let Some(mut run) = run else { return };

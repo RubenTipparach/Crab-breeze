@@ -122,6 +122,11 @@ impl Units {
     }
 }
 
+/// Targets other than the pilot's mech for some vehicles, by id, this step: a point and its velocity (a raider's
+/// gunboat after an escort's freighter or a fishing boat: openspec change `harbours`). Filled before the vehicles step.
+#[derive(Resource, Default)]
+pub struct UnitTargets(pub BTreeMap<u32, (Vec3, Vec3)>);
+
 /// A wave's vehicles are due (sent by the defence mission when the wave starts).
 #[derive(Message, Clone, Copy)]
 pub struct WaveForces {
@@ -145,6 +150,7 @@ impl Plugin for UnitsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Units>()
             .init_resource::<Hostiles>()
+            .init_resource::<UnitTargets>()
             .add_message::<WaveForces>()
             .add_game_systems(FixedUpdate, list_hostiles.in_set(SimSet::Input))
             .add_game_systems(
@@ -287,6 +293,7 @@ fn step_units(
     mut shots: ResMut<Shots>,
     mut fx: MessageWriter<Fx>,
     neutrals: Res<crate::air_traffic::Neutrals>,
+    targets: Res<UnitTargets>,
 ) {
     let _t = crate::perf_hud::slow("step_units");
     if units.list.is_empty() {
@@ -304,8 +311,9 @@ fn step_units(
     let mut dropped = Vec::new();
     for p in units.list.iter_mut().filter(|p| !p.gone) {
         let Some(spec) = cfg.units.get(&p.unit.kind) else { continue };
-        // A civil aircraft within its guns' reach is a shot of opportunity (civil-air-traffic): the
-        // nearest, ties by id.
+        // Its own target (a boat a gunboat hunts: harbours), else the pilot; a civil aircraft within its guns' reach is
+        // a shot of opportunity (civil-air-traffic): the nearest, ties by id.
+        let aim = targets.0.get(&p.unit.id).copied().or(target);
         let opportunity = neutrals
             .0
             .iter()
@@ -315,11 +323,12 @@ fn step_units(
             .map(|(_, n)| (n.aim, n.vel));
         let view = UnitView {
             spec,
-            target: target.map(|t| t.0),
-            target_vel: target.map_or(Vec3::ZERO, |t| t.1),
+            target: aim.map(|t| t.0),
+            target_vel: aim.map_or(Vec3::ZERO, |t| t.1),
             opportunity,
             ground: &ground,
             drop: &cfg.drop,
+            sea_level_m: plan.waters.sea_level_m,
         };
         let step = p.unit.step(&view, dt);
         if let (Some((from, dir)), Some(w)) = (step.fire, spec.weapon.as_ref()) {
@@ -364,8 +373,14 @@ fn step_units(
 
 /// A vehicle was destroyed: the blast and the wreck's fire, and it leaves the world.
 pub fn unit_destroyed(p: &mut Placed, data: &Data, fx: &mut MessageWriter<Fx>, explosions: &mut MessageWriter<crate::blast::Explosion>) {
-    let air = data.0.units.units.get(&p.unit.kind).is_some_and(|s| s.kind != UnitKind::Tank);
-    fx.write(Fx::new(if air { "explosion_air" } else { "explosion_ground" }, p.unit.pos));
+    let kind = data.0.units.units.get(&p.unit.kind).map(|s| s.kind);
+    let air = kind.is_some_and(|k| !matches!(k, UnitKind::Tank | UnitKind::Gunboat));
+    let recipe = match kind {
+        Some(UnitKind::Gunboat) => "explosion_water",
+        _ if air => "explosion_air",
+        _ => "explosion_ground",
+    };
+    fx.write(Fx::new(recipe, p.unit.pos));
     explosions.write(crate::blast::Explosion {
         at: p.unit.pos,
         energy_mj: if air { 1.5 } else { 4.0 },
@@ -405,6 +420,7 @@ fn draw_units(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut known: Local<BTreeMap<u32, Entity>>,
+    assets: Res<AssetServer>,
 ) {
     let _t = crate::perf_hud::slow("draw_units");
     let mut seen = std::collections::BTreeSet::new();
@@ -488,6 +504,8 @@ fn draw_units(
                     false,
                 ));
             }
+            // Drawn from the boats' block-out (below), not boxes.
+            UnitKind::Gunboat => {}
             UnitKind::CargoPlane => {
                 parts.push((Cuboid::new(w * 0.15, h, l).into(), Transform::IDENTITY, false));
                 parts.push((
@@ -513,6 +531,17 @@ fn draw_units(
             let m = meshes.add(mesh);
             let mat = if is_dark { dark.clone() } else { paint.clone() };
             commands.spawn((Mesh3d(m), MeshMaterial3d(mat), t, ChildOf(root)));
+        }
+        // A gunboat is the boats' block-out (harbours): its origin is its waterline, under the unit's body centre.
+        if s.kind == UnitKind::Gunboat
+            && let Some(b) = data.0.ships.kinds.get(cb_core::ships::GUNBOAT)
+        {
+            let scene = assets.load(GltfAssetLabel::Scene(0).from_asset(b.model.clone()));
+            commands.spawn((
+                bevy::world_serialization::WorldAssetRoot(scene),
+                Transform::from_xyz(0.0, s.draft_m - h * 0.5, 0.0),
+                ChildOf(root),
+            ));
         }
         // A tank comes down under a chute: a dome over it on lines, shown while it is open.
         let chute = (s.kind == UnitKind::Tank).then(|| {

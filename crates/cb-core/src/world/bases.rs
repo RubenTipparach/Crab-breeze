@@ -300,6 +300,9 @@ pub struct Terminal {
     pub bay: usize,
     /// Where it stands (x, z).
     pub at: Vec2,
+    /// A harbour office's terminal (openspec change `harbours`): the harbour's id. Its screen shows only the jobs
+    /// board; `base` is then the air base nearest the harbour, and `bay` means nothing.
+    pub office: Option<u32>,
 }
 
 impl AirBase {
@@ -312,6 +315,7 @@ impl AirBase {
                 base: self.id,
                 bay,
                 at: Vec2::new(h.min.x + cfg.terminal_in_m.x, h.min.y + cfg.terminal_in_m.y),
+                office: None,
             })
             .collect()
     }

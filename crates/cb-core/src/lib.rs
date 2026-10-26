@@ -34,6 +34,7 @@ pub mod refit;
 pub mod rng;
 pub mod save;
 pub mod settings;
+pub mod ships;
 pub mod shop;
 pub mod sim;
 pub mod skins;
@@ -101,6 +102,8 @@ pub struct GameData {
     pub traffic: traffic::TrafficData,
     /// `data/people/people.ron` and `lines.ron` (openspec change `civilians`).
     pub people: civilians::PeopleData,
+    /// `data/world/ships.ron`: every boat on the island (openspec change `harbours`).
+    pub ships: ships::ShipsConfig,
 }
 
 impl GameData {
@@ -144,6 +147,21 @@ impl GameData {
             shape: data::load_ron(&shape_path)?,
         };
         fortress.check().map_err(|reason| data::DataError { path: shape_path, reason })?;
+        let ships_path = root.join("world/ships.ron");
+        let ships: ships::ShipsConfig = data::load_ron(&ships_path)?;
+        let units: units::UnitsConfig = data::load_ron(&root.join("world/units.ron"))?;
+        // The gunboat is a vehicle in a fight and a boat when it sinks: one size in both files.
+        if let (Some(u), Some(b)) = (units.units.get(ships::GUNBOAT), ships.kinds.get(ships::GUNBOAT))
+            && (u.size_m != b.size_m || u.draft_m != b.draft_m)
+        {
+            return Err(data::DataError {
+                path: ships_path,
+                reason: format!(
+                    "kinds.gunboat: size_m and draft_m must match units.ron's gunboat ({:?}, {})",
+                    u.size_m, u.draft_m
+                ),
+            });
+        }
         Ok(Self {
             sim: data::load_ron(&root.join("sim.ron"))?,
             world,
@@ -162,7 +180,7 @@ impl GameData {
             ground_marks: data::load_ron(&root.join("fx/ground_marks.ron"))?,
             battle_fx: data::load_ron(&root.join("fx/battle_fx.ron"))?,
             sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
-            units: data::load_ron(&root.join("world/units.ron"))?,
+            units,
             air_traffic: data::load_ron(&root.join("world/air_traffic.ron"))?,
             skins,
             fortress,
@@ -177,6 +195,7 @@ impl GameData {
                 cfg: data::load_ron(&root.join("people/people.ron"))?,
                 lines: data::load_ron(&root.join("people/lines.ron"))?,
             },
+            ships,
         })
     }
 

@@ -328,6 +328,11 @@ impl Island {
             .map(|o| (Vec2::new(o.x as f32, o.z as f32), o.r as f32))
     }
 
+    /// Every islet of the archipelago: centre (x, z), radius, and whether its shores are cliffs.
+    pub fn islets(&self) -> impl Iterator<Item = (Vec2, f32, bool)> + '_ {
+        self.islets.iter().map(|o| (Vec2::new(o.x as f32, o.z as f32), o.r as f32, o.cliff))
+    }
+
     /// The direction across the spine toward the east (x, z).
     pub fn east(&self) -> Vec2 {
         Vec2::new(self.east[0] as f32, self.east[1] as f32)

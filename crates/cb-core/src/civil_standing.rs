@@ -1,10 +1,11 @@
-//! The one place harm to civilians costs the pilot standing (survey W34, W37, W42). Three features report
-//! harm, each its own way: people killed (`civilians`, a `Casualty`), cars harmed (`traffic`, a `Harm`) and
-//! civil aircraft hit (`air_traffic`). Each is turned into a `CivilHarm` here, and `Charges::charge` applies
+//! The one place harm to civilians costs the pilot standing (survey W34, W37, W42). Four features report
+//! harm, each its own way: people killed (`civilians`, a `Casualty`), cars harmed (`traffic`, a `Harm`),
+//! civil aircraft hit (`air_traffic`) and boats harmed (`ships::harm`, harbours HB16). Each is turned into a `CivilHarm` here, and `Charges::charge` applies
 //! the rules once and lowers the career's standing with the base nearest where it happened:
 //!
 //! - only the pilot's own rounds, blasts, feet and car count; the enemy's kills cost nothing (W34, W42);
-//! - a car counts only with somebody in it (W37): a parked car is property, not a civilian;
+//! - a car counts only with somebody in it (W37): a parked car is property, not a civilian; a boat only with a civil
+//!   crew aboard (harbours HB16);
 //! - each victim costs once: a person dies once, a car or an aircraft hit by a whole burst is charged for
 //!   its first pilot-caused harm only.
 //!
@@ -29,6 +30,13 @@ pub enum Victim {
     },
     /// A civil aircraft, by id. It always carries a crew.
     Aircraft(u32),
+    /// A boat, by id; `crewed` when it had a civil crew aboard when it was harmed (harbours HB16).
+    Boat {
+        /// The boat's id.
+        id: u32,
+        /// It carried a civil crew.
+        crewed: bool,
+    },
 }
 
 /// One civilian harmed, as each feature reports it.
@@ -48,6 +56,7 @@ impl CivilHarm {
         self.by_pilot
             && match self.victim {
                 Victim::Car { occupied, .. } => occupied,
+                Victim::Boat { crewed, .. } => crewed,
                 Victim::Person(_) | Victim::Aircraft(_) => true,
             }
     }
@@ -58,6 +67,7 @@ impl CivilHarm {
             Victim::Person(id) => (0, id),
             Victim::Car { id, .. } => (1, id),
             Victim::Aircraft(id) => (2, id),
+            Victim::Boat { id, .. } => (3, id),
         }
     }
 }
@@ -138,6 +148,36 @@ mod tests {
             at: Vec2::new(x, 0.0),
             by_pilot,
         }
+    }
+
+    #[test]
+    fn a_crewed_boat_the_pilot_harms_costs_once_even_when_it_then_sinks() {
+        // Harbours HB16: only crewed boats, only the pilot's own harm, once per boat.
+        let (mut c, cfg) = career_with(5);
+        let mut ch = Charges::default();
+        let boat = |id, crewed| Victim::Boat { id, crewed };
+        assert_eq!(
+            ch.charge(&mut c, &cfg, &bases(), &harm(boat(4, false), 100.0, true)),
+            None,
+            "no crew aboard"
+        );
+        assert_eq!(
+            ch.charge(&mut c, &cfg, &bases(), &harm(boat(5, true), 100.0, false)),
+            None,
+            "not the pilot's"
+        );
+        let first = ch.charge(&mut c, &cfg, &bases(), &harm(boat(6, true), 100.0, true));
+        assert_eq!(first, Some((0, 5 - cfg.standing_per_civilian)));
+        assert_eq!(
+            ch.charge(&mut c, &cfg, &bases(), &harm(boat(6, true), 120.0, true)),
+            None,
+            "its sinking, reported again, is not charged twice"
+        );
+        assert_eq!(
+            ch.charge(&mut c, &cfg, &bases(), &harm(Victim::Aircraft(6), 100.0, true)),
+            Some((0, 5 - 2 * cfg.standing_per_civilian)),
+            "an aircraft with the same id is another victim"
+        );
     }
 
     #[test]

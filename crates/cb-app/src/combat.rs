@@ -38,7 +38,7 @@ pub struct Blow {
     pub damage: f32,
 }
 
-/// What a hit carries, from a gun or a strike.
+/// What a hit carries, from a gun or a strike, and who fired it.
 #[derive(Clone, Copy)]
 struct Power {
     penetration_mm: f32,
@@ -71,6 +71,7 @@ fn land(
     fortress: &mut MessageWriter<crate::fortress::FortressHit>,
     cars: &mut crate::traffic::TrafficSim,
     civil: &mut crate::air_traffic::CivilHits,
+    boats: &mut MessageWriter<crate::boats::BoatHit>,
 ) {
     match struck {
         // A car: a round that beats its thin skin sets it alight (car-traffic).
@@ -96,6 +97,18 @@ fn land(
         // A civil aircraft (civil-air-traffic), by the same armour rule as a vehicle.
         Struck::Mech { mech, .. } if crate::air_traffic::is_civil(mech) => {
             civil.hit(mech, power.owner, at, power.penetration_mm, power.damage, data, fx);
+            fx.write(Fx::new("impact_mech", at).toward(-dir));
+        }
+        // A boat takes it by the vehicles' rule, in `boats` (harbours); its ids sit below the civil aircraft's.
+        Struck::Mech { mech, .. } if (crate::boats::BOAT_ID_BASE..crate::air_traffic::CIVIL_ID_BASE).contains(&mech) => {
+            boats.write(crate::boats::BoatHit {
+                boat: Some(mech - crate::boats::BOAT_ID_BASE),
+                at,
+                penetration_mm: power.penetration_mm,
+                damage: power.damage,
+                blast_mj: 0.0,
+                owner: power.owner,
+            });
             fx.write(Fx::new("impact_mech", at).toward(-dir));
         }
         Struck::Mech { mech, .. } if mech >= crate::units::UNIT_ID_BASE => {
@@ -156,6 +169,17 @@ fn land(
             at,
             energy_mj: power.blast_mj,
             by: Some(power.owner),
+        });
+    }
+    // A round's blast may splash a boat, and the boats need to know whose it was (harbours).
+    if power.blast_mj > 0.0 {
+        boats.write(crate::boats::BoatHit {
+            boat: None,
+            at,
+            penetration_mm: 0.0,
+            damage: 0.0,
+            blast_mj: power.blast_mj,
+            owner: power.owner,
         });
     }
 }
@@ -242,6 +266,7 @@ pub fn fly_shots(
     mut fortress_hits: MessageWriter<crate::fortress::FortressHit>,
     (mut cars, piloted): (ResMut<crate::traffic::TrafficSim>, Query<&MechId, With<crate::mech::Piloted>>),
     mut civil: crate::air_traffic::CivilHits,
+    (boats, mut boat_hits): (Option<Res<crate::boats::Boats>>, MessageWriter<crate::boats::BoatHit>),
 ) {
     let _t = crate::perf_hud::slow("fly_shots");
     if shots.0.is_empty() && shots.1.is_empty() {
@@ -262,6 +287,10 @@ pub fn fly_shots(
     // fuselage and wing (civil-air-traffic).
     parts.extend(crate::units::unit_capsules(&units, &data));
     parts.extend(civil.capsules(&data));
+    // Boats afloat, one capsule each (harbours).
+    if let Some(b) = &boats {
+        parts.extend(crate::boats::boat_capsules(b, &data));
+    }
     // The fortress's parts, then its hull (crab-airship).
     if let Some(f) = &fortress {
         parts.extend(f.capsules.iter().copied());
@@ -363,6 +392,7 @@ pub fn fly_shots(
                 &mut fortress_hits,
                 &mut cars,
                 &mut civil,
+                &mut boat_hits,
             );
         }
     }
@@ -422,6 +452,7 @@ pub fn fly_shots(
             &mut fortress_hits,
             &mut cars,
             &mut civil,
+            &mut boat_hits,
         );
     }
     shots.0 = flying;

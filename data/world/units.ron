@@ -71,6 +71,27 @@
             altitude_m: (400.0, 450.0),
             tint: (0.36, 0.38, 0.34),
         ),
+        // The raiders' patrol gunboat (openspec/changes/harbours, pre-approved by the owner, 2026-10-26, HB17): a
+        // 30 m hull, its size and draught the same as ships.ron's (checked on load). A 40 mm gun in a turret that
+        // bears 120 degrees either side of the bow: 80 mm hurts heads and arms, not legs. It holds station until its
+        // target is within 3 km, then circles it at 600 m.
+        "gunboat": (
+            kind: Gunboat,
+            size_m: (6.5, 9.0, 30.0),
+            draft_m: 1.8,
+            speed_m_s: 14.0,
+            turn_deg_s: 12.0,
+            hp: 260.0,
+            armour_mm: 30.0,
+            weapon: Some((name: "40 mm gun", socket: "NOSE", arm: Torso, group: 0, speed_m_s: 880.0,
+                interval_s: 0.5, penetration_mm: 80.0, damage: 3.0, blast_mj: 0.4)),
+            salvo: 4,
+            salvo_pause_s: 3.0,
+            fire_range_m: 1500.0,
+            fire_cone_deg: 120.0,
+            standoff_m: 600.0,
+            tint: (0.30, 0.32, 0.30),
+        ),
     },
     drop: (
         chute_open_s: 2.0,

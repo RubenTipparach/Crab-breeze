@@ -9,6 +9,7 @@ mod audio;
 mod battle_fx;
 mod bench;
 mod blast;
+mod boats;
 mod building_arrays;
 mod building_state;
 mod buildings;
@@ -275,6 +276,8 @@ fn main() -> AppExit {
     app.add_plugins(air_traffic::AirTrafficPlugin);
     // Harm to civilians, cars and civil aircraft costs career standing, by one rule (survey W34, W37, W42).
     app.add_plugins(civil_standing::CivilStandingPlugin);
+    // Every boat: harbours, sea traffic, lake boats, the ferry and the shipping jobs (harbours).
+    app.add_plugins(boats::BoatsPlugin);
     // The player's settings; a measurement or capture run keeps the window it set up.
     app.add_plugins(settings::SettingsPlugin {
         window: !scripted && !cli::switched_off("CB_UNCAPPED"),

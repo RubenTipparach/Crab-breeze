@@ -8,7 +8,7 @@
 - [x] 1.3 The toll: deaths from the pilot's own rounds, blasts and feet counted against the nearest base and sent as
   `CivilianLoss` for the career's standing (survey W34); `Explosion` carries whose blast it was; tested
 - [x] 1.5 The toll charged to the career's standing by the one rule for every civilian, `cb_core::civil_standing`
-  (people, cars with a driver in them and civil aircraft; each victim once; `standing_per_civilian` in
+  (people, cars with a driver in them, civil aircraft and, since the boats merge, crewed boats; each victim once; `standing_per_civilian` in
   `data/career/career.ron`); tested per source
 - [x] 1.4 Running inside: `StreetDoors`, an implementation of `Doors` over every building's real street door
   (`world::interior::shell`, the rule the leaves hang by), in place of `NoDoors`; car drivers who give up their
