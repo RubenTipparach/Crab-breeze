@@ -25,10 +25,10 @@ pilot fights in front of is the generic box.
   of colour or window rhythm.
 - **Three distances**: dressed as now within 250 m; the type's massing mesh (parapet, cornice, roof
   props, setbacks, its baked facade) to 1.5 km; the type's box with the same baked facade beyond.
-- **Baked facade atlases**: `cb-tools bake-facades` renders each type's ground storey, typical
-  storey and crown band face-on from the same dressing pieces and material sets the near skin uses,
-  into a small colour, normal and occlusion-roughness-metal set per type (texture array layers), so
-  a far facade cannot disagree with its near one.
+- **Far facades rendered from the near ones**: at startup, each type's ground storey and typical
+  storey are rendered face-on from the same dressing pieces and the same maps the near skin uses,
+  into small colour, normal and occlusion-roughness-metal layers, one per type and main colour, so a
+  far facade cannot disagree with its near one.
 - **A building type is not done without its far look**: a test fails for any type that lacks a
   baked layer or a massing recipe, so the six types of `building-variety` and the seventeen of
   `small-buildings` each ship theirs when they are built.

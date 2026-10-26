@@ -552,44 +552,42 @@ fn spawn_buildings(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
     mut ents: ResMut<crate::buildings::BuildingEntities>,
+    live: Res<Live>,
+    seed: Res<Seed>,
 ) {
     // `CB_NO_BUILDINGS=1`: no buildings drawn (perf-bench switch, to measure what they cost).
     if crate::cli::switched_off("CB_NO_BUILDINGS") {
         return;
     }
-    let tones = BUILDING_TONES.map(|(r, g, b)| {
-        materials.add(StandardMaterial {
-            base_color: Color::srgb(r, g, b),
-            base_color_texture: Some(tex.facade.clone()),
-            perceptual_roughness: 0.75,
-            ..default()
-        })
-    });
-    let arrays = crate::building_arrays::build(&mut images, &crate::buildings::layer_sources(&tex));
+    let (arrays, skins) = crate::building_arrays::build_keeping(&mut images, &crate::buildings::layer_sources(&tex));
+    // every building type's own far facade, rendered from the near skin's maps (building-type-lods)
+    let far = crate::far_facades::build(&mut images, &skins, crate::buildings::skin_layer, &data.0.world.dressing);
+    drop(skins);
     commands.insert_resource(crate::buildings::BuildingLooks {
         tone_tints: BUILDING_TONES
             .iter()
             .map(|&(r, g, b)| Color::srgb(r, g, b).to_linear().to_f32_array_no_alpha())
             .collect(),
         arrays,
+        far,
         // See-through glass: the rooms behind show (the mockup's windows), and it reflects the sky
         // at full strength (glass-reflections).
         glass: materials.add(crate::sky_light::glass_material(&data.0.sky_light.glass)),
         concrete: crate::buildings::concrete_material(&mut images, &mut materials),
     });
+    // Every building past the dressing wears its own type's far walls (openspec change
+    // `building-type-lods`; owner, 2026-10-25: "for each building type we're gonna need a custom LOD
+    // texture/mesh for them, so we dont just yse the generic texture we have now"), laid on its own
+    // cell grid; its far material is given by `buildings::bind_far_looks` once the state buffer exists.
+    let rng = cb_core::rng::SimRng::new(seed.0).fork("dressing");
     for b in &world.buildings {
-        let ground = world.cities[b.city as usize].ground_m;
-        // The whole box stands on the city's ground (cells and box agree; craters do not dig cities),
-        // its facade tiled one window bay (4 m) by one storey (3.5 m).
-        let mut mb = MeshBuilder::tiled(4.0, 3.5);
-        let (a, z) = (b.footprint.min, b.footprint.max);
-        mb.cuboid(Vec3::new(a.x, ground, a.y), Vec3::new(z.x, ground + b.height_m, z.y), [1.0; 4]);
+        let c = &live.structures.buildings[b.id as usize];
         let e = commands
             .spawn((
                 Name::new(format!("building {}", b.id)),
-                Mesh3d(meshes.add(mb.build())),
-                MeshMaterial3d(tones[b.id as usize % tones.len()].clone()),
-                Transform::IDENTITY,
+                Mesh3d(meshes.add(crate::buildings::far_mesh(c, b.id, &rng))),
+                crate::buildings::FarWalls,
+                Transform::from_translation(c.origin),
             ))
             .id();
         ents.0.push(e);
