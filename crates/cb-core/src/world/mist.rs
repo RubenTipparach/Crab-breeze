@@ -149,6 +149,11 @@ pub struct FogConfig {
     /// Extinction at sea level in plain air, per metre (1 / 12,000: level ground fades to half its
     /// colour by about 8 km).
     pub density_per_m: f32,
+    /// The aerial haze's extinction at sea level, per metre (design section 2a): a far thinner,
+    /// deeper layer than the fog, so far land and sea blue and soften at every height.
+    pub haze_density_per_m: f32,
+    /// The haze thins by e every this much height, metres.
+    pub haze_scale_height_m: f32,
     /// The layer thins by e every this much height.
     pub scale_height_m: f32,
     /// In full mist the density is this many times more.
@@ -190,6 +195,8 @@ impl Default for FogConfig {
     fn default() -> Self {
         Self {
             density_per_m: 1.0 / 12000.0,
+            haze_density_per_m: 1.0 / 45000.0,
+            haze_scale_height_m: 1500.0,
             scale_height_m: 120.0,
             mist_strength: 5.0,
             mist_top_m: 600.0,
@@ -228,6 +235,8 @@ impl Validate for FogConfig {
     fn validate(&self) -> Result<(), String> {
         within("fog.density_per_m", self.density_per_m, 0.0, 0.01)?;
         positive("fog.scale_height_m", self.scale_height_m)?;
+        within("fog.haze_density_per_m", self.haze_density_per_m, 0.0, 0.01)?;
+        positive("fog.haze_scale_height_m", self.haze_scale_height_m)?;
         within("fog.mist_strength", self.mist_strength, 0.0, 50.0)?;
         finite("fog.mist_top_m", self.mist_top_m)?;
         positive("fog.hollow_depth_m", self.hollow_depth_m)?;
@@ -256,16 +265,34 @@ impl Validate for FogConfig {
 /// `mist * density * exp(-(y - sea) / H)`, written with both ends' exponentials so it neither
 /// overflows looking down nor loses precision looking up.
 pub fn optical_depth(cfg: &FogConfig, sea_level_m: f32, from_y_m: f32, dir_y: f32, length_m: f32, mist: f32) -> f32 {
-    let h = cfg.scale_height_m;
+    layer_depth(mist * cfg.density_per_m, cfg.scale_height_m, sea_level_m, from_y_m, dir_y, length_m)
+}
+
+/// The aerial haze's optical depth along the same ray (design section 2a): the layer of
+/// `haze_density_per_m` thinning every `haze_scale_height_m`, not thickened by mist.
+pub fn haze_depth(cfg: &FogConfig, sea_level_m: f32, from_y_m: f32, dir_y: f32, length_m: f32) -> f32 {
+    layer_depth(
+        cfg.haze_density_per_m,
+        cfg.haze_scale_height_m,
+        sea_level_m,
+        from_y_m,
+        dir_y,
+        length_m,
+    )
+}
+
+/// The optical depth through an exponential layer of `density` per metre at sea level, thinning
+/// by e every `h` metres, along a ray from height `from_y_m` rising `dir_y` a metre for
+/// `length_m`. The one closed form of the fog and the haze (`layer_depth` in `water_post.wesl`).
+fn layer_depth(density: f32, h: f32, sea_level_m: f32, from_y_m: f32, dir_y: f32, length_m: f32) -> f32 {
     let e = |y: f32| (-(y - sea_level_m).max(-200.0) / h).exp();
     let e0 = e(from_y_m);
     let length = length_m.max(0.0);
-    let base = mist * cfg.density_per_m;
     if dir_y.abs() < 1e-4 {
-        return base * e0 * length;
+        return density * e0 * length;
     }
     let e1 = e(from_y_m + dir_y * length);
-    base * h * (e0 - e1) / dir_y
+    density * h * (e0 - e1) / dir_y
 }
 
 /// Where the compose pass reads the mist along a ray, as shares of the way out to
@@ -294,7 +321,7 @@ pub fn line_depth(cfg: &FogConfig, strength: FogStrength, map: &MistMap, sea_lev
         / MIST_TAPS.len() as f32;
     let thick = 1.0 + cfg.mist_strength * strength.mist_scale * mist;
     let layer = optical_depth(cfg, sea_level_m, from.y, dir.y, len, thick) * strength.density_scale;
-    layer + cfg.rain_per_m * rain.clamp(0.0, 1.0) * len
+    layer + haze_depth(cfg, sea_level_m, from.y, dir.y, len) + cfg.rain_per_m * rain.clamp(0.0, 1.0) * len
 }
 
 /// How misty a place is, 0 (plain air) to 1 (full mist): a hollow below the ground round it, near
@@ -528,6 +555,20 @@ mod tests {
     }
 
     #[test]
+    fn the_haze_blues_the_distance_from_altitude_where_the_low_fog_has_none() {
+        // From 1.5 km up, looking 20 km out and gently down, the 120 m fog layer adds almost
+        // nothing; the haze still takes a share (design section 2a).
+        let cfg = FogConfig::default();
+        let dir_y = -1400.0 / 20000.0;
+        let fog = optical_depth(&cfg, 0.0, 1500.0, dir_y, 20000.0, 1.0);
+        let haze = haze_depth(&cfg, 0.0, 1500.0, dir_y, 20000.0);
+        assert!(haze > 0.1 && haze < 1.0, "haze {haze}");
+        assert!(haze > 3.0 * fog, "haze {haze} against fog {fog}");
+        // Straight up from the ground it thins to almost nothing past a few scale heights.
+        assert!(haze_depth(&cfg, 0.0, 0.0, 1.0, 40000.0) < cfg.haze_density_per_m * cfg.haze_scale_height_m * 1.001);
+    }
+
+    #[test]
     fn a_line_through_the_mist_is_foggier_than_one_through_clear_air() {
         let cfg = FogConfig::default();
         let map = half_misty(80);
@@ -536,8 +577,8 @@ mod tests {
         let misty = line_depth(&cfg, s, &map, 0.0, eye, Vec3::new(-1500.0, 10.0, 0.0), 0.0);
         let clear = line_depth(&cfg, s, &map, 0.0, eye, Vec3::new(1500.0, 10.0, 0.0), 0.0);
         assert!(misty > 3.0 * clear, "{misty} against {clear}");
-        // Clear air with no mist: the layer's own integral, nothing more.
-        let plain = optical_depth(&cfg, 0.0, 10.0, 0.0, 1500.0, 1.0) * s.density_scale;
+        // Clear air with no mist: the layer's own integral and the aerial haze, nothing more.
+        let plain = optical_depth(&cfg, 0.0, 10.0, 0.0, 1500.0, 1.0) * s.density_scale + haze_depth(&cfg, 0.0, 10.0, 0.0, 1500.0);
         assert!((clear - plain).abs() < 1e-3 * plain.max(1e-6), "{clear} against {plain}");
         // The clear preset lifts the mist off: both ways read alike.
         let c = cfg.presets.clear;

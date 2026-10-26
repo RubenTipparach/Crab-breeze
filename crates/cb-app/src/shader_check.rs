@@ -87,7 +87,13 @@ pub fn compile_with(resolver: &Resolver, name: &str, flags: &[(&str, bool)], str
         .to_string();
     let module =
         naga::front::wgsl::parse_str(&wgsl).unwrap_or_else(|e| panic!("{name} {flags:?} did not parse:\n{}", e.emit_to_string(&wgsl)));
-    naga::valid::Validator::new(naga::valid::ValidationFlags::all(), naga::valid::Capabilities::default())
+    // Bevy turns on its binding arrays (`MULTIPLE_LIGHT_PROBES_IN_ARRAY`) only where the device has
+    // them, so the validator does the same.
+    let mut capabilities = naga::valid::Capabilities::default();
+    if flags.contains(&("MULTIPLE_LIGHT_PROBES_IN_ARRAY", true)) {
+        capabilities |= naga::valid::Capabilities::TEXTURE_AND_SAMPLER_BINDING_ARRAY;
+    }
+    naga::valid::Validator::new(naga::valid::ValidationFlags::all(), capabilities)
         .validate(&module)
         .unwrap_or_else(|e| panic!("{name} {flags:?} did not validate:\n{}", e.emit_to_string(&wgsl)));
     module

@@ -50,10 +50,22 @@
     shore_foam_m: 1.5,
     shore_foam_weight: 0.6,
 
-    // The sun's glint.
-    specular_intensity: 0.10,
-    specular_power: 140.0,
+    // The sun's glint (openspec/changes/water-look design section 4; owner, 2026-10-26: "It looks
+    // kinda dull"): a GGX highlight as the sun gives it, sharp close by and widening to a glitter
+    // path where the ripples have faded into the distance.
+    specular_intensity: 1.0,
+    // Close by plus far: 0.26, Cox and Munk's sea-surface slopes at the 6 m/s wind (design section 0,
+    // "Glitter from high up").
+    glint_roughness: 0.06,
+    glint_far_roughness: 0.20,
+    // Far sea sparkles: random facets a pixel and a half across, tilted this steep, drawn anew 3
+    // times a second (owner, 2026-10-26: "make glitter show up more at higher altitudes").
+    glitter_slope: 0.22,
+    glitter_twinkle_hz: 3.0,
     sun_tint: (1.10, 1.15, 1.20),
+    // Light through the wavelets' crests seen against the sun (design section 5): turquoise.
+    scatter_color: (0.05, 0.35, 0.33),
+    scatter_strength: 0.35,
 
     // Under water and surfacing.
     underwater_distortion: 0.0015,
