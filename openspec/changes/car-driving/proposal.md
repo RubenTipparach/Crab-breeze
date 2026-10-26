@@ -17,7 +17,7 @@ mech and around a base, and it is fun on its own.
   - It drives arcade style (survey J8): grippy and simple, quick to pick up, sliding only on the
     handbrake, bouncing over kerbs and craters. The dashboard's speedometer shows the simulation's own
     speed.
-- **First person only** (the law): you see the modelled dashboard, the wheel turning with your
+- **First person only** (the law; superseded 2026-10-26: driving is third person, `car-chase-camera`): you see the modelled dashboard, the wheel turning with your
   steering, your hands on it, and the road through the windscreen. There is no outside camera.
 - **Getting out:** stop and press E; you step out beside the door.
 - **Which cars:** any car (survey J9), parked or in traffic. Walk up to a traffic car's driver door

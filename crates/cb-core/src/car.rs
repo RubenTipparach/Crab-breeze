@@ -210,6 +210,28 @@ impl CarSpec {
     }
 }
 
+/// A wheel smaller on screen than this angle (its diameter over its distance, radians: about 8 pixels of a 1080-line
+/// view) shows no spin: its turn is not drawn (wheel-writes, the RTX 3070 streaming report's finding 1).
+pub const WHEEL_SPIN_SEEN_RAD: f32 = 0.012;
+/// A wheel's rim must have moved this angle of view since it was last drawn (radians, about a pixel) for the turn to
+/// show.
+pub const WHEEL_MOVE_SEEN_RAD: f32 = 0.0012;
+
+/// True when a wheel of `radius_m`, seen from `distance_m`, has spun (`turned_rad`, by the shorter way round) or steered
+/// (`steered_rad`) enough since it was last drawn for the change to show, so its transform is worth writing. A wheel
+/// too small on screen to show a spin is redrawn for its steer only.
+pub fn wheel_redraw_due(turned_rad: f32, steered_rad: f32, radius_m: f32, distance_m: f32) -> bool {
+    if !(turned_rad.is_finite() && steered_rad.is_finite() && radius_m > 0.0 && distance_m.is_finite()) {
+        return false;
+    }
+    let d = distance_m.max(1.0);
+    let turned = (turned_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+    let spin_shows = 2.0 * radius_m / d >= WHEEL_SPIN_SEEN_RAD;
+    let spun = spin_shows && turned.abs() * radius_m / d >= WHEEL_MOVE_SEEN_RAD;
+    let steered = steered_rad.abs() * radius_m / d >= WHEEL_MOVE_SEEN_RAD;
+    spun || steered
+}
+
 /// The car's forward direction on the ground (x, z) for a heading (0 faces -z, positive turns left).
 pub fn forward2(heading_rad: f32) -> Vec2 {
     Vec2::new(-heading_rad.sin(), -heading_rad.cos())
@@ -490,6 +512,24 @@ impl CarBody {
         self.pos.y = (fl + fr + rl + rr) * 0.25 - spec.ride_height_m;
         self.pitch_rad = ((fl + fr) * 0.5 - (rl + rr) * 0.5).atan2(spec.wheelbase_m);
         self.roll_rad = ((fl + rl) * 0.5 - (fr + rr) * 0.5).atan2(spec.track_m);
+    }
+}
+
+#[cfg(test)]
+mod wheel_tests {
+    use super::*;
+
+    #[test]
+    fn a_near_wheel_is_redrawn_when_it_turns_and_a_far_one_only_when_it_steers() {
+        // a 0.33 m wheel 10 m off turning a tenth of a radian: its rim moves about 3 mrad of view
+        assert!(wheel_redraw_due(0.1, 0.0, 0.33, 10.0));
+        assert!(!wheel_redraw_due(0.001, 0.0, 0.33, 10.0), "a sliver of a turn does not show");
+        // 200 m off a wheel is under 4 mrad across: its spin does not show however fast it turns
+        assert!(!wheel_redraw_due(3.0, 0.0, 0.33, 200.0));
+        assert!(wheel_redraw_due(0.0, 0.5, 0.33, 40.0), "a steer still shows");
+        assert!(wheel_redraw_due(-0.2, 0.0, 0.33, 5.0), "either way round");
+        assert!(!wheel_redraw_due(std::f32::consts::TAU, 0.0, 0.33, 5.0), "a whole turn is no turn");
+        assert!(!wheel_redraw_due(f32::NAN, 0.0, 0.33, 5.0));
     }
 }
 
