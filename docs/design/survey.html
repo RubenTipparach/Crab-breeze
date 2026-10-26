@@ -158,7 +158,6 @@ const SECTIONS = [
 
 // Answered, and being built. Each moves to DECIDED (Done) once its answer is in the game.
 const IN_PROGRESS = [
-  { text: 'W30 Street doors swing open as you walk into them and shut behind you (your pick).', where: 'openspec/changes/building-interiors; PR #73 (Mac session)' },
   { text: 'W32 People, cars and aircraft all at once, in parallel (your pick).', where: 'openspec/changes/civilians, car-traffic, car-driving, and a new civil-air-traffic change (Mac session)' },
   { text: 'W33 Airliners and cargo planes between the five air bases, light planes and news or police helicopters over the cities; they keep clear of a fight and crabs can shoot them down (your pick).', where: 'civil-air-traffic, to be written (Mac session)' },
   { text: 'W34 Your own fire can hit a civilian aircraft, and it costs you standing with the nearest base (your pick).', where: 'civil-air-traffic, career standing (Mac session)' },
@@ -187,6 +186,7 @@ const IN_PROGRESS = [
 ];
 
 const DECIDED = [
+  { text: 'W30 Street doors swing open as you walk into them and shut behind you, never on you (your pick). The timings are provisional until a playtest.', where: 'crates/cb-core/src/world/door.rs, data/world/world.ron interiors; PR #73' },
   { text: 'W31 Warehouse roller doors stay shut until warehouses have a hall inside (your pick).', where: 'openspec/changes/building-interiors; PR #73' },
   { text: 'J15 Mech prices as listed, Picket 300 000 to Harrow 1 200 000 (your pick).', where: 'data/career/catalogue.ron; PR #72' },
   { text: 'C13 The MFD you point at in free look is outlined in amber (your pick).', where: 'crates/cb-app/src/mfd.rs (on main)' },
