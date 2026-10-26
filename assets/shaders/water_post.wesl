@@ -1,8 +1,9 @@
-// The water's fullscreen passes (openspec change `water-rendering`), run before tonemapping on
-// cameras with `WaterOptics`: `compose` (the view under water: murk by the distance travelled
-// through water, light lost on its way down, the wobble, the waterline while straddling, and the
-// distance softened while the glass is wet) and `lens` (drops running off the glass after
-// surfacing, refracting the real scene). Linear HDR colour, reverse-Z depth (near 1, sky 0).
+// The water's fullscreen passes (openspec change `water-rendering`) on cameras with `WaterOptics`:
+// `fog` (the ground fog, before the transparent pass), and before tonemapping `compose` (the view
+// under water: murk by the distance travelled through water, light lost on its way down, the
+// wobble, the waterline while straddling, and the distance softened while the glass is wet) and
+// `lens` (drops running off the glass after surfacing, refracting the real scene). Linear HDR
+// colour, reverse-Z depth (near 1, sky 0).
 //
 // Provenance: Pale Blue Dot (`RubenTipparach/pale-blue-dot` at `db25fe2`,
 // `assets/shaders/water.wgsl`: `blur`, `compose`, `refract_through_drops`, `lens`), Tenebris's
@@ -142,6 +143,34 @@ fn fog_colour(dir: vec3<f32>) -> vec3<f32> {
     return post.fog_ambient.rgb + post.fog_sun.rgb * phase;
 }
 
+// Ground fog in the air, from the cabin's wall (seated) to the pixel or out to the sky's length.
+// Its own pass between the opaque (and transmissive) pass and the transparent one, so the clouds,
+// which write no depth, are drawn over the fogged ground and sky and carry only their own fog: fogged
+// afterwards by what lay behind them, they wore the band of thick fog where the far sea meets the
+// sky as a line across them (owner, 2026-10-26: "notice the horizon line showing throuhg the
+// clouds?"). Under water the compose pass's murk is the only fog.
+@fragment
+fn fog(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
+    let uv = in.uv;
+    var color = sample_scene(uv);
+    let depth = load_depth(uv);
+    let sky = depth <= 1e-7;
+    let eye = post.camera.xyz;
+    let direction = view_direction(uv);
+    var view_dist = 1.0e5;
+    if (!sky) {
+        view_dist = length(world_at(uv, depth) - eye);
+    }
+    let start = post.lens_fx.w;
+    let end = select(view_dist, post.fog_mist.z, sky);
+    let len = end - start;
+    if (len > 0.0) {
+        let t = exp(-fog_depth(eye + direction * start, direction, len));
+        color = mix(fog_colour(direction), color, t);
+    }
+    return vec4<f32>(color, 1.0);
+}
+
 @fragment
 fn compose(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let uv = in.uv;
@@ -187,16 +216,6 @@ fn compose(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         }
         let deep = water_murk(post.deep.rgb, post.light.rgb, absorption, cam_gap);
         color = mix(color, mix(deep, lit, water_transmittance(absorption, travel)), wet);
-    }
-    // Ground fog in the air, from the cabin's wall (seated) to the pixel or out to the sky's length.
-    if (post.fog_layer.w > 0.5 && wet < 0.5) {
-        let start = post.lens_fx.w;
-        let end = select(view_dist, post.fog_mist.z, sky);
-        let len = end - start;
-        if (len > 0.0) {
-            let t = exp(-fog_depth(eye + direction * start, direction, len));
-            color = mix(fog_colour(direction), color, t);
-        }
     }
     // Depth blur while the glass is wet: the distance softens, the foreground stays crisp.
     let dz_amt = max(post.lens_fx.y, post.lens_fx.x);
