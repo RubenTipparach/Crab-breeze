@@ -158,7 +158,6 @@ const SECTIONS = [
 
 // Answered, and being built. Each moves to DECIDED (Done) once its answer is in the game.
 const IN_PROGRESS = [
-  { text: 'C15 The Ironhorse keeps its lower front screens (your pick), and: "every mech has dash/skate, just diferent stats for them".', where: 'openspec/changes/cockpit-parity; the dash and skates for every mech, stats per mech' },
   { text: 'G20 Each mech\'s signature weapon as listed (your pick).', where: 'openspec/changes/signature-weapons' },
   { text: 'G21 The Sapper\'s mortar: "maybe a grenade launcher?"', where: 'openspec/changes/signature-weapons (the Sapper)' },
   { text: 'G22 Anyone can carry every weapon, on both sides (your pick).', where: 'openspec/changes/weapon-kinds' },
@@ -179,6 +178,7 @@ const IN_PROGRESS = [
 ];
 
 const DECIDED = [
+  { text: 'C15 The Ironhorse keeps its lower front screens (your pick, as built), and: "every mech has dash/skate, just diferent stats for them" (2026-10-26). Built: all eight roster mechs have the rockets and the skates, each with its own lift, burn, skate speed, grip and budgets in its own data file. The Picket is the quickest and nimblest, the Mule skates longest, the Ironhorse has the highest skate top speed but the weakest lift; the Foreman keeps today\'s numbers.', where: 'openspec/changes/boost-and-skate ("Per mech", task 3.1), openspec/changes/cockpit-parity; tools/mechs/gen_mech_data.py (MOBILITY), data/mechs/*.ron (jet, skate); tests in crates/cb-core/src/lib.rs' },
   { text: 'C14 MFD pages are not remembered between sorties (your pick), and: "mfds return to default as soon as you click back on them, leaving mfd focus" (2026-10-26). Built: let go of free look, or leave the seat, and every screen goes back to its default page and forgets its menu; nothing is kept between focuses or sorties, and nothing is saved. A click on a readout still opens its menu as before.', where: 'openspec/changes/mfd-menus (step 6, task 2.5); crates/cb-core/src/mfd_focus.rs (the rule, tested), crates/cb-app/src/mfd.rs (leave_focus)' },
   { text: 'M12 Only the mech you board vents ("Approve all", 2026-10-26: your pick). Already so: the steam and mist stream only from the mech you are boarding, sitting in or leaving; an owned mech parked beside it stays quiet, and no enemy pilot boards.', where: 'openspec/changes/boarding-vents; crates/cb-app/src/vents.rs (bind and switch, the Piloted mech only)' },
   { text: 'C16 Every mech its own cockpit as listed ("Approve all", 2026-10-26: recommendation accepted): the Driller in the Octagon (amber), the Picket in the Cinema (ice blue), the Mule in the Tile wall (yellow), the Sapper in the Twin tier (red night light); the Foreman, Ironhorse, Harrow and Roustabout keep theirs. All four baked at 4096 px with 16 occlusion samples.', where: 'openspec/changes/cockpit-identity; assets/models/cockpit_{octagon,cinema,tilewall,twintier}/, tools/blender/build_cockpit.py (TRIMS), data/mechs/{driller,picket,mule,sapper}.ron; test no_two_mechs_share_a_cockpit_interior' },
