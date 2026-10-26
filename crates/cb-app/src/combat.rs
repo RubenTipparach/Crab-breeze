@@ -43,6 +43,8 @@ struct Power {
     penetration_mm: f32,
     damage: f32,
     blast_mj: f32,
+    /// The player's own mech fired or struck it (a civilian harmed by it costs standing: survey W34).
+    by_player: bool,
 }
 
 type Mechs<'w, 's> = Query<'w, 's, (&'static mut MechSim, &'static MechSpec, &'static MechId, Option<&'static MechRig>)>;
@@ -63,8 +65,20 @@ fn land(
     explosions: &mut MessageWriter<Explosion>,
     hits: &mut MessageWriter<crate::battle_fx::MechHit>,
     fortress: &mut MessageWriter<crate::fortress::FortressHit>,
+    cars: &mut crate::traffic::TrafficSim,
+    player_blasts: &mut crate::traffic::PlayerBlasts,
 ) {
     match struck {
+        // A car: a round that beats its thin skin sets it alight (car-traffic).
+        Struck::Mech { mech, .. } if mech >= crate::traffic::CAR_ID_BASE => {
+            cars.traffic.hit(
+                &data.0.traffic,
+                mech - crate::traffic::CAR_ID_BASE,
+                power.penetration_mm,
+                power.by_player,
+            );
+            fx.write(Fx::new("impact_mech", at).toward(-dir));
+        }
         // The fortress's parts and hull take it by their own armour rule (crab-airship).
         Struck::Mech { mech, part } if mech == crate::fortress::FORTRESS_ID => {
             fortress.write(crate::fortress::FortressHit {
@@ -129,6 +143,9 @@ fn land(
         }
     }
     if power.blast_mj >= 1.0 {
+        if power.by_player {
+            player_blasts.0.push(at);
+        }
         explosions.write(Explosion {
             at,
             energy_mj: power.blast_mj,
@@ -216,6 +233,11 @@ pub fn fly_shots(
     mut hits: MessageWriter<crate::battle_fx::MechHit>,
     fortress: Option<Res<crate::fortress::FortressRun>>,
     mut fortress_hits: MessageWriter<crate::fortress::FortressHit>,
+    (mut cars, mut player_blasts, piloted): (
+        ResMut<crate::traffic::TrafficSim>,
+        ResMut<crate::traffic::PlayerBlasts>,
+        Query<&MechId, With<crate::mech::Piloted>>,
+    ),
 ) {
     let _t = crate::perf_hud::slow("fly_shots");
     if shots.0.is_empty() && shots.1.is_empty() {
@@ -238,6 +260,11 @@ pub fn fly_shots(
     if let Some(f) = &fortress {
         parts.extend(f.capsules.iter().copied());
     }
+    // Cars near a shot or a strike this step (car-traffic).
+    let near: Vec<Vec3> = shots.0.iter().map(|s| s.pos).chain(shots.1.iter().map(|b| b.from)).collect();
+    let reach = shots.0.iter().map(|s| s.vel.length() * dt).fold(30.0f32, f32::max) + 10.0;
+    parts.extend(crate::traffic::car_capsules(&cars, &data, &near, reach));
+    let me = piloted.iter().next().map(|m| m.0);
     // Live mechs' torsos and vehicles' centres, for missiles to home on.
     let mut torsos: HashMap<u32, Vec3> = mechs
         .iter()
@@ -308,6 +335,7 @@ pub fn fly_shots(
                 penetration_mm: blow.penetration_mm,
                 damage: blow.damage,
                 blast_mj: 0.0,
+                by_player: Some(blow.owner) == me,
             };
             let dir = (blow.to - blow.from).normalize_or(Vec3::NEG_Z);
             land(
@@ -323,6 +351,8 @@ pub fn fly_shots(
                 &mut explosions,
                 &mut hits,
                 &mut fortress_hits,
+                &mut cars,
+                &mut player_blasts,
             );
         }
     }
@@ -363,6 +393,7 @@ pub fn fly_shots(
             penetration_mm: w.penetration_mm,
             damage: w.damage,
             blast_mj: w.blast_mj,
+            by_player: Some(shot.owner) == me,
         };
         land(
             hit.struck,
@@ -377,6 +408,8 @@ pub fn fly_shots(
             &mut explosions,
             &mut hits,
             &mut fortress_hits,
+            &mut cars,
+            &mut player_blasts,
         );
     }
     shots.0 = flying;

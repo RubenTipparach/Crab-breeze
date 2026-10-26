@@ -51,7 +51,7 @@ def ron(kind):
         return float(re.search(rf"\b{key}:\s*([-0-9.]+)", text).group(1))
 
     paints = re.search(r"paints:\s*\[\(([^)]*)\)", text).group(1)
-    return dict(size=tup("size_m"), wheelbase=num("wheelbase_m"), track=num("track_m"), ride=num("ride_height_m"),
+    return dict(size=tup("size_m"), wheelbase=num("wheelbase_m"), track=num("track_m"), wheel=num("wheel_radius_m"), ride=num("ride_height_m"),
                 eye=tup("eye_driver_m"), door=tup("door_driver_m"), paint=[float(x) for x in paints.split(",")],
                 name=re.search(r'name:\s*"([^"]*)"', text).group(1))
 
@@ -131,7 +131,7 @@ def build(kind, d):
     w, h, l = d["size"]
     wb, tr, ride = d["wheelbase"], d["track"], d["ride"]
     big = kind in ("bus", "semi")
-    r = 0.52 if big else (0.40 if kind in ("pickup", "van") else 0.33)
+    r = d["wheel"]
     root = empty("root", (0, 0, 0), None)
     floor = ride
     # the body: one box, wheel arches cut out by boolean cylinders

@@ -17,6 +17,7 @@
     brake_m_s2: 6.0,
     coast_m_s2: 0.8,
     wheelbase_m: 6.5,
+    wheel_radius_m: 0.52,
     track_m: 2.1,
     max_steer_deg: 38.0,
     top_speed_steer_fraction: 0.2,

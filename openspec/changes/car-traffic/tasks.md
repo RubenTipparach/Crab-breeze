@@ -6,7 +6,8 @@
 - [ ] 2.1 `tools/blender/build_cars.py`: block-outs first, then the 7 kinds with LODs, crushed variants and PBR
   (block-outs built, checked by `cb-tools validate` and shown on `docs/mockups/cars.html`, awaiting approval; the
   detailed models, LODs, crushed variants and PBR sets are still to do)
-- [ ] 2.2 Spawn and despawn out of view; instanced drawing; wheels
-- [ ] 2.3 Hits and burning wrecks through the weapons' hit rules
+- [x] 2.2 Spawn and despawn out of view; instanced drawing; wheels
+  (drawn from the block-outs, whose shared meshes Bevy batches per kind; wheels turn with speed and steer)
+- [x] 2.3 Hits and burning wrecks through the weapons' hit rules
 - [ ] 3.1 Measure downtown traffic on the 3070
 - [ ] 3.2 Playtest: walk and stride through traffic, shell a street

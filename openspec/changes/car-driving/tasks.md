@@ -6,5 +6,7 @@
 - [ ] 2.1 Interiors in `build_cars.py`: dashboard, wheel, gauges as named nodes
   (block-out dashboard, `STEER_wheel` and `NEEDLE_speed` built; the modelled interiors and their PBR atlas are still to do)
 - [ ] 2.2 Parked cars in towns and at the bases, and traffic cars; Use to get in and out; a traffic car's driver gets out and runs
-- [ ] 2.3 Gauges and the wheel driven from the simulation; the Controls page "Driving" group
+  (built: parked cars at town kerbs, traffic cars, Use in and out, the driver running as a block-out figure; still to
+  do: parked cars at the air bases)
+- [x] 2.3 Gauges and the wheel driven from the simulation; the Controls page "Driving" group
 - [ ] 3.1 Playtest: walk to a parked car, drive through a town to the mech, get out and board

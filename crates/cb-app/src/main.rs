@@ -56,6 +56,7 @@ mod soft_sprites;
 mod sun_flare;
 mod targeting;
 mod textures;
+mod traffic;
 mod units;
 mod vents;
 mod water_render;
@@ -171,6 +172,8 @@ fn main() -> AppExit {
     ))
     // Free roam's mail and its missions (free-roam-missions); the Hermit (crab-airship).
     .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin))
+    // Car traffic and the car you drive (openspec changes `car-traffic`, `car-driving`).
+    .add_plugins(traffic::TrafficPlugin)
     // sound: effects in 3D, music, ambience (openspec changes `audio`, `music`, `ambience`)
     .add_plugins((audio::SoundPlugin, music::MusicPlugin, ambience::AmbiencePlugin));
     // Cheap, correctly lit clouds (openspec change `cloud-puffs`); `CB_NO_CLOUDS=1` leaves them

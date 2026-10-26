@@ -45,6 +45,8 @@ pub struct CarSpec {
     pub wheelbase_m: f32,
     /// Left wheel to right wheel, metres.
     pub track_m: f32,
+    /// The wheels' radius, metres (the model's wheels are this size, and turn at speed over it).
+    pub wheel_radius_m: f32,
     /// Steering lock at a standstill, degrees.
     pub max_steer_deg: f32,
     /// Steering lock at top speed, as a share of `max_steer_deg` (so it never spins out on its own).
@@ -101,6 +103,7 @@ impl Default for CarSpec {
             coast_m_s2: 0.8,
             wheelbase_m: 2.7,
             track_m: 1.5,
+            wheel_radius_m: 0.33,
             max_steer_deg: 35.0,
             top_speed_steer_fraction: 0.2,
             steer_rate_rad_s: 3.0,
@@ -139,6 +142,7 @@ impl Validate for CarSpec {
         within("coast_m_s2", self.coast_m_s2, 0.0, 20.0)?;
         positive("wheelbase_m", self.wheelbase_m)?;
         positive("track_m", self.track_m)?;
+        within("wheel_radius_m", self.wheel_radius_m, 0.1, 1.5)?;
         within("max_steer_deg", self.max_steer_deg, 1.0, 60.0)?;
         within("top_speed_steer_fraction", self.top_speed_steer_fraction, 0.0, 1.0)?;
         positive("steer_rate_rad_s", self.steer_rate_rad_s)?;
