@@ -79,6 +79,11 @@ a "Driving" group that reads the same fields.
   capsule, gone after 40 s or at the wall. Parked cars stand at town kerbs; none at the air bases yet.
 - **Controls:** the Controls page lists a Driving group on the walking keys and Space; no new bindings.
 
+- **Third person** (2026-10-26, owner: "also driving should be in 3rd person"): driving is now seen from a chase
+  camera the mouse orbits, eased out of the eyes on getting in and back on getting out
+  (`openspec/changes/car-chase-camera`); the seated 90 degree look limit no longer applies in a car. The dashboard
+  and its gauges are still built and driven from the simulation, but are seen only while getting in and out.
+
 ## Open questions
 
 | Id | Question | Recommendation | State |

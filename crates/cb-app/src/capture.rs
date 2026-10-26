@@ -298,13 +298,19 @@ fn offscreen_for_buildings(
     if !crate::cli::switched_off("CB_STILLS_BUILDINGS") && !crate::cli::switched_off("CB_STILLS_POSTER") {
         return;
     }
+    script.offscreen = Some(draw_offscreen(&mut commands, *camera, *cockpit, &mut images));
+}
+
+/// Draws the pilot's eye and the cockpit pass into a 1920 x 1080 offscreen image from now on, for stills that must not
+/// depend on the window being in front (on macOS a window behind another saves black). The HUD is not in it.
+pub(crate) fn draw_offscreen(commands: &mut Commands, camera: Entity, cockpit: Entity, images: &mut Assets<Image>) -> Handle<Image> {
     use bevy::camera::RenderTarget;
     use bevy::render::render_resource::TextureFormat;
     let image = Image::new_target_texture(1920, 1080, TextureFormat::Rgba8Unorm, Some(TextureFormat::Rgba8UnormSrgb));
     let handle = images.add(image);
-    commands.entity(*camera).insert(RenderTarget::Image(handle.clone().into()));
-    commands.entity(*cockpit).insert(RenderTarget::Image(handle.clone().into()));
-    script.offscreen = Some(handle);
+    commands.entity(camera).insert(RenderTarget::Image(handle.clone().into()));
+    commands.entity(cockpit).insert(RenderTarget::Image(handle.clone().into()));
+    handle
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -730,6 +736,8 @@ fn run_script(
 /// section 4 allows it as an instrument): with `CB_FRAMES_DIR` set, the primary window is saved every
 /// `CB_FRAMES_EVERY_S` seconds of game time (default 2) as `frame-<n>.png`, at most `CB_FRAMES_MAX` (default 90).
 /// It saves pictures and nothing else; a take with frames saved is not a frame-time result (CLAUDE.md section 7).
+/// With `CB_FRAMES_OFFSCREEN=1` the pilot's view is drawn into a 1920 x 1080 image and that is saved instead (on macOS a
+/// window behind another saves black), without the HUD.
 pub struct FramesPlugin {
     /// Where the PNGs go.
     pub dir: PathBuf,
@@ -742,6 +750,7 @@ struct Frames {
     max: u32,
     taken: u32,
     next_s: f32,
+    offscreen: Option<Handle<Image>>,
 }
 
 impl Plugin for FramesPlugin {
@@ -754,9 +763,25 @@ impl Plugin for FramesPlugin {
             max: env("CB_FRAMES_MAX", 90.0) as u32,
             taken: 0,
             next_s: 0.0,
+            offscreen: None,
         })
+        .add_after_world_spawn(offscreen_for_frames)
         .add_game_systems(Update, save_frames);
     }
+}
+
+/// `CB_FRAMES_OFFSCREEN=1`: the pilot's eye and the cockpit pass draw into an offscreen image.
+fn offscreen_for_frames(
+    mut commands: Commands,
+    camera: Single<Entity, With<crate::pilot::PilotCamera>>,
+    cockpit: Single<Entity, With<crate::pilot::CockpitCamera>>,
+    mut images: ResMut<Assets<Image>>,
+    mut frames: ResMut<Frames>,
+) {
+    if !crate::cli::switched_off("CB_FRAMES_OFFSCREEN") {
+        return;
+    }
+    frames.offscreen = Some(draw_offscreen(&mut commands, *camera, *cockpit, &mut images));
 }
 
 fn save_frames(mut commands: Commands, mut frames: ResMut<Frames>, time: Res<Time>, ready: Option<Res<crate::loading::GameReady>>) {
@@ -770,7 +795,12 @@ fn save_frames(mut commands: Commands, mut frames: ResMut<Frames>, time: Res<Tim
     frames.next_s = now + frames.every_s;
     let name = format!("frame-{:03}.png", frames.taken);
     frames.taken += 1;
-    shoot(&mut commands, &frames.dir.clone(), &name);
+    match frames.offscreen.clone() {
+        Some(img) => {
+            commands.spawn(Screenshot::image(img)).observe(save_to_disk(frames.dir.join(name)));
+        }
+        None => shoot(&mut commands, &frames.dir.clone(), &name),
+    }
 }
 
 /// The effects, staged in front of the eye for headless stills (openspec changes `fx-sprites`, `blast-scorch`,

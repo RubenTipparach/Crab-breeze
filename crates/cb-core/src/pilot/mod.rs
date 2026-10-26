@@ -3,6 +3,8 @@
 //! `EYE_pilot`, seated, and climbing back out. Pure: state, actions, data, the ground and the
 //! mech's socket positions in; state out.
 
+pub mod chase;
+
 use crate::data::{Validate, positive, within};
 use crate::input::Actions;
 use crate::world::Ground;
@@ -67,6 +69,8 @@ pub struct PilotConfig {
     pub car_face_deg: f32,
     /// A car slower than this counts as stopped for getting in and out, m/s.
     pub car_stopped_m_s: f32,
+    /// The chase camera while driving (openspec change `car-chase-camera`).
+    pub car_camera: chase::ChaseCamera,
 }
 
 /// The seated view's blend (0 on foot, 1 seated) one step on: toward 1 while `seated`, toward 0 otherwise, the whole
@@ -131,6 +135,7 @@ impl Default for PilotConfig {
             car_step_s: 0.8,
             car_face_deg: 75.0,
             car_stopped_m_s: 0.5,
+            car_camera: chase::ChaseCamera::default(),
         }
     }
 }
@@ -160,6 +165,7 @@ impl Validate for PilotConfig {
         positive("car_step_s", self.car_step_s)?;
         within("car_face_deg", self.car_face_deg, 1.0, 180.0)?;
         positive("car_stopped_m_s", self.car_stopped_m_s)?;
+        self.car_camera.validate().map_err(|e| format!("car_camera: {e}"))?;
         Ok(())
     }
 }
@@ -236,6 +242,13 @@ impl PilotMode {
     /// Getting into, driving or getting out of a car.
     pub fn in_car(&self) -> bool {
         matches!(self, Self::EnteringCar(_) | Self::Driving | Self::ExitingCar(_))
+    }
+
+    /// The view widens to the seated field of view (openspec change `seated-fov`): in the mech's seat only. On
+    /// foot, getting in and out and driving a car keep the on-foot view (owner, 2026-10-26: "car driving should
+    /// remain at 75").
+    pub fn wide_view(&self) -> bool {
+        *self == Self::Seated
     }
 }
 
@@ -317,6 +330,9 @@ pub struct PilotState {
     pub waiting: Option<Waiting>,
     /// Seated: how long Use has been held toward climbing out (0 when it is not).
     pub exit_hold_s: f32,
+    /// Driving: how long the mouse has been still, seconds (the chase camera drifts back behind the car after a
+    /// while: `chase::ChaseCamera::recenter`).
+    pub look_idle_s: f32,
 }
 
 /// What happened this step that other systems react to.
@@ -423,6 +439,7 @@ impl PilotState {
             mode: PilotMode::OnFoot,
             waiting: None,
             exit_hold_s: 0.0,
+            look_idle_s: 0.0,
         }
     }
 
@@ -714,6 +731,8 @@ impl PilotState {
                 if done {
                     self.seated_eye = c.eye;
                     self.seated_rel_rad = wrap_rad(self.yaw_rad - c.heading_rad);
+                    self.pitch_rad = cfg.car_camera.clamp_player_pitch(self.pitch_rad);
+                    self.look_idle_s = 0.0;
                     self.mode = PilotMode::Driving;
                     return Some(PilotEvent::InCar(c.id));
                 }
@@ -725,17 +744,18 @@ impl PilotState {
                     return self.thrown(c, cfg, ground);
                 }
                 self.seated_eye = c.eye;
-                // the view turns with the car; the mouse looks round from its nose
-                let rel = coupled_look(
-                    wrap_rad(self.yaw_rad - c.heading_rad),
-                    self.seated_rel_rad,
-                    -look.x.to_radians(),
-                    cfg.seated_look_limit_deg.to_radians(),
-                    a.free_look,
-                );
+                // Third person (openspec change `car-chase-camera`): the view's yaw is kept from the car's nose, so
+                // the chase camera swings round with the car, and the mouse orbits it freely all the way round.
+                // With the mouse still a while and the car moving, it drifts back behind the car (provisional).
+                let cam = &cfg.car_camera;
+                let still = look == Vec2::ZERO;
+                self.look_idle_s = if still { self.look_idle_s + dt_s } else { 0.0 };
+                let rel = wrap_rad(self.seated_rel_rad - look.x.to_radians());
+                let pitch = cam.clamp_player_pitch(self.pitch_rad + look.y.to_radians());
+                let (rel, pitch) = cam.recenter(rel, pitch, self.look_idle_s, c.speed_m_s, dt_s);
                 self.seated_rel_rad = rel;
                 self.yaw_rad = (c.heading_rad + rel).rem_euclid(std::f32::consts::TAU);
-                self.pitch_rad = (self.pitch_rad + look.y.to_radians()).clamp(-pitch_limit, pitch_limit);
+                self.pitch_rad = pitch;
                 if a.use_pressed && c.speed_m_s <= cfg.car_stopped_m_s {
                     self.mode = PilotMode::ExitingCar(EyePath {
                         points: vec![c.eye, c.door + up],
@@ -891,6 +911,68 @@ mod car_tests {
         };
         p.step_car(&look, &cfg, &FlatGround::default(), Some(&turned), DT);
         assert!((p.seated_rel_rad - rel - 10f32.to_radians()).abs() < 1e-4);
+    }
+
+    #[test]
+    fn driving_the_mouse_orbits_the_chase_camera_all_the_way_round_the_car() {
+        let cfg = PilotConfig::default();
+        let mut p = driving();
+        let rel = p.seated_rel_rad;
+        let look = Actions {
+            look_delta_deg: Vec2::new(-10.0, 0.0),
+            ..Default::default()
+        };
+        // 150 degrees round: past the seated view's 90 degree limit, which does not bind the chase camera
+        for _ in 0..15 {
+            p.step_car(&look, &cfg, &FlatGround::default(), Some(&sedan(10.0)), DT);
+        }
+        assert!(
+            (wrap_rad(p.seated_rel_rad - rel) - 150f32.to_radians()).abs() < 1e-3,
+            "{}",
+            p.seated_rel_rad
+        );
+    }
+
+    #[test]
+    fn driving_with_the_mouse_still_the_view_drifts_back_behind_the_moving_car() {
+        let cfg = PilotConfig::default();
+        let mut p = driving();
+        p.seated_rel_rad = 1.2;
+        p.pitch_rad = 0.3;
+        // parked, the view stays where the player left it
+        run(&mut p, &Actions::default(), &sedan(0.0), 5.0);
+        assert!((p.seated_rel_rad - 1.2).abs() < 1e-5);
+        // the mouse touched, then still while moving: nothing for the wait, then back behind it
+        p.look_idle_s = 0.0;
+        let moving = sedan(12.0);
+        run(&mut p, &Actions::default(), &moving, cfg.car_camera.recenter_after_s * 0.5);
+        assert!((p.seated_rel_rad - 1.2).abs() < 1e-5, "not before the mouse has been still a while");
+        run(&mut p, &Actions::default(), &moving, cfg.car_camera.recenter_after_s + 2.0);
+        assert!(p.seated_rel_rad.abs() < 1e-4 && p.pitch_rad.abs() < 1e-4, "behind the car at rest");
+        // the mouse moving again keeps it where the player puts it
+        let look = Actions {
+            look_delta_deg: Vec2::new(-30.0, 0.0),
+            ..Default::default()
+        };
+        run(&mut p, &look, &moving, DT);
+        assert!(p.seated_rel_rad > 0.5);
+        assert_eq!(p.look_idle_s, 0.0);
+    }
+
+    #[test]
+    fn only_the_mechs_seat_widens_the_view_and_a_car_keeps_the_on_foot_view() {
+        assert!(PilotMode::Seated.wide_view());
+        assert!(
+            !PilotMode::Driving.wide_view(),
+            "car driving should remain at 75 (owner, 2026-10-26)"
+        );
+        assert!(!PilotMode::OnFoot.wide_view());
+        let path = EyePath {
+            points: vec![Vec3::ZERO, Vec3::X],
+            travelled_m: 0.0,
+        };
+        assert!(!PilotMode::EnteringCar(path.clone()).wide_view());
+        assert!(!PilotMode::ExitingCar(path).wide_view());
     }
 
     #[test]

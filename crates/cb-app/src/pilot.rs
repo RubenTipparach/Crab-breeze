@@ -92,7 +92,9 @@ fn ease_fov(
     mut lenses: Query<&mut Projection, Or<(With<PilotCamera>, With<CockpitCamera>)>>,
 ) {
     let cfg = &data.0.pilot;
-    *blend = cb_core::pilot::fov_blend(*blend, pilot.curr.mode == PilotMode::Seated, time.delta_secs(), cfg.fov_change_s);
+    // only the mech's seat widens it: driving a car keeps the on-foot view, third person included (owner,
+    // 2026-10-26: "car driving should remain at 75")
+    *blend = cb_core::pilot::fov_blend(*blend, pilot.curr.mode.wide_view(), time.delta_secs(), cfg.fov_change_s);
     for mut lens in &mut lenses {
         if let Projection::Perspective(p) = lens.as_mut() {
             let fov = cb_core::pilot::fov_deg(cfg, settings.0.fov_deg, *blend, p.aspect_ratio).to_radians();
@@ -310,6 +312,59 @@ fn shake_on_blasts(
     }
 }
 
+/// The chase camera's eased state between frames (openspec change `car-chase-camera`).
+#[derive(Default)]
+struct Chase {
+    /// 0 at the pilot's eyes, 1 at the chase place: eased in on getting in, out on getting out.
+    blend: f32,
+    /// The orbit's point, lagging the car.
+    pivot: Vec3,
+    /// The car's heading the view turns with, lagging the car's own.
+    heading_rad: f32,
+    /// The car it last followed, so a new car starts the lags afresh.
+    car: Option<u32>,
+    /// The last chase place, held if the car is lost mid-blend (a wreck cleared), so the view never cuts.
+    last: Option<(Vec3, Quat)>,
+}
+
+/// Where the chase camera is this frame, or `None` when no car is in hand: behind and above the car the pilot is
+/// in (or getting into or out of), looking along the player's view from its nose, pulled in out of buildings and the
+/// ground. Rules in `cb_core::pilot::chase`.
+#[allow(clippy::too_many_arguments)]
+fn chase_view(
+    chase: &mut Chase,
+    cfg: &cb_core::pilot::PilotConfig,
+    curr: &PilotState,
+    pending: Vec2,
+    car: Option<&cb_core::pilot::CarAccess>,
+    traffic: Option<&crate::traffic::TrafficSim>,
+    data: &Data,
+    plan: &Plan,
+    alpha: f32,
+    dt_s: f32,
+) -> Option<(Vec3, Quat)> {
+    use cb_core::pilot::chase::{ease, ease_angle, view_rotation};
+    let cam = &cfg.car_camera;
+    let c = traffic?.traffic.get(car?.id)?;
+    let (pos, heading) = traffic?.drawn_pose(c, alpha);
+    let spec = &data.0.traffic.kinds[c.kind as usize];
+    let target = cam.pivot(pos, spec.size_m[1]);
+    if chase.car != Some(c.id) {
+        chase.car = Some(c.id);
+        chase.pivot = target;
+        chase.heading_rad = heading;
+    }
+    chase.pivot = ease(chase.pivot, target, dt_s, cam.follow_lag_s);
+    chase.heading_rad = ease_angle(chase.heading_rad, heading, dt_s, cam.heading_lag_s);
+    // the player's own look from the car's nose, with the mouse not yet stepped (CLAUDE.md section 8)
+    let yaw = chase.heading_rad + curr.seated_rel_rad - pending.x.to_radians();
+    let pitch = cam.pitch(cam.clamp_player_pitch(curr.pitch_rad + pending.y.to_radians()));
+    let wanted = cam.wanted_eye(chase.pivot, yaw, pitch, cam.distance_for(spec.size_m[2]));
+    // out of the ground (with a hand's width to spare) and out of the buildings
+    let eye = cam.clip(chase.pivot, wanted, 0.25, |q| plan.solid_at(q - Vec3::Y * 0.3));
+    Some((eye, view_rotation(yaw, pitch)))
+}
+
 fn place_camera(
     shake: Res<Shake>,
     pilot: Res<PilotSim>,
@@ -322,6 +377,13 @@ fn place_camera(
     transforms: Query<&Transform, Without<PilotCamera>>,
     parents: Query<&ChildOf>,
     mut camera: Single<&mut Transform, With<PilotCamera>>,
+    (car, traffic, plan, time): (
+        Res<crate::traffic::CarAccessNow>,
+        Option<Res<crate::traffic::TrafficSim>>,
+        Res<Plan>,
+        Res<Time>,
+    ),
+    mut chase: Local<Chase>,
 ) {
     let cfg = &data.0.pilot;
     let alpha = fixed.overstep_fraction();
@@ -385,6 +447,34 @@ fn place_camera(
             )
         }
         _ => walking_view(),
+    };
+    // Driving a car, the view is third person (the one exception to THE LAW; owner, 2026-10-26: "also driving
+    // should be in 3rd person"): the chase camera eases out of the pilot's eyes on getting in and back into them
+    // on getting out, with no cut (openspec change `car-chase-camera`).
+    let dt = time.delta_secs();
+    chase.blend = cb_core::pilot::fov_blend(chase.blend, curr.mode == PilotMode::Driving, dt, cfg.car_camera.blend_s);
+    let (eye, rotation) = if chase.blend > 0.0 {
+        let at = chase_view(
+            &mut chase,
+            cfg,
+            curr,
+            pending,
+            car.0.as_ref(),
+            traffic.as_deref(),
+            &data,
+            &plan,
+            alpha,
+            dt,
+        );
+        chase.last = at.or(chase.last);
+        match chase.last {
+            Some((at, rot)) => cb_core::pilot::chase::blend_view(eye, rotation, at, rot, chase.blend),
+            None => (eye, rotation),
+        }
+    } else {
+        chase.car = None;
+        chase.last = None;
+        (eye, rotation)
     };
     // The shake rides on top of the player's view and is never written into their aim: the look
     // they steer is unchanged (CLAUDE.md section 8). Felt as the square of the trauma, so small
