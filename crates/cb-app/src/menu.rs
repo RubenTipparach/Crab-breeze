@@ -32,6 +32,8 @@ pub enum Menu {
     Controls,
     /// The mail: the job offers to accept or decline, the current job, the messages (a career).
     Mail,
+    /// Free roam's mech page: the roster, a pick restarting free roam in it (mech-select).
+    Mech,
 }
 
 impl Menu {
@@ -87,6 +89,10 @@ enum MenuButton {
     NewCareer,
     Continue,
     Mail,
+    /// Free roam's Mech page.
+    MechPage,
+    /// Free roam again in this roster mech.
+    PickMech(usize),
     Accept(u32),
     Decline(u32),
     Resume,
@@ -115,6 +121,7 @@ impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Menu>()
             .insert_resource(BackTo(Menu::Pause))
+            .insert_resource(Roster(cb_core::GameData::roster(&crate::cli::repo_root().join("data"))))
             .add_systems(Update, (escape, draw).chain().before(crate::sim::PresentSet::Input));
     }
 }
@@ -154,7 +161,7 @@ fn escape(
         return;
     }
     let next = match *menu {
-        Menu::Mail => Menu::Closed,
+        Menu::Mail | Menu::Mech => Menu::Closed,
         Menu::Closed => Menu::Pause,
         Menu::Pause => Menu::Closed,
         Menu::Title => Menu::Title,
@@ -189,10 +196,15 @@ struct Press<'a> {
     cursor: &'a mut CursorOptions,
 }
 
+/// The roster free roam's Mech page lists (`cb_core::GameData::roster`, mech-select), read once.
+#[derive(Resource)]
+struct Roster(Vec<cb_core::RosterMech>);
+
 /// A menu button was pressed.
 fn press(
     what: MenuButton,
     p: Press,
+    roster: &[cb_core::RosterMech],
     career: Option<&mut crate::career::CareerRun>,
     exit: &mut MessageWriter<AppExit>,
     commands: &mut Commands,
@@ -212,6 +224,19 @@ fn press(
                 p.back.0 = *p.menu;
             }
             set(p.menu, Menu::Mail, p.time, p.cursor);
+        }
+        MenuButton::MechPage => {
+            p.back.0 = Menu::Pause;
+            set(p.menu, Menu::Mech, p.time, p.cursor);
+        }
+        // Free roam again in the picked mech: the game starts itself again with it, as the menu starts it, and this
+        // run closes (mech-select: "In free play i can select any mech from the menu and it will swap out models").
+        MenuButton::PickMech(i) => {
+            if let Some(m) = roster.get(i) {
+                info!("menu: free roam again in the {}", m.name);
+                crate::launcher::start_game("free", Some(&m.file));
+                exit.write(AppExit::Success);
+            }
         }
         MenuButton::Accept(id) => {
             if let Some(c) = career {
@@ -302,6 +327,7 @@ fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton,
                   mut time: ResMut<Time<Virtual>>,
                   mut cursor: Single<&mut CursorOptions>,
                   mut career: Option<ResMut<crate::career::CareerRun>>,
+                  roster: Res<Roster>,
                   mut exit: MessageWriter<AppExit>| {
                 press(
                     what,
@@ -312,6 +338,7 @@ fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton,
                         time: &mut time,
                         cursor: &mut cursor,
                     },
+                    &roster.0,
                     career.as_deref_mut(),
                     &mut exit,
                     &mut commands,
@@ -386,7 +413,7 @@ fn draw(
     menu: Res<Menu>,
     back: Res<BackTo>,
     settings: Res<Settings>,
-    data: Res<Data>,
+    (data, roster): (Res<Data>, Res<Roster>),
     career: Option<Res<crate::career::CareerRun>>,
     (play, defending): (Option<Res<Play>>, Option<Res<crate::defence::Defending>>),
     roots: Query<Entity, With<MenuRoot>>,
@@ -455,6 +482,9 @@ fn draw(
                 button(p, "Resume", MenuButton::Resume);
                 if career.is_some() || free_roam {
                     button(p, "Mail", MenuButton::Mail);
+                }
+                if free_roam {
+                    button(p, "Mech", MenuButton::MechPage);
                 }
                 button(p, "Options", MenuButton::Options);
                 button(p, "Controls", MenuButton::Controls);
@@ -545,6 +575,20 @@ fn draw(
                         });
                     }
                 });
+                button(p, "Back", MenuButton::Back);
+            }
+            Menu::Mech => {
+                tabs(p, back.0);
+                p.spawn(label("MECH", 40.0, INK));
+                p.spawn(label("Free roam starts again in the mech you pick.", 24.0, DIM));
+                for (i, m) in roster.0.iter().enumerate() {
+                    let here = m.name == data.0.mech.name;
+                    button(
+                        p,
+                        &if here { format!("{} (now)", m.name) } else { m.name.clone() },
+                        MenuButton::PickMech(i),
+                    );
+                }
                 button(p, "Back", MenuButton::Back);
             }
             Menu::Mail => {

@@ -5,6 +5,8 @@
 //! window with the menu and nothing else, no world, no mech, no loading. Picking a mode starts the game
 //! itself in that mode (`--play`), with every other argument passed on (`--mech` and the like), and the
 //! menu closes. City defence is not here: it is offered by mail in free roam. Scripted runs never see it.
+//! Free roam asks which mech first (openspec change `mech-select`: "In free play i can select any mech from the
+//! menu"): the roster, `cb_core::GameData::roster`, and the pick goes to the game as `--mech`.
 
 use bevy::picking::events::PointerClick;
 use bevy::prelude::*;
@@ -57,9 +59,15 @@ pub fn free_roam_save_path() -> PathBuf {
 enum Page {
     Main,
     Continue,
-    /// Starting this kind new deletes its save: say so first.
-    Confirm(Kind),
+    /// Which mech free roam starts in (the roster).
+    PickMech,
+    /// Starting this kind new deletes its save: say so first (and the mech picked for free roam, if any).
+    Confirm(Kind, Option<usize>),
 }
+
+/// The roster the mech page lists, read once.
+#[derive(Resource)]
+struct Roster(Vec<cb_core::RosterMech>);
 
 /// What a button does.
 #[derive(Component, Clone, Copy)]
@@ -67,7 +75,9 @@ enum Action {
     OpenContinue,
     Continue(Kind),
     New(Kind),
-    Start(Kind),
+    /// Free roam in this roster mech.
+    Mech(usize),
+    Start(Kind, Option<usize>),
     Back,
     Quit,
 }
@@ -93,6 +103,7 @@ pub fn run() -> AppExit {
         }))
         .insert_resource(ClearColor(Color::srgb(0.01, 0.02, 0.02)))
         .insert_resource(Page::Main)
+        .insert_resource(Roster(cb_core::GameData::roster(&crate::cli::repo_root().join("data"))))
         .add_systems(Startup, |mut commands: Commands| {
             commands.spawn(Camera2d);
         })
@@ -101,7 +112,7 @@ pub fn run() -> AppExit {
 }
 
 /// Rebuilds the page whenever it changes.
-fn draw(mut commands: Commands, page: Res<Page>, roots: Query<Entity, With<Root>>) {
+fn draw(mut commands: Commands, page: Res<Page>, roster: Res<Roster>, roots: Query<Entity, With<Root>>) {
     if !page.is_changed() {
         return;
     }
@@ -129,7 +140,14 @@ fn draw(mut commands: Commands, page: Res<Page>, roots: Query<Entity, With<Root>
             }
             buttons.push((Action::Back, "Back".into()));
         }
-        Page::Confirm(kind) => {
+        Page::PickMech => {
+            lines.push(("Which mech?", INK));
+            for (i, m) in roster.0.iter().enumerate() {
+                buttons.push((Action::Mech(i), m.name.clone()));
+            }
+            buttons.push((Action::Back, "Back".into()));
+        }
+        Page::Confirm(kind, mech) => {
             lines.push(("This deletes your saved", WARN));
             lines.push((kind.name(), WARN));
             lines.push(("and starts again.", WARN));
@@ -138,7 +156,7 @@ fn draw(mut commands: Commands, page: Res<Page>, roots: Query<Entity, With<Root>
             } else {
                 "Start free roam"
             };
-            buttons.push((Action::Start(kind), start.into()));
+            buttons.push((Action::Start(kind, mech), start.into()));
             buttons.push((Action::Back, "Back".into()));
         }
     }
@@ -186,8 +204,8 @@ fn draw(mut commands: Commands, page: Res<Page>, roots: Query<Entity, With<Root>
                         BorderColor::all(EDGE),
                     ))
                     .observe(
-                        move |_: On<PointerClick>, mut page: ResMut<Page>, mut exit: MessageWriter<AppExit>| {
-                            press(action, &mut page, &mut exit);
+                        move |_: On<PointerClick>, mut page: ResMut<Page>, roster: Res<Roster>, mut exit: MessageWriter<AppExit>| {
+                            press(action, &mut page, &roster.0, &mut exit);
                         },
                     )
                     .with_child((Text::new(label), TextFont::from_font_size(28.0), TextColor(INK)));
@@ -197,7 +215,8 @@ fn draw(mut commands: Commands, page: Res<Page>, roots: Query<Entity, With<Root>
 }
 
 /// A click moves between pages, or starts the game (or quits).
-fn press(action: Action, page: &mut Page, exit: &mut MessageWriter<AppExit>) {
+fn press(action: Action, page: &mut Page, roster: &[cb_core::RosterMech], exit: &mut MessageWriter<AppExit>) {
+    let mech = |i: Option<usize>| i.and_then(|i| roster.get(i)).map(|m| m.file.clone());
     match action {
         Action::OpenContinue => *page = Page::Continue,
         Action::Back => *page = Page::Main,
@@ -205,33 +224,89 @@ fn press(action: Action, page: &mut Page, exit: &mut MessageWriter<AppExit>) {
             exit.write(AppExit::Success);
         }
         Action::Continue(kind) => {
-            start_game(kind.mode(true));
+            start_game(kind.mode(true), None);
             exit.write(AppExit::Success);
         }
+        // Free roam: which mech first.
+        Action::New(Kind::FreeRoam) => *page = Page::PickMech,
         // A new game over a save asks first.
-        Action::New(kind) if kind.saved() => *page = Page::Confirm(kind),
-        Action::New(kind) | Action::Start(kind) => {
+        Action::Mech(i) if Kind::FreeRoam.saved() => *page = Page::Confirm(Kind::FreeRoam, Some(i)),
+        Action::New(kind) if kind.saved() => *page = Page::Confirm(kind, None),
+        Action::Mech(i) => {
+            start_game(Kind::FreeRoam.mode(false), mech(Some(i)).as_deref());
+            exit.write(AppExit::Success);
+        }
+        Action::New(kind) | Action::Start(kind, _) => {
+            let picked = if let Action::Start(_, m) = action { mech(m) } else { None };
             if let Err(e) = std::fs::remove_file(kind.save())
                 && e.kind() != std::io::ErrorKind::NotFound
             {
                 error!("menu: could not delete the old {} save: {e}", kind.name());
                 return;
             }
-            start_game(kind.mode(false));
+            start_game(kind.mode(false), picked.as_deref());
             exit.write(AppExit::Success);
         }
     }
 }
 
-/// Starts this same program as the game, in `mode`, with the menu's own arguments passed on.
-fn start_game(mode: &str) {
+/// Starts this same program as the game, in `mode`, with this program's own arguments passed on but for its
+/// `--play` and, when a mech is given, its `--mech` (the menu's and free roam's pause menu's one way to start a game:
+/// `mech-select`).
+pub fn start_game(mode: &str, mech: Option<&str>) {
     let Ok(exe) = std::env::current_exe() else {
         error!("menu: cannot find the game's own program to start it");
         return;
     };
-    let mut args: Vec<String> = std::env::args().skip(1).collect();
-    args.extend(["--play".to_string(), mode.to_string()]);
+    let args = game_args(std::env::args().skip(1).collect(), mode, mech);
     if let Err(e) = std::process::Command::new(exe).args(&args).spawn() {
         error!("menu: starting the game failed: {e}");
+    }
+}
+
+/// The game's arguments: `args` without any `--play <mode>`, nor `--mech <file>` when a mech is given, then the new
+/// ones.
+fn game_args(args: Vec<String>, mode: &str, mech: Option<&str>) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut it = args.into_iter();
+    while let Some(a) = it.next() {
+        if a == "--play" || (a == "--mech" && mech.is_some()) {
+            it.next();
+            continue;
+        }
+        if a.starts_with("--play=") || (a.starts_with("--mech=") && mech.is_some()) {
+            continue;
+        }
+        out.push(a);
+    }
+    out.extend(["--play".to_string(), mode.to_string()]);
+    if let Some(m) = mech {
+        out.extend(["--mech".to_string(), m.to_string()]);
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn v(s: &[&str]) -> Vec<String> {
+        s.iter().map(|x| x.to_string()).collect()
+    }
+
+    #[test]
+    fn a_picked_mech_replaces_the_one_the_game_was_started_with() {
+        let args = game_args(
+            v(&["--mech", "mechs/foreman.ron", "--play", "free"]),
+            "free",
+            Some("mechs/mule.ron"),
+        );
+        assert_eq!(args, v(&["--play", "free", "--mech", "mechs/mule.ron"]));
+    }
+
+    #[test]
+    fn with_no_mech_picked_the_old_one_is_kept() {
+        let args = game_args(v(&["--mech", "mechs/harrow.ron"]), "career-new", None);
+        assert_eq!(args, v(&["--mech", "mechs/harrow.ron", "--play", "career-new"]));
     }
 }
