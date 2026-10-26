@@ -437,6 +437,9 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         .iter()
         .map(|c| (c.rect(), c.ground_m))
         .chain(bases.iter().map(|b| (b.rect(), b.ground_m)))
+        // each base's runway and taxiway, flattened to its site's ground (survey W45)
+        .chain(bases.iter().map(|b| (b.runway.rect(), b.ground_m)))
+        .chain(bases.iter().map(|b| (b.runway.taxiway(&b.rect()), b.ground_m)))
         .collect();
     let keep_out: Vec<layout::Rect> = plateaus.iter().map(|p| p.0).collect();
     let flats = Flats::new(&plateaus, &highways, cfg);

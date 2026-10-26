@@ -20,15 +20,22 @@ the file; a validation refuses a route kind that cannot descend as steeply as th
 
 ## 2. Routes between the bases (`flight.rs`)
 
-**The bases have no runway.** `air-bases` draws a 700 x 500 m apron, three hangars at the back, three
-40 m pads at the front and a tower in the front corner. A strip is laid along the apron's long side
-instead: on the line 60 m in front of the centre, from 40 m inside one end to 40 m inside the other
-(620 m), clear of the pads, the tower and the hangars, and flown either way.
+**Each base has a runway** (survey W45, answered 2026-10-26: "Add a real runway, about 1.5 to 2 km, to each
+base"; this replaced a 620 m strip along the apron). The world generator lays it (`world::bases::Runway`,
+`runway_for`): a 45 m wide paved strip along x or z, 60 m off the site's edge with a taxiway across the gap,
+flattened to the site's ground like the site itself, on dry land, within 45 m of the natural ground along all
+of it, 300 m clear of every city and clear of the highways' grading and the rivers. It is tried in front of
+the apron first, then behind the hangars, then down the west and east sides, each slid along its line by up
+to 200 m, longest first from 2 000 m down to 1 500 m (`bases` in `world.ron`); a candidate site that can hold
+no runway is not used. On seed 42 the five bases stand where they stood before; three runways are in front
+of the apron (1 900, 1 600 and 2 000 m) and two, at bases 3 and 4, did not fit there and were **moved behind
+the hangars** (2 000 and 1 600 m); none is rotated. The strip flown is the runway less 40 m at each end, both
+ways.
 
 A flight, in order:
 
 1. **Roll.** From the strip's start it speeds up at `approach^2 / (2 x 0.9 x length)`, which lifts it
-   off before the strip ends (4.4 m/s2 for the airliner, about twice a real one: W45).
+   off before the strip ends: about 1.6 m/s2 for the airliner on a 1.8 km runway, a real airliner's roll.
 2. **Climb** straight ahead at its climb rate to 150 m over the ground.
 3. **Enroute** to the approach's entry: on the destination strip's centre line, `final_m` (4 km)
    plus two turn radii at cruise out. It holds its cruise height over the ground, never under the glide
@@ -155,7 +162,7 @@ section 8). It is to be measured on the 3070 in the cockpit at the start and ove
 | W32 | People, cars and aircraft: in what order | All three at once, in parallel | decided (survey W32) |
 | W33 | What civil aircraft, where | Airliners and freighters between the bases; light planes and helicopters over cities; clear of fights; crabs can shoot them | decided (survey W33) |
 | W34 | What hitting one costs | Standing with the nearest base (the career loop's) | decided (survey W34); this change reports the hits |
-| W45 | The bases have no runway | Add a runway to each base | answered by the owner, 2026-10-26 (survey): "Add a real runway, about 1.5 to 2 km, to each base"; building |
+| W45 | The bases have no runway | Add a runway to each base | answered by the owner, 2026-10-26 (survey): "Add a real runway, about 1.5 to 2 km, to each base"; built (section 2): every base has one, bases 3 and 4 behind their hangars |
 | W46 | How much traffic | 9 near you at most (3 airliners, 2 freighters, 2 light planes, 2 helicopters) | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |
 | W47 | Selecting a civil aircraft on purpose | The cycle key with the crosshair held on it | answered by the owner, 2026-10-26 (survey): "Never: only unguided fire can hit one". Built: `targeting::select` never selects one, so no lock and no missile (section 7) |
 | W48 | The freighter's size | 70 m, slinging a bought mech under it for the air drop | decided: the recommendation, accepted by the owner, 2026-10-26 (survey) |

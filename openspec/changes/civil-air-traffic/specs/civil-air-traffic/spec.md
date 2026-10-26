@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Airliners and freighters fly between the air bases
-Route aircraft SHALL take off along a strip on a base's apron, climb out, cruise toward another base, join the strip's
+Route aircraft SHALL take off along a base's runway (1.5 to 2 km, survey W45), climb out, cruise toward another base, join the strip's
 extended centre line, descend on the glide path and land on that strip, stopping before it ends; they SHALL keep at least
 the route clearance over the ground on the way, climbing in a circle when the ground ahead is higher than a straight climb
 can clear.

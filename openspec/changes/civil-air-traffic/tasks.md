@@ -9,6 +9,10 @@
 
 - [x] 2.1 Kinds in data, validated (tests: `the_shipped_kinds_are_the_four_the_owner_asked_for_at_true_size`, `a_route_aircraft_that_cannot_hold_the_glide_path_from_cruise_is_refused`)
 - [x] 2.2 Routes: roll, climb, cruise, approach, landing on a base's strip (tests: `an_airliner_takes_off_cruises_and_lands_on_the_far_bases_strip`, `on_the_shipped_island_a_flight_from_every_base_lands_at_the_next_over_the_real_ground`, `an_airliner_too_high_over_the_threshold_goes_round_again`)
+- [x] 2.2a Runways (survey W45, 2026-10-26: "Add a real runway, about 1.5 to 2 km, to each base"): laid by the world
+  generator beside every base, flown with real-length rolls (tests: `world::every_air_base_has_a_runway_of_1_5_to_2_km_flat_dry_and_clear`,
+  `on_the_shipped_island_a_flight_from_every_base_lands_at_the_next_over_the_real_ground` landing on the runway); drawn
+  with markings; not yet seen in a playtest
 - [x] 2.3 City circling (test: `a_helicopter_circles_its_city_in_its_band_and_leaves_when_the_city_is_attacked`)
 - [x] 2.4 Near the pilot only, out of sight, capped, seeded (tests: `traffic_appears_only_where_the_pilot_cannot_see_it_appear`, `traffic_lives_near_the_pilot_only_and_never_past_each_kinds_cap`, `the_same_seed_flies_the_same_traffic_and_another_does_not`, `hidden_means_far_or_behind`)
 - [x] 2.5 Keeping clear of a fight (tests: `a_route_bends_round_a_fight_and_never_enters_it`, `a_flight_whose_base_comes_under_attack_diverts_to_the_nearest_quiet_one`, `no_flight_starts_in_a_fight_or_at_a_base_in_one`, `steering_clear_takes_the_near_tangent_and_leaves_a_zone_it_is_in`)

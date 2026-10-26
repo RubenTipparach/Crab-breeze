@@ -24,9 +24,8 @@ plane's flight so the career loop can fly one over a drop point later.
 - **Airliners and cargo planes fly between the air bases.** You see them roll down a base's apron and
   lift off, climb out, cruise across the island at 900-1200 m over the ground, turn onto a straight-in
   final, descend on a 3 degree glide path, touch down on the far base's apron and brake to a stop.
-  - The bases have no runway (`air-bases` draws an apron, hangars, three pads and a tower). Aircraft use
-    a strip along the apron's long side instead. It is only about 600 m long, so the take-off roll and
-    the braking are shortened to fit (W45).
+  - Each base has a real runway, 1.5 to 2 km, beside its apron, and the rolls and braking are real
+    lengths (survey W45, 2026-10-26: "Add a real runway, about 1.5 to 2 km, to each base").
 - **Light planes and helicopters circle the cities** at 180-300 m: news and police helicopters,
   sightseeing light planes.
 - **Only near you.** Aircraft are spawned where you cannot see them appear: beyond 10 km in any

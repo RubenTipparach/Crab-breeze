@@ -24,6 +24,14 @@ fn base(id: u32, x: f32, z: f32) -> AirBase {
         half_m: Vec2::new(350.0, 250.0),
         ground_m: 20.0,
         highway: 0,
+        runway: crate::world::bases::Runway::beside(
+            Vec2::new(x, z),
+            Vec2::new(350.0, 250.0),
+            crate::world::bases::RunwaySide::Front,
+            1800.0,
+            0.0,
+            &crate::world::BasesConfig::default(),
+        ),
     }
 }
 
@@ -161,17 +169,18 @@ fn an_airliner_too_high_over_the_threshold_goes_round_again() {
 fn a_route_bends_round_a_fight_and_never_enters_it() {
     let c = cfg();
     let bases = [base(0, 0.0, 0.0), base(1, 24_000.0, 0.0)];
-    let fight = Zone {
-        centre: Vec2::new(12_000.0, 0.0),
-        radius_m: c.avoid.keep_clear_m,
-    };
     let spec = &c.kinds["airliner"];
     let strip = landing_strip(&bases[1], &c.routes, Vec2::new(2_000.0, 0.0));
+    // the fight sits square across the straight way to the runway's line
+    let fight = Zone {
+        centre: Vec2::new(12_000.0, strip.start.y),
+        radius_m: c.avoid.keep_clear_m,
+    };
     let mut a = Aircraft::new(
         1,
         "airliner",
         spec,
-        Vec3::new(2_000.0, 1_100.0, 0.0),
+        Vec3::new(2_000.0, 1_100.0, strip.start.y),
         crate::units::heading_of(Vec3::X),
         spec.cruise_m_s,
         Phase::Enroute,
@@ -712,9 +721,10 @@ fn on_the_shipped_island_a_flight_from_every_base_lands_at_the_next_over_the_rea
                 }
             }
             let at = landed.unwrap_or_else(|| panic!("{kind} from base {} never landed at base {}", from.id, to.id));
+            // On the base's runway (survey W45), not its apron.
             assert!(
-                to.rect().distance(Vec2::new(at.x, at.z)) < 1.0,
-                "{kind} touched down off base {}: {at:?}",
+                to.runway.rect().distance(Vec2::new(at.x, at.z)) < 1.0,
+                "{kind} touched down off base {}'s runway: {at:?}",
                 to.id
             );
             assert!(

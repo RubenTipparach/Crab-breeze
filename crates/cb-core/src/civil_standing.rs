@@ -112,6 +112,14 @@ mod tests {
                 half_m: Vec2::splat(100.0),
                 ground_m: 0.0,
                 highway: 0,
+                runway: crate::world::bases::Runway::beside(
+                    centre,
+                    Vec2::splat(100.0),
+                    crate::world::bases::RunwaySide::Front,
+                    1800.0,
+                    0.0,
+                    &crate::world::BasesConfig::default(),
+                ),
             })
             .collect()
     }

@@ -422,4 +422,15 @@
         max_dynamic: 600,
         max_kept: 2500,
     ),
+    // Air bases (openspec/changes/air-bases); the rest of their placement is the code default. Each has a runway
+    // (survey W45, owner 2026-10-26: "Add a real runway, about 1.5 to 2 km, to each base"): tried in front of the
+    // apron, behind the hangars, then down either side, longest first, flattened to the base's ground.
+    bases: (
+        runway_m: (2000.0, 1500.0),
+        runway_width_m: 45.0,
+        runway_gap_m: 60.0,
+        runway_step_m: 100.0,
+        runway_max_cut_m: 45.0,
+        runway_city_clear_m: 300.0,
+    ),
 )

@@ -35,6 +35,9 @@ const LOCALIZER_LEAD: f32 = 0.4;
 const TOUCHDOWN_WINDOW_M: f32 = 20.0;
 /// Extra angle kept between a route bent round a fight and the fight's edge, radians.
 const CLEAR_MARGIN_RAD: f32 = 0.15;
+/// A way that passes within this of a fight's edge is bent round it too, so an aircraft still turning onto the
+/// tangent never cuts inside the circle, metres.
+const CLEAR_BUFFER_M: f32 = 100.0;
 
 /// Where a fight is: everywhere within `radius_m` of `centre` (x, z).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -65,7 +68,7 @@ pub fn steer_clear(pos: Vec2, want: Vec2, zones: &[Zone]) -> Vec2 {
     for z in zones {
         let to = z.centre - pos;
         let along = to.dot(want);
-        if along <= 0.0 || (to - want * along).length() >= z.radius_m {
+        if along <= 0.0 || (to - want * along).length() >= z.radius_m + CLEAR_BUFFER_M {
             continue;
         }
         if first.is_none_or(|(a, _)| along < a) {
@@ -75,13 +78,13 @@ pub fn steer_clear(pos: Vec2, want: Vec2, zones: &[Zone]) -> Vec2 {
     let Some((_, z)) = first else { return want };
     let to = z.centre - pos;
     let d = to.length().max(1e-3);
-    let ang = (z.radius_m / d).min(1.0).asin() + CLEAR_MARGIN_RAD;
+    let ang = ((z.radius_m + CLEAR_BUFFER_M) / d).min(1.0).asin() + CLEAR_MARGIN_RAD;
     let side = if want.perp_dot(to) >= 0.0 { 1.0 } else { -1.0 };
     Vec2::from_angle(-side * ang).rotate(to / d)
 }
 
-/// A base's landing strip, flown from `start` (the threshold) toward `end`. The bases have no runway
-/// (`air-bases`), so it runs along the apron's long side, clear of the pads, the tower and the hangars.
+/// A base's landing strip, flown from `start` (the threshold) toward `end`: its runway, 1.5 to 2 km (survey W45,
+/// `world::bases::Runway`), less `strip_margin_m` at each end, flown either way.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Strip {
     /// The base it belongs to.
@@ -117,12 +120,12 @@ impl Strip {
     }
 }
 
-/// A base's strip both ways: west to east first, then east to west.
+/// A base's runway as a strip both ways: from its `a` end to its `b` end first, then back.
 pub fn strips(base: &AirBase, cfg: &RouteConfig) -> [Strip; 2] {
-    let r = base.rect();
-    let z = base.centre.y - cfg.strip_front_m;
-    let w = Vec2::new(r.min.x + cfg.strip_margin_m, z);
-    let e = Vec2::new(r.max.x - cfg.strip_margin_m, z);
+    let r = base.runway;
+    let d = r.dir();
+    let w = r.a + d * cfg.strip_margin_m;
+    let e = r.b - d * cfg.strip_margin_m;
     let s = |start, end| Strip {
         base: base.id,
         start,
@@ -457,7 +460,7 @@ impl Aircraft {
                 return out;
             }
             Phase::Roll { accel_m_s2 } => {
-                // Along the flat apron: its height stays the strip's.
+                // Along the flat runway: its height stays the strip's.
                 self.speed_m_s += accel_m_s2 * dt_s;
                 vy = 0.0;
                 if self.speed_m_s >= spec.approach_m_s {

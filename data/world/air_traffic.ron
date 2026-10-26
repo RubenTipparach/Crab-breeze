@@ -96,8 +96,9 @@
         final_m: 4000.0,
         climb_out_m: 150.0,
         min_clear_m: 120.0,
+        // Airliners and freighters take off from and land on each base's runway, 1.5 to 2 km (survey W45; the
+        // runways are `bases` in world.ron): the roll starts and touchdown comes this far in from its end.
         strip_margin_m: 40.0,
-        strip_front_m: 60.0,
         park_s: 30.0,
     ),
     avoid: (

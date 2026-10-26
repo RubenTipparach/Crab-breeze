@@ -44,6 +44,14 @@ impl Fixture {
             half_m: cfg.bases.half_m,
             ground_m: 0.0,
             highway: 0,
+            runway: crate::world::bases::Runway::beside(
+                Vec2::new(2000.0, 0.0),
+                cfg.bases.half_m,
+                crate::world::bases::RunwaySide::Front,
+                1800.0,
+                0.0,
+                &crate::world::BasesConfig::default(),
+            ),
         };
         Self {
             cfg,

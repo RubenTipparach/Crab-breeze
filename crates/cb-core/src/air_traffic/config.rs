@@ -2,7 +2,7 @@
 //! the pilot traffic lives, how routes are flown between the air bases, how a fight is avoided and how a
 //! downed aircraft falls. `data/world/air_traffic.ron`, validated on load.
 
-use crate::data::{Validate, finite, finite3, positive, positive_range, within};
+use crate::data::{Validate, finite3, positive, positive_range, within};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -111,10 +111,9 @@ pub struct RouteConfig {
     pub climb_out_m: f32,
     /// Off the final approach it never flies lower than this over the ground, metres.
     pub min_clear_m: f32,
-    /// The strip runs along the apron's long side, this far in from each end, metres.
+    /// The strip flown is the base's runway (survey W45) less this much at each end: where the take-off roll starts
+    /// and where a landing touches down, metres.
     pub strip_margin_m: f32,
-    /// The strip's line, this far from the base's centre toward its front (the pads' side), metres.
-    pub strip_front_m: f32,
     /// After stopping it waits this long on the apron, then leaves the world, seconds.
     pub park_s: f32,
 }
@@ -127,7 +126,6 @@ impl Default for RouteConfig {
             climb_out_m: 150.0,
             min_clear_m: 120.0,
             strip_margin_m: 40.0,
-            strip_front_m: 60.0,
             park_s: 30.0,
         }
     }
@@ -247,7 +245,6 @@ impl Validate for AirTrafficConfig {
         positive("routes.min_clear_m", r.min_clear_m)?;
         positive("routes.strip_margin_m", r.strip_margin_m)?;
         positive("routes.park_s", r.park_s)?;
-        finite("routes.strip_front_m", r.strip_front_m)?;
         positive("avoid.keep_clear_m", self.avoid.keep_clear_m)?;
         positive("fall.drag_per_s", self.fall.drag_per_s)?;
         positive("fall.spin_deg_s", self.fall.spin_deg_s)?;

@@ -165,6 +165,46 @@ fn spawn_bases(
                 );
             }
         }
+        // The runway beside the site and its taxiway (survey W45): asphalt, darker than the apron, with a dashed
+        // centre line, edge lines and threshold bars at both ends.
+        let rw = b.runway;
+        let asphalt = [0.13, 0.13, 0.13, 1.0];
+        for f in [rw.rect(), rw.taxiway(&r)] {
+            slab.block(
+                Vec3::new(f.min.x, g - 0.5, f.min.y),
+                Vec3::new(f.max.x, g + APRON_LIFT_M, f.max.y),
+                asphalt,
+            );
+        }
+        let y = g + APRON_LIFT_M + 0.02;
+        let (d, side) = (rw.dir(), rw.dir().perp());
+        let mut stripe = |from: f32, to: f32, off: f32, half_w: f32| {
+            let (p, q) = (rw.a + d * from + side * off, rw.a + d * to + side * off);
+            let s = side * half_w;
+            marks.quad(
+                [
+                    Vec3::new(p.x - s.x, y, p.y - s.y),
+                    Vec3::new(p.x + s.x, y, p.y + s.y),
+                    Vec3::new(q.x + s.x, y, q.y + s.y),
+                    Vec3::new(q.x - s.x, y, q.y - s.y),
+                ],
+                [1.0, 1.0, 1.0, 1.0],
+            );
+        };
+        let len = rw.length_m();
+        let edge = rw.width_m * 0.5 - 1.0;
+        stripe(0.0, len, edge, 0.45);
+        stripe(0.0, len, -edge, 0.45);
+        for k in 0..8 {
+            let off = (k as f32 - 3.5) * 4.0;
+            stripe(8.0, 38.0, off, 0.9);
+            stripe(len - 38.0, len - 8.0, off, 0.9);
+        }
+        let mut at = 150.0;
+        while at + 30.0 <= len - 150.0 {
+            stripe(at, at + 30.0, 0.0, 0.45);
+            at += 50.0;
+        }
         // The control tower by the front corner.
         let t = b.tower().centre();
         slab.block(

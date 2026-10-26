@@ -135,7 +135,7 @@ const GOLDEN_HIGHWAYS: usize = 12;
 const GOLDEN_RIVERS: usize = 64;
 const GOLDEN_TREES_AT_START: usize = 38407;
 // 2026-10-25: the five air bases (air-bases) flatten their sites; counts unchanged.
-const GOLDEN_FINGERPRINT: u64 = 13301900611483554179;
+const GOLDEN_FINGERPRINT: u64 = 7415741982539864567;
 
 #[test]
 fn seed_42_census_for_the_design() {
@@ -1047,5 +1047,54 @@ fn nothing_grows_on_an_air_base() {
             building_m: 0.0,
         };
         assert_eq!(plan.cover_at(p, &clear), crate::world::cover::Cover::Bare, "{p}");
+    }
+}
+
+#[test]
+fn every_air_base_has_a_runway_of_1_5_to_2_km_flat_dry_and_clear() {
+    // Survey W45, owner 2026-10-26: "Add a real runway, about 1.5 to 2 km, to each base".
+    for plan in [seed_42(), &generate(42, &shipped())] {
+        let cfg = shipped().bases;
+        for b in &plan.bases {
+            let r = b.runway;
+            eprintln!("base {}: runway {:?}, {:.0} m, from {} to {}", b.id, r.side, r.length_m(), r.a, r.b);
+            assert!(
+                (1500.0 - 1.0..=2000.0 + 1.0).contains(&r.length_m()),
+                "base {}'s runway is {} m",
+                b.id,
+                r.length_m()
+            );
+            assert!(!r.rect().overlaps(&b.rect()), "base {}'s runway is off its site", b.id);
+            for s in b.structures(&cfg) {
+                assert!(!r.rect().overlaps(&s), "base {}'s runway meets a hangar or the tower", b.id);
+            }
+            for p in r.samples(25.0) {
+                let h = plan.terrain.height_at(p.x, p.y);
+                assert!(
+                    (h - b.ground_m).abs() < 1.0,
+                    "base {}'s runway is flat at {p}: {h} against {}",
+                    b.id,
+                    b.ground_m
+                );
+                assert!(plan.water_at(p.x, p.y).is_none(), "base {}'s runway is dry at {p}", b.id);
+                for hw in &plan.highways {
+                    assert!(
+                        hw.project(p).0 > hw.width_m * 0.5,
+                        "base {}'s runway is clear of the highways at {p}",
+                        b.id
+                    );
+                }
+                for c in &plan.cities {
+                    assert!(
+                        c.rect().distance(p) > cfg.runway_city_clear_m,
+                        "base {}'s runway is clear of the cities",
+                        b.id
+                    );
+                }
+            }
+            for bld in &plan.buildings {
+                assert!(!bld.footprint.overlaps(&r.rect()), "a building stands on base {}'s runway", b.id);
+            }
+        }
     }
 }
