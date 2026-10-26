@@ -77,3 +77,35 @@ fn tick(
     }
     fog.strength = cfg.strength(mission, fog.hour_h);
 }
+
+#[cfg(test)]
+mod tests {
+    /// Survey F3 (owner, 2026-10-26: "Approve all"): no ray-marched volumetric fog over the island.
+    /// Bevy's ray march (its volumetric fog on a camera, a fog volume in the world) may come later
+    /// only for a small local volume (steam at boarding, waterfall spray), and a line that adds one
+    /// must say so with the words `local fog volume (F3)`. Any other use in the game's source fails
+    /// here.
+    #[test]
+    fn no_ray_marched_fog_lies_over_the_island() {
+        let banned = [concat!("Volumetric", "Fog"), concat!("Fog", "Volume")];
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut found = Vec::new();
+        let mut stack = vec![src];
+        while let Some(dir) = stack.pop() {
+            for entry in std::fs::read_dir(&dir).expect("the source folder reads") {
+                let path = entry.expect("an entry").path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    let text = std::fs::read_to_string(&path).expect("a source file reads");
+                    for (n, line) in text.lines().enumerate() {
+                        if banned.iter().any(|b| line.contains(b)) && !line.contains("local fog volume (F3)") {
+                            found.push(format!("{}:{}", path.display(), n + 1));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(found.is_empty(), "ray-marched fog in the game (survey F3): {found:?}");
+    }
+}

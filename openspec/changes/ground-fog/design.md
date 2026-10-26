@@ -103,6 +103,20 @@ the densest scene (CLAUDE.md section 7).
 - The fog's numbers (`rho0`, `H`, the presets, the rain haze) are data in `data/world/world.ron`
   under `fog:`.
 
+## 6a. No ray march over the island (survey F3)
+
+Owner, 2026-10-26 ("Approve all", then "Go and implement"): F3, no ray-marched volumetric fog on
+the island; it is allowed later only for small local volumes.
+
+- The island's fog is the analytic layer of section 2 and nothing else. Bevy's `VolumetricFog`
+  (a ray march a pixel, 1-3 ms by the estimate in section 1, worse in the cockpit's wide view) is
+  not put on any camera, and no `FogVolume` covers the island.
+- Later, a small local volume may use it: steam when the cockpit opens, spray at a waterfall, each
+  its own effect and its own change, measured (CLAUDE.md section 7) before it ships, bounded to a
+  few tens of metres.
+- A test keeps it so: `ground_fog::tests::no_ray_marched_fog_lies_over_the_island` fails on any
+  use of the two in `cb-app`'s source, unless the line says `local fog volume (F3)`.
+
 ## 7. Fog hides targets (survey F2)
 
 Owner, 2026-10-26 ("Approve all", then "Go and implement"): F2, ground fog also shortens radar
@@ -141,4 +155,4 @@ cloud does, and the sensors see through it), so it changes the targeting.
 | --- | --- | --- | --- |
 | F1 | How much fog by default | morning mist in the valleys and the crater, thinning by day; clear for combat-heavy missions | decided, built (owner, 2026-10-26: "Approve all"; section 3a) |
 | F2 | Does fog hide targets | from the eye only, as cloud does (W28); radar sees through it | decided otherwise, built: fog shortens the boxing and lock ranges and slows the lock (owner, 2026-10-26: "Approve all"; section 7) |
-| F3 | Ray-marched volumetric fog | not now; Bevy's `VolumetricFog` later only for local volumes (steam at boarding, waterfall spray) | proposed (survey F3) |
+| F3 | Ray-marched volumetric fog | not now; Bevy's `VolumetricFog` later only for local volumes (steam at boarding, waterfall spray) | decided, recorded and guarded by a test (owner, 2026-10-26: "Approve all"; section 6a) |

@@ -28,3 +28,10 @@ The fog SHALL begin each world as a morning mist and thin to a day's fog on the 
 #### Scenario: A defence at dawn
 - **WHEN** the city defence runs at 06:00 on the fog's clock
 - **THEN** the fog is the clear preset, with no mist
+
+### Requirement: No ray-marched fog over the island
+The island's fog SHALL be the analytic layer alone, with no ray-marched volumetric fog on any camera and no fog volume over the island; a ray-marched volume MAY be added later only as a small local effect (owner, 2026-10-26, survey F3: "Approve all").
+
+#### Scenario: The game's source is checked
+- **WHEN** the game's source is scanned for a ray-marched fog or a fog volume
+- **THEN** none is found, except on a line that names itself a local fog volume
