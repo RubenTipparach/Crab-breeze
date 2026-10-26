@@ -28,6 +28,13 @@ import bevy_pbr::render::mesh_view_bindings::specular_environment_map;
 import bevy_render::maths::quat_rotate;
 import super::water_common::{safe_normal, fbm3, water_transmittance, water_murk};
 
+// A stable hash of a cell, 0..1 (the glitter's facets).
+fn facet_hash(p: vec2<f32>) -> f32 {
+    var q = fract(p * vec2<f32>(123.34, 456.21));
+    q += dot(q, q + 45.32);
+    return fract(q.x * q.y);
+}
+
 // The sky seen along `dir` (pointing up) off a surface of GGX roughness `alpha`: the pilot camera's
 // cached sky cube (`sky_light.rs`, the Poly Haven sky the buildings' glass reflects; owner,
 // 2026-10-26: "Maybe need reflection probe like glass towers?"), its mip chosen by the roughness as
@@ -63,7 +70,7 @@ struct WaterSurface {
     deep: vec4<f32>,        // rgb the water body's colour (an albedo); w the eye's submersion (0 dry, 1 under)
     light: vec4<f32>,       // rgb the light reaching the water, times exposure; w spare
     sky_horizon: vec4<f32>, // rgb the sky at the horizon (the game's sky), linear; w spare
-    sky_zenith: vec4<f32>,  // rgb the sky straight up, linear; w spare
+    sky_zenith: vec4<f32>,  // rgb the sky straight up, linear; w the glitter's twinkle, Hz
     foam_color: vec4<f32>,  // rgb (an albedo); w intensity
     foam_crest: vec4<f32>,  // lo, hi, weight; w shore foam depth m
     foam_slope: vec4<f32>,  // lo, hi, weight; w shore foam weight
@@ -72,7 +79,7 @@ struct WaterSurface {
     sun_tint: vec4<f32>,    // rgb the glint's tint; w the roughness added where the ripples have faded
     cabin: vec4<f32>,       // xyz the eye; w the sealed cabin's dry radius m (0: none)
     shallow: vec4<f32>,     // rgb the body's colour in the shallows (an albedo); w the depth m by which it is `deep`'s
-    scatter: vec4<f32>,     // rgb light through the crests seen against the sun (an albedo times its strength); w spare
+    scatter: vec4<f32>,     // rgb light through the crests seen against the sun (an albedo times its strength); w the glitter's facet slope
     swell: array<vec4<f32>, 3>, // heading x, heading z, wavenumber rad/m, height m
 }
 
@@ -272,13 +279,22 @@ fn fragment(in: WaterFragment, @builtin(front_facing) front: bool) -> @location(
     // broad glitter path toward the sun.
     let sun = safe_normal(water.sun_dir.xyz);
     let half_vector = safe_normal(look + sun);
-    let n_l = max(dot(normal, sun), 0.0);
-    let n_v = max(dot(normal, look), 1e-3);
-    let n_h = max(dot(normal, half_vector), 0.0);
-    let a2 = alpha * alpha;
+    // Far water sparkles (owner, 2026-10-26: "make glitter show up more at higher altitudes"): each
+    // patch a pixel and a half across takes a random facet tilt, drawn anew a few times a second,
+    // and the sun glints off it with a narrower lobe; together as wide as Cox and Munk's slopes.
+    let far = 1.0 - detail;
+    let cell = max(metres_per_pixel * 1.5, 0.25);
+    let facet_at = floor(xz / cell) + vec2<f32>(17.0, 31.0) * floor(seconds * water.sky_zenith.w);
+    let facet = vec2<f32>(facet_hash(facet_at), facet_hash(facet_at + vec2<f32>(7.7, 3.1))) * 2.0 - 1.0;
+    let glint_normal = safe_normal(normal - vec3<f32>(facet.x, 0.0, facet.y) * water.scatter.w * far);
+    let glint_alpha = clamp(water.sun_light.w + water.sun_tint.w * far * 0.5, 0.005, 1.0);
+    let n_l = max(dot(glint_normal, sun), 0.0);
+    let n_v = max(dot(glint_normal, look), 1e-3);
+    let n_h = max(dot(glint_normal, half_vector), 0.0);
+    let a2 = glint_alpha * glint_alpha;
     let d_denom = n_h * n_h * (a2 - 1.0) + 1.0;
     let ggx = a2 / (3.14159265 * d_denom * d_denom);
-    let k = alpha * 0.5;
+    let k = glint_alpha * 0.5;
     let shadowing = (n_l / (n_l * (1.0 - k) + k)) * (n_v / (n_v * (1.0 - k) + k));
     let f_sun = 0.02 + 0.98 * pow(1.0 - max(dot(look, half_vector), 0.0), 5.0);
     color += water.sun_tint.rgb * water.sun_light.rgb * water.sun_dir.w

@@ -144,7 +144,7 @@ impl WaterSurfaceUniform {
             deep: v3(look.deep_color).extend(submersion),
             light: light.body.extend(0.0),
             sky_horizon: Vec4::new(sky.red, sky.green, sky.blue, 0.0),
-            sky_zenith: v3(look.sky_zenith_color).extend(0.0),
+            sky_zenith: v3(look.sky_zenith_color).extend(look.glitter_twinkle_hz),
             foam_color: v3(look.foam_color).extend(look.foam_intensity),
             foam_crest: Vec4::new(look.foam_crest[0], look.foam_crest[1], look.foam_crest_weight, look.shore_foam_m),
             foam_slope: Vec4::new(
@@ -158,7 +158,7 @@ impl WaterSurfaceUniform {
             sun_tint: v3(look.sun_tint).extend(look.glint_far_roughness),
             cabin: eye.extend(cabin_m),
             shallow: v3(look.shallow_color).extend(look.shallow_depth_m),
-            scatter: (v3(look.scatter_color) * look.scatter_strength).extend(0.0),
+            scatter: (v3(look.scatter_color) * look.scatter_strength).extend(look.glitter_slope),
             swell,
         }
     }
@@ -436,9 +436,9 @@ struct FogLook {
     mist: Vec4,
     /// rgb the sky's light the fog scatters back; w the phase asymmetry.
     ambient: Vec4,
-    /// rgb the sun's light the fog scatters (storm shade in it); w unused.
+    /// rgb the sun's light the fog scatters (storm shade in it); w the haze's density at sea level per m.
     sun: Vec4,
-    /// xyz toward the sun; w unused.
+    /// xyz toward the sun; w the haze's scale height m.
     sun_dir: Vec4,
     /// x the map's least corner (x and z) m, y its cell m, z cells a side, w unused.
     map: Vec4,
@@ -517,8 +517,8 @@ fn extract_water_eye(
                 cfg.rain_per_m * rain,
             ),
             ambient: (sky * cfg.ambient_share).extend(cfg.phase_g),
-            sun: (light.sun * shade * cfg.sun_share).extend(0.0),
-            sun_dir: light.sun_dir.extend(0.0),
+            sun: (light.sun * shade * cfg.sun_share).extend(cfg.haze_density_per_m),
+            sun_dir: light.sun_dir.extend(cfg.haze_scale_height_m),
             map: Vec4::new(m.origin_m, m.cell_m, m.side as f32, 0.0),
         };
         // Seated: the panes of the interior the eye sits in (the nearest, within a cabin's reach).

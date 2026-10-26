@@ -97,6 +97,23 @@ crests. Built now, ahead of the wave detail:
 - Stills `sea-sun` and `sea-away` (40 m over open sea, toward and away from the sun):
   `docs/screenshots/2026-10-26-water-glint.png`.
 
+**Glitter from high up (owner, 2026-10-26: "its definitely the glitter that improves it", "is
+there a way we can make glitter show up more at higher altitudes? lower altitudes look great",
+with Ace Combat 8 shots of the sea sheened and sparkling under the sun from altitude).** From 6.5 km
+the sea was a flat navy sheet: the glint's roughness grew only where the ripples had faded, and a
+pixel there covers 5-10 m of sea, whose wavelets a pixel cannot draw.
+- **The sheen's width, by measurement:** Cox and Munk's sea-surface slopes (the standard model of
+  sun glint seen from aircraft and satellites) give a slope variance of `0.003 + 0.00512 x wind`,
+  0.034 at the game's 6 m/s wind (`cloud-weather`), a GGX roughness of about 0.26. Far water's
+  total roughness (`glint_roughness` 0.06 + `glint_far_roughness` 0.20) is set to that.
+- **The sparkle:** a smooth broad lobe is a sheen, not glitter. Each patch of sea a pixel and a half
+  across takes its own random facet tilt, `glitter_slope` (0.22) times how far the ripples have
+  faded, re-drawn `glitter_twinkle_hz` (3) times a second; the sun's glint is drawn off that tilted
+  facet with a narrower lobe (half the far roughness), so far water sparkles in a sheen as wide as
+  Cox and Munk's. The sky's reflection keeps the untilted surface.
+- Stills: `sea-sun-high` (1.5 km up) and `sea-sun-top` (6.5 km), toward the sun.
+- Cost: two hashes and a second normal a pixel.
+
 ## 1. Wave detail
 
 - **The bake:** a 512 px, 64-frame tileable normal and height atlas covering a 64 m patch, baked
