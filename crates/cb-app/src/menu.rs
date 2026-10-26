@@ -32,6 +32,8 @@ pub enum Menu {
     Controls,
     /// The mail: the job offers to accept or decline, the current job, the messages (a career).
     Mail,
+    /// A hangar bay terminal's screen (air-bases): the jobs board, the shop and the refit, walked up to on foot.
+    Terminal,
 }
 
 impl Menu {
@@ -135,11 +137,16 @@ fn escape(
         }
         return;
     }
+    // Use again steps back from a terminal's screen (air-bases design section 5).
+    if *menu == Menu::Terminal && input.any_just_pressed(keys.use_key.iter().copied()) {
+        set(&mut menu, Menu::Closed, &mut time, &mut cursor);
+        return;
+    }
     if !input.any_just_pressed(keys.release_mouse.iter().copied()) {
         return;
     }
     let next = match *menu {
-        Menu::Mail => Menu::Closed,
+        Menu::Mail | Menu::Terminal => Menu::Closed,
         Menu::Closed => Menu::Pause,
         Menu::Pause => Menu::Closed,
         Menu::Title => Menu::Title,
@@ -150,6 +157,11 @@ fn escape(
         Menu::Controls => back.0,
     };
     set(&mut menu, next, &mut time, &mut cursor);
+}
+
+/// Opens (or closes, with `Menu::Closed`) a menu page from outside the menu: a terminal the pilot used.
+pub fn open(menu: &mut Menu, next: Menu, time: &mut Time<Virtual>, cursor: &mut CursorOptions) {
+    set(menu, next, time, cursor);
 }
 
 fn set(menu: &mut Menu, next: Menu, time: &mut Time<Virtual>, cursor: &mut CursorOptions) {
@@ -393,11 +405,13 @@ fn draw(
     data: Res<Data>,
     career: Option<Res<crate::career::CareerRun>>,
     free: Option<Res<crate::missions::FreeRoamRun>>,
+    terminal: Option<Res<crate::air_bases::AtTerminal>>,
     roots: Query<Entity, With<MenuRoot>>,
     overlay: Query<Entity, With<CockpitCamera>>,
 ) {
     let career_changed = career.as_ref().is_some_and(|c| c.is_changed()) || free.as_ref().is_some_and(|f| f.is_changed());
-    if !menu.is_changed() && !(settings.is_changed() && *menu == Menu::Options) && !(career_changed && *menu == Menu::Mail) {
+    let live = matches!(*menu, Menu::Mail | Menu::Terminal);
+    if !menu.is_changed() && !(settings.is_changed() && *menu == Menu::Options) && !(career_changed && live) {
         return;
     }
     for r in &roots {
@@ -556,6 +570,20 @@ fn draw(
                 } else if let Some(f) = free.as_deref() {
                     // Free roam's mail: every mission, started when accepted (owner, 2026-10-25: "city defense is a
                     // menu mail option in free roam", "add an email in free roam to fight the crab fortress").
+                    missions_page(p, &f.free, &data.0.missions);
+                }
+                button(p, "Back", MenuButton::Resume);
+            }
+            Menu::Terminal => {
+                // The terminal's screen: the career's jobs board, signed up for here (or free roam's missions).
+                let title = terminal.as_deref().map_or_else(
+                    || "TERMINAL".to_string(),
+                    |t| format!("TERMINAL   BASE {}  BAY {}", t.0.base + 1, t.0.bay + 1),
+                );
+                p.spawn(label(&title, 26.0, DIM));
+                if let Some(run) = career.as_deref() {
+                    mail_page(p, &run.career);
+                } else if let Some(f) = free.as_deref() {
                     missions_page(p, &f.free, &data.0.missions);
                 }
                 button(p, "Back", MenuButton::Resume);

@@ -7,6 +7,7 @@
 
 pub mod ai;
 pub mod audio;
+pub mod bases;
 pub mod battle_fx;
 pub mod boarding;
 pub mod career;

@@ -53,7 +53,7 @@ pub(crate) struct Keys {
     left: Vec<KeyCode>,
     right: Vec<KeyCode>,
     run: Vec<KeyCode>,
-    use_key: Vec<KeyCode>,
+    pub(crate) use_key: Vec<KeyCode>,
     free_look: Vec<KeyCode>,
     throttle_zero: Vec<KeyCode>,
     mode_walk: Vec<KeyCode>,

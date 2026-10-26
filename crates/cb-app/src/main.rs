@@ -123,7 +123,8 @@ fn main() -> AppExit {
     if args.start.as_deref() == Some("meadow") {
         app.insert_resource(world::StartInMeadow);
     }
-    if args.start.as_deref() == Some("base") {
+    // A career starts at home, on the first air base, its mech in bay 1 (career, air-bases).
+    if args.start.as_deref() == Some("base") || args.play.as_deref().is_some_and(|m| m.starts_with("career")) {
         app.insert_resource(world::StartAtBase);
     }
     // The blended smoke drawn sorted and soft (openspec change `particle-depth`).
