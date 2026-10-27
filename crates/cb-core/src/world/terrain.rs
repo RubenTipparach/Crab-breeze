@@ -86,6 +86,12 @@ pub struct Flats {
     road_blend_m: f32,
     /// City ids, then highway ids offset by the city count: the order they are applied in.
     index: super::grid::CellIndex,
+    /// The lots' pads (openspec change `small-buildings`, design 7.4): each flat over its rect at its
+    /// height, blending to the ground over `pad_blend_m`, applied last; with their own index.
+    pads: Vec<(Rect, f32)>,
+    pad_grow_m: f32,
+    pad_blend_m: f32,
+    pad_index: super::grid::CellIndex,
 }
 
 /// Cell size of the flats' index.
@@ -122,7 +128,29 @@ impl Flats {
             road_flat_m,
             road_blend_m: cfg.highway_blend_m,
             index: super::grid::CellIndex::build(-half, FLATS_CELL_M, side, &boxes),
+            pads: Vec::new(),
+            pad_grow_m: 0.0,
+            pad_blend_m: 0.0,
+            pad_index: super::grid::CellIndex::default(),
         }
+    }
+
+    /// These flats with `pads` levelled too: each rect flat at its height out to `grow_m` round it, blending
+    /// to the ground over `blend_m` beyond.
+    pub fn with_pads(mut self, pads: Vec<(Rect, f32)>, grow_m: f32, blend_m: f32, world_size_m: f32) -> Self {
+        let reach = Vec2::splat(grow_m.max(0.0) + blend_m.max(0.0));
+        let boxes: Vec<(u32, Vec2, Vec2)> = pads
+            .iter()
+            .enumerate()
+            .map(|(i, (r, _))| (i as u32, r.min - reach, r.max + reach))
+            .collect();
+        let cell = 128.0;
+        let side = (world_size_m / cell).ceil() as usize;
+        self.pad_index = super::grid::CellIndex::build(-world_size_m * 0.5, cell, side, &boxes);
+        self.pads = pads;
+        self.pad_grow_m = grow_m.max(0.0);
+        self.pad_blend_m = blend_m.max(0.0);
+        self
     }
 
     /// `h` at `p` blended toward each highway's grade, then each city's ground: a city's square
@@ -143,6 +171,20 @@ impl Flats {
             let d = rect.distance(p) - self.plateau_margin_m;
             let w = 1.0 - smoothstep(0.0, self.plateau_blend_m, d);
             h += (ground_m - h) * w;
+        }
+        // The nearest pad wins (ties to the lower id), so a lot is exactly flat even where a neighbour's blend
+        // reaches it.
+        let nearest = self
+            .pad_index
+            .at(p)
+            .iter()
+            .map(|&id| (self.pads[id as usize].0.distance(p), id))
+            .min_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+        if let Some((d, id)) = nearest {
+            let w = 1.0 - smoothstep(self.pad_grow_m, self.pad_grow_m + self.pad_blend_m, d);
+            if w > 0.0 {
+                h += (self.pads[id as usize].1 - h) * w;
+            }
         }
         h
     }

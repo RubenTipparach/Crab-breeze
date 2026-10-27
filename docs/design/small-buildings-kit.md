@@ -2,7 +2,7 @@
 
 This is for the agent who brings the houses and small businesses into the game. The design is in
 `openspec/changes/small-buildings`, the look is on the Main Street mockup
-(https://claude.ai/artifact/MmkFvAZyjECdFZ883QbBRq), and this page says how to use the exported
+(https://claude.ai/artifact/NsAB4HQMjoPd8Nazq9vTcW), and this page says how to use the exported
 kits. Nothing here is game code yet: the kits are assets with data, the rules below are what the
 mockup does, and the game ports them (CLAUDE.md sections 4 and 6.1).
 
@@ -14,7 +14,7 @@ mockup does, and the game ports them (CLAUDE.md sections 4 and 6.1).
 | `<id>.pieces.json` | The destruction table for `LOD0`: every breakable piece, its triangles, bounds, what it is made of and what holds it up |
 | `manifest.json` | Every type: name, kind, biomes, bounds, triangle counts and budgets per LOD, surfaces and sign texts |
 
-There are 17 types, exported with seed 7. Triangle counts come from `manifest.json`.
+There are 16 types and 8 variants, exported with seed 7 (the A-frame cabin was dropped, owner 2026-10-26). Triangle counts come from `manifest.json`.
 
 | Type | id | LOD0 (with interior) | LOD1 | LOD2 | Pieces |
 | --- | --- | --- | --- | --- | --- |
@@ -22,7 +22,6 @@ There are 17 types, exported with seed 7. Triangle counts come from `manifest.js
 | Colonial | `colonial` | 6,301 | 4,164 | 24 | 339 |
 | Craftsman bungalow | `bungalow` | 4,138 | 2,260 | 24 | 303 |
 | Split-level | `split` | 5,778 | 3,612 | 28 | 353 |
-| A-frame cabin | `aframe` | 1,219 | 556 | 14 | 132 |
 | Pueblo Revival | `adobe` | 4,456 | 2,972 | 20 | 228 |
 | Stilt house | `stilt` | 4,462 | 2,104 | 14 | 400 |
 | Beach cottage | `beach` | 4,386 | 2,496 | 14 | 341 |
@@ -38,6 +37,21 @@ There are 17 types, exported with seed 7. Triangle counts come from `manifest.js
 
 **Budgets:** LOD0 16,000, LOD1 7,000 (motel 8,500, with the reason in the manifest), LOD2 120. The
 exporter refuses a type over budget. The folder is 11 MB.
+
+### Variants, leaves, block furniture (2026-10-26)
+
+- **Variants.** The four suburban types come in three variants each: `ranch`, `ranch_b`, `ranch_c` and so on (plan,
+  walls and roof differ; owner: "we may need a few variations of the subrabn house"). A variant's manifest entry has
+  `variant_of` and `variant`. 24 kits in all.
+- **Nodes.** Besides `LOD0`-`LOD2` a glb has `FURN` (the block furniture, drawn within 100 m, no longer in LOD0) and
+  one `LEAF<n>` per door leaf, its geometry relative to its hinge (the node's translation), so the game can swing it.
+- **Piece table additions.** `furn_primitives` (FURN's surfaces); `leaves` (`piece`, `hinge`, `shut`, `inward`,
+  `width_m`, `height_m`); `furniture` (`piece`, `item`, `at`, `rot` quarter turns, `tint`), one entry per block
+  placed from `FURN`, so a modelled piece (`assets/models/furniture/`) can take its place. A piece's `node` says
+  which node its `runs` point into (`LOD0` when absent); a piece made only of boxes lists them in `boxes` (a door
+  frame is three boxes round its hole), for colliders.
+- **Walkable.** Partitions stop short of a door, a porch's steps line up with the front door, and an upper floor
+  has its stairwell cut out (the game's colliders walk all of it: `cb_core::world::small_buildings::walk`).
 
 ## 2. Conventions
 
@@ -218,11 +232,15 @@ The geometry comes from `docs/mockups/small_buildings_kit.js`, the code the Main
 draws. Change a building there, look at it on the mockup, then re-export and check. The two cannot
 drift, because there is only one kit.
 
-## 8. Not done yet
+## 8. In the game
+
+`cb_core::world::small_buildings` reads these files (the kits, `furniture.json`), places the lots in world
+generation, builds the colliders for a pilot on foot and breaks pieces; `crates/cb-app/src/small_buildings.rs`
+draws them (openspec `small-buildings` design section 7).
+
+## 9. Not done yet
 
 - Material Maker sets for the 37 surfaces (stand-in colours now).
 - Sign text rendering in the game.
-- Placement data on the island (the island session).
-- The Rust port of the support and collapse rules, and their tests.
 - A frame-time measurement of a town at dusk on the owner's machine.
 - LOD switching pops (no cross-fade).

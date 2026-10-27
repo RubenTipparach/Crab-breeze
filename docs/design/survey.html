@@ -161,6 +161,19 @@ const SECTIONS = [
         rec: 2,
         why: 'Your 75 on foot feels wide, which matches 75 measured across, the way most shooters\' sliders count; the cockpit stays as you widened it twice ("Wider fov?", "95?"), so stepping in still opens the view. Built this way for now (provisional).' },
     ] },
+  { tag: 'S', name: 'Houses in the game',
+    lead: 'Added on 2026-10-26, with the houses and small businesses going into the game (openspec/changes/small-buildings section 7). The game is built on the recommendations until you answer.',
+    qs: [
+      { id: 'S4', q: 'The A-frame was the house of the montane forest. Which houses stand there now?',
+        options: ['The bungalow and the split-level', 'No houses in the montane forest', 'A new mountain cabin, designed for it'], rec: 0,
+        why: 'Both are timber houses that read well among trees, and the forest still gets a few houses.' },
+      { id: 'S5', q: 'How near is the real (modelled) furniture drawn for a pilot on foot?',
+        options: ['Within 60 m, the low-poly blocks from 60 to 100 m', 'Within 100 m, no blocks on foot', 'Within 30 m only'], rec: 0,
+        why: 'You see into rooms well within 60 m on foot; past that the blocks read the same through a window and cost far less. In the mech it is always the blocks, within 100 m (your words).' },
+      { id: 'S6', q: 'The suburbs have no streets of their own in the first build: houses face the city with their drives. Streets next?',
+        options: ['Yes: curving streets and cul-de-sacs as their own change, next', 'Later, after the towns are played', 'No streets: open lots are fine'], rec: 0,
+        why: 'Houses in a field read oddly up close; a suburb is its streets.' },
+    ] },
 ];
 
 // Answered, and being built. Each moves to DECIDED (Done) once its answer is in the game.

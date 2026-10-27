@@ -104,6 +104,13 @@ fn explode(
                 live.new_chunks.extend(chunks);
             }
         }
+        for lot in plan.small.candidates(xz, r * 1.5) {
+            let b = live.structures.houses.break_sphere(&plan.small, lot, e.at, r * 1.3);
+            if !b.pieces.is_empty() {
+                live.dirty_houses.push(lot);
+                live.new_chunks.extend(b.chunks);
+            }
+        }
         drop(s_buildings);
         // Mechs nearby take splash on the part nearest the blast; armour stops most of it.
         for (mut sim, spec) in &mut mechs {

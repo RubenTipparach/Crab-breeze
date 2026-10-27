@@ -6,7 +6,8 @@
  "lod_within_m": {
   "LOD0": 150,
   "LOD1": 600,
-  "LOD2": 2000
+  "LOD2": 2000,
+  "FURN": 100
  },
  "lod1_drops": {
   "interior": true,
@@ -42,21 +43,22 @@
     ]
    },
    "triangles": {
-    "LOD0": 4918,
+    "LOD0": 4534,
     "LOD1": 3140,
-    "LOD2": 28
+    "LOD2": 28,
+    "FURN": 288,
+    "leaves": 96
    },
    "budget_triangles": {
     "LOD0": 16000,
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 399,
+   "piece_count": 402,
    "surfaces": [
     "brick",
     "concrete",
     "door",
-    "fabric",
     "floorWood",
     "glass",
     "glassDark",
@@ -68,8 +70,121 @@
     "shingle",
     "siding",
     "soffit",
-    "trim",
-    "wood"
+    "trim"
+   ],
+   "signs": []
+  },
+  {
+   "id": "ranch_b",
+   "name": "Ranch house, siding and carport",
+   "kind": "house",
+   "variant_of": "ranch",
+   "variant": 1,
+   "biomes": [
+    "temperate",
+    "savanna"
+   ],
+   "blurb": "Single storey, low hip roof, a picture window, brick front with siding ends and an attached garage. The commonest 1950s-80s house.",
+   "glb": "ranch_b.glb",
+   "pieces": "ranch_b.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -9.46,
+     -0.3,
+     -5.6
+    ],
+    "hi": [
+     8.32,
+     5.73,
+     12
+    ]
+   },
+   "triangles": {
+    "LOD0": 3330,
+    "LOD1": 2304,
+    "LOD2": 14,
+    "FURN": 288,
+    "leaves": 72
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 220,
+   "surfaces": [
+    "brick",
+    "concrete",
+    "floorWood",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "metalRoof",
+    "paint",
+    "plaster",
+    "rubber",
+    "shingle",
+    "shutter",
+    "siding",
+    "soffit",
+    "trim"
+   ],
+   "signs": []
+  },
+  {
+   "id": "ranch_c",
+   "name": "Ranch house, L-plan",
+   "kind": "house",
+   "variant_of": "ranch",
+   "variant": 2,
+   "biomes": [
+    "temperate",
+    "savanna"
+   ],
+   "blurb": "Single storey, low hip roof, a picture window, brick front with siding ends and an attached garage. The commonest 1950s-80s house.",
+   "glb": "ranch_c.glb",
+   "pieces": "ranch_c.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -9.16,
+     -0.3,
+     -5.6
+    ],
+    "hi": [
+     8.06,
+     7.885,
+     9.93
+    ]
+   },
+   "triangles": {
+    "LOD0": 4568,
+    "LOD1": 3240,
+    "LOD2": 28,
+    "FURN": 288,
+    "leaves": 108
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 386,
+   "surfaces": [
+    "brick",
+    "concrete",
+    "floorWood",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "paint",
+    "plaster",
+    "rubber",
+    "shingle",
+    "siding",
+    "soffit",
+    "trim"
    ],
    "signs": []
   },
@@ -96,24 +211,23 @@
     ]
    },
    "triangles": {
-    "LOD0": 6301,
+    "LOD0": 5993,
     "LOD1": 4164,
-    "LOD2": 24
+    "LOD2": 24,
+    "FURN": 336,
+    "leaves": 60
    },
    "budget_triangles": {
     "LOD0": 16000,
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 339,
+   "piece_count": 349,
    "surfaces": [
     "brick",
     "concrete",
-    "door",
-    "fabric",
     "floorWood",
     "glass",
-    "glassDark",
     "lamp",
     "metal",
     "plaster",
@@ -127,52 +241,52 @@
    "signs": []
   },
   {
-   "id": "bungalow",
-   "name": "Craftsman bungalow",
+   "id": "colonial_b",
+   "name": "Colonial, brick with a sunroom",
    "kind": "house",
+   "variant_of": "colonial",
+   "variant": 1,
    "biomes": [
-    "temperate",
-    "coast"
+    "temperate"
    ],
-   "blurb": "Gable to the street, a deep full-width porch on tapered posts and brick piers, painted siding and a big front window.",
-   "glb": "bungalow.glb",
-   "pieces": "bungalow.pieces.json",
+   "blurb": "Two storeys, five bays of shuttered windows, a centre door under a columned portico, white clapboard and end chimneys.",
+   "glb": "colonial_b.glb",
+   "pieces": "colonial_b.pieces.json",
    "bounds_m": {
     "lo": [
-     -5.52,
+     -5.91,
      -0.3,
-     -7.1
+     -5.1
     ],
     "hi": [
-     5.36,
-     6.85,
-     9.16
+     7.31,
+     9.647,
+     12
     ]
    },
    "triangles": {
-    "LOD0": 4138,
-    "LOD1": 2260,
-    "LOD2": 24
+    "LOD0": 6438,
+    "LOD1": 4696,
+    "LOD2": 28,
+    "FURN": 372,
+    "leaves": 108
    },
    "budget_triangles": {
     "LOD0": 16000,
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 303,
+   "piece_count": 376,
    "surfaces": [
     "brick",
     "concrete",
-    "deck",
-    "door",
-    "fabric",
     "floorWood",
     "glass",
-    "glassDark",
     "lamp",
     "metal",
     "plaster",
     "shingle",
+    "shutter",
     "siding",
     "soffit",
     "trim",
@@ -181,44 +295,47 @@
    "signs": []
   },
   {
-   "id": "split",
-   "name": "Split-level",
+   "id": "colonial_c",
+   "name": "Colonial, porch and garage",
    "kind": "house",
+   "variant_of": "colonial",
+   "variant": 2,
    "biomes": [
     "temperate"
    ],
-   "blurb": "A one-storey living wing beside a two-storey bedroom wing half a level up, the garage under it. Very 1970s.",
-   "glb": "split.glb",
-   "pieces": "split.pieces.json",
+   "blurb": "Two storeys, five bays of shuttered windows, a centre door under a columned portico, white clapboard and end chimneys.",
+   "glb": "colonial_c.glb",
+   "pieces": "colonial_c.pieces.json",
    "bounds_m": {
     "lo": [
-     -8.06,
+     -7.46,
      -0.3,
-     -5.6
+     -5.2
     ],
     "hi": [
-     8.26,
-     7.058,
+     7.91,
+     9.56,
      12
     ]
    },
    "triangles": {
-    "LOD0": 5778,
-    "LOD1": 3612,
-    "LOD2": 28
+    "LOD0": 6960,
+    "LOD1": 4384,
+    "LOD2": 28,
+    "FURN": 336,
+    "leaves": 96
    },
    "budget_triangles": {
     "LOD0": 16000,
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 353,
+   "piece_count": 477,
    "surfaces": [
     "brick",
-    "carpet",
     "concrete",
+    "deck",
     "door",
-    "fabric",
     "floorWood",
     "glass",
     "glassDark",
@@ -236,51 +353,339 @@
    "signs": []
   },
   {
-   "id": "aframe",
-   "name": "A-frame cabin",
+   "id": "bungalow",
+   "name": "Craftsman bungalow",
    "kind": "house",
    "biomes": [
+    "temperate",
+    "coast",
     "montane forest"
    ],
-   "blurb": "Steep roof to the ground, the whole gable glazed toward the view, board-and-batten, a deck in front. The 1970s mountain cabin.",
-   "glb": "aframe.glb",
-   "pieces": "aframe.pieces.json",
+   "blurb": "Gable to the street, a deep full-width porch on tapered posts and brick piers, painted siding and a big front window.",
+   "glb": "bungalow.glb",
+   "pieces": "bungalow.pieces.json",
    "bounds_m": {
     "lo": [
-     -4.5,
+     -5.52,
      -0.3,
-     -4.9
+     -7.1
     ],
     "hi": [
-     4.5,
-     8,
-     7.7
+     5.36,
+     6.85,
+     9.16
     ]
    },
    "triangles": {
-    "LOD0": 1219,
-    "LOD1": 556,
-    "LOD2": 14
+    "LOD0": 3838,
+    "LOD1": 2260,
+    "LOD2": 24,
+    "FURN": 240,
+    "leaves": 72
    },
    "budget_triangles": {
     "LOD0": 16000,
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 132,
+   "piece_count": 306,
    "surfaces": [
-    "board",
+    "brick",
     "concrete",
     "deck",
-    "door",
-    "fabric",
     "floorWood",
     "glass",
+    "lamp",
     "metal",
-    "metalRoof",
+    "plaster",
+    "shingle",
+    "siding",
+    "soffit",
+    "trim"
+   ],
+   "signs": []
+  },
+  {
+   "id": "bungalow_b",
+   "name": "Bungalow, hip roof",
+   "kind": "house",
+   "variant_of": "bungalow",
+   "variant": 1,
+   "biomes": [
+    "temperate",
+    "coast",
+    "montane forest"
+   ],
+   "blurb": "Gable to the street, a deep full-width porch on tapered posts and brick piers, painted siding and a big front window.",
+   "glb": "bungalow_b.glb",
+   "pieces": "bungalow_b.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -5.76,
+     -0.3,
+     -6.35
+    ],
+    "hi": [
+     5.76,
+     6.3,
+     8.21
+    ]
+   },
+   "triangles": {
+    "LOD0": 3888,
+    "LOD1": 2444,
+    "LOD2": 14,
+    "FURN": 240,
+    "leaves": 72
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 359,
+   "surfaces": [
+    "brick",
+    "concrete",
+    "deck",
+    "floorWood",
+    "glass",
+    "lamp",
+    "metal",
+    "plaster",
+    "shingle",
+    "siding",
+    "soffit",
+    "trim"
+   ],
+   "signs": []
+  },
+  {
+   "id": "bungalow_c",
+   "name": "Bungalow, brick side gable",
+   "kind": "house",
+   "variant_of": "bungalow",
+   "variant": 2,
+   "biomes": [
+    "temperate",
+    "coast",
+    "montane forest"
+   ],
+   "blurb": "Gable to the street, a deep full-width porch on tapered posts and brick piers, painted siding and a big front window.",
+   "glb": "bungalow_c.glb",
+   "pieces": "bungalow_c.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -6.52,
+     -0.3,
+     -5.6
+    ],
+    "hi": [
+     6.16,
+     7.005,
+     7.46
+    ]
+   },
+   "triangles": {
+    "LOD0": 3760,
+    "LOD1": 2188,
+    "LOD2": 24,
+    "FURN": 240,
+    "leaves": 72
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 293,
+   "surfaces": [
+    "brick",
+    "concrete",
+    "deck",
+    "floorWood",
+    "glass",
+    "lamp",
+    "metal",
+    "plaster",
+    "shingle",
+    "soffit",
+    "trim"
+   ],
+   "signs": []
+  },
+  {
+   "id": "split",
+   "name": "Split-level",
+   "kind": "house",
+   "biomes": [
+    "temperate",
+    "montane forest"
+   ],
+   "blurb": "A one-storey living wing beside a two-storey bedroom wing half a level up, the garage under it. Very 1970s.",
+   "glb": "split.glb",
+   "pieces": "split.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -8.06,
+     -0.3,
+     -5.6
+    ],
+    "hi": [
+     8.26,
+     7.058,
+     12
+    ]
+   },
+   "triangles": {
+    "LOD0": 5356,
+    "LOD1": 3612,
+    "LOD2": 28,
+    "FURN": 336,
+    "leaves": 108
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 358,
+   "surfaces": [
+    "brick",
+    "carpet",
+    "concrete",
+    "door",
+    "floorWood",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "paint",
+    "plaster",
+    "rubber",
+    "shingle",
+    "siding",
+    "soffit",
     "trim",
-    "wood",
-    "woodInt"
+    "wood"
+   ],
+   "signs": []
+  },
+  {
+   "id": "split_b",
+   "name": "Split-level, hip roofs",
+   "kind": "house",
+   "variant_of": "split",
+   "variant": 1,
+   "biomes": [
+    "temperate",
+    "montane forest"
+   ],
+   "blurb": "A one-storey living wing beside a two-storey bedroom wing half a level up, the garage under it. Very 1970s.",
+   "glb": "split_b.glb",
+   "pieces": "split_b.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -8.06,
+     -0.3,
+     -5.6
+    ],
+    "hi": [
+     8.26,
+     6.998,
+     12
+    ]
+   },
+   "triangles": {
+    "LOD0": 6284,
+    "LOD1": 4492,
+    "LOD2": 28,
+    "FURN": 336,
+    "leaves": 108
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 474,
+   "surfaces": [
+    "carpet",
+    "concrete",
+    "door",
+    "floorWood",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "paint",
+    "plaster",
+    "rubber",
+    "shingle",
+    "shutter",
+    "siding",
+    "soffit",
+    "trim",
+    "wood"
+   ],
+   "signs": []
+  },
+  {
+   "id": "split_c",
+   "name": "Split-level, board and batten",
+   "kind": "house",
+   "variant_of": "split",
+   "variant": 2,
+   "biomes": [
+    "temperate",
+    "montane forest"
+   ],
+   "blurb": "A one-storey living wing beside a two-storey bedroom wing half a level up, the garage under it. Very 1970s.",
+   "glb": "split_c.glb",
+   "pieces": "split_c.pieces.json",
+   "bounds_m": {
+    "lo": [
+     -8.06,
+     -0.3,
+     -5.6
+    ],
+    "hi": [
+     8.26,
+     7.316,
+     12
+    ]
+   },
+   "triangles": {
+    "LOD0": 5704,
+    "LOD1": 3888,
+    "LOD2": 28,
+    "FURN": 336,
+    "leaves": 108
+   },
+   "budget_triangles": {
+    "LOD0": 16000,
+    "LOD1": 7000,
+    "LOD2": 120
+   },
+   "piece_count": 382,
+   "surfaces": [
+    "board",
+    "brick",
+    "carpet",
+    "concrete",
+    "door",
+    "floorWood",
+    "glass",
+    "glassDark",
+    "lamp",
+    "metal",
+    "paint",
+    "plaster",
+    "rubber",
+    "shingle",
+    "soffit",
+    "trim",
+    "wood"
    ],
    "signs": []
   },
@@ -307,27 +712,26 @@
     ]
    },
    "triangles": {
-    "LOD0": 4456,
+    "LOD0": 4072,
     "LOD1": 2972,
-    "LOD2": 20
+    "LOD2": 20,
+    "FURN": 288,
+    "leaves": 96
    },
    "budget_triangles": {
     "LOD0": 16000,
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 228,
+   "piece_count": 231,
    "surfaces": [
     "adobe",
     "concrete",
-    "door",
     "fabric",
     "floorTile",
     "floorWood",
     "glass",
-    "glassDark",
     "lamp",
-    "metal",
     "plaster",
     "roofing",
     "trim",
@@ -359,27 +763,25 @@
     ]
    },
    "triangles": {
-    "LOD0": 4462,
+    "LOD0": 4270,
     "LOD1": 2104,
-    "LOD2": 14
+    "LOD2": 14,
+    "FURN": 132,
+    "leaves": 60
    },
    "budget_triangles": {
     "LOD0": 16000,
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 400,
+   "piece_count": 402,
    "surfaces": [
     "board",
     "concrete",
     "deck",
-    "door",
-    "fabric",
     "floorWood",
     "glass",
-    "glassDark",
     "lamp",
-    "metal",
     "metalRoof",
     "plaster",
     "shutter",
@@ -412,24 +814,24 @@
     ]
    },
    "triangles": {
-    "LOD0": 4386,
+    "LOD0": 4074,
     "LOD1": 2496,
-    "LOD2": 14
+    "LOD2": 14,
+    "FURN": 240,
+    "leaves": 72
    },
    "budget_triangles": {
     "LOD0": 16000,
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 341,
+   "piece_count": 343,
    "surfaces": [
     "concrete",
     "deck",
-    "door",
     "fabric",
     "floorWood",
     "glass",
-    "glassDark",
     "lamp",
     "metal",
     "metalRoof",
@@ -467,22 +869,21 @@
     ]
    },
    "triangles": {
-    "LOD0": 2304,
+    "LOD0": 2112,
     "LOD1": 1728,
-    "LOD2": 10
+    "LOD2": 10,
+    "FURN": 156,
+    "leaves": 36
    },
    "budget_triangles": {
     "LOD0": 16000,
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 94,
+   "piece_count": 95,
    "surfaces": [
     "carpet",
     "concrete",
-    "counter",
-    "door",
-    "fabric",
     "glass",
     "glassDark",
     "lamp",
@@ -493,7 +894,6 @@
     "rubber",
     "skirt",
     "trim",
-    "wood",
     "woodInt"
    ],
    "signs": []
@@ -521,20 +921,20 @@
     ]
    },
    "triangles": {
-    "LOD0": 3370,
+    "LOD0": 2422,
     "LOD1": 1898,
-    "LOD2": 10
+    "LOD2": 10,
+    "FURN": 912,
+    "leaves": 36
    },
    "budget_triangles": {
     "LOD0": 16000,
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 248,
+   "piece_count": 249,
    "surfaces": [
     "concrete",
-    "counter",
-    "fabric",
     "floorTile",
     "glass",
     "glassDark",
@@ -575,22 +975,21 @@
     ]
    },
    "triangles": {
-    "LOD0": 4596,
-    "LOD1": 1690,
-    "LOD2": 10
+    "LOD0": 2436,
+    "LOD1": 1774,
+    "LOD2": 10,
+    "FURN": 2112,
+    "leaves": 132
    },
    "budget_triangles": {
     "LOD0": 16000,
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 139,
+   "piece_count": 142,
    "surfaces": [
     "block",
     "concrete",
-    "counter",
-    "door",
-    "fabric",
     "floorTile",
     "glass",
     "glassDark",
@@ -599,7 +998,6 @@
     "metal",
     "paint",
     "plaster",
-    "product",
     "roofing",
     "rubber",
     "sign:1.09 9/10|#1c1c1c|#ffd34a|0",
@@ -607,8 +1005,7 @@
     "sign:CRESCENT|#2f8a48|#ffffff|0",
     "sign:FOOD MART|#2f8a48|#ffffff|0",
     "sign:ICE|#2f6f8f|#ffffff|0",
-    "trim",
-    "wood"
+    "trim"
    ],
    "signs": [
     "1.09 9/10",
@@ -641,22 +1038,22 @@
     ]
    },
    "triangles": {
-    "LOD0": 5680,
-    "LOD1": 2524,
-    "LOD2": 10
+    "LOD0": 3376,
+    "LOD1": 2608,
+    "LOD2": 10,
+    "FURN": 2268,
+    "leaves": 120
    },
    "budget_triangles": {
     "LOD0": 16000,
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 192,
+   "piece_count": 195,
    "surfaces": [
     "awning:#c23b30",
     "brick",
     "concrete",
-    "counter",
-    "door",
     "fabric",
     "floorTile",
     "floorWood",
@@ -666,11 +1063,9 @@
     "metal",
     "paint",
     "plaster",
-    "product",
     "roofing",
     "sign:GROCERY|#2a2f2a|#f2d06a|0",
-    "trim",
-    "wood"
+    "trim"
    ],
    "signs": [
     "GROCERY"
@@ -700,22 +1095,22 @@
     ]
    },
    "triangles": {
-    "LOD0": 4070,
+    "LOD0": 3758,
     "LOD1": 2784,
-    "LOD2": 10
+    "LOD2": 10,
+    "FURN": 252,
+    "leaves": 60
    },
    "budget_triangles": {
     "LOD0": 16000,
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 208,
+   "piece_count": 210,
    "surfaces": [
     "block",
     "concrete",
     "corrugated",
-    "door",
-    "fabric",
     "glass",
     "glassDark",
     "glassShop",
@@ -726,8 +1121,7 @@
     "roofing",
     "rubber",
     "sign:AUTO REPAIR|#1d4f8f|#ffffff|0",
-    "trim",
-    "wood"
+    "trim"
    ],
    "signs": [
     "AUTO REPAIR"
@@ -757,9 +1151,11 @@
     ]
    },
    "triangles": {
-    "LOD0": 13570,
-    "LOD1": 7760,
-    "LOD2": 20
+    "LOD0": 11950,
+    "LOD1": 7844,
+    "LOD2": 20,
+    "FURN": 1260,
+    "leaves": 444
    },
    "budget_triangles": {
     "LOD0": 16000,
@@ -767,13 +1163,11 @@
     "LOD2": 120,
     "why": "28 rooms over 37 m: about three times the facade of the next largest type"
    },
-   "piece_count": 895,
+   "piece_count": 911,
    "surfaces": [
     "block",
     "carpet",
     "concrete",
-    "counter",
-    "door",
     "fabric",
     "floorTile",
     "glass",
@@ -790,8 +1184,7 @@
     "soffit",
     "tile",
     "trim",
-    "water",
-    "wood"
+    "water"
    ],
    "signs": [
     "MOTEL",
@@ -821,22 +1214,22 @@
     ]
    },
    "triangles": {
-    "LOD0": 8054,
-    "LOD1": 3416,
-    "LOD2": 10
+    "LOD0": 3914,
+    "LOD1": 3752,
+    "LOD2": 10,
+    "FURN": 4092,
+    "leaves": 384
    },
    "budget_triangles": {
     "LOD0": 16000,
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 229,
+   "piece_count": 237,
    "surfaces": [
     "asphalt",
     "block",
     "concrete",
-    "counter",
-    "fabric",
     "floorTile",
     "glassDark",
     "glassShop",
@@ -844,7 +1237,6 @@
     "metal",
     "paint",
     "plaster",
-    "product",
     "roofing",
     "rubber",
     "shingle",
@@ -887,21 +1279,21 @@
     ]
    },
    "triangles": {
-    "LOD0": 1583,
-    "LOD1": 1020,
-    "LOD2": 10
+    "LOD0": 1199,
+    "LOD1": 1104,
+    "LOD2": 10,
+    "FURN": 372,
+    "leaves": 96
    },
    "budget_triangles": {
     "LOD0": 16000,
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 114,
+   "piece_count": 116,
    "surfaces": [
     "asphalt",
     "concrete",
-    "counter",
-    "fabric",
     "floorTile",
     "glass",
     "glassDark",
@@ -950,16 +1342,18 @@
     ]
    },
    "triangles": {
-    "LOD0": 1362,
+    "LOD0": 1254,
     "LOD1": 968,
-    "LOD2": 10
+    "LOD2": 10,
+    "FURN": 84,
+    "leaves": 24
    },
    "budget_triangles": {
     "LOD0": 16000,
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 98,
+   "piece_count": 99,
    "surfaces": [
     "block",
     "concrete",
@@ -975,7 +1369,6 @@
     "rubber",
     "sign:FEED & SEED|#6a2a24|#f2e8c8|0",
     "trim",
-    "wood",
     "woodInt"
    ],
    "signs": [

@@ -171,6 +171,28 @@ impl StreetDoor {
         }
     }
 
+    /// A single leaf hung at `hinge` (x, z), shut along `shut` for `width_m`, opening into `inward`, its sill
+    /// at `y0` and head at `y1`, standing while `hold` stands; it may swing out of the building by up to
+    /// `out_max_deg`. Shut. (A house's doors, `small_buildings::walk`, in the house's frame.)
+    pub fn hung(hinge: Vec2, shut: Vec2, width_m: f32, inward: Vec2, y0: f32, y1: f32, hold: Anchor, out_max_deg: f32) -> Self {
+        Self {
+            leaves: vec![Leaf { hinge, shut, width_m }],
+            inward,
+            along: shut,
+            centre: hinge + shut * (width_m * 0.5),
+            half_width_m: width_m * 0.5,
+            y0,
+            y1,
+            hold,
+            out_max_deg,
+            phase: DoorPhase::Closed,
+            angle_deg: 0.0,
+            prev_angle_deg: 0.0,
+            swing: 1.0,
+            hold_s: 0.0,
+        }
+    }
+
     /// Unit, from leaf `i`'s hinge to its free edge at `angle_deg`.
     pub fn leaf_dir(&self, i: usize, angle_deg: f32) -> Vec2 {
         let (s, c) = angle_deg.to_radians().sin_cos();

@@ -100,10 +100,19 @@ fn stream_colliders(
     }
     let keep = inside.cfg.collision_radius_m + inside.cfg.collision_margin_m;
     jobs.0.retain(|&b, _| plan.0.buildings[b as usize].footprint.distance(here) <= keep);
+    // The houses and small businesses: built in the step (a few thousand boxes each), again when damage changes one.
+    for (lot, _) in inside.wanted_houses(true, here, &plan.0) {
+        let version = live.structures.houses.version(lot);
+        if inside.houses.get(&lot).is_some_and(|(_, v)| *v == version) {
+            continue;
+        }
+        let w = cb_core::world::small_buildings::walk::walkable(plan.0.small.kit(lot), lot, live.structures.houses.alive(lot), &inside.cfg);
+        inside.houses.insert(lot, (w, version));
+    }
 }
 
 /// Swings the street doors of the buildings round a pilot on foot (module docs).
-fn swing_doors(pilot: Res<PilotSim>, data: Res<Data>, time: Res<Time<Fixed>>, mut colliders: ResMut<InteriorColliders>) {
+fn swing_doors(pilot: Res<PilotSim>, data: Res<Data>, plan: Res<Plan>, time: Res<Time<Fixed>>, mut colliders: ResMut<InteriorColliders>) {
     let p = &pilot.curr;
     if p.mode != PilotMode::OnFoot {
         return;
@@ -115,5 +124,8 @@ fn swing_doors(pilot: Res<PilotSim>, data: Res<Data>, time: Res<Time<Fixed>>, mu
     };
     for (b, event) in colliders.0.step_doors(Some(body), time.delta_secs()) {
         debug!("building {b}: street door {event:?}");
+    }
+    for (lot, event) in colliders.0.step_house_doors(Some(body), &plan.0, time.delta_secs()) {
+        debug!("lot {lot}: door {event:?}");
     }
 }

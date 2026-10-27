@@ -65,7 +65,7 @@ aside { display: grid; gap: 8px; min-width: 0; max-height: 1100px; overflow: aut
 <header>
   <div class="eyebrow">Crab Breeze · openspec small-buildings · mockup</div>
   <h1>Main Street: houses, shops, and shooting them</h1>
-  <p class="lede">Seventeen 1980s building types for the island's towns, roadsides, beaches, jungle and desert, built from one kit of parts: walls with real openings, framed and sashed windows with sills and glass you see through, doors and shop fronts, five roof families, porches, interiors with furniture, neon signs, and cars. Walk the street at the pilot's eye, stand at a mech's eye, light it at dusk, or cut it away to see the floor plans. Textures are canvas stand-ins with normal maps for the Material Maker sets.</p>
+  <p class="lede">Sixteen 1980s building types (the four suburban houses in three variants each, in the row behind) for the island's towns, roadsides, beaches, jungle and desert, built from one kit of parts: walls with real openings, framed and sashed windows with sills and glass you see through, doors and shop fronts, five roof families, porches, interiors with furniture, neon signs, and cars. Walk the street at the pilot's eye, stand at a mech's eye, light it at dusk, or cut it away to see the floor plans. Textures are canvas stand-ins with normal maps for the Material Maker sets.</p>
 </header>
 
 <div class="wrap">
@@ -103,7 +103,7 @@ aside { display: grid; gap: 8px; min-width: 0; max-height: 1100px; overflow: aut
 </div>
 
 <div class="foot">
-  <div>Source: <code>docs/mockups/small_buildings.html</code> and <code>docs/mockups/small_buildings_kit.js</code> (the parts and the seventeen types). Design: <code>openspec/changes/small-buildings</code>. Research and sources: <code>docs/analysis/small-buildings.md</code>.</div>
+  <div>Source: <code>docs/mockups/small_buildings.html</code> and <code>docs/mockups/small_buildings_kit.js</code> (the parts and the sixteen types). Design: <code>openspec/changes/small-buildings</code>. Research and sources: <code>docs/analysis/small-buildings.md</code>.</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
@@ -310,6 +310,14 @@ function layStreet() {
     const tris = Object.values(B.parts).reduce((s, a) => s + a.p.length / 9, 0);
     rows[T.kind].push({ T, B, b, tris });
   }
+  // The suburban houses' variants (owner, 2026-10-26: "we may need a few variations of the subrabn house"): a second
+  // row behind the houses, facing the same way.
+  rows.variant = [];
+  for (const T of K.TYPES) (T.variants || []).forEach((name, i) => {
+    const B = K.build(T.id, 7, M, i + 1);
+    const tris = Object.values(B.parts).reduce((s, a) => s + a.p.length / 9, 0);
+    rows.variant.push({ T: Object.assign({}, T, { id: K.variantId(T.id, i + 1), name }), B, b: boundsOf(B), tris });
+  });
   for (const [kind, list] of Object.entries(rows)) {
     const widths = list.map((e) => e.b.hi[0] - e.b.lo[0]);
     const gap = 7;
@@ -317,7 +325,7 @@ function layStreet() {
     let x = -total / 2;
     list.forEach((e, i) => {
       const rot = kind === 'business';
-      const front = ROAD_HALF + WALK + 1.0;
+      const front = ROAD_HALF + WALK + 1.0 + (kind === 'variant' ? 30 : 0);
       const cx = x - e.b.lo[0];                 // local x = lo lands at x
       const oz = rot ? front + e.b.hi[2] : -(front + e.b.hi[2]);
       const ox = rot ? x + e.b.hi[0] : cx;      // a half turn mirrors x, so the right edge lands at x

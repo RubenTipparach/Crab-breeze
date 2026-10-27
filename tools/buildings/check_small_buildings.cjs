@@ -47,26 +47,37 @@ for (const T of manifest.types) {
       tris[n.name] += idx.length / 3;
     }
   });
-  for (const [l, n] of Object.entries(tris)) {
-    if (n !== T.triangles[l]) fail(T.id, `${l} has ${n} triangles, manifest says ${T.triangles[l]}`);
-    if (n > T.budget_triangles[l]) fail(T.id, `${l} ${n} over budget ${T.budget_triangles[l]}`);
-  }
+  // Leaves are summed; LOD0's budget counts what is drawn within 150 m (the shell, its leaves, its block furniture).
+  const leafTris = Object.entries(tris).filter(([k]) => k.startsWith('LEAF')).reduce((s, [, n]) => s + n, 0);
+  const got = { LOD0: tris.LOD0, LOD1: tris.LOD1, LOD2: tris.LOD2, FURN: tris.FURN || 0, leaves: leafTris };
+  for (const [l, n] of Object.entries(got)) if (n !== T.triangles[l]) fail(T.id, `${l} has ${n} triangles, manifest says ${T.triangles[l]}`);
+  const drawn = { LOD0: got.LOD0 + got.FURN + leafTris, LOD1: got.LOD1, LOD2: got.LOD2 };
+  for (const [l, n] of Object.entries(drawn)) if (n > T.budget_triangles[l]) fail(T.id, `${l} ${n} over budget ${T.budget_triangles[l]}`);
   // The piece table against LOD0.
   const table = JSON.parse(fs.readFileSync(path.join(DIR, T.pieces), 'utf8'));
-  const lod0 = g.json.meshes[g.json.nodes.find((n) => n.name === 'LOD0').mesh];
-  const prims = lod0.primitives.map((p) => p.extras.surface);
+  // Every node a piece's runs can point into: LOD0, FURN and each LEAF. Runs must cover them exactly once.
+  const meshOf = (name) => { const n = g.json.nodes.find((x) => x.name === name); return n ? g.json.meshes[n.mesh] : null; };
+  const prims = meshOf('LOD0').primitives.map((p) => p.extras.surface);
   if (JSON.stringify(prims) !== JSON.stringify(table.primitives)) fail(T.id, 'piece table primitives differ from LOD0');
-  const covered = lod0.primitives.map((p) => new Uint8Array(g.json.accessors[p.indices].count / 3));
+  const furnMesh = meshOf('FURN');
+  if (JSON.stringify(furnMesh ? furnMesh.primitives.map((p) => p.extras.surface) : []) !== JSON.stringify(table.furn_primitives)) fail(T.id, 'furn_primitives differ from FURN');
+  const covered = {};
+  for (const n of g.json.nodes) if (n.name === 'LOD0' || n.name === 'FURN' || n.name.startsWith('LEAF')) covered[n.name] = g.json.meshes[n.mesh].primitives.map((p) => new Uint8Array(g.json.accessors[p.indices].count / 3));
   const ids = new Set(table.pieces.map((p) => p.id));
   for (const p of table.pieces) {
+    const node = p.node || 'LOD0';
+    if (p.leaf != null) { for (const c of covered[node] || []) c.fill(1); if (!covered[node]) fail(T.id, `piece ${p.id}: no ${node}`); }
     for (const [pi, start, count] of p.runs) {
-      if (!covered[pi] || start + count > covered[pi].length) { fail(T.id, `piece ${p.id} run out of range`); continue; }
-      for (let t = start; t < start + count; t++) covered[pi][t]++;
+      const c = (covered[node] || [])[pi];
+      if (!c || start + count > c.length) { fail(T.id, `piece ${p.id} run out of range in ${node}`); continue; }
+      for (let t = start; t < start + count; t++) c[t]++;
     }
     for (const q of [...p.up, ...p.side]) if (!ids.has(q)) fail(T.id, `piece ${p.id} links to missing ${q}`);
   }
-  covered.forEach((c, pi) => { for (const v of c) if (v !== 1) { fail(T.id, `primitive ${prims[pi]}: a triangle is in ${v} pieces`); break; } });
-  console.log(`${T.id.padEnd(9)} ok  LOD0 ${tris.LOD0}  LOD1 ${tris.LOD1}  LOD2 ${tris.LOD2}  pieces ${table.pieces.length}`);
+  for (const [node, list] of Object.entries(covered)) list.forEach((c, pi) => { for (const v of c) if (v !== 1) { fail(T.id, `${node} primitive ${pi}: a triangle is in ${v} pieces`); break; } });
+  for (const L of table.leaves) if (!ids.has(L.piece) || !(L.width_m > 0.3) || !(L.height_m > 1.5)) fail(T.id, `leaf of piece ${L.piece} is not a door`);
+  for (const F of table.furniture) if (!ids.has(F.piece) || !F.item) fail(T.id, `furniture ${F.item} of piece ${F.piece}`);
+  console.log(`${T.id.padEnd(11)} ok  LOD0 ${tris.LOD0}  LOD1 ${tris.LOD1}  LOD2 ${tris.LOD2}  pieces ${table.pieces.length}`);
 }
 
 // An independent reader: three.js's GLTFLoader.
