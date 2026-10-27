@@ -24,7 +24,11 @@
 
   // ------------------------------------------------------------------ the geometry gatherer
   class Builder {
-    constructor() { this.parts = {}; this.tint = [1, 1, 1]; this.count = 0; this.pid = 0; this.cur = -1; this.meta = []; this.tags = []; this.volumes = []; this.boxes = []; this.nonBox = []; this.inBox = false; this.inside = INSIDE[0]; this.ceiling = CEILING; }
+    constructor() { this.parts = {}; this.tint = [1, 1, 1]; this.count = 0; this.pid = 0; this.cur = -1; this.meta = []; this.tags = []; this.volumes = []; this.boxes = []; this.nonBox = []; this.inBox = false; this.inside = INSIDE[0]; this.ceiling = CEILING;
+      // How it is reached (openspec change lot-access): a house's { drive: [x, width_m] }, its slab running to the kit's
+      // front edge (greatest z) where the game paves on to the street; a business's { lot: z, stalls }, where the game's car
+      // park starts in front of it (the building's front, or the end of the kit's own apron), striped unless stalls is false.
+      this.access = null; }
     color(h) { this.tint = typeof h === 'number' ? hex(h) : h; return this; }
     arr(mat) { return this.parts[mat] || (this.parts[mat] = { p: [], n: [], u: [], c: [], t: [] }); }
     // Pieces: what breaks off together (a wall segment, a window, a roof plane, a sofa, a car).
@@ -677,6 +681,7 @@
           B.color(0xf4f1ea); B.box('trim', 4.02, 2.45, 4.7, 8.32, 2.72, 4.78);
           B.color(0xb8b2a6); B.box('concrete', 4.2, 0, -3.6, 8.1, 0.06, 12);
           car(B, 6.15, 0.6, 0, pick(rnd, CARS), pick(rnd, ['sedan', 'pickup']));
+          B.access = { drive: [6.15, 3.9] };
           return;
         }
         if (v === 2) {
@@ -684,13 +689,15 @@
           const roof = pick(rnd, [0x4a4744, 0x5a4a3c, 0x3c4048]);
           house(B, rnd, { x: -3.0, w: 11.0, d: 9.0, wall: 'siding', tint: paint, front: [[['win', 1.2, 1.3, 0.9], ['door', 0.95, 2.1, 0, { lite: true, doorTint: pick(rnd, [0x2c4a3a, 0x7a2a24]) }], ['win', 1.2, 1.3, 0.9], ['win', 1.2, 1.3, 0.9]]], roof: { type: 'hip', pitch: 0.33, over: 0.6, tint: roof }, plan: [['kitchen', 'living', 'bed']], blankRight: true, lintel: 'concrete', lintelTint: 0xd8d2c6, antenna: true });
           house(B, rnd, { x: 5.0, z: 1.75, w: 5.0, d: 9.5, wall: 'brick', front: [[['pic', 2.6, 1.5, 0.75]]], sideWin: 2, roof: { type: 'gable', ridge: 'z', pitch: 0.45, over: 0.5, tint: roof }, plan: [['bed']], blankLeft: true, lintel: 'concrete', lintelTint: 0xd8d2c6, chimney: { x: 6.79, z: -1.5 } });
-          car(B, 1.2, 9.0, 1, pick(rnd, CARS), 'sedan');
+          B.color(0xb8b2a6); B.box('concrete', -0.6, 0, 5.4, 2.4, 0.06, 12); car(B, 0.9, 8.8, 0, pick(rnd, CARS), 'sedan');
+          B.access = { drive: [0.9, 3.0] };
           return;
         }
         house(B, rnd, { x: -2.2, w: 12.5, d: 9.5, wall: 'brick', front: [[['pic', 3.2, 1.6, 0.75], ['door', 0.95, 2.1, 0, { lite: true, doorTint: pick(rnd, [0x7a2a24, 0x2c4a3a, 0x3a3a3a]) }], ['win', 1.2, 1.3, 0.9], ['win', 1.2, 1.3, 0.9]]], roof: { type: 'hip', pitch: 0.33, over: 0.7, tint: pick(rnd, [0x4a4744, 0x5a4a3c, 0x3c4048]) }, plan: [['living', 'kitchen', 'bed', 'bed']], blankRight: true, chimney: { x: -5.6 }, lintel: 'concrete', lintelTint: 0xd8d2c6, antenna: true });
         house(B, rnd, { x: 6.025, w: 3.95, d: 7.5, z: -1.0, wall: 'siding', tint: PAINT.cream, base: 0.1, front: [[['garage', 2.9, 2.2, 0]]], sideWin: 1, back: [[['door', 0.9, 2.1, 0]]], roof: { type: 'gable', ridge: 'z', pitch: 0.33, over: 0.5, tint: 0x4a4744 }, plan: [[]], floorMat: 'concrete', blankLeft: true });
         B.color(0xb8b2a6); B.box('concrete', 4.2, 0, 2.75, 7.8, 0.06, 12);
         car(B, 6.0, 7.5, 0, pick(rnd, CARS), 'sedan');
+        B.access = { drive: [6.0, 3.6] };
       } },
     { id: 'colonial', name: 'Colonial', kind: 'house', biome: 'temperate', size: [12, 9], blurb: 'Two storeys, five bays of shuttered windows, a centre door under a columned portico, white clapboard and end chimneys.',
       // Variants: b, red brick, three bays and a one-storey sunroom wing; c, painted clapboard behind a full-width
@@ -702,6 +709,8 @@
           const r = house(B, rnd, { x: -1.0, w: 9.0, d: 8.0, floors: 2, wall: 'brick', shutters, front: [[['win', 1.0, 1.55, 0.8], ['door', 1.0, 2.2, 0, { lite: true, doorTint: pick(rnd, [0x2a2a2a, 0x5a2a24, 0x2c4a3a]) }], ['win', 1.0, 1.55, 0.8]], [['win', 1.0, 1.45, 0.8], ['win', 0.8, 1.2, 0.95], ['win', 1.0, 1.45, 0.8]]], roof: { type: 'gable', pitch: 0.62, over: 0.35, overEnd: 0.25, tint: 0x3a3c40 }, plan: [['living', 'stair', 'kitchen'], ['bed', 'bed']], chimney: { x: -4.8 }, lintel: 'concrete', lintelTint: 0xe6e0d4 });
           house(B, rnd, { x: 5.2, z: -0.8, w: 3.4, d: 6.0, wall: 'siding', tint: PAINT.white, front: [[['win', 1.0, 1.6, 0.6], ['win', 1.0, 1.6, 0.6]]], sideWin: 2, roof: { type: 'hip', pitch: 0.3, over: 0.35, tint: 0x3a3c40 }, plan: [['living']], blankLeft: true });
           B.color(0xb8b2a6); B.box('concrete', -1.6, 0, r.z1 + 1.1, -0.4, 0.04, 12);
+          B.color(0xb8b2a6); B.box('concrete', 7.6, 0, -1, 10.6, 0.06, 12); car(B, 9.1, 7.5, 0, pick(rnd, CARS), 'sedan');
+          B.access = { drive: [9.1, 3.0] };
           return;
         }
         if (v === 2) {
@@ -710,6 +719,7 @@
           house(B, rnd, { x: 5.2, z: -0.6, w: 4.4, d: 7.0, wall: 'siding', tint: paint, base: 0.1, front: [[['garage', 3.0, 2.2, 0]]], sideWin: 1, back: [[['door', 0.9, 2.1, 0]]], roof: { type: 'gable', ridge: 'z', pitch: 0.4, over: 0.45, tint: 0x4a4744 }, plan: [[]], floorMat: 'concrete', blankLeft: true });
           B.color(0xb8b2a6); B.box('concrete', 3.4, 0, 2.9, 7.0, 0.06, 12);
           car(B, 5.2, 7.6, 0, pick(rnd, CARS), 'sedan');
+          B.access = { drive: [5.2, 3.6] };
           return;
         }
         const r = house(B, rnd, { w: 11.5, d: 8.4, floors: 2, wall: 'siding', tint: PAINT.white, shutters: pick(rnd, [0x2c3a2c, 0x2a2f3a, 0x5a2a24]), front: [[['win', 1.0, 1.55, 0.8], ['win', 1.0, 1.55, 0.8], ['door', 1.0, 2.2, 0, { doorTint: 0x2a2a2a }], ['win', 1.0, 1.55, 0.8], ['win', 1.0, 1.55, 0.8]], [['win', 1.0, 1.45, 0.8], ['win', 1.0, 1.45, 0.8], ['win', 0.8, 1.2, 0.95], ['win', 1.0, 1.45, 0.8], ['win', 1.0, 1.45, 0.8]]], roof: { type: 'gable', pitch: 0.62, over: 0.4, overEnd: 0.25, tint: 0x3a3c40 }, plan: [['living', 'stair', 'kitchen'], ['bed', 'bed', 'bed']], chimney: { x: 6.2 } });
@@ -721,6 +731,8 @@
         B.color(0x3a3c40); slope(B, 'shingle', [[-1.45, 3.25, r.z1 + 1.65], [0, 3.97, r.z1 + 1.65], [0, 3.97, r.z1 + 0.02], [-1.45, 3.25, r.z1 + 0.02]]); slope(B, 'shingle', [[0, 3.97, r.z1 + 1.65], [1.45, 3.25, r.z1 + 1.65], [1.45, 3.25, r.z1 + 0.02], [0, 3.97, r.z1 + 0.02]]);
         B.color(0xbab4aa); B.box('concrete', -1.5, 0, r.z1, 1.5, 0.45, r.z1 + 1.9);
         B.color(0xb8b2a6); B.box('concrete', -0.6, 0, r.z1 + 1.9, 0.6, 0.04, 12);
+        B.color(0xb8b2a6); B.box('concrete', 7.0, 0, -1, 10.0, 0.06, 12); car(B, 8.5, 7.5, 0, pick(rnd, CARS), 'sedan');
+        B.access = { drive: [8.5, 3.0] };
       } },
     { id: 'bungalow', name: 'Craftsman bungalow', kind: 'house', biome: 'temperate, coast, montane forest', size: [9.5, 13], blurb: 'Gable to the street, a deep full-width porch on tapered posts and brick piers, painted siding and a big front window.',
       // Variants: b, a hip roof over a porch on plain posts; c, a side gable in brick, the porch across the front.
@@ -728,19 +740,26 @@
       build(B, rnd, M, v = 0) {
         if (v === 1) {
           house(B, rnd, { w: 10.0, d: 10.5, wall: 'siding', tint: pick(rnd, [PAINT.mint, PAINT.coral, PAINT.cream, PAINT.blue]), trim: 0xf4f1ea, front: [[['win', 1.1, 1.5, 0.75], ['door', 1.0, 2.15, 0, { lite: true, doorTint: pick(rnd, [0x6b3b22, 0x2c4a3a]) }], ['win', 1.1, 1.5, 0.75]]], roof: { type: 'hip', pitch: 0.42, over: 0.7, tint: pick(rnd, [0x4a3a30, 0x3c4048]) }, plan: [['bed', 'living', 'kitchen']], sideWin: 3, porch: { d: 2.4, x0: -3.6, x1: 3.6, postTint: 0xf4f1ea }, chimney: { x: 3.6, z: -2 } });
+          B.color(0xb8b2a6); B.box('concrete', 6.2, 0, -2, 9.2, 0.06, 12); car(B, 7.7, 6.5, 0, pick(rnd, CARS), 'sedan');
+          B.access = { drive: [7.7, 3.0] };
           return;
         }
         if (v === 2) {
           house(B, rnd, { w: 11.0, d: 9.0, wall: 'brick', trim: 0xf4f1ea, front: [[['pic', 2.2, 1.5, 0.75], ['door', 1.0, 2.15, 0, { lite: true, doorTint: pick(rnd, [0x6b3b22, 0x7a2a24]) }], ['win', 1.1, 1.5, 0.75], ['win', 1.1, 1.5, 0.75]]], roof: { type: 'gable', ridge: 'x', pitch: 0.55, over: 0.6, overEnd: 0.4, tint: pick(rnd, [0x4a3a30, 0x5a4a3c]) }, plan: [['living', 'kitchen', 'bed']], sideWin: 2, porch: { d: 2.4, piers: true, postTint: pick(rnd, [0xf4f1ea, 0x6b4a2a]) }, chimney: { x: -6.0 }, lintel: 'concrete', lintelTint: 0xd8d2c6 });
+          B.color(0xb8b2a6); B.box('concrete', 6.6, 0, -2, 9.6, 0.06, 12); car(B, 8.1, 6.5, 0, pick(rnd, CARS), 'sedan');
+          B.access = { drive: [8.1, 3.0] };
           return;
         }
         house(B, rnd, { w: 9.2, d: 12, wall: 'siding', tint: pick(rnd, [PAINT.sage, PAINT.blue, PAINT.yellow]), trim: 0xf4f1ea, front: [[['win', 1.0, 1.5, 0.75], ['door', 1.0, 2.15, 0, { lite: true, doorTint: 0x6b3b22 }], ['pic', 2.2, 1.5, 0.75]]], roof: { type: 'gable', ridge: 'z', pitch: 0.5, over: 0.7, tint: 0x4a3a30 }, plan: [['bed', 'living', 'kitchen']], sideWin: 3, porch: { d: 2.6, piers: true, postTint: 0xf4f1ea }, chimney: { x: -5.0, z: -2 } });
+        B.color(0xb8b2a6); B.box('concrete', 5.8, 0, -2, 8.8, 0.06, 12); car(B, 7.3, 6.5, 0, pick(rnd, CARS), 'sedan');
+        B.access = { drive: [7.3, 3.0] };
       } },
     { id: 'split', name: 'Split-level', kind: 'house', biome: 'temperate, montane forest', size: [16, 9], blurb: 'A one-storey living wing beside a two-storey bedroom wing half a level up, the garage under it. Very 1970s.',
       // Variants: b, hip roofs and painted siding throughout; c, board and batten with gables to the street and a
       // chimney on the living wing.
       variants: ['Split-level, hip roofs', 'Split-level, board and batten'],
       build(B, rnd, M, v = 0) {
+        B.access = { drive: [3.85, 3.1] };
         if (v === 1 || v === 2) {
           const b = v === 2;
           const wall = b ? 'board' : 'siding';
@@ -777,6 +796,8 @@
         B.color(tint);
         for (const [x, z] of [[-7, 4.5], [5, 4.5], [-7, -4.5], [8, 2]]) B.cyl('adobe', 'y', [x, 0, z], 0.35, 0.2, 3.5, 10);
         B.color(0x5a7a4a); for (let i = 0; i < 5; i++) { const x = -6 + rnd() * 12, z = 7 + rnd() * 3; B.cyl('fabric', 'y', [x, 0, z], 0.12 + rnd() * 0.1, 0, 0.8 + rnd() * 1.4, 7); }
+        B.color(0xb8b2a6); B.box('concrete', -10.6, 0, -2, -7.6, 0.06, 12); car(B, -9.1, 6.5, 0, pick(rnd, CARS), 'pickup');
+        B.access = { drive: [-9.1, 3.0] };
       } },
     { id: 'stilt', name: 'Stilt house', kind: 'house', biome: 'jungle, swamp', size: [10, 10], blurb: 'Raised 2.4 m on timber piles over flood and swamp, plank walls, a steep corrugated hip roof and a veranda all round.',
       build(B, rnd) {
@@ -794,6 +815,8 @@
         B.box('wood', -0.68, 0, 4.5, -0.6, lift, 7); B.box('wood', 0.6, 0, 4.5, 0.68, lift, 7);
         // A dugout boat under the house.
         B.color(0x6a4a2a); B.box('wood', 1.2, 0, -1.5, 2.0, 0.4, 3.0);
+        B.color(0xb8b2a6); B.box('concrete', 6.0, 0, -2, 9.0, 0.06, 12); car(B, 7.5, 6.5, 0, pick(rnd, CARS), 'pickup');
+        B.access = { drive: [7.5, 3.0] };
       } },
     { id: 'beach', name: 'Beach cottage', kind: 'house', biome: 'beach', size: [9, 11], blurb: 'Pastel siding on concrete piers, a metal roof, louvred shutters and a screened porch across the front. Florida and the Gulf, 1980s.',
       build(B, rnd) {
@@ -805,6 +828,8 @@
         // Screen mesh on the porch (dark transparent).
         B.color(0xffffff); for (const x0 of [-4.1, 0.85]) B.box('screen', x0, 1.35, 6.4, x0 + 3.25, 3.4, 6.42);
         B.color(0x5a7a4a); B.cyl('wood', 'y', [-5.8, 0, 7], 0.15, 0, 6.5, 7); for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; B.box('fabric', -5.8 + Math.cos(a) * 1.1 - 0.2, 6.3, 7 + Math.sin(a) * 1.1 - 0.2, -5.8 + Math.cos(a) * 1.1 + 0.2, 6.45, 7 + Math.sin(a) * 1.1 + 0.2); }
+        B.color(0xb8b2a6); B.box('concrete', 5.3, 0, -1, 8.3, 0.06, 12); car(B, 6.8, 6.5, 0, pick(rnd, CARS), 'sedan');
+        B.access = { drive: [6.8, 3.0] };
       } },
     { id: 'trailer', name: 'Single-wide trailer', kind: 'house', biome: 'desert, savanna', size: [20, 6], blurb: 'A 1970s mobile home: ribbed metal siding with a two-tone stripe, small windows, a window air conditioner, skirting, metal steps and an awning.',
       build(B, rnd) {
@@ -827,7 +852,8 @@
         const dx = front[1].a; B.color(0x9a9ea2); for (let i = 0; i < 4; i++) B.box('metal', dx - 0.2, 0, z1 + 0.9 - i * 0.25, dx + 1.05, base - i * 0.19, z1 + 1.15 - i * 0.25);
         B.color(0xece6d8); B.box('metal', dx - 2.2, base + 2.35, z1, dx + 2.6, base + 2.42, z1 + 2.4);
         for (const x of [dx - 2.1, dx + 2.5]) B.box('metal', x - 0.04, 0, z1 + 2.3, x + 0.04, base + 2.35, z1 + 2.38);
-        car(B, x0 + 4.5, z1 + 4.5, 1, pick(rnd, CARS), 'pickup');
+        B.color(0xb8b2a6); B.box('concrete', x0 + 3, 0, z1 + 2.6, x0 + 6, 0.06, 12); car(B, x0 + 4.5, 7.6, 0, pick(rnd, CARS), 'pickup');
+        B.access = { drive: [x0 + 4.5, 3.0] };
       } },
     // ---------------------------------------------------------------- businesses
     { id: 'diner', name: 'Streamline diner', kind: 'business', biome: 'any roadside', size: [21, 8], blurb: 'Stainless steel with enamel stripes and rounded ends, a ribbon of windows over the booths, a counter with stools, and DINER in neon on the roof.',
@@ -875,6 +901,7 @@
         B.sign(M.sign('DINER', '#1c1c1c', '#ff5a4a', true), 0, top + 1.7, 0.13, 5.6, 1.3, '+z');
         B.sign(M.sign('DINER', '#1c1c1c', '#ff5a4a', true), 0, top + 1.7, -0.13, 5.6, 1.3, '-z');
         car(B, -6, z1 + 5.5, 0, pick(rnd, CARS)); car(B, 6.5, z1 + 5.5, 2, pick(rnd, CARS), 'pickup');
+        B.access = { lot: z1 + 1.6 };
       } },
     { id: 'gas', name: 'Gas station', kind: 'business', biome: 'any roadside', size: [24, 20], blurb: 'A flat canopy on four columns over two pump islands, a block kiosk with a glass front, a tall price sign, and an oil-stained apron.',
       build(B, rnd, M) {
@@ -903,6 +930,7 @@
         B.color(0xc23b30); B.box('metal', -10.5, 0, -2, -10.1, 1.3, -1.6);
         B.color(0xf0f0f0); B.box('metal', 5.2, 0.15, -4.5, 6.6, 1.2, -3.8); B.sign(M.sign('ICE', '#2f6f8f', '#ffffff'), 5.9, 0.8, -3.79, 1.2, 0.5, '+z');
         car(B, -3.2, 9.0, 0, pick(rnd, CARS)); car(B, 3.2, 4.0, 2, pick(rnd, CARS), 'pickup');
+        B.access = { lot: 14, stalls: false };
       } },
     { id: 'corner', name: 'Corner store', kind: 'business', biome: 'towns', size: [10, 14], blurb: 'Two storeys of brick: a glass shop front under a striped awning with GROCERY on the sign band, an apartment above, a corbelled cornice.',
       build(B, rnd, M) {
@@ -937,6 +965,7 @@
         B.color(0x2a2a2a); B.box('metal', x1, y1 + 0.0, -2.5, x1 + 1.1, y1 + 0.06, 2.5);
         for (let z = -2.5; z <= 2.5; z += 0.25) B.box('metal', x1 + 1.05, y1, z - 0.015, x1 + 1.08, y1 + 1.0, z + 0.015);
         B.box('metal', x1 + 1.03, y1 + 1.0, -2.5, x1 + 1.1, y1 + 1.05, 2.5);
+        B.access = { lot: z1 + 0.1 };
       } },
     { id: 'garage', name: 'Auto repair', kind: 'business', biome: 'towns, roadside', size: [16, 14], blurb: 'Painted concrete block with three roll-up doors, an office with a shop window, a sign band, a lift and tyre stacks inside.',
       build(B, rnd, M) {
@@ -949,6 +978,7 @@
         B.color(0x3a3a3a); for (let i = 0; i < 3; i++) B.box('concrete', -6 + rnd() * 9, 0.051, 7 + rnd() * 4, -5 + rnd() * 9, 0.052, 8 + rnd() * 4);
         car(B, 4.5, 9.5, 1, pick(rnd, CARS), 'pickup');
         for (let i = 0; i < 6; i++) { B.color(0x1c1c1c); B.cyl('rubber', 'y', [6.6 + (i % 2) * 0.75, 0, -6.2 - Math.floor(i / 2) * 0.75], 0.34, 0, 0.22 + (i % 3) * 0.22, 10); }
+        B.access = { lot: 13 };
       } },
     { id: 'motel', name: 'Motor court motel', kind: 'business', biome: 'roadside, beach', size: [32, 20], blurb: 'Two storeys of rooms off an open walkway with a railing, a door, window and air conditioner per room, the office at one end, a pool, and a neon MOTEL pylon.',
       build(B, rnd, M) {
@@ -992,6 +1022,7 @@
         B.sign(M.sign('VACANCY', '#1c1c1c', '#ff5aa8', true), px, 6.1, pz + 0.26, 4.0, 0.8, '+z');
         B.sign(M.sign('MOTEL', '#1c1c1c', '#4ae0ff', true), px, 7.6, pz - 0.26, 4.6, 1.8, '-z');
         for (let i = 0; i < 4; i++) car(B, x0 + 2 + i * 5.5, z1 + 3.6 + (i % 2 ? 0 : 0.2), 0, pick(rnd, CARS), i === 2 ? 'pickup' : 'sedan');
+        B.access = { lot: z1 + 2.0 };
       } },
     { id: 'strip', name: 'Strip mall', kind: 'business', biome: 'towns', size: [36, 18], blurb: 'Four shops under one shingled mansard band and a walkway canopy on posts: a laundromat, a video rental, a pizzeria and a hair salon.',
       build(B, rnd, M) {
@@ -1028,6 +1059,7 @@
         B.color(0x2b2b2b); B.box('asphalt', x0 - 2, 0, z1 + 3, x1 + 2, 0.04, z1 + 18);
         B.color(0xf2f0ea); for (let x = x0; x <= x1; x += 2.8) B.box('paint', x - 0.06, 0.041, z1 + 4, x + 0.06, 0.045, z1 + 9);
         for (let i = 0; i < 5; i++) car(B, x0 + 1.4 + Math.floor(rnd() * 11) * 2.8, z1 + 6.5, rnd() < 0.5 ? 0 : 2, pick(rnd, CARS), rnd() < 0.3 ? 'pickup' : 'sedan');
+        B.access = { lot: 24 };
       } },
     { id: 'drivein', name: 'Burger drive-in', kind: 'business', biome: 'roadside', size: [16, 16], blurb: 'A swooping roof rising to the street over a glass front, red and white panels, a drive-through window, and a big arrow sign.',
       build(B, rnd, M) {
@@ -1063,6 +1095,7 @@
         B.color(0x2b2b2b); B.box('asphalt', x1, 0, z0 - 2, x1 + 4, 0.04, z1 + 6);
         B.color(0x2a2a2a); B.box('metal', x1 + 3.3, 0, -4.5, x1 + 3.5, 2.2, -2.5); B.sign(M.sign('MENU', '#2a2a2a', '#ffd34a', true), x1 + 3.29, 1.6, -3.5, 1.9, 1.0, '-x');
         car(B, x1 + 2, 1.5, 0, pick(rnd, CARS));
+        B.access = { lot: 10.5 };
       } },
     { id: 'quonset', name: 'Quonset workshop', kind: 'business', biome: 'savanna, coast, any', size: [11, 22], blurb: 'A corrugated half-cylinder of war surplus, a block end wall with a sliding door and windows, now FEED & SEED.',
       build(B, rnd, M) {
@@ -1096,6 +1129,7 @@
         B.color(0xd8c8a0); for (let i = 0; i < 18; i++) B.box('fabric', -2 + (i % 6) * 0.65, 0.12 + Math.floor(i / 6) * 0.3, -7, -1.45 + (i % 6) * 0.65, 0.4 + Math.floor(i / 6) * 0.3, -6.2);
         for (let z = -7; z <= 7; z += 3.5) { B.color(0xfff6e0); B.box('lamp', -0.4, 0.12 + R - 0.4, z - 0.3, 0.4, 0.12 + R - 0.35, z + 0.3); }
         car(B, -3, z1 + 5, 0, pick(rnd, CARS), 'pickup');
+        B.access = { lot: z1 + 0.2 };
       } },
   ];
 

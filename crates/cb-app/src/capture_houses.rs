@@ -1,6 +1,8 @@
 //! The houses stills (a measurement instrument, CLAUDE.md section 4; `small-buildings` task 4.7): with
-//! `CB_STILLS_HOUSES=1 --stills <dir>`, the pilot is stood in a suburb looking along a row of houses, at a front door
-//! as it swings open for them, inside the living room with its modelled furniture, on a town's main street, beside a
+//! `CB_STILLS_HOUSES=1 --stills <dir>`, the pilot is stood in a suburb looking along a row of houses, in its street
+//! (openspec change `lot-access`), at a front door
+//! as it swings open for them, inside the living room with its modelled furniture, on a town's main street, in a
+//! business's car park, beside a
 //! house on sand or dry ground (its grass parched), and before a house an autocannon burst has just hit; each is shot, then the run
 //! exits. The pilot is placed and turned directly, as the other stills do.
 
@@ -114,8 +116,24 @@ fn run(
             }
             next = t > 8.0;
         }
-        // At the front door, which swings open as the pilot reaches it.
+        // In the street in front of the row (lot-access): the drives running down to it, the houses along it.
         2 => {
+            let off = kit.hi.z + plan.small.paving.streets.first().map_or(6.0, |s| s.width_m * 0.5 + 2.0);
+            if script.once("street") {
+                let feet = on_ground(&plan, ranch, kit.hi.x + 6.0, off);
+                stand_looking(
+                    &mut pilot,
+                    feet,
+                    on_ground(&plan, ranch, kit.lo.x - 25.0, kit.hi.z - 2.0) + Vec3::Y * 2.0,
+                );
+            }
+            if t > 6.0 && script.once("street shot") {
+                shoot(&mut commands, &script.dir, "houses-street.png");
+            }
+            next = t > 8.0;
+        }
+        // At the front door, which swings open as the pilot reaches it.
+        3 => {
             let leaf = &kit.leaves[0];
             let mid = Vec2::new(leaf.hinge.x, leaf.hinge.z) + leaf.shut * (leaf.width_m * 0.5);
             if script.once("door") {
@@ -130,7 +148,7 @@ fn run(
             next = t > 6.0;
         }
         // Inside, among the modelled furniture.
-        3 => {
+        4 => {
             let leaf = &kit.leaves[0];
             let mid = Vec2::new(leaf.hinge.x, leaf.hinge.z) + leaf.shut * (leaf.width_m * 0.5);
             if script.once("inside") {
@@ -150,7 +168,7 @@ fn run(
             next = t > 8.0;
         }
         // A town's main street, from the highway.
-        4 => {
+        5 => {
             let Some((town_id, town)) = find(&plan, Zone::Town, "") else {
                 script.beat += 1;
                 script.beat_started_s = now;
@@ -166,8 +184,32 @@ fn run(
             }
             next = t > 8.0;
         }
+        // A business's car park (lot-access): its stalls, its curb cut onto the highway.
+        6 => {
+            let Some((biz_id, biz)) = plan.small.lots.iter().enumerate().find(|(i, l)| {
+                l.zone == Zone::Town && plan.small.kit(*i as u32).kind == cb_core::world::small_buildings::kit::Kind::Business
+            }) else {
+                script.beat += 1;
+                script.beat_started_s = now;
+                return;
+            };
+            let bk = plan.small.kit(biz_id as u32);
+            if script.once("car park") {
+                println!("STILLS houses: car park of lot {biz_id} ({})", bk.id);
+                let feet = on_ground(&plan, biz, bk.hi.x + 4.0, bk.hi.z + 15.0);
+                stand_looking(
+                    &mut pilot,
+                    feet,
+                    on_ground(&plan, biz, (bk.lo.x + bk.hi.x) * 0.5, bk.hi.z) + Vec3::Y * 1.0,
+                );
+            }
+            if t > 6.0 && script.once("car park shot") {
+                shoot(&mut commands, &script.dir, "houses-carpark.png");
+            }
+            next = t > 8.0;
+        }
         // A house on sand or dry ground, where the grass is parched (grass `biome_dryness`).
-        5 => {
+        7 => {
             let dry = plan.small.lots.iter().enumerate().find(|(_, l)| {
                 let at = l.to_world(Vec2::ZERO);
                 let b = plan.biomes.dominant(at, plan.height_at(at.x, at.y), 0.0);
@@ -193,7 +235,7 @@ fn run(
             next = t > 8.0;
         }
         // An autocannon burst's worth (1 MJ) on the front wall, seen from the street.
-        6 => {
+        8 => {
             if script.once("hit") {
                 let feet = on_ground(&plan, ranch, kit.hi.x + 4.0, kit.hi.z + 4.0);
                 stand_looking(&mut pilot, feet, on_ground(&plan, ranch, 0.0, 0.0) + Vec3::Y * 2.0);

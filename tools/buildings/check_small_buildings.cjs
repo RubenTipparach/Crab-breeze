@@ -108,8 +108,32 @@ function zfight(T, g, nodes) {
   for (const [k, e] of found) fail(T.id, `z-fighting: ${k}, ${e.n} overlaps, ${(e.ov * 1e4).toFixed(0)} cm2, near ${e.at.map((c) => c.toFixed(2)).join(', ')} facing ${e.N.map((c) => c.toFixed(1)).join(', ')}`);
 }
 
+// How a kit is reached (openspec change lot-access): a house names a drive whose slab really runs to its front edge
+// (an up-facing paved face in LOD0 across the drive's width at the greatest z), a business where its car park starts.
+function access(T, g) {
+  const A = T.access || {};
+  const front = T.bounds_m.hi[2];
+  if (T.kind === 'business') {
+    if (!(typeof A.lot === 'number' && A.lot > T.bounds_m.lo[2] && A.lot <= front + 1e-3)) fail(T.id, `a business needs access.lot within its depth, has ${JSON.stringify(T.access)}`);
+    return;
+  }
+  if (!(Array.isArray(A.drive) && A.drive.length === 2 && A.drive[1] >= 2.4)) return fail(T.id, `a house needs access.drive [x, width >= 2.4], has ${JSON.stringify(T.access)}`);
+  const [x, w] = A.drive;
+  const node = g.json.nodes.find((n) => n.name === 'LOD0');
+  let lo = Infinity, hi = -Infinity;
+  for (const p of g.json.meshes[node.mesh].primitives) {
+    if (!['concrete', 'asphalt'].includes(p.extras && p.extras.surface)) continue;
+    const pos = g.read(p.attributes.POSITION), nrm = g.read(p.attributes.NORMAL);
+    for (let i = 0; i < pos.length / 3; i++) {
+      if (nrm[i * 3 + 1] > 0.9 && pos[i * 3 + 1] < 0.1 && Math.abs(pos[i * 3 + 2] - front) < 1e-3) { lo = Math.min(lo, pos[i * 3]); hi = Math.max(hi, pos[i * 3]); }
+    }
+  }
+  if (!(lo <= x - w / 2 + 0.05 && hi >= x + w / 2 - 0.05)) fail(T.id, `its drive (x ${x}, ${w} m wide) has no paved slab at its front edge (z ${front}): paving there spans x ${lo}..${hi}`);
+}
+
 for (const T of manifest.types) {
   const g = readGlb(path.join(DIR, T.glb));
+  access(T, g);
   const names = g.json.nodes.map((n) => n.name);
   for (const l of ['LOD0', 'LOD1', 'LOD2']) if (!names.includes(l)) fail(T.id, `no ${l} node`);
   const tris = {};

@@ -15,6 +15,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::PrimitiveTopology;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use cb_core::water_look::WaterLook;
+use cb_core::world::small_buildings::paving::Surface as PavingSurface;
 use cb_core::world::{Deformation, Forest, TreeState, WorldPlan, generate};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
@@ -432,6 +433,36 @@ fn vertex_material(materials: &mut Assets<StandardMaterial>, roughness: f32) -> 
     })
 }
 
+/// Paving is draped on the ground in cells no longer than these: the terrain's lattice is 8 m, so a street follows
+/// it in 4 m pieces, a drive or a car park in 2 m ones.
+const STREET_CELL_M: f32 = 4.0;
+const SLAB_CELL_M: f32 = 2.0;
+
+/// A four-cornered piece of paving draped on the ground (openspec change `lot-access`): cut into cells no longer than
+/// `cell_m` so it follows the terrain between its corners, each point the ground plus its corners' lift, blended.
+fn drape(b: &mut MeshBuilder, plan: &WorldPlan, c: [Vec2; 4], lift: [f32; 4], colour: [f32; 4], cell_m: f32) {
+    let cells = |a: f32, b: f32| (a.max(b) / cell_m).ceil().clamp(1.0, 256.0) as usize;
+    let nu = cells((c[1] - c[0]).length(), (c[2] - c[3]).length());
+    let nv = cells((c[3] - c[0]).length(), (c[2] - c[1]).length());
+    let at = |i: usize, j: usize| {
+        let (u, v) = (i as f32 / nu as f32, j as f32 / nv as f32);
+        let p = c[0].lerp(c[1], u).lerp(c[3].lerp(c[2], u), v);
+        let l = (lift[0] + (lift[1] - lift[0]) * u) * (1.0 - v) + (lift[3] + (lift[2] - lift[3]) * u) * v;
+        Vec3::new(p.x, plan.terrain.height_at(p.x, p.y) + l, p.y)
+    };
+    for i in 0..nu {
+        for j in 0..nv {
+            let q = [at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1)];
+            // `quad` faces its normal (c1 - c0) x (c3 - c0): turn the corners so it looks up.
+            if (q[1] - q[0]).cross(q[3] - q[0]).y >= 0.0 {
+                b.quad(q, colour);
+            } else {
+                b.quad([q[0], q[3], q[2], q[1]], colour);
+            }
+        }
+    }
+}
+
 fn spawn_roads(
     mut commands: Commands,
     world: Res<Plan>,
@@ -524,6 +555,43 @@ fn spawn_roads(
             let (g0, g1) = (h.grade_m[k], h.grade_m[k + 1]);
             dashes(h.path[k], h.path[k + 1], &|t| g0 + (g1 - g0) * t + lift);
         }
+    }
+    // The suburbs' streets, the drives and the car parks (openspec change `lot-access`), draped on the ground: asphalt
+    // with the roads, drives with the kerbs' concrete, stall lines with the lane marks. No draw of their own.
+    let paving = &world.small.paving;
+    let concrete = [0.74, 0.73, 0.70, 1.0];
+    for st in &paving.streets {
+        let n = st.path.len();
+        // Each point's side is the mean of its two segments', so the pieces of a bend share their edges.
+        let side = |i: usize| {
+            let a = st.path[i.saturating_sub(1)];
+            let b = st.path[(i + 1).min(n - 1)];
+            (b - a).normalize_or(Vec2::X).perp() * st.width_m * 0.5
+        };
+        for i in 0..n.saturating_sub(1) {
+            let (a, b, sa, sb) = (st.path[i], st.path[i + 1], side(i), side(i + 1));
+            drape(
+                &mut roads,
+                &world,
+                [a - sa, a + sa, b + sb, b - sb],
+                [st.lift_m; 4],
+                asphalt,
+                STREET_CELL_M,
+            );
+        }
+    }
+    for slab in &paving.slabs {
+        let into = match slab.surface {
+            PavingSurface::Asphalt => &mut roads,
+            PavingSurface::Concrete => &mut kerbs,
+            PavingSurface::Paint => &mut marks,
+        };
+        let colour = match slab.surface {
+            PavingSurface::Asphalt => asphalt,
+            PavingSurface::Concrete => concrete,
+            PavingSurface::Paint => white,
+        };
+        drape(into, &world, slab.corners, slab.lift_m, colour, SLAB_CELL_M);
     }
     let road_mat = materials.add(StandardMaterial {
         base_color_texture: Some(tex.asphalt.clone()),
