@@ -1824,9 +1824,15 @@ def preview(path, samples=48):
     sc.render.image_settings.file_format = "PNG"
     # ahead, then turned to the left wall and down a little, where the trims, walls and seat show
     # and close on the lower side wall and the rear wall with a narrow lens, where the panelling's detail shows
-    views = (("front", 0.0, 0.0, fov), ("side", 70.0, -18.0, fov), ("wall", 95.0, -38.0, 40.0), ("rear", 160.0, -15.0, 60.0))
+    # two review shots that are not the pilot's view (the whole cabin at once): over the shoulder, from above and
+    # behind the head, and looking back at the seat and the rear walls from over the dash
+    views = (("front", 0.0, 0.0, fov, None), ("side", 70.0, -18.0, fov, None), ("wall", 95.0, -38.0, 40.0, None),
+             ("rear", 160.0, -15.0, 60.0, None), ("overview", 0.0, -22.0, 100.0, V(0.18, 0.5, -0.42)),
+             ("back", 180.0, -24.0, 100.0, V(0.0, 0.25, 0.5)))
     only = os.environ.get("CB_PREVIEW_VIEWS")
-    for tag, yaw, pitch, fov_v in [v for v in views if not only or v[0] in only.split(",")]:
+    for tag, yaw, pitch, fov_v, off in [v for v in views if not only or v[0] in only.split(",")]:
+        p_ = EYE + off if off is not None else EYE
+        co.location = (p_.x, -p_.z, p_.y)
         cam.angle_y = math.radians(fov_v)
         co.rotation_euler = (math.radians(90 + pitch), 0.0, math.radians(180 + yaw))
         sc.render.filepath = path.replace(".png", f"_{tag}.png")
