@@ -135,7 +135,7 @@ going").**
   the noise stuff on the ocean lol"). A slow noise of gusts, `whitecap_scale_m` (40 m) across the
   wind and twice that along it, drifts with the wind; its threshold is set from the noise's measured
   spread (standard deviation 0.166 over 400,000 samples) so `whitecap_coverage x 6` of the sea is in
-  a gust. A gust only shortens the odds: the foam is the wavelets the eye sees, where their height
+  a gust (`whitecap_coverage` 0.04 since 2026-10-27, gusts over 24 % of the sea; 0.008 left only flecks near the eye). A gust only shortens the odds: the foam is the wavelets the eye sees, where their height
   in their own deviations, lifted by the swell's crests (`0.8 x` the swell's height in amplitudes)
   and by the gust (up to one deviation), passes `whitecap_break_dev` (2.6 as first built, 2.0 since 2026-10-27). In a gust's heart on a crest about 20 % of the
   wavelets foam, in an ordinary gust 2 %, outside one none: lace in the waves' own pattern, torn
