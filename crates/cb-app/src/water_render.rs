@@ -417,7 +417,7 @@ impl PaneGlass {
 }
 
 /// Ground fog on (false under `CB_NO_GROUND_FOG=1`). The clouds read it too: with the fog off, no
-/// cloud fades by the air.
+/// cloud takes the fog's colour.
 #[derive(Resource, Clone, Copy)]
 pub(crate) struct GroundFogOn(pub(crate) bool);
 
@@ -567,6 +567,7 @@ fn extract_water_eye(
         // The weather at the eye as followed over a second and a half, never a raw sample (`EyeWeather`).
         let (shade, rain) = (weather.sun, weather.rain);
         let air = AirFog::now(cfg, fog_now.strength, plan.waters.sea_level_m, rain);
+        let tint = FogTint::now(cfg, &light, sky, shade, exposure);
         let fog = FogLook {
             // Scaled by the strength now: the clock's morning mist or a mission's preset (survey F1).
             layer: Vec4::new(
@@ -581,11 +582,11 @@ fn extract_water_eye(
                 cfg.sky_length_m,
                 air.rain_per_m,
             ),
-            ambient: (sky * cfg.ambient_share).extend(cfg.phase_g),
-            sun: (light.sun * shade * cfg.sun_share).extend(air.haze_per_m),
-            sun_dir: light.sun_dir.extend(air.haze_height_m),
+            ambient: tint.ambient,
+            sun: tint.sun.extend(air.haze_per_m),
+            sun_dir: tint.sun_dir.extend(air.haze_height_m),
             map: Vec4::new(m.origin_m, m.cell_m, m.side as f32, air.rain_reach_m),
-            sky: Vec4::new(exposure, cfg.storm_dim * (1.0 - shade.clamp(0.0, 1.0)), 0.0, 0.0),
+            sky: Vec4::new(tint.exposure, tint.storm, 0.0, 0.0),
         };
         // Seated: the panes of the interior the eye sits in (the nearest, within a cabin's reach).
         let glass = if eye.cabin_m > 0.0 {
@@ -897,9 +898,7 @@ type SkyAtmosphere = (
 );
 
 /// How the fog pass reads the scattering sky's sky-view LUT for a view: the atmosphere's frame
-/// round the eye (Bevy's `prepare_atmosphere_transforms`, axes x, y and z), the eye's distance
-/// from the planet's centre and the planet's radius in their w, and the LUT's size. `z.w` is 1 with
-/// the sky, 0 without (`CB_NO_SKY=1`), when the fog keeps its own colour.
+/// round the eye (`SkyAxes`) and the LUT itself.
 struct SkyFrame {
     x: Vec4,
     y: Vec4,
@@ -918,27 +917,106 @@ impl SkyFrame {
         eye: Vec3,
     ) -> Self {
         let Some((planet, settings, textures)) = atmosphere else {
+            let a = SkyAxes::NONE;
             return Self {
-                x: Vec4::X,
-                y: Vec4::Y,
-                z: Vec4::Z,
-                lut: Vec2::ONE,
+                x: a.x,
+                y: a.y,
+                z: a.z,
+                lut: a.lut,
                 lut_view: None,
             };
         };
+        let a = SkyAxes::at(
+            planet.world_to_atmosphere,
+            planet.inner_radius,
+            settings.sky_view_lut_size.as_vec2(),
+            eye,
+        );
+        Self {
+            x: a.x,
+            y: a.y,
+            z: a.z,
+            lut: a.lut,
+            lut_view: Some(textures.sky_view_lut.default_view.clone()),
+        }
+    }
+}
+
+/// The scattering sky's frame round the eye, as the fog's colour reads the sky-view LUT (`FogColour` in
+/// `fog_colour.wesl`): the atmosphere's axes x, y and z (Bevy's `prepare_atmosphere_transforms`), the eye's distance
+/// from the planet's centre and the planet's radius in their w, `z.w` 1 with the sky (0 without, `CB_NO_SKY=1`, when
+/// the fog keeps its own colour), and the LUT's size. The one copy: the fog pass (render world) and the clouds (main
+/// world) both build theirs here.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct SkyAxes {
+    pub x: Vec4,
+    pub y: Vec4,
+    pub z: Vec4,
+    pub lut: Vec2,
+}
+
+impl SkyAxes {
+    /// No scattering sky: the fog's own colour.
+    pub(crate) const NONE: Self = Self {
+        x: Vec4::X,
+        y: Vec4::Y,
+        z: Vec4::Z,
+        lut: Vec2::ONE,
+    };
+
+    /// The frame for an eye at `eye` under the atmosphere `world_to_atmosphere` of radius `inner_radius`, its sky-view LUT
+    /// `lut_size` texels.
+    pub(crate) fn at(world_to_atmosphere: Mat4, inner_radius: f32, lut_size: Vec2, eye: Vec3) -> Self {
         // As Bevy builds it: up is the planet's normal under the eye, back the world's -z made level.
-        let at = planet.world_to_atmosphere.transform_point3(eye);
+        let at = world_to_atmosphere.transform_point3(eye);
         let up = at.try_normalize().unwrap_or(Vec3::Y);
         let back = (Vec3::NEG_Z - up * up.dot(Vec3::NEG_Z)).try_normalize().unwrap_or(Vec3::NEG_Y);
         let right = up.cross(back).normalize();
         // Bevy clamps the eye to the ground before it reads the LUT.
-        let r = at.length().max(planet.inner_radius + 1.0e-3);
+        let r = at.length().max(inner_radius + 1.0e-3);
         Self {
             x: right.extend(r),
-            y: up.extend(planet.inner_radius),
+            y: up.extend(inner_radius),
             z: back.extend(1.0),
-            lut: settings.sky_view_lut_size.as_vec2(),
-            lut_view: Some(textures.sky_view_lut.default_view.clone()),
+            lut: lut_size,
+        }
+    }
+
+    /// An atmosphere entity's world-to-atmosphere transform in the main world, as Bevy's `extract_atmosphere` builds it
+    /// for the render world (its scale and translation; atmospheres ignore their orientation).
+    pub(crate) fn world_to_atmosphere(transform: &GlobalTransform) -> Mat4 {
+        let (scale, _, translation) = transform.to_scale_rotation_translation();
+        Mat4::from_scale_rotation_translation(scale, Quat::IDENTITY, translation).inverse()
+    }
+}
+
+/// The light the fog's colour is made of, for the fog pass and the clouds alike (one source, CLAUDE.md section 6.1):
+/// its own colour's ambient and forward-scattered sun (used without the scattering sky), and with the sky the view's
+/// exposure and how much darker it is under the clouds' shade (`storm_dim` times the shade).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct FogTint {
+    /// rgb the sky's light the fog scatters back; w the phase asymmetry g.
+    pub ambient: Vec4,
+    /// The sun's light the fog scatters, the storm's shade in it.
+    pub sun: Vec3,
+    /// Toward the sun.
+    pub sun_dir: Vec3,
+    /// The view's exposure (the sky's LUT is drawn times it).
+    pub exposure: f32,
+    /// How much darker the fog is under the clouds' shade now.
+    pub storm: f32,
+}
+
+impl FogTint {
+    /// The tint now: `light` the scene's (`water_light`), `sky` the ambient light times exposure, `shade` the sun's share
+    /// through the clouds over the eye (followed, `EyeWeather`).
+    pub(crate) fn now(cfg: &cb_core::world::mist::FogConfig, light: &WaterLight, sky: Vec3, shade: f32, exposure: f32) -> Self {
+        Self {
+            ambient: (sky * cfg.ambient_share).extend(cfg.phase_g),
+            sun: light.sun * shade * cfg.sun_share,
+            sun_dir: light.sun_dir,
+            exposure,
+            storm: cfg.storm_dim * (1.0 - shade.clamp(0.0, 1.0)),
         }
     }
 }

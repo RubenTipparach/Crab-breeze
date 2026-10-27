@@ -330,6 +330,11 @@ pub struct CloudConfig {
     pub look_base_shade: f32,
     /// The base darkening of a puff at full darkness.
     pub look_storm_base_shade: f32,
+    /// How much of the sky's own colour (the fog's, along the view) a cloud's shaded side gets back, times its albedo:
+    /// the sky and the haze lighting it from below and the sides, so the shade of a puff stays a soft grey and a storm's
+    /// base, lower in albedo, darker than a puff but not black (owner, 2026-10-27: "Can we tint the dark parts of clouds
+    /// softer? Some clouds look unnecessarily too dark on the bottom"). 0 is the old look.
+    pub look_shadow_floor: f32,
     /// A puff fades in from this distance from the eye (closer, the cloud fog takes over).
     pub look_near_fade_m: f32,
     /// How far noise eats into a billow's edge (0 a clean disc).
@@ -351,6 +356,7 @@ impl Default for CloudConfig {
             look_storm_albedo: 0.55,
             look_base_shade: 0.55,
             look_storm_base_shade: 0.85,
+            look_shadow_floor: 0.35,
             look_near_fade_m: 140.0,
             look_erode: 0.62,
             look_soft_m: 60.0,
@@ -371,6 +377,7 @@ impl Validate for CloudConfig {
         within("clouds.look_storm_albedo", self.look_storm_albedo, 0.0, 1.0)?;
         within("clouds.look_base_shade", self.look_base_shade, 0.0, 1.0)?;
         within("clouds.look_storm_base_shade", self.look_storm_base_shade, 0.0, 1.0)?;
+        within("clouds.look_shadow_floor", self.look_shadow_floor, 0.0, 2.0)?;
         positive("clouds.look_near_fade_m", self.look_near_fade_m)?;
         within("clouds.look_erode", self.look_erode, 0.0, 2.0)?;
         positive("clouds.look_soft_m", self.look_soft_m)?;

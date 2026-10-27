@@ -12,6 +12,7 @@
 // rather than Pale Blue Dot's sky-only band; the mist and its probe are left out.
 
 import super::water_common::{safe_normal, water_transmittance, water_murk, rd_drops, layer_depth};
+import super::fog_colour::{FogColour, fog_colour};
 
 // Matches `WaterPostUniform` in `crates/cb-app/src/water_render.rs`; a test pins the size.
 struct WaterPost {
@@ -136,38 +137,10 @@ fn fog_depth(origin: vec3<f32>, dir: vec3<f32>, len: f32) -> f32 {
     return thick * max(layer, 0.0) + max(haze, 0.0) + post.fog_mist.w * min(len, post.fog_map.w);
 }
 
-// The scattering sky's colour along `dir` at or above the horizon, as Bevy's sky pass reads it
-// from the sky-view LUT (`bevy_pbr` atmosphere `sample_sky_view_lut`, its uv mapping written out
-// here), times the exposure. A ray below the horizon takes the horizon's colour just above it.
-fn sky_horizon_colour(dir: vec3<f32>) -> vec3<f32> {
-    let d = vec3<f32>(dot(dir, post.fog_sky_x.xyz), dot(dir, post.fog_sky_y.xyz), dot(dir, post.fog_sky_z.xyz));
-    let r = post.fog_sky_x.w;
-    let inner = post.fog_sky_y.w;
-    let horizon_zenith = 3.14159265 - acos(clamp(sqrt(max(r * r - inner * inner, 0.0)) / r, -1.0, 1.0));
-    // Half a degree above the horizon at the lowest: the LUT's horizon texel row, not the ground's.
-    let view_zenith = min(acos(clamp(d.y, -1.0, 1.0)), horizon_zenith - 0.009);
-    let l = view_zenith - horizon_zenith;
-    let v = 0.5 + 0.5 * sign(l) * sqrt(abs(l) / 1.57079633);
-    let u = atan2(d.x, -d.z) * 0.15915494 + 0.5;
-    let size = max(post.fog_sky_lut.xy, vec2<f32>(1.0));
-    let uv = (vec2<f32>(u, v) + 0.5 / size) * (size / (size + 1.0));
-    return textureSampleLevel(sky_view_lut, scene_sampler, uv, 0.0).rgb * post.fog_sky_lut.z;
-}
-
-// The fog's colour seen along `dir`. With the scattering sky it is the sky's own colour toward the
-// horizon that way, so the far land and sea fade into the sky at the horizon in one colour, as they
-// do from the air (owner, 2026-10-26: "the distant ground is grey as well, it should match the fog
-// color the horizon color should be uniform", "we need to assume distant horizons are ocean+fog
-// color"), darkened under the clouds' shade. Without it: the sky's light scattered back, and the
-// sun's scattered forward (Henyey-Greenstein), so it glows toward the sun.
-fn fog_colour(dir: vec3<f32>) -> vec3<f32> {
-    if (post.fog_sky_z.w > 0.5) {
-        return sky_horizon_colour(dir) * (1.0 - clamp(post.fog_sky_lut.w, 0.0, 1.0));
-    }
-    let g = post.fog_ambient.w;
-    let c = dot(dir, normalize(post.fog_sun_dir.xyz));
-    let phase = (1.0 - g * g) / (12.566371 * pow(max(1.0 + g * g - 2.0 * g * c, 1e-4), 1.5));
-    return post.fog_ambient.rgb + post.fog_sun.rgb * phase;
+// The fog's colour seen along `dir` (`fog_colour.wesl`, the one copy the clouds read too), from this pass's uniform.
+fn post_fog_colour(dir: vec3<f32>) -> vec3<f32> {
+    let c = FogColour(post.fog_sky_x, post.fog_sky_y, post.fog_sky_z, post.fog_sky_lut, post.fog_ambient, post.fog_sun, post.fog_sun_dir);
+    return fog_colour(sky_view_lut, scene_sampler, c, dir);
 }
 
 // Ground fog in the air, from the cabin's wall (seated) to the pixel or out to the sky's length.
@@ -193,7 +166,7 @@ fn fog(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let len = end - start;
     if (len > 0.0) {
         let t = exp(-fog_depth(eye + direction * start, direction, len));
-        color = mix(fog_colour(direction), color, t);
+        color = mix(post_fog_colour(direction), color, t);
     }
     return vec4<f32>(color, 1.0);
 }

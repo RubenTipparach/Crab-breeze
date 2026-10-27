@@ -1379,6 +1379,15 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // The owner's view of 2026-10-27 ("cloud fog blend should be a thing"): 80 m over low land 6-14 km from the west
+    // storm, looking past it at the horizon, where the far clouds should sit in the haze as the far land does
+    // (`storm_ahead_view`).
+    View {
+        name: "storm-ahead",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // Under the storm, in its rain, 40 m up, facing away from the sun.
     View {
         name: "under-the-storm",
@@ -1501,6 +1510,31 @@ fn puff_pass_view(plan: &crate::world::Plan, now_s: f32) -> ([f32; 3], [f32; 3])
     (eye.to_array(), (eye + dir * 100000.0 + Vec3::Y * 50000.0).to_array())
 }
 
+/// 80 m over the lowest land 6-14 km east of the west storm's centre (-5.9, -4.2 km), looking at the horizon past the
+/// storm, a little above level.
+fn storm_ahead_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
+    use cb_core::world::Ground;
+    let storm = Vec2::new(-5887.0, -4186.0);
+    let mut best: Option<(f32, Vec2)> = None;
+    for b in -6..=6 {
+        let bearing = Vec2::from_angle(b as f32 * 0.12);
+        for k in 0..=16 {
+            let at = storm + bearing * (6000.0 + k as f32 * 500.0);
+            let h = plan.height_at(at.x, at.y);
+            if h > plan.waters.sea_level_m + 5.0 && best.is_none_or(|(bh, _)| h < bh) {
+                best = Some((h, at));
+            }
+        }
+    }
+    let (h, at) = best.unwrap_or((0.0, storm + Vec2::new(9000.0, 0.0)));
+    let eye = Vec3::new(at.x, h + 80.0, at.y);
+    let toward = (storm - at).normalize_or(Vec2::NEG_X);
+    (
+        eye.to_array(),
+        [at.x + toward.x * 40000.0, eye.y + 900.0, at.y + toward.y * 40000.0],
+    )
+}
+
 /// Over open sea in the clear south-east, `up_m` up, looking toward the sun's bearing (`toward`)
 /// or away from it, at the sea 15 eye heights ahead (a few degrees down).
 fn sea_view(toward: bool, up_m: f32) -> ([f32; 3], [f32; 3]) {
@@ -1583,6 +1617,23 @@ struct WeatherScript {
     frames: u32,
     /// The stills asked for, to wait for before the exit.
     shots: Vec<PathBuf>,
+    /// `CB_STILLS_OFFSCREEN=1`: the eye drawn into an offscreen image, so a locked screen or a window behind another
+    /// does not save black.
+    offscreen: Option<Handle<Image>>,
+}
+
+/// `CB_STILLS_OFFSCREEN=1`: the weather stills draw the pilot's eye and the cockpit pass offscreen (`draw_offscreen`).
+fn offscreen_for_weather(
+    mut commands: Commands,
+    camera: Single<Entity, With<crate::pilot::PilotCamera>>,
+    cockpit: Single<Entity, With<crate::pilot::CockpitCamera>>,
+    mut images: ResMut<Assets<Image>>,
+    mut script: ResMut<WeatherScript>,
+) {
+    if !crate::cli::switched_off("CB_STILLS_OFFSCREEN") {
+        return;
+    }
+    script.offscreen = Some(draw_offscreen(&mut commands, *camera, *cockpit, &mut images));
 }
 
 impl Plugin for WeatherStillsPlugin {
@@ -1594,7 +1645,9 @@ impl Plugin for WeatherStillsPlugin {
             beat_started_s: 0.0,
             frames: 0,
             shots: Vec::new(),
+            offscreen: None,
         })
+        .add_after_world_spawn(offscreen_for_weather)
         .add_game_systems(Update, run_weather_script);
     }
 }
@@ -1635,6 +1688,7 @@ fn run_weather_script(
             "sea-sun-top" => sea_view(true, 6500.0),
             "city-in-cloud" => city_in_cloud_view(&plan, now),
             "puff-pass" => puff_pass_view(&plan, now),
+            "storm-ahead" => storm_ahead_view(&plan),
             _ => (v.eye, v.at),
         };
         let v = View {
@@ -1683,7 +1737,10 @@ fn run_weather_script(
             } else {
                 format!("weather-{}.png", v.name)
             };
-            shoot(&mut commands, &script.dir.clone(), &name);
+            match script.offscreen.clone() {
+                Some(img) => shoot_offscreen(&mut commands, img, &script.dir.clone(), &name),
+                None => shoot(&mut commands, &script.dir.clone(), &name),
+            }
             let path = script.dir.join(name);
             script.shots.push(path);
             println!(

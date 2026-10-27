@@ -227,6 +227,9 @@
         look_storm_albedo: 0.55,
         look_base_shade: 0.55,
         look_storm_base_shade: 0.85,
+        // Owner, 2026-10-27: "Can we tint the dark parts of clouds softer? Some clouds look unnecessarily too dark on
+        // the bottom": the shaded side gets this much of the sky's own colour back, times the albedo (0 the old look).
+        look_shadow_floor: 0.35,
         look_near_fade_m: 140.0,
         look_erode: 0.62,
         look_soft_m: 60.0,
