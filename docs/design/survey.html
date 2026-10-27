@@ -170,9 +170,26 @@ const SECTIONS = [
       { id: 'S5', q: 'How near is the real (modelled) furniture drawn for a pilot on foot?',
         options: ['Within 60 m, the low-poly blocks from 60 to 100 m', 'Within 100 m, no blocks on foot', 'Within 30 m only'], rec: 0,
         why: 'You see into rooms well within 60 m on foot; past that the blocks read the same through a window and cost far less. In the mech it is always the blocks, within 100 m (your words).' },
-      { id: 'S6', q: 'The suburbs have no streets of their own in the first build: houses face the city with their drives. Streets next?',
-        options: ['Yes: curving streets and cul-de-sacs as their own change, next', 'Later, after the towns are played', 'No streets: open lots are fine'], rec: 0,
-        why: 'Houses in a field read oddly up close; a suburb is its streets.' },
+      { id: 'S7', q: 'Your suburbs get streets (your words, 2026-10-27: "driveways need to connect with roads"). How are they laid out?',
+        options: ['A street along each row of houses, with straight side streets in to the city', 'Curving streets and cul-de-sacs, a new layout', 'A plain grid, like the cities'], rec: 0,
+        why: 'The rows already curve round each city, so a street along each row is the smallest change that joins every drive to a road; cul-de-sacs can follow as their own change. openspec/changes/lot-access section 2.' },
+      { id: 'S8', q: 'How big are the car parks in front of businesses?',
+        options: ['One row of striped stalls across the front, and an aisle (12.5 m deep)', 'Two rows (about 18 m deep)', 'Sized to the business: a strip mall or motel gets two rows, a diner one'], rec: 0,
+        why: 'One row reads as a 1980s roadside car park and keeps the towns compact along the highway. Section 4.' },
+      { id: 'S9', q: 'Parked cars in the car parks?',
+        options: ['Not yet: the kits\' own cars stay where they are', 'Yes: a few parked cars in each, from the traffic\'s 1980s cars', 'Full at lunch, empty at night (needs time of day)'], rec: 0,
+        why: 'Paving first; parked cars cost a draw and a damage rule of their own and fit better with the traffic change.' },
+      { id: 'S10', q: 'Do cars drive the suburb streets?',
+        options: ['Not yet: traffic keeps to the highways and city streets', 'Yes, a few, from the start'], rec: 0,
+        why: 'Traffic on the new streets needs lanes and junctions joined to the traffic graph; a change of its own once the streets are played.' },
+    ] },
+  { tag: 'F', name: 'The morning mist',
+    lead: 'Added on 2026-10-27 (openspec/changes/ground-fog task 5.5). The fog keeps its own clock: the world begins at 06:00 in the morning mist (your F1), twice the plain air and full mist in the low ground, and it thins to the day\'s (plain air, half the mist) between 07:00 and 11:00, 5 to 25 minutes into a session. The coast from 4.5 km at 06:00, 09:00 and 12:00 is in docs/screenshots/2026-10-27-morning-mist-coast-0600.png, -0900.png and -1200.png. Since the fog took the sky\'s colour (2026-10-26) the 06:00 coast no longer reads white: the far land stays as readable as at noon (its brightness 173 against 172 of 255), the near sea is greyed (82 against 60), the sky unchanged.',
+    qs: [
+      { id: 'F4', q: 'Is the 06:00 morning mist too thick? It is twice the plain air (density_scale 2.0) with full mist; at 4.5 km the coast stays readable and the near sea is a grey veil.',
+        options: ['Keep it: twice the air, full mist', 'Thinner: 1.5 times the air, full mist', 'Thinner still: plain air, the mist alone in the low ground', 'Thicker: 3 times the air, so the first minutes are hazy'],
+        rec: 0,
+        why: 'In the stills it reads as a morning haze that burns off, not a whiteout: the land at 4.5 km is as clear as at noon and only the sea under the eye greys. Built as is while open (provisional).' },
     ] },
   { tag: 'F', name: 'The morning mist',
     lead: 'Added on 2026-10-27 (openspec/changes/ground-fog task 5.5). The fog keeps its own clock: the world begins at 06:00 in the morning mist (your F1), twice the plain air and full mist in the low ground, and it thins to the day\'s (plain air, half the mist) between 07:00 and 11:00, 5 to 25 minutes into a session. The coast from 4.5 km at 06:00, 09:00 and 12:00 is in docs/screenshots/2026-10-27-morning-mist-coast-0600.png, -0900.png and -1200.png. Since the fog took the sky\'s colour (2026-10-26) the 06:00 coast no longer reads white: the far land stays as readable as at noon (its brightness 173 against 172 of 255), the near sea is greyed (82 against 60), the sky unchanged.',
@@ -186,6 +203,7 @@ const SECTIONS = [
 
 // Answered, and being built. Each moves to DECIDED (Done) once its answer is in the game.
 const IN_PROGRESS = [
+  { text: 'S6 The suburbs get streets (your words, 2026-10-27: "driveways need to connect with roads for it to be realistic, same with businesses they need parking lots that connect with road"): a street along each row, every house a drive to it, every business a striped car park onto the highway. Written up, not built yet.', where: 'openspec/changes/lot-access' },
 ];
 
 const DECIDED = [

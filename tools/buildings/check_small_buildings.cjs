@@ -1,8 +1,9 @@
 // Checks the exported kits against each other (CLAUDE.md section 6.5: validate the real artifact):
 // every glb parses, has LOD0, LOD1 and LOD2, its triangle counts match the manifest and are within
 // budget, every index is in range, and the piece table's runs cover LOD0's triangles exactly once
-// with support links that name real pieces. With three installed it also loads each glb through
-// three.js's GLTFLoader as an independent reader.
+// with support links that name real pieces, and no two faces z-fight (CLAUDE.md section 10: same-facing
+// faces within 1.5 mm of one plane may not overlap by more than 1 cm2). With three installed it also
+// loads each glb through three.js's GLTFLoader as an independent reader.
 //
 //   node tools/buildings/check_small_buildings.cjs [assets/models/small_buildings] [path/to/node_modules/three]
 'use strict';
@@ -30,8 +31,109 @@ function readGlb(file) {
   return { json, read, bytes: b };
 }
 
+// No z-fighting: same-facing triangles of `nodes` (each moved by its translation) that lie within
+// ZF_PLANE_M of one plane and overlap by more than ZF_AREA_M2. Faces nobody sees are skipped: those
+// wholly below the ground, and down-facing ones at the ground. So are overlaps that draw the same pixels
+// either way: the same surface, colour and texture coordinates across the overlap; and overlaps pressed
+// against another solid's face (a wall's foot on its foundation), which nobody sees.
+const ZF_PLANE_M = 0.0015, ZF_AREA_M2 = 1e-4;
+function zfight(T, g, nodes) {
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const area = (P) => { let s = 0; for (let i = 0; i < P.length; i++) { const p = P[i], q = P[(i + 1) % P.length]; s += p[0] * q[1] - q[0] * p[1]; } return s / 2; };
+  const clip = (poly, a, b) => {
+    const out = [], side = (p) => (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i], q = poly[(i + 1) % poly.length], sp = side(p), sq = side(q);
+      if (sp >= 0) out.push(p);
+      if ((sp >= 0) !== (sq >= 0)) { const t = sp / (sp - sq); out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]); }
+    }
+    return out;
+  };
+  const tris = [];
+  for (const name of nodes) {
+    const n = g.json.nodes.find((x) => x.name === name);
+    if (!n) continue;
+    const at = n.translation || [0, 0, 0];
+    for (const p of g.json.meshes[n.mesh].primitives) {
+      const pos = g.read(p.attributes.POSITION), idx = g.read(p.indices), uv = g.read(p.attributes.TEXCOORD_0);
+      const col = g.read(p.attributes.COLOR_0), cn = g.json.accessors[p.attributes.COLOR_0].type === 'VEC4' ? 4 : 3;
+      for (let i = 0; i < idx.length; i += 3) {
+        const v = [0, 1, 2].map((k) => [0, 1, 2].map((c) => pos[idx[i + k] * 3 + c] + at[c]));
+        const nn = cross(sub(v[1], v[0]), sub(v[2], v[0])), l = Math.hypot(...nn);
+        if (l < 1e-9) continue;
+        const N = nn.map((c) => c / l), ys = v.map((q) => q[1]);
+        if (Math.max(...ys) < 0 || (N[1] < -0.99 && Math.max(...ys) <= 0.01)) continue;
+        const ix = [idx[i], idx[i + 1], idx[i + 2]];
+        const look = ix.map((k) => [uv[k * 2], uv[k * 2 + 1], col[k * cn], col[k * cn + 1], col[k * cn + 2]]);
+        tris.push({ v, N, d: dot(N, v[0]), surf: `${name}:${p.extras && p.extras.surface}`, look });
+      }
+    }
+  }
+  const groups = new Map();
+  for (const t of tris) { const k = t.N.map((c) => Math.round(c * 200)).join(','); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t); }
+  const found = new Map();
+  for (const G of groups.values()) {
+    G.sort((a, b) => a.d - b.d);
+    for (let i = 0; i < G.length; i++) for (let j = i + 1; j < G.length && G[j].d - G[i].d <= ZF_PLANE_M; j++) {
+      const A = G[i], B = G[j], ax = A.N.map(Math.abs), drop = ax.indexOf(Math.max(...ax)), keep = [0, 1, 2].filter((k) => k !== drop);
+      const flat = (t) => { const P = t.v.map((q) => [q[keep[0]], q[keep[1]]]); return area(P) < 0 ? [P[0], P[2], P[1]] : P; };
+      let poly = flat(A); const b = flat(B);
+      for (let k = 0; k < 3 && poly.length; k++) poly = clip(poly, b[k], b[(k + 1) % 3]);
+      const ov = poly.length >= 3 ? Math.abs(area(poly)) : 0;
+      if (ov <= ZF_AREA_M2) continue;
+      // What a triangle draws at a point of the plane: its texture coordinates and colour, interpolated.
+      const lookAt = (t, q) => {
+        const P = t.v.map((r) => [r[keep[0]], r[keep[1]]]), a = area(P);
+        const w = [area([q, P[1], P[2]]) / a, area([P[0], q, P[2]]) / a, area([P[0], P[1], q]) / a];
+        return [0, 1, 2, 3, 4].map((c) => w[0] * t.look[0][c] + w[1] * t.look[1][c] + w[2] * t.look[2][c]);
+      };
+      const mid = [poly.reduce((s2, q) => s2 + q[0], 0) / poly.length, poly.reduce((s2, q) => s2 + q[1], 0) / poly.length];
+      const same = A.surf.split(':')[1] === B.surf.split(':')[1] && [mid, ...poly.map((q) => [(q[0] + mid[0]) / 2, (q[1] + mid[1]) / 2])].every((q) => {
+        const x = lookAt(A, q), y = lookAt(B, q);
+        return Math.abs(x[0] - y[0]) < 1e-3 && Math.abs(x[1] - y[1]) < 1e-3 && [2, 3, 4].every((c) => Math.abs(x[c] - y[c]) < 0.004);
+      });
+      if (same) continue;
+      const opp = groups.get(A.N.map((c) => Math.round(-c * 200)).join(',')) || [];
+      const inside = (q, t) => { const P = flat(t); return [0, 1, 2].every((k) => (P[(k + 1) % 3][0] - P[k][0]) * (q[1] - P[k][1]) - (P[(k + 1) % 3][1] - P[k][1]) * (q[0] - P[k][0]) >= -1e-6); };
+      const pressed = [mid, ...poly.map((q) => [(q[0] + mid[0]) / 2, (q[1] + mid[1]) / 2])].every((q) =>
+        opp.some((C) => Math.abs(C.d + A.d) <= ZF_PLANE_M && inside(q, C)));
+      if (pressed) continue;
+      const key = [A.surf, B.surf].sort().join(' and ');
+      const e = found.get(key) || { n: 0, ov: 0, at: A.v[0], N: A.N };
+      e.n++; e.ov += ov; found.set(key, e);
+    }
+  }
+  for (const [k, e] of found) fail(T.id, `z-fighting: ${k}, ${e.n} overlaps, ${(e.ov * 1e4).toFixed(0)} cm2, near ${e.at.map((c) => c.toFixed(2)).join(', ')} facing ${e.N.map((c) => c.toFixed(1)).join(', ')}`);
+}
+
+// How a kit is reached (openspec change lot-access): a house names a drive whose slab really runs to its front edge
+// (an up-facing paved face in LOD0 across the drive's width at the greatest z), a business where its car park starts.
+function access(T, g) {
+  const A = T.access || {};
+  const front = T.bounds_m.hi[2];
+  if (T.kind === 'business') {
+    if (!(typeof A.lot === 'number' && A.lot > T.bounds_m.lo[2] && A.lot <= front + 1e-3)) fail(T.id, `a business needs access.lot within its depth, has ${JSON.stringify(T.access)}`);
+    return;
+  }
+  if (!(Array.isArray(A.drive) && A.drive.length === 2 && A.drive[1] >= 2.4)) return fail(T.id, `a house needs access.drive [x, width >= 2.4], has ${JSON.stringify(T.access)}`);
+  const [x, w] = A.drive;
+  const node = g.json.nodes.find((n) => n.name === 'LOD0');
+  let lo = Infinity, hi = -Infinity;
+  for (const p of g.json.meshes[node.mesh].primitives) {
+    if (!['concrete', 'asphalt'].includes(p.extras && p.extras.surface)) continue;
+    const pos = g.read(p.attributes.POSITION), nrm = g.read(p.attributes.NORMAL);
+    for (let i = 0; i < pos.length / 3; i++) {
+      if (nrm[i * 3 + 1] > 0.9 && pos[i * 3 + 1] < 0.1 && Math.abs(pos[i * 3 + 2] - front) < 1e-3) { lo = Math.min(lo, pos[i * 3]); hi = Math.max(hi, pos[i * 3]); }
+    }
+  }
+  if (!(lo <= x - w / 2 + 0.05 && hi >= x + w / 2 - 0.05)) fail(T.id, `its drive (x ${x}, ${w} m wide) has no paved slab at its front edge (z ${front}): paving there spans x ${lo}..${hi}`);
+}
+
 for (const T of manifest.types) {
   const g = readGlb(path.join(DIR, T.glb));
+  access(T, g);
   const names = g.json.nodes.map((n) => n.name);
   for (const l of ['LOD0', 'LOD1', 'LOD2']) if (!names.includes(l)) fail(T.id, `no ${l} node`);
   const tris = {};
@@ -77,6 +179,8 @@ for (const T of manifest.types) {
   for (const [node, list] of Object.entries(covered)) list.forEach((c, pi) => { for (const v of c) if (v !== 1) { fail(T.id, `${node} primitive ${pi}: a triangle is in ${v} pieces`); break; } });
   for (const L of table.leaves) if (!ids.has(L.piece) || !(L.width_m > 0.3) || !(L.height_m > 1.5)) fail(T.id, `leaf of piece ${L.piece} is not a door`);
   for (const F of table.furniture) if (!ids.has(F.piece) || !F.item) fail(T.id, `furniture ${F.item} of piece ${F.piece}`);
+  zfight(T, g, ['LOD0', 'FURN', ...names.filter((n) => n.startsWith('LEAF'))]);
+  zfight(T, g, ['LOD1']);
   console.log(`${T.id.padEnd(11)} ok  LOD0 ${tris.LOD0}  LOD1 ${tris.LOD1}  LOD2 ${tris.LOD2}  pieces ${table.pieces.length}`);
 }
 

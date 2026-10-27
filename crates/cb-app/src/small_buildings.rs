@@ -216,6 +216,57 @@ struct SurfaceTextures {
     normal: Handle<Image>,
     orm: Handle<Image>,
     tile_m: f32,
+    /// The ORM map's mean roughness (G) and metal (B), 0..1.
+    rough: f32,
+    metal: f32,
+    /// The albedo's mean colour, sRGB 0..1.
+    mean: Vec3,
+}
+
+/// An albedo's mean colour (sRGB, 0..1) over its top level.
+fn mean_colour(img: &Image) -> Vec3 {
+    let (w, h) = (img.width() as usize, img.height() as usize);
+    let Some(data) = img.data.as_ref().filter(|d| d.len() >= w * h * 4 && w * h > 0) else {
+        return Vec3::ONE;
+    };
+    let mut sum = [0u64; 3];
+    for px in data[..w * h * 4].as_chunks::<4>().0 {
+        for (k, total) in sum.iter_mut().enumerate() {
+            *total += u64::from(px[k]);
+        }
+    }
+    let n = (w * h) as f32 * 255.0;
+    Vec3::new(sum[0] as f32 / n, sum[1] as f32 / n, sum[2] as f32 / n)
+}
+
+/// A textured surface's colour factor. A set that carries its own colour (brick, asphalt: a saturated mean) draws
+/// white, the vertex colour giving the paint; a near-neutral set (planks shared by the deck and the floor, plain
+/// paint) takes the surface's own stand-in hue over it, so a wood floor stays brown, scaled so the set's mean comes
+/// out at the stand-in.
+fn tint_over(mean: Vec3, standin: Color) -> Color {
+    let saturation = mean.max_element() - mean.min_element();
+    if saturation > 0.08 {
+        return Color::WHITE;
+    }
+    let want = standin.to_srgba();
+    let luma = (0.2126 * mean.x + 0.7152 * mean.y + 0.0722 * mean.z).max(0.05);
+    let k = |c: f32| (c / luma).clamp(0.0, 1.0);
+    Color::srgb(k(want.red), k(want.green), k(want.blue))
+}
+
+/// The mean of an ORM image's roughness (G) and metal (B) channels over its top level.
+fn mean_roughness_metal(orm: &Image) -> (f32, f32) {
+    let (w, h) = (orm.width() as usize, orm.height() as usize);
+    let Some(data) = orm.data.as_ref().filter(|d| d.len() >= w * h * 4 && w * h > 0) else {
+        return (1.0, 0.0);
+    };
+    let (mut g, mut b) = (0u64, 0u64);
+    for px in data[..w * h * 4].as_chunks::<4>().0 {
+        g += u64::from(px[1]);
+        b += u64::from(px[2]);
+    }
+    let n = (w * h) as f32 * 255.0;
+    (g as f32 / n, b as f32 / n)
 }
 
 /// Once every glb is in: each kit's meshes by node, a plain and a state material per surface (the glb's stand-in
@@ -290,7 +341,8 @@ fn bind(
     }
     // Each generator's texture set, where it has been made (one set serves every surface of that generator).
     let root = crate::cli::repo_root().join("assets");
-    let mut sets: HashMap<String, Option<(Handle<Image>, Handle<Image>, Handle<Image>)>> = HashMap::new();
+    type Set = (Handle<Image>, Handle<Image>, Handle<Image>, f32, f32, Vec3);
+    let mut sets: HashMap<String, Option<Set>> = HashMap::new();
     let mut textures_of = |generator: &str, images: &mut Assets<Image>| {
         sets.entry(generator.to_string())
             .or_insert_with(|| {
@@ -298,9 +350,11 @@ fn bind(
                 if !root.join(&dir).join("albedo.png").exists() {
                     return None;
                 }
-                let mut load =
-                    |name: &str, srgb: bool| crate::pbr_set::load_tiling(&root, &format!("{dir}/{name}"), srgb).map(|i| images.add(i));
-                Some((load("albedo.png", true)?, load("normal.png", false)?, load("orm.png", false)?))
+                let read = |name: &str, srgb: bool| crate::pbr_set::load_tiling(&root, &format!("{dir}/{name}"), srgb);
+                let (albedo, normal, orm) = (read("albedo.png", true)?, read("normal.png", false)?, read("orm.png", false)?);
+                let (rough, metal) = mean_roughness_metal(&orm);
+                let mean = mean_colour(&albedo);
+                Some((images.add(albedo), images.add(normal), images.add(orm), rough, metal, mean))
             })
             .clone()
     };
@@ -308,29 +362,41 @@ fn bind(
     for (surface, m) in &materials_of {
         let glass = GLASS.contains(&surface.as_str());
         let set = look_of.get(surface).and_then(|(g, t)| {
-            textures_of(g, &mut images).map(|(albedo, normal, orm)| SurfaceTextures {
+            textures_of(g, &mut images).map(|(albedo, normal, orm, rough, metal, mean)| SurfaceTextures {
                 albedo,
                 normal,
                 orm,
                 tile_m: t.max(0.05),
+                rough,
+                metal,
+                mean,
             })
         });
         if set.is_some() {
             textured.push(surface.clone());
         }
         // A textured surface: white, so the vertex colour (the paint) shows over the albedo; the maps repeat every
-        // `tile_m` metres (the kit's UVs are metres); roughness and metal come from the ORM map.
+        // `tile_m` metres (the kit's UVs are metres). Several surfaces share a set (paint, plaster and metal are all
+        // `smooth`), so the ORM map's roughness and metal are scaled to each surface's own (the set's mean times the
+        // factor is the surface's value); a metal surface on a set with no metal in it keeps its plain numbers.
+        let metal_from_map = set.as_ref().is_some_and(|t| t.metal > 0.05 || m.metallic < 0.05);
         let base = StandardMaterial {
-            base_color: if set.is_some() { Color::WHITE } else { m.base_color },
+            base_color: set.as_ref().map_or(m.base_color, |t| tint_over(t.mean, m.base_color)),
             base_color_texture: set.as_ref().map(|t| t.albedo.clone()),
             normal_map_texture: set.as_ref().map(|t| t.normal.clone()),
-            metallic_roughness_texture: set.as_ref().map(|t| t.orm.clone()),
+            metallic_roughness_texture: set.as_ref().filter(|_| metal_from_map).map(|t| t.orm.clone()),
             occlusion_texture: set.as_ref().map(|t| t.orm.clone()),
             uv_transform: set.as_ref().map_or(bevy::math::Affine2::IDENTITY, |t| {
                 bevy::math::Affine2::from_scale(Vec2::splat(1.0 / t.tile_m))
             }),
-            perceptual_roughness: if set.is_some() { 1.0 } else { m.perceptual_roughness },
-            metallic: if set.is_some() { 1.0 } else { m.metallic },
+            perceptual_roughness: match &set {
+                Some(t) if metal_from_map => (m.perceptual_roughness / t.rough.max(0.05)).min(4.0),
+                _ => m.perceptual_roughness,
+            },
+            metallic: match &set {
+                Some(t) if metal_from_map && t.metal > 0.05 => (m.metallic / t.metal).min(4.0),
+                _ => m.metallic,
+            },
             emissive: m.emissive,
             alpha_mode: if glass { AlphaMode::Blend } else { AlphaMode::Opaque },
             double_sided: m.double_sided,

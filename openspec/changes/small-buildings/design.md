@@ -313,4 +313,4 @@ deterministic from the seed:
 | S3 | Do interiors come with every building near you | yes, within 150 m or when opened by damage, as `building-interiors` does for the city | proposed (survey S3) |
 | S4 | Which houses stand in montane forest | the bungalow and the split-level (the A-frame was its house) | provisional (survey S4) |
 | S5 | How near real furniture is drawn for a pilot on foot | within 60 m, the blocks from 60 to 100 m; in the mech only blocks, within 100 m | provisional (survey S5) |
-| S6 | Do suburbs get their own streets | not in the first build: houses face the city with their drives; streets and cul-de-sacs as their own change | provisional (survey S6) |
+| S6 | Do suburbs get their own streets | yes (owner, 2026-10-27: "driveways need to connect with roads"): `openspec/changes/lot-access` | answered |

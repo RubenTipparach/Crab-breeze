@@ -140,6 +140,12 @@ pub struct GrassConfig {
     pub dry_colour: [f32; 3],
     /// Share of blades that are dry, 0..1.
     pub dry_share: f32,
+    /// How parched each biome's grass is, 0..1 (owner, 2026-10-27: "Grass in sand, you should get beige grass or
+    /// dryer grass"): blades there turn toward `parched_colour` and the ground under them keeps its own colour. By
+    /// biome name; a biome not listed is 0.
+    pub biome_dryness: std::collections::BTreeMap<String, f32>,
+    /// A fully parched blade's colour, linear RGB (sun-bleached beige).
+    pub parched_colour: [f32; 3],
     /// Light reaching the root, 0..1 (the blades shade each other there).
     pub root_light: f32,
     /// Perceptual roughness of a blade, 0..1.
@@ -269,6 +275,18 @@ impl Default for GrassConfig {
             tip_colour: [0.22, 0.33, 0.09],
             dry_colour: [0.36, 0.33, 0.16],
             dry_share: 0.22,
+            biome_dryness: [
+                ("Desert", 1.0),
+                ("Canyon", 1.0),
+                ("Beach", 0.9),
+                ("Savanna", 0.6),
+                ("Cliff", 0.4),
+                ("Alpine", 0.3),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect(),
+            parched_colour: [0.40, 0.31, 0.15],
             root_light: 0.35,
             roughness: 0.65,
             clump_m: 2.5,
@@ -386,6 +404,7 @@ impl Validate for GrassConfig {
             ("root_colour", self.root_colour),
             ("tip_colour", self.tip_colour),
             ("dry_colour", self.dry_colour),
+            ("parched_colour", self.parched_colour),
         ] {
             finite3(field, c)?;
             for x in c {
@@ -393,6 +412,12 @@ impl Validate for GrassConfig {
             }
         }
         within("dry_share", self.dry_share, 0.0, 1.0)?;
+        for (name, v) in &self.biome_dryness {
+            if crate::world::biome::Biome::named(name).is_none() {
+                return Err(format!("`biome_dryness`: `{name}` is not a biome"));
+            }
+            within("biome_dryness", *v, 0.0, 1.0)?;
+        }
         within("root_light", self.root_light, 0.0, 1.0)?;
         within("roughness", self.roughness, 0.0, 1.0)?;
         positive("clump_m", self.clump_m)?;
@@ -610,6 +635,19 @@ impl BladeMesh {
     }
 }
 
+impl GrassConfig {
+    /// How parched grass is where the biomes weigh `weights` (`Biomes::weights` order), 0..1: the one rule the
+    /// blades and the ground under them both follow.
+    pub fn dryness(&self, weights: &[f32; crate::world::biome::BIOME_COUNT]) -> f32 {
+        crate::world::biome::BIOMES
+            .iter()
+            .zip(weights)
+            .map(|(b, w)| self.biome_dryness.get(&format!("{b:?}")).copied().unwrap_or(0.0) * w)
+            .sum::<f32>()
+            .clamp(0.0, 1.0)
+    }
+}
+
 /// A tile's bake: what the shader reads about its ground.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TileBake {
@@ -621,6 +659,8 @@ pub struct TileBake {
     pub open: Vec<u8>,
     /// The same with the craters masked: what is drawn.
     pub density: Vec<u8>,
+    /// How parched the grass is, 0..255 per density cell (`GrassConfig::dryness`).
+    pub dryness: Vec<u8>,
     /// Lowest and highest ground in the tile, metres.
     pub ground_m: [f32; 2],
 }
@@ -680,15 +720,22 @@ impl TileBake {
     }
 
     /// The words the shader reads for this tile: the lattice heights (f32 bits), then the
-    /// density, four cells a word, low byte first. `GrassLayout::words_per_slot` long.
+    /// density, then the dryness, each four cells a word, low byte first. `GrassLayout::words_per_slot` long.
     pub fn pack(&self, out: &mut [u32]) {
-        let (heights, density) = out.split_at_mut(self.heights.len());
+        let (heights, rest) = out.split_at_mut(self.heights.len());
         for (w, h) in heights.iter_mut().zip(&self.heights) {
             *w = h.to_bits();
         }
+        let (density, dryness) = rest.split_at_mut(self.density.len().div_ceil(4).min(rest.len()));
         density.fill(0);
+        dryness.fill(0);
         for (i, d) in self.density.iter().enumerate() {
             density[i / 4] |= u32::from(*d) << (8 * (i % 4));
+        }
+        for (i, d) in self.dryness.iter().enumerate() {
+            if let Some(w) = dryness.get_mut(i / 4) {
+                *w |= u32::from(*d) << (8 * (i % 4));
+            }
         }
     }
 }
@@ -882,7 +929,7 @@ impl GrassLayout {
         Self {
             heights_per_side,
             density_per_side,
-            words_per_slot: heights_per_side * heights_per_side + (density_per_side * density_per_side).div_ceil(4),
+            words_per_slot: heights_per_side * heights_per_side + 2 * (density_per_side * density_per_side).div_ceil(4),
         }
     }
 }
@@ -909,12 +956,14 @@ pub fn bake_tile(plan: &WorldPlan, grid: &TileGrid, key: TileKey, cfg: &GrassCon
         n,
         open: Vec::new(),
         density: Vec::new(),
+        dryness: Vec::new(),
         ground_m: [lo, hi],
     };
     let corner = grid.rect(key).min;
     let d = cfg.density_cells() as usize;
     let half = cfg.density_cell_m * 0.5;
     let mut open = Vec::with_capacity(d * d);
+    let mut dryness = Vec::with_capacity(d * d);
     for j in 0..d {
         for i in 0..d {
             let local = (Vec2::new(i as f32, j as f32) + 0.5) * cfg.density_cell_m;
@@ -924,10 +973,17 @@ pub fn bake_tile(plan: &WorldPlan, grid: &TileGrid, key: TileKey, cfg: &GrassCon
             let slope = Vec2::new(gx, gz).length() / cfg.density_cell_m;
             let g = grows_at(plan, corner + local, h, slope, cfg);
             open.push((g.clamp(0.0, 1.0) * 255.0).round() as u8);
+            let dry = if g > 0.0 {
+                cfg.dryness(&plan.biomes.weights(corner + local, h, slope))
+            } else {
+                0.0
+            };
+            dryness.push((dry * 255.0).round() as u8);
         }
     }
     bake.density.clone_from(&open);
     bake.open = open;
+    bake.dryness = dryness;
     bake
 }
 
@@ -997,6 +1053,7 @@ mod tests {
             n: 2,
             open: vec![200; d * d],
             density: vec![200; d * d],
+            dryness: vec![0; d * d],
             ground_m: [0.0, 0.0],
         };
         let words = |crush: &[CrushRect]| {
@@ -1287,14 +1344,16 @@ mod tests {
         let layout = GrassLayout::new(&cfg, 8.0);
         assert_eq!(layout.heights_per_side, 5);
         assert_eq!(layout.density_per_side, 32);
-        assert_eq!(layout.words_per_slot, 25 + 256);
+        assert_eq!(layout.words_per_slot, 25 + 256 + 256);
         let mut bake = TileBake {
             heights: (0..25).map(|i| i as f32).collect(),
             n: 5,
             open: vec![0; 1024],
             density: vec![0; 1024],
+            dryness: vec![0; 1024],
             ground_m: [0.0, 24.0],
         };
+        bake.dryness[4] = 9;
         bake.density[0] = 1;
         bake.density[1] = 2;
         bake.density[5] = 255;
@@ -1304,6 +1363,7 @@ mod tests {
         assert_eq!(words[25], 1 | (2 << 8));
         assert_eq!(words[26], 255 << 8);
         assert_eq!(words[27], 0, "a stale word is cleared");
+        assert_eq!(words[25 + 256 + 1], 9, "the dryness follows the density");
     }
 
     #[test]

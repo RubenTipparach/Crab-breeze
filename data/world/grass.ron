@@ -54,13 +54,20 @@
     droop: 0.35,
 
     // Colour, linear albedo: dark at the root, lighter at the tip, each clump's hue moved toward a
-    // second green, straw-coloured dry blades scattered through. A rich, saturated green (owner,
-    // 2026-10-24: "Grass needs a richer green. It's too faded right now").
-    root_colour: (0.015, 0.07, 0.008),
-    tip_colour: (0.05, 0.32, 0.04),
+    // second green, straw-coloured dry blades scattered through. A rich green (owner, 2026-10-24: "Grass
+    // needs a richer green. It's too faded right now"), now in the ground's own olive (owner, 2026-10-27: "Grass
+    // color should better match ground color"): the ground between the blades reads about sRGB (0.25, 0.37, 0.16)
+    // in the stills, red a little under half the green; the blades were pure green, red a sixth of it.
+    root_colour: (0.015, 0.045, 0.009),
+    tip_colour: (0.085, 0.20, 0.04),
     dry_colour: (0.30, 0.28, 0.09),
     dry_share: 0.08,
-    hue_colour: (0.10, 0.36, 0.03),
+    // Grass on sand is beige and dry, not meadow green (owner, 2026-10-27: "Grass in sand , you should get beige
+    // grass or dryer grass"): each biome's dryness turns its tufts toward the parched colour, and the ground under
+    // them keeps its sand instead of taking the grass's green.
+    biome_dryness: {"Desert": 1.0, "Canyon": 1.0, "Beach": 0.9, "Savanna": 0.6, "Cliff": 0.4, "Alpine": 0.3},
+    parched_colour: (0.40, 0.31, 0.15),
+    hue_colour: (0.12, 0.22, 0.035),
     hue_variety: 0.6,
     tip_lighten: 0.06,
 

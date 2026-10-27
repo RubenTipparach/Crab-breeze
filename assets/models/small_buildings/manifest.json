@@ -30,6 +30,12 @@
    "blurb": "Single storey, low hip roof, a picture window, brick front with siding ends and an attached garage. The commonest 1950s-80s house.",
    "glb": "ranch.glb",
    "pieces": "ranch.pieces.json",
+   "access": {
+    "drive": [
+     6,
+     3.6
+    ]
+   },
    "bounds_m": {
     "lo": [
      -9.21,
@@ -43,8 +49,8 @@
     ]
    },
    "triangles": {
-    "LOD0": 4534,
-    "LOD1": 3140,
+    "LOD0": 4174,
+    "LOD1": 2852,
     "LOD2": 28,
     "FURN": 288,
     "leaves": 96
@@ -54,7 +60,7 @@
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 402,
+   "piece_count": 388,
    "surfaces": [
     "brick",
     "concrete",
@@ -87,6 +93,12 @@
    "blurb": "Single storey, low hip roof, a picture window, brick front with siding ends and an attached garage. The commonest 1950s-80s house.",
    "glb": "ranch_b.glb",
    "pieces": "ranch_b.pieces.json",
+   "access": {
+    "drive": [
+     6.15,
+     3.9
+    ]
+   },
    "bounds_m": {
     "lo": [
      -9.46,
@@ -100,8 +112,8 @@
     ]
    },
    "triangles": {
-    "LOD0": 3330,
-    "LOD1": 2304,
+    "LOD0": 3318,
+    "LOD1": 2292,
     "LOD2": 14,
     "FURN": 288,
     "leaves": 72
@@ -145,6 +157,12 @@
    "blurb": "Single storey, low hip roof, a picture window, brick front with siding ends and an attached garage. The commonest 1950s-80s house.",
    "glb": "ranch_c.glb",
    "pieces": "ranch_c.pieces.json",
+   "access": {
+    "drive": [
+     0.9,
+     3
+    ]
+   },
    "bounds_m": {
     "lo": [
      -9.16,
@@ -154,12 +172,12 @@
     "hi": [
      8.06,
      7.885,
-     9.93
+     12
     ]
    },
    "triangles": {
-    "LOD0": 4568,
-    "LOD1": 3240,
+    "LOD0": 4580,
+    "LOD1": 3252,
     "LOD2": 28,
     "FURN": 288,
     "leaves": 108
@@ -169,7 +187,7 @@
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 386,
+   "piece_count": 387,
    "surfaces": [
     "brick",
     "concrete",
@@ -198,6 +216,12 @@
    "blurb": "Two storeys, five bays of shuttered windows, a centre door under a columned portico, white clapboard and end chimneys.",
    "glb": "colonial.glb",
    "pieces": "colonial.pieces.json",
+   "access": {
+    "drive": [
+     8.5,
+     3
+    ]
+   },
    "bounds_m": {
     "lo": [
      -6.21,
@@ -205,14 +229,14 @@
      -5.3
     ],
     "hi": [
-     6.72,
+     10,
      9.802,
      12
     ]
    },
    "triangles": {
-    "LOD0": 5993,
-    "LOD1": 4164,
+    "LOD0": 6233,
+    "LOD1": 4404,
     "LOD2": 24,
     "FURN": 336,
     "leaves": 60
@@ -222,15 +246,18 @@
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 349,
+   "piece_count": 351,
    "surfaces": [
     "brick",
     "concrete",
     "floorWood",
     "glass",
+    "glassDark",
     "lamp",
     "metal",
+    "paint",
     "plaster",
+    "rubber",
     "shingle",
     "shutter",
     "siding",
@@ -252,6 +279,12 @@
    "blurb": "Two storeys, five bays of shuttered windows, a centre door under a columned portico, white clapboard and end chimneys.",
    "glb": "colonial_b.glb",
    "pieces": "colonial_b.pieces.json",
+   "access": {
+    "drive": [
+     9.1,
+     3
+    ]
+   },
    "bounds_m": {
     "lo": [
      -5.91,
@@ -259,14 +292,14 @@
      -5.1
     ],
     "hi": [
-     7.31,
+     10.6,
      9.647,
      12
     ]
    },
    "triangles": {
-    "LOD0": 6438,
-    "LOD1": 4696,
+    "LOD0": 6678,
+    "LOD1": 4936,
     "LOD2": 28,
     "FURN": 372,
     "leaves": 108
@@ -276,15 +309,18 @@
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 376,
+   "piece_count": 378,
    "surfaces": [
     "brick",
     "concrete",
     "floorWood",
     "glass",
+    "glassDark",
     "lamp",
     "metal",
+    "paint",
     "plaster",
+    "rubber",
     "shingle",
     "shutter",
     "siding",
@@ -306,6 +342,12 @@
    "blurb": "Two storeys, five bays of shuttered windows, a centre door under a columned portico, white clapboard and end chimneys.",
    "glb": "colonial_c.glb",
    "pieces": "colonial_c.pieces.json",
+   "access": {
+    "drive": [
+     5.2,
+     3.6
+    ]
+   },
    "bounds_m": {
     "lo": [
      -7.46,
@@ -364,6 +406,12 @@
    "blurb": "Gable to the street, a deep full-width porch on tapered posts and brick piers, painted siding and a big front window.",
    "glb": "bungalow.glb",
    "pieces": "bungalow.pieces.json",
+   "access": {
+    "drive": [
+     7.3,
+     3
+    ]
+   },
    "bounds_m": {
     "lo": [
      -5.52,
@@ -371,14 +419,14 @@
      -7.1
     ],
     "hi": [
-     5.36,
+     8.8,
      6.85,
-     9.16
+     12
     ]
    },
    "triangles": {
-    "LOD0": 3838,
-    "LOD1": 2260,
+    "LOD0": 4078,
+    "LOD1": 2500,
     "LOD2": 24,
     "FURN": 240,
     "leaves": 72
@@ -388,16 +436,19 @@
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 306,
+   "piece_count": 308,
    "surfaces": [
     "brick",
     "concrete",
     "deck",
     "floorWood",
     "glass",
+    "glassDark",
     "lamp",
     "metal",
+    "paint",
     "plaster",
+    "rubber",
     "shingle",
     "siding",
     "soffit",
@@ -419,6 +470,12 @@
    "blurb": "Gable to the street, a deep full-width porch on tapered posts and brick piers, painted siding and a big front window.",
    "glb": "bungalow_b.glb",
    "pieces": "bungalow_b.pieces.json",
+   "access": {
+    "drive": [
+     7.7,
+     3
+    ]
+   },
    "bounds_m": {
     "lo": [
      -5.76,
@@ -426,14 +483,14 @@
      -6.35
     ],
     "hi": [
-     5.76,
+     9.2,
      6.3,
-     8.21
+     12
     ]
    },
    "triangles": {
-    "LOD0": 3888,
-    "LOD1": 2444,
+    "LOD0": 4128,
+    "LOD1": 2684,
     "LOD2": 14,
     "FURN": 240,
     "leaves": 72
@@ -443,16 +500,19 @@
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 359,
+   "piece_count": 361,
    "surfaces": [
     "brick",
     "concrete",
     "deck",
     "floorWood",
     "glass",
+    "glassDark",
     "lamp",
     "metal",
+    "paint",
     "plaster",
+    "rubber",
     "shingle",
     "siding",
     "soffit",
@@ -474,6 +534,12 @@
    "blurb": "Gable to the street, a deep full-width porch on tapered posts and brick piers, painted siding and a big front window.",
    "glb": "bungalow_c.glb",
    "pieces": "bungalow_c.pieces.json",
+   "access": {
+    "drive": [
+     8.1,
+     3
+    ]
+   },
    "bounds_m": {
     "lo": [
      -6.52,
@@ -481,14 +547,14 @@
      -5.6
     ],
     "hi": [
-     6.16,
+     9.6,
      7.005,
-     7.46
+     12
     ]
    },
    "triangles": {
-    "LOD0": 3760,
-    "LOD1": 2188,
+    "LOD0": 4000,
+    "LOD1": 2428,
     "LOD2": 24,
     "FURN": 240,
     "leaves": 72
@@ -498,16 +564,19 @@
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 293,
+   "piece_count": 295,
    "surfaces": [
     "brick",
     "concrete",
     "deck",
     "floorWood",
     "glass",
+    "glassDark",
     "lamp",
     "metal",
+    "paint",
     "plaster",
+    "rubber",
     "shingle",
     "soffit",
     "trim"
@@ -525,6 +594,12 @@
    "blurb": "A one-storey living wing beside a two-storey bedroom wing half a level up, the garage under it. Very 1970s.",
    "glb": "split.glb",
    "pieces": "split.pieces.json",
+   "access": {
+    "drive": [
+     3.85,
+     3.1
+    ]
+   },
    "bounds_m": {
     "lo": [
      -8.06,
@@ -584,6 +659,12 @@
    "blurb": "A one-storey living wing beside a two-storey bedroom wing half a level up, the garage under it. Very 1970s.",
    "glb": "split_b.glb",
    "pieces": "split_b.pieces.json",
+   "access": {
+    "drive": [
+     3.85,
+     3.1
+    ]
+   },
    "bounds_m": {
     "lo": [
      -8.06,
@@ -643,6 +724,12 @@
    "blurb": "A one-storey living wing beside a two-storey bedroom wing half a level up, the garage under it. Very 1970s.",
    "glb": "split_c.glb",
    "pieces": "split_c.pieces.json",
+   "access": {
+    "drive": [
+     3.85,
+     3.1
+    ]
+   },
    "bounds_m": {
     "lo": [
      -8.06,
@@ -699,21 +786,27 @@
    "blurb": "Thick stucco walls with rounded corners, flat roof behind stepped parapets, vigas through the wall, a portal porch and a turquoise door.",
    "glb": "adobe.glb",
    "pieces": "adobe.pieces.json",
+   "access": {
+    "drive": [
+     -9.1,
+     3
+    ]
+   },
    "bounds_m": {
     "lo": [
-     -7.35,
+     -10.6,
      -0.3,
      -5.6
     ],
     "hi": [
      8.35,
      4.58,
-     10.035
+     12
     ]
    },
    "triangles": {
-    "LOD0": 4072,
-    "LOD1": 2972,
+    "LOD0": 4324,
+    "LOD1": 3224,
     "LOD2": 20,
     "FURN": 288,
     "leaves": 96
@@ -723,7 +816,7 @@
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 231,
+   "piece_count": 233,
    "surfaces": [
     "adobe",
     "concrete",
@@ -731,9 +824,13 @@
     "floorTile",
     "floorWood",
     "glass",
+    "glassDark",
     "lamp",
+    "metal",
+    "paint",
     "plaster",
     "roofing",
+    "rubber",
     "trim",
     "wood"
    ],
@@ -750,6 +847,12 @@
    "blurb": "Raised 2.4 m on timber piles over flood and swamp, plank walls, a steep corrugated hip roof and a veranda all round.",
    "glb": "stilt.glb",
    "pieces": "stilt.pieces.json",
+   "access": {
+    "drive": [
+     7.5,
+     3
+    ]
+   },
    "bounds_m": {
     "lo": [
      -5.69,
@@ -757,14 +860,14 @@
      -5.19
     ],
     "hi": [
-     5.69,
+     9,
      9.013,
-     7
+     12
     ]
    },
    "triangles": {
-    "LOD0": 4270,
-    "LOD1": 2104,
+    "LOD0": 4522,
+    "LOD1": 2356,
     "LOD2": 14,
     "FURN": 132,
     "leaves": 60
@@ -774,16 +877,20 @@
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 402,
+   "piece_count": 404,
    "surfaces": [
     "board",
     "concrete",
     "deck",
     "floorWood",
     "glass",
+    "glassDark",
     "lamp",
+    "metal",
     "metalRoof",
+    "paint",
     "plaster",
+    "rubber",
     "shutter",
     "soffit",
     "trim",
@@ -801,6 +908,12 @@
    "blurb": "Pastel siding on concrete piers, a metal roof, louvred shutters and a screened porch across the front. Florida and the Gulf, 1980s.",
    "glb": "beach.glb",
    "pieces": "beach.pieces.json",
+   "access": {
+    "drive": [
+     6.8,
+     3
+    ]
+   },
    "bounds_m": {
     "lo": [
      -7.1,
@@ -808,14 +921,14 @@
      -5.1
     ],
     "hi": [
-     4.91,
+     8.3,
      6.5,
-     8.56
+     12
     ]
    },
    "triangles": {
-    "LOD0": 4074,
-    "LOD1": 2496,
+    "LOD0": 4314,
+    "LOD1": 2736,
     "LOD2": 14,
     "FURN": 240,
     "leaves": 72
@@ -825,17 +938,20 @@
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 343,
+   "piece_count": 345,
    "surfaces": [
     "concrete",
     "deck",
     "fabric",
     "floorWood",
     "glass",
+    "glassDark",
     "lamp",
     "metal",
     "metalRoof",
+    "paint",
     "plaster",
+    "rubber",
     "screen",
     "shutter",
     "siding",
@@ -856,6 +972,12 @@
    "blurb": "A 1970s mobile home: ribbed metal siding with a two-tone stripe, small windows, a window air conditioner, skirting, metal steps and an awning.",
    "glb": "trailer.glb",
    "pieces": "trailer.pieces.json",
+   "access": {
+    "drive": [
+     -5.25,
+     3
+    ]
+   },
    "bounds_m": {
     "lo": [
      -9.81,
@@ -865,12 +987,12 @@
     "hi": [
      11.15,
      3.38,
-     7.58
+     12
     ]
    },
    "triangles": {
-    "LOD0": 2112,
-    "LOD1": 1728,
+    "LOD0": 2124,
+    "LOD1": 1740,
     "LOD2": 10,
     "FURN": 156,
     "leaves": 36
@@ -880,7 +1002,7 @@
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 95,
+   "piece_count": 96,
    "surfaces": [
     "carpet",
     "concrete",
@@ -908,11 +1030,15 @@
    "blurb": "Stainless steel with enamel stripes and rounded ends, a ribbon of windows over the booths, a counter with stools, and DINER in neon on the roof.",
    "glb": "diner.glb",
    "pieces": "diner.pieces.json",
+   "access": {
+    "lot": 4.8,
+    "stalls": true
+   },
    "bounds_m": {
     "lo": [
      -11.95,
      -0.3,
-     -3.46
+     -3.47
     ],
     "hi": [
      11.95,
@@ -962,6 +1088,10 @@
    "blurb": "A flat canopy on four columns over two pump islands, a block kiosk with a glass front, a tall price sign, and an oil-stained apron.",
    "glb": "gas.glb",
    "pieces": "gas.pieces.json",
+   "access": {
+    "lot": 14,
+    "stalls": false
+   },
    "bounds_m": {
     "lo": [
      -12,
@@ -1025,6 +1155,10 @@
    "blurb": "Two storeys of brick: a glass shop front under a striped awning with GROCERY on the sign band, an apartment above, a corbelled cornice.",
    "glb": "corner.glb",
    "pieces": "corner.pieces.json",
+   "access": {
+    "lot": 6.6,
+    "stalls": true
+   },
    "bounds_m": {
     "lo": [
      -4.9,
@@ -1082,6 +1216,10 @@
    "blurb": "Painted concrete block with three roll-up doors, an office with a shop window, a sign band, a lift and tyre stacks inside.",
    "glb": "garage.glb",
    "pieces": "garage.pieces.json",
+   "access": {
+    "lot": 13,
+    "stalls": true
+   },
    "bounds_m": {
     "lo": [
      -7.56,
@@ -1096,7 +1234,7 @@
    },
    "triangles": {
     "LOD0": 3758,
-    "LOD1": 2784,
+    "LOD1": 2796,
     "LOD2": 10,
     "FURN": 252,
     "leaves": 60
@@ -1138,6 +1276,10 @@
    "blurb": "Two storeys of rooms off an open walkway with a railing, a door, window and air conditioner per room, the office at one end, a pool, and a neon MOTEL pylon.",
    "glb": "motel.glb",
    "pieces": "motel.pieces.json",
+   "access": {
+    "lot": 5,
+    "stalls": true
+   },
    "bounds_m": {
     "lo": [
      -15.94,
@@ -1201,6 +1343,10 @@
    "blurb": "Four shops under one shingled mansard band and a walkway canopy on posts: a laundromat, a video rental, a pizzeria and a hair salon.",
    "glb": "strip.glb",
    "pieces": "strip.pieces.json",
+   "access": {
+    "lot": 24,
+    "stalls": true
+   },
    "bounds_m": {
     "lo": [
      -18,
@@ -1266,6 +1412,10 @@
    "blurb": "A swooping roof rising to the street over a glass front, red and white panels, a drive-through window, and a big arrow sign.",
    "glb": "drivein.glb",
    "pieces": "drivein.pieces.json",
+   "access": {
+    "lot": 10.5,
+    "stalls": true
+   },
    "bounds_m": {
     "lo": [
      -6.85,
@@ -1329,6 +1479,10 @@
    "blurb": "A corrugated half-cylinder of war surplus, a block end wall with a sliding door and windows, now FEED & SEED.",
    "glb": "quonset.glb",
    "pieces": "quonset.pieces.json",
+   "access": {
+    "lot": 10.2,
+    "stalls": true
+   },
    "bounds_m": {
     "lo": [
      -5.5,

@@ -1,0 +1,320 @@
+{
+ "connections": [
+  {
+   "from": "fbm2_0",
+   "from_port": 0,
+   "to": "shader_4",
+   "to_port": 0
+  },
+  {
+   "from": "voronoi_0",
+   "from_port": 1,
+   "to": "shader_4",
+   "to_port": 1
+  },
+  {
+   "from": "voronoi_0",
+   "from_port": 2,
+   "to": "shader_4",
+   "to_port": 2
+  },
+  {
+   "from": "voronoi_1",
+   "from_port": 1,
+   "to": "shader_4",
+   "to_port": 3
+  },
+  {
+   "from": "voronoi_1",
+   "from_port": 2,
+   "to": "shader_4",
+   "to_port": 4
+  },
+  {
+   "from": "fbm2_1",
+   "from_port": 0,
+   "to": "shader_4",
+   "to_port": 5
+  },
+  {
+   "from": "shader_4",
+   "from_port": 0,
+   "to": "normal_map_0",
+   "to_port": 0
+  },
+  {
+   "from": "shader_4",
+   "from_port": 0,
+   "to": "occlusion2_0",
+   "to_port": 0
+  },
+  {
+   "from": "shader_4",
+   "from_port": 1,
+   "to": "Material",
+   "to_port": 0
+  },
+  {
+   "from": "shader_4",
+   "from_port": 3,
+   "to": "Material",
+   "to_port": 1
+  },
+  {
+   "from": "shader_4",
+   "from_port": 2,
+   "to": "Material",
+   "to_port": 2
+  },
+  {
+   "from": "normal_map_0",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 4
+  },
+  {
+   "from": "occlusion2_0",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 5
+  },
+  {
+   "from": "shader_4",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 6
+  }
+ ],
+ "label": "House Roofing",
+ "name": "Material",
+ "node_position": {
+  "x": 0,
+  "y": 0
+ },
+ "nodes": [
+  {
+   "name": "voronoi_0",
+   "node_position": {
+    "x": 220,
+    "y": 0
+   },
+   "parameters": {
+    "intensity": 1.0,
+    "randomness": 1.0,
+    "scale_x": 96,
+    "scale_y": 96,
+    "stretch_x": 1,
+    "stretch_y": 1
+   },
+   "type": "voronoi"
+  },
+  {
+   "name": "voronoi_1",
+   "node_position": {
+    "x": 440,
+    "y": 0
+   },
+   "parameters": {
+    "intensity": 1.0,
+    "randomness": 1.0,
+    "scale_x": 160,
+    "scale_y": 160,
+    "stretch_x": 1,
+    "stretch_y": 1
+   },
+   "type": "voronoi"
+  },
+  {
+   "name": "fbm2_0",
+   "node_position": {
+    "x": 660,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 4,
+    "noise": 2,
+    "offset": 0.0,
+    "persistence": 0.55,
+    "scale_x": 4,
+    "scale_y": 4
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "fbm2_1",
+   "node_position": {
+    "x": 880,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 3,
+    "noise": 2,
+    "offset": 0.4,
+    "persistence": 0.55,
+    "scale_x": 256,
+    "scale_y": 256
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "shader_4",
+   "node_position": {
+    "x": 1100,
+    "y": 0
+   },
+   "parameters": {},
+   "seed_int": 0,
+   "shader_model": {
+    "code": "",
+    "global": "",
+    "inputs": [
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "lo",
+      "longdesc": "lo",
+      "name": "lo",
+      "shortdesc": "lo",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "st",
+      "longdesc": "st",
+      "name": "st",
+      "shortdesc": "st",
+      "type": "f"
+     },
+     {
+      "default": "vec3(0.0)",
+      "function": true,
+      "label": "stc",
+      "longdesc": "stc",
+      "name": "stc",
+      "shortdesc": "stc",
+      "type": "rgb"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "st2",
+      "longdesc": "st2",
+      "name": "st2",
+      "shortdesc": "st2",
+      "type": "f"
+     },
+     {
+      "default": "vec3(0.0)",
+      "function": true,
+      "label": "st2c",
+      "longdesc": "st2c",
+      "name": "st2c",
+      "shortdesc": "st2c",
+      "type": "rgb"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "fine",
+      "longdesc": "fine",
+      "name": "fine",
+      "shortdesc": "fine",
+      "type": "f"
+     }
+    ],
+    "instance": "\nfloat hs_$name(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }\nfloat sat_$name(float x) { return clamp(x, 0.0, 1.0); }\n\nfloat stone_$name(vec2 uv) { return smoothstep(0.02, 0.22, $st(uv)); }\nfloat stone2_$name(vec2 uv) { return smoothstep(0.03, 0.25, $st2(uv)) * step(0.55, $st2c(uv).r); }\nfloat height_$name(vec2 uv) {\n\tfloat a = sqrt(stone_$name(uv)) * 0.75;\n\tfloat b = sqrt(stone2_$name(uv)) * 0.9;\n\treturn 0.1 + max(a, b) + 0.05 * $fine(uv);\n}\nvec3 stonecol_$name(vec3 r) {\n\tvec3 c = mix(vec3(0.46, 0.45, 0.43), vec3(0.74, 0.72, 0.68), r.r);\n\tc = mix(c, vec3(0.66, 0.58, 0.47), step(0.7, r.g) * 0.8);\n\tc = mix(c, vec3(0.3, 0.3, 0.3), step(0.85, r.b));\n\treturn c;\n}\nvec3 albedo_$name(vec2 uv) {\n\tvec3 tar = vec3(0.13, 0.13, 0.135);\n\tvec3 c = mix(tar, stonecol_$name($stc(uv)) * (0.85 + 0.2 * $st(uv)), stone_$name(uv));\n\tc = mix(c, stonecol_$name($st2c(uv).gbr) * (0.85 + 0.2 * $st2(uv)), stone2_$name(uv));\n\treturn c * (0.9 + 0.14 * $lo(uv));\n}\nfloat rough_$name(vec2 uv) { return 0.9 + 0.06 * $fine(uv); }\nfloat metal_$name(vec2 uv) { return 0.0; }\n",
+    "longdesc": "house roofing",
+    "name": "house roofing",
+    "outputs": [
+     {
+      "f": "sat_$name(height_$name($uv))",
+      "longdesc": "out0",
+      "shortdesc": "out0",
+      "type": "f"
+     },
+     {
+      "longdesc": "out1",
+      "rgba": "vec4(clamp(albedo_$name($uv), vec3(0.0), vec3(1.0)), 1.0)",
+      "shortdesc": "out1",
+      "type": "rgba"
+     },
+     {
+      "f": "sat_$name(rough_$name($uv))",
+      "longdesc": "out2",
+      "shortdesc": "out2",
+      "type": "f"
+     },
+     {
+      "f": "sat_$name(metal_$name($uv))",
+      "longdesc": "out3",
+      "shortdesc": "out3",
+      "type": "f"
+     }
+    ],
+    "parameters": [],
+    "shortdesc": "house roofing"
+   },
+   "type": "shader"
+  },
+  {
+   "name": "normal_map_0",
+   "node_position": {
+    "x": 1320,
+    "y": 0
+   },
+   "parameters": {
+    "param0": 11,
+    "param1": 0.192,
+    "param2": 0,
+    "param4": 1
+   },
+   "type": "normal_map"
+  },
+  {
+   "name": "occlusion2_0",
+   "node_position": {
+    "x": 1540,
+    "y": 0
+   },
+   "parameters": {
+    "param0": 11,
+    "param1": 6,
+    "param2": 2.86,
+    "param3": 1
+   },
+   "type": "occlusion2"
+  },
+  {
+   "export_paths": {},
+   "name": "Material",
+   "node_position": {
+    "x": 0,
+    "y": 160
+   },
+   "parameters": {
+    "albedo_color": {
+     "a": 1.0,
+     "b": 1,
+     "g": 1,
+     "r": 1,
+     "type": "Color"
+    },
+    "ao": 1.0,
+    "depth_scale": 0.0,
+    "emission_energy": 1.0,
+    "flags_transparent": false,
+    "metallic": 1.0,
+    "normal": 1.0,
+    "roughness": 1.0,
+    "size": 11,
+    "sss": 0.0
+   },
+   "type": "material"
+  }
+ ],
+ "parameters": {},
+ "type": "graph"
+}

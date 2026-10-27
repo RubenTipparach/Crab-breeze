@@ -283,7 +283,7 @@ for (const { T, v, id } of BUILDS) {
   if (over.length) { failed = true; console.error(`OVER BUDGET ${id}: ${over.map(([l, n]) => `${l} ${n} > ${budgetOf(T.id, l)}`).join(', ')}`); }
   manifest.types.push({
     id, name: v ? T.variants[v - 1] : T.name, kind: T.kind, ...(v ? { variant_of: T.id, variant: v } : {}), biomes: T.biome.split(',').map((b) => b.trim()), blurb: T.blurb,
-    glb: `${id}.glb`, pieces: `${id}.pieces.json`,
+    glb: `${id}.glb`, pieces: `${id}.pieces.json`, access: B.access && (B.access.drive ? { drive: B.access.drive.map(r3) } : { lot: r3(B.access.lot), stalls: B.access.stalls !== false }),
     bounds_m: { lo: lo.map(r3), hi: hi.map(r3) }, triangles: { LOD0: res.tris.LOD0, LOD1: res.tris.LOD1, LOD2: res.tris.LOD2, FURN: res.tris.FURN, leaves: drawn0 - res.tris.LOD0 - res.tris.FURN }, budget_triangles: { LOD0: budgetOf(T.id, 'LOD0'), LOD1: budgetOf(T.id, 'LOD1'), LOD2: budgetOf(T.id, 'LOD2'), ...(BUDGET_FOR[T.id] ? { why: BUDGET_FOR[T.id].why } : {}) }, piece_count: live.length,
     surfaces: res.prims.LOD0, signs: res.prims.LOD0.filter((k) => k.startsWith('sign:')).map((k) => k.slice(5).split('|')[0]),
   });

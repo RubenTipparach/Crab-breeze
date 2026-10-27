@@ -161,6 +161,29 @@ pub struct Kit {
     pub collapse_wall_share: f32,
     /// Its whole wall area.
     pub wall_area_m2: f32,
+    /// How it is reached from the road (openspec change `lot-access`).
+    pub access: Access,
+}
+
+/// How a kit is reached from the road (openspec change `lot-access`), in its frame.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Access {
+    /// A house: its drive's slab runs to the kit's front edge (`hi.z`) centred on `x_m`, `width_m` wide; the
+    /// game paves it on from there to the street.
+    Drive {
+        /// The drive's middle across the kit.
+        x_m: f32,
+        /// Its width.
+        width_m: f32,
+    },
+    /// A business: the game's car park starts at `z_m` (the building's front, or the end of the kit's own
+    /// apron) and runs out toward the road; striped with stalls unless `stalls` is false (a gas station).
+    Lot {
+        /// Where the car park starts.
+        z_m: f32,
+        /// Whether it is striped with stalls.
+        stalls: bool,
+    },
 }
 
 impl Kit {
@@ -286,6 +309,23 @@ struct TypeJson {
     bounds_m: BoundsJson,
     #[serde(default)]
     variant_of: Option<String>,
+    #[serde(default)]
+    access: Option<AccessJson>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AccessJson {
+    #[serde(default)]
+    drive: Option<[f32; 2]>,
+    #[serde(default)]
+    lot: Option<f32>,
+    #[serde(default = "yes")]
+    stalls: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 #[derive(Deserialize)]
@@ -462,6 +502,11 @@ fn kit_of(t: TypeJson, table: &str, what: &str) -> Result<Kit, String> {
             })
         })
         .collect::<Result<_, String>>()?;
+    let access = match (kind, t.access.as_ref()) {
+        (Kind::House, Some(AccessJson { drive: Some([x, w]), .. })) if x.is_finite() && *w >= 2.0 => Access::Drive { x_m: *x, width_m: *w },
+        (Kind::Business, Some(AccessJson { lot: Some(z), stalls, .. })) if z.is_finite() => Access::Lot { z_m: *z, stalls: *stalls },
+        _ => return Err(format!("{what}: a house needs access.drive [x, width >= 2], a business access.lot")),
+    };
     if !(0.0..=1.0).contains(&table.collapse_wall_share) {
         return Err(format!("{what}: collapse_wall_share must be within 0..1"));
     }
@@ -483,6 +528,7 @@ fn kit_of(t: TypeJson, table: &str, what: &str) -> Result<Kit, String> {
         max_side_steps: table.max_side_steps,
         collapse_wall_share: table.collapse_wall_share,
         wall_area_m2,
+        access,
     })
 }
 

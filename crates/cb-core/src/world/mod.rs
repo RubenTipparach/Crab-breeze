@@ -589,11 +589,12 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
             highways: &highways,
             keep_out: &keep_out,
             min_ground_m: sea_level_m + cfg.water.city_freeboard_m,
+            road_lift_m: cfg.road_lift_m,
             shoulder_m: cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m,
             cell_m: cfg.terrain_cell_m,
         };
-        let lots = small_buildings::lots::place(&root.fork("small_buildings"), &cfg.small_buildings, &cfg.small_kits, &ground);
-        small_buildings::Lots::new(cfg.small_kits.clone(), lots, cfg.world_size_m)
+        let placed = small_buildings::lots::place(&root.fork("small_buildings"), &cfg.small_buildings, &cfg.small_kits, &ground);
+        small_buildings::Lots::new(cfg.small_kits.clone(), placed, cfg.world_size_m)
     };
     let flats = Flats::new(&plateaus, &highways, cfg).with_pads(
         small.pads(),
