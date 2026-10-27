@@ -77,12 +77,21 @@ impl Plugin for GroundFogPlugin {
     }
 }
 
-/// A new world begins at the clock's start, in the strength it begins with.
+/// A new world begins at the clock's start, in the strength it begins with. `CB_FOG_HOUR=<h>` starts the clock at that
+/// hour instead (an instrument, CLAUDE.md section 4: stills of the morning mist at 06:00 against 09:00 and 12:00, for
+/// survey question F4); the clock then runs on from there.
 fn restart_clock(data: Res<Data>, mut fog: ResMut<FogNow>) {
     let cfg = &data.0.world.fog;
-    let hour_h = cfg.clock.hour_at(0.0);
+    let elapsed_s = std::env::var("CB_FOG_HOUR")
+        .ok()
+        .and_then(|v| v.parse::<f32>().ok())
+        .filter(|h| h.is_finite() && cfg.clock.hours_per_s > 0.0)
+        .map(|h| ((h - cfg.clock.start_h) / cfg.clock.hours_per_s).max(0.0))
+        .unwrap_or(0.0);
+    let hour_h = cfg.clock.hour_at(elapsed_s);
+    println!("FOG clock starts at {hour_h:.1} h");
     *fog = FogNow {
-        elapsed_s: 0.0,
+        elapsed_s,
         hour_h,
         mission: None,
         strength: cfg.strength(None, hour_h),
