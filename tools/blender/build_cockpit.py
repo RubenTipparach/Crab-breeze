@@ -1812,7 +1812,7 @@ def preview(path, samples=48):
                 n.inputs["Emission Strength"].default_value = 0.6
     sc.render.engine = "CYCLES"
     sc.cycles.device = "CPU"
-    sc.cycles.samples = samples
+    sc.cycles.samples = int(os.environ.get("CB_PREVIEW_SAMPLES", samples))
     sc.cycles.use_denoising = True
     sc.render.resolution_x, sc.render.resolution_y, sc.render.resolution_percentage = 1280, 720, 100
     sc.view_settings.view_transform = "AgX"
@@ -1820,8 +1820,9 @@ def preview(path, samples=48):
     sc.render.image_settings.file_format = "PNG"
     # ahead, then turned to the left wall and down a little, where the trims, walls and seat show
     # and close on the lower side wall and the rear wall with a narrow lens, where the panelling's detail shows
-    for tag, yaw, pitch, fov_v in (("front", 0.0, 0.0, fov), ("side", 70.0, -18.0, fov), ("wall", 95.0, -38.0, 40.0),
-                                   ("rear", 160.0, -15.0, 60.0)):
+    views = (("front", 0.0, 0.0, fov), ("side", 70.0, -18.0, fov), ("wall", 95.0, -38.0, 40.0), ("rear", 160.0, -15.0, 60.0))
+    only = os.environ.get("CB_PREVIEW_VIEWS")
+    for tag, yaw, pitch, fov_v in [v for v in views if not only or v[0] in only.split(",")]:
         cam.angle_y = math.radians(fov_v)
         co.rotation_euler = (math.radians(90 + pitch), 0.0, math.radians(180 + yaw))
         sc.render.filepath = path.replace(".png", f"_{tag}.png")

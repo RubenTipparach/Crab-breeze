@@ -49,7 +49,7 @@ def srgb(h):
 ROLES = {
     "paint":    dict(c="#3b424a", r=0.58, m=0.0, grime=1.0, wear=1.0),
     "paint_lt": dict(c="#5d6670", r=0.55, m=0.0, grime=1.0, wear=1.0),
-    "paint_dk": dict(c="#262b31", r=0.6, m=0.0, grime=0.8, wear=0.8, panels=dict()),
+    "paint_dk": dict(c="#323840", r=0.6, m=0.0, grime=0.8, wear=0.8, panels=dict()),
     "bezel":    dict(c="#16181b", r=0.42, m=0.0, grime=0.5, wear=0.5),
     "rubber":   dict(c="#0d0d0e", r=0.92, m=0.0, grime=0.3),
     "metal":    dict(c="#a9aeb5", r=0.3, m=1.0, grime=0.6),
@@ -328,10 +328,11 @@ def make_material(name, spec):
                 slotx = op("MAXIMUM", cross1, cross2)                   # its cross slot, deeper
             else:
                 rivet = slotx = op("MULTIPLY", seam, 0.0)
-            hatch = mul(lt(rnd, 0.16), lt(op("ABSOLUTE", op("SUBTRACT", dmin, 0.05)), 0.0016))
-            slots = mul(band(rnd, 0.16, 0.28), inner, lt(op("FRACT", op("DIVIDE", b_, 0.014)), 0.45))
+            hatch = mul(lt(rnd, 0.22), lt(op("ABSOLUTE", op("SUBTRACT", dmin, 0.05)), 0.0018))
+            slots = mul(band(rnd, 0.22, 0.35), inner, lt(op("FRACT", op("DIVIDE", b_, 0.014)), 0.45))
+            edge = mul(gt(dmin, 0.0022), lt(dmin, 0.0045))          # the plate's bevelled edge, catching the light
             if circuits:
-                board = mul(band(rnd, 0.28, 0.38), gt(du, 0.04), gt(dv, 0.04))
+                board = mul(band(rnd, 0.35, 0.47), gt(du, 0.04), gt(dv, 0.04))
                 tn = N.new("ShaderNodeTexNoise")
                 tn.inputs["Scale"].default_value = 30.0
                 L.new(tc.outputs["Object"], tn.inputs["Vector"])
@@ -339,17 +340,17 @@ def make_material(name, spec):
                 traces = mul(board, lines, gt(tn.outputs["Fac"], 0.48))
             else:
                 board = traces = op("MULTIPLY", seam, 0.0)
-            placard = mul(band(rnd, 0.38, 0.47), band(fv, 0.72, 0.92), gt(du, 0.05))
+            placard = mul(band(rnd, 0.47, 0.6), band(fv, 0.72, 0.92), gt(du, 0.05))
             tn2 = N.new("ShaderNodeTexNoise")
             tn2.inputs["Scale"].default_value = 90.0
             L.new(tc.outputs["Object"], tn2.inputs["Vector"])
             ink = mul(placard, band(fv, 0.77, 0.87), lt(op("FRACT", op("MULTIPLY", a_, 70.0)), 0.5), gt(tn2.outputs["Fac"], 0.45))
             height = op("ADD", op("SUBTRACT", op("SUBTRACT", op("SUBTRACT", 0.5, op("MULTIPLY", seam, 0.5)),
                                                           op("MULTIPLY", hatch, 0.4)), op("MULTIPLY", slots, 0.35)),
-                         op("ADD", op("MULTIPLY", rivet, -0.25), op("ADD", op("MULTIPLY", slotx, -0.25),
+                         op("ADD", op("MULTIPLY", rivet, 0.12), op("ADD", op("MULTIPLY", slotx, -0.45),
                                                                     op("ADD", op("MULTIPLY", traces, 0.15), op("MULTIPLY", placard, 0.08)))))
             w = op("POWER", op("ABSOLUTE", sn.outputs[ax]), 4.0)
-            for key, val in (("h", height), ("seam", op("MAXIMUM", seam, hatch)), ("slots", slots), ("rivet", rivet),
+            for key, val in (("h", height), ("seam", op("MAXIMUM", seam, hatch)), ("slots", slots), ("rivet", rivet), ("edge", edge), ("slotx", slotx),
                              ("board", board), ("traces", traces), ("placard", placard), ("ink", ink)):
                 term = op("MULTIPLY", val, w)
                 acc[key] = term if key not in acc else op("ADD", acc[key], term)
@@ -360,9 +361,11 @@ def make_material(name, spec):
         colour = mix_col(m["traces"], colour, "#b8813f")
         colour = mix_col(m["placard"], colour, "#d6d0bd")
         colour = mix_col(m["ink"], colour, "#161616")
-        colour = mix_col(op("MULTIPLY", m["seam"], 0.6), colour, "#0b0b0b")
+        colour = mix_col(op("MULTIPLY", m["seam"], 0.85), colour, "#070707")
         colour = mix_col(op("MULTIPLY", m["slots"], 0.7), colour, "#0a0a0a")
-        colour = mix_col(op("MULTIPLY", m["rivet"], 0.55), colour, "#121212")
+        colour = mix_col(op("MULTIPLY", m["edge"], 0.35), colour, "#8d949b")
+        colour = mix_col(op("MULTIPLY", m["rivet"], 0.85), colour, "#7c838b")      # brushed steel screw heads
+        colour = mix_col(m["slotx"], colour, "#0d0d0d")                           # their cross slots
         # grime streaks running down the wall: noise stretched along the up axis, darkening
         sm = N.new("ShaderNodeMapping")
         sm.inputs["Scale"].default_value = (14.0, 14.0, 0.7)
