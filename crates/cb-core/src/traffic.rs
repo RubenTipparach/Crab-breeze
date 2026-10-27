@@ -469,9 +469,9 @@ pub struct Traffic {
     time_s: f32,
     harms: Vec<Harm>,
     driver_thrown: bool,
-    /// Road lanes within reach of the last refill's eye, with the driving and parked cars each wants there,
-    /// and where that eye was.
-    near: Vec<(u32, u32, u32)>,
+    /// Road lanes within reach of the last refill's eye, with the driving and parked cars each wants there and
+    /// the stretch of the lane (from, to, metres along it) that is in reach, and where that eye was.
+    near: Vec<(u32, u32, u32, f32, f32)>,
     near_from: Option<Vec2>,
     /// Each lane's bounds (least, greatest corner), built on first use.
     bounds: Vec<(Vec2, Vec2)>,
@@ -1095,9 +1095,13 @@ impl Traffic {
     /// (ties to the lower id); each may go when its connector meets no connector a car is on, none
     /// already given this step, and none an earlier car is still waiting for, and the lane it leads
     /// into has room for it. At a junction with traffic lights (survey W39) a car whose light is red
-    /// is not waiting for a turn at all: it stops at the line and holds no one up; on amber it goes
-    /// only if it could not stop comfortably short of the line; on green it takes its turn as above,
-    /// so a turn across oncoming traffic still gives way.
+    /// stops at the line and holds no path; on amber it goes only if it could not stop comfortably short
+    /// of the line; on green it takes its turn as above, so a turn across oncoming traffic still gives way.
+    ///
+    /// The room on a lane past the junction is shared out in arrival order, and a car held at red keeps
+    /// its place in that order: the space it needs is kept for it, so the cars of the other phase cannot
+    /// take every gap that opens on a slow lane both feed while its light is red, and its turn comes on
+    /// its next green. Without that a street car turning onto a crawling arterial stood for minutes.
     fn grant_turns(&mut self, g: &LaneGraph, on: &BTreeMap<u32, Vec<usize>>, data: &TrafficData) {
         let cfg = &data.cfg;
         let now = self.time_s;
@@ -1109,7 +1113,8 @@ impl Traffic {
                 busy.entry(l.from_node).or_default().push(lane);
             }
         }
-        let mut waiting: BTreeMap<u32, Vec<(f32, u32, usize, u32)>> = BTreeMap::new();
+        // (arrived, id, car, connector, may go now: false while its light holds it)
+        let mut waiting: BTreeMap<u32, Vec<(f32, u32, usize, u32, bool)>> = BTreeMap::new();
         for (i, c) in self.cars.iter_mut().enumerate() {
             if !c.on_lane() {
                 continue;
@@ -1134,36 +1139,47 @@ impl Traffic {
                 continue;
             }
             let t = *c.arrived_s.get_or_insert(now);
-            if let Some(phase) = lane.phase {
-                let to_line = lane.length_m() - c.s_m - data.kinds[c.kind as usize].size_m[2] * 0.5 - cfg.stop_short_m;
-                let can_stop = c.speed_m_s * c.speed_m_s / (2.0 * cfg.idm_brake_m_s2) <= to_line.max(0.0);
-                match light(&cfg.lights, lane.to_node, phase, now) {
-                    Light::Green => {}
-                    Light::Amber if !can_stop => {}
-                    Light::Amber | Light::Red => continue,
+            let go = match lane.phase {
+                None => true,
+                Some(phase) => {
+                    let to_line = lane.length_m() - c.s_m - data.kinds[c.kind as usize].size_m[2] * 0.5 - cfg.stop_short_m;
+                    let can_stop = c.speed_m_s * c.speed_m_s / (2.0 * cfg.idm_brake_m_s2) <= to_line.max(0.0);
+                    match light(&cfg.lights, lane.to_node, phase, now) {
+                        Light::Green => true,
+                        Light::Amber => !can_stop,
+                        Light::Red => false,
+                    }
                 }
-            }
-            waiting.entry(lane.to_node).or_default().push((t, c.id, i, n));
+            };
+            waiting.entry(lane.to_node).or_default().push((t, c.id, i, n, go));
         }
         for (node, mut list) in waiting {
             list.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
             let taken: Vec<u32> = busy.get(&node).cloned().unwrap_or_default();
             let mut held: Vec<u32> = Vec::new();
-            for (_, _, i, conn) in list {
+            // the room on each lane past this junction already promised to an earlier car, metres
+            let mut promised: BTreeMap<u32, f32> = BTreeMap::new();
+            for (_, _, i, conn, go) in list {
                 let meets = |set: &[u32]| set.iter().any(|&o| o == conn || g.lanes[conn as usize].conflicts.contains(&o));
                 let out = g.lanes[conn as usize].out.first().copied();
-                // room on the far side for this car and its gap
-                let mine = data.kinds[self.cars[i].kind as usize].size_m[2];
+                // room on the far side for this car and its gap, after the earlier cars' share
+                let need = data.kinds[self.cars[i].kind as usize].size_m[2] + cfg.min_gap_m;
                 let room = out.is_none_or(|o| {
-                    on.get(&o).and_then(|l| l.first()).is_none_or(|&j| {
+                    let free = on.get(&o).and_then(|l| l.first()).map_or(f32::INFINITY, |&j| {
                         let theirs = data.kinds[self.cars[j].kind as usize].size_m[2];
-                        self.cars[j].s_m - theirs * 0.5 > mine + cfg.min_gap_m
-                    })
+                        self.cars[j].s_m - theirs * 0.5
+                    });
+                    let p = promised.entry(o).or_insert(0.0);
+                    let fits = free - *p > need;
+                    *p += need;
+                    fits
                 });
-                if !meets(&taken) && !meets(&held) && room {
-                    self.cars[i].granted = true;
+                if go {
+                    if !meets(&taken) && !meets(&held) && room {
+                        self.cars[i].granted = true;
+                    }
+                    held.push(conn);
                 }
-                held.push(conn);
             }
         }
     }
@@ -1212,7 +1228,7 @@ impl Traffic {
                 })
                 .filter_map(|lane| {
                     let li = lane.id;
-                    let in_range = length_within(&lane.line.points, eye2, range);
+                    let (in_range, from, to) = span_within(&lane.line.points, eye2, range);
                     if in_range <= 0.0 {
                         return None;
                     }
@@ -1228,7 +1244,7 @@ impl Traffic {
                         Some(_) => (in_range / cfg.parked_spacing_m + frac("park")).floor() as u32,
                         None => 0,
                     };
-                    Some((li, want, want_parked))
+                    Some((li, want, want_parked, from, to))
                 })
                 .collect();
             self.near_from = Some(eye2);
@@ -1254,7 +1270,7 @@ impl Traffic {
         }
         let mut made = 0;
         let near = std::mem::take(&mut self.near);
-        for &(li, want, want_parked) in &near {
+        for &(li, want, want_parked, from, to) in &near {
             if made >= budget {
                 break;
             }
@@ -1266,9 +1282,14 @@ impl Traffic {
                 let mut tries = want.saturating_sub(have) * 3;
                 while have < want && made < budget && tries > 0 {
                     tries -= 1;
-                    // clear of the lane's first 30 m, where a car leaving the junction behind would meet it
-                    let lo = if parked { 0.0 } else { 30.0f32.min(lane.length_m() * 0.5) };
-                    let s = self.rng.range_f32(lo, lane.length_m());
+                    // on the stretch in reach (a highway runs on far past the ring, and a place drawn along all
+                    // of it would mostly miss: the lane filled to half its density inside 1 km), and clear of
+                    // the lane's first 30 m, where a car leaving the junction behind would meet it
+                    let lo = from.max(if parked { 0.0 } else { 30.0f32.min(lane.length_m() * 0.5) });
+                    if lo >= to {
+                        break;
+                    }
+                    let s = self.rng.range_f32(lo, to);
                     let (p, d) = lane.line.at(s);
                     let p = p + right_of(d) * if parked { lane.parking_m.unwrap_or(0.0) } else { 0.0 };
                     if p.distance(eye2) > range {
@@ -1405,13 +1426,20 @@ fn idm(v: f32, v0: f32, gap: f32, lead_v: f32, cfg: &TrafficConfig) -> f32 {
     a_out.clamp(-cfg.max_brake_m_s2, a)
 }
 
-/// Length of the polyline within `range` of `p`, metres (by segment, both ends inside).
-fn length_within(points: &[Vec2], p: Vec2, range: f32) -> f32 {
-    points
-        .windows(2)
-        .filter(|w| w[0].distance(p) <= range && w[1].distance(p) <= range)
-        .map(|w| w[0].distance(w[1]))
-        .sum()
+/// The polyline within `range` of `p` (by segment, both ends inside): its length, and the first and last
+/// distance along the line that it covers, metres. (0, 0, 0) when none of it is.
+fn span_within(points: &[Vec2], p: Vec2, range: f32) -> (f32, f32, f32) {
+    let (mut len, mut from, mut to, mut s) = (0.0, f32::INFINITY, 0.0f32, 0.0);
+    for w in points.windows(2) {
+        let seg = w[0].distance(w[1]);
+        if w[0].distance(p) <= range && w[1].distance(p) <= range {
+            len += seg;
+            from = from.min(s);
+            to = to.max(s + seg);
+        }
+        s += seg;
+    }
+    if len > 0.0 { (len, from, to) } else { (0.0, 0.0, 0.0) }
 }
 
 /// True when the sole's circle of radius `r` at `sole` overlaps the car's footprint.
@@ -1547,7 +1575,12 @@ mod tests {
         assert_eq!(d.cfg.kinds, ["sedan", "wagon", "pickup", "van", "taxi", "bus", "semi"]);
         assert_eq!(d.cfg.city_spacing_m, 60.0, "survey J6");
         assert_eq!(d.cfg.highway_spacing_m, 300.0, "survey J6");
-        assert_eq!(d.cfg.spawn_within_m, 1500.0, "survey J6");
+        // survey J6 said 1.5 km; the owner cut it (2026-10-26: "car should be 1000m"), with 200 m of margin
+        assert_eq!(d.cfg.spawn_within_m, 1000.0, "owner, 2026-10-26: car should be 1000m");
+        assert_eq!(
+            d.cfg.despawn_beyond_m, 1200.0,
+            "200 m past the ring, so a car on the edge does not come and go"
+        );
     }
 
     #[test]
@@ -1556,7 +1589,7 @@ mod tests {
         let mut city_len = 0.0;
         let mut hw_len = 0.0;
         for l in g.road_lanes() {
-            let len = length_within(&l.line.points, Vec2::ZERO, d.cfg.spawn_within_m);
+            let len = span_within(&l.line.points, Vec2::ZERO, d.cfg.spawn_within_m).0;
             if l.kind.in_city() {
                 city_len += len;
             } else {
@@ -1872,6 +1905,99 @@ mod tests {
         }
     }
 
+    /// A car standing on its lane, for tests that set up a junction by hand.
+    fn standing(id: u32, lane: u32, s_m: f32, next: Option<u32>, state: CarState) -> Car {
+        Car {
+            id,
+            kind: 0,
+            paint: 0,
+            state,
+            lane,
+            s_m,
+            next,
+            speed_m_s: 0.0,
+            cruise_m_s: 12.0,
+            fear_s: 0.0,
+            hailed: false,
+            arrived_s: None,
+            granted: false,
+            turns: 0,
+            pos: Vec3::ZERO,
+            heading_rad: 0.0,
+            body: None,
+            health: 1.0,
+            wreck_s: 0.0,
+        }
+    }
+
+    #[test]
+    fn a_car_held_at_red_keeps_its_place_for_the_room_on_the_lane_it_turns_into() {
+        // Seed 9 once starved a street car turning onto a crawling arterial for minutes: while its light was red the
+        // arterial's own cars took every gap that opened, so on its green there was never room. The room is shared
+        // in arrival order, and a car held at red keeps its place in it.
+        let (_, _, g) = town();
+        let d = data();
+        // a lit junction where two lanes of different phases both turn into one lane
+        let (first, later, into) = g
+            .road_lanes()
+            .filter_map(|a| {
+                let pa = a.phase?;
+                g.road_lanes()
+                    .filter(|b| b.to_node == a.to_node && b.phase == Some(1 - pa))
+                    .find_map(|b| {
+                        a.out.iter().find_map(|&ca| {
+                            let o = g.lanes[ca as usize].out[0];
+                            b.out
+                                .iter()
+                                .find(|&&cb| g.lanes[cb as usize].out[0] == o)
+                                .map(|&cb| ((a, ca), (b, cb), o))
+                        })
+                    })
+            })
+            .next()
+            .expect("a lit junction where both phases feed one lane");
+        let ((la, ca), (lb, cb), o) = (first, later, into);
+        let times = d.cfg.lights;
+        // a moment the later car's light is green for a while and the first car's is red
+        let now = (0..2000)
+            .map(|k| k as f32 * 0.5)
+            .find(|&t| {
+                (0..20).all(|k| light(&times, lb.to_node, lb.phase.unwrap(), t + k as f32 * 0.25) == Light::Green)
+                    && light(&times, la.to_node, la.phase.unwrap(), t) == Light::Red
+            })
+            .unwrap();
+        let mut t = Traffic::new(9);
+        t.time_s = now;
+        let len = d.kinds[0].size_m[2];
+        let near_line = |l: &Lane| l.length_m() - len * 0.5 - d.cfg.stop_short_m;
+        let mut a = standing(0, la.id, near_line(la), Some(ca), CarState::Driving);
+        a.arrived_s = Some(now - 10.0);
+        let b = standing(1, lb.id, near_line(lb), Some(cb), CarState::Driving);
+        // a wreck on the lane past the junction leaves room there for one car, not two
+        let room = (len + d.cfg.min_gap_m) * 1.5;
+        let wreck = standing(2, o, room + len * 0.5, None, CarState::Burnt);
+        t.cars = vec![a, b, wreck];
+        t.next_id = 3;
+        let ground = FlatGround::default();
+        t.step(&view(&g, &d, &ground), Vec3::ZERO, DT);
+        assert!(!t.get(0).unwrap().granted, "the first car's light is red");
+        assert!(
+            !t.get(1).unwrap().granted,
+            "the room is the first car's: the later car does not take it while the first is held at red"
+        );
+        for _ in 0..(times.cycle_s() / DT) as usize {
+            t.step(&view(&g, &d, &ground), Vec3::ZERO, DT);
+            if t.get(0).unwrap().granted || t.get(0).unwrap().lane != la.id {
+                break;
+            }
+            assert!(!t.get(1).unwrap().granted, "the later car goes first");
+        }
+        assert!(
+            t.get(0).unwrap().granted || t.get(0).unwrap().lane != la.id,
+            "the first car takes its room on its next green"
+        );
+    }
+
     #[test]
     fn seed_11_drives_the_golden_traffic() {
         let (mut t, g, d) = filled(11);
@@ -1883,7 +2009,7 @@ mod tests {
         );
     }
 
-    const GOLDEN_11: (usize, u64) = (460, 8585173833603358746);
+    const GOLDEN_11: (usize, u64) = (455, 8072100176767906781);
 
     #[test]
     fn a_blast_within_120_m_stops_the_traffic_for_20_to_40_s() {
