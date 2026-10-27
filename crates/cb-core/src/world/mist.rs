@@ -5,9 +5,9 @@
 //! 600 m, and greyer under a storm's rain.
 //!
 //! The rules are here, pure and tested: `mist_at` is the one mist rule (the drawn map is baked from
-//! it, `MistMap`), and `optical_depth` is the one fog integral (the compose pass in
-//! `assets/shaders/water_post.wesl` repeats it on the GPU; a test checks the closed form against a
-//! fine march). The tuning is in `data/world/world.ron` under `fog:`.
+//! it, `MistMap`), and `optical_depth` is the one fog integral (`layer_depth` in
+//! `assets/shaders/water_common.wesl` repeats it on the GPU for the fog pass and the clouds; a
+//! test checks the closed form against a fine march). The tuning is in `data/world/world.ron` under `fog:`.
 //!
 //! How thick it is right now (survey F1; owner, 2026-10-26: "Approve all"): a morning mist that
 //! thins by day, on the fog's own clock (the game has no time of day: the sun stands still), or a
@@ -301,7 +301,7 @@ pub fn haze_depth(cfg: &FogConfig, sea_level_m: f32, from_y_m: f32, dir_y: f32, 
 
 /// The optical depth through an exponential layer of `density` per metre at sea level, thinning
 /// by e every `h` metres, along a ray from height `from_y_m` rising `dir_y` a metre for
-/// `length_m`. The one closed form of the fog and the haze (`layer_depth` in `water_post.wesl`).
+/// `length_m`. The one closed form of the fog and the haze (`layer_depth` in `water_common.wesl`).
 fn layer_depth(density: f32, h: f32, sea_level_m: f32, from_y_m: f32, dir_y: f32, length_m: f32) -> f32 {
     let e = |y: f32| (-(y - sea_level_m).max(-200.0) / h).exp();
     let e0 = e(from_y_m);

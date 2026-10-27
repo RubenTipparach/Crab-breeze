@@ -76,7 +76,14 @@ land met the sky in a band of another colour.
   sky ray's whole 40 km, an optical depth of 26.7 times the rain at the eye, so a trace of rain
   greyed the whole sky. It now runs to `rain_reach_m` (1,500 m), about a shaft's breadth
   (`cb_core::world::mist::rain_depth`, the one copy; the fog pass writes it the same way).
-- Cost: one LUT read a fog pixel.
+- **Far clouds fade into it** (owner, 2026-10-26: "make sure distanrt clouds blends with fog too"; built
+  2026-10-27). The clouds are drawn after the fog pass and write no depth, so the pass never fogs them: each
+  billboard's alpha is multiplied by the air's transmittance from the eye to it, the ground layer and the haze by the
+  same `layer_depth` (`water_common.wesl`), and blended over the horizon already fogged behind it, a far cloud takes
+  the horizon's colour. The rain's haze is not applied to them: it reaches only `rain_reach_m`, so it would fade the
+  storm's own base overhead, and a faded billboard shows the clear sky drawn behind it. The mist map's thickening is
+  left out too (it lies under 600 m, below every cloud).
+- Cost: one LUT read a fog pixel; two exponentials a cloud pixel.
 
 ## 3. The mist map
 

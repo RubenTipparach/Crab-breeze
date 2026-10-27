@@ -11,7 +11,7 @@
 // the sealed cabin (seated) is dry; the waterline while straddling is a wavy line across the view
 // rather than Pale Blue Dot's sky-only band; the mist and its probe are left out.
 
-import super::water_common::{safe_normal, water_transmittance, water_murk, rd_drops};
+import super::water_common::{safe_normal, water_transmittance, water_murk, rd_drops, layer_depth};
 
 // Matches `WaterPostUniform` in `crates/cb-app/src/water_render.rs`; a test pins the size.
 struct WaterPost {
@@ -134,19 +134,6 @@ fn fog_depth(origin: vec3<f32>, dir: vec3<f32>, len: f32) -> f32 {
     let haze = layer_depth(post.fog_sun.w, post.fog_sun_dir.w, sea, origin.y, dir.y, len);
     // The rain's haze only as far as the rain reaches (`cb_core::world::mist::rain_depth`).
     return thick * max(layer, 0.0) + max(haze, 0.0) + post.fog_mist.w * min(len, post.fog_map.w);
-}
-
-// The optical depth through an exponential layer of `density` per metre at sea level, thinning by
-// e every `h` metres, along a ray from height `from_y` rising `dir_y` a metre for `len`: the closed
-// form of `cb_core::world::mist::layer_depth`, with both ends' exponentials.
-fn layer_depth(density: f32, h: f32, sea: f32, from_y: f32, dir_y: f32, len: f32) -> f32 {
-    let hh = max(h, 1.0);
-    let e0 = exp(-max(from_y - sea, -200.0) / hh);
-    if (abs(dir_y) < 1e-4) {
-        return density * e0 * len;
-    }
-    let e1 = exp(-max(from_y + dir_y * len - sea, -200.0) / hh);
-    return density * hh * (e0 - e1) / dir_y;
 }
 
 // The scattering sky's colour along `dir` at or above the horizon, as Bevy's sky pass reads it
