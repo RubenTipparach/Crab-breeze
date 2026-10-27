@@ -1428,7 +1428,7 @@ def build_layout(S, VAR):
                 continue
             q = [a + V(0, y0, 0), b + V(0, y0, 0), b + V(0, y1, 0), a + V(0, y1, 0)]
             mid = (a + b) / 2 + V(0, (y0 + y1) / 2, 0)
-            slab(S, q, 0.04, "paint_dk", "cabin", node_at(mid), bevel=0.0)
+            slab(S, q, 0.04, "wall", "cabin", node_at(mid), bevel=0.0)
         if not has_screens:
             # a plain wall: ribs at a third and two thirds, conduit up under the roof, the kit between the ribs (dress)
             mid = (a + b) / 2
@@ -1493,10 +1493,10 @@ def build_layout(S, VAR):
         # the ceiling stops short of the front; the strip over the front rides the part that opens there, so a
         # front that rises (the Titan) clears it
         ring = offset_plan(outline, -0.005)
-        S.prism(clip_below(ring, F - 0.095), H, H + 0.03, "paint_dk")
+        S.prism(clip_below(ring, F - 0.095), H, H + 0.03, "wall")
         front_part = next((owner[P["name"]] for P in parts if isinstance(P["region"], tuple) and P["region"][0] == "sector"
                            and P["region"][1] < 0 < P["region"][2] and P["region"][3] <= H <= P["region"][4]), None)
-        S.prism(clip_above(ring, F - 0.09), H, H + 0.03, "paint_dk", node=front_part)
+        S.prism(clip_above(ring, F - 0.09), H, H + 0.03, "wall", node=front_part)
         zs = [z for _, z in ring]
         roof_info.update(y=H, beams=[min(zs) + (max(zs) - min(zs)) * f for f in (0.2, 0.45, 0.7)], node=None, lamps=True)
         for z in [min(zs) + (max(zs) - min(zs)) * f for f in (0.2, 0.45, 0.7)]:
@@ -1514,12 +1514,12 @@ def build_layout(S, VAR):
             for i in range(len(pa)):
                 j = (i + 1) % len(pa)
                 q = [V(pa[i][0], ya, pa[i][1]), V(pa[j][0], ya, pa[j][1]), V(pb[j][0], yb, pb[j][1]), V(pb[i][0], yb, pb[i][1])]
-                slab(S, q, 0.04, "paint_dk", "cabin", cn, bevel=0.0)
+                slab(S, q, 0.04, "wall", "cabin", cn, bevel=0.0)
                 bar(S, q[0], q[3], 0.05, 0.05, "paint", "cabin", cn, bevel=0.006)
         lid_y, lid = keys[-1][0], keys[-1][1]
         if not L.get("ceiling"):
             roof_info.update(y=lid_y, beams=[], node=cn, lamps=False)
-        S.prism(lid, lid_y, lid_y + 0.03, "paint_dk", node=cn)
+        S.prism(lid, lid_y, lid_y + 0.03, "wall", node=cn)
         if L.get("ceiling"):
             for x0, x1 in ((-0.52, -0.02), (0.02, 0.52)):
                 cnr = [V(x1, lid_y - 0.003, -0.25), V(x0, lid_y - 0.003, -0.25), V(x0, lid_y - 0.003, 0.29), V(x1, lid_y - 0.003, 0.29)]
@@ -1734,7 +1734,8 @@ STYLES = {
     # wood as an accent on steel, after the owner's car photos: warm painted plate walls and structure, lacquered burl
     # walnut rails, a cream leather seat, a cool blue ambient strip, warm lamps
     "wood": dict(roles={
-        "paint_dk": dict(c="#4d4842", r=0.58, m=0.0, grime=0.8, wear=0.8, panels=dict()),
+        "paint_dk": dict(c="#3a3632", r=0.58, m=0.0, grime=0.8, wear=0.8),
+        "wall": dict(c="#4d4842", r=0.58, m=0.0, grime=0.8, wear=0.8, panels=dict()),
         "paint": dict(c="#2b2825", r=0.55, m=0.0, grime=1.0, wear=1.0),
         "paint_lt": dict(c="#5e5850", r=0.55, m=0.0, grime=1.0, wear=1.0),
         "trim": dict(c="#5a3418", r=0.22, m=0.0, grime=0.2, burl=("#2c160a", "#7a4522")),
@@ -1743,8 +1744,9 @@ STYLES = {
     # an airliner's flight deck (the owner's 777 photos): tan-grey lining, taupe structure, charcoal switch panels,
     # a tan leather seat, warm dim strips
     "airliner": dict(roles={
-        "paint_dk": dict(c="#8a8272", r=0.65, m=0.0, grime=0.2, stipple=1.0,
-                         panels=dict(w=0.6, h=0.5, rivets=False, circuits=False, streaks=0.3)),
+        "paint_dk": dict(c="#7a7264", r=0.65, m=0.0, grime=0.2, stipple=1.0),
+        "wall": dict(c="#8a8272", r=0.65, m=0.0, grime=0.2, stipple=1.0,
+                     panels=dict(w=0.6, h=0.5, rivets=False, circuits=False, streaks=0.3)),
         "paint": dict(c="#5a544b", r=0.55, m=0.0, grime=0.3, stipple=0.6),
         "paint_lt": dict(c="#3c3b39", r=0.5, m=0.0, grime=0.3),
         "trim": dict(c="#7e7667", r=0.5, m=0.0, grime=0.2, stipple=0.6),
@@ -1752,7 +1754,8 @@ STYLES = {
     }, accent=("#3a3326", "#e8d6b0"), warm=(1.0, 0.9, 0.77), cool=(0.95, 0.9, 0.84)),
     # soft padding: quilted charcoal leather walls, an oxblood quilted seat, brushed steel rails, red-orange strips
     "padded": dict(roles={
-        "paint_dk": dict(c="#4a4446", r=0.6, m=0.0, grime=0.3, grain=True, quilt=0.12),
+        "paint_dk": dict(c="#2a2729", r=0.6, m=0.0, grime=0.3, grain=True),
+        "wall": dict(c="#4a4446", r=0.6, m=0.0, grime=0.3, grain=True, quilt=0.12),
         "paint": dict(c="#1c1b1c", r=0.55, m=0.0, grime=0.4, grain=True),
         "paint_lt": dict(c="#2e2d30", r=0.5, m=0.0, grime=0.5),
         "trim": dict(c="#8c9096", r=0.32, m=1.0, grime=0.3),
@@ -1761,8 +1764,9 @@ STYLES = {
     # a modern digger's cab (the owner's photo: "very sleek, polycarbonates, fiberglass, matte black/greys"): matte
     # moulded panels, a grey cloth seat, yellow grab handles, soft white strips
     "excavator": dict(roles={
-        "paint_dk": dict(c="#2b2d30", r=0.8, m=0.0, grime=0.2, stipple=0.4,
-                         panels=dict(w=0.55, h=0.45, rivets=False, circuits=False, streaks=0.5)),
+        "paint_dk": dict(c="#232528", r=0.8, m=0.0, grime=0.2, stipple=0.4),
+        "wall": dict(c="#2b2d30", r=0.8, m=0.0, grime=0.2, stipple=0.4,
+                     panels=dict(w=0.55, h=0.45, rivets=False, circuits=False, streaks=0.5)),
         "paint": dict(c="#1a1b1d", r=0.75, m=0.0, grime=0.3, stipple=0.4),
         "paint_lt": dict(c="#25272a", r=0.7, m=0.0, grime=0.3, stipple=0.4),
         "trim": dict(c="#45484c", r=0.7, m=0.0, grime=0.2, stipple=0.4),
@@ -1838,6 +1842,9 @@ def apply_trim(variant, VAR):
     for role, c in t["roles"].items():
         K.ROLES[role] = dict(K.ROLES[role], c=c)
     K.ROLES["trim"] = dict(K.ROLES["paint"])
+    if "paint_dk" in t["roles"]:
+        r_, g_, b_ = (int(t["roles"]["paint_dk"][i:i + 2], 16) for i in (1, 3, 5))
+        K.ROLES["wall"] = dict(K.ROLES["wall"], c="#%02x%02x%02x" % tuple(min(255, int(v * 1.25 + 6)) for v in (r_, g_, b_)))
     K.ROLES["cyan"] = dict(K.ROLES["cyan"], c=t["accent"][0], emit=t["accent"][1])
     swap = {WARM: t["warm"], COOL: t["cool"]}
     dim = t.get("dim", 1.0)

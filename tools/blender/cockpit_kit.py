@@ -49,7 +49,7 @@ def srgb(h):
 ROLES = {
     "paint":    dict(c="#3b424a", r=0.58, m=0.0, grime=1.0, wear=1.0),
     "paint_lt": dict(c="#5d6670", r=0.55, m=0.0, grime=1.0, wear=1.0),
-    "paint_dk": dict(c="#323840", r=0.6, m=0.0, grime=0.8, wear=0.8, panels=dict()),
+    "paint_dk": dict(c="#262b31", r=0.6, m=0.0, grime=0.8, wear=0.8),
     "bezel":    dict(c="#16181b", r=0.42, m=0.0, grime=0.5, wear=0.5),
     "rubber":   dict(c="#0d0d0e", r=0.92, m=0.0, grime=0.3),
     "metal":    dict(c="#a9aeb5", r=0.3, m=1.0, grime=0.6),
@@ -88,6 +88,8 @@ ROLES = {
     # the cockpit-styles roles: the rails and edges an interior style dresses (the paint's colour unless a style or a
     # trim sets it), grab handles, and the safety kit's colours
     "trim":     dict(c="#3b424a", r=0.58, m=0.0, grime=1.0, wear=1.0),
+    # the cabin's walls and ceiling: the structure's paint, a shade lighter, panelled (cockpit-styles)
+    "wall":     dict(c="#323840", r=0.6, m=0.0, grime=0.8, wear=0.8, panels=dict()),
     "handle":   dict(c="#8a9098", r=0.35, m=1.0, grime=0.4),
     "kit_white": dict(c="#e3dfd5", r=0.5, m=0.0, grime=0.5),
     "kit_orange": dict(c="#e2621a", r=0.7, m=0.0, grime=0.5),
@@ -336,8 +338,8 @@ def make_material(name, spec):
                 tn = N.new("ShaderNodeTexNoise")
                 tn.inputs["Scale"].default_value = 30.0
                 L.new(tc.outputs["Object"], tn.inputs["Vector"])
-                lines = op("MAXIMUM", lt(op("FRACT", op("MULTIPLY", a_, 40.0)), 0.16), lt(op("FRACT", op("MULTIPLY", b_, 40.0)), 0.16))
-                traces = mul(board, lines, gt(tn.outputs["Fac"], 0.48))
+                lines = op("MAXIMUM", lt(op("FRACT", op("MULTIPLY", a_, 70.0)), 0.1), lt(op("FRACT", op("MULTIPLY", b_, 70.0)), 0.1))
+                traces = mul(board, lines, gt(tn.outputs["Fac"], 0.56))
             else:
                 board = traces = op("MULTIPLY", seam, 0.0)
             placard = mul(band(rnd, 0.47, 0.6), band(fv, 0.72, 0.92), gt(du, 0.05))
@@ -358,7 +360,7 @@ def make_material(name, spec):
         ws = op("MAXIMUM", wsum, 1e-4)
         m = {k: op("DIVIDE", v, ws) for k, v in acc.items()}
         colour = mix_col(m["board"], colour, "#16301f")
-        colour = mix_col(m["traces"], colour, "#b8813f")
+        colour = mix_col(op("MULTIPLY", m["traces"], 0.8), colour, "#9a7038")
         colour = mix_col(m["placard"], colour, "#d6d0bd")
         colour = mix_col(m["ink"], colour, "#161616")
         colour = mix_col(op("MULTIPLY", m["seam"], 0.85), colour, "#070707")
