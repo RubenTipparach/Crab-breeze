@@ -753,3 +753,37 @@ fn people_run_in_through_the_real_street_doors_of_the_island() {
     }
     assert!(p.list.is_empty(), "gone inside");
 }
+
+/// People stand on the drawn surface by the same rule as the pilot (`City::surface_top`, `WorldPlan::walk_top_at`):
+/// on a pavement the kerb's top, on a street the road's top, never sunk in either.
+#[test]
+fn people_stand_on_the_pavement_and_road_tops_the_pilot_stands_on() {
+    let f = Fixture::new();
+    let data = shipped();
+    let w = f.world(&NoDoors);
+    let mut people = People::new(3);
+    let city = &f.cities[0];
+    fill(&mut people, &w, &data, city.centre);
+    for _ in 0..120 {
+        people.step(&w, &data, DT);
+    }
+    let (mut on_pavement, mut on_road) = (0, 0);
+    for p in people.list.iter().filter(|p| matches!(p.home, Home::Block(..))) {
+        let Some(top) = city.surface_top(p.pos, f.cfg.road_lift_m, f.cfg.kerb_height_m) else {
+            continue;
+        };
+        assert!(
+            (p.feet_y - top).abs() < 1e-4,
+            "a person at {} stands at {} not {top}",
+            p.pos,
+            p.feet_y
+        );
+        if (top - f.cfg.kerb_height_m).abs() < 1e-4 {
+            on_pavement += 1;
+        } else {
+            on_road += 1;
+        }
+    }
+    assert!(on_pavement > 10, "{on_pavement} on the pavements");
+    let _ = on_road;
+}

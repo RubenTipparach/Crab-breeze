@@ -104,6 +104,7 @@ fn drive(
     car: Res<crate::traffic::CarAccessNow>,
     access: Res<crate::mech::MechAccessNow>,
     traffic: Res<TrafficSim>,
+    roads: Res<crate::traffic::Roads>,
     data: Res<Data>,
     camera: Single<&Transform, With<crate::pilot::PilotCamera>>,
     time: Res<Time<Real>>,
@@ -152,7 +153,13 @@ fn drive(
                         .traffic
                         .cars
                         .iter()
-                        .filter(|c| c.state == cb_core::traffic::CarState::Parked && c.pos.distance(mech) > 120.0)
+                        // parked away from the mech, with 150 m of its street ahead (a run long enough to drive,
+                        // orbit and let the view drift back before the junction)
+                        .filter(|c| {
+                            c.state == cb_core::traffic::CarState::Parked
+                                && c.pos.distance(mech) > 120.0
+                                && roads.0.lanes[c.lane as usize].length_m() - c.s_m > 150.0
+                        })
                         .min_by(|a, b| a.pos.distance(feet0).total_cmp(&b.pos.distance(feet0)))
                     else {
                         eprintln!("car stills: no parked car away from the mech");
@@ -167,7 +174,7 @@ fn drive(
             let spec = &data.0.traffic.kinds[c.kind as usize];
             let door = CarSpec::to_world(c.pos, c.heading_rad, spec.door_driver_m);
             let out = CarSpec::to_world(c.pos, c.heading_rad, [spec.door_driver_m[0] - 0.4, 0.0, spec.door_driver_m[2]]);
-            let feet = Vec3::new(out.x, c.pos.y - 0.15, out.z);
+            let feet = Vec3::new(out.x, c.pos.y, out.z);
             stand_looking(&mut pilot, feet, c.pos + Vec3::Y * 1.0);
             let _ = door;
             if t > 4.0 {
@@ -209,7 +216,7 @@ fn drive(
                 0.0
             };
             acc.script = Some(Actions {
-                move_xy: Vec2::new(steer, 0.3),
+                move_xy: Vec2::new(steer, 0.2),
                 ..Default::default()
             });
             if t > 4.0 {
@@ -221,7 +228,7 @@ fn drive(
         // the mouse turns the camera 120 degrees round the car
         4 => {
             acc.script = Some(Actions {
-                move_xy: Vec2::new(0.0, 0.3),
+                move_xy: Vec2::new(0.0, 0.2),
                 ..Default::default()
             });
             if script.orbited_deg < 120.0 {
@@ -236,7 +243,7 @@ fn drive(
         // the mouse still: the view drifts back behind the moving car
         5 => {
             acc.script = Some(Actions {
-                move_xy: Vec2::new(0.0, 0.3),
+                move_xy: Vec2::new(0.0, 0.2),
                 ..Default::default()
             });
             if t > data.0.pilot.car_camera.recenter_after_s + 2.5 {
@@ -337,7 +344,12 @@ fn run(
         let spec = &d.kinds[k];
         // held beside the car every frame (it may be driving)
         let stand = CarSpec::to_world(c.pos, c.heading_rad, [at[0], 0.0, at[1]]);
-        let feet = Vec3::new(stand.x, plan.height_at(stand.x, stand.z), stand.z);
+        let feet = Vec3::new(
+            stand.x,
+            plan.walk_top_at(Vec2::new(stand.x, stand.z))
+                .unwrap_or_else(|| plan.height_at(stand.x, stand.z)),
+            stand.z,
+        );
         let look = c.pos + Vec3::Y * spec.size_m[1] * 0.55;
         stand_looking(&mut pilot, feet, look);
         let wait = 5.0;
@@ -346,8 +358,7 @@ fn run(
             shoot(&mut commands, &script.dir.clone(), &name);
             let path = script.dir.join(&name);
             script.shots.push(path);
-            let lift = data.0.world.road_lift_m;
-            let road = plan.road_top_at(Vec2::new(c.pos.x, c.pos.z), lift);
+            let road = plan.road_top_at(Vec2::new(c.pos.x, c.pos.z));
             println!(
                 "STILLS_CARS {kind} {view} car_y {:.2} ground {:.2} road_top {} roof {:.2} eye {:.2} (pilot feet {:.2}) height {:.2} m",
                 c.pos.y,

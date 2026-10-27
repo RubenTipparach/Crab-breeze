@@ -62,5 +62,5 @@ game (it drifts back only while the car moves).
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
 | DC1 | Should the view drift back behind the car by itself? | Yes, after 2 s of a still mouse while moving; parked it stays put | provisional |
-| DC2 | The dashboard's speedometer is not seen from outside: show the speed on the HUD while driving? | Yes, a small speed readout, from `Car::speed_m_s` | open |
+| DC2 | The dashboard's speedometer is not seen from outside: show the speed on the HUD while driving? | Yes, a small speed readout low on the screen, from the simulation's speed (`car::speed_readout`) | provisional, built |
 | DC3 | The camera clips against buildings as generated, not as damaged: a fallen building still pushes it in | Leave it until it is seen to matter | provisional |
