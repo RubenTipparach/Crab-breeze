@@ -915,9 +915,12 @@ def dress(S, L, plain_walls, lower_bands, roof, node_at, F, zf):
     """Dress the cabin (openspec change cockpit-styles, design section 7): the safety kit and handles on the plain
     walls, panels, vents, buttons and rivets on the bands under the screens, an overhead switch panel on the roof.
     Nothing goes over a screen; an item that would reach into the seat, a console, the dash or a pillar is skipped."""
-    keep_out = [((-0.37, 0.0, -0.47), (0.37, 1.45, 0.30)),                    # the seat
-                ((0.30, 0.0, -0.52), (0.80, 0.74, zf)), ((-0.80, 0.0, -0.52), (-0.30, 0.74, zf)),   # the consoles
-                ((-0.85, 0.0, F - 0.65), (0.85, 1.05, F + 0.2))]              # the dash and the pedals
+    # the furniture as built: the seat, the side consoles and their loom (side_consoles: x 0.36-0.72), the pedals, and
+    # the dash pod as build_layout made it (else a dash-wide block for a cabin with none)
+    keep_out = [((-0.37, 0.0, -0.47), (0.37, 1.45, 0.30)),
+                ((0.34, 0.0, -0.50), (0.74, 0.72, zf)), ((-0.74, 0.0, -0.50), (-0.34, 0.72, zf)),
+                ((-0.32, 0.0, zf - 0.25), (0.32, 0.45, F + 0.2)),
+                roof.get("dash", ((-0.75, 0.0, F - 0.65), (0.75, 1.05, F + 0.2)))]
     placed = []
 
     def clear(c, r, n, w, h, d):
@@ -943,7 +946,10 @@ def dress(S, L, plain_walls, lower_bands, roof, node_at, F, zf):
                 if w > slot or base + h > H - 0.28:
                     continue
                 at = c + V(0, base, 0)
-                if clear(at, r, n, w, h, d):
+                ok = clear(at, r, n, w, h, d)
+                if os.environ.get("DRESS_DEBUG"):
+                    print(f"DRESS {name} at {tuple(round(x, 2) for x in at)} slot {slot:.2f} {'placed' if ok else 'blocked'}")
+                if ok:
                     fn(S, at, r, n, node_at(at + V(0, h / 2, 0)))
             seq += 1
         if length > 0.6:
@@ -957,14 +963,22 @@ def dress(S, L, plain_walls, lower_bands, roof, node_at, F, zf):
         r = (b - a).normalized()
         fracs = (0.5,) if length < 1.0 else (0.25, 0.5, 0.75) if length > 1.6 else (0.3, 0.7)
         done = 0
-        for f in fracs:
-            name, w, h, d, fn = BAND_KIT[seq % len(BAND_KIT)]
-            seq += 1
-            base = max(0.1, top - h - 0.06)
-            at = a.lerp(b, f) + n * 0.002 + V(0, base, 0)
-            if w < length / len(fracs) - 0.06 and clear(at, r, n, w, h, d):
-                fn(S, at, r, n, node_at(at + V(0, h / 2, 0)))
-                done += 1
+        for i, f in enumerate(fracs):
+            # alternately a panel near the band's top and a piece of the safety kit standing on the floor under it
+            for kit, floor in ((BAND_KIT, False), (LOW_KIT, True))[::(1 if (i + seq) % 2 == 0 else -1)]:
+                name, w, h, d, fn = kit[seq % len(kit)]
+                base = 0.08 if floor else max(0.1, top - h - 0.06)
+                if base + h > top - 0.04:
+                    continue
+                at = a.lerp(b, f) + n * 0.002 + V(0, base, 0)
+                ok = w < length / len(fracs) - 0.06 and clear(at, r, n, w, h, d)
+                if os.environ.get("DRESS_DEBUG"):
+                    print(f"DRESS band {name} at {tuple(round(x, 2) for x in at)} {'placed' if ok else 'blocked'}")
+                if ok:
+                    fn(S, at, r, n, node_at(at + V(0, h / 2, 0)))
+                    done += 1
+                    seq += 1
+                    break
         if done and length > 0.8:
             mid = a.lerp(b, 0.5) + V(0, top - 0.025, 0)
             bolt_row(S, a + r * 0.12 + n * 0.002 + V(0, top - 0.025, 0), b - r * 0.12 + n * 0.002 + V(0, top - 0.025, 0),
@@ -1538,6 +1552,7 @@ def build_layout(S, VAR):
         half = min(abs(x) for x in cross_x(outline, max(z0, 0.0) + 0.05)) - 0.06
         NODES[name] = (cn or "pod", V(0, dy, z0))
         S.box((-half, dy - 0.32, z0), (half, dy, F - 0.02), "paint_dk", "front", name, bevel=0.01)
+        roof_info["dash"] = ((-half - 0.02, 0.0, z0 - 0.08), (half + 0.02, max(p.y for p in lows) + 0.45, F + 0.2))
         S.box((-half + 0.02, dy, z0 + 0.02), (half - 0.02, dy + 0.012, F - 0.04), "bezel", "front", name, bevel=0.003)
         # the dash's front edge in the style's trim (the burl in the wood style), an ambient strip under it
         S.box((-half + 0.03, dy - 0.06, z0 - 0.012), (half - 0.03, dy - 0.012, z0), "trim", "front", name, bevel=0.004)
