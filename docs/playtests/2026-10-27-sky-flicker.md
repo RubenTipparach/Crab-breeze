@@ -111,14 +111,25 @@ After the screen saver was dismissed, a harder attempt, about 45 minutes:
 
 Nothing reproduced on OLD.
 
-### One thing that does flicker, in NEW
+### The white flashes in NEW were an explosion, not the sky
 
-On `storm-through`, NEW's last leg at 648 m among the puffs under the storm's base, flying south-east toward the sun
-(about 276 s in), the view flashes frame to frame: bright white-blue holes with salmon rims open and close in the
-puffs, and for a frame or two the front screen goes nearly white
-(`2026-10-27-sky-flicker-in-the-base.jpg`, eight consecutive frames). The whole-sky change there is 19.7 of 255 in Y
-and 2.9 in U in one frame, the largest of any take. It looks like puffs a few tens of metres from the eye (their
-billboards turning fast as the eye passes close to their centres, `facing` in `cloud.wesl`) and their silver lining
-toward the sun blooming, rather than the fog. OLD was not measured in the same spot (it got stuck lower down), and
-`storm-base`, through the same air a little earlier, did not catch it in either build. It is the best lead for the
-owner's "whole sky flickering" seen while flying, and is not fixed here.
+On `storm-through`, NEW's last leg at 648 m flying south-east toward the sun, the view flashed frame to frame (about
+276 s in; the whole sky's largest change of any take, 19.7 of 255 in Y in one frame). Followed frame by frame
+(`2026-10-27-sky-flicker-in-the-base.jpg`, four frames a second from 269.5 s) it is not the sky: at about 270 s the
+pilot's head is thrown about the cabin, the MECH screen's LEGS reading swings to -83, and smoke and fire billow
+past the screens with white flashes and debris, then thin out. Something hit the mech or it hit something at 650 m;
+the log names no cause. It was taken for a cloud flicker at first and chased:
+
+- **The same leg again** (`--playtest storm-high`, the storm drifted as far as it had, then 650 m through its base
+  toward the sun): no flash; the front screen's middle p95 0.25 of 255 frame to frame, its largest changes the head
+  turning.
+- **A burst through a storm puff past its centre** (`CB_STILLS_ONLY=puff-pass`, a new instrument view: the biggest
+  puff under 900 m by the storm's north-west base, 783 m across, the eye a quarter radius off its centre, toward
+  the sun with the sun at the top of the view; 250 frames at 8 m a frame, eight times flying speed): OLD and NEW
+  both steady, the whole frame at most 2 of 255 a frame and the top half at most 2 (NEW) and 3 (OLD). With the
+  flare and the bloom off, the silver lining off, or the clouds re-sorted every metre, the same. (An earlier run of
+  this burst showed jumps of 10-25 a frame; that was the instrument itself, whose look-at point the eye passed after
+  1 km, turning the view round. The view now looks at a point 100 km ahead.)
+
+So nothing in the sky, the clouds or the fog flickers on the Mac in either build, at any speed tried, low or high, in
+rain or in cloud.

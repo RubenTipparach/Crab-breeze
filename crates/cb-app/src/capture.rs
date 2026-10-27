@@ -1367,6 +1367,18 @@ const VIEWS: &[View] = &[
     },
     // Mist in the low ground, from a hill over the wet west at dawn-like low height.
     view("valley-mist", [-9000.0, 260.0, -1000.0], [-6000.0, 120.0, 2500.0]),
+    // In the west storm's base at 650 m, 2.5 km north-west of its centre, flying south-east toward the sun (south-east,
+    // 43 degrees up, at the top of the view): where the view flashed white among the puffs on 2026-10-27
+    // (`docs/playtests/2026-10-27-sky-flicker.md`). A burst (`CB_STILLS_BURST_STEP_M`) flies it into the base.
+    view("storm-base-sun", [-7700.0, 650.0, -6000.0], [-2700.0, 650.0, -1000.0]),
+    // Through the biggest low puff near the west storm's base, a quarter of its radius off its centre, toward the sun
+    // (`puff_pass_view`): a burst flies the eye past a puff's centre, where its billboard swings round.
+    View {
+        name: "puff-pass",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // Under the storm, in its rain, 40 m up, facing away from the sun.
     View {
         name: "under-the-storm",
@@ -1462,6 +1474,31 @@ fn city_in_cloud_view(plan: &crate::world::Plan, now_s: f32) -> ([f32; 3], [f32;
     let eye = centre - Vec3::Y * p.radii.y * 0.33 + Vec3::new(p.radii.x * 0.2, 0.0, 0.0);
     info!("city in cloud: puff at {centre} radii {}, eye {eye}", p.radii);
     (eye.to_array(), (centre + Vec3::new(-200.0, 1500.0, 300.0)).to_array())
+}
+
+/// The biggest puff under 900 m within 3 km of (-6500, -5000) (the west storm's north-west base), and an eye 1.5 of its
+/// radii before its centre toward the sun's bearing, a quarter radius to the side, at the centre's height, looking toward
+/// the sun's bearing and up, so the sun is near the top of the view. A burst steps the eye along that bearing.
+fn puff_pass_view(plan: &crate::world::Plan, now_s: f32) -> ([f32; 3], [f32; 3]) {
+    let d = plan.clouds.drift(now_s);
+    let near = Vec2::new(-6500.0, -5000.0);
+    let pick = plan
+        .clouds
+        .puffs
+        .iter()
+        .filter(|p| p.centre.y < 900.0 && Vec2::new(p.centre.x + d.x, p.centre.z + d.y).distance(near) < 3000.0)
+        .max_by(|a, b| a.radii.x.total_cmp(&b.radii.x));
+    let Some(p) = pick else {
+        return ([-6500.0, 650.0, -5000.0], [-5500.0, 1150.0, -4000.0]);
+    };
+    let centre = p.centre + Vec3::new(d.x, 0.0, d.y);
+    let sun = cb_core::world::sun_shade::to_sun();
+    let dir = Vec3::new(sun.x, 0.0, sun.z).normalize_or(Vec3::X);
+    let side = Vec3::new(-dir.z, 0.0, dir.x);
+    let eye = centre - dir * p.radii.x * 1.5 + side * p.radii.x * 0.25;
+    info!("puff pass: puff at {centre} radii {}, eye {eye}", p.radii);
+    // Far ahead, so a burst stepping the eye along the bearing never reaches it and the view holds its direction.
+    (eye.to_array(), (eye + dir * 100000.0 + Vec3::Y * 50000.0).to_array())
 }
 
 /// Over open sea in the clear south-east, `up_m` up, looking toward the sun's bearing (`toward`)
@@ -1597,6 +1634,7 @@ fn run_weather_script(
             "sea-sun-high" => sea_view(true, 1500.0),
             "sea-sun-top" => sea_view(true, 6500.0),
             "city-in-cloud" => city_in_cloud_view(&plan, now),
+            "puff-pass" => puff_pass_view(&plan, now),
             _ => (v.eye, v.at),
         };
         let v = View {
