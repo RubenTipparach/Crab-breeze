@@ -29,6 +29,7 @@
         (name: "house_skirt", dir: "houses/skirt", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.61, metallic: 0.00, surfaces: ["skirt"], use: "vinyl skirting, 125 mm panels"),
         (name: "house_concrete", dir: "houses/concrete", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 2.0, roughness: 0.89, metallic: 0.00, surfaces: ["concrete"], use: "cast concrete"),
         (name: "house_roofing", dir: "houses/roofing", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.93, metallic: 0.00, surfaces: ["roofing"], use: "gravel-surfaced built-up flat roof"),
+        (name: "road_asphalt", dir: "roads/asphalt", size_px: 2048, maps: ["albedo", "normal", "orm"], tile_m: 4.0, roughness: 0.88, metallic: 0.00, surfaces: ["road"], use: "road asphalt: stones, tone, sealed and open cracks, oil spots"),
         (name: "house_asphalt", dir: "houses/asphalt", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 2.0, roughness: 0.92, metallic: 0.00, surfaces: ["asphalt"], use: "asphalt paving"),
         (name: "house_smooth", dir: "houses/smooth", size_px: 512, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.53, metallic: 0.00, surfaces: ["trim", "paint", "soffit", "plaster", "metal", "product", "rubber", "paintCar"], use: "smooth paint, faint stipple"),
         (name: "house_shutter", dir: "houses/shutter", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 0.5, roughness: 0.56, metallic: 0.00, surfaces: ["shutter"], use: "louvred shutter slats, 42 mm"),
