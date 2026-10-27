@@ -1,0 +1,260 @@
+{
+ "connections": [
+  {
+   "from": "fbm2_0",
+   "from_port": 0,
+   "to": "shader_3",
+   "to_port": 0
+  },
+  {
+   "from": "fbm2_1",
+   "from_port": 0,
+   "to": "shader_3",
+   "to_port": 1
+  },
+  {
+   "from": "fbm2_2",
+   "from_port": 0,
+   "to": "shader_3",
+   "to_port": 2
+  },
+  {
+   "from": "shader_3",
+   "from_port": 0,
+   "to": "normal_map_0",
+   "to_port": 0
+  },
+  {
+   "from": "shader_3",
+   "from_port": 0,
+   "to": "occlusion2_0",
+   "to_port": 0
+  },
+  {
+   "from": "shader_3",
+   "from_port": 1,
+   "to": "Material",
+   "to_port": 0
+  },
+  {
+   "from": "shader_3",
+   "from_port": 3,
+   "to": "Material",
+   "to_port": 1
+  },
+  {
+   "from": "shader_3",
+   "from_port": 2,
+   "to": "Material",
+   "to_port": 2
+  },
+  {
+   "from": "normal_map_0",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 4
+  },
+  {
+   "from": "occlusion2_0",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 5
+  },
+  {
+   "from": "shader_3",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 6
+  }
+ ],
+ "label": "House Tile",
+ "name": "Material",
+ "node_position": {
+  "x": 0,
+  "y": 0
+ },
+ "nodes": [
+  {
+   "name": "fbm2_0",
+   "node_position": {
+    "x": 220,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 4,
+    "noise": 2,
+    "offset": 0.0,
+    "persistence": 0.6,
+    "scale_x": 4,
+    "scale_y": 4
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "fbm2_1",
+   "node_position": {
+    "x": 440,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 5,
+    "noise": 2,
+    "offset": 0.5,
+    "persistence": 0.55,
+    "scale_x": 16,
+    "scale_y": 16
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "fbm2_2",
+   "node_position": {
+    "x": 660,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 3,
+    "noise": 2,
+    "offset": 0.3,
+    "persistence": 0.55,
+    "scale_x": 256,
+    "scale_y": 256
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "shader_3",
+   "node_position": {
+    "x": 880,
+    "y": 0
+   },
+   "parameters": {},
+   "seed_int": 0,
+   "shader_model": {
+    "code": "",
+    "global": "",
+    "inputs": [
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "lo",
+      "longdesc": "lo",
+      "name": "lo",
+      "shortdesc": "lo",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "mid",
+      "longdesc": "mid",
+      "name": "mid",
+      "shortdesc": "mid",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "fine",
+      "longdesc": "fine",
+      "name": "fine",
+      "shortdesc": "fine",
+      "type": "f"
+     }
+    ],
+    "instance": "\nfloat hs_$name(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }\nfloat sat_$name(float x) { return clamp(x, 0.0, 1.0); }\n\nvec4 cell_$name(vec2 uv) {\n\treturn vec4(fract(uv.x * 4.0), fract(uv.y * 3.0), mod(floor(uv.x * 4.0), 4.0), mod(floor(uv.y * 3.0), 3.0));\n}\nfloat prof_$name(float fx) { float p = 0.5 - 0.5 * cos(6.2831853 * fx); return pow(p, 0.8); }\nfloat height_$name(vec2 uv) {\n\tvec4 c = cell_$name(uv);\n\tfloat body = 0.12 + 0.62 * prof_$name(c.x) + 0.2 * (1.0 - c.y);\n\tfloat below = 0.12 + 0.62 * prof_$name(c.x);\n\tfloat h = mix(below, body, smoothstep(0.0, 0.05, c.y));\n\treturn h + 0.015 * $fine(uv) + 0.02 * ($mid(uv) - 0.5);\n}\nvec3 albedo_$name(vec2 uv) {\n\tvec4 c = cell_$name(uv);\n\tfloat r = hs_$name(c.zw + 0.5);\n\tvec3 col = mix(vec3(0.94, 0.86, 0.79), vec3(0.86, 0.80, 0.76), r);\n\tcol *= 0.9 + 0.12 * hs_$name(c.zw + 3.3);\n\tcol *= 0.92 + 0.12 * $mid(uv) + 0.04 * ($fine(uv) - 0.5);\n\tcol *= mix(0.82, 1.0, smoothstep(0.0, 0.25, c.y));\n\tcol *= mix(0.86, 1.0, smoothstep(0.0, 0.25, prof_$name(c.x)));\n\tcol *= 0.94 + 0.08 * $lo(uv);\n\treturn col;\n}\nfloat rough_$name(vec2 uv) { return 0.68 + 0.1 * $mid(uv); }\nfloat metal_$name(vec2 uv) { return 0.0; }\n",
+    "longdesc": "house tile",
+    "name": "house tile",
+    "outputs": [
+     {
+      "f": "sat_$name(height_$name($uv))",
+      "longdesc": "out0",
+      "shortdesc": "out0",
+      "type": "f"
+     },
+     {
+      "longdesc": "out1",
+      "rgba": "vec4(clamp(albedo_$name($uv), vec3(0.0), vec3(1.0)), 1.0)",
+      "shortdesc": "out1",
+      "type": "rgba"
+     },
+     {
+      "f": "sat_$name(rough_$name($uv))",
+      "longdesc": "out2",
+      "shortdesc": "out2",
+      "type": "f"
+     },
+     {
+      "f": "sat_$name(metal_$name($uv))",
+      "longdesc": "out3",
+      "shortdesc": "out3",
+      "type": "f"
+     }
+    ],
+    "parameters": [],
+    "shortdesc": "house tile"
+   },
+   "type": "shader"
+  },
+  {
+   "name": "normal_map_0",
+   "node_position": {
+    "x": 1100,
+    "y": 0
+   },
+   "parameters": {
+    "param0": 11,
+    "param1": 1.2,
+    "param2": 0,
+    "param4": 1
+   },
+   "type": "normal_map"
+  },
+  {
+   "name": "occlusion2_0",
+   "node_position": {
+    "x": 1320,
+    "y": 0
+   },
+   "parameters": {
+    "param0": 11,
+    "param1": 40,
+    "param2": 2.2,
+    "param3": 1
+   },
+   "type": "occlusion2"
+  },
+  {
+   "export_paths": {},
+   "name": "Material",
+   "node_position": {
+    "x": 1540,
+    "y": 0
+   },
+   "parameters": {
+    "albedo_color": {
+     "a": 1.0,
+     "b": 1,
+     "g": 1,
+     "r": 1,
+     "type": "Color"
+    },
+    "ao": 1.0,
+    "depth_scale": 0.0,
+    "emission_energy": 1.0,
+    "flags_transparent": false,
+    "metallic": 1.0,
+    "normal": 1.0,
+    "roughness": 1.0,
+    "size": 11,
+    "sss": 0.0
+   },
+   "type": "material"
+  }
+ ],
+ "parameters": {},
+ "type": "graph"
+}

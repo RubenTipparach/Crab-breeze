@@ -16,11 +16,15 @@
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
+  // Interior finishes: muted 1980s wall paints and a warm grey ceiling, never pure white (owner, 2026-10-27: "Pure
+  // white not good for interior. Hurts my eyes"). A house picks its wall paint; its partitions and lining share it.
+  const INSIDE = [0xb9ad98, 0xa8b09a, 0x9fadb4, 0xbfa88e, 0xb3a6a0, 0xc2b48f];
+  const CEILING = 0xb8b0a2;
   const hex = (h) => [((h >> 16) & 255) / 255, ((h >> 8) & 255) / 255, (h & 255) / 255];
 
   // ------------------------------------------------------------------ the geometry gatherer
   class Builder {
-    constructor() { this.parts = {}; this.tint = [1, 1, 1]; this.count = 0; this.pid = 0; this.cur = -1; this.meta = []; this.tags = []; this.volumes = []; this.boxes = []; this.nonBox = []; this.inBox = false; }
+    constructor() { this.parts = {}; this.tint = [1, 1, 1]; this.count = 0; this.pid = 0; this.cur = -1; this.meta = []; this.tags = []; this.volumes = []; this.boxes = []; this.nonBox = []; this.inBox = false; this.inside = INSIDE[0]; this.ceiling = CEILING; }
     color(h) { this.tint = typeof h === 'number' ? hex(h) : h; return this; }
     arr(mat) { return this.parts[mat] || (this.parts[mat] = { p: [], n: [], u: [], c: [], t: [] }); }
     // Pieces: what breaks off together (a wall segment, a window, a roof plane, a sofa, a car).
@@ -149,6 +153,8 @@
       const d = -out * (t / 2 + 0.012);
       let s2 = s0 + (o.innerPad || 0);
       const e = s1 - (o.innerPad || 0);
+      const save = B.tint;
+      B.color(B.inside);
       const strip = (sa, sb, ya, yb) => { if (sb - sa > 1e-3 && yb - ya > 1e-3) bx(sa, sb, ya, yb, Math.min(d, d + out * 0.01), Math.max(d, d + out * 0.01), inner); };
       for (const op of ops) {
         if (op.a > s2) strip(s2, Math.min(op.a, e), y0, y1);
@@ -157,6 +163,7 @@
         s2 = Math.max(s2, op.b);
       }
       if (s2 < e) strip(s2, e, y0, y1);
+      B.tint = save;
     }
   }
   // Where a leaf hangs, in the building's frame: its hinge on the jamb at s = s0 in the middle of the
@@ -382,7 +389,7 @@
           const uu = side === 0 ? u : u - outward * t;
           const ptsG = [P(uu, R.yWall, v0), P(uu, R.yWall, v1), P(uu, yWall, v1), P(uu, top - 0.14, mv), P(uu, yWall, v0)];
           const hint = alongZ ? [0, 0, outward * (side === 0 ? 1 : -1)] : [outward * (side === 0 ? 1 : -1), 0, 0];
-          if (side === 0) B.color(R.wallTint || 0xffffff); else B.color(0xece6da);
+          if (side === 0) B.color(R.wallTint || 0xffffff); else B.color(B.inside);
           B.poly(side === 0 ? R.wall : 'plaster', ptsG, hint);
         }
       }
@@ -496,6 +503,7 @@
   function house(B, rnd, o) {
     const x0 = (o.x || 0) - o.w / 2, x1 = (o.x || 0) + o.w / 2, z0 = (o.z || 0) - o.d / 2, z1 = (o.z || 0) + o.d / 2;
     const t = o.t || 0.25, fh = o.fh || 2.75, base = o.base != null ? o.base : 0.45, floors = o.floors || 1;
+    B.inside = o.inside || INSIDE[Math.floor(rnd() * INSIDE.length)];
     const top = base + floors * fh;
     B.color(0xbab4aa); B.box('concrete', x0, -0.3, z0, x1, base, z1);
     const winDefaults = { shutters: o.shutters, lintel: o.lintel, lintelTint: o.lintelTint, frameTint: o.trim, ac: false };
@@ -522,7 +530,7 @@
       // Floor and ceiling, with the stairwell of the storey below cut out of them (so the stair can be climbed).
       const hole = s > 0 ? stairHole(o, s - 1, x0, x1, z0, t) : null;
       for (const [ax0, az0, ax1, az1] of rectMinus([x0 + t, z0 + t, x1 - t, z1 - t], hole)) {
-        B.color(0xe6e0d4); tiles(B, 'plaster', ax0, yb - 0.22, az0, ax1, yb - 0.03, az1, s === 0 ? '' : 'Y');
+        B.color(B.ceiling); tiles(B, 'plaster', ax0, yb - 0.22, az0, ax1, yb - 0.03, az1, s === 0 ? '' : 'Y');
       }
       for (const [ax0, az0, ax1, az1] of rectMinus([x0 + t + 0.012, z0 + t + 0.012, x1 - t - 0.012, z1 - t - 0.012], hole)) {
         // The finish stands 12 mm proud of the foundation's top, so the two never share a plane (no z-fighting).
@@ -539,7 +547,7 @@
         const w = inW * shares[i] / total;
         const rx0 = x, rx1 = x + w;
         if (i > 0) {
-          B.color(0xece6da);
+          B.color(B.inside);
           const gz = (z0 + z1) / 2 + (i % 2 ? 0.8 : -0.8);
           // A partition stops 1.3 m short of a front or back wall with a door near it, so the door opens
           // onto a hall rather than into the partition's end (the pilot walks in, design section 7.2).
@@ -553,7 +561,7 @@
       });
     }
     // Ceiling of the top storey.
-    B.color(0xf2efe8); tiles(B, 'plaster', x0 + t, top - 0.012, z0 + t, x1 - t, top + 0.08, z1 - t, 'Y');
+    B.color(B.ceiling); tiles(B, 'plaster', x0 + t, top - 0.012, z0 + t, x1 - t, top + 0.08, z1 - t, 'Y');
     // Roof.
     const R = Object.assign({ x0, x1, z0, z1, y: top, pitch: 0.4, over: 0.55, mat: 'shingle', wall: o.wall, wallTint: o.tint, t, yWall: top }, o.roof || {});
     let ridgeY = top;
@@ -950,7 +958,7 @@
           B.color(tint); wall(B, 'block', 'x', z0 + t / 2, x0, x1, t, yb, yt, -1, Array.from({ length: rooms }, (_, i) => ({ kind: 'win', a: x0 + i * rw + 1.5, b: x0 + i * rw + 2.3, y0: yb + 1.5, y1: yb + 2.2, sill: false, rail: false })), { inner: 'plaster', innerPad: t });
           B.color(tint); wall(B, 'block', 'z', x0 + t / 2, z0 + t, z1 - t, t, yb, yt, -1, [], { inner: 'plaster' });
           B.color(tint); wall(B, 'block', 'z', x1 - t / 2, z0 + t, z1 - t, t, yb, yt, 1, [], { inner: 'plaster' });
-          for (let i = 1; i < rooms; i++) { B.color(0xece6da); B.box('plaster', x0 + i * rw - 0.06, yb, z0 + t, x0 + i * rw + 0.06, yt - 0.01, z1 - t); }
+          for (let i = 1; i < rooms; i++) { B.color(B.inside); B.box('plaster', x0 + i * rw - 0.06, yb, z0 + t, x0 + i * rw + 0.06, yt - 0.01, z1 - t); }
           for (let i = 0; i < rooms; i++) { const cx = x0 + i * rw + rw / 2; place(B, cx - 0.4, yb, z0 + t + 1.2, 0, FURN.bed(0x8a6a3a)); place(B, cx + 1.1, yb, z1 - 1.0, 2, FURN.tv()); B.color(0xfff6e0); B.box('lamp', cx - 0.3, yt - 0.06, -1.3, cx + 0.3, yt - 0.012, -0.7); }
           B.color(0xe6e0d4); B.box('plaster', x0 + t, yb - 0.22, z0 + t, x1 - t, yb - 0.03, z1 - t, s ? 'Y' : ''); B.color(0xffffff); B.box('carpet', x0 + t, yb - 0.03, z0 + t, x1 - t, yb, z1 - t);
         }
@@ -992,7 +1000,7 @@
         B.color(tint); wall(B, 'block', 'x', z0 + t / 2, x0, x1, t, base, top, -1, units.map((_, i) => ({ kind: 'door', a: x0 + i * uw + 1, b: x0 + i * uw + 1.9, y0: base, y1: base + 2.1, doorMat: 'metal', doorTint: 0x8d9196, stoop: false })), { inner: 'plaster', innerPad: t });
         B.color(tint); wall(B, 'stucco', 'z', x0 + t / 2, z0 + t, z1 - t, t, base, top, -1, [], { inner: 'plaster' });
         B.color(tint); wall(B, 'stucco', 'z', x1 - t / 2, z0 + t, z1 - t, t, base, top, 1, [], { inner: 'plaster' });
-        for (let i = 1; i < units.length; i++) { B.color(0xece6da); B.box('plaster', x0 + i * uw - 0.08, base, z0 + t, x0 + i * uw + 0.08, top - 0.01, z1 - t); }
+        for (let i = 1; i < units.length; i++) { B.color(B.inside); B.box('plaster', x0 + i * uw - 0.08, base, z0 + t, x0 + i * uw + 0.08, top - 0.01, z1 - t); }
         flatRoof(B, x0, x1, z0, z1, top, { wall: 'stucco', wallTint: tint, parapet: 0.5, t, ac: [x0 + 6, 0] });
         B.color(0xffffff); B.box('floorTile', x0 + t, base - 0.03, z0 + t, x1 - t, base, z1 - t);
         B.color(0xf2efe8); B.box('plaster', x0 + t, top - 0.012, z0 + t, x1 - t, top + 0.05, z1 - t, 'Y');
@@ -1066,7 +1074,7 @@
           B.color(0xe8e2d0); wall(B, 'block', 'x', z, -hw, hw, 0.24, 0.12, yS, out, ops, { inner: 'plaster' });
           const cap = [], capIn = [];
           for (let i = 0; i <= 12; i++) { const ang = Math.asin((yS - 0.12) / R) + (Math.PI - 2 * Math.asin((yS - 0.12) / R)) * i / 12; cap.push([Math.cos(ang) * R, 0.12 + Math.sin(ang) * R, z + out * 0.12]); capIn.push([Math.cos(ang) * (R - 0.12), 0.12 + Math.sin(ang) * (R - 0.12), z - out * 0.12]); }
-          B.color(0xe8e2d0); B.poly('block', cap, [0, 0, out]); B.color(0xece6da); B.poly('plaster', capIn, [0, 0, -out]);
+          B.color(0xe8e2d0); B.poly('block', cap, [0, 0, out]); B.color(B.inside); B.poly('plaster', capIn, [0, 0, -out]);
           for (const sx of [-1, 1]) {
             const sl = [[sx * hw, 0.12, z + out * 0.12]];
             for (let i = 0; i <= 6; i++) { const y = 0.12 + (yS - 0.12) * i / 6; sl.push([sx * Math.sqrt(Math.max(0, R * R - (y - 0.12) * (y - 0.12))), y, z + out * 0.12]); }
