@@ -4,9 +4,9 @@
     "normal": "textures/furniture/normal.png (tangent space, OpenGL, +Y up)",
     "orm": "textures/furniture/orm.png (R occlusion, G roughness, B metal)",
     "sha256": {
-      "albedo": "5fec89c375f0793f055f07a9dd89fee0cc6038d335e4f250fafdda9360eb3f97",
-      "normal": "2c0a693da5a4b1654e3e756776045a99ad047eb33f4c5b9ca9e183e53e68a508",
-      "orm": "a08b2c78da36afb608c7eded8a5a0f4d11c9009ef72499cd6e27f4020328e9ff"
+      "albedo": "452d7064eb4c4c937c8425a902cf8f625e00b4189568f52f0a7cd396b7dd5e30",
+      "normal": "ae937a089be9faa199a65d2f6400556e7c7b2f16b801d5fdf87749814ae332ff",
+      "orm": "e04c72559636fd5733dd101dd274398dbed26908f0b1f94f98dc5760d43e98d1"
     },
     "size_px": 4096,
     "texel_density_px_per_m": {
@@ -83,7 +83,7 @@
       "budget_tris": 6000,
       "bytes": 506820,
       "file": "furniture/aisle.glb",
-      "sha256": "846f8d61a2f8a61dab61e292f25ea792a96b6517ddd336ba3c8567c0bd8ebd88",
+      "sha256": "79ffb75c7bb89316282e501370d181709cc3efec264404d2bc24b7d62707c879",
       "tint_surface": null,
       "triangles": 5884,
       "what": "Store gondola: three shelves a side of boxes, cans, bottles and bags"
@@ -133,7 +133,7 @@
       "budget_tris": 6000,
       "bytes": 196912,
       "file": "furniture/bed.glb",
-      "sha256": "96523477ab0f5b2ee23d445f318017975947b38189c56b3308d935ef2e1c629f",
+      "sha256": "ef857e2a67953b2e3ee6e4944266eb3ff503aac52926aed2dd4062fc00ff2d16",
       "tint_surface": "fabric",
       "triangles": 3488,
       "what": "Double bed: panelled headboard with turned posts, footboard, bedspread, turned-down sheet, two pillows"
@@ -186,7 +186,7 @@
       "budget_tris": 6000,
       "bytes": 307304,
       "file": "furniture/booth.glb",
-      "sha256": "c3be71b2142432d582a7a9b58d0433f1cc9485ee05ff9b34a90052df7f2e27a6",
+      "sha256": "0683f772bfb1cad9c8adf80dd6ca757631767169fc8e5d76bd7d0d7f574531eb",
       "tint_surface": "fabric",
       "triangles": 5718,
       "what": "Diner booth: channel-tufted benches, chrome-banded table on a pedestal, condiments"
@@ -236,7 +236,7 @@
       "budget_tris": 6000,
       "bytes": 242356,
       "file": "furniture/chair.glb",
-      "sha256": "087b4e412547599211f2a0a878fdcb369654a653b03a0f4acb1a15d9aeacb442",
+      "sha256": "6d9f56da68a9a5a60749510b314e16eb985a7b1e6045a5fde8166e52455234f5",
       "tint_surface": "fabric",
       "triangles": 4488,
       "what": "Salon hydraulic chair: chrome base and pump, channelled back, arms, footrest"
@@ -286,7 +286,7 @@
       "budget_tris": 6000,
       "bytes": 492116,
       "file": "furniture/cooler.glb",
-      "sha256": "e7727623148582379bd7beb5a2ec2242d00bcb1fef65b5f806c75e126c58683c",
+      "sha256": "4f3c0f7d6c1851e9d618eb657b4d7b82216d5d9c8d99e7d89e42e7c0173c836d",
       "tint_surface": null,
       "triangles": 5510,
       "what": "Three-door glass drinks cooler with lit header, shelves of bottles, cartons and cans"
@@ -338,7 +338,7 @@
       "budget_tris": 6000,
       "bytes": 279872,
       "file": "furniture/counter.glb",
-      "sha256": "b76ce9bbd3ec6b1f32ff9de840df8382ce5fa44a9c4a14d7a879f1788d7e71d1",
+      "sha256": "c93bb90a3a43587af9e294154afc77ef38efe4f9d314a936a820fc73325fd748",
       "tint_surface": "trim",
       "triangles": 2574,
       "what": "Shop counter, panelled front, open shelves behind, chrome-edged top, cash register"
@@ -392,7 +392,7 @@
       "budget_tris": 6000,
       "bytes": 344080,
       "file": "furniture/desk.glb",
-      "sha256": "f62911bef0a6f36a376d948771403f439488cca8ad775580a88cda165555dccc",
+      "sha256": "28a0796bd461431980512123806bd77b1b67060e13961553faa60ac7dea99bf4",
       "tint_surface": null,
       "triangles": 4516,
       "what": "Pedestal desk, beige home computer with monitor and keyboard, office chair"
@@ -443,7 +443,7 @@
       "budget_tris": 6000,
       "bytes": 456964,
       "file": "furniture/kitchen.glb",
-      "sha256": "1f32eccdd7153d318c8bac96906305709d2a944e80fb5443151f646cbac863ad",
+      "sha256": "0df49b657b72f06e0f092d23d4e841856943d08386dfd9b51202ce7068fc85a6",
       "tint_surface": "trim",
       "triangles": 5732,
       "what": "Kitchen run: raised-panel cabinets, laminate top, double steel sink and faucet, almond fridge"
@@ -493,7 +493,7 @@
       "budget_tris": 6000,
       "bytes": 260204,
       "file": "furniture/lift.glb",
-      "sha256": "245950f950154f3658f2b9d92d1878b8126abfac8d3752c193b7d03a5eeb70af",
+      "sha256": "e88b2bc81949b5a7f40cce27454f4fe7c1154d8ede6f2ae89a816c13627787c2",
       "tint_surface": null,
       "triangles": 3244,
       "what": "Two-post car lift: channel posts, carriages, telescoping arms with pads, overhead beam, power unit"
@@ -542,7 +542,7 @@
       "budget_tris": 6000,
       "bytes": 377560,
       "file": "furniture/shelf.glb",
-      "sha256": "465a6954bf0dfed3313d9fcee2ecb083e187b54d37b64ada8124adf4db13b404",
+      "sha256": "adc510be25cf3bf512e496e324ccb8e3d7f976a82612131069fcca3fbd85725f",
       "tint_surface": null,
       "triangles": 3408,
       "what": "Bookcase with crown and plinth, five shelves of books, a vase and a photo"
@@ -688,7 +688,7 @@
       "budget_tris": 6000,
       "bytes": 173352,
       "file": "furniture/table.glb",
-      "sha256": "2643006b16725d5f441f373b4bf1fc16a48079deb9927bd440727951b3ab4c45",
+      "sha256": "b28ae07e42f00cae3b8c15a2075d9b31215f0b82f0f97fd8e37e6736ba9ca97c",
       "tint_surface": null,
       "triangles": 2676,
       "what": "Dining table with turned legs and a spindle-back chair at each end"
@@ -788,7 +788,7 @@
       "budget_tris": 6000,
       "bytes": 161484,
       "file": "furniture/tv.glb",
-      "sha256": "a8236536473f6e1bd67cad7eb38bc8c468e77629c92ee254f168c053e653979f",
+      "sha256": "2e01d87b872542193cdaeabc0e819d0043a8cafc425f6be01822b4c666088b86",
       "tint_surface": null,
       "triangles": 2476,
       "what": "TV stand with a VCR, tapes and a console, and a CRT set with dials"
@@ -840,7 +840,7 @@
       "budget_tris": 6000,
       "bytes": 135784,
       "file": "furniture/washer.glb",
-      "sha256": "f75fe1558b74290e008949d10e4f7f1f57a91f53a92229ba46cff9dccae9159e",
+      "sha256": "eeaa744f6d978a409d2ea3b3f264684e056a264bb85bd1e99da20679ce366113",
       "tint_surface": null,
       "triangles": 2070,
       "what": "Laundromat front-loader: coin slide, dial, lamps, chrome porthole door"
@@ -890,7 +890,7 @@
       "budget_tris": 6000,
       "bytes": 306116,
       "file": "furniture/workbench.glb",
-      "sha256": "460f35e2b7fcf0d0e7aa7edee740083a9edee7a7f8f04bcc97baa7c0abfcc6f8",
+      "sha256": "15255d3f910e2212e78a9abb5f3d7a648e48a7dcafce525d31a08c939a869441",
       "tint_surface": null,
       "triangles": 3420,
       "what": "Garage bench: angle-iron frame, plank top, pegboard with tools, cabinet, vise, toolbox"
