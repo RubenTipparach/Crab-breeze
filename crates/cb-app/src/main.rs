@@ -15,6 +15,7 @@ mod building_state;
 mod buildings;
 mod capture;
 mod capture_fortress;
+mod capture_houses;
 mod career;
 mod civil_standing;
 mod civilians;
@@ -64,6 +65,7 @@ mod showcase;
 mod sim;
 mod skins;
 mod sky_light;
+mod small_buildings;
 mod soft_sprites;
 mod state;
 mod street_doors;
@@ -233,7 +235,11 @@ fn main() -> AppExit {
     // Car traffic and the car you drive (openspec changes `car-traffic`, `car-driving`).
     .add_plugins((traffic::TrafficPlugin, traffic_lights::TrafficLightsPlugin))
     // Buildings a pilot on foot walks into, and their street doors (building-interiors).
-    .add_plugins((walk_in::WalkInPlugin, street_doors::StreetDoorsPlugin))
+    .add_plugins((
+        walk_in::WalkInPlugin,
+        street_doors::StreetDoorsPlugin,
+        small_buildings::SmallBuildingsPlugin,
+    ))
     // sound: effects in 3D, music, ambience (openspec changes `audio`, `music`, `ambience`)
     .add_plugins((audio::SoundPlugin, music::MusicPlugin, ambience::AmbiencePlugin));
     // People in the streets, parks and bases (openspec change `civilians`); `CB_NO_PEOPLE=1` leaves them
@@ -303,7 +309,9 @@ fn main() -> AppExit {
         window: !scripted && !cli::switched_off("CB_UNCAPPED"),
     });
     if let Some(dir) = args.stills {
-        if std::env::var("CB_STILLS_FORTRESS").is_ok() {
+        if std::env::var("CB_STILLS_HOUSES").is_ok() {
+            app.add_plugins(capture_houses::HousesStillsPlugin { dir });
+        } else if std::env::var("CB_STILLS_FORTRESS").is_ok() {
             app.add_plugins(capture_fortress::FortressStillsPlugin { dir });
         } else if std::env::var("CB_STILLS_FX").is_ok() {
             app.add_plugins(capture::FxStillsPlugin { dir });

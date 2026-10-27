@@ -98,6 +98,7 @@ fn land(
     units: &mut crate::units::Units,
     data: &crate::sim::Data,
     live: &mut Live,
+    lots: &cb_core::world::small_buildings::Lots,
     mechs: &mut Mechs,
     fx: &mut MessageWriter<Fx>,
     explosions: &mut MessageWriter<Explosion>,
@@ -183,6 +184,15 @@ fn land(
             if broke > 0 {
                 live.dirty_buildings.push(b);
                 live.new_chunks.extend(chunks);
+            }
+            fx.write(Fx::new("impact_building", at).toward(-dir));
+        }
+        Struck::House { lot, .. } => {
+            let r = 1.3f32.max(1.2 * 2.2 * power.blast_mj.max(0.01).cbrt());
+            let b = live.structures.houses.break_sphere(lots, lot, at, r);
+            if !b.pieces.is_empty() {
+                live.dirty_houses.push(lot);
+                live.new_chunks.extend(b.chunks);
             }
             fx.write(Fx::new("impact_building", at).toward(-dir));
         }
@@ -437,6 +447,7 @@ pub fn fly_shots(
                 &mut units,
                 &data,
                 live,
+                &plan.small,
                 &mut mechs,
                 &mut fx,
                 &mut explosions,
@@ -487,6 +498,7 @@ pub fn fly_shots(
                 &mut units,
                 &data,
                 live,
+                &plan.small,
                 &mut mechs,
                 &mut fx,
                 &mut explosions,
@@ -563,6 +575,7 @@ pub fn fly_shots(
             &mut units,
             &data,
             live,
+            &plan.small,
             &mut mechs,
             &mut fx,
             &mut explosions,

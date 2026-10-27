@@ -78,6 +78,8 @@ pub struct Live {
     pub structures: cb_core::world::Structures,
     /// Buildings damaged since they were last drawn.
     pub dirty_buildings: Vec<u32>,
+    /// Houses and small businesses damaged since they were last drawn (lot ids: `small_buildings`).
+    pub dirty_houses: Vec<u32>,
     /// Pieces of buildings that fell since the physics last took them.
     pub new_chunks: Vec<cb_core::world::Chunk>,
     /// Moving surfaces bodies stand on, posed this fixed step (the Stratostacean's deck: `crab-airship`).
@@ -162,6 +164,7 @@ impl Plugin for WorldPlugin {
             moved_trees: Vec::new(),
             structures: cb_core::world::Structures::with_config(&plan, cfg.structure.clone(), cfg.craters.radius_m_per_cbrt_mj),
             dirty_buildings: Vec::new(),
+            dirty_houses: Vec::new(),
             new_chunks: Vec::new(),
             platforms: Vec::new(),
         };

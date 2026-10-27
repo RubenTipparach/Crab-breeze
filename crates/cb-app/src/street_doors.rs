@@ -127,7 +127,7 @@ fn swing_leaves(
 ) {
     let alpha = fixed.overstep_fraction();
     for (b, d) in &drawn.0 {
-        let built = colliders.0.buildings.get(b).map(|w| &w.door);
+        let built = colliders.0.buildings.get(b).and_then(|w| w.doors.first());
         let angle = built.map_or(0.0, |s| s.prev_angle_deg + (s.angle_deg - s.prev_angle_deg) * alpha);
         let frame = live.structures.buildings[*b as usize].frame.as_deref();
         let hangs = live.structures.buildings[*b as usize].standing > 0 && Walkable::holds(d.door.hold, false, frame);

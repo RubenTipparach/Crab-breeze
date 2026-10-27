@@ -22,7 +22,7 @@ const BUDGET = { LOD0: 16000, LOD1: 7000, LOD2: 120 };
 const BUDGET_FOR = { motel: { LOD1: 8500, why: '28 rooms over 37 m: about three times the facade of the next largest type' } };
 const budgetOf = (id, lod) => (BUDGET_FOR[id] && BUDGET_FOR[id][lod]) || BUDGET[lod];
 // Switch distances in metres, measured from the nearest body (design section 4).
-const LOD_M = { LOD0: 150, LOD1: 600, LOD2: 2000 };
+const LOD_M = { LOD0: 150, LOD1: 600, LOD2: 2000, FURN: 100 };
 // LOD1 drops pieces whose bounds hold less than this many cubic metres.
 const SMALL_M3 = 0.004;
 
@@ -158,7 +158,8 @@ function writeGlb(file, lods, meta) {
     json.accessors.push(a); return json.accessors.length - 1;
   };
   const tris = {};
-  for (const [name, parts] of lods) {
+  const primsOf = {};
+  for (const [name, parts, node] of lods) {
     const prims = [];
     tris[name] = 0;
     for (const key of Object.keys(parts).sort()) {
@@ -181,8 +182,10 @@ function writeGlb(file, lods, meta) {
       });
       tris[name] += w.I.length / 3;
     }
+    primsOf[name] = prims.map((p) => p.extras.surface);
+    if (!prims.length) continue; // a type with no block furniture has no FURN node
     json.meshes.push({ name: `${meta.id}_${name}`, primitives: prims });
-    json.nodes.push({ name, mesh: json.meshes.length - 1, extras: { lod: name, within_m: LOD_M[name] } });
+    json.nodes.push(Object.assign({ name, mesh: json.meshes.length - 1, extras: { lod: name, within_m: LOD_M[name] } }, node || {}));
     json.scenes[0].nodes.push(json.nodes.length - 1);
   }
   const bin = Buffer.concat(chunks);
@@ -193,7 +196,7 @@ function writeGlb(file, lods, meta) {
   const jh = Buffer.alloc(8); jh.writeUInt32LE(js.length, 0); jh.writeUInt32LE(0x4e4f534a, 4);
   const bh = Buffer.alloc(8); bh.writeUInt32LE(bin.length, 0); bh.writeUInt32LE(0x004e4942, 4);
   fs.writeFileSync(file, Buffer.concat([header, jh, js, bh, bin]));
-  return { tris, prims: json.meshes[0].primitives.map((p) => p.extras.surface) };
+  return { tris, prims: primsOf };
 }
 
 // ------------------------------------------------------------------ export
@@ -203,31 +206,66 @@ const M = { sign: signs, awning: (c) => `awning:${c}` };
 const manifest = { generator: 'tools/buildings/export_small_buildings.cjs', kit: 'docs/mockups/small_buildings_kit.js', seed: SEED, units: 'metres; front faces +z, centred on x = 0, standing on y = 0', lod_within_m: LOD_M, lod1_drops: { interior: true, pieces_under_m3: SMALL_M3 }, budget_triangles: BUDGET, types: [] };
 let failed = false;
 const r3 = (v) => Math.round(v * 1000) / 1000;
-for (const T of K.TYPES) {
-  const B = K.build(T.id, SEED, M);
+// Every type, and each suburban house's variants (design section 7.1).
+const BUILDS = K.TYPES.flatMap((T) => [0, ...(T.variants || []).map((_, i) => i + 1)].map((v) => ({ T, v, id: K.variantId(T.id, v) })));
+for (const { T, v, id } of BUILDS) {
+  const B = K.build(T.id, SEED, M, v);
   const pieces = K.piecesOf(B);
   const live = pieces.filter((p) => p.runs.length);
   const links = K.supportLinks(live);
   const interior = new Set(live.filter((p) => K.isInterior(p)).map((p) => p.id));
-  const lod0 = B.parts;
+  // Block furniture is its own node, drawn within 100 m (design section 7.3); each door's leaf is its own node, in
+  // its hinge's frame, so the game can swing it (7.2). LOD0 is the rest.
+  const furn = new Set(live.filter((p) => p.tag === 'furniture').map((p) => p.id));
+  const leaves = live.filter((p) => p.tag === 'leaf' && p.meta && p.meta.leaf);
+  const leafIds = new Set(leaves.map((p) => p.id));
+  const lod0 = filterBuckets(B.parts, (pid) => !furn.has(pid) && !leafIds.has(pid));
+  const furnParts = filterBuckets(B.parts, (pid) => furn.has(pid));
+  const leafParts = leaves.map((p) => {
+    const parts = filterBuckets(B.parts, (pid) => pid === p.id);
+    const h = p.meta.leaf.hinge;
+    for (const a of Object.values(parts)) for (let i = 0; i < a.p.length; i += 3) { a.p[i] -= h[0]; a.p[i + 1] -= h[1]; a.p[i + 2] -= h[2]; }
+    return parts;
+  });
   // LOD1 (150-600 m): no interior, and no piece smaller than 4 litres (balusters, knobs, slats).
   const small = new Set(live.filter((p) => (p.hi[0] - p.lo[0]) * (p.hi[1] - p.lo[1]) * (p.hi[2] - p.lo[2]) < SMALL_M3).map((p) => p.id));
   const lod1 = filterBuckets(B.parts, (id) => !interior.has(id) && !small.has(id), { glass: 'glassFar', glassShop: 'glassFar' });
   const lod2 = farShapes(B, pieces);
-  const file = path.join(OUT, `${T.id}.glb`);
+  const file = path.join(OUT, `${id}.glb`);
   const lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
   for (const p of live) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], p.lo[k]); hi[k] = Math.max(hi[k], p.hi[k]); }
-  const res = writeGlb(file, [['LOD0', lod0], ['LOD1', lod1], ['LOD2', lod2]], { id: T.id, seed: SEED });
-  // The destruction table: LOD0 pieces with their triangle runs in LOD0's primitives.
-  const primOf = new Map(res.prims.map((k, i) => [k, i]));
+  const res = writeGlb(file, [['LOD0', lod0], ['LOD1', lod1], ['LOD2', lod2], ['FURN', furnParts], ...leafParts.map((parts, i) => [`LEAF${i}`, parts, { translation: leaves[i].meta.leaf.hinge, extras: { leaf: i, within_m: LOD_M.LOD0 } }])], { id, seed: SEED, variant: v });
+  // The destruction table: LOD0 pieces with their triangle runs in LOD0's primitives (FURN's for furniture, the
+  // leaf's own node for a leaf).
+  const primOf = new Map(res.prims.LOD0.map((k, i) => [k, i]));
+  const furnPrimOf = new Map(res.prims.FURN.map((k, i) => [k, i]));
+  // Runs of a node re-counted after filtering: a piece's first triangle in its node's primitive.
+  const runsIn = (parts, keep) => {
+    const out = new Map();
+    for (const key of Object.keys(parts).sort()) {
+      const t = parts[key].t;
+      for (let i = 0; i < t.length;) { let k = 1; while (i + k < t.length && t[i + k] === t[i]) k++; if (keep(t[i])) { const r = out.get(t[i]) || []; r.push([key, i, k]); out.set(t[i], r); } i += k; }
+    }
+    return out;
+  };
+  const lod0Runs = runsIn(lod0, () => true), furnRuns = runsIn(furnParts, () => true);
+  const leafIndex = new Map(leaves.map((p, i) => [p.id, i]));
   const wallMats = new Set(K.WALLMATS);
   const table = {
-    id: T.id, lod: 'LOD0', rules: 'openspec/changes/small-buildings/design.md section 6; docs/design/small-buildings-kit.md',
+    id, lod: 'LOD0', rules: 'openspec/changes/small-buildings/design.md section 6; docs/design/small-buildings-kit.md',
     max_side_steps: K.MAX_SIDE, collapse_wall_share: 0.5,
-    primitives: res.prims,
+    primitives: res.prims.LOD0, furn_primitives: res.prims.FURN,
+    leaves: leaves.map((p) => { const L = p.meta.leaf; return { piece: p.id, hinge: L.hinge.map(r3), shut: L.shut, inward: L.inward, width_m: r3(L.width_m), height_m: r3(L.height_m) }; }),
+    furniture: live.filter((p) => p.meta && p.meta.furn).map((p) => { const F = p.meta.furn; return { piece: p.id, item: F.item, at: F.at.map(r3), rot: F.rot, tint: F.tint.map(r3) }; }),
     pieces: live.map((p, i) => {
-      const e = { id: p.id, lo: p.lo.map(r3), hi: p.hi.map(r3), runs: p.runs.map((r) => [primOf.get(r.mat), r.start, r.count]) };
+      const own = leafIndex.has(p.id) ? [] : furn.has(p.id) ? (furnRuns.get(p.id) || []).map(([k, s, n]) => [furnPrimOf.get(k), s, n]) : (lod0Runs.get(p.id) || []).map(([k, s, n]) => [primOf.get(k), s, n]);
+      const e = { id: p.id, lo: p.lo.map(r3), hi: p.hi.map(r3), runs: own };
+      if (furn.has(p.id)) e.node = 'FURN';
+      if (leafIndex.has(p.id)) { e.node = `LEAF${leafIndex.get(p.id)}`; e.leaf = leafIndex.get(p.id); }
       if (p.tag) e.tag = p.tag;
+      // The boxes it is made of, when it is only boxes (for colliders); otherwise its bounds stand in.
+      const bx = B.boxes[p.id];
+      if (bx && bx.length > 1 && !B.nonBox[p.id]) e.boxes = bx.map((b) => b.map(r3));
       if (interior.has(p.id)) e.interior = true;
       if (p.meta && p.meta.box) e.box = { mat: p.meta.mat, tint: p.meta.tint.map(r3) };
       if (p.meta && p.meta.panel) e.panel = { mat: p.meta.mat, tint: p.meta.tint.map(r3), c: p.meta.panel.c.map(r3), size: p.meta.panel.size.map(r3), axes: p.meta.panel.axes.map((a) => a.map(r3)) };
@@ -237,16 +275,19 @@ for (const T of K.TYPES) {
       return e;
     }),
   };
-  fs.writeFileSync(path.join(OUT, `${T.id}.pieces.json`), JSON.stringify(table));
-  const over = Object.entries(res.tris).filter(([l, n]) => n > budgetOf(T.id, l));
-  if (over.length) { failed = true; console.error(`OVER BUDGET ${T.id}: ${over.map(([l, n]) => `${l} ${n} > ${budgetOf(T.id, l)}`).join(', ')}`); }
+  fs.writeFileSync(path.join(OUT, `${id}.pieces.json`), JSON.stringify(table));
+  // LOD0's budget counts what is drawn within 150 m: the shell, its leaves and its block furniture.
+  const drawn0 = res.tris.LOD0 + res.tris.FURN + Object.entries(res.tris).filter(([k]) => k.startsWith('LEAF')).reduce((s, [, n]) => s + n, 0);
+  const counted = { LOD0: drawn0, LOD1: res.tris.LOD1, LOD2: res.tris.LOD2 };
+  const over = Object.entries(counted).filter(([l, n]) => n > budgetOf(T.id, l));
+  if (over.length) { failed = true; console.error(`OVER BUDGET ${id}: ${over.map(([l, n]) => `${l} ${n} > ${budgetOf(T.id, l)}`).join(', ')}`); }
   manifest.types.push({
-    id: T.id, name: T.name, kind: T.kind, biomes: T.biome.split(',').map((b) => b.trim()), blurb: T.blurb,
-    glb: `${T.id}.glb`, pieces: `${T.id}.pieces.json`,
-    bounds_m: { lo: lo.map(r3), hi: hi.map(r3) }, triangles: res.tris, budget_triangles: { LOD0: budgetOf(T.id, 'LOD0'), LOD1: budgetOf(T.id, 'LOD1'), LOD2: budgetOf(T.id, 'LOD2'), ...(BUDGET_FOR[T.id] ? { why: BUDGET_FOR[T.id].why } : {}) }, piece_count: live.length,
-    surfaces: res.prims, signs: res.prims.filter((k) => k.startsWith('sign:')).map((k) => k.slice(5).split('|')[0]),
+    id, name: v ? T.variants[v - 1] : T.name, kind: T.kind, ...(v ? { variant_of: T.id, variant: v } : {}), biomes: T.biome.split(',').map((b) => b.trim()), blurb: T.blurb,
+    glb: `${id}.glb`, pieces: `${id}.pieces.json`,
+    bounds_m: { lo: lo.map(r3), hi: hi.map(r3) }, triangles: { LOD0: res.tris.LOD0, LOD1: res.tris.LOD1, LOD2: res.tris.LOD2, FURN: res.tris.FURN, leaves: drawn0 - res.tris.LOD0 - res.tris.FURN }, budget_triangles: { LOD0: budgetOf(T.id, 'LOD0'), LOD1: budgetOf(T.id, 'LOD1'), LOD2: budgetOf(T.id, 'LOD2'), ...(BUDGET_FOR[T.id] ? { why: BUDGET_FOR[T.id].why } : {}) }, piece_count: live.length,
+    surfaces: res.prims.LOD0, signs: res.prims.LOD0.filter((k) => k.startsWith('sign:')).map((k) => k.slice(5).split('|')[0]),
   });
-  console.log(`${T.id.padEnd(9)} LOD0 ${String(res.tris.LOD0).padStart(6)}  LOD1 ${String(res.tris.LOD1).padStart(5)}  LOD2 ${String(res.tris.LOD2).padStart(4)}  pieces ${live.length}  ${(fs.statSync(file).size / 1024).toFixed(0)} KB`);
+  console.log(`${id.padEnd(11)} LOD0 ${String(res.tris.LOD0).padStart(6)}  LOD1 ${String(res.tris.LOD1).padStart(5)}  LOD2 ${String(res.tris.LOD2).padStart(4)}  pieces ${live.length}  ${(fs.statSync(file).size / 1024).toFixed(0)} KB`);
 }
 fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 1) + '\n');
 if (failed) process.exit(1);

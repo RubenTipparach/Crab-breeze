@@ -130,6 +130,8 @@ pub struct Structures {
     pub landings: Vec<Landing>,
     /// Moments since the last `take_moments`.
     pub moments: Vec<Moment>,
+    /// The damaged houses and small businesses (openspec change `small-buildings`).
+    pub houses: super::small_buildings::Houses,
 }
 
 impl Structures {
@@ -170,6 +172,7 @@ impl Structures {
             falls: Vec::new(),
             landings: Vec::new(),
             moments: Vec::new(),
+            houses: Default::default(),
         }
     }
 
