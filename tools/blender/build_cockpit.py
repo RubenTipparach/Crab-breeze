@@ -983,8 +983,8 @@ def dress(S, L, plain_walls, lower_bands, roof, node_at, F, zf):
             mid = a.lerp(b, 0.5) + V(0, top - 0.025, 0)
             bolt_row(S, a + r * 0.12 + n * 0.002 + V(0, top - 0.025, 0), b - r * 0.12 + n * 0.002 + V(0, top - 0.025, 0),
                      max(4, int(length / 0.09)), n, node=node_at(mid), r=0.006)
-    if roof:
-        # an overhead switch panel over the pilot's head, between the ceiling beams, inside the grab rails
+    if roof.get("y") is not None:
+        # an overhead switch panel over the pilot's head (not under a roof of screens: none to hang it from), between the ceiling beams, inside the grab rails
         # it hangs under the ceiling beams where there are any, so the beams do not cut it short
         y = roof["y"] - (0.07 if roof.get("beams") else 0.0)
         z0, z1 = -0.30, 0.30
