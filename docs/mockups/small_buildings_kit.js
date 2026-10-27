@@ -195,17 +195,20 @@
       bx(a + f, b - f, y0, y0 + f, lo, hi, frameMat); bx(a + f, b - f, y1 - f, y1, lo, hi, frameMat);
       glass(a + f, b - f, y0 + f, y1 - f);
       const lights = op.lights || (kind === 'pic' ? 3 : kind === 'ribbon' ? 1 : 2);
-      for (let i = 1; i < lights; i++) { const x = a + (b - a) * i / lights; bx(x - 0.025, x + 0.025, y0 + f, y1 - f, lo + 0.02, hi - 0.02, frameMat); }
-      if (kind === 'win' && op.rail !== false) { const y = (y0 + y1) / 2; bx(a + f, b - f, y - 0.025, y + 0.025, lo + 0.02, hi - 0.02, frameMat); }
+      // Muntins and the rail run 1 cm into the frame, so their ends never share a plane with the glass's edges.
+      for (let i = 1; i < lights; i++) { const x = a + (b - a) * i / lights; bx(x - 0.025, x + 0.025, y0 + f - 0.01, y1 - f + 0.01, lo + 0.02, hi - 0.02, frameMat); }
+      if (kind === 'win' && op.rail !== false) { const y = (y0 + y1) / 2; bx(a + f - 0.01, b - f + 0.01, y - 0.025, y + 0.025, lo + 0.02, hi - 0.02, frameMat); }
       // Sill, proud of the face.
       if (op.sill !== false) {
         B.color(op.sillTint || 0xd9d4c8);
-        const s0 = Math.min(ext - out * 0.04, ext + out * 0.06), s1 = Math.max(ext - out * 0.04, ext + out * 0.06);
+        // It stands out from the wall's face (not into the wall), so its top never shares a plane with the wall below.
+        const s0 = Math.min(ext, ext + out * 0.06), s1 = Math.max(ext, ext + out * 0.06);
         bx(a - 0.06, b + 0.06, y0 - 0.07, y0, s0, s1, op.sillMat || 'concrete');
       }
       if (op.lintel) {
         B.color(op.lintelTint || 0xffffff);
-        const l0 = Math.min(ext - out * 0.02, ext + out * 0.025), l1 = Math.max(ext - out * 0.02, ext + out * 0.025);
+        // Proud of the wall's face, so its underside never shares a plane with the wall's head over the opening.
+        const l0 = Math.min(ext, ext + out * 0.025), l1 = Math.max(ext, ext + out * 0.025);
         bx(a - 0.1, b + 0.1, y1, y1 + 0.2, l0, l1, op.lintel);
       }
       if (op.shutters) {
@@ -358,11 +361,12 @@
   }
   function fascia(B, X0, X1, Z0, Z1, y, tint) {
     B.color(tint || 0xf4f1ea);
-    const d = 0.04, h = 0.22;
-    B.box('trim', X0 - d, y - h, Z1, X1 + d, y, Z1 + d);
-    B.box('trim', X0 - d, y - h, Z0 - d, X1 + d, y, Z0);
-    B.box('trim', X0 - d, y - h, Z0, X0, y, Z1);
-    B.box('trim', X1, y - h, Z0, X1 + d, y, Z1);
+    // Foot and head 6 mm off the eave's line, so they never share a plane with a ceiling's underside or a wall's head.
+    const d = 0.04, h = 0.214, e = y - 0.006;
+    B.box('trim', X0 - d, y - h, Z1, X1 + d, e, Z1 + d);
+    B.box('trim', X0 - d, y - h, Z0 - d, X1 + d, e, Z0);
+    B.box('trim', X0 - d, y - h, Z0, X0, e, Z1);
+    B.box('trim', X1, y - h, Z0, X1 + d, e, Z1);
   }
   // A gable roof with its ridge along x (or along z when R.ridge === 'z'), and its gable-end walls.
   function gableRoof(B, R) {
@@ -397,20 +401,21 @@
     // Barge boards along the rakes, fascia along the eaves.
     B.color(R.fasciaTint || 0xf4f1ea);
     if (alongZ) {
-      B.box('trim', V0 - 0.04, y - 0.22, U1, V1 + 0.04, y, U1 + 0.04);
-      B.box('trim', V0 - 0.04, y - 0.22, U0 - 0.04, V1 + 0.04, y, U0);
-      B.box('trim', V1, y - 0.22, U0, V1 + 0.04, y, U1);
-      B.box('trim', V0 - 0.04, y - 0.22, U0, V0, y, U1);
+      B.box('trim', V0 - 0.04, y - 0.214, U1, V1 + 0.04, y - 0.006, U1 + 0.04);
+      B.box('trim', V0 - 0.04, y - 0.214, U0 - 0.04, V1 + 0.04, y - 0.006, U0);
+      B.box('trim', V1, y - 0.214, U0, V1 + 0.04, y - 0.006, U1);
+      B.box('trim', V0 - 0.04, y - 0.214, U0, V0, y - 0.006, U1);
     } else {
-      B.box('trim', U0, y - 0.22, V1, U1, y, V1 + 0.04);
-      B.box('trim', U0, y - 0.22, V0 - 0.04, U1, y, V0);
+      B.box('trim', U0, y - 0.214, V1, U1, y - 0.006, V1 + 0.04);
+      B.box('trim', U0, y - 0.214, V0 - 0.04, U1, y - 0.006, V0);
     }
     return top;
   }
   // A flat roof with a parapet and coping.
   function flatRoof(B, x0, x1, z0, z1, y, o = {}) {
     const par = o.parapet != null ? o.parapet : 0.7, t = o.t || 0.25;
-    B.color(0x6d6a66); tiles(B, 'roofing', x0 + t, y - 0.3, z0 + t, x1 - t, y, z1 - t);
+    // The roofing stands 6 mm over the walls' heads, so it never shares a plane with the top of a wall's inner finish.
+    B.color(0x6d6a66); tiles(B, 'roofing', x0 + t, y - 0.3, z0 + t, x1 - t, y + 0.006, z1 - t);
     if (par > 0) {
       B.color(o.wallTint || 0xffffff);
       B.box(o.wall, x0, y, z1 - t, x1, y + par, z1);
@@ -445,15 +450,15 @@
     }
   }
   const FURN = {
-    sofa: (c) => [['fabric', -1.0, 0, -0.45, 1.0, 0.42, 0.45, c], ['fabric', -1.0, 0.42, -0.45, 1.0, 0.85, -0.22, c], ['fabric', -1.0, 0, -0.45, -0.82, 0.62, 0.45, c], ['fabric', 0.82, 0, -0.45, 1.0, 0.62, 0.45, c]],
+    sofa: (c) => [['fabric', -1.0, 0, -0.45, 1.0, 0.42, 0.45, c], ['fabric', -1.0, 0.42, -0.45, 1.0, 0.85, -0.22, c], ['fabric', -1.01, 0, -0.46, -0.82, 0.62, 0.46, c], ['fabric', 0.82, 0, -0.46, 1.01, 0.62, 0.46, c]],
     bed: (c) => [['wood', -0.8, 0, -1.0, 0.8, 0.42, 1.0, 0x7a5232], ['fabric', -0.78, 0.42, -0.98, 0.78, 0.6, 0.98, c], ['fabric', -0.6, 0.6, -0.95, 0.6, 0.72, -0.6, 0xf2f0ea], ['wood', -0.8, 0, -1.06, 0.8, 1.05, -1.0, 0x6a4428]],
     table: () => [['wood', -0.6, 0.72, -0.45, 0.6, 0.76, 0.45, 0x8a5a36], ['wood', -0.55, 0, -0.4, -0.5, 0.72, -0.35, 0x6a4428], ['wood', 0.5, 0, -0.4, 0.55, 0.72, -0.35, 0x6a4428], ['wood', -0.55, 0, 0.35, -0.5, 0.72, 0.4, 0x6a4428], ['wood', 0.5, 0, 0.35, 0.55, 0.72, 0.4, 0x6a4428],
       ['wood', -0.2, 0, -0.85, 0.2, 0.45, -0.55, 0x7a5232], ['wood', -0.2, 0.45, -0.88, 0.2, 0.95, -0.84, 0x7a5232], ['wood', -0.2, 0, 0.55, 0.2, 0.45, 0.85, 0x7a5232], ['wood', -0.2, 0.45, 0.84, 0.2, 0.95, 0.88, 0x7a5232]],
-    kitchen: (c) => [['trim', -1.8, 0, -0.3, 1.8, 0.88, 0.3, c], ['counter', -1.82, 0.88, -0.32, 1.82, 0.92, 0.32, 0xe8e2d0], ['trim', -1.8, 1.45, -0.3, 1.0, 2.15, 0.02, c], ['metal', 1.1, 0, -0.32, 1.8, 1.8, 0.33, 0xd9d6cc], ['metal', -0.6, 0.92, -0.25, 0.0, 0.94, 0.15, 0x9fa3a6]],
+    kitchen: (c) => [['trim', -1.8, 0, -0.3, 1.8, 0.88, 0.3, c], ['counter', -1.82, 0.88, -0.32, 1.82, 0.92, 0.32, 0xe8e2d0], ['trim', -1.8, 1.45, -0.3, 1.0, 2.15, 0.02, c], ['metal', 1.1, 0, -0.33, 1.81, 1.8, 0.34, 0xd9d6cc], ['metal', -0.6, 0.92, -0.25, 0.0, 0.94, 0.15, 0x9fa3a6]],
     tv: () => [['wood', -0.55, 0, -0.25, 0.55, 0.55, 0.25, 0x5a3a22], ['metal', -0.38, 0.55, -0.25, 0.38, 1.08, 0.2, 0x2a2a2a], ['glassDark', -0.3, 0.62, 0.2, 0.3, 1.0, 0.205, 0x3a4a52]],
     shelf: () => [['wood', -0.9, 0, -0.18, 0.9, 1.9, 0.18, 0x7a5232]],
     desk: () => [['wood', -0.75, 0.72, -0.4, 0.75, 0.76, 0.4, 0x6a4a30], ['wood', -0.75, 0, -0.4, -0.3, 0.72, 0.4, 0x5a3a22], ['fabric', -0.25, 0, 0.5, 0.25, 0.5, 0.95, 0x3a3a3a], ['metal', -0.2, 0.76, -0.3, 0.25, 1.15, 0.05, 0xd8d0c0]],
-    aisle: (rnd) => { const it = [['metal', -2, 0, -0.45, 2, 0.12, 0.45, 0xd8d8d8], ['metal', -2, 0, -0.05, 2, 1.6, 0.05, 0xd8d8d8]]; for (const lv of [0.15, 0.6, 1.05]) { it.push(['metal', -2, lv - 0.03, -0.45, 2, lv, 0.45, 0xcfcfcf]); for (let x = -1.95; x < 1.9; x += 0.32) { const c = [0xc23b30, 0xe8b23a, 0x3b67c4, 0x2f8a48, 0xf2f0ea, 0xe07a2a][Math.floor(rnd() * 6)]; it.push(['product', x, lv, -0.42, x + 0.28, lv + 0.25 + rnd() * 0.12, -0.08, c]); it.push(['product', x, lv, 0.08, x + 0.28, lv + 0.25 + rnd() * 0.12, 0.42, c]); } } return it; },
+    aisle: (rnd) => { const it = [['metal', -2, 0, -0.45, 2, 0.12, 0.45, 0xd8d8d8], ['metal', -1.98, 0, -0.05, 1.98, 1.6, 0.05, 0xd8d8d8]]; for (const lv of [0.15, 0.6, 1.05]) { it.push(['metal', -2, lv - 0.03, -0.45, 2, lv, 0.45, 0xcfcfcf]); for (let x = -1.95; x < 1.9; x += 0.32) { const c = [0xc23b30, 0xe8b23a, 0x3b67c4, 0x2f8a48, 0xf2f0ea, 0xe07a2a][Math.floor(rnd() * 6)]; it.push(['product', x, lv, -0.42, x + 0.28, lv + 0.25 + rnd() * 0.12, -0.08, c]); it.push(['product', x, lv, 0.08, x + 0.28, lv + 0.25 + rnd() * 0.12, 0.42, c]); } } return it; },
     cooler: () => [['metal', -1.5, 0, -0.4, 1.5, 2.1, 0.4, 0xe8e8e8], ['glassShop', -1.42, 0.25, 0.4, 1.42, 1.95, 0.41, 0xffffff], ['lamp', -1.4, 1.98, 0.3, 1.4, 2.02, 0.38, 0xffffff]],
     counter: (c) => [['trim', -1.5, 0, -0.35, 1.5, 1.0, 0.35, c], ['counter', -1.55, 1.0, -0.4, 1.55, 1.05, 0.4, 0xd8cdb0], ['metal', 0.4, 1.05, -0.2, 0.85, 1.35, 0.15, 0x3a3a3a]],
     booth: (c) => [['fabric', -0.9, 0, -1.05, 0.9, 0.45, -0.55, c], ['fabric', -0.9, 0.45, -1.05, 0.9, 1.1, -0.9, c], ['fabric', -0.9, 0, 0.55, 0.9, 0.45, 1.05, c], ['fabric', -0.9, 0.45, 0.9, 0.9, 1.1, 1.05, c], ['counter', -0.85, 0.72, -0.4, 0.85, 0.76, 0.4, 0xe8e2d0], ['metal', -0.06, 0, -0.06, 0.06, 0.72, 0.06, 0xb8bcc0]],
@@ -552,7 +557,8 @@
           // A partition stops 1.3 m short of a front or back wall with a door near it, so the door opens
           // onto a hall rather than into the partition's end (the pilot walks in, design section 7.2).
           const near = (ops) => ops.some((op) => op.kind === 'door' && op.a - 0.4 < rx0 && op.b + 0.4 > rx0);
-          const pz0 = z0 + t + 0.012 + (near(back) ? 1.3 : 0), pz1 = z1 - t - 0.012 - (near(front) ? 1.3 : 0);
+          // Its ends run 6 mm into the walls' plaster, so they never share a plane with the floor finish's edges.
+          const pz0 = z0 + t + 0.006 + (near(back) ? 1.3 : 0), pz1 = z1 - t - 0.006 - (near(front) ? 1.3 : 0);
           wall(B, 'plaster', 'z', rx0, pz0, pz1, 0.11, yb, yt - 0.012, 1, [{ kind: 'gap', a: Math.max(pz0 + 0.1, gz - 0.45), b: Math.min(pz1 - 0.1, gz + 0.45), y0: yb, y1: yb + 2.1 }]);
         }
         furnishRoom(B, rnd, kind, rx0 + 0.15, rx1 - 0.15, z0 + t + 0.1, z1 - t - 0.1, yb, s, o);
@@ -677,12 +683,12 @@
           const paint = pick(rnd, [PAINT.white, PAINT.grey, PAINT.cream]);
           const roof = pick(rnd, [0x4a4744, 0x5a4a3c, 0x3c4048]);
           house(B, rnd, { x: -3.0, w: 11.0, d: 9.0, wall: 'siding', tint: paint, front: [[['win', 1.2, 1.3, 0.9], ['door', 0.95, 2.1, 0, { lite: true, doorTint: pick(rnd, [0x2c4a3a, 0x7a2a24]) }], ['win', 1.2, 1.3, 0.9], ['win', 1.2, 1.3, 0.9]]], roof: { type: 'hip', pitch: 0.33, over: 0.6, tint: roof }, plan: [['kitchen', 'living', 'bed']], blankRight: true, lintel: 'concrete', lintelTint: 0xd8d2c6, antenna: true });
-          house(B, rnd, { x: 5.0, z: 1.75, w: 5.0, d: 9.5, wall: 'brick', front: [[['pic', 2.6, 1.5, 0.75]]], sideWin: 2, roof: { type: 'gable', ridge: 'z', pitch: 0.45, over: 0.5, tint: roof }, plan: [['bed']], blankLeft: true, lintel: 'concrete', lintelTint: 0xd8d2c6, chimney: { x: 6.8, z: -1.5 } });
+          house(B, rnd, { x: 5.0, z: 1.75, w: 5.0, d: 9.5, wall: 'brick', front: [[['pic', 2.6, 1.5, 0.75]]], sideWin: 2, roof: { type: 'gable', ridge: 'z', pitch: 0.45, over: 0.5, tint: roof }, plan: [['bed']], blankLeft: true, lintel: 'concrete', lintelTint: 0xd8d2c6, chimney: { x: 6.79, z: -1.5 } });
           car(B, 1.2, 9.0, 1, pick(rnd, CARS), 'sedan');
           return;
         }
-        house(B, rnd, { x: -2.2, w: 12.5, d: 9.5, wall: 'brick', front: [[['pic', 3.2, 1.6, 0.75], ['door', 0.95, 2.1, 0, { lite: true, doorTint: pick(rnd, [0x7a2a24, 0x2c4a3a, 0x3a3a3a]) }], ['win', 1.2, 1.3, 0.9], ['win', 1.2, 1.3, 0.9]]], roof: { type: 'hip', pitch: 0.33, over: 0.7, tint: pick(rnd, [0x4a4744, 0x5a4a3c, 0x3c4048]) }, plan: [['living', 'kitchen', 'bed', 'bed']], chimney: { x: -5.6 }, lintel: 'concrete', lintelTint: 0xd8d2c6, antenna: true });
-        house(B, rnd, { x: 6.0, w: 4.0, d: 7.5, z: -1.0, wall: 'siding', tint: PAINT.cream, base: 0.1, front: [[['garage', 2.9, 2.2, 0]]], sideWin: 1, back: [[['door', 0.9, 2.1, 0]]], roof: { type: 'gable', ridge: 'z', pitch: 0.33, over: 0.5, tint: 0x4a4744 }, plan: [[]], floorMat: 'concrete', blankLeft: true });
+        house(B, rnd, { x: -2.2, w: 12.5, d: 9.5, wall: 'brick', front: [[['pic', 3.2, 1.6, 0.75], ['door', 0.95, 2.1, 0, { lite: true, doorTint: pick(rnd, [0x7a2a24, 0x2c4a3a, 0x3a3a3a]) }], ['win', 1.2, 1.3, 0.9], ['win', 1.2, 1.3, 0.9]]], roof: { type: 'hip', pitch: 0.33, over: 0.7, tint: pick(rnd, [0x4a4744, 0x5a4a3c, 0x3c4048]) }, plan: [['living', 'kitchen', 'bed', 'bed']], blankRight: true, chimney: { x: -5.6 }, lintel: 'concrete', lintelTint: 0xd8d2c6, antenna: true });
+        house(B, rnd, { x: 6.025, w: 3.95, d: 7.5, z: -1.0, wall: 'siding', tint: PAINT.cream, base: 0.1, front: [[['garage', 2.9, 2.2, 0]]], sideWin: 1, back: [[['door', 0.9, 2.1, 0]]], roof: { type: 'gable', ridge: 'z', pitch: 0.33, over: 0.5, tint: 0x4a4744 }, plan: [[]], floorMat: 'concrete', blankLeft: true });
         B.color(0xb8b2a6); B.box('concrete', 4.2, 0, 2.75, 7.8, 0.06, 12);
         car(B, 6.0, 7.5, 0, pick(rnd, CARS), 'sedan');
       } },
@@ -758,7 +764,7 @@
       build(B, rnd) {
         const tint = pick(rnd, [0xd6a679, 0xc99a6c, 0xddb78e]);
         house(B, rnd, { x: -1, w: 12, d: 9, base: 0.2, t: 0.5, wall: 'adobe', tint, trim: 0x6b4a2a, front: [[['win', 0.9, 1.1, 1.0, { frameMat: 'wood', frameTint: 0x6b4a2a, sill: false, rail: false }], ['door', 1.0, 2.15, 0, { doorTint: 0x2f8f8a, doorMat: 'door', stoop: false }], ['win', 0.9, 1.1, 1.0, { frameMat: 'wood', frameTint: 0x6b4a2a, sill: false, rail: false }], ['win', 0.9, 1.1, 1.0, { frameMat: 'wood', frameTint: 0x6b4a2a, sill: false, rail: false }]]], roof: { type: 'flat', parapet: 0.6, cope: 'adobe', copeTint: tint }, plan: [['living', 'kitchen', 'bed']], floorMat: 'floorTile', gutters: false, sideWin: 2 });
-        house(B, rnd, { x: 6.2, z: -1, w: 3.6, d: 6, base: 0.2, t: 0.5, fh: 3.4, wall: 'adobe', tint, front: [[['win', 0.8, 0.9, 1.3, { frameMat: 'wood', frameTint: 0x6b4a2a, sill: false, rail: false }]]], roof: { type: 'flat', parapet: 0.9, cope: 'adobe', copeTint: tint }, plan: [['bed']], blankLeft: true, gutters: false, sideWin: 1 });
+        house(B, rnd, { x: 6.5, z: -1, w: 3.0, d: 6, base: 0.2, t: 0.5, fh: 3.4, wall: 'adobe', tint, front: [[['win', 0.8, 0.9, 1.3, { frameMat: 'wood', frameTint: 0x6b4a2a, sill: false, rail: false }]]], roof: { type: 'flat', parapet: 0.9, cope: 'adobe', copeTint: tint }, plan: [['bed']], blankLeft: true, gutters: false, sideWin: 1 });
         // Vigas: round beams through the front wall under the parapet.
         B.color(0x7a5a3a);
         for (let x = -6.5; x <= 4.6; x += 1.1) B.cyl('wood', 'z', [x, 2.75, 0], 0.11, 4.2, 4.95, 8);
@@ -795,7 +801,7 @@
         house(B, rnd, { w: 8.5, d: 8, base: 1.3, t: 0.15, wall: 'siding', tint, shutters: 0xf4f1ea, front: [[['win', 1.1, 1.4, 0.8], ['door', 0.95, 2.1, 0, { lite: true, doorTint: 0xf4f1ea, stoop: false }], ['win', 1.1, 1.4, 0.8]]], roof: { type: 'hip', pitch: 0.42, over: 0.6, mat: 'metalRoof', tint: 0xb8bcbe }, plan: [['bed', 'living', 'kitchen']], sideWin: 2, porch: { d: 2.6, roofMat: 'metalRoof', roofTint: 0xb8bcbe, deckTint: 0xb89a74 } });
         // Concrete piers under the floor and lattice skirting.
         B.color(0xcac4b8); for (let x = -3.9; x <= 3.95; x += 2.6) for (const z of [-3.7, 0, 3.7]) B.box('concrete', x - 0.2, -0.3, z - 0.2, x + 0.2, 0.9, z + 0.2);
-        B.color(0xf4f1ea); for (let x = -4.2; x <= 4.2; x += 0.3) B.box('trim', x - 0.02, 0, 3.96, x + 0.02, 0.88, 4.0);
+        B.color(0xf4f1ea); for (let x = -4.2; x <= 4.2; x += 0.3) B.box('trim', x - 0.02, 0, 4.006, x + 0.02, 0.88, 4.046);
         // Screen mesh on the porch (dark transparent).
         B.color(0xffffff); for (const x0 of [-4.1, 0.85]) B.box('screen', x0, 1.35, 6.4, x0 + 3.25, 3.4, 6.42);
         B.color(0x5a7a4a); B.cyl('wood', 'y', [-5.8, 0, 7], 0.15, 0, 6.5, 7); for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; B.box('fabric', -5.8 + Math.cos(a) * 1.1 - 0.2, 6.3, 7 + Math.sin(a) * 1.1 - 0.2, -5.8 + Math.cos(a) * 1.1 + 0.2, 6.45, 7 + Math.sin(a) * 1.1 + 0.2); }
@@ -813,7 +819,7 @@
         B.color(0xece6d8); wall(B, 'ribbed', 'z', x1 - t / 2, z0 + t, z1 - t, t, base, base + H, 1, [], { inner: 'woodInt' });
         B.color(stripe); B.box('paint', x0 - 0.01, base + 0.6, z1, x1 + 0.01, base + 0.82, z1 + 0.015); B.box('paint', x0 - 0.01, base + 0.6, z0 - 0.015, x1 + 0.01, base + 0.82, z0);
         B.color(0xd8d2c6); B.box('metalRoof', x0 - 0.05, base + H, z0 - 0.05, x1 + 0.05, base + H + 0.18, z1 + 0.05);
-        B.color(0xffffff); B.box('carpet', x0 + t, base - 0.03, z0 + t, x1 - t, base, z1 - t);
+        B.color(0xffffff); B.box('carpet', x0 + t + 0.012, base - 0.03, z0 + t + 0.012, x1 - t - 0.012, base + 0.012, z1 - t - 0.012);
         B.color(0xf2efe8); B.box('woodInt', x0 + t, base + H - 0.03, z0 + t, x1 - t, base + H, z1 - t);
         place(B, x0 + 3, base, 0, 0, FURN.sofa(0x8a6a3a)); place(B, x0 + 8, base, z0 + 0.5, 0, FURN.kitchen(0xd8c8a0)); place(B, x1 - 2.5, base, 0, 1, FURN.bed(0x4a5a7a));
         // Hitch, steps, awning.
@@ -846,21 +852,21 @@
             B.color(stripe); B.poly('paint', [P(a, W / 2 + 0.012, base + 0.55), P(b, W / 2 + 0.012, base + 0.55), P(b, W / 2 + 0.012, base + 0.8), P(a, W / 2 + 0.012, base + 0.8)], [Math.cos((a + b) / 2), 0, Math.sin((a + b) / 2)]);
             B.color(0x6d6a66); B.poly('roofing', [[cx, top + 0.25, 0], P(b, W / 2 + 0.25, top + 0.25), P(a, W / 2 + 0.25, top + 0.25)], [0, 1, 0]);
             B.color(stripe); B.poly('paint', [P(a, W / 2 + 0.25, top), P(b, W / 2 + 0.25, top), P(b, W / 2 + 0.25, top + 0.25), P(a, W / 2 + 0.25, top + 0.25)], [Math.cos((a + b) / 2), 0, Math.sin((a + b) / 2)]);
-            B.color(0xffffff); B.poly('floorTile', [[cx, base, 0], P(a, W / 2 - t, base + 0.003), P(b, W / 2 - t, base + 0.003)], [0, 1, 0]);
+            B.color(0xffffff); B.poly('floorTile', [[cx, base + 0.012, 0], P(a, W / 2 - t, base + 0.012), P(b, W / 2 - t, base + 0.012)], [0, 1, 0]);
           }
         }
         // Stripes and roof band.
         B.color(stripe); B.box('paint', x0, base + 0.55, z1, x1, base + 0.8, z1 + 0.012); B.box('paint', x0, base + 0.55, z0 - 0.012, x1, base + 0.8, z0);
         B.color(0x6d6a66); B.box('roofing', x0, top, z0 - 0.25, x1, top + 0.25, z1 + 0.25, 'y');
-        B.color(stripe); B.box('paint', x0, top, z1 + 0.24, x1, top + 0.25, z1 + 0.26); B.box('paint', x0, top, z0 - 0.26, x1, top + 0.25, z0 - 0.24);
-        B.color(0xffffff); B.box('floorTile', x0, base - 0.03, z0 + t, x1, base, z1 - t);
-        B.color(0xf2efe8); B.box('tileWall', x0, top - 0.03, z0 + t, x1, top, z1 - t);
+        B.color(stripe); B.box('paint', x0 + 0.006, top, z1 + 0.25, x1 - 0.006, top + 0.25, z1 + 0.27); B.box('paint', x0 + 0.006, top, z0 - 0.27, x1 - 0.006, top + 0.25, z0 - 0.25);
+        B.color(0xffffff); B.box('floorTile', x0, base - 0.03, z0 + t, x1, base + 0.012, z1 - t);
+        B.color(0xf2efe8); B.box('tileWall', x0, top - 0.03, z0 + t, x1, top - 0.006, z1 - t);
         // Vestibule canopy and steps.
         B.color(0xd8dcde); B.box('stainless', -1.3, base + 2.4, z1, 1.3, base + 2.55, z1 + 1.4);
         B.color(0xbab4aa); for (let i = 0; i < 4; i++) B.box('concrete', -1.0, 0, z1 + 0.2 + i * 0.3, 1.0, base - i * 0.2, z1 + 0.5 + i * 0.3);
         // Inside: booths along the windows, a counter with stools, the kitchen behind.
         for (let x = x0 + 1.2; x < x1 - 1.5; x += 2.3) if (Math.abs(x) > 1.4) place(B, x, base, z1 - t - 1.1, 1, FURN.booth(0xc23b30));
-        place(B, 0, base, z0 + 1.6, 0, [['counter', -6.5, 0, -0.35, 6.5, 1.05, 0.35, 0xd8cdb0], ['stainless', -6.5, 0, 0.3, 6.5, 0.95, 0.36, 0xffffff]]);
+        place(B, 0, base, z0 + 1.6, 0, [['counter', -6.5, 0, -0.35, 6.5, 1.05, 0.35, 0xd8cdb0], ['stainless', -6.49, 0, 0.3, 6.49, 0.95, 0.36, 0xffffff]]);
         for (let x = -6; x <= 6; x += 0.9) place(B, x, base, z0 + 2.45, 0, FURN.stool(0xc23b30));
         place(B, -2, base, z0 + t + 0.35, 0, FURN.kitchen(0xd8dcde)); place(B, 3, base, z0 + t + 0.35, 0, FURN.kitchen(0xd8dcde));
         for (let x = -6; x <= 6; x += 2) { B.color(0xfff6e0); B.box('lamp', x - 0.4, top - 0.07, -0.2, x + 0.4, top - 0.03, 0.2); }
@@ -921,8 +927,8 @@
         // Striped awning, a sloped canvas face.
         B.color(0xffffff); slope(B, M.awning(pick(rnd, ['#c23b30', '#2f6f8f', '#2f8a48'])), [[x0 + 0.5, base + 2.4, z1 + 1.4], [x1 - 2.1, base + 2.4, z1 + 1.4], [x1 - 2.1, base + 3.1, z1 + 0.05], [x0 + 0.5, base + 3.1, z1 + 0.05]], 'fabric', 0.03);
         // Floors and inside.
-        B.color(0xffffff); B.box('floorTile', x0 + t, base - 0.03, z0 + t, x1 - t, base, z1 - t);
-        B.color(0xe6e0d4); B.box('plaster', x0 + t, y1 - 0.25, z0 + t, x1 - t, y1 - 0.03, z1 - t); B.color(0xffffff); B.box('floorWood', x0 + t, y1 - 0.03, z0 + t, x1 - t, y1, z1 - t);
+        B.color(0xffffff); B.box('floorTile', x0 + t, base - 0.03, z0 + t, x1 - t, base + 0.012, z1 - t);
+        B.color(0xe6e0d4); B.box('plaster', x0 + t, y1 - 0.25, z0 + t, x1 - t, y1 - 0.03, z1 - t); B.color(0xffffff); B.box('floorWood', x0 + t, y1 - 0.03, z0 + t, x1 - t, y1 + 0.012, z1 - t);
         B.color(0xf2efe8); B.box('plaster', x0 + t, y2 - 0.012, z0 + t, x1 - t, y2 + 0.05, z1 - t, 'Y');
         place(B, -1.5, base, 0.5, 1, FURN.aisle(rnd)); place(B, 1.2, base, 0.5, 1, FURN.aisle(rnd)); place(B, x0 + 0.75, base, -2, 1, FURN.cooler()); place(B, 2.5, base, z1 - 1.6, 2, FURN.counter(0x6a4a30));
         for (const z of [-3, 1, 4]) { B.color(0xffffff); B.box('lamp', -2.5, y1 - 0.3, z - 0.15, 2.5, y1 - 0.25, z + 0.15); }
@@ -960,7 +966,7 @@
           B.color(tint); wall(B, 'block', 'z', x1 - t / 2, z0 + t, z1 - t, t, yb, yt, 1, [], { inner: 'plaster' });
           for (let i = 1; i < rooms; i++) { B.color(B.inside); B.box('plaster', x0 + i * rw - 0.06, yb, z0 + t, x0 + i * rw + 0.06, yt - 0.01, z1 - t); }
           for (let i = 0; i < rooms; i++) { const cx = x0 + i * rw + rw / 2; place(B, cx - 0.4, yb, z0 + t + 1.2, 0, FURN.bed(0x8a6a3a)); place(B, cx + 1.1, yb, z1 - 1.0, 2, FURN.tv()); B.color(0xfff6e0); B.box('lamp', cx - 0.3, yt - 0.06, -1.3, cx + 0.3, yt - 0.012, -0.7); }
-          B.color(0xe6e0d4); B.box('plaster', x0 + t, yb - 0.22, z0 + t, x1 - t, yb - 0.03, z1 - t, s ? 'Y' : ''); B.color(0xffffff); B.box('carpet', x0 + t, yb - 0.03, z0 + t, x1 - t, yb, z1 - t);
+          B.color(0xe6e0d4); B.box('plaster', x0 + t, yb - 0.22, z0 + t, x1 - t, yb - 0.03, z1 - t, s ? 'Y' : ''); B.color(0xffffff); B.box('carpet', x0 + t, yb - 0.03, z0 + t, x1 - t, yb + 0.012, z1 - t);
         }
         const top = base + 2 * fh;
         B.color(0xf2efe8); B.box('plaster', x0 + t, top - 0.012, z0 + t, x1 - t, top + 0.06, z1 - t, 'Y');
@@ -980,7 +986,7 @@
         B.color(0xffffff); B.box('water', x0 + 5, 0.02, z1 + 5.5, x0 + 15, 0.1, z1 + 10);
         B.color(0xf2f0ea); for (let i = 0; i < 4; i++) B.box('fabric', x0 + 5.5 + i * 2.4, 0.12, z1 + 10.3, x0 + 6.3 + i * 2.4, 0.45, z1 + 10.9);
         const px = x1 + 7, pz = z1 + 9;
-        B.color(0xe8e6e0); B.box('metal', px - 0.2, 0, pz - 0.2, px + 0.2, 9, pz + 0.2);
+        B.color(0xe8e6e0); B.box('metal', px - 0.2, 0, pz - 0.2, px + 0.2, 8.99, pz + 0.2);
         B.color(0x1c1c1c); B.box('metal', px - 2.4, 5.5, pz - 0.25, px + 2.4, 9.0, pz + 0.25);
         B.sign(M.sign('MOTEL', '#1c1c1c', '#4ae0ff', true), px, 7.6, pz + 0.26, 4.6, 1.8, '+z');
         B.sign(M.sign('VACANCY', '#1c1c1c', '#ff5aa8', true), px, 6.1, pz + 0.26, 4.0, 0.8, '+z');
@@ -1002,7 +1008,7 @@
         B.color(tint); wall(B, 'stucco', 'z', x1 - t / 2, z0 + t, z1 - t, t, base, top, 1, [], { inner: 'plaster' });
         for (let i = 1; i < units.length; i++) { B.color(B.inside); B.box('plaster', x0 + i * uw - 0.08, base, z0 + t, x0 + i * uw + 0.08, top - 0.01, z1 - t); }
         flatRoof(B, x0, x1, z0, z1, top, { wall: 'stucco', wallTint: tint, parapet: 0.5, t, ac: [x0 + 6, 0] });
-        B.color(0xffffff); B.box('floorTile', x0 + t, base - 0.03, z0 + t, x1 - t, base, z1 - t);
+        B.color(0xffffff); B.box('floorTile', x0 + t, base - 0.03, z0 + t, x1 - t, base + 0.012, z1 - t);
         B.color(0xf2efe8); B.box('plaster', x0 + t, top - 0.012, z0 + t, x1 - t, top + 0.05, z1 - t, 'Y');
         // Walkway canopy with the mansard band, on posts.
         B.color(0xf2efe8); B.box('soffit', x0, top - 0.6, z1, x1, top - 0.45, z1 + 3);
@@ -1035,14 +1041,16 @@
           B.color(0xc23b30); wall(B, 'tileRed', 'z', x, z0 + t, z1 - t, t, base, base + Hb - 0.2, out, out > 0 ? [{ kind: 'win', a: -1.0, b: 0.6, y0: base + 1.0, y1: base + 2.2, frameMat: 'metal', sill: false, rail: false }] : [], { inner: 'tileWall' });
           // The wedge above the side wall, up to the front height.
           const hint = [out, 0, 0];
-          B.color(0xc23b30); B.poly('tileRed', [[x + out * t / 2, base + Hb - 0.2, z0], [x + out * t / 2, base + Hb - 0.2, z1], [x + out * t / 2, base + Hf - 0.4, z1]], hint);
+          // 6 mm proud of the side wall, so it never shares a plane with the front wall's end behind it.
+          const xw = x + out * (t / 2 + 0.006);
+          B.color(0xc23b30); B.poly('tileRed', [[xw, base + Hb - 0.2, z0], [xw, base + Hb - 0.2, z1], [xw, base + Hf - 0.4, z1]], hint);
           B.color(0xf2efe8); B.poly('tileWall', [[x - out * t / 2, base + Hb - 0.2, z0 + t], [x - out * t / 2, base + Hb - 0.2, z1 - t], [x - out * t / 2, base + Hf - 0.4, z1 - t]], [-out, 0, 0]);
         }
         // The roof: a single sweep rising to the front, white with a red fascia.
         B.color(0xf2f0ea); slope(B, 'metalRoof', [[x0 - 0.8, base + Hb - 0.2, z0 - 0.6], [x1 + 0.8, base + Hb - 0.2, z0 - 0.6], [x1 + 0.8, base + Hf + 0.4, z1 + 2.2], [x0 - 0.8, base + Hf + 0.4, z1 + 2.2]], 'soffit', 0.2);
         B.color(0xc23b30); B.box('paint', x0 - 0.85, base + Hf - 0.05, z1 + 2.15, x1 + 0.85, base + Hf + 0.45, z1 + 2.25);
         B.sign(M.sign('BURGERS', '#c23b30', '#ffffff'), 0, base + Hf + 0.2, z1 + 2.26, 5.5, 0.48, '+z');
-        B.color(0xffffff); B.box('floorTile', x0 + t, base - 0.03, z0 + t, x1 - t, base, z1 - t);
+        B.color(0xffffff); B.box('floorTile', x0 + t, base - 0.03, z0 + t, x1 - t, base + 0.012, z1 - t);
         place(B, 0, base, z0 + 2.3, 0, FURN.counter(0xc23b30)); place(B, -2.5, base, z0 + t + 0.35, 0, FURN.kitchen(0xd8dcde)); place(B, 2.5, base, z0 + t + 0.35, 0, FURN.kitchen(0xd8dcde));
         for (const x of [-3.5, 0, 3.5]) place(B, x, base, z1 - 1.6, 0, FURN.booth(0xe8b23a));
         for (const x of [-3, 0, 3]) { B.color(0xfff6e0); B.box('lamp', x - 0.5, base + Hb, -0.2, x + 0.5, base + Hb + 0.05, 0.2); }
@@ -1050,7 +1058,7 @@
         B.color(0xe8e6e0); B.box('metal', 9.3, 0, 7.8, 9.6, 8.5, 8.1);
         B.color(0xe8b23a); B.box('metal', 7.4, 6.2, 7.75, 11.6, 8.4, 8.15);
         B.sign(M.sign('BURGERS', '#e8b23a', '#c23b30', true), 9.5, 7.3, 8.16, 4.0, 1.9, '+z');
-        B.color(0xc23b30); B.poly('paint', [[11.6, 5.6, 8.2], [12.8, 7.3, 8.2], [11.6, 9.0, 8.2]], [0, 0, 1]); B.box('paint', 6.8, 5.8, 7.8, 11.6, 6.15, 8.1);
+        B.color(0xc23b30); B.poly('paint', [[11.6, 5.6, 8.2], [12.8, 7.3, 8.2], [11.6, 9.0, 8.2]], [0, 0, 1]); B.box('paint', 6.8, 5.8, 7.794, 11.6, 6.15, 8.106);
         // Drive-through lane and menu board.
         B.color(0x2b2b2b); B.box('asphalt', x1, 0, z0 - 2, x1 + 4, 0.04, z1 + 6);
         B.color(0x2a2a2a); B.box('metal', x1 + 3.3, 0, -4.5, x1 + 3.5, 2.2, -2.5); B.sign(M.sign('MENU', '#2a2a2a', '#ffd34a', true), x1 + 3.29, 1.6, -3.5, 1.9, 1.0, '-x');
@@ -1073,7 +1081,7 @@
           const ops = out > 0 ? [{ kind: 'roll', a: -1.8, b: 1.8, y0: 0.12, y1: 3.0 }, { kind: 'win', a: -3.6, b: -2.5, y0: 1.2, y1: 2.3, frameTint: 0xf4f1ea }, { kind: 'win', a: 2.5, b: 3.6, y0: 1.2, y1: 2.3, frameTint: 0xf4f1ea }] : [{ kind: 'door', a: -0.45, b: 0.45, y0: 0.12, y1: 2.2, doorMat: 'metal', doorTint: 0x8d9196, stoop: false }];
           B.color(0xe8e2d0); wall(B, 'block', 'x', z, -hw, hw, 0.24, 0.12, yS, out, ops, { inner: 'plaster' });
           const cap = [], capIn = [];
-          for (let i = 0; i <= 12; i++) { const ang = Math.asin((yS - 0.12) / R) + (Math.PI - 2 * Math.asin((yS - 0.12) / R)) * i / 12; cap.push([Math.cos(ang) * R, 0.12 + Math.sin(ang) * R, z + out * 0.12]); capIn.push([Math.cos(ang) * (R - 0.12), 0.12 + Math.sin(ang) * (R - 0.12), z - out * 0.12]); }
+          for (let i = 0; i <= 12; i++) { const ang = Math.asin((yS - 0.12) / R) + (Math.PI - 2 * Math.asin((yS - 0.12) / R)) * i / 12; cap.push([Math.cos(ang) * R, 0.12 + Math.sin(ang) * R, z + out * 0.12]); capIn.push([Math.cos(ang) * (R - 0.12), 0.12 + Math.sin(ang) * (R - 0.12), z - out * 0.126]); }
           B.color(0xe8e2d0); B.poly('block', cap, [0, 0, out]); B.color(B.inside); B.poly('plaster', capIn, [0, 0, -out]);
           for (const sx of [-1, 1]) {
             const sl = [[sx * hw, 0.12, z + out * 0.12]];

@@ -43,8 +43,8 @@
     ]
    },
    "triangles": {
-    "LOD0": 4534,
-    "LOD1": 3140,
+    "LOD0": 4174,
+    "LOD1": 2852,
     "LOD2": 28,
     "FURN": 288,
     "leaves": 96
@@ -54,7 +54,7 @@
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 402,
+   "piece_count": 388,
    "surfaces": [
     "brick",
     "concrete",
@@ -912,7 +912,7 @@
     "lo": [
      -11.95,
      -0.3,
-     -3.46
+     -3.47
     ],
     "hi": [
      11.95,
