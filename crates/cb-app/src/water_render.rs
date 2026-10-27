@@ -144,7 +144,7 @@ impl WaterSurfaceUniform {
             absorption: v3(look.absorption_per_m).extend(look.sky_horizon_strength),
             // w: the eye's submersion; only a wet eye sees water from below.
             deep: v3(look.deep_color).extend(submersion),
-            light: light.body.extend(0.0),
+            light: light.body.extend(look.whitecap_break_dev),
             sky_horizon: Vec4::new(sky.red, sky.green, sky.blue, 0.0),
             sky_zenith: v3(look.sky_zenith_color).extend(look.glitter_twinkle_hz),
             foam_color: v3(look.foam_color).extend(look.foam_intensity),

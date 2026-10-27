@@ -92,6 +92,44 @@ for a desktop run: section 1 of the test procedure by eye, then this A/B. If it 
 task 5.3 lists them: the sun flare's 1x1 occlusion read a frame late (`sun_flare.rs`) and Bevy's atmosphere LUTs at
 the eye's height.
 
-A harder attempt to reproduce it on OLD (through the rain shafts and the cloud, low and fast, the sun near the
-screen's edge, and the 1 m a frame burst instrument ported onto OLD) was cut short: the Mac's screen saver came up at
-about 11:00 and every frame the game drew after it was black, so those runs measured nothing.
+## The harder attempt on OLD
+
+After the screen saver was dismissed, a harder attempt, about 45 minutes:
+
+- **The burst instrument on OLD** (`CB_STILLS_BURST`, ported onto the OLD worktree from `b5033bd`, capture code only,
+  rebuilt): 120 frames at 2 m a frame through `under-the-storm` (in the rain, 40 m up), `in-the-rain-up` (on the
+  ground in the rain, looking up), `city-in-cloud` (inside a cloud at 737 m, its density at the eye falling from 0.87
+  to 0.57) and `storm-shadow`. On both builds the top and bottom thirds of the frame held to 1 level of 255 a frame,
+  except `in-the-rain-up`, where trees pass the eye on the ground (the sky behind them steady).
+- **`--playtest storm-through`** (`data/playtests/storm-through.ron`): on the jets at 80 m south-east straight through
+  the storm's rain shaft at its centre, the sun (south-east, 43 degrees up) at the top edge of the front screen, then
+  back at 650 m under and into its base. OLD got stuck circling 450 m short of the shaft's centre at 80 m and never
+  climbed; on its 165 s the whole sky's change (still view) has p95 0.19, max 1.59 of 255. NEW flew it all.
+- **`--playtest storm-base`** (`data/playtests/storm-base.ron`): straight up to 650 m and south-east through the scud
+  under the base toward the sun. Both builds: whole-sky p95 0.19, U and V at most 0.27; the front screen's middle
+  (900 x 200) p95 0.25 and 0.24, colour (U, V) at most 0.6; the ground-fog crop p95 0.41 and 0.46 of 255.
+
+Nothing reproduced on OLD.
+
+### The white flashes in NEW were an explosion, not the sky
+
+On `storm-through`, NEW's last leg at 648 m flying south-east toward the sun, the view flashed frame to frame (about
+276 s in; the whole sky's largest change of any take, 19.7 of 255 in Y in one frame). Followed frame by frame
+(`2026-10-27-sky-flicker-in-the-base.jpg`, four frames a second from 269.5 s) it is not the sky: at about 270 s the
+pilot's head is thrown about the cabin, the MECH screen's LEGS reading swings to -83, and smoke and fire billow
+past the screens with white flashes and debris, then thin out. Something hit the mech or it hit something at 650 m;
+the log names no cause. It was taken for a cloud flicker at first and chased:
+
+- **The same leg again** (`--playtest storm-high`, the storm drifted as far as it had, then 650 m through its base
+  toward the sun): no flash; the front screen's middle p95 0.25 of 255 frame to frame, its largest changes the head
+  turning.
+- **A burst through a storm puff past its centre** (`CB_STILLS_ONLY=puff-pass`, a new instrument view: the biggest
+  puff under 900 m by the storm's north-west base, 783 m across, the eye a quarter radius off its centre, toward
+  the sun with the sun at the top of the view; 250 frames at 8 m a frame, eight times flying speed): OLD and NEW
+  both steady, the whole frame at most 2 of 255 a frame and the top half at most 2 (NEW) and 3 (OLD). With the
+  flare and the bloom off, the silver lining off, or the clouds re-sorted every metre, the same. (An earlier run of
+  this burst showed jumps of 10-25 a frame; that was the instrument itself, whose look-at point the eye passed after
+  1 km, turning the view round. The view now looks at a point 100 km ahead.)
+
+So nothing in the sky, the clouds or the fog flickers on the Mac in either build, at any speed tried, low or high, in
+rain or in cloud.
