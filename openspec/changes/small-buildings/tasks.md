@@ -26,9 +26,10 @@
 
 ## 4. The first build in the game (design section 7)
 - [x] 4.1 Kit: three variants of each suburban type, door leaves, furniture placements; exporter `FURN` and leaf nodes
-- [ ] 4.2 Real furniture: `tools/blender/build_furniture.py`, 17 items in `assets/models/furniture/`
+- [x] 4.2 Real furniture: `tools/blender/build_furniture.py`, 17 items in `assets/models/furniture/`
 - [x] 4.3 `cb_core::world::small_buildings`: kits loaded and checked, lots placed and flattened in `generate`
 - [x] 4.4 Walkable houses: leaves as `StreetDoor`s, piece colliders in the house's frame
 - [x] 4.5 Breaking: support and collapse ported, shots, blasts and the mech
-- [ ] 4.6 `cb-app`: LODs, LOD0 streamed with its furniture, real furniture on foot only, doors, damage
-- [ ] 4.7 Headless stills and a report; a playtest on the owner's machine
+- [x] 4.6 `cb-app`: LODs, LOD0 streamed with its furniture, real furniture on foot only, doors, damage
+- [x] 4.7a Headless stills and a report (`docs/playtests/2026-10-27-houses-cloud.md`)
+- [ ] 4.7b A playtest on the owner's machine: a suburb on foot, into a house, the blocks from the cockpit, a frame time
