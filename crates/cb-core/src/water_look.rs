@@ -77,10 +77,23 @@ pub struct WaterLook {
     pub shore_foam_m: f32,
     /// Shore foam's weight.
     pub shore_foam_weight: f32,
-    /// The sun's glint, a multiplier on the sun's light.
+    /// The sun's glint: a multiplier on the physically based highlight (GGX, Fresnel 0.02), 1 as
+    /// the sun gives it.
     pub specular_intensity: f32,
-    /// The glint's sharpness (Blinn-Phong exponent).
-    pub specular_power: f32,
+    /// The glint's GGX roughness (alpha) where the ripples are seen whole, close by.
+    pub glint_roughness: f32,
+    /// The roughness added where the ripples have faded into the distance (the slopes no longer
+    /// drawn still scatter the sun): far water shows a broad glitter path, not a dot.
+    pub glint_far_roughness: f32,
+    /// Each patch of far sea a pixel and a half across takes a random facet tilt this steep (times
+    /// how far the ripples have faded), and the sun glints off it: far water sparkles.
+    pub glitter_slope: f32,
+    /// How many times a second the facets are drawn anew (the sparkle's twinkle), hertz.
+    pub glitter_twinkle_hz: f32,
+    /// Light through the wavelets' crests seen against the sun, an albedo (turquoise).
+    pub scatter_color: [f32; 3],
+    /// How strong that light is.
+    pub scatter_strength: f32,
     /// The glint's tint.
     pub sun_tint: [f32; 3],
     /// How far the view wobbles under water, uv.
@@ -149,8 +162,13 @@ impl Default for WaterLook {
             foam_slope_weight: 0.26,
             shore_foam_m: 1.5,
             shore_foam_weight: 0.6,
-            specular_intensity: 0.06,
-            specular_power: 140.0,
+            specular_intensity: 1.0,
+            glint_roughness: 0.06,
+            glint_far_roughness: 0.20,
+            glitter_slope: 0.22,
+            glitter_twinkle_hz: 3.0,
+            scatter_color: [0.05, 0.35, 0.33],
+            scatter_strength: 0.35,
             sun_tint: [1.10, 1.15, 1.20],
             underwater_distortion: 0.0015,
             wet_blur: 0.02,
@@ -210,6 +228,7 @@ impl Validate for WaterLook {
             ("sky_zenith_color", self.sky_zenith_color),
             ("foam_color", self.foam_color),
             ("sun_tint", self.sun_tint),
+            ("scatter_color", self.scatter_color),
         ] {
             for x in c {
                 within(field, x, 0.0, 10.0)?;
@@ -225,7 +244,11 @@ impl Validate for WaterLook {
         within("shore_foam_m", self.shore_foam_m, 0.0, 100.0)?;
         within("shore_foam_weight", self.shore_foam_weight, 0.0, 1.0)?;
         within("specular_intensity", self.specular_intensity, 0.0, 100.0)?;
-        within("specular_power", self.specular_power, 1.0, 10000.0)?;
+        within("glint_roughness", self.glint_roughness, 0.005, 1.0)?;
+        within("glint_far_roughness", self.glint_far_roughness, 0.0, 1.0)?;
+        within("glitter_slope", self.glitter_slope, 0.0, 2.0)?;
+        within("glitter_twinkle_hz", self.glitter_twinkle_hz, 0.0, 60.0)?;
+        within("scatter_strength", self.scatter_strength, 0.0, 10.0)?;
         within("underwater_distortion", self.underwater_distortion, 0.0, 0.1)?;
         within("wet_blur", self.wet_blur, 0.0, 1.0)?;
         positive("partial_band_m", self.partial_band_m)?;

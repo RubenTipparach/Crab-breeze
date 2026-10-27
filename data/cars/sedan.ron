@@ -1,6 +1,7 @@
 // A four-door 1980s family sedan: the commonest car on the island.
 // A 1980s civilian car, no real brand (survey J7). Handling is arcade, grippy and simple (survey J8):
-// openspec/changes/car-driving/design.md section 2. Sizes are the block-out's, in metres; the car
+// openspec/changes/car-driving/design.md section 2. Sizes are real-world, in metres, and every height is
+// raised by `car_height_scale` in world/traffic.ron for the game and the model alike; the car
 // faces -z; sockets are in its frame (x right, y up from the ground, z back).
 (
     name: "Sedan",

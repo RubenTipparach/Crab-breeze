@@ -26,8 +26,8 @@ struct WaterPost {
     fog_layer: vec4<f32>,  // ground fog: x density at sea level per m, y scale height m, z sea level m, w 1 on
     fog_mist: vec4<f32>,   // x mist strength, y the mist taps' reach m, z a sky ray's length m, w extra extinction per m (rain)
     fog_ambient: vec4<f32>, // rgb the sky's light the fog scatters back; w the phase asymmetry g
-    fog_sun: vec4<f32>,    // rgb the sun's light the fog scatters (storm shade in it)
-    fog_sun_dir: vec4<f32>, // xyz toward the sun
+    fog_sun: vec4<f32>,    // rgb the sun's light the fog scatters (storm shade in it); w the haze's density at sea level per m
+    fog_sun_dir: vec4<f32>, // xyz toward the sun; w the haze's scale height m
     fog_map: vec4<f32>,    // x the mist map's least corner m, y its cell m, z cells a side
     glass: vec4<f32>,      // seated: xyz the interior's origin, world m; w window triangles in `panes` (0 on foot)
     glass_look: vec4<f32>, // x metres of pane to one unit of the drop pattern
@@ -116,7 +116,6 @@ fn mist_at(xz: vec2<f32>) -> f32 {
 // exact integral (`cb_core::world::mist::optical_depth`, written with both ends' exponentials),
 // thickened by the mist read at four points along the ray, plus the rain's haze.
 fn fog_depth(origin: vec3<f32>, dir: vec3<f32>, len: f32) -> f32 {
-    let h = post.fog_layer.y;
     let sea = post.fog_layer.z;
     let reach = min(len, post.fog_mist.y);
     var mist = 0.0;
@@ -125,13 +124,23 @@ fn fog_depth(origin: vec3<f32>, dir: vec3<f32>, len: f32) -> f32 {
         mist += mist_at((origin + dir * (reach * f)).xz);
     }
     let thick = 1.0 + post.fog_mist.x * mist * 0.25;
-    let e0 = exp(-max(origin.y - sea, -200.0) / h);
-    var layer = post.fog_layer.x * e0 * len;
-    if (abs(dir.y) >= 1e-4) {
-        let e1 = exp(-max(origin.y + dir.y * len - sea, -200.0) / h);
-        layer = post.fog_layer.x * h * (e0 - e1) / dir.y;
+    let layer = layer_depth(post.fog_layer.x, post.fog_layer.y, sea, origin.y, dir.y, len);
+    // The aerial haze (ground-fog design section 2a): thin and deep, not thickened by mist.
+    let haze = layer_depth(post.fog_sun.w, post.fog_sun_dir.w, sea, origin.y, dir.y, len);
+    return thick * max(layer, 0.0) + max(haze, 0.0) + post.fog_mist.w * len;
+}
+
+// The optical depth through an exponential layer of `density` per metre at sea level, thinning by
+// e every `h` metres, along a ray from height `from_y` rising `dir_y` a metre for `len`: the closed
+// form of `cb_core::world::mist::layer_depth`, with both ends' exponentials.
+fn layer_depth(density: f32, h: f32, sea: f32, from_y: f32, dir_y: f32, len: f32) -> f32 {
+    let hh = max(h, 1.0);
+    let e0 = exp(-max(from_y - sea, -200.0) / hh);
+    if (abs(dir_y) < 1e-4) {
+        return density * e0 * len;
     }
-    return thick * max(layer, 0.0) + post.fog_mist.w * len;
+    let e1 = exp(-max(from_y + dir_y * len - sea, -200.0) / hh);
+    return density * hh * (e0 - e1) / dir_y;
 }
 
 // The fog's colour seen along `dir`: the sky's light scattered back, and the sun's scattered

@@ -23,10 +23,13 @@ use bevy::ui::UiTargetCamera;
 use cb_core::mfd_focus::{ScreenPages, focus_left, focused};
 use cb_core::pilot::PilotMode;
 
-/// The dash's lower screens, bound by exact name (they were baked pictures), and the page each starts on. The left
-/// one starts on MISSION (the heading): the MFD above it already shows MECH (owner, 2026-10-25: "the two left mfds
-/// show the same thing, one should show the mech body, the other the heading").
-const DASH_SCREENS: [(&str, usize); 3] = [("SCREEN_left_screen", 2), ("SCREEN_center_screen", 4), ("SCREEN_right_screen", 3)];
+/// The dash's lower screens, bound by exact name (they were baked pictures), and the page each starts on: DAMAGE,
+/// TARGET, WEAPONS, so with the hung screens' MECH, FLIGHT and MISSION the six start on six different pages (owner,
+/// 2026-10-26: "The two far left mfds are the same. I said to make them different screens").
+const DASH_SCREENS: [(&str, usize); 3] = [("SCREEN_left_screen", 5), ("SCREEN_center_screen", 4), ("SCREEN_right_screen", 3)];
+
+/// The hung screens' pages at start: `HUD_mfd_N_screen` shows page N.
+const HUNG_PAGES: [usize; 3] = [0, 1, 2];
 
 /// The MFD texture and the camera that draws it.
 #[derive(Resource)]
@@ -40,8 +43,9 @@ struct MfdTarget {
 /// 2026-10-25: "clicking back should return to mech view and restore the mfd to its original screen"); all of it
 /// lasts only while MFD focus does (survey C14).
 #[derive(Component)]
-struct MfdScreen {
-    pages: ScreenPages,
+pub(crate) struct MfdScreen {
+    /// The page it shows and the one it is built with.
+    pub(crate) pages: ScreenPages,
     material: Handle<StandardMaterial>,
 }
 
@@ -101,8 +105,8 @@ fn bind_screens(
     for (e, name) in &named {
         let page = match name.as_str().strip_prefix("HUD_mfd_").and_then(|r| r.strip_suffix("_screen")) {
             Some(rest) => {
-                let Ok(page) = rest.parse::<usize>() else { continue };
-                page
+                let Ok(n) = rest.parse::<usize>() else { continue };
+                HUNG_PAGES.get(n).copied().unwrap_or(n)
             }
             None => match DASH_SCREENS.iter().find(|(n, _)| *n == name.as_str()) {
                 Some((_, page)) => *page,
@@ -590,6 +594,17 @@ fn shoot(mut commands: Commands, target: Res<MfdTarget>, time: Res<Time<Real>>, 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_six_screens_start_on_six_different_readouts() {
+        let mut pages: Vec<usize> = super::HUNG_PAGES.to_vec();
+        pages.extend(super::DASH_SCREENS.iter().map(|(_, p)| *p));
+        let mut sorted = pages.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(sorted.len(), 6, "{pages:?}");
+        assert!(pages.iter().all(|p| *p < crate::hud::MFD_READOUTS), "{pages:?}");
+    }
+
     use super::*;
     #[test]
     fn the_outline_lies_round_the_screen_on_the_eyes_side_never_on_it() {

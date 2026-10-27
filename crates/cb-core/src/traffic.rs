@@ -26,6 +26,11 @@ use std::collections::BTreeMap;
 pub struct TrafficConfig {
     /// The car kinds in traffic, each `data/cars/<kind>.ron`, in this order.
     pub kinds: Vec<String>,
+    /// Every car's heights are raised by this on load, lengths and widths kept: the body, the roof, the wheels, the
+    /// ride height and the driver's eye (`CarSpec::raised`). The model generator (`tools/blender/build_cars.py`)
+    /// reads the same number, so the drawn car and the simulated one stay one car. 1 is the real-world sizes in
+    /// `data/cars/`; the owner found those short in the game (2026-10-26: "cars are a little too short I think lol").
+    pub car_height_scale: f32,
     /// How lanes sit on their roads.
     pub lanes: LaneLayout,
     /// One car per this much city lane (survey J6), metres.
@@ -160,6 +165,7 @@ impl Default for TrafficConfig {
     fn default() -> Self {
         Self {
             kinds: vec!["sedan".into()],
+            car_height_scale: 1.0,
             lanes: LaneLayout::default(),
             city_spacing_m: 60.0,
             highway_spacing_m: 300.0,
@@ -203,6 +209,7 @@ impl Validate for TrafficConfig {
         if self.kinds.is_empty() {
             return Err("`kinds` needs at least one car".into());
         }
+        within("car_height_scale", self.car_height_scale, 0.5, 2.0)?;
         self.lanes.validate().map_err(|e| format!("lanes: {e}"))?;
         positive("city_spacing_m", self.city_spacing_m)?;
         positive("highway_spacing_m", self.highway_spacing_m)?;
@@ -261,7 +268,7 @@ impl TrafficData {
         let kinds = cfg
             .kinds
             .iter()
-            .map(|k| crate::data::load_ron::<CarSpec>(&root.join(format!("cars/{k}.ron"))))
+            .map(|k| crate::data::load_ron::<CarSpec>(&root.join(format!("cars/{k}.ron"))).map(|c| c.raised(cfg.car_height_scale)))
             .collect::<Result<Vec<_>, _>>()?;
         let d = Self { cfg, kinds };
         d.check().map_err(|reason| crate::data::DataError { path, reason })?;
@@ -1450,6 +1457,29 @@ mod tests {
 
     fn never_seen(_: Vec3) -> bool {
         false
+    }
+
+    /// The cars are raised by `car_height_scale` on load (owner, 2026-10-26: "cars are a little too short I think
+    /// lol"): every height, the wheels, the ride and the driver's eye, never the length or the width.
+    #[test]
+    fn every_car_is_loaded_raised_by_the_height_scale_and_keeps_its_footprint() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let d = data();
+        let k = d.cfg.car_height_scale;
+        assert!((1.15..=1.2).contains(&k), "the cars are raised 15 to 20 %, not {k}");
+        for (name, spec) in d.cfg.kinds.iter().zip(&d.kinds) {
+            let raw: CarSpec = crate::data::load_ron(&root.join(format!("cars/{name}.ron"))).unwrap();
+            assert_eq!(spec.size_m[0], raw.size_m[0], "{name} keeps its width");
+            assert_eq!(spec.size_m[2], raw.size_m[2], "{name} keeps its length");
+            assert!((spec.size_m[1] - raw.size_m[1] * k).abs() < 1e-5, "{name}'s roof");
+            assert!((spec.wheel_radius_m - raw.wheel_radius_m * k).abs() < 1e-5, "{name}'s wheels");
+            assert!((spec.ride_height_m - raw.ride_height_m * k).abs() < 1e-5, "{name}'s ride");
+            assert!(
+                (spec.eye_driver_m[1] - raw.eye_driver_m[1] * k).abs() < 1e-5,
+                "{name}'s driver's eye"
+            );
+            assert_eq!(spec.door_driver_m, raw.door_driver_m, "{name}'s door stays on the ground");
+        }
     }
 
     fn view<'a>(g: &'a LaneGraph, d: &'a TrafficData, ground: &'a FlatGround) -> TrafficView<'a, FlatGround> {

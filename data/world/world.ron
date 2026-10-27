@@ -316,6 +316,11 @@
     // 1 / 1,500 m. Lit by the sky and by the sun scattered forward (a glow toward it).
     fog: (
         density_per_m: 0.0000833,
+        // Aerial haze (openspec/changes/ground-fog design section 2a; owner, 2026-10-26: "we also
+        // have more distance fog affecting at higher altitudes", "hieght fog"): 1 / 45,000 m at sea
+        // level, thinning every 1.5 km, so far land and sea blue and soften from any height.
+        haze_density_per_m: 0.0000222,
+        haze_scale_height_m: 1500.0,
         scale_height_m: 120.0,
         mist_strength: 5.0,
         mist_top_m: 600.0,

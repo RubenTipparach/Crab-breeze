@@ -147,32 +147,32 @@
       "parent": "pod",
       "pivot_m": [
         0.0,
-        0.7067,
-        0.5227
+        0.7234,
+        0.5063
       ]
     },
     "SCREEN_left": {
       "parent": "CONSOLE_front",
       "pivot_m": [
         0.0,
-        0.7067,
-        0.5227
+        0.7234,
+        0.5063
       ]
     },
     "SCREEN_center": {
       "parent": "CONSOLE_front",
       "pivot_m": [
         0.0,
-        0.7067,
-        0.5227
+        0.7234,
+        0.5063
       ]
     },
     "SCREEN_right": {
       "parent": "CONSOLE_front",
       "pivot_m": [
         0.0,
-        0.7067,
-        0.5227
+        0.7234,
+        0.5063
       ]
     },
     "HUD_mfd_0": {
@@ -202,7 +202,7 @@
   },
   "meshes": {
     "CONSOLE_front_front": {
-      "tris": 9024,
+      "tris": 8700,
       "group": "front",
       "node": "CONSOLE_front"
     },
@@ -269,7 +269,7 @@
   },
   "vents": 9,
   "lights": 6,
-  "tris": 34304,
+  "tris": 33980,
   "tri_budget": 600000,
   "draw_calls": 13,
   "atlases": {
@@ -313,5 +313,5 @@
     "wall_L",
     "wall_R"
   ],
-  "bytes": 16765611
+  "bytes": 16072975
 }

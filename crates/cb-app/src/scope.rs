@@ -252,7 +252,8 @@ fn aim(
         .and_then(|e| globals.get(e).ok())
         .map_or(eye.translation, |g| g.translation());
     **at = Transform::from_translation(from).with_rotation(eye.rotation);
-    let view = cb_core::pilot::fov_deg(&data.0.pilot, settings.0.fov_deg, 1.0).to_radians();
+    // Seated (blend 1), so the on-foot measure and the screen's shape play no part.
+    let view = cb_core::pilot::fov_deg(&data.0.pilot, settings.0.fov_deg, 1.0, 16.0 / 9.0).to_radians();
     if let Projection::Perspective(p) = lens.as_mut() {
         p.fov = cb_core::scope::fov_rad(view, scope.zoom);
     }
