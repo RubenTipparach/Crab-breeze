@@ -43,7 +43,7 @@ def srgb(h):
 # Every surface a panel is made of. colour, roughness, metalness, then what the shader adds:
 # grime (crevice darkening), wear (edges worn to bare metal), emit (a backlit colour), stripes
 # (yellow and black hazard bands), weave (fabric). An interior style (build_cockpit STYLES) adds: wood (a varnished
-# grain between two colours), quilt (diamond tufted padding, its pitch in metres, darker stitched seams), grain
+# grain between two colours), burl (a lacquered burl veneer between two colours), quilt (diamond tufted padding, its pitch in metres, darker stitched seams), grain
 # (a leather's pebbled bump) and stipple (moulded plastic's fine texture).
 ROLES = {
     "paint":    dict(c="#3b424a", r=0.58, m=0.0, grime=1.0, wear=1.0),
@@ -84,6 +84,13 @@ ROLES = {
     "ext_frame": dict(c="#4b5059", r=0.5, m=0.3, grime=0.7, wear=0.5),
     "ext_dark": dict(c="#23272c", r=0.55, m=0.2, grime=0.6),
     "strap":    dict(c="#4b4f3f", r=0.85, m=0.0, grime=0.4, weave=True),
+    # the cockpit-styles roles: the rails and edges an interior style dresses (the paint's colour unless a style or a
+    # trim sets it), grab handles, and the safety kit's colours
+    "trim":     dict(c="#3b424a", r=0.58, m=0.0, grime=1.0, wear=1.0),
+    "handle":   dict(c="#8a9098", r=0.35, m=1.0, grime=0.4),
+    "kit_white": dict(c="#e3dfd5", r=0.5, m=0.0, grime=0.5),
+    "kit_orange": dict(c="#e2621a", r=0.7, m=0.0, grime=0.5),
+    "kit_green": dict(c="#1f6b3a", r=0.5, m=0.0, grime=0.4),
 }
 
 
@@ -206,6 +213,26 @@ def make_material(name, spec):
         f = op("MULTIPLY", op("ADD", wv.outputs["Fac"], op("MULTIPLY", fine.outputs["Fac"], 0.35)), 0.75)
         colour = mix_col(f, spec["wood"][0], spec["wood"][1])
         add_bump(fine.outputs["Fac"], 0.08, 0.0004)
+    if spec.get("burl"):
+        # Burl veneer: a domain-warped noise figure between a dark and a light tone with dark knots (Voronoi), under a
+        # lacquer (the role's low roughness). Object space, metres.
+        tc = N.new("ShaderNodeTexCoord")
+        warp = N.new("ShaderNodeTexNoise")
+        warp.inputs["Scale"].default_value = 9.0
+        warp.inputs["Detail"].default_value = 3.0
+        L.new(tc.outputs["Object"], warp.inputs["Vector"])
+        fig = N.new("ShaderNodeTexNoise")
+        fig.inputs["Scale"].default_value = 14.0
+        fig.inputs["Detail"].default_value = 6.0
+        fig.inputs["Distortion"].default_value = 4.0
+        L.new(warp.outputs["Color"], fig.inputs["Vector"])
+        knot = N.new("ShaderNodeTexVoronoi")
+        knot.inputs["Scale"].default_value = 40.0
+        L.new(tc.outputs["Object"], knot.inputs["Vector"])
+        k = op("MULTIPLY", op("SUBTRACT", 0.08, op("MINIMUM", knot.outputs["Distance"], 0.08)), 6.0)
+        f = op("MAXIMUM", op("SUBTRACT", fig.outputs["Fac"], k), 0.0)
+        colour = mix_col(f, spec["burl"][0], spec["burl"][1])
+        add_bump(fig.outputs["Fac"], 0.04, 0.0003)
     if spec.get("quilt"):
         # Diamond tufting: on each face's own plane (picked by its normal, so walls, roof and seat all quilt), a
         # pillow sin(pi frac(u)) sin(pi frac(v)) on the diagonals u, v of a `quilt` metre grid, zero at the stitched

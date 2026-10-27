@@ -37,7 +37,7 @@ No triangles. The maps stay 4096 px; the features only change what the bake writ
 
 | Id | Question | Recommendation | State |
 | --- | --- | --- | --- |
-| CS1 | Which cockpits get which style | Decided by the owner from the mockups | open |
+| CS1 | Which cockpits get which style | The table in section 6, matched to each mech's work (owner, 2026-10-27: "Match the proper cockpit type with existing mech cockpits") | provisional |
 
 ## 5. The mockup
 
@@ -66,3 +66,45 @@ screen. The textures there are drawn in the page; the builder's are the material
 - "NOT ON THE WINDOWS ... cant put a fire hydrant or circuit breaker obstructing my view": nothing is mounted over a
   screen; the kit sits only on solid wall, under the sill, on the bulkhead and roof, and on the pillars (handles and
   wires). The builder's version keeps the same rule: dressing is placed only on faces that are not screen wall.
+
+## 6. Which cockpit wears which style
+
+The owner, 2026-10-27: "go ahead and build detailed versions of the cockpit. Match the proper cockpit type with existing
+mech cockpits". Each mech's work picks its room; the Foreman stays as it is (owner: "dont change fromean").
+
+| Mech | Cockpit | Style | Why |
+| --- | --- | --- | --- |
+| Foreman | Panorama | steel | the gold standard, unchanged |
+| Sapper | Twin tier | steel | a siege gun's military room; keeps its red night trim |
+| Iron Horse | Cab | excavator | its cockpit is an excavator's cab |
+| Driller | Octagon | excavator | a mining machine: a modern digger's moulded cab |
+| Mule | Tile wall | wood | a long-haul hauler, a trucker's cab with a wood dash |
+| Roustabout | Titan | wood | the rig boss's machine, steel with burl accents |
+| Harrow | Canopy | airliner | the glazed canopy is a flight deck |
+| Picket | Cinema | padded | the sniper's sound-deadened quilted room |
+
+`build_cockpit.STYLE_OF` holds this; `--style` overrides it for a check.
+
+## 7. The builder's dressing (`build_cockpit.dress`)
+
+The mockup's kit, built from the kit's roles so every style re-dresses it:
+
+- **Plain walls** (an outline side with no screens): ribs at a third and two thirds, the conduit moved up under the
+  roof, and between the ribs, from a fixed sequence per cockpit: an extinguisher in brackets, a first aid kit, a
+  signal flare case, a life vest pouch, an oxygen mask box, a circuit breaker panel, a torch in clips, a life ring.
+- **Under the screens** (the wall band below the lowest screen row, where it is at least 0.3 m tall): breaker
+  panels, louvred vents, backlit button blocks and rivet rows.
+- **The roof**: an overhead switch panel between the ceiling beams over the pilot's head, out of the 95 degree view
+  ahead (its nearest edge is over 60 degrees up).
+- **Grab handles** on plain walls (role `handle`: steel, yellow in the excavator style).
+- **Nothing over a screen**: dressing goes only on plain walls, the band under the screens and the roof. An item is
+  skipped when its box would reach into the seat, a side console, the dash or a pillar (keep-out boxes from the
+  layout), and every item rides the part its wall rides (`node_at`), so it opens with the cabin.
+- **The wire loom** (owner: "tidy up the wires they go no where", "place wires along the struts"): the cables that
+  hung in the air beside each side console now lie along the console's outer top edge in clips, drop down its back
+  face to the floor at one end and into its front block at the other.
+- **The new roles**: `trim` (the rails round the screen rows and the dash's front edge: the burl in the wood style,
+  the paint elsewhere), `handle`, `kit_white`, `kit_orange`, `kit_green`.
+
+Cost: about 15 000 to 25 000 more triangles a cockpit (the breaker caps and the overhead switches are most of it),
+under the 600 000 budget; no more draw calls (the atlases join every part).
