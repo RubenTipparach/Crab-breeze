@@ -47,12 +47,13 @@ struct GrassLook {
     tile: vec4<f32>,     // tile m, blade spacing m, density cell m, terrain cell m
     grid: vec4<u32>,     // blade cells a side, density cells a side, heights a side, words per slot
     fade: vec4<f32>,     // radius m, fade m, clump m, clump strength
+    parched: vec4<f32>,  // rgb a parched blade's colour (biome dryness); w spare
     lods: array<vec4<f32>, 4>, // stride, segments, width scale, until m
     next: array<vec4<f32>, 4>, // next level's stride (0: none), its width scale, crossfade m, spare
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> grass: GrassLook;
-// Every tile's slot: heights (f32 bits), then density, four cells a word, low byte first.
+// Every tile's slot: heights (f32 bits), then density, then dryness, each four cells a word, low byte first.
 @group(constants::MATERIAL_BIND_GROUP) @binding(1) var<storage, read> tiles: array<u32>;
 // Bodies pressing the grass flat: xyz centre (world m), w radius m (0: none).
 @group(constants::MATERIAL_BIND_GROUP) @binding(2) var<storage, read> pushers: array<vec4<f32>>;
@@ -166,6 +167,15 @@ fn tile_density(base: u32, local: vec2<f32>) -> f32 {
     let c = min(vec2<u32>(max(floor(local / grass.tile.z), vec2<f32>(0.0))), vec2<u32>(d - 1u));
     let index = c.y * d + c.x;
     let word = tiles[base + grass.grid.z * grass.grid.z + index / 4u];
+    return f32((word >> ((index % 4u) * 8u)) & 255u) * (1.0 / 255.0);
+}
+
+// How parched the grass is at `local`, 0..1 (the biome's dryness: beige on sand, green in a meadow).
+fn tile_dryness(base: u32, local: vec2<f32>) -> f32 {
+    let d = grass.grid.y;
+    let c = min(vec2<u32>(max(floor(local / grass.tile.z), vec2<f32>(0.0))), vec2<u32>(d - 1u));
+    let index = c.y * d + c.x;
+    let word = tiles[base + grass.grid.z * grass.grid.z + (d * d + 3u) / 4u + index / 4u];
     return f32((word >> ((index % 4u) * 8u)) & 255u) * (1.0 / 255.0);
 }
 
@@ -306,6 +316,9 @@ fn vertex(in: GrassVertex) -> GrassFragment {
     let green = mix(grass.root.rgb, tip_green, pow(along, 0.8));
     let dry = select(0.0, 1.0, own.z < grass.shade.w);
     var colour = mix(green, mix(grass.root.rgb, grass.dry.rgb, sqrt(along)), dry * 0.9);
+    // Where the biome is dry (sand, desert, savanna) the whole tuft is parched beige, root a shade darker.
+    let parched = tile_dryness(base, local);
+    colour = mix(colour, grass.parched.rgb * mix(0.55, 1.0, along), parched);
     colour = mix(colour, vec3<f32>(1.0), grass.hue.w * along * along);
     let root_floor = grass.shade.y * (1.0 - grass.ao.x * density * tallness);
     let light = mix(root_floor, 1.0, smoothstep(0.0, grass.ao.y, along));

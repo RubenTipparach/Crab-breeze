@@ -1,7 +1,7 @@
 //! The houses stills (a measurement instrument, CLAUDE.md section 4; `small-buildings` task 4.7): with
 //! `CB_STILLS_HOUSES=1 --stills <dir>`, the pilot is stood in a suburb looking along a row of houses, at a front door
-//! as it swings open for them, inside the living room with its modelled furniture, on a town's main street, and before a house
-//! an autocannon burst has just hit; each is shot, then the run
+//! as it swings open for them, inside the living room with its modelled furniture, on a town's main street, beside a
+//! house on sand or dry ground (its grass parched), and before a house an autocannon burst has just hit; each is shot, then the run
 //! exits. The pilot is placed and turned directly, as the other stills do.
 
 use crate::blast::Explosion;
@@ -10,6 +10,7 @@ use crate::pilot::PilotSim;
 use crate::state::GameApp;
 use crate::world::Plan;
 use bevy::prelude::*;
+use cb_core::world::Biome;
 use cb_core::world::Ground;
 use cb_core::world::small_buildings::{Lot, Zone};
 use std::path::PathBuf;
@@ -165,8 +166,34 @@ fn run(
             }
             next = t > 8.0;
         }
-        // An autocannon burst's worth (1 MJ) on the front wall, seen from the street.
+        // A house on sand or dry ground, where the grass is parched (grass `biome_dryness`).
         5 => {
+            let dry = plan.small.lots.iter().enumerate().find(|(_, l)| {
+                let at = l.to_world(Vec2::ZERO);
+                let b = plan.biomes.dominant(at, plan.height_at(at.x, at.y), 0.0);
+                matches!(b, Biome::Desert | Biome::Beach | Biome::Canyon | Biome::Savanna)
+            });
+            let Some((dry_id, lot)) = dry else {
+                println!("STILLS houses: no lot on dry ground");
+                script.beat += 1;
+                script.beat_started_s = now;
+                return;
+            };
+            let dk = plan.small.kit(dry_id as u32);
+            if script.once("dry") {
+                let at = lot.to_world(Vec2::ZERO);
+                let b = plan.biomes.dominant(at, plan.height_at(at.x, at.y), 0.0);
+                println!("STILLS houses: dry lot {dry_id} ({}) in {b:?}", dk.id);
+                let feet = on_ground(&plan, lot, dk.hi.x + 12.0, dk.hi.z + 10.0);
+                stand_looking(&mut pilot, feet, on_ground(&plan, lot, 0.0, 0.0) + Vec3::Y * 1.0);
+            }
+            if t > 6.0 && script.once("dry shot") {
+                shoot(&mut commands, &script.dir, "houses-dry.png");
+            }
+            next = t > 8.0;
+        }
+        // An autocannon burst's worth (1 MJ) on the front wall, seen from the street.
+        6 => {
             if script.once("hit") {
                 let feet = on_ground(&plan, ranch, kit.hi.x + 4.0, kit.hi.z + 4.0);
                 stand_looking(&mut pilot, feet, on_ground(&plan, ranch, 0.0, 0.0) + Vec3::Y * 2.0);

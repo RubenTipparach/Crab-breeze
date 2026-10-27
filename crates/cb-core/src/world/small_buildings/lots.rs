@@ -160,7 +160,7 @@ impl Validate for SmallBuildingsConfig {
 
 /// The biome called `name` (as `Biome`'s variants are spelt).
 pub fn biome_named(name: &str) -> Option<Biome> {
-    crate::world::biome::BIOMES.into_iter().find(|b| format!("{b:?}") == name)
+    Biome::named(name)
 }
 
 /// Which kind of place a lot is in.
