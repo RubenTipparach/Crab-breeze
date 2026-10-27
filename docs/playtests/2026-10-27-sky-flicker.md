@@ -78,13 +78,20 @@ ground under it is darker than the cockpit filter's floor); its jumps are trees.
 the top third of the frame to 1 level of 255 over 20 frames. (`storm-under-edge` now stands inside a house built at
 that spot since the view was placed; its jumps are the walls.)
 
-## Verdict: gone on this Mac, but not reproduced on the old build either
+## Verdict: not reproduced on the Mac, fix unconfirmed
 
-NEW shows no whole-sky flicker: on the still view the whole sky's colour moves 0.16-0.19 of 255 at the 95th percentile
-frame to frame and its U and V (the colour) never more than 0.32 in the storm pass, the case the owner flew. **But
-OLD measures the same**, at 60 fps of a 120 Hz display. So this A/B confirms the sky is steady now, and cannot show
-the fix doing it: the flicker the owner saw did not appear on this Mac in the old build. Two reasons it might not:
-the owner saw it on another machine (the Windows desktop, another GPU and display), or it alternated frame to frame at 120 Hz and
-OBS's 60 fps sampling took one phase of it. The next check is by eye on the desktop (section 1 of the test
-procedure), and if it is seen there, the next suspects are as task 5.3 lists them: the sun flare's 1x1 occlusion read
-a frame late (`sun_flare.rs`) and Bevy's atmosphere LUTs at the eye's height.
+NEW shows no whole-sky flicker: with the view still, the whole sky's colour moves 0.16-0.19 of 255 at the 95th
+percentile frame to frame, and its U and V (the colour) never more than 0.32 on the storm pass, the case the owner
+flew. **But OLD measures the same** on this Mac (60 fps of a 120 Hz display). The flicker the owner saw did not
+appear here in the build that is meant to have it, so this A/B cannot confirm the fix; it shows only that NEW is
+steady on the Mac.
+
+The owner's machine is a Windows desktop with an RTX 3070, and the flicker may show only there (another GPU, driver
+and display; or it alternated frame to frame and OBS's 60 fps sampling took one phase of it). Task 5.3 stays open
+for a desktop run: section 1 of the test procedure by eye, then this A/B. If it shows there, the next suspects are as
+task 5.3 lists them: the sun flare's 1x1 occlusion read a frame late (`sun_flare.rs`) and Bevy's atmosphere LUTs at
+the eye's height.
+
+A harder attempt to reproduce it on OLD (through the rain shafts and the cloud, low and fast, the sun near the
+screen's edge, and the 1 m a frame burst instrument ported onto OLD) was cut short: the Mac's screen saver came up at
+about 11:00 and every frame the game drew after it was black, so those runs measured nothing.
