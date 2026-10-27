@@ -307,6 +307,19 @@ mod tests {
     }
 
     #[test]
+    fn a_light_blast_on_the_front_wall_holes_it_and_no_more() {
+        // The stills' autocannon burst: 1 MJ at the ranch's front wall, a 2.9 m sphere.
+        let lots = one("ranch");
+        let mut h = Houses::default();
+        let at = lots.lots[0].point_to_world(Vec3::new(-2.0, 1.6, 5.0));
+        let b = h.break_sphere(&lots, 0, at, 2.2 * 1.3);
+        let n = lots.kit(0).pieces.len();
+        let gone = b.pieces.len();
+        eprintln!("broke {gone} of {n}, collapsed {}", b.collapsed);
+        assert!(!b.collapsed && gone < n / 4, "broke {gone} of {n}");
+    }
+
+    #[test]
     fn a_house_losing_half_its_walls_collapses() {
         let lots = one("bungalow");
         let mut h = Houses::default();

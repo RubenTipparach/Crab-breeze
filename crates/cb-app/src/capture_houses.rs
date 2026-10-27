@@ -1,7 +1,7 @@
 //! The houses stills (a measurement instrument, CLAUDE.md section 4; `small-buildings` task 4.7): with
 //! `CB_STILLS_HOUSES=1 --stills <dir>`, the pilot is stood in a suburb looking along a row of houses, at a front door
-//! as it swings open for them, inside the living room with its modelled furniture, on a town's main street, on a hill
-//! over a suburb (the far levels of detail), and before a house a shell has just hit; each is shot, then the run
+//! as it swings open for them, inside the living room with its modelled furniture, on a town's main street, and before a house
+//! an autocannon burst has just hit; each is shot, then the run
 //! exits. The pilot is placed and turned directly, as the other stills do.
 
 use crate::blast::Explosion;
@@ -165,22 +165,10 @@ fn run(
             }
             next = t > 8.0;
         }
-        // The suburb from 350 m behind it: LOD1 and LOD2.
-        5 => {
-            if script.once("far") {
-                // Behind the row, away from the city it faces.
-                let far = on_ground(&plan, ranch, 0.0, -350.0);
-                stand_looking(&mut pilot, far, on_ground(&plan, ranch, 0.0, 0.0) + Vec3::Y * 4.0);
-            }
-            if t > 6.0 && script.once("far shot") {
-                shoot(&mut commands, &script.dir, "houses-far.png");
-            }
-            next = t > 8.0;
-        }
         // An autocannon burst's worth (1 MJ) on the front wall, seen from the street.
-        6 => {
+        5 => {
             if script.once("hit") {
-                let feet = on_ground(&plan, ranch, 4.0, kit.hi.z + 20.0);
+                let feet = on_ground(&plan, ranch, kit.hi.x + 4.0, kit.hi.z + 4.0);
                 stand_looking(&mut pilot, feet, on_ground(&plan, ranch, 0.0, 0.0) + Vec3::Y * 2.0);
                 blasts.write(Explosion {
                     at: ranch.point_to_world(Vec3::new(-2.0, 1.6, kit.hi.z.min(6.0) - 1.0)),

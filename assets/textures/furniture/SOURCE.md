@@ -6,8 +6,8 @@ G roughness, B metal, packed the glTF way), 4096 x 4096 px, are the one texture 
 
 Generated, not painted and not downloaded. `tools/blender/build_furniture.py` writes them:
 
-1. Each item is modelled (see `docs/design/furniture.md`), unwrapped with Smart UV Project at true scale and
-   its islands packed into its own square region of the atlas. Regions share one texel density (house
+1. Each item is modelled (see `docs/design/furniture.md`), unwrapped by a box projection in metres and its
+   islands shelf-packed into its own square region of the atlas. Regions share one texel density (house
    furniture at the planned density, large shop and garage fixtures at a fraction of it, packaged goods and
    books at 0.3 of their item's); the measured densities are in `assets/models/furniture.json`.
 2. Each part carries its colour and finish (metallic, a printed pattern) as vertex attributes, and each
@@ -22,5 +22,5 @@ Generated, not painted and not downloaded. `tools/blender/build_furniture.py` wr
    and neutral so a block's colour multiplies into it, then made tileable by blending it with itself shifted
    by half. Their UV rectangles are under `swatches` in `assets/models/furniture.json`.
 
-The PNGs are written by the generator's own encoder (fixed zlib level), so the same pixels give the same
-bytes. Rebuild: `blender --background --factory-startup --python tools/blender/build_furniture.py`.
+The PNGs are written by the generator's own encoder (fixed zlib level); two full builds give byte-identical
+files (Blender 5.1.2 `bpy` module, CPU, four threads). Rebuild: `blender --background --factory-startup --python tools/blender/build_furniture.py`.

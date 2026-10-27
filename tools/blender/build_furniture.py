@@ -13,18 +13,21 @@ triangulated mesh with UVs in metres.
 
 Conventions the game relies on (`docs/design/furniture.md`):
 - local frame in metres, glTF axes: y up, the item's front faces +z, origin on the floor;
-- one mesh under one node `MODEL`, one primitive per surface, each material named by its surface key from
-  `SURFACES` in the kit (and `extras.surface` = that key);
-- COLOR_0 (linear) carries each part's colour; the item's tinted surface is white, so the placement's tint
-  multiplies into it; TEXCOORD_0 is a box projection in metres; NORMAL is split on hard edges only.
+- one node `MODEL`, one mesh, one primitive in the one material `furniture` shared by every item, textured by
+  one 4096 px atlas (`assets/textures/furniture/`: albedo, normal, ORM) baked here in Cycles from procedural
+  shaders, so all furniture is one draw call; the atlas's bottom strip holds a swatch per kit surface key for
+  the block furniture;
+- COLOR_0 is (1, 1, 1, tint mask): alpha 1 on the surface the placement's tint multiplies into;
+- TEXCOORD_0 lies in the item's atlas region; NORMAL is split on hard edges only; TANGENT is written.
 
 Run (Blender 4.4 or later, or the `bpy` module):
 
     blender --background --factory-startup --python tools/blender/build_furniture.py [-- --only sofa,bed] [--sheet]
     python tools/blender/build_furniture.py [--only sofa,bed] [--sheet] [--no-build]
 
-Writes assets/models/furniture/<item>.glb and assets/models/furniture.json (triangles, bounds, surfaces and
-the sha256 of each glb, read back off the written file). `--sheet` renders docs/screenshots/furniture/
+Writes assets/models/furniture/<item>.glb, assets/textures/furniture/*.png and assets/models/furniture.json
+(triangles, bounds, atlas regions, swatches and sha256s, read back off the written files), byte for byte the
+same on every run. `--sheet` renders docs/screenshots/furniture/
 (sheet.png, every item at true relative scale beside a 1.8 m figure, and one still per item) in Cycles on
 the CPU. The build refuses an item over 6,000 triangles or outside its block's box by more than 5 cm.
 """
@@ -1755,8 +1758,7 @@ def atlas_material(tint):
     N.link(orm.outputs[2], p.inputs["Metallic"])
     nm = N.n("ShaderNodeNormalMap", uv_map="UVMap")
     N.link(imgs["normal"].outputs[0], nm.inputs["Color"])
-    if not os.environ.get("FURN_NO_NORMAL"):
-        N.link(nm.outputs[0], p.inputs["Normal"])
+    N.link(nm.outputs[0], p.inputs["Normal"])
     return m
 
 

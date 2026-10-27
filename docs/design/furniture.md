@@ -61,8 +61,8 @@ refuses one over it.
 ## Texel density
 
 One 4,096 atlas holds all 17 items. House furniture (sofa, bed, table, booth, chairs, stool, TV, desk, washer,
-kitchen) is packed at about 150 to 180 px/m (5.5 to 7 mm a texel); the large shop and garage fixtures (aisle,
-cooler, lift, bookcase, bench, counter) at 0.55 to 0.85 of that, and packaged goods and books at 0.3 of their
+kitchen) is packed at 175 px/m (5.7 mm a texel); the large shop and garage fixtures (aisle, cooler, lift,
+bookcase, bench, counter) at 0.55 to 0.85 of that (96 to 149 px/m), and packaged goods and books at 0.3 of their
 item's. The measured density of each item is `atlas.texel_density_px_per_m` in the manifest. The brief's
 400 to 512 px/m does not fit: the 17 items have several hundred square metres of surface (the aisle alone is
 96 m², mostly goods), and 16.7 million texels at 450 px/m cover 83 m². Reaching it would need more atlas pages
@@ -79,6 +79,11 @@ each back and writes `assets/models/furniture.json`. `--sheet` renders `docs/scr
 per item and `sheet.png`, every item at true relative scale beside a 1.8 m figure, drawn with the atlas and
 example tints. `--only` limits the stills; `--quick` bakes a quarter-size atlas and exports nothing, to try a
 shader change.
+
+UVs are a box projection in metres (each face along the axis it faces most), islands are the connected faces
+facing the same way, shelf-packed into the item's square; no Smart UV Project, whose packing differs run to
+run. bmesh's triangulation can return faces in a different order each run, so the merged mesh is put in an
+order set by positions alone. With that, two full builds give byte-identical glbs, PNGs and manifest.
 
 The method is `blender-hard-surface`'s: rounded boxes, lathes, swept tubes and extruded profiles; openings cut
 with Exact booleans (the sink bowls, the TV's screen recess and shelf bays, the monitor's bezel, the cooler's

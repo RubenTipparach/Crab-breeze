@@ -154,6 +154,13 @@ const ART_IMG = '';
 
 // The questions. Answers live in the db collection `answers`, one document per question id.
 const SECTIONS = [
+  { tag: 'V', name: 'The view', lead: 'Your question, 2026-10-26: "is my fps fov still 75? it seems kinda wide". Yes, it is 75, but the game measures it top to bottom (vertical). On a 16:9 screen, 75 tall is about 107 degrees side to side, which is why it reads wide. The cockpit\'s 95 tall is about 125 side to side. Driving a car stays at the on foot value, as you asked.',
+    qs: [
+      { id: 'V1', q: 'How should the 75 (on foot and driving) and 95 (cockpit) be measured? Today both are vertical: 107 and 125 degrees across on 16:9.',
+        options: ['Across (horizontal): on foot 75 across (about 47 tall), cockpit 95 across (about 63 tall)', 'Keep vertical, as now: on foot 107 across, cockpit 125 across', 'On foot 75 across, cockpit stays as now (125 across)', 'A common PC middle: on foot 90 across (about 59 tall), cockpit 95 tall as now'],
+        rec: 2,
+        why: 'Your 75 on foot feels wide, which matches 75 measured across, the way most shooters\' sliders count; the cockpit stays as you widened it twice ("Wider fov?", "95?"), so stepping in still opens the view. Built this way for now (provisional).' },
+    ] },
   { tag: 'S', name: 'Houses in the game',
     lead: 'Added on 2026-10-26, with the houses and small businesses going into the game (openspec/changes/small-buildings section 7). The game is built on the recommendations until you answer.',
     qs: [
