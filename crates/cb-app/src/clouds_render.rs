@@ -11,7 +11,8 @@
 //! through the water's light helper, so a cloud sits in the same light as the ground. The shader
 //! (`assets/shaders/cloud.wesl`) erodes each puff's edge with noise, lights it as a sphere and
 //! fades it where it meets the ground behind it and near the eye (inside, the cloud fog takes over);
-//! Bevy's fog hazes far ones. `CB_NO_CLOUDS=1` leaves the sky clear, for the benchmark.
+//! a far one fades by the air between it and the eye (the ground fog's layer and the haze,
+//! `AirFog`), so it sinks into the fogged horizon behind it. `CB_NO_CLOUDS=1` leaves the sky clear, for the benchmark.
 //!
 //! The ground under a storm is darkened by a texture on the sun (Bevy's `DirectionalLightTexture`,
 //! a light cookie): the core's `Clouds::sun_at` at the cloud base, baked along the sun's rays into
@@ -22,7 +23,7 @@
 use crate::pilot::PilotCamera;
 use crate::sim::{Data, PresentSet};
 use crate::state::GameApp;
-use crate::water_render::water_light;
+use crate::water_render::{AirFog, GroundFogOn, water_light};
 use crate::world::{Plan, Sun};
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::Exposure;
@@ -64,6 +65,27 @@ pub struct CloudUniform {
     pub albedo: Vec4,
     /// x fade-in distance from the eye (m), y edge erosion, z soft depth against the ground (m), w unused.
     pub fade: Vec4,
+    /// The ground fog: x density at sea level per m (its strength now in it), y scale height m, z sea level m, w unused.
+    /// Zero with the ground fog off.
+    pub fog: Vec4,
+    /// The aerial haze: x density at sea level per m, y scale height m; zw unused. Zero with the ground fog off.
+    pub haze: Vec4,
+}
+
+impl CloudUniform {
+    /// The air between the eye and a cloud, as the fog pass fogs the sky behind it (`AirFog`), so a far cloud fades into
+    /// the horizon's colour (owner, 2026-10-26: "make sure distanrt clouds blends with fog too"); nothing with the ground
+    /// fog off. The ground fog's layer and the haze only: the rain's haze, 1.5 km deep, would fade the storm's own base
+    /// overhead onto the clear sky drawn behind it (`air_between` in `cloud.wesl` says why).
+    pub(crate) fn air(air: &AirFog, on: bool) -> (Vec4, Vec4) {
+        if !on {
+            return (Vec4::ZERO, Vec4::ZERO);
+        }
+        (
+            Vec4::new(air.layer_per_m, air.layer_height_m, air.sea_level_m, 0.0),
+            Vec4::new(air.haze_per_m, air.haze_height_m, 0.0, 0.0),
+        )
+    }
 }
 
 /// The one cloud material.
@@ -307,8 +329,12 @@ fn gather(
 }
 
 /// The scene's light into the cloud material each frame.
+#[allow(clippy::too_many_arguments)]
 fn refresh_light(
     data: Res<Data>,
+    plan: Res<Plan>,
+    fog_on: Option<Res<GroundFogOn>>,
+    fog_now: Res<crate::ground_fog::FogNow>,
     ambient: Res<GlobalAmbientLight>,
     sun: Query<(&DirectionalLight, &GlobalTransform), With<Sun>>,
     camera: Query<Option<&Exposure>, With<PilotCamera>>,
@@ -321,6 +347,8 @@ fn refresh_light(
     let a = LinearRgba::from(ambient.color);
     let amb = Vec3::new(a.red, a.green, a.blue) * ambient.brightness * exposure;
     let c = &data.0.world.clouds;
+    let air = AirFog::now(&data.0.world.fog, fog_now.strength, plan.waters.sea_level_m, 0.0);
+    let (fog, haze) = CloudUniform::air(&air, fog_on.is_some_and(|f| f.0));
     let Some(mut m) = materials.get_mut(&draw.material) else { return };
     m.light = CloudUniform {
         sun_dir: light.sun_dir.extend(c.look_wrap),
@@ -328,6 +356,8 @@ fn refresh_light(
         ambient: amb.extend(c.look_scattered),
         albedo: Vec4::new(c.look_albedo, c.look_storm_albedo, c.look_base_shade, c.look_storm_base_shade),
         fade: Vec4::new(c.look_near_fade_m, c.look_erode, c.look_soft_m, 0.0),
+        fog,
+        haze,
     };
 }
 
@@ -571,6 +601,63 @@ mod tests {
         let m = item_mesh(&list);
         assert_eq!(m.count_vertices(), list.len() * 4);
         assert_eq!(m.indices().map(|i| i.len()), Some(list.len() * 6));
+    }
+
+    /// The share of a cloud's light that crosses the air to the eye, as `air_between` in `cloud.wesl` works it out
+    /// from the uniform's `fog` and `haze` (the core's closed form of each layer).
+    fn air_between(fog: Vec4, haze: Vec4, eye: Vec3, cloud: Vec3) -> f32 {
+        let to = cloud - eye;
+        let (dist, dir_y) = (to.length(), to.normalize().y);
+        let layer = cb_core::world::mist::optical_depth(
+            &cb_core::world::mist::FogConfig {
+                density_per_m: fog.x,
+                scale_height_m: fog.y,
+                ..Default::default()
+            },
+            fog.z,
+            eye.y,
+            dir_y,
+            dist,
+            1.0,
+        );
+        let haze = cb_core::world::mist::haze_depth(
+            &cb_core::world::mist::FogConfig {
+                haze_density_per_m: haze.x,
+                haze_scale_height_m: haze.y,
+                ..Default::default()
+            },
+            fog.z,
+            eye.y,
+            dir_y,
+            dist,
+        );
+        (-(layer + haze)).exp()
+    }
+
+    #[test]
+    fn a_far_cloud_on_the_horizon_fades_into_the_fog_and_one_overhead_does_not() {
+        use crate::water_render::AirFog;
+        let cfg = cb_core::world::mist::FogConfig::default();
+        let morning = cfg.presets.morning;
+        let air = AirFog::now(&cfg, morning, 0.0, 0.0);
+        let (fog, haze) = CloudUniform::air(&air, true);
+        let eye = Vec3::new(0.0, 2.0, 0.0);
+        let far = air_between(fog, haze, eye, Vec3::new(18000.0, 800.0, 0.0));
+        let overhead = air_between(fog, haze, eye, Vec3::new(300.0, 1500.0, 0.0));
+        assert!(
+            far < 0.7,
+            "a cloud 18 km off on the horizon keeps {far:.2} of its light: it should fade into the fog"
+        );
+        assert!(
+            overhead > 0.95,
+            "a cloud 1.5 km overhead keeps {overhead:.2}: the air should barely touch it"
+        );
+        // Rain at the eye does not fade a cloud: it would open the storm's base overhead onto the clear sky behind it.
+        let wet = AirFog::now(&cfg, morning, 0.0, 1.0);
+        assert_eq!(CloudUniform::air(&wet, true), (fog, haze));
+        // With the ground fog off (`CB_NO_GROUND_FOG=1`) no cloud fades by the air.
+        let (off_fog, off_haze) = CloudUniform::air(&air, false);
+        assert_eq!(air_between(off_fog, off_haze, eye, Vec3::new(18000.0, 800.0, 0.0)), 1.0);
     }
 
     #[test]

@@ -4,8 +4,9 @@
 // in Rust); rain shafts are billboards turned about the vertical with streaks falling; cirrus are
 // flat streaks high up. All three are items of one mesh, sorted back to front on the CPU, drawn in
 // one alpha-blended draw. Each billboard fades where it meets the ground behind it (the depth
-// prepass, "soft particles") and near the eye, where the cloud fog takes over; Bevy's fog hazes far
-// ones. Linear HDR colour, reverse-Z depth.
+// prepass, "soft particles") and near the eye, where the cloud fog takes over; a far one fades by the
+// air between it and the eye (`air_between`), so it sinks into the horizon's colour behind it.
+// Linear HDR colour, reverse-Z depth.
 //
 // The look is the island mockup's (`docs/mockups/island.html`, `spriteMat`, `shaftMat`,
 // `cirrusMat`), ported to WESL, with the scene's light in place of its fixed colours.
@@ -28,7 +29,7 @@ import bevy_pbr::render::mesh_view_bindings::{view, globals};
 import bevy_pbr::prepass::utils::prepass_depth;
 @if(DISTANCE_FOG)
 import bevy_pbr::render::{mesh_view_bindings::fog, pbr_functions::apply_fog};
-import super::water_common::gnoise3;
+import super::water_common::{gnoise3, layer_depth};
 
 // Matches `CloudUniform` in `crates/cb-app/src/clouds_render.rs`.
 struct CloudLight {
@@ -37,6 +38,8 @@ struct CloudLight {
     ambient: vec4<f32>,  // rgb the ambient light times exposure; w light scattered inside, a share of the sun
     albedo: vec4<f32>,   // x white albedo, y storm albedo, z white base shade, w storm base shade
     fade: vec4<f32>,     // x fade-in distance from the eye m, y edge erosion, z soft depth m, w unused
+    fog: vec4<f32>,      // the ground fog: x density at sea level per m (its strength now in it), y scale height m, z sea level m, w unused
+    haze: vec4<f32>,     // the aerial haze: x density at sea level per m, y scale height m; zw unused
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> cloud: CloudLight;
@@ -263,6 +266,22 @@ fn cirrus(in: CloudFragment, look: vec3<f32>) -> vec4<f32> {
     return vec4<f32>(col, a);
 }
 
+// The share of a billboard's light that crosses the air from it to the eye: the ground fog's layer
+// and the aerial haze, the same optical depth the fog pass (`water_post.wesl`, `fog_depth`) gives
+// the ground and the sky behind it, less the mist map's thickening (the mist lies under 600 m, below
+// every cloud). A billboard's alpha is multiplied by it: blended over the fogged horizon, a far cloud
+// fades into the horizon's own colour as far land and sea do (owner, 2026-10-26: "make sure
+// distanrt clouds blends with fog too"). The rain's haze is left out: it reaches only 1.5 km, so it
+// fades the storm's own base overhead, and fading a billboard shows what is drawn behind it, the
+// clear sky, so the storm opened onto blue sky in its own rain (stills of 2026-10-27,
+// `docs/screenshots/2026-10-27-clouds-in-the-fog-*.png`). Two exponentials a layer, no march
+// (CLAUDE.md section 7).
+fn air_between(eye: vec3<f32>, look: vec3<f32>, dist: f32) -> f32 {
+    let layer = layer_depth(cloud.fog.x, cloud.fog.y, cloud.fog.z, eye.y, look.y, dist);
+    let haze = layer_depth(cloud.haze.x, cloud.haze.y, cloud.fog.z, eye.y, look.y, dist);
+    return exp(-(max(layer, 0.0) + max(haze, 0.0)));
+}
+
 @fragment
 fn fragment(in: CloudFragment) -> @location(0) vec4<f32> {
     let eye = view.world_position;
@@ -284,7 +303,7 @@ fn fragment(in: CloudFragment) -> @location(0) vec4<f32> {
         }
         out = puff(in, look, dist, fine);
     }
-    out.a *= soft_edge(in.position);
+    out.a *= soft_edge(in.position) * air_between(eye, look, dist);
     if out.a < 0.004 {
         discard;
     }

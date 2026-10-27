@@ -413,9 +413,52 @@ impl PaneGlass {
     }
 }
 
-/// Ground fog on (false under `CB_NO_GROUND_FOG=1`).
+/// Ground fog on (false under `CB_NO_GROUND_FOG=1`). The clouds read it too: with the fog off, no
+/// cloud fades by the air.
 #[derive(Resource, Clone, Copy)]
-struct GroundFogOn(bool);
+pub(crate) struct GroundFogOn(pub(crate) bool);
+
+/// The air's fog along a sight line now, the numbers the fog pass and the clouds both read (one
+/// source, CLAUDE.md section 6.1): the ground fog's layer at the strength now (the clock's morning
+/// mist or a mission's preset, survey F1), the aerial haze, and the rain at the eye (followed,
+/// `EyeWeather`) as far as the rain reaches.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct AirFog {
+    /// The ground fog's density at sea level, per metre, times the strength now.
+    pub layer_per_m: f32,
+    /// The ground fog's scale height, metres.
+    pub layer_height_m: f32,
+    /// Sea level, metres.
+    pub sea_level_m: f32,
+    /// The rain's extinction at the eye, per metre.
+    pub rain_per_m: f32,
+    /// How far along a line the rain hazes it, metres.
+    pub rain_reach_m: f32,
+    /// The aerial haze's density at sea level, per metre.
+    pub haze_per_m: f32,
+    /// The aerial haze's scale height, metres.
+    pub haze_height_m: f32,
+}
+
+impl AirFog {
+    /// The air now, from the fog's data, its strength now, sea level and the rain at the eye (0..1).
+    pub(crate) fn now(
+        cfg: &cb_core::world::mist::FogConfig,
+        strength: cb_core::world::mist::FogStrength,
+        sea_level_m: f32,
+        rain: f32,
+    ) -> Self {
+        Self {
+            layer_per_m: cfg.density_per_m * strength.density_scale,
+            layer_height_m: cfg.scale_height_m,
+            sea_level_m,
+            rain_per_m: cfg.rain_per_m * rain,
+            rain_reach_m: cfg.rain_reach_m,
+            haze_per_m: cfg.haze_density_per_m,
+            haze_height_m: cfg.haze_scale_height_m,
+        }
+    }
+}
 
 /// The mist map's texture (`cb_core::world::mist::MistMap`), uploaded once.
 #[derive(Resource)]
@@ -520,24 +563,25 @@ fn extract_water_eye(
         let sky = Vec3::new(a.red, a.green, a.blue) * ambient.brightness * exposure;
         // The weather at the eye as followed over a second and a half, never a raw sample (`EyeWeather`).
         let (shade, rain) = (weather.sun, weather.rain);
+        let air = AirFog::now(cfg, fog_now.strength, plan.waters.sea_level_m, rain);
         let fog = FogLook {
             // Scaled by the strength now: the clock's morning mist or a mission's preset (survey F1).
             layer: Vec4::new(
-                cfg.density_per_m * fog_now.strength.density_scale,
-                cfg.scale_height_m,
-                plan.waters.sea_level_m,
+                air.layer_per_m,
+                air.layer_height_m,
+                air.sea_level_m,
                 if fog_on.0 { 1.0 } else { 0.0 },
             ),
             mist: Vec4::new(
                 cfg.mist_strength * fog_now.strength.mist_scale,
                 cfg.mist_taps_m,
                 cfg.sky_length_m,
-                cfg.rain_per_m * rain,
+                air.rain_per_m,
             ),
             ambient: (sky * cfg.ambient_share).extend(cfg.phase_g),
-            sun: (light.sun * shade * cfg.sun_share).extend(cfg.haze_density_per_m),
-            sun_dir: light.sun_dir.extend(cfg.haze_scale_height_m),
-            map: Vec4::new(m.origin_m, m.cell_m, m.side as f32, cfg.rain_reach_m),
+            sun: (light.sun * shade * cfg.sun_share).extend(air.haze_per_m),
+            sun_dir: light.sun_dir.extend(air.haze_height_m),
+            map: Vec4::new(m.origin_m, m.cell_m, m.side as f32, air.rain_reach_m),
             sky: Vec4::new(exposure, cfg.storm_dim * (1.0 - shade.clamp(0.0, 1.0)), 0.0, 0.0),
         };
         // Seated: the panes of the interior the eye sits in (the nearest, within a cabin's reach).
