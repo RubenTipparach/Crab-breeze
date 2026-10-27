@@ -462,7 +462,7 @@ fn own_lod0(kit: &cb_core::world::small_buildings::Kit, draw: &KitDraw, meshes: 
         };
         let pieces = piece_of_triangles(kit, Node::Lod0, pi, src.tri.len() / 3);
         let mut c = Corners::new();
-        for (t, tri) in src.tri.chunks_exact(3).enumerate() {
+        for (t, tri) in src.tri.as_chunks::<3>().0.iter().enumerate() {
             let s = pieces[t];
             let a = if s == u32::MAX { 0.0 } else { slot(base, s) };
             for &v in tri {
@@ -518,7 +518,7 @@ fn furniture_mesh(
                 continue;
             };
             let pieces = piece_of_triangles(kit, Node::Furn, pi, src.tri.len() / 3);
-            for (t, tri) in src.tri.chunks_exact(3).enumerate() {
+            for (t, tri) in src.tri.as_chunks::<3>().0.iter().enumerate() {
                 let s = pieces[t];
                 let a = if s == u32::MAX { 0.0 } else { slot(base, s) };
                 // Each triangle's metre UVs from its own corner, two metres across the swatch.

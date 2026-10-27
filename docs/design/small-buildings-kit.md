@@ -2,7 +2,7 @@
 
 This is for the agent who brings the houses and small businesses into the game. The design is in
 `openspec/changes/small-buildings`, the look is on the Main Street mockup
-(https://claude.ai/artifact/MmkFvAZyjECdFZ883QbBRq), and this page says how to use the exported
+(https://claude.ai/artifact/NsAB4HQMjoPd8Nazq9vTcW), and this page says how to use the exported
 kits. Nothing here is game code yet: the kits are assets with data, the rules below are what the
 mockup does, and the game ports them (CLAUDE.md sections 4 and 6.1).
 
