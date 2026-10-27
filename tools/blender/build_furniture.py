@@ -356,13 +356,13 @@ class Item:
             keep = bm.copy()
             area = sum(f.calc_area() for f in bm.faces)
             bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(0.5), verts=bm.verts[:], edges=bm.edges[:])
-            bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method="BEAUTY", ngon_method="BEAUTY")
+            bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method="FIXED", ngon_method="EAR_CLIP")
             if abs(sum(f.calc_area() for f in bm.faces) - area) > 2e-3 * max(area, 1e-6):
                 # round a boolean's opening the dissolve can join the faces into one that wraps the opening, and
                 # triangulating it fills the opening (the area grows): keep that part as it was
                 bm.free()
                 bm = keep
-                bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method="BEAUTY", ngon_method="BEAUTY")
+                bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method="FIXED", ngon_method="EAR_CLIP")
             else:
                 keep.free()
             bm.normal_update()
@@ -390,7 +390,21 @@ class Item:
                     if ne is not None:
                         ne.smooth = False
             bm.free()
-        bmesh.ops.triangulate(out, faces=out.faces, quad_method="BEAUTY", ngon_method="BEAUTY")
+        bmesh.ops.triangulate(out, faces=out.faces, quad_method="FIXED", ngon_method="EAR_CLIP")
+        # bmesh's operators may hand back faces in a different order from run to run: put vertices and faces in
+        # an order set by their positions alone, so the glb is the same bytes every time
+        def canonical(seq, key):
+            seq.index_update()
+            order = sorted(range(len(seq)), key=lambda i: key(seq[i]))
+            rank = [0] * len(seq)
+            for r, i in enumerate(order):
+                rank[i] = r
+            seq.sort(key=lambda e: rank[e.index])
+            seq.index_update()
+        out.verts.ensure_lookup_table()
+        canonical(out.verts, lambda v: (round(v.co.x, 6), round(v.co.y, 6), round(v.co.z, 6)))
+        out.faces.ensure_lookup_table()
+        canonical(out.faces, lambda f: (f.material_index, sorted(v.index for v in f.verts)))
         return out, surfs
 
 
@@ -1252,17 +1266,6 @@ def clear():
     BAKE_MATS.clear()
 
 
-def edit(obj, fn):
-    for o in bpy.context.scene.objects:
-        o.select_set(False)
-    bpy.context.view_layer.objects.active = obj
-    obj.select_set(True)
-    bpy.ops.object.mode_set(mode="EDIT")
-    bpy.ops.mesh.select_all(action="SELECT")
-    fn()
-    bpy.ops.object.mode_set(mode="OBJECT")
-
-
 def make(name):
     """The item's object: built, merged, unwrapped and packed into its own unit square."""
     lo, hi, tint, build, _ = ITEMS[name]
@@ -1278,30 +1281,96 @@ def make(name):
     o.location = (list(ITEMS).index(name) * 10.0, 0, 0)  # apart, so no item occludes another in the bake
     bpy.context.scene.collection.objects.link(o)
 
-    edit(o, lambda: bpy.ops.uv.smart_project(angle_limit=math.radians(55), island_margin=0.0, scale_to_bounds=False))
-    uv = me.uv_layers[0].data
-    weight = [d.color[3] for d in me.color_attributes["Finish"].data]
-    for i, l in enumerate(uv):  # every island is one part's, so scaling about the origin scales each island
-        l.uv = l.uv * weight[i]
-    return o, repack(o, 0.002), len(me.polygons), surfs
+    return o, unwrap(me), len(me.polygons), surfs
 
 
-def repack(o, margin):
-    """Pack the item's islands into its unit square; returns its UV units per metre at full texel weight."""
-    me = o.data
-    edit(o, lambda: bpy.ops.uv.pack_islands(rotate=True, margin=margin))
-    uv = me.uv_layers[0].data
+ISLAND_GAP_M = 0.03  # gap between islands, in metres at full texel weight (about 5 px at the planned density)
+
+
+def unwrap(me):
+    """Deterministic UVs: each face projected along the axis it faces most, in metres scaled by its part's texel
+    weight; faces that share an edge and face the same way form an island; islands are shelf-packed (long side
+    across) into a square and the square scaled to the unit square. Returns UV units per metre at full weight."""
     weight = [d.color[3] for d in me.color_attributes["Finish"].data]
-    area3d, area_uv = 0.0, 0.0
-    for poly in me.polygons:
-        if weight[poly.loop_indices[0]] < 0.99:
-            continue
-        area3d += poly.area
-        pts = [uv[i].uv for i in poly.loop_indices]
-        for k in range(1, len(pts) - 1):
-            a, b, c = pts[0], pts[k], pts[k + 1]
-            area_uv += abs((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)) / 2
-    return math.sqrt(area_uv / area3d)
+    polys = list(me.polygons)
+    key = []
+    for p in polys:
+        n = p.normal
+        ax = max(range(3), key=lambda i: abs(n[i]))
+        key.append((ax, n[ax] >= 0))
+    parent = list(range(len(polys)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+    edge_faces = {}
+    for p in polys:
+        for ek in p.edge_keys:
+            edge_faces.setdefault(ek, []).append(p.index)
+    for fs in edge_faces.values():
+        if len(fs) == 2 and key[fs[0]] == key[fs[1]]:
+            ra, rb = find(fs[0]), find(fs[1])
+            if ra != rb:
+                parent[max(ra, rb)] = min(ra, rb)
+    islands = {}
+    for p in polys:
+        islands.setdefault(find(p.index), []).append(p.index)
+    verts = me.vertices
+    loops = me.loops
+    uv = {}
+    rects = []
+    for root in sorted(islands):
+        faces = islands[root]
+        ax, pos = key[root]
+        w = weight[polys[root].loop_indices[0]]
+        pts = {}
+        for fi in faces:
+            for li in polys[fi].loop_indices:
+                c = verts[loops[li].vertex_index].co
+                if ax == 0:
+                    u, v = (c.y if pos else -c.y), c.z
+                elif ax == 1:
+                    u, v = (-c.x if pos else c.x), c.z
+                else:
+                    u, v = c.x, (c.y if pos else -c.y)
+                pts[li] = (u * w, v * w)
+        us = [q[0] for q in pts.values()]
+        vs = [q[1] for q in pts.values()]
+        u0, v0, wd, ht = min(us), min(vs), max(us) - min(us), max(vs) - min(vs)
+        turn = ht > wd
+        for li, (u, v) in pts.items():
+            u, v = u - u0, v - v0
+            uv[li] = (v, wd - u) if turn else (u, v)
+        rects.append((max(wd, ht), min(wd, ht), root, list(pts)))
+
+    def shelf(width):
+        x, y, row, place = 0.0, 0.0, 0.0, {}
+        for w_, h_, root, _ in sorted(rects, key=lambda r: (-r[1], -r[0], r[2])):
+            if x + w_ > width and x > 0:
+                x, y, row = 0.0, y + row + ISLAND_GAP_M, 0.0
+            place[root] = (x, y)
+            x += w_ + ISLAND_GAP_M
+            row = max(row, h_)
+        return place, max(width, y + row)
+    widest = max(r[0] for r in rects)
+    lo, hi = widest, sum(r[0] + ISLAND_GAP_M for r in rects)
+    for _ in range(40):  # the narrowest shelf width whose packing is no taller than it is wide
+        mid = (lo + hi) / 2
+        if shelf(mid)[1] <= mid:
+            hi = mid
+        else:
+            lo = mid
+    place, side = shelf(hi)
+    side += ISLAND_GAP_M
+    layer = me.uv_layers[0].data
+    for _, _, root, lis in rects:
+        ox, oy = place[root]
+        for li in lis:
+            u, v = uv[li]
+            layer[li].uv = ((ox + u + ISLAND_GAP_M / 2) / side, (oy + v + ISLAND_GAP_M / 2) / side)
+    return 1.0 / side
 
 
 def layout(scales):
@@ -1563,9 +1632,7 @@ def build_all(quick):
         info[name] = surfs
         print(f"BUILT {name}: {faces} triangles, surfaces {', '.join(surfs)}")
     density, regions = layout(scales)
-    real = {}
-    for name, (x, y, side) in regions.items():  # repack with a margin of a few pixels at the region's size
-        real[name] = round(repack(objs[name], PAD / side) * side)
+    real = {name: round(scales[name] * side) for name, (x, y, side) in regions.items()}
     print("TEXEL", real)
     if quick:
         density, regions = density // 4, {n: (x // 4, y // 4, s // 4) for n, (x, y, s) in regions.items()}
