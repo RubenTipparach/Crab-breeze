@@ -1734,7 +1734,7 @@ STYLES = {
     # wood as an accent on steel, after the owner's car photos: warm painted plate walls and structure, lacquered burl
     # walnut rails, a cream leather seat, a cool blue ambient strip, warm lamps
     "wood": dict(roles={
-        "paint_dk": dict(c="#4d4842", r=0.58, m=0.0, grime=0.8, wear=0.8),
+        "paint_dk": dict(c="#4d4842", r=0.58, m=0.0, grime=0.8, wear=0.8, panels=dict()),
         "paint": dict(c="#2b2825", r=0.55, m=0.0, grime=1.0, wear=1.0),
         "paint_lt": dict(c="#5e5850", r=0.55, m=0.0, grime=1.0, wear=1.0),
         "trim": dict(c="#5a3418", r=0.22, m=0.0, grime=0.2, burl=("#2c160a", "#7a4522")),
@@ -1743,7 +1743,8 @@ STYLES = {
     # an airliner's flight deck (the owner's 777 photos): tan-grey lining, taupe structure, charcoal switch panels,
     # a tan leather seat, warm dim strips
     "airliner": dict(roles={
-        "paint_dk": dict(c="#8a8272", r=0.65, m=0.0, grime=0.2, stipple=1.0),
+        "paint_dk": dict(c="#8a8272", r=0.65, m=0.0, grime=0.2, stipple=1.0,
+                         panels=dict(w=0.6, h=0.5, rivets=False, circuits=False, streaks=0.3)),
         "paint": dict(c="#5a544b", r=0.55, m=0.0, grime=0.3, stipple=0.6),
         "paint_lt": dict(c="#3c3b39", r=0.5, m=0.0, grime=0.3),
         "trim": dict(c="#7e7667", r=0.5, m=0.0, grime=0.2, stipple=0.6),
@@ -1760,7 +1761,8 @@ STYLES = {
     # a modern digger's cab (the owner's photo: "very sleek, polycarbonates, fiberglass, matte black/greys"): matte
     # moulded panels, a grey cloth seat, yellow grab handles, soft white strips
     "excavator": dict(roles={
-        "paint_dk": dict(c="#2b2d30", r=0.8, m=0.0, grime=0.2, stipple=0.4),
+        "paint_dk": dict(c="#2b2d30", r=0.8, m=0.0, grime=0.2, stipple=0.4,
+                         panels=dict(w=0.55, h=0.45, rivets=False, circuits=False, streaks=0.5)),
         "paint": dict(c="#1a1b1d", r=0.75, m=0.0, grime=0.3, stipple=0.4),
         "paint_lt": dict(c="#25272a", r=0.7, m=0.0, grime=0.3, stipple=0.4),
         "trim": dict(c="#45484c", r=0.7, m=0.0, grime=0.2, stipple=0.4),
@@ -1817,7 +1819,10 @@ def preview(path, samples=48):
     sc.view_settings.exposure = 1.0
     sc.render.image_settings.file_format = "PNG"
     # ahead, then turned to the left wall and down a little, where the trims, walls and seat show
-    for tag, yaw, pitch in (("front", 0.0, 0.0), ("side", 70.0, -18.0)):
+    # and close on the lower side wall and the rear wall with a narrow lens, where the panelling's detail shows
+    for tag, yaw, pitch, fov_v in (("front", 0.0, 0.0, fov), ("side", 70.0, -18.0, fov), ("wall", 95.0, -38.0, 40.0),
+                                   ("rear", 160.0, -15.0, 60.0)):
+        cam.angle_y = math.radians(fov_v)
         co.rotation_euler = (math.radians(90 + pitch), 0.0, math.radians(180 + yaw))
         sc.render.filepath = path.replace(".png", f"_{tag}.png")
         bpy.ops.render.render(write_still=True)
