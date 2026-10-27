@@ -262,7 +262,7 @@ def make_material(name, spec):
         seam = op("SUBTRACT", 1.0, op("MINIMUM", op("MULTIPLY", height, 4.0), 1.0))
         colour = mix_col(op("MULTIPLY", seam, 0.55), colour, "#0c0a09")
         add_bump(height, 0.9, 0.012)
-    if spec.get("panels"):
+    if spec.get("panels") is not None:
         # Lived-in wall panelling (owner, 2026-10-27: "more details baked into the wall panels so they aren't just flat
         # textures. Paneling - circuits, rivets, little small details"). On each face's own plane (weighted by its
         # normal, as the quilt), plates `w` x `h` metres with engraved seams and domed rivets along them; each plate
