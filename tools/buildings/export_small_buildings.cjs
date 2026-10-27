@@ -44,7 +44,7 @@ function materialDef(key) {
   if (S) {
     const c = hex3(S[5]).map(srgbToLinear);
     def.pbrMetallicRoughness = { baseColorFactor: [...c, 1], roughnessFactor: S[2], metallicFactor: S[3] };
-    def.extras = { surface: key, tile_m: S[1], standin: true };
+    def.extras = { surface: key, generator: S[0], tile_m: S[1], standin: true };
   } else if (X) {
     def.pbrMetallicRoughness = { baseColorFactor: X.base, roughnessFactor: X.roughness, metallicFactor: X.metallic };
     if (X.blend) def.alphaMode = 'BLEND';

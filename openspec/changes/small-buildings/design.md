@@ -74,6 +74,16 @@ Each set is a Material Maker graph (CLAUDE.md section 10), with full PBR maps at
 mockup draws canvas stand-ins with normal maps derived from the same height. Glass is transparent
 with reflections; lamps and neon are emissive.
 
+**In the game** (owner, 2026-10-27, on the first stills: "I was wondering why the house looked bland, need
+textures on walls, and everything on the house"): one set per generator (26: brick, block, siding, board, stucco,
+adobe, shingle, tile, metalRoof, corrugated, ribbed, skirt, concrete, roofing, asphalt, smooth, shutter, door,
+brushed, wood, planks, pine, floorTile, wallTile, carpet, fabric), Material Maker graphs rendered headless to
+`assets/textures/houses/<generator>/` (albedo, normal, ORM, 1024 px). Each glb material names its generator and
+`tile_m` in its extras; the game binds the set with a UV scale of 1 / `tile_m` (UVs are metres), the material's
+colour white so the vertex colour (the paint) shows over the albedo, and generates tangents for the normal map.
+The look follows the approved mockup's canvas generators. 26 sets x 3 maps x 1024 px with mips is about 420 MB
+uncompressed (BC7 would be a quarter).
+
 **Texture memory (expected):** about 25 sets x 3 maps x 5.6 MB (BC7 with mips), about 420 MB.
 Sets shared with `terrain-materials` (concrete, asphalt, gravel) and the city (brick, concrete) are
 counted once. 1024 px for interior-only sets saves about 120 MB.

@@ -110,6 +110,8 @@ pub struct HouseKits {
     furniture_material: Option<Handle<BuildingMaterial>>,
     /// The state buffer the materials read.
     standing: Option<Handle<ShaderBuffer>>,
+    /// The surfaces drawn with a texture set (their meshes need tangents).
+    textured: Vec<String>,
 }
 
 /// Which furniture a building draws.
@@ -183,11 +185,37 @@ fn surface_of(p: &bevy::gltf::GltfPrimitive) -> String {
 
 /// `{"surface": "brick", ...}` -> `brick`, without a JSON dependency (the exporter writes it on one line).
 fn serde_json_surface(extras: &str) -> Option<String> {
-    let at = extras.find("\"surface\"")?;
-    let rest = &extras[at + 9..];
+    extras_text(extras, "surface")
+}
+
+/// A string field of the exporter's one-line extras.
+fn extras_text(extras: &str, key: &str) -> Option<String> {
+    let at = extras.find(&format!("\"{key}\""))?;
+    let rest = &extras[at + key.len() + 2..];
+    let rest = &rest[rest.find(':')? + 1..];
     let start = rest.find('"')? + 1;
     let end = rest[start..].find('"')?;
     Some(rest[start..start + end].to_string())
+}
+
+/// A number field of the exporter's one-line extras.
+fn extras_number(extras: &str, key: &str) -> Option<f32> {
+    let at = extras.find(&format!("\"{key}\""))?;
+    let rest = &extras[at + key.len() + 2..];
+    let rest = rest[rest.find(':')? + 1..].trim_start();
+    let end = rest
+        .find(|c: char| !(c.is_ascii_digit() || c == '.' || c == '-' || c == 'e'))
+        .unwrap_or(rest.len());
+    rest[..end].parse().ok()
+}
+
+/// A surface's texture set (`assets/textures/houses/<generator>/`, Material Maker: design section 3) and how many
+/// metres one tile of it covers.
+struct SurfaceTextures {
+    albedo: Handle<Image>,
+    normal: Handle<Image>,
+    orm: Handle<Image>,
+    tile_m: f32,
 }
 
 /// Once every glb is in: each kit's meshes by node, a plain and a state material per surface (the glb's stand-in
@@ -204,6 +232,7 @@ fn bind(
     mut plain: ResMut<Assets<StandardMaterial>>,
     mut state: ResMut<Assets<BuildingMaterial>>,
     mut images: ResMut<Assets<Image>>,
+    mut meshes: ResMut<Assets<Mesh>>,
     states: Res<BuildingStates>,
 ) {
     let Some(loading) = loading else { return };
@@ -213,6 +242,8 @@ fn bind(
     }
     let mut draws = Vec::with_capacity(loading.kits.len());
     let mut materials_of: HashMap<String, GltfMaterial> = HashMap::new();
+    // Each surface's generator and tile size, from its material's extras.
+    let mut look_of: HashMap<String, (String, f32)> = HashMap::new();
     for h in &loading.kits {
         let Some(g) = gltfs.get(h) else { return };
         let mut d = KitDraw::default();
@@ -228,6 +259,11 @@ fn bind(
                     let surface = surface_of(p);
                     if let Some(m) = p.material.as_ref().and_then(|m| gltf_materials.get(m)) {
                         materials_of.entry(surface.clone()).or_insert_with(|| m.clone());
+                    }
+                    if let Some(x) = p.material_extras.as_ref()
+                        && let (Some(g), Some(t)) = (extras_text(&x.value, "generator"), extras_number(&x.value, "tile_m"))
+                    {
+                        look_of.entry(surface.clone()).or_insert((g, t));
                     }
                     Prim {
                         mesh: p.mesh.clone(),
@@ -252,12 +288,49 @@ fn bind(
         }
         draws.push(d);
     }
+    // Each generator's texture set, where it has been made (one set serves every surface of that generator).
+    let root = crate::cli::repo_root().join("assets");
+    let mut sets: HashMap<String, Option<(Handle<Image>, Handle<Image>, Handle<Image>)>> = HashMap::new();
+    let mut textures_of = |generator: &str, images: &mut Assets<Image>| {
+        sets.entry(generator.to_string())
+            .or_insert_with(|| {
+                let dir = format!("textures/houses/{generator}");
+                if !root.join(&dir).join("albedo.png").exists() {
+                    return None;
+                }
+                let mut load =
+                    |name: &str, srgb: bool| crate::pbr_set::load_tiling(&root, &format!("{dir}/{name}"), srgb).map(|i| images.add(i));
+                Some((load("albedo.png", true)?, load("normal.png", false)?, load("orm.png", false)?))
+            })
+            .clone()
+    };
+    let mut textured: Vec<String> = Vec::new();
     for (surface, m) in &materials_of {
         let glass = GLASS.contains(&surface.as_str());
+        let set = look_of.get(surface).and_then(|(g, t)| {
+            textures_of(g, &mut images).map(|(albedo, normal, orm)| SurfaceTextures {
+                albedo,
+                normal,
+                orm,
+                tile_m: t.max(0.05),
+            })
+        });
+        if set.is_some() {
+            textured.push(surface.clone());
+        }
+        // A textured surface: white, so the vertex colour (the paint) shows over the albedo; the maps repeat every
+        // `tile_m` metres (the kit's UVs are metres); roughness and metal come from the ORM map.
         let base = StandardMaterial {
-            base_color: m.base_color,
-            perceptual_roughness: m.perceptual_roughness,
-            metallic: m.metallic,
+            base_color: if set.is_some() { Color::WHITE } else { m.base_color },
+            base_color_texture: set.as_ref().map(|t| t.albedo.clone()),
+            normal_map_texture: set.as_ref().map(|t| t.normal.clone()),
+            metallic_roughness_texture: set.as_ref().map(|t| t.orm.clone()),
+            occlusion_texture: set.as_ref().map(|t| t.orm.clone()),
+            uv_transform: set.as_ref().map_or(bevy::math::Affine2::IDENTITY, |t| {
+                bevy::math::Affine2::from_scale(Vec2::splat(1.0 / t.tile_m))
+            }),
+            perceptual_roughness: if set.is_some() { 1.0 } else { m.perceptual_roughness },
+            metallic: if set.is_some() { 1.0 } else { m.metallic },
             emissive: m.emissive,
             alpha_mode: if glass { AlphaMode::Blend } else { AlphaMode::Opaque },
             double_sided: m.double_sided,
@@ -280,7 +353,25 @@ fn bind(
             }),
         );
     }
-    let root = crate::cli::repo_root().join("assets");
+    // A normal map needs tangents, which the kits do not store: made once per shared mesh of a textured surface.
+    let mut tangents = 0;
+    for d in &draws {
+        for p in d.lod0.iter().chain(&d.lod1).chain(&d.lod2).chain(d.leaves.iter().flatten()) {
+            if textured.contains(&p.surface)
+                && let Some(mut m) = meshes.get_mut(&p.mesh)
+                && m.attribute(Mesh::ATTRIBUTE_TANGENT).is_none()
+                && m.generate_tangents().is_ok()
+            {
+                tangents += 1;
+            }
+        }
+    }
+    info!(
+        "small buildings: {} of {} surfaces textured, tangents for {tangents} meshes",
+        textured.len(),
+        materials_of.len()
+    );
+    kits.textured = textured;
     let mut atlas = |path: &str, srgb: bool| crate::pbr_set::load_tiling(&root, path, srgb).map(|i| images.add(i));
     let albedo = atlas("textures/furniture/albedo.png", true);
     let normal = atlas("textures/furniture/normal.png", false);
@@ -454,7 +545,13 @@ fn piece_of_triangles(kit: &cb_core::world::small_buildings::Kit, node: Node, pr
 }
 
 /// A damaged building's own LOD0: one mesh per surface, each corner carrying its piece's slot.
-fn own_lod0(kit: &cb_core::world::small_buildings::Kit, draw: &KitDraw, meshes: &Assets<Mesh>, base: u32) -> Vec<(String, Mesh)> {
+fn own_lod0(
+    kit: &cb_core::world::small_buildings::Kit,
+    draw: &KitDraw,
+    meshes: &Assets<Mesh>,
+    base: u32,
+    textured: &[String],
+) -> Vec<(String, Mesh)> {
     let mut out = Vec::new();
     for (pi, p) in draw.lod0.iter().enumerate() {
         let Some(src) = meshes.get(&p.mesh).and_then(source) else {
@@ -474,7 +571,11 @@ fn own_lod0(kit: &cb_core::world::small_buildings::Kit, draw: &KitDraw, meshes: 
                 c.col.push([k[0], k[1], k[2], a]);
             }
         }
-        out.push((p.surface.clone(), c.mesh()));
+        let mut mesh = c.mesh();
+        if textured.contains(&p.surface) {
+            let _ = mesh.generate_tangents();
+        }
+        out.push((p.surface.clone(), mesh));
     }
     out
 }
@@ -595,7 +696,7 @@ fn redraw_damaged(
                 commands.entity(e).despawn();
             }
             let draw = &kits.kits[plan.small.lots[lot as usize].kit as usize];
-            for (surface, mesh) in own_lod0(kit, draw, &meshes, base) {
+            for (surface, mesh) in own_lod0(kit, draw, &meshes, base, &kits.textured) {
                 let Some(m) = kits.state.get(&surface) else { continue };
                 let h = meshes.add(mesh);
                 let mut e = commands.spawn((Mesh3d(h), MeshMaterial3d(m.clone()), Transform::IDENTITY, ChildOf(root)));
@@ -836,5 +937,9 @@ mod tests {
             Some("sign:EAT|red|white|1")
         );
         assert_eq!(serde_json_surface("{}"), None);
+        let x = r#"{"surface":"siding","generator":"siding","tile_m":1.0,"standin":true}"#;
+        assert_eq!(extras_text(x, "generator").as_deref(), Some("siding"));
+        assert_eq!(extras_number(x, "tile_m"), Some(1.0));
+        assert_eq!(extras_number(r#"{"tile_m": 2.5}"#, "tile_m"), Some(2.5));
     }
 }
