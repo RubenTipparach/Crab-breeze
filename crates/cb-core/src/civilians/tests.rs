@@ -787,3 +787,26 @@ fn people_stand_on_the_pavement_and_road_tops_the_pilot_stands_on() {
     assert!(on_pavement > 10, "{on_pavement} on the pavements");
     let _ = on_road;
 }
+
+/// One person walking, for the rules that read a person but not the world (`anim`).
+pub(crate) fn a_person() -> Person {
+    Person {
+        id: 1,
+        home: Home::Base(0),
+        place: Place::Pavement,
+        role: 0,
+        pos: Vec2::ZERO,
+        feet_y: 0.0,
+        heading_rad: 0.0,
+        height_m: 1.75,
+        walk_m_s: 1.4,
+        run_m_s: 4.5,
+        pace_m_s: 0.0,
+        look: 0,
+        activity: Activity::Walking,
+        greeted: 0,
+        block: 0,
+        leg: Leg::Straight { dir: Vec2::X },
+        rng: SimRng::new(1),
+    }
+}

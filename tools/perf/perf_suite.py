@@ -20,6 +20,8 @@ Scenarios (each ends itself):
     demolition  structural-destruction task 2.4: on foot, shell every column on one face of the
             8-20 storey building nearest the start, watch it creak, fall and settle, walk up to the
             rubble (`crates/cb-app/src/demolition.rs`, the same script as the building stills)
+    people  people-vat: on foot downtown in the city nearest the start, the crowd filled round the
+            pilot, two laps of the block's pavement (`crates/cb-app/src/people_take.rs`)
 
 Variants are `name|exe|ENV=1;ENV2=2|root` (all but the name optional). `root` is the checkout
 whose `data/` and `assets/` that exe reads (`CB_ROOT`): an old build runs with its own data. For
@@ -52,6 +54,7 @@ SCENARIOS = {
     "fight": ["--bench", "fight"],
     "defence": ["--bench", "defence"],
     "demolition": ["--bench", "demolition"],
+    "people": ["--bench", "people"],
 }
 DONE = "BENCH all"
 WANT_MS = 1000 / 120

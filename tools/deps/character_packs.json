@@ -1,0 +1,45 @@
+{
+  "_comment": "The allowlist of packs the people build may read (openspec/changes/people-vat, design section 1). Each pack is pinned by the SHA-256 of its download; tools/deps/fetch_character_tools.py fetches them into ~/.cache/crab-breeze/deps (never the repository) and refuses a pack whose hash differs. tools/blender/build_people.py resolves every asset it reads against these packs only. The pins of the first two are Undercity's (fps-game-demo tools/deps/character_packs.json at 1363650). The GPL tool (MPFB) runs at build time only and never ships; its output and the CC0 assets are free to ship.",
+  "packs": [
+    {
+      "id": "mpfb",
+      "name": "MPFB 2.0.17, the MakeHuman plugin for Blender",
+      "author": "The MakeHuman team",
+      "file": "mpfb-2.0.17.zip",
+      "fetch": "http",
+      "url": "https://extensions.blender.org/download/sha256:4f0a879d64a39bf646fbf5f53601ac678855da329d650617dca5737548239a87/add-on-mpfb-v2.0.17.zip",
+      "page": "https://extensions.blender.org/add-ons/mpfb/",
+      "sha256": "4f0a879d64a39bf646fbf5f53601ac678855da329d650617dca5737548239a87",
+      "size_bytes": 45031536,
+      "licence": "code GPL-3.0-or-later; its data (base mesh, targets, rigs, weights) CC0; output unclaimed",
+      "licence_stated_in": "https://github.com/makehumancommunity/mpfb2/blob/master/LICENSE.md, and the extension listing (SPDX GPL-3.0-or-later for the code)"
+    },
+    {
+      "id": "makehuman_system_assets_cc0",
+      "name": "MakeHuman system assets, the CC0 pack (skins, eyes, brows, lashes, hair, proxies, clothes)",
+      "author": "The MakeHuman community",
+      "file": "makehuman_system_assets_cc0.zip",
+      "fetch": "http",
+      "url": "https://files2.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip",
+      "page": "https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html",
+      "sha256": "b542127a8e25547c7c29c19f2d1d2adb9a664c80396ecd694095dbc8028a0107",
+      "size_bytes": 280737770,
+      "licence": "CC0 1.0",
+      "licence_stated_in": "The pack page, which lists every asset in it with the licence CC0, and MPFB's licence page, https://github.com/makehumancommunity/mpfb2/blob/master/LICENSE.md"
+    },
+    {
+      "id": "universal_animation_library_standard",
+      "name": "Universal Animation Library, Standard (Quaternius), the 2025-03-25 build's Godot glb",
+      "author": "Quaternius",
+      "file": "ual_standard.glb",
+      "fetch": "http",
+      "_comment_fetch": "Quaternius' own download serves only a newer build now (Undercity's note, 2026-09-28), so the pin is the copy of the 2025-03-25 build's AnimationLibrary_Godot_Standard.glb that Undercity ships in its public repository (game/animations/ual/), at a fixed commit. 46 clips on the Rigify DEF rig.",
+      "url": "https://raw.githubusercontent.com/RubenTipparach/fps-game-demo/1363650ab52145915dc4835ce44b13890faba734/game/animations/ual/ual_standard.glb",
+      "page": "https://quaternius.com/packs/universalanimationlibrary.html",
+      "sha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
+      "size_bytes": 6671104,
+      "licence": "CC0 1.0",
+      "licence_stated_in": "License.txt in the pack's zip, copied beside the glb in fps-game-demo game/animations/ual/License.txt, and the pack page"
+    }
+  ]
+}

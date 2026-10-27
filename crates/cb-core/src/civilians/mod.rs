@@ -10,6 +10,7 @@
 //! depends on frame timing or on another person. People are kept in a list in the order they were
 //! brought in, and every step walks it in that order.
 
+pub mod anim;
 pub mod config;
 pub mod lines;
 pub mod routes;
@@ -18,7 +19,7 @@ pub mod toll;
 #[cfg(test)]
 mod tests;
 
-pub use config::{DrawConfig, PeopleConfig};
+pub use config::{DrawConfig, Palette, PeopleConfig};
 pub use lines::{Answer, Lines, Place, Role};
 pub use routes::{Doors, Home, NoDoors, StreetDoors};
 pub use toll::{Casualty, Cause, StandingLoss, Toll};

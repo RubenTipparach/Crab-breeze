@@ -2277,6 +2277,7 @@ dependencies = [
  "glam",
  "ron",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

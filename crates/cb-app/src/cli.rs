@@ -118,10 +118,9 @@ pub fn switched_off(name: &str) -> bool {
 
 fn take_name(v: Option<String>) -> Result<String, String> {
     match v.as_deref() {
-        Some("world") | Some("fight") | Some("defence") | Some("marks") | Some("sun") | Some("demolition") | Some("trail") => {
-            Ok(v.unwrap_or_default())
-        }
-        _ => Err("--showcase and --bench take `world`, `fight`, `defence`, `marks`, `sun`, `demolition` or `trail`".into()),
+        Some("world") | Some("fight") | Some("defence") | Some("marks") | Some("sun") | Some("demolition") | Some("trail")
+        | Some("people") => Ok(v.unwrap_or_default()),
+        _ => Err("--showcase and --bench take `world`, `fight`, `defence`, `marks`, `sun`, `demolition`, `trail` or `people`".into()),
     }
 }
 
