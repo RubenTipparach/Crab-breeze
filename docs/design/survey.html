@@ -174,6 +174,14 @@ const SECTIONS = [
         options: ['Yes: curving streets and cul-de-sacs as their own change, next', 'Later, after the towns are played', 'No streets: open lots are fine'], rec: 0,
         why: 'Houses in a field read oddly up close; a suburb is its streets.' },
     ] },
+  { tag: 'F', name: 'The morning mist',
+    lead: 'Added on 2026-10-27 (openspec/changes/ground-fog task 5.5). The fog keeps its own clock: the world begins at 06:00 in the morning mist (your F1), twice the plain air and full mist in the low ground, and it thins to the day\'s (plain air, half the mist) between 07:00 and 11:00, 5 to 25 minutes into a session. The coast from 4.5 km at 06:00, 09:00 and 12:00 is in docs/screenshots/2026-10-27-morning-mist-coast-0600.png, -0900.png and -1200.png. Since the fog took the sky\'s colour (2026-10-26) the 06:00 coast no longer reads white: the far land stays as readable as at noon (its brightness 173 against 172 of 255), the near sea is greyed (82 against 60), the sky unchanged.',
+    qs: [
+      { id: 'F4', q: 'Is the 06:00 morning mist too thick? It is twice the plain air (density_scale 2.0) with full mist; at 4.5 km the coast stays readable and the near sea is a grey veil.',
+        options: ['Keep it: twice the air, full mist', 'Thinner: 1.5 times the air, full mist', 'Thinner still: plain air, the mist alone in the low ground', 'Thicker: 3 times the air, so the first minutes are hazy'],
+        rec: 0,
+        why: 'In the stills it reads as a morning haze that burns off, not a whiteout: the land at 4.5 km is as clear as at noon and only the sea under the eye greys. Built as is while open (provisional).' },
+    ] },
 ];
 
 // Answered, and being built. Each moves to DECIDED (Done) once its answer is in the game.
