@@ -207,7 +207,7 @@ impl Default for WaterLook {
             reflect_steps: 24,
             reflect_max_m: 3000.0,
             reflect_strength: 1.0,
-            whitecap_coverage: 0.008,
+            whitecap_coverage: 0.04,
             whitecap_scale_m: 40.0,
             whitecap_drift_m_s: [1.5, 0.0],
             whitecap_break_dev: 2.0,
