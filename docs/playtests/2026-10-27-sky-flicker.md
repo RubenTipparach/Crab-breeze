@@ -111,14 +111,27 @@ After the screen saver was dismissed, a harder attempt, about 45 minutes:
 
 Nothing reproduced on OLD.
 
-### The white flashes in NEW were an explosion, not the sky
+### The white flashes in NEW were the mech's own jets, not the sky
 
-On `storm-through`, NEW's last leg at 648 m flying south-east toward the sun, the view flashed frame to frame (about
-276 s in; the whole sky's largest change of any take, 19.7 of 255 in Y in one frame). Followed frame by frame
-(`2026-10-27-sky-flicker-in-the-base.jpg`, four frames a second from 269.5 s) it is not the sky: at about 270 s the
-pilot's head is thrown about the cabin, the MECH screen's LEGS reading swings to -83, and smoke and fire billow
-past the screens with white flashes and debris, then thin out. Something hit the mech or it hit something at 650 m;
-the log names no cause. It was taken for a cloud flicker at first and chased:
+On `storm-through`, NEW's last leg at 648 m, the view flashed frame to frame (about 276 s in; the whole sky's largest
+change of any take, 19.7 of 255 in Y in one frame): smoke billowing past the screens with fire-lit rims and white
+flashes (`2026-10-27-sky-flicker-in-the-base.jpg`, four frames a second from 269.5 s). The log names it. The take
+starts at `PLAYTEST_START`, 16:24:30.6 in the game's log, so 270 s is 16:29:00.6:
+
+- `playtest: beat 7 JetTo(-7500.0, -6300.0, 650.0) done` at 16:28:57.1. The scripted pilot then turns for beat 8, back
+  the way it came: the track lines show heading 3.94 rad (it had been flying the reverse bearing), throttle 1.0, and
+  the speed falling 44.8, 24.1, 8.5 m/s by 16:29:11 while the mech hangs on its jets at 650 m.
+- The MECH screen's LEGS reading going to -83 is the torso's twist from the legs (`hud.rs`, `Readout::Legs`), not
+  damage: the pilot's aim swings round faster than the legs, and the view turns with it. ALL PARTS OK stays on the
+  screen throughout.
+- `PERF slow` lines on that stretch all say `0 enemies`; the log has no hit, crash or destruction line.
+
+So the view swung back through the mech's own exhaust as it slowed and turned on its jets: the jet flame's fire
+particles and the jet trail's smoke (`jet_flame` and `jet_trail` in `data/fx/fx.ron`, a smoke puff every 2 m while the
+jets fire), lit by the flame. Nothing crashed or fired; it is not a bug in the sky or the fog. Whether the jets' own
+fire and smoke should be that bright from the cockpit when it hangs in its trail is a look question, not a flicker.
+
+It was taken for a cloud flicker at first and chased:
 
 - **The same leg again** (`--playtest storm-high`, the storm drifted as far as it had, then 650 m through its base
   toward the sun): no flash; the front screen's middle p95 0.25 of 255 frame to frame, its largest changes the head
