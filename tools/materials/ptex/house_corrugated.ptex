@@ -268,7 +268,7 @@
    "parameters": {
     "param0": 11,
     "param1": 12,
-    "param2": 0.9,
+    "param2": 1.98,
     "param3": 1
    },
    "type": "occlusion2"

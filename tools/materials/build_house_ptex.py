@@ -40,6 +40,8 @@ OUT_DIR = os.path.join(HERE, "ptex")
 
 # The normal maps are drawn at true depth and then lifted by this much, so relief reads at a distance.
 EXAGGERATION = 1.5
+# Material Maker's occlusion node is gentle at these radii; this deepens it so joints, laps and gaps read in the ORM red.
+AO_GAIN = 2.2
 
 # Helpers every house shader shares: a hash of a cell id (Dave Hoskins' hash without sine), so per-brick and per-board
 # variation repeats with the tile, and a clamp.
@@ -63,7 +65,7 @@ def finish(g, label, inputs, body, tile_m, depth_m, ao_radius=16, ao_strength=1.
                [("f", "sat_$name(height_$name($uv))"), ("rgba", "vec4(clamp(albedo_$name($uv), vec3(0.0), vec3(1.0)), 1.0)"),
                 ("f", "sat_$name(rough_$name($uv))"), ("f", "sat_$name(metal_$name($uv))")])
     normal = g.normal_map((s, 0), strength=round(EXAGGERATION * 16.0 * depth_m / tile_m, 4))
-    ao = g.occlusion((s, 0), strength=ao_strength, radius=ao_radius)
+    ao = g.occlusion((s, 0), strength=round(AO_GAIN * ao_strength, 3), radius=ao_radius)
     g.material(albedo=(s, 1), roughness=(s, 2), metallic=(s, 3), normal=normal, ao=ao, depth=(s, 0))
     return g
 

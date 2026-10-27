@@ -254,7 +254,7 @@
    "parameters": {
     "param0": 11,
     "param1": 20,
-    "param2": 1.2,
+    "param2": 2.64,
     "param3": 1
    },
    "type": "occlusion2"

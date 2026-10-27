@@ -332,7 +332,7 @@
    "parameters": {
     "param0": 11,
     "param1": 8,
-    "param2": 1.0,
+    "param2": 2.2,
     "param3": 1
    },
    "type": "occlusion2"
