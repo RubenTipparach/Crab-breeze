@@ -43,9 +43,10 @@ Options weighed:
 
 The slot holds `GrassLayout::words_per_slot` 32-bit words: the ground's height at the terrain's
 lattice points over the tile (`(tile_m / terrain_cell_m + 1)^2` = 5 x 5 floats), then where grass
-grows, one byte a `density_cell_m` cell (32 x 32 bytes, four a word): 281 words, 1,124 bytes. The
+grows, one byte a `density_cell_m` cell (32 x 32 bytes, four a word), then how dry it is, the same
+way (section 8): 537 words, 2,148 bytes. The
 buffer has room for every tile within `radius_m + release_m` (`TileGrid::capacity`: 529 slots, 581
-KiB). It is a `ShaderBuffer` asset of fixed size: when a tile changes, the CPU copy is handed over
+KiB before the dryness bytes, 1.1 MiB with them). It is a `ShaderBuffer` asset of fixed size: when a tile changes, the CPU copy is handed over
 whole and Bevy writes it into the same GPU buffer (`write_buffer`), so the material's bind group
 stays valid.
 
@@ -166,7 +167,7 @@ read). These are this pass's estimates, for section 3's counts and section 7's h
 | Triangles | 1.9 million | section 3 |
 | GPU, RTX 3070, 1080p | 1.8 to 3.0 ms | vertex 0.8 to 1.5 ms (about 450 instructions a vertex now: the Voronoi clump's nine cells add about 150; the stage is bound by vertex throughput and primitive setup, not arithmetic), raster 0.3 to 0.5 ms, fragment 0.6 to 1.2 ms (tall grass covers about 60 percent of the frame with overdraw 3 to 4, Bevy's clustered PBR plus one more shadow-map read for the translucency) |
 | GPU, Apple M4 Max, 1080p | 2.5 to 4.5 ms | the tiler bins every triangle before shading, the weaker side of a tile-based GPU for vertex-heavy work; hidden surface removal keeps the fragment side cheaper than the 3070's |
-| CPU, main thread | 0.2 to 0.5 ms | about 315 tile entities visited by visibility, extraction and queueing in one view (the per-mesh costs `gpu-instancing` measured), the stream's bookkeeping, a 581 KiB copy on a frame a tile changed |
+| CPU, main thread | 0.2 to 0.5 ms | about 315 tile entities visited by visibility, extraction and queueing in one view (the per-mesh costs `gpu-instancing` measured), the stream's bookkeeping, a 1.1 MiB copy on a frame a tile changed |
 | CPU, workers | 0.19 ms a tile baked (measured), about 1 ms a ground node more for its tint | off the main thread |
 | GPU memory | 7.2 MB meshes + 0.6 MB buffer | level meshes: 3.38 + 0.54 + 0.10 MB positions, 2.76 + 0.38 + 0.06 MB indices |
 | Upload | 581 KiB on a frame any tile changes; 128 bytes every frame | |
@@ -207,6 +208,25 @@ Tests: the new counts (`the_blade_meshes_have_the_counts_in_the_design`), the gr
 height (`tall_clumps_stand_about_two_metres`), and the shader compiled against Bevy 0.20's
 `bevy_pbr` with naga, its uniform's size checked against the Rust struct.
 
+## 8. Grass the colour of its ground, dry on sand (owner, 2026-10-27: "Grass color should better match ground color", "Grass in sand , you should get beige grass or dryer grass")
+
+The stills showed bright pure-green blades (red about a sixth of the green) over an olive ground
+(about sRGB 0.25, 0.37, 0.16: red two thirds of the green), and the same green grass on beaches and
+desert edges. Two changes, both data with code defaults:
+
+- **Blade colours in the ground's olive** (`root_colour`, `tip_colour`, `hue_colour`): the tips
+  move from (0.05, 0.32, 0.04) to (0.085, 0.20, 0.04) linear, the clump hue to (0.12, 0.22, 0.035).
+- **Dryness by biome** (`biome_dryness`, 0 to 1 a biome; Desert and Canyon 1.0, Beach 0.9, Savanna
+  0.6, Cliff 0.4, Alpine 0.3, the rest 0). `GrassConfig::dryness(weights)` is the one rule: the
+  biome weights at a point times their dryness. The tile bake writes it per density cell, one byte
+  each, after the density bytes; the shader mixes each blade toward `parched_colour` (0.40, 0.31,
+  0.15, darker at the root) by it. The ground under the grass takes the grass tint scaled by
+  `1 - dryness`, so sand under dry grass stays sand.
+
+Cost: 256 more words a slot (the slot from 1,124 to 2,148 bytes; 529 slots, about 1.1 MiB of
+storage buffer), one more buffer read a blade. No measurement: a cloud session has no GPU.
+Tests: the pack layout (`pack` writes heights, density, then dryness), the config's validation.
+
 ## Seeing it: `--start meadow` (owner, 2026-10-24: "Screenshots with grass?")
 
 The takes start in a city, where no grass grows, and fly high, beyond its reach. `--start meadow`
@@ -225,6 +245,7 @@ tested on seed 42.
 | 3 | Grass in the screen cube cameras (the cabin's light)? | No: it would roughly double the vertex cost for a light the pilot cannot see grass in. | Claude, provisional |
 | 4 | Should a mech leave the grass flattened where it walked (a trail)? | Not now: it needs per-blade or per-texel state; a trail texture per tile is the cheap way. Skating trails (survey M4) may want it. | survey, later |
 | 5 | Should grass draw past 300 m as a cheaper far layer (impostor cards or a noise in the ground's colour)? | The ground's colour carries it for now. | after a playtest |
-| 6 | Colour: does the grass match the ground's grass colour at the fade? | Tuned by eye in a playtest; the ground and blade colours are both data. | playtest |
+| 6 | Colour: does the grass match the ground's grass colour at the fade? | Blades retuned to the ground's olive from cloud stills (section 8); confirm by eye in a playtest. | playtest |
+| 9 | Which biomes are dry, and how dry (section 8)? | Desert, Canyon 1.0; Beach 0.9; Savanna 0.6; Cliff 0.4; Alpine 0.3. | owner, playtest |
 | 7 | The ground tint's colour against the ground's grass texture (the tint multiplies it), the translucency's strength and the gust bands' brightness | Set by reasoning, not by eye: tune in a screenshot pass. | playtest |
 | 8 | Should the wind's heading and strength come from a weather system rather than data? | Data for now; no weather exists yet. | later change |

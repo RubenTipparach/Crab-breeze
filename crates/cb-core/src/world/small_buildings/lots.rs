@@ -3,7 +3,8 @@
 //! and roadside stops between them. Each lot is a kit, a centre, a heading and the height its pad
 //! levels the ground to. Pure and deterministic: the same seed and ground give the same lots.
 
-use super::kit::{Kind, Kits};
+use super::kit::{Access, Kind, Kits};
+use super::paving::{Paving, Slab, Street, Surface, path_distance};
 use crate::data::{Validate, positive, positive_range};
 use crate::rng::SimRng;
 use crate::world::biome::Biome;
@@ -64,6 +65,34 @@ pub struct SmallBuildingsConfig {
     pub houses_by_biome: BTreeMap<String, Vec<String>>,
     /// The manifest words that put a business at a roadside stop.
     pub roadside_words: Vec<String>,
+    /// A suburb street's paved width (openspec change `lot-access`).
+    pub street_width_m: f32,
+    /// From a row's front line (the kits' front edge, where their drives end) to its street's edge.
+    pub street_verge_m: f32,
+    /// A row's street breaks where two neighbouring houses stand further apart than this.
+    pub street_break_m: f32,
+    /// A connector is tried from a street's middle, its ends, then this far apart along it.
+    pub connector_every_m: f32,
+    /// A suburb street is drawn this far over the ground (a highway, at `road_lift_m`, wins where they cross).
+    pub street_lift_m: f32,
+    /// A drive reaches its street or road within this, or its house is not built.
+    pub drive_reach_m: f32,
+    /// A drive no steeper than this (rise over run), or its house is not built.
+    pub drive_max_grade: f32,
+    /// A drive meets its kit's slab this far over the ground.
+    pub drive_lift_m: f32,
+    /// A car park runs this far out from the kit's front edge: a row of stalls and an aisle.
+    pub parking_depth_m: f32,
+    /// A stall's width (between the painted lines).
+    pub stall_width_m: f32,
+    /// A stall's painted line, from the kit's front edge.
+    pub stall_depth_m: f32,
+    /// A car park is drawn this far over the ground, its painted lines 1 cm over that.
+    pub lot_lift_m: f32,
+    /// A curb cut's width, from a car park to its road.
+    pub cut_width_m: f32,
+    /// A car park wider than this has a cut at each end, otherwise one in its middle.
+    pub two_cuts_over_m: f32,
 }
 
 impl Default for SmallBuildingsConfig {
@@ -104,6 +133,20 @@ impl Default for SmallBuildingsConfig {
             .into_iter()
             .collect(),
             roadside_words: vec!["roadside".into(), "any roadside".into()],
+            street_width_m: 8.0,
+            street_verge_m: 2.0,
+            street_break_m: 60.0,
+            connector_every_m: 4.0,
+            street_lift_m: 0.13,
+            drive_reach_m: 24.0,
+            drive_max_grade: 0.2,
+            drive_lift_m: 0.06,
+            parking_depth_m: 12.5,
+            stall_width_m: 2.6,
+            stall_depth_m: 5.0,
+            lot_lift_m: 0.05,
+            cut_width_m: 7.0,
+            two_cuts_over_m: 30.0,
         }
     }
 }
@@ -116,6 +159,33 @@ impl Validate for SmallBuildingsConfig {
         positive_range("small_buildings.roadside_every_m", self.roadside_every_m)?;
         positive("small_buildings.max_relief_m", self.max_relief_m)?;
         positive("small_buildings.roadside_max_relief_m", self.roadside_max_relief_m)?;
+        for (field, v) in [
+            ("street_width_m", self.street_width_m),
+            ("street_break_m", self.street_break_m),
+            ("connector_every_m", self.connector_every_m),
+            ("drive_reach_m", self.drive_reach_m),
+            ("drive_max_grade", self.drive_max_grade),
+            ("parking_depth_m", self.parking_depth_m),
+            ("stall_width_m", self.stall_width_m),
+            ("stall_depth_m", self.stall_depth_m),
+            ("cut_width_m", self.cut_width_m),
+        ] {
+            positive(&format!("small_buildings.{field}"), v)?;
+        }
+        for (field, v) in [
+            ("street_verge_m", self.street_verge_m),
+            ("street_lift_m", self.street_lift_m),
+            ("drive_lift_m", self.drive_lift_m),
+            ("lot_lift_m", self.lot_lift_m),
+            ("two_cuts_over_m", self.two_cuts_over_m),
+        ] {
+            if !v.is_finite() || v < 0.0 {
+                return Err(format!("`small_buildings.{field}` must be zero or more"));
+            }
+        }
+        if self.stall_depth_m > self.parking_depth_m {
+            return Err("`small_buildings.stall_depth_m` must fit within `parking_depth_m`".into());
+        }
         for (field, v) in [
             ("suburb_gap_m", self.suburb_gap_m),
             ("suburb_wander_m", self.suburb_wander_m),
@@ -160,7 +230,7 @@ impl Validate for SmallBuildingsConfig {
 
 /// The biome called `name` (as `Biome`'s variants are spelt).
 pub fn biome_named(name: &str) -> Option<Biome> {
-    crate::world::biome::BIOMES.into_iter().find(|b| format!("{b:?}") == name)
+    Biome::named(name)
 }
 
 /// Which kind of place a lot is in.
@@ -253,6 +323,8 @@ pub struct Lots {
     pub kits: Arc<Kits>,
     /// The lots, by id.
     pub lots: Vec<Lot>,
+    /// The streets, drives and car parks that join them to the roads (openspec change `lot-access`).
+    pub paving: Paving,
     index: CellIndex,
 }
 
@@ -261,11 +333,13 @@ const LOTS_CELL_M: f32 = 64.0;
 
 impl Lots {
     /// The lots, indexed over a world `world_size_m` across.
-    pub fn new(kits: Arc<Kits>, lots: Vec<Lot>, world_size_m: f32) -> Self {
+    pub fn new(kits: Arc<Kits>, placed: Placed, world_size_m: f32) -> Self {
+        let lots = placed.lots;
         let boxes: Vec<(u32, Vec2, Vec2)> = lots.iter().enumerate().map(|(i, l)| (i as u32, l.rect.min, l.rect.max)).collect();
         let side = (world_size_m / LOTS_CELL_M).ceil() as usize;
         let index = CellIndex::build(-world_size_m * 0.5, LOTS_CELL_M, side, &boxes);
-        Self { kits, lots, index }
+        let paving = Paving::new(placed.streets, placed.slabs, world_size_m);
+        Self { kits, lots, paving, index }
     }
 
     /// Lots whose footprint comes within `r` of `p`, ascending id.
@@ -313,6 +387,8 @@ pub struct Ground<'a> {
     pub keep_out: &'a [Rect],
     /// Lowest ground a lot may stand on.
     pub min_ground_m: f32,
+    /// How far the game draws the highways over their grade: a drive or a curb cut meeting one ends just under it.
+    pub road_lift_m: f32,
     /// From a highway's centre line to the edge of its flat shoulder.
     pub shoulder_m: f32,
     /// The terrain's sample spacing: a pad is flat a cell beyond its lot.
@@ -379,6 +455,8 @@ struct Placer<'a> {
     ground: &'a Ground<'a>,
     lots: Vec<Lot>,
     grid: BTreeMap<(i32, i32), Vec<u32>>,
+    streets: Vec<Street>,
+    slabs: Vec<Slab>,
 }
 
 const GRID_M: f32 = 64.0;
@@ -495,6 +573,34 @@ impl Placer<'_> {
         let slope = (((g.height)(p + Vec2::X * d) - h).abs().max(((g.height)(p + Vec2::Y * d) - h).abs())) / d;
         (g.biome)(p, h, slope)
     }
+
+    /// True when a building (its kit's footprint, turned) other than `except`'s comes within `r` of `p`.
+    fn house_near(&self, p: Vec2, r: f32, except: Option<u32>) -> bool {
+        let near = Rect {
+            min: p - Vec2::splat(r),
+            max: p + Vec2::splat(r),
+        };
+        Self::cells(&near).any(|c| {
+            self.grid.get(&c).is_some_and(|ids| {
+                ids.iter().any(|&i| {
+                    let l = &self.lots[i as usize];
+                    let (lo, hi) = self.kits.kits[l.kit as usize].footprint();
+                    let q = l.to_local(p);
+                    Some(i) != except && (lo - q).max(q - hi).max(Vec2::ZERO).length() <= r
+                })
+            })
+        })
+    }
+
+    /// True when paving may not run within `half_m` of `p`: water, the sea's edge, an air base (a city's square,
+    /// though kept out of lots, is where a suburb's connectors end).
+    fn unpavable(&self, p: Vec2, half_m: f32) -> bool {
+        let g = self.ground;
+        let lo = p - Vec2::splat(half_m);
+        let hi = p + Vec2::splat(half_m);
+        let base = |r: &Rect| r.distance(p) < half_m && !g.cities.iter().any(|c| c.rect() == *r);
+        (g.water_near)(lo, hi, 1.0) || (g.past_land_edge_m)(p) > -half_m || g.keep_out.iter().any(base)
+    }
 }
 
 /// The gap between two rects (0 when they overlap).
@@ -530,10 +636,22 @@ fn round_rect_at(r: &Rect, d: f32, s: f32) -> (Vec2, Vec2) {
     (r.min - Vec2::Y * d, -Vec2::Y)
 }
 
-/// Every lot of a world: suburbs, then towns, then roadside stops. `rng` is forked per place.
-pub fn place(rng: &SimRng, cfg: &SmallBuildingsConfig, kits: &Kits, ground: &Ground) -> Vec<Lot> {
+/// The lots of a world and the paving that joins them to the roads.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Placed {
+    /// The lots, by id.
+    pub lots: Vec<Lot>,
+    /// The suburbs' streets and their connectors.
+    pub streets: Vec<Street>,
+    /// Drives, car parks, curb cuts and stall lines.
+    pub slabs: Vec<Slab>,
+}
+
+/// Every lot of a world: suburbs (each row with its street), then towns, then roadside stops, then the drives and
+/// car parks of the towns and stops. `rng` is forked per place.
+pub fn place(rng: &SimRng, cfg: &SmallBuildingsConfig, kits: &Kits, ground: &Ground) -> Placed {
     if kits.kits.is_empty() {
-        return Vec::new();
+        return Placed::default();
     }
     let choices = Choices::new(kits, cfg);
     let mut placer = Placer {
@@ -542,11 +660,299 @@ pub fn place(rng: &SimRng, cfg: &SmallBuildingsConfig, kits: &Kits, ground: &Gro
         ground,
         lots: Vec::new(),
         grid: BTreeMap::new(),
+        streets: Vec::new(),
+        slabs: Vec::new(),
     };
     suburbs(rng, &choices, &mut placer);
     let towns = towns(rng, &choices, &mut placer);
     roadside(rng, &choices, &mut placer, &towns);
-    placer.lots
+    on_the_highways(&mut placer);
+    Placed {
+        lots: placer.lots,
+        streets: placer.streets,
+        slabs: placer.slabs,
+    }
+}
+
+/// A suburb row's street (openspec change `lot-access` section 2): a piece along the row's front wherever its houses
+/// stand close, each joined by a connector to an inner row's street, the city's square or a highway, and each house's
+/// drive to it. A house whose piece cannot be joined, or whose drive cannot reach it, is taken back. `line` is the
+/// row's front line and its outward normal at arc length `s`; `placed` the row's lots by `s`, from `row_start`; the
+/// city's streets so far start at `first_street`.
+fn street_row(
+    placer: &mut Placer,
+    line: &dyn Fn(f32) -> (Vec2, Vec2),
+    square: &Rect,
+    placed: &[(f32, u32)],
+    row_start: usize,
+    first_street: usize,
+) {
+    /// A street's centre line is sampled about this far apart.
+    const STEP_M: f32 = 4.0;
+    /// A connector is walked in steps this long, and no further than this.
+    const WALK_M: f32 = 2.0;
+    const MAX_CONNECTOR_M: f32 = 200.0;
+    let cfg = placer.cfg;
+    let w = cfg.street_width_m;
+    let off = cfg.street_verge_m + w * 0.5;
+    let centre = |s: f32| {
+        let (p, n) = line(s);
+        (p - n * off, n)
+    };
+    let half = |id: u32| {
+        let k = &placer.kits.kits[placer.lots[id as usize].kit as usize];
+        k.lo.x.abs().max(k.hi.x.abs())
+    };
+    // The row's houses in groups no more than `street_break_m` apart.
+    let mut groups: Vec<Vec<(f32, u32)>> = Vec::new();
+    for &(s, id) in placed {
+        let close = groups
+            .last()
+            .and_then(|g| g.last())
+            .is_some_and(|&(ps, pid)| s - ps - half(pid) - half(id) <= cfg.street_break_m);
+        match groups.last_mut() {
+            Some(g) if close => g.push((s, id)),
+            _ => groups.push(vec![(s, id)]),
+        }
+    }
+    let mut keep = vec![false; placer.lots.len() - row_start];
+    for g in &groups {
+        let (first, last) = (g[0], g[g.len() - 1]);
+        let (s0, s1) = (first.0 - half(first.1) - 4.0, last.0 + half(last.1) + 4.0);
+        // Samples along the piece; it breaks where it may not run (water, a building in its way).
+        let count = ((s1 - s0) / STEP_M).ceil().max(1.0) as usize;
+        let samples: Vec<(f32, Vec2, bool)> = (0..=count)
+            .map(|i| {
+                let s = s0 + (s1 - s0) * i as f32 / count as f32;
+                let (c, _) = centre(s);
+                let ok = !placer.unpavable(c, w * 0.5) && !placer.house_near(c, w * 0.5, None);
+                (s, c, ok)
+            })
+            .collect();
+        for run in samples.split(|x| !x.2).filter(|r| r.len() >= 3) {
+            let (r0, r1) = (run[0].0, run[run.len() - 1].0);
+            let path: Vec<Vec2> = run.iter().map(|x| x.1).collect();
+            let reach = |q: Vec2| path_distance(&path, q) <= w * 0.5 - 0.3;
+            let mut drives = Vec::new();
+            let mut members = Vec::new();
+            for &(s, id) in g.iter().filter(|(s, _)| (r0..=r1).contains(s)) {
+                if let Some(d) = drive_to(placer, id, &reach, cfg.street_lift_m - 0.01) {
+                    drives.extend(d);
+                    members.push((s, id));
+                }
+            }
+            if members.is_empty() {
+                continue;
+            }
+            // A connector from the piece toward the city: from its middle, its ends, then along it.
+            let mut tries = vec![(r0 + r1) * 0.5, r0, r1];
+            let mut t = r0 + cfg.connector_every_m;
+            while t < r1 {
+                tries.push(t);
+                t += cfg.connector_every_m;
+            }
+            let joined = tries.into_iter().find_map(|s| {
+                let (c, n) = centre(s);
+                let mut k = 1;
+                loop {
+                    let q = c - n * (w * 0.5 + k as f32 * WALK_M);
+                    if q.distance(c) > MAX_CONNECTOR_M || placer.unpavable(q, w * 0.5) || placer.house_near(q, w * 0.5 + 0.5, None) {
+                        return None;
+                    }
+                    let city = square.distance(q) <= 0.0;
+                    let street = placer.streets[first_street..]
+                        .iter()
+                        .any(|o| path_distance(&o.path, q) <= o.width_m * 0.5 - 0.5);
+                    let road = placer.ground.highways.iter().any(|h| h.project(q).0 <= h.width_m * 0.5);
+                    if city || street || road {
+                        return Some(vec![c, q]);
+                    }
+                    k += 1;
+                }
+            });
+            let Some(connector) = joined else { continue };
+            placer.streets.push(Street {
+                path,
+                width_m: w,
+                lift_m: cfg.street_lift_m,
+            });
+            // A connector sits 5 mm under the streets it joins, so their asphalt never shares a plane.
+            placer.streets.push(Street {
+                path: connector,
+                width_m: w,
+                lift_m: cfg.street_lift_m - 0.005,
+            });
+            placer.slabs.extend(drives);
+            for (_, id) in members {
+                keep[id as usize - row_start] = true;
+            }
+        }
+    }
+    let row: Vec<Lot> = placer.lots[row_start..].to_vec();
+    placer.truncate(row_start);
+    for (lot, k) in row.into_iter().zip(keep) {
+        if k {
+            placer.add(lot);
+        }
+    }
+}
+
+/// A house's drive (openspec change `lot-access` section 3): from where its kit's slab ends at the front edge,
+/// straight on until `reaches` says it is on its street or road, rising from `drive_lift_m` to `end_lift_m`, its last
+/// 1.5 m flared for the curb cut. `None` when it does not reach within `drive_reach_m`, rises more than
+/// `drive_max_grade` over its length and the pad's blend, or crosses another building.
+fn drive_to(placer: &Placer, id: u32, reaches: &dyn Fn(Vec2) -> bool, end_lift_m: f32) -> Option<Vec<Slab>> {
+    /// The drive is walked in steps this long.
+    const STEP_M: f32 = 0.25;
+    /// The curb cut's flare: this long, and this much wider each side.
+    const FLARE_M: f32 = 1.5;
+    let cfg = placer.cfg;
+    let lot = &placer.lots[id as usize];
+    let k = &placer.kits.kits[lot.kit as usize];
+    let Access::Drive { x_m, width_m } = k.access else {
+        return None;
+    };
+    let start = lot.to_world(Vec2::new(x_m, k.hi.z));
+    let dir = (lot.to_world(Vec2::new(x_m, k.hi.z + 1.0)) - start).normalize_or(Vec2::Y);
+    let mut t = 0.0;
+    while !reaches(start + dir * t) {
+        t += STEP_M;
+        if t > cfg.drive_reach_m {
+            return None;
+        }
+    }
+    let end = start + dir * t;
+    // The pad blends into the ground over `pad_blend_m` round the lot, so the rise is spread over the drive and the
+    // blend together.
+    let rise = ((placer.ground.height)(end) - lot.ground_m).abs();
+    if rise > cfg.drive_max_grade * (t + cfg.pad_blend_m) {
+        return None;
+    }
+    let side = Vec2::new(-dir.y, dir.x) * (width_m * 0.5 - 0.05);
+    let mut u = 0.0;
+    while u <= t {
+        let p = start + dir * u;
+        if [p - side, p + side].iter().any(|&q| placer.house_near(q, 0.0, Some(id))) {
+            return None;
+        }
+        u += 1.0;
+    }
+    let lift = |at: f32| cfg.drive_lift_m + (end_lift_m - cfg.drive_lift_m) * (at / t.max(1e-3));
+    Some(if t > FLARE_M * 2.0 {
+        let mid = end - dir * FLARE_M;
+        vec![
+            Slab::strip(start, mid, width_m, cfg.drive_lift_m, lift(t - FLARE_M), Surface::Concrete),
+            Slab::taper(
+                mid,
+                end,
+                width_m,
+                width_m + 2.0 * FLARE_M,
+                lift(t - FLARE_M),
+                end_lift_m,
+                Surface::Concrete,
+            ),
+        ]
+    } else {
+        vec![Slab::strip(start, end, width_m, cfg.drive_lift_m, end_lift_m, Surface::Concrete)]
+    })
+}
+
+/// The drives and car parks of the towns and roadside stops (openspec change `lot-access` sections 3 and 4): each
+/// house's drive to the highway it faces, each business's striped car park from its front out toward the road, and
+/// its curb cuts onto it. A house whose drive cannot reach the road is taken back.
+fn on_the_highways(placer: &mut Placer) {
+    let keep: Vec<bool> = (0..placer.lots.len()).map(|id| reach_the_highway(placer, id)).collect();
+    if keep.iter().all(|&k| k) {
+        return;
+    }
+    let lots = std::mem::take(&mut placer.lots);
+    placer.grid.clear();
+    for (lot, k) in lots.into_iter().zip(keep) {
+        if k {
+            placer.add(lot);
+        }
+    }
+}
+
+/// Lot `id`'s drive or car park onto the highway it faces (`on_the_highways`): false when it is a house whose drive
+/// cannot reach the road.
+fn reach_the_highway(placer: &mut Placer, id: usize) -> bool {
+    /// A curb cut is walked in steps this long, and no further than this.
+    const STEP_M: f32 = 0.25;
+    const MAX_CUT_M: f32 = 40.0;
+    /// A painted line's width.
+    const LINE_M: f32 = 0.1;
+    let cfg = placer.cfg;
+    let g = placer.ground;
+    {
+        let lot = placer.lots[id].clone();
+        if lot.zone == Zone::Suburb {
+            return true;
+        }
+        let Some(h) = g
+            .highways
+            .iter()
+            .min_by(|a, b| a.project(lot.centre).0.total_cmp(&b.project(lot.centre).0))
+        else {
+            return true;
+        };
+        let on_road = |q: Vec2| h.project(q).0 <= h.width_m * 0.5 - 0.5;
+        let end_lift = g.road_lift_m - 0.01;
+        let k = &placer.kits.kits[lot.kit as usize];
+        match k.access {
+            Access::Drive { .. } => match drive_to(placer, id as u32, &on_road, end_lift) {
+                Some(d) => placer.slabs.extend(d),
+                None => return false,
+            },
+            Access::Lot { z_m, stalls } => {
+                let (x0, x1, front) = (k.lo.x, k.hi.x, k.hi.z);
+                let far = front + cfg.parking_depth_m;
+                let at = |x: f32, z: f32| lot.to_world(Vec2::new(x, z));
+                // Neighbouring car parks may meet on a bend: alternate ones sit 2 mm apart.
+                let lift = cfg.lot_lift_m + if id.is_multiple_of(2) { 0.0 } else { 0.002 };
+                placer.slabs.push(Slab {
+                    corners: [at(x0, z_m), at(x1, z_m), at(x1, far), at(x0, far)],
+                    lift_m: [lift; 4],
+                    surface: Surface::Asphalt,
+                });
+                if stalls {
+                    let n = ((x1 - x0) / cfg.stall_width_m).floor();
+                    let first = x0 + (x1 - x0 - n * cfg.stall_width_m) * 0.5;
+                    for i in 0..=n as u32 {
+                        let x = first + i as f32 * cfg.stall_width_m;
+                        let (a, b) = (at(x, front), at(x, front + cfg.stall_depth_m));
+                        placer
+                            .slabs
+                            .push(Slab::strip(a, b, LINE_M, lift + 0.01, lift + 0.01, Surface::Paint));
+                    }
+                }
+                let cuts = if x1 - x0 > cfg.two_cuts_over_m {
+                    vec![x0 + cfg.cut_width_m * 0.5 + 1.0, x1 - cfg.cut_width_m * 0.5 - 1.0]
+                } else {
+                    vec![(x0 + x1) * 0.5]
+                };
+                for x in cuts {
+                    let start = at(x, far);
+                    let dir = (at(x, far + 1.0) - start).normalize_or(Vec2::Y);
+                    let mut t = 0.0;
+                    while !on_road(start + dir * t) && t <= MAX_CUT_M {
+                        t += STEP_M;
+                    }
+                    if t > 0.0 && t <= MAX_CUT_M {
+                        placer.slabs.push(Slab::strip(
+                            start,
+                            start + dir * t,
+                            cfg.cut_width_m,
+                            lift,
+                            end_lift,
+                            Surface::Asphalt,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    true
 }
 
 /// Rows of houses round each city, facing it, wandering in and out with the ground.
@@ -557,15 +963,18 @@ fn suburbs(rng: &SimRng, choices: &Choices, placer: &mut Placer) {
         let square = city.rect();
         let mut d = cfg.suburb_band_m[0];
         let mut row = 0;
+        let first_street = placer.streets.len();
         while d <= cfg.suburb_band_m[1] {
             let phase = r.range_f32(0.0, std::f32::consts::TAU);
             let wave_m = r.range_f32(60.0, 140.0);
             let size = square.size();
             let total = 2.0 * (size.x + size.y) + std::f32::consts::TAU * d;
+            let line = |s: f32| round_rect_at(&square, d + cfg.suburb_wander_m * (s / wave_m + phase).sin(), s);
+            let row_start = placer.lots.len();
+            let mut placed: Vec<(f32, u32)> = Vec::new();
             let mut s = r.range_f32(0.0, 20.0);
             while s < total {
-                let wander = cfg.suburb_wander_m * (s / wave_m + phase).sin();
-                let (p, n) = round_rect_at(&square, d + wander, s);
+                let (p, n) = line(s);
                 let biome = placer.biome_at(p);
                 let Some(kit) = pick(&mut r, choices.houses_in(biome)) else {
                     s += 20.0;
@@ -580,10 +989,12 @@ fn suburbs(rng: &SimRng, choices: &Choices, placer: &mut Placer) {
                 let heading = heading_facing(face) + jitter;
                 let centre = p - face * k.hi.z;
                 if !skip && let Some(lot) = placer.try_lot(kit, centre, heading, Zone::Suburb) {
+                    placed.push((s, placer.lots.len() as u32));
                     placer.add(lot);
                 }
                 s += width + cfg.suburb_gap_m + r.range_f32(0.0, cfg.suburb_gap_m);
             }
+            street_row(placer, &line, &square, &placed, row_start, first_street);
             row += 1;
             d += cfg.suburb_row_spacing_m + r.range_f32(-4.0, 4.0) * (row as f32).min(1.0);
         }

@@ -9,6 +9,7 @@
 - [x] 2.2 `cb-app::grass`: the material, one entity a tile, slots in one storage buffer, bakes off the main thread, the pushers, the grass render layer seen only by the pilot's eyes
 - [x] 2.3 `CB_NO_GRASS=1` leaves the grass out (benchmark variant)
 - [x] 2.4 Tall, lush grass (design section 7): heights, droop, density, Voronoi clumps, fake AO, translucency, fading sheen and far normals, colour variety, layered wind; the ground tinted by the one grass rule (tests: `the_ground_is_tinted_exactly_where_grass_grows_and_not_in_a_crater`, `ground_under_full_grass_takes_the_grass_tint_and_bare_ground_keeps_its_own`, `tall_clumps_stand_about_two_metres`)
+- [x] 2.5 Blade colours in the ground's olive, dryness by biome (design section 8; tests: the pack layout, config validation)
 - [ ] 3.1 Benchmark on the owner's hardware: `--bench world` and `--bench fight` with and without `CB_NO_GRASS=1`, interleaved; report in `docs/benchmarks/`; replace design section 6's estimates
 - [ ] 3.2 Playtest: grass seen from the pilot's eyes on foot and from the cockpit, pressed by the mech's feet, cleared by a crater; tune colours against the ground (open question 6)
 - [ ] 3.3 Move the requirements into `openspec/specs/gpu-grass/spec.md` once the playtest and the benchmark pass

@@ -19,7 +19,8 @@ and the hit is an `Explosion` written through the game's own blast path. The pla
 | `suburb.jpg` | A ranch house (variant a) with its garage and car, colonials and other houses along the row, all facing the city; the far ones at LOD1 |
 | `door.jpg` | The front door swung open as the pilot reached it; the hall, the dining table and a bedroom beyond |
 | `inside.jpg` | Inside: the modelled table and chairs on the atlas, the chimney breast, the back door, the floor clean (no z-fighting) |
-| `town.jpg` | A town on a highway: the corner store, a diner and a gas station along the road |
+| `town.jpg` | A town on a highway, on sand: the corner store and a diner, the grass parched beige and the sand left bare under it |
+| `dry.jpg` | A ranch on savanna (dryness 0.6): the grass olive with straw through it |
 | `hit.jpg`, `hit-settled.jpg` | A 1 MJ blast on the ranch's front wall: the wall and the roof over it holed, its brick piers standing, the rest of the house whole |
 
 The log: `small buildings: 24 kits, 17 furniture items, 62 surfaces`; `1696 lots spawned` (suburb 1,570, town 112,
@@ -56,8 +57,14 @@ a house and no more, the island's lots: count by zone, clear of water, roads and
 ## Not yet
 
 - Survey S4-S6 are open (montane houses, how near the modelled furniture is drawn, suburb streets).
-- The kit's surfaces still draw in their stand-in colours (Material Maker sets, task 1.1); the windows read pale.
+- 36 of the 62 surfaces carry Material Maker sets (brick, siding, planks, doors, roofs); the rest draw in their stand-in colours.
 - The mech's view of the blocks was not shot (the instrument stands the pilot on foot); a playtest from the cockpit
   is the check.
 - Signs are untextured; lamps are not lit at night.
 - Frame time of a suburb and a town: on the owner's machine.
+
+## Reshoot after textures, interior paint and grass (same day)
+
+Brick, siding, planks and doors textured; interiors in muted paints with a warm grey ceiling (owner: "Pure white not
+good for interior. Hurts my eyes"); grass in the ground's olive and parched on dry biomes (`gpu-grass` design
+section 8). Log: `36 of 62 surfaces textured`; the dry beat found lot 76 (ranch_b) in Savanna.

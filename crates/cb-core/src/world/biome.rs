@@ -15,6 +15,13 @@ use super::island::smooth;
 use super::terrain::Shape;
 use glam::Vec2;
 
+impl Biome {
+    /// The biome called `name`, as its variant is spelt (`Temperate`, `Desert`...), for data files.
+    pub fn named(name: &str) -> Option<Biome> {
+        BIOMES.into_iter().find(|b| format!("{b:?}") == name)
+    }
+}
+
 /// The biomes, in the order `Biomes::weights` gives them (the mockup's order).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Biome {

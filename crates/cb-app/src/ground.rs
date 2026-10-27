@@ -109,13 +109,22 @@ struct Ground {
 struct GrassTint {
     colour: Vec3,
     strength: f32,
+    /// Each biome's dryness (`GrassConfig::dryness`): dry ground keeps its own colour under its parched grass.
+    dryness: [f32; BIOME_COUNT],
 }
 
 impl From<&GrassConfig> for GrassTint {
     fn from(g: &GrassConfig) -> Self {
+        let mut dryness = [0.0; BIOME_COUNT];
+        for (i, d) in dryness.iter_mut().enumerate() {
+            let mut one = [0.0; BIOME_COUNT];
+            one[i] = 1.0;
+            *d = g.dryness(&one);
+        }
         Self {
             colour: Vec3::from_array(g.ground_tint_colour),
             strength: g.ground_tint,
+            dryness,
         }
     }
 }
@@ -293,7 +302,8 @@ fn ground_colour(
     c = c.lerp(c * Vec3::new(1.08, 1.0, 0.88), (fbm2(p.x / 400.0, p.z / 400.0) - 0.5) * 0.9);
     // sRGB to linear.
     let mut c = c.max(Vec3::ZERO).powf(2.2);
-    c = c.lerp(tint.colour, (cover * tint.strength).clamp(0.0, 1.0));
+    let dry: f32 = biome.iter().zip(&tint.dryness).map(|(w, d)| w * d).sum::<f32>().clamp(0.0, 1.0);
+    c = c.lerp(tint.colour, (cover * tint.strength * (1.0 - dry)).clamp(0.0, 1.0));
     c = c.lerp(Vec3::new(0.10, 0.08, 0.07), scorch.clamp(0.0, 1.0) * 0.85);
     c.extend(1.0).to_array()
 }

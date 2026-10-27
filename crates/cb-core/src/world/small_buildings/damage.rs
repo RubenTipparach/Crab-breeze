@@ -267,7 +267,11 @@ mod tests {
             rect: Rect::centred(Vec2::new(100.0, 50.0), Vec2::splat(30.0)),
             zone: Zone::Suburb,
         };
-        Lots::new(Arc::new(kits), vec![lot], 4096.0)
+        let placed = crate::world::small_buildings::Placed {
+            lots: vec![lot],
+            ..Default::default()
+        };
+        Lots::new(Arc::new(kits), placed, 4096.0)
     }
 
     #[test]

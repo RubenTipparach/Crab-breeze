@@ -1,6 +1,11 @@
 // Every Material Maker material Crab Breeze ships (openspec changes `blast-scorch` and `fx-sprites`). Each is rendered from
 // `tools/materials/ptex/<name>.ptex` by `tools/materials/export_materials.sh` and written by `tools/materials/postprocess.py`
 // to `assets/textures/fx/<name>/`. `size_px` is the shipped size; `maps` the maps shipped; `use` what reads it.
+// The houses' surface sets (rows with a `dir`): one per generator of the small-buildings kit's SURFACES table, written by
+// `tools/materials/build_house_ptex.py`, rendered by `tools/materials/export_house_materials.sh` and written by
+// `postprocess.py --houses` to `assets/textures/<dir>/`. `tile_m` is the metres one tile covers (the kit's UVs are metres),
+// `surfaces` the kit's keys drawn with the set, `roughness` and `metallic` the set's mean ORM green and blue (0..1), so a
+// surface whose own roughness or metal differs from its set's can scale the map by its value over these.
 (
     materials: [
         (name: "blast_scorch", size_px: 2048, maps: ["albedo", "normal", "orm"], use: "decal over a crater on soil"),
@@ -10,5 +15,32 @@
         (name: "dust_wisps", size_px: 1024, maps: ["albedo"], grid: 4, use: "dust particles"),
         (name: "hit_marks", size_px: 1024, maps: ["albedo", "normal", "orm"], grid: 4, use: "hit-mark decals on mech armour"),
         (name: "dirt_clods", size_px: 1024, maps: ["albedo"], grid: 4, use: "dirt, debris and rubble particles"),
+        (name: "house_brick", dir: "houses/brick", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 0.9, roughness: 0.89, metallic: 0.00, surfaces: ["brick"], use: "face brick, 215 x 65 mm in running bond with 10 mm joints"),
+        (name: "house_block", dir: "houses/block", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 0.8, roughness: 0.90, metallic: 0.00, surfaces: ["block"], use: "concrete block, 390 x 190 mm in running bond"),
+        (name: "house_siding", dir: "houses/siding", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.67, metallic: 0.00, surfaces: ["siding"], use: "painted clapboard lap siding, 167 mm exposure"),
+        (name: "house_board", dir: "houses/board", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.78, metallic: 0.00, surfaces: ["board"], use: "board and batten, 333 mm boards and 64 mm battens"),
+        (name: "house_stucco", dir: "houses/stucco", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 2.0, roughness: 0.91, metallic: 0.00, surfaces: ["stucco"], use: "knockdown sand-float stucco"),
+        (name: "house_adobe", dir: "houses/adobe", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 2.5, roughness: 0.95, metallic: 0.00, surfaces: ["adobe"], use: "mud plaster over adobe brick courses"),
+        (name: "house_shingle", dir: "houses/shingle", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.92, metallic: 0.00, surfaces: ["shingle"], use: "three-tab asphalt shingles, 125 mm courses"),
+        (name: "house_tile", dir: "houses/tile", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.73, metallic: 0.00, surfaces: ["tile"], use: "clay barrel roof tiles, 250 x 333 mm"),
+        (name: "house_metalRoof", dir: "houses/metalRoof", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.44, metallic: 0.59, surfaces: ["metalRoof"], use: "standing-seam steel roof, 500 mm panels"),
+        (name: "house_corrugated", dir: "houses/corrugated", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.47, metallic: 0.61, surfaces: ["corrugated", "corrugatedArc"], use: "galvanised corrugated sheet, 77 mm pitch"),
+        (name: "house_ribbed", dir: "houses/ribbed", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.47, metallic: 0.40, surfaces: ["ribbed"], use: "ribbed aluminium siding, 167 mm ribs"),
+        (name: "house_skirt", dir: "houses/skirt", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.61, metallic: 0.00, surfaces: ["skirt"], use: "vinyl skirting, 125 mm panels"),
+        (name: "house_concrete", dir: "houses/concrete", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 2.0, roughness: 0.89, metallic: 0.00, surfaces: ["concrete"], use: "cast concrete"),
+        (name: "house_roofing", dir: "houses/roofing", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.93, metallic: 0.00, surfaces: ["roofing"], use: "gravel-surfaced built-up flat roof"),
+        (name: "house_asphalt", dir: "houses/asphalt", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 2.0, roughness: 0.92, metallic: 0.00, surfaces: ["asphalt"], use: "asphalt paving"),
+        (name: "house_smooth", dir: "houses/smooth", size_px: 512, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.53, metallic: 0.00, surfaces: ["trim", "paint", "soffit", "plaster", "metal", "product", "rubber", "paintCar"], use: "smooth paint, faint stipple"),
+        (name: "house_shutter", dir: "houses/shutter", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 0.5, roughness: 0.56, metallic: 0.00, surfaces: ["shutter"], use: "louvred shutter slats, 42 mm"),
+        (name: "house_door", dir: "houses/door", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.49, metallic: 0.00, surfaces: ["door"], use: "painted V-groove door boards, 125 mm"),
+        (name: "house_brushed", dir: "houses/brushed", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.31, metallic: 1.00, surfaces: ["stainless"], use: "brushed stainless steel"),
+        (name: "house_laminate", dir: "houses/laminate", size_px: 512, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.32, metallic: 0.00, surfaces: ["counter"], use: "flecked plastic laminate countertop"),
+        (name: "house_wood", dir: "houses/wood", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.61, metallic: 0.00, surfaces: ["wood"], use: "bare timber, flat-sawn grain"),
+        (name: "house_planks", dir: "houses/planks", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.63, metallic: 0.00, surfaces: ["deck", "floorWood"], use: "deck and floor planks, 143 mm with 5 mm gaps"),
+        (name: "house_pine", dir: "houses/pine", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.56, metallic: 0.00, surfaces: ["woodInt"], use: "knotty pine panelling, 167 mm boards"),
+        (name: "house_floorTile", dir: "houses/floorTile", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 0.9, roughness: 0.23, metallic: 0.00, surfaces: ["floorTile"], use: "black and white checker floor tiles, 450 mm"),
+        (name: "house_wallTile", dir: "houses/wallTile", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.16, metallic: 0.00, surfaces: ["tileWall", "tileRed"], use: "glazed wall tiles, 111 mm"),
+        (name: "house_carpet", dir: "houses/carpet", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 1.0, roughness: 0.95, metallic: 0.00, surfaces: ["carpet"], use: "cut-pile carpet"),
+        (name: "house_fabric", dir: "houses/fabric", size_px: 1024, maps: ["albedo", "normal", "orm"], tile_m: 0.5, roughness: 0.90, metallic: 0.00, surfaces: ["fabric"], use: "plain-weave upholstery cloth, 3.9 mm threads"),
     ],
 )
