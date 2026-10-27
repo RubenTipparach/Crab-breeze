@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 /// The mech flown when none is named.
 pub const DEFAULT_MECH: &str = "mechs/foreman.ron";
 
-pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence|fortress] [--showcase world|fight|defence|marks|sun|demolition|trail] [--bench world|fight|defence|marks|sun|demolition] [--start meadow|overlook|base] [--play free|free-continue|career-new|career-continue] [--playtest <name> [--run <i>]]";
+pub const USAGE: &str = "usage: crab-breeze [--seed <n>] [--mech mechs/<name>.ron] [--stills <dir>] [--mission defence|fortress] [--showcase world|fight|defence|marks|sun|demolition|trail] [--bench world|fight|defence|marks|sun|demolition] [--start meadow|overlook|base] [--play free|free-continue|career-new|career-continue] [--playtest <name> [--run <i>]] [--perf-gate]";
 
 /// Parsed command line.
 #[derive(Debug, PartialEq)]
@@ -33,6 +33,9 @@ pub struct Args {
     pub playtest: Option<String>,
     /// Which of the script's runs this launch plays.
     pub run: usize,
+    /// `--perf-gate`: judge every frame after `GAME_READY` against 16.7 ms (`cb_core::perf`) and exit non-zero when
+    /// any was over (CLAUDE.md section 7).
+    pub perf_gate: bool,
 }
 
 impl Args {
@@ -60,6 +63,7 @@ impl Args {
             start: None,
             playtest: None,
             run: 0,
+            perf_gate: false,
         };
         let mut it = args;
         while let Some(a) = it.next() {
@@ -80,6 +84,7 @@ impl Args {
                 },
                 "--playtest" => out.playtest = Some(value()?),
                 "--run" => out.run = value()?.parse().map_err(|e| format!("--run: {e}"))?,
+                "--perf-gate" => out.perf_gate = true,
                 "--start" => match it.next().as_deref() {
                     Some("meadow") => out.start = Some("meadow".into()),
                     Some("fx") => out.start = Some("fx".into()),
@@ -127,6 +132,13 @@ fn take_name(v: Option<String>) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn perf_gate_is_switched_on_by_its_flag() {
+        let args = Args::parse(["--playtest", "streaming-route", "--perf-gate"].into_iter().map(String::from)).unwrap();
+        assert!(args.perf_gate);
+        assert!(!Args::parse(std::iter::empty()).unwrap().perf_gate);
+    }
 
     #[test]
     fn the_foreman_is_flown_when_no_mech_is_named() {

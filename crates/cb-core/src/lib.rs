@@ -30,6 +30,7 @@ pub mod mfd_focus;
 pub mod mission;
 pub mod missions;
 pub mod people_vat;
+pub mod perf;
 pub mod pilot;
 pub mod playtest;
 pub mod refit;
