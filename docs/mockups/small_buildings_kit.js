@@ -525,7 +525,8 @@
         B.color(0xe6e0d4); tiles(B, 'plaster', ax0, yb - 0.22, az0, ax1, yb - 0.03, az1, s === 0 ? '' : 'Y');
       }
       for (const [ax0, az0, ax1, az1] of rectMinus([x0 + t + 0.012, z0 + t + 0.012, x1 - t - 0.012, z1 - t - 0.012], hole)) {
-        B.color(0xffffff); tiles(B, o.floorMat || 'floorWood', ax0, yb - 0.03, az0, ax1, yb, az1);
+        // The finish stands 12 mm proud of the foundation's top, so the two never share a plane (no z-fighting).
+        B.color(0xffffff); tiles(B, o.floorMat || 'floorWood', ax0, yb - 0.03, az0, ax1, yb + 0.012, az1);
       }
       // Partitions with door gaps, and the rooms' furniture.
       const plan = (o.plan && o.plan[s]) || ['living', 'kitchen', 'bed'];

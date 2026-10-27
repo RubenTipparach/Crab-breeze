@@ -165,25 +165,26 @@ fn run(
             }
             next = t > 8.0;
         }
-        // Over the suburb from 350 m: LOD1 and LOD2.
+        // The suburb from 350 m behind it: LOD1 and LOD2.
         5 => {
             if script.once("far") {
-                let far = on_ground(&plan, ranch, 250.0, 250.0) + Vec3::Y * 60.0;
-                stand_looking(&mut pilot, far, on_ground(&plan, ranch, 0.0, 0.0));
+                // Behind the row, away from the city it faces.
+                let far = on_ground(&plan, ranch, 0.0, -350.0);
+                stand_looking(&mut pilot, far, on_ground(&plan, ranch, 0.0, 0.0) + Vec3::Y * 4.0);
             }
             if t > 6.0 && script.once("far shot") {
                 shoot(&mut commands, &script.dir, "houses-far.png");
             }
             next = t > 8.0;
         }
-        // A 120 mm shell's worth on the front wall, seen from the street.
+        // An autocannon burst's worth (1 MJ) on the front wall, seen from the street.
         6 => {
             if script.once("hit") {
                 let feet = on_ground(&plan, ranch, 4.0, kit.hi.z + 20.0);
                 stand_looking(&mut pilot, feet, on_ground(&plan, ranch, 0.0, 0.0) + Vec3::Y * 2.0);
                 blasts.write(Explosion {
                     at: ranch.point_to_world(Vec3::new(-2.0, 1.6, kit.hi.z.min(6.0) - 1.0)),
-                    energy_mj: 4.0,
+                    energy_mj: 1.0,
                     by: None,
                 });
             }
