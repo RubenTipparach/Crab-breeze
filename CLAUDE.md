@@ -508,7 +508,9 @@ Nothing is an exception until it is listed here with its reason.
   seamless by tiling 2 x 2, packed the glTF way (`orm`), loaded with a full mip chain
   (`crates/cb-app/src/pbr_set.rs`), and its folder carries a `SOURCE.md` with the URL, the licence
   and every change made to it. The ground's grass is ambientCG Grass001
-  (`assets/textures/ground/grass001/`).
+  (`assets/textures/ground/grass001/`). The roads are ambientCG Asphalt027C downtown and on the highways, Asphalt026C on
+  the suburb streets and car parks (owner, 2026-10-27: "26c suburban Streets 27c for downtown";
+  `assets/textures/roads/`).
 - **The Stratostacean's block-out is exported from its mockup, not built in Blender** (owner, 2026-10-25, on the Stratostacean
   Air Fortress mockup: "looks good, build it in game"). The block-out the owner approved is the three.js page, so
   `tools/mockups/export_fortress_glb.mjs` writes `assets/models/fortress_stratostacean.glb` from it, with its manifest and

@@ -470,10 +470,13 @@ fn spawn_roads(
     tex: Res<crate::textures::Textures>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
 ) {
     let cfg = &data.0.world;
-    let asphalt = [0.16, 0.16, 0.17, 1.0];
-    let arterial = [0.13, 0.13, 0.14, 1.0];
+    // The road sets carry their own colour (CC0 asphalt, `assets/textures/roads`): the vertex colour only darkens the
+    // arterials a little. The stand-in texture, if a set cannot be read, gets the old asphalt grey.
+    let asphalt = [1.0, 1.0, 1.0, 1.0];
+    let arterial = [0.84, 0.84, 0.86, 1.0];
     let pavement = [0.55, 0.54, 0.51, 1.0];
     let park = [0.26, 0.40, 0.19, 1.0];
     let mut roads = MeshBuilder::default();
@@ -557,9 +560,10 @@ fn spawn_roads(
         }
     }
     // The suburbs' streets, the drives and the car parks (openspec change `lot-access`), draped on the ground: asphalt
-    // with the roads, drives with the kerbs' concrete, stall lines with the lane marks. No draw of their own.
+    // in their own mesh (its own road set), drives with the kerbs' concrete, stall lines with the lane marks.
     let paving = &world.small.paving;
     let concrete = [0.74, 0.73, 0.70, 1.0];
+    let mut streets = MeshBuilder::default();
     for st in &paving.streets {
         let n = st.path.len();
         // Each point's side is the mean of its two segments', so the pieces of a bend share their edges.
@@ -571,7 +575,7 @@ fn spawn_roads(
         for i in 0..n.saturating_sub(1) {
             let (a, b, sa, sb) = (st.path[i], st.path[i + 1], side(i), side(i + 1));
             drape(
-                &mut roads,
+                &mut streets,
                 &world,
                 [a - sa, a + sa, b + sb, b - sb],
                 [st.lift_m; 4],
@@ -582,7 +586,7 @@ fn spawn_roads(
     }
     for slab in &paving.slabs {
         let into = match slab.surface {
-            PavingSurface::Asphalt => &mut roads,
+            PavingSurface::Asphalt => &mut streets,
             PavingSurface::Concrete => &mut kerbs,
             PavingSurface::Paint => &mut marks,
         };
@@ -593,12 +597,40 @@ fn spawn_roads(
         };
         drape(into, &world, slab.corners, slab.lift_m, colour, SLAB_CELL_M);
     }
-    let road_mat = materials.add(StandardMaterial {
-        base_color_texture: Some(tex.asphalt.clone()),
-        perceptual_roughness: 0.9,
-        ..default()
-    });
-    commands.spawn((Name::new("roads"), Mesh3d(meshes.add(roads.build())), MeshMaterial3d(road_mat)));
+    // Downtown and the highways on Asphalt027C, the suburbs' streets and the car parks on Asphalt026C (owner,
+    // 2026-10-27: "26c suburban Streets 27c for downtown"), each its full PBR set.
+    let root = crate::cli::repo_root().join("assets");
+    let mut road_set = |dir: &str| {
+        let mut tiling = |file: &str, srgb: bool| {
+            crate::pbr_set::load_tiling(&root, &format!("textures/roads/{dir}/{file}"), srgb).map(|i| images.add(i))
+        };
+        let albedo = tiling("albedo.jpg", true);
+        let normal = tiling("normal_gl.png", false);
+        let orm = tiling("orm.png", false);
+        let found = albedo.is_some();
+        materials.add(StandardMaterial {
+            base_color: if found { Color::WHITE } else { Color::linear_rgb(0.16, 0.16, 0.17) },
+            base_color_texture: Some(albedo.unwrap_or_else(|| tex.asphalt.clone())),
+            normal_map_texture: normal,
+            occlusion_texture: orm.clone(),
+            metallic_roughness_texture: orm,
+            metallic: 0.0,
+            perceptual_roughness: 1.0,
+            ..default()
+        })
+    };
+    let downtown = road_set("asphalt027c");
+    let suburban = road_set("asphalt026c");
+    commands.spawn((
+        Name::new("roads"),
+        Mesh3d(meshes.add(roads.build_with_tangents())),
+        MeshMaterial3d(downtown),
+    ));
+    commands.spawn((
+        Name::new("suburb streets and car parks"),
+        Mesh3d(meshes.add(streets.build_with_tangents())),
+        MeshMaterial3d(suburban),
+    ));
     let mark_mat = vertex_material(&mut materials, 0.6);
     commands.spawn((
         Name::new("lane marks"),

@@ -763,62 +763,6 @@ float metal_$name(vec2 uv) { return 0.0; }
     return finish(g, "house asphalt", ins, body, tile_m=2.0, depth_m=0.006, ao_radius=6, ao_strength=1.2)
 
 
-def road_asphalt():
-    """Road asphalt over the 4 m tile the roads are drawn with (owner, 2026-10-27: "make the road look nicer"): dark
-    binder and 10-14 mm stones worn through to grey at true size; broad lighter and darker tone a metre or two across,
-    so the tile does not repeat to the eye; a network of cracks, some open (dark, with crumbled edges) and most sealed
-    with a glossy black tar line wider than the crack; a few oil spots, dark and smoother. Mid grey, so the roads'
-    vertex colour (streets, arterials) tints it."""
-    g = Graph("Road Asphalt")
-    v = vor(g, 320, randomness=1.0)
-    c = vor(g, 3, randomness=0.85)
-    c2 = vor(g, 7, randomness=1.0)
-    ins = [("lo", "f", fbm(g, 2, iterations=5, persistence=0.55)), ("lo2", "f", fbm(g, 5, iterations=4, offset=0.4)),
-           ("mid", "f", fbm(g, 24, iterations=4, offset=0.5)), ("st", "f", (v, 1)), ("stc", "rgb", (v, 2)),
-           ("fine", "f", fbm(g, 512, iterations=3, offset=0.3)), ("crack", "f", (c, 1)), ("crack2", "f", (c2, 1)),
-           ("oil", "f", fbm(g, 8, iterations=4, persistence=0.6, offset=0.8))]
-    body = """
-float stone_$name(vec2 uv) { return smoothstep(0.06, 0.24, $st(uv)) * step(0.4, $stc(uv).g); }
-vec2 wob_$name(vec2 uv) { return 0.006 * vec2($mid(uv) - 0.5, $mid(uv + vec2(0.37, 0.61)) - 0.5); }
-// Distance-like measure to the crack network (in tile units), long cracks and a finer branch network.
-float cd_$name(vec2 uv) { return min($crack(uv + wob_$name(uv)), 1.6 * $crack2(uv + 0.7 * wob_$name(uv))); }
-// How much of the tile has cracks at all: broad patches of cracked and sound road.
-float crackzone_$name(vec2 uv) { return smoothstep(0.45, 0.62, $lo2(uv + vec2(0.3, 0.1))); }
-// The open crack itself, about 4 mm.
-float crack_$name(vec2 uv) { return (1.0 - smoothstep(0.0, 0.0012, cd_$name(uv))) * crackzone_$name(uv); }
-// The tar seal over it, about 12 mm, on most of the network (left open where the sealing skipped).
-float seal_$name(vec2 uv) {
-	float on = step(0.35, $lo(uv * 1.0 + vec2(0.5, 0.2)));
-	return (1.0 - smoothstep(0.0025, 0.0038, cd_$name(uv))) * crackzone_$name(uv) * on;
-}
-float oil_$name(vec2 uv) { return smoothstep(0.68, 0.78, $oil(uv)) * 0.8; }
-float height_$name(vec2 uv) {
-	float h = 0.45 + 0.28 * sqrt(stone_$name(uv)) + 0.14 * ($fine(uv) - 0.5);
-	h -= 0.4 * crack_$name(uv) * (1.0 - seal_$name(uv));
-	h = mix(h, 0.5 + 0.03 * $fine(uv), seal_$name(uv));
-	return h;
-}
-vec3 albedo_$name(vec2 uv) {
-	vec3 bind = vec3(0.30, 0.30, 0.305) * (0.85 + 0.3 * $fine(uv));
-	vec3 st = mix(vec3(0.44, 0.43, 0.42), vec3(0.62, 0.60, 0.57), $stc(uv).r);
-	float wear = 0.5 + 0.5 * $lo(uv + vec2(0.13, 0.71));
-	vec3 c = mix(bind, st, (0.55 + 0.35 * wear) * stone_$name(uv));
-	c *= 0.8 + 0.32 * $lo(uv) + 0.12 * ($lo2(uv) - 0.5) + 0.05 * ($mid(uv) - 0.5);
-	c *= 1.0 - 0.5 * crack_$name(uv) * (1.0 - seal_$name(uv));
-	c = mix(c, vec3(0.07, 0.07, 0.075), 0.92 * seal_$name(uv));
-	c = mix(c, c * vec3(0.45, 0.44, 0.42), oil_$name(uv));
-	return c;
-}
-float rough_$name(vec2 uv) {
-	float r = 0.92 - 0.1 * stone_$name(uv) + 0.04 * $fine(uv);
-	r = mix(r, 0.45, seal_$name(uv));
-	return mix(r, 0.55, oil_$name(uv));
-}
-float metal_$name(vec2 uv) { return 0.0; }
-"""
-    return finish(g, "road asphalt", ins, body, tile_m=4.0, depth_m=0.008, ao_radius=6, ao_strength=1.2)
-
-
 # ----------------------------------------------------------------------------
 # interiors
 # ----------------------------------------------------------------------------
@@ -1000,19 +944,13 @@ GRAPHS = {
 }
 
 
-# Graphs written under their own name (not `house_`): the roads' sets (`road_*` rows of data/materials/materials.ron).
-OWN_NAME_GRAPHS = {
-    "road_asphalt": road_asphalt,
-}
-
-
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     only = set(sys.argv[1:])
-    for name, fn in [(f"house_{k}", f) for k, f in GRAPHS.items()] + list(OWN_NAME_GRAPHS.items()):
-        if only and name.removeprefix("house_") not in only:
+    for name, fn in GRAPHS.items():
+        if only and name not in only:
             continue
-        path = os.path.join(OUT_DIR, f"{name}.ptex")
+        path = os.path.join(OUT_DIR, f"house_{name}.ptex")
         with open(path, "w") as f:
             json.dump(fn().to_json(), f, indent=1, sort_keys=True)
         print("wrote", os.path.relpath(path))
