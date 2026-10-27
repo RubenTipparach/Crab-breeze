@@ -90,6 +90,20 @@ pub struct WaterLook {
     pub glitter_slope: f32,
     /// How many times a second the facets are drawn anew (the sparkle's twinkle), hertz.
     pub glitter_twinkle_hz: f32,
+    /// The reflection trace's steps along the reflected ray (0: no trace, the sky cube only).
+    pub reflect_steps: u32,
+    /// How far the trace reaches, metres: its steps grow by one factor from `REFLECT_FIRST_STEP_M`
+    /// so the last ends here.
+    pub reflect_max_m: f32,
+    /// How strongly what the trace finds shows, 0..1.
+    pub reflect_strength: f32,
+    /// The share of the sea in gusts that tear it into whitecaps, 0..1 (times six, the share of the
+    /// gust noise above its threshold; the foam is the tallest wavelets in them).
+    pub whitecap_coverage: f32,
+    /// The size of a gust of whitecaps across the wind, metres (twice that along it).
+    pub whitecap_scale_m: f32,
+    /// How the whitecaps drift, metres a second (x, z): with the wind.
+    pub whitecap_drift_m_s: [f32; 2],
     /// Light through the wavelets' crests seen against the sun, an albedo (turquoise).
     pub scatter_color: [f32; 3],
     /// How strong that light is.
@@ -131,6 +145,27 @@ pub struct WaterLook {
     pub cloud_dry_s: f32,
 }
 
+/// The reflection trace's first step, metres.
+pub const REFLECT_FIRST_STEP_M: f32 = 1.0;
+
+/// The factor the reflection trace's steps grow by so `steps` of them, the first
+/// `REFLECT_FIRST_STEP_M`, reach `max_m` in all: the root of `first (g^n - 1) / (g - 1) = max_m`.
+pub fn reflect_growth(steps: u32, max_m: f32) -> f32 {
+    let n = steps.max(1) as f32;
+    let target = (max_m / REFLECT_FIRST_STEP_M).max(n);
+    let (mut lo, mut hi) = (1.0f32, 4.0f32);
+    for _ in 0..60 {
+        let g = 0.5 * (lo + hi);
+        let reach = if (g - 1.0).abs() < 1e-6 { n } else { (g.powf(n) - 1.0) / (g - 1.0) };
+        if reach < target {
+            lo = g;
+        } else {
+            hi = g;
+        }
+    }
+    0.5 * (lo + hi)
+}
+
 impl Default for WaterLook {
     fn default() -> Self {
         Self {
@@ -160,12 +195,18 @@ impl Default for WaterLook {
             foam_crest_weight: 0.55,
             foam_slope: [0.50, 1.20],
             foam_slope_weight: 0.26,
-            shore_foam_m: 1.5,
+            shore_foam_m: 3.0,
             shore_foam_weight: 0.6,
             specular_intensity: 1.0,
             glint_roughness: 0.06,
             glint_far_roughness: 0.20,
             glitter_slope: 0.22,
+            reflect_steps: 24,
+            reflect_max_m: 3000.0,
+            reflect_strength: 1.0,
+            whitecap_coverage: 0.008,
+            whitecap_scale_m: 40.0,
+            whitecap_drift_m_s: [1.5, 0.0],
             glitter_twinkle_hz: 3.0,
             scatter_color: [0.05, 0.35, 0.33],
             scatter_strength: 0.35,
@@ -247,6 +288,16 @@ impl Validate for WaterLook {
         within("glint_roughness", self.glint_roughness, 0.005, 1.0)?;
         within("glint_far_roughness", self.glint_far_roughness, 0.0, 1.0)?;
         within("glitter_slope", self.glitter_slope, 0.0, 2.0)?;
+        if self.reflect_steps > 64 {
+            return Err(format!("reflect_steps: {} is more than 64", self.reflect_steps));
+        }
+        within("reflect_max_m", self.reflect_max_m, REFLECT_FIRST_STEP_M * 2.0, 100_000.0)?;
+        within("reflect_strength", self.reflect_strength, 0.0, 1.0)?;
+        within("whitecap_coverage", self.whitecap_coverage, 0.0, 0.2)?;
+        positive("whitecap_scale_m", self.whitecap_scale_m)?;
+        for v in self.whitecap_drift_m_s {
+            within("whitecap_drift_m_s", v, -50.0, 50.0)?;
+        }
         within("glitter_twinkle_hz", self.glitter_twinkle_hz, 0.0, 60.0)?;
         within("scatter_strength", self.scatter_strength, 0.0, 10.0)?;
         within("underwater_distortion", self.underwater_distortion, 0.0, 0.1)?;
@@ -379,6 +430,18 @@ mod tests {
     use super::*;
     use crate::data::parse_ron;
     use std::path::Path;
+
+    #[test]
+    fn the_reflection_trace_reaches_its_distance_in_its_steps() {
+        let g = reflect_growth(24, 3000.0);
+        assert!((g - 1.334).abs() < 0.005, "{g}");
+        let reach: f32 = (0..24).map(|i| REFLECT_FIRST_STEP_M * g.powi(i)).sum();
+        assert!((reach - 3000.0).abs() < 3.0, "{reach}");
+        assert!(
+            (reflect_growth(10, 10.0) - 1.0).abs() < 1e-3,
+            "evenly spaced when the reach allows no growth"
+        );
+    }
 
     #[test]
     fn the_shipped_water_look_loads() {

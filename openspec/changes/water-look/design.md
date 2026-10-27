@@ -114,6 +114,36 @@ pixel there covers 5-10 m of sea, whose wavelets a pixel cannot draw.
 - Stills: `sea-sun-high` (1.5 km up) and `sea-sun-top` (6.5 km), toward the sun.
 - Cost: two hashes and a second normal a pixel.
 
+**Foam and things in the water (owner, 2026-10-26: "theres sea foam, and screenspace reflections
+which make it look nice too", with an Ace Combat 7 shot of a harbour; then "ok looks good, keep
+going").**
+- **Step 3, the trace, built as section 3 has it:** Bevy 0.20's own screen-space reflections run on
+  the deferred path's gbuffer, and the water is a transmissive forward material, so the water traces
+  itself. From the surface along the reflected ray, `reflect_steps` (24) steps that grow by a fixed
+  factor from 1 m so the last reaches `reflect_max_m` (3,000 m) (the factor is 1.334); each step is
+  projected to the screen and compared with the depth prepass (the water is not in it, so it never
+  reflects itself). A hit is the first step behind the ground by less than its own length plus
+  2 m, refined by four halvings, its colour read from the scene copy the water already reads. It
+  fades out over the screen's outer tenth, with the steps it took, and toward reflected rays that
+  climb steeply (those see sky); `reflect_strength` (1.0) scales it. Where it misses, the sky cube
+  shows. What reflects: the ground, the coast, buildings, the mech, a hull; not the clouds (the
+  cube's sky stands in for them).
+- **Whitecaps:** at the 6 m/s wind real whitecaps cover about 0.2 % of the sea (Monahan's
+  `3.84e-6 U^3.41`); the references show more, and foam that reads from the air is what sells it.
+  The foam is the sea's own waves breaking, never patches laid on it: hashed cells of foam, and then
+  thresholded noise blobs, read as "floating dots" (owner, 2026-10-26: "that seafoam isnt part of
+  the noise stuff on the ocean lol"). A slow noise of gusts, `whitecap_scale_m` (40 m) across the
+  wind and twice that along it, drifts with the wind; its threshold is set from the noise's measured
+  spread (standard deviation 0.166 over 400,000 samples) so `whitecap_coverage x 6` of the sea is in
+  a gust. A gust only shortens the odds: the foam is the wavelets the eye sees, where their height
+  in their own deviations, lifted by the swell's crests (`0.8 x` the swell's height in amplitudes)
+  and by the gust (up to one deviation), passes 2.6. In a gust's heart on a crest about 20 % of the
+  wavelets foam, in an ordinary gust 2 %, outside one none: lace in the waves' own pattern, torn
+  into streaks along the wind. Where the wavelets fade with distance, a gust shows as a faint sheen
+  (18 %). The shore's surf band widens from 1.5 m to 3 m of water (`shore_foam_m`).
+- Cost: up to 24 projected depth reads and four refinements a water pixel (section 6 had
+  0.4-0.6 ms at half the screen); the foam is one noise a pixel. Measured on the owner's machine.
+
 ## 1. Wave detail
 
 - **The bake:** a 512 px, 64-frame tileable normal and height atlas covering a 64 m patch, baked

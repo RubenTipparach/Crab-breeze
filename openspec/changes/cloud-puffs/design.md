@@ -33,6 +33,14 @@
 
 All six numbers live in `data/world/world.ron` under `clouds:` (`look_*`).
 
+### 3a. Billows close up
+
+Owner, 2026-10-26: "close up clouds are still pixelated, the look like jpeg compression". The
+billows were value noise, a grid of hashed squares smoothed only at their corners, and a puff
+close up showed its squares in its edge and its shading. They are gradient noise now (the water's
+`gnoise3`, on a plane per puff), scaled to the spread the value noise had (`gnoise3`'s standard
+deviation is about 0.28), with a fourth, finer octave where a puff's unit spans 600 pixels or more.
+
 ## 4. Cost (expected; measured with `CB_NO_CLOUDS` on the owner's hardware)
 
 | Item | Value |

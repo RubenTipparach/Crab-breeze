@@ -7,3 +7,4 @@
 - [ ] 2.1 Headless stills in a cloud container (lavapipe): from the ground, from cockpit height, flying through
 - [ ] 2.2 Measured with `CB_NO_CLOUDS` against the same take on the owner's hardware
 - [ ] 2.3 Playtest: fly into and out of a cumulus, on Drive
+- [x] 2.4 Billows in gradient noise, not value noise: no blocks close up (design section 3a; storm and in-cloud stills looked at 2026-10-26)

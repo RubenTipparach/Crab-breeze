@@ -28,6 +28,7 @@ import bevy_pbr::render::mesh_view_bindings::{view, globals};
 import bevy_pbr::prepass::utils::prepass_depth;
 @if(DISTANCE_FOG)
 import bevy_pbr::render::{mesh_view_bindings::fog, pbr_functions::apply_fog};
+import super::water_common::gnoise3;
 
 // Matches `CloudUniform` in `crates/cb-app/src/clouds_render.rs`.
 struct CloudLight {
@@ -145,9 +146,20 @@ fn vn(p: vec2<f32>) -> f32 {
     return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
-// Three octaves of value noise, 0..1.
-fn fbm2(p: vec2<f32>) -> f32 {
-    return (0.5 * vn(p) + 0.25 * vn(p * 2.03 + 17.0) + 0.125 * vn(p * 4.07 + 31.0)) / 0.875;
+// Gradient noise, 0..1, on a plane `z` through the 3D lattice. Billows use it rather than value
+// noise: value noise is a grid of hashed squares, smoothed only at their corners, and close up a puff
+// filled with it read as blocks (owner, 2026-10-26: "close up clouds are still pixelated, the look
+// like jpeg compression"). `gnoise3` has a standard deviation of about 0.28 (one octave of the 0.166
+// measured for `fbm3`), so 0.65 gives the 0.18 spread the value noise had.
+fn gn(p: vec2<f32>, z: f32) -> f32 {
+    return clamp(0.5 + 0.65 * gnoise3(vec3<f32>(p.x, z, p.y)), 0.0, 1.0);
+}
+
+// Billows, 0..1: three octaves of gradient noise, and a fourth, finer one where the puff is close
+// enough for it to cover more than a few pixels (`fine`, 0..1), so it never shimmers far off.
+fn fbm2(p: vec2<f32>, z: f32, fine: f32) -> f32 {
+    let base = 0.5 * gn(p, z) + 0.25 * gn(p * 2.03 + 17.0, z + 3.1) + 0.125 * gn(p * 4.07 + 31.0, z + 7.3);
+    return (base + 0.0625 * fine * gn(p * 8.3 + 5.0, z + 11.9)) / (0.875 + 0.0625 * fine);
 }
 
 // How much of the billboard shows in front of the ground behind it: 1 in open sky, fading to 0
@@ -165,14 +177,15 @@ fn soft_edge(pixel: vec4<f32>) -> f32 {
     return soft;
 }
 
-fn puff(in: CloudFragment, look: vec3<f32>, dist: f32) -> vec4<f32> {
+// `fine` (0..1): how much of the finest billow octave this pixel can show (see `fragment`).
+fn puff(in: CloudFragment, look: vec3<f32>, dist: f32, fine: f32) -> vec4<f32> {
     let p = in.uv;
     let d = length(p);
     let seed = in.shape.z;
     let dark = in.look.y;
     // Billows: the edge eaten by two octaves of noise in the sprite's plane (caps stay smooth).
-    let n = fbm2(p * 2.2 + seed * 13.1 + globals.time * 0.004);
-    let n2 = vn(p * 7.0 + seed * 5.0);
+    let n = fbm2(p * 2.2, seed * 13.1 + globals.time * 0.004, fine);
+    let n2 = gn(p * 7.0, seed * 5.0 + 40.0);
     let erode = select(cloud.fade.y, 0.22, abs(in.look.x - KIND_CAP) < 0.5);
     // Faded out before the billboard's circle whatever the noise says, so no puff shows the hard arc
     // where the circle is cut (seen in the storm stills from below).
@@ -257,6 +270,9 @@ fn fragment(in: CloudFragment) -> @location(0) vec4<f32> {
     let dist = max(length(to_frag), 1e-3);
     let look = to_frag / dist;
     let kind = in.look.x;
+    // The finest billow octave only where a puff's unit spans 600 pixels or more (its features 70 px
+    // across); taken here, before any branch, where screen derivatives are defined.
+    let fine = smoothstep(1.0 / 300.0, 1.0 / 600.0, length(fwidth(in.uv)));
     var out: vec4<f32>;
     if kind > KIND_CIRRUS - 0.5 {
         out = cirrus(in, look);
@@ -266,7 +282,7 @@ fn fragment(in: CloudFragment) -> @location(0) vec4<f32> {
         if length(in.uv) > 1.0 {
             discard;
         }
-        out = puff(in, look, dist);
+        out = puff(in, look, dist, fine);
     }
     out.a *= soft_edge(in.position);
     if out.a < 0.004 {

@@ -35,12 +35,43 @@ impl Default for FogNow {
     }
 }
 
-/// Keeps `FogNow`.
+/// The weather at the pilot's eye as the view's fog sees it: the cloud's density, the rain and the
+/// clouds' shade on the sun, each followed over `FogConfig::eye_weather_s`. Every pass that fogs the
+/// whole view by the weather at the eye reads these, never a raw sample: a raw sample swings as a
+/// fast mech crosses the edge of a puff, a shaft or a cloud's shadow, and the whole sky and the
+/// ground's fog pulsed with it (owner, 2026-10-26: "the whole sky ios flikering", "also ground
+/// color fog flickerewd as well"). Presentation only: the targeting, which is simulation, samples
+/// the rain itself.
+#[derive(Resource, Clone, Copy, Debug)]
+pub struct EyeWeather {
+    /// Cloud density at the eye, 0..1.
+    pub cloud: f32,
+    /// Rain at the eye, 0..1.
+    pub rain: f32,
+    /// The sun's share through the clouds over the eye, 0..1.
+    pub sun: f32,
+    /// False until the first sample: the first frame takes the weather as it is.
+    pub primed: bool,
+}
+
+impl Default for EyeWeather {
+    fn default() -> Self {
+        Self {
+            cloud: 0.0,
+            rain: 0.0,
+            sun: 1.0,
+            primed: false,
+        }
+    }
+}
+
+/// Keeps `FogNow` and `EyeWeather`.
 pub struct GroundFogPlugin;
 
 impl Plugin for GroundFogPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FogNow>()
+            .init_resource::<EyeWeather>()
             .add_world_spawn(restart_clock)
             .add_game_systems(FixedUpdate, tick.in_set(SimSet::Input));
     }
@@ -55,6 +86,35 @@ fn restart_clock(data: Res<Data>, mut fog: ResMut<FogNow>) {
         hour_h,
         mission: None,
         strength: cfg.strength(None, hour_h),
+    };
+}
+
+/// Follows the weather at the pilot's eye (`EyeWeather`), once the camera is placed for the frame
+/// (`pilot`'s camera chain runs it, before the fog reads it).
+pub(crate) fn follow_eye_weather(
+    data: Res<Data>,
+    plan: Res<crate::world::Plan>,
+    time: Res<Time>,
+    eye: Option<Single<&Transform, With<crate::pilot::PilotCamera>>>,
+    mut weather: ResMut<EyeWeather>,
+) {
+    let Some(eye) = eye else { return };
+    let at = eye.translation;
+    let t = time.elapsed_secs();
+    let clouds = &plan.clouds;
+    let (cloud, rain, sun) = (
+        clouds.density_at(at, t),
+        clouds.rain_at(at, t),
+        clouds.sun_at(Vec2::new(at.x, at.z), t),
+    );
+    let tau = if weather.primed { data.0.world.fog.eye_weather_s } else { 0.0 };
+    let dt = time.delta_secs();
+    let follow = |now: f32, to: f32| cb_core::sun_flare::fade_toward(now, to, dt, tau);
+    *weather = EyeWeather {
+        cloud: follow(weather.cloud, cloud),
+        rain: follow(weather.rain, rain),
+        sun: follow(weather.sun, sun),
+        primed: true,
     };
 }
 
