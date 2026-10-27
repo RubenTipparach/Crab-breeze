@@ -1,0 +1,32 @@
+// Low and fast past a storm, seated (openspec/changes/ground-fog task 5.3; owner, 2026-10-26: "the whole sky ios
+// flikering", "also ground color fog flickerewd as well"). A new career, board, then straight up on the jets at 80 m
+// past the west storm over the jungle (centre (-5887, -4186) at the start, 2.6 km across its tower, drifting east at
+// 6 m/s): along its north edge in and out of its shadow, round its east side, back west under its base and through
+// its rain shaft, then out north into the sun. Where the sky and the fog flickered; the take is for the A/B of
+// docs/playtests/sky-fog-flicker-test.md.
+//
+//   ./target/release/crab-breeze --playtest storm-pass
+(
+    name: "storm-pass",
+    stuck_s: 20.0,
+    runs: [
+        (
+            play: "career-new",
+            beats: [
+                Wait(2.0),
+                Board,
+                Wait(2.0),
+                // Along the north edge, 2 km off the centre: under the anvil's edge and the shade's wandering rim.
+                JetTo(-7500.0, -6300.0, 80.0),
+                JetTo(-2500.0, -6300.0, 80.0),
+                // Round the east side and back west under the base, through the rain.
+                JetTo(-2000.0, -3000.0, 80.0),
+                JetTo(-5300.0, -4200.0, 80.0),
+                JetTo(-9500.0, -4500.0, 80.0),
+                // Out north, into the sun.
+                JetTo(-8500.0, -8000.0, 80.0),
+                Wait(3.0),
+            ],
+        ),
+    ],
+)
