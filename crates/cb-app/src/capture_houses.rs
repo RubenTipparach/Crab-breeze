@@ -105,7 +105,7 @@ fn run(
         // A suburb: the house from across its drive, its neighbours along the row.
         1 => {
             if script.once("suburb") {
-                let feet = on_ground(&plan, ranch, kit.hi.x + 6.0, kit.hi.z + 14.0);
+                let feet = on_ground(&plan, ranch, kit.hi.x - 1.0, kit.hi.z - 0.5);
                 stand_looking(&mut pilot, feet, on_ground(&plan, ranch, 0.0, 0.0) + Vec3::Y * 3.0);
             }
             if t > 6.0 && script.once("suburb shot") {
