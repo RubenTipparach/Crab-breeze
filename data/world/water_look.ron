@@ -47,7 +47,9 @@
     foam_crest_weight: 0.55,
     foam_slope: (0.50, 1.20),
     foam_slope_weight: 0.26,
-    shore_foam_m: 1.5,
+    // The surf band: foam over the first 3 m of water at the shore (design section 0, "Foam and
+    // things in the water"; was 1.5).
+    shore_foam_m: 3.0,
     shore_foam_weight: 0.6,
 
     // The sun's glint (openspec/changes/water-look design section 4; owner, 2026-10-26: "It looks
@@ -62,6 +64,15 @@
     // times a second (owner, 2026-10-26: "make glitter show up more at higher altitudes").
     glitter_slope: 0.22,
     glitter_twinkle_hz: 3.0,
+    // Things in the water (owner, 2026-10-26: "theres sea foam, and screenspace reflections"): a
+    // trace of 24 growing steps out to 3 km along the reflected ray, against the depth prepass.
+    reflect_steps: 24,
+    reflect_max_m: 3000.0,
+    reflect_strength: 1.0,
+    // Whitecaps: 0.8 % of the sea in 14 m patches on the crests, drifting with the wind.
+    whitecap_coverage: 0.008,
+    whitecap_scale_m: 40.0,
+    whitecap_drift_m_s: (1.5, 0.0),
     sun_tint: (1.10, 1.15, 1.20),
     // Light through the wavelets' crests seen against the sun (design section 5): turquoise.
     scatter_color: (0.05, 0.35, 0.33),

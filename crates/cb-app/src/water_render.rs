@@ -33,7 +33,7 @@ use bevy::render::render_resource::{
     AsBindGroup, BindGroupEntries, BindGroupLayoutDescriptor, BindGroupLayoutEntries, CachedRenderPipelineId, ColorTargetState,
     ColorWrites, FilterMode, FragmentState, Operations, PipelineCache, RenderPassColorAttachment, RenderPassDescriptor,
     RenderPipelineDescriptor, Sampler, SamplerBindingType, SamplerDescriptor, ShaderStages, ShaderType, SpecializedMeshPipelineError,
-    SpecializedRenderPipeline, SpecializedRenderPipelines, TextureFormat, TextureSampleType, TextureUsages, UniformBuffer,
+    SpecializedRenderPipeline, SpecializedRenderPipelines, TextureFormat, TextureSampleType, TextureUsages, TextureView, UniformBuffer,
 };
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
 use bevy::render::sync_world::RenderEntity;
@@ -104,6 +104,8 @@ pub struct WaterSurfaceUniform {
     cabin: Vec4,
     shallow: Vec4,
     scatter: Vec4,
+    reflect: Vec4,
+    whitecap: Vec4,
     swell: [Vec4; 3],
 }
 
@@ -159,6 +161,18 @@ impl WaterSurfaceUniform {
             cabin: eye.extend(cabin_m),
             shallow: v3(look.shallow_color).extend(look.shallow_depth_m),
             scatter: (v3(look.scatter_color) * look.scatter_strength).extend(look.glitter_slope),
+            reflect: Vec4::new(
+                look.reflect_steps as f32,
+                cb_core::water_look::reflect_growth(look.reflect_steps, look.reflect_max_m),
+                look.reflect_strength,
+                cb_core::water_look::REFLECT_FIRST_STEP_M,
+            ),
+            whitecap: Vec4::new(
+                look.whitecap_coverage,
+                look.whitecap_scale_m,
+                look.whitecap_drift_m_s[0],
+                look.whitecap_drift_m_s[1],
+            ),
             swell,
         }
     }
@@ -440,8 +454,11 @@ struct FogLook {
     sun: Vec4,
     /// xyz toward the sun; w the haze's scale height m.
     sun_dir: Vec4,
-    /// x the map's least corner (x and z) m, y its cell m, z cells a side, w unused.
+    /// x the map's least corner (x and z) m, y its cell m, z cells a side, w the rain's reach m.
     map: Vec4,
+    /// x the view's exposure (the scattering sky's colour is drawn times it), y how much darker the
+    /// fog is under the clouds' shade now (`storm_dim` times the shade), zw unused.
+    sky: Vec4,
 }
 
 /// The look's numbers the passes read.
@@ -484,6 +501,7 @@ fn extract_water_eye(
     plan: Extract<Res<Plan>>,
     fog_on: Extract<Res<GroundFogOn>>,
     fog_now: Extract<Res<crate::ground_fog::FogNow>>,
+    weather: Extract<Res<crate::ground_fog::EyeWeather>>,
     mist: Extract<Option<Res<MistImage>>>,
     ambient: Extract<Res<GlobalAmbientLight>>,
     sun: Extract<Query<(&DirectionalLight, &GlobalTransform), With<crate::world::Sun>>>,
@@ -500,8 +518,8 @@ fn extract_water_eye(
         let t = time.elapsed_secs();
         let a = LinearRgba::from(ambient.color);
         let sky = Vec3::new(a.red, a.green, a.blue) * ambient.brightness * exposure;
-        let shade = plan.clouds.sun_at(Vec2::new(at.x, at.z), t);
-        let rain = plan.clouds.rain_at(at, t);
+        // The weather at the eye as followed over a second and a half, never a raw sample (`EyeWeather`).
+        let (shade, rain) = (weather.sun, weather.rain);
         let fog = FogLook {
             // Scaled by the strength now: the clock's morning mist or a mission's preset (survey F1).
             layer: Vec4::new(
@@ -519,7 +537,8 @@ fn extract_water_eye(
             ambient: (sky * cfg.ambient_share).extend(cfg.phase_g),
             sun: (light.sun * shade * cfg.sun_share).extend(cfg.haze_density_per_m),
             sun_dir: light.sun_dir.extend(cfg.haze_scale_height_m),
-            map: Vec4::new(m.origin_m, m.cell_m, m.side as f32, 0.0),
+            map: Vec4::new(m.origin_m, m.cell_m, m.side as f32, cfg.rain_reach_m),
+            sky: Vec4::new(exposure, cfg.storm_dim * (1.0 - shade.clamp(0.0, 1.0)), 0.0, 0.0),
         };
         // Seated: the panes of the interior the eye sits in (the nearest, within a cabin's reach).
         let glass = if eye.cabin_m > 0.0 {
@@ -564,6 +583,10 @@ struct WaterPostUniform {
     fog_sun: Vec4,
     fog_sun_dir: Vec4,
     fog_map: Vec4,
+    fog_sky_x: Vec4,
+    fog_sky_y: Vec4,
+    fog_sky_z: Vec4,
+    fog_sky_lut: Vec4,
     glass: Vec4,
     glass_look: Vec4,
     panes: [Vec4; 3 * MAX_PANE_TRIANGLES],
@@ -595,7 +618,7 @@ struct WaterPostPipeline {
 
 fn post_layout(multisampled: bool) -> BindGroupLayoutDescriptor {
     BindGroupLayoutDescriptor::new(
-        "water post: uniform, scene, depth, sampler, mist map",
+        "water post: uniform, scene, depth, sampler, mist map, sky-view LUT",
         &BindGroupLayoutEntries::sequential(
             ShaderStages::FRAGMENT,
             (
@@ -607,6 +630,7 @@ fn post_layout(multisampled: bool) -> BindGroupLayoutDescriptor {
                     texture_depth_2d()
                 },
                 sampler(SamplerBindingType::Filtering),
+                texture_2d(TextureSampleType::Float { filterable: true }),
                 texture_2d(TextureSampleType::Float { filterable: true }),
             ),
         ),
@@ -676,6 +700,8 @@ struct WaterPostGpu {
     run: Passes,
     /// The mist map's texture.
     mist: AssetId<Image>,
+    /// The scattering sky's sky-view LUT this frame, if the view has the sky.
+    sky_lut: Option<TextureView>,
 }
 
 /// Which passes a frame needs: the fog while the ground fog is on and the eye is not under water
@@ -705,14 +731,22 @@ fn prepare_water_post(
     cache: Res<PipelineCache>,
     pipeline: Res<WaterPostPipeline>,
     mut specialized: ResMut<SpecializedRenderPipelines<WaterPostPipeline>>,
-    mut views: Query<(Entity, &ExtractedView, &Msaa, &WaterPostSettings, Option<&mut WaterPostGpu>)>,
+    mut views: Query<(
+        Entity,
+        &ExtractedView,
+        &Msaa,
+        &WaterPostSettings,
+        Option<&mut WaterPostGpu>,
+        Option<SkyAtmosphere>,
+    )>,
 ) {
-    for (entity, view, msaa, settings, gpu) in &mut views {
+    for (entity, view, msaa, settings, gpu, atmosphere) in &mut views {
         let clip_from_world = view
             .clip_from_world
             .unwrap_or_else(|| view.clip_from_view * view.world_from_view.to_matrix().inverse());
         let eye = settings.eye;
         let look = settings.look;
+        let sky = SkyFrame::of(atmosphere, view.world_from_view.translation());
         let uniform = WaterPostUniform {
             world_from_clip: clip_from_world.inverse(),
             camera: view.world_from_view.translation().extend(settings.seconds),
@@ -728,6 +762,10 @@ fn prepare_water_post(
             fog_sun: settings.fog.sun,
             fog_sun_dir: settings.fog.sun_dir,
             fog_map: settings.fog.map,
+            fog_sky_x: sky.x,
+            fog_sky_y: sky.y,
+            fog_sky_z: sky.z,
+            fog_sky_lut: sky.lut.extend(settings.fog.sky.x).extend(settings.fog.sky.y),
             glass: Vec4::new(
                 settings.glass.origin.x,
                 settings.glass.origin.y,
@@ -761,6 +799,7 @@ fn prepare_water_post(
             gpu.multisampled = multisampled;
             gpu.run = run;
             gpu.mist = settings.mist;
+            gpu.sky_lut = sky.lut_view;
             continue;
         }
         let mut buffer = UniformBuffer::from(uniform);
@@ -773,7 +812,62 @@ fn prepare_water_post(
             multisampled,
             run,
             mist: settings.mist,
+            sky_lut: sky.lut_view,
         });
+    }
+}
+
+/// The scattering sky a view has, if any: its planet, its LUT sizes and its LUTs (Bevy's atmosphere).
+type SkyAtmosphere = (
+    &'static bevy::pbr::resources::GpuAtmosphere,
+    &'static bevy::pbr::GpuAtmosphereSettings,
+    &'static bevy::pbr::resources::AtmosphereTextures,
+);
+
+/// How the fog pass reads the scattering sky's sky-view LUT for a view: the atmosphere's frame
+/// round the eye (Bevy's `prepare_atmosphere_transforms`, axes x, y and z), the eye's distance
+/// from the planet's centre and the planet's radius in their w, and the LUT's size. `z.w` is 1 with
+/// the sky, 0 without (`CB_NO_SKY=1`), when the fog keeps its own colour.
+struct SkyFrame {
+    x: Vec4,
+    y: Vec4,
+    z: Vec4,
+    lut: Vec2,
+    lut_view: Option<TextureView>,
+}
+
+impl SkyFrame {
+    fn of(
+        atmosphere: Option<(
+            &bevy::pbr::resources::GpuAtmosphere,
+            &bevy::pbr::GpuAtmosphereSettings,
+            &bevy::pbr::resources::AtmosphereTextures,
+        )>,
+        eye: Vec3,
+    ) -> Self {
+        let Some((planet, settings, textures)) = atmosphere else {
+            return Self {
+                x: Vec4::X,
+                y: Vec4::Y,
+                z: Vec4::Z,
+                lut: Vec2::ONE,
+                lut_view: None,
+            };
+        };
+        // As Bevy builds it: up is the planet's normal under the eye, back the world's -z made level.
+        let at = planet.world_to_atmosphere.transform_point3(eye);
+        let up = at.try_normalize().unwrap_or(Vec3::Y);
+        let back = (Vec3::NEG_Z - up * up.dot(Vec3::NEG_Z)).try_normalize().unwrap_or(Vec3::NEG_Y);
+        let right = up.cross(back).normalize();
+        // Bevy clamps the eye to the ground before it reads the LUT.
+        let r = at.length().max(planet.inner_radius + 1.0e-3);
+        Self {
+            x: right.extend(r),
+            y: up.extend(planet.inner_radius),
+            z: back.extend(1.0),
+            lut: settings.sky_view_lut_size.as_vec2(),
+            lut_view: Some(textures.sky_view_lut.default_view.clone()),
+        }
     }
 }
 
@@ -841,6 +935,8 @@ fn draw_passes(
     };
     // The mist map, or no mist until it is on the GPU.
     let mist = images.get(gpu.mist).map_or(&no_mist.texture_view, |i| &i.texture_view);
+    // The sky-view LUT, or a stand-in the shader never reads (no sky: `fog_sky_z.w` is 0).
+    let sky_lut = gpu.sky_lut.as_ref().unwrap_or(&no_mist.texture_view);
     let layout = cache.get_bind_group_layout(if gpu.multisampled {
         &pipeline.layout_multisampled
     } else {
@@ -857,7 +953,7 @@ fn draw_passes(
         let bind_group = ctx.render_device().create_bind_group(
             Some(label),
             &layout,
-            &BindGroupEntries::sequential((uniform.clone(), post.source, depth_view, &pipeline.sampler, mist)),
+            &BindGroupEntries::sequential((uniform.clone(), post.source, depth_view, &pipeline.sampler, mist, sky_lut)),
         );
         let mut pass = ctx.command_encoder().begin_render_pass(&RenderPassDescriptor {
             label: Some(label),

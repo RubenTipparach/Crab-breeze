@@ -48,9 +48,35 @@ height. It is added to the same closed form, its own `rho1` and `H1`:
 - `haze_density_per_m` 1/45,000 m at sea level (a level ray loses about 60 % by 40 km), and
   `haze_scale_height_m` 1,500 m: from 1.5 km up, the coast 10 km away is a little blued, the far
   island and the horizon soft, as in the references.
-- The same colour as the fog (the sky's light scattered back, the sun's forward), not tied to the
-  mist map: haze does not pool in valleys.
+- The same colour as the fog (section 2b), not tied to the mist map: haze does not pool in valleys.
 - Cost: one more exponential a pixel in the fog pass.
+
+## 2b. One horizon colour, and no flicker
+
+Owner, 2026-10-26, with a photograph of a reef from the air and one of an aircraft over open sea:
+"the distant ground is grey as well, it should match the fog color the horizon color should be
+uniform, see how the horizon color just blends with the ocean?", "we need to assume distant
+horizons are ocean+fog color". The fog's colour was its own (the ambient light scattered back,
+the sun's forward): a brownish grey that differed from Bevy's scattering sky, so the far sea and
+land met the sky in a band of another colour.
+
+- **The fog is the sky's colour.** With the scattering sky the fog pass reads the sky's own
+  sky-view LUT (Bevy's atmosphere, bound beside the mist map) along each ray, through Bevy's own
+  uv mapping, at half a degree above the horizon for a ray that looks down. Far land and sea fade
+  into exactly the sky behind them; a sky pixel the fog covers takes its own colour, so the haze
+  never tints the sky. Under the clouds' shade at the eye it darkens by `storm_dim` (0.45) at full
+  shade. Without the sky (`CB_NO_SKY=1`) the fog keeps its own colour.
+- **The weather at the eye is followed, never sampled raw.** The rain, the cloud and the clouds'
+  shade at the eye set the fog over the whole view, and as a fast mech crossed the edge of a puff,
+  a shaft or a cloud's shadow the whole sky and the ground's fog pulsed (owner, 2026-10-26: "the
+  whole sky ios flikering", "also ground color fog flickerewd as well"). One `EyeWeather` follows
+  them over `eye_weather_s` (1.5 s), and the fog pass, the haze and the camera's cloud fog read it.
+  The targeting, which is simulation, still samples the rain itself.
+- **Rain hazes a line only as far as the rain reaches.** The rain's extinction was taken over a
+  sky ray's whole 40 km, an optical depth of 26.7 times the rain at the eye, so a trace of rain
+  greyed the whole sky. It now runs to `rain_reach_m` (1,500 m), about a shaft's breadth
+  (`cb_core::world::mist::rain_depth`, the one copy; the fog pass writes it the same way).
+- Cost: one LUT read a fog pixel.
 
 ## 3. The mist map
 
