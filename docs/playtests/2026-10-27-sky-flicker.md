@@ -146,3 +146,37 @@ It was taken for a cloud flicker at first and chased:
 
 So nothing in the sky, the clouds or the fog flickers on the Mac in either build, at any speed tried, low or high, in
 rain or in cloud.
+
+
+## Found and fixed: the fog ran before the sky on some frames (2026-10-27, later)
+
+The owner found the flicker in this report's own NEW take ("confirmed it still happens, you shouldve sampled a point
+where it was blue", "sample ALL OF THEM"): at 6:06.70 one game frame of the whole sky turned darker and bluer. The
+earlier analysis had only counted frame pairs with the view held still, which dropped exactly that frame.
+
+**Every frame, four fixed patches** (`output/flicker/pops.py`: a patch that jumps 5 or more of 255 and returns within
+3 frames). In the NEW take: 6:06.70, the sky above the city from (162, 173, 178) to (144, 162, 174) for one game
+frame, and about 45 more like it in flight, every few seconds. The OLD take, 6:06 to 6:08: largest change 1.3.
+
+**Knobs, one release build (3957efd), the same storm-pass flight, every frame scanned** (pops in flight):
+
+| Take | Whole-sky one-frame pops |
+| --- | --- |
+| Everything on | 25 |
+| Clouds off (`CB_NO_CLOUDS=1`) | 65 |
+| Clouds and ground fog off (`CB_NO_GROUND_FOG=1`) | 0 |
+| Clouds off, fog on, sky off (`CB_NO_SKY=1`, the fog in its own colour) | 0 |
+| Clouds off, every fog colour input logged each frame (`CB_FOG_TRACE=1`) | 50; no input changed on any frame |
+| Clouds off, fog forced after the transparent pass (a one-off test) | 0 |
+
+**Cause.** Bevy's `render_sky` runs after the opaque pass and before the transparent one; the ground fog
+(`water_fog`) after the transmissive pass and before the transparent one. Nothing ordered the two, so on some frames
+the fog ran before the sky had been drawn and that frame's sky came out darker and bluer.
+
+**Fix.** `water_render::FogAfterSky`, a schedule build pass on `Core3d`, adds the one edge `render_sky` before
+`water_fog` (Bevy keeps `render_sky` private, so it is found by name; `bevy_utils/debug` keeps system names). The
+game logs `ground fog: ordered after Bevy's sky pass` at start, or a warning if it could not order them.
+
+**After, same flight, every frame:** everything on, 0 whole-sky pops (17,858 frames; the 3 hits left are a window
+frame crossing one patch as the head turns); fog only, 0. The rerecorded flight is 4 min 41 s, not 7 min 33 s (the
+scripted jet legs now rest the jets), so 6:06 has no counterpart; the whole flight was scanned instead.

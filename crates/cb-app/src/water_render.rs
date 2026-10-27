@@ -270,7 +270,10 @@ impl Plugin for WaterRenderPlugin {
                         .in_set(WaterPasses)
                         .before(tonemapping),
                 ),
-            );
+            )
+            .edit_schedule(Core3d, |schedule| {
+                schedule.add_build_pass(FogAfterSky);
+            });
     }
 }
 
@@ -791,6 +794,31 @@ fn prepare_water_post(
         let eye = settings.eye;
         let look = settings.look;
         let sky = SkyFrame::of(atmosphere, view.world_from_view.translation());
+        // `CB_FOG_TRACE=1`: every frame, every input to the fog's colour, for the one-frame flicker
+        // (docs/playtests/2026-10-27-sky-flicker.md).
+        if crate::cli::switched_off("CB_FOG_TRACE") {
+            let at = view.world_from_view.translation();
+            info!(
+                "FOG_TRACE view {entity:?} eye ({:.1}, {:.1}, {:.1}) exposure {:.5} storm {:.4} r {:.3} inner {:.3} up ({:.5}, {:.5}, {:.5}) back ({:.5}, {:.5}, {:.5}) lut {}x{} view {:?} fog_on {}",
+                at.x,
+                at.y,
+                at.z,
+                settings.fog.sky.x,
+                settings.fog.sky.y,
+                sky.x.w,
+                sky.y.w,
+                sky.y.x,
+                sky.y.y,
+                sky.y.z,
+                sky.z.x,
+                sky.z.y,
+                sky.z.z,
+                sky.lut.x,
+                sky.lut.y,
+                sky.lut_view.as_ref().map(|v| v.id()),
+                settings.fog.layer.w
+            );
+        }
         let uniform = WaterPostUniform {
             world_from_clip: clip_from_world.inverse(),
             camera: view.world_from_view.translation().extend(settings.seconds),
@@ -933,8 +961,59 @@ fn water_post(
     draw_passes(target, depth, gpu, &passes, &pipeline, &cache, &images, &no_mist, ctx);
 }
 
-/// Runs the ground fog pass for the current view, after the opaque and transmissive passes and
-/// before the transparent one (`fog` in `water_post.wesl`).
+/// Orders the ground fog pass after Bevy's sky pass. Bevy runs `render_sky` after the opaque pass and before the
+/// transparent one, and the fog after the transmissive pass and before the transparent one, with nothing between the
+/// two: the scheduler could run the fog first on any frame, and that frame's fog came out darker and bluer over the
+/// whole sky (owner, 2026-10-27: the sky flickering for one frame "when flying from one location to another"; measured
+/// in docs/playtests/2026-10-27-sky-flicker.md: 50 such frames in 4.4 min with only the fog on, none with the fog
+/// forced after the sky). `render_sky` is private to Bevy, so the edge is added by name while the schedule builds.
+#[derive(Debug)]
+struct FogAfterSky;
+
+impl bevy::ecs::schedule::ScheduleBuildPass for FogAfterSky {
+    type EdgeOptions = ();
+
+    fn add_dependency(&mut self, _from: bevy::ecs::schedule::NodeId, _to: bevy::ecs::schedule::NodeId, _options: Option<&()>) {}
+
+    fn collapse_set(
+        &mut self,
+        _set: bevy::ecs::schedule::SystemSetKey,
+        _systems: &indexmap::IndexSet<bevy::ecs::schedule::SystemKey, bevy::platform::hash::FixedHasher>,
+        _dependency_flattening: &bevy::ecs::schedule::graph::DiGraph<bevy::ecs::schedule::NodeId>,
+    ) -> impl Iterator<Item = (bevy::ecs::schedule::NodeId, bevy::ecs::schedule::NodeId)> {
+        std::iter::empty()
+    }
+
+    fn build(
+        &mut self,
+        _world: &mut World,
+        graph: &mut bevy::ecs::schedule::ScheduleGraph,
+        mut dependencies: bevy::ecs::schedule::FlattenedDependencies<'_>,
+    ) -> Result<(), bevy::ecs::schedule::ScheduleBuildError> {
+        let find = |suffix: &str| {
+            graph
+                .systems
+                .iter()
+                .find(|(_, system, _)| system.name().to_string().ends_with(suffix))
+                .map(|(key, ..)| key)
+        };
+        match (find("::render_sky"), find("::water_fog")) {
+            (Some(sky), Some(fog)) => {
+                dependencies.add_edge(sky, fog);
+                info!("ground fog: ordered after Bevy's sky pass");
+            }
+            (sky, fog) => warn!(
+                "ground fog: not ordered after the sky pass (sky pass found: {}, fog pass found: {}); the sky can flicker",
+                sky.is_some(),
+                fog.is_some()
+            ),
+        }
+        Ok(())
+    }
+}
+
+/// Runs the ground fog pass for the current view, after the opaque and transmissive passes and Bevy's sky
+/// (`FogAfterSky`), and before the transparent one (`fog` in `water_post.wesl`).
 fn water_fog(
     view: ViewQuery<(&ViewTarget, &ViewDepthStencilTexture, &WaterPostGpu)>,
     pipeline: Res<WaterPostPipeline>,
