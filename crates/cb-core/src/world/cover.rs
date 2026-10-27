@@ -97,7 +97,7 @@ impl WorldPlan {
                 .bridges
                 .iter()
                 .any(|b| b.centre.distance(p) < b.length_m * clear.bridge_share);
-        if road || self.collision.overlaps(p, clear.building_m) {
+        if road || self.collision.overlaps(p, clear.building_m) || self.small.overlaps(p, clear.building_m) {
             Cover::Bare
         } else {
             cover

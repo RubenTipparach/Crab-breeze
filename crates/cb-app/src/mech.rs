@@ -1611,6 +1611,23 @@ pub fn step_mech(
                 }
             }
         }
+        // A house is about a third of the mech's height: the mech wades through one, breaking what its legs and
+        // body meet (small-buildings design 7.6).
+        if !sim.curr.airborne() {
+            let r = cfg.locomotion.body_radius_m;
+            let body = sim.curr.pos + Vec3::Y * r;
+            let xz = Vec2::new(body.x, body.z);
+            for lot in plan.small.candidates(xz, r) {
+                let b = live.structures.houses.break_sphere(&plan.small, lot, body, r);
+                if !b.pieces.is_empty() {
+                    if b.pieces.len() > 3 {
+                        fx.write(Fx::new("wall_smash", body));
+                    }
+                    live.dirty_houses.push(lot);
+                    live.new_chunks.extend(b.chunks);
+                }
+            }
+        }
     }
     events.0.clear();
 }

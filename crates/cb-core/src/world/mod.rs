@@ -28,6 +28,7 @@ pub mod mist;
 pub mod platform;
 pub mod roads;
 pub mod rocks;
+pub mod small_buildings;
 pub mod structure;
 pub mod sun_shade;
 pub mod terrain;
@@ -112,6 +113,39 @@ impl Scene<'_> {
         i.buildings.get(&b).map(|w| (w, &i.cfg))
     }
 
+    /// Pushes a pilot on foot out of the houses and small businesses whose colliders are built (in the mech
+    /// there are none: the mech breaks what it walks into).
+    fn push_out_houses(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
+        let Some(i) = self.interiors else { return p };
+        if i.houses.is_empty() {
+            return p;
+        }
+        let mut p = p;
+        for l in self.plan.small.candidates(p, radius_m) {
+            if let Some((w, _)) = i.houses.get(&l) {
+                p = small_buildings::walk::push_out(w, &self.plan.small.lots[l as usize], p, radius_m, feet_y, &i.cfg);
+            }
+        }
+        p
+    }
+
+    /// The highest top of a built house under `p` within a step of `feet_y`.
+    fn house_support(&self, p: Vec2, feet_y: f32) -> Option<f32> {
+        let i = self.interiors?;
+        if i.houses.is_empty() {
+            return None;
+        }
+        self.plan
+            .small
+            .candidates(p, 0.0)
+            .into_iter()
+            .filter_map(|l| {
+                let (w, _) = i.houses.get(&l)?;
+                small_buildings::walk::support(w, &self.plan.small.lots[l as usize], p, feet_y, &i.cfg)
+            })
+            .reduce(f32::max)
+    }
+
     /// Pushes a body at height `[feet_y, feet_y + 12 m]` out of standing building cells.
     fn push_out_buildings(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
         let Some(st) = self.structures else {
@@ -180,11 +214,16 @@ impl Ground for Scene<'_> {
                 })
                 .reduce(f32::max),
         };
+        let roof = match (roof, self.house_support(p, feet_y)) {
+            (Some(a), Some(b)) => Some(a.max(b)),
+            (a, b) => a.or(b),
+        };
         let under = roof.map_or(ground, |r| r.max(ground));
         platform::top_under(self.platforms, x, z, feet_y).map_or(under, |t| t.max(under))
     }
     fn push_out_at(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
         let p = self.push_out_buildings(p, radius_m, feet_y);
+        let p = self.push_out_houses(p, radius_m, feet_y);
         let p = rocks::push_out(&self.plan.rocks, p, radius_m, feet_y);
         // trunks stand on the ground: a body far above it (on a deck, a roof) passes over them
         match self.trees {
@@ -378,6 +417,8 @@ pub struct WorldPlan {
     pub road_lift_m: f32,
     /// How far a city block's pavement is drawn over the city's ground, metres (`WorldConfig::kerb_height_m`).
     pub kerb_height_m: f32,
+    /// The houses and small businesses on their lots (openspec change `small-buildings`).
+    pub small: small_buildings::Lots,
 }
 
 impl WorldPlan {
@@ -530,7 +571,36 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         .chain(bases.iter().map(|b| (b.runway.taxiway(&b.rect()), b.ground_m)))
         .collect();
     let keep_out: Vec<layout::Rect> = plateaus.iter().map(|p| p.0).collect();
-    let flats = Flats::new(&plateaus, &highways, cfg);
+    // Houses and small businesses on their lots (openspec change `small-buildings`), placed on the ground
+    // as the cities and roads level it, each lot then levelled by its own pad.
+    let small = {
+        let pre = Flats::new(&plateaus, &highways, cfg);
+        let height = |p: Vec2| pre.apply(p, shape.height(p));
+        let early_biomes = Biomes::new(&cfg.biomes, shape.clone(), sea_level_m, Vec::new());
+        let land_edge = |p: Vec2| shape.past_land_edge_m(p);
+        let water_near = |lo: Vec2, hi: Vec2, c: f32| drainage.water_near(lo, hi, c);
+        let biome = |p: Vec2, g: f32, slope: f32| early_biomes.dominant(p, g, slope);
+        let ground = small_buildings::lots::Ground {
+            height: &height,
+            past_land_edge_m: &land_edge,
+            water_near: &water_near,
+            biome: &biome,
+            cities: &cities,
+            highways: &highways,
+            keep_out: &keep_out,
+            min_ground_m: sea_level_m + cfg.water.city_freeboard_m,
+            shoulder_m: cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m,
+            cell_m: cfg.terrain_cell_m,
+        };
+        let lots = small_buildings::lots::place(&root.fork("small_buildings"), &cfg.small_buildings, &cfg.small_kits, &ground);
+        small_buildings::Lots::new(cfg.small_kits.clone(), lots, cfg.world_size_m)
+    };
+    let flats = Flats::new(&plateaus, &highways, cfg).with_pads(
+        small.pads(),
+        cfg.terrain_cell_m,
+        cfg.small_buildings.pad_blend_m,
+        cfg.world_size_m,
+    );
     let terrain = Heightfield::new(cfg, shape, flats);
     let bounds = water::WaterBounds {
         world_size_m: cfg.world_size_m,
@@ -592,6 +662,7 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         waters.water_at(p, terrain.height_at(p.x, p.y)).is_some()
             || highways.iter().any(|h| h.project(p).0 <= road_clear)
             || cities.iter().any(|c| c.rect().distance(p) < 60.0)
+            || small.overlaps(p, 20.0)
     });
     let clouds = Clouds::new(sky, wind, cfg.weather.shaft_rain);
     WorldPlan {
@@ -614,6 +685,7 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         bases,
         road_lift_m: cfg.road_lift_m,
         kerb_height_m: cfg.kerb_height_m,
+        small,
     }
 }
 

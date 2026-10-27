@@ -1515,16 +1515,17 @@ pub struct Solid {
 /// the entrance cut out, the floors with the stairwell cut out, the roof, every storey's walls,
 /// stair and furniture, and the stoop. One rule for all of them: a box no higher than `step_m` above
 /// the feet is stood on, a taller one that starts below `head_m` is a wall. Built from the same plans
-/// that are drawn. The street door's leaves swing (`door`), so they are not boxes: they are walls
-/// where they stand now, while the bay they hang in stands.
+/// that are drawn. The doors' leaves swing (`door`), so they are not boxes: they are walls where they
+/// stand now, while what they hang in stands. A city building has its street door; a house has a door
+/// for each of its leaves (`small_buildings::walk`), in the house's own frame.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Walkable {
     /// The building.
     pub id: u32,
     /// Every box.
     pub solids: Vec<Solid>,
-    /// The street door, shut when the colliders are built.
-    pub door: super::door::StreetDoor,
+    /// The doors, shut when the colliders are built: a city building's street door first.
+    pub doors: Vec<super::door::StreetDoor>,
     /// Box indices by storey band (the last band is the roof and above).
     buckets: Vec<Vec<u32>>,
     y0: f32,
@@ -1635,8 +1636,16 @@ impl Walkable {
                 }
             }
         }
-        let mut buckets = vec![Vec::new(); ns + 1];
-        let band = |y: f32| (((y - origin.y) / size.y).floor().max(0.0) as usize).min(ns);
+        let door = super::door::StreetDoor::new(site, &shell.entrance, cfg);
+        Self::from_solids(site.id, solids, vec![door], origin.y, size.y, ns)
+    }
+
+    /// Colliders from `solids` and `doors`, bucketed in bands `storey_m` high from `y0` (`storeys`
+    /// of them, then one for the roof and above).
+    pub fn from_solids(id: u32, solids: Vec<Solid>, doors: Vec<super::door::StreetDoor>, y0: f32, storey_m: f32, storeys: usize) -> Self {
+        let storey_m = storey_m.max(0.5);
+        let mut buckets = vec![Vec::new(); storeys + 1];
+        let band = |y: f32| (((y - y0) / storey_m).floor().max(0.0) as usize).min(storeys);
         for (i, s) in solids.iter().enumerate() {
             let (lo, hi) = (band(s.min.y), band(s.max.y - 1e-3));
             for bucket in &mut buckets[lo..=hi.max(lo)] {
@@ -1644,12 +1653,12 @@ impl Walkable {
             }
         }
         Self {
-            id: site.id,
+            id,
             solids,
-            door: super::door::StreetDoor::new(site, &shell.entrance, cfg),
+            doors,
             buckets,
-            y0: origin.y,
-            storey_m: size.y,
+            y0,
+            storey_m,
         }
     }
 
@@ -1678,9 +1687,9 @@ impl Walkable {
         }
     }
 
-    /// True while the street door's bay stands (a door in a blown-out bay is gone with it).
-    pub fn door_stands(&self, frame: Option<&super::structure::Frame>) -> bool {
-        Self::holds(self.door.hold, false, frame)
+    /// True while door `i`'s bay stands (a door in a blown-out bay is gone with it).
+    pub fn door_stands(&self, i: usize, frame: Option<&super::structure::Frame>) -> bool {
+        self.doors.get(i).is_some_and(|d| Self::holds(d.hold, false, frame))
     }
 
     /// A body of `radius_m` at `p` (x, z) with its feet at `feet_y`, moved out of every standing box
@@ -1707,8 +1716,10 @@ impl Walkable {
                     }
                 }
             }
-            if self.door_stands(frame) {
-                p = self.door.push_out(p, radius_m, feet_y, cfg);
+            for (i, d) in self.doors.iter().enumerate() {
+                if self.door_stands(i, frame) {
+                    p = d.push_out(p, radius_m, feet_y, cfg);
+                }
             }
         }
         p
@@ -1744,6 +1755,9 @@ pub struct Interiors {
     pub cfg: InteriorConfig,
     /// Built colliders.
     pub buildings: std::collections::BTreeMap<u32, Walkable>,
+    /// The houses' and small businesses' colliders, in each one's own frame, by lot id, with the
+    /// damage version they were built at (`small_buildings::walk`).
+    pub houses: std::collections::BTreeMap<u32, (Walkable, u32)>,
 }
 
 impl Interiors {
@@ -1773,7 +1787,7 @@ impl Interiors {
         let cfg = &self.cfg;
         self.buildings
             .iter_mut()
-            .filter_map(|(&b, w)| w.door.step(pilot, cfg, dt).map(|e| (b, e)))
+            .flat_map(|(&b, w)| w.doors.iter_mut().filter_map(move |d| d.step(pilot, cfg, dt).map(|e| (b, e))))
             .collect()
     }
 
@@ -1782,11 +1796,52 @@ impl Interiors {
     pub fn prune(&mut self, on_foot: bool, here: Vec2, plan: &super::WorldPlan) {
         if !on_foot || !here.is_finite() {
             self.buildings.clear();
+            self.houses.clear();
             return;
         }
         let keep = self.cfg.collision_radius_m + self.cfg.collision_margin_m;
         self.buildings
             .retain(|&b, _| plan.buildings.get(b as usize).is_some_and(|x| x.footprint.distance(here) <= keep));
+        self.houses
+            .retain(|&l, _| plan.small.lots.get(l as usize).is_some_and(|x| x.rect.distance(here) <= keep));
+    }
+
+    /// The houses that should have colliders now, as `wanted` (lot ids, nearest first, ties by id).
+    pub fn wanted_houses(&self, on_foot: bool, here: Vec2, plan: &super::WorldPlan) -> Vec<(u32, f32)> {
+        if !on_foot || !here.is_finite() {
+            return Vec::new();
+        }
+        let r = self.cfg.collision_radius_m;
+        let mut out: Vec<(u32, f32)> = plan
+            .small
+            .candidates(here, r)
+            .into_iter()
+            .map(|l| (l, plan.small.lots[l as usize].rect.distance(here)))
+            .collect();
+        out.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)));
+        out
+    }
+
+    /// Steps every built house's doors with the pilot's body, in each house's frame; returns what was
+    /// heard, by lot, in id order.
+    pub fn step_house_doors(
+        &mut self,
+        pilot: Option<super::door::Body>,
+        plan: &super::WorldPlan,
+        dt: f32,
+    ) -> Vec<(u32, super::door::DoorEvent)> {
+        let cfg = &self.cfg;
+        let mut heard = Vec::new();
+        for (&l, (w, _)) in self.houses.iter_mut() {
+            let Some(lot) = plan.small.lots.get(l as usize) else { continue };
+            let body = pilot.map(|b| super::small_buildings::walk::body_in(lot, &b));
+            for d in &mut w.doors {
+                if let Some(e) = d.step(body, cfg, dt) {
+                    heard.push((l, e));
+                }
+            }
+        }
+        heard
     }
 }
 
@@ -2040,7 +2095,7 @@ mod tests {
                         assert!(d > body, "building {b}: {s:?} is {d} m from the way in {seg:?}");
                     }
                     // The door's leaves, standing open either way.
-                    let door = &w.door;
+                    let door = &w.doors[0];
                     for ang in [ic.door_open_deg, -door.out_max_deg] {
                         for i in 0..door.leaves.len() {
                             let (a, z) = door.leaf_at(i, ang);
@@ -2180,7 +2235,11 @@ mod tests {
                 let site = site_of(&st, b);
                 let sh = shell(&site, &cfg.interiors, &seed());
                 let mut inside = interiors_for(&st, b);
-                assert_eq!(inside.buildings[&(b as u32)].door.phase, DoorPhase::Closed, "the door starts shut");
+                assert_eq!(
+                    inside.buildings[&(b as u32)].doors[0].phase,
+                    DoorPhase::Closed,
+                    "the door starts shut"
+                );
                 let start = sh.entrance.route[0];
                 let y = scene(&st, &dug, &inside).support_at(start.x, start.y, site.origin.y + 1.0);
                 let mut p = PilotState::standing(Vec3::new(start.x, y, start.y), 0.0);
@@ -2300,7 +2359,7 @@ mod tests {
                 // In off the street: it swings in, never out, and never closes while they are in it.
                 let (mut most, mut least) = (0.0f32, 0.0f32);
                 let mut watch = |i: &Interiors, p: &PilotState| {
-                    let d = &i.buildings[&id].door;
+                    let d = &i.buildings[&id].doors[0];
                     most = most.max(d.angle_deg);
                     least = least.min(d.angle_deg);
                     if d.in_zone(&body(p), ic) && d.at_level(p.feet.y, ic) {
@@ -2317,7 +2376,7 @@ mod tests {
                 walk(&st, &dug, &mut inside, &mut p, &e.route[3..]).unwrap_or_else(|err| panic!("building {b} on: {err}"));
                 stand(&mut inside, &p, ic.door_close_delay_s + 90.0 / ic.door_close_deg_s + 0.5);
                 assert_eq!(
-                    inside.buildings[&id].door.phase,
+                    inside.buildings[&id].doors[0].phase,
                     DoorPhase::Closed,
                     "building {b}: shut behind them"
                 );
@@ -2325,13 +2384,13 @@ mod tests {
                 let back: Vec<Vec2> = e.route.iter().rev().copied().collect();
                 let (mut most, mut least) = (0.0f32, 0.0f32);
                 walk_watching(&st, &dug, &mut inside, &mut p, &back[1..], |i, _| {
-                    let d = &i.buildings[&id].door;
+                    let d = &i.buildings[&id].doors[0];
                     most = most.max(d.angle_deg);
                     least = least.min(d.angle_deg);
                 })
                 .unwrap_or_else(|err| panic!("building {b} out: {err}"));
                 assert!(
-                    least <= -inside.buildings[&id].door.out_max_deg + 1e-3 && most == 0.0,
+                    least <= -inside.buildings[&id].doors[0].out_max_deg + 1e-3 && most == 0.0,
                     "building {b}: swung out ({most}, {least})"
                 );
                 let feet = Vec2::new(p.feet.x, p.feet.z);
@@ -2354,7 +2413,7 @@ mod tests {
             let mut p = PilotState::standing(Vec3::new(start.x, y, start.y), 0.0);
             walk(&st, &dug, &mut inside, &mut p, &e.route[1..2]).unwrap_or_else(|err| panic!("building {b}: {err}"));
             stand(&mut inside, &p, 30.0);
-            let d = &inside.buildings[&(b as u32)].door;
+            let d = &inside.buildings[&(b as u32)].doors[0];
             assert_eq!(d.phase, DoorPhase::Open, "building {b}: open while they stand in the doorway");
             let fine = scene(&st, &dug, &inside);
             let here = Vec2::new(p.feet.x, p.feet.z);

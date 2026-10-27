@@ -17,9 +17,10 @@ board and batten, stucco, adobe, block, corrugated steel, stainless).
 
 ## What changes
 
-Seventeen building types of the alternate-history 1980s (survey G1), each a recipe over one kit
-of parts:
-- **Houses (9):** ranch house, colonial, craftsman bungalow, split-level, A-frame cabin, Pueblo
+Sixteen building types of the alternate-history 1980s (survey G1), each a recipe over one kit
+of parts (the A-frame cabin is dropped; owner, 2026-10-26: "the one house I dont like is the one with the single
+big triangle roof, all others look good"):
+- **Houses (8):** ranch house, colonial, craftsman bungalow, split-level, Pueblo
   Revival house, stilt house, beach cottage, single-wide trailer.
 - **Small businesses (8):** streamline diner, gas station, corner store, auto repair, motor court
   motel, strip mall (laundromat, video rental, pizzeria, salon), burger drive-in, Quonset
@@ -40,7 +41,7 @@ of parts:
 - adobe and trailers in the desert;
 - stilt houses in jungle and swamp;
 - beach cottages and motels on the coast;
-- A-frames in the montane forest;
+- bungalows and split-levels in the montane forest, in place of the A-frame (provisional, survey S4);
 - diners, gas stations, drive-ins and Quonsets on the highways between cities.
 
 **Destruction** uses `building-destruction` (and `structural-destruction` if it lands). A house's
@@ -48,7 +49,7 @@ walls and roof break into the same debris as the city's.
 
 ## Presented by
 
-The mockup `docs/mockups/small_buildings.html`: the seventeen on one street, walkable at the
+The mockup `docs/mockups/small_buildings.html`: the sixteen on one street, walkable at the
 pilot's eye and the mech's, by day, dusk and night, with a cutaway to the floor plans.
 
 ## Out of scope
