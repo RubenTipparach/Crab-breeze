@@ -4,6 +4,7 @@
 //! `openspec/changes/procgen-world/design.md`.
 
 use crate::data::{Validate, finite, positive, positive_range, within};
+use glam::Vec2;
 use serde::Deserialize;
 
 /// Rivers, lakes and waterfalls (openspec changes `terrain-water`, `hydrology`). Where water goes is
@@ -620,6 +621,154 @@ impl Validate for ViewConfig {
     }
 }
 
+/// How the roads and pavements wear their CC0 surface sets (openspec change `road-surfaces`).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct RoadSurfaceConfig {
+    /// Metres per tile of the clean asphalt on city streets (Asphalt023L's photo is 2.5 m across).
+    pub street_tile_m: f32,
+    /// Metres per tile of the worn asphalt on arterials, highways and runways (Asphalt022's is 1.85 m).
+    pub worn_tile_m: f32,
+    /// Metres per tile of the pavement's slabs (four slabs a tile).
+    pub paving_tile_m: f32,
+    /// Linear tone (r, g, b) of a city street's clean asphalt: a warm grey-black.
+    pub street_tone: [f32; 3],
+    /// Linear tone of the worn asphalt on arterials and highways: lighter, as worn asphalt is.
+    pub worn_tone: [f32; 3],
+    /// The road meshes are cut into cells this long, each corner carrying the tint below.
+    pub tint_cell_m: f32,
+    /// Wavelength of the tint's noise.
+    pub tint_scale_m: f32,
+    /// The tint's reach: a road's tone times 1 plus or minus at most this.
+    pub tint_amount: f32,
+    /// Width of a traffic lane, laid out from the centre line; what is left at the kerb has no lane.
+    pub lane_m: f32,
+    /// A tyre track's centre from its lane's centre (half a car's track).
+    pub track_offset_m: f32,
+    /// Half the width of a tyre track's darkening, fading to nothing at its edges.
+    pub track_half_m: f32,
+    /// How much darker a tyre track's middle is, as a share of the tone.
+    pub track_dark: f32,
+    /// Share of lane cells (one lane by one tint cell) that are a patch repair in the other set.
+    pub patch_chance: f32,
+    /// A patch's tone as a share of the road's.
+    pub patch_tone: f32,
+}
+
+impl Default for RoadSurfaceConfig {
+    fn default() -> Self {
+        Self {
+            street_tile_m: 2.5,
+            worn_tile_m: 1.85,
+            paving_tile_m: 2.4,
+            street_tone: [0.2, 0.19, 0.175],
+            worn_tone: [0.25, 0.24, 0.22],
+            tint_cell_m: 8.0,
+            tint_scale_m: 45.0,
+            tint_amount: 0.22,
+            lane_m: 3.5,
+            track_offset_m: 0.9,
+            track_half_m: 0.5,
+            track_dark: 0.22,
+            patch_chance: 0.06,
+            patch_tone: 0.75,
+        }
+    }
+}
+
+impl RoadSurfaceConfig {
+    /// The factor a road's tone is multiplied by at `p` (x, z): smooth over tens of metres, within
+    /// `tint_amount` of 1, the same at the same point every time.
+    pub fn tint_at(&self, p: Vec2) -> f32 {
+        let s = f64::from(self.tint_scale_m);
+        let n = super::island::perlin(f64::from(p.x) / s, f64::from(p.y) / s, 0x0a5f) as f32;
+        1.0 + self.tint_amount * n.clamp(-1.0, 1.0)
+    }
+
+    /// The lane boundaries across a road `width_m` wide, from its centre line, edge to edge in order: its
+    /// edges, the centre line and every `lane_m` out from it while a whole lane fits.
+    pub fn lane_bounds(&self, width_m: f32) -> Vec<f32> {
+        let half = width_m * 0.5;
+        let lanes = (half / self.lane_m).floor() as i32;
+        let mut b: Vec<f32> = (-lanes..=lanes).map(|k| k as f32 * self.lane_m).collect();
+        if half > lanes as f32 * self.lane_m + 1e-3 {
+            b.insert(0, -half);
+            b.push(half);
+        }
+        b
+    }
+
+    /// The tyre tracks' centres across a road `width_m` wide, from its centre line: two in every lane,
+    /// `track_offset_m` either side of its middle.
+    pub fn track_centres(&self, width_m: f32) -> Vec<f32> {
+        let lanes = (width_m * 0.5 / self.lane_m).floor() as i32;
+        let mut c = Vec::new();
+        for side in [-1.0f32, 1.0] {
+            for lane in 0..lanes {
+                let mid = side * (lane as f32 + 0.5) * self.lane_m;
+                c.push(mid - self.track_offset_m);
+                c.push(mid + self.track_offset_m);
+            }
+        }
+        c.sort_by(f32::total_cmp);
+        c
+    }
+
+    /// The lane (signed: negative left of the centre line, from 1) a point `offset_m` across a road
+    /// `width_m` wide lies in, or 0 outside every lane (the kerbside strip).
+    pub fn lane_at(&self, offset_m: f32, width_m: f32) -> i32 {
+        let lanes = (width_m * 0.5 / self.lane_m).floor() as i32;
+        let k = (offset_m.abs() / self.lane_m).floor() as i32 + 1;
+        if k > lanes { 0 } else { k * offset_m.signum() as i32 }
+    }
+
+    /// Whether the lane cell of lane `lane` whose along-road cell is centred at `p` is a patch repair:
+    /// a stable hash of the place, true for about `patch_chance` of lane cells. Never outside a lane.
+    pub fn patched(&self, p: Vec2, lane: i32) -> bool {
+        if lane == 0 {
+            return false;
+        }
+        let (x, z) = ((p.x / self.tint_cell_m).round() as i32, (p.y / self.tint_cell_m).round() as i32);
+        let mut h = (x as u32)
+            .wrapping_mul(374_761_393)
+            .wrapping_add((z as u32).wrapping_mul(668_265_263))
+            .wrapping_add((lane as u32).wrapping_mul(2_246_822_519));
+        h = (h ^ (h >> 13)).wrapping_mul(1_274_126_177);
+        h ^= h >> 16;
+        (h as f32 / u32::MAX as f32) < self.patch_chance
+    }
+}
+
+impl Validate for RoadSurfaceConfig {
+    fn validate(&self) -> Result<(), String> {
+        positive("road_surfaces.street_tile_m", self.street_tile_m)?;
+        positive("road_surfaces.worn_tile_m", self.worn_tile_m)?;
+        positive("road_surfaces.paving_tile_m", self.paving_tile_m)?;
+        for (field, tone) in [
+            ("road_surfaces.street_tone", self.street_tone),
+            ("road_surfaces.worn_tone", self.worn_tone),
+        ] {
+            for c in tone {
+                within(field, c, 0.0, 1.0)?;
+            }
+        }
+        within("road_surfaces.tint_cell_m", self.tint_cell_m, 1.0, 100.0)?;
+        positive("road_surfaces.tint_scale_m", self.tint_scale_m)?;
+        within("road_surfaces.tint_amount", self.tint_amount, 0.0, 0.5)?;
+        positive("road_surfaces.lane_m", self.lane_m)?;
+        positive("road_surfaces.track_half_m", self.track_half_m)?;
+        within(
+            "road_surfaces.track_offset_m",
+            self.track_offset_m,
+            0.0,
+            self.lane_m * 0.5 - self.track_half_m,
+        )?;
+        within("road_surfaces.track_dark", self.track_dark, 0.0, 0.8)?;
+        within("road_surfaces.patch_chance", self.patch_chance, 0.0, 1.0)?;
+        within("road_surfaces.patch_tone", self.patch_tone, 0.2, 2.0)
+    }
+}
+
 /// Everything the world generator is tuned by.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
@@ -690,6 +839,8 @@ pub struct WorldConfig {
     pub road_lift_m: f32,
     /// Height of a block's pavement (the kerb) above the ground.
     pub kerb_height_m: f32,
+    /// The roads' and pavements' surface sets (road-surfaces).
+    pub road_surfaces: RoadSurfaceConfig,
     /// How far behind the mech the pilot starts.
     pub start_pilot_distance_m: f32,
     /// The island and the sea.
@@ -822,6 +973,7 @@ impl Default for WorldConfig {
             sun_shade: super::sun_shade::SunShadeConfig::default(),
             road_lift_m: 0.15,
             kerb_height_m: 0.2,
+            road_surfaces: RoadSurfaceConfig::default(),
             start_pilot_distance_m: 25.0,
             island: IslandConfig::default(),
             biomes: BiomeConfig::default(),
@@ -903,6 +1055,7 @@ impl Validate for WorldConfig {
         self.bases.validate()?;
         self.sun_shade.validate()?;
         positive("kerb_height_m", self.kerb_height_m)?;
+        self.road_surfaces.validate()?;
         if self.kerb_height_m <= self.road_lift_m {
             return Err("`kerb_height_m` must be above `road_lift_m`".into());
         }
@@ -985,5 +1138,81 @@ mod debris_tests {
         };
         assert!(off.validate().is_ok(), "0 is allowed");
         assert!(!off.is_physical(0.0) && !off.is_physical(5.0), "0 switches debris physics off");
+    }
+}
+
+#[cfg(test)]
+mod road_surface_tests {
+    use super::{RoadSurfaceConfig, Validate};
+    use glam::Vec2;
+
+    #[test]
+    fn a_roads_tint_stays_within_its_reach_and_changes_only_over_metres() {
+        let cfg = RoadSurfaceConfig::default();
+        let mut lo = f32::MAX;
+        let mut hi = f32::MIN;
+        for i in 0..400 {
+            let p = Vec2::new(i as f32 * 37.3 - 5000.0, i as f32 * -11.9 + 300.0);
+            let t = cfg.tint_at(p);
+            assert!((t - 1.0).abs() <= cfg.tint_amount + 1e-6, "{t} at {p}");
+            assert!((t - cfg.tint_at(p + Vec2::new(0.1, 0.0))).abs() < 0.002, "smooth at {p}");
+            lo = lo.min(t);
+            hi = hi.max(t);
+        }
+        assert!(hi - lo > cfg.tint_amount, "it varies: {lo}..{hi}");
+        assert_eq!(cfg.tint_at(Vec2::new(12.0, 34.0)), cfg.tint_at(Vec2::new(12.0, 34.0)));
+    }
+
+    #[test]
+    fn a_street_is_cut_into_lanes_with_two_tyre_tracks_in_each() {
+        let cfg = RoadSurfaceConfig::default();
+        let b = cfg.lane_bounds(24.0);
+        assert_eq!(b.first(), Some(&-12.0));
+        assert_eq!(b.last(), Some(&12.0));
+        assert_eq!(
+            b.len(),
+            9,
+            "three 3.5 m lanes a side, the centre line and the kerbside strips: {b:?}"
+        );
+        assert!(b.windows(2).all(|w| w[0] < w[1]));
+        let t = cfg.track_centres(24.0);
+        assert_eq!(t.len(), 12);
+        assert!(t.iter().any(|&o| (o - (1.75 + 0.9)).abs() < 1e-4));
+        assert_eq!(cfg.lane_at(1.0, 24.0), 1);
+        assert_eq!(cfg.lane_at(-4.0, 24.0), -2);
+        assert_eq!(cfg.lane_at(11.0, 24.0), 0, "the kerbside strip is no lane");
+        assert_eq!(cfg.lane_bounds(7.0), vec![-3.5, 0.0, 3.5], "a road of whole lanes has no strip");
+    }
+
+    #[test]
+    fn patches_are_stable_rare_and_only_in_lanes() {
+        let cfg = RoadSurfaceConfig::default();
+        let mut n = 0;
+        for i in 0..2000 {
+            let p = glam::Vec2::new(i as f32 * 8.0, 40.0);
+            assert_eq!(cfg.patched(p, 1), cfg.patched(p, 1));
+            assert!(!cfg.patched(p, 0));
+            n += usize::from(cfg.patched(p, 1));
+        }
+        let share = n as f32 / 2000.0;
+        assert!((share - cfg.patch_chance).abs() < 0.03, "{share}");
+    }
+
+    #[test]
+    fn road_surface_settings_are_validated() {
+        assert!(RoadSurfaceConfig::default().validate().is_ok());
+        let bad = RoadSurfaceConfig {
+            street_tile_m: 0.0,
+            ..RoadSurfaceConfig::default()
+        };
+        assert!(bad.validate().is_err());
+        let wild = RoadSurfaceConfig {
+            tint_amount: 0.9,
+            ..RoadSurfaceConfig::default()
+        };
+        assert!(
+            wild.validate().is_err(),
+            "a tint that could turn a road black or white stops startup"
+        );
     }
 }

@@ -266,12 +266,10 @@ fn hold_poster_hatch(script: Res<Script>, data: Res<Data>, mut mechs: Query<&mut
 
 /// A still of the building variant's offscreen image.
 fn shoot_image(commands: &mut Commands, script: &Script, name: &str) {
-    let Some(img) = script.offscreen.clone() else {
-        return shoot(commands, &script.dir, name);
-    };
-    let path = script.dir.join(name);
-    info!("capture: {}", path.display());
-    commands.spawn(Screenshot::image(img)).observe(save_to_disk(path));
+    match script.offscreen.clone() {
+        Some(img) => shoot_offscreen(commands, img, &script.dir, name),
+        None => shoot(commands, &script.dir, name),
+    }
 }
 
 pub(crate) fn shoot(commands: &mut Commands, dir: &std::path::Path, name: &str) {
@@ -311,6 +309,13 @@ pub(crate) fn draw_offscreen(commands: &mut Commands, camera: Entity, cockpit: E
     commands.entity(camera).insert(RenderTarget::Image(handle.clone().into()));
     commands.entity(cockpit).insert(RenderTarget::Image(handle.clone().into()));
     handle
+}
+
+/// Saves the offscreen image `img` as `dir/name`.
+pub(crate) fn shoot_offscreen(commands: &mut Commands, img: Handle<Image>, dir: &std::path::Path, name: &str) {
+    let path = dir.join(name);
+    info!("capture: {}", path.display());
+    commands.spawn(Screenshot::image(img)).observe(save_to_disk(path));
 }
 
 #[allow(clippy::too_many_arguments)]

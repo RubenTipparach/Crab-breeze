@@ -87,6 +87,27 @@
     ),
     road_lift_m: 0.15,
     kerb_height_m: 0.2,
+    // The roads' CC0 sets (road-surfaces): each photo at its real scale, so the aggregate reads right
+    // on foot. Asphalt is a warm grey-black, lighter where worn; its tone drifts by up to 22% over
+    // about 45 m, every lane has two darker tyre tracks, and about one lane cell in sixteen is a
+    // patch repair in the other set, so a street is not one colour and no tile repeat lines up from
+    // the cockpit.
+    road_surfaces: (
+        street_tile_m: 2.5,
+        worn_tile_m: 1.85,
+        paving_tile_m: 2.4,
+        street_tone: (0.2, 0.19, 0.175),
+        worn_tone: (0.25, 0.24, 0.22),
+        tint_cell_m: 8.0,
+        tint_scale_m: 45.0,
+        tint_amount: 0.22,
+        lane_m: 3.5,
+        track_offset_m: 0.9,
+        track_half_m: 0.5,
+        track_dark: 0.22,
+        patch_chance: 0.06,
+        patch_tone: 0.75,
+    ),
 
     start_pilot_distance_m: 25.0,
 
