@@ -37,6 +37,9 @@ Car { id: u32, kind: CarKind, lane: u32, s_m: f32 /* along the lane */, speed_m_
 - **Spawn and despawn:**
   - Lanes within 1 km of the eye (1.5 km until the owner, 2026-10-26: "car should be 1000m") are kept filled to their density, on lane positions not in the
     view frustum, or beyond 400 m and behind cover.
+  - A car is placed only on the stretch of its lane that is in reach. It used to be drawn along the whole
+    lane and thrown away when out of reach, with three tries per car wanted; a highway running far past the
+    ring then filled to about half its density (4 cars for 8 inside 1 km), which the 1.5 km ring had hidden.
   - Cars beyond 1.2 km are dropped.
   - Wrecks (Crushed, Burning) stay for 10 minutes or until 2 km away.
 
@@ -97,6 +100,11 @@ What landed, where it differs from the plan above, and what it measured.
   traffic still gives way. Every other junction keeps taking turns by arrival. With the lights came one fix to
   the turn rule for every junction: only the front car of a lane asks for its turn (a car behind it given a
   turn held a path the car in front needed, and the two stood for good; the lights' red made it common).
+  A second fix (2026-10-27, after the 1 km ring): the room on the lane past a junction is shared out in
+  arrival order, and a car held at red keeps its place in that order, so the space it needs is kept for it.
+  Before, a red car asked for nothing, and on seed 9 a street car turning onto a crawling arterial stood
+  174 s: every gap that opened there went to the arterial's own cars on their green, and on the street's
+  green there was never room (`a_car_held_at_red_keeps_its_place_for_the_room_on_the_lane_it_turns_into`).
   The game draws a block-out head (pole, housing, three lenses: `cb-app::traffic_lights`) on the kerb of every
   road into a lit junction, 882 heads on seed 42, shown within 700 m, its lenses lit from the same
   `traffic::light`. Tested: lights only where an arterial meets two other roads, the phases never open
