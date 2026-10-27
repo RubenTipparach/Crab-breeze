@@ -1,0 +1,62 @@
+// On foot in the capital (openspec changes civilians, car-traffic, car-driving, building-interiors, interact; survey
+// W32, W35 to W44): free roam starts on a street of the capital beside the mech. The pilot looks at the people and a
+// lit junction through a light's cycle, greets someone, stands at a car's door beside the mech so the Use list holds
+// two things and turns the wheel through it, gets in, drives, gets out, boards and fires into the street (people run
+// for the street doors), climbs out, and walks in at a street door and up two storeys of the stair. First person
+// throughout. The PLAYTEST_SURVEY lines are the counts the report quotes.
+//
+//   ./target/release/crab-breeze --playtest city-foot
+(
+    name: "city-foot",
+    stuck_s: 15.0,
+    runs: [
+        (
+            play: "free",
+            beats: [
+                Wait(2.0),
+                Survey(200.0),
+                LookAround(4.0),
+                LookAtNearest("person", 4.0),
+                LookAtNearest("car", 4.0),
+                // A lit junction through its cycle: 24 s green, 3 s amber, 2 s all red.
+                LookAtNearest("light", 12.0),
+                Survey(120.0),
+                LookAtNearest("light", 12.0),
+                Survey(120.0),
+                LookAtNearest("light", 12.0),
+                Survey(120.0),
+                LookAtNearest("bench", 4.0),
+                // Greet someone; the answer shows on screen.
+                WalkToPerson(120.0),
+                UseOn("Greet"),
+                Wait(3.0),
+                // Back beside the mech, at a car's door: the Use list holds the car and the mech.
+                WalkToMech(6.0),
+                WalkToCar(22.0),
+                Survey(25.0),
+                Scroll(1),
+                Scroll(1),
+                UseOn("GetIn"),
+                ExpectMode("Driving", 15.0),
+                LookAround(3.0),
+                DriveCar(8.0, 0.5),
+                UseOn("GetOut"),
+                ExpectMode("OnFoot", 10.0),
+                // Board and fire into the street: the people run for the street doors.
+                Board,
+                Wait(2.0),
+                FireFor(4.0),
+                Survey(150.0),
+                LookAtNearest("person", 4.0),
+                Survey(150.0),
+                Disembark,
+                Survey(60.0),
+                // In at a street door and up two storeys (the detailed colliders are built only on foot).
+                LookAtNearest("door", 3.0),
+                WalkIntoBuilding(90.0, 2),
+                Survey(30.0),
+                LookAround(4.0),
+            ],
+        ),
+    ],
+)

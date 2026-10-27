@@ -251,6 +251,7 @@ fn press(
     exit: &mut MessageWriter<AppExit>,
     commands: &mut Commands,
 ) {
+    info!("menu: {what:?} pressed");
     match what {
         MenuButton::Tab(t) => {
             *p.tab = t;

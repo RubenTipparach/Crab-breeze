@@ -80,7 +80,15 @@ pub struct CareerPlugin;
 impl Plugin for CareerPlugin {
     fn build(&self, app: &mut App) {
         app.add_game_systems(Update, begin.run_if(resource_added::<CareerStart>))
-            .add_game_systems(Update, (apply_fit, paint_livery).chain().run_if(resource_exists::<CareerRun>))
+            .add_game_systems(
+                Update,
+                // After the career's mechs are placed: a Continue in a bought mech despawns the startup mech there and
+                // spawns its own, so a refit made the same frame would be written onto the despawned one.
+                (apply_fit, paint_livery)
+                    .chain()
+                    .after(crate::air_drop::place_owned)
+                    .run_if(resource_exists::<CareerRun>),
+            )
             .add_game_systems(
                 FixedUpdate,
                 step_jobs

@@ -81,6 +81,35 @@ def main(paths):
             print("entities moved or spawned in slow frames (hitch_spans builds): frames, mean, most")
             for name, ns in sorted(counted.items(), key=lambda x: -sum(x[1]))[:20]:
                 print(f"  {len(ns):5d}  {sum(ns) / len(ns):8.0f}  {max(ns):8.0f}  {name}")
+        uploads(rows)
+
+
+UPLOAD = "allocate_and_free_meshes"
+UPLOAD_MS = 10.0
+
+
+def uploads(rows):
+    """The meshes behind the slow uploads (mesh-uploads): for every frame whose `allocate_and_free_meshes` took
+    UPLOAD_MS or more, the `kb:<name>` counts of that frame and the one before it (the render world uploads what the
+    main world added a frame earlier), summed by name."""
+    by_frame = {r[0]: dict(r[4]) for r in rows}
+    slow = [r for r in rows if any(n == UPLOAD and v >= UPLOAD_MS for n, v in r[3])]
+    if not slow or not any(k.startswith("kb:") for c in by_frame.values() for k in c):
+        return
+    kb = defaultdict(float)
+    frames = defaultdict(int)
+    for r in slow:
+        seen = set()
+        for f in (r[0], r[0] - 1):
+            for name, n in by_frame.get(f, {}).items():
+                if name.startswith("kb:"):
+                    kb[name[3:]] += n
+                    seen.add(name[3:])
+        for name in seen:
+            frames[name] += 1
+    print(f"meshes sent before the {len(slow)} uploads of {UPLOAD_MS:.0f} ms or more: frames, KiB in all, KiB a frame")
+    for name, total in sorted(kb.items(), key=lambda x: -x[1])[:15]:
+        print(f"  {frames[name]:5d}  {total:10.0f}  {total / frames[name]:8.0f}  {name}")
 
 
 if __name__ == "__main__":

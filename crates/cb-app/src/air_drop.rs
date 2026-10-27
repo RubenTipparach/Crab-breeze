@@ -204,7 +204,7 @@ fn spawn_at_field(commands: &mut Commands, run: &CareerRun, key: u32, field: Fie
 /// the career now says: moved if it stands in the world, built again whole if it was a wreck, spawned if it was not
 /// in the world at all.
 #[allow(clippy::too_many_arguments)]
-fn place_owned(
+pub(crate) fn place_owned(
     mut commands: Commands,
     mut run: ResMut<CareerRun>,
     data: Res<Data>,

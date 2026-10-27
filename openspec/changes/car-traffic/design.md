@@ -35,9 +35,9 @@ Car { id: u32, kind: CarKind, lane: u32, s_m: f32 /* along the lane */, speed_m_
 - **Hits:** cars carry a capsule in the weapons' part list, like vehicles (invasion-forces). A hit
   that beats their 5 mm of armour sets them Burning.
 - **Spawn and despawn:**
-  - Lanes within 1.5 km of the eye are kept filled to their density, on lane positions not in the
+  - Lanes within 1 km of the eye (1.5 km until the owner, 2026-10-26: "car should be 1000m") are kept filled to their density, on lane positions not in the
     view frustum, or beyond 400 m and behind cover.
-  - Cars beyond 2 km are dropped.
+  - Cars beyond 1.2 km are dropped.
   - Wrecks (Crushed, Burning) stay for 10 minutes or until 2 km away.
 
 ## 3. Drawing (`cb-app::traffic`)
@@ -121,6 +121,17 @@ What landed, where it differs from the plan above, and what it measured.
   headless, not a frame time): 1 189 cars round the start, the traffic step and its refill p50 0.134 ms, p95
   0.198 ms, p99 0.231 ms a fixed step; the first step reads each lane's road height once (a 9 ms step behind
   the loading screen). Frame time with the cars drawn is not measured: that needs the 3070 (task 3.1).
+- **Height and the road** (2026-10-26, owner: "cars are a little too short I think lol"). Measured in the game
+  (`CB_STILLS_CARS=1 --stills <dir>`, `cb-app::capture_cars`): the glbs were true to their data (sedan 1.40 m,
+  bus 3.10 m, no scale on any node), but every car stood on the bare grade while the road is drawn `road_lift_m`
+  (0.15 m) over it, so each sat sunk to its hubs, a sedan showing 1.25 m over the asphalt and its wheels cut off.
+  Cars now ride on the drawn road (`world::OnRoads`, `WorldPlan::road_top_at`, a crater in the road still lowering
+  it), and every car is raised by `car_height_scale` (1.18, `traffic.ron`): body, roof, wheels, ride height and
+  the driver's eye, length and width kept (`CarSpec::raised` on load, the same number in `build_cars.py`;
+  `cb-tools validate` refuses a model built at another height). A sedan is now 1.65 m, the bus 3.66 m. Stills:
+  `docs/screenshots/cars/before-*.png` and `after-*.png`. The pilot on foot also stands on the bare grade, 0.15 m
+  under the drawn road and 0.2 m under the pavement, so their eye is 1.55 m over the asphalt; that is not changed
+  here (it is the pilot's walking rule, `Scene::support_at`).
 
 ## Open questions
 

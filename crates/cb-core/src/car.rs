@@ -176,6 +176,17 @@ impl Validate for CarSpec {
 }
 
 impl CarSpec {
+    /// This car with every height raised by `k` and its length and width kept (`TrafficConfig::car_height_scale`):
+    /// the body and roof (`size_m[1]`), the wheels, the ride height and the driver's eye. The door socket stays on
+    /// the ground.
+    pub fn raised(mut self, k: f32) -> Self {
+        self.size_m[1] *= k;
+        self.wheel_radius_m *= k;
+        self.ride_height_m *= k;
+        self.eye_driver_m[1] *= k;
+        self
+    }
+
     /// A point in the car's frame (x right, y up, z back), placed in the world for a car at `pos`
     /// heading `heading_rad`.
     pub fn to_world(pos: Vec3, heading_rad: f32, local: [f32; 3]) -> Vec3 {

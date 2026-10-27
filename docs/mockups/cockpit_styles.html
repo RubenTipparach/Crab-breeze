@@ -1,0 +1,627 @@
+<title>Cockpit Interior Styles</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap">
+<style>
+/* Layout: a full-height 3D view with a thin control strip over it, like a cockpit's own bezel. One dark look: it is a
+   sealed cabin. */
+:root {
+  --bg: #0c0e11;
+  --strip: #15181d;
+  --fg: #e7e3d9;
+  --dim: #8d939b;
+  --line: #2a3038;
+  --accent: #ffb347;
+  --font-ui: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--fg); font: 14px/1.4 var(--font-ui);
+  display: flex; flex-direction: column; gap: 8px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 10px;
+  box-sizing: border-box;
+}
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin: 0; }
+.group { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.label { font: 11px var(--font-data); letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); margin-right: 4px; }
+button {
+  font: 600 13px var(--font-ui); letter-spacing: 0.04em; color: var(--fg); background: var(--strip);
+  border: 1px solid var(--line); border-radius: 3px; padding: 6px 11px; cursor: pointer;
+}
+button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+label.check { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--dim); cursor: pointer; }
+#view { flex: 1; min-height: 240px; position: relative; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: #000; }
+#view canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+#hint { position: absolute; left: 10px; bottom: 8px; font: 11px var(--font-data); color: var(--dim); pointer-events: none; }
+#about { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 13px; color: var(--dim); min-width: 0; }
+#about b { color: var(--fg); font-weight: 600; }
+#about span { min-width: 0; }
+</style>
+
+<header>
+  <h1>Cab interior styles</h1>
+  <div class="group" role="group" aria-label="Interior style">
+    <span class="label">Style</span>
+    <button id="st-steel" data-style="steel" aria-pressed="true">Steel (now)</button>
+    <button id="st-wood" data-style="wood" aria-pressed="false">Wood trims</button>
+    <button id="st-airliner" data-style="airliner" aria-pressed="false">Airliner</button>
+    <button id="st-padded" data-style="padded" aria-pressed="false">Padded</button>
+    <button id="st-excavator" data-style="excavator" aria-pressed="false">Excavator</button>
+  </div>
+  <div class="group" role="group" aria-label="View">
+    <span class="label">View</span>
+    <button id="v-seat" data-view="seat" aria-pressed="true">Seat</button>
+    <button id="v-orbit" data-view="orbit" aria-pressed="false">Orbit</button>
+  </div>
+  <label class="check"><input type="checkbox" id="dress" checked> Wall dressing and wire runs</label>
+</header>
+<div id="view"><div id="hint">Seat: drag to look round. Orbit: drag to turn, scroll to zoom.</div></div>
+<div id="about"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// A block-out of the Iron Horse's cab (cockpit_cab) at true scale, metres, y up, the pilot facing -z. Only materials
+// change between styles; the dressing (panels, vents, rivets, buttons) and the wire runs are the same in every style.
+const view = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+view.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05070a);
+const camera = new THREE.PerspectiveCamera(95, 16 / 9, 0.02, 60);   // the seated view is 95 degrees vertical
+const EYE = new THREE.Vector3(0, 1.2, 0.15);
+
+// ---------------------------------------------------------------- textures, drawn here: colour and a height for normals
+const TEX = 512;
+function canvas(w = TEX, h = TEX) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function hex(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function rnd(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+// 2D value noise, tileable over the texture
+function noise2(seed, cells) {
+  const r = rnd(seed), g = Array.from({ length: cells * cells }, r);
+  return (x, y) => {
+    const fx = x * cells, fy = y * cells, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+    const at = (i, j) => g[((j % cells + cells) % cells) * cells + ((i % cells + cells) % cells)];
+    const sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+    return (at(x0, y0) * (1 - sx) + at(x0 + 1, y0) * sx) * (1 - sy) + (at(x0, y0 + 1) * (1 - sx) + at(x0 + 1, y0 + 1) * sx) * sy;
+  };
+}
+// fill colour and height per pixel from f(u, v) -> [r, g, b, height]
+function paint(f) {
+  const c = canvas(), h = new Float32Array(TEX * TEX), ctx = c.getContext('2d'), im = ctx.createImageData(TEX, TEX);
+  for (let y = 0; y < TEX; y++) for (let x = 0; x < TEX; x++) {
+    const [r, g, b, hh] = f(x / TEX, y / TEX), i = y * TEX + x;
+    im.data.set([r, g, b, 255], i * 4); h[i] = hh;
+  }
+  ctx.putImageData(im, 0, 0);
+  return { colour: c, height: h };
+}
+// a tangent-space normal map from a height field (wrapping, so it tiles)
+function normals(h, strength) {
+  const c = canvas(), ctx = c.getContext('2d'), im = ctx.createImageData(TEX, TEX);
+  const at = (x, y) => h[((y + TEX) % TEX) * TEX + ((x + TEX) % TEX)];
+  for (let y = 0; y < TEX; y++) for (let x = 0; x < TEX; x++) {
+    const dx = (at(x + 1, y) - at(x - 1, y)) * strength, dy = (at(x, y + 1) - at(x, y - 1)) * strength;
+    const l = Math.hypot(dx, dy, 1), i = (y * TEX + x) * 4;
+    im.data[i] = (-dx / l * 0.5 + 0.5) * 255; im.data[i + 1] = (dy / l * 0.5 + 0.5) * 255; im.data[i + 2] = (1 / l * 0.5 + 0.5) * 255; im.data[i + 3] = 255;
+  }
+  ctx.putImageData(im, 0, 0);
+  return c;
+}
+const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+const tint = (c, k) => c.map(v => Math.max(0, Math.min(255, v * k)));
+
+// Painted steel plate: 0.5 m panels with engraved seams and a faint mottle (the cockpits as they are).
+function plate(base, seed) {
+  const n = noise2(seed, 12), m = noise2(seed + 7, 64), b = hex(base);
+  return paint((u, v) => {
+    const su = (u * 2) % 1, sv = (v * 2) % 1, seam = Math.min(su, 1 - su, sv, 1 - sv) < 0.006;
+    const k = 0.9 + 0.12 * n(u, v) + 0.05 * m(u, v);
+    return [...tint(b, seam ? 0.45 : k), seam ? 0 : 0.6 + 0.02 * m(u, v)];
+  });
+}
+// Varnished walnut: rings along u, wavered by noise, two tones, a fine grain.
+function wood(dark, light, seed) {
+  const n = noise2(seed, 6), f = noise2(seed + 3, 96), d = hex(dark), l = hex(light);
+  return paint((u, v) => {
+    const ring = 0.5 + 0.5 * Math.sin((v * 22 + n(u * 0.5, v) * 5) * Math.PI * 2);
+    const t = Math.min(1, Math.max(0, ring * 0.75 + f(u * 0.15, v * 4) * 0.35));
+    return [...mix(d, l, t), f(u * 0.1, v * 6) * 0.5];
+  });
+}
+// Burl walnut veneer: a domain-warped figure with dark knots, as on a luxury car's dash.
+function burl(dark, light, seed) {
+  const a = noise2(seed, 5), b = noise2(seed + 1, 11), c = noise2(seed + 2, 23), k = noise2(seed + 3, 40), d = hex(dark), l = hex(light);
+  return paint((u, v) => {
+    const wu = u + 0.25 * a(u, v), wv = v + 0.25 * b(u + 0.3, v);
+    const f = 0.5 + 0.5 * Math.sin((c(wu, wv) * 3.5 + b(wu, wv) * 1.5 + wv * 6) * Math.PI);
+    const knot = Math.max(0, k(u, v) - 0.72) * 3.6;
+    const t = Math.min(1, Math.max(0, f * 0.55 + 0.2 - knot));
+    return [...mix(d, l, t), t * 0.3];
+  });
+}
+// Leather: a pebbled grain, optionally diamond-quilted at `pitch` (texture spans 1 m) with stitched seams and buttons.
+function leather(base, pitch, seed) {
+  const g = noise2(seed, 180), b = hex(base), q = pitch ? 1 / pitch : 0;
+  return paint((u, v) => {
+    let h = 0.5 + 0.08 * g(u, v), k = 0.92 + 0.12 * g(u, v);
+    if (q) {
+      const a = ((u + v) * q) % 1, c = ((u - v) * q % 1 + 1) % 1;
+      const pillow = Math.pow(Math.sin(Math.PI * a) * Math.sin(Math.PI * c), 0.45);
+      const seam = pillow < 0.12, button = Math.hypot(Math.min(a, 1 - a), Math.min(c, 1 - c)) < 0.05;
+      h = pillow * 0.9 + 0.05 * g(u, v);
+      k *= seam ? 0.45 : button ? 0.5 : 0.7 + 0.35 * pillow;
+    }
+    return [...tint(b, k), h];
+  });
+}
+// Moulded plastic: smooth, a fine stipple, soft panel joints every 0.5 m.
+function plastic(base, seed) {
+  const s = rnd(seed), b = hex(base);
+  return paint((u, v) => {
+    const su = (u * 2) % 1, sv = (v * 2) % 1, joint = Math.min(su, 1 - su, sv, 1 - sv) < 0.004;
+    const st = s();
+    return [...tint(b, joint ? 0.8 : 0.97 + 0.04 * st), joint ? 0.2 : 0.55 + 0.04 * st];
+  });
+}
+// Seat cloth: a fine weave, with an airline's small repeat pattern when `pattern` is set.
+function cloth(base, pattern, seed) {
+  const b = hex(base), p = pattern ? hex(pattern) : null, n = noise2(seed, 32);
+  return paint((u, v) => {
+    const w = (Math.sin(u * TEX * 0.9) * Math.sin(v * TEX * 0.9)) * 0.5 + 0.5;
+    let c = tint(b, 0.85 + 0.2 * w + 0.06 * n(u, v));
+    if (p) { const pu = (u * 14) % 1, pv = (v * 14) % 1; if (Math.abs(pu - 0.5) + Math.abs(pv - 0.5) < 0.16) c = mix(c, p, 0.8); }
+    return [...c, w * 0.4];
+  });
+}
+// Moulded matte plastic, polycarbonate or fibreglass: almost smooth, a faint orange-peel, no joints.
+function moulded(base, seed) {
+  const n = noise2(seed, 140), b = hex(base);
+  return paint((u, v) => [...tint(b, 0.96 + 0.06 * n(u, v)), 0.5 + 0.05 * n(u, v)]);
+}
+// A two-tone work seat: a mid-grey woven centre panel between darker bolsters, stitched at the joins.
+function workSeat(centre, sides, seed) {
+  const a = hex(centre), b = hex(sides), n = noise2(seed, 64);
+  return paint((u, v) => {
+    const w = (Math.sin(u * TEX * 1.1) * Math.sin(v * TEX * 1.1)) * 0.5 + 0.5, mid = Math.abs(((u * 2.5) % 1) - 0.5) < 0.3;
+    const edge = Math.abs(Math.abs(((u * 2.5) % 1) - 0.5) - 0.3) < 0.01;
+    return [...tint(mid ? a : b, edge ? 0.5 : 0.85 + 0.2 * w + 0.05 * n(u, v)), edge ? 0.1 : 0.4 + 0.3 * w];
+  });
+}
+function material(t, o) {
+  if (o.clearcoat) {
+    const m = material(t, Object.assign({}, o, { clearcoat: 0 }));
+    return new THREE.MeshPhysicalMaterial({ map: m.map, normalMap: m.normalMap, roughness: o.r, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.06 });
+  }
+  const map = new THREE.CanvasTexture(t.colour);
+  map.encoding = THREE.sRGBEncoding;
+  const nm = new THREE.CanvasTexture(normals(t.height, o.bump ?? 2));
+  for (const x of [map, nm]) { x.wrapS = x.wrapT = THREE.RepeatWrapping; x.anisotropy = 8; }
+  return new THREE.MeshStandardMaterial({ map, normalMap: nm, roughness: o.r, metalness: o.m ?? 0 });
+}
+
+// ---------------------------------------------------------------- the styles: what each role is made of
+const STYLES = {
+  steel: {
+    about: ['<b>Steel</b> as built today: painted plate with engraved seams, cyan strips, cool lamps.'],
+    wall: () => material(plate('#3b424a', 1), { r: 0.6, bump: 3 }),
+    trim: () => material(plate('#5d6670', 2), { r: 0.55, bump: 3 }),
+    structure: () => material(plate('#262b31', 3), { r: 0.6, bump: 3 }),
+    panel: () => material(plate('#4c545e', 4), { r: 0.55, bump: 3 }),
+    seat: () => material(cloth('#2c3036', null, 5), { r: 0.9, bump: 1.5 }),
+    accent: 0x3fe6ff, lamp: [0x9fc4ff, 0xcfe0ff], rivets: true,
+  },
+  wood: {
+    about: ['<b>Wood trims</b>, after a luxury car\'s dash: warm painted steel walls and structure, as now; glossy lacquered burl walnut only as accents (the dash fascia, sills, console rails); a cream stitched leather seat; a cool blue ambient strip.'],
+    wall: () => material(plate('#4d4842', 11), { r: 0.58, bump: 3 }),
+    trim: () => material(burl('#2c160a', '#7a4522', 12), { r: 0.25, bump: 0.8, clearcoat: true }),
+    structure: () => material(plate('#2b2825', 13), { r: 0.55, bump: 3 }),
+    panel: () => material(plate('#3a3632', 14), { r: 0.5, bump: 3 }),
+    seat: () => material(leather('#cdb894', 0, 15), { r: 0.5, bump: 4 }),
+    accent: 0x4aa8ff, lamp: [0xffd9b0, 0xffe8cc], rivets: true,
+  },
+  airliner: {
+    about: ['<b>Airliner</b>, after a 777 flight deck: tan-grey padded wall lining with soft joints, darker taupe trims and pillars, charcoal-grey switch panels, tan leather seat, warm dim strips and light.'],
+    wall: () => material(plastic('#8a8272', 21), { r: 0.65, bump: 2 }),
+    trim: () => material(plastic('#7e7667', 22), { r: 0.5, bump: 2 }),
+    structure: () => material(plastic('#5a544b', 23), { r: 0.55, bump: 2 }),
+    panel: () => material(plate('#3c3b39', 24), { r: 0.5, bump: 2 }),
+    seat: () => material(leather('#9a7348', 0, 25), { r: 0.55, bump: 4 }),
+    accent: 0xe8d6b0, lamp: [0xffe4c4, 0xf2e6d6],
+  },
+  padded: {
+    about: ['<b>Padded</b>: diamond-quilted charcoal leather on the walls and roof, an oxblood quilted seat, brushed steel trims, red-orange strips.'],
+    wall: () => material(leather('#4a4446', 0.12, 31), { r: 0.6, bump: 10 }),
+    trim: () => material(plate('#8c9096', 32), { r: 0.3, m: 1, bump: 1 }),
+    structure: () => material(leather('#1c1b1c', 0, 33), { r: 0.55, bump: 4 }),
+    panel: () => material(plate('#2e2d30', 34), { r: 0.5, bump: 3 }),
+    seat: () => material(leather('#3a2624', 0.07, 35), { r: 0.6, bump: 10 }),
+    accent: 0xff7a3a, lamp: [0xffd2b0, 0xffe6d4], rivets: true,
+  },
+  excavator: {
+    about: ['<b>Excavator</b>, after a modern digger cab: sleek matte black and grey moulded polycarbonate and fibreglass, no exposed plate, a two-tone grey cloth seat, yellow grab handles, soft white strips.'],
+    wall: () => material(moulded('#2b2d30', 41), { r: 0.8, bump: 1.5 }),
+    trim: () => material(moulded('#45484c', 42), { r: 0.7, bump: 1.5 }),
+    structure: () => material(moulded('#1a1b1d', 43), { r: 0.75, bump: 1.5 }),
+    panel: () => material(moulded('#25272a', 44), { r: 0.7, bump: 1.5 }),
+    seat: () => material(workSeat('#6b6e72', '#2f3134', 45), { r: 0.9, bump: 2 }),
+    accent: 0xe8edf2, lamp: [0xf2f4f6, 0xe4ebf2], handle: 0xf2b400,
+  },
+};
+
+// ---------------------------------------------------------------- building blocks
+const byRole = { wall: [], trim: [], structure: [], panel: [], seat: [] };
+const accents = [];
+const handles = [];
+const HANDLE_STEEL = new THREE.MeshStandardMaterial({ color: 0x8a9098, roughness: 0.35, metalness: 1 });
+const dressing = new THREE.Group();
+scene.add(dressing);
+const FIXED = {
+  steel: new THREE.MeshStandardMaterial({ color: 0x8a9098, roughness: 0.35, metalness: 1 }),
+  dark: new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.5 }),
+  rubber: new THREE.MeshStandardMaterial({ color: 0x0c0c0d, roughness: 0.9 }),
+  brass: new THREE.MeshStandardMaterial({ color: 0xb08a4a, roughness: 0.35, metalness: 1 }),
+};
+// scale a box's UVs to metres (a texture spans 1 m), so every panel shares one texel size
+function boxUV(g, w, h, d) {
+  const uv = g.attributes.uv, size = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+  for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) {
+    const i = f * 4 + k; uv.setXY(i, uv.getX(i) * size[f][0], uv.getY(i) * size[f][1]);
+  }
+}
+function box(w, h, d, x, y, z, role, parent = scene, rot = [0, 0, 0]) {
+  const g = new THREE.BoxGeometry(w, h, d); boxUV(g, w, h, d);
+  const m = new THREE.Mesh(g, typeof role === 'string' && byRole[role] ? null : role);
+  if (byRole[role]) byRole[role].push(m);
+  m.position.set(x, y, z); m.rotation.set(...rot); parent.add(m);
+  return m;
+}
+function glowStrip(w, h, d, x, y, z, parent = scene) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x3fe6ff, emissiveIntensity: 2 }));
+  m.position.set(x, y, z); parent.add(m); accents.push(m); return m;
+}
+// a screen showing a drawn picture, facing +z of its group
+function screenTex(draw, w = 512, h = 512) {
+  const c = canvas(w, h), ctx = c.getContext('2d'); draw(ctx, w, h);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t;
+}
+function pane(w, h, tex, parent, z = 0) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+  m.position.z = z; parent.add(m); return m;
+}
+
+// The outside on the screen wall: sky over a city skyline.
+const outside = screenTex((c, w, h) => {
+  const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#5f86b8'); g.addColorStop(0.6, '#c7d3df'); g.addColorStop(0.62, '#59606a'); g.addColorStop(1, '#30343a');
+  c.fillStyle = g; c.fillRect(0, 0, w, h);
+  const r = rnd(9); c.fillStyle = '#6b7684';
+  for (let x = 0; x < w; x += 18 + r() * 30) { const bh = 40 + r() * 260; c.fillRect(x, h * 0.62 - bh, 14 + r() * 30, bh); }
+}, 1024, 512);
+// MFD pages (MECH, FLIGHT, MISSION hung; DAMAGE, TARGET, WEAPONS on the dash)
+function mfdPage(title, body) {
+  return screenTex((c, w, h) => {
+    c.fillStyle = '#04100a'; c.fillRect(0, 0, w, h);
+    c.strokeStyle = 'rgba(140,240,150,0.45)'; c.lineWidth = 6; c.strokeRect(10, 10, w - 20, h - 20);
+    c.fillStyle = '#8cf096'; c.font = '600 34px IBM Plex Mono, monospace'; c.textAlign = 'center'; c.fillText(title, w / 2, 70);
+    body(c, w, h);
+  });
+}
+const PAGES = {
+  MECH: mfdPage('MECH', (c, w) => { c.strokeStyle = '#8cf096'; c.lineWidth = 4; c.beginPath(); c.arc(w / 2, 230, 110, 0, 7); c.stroke(); c.fillRect(w / 2 - 5, 130, 10, 200); c.font = '40px IBM Plex Mono, monospace'; c.fillText('LEGS +0', w / 2, 410); }),
+  FLIGHT: mfdPage('FLIGHT', (c, w) => { c.font = '34px IBM Plex Mono, monospace'; ['BOOST READY', 'SKATE READY', 'WALK 0 KM/H', 'ALT 0 M'].forEach((s, i) => c.fillText(s, w / 2, 160 + i * 70)); }),
+  MISSION: mfdPage('MISSION', (c, w) => { c.font = '34px IBM Plex Mono, monospace'; ['HDG 263 W', 'IN CITY 1', 'MAIL: 2 NEW'].forEach((s, i) => c.fillText(s, w / 2, 180 + i * 70)); }),
+  DAMAGE: mfdPage('DAMAGE', (c, w) => {
+    const parts = [[120, 0, 60, 44, 1], [80, 52, 140, 112, 0.9], [20, 60, 52, 120, 0.62], [228, 60, 52, 120, 1], [88, 172, 56, 128, 1], [156, 172, 56, 128, 0.25]];
+    c.save(); c.translate(w / 2 - 150, 100);
+    for (const [x, y, bw, bh, hp] of parts) { const col = hp < 0.3 ? '#ff4d40' : hp < 0.7 ? '#ffbf40' : '#8cf096'; c.strokeStyle = col; c.lineWidth = 5; c.strokeRect(x, y, bw, bh); c.fillStyle = col + '40'; c.fillRect(x, y, bw, bh); c.fillStyle = col; c.font = '20px IBM Plex Mono, monospace'; c.fillText(Math.round(hp * 100) + '%', x + bw / 2, y + bh / 2 + 7); }
+    c.restore(); c.fillStyle = '#ffbf40'; c.font = '28px IBM Plex Mono, monospace'; c.fillText('ARM L 62%  LEG R 25%', w / 2, 460);
+  }),
+  TARGET: mfdPage('TARGET', (c, w) => { c.strokeStyle = '#8cf096'; c.lineWidth = 2; for (let r = 60; r <= 180; r += 60) { c.beginPath(); c.arc(w / 2, 300, r, 0, 7); c.stroke(); } c.fillStyle = '#ff4d40'; c.fillRect(w / 2 + 70, 220, 14, 14); }),
+  WEAPONS: mfdPage('WEAPONS', (c, w) => { c.font = '30px IBM Plex Mono, monospace'; c.textAlign = 'left'; ['STA 1 35 MM  RDY', 'STA 2 120 MM RDY', 'STA 3 MSL x40'].forEach((s, i) => c.fillText(s, 60, 170 + i * 70)); c.strokeStyle = '#ffbf40'; c.strokeRect(48, 128, w - 96, 58); }),
+};
+// one MFD: a bezel box and its page, turned to face the eye
+function mfd(page, side, at) {
+  const g = new THREE.Group(); g.position.copy(at); g.lookAt(EYE); scene.add(g);
+  box(side + 0.06, side + 0.06, 0.05, 0, 0, -0.026, FIXED.dark, g);
+  pane(side, side, PAGES[page], g, 0.001);
+  for (let i = 0; i < 5; i++) for (const s of [-1, 1]) box(0.022, 0.012, 0.01, (i - 2) * side * 0.2, s * (side / 2 + 0.017), 0.002, FIXED.steel, g);
+  return g;
+}
+// a point at elevation `el` and azimuth `az` (degrees, + left) `d` metres from the eye: the builder's placement
+function atEye(el, az, d) {
+  const e = THREE.MathUtils.degToRad(el), a = THREE.MathUtils.degToRad(az);
+  return new THREE.Vector3(-Math.sin(a) * Math.cos(e), Math.sin(e), -Math.cos(a) * Math.cos(e)).multiplyScalar(d).add(EYE);
+}
+
+// ---------------------------------------------------------------- the cab (half-width 0.9 m, from z -1.0 ahead to +0.9 behind, 2.05 m tall)
+const W = 0.9, F = -1.0, B = 0.9, H = 2.05, SILL = 0.92, HEAD = 1.86;
+box(2 * W, 0.06, B - F, 0, -0.03, (F + B) / 2, 'structure');                      // floor
+box(2 * W, 0.06, B - F, 0, H + 0.03, (F + B) / 2, 'wall');                        // roof lining
+for (const s of [-1, 1]) {
+  box(0.04, SILL, B - F, s * W, SILL / 2, (F + B) / 2, 'wall');                   // lower side wall
+  box(0.04, H - HEAD, B - F, s * W, (H + HEAD) / 2, (F + B) / 2, 'wall');         // header band
+  box(0.04, HEAD - SILL, B + 0.2, s * W, (SILL + HEAD) / 2, (B - 0.2) / 2, 'wall'); // solid rear quarter
+  box(0.07, 0.05, B - F, s * (W - 0.035), SILL, (F + B) / 2, 'trim');             // sill rail
+  box(0.06, 0.04, B - F, s * (W - 0.03), 0.45, (F + B) / 2, 'trim');              // chair rail
+  box(0.08, H, 0.08, s * (W - 0.04), H / 2, F + 0.04, 'structure');               // corner pillar
+  box(0.07, HEAD - SILL, 0.07, s * (W - 0.035), (SILL + HEAD) / 2, -0.2, 'structure'); // side pillar
+  glowStrip(0.01, HEAD - SILL - 0.08, 0.012, s * (W - 0.085), (SILL + HEAD) / 2, F + 0.085);
+}
+box(2 * W, H - HEAD, 0.06, 0, (H + HEAD) / 2, F, 'wall');                         // front header
+box(2 * W, SILL, 0.06, 0, SILL / 2, F, 'wall');                                   // front lower wall
+box(2 * W, H, 0.06, 0, H / 2, B, 'wall');                                         // rear bulkhead
+box(2 * W, 0.08, 0.08, 0, HEAD + 0.02, F + 0.05, 'structure');                    // front roof beam
+box(2 * W, 0.08, 0.08, 0, HEAD + 0.02, 0.4, 'structure');                         // mid roof beam
+// the screen wall: front and the two side screens show the outside
+{ const g = new THREE.Group(); g.position.set(0, (SILL + HEAD) / 2, F + 0.035); scene.add(g); pane(2 * W - 0.16, HEAD - SILL, outside, g); }
+for (const s of [-1, 1]) {
+  const g = new THREE.Group(); g.position.set(s * (W - 0.025), (SILL + HEAD) / 2, (F - 0.2) / 2); g.rotation.y = -s * Math.PI / 2; scene.add(g);
+  pane(-F - 0.2 - 0.12, HEAD - SILL, outside, g);
+}
+// the dash pod under the dash screens, its top a trim
+box(1.5, 0.5, 0.36, 0, 0.42, F + 0.2, 'structure');
+box(1.52, 0.035, 0.38, 0, 0.68, F + 0.2, 'trim');
+box(1.4, 0.09, 0.012, 0, 0.58, F + 0.386, 'trim');                                // the dash fascia insert
+glowStrip(1.4, 0.008, 0.01, 0, 0.528, F + 0.388);                                 // ambient strip under it
+for (const s of [-1, 1]) box(0.012, 0.3, 0.5, s * 0.424, 0.42, 0.05, 'trim');     // console inner faces
+// side consoles, their edges trimmed; the stick right, the throttle left
+for (const s of [-1, 1]) {
+  box(0.26, 0.62, 0.6, s * 0.56, 0.31, 0.05, 'structure');
+  box(0.28, 0.03, 0.62, s * 0.56, 0.635, 0.05, 'trim');
+  box(0.2, 0.012, 0.3, s * 0.56, 0.656, -0.02, 'panel');
+  for (let i = 0; i < 6; i++) box(0.022, 0.012, 0.022, s * 0.56 - 0.07 + (i % 3) * 0.05, 0.665, -0.1 + Math.floor(i / 3) * 0.05, FIXED.dark);
+}
+{ const st = box(0.03, 0.2, 0.03, 0.56, 0.75, 0.08, FIXED.steel); box(0.06, 0.1, 0.06, 0.56, 0.87, 0.08, FIXED.rubber); }
+{ box(0.03, 0.12, 0.2, -0.56, 0.72, 0.02, FIXED.steel); box(0.07, 0.07, 0.12, -0.56, 0.79, 0.0, FIXED.rubber); }
+// the seat
+box(0.5, 0.12, 0.5, 0, 0.42, 0.42, 'seat');
+box(0.5, 0.7, 0.12, 0, 0.82, 0.68, 'seat', scene, [-0.12, 0, 0]);
+box(0.3, 0.2, 0.1, 0, 1.3, 0.75, 'seat', scene, [-0.12, 0, 0]);
+for (const s of [-1, 1]) box(0.07, 0.62, 0.14, s * 0.27, 0.82, 0.66, 'seat', scene, [-0.12, 0, 0]);
+box(0.44, 0.36, 0.4, 0, 0.18, 0.42, FIXED.steel);
+// the six MFDs where the builder puts them: dash -25 degrees, hung +30
+[['DAMAGE', 30], ['TARGET', 0], ['WEAPONS', -30]].forEach(([p, az], i) => mfd(p, i === 1 ? 0.25 : 0.23, atEye(-25, az, 0.78)));
+[['MECH', 27], ['FLIGHT', 0], ['MISSION', -27]].forEach(([p, az]) => {
+  const at = atEye(30, az, 0.8); mfd(p, 0.2, at);
+  box(0.03, H - at.y - 0.12, 0.03, at.x, (H + at.y + 0.12) / 2, at.z - 0.04, 'structure');
+});
+
+// ---------------------------------------------------------------- wall dressing: electrical panels, vents, rivets, buttons
+function placard(text, w, h, bg, fg) {
+  return screenTex((c, cw, ch) => { c.fillStyle = bg; c.fillRect(0, 0, cw, ch); c.fillStyle = fg; c.font = `600 ${ch * 0.42}px IBM Plex Sans Condensed, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, cw / 2, ch / 2); }, 512, Math.round(512 * h / w));
+}
+const rivetGeo = new THREE.SphereGeometry(0.0055, 8, 6);
+const rivets = [], rivetMeshes = [];
+function rivetRow(a, b, n) { for (let i = 0; i <= n; i++) rivets.push(a.clone().lerp(b, i / n)); }
+for (const s of [-1, 1]) {
+  // a group on the inside face of the lower side wall, +z of the group pointing into the cab
+  const g = new THREE.Group(); g.position.set(s * (W - 0.02), 0, 0); g.rotation.y = -s * Math.PI / 2; dressing.add(g);
+  const X = z => s * z;   // world z along the wall to the group's x (the group is turned to face into the cab)
+  // electrical breaker panel: a box, its door, two rows of breakers, a placard
+  box(0.38, 0.3, 0.06, X(-0.45), 0.66, 0.03, 'panel', g);
+  box(0.34, 0.26, 0.012, X(-0.45), 0.66, 0.066, 'panel', g);
+  for (let r = 0; r < 2; r++) for (let i = 0; i < 7; i++) {
+    box(0.026, 0.05, 0.02, X(-0.45) + (i - 3) * 0.042, 0.71 - r * 0.09, 0.08, i % 3 === 0 && r ? FIXED.brass : FIXED.dark, g);
+  }
+  pane(0.2, 0.04, placard('BUS ' + (s > 0 ? 'B' : 'A') + '  480 V', 0.2, 0.04, '#d9d4c3', '#121314'), g, 0.075).position.set(X(-0.45), 0.57, 0.075);
+  pane(0.1, 0.035, placard('DANGER', 0.1, 0.035, '#b01e20', '#f4efe2'), g, 0.075).position.set(X(-0.45) + 0.11, 0.57, 0.075);
+  // a louvred vent
+  box(0.3, 0.16, 0.03, X(0.15), 0.62, 0.015, FIXED.dark, g);
+  for (let i = 0; i < 6; i++) box(0.27, 0.012, 0.03, X(0.15), 0.56 + i * 0.022, 0.03, 'trim', g, [0.6, 0, 0]);
+  // a button block, backlit
+  for (let i = 0; i < 12; i++) {
+    const b = box(0.028, 0.022, 0.012, X(0.6) + (i % 4 - 1.5) * 0.04, 0.72 - Math.floor(i / 4) * 0.035, 0.01, new THREE.MeshStandardMaterial({ color: 0x111111, emissive: [0x46ff7c, 0xffae2e, 0xff3326, 0x3fe6ff][i % 4], emissiveIntensity: i % 5 === 0 ? 0.2 : 1.4 }), g);
+  }
+  box(0.2, 0.13, 0.008, X(0.6), 0.685, 0.002, 'panel', g);
+  pane(0.12, 0.028, placard('NO STEP', 0.12, 0.028, '#e0ac16', '#121314'), g, 0.02).position.set(X(-0.05), 0.2, 0.02);
+  // rivets along the panel seams of the lower wall
+  for (const zz of [-0.75, -0.25, 0.25, 0.75]) rivetRow(new THREE.Vector3(X(zz), 0.08, 0.004), new THREE.Vector3(X(zz), 0.86, 0.004), 12);
+  rivetRow(new THREE.Vector3(X(-0.95), 0.86, 0.004), new THREE.Vector3(X(0.85), 0.86, 0.004), 30);
+  for (const p of rivets.splice(0)) { const m = new THREE.Mesh(rivetGeo, FIXED.steel); m.position.copy(p); g.add(m); rivetMeshes.push(m); }
+}
+
+// ---------------------------------------------------------------- safety kit and more on the walls, the roof and the bulkhead
+function mat(color, o = {}) { return new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.5 }, o)); }
+const KIT = {
+  red: mat(0xb3191c, { roughness: 0.35 }), white: mat(0xe9e6de), orange: mat(0xe2621a, { roughness: 0.7 }),
+  yellow: mat(0xe0ac16, { roughness: 0.7 }), green: mat(0x1f6b3a), black: mat(0x111214, { roughness: 0.6 }),
+  knob: mat(0xd8d4ca, { roughness: 0.4 }),
+};
+function cyl(r, h, x, y, z, m, parent, rot = [0, 0, 0], seg = 20) {
+  const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg), m); c.position.set(x, y, z); c.rotation.set(...rot); parent.add(c); return c;
+}
+function label(text, w, h, x, y, z, parent, bg = '#d9d4c3', fg = '#121314') { const m = pane(w, h, placard(text, w, h, bg, fg), parent); m.position.set(x, y, z); return m; }
+// a fire extinguisher in its bracket: red bottle, black head and hose, the FIRE label above
+function extinguisher(g, x, y) {
+  box(0.13, 0.05, 0.03, x, y + 0.08, 0.015, FIXED.steel, g); box(0.13, 0.05, 0.03, x, y + 0.3, 0.015, FIXED.steel, g);
+  cyl(0.055, 0.38, x, y + 0.2, 0.075, KIT.red, g); cyl(0.02, 0.06, x, y + 0.42, 0.075, KIT.black, g);
+  box(0.09, 0.015, 0.02, x + 0.03, y + 0.45, 0.075, KIT.black, g);
+  const hose = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(x + 0.02, y + 0.43, 0.09), new THREE.Vector3(x + 0.08, y + 0.35, 0.12), new THREE.Vector3(x + 0.07, y + 0.12, 0.12)]), 20, 0.008, 6), KIT.black); g.add(hose);
+  label('FIRE', 0.12, 0.04, x, y + 0.53, 0.003, g, '#b01e20', '#f4efe2');
+}
+// a first aid kit: white case, green band, cross
+function firstAid(g, x, y) {
+  box(0.3, 0.2, 0.1, x, y, 0.05, KIT.white, g); box(0.3, 0.04, 0.102, x, y + 0.06, 0.05, KIT.green, g);
+  box(0.05, 0.016, 0.01, x, y - 0.02, 0.102, KIT.green, g); box(0.016, 0.05, 0.01, x, y - 0.02, 0.102, KIT.green, g);
+  label('FIRST AID', 0.14, 0.025, x, y + 0.06, 0.102, g, '#1f6b3a', '#f4efe2');
+}
+// the signal flare case: orange, two latches, its label
+function flares(g, x, y) {
+  box(0.36, 0.13, 0.11, x, y, 0.055, KIT.orange, g);
+  for (const k of [-1, 1]) box(0.03, 0.04, 0.012, x + k * 0.12, y + 0.03, 0.112, FIXED.steel, g);
+  label('SIGNAL FLARES', 0.18, 0.035, x, y - 0.015, 0.112, g, '#121314', '#ffae2e');
+}
+// the life vest pouch: a yellow soft case with a pull tab
+function lifeVest(g, x, y) {
+  box(0.28, 0.17, 0.08, x, y, 0.04, KIT.yellow, g); box(0.04, 0.05, 0.01, x, y - 0.1, 0.07, KIT.red, g);
+  label('LIFE VEST', 0.14, 0.03, x, y + 0.02, 0.082, g, '#121314', '#e0ac16');
+}
+// a circuit breaker panel: rows of black breaker caps, white collars
+function breakers(g, x, y, cols, rows) {
+  box(cols * 0.04 + 0.06, rows * 0.05 + 0.08, 0.03, x, y, 0.015, 'panel', g);
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const cx = x + (c - (cols - 1) / 2) * 0.04, cy = y + (r - (rows - 1) / 2) * 0.05;
+    cyl(0.011, 0.012, cx, cy, 0.034, KIT.knob, g, [Math.PI / 2, 0, 0], 10); cyl(0.008, 0.02, cx, cy, 0.044, KIT.black, g, [Math.PI / 2, 0, 0], 10);
+  }
+  label('CIRCUIT BREAKERS', 0.2, 0.03, x, y + rows * 0.025 + 0.025, 0.031, g, '#121314', '#d9d4c3');
+}
+// the oxygen mask box: a small grey box with a green door
+function oxygen(g, x, y) { box(0.18, 0.12, 0.09, x, y, 0.045, 'panel', g); box(0.14, 0.08, 0.01, x, y, 0.091, KIT.green, g); label('O2 PULL', 0.1, 0.025, x, y, 0.097, g, '#1f6b3a', '#f4efe2'); }
+// a torch in two clips
+function torch(g, x, y) { for (const k of [-1, 1]) box(0.05, 0.02, 0.03, x + k * 0.07, y, 0.015, FIXED.steel, g); cyl(0.022, 0.26, x, y, 0.035, KIT.black, g, [0, 0, Math.PI / 2]); cyl(0.03, 0.05, x + 0.15, y, 0.035, KIT.black, g, [0, 0, Math.PI / 2]); }
+for (const s of [-1, 1]) {
+  // the solid rear quarter of each side wall, sill to header, from the side pillar back
+  const g = new THREE.Group(); g.position.set(s * (W - 0.02), 0, 0); g.rotation.y = -s * Math.PI / 2; dressing.add(g);
+  const X = z => s * z;   // world z along the wall to the group's x (the group is turned to face into the cab)
+  if (s < 0) {
+    breakers(g, X(0.02), 1.45, 6, 6);
+    extinguisher(g, X(0.38), 0.98);
+    oxygen(g, X(0.38), 1.68);
+    flares(g, X(0.72), 1.2);
+    torch(g, X(0.72), 1.5);
+  } else {
+    firstAid(g, X(0.05), 1.55);
+    lifeVest(g, X(0.05), 1.2);
+    breakers(g, X(0.48), 1.45, 5, 6);
+    extinguisher(g, X(0.78), 0.98);
+  }
+  // a grab handle along the header, a gasper over the head
+  handles.push(box(0.4, 0.025, 0.025, X(0.2), HEAD - 0.07, 0.06, HANDLE_STEEL, g));
+  for (const k of [-1, 1]) handles.push(box(0.025, 0.025, 0.06, X(0.2) + k * 0.19, HEAD - 0.07, 0.03, HANDLE_STEEL, g));
+}
+{
+  // the rear bulkhead, behind the seat: a life ring, an equipment rack, a stowage bin
+  const g = new THREE.Group(); g.position.set(0, 0, B - 0.03); g.rotation.y = Math.PI; dressing.add(g);
+  const ringTex = screenTex((c, w, h) => { for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? '#f4efe2' : '#e2621a'; c.fillRect(i * w / 8, 0, w / 8, h); } }, 256, 16);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.05, 12, 32), new THREE.MeshStandardMaterial({ map: ringTex, roughness: 0.7 }));
+  ring.position.set(0.52, 1.45, 0.06); g.add(ring); box(0.06, 0.08, 0.04, 0.52, 1.68, 0.02, FIXED.steel, g);
+  box(0.4, 0.6, 0.2, -0.5, 1.25, 0.1, 'panel', g);
+  for (let i = 0; i < 4; i++) {
+    box(0.36, 0.12, 0.012, -0.5, 1.03 + i * 0.145, 0.206, 'structure', g);
+    for (let k = 0; k < 4; k++) box(0.012, 0.012, 0.006, -0.62 + k * 0.025, 1.03 + i * 0.145, 0.214, new THREE.MeshStandardMaterial({ color: 0x111111, emissive: k === 3 && i === 1 ? 0xff3326 : 0x46ff7c, emissiveIntensity: 1.6 }), g);
+  }
+  label('AVIONICS RACK 2', 0.22, 0.035, -0.5, 1.6, 0.212, g, '#121314', '#d9d4c3');
+  box(1.2, 0.2, 0.3, 0, 1.92, 0.15, 'wall', g); box(1.18, 0.02, 0.01, 0, 1.86, 0.305, 'trim', g);
+  label('STOWAGE  MAX 15 KG', 0.24, 0.03, 0.3, 1.94, 0.302, g);
+}
+{
+  // the roof over the pilot: an overhead switch panel, gaspers, a dome light
+  const panelY = H - 0.04, z0 = -0.05, z1 = 0.5;
+  box(0.9, 0.05, z1 - z0, 0, panelY, (z0 + z1) / 2, 'panel', dressing);
+  const r = rnd(4);
+  for (let row = 0; row < 6; row++) for (let col = 0; col < 12; col++) {
+    const x = -0.38 + col * 0.069, z = z0 + 0.05 + row * 0.085, kind = r();
+    if (kind < 0.4) cyl(0.012, 0.02, x, panelY - 0.035, z, KIT.knob, dressing, [0, 0, 0], 10);
+    else if (kind < 0.75) box(0.008, 0.03, 0.008, x, panelY - 0.04, z, FIXED.steel, dressing, [0.4, 0, 0]);
+    else box(0.03, 0.01, 0.022, x, panelY - 0.03, z, new THREE.MeshStandardMaterial({ color: 0x111111, emissive: [0x46ff7c, 0xffae2e, 0xfff4dc][Math.floor(r() * 3)], emissiveIntensity: 1.2 }), dressing);
+  }
+  for (const x of [-0.6, 0.6]) { cyl(0.035, 0.03, x, H - 0.02, 0.2, FIXED.steel, dressing); cyl(0.015, 0.02, x, H - 0.045, 0.2, KIT.black, dressing); }
+  const dome = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.025, 20), new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xfff1d8, emissiveIntensity: 1.2 }));
+  dome.position.set(0, H - 0.02, 0.62); dressing.add(dome);
+}
+
+// a curved grab handle on each corner pillar, at the hatch, as on a digger's cab
+for (const s of [-1, 1]) {
+  const x = s * (W - 0.1), z = F + 0.13;
+  const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(x, 0.98, z - 0.04), new THREE.Vector3(x - s * 0.05, 1.02, z + 0.02), new THREE.Vector3(x - s * 0.06, 1.4, z + 0.03), new THREE.Vector3(x, 1.46, z - 0.04)]);
+  const m = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.016, 10), HANDLE_STEEL); dressing.add(m); handles.push(m);
+}
+
+// ---------------------------------------------------------------- wire runs: along the struts, clipped, into a junction box
+const WIRES = [[0xc0201c, 0], [0xe0ac16, 1], [0x111214, 2]];
+function run(points) {
+  for (const [col, k] of WIRES) {
+    const off = new THREE.Vector3((k - 1) * 0.014, 0, (k - 1) * 0.006);
+    const curve = new THREE.CatmullRomCurve3(points.map(p => p.clone().add(off)), false, 'catmullrom', 0.05);
+    const m = new THREE.Mesh(new THREE.TubeGeometry(curve, 160, 0.006, 8, false), new THREE.MeshStandardMaterial({ color: col, roughness: 0.6 }));
+    dressing.add(m);
+  }
+  // a clip every 0.22 m along the run
+  const all = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.05), len = all.getLength();
+  for (let t = 0.11; t < len; t += 0.22) {
+    const p = all.getPointAt(t / len), d = all.getTangentAt(t / len);
+    const c = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), FIXED.steel); c.scale.set(1, 1, 1);
+    c.position.copy(p); c.lookAt(p.clone().add(d)); c.scale.set(1.0, 0.6, 0.3); dressing.add(c);
+  }
+}
+for (const s of [-1, 1]) {
+  const px = s * (W - 0.1);   // just inside the corner pillar
+  run([
+    new THREE.Vector3(s * 0.56, 0.5, -0.25),            // out of the side console's front
+    new THREE.Vector3(s * 0.56, 0.06, -0.3),            // down to the floor
+    new THREE.Vector3(px, 0.05, -0.55),                 // along the floor to the pillar's foot
+    new THREE.Vector3(px, 0.05, F + 0.12),
+    new THREE.Vector3(px, 0.3, F + 0.1),                // up the corner pillar
+    new THREE.Vector3(px, HEAD - 0.1, F + 0.1),
+    new THREE.Vector3(px * 0.9, HEAD - 0.02, F + 0.1),  // along the front roof beam
+    new THREE.Vector3(s * 0.16, HEAD - 0.02, F + 0.1),  // into the junction box over the front screen
+  ]);
+}
+box(0.3, 0.12, 0.1, 0, HEAD - 0.02, F + 0.1, 'panel', dressing);
+dressing.add(new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.03, 0.005), new THREE.MeshBasicMaterial({ map: placard('J-BOX 3', 0.14, 0.03, '#d9d4c3', '#121314') })));
+dressing.children[dressing.children.length - 1].position.set(0, HEAD - 0.02, F + 0.153);
+
+// ---------------------------------------------------------------- light
+scene.add(new THREE.HemisphereLight(0xb8c4d4, 0x1a1712, 0.35));
+const lampA = new THREE.PointLight(0xffffff, 1.4, 4, 2); lampA.position.set(0, HEAD - 0.08, 0.45); scene.add(lampA);
+const lampB = new THREE.PointLight(0xffffff, 0.7, 3, 2); lampB.position.set(0, 0.5, -0.5); scene.add(lampB);
+const windowLight = new THREE.DirectionalLight(0xdfe7f2, 0.55); windowLight.position.set(0.3, 1.5, -3); scene.add(windowLight);
+for (const s of [-1, 1]) { const l = new THREE.DirectionalLight(0xdfe7f2, 0.25); l.position.set(s * 3, 1.4, -0.4); scene.add(l); }
+
+// ---------------------------------------------------------------- switching styles and views
+const built = {};
+function setStyle(name) {
+  const st = STYLES[name];
+  built[name] = built[name] || Object.fromEntries(Object.keys(byRole).map(r => [r, st[r]()]));
+  for (const r in byRole) for (const m of byRole[r]) m.material = built[name][r];
+  for (const a of accents) a.material.emissive.setHex(st.accent);
+  lampA.color.setHex(st.lamp[0]); lampB.color.setHex(st.lamp[1]);
+  const hm = st.handle ? new THREE.MeshStandardMaterial({ color: st.handle, roughness: 0.45 }) : HANDLE_STEEL;
+  for (const h of handles) h.material = hm;
+  for (const r of rivetMeshes) r.visible = !!st.rivets;
+  document.getElementById('about').innerHTML = st.about.map(s => `<span>${s}</span>`).join('') +
+    '<span>Same cab, same screens: only the materials change. Walls, trims, structure, panels and seat each take the style.</span>';
+  document.querySelectorAll('[data-style]').forEach(b => b.setAttribute('aria-pressed', b.dataset.style === name));
+}
+let mode = 'seat', yaw = 0, pitch = -0.08;
+const orbit = new THREE.OrbitControls(camera, renderer.domElement);
+orbit.target.set(0, 1.0, -0.2); orbit.enableDamping = true; orbit.enabled = false;
+function setView(v) {
+  mode = v; orbit.enabled = v === 'orbit';
+  if (v === 'orbit') { camera.fov = 60; camera.position.set(1.6, 2.2, 2.6); orbit.update(); }
+  else { camera.fov = 95; camera.position.copy(EYE); }
+  camera.updateProjectionMatrix();
+  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === v));
+}
+let drag = null;
+renderer.domElement.addEventListener('pointerdown', e => { if (mode === 'seat') { drag = [e.clientX, e.clientY, yaw, pitch]; renderer.domElement.setPointerCapture(e.pointerId); } });
+renderer.domElement.addEventListener('pointermove', e => {
+  if (!drag) return;
+  yaw = drag[2] + (e.clientX - drag[0]) * 0.005; pitch = Math.max(-1.2, Math.min(1.2, drag[3] + (e.clientY - drag[1]) * 0.005));
+});
+renderer.domElement.addEventListener('pointerup', () => { drag = null; });
+document.querySelectorAll('[data-style]').forEach(b => b.addEventListener('click', () => setStyle(b.dataset.style)));
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+document.getElementById('dress').addEventListener('change', e => { dressing.visible = e.target.checked; });
+function resize() {
+  const w = view.clientWidth, h = view.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(view);
+setStyle('steel'); setView('seat'); resize();
+renderer.setAnimationLoop(() => {
+  if (mode === 'seat') { camera.position.copy(EYE); camera.rotation.set(pitch, yaw, 0, 'YXZ'); }
+  else orbit.update();
+  renderer.render(scene, camera);
+});
+</script>

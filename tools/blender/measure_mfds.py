@@ -3,7 +3,9 @@
 level, straight ahead), for each of the six screens (`HUD_mfd_0..2_screen` hung, `SCREEN_left/center/right_screen` on
 the dash): the share of a 9 x 9 grid of points on the screen that is inside the picture and not hidden by anything
 nearer (a ray from the eye meets the screen first), and how square it looks (its height over its width as drawn; 1 is
-square, the pages are square). Prints one `MFD <file> <screen> visible <%> aspect <h/w>` line each.
+square, the pages are square). It also reads the screen's true shape in the model: its width and height in metres, how
+far its corners are from right angles, and how far its face is turned from the eye (0: square on). Prints one
+`MFD <file> <screen> visible <%> aspect <h/w> size <w>x<h> m corners <deg> facing <deg>` line each.
 
 Usage: blender --background --factory-startup --python tools/blender/measure_mfds.py -- <interior.gltf>"""
 import math
@@ -98,4 +100,13 @@ for name in SCREENS:
             ar = 1 / ar
     else:
         ar = 0.0
-    print(f"MFD {os.path.basename(src)} {name} visible {100 * seen / (N * N):.0f} aspect {ar:.2f}", flush=True)
+    # the true shape: the quad's own corners in order round its centre, their angles, its size along its edges
+    ring = sorted(set((round((p - c).dot(a), 5), round((p - c).dot(b), 5)) for p in pts), key=lambda q: math.atan2(q[1], q[0]))
+    off = 0.0
+    for k in range(len(ring)):
+        p0, p1, p2 = (Vector(ring[k - 1]), Vector(ring[k]), Vector(ring[(k + 1) % len(ring)]))
+        off = max(off, abs(math.degrees((p0 - p1).angle(p2 - p1)) - 90.0))
+    wide, tall = (u1 - u0, v1 - v0) if abs(a.dot(up)) <= abs(b.dot(up)) else (v1 - v0, u1 - u0)
+    facing = math.degrees(abs(n.dot((eye - c).normalized())) and math.acos(min(1.0, abs(n.dot((eye - c).normalized())))))
+    print(f"MFD {os.path.basename(src)} {name} visible {100 * seen / (N * N):.0f} aspect {ar:.2f} size {wide:.3f}x{tall:.3f} m "
+          f"corners {off:.1f} facing {facing:.1f}", flush=True)

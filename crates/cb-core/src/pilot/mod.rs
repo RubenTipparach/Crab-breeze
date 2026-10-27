@@ -49,6 +49,9 @@ pub struct PilotConfig {
     /// On foot, degrees: narrower, a first-person shooter's view (owner, 2026-10-26: "normal fps fov is 75, it grows
     /// to 95 when inside the mech"; openspec change `seated-fov`).
     pub on_foot_fov_deg: f32,
+    /// The on-foot view is measured across the screen (horizontal) rather than top to bottom (survey V1, provisional:
+    /// owner, 2026-10-26: "is my fps fov still 75? it seems kinda wide"; 75 tall is about 107 across on 16:9).
+    pub on_foot_fov_across: bool,
     /// Seconds the view takes to widen as the pilot sits, or narrow as they stand.
     pub fov_change_s: f32,
     /// On foot, Space jumps at this upward speed (owner, 2026-10-25: "my fps character needs jump!").
@@ -76,11 +79,22 @@ pub fn fov_blend(blend: f32, seated: bool, dt_s: f32, change_s: f32) -> f32 {
 
 /// The view's vertical field of view, degrees, at `blend`: the player's seated setting `setting_deg`, and on foot
 /// that less the data's difference between the two (never under 30), eased in and out (a smoothstep of the blend).
-pub fn fov_deg(cfg: &PilotConfig, setting_deg: f32, blend: f32) -> f32 {
-    let foot = (setting_deg - (cfg.view_fov_deg - cfg.on_foot_fov_deg)).max(30.0);
+/// With `on_foot_fov_across` the on-foot number is degrees across a screen `aspect` wide to 1 tall, turned into the
+/// vertical view it gives there.
+pub fn fov_deg(cfg: &PilotConfig, setting_deg: f32, blend: f32, aspect: f32) -> f32 {
+    let mut foot = (setting_deg - (cfg.view_fov_deg - cfg.on_foot_fov_deg)).max(30.0);
+    if cfg.on_foot_fov_across {
+        foot = vertical_deg(foot, aspect);
+    }
     let b = blend.clamp(0.0, 1.0);
     let s = b * b * (3.0 - 2.0 * b);
     foot + (setting_deg - foot) * s
+}
+
+/// The vertical field of view, degrees, that spans `across_deg` across a screen `aspect` wide to 1 tall.
+pub fn vertical_deg(across_deg: f32, aspect: f32) -> f32 {
+    let a = if aspect > 0.0 { aspect } else { 16.0 / 9.0 };
+    (2.0 * ((across_deg.to_radians() * 0.5).tan() / a).atan()).to_degrees()
 }
 
 /// Ground this far below the feet is stepped down onto, not fallen to: walking down a slope or a
@@ -109,6 +123,7 @@ impl Default for PilotConfig {
             exit_near_stop_m_s: 3.0,
             view_fov_deg: 75.0,
             on_foot_fov_deg: 75.0,
+            on_foot_fov_across: false,
             fov_change_s: 0.8,
             jump_speed_m_s: 4.4,
             gravity_m_s2: 9.81,
@@ -925,6 +940,26 @@ mod car_tests {
 mod tests {
     use super::*;
 
+    const W: f32 = 16.0 / 9.0;
+
+    #[test]
+    fn measured_across_the_on_foot_75_is_47_tall_on_16_by_9_and_the_cockpit_stays_95_tall() {
+        let c = PilotConfig {
+            on_foot_fov_across: true,
+            ..fov_cfg()
+        };
+        let foot = fov_deg(&c, 95.0, 0.0, W);
+        assert!((foot - 46.7).abs() < 0.1, "{foot}");
+        assert!(
+            (fov_deg(&c, 95.0, 0.0, 4.0 / 3.0) - 59.8).abs() < 0.1,
+            "a 4:3 screen is taller for the same 75 across"
+        );
+        assert_eq!(fov_deg(&c, 95.0, 1.0, W), 95.0);
+        // measured top to bottom, the same 75 is about 107 across
+        assert!((2.0 * ((37.5f32.to_radians().tan() * W).atan())).to_degrees() > 105.0);
+        assert!((vertical_deg(107.5, W) - 75.0).abs() < 0.1);
+    }
+
     fn fov_cfg() -> PilotConfig {
         PilotConfig {
             view_fov_deg: 95.0,
@@ -937,26 +972,26 @@ mod tests {
     #[test]
     fn the_view_is_75_on_foot_and_95_seated() {
         let c = fov_cfg();
-        assert_eq!(fov_deg(&c, 95.0, 0.0), 75.0);
-        assert_eq!(fov_deg(&c, 95.0, 1.0), 95.0);
+        assert_eq!(fov_deg(&c, 95.0, 0.0, W), 75.0);
+        assert_eq!(fov_deg(&c, 95.0, 1.0, W), 95.0);
     }
 
     #[test]
     fn a_wider_setting_widens_both_views() {
         let c = fov_cfg();
-        assert_eq!(fov_deg(&c, 100.0, 1.0), 100.0);
-        assert_eq!(fov_deg(&c, 100.0, 0.0), 80.0);
+        assert_eq!(fov_deg(&c, 100.0, 1.0, W), 100.0);
+        assert_eq!(fov_deg(&c, 100.0, 0.0, W), 80.0);
     }
 
     #[test]
     fn sitting_widens_the_view_over_the_change_time_with_no_jump() {
         let c = fov_cfg();
         let dt = 1.0 / 60.0;
-        let (mut b, mut last) = (0.0, fov_deg(&c, 95.0, 0.0));
+        let (mut b, mut last) = (0.0, fov_deg(&c, 95.0, 0.0, W));
         let mut steps = 0;
         while b < 1.0 {
             b = fov_blend(b, true, dt, c.fov_change_s);
-            let f = fov_deg(&c, 95.0, b);
+            let f = fov_deg(&c, 95.0, b, W);
             assert!(f >= last && f - last < 1.0, "a smooth widening: {last} to {f}");
             last = f;
             steps += 1;

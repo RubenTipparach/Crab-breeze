@@ -223,32 +223,32 @@
       "parent": "INNER_front_1",
       "pivot_m": [
         0.0,
-        0.59,
-        0.5
+        0.7234,
+        0.5063
       ]
     },
     "SCREEN_left": {
       "parent": "CONSOLE_front",
       "pivot_m": [
         0.0,
-        0.59,
-        0.5
+        0.7234,
+        0.5063
       ]
     },
     "SCREEN_center": {
       "parent": "CONSOLE_front",
       "pivot_m": [
         0.0,
-        0.59,
-        0.5
+        0.7234,
+        0.5063
       ]
     },
     "SCREEN_right": {
       "parent": "CONSOLE_front",
       "pivot_m": [
         0.0,
-        0.59,
-        0.5
+        0.7234,
+        0.5063
       ]
     },
     "HUD_mfd_0": {
@@ -278,7 +278,7 @@
   },
   "meshes": {
     "CONSOLE_front_front": {
-      "tris": 8304,
+      "tris": 8700,
       "group": "front",
       "node": "CONSOLE_front"
     },
@@ -313,7 +313,7 @@
       "node": "INNER_front_1"
     },
     "INNER_front_1_cabin": {
-      "tris": 1612,
+      "tris": 9748,
       "group": "cabin",
       "node": "INNER_front_1"
     },
@@ -370,7 +370,7 @@
   },
   "vents": 10,
   "lights": 6,
-  "tris": 31236,
+  "tris": 39768,
   "tri_budget": 600000,
   "draw_calls": 18,
   "atlases": {
@@ -414,5 +414,5 @@
     "wall_L",
     "wall_R"
   ],
-  "bytes": 15007385
+  "bytes": 16845970
 }

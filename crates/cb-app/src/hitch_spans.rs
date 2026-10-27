@@ -63,18 +63,46 @@ fn count_changes(
 }
 
 /// Counts the mesh and image assets added, changed and removed this frame (`mesh+`, `mesh~`, `mesh-`, `image+`,
-/// ...): what the render world has to upload or free next.
+/// ...): what the render world has to upload or free next. Each mesh added or changed also adds its vertex and index
+/// bytes, in KiB, to `kb:<name>` (the `Name` of an entity drawing it, `kb:?` when none does yet) and to `mesh_kb`:
+/// which meshes a slow upload frame was moving, and how big they were (mesh-uploads).
 fn count_assets(
     mut meshes: bevy::prelude::MessageReader<bevy::prelude::AssetEvent<bevy::prelude::Mesh>>,
     mut images: bevy::prelude::MessageReader<bevy::prelude::AssetEvent<bevy::prelude::Image>>,
+    assets: bevy::prelude::Res<bevy::prelude::Assets<bevy::prelude::Mesh>>,
+    users: bevy::prelude::Query<(&bevy::prelude::Mesh3d, Option<&bevy::prelude::Name>)>,
 ) {
     use bevy::prelude::AssetEvent;
+    let mut sent = Vec::new();
     for e in meshes.read() {
         match e {
-            AssetEvent::Added { .. } => crate::perf_hud::count("mesh+", 1),
-            AssetEvent::Modified { .. } => crate::perf_hud::count("mesh~", 1),
+            AssetEvent::Added { id } => {
+                crate::perf_hud::count("mesh+", 1);
+                sent.push(*id);
+            }
+            AssetEvent::Modified { id } => {
+                crate::perf_hud::count("mesh~", 1);
+                sent.push(*id);
+            }
             AssetEvent::Removed { .. } => crate::perf_hud::count("mesh-", 1),
             _ => {}
+        }
+    }
+    if !sent.is_empty() {
+        // Only on a frame that sends meshes: one walk over the drawn meshes to name them.
+        let names: HashMap<_, &str> = users
+            .iter()
+            .filter(|(m, _)| sent.contains(&m.0.id()))
+            .map(|(m, n)| (m.0.id(), n.map_or("unnamed", |n| n.as_str())))
+            .collect();
+        for id in sent {
+            let Some(bytes) = assets.get(id).and_then(mesh_bytes) else {
+                continue;
+            };
+            let kb = (bytes / 1024) as u32;
+            let name = names.get(&id).copied().unwrap_or("?");
+            crate::perf_hud::count(intern(&format!("kb:{name}")), kb);
+            crate::perf_hud::count("mesh_kb", kb);
         }
     }
     for e in images.read() {
@@ -85,6 +113,18 @@ fn count_assets(
             _ => {}
         }
     }
+}
+
+/// A mesh's vertex and index bytes, as the render world uploads them; `None` once its data has gone to the render
+/// world.
+fn mesh_bytes(m: &bevy::prelude::Mesh) -> Option<usize> {
+    let vertices: usize = m.try_attributes().ok()?.map(|(_, v)| v.get_bytes().len()).sum();
+    let indices = match m.try_indices_option().ok()? {
+        Some(bevy::mesh::Indices::U16(i)) => i.len() * 2,
+        Some(bevy::mesh::Indices::U32(i)) => i.len() * 4,
+        None => 0,
+    };
+    Some(vertices + indices)
 }
 
 /// The layer `LogPlugin::custom_layer` adds.
