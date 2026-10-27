@@ -73,6 +73,10 @@
     whitecap_coverage: 0.008,
     whitecap_scale_m: 40.0,
     whitecap_drift_m_s: (1.5, 0.0),
+    // Where a wavelet breaks into foam, in its own standard deviations (lifted on swell crests and in gusts): 2.0,
+    // the most lace of the 2.0-2.8 tried on 2026-10-27 (water-look 7.2). Below it the sea still does not whiten, but
+    // the lace stays a few flecks: only the gusts (6 x whitecap_coverage of the sea) foam at all.
+    whitecap_break_dev: 2.0,
     sun_tint: (1.10, 1.15, 1.20),
     // Light through the wavelets' crests seen against the sun (design section 5): turquoise.
     scatter_color: (0.05, 0.35, 0.33),
