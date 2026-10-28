@@ -6,6 +6,7 @@ mod audio_check;
 mod glb;
 mod map;
 mod ships;
+mod traffic_bench;
 
 use cb_core::GameData;
 use std::path::PathBuf;
@@ -181,95 +182,8 @@ fn main() -> ExitCode {
             }
             ExitCode::SUCCESS
         }
-        // A measurement instrument (openspec change `car-traffic` design section 5): the island's lane graph for a
-        // seed and what it costs to build, then the traffic filled round the start in the capital (the densest
-        // downtown) at the shipped densities and stepped for `steps` fixed steps with the eye standing still, timing
-        // each step. CPU only and headless: the simulation's own cost per fixed step, not a frame time.
-        Some("traffic-bench") => {
-            let seed = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(42);
-            let steps = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(3600usize);
-            let data = match GameData::load(&PathBuf::from("data"), "mechs/placeholder.ron") {
-                Ok(d) => d,
-                Err(e) => {
-                    eprintln!("FAIL {e}");
-                    return ExitCode::FAILURE;
-                }
-            };
-            let plan = cb_core::world::generate(seed, &data.world);
-            let t0 = std::time::Instant::now();
-            let graph =
-                cb_core::world::lanes::LaneGraph::build(&plan.cities, &plan.highways, &data.traffic.cfg.lanes, data.world.arterial_width_m);
-            let build_ms = t0.elapsed().as_secs_f64() * 1000.0;
-            let s = plan.start.mech_xz;
-            let eye = glam::Vec3::new(s.x, plan.terrain.height_at(s.x, s.y) + 1.7, s.y);
-            let mut traffic = cb_core::traffic::Traffic::new(seed);
-            let never = |_: glam::Vec3| false;
-            traffic.fill(&graph, &data.traffic, &plan, eye, &never, &never, &[], u32::MAX);
-            let dt = 1.0 / data.sim.fixed_step_hz;
-            let view = cb_core::traffic::TrafficView {
-                graph: &graph,
-                data: &data.traffic,
-                ground: &plan,
-                mechs: &[],
-                obstacles: &[],
-                driver: None,
-            };
-            let mut times: Vec<f64> = Vec::with_capacity(steps);
-            let mut fills: Vec<f64> = Vec::with_capacity(steps);
-            for _ in 0..steps {
-                let t = std::time::Instant::now();
-                traffic.step(&view, eye, dt);
-                let f = std::time::Instant::now();
-                traffic.fill(
-                    &graph,
-                    &data.traffic,
-                    &plan,
-                    eye,
-                    &never,
-                    &never,
-                    &[],
-                    data.traffic.cfg.spawn_per_step,
-                );
-                fills.push(f.elapsed().as_secs_f64() * 1000.0);
-                times.push(t.elapsed().as_secs_f64() * 1000.0);
-            }
-            times.sort_by(f64::total_cmp);
-            fills.sort_by(f64::total_cmp);
-            let pct = |v: &[f64], p: f64| v[((v.len() - 1) as f64 * p).round() as usize];
-            let q = |p: f64| pct(&times, p);
-            println!(
-                "of which the refill: p50 {:.3} ms, p99 {:.3} ms",
-                pct(&fills, 0.5),
-                pct(&fills, 0.99)
-            );
-            let driving = traffic
-                .cars
-                .iter()
-                .filter(|c| c.state == cb_core::traffic::CarState::Driving)
-                .count();
-            println!(
-                "seed {seed}: {} lanes, {} junctions, graph built in {build_ms:.0} ms; {} cars round the start ({driving} driving, the rest parked)",
-                graph.lanes.len(),
-                graph.nodes.len(),
-                traffic.cars.len()
-            );
-            // the junctions with traffic lights (survey W39) and the light heads the game draws at them
-            let lit = graph.nodes.iter().filter(|n| n.signal).count();
-            let heads = graph
-                .roads
-                .iter()
-                .map(|r| r.nodes.iter().filter(|&&n| graph.nodes[n as usize].signal).count())
-                .sum::<usize>();
-            println!("traffic lights at {lit} junctions, {heads} light heads");
-            println!(
-                "traffic step and refill over {steps} steps: p50 {:.3} ms, p95 {:.3} ms, p99 {:.3} ms, max {:.3} ms",
-                q(0.5),
-                q(0.95),
-                q(0.99),
-                times[times.len() - 1]
-            );
-            ExitCode::SUCCESS
-        }
+        // A measurement instrument (openspec change `car-traffic` design sections 5 and 6): `traffic_bench`.
+        Some("traffic-bench") => traffic_bench::run(&args),
         // A documentation instrument (openspec change `civil-air-traffic`): every civil aircraft kind's
         // size and block-out boxes as JSON, from the one table the game draws
         // (`cb_core::air_traffic::shape`), and the model a modelled kind is drawn from instead (survey D8),
