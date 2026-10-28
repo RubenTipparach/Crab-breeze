@@ -10,6 +10,7 @@
 //! world's edge. Every height comes from the one ground query, `Heightfield`; this module only
 //! presents it.
 
+use crate::paving::{NodePaving, PavingLook, PavingStyle, node_paving};
 use crate::pilot::PilotCamera;
 use crate::sim::{Data, PresentSet};
 use crate::state::GameApp;
@@ -31,7 +32,7 @@ pub struct GroundPlugin;
 
 impl Plugin for GroundPlugin {
     fn build(&self, app: &mut App) {
-        app.add_world_spawn(spawn_ground)
+        app.add_world_spawn(spawn_ground.after(crate::world::spawn_roads))
             .add_game_systems(Update, (redraw_craters, stream_ground).chain().in_set(PresentSet::Pose));
     }
 }
@@ -41,16 +42,21 @@ const COLLIDERS_PER_FRAME: usize = 2;
 /// A chunk keeps its collider until every body is this many times the collider radius away.
 const COLLIDER_RELEASE: f32 = 1.5;
 
+/// A node's ground and the suburbs' paving on it (`paving`).
+type NodeMeshes = (Mesh, NodePaving);
+
 /// One quadtree node's mesh.
 struct NodeDraw {
     entity: Entity,
     /// Its mesh is built (and current unless `stale`).
     ready: bool,
-    job: Option<Task<Mesh>>,
+    job: Option<Task<NodeMeshes>>,
     /// The crater tiles the building mesh leaves holes for.
     job_holes: BTreeSet<(i32, i32)>,
     /// A finished mesh and its holes, waiting for its new crater tiles (`deform::patch_swap`).
-    pending: Option<(Mesh, BTreeSet<(i32, i32)>)>,
+    pending: Option<(NodeMeshes, BTreeSet<(i32, i32)>)>,
+    /// Its paving, drawn as its children so it shows and hides with it.
+    paving: Vec<Entity>,
     /// Craters were dug in it since its mesh was started.
     stale: bool,
 }
@@ -63,6 +69,7 @@ impl NodeDraw {
             job: None,
             job_holes: BTreeSet::new(),
             pending: None,
+            paving: Vec::new(),
             stale: false,
         }
     }
@@ -101,6 +108,8 @@ struct Ground {
     material: Handle<StandardMaterial>,
     /// The grass's tuning, for the ground's colour under it.
     grass: Arc<GrassConfig>,
+    /// What the suburbs' paving is drawn with; none, none laid.
+    paving: Option<PavingLook>,
 }
 
 /// How the ground takes the grass's colour (openspec change `gpu-grass`): the colour, and how far
@@ -336,7 +345,22 @@ fn chunk_to_mesh(chunk: ChunkMesh, colors: Vec<[f32; 4]>) -> Mesh {
 }
 
 /// The drawn mesh of a node, leaving out the cells `skip` holds (crater tiles; only a chunk has
-/// any). Runs off the main thread.
+/// any), and the paving on it laid on that ground. Runs off the main thread.
+fn node_meshes(
+    plan: &WorldPlan,
+    grass: &GrassConfig,
+    paving: Option<&PavingStyle>,
+    node: Node,
+    cells: usize,
+    skip: &HashSet<(usize, usize)>,
+) -> NodeMeshes {
+    let laid = paving.map_or_else(Default::default, |style| {
+        node_paving(plan, style, node.rect(&plan.terrain, cells), node.step())
+    });
+    (node_mesh(plan, grass, node, cells, skip), laid)
+}
+
+/// The drawn ground of a node, leaving out the cells `skip` holds.
 fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, skip: &HashSet<(usize, usize)>) -> Mesh {
     let t = &plan.terrain;
     let step = node.step();
@@ -460,9 +484,11 @@ fn spawn_ground(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
+    paving: Option<Res<PavingLook>>,
 ) {
     let cfg = &data.0.world;
     let grass = Arc::new(data.0.grass.clone());
+    let paving = paving.map(|p| p.clone());
     let t = &plan.terrain;
     let cells = cfg.terrain_lod.chunk_cells as usize;
     let side = (t.n - 1).div_ceil(cells);
@@ -505,11 +531,13 @@ fn spawn_ground(
         let e = commands
             .spawn((
                 Name::new(format!("terrain {}:{},{}", n.level, n.x, n.z)),
-                Mesh3d(meshes.add(node_mesh(&plan, &grass, *n, cells, &none))),
                 MeshMaterial3d(material.clone()),
             ))
             .id();
-        nodes.insert(*n, NodeDraw::new(e, true));
+        let mut draw = NodeDraw::new(e, true);
+        let built = node_meshes(&plan, &grass, paving.as_ref().map(|p| &p.style), *n, cells, &none);
+        put_up(&mut commands, &mut meshes, paving.as_ref(), &mut draw, built);
+        nodes.insert(*n, draw);
     }
     let mut near = BTreeSet::new();
     chunks_near(&plan, cells, side, s, cfg.terrain_lod.collider_radius_m, &mut near);
@@ -539,7 +567,30 @@ fn spawn_ground(
         crater_ready: BTreeMap::new(),
         material,
         grass,
+        paving,
     });
+}
+
+/// Puts a node's built ground and paving on screen, the paving as its children in place of what was there.
+fn put_up(commands: &mut Commands, meshes: &mut Assets<Mesh>, look: Option<&PavingLook>, n: &mut NodeDraw, (ground, paving): NodeMeshes) {
+    commands.entity(n.entity).insert(Mesh3d(meshes.add(ground)));
+    for e in n.paving.drain(..) {
+        commands.entity(e).despawn();
+    }
+    let Some(look) = look else { return };
+    for (mesh, mat) in paving.into_iter().zip(&look.materials) {
+        if let Some(mesh) = mesh {
+            let e = commands
+                .spawn((
+                    Name::new("paving"),
+                    Mesh3d(meshes.add(mesh)),
+                    MeshMaterial3d(mat.clone()),
+                    ChildOf(n.entity),
+                ))
+                .id();
+            n.paving.push(e);
+        }
+    }
 }
 
 /// The open sea floor past the world's edge, out to the far plane: four flat strips round the
@@ -789,7 +840,7 @@ fn stream_ground(
                     holes.len()
                 );
             }
-            commands.entity(n.entity).insert(Mesh3d(meshes.add(mesh)));
+            put_up(&mut commands, &mut meshes, g.paving.as_ref(), n, mesh);
             n.ready = true;
         }
         up_tiles.extend(with);
@@ -847,7 +898,8 @@ fn stream_ground(
         let p = Arc::clone(&plan.0);
         if let Some(n) = g.nodes.get_mut(&node) {
             let grass = Arc::clone(&g.grass);
-            n.job = Some(pool.spawn(async move { node_mesh(&p, &grass, node, cells, &skip) }));
+            let style = g.paving.as_ref().map(|l| l.style);
+            n.job = Some(pool.spawn(async move { node_meshes(&p, &grass, style.as_ref(), node, cells, &skip) }));
             n.job_holes = holes;
             n.stale = false;
         }

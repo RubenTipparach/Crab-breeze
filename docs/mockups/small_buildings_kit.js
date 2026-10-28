@@ -842,14 +842,17 @@
         B.color(0xece6d8); wall(B, 'ribbed', 'x', z0 + t / 2, x0, x1, t, base, base + H, -1, row(x0 + 0.5, x1 - 0.5, base, [['win', 1.0, 0.9, 1.0], ['win', 1.0, 0.9, 1.0], ['win', 1.0, 0.9, 1.0]]), { inner: 'woodInt', innerPad: t });
         B.color(0xece6d8); wall(B, 'ribbed', 'z', x0 + t / 2, z0 + t, z1 - t, t, base, base + H, -1, [{ kind: 'win', a: -0.7, b: 0.7, y0: base + 1.0, y1: base + 2.0 }], { inner: 'woodInt' });
         B.color(0xece6d8); wall(B, 'ribbed', 'z', x1 - t / 2, z0 + t, z1 - t, t, base, base + H, 1, [], { inner: 'woodInt' });
-        B.color(stripe); B.box('paint', x0 - 0.01, base + 0.6, z1, x1 + 0.01, base + 0.82, z1 + 0.015); B.box('paint', x0 - 0.01, base + 0.6, z0 - 0.015, x1 + 0.01, base + 0.82, z0);
+        // The stripe stops either side of the door, so the doorway is clear (owner, 2026-10-28: "I also cant walk in presumably because of this wood bar").
+        const door = front[1];
+        B.color(stripe); B.box('paint', x0 - 0.01, base + 0.6, z1, door.a - 0.08, base + 0.82, z1 + 0.015); B.box('paint', door.b + 0.08, base + 0.6, z1, x1 + 0.01, base + 0.82, z1 + 0.015); B.box('paint', x0 - 0.01, base + 0.6, z0 - 0.015, x1 + 0.01, base + 0.82, z0);
         B.color(0xd8d2c6); B.box('metalRoof', x0 - 0.05, base + H, z0 - 0.05, x1 + 0.05, base + H + 0.18, z1 + 0.05);
         B.color(0xffffff); B.box('carpet', x0 + t + 0.012, base - 0.03, z0 + t + 0.012, x1 - t - 0.012, base + 0.012, z1 - t - 0.012);
         B.color(0xf2efe8); B.box('woodInt', x0 + t, base + H - 0.03, z0 + t, x1 - t, base + H, z1 - t);
         place(B, x0 + 3, base, 0, 0, FURN.sofa(0x8a6a3a)); place(B, x0 + 8, base, z0 + 0.5, 0, FURN.kitchen(0xd8c8a0)); place(B, x1 - 2.5, base, 0, 1, FURN.bed(0x4a5a7a));
         // Hitch, steps, awning.
         B.color(0x55585a); B.box('metal', x1, 0.3, -0.1, x1 + 1.4, 0.45, 0.1);
-        const dx = front[1].a; B.color(0x9a9ea2); for (let i = 0; i < 4; i++) B.box('metal', dx - 0.2, 0, z1 + 0.9 - i * 0.25, dx + 1.05, base - i * 0.19, z1 + 1.15 - i * 0.25);
+        // The steps climb to the door: the tallest against the wall, each lower one a tread further out (owner, 2026-10-28: "stairs are backwars on trailer homes").
+        const dx = front[1].a; B.color(0x9a9ea2); for (let i = 0; i < 4; i++) B.box('metal', dx - 0.2, 0, z1 + 0.15 + i * 0.25, dx + 1.05, base - i * 0.19, z1 + 0.4 + i * 0.25);
         B.color(0xece6d8); B.box('metal', dx - 2.2, base + 2.35, z1, dx + 2.6, base + 2.42, z1 + 2.4);
         for (const x of [dx - 2.1, dx + 2.5]) B.box('metal', x - 0.04, 0, z1 + 2.3, x + 0.04, base + 2.35, z1 + 2.38);
         B.color(0xb8b2a6); B.box('concrete', x0 + 3, 0, z1 + 2.6, x0 + 6, 0.06, 12); car(B, x0 + 4.5, 7.6, 0, pick(rnd, CARS), 'pickup');
