@@ -55,6 +55,7 @@ mod people_take;
 mod people_vat;
 mod perf_gate;
 mod perf_hud;
+mod perf_probe;
 mod physics;
 mod pilot;
 mod playtest;
@@ -185,6 +186,8 @@ fn main() -> AppExit {
     .add_plugins(textures::TexturesPlugin);
     #[cfg(feature = "hitch_spans")]
     app.add_plugins(hitch_spans::HitchCountsPlugin);
+    #[cfg(feature = "perf_probe")]
+    app.add_plugins(perf_probe::PerfProbePlugin);
     if args.start.as_deref() == Some("meadow") {
         app.insert_resource(world::StartInMeadow);
     }

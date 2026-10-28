@@ -43,3 +43,6 @@ shipping = []
 # The `hitch:` lines name every system's time in a slow frame (`hitch_spans.rs`, a measurement instrument):
 # `cargo build --release --features hitch_spans`. Never in the shipped game.
 hitch_spans = ["bevy/trace", "bevy/debug"]
+# The live performance probe on 127.0.0.1:7878 (`perf_probe.rs`, a measurement instrument; `tools/perf/probe_mcp.py`):
+# `cargo build --release --features perf_probe`, with `hitch_spans` to name every system. Never in the shipped game.
+perf_probe = []

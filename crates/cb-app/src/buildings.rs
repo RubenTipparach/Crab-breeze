@@ -478,6 +478,9 @@ fn step_structures(time: Res<Time<Fixed>>, mut live: ResMut<Live>, mut fx: Messa
             }
         });
     }
+    if !changed.is_empty() || !chunks.is_empty() {
+        crate::probe_event!("structures: {} buildings changed, {} chunks fell", changed.len(), chunks.len());
+    }
     live.dirty_buildings.extend(changed);
     live.new_chunks.extend(chunks);
     let cfg = live.structures.cfg.clone();

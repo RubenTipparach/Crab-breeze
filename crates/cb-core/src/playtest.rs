@@ -107,6 +107,10 @@ pub enum Beat {
     MfdFocus,
     /// Aim at the ground this many metres ahead and fire the missile key this many times, 2.5 s apart.
     FireAtGround(f32, u32),
+    /// Bring down the nearest buildings (`building`) or houses (`house`) within 800 m of the mech, one after another:
+    /// aim at each, hold the primary trigger and fire the missile key every 2.5 s for this many seconds, then the next,
+    /// this many in all (the city-destruction performance runs).
+    FireAtNearest(String, f32, u32),
     /// Press M, click START on this free-roam mission (`Fortress`, `Defence`), press M again.
     StartMission(String),
     /// Fly the mech up onto the Stratostacean's deck and stand there, at most this many seconds.
@@ -124,7 +128,7 @@ pub const LOOK_KINDS: [&str; 10] = [
     "person", "car", "light", "aircraft", "boat", "harbour", "door", "bench", "enemy", "fortress",
 ];
 /// Where `SkateToNearest` and `JetToNearest` can go.
-pub const GO_KINDS: [&str; 3] = ["harbour", "runway", "city"];
+pub const GO_KINDS: [&str; 5] = ["harbour", "runway", "city", "house", "farthest-city"];
 
 /// Heat at or over which a scripted pilot on a long jet leg comes down to skate (the jets lock out at 1, survey M3, M5).
 pub const JET_REST_AT: f32 = 0.85;
@@ -245,6 +249,7 @@ impl Validate for Script {
                     Beat::Scope(s, _) => !(s.is_finite() && *s > 0.0),
                     Beat::CycleTargets(n) => *n == 0,
                     Beat::FireAtGround(m, n) => !(m.is_finite() && *m > 0.0 && *n > 0),
+                    Beat::FireAtNearest(k, s, n) => !(matches!(k.as_str(), "building" | "house") && s.is_finite() && *s > 0.0 && *n > 0),
                     Beat::StartMission(m) => !matches!(m.as_str(), "Fortress" | "Defence"),
                     _ => false,
                 };

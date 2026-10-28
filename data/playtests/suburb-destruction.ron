@@ -1,0 +1,26 @@
+// Suburban house destruction, for performance (owner, 2026-10-27: "as well as subrban housing destruction. we need to
+// reduce physics objects on houses"). Free roam from the capital: board, skate to the nearest houses more than 300 m
+// off, bring down the 20 nearest 60 to 800 m from the mech, 5 s each, then hold still while the debris settles.
+// Every frame goes to output/perf/suburb-destruction-frames.csv.
+//
+//   CB_UNCAPPED=1 ./target/release/crab-breeze --playtest suburb-destruction > output/perf/suburb-destruction.log 2>&1
+(
+    name: "suburb-destruction",
+    stuck_s: 20.0,
+    runs: [
+        (
+            play: "free",
+            beats: [
+                Wait(2.0),
+                WalkToMech(6.0),
+                Board,
+                Wait(2.0),
+                SkateToNearest("house", 150.0),
+                Wait(2.0),
+                FireAtNearest("house", 5.0, 20),
+                Wait(20.0),
+                LookAround(10.0),
+            ],
+        ),
+    ],
+)

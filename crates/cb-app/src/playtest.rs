@@ -45,6 +45,9 @@ struct Click {
     since_s: f32,
 }
 
+/// Marks a house lot's id in `Pilot::shot`, apart from the buildings' ids.
+const HOUSE_ID: u32 = 1 << 31;
+
 #[derive(Resource)]
 struct Pilot {
     script: Script,
@@ -80,6 +83,9 @@ struct Pilot {
     detour_side: f32,
     /// Jobs the pilot could not reach and gave up on (`AcceptByMail` passes them over).
     gave_up: Vec<u32>,
+    /// The buildings and houses (`HOUSE_ID` set) `FireAtNearest` has fired at, and where it aims now.
+    shot: Vec<u32>,
+    aim: Vec3,
     /// The person, car or building a beat chose, kept while it lasts.
     goal_id: Option<u32>,
     /// A beat's goal on the ground (x, z).
@@ -129,6 +135,8 @@ impl Plugin for PlaytestPlugin {
             detour_until: 0.0,
             detour_side: 1.0,
             gave_up: Vec::new(),
+            shot: Vec::new(),
+            aim: Vec3::ZERO,
             goal_id: None,
             goal: Vec2::ZERO,
             route: Vec::new(),
@@ -1549,6 +1557,66 @@ fn play(
             act.fire_missile = t.count > 0 && now - t.next_s < 0.25;
             done = t.count >= *n && now - t.next_s > 4.0;
         }
+        Beat::FireAtNearest(kind, each, n) => {
+            // The next target: the nearest building (or house) 60 to 800 m from the mech not fired at yet (nearer, the
+            // mech would take its own blasts).
+            if t.count == 0 || (now - t.next_s > *each && t.count < *n) {
+                let here = Vec2::new(m.pos.x, m.pos.z);
+                let near = |p: Vec3| p.distance(eye);
+                let next = if kind == "house" {
+                    s.plan
+                        .small
+                        .candidates(here, 800.0)
+                        .into_iter()
+                        .filter(|l| !t.shot.contains(&(l | HOUSE_ID)))
+                        .filter_map(|l| s.plan.small.lots.get(l as usize).map(|lot| (l | HOUSE_ID, lot)))
+                        .map(|(id, lot)| (id, Vec3::new(lot.centre.x, lot.ground_m + 3.0, lot.centre.y)))
+                        .filter(|c| near(c.1) > 60.0)
+                        .min_by(|a, b| near(a.1).total_cmp(&near(b.1)))
+                } else {
+                    s.plan
+                        .collision
+                        .candidates(here, 800.0)
+                        .into_iter()
+                        .filter(|b| !t.shot.contains(b))
+                        .filter_map(|b| s.plan.buildings.get(b as usize).map(|bl| (b, bl)))
+                        .map(|(id, bl)| {
+                            let c = bl.footprint.centre();
+                            (id, Vec3::new(c.x, s.plan.terrain.height_at(c.x, c.y) + bl.height_m * 0.35, c.y))
+                        })
+                        .filter(|c| near(c.1) > 60.0)
+                        .min_by(|a, b| near(a.1).total_cmp(&near(b.1)))
+                };
+                match next {
+                    Some((id, at)) => {
+                        t.shot.push(id);
+                        t.aim = at;
+                        t.count += 1;
+                        t.next_s = now;
+                        say(&format!(
+                            "PLAYTEST_TARGET {} {kind} {} at ({:.0}, {:.0}), {:.0} m",
+                            t.count,
+                            id & !HOUSE_ID,
+                            at.x,
+                            at.z,
+                            at.distance(eye)
+                        ));
+                    }
+                    None => {
+                        fail(&mut t, now, &format!("no {kind} left within 800 m"));
+                        return;
+                    }
+                }
+            }
+            let d = t.aim - eye;
+            let pitch = d.y.atan2(Vec2::new(d.x, d.z).length());
+            act.look_delta_deg = look_toward(p.yaw_rad, p.pitch_rad, eye, t.aim, pitch, 0.12);
+            act.throttle_zero = true;
+            let on_target = now - t.next_s;
+            act.fire[0] = on_target > 0.8;
+            act.fire_missile = on_target > 1.0 && (on_target - 1.0) % 2.5 < 0.25;
+            done = t.count >= *n && on_target > *each;
+        }
         Beat::StartMission(which) => {
             let kind = match which.as_str() {
                 "Defence" => cb_core::missions::MissionKind::Defence,
@@ -1749,6 +1817,7 @@ fn play(
             | Beat::Scope(..)
             | Beat::MultiLock(_)
             | Beat::FireAtGround(..)
+            | Beat::FireAtNearest(..)
             | Beat::LandOnFortress(_)
             | Beat::DriveCar(..)
     ) && dist.is_none();
@@ -2092,6 +2161,24 @@ fn place(kind: &str, here: Vec2, s: &Scene, x: &More) -> Option<(Vec2, String)> 
                 .map(|c| (c.centre, format!("city {}", c.id)))
                 .collect(),
         ),
+        // the nearest house lot more than 300 m off (a suburb to bring down)
+        "house" => pick(
+            s.plan
+                .small
+                .lots
+                .iter()
+                .enumerate()
+                .filter(|(_, l)| l.centre.distance(here) > 300.0)
+                .map(|(i, l)| (l.centre, format!("house lot {i}")))
+                .collect(),
+        ),
+        // the city farthest from here (the fast-flight runs)
+        "farthest-city" => s
+            .plan
+            .cities
+            .iter()
+            .max_by(|a, b| a.centre.distance(here).total_cmp(&b.centre.distance(here)))
+            .map(|c| (c.centre, format!("city {}, {:.0} m off", c.id, c.centre.distance(here)))),
         _ => None,
     }
 }
