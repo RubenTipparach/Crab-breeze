@@ -152,7 +152,7 @@ const out = await page.evaluate(async tex => {
       if (o.name.startsWith("DETAIL_")) detailTris += n; [].concat(o.material).forEach(m => mats.add(m)); }
     if (/^(PART|YAW|PITCH|MUZZLE|LEG|DOOR|DETAIL)_/.test(o.name)) names.push(o.name);
   });
-  const glb = await new Promise((ok, err) => new T.GLTFExporter().parse(root, ok, err, { binary: true, onlyVisible: true, maxTextureSize: 4096 }));
+  const glb = await new Promise((ok, err) => new T.GLTFExporter().parse(root, ok, err, { binary: true, onlyVisible: true, maxTextureSize: 2048 }));
   let bin = ""; const bytes = new Uint8Array(glb);
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
   return { glb: btoa(bin), tris: Math.round(tris), detailTris: Math.round(detailTris), materials: mats.size, names: names.sort(), min: box.min.toArray(), max: box.max.toArray(), walks, parts: partList };

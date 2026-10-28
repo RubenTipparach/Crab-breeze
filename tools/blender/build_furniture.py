@@ -14,7 +14,7 @@ triangulated mesh with UVs in metres.
 Conventions the game relies on (`docs/design/furniture.md`):
 - local frame in metres, glTF axes: y up, the item's front faces +z, origin on the floor;
 - one node `MODEL`, one mesh, one primitive in the one material `furniture` shared by every item, textured by
-  one 4096 px atlas (`assets/textures/furniture/`: albedo, normal, ORM) baked here in Cycles from procedural
+  one 2048 px atlas, laid out on a 4096 px grid (`assets/textures/furniture/`: albedo, normal, ORM) baked here in Cycles from procedural
   shaders, so all furniture is one draw call; the atlas's bottom strip holds a swatch per kit surface key for
   the block furniture;
 - COLOR_0 is (1, 1, 1, tint mask): alpha 1 on the surface the placement's tint multiplies into;
@@ -1049,7 +1049,9 @@ ITEMS = {
 # One procedural shader per surface key: the look a part of that surface is baked with. Coordinates are object
 # space in metres (Blender axes), so grain, weave and print hold one scale on every item and every swatch.
 
-ATLAS = 4096  # px, square
+ATLAS = 4096  # px, square: the layout's grid (UVs are fractions of it)
+# The maps are baked at this, the layout scaled down to it (CLAUDE.md section 7; owner, 2026-10-28: "No 4k textures 2k only").
+MAX_MAP_PX = 2048
 SWATCH = 256  # px, one swatch of a kit surface
 SWATCH_KEYS = ["fabric", "wood", "metal", "counter", "trim", "paint", "glassDark", "glassShop", "lamp", "product",
                "rubber", "stainless", "concrete"]
@@ -1637,9 +1639,10 @@ def build_all(quick):
     density, regions = layout(scales)
     real = {name: round(scales[name] * side) for name, (x, y, side) in regions.items()}
     print("TEXEL", real)
-    if quick:
-        density, regions = density // 4, {n: (x // 4, y // 4, s // 4) for n, (x, y, s) in regions.items()}
-    size = ATLAS // 4 if quick else ATLAS
+    shrink = 4 if quick else max(1, ATLAS // MAX_MAP_PX)
+    if shrink > 1:
+        density, regions = density // shrink, {n: (x // shrink, y // shrink, s // shrink) for n, (x, y, s) in regions.items()}
+    size = ATLAS // shrink
     print(f"LAYOUT {density} px/m")
     atlas = {k: np.zeros((size, size, 4), dtype=np.float32) for k in ("albedo", "normal", "rough", "metal", "ao")}
     atlas["normal"][:, :] = (0.5, 0.5, 1.0, 1.0)
