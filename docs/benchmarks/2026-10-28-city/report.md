@@ -45,9 +45,22 @@ real time". The owner had gone to bed and said Claude may test freely.
    11.7 to 12.8 ms with 0 to 6 % of frames over 16.7 ms: near the 90 fps line already. The slow stretches are high
    (900 to 1 500 m) with cities in view and low over the western cities: the shadow pass 45 to 57 ms with only 850
    to 1 500 meshes drawn, so many triangles cast, not many meshes.
-10. **City destruction** (`city-destruction`, 15 buildings in the capital): 4 to 7 fps throughout, the shadow pass
+   **Fixed: trees by their true distance** (`ba21ea4`). Tree tiles were drawn at full detail (within 600 m) and
+   cast shadows (within 300 m) by their distance on the map alone, so the forest under a flight at 1 km was drawn in
+   full and in the shadow pass (0.2 to 0.9 million triangles on the slowest stretches). The distance now counts the
+   eye's height over the ground. Release, cooled runs (each started with the card's memory back at idle, 60 s
+   apart), three new and two old: over the whole flight a median of 9.2, 13.6 and 16.9 ms new against 13.8 and
+   26.1 ms old; above 800 m 8.8, 14.7 and 17.7 ms against 16.2 and 29.4 ms. The new runs sit lower, but the ranges
+   overlap, so no speedup is claimed: the fix is right by what it draws (no full trees or tree shadows a kilometre
+   below), not yet by a measurement. The new build also has the Mac's traffic step cut (`0a23291a`).
+10. **Runs on this desktop cannot be trusted one by one.** With the card that close to full, the same build on the
+   same route gave medians of 8.9, 22.0, 13.6 and 9.2 ms in four runs. A run started straight after another was
+   often the slow one; starting each with the card back at idle helped but did not remove it. Until the game fits
+   in video memory beside the desktop's other programs, every comparison needs several runs a side and only
+   differences larger than that spread count.
+11. **City destruction** (`city-destruction`, 15 buildings in the capital): 4 to 7 fps throughout, the shadow pass
    73 to 159 ms: the capital's spill as in `city-stand` slow runs, with the debris's meshes added.
-11. **Interiors stay at the owner's 250 m** ("I would prefer 250 m for furniture", 2026-10-24): 80 m was measured only
+12. **Interiors stay at the owner's 250 m** ("I would prefer 250 m for furniture", 2026-10-24): 80 m was measured only
    with the dressing change, so its share is a question for the owner (design F2), not a change.
 
 ## What to do next, by size

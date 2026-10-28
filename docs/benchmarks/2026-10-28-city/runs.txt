@@ -63,3 +63,12 @@ old1 fly p50 49.2 p99 110 max 122 over 50 ms 307 | destroy p50 23.9 p99 48 max 1
 new1 fly p50 41.5 p99 87 max 91 over 50 ms 195 | destroy p50 36.2 p99 52 max 59 over 50 ms 41 | settle p50 39.9 p99 45 max 49 over 50 ms 0
 new2 fly p50 62.0 p99 98 max 105 over 50 ms 437 | destroy p50 58.4 p99 73 max 95 over 50 ms 1646 | settle p50 56.5 p99 69 max 91 over 50 ms 523
 old2 fly p50 45.1 p99 107 max 121 over 50 ms 269 | destroy p50 31.9 p99 59 max 144 over 50 ms 78 | settle p50 34.5 p99 43 max 106 over 50 ms 4
+
+## fast-flight, release, old (plain2: before the tree distance fix and the traffic cut) against new (plain3); hot = started straight after another run, the rest cooled (card memory back at idle, 60 s)
+hot-new1  n  29530 p50   8.9 p95  15.2 p99  25.0 over 16.7 ms   4% over 11.1 ms  26% | above 800 m p50   8.3
+hot-new2  n  21900 p50  22.0 p95  63.5 p99  92.8 over 16.7 ms 100% over 11.1 ms 100% | above 800 m p50  23.4
+new1      n  34669 p50  13.6 p95  40.1 p99  69.2 over 16.7 ms  33% over 11.1 ms  96% | above 800 m p50  14.7
+new2      n  53346 p50   9.2 p95  22.9 p99  45.7 over 16.7 ms   9% over 11.1 ms  29% | above 800 m p50   8.8
+new3      n  26260 p50  16.9 p95  53.7 p99  81.0 over 16.7 ms  52% over 11.1 ms 100% | above 800 m p50  17.7
+old1      n  18601 p50  26.1 p95  72.9 p99 107.0 over 16.7 ms 100% over 11.1 ms 100% | above 800 m p50  29.4
+old2      n  30826 p50  13.8 p95  47.5 p99  81.7 over 16.7 ms  36% over 11.1 ms  96% | above 800 m p50  16.2
