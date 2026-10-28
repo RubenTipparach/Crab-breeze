@@ -71,6 +71,7 @@ mod screens_cube;
 mod settings;
 #[cfg(test)]
 mod shader_check;
+mod shader_warmup;
 mod showcase;
 mod sim;
 mod skins;
@@ -314,6 +315,8 @@ fn main() -> AppExit {
         return AppExit::error();
     }
     app.add_plugins(save_game::SaveGamePlugin);
+    // Shaders compiled behind the loading screen, not mid-game (city-frame section 5).
+    app.add_plugins(shader_warmup::ShaderWarmupPlugin);
     app.add_plugins((air_bases::AirBasesPlugin, air_drop::AirDropPlugin));
     app.add_plugins(air_traffic::AirTrafficPlugin);
     // Harm to civilians, cars and civil aircraft costs career standing, by one rule (survey W34, W37, W42).

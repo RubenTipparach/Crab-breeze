@@ -67,7 +67,15 @@ The first time a building is hit, `buildings::redraw_buildings` swaps its whole-
 is dressed, re-meshes its skin with the frame's slots: `frame_meshes` and `dressing_meshes`, on the main thread, in that
 frame (10 to 25 ms each in the logs). Later hits only write the building's words in the shared state buffer.
 
-**Planned (to be confirmed by the probe on `city-destruction` first):** the two meshes built on the async compute pool
+**Measured, and not the cause:** the probe on `city-destruction` (bot fixed) puts `redraw_buildings` under 2 ms in every
+slow frame. The long frames (100 to 600 ms) are late shader pipelines: 107 compiled after `GAME_READY`, each frame that
+long coming right after one in the log. `perf_gate` now logs each late pipeline's shader defs: standard PBR in six
+vertex layouts (normals with or without UVs, tangents and colours) and three blends, seen by the eye, the shadow
+cascades and the cockpit cube's faces, and the building frame and glass shaders. **Fixed:** `shader_warmup` lays a
+zoo of those in front of the eye behind the loading screen (a box per layout and blend, a building piece in skin and
+in glass), so they compile before `GAME_READY`; measured old against new (`docs/benchmarks/2026-10-28-city/`).
+
+**Not done (the async frame build below):** the two meshes built on the async compute pool
 from copies of the building's frame, site and dressing inputs; the whole-building box stays drawn until both are
 done, then the swap happens in one frame as now. The state buffer is written at once either way, so damage is not
 delayed, only its look on a building's first hit, by the few frames the build takes. Cost: one task a newly hit
