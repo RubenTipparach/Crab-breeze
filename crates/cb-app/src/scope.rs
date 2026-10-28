@@ -237,6 +237,7 @@ fn aim(
     mut camera: Single<(&mut Camera, &mut Transform, &mut Projection), (With<ScopeCamera>, Without<ScopeWindow>)>,
     mut overlay: Single<&mut Camera, (With<ScopeOverlay>, Without<ScopeCamera>)>,
     mut window: Single<(&mut Transform, &mut Visibility), (With<ScopeWindow>, Without<ScopeCamera>, Without<PilotCamera>)>,
+    frame: Res<crate::cockpit_space::CockpitFrame>,
 ) {
     let (cam, at, lens) = &mut *camera;
     cam.is_active = scope.open;
@@ -273,9 +274,11 @@ fn aim(
     let centre = o + ahead * dist.max(0.2);
     let facing = if normal.dot(o - centre) > 0.0 { normal } else { -normal };
     let width = 2.0 * dist.max(0.2) * (WINDOW_DEG.to_radians() * 0.5).tan();
-    *window.0 = Transform::from_translation(centre)
+    let world = Transform::from_translation(centre)
         .looking_to(-facing, Vec3::Y)
         .with_scale(Vec3::splat(width));
+    // In the cockpit pass's own frame when it draws in the mech's (`cockpit_space`).
+    *window.0 = frame.local(world).unwrap_or(world);
 }
 
 /// The distance along the unit ray from `o` along `d` to the triangle `t`, if it meets it (Moller-Trumbore).

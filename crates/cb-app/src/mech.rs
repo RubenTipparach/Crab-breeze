@@ -889,7 +889,7 @@ fn bind_interior(
             }
             commands
                 .entity(l)
-                .insert(bevy::camera::visibility::RenderLayers::layer(crate::pilot::COCKPIT_LAYER));
+                .insert(bevy::camera::visibility::RenderLayers::layer(crate::cockpit_space::cabin_layer()));
         }
         info!(
             "cockpit interior bound: {} meshes, {} of them the screen wall ({} triangles, cut into {} meshes), {} rides",
@@ -1985,7 +1985,7 @@ fn stunt(m: &MechState, plan: &Plan, player: Vec3, axis: &mut Option<Vec2>, t_s:
 #[derive(Component)]
 pub struct OwnLayers;
 
-fn cockpit_layer(
+pub(crate) fn cockpit_layer(
     mut commands: Commands,
     pilot: Res<PilotSim>,
     data: Res<Data>,
@@ -1996,7 +1996,9 @@ fn cockpit_layer(
     use bevy::camera::visibility::RenderLayers;
     let Some((root, sim, interior)) = mech.iter().next() else { return };
     let inside = pilot.curr.mode == PilotMode::Seated && sim.hatch.is_closed(&data.0.boarding);
-    let cabin = RenderLayers::layer(crate::pilot::COCKPIT_LAYER);
+    // The cabin goes to the cockpit pass by stand-ins in the mech's own frame (`cockpit_space`), fed from its source
+    // layer; `CB_COCKPIT_WORLD=1` draws the parts themselves where they stand in the world, as before.
+    let cabin = RenderLayers::layer(crate::cockpit_space::cabin_layer());
     let unseen = RenderLayers::layer(UNSEEN_LAYER);
     for e in children.iter_descendants(root) {
         let Ok(layers) = meshes.get(e) else { continue };
@@ -2166,6 +2168,21 @@ pub fn socket_steady(
     transforms: &Query<&Transform, Without<crate::pilot::PilotCamera>>,
     parents: &Query<&ChildOf>,
 ) -> Option<Transform> {
+    let e = *rig.sockets.get(name)?;
+    chain_steady(rig, e, None, transforms, parents)
+}
+
+/// Where entity `e` of a mech is, as `socket_steady` finds a socket: the product of the local transforms from it up to
+/// `stop` (not included; `None`: to the top, the world), the stride left out of the pelvis. Up to the mech's root it is
+/// the part's place in the mech's own frame, a few metres at most whatever the mech's place in the world
+/// (`cockpit_space`).
+pub fn chain_steady<F: bevy::ecs::query::QueryFilter>(
+    rig: &MechRig,
+    e: Entity,
+    stop: Option<Entity>,
+    transforms: &Query<&Transform, F>,
+    parents: &Query<&ChildOf>,
+) -> Option<Transform> {
     let pelvis = BONES.iter().position(|b| b.name == "pelvis").map(|i| rig.bones[i].entity);
     let local = |e: Entity| {
         let mut t = transforms.get(e).ok().copied().unwrap_or_default();
@@ -2174,12 +2191,14 @@ pub fn socket_steady(
         }
         t
     };
-    let e = *rig.sockets.get(name)?;
     transforms.get(e).ok()?;
     let mut acc = local(e);
     let mut at = e;
     while let Ok(p) = parents.get(at) {
         at = p.parent();
+        if Some(at) == stop {
+            break;
+        }
         acc = local(at).mul_transform(acc);
     }
     Some(acc)

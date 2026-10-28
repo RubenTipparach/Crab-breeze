@@ -156,13 +156,36 @@ impl Plugin for PlaytestPlugin {
         .add_systems(PreUpdate, (press_keys, hold_buttons).after(bevy::input::InputSystems))
         .add_systems(Update, play.in_set(crate::sim::PresentSet::Input))
         .init_resource::<FrameLog>()
-        .add_systems(Last, (log_frames, free_mouse));
+        .add_systems(Last, (log_frames, free_mouse, shots));
     }
 }
 
 /// A scripted run never holds the desktop's mouse (owner, 2026-10-28: "Just don't lock my mouse to the game screen if
 /// you're running a test"): the pilot turns the view and clicks through its own actions and pointer events, so the
 /// cursor is let go and shown again at the end of every frame, whatever the game set during it.
+/// `CB_SHOTS_EVERY_S=<s>`: the game window alone saved every so many seconds of the take to `output/perf/shots/`, to look
+/// at what a run drew without capturing the desktop the owner is using (an instrument).
+fn shots(mut commands: Commands, time: Res<Time<Real>>, t: Option<Res<Pilot>>, mut last: Local<f32>) {
+    let Some(every) = std::env::var("CB_SHOTS_EVERY_S").ok().and_then(|v| v.parse::<f32>().ok()) else {
+        return;
+    };
+    let Some(t) = t else { return };
+    if !t.started || every <= 0.0 {
+        return;
+    }
+    let now = time.elapsed_secs();
+    if now - *last < every {
+        return;
+    }
+    *last = now;
+    let dir = std::path::Path::new("output/perf/shots");
+    let _ = std::fs::create_dir_all(dir);
+    let path = dir.join(format!("{}-{:06.1}-beat{}.png", t.script.name, now, t.beat));
+    commands
+        .spawn(bevy::render::view::screenshot::Screenshot::primary_window())
+        .observe(bevy::render::view::screenshot::save_to_disk(path));
+}
+
 fn free_mouse(mut cursor: Single<&mut bevy::window::CursorOptions>) {
     if cursor.grab_mode != bevy::window::CursorGrabMode::None {
         cursor.grab_mode = bevy::window::CursorGrabMode::None;

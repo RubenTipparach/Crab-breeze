@@ -23,6 +23,7 @@ mod civil_standing;
 mod civilians;
 mod cli;
 mod clouds_render;
+mod cockpit_space;
 mod combat;
 mod day_night;
 mod defence;
@@ -319,6 +320,7 @@ fn main() -> AppExit {
     // Shaders compiled behind the loading screen, not mid-game (city-frame section 5).
     app.add_plugins(shader_warmup::ShaderWarmupPlugin);
     app.add_plugins(one_sided::OneSidedPlugin);
+    app.add_plugins(cockpit_space::CockpitSpacePlugin);
     app.add_plugins((air_bases::AirBasesPlugin, air_drop::AirDropPlugin));
     app.add_plugins(air_traffic::AirTrafficPlugin);
     // Harm to civilians, cars and civil aircraft costs career standing, by one rule (survey W34, W37, W42).

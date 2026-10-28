@@ -40,6 +40,20 @@ vary smoothly; a saw-tooth shows as alternating large and small (or reversed) st
 
 Tests: the blend's rule beside it (a turning view at fractions of each step never runs backwards).
 
+## 4. Built and measured (2026-10-28)
+
+- `cockpit_space`: stand-ins (name, mesh, `StandardMaterial`, visibility, no-shadow flag, or light) on the cockpit layer,
+  fed from `CABIN_SOURCE_LAYER`, placed by `mech::chain_steady` up to the root; the camera in the same frame; the
+  scope's window carried in (`CockpitFrame::local`); the cockpit's environment light turned by the heading.
+  `CB_COCKPIT_WORLD=1` draws as before. Seen in game-window shots of `suburb-house` (x about -7 000 m): the cabin, its
+  screens, lamps and sticks in place and lit.
+- `cb_core::pilot::seated_yaw`: the seated view's nose and look blended between steps. Its test holds a view over a
+  turning mech still at every fraction, where the old drawing lagged up to a step's turn. `CB_VIEW_TRACE` in
+  `suburb-house`: while the mech turned (1 337 frames), the view's rate equalled the nose's frame by frame, rising
+  steadily through every step fraction, with no saw-tooth.
+- `CB_SHOTS_EVERY_S`: the game window alone saved every so many seconds of a take, so a run can be looked at without
+  capturing the desktop.
+
 ## Open questions
 
 | Id | Question | Recommendation (built while open) |
