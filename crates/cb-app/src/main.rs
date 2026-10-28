@@ -4,7 +4,6 @@
 mod air_bases;
 mod air_drop;
 mod air_traffic;
-mod airfield;
 mod ambience;
 mod audio;
 mod battle_fx;

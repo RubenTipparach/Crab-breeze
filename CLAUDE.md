@@ -198,7 +198,12 @@ Standing instruction in Pale Blue Dot and Star Crew, adopted here:
 2. Put the finding and the plan in `openspec/`: a proposal, a design and the spec deltas.
 3. Stop there.
 
-Editing source is a separate step, taken after the write-up exists and on a request to take it. A
+**A 3D mockup comes before game code** (owner, 2026-10-28: "Please make mockups before editing game code", "Mockups
+should b 3d in js"). Anything the player will see (a building, a site, a vehicle, a layout, an effect) is shown first as
+an orbitable three.js page at true scale with the yardsticks (`threejs-mockups`, `docs/mockups/`), published and linked
+to the owner. The game code waits until the owner has looked at it.
+
+Editing source is a separate step, taken after the write-up and its mockup exist and on a request to take it. A
 change argued in a document can be redirected for the cost of reading it; the same change argued
 in a diff has already been made.
 

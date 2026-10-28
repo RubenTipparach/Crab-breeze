@@ -5,8 +5,9 @@ References: `docs/design/references/airports/` (owner, 2026-10-28). Metres throu
 ## 1. The airfield's frame
 
 A base has a site (`AirBase::rect`, 700 x 500 m) and a runway on one of four sides (`RunwaySide`), `runway_gap_m`
-from the site's edge. The **strip** is the rectangle between the site's edge and the runway's far edge, the
-runway's length long. It holds the runway, the parallel taxiway and the links. It is flattened to the site's ground
+from the site's edge. The **strip** is the rectangle from the site's edge to 40 m past the runway's far edge, and from
+90 m before one end of the runway to 90 m past the other (a runway end safety area, so the fence never crosses the
+runway). It holds the runway, the parallel taxiway and the links. It is flattened to the site's ground
 (it replaces the runway and taxiway rectangles in the flattening list). It is sampled dry, above the sea, within
 `runway_max_cut_m` and clear of the cities, highways and rivers when the runway is placed (`runway_fits`).
 
@@ -74,6 +75,12 @@ Per base, block-out geometry:
 
 About 25 000 triangles a base, in 6 draws (concrete, asphalt, white paint, yellow paint, lamps, aircraft). Nothing per
 frame. Not measured: the cloud session has no GPU.
+
+## Mockup
+
+`docs/mockups/airport.html` (`python3 tools/mockups/gen_airport.py`): the base today against the proposed airfield,
+the runway on each of its four sides, from above, on final, from the cockpit and on foot, at true size beside the
+Foreman and a pilot. Approved before any game code is written (CLAUDE.md section 4).
 
 ## Open questions
 

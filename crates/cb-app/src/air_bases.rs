@@ -78,11 +78,8 @@ fn spawn_bases(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
-    mut looks: ResMut<crate::air_traffic::KindLooks>,
-    assets: Res<AssetServer>,
 ) {
     let cfg = &data.0.world.bases;
-    let traffic = &data.0.air_traffic;
     if plan.0.bases.is_empty() {
         return;
     }
@@ -100,24 +97,6 @@ fn spawn_bases(
         base_color: Color::srgb(0.05, 0.2, 0.08),
         emissive: LinearRgba::rgb(0.3, 1.6, 0.5),
         unlit: false,
-        ..default()
-    });
-    // The tower's cab and the terminal's windows: dark, smooth glass that catches the sky.
-    let glass = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.08, 0.12, 0.16),
-        perceptual_roughness: 0.06,
-        reflectance: 0.6,
-        ..default()
-    });
-    // Approach lights and PAPI: lamps that glow and cast nothing (survey N3).
-    let lamp_white = materials.add(StandardMaterial {
-        base_color: Color::WHITE,
-        emissive: LinearRgba::rgb(6.0, 5.6, 4.8),
-        ..default()
-    });
-    let lamp_red = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.6, 0.05, 0.05),
-        emissive: LinearRgba::rgb(6.0, 0.3, 0.2),
         ..default()
     });
     // Darker than a pavement: the whole site is concrete and a light tone washed out in the sun.
@@ -189,92 +168,59 @@ fn spawn_bases(
                 );
             }
         }
-        // The runway beside the site (survey W45), and the airfield round it (airport-layout): its markings, the
-        // parallel taxiway, the terminal and its stands, the tower and the rest.
+        // The runway beside the site and its taxiway (survey W45): asphalt, darker than the apron, with a dashed
+        // centre line, edge lines and threshold bars at both ends.
         let rw = b.runway;
+        let asphalt = [0.13, 0.13, 0.13, 1.0];
         let mut runway = MeshBuilder::tiled(worn_tile_m, worn_tile_m);
-        let f = rw.rect();
-        runway.block(
-            Vec3::new(f.min.x, g - 0.5, f.min.y),
-            Vec3::new(f.max.x, g + APRON_LIFT_M, f.max.y),
-            [0.13, 0.13, 0.13, 1.0],
-        );
-        let (mut glass_m, mut lamps_m, mut red_m) = (MeshBuilder::default(), MeshBuilder::default(), MeshBuilder::default());
-        let field = crate::airfield::draw(
-            b,
-            cfg,
-            APRON_LIFT_M,
-            |p| plan.height_at(p.x, p.y),
-            crate::airfield::Meshes {
-                slab: &mut slab,
-                asphalt: &mut runway,
-                marks: &mut marks,
-                glass: &mut glass_m,
-                lamps: &mut lamps_m,
-                red: &mut red_m,
-            },
-        );
-        for (mesh, mat, what) in [
-            (glass_m, &glass, "glass"),
-            (lamps_m, &lamp_white, "lamps"),
-            (red_m, &lamp_red, "red lamps"),
-        ] {
-            if !mesh.is_empty() {
-                commands.spawn((
-                    Name::new(format!("air base {} {what}", b.id)),
-                    Mesh3d(meshes.add(mesh.build())),
-                    MeshMaterial3d(mat.clone()),
-                    Transform::IDENTITY,
-                    bevy::light::NotShadowCaster,
-                ));
-            }
-        }
-        // Aircraft parked nose in on the stands, and a helicopter on its stand (the civil traffic's own shapes).
-        let parked: Vec<(&String, &cb_core::air_traffic::AircraftSpec)> = traffic
-            .kinds
-            .iter()
-            .filter(|(_, s)| s.role != cb_core::air_traffic::Role::Helicopter)
-            .collect();
-        let rest = |s: &cb_core::air_traffic::AircraftSpec| g + APRON_LIFT_M + cb_core::air_traffic::rest_m(s);
-        for (i, st) in field.stands.iter().enumerate() {
-            if parked.is_empty() {
-                break;
-            }
-            let (kind, spec) = parked[(b.id as usize * 3 + i) % parked.len()];
-            let c = st.rect.centre();
-            let t = Transform::from_translation(Vec3::new(c.x, rest(spec), c.y))
-                .with_rotation(Quat::from_rotation_y((-st.nose.x).atan2(-st.nose.y)));
-            crate::air_traffic::spawn_aircraft(
-                &mut commands,
-                &mut looks,
-                &mut meshes,
-                &mut materials,
-                &assets,
-                kind,
-                spec,
-                format!("air base {} parked {kind} {i}", b.id),
-                t,
-                true,
+        for f in [rw.rect(), rw.taxiway(&r)] {
+            runway.block(
+                Vec3::new(f.min.x, g - 0.5, f.min.y),
+                Vec3::new(f.max.x, g + APRON_LIFT_M, f.max.y),
+                asphalt,
             );
         }
-        if let (Some((kind, spec)), Some(pad)) = (
-            traffic.kinds.iter().find(|(_, s)| s.role == cb_core::air_traffic::Role::Helicopter),
-            field.buildings.iter().find(|x| x.kind == cb_core::world::airfield::Kind::Helipad),
-        ) {
-            let c = pad.rect.centre();
-            crate::air_traffic::spawn_aircraft(
-                &mut commands,
-                &mut looks,
-                &mut meshes,
-                &mut materials,
-                &assets,
-                kind,
-                spec,
-                format!("air base {} parked {kind}", b.id),
-                Transform::from_translation(Vec3::new(c.x, rest(spec), c.y)),
-                true,
+        let y = g + APRON_LIFT_M + 0.02;
+        let (d, side) = (rw.dir(), rw.dir().perp());
+        let mut stripe = |from: f32, to: f32, off: f32, half_w: f32| {
+            let (p, q) = (rw.a + d * from + side * off, rw.a + d * to + side * off);
+            let s = side * half_w;
+            marks.quad(
+                [
+                    Vec3::new(p.x - s.x, y, p.y - s.y),
+                    Vec3::new(p.x + s.x, y, p.y + s.y),
+                    Vec3::new(q.x + s.x, y, q.y + s.y),
+                    Vec3::new(q.x - s.x, y, q.y - s.y),
+                ],
+                [1.0, 1.0, 1.0, 1.0],
             );
+        };
+        let len = rw.length_m();
+        let edge = rw.width_m * 0.5 - 1.0;
+        stripe(0.0, len, edge, 0.45);
+        stripe(0.0, len, -edge, 0.45);
+        for k in 0..8 {
+            let off = (k as f32 - 3.5) * 4.0;
+            stripe(8.0, 38.0, off, 0.9);
+            stripe(len - 38.0, len - 8.0, off, 0.9);
         }
+        let mut at = 150.0;
+        while at + 30.0 <= len - 150.0 {
+            stripe(at, at + 30.0, 0.0, 0.45);
+            at += 50.0;
+        }
+        // The control tower by the front corner.
+        let t = b.tower().centre();
+        slab.block(
+            Vec3::new(t.x - 6.0, g, t.y - 6.0),
+            Vec3::new(t.x + 6.0, g + 36.0, t.y + 6.0),
+            wall_tone,
+        );
+        slab.block(
+            Vec3::new(t.x - 9.0, g + 36.0, t.y - 9.0),
+            Vec3::new(t.x + 9.0, g + 44.0, t.y + 9.0),
+            roof_tone,
+        );
         // A terminal inside each bay's mouth: a post with a lit screen facing the apron.
         for t in b.terminals(cfg) {
             let (x, z) = (t.at.x, t.at.y);

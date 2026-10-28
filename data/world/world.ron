@@ -493,7 +493,7 @@
     bases: (
         runway_m: (2000.0, 1500.0),
         runway_width_m: 45.0,
-        runway_gap_m: 100.0,
+        runway_gap_m: 60.0,
         runway_step_m: 100.0,
         runway_max_cut_m: 45.0,
         runway_city_clear_m: 300.0,
