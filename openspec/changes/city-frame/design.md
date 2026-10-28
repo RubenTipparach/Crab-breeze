@@ -75,6 +75,19 @@ cascades and the cockpit cube's faces, and the building frame and glass shaders.
 zoo of those in front of the eye behind the loading screen (a box per layout and blend, a building piece in skin and
 in glass), so they compile before `GAME_READY`; measured old against new (`docs/benchmarks/2026-10-28-city/`).
 
+**Measured, no effect:** the warm-up. `city-destruction`, release, old against new interleaved two runs each: late
+pipelines 27 and 39 with it, 52 and 23 without (the driver's own shader cache makes the count vary); the median while
+shooting 18.9 to 19.3 ms against 19.3 to 19.5, frames over 50 ms 15 and 19 against 16 and 19. Kept (it moves compiles
+into loading and costs nothing in play), claimed as nothing.
+
+**What the long frames are:** the probe's frames over 50 ms while shooting name `allocate_and_free_meshes` (the render
+world copying new and changed meshes into its buffers) in 30 of 51, 26 ms on average in them: a hit building's new
+frame, and if dressed its skin, glass and rooms re-meshed with the frame's slots, several MB at once, and the debris.
+**Tried and undone:** Bevy's mesh slabs (a mesh of 1 MiB or more in a buffer of its own, slabs to 64 MiB, growing 2 x),
+the same build with and without: standing 16.9 ms against 13.8, shooting 23.1 ms against 19.9, frames over 50 ms 21
+against 16. Meshes in buffers of their own cannot be drawn together, so it cost every frame and did not touch the
+spikes. **Next:** upload less on a building's first hit (its rooms are re-meshed only to carry the frame's slots).
+
 **Not done (the async frame build below):** the two meshes built on the async compute pool
 from copies of the building's frame, site and dressing inputs; the whole-building box stays drawn until both are
 done, then the swap happens in one frame as now. The state buffer is written at once either way, so damage is not
