@@ -267,8 +267,13 @@ mod tests {
                 stage_reads(&module, ShaderStage::Vertex, "view"),
                 "{name}: the vertex's read of `view` is seen"
             );
-            // The walk sees a read where there is one: both shaders light in their fragments.
+            // The walk sees a read where there is one: a shader that binds the lights reads them in
+            // its fragment (one that only adds a colour, as the lamps' glow, binds none).
             let globals: Vec<_> = module.global_variables.iter().map(|(_, g)| g.name.clone()).collect();
+            if !globals.iter().flatten().any(|g| g.ends_with("lights")) {
+                checked.push(name);
+                continue;
+            }
             assert!(
                 stage_reads(&module, ShaderStage::Fragment, "lights"),
                 "{name}: the fragment's read is seen; globals {globals:?}"

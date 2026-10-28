@@ -22,14 +22,14 @@ where the owner chose real moon phases. Building from 2026-10-28.
 - [ ] 2.1 (Until it is built, far ground has no baked shadow: one baked for a fixed sun pointed the wrong way from the first hour.) The horizon map (section 4) baked at load on worker threads, cached by seed; the far ground shades by
   it; the vertex colours lose the shadow (test: a valley behind a ridge is in shade at sunset and lit at noon)
 - [ ] 2.2 The clouds' shade map rebaked every 2 degrees of sun travel (done, on the main thread; the move to a worker and the crossfade are left)
-- [ ] 2.3 The far facades' night layer (section 6)
+- [x] 2.3 The far and massing walls light their windows by the same rule as the glass (`building_windows.wesl`), a window inside each cell, the wall between dark, in place of a baked night layer
 
 ## 3. Lamps
 
 - [x] 3.1 `cb_core::world::lamps::place` from every road (owner: "Every stretch of road should have street lamps"): city streets, arterials and the highways between cities; none in a building or in water, stable ids (tests: spacing by road kind, both sides on arterials, none on the squares where streets cross). Seed 42: 5,241 lamps (2,297 streets, 2,136 arterials, 808 highways), printed by `cb-tools cities`
 - [x] 3.2 Poles and heads merged into one mesh per kilometre tile (two draws a tile, not instancing), the heads glowing from dusk
 - [x] 3.3 Tier 1: the nearest 96 within 250 m as a pool of spot lights moved from lamp to lamp, nearest first with ties by id, fading in over 0.5 s and out over their last 50 m
-- [ ] 3.4 Tier 3: glow sprites beyond 150 m
+- [x] 3.4 Tier 3: every lamp a glow quad sized on screen (at least 3 px), fading in from 150 to 300 m (`lamp_glow.wesl`); from 1,500 m a city reads as a grid of lights and the highways as dotted lines (`docs/screenshots/2026-10-28-city-lights-at-night.png`)
 
 ## 4. Windows and vehicles
 
