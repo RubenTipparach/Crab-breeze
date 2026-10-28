@@ -5,6 +5,7 @@
 //! draws the plan; the pilot and the mech walk on it through `height_at` and `push_out`. The world
 //! is an island in the sea (openspec change `island-world`).
 
+pub mod airfield;
 pub mod bases;
 pub mod biome;
 pub mod clouds;
@@ -569,9 +570,9 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         .iter()
         .map(|c| (c.rect(), c.ground_m))
         .chain(bases.iter().map(|b| (b.rect(), b.ground_m)))
-        // each base's runway and taxiway, flattened to its site's ground (survey W45)
-        .chain(bases.iter().map(|b| (b.runway.rect(), b.ground_m)))
-        .chain(bases.iter().map(|b| (b.runway.taxiway(&b.rect()), b.ground_m)))
+        // each base's airfield strip (its runway, parallel taxiway and links), flattened to its site's ground
+        // (survey W45, airport-layout)
+        .chain(bases.iter().map(|b| (b.runway.strip(), b.ground_m)))
         .collect();
     let keep_out: Vec<layout::Rect> = plateaus.iter().map(|p| p.0).collect();
     // Houses and small businesses on their lots (openspec change `small-buildings`), placed on the ground

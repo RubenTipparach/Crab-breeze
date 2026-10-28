@@ -26,16 +26,16 @@ Pure and deterministic; the one place every piece's footprint is decided. The ga
 | Parallel taxiway | In the strip, 15 m off the site's edge, the runway's whole length | 23 m wide |
 | Links | From the taxiway to the runway at each end and the middle | 23 m wide |
 | Holding positions | On each link, 50 m before the runway's edge | across the link |
-| Apron entries | From the taxiway into the site, at 1/3 and 2/3 of the site's runway-side edge | 30 m wide |
-| Terminal | Along the low-x edge of the site, between the pads' row and the hangars' row | 40 x 260 m, 14 m high |
-| Boarding bridges | From the terminal's face to each stand | 3 m wide, 25 m long |
-| Stands | In front of the terminal, 70 m apart | 4 stands, 60 x 60 m |
-| Fire station | Front low-x corner | 30 x 20 m, 9 m high, red doors |
-| Fuel farm | High-x edge, mid-depth | 3 tanks, 14 m across, 10 m high |
-| Car park | Middle, between the pads and the hangars | 120 x 70 m, bays 2.5 x 5 m |
-| Helicopter stand | Beside the tower | circle 24 m across, an H |
-| Windsock | Front corner by the runway's `a` end | 8 m mast, 3 m cone |
-| Fence | Round the site and strip | 2.4 m posts every 5 m, two rails |
+| Apron entries | From the taxiway into the site: the first two of 1/3, 2/3, 1/6, 5/6 and 1/2 along the site's runway-side edge whose way 60 m in is clear of every building, stand, hangar and the tower | 30 m wide |
+| Terminal | Along the low-x edge of the site, 5 m in | 30 x 260 m, 14 m high, glazed toward the stands |
+| Boarding bridges | From the terminal's face to each stand, 4 to 7 m up on a leg | 3 m wide, 25 m long |
+| Stands | In front of the terminal, 85 m apart | 3 stands, 80 x 80 m (the 70 m freighter fits) |
+| Fire station | Front low-x corner | 30 x 25 m, 9 m high, three red doors toward the apron |
+| Fuel farm | High-x edge, 30 m in, mid-depth | 3 tanks, 14 m across, 10 m high |
+| Car park | The back low-x corner, past the terminal's end (clear of where mechs walk) | 120 x 70 m, bays 2.5 x 5 m |
+| Helicopter stand | 55 m toward low x from the tower | circle 24 m across, an H, a parked helicopter |
+| Windsock | 200 m along from the runway's `a` end, 25 m off its edge toward the taxiway | 8 m mast, 3 m sleeve |
+| Fence | Round the site and strip together, 3 m inside their outline | 2.4 m posts every 10 m, two rails |
 
 When the runway lies behind the hangars (`Back`), the apron entries come in round the hangar row's ends.
 
@@ -45,20 +45,22 @@ All painted on the runway's surface (white) or beyond it (yellow chevrons). For 
 - **Thresholds:** existing bars, set 60 m in. The 60 m before each is the blast pad, with yellow chevrons.
 - **Designators:** the runway's magnetic heading in tens of degrees (bearing from `a` to `b`, +z north), two digits,
   9 m tall, drawn from segments 120 m from each threshold. They read from the approach side.
-- **Touchdown zone:** three pairs of bar groups at 150, 300 and 450 m past each threshold.
-- **Aiming point:** two broad bars, 45 x 10 m, 400 m past each threshold.
+- **Touchdown zone:** bar groups either side of the centre line at 150, 300, 600 and 750 m past each threshold (3, 3,
+  2 and 1 bars), each 22.5 m long; a group past the runway's middle is left off.
+- **Aiming point:** two broad bars, 50 x 4.5 m, 400 m past each threshold.
 - **Centre line:** the existing 30 m dashes with 20 m gaps.
 - **Edge lines:** the existing lines.
-- **Approach lights:** a row of posts every 30 m for 300 m out past each end, each with a crossbar of five lamps.
+- **Approach lights:** a post every 30 m for 300 m out past each end, each with a crossbar of five lamps (wider every
+  third post).
   Each post stands on the natural ground, its lamps at runway height.
-- **PAPI:** four boxes, 9 m apart, 15 m outside the left edge at the aiming point.
+- **PAPI:** four boxes, 9 m apart, from 15 m outside the runway's far edge (away from the taxiway) at the aiming point.
 
 The lamps are emissive (no point lights: survey N3 keeps night shadows to the player's own lamps).
 
 ## 4. Aircraft on the stands
 
-Each stand holds one parked aircraft, drawn from the civil traffic's stand-in shape table so a parked airliner is the
-one that flies (section 6.1 of CLAUDE.md). It is static, not in the traffic's cap and not in the hit list yet. Which
+Each stand holds one parked aircraft, spawned by the civil traffic's own `spawn_aircraft` (its model where it has one,
+else its block-out stand-in), so a parked airliner is the one that flies (section 6.1 of CLAUDE.md). It is static, not in the traffic's cap and not in the hit list yet. Which
 kinds stand where is seeded from the base's id: airliners, freighters, light planes.
 
 ## 5. Cost

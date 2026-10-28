@@ -74,7 +74,7 @@ impl Default for BasesConfig {
             terminal_look_deg: 45.0,
             runway_m: [2000.0, 1500.0],
             runway_width_m: 45.0,
-            runway_gap_m: 60.0,
+            runway_gap_m: 100.0,
             runway_step_m: 100.0,
             runway_max_cut_m: 45.0,
             runway_city_clear_m: 300.0,
@@ -154,6 +154,8 @@ pub struct Runway {
     pub width_m: f32,
     /// Which side of the site it lies on.
     pub side: RunwaySide,
+    /// Between the site's edge and its near edge, where the parallel taxiway runs (airport-layout), metres.
+    pub gap_m: f32,
 }
 
 impl Runway {
@@ -172,6 +174,7 @@ impl Runway {
             b: mid + along * length_m * 0.5,
             width_m: cfg.runway_width_m,
             side,
+            gap_m: cfg.runway_gap_m,
         }
     }
 
@@ -458,7 +461,8 @@ fn runway_for(
 }
 
 fn runway_fits(shape: &Shape, cities: &[City], clear: &KeepClear, r: &Runway, ground_m: f32, cfg: &BasesConfig, min_ground_m: f32) -> bool {
-    let pts = r.samples(50.0);
+    // The whole airfield strip (airport-layout): the runway, the parallel taxiway and the links.
+    let pts = r.strip_samples(50.0);
     let dry = pts.iter().all(|p| {
         let h = shape.height(*p);
         shape.past_land_edge_m(*p) < 0.0 && h >= min_ground_m && (h - ground_m).abs() <= cfg.runway_max_cut_m
@@ -467,7 +471,7 @@ fn runway_fits(shape: &Shape, cities: &[City], clear: &KeepClear, r: &Runway, gr
         .iter()
         .all(|p| cities.iter().all(|city| city.rect().distance(*p) > cfg.runway_city_clear_m))
         && pts.iter().all(|p| clear.highways.iter().all(|h| h.project(*p).0 > clear.road_m))
-        && keeps_clear(&r.rect(), clear)
+        && keeps_clear(&r.strip(), clear)
 }
 
 /// True when no highway's centre line comes within `road_m` of `site`, and no drainage course within
