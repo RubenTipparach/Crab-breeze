@@ -605,9 +605,29 @@ fn spawn_roads(
                 Vec3::new(p.x, y, p.y)
             };
             if s.kind == cb_core::world::StreetKind::Arterial {
-                lay_road(&mut streets, &mut worn, rs, len, wid, rs.tint_cell_m, rs.arterial_tone, rs.worn_tone, &at);
+                lay_road(
+                    &mut streets,
+                    &mut worn,
+                    rs,
+                    len,
+                    wid,
+                    rs.tint_cell_m,
+                    rs.arterial_tone,
+                    rs.worn_tone,
+                    &at,
+                );
             } else {
-                lay_road(&mut streets, &mut worn, rs, len, wid, rs.tint_cell_m, rs.street_tone, rs.worn_tone, &at);
+                lay_road(
+                    &mut streets,
+                    &mut worn,
+                    rs,
+                    len,
+                    wid,
+                    rs.tint_cell_m,
+                    rs.street_tone,
+                    rs.worn_tone,
+                    &at,
+                );
             }
             let yt = y + TRACK_LIFT_M;
             lay_tracks(&mut tracks, rs, start, start + dir * len, yt, yt, wid);
