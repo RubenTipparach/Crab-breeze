@@ -31,46 +31,25 @@ pub struct ShaderWarmupPlugin;
 
 impl Plugin for ShaderWarmupPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (show_zoo, clear_zoo));
+        app.add_systems(Update, (show_boxes, show_pieces, clear_zoo));
     }
 }
 
-fn show_zoo(
+/// The boxes: every vertex layout in every blend, in a row just under the eye line.
+fn show_boxes(
     mut commands: Commands,
     ready: Res<crate::loading::GameReady>,
     eye: Query<Entity, With<PilotCamera>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut leaves: crate::buildings::LeafLooks,
     mut done: Local<bool>,
 ) {
     if *done || ready.0 {
         return;
     }
     let Ok(eye) = eye.single() else { return };
-    // A building piece needs the buildings' looks loaded: wait for them, then lay the whole zoo out at once.
-    let Some(skin) = leaves.spawn(
-        &mut commands,
-        &mut meshes,
-        Mat::Concrete,
-        [0.8, 0.8, 0.8],
-        Vec3::splat(1.0),
-        "zoo skin".into(),
-    ) else {
-        return;
-    };
     *done = true;
-    let mut pieces = vec![skin.0];
-    if let Some(glass) = leaves.spawn(
-        &mut commands,
-        &mut meshes,
-        Mat::Glass,
-        [1.0, 1.0, 1.0],
-        Vec3::splat(1.0),
-        "zoo glass".into(),
-    ) {
-        pieces.push(glass.0);
-    }
+    let mut pieces = Vec::new();
     for alpha in [AlphaMode::Opaque, AlphaMode::Blend, AlphaMode::Premultiplied, AlphaMode::Mask(0.5)] {
         let material = materials.add(StandardMaterial {
             base_color: Color::srgba(0.5, 0.5, 0.5, 0.9),
@@ -78,27 +57,57 @@ fn show_zoo(
             ..default()
         });
         for (uv, tangents, colours) in LAYOUTS {
-            let e = commands
-                .spawn((
-                    Name::new("zoo box"),
-                    Mesh3d(meshes.add(zoo_box(uv, tangents, colours))),
-                    MeshMaterial3d(material.clone()),
-                    Transform::default(),
-                ))
-                .id();
-            pieces.push(e);
+            pieces.push(
+                commands
+                    .spawn((
+                        Name::new("zoo box"),
+                        Mesh3d(meshes.add(zoo_box(uv, tangents, colours))),
+                        MeshMaterial3d(material.clone()),
+                    ))
+                    .id(),
+            );
         }
     }
-    // Two metres ahead of the eye, a few centimetres across, side by side: in every camera's view and under the
-    // loading panel.
+    info!("shader warm-up: {} boxes behind the loading screen", pieces.len());
+    place(&mut commands, eye, pieces, -0.04);
+}
+
+/// The building pieces, in a skin and in glass, once the buildings' looks are loaded: a system of their own, since the
+/// buildings' material helper reads the same material store the boxes write.
+fn show_pieces(
+    mut commands: Commands,
+    ready: Res<crate::loading::GameReady>,
+    eye: Query<Entity, With<PilotCamera>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut leaves: crate::buildings::LeafLooks,
+    mut done: Local<bool>,
+) {
+    if *done || ready.0 {
+        return;
+    }
+    let Ok(eye) = eye.single() else { return };
+    let mut pieces = Vec::new();
+    for (mat, name) in [(Mat::Concrete, "zoo skin"), (Mat::Glass, "zoo glass")] {
+        match leaves.spawn(&mut commands, &mut meshes, mat, [0.8, 0.8, 0.8], Vec3::splat(1.0), name.into()) {
+            Some((e, _)) => pieces.push(e),
+            // The looks are not in yet: try again next frame.
+            None => return,
+        }
+    }
+    *done = true;
+    place(&mut commands, eye, pieces, 0.04);
+}
+
+/// Two metres ahead of the eye, a few centimetres across, side by side in a row at `y` m: in every camera's view and
+/// under the loading panel.
+fn place(commands: &mut Commands, eye: Entity, pieces: Vec<Entity>, y: f32) {
     let n = pieces.len() as f32;
     for (i, e) in pieces.into_iter().enumerate() {
         let x = (i as f32 - n / 2.0) * 0.06;
         commands
             .entity(e)
-            .insert((Zoo, ChildOf(eye), Transform::from_xyz(x, 0.0, -2.0).with_scale(Vec3::splat(0.05))));
+            .insert((Zoo, ChildOf(eye), Transform::from_xyz(x, y, -2.0).with_scale(Vec3::splat(0.05))));
     }
-    info!("shader warm-up: {n} pieces behind the loading screen");
 }
 
 fn clear_zoo(mut commands: Commands, ready: Res<crate::loading::GameReady>, zoo: Query<Entity, With<Zoo>>) {
