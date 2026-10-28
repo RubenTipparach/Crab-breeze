@@ -68,7 +68,7 @@ struct WaterSurface {
     refraction: vec4<f32>,  // amount, max uv, max path m, light falloff 0..1
     absorption: vec4<f32>,  // rgb per metre; w the least reflection at a grazing angle
     deep: vec4<f32>,        // rgb the water body's colour (an albedo); w the eye's submersion (0 dry, 1 under)
-    light: vec4<f32>,       // rgb the light reaching the water, times exposure; w spare
+    light: vec4<f32>,       // rgb the light reaching the water, times exposure; w where a wavelet breaks, deviations
     sky_horizon: vec4<f32>, // rgb the sky at the horizon (the game's sky), linear; w spare
     sky_zenith: vec4<f32>,  // rgb the sky straight up, linear; w the glitter's twinkle, Hz
     foam_color: vec4<f32>,  // rgb (an albedo); w intensity
@@ -387,7 +387,7 @@ fn fragment(in: WaterFragment, @builtin(front_facing) front: bool) -> @location(
     // Odds (the ripples near normal): at a gust's heart on a swell's crest the top 20 % of wavelets
     // foam, in an ordinary gust the top 2 %, outside a gust none.
     let breaking = wavelet + 0.8 * swell_up + clamp(into_gust, -2.0, 1.0);
-    let lace = smoothstep(2.6, 3.4, breaking);
+    let lace = smoothstep(water.light.w, water.light.w + 0.8, breaking);
     let streak = fbm3(vec3<f32>(dot(drifted, wind) * 0.12, 0.0, dot(drifted, across) * 0.9), t * 0.5);
     let near_cap = lace * smoothstep(-0.2, 0.15, streak) * 0.75;
     // Far off, where the wavelets are below a pixel, the gusts' foam is seen as a faint sheen.

@@ -69,10 +69,17 @@
     reflect_steps: 24,
     reflect_max_m: 3000.0,
     reflect_strength: 1.0,
-    // Whitecaps: 0.8 % of the sea in 14 m patches on the crests, drifting with the wind.
-    whitecap_coverage: 0.008,
+    // Whitecaps: gusts over 6 x this share of the sea (24 %) tear the tallest wavelets into foam, drifting with the
+    // wind. 0.008 (gusts over 4.8 %) left the near water at 40 m with a few flecks; 0.04 reads as lace there and as
+    // wind-streaked caps from 380 m without the sea whitening; 0.07 starts to lay pale sheens (water-look 7.2,
+    // 2026-10-27, docs/screenshots/2026-10-27-foam-*.png).
+    whitecap_coverage: 0.04,
     whitecap_scale_m: 40.0,
     whitecap_drift_m_s: (1.5, 0.0),
+    // Where a wavelet breaks into foam, in its own standard deviations (lifted on swell crests and in gusts): 2.0,
+    // the most lace of the 2.0-2.8 tried on 2026-10-27 (water-look 7.2). On its own it left a few flecks, because only
+    // the gusts foam at all: the coverage above is what brings the lace.
+    whitecap_break_dev: 2.0,
     sun_tint: (1.10, 1.15, 1.20),
     // Light through the wavelets' crests seen against the sun (design section 5): turquoise.
     scatter_color: (0.05, 0.35, 0.33),

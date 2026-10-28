@@ -264,9 +264,14 @@ impl MeshBuilder {
 impl MeshBuilder {
     /// A flat quad, corners counter-clockwise around its outward normal `(c1 - c0) x (c3 - c0)`.
     pub fn quad(&mut self, corners: [Vec3; 4], color: [f32; 4]) {
+        self.quad_shaded(corners, [color; 4]);
+    }
+
+    /// A flat quad as `quad`, each corner with its own colour (blended across the face).
+    pub fn quad_shaded(&mut self, corners: [Vec3; 4], colors: [[f32; 4]; 4]) {
         let base = self.positions.len() as u32;
         let n = (corners[1] - corners[0]).cross(corners[3] - corners[0]).normalize_or(Vec3::Y);
-        for c in corners {
+        for (c, color) in corners.into_iter().zip(colors) {
             self.positions.push(c.into());
             self.normals.push(n.into());
             self.colors.push(color);
@@ -433,6 +438,61 @@ fn vertex_material(materials: &mut Assets<StandardMaterial>, roughness: f32) -> 
     })
 }
 
+/// Height of the tyre tracks over the road: under the lane dashes (4 cm), clear of the surface.
+const TRACK_LIFT_M: f32 = 0.02;
+
+/// Lays one road `length_m` long and `width_m` wide (`road-surfaces` design section 2): `at(s, o)` is the point `s`
+/// metres along it and `o` across from its centre line. It is cut into cells `step_m` along, every corner carrying
+/// `tone` tinted by the large-scale noise, so the tint blends across the faces. A cell is one quad across unless a
+/// lane in it is a patch repair (decided per `tint_cell_m` of length): then it is cut at the lanes, and each
+/// patched lane goes into `other` (the other asphalt set) at the patch tone, beside the road and never over it,
+/// so nothing z-fights.
+#[allow(clippy::too_many_arguments)]
+fn lay_road(
+    own: &mut MeshBuilder,
+    other: &mut MeshBuilder,
+    rs: &cb_core::world::config::RoadSurfaceConfig,
+    length_m: f32,
+    width_m: f32,
+    step_m: f32,
+    tone: [f32; 3],
+    other_tone: [f32; 3],
+    at: &dyn Fn(f32, f32) -> Vec3,
+) {
+    let bounds = rs.lane_bounds(width_m);
+    let half = width_m * 0.5;
+    let n = (length_m / step_m).ceil().max(1.0) as usize;
+    let colour = |p: Vec3, tone: [f32; 3], shade: f32| {
+        let k = rs.tint_at(Vec2::new(p.x, p.z)) * shade;
+        [tone[0] * k, tone[1] * k, tone[2] * k, 1.0]
+    };
+    let quad = |mesh: &mut MeshBuilder, s0: f32, s1: f32, o0: f32, o1: f32, tone: [f32; 3], shade: f32| {
+        let mut q = [at(s0, o0), at(s1, o0), at(s1, o1), at(s0, o1)];
+        if (q[1] - q[0]).cross(q[3] - q[0]).y < 0.0 {
+            q.reverse();
+        }
+        mesh.quad_shaded(q, q.map(|p| colour(p, tone, shade)));
+    };
+    for i in 0..n {
+        let (s0, s1) = (length_m * i as f32 / n as f32, length_m * (i + 1) as f32 / n as f32);
+        let group = ((s0 + s1) * 0.5 / rs.tint_cell_m).floor();
+        let key = at((group + 0.5) * rs.tint_cell_m, 0.0);
+        let key = Vec2::new(key.x, key.z);
+        let patched = |o0: f32, o1: f32| rs.patched(key, rs.lane_at((o0 + o1) * 0.5, width_m));
+        if !bounds.windows(2).any(|w| patched(w[0], w[1])) {
+            quad(own, s0, s1, -half, half, tone, 1.0);
+            continue;
+        }
+        for w in bounds.windows(2) {
+            if patched(w[0], w[1]) {
+                quad(other, s0, s1, w[0], w[1], other_tone, rs.patch_tone);
+            } else {
+                quad(own, s0, s1, w[0], w[1], tone, 1.0);
+            }
+        }
+    }
+}
+
 /// Paving is draped on the ground in cells no longer than these: the terrain's lattice is 8 m, so a street follows
 /// it in 4 m pieces, a drive or a car park in 2 m ones.
 const STREET_CELL_M: f32 = 4.0;
@@ -463,24 +523,48 @@ fn drape(b: &mut MeshBuilder, plan: &WorldPlan, c: [Vec2; 4], lift: [f32; 4], co
     }
 }
 
+/// Lays the tyre tracks of a straight road piece from `a` to `b` (x, z), `width_m` wide, at heights `ya` and `yb`:
+/// for each track, two strips that fade from nothing at its edges to `track_dark` at its middle, as the alpha of a
+/// black blended over the asphalt, so the asphalt's own grain shows through and the fog takes them with it.
+fn lay_tracks(mesh: &mut MeshBuilder, rs: &cb_core::world::config::RoadSurfaceConfig, a: Vec2, b: Vec2, ya: f32, yb: f32, width_m: f32) {
+    let dir = (b - a).normalize_or(Vec2::X);
+    let side = dir.perp();
+    let p = |at: Vec2, y: f32, o: f32| {
+        let q = at + side * o;
+        Vec3::new(q.x, y, q.y)
+    };
+    let (clear, dark) = ([0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, rs.track_dark]);
+    for c in rs.track_centres(width_m) {
+        for (o0, o1, c0, c1) in [(c - rs.track_half_m, c, clear, dark), (c, c + rs.track_half_m, dark, clear)] {
+            let mut q = [p(a, ya, o0), p(b, yb, o0), p(b, yb, o1), p(a, ya, o1)];
+            let mut k = [c0, c0, c1, c1];
+            if (q[1] - q[0]).cross(q[3] - q[0]).y < 0.0 {
+                q.reverse();
+                k.reverse();
+            }
+            mesh.quad_shaded(q, k);
+        }
+    }
+}
+
+/// The roads, their lane marks and the city blocks' pavements (`road-surfaces`): city streets on the clean
+/// asphalt set, arterials and highways on the worn one, pavements and kerbs on the paving slabs.
 fn spawn_roads(
     mut commands: Commands,
     world: Res<Plan>,
     data: Res<Data>,
-    tex: Res<crate::textures::Textures>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
 ) {
     let cfg = &data.0.world;
-    // The road sets carry their own colour (CC0 asphalt, `assets/textures/roads`): the vertex colour only darkens the
-    // arterials a little. The stand-in texture, if a set cannot be read, gets the old asphalt grey.
-    let asphalt = [1.0, 1.0, 1.0, 1.0];
-    let arterial = [0.84, 0.84, 0.86, 1.0];
+    let rs = &cfg.road_surfaces;
     let pavement = [0.55, 0.54, 0.51, 1.0];
     let park = [0.26, 0.40, 0.19, 1.0];
-    let mut roads = MeshBuilder::default();
-    let mut kerbs = MeshBuilder::default();
+    let mut streets = MeshBuilder::tiled(rs.street_tile_m, rs.street_tile_m);
+    let mut worn = MeshBuilder::tiled(rs.worn_tile_m, rs.worn_tile_m);
+    let mut kerbs = MeshBuilder::tiled(rs.paving_tile_m, rs.paving_tile_m);
+    let mut tracks = MeshBuilder::default();
     // Lane dashes down the middle of every street and highway: 3 m painted, 6 m gap.
     let mut marks = MeshBuilder::default();
     let white = [0.92, 0.92, 0.88, 1.0];
@@ -508,22 +592,45 @@ fn spawn_roads(
         let y = city.ground_m + cfg.road_lift_m;
         for s in &city.streets {
             let (a, b) = (s.rect.min, s.rect.max);
-            let colour = if s.kind == cb_core::world::StreetKind::Arterial {
-                arterial
-            } else {
-                asphalt
-            };
-            roads.quad(
-                [
-                    Vec3::new(a.x, y, a.y),
-                    Vec3::new(a.x, y, b.y),
-                    Vec3::new(b.x, y, b.y),
-                    Vec3::new(b.x, y, a.y),
-                ],
-                colour,
-            );
             let c = s.rect.centre();
             let half = s.rect.size() * 0.5;
+            // along the street's long side, across from its centre line
+            let (start, dir, across, len, wid) = if half.x > half.y {
+                (Vec2::new(a.x, c.y), Vec2::X, Vec2::Y, half.x * 2.0, half.y * 2.0)
+            } else {
+                (Vec2::new(c.x, a.y), Vec2::Y, Vec2::X, half.y * 2.0, half.x * 2.0)
+            };
+            let at = |s: f32, o: f32| {
+                let p = start + dir * s + across * o;
+                Vec3::new(p.x, y, p.y)
+            };
+            if s.kind == cb_core::world::StreetKind::Arterial {
+                lay_road(
+                    &mut streets,
+                    &mut worn,
+                    rs,
+                    len,
+                    wid,
+                    rs.tint_cell_m,
+                    rs.arterial_tone,
+                    rs.worn_tone,
+                    &at,
+                );
+            } else {
+                lay_road(
+                    &mut streets,
+                    &mut worn,
+                    rs,
+                    len,
+                    wid,
+                    rs.tint_cell_m,
+                    rs.street_tone,
+                    rs.worn_tone,
+                    &at,
+                );
+            }
+            let yt = y + TRACK_LIFT_M;
+            lay_tracks(&mut tracks, rs, start, start + dir * len, yt, yt, wid);
             let yy = y + 0.04;
             if half.x > half.y {
                 dashes(Vec2::new(a.x, c.y), Vec2::new(b.x, c.y), &|_| yy);
@@ -543,27 +650,28 @@ fn spawn_roads(
     // Highways: a strip along the routed centre line, every 4 m, each edge square to the road
     // where it is, with the centre dashes along each 16 m piece.
     for h in &world.highways {
-        let steps = (h.length_m() / 4.0).ceil() as usize;
-        let p = |t: f32, side: f32| {
-            let xz = h.point_at(t) + h.dir_at(t).perp() * h.width_m * 0.5 * side;
+        let len = h.length_m();
+        let at = |s: f32, o: f32| {
+            let t = s / len;
+            let xz = h.point_at(t) + h.dir_at(t).perp() * o;
             Vec3::new(xz.x, h.grade_at(t) + cfg.road_lift_m, xz.y)
         };
-        for i in 0..steps {
-            let (t0, t1) = (i as f32 / steps as f32, (i + 1) as f32 / steps as f32);
-            roads.quad([p(t0, 1.0), p(t1, 1.0), p(t1, -1.0), p(t0, -1.0)], asphalt);
-        }
+        lay_road(&mut streets, &mut worn, rs, len, h.width_m, 4.0, rs.street_tone, rs.worn_tone, &at);
         let lift = cfg.road_lift_m + 0.04;
         let n = h.path.len();
         for k in 0..n - 1 {
             let (g0, g1) = (h.grade_m[k], h.grade_m[k + 1]);
             dashes(h.path[k], h.path[k + 1], &|t| g0 + (g1 - g0) * t + lift);
+            let yt = cfg.road_lift_m + TRACK_LIFT_M;
+            lay_tracks(&mut tracks, rs, h.path[k], h.path[k + 1], g0 + yt, g1 + yt, h.width_m);
         }
     }
     // The suburbs' streets, the drives and the car parks (openspec change `lot-access`), draped on the ground: asphalt
-    // in their own mesh (its own road set), drives with the kerbs' concrete, stall lines with the lane marks.
+    // in their own mesh on the suburbs' set (Asphalt026C), drives with the kerbs' concrete, stall lines with the lane marks.
     let paving = &world.small.paving;
     let concrete = [0.74, 0.73, 0.70, 1.0];
-    let mut streets = MeshBuilder::default();
+    let asphalt = [rs.suburb_tone[0], rs.suburb_tone[1], rs.suburb_tone[2], 1.0];
+    let mut suburb = MeshBuilder::tiled(rs.suburb_tile_m, rs.suburb_tile_m);
     for st in &paving.streets {
         let n = st.path.len();
         // Each point's side is the mean of its two segments', so the pieces of a bend share their edges.
@@ -575,7 +683,7 @@ fn spawn_roads(
         for i in 0..n.saturating_sub(1) {
             let (a, b, sa, sb) = (st.path[i], st.path[i + 1], side(i), side(i + 1));
             drape(
-                &mut streets,
+                &mut suburb,
                 &world,
                 [a - sa, a + sa, b + sb, b - sb],
                 [st.lift_m; 4],
@@ -586,7 +694,7 @@ fn spawn_roads(
     }
     for slab in &paving.slabs {
         let into = match slab.surface {
-            PavingSurface::Asphalt => &mut streets,
+            PavingSurface::Asphalt => &mut suburb,
             PavingSurface::Concrete => &mut kerbs,
             PavingSurface::Paint => &mut marks,
         };
@@ -597,40 +705,37 @@ fn spawn_roads(
         };
         drape(into, &world, slab.corners, slab.lift_m, colour, SLAB_CELL_M);
     }
-    // Downtown and the highways on Asphalt027C, the suburbs' streets and the car parks on Asphalt026C (owner,
-    // 2026-10-27: "26c suburban Streets 27c for downtown"), each its full PBR set.
-    let root = crate::cli::repo_root().join("assets");
-    let mut road_set = |dir: &str| {
-        let mut tiling = |file: &str, srgb: bool| {
-            crate::pbr_set::load_tiling(&root, &format!("textures/roads/{dir}/{file}"), srgb).map(|i| images.add(i))
-        };
-        let albedo = tiling("albedo.jpg", true);
-        let normal = tiling("normal_gl.png", false);
-        let orm = tiling("orm.png", false);
-        let found = albedo.is_some();
-        materials.add(StandardMaterial {
-            base_color: if found { Color::WHITE } else { Color::linear_rgb(0.16, 0.16, 0.17) },
-            base_color_texture: Some(albedo.unwrap_or_else(|| tex.asphalt.clone())),
-            normal_map_texture: normal,
-            occlusion_texture: orm.clone(),
-            metallic_roughness_texture: orm,
-            metallic: 0.0,
-            perceptual_roughness: 1.0,
-            ..default()
-        })
-    };
-    let downtown = road_set("asphalt027c");
-    let suburban = road_set("asphalt026c");
+    info!(
+        "roads: {} street, {} suburb, {} worn, {} tyre track and {} block triangles",
+        streets.indices.len() / 3,
+        suburb.indices.len() / 3,
+        worn.indices.len() / 3,
+        tracks.indices.len() / 3,
+        kerbs.indices.len() / 3
+    );
+    let track_mat = materials.add(StandardMaterial {
+        base_color: Color::BLACK,
+        unlit: true,
+        alpha_mode: AlphaMode::Blend,
+        ..default()
+    });
     commands.spawn((
-        Name::new("roads"),
-        Mesh3d(meshes.add(roads.build_with_tangents())),
-        MeshMaterial3d(downtown),
+        Name::new("tyre tracks"),
+        Mesh3d(meshes.add(tracks.build())),
+        MeshMaterial3d(track_mat),
+        NotShadowCaster,
     ));
-    commands.spawn((
-        Name::new("suburb streets and car parks"),
-        Mesh3d(meshes.add(streets.build_with_tangents())),
-        MeshMaterial3d(suburban),
-    ));
+    for (name, mesh, folder, roughness) in [
+        // Downtown on Asphalt027C, the suburbs on Asphalt026C (owner, 2026-10-27: "26c suburban Streets 27c for
+        // downtown"), patch repairs on the worn set; each its full PBR set.
+        ("roads", streets, "textures/roads/asphalt027c", 1.0),
+        ("suburb streets and car parks", suburb, "textures/roads/asphalt026c", 1.0),
+        ("worn roads", worn, "textures/road/asphalt_worn", 0.9),
+        ("blocks", kerbs, "textures/road/paving", 0.85),
+    ] {
+        let mat = crate::pbr_set::set_material(&mut images, &mut materials, folder, roughness);
+        commands.spawn((Name::new(name), Mesh3d(meshes.add(mesh.build_with_tangents())), MeshMaterial3d(mat)));
+    }
     let mark_mat = vertex_material(&mut materials, 0.6);
     commands.spawn((
         Name::new("lane marks"),
@@ -638,12 +743,6 @@ fn spawn_roads(
         MeshMaterial3d(mark_mat),
         NotShadowCaster,
     ));
-    let kerb_mat = materials.add(StandardMaterial {
-        base_color_texture: Some(tex.concrete.clone()),
-        perceptual_roughness: 0.85,
-        ..default()
-    });
-    commands.spawn((Name::new("blocks"), Mesh3d(meshes.add(kerbs.build())), MeshMaterial3d(kerb_mat)));
 }
 
 fn spawn_buildings(

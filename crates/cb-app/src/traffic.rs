@@ -44,6 +44,16 @@ pub struct TrafficSim {
     filled: bool,
 }
 
+impl TrafficSim {
+    /// Car `c` as it is drawn between fixed steps at `alpha` (0..1 past the last step): its ground point and
+    /// heading, eased from the step before. The cars' models and the chase camera both place by it.
+    pub fn drawn_pose(&self, c: &cb_core::traffic::Car, alpha: f32) -> (Vec3, f32) {
+        let (p0, h0) = self.prev.get(&c.id).copied().unwrap_or((c.pos, c.heading_rad));
+        let turned = (c.heading_rad - h0 + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+        (p0.lerp(c.pos, alpha), h0 + turned * alpha)
+    }
+}
+
 /// The car the pilot can reach now, or the one they are in (for the pilot's step and the prompt).
 #[derive(Resource, Default)]
 pub struct CarAccessNow(pub Option<CarAccess>);
@@ -84,6 +94,9 @@ struct Dash {
 struct Spin {
     wheels: [(Entity, Quat); 4],
     angle_rad: f32,
+    /// The spin and steer the wheels were last drawn at.
+    drawn_rad: f32,
+    drawn_steer_rad: f32,
 }
 
 /// Draws a running driver.
@@ -123,9 +136,20 @@ impl Plugin for TrafficPlugin {
             .add_game_systems(FixedUpdate, step_traffic.in_set(SimSet::Mech).before(crate::mech::step_mech))
             .add_game_systems(
                 Update,
-                (draw_cars, find_dash, turn_dash, find_wheels, spin_wheels, draw_runners).chain(),
+                (
+                    draw_cars,
+                    find_dash,
+                    turn_dash,
+                    find_wheels,
+                    spin_wheels,
+                    // drivers on foot are people (`people_vat`); the capsule only when people are left out
+                    draw_runners.run_if(not(resource_exists::<crate::people_vat::PeopleDraw>)),
+                )
+                    .chain(),
             )
-            .add_game_systems(Update, report_harm);
+            .add_game_systems(Update, report_harm)
+            .add_world_spawn(spawn_speed_readout)
+            .add_game_systems(Update, show_speed);
     }
 }
 
@@ -145,6 +169,7 @@ pub fn find_car(sim: Res<TrafficSim>, pilot: Res<PilotSim>, data: Res<Data>, mut
         }
     };
     let t = &sim.traffic;
+    let stopped = data.0.pilot.car_stopped_m_s;
     out.0 = if pilot.curr.mode.in_car() {
         t.driven().map(access)
     } else {
@@ -153,7 +178,11 @@ pub fn find_car(sim: Res<TrafficSim>, pilot: Res<PilotSim>, data: Res<Data>, mut
             .iter()
             .filter(|c| c.pos.distance(feet) < 25.0 && !c.state.wreck())
             .map(access)
-            .min_by(|a, b| a.door.distance(feet).total_cmp(&b.door.distance(feet)))
+            // the stopped car's door first: one driving past nearer never hides the parked car the pilot stands at
+            .min_by(|a, b| {
+                let key = |c: &CarAccess| c.door.distance(feet) + if c.speed_m_s > stopped { 100.0 } else { 0.0 };
+                key(a).total_cmp(&key(b))
+            })
     };
 }
 
@@ -166,16 +195,7 @@ fn in_cone(eye: Vec3, fwd: Vec3, half_rad: f32, p: Vec3) -> bool {
 /// True when a building or the ground stands between `eye` and `p`.
 fn covered(plan: &cb_core::world::WorldPlan, eye: Vec3, p: Vec3) -> bool {
     let n = (eye.distance(p) / 10.0).ceil().max(1.0) as usize;
-    (1..n).any(|k| {
-        let q = eye.lerp(p, k as f32 / n as f32);
-        let q2 = Vec2::new(q.x, q.z);
-        let ground = plan.terrain.height_at(q.x, q.z);
-        q.y < ground
-            || plan.collision.candidates(q2, 0.0).into_iter().any(|b| {
-                let bd = &plan.buildings[b as usize];
-                bd.footprint.distance(q2) == 0.0 && q.y < ground + bd.height_m
-            })
-    })
+    (1..n).any(|k| plan.solid_at(eye.lerp(p, k as f32 / n as f32)))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -212,12 +232,10 @@ fn step_traffic(
     let ground = OnRoads {
         ground: &scene,
         plan: &plan,
-        lift_m: data.0.world.road_lift_m,
     };
     // the pilot and the cars
     for e in &events.0 {
         match *e {
-            PilotEvent::CarHailed(id) => sim.traffic.hail(id),
             PilotEvent::EnteringCar(id) => {
                 // the driver runs from the pilot for the nearest street door, as people on foot do (the
                 // buildings' real doors, `street_doors::RefugeDoors`, in the people's reach); with none in
@@ -316,7 +334,8 @@ fn step_traffic(
     let seen = |p: Vec3| !initial && in_cone(eye, fwd, half, p);
     let behind = |p: Vec3| covered(&plan, eye, p);
     let budget = if initial { u32::MAX } else { d.cfg.spawn_per_step };
-    sim.traffic.fill(&roads.0, d, &ground, eye, &seen, &behind, budget);
+    let mech_bodies: Vec<(Vec2, f32)> = near.iter().map(|m| (m.at, m.radius_m)).collect();
+    sim.traffic.fill(&roads.0, d, &ground, eye, &seen, &behind, &mech_bodies, budget);
     sim.filled = true;
     for h in sim.traffic.take_harms() {
         toll.all += 1;
@@ -390,10 +409,7 @@ fn draw_cars(
             continue;
         };
         seen.insert(d.id);
-        let (p0, h0) = sim.prev.get(&c.id).copied().unwrap_or((c.pos, c.heading_rad));
-        let turned = (c.heading_rad - h0 + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
-        let pos = p0.lerp(c.pos, alpha);
-        let heading = h0 + turned * alpha;
+        let (pos, heading) = sim.drawn_pose(c, alpha);
         let (pitch, roll) = c.body.as_ref().map_or((0.0, 0.0), |b| (b.pitch_rad, b.roll_rad));
         // Written only when it moved: a parked or waiting car left alone is not walked by the transform
         // propagation (its whole scene, every frame: the main world's largest cost in a city, 2026-10-26).
@@ -525,6 +541,8 @@ fn find_wheels(
             commands.entity(root).insert(Spin {
                 wheels: [a, b, c, d],
                 angle_rad: 0.0,
+                drawn_rad: 0.0,
+                drawn_steer_rad: 0.0,
             });
         }
     }
@@ -535,16 +553,38 @@ fn spin_wheels(
     sim: Res<TrafficSim>,
     data: Res<Data>,
     time: Res<Time>,
+    eye: Query<&GlobalTransform, With<crate::pilot::PilotCamera>>,
     mut cars: Query<(&CarDraw, &mut Spin)>,
     mut tf: Query<&mut Transform, Without<CarDraw>>,
+    mut count: Local<(u64, u64, f32)>,
 ) {
     let dt = time.delta_secs();
+    let eye = eye.iter().next().map(|g| g.translation());
+    let mut writes = 0u64;
     for (d, mut spin) in &mut cars {
         let Some(c) = sim.traffic.get(d.id) else { continue };
         let spec = &data.0.traffic.kinds[d.kind];
         let v = c.body.as_ref().map_or(c.speed_m_s, |b| b.speed_m_s());
         spin.angle_rad = (spin.angle_rad - v / spec.wheel_radius_m * dt).rem_euclid(std::f32::consts::TAU);
         let steer = c.body.as_ref().map_or(0.0, |b| b.steer_rad);
+        // Written only when the change would show from the eye (`car::wheel_redraw_due`): a far car's wheels are a
+        // few pixels and their spin is never seen.
+        let far = eye.map_or(0.0, |e| e.distance(c.pos));
+        // `CB_WHEELS_EVERY_FRAME=1` (perf-bench switch): the old rule, every wheel every frame, for the before count.
+        static EVERY: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        let every = *EVERY.get_or_init(|| crate::cli::switched_off("CB_WHEELS_EVERY_FRAME"));
+        if !every
+            && !cb_core::car::wheel_redraw_due(
+                spin.angle_rad - spin.drawn_rad,
+                steer - spin.drawn_steer_rad,
+                spec.wheel_radius_m,
+                far,
+            )
+        {
+            continue;
+        }
+        spin.drawn_rad = spin.angle_rad;
+        spin.drawn_steer_rad = steer;
         for (i, (e, rest)) in spin.wheels.iter().enumerate() {
             if let Ok(mut t) = tf.get_mut(*e) {
                 let turn = if i < 2 { Quat::from_rotation_y(-steer) } else { Quat::IDENTITY };
@@ -552,13 +592,28 @@ fn spin_wheels(
                 // A wheel at rest is left alone (see `draw_cars`).
                 if t.rotation != rotation {
                     t.rotation = rotation;
+                    writes += 1;
                 }
             }
         }
     }
+    // The writes a frame, said every 10 s: an instrument for the 3070 report's finding 1 (about 1 200 a frame there).
+    let (sum, frames, since) = &mut *count;
+    *sum += writes;
+    *frames += 1;
+    *since += dt;
+    if *since >= 10.0 {
+        info!(
+            "wheels: {:.0} transform writes a frame over the last {:.0} s",
+            *sum as f32 / (*frames).max(1) as f32,
+            *since
+        );
+        *count = (0, 0, 0.0);
+    }
 }
 
-/// Drivers who left their cars, as 1.8 m block-out figures (stand-ins until people are in the game).
+/// Drivers who left their cars, as 1.8 m block-out figures, when people are left out (`CB_NO_PEOPLE=1`);
+/// otherwise `people_vat` draws them as people.
 fn draw_runners(
     mut commands: Commands,
     sim: Res<TrafficSim>,
@@ -619,5 +674,39 @@ mod tests {
     #[test]
     fn car_ids_sit_above_every_other_hit_id() {
         const { assert!(CAR_ID_BASE > crate::fortress::FORTRESS_ID && CAR_ID_BASE > crate::units::UNIT_ID_BASE) };
+    }
+}
+
+/// The speed readout while driving (openspec change `car-chase-camera`, DC2, provisional): from outside the car its
+/// speedometer cannot be read, so the simulation's speed is shown low on the screen, the same number the needle
+/// shows (`cb_core::car::speed_readout`).
+#[derive(Component)]
+struct SpeedReadout;
+
+fn spawn_speed_readout(mut commands: Commands) {
+    commands.spawn((
+        Name::new("speed readout"),
+        SpeedReadout,
+        Text::new(""),
+        TextFont::from_font_size(30.0),
+        TextColor(Color::srgb(0.95, 0.95, 0.9)),
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: percent(6.0),
+            width: percent(100.0),
+            justify_content: JustifyContent::Center,
+            ..default()
+        },
+        TextLayout::justify(Justify::Center),
+    ));
+}
+
+fn show_speed(sim: Res<TrafficSim>, pilot: Res<PilotSim>, mut text: Single<&mut Text, With<SpeedReadout>>) {
+    let want = match sim.traffic.driven() {
+        Some(c) if pilot.curr.mode == PilotMode::Driving => cb_core::car::speed_readout(c.vel().length()),
+        _ => String::new(),
+    };
+    if text.0 != want {
+        text.0 = want;
     }
 }

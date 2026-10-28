@@ -191,8 +191,11 @@ impl Ground for Scene<'_> {
         self.plan.waters.water_at(Vec2::new(x, z), self.height_at(x, z))
     }
     fn support_at(&self, x: f32, z: f32, feet_y: f32) -> f32 {
-        let ground = self.height_at(x, z);
         let p = Vec2::new(x, z);
+        // the drawn road or pavement, not the bare grade under it (a crater in it lowers it as it lowers the ground)
+        let dug = self.dug.delta_at(p);
+        let bare = self.plan.terrain.height_at(x, z) + dug;
+        let ground = self.plan.walk_top_at(p).map_or(bare, |top| (top + dug).max(bare));
         let roof = match self.structures {
             None => self.plan.collision.roof_under(p, feet_y),
             Some(st) => self
@@ -231,21 +234,51 @@ impl Ground for Scene<'_> {
 }
 
 impl WorldPlan {
+    /// True when `q` is under the ground or inside a building's box as generated (the one test a sight line or a
+    /// camera boom walks: `cb-app::traffic`'s cover, the chase camera's clip).
+    pub fn solid_at(&self, q: glam::Vec3) -> bool {
+        let q2 = Vec2::new(q.x, q.z);
+        let ground = self.terrain.height_at(q.x, q.z);
+        q.y < ground
+            || self.collision.candidates(q2, 0.0).into_iter().any(|b| {
+                let bd = &self.buildings[b as usize];
+                bd.footprint.distance(q2) == 0.0 && q.y < ground + bd.height_m
+            })
+    }
+
     /// The drawn road's surface at `p` (x, z), if a road is there: a city's street at the city's ground plus
-    /// `lift_m`, a highway within its half width at its grade plus `lift_m` (the game draws every road `road_lift_m`
-    /// over its grade, `cb-app::world`), a suburb street, drive or car park at the ground plus its own lift (openspec
-    /// change `lot-access`: draped on the ground). `None` off the roads.
-    pub fn road_top_at(&self, p: Vec2, lift_m: f32) -> Option<f32> {
+    /// `road_lift_m`, a highway within its half width at its grade plus `road_lift_m` (as `cb-app::world` draws
+    /// them), a suburb street, drive or car park at the ground plus its own lift (openspec change `lot-access`: draped
+    /// on the ground). `None` off the roads.
+    pub fn road_top_at(&self, p: Vec2) -> Option<f32> {
         for c in &self.cities {
             if c.rect().distance(p) <= 0.0 && c.streets.iter().any(|s| s.rect.distance(p) <= 0.0) {
-                return Some(c.ground_m + lift_m);
+                return Some(c.ground_m + self.road_lift_m);
             }
         }
         let highway = self.highways.iter().find_map(|h| {
             let (d, t) = h.project(p);
-            (d <= h.width_m * 0.5).then(|| h.grade_at(t) + lift_m)
+            (d <= h.width_m * 0.5).then(|| h.grade_at(t) + self.road_lift_m)
         });
         highway.or_else(|| self.small.paving.lift_at(p).map(|l| self.terrain.height_at(p.x, p.y) + l))
+    }
+
+    /// The drawn surface a body on foot stands on at `p` (x, z), over the bare ground: a road (`road_top_at`), or
+    /// a city block's pavement, `kerb_height_m` over the city's ground, outside the buildings' footprints (inside
+    /// one, its own floors carry the feet). `None` where the bare ground is the surface. The one rule for the pilot,
+    /// the people on the pavements and the mech's feet (`Scene::support_at`).
+    pub fn walk_top_at(&self, p: Vec2) -> Option<f32> {
+        for c in &self.cities {
+            if let Some(top) = c.surface_top(p, self.road_lift_m, self.kerb_height_m) {
+                let in_building = self
+                    .collision
+                    .candidates(p, 0.0)
+                    .into_iter()
+                    .any(|b| self.buildings[b as usize].footprint.distance(p) <= 0.0);
+                return (!in_building).then_some(top);
+            }
+        }
+        self.road_top_at(p)
     }
 }
 
@@ -257,14 +290,12 @@ pub struct OnRoads<'a, G: Ground> {
     pub ground: &'a G,
     /// The roads.
     pub plan: &'a WorldPlan,
-    /// How far the drawn road sits over its grade, metres (`WorldConfig::road_lift_m`).
-    pub lift_m: f32,
 }
 
 impl<G: Ground> Ground for OnRoads<'_, G> {
     fn height_at(&self, x: f32, z: f32) -> f32 {
         let g = self.ground.height_at(x, z);
-        match self.plan.road_top_at(Vec2::new(x, z), self.lift_m) {
+        match self.plan.road_top_at(Vec2::new(x, z)) {
             // a crater in the road lowers it as it lowers the ground
             Some(top) => top + (g - self.plan.terrain.height_at(x, z)),
             None => g,
@@ -384,6 +415,10 @@ pub struct WorldPlan {
     pub sun_shade: sun_shade::SunShade,
     /// The air bases (air-bases), the one nearest the start first.
     pub bases: Vec<AirBase>,
+    /// How far every road is drawn over its grade, metres (`WorldConfig::road_lift_m`).
+    pub road_lift_m: f32,
+    /// How far a city block's pavement is drawn over the city's ground, metres (`WorldConfig::kerb_height_m`).
+    pub kerb_height_m: f32,
     /// The houses and small businesses on their lots (openspec change `small-buildings`).
     pub small: small_buildings::Lots,
 }
@@ -651,6 +686,8 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         rocks,
         mist,
         bases,
+        road_lift_m: cfg.road_lift_m,
+        kerb_height_m: cfg.kerb_height_m,
         small,
     }
 }

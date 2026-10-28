@@ -37,4 +37,26 @@
     car_step_s: 0.8,
     car_face_deg: 75.0,
     car_stopped_m_s: 0.5,
+    // Driving a car is third person, the one exception to THE LAW (owner, 2026-10-26: "also driving should be in 3rd
+    // person"; openspec/changes/car-chase-camera). The camera orbits a point over the car's roof, as far back as
+    // distance_m plus distance_per_length times the car's length (a sedan 8.1 m, the bus 16.9 m), looking down
+    // rest_pitch_deg with the mouse's pitch at zero. The mouse orbits it all the way round; with the mouse still
+    // recenter_after_s and the car faster than recenter_min_speed_m_s it drifts back behind the car at
+    // recenter_deg_s (provisional). It pulls in short of buildings and the ground, and eases out of the pilot's eyes
+    // on getting in and back into them on getting out over blend_s. Its field of view stays the on-foot one.
+    car_camera: (
+        distance_m: 2.5,
+        distance_per_length: 1.2,
+        pivot_above_roof_m: 0.6,
+        rest_pitch_deg: -12.0,
+        pitch_range_deg: (-60.0, 30.0),
+        follow_lag_s: 0.08,
+        heading_lag_s: 0.25,
+        recenter_after_s: 2.0,
+        recenter_deg_s: 90.0,
+        recenter_min_speed_m_s: 2.0,
+        clip_margin_m: 0.4,
+        min_distance_m: 1.5,
+        blend_s: 0.6,
+    ),
 )

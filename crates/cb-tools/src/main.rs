@@ -204,7 +204,7 @@ fn main() -> ExitCode {
             let eye = glam::Vec3::new(s.x, plan.terrain.height_at(s.x, s.y) + 1.7, s.y);
             let mut traffic = cb_core::traffic::Traffic::new(seed);
             let never = |_: glam::Vec3| false;
-            traffic.fill(&graph, &data.traffic, &plan, eye, &never, &never, u32::MAX);
+            traffic.fill(&graph, &data.traffic, &plan, eye, &never, &never, &[], u32::MAX);
             let dt = 1.0 / data.sim.fixed_step_hz;
             let view = cb_core::traffic::TrafficView {
                 graph: &graph,
@@ -220,7 +220,16 @@ fn main() -> ExitCode {
                 let t = std::time::Instant::now();
                 traffic.step(&view, eye, dt);
                 let f = std::time::Instant::now();
-                traffic.fill(&graph, &data.traffic, &plan, eye, &never, &never, data.traffic.cfg.spawn_per_step);
+                traffic.fill(
+                    &graph,
+                    &data.traffic,
+                    &plan,
+                    eye,
+                    &never,
+                    &never,
+                    &[],
+                    data.traffic.cfg.spawn_per_step,
+                );
                 fills.push(f.elapsed().as_secs_f64() * 1000.0);
                 times.push(t.elapsed().as_secs_f64() * 1000.0);
             }

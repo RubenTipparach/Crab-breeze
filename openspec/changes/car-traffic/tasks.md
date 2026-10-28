@@ -6,6 +6,9 @@
   in the lane graph, `traffic::light` from `lights` in `traffic.ron`, cars stopping on red, the front-car turn fix;
   tested (no deadlock in ten minutes, cars stop on red); block-out heads drawn (`cb-app::traffic_lights`), not yet
   seen in a playtest
+- [x] 1.5 The 1 km ring (owner, 2026-10-26: "car should be 1000m") fixed what it exposed: cars placed only on the
+  stretch of a lane in reach (highways filled to half), and a car held at red keeps its place for the room past
+  the junction (seed 9 starved a turning car 174 s); tested, golden seed 11 re-recorded
 - [x] 1.3 `data/world/traffic.ron` (densities, speeds, IDM constants), validated
 - [x] 2.1a The block-outs in `tools/blender/build_cars.py`, checked by `cb-tools validate` and shown on
   `docs/mockups/cars.html`; approved by the owner (2026-10-26: "Approved all of the stand ins", survey W36)

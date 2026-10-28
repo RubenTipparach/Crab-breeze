@@ -122,6 +122,23 @@ impl City {
     pub fn rect(&self) -> Rect {
         Rect::centred(self.centre, Vec2::splat(self.half_size_m))
     }
+
+    /// The drawn top of the city's surface at `p` (x, z): on a street its road, `road_lift_m` over the city's
+    /// ground, on a block its pavement, `kerb_height_m` over it (as `cb-app::world` draws them). `None` outside the
+    /// city's streets and blocks. Buildings stand on blocks: `WorldPlan::walk_top_at` leaves their footprints to
+    /// their own floors.
+    pub fn surface_top(&self, p: Vec2, road_lift_m: f32, kerb_height_m: f32) -> Option<f32> {
+        if self.rect().distance(p) > 0.0 {
+            return None;
+        }
+        if self.streets.iter().any(|s| s.rect.distance(p) <= 0.0) {
+            return Some(self.ground_m + road_lift_m);
+        }
+        self.blocks
+            .iter()
+            .any(|b| b.rect.distance(p) <= 0.0)
+            .then_some(self.ground_m + kerb_height_m)
+    }
 }
 
 /// A graded road joining two cities, from one city's edge to the other's, along a centre line

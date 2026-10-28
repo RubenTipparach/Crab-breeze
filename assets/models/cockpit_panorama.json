@@ -240,7 +240,7 @@
   },
   "meshes": {
     "CONSOLE_front_front": {
-      "tris": 8700,
+      "tris": 8820,
       "group": "front",
       "node": "CONSOLE_front"
     },
@@ -305,7 +305,7 @@
       "node": "pod"
     },
     "pod_cabin": {
-      "tris": 14392,
+      "tris": 22796,
       "group": "cabin",
       "node": "pod"
     },
@@ -317,7 +317,8 @@
   },
   "vents": 7,
   "lights": 6,
-  "tris": 33600,
+  "style": "steel",
+  "tris": 42124,
   "tri_budget": 600000,
   "draw_calls": 15,
   "atlases": {
@@ -361,5 +362,5 @@
     "wall_L",
     "wall_R"
   ],
-  "bytes": 15521099
+  "bytes": 18499972
 }

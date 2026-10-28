@@ -707,16 +707,19 @@ def side_consoles(S, z_front=0.94, z_body=0.52):
         if z_front > z_body + 0.04:
             S.box((x0 - (0.02 if s < 0 else 0), 0.0, z_body), (x1 + (0.02 if s > 0 else 0), 0.62, z_front), "paint_dk", bevel=0.006)
         S.box((x0, 0.645, -0.43), (x1, 0.663, -0.39), "paint_dk", bevel=0.003)
-        S.obox(V(s * 0.66, 0.925, 0.05), I3, (0.03, 0.012, 0.6), "bezel", bevel=0.002)
-        S.obox(V(s * 0.66, 0.917, 0.05), I3, (0.016, 0.004, 0.56), "white_lit")
-        for i, (r, mat) in enumerate(((0.012, "rubber"), (0.009, "red"), (0.01, "rubber"), (0.007, "yellow"))):
-            y = 0.905 - i * 0.022
-            S.tube([V(s * 0.70, y, -0.66), V(s * 0.70, y, -0.36), V(s * 0.695, y - 0.01, 0.0), V(s * 0.70, y, min(0.46, z_front - 0.2)),
-                    V(s * 0.70, y + 0.02, z_front - 0.10)], r, mat)
-        for z in (-0.5, -0.3, 0.5, 0.75):
-            if z > z_front - 0.12:
-                continue
-            S.obox(V(s * 0.70, 0.872, z), I3, (0.03, 0.09, 0.025), "steel", bevel=0.003)
+        # The loom (owner, 2026-10-26: "tidy up the wires they go no where", "place wires along the struts"): the
+        # cables lie along the console's outer top edge in clips, drop down its back face to the floor at one end and
+        # into its front block at the other; nothing hangs in the air.
+        xo = s * 0.705
+        for i, (r, mat) in enumerate(((0.011, "rubber"), (0.008, "red"), (0.009, "rubber"), (0.007, "yellow"))):
+            dx, y = -s * i * 0.019, 0.657 + r
+            S.tube([V(xo + dx, 0.006 + r, -0.47), V(xo + dx, 0.30, -0.445), V(xo + dx, y, -0.43 + 0.0), V(xo + dx, y, -0.3),
+                    V(xo + dx, y, z_body - 0.06), V(xo + dx, y - 0.005, z_body - 0.01), V(xo + dx, 0.56, z_body + 0.03)], r, mat)
+        for z in [-0.36 + k * 0.2 for k in range(8)]:
+            if z > z_body - 0.1:
+                break
+            S.obox(V(xo - s * 0.03, 0.665, z), I3, (0.09, 0.03, 0.025), "steel", bevel=0.003)
+        S.obox(V(xo - s * 0.03, 0.15, -0.455), I3, (0.1, 0.04, 0.03), "steel", bevel=0.003)
 
 
 def seat(S):
@@ -801,6 +804,205 @@ def hose(S, pts, r, node=None, mat="rubber"):
     for a, b in ((pts[0], pts[1]), (pts[-1], pts[-2])):
         d = (b - a).normalized()
         S.cyl(a - d * 0.01, a + d * 0.035, r * 1.45, "steel", "cabin", node, seg=16)
+
+
+# ----------------------------------------------------------------------------- the dressing (cockpit-styles)
+# The mockup's kit (docs/mockups/cockpit_styles.html), built from the kit's roles so each style re-dresses it. Every
+# item stands on a wall at c (its bottom middle, on the wall's face) with r along the wall, Y up and n into the cabin.
+
+def _ax(r, n):
+    return (r, V(0, 1, 0), n)
+
+
+def kit_extinguisher(S, c, r, n, nd):
+    ax = _ax(r, n)
+    for y in (0.08, 0.32):
+        S.obox(c + V(0, y, 0) + n * 0.015, ax, (0.13, 0.04, 0.03), "steel", node=nd, bevel=0.004)
+    S.cyl(c + n * 0.075 + V(0, 0.02, 0), c + n * 0.075 + V(0, 0.40, 0), 0.055, "red", node=nd)
+    S.cyl(c + n * 0.075 + V(0, 0.40, 0), c + n * 0.075 + V(0, 0.46, 0), 0.02, "rubber", node=nd, seg=12)
+    S.obox(c + n * 0.075 + V(0, 0.47, 0) + r * 0.03, ax, (0.09, 0.012, 0.02), "rubber", node=nd)
+    S.tube([c + n * 0.09 + V(0, 0.44, 0) + r * 0.02, c + n * 0.125 + V(0, 0.36, 0) + r * 0.075, c + n * 0.125 + V(0, 0.12, 0) + r * 0.07], 0.007, "rubber", node=nd)
+    S.obox(c + n * 0.004 + V(0, 0.53, 0), ax, (0.12, 0.04, 0.006), "warnplate", node=nd)
+
+
+def kit_first_aid(S, c, r, n, nd):
+    ax = _ax(r, n)
+    S.obox(c + V(0, 0.1, 0) + n * 0.05, ax, (0.3, 0.2, 0.1), "kit_white", node=nd, bevel=0.01)
+    S.obox(c + V(0, 0.16, 0) + n * 0.05, ax, (0.302, 0.04, 0.102), "kit_green", node=nd)
+    S.obox(c + V(0, 0.07, 0) + n * 0.101, ax, (0.05, 0.016, 0.004), "kit_green", node=nd)
+    S.obox(c + V(0, 0.07, 0) + n * 0.101, ax, (0.016, 0.05, 0.004), "kit_green", node=nd)
+
+
+def kit_flares(S, c, r, n, nd):
+    ax = _ax(r, n)
+    S.obox(c + V(0, 0.065, 0) + n * 0.055, ax, (0.36, 0.13, 0.11), "kit_orange", node=nd, bevel=0.008)
+    for k in (-1, 1):
+        S.obox(c + r * k * 0.12 + V(0, 0.095, 0) + n * 0.113, ax, (0.03, 0.04, 0.012), "steel", node=nd, bevel=0.002)
+    S.obox(c + V(0, 0.05, 0) + n * 0.112, ax, (0.16, 0.035, 0.004), "ink", node=nd)
+
+
+def kit_life_vest(S, c, r, n, nd):
+    ax = _ax(r, n)
+    S.obox(c + V(0, 0.085, 0) + n * 0.04, ax, (0.28, 0.17, 0.08), "yellow", node=nd, bevel=0.02, seg=3)
+    S.obox(c + V(0, -0.005, 0) + n * 0.07, ax, (0.04, 0.05, 0.01), "red", node=nd)
+
+
+def kit_oxygen(S, c, r, n, nd):
+    ax = _ax(r, n)
+    S.obox(c + V(0, 0.06, 0) + n * 0.045, ax, (0.18, 0.12, 0.09), "paint_lt", node=nd, bevel=0.006)
+    S.obox(c + V(0, 0.06, 0) + n * 0.092, ax, (0.14, 0.08, 0.006), "kit_green", node=nd)
+
+
+def kit_torch(S, c, r, n, nd):
+    ax = _ax(r, n)
+    for k in (-1, 1):
+        S.obox(c + r * k * 0.07 + V(0, 0.03, 0) + n * 0.015, ax, (0.05, 0.02, 0.03), "steel", node=nd)
+    S.cyl(c + r * -0.13 + V(0, 0.03, 0) + n * 0.035, c + r * 0.11 + V(0, 0.03, 0) + n * 0.035, 0.022, "rubber", node=nd, seg=12)
+    S.cyl(c + r * 0.11 + V(0, 0.03, 0) + n * 0.035, c + r * 0.16 + V(0, 0.03, 0) + n * 0.035, 0.03, "rubber", node=nd, seg=12)
+
+
+def kit_breakers(S, c, r, n, nd, cols=6, rows=6):
+    ax = _ax(r, n)
+    w, h = cols * 0.04 + 0.06, rows * 0.05 + 0.08
+    S.obox(c + V(0, h / 2, 0) + n * 0.015, ax, (w, h, 0.03), "paint_lt", node=nd, bevel=0.004)
+    for i in range(rows):
+        for j in range(cols):
+            q = c + r * ((j - (cols - 1) / 2) * 0.04) + V(0, 0.04 + 0.025 + i * 0.05, 0) + n * 0.03
+            S.cyl(q, q + n * 0.006, 0.011, "placard", node=nd, seg=10)
+            S.cyl(q, q + n * 0.018, 0.0075, "rubber", node=nd, seg=8)
+    S.obox(c + V(0, h - 0.02, 0) + n * 0.031, ax, (w - 0.04, 0.02, 0.004), "placard", node=nd)
+
+
+def kit_life_ring(S, c, r, n, nd):
+    o = c + V(0, 0.25, 0) + n * 0.06
+    S.obox(c + V(0, 0.48, 0) + n * 0.02, _ax(r, n), (0.06, 0.08, 0.04), "steel", node=nd)
+    for k in range(8):
+        a0, a1 = k * math.pi / 4, (k + 1) * math.pi / 4
+        pts = [o + r * (0.2 * math.cos(a0 + (a1 - a0) * t / 4)) + V(0, 0.2 * math.sin(a0 + (a1 - a0) * t / 4), 0) for t in range(5)]
+        S.tube(pts, 0.045, "kit_orange" if k % 2 == 0 else "kit_white", node=nd)
+
+
+def kit_handle(S, c, r, n, nd, length=0.36):
+    p0, p1 = c - r * length / 2, c + r * length / 2
+    S.tube([p0, p0 + n * 0.06 + r * 0.02, p1 + n * 0.06 - r * 0.02, p1], 0.014, "handle", node=nd)
+
+
+def kit_vent(S, c, r, n, nd):
+    ax = _ax(r, n)
+    S.obox(c + V(0, 0.08, 0) + n * 0.012, ax, (0.3, 0.16, 0.024), "rubber", node=nd, bevel=0.004)
+    for i in range(6):
+        S.obox(c + V(0, 0.025 + i * 0.022, 0) + n * 0.024, ax, (0.27, 0.01, 0.026), "trim", node=nd)
+
+
+def kit_buttons(S, c, r, n, nd):
+    ax = _ax(r, n)
+    S.obox(c + V(0, 0.065, 0) + n * 0.006, ax, (0.2, 0.13, 0.012), "bezel", node=nd, bevel=0.003)
+    for i in range(12):
+        q = c + r * ((i % 4 - 1.5) * 0.04) + V(0, 0.03 + (i // 4) * 0.035, 0) + n * 0.016
+        S.obox(q, ax, (0.028, 0.022, 0.012), ("green", "amber", "red_lit", "cyan")[i % 4], node=nd, bevel=0.002)
+
+
+HIGH_KIT = [("first_aid", 0.30, 0.20, 0.10, kit_first_aid), ("breakers", 0.30, 0.38, 0.05, kit_breakers),
+            ("oxygen", 0.18, 0.12, 0.09, kit_oxygen), ("life_ring", 0.50, 0.50, 0.11, kit_life_ring),
+            ("torch", 0.32, 0.06, 0.06, kit_torch)]
+LOW_KIT = [("extinguisher", 0.22, 0.56, 0.14, kit_extinguisher), ("flares", 0.36, 0.13, 0.12, kit_flares),
+           ("life_vest", 0.28, 0.17, 0.08, kit_life_vest)]
+BAND_KIT = [("breakers", 0.30, 0.38, 0.05, lambda S, c, r, n, nd: kit_breakers(S, c, r, n, nd, cols=7, rows=4)),
+            ("vent", 0.30, 0.16, 0.03, kit_vent), ("buttons", 0.20, 0.13, 0.03, kit_buttons)]
+
+
+def dress(S, L, plain_walls, lower_bands, roof, node_at, F, zf):
+    """Dress the cabin (openspec change cockpit-styles, design section 7): the safety kit and handles on the plain
+    walls, panels, vents, buttons and rivets on the bands under the screens, an overhead switch panel on the roof.
+    Nothing goes over a screen; an item that would reach into the seat, a console, the dash or a pillar is skipped."""
+    # the furniture as built: the seat, the side consoles and their loom (side_consoles: x 0.36-0.72), the pedals, and
+    # the dash pod as build_layout made it (else a dash-wide block for a cabin with none)
+    keep_out = [((-0.37, 0.0, -0.47), (0.37, 1.45, 0.30)),
+                ((0.34, 0.0, -0.50), (0.74, 0.72, zf)), ((-0.74, 0.0, -0.50), (-0.34, 0.72, zf)),
+                ((-0.32, 0.0, zf - 0.25), (0.32, 0.45, F + 0.2)),
+                roof.get("dash", ((-0.75, 0.0, F - 0.65), (0.75, 1.05, F + 0.2)))]
+    placed = []
+
+    def clear(c, r, n, w, h, d):
+        # sample the item's box (corners and middle) against the keep-outs and the items already placed
+        pts = [c + r * (sx * w / 2) + V(0, sy * h, 0) + n * (sz * d) for sx in (-1, 0, 1) for sy in (0, 0.5, 1) for sz in (0.1, 1)]
+        for lo, hi in keep_out + placed:
+            if any(lo[0] <= p.x <= hi[0] and lo[1] <= p.y <= hi[1] and lo[2] <= p.z <= hi[2] for p in pts):
+                return False
+        xs, ys, zs = [p.x for p in pts], [p.y for p in pts], [p.z for p in pts]
+        placed.append(((min(xs), min(ys), min(zs)), (max(xs), max(ys), max(zs))))
+        return True
+
+    H = roof.get("y", 2.0) if roof else 2.0
+    seq = sum(ord(ch) for ch in L["id"])       # a different order in each cockpit
+    for a, b, n in plain_walls:
+        length = (b - a).length
+        r = (b - a).normalized()
+        for k, f in enumerate((1 / 6, 1 / 2, 5 / 6)):
+            slot = length / 3 - 0.08
+            c = a.lerp(b, f) + n * 0.002
+            for tier, kit, base in ((0, LOW_KIT, 0.70), (1, HIGH_KIT, 1.32)):
+                name, w, h, d, fn = kit[(seq + k + tier) % len(kit)]
+                if w > slot or base + h > H - 0.28:
+                    continue
+                at = c + V(0, base, 0)
+                ok = clear(at, r, n, w, h, d)
+                if os.environ.get("DRESS_DEBUG"):
+                    print(f"DRESS {name} at {tuple(round(x, 2) for x in at)} slot {slot:.2f} {'placed' if ok else 'blocked'}")
+                if ok:
+                    fn(S, at, r, n, node_at(at + V(0, h / 2, 0)))
+            seq += 1
+        if length > 0.6:
+            at = a.lerp(b, 0.5) + n * 0.002 + V(0, H - 0.36, 0)
+            if clear(at, r, n, 0.4, 0.04, 0.08):
+                kit_handle(S, at, r, n, node_at(at))
+    for a, b, n, top in lower_bands:
+        if top < 0.42:
+            continue
+        length = (b - a).length
+        r = (b - a).normalized()
+        fracs = (0.5,) if length < 1.0 else (0.25, 0.5, 0.75) if length > 1.6 else (0.3, 0.7)
+        done = 0
+        for i, f in enumerate(fracs):
+            # alternately a panel near the band's top and a piece of the safety kit standing on the floor under it
+            for kit, floor in ((BAND_KIT, False), (LOW_KIT, True))[::(1 if (i + seq) % 2 == 0 else -1)]:
+                name, w, h, d, fn = kit[seq % len(kit)]
+                base = 0.08 if floor else max(0.1, top - h - 0.06)
+                if base + h > top - 0.04:
+                    continue
+                at = a.lerp(b, f) + n * 0.002 + V(0, base, 0)
+                ok = w < length / len(fracs) - 0.06 and clear(at, r, n, w, h, d)
+                if os.environ.get("DRESS_DEBUG"):
+                    print(f"DRESS band {name} at {tuple(round(x, 2) for x in at)} {'placed' if ok else 'blocked'}")
+                if ok:
+                    fn(S, at, r, n, node_at(at + V(0, h / 2, 0)))
+                    done += 1
+                    seq += 1
+                    break
+        if done and length > 0.8:
+            mid = a.lerp(b, 0.5) + V(0, top - 0.025, 0)
+            bolt_row(S, a + r * 0.12 + n * 0.002 + V(0, top - 0.025, 0), b - r * 0.12 + n * 0.002 + V(0, top - 0.025, 0),
+                     max(4, int(length / 0.09)), n, node=node_at(mid), r=0.006)
+    if roof.get("y") is not None:
+        # an overhead switch panel over the pilot's head (not under a roof of screens: none to hang it from), between the ceiling beams, inside the grab rails
+        # it hangs under the ceiling beams where there are any, so the beams do not cut it short
+        y = roof["y"] - (0.07 if roof.get("beams") else 0.0)
+        z0, z1 = -0.30, 0.30
+        if True:
+            nd = roof.get("node")
+            dn = V(0, -1, 0)
+            S.box((-0.26, y - 0.05, z0), (0.26, y, z1), "paint_lt", node=nd, bevel=0.006)
+            rng = __import__("random").Random(seq)
+            for row in range(int((z1 - z0 - 0.04) / 0.07)):
+                for col in range(7):
+                    x, z, kind = -0.21 + col * 0.07, z0 + 0.05 + row * 0.07, rng.random()
+                    q = V(x, y - 0.05, z)
+                    if kind < 0.4:
+                        S.cyl(q, q + dn * 0.02, 0.012, "placard", node=nd, seg=10)
+                    elif kind < 0.75:
+                        S.obox(q + dn * 0.015, (V(1, 0, 0), V(0, 0, 1), dn), (0.008, 0.008, 0.03), "metal", node=nd)
+                    else:
+                        S.obox(q + dn * 0.005, (V(1, 0, 0), V(0, 0, 1), dn), (0.03, 0.022, 0.01), rng.choice(("green", "amber", "white_lit")), node=nd)
 
 
 def core_lamp(S, c, n, r, node=None, mat="cyan"):
@@ -1212,6 +1414,7 @@ def build_layout(S, VAR):
     screened = {(rk(*plan[i]), rk(*plan[i + 1])) for i in range(len(plan) - 1)}
     n_screen = 0
     front_screen = None
+    plain_walls, lower_bands, roof_info = [], [], {}      # for the dressing (cockpit-styles): walls with no screens, bands under them
     for a0, b0 in segs:
         key = (rk(a0.x, a0.z), rk(b0.x, b0.z))
         has_screens = key in screened or (key[1], key[0]) in screened
@@ -1225,16 +1428,20 @@ def build_layout(S, VAR):
                 continue
             q = [a + V(0, y0, 0), b + V(0, y0, 0), b + V(0, y1, 0), a + V(0, y1, 0)]
             mid = (a + b) / 2 + V(0, (y0 + y1) / 2, 0)
-            slab(S, q, 0.04, "paint_dk", "cabin", node_at(mid), bevel=0.0)
+            slab(S, q, 0.04, "wall", "cabin", node_at(mid), bevel=0.0)
         if not has_screens:
-            # a plain wall: a ribbed panel at shoulder height, conduit along it
+            # a plain wall: ribs at a third and two thirds, conduit up under the roof, the kit between the ribs (dress)
             mid = (a + b) / 2
             if (b - a).length > 0.5:
-                for z_ in (0.25, 0.5, 0.75):
+                for z_ in (1 / 3, 2 / 3):
                     p_ = a.lerp(b, z_)
                     bar(S, p_ + V(0, 0.15, 0) + n_in * 0.02, p_ + V(0, H - 0.1, 0) + n_in * 0.02, 0.05, 0.03, "paint", "cabin", node_at(p_ + V(0, 1, 0)), bevel=0.006)
-                hose(S, [a + n_in * 0.05 + V(0, 1.30, 0), b + n_in * 0.05 + V(0, 1.30, 0)], 0.014, node=node_at(mid + V(0, 1.3, 0)))
+                    bolt_row(S, p_ + V(0, 0.2, 0) + n_in * 0.035, p_ + V(0, H - 0.15, 0) + n_in * 0.035, int((H - 0.35) / 0.12), n_in,
+                             node=node_at(p_ + V(0, 1, 0)), r=0.006)
+                hose(S, [a + n_in * 0.05 + V(0, H - 0.22, 0), b + n_in * 0.05 + V(0, H - 0.22, 0)], 0.014, node=node_at(mid + V(0, H - 0.22, 0)))
+            plain_walls.append((a, b, n_in))
             continue
+        lower_bands.append((a, b, n_in, rows[0][0] - 0.07))
         for r, (y0, y1) in enumerate(rows):
             h = y1 - y0
             ahead = (BO.bearing(a0.x, a0.z) < 0) != (BO.bearing(b0.x, b0.z) < 0) and a0.z + b0.z > 0
@@ -1257,7 +1464,7 @@ def build_layout(S, VAR):
         levels = [rows[0][0] - 0.03] + [(rows[i][1] + rows[i + 1][0]) / 2 for i in range(len(rows) - 1)] + [rows[-1][1] + 0.04]
         for y in levels:
             m_ = (a + b) / 2 + V(0, y, 0)
-            bar(S, a + V(0, y, 0) + n_in * 0.03, b + V(0, y, 0) + n_in * 0.03, 0.06, 0.06, "paint", "cabin", node_at(m_), bevel=0.008, n=n_in)
+            bar(S, a + V(0, y, 0) + n_in * 0.03, b + V(0, y, 0) + n_in * 0.03, 0.06, 0.06, "trim", "cabin", node_at(m_), bevel=0.008, n=n_in)
 
     # --- pillars at the plan's corners: heavy, riveted, a cyan line down each; split at the horizontal seams
     for (x, z) in pil:
@@ -1286,11 +1493,12 @@ def build_layout(S, VAR):
         # the ceiling stops short of the front; the strip over the front rides the part that opens there, so a
         # front that rises (the Titan) clears it
         ring = offset_plan(outline, -0.005)
-        S.prism(clip_below(ring, F - 0.095), H, H + 0.03, "paint_dk")
+        S.prism(clip_below(ring, F - 0.095), H, H + 0.03, "wall")
         front_part = next((owner[P["name"]] for P in parts if isinstance(P["region"], tuple) and P["region"][0] == "sector"
                            and P["region"][1] < 0 < P["region"][2] and P["region"][3] <= H <= P["region"][4]), None)
-        S.prism(clip_above(ring, F - 0.09), H, H + 0.03, "paint_dk", node=front_part)
+        S.prism(clip_above(ring, F - 0.09), H, H + 0.03, "wall", node=front_part)
         zs = [z for _, z in ring]
+        roof_info.update(y=H, beams=[min(zs) + (max(zs) - min(zs)) * f for f in (0.2, 0.45, 0.7)], node=None, lamps=True)
         for z in [min(zs) + (max(zs) - min(zs)) * f for f in (0.2, 0.45, 0.7)]:
             xs = max(abs(x) for x in cross_x(ring, z))
             S.box((-xs + 0.04, H - 0.07, z - 0.04), (xs - 0.04, H, z + 0.04), "paint", bevel=0.01)
@@ -1306,10 +1514,12 @@ def build_layout(S, VAR):
             for i in range(len(pa)):
                 j = (i + 1) % len(pa)
                 q = [V(pa[i][0], ya, pa[i][1]), V(pa[j][0], ya, pa[j][1]), V(pb[j][0], yb, pb[j][1]), V(pb[i][0], yb, pb[i][1])]
-                slab(S, q, 0.04, "paint_dk", "cabin", cn, bevel=0.0)
+                slab(S, q, 0.04, "wall", "cabin", cn, bevel=0.0)
                 bar(S, q[0], q[3], 0.05, 0.05, "paint", "cabin", cn, bevel=0.006)
         lid_y, lid = keys[-1][0], keys[-1][1]
-        S.prism(lid, lid_y, lid_y + 0.03, "paint_dk", node=cn)
+        if not L.get("ceiling"):
+            roof_info.update(y=lid_y, beams=[], node=cn, lamps=False)
+        S.prism(lid, lid_y, lid_y + 0.03, "wall", node=cn)
         if L.get("ceiling"):
             for x0, x1 in ((-0.52, -0.02), (0.02, 0.52)):
                 cnr = [V(x1, lid_y - 0.003, -0.25), V(x0, lid_y - 0.003, -0.25), V(x0, lid_y - 0.003, 0.29), V(x1, lid_y - 0.003, 0.29)]
@@ -1342,7 +1552,11 @@ def build_layout(S, VAR):
         half = min(abs(x) for x in cross_x(outline, max(z0, 0.0) + 0.05)) - 0.06
         NODES[name] = (cn or "pod", V(0, dy, z0))
         S.box((-half, dy - 0.32, z0), (half, dy, F - 0.02), "paint_dk", "front", name, bevel=0.01)
+        roof_info["dash"] = ((-half - 0.02, 0.0, z0 - 0.08), (half + 0.02, max(p.y for p in lows) + 0.45, F + 0.2))
         S.box((-half + 0.02, dy, z0 + 0.02), (half - 0.02, dy + 0.012, F - 0.04), "bezel", "front", name, bevel=0.003)
+        # the dash's front edge in the style's trim (the burl in the wood style), an ambient strip under it
+        S.box((-half + 0.03, dy - 0.06, z0 - 0.012), (half - 0.03, dy - 0.012, z0), "trim", "front", name, bevel=0.004)
+        S.box((-half + 0.05, dy - 0.076, z0 - 0.006), (half - 0.05, dy - 0.068, z0), "cyan", "front", name)
         S.plate("dash_main", (0, dy + 0.013, (z0 + F) / 2), Y, Z, t=0.012, group="front", node=name,
                 scale=min(1.0, 2 * half / CP.PANELS["dash_main"][0], (F - z0) / CP.PANELS["dash_main"][1]))
         kd = d_row / row["d"]       # the frame and housing shrink with the screen, so the row keeps its gaps
@@ -1376,6 +1590,7 @@ def build_layout(S, VAR):
             back = c - nd2 * 0.06 * k_ + ud2 * O * 0.5
             S.box((back.x - 0.025, back.y, back.z - 0.025), (back.x + 0.025, H - 0.01, back.z + 0.025), "steel", "cabin", nd, bevel=0.006)
     check_mfd_solids()
+    dress(S, L, plain_walls, lower_bands, roof_info, node_at, F, zf)
     VAR["front_screen"] = front_screen[0] if front_screen else "SCREEN_wall_r0_0"
     VAR["front_screen_c"] = front_screen[2] if front_screen else V(0, 1.3, F)
     # mist over the floor and steam at the seals as the cabin opens
@@ -1514,28 +1729,56 @@ TRIMS = {
 # texture/normal maps work and some material changes"). A style re-dresses the kit's roles: the walls (`paint`), trims
 # (`paint_lt`), structure (`paint_dk`) and seats (`fabric`), and tints the accent strips and lamps. Geometry is unchanged.
 STYLES = {
-    # varnished walnut on the trims, cream leather walls, tan leather seat, brass accents, warm lamps
+    # the cockpits as they are: painted plate in the cockpit's trim colours (no change)
+    "steel": dict(roles={}),
+    # wood as an accent on steel, after the owner's car photos: warm painted plate walls and structure, lacquered burl
+    # walnut rails, a cream leather seat, a cool blue ambient strip, warm lamps
     "wood": dict(roles={
-        "paint": dict(c="#5a4636", r=0.55, m=0.0, grime=0.4, grain=True),
-        "paint_lt": dict(c="#5b3a22", r=0.32, m=0.0, grime=0.3, wood=("#2e1a0e", "#7a4d2a")),
-        "paint_dk": dict(c="#2a211b", r=0.5, m=0.0, grime=0.5),
-        "fabric": dict(c="#8a5a35", r=0.6, m=0.0, grime=0.3, grain=True, quilt=0.09),
-    }, accent=("#3a2405", "#ffc97a"), warm=(1.0, 0.82, 0.6), cool=(1.0, 0.9, 0.78)),
-    # an airliner's cabin: off-white moulded plastic, light greys, blue patterned seat cloth, soft white strips
+        "paint_dk": dict(c="#3a3632", r=0.58, m=0.0, grime=0.8, wear=0.8),
+        "wall": dict(c="#4d4842", r=0.58, m=0.0, grime=0.8, wear=0.8, panels=dict()),
+        "paint": dict(c="#2b2825", r=0.55, m=0.0, grime=1.0, wear=1.0),
+        "paint_lt": dict(c="#5e5850", r=0.55, m=0.0, grime=1.0, wear=1.0),
+        "trim": dict(c="#5a3418", r=0.22, m=0.0, grime=0.2, burl=("#2c160a", "#7a4522")),
+        "fabric": dict(c="#cdb894", r=0.5, m=0.0, grime=0.3, grain=True),
+    }, accent=("#0b2340", "#4aa8ff"), warm=(1.0, 0.85, 0.69), cool=(1.0, 0.91, 0.8)),
+    # an airliner's flight deck (the owner's 777 photos): tan-grey lining, taupe structure, charcoal switch panels,
+    # a tan leather seat, warm dim strips
     "airliner": dict(roles={
-        "paint": dict(c="#d9d5cc", r=0.45, m=0.0, grime=0.15, stipple=1.0),
-        "paint_lt": dict(c="#bfc1c2", r=0.4, m=0.0, grime=0.15, stipple=0.6),
-        "paint_dk": dict(c="#7b7f84", r=0.5, m=0.0, grime=0.2, stipple=0.6),
-        "fabric": dict(c="#2b3f66", r=0.85, m=0.0, grime=0.2, weave=True),
-    }, accent=("#3a3a36", "#f4efe2"), warm=(1.0, 0.95, 0.88), cool=(0.92, 0.96, 1.0)),
-    # soft padding: quilted charcoal leather on the walls and seat, brushed steel trims, red-orange strips
+        "paint_dk": dict(c="#7a7264", r=0.65, m=0.0, grime=0.2, stipple=1.0),
+        "wall": dict(c="#8a8272", r=0.65, m=0.0, grime=0.2, stipple=1.0,
+                     panels=dict(w=0.6, h=0.5, rivets=False, circuits=False, streaks=0.3)),
+        "paint": dict(c="#5a544b", r=0.55, m=0.0, grime=0.3, stipple=0.6),
+        "paint_lt": dict(c="#3c3b39", r=0.5, m=0.0, grime=0.3),
+        "trim": dict(c="#7e7667", r=0.5, m=0.0, grime=0.2, stipple=0.6),
+        "fabric": dict(c="#9a7348", r=0.55, m=0.0, grime=0.3, grain=True),
+    }, accent=("#3a3326", "#e8d6b0"), warm=(1.0, 0.9, 0.77), cool=(0.95, 0.9, 0.84)),
+    # soft padding: quilted charcoal leather walls, an oxblood quilted seat, brushed steel rails, red-orange strips
     "padded": dict(roles={
-        "paint": dict(c="#4a4446", r=0.6, m=0.0, grime=0.3, grain=True, quilt=0.12),
-        "paint_lt": dict(c="#8c9096", r=0.32, m=1.0, grime=0.3),
-        "paint_dk": dict(c="#1c1b1c", r=0.55, m=0.0, grime=0.4, grain=True),
+        "paint_dk": dict(c="#2a2729", r=0.6, m=0.0, grime=0.3, grain=True),
+        "wall": dict(c="#4a4446", r=0.6, m=0.0, grime=0.3, grain=True, quilt=0.12),
+        "paint": dict(c="#1c1b1c", r=0.55, m=0.0, grime=0.4, grain=True),
+        "paint_lt": dict(c="#2e2d30", r=0.5, m=0.0, grime=0.5),
+        "trim": dict(c="#8c9096", r=0.32, m=1.0, grime=0.3),
         "fabric": dict(c="#3a2624", r=0.6, m=0.0, grime=0.3, grain=True, quilt=0.07),
     }, accent=("#3f1508", "#ff7a3a"), warm=(1.0, 0.86, 0.72), cool=(0.95, 0.9, 0.86)),
+    # a modern digger's cab (the owner's photo: "very sleek, polycarbonates, fiberglass, matte black/greys"): matte
+    # moulded panels, a grey cloth seat, yellow grab handles, soft white strips
+    "excavator": dict(roles={
+        "paint_dk": dict(c="#232528", r=0.8, m=0.0, grime=0.2, stipple=0.4),
+        "wall": dict(c="#2b2d30", r=0.8, m=0.0, grime=0.2, stipple=0.4,
+                     panels=dict(w=0.55, h=0.45, rivets=False, circuits=False, streaks=0.5)),
+        "paint": dict(c="#1a1b1d", r=0.75, m=0.0, grime=0.3, stipple=0.4),
+        "paint_lt": dict(c="#25272a", r=0.7, m=0.0, grime=0.3, stipple=0.4),
+        "trim": dict(c="#45484c", r=0.7, m=0.0, grime=0.2, stipple=0.4),
+        "fabric": dict(c="#55585c", r=0.9, m=0.0, grime=0.3, weave=True),
+        "handle": dict(c="#f2b400", r=0.45, m=0.0, grime=0.4),
+    }, accent=("#2a2d30", "#e8edf2"), warm=(0.98, 0.98, 0.97), cool=(0.9, 0.94, 1.0)),
 }
+
+# Which cockpit wears which style (openspec change cockpit-styles, design section 6; owner, 2026-10-27: "Match the
+# proper cockpit type with existing mech cockpits").
+STYLE_OF = {"panorama": "steel", "twintier": "steel", "cab": "excavator", "octagon": "excavator",
+            "tilewall": "wood", "titan": "wood", "canopy": "airliner", "cinema": "padded"}
 
 
 def apply_style(name, VAR):
@@ -1543,6 +1786,8 @@ def apply_style(name, VAR):
     t = STYLES[name]
     for role, spec in t["roles"].items():
         K.ROLES[role] = spec
+    if "accent" not in t:            # steel: the cockpit's own trim stands
+        return
     K.ROLES["cyan"] = dict(K.ROLES["cyan"], c=t["accent"][0], emit=t["accent"][1])
     swap = {WARM: t["warm"], COOL: t["cool"]}
     VAR["lights"] = [(n, k, at, aim, w, swap.get(col, col), r, cone) for n, k, at, aim, w, col, r, cone in VAR["lights"]]
@@ -1571,14 +1816,24 @@ def preview(path, samples=48):
                 n.inputs["Emission Strength"].default_value = 0.6
     sc.render.engine = "CYCLES"
     sc.cycles.device = "CPU"
-    sc.cycles.samples = samples
+    sc.cycles.samples = int(os.environ.get("CB_PREVIEW_SAMPLES", samples))
     sc.cycles.use_denoising = True
     sc.render.resolution_x, sc.render.resolution_y, sc.render.resolution_percentage = 1280, 720, 100
     sc.view_settings.view_transform = "AgX"
     sc.view_settings.exposure = 1.0
     sc.render.image_settings.file_format = "PNG"
     # ahead, then turned to the left wall and down a little, where the trims, walls and seat show
-    for tag, yaw, pitch in (("front", 0.0, 0.0), ("side", 70.0, -18.0)):
+    # and close on the lower side wall and the rear wall with a narrow lens, where the panelling's detail shows
+    # two review shots that are not the pilot's view (the whole cabin at once): over the shoulder, from above and
+    # behind the head, and looking back at the seat and the rear walls from over the dash
+    views = (("front", 0.0, 0.0, fov, None), ("side", 70.0, -18.0, fov, None), ("wall", 95.0, -38.0, 40.0, None),
+             ("rear", 160.0, -15.0, 60.0, None), ("overview", 0.0, -22.0, 100.0, V(0.18, 0.5, -0.42)),
+             ("back", 180.0, -24.0, 100.0, V(0.0, 0.25, 0.5)))
+    only = os.environ.get("CB_PREVIEW_VIEWS")
+    for tag, yaw, pitch, fov_v, off in [v for v in views if not only or v[0] in only.split(",")]:
+        p_ = EYE + off if off is not None else EYE
+        co.location = (p_.x, -p_.z, p_.y)
+        cam.angle_y = math.radians(fov_v)
         co.rotation_euler = (math.radians(90 + pitch), 0.0, math.radians(180 + yaw))
         sc.render.filepath = path.replace(".png", f"_{tag}.png")
         bpy.ops.render.render(write_still=True)
@@ -1592,6 +1847,10 @@ def apply_trim(variant, VAR):
         return
     for role, c in t["roles"].items():
         K.ROLES[role] = dict(K.ROLES[role], c=c)
+    K.ROLES["trim"] = dict(K.ROLES["paint"])
+    if "paint_dk" in t["roles"]:
+        r_, g_, b_ = (int(t["roles"]["paint_dk"][i:i + 2], 16) for i in (1, 3, 5))
+        K.ROLES["wall"] = dict(K.ROLES["wall"], c="#%02x%02x%02x" % tuple(min(255, int(v * 1.25 + 6)) for v in (r_, g_, b_)))
     K.ROLES["cyan"] = dict(K.ROLES["cyan"], c=t["accent"][0], emit=t["accent"][1])
     swap = {WARM: t["warm"], COOL: t["cool"]}
     dim = t.get("dim", 1.0)
@@ -2022,8 +2281,9 @@ def main():
     global EYE, MID, MODEL, MANIFEST
     VAR = VARIANTS[a.variant]
     apply_trim(a.variant, VAR)
-    if a.style:
-        apply_style(a.style, VAR)
+    style = a.style or STYLE_OF.get(a.variant, "steel")
+    apply_style(style, VAR)
+    VAR["style"] = style
     EYE, MID = VAR["eye"], VAR["mid"]
     NODES.clear()
     NODES.update(VAR["nodes"])
@@ -2261,7 +2521,7 @@ def main():
         "meshes": {k: {"tris": tris(v[0]), "group": v[1], "node": v[2]} for k, v in sorted(meshes.items())},
         "vents": len(S.vents),
         "lights": len(rig),
-        "tris": total, "tri_budget": TRI_BUDGET,
+        "style": VAR["style"], "tris": total, "tri_budget": TRI_BUDGET,
         "draw_calls": sum(len(ob.data.materials) for ob, _, _ in meshes.values()),
         "atlases": {g: {"maps": sorted(maps[g]), "px": a.size, "emissive_strength": emit_k.get(g, 1.0)} for g in atlases},
         "bake": {"ao_samples": a.samples, "denoised": not a.no_denoise,

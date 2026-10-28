@@ -1,0 +1,29 @@
+// The Stratostacean (openspec change crab-airship; survey H2, H4, H6): free roam in the Mule (its jets raised to
+// 17 s so it still reaches the deck, C15), the mission started from the mail (M, START), the pilot flies up onto
+// the fortress's deck: landing hands the deck's velocity over and the jets recharge there (H4); the deck guard
+// keeps to its deck (H6). First person throughout.
+//
+//   ./target/release/crab-breeze --playtest fortress-deck --mech mechs/mule.ron
+(
+    name: "fortress-deck",
+    stuck_s: 30.0,
+    runs: [
+        (
+            play: "free",
+            beats: [
+                Wait(2.0),
+                Board,
+                Wait(2.0),
+                StartMission("Fortress"),
+                Wait(8.0),
+                Survey(3000.0),
+                LookAtNearest("fortress", 6.0),
+                LandOnFortress(150.0),
+                Survey(400.0),
+                LookAtNearest("enemy", 6.0),
+                LookAround(6.0),
+                Survey(400.0),
+            ],
+        ),
+    ],
+)

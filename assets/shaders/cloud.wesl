@@ -4,8 +4,9 @@
 // in Rust); rain shafts are billboards turned about the vertical with streaks falling; cirrus are
 // flat streaks high up. All three are items of one mesh, sorted back to front on the CPU, drawn in
 // one alpha-blended draw. Each billboard fades where it meets the ground behind it (the depth
-// prepass, "soft particles") and near the eye, where the cloud fog takes over; Bevy's fog hazes far
-// ones. Linear HDR colour, reverse-Z depth.
+// prepass, "soft particles") and near the eye, where the cloud fog takes over; its colour goes toward
+// the fog's by the air between it and the eye (`in_the_air`), so a far one sinks into the horizon's haze.
+// Linear HDR colour, reverse-Z depth.
 //
 // The look is the island mockup's (`docs/mockups/island.html`, `spriteMat`, `shaftMat`,
 // `cirrusMat`), ported to WESL, with the scene's light in place of its fixed colours.
@@ -28,7 +29,8 @@ import bevy_pbr::render::mesh_view_bindings::{view, globals};
 import bevy_pbr::prepass::utils::prepass_depth;
 @if(DISTANCE_FOG)
 import bevy_pbr::render::{mesh_view_bindings::fog, pbr_functions::apply_fog};
-import super::water_common::gnoise3;
+import super::water_common::{gnoise3, layer_depth};
+import super::fog_colour::{FogColour, fog_colour};
 
 // Matches `CloudUniform` in `crates/cb-app/src/clouds_render.rs`.
 struct CloudLight {
@@ -36,10 +38,26 @@ struct CloudLight {
     sun: vec4<f32>,      // rgb the sun's light times exposure; w silver lining strength
     ambient: vec4<f32>,  // rgb the ambient light times exposure; w light scattered inside, a share of the sun
     albedo: vec4<f32>,   // x white albedo, y storm albedo, z white base shade, w storm base shade
-    fade: vec4<f32>,     // x fade-in distance from the eye m, y edge erosion, z soft depth m, w unused
+    fade: vec4<f32>,     // x fade-in distance from the eye m, y edge erosion, z soft depth m, w the shadow floor (sky fill on the shade)
+    fog: vec4<f32>,      // the ground fog: x density at sea level per m (its strength now in it), y scale height m, z sea level m, w unused
+    haze: vec4<f32>,     // the aerial haze: x density at sea level per m, y scale height m; zw unused
+    // How many times the mist thickens the ground fog's layer toward each of 16 level bearings round the eye (bearing k
+    // at k / 16 of a turn from +x toward +z), four to a vec4: `cb_core::world::mist::thickening`, the fog pass's taps.
+    thick: array<vec4<f32>, 4>,
+    // The fog's colour inputs, as the fog pass has them (`fog_colour.wesl`).
+    sky_x: vec4<f32>,
+    sky_y: vec4<f32>,
+    sky_z: vec4<f32>,
+    sky_lut: vec4<f32>,
+    fog_ambient: vec4<f32>,
+    fog_sun: vec4<f32>,
+    fog_sun_dir: vec4<f32>,
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> cloud: CloudLight;
+// Bevy's sky-view LUT for the pilot's view, mirrored into this material each frame (`clouds_render::mirror_sky_lut`).
+@group(constants::MATERIAL_BIND_GROUP) @binding(1) var sky_view_lut: texture_2d<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(2) var sky_view_sampler: sampler;
 
 // What a billboard is (`look.x` of a vertex): the puff kinds of `cb_core::world::clouds::CloudKind`,
 // then a rain shaft and a cirrus streak.
@@ -178,7 +196,8 @@ fn soft_edge(pixel: vec4<f32>) -> f32 {
 }
 
 // `fine` (0..1): how much of the finest billow octave this pixel can show (see `fragment`).
-fn puff(in: CloudFragment, look: vec3<f32>, dist: f32, fine: f32) -> vec4<f32> {
+// `sky`: the sky's colour along the view (the fog's, `fog_colour`), which lights the shaded side from below and round.
+fn puff(in: CloudFragment, look: vec3<f32>, dist: f32, fine: f32, sky: vec3<f32>) -> vec4<f32> {
     let p = in.uv;
     let d = length(p);
     let seed = in.shape.z;
@@ -211,8 +230,13 @@ fn puff(in: CloudFragment, look: vec3<f32>, dist: f32, fine: f32) -> vec4<f32> {
     let silver = pow(max(dot(look, sun), 0.0), 6.0) * (1.0 - z) * (1.0 - z) * cloud.sun.w;
     let scattered = cloud.ambient.w * body;
     let albedo = mix(cloud.albedo.x, cloud.albedo.y, dark);
+    // The sky's fill on the shade (`look_shadow_floor`): the sky and the haze round a cloud light its underside and its
+    // shaded flank, so a puff's shade stays a soft grey and a storm's base, lower in albedo, darker but never black
+    // (owner, 2026-10-27: "Can we tint the dark parts of clouds softer?"). Only where the sun does not reach.
+    let shade = 1.0 - clamp(diffuse * body, 0.0, 1.0);
     let lit = cloud.sun.rgb * (albedo / 3.14159265) * (diffuse * body + silver + scattered)
-        + cloud.ambient.rgb * albedo * mix(0.45, 1.0, h) * mix(1.0, 0.6, dark) * mix(0.5, 1.0, shadow);
+        + cloud.ambient.rgb * albedo * mix(0.45, 1.0, h) * mix(1.0, 0.6, dark) * mix(0.5, 1.0, shadow)
+        + sky * albedo * cloud.fade.w * shade;
     let near = smoothstep(cloud.fade.x * 0.3, cloud.fade.x, dist);
     // The flat base: nothing below the system's base, cut on the height of the puff's own round
     // surface at this pixel (as a sphere's would be) over a band a third of its height deep, never
@@ -263,6 +287,43 @@ fn cirrus(in: CloudFragment, look: vec3<f32>) -> vec4<f32> {
     return vec4<f32>(col, a);
 }
 
+// The mist's thickening of the ground fog's layer toward `look`'s bearing, between the two nearest of the 16 (`thick`).
+fn thickening(look: vec3<f32>) -> f32 {
+    let k = fract(atan2(look.z, look.x) * 0.15915494 + 1.0) * 16.0;
+    let i = u32(floor(k)) % 16u;
+    let j = (i + 1u) % 16u;
+    let a = cloud.thick[i / 4u][i % 4u];
+    let b = cloud.thick[j / 4u][j % 4u];
+    return mix(a, b, fract(k));
+}
+
+// The share of a billboard's light that crosses the air from it to the eye: the ground fog's layer, thickened by the mist
+// round the eye toward it as the fog pass thickens the land under it (`fog_depth` in `water_post.wesl`), and the aerial
+// haze, the same optical depth the fog pass gives the ground and the sky behind it. The rain's haze is left out: it
+// reaches only 1.5 km, so all of it lies under the storm's own base, and tinting by it washed the base, its shape and
+// its dark flat underside, into one flat grey (stills of 2026-10-27, `docs/screenshots/2026-10-27-cloud-fog-blend-*`).
+// Fading by it instead opened the base onto the blue sky behind it. Four exponentials, no march (CLAUDE.md section 7).
+fn air_between(eye: vec3<f32>, look: vec3<f32>, dist: f32) -> f32 {
+    let layer = layer_depth(cloud.fog.x, cloud.fog.y, cloud.fog.z, eye.y, look.y, dist) * thickening(look);
+    let haze = layer_depth(cloud.haze.x, cloud.haze.y, cloud.fog.z, eye.y, look.y, dist);
+    return exp(-(max(layer, 0.0) + max(haze, 0.0)));
+}
+
+// Aerial perspective on a cloud (owner, 2026-10-27: "cloud fog blend should be a thing"): its colour mixed toward the
+// fog's colour along the view by the air it crosses, as the fog pass mixes the land behind it, so a far cloud sinks
+// into the horizon's haze in the horizon's colour and a near one, or one seen from above the layer, stays crisp. Its
+// alpha is kept: the in-scattered light is in front of the cloud whatever lies behind it, and a faded billboard showed
+// the sky through a far cloud rather than the haze over it.
+fn in_the_air(c: vec3<f32>, fog_c: vec3<f32>, eye: vec3<f32>, look: vec3<f32>, dist: f32) -> vec3<f32> {
+    return mix(fog_c, c, air_between(eye, look, dist));
+}
+
+// The fog's colour along `look` (`fog_colour.wesl`, as the fog pass has it): the cloud's one texture read.
+fn fog_along(look: vec3<f32>) -> vec3<f32> {
+    let f = FogColour(cloud.sky_x, cloud.sky_y, cloud.sky_z, cloud.sky_lut, cloud.fog_ambient, cloud.fog_sun, cloud.fog_sun_dir);
+    return fog_colour(sky_view_lut, sky_view_sampler, f, look);
+}
+
 @fragment
 fn fragment(in: CloudFragment) -> @location(0) vec4<f32> {
     let eye = view.world_position;
@@ -273,6 +334,7 @@ fn fragment(in: CloudFragment) -> @location(0) vec4<f32> {
     // The finest billow octave only where a puff's unit spans 600 pixels or more (its features 70 px
     // across); taken here, before any branch, where screen derivatives are defined.
     let fine = smoothstep(1.0 / 300.0, 1.0 / 600.0, length(fwidth(in.uv)));
+    let fog_c = fog_along(look);
     var out: vec4<f32>;
     if kind > KIND_CIRRUS - 0.5 {
         out = cirrus(in, look);
@@ -282,12 +344,13 @@ fn fragment(in: CloudFragment) -> @location(0) vec4<f32> {
         if length(in.uv) > 1.0 {
             discard;
         }
-        out = puff(in, look, dist, fine);
+        out = puff(in, look, dist, fine, fog_c);
     }
     out.a *= soft_edge(in.position);
     if out.a < 0.004 {
         discard;
     }
+    out = vec4<f32>(in_the_air(out.rgb, fog_c, eye, look, dist), out.a);
     @if(DISTANCE_FOG) {
         out = apply_fog(fog, out, in.world, eye, in.position.xy);
     }
