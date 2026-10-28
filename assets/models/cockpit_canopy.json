@@ -202,7 +202,7 @@
   },
   "meshes": {
     "CONSOLE_front_front": {
-      "tris": 8700,
+      "tris": 8820,
       "group": "front",
       "node": "CONSOLE_front"
     },
@@ -237,7 +237,7 @@
       "node": "INNER_canopy_1"
     },
     "INNER_canopy_1_cabin": {
-      "tris": 16626,
+      "tris": 20598,
       "group": "cabin",
       "node": "INNER_canopy_1"
     },
@@ -257,7 +257,7 @@
       "node": "SCREEN_right"
     },
     "pod_cabin": {
-      "tris": 7348,
+      "tris": 11428,
       "group": "cabin",
       "node": "pod"
     },
@@ -269,7 +269,8 @@
   },
   "vents": 9,
   "lights": 6,
-  "tris": 33980,
+  "style": "airliner",
+  "tris": 42152,
   "tri_budget": 600000,
   "draw_calls": 13,
   "atlases": {
@@ -313,5 +314,5 @@
     "wall_L",
     "wall_R"
   ],
-  "bytes": 16072975
+  "bytes": 17926207
 }
