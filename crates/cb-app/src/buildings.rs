@@ -195,7 +195,11 @@ impl Materials {
                                 depth_bias: GLASS_SORT_BIAS,
                                 ..bases.get(&looks.glass).cloned().unwrap_or_default()
                             },
-                            extension: ElementState { standing, no_ssao: 1 },
+                            extension: ElementState {
+                                standing,
+                                no_ssao: 1,
+                                windows: Vec4::ZERO,
+                            },
                         })
                     })
                     .clone(),
@@ -210,6 +214,7 @@ impl Materials {
                                 albedo: looks.arrays.albedo.clone(),
                                 normal: looks.arrays.normal.clone(),
                                 orm: looks.arrays.orm.clone(),
+                                windows: Vec4::ZERO,
                             },
                         })
                     })
@@ -376,7 +381,14 @@ impl Plugin for BuildingsPlugin {
             .add_game_systems(FixedUpdate, step_structures.in_set(SimSet::World))
             .add_game_systems(
                 Update,
-                (dress_near_player, redraw_buildings, show_rooms_near, bind_far_looks, show_massing)
+                (
+                    dress_near_player,
+                    redraw_buildings,
+                    show_rooms_near,
+                    bind_far_looks,
+                    show_massing,
+                    light_windows,
+                )
                     .chain()
                     .in_set(PresentSet::Pose),
             )
@@ -1027,6 +1039,7 @@ fn bind_far_looks(
             albedo: a.albedo.clone(),
             normal: a.normal.clone(),
             orm: a.orm.clone(),
+            windows: Vec4::ZERO,
         },
     };
     if mats.far.is_none() {
@@ -1120,6 +1133,34 @@ fn show_massing(
         }
         true
     });
+}
+
+/// The windows for the hour (day-night-cycle): the share lit now into the glass material and the far
+/// and massing walls' materials, so every intact building's windows follow the clock (a damaged
+/// building's glass never lights; its far walls are hidden once it is framed).
+fn light_windows(
+    data: Res<crate::sim::Data>,
+    light: Res<crate::day_night::Light>,
+    shared: Res<Materials>,
+    far: Res<FarMaterials>,
+    mut glasses: ResMut<Assets<BuildingMaterial>>,
+    mut arrays: ResMut<Assets<ArrayMaterial>>,
+) {
+    let w = &data.0.day_night.windows;
+    let want = Vec4::new(w.lit_share(light.0.hour), w.cd_m2, data.0.world.storey_height_m, w.column_m);
+    if let Some(handle) = shared.glass.as_ref()
+        && glasses.get(handle).is_some_and(|m| m.extension.windows != want)
+        && let Some(mut m) = glasses.get_mut(handle)
+    {
+        m.extension.windows = want;
+    }
+    for handle in [&far.far, &far.massing].into_iter().flatten() {
+        if arrays.get(handle).is_some_and(|m| m.extension.windows != want)
+            && let Some(mut m) = arrays.get_mut(handle)
+        {
+            m.extension.windows = want;
+        }
+    }
 }
 
 #[cfg(test)]

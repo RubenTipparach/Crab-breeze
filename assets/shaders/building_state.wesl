@@ -33,7 +33,10 @@ fn vertex(vertex_in: Vertex) -> VertexOutput {
     if fallen(vertex.color) {
         out.position = GONE;
     }
-    out.color = vec4<f32>(vertex.color.rgb, 1.0);
+    // The alpha (the slot) goes back to 1, or to 2 for a vertex of a damaged building's frame (its
+    // slots are its own, intact buildings carry 0): the glass shader turns a damaged building's
+    // windows out by it (day-night-cycle) and puts it back to 1.
+    out.color = vec4<f32>(vertex.color.rgb, select(1.0, 2.0, round(vertex.color.a) > 0.5));
 }
 
 @if(VERTEX_OUTPUT_INSTANCE_INDEX)

@@ -1,0 +1,75 @@
+// The time of day (openspec/changes/day-night-cycle; owner, 2026-10-27: "24 mins for day time, 24 minutes
+// for night"). Read by `cb_core::day_night`; units are in the keys.
+(
+    // A world begins at 07:00, in the morning mist (survey N1), and an hour passes every 120 s: the twelve
+    // hours of day take 24 minutes, the twelve of night 24.
+    start_h: 7.0,
+    hours_per_s: 0.008333333,
+    // Cycle, Day (held at noon) or Night (held at midnight) (survey N7). `CB_HOUR=<h>` holds a stills run at
+    // an hour.
+    mode: Cycle,
+    // The sun rises due east at 06:00, peaks at 60 degrees due south at noon and sets due west at 18:00.
+    latitude_deg: 30.0,
+    // Real phases over 29.5 nights (survey N2: some nights are black); the first night is full.
+    moon_start_phase: 0.5,
+    moon_period_days: 29.53,
+    // Night's exposure, 13 stops under the day's (view.exposure_ev100 13.4), reached as the sun sinks from
+    // 6 degrees up to 8 below.
+    night_ev100: 0.4,
+    dusk_deg: (-8.0, 6.0),
+    // On screen at night: the flat ambient at 10 % of the day's, the sky's light at 6 %, a full moon at 35 %
+    // of the noon sun. Lower (4 %, 2 %, 12 %, real moonlight scaled to taste) read black after the tonemapper's
+    // toe: the moonlit street measured 0.3 of 255 against 59 at noon (2026-10-28 stills).
+    night_ambient_share: 0.10,
+    night_sky_light_share: 0.06,
+    moon_full_share: 0.35,
+    // The sun's and moon's direct light fades in over their first 2.5 degrees.
+    horizon_fade_deg: 2.5,
+    // Stars come out as the sun sinks from 4 to 14 degrees below the horizon.
+    star_brightness: 0.8,
+    stars_deg: (-14.0, -4.0),
+    // The moon's disc, drawn with its phase: 0.8 degrees across (the real moon is 0.52), its lit face at 1.6
+    // times white on screen when full.
+    moon_disc_deg: 0.8,
+    moon_disc_brightness: 1.6,
+    // Street lamps on every stretch of road (owner, 2026-10-28: "Every stretch of road should have street lamps"):
+    // city streets every 32 m on alternating sides, arterials every 30 m on both, highways every 50 m on
+    // alternating sides, the pole 0.8 m outside the paved edge with a 1.6 m arm over the road; heads at 9, 12
+    // and 11 m. On as the sun sinks from 1 to 3 degrees below the horizon. The nearest 96 within 250 m are real
+    // lights (150 W high-pressure sodium, 15,000 lm, orange: survey N5), fading out over their last 50 m; the
+    // rest glow.
+    lamps: (
+        street_spacing_m: 32.0,
+        arterial_spacing_m: 30.0,
+        highway_spacing_m: 50.0,
+        head_m: (9.0, 12.0, 11.0),
+        arm_m: 1.6,
+        kerb_m: 0.8,
+        min_piece_m: 12.0,
+        on_deg: (-3.0, 1.0),
+        lumens: 15000.0,
+        range_m: 35.0,
+        cone_deg: (40.0, 65.0),
+        colour: (1.0, 0.62, 0.25),
+        real_lamps: 96,
+        real_m: 250.0,
+        fade_m: 50.0,
+        head_cd_m2: 8.0,
+        // Far off a head is under a pixel: each lamp also glows, at least 3 px across on screen (2.5 m in the
+        // world), 1.2 times white at its heart, fading in from 150 m to 300 m, so a city at night reads from the
+        // air as a grid of lights.
+        glow_brightness: 1.2,
+        glow_px: 3.0,
+        glow_m: 2.5,
+        glow_from_m: 300.0,
+    ),
+    // The buildings' windows (owner, 2026-10-28: "buildings also need some sort of cell lighting. If the
+    // building is damaged all of its lights turn off"): each a cell one storey high and 2.5 m wide; the share
+    // lit rises through dusk to 65 % at 20:00, falls to 35 % at midnight and 12 % at 03:00, and the last go out
+    // by 07:00. A lit window glows at 3 cd/m2. A damaged building's are never lit.
+    windows: (
+        lit_by_hour: [(0.0, 0.35), (3.0, 0.12), (5.5, 0.12), (7.0, 0.0), (17.5, 0.0), (20.0, 0.65), (24.0, 0.35)],
+        column_m: 2.5,
+        cd_m2: 3.0,
+    ),
+)

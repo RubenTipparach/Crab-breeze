@@ -9,11 +9,16 @@
 import bevy_pbr::render::forward_io::{VertexOutput, FragmentOutput};
 import bevy_pbr::render::pbr_fragment::pbr_input_from_standard_material;
 import bevy_pbr::render::pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing, calculate_tbn_mikktspace, apply_normal_mapping};
+import bevy_pbr::render::mesh_view_bindings::{view, globals};
+import super::building_windows::window_light;
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(101) var albedo_array: texture_2d_array<f32>;
 @group(constants::MATERIAL_BIND_GROUP) @binding(102) var array_sampler: sampler;
 @group(constants::MATERIAL_BIND_GROUP) @binding(103) var normal_array: texture_2d_array<f32>;
 @group(constants::MATERIAL_BIND_GROUP) @binding(104) var orm_array: texture_2d_array<f32>;
+// The windows at night (`building_windows`), lit on the far and massing walls only (zero on the near
+// walls, whose windows are glass): x the share lit now, y brightness cd/m2, z storey m, w cell m.
+@group(constants::MATERIAL_BIND_GROUP) @binding(105) var<uniform> windows: vec4<f32>;
 
 @fragment
 fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> FragmentOutput {
@@ -43,6 +48,9 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
 
     var out: FragmentOutput;
     out.color = apply_pbr_lighting(pbr);
+    if (windows.x > 0.0) {
+        out.color = vec4<f32>(out.color.rgb + window_light(in.world_position.xyz, normalize(in.world_normal), globals.time, windows, true) * view.exposure, out.color.a);
+    }
     out.color = main_pass_post_lighting_processing(pbr, out.color);
     return out;
 }

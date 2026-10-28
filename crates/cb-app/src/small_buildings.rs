@@ -415,6 +415,8 @@ fn bind(
                 extension: ElementState {
                     standing: states.handle.clone(),
                     no_ssao: u32::from(glass),
+                    // Houses' windows are not lit yet (day-night-cycle task 4.5).
+                    windows: Vec4::ZERO,
                 },
             }),
         );
@@ -455,6 +457,7 @@ fn bind(
         extension: ElementState {
             standing: states.handle.clone(),
             no_ssao: 0,
+            windows: Vec4::ZERO,
         },
     }));
     for (name, h) in &loading.furniture {

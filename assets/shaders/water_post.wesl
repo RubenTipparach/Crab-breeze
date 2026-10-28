@@ -34,6 +34,9 @@ struct WaterPost {
     fog_sky_y: vec4<f32>,  // xyz its up; w the planet's radius m
     fog_sky_z: vec4<f32>,  // xyz its back; w 1 with the sky's LUT bound, 0 without (the fog's own colour)
     fog_sky_lut: vec4<f32>, // xy the sky-view LUT's size, texels; z the view's exposure; w how much darker the fog is under the clouds' shade
+    fog_night: vec4<f32>,  // x the stars' brightness on screen now; y the moon's lit face on screen now
+    fog_moon: vec4<f32>,   // xyz toward the moon; w its disc's angular radius, radians
+    fog_sun_body: vec4<f32>, // xyz toward the sun itself (fog_sun_dir is the key light's)
     glass: vec4<f32>,      // seated: xyz the interior's origin, world m; w window triangles in `panes` (0 on foot)
     glass_look: vec4<f32>, // x metres of pane to one unit of the drop pattern
     panes: array<vec4<f32>, 96>, // the window triangles' corners, world m, three a triangle
@@ -143,6 +146,51 @@ fn post_fog_colour(dir: vec3<f32>) -> vec3<f32> {
     return fog_colour(sky_view_lut, scene_sampler, c, dir);
 }
 
+// The night sky on a sky pixel (`cb_core::day_night`): stars, fixed to the sky, on a cube of cells,
+// a few in a hundred cells holding one, most faint, twinkling; and the moon's disc lit on its sunward
+// side, so it shows its phase. In screen units (the scene is already exposed), so they read the same
+// at any exposure; the fog over them dims them toward the horizon.
+fn night_sky(dir: vec3<f32>) -> vec3<f32> {
+    var out = vec3<f32>(0.0);
+    if (post.fog_night.x > 0.0 && dir.y > -0.05) {
+        let a = abs(dir);
+        var face = 0.0;
+        var uv = dir.yz / a.x;
+        if (a.y >= a.x && a.y >= a.z) {
+            face = 1.0;
+            uv = dir.xz / a.y;
+        } else if (a.z >= a.x) {
+            face = 2.0;
+            uv = dir.xy / a.z;
+        }
+        face += select(0.0, 3.0, dot(dir, vec3<f32>(1.0)) < 0.0);
+        let grid = uv * 140.0;
+        let cell = floor(grid);
+        let h = fract(sin(dot(cell + face * 157.0, vec2<f32>(12.9898, 78.233))) * 43758.547);
+        if (h > 0.955) {
+            let h2 = fract(h * 91.7);
+            let at = vec2<f32>(fract(h * 13.1), fract(h * 7.3)) * 0.6 + 0.2;
+            let d = length(grid - cell - at);
+            let twinkle = 0.75 + 0.25 * sin(post.camera.w * (2.0 + 4.0 * h2) + h * 50.0);
+            let tint = mix(vec3<f32>(0.75, 0.82, 1.0), vec3<f32>(1.0, 0.9, 0.78), h2);
+            out += tint * pow(h2, 6.0) * (1.0 - smoothstep(0.03, 0.14, d)) * twinkle * post.fog_night.x;
+        }
+    }
+    let moon = normalize(post.fog_moon.xyz);
+    let r = post.fog_moon.w;
+    let c = dot(dir, moon);
+    if (r > 0.0 && c > cos(r * 1.2)) {
+        // Where on the disc, as a share of its radius, and the sphere's surface facing the eye there.
+        let across = (dir - moon * c) / sin(r);
+        let q = length(across);
+        let n = normalize(across - moon * sqrt(max(1.0 - q * q, 0.0)));
+        let lit = clamp(dot(n, normalize(post.fog_sun_body.xyz)) * 3.0, 0.0, 1.0);
+        let rim = 1.0 - smoothstep(0.92, 1.02, q);
+        out += vec3<f32>(1.0, 0.97, 0.9) * post.fog_night.y * (lit + 0.015) * rim;
+    }
+    return out;
+}
+
 // Ground fog in the air, from the cabin's wall (seated) to the pixel or out to the sky's length.
 // Its own pass between the opaque (and transmissive) pass and the transparent one, so the clouds,
 // which write no depth, are drawn over the fogged ground and sky and carry only their own fog: fogged
@@ -160,6 +208,9 @@ fn fog(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     var view_dist = 1.0e5;
     if (!sky) {
         view_dist = length(world_at(uv, depth) - eye);
+    }
+    if (sky) {
+        color += night_sky(direction);
     }
     let start = post.lens_fx.w;
     let end = select(view_dist, post.fog_mist.z, sky);

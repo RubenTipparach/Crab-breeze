@@ -42,7 +42,12 @@ What the game has today, measured or read from the source on 2026-10-27:
     degrees from the zenith. It moves 15 degrees a game hour, which is 7.5 degrees a real minute.
   - Pure function `sun_dir(hour)` in `cb-core`, with tests: rises at 06:00, sets at 18:00, peaks at 12:00.
   - `sun_rotation()` becomes `sun_rotation(hour)`. Every reader passes the hour; there is one sun.
-- **The moon:** a full moon every night (survey N2), opposite the sun: up at 18:00, down at 06:00.
+- **The moon:** real phases over 29.53 days (survey N2, owner 2026-10-28: "real moon phases", against the
+  recommended full moon every night). It trails the sun by its phase of a day: a full moon is opposite the sun
+  (up at 18:00, down at 06:00), a new one rides with it, so some nights are black. The first night is full
+  (`moon_start_phase` 0.5), so a new player's first night can be seen. Its light is the full moon's times the
+  lit share of its face, `(1 - cos(2 pi phase)) / 2`. Its disc is drawn by the fog pass with its phase lit on the
+  sunward side (Bevy's `SunDisk` would draw it whole).
   - A second directional light at `moon_lux`, with `SunDisk` for its disc (Bevy's atmosphere draws a disc for
     each directional light that has one).
   - Real full moonlight is 0.25 lux, against about 100,000 for the sun.
@@ -112,8 +117,9 @@ colours every few seconds, which is too much remeshing. Instead:
 - If the owner's machine shows pixel shading dominating, deferred is the change to measure next.
 
 **The lamps (`cb_core::world::lamps`), one rule from the road network:**
-- City streets get a lamp every 32 m, alternating sides. Arterials get one every 30 m on both sides. Highways get
-  one every 50 m within 1 km of a city and none elsewhere (1980s rural roads were dark).
+- Every stretch of road is lit (owner, 2026-10-28: "Every stretch of road should have street lamps"): city
+  streets get a lamp every 32 m, alternating sides; arterials one every 30 m on both sides; highways one every
+  50 m, alternating sides, from city to city (the first design left highways dark away from cities).
 - Air bases get runway edge lights every 60 m, apron floodlights and a rotating beacon.
 - Each lamp has a position, a head height (9 m streets, 12 m arterials), a kind and a stable id. It is built
   with the roads and validated: no lamp in a building, none in water.
@@ -153,6 +159,9 @@ screen pixels with a floor of 2 px, so a city reads as a grid of lights from the
 - **Far facades** gain a night layer: the same rule rendered into an emission map at startup per building type,
   a time-of-day threshold in its alpha so the share lit follows the clock without rebaking.
   - Memory: one 1,024 px RGBA8 layer with mips per type, about 5.6 MB each.
+- **A damaged building goes dark** (owner, 2026-10-28: "buildings also need some sort of cell lighting. If the
+  building is damaged all of its lights turn off"): once any of its elements has fallen, none of its windows
+  lights again.
 - One implementation: `cb_core::world::windows::lit(building, cell, hour)` is the rule. The glass shader reads
   it as a WESL copy pinned by a test against the core on a table of cases. The far facade bake calls the core.
 

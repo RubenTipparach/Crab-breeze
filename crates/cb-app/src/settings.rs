@@ -59,21 +59,12 @@ pub fn save(s: &Settings) {
     }
 }
 
-/// Puts the settings into effect. The measurement switches still win: `CB_NO_SHADOWS` keeps the
-/// sun's shadows off whatever the settings say, so a perf run is never changed by a player's file.
-fn apply(
-    settings: Res<Settings>,
-    follows: Res<WindowFollows>,
-    mut keys: ResMut<Keys>,
-    mut suns: Query<&mut DirectionalLight, With<crate::world::Sun>>,
-    mut window: Query<&mut Window>,
-) {
+/// Puts the settings into effect. The shadows setting is read by `day_night`, which owns which
+/// body casts them; `CB_NO_SHADOWS` still keeps them off whatever the settings say.
+fn apply(settings: Res<Settings>, follows: Res<WindowFollows>, mut keys: ResMut<Keys>, mut window: Query<&mut Window>) {
     let s = settings.0;
     keys.deg_per_px = s.mouse_deg_per_px;
     keys.invert_pitch = s.invert_pitch;
-    for mut sun in &mut suns {
-        sun.shadow_maps_enabled = s.shadows && !crate::cli::switched_off("CB_NO_SHADOWS");
-    }
     if follows.0 {
         for mut w in &mut window {
             w.present_mode = if s.vsync {

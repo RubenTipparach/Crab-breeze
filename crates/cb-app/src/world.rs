@@ -179,16 +179,17 @@ impl Plugin for WorldPlugin {
             plan.clouds.puffs.len()
         );
         let sky = app.world().resource::<Data>().0.sky_light.clone();
-        let ambient_cd_m2 = crate::sky_light::ambient_cd_m2(&sky);
+        let day_ambient = crate::day_night::day_ambient_cd_m2(&app.world().resource::<Data>().0);
         let [ar, ag, ab] = sky.ambient_colour;
         app.insert_resource(live)
             .insert_resource(Plan(Arc::new(plan)))
             .insert_resource(ClearColor(SKY))
             .insert_resource(GlobalAmbientLight {
                 color: Color::srgb(ar, ag, ab),
-                // Under the scattering sky the exposure is darker by the step from Bevy's default
-                // EV100 9.7 to the view's, so the ambient rises by the same factor.
-                brightness: ambient_cd_m2 * exposure_scale(&cfg.view),
+                // The day's (`day_night` scales it by the hour). Under the scattering sky the exposure
+                // is darker by the step from Bevy's default EV100 9.7 to the view's, so the ambient
+                // rises by the same factor.
+                brightness: day_ambient,
                 ..default()
             })
             .add_plugins((crate::ground::GroundPlugin, crate::rocks::RocksPlugin))
@@ -805,6 +806,7 @@ fn spawn_sun(mut commands: Commands, data: Res<Data>, mut media: ResMut<Assets<b
     let mut sun = commands.spawn((
         Name::new("sun"),
         Sun,
+        crate::day_night::SkyBody { visible: 1.0 },
         DirectionalLight {
             // Raw sunlight under the scattering sky, which filters it; the old daylight value otherwise.
             illuminance: if scattering_sky() {
@@ -815,7 +817,7 @@ fn spawn_sun(mut commands: Commands, data: Res<Data>, mut media: ResMut<Assets<b
             shadow_maps_enabled: !crate::cli::switched_off("CB_NO_SHADOWS"),
             ..default()
         },
-        // The one sun, shared with the terrain's baked shadow (distant-shadows).
+        // The one sun; `day_night` turns it with the hour.
         Transform::from_rotation(cb_core::world::sun_shade::sun_rotation()),
         // The live shadows near the eye, from data (`sun_shade:` in `data/world/world.ron`).
         CascadeShadowConfigBuilder {

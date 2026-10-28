@@ -439,7 +439,7 @@ fn refresh_light(
     fog_now: Res<crate::ground_fog::FogNow>,
     weather: Res<crate::ground_fog::EyeWeather>,
     ambient: Res<GlobalAmbientLight>,
-    sun: Query<(&DirectionalLight, &GlobalTransform), With<Sun>>,
+    sun: Query<(&DirectionalLight, &GlobalTransform, &crate::day_night::SkyBody)>,
     camera: Query<(&GlobalTransform, Option<&Exposure>, Option<&bevy::pbr::AtmosphereSettings>), With<PilotCamera>>,
     atmosphere: Query<(&bevy::light::Atmosphere, &GlobalTransform)>,
     draw: Option<Res<CloudDraw>>,
@@ -451,7 +451,9 @@ fn refresh_light(
     };
     let eye = eye.translation();
     let exposure = exposure.copied().unwrap_or_default().exposure();
-    let light = water_light(sun.iter().next(), &ambient, exposure);
+    // The light on the world from the sky: the sun, or the moon at night (`day_night`).
+    let key = crate::day_night::key_light(sun.iter());
+    let light = water_light(key.as_ref().map(|(l, t)| (l, t)), &ambient, exposure);
     let a = LinearRgba::from(ambient.color);
     let amb = Vec3::new(a.red, a.green, a.blue) * ambient.brightness * exposure;
     let c = &data.0.world.clouds;
@@ -548,7 +550,8 @@ fn shade_sun(
     let d = plan.clouds.drift(time.elapsed_secs());
     transform.translation = Vec3::new(d.x, 0.0, d.y);
     transform.scale = Vec3::splat(SHADE_HALF_M);
-    let turned = baked_for.is_none_or(|q| q.angle_between(transform.rotation) > 0.01);
+    // Rebaked every 2 degrees of the sun's travel (16 s of the day's clock), not each step.
+    let turned = baked_for.is_none_or(|q| q.angle_between(transform.rotation) > 2f32.to_radians());
     if texture.is_some() && !turned {
         return;
     }

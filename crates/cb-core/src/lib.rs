@@ -18,6 +18,7 @@ pub mod civil_standing;
 pub mod civilians;
 pub mod cockpit;
 pub mod data;
+pub mod day_night;
 pub mod fortress;
 pub mod fx;
 pub mod grass;
@@ -82,6 +83,8 @@ pub struct GameData {
     pub cockpit_light: cockpit::CockpitLightConfig,
     /// `data/world/sky_light.ron`.
     pub sky_light: sky_light::SkyLightConfig,
+    /// `data/world/day_night.ron`: the world's clock and the light of each hour.
+    pub day_night: day_night::DayNightConfig,
     /// `data/world/grass.ron`.
     pub grass: grass::GrassConfig,
     /// `data/fx/ground_marks.ron`.
@@ -200,6 +203,7 @@ impl GameData {
             targeting: data::load_ron(&root.join("hud/targeting.ron"))?,
             cockpit_light: data::load_ron(&root.join("hud/cockpit_light.ron"))?,
             sky_light: data::load_ron(&root.join("world/sky_light.ron"))?,
+            day_night: data::load_ron(&root.join("world/day_night.ron"))?,
             grass,
             ground_marks: data::load_ron(&root.join("fx/ground_marks.ron"))?,
             battle_fx: data::load_ron(&root.join("fx/battle_fx.ron"))?,

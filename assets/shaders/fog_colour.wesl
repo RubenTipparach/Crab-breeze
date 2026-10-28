@@ -15,16 +15,17 @@ struct FogColour {
     sun_dir: vec4<f32>, // xyz toward the sun; w unused here
 }
 
-// The scattering sky's colour along `dir` at or above the horizon, as Bevy's sky pass reads it from the sky-view LUT
-// (`bevy_pbr` atmosphere `sample_sky_view_lut`, its uv mapping written out here), times the exposure. A ray below the
-// horizon takes the horizon's colour just above it.
+// The scattering sky's colour along `dir`, as Bevy's sky pass reads it from the sky-view LUT (`bevy_pbr` atmosphere
+// `sample_sky_view_lut`, its uv mapping written out here), times the exposure. A ray below the horizon takes the LUT's
+// own light along a downward ray: at twilight the horizon toward the sun glows far brighter than the air between the eye
+// and the ground, and taking the horizon's colour for every downward ray turned the haze over the land red-hot
+// (day-night-cycle, 2026-10-28).
 fn sky_horizon_colour(lut: texture_2d<f32>, lut_sampler: sampler, c: FogColour, dir: vec3<f32>) -> vec3<f32> {
     let d = vec3<f32>(dot(dir, c.sky_x.xyz), dot(dir, c.sky_y.xyz), dot(dir, c.sky_z.xyz));
     let r = c.sky_x.w;
     let inner = c.sky_y.w;
     let horizon_zenith = 3.14159265 - acos(clamp(sqrt(max(r * r - inner * inner, 0.0)) / r, -1.0, 1.0));
-    // Half a degree above the horizon at the lowest: the LUT's horizon texel row, not the ground's.
-    let view_zenith = min(acos(clamp(d.y, -1.0, 1.0)), horizon_zenith - 0.009);
+    let view_zenith = acos(clamp(d.y, -1.0, 1.0));
     let l = view_zenith - horizon_zenith;
     let v = 0.5 + 0.5 * sign(l) * sqrt(abs(l) / 1.57079633);
     let u = atan2(d.x, -d.z) * 0.15915494 + 0.5;

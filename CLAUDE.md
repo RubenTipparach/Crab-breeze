@@ -135,6 +135,11 @@ From the owner's brief, 2026-10-23. Quotes are the owner's words.
   the player's own mech and cockpit included; only ambience beds, music and menu sounds are unplaced and may
   be stereo (`openspec/changes/audio`). With no threat the music fades to silence and ambience beds chosen
   by place carry the scene (`openspec/changes/music`, `openspec/changes/ambience`).
+- **Day and night, lit like a city** (owner, 2026-10-27 and 28: "24 mins for day time, 24 minutes for night",
+  "You gotta illuminate nigh time with moonlight.. you also need street.lamps", "Every stretch of road should have
+  street lamps..buildings also need some.sort.of cell lighting. If the building is damaged all of its lights turn
+  off"). Real moon phases (survey N2); only the player's own vehicle's lamps cast shadows among night lights
+  (N3). `openspec/changes/day-night-cycle`.
 - **Mechs twice the size, legs heavier than the torso, low-poly first** (owner, 2026-10-24: "2x mech size
   please, they dont seem very big right now, redesign mechs, start with lowpoly first", "I really expect legs
   on these mechs to be bigger than the torso, just for balance", "I really like how stevedore is all struts",

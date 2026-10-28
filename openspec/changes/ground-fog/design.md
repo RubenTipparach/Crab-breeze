@@ -62,7 +62,8 @@ land met the sky in a band of another colour.
 
 - **The fog is the sky's colour.** With the scattering sky the fog pass reads the sky's own
   sky-view LUT (Bevy's atmosphere, bound beside the mist map) along each ray, through Bevy's own
-  uv mapping, at half a degree above the horizon for a ray that looks down. Far land and sea fade
+  uv mapping, along the ray itself (a downward ray reads the LUT's own light looking down: clamped to
+  the horizon, the haze took the twilight horizon's glow and burned red, 2026-10-28). Far land and sea fade
   into exactly the sky behind them; a sky pixel the fog covers takes its own colour, so the haze
   never tints the sky. Under the clouds' shade at the eye it darkens by `storm_dim` (0.45) at full
   shade. Without the sky (`CB_NO_SKY=1`) the fog keeps its own colour.

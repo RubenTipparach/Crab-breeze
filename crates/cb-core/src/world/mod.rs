@@ -21,6 +21,7 @@ pub mod grid;
 pub mod hydrology;
 pub mod interior;
 pub mod island;
+pub mod lamps;
 pub mod lanes;
 pub mod layout;
 pub mod lod;

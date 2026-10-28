@@ -141,7 +141,7 @@ fn apply(
     commands.entity(camera).insert(GeneratedEnvironmentMapLight {
         environment_map: handle,
         // Set at Bevy's default exposure, scaled like the ambient for the scattering sky's.
-        intensity: cfg.sky_cd_m2 * crate::world::exposure_scale(&data.0.world.view),
+        intensity: crate::day_night::day_sky_intensity(&data.0),
         rotation: Quat::from_rotation_y(cfg.yaw_deg.to_radians()),
         affects_lightmapped_mesh_diffuse: true,
     });

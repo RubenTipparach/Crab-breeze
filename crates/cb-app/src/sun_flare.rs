@@ -215,7 +215,7 @@ fn extract_flare(
     mut commands: Commands,
     data: Extract<Res<Data>>,
     look: Option<Res<RenderFlareLook>>,
-    sun: Extract<Query<(&DirectionalLight, &GlobalTransform), With<crate::world::Sun>>>,
+    sun: Extract<Query<(&DirectionalLight, &GlobalTransform, &crate::day_night::SkyBody), With<crate::world::Sun>>>,
     eyes: Extract<Query<(RenderEntity, &SunFlareMedium, Option<&Exposure>), With<SunFlareEye>>>,
     cockpits: Extract<Query<RenderEntity, With<SunFlareCockpit>>>,
 ) {
@@ -224,7 +224,7 @@ fn extract_flare(
         commands.insert_resource(RenderFlareLook(flare.clone()));
     }
     // The sun (`world::Sun`), as the water's light has it.
-    let Some((light, transform)) = sun.iter().next() else {
+    let Some((light, transform, body)) = sun.iter().next() else {
         return;
     };
     let toward_sun = transform.back().as_vec3();
@@ -236,7 +236,8 @@ fn extract_flare(
             e.insert(FlareView {
                 role: Role::Eye,
                 medium: medium.0,
-                light: colour * strength(light.illuminance, exposure, flare.gain),
+                // No flare from a sun below the horizon (`day_night`).
+                light: colour * strength(light.illuminance * body.visible, exposure, flare.gain),
                 toward_sun,
             });
         }

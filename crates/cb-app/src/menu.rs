@@ -127,6 +127,14 @@ pub(crate) enum MenuButton {
     Shadows,
     Vsync,
     Fullscreen,
+    /// Free roam's time of day (owner, 2026-10-28: "in free roam there is a toggle to pick time of
+    /// day, or stop changinign time of day (freeze ToD)", "this is in the pause menu"): the clock an
+    /// hour on (or back).
+    Hour(i32),
+    /// The clock to this hour of the day.
+    SetHour(u32),
+    /// The clock frozen, or running again.
+    FreezeClock,
 }
 
 /// Opens, closes and draws the menu.
@@ -235,6 +243,8 @@ struct Press<'a> {
     settings: &'a mut Settings,
     time: &'a mut Time<Virtual>,
     cursor: &'a mut CursorOptions,
+    /// The world's clock (`day_night`).
+    clock: &'a mut crate::day_night::Clock,
 }
 
 /// The roster free roam's Mech page lists (`cb_core::GameData::roster`, mech-select), read once.
@@ -390,6 +400,9 @@ fn press(
         MenuButton::Shadows => changed(p, |s| s.shadows ^= true),
         MenuButton::Vsync => changed(p, |s| s.vsync ^= true),
         MenuButton::Fullscreen => changed(p, |s| s.fullscreen ^= true),
+        MenuButton::Hour(n) => p.clock.0.shift(n as f32),
+        MenuButton::SetHour(h) => p.clock.0.set_hour(h as f32),
+        MenuButton::FreezeClock => p.clock.0.frozen ^= true,
     }
 }
 
@@ -429,6 +442,7 @@ fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton,
                   roster: Res<Roster>,
                   mut free: Option<ResMut<crate::missions::FreeRoamRun>>,
                   mut exit: MessageWriter<AppExit>,
+                  mut clock: ResMut<crate::day_night::Clock>,
                   (mut tab, terminal, plan, data, near): (
                 ResMut<TerminalTab>,
                 Option<Res<crate::air_bases::AtTerminal>>,
@@ -449,6 +463,7 @@ fn button_sized(parent: &mut ChildSpawnerCommands, text: &str, what: MenuButton,
                         settings: &mut settings,
                         time: &mut time,
                         cursor: &mut cursor,
+                        clock: &mut clock,
                     },
                     &roster.0,
                     career.as_deref_mut(),
@@ -538,11 +553,18 @@ fn draw(
     ),
     roots: Query<Entity, With<MenuRoot>>,
     overlay: Query<Entity, With<CockpitCamera>>,
+    clock: Res<crate::day_night::Clock>,
 ) {
     let career_changed = career.as_ref().is_some_and(|c| c.is_changed()) || free.as_ref().is_some_and(|f| f.is_changed());
     let live = matches!(*menu, Menu::Mail | Menu::Terminal);
     let tab_changed = tab.is_changed() && *menu == Menu::Terminal;
-    if !menu.is_changed() && !tab_changed && !(settings.is_changed() && *menu == Menu::Options) && !(career_changed && live) {
+    let clock_changed = clock.is_changed() && *menu == Menu::Pause;
+    if !menu.is_changed()
+        && !tab_changed
+        && !clock_changed
+        && !(settings.is_changed() && *menu == Menu::Options)
+        && !(career_changed && live)
+    {
         return;
     }
     for r in &roots {
@@ -606,6 +628,29 @@ fn draw(
                 }
                 if free.is_some() {
                     button(p, "Mech", MenuButton::MechPage);
+                    // The time of day: the hour, an hour back or on, frozen or running, and four picks.
+                    let hour = clock.0.hour(&data.0.day_night);
+                    let (h, m) = (hour.floor() as u32 % 24, ((hour.fract() * 60.0).floor() as u32).min(59));
+                    let state = if clock.0.frozen { "FROZEN" } else { "RUNNING" };
+                    option_row(
+                        p,
+                        "Time of day",
+                        format!("{h:02}:{m:02} {state}"),
+                        &[
+                            ("-1h", MenuButton::Hour(-1)),
+                            ("+1h", MenuButton::Hour(1)),
+                            (if clock.0.frozen { "Run" } else { "Freeze" }, MenuButton::FreezeClock),
+                        ],
+                    );
+                    p.spawn(Node {
+                        column_gap: px(12.0),
+                        ..default()
+                    })
+                    .with_children(|row| {
+                        for (name, hour) in [("Dawn", 6), ("Noon", 12), ("Dusk", 18), ("Night", 0)] {
+                            button_sized(row, name, MenuButton::SetHour(hour), 110.0);
+                        }
+                    });
                 }
                 button(p, "Options", MenuButton::Options);
                 button(p, "Controls", MenuButton::Controls);
