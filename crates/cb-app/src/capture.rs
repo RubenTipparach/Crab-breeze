@@ -853,7 +853,7 @@ impl Plugin for FxStillsPlugin {
             soil: None,
             done: Vec::new(),
         })
-        .add_game_systems(Update, (run_fx_script, run_depth_bench));
+        .add_game_systems(Update, (run_fx_script, run_depth_bench, run_tower_corner));
     }
 }
 
