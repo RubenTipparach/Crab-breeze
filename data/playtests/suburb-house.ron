@@ -1,0 +1,31 @@
+// The suburb on foot, for performance (owner, 2026-10-28: "Shoot houses too and measure perf. Get out of mech in suburb
+// area and walk.sround inside house"). Free roam from the capital: board, fly at 150 m to the nearest houses more than
+// 300 m off, land, bring down the 10 nearest houses 60 to 800 m off (5 s each), climb out, walk in at the front door of
+// the nearest standing house, on into its rooms and back out, and look round. Every frame goes to
+// output/perf/suburb-house-frames.csv.
+//
+//   CB_UNCAPPED=1 ./target/release/crab-breeze --playtest suburb-house > output/perf/suburb-house.log 2>&1
+(
+    name: "suburb-house",
+    stuck_s: 20.0,
+    runs: [
+        (
+            play: "free",
+            beats: [
+                Wait(2.0),
+                WalkToMech(6.0),
+                Board,
+                Wait(2.0),
+                JetToNearest("house", 150.0),
+                Wait(10.0),
+                FireAtNearest("house", 5.0, 10),
+                Wait(10.0),
+                Disembark,
+                Wait(2.0),
+                WalkIntoHouse(300.0),
+                LookAround(10.0),
+                Wait(3.0),
+            ],
+        ),
+    ],
+)

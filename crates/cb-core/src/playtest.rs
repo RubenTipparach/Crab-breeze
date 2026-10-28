@@ -81,6 +81,9 @@ pub enum Beat {
     /// Walk in at the street door of the nearest standing building within this many metres and climb this many
     /// storeys of its stair, by its own route (`world::interior::Entrance::route`, `Stair::climb`).
     WalkIntoBuilding(f32, u32),
+    /// Walk in at the front door of the nearest standing house within this many metres (not one `FireAtNearest` shot),
+    /// on into its rooms, and back out of the door (the suburb's interiors, for performance).
+    WalkIntoHouse(f32),
     /// Write what is about the pilot within this many metres (people by what they do, cars, lit junctions and their
     /// lights, aircraft, boats, harbours, the fog), a note for the report. Takes no time.
     Survey(f32),
@@ -241,6 +244,7 @@ impl Validate for Script {
                     Beat::ExpectMode(m, s) => !(matches!(m.as_str(), "OnFoot" | "Driving" | "Seated") && s.is_finite() && *s > 0.0),
                     Beat::DriveCar(s, t) => !(s.is_finite() && *s > 0.0 && (0.0..=1.0).contains(t)),
                     Beat::WalkIntoBuilding(m, _) => !(m.is_finite() && *m > 0.0),
+                    Beat::WalkIntoHouse(m) => !(m.is_finite() && *m > 0.0),
                     Beat::LookAtNearest(k, s) => !(LOOK_KINDS.contains(&k.as_str()) && s.is_finite() && *s > 0.0),
                     Beat::SkateToNearest(k, m) => !(GO_KINDS.contains(&k.as_str()) && m.is_finite() && *m >= 0.0),
                     Beat::JetToNearest(k, h) => !(GO_KINDS.contains(&k.as_str()) && h.is_finite() && *h > 0.0),

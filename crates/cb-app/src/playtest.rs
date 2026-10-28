@@ -1235,8 +1235,52 @@ fn play(
                 }
             }
         }
-        Beat::WalkIntoBuilding(within, storeys) => {
-            if t.route.is_empty() {
+        Beat::WalkIntoHouse(within) if t.route.is_empty() => {
+            // Out in front of the door, in through it, on into the rooms, and back out: the kit's first leaf is its
+            // front door (`small_buildings::walk`'s test walks the same line).
+            let feet = Vec2::new(p.feet.x, p.feet.z);
+            let small = &s.plan.small;
+            let best = small
+                .candidates(feet, *within)
+                .into_iter()
+                .filter(|l| !t.shot.contains(&(l | HOUSE_ID)))
+                .filter(|l| s.live.structures.houses.alive(*l).is_none_or(|a| a.iter().all(|x| *x)))
+                .filter_map(|l| {
+                    let lot = small.lots.get(l as usize)?;
+                    let leaf = small.kit(l).leaves.first()?;
+                    let mid = Vec2::new(leaf.hinge.x, leaf.hinge.z) + leaf.shut * (leaf.width_m * 0.5);
+                    let outside = lot.to_world(mid - leaf.inward * 3.0);
+                    Some((outside.distance(feet), l, lot, mid, leaf.inward))
+                })
+                .min_by(|a, b| a.0.total_cmp(&b.0));
+            match best {
+                Some((d, l, lot, mid, inward)) => {
+                    let at = |q: Vec2| {
+                        let w = lot.to_world(q);
+                        Vec3::new(w.x, lot.ground_m, w.y)
+                    };
+                    t.route = [-3.0, 2.5, 5.0, 7.0, 5.0, 2.5, -3.0]
+                        .iter()
+                        .map(|k| at(mid + inward * *k))
+                        .collect();
+                    t.goal_id = Some(l);
+                    t.route_i = 0;
+                    info!(
+                        "playtest: into house lot {l} by its front door, {d:.0} m off ({} points)",
+                        t.route.len()
+                    );
+                }
+                None if in_beat > 8.0 => {
+                    fail(&mut t, now, &format!("no standing house within {within:.0} m"));
+                    return;
+                }
+                None => {}
+            }
+        }
+        Beat::WalkIntoBuilding(..) | Beat::WalkIntoHouse(_) => {
+            if let Beat::WalkIntoBuilding(within, storeys) = &beat
+                && t.route.is_empty()
+            {
                 let feet = Vec2::new(p.feet.x, p.feet.z);
                 let rng = crate::buildings::building_rng(x.seed.0);
                 let cfg = &x.colliders.0.cfg;
@@ -1285,7 +1329,7 @@ fn play(
                 if flat < 0.6 {
                     t.route_i += 1;
                     if t.route_i == t.route.len() {
-                        info!("playtest: up the stair, feet at {:.1} m (started at the door)", p.feet.y);
+                        info!("playtest: route walked, feet at {:.1} m (started at the door)", p.feet.y);
                         done = true;
                     }
                 } else {
