@@ -991,8 +991,8 @@
     ]
    },
    "triangles": {
-    "LOD0": 2124,
-    "LOD1": 1740,
+    "LOD0": 2136,
+    "LOD1": 1752,
     "LOD2": 10,
     "FURN": 156,
     "leaves": 36
@@ -1002,7 +1002,7 @@
     "LOD1": 7000,
     "LOD2": 120
    },
-   "piece_count": 96,
+   "piece_count": 97,
    "surfaces": [
     "carpet",
     "concrete",

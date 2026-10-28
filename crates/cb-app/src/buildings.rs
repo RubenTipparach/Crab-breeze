@@ -224,6 +224,9 @@ impl Materials {
     }
 }
 
+/// How far the frame's roof slab is drawn inside the dressing's roof, metres: its underside up, its top down.
+const ROOF_SLAB_INSET_M: [f32; 2] = [0.02, 0.03];
+
 /// Adds a box from layer `layer`, tinted `tint`, carrying `slot` (`building_state`).
 fn layered_block(mb: &mut MeshBuilder, layer: Layer, min: Vec3, max: Vec3, tint: [f32; 3], slot: f32) {
     mb.set_layer(layer.index(), layer.tile_m());
@@ -534,7 +537,17 @@ fn frame_meshes(f: &Frame, site: &Site, icfg: &InteriorConfig, base: u32, tone: 
                     layered_block(&mut frame, Layer::Surface(Surface::Concrete), a, b, SLAB_TINT, s);
                 }
             }
-            Kind::Slab => layered_block(&mut frame, Layer::Surface(Surface::Concrete), e.min, e.max, SLAB_TINT, s),
+            // The roof slab, drawn just inside the dressing's roof (its top 3 cm under the roof line, its underside
+            // 2 cm up): a damaged building near the player shows both, and in one plane their faces fought (owner,
+            // 2026-10-28: "roof top zfighting", "when buildings damaged"). Drawing only: the frame is unchanged.
+            Kind::Slab => layered_block(
+                &mut frame,
+                Layer::Surface(Surface::Concrete),
+                e.min + Vec3::new(0.0, ROOF_SLAB_INSET_M[0], 0.0),
+                e.max - Vec3::new(0.0, ROOF_SLAB_INSET_M[1], 0.0),
+                SLAB_TINT,
+                s,
+            ),
         }
     }
     let rest_slot = |r: Rest| match r {

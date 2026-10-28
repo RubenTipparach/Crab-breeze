@@ -71,10 +71,14 @@ about 36 m apart, each house facing the city, its front on the row line.
   surface: asphalt, concrete or paint), with an index for `paved(p, r)`. Pure and deterministic.
 - **Nothing grows on it**: `cover_at` treats paving like a highway (no grass or trees within the road clearance), and
   `surface_at` reads it as paved underfoot.
-- `cb-app::world::spawn_roads` drapes it on the ground into the meshes that are already drawn: streets and car parks
-  into the roads (asphalt), drives into the kerbs and blocks (concrete), stall lines into the lane marks. No draw of
-  its own. A connector sits 5 mm under the street it joins, a drive and a curb cut 1 cm under theirs: no shared
-  planes, no z-fighting.
+- `cb-app::paving` drapes it on the ground as each ground node draws it (2026-10-28, owner: "suburb roads are
+  hovering"): past 700 m a node draws the ground on 16 m cells, then 32 m, which cut under the tops of dunes, and
+  paving draped on the full detail floated over it by up to 2.7 m at step 2 and 4.3 m at step 4 (seed 42, measured
+  along every street every 2 m; none at step 1). So each node lays the pieces whose middle lies in it on
+  `Heightfield::height_at_step` for its own step, built on the worker with its ground mesh and drawn as its children,
+  shown and hidden with it. Streets and car parks on the suburbs' asphalt (Asphalt026C), drives on the kerbs'
+  concrete, stall lines with the lane marks' material. A connector sits 5 mm under the street it joins, a drive and a
+  curb cut 1 cm under theirs: no shared planes, no z-fighting.
 - `small_buildings:` keys (code defaults, `data/world/world.ron` sets none): `street_width_m`, `street_verge_m`,
   `street_break_m`, `connector_every_m`, `street_lift_m`, `drive_reach_m`, `drive_max_grade`, `drive_lift_m`,
   `parking_depth_m`, `stall_width_m`, `stall_depth_m`, `lot_lift_m`, `cut_width_m`, `two_cuts_over_m`.
@@ -83,10 +87,10 @@ about 36 m apart, each house facing the city, its front on the row line.
 
 | What | As built on seed 42 (counted; times are not measured here) |
 | --- | --- |
-| Suburb streets | 758 pieces and connectors, 85 km; draped in 4 m pieces 2 cells across: about 42,000 quads, 85,000 triangles in the roads mesh |
+| Suburb streets | 758 pieces and connectors, 85 km; draped in 4 m pieces 2 cells across: about 42,000 quads, 85,000 triangles, split among the ground nodes |
 | Drives | 1,326 houses, two strips each in 2 m cells: about 8 quads, 16 triangles a house, about 21,000 triangles |
 | Car parks | about 70 businesses, each a car park of about 60 cells, a cut and about 6 stall lines: about 10,000 triangles |
-| Draws | none added: the paving joins the roads, kerbs and lane-marks meshes |
+| Draws | up to three a ground node with paving on it (asphalt, concrete, paint), sharing the roads' materials; a node holds a few hundred to a few thousand of the 120,000 triangles |
 | Generation | a street sample, connector and drive test per house: to be measured on the owner's machine |
 | Houses lost | suburbs 1,281 (1,570 before; the kits grew 3 m wider where they gained a side drive, and about 230 houses had a drive too steep or no connector) |
 
