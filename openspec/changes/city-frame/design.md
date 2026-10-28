@@ -55,6 +55,24 @@ With the GPU at 8 to 24 ms the frame is the CPU's: in the probe build the render
 worst of 134 ms as buildings come inside 150 m and are dressed). A release build without the probe sets the real
 figure; then the draws (cars at 2 meshes to 1 km are about 2 200) and the dressing's uploads are next.
 
+## 5. Destruction, with the card's memory free (2026-10-28)
+
+With the desktop's other programs closed (the card 0.8 GB used before the game), release build, 4K and 2K textures
+interleaved two runs each: standing in the capital, median 13.6 ms, 1 to 4 % of frames over 16.7 ms, whichever the
+textures; bringing down 15 buildings there (`city-destruction`), median 19.5 to 21.8 ms and 81 to 93 % of frames over
+16.7 ms while shooting, worst 92 to 103 ms, and 16.5 to 18.5 ms while the debris settles; ten houses in the suburb
+(`suburb-house`), 17.4 to 17.7 ms and 66 to 68 % over while shooting. Texture size moved none of it beyond the spread.
+
+The first time a building is hit, `buildings::redraw_buildings` swaps its whole-building box for its frame and, if it
+is dressed, re-meshes its skin with the frame's slots: `frame_meshes` and `dressing_meshes`, on the main thread, in that
+frame (10 to 25 ms each in the logs). Later hits only write the building's words in the shared state buffer.
+
+**Planned (to be confirmed by the probe on `city-destruction` first):** the two meshes built on the async compute pool
+from copies of the building's frame, site and dressing inputs; the whole-building box stays drawn until both are
+done, then the swap happens in one frame as now. The state buffer is written at once either way, so damage is not
+delayed, only its look on a building's first hit, by the few frames the build takes. Cost: one task a newly hit
+building, the same work off the main thread.
+
 ## Open questions
 
 | Id | Question | Recommendation (built while open) |

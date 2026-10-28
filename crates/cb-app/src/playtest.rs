@@ -1618,25 +1618,26 @@ fn play(
                 let here = Vec2::new(m.pos.x, m.pos.z);
                 let near = |p: Vec3| p.distance(eye);
                 let next = if kind == "house" {
+                    // A plain pass over every lot and building: the collision grid's box query over 800 m took the
+                    // main thread 280 ms in the capital, a frame that long at each new target (a test cost, not the game's).
                     s.plan
                         .small
-                        .candidates(here, 800.0)
-                        .into_iter()
-                        .filter(|l| !t.shot.contains(&(l | HOUSE_ID)))
-                        .filter_map(|l| s.plan.small.lots.get(l as usize).map(|lot| (l | HOUSE_ID, lot)))
-                        .map(|(id, lot)| (id, Vec3::new(lot.centre.x, lot.ground_m + 3.0, lot.centre.y)))
+                        .lots
+                        .iter()
+                        .enumerate()
+                        .map(|(l, lot)| (l as u32, lot))
+                        .filter(|(l, lot)| !t.shot.contains(&(l | HOUSE_ID)) && lot.centre.distance(here) < 800.0)
+                        .map(|(l, lot)| (l | HOUSE_ID, Vec3::new(lot.centre.x, lot.ground_m + 3.0, lot.centre.y)))
                         .filter(|c| near(c.1) > 60.0)
                         .min_by(|a, b| near(a.1).total_cmp(&near(b.1)))
                 } else {
                     s.plan
-                        .collision
-                        .candidates(here, 800.0)
-                        .into_iter()
-                        .filter(|b| !t.shot.contains(b))
-                        .filter_map(|b| s.plan.buildings.get(b as usize).map(|bl| (b, bl)))
-                        .map(|(id, bl)| {
+                        .buildings
+                        .iter()
+                        .filter(|bl| !t.shot.contains(&bl.id) && bl.footprint.centre().distance(here) < 800.0)
+                        .map(|bl| {
                             let c = bl.footprint.centre();
-                            (id, Vec3::new(c.x, s.plan.terrain.height_at(c.x, c.y) + bl.height_m * 0.35, c.y))
+                            (bl.id, Vec3::new(c.x, s.plan.terrain.height_at(c.x, c.y) + bl.height_m * 0.35, c.y))
                         })
                         .filter(|c| near(c.1) > 60.0)
                         .min_by(|a, b| near(a.1).total_cmp(&near(b.1)))
