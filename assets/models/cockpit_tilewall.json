@@ -185,32 +185,32 @@
       "parent": "INNER_petal_m_1",
       "pivot_m": [
         0.0,
-        0.64,
-        0.4071
+        0.7826,
+        0.4304
       ]
     },
     "SCREEN_left": {
       "parent": "CONSOLE_front",
       "pivot_m": [
         0.0,
-        0.64,
-        0.4071
+        0.7826,
+        0.4304
       ]
     },
     "SCREEN_center": {
       "parent": "CONSOLE_front",
       "pivot_m": [
         0.0,
-        0.64,
-        0.4071
+        0.7826,
+        0.4304
       ]
     },
     "SCREEN_right": {
       "parent": "CONSOLE_front",
       "pivot_m": [
         0.0,
-        0.64,
-        0.4071
+        0.7826,
+        0.4304
       ]
     },
     "HUD_mfd_0": {
@@ -240,7 +240,7 @@
   },
   "meshes": {
     "CONSOLE_front_front": {
-      "tris": 8304,
+      "tris": 8820,
       "group": "front",
       "node": "CONSOLE_front"
     },
@@ -285,7 +285,7 @@
       "node": "INNER_petal_m_1"
     },
     "INNER_petal_m_1_cabin": {
-      "tris": 1600,
+      "tris": 9736,
       "group": "cabin",
       "node": "INNER_petal_m_1"
     },
@@ -320,7 +320,7 @@
       "node": "pod"
     },
     "pod_cabin": {
-      "tris": 13636,
+      "tris": 22272,
       "group": "cabin",
       "node": "pod"
     },
@@ -332,7 +332,8 @@
   },
   "vents": 8,
   "lights": 6,
-  "tris": 27380,
+  "style": "wood",
+  "tris": 44668,
   "tri_budget": 600000,
   "draw_calls": 18,
   "atlases": {
@@ -376,5 +377,5 @@
     "wall_L",
     "wall_R"
   ],
-  "bytes": 14386789
+  "bytes": 18534933
 }
