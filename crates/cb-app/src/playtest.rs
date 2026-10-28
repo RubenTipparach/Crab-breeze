@@ -153,7 +153,19 @@ impl Plugin for PlaytestPlugin {
         .add_systems(PreUpdate, (press_keys, hold_buttons).after(bevy::input::InputSystems))
         .add_systems(Update, play.in_set(crate::sim::PresentSet::Input))
         .init_resource::<FrameLog>()
-        .add_systems(Last, log_frames);
+        .add_systems(Last, (log_frames, free_mouse));
+    }
+}
+
+/// A scripted run never holds the desktop's mouse (owner, 2026-10-28: "Just don't lock my mouse to the game screen if
+/// you're running a test"): the pilot turns the view and clicks through its own actions and pointer events, so the
+/// cursor is let go and shown again at the end of every frame, whatever the game set during it.
+fn free_mouse(mut cursor: Single<&mut bevy::window::CursorOptions>) {
+    if cursor.grab_mode != bevy::window::CursorGrabMode::None {
+        cursor.grab_mode = bevy::window::CursorGrabMode::None;
+    }
+    if !cursor.visible {
+        cursor.visible = true;
     }
 }
 
