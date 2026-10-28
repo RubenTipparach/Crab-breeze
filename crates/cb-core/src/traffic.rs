@@ -20,6 +20,54 @@ use glam::{Vec2, Vec3};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
+/// How far each kind of a car's parts is drawn, metres, each dithering out over the last `fade_share` of its range
+/// (city-frame): the cab's insides, then the lamps and bumpers, then the wheels; the body and cabin to the traffic's
+/// edge. Only the body and cabin cast the sun's shadow. A car is 16 meshes up close and 2 past `wheels_m`.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct CarDetail {
+    /// The dashboard, the speedometer and its needle, the steering wheel, metres.
+    pub interior_m: f32,
+    /// Head and tail lamps, bumpers, metres.
+    pub trim_m: f32,
+    /// The wheels, metres.
+    pub wheels_m: f32,
+    /// The share of each range, at its far end, over which the parts dither out.
+    pub fade_share: f32,
+}
+
+impl Default for CarDetail {
+    fn default() -> Self {
+        Self {
+            interior_m: 30.0,
+            trim_m: 200.0,
+            wheels_m: 400.0,
+            fade_share: 0.15,
+        }
+    }
+}
+
+impl CarDetail {
+    fn validate(&self) -> Result<(), String> {
+        for (k, v) in [
+            ("interior_m", self.interior_m),
+            ("trim_m", self.trim_m),
+            ("wheels_m", self.wheels_m),
+        ] {
+            if !(v.is_finite() && v > 0.0) {
+                return Err(format!("`{k}` must be above 0, got {v}"));
+            }
+        }
+        if !(self.interior_m <= self.trim_m && self.trim_m <= self.wheels_m) {
+            return Err("ranges must run `interior_m` <= `trim_m` <= `wheels_m`".into());
+        }
+        if !(0.0..1.0).contains(&self.fade_share) {
+            return Err(format!("`fade_share` must be 0 to under 1, got {}", self.fade_share));
+        }
+        Ok(())
+    }
+}
+
 /// Traffic tuning, loaded from `data/world/traffic.ron`.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
@@ -45,6 +93,8 @@ pub struct TrafficConfig {
     pub despawn_beyond_m: f32,
     /// In view, a car may appear only farther than this and behind cover, metres.
     pub hidden_beyond_m: f32,
+    /// How far a car's small parts are drawn (city-frame).
+    pub detail: CarDetail,
     /// At most this many cars appear in one step.
     pub spawn_per_step: u32,
     /// Each city car's own cruising speed is drawn from this range, km/h.
@@ -173,6 +223,7 @@ impl Default for TrafficConfig {
             spawn_within_m: 1500.0,
             despawn_beyond_m: 2000.0,
             hidden_beyond_m: 400.0,
+            detail: CarDetail::default(),
             spawn_per_step: 4,
             city_speed_km_h: [40.0, 60.0],
             highway_speed_km_h: [90.0, 110.0],
@@ -220,6 +271,7 @@ impl Validate for TrafficConfig {
             return Err("`despawn_beyond_m` must be beyond `spawn_within_m`".into());
         }
         positive("hidden_beyond_m", self.hidden_beyond_m)?;
+        self.detail.validate().map_err(|e| format!("detail: {e}"))?;
         positive_range("city_speed_km_h", self.city_speed_km_h)?;
         positive_range("highway_speed_km_h", self.highway_speed_km_h)?;
         positive("turn_speed_km_h", self.turn_speed_km_h)?;
@@ -1455,6 +1507,21 @@ fn under_foot(c: &Car, spec: &CarSpec, sole: Vec2, r: f32) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn car_detail_ranges_must_run_from_the_cab_out_to_the_wheels() {
+        assert!(CarDetail::default().validate().is_ok());
+        let backwards = CarDetail {
+            trim_m: 500.0,
+            ..CarDetail::default()
+        };
+        assert!(backwards.validate().is_err());
+        let no_fade_end = CarDetail {
+            fade_share: 1.0,
+            ..CarDetail::default()
+        };
+        assert!(no_fade_end.validate().is_err());
+    }
+
     use super::*;
     use crate::rng::SimRng;
     use crate::world::layout::{City, Highway, lay_out_city};

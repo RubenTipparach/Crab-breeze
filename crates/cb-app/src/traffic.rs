@@ -141,6 +141,7 @@ impl Plugin for TrafficPlugin {
                     find_dash,
                     turn_dash,
                     find_wheels,
+                    range_car_parts,
                     spin_wheels,
                     // drivers on foot are people (`people_vat`); the capsule only when people are left out
                     draw_runners.run_if(not(resource_exists::<crate::people_vat::PeopleDraw>)),
@@ -515,6 +516,56 @@ fn turn_dash(sim: Res<TrafficSim>, data: Res<Data>, dashes: Query<(&CarDraw, &Da
         let steer = c.body.as_ref().map_or(0.0, |b| b.steer_rad);
         if let Ok(mut t) = tf.get_mut(dash.wheel) {
             t.rotation = dash.wheel_rest * Quat::from_rotation_x(-steer * STEERING_RATIO);
+        }
+    }
+}
+
+/// A car whose parts have their draw ranges (`range_car_parts`).
+#[derive(Component)]
+struct PartsRanged;
+
+/// Once a car's scene has spawned, gives each part its draw range (`CarDetail`, dithered out by `lod_fade`) and lets
+/// only the body and cabin cast the sun's shadow: 16 meshes and casters a car became 2 casters, and 2 meshes past the
+/// wheels' range (city-frame: the capital's 1 100 cars were most of its 20 000 meshes in view).
+fn range_car_parts(
+    mut commands: Commands,
+    data: Res<Data>,
+    cars: Query<Entity, (With<CarDraw>, Without<PartsRanged>)>,
+    children: Query<&Children>,
+    meshes: Query<(), With<Mesh3d>>,
+    names: Query<&Name>,
+    parents: Query<&ChildOf>,
+) {
+    let d = &data.0.traffic.cfg.detail;
+    for root in &cars {
+        let mut any = false;
+        for e in children.iter_descendants(root) {
+            if meshes.get(e).is_err() {
+                continue;
+            }
+            any = true;
+            // A part is its glTF node: the mesh entity's own name before its material (`dashboard.DASH`), or its
+            // parent's.
+            let name = names
+                .get(e)
+                .ok()
+                .or_else(|| parents.get(e).ok().and_then(|p| names.get(p.parent()).ok()))
+                .map_or("", |n| n.as_str());
+            let part = name.split('.').next().unwrap_or("");
+            let far_m = match part {
+                "dashboard" | "NEEDLE_speed" | "speedo_dial" | "STEER_wheel" => Some(d.interior_m),
+                p if p.starts_with("headlamp") || p.starts_with("taillamp") || p.starts_with("bumper") => Some(d.trim_m),
+                p if p.starts_with("WHEEL_") => Some(d.wheels_m),
+                _ => None,
+            };
+            if let Some(far_m) = far_m {
+                commands
+                    .entity(e)
+                    .insert((crate::lod_fade::out_to(far_m, d.fade_share), bevy::light::NotShadowCaster));
+            }
+        }
+        if any {
+            commands.entity(root).insert(PartsRanged);
         }
     }
 }

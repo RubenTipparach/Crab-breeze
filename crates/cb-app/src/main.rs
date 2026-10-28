@@ -42,6 +42,7 @@ mod input;
 mod interact;
 mod lamps;
 mod loading;
+mod lod_fade;
 mod main_menu;
 mod mech;
 mod menu;

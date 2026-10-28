@@ -25,6 +25,10 @@
     spawn_within_m: 1000.0,
     despawn_beyond_m: 1200.0,
     hidden_beyond_m: 400.0,
+    // A car's small parts drawn only near, dithered out over the last 15 % of each range, casting no shadow (only
+    // the body and cabin do): 16 meshes and shadow casters a car became 2 casters, and 2 meshes past 400 m
+    // (city-frame, 2026-10-28: the capital's 1 100 cars were most of its 20 000 meshes in view).
+    detail: (interior_m: 30.0, trim_m: 200.0, wheels_m: 400.0, fade_share: 0.15),
     spawn_per_step: 4,
     // Each driver's own cruising speed: 40-60 km/h in town, 90-110 on highways.
     city_speed_km_h: (40.0, 60.0),
