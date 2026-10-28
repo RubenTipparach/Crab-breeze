@@ -627,7 +627,7 @@ pub struct ZoneInputs {
     pub trees_near: u32,
     /// The listener's height above the ground, m.
     pub height_m: f32,
-    /// Night (false until the game has a time of day).
+    /// Night (from the hour, `day_night`).
     pub night: bool,
     /// Rain (false until the game has weather).
     pub rain: bool,

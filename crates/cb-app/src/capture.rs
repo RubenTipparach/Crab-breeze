@@ -1224,6 +1224,20 @@ const fn view(name: &'static str, eye: [f32; 3], at: [f32; 3]) -> View {
 /// `VIEWS`), worked out from its generator for seed 42, so a still of the game and a shot of the
 /// mockup can be laid side by side; and two of the storm over the jungle at (-5.9, -4.2) km.
 const VIEWS: &[View] = &[
+    // The largest city at the hour (day-night-cycle): down its middle street 2 m up, and from 1,500 m
+    // up 3.5 km off (placed from the plan: `city_view`).
+    View {
+        name: "city-street",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "city-air",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     view("overview", [6000.0, 22000.0, 26000.0], [0.0, 0.0, 0.0]),
     view("range", [-8811.0, 1900.0, 4558.0], [189.0, 1466.0, -442.0]),
     view("desert", [3300.0, 862.0, 7300.0], [4200.0, 476.0, 6650.0]),
@@ -1438,6 +1452,33 @@ fn sea_view(toward: bool, up_m: f32) -> ([f32; 3], [f32; 3]) {
     (eye.to_array(), (eye + level * up_m * 15.0 - Vec3::Y * up_m).to_array())
 }
 
+/// The largest city: down the street nearest its middle, 2 m up, along the street's length; or
+/// (`air`) from 1,500 m up, 3.5 km to its south-east, looking at its middle.
+fn city_view(plan: &crate::world::Plan, air: bool) -> ([f32; 3], [f32; 3]) {
+    let Some(city) = plan.cities.iter().max_by(|a, b| a.half_size_m.total_cmp(&b.half_size_m)) else {
+        return ([0.0, 400.0, 0.0], [0.0, 0.0, 1000.0]);
+    };
+    let c = city.centre;
+    if air {
+        let eye = Vec3::new(c.x + 2500.0, 1500.0, c.y + 2500.0);
+        return (eye.to_array(), [c.x, plan.terrain.height_at(c.x, c.y), c.y]);
+    }
+    let Some(street) = city.streets.iter().min_by(|a, b| {
+        let d = |s: &cb_core::world::layout::StreetPiece| s.rect.centre().distance(c);
+        d(a).total_cmp(&d(b))
+    }) else {
+        return ([c.x, 2.0, c.y], [c.x + 300.0, 2.0, c.y]);
+    };
+    let r = street.rect;
+    let size = r.max - r.min;
+    let along = if size.x >= size.y { Vec2::X } else { Vec2::Y };
+    let start = r.centre() - along * (size.max_element() * 0.5 - 2.0);
+    let ground = plan.terrain.height_at(start.x, start.y);
+    let ahead = start + along * 300.0;
+    info!("city street: city {} from {start} along {along}", city.id);
+    ([start.x, ground + 2.0, start.y], [ahead.x, ground + 8.0, ahead.y])
+}
+
 /// On the street nearest the middle of the city with the most cloud overhead, 2 m up, looking nearly straight up.
 fn city_up_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
     // The city with the most cloud overhead (the storm decks are where the cloud's base shows).
@@ -1557,6 +1598,8 @@ fn run_weather_script(
             "river-close" => close_river_view(&plan, false),
             "river-close-below" => close_river_view(&plan, true),
             "city-up" => city_up_view(&plan),
+            "city-street" => city_view(&plan, false),
+            "city-air" => city_view(&plan, true),
             "sea-sun" => sea_view(true, 40.0),
             "sea-away" => sea_view(false, 40.0),
             "sea-sun-high" => sea_view(true, 1500.0),

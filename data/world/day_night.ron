@@ -1,0 +1,35 @@
+// The time of day (openspec/changes/day-night-cycle; owner, 2026-10-27: "24 mins for day time, 24 minutes
+// for night"). Read by `cb_core::day_night`; units are in the keys.
+(
+    // A world begins at 07:00, in the morning mist (survey N1), and an hour passes every 120 s: the twelve
+    // hours of day take 24 minutes, the twelve of night 24.
+    start_h: 7.0,
+    hours_per_s: 0.008333333,
+    // Cycle, Day (held at noon) or Night (held at midnight) (survey N7). `CB_HOUR=<h>` holds a stills run at
+    // an hour.
+    mode: Cycle,
+    // The sun rises due east at 06:00, peaks at 60 degrees due south at noon and sets due west at 18:00.
+    latitude_deg: 30.0,
+    // Real phases over 29.5 nights (survey N2: some nights are black); the first night is full.
+    moon_start_phase: 0.5,
+    moon_period_days: 29.53,
+    // Night's exposure, 13 stops under the day's (view.exposure_ev100 13.4), reached as the sun sinks from
+    // 6 degrees up to 8 below.
+    night_ev100: 0.4,
+    dusk_deg: (-8.0, 6.0),
+    // On screen at night: the flat ambient at 10 % of the day's, the sky's light at 6 %, a full moon at 35 %
+    // of the noon sun. Lower (4 %, 2 %, 12 %, real moonlight scaled to taste) read black after the tonemapper's
+    // toe: the moonlit street measured 0.3 of 255 against 59 at noon (2026-10-28 stills).
+    night_ambient_share: 0.10,
+    night_sky_light_share: 0.06,
+    moon_full_share: 0.35,
+    // The sun's and moon's direct light fades in over their first 2.5 degrees.
+    horizon_fade_deg: 2.5,
+    // Stars come out as the sun sinks from 4 to 14 degrees below the horizon.
+    star_brightness: 0.8,
+    stars_deg: (-14.0, -4.0),
+    // The moon's disc, drawn with its phase: 0.8 degrees across (the real moon is 0.52), its lit face at 1.6
+    // times white on screen when full.
+    moon_disc_deg: 0.8,
+    moon_disc_brightness: 1.6,
+)

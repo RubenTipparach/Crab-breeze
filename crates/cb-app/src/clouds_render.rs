@@ -310,14 +310,15 @@ fn gather(
 fn refresh_light(
     data: Res<Data>,
     ambient: Res<GlobalAmbientLight>,
-    sun: Query<(&DirectionalLight, &GlobalTransform), With<Sun>>,
+    sun: Query<(&DirectionalLight, &GlobalTransform, &crate::day_night::SkyBody)>,
     camera: Query<Option<&Exposure>, With<PilotCamera>>,
     draw: Option<Res<CloudDraw>>,
     mut materials: ResMut<Assets<CloudMaterial>>,
 ) {
     let Some(draw) = draw else { return };
     let exposure = camera.iter().next().flatten().copied().unwrap_or_default().exposure();
-    let light = water_light(sun.iter().next(), &ambient, exposure);
+    let key = crate::day_night::key_light(sun.iter());
+    let light = water_light(key.as_ref().map(|(l, t)| (l, t)), &ambient, exposure);
     let a = LinearRgba::from(ambient.color);
     let amb = Vec3::new(a.red, a.green, a.blue) * ambient.brightness * exposure;
     let c = &data.0.world.clouds;
@@ -384,7 +385,8 @@ fn shade_sun(
     let d = plan.clouds.drift(time.elapsed_secs());
     transform.translation = Vec3::new(d.x, 0.0, d.y);
     transform.scale = Vec3::splat(SHADE_HALF_M);
-    let turned = baked_for.is_none_or(|q| q.angle_between(transform.rotation) > 0.01);
+    // Rebaked every 2 degrees of the sun's travel (16 s of the day's clock), not each step.
+    let turned = baked_for.is_none_or(|q| q.angle_between(transform.rotation) > 2f32.to_radians());
     if texture.is_some() && !turned {
         return;
     }

@@ -1,27 +1,27 @@
 # Tasks: day-night-cycle
 
-Written up 2026-10-27; nothing built. Building starts on the owner's go (CLAUDE.md section 4), on the survey's
-answers or its recommendations.
+Written up 2026-10-27. Survey N1-N8 answered 2026-10-28 ("All questions done go"): every recommendation but N2,
+where the owner chose real moon phases. Building from 2026-10-28.
 
 ## 1. The clock, the sun and the moon
 
-- [ ] 1.1 `cb_core::world::clock::WorldClock` in the fixed step from `data/world/day_night.ron`; the fog's
+- [x] 1.1 `cb_core::day_night::WorldClock` in the fixed step from `data/world/day_night.ron`; the fog's
   `FogConfig::clock` removed and the morning mist reads the world's hour (tests: an hour is 120 s, the mist burns
   off by 11:00, the same steps give the same hour)
-- [ ] 1.2 `sun_dir(hour)` and `moon_dir(hour)` in `cb-core` (tests: sunrise 06:00 due east, noon 60 degrees due
+- [x] 1.2 `sun_dir(hour)` and `moon_dir(hour, phase)` in `cb-core`, the moon's phases (survey N2) (tests: sunrise 06:00 due east, noon 60 degrees due
   south, sunset 18:00 due west, the moon opposite); `sun_rotation()` takes the hour at every reader
-- [ ] 1.3 The sun and the moon as two directional lights, the one above the horizon shadowed, each faded over 3
+- [x] 1.3 The sun and the moon as two directional lights, the one above the horizon shadowed, each faded over 3
   degrees at the horizon; the moon's disc
-- [ ] 1.4 Exposure from the curve of the sun's height (section 3); the cockpit camera's own exposure unchanged
-- [ ] 1.5 The sky's light and the flat ambient scaled by the sun's height; clouds, water and the fog take the key
+- [x] 1.4 Exposure from the curve of the sun's height (section 3); the cockpit camera's own exposure unchanged
+- [x] 1.5 The sky's light and the flat ambient scaled by the sun's height; clouds, water and the fog take the key
   light, sun or moon
-- [ ] 1.6 Stars on sky pixels in the fog pass, faded by the sky's brightness
+- [x] 1.6 Stars on sky pixels in the fog pass, faded by the sun's depth below the horizon; the moon's disc with its phase
 
 ## 2. What was baked from one sun
 
-- [ ] 2.1 The horizon map (section 4) baked at load on worker threads, cached by seed; the far ground shades by
+- [ ] 2.1 (Until it is built, far ground has no baked shadow: one baked for a fixed sun pointed the wrong way from the first hour.) The horizon map (section 4) baked at load on worker threads, cached by seed; the far ground shades by
   it; the vertex colours lose the shadow (test: a valley behind a ridge is in shade at sunset and lit at noon)
-- [ ] 2.2 The clouds' shade map rebaked every 2 degrees of sun travel on a worker, crossfaded
+- [ ] 2.2 The clouds' shade map rebaked every 2 degrees of sun travel (done, on the main thread; the move to a worker and the crossfade are left)
 - [ ] 2.3 The far facades' night layer (section 6)
 
 ## 3. Lamps

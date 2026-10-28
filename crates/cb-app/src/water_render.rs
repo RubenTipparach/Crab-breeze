@@ -336,7 +336,7 @@ fn refresh_materials(
     data: Res<Data>,
     time: Res<Time>,
     ambient: Res<GlobalAmbientLight>,
-    sun: Query<(&DirectionalLight, &GlobalTransform), With<crate::world::Sun>>,
+    sun: Query<(&DirectionalLight, &GlobalTransform, &crate::day_night::SkyBody)>,
     cameras: Query<(&Transform, &WaterEye, Option<&Exposure>), With<WaterOptics>>,
     mut materials: ResMut<Assets<WaterMaterial>>,
 ) {
@@ -344,7 +344,8 @@ fn refresh_materials(
         return;
     };
     let exposure = exposure.copied().unwrap_or_default().exposure();
-    let light = water_light(sun.iter().next(), &ambient, exposure);
+    let key = crate::day_night::key_light(sun.iter());
+    let light = water_light(key.as_ref().map(|(l, t)| (l, t)), &ambient, exposure);
     let surface = WaterSurfaceUniform::new(
         &data.0.water_look,
         time.elapsed_secs(),
@@ -459,6 +460,13 @@ struct FogLook {
     /// x the view's exposure (the scattering sky's colour is drawn times it), y how much darker the
     /// fog is under the clouds' shade now (`storm_dim` times the shade), zw unused.
     sky: Vec4,
+    /// The night sky (`day_night`): x the stars' brightness on screen now, y the moon's lit face on
+    /// screen now, zw unused.
+    night: Vec4,
+    /// xyz toward the moon; w its disc's angular radius, radians.
+    moon: Vec4,
+    /// xyz toward the sun itself (`sun_dir` is the key light's, the moon's at night); w unused.
+    sun_body: Vec4,
 }
 
 /// The look's numbers the passes read.
@@ -502,18 +510,22 @@ fn extract_water_eye(
     fog_on: Extract<Res<GroundFogOn>>,
     fog_now: Extract<Res<crate::ground_fog::FogNow>>,
     weather: Extract<Res<crate::ground_fog::EyeWeather>>,
+    day_light: Extract<Res<crate::day_night::Light>>,
     mist: Extract<Option<Res<MistImage>>>,
     ambient: Extract<Res<GlobalAmbientLight>>,
-    sun: Extract<Query<(&DirectionalLight, &GlobalTransform), With<crate::world::Sun>>>,
+    sun: Extract<Query<(&DirectionalLight, &GlobalTransform, &crate::day_night::SkyBody)>>,
     cameras: Extract<Query<(RenderEntity, &WaterEye, &GlobalTransform, Option<&Exposure>), With<WaterOptics>>>,
     cabins: Extract<Query<(&crate::mech::CabinGlass, &GlobalTransform)>>,
 ) {
     let look = PostLook::from(&data.0.water_look);
     let cfg = &data.0.world.fog;
+    let dn = &data.0.day_night;
+    let hour = day_light.0;
     let m = &plan.mist;
     for (entity, eye, transform, exposure) in &cameras {
         let exposure = exposure.copied().unwrap_or_default().exposure();
-        let light = water_light(sun.iter().next(), &ambient, exposure);
+        let key = crate::day_night::key_light(sun.iter());
+        let light = water_light(key.as_ref().map(|(l, t)| (l, t)), &ambient, exposure);
         let at = transform.translation();
         let t = time.elapsed_secs();
         let a = LinearRgba::from(ambient.color);
@@ -539,6 +551,15 @@ fn extract_water_eye(
             sun_dir: light.sun_dir.extend(cfg.haze_scale_height_m),
             map: Vec4::new(m.origin_m, m.cell_m, m.side as f32, cfg.rain_reach_m),
             sky: Vec4::new(exposure, cfg.storm_dim * (1.0 - shade.clamp(0.0, 1.0)), 0.0, 0.0),
+            night: Vec4::new(
+                dn.star_brightness * hour.stars,
+                // Pale by day, as the moon is in a blue sky.
+                dn.moon_disc_brightness * (0.25 + 0.75 * (1.0 - hour.day)),
+                0.0,
+                0.0,
+            ),
+            moon: hour.moon_dir.extend((dn.moon_disc_deg * 0.5).to_radians()),
+            sun_body: hour.sun_dir.extend(0.0),
         };
         // Seated: the panes of the interior the eye sits in (the nearest, within a cabin's reach).
         let glass = if eye.cabin_m > 0.0 {
@@ -587,6 +608,9 @@ struct WaterPostUniform {
     fog_sky_y: Vec4,
     fog_sky_z: Vec4,
     fog_sky_lut: Vec4,
+    fog_night: Vec4,
+    fog_moon: Vec4,
+    fog_sun_body: Vec4,
     glass: Vec4,
     glass_look: Vec4,
     panes: [Vec4; 3 * MAX_PANE_TRIANGLES],
@@ -766,6 +790,9 @@ fn prepare_water_post(
             fog_sky_y: sky.y,
             fog_sky_z: sky.z,
             fog_sky_lut: sky.lut.extend(settings.fog.sky.x).extend(settings.fog.sky.y),
+            fog_night: settings.fog.night,
+            fog_moon: settings.fog.moon,
+            fog_sun_body: settings.fog.sun_body,
             glass: Vec4::new(
                 settings.glass.origin.x,
                 settings.glass.origin.y,

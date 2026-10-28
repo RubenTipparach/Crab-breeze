@@ -136,7 +136,16 @@ impl Source for LateSkip {
 }
 
 /// Where the listener is, a few times a second.
-fn read_zone(mut beds: ResMut<Beds>, ear: Res<Ear>, plan: Res<Plan>, live: Res<Live>, data: Res<Data>, time: Res<Time>) {
+#[allow(clippy::too_many_arguments)]
+fn read_zone(
+    mut beds: ResMut<Beds>,
+    ear: Res<Ear>,
+    plan: Res<Plan>,
+    live: Res<Live>,
+    data: Res<Data>,
+    time: Res<Time>,
+    light: Option<Res<crate::day_night::Light>>,
+) {
     beds.read_in_s -= time.delta_secs();
     if beds.read_in_s > 0.0 {
         return;
@@ -168,7 +177,8 @@ fn read_zone(mut beds: ResMut<Beds>, ear: Res<Ear>, plan: Res<Plan>, live: Res<L
         },
         trees_near: live.forest.near(p, TREES_M).len() as u32,
         height_m: ear.at.y - plan.terrain.height_at(p.x, p.y),
-        night: false,
+        // Night from the hour (`day_night`): from dusk, once the sun is well down.
+        night: light.is_some_and(|l| l.0.day < 0.5),
         rain: false,
     };
     beds.weights = rules::ambience_weights(&z);

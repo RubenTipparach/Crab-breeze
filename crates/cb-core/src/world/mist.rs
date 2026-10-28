@@ -10,7 +10,7 @@
 //! fine march). The tuning is in `data/world/world.ron` under `fog:`.
 //!
 //! How thick it is right now (survey F1; owner, 2026-10-26: "Approve all"): a morning mist that
-//! thins by day, on the fog's own clock (the game has no time of day: the sun stands still), or a
+//! thins by day, on the world's clock (`crate::day_night`), each morning anew, or a
 //! mission's own preset (`clear` for the combat-heavy ones). `FogConfig::strength` is that rule.
 //!
 //! What lies between two points (survey F2: fog also hides targets from the sensors):
@@ -112,36 +112,6 @@ impl FogPresets {
     }
 }
 
-/// The fog's own clock (`fog.clock`): the game has no time of day, so the mist burns off on this.
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields, default)]
-pub struct FogClock {
-    /// The hour (0..24) when the world begins.
-    pub start_h: f32,
-    /// Game hours that pass in a second.
-    pub hours_per_s: f32,
-    /// The morning mist thins to the day's between these hours.
-    pub burn_off_h: [f32; 2],
-}
-
-impl Default for FogClock {
-    fn default() -> Self {
-        Self {
-            start_h: 6.0,
-            hours_per_s: 1.0 / 300.0,
-            burn_off_h: [7.0, 11.0],
-        }
-    }
-}
-
-impl FogClock {
-    /// The hour `elapsed_s` after the world began (not wrapped: once the mist has burnt off it
-    /// stays off).
-    pub fn hour_at(&self, elapsed_s: f32) -> f32 {
-        self.start_h + elapsed_s.max(0.0) * self.hours_per_s
-    }
-}
-
 /// The fog's tuning (`fog:`).
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
@@ -196,8 +166,9 @@ pub struct FogConfig {
     pub phase_g: f32,
     /// What each preset does (survey F1).
     pub presets: FogPresets,
-    /// The clock the morning mist burns off on.
-    pub clock: FogClock,
+    /// The hours of the world's clock (`crate::day_night`) over which the morning mist thins to
+    /// the day's. From midnight it lies thick again.
+    pub burn_off_h: [f32; 2],
     /// A mission's own preset while it runs; with none running, or one not listed, the morning
     /// mist thins by the clock.
     pub missions: BTreeMap<MissionKind, FogPreset>,
@@ -227,7 +198,7 @@ impl Default for FogConfig {
             sun_share: 0.25,
             phase_g: 0.6,
             presets: FogPresets::default(),
-            clock: FogClock::default(),
+            burn_off_h: [7.0, 11.0],
             // Combat-heavy: the three-city defence and the air fortress (survey F1).
             missions: BTreeMap::from([(MissionKind::Defence, FogPreset::Clear), (MissionKind::Fortress, FogPreset::Clear)]),
         }
@@ -241,7 +212,7 @@ impl FogConfig {
         if let Some(p) = mission.and_then(|m| self.missions.get(&m)) {
             return self.presets.get(*p);
         }
-        let [a, b] = self.clock.burn_off_h;
+        let [a, b] = self.burn_off_h;
         self.presets.day.lerp(self.presets.morning, 1.0 - smoothstep(a, b, hour_h))
     }
 }
@@ -271,9 +242,7 @@ impl Validate for FogConfig {
         self.presets.morning.validate("fog.presets.morning")?;
         self.presets.day.validate("fog.presets.day")?;
         self.presets.clear.validate("fog.presets.clear")?;
-        within("fog.clock.start_h", self.clock.start_h, 0.0, 24.0)?;
-        within("fog.clock.hours_per_s", self.clock.hours_per_s, 0.0, 10.0)?;
-        positive_range("fog.clock.burn_off_h", self.clock.burn_off_h)
+        positive_range("fog.burn_off_h", self.burn_off_h)
     }
 }
 
@@ -528,8 +497,9 @@ mod tests {
     #[test]
     fn the_morning_mist_thins_by_day_on_the_clock() {
         let cfg = FogConfig::default();
-        let at = |s: f32| cfg.strength(None, cfg.clock.hour_at(s));
-        // The world begins at dawn in the full morning mist.
+        let clock = crate::day_night::DayNightConfig::default();
+        let at = |s: f32| cfg.strength(None, 6.0 + s * clock.hours_per_s);
+        // Dawn is in the full morning mist.
         assert_eq!(at(0.0), cfg.presets.morning);
         // It thins as the clock runs, never thickening.
         let mut last = at(0.0);
@@ -648,10 +618,7 @@ mod tests {
         };
         assert!(bad.validate().is_err());
         let backwards = FogConfig {
-            clock: FogClock {
-                burn_off_h: [11.0, 7.0],
-                ..FogClock::default()
-            },
+            burn_off_h: [11.0, 7.0],
             ..FogConfig::default()
         };
         assert!(backwards.validate().is_err());

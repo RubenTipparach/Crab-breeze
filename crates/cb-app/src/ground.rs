@@ -341,10 +341,10 @@ fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, sk
     let sea = plan.waters.sea_level_m;
     // Patches up close, a crossfade on the coarse nodes far away (seen from the air).
     let patch_far = smoothstep(1.0, 8.0, step as f32);
-    // Far chunks wear the terrain's baked shadow; full-detail ones have the live shadows
-    // (distant-shadows).
-    let far = step >= 2;
-    let shade_albedo = plan.sun_shade.shade_albedo();
+    // Far chunks wore the terrain's shadow baked for one fixed sun (distant-shadows). The sun moves
+    // now (day-night-cycle), so a shadow baked into the vertices would point the wrong way from the
+    // first hour: far ground goes unshadowed until the horizon map shades it for any sun (that
+    // change's task 2.1). Near ground has the live shadows.
     let colors = chunk
         .positions
         .iter()
@@ -356,13 +356,7 @@ fn node_mesh(plan: &WorldPlan, grass: &GrassConfig, node: Node, cells: usize, sk
                 .water_at(Vec2::new(p.x, p.z), p.y - 3.0)
                 .is_some_and(|w| w.surface_m > sea);
             let cover = grass_cover(plan, grass, *p, *n, 0.0);
-            let mut c = ground_colour(*p, *n, sea, river, 0.0, cover, grass.into(), biome_at(plan, *p, *n), patch_far);
-            if far {
-                let lit = plan.sun_shade.at(Vec2::new(p.x, p.z));
-                let k = 1.0 + (shade_albedo - 1.0) * (1.0 - lit);
-                c = [c[0] * k, c[1] * k, c[2] * k, c[3]];
-            }
-            c
+            ground_colour(*p, *n, sea, river, 0.0, cover, grass.into(), biome_at(plan, *p, *n), patch_far)
         })
         .collect();
     chunk_to_mesh(chunk, colors)
