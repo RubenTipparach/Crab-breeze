@@ -139,21 +139,7 @@ fn surface_tile_m(s: Surface) -> f32 {
 
 /// The concrete surface set as a plain material, for the debris chunks (`physics`).
 pub fn concrete_material(images: &mut Assets<Image>, materials: &mut Assets<StandardMaterial>) -> Handle<StandardMaterial> {
-    let root = crate::cli::repo_root().join("assets");
-    let mut map = |file: &str, srgb: bool| {
-        crate::pbr_set::load_tiling(&root, &format!("textures/building/concrete/{file}"), srgb).map(|i| images.add(i))
-    };
-    let orm = map("orm.png", false);
-    materials.add(StandardMaterial {
-        base_color: Color::WHITE,
-        base_color_texture: map("albedo.jpg", true),
-        normal_map_texture: map("normal_gl.png", false),
-        occlusion_texture: orm.clone(),
-        perceptual_roughness: if orm.is_some() { 1.0 } else { 0.85 },
-        metallic: if orm.is_some() { 1.0 } else { 0.0 },
-        metallic_roughness_texture: orm,
-        ..default()
-    })
+    crate::pbr_set::set_material(images, materials, "textures/building/concrete", 0.85)
 }
 
 /// A building material handle of either kind.

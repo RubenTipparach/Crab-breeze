@@ -2,9 +2,9 @@
 
 ### Requirement: The pilot drives a car from its driver's seat
 
-The pilot SHALL get into a stopped, parked car with Use at its driver door, SHALL see from the
-driver's seat while driving, and SHALL keep control of where they look while getting in, driving and
-getting out.
+The pilot SHALL get into a stopped, parked car with Use at its driver door, SHALL see the car from
+its chase camera while driving (`car-chase-camera`, the law's one exception), and SHALL keep control of
+where they look while getting in, driving and getting out.
 
 #### Scenario: Getting in
 - **WHEN** the pilot stands at a parked sedan's driver door and presses Use

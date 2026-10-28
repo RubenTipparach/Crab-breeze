@@ -104,6 +104,9 @@ pub struct WaterLook {
     pub whitecap_scale_m: f32,
     /// How the whitecaps drift, metres a second (x, z): with the wind.
     pub whitecap_drift_m_s: [f32; 2],
+    /// Where a wavelet starts to break into foam: its height in its own standard deviations, lifted on the swell's
+    /// crests and in a gust (water-look design section 0, "Whitecaps"). The foam is full 0.8 above it. Lower is more lace.
+    pub whitecap_break_dev: f32,
     /// Light through the wavelets' crests seen against the sun, an albedo (turquoise).
     pub scatter_color: [f32; 3],
     /// How strong that light is.
@@ -204,9 +207,10 @@ impl Default for WaterLook {
             reflect_steps: 24,
             reflect_max_m: 3000.0,
             reflect_strength: 1.0,
-            whitecap_coverage: 0.008,
+            whitecap_coverage: 0.04,
             whitecap_scale_m: 40.0,
             whitecap_drift_m_s: [1.5, 0.0],
+            whitecap_break_dev: 2.0,
             glitter_twinkle_hz: 3.0,
             scatter_color: [0.05, 0.35, 0.33],
             scatter_strength: 0.35,
@@ -295,6 +299,7 @@ impl Validate for WaterLook {
         within("reflect_strength", self.reflect_strength, 0.0, 1.0)?;
         within("whitecap_coverage", self.whitecap_coverage, 0.0, 0.2)?;
         positive("whitecap_scale_m", self.whitecap_scale_m)?;
+        within("whitecap_break_dev", self.whitecap_break_dev, 0.5, 6.0)?;
         for v in self.whitecap_drift_m_s {
             within("whitecap_drift_m_s", v, -50.0, 50.0)?;
         }

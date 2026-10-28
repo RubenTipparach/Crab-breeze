@@ -201,6 +201,8 @@ fn ordered(field: &str, r: [f32; 2]) -> Result<(), String> {
 pub struct WorldClock {
     /// Game hours since the first midnight.
     pub hours: f64,
+    /// Held where it is (free roam's pause menu: "freeze ToD"; owner, 2026-10-28).
+    pub frozen: bool,
 }
 
 impl WorldClock {
@@ -208,12 +210,13 @@ impl WorldClock {
     pub fn start(cfg: &DayNightConfig) -> Self {
         Self {
             hours: f64::from(cfg.start_h),
+            frozen: false,
         }
     }
 
     /// Runs the clock `dt_s` real seconds (held by `cfg.mode`).
     pub fn step(&mut self, cfg: &DayNightConfig, dt_s: f32) {
-        if cfg.mode == ClockMode::Cycle && dt_s.is_finite() && dt_s > 0.0 {
+        if !self.frozen && cfg.mode == ClockMode::Cycle && dt_s.is_finite() && dt_s > 0.0 {
             self.hours += f64::from(cfg.hours_per_s) * f64::from(dt_s);
         }
     }
@@ -224,6 +227,21 @@ impl WorldClock {
             ClockMode::Cycle => self.hours.rem_euclid(24.0) as f32,
             ClockMode::Day => 12.0,
             ClockMode::Night => 0.0,
+        }
+    }
+
+    /// Sets the hour of the day to `hour` (0..24), on the same day (free roam's pause menu: "a toggle
+    /// to pick time of day"; owner, 2026-10-28). A non-finite hour changes nothing.
+    pub fn set_hour(&mut self, hour: f32) {
+        if hour.is_finite() {
+            self.hours = (self.hours / 24.0).floor() * 24.0 + f64::from(hour.rem_euclid(24.0));
+        }
+    }
+
+    /// Moves the clock `hours` on (or back, never before the first midnight).
+    pub fn shift(&mut self, hours: f32) {
+        if hours.is_finite() {
+            self.hours = (self.hours + f64::from(hours)).max(0.0);
         }
     }
 
@@ -462,7 +480,7 @@ mod tests {
             moon_start_phase: 0.0,
             ..DayNightConfig::default()
         };
-        let clock = WorldClock { hours: 0.5 };
+        let clock = WorldClock { hours: 0.5, frozen: false };
         let l = lighting(&cfg, &clock, 13.4);
         assert_eq!(l.shadows, ShadowBody::None);
         assert!(l.moon_share < 1e-3);
@@ -476,6 +494,29 @@ mod tests {
         assert!((w.lit_share(0.0) - 0.35).abs() < 1e-6 && (w.lit_share(24.0) - 0.35).abs() < 1e-6);
         assert!((w.lit_share(4.0) - 0.12).abs() < 1e-6, "a few all night");
         assert!(w.lit_share(18.75) > 0.0 && w.lit_share(18.75) < 0.65, "coming on at dusk");
+    }
+
+    #[test]
+    fn a_frozen_clock_holds_its_hour_and_the_hour_can_be_picked() {
+        let cfg = DayNightConfig::default();
+        let mut clock = WorldClock::start(&cfg);
+        clock.hours = 24.0 * 3.0 + 9.5;
+        clock.frozen = true;
+        clock.step(&cfg, 600.0);
+        assert_eq!(clock.hour(&cfg), 9.5, "frozen");
+        clock.set_hour(20.0);
+        assert_eq!((clock.hour(&cfg), clock.day()), (20.0, 3), "picked on the same day");
+        clock.shift(5.0);
+        assert_eq!(
+            (clock.hour(&cfg), clock.day()),
+            (1.0, 4),
+            "an hour on past midnight is the next day"
+        );
+        clock.set_hour(f32::NAN);
+        assert_eq!(clock.hour(&cfg), 1.0);
+        clock.frozen = false;
+        clock.step(&cfg, 120.0);
+        assert!((clock.hour(&cfg) - 2.0).abs() < 1e-4, "running again");
     }
 
     #[test]

@@ -266,12 +266,10 @@ fn hold_poster_hatch(script: Res<Script>, data: Res<Data>, mut mechs: Query<&mut
 
 /// A still of the building variant's offscreen image.
 fn shoot_image(commands: &mut Commands, script: &Script, name: &str) {
-    let Some(img) = script.offscreen.clone() else {
-        return shoot(commands, &script.dir, name);
-    };
-    let path = script.dir.join(name);
-    info!("capture: {}", path.display());
-    commands.spawn(Screenshot::image(img)).observe(save_to_disk(path));
+    match script.offscreen.clone() {
+        Some(img) => shoot_offscreen(commands, img, &script.dir, name),
+        None => shoot(commands, &script.dir, name),
+    }
 }
 
 pub(crate) fn shoot(commands: &mut Commands, dir: &std::path::Path, name: &str) {
@@ -298,13 +296,26 @@ fn offscreen_for_buildings(
     if !crate::cli::switched_off("CB_STILLS_BUILDINGS") && !crate::cli::switched_off("CB_STILLS_POSTER") {
         return;
     }
+    script.offscreen = Some(draw_offscreen(&mut commands, *camera, *cockpit, &mut images));
+}
+
+/// Draws the pilot's eye and the cockpit pass into a 1920 x 1080 offscreen image from now on, for stills that must not
+/// depend on the window being in front (on macOS a window behind another saves black). The HUD is not in it.
+pub(crate) fn draw_offscreen(commands: &mut Commands, camera: Entity, cockpit: Entity, images: &mut Assets<Image>) -> Handle<Image> {
     use bevy::camera::RenderTarget;
     use bevy::render::render_resource::TextureFormat;
     let image = Image::new_target_texture(1920, 1080, TextureFormat::Rgba8Unorm, Some(TextureFormat::Rgba8UnormSrgb));
     let handle = images.add(image);
-    commands.entity(*camera).insert(RenderTarget::Image(handle.clone().into()));
-    commands.entity(*cockpit).insert(RenderTarget::Image(handle.clone().into()));
-    script.offscreen = Some(handle);
+    commands.entity(camera).insert(RenderTarget::Image(handle.clone().into()));
+    commands.entity(cockpit).insert(RenderTarget::Image(handle.clone().into()));
+    handle
+}
+
+/// Saves the offscreen image `img` as `dir/name`.
+pub(crate) fn shoot_offscreen(commands: &mut Commands, img: Handle<Image>, dir: &std::path::Path, name: &str) {
+    let path = dir.join(name);
+    info!("capture: {}", path.display());
+    commands.spawn(Screenshot::image(img)).observe(save_to_disk(path));
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -730,6 +741,8 @@ fn run_script(
 /// section 4 allows it as an instrument): with `CB_FRAMES_DIR` set, the primary window is saved every
 /// `CB_FRAMES_EVERY_S` seconds of game time (default 2) as `frame-<n>.png`, at most `CB_FRAMES_MAX` (default 90).
 /// It saves pictures and nothing else; a take with frames saved is not a frame-time result (CLAUDE.md section 7).
+/// With `CB_FRAMES_OFFSCREEN=1` the pilot's view is drawn into a 1920 x 1080 image and that is saved instead (on macOS a
+/// window behind another saves black), without the HUD.
 pub struct FramesPlugin {
     /// Where the PNGs go.
     pub dir: PathBuf,
@@ -742,6 +755,7 @@ struct Frames {
     max: u32,
     taken: u32,
     next_s: f32,
+    offscreen: Option<Handle<Image>>,
 }
 
 impl Plugin for FramesPlugin {
@@ -754,9 +768,25 @@ impl Plugin for FramesPlugin {
             max: env("CB_FRAMES_MAX", 90.0) as u32,
             taken: 0,
             next_s: 0.0,
+            offscreen: None,
         })
+        .add_after_world_spawn(offscreen_for_frames)
         .add_game_systems(Update, save_frames);
     }
+}
+
+/// `CB_FRAMES_OFFSCREEN=1`: the pilot's eye and the cockpit pass draw into an offscreen image.
+fn offscreen_for_frames(
+    mut commands: Commands,
+    camera: Single<Entity, With<crate::pilot::PilotCamera>>,
+    cockpit: Single<Entity, With<crate::pilot::CockpitCamera>>,
+    mut images: ResMut<Assets<Image>>,
+    mut frames: ResMut<Frames>,
+) {
+    if !crate::cli::switched_off("CB_FRAMES_OFFSCREEN") {
+        return;
+    }
+    frames.offscreen = Some(draw_offscreen(&mut commands, *camera, *cockpit, &mut images));
 }
 
 fn save_frames(mut commands: Commands, mut frames: ResMut<Frames>, time: Res<Time>, ready: Option<Res<crate::loading::GameReady>>) {
@@ -770,7 +800,12 @@ fn save_frames(mut commands: Commands, mut frames: ResMut<Frames>, time: Res<Tim
     frames.next_s = now + frames.every_s;
     let name = format!("frame-{:03}.png", frames.taken);
     frames.taken += 1;
-    shoot(&mut commands, &frames.dir.clone(), &name);
+    match frames.offscreen.clone() {
+        Some(img) => {
+            commands.spawn(Screenshot::image(img)).observe(save_to_disk(frames.dir.join(name)));
+        }
+        None => shoot(&mut commands, &frames.dir.clone(), &name),
+    }
 }
 
 /// The effects, staged in front of the eye for headless stills (openspec changes `fx-sprites`, `blast-scorch`,
@@ -1346,6 +1381,27 @@ const VIEWS: &[View] = &[
     },
     // Mist in the low ground, from a hill over the wet west at dawn-like low height.
     view("valley-mist", [-9000.0, 260.0, -1000.0], [-6000.0, 120.0, 2500.0]),
+    // In the west storm's base at 650 m, 2.5 km north-west of its centre, flying south-east toward the sun (south-east,
+    // 43 degrees up, at the top of the view): where the view flashed white among the puffs on 2026-10-27
+    // (`docs/playtests/2026-10-27-sky-flicker.md`). A burst (`CB_STILLS_BURST_STEP_M`) flies it into the base.
+    view("storm-base-sun", [-7700.0, 650.0, -6000.0], [-2700.0, 650.0, -1000.0]),
+    // Through the biggest low puff near the west storm's base, a quarter of its radius off its centre, toward the sun
+    // (`puff_pass_view`): a burst flies the eye past a puff's centre, where its billboard swings round.
+    View {
+        name: "puff-pass",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    // The owner's view of 2026-10-27 ("cloud fog blend should be a thing"): 80 m over low land 6-14 km from the west
+    // storm, looking past it at the horizon, where the far clouds should sit in the haze as the far land does
+    // (`storm_ahead_view`).
+    View {
+        name: "storm-ahead",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // Under the storm, in its rain, 40 m up, facing away from the sun.
     View {
         name: "under-the-storm",
@@ -1441,6 +1497,56 @@ fn city_in_cloud_view(plan: &crate::world::Plan, now_s: f32) -> ([f32; 3], [f32;
     let eye = centre - Vec3::Y * p.radii.y * 0.33 + Vec3::new(p.radii.x * 0.2, 0.0, 0.0);
     info!("city in cloud: puff at {centre} radii {}, eye {eye}", p.radii);
     (eye.to_array(), (centre + Vec3::new(-200.0, 1500.0, 300.0)).to_array())
+}
+
+/// The biggest puff under 900 m within 3 km of (-6500, -5000) (the west storm's north-west base), and an eye 1.5 of its
+/// radii before its centre toward the sun's bearing, a quarter radius to the side, at the centre's height, looking toward
+/// the sun's bearing and up, so the sun is near the top of the view. A burst steps the eye along that bearing.
+fn puff_pass_view(plan: &crate::world::Plan, now_s: f32) -> ([f32; 3], [f32; 3]) {
+    let d = plan.clouds.drift(now_s);
+    let near = Vec2::new(-6500.0, -5000.0);
+    let pick = plan
+        .clouds
+        .puffs
+        .iter()
+        .filter(|p| p.centre.y < 900.0 && Vec2::new(p.centre.x + d.x, p.centre.z + d.y).distance(near) < 3000.0)
+        .max_by(|a, b| a.radii.x.total_cmp(&b.radii.x));
+    let Some(p) = pick else {
+        return ([-6500.0, 650.0, -5000.0], [-5500.0, 1150.0, -4000.0]);
+    };
+    let centre = p.centre + Vec3::new(d.x, 0.0, d.y);
+    let sun = cb_core::world::sun_shade::to_sun();
+    let dir = Vec3::new(sun.x, 0.0, sun.z).normalize_or(Vec3::X);
+    let side = Vec3::new(-dir.z, 0.0, dir.x);
+    let eye = centre - dir * p.radii.x * 1.5 + side * p.radii.x * 0.25;
+    info!("puff pass: puff at {centre} radii {}, eye {eye}", p.radii);
+    // Far ahead, so a burst stepping the eye along the bearing never reaches it and the view holds its direction.
+    (eye.to_array(), (eye + dir * 100000.0 + Vec3::Y * 50000.0).to_array())
+}
+
+/// 80 m over the lowest land 6-14 km east of the west storm's centre (-5.9, -4.2 km), looking at the horizon past the
+/// storm, a little above level.
+fn storm_ahead_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
+    use cb_core::world::Ground;
+    let storm = Vec2::new(-5887.0, -4186.0);
+    let mut best: Option<(f32, Vec2)> = None;
+    for b in -6..=6 {
+        let bearing = Vec2::from_angle(b as f32 * 0.12);
+        for k in 0..=16 {
+            let at = storm + bearing * (6000.0 + k as f32 * 500.0);
+            let h = plan.height_at(at.x, at.y);
+            if h > plan.waters.sea_level_m + 5.0 && best.is_none_or(|(bh, _)| h < bh) {
+                best = Some((h, at));
+            }
+        }
+    }
+    let (h, at) = best.unwrap_or((0.0, storm + Vec2::new(9000.0, 0.0)));
+    let eye = Vec3::new(at.x, h + 80.0, at.y);
+    let toward = (storm - at).normalize_or(Vec2::NEG_X);
+    (
+        eye.to_array(),
+        [at.x + toward.x * 40000.0, eye.y + 900.0, at.y + toward.y * 40000.0],
+    )
 }
 
 /// Over open sea in the clear south-east, `up_m` up, looking toward the sun's bearing (`toward`)
@@ -1552,6 +1658,23 @@ struct WeatherScript {
     frames: u32,
     /// The stills asked for, to wait for before the exit.
     shots: Vec<PathBuf>,
+    /// `CB_STILLS_OFFSCREEN=1`: the eye drawn into an offscreen image, so a locked screen or a window behind another
+    /// does not save black.
+    offscreen: Option<Handle<Image>>,
+}
+
+/// `CB_STILLS_OFFSCREEN=1`: the weather stills draw the pilot's eye and the cockpit pass offscreen (`draw_offscreen`).
+fn offscreen_for_weather(
+    mut commands: Commands,
+    camera: Single<Entity, With<crate::pilot::PilotCamera>>,
+    cockpit: Single<Entity, With<crate::pilot::CockpitCamera>>,
+    mut images: ResMut<Assets<Image>>,
+    mut script: ResMut<WeatherScript>,
+) {
+    if !crate::cli::switched_off("CB_STILLS_OFFSCREEN") {
+        return;
+    }
+    script.offscreen = Some(draw_offscreen(&mut commands, *camera, *cockpit, &mut images));
 }
 
 impl Plugin for WeatherStillsPlugin {
@@ -1563,7 +1686,9 @@ impl Plugin for WeatherStillsPlugin {
             beat_started_s: 0.0,
             frames: 0,
             shots: Vec::new(),
+            offscreen: None,
         })
+        .add_after_world_spawn(offscreen_for_weather)
         .add_game_systems(Update, run_weather_script);
     }
 }
@@ -1605,6 +1730,8 @@ fn run_weather_script(
             "sea-sun-high" => sea_view(true, 1500.0),
             "sea-sun-top" => sea_view(true, 6500.0),
             "city-in-cloud" => city_in_cloud_view(&plan, now),
+            "puff-pass" => puff_pass_view(&plan, now),
+            "storm-ahead" => storm_ahead_view(&plan),
             _ => (v.eye, v.at),
         };
         let v = View {
@@ -1653,7 +1780,10 @@ fn run_weather_script(
             } else {
                 format!("weather-{}.png", v.name)
             };
-            shoot(&mut commands, &script.dir.clone(), &name);
+            match script.offscreen.clone() {
+                Some(img) => shoot_offscreen(&mut commands, img, &script.dir.clone(), &name),
+                None => shoot(&mut commands, &script.dir.clone(), &name),
+            }
             let path = script.dir.join(name);
             script.shots.push(path);
             println!(

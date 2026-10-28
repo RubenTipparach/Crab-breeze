@@ -76,7 +76,8 @@ impl Plugin for GroundFogPlugin {
     }
 }
 
-/// A new world begins at the clock's start, in the strength it begins with.
+/// A new world begins at the clock's start, in the strength it begins with. The fog reads the world's clock
+/// (`day_night`): `CB_HOUR=<h>` holds it at an hour for stills (it replaced the fog clock's `CB_FOG_HOUR`).
 fn restart_clock(data: Res<Data>, mut fog: ResMut<FogNow>) {
     let cfg = &data.0.world.fog;
     let hour_h = data.0.day_night.start_h;

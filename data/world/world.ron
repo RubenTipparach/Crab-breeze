@@ -87,6 +87,31 @@
     ),
     road_lift_m: 0.15,
     kerb_height_m: 0.2,
+    // The roads' CC0 sets (road-surfaces): the owner's picks, 2026-10-27, "26c suburban Streets 27c for
+    // downtown": Asphalt027C on the cities' streets, arterials and highways, Asphalt026C on the suburbs' streets
+    // and car parks, each in its own colour (arterials a little darker); Asphalt022, worn, on patch repairs and
+    // runways. The tone drifts by up to 22% over about 45 m, every lane has two darker tyre tracks, and about
+    // one lane cell in sixteen is a patch repair, so a street is not one colour and no tile repeat lines up
+    // from the cockpit.
+    road_surfaces: (
+        street_tile_m: 4.0,
+        suburb_tile_m: 4.0,
+        worn_tile_m: 1.85,
+        paving_tile_m: 2.4,
+        street_tone: (1.0, 1.0, 1.0),
+        arterial_tone: (0.84, 0.84, 0.86),
+        suburb_tone: (1.0, 1.0, 1.0),
+        worn_tone: (0.25, 0.24, 0.22),
+        tint_cell_m: 8.0,
+        tint_scale_m: 45.0,
+        tint_amount: 0.22,
+        lane_m: 3.5,
+        track_offset_m: 0.9,
+        track_half_m: 0.5,
+        track_dark: 0.22,
+        patch_chance: 0.06,
+        patch_tone: 0.75,
+    ),
 
     start_pilot_distance_m: 25.0,
 
@@ -206,6 +231,9 @@
         look_storm_albedo: 0.55,
         look_base_shade: 0.55,
         look_storm_base_shade: 0.85,
+        // Owner, 2026-10-27: "Can we tint the dark parts of clouds softer? Some clouds look unnecessarily too dark on
+        // the bottom": the shaded side gets this much of the sky's own colour back, times the albedo (0 the old look).
+        look_shadow_floor: 0.35,
         look_near_fade_m: 140.0,
         look_erode: 0.62,
         look_soft_m: 60.0,

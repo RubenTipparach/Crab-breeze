@@ -40,6 +40,8 @@ where the owner chose real moon phases. Building from 2026-10-28.
 - [ ] 4.4 Read Bevy 0.20's source on whether a light's `RenderLayers` limit its shadow casters (needed only if the
   owner wants the vehicle's shadow from street lamps, survey N3)
 
+- [x] 4.6 Free roam's pause menu picks the time of day and freezes it (owner, 2026-10-28: "in free roam there is a toggle to pick time of day, or stop changinign time of day (freeze ToD)", "this is in the pause menu"; it stands in for survey N7's Options setting): TIME OF DAY with the hour, an hour back or on, Freeze or Run, and Dawn, Noon, Dusk and Night (`WorldClock::frozen`, `set_hour`, `shift`, tested)
+
 ## 5. Survey
 
 - [x] 5.1 N1-N8 on the survey page, with the recommendations above (2026-10-27)

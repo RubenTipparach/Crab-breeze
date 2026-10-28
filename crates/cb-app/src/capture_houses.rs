@@ -234,8 +234,21 @@ fn run(
             }
             next = t > 8.0;
         }
-        // An autocannon burst's worth (1 MJ) on the front wall, seen from the street.
+        // Downtown: a city street at the game's start, its asphalt the downtown road set.
         8 => {
+            if script.once("downtown") {
+                let p = plan.start.pilot_xz;
+                let feet = Vec3::new(p.x + 3.0, plan.height_at(p.x + 3.0, p.y), p.y);
+                let m = plan.start.mech_xz;
+                stand_looking(&mut pilot, feet, Vec3::new(m.x + 3.0, plan.height_at(m.x, m.y) + 1.0, m.y - 40.0));
+            }
+            if t > 6.0 && script.once("downtown shot") {
+                shoot(&mut commands, &script.dir, "houses-downtown.png");
+            }
+            next = t > 8.0;
+        }
+        // An autocannon burst's worth (1 MJ) on the front wall, seen from the street.
+        9 => {
             if script.once("hit") {
                 let feet = on_ground(&plan, ranch, kit.hi.x + 4.0, kit.hi.z + 4.0);
                 stand_looking(&mut pilot, feet, on_ground(&plan, ranch, 0.0, 0.0) + Vec3::Y * 2.0);

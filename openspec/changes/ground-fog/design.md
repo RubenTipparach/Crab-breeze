@@ -77,7 +77,18 @@ land met the sky in a band of another colour.
   sky ray's whole 40 km, an optical depth of 26.7 times the rain at the eye, so a trace of rain
   greyed the whole sky. It now runs to `rain_reach_m` (1,500 m), about a shaft's breadth
   (`cb_core::world::mist::rain_depth`, the one copy; the fog pass writes it the same way).
-- Cost: one LUT read a fog pixel.
+- **Far clouds take its colour** (owner, 2026-10-26: "make sure distanrt clouds blends with fog too"; 2026-10-27:
+  "cloud fog blend should be a thing"). The clouds are drawn after the fog pass and write no depth, so the pass never
+  fogs them. Each cloud fragment's colour is mixed toward the fog's colour along its view (the same `fog_colour`,
+  `fog_colour.wesl`, reading the same sky-view LUT, bound to the cloud material) by the air between it and the eye: the
+  ground layer and the haze by the same `layer_depth` (`water_common.wesl`), the layer thickened by the mist round the
+  eye toward it as the fog pass thickens it toward the land (`mist::thickening` on 16 level bearings, the mist lying
+  under 600 m and so only near the eye's end of a sight line). Its alpha is kept. Built first (2026-10-27) as an alpha
+  fade alone, which only made a far cloud see-through and, with no mist, left it six times less fogged than the land
+  below it: dark and crisp over a white horizon. The rain's haze is not applied to them: it reaches only
+  `rain_reach_m`, all under the storm's base, and tinting by it washed the base into one flat grey, fading by it opened
+  the base onto blue sky.
+- Cost: one LUT read a fog pixel; one LUT read, four exponentials and an `atan2` a cloud pixel.
 
 ## 3. The mist map
 

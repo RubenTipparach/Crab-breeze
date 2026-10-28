@@ -2264,8 +2264,10 @@ dependencies = [
  "avian3d",
  "bevy",
  "bevy_hanabi",
+ "bevy_utils",
  "cb-core",
  "image",
+ "indexmap",
  "naga",
  "wesl",
 ]

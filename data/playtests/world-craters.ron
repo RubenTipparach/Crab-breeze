@@ -1,0 +1,30 @@
+// The world (openspec changes building-type-lods, music, terrain-deform; survey L1, L2, A2, A3): free roam in the
+// capital, board, jet up over the city and look round at the buildings past 1.5 km (their per-type far facades),
+// come down in open ground and fire missiles at the ground ahead again and again: the crater opens and the ground
+// stays (a frame right after each hit must show ground, never sky). The MUSIC lines in the log say each cue change
+// and each duck under the radio or an alarm.
+//
+//   ./target/release/crab-breeze --playtest world-craters
+(
+    name: "world-craters",
+    stuck_s: 20.0,
+    runs: [
+        (
+            play: "free",
+            beats: [
+                Wait(2.0),
+                Board,
+                Wait(2.0),
+                JetTo(-8600.0, -3575.0, 250.0),
+                LookAround(10.0),
+                SkateToNearest("city", 1600.0),
+                LookAtNearest("light", 1.0),
+                LookAround(8.0),
+                FireAtGround(70.0, 8),
+                Wait(2.0),
+                FireAtGround(45.0, 6),
+                Wait(3.0),
+            ],
+        ),
+    ],
+)

@@ -185,32 +185,32 @@
       "parent": "INNER_lower_1",
       "pivot_m": [
         0.0,
-        0.62,
-        0.4277
+        0.769,
+        0.4479
       ]
     },
     "SCREEN_left": {
       "parent": "CONSOLE_front",
       "pivot_m": [
         0.0,
-        0.62,
-        0.4277
+        0.769,
+        0.4479
       ]
     },
     "SCREEN_center": {
       "parent": "CONSOLE_front",
       "pivot_m": [
         0.0,
-        0.62,
-        0.4277
+        0.769,
+        0.4479
       ]
     },
     "SCREEN_right": {
       "parent": "CONSOLE_front",
       "pivot_m": [
         0.0,
-        0.62,
-        0.4277
+        0.769,
+        0.4479
       ]
     },
     "HUD_mfd_0": {
@@ -240,7 +240,7 @@
   },
   "meshes": {
     "CONSOLE_front_front": {
-      "tris": 8304,
+      "tris": 8820,
       "group": "front",
       "node": "CONSOLE_front"
     },
@@ -285,7 +285,7 @@
       "node": "INNER_top_1"
     },
     "INNER_top_1_cabin": {
-      "tris": 7838,
+      "tris": 19598,
       "group": "cabin",
       "node": "INNER_top_1"
     },
@@ -310,7 +310,7 @@
       "node": "pod"
     },
     "pod_cabin": {
-      "tris": 11652,
+      "tris": 17848,
       "group": "cabin",
       "node": "pod"
     },
@@ -322,7 +322,8 @@
   },
   "vents": 9,
   "lights": 6,
-  "tris": 29688,
+  "style": "steel",
+  "tris": 48160,
   "tri_budget": 600000,
   "draw_calls": 16,
   "atlases": {
@@ -366,5 +367,5 @@
     "wall_L",
     "wall_R"
   ],
-  "bytes": 15012312
+  "bytes": 19768917
 }

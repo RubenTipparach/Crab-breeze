@@ -2,7 +2,8 @@
 //! street, and mech metal, grass trees and stuff"). CLAUDE.md section 10 makes Material Maker graphs
 //! the one source of surface looks; these are placeholders until the art side's PBR sets land
 //! (openspec change `terrain-materials`), and are replaced, not extended, when they do.
-//! Every texture tiles; colours are near white so a material's base colour tints them.
+//! Every texture tiles; colours are near white so a material's base colour tints them. The roads and
+//! pavements left this file for CC0 sets (`road-surfaces`, `assets/textures/road/`).
 
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
@@ -14,10 +15,6 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 pub struct Textures {
     /// Grass, about 4 m a tile.
     pub grass: Handle<Image>,
-    /// Asphalt, 4 m a tile.
-    pub asphalt: Handle<Image>,
-    /// Concrete paving slabs, 4 m a tile.
-    pub concrete: Handle<Image>,
     /// A building facade: one window bay 4 m wide and one storey (3.5 m) tall a tile.
     pub facade: Handle<Image>,
     /// Painted armour plate with panel seams and rivets, one tile a box face.
@@ -223,24 +220,6 @@ impl Plugin for TexturesPlugin {
             let k = 0.75 + 0.35 * g - 0.15 * blade;
             [k * (0.95 + 0.2 * dry), k, k * (0.85 - 0.1 * dry)]
         });
-        let asphalt = image(&mut images, |u, v| {
-            let k = 0.8
-                + 0.15 * fbm(u, v, 16, 4)
-                + if hash((u * 256.0) as i32, (v * 256.0) as i32, 5) > 0.93 {
-                    0.15
-                } else {
-                    0.0
-                };
-            let crack = (fbm(u, v, 4, 6) - 0.5).abs() < 0.008;
-            let k = if crack { k * 0.6 } else { k };
-            [k, k, k * 1.02]
-        });
-        let concrete = image(&mut images, |u, v| {
-            // Four slabs a tile, with joints.
-            let joint = (u * 2.0).fract() < 0.02 || (v * 2.0).fract() < 0.02;
-            let k = 0.82 + 0.12 * fbm(u, v, 12, 7) - if joint { 0.25 } else { 0.0 };
-            [k, k * 0.99, k * 0.96]
-        });
         let facade = image(&mut images, |u, v| {
             // One window bay: wall, a sill band, a window with a frame.
             let window = (0.18..0.82).contains(&u) && (0.25..0.8).contains(&v);
@@ -277,8 +256,6 @@ impl Plugin for TexturesPlugin {
         let building = building_textures(&mut images);
         app.insert_resource(Textures {
             grass,
-            asphalt,
-            concrete,
             facade,
             metal,
             foliage,

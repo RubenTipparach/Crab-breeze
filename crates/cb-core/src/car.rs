@@ -175,6 +175,17 @@ impl Validate for CarSpec {
     }
 }
 
+/// A car's speed as its driver reads it, km/h: the size of the simulation's speed, forward or back. The dashboard's
+/// needle and the readout on the screen while driving (`car-chase-camera`, DC2) both show this number.
+pub fn speed_km_h(speed_m_s: f32) -> f32 {
+    if speed_m_s.is_finite() { speed_m_s.abs() * 3.6 } else { 0.0 }
+}
+
+/// The readout shown on the screen while driving: whole km/h.
+pub fn speed_readout(speed_m_s: f32) -> String {
+    format!("{:.0} km/h", speed_km_h(speed_m_s))
+}
+
 impl CarSpec {
     /// This car with every height raised by `k` and its length and width kept (`TrafficConfig::car_height_scale`):
     /// the body and roof (`size_m[1]`), the wheels, the ride height and the driver's eye. The door socket stays on
@@ -200,7 +211,7 @@ impl CarSpec {
     /// The speedometer needle's angle from its zero for a speed, radians: what the dashboard turns
     /// the needle to, from the speed the simulation uses (CLAUDE.md section 6.1).
     pub fn speedo_needle_rad(&self, speed_m_s: f32) -> f32 {
-        let km_h = speed_m_s.abs() * 3.6;
+        let km_h = speed_km_h(speed_m_s);
         (km_h / self.speedo_full_scale_km_h).clamp(0.0, 1.0) * self.speedo_sweep_deg.to_radians()
     }
 
@@ -208,6 +219,28 @@ impl CarSpec {
     pub fn speedo_reading_km_h(&self, angle_rad: f32) -> f32 {
         angle_rad / self.speedo_sweep_deg.to_radians() * self.speedo_full_scale_km_h
     }
+}
+
+/// A wheel smaller on screen than this angle (its diameter over its distance, radians: about 8 pixels of a 1080-line
+/// view) shows no spin: its turn is not drawn (wheel-writes, the RTX 3070 streaming report's finding 1).
+pub const WHEEL_SPIN_SEEN_RAD: f32 = 0.012;
+/// A wheel's rim must have moved this angle of view since it was last drawn (radians, about a pixel) for the turn to
+/// show.
+pub const WHEEL_MOVE_SEEN_RAD: f32 = 0.0012;
+
+/// True when a wheel of `radius_m`, seen from `distance_m`, has spun (`turned_rad`, by the shorter way round) or steered
+/// (`steered_rad`) enough since it was last drawn for the change to show, so its transform is worth writing. A wheel
+/// too small on screen to show a spin is redrawn for its steer only.
+pub fn wheel_redraw_due(turned_rad: f32, steered_rad: f32, radius_m: f32, distance_m: f32) -> bool {
+    if !(turned_rad.is_finite() && steered_rad.is_finite() && radius_m > 0.0 && distance_m.is_finite()) {
+        return false;
+    }
+    let d = distance_m.max(1.0);
+    let turned = (turned_rad + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+    let spin_shows = 2.0 * radius_m / d >= WHEEL_SPIN_SEEN_RAD;
+    let spun = spin_shows && turned.abs() * radius_m / d >= WHEEL_MOVE_SEEN_RAD;
+    let steered = steered_rad.abs() * radius_m / d >= WHEEL_MOVE_SEEN_RAD;
+    spun || steered
 }
 
 /// The car's forward direction on the ground (x, z) for a heading (0 faces -z, positive turns left).
@@ -494,8 +527,36 @@ impl CarBody {
 }
 
 #[cfg(test)]
+mod wheel_tests {
+    use super::*;
+
+    #[test]
+    fn a_near_wheel_is_redrawn_when_it_turns_and_a_far_one_only_when_it_steers() {
+        // a 0.33 m wheel 10 m off turning a tenth of a radian: its rim moves about 3 mrad of view
+        assert!(wheel_redraw_due(0.1, 0.0, 0.33, 10.0));
+        assert!(!wheel_redraw_due(0.001, 0.0, 0.33, 10.0), "a sliver of a turn does not show");
+        // 200 m off a wheel is under 4 mrad across: its spin does not show however fast it turns
+        assert!(!wheel_redraw_due(3.0, 0.0, 0.33, 200.0));
+        assert!(wheel_redraw_due(0.0, 0.5, 0.33, 40.0), "a steer still shows");
+        assert!(wheel_redraw_due(-0.2, 0.0, 0.33, 5.0), "either way round");
+        assert!(!wheel_redraw_due(std::f32::consts::TAU, 0.0, 0.33, 5.0), "a whole turn is no turn");
+        assert!(!wheel_redraw_due(f32::NAN, 0.0, 0.33, 5.0));
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_readout_and_the_needle_show_the_simulations_speed_in_km_h() {
+        assert_eq!(speed_readout(13.889), "50 km/h");
+        assert_eq!(speed_readout(-5.0), "18 km/h", "reversing reads its size");
+        assert_eq!(speed_readout(f32::NAN), "0 km/h");
+        let spec = CarSpec::default();
+        let needle = spec.speedo_needle_rad(13.889);
+        assert!((spec.speedo_reading_km_h(needle) - speed_km_h(13.889)).abs() < 0.01);
+    }
     use crate::world::layout::{Building, Rect};
     use crate::world::{BuildingGrid, FlatGround};
 

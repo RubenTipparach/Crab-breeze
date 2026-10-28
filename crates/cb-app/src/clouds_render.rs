@@ -11,7 +11,8 @@
 //! through the water's light helper, so a cloud sits in the same light as the ground. The shader
 //! (`assets/shaders/cloud.wesl`) erodes each puff's edge with noise, lights it as a sphere and
 //! fades it where it meets the ground behind it and near the eye (inside, the cloud fog takes over);
-//! Bevy's fog hazes far ones. `CB_NO_CLOUDS=1` leaves the sky clear, for the benchmark.
+//! its colour goes toward the fog's colour (the sky-view LUT, `fog_colour.wesl`) by the air between it and the eye (the
+//! ground fog's layer thickened by the mist, and the haze, `AirFog`), so a far one sinks into the horizon's haze. `CB_NO_CLOUDS=1` leaves the sky clear, for the benchmark.
 //!
 //! The ground under a storm is darkened by a texture on the sun (Bevy's `DirectionalLightTexture`,
 //! a light cookie): the core's `Clouds::sun_at` at the cloud base, baked along the sun's rays into
@@ -22,7 +23,7 @@
 use crate::pilot::PilotCamera;
 use crate::sim::{Data, PresentSet};
 use crate::state::GameApp;
-use crate::water_render::water_light;
+use crate::water_render::{AirFog, FogTint, GroundFogOn, SkyAxes, water_light};
 use crate::world::{Plan, Sun};
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::Exposure;
@@ -62,8 +63,45 @@ pub struct CloudUniform {
     pub ambient: Vec4,
     /// x white albedo, y storm albedo, z white base shade, w storm base shade.
     pub albedo: Vec4,
-    /// x fade-in distance from the eye (m), y edge erosion, z soft depth against the ground (m), w unused.
+    /// x fade-in distance from the eye (m), y edge erosion, z soft depth against the ground (m), w the shadow floor
+    /// (`look_shadow_floor`).
     pub fade: Vec4,
+    /// The ground fog: x density at sea level per m (its strength now in it), y scale height m, z sea level m, w unused.
+    /// Zero with the ground fog off.
+    pub fog: Vec4,
+    /// The aerial haze: x density at sea level per m, y scale height m; zw unused. Zero with the ground fog off.
+    pub haze: Vec4,
+    /// How many times the mist thickens the ground fog's layer toward 16 level bearings round the eye, four to a vec4
+    /// (`thick_round`).
+    pub thick: [Vec4; 4],
+    /// The scattering sky's frame round the eye and the LUT's size (`SkyAxes`, as the fog pass has them).
+    pub sky_x: Vec4,
+    pub sky_y: Vec4,
+    pub sky_z: Vec4,
+    /// xy the sky-view LUT's size, z the view's exposure, w how much darker the fog is under the clouds' shade.
+    pub sky_lut: Vec4,
+    /// The fog's own colour without the sky (`FogTint`): rgb the ambient scattered back, w the phase asymmetry.
+    pub fog_ambient: Vec4,
+    /// rgb the sun the fog scatters forward; w unused.
+    pub fog_sun: Vec4,
+    /// xyz toward the sun; w unused.
+    pub fog_sun_dir: Vec4,
+}
+
+impl CloudUniform {
+    /// The air between the eye and a cloud, as the fog pass fogs the sky behind it (`AirFog`), so a far cloud takes
+    /// the horizon's colour (owner, 2026-10-26: "make sure distanrt clouds blends with fog too"); nothing with the ground
+    /// fog off. The ground fog's layer and the haze only: the rain's haze, 1.5 km deep, would fade the storm's own base
+    /// overhead onto the clear sky drawn behind it (`air_between` in `cloud.wesl` says why).
+    pub(crate) fn air(air: &AirFog, on: bool) -> (Vec4, Vec4) {
+        if !on {
+            return (Vec4::ZERO, Vec4::ZERO);
+        }
+        (
+            Vec4::new(air.layer_per_m, air.layer_height_m, air.sea_level_m, 0.0),
+            Vec4::new(air.haze_per_m, air.haze_height_m, 0.0, 0.0),
+        )
+    }
 }
 
 /// The one cloud material.
@@ -72,6 +110,64 @@ pub struct CloudMaterial {
     /// The light and look, rewritten each frame.
     #[uniform(0)]
     pub light: CloudUniform,
+    /// Bevy's sky-view LUT for the pilot's view, the fog's colour (`mirror_sky_lut`): a 1 x 1 stand-in until the sky is
+    /// drawn, never read without it (`sky_z.w` 0).
+    #[texture(1)]
+    #[sampler(2)]
+    pub sky_lut: Handle<Image>,
+}
+
+/// The image the cloud material reads the sky-view LUT through; in the render world its texture is the pilot view's
+/// LUT each frame (`mirror_sky_lut`).
+#[derive(Resource, Clone)]
+struct CloudSkyLut(Handle<Image>);
+
+/// Points the cloud material's LUT image at the pilot view's sky-view LUT. Bevy's atmosphere makes the LUT a texture of
+/// its own each view (no copy source, no asset), so the material's image is re-pointed at it rather than copied: a
+/// handle swap, no GPU work. Only the pilot's camera has the scattering sky (`pilot.rs`), so there is one LUT to point
+/// at. The material is prepared afresh each frame (its uniform changes), from the LUT the texture cache handed this view
+/// last frame, which is the same texture: the cache gives one view's request the same texture frame after frame.
+fn mirror_sky_lut(
+    lut: Option<Res<CloudSkyLut>>,
+    views: Query<&bevy::pbr::resources::AtmosphereTextures>,
+    mut images: ResMut<bevy::render::render_asset::RenderAssets<bevy::render::texture::GpuImage>>,
+) {
+    let (Some(lut), Some(textures)) = (lut, views.iter().next()) else {
+        return;
+    };
+    let Some(gpu) = images.get_mut(&lut.0) else {
+        return;
+    };
+    let sky = &textures.sky_view_lut;
+    gpu.texture = sky.texture.clone();
+    gpu.texture_view = sky.default_view.clone();
+    gpu.texture_descriptor.size = sky.texture.size();
+    gpu.texture_descriptor.format = sky.texture.format();
+}
+
+fn extract_sky_lut(mut commands: Commands, lut: bevy::render::Extract<Option<Res<CloudSkyLut>>>) {
+    if let Some(lut) = lut.as_ref() {
+        commands.insert_resource(CloudSkyLut(lut.0.clone()));
+    }
+}
+
+/// How many times the mist thickens the ground fog's layer along 16 level bearings from `eye` (bearing k at k / 16 of a
+/// turn from +x toward +z), read as the fog pass reads it along a sight line out to `mist_taps_m`
+/// (`cb_core::world::mist::thickening`), four to a vec4. The cloud shader takes the bearing toward each cloud between
+/// the two nearest: a far cloud low over misty land is thickened by the same mist as the land under it.
+pub(crate) fn thick_round(
+    cfg: &cb_core::world::mist::FogConfig,
+    strength: cb_core::world::mist::FogStrength,
+    map: &cb_core::world::mist::MistMap,
+    eye: Vec3,
+) -> [Vec4; 4] {
+    let mut out = [Vec4::ONE; 4];
+    for k in 0..16 {
+        let a = k as f32 / 16.0 * std::f32::consts::TAU;
+        let dir = Vec3::new(a.cos(), 0.0, a.sin());
+        out[k / 4][k % 4] = cb_core::world::mist::thickening(cfg, strength, map, eye, dir, cfg.mist_taps_m);
+    }
+    out
 }
 
 impl Material for CloudMaterial {
@@ -129,6 +225,12 @@ impl Plugin for CloudsRenderPlugin {
         app.add_plugins(MaterialPlugin::<CloudMaterial>::default())
             .add_world_spawn(setup)
             .add_game_systems(Update, (gather, refresh_light, shade_sun).chain().in_set(PresentSet::Pose));
+        if let Some(render_app) = app.get_sub_app_mut(bevy::render::RenderApp) {
+            render_app.add_systems(bevy::render::ExtractSchedule, extract_sky_lut).add_systems(
+                bevy::render::Render,
+                mirror_sky_lut.in_set(bevy::render::RenderSystems::PrepareBindGroups),
+            );
+        }
     }
 }
 
@@ -143,10 +245,31 @@ struct CloudDraw {
     sorted_at: Option<Vec3>,
 }
 
-fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<CloudMaterial>>) {
+fn setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<CloudMaterial>>,
+    mut images: ResMut<Assets<Image>>,
+) {
     let mesh = meshes.add(item_mesh(&[]));
+    // The LUT's own format, one texel, until `mirror_sky_lut` points it at the sky; sampled linearly, as the fog pass does.
+    let mut lut = Image::new_fill(
+        Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        &[0u8; 8],
+        TextureFormat::Rgba16Float,
+        RenderAssetUsages::RENDER_WORLD,
+    );
+    lut.sampler = bevy::image::ImageSampler::linear();
+    let sky_lut = images.add(lut);
+    commands.insert_resource(CloudSkyLut(sky_lut.clone()));
     let material = materials.add(CloudMaterial {
         light: CloudUniform::default(),
+        sky_lut,
     });
     let entity = commands
         .spawn((
@@ -306,29 +429,71 @@ fn gather(
     }
 }
 
-/// The scene's light into the cloud material each frame.
+/// The scene's light into the cloud material each frame, and the fog's: the air between the eye and a cloud and the
+/// fog's colour, from the same sources the fog pass reads (`AirFog`, `FogTint`, `SkyAxes`).
+#[allow(clippy::too_many_arguments)]
 fn refresh_light(
     data: Res<Data>,
+    plan: Res<Plan>,
+    fog_on: Option<Res<GroundFogOn>>,
+    fog_now: Res<crate::ground_fog::FogNow>,
+    weather: Res<crate::ground_fog::EyeWeather>,
     ambient: Res<GlobalAmbientLight>,
     sun: Query<(&DirectionalLight, &GlobalTransform, &crate::day_night::SkyBody)>,
-    camera: Query<Option<&Exposure>, With<PilotCamera>>,
+    camera: Query<(&GlobalTransform, Option<&Exposure>, Option<&bevy::pbr::AtmosphereSettings>), With<PilotCamera>>,
+    atmosphere: Query<(&bevy::light::Atmosphere, &GlobalTransform)>,
     draw: Option<Res<CloudDraw>>,
     mut materials: ResMut<Assets<CloudMaterial>>,
 ) {
     let Some(draw) = draw else { return };
-    let exposure = camera.iter().next().flatten().copied().unwrap_or_default().exposure();
+    let Some((eye, exposure, sky)) = camera.iter().next() else {
+        return;
+    };
+    let eye = eye.translation();
+    let exposure = exposure.copied().unwrap_or_default().exposure();
+    // The light on the world from the sky: the sun, or the moon at night (`day_night`).
     let key = crate::day_night::key_light(sun.iter());
     let light = water_light(key.as_ref().map(|(l, t)| (l, t)), &ambient, exposure);
     let a = LinearRgba::from(ambient.color);
     let amb = Vec3::new(a.red, a.green, a.blue) * ambient.brightness * exposure;
     let c = &data.0.world.clouds;
+    let cfg = &data.0.world.fog;
+    let air = AirFog::now(cfg, fog_now.strength, plan.waters.sea_level_m, 0.0);
+    let (fog, haze) = CloudUniform::air(&air, fog_on.is_some_and(|f| f.0));
+    let tint = FogTint::now(cfg, &light, amb, weather.sun, exposure);
+    // The atmosphere nearest the eye, as Bevy picks it for the view (there is one).
+    let axes = match (
+        sky,
+        atmosphere
+            .iter()
+            .min_by(|x, y| eye.distance(x.1.translation()).total_cmp(&eye.distance(y.1.translation()))),
+    ) {
+        (Some(settings), Some((planet, at))) => SkyAxes::at(
+            SkyAxes::world_to_atmosphere(at),
+            planet.inner_radius,
+            settings.sky_view_lut_size.as_vec2(),
+            eye,
+        ),
+        _ => SkyAxes::NONE,
+    };
+    let thick = thick_round(cfg, fog_now.strength, &plan.mist, eye);
     let Some(mut m) = materials.get_mut(&draw.material) else { return };
     m.light = CloudUniform {
         sun_dir: light.sun_dir.extend(c.look_wrap),
         sun: light.sun.extend(c.look_silver),
         ambient: amb.extend(c.look_scattered),
         albedo: Vec4::new(c.look_albedo, c.look_storm_albedo, c.look_base_shade, c.look_storm_base_shade),
-        fade: Vec4::new(c.look_near_fade_m, c.look_erode, c.look_soft_m, 0.0),
+        fade: Vec4::new(c.look_near_fade_m, c.look_erode, c.look_soft_m, c.look_shadow_floor),
+        fog,
+        haze,
+        thick,
+        sky_x: axes.x,
+        sky_y: axes.y,
+        sky_z: axes.z,
+        sky_lut: axes.lut.extend(tint.exposure).extend(tint.storm),
+        fog_ambient: tint.ambient,
+        fog_sun: tint.sun.extend(0.0),
+        fog_sun_dir: tint.sun_dir.extend(0.0),
     };
 }
 
@@ -573,6 +738,92 @@ mod tests {
         let m = item_mesh(&list);
         assert_eq!(m.count_vertices(), list.len() * 4);
         assert_eq!(m.indices().map(|i| i.len()), Some(list.len() * 6));
+    }
+
+    /// The share of a cloud's light that crosses the air to the eye, as `air_between` in `cloud.wesl` works it out
+    /// from the uniform's `fog`, `haze` and the mist's thickening toward it (the core's closed form of each layer); the
+    /// shader mixes the cloud's colour toward the fog's by the rest.
+    fn air_between(fog: Vec4, haze: Vec4, thick: f32, eye: Vec3, cloud: Vec3) -> f32 {
+        let to = cloud - eye;
+        let (dist, dir_y) = (to.length(), to.normalize().y);
+        let layer = cb_core::world::mist::optical_depth(
+            &cb_core::world::mist::FogConfig {
+                density_per_m: fog.x,
+                scale_height_m: fog.y,
+                ..Default::default()
+            },
+            fog.z,
+            eye.y,
+            dir_y,
+            dist,
+            thick,
+        );
+        let haze = cb_core::world::mist::haze_depth(
+            &cb_core::world::mist::FogConfig {
+                haze_density_per_m: haze.x,
+                haze_scale_height_m: haze.y,
+                ..Default::default()
+            },
+            fog.z,
+            eye.y,
+            dir_y,
+            dist,
+        );
+        (-(layer + haze)).exp()
+    }
+
+    #[test]
+    fn a_far_cloud_on_the_horizon_takes_the_fogs_colour_and_one_overhead_does_not() {
+        use crate::water_render::AirFog;
+        let cfg = cb_core::world::mist::FogConfig::default();
+        let morning = cfg.presets.morning;
+        let air = AirFog::now(&cfg, morning, 0.0, 0.0);
+        let (fog, haze) = CloudUniform::air(&air, true);
+        let eye = Vec3::new(0.0, 2.0, 0.0);
+        let far = air_between(fog, haze, 1.0, eye, Vec3::new(18000.0, 800.0, 0.0));
+        let overhead = air_between(fog, haze, 1.0, eye, Vec3::new(300.0, 1500.0, 0.0));
+        assert!(
+            far < 0.7,
+            "a cloud 18 km off on the horizon keeps {far:.2} of its own colour: it should take the fog's"
+        );
+        assert!(
+            overhead > 0.95,
+            "a cloud 1.5 km overhead keeps {overhead:.2}: the air should barely touch it"
+        );
+        // Over misty land the mist round the eye thickens the layer toward the cloud as it does toward the land under
+        // it (owner, 2026-10-27: "cloud fog blend should be a thing"): the eye 80 m over full mist.
+        let side = 64;
+        let misty = cb_core::world::mist::MistMap {
+            side,
+            origin_m: -(side as f32) * 250.0,
+            cell_m: 500.0,
+            mist: vec![1.0; side * side],
+        };
+        let low = Vec3::new(0.0, 80.0, 0.0);
+        let thick = thick_round(&cfg, morning, &misty, low);
+        assert!(
+            thick.iter().all(|v| (v.x - v.w).abs() < 1e-5 && v.x > 5.0),
+            "even mist thickens every bearing alike: {thick:?}"
+        );
+        let cloud = Vec3::new(12000.0, 900.0, 0.0);
+        let (in_mist, in_clear) = (
+            air_between(fog, haze, thick[0].x, low, cloud),
+            air_between(fog, haze, 1.0, low, cloud),
+        );
+        assert!(
+            in_mist < 0.8 * in_clear,
+            "over mist a far cloud keeps {in_mist:.2}, over clear land {in_clear:.2}"
+        );
+        // Seen from above the layer, a cloud stays crisp however misty the ground: the transmittance through the layer,
+        // not the distance.
+        let above = air_between(fog, haze, thick[0].x, Vec3::new(0.0, 2000.0, 0.0), Vec3::new(3000.0, 1500.0, 0.0));
+        assert!(above > 0.95, "from above the fog a cloud keeps {above:.2}");
+        // Rain at the eye does not tint a cloud: all of its haze lies under the storm's own base.
+        let wet = AirFog::now(&cfg, morning, 0.0, 1.0);
+        assert_eq!(CloudUniform::air(&wet, true), (fog, haze));
+        // With the ground fog off (`CB_NO_GROUND_FOG=1`) no cloud takes the fog's colour.
+        let (off_fog, off_haze) = CloudUniform::air(&air, false);
+        assert_eq!(air_between(off_fog, off_haze, thick[0].x, eye, Vec3::new(18000.0, 800.0, 0.0)), 1.0);
     }
 
     #[test]
