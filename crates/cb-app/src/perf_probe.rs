@@ -9,7 +9,7 @@
 //! | `/summary?s=10` | the last `s` seconds: frames, p50/p95/p99/max ms, frames over 16.7 and 11.1 ms, the ten worst with their systems, counts and events, the systems most often to blame, and the census |
 //! | `/frames?since=N&limit=M` | frames after number `N`: number, time, ms, main-world ms, the eye's position and speed |
 //! | `/events?since=N` | the game events after frame `N`, each with its frame's and the next frame's ms |
-//! | `/census` | entities by the first word of their name, physics bodies by kind, colliders, meshes drawn and in view, lights |
+//! | `/census` | entities by the first word of their name, physics bodies by kind, colliders, meshes drawn and in view, lights, and triangles by what draws them (name, digits dropped): `[in view, shadow casters anywhere]` |
 //!
 //! Systems' times come from `perf_hud`'s tally, so a `hitch_spans` build names every system; without it only the
 //! `slow` and `section` guards appear.
@@ -106,6 +106,51 @@ pub(crate) fn record(n: u64, ms: f32, main_ms: f32, spans: &[(&'static str, f32)
 
 static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
 
+/// Triangles of each mesh, noted as it is sent to the GPU (`hitch_spans::count_assets`): most meshes keep their data
+/// only in the render world afterwards.
+static TRIS: Mutex<Option<std::collections::HashMap<AssetId<Mesh>, u32>>> = Mutex::new(None);
+
+/// A mesh's vertex and index bytes, as the render world uploads them; `None` once its data has gone to the render
+/// world.
+pub(crate) fn mesh_bytes(m: &bevy::prelude::Mesh) -> Option<usize> {
+    let vertices: usize = m.try_attributes().ok()?.map(|(_, v)| v.get_bytes().len()).sum();
+    let indices = match m.try_indices_option().ok()? {
+        Some(bevy::mesh::Indices::U16(i)) => i.len() * 2,
+        Some(bevy::mesh::Indices::U32(i)) => i.len() * 4,
+        None => 0,
+    };
+    Some(vertices + indices)
+}
+
+/// Bytes of every mesh sent to the GPU since the start (vertex and index data, as `hitch_spans` counts them).
+static NOTED_BYTES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Notes a mesh's triangles while its data is still in the main world.
+pub(crate) fn note_mesh(id: AssetId<Mesh>, mesh: &Mesh) {
+    if !on() {
+        return;
+    }
+    if let Some(b) = mesh_bytes(mesh) {
+        NOTED_BYTES.fetch_add(b as u64, Ordering::Relaxed);
+    }
+    if let (Some(t), Ok(mut m)) = (triangles(mesh), TRIS.lock()) {
+        m.get_or_insert_with(Default::default).insert(id, t);
+    }
+}
+
+fn noted(id: AssetId<Mesh>) -> Option<u32> {
+    TRIS.lock().ok()?.as_ref()?.get(&id).copied()
+}
+
+/// A mesh's triangles; `None` once its data is in the render world only.
+fn triangles(mesh: &Mesh) -> Option<u32> {
+    let n = match mesh.try_indices_option().ok()? {
+        Some(i) => i.len(),
+        None => mesh.try_attributes().ok()?.next().map_or(0, |(_, v)| v.len()),
+    };
+    Some((n / 3) as u32)
+}
+
 /// The probe: the census each second and the HTTP server.
 pub struct PerfProbePlugin;
 
@@ -137,9 +182,18 @@ fn census(
     named: Query<Option<&Name>>,
     bodies: Query<&avian3d::prelude::RigidBody>,
     colliders: Query<(), With<avian3d::prelude::Collider>>,
-    drawn: Query<&ViewVisibility, With<Mesh3d>>,
+    drawn: Query<(
+        &ViewVisibility,
+        &Mesh3d,
+        Option<&Name>,
+        Has<bevy::light::NotShadowCaster>,
+        Option<&ChildOf>,
+    )>,
     lights: Query<(), Or<(With<PointLight>, With<SpotLight>)>>,
     meshes: Res<Assets<Mesh>>,
+    images: Res<Assets<Image>>,
+    server: Res<AssetServer>,
+    mut tris_of: Local<std::collections::HashMap<AssetId<Mesh>, u32>>,
 ) {
     let dt = time.delta_secs();
     if let Ok(g) = eye.single() {
@@ -172,11 +226,37 @@ fn census(
             avian3d::prelude::RigidBody::Static => fixed += 1,
         }
     }
+    // Triangles by what draws them (the entity's or its parent's name, digits dropped): those in view, and every shadow
+    // caster wherever it is (the sun's cascades draw casters out of view too).
     let (mut meshes_drawn, mut in_view) = (0u32, 0u32);
-    for v in &drawn {
+    let mut seen_tris: std::collections::BTreeMap<String, (u64, u64)> = Default::default();
+    for (v, m, name, no_shadow, parent) in &drawn {
         meshes_drawn += 1;
         in_view += u32::from(v.get());
+        // A mesh's triangles, noted when it was sent to the GPU (`note_mesh`, by `hitch_spans`) or read here while its
+        // data is still in the main world; 0 when neither (its data went to the render world before either saw it).
+        let t = *tris_of
+            .entry(m.0.id())
+            .or_insert_with(|| noted(m.0.id()).or_else(|| meshes.get(m.0.id()).and_then(triangles)).unwrap_or(0));
+        let label = name
+            .or_else(|| parent.and_then(|p| named.get(p.parent()).ok().flatten()))
+            .map_or("unnamed".to_string(), |n| {
+                n.as_str()
+                    .split_whitespace()
+                    .filter(|w| !w.chars().all(|c| c.is_ascii_digit() || c == ':' || c == '-'))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            });
+        let e = seen_tris.entry(label).or_default();
+        if v.get() {
+            e.0 += u64::from(t);
+        }
+        if !no_shadow {
+            e.1 += u64::from(t);
+        }
     }
+    let mut tri_list: Vec<_> = seen_tris.into_iter().collect();
+    tri_list.sort_by_key(|(_, (a, b))| std::cmp::Reverse(a.max(b).to_owned()));
     let mut s = String::new();
     let _ = write!(
         s,
@@ -189,6 +269,43 @@ fn census(
     );
     for (i, (n, c)) in names.iter().take(30).enumerate() {
         let _ = write!(s, "{}\"{}\":{c}", if i > 0 { "," } else { "" }, esc(n));
+    }
+    s.push_str("},\"triangles\":{");
+    for (i, (n, (view, cast))) in tri_list.iter().take(25).enumerate() {
+        let _ = write!(s, "{}\"{}\":[{view},{cast}]", if i > 0 { "," } else { "" }, esc(n));
+    }
+    // Video memory of every image, from its texture descriptor (the size the GPU holds: every mip and layer, in its
+    // format), largest first, named by its asset path or `generated`.
+    let mut image_mb = 0.0f64;
+    let mut by_image: Vec<(String, f64)> = Vec::new();
+    for (id, image) in images.iter() {
+        let d = &image.texture_descriptor;
+        let block = d.format.block_copy_size(None).unwrap_or(4) as f64;
+        let (bw, bh) = d.format.block_dimensions();
+        let mut bytes = 0.0;
+        for level in 0..d.mip_level_count.max(1) {
+            let w = (d.size.width >> level).max(1).div_ceil(bw) as f64;
+            let h = (d.size.height >> level).max(1).div_ceil(bh) as f64;
+            bytes += w * h * block * f64::from(d.size.depth_or_array_layers.max(1));
+        }
+        let mb = bytes / (1024.0 * 1024.0);
+        image_mb += mb;
+        let path = server.get_path(id).map_or_else(
+            || {
+                format!(
+                    "generated {}x{}x{} {:?}",
+                    d.size.width, d.size.height, d.size.depth_or_array_layers, d.format
+                )
+            },
+            |p| p.to_string(),
+        );
+        by_image.push((path, mb));
+    }
+    by_image.sort_by(|a, b| b.1.total_cmp(&a.1));
+    let mesh_mb = NOTED_BYTES.load(Ordering::Relaxed) as f64 / (1024.0 * 1024.0);
+    let _ = write!(s, "}},\"image_mb\":{image_mb:.0},\"mesh_mb_sent\":{mesh_mb:.0},\"images\":{{");
+    for (i, (n, mb)) in by_image.iter().take(40).enumerate() {
+        let _ = write!(s, "{}\"{}\":{mb:.1}", if i > 0 { "," } else { "" }, esc(n));
     }
     s.push_str("}}");
     if let Ok(mut c) = CENSUS.lock() {

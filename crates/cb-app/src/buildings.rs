@@ -655,6 +655,11 @@ fn show_parts(
                     // Shown near the pilot only (`show_rooms_near`); never in the shadow maps.
                     e.insert((Visibility::Hidden, NotShadowCaster));
                 }
+                if k == Look::Glass {
+                    // Window glass lets the sun through: in the shadow maps it only cost the cascades its triangles
+                    // (a quarter of a million in the capital, city-frame) and darkened the rooms behind it.
+                    e.insert(NotShadowCaster);
+                }
                 Drawn {
                     entity: e.id(),
                     mesh: handle,
