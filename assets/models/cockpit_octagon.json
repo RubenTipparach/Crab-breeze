@@ -278,7 +278,7 @@
   },
   "meshes": {
     "CONSOLE_front_front": {
-      "tris": 8700,
+      "tris": 8820,
       "group": "front",
       "node": "CONSOLE_front"
     },
@@ -323,7 +323,7 @@
       "node": "INNER_wing_l_1"
     },
     "INNER_wing_l_1_cabin": {
-      "tris": 2962,
+      "tris": 4874,
       "group": "cabin",
       "node": "INNER_wing_l_1"
     },
@@ -333,7 +333,7 @@
       "node": "INNER_wing_r_1"
     },
     "INNER_wing_r_1_cabin": {
-      "tris": 2962,
+      "tris": 3298,
       "group": "cabin",
       "node": "INNER_wing_r_1"
     },
@@ -358,7 +358,7 @@
       "node": "pod"
     },
     "pod_cabin": {
-      "tris": 14072,
+      "tris": 20600,
       "group": "cabin",
       "node": "pod"
     },
@@ -370,7 +370,8 @@
   },
   "vents": 10,
   "lights": 6,
-  "tris": 39768,
+  "style": "excavator",
+  "tris": 48664,
   "tri_budget": 600000,
   "draw_calls": 18,
   "atlases": {
@@ -414,5 +415,5 @@
     "wall_L",
     "wall_R"
   ],
-  "bytes": 16845970
+  "bytes": 18276050
 }
