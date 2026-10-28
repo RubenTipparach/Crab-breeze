@@ -394,7 +394,10 @@ The owner's first priority. The `playtest` and `obs-record` skills are the metho
 - **One game per device** (Mining Mike): no two games, and no build or benchmark beside a take.
 - **A desktop run is checked every five minutes** while it plays (Mining Mike: "this should be hard
   req for playtest runs on desktop"): screenshot, look, report in two or three lines, stop a run
-  that is stuck.
+  that is stuck. **So is a capture** (owner, 2026-10-28: "Gotta check that capture every 5 mins. You
+  waited too long"): a headless stills or gallery run in a cloud session is checked every five
+  minutes (stills written, frames reached, the log's last line), and one that has written nothing
+  by its first check is looked into then, not when it times out.
 - **Report each playtest** in `docs/playtests/<date>-<name>.md` with the commit, the machine, each
   beat's outcome, the Drive link and the contact sheet.
 - **Cloud sessions cannot record.** They render headless stills through lavapipe and say so.
