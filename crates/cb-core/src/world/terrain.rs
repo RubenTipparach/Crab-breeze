@@ -347,7 +347,7 @@ impl Heightfield {
 
     /// A lattice point's height as a chunk drawn at `step` shows it: the full carve at step 1, the far
     /// carve (rivers held just under their water a coarse cell wide, `Channels::carve_far`) coarser.
-    pub(crate) fn lattice_at_step(&self, ix: i64, iz: i64, step: usize) -> f32 {
+    pub fn lattice_at_step(&self, ix: i64, iz: i64, step: usize) -> f32 {
         if step <= 1 {
             return self.cached(ix, iz);
         }
@@ -364,22 +364,37 @@ impl Heightfield {
     /// draws: the cell is split along its (0,0)-(1,1) diagonal. Past the world's edge the ground
     /// goes on (the open sea floor). A non-finite position reads zero.
     pub fn height_at(&self, x: f32, z: f32) -> f32 {
-        let gx = (x - self.origin_m) / self.cell_m;
-        let gz = (z - self.origin_m) / self.cell_m;
+        self.height_at_step(x, z, 1)
+    }
+
+    /// Ground height at world `(x, z)` as a chunk drawn at `step` shows it (`chunk_mesh_lod`): on its
+    /// two triangles per coarse cell, from `lattice_at_step`. What is laid on the ground far away
+    /// (the suburbs' paving) sits on this, not on the full detail the coarse chunk cuts across.
+    pub fn height_at_step(&self, x: f32, z: f32, step: usize) -> f32 {
+        self.height_at_step_with(x, z, step, &mut |ix, iz| self.lattice_at_step(ix, iz, step))
+    }
+
+    /// `height_at_step`, reading lattice corners through `corner` (a caller laying many points on one
+    /// coarse chunk keeps the corners it has worked out: past step 1 they are not cached).
+    pub fn height_at_step_with(&self, x: f32, z: f32, step: usize, corner: &mut dyn FnMut(i64, i64) -> f32) -> f32 {
+        let s = step.max(1) as i64;
+        let cell = self.cell_m * s as f32;
+        let gx = (x - self.origin_m) / cell;
+        let gz = (z - self.origin_m) / cell;
         if !gx.is_finite() || !gz.is_finite() {
             return 0.0;
         }
         let (fx, fz) = (gx.floor(), gz.floor());
-        let (ix, iz) = (fx as i64, fz as i64);
+        let (ix, iz) = (fx as i64 * s, fz as i64 * s);
         let u = gx - fx;
         let v = gz - fz;
-        let h00 = self.cached(ix, iz);
-        let h11 = self.cached(ix + 1, iz + 1);
+        let h00 = corner(ix, iz);
+        let h11 = corner(ix + s, iz + s);
         // Only the corner on the point's side of the diagonal is read.
         let (h10, h01) = if u >= v {
-            (self.cached(ix + 1, iz), 0.0)
+            (corner(ix + s, iz), 0.0)
         } else {
-            (0.0, self.cached(ix, iz + 1))
+            (0.0, corner(ix, iz + s))
         };
         cell_height([h00, h10, h01, h11], u, v)
     }
@@ -604,6 +619,20 @@ mod tests {
             assert!((got - centroid.y).abs() < 1e-3, "{got} vs {}", centroid.y);
             let normal = (b - a).cross(c - a);
             assert!(normal.y > 0.0, "triangles face up");
+        }
+    }
+
+    #[test]
+    fn height_at_step_lies_on_a_coarse_chunk_s_triangles() {
+        let h = hills();
+        for step in [2, 4] {
+            let mesh = h.chunk_mesh_lod(0, 0, 32, step, 0.0, |_, _| false);
+            for tri in mesh.indices.chunks(3) {
+                let [a, b, c] = [tri[0], tri[1], tri[2]].map(|i| mesh.positions[i as usize]);
+                let centroid = (a + b + c) / 3.0;
+                let got = h.height_at_step(centroid.x, centroid.z, step);
+                assert!((got - centroid.y).abs() < 1e-3, "step {step}: {got} vs {}", centroid.y);
+            }
         }
     }
 

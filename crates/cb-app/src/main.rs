@@ -51,6 +51,7 @@ mod mfd_apps;
 mod missions;
 mod music;
 mod particles;
+mod paving;
 mod pbr_set;
 mod people_take;
 mod people_vat;

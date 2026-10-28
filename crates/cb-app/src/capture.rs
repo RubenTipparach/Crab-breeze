@@ -1273,6 +1273,14 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // A dune suburb from 900 m, where the ground is drawn at step 2: its streets lie on that ground
+    // (lot-access task 2.3; seed 42's street that floated highest, 2.7 m, measured 2026-10-28).
+    View {
+        name: "suburb-far",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     view("overview", [6000.0, 22000.0, 26000.0], [0.0, 0.0, 0.0]),
     view("range", [-8811.0, 1900.0, 4558.0], [189.0, 1466.0, -442.0]),
     view("desert", [3300.0, 862.0, 7300.0], [4200.0, 476.0, 6650.0]),
@@ -1725,6 +1733,13 @@ fn run_weather_script(
             "city-up" => city_up_view(&plan),
             "city-street" => city_view(&plan, false),
             "city-air" => city_view(&plan, true),
+            "suburb-far" => {
+                let at = Vec2::new(-6939.0, -3000.0);
+                let eye = at + Vec2::new(600.0, 600.0);
+                let ground = plan.terrain.height_at(at.x, at.y);
+                let top = ground.max(plan.terrain.height_at(eye.x, eye.y));
+                ([eye.x, top + 300.0, eye.y], [at.x, ground, at.y])
+            }
             "sea-sun" => sea_view(true, 40.0),
             "sea-away" => sea_view(false, 40.0),
             "sea-sun-high" => sea_view(true, 1500.0),

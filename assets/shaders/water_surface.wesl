@@ -106,15 +106,21 @@ fn ripples(xz: vec2<f32>, t: f32, detail: f32) -> vec3<f32> {
     return vec3<f32>(h, hx - h, hz - h) * vec3<f32>(detail, 12.5 * detail, 12.5 * detail);
 }
 
-// The swell's slope at `xz`: deep-water waves (omega squared = g k), each faded out once a pixel
-// spans a quarter of its wavelength so the far sea does not sparkle.
+// How much of a swell wave is drawn, by the share of its wavelength one pixel spans.
+fn swell_fade(pixel_share: f32) -> f32 {
+    return 1.0 - smoothstep(1.0 / 12.0, 1.0 / 6.0, pixel_share);
+}
+
+// The swell's slope at `xz`: deep-water waves (omega squared = g k), each faded out between 12 and 6
+// pixels a wave: drawn finer, its regular crests read as rows ruled across the sea from high up
+// (owner, 2026-10-28: "we're gonn need to fix these patterns on water from high up").
 fn swell_slope(xz: vec2<f32>, seconds: f32, metres_per_pixel: f32) -> vec2<f32> {
     var g = vec2<f32>(0.0);
     for (var i = 0u; i < 3u; i++) {
         let w = water.swell[i];
         let k = max(w.z, 1e-4);
         let wavelength = 6.2831853 / k;
-        let fade = 1.0 - smoothstep(0.25, 0.5, metres_per_pixel / wavelength);
+        let fade = swell_fade(metres_per_pixel / wavelength);
         let phase = dot(w.xy, xz) * k - sqrt(9.81 * k) * seconds;
         g += w.xy * (k * w.w * cos(phase) * fade);
     }
@@ -129,7 +135,7 @@ fn swell_height(xz: vec2<f32>, seconds: f32, metres_per_pixel: f32) -> f32 {
     for (var i = 0u; i < 3u; i++) {
         let w = water.swell[i];
         let k = max(w.z, 1e-4);
-        let fade = 1.0 - smoothstep(0.25, 0.5, metres_per_pixel * k / 6.2831853);
+        let fade = swell_fade(metres_per_pixel * k / 6.2831853);
         let phase = dot(w.xy, xz) * k - sqrt(9.81 * k) * seconds;
         h += w.w * sin(phase) * fade;
         total += w.w;
@@ -390,9 +396,17 @@ fn fragment(in: WaterFragment, @builtin(front_facing) front: bool) -> @location(
     let lace = smoothstep(water.light.w, water.light.w + 0.8, breaking);
     let streak = fbm3(vec3<f32>(dot(drifted, wind) * 0.12, 0.0, dot(drifted, across) * 0.9), t * 0.5);
     let near_cap = lace * smoothstep(-0.2, 0.15, streak) * 0.75;
-    // Far off, where the wavelets are below a pixel, the gusts' foam is seen as a faint sheen.
-    let far_cap = 0.18 * smoothstep(0.0, 1.5, into_gust);
-    let whitecap = mix(far_cap, near_cap, clamp(detail, 0.0, 1.0));
+    // The lace only where a wavelet spans a few pixels: below that it aliases into specks, and the
+    // swell's lift lined them up along its crests in rows across the sea seen from high up (owner,
+    // 2026-10-28: "we're gonna need to fix these patterns on water from high up"). There, a pixel
+    // more than a fifth of a wavelet across, the gusts' foam is a faint sheen only.
+    let resolved = 1.0 - smoothstep(0.1, 0.2, metres_per_pixel * water.ripple.x);
+    // The sheen fades too once a gust patch spans fewer than about 40 pixels: from high up the patches shrank to
+    // white flecks over the whole sea.
+    let patch_m = max(water.whitecap.y, 0.1);
+    let gust_seen = 1.0 - smoothstep(patch_m / 40.0, patch_m / 15.0, metres_per_pixel);
+    let far_cap = 0.12 * gust_seen * smoothstep(0.0, 1.5, into_gust);
+    let whitecap = mix(far_cap, near_cap, resolved * clamp(detail, 0.0, 1.0));
     let foam = clamp(max(max(max(crest, steep) * water.foam_color.w, shore), whitecap), 0.0, 1.0);
     var color = mix(mix(transmitted, sky, fresnel), water.foam_color.rgb * water.light.rgb, foam);
     // The sun's glint (water-look design section 4; owner, 2026-10-26: "It looks kinda dull"): GGX

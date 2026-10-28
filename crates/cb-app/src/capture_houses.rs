@@ -83,7 +83,13 @@ fn run(
 ) {
     let now = time.elapsed_secs();
     let t = now - script.beat_started_s;
-    let Some((ranch_id, ranch)) = find(&plan, Zone::Suburb, "ranch").or_else(|| find(&plan, Zone::Suburb, "")) else {
+    // `CB_STILLS_HOUSE_KIT=<id>` shoots another kit's house (a trailer: its steps and door), wherever its first lot is.
+    let id = std::env::var("CB_STILLS_HOUSE_KIT").unwrap_or_else(|_| "ranch".into());
+    let Some((ranch_id, ranch)) = [Zone::Suburb, Zone::Town, Zone::Roadside]
+        .into_iter()
+        .find_map(|z| find(&plan, z, &id))
+        .or_else(|| find(&plan, Zone::Suburb, ""))
+    else {
         println!("STILLS houses: no suburb lots");
         exit.write(AppExit::error());
         return;
