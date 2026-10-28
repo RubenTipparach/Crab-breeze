@@ -18,7 +18,6 @@ use crate::world::Ground;
 use crate::world::lanes::{Lane, LaneGraph, LaneKind, LaneLayout, right_of};
 use glam::{Vec2, Vec3};
 use serde::Deserialize;
-use std::collections::BTreeMap;
 
 /// How far each kind of a car's parts is drawn, metres, each dithering out over the last `fade_share` of its range
 /// (city-frame): the cab's insides, then the lamps and bumpers, then the wheels; the body and cabin to the traffic's
@@ -95,8 +94,11 @@ pub struct TrafficConfig {
     pub hidden_beyond_m: f32,
     /// How far a car's small parts are drawn (city-frame).
     pub detail: CarDetail,
-    /// At most this many cars appear in one step.
+    /// At most this many cars appear in one step, on average (`Traffic::refill`).
     pub spawn_per_step: u32,
+    /// The lanes are refilled every this many fixed steps, with `spawn_per_step` cars a step since the last
+    /// (`Traffic::refill`): looking for the lanes short of cars costs about as much as stepping the far cars did.
+    pub refill_every_steps: u32,
     /// Each city car's own cruising speed is drawn from this range, km/h.
     pub city_speed_km_h: [f32; 2],
     /// Each highway car's, km/h.
@@ -149,6 +151,51 @@ pub struct TrafficConfig {
     pub runner_life_s: f32,
     /// The traffic lights' phases where an arterial meets other roads (survey W39).
     pub lights: LightTimes,
+    /// How often a car is stepped, by its distance from the eye.
+    pub step_lod: StepLod,
+}
+
+/// How often a car on its lane is stepped, by its distance from the eye (the desktop's city run, 2026-10-28: traffic
+/// took about 4 ms a fixed step for 1 100 cars, and a slow frame that runs two steps runs it twice). A car near the eye
+/// is stepped every fixed step; farther out every `mid_every`th step, and beyond `mid_m` every `far_every`th, with the
+/// time it was owed, so it covers the same road at the same speed. Each car keeps its own count, started from its id,
+/// so the far cars' steps are spread evenly over the fixed steps. A car stepped late sees the others where they are
+/// now, which is never nearer than they really are, and never moves past the car or the stop line ahead of it.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct StepLod {
+    /// Within this of the eye a car is stepped every fixed step, metres.
+    pub near_m: f32,
+    /// Within this, every `mid_every`th step, metres.
+    pub mid_m: f32,
+    /// Between `near_m` and `mid_m` a car is stepped every this many fixed steps.
+    pub mid_every: u8,
+    /// Beyond `mid_m`, every this many fixed steps.
+    pub far_every: u8,
+}
+
+impl Default for StepLod {
+    fn default() -> Self {
+        Self {
+            near_m: 300.0,
+            mid_m: 600.0,
+            mid_every: 2,
+            far_every: 4,
+        }
+    }
+}
+
+impl StepLod {
+    /// Every how many fixed steps a car this far from the eye is stepped.
+    pub fn every(&self, distance_m: f32) -> u8 {
+        if distance_m <= self.near_m {
+            1
+        } else if distance_m <= self.mid_m {
+            self.mid_every
+        } else {
+            self.far_every
+        }
+    }
 }
 
 /// How long each phase of a junction's traffic lights shows each colour (survey W39, owner 2026-10-26: "Lights on the
@@ -225,6 +272,7 @@ impl Default for TrafficConfig {
             hidden_beyond_m: 400.0,
             detail: CarDetail::default(),
             spawn_per_step: 4,
+            refill_every_steps: 1,
             city_speed_km_h: [40.0, 60.0],
             highway_speed_km_h: [90.0, 110.0],
             turn_speed_km_h: 20.0,
@@ -251,6 +299,7 @@ impl Default for TrafficConfig {
             runner_speed_m_s: 5.0,
             runner_life_s: 40.0,
             lights: LightTimes::default(),
+            step_lod: StepLod::default(),
         }
     }
 }
@@ -272,6 +321,7 @@ impl Validate for TrafficConfig {
         }
         positive("hidden_beyond_m", self.hidden_beyond_m)?;
         self.detail.validate().map_err(|e| format!("detail: {e}"))?;
+        within("refill_every_steps", self.refill_every_steps as f32, 1.0, 60.0)?;
         positive_range("city_speed_km_h", self.city_speed_km_h)?;
         positive_range("highway_speed_km_h", self.highway_speed_km_h)?;
         positive("turn_speed_km_h", self.turn_speed_km_h)?;
@@ -299,7 +349,15 @@ impl Validate for TrafficConfig {
         positive("runner_life_s", self.runner_life_s)?;
         positive("lights.green_s", self.lights.green_s)?;
         positive("lights.amber_s", self.lights.amber_s)?;
-        positive("lights.all_red_s", self.lights.all_red_s)
+        positive("lights.all_red_s", self.lights.all_red_s)?;
+        let lod = &self.step_lod;
+        positive("step_lod.near_m", lod.near_m)?;
+        if lod.mid_m < lod.near_m {
+            return Err("`step_lod.mid_m` must not be inside `step_lod.near_m`".into());
+        }
+        // a car stepped more than 8 steps late (about 0.13 s at 60 Hz) could overrun its gap
+        within("step_lod.mid_every", f32::from(lod.mid_every), 1.0, 8.0)?;
+        within("step_lod.far_every", f32::from(lod.far_every), f32::from(lod.mid_every), 8.0)
     }
 }
 
@@ -414,9 +472,27 @@ pub struct Car {
     pub health: f32,
     /// Seconds since it became a wreck.
     pub wreck_s: f32,
+    /// It is stepped every this many fixed steps (`StepLod`, from its distance to the eye when it was last stepped).
+    pub every: u8,
+    /// Fixed steps since it was last stepped.
+    pub since: u8,
+    /// Time since it was last stepped, owed to its next step, seconds.
+    pub owed_s: f32,
+    /// Its ground point and heading before it was last stepped, for drawing between its steps (`Car::drawn`).
+    pub was: (Vec3, f32),
 }
 
 impl Car {
+    /// Its ground point and heading as drawn `alpha` (0..1) of a fixed step past the last one: eased from where it
+    /// was before its last step to where it is, over the steps until its next (`StepLod`), so a far car stepped every
+    /// fourth step glides rather than jumps. The cars' models and the chase camera both place by it.
+    pub fn drawn(&self, alpha: f32) -> (Vec3, f32) {
+        let t = ((f32::from(self.since) + alpha) / f32::from(self.every.max(1))).clamp(0.0, 1.0);
+        let (p0, h0) = self.was;
+        let turned = (self.heading_rad - h0 + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+        (p0.lerp(self.pos, t), h0 + turned * t)
+    }
+
     /// Its velocity on the ground (x, z), m/s.
     pub fn vel(&self) -> Vec2 {
         match &self.body {
@@ -525,11 +601,60 @@ pub struct Traffic {
     /// the stretch of the lane (from, to, metres along it) that is in reach, and where that eye was.
     near: Vec<(u32, u32, u32, f32, f32)>,
     near_from: Option<Vec2>,
-    /// Each lane's bounds (least, greatest corner), built on first use.
-    bounds: Vec<(Vec2, Vec2)>,
+    /// Each lane's bounds (least, greatest corner) and its fixed share of a driving and of a parked car (0..1, so the
+    /// expected count is exact and does not flicker), built on first use.
+    bounds: Vec<(Vec2, Vec2, f32, f32)>,
     /// The ground's height at each point of a lane, read the first time a car is placed on it: the ground
     /// is procedural and costly to read, and a lane's road surface does not move.
     heights: Vec<Option<Vec<f32>>>,
+    /// What the last step and refill cost, by part (an instrument, read by `cb-tools traffic-bench`).
+    pub cost: StepCost,
+    /// Where blasts went off since the last step (x, z): they wake the loose bodies near them.
+    shaken: Vec<Vec2>,
+    /// Calls to `refill` since it last filled.
+    refills: u32,
+}
+
+/// What the last `Traffic::step` and `Traffic::fill` cost, by part, microseconds of wall clock, and how much work
+/// the refill did. An instrument only: nothing in the simulation reads it, so it cannot change an outcome.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct StepCost {
+    /// Fear and shoving by moving mechs.
+    pub mechs_us: f64,
+    /// Free bodies (the player's car, loose cars).
+    pub free_us: f64,
+    /// Each lane's cars, sorted.
+    pub lane_map_us: f64,
+    /// Right of way at the junctions.
+    pub grant_us: f64,
+    /// The car following (leaders and the driver model).
+    pub follow_us: f64,
+    /// Moving the cars along their lanes and across junctions.
+    pub advance_us: f64,
+    /// Placing every lane car on its road surface.
+    pub place_us: f64,
+    /// Fires, runners, dropping far cars.
+    pub rest_us: f64,
+    /// The refill.
+    pub fill_us: f64,
+    /// Places the refill tried this step.
+    pub fill_tries: u32,
+    /// Of them, the ones it asked `covered` about.
+    pub fill_covered: u32,
+}
+
+/// A stopwatch for `StepCost`: each `lap` adds the time since the last into a field.
+struct Laps(std::time::Instant);
+
+impl Laps {
+    fn start() -> Self {
+        Self(std::time::Instant::now())
+    }
+    fn lap(&mut self, into: &mut f64) {
+        let now = std::time::Instant::now();
+        *into = (now - self.0).as_secs_f64() * 1e6;
+        self.0 = now;
+    }
 }
 
 /// The player's input this step, as the drive a traffic car's body takes.
@@ -538,6 +663,50 @@ const PARKED: Drive = Drive {
     steer: 0.0,
     handbrake: true,
 };
+
+/// A loose body slower than this, and bouncing on its springs slower than this, is at rest, m/s.
+const REST_M_S: f32 = 0.02;
+
+/// Each lane's cars on it, nearest the lane's start first (ties to the lower id): the cars' indices sorted by lane, then
+/// along it, with each lane's run found by binary search. Built once a step, in place of a map of lists.
+struct OnLanes {
+    /// The lane of each entry of `cars`.
+    lanes: Vec<u32>,
+    /// Car indices.
+    cars: Vec<usize>,
+}
+
+impl OnLanes {
+    fn build(cars: &[Car]) -> Self {
+        let mut v: Vec<(u32, f32, u32, usize)> = cars
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.on_lane())
+            .map(|(i, c)| (c.lane, c.s_m, c.id, i))
+            .collect();
+        v.sort_unstable_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)).then(a.2.cmp(&b.2)));
+        Self {
+            lanes: v.iter().map(|e| e.0).collect(),
+            cars: v.iter().map(|e| e.3).collect(),
+        }
+    }
+
+    /// Lane `lane`'s cars, nearest its start first, or `None` for none.
+    fn get(&self, lane: u32) -> Option<&[usize]> {
+        let lo = self.lanes.partition_point(|&l| l < lane);
+        let hi = lo + self.lanes[lo..].partition_point(|&l| l == lane);
+        (hi > lo).then(|| &self.cars[lo..hi])
+    }
+
+    /// Every lane with cars on it, in lane order, and its cars.
+    fn iter(&self) -> impl Iterator<Item = (u32, &[usize])> {
+        self.lanes.chunk_by(|a, b| a == b).scan(0, |at, run| {
+            let from = *at;
+            *at += run.len();
+            Some((run[0], &self.cars[from..*at]))
+        })
+    }
+}
 
 /// A car is as long as its kind.
 fn length_of(data: &TrafficData, car: &Car) -> f32 {
@@ -560,6 +729,9 @@ impl Traffic {
             near_from: None,
             bounds: Vec::new(),
             heights: Vec::new(),
+            cost: StepCost::default(),
+            shaken: Vec::new(),
+            refills: 0,
         }
     }
 
@@ -676,6 +848,7 @@ impl Traffic {
             return 0;
         }
         let cfg = &data.cfg;
+        self.shaken.push(Vec2::new(at.x, at.z));
         let burn = cfg.blast_burn_m_per_cbrt_mj * energy_mj.cbrt();
         let mut n = 0;
         for i in 0..self.cars.len() {
@@ -785,9 +958,13 @@ impl Traffic {
         }
         self.time_s += dt_s;
         let cfg = &view.data.cfg;
+        let mut laps = Laps::start();
         self.react_to_mechs(view);
+        laps.lap(&mut self.cost.mechs_us);
         self.step_free(view, dt_s);
-        self.step_lanes(view, dt_s);
+        laps.lap(&mut self.cost.free_us);
+        self.step_lanes(view, Vec2::new(eye.x, eye.z), dt_s);
+        laps = Laps::start();
         // fires burn down; wrecks age
         for c in &mut self.cars {
             if let CarState::Burning { left_s } = &mut c.state {
@@ -816,6 +993,7 @@ impl Traffic {
                 || (Vec2::new(c.pos.x, c.pos.z).distance(eye2) <= cfg.despawn_beyond_m
                     && !(c.state.wreck() && c.wreck_s > cfg.wreck_life_s))
         });
+        laps.lap(&mut self.cost.rest_us);
     }
 
     fn react_to_mechs<G: Ground>(&mut self, view: &TrafficView<G>) {
@@ -858,14 +1036,45 @@ impl Traffic {
         }
     }
 
-    /// The player's car and every loose car or loose wreck: a body on the ground.
+    /// The player's car and every loose car or loose wreck: a body on the ground. A body at rest with nothing moving
+    /// near it (no mech or person in the view's obstacles, no other body moving, no blast since the last step) sleeps:
+    /// it is not stepped, which costs nothing, and it would not have moved. Wrecks shoved off a street pile up in a
+    /// fight and stay for ten minutes; each awake one reads the ground at its wheels and walls at its hull every step.
     fn step_free<G: Ground>(&mut self, view: &TrafficView<G>, dt_s: f32) {
         let cfg = &view.data.cfg;
+        let shaken = std::mem::take(&mut self.shaken);
         let ids: Vec<usize> = (0..self.cars.len()).filter(|&i| self.cars[i].body.is_some()).collect();
+        if ids.is_empty() {
+            return;
+        }
+        let at_rest = |c: &Car| {
+            c.state != CarState::Driven
+                && c.body
+                    .as_ref()
+                    .is_some_and(|b| b.vel.length_squared() < REST_M_S * REST_M_S && b.corners.iter().all(|k| k.vel_y_m_s.abs() < REST_M_S))
+        };
+        let moving: Vec<Vec2> = ids
+            .iter()
+            .filter(|&&i| !at_rest(&self.cars[i]))
+            .map(|&i| Vec2::new(self.cars[i].pos.x, self.cars[i].pos.z))
+            .collect();
         for i in ids {
             let me = &self.cars[i];
             let spec = &view.data.kinds[me.kind as usize];
             let p = Vec2::new(me.pos.x, me.pos.z);
+            let asleep = at_rest(me)
+                && !view.obstacles.iter().any(|o| o.at.distance(p) < 20.0)
+                && !moving.iter().any(|q| q.distance(p) < 15.0)
+                && !shaken.iter().any(|q| q.distance(p) < cfg.fear_blast_m);
+            if asleep {
+                let c = &mut self.cars[i];
+                if let Some(b) = &c.body {
+                    (c.pos, c.heading_rad) = (b.pos, b.heading_rad);
+                }
+                c.was = (c.pos, c.heading_rad);
+                (c.every, c.since, c.owed_s) = (1, 0, 0.0);
+                continue;
+            }
             // the other cars close by are in the way, and so is everything the view says is
             let mut obstacles: Vec<Obstacle> = view.obstacles.iter().copied().filter(|o| o.at.distance(p) < 20.0).collect();
             for (j, o) in self.cars.iter().enumerate() {
@@ -896,6 +1105,11 @@ impl Traffic {
             } else {
                 PARKED
             };
+            {
+                let c = &mut self.cars[i];
+                c.was = (c.pos, c.heading_rad);
+                (c.every, c.since, c.owed_s) = (1, 0, 0.0);
+            }
             let Some(body) = self.cars[i].body.as_mut() else { continue };
             let step = body.step(spec, input, view.ground, &obstacles, dt_s);
             let (pos, heading, health) = (body.pos, body.heading_rad, body.health);
@@ -945,25 +1159,38 @@ impl Traffic {
     /// Following and junctions for every car on its lane. Accelerations are worked out from where
     /// every car was at the start of the step, then every car moves, so the order cars are visited in
     /// never changes the outcome.
-    fn step_lanes<G: Ground>(&mut self, view: &TrafficView<G>, dt_s: f32) {
+    ///
+    /// Right of way is settled for every car every step; the following, the moving and the placing only for the
+    /// cars due a step (`StepLod`, from the eye at `eye`), each with the time it is owed. A car is never moved past
+    /// the gap it measured ahead of it, so one stepped with a larger time cannot run into the car or the line ahead.
+    fn step_lanes<G: Ground>(&mut self, view: &TrafficView<G>, eye: Vec2, dt_s: f32) {
         let cfg = &view.data.cfg;
         let g = view.graph;
+        let mut laps = Laps::start();
         // each lane's cars, nearest its start first
-        let mut on: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
-        for (i, c) in self.cars.iter().enumerate() {
-            if c.on_lane() {
-                on.entry(c.lane).or_default().push(i);
-            }
-        }
-        for list in on.values_mut() {
-            list.sort_by(|&a, &b| {
-                self.cars[a]
-                    .s_m
-                    .total_cmp(&self.cars[b].s_m)
-                    .then(self.cars[a].id.cmp(&self.cars[b].id))
-            });
-        }
+        let on = OnLanes::build(&self.cars);
+        laps.lap(&mut self.cost.lane_map_us);
         self.grant_turns(g, &on, view.data);
+        laps.lap(&mut self.cost.grant_us);
+
+        // which cars are due a step, and the time each is owed (0: not due)
+        let lod = cfg.step_lod;
+        let mut due = vec![0.0f32; self.cars.len()];
+        for (i, c) in self.cars.iter_mut().enumerate() {
+            if c.body.is_some() {
+                continue;
+            }
+            c.owed_s += dt_s;
+            if u16::from(c.since) + 1 < u16::from(c.every) {
+                c.since += 1;
+                continue;
+            }
+            due[i] = c.owed_s;
+            c.owed_s = 0.0;
+            c.since = 0;
+            c.every = lod.every(Vec2::new(c.pos.x, c.pos.z).distance(eye));
+            c.was = (c.pos, c.heading_rad);
+        }
 
         // free cars and mechs' legs are things in the road too
         let mut things: Vec<(Vec2, f32)> = view.obstacles.iter().map(|o| (o.at, o.radius_m)).collect();
@@ -974,17 +1201,18 @@ impl Traffic {
             things.push((m.at, m.radius_m));
         }
 
-        let mut accel = vec![0.0f32; self.cars.len()];
+        // (acceleration, the most it may move: the gap ahead) for each car due
+        let mut accel = vec![(0.0f32, f32::INFINITY); self.cars.len()];
         for (i, c) in self.cars.iter().enumerate() {
-            if !c.on_lane() {
+            if !c.on_lane() || due[i] == 0.0 {
                 continue;
             }
             if c.state != CarState::Driving {
-                accel[i] = -cfg.max_brake_m_s2;
+                accel[i].0 = -cfg.max_brake_m_s2;
                 continue;
             }
             if c.fear_s > 0.0 || c.hailed {
-                accel[i] = -cfg.fear_brake_m_s2;
+                accel[i].0 = -cfg.fear_brake_m_s2;
                 continue;
             }
             let lane = &g.lanes[c.lane as usize];
@@ -1003,16 +1231,21 @@ impl Traffic {
                 _ => (gap, lead_v),
             };
             let v0 = self.limit(c, lane, g, cfg);
-            accel[i] = idm(c.speed_m_s, v0, gap, lead_v, cfg);
+            accel[i] = (idm(c.speed_m_s, v0, gap, lead_v, cfg), gap.max(0.0));
         }
+        laps.lap(&mut self.cost.follow_us);
         // move
-        for (i, a) in accel.iter().enumerate() {
-            if !self.cars[i].on_lane() {
+        let mut moved = vec![false; self.cars.len()];
+        for (i, &(a, room)) in accel.iter().enumerate() {
+            let dt = due[i];
+            if !self.cars[i].on_lane() || dt == 0.0 {
                 continue;
             }
             let c = &mut self.cars[i];
-            c.speed_m_s = (c.speed_m_s + a * dt_s).max(0.0);
-            c.s_m += c.speed_m_s * dt_s;
+            c.speed_m_s = (c.speed_m_s + a * dt).max(0.0);
+            let ds = (c.speed_m_s * dt).min(room);
+            c.s_m += ds;
+            moved[i] = ds > 0.0;
             // never into a junction without its turn: a car that could not stop in time stops at the line
             let end = g.lanes[c.lane as usize].length_m();
             let waits = c.next.is_some_and(|n| g.lanes[n as usize].kind == LaneKind::Connector) && !c.granted;
@@ -1041,33 +1274,29 @@ impl Traffic {
                 };
             }
         }
-        // place every lane car, on its lane's road surface
+        laps.lap(&mut self.cost.advance_us);
+        // place every lane car that moved, on its lane's road surface
         if self.heights.len() != g.lanes.len() {
             self.heights = vec![None; g.lanes.len()];
         }
-        for c in &mut self.cars {
-            if c.body.is_some() {
+        for (i, c) in self.cars.iter_mut().enumerate() {
+            if !moved[i] {
                 continue;
             }
             let lane = &g.lanes[c.lane as usize];
             let (p, d) = lane.line.at(c.s_m);
-            let side = if c.state == CarState::Parked {
-                lane.parking_m.unwrap_or(0.0)
-            } else {
-                0.0
-            };
-            let p = p + right_of(d) * side;
             let hs = self.heights[c.lane as usize]
                 .get_or_insert_with(|| lane.line.points.iter().map(|q| view.ground.height_at(q.x, q.y)).collect());
-            let (i, u) = lane.line.locate(c.s_m);
-            let y = hs[i] + (hs[(i + 1).min(hs.len() - 1)] - hs[i]) * u;
+            let (k, u) = lane.line.locate(c.s_m);
+            let y = hs[k] + (hs[(k + 1).min(hs.len() - 1)] - hs[k]) * u;
             c.pos = Vec3::new(p.x, y, p.y);
             c.heading_rad = (-d.x).atan2(-d.y);
         }
+        laps.lap(&mut self.cost.place_us);
     }
 
     /// The gap to whatever is ahead of car `i` within `lookahead_m`, metres, and its speed.
-    fn leader(&self, i: usize, g: &LaneGraph, on: &BTreeMap<u32, Vec<usize>>, data: &TrafficData, things: &[(Vec2, f32)]) -> (f32, f32) {
+    fn leader(&self, i: usize, g: &LaneGraph, on: &OnLanes, data: &TrafficData, things: &[(Vec2, f32)]) -> (f32, f32) {
         let cfg = &data.cfg;
         let c = &self.cars[i];
         let half = length_of(data, c) * 0.5;
@@ -1077,7 +1306,7 @@ impl Traffic {
         let mut offset = -c.s_m;
         let mut next = c.next;
         for hop in 0..3 {
-            if let Some(list) = on.get(&lane) {
+            if let Some(list) = on.get(lane) {
                 for &j in list {
                     if j == i {
                         continue;
@@ -1154,19 +1383,19 @@ impl Traffic {
     /// its place in that order: the space it needs is kept for it, so the cars of the other phase cannot
     /// take every gap that opens on a slow lane both feed while its light is red, and its turn comes on
     /// its next green. Without that a street car turning onto a crawling arterial stood for minutes.
-    fn grant_turns(&mut self, g: &LaneGraph, on: &BTreeMap<u32, Vec<usize>>, data: &TrafficData) {
+    fn grant_turns(&mut self, g: &LaneGraph, on: &OnLanes, data: &TrafficData) {
         let cfg = &data.cfg;
         let now = self.time_s;
-        // connectors with a car on them (wrecks too), by junction
-        let mut busy: BTreeMap<u32, Vec<u32>> = BTreeMap::new();
-        for (&lane, list) in on {
+        // connectors with a car on them (wrecks too): (junction, connector)
+        let mut busy: Vec<(u32, u32)> = Vec::new();
+        for (lane, list) in on.iter() {
             let l = &g.lanes[lane as usize];
             if l.kind == LaneKind::Connector && !list.is_empty() {
-                busy.entry(l.from_node).or_default().push(lane);
+                busy.push((l.from_node, lane));
             }
         }
-        // (arrived, id, car, connector, may go now: false while its light holds it)
-        let mut waiting: BTreeMap<u32, Vec<(f32, u32, usize, u32, bool)>> = BTreeMap::new();
+        // (junction, arrived, id, car, connector, may go now: false while its light holds it)
+        let mut waiting: Vec<(u32, f32, u32, usize, u32, bool)> = Vec::new();
         for (i, c) in self.cars.iter_mut().enumerate() {
             if !c.on_lane() {
                 continue;
@@ -1179,7 +1408,7 @@ impl Traffic {
             }
             // a car given its turn holds its path until it is through
             if c.granted {
-                busy.entry(lane.to_node).or_default().push(n);
+                busy.push((lane.to_node, n));
                 continue;
             }
             if c.state != CarState::Driving || lane.length_m() - c.s_m > cfg.approach_m {
@@ -1187,7 +1416,7 @@ impl Traffic {
             }
             // only the front car of a lane asks: one behind it given a turn would hold a path the car in front
             // needs, and neither could move
-            if on.get(&c.lane).and_then(|l| l.last()) != Some(&i) {
+            if on.get(c.lane).and_then(|l| l.last()) != Some(&i) {
                 continue;
             }
             let t = *c.arrived_s.get_or_insert(now);
@@ -1203,27 +1432,36 @@ impl Traffic {
                     }
                 }
             };
-            waiting.entry(lane.to_node).or_default().push((t, c.id, i, n, go));
+            waiting.push((lane.to_node, t, c.id, i, n, go));
         }
-        for (node, mut list) in waiting {
-            list.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-            let taken: Vec<u32> = busy.get(&node).cloned().unwrap_or_default();
-            let mut held: Vec<u32> = Vec::new();
-            // the room on each lane past this junction already promised to an earlier car, metres
-            let mut promised: BTreeMap<u32, f32> = BTreeMap::new();
-            for (_, _, i, conn, go) in list {
+        busy.sort_unstable();
+        // by junction, then earliest arrival first, ties to the lower id
+        waiting.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)).then(a.2.cmp(&b.2)));
+        let mut held: Vec<u32> = Vec::new();
+        // the room on each lane past a junction already promised to an earlier car: (lane, metres)
+        let mut promised: Vec<(u32, f32)> = Vec::new();
+        for list in waiting.chunk_by(|a, b| a.0 == b.0) {
+            let node = list[0].0;
+            let from = busy.partition_point(|b| b.0 < node);
+            let taken: Vec<u32> = busy[from..].iter().take_while(|b| b.0 == node).map(|b| b.1).collect();
+            held.clear();
+            promised.clear();
+            for &(_, _, _, i, conn, go) in list {
                 let meets = |set: &[u32]| set.iter().any(|&o| o == conn || g.lanes[conn as usize].conflicts.contains(&o));
                 let out = g.lanes[conn as usize].out.first().copied();
                 // room on the far side for this car and its gap, after the earlier cars' share
                 let need = data.kinds[self.cars[i].kind as usize].size_m[2] + cfg.min_gap_m;
                 let room = out.is_none_or(|o| {
-                    let free = on.get(&o).and_then(|l| l.first()).map_or(f32::INFINITY, |&j| {
+                    let free = on.get(o).and_then(|l| l.first()).map_or(f32::INFINITY, |&j| {
                         let theirs = data.kinds[self.cars[j].kind as usize].size_m[2];
                         self.cars[j].s_m - theirs * 0.5
                     });
-                    let p = promised.entry(o).or_insert(0.0);
-                    let fits = free - *p > need;
-                    *p += need;
+                    let k = promised.iter().position(|e| e.0 == o).unwrap_or_else(|| {
+                        promised.push((o, 0.0));
+                        promised.len() - 1
+                    });
+                    let fits = free - promised[k].1 > need;
+                    promised[k].1 += need;
                     fits
                 });
                 if go {
@@ -1255,6 +1493,8 @@ impl Traffic {
         budget: u32,
     ) -> u32 {
         let cfg = &data.cfg;
+        let mut laps = Laps::start();
+        let (mut tries_made, mut asked_cover) = (0u32, 0u32);
         let eye2 = Vec2::new(eye.x, eye.z);
         let range = cfg.spawn_within_m;
         if self.bounds.len() != g.lanes.len() {
@@ -1264,7 +1504,8 @@ impl Traffic {
                 .map(|l| {
                     let lo = l.line.points.iter().copied().fold(Vec2::splat(f32::INFINITY), Vec2::min);
                     let hi = l.line.points.iter().copied().fold(Vec2::splat(f32::NEG_INFINITY), Vec2::max);
-                    (lo, hi)
+                    let frac = |salt: &str| (label_hash(&format!("{salt}{}", l.id)) >> 40) as f32 / (1u64 << 24) as f32;
+                    (lo, hi, frac("drive"), frac("park"))
                 })
                 .collect();
         }
@@ -1274,7 +1515,7 @@ impl Traffic {
             self.near = g
                 .road_lanes()
                 .filter(|l| {
-                    let (lo, hi) = self.bounds[l.id as usize];
+                    let (lo, hi, ..) = self.bounds[l.id as usize];
                     let d = (lo - eye2).max(eye2 - hi).max(Vec2::ZERO).length();
                     d < range
                 })
@@ -1289,11 +1530,10 @@ impl Traffic {
                     } else {
                         cfg.highway_spacing_m
                     };
-                    // a fixed share per lane, so the expected count is exact and does not flicker
-                    let frac = |salt: &str| (label_hash(&format!("{salt}{li}")) >> 40) as f32 / (1u64 << 24) as f32;
-                    let want = (in_range / spacing + frac("drive")).floor() as u32;
+                    let (.., drive, park) = self.bounds[li as usize];
+                    let want = (in_range / spacing + drive).floor() as u32;
                     let want_parked = match lane.parking_m {
-                        Some(_) => (in_range / cfg.parked_spacing_m + frac("park")).floor() as u32,
+                        Some(_) => (in_range / cfg.parked_spacing_m + park).floor() as u32,
                         None => 0,
                     };
                     Some((li, want, want_parked, from, to))
@@ -1301,25 +1541,17 @@ impl Traffic {
                 .collect();
             self.near_from = Some(eye2);
         }
-        // each lane's cars: (along, length, speed, parked)
-        let mut on: BTreeMap<u32, Vec<(f32, f32, f32, bool)>> = BTreeMap::new();
-        let mut count: BTreeMap<u32, (u32, u32)> = BTreeMap::new();
-        for c in &self.cars {
-            if c.body.is_some() {
-                continue;
-            }
-            let parked = c.state == CarState::Parked;
-            on.entry(c.lane).or_default().push((c.s_m, length_of(data, c), c.speed_m_s, parked));
-            if Vec2::new(c.pos.x, c.pos.z).distance(eye2) > range {
-                continue;
-            }
-            let e = count.entry(c.lane).or_default();
-            if parked {
-                e.1 += 1;
-            } else {
-                e.0 += 1;
-            }
-        }
+        // every lane car: (lane, along, length, speed, parked, within reach), by lane
+        let mut on: Vec<(u32, f32, f32, f32, bool, bool)> = self
+            .cars
+            .iter()
+            .filter(|c| c.body.is_none())
+            .map(|c| {
+                let reach = Vec2::new(c.pos.x, c.pos.z).distance(eye2) <= range;
+                (c.lane, c.s_m, length_of(data, c), c.speed_m_s, c.state == CarState::Parked, reach)
+            })
+            .collect();
+        on.sort_unstable_by_key(|e| e.0);
         let mut made = 0;
         let near = std::mem::take(&mut self.near);
         for &(li, want, want_parked, from, to) in &near {
@@ -1328,12 +1560,21 @@ impl Traffic {
             }
             let lane = &g.lanes[li as usize];
             let city = lane.kind.in_city();
-            let (have, have_parked) = count.get(&li).copied().unwrap_or_default();
+            let first = on.partition_point(|e| e.0 < li);
+            let mine = &on[first..first + on[first..].partition_point(|e| e.0 == li)];
+            let have = mine.iter().filter(|e| e.5 && !e.4).count() as u32;
+            let have_parked = mine.iter().filter(|e| e.5 && e.4).count() as u32;
+            if have >= want && have_parked >= want_parked {
+                continue;
+            }
+            // the cars placed on this lane in this call: (along, length, speed, parked)
+            let mut added: Vec<(f32, f32, f32, bool)> = Vec::new();
             for parked in [false, true] {
                 let (want, mut have) = if parked { (want_parked, have_parked) } else { (want, have) };
                 let mut tries = want.saturating_sub(have) * 3;
                 while have < want && made < budget && tries > 0 {
                     tries -= 1;
+                    tries_made += 1;
                     // on the stretch in reach (a highway runs on far past the ring, and a place drawn along all
                     // of it would mostly miss: the lane filled to half its density inside 1 km), and clear of
                     // the lane's first 30 m, where a car leaving the junction behind would meet it
@@ -1360,12 +1601,12 @@ impl Traffic {
                     } else {
                         (cruise * 0.7).min((2.0 * cfg.idm_brake_m_s2 * to_line).sqrt())
                     };
-                    let clear = on
-                        .get(&li)
-                        .into_iter()
-                        .flatten()
+                    let clear = mine
+                        .iter()
+                        .map(|e| (e.1, e.2, e.3, e.4))
+                        .chain(added.iter().copied())
                         .filter(|o| o.3 == parked)
-                        .all(|&(cs, clen, v, _)| {
+                        .all(|(cs, clen, v, _)| {
                             let both = (len + clen) * 0.5 + cfg.min_gap_m;
                             if cs <= s {
                                 s - cs >= both + v * cfg.gap_s + v * v / (2.0 * cfg.idm_brake_m_s2)
@@ -1380,13 +1621,20 @@ impl Traffic {
                         continue;
                     }
                     let at = Vec3::new(p.x, ground.height_at(p.x, p.y), p.y);
-                    let hidden = !in_view(at) || (at.distance(eye) > cfg.hidden_beyond_m && covered(at));
+                    let hidden = !in_view(at)
+                        || (at.distance(eye) > cfg.hidden_beyond_m && {
+                            asked_cover += 1;
+                            covered(at)
+                        });
                     if !hidden {
                         continue;
                     }
-                    on.entry(li).or_default().push((s, len, speed, parked));
+                    added.push((s, len, speed, parked));
                     let id = self.next_id;
                     self.next_id += 1;
+                    let heading = (-d.x).atan2(-d.y);
+                    // stepped as often as its distance asks, its first step spread over the steps by its id
+                    let every = cfg.step_lod.every(p.distance(eye2));
                     self.cars.push(Car {
                         id,
                         kind: kind as u16,
@@ -1403,10 +1651,14 @@ impl Traffic {
                         granted: false,
                         turns: 0,
                         pos: at,
-                        heading_rad: (-d.x).atan2(-d.y),
+                        heading_rad: heading,
                         body: None,
                         health: 1.0,
                         wreck_s: 0.0,
+                        every,
+                        since: (id % u32::from(every)) as u8,
+                        owed_s: 0.0,
+                        was: (at, heading),
                     });
                     made += 1;
                     have += 1;
@@ -1414,7 +1666,38 @@ impl Traffic {
             }
         }
         self.near = near;
+        laps.lap(&mut self.cost.fill_us);
+        self.cost.fill_tries = tries_made;
+        self.cost.fill_covered = asked_cover;
         made
+    }
+
+    /// The refill the game makes once each fixed step: every `refill_every_steps`th call it fills (`fill`) with the
+    /// `spawn_per_step` cars a step it was owed since the last. Returns how many cars appeared.
+    #[allow(clippy::too_many_arguments)]
+    pub fn refill(
+        &mut self,
+        g: &LaneGraph,
+        data: &TrafficData,
+        ground: &impl Ground,
+        eye: Vec3,
+        in_view: &dyn Fn(Vec3) -> bool,
+        covered: &dyn Fn(Vec3) -> bool,
+        clear_of: &[(Vec2, f32)],
+    ) -> u32 {
+        let every = data.cfg.refill_every_steps.max(1);
+        self.refills += 1;
+        if self.refills < every {
+            self.cost = StepCost {
+                fill_us: 0.0,
+                fill_tries: 0,
+                fill_covered: 0,
+                ..self.cost
+            };
+            return 0;
+        }
+        self.refills = 0;
+        self.fill(g, data, ground, eye, in_view, covered, clear_of, data.cfg.spawn_per_step * every)
     }
 
     fn pick_kind(&mut self, data: &TrafficData, city: bool) -> usize {
@@ -1447,6 +1730,25 @@ impl Traffic {
             })
             .collect()
     }
+}
+
+/// The half angle of the view cone the refill keeps cars out of, radians: the half diagonal of a 16:9 screen with
+/// a vertical field of view of `fov_deg`, and a margin.
+pub fn view_half_rad(fov_deg: f32) -> f32 {
+    let v = (fov_deg.to_radians() * 0.5).tan();
+    (v * (1.0f32 + (16.0f32 / 9.0).powi(2)).sqrt()).atan() + 0.1
+}
+
+/// True when `p` is inside the view cone from `eye` along `fwd` (half angle `half_rad`), or within a metre of the eye.
+pub fn in_cone(eye: Vec3, fwd: Vec3, half_rad: f32, p: Vec3) -> bool {
+    let d = p - eye;
+    d.length_squared() < 1.0 || d.normalize().dot(fwd) > half_rad.cos()
+}
+
+/// True when a building or the ground stands between `eye` and `p` (the line sampled every 10 m).
+pub fn sight_blocked(plan: &crate::world::WorldPlan, eye: Vec3, p: Vec3) -> bool {
+    let n = (eye.distance(p) / 10.0).ceil().max(1.0) as usize;
+    (1..n).any(|k| plan.solid_at(eye.lerp(p, k as f32 / n as f32)))
 }
 
 /// The turn a car takes at the end of `lane`: one of its connectors, from a stream forked from the
@@ -1526,6 +1828,7 @@ mod tests {
     use crate::rng::SimRng;
     use crate::world::layout::{City, Highway, lay_out_city};
     use crate::world::{FlatGround, WorldConfig};
+    use std::collections::BTreeMap;
 
     const DT: f32 = 1.0 / 30.0;
 
@@ -1849,6 +2152,10 @@ mod tests {
                 body: None,
                 health: 1.0,
                 wreck_s: 0.0,
+                every: 1,
+                since: 0,
+                owed_s: 0.0,
+                was: (Vec3::ZERO, 0.0),
             });
         }
         t.next_id = 2;
@@ -1994,6 +2301,10 @@ mod tests {
             body: None,
             health: 1.0,
             wreck_s: 0.0,
+            every: 1,
+            since: 0,
+            owed_s: 0.0,
+            was: (Vec3::ZERO, 0.0),
         }
     }
 
@@ -2076,7 +2387,9 @@ mod tests {
         );
     }
 
-    const GOLDEN_11: (usize, u64) = (455, 8072100176767906781);
+    // Re-recorded 2026-10-28 for the stepping by distance (`StepLod`): the cars beyond 300 m of the eye are stepped
+    // every second or fourth step with the time owed, so their places at any one step differ; the count is unchanged.
+    const GOLDEN_11: (usize, u64) = (455, 15428268099846911920);
 
     #[test]
     fn a_blast_within_120_m_stops_the_traffic_for_20_to_40_s() {
@@ -2149,6 +2462,157 @@ mod tests {
         let before = t.cars.iter().filter(|c| c.state == CarState::Crushed).count();
         t.crush(&d, far, true);
         assert!(t.cars.iter().filter(|c| c.state == CarState::Crushed).count() <= before + 2);
+    }
+
+    #[test]
+    fn a_point_straight_ahead_is_in_view_and_one_behind_is_not() {
+        let eye = Vec3::ZERO;
+        assert!(in_cone(eye, Vec3::NEG_Z, 0.8, Vec3::new(0.0, 0.0, -100.0)));
+        assert!(!in_cone(eye, Vec3::NEG_Z, 0.8, Vec3::new(0.0, 0.0, 100.0)));
+    }
+
+    /// One car alone on the town's highway at 20 m/s, stepped `s` seconds with the eye at `eye`: where it ends up
+    /// (with the road it is owed), how often it is stepped, and how many steps moved it.
+    fn cruise_alone(g: &LaneGraph, d: &TrafficData, eye: Vec3, s: f32) -> (f32, u8, usize) {
+        let lane = g.road_lanes().find(|l| l.kind == LaneKind::Highway).unwrap();
+        let mut c = standing(0, lane.id, 100.0, lane.out.first().copied(), CarState::Driving);
+        (c.speed_m_s, c.cruise_m_s) = (20.0, 20.0);
+        let mut t = Traffic::new(9);
+        t.cars = vec![c];
+        t.next_id = 1;
+        let ground = FlatGround::default();
+        let mut moved = 0;
+        for _ in 0..(s / DT) as usize {
+            let before = t.cars[0].s_m;
+            t.step(&view(g, d, &ground), eye, DT);
+            moved += usize::from(t.cars[0].s_m != before);
+        }
+        let c = &t.cars[0];
+        (c.s_m + c.owed_s * c.speed_m_s, c.every, moved)
+    }
+
+    #[test]
+    fn a_far_car_is_stepped_every_fourth_step_and_covers_the_same_road() {
+        // 2026-10-28, the desktop's city run: traffic took about 4 ms a fixed step for 1 100 cars. A car beyond
+        // `step_lod.mid_m` of the eye is stepped every `far_every`th step with the time it was owed.
+        let (_, _, g) = town();
+        let d = data();
+        let lod = d.cfg.step_lod;
+        let lane = g.road_lanes().find(|l| l.kind == LaneKind::Highway).unwrap();
+        // the car runs from 100 m to 300 m along the lane: the near eye stands beside its middle, the far one 900 m off
+        let mid = lane.line.at(200.0).0;
+        let (near_s, near_every, near_moves) = cruise_alone(&g, &d, Vec3::new(mid.x, 0.0, mid.y), 10.0);
+        let (far_s, far_every, far_moves) = cruise_alone(&g, &d, Vec3::new(mid.x, 0.0, mid.y + 900.0), 10.0);
+        assert_eq!((near_every, far_every), (1, lod.far_every));
+        assert!(
+            far_moves * usize::from(lod.far_every) <= near_moves + usize::from(lod.far_every),
+            "stepped {far_moves} times to the near car's {near_moves}"
+        );
+        assert!(
+            (near_s - far_s).abs() < 0.05,
+            "the far car covers the same road: {near_s} against {far_s}"
+        );
+    }
+
+    #[test]
+    fn the_town_steps_its_far_cars_less_often_and_spreads_them_over_the_steps() {
+        let (mut t, g, d) = filled(11);
+        let lod = d.cfg.step_lod;
+        run(&mut t, &g, &d, 2.0);
+        let lane_cars: Vec<&Car> = t.cars.iter().filter(|c| c.on_lane()).collect();
+        for every in [1, lod.mid_every, lod.far_every] {
+            assert!(
+                lane_cars.iter().any(|c| c.every == every),
+                "some cars are stepped every {every} steps"
+            );
+        }
+        // over any `far_every` steps, each of them steps a share of the far cars, none all of them
+        let ground = FlatGround::default();
+        let far: Vec<u32> = lane_cars.iter().filter(|c| c.every == lod.far_every).map(|c| c.id).collect();
+        for _ in 0..lod.far_every {
+            t.step(&view(&g, &d, &ground), Vec3::ZERO, DT);
+            let stepped = far
+                .iter()
+                .filter(|&&id| t.get(id).is_some_and(|c| c.since == 0 && c.every == lod.far_every))
+                .count();
+            assert!(stepped * 2 < far.len(), "{stepped} of {} far cars stepped at once", far.len());
+        }
+    }
+
+    #[test]
+    fn a_car_stepped_every_fourth_step_is_drawn_gliding_without_a_jump() {
+        let (_, _, g) = town();
+        let d = data();
+        let lane = g.road_lanes().find(|l| l.kind == LaneKind::Highway).unwrap();
+        let mid = lane.line.at(200.0).0;
+        let eye = Vec3::new(mid.x, 0.0, mid.y + 900.0);
+        let mut c = standing(0, lane.id, 100.0, lane.out.first().copied(), CarState::Driving);
+        (c.speed_m_s, c.cruise_m_s) = (20.0, 20.0);
+        c.pos = Vec3::new(lane.line.at(100.0).0.x, 0.0, lane.line.at(100.0).0.y);
+        c.was = (c.pos, c.heading_rad);
+        // as a far car is: due its step next, owed the three before it
+        (c.every, c.since, c.owed_s) = (d.cfg.step_lod.far_every, d.cfg.step_lod.far_every - 1, 3.0 * DT);
+        let mut t = Traffic::new(9);
+        t.cars = vec![c];
+        let ground = FlatGround::default();
+        for _ in 0..60 {
+            let (end, _) = t.cars[0].drawn(1.0);
+            t.step(&view(&g, &d, &ground), eye, DT);
+            let (start, _) = t.cars[0].drawn(0.0);
+            assert!(start.distance(end) < 1e-3, "drawn at {end} before the step and {start} after it");
+            // between two steps it is drawn moving the road of one step, not of four
+            let (later, _) = t.cars[0].drawn(1.0);
+            assert!((later.distance(start) - 20.0 * DT).abs() < 0.05, "{}", later.distance(start));
+        }
+    }
+
+    #[test]
+    fn a_loose_wreck_at_rest_stays_put_and_a_mech_walking_into_it_still_shoves_it() {
+        let (_, _, g) = town();
+        let d = data();
+        let ground = FlatGround::default();
+        let at = Vec2::new(50.0, 50.0);
+        let mut c = standing(0, 0, 0.0, None, CarState::Burnt);
+        c.body = Some(CarBody::parked(&d.kinds[0], &ground, at, 0.0));
+        let mut t = Traffic::new(3);
+        t.cars = vec![c];
+        t.next_id = 1;
+        for _ in 0..(5.0 / DT) as usize {
+            t.step(&view(&g, &d, &ground), Vec3::ZERO, DT);
+        }
+        let rest = t.cars[0].pos;
+        for _ in 0..(30.0 / DT) as usize {
+            t.step(&view(&g, &d, &ground), Vec3::ZERO, DT);
+        }
+        assert_eq!(t.cars[0].pos, rest, "a wreck at rest stays where it lies");
+        let mech = MechNear {
+            at: at + Vec2::new(3.0, 0.0),
+            vel: Vec2::new(-3.0, 0.0),
+            radius_m: 4.0,
+            piloted: true,
+        };
+        // its leg, as the game hands it over: a wreck is not shoved off a lane, it is pushed out of the leg
+        let leg = Obstacle {
+            id: u32::MAX,
+            at: mech.at,
+            radius_m: mech.radius_m,
+            vel: mech.vel,
+            mass_kg: f32::INFINITY,
+        };
+        let v = TrafficView {
+            mechs: &[mech],
+            obstacles: &[leg],
+            ..view(&g, &d, &ground)
+        };
+        for _ in 0..10 {
+            t.step(&v, Vec3::ZERO, DT);
+        }
+        assert!(
+            t.cars[0].pos.x < rest.x - 0.5,
+            "shoved away from the mech: {} from {}",
+            t.cars[0].pos,
+            rest
+        );
     }
 
     #[test]

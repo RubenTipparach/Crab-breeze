@@ -9,6 +9,10 @@
 - [x] 1.5 The 1 km ring (owner, 2026-10-26: "car should be 1000m") fixed what it exposed: cars placed only on the
   stretch of a lane in reach (highways filled to half), and a car held at red keeps its place for the room past
   the junction (seed 9 starved a turning car 174 s); tested, golden seed 11 re-recorded
+- [x] 1.6 Traffic cost at the capital's density (the desktop's city run, 2026-10-28: about 4 ms a fixed step for 1 100
+  cars): far cars stepped less often (`step_lod`), loose bodies at rest sleep, the refill every 4th step, the per-step
+  maps as sorted lists; `cb-tools traffic-bench` steps it as the game does and splits the cost (design section 6);
+  golden seed 11 re-recorded for the stepping by distance
 - [x] 1.3 `data/world/traffic.ron` (densities, speeds, IDM constants), validated
 - [x] 2.1a The block-outs in `tools/blender/build_cars.py`, checked by `cb-tools validate` and shown on
   `docs/mockups/cars.html`; approved by the owner (2026-10-26: "Approved all of the stand ins", survey W36)

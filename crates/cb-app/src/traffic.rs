@@ -21,7 +21,7 @@ use bevy::world_serialization::{WorldAsset, WorldAssetRoot};
 use cb_core::car::{CarSpec, Drive, Obstacle};
 use cb_core::civilians::Doors;
 use cb_core::pilot::{CarAccess, PilotEvent, PilotMode};
-use cb_core::traffic::{CarState, Harm, MechNear, Traffic, TrafficView};
+use cb_core::traffic::{CarState, Harm, MechNear, Traffic, TrafficView, in_cone, sight_blocked, view_half_rad};
 use cb_core::world::lanes::LaneGraph;
 use cb_core::world::{Ground, OnRoads, Scene as WorldScene};
 use std::collections::BTreeMap;
@@ -34,23 +34,20 @@ pub const CAR_ID_BASE: u32 = 2_000_000;
 #[derive(Resource)]
 pub struct Roads(pub LaneGraph);
 
-/// The traffic, and every car's place at the step before, for drawing between steps.
+/// The traffic.
 #[derive(Resource)]
 pub struct TrafficSim {
     /// The cars.
     pub traffic: Traffic,
-    /// Each car's ground point and heading at the step before.
-    pub prev: BTreeMap<u32, (Vec3, f32)>,
     filled: bool,
 }
 
 impl TrafficSim {
     /// Car `c` as it is drawn between fixed steps at `alpha` (0..1 past the last step): its ground point and
-    /// heading, eased from the step before. The cars' models and the chase camera both place by it.
+    /// heading, eased between its own steps (`Car::drawn`: a far car is stepped every few fixed steps). The cars'
+    /// models and the chase camera both place by it.
     pub fn drawn_pose(&self, c: &cb_core::traffic::Car, alpha: f32) -> (Vec3, f32) {
-        let (p0, h0) = self.prev.get(&c.id).copied().unwrap_or((c.pos, c.heading_rad));
-        let turned = (c.heading_rad - h0 + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
-        (p0.lerp(c.pos, alpha), h0 + turned * alpha)
+        c.drawn(alpha)
     }
 }
 
@@ -126,7 +123,6 @@ impl Plugin for TrafficPlugin {
         app.insert_resource(Roads(graph))
             .insert_resource(TrafficSim {
                 traffic: Traffic::new(plan.seed),
-                prev: BTreeMap::new(),
                 filled: false,
             })
             .init_resource::<CarAccessNow>()
@@ -187,18 +183,6 @@ pub fn find_car(sim: Res<TrafficSim>, pilot: Res<PilotSim>, data: Res<Data>, mut
     };
 }
 
-/// True when the point is inside the view cone from `eye` along `fwd` (half-angle `half_rad`).
-fn in_cone(eye: Vec3, fwd: Vec3, half_rad: f32, p: Vec3) -> bool {
-    let d = p - eye;
-    d.length_squared() < 1.0 || d.normalize().dot(fwd) > half_rad.cos()
-}
-
-/// True when a building or the ground stands between `eye` and `p`.
-fn covered(plan: &cb_core::world::WorldPlan, eye: Vec3, p: Vec3) -> bool {
-    let n = (eye.distance(p) / 10.0).ceil().max(1.0) as usize;
-    (1..n).any(|k| plan.solid_at(eye.lerp(p, k as f32 / n as f32)))
-}
-
 #[allow(clippy::too_many_arguments)]
 fn step_traffic(
     mut sim: ResMut<TrafficSim>,
@@ -218,7 +202,7 @@ fn step_traffic(
     mut toll: ResMut<CivilianToll>,
     (time, doors): (Res<Time<Fixed>>, Option<Res<crate::street_doors::RefugeDoors>>),
 ) {
-    let _t = crate::perf_hud::slow("step_traffic");
+    let _t = crate::perf_hud::slow("car_traffic");
     let d = &data.0.traffic;
     let sim = &mut *sim;
     let scene = WorldScene {
@@ -313,7 +297,6 @@ fn step_traffic(
         steer: a.move_xy.x,
         handbrake: a.lift_axis > 0.0,
     });
-    sim.prev = sim.traffic.cars.iter().map(|c| (c.id, (c.pos, c.heading_rad))).collect();
     let view = TrafficView {
         graph: &roads.0,
         data: d,
@@ -326,17 +309,16 @@ fn step_traffic(
     sim.traffic.step(&view, eye, time.delta_secs());
     // fill the lanes near the eye: everything at once behind the loading screen, then a few a step out of sight
     let fwd = Quat::from_rotation_y(pilot.curr.yaw_rad) * Quat::from_rotation_x(pilot.curr.pitch_rad) * Vec3::NEG_Z;
-    let half = {
-        // the view's half diagonal at a 16:9 screen
-        let v = (data.0.pilot.view_fov_deg.to_radians() * 0.5).tan();
-        (v * (1.0f32 + (16.0f32 / 9.0).powi(2)).sqrt()).atan() + 0.1
-    };
+    let half = view_half_rad(data.0.pilot.view_fov_deg);
     let initial = !sim.filled || !ready.0;
     let seen = |p: Vec3| !initial && in_cone(eye, fwd, half, p);
-    let behind = |p: Vec3| covered(&plan, eye, p);
-    let budget = if initial { u32::MAX } else { d.cfg.spawn_per_step };
+    let behind = |p: Vec3| sight_blocked(&plan, eye, p);
     let mech_bodies: Vec<(Vec2, f32)> = near.iter().map(|m| (m.at, m.radius_m)).collect();
-    sim.traffic.fill(&roads.0, d, &ground, eye, &seen, &behind, &mech_bodies, budget);
+    if initial {
+        sim.traffic.fill(&roads.0, d, &ground, eye, &seen, &behind, &mech_bodies, u32::MAX);
+    } else {
+        sim.traffic.refill(&roads.0, d, &ground, eye, &seen, &behind, &mech_bodies);
+    }
     sim.filled = true;
     for h in sim.traffic.take_harms() {
         toll.all += 1;
@@ -714,13 +696,6 @@ fn draw_runners(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_point_straight_ahead_is_in_view_and_one_behind_is_not() {
-        let eye = Vec3::ZERO;
-        assert!(in_cone(eye, Vec3::NEG_Z, 0.8, Vec3::new(0.0, 0.0, -100.0)));
-        assert!(!in_cone(eye, Vec3::NEG_Z, 0.8, Vec3::new(0.0, 0.0, 100.0)));
-    }
 
     #[test]
     fn car_ids_sit_above_every_other_hit_id() {
