@@ -81,8 +81,8 @@ pub enum Beat {
     /// Walk in at the street door of the nearest standing building within this many metres and climb this many
     /// storeys of its stair, by its own route (`world::interior::Entrance::route`, `Stair::climb`).
     WalkIntoBuilding(f32, u32),
-    /// Walk in at the front door of the nearest standing house within this many metres (not one `FireAtNearest` shot),
-    /// on into its rooms, and back out of the door (the suburb's interiors, for performance).
+    /// Walk in at the front door of the nearest standing house within this many metres (not one `FireAtNearest` shot)
+    /// and into its front room, ending there (the suburb's interiors, for performance).
     WalkIntoHouse(f32),
     /// Write what is about the pilot within this many metres (people by what they do, cars, lit junctions and their
     /// lights, aircraft, boats, harbours, the fog), a note for the report. Takes no time.

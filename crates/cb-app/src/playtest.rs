@@ -1248,8 +1248,9 @@ fn play(
             }
         }
         Beat::WalkIntoHouse(within) if t.route.is_empty() => {
-            // Out in front of the door, in through it, on into the rooms, and back out: the kit's first leaf is its
-            // front door (`small_buildings::walk`'s test walks the same line).
+            // Out in front of the door, in through it and into the front room, where the beat ends (a look round there
+            // follows in the script): the kit's first leaf is its front door, and `small_buildings::walk`'s test walks
+            // the same line. Deeper, an inner wall can stand across it (the first suburb run stopped there).
             let feet = Vec2::new(p.feet.x, p.feet.z);
             let small = &s.plan.small;
             let best = small
@@ -1271,10 +1272,7 @@ fn play(
                         let w = lot.to_world(q);
                         Vec3::new(w.x, lot.ground_m, w.y)
                     };
-                    t.route = [-3.0, 2.5, 5.0, 7.0, 5.0, 2.5, -3.0]
-                        .iter()
-                        .map(|k| at(mid + inward * *k))
-                        .collect();
+                    t.route = [-3.0, 1.5, 3.5].iter().map(|k| at(mid + inward * *k)).collect();
                     t.goal_id = Some(l);
                     t.route_i = 0;
                     info!(
