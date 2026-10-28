@@ -539,6 +539,7 @@ fn shade_sun(
     mut images: ResMut<Assets<Image>>,
     mut sun: Query<(Entity, &mut Transform, Option<&DirectionalLightTexture>), With<Sun>>,
     mut baked_for: Local<Option<Quat>>,
+    mut baking: Local<Option<(bevy::tasks::Task<Vec<u8>>, std::time::Instant)>>,
     device: Option<Res<bevy::render::renderer::RenderDevice>>,
 ) {
     let Ok((entity, mut transform, texture)) = sun.single_mut() else {
@@ -550,9 +551,28 @@ fn shade_sun(
     let d = plan.clouds.drift(time.elapsed_secs());
     transform.translation = Vec3::new(d.x, 0.0, d.y);
     transform.scale = Vec3::splat(SHADE_HALF_M);
+    // A rebake on a worker thread goes on the sun when it is done; the old shade stays till then (it took 93 to
+    // 115 ms on the main thread every 16 s, a frame that long each time: city-frame, 2026-10-28).
+    if let Some((task, started)) = baking.as_mut()
+        && let Some(texels) = bevy::tasks::block_on(bevy::tasks::futures_lite::future::poll_once(task))
+    {
+        let ms = started.elapsed().as_secs_f64() * 1000.0;
+        *baking = None;
+        put_shade(&mut commands, entity, &mut images, texels);
+        debug!("clouds: storm shade rebaked off the main thread in {ms:.0} ms");
+    }
     // Rebaked every 2 degrees of the sun's travel (16 s of the day's clock), not each step.
     let turned = baked_for.is_none_or(|q| q.angle_between(transform.rotation) > 2f32.to_radians());
     if texture.is_some() && !turned {
+        return;
+    }
+    if texture.is_some() {
+        if baking.is_none() {
+            *baked_for = Some(transform.rotation);
+            let (plan, rotation) = (std::sync::Arc::clone(&plan.0), transform.rotation);
+            let task = bevy::tasks::AsyncComputeTaskPool::get().spawn(async move { shade_map(&plan.clouds, rotation, SHADE_TEXELS) });
+            *baking = Some((task, std::time::Instant::now()));
+        }
         return;
     }
     *baked_for = Some(transform.rotation);
@@ -573,8 +593,19 @@ fn shade_sun(
             limits.max_binding_array_sampler_elements_per_shader_stage
         );
     }
+    // The first bake, during loading, here: the sun is never without its shade.
     let started = std::time::Instant::now();
     let texels = shade_map(&plan.clouds, transform.rotation, SHADE_TEXELS);
+    put_shade(&mut commands, entity, &mut images, texels);
+    info!(
+        "clouds: storm shade baked for {} darkened cells in {:.0} ms",
+        plan.clouds.shades.len(),
+        started.elapsed().as_secs_f64() * 1000.0
+    );
+}
+
+/// Puts a baked shade map on the sun as its light texture.
+fn put_shade(commands: &mut Commands, entity: Entity, images: &mut Assets<Image>, texels: Vec<u8>) {
     let image = Image::new(
         Extent3d {
             width: SHADE_TEXELS as u32,
@@ -590,11 +621,6 @@ fn shade_sun(
         image: images.add(image),
         tiled: false,
     });
-    info!(
-        "clouds: storm shade baked for {} darkened cells in {:.0} ms",
-        plan.clouds.shades.len(),
-        started.elapsed().as_secs_f64() * 1000.0
-    );
 }
 
 #[cfg(test)]
