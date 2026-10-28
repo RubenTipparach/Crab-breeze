@@ -754,9 +754,11 @@ fn level_voices(
     ear: Res<Ear>,
     data: Res<Data>,
     settings: Res<crate::settings::Settings>,
+    master: Res<GlobalVolume>,
 ) {
     let cfg = &data.0.audio.cues;
-    let player = settings.0.sfx_volume;
+    // A sink's volume set after it starts replaces the master volume it started with (`CB_MUTE`): it is multiplied in.
+    let player = settings.0.sfx_volume * master.volume.to_linear();
     for (v, l, at, mut sink) in &mut voices {
         let g = if v.inside {
             1.0

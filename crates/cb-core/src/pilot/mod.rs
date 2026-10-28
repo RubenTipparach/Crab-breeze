@@ -371,6 +371,20 @@ pub fn wrap_rad(a: f32) -> f32 {
     (a + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI
 }
 
+/// An angle drawn `alpha` (0 to 1) of the way from `from` to `to`, the shorter way round, radians.
+pub fn blend_rad(from: f32, to: f32, alpha: f32) -> f32 {
+    from + wrap_rad(to - from) * alpha
+}
+
+/// The seated view's drawn yaw, radians (openspec change `cockpit-local-space` section 2): the mech's nose and the
+/// pilot's look from it, each blended between the last two fixed steps by `alpha`. The mech turns toward the view, so
+/// each step the nose gains what the look from it loses; blending the nose alone and taking the look from the last
+/// step drew the view a step's turn behind, then snapped it on at the step: a saw-tooth while turning (owner,
+/// 2026-10-28: "make sure it is smoothly rotating").
+pub fn seated_yaw(heading: [f32; 2], rel: [f32; 2], alpha: f32) -> f32 {
+    blend_rad(heading[0], heading[1], alpha) + blend_rad(rel[0], rel[1], alpha)
+}
+
 /// The seated view's yaw from the mech's nose after this step (openspec change `seated-look`).
 /// `rel` is it now, after the mech turned; `prev_rel` it after the last step; `turn` the mouse's turn
 /// this step (radians, left positive); `limit` the coupled limit. Coupled, the view may sit no
@@ -1064,6 +1078,32 @@ mod car_tests {
 
 #[cfg(test)]
 mod tests {
+    /// A mech turning steadily toward a held view, drawn at fractions of each step: the view stands still, where the
+    /// old drawing (the nose blended, the look from the last step) fell a step's turn behind and snapped back.
+    #[test]
+    fn a_seated_view_held_while_the_mech_turns_stands_still_between_steps() {
+        let (view, turn) = (0.6_f32, 0.012_f32);
+        let heading = |k: i32| k as f32 * turn;
+        let rel = |k: i32| view - heading(k);
+        let mut old = Vec::new();
+        for k in 1..20 {
+            for alpha in [0.0, 0.25, 0.5, 0.75] {
+                let drawn = seated_yaw([heading(k - 1), heading(k)], [rel(k - 1), rel(k)], alpha);
+                assert!((drawn - view).abs() < 1e-5, "step {k} at {alpha}: drawn {drawn}, held {view}");
+                old.push(blend_rad(heading(k - 1), heading(k), alpha) + rel(k));
+            }
+        }
+        let worst = old.iter().map(|d| (d - view).abs()).fold(0.0, f32::max);
+        assert!(worst > 0.9 * turn, "the old drawing lagged by up to a step's turn ({worst})");
+    }
+
+    #[test]
+    fn an_angle_blends_the_shorter_way_round() {
+        let pi = std::f32::consts::PI;
+        let mid = blend_rad(pi - 0.1, -pi + 0.1, 0.5);
+        assert!((wrap_rad(mid) - pi).abs() < 1e-5 || (wrap_rad(mid) + pi).abs() < 1e-5, "{mid}");
+    }
+
     use super::*;
 
     const W: f32 = 16.0 / 9.0;

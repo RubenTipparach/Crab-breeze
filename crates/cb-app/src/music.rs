@@ -136,7 +136,7 @@ fn choose_and_play(
     assets: Res<AssetServer>,
     time: Res<Time>,
     ready: Res<crate::loading::GameReady>,
-    settings: Option<Res<crate::settings::Settings>>,
+    (settings, master): (Option<Res<crate::settings::Settings>>, Res<bevy::audio::GlobalVolume>),
     mut was_duck: Local<f32>,
 ) {
     let cfg = &data.0.audio.music;
@@ -163,7 +163,8 @@ fn choose_and_play(
         *was_duck = duck;
     }
     player.duck_db = rules::duck_step(cfg, player.duck_db, duck, time.delta_secs());
-    let base = db_to_gain(cfg.volume_db + player.duck_db) * settings.map_or(1.0, |s| s.0.music_volume);
+    // A sink's volume set after it starts replaces the master volume it started with (`CB_MUTE`): it is multiplied in.
+    let base = db_to_gain(cfg.volume_db + player.duck_db) * settings.map_or(1.0, |s| s.0.music_volume) * master.volume.to_linear();
 
     // a stinger that has played out stays finished while its state holds
     let played_out = player

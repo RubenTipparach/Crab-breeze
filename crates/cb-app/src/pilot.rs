@@ -430,14 +430,19 @@ fn place_camera(
         // pilot's own look from its nose with the mouse not yet stepped. Turning only once a fixed
         // step while the cockpit glided between steps, it jittered against the cabin (owner,
         // 2026-10-25: "the motion of the mech turning vs mouselook ... it jitters alot").
+        // The look from the nose is blended between steps as the nose is (`cb_core::pilot::seated_yaw`): taken from
+        // the last step alone, the view fell a step's turn behind and snapped on while the mech turned (owner,
+        // 2026-10-28: "make sure it is smoothly rotating").
         PilotMode::Seated => match sims.iter().next() {
             Some(sim) => {
                 let pitch_limit = cfg.pitch_limit_deg.to_radians();
-                let (from, to) = (sim.prev.heading_rad, sim.curr.heading_rad);
-                let turned = (to - from + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
-                let heading = from + turned * alpha;
+                let yaw = cb_core::pilot::seated_yaw(
+                    [sim.prev.heading_rad, sim.curr.heading_rad],
+                    [prev.seated_rel_rad, curr.seated_rel_rad],
+                    alpha,
+                );
                 view(
-                    heading + curr.seated_rel_rad - pending.x.to_radians(),
+                    yaw - pending.x.to_radians(),
                     (curr.pitch_rad + pending.y.to_radians()).clamp(-pitch_limit, pitch_limit),
                 )
             }
@@ -497,6 +502,20 @@ fn place_camera(
     // No footstep motion on the view, ever: the foot-strike jolt is not applied to the camera (owner,
     // 2026-10-25: "I would remove the footstep motion forom the cokcpit entirely").
     **camera = Transform::from_translation(eye).with_rotation(rotation * shake);
+    // Measurement instrument (`cockpit-local-space` section 3): each frame's drawn yaw and the mech's drawn heading,
+    // degrees, with the step fraction, for `tools/perf/view_trace.py` to find a saw-tooth in.
+    if crate::cli::switched_off("CB_VIEW_TRACE") && curr.mode == PilotMode::Seated {
+        let (yaw, _, _) = rotation.to_euler(EulerRot::YXZ);
+        let heading = sims.iter().next().map_or(f32::NAN, |s| {
+            cb_core::pilot::blend_rad(s.prev.heading_rad, s.curr.heading_rad, alpha)
+        });
+        info!(
+            "VIEW_TRACE t={:.4} yaw={:.4} heading={:.4} alpha={alpha:.3}",
+            time.elapsed_secs_f64(),
+            yaw.to_degrees(),
+            heading.to_degrees()
+        );
+    }
 }
 
 /// The step-in prompt.

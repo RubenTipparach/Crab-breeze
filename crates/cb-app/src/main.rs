@@ -50,6 +50,7 @@ mod mfd;
 mod mfd_apps;
 mod missions;
 mod music;
+mod one_sided;
 mod particles;
 mod paving;
 mod pbr_set;
@@ -317,6 +318,7 @@ fn main() -> AppExit {
     app.add_plugins(save_game::SaveGamePlugin);
     // Shaders compiled behind the loading screen, not mid-game (city-frame section 5).
     app.add_plugins(shader_warmup::ShaderWarmupPlugin);
+    app.add_plugins(one_sided::OneSidedPlugin);
     app.add_plugins((air_bases::AirBasesPlugin, air_drop::AirDropPlugin));
     app.add_plugins(air_traffic::AirTrafficPlugin);
     // Harm to civilians, cars and civil aircraft costs career standing, by one rule (survey W34, W37, W42).

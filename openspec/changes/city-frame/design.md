@@ -136,6 +136,23 @@ warm-up's one plain material did not have.
 **Next:** the A/B of these in release builds; then a house's chunks (the owner: "the houses in suburban area has too
 many destruction peices"), sized from the census; then a building's first-hit upload (section 5).
 
+## 7. Imported models drawn one-sided (2026-10-28)
+
+The owner: "could the fact that all meshes are 2 sided be a problem? for optimization", "the mech for sure", "cockpits
+can be expensive, and if we want to add more mechs to ascene that chould cost much", "cant you override the material
+props?". Counted in the shipped glTF files: 1 139 of 1 723 materials double-sided, every mech's (all but one material
+each), every cockpit's, the boats', the furniture's and the block-outs'; houses 1 of 465, cars and aircraft none; the
+city's buildings, roads and ground are made in code, one-sided. Blender's exporter writes `doubleSided` unless a
+material's Backface Culling is ticked, and the generators leave it off. A double-sided material draws the back of every
+triangle of a closed solid too: up to twice the triangle work in the eye's pass and in each of the sun's cascades.
+
+**Changed:** `one_sided` turns each opaque material read from a glTF file to cull back faces as it loads (a material
+property, shared by every model using it); see-through and cut-out ones (glass, decals) keep both sides.
+`CB_DOUBLE_SIDED=1` leaves them as imported, to measure the change. Not yet measured; a face the generators wound
+the wrong way would vanish, so the mech and cockpit shots are looked at before it is called done. The generators
+(`tools/blender/pbr.py`) should tick Backface Culling themselves at their next rebuild, so the files say what the game
+draws.
+
 ## Open questions
 
 | Id | Question | Recommendation (built while open) |
