@@ -63,6 +63,19 @@ impl Slab {
         }
     }
 
+    /// Its lift at `p`, blended from its corners along its length (a drive rising to its street).
+    pub fn lift_at(&self, p: Vec2) -> f32 {
+        let (a, b) = ((self.corners[0] + self.corners[1]) * 0.5, (self.corners[3] + self.corners[2]) * 0.5);
+        let ab = b - a;
+        let t = if ab.length_squared() > 1e-9 {
+            ((p - a).dot(ab) / ab.length_squared()).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let (la, lb) = ((self.lift_m[0] + self.lift_m[1]) * 0.5, (self.lift_m[3] + self.lift_m[2]) * 0.5);
+        la + (lb - la) * t
+    }
+
     /// How far `p` is outside it (0 inside). Corners may wind either way.
     pub fn distance(&self, p: Vec2) -> f32 {
         let c = &self.corners;
@@ -130,6 +143,29 @@ impl Paving {
         Self { streets, slabs, index }
     }
 
+    /// How far over the ground the paving at `p` is drawn: the highest piece there (a street over the drive that runs
+    /// under its edge), or `None` off the paving. Stall lines are paint, not a surface a wheel meets.
+    pub fn lift_at(&self, p: Vec2) -> Option<f32> {
+        if !p.is_finite() {
+            return None;
+        }
+        let n = self.streets.len();
+        self.index
+            .within(p, p)
+            .into_iter()
+            .filter_map(|id| {
+                let id = id as usize;
+                if id < n {
+                    let s = &self.streets[id];
+                    (path_distance(&s.path, p) <= s.width_m * 0.5).then_some(s.lift_m)
+                } else {
+                    let s = &self.slabs[id - n];
+                    (s.surface != Surface::Paint && s.distance(p) <= 0.0).then(|| s.lift_at(p))
+                }
+            })
+            .reduce(f32::max)
+    }
+
     /// True when paving comes within `r` of `p`.
     pub fn paved(&self, p: Vec2, r: f32) -> bool {
         if (self.streets.is_empty() && self.slabs.is_empty()) || !p.is_finite() {
@@ -166,6 +202,26 @@ mod tests {
         assert!(!paving.paved(Vec2::new(20.0, 6.0), 0.0), "beside the street");
         assert!(paving.paved(Vec2::new(20.0, 6.0), 2.5), "within 2.5 m of it");
         assert!(!paving.paved(Vec2::new(13.0, 8.0), 0.0), "beside the drive");
+    }
+
+    #[test]
+    fn a_wheel_on_a_street_or_a_drive_meets_it_where_it_is_drawn() {
+        let street = Street {
+            path: vec![Vec2::new(0.0, 0.0), Vec2::new(40.0, 0.0)],
+            width_m: 8.0,
+            lift_m: 0.13,
+        };
+        let drive = Slab::strip(Vec2::new(10.0, 10.0), Vec2::new(10.0, 3.0), 3.0, 0.06, 0.12, Surface::Concrete);
+        let paving = Paving::new(vec![street], vec![drive], 1000.0);
+        assert_eq!(paving.lift_at(Vec2::new(20.0, 1.0)), Some(0.13), "on the street");
+        assert_eq!(
+            paving.lift_at(Vec2::new(10.0, 3.5)),
+            Some(0.13),
+            "the street wins over the drive's end under it"
+        );
+        let mid = paving.lift_at(Vec2::new(10.0, 6.5)).expect("on the drive");
+        assert!((mid - 0.09).abs() < 1e-3, "half way up the drive: {mid}");
+        assert_eq!(paving.lift_at(Vec2::new(20.0, 8.0)), None, "on the grass");
     }
 
     #[test]
