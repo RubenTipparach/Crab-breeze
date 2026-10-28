@@ -89,3 +89,9 @@ small_buildings`). The cut onto the highway is behind the camera in `carpark.jpg
 Owner: "26c suburban Streets 27c for downtown", chosen on the Road Surface Bench page. `street.jpg`, `carpark.jpg` and
 `town.jpg` show the suburb street and the car parks on ambientCG Asphalt026C; `downtown.jpg` a city street at the game's
 start on Asphalt027C, the highways too. Same cloud renderer, no frame times.
+
+## Up a drive, along a connector (2026-10-28)
+
+Owner: "Can I drive to houses on the suburbs?". `drive.jpg`: from the suburb street up a ranch's drive to its car, the
+flared curb cut where they meet. `connector.jpg`: a side street from a suburb row into the city. A car's wheels now
+meet these as drawn (`road_top_at` reads the paving); no one has driven it yet: a playtest on the owner's machine.
