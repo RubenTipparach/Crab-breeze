@@ -154,13 +154,6 @@ const ART_IMG = '';
 
 // The questions. Answers live in the db collection `answers`, one document per question id.
 const SECTIONS = [
-  { tag: 'V', name: 'The view', lead: 'Your question, 2026-10-26: "is my fps fov still 75? it seems kinda wide". Yes, it is 75, but the game measures it top to bottom (vertical). On a 16:9 screen, 75 tall is about 107 degrees side to side, which is why it reads wide. The cockpit\'s 95 tall is about 125 side to side. Driving a car stays at the on foot value, as you asked.',
-    qs: [
-      { id: 'V1', q: 'How should the 75 (on foot and driving) and 95 (cockpit) be measured? Today both are vertical: 107 and 125 degrees across on 16:9.',
-        options: ['Across (horizontal): on foot 75 across (about 47 tall), cockpit 95 across (about 63 tall)', 'Keep vertical, as now: on foot 107 across, cockpit 125 across', 'On foot 75 across, cockpit stays as now (125 across)', 'A common PC middle: on foot 90 across (about 59 tall), cockpit 95 tall as now'],
-        rec: 2,
-        why: 'Your 75 on foot feels wide, which matches 75 measured across, the way most shooters\' sliders count; the cockpit stays as you widened it twice ("Wider fov?", "95?"), so stepping in still opens the view. Built this way for now (provisional).' },
-    ] },
   { tag: 'S', name: 'Houses in the game',
     lead: 'Added on 2026-10-26, with the houses and small businesses going into the game (openspec/changes/small-buildings section 7). The game is built on the recommendations until you answer.',
     qs: [
@@ -182,14 +175,6 @@ const SECTIONS = [
       { id: 'S10', q: 'Do cars drive the suburb streets?',
         options: ['Not yet: traffic keeps to the highways and city streets', 'Yes, a few, from the start'], rec: 0,
         why: 'Traffic on the new streets needs lanes and junctions joined to the traffic graph; a change of its own once the streets are played.' },
-    ] },
-  { tag: 'F', name: 'The morning mist',
-    lead: 'Added on 2026-10-27 (openspec/changes/ground-fog task 5.5). The fog keeps its own clock: the world begins at 06:00 in the morning mist (your F1), twice the plain air and full mist in the low ground, and it thins to the day\'s (plain air, half the mist) between 07:00 and 11:00, 5 to 25 minutes into a session. The coast from 4.5 km at 06:00, 09:00 and 12:00 is in docs/screenshots/2026-10-27-morning-mist-coast-0600.png, -0900.png and -1200.png. Since the fog took the sky\'s colour (2026-10-26) the 06:00 coast no longer reads white: the far land stays as readable as at noon (its brightness 173 against 172 of 255), the near sea is greyed (82 against 60), the sky unchanged.',
-    qs: [
-      { id: 'F4', q: 'Is the 06:00 morning mist too thick? It is twice the plain air (density_scale 2.0) with full mist; at 4.5 km the coast stays readable and the near sea is a grey veil.',
-        options: ['Keep it: twice the air, full mist', 'Thinner: 1.5 times the air, full mist', 'Thinner still: plain air, the mist alone in the low ground', 'Thicker: 3 times the air, so the first minutes are hazy'],
-        rec: 0,
-        why: 'In the stills it reads as a morning haze that burns off, not a whiteout: the land at 4.5 km is as clear as at noon and only the sea under the eye greys. Built as is while open (provisional).' },
     ] },  { tag: 'R', name: 'Video memory and interiors (the city at 60 fps)',
     lead: 'Added on 2026-10-28 from the desktop\'s overnight city run on the RTX 3070 (docs/benchmarks/2026-10-28-city/report.md, PR #94). With the near building detail cut to 150 m the capital went from 3 to 5 fps to a median of 27 to 42 ms. What is left is mostly video memory: the game held 5.0 GB of the card\'s 8 GB and spilled 870 MB into system memory (the other programs on the desktop held 2.5 GB), and the same view took the GPU 8 ms when it fit and 66 to 107 ms when it spilled. Images are 2,240 MB of it, the Panorama cockpit\'s eight 4096 px maps alone 512 MB (uncompressed, no mipmaps).',
     qs: [
@@ -211,6 +196,8 @@ const IN_PROGRESS = [
 ];
 
 const DECIDED = [
+  { text: 'V1 Both views measured across the screen (your pick, 2026-10-28; asked 2026-10-26: "is my fps fov still 75? it seems kinda wide"): on foot and driving 75 degrees across, about 47 tall on 16:9 (it was 75 tall, about 107 across); the cockpit 95 across, about 63 tall (it was 95 tall, about 125 across). The Options setting is the cockpit\'s, across; the railgun scope zooms against it.', where: 'data/pilot/pilot.ron (fov_across), crates/cb-core/src/pilot/mod.rs (fov_deg, vertical_deg), crates/cb-app/src/pilot.rs, crates/cb-app/src/scope.rs; PR #87' },
+  { text: 'F4 The 06:00 morning mist kept as it is: twice the plain air, full mist in the low ground, thinning to the day\'s by 11:00 (your pick, 2026-10-28).', where: 'data/world/world.ron (fog presets); openspec/changes/ground-fog task 5.5' },
   { text: 'G24 The railgun scope is a magnified window in the middle of the front screen (your pick, "Approve all", 2026-10-26): hold the middle mouse with a scoped gun on board (the Picket\'s rail rifle, the hangar\'s rail rifle) and a 4x picture down the aim opens on the front screen; B, or the wheel while held, steps to 10x. Your own view never zooms; the mouse turns a quarter as far at 4x. The sight shows the range, the drop mark on your target, the rail\'s charge and the heat; with the head shot off it reads NO CAM and closes. Built and compiled, not yet seen running.', where: 'crates/cb-app/src/scope.rs, crates/cb-core/src/scope.rs, data/input/bindings.ron (scope, scope_zoom), data/mechs/picket/weapons.ron; openspec/changes/railgun-scope' },
   { text: 'G20 Each mech\'s signature weapon as listed (your pick, "Approve all", 2026-10-26): the Foreman\'s boom cannon (three shells a pull), the Driller\'s cutting lance (a 600 m beam), the Harrow\'s twin racks (twelve locks, one salvo), the Ironhorse\'s steam cannon, the Mule\'s rocket ripple (sixteen rockets in 1.9 s), the Picket\'s rail rifle, the Roustabout\'s breaching gun (sixteen pellets), the Sapper\'s grenade launcher. Listed first and starred on the WEAPONS page.', where: 'data/mechs/<id>/weapons.ron, crates/cb-core/src/weapons.rs (burst, lob), crates/cb-core/src/mech/config.rs (Loadout); openspec/changes/signature-weapons' },
   { text: 'G21 The Sapper\'s mortar became a grenade launcher ("maybe a grenade launcher?", 2026-10-26): lobbed at 30 degrees onto the crosshair, 60 to 600 m, 3.4 s to 100 m and 8.4 s to 600 m (the mortar took 7.8 to 18 s), one every 1.5 s, still over a mech-height wall in front of the target. Fired with G from the Sapper\'s shoulder barrel.', where: 'data/mechs/sapper/weapons.ron, crates/cb-core/src/weapons.rs (lob_velocity); openspec/changes/signature-weapons section 2' },

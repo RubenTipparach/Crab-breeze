@@ -22,10 +22,11 @@
     // the pilot sits, narrowing again as they stand, over 0.8 s (owner, 2026-10-26: "normal fps fov is 75, it grows
     // to 95 when inside the mech"; openspec/changes/seated-fov). The Options setting moves both.
     on_foot_fov_deg: 75.0,
-    // The 75 is measured ACROSS the screen, about 47 degrees tall on 16:9 (survey V1, provisional; owner, 2026-10-26:
-    // "is my fps fov still 75? it seems kinda wide": measured top to bottom it was about 107 across). Driving a car
-    // uses the on-foot view too ("car driving should remain at 75"). The cockpit's 95 stays measured top to bottom.
-    on_foot_fov_across: true,
+    // Both are measured ACROSS the screen (survey V1, the owner's pick, 2026-10-28; asked 2026-10-26: "is my fps fov
+    // still 75? it seems kinda wide"): on foot 75 across, about 47 tall on 16:9 (it was 75 tall, about 107 across),
+    // the cockpit 95 across, about 63 tall (it was 95 tall, about 125 across). Driving a car uses the on-foot view
+    // ("car driving should remain at 75"). The Options setting is the cockpit's, across.
+    fov_across: true,
     fov_change_s: 0.8,
     // On foot, Space jumps: 4.4 m/s up under 9.81 m/s2 is a jump about a metre high (owner,
     // 2026-10-25: "my fps character needs jump!").

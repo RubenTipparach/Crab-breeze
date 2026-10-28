@@ -51,9 +51,9 @@ pub struct PilotConfig {
     /// On foot, degrees: narrower, a first-person shooter's view (owner, 2026-10-26: "normal fps fov is 75, it grows
     /// to 95 when inside the mech"; openspec change `seated-fov`).
     pub on_foot_fov_deg: f32,
-    /// The on-foot view is measured across the screen (horizontal) rather than top to bottom (survey V1, provisional:
-    /// owner, 2026-10-26: "is my fps fov still 75? it seems kinda wide"; 75 tall is about 107 across on 16:9).
-    pub on_foot_fov_across: bool,
+    /// Both views, on foot and seated, are measured across the screen (horizontal) rather than top to bottom (survey
+    /// V1, the owner's pick 2026-10-28: "on foot 75 across, cockpit 95 across"; 75 tall was about 107 across on 16:9).
+    pub fov_across: bool,
     /// Seconds the view takes to widen as the pilot sits, or narrow as they stand.
     pub fov_change_s: f32,
     /// On foot, Space jumps at this upward speed (owner, 2026-10-25: "my fps character needs jump!").
@@ -83,16 +83,18 @@ pub fn fov_blend(blend: f32, seated: bool, dt_s: f32, change_s: f32) -> f32 {
 
 /// The view's vertical field of view, degrees, at `blend`: the player's seated setting `setting_deg`, and on foot
 /// that less the data's difference between the two (never under 30), eased in and out (a smoothstep of the blend).
-/// With `on_foot_fov_across` the on-foot number is degrees across a screen `aspect` wide to 1 tall, turned into the
-/// vertical view it gives there.
+/// With `fov_across` both numbers are degrees across a screen `aspect` wide to 1 tall, turned into the vertical
+/// view each gives there.
 pub fn fov_deg(cfg: &PilotConfig, setting_deg: f32, blend: f32, aspect: f32) -> f32 {
-    let mut foot = (setting_deg - (cfg.view_fov_deg - cfg.on_foot_fov_deg)).max(30.0);
-    if cfg.on_foot_fov_across {
-        foot = vertical_deg(foot, aspect);
-    }
+    let foot = (setting_deg - (cfg.view_fov_deg - cfg.on_foot_fov_deg)).max(30.0);
+    let (foot, seat) = if cfg.fov_across {
+        (vertical_deg(foot, aspect), vertical_deg(setting_deg, aspect))
+    } else {
+        (foot, setting_deg)
+    };
     let b = blend.clamp(0.0, 1.0);
     let s = b * b * (3.0 - 2.0 * b);
-    foot + (setting_deg - foot) * s
+    foot + (seat - foot) * s
 }
 
 /// The vertical field of view, degrees, that spans `across_deg` across a screen `aspect` wide to 1 tall.
@@ -130,7 +132,7 @@ impl Default for PilotConfig {
             exit_near_stop_m_s: 3.0,
             view_fov_deg: 75.0,
             on_foot_fov_deg: 75.0,
-            on_foot_fov_across: false,
+            fov_across: false,
             fov_change_s: 0.8,
             jump_speed_m_s: 4.4,
             gravity_m_s2: 9.81,
@@ -1069,9 +1071,9 @@ mod tests {
     const W: f32 = 16.0 / 9.0;
 
     #[test]
-    fn measured_across_the_on_foot_75_is_47_tall_on_16_by_9_and_the_cockpit_stays_95_tall() {
+    fn measured_across_the_on_foot_75_is_47_tall_on_16_by_9_and_the_cockpit_95_is_63_tall() {
         let c = PilotConfig {
-            on_foot_fov_across: true,
+            fov_across: true,
             ..fov_cfg()
         };
         let foot = fov_deg(&c, 95.0, 0.0, W);
@@ -1080,7 +1082,8 @@ mod tests {
             (fov_deg(&c, 95.0, 0.0, 4.0 / 3.0) - 59.8).abs() < 0.1,
             "a 4:3 screen is taller for the same 75 across"
         );
-        assert_eq!(fov_deg(&c, 95.0, 1.0, W), 95.0);
+        let seat = fov_deg(&c, 95.0, 1.0, W);
+        assert!((seat - 63.0).abs() < 0.1, "{seat}");
         // measured top to bottom, the same 75 is about 107 across
         assert!((2.0 * ((37.5f32.to_radians().tan() * W).atan())).to_degrees() > 105.0);
         assert!((vertical_deg(107.5, W) - 75.0).abs() < 0.1);

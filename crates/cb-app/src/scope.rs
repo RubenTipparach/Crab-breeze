@@ -237,6 +237,7 @@ fn aim(
     mut camera: Single<(&mut Camera, &mut Transform, &mut Projection), (With<ScopeCamera>, Without<ScopeWindow>)>,
     mut overlay: Single<&mut Camera, (With<ScopeOverlay>, Without<ScopeCamera>)>,
     mut window: Single<(&mut Transform, &mut Visibility), (With<ScopeWindow>, Without<ScopeCamera>, Without<PilotCamera>)>,
+    screens: Query<&Window, With<bevy::window::PrimaryWindow>>,
 ) {
     let (cam, at, lens) = &mut *camera;
     cam.is_active = scope.open;
@@ -252,8 +253,10 @@ fn aim(
         .and_then(|e| globals.get(e).ok())
         .map_or(eye.translation, |g| g.translation());
     **at = Transform::from_translation(from).with_rotation(eye.rotation);
-    // Seated (blend 1), so the on-foot measure and the screen's shape play no part.
-    let view = cb_core::pilot::fov_deg(&data.0.pilot, settings.0.fov_deg, 1.0, 16.0 / 9.0).to_radians();
+    // The seated view (blend 1), measured across the game window (survey V1), so the zoom is against what the
+    // pilot sees.
+    let aspect = screens.iter().next().map_or(16.0 / 9.0, |w| w.width() / w.height().max(1.0));
+    let view = cb_core::pilot::fov_deg(&data.0.pilot, settings.0.fov_deg, 1.0, aspect).to_radians();
     if let Projection::Perspective(p) = lens.as_mut() {
         p.fov = cb_core::scope::fov_rad(view, scope.zoom);
     }

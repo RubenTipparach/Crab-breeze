@@ -71,7 +71,7 @@ The full checks on main (82ae1df) were asked for by the desktop session and **ne
 
 - **V1** in the survey (https://claude.ai/artifact/EbeWFXQeCbcM7ok3tsp64h): how the field of view is
   measured. Built provisionally: on foot and driving 75 degrees across (about 47 tall on 16:9), the
-  cockpit 95 tall. `on_foot_fov_across` in `data/pilot/pilot.ron` switches it back.
+  cockpit 95 tall. Answered 2026-10-28: both measured across (`fov_across` in `data/pilot/pilot.ron`).
 - Not yet in the survey: DC1 (the chase camera drifts back after 2 s), DC2 (speed readout), R2 (a
   grass set for parks), R3 (a tint on runways).
 
