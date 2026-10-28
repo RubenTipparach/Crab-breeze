@@ -249,17 +249,19 @@ impl WorldPlan {
 
     /// The drawn road's surface at `p` (x, z), if a road is there: a city's street at the city's ground plus
     /// `road_lift_m`, a highway within its half width at its grade plus `road_lift_m` (as `cb-app::world` draws
-    /// them). `None` off the roads.
+    /// them), a suburb street, drive or car park at the ground plus its own lift (openspec change `lot-access`: draped
+    /// on the ground). `None` off the roads.
     pub fn road_top_at(&self, p: Vec2) -> Option<f32> {
         for c in &self.cities {
             if c.rect().distance(p) <= 0.0 && c.streets.iter().any(|s| s.rect.distance(p) <= 0.0) {
                 return Some(c.ground_m + self.road_lift_m);
             }
         }
-        self.highways.iter().find_map(|h| {
+        let highway = self.highways.iter().find_map(|h| {
             let (d, t) = h.project(p);
             (d <= h.width_m * 0.5).then(|| h.grade_at(t) + self.road_lift_m)
-        })
+        });
+        highway.or_else(|| self.small.paving.lift_at(p).map(|l| self.terrain.height_at(p.x, p.y) + l))
     }
 
     /// The drawn surface a body on foot stands on at `p` (x, z), over the bare ground: a road (`road_top_at`), or
