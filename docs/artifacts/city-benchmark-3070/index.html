@@ -1,0 +1,275 @@
+<meta name="dash-one-writer">
+<style>
+  .cb { display: grid; gap: var(--cds-gap-xl); font-family: var(--font-anthropic-sans); max-width: 72rem; margin-inline: auto; }
+  .cb h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
+  .cb h2 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0; text-wrap: balance; }
+  .cb h3 { font-size: var(--cds-font-size-body); font-weight: var(--cds-font-weight-medium); margin: 0; }
+  .cb p { margin: 0; max-width: 68ch; line-height: 1.55; }
+  .cb .lede { color: var(--color-fg-muted); }
+  .cb .note { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+  .cb .num { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .cb section { display: grid; gap: var(--cds-gap-md); }
+  .cb .grid { display: grid; gap: var(--cds-gap-md); grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
+  .cb .card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); display: grid; gap: var(--cds-gap-sm); align-content: start; min-width: 0; }
+  .cb .chart { position: relative; min-height: 14rem; }
+  .cb .chart.tall { min-height: 20rem; }
+  .cb .tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); white-space: nowrap; z-index: 2; }
+  .cb .tip .k { color: var(--cds-text-secondary); }
+  .cb .legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs) var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  .cb .sw { display: inline-block; width: 0.625rem; height: 0.625rem; border-radius: 2px; margin-right: 0.35rem; vertical-align: -1px; }
+  .cb .sw.a { background: var(--cds-chart-muted); }
+  .cb .sw.c { background: var(--cds-chart-status-critical); }
+  .cb .tablebox { overflow-x: auto; }
+  .cb table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: var(--cds-font-size-caption); }
+  .cb th, .cb td { text-align: right; padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+  .cb th:first-child, .cb td:first-child, .cb th:nth-child(2), .cb td:nth-child(2) { text-align: left; }
+  .cb th { color: var(--color-fg-muted); font-weight: var(--cds-font-weight-medium); }
+  .cb .steps { display: grid; gap: var(--cds-gap-sm); margin: 0; padding-left: 1.25rem; max-width: 68ch; line-height: 1.55; }
+  [data-dash-source-state=empty] { color: transparent; }
+  [data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+</style>
+
+<div class="cb">
+  <header style="display:grid;gap:var(--cds-gap-sm)">
+    <h1 id="top">City benchmark, RTX 3070</h1>
+    <p class="lede">Crab Breeze on the owner's desktop, the night of 27 to 28 October 2026. Standing in the capital in the cockpit, the median frame fell from <span class="num" data-draw="cell" data-source="city" data-field="p50_ms" data-where="run=stand-old1">—</span> to <span class="num" data-draw="cell" data-source="city" data-field="p50_ms" data-where="run=stand-new1">—</span>, five to nine times faster, and still short of 60 fps (16.7 ms). What holds it back now is video memory: the game no longer fits on the card beside the desktop's other programs.</p>
+  </header>
+
+  <section id="city">
+    <h2>The capital, before and after</h2>
+    <p class="note">Release builds, two runs each, old and new interleaved. The median frame of each run; the lines are 60 fps (16.7 ms) and 90 fps (11.1 ms). Lower is better.</p>
+    <div class="card">
+      <div class="legend"><span><i class="sw a"></i>Before (main 0f2e307)</span><span><i class="sw b"></i>After (perf-probe)</span></div>
+      <div class="chart" data-draw="cityChart" data-source="city"></div>
+    </div>
+  </section>
+
+  <section id="gpu">
+    <h2>What the GPU was drawing</h2>
+    <p class="note">Standing in the capital on the old build, one part switched off at a time. GPU time a frame, its shadow pass darker. Single runs of this scene vary up to two times, so only the big drops count: buildings and the sun's shadows.</p>
+    <div class="card">
+      <div class="legend"><span><i class="sw c"></i>Shadow pass</span><span><i class="sw a"></i>Everything else</span></div>
+      <div class="chart tall" data-draw="partsChart" data-source="parts"></div>
+    </div>
+    <p>Buildings within 250 m were drawn piece by piece (window frames, ledges, parapets, roof props) and every piece cast shadows into three cascades. Detailed dressing now stops at 150 m. Grass casts shadows only within 25 m, window glass casts none, and cars draw their small parts only near.</p>
+  </section>
+
+  <section id="spill">
+    <h2>The memory spill</h2>
+    <p>The RTX 3070 has 8 GB of video memory. Before the game starts, the desktop's other programs (Chrome, Firefox, Discord, Steam, Parsec, BlueStacks) already hold about 2.5 GB of it. The game then needs about 5.9 GB. Only about 5 GB fits, so Windows puts the rest in ordinary system memory, which the graphics card reaches over the PCIe bus at a small fraction of its own memory's speed. Every pass that touches those buffers then waits, and the card shows 100 % busy while doing far less work.</p>
+    <p>How much spills changes from minute to minute with what the other programs hold, and with memory the last game run has not yet given back. That is why the same scene took the GPU a few milliseconds in one run and over a hundred in the next, with the same triangles drawn.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>The game's video memory as the capital loads</h3>
+        <p class="note">Windows' GPU memory counters for the game, sampled every 8 s, on a scale of the card's 8 GB. Spilled is the part in system memory.</p>
+        <div class="legend"><span><i class="sw b"></i>On the card</span><span><i class="sw c"></i>Spilled to system memory</span></div>
+        <div class="chart" data-draw="vramChart" data-source="vram"></div>
+      </div>
+      <div class="card">
+        <h3>Where the images go</h3>
+        <p class="note">The probe's census in the capital: video memory of the loaded images, by what they are.</p>
+        <div class="chart" data-draw="imagesChart" data-source="images"></div>
+      </div>
+    </div>
+    <p>The eight cockpit maps at 4096 px are a quarter of all image memory. At 2048 px each takes a quarter of the space: 128 MB instead of 512 MB. On the owner's direction every 4096 px texture goes to 2048 px.</p>
+  </section>
+
+  <section id="flight">
+    <h2>Flying flat out across the map</h2>
+    <p class="note">About 33 km in ten minutes at 60 to 165 m/s. Median frame of each run, in flight. Old against new differs by two fixes: trees judged by their true distance (a forest flown over at 1 km was drawn in full and cast shadows) and the Mac session's traffic step cut. The runs overlap, so no speedup is claimed.</p>
+    <div class="card">
+      <div class="legend"><span><i class="sw a"></i>Before</span><span><i class="sw b"></i>After</span></div>
+      <div class="chart" data-draw="flightChart" data-source="flight"></div>
+    </div>
+  </section>
+
+  <section id="suburb">
+    <h2>Bringing down twenty houses</h2>
+    <p class="note">Debris limits cut to 200 moving and 800 resting bodies within 250 m (was 600, 2 500 and 400 m), and the sun's storm shade rebuilt off the main thread (it took about 100 ms every 16 s). The worst frames fell; the medians moved with the memory spill.</p>
+    <div class="card">
+      <div class="tablebox">
+        <table data-source="suburb" data-row-key="run,phase">
+          <thead><tr><th data-field="run">Run</th><th data-field="phase">Phase</th><th data-field="build">Build</th><th data-field="p50_ms">Median ms</th><th data-field="max_ms">Worst ms</th></tr></thead>
+          <tbody data-draw="suburbRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="next">
+    <h2>Next</h2>
+    <ol class="steps">
+      <li>Every 4096 px texture to 2048 px, the cockpits first; then measure the capital again.</li>
+      <li>Until then, close the browsers and launchers while playing: about 2.5 GB back.</li>
+      <li>Then the CPU: about 15 ms a frame in the render world (6 000 draws, mesh uploads as buildings are dressed) and the cockpit's screens cube, redrawn about 60 times a second.</li>
+    </ol>
+    <p class="note">Full write-up: docs/benchmarks/2026-10-28-city/report.md on branch perf-probe (PR #94). Measured on an RTX 3070, i7-9700F, 32 GB, Windows 10, Vulkan, 1920 x 1080, vsync off.</p>
+  </section>
+</div>
+
+<script>
+  const LIMIT_60 = 1000 / 60;
+  const LIMIT_90 = 1000 / 90;
+  const CARD_MB = 8192;
+  const fmtMs = (v) => (v >= 100 ? d3.format(',.0f')(v) : d3.format('.1f')(v)) + ' ms';
+  const num = (v) => Number(v);
+  const accent = () => dash.colors[0];
+  document.querySelectorAll('.cb .sw.b').forEach((s) => { s.style.background = dash.colors[0]; });
+
+  function rowsOf(id) {
+    const d = dash.data(id);
+    return d.status === 'ok' ? d.data : null;
+  }
+
+  function where(el) {
+    const w = el.getAttribute('data-where');
+    if (!w) return () => true;
+    const pairs = w.split('&').map((p) => p.split('=').map(decodeURIComponent));
+    return (r) => pairs.every(([k, v]) => String(r[k]) === v);
+  }
+
+  dash.draw('cell', (el) => {
+    const rows = rowsOf(el.getAttribute('data-source'));
+    const row = rows && rows.find(where(el));
+    el.textContent = row ? fmtMs(num(row[el.getAttribute('data-field')])) : '—';
+  });
+
+  function tooltip(box) {
+    let tip = box.querySelector('.tip');
+    if (!tip) { tip = document.createElement('div'); tip.className = 'tip'; tip.hidden = true; box.appendChild(tip); }
+    return {
+      show(ev, lines) {
+        tip.replaceChildren(...lines.map((l, i) => { const d = document.createElement('div'); if (i === 0) d.className = 'k'; d.textContent = l; return d; }));
+        tip.hidden = false;
+        const b = box.getBoundingClientRect();
+        let x = ev.clientX - b.left + 12, y = ev.clientY - b.top + 12;
+        x = Math.min(x, b.width - tip.offsetWidth - 4);
+        tip.style.left = Math.max(0, x) + 'px';
+        tip.style.top = Math.max(0, y) + 'px';
+      },
+      hide() { tip.hidden = true; },
+    };
+  }
+
+  function axisStyle(g) {
+    g.attr('font-size', null).attr('font-family', null);
+    g.selectAll('text').attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)');
+    g.selectAll('line').attr('stroke', 'var(--cds-chart-grid)');
+    g.select('.domain').attr('stroke', 'var(--cds-chart-axis)');
+  }
+
+  // A horizontal bar chart: one bar per row, labels at the left, an optional split of each bar.
+  function hbars(el, rows, opt) {
+    el.querySelectorAll('svg').forEach((s) => s.remove());
+    if (!rows) return;
+    const W = Math.max(280, el.clientWidth);
+    const rowH = 26;
+    const probe = d3.select(el).append('svg').attr('width', 0).attr('height', 0);
+    const widest = d3.max(rows, (r) => { const t = probe.append('text').style('font-size', 'var(--cds-font-size-caption)').text(opt.label(r)); const w = t.node().getComputedTextLength(); t.remove(); return w; }) || 80;
+    probe.remove();
+    const m = { top: 8, right: 56, bottom: 28, left: Math.min(widest + 12, W * 0.45) };
+    const H = m.top + m.bottom + rows.length * rowH;
+    const xMax = d3.max(rows, opt.value) * 1.05;
+    const x = d3.scaleLinear([0, xMax], [m.left, W - m.right]).nice();
+    const y = d3.scaleBand(rows.map((_, i) => i), [m.top, H - m.bottom]).padding(0.28);
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
+    svg.append('g').attr('transform', `translate(0,${H - m.bottom})`).call(d3.axisBottom(x).ticks(Math.max(2, Math.floor(W / 110))).tickSize(-(H - m.top - m.bottom)).tickFormat(opt.tick)).call(axisStyle);
+    (opt.refs || []).forEach((v) => {
+      if (v > x.domain()[1]) return;
+      svg.append('line').attr('x1', x(v)).attr('x2', x(v)).attr('y1', m.top).attr('y2', H - m.bottom).attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '4 3');
+    });
+    const tip = tooltip(el);
+    const g = svg.append('g');
+    rows.forEach((r, i) => {
+      const yy = y(i), bh = y.bandwidth();
+      const total = opt.value(r);
+      const split = opt.split ? Math.min(opt.split(r), total) : 0;
+      g.append('rect').attr('x', x(0)).attr('y', yy).attr('height', bh).attr('width', Math.max(1, x(total) - x(0))).attr('rx', 3).attr('fill', opt.color(r));
+      if (opt.split && split > 0) g.append('rect').attr('x', x(0)).attr('y', yy).attr('height', bh).attr('width', Math.max(1, x(split) - x(0))).attr('rx', 3).attr('fill', 'var(--cds-chart-status-critical)');
+      g.append('text').attr('x', m.left - 8).attr('y', yy + bh / 2).attr('dy', '0.35em').attr('text-anchor', 'end').attr('fill', 'var(--color-fg)').style('font-size', 'var(--cds-font-size-caption)').text(opt.label(r));
+      g.append('text').attr('x', x(total) + 6).attr('y', yy + bh / 2).attr('dy', '0.35em').attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)').style('font-variant-numeric', 'tabular-nums').text(opt.tick(total));
+      g.append('rect').attr('x', 0).attr('y', yy - 2).attr('width', W).attr('height', bh + 4).attr('fill', 'transparent')
+        .on('pointermove', (ev) => tip.show(ev, opt.tip(r))).on('pointerleave', () => tip.hide());
+    });
+  }
+
+  dash.draw('cityChart', (el) => {
+    const rows = rowsOf('city');
+    hbars(el, rows, {
+      label: (r) => `${r.scene}, ${r.build.toLowerCase()} ${r.run.slice(-1)}`,
+      value: (r) => num(r.p50_ms),
+      color: (r) => (r.build === 'After' ? accent() : 'var(--cds-chart-muted)'),
+      tick: (v) => d3.format(',.0f')(v) + ' ms',
+      refs: [LIMIT_60, LIMIT_90],
+      tip: (r) => [`${r.scene}, ${r.build.toLowerCase()}`, `median ${fmtMs(num(r.p50_ms))}`, `p95 ${fmtMs(num(r.p95_ms))}`, `worst ${fmtMs(num(r.max_ms))}`, `${num(r.over_16_7_pct)} % of frames over 16.7 ms`],
+    });
+  });
+
+  dash.draw('partsChart', (el) => {
+    const rows = rowsOf('parts');
+    hbars(el, rows, {
+      label: (r) => r.switched_off,
+      value: (r) => num(r.gpu_ms),
+      split: (r) => num(r.shadow_ms),
+      color: () => 'var(--cds-chart-muted)',
+      tick: (v) => d3.format(',.0f')(v) + ' ms',
+      tip: (r) => [`${r.switched_off} switched off`, `GPU ${fmtMs(num(r.gpu_ms))} a frame`, `shadow pass ${fmtMs(num(r.shadow_ms))}`, `${d3.format(',')(num(r.meshes))} meshes drawn`],
+    });
+  });
+
+  dash.draw('imagesChart', (el) => {
+    const rows = rowsOf('images');
+    hbars(el, rows, {
+      label: (r) => r.what,
+      value: (r) => num(r.mb),
+      color: (r, i) => (r.what.startsWith('Panorama') ? 'var(--cds-chart-status-critical)' : 'var(--cds-chart-muted)'),
+      tick: (v) => d3.format(',.0f')(v) + ' MB',
+      tip: (r) => [r.what, `${d3.format(',.1f')(num(r.mb))} MB`],
+    });
+  });
+
+  dash.draw('flightChart', (el) => {
+    const rows = rowsOf('flight');
+    hbars(el, rows, {
+      label: (r) => `${r.build} ${r.run.split(' ')[1]}, ${r.start.startsWith('Card') ? 'cooled' : 'straight after'}`,
+      value: (r) => num(r.p50_ms),
+      color: (r) => (r.build === 'After' ? accent() : 'var(--cds-chart-muted)'),
+      tick: (v) => d3.format('.0f')(v) + ' ms',
+      refs: [LIMIT_60, LIMIT_90],
+      tip: (r) => [`${r.build}, ${r.start.toLowerCase()}`, `median ${fmtMs(num(r.p50_ms))}`, `p95 ${fmtMs(num(r.p95_ms))}`, `${num(r.over_16_7_pct)} % of frames over 16.7 ms`, `above 800 m: median ${fmtMs(num(r.above_800m_p50_ms))}`],
+    });
+  });
+
+  dash.draw('vramChart', (el) => {
+    el.querySelectorAll('svg').forEach((s) => s.remove());
+    const rows = rowsOf('vram');
+    if (!rows) return;
+    const pts = rows.map((r) => ({ t: num(r.t_s), on: num(r.dedicated_mb), off: num(r.shared_mb) }));
+    const W = Math.max(280, el.clientWidth), H = 224;
+    const m = { top: 12, right: 16, bottom: 28, left: 52 };
+    const x = d3.scaleLinear(d3.extent(pts, (p) => p.t), [m.left, W - m.right]);
+    const y = d3.scaleLinear([0, CARD_MB], [H - m.bottom, m.top]);
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
+    svg.append('g').attr('transform', `translate(0,${H - m.bottom})`).call(d3.axisBottom(x).ticks(5).tickFormat((v) => v + ' s')).call(axisStyle);
+    svg.append('g').attr('transform', `translate(${m.left},0)`).call(d3.axisLeft(y).ticks(4).tickSize(-(W - m.left - m.right)).tickFormat((v) => d3.format('.0f')(v / 1024) + ' GB')).call(axisStyle);
+    const stack = d3.area().x((p) => x(p.t)).y0((p) => y(p.on)).y1((p) => y(p.on + p.off));
+    svg.append('path').datum(pts).attr('d', d3.area().x((p) => x(p.t)).y0(y(0)).y1((p) => y(p.on))).attr('fill', accent()).attr('opacity', 0.55);
+    svg.append('path').datum(pts).attr('d', stack).attr('fill', 'var(--cds-chart-status-critical)').attr('opacity', 0.75);
+    const tip = tooltip(el);
+    const bisect = d3.bisector((p) => p.t).center;
+    svg.append('rect').attr('x', m.left).attr('y', m.top).attr('width', W - m.left - m.right).attr('height', H - m.top - m.bottom).attr('fill', 'transparent')
+      .on('pointermove', (ev) => { const [mx] = d3.pointer(ev); const p = pts[bisect(pts, x.invert(mx))]; tip.show(ev, [`${p.t} s`, `on the card ${d3.format(',')(p.on)} MB`, `spilled ${d3.format(',')(p.off)} MB`]); })
+      .on('pointerleave', () => tip.hide());
+  });
+
+  dash.draw('suburbRows', (tbody) => {
+    const rows = rowsOf('suburb');
+    tbody.replaceChildren();
+    (rows || []).forEach((r) => {
+      const tr = document.createElement('tr');
+      tr.setAttribute('data-key', `${encodeURIComponent(r.run)},${encodeURIComponent(r.phase)}`);
+      [r.run, r.phase, r.build, d3.format('.1f')(num(r.p50_ms)), d3.format('.0f')(num(r.max_ms))].forEach((v) => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
+      tbody.appendChild(tr);
+    });
+  });
+</script>
