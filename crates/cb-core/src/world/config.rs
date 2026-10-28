@@ -341,6 +341,10 @@ pub struct CloudConfig {
     pub look_erode: f32,
     /// A billboard fades out over this depth in front of the ground behind it (soft particles).
     pub look_soft_m: f32,
+    /// How fast a rain shaft's streaks fall (rain's fall speed).
+    pub look_rain_fall_m_s: f32,
+    /// A rain shaft's opacity at its core, 0..1.
+    pub look_rain_opacity: f32,
 }
 
 impl Default for CloudConfig {
@@ -360,6 +364,8 @@ impl Default for CloudConfig {
             look_near_fade_m: 140.0,
             look_erode: 0.62,
             look_soft_m: 60.0,
+            look_rain_fall_m_s: 9.0,
+            look_rain_opacity: 0.9,
         }
     }
 }
@@ -381,6 +387,8 @@ impl Validate for CloudConfig {
         positive("clouds.look_near_fade_m", self.look_near_fade_m)?;
         within("clouds.look_erode", self.look_erode, 0.0, 2.0)?;
         positive("clouds.look_soft_m", self.look_soft_m)?;
+        positive("clouds.look_rain_fall_m_s", self.look_rain_fall_m_s)?;
+        within("clouds.look_rain_opacity", self.look_rain_opacity, 0.0, 1.0)?;
         Ok(())
     }
 }
