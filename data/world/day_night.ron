@@ -32,4 +32,37 @@
     // times white on screen when full.
     moon_disc_deg: 0.8,
     moon_disc_brightness: 1.6,
+    // Street lamps on every stretch of road (owner, 2026-10-28: "Every stretch of road should have street lamps"):
+    // city streets every 32 m on alternating sides, arterials every 30 m on both, highways every 50 m on
+    // alternating sides, the pole 0.8 m outside the paved edge with a 1.6 m arm over the road; heads at 9, 12
+    // and 11 m. On as the sun sinks from 1 to 3 degrees below the horizon. The nearest 96 within 250 m are real
+    // lights (150 W high-pressure sodium, 15,000 lm, orange: survey N5), fading out over their last 50 m; the
+    // rest glow.
+    lamps: (
+        street_spacing_m: 32.0,
+        arterial_spacing_m: 30.0,
+        highway_spacing_m: 50.0,
+        head_m: (9.0, 12.0, 11.0),
+        arm_m: 1.6,
+        kerb_m: 0.8,
+        min_piece_m: 12.0,
+        on_deg: (-3.0, 1.0),
+        lumens: 15000.0,
+        range_m: 35.0,
+        cone_deg: (40.0, 65.0),
+        colour: (1.0, 0.62, 0.25),
+        real_lamps: 96,
+        real_m: 250.0,
+        fade_m: 50.0,
+        head_cd_m2: 8.0,
+    ),
+    // The buildings' windows (owner, 2026-10-28: "buildings also need some sort of cell lighting. If the
+    // building is damaged all of its lights turn off"): each a cell one storey high and 2.5 m wide; the share
+    // lit rises through dusk to 65 % at 20:00, falls to 35 % at midnight and 12 % at 03:00, and the last go out
+    // by 07:00. A lit window glows at 3 cd/m2. A damaged building's are never lit.
+    windows: (
+        lit_by_hour: [(0.0, 0.35), (3.0, 0.12), (5.5, 0.12), (7.0, 0.0), (17.5, 0.0), (20.0, 0.65), (24.0, 0.35)],
+        column_m: 2.5,
+        cd_m2: 3.0,
+    ),
 )

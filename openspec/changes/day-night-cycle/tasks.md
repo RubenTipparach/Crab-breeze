@@ -26,17 +26,14 @@ where the owner chose real moon phases. Building from 2026-10-28.
 
 ## 3. Lamps
 
-- [ ] 3.1 `cb_core::world::lamps` from the road network and the air bases (tests: spacing by road kind, none in a
-  building or in water, stable ids); `cb-tools cities` prints the count
-- [ ] 3.2 Instanced poles and emissive heads, on at dusk
-- [ ] 3.3 Tier 1: the nearest 96 within 250 m as pooled spot lights, stable order, distance and admission fades
-  (test: the chosen set is the same for the same eye and lamps, whatever the query order)
+- [x] 3.1 `cb_core::world::lamps::place` from every road (owner: "Every stretch of road should have street lamps"): city streets, arterials and the highways between cities; none in a building or in water, stable ids (tests: spacing by road kind, both sides on arterials, none on the squares where streets cross). Seed 42: 5,241 lamps (2,297 streets, 2,136 arterials, 808 highways), printed by `cb-tools cities`
+- [x] 3.2 Poles and heads merged into one mesh per kilometre tile (two draws a tile, not instancing), the heads glowing from dusk
+- [x] 3.3 Tier 1: the nearest 96 within 250 m as a pool of spot lights moved from lamp to lamp, nearest first with ties by id, fading in over 0.5 s and out over their last 50 m
 - [ ] 3.4 Tier 3: glow sprites beyond 150 m
 
 ## 4. Windows and vehicles
 
-- [ ] 4.1 `cb_core::world::windows::lit` and its WESL copy, pinned by a test on a table of cases; the glass shader's
-  emission; interiors behind lit windows
+- [x] 4.1 Lit windows in the glass shader (`building_surface.wesl`): each window a cell one storey high and 2.5 m wide, lit when its hash falls under the share of the hour (`WindowLights::lit_share`, tested); a damaged building, drawn by its frame with its own element slots, never lights (owner: "If the building is damaged all of its lights turn off"). Left: far facades' night layer (2.3) and lit interiors behind lit windows
 - [ ] 4.2 Cars' emissive lights at dusk; the nearest 12 cars' headlights as pooled spot lights
 - [ ] 4.3 The player's vehicle lamps with shadows, on a bindable control
 - [ ] 4.4 Read Bevy 0.20's source on whether a light's `RenderLayers` limit its shadow casters (needed only if the

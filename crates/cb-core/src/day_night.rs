@@ -63,6 +63,78 @@ pub struct DayNightConfig {
     pub moon_disc_deg: f32,
     /// The lit face of a full moon on screen, against white (1).
     pub moon_disc_brightness: f32,
+    /// The street lamps (`crate::world::lamps`).
+    pub lamps: crate::world::lamps::LampConfig,
+    /// The buildings' lit windows.
+    pub windows: WindowLights,
+}
+
+/// The buildings' windows at night (owner, 2026-10-28: "buildings also need some sort of cell
+/// lighting. If the building is damaged all of its lights turn off"): each window a cell of its
+/// facade, one storey high and `column_m` wide, lit when its own hash falls under the share of the
+/// hour. A damaged building's windows are never lit (the glass shader knows a damaged building by its
+/// frame's element slots).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct WindowLights {
+    /// The share of windows lit through the day: (hour, share) points, hours rising from 0 to 24,
+    /// straight lines between and round midnight.
+    pub lit_by_hour: Vec<[f32; 2]>,
+    /// A window cell's width along its facade, metres (one storey high).
+    pub column_m: f32,
+    /// A lit window's brightness, cd/m2 (times the exposure on screen).
+    pub cd_m2: f32,
+}
+
+impl Default for WindowLights {
+    fn default() -> Self {
+        Self {
+            lit_by_hour: vec![
+                [0.0, 0.35],
+                [3.0, 0.12],
+                [5.5, 0.12],
+                [7.0, 0.0],
+                [17.5, 0.0],
+                [20.0, 0.65],
+                [24.0, 0.35],
+            ],
+            column_m: 2.5,
+            cd_m2: 3.0,
+        }
+    }
+}
+
+impl WindowLights {
+    /// The share of windows lit at `hour`, 0..1.
+    pub fn lit_share(&self, hour: f32) -> f32 {
+        let h = hour.rem_euclid(24.0);
+        let pts = &self.lit_by_hour;
+        for w in pts.windows(2) {
+            let ([h0, s0], [h1, s1]) = (w[0], w[1]);
+            if h >= h0 && h <= h1 {
+                let t = if h1 > h0 { (h - h0) / (h1 - h0) } else { 0.0 };
+                return (s0 + (s1 - s0) * t).clamp(0.0, 1.0);
+            }
+        }
+        pts.first().map_or(0.0, |p| p[1].clamp(0.0, 1.0))
+    }
+
+    fn check(&self) -> Result<(), String> {
+        if self.lit_by_hour.len() < 2 {
+            return Err("`windows.lit_by_hour` needs at least two points".into());
+        }
+        for w in self.lit_by_hour.windows(2) {
+            if w[1][0] < w[0][0] {
+                return Err(format!("`windows.lit_by_hour` hours must rise, got {:?} then {:?}", w[0], w[1]));
+            }
+        }
+        for p in &self.lit_by_hour {
+            within("windows.lit_by_hour hour", p[0], 0.0, 24.0)?;
+            within("windows.lit_by_hour share", p[1], 0.0, 1.0)?;
+        }
+        within("windows.column_m", self.column_m, 0.5, 20.0)?;
+        within("windows.cd_m2", self.cd_m2, 0.0, 1.0e5)
+    }
 }
 
 impl Default for DayNightConfig {
@@ -84,6 +156,8 @@ impl Default for DayNightConfig {
             stars_deg: [-14.0, -4.0],
             moon_disc_deg: 0.8,
             moon_disc_brightness: 1.6,
+            lamps: crate::world::lamps::LampConfig::default(),
+            windows: WindowLights::default(),
         }
     }
 }
@@ -104,6 +178,8 @@ impl Validate for DayNightConfig {
         within("star_brightness", self.star_brightness, 0.0, 10.0)?;
         within("moon_disc_deg", self.moon_disc_deg, 0.05, 10.0)?;
         within("moon_disc_brightness", self.moon_disc_brightness, 0.0, 20.0)?;
+        self.lamps.validate()?;
+        self.windows.check()?;
         ordered("stars_deg", self.stars_deg)
     }
 }
@@ -390,6 +466,16 @@ mod tests {
         let l = lighting(&cfg, &clock, 13.4);
         assert_eq!(l.shadows, ShadowBody::None);
         assert!(l.moon_share < 1e-3);
+    }
+
+    #[test]
+    fn windows_light_through_the_evening_and_go_out_by_morning() {
+        let w = WindowLights::default();
+        assert_eq!(w.lit_share(12.0), 0.0, "none by day");
+        assert!((w.lit_share(20.0) - 0.65).abs() < 1e-6, "most at 20:00");
+        assert!((w.lit_share(0.0) - 0.35).abs() < 1e-6 && (w.lit_share(24.0) - 0.35).abs() < 1e-6);
+        assert!((w.lit_share(4.0) - 0.12).abs() < 1e-6, "a few all night");
+        assert!(w.lit_share(18.75) > 0.0 && w.lit_share(18.75) < 0.65, "coming on at dusk");
     }
 
     #[test]

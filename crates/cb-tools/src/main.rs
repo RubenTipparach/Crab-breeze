@@ -165,6 +165,16 @@ fn main() -> ExitCode {
             let cells = cb_core::world::Structures::new(&plan);
             let start = plan.start.mech_xz;
             println!("seed {seed}: {} cities, {} buildings", plan.cities.len(), plan.buildings.len());
+            let lamps = cb_core::world::lamps::place(&plan, &data.day_night.lamps);
+            let count = |k| lamps.iter().filter(|l| l.kind == k).count();
+            use cb_core::world::lamps::LampKind;
+            println!(
+                "street lamps: {} ({} on streets, {} on arterials, {} on highways)",
+                lamps.len(),
+                count(LampKind::Street),
+                count(LampKind::Arterial),
+                count(LampKind::Highway)
+            );
             for c in &plan.cities {
                 let ids: Vec<usize> = plan.buildings.iter().filter(|b| b.city == c.id).map(|b| b.id as usize).collect();
                 let n: usize = ids.iter().map(|&i| cells.buildings[i].intact.len()).sum();

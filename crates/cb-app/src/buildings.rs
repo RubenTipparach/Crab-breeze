@@ -209,7 +209,11 @@ impl Materials {
                                 depth_bias: GLASS_SORT_BIAS,
                                 ..bases.get(&looks.glass).cloned().unwrap_or_default()
                             },
-                            extension: ElementState { standing, no_ssao: 1 },
+                            extension: ElementState {
+                                standing,
+                                no_ssao: 1,
+                                windows: Vec4::ZERO,
+                            },
                         })
                     })
                     .clone(),
@@ -390,7 +394,14 @@ impl Plugin for BuildingsPlugin {
             .add_game_systems(FixedUpdate, step_structures.in_set(SimSet::World))
             .add_game_systems(
                 Update,
-                (dress_near_player, redraw_buildings, show_rooms_near, bind_far_looks, show_massing)
+                (
+                    dress_near_player,
+                    redraw_buildings,
+                    show_rooms_near,
+                    bind_far_looks,
+                    show_massing,
+                    light_windows,
+                )
                     .chain()
                     .in_set(PresentSet::Pose),
             )
@@ -1134,6 +1145,24 @@ fn show_massing(
         }
         true
     });
+}
+
+/// The windows for the hour (day-night-cycle): the share lit now into the one glass material, so
+/// every intact building's windows follow the clock (a damaged building's never light).
+fn light_windows(
+    data: Res<crate::sim::Data>,
+    light: Res<crate::day_night::Light>,
+    shared: Res<Materials>,
+    mut glasses: ResMut<Assets<BuildingMaterial>>,
+) {
+    let Some(handle) = shared.glass.as_ref() else { return };
+    let w = &data.0.day_night.windows;
+    let want = Vec4::new(w.lit_share(light.0.hour), w.cd_m2, data.0.world.storey_height_m, w.column_m);
+    if glasses.get(handle).is_some_and(|m| m.extension.windows != want)
+        && let Some(mut m) = glasses.get_mut(handle)
+    {
+        m.extension.windows = want;
+    }
 }
 
 #[cfg(test)]

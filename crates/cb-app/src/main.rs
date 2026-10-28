@@ -38,6 +38,7 @@ mod hitch_spans;
 mod hud;
 mod input;
 mod interact;
+mod lamps;
 mod loading;
 mod main_menu;
 mod mech;
@@ -229,7 +230,7 @@ fn main() -> AppExit {
     // Free roam's mail and its missions (free-roam-missions); the Stratostacean (crab-airship).
     .add_plugins((missions::MissionsPlugin, fortress::FortressPlugin))
     // The time of day: the world's clock, the sun and the moon (day-night-cycle).
-    .add_plugins(day_night::DayNightPlugin)
+    .add_plugins((day_night::DayNightPlugin, lamps::LampsPlugin))
     // How thick the ground fog is now: the clock's hour and the mission's preset (ground-fog, survey F1).
     .add_plugins(ground_fog::GroundFogPlugin)
     // The railgun's scope window on the front screen (railgun-scope).

@@ -80,6 +80,10 @@ pub struct ElementState {
     /// 1 for glass: it takes no screen-space ambient occlusion (`building_surface.wesl`).
     #[uniform(105)]
     pub no_ssao: u32,
+    /// The windows at night (`building_surface.wesl`, `cb_core::day_night::WindowLights`): x the share
+    /// lit now, y a lit window's brightness cd/m2, z a storey's height m, w a window cell's width m.
+    #[uniform(106)]
+    pub windows: Vec4,
 }
 
 impl MaterialExtension for ElementState {
