@@ -62,6 +62,7 @@ impl Plugin for ShowcasePlugin {
             "fight" => &["load", "look", "board", "stand", "fight", "tower", "charge", "result", "end"],
             "defence" => &DEFENCE_BEATS,
             "demolition" => &crate::demolition::TAKE_BEATS,
+            "people" => &crate::people_take::TAKE_BEATS,
             _ => &[
                 "load", "look", "board", "stride", "rockets", "landing", "wade", "wood", "shells", "damage", "result", "end",
             ],
@@ -104,6 +105,10 @@ impl Plugin for ShowcasePlugin {
             "demolition" => app
                 .init_resource::<crate::demolition::DemolitionTake>()
                 .add_game_systems(Update, crate::demolition::play_take.in_set(crate::sim::PresentSet::Input)),
+            "people" => {
+                crate::people_take::add(app);
+                app
+            }
             _ => app.add_game_systems(Update, play.in_set(crate::sim::PresentSet::Input)),
         };
     }

@@ -84,6 +84,9 @@ fn spawn_bases(
         return;
     }
     let concrete = crate::buildings::concrete_material(&mut images, &mut materials);
+    // The runways and taxiways wear the worn road asphalt (road-surfaces).
+    let worn = crate::pbr_set::set_material(&mut images, &mut materials, "textures/road/asphalt_worn", 0.9);
+    let worn_tile_m = data.0.world.road_surfaces.worn_tile_m;
     let paint = materials.add(StandardMaterial {
         base_color: Color::WHITE,
         perceptual_roughness: 0.8,
@@ -169,8 +172,9 @@ fn spawn_bases(
         // centre line, edge lines and threshold bars at both ends.
         let rw = b.runway;
         let asphalt = [0.13, 0.13, 0.13, 1.0];
+        let mut runway = MeshBuilder::tiled(worn_tile_m, worn_tile_m);
         for f in [rw.rect(), rw.taxiway(&r)] {
-            slab.block(
+            runway.block(
                 Vec3::new(f.min.x, g - 0.5, f.min.y),
                 Vec3::new(f.max.x, g + APRON_LIFT_M, f.max.y),
                 asphalt,
@@ -247,6 +251,12 @@ fn spawn_bases(
             Name::new(format!("air base {}", b.id)),
             Mesh3d(meshes.add(slab.build_with_tangents())),
             MeshMaterial3d(concrete.clone()),
+            Transform::IDENTITY,
+        ));
+        commands.spawn((
+            Name::new(format!("air base {} runway", b.id)),
+            Mesh3d(meshes.add(runway.build_with_tangents())),
+            MeshMaterial3d(worn.clone()),
             Transform::IDENTITY,
         ));
         commands.spawn((

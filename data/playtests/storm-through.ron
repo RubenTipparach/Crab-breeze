@@ -1,0 +1,29 @@
+// Through the storm, not past it (openspec/changes/ground-fog task 5.3; owner, 2026-10-26: "the whole sky ios
+// flikering", "also ground color fog flickerewd as well"): a new career, board, then on the jets at 80 m south-east
+// straight through the west storm's rain shaft at its centre (the sun, south-east and 43 degrees up, at the top edge of
+// the front screen), out the far side, then back north-west climbing to 650 m under and into its base and its scud,
+// and south-east once more through the cloud toward the sun. The harder attempt to reproduce the flicker on the build
+// before the fix (docs/playtests/2026-10-27-sky-flicker.md).
+//
+//   ./target/release/crab-breeze --playtest storm-through
+(
+    name: "storm-through",
+    stuck_s: 20.0,
+    runs: [
+        (
+            play: "career-new",
+            beats: [
+                Wait(2.0),
+                Board,
+                Wait(2.0),
+                JetTo(-7500.0, -6000.0, 80.0),
+                JetTo(-5300.0, -4200.0, 80.0),
+                JetTo(-3000.0, -2000.0, 80.0),
+                JetTo(-5300.0, -4200.0, 650.0),
+                JetTo(-7500.0, -6300.0, 650.0),
+                JetTo(-3500.0, -2500.0, 650.0),
+                Wait(3.0),
+            ],
+        ),
+    ],
+)

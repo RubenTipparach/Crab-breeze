@@ -5,9 +5,9 @@
 //! 600 m, and greyer under a storm's rain.
 //!
 //! The rules are here, pure and tested: `mist_at` is the one mist rule (the drawn map is baked from
-//! it, `MistMap`), and `optical_depth` is the one fog integral (the compose pass in
-//! `assets/shaders/water_post.wesl` repeats it on the GPU; a test checks the closed form against a
-//! fine march). The tuning is in `data/world/world.ron` under `fog:`.
+//! it, `MistMap`), and `optical_depth` is the one fog integral (`layer_depth` in
+//! `assets/shaders/water_common.wesl` repeats it on the GPU for the fog pass and the clouds; a
+//! test checks the closed form against a fine march). The tuning is in `data/world/world.ron` under `fog:`.
 //!
 //! How thick it is right now (survey F1; owner, 2026-10-26: "Approve all"): a morning mist that
 //! thins by day, on the fog's own clock (the game has no time of day: the sun stands still), or a
@@ -301,7 +301,7 @@ pub fn haze_depth(cfg: &FogConfig, sea_level_m: f32, from_y_m: f32, dir_y: f32, 
 
 /// The optical depth through an exponential layer of `density` per metre at sea level, thinning
 /// by e every `h` metres, along a ray from height `from_y_m` rising `dir_y` a metre for
-/// `length_m`. The one closed form of the fog and the haze (`layer_depth` in `water_post.wesl`).
+/// `length_m`. The one closed form of the fog and the haze (`layer_depth` in `water_common.wesl`).
 fn layer_depth(density: f32, h: f32, sea_level_m: f32, from_y_m: f32, dir_y: f32, length_m: f32) -> f32 {
     let e = |y: f32| (-(y - sea_level_m).max(-200.0) / h).exp();
     let e0 = e(from_y_m);
@@ -329,18 +329,25 @@ pub fn line_depth(cfg: &FogConfig, strength: FogStrength, map: &MistMap, sea_lev
         return 0.0;
     }
     let dir = (to - from) / len;
-    let reach = len.min(cfg.mist_taps_m);
+    let thick = thickening(cfg, strength, map, from, dir, len.min(cfg.mist_taps_m));
+    let layer = optical_depth(cfg, sea_level_m, from.y, dir.y, len, thick) * strength.density_scale;
+    layer + haze_depth(cfg, sea_level_m, from.y, dir.y, len) + rain_depth(cfg, rain, len)
+}
+
+/// How many times the mist thickens the layer along a sight line from `from` going `dir` (a unit vector): the mist read
+/// at the four taps out to `reach_m` and averaged, `1 + mist_strength * mist_scale * mist` (`fog_depth` in
+/// `water_post.wesl` writes it the same way). The clouds read it round the eye on level bearings out to `mist_taps_m`
+/// (`clouds_render`), so a far cloud is thickened by the same mist as the far land under it.
+pub fn thickening(cfg: &FogConfig, strength: FogStrength, map: &MistMap, from: Vec3, dir: Vec3, reach_m: f32) -> f32 {
     let mist = MIST_TAPS
         .iter()
         .map(|f| {
-            let p = from + dir * (reach * f);
+            let p = from + dir * (reach_m * f);
             map.at(Vec2::new(p.x, p.z))
         })
         .sum::<f32>()
         / MIST_TAPS.len() as f32;
-    let thick = 1.0 + cfg.mist_strength * strength.mist_scale * mist;
-    let layer = optical_depth(cfg, sea_level_m, from.y, dir.y, len, thick) * strength.density_scale;
-    layer + haze_depth(cfg, sea_level_m, from.y, dir.y, len) + rain_depth(cfg, rain, len)
+    1.0 + cfg.mist_strength * strength.mist_scale * mist
 }
 
 /// The rain's haze along `len` metres of a sight line from an eye under rain `rain` (0..1): only
@@ -626,6 +633,32 @@ mod tests {
         // Rain at the eye thickens it; a line of no length has none.
         assert!(line_depth(&cfg, s, &map, 0.0, eye, Vec3::new(1500.0, 10.0, 0.0), 1.0) > clear + 0.9);
         assert_eq!(line_depth(&cfg, s, &map, 0.0, eye, eye, 1.0), 0.0);
+    }
+
+    #[test]
+    fn a_far_cloud_is_fogged_by_the_mist_it_is_seen_across_as_the_land_is() {
+        // The clouds thicken the layer by the mist read on the level bearing toward them (`thickening`, out to
+        // `mist_taps_m`), the fog pass along the sight line itself: over even mist the two agree, and the misty way is
+        // the foggier (owner, 2026-10-27: "cloud fog blend should be a thing").
+        let cfg = FogConfig::default();
+        let map = half_misty(160);
+        let s = cfg.presets.morning;
+        let eye = Vec3::new(0.0, 80.0, 0.0);
+        let depth = |cloud: Vec3, bearing: Vec3| {
+            let len = eye.distance(cloud);
+            let dir_y = (cloud.y - eye.y) / len;
+            let thick = thickening(&cfg, s, &map, eye, bearing, cfg.mist_taps_m);
+            optical_depth(&cfg, 0.0, eye.y, dir_y, len, thick) * s.density_scale + haze_depth(&cfg, 0.0, eye.y, dir_y, len)
+        };
+        let misty_cloud = Vec3::new(-7000.0, 900.0, 0.0);
+        let misty = depth(misty_cloud, Vec3::NEG_X);
+        let line = line_depth(&cfg, s, &map, 0.0, eye, misty_cloud, 0.0);
+        assert!(
+            (misty - line).abs() < 1e-3 * line,
+            "the cloud's {misty} against the sight line's {line}"
+        );
+        let clear = depth(Vec3::new(7000.0, 900.0, 0.0), Vec3::X);
+        assert!(misty > 1.5 * clear, "{misty} against {clear}");
     }
 
     #[test]

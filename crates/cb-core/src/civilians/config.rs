@@ -79,22 +79,125 @@ pub struct PeopleConfig {
     pub draw: DrawConfig,
 }
 
-/// How people are drawn (design section 2): the full body near the eye, a low figure in the middle
-/// distance, a flat card far off.
+/// How people are drawn (openspec change `people-vat`): the near level of detail within `near_m` of the
+/// eye, the crowd level beyond, both played from the baked clips.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct DrawConfig {
-    /// Within this of the eye a person is drawn as the full body.
+    /// Within this of the eye a person is drawn at the near level of detail.
     pub near_m: f32,
-    /// ... and at most this many of them (the nearest first in list order past it).
+    /// ... and at most this many of them (the first in list order past it take the crowd level).
     pub near_max: usize,
-    /// Within this, the low figure; beyond it, the card.
-    pub mid_m: f32,
-    /// A walker's stride: the walk's poses change every half stride.
-    pub stride_m: f32,
-    /// The crowd past the near distance is rebuilt this often (a person at 1.5 m/s moves 5 cm between
-    /// rebuilds at 30 Hz, too little to see past 60 m).
-    pub crowd_refresh_hz: f32,
+    /// A change of clip fades from the old one over this.
+    pub crossfade_s: f32,
+    /// A greeting waves this long, then talks.
+    pub wave_s: f32,
+    /// A walk or run plays at the body's pace over the clip's own speed, kept within this (least,
+    /// most), so feet keep to the ground without a stride turning into a shuffle or a blur.
+    pub cadence: [f32; 2],
+    /// The colours people wear, sRGB 0-1: a person's `look` picks one of each (`anim::Outfit`).
+    pub palette: Palette,
+    /// A person's top and bottom differ in luminance by at least this (0-1), so the shirt reads apart from the
+    /// trousers.
+    pub min_top_bottom_contrast: f32,
+}
+
+/// The colours people wear, by region of the body, sRGB 0-1 (survey G1: 1980s street and workwear).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct Palette {
+    /// Skin tones, at most 8.
+    pub skin: Vec<[f32; 3]>,
+    /// Hair, at most 8.
+    pub hair: Vec<[f32; 3]>,
+    /// Tops (shirts, jackets, coats), at most 16.
+    pub top: Vec<[f32; 3]>,
+    /// Bottoms (trousers, skirts), at most 12.
+    pub bottom: Vec<[f32; 3]>,
+    /// Shoes, at most 8.
+    pub shoes: Vec<[f32; 3]>,
+    /// The whites of the eyes (the iris is the eyes' baked shade).
+    pub eyes: [f32; 3],
+}
+
+impl Palette {
+    /// The most of each the renderer's table holds: skin, hair, top, bottom, shoes.
+    pub const MAX: [usize; 5] = [8, 8, 16, 12, 8];
+
+    /// The lists in the order of `MAX`: skin, hair, top, bottom, shoes.
+    pub fn lists(&self) -> [&[[f32; 3]]; 5] {
+        [&self.skin, &self.hair, &self.top, &self.bottom, &self.shoes]
+    }
+}
+
+impl Default for Palette {
+    fn default() -> Self {
+        Self {
+            skin: vec![
+                [0.96, 0.80, 0.69],
+                [0.90, 0.72, 0.60],
+                [0.80, 0.60, 0.46],
+                [0.69, 0.50, 0.36],
+                [0.56, 0.38, 0.26],
+                [0.44, 0.29, 0.20],
+                [0.34, 0.22, 0.15],
+                [0.86, 0.68, 0.52],
+            ],
+            hair: vec![
+                [0.10, 0.07, 0.05],
+                [0.20, 0.13, 0.08],
+                [0.33, 0.22, 0.12],
+                [0.55, 0.40, 0.22],
+                [0.72, 0.58, 0.36],
+                [0.50, 0.48, 0.46],
+                [0.78, 0.76, 0.72],
+                [0.42, 0.16, 0.08],
+            ],
+            top: vec![
+                [0.55, 0.20, 0.15],
+                [0.20, 0.30, 0.48],
+                [0.62, 0.56, 0.42],
+                [0.70, 0.45, 0.10],
+                [0.32, 0.34, 0.32],
+                [0.75, 0.75, 0.70],
+                [0.20, 0.38, 0.27],
+                [0.52, 0.14, 0.28],
+                [0.12, 0.12, 0.14],
+                [0.45, 0.33, 0.22],
+                [0.30, 0.42, 0.55],
+                [0.80, 0.62, 0.30],
+                [0.38, 0.40, 0.20],
+                [0.60, 0.30, 0.22],
+                [0.25, 0.22, 0.35],
+                [0.85, 0.82, 0.74],
+            ],
+            bottom: vec![
+                [0.12, 0.13, 0.17],
+                [0.22, 0.27, 0.40],
+                [0.28, 0.26, 0.24],
+                [0.40, 0.34, 0.26],
+                [0.18, 0.20, 0.18],
+                [0.48, 0.44, 0.36],
+                [0.08, 0.08, 0.09],
+                [0.30, 0.22, 0.16],
+                [0.34, 0.36, 0.40],
+                [0.20, 0.30, 0.50],
+                [0.42, 0.20, 0.16],
+                [0.55, 0.52, 0.46],
+            ],
+            shoes: vec![
+                [0.07, 0.06, 0.05],
+                [0.22, 0.14, 0.08],
+                [0.36, 0.25, 0.15],
+                [0.12, 0.12, 0.13],
+                [0.70, 0.68, 0.64],
+                [0.30, 0.18, 0.12],
+                [0.18, 0.18, 0.20],
+                [0.45, 0.36, 0.26],
+            ],
+            eyes: [0.86, 0.84, 0.80],
+        }
+    }
 }
 
 impl Default for DrawConfig {
@@ -102,9 +205,11 @@ impl Default for DrawConfig {
         Self {
             near_m: 60.0,
             near_max: 200,
-            mid_m: 250.0,
-            stride_m: 1.4,
-            crowd_refresh_hz: 30.0,
+            crossfade_s: 0.25,
+            wave_s: 2.0,
+            cadence: [0.5, 1.8],
+            palette: Palette::default(),
+            min_top_bottom_contrast: 0.08,
         }
     }
 }
@@ -188,11 +293,25 @@ impl Validate for PeopleConfig {
         within("greet_cone_deg", self.greet_cone_deg, 1.0, 180.0)?;
         positive("greet_hold_s", self.greet_hold_s)?;
         positive("draw.near_m", self.draw.near_m)?;
-        positive("draw.mid_m", self.draw.mid_m)?;
-        positive("draw.stride_m", self.draw.stride_m)?;
-        positive("draw.crowd_refresh_hz", self.draw.crowd_refresh_hz)?;
-        if self.draw.mid_m < self.draw.near_m {
-            return Err("`draw.mid_m` must be at least `draw.near_m`".into());
+        positive("draw.crossfade_s", self.draw.crossfade_s)?;
+        positive("draw.wave_s", self.draw.wave_s)?;
+        positive_range("draw.cadence", self.draw.cadence)?;
+        within("draw.min_top_bottom_contrast", self.draw.min_top_bottom_contrast, 0.0, 0.5)?;
+        for v in self.draw.palette.eyes {
+            within("draw.palette.eyes", v, 0.0, 1.0)?;
+        }
+        for (name, (list, most)) in ["skin", "hair", "top", "bottom", "shoes"]
+            .iter()
+            .zip(self.draw.palette.lists().iter().zip(Palette::MAX))
+        {
+            if list.is_empty() || list.len() > most {
+                return Err(format!("`draw.palette.{name}` has {} colours: 1 to {most}", list.len()));
+            }
+            for c in list.iter() {
+                for v in c {
+                    within(&format!("draw.palette.{name}"), *v, 0.0, 1.0)?;
+                }
+            }
         }
         Ok(())
     }

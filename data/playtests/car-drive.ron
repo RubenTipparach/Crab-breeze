@@ -1,0 +1,31 @@
+// Driving a car in third person (openspec change car-chase-camera; owner, 2026-10-26: "also driving should be in
+// 3rd person"). Free roam: walk to the nearest car's driver's door, get in (the view eases out of the pilot's eyes
+// to the chase camera behind and above the car), drive, look round with the mouse (the camera orbits the car),
+// drive on with the mouse still (it drifts back behind the car), stop, and get out (it eases back into the eyes).
+// The walk and the getting out are in first person, as everything but driving is.
+//
+//   CB_FRAMES_DIR=output/playtests/car-drive CB_FRAMES_EVERY_S=0.5 ./target/release/crab-breeze --playtest car-drive
+(
+    name: "car-drive",
+    stuck_s: 20.0,
+    runs: [
+        (
+            play: "free",
+            beats: [
+                Wait(2.0),
+                // away from the mech first: cars that drive into its legs are shoved about
+                WalkToPerson(200.0),
+                WalkToCar(150.0),
+                UseOn("GetIn"),
+                ExpectMode("Driving", 5.0),
+                Wait(2.0),
+                DriveCar(8.0, 0.6),
+                LookAround(5.0),
+                DriveCar(8.0, 0.5),
+                UseOn("GetOut"),
+                ExpectMode("OnFoot", 5.0),
+                Wait(2.0),
+            ],
+        ),
+    ],
+)

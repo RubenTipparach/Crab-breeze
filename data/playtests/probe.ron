@@ -1,0 +1,16 @@
+(
+    name: "probe",
+    stuck_s: 20.0,
+    runs: [
+        (
+            play: "free",
+            beats: [
+                Wait(2.0),
+                Board,
+                Wait(2.0),
+                JetTo(-9029.0, 1000.0, 120.0),
+                Survey(100.0),
+            ],
+        ),
+    ],
+)

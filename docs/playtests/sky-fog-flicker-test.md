@@ -54,7 +54,9 @@ frame by frame.
    ```
 
    It boards, skates past city 10, the capital and city 3, then jets at 120 m toward city 5 and back over the
-   capital.
+   capital. `--playtest storm-pass` is the storm itself: jets at 80 m along the west storm's edge, under its base and
+   through its rain, then out north (`data/playtests/storm-pass.ron`; 2026-10-27's A/B is
+   `docs/playtests/2026-10-27-sky-flicker.md`).
 3. Pick a crop of the front screen that shows only sky above the horizon for most of the route, and check it on a
    contact sheet. Then get the sky's brightness and colour for every frame:
 

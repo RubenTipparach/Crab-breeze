@@ -18,7 +18,10 @@ A playtest is the game **as it is played**: through the pilot's own eyes, from s
 what it shows, with nothing cut together.
 - **First person, always** (CLAUDE.md, the law). On foot, the camera is the pilot's eyes. In the mech,
   the camera is the pilot's eyes in the cockpit seat: the canopy, the frame, the instruments and
-  the pilot's hands are in view. There is no chase camera, no free camera and no cut to a menu.
+  the pilot's hands are in view. There is no free camera and no cut to a menu. **The one exception
+  is driving a car**, which is third person (owner, 2026-10-26: "also driving should be in 3rd
+  person"): the game's own chase camera behind the car, eased out of the eyes on getting in and back
+  into them on getting out (`car-chase-camera`). `--playtest car-drive` shows it.
 - **The take shows the walk.** Boarding is shown: walking to the mech, climbing in, the cockpit
   coming alive. A take that jumps straight to the cockpit is a showcase, not a playtest.
 - **The scripted pilot plays fair.** It sends the same input actions a player's keyboard, mouse or
@@ -115,7 +118,8 @@ Each playtest gets `docs/playtests/<YYYY-MM-DD>-<name>.md`:
 
 ## Do not
 
-- Show a third-person, free or chase camera in a playtest, or cut between views.
+- Show a third-person, free or chase camera in a playtest (other than the game's own chase camera
+  while driving a car), or cut between views.
 - Record a take nobody asked for, or upload the full OBS file.
 - Call a feature done from a unit test, a mockup or a still alone when it can be played.
 - Run two games on one machine, or a build beside a recorded take.

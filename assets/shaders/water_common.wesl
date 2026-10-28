@@ -1,6 +1,7 @@
 // The water's shared math (openspec change `water-rendering`): the one copy of the noise, the
 // light lost through water and the drops on the glass, imported by the surface material
-// (`water_surface.wesl`) and the fullscreen passes (`water_post.wesl`). No bindings here.
+// (`water_surface.wesl`), the fullscreen passes (`water_post.wesl`) and the clouds (`cloud.wesl`),
+// with the air's layered fog (`layer_depth`). No bindings here.
 //
 // Provenance: Pale Blue Dot (`RubenTipparach/pale-blue-dot` at `db25fe2`,
 // `assets/shaders/water.wgsl`), which carries Tenebris's `water.fs.glsl` and `composite.fs.glsl`
@@ -11,6 +12,20 @@
 
 fn safe_normal(v: vec3<f32>) -> vec3<f32> {
     return v * inverseSqrt(max(dot(v, v), 1e-12));
+}
+
+// The optical depth through an exponential layer of `density` per metre at sea level, thinning by
+// e every `h` metres, along a ray from height `from_y` rising `dir_y` a metre for `len`: the closed
+// form of `cb_core::world::mist::layer_depth`, with both ends' exponentials. The one copy in the shaders: the ground fog pass
+// (`water_post.wesl`) and the clouds (`cloud.wesl`) both read it.
+fn layer_depth(density: f32, h: f32, sea: f32, from_y: f32, dir_y: f32, len: f32) -> f32 {
+    let hh = max(h, 1.0);
+    let e0 = exp(-max(from_y - sea, -200.0) / hh);
+    if (abs(dir_y) < 1e-4) {
+        return density * e0 * len;
+    }
+    let e1 = exp(-max(from_y + dir_y * len - sea, -200.0) / hh);
+    return density * hh * (e0 - e1) / dir_y;
 }
 
 // ---- Gradient noise and fbm, hash constants as Tenebris has them ----------

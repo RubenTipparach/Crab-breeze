@@ -557,7 +557,11 @@ mod tests {
         assert_eq!(u.lods[0], Vec4::new(1.0, 5.0, 1.0, 25.0));
         assert_eq!(u.next[0].x, 2.0, "level 0 crossfades into level 1's stride");
         assert_eq!(u.next[2], Vec4::ZERO, "the last level has no next");
-        assert_eq!(u.grid, UVec4::new(160, 32, 5, 281));
+        assert_eq!(
+            u.grid,
+            UVec4::new(160, 32, 5, 25 + 256 + 256),
+            "heights, density, then dryness (#89)"
+        );
     }
 
     #[test]

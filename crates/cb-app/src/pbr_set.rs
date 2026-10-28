@@ -1,7 +1,8 @@
 //! Tiling PBR texture sets read from `assets/textures/` with a full mip chain built at load (Bevy
 //! 0.20 makes none for a PNG or JPEG, and a texture tiled every few metres without one shimmers in
 //! the distance), sampled with repeat and anisotropic filtering. Used by the ground's CC0 grass
-//! (`assets/textures/ground/grass001/SOURCE.md`).
+//! (`assets/textures/ground/grass001/SOURCE.md`), the building surfaces and the roads
+//! (`assets/textures/road/`).
 
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
@@ -71,6 +72,30 @@ pub fn load_tiling(assets_root: &Path, path: &str, srgb: bool) -> Option<Image> 
         ..default()
     });
     Some(img)
+}
+
+/// A folder's packed set (`albedo.jpg`, `normal_gl.png`, `orm.png`, under `assets/`) as a material whose base
+/// colour is white, so a mesh's vertex colour tints it. A map that cannot be read is left off, with a warning,
+/// and the material falls back to `roughness` and no metal.
+pub fn set_material(
+    images: &mut Assets<Image>,
+    materials: &mut Assets<StandardMaterial>,
+    folder: &str,
+    roughness: f32,
+) -> Handle<StandardMaterial> {
+    let root = crate::cli::repo_root().join("assets");
+    let mut map = |file: &str, srgb: bool| load_tiling(&root, &format!("{folder}/{file}"), srgb).map(|i| images.add(i));
+    let orm = map("orm.png", false);
+    materials.add(StandardMaterial {
+        base_color: Color::WHITE,
+        base_color_texture: map("albedo.jpg", true),
+        normal_map_texture: map("normal_gl.png", false),
+        occlusion_texture: orm.clone(),
+        perceptual_roughness: if orm.is_some() { 1.0 } else { roughness },
+        metallic: if orm.is_some() { 1.0 } else { 0.0 },
+        metallic_roughness_texture: orm,
+        ..default()
+    })
 }
 
 /// Turns an sRGB RGBA8 colour map (every mip level) into a neutral detail map: each pixel's

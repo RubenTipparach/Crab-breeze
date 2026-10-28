@@ -144,7 +144,7 @@ impl WaterSurfaceUniform {
             absorption: v3(look.absorption_per_m).extend(look.sky_horizon_strength),
             // w: the eye's submersion; only a wet eye sees water from below.
             deep: v3(look.deep_color).extend(submersion),
-            light: light.body.extend(0.0),
+            light: light.body.extend(look.whitecap_break_dev),
             sky_horizon: Vec4::new(sky.red, sky.green, sky.blue, 0.0),
             sky_zenith: v3(look.sky_zenith_color).extend(look.glitter_twinkle_hz),
             foam_color: v3(look.foam_color).extend(look.foam_intensity),
@@ -270,7 +270,10 @@ impl Plugin for WaterRenderPlugin {
                         .in_set(WaterPasses)
                         .before(tonemapping),
                 ),
-            );
+            )
+            .edit_schedule(Core3d, |schedule| {
+                schedule.add_build_pass(FogAfterSky);
+            });
     }
 }
 
@@ -413,9 +416,52 @@ impl PaneGlass {
     }
 }
 
-/// Ground fog on (false under `CB_NO_GROUND_FOG=1`).
+/// Ground fog on (false under `CB_NO_GROUND_FOG=1`). The clouds read it too: with the fog off, no
+/// cloud takes the fog's colour.
 #[derive(Resource, Clone, Copy)]
-struct GroundFogOn(bool);
+pub(crate) struct GroundFogOn(pub(crate) bool);
+
+/// The air's fog along a sight line now, the numbers the fog pass and the clouds both read (one
+/// source, CLAUDE.md section 6.1): the ground fog's layer at the strength now (the clock's morning
+/// mist or a mission's preset, survey F1), the aerial haze, and the rain at the eye (followed,
+/// `EyeWeather`) as far as the rain reaches.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct AirFog {
+    /// The ground fog's density at sea level, per metre, times the strength now.
+    pub layer_per_m: f32,
+    /// The ground fog's scale height, metres.
+    pub layer_height_m: f32,
+    /// Sea level, metres.
+    pub sea_level_m: f32,
+    /// The rain's extinction at the eye, per metre.
+    pub rain_per_m: f32,
+    /// How far along a line the rain hazes it, metres.
+    pub rain_reach_m: f32,
+    /// The aerial haze's density at sea level, per metre.
+    pub haze_per_m: f32,
+    /// The aerial haze's scale height, metres.
+    pub haze_height_m: f32,
+}
+
+impl AirFog {
+    /// The air now, from the fog's data, its strength now, sea level and the rain at the eye (0..1).
+    pub(crate) fn now(
+        cfg: &cb_core::world::mist::FogConfig,
+        strength: cb_core::world::mist::FogStrength,
+        sea_level_m: f32,
+        rain: f32,
+    ) -> Self {
+        Self {
+            layer_per_m: cfg.density_per_m * strength.density_scale,
+            layer_height_m: cfg.scale_height_m,
+            sea_level_m,
+            rain_per_m: cfg.rain_per_m * rain,
+            rain_reach_m: cfg.rain_reach_m,
+            haze_per_m: cfg.haze_density_per_m,
+            haze_height_m: cfg.haze_scale_height_m,
+        }
+    }
+}
 
 /// The mist map's texture (`cb_core::world::mist::MistMap`), uploaded once.
 #[derive(Resource)]
@@ -520,25 +566,27 @@ fn extract_water_eye(
         let sky = Vec3::new(a.red, a.green, a.blue) * ambient.brightness * exposure;
         // The weather at the eye as followed over a second and a half, never a raw sample (`EyeWeather`).
         let (shade, rain) = (weather.sun, weather.rain);
+        let air = AirFog::now(cfg, fog_now.strength, plan.waters.sea_level_m, rain);
+        let tint = FogTint::now(cfg, &light, sky, shade, exposure);
         let fog = FogLook {
             // Scaled by the strength now: the clock's morning mist or a mission's preset (survey F1).
             layer: Vec4::new(
-                cfg.density_per_m * fog_now.strength.density_scale,
-                cfg.scale_height_m,
-                plan.waters.sea_level_m,
+                air.layer_per_m,
+                air.layer_height_m,
+                air.sea_level_m,
                 if fog_on.0 { 1.0 } else { 0.0 },
             ),
             mist: Vec4::new(
                 cfg.mist_strength * fog_now.strength.mist_scale,
                 cfg.mist_taps_m,
                 cfg.sky_length_m,
-                cfg.rain_per_m * rain,
+                air.rain_per_m,
             ),
-            ambient: (sky * cfg.ambient_share).extend(cfg.phase_g),
-            sun: (light.sun * shade * cfg.sun_share).extend(cfg.haze_density_per_m),
-            sun_dir: light.sun_dir.extend(cfg.haze_scale_height_m),
-            map: Vec4::new(m.origin_m, m.cell_m, m.side as f32, cfg.rain_reach_m),
-            sky: Vec4::new(exposure, cfg.storm_dim * (1.0 - shade.clamp(0.0, 1.0)), 0.0, 0.0),
+            ambient: tint.ambient,
+            sun: tint.sun.extend(air.haze_per_m),
+            sun_dir: tint.sun_dir.extend(air.haze_height_m),
+            map: Vec4::new(m.origin_m, m.cell_m, m.side as f32, air.rain_reach_m),
+            sky: Vec4::new(tint.exposure, tint.storm, 0.0, 0.0),
         };
         // Seated: the panes of the interior the eye sits in (the nearest, within a cabin's reach).
         let glass = if eye.cabin_m > 0.0 {
@@ -747,6 +795,31 @@ fn prepare_water_post(
         let eye = settings.eye;
         let look = settings.look;
         let sky = SkyFrame::of(atmosphere, view.world_from_view.translation());
+        // `CB_FOG_TRACE=1`: every frame, every input to the fog's colour, for the one-frame flicker
+        // (docs/playtests/2026-10-27-sky-flicker.md).
+        if crate::cli::switched_off("CB_FOG_TRACE") {
+            let at = view.world_from_view.translation();
+            info!(
+                "FOG_TRACE view {entity:?} eye ({:.1}, {:.1}, {:.1}) exposure {:.5} storm {:.4} r {:.3} inner {:.3} up ({:.5}, {:.5}, {:.5}) back ({:.5}, {:.5}, {:.5}) lut {}x{} view {:?} fog_on {}",
+                at.x,
+                at.y,
+                at.z,
+                settings.fog.sky.x,
+                settings.fog.sky.y,
+                sky.x.w,
+                sky.y.w,
+                sky.y.x,
+                sky.y.y,
+                sky.y.z,
+                sky.z.x,
+                sky.z.y,
+                sky.z.z,
+                sky.lut.x,
+                sky.lut.y,
+                sky.lut_view.as_ref().map(|v| v.id()),
+                settings.fog.layer.w
+            );
+        }
         let uniform = WaterPostUniform {
             world_from_clip: clip_from_world.inverse(),
             camera: view.world_from_view.translation().extend(settings.seconds),
@@ -825,9 +898,7 @@ type SkyAtmosphere = (
 );
 
 /// How the fog pass reads the scattering sky's sky-view LUT for a view: the atmosphere's frame
-/// round the eye (Bevy's `prepare_atmosphere_transforms`, axes x, y and z), the eye's distance
-/// from the planet's centre and the planet's radius in their w, and the LUT's size. `z.w` is 1 with
-/// the sky, 0 without (`CB_NO_SKY=1`), when the fog keeps its own colour.
+/// round the eye (`SkyAxes`) and the LUT itself.
 struct SkyFrame {
     x: Vec4,
     y: Vec4,
@@ -846,27 +917,106 @@ impl SkyFrame {
         eye: Vec3,
     ) -> Self {
         let Some((planet, settings, textures)) = atmosphere else {
+            let a = SkyAxes::NONE;
             return Self {
-                x: Vec4::X,
-                y: Vec4::Y,
-                z: Vec4::Z,
-                lut: Vec2::ONE,
+                x: a.x,
+                y: a.y,
+                z: a.z,
+                lut: a.lut,
                 lut_view: None,
             };
         };
+        let a = SkyAxes::at(
+            planet.world_to_atmosphere,
+            planet.inner_radius,
+            settings.sky_view_lut_size.as_vec2(),
+            eye,
+        );
+        Self {
+            x: a.x,
+            y: a.y,
+            z: a.z,
+            lut: a.lut,
+            lut_view: Some(textures.sky_view_lut.default_view.clone()),
+        }
+    }
+}
+
+/// The scattering sky's frame round the eye, as the fog's colour reads the sky-view LUT (`FogColour` in
+/// `fog_colour.wesl`): the atmosphere's axes x, y and z (Bevy's `prepare_atmosphere_transforms`), the eye's distance
+/// from the planet's centre and the planet's radius in their w, `z.w` 1 with the sky (0 without, `CB_NO_SKY=1`, when
+/// the fog keeps its own colour), and the LUT's size. The one copy: the fog pass (render world) and the clouds (main
+/// world) both build theirs here.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct SkyAxes {
+    pub x: Vec4,
+    pub y: Vec4,
+    pub z: Vec4,
+    pub lut: Vec2,
+}
+
+impl SkyAxes {
+    /// No scattering sky: the fog's own colour.
+    pub(crate) const NONE: Self = Self {
+        x: Vec4::X,
+        y: Vec4::Y,
+        z: Vec4::Z,
+        lut: Vec2::ONE,
+    };
+
+    /// The frame for an eye at `eye` under the atmosphere `world_to_atmosphere` of radius `inner_radius`, its sky-view LUT
+    /// `lut_size` texels.
+    pub(crate) fn at(world_to_atmosphere: Mat4, inner_radius: f32, lut_size: Vec2, eye: Vec3) -> Self {
         // As Bevy builds it: up is the planet's normal under the eye, back the world's -z made level.
-        let at = planet.world_to_atmosphere.transform_point3(eye);
+        let at = world_to_atmosphere.transform_point3(eye);
         let up = at.try_normalize().unwrap_or(Vec3::Y);
         let back = (Vec3::NEG_Z - up * up.dot(Vec3::NEG_Z)).try_normalize().unwrap_or(Vec3::NEG_Y);
         let right = up.cross(back).normalize();
         // Bevy clamps the eye to the ground before it reads the LUT.
-        let r = at.length().max(planet.inner_radius + 1.0e-3);
+        let r = at.length().max(inner_radius + 1.0e-3);
         Self {
             x: right.extend(r),
-            y: up.extend(planet.inner_radius),
+            y: up.extend(inner_radius),
             z: back.extend(1.0),
-            lut: settings.sky_view_lut_size.as_vec2(),
-            lut_view: Some(textures.sky_view_lut.default_view.clone()),
+            lut: lut_size,
+        }
+    }
+
+    /// An atmosphere entity's world-to-atmosphere transform in the main world, as Bevy's `extract_atmosphere` builds it
+    /// for the render world (its scale and translation; atmospheres ignore their orientation).
+    pub(crate) fn world_to_atmosphere(transform: &GlobalTransform) -> Mat4 {
+        let (scale, _, translation) = transform.to_scale_rotation_translation();
+        Mat4::from_scale_rotation_translation(scale, Quat::IDENTITY, translation).inverse()
+    }
+}
+
+/// The light the fog's colour is made of, for the fog pass and the clouds alike (one source, CLAUDE.md section 6.1):
+/// its own colour's ambient and forward-scattered sun (used without the scattering sky), and with the sky the view's
+/// exposure and how much darker it is under the clouds' shade (`storm_dim` times the shade).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct FogTint {
+    /// rgb the sky's light the fog scatters back; w the phase asymmetry g.
+    pub ambient: Vec4,
+    /// The sun's light the fog scatters, the storm's shade in it.
+    pub sun: Vec3,
+    /// Toward the sun.
+    pub sun_dir: Vec3,
+    /// The view's exposure (the sky's LUT is drawn times it).
+    pub exposure: f32,
+    /// How much darker the fog is under the clouds' shade now.
+    pub storm: f32,
+}
+
+impl FogTint {
+    /// The tint now: `light` the scene's (`water_light`), `sky` the ambient light times exposure, `shade` the sun's share
+    /// through the clouds over the eye (followed, `EyeWeather`).
+    pub(crate) fn now(cfg: &cb_core::world::mist::FogConfig, light: &WaterLight, sky: Vec3, shade: f32, exposure: f32) -> Self {
+        Self {
+            ambient: (sky * cfg.ambient_share).extend(cfg.phase_g),
+            sun: light.sun * shade * cfg.sun_share,
+            sun_dir: light.sun_dir,
+            exposure,
+            storm: cfg.storm_dim * (1.0 - shade.clamp(0.0, 1.0)),
         }
     }
 }
@@ -889,8 +1039,59 @@ fn water_post(
     draw_passes(target, depth, gpu, &passes, &pipeline, &cache, &images, &no_mist, ctx);
 }
 
-/// Runs the ground fog pass for the current view, after the opaque and transmissive passes and
-/// before the transparent one (`fog` in `water_post.wesl`).
+/// Orders the ground fog pass after Bevy's sky pass. Bevy runs `render_sky` after the opaque pass and before the
+/// transparent one, and the fog after the transmissive pass and before the transparent one, with nothing between the
+/// two: the scheduler could run the fog first on any frame, and that frame's fog came out darker and bluer over the
+/// whole sky (owner, 2026-10-27: the sky flickering for one frame "when flying from one location to another"; measured
+/// in docs/playtests/2026-10-27-sky-flicker.md: 50 such frames in 4.4 min with only the fog on, none with the fog
+/// forced after the sky). `render_sky` is private to Bevy, so the edge is added by name while the schedule builds.
+#[derive(Debug)]
+struct FogAfterSky;
+
+impl bevy::ecs::schedule::ScheduleBuildPass for FogAfterSky {
+    type EdgeOptions = ();
+
+    fn add_dependency(&mut self, _from: bevy::ecs::schedule::NodeId, _to: bevy::ecs::schedule::NodeId, _options: Option<&()>) {}
+
+    fn collapse_set(
+        &mut self,
+        _set: bevy::ecs::schedule::SystemSetKey,
+        _systems: &indexmap::IndexSet<bevy::ecs::schedule::SystemKey, bevy::platform::hash::FixedHasher>,
+        _dependency_flattening: &bevy::ecs::schedule::graph::DiGraph<bevy::ecs::schedule::NodeId>,
+    ) -> impl Iterator<Item = (bevy::ecs::schedule::NodeId, bevy::ecs::schedule::NodeId)> {
+        std::iter::empty()
+    }
+
+    fn build(
+        &mut self,
+        _world: &mut World,
+        graph: &mut bevy::ecs::schedule::ScheduleGraph,
+        mut dependencies: bevy::ecs::schedule::FlattenedDependencies<'_>,
+    ) -> Result<(), bevy::ecs::schedule::ScheduleBuildError> {
+        let find = |suffix: &str| {
+            graph
+                .systems
+                .iter()
+                .find(|(_, system, _)| system.name().to_string().ends_with(suffix))
+                .map(|(key, ..)| key)
+        };
+        match (find("::render_sky"), find("::water_fog")) {
+            (Some(sky), Some(fog)) => {
+                dependencies.add_edge(sky, fog);
+                info!("ground fog: ordered after Bevy's sky pass");
+            }
+            (sky, fog) => warn!(
+                "ground fog: not ordered after the sky pass (sky pass found: {}, fog pass found: {}); the sky can flicker",
+                sky.is_some(),
+                fog.is_some()
+            ),
+        }
+        Ok(())
+    }
+}
+
+/// Runs the ground fog pass for the current view, after the opaque and transmissive passes and Bevy's sky
+/// (`FogAfterSky`), and before the transparent one (`fog` in `water_post.wesl`).
 fn water_fog(
     view: ViewQuery<(&ViewTarget, &ViewDepthStencilTexture, &WaterPostGpu)>,
     pipeline: Res<WaterPostPipeline>,

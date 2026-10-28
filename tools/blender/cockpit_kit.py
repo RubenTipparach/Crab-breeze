@@ -43,7 +43,8 @@ def srgb(h):
 # Every surface a panel is made of. colour, roughness, metalness, then what the shader adds:
 # grime (crevice darkening), wear (edges worn to bare metal), emit (a backlit colour), stripes
 # (yellow and black hazard bands), weave (fabric). An interior style (build_cockpit STYLES) adds: wood (a varnished
-# grain between two colours), quilt (diamond tufted padding, its pitch in metres, darker stitched seams), grain
+# grain between two colours), panels (riveted wall plates with hatches, grilles, circuits and placards, and
+# grime streaks: a lived-in wall), burl (a lacquered burl veneer between two colours), quilt (diamond tufted padding, its pitch in metres, darker stitched seams), grain
 # (a leather's pebbled bump) and stipple (moulded plastic's fine texture).
 ROLES = {
     "paint":    dict(c="#3b424a", r=0.58, m=0.0, grime=1.0, wear=1.0),
@@ -84,6 +85,15 @@ ROLES = {
     "ext_frame": dict(c="#4b5059", r=0.5, m=0.3, grime=0.7, wear=0.5),
     "ext_dark": dict(c="#23272c", r=0.55, m=0.2, grime=0.6),
     "strap":    dict(c="#4b4f3f", r=0.85, m=0.0, grime=0.4, weave=True),
+    # the cockpit-styles roles: the rails and edges an interior style dresses (the paint's colour unless a style or a
+    # trim sets it), grab handles, and the safety kit's colours
+    "trim":     dict(c="#3b424a", r=0.58, m=0.0, grime=1.0, wear=1.0),
+    # the cabin's walls and ceiling: the structure's paint, a shade lighter, panelled (cockpit-styles)
+    "wall":     dict(c="#323840", r=0.6, m=0.0, grime=0.8, wear=0.8, panels=dict()),
+    "handle":   dict(c="#8a9098", r=0.35, m=1.0, grime=0.4),
+    "kit_white": dict(c="#e3dfd5", r=0.5, m=0.0, grime=0.5),
+    "kit_orange": dict(c="#e2621a", r=0.7, m=0.0, grime=0.5),
+    "kit_green": dict(c="#1f6b3a", r=0.5, m=0.0, grime=0.4),
 }
 
 
@@ -206,6 +216,26 @@ def make_material(name, spec):
         f = op("MULTIPLY", op("ADD", wv.outputs["Fac"], op("MULTIPLY", fine.outputs["Fac"], 0.35)), 0.75)
         colour = mix_col(f, spec["wood"][0], spec["wood"][1])
         add_bump(fine.outputs["Fac"], 0.08, 0.0004)
+    if spec.get("burl"):
+        # Burl veneer: a domain-warped noise figure between a dark and a light tone with dark knots (Voronoi), under a
+        # lacquer (the role's low roughness). Object space, metres.
+        tc = N.new("ShaderNodeTexCoord")
+        warp = N.new("ShaderNodeTexNoise")
+        warp.inputs["Scale"].default_value = 9.0
+        warp.inputs["Detail"].default_value = 3.0
+        L.new(tc.outputs["Object"], warp.inputs["Vector"])
+        fig = N.new("ShaderNodeTexNoise")
+        fig.inputs["Scale"].default_value = 14.0
+        fig.inputs["Detail"].default_value = 6.0
+        fig.inputs["Distortion"].default_value = 4.0
+        L.new(warp.outputs["Color"], fig.inputs["Vector"])
+        knot = N.new("ShaderNodeTexVoronoi")
+        knot.inputs["Scale"].default_value = 40.0
+        L.new(tc.outputs["Object"], knot.inputs["Vector"])
+        k = op("MULTIPLY", op("SUBTRACT", 0.08, op("MINIMUM", knot.outputs["Distance"], 0.08)), 6.0)
+        f = op("MAXIMUM", op("SUBTRACT", fig.outputs["Fac"], k), 0.0)
+        colour = mix_col(f, spec["burl"][0], spec["burl"][1])
+        add_bump(fig.outputs["Fac"], 0.04, 0.0003)
     if spec.get("quilt"):
         # Diamond tufting: on each face's own plane (picked by its normal, so walls, roof and seat all quilt), a
         # pillow sin(pi frac(u)) sin(pi frac(v)) on the diagonals u, v of a `quilt` metre grid, zero at the stitched
@@ -234,6 +264,121 @@ def make_material(name, spec):
         seam = op("SUBTRACT", 1.0, op("MINIMUM", op("MULTIPLY", height, 4.0), 1.0))
         colour = mix_col(op("MULTIPLY", seam, 0.55), colour, "#0c0a09")
         add_bump(height, 0.9, 0.012)
+    if spec.get("panels") is not None:
+        # Lived-in wall panelling (owner, 2026-10-27: "more details baked into the wall panels so they aren't just flat
+        # textures. Paneling - circuits, rivets, little small details"). On each face's own plane (weighted by its
+        # normal, as the quilt), plates `w` x `h` metres with engraved seams and domed rivets along them; each plate
+        # picks by a random number: an inset hatch, a louvred grille, an exposed circuit board with copper traces, a
+        # stencilled placard, or plain. Heights go to the bump (the baked normal map), masks to the colour.
+        P = spec["panels"]
+        tw, th = P.get("w", 0.42), P.get("h", 0.30)
+        rivets, circuits = P.get("rivets", True), P.get("circuits", True)
+        tc = N.new("ShaderNodeTexCoord")
+        geo = N.new("ShaderNodeNewGeometry")
+        sx = N.new("ShaderNodeSeparateXYZ")
+        L.new(tc.outputs["Object"], sx.inputs[0])
+        sn = N.new("ShaderNodeSeparateXYZ")
+        L.new(geo.outputs["Normal"], sn.inputs[0])
+        coords = (sx.outputs[0], sx.outputs[1], sx.outputs[2])
+        acc, wsum = {}, None
+
+        def gt(x, y):
+            return op("GREATER_THAN", x, y)
+
+        def lt(x, y):
+            return op("LESS_THAN", x, y)
+
+        def band(x, lo, hi):
+            return op("MULTIPLY", gt(x, lo), lt(x, hi))
+
+        def mul(*xs):
+            out = xs[0]
+            for x in xs[1:]:
+                out = op("MULTIPLY", out, x)
+            return out
+
+        for ax in range(3):
+            a_, b_ = [coords[k] for k in range(3) if k != ax]      # b_ is Blender's up on a wall (its world Z)
+            u, v = op("DIVIDE", a_, tw), op("DIVIDE", b_, th)
+            fu, fv = op("FRACT", u), op("FRACT", v)
+            du = op("MULTIPLY", op("MINIMUM", fu, op("SUBTRACT", 1.0, fu)), tw)
+            dv = op("MULTIPLY", op("MINIMUM", fv, op("SUBTRACT", 1.0, fv)), th)
+            dmin = op("MINIMUM", du, dv)
+            seam = lt(dmin, 0.0022)
+            cid = N.new("ShaderNodeCombineXYZ")
+            L.new(op("FLOOR", u), cid.inputs[0])
+            L.new(op("FLOOR", v), cid.inputs[1])
+            cid.inputs[2].default_value = ax * 7.0
+            wn = N.new("ShaderNodeTexWhiteNoise")
+            wn.noise_dimensions = "3D"
+            L.new(cid.outputs[0], wn.inputs["Vector"])
+            rnd = wn.outputs["Value"]
+            inner = mul(gt(du, 0.05), gt(dv, 0.05))
+            # screw holes (owner, 2026-10-27: "Not like large rivets but like screw holes"): 5 mm recessed heads with a
+            # cross slot, 12 mm in from each seam, every 100 mm along it
+            if rivets:
+                pa = op("MULTIPLY", op("SUBTRACT", op("FRACT", op("DIVIDE", a_, 0.1)), 0.5), 0.1)
+                pb = op("MULTIPLY", op("SUBTRACT", op("FRACT", op("DIVIDE", b_, 0.1)), 0.5), 0.1)
+                cu = op("SUBTRACT", du, 0.012)
+                cv = op("SUBTRACT", dv, 0.012)
+                d1 = op("SQRT", op("ADD", op("POWER", cu, 2.0), op("POWER", pb, 2.0)))
+                d2 = op("SQRT", op("ADD", op("POWER", cv, 2.0), op("POWER", pa, 2.0)))
+                hole1, hole2 = lt(d1, 0.0026), lt(d2, 0.0026)
+                cross1 = op("MULTIPLY", hole1, lt(op("MINIMUM", op("ABSOLUTE", cu), op("ABSOLUTE", pb)), 0.00045))
+                cross2 = op("MULTIPLY", hole2, lt(op("MINIMUM", op("ABSOLUTE", cv), op("ABSOLUTE", pa)), 0.00045))
+                rivet = op("MAXIMUM", hole1, hole2)                     # the screw's recess
+                slotx = op("MAXIMUM", cross1, cross2)                   # its cross slot, deeper
+            else:
+                rivet = slotx = op("MULTIPLY", seam, 0.0)
+            hatch = mul(lt(rnd, 0.22), lt(op("ABSOLUTE", op("SUBTRACT", dmin, 0.05)), 0.0018))
+            slots = mul(band(rnd, 0.22, 0.35), inner, lt(op("FRACT", op("DIVIDE", b_, 0.014)), 0.45))
+            edge = mul(gt(dmin, 0.0022), lt(dmin, 0.0045))          # the plate's bevelled edge, catching the light
+            if circuits:
+                board = mul(band(rnd, 0.35, 0.47), gt(du, 0.04), gt(dv, 0.04))
+                tn = N.new("ShaderNodeTexNoise")
+                tn.inputs["Scale"].default_value = 30.0
+                L.new(tc.outputs["Object"], tn.inputs["Vector"])
+                lines = op("MAXIMUM", lt(op("FRACT", op("MULTIPLY", a_, 70.0)), 0.1), lt(op("FRACT", op("MULTIPLY", b_, 70.0)), 0.1))
+                traces = mul(board, lines, gt(tn.outputs["Fac"], 0.56))
+            else:
+                board = traces = op("MULTIPLY", seam, 0.0)
+            placard = mul(band(rnd, 0.47, 0.6), band(fv, 0.72, 0.92), gt(du, 0.05))
+            tn2 = N.new("ShaderNodeTexNoise")
+            tn2.inputs["Scale"].default_value = 90.0
+            L.new(tc.outputs["Object"], tn2.inputs["Vector"])
+            ink = mul(placard, band(fv, 0.77, 0.87), lt(op("FRACT", op("MULTIPLY", a_, 70.0)), 0.5), gt(tn2.outputs["Fac"], 0.45))
+            height = op("ADD", op("SUBTRACT", op("SUBTRACT", op("SUBTRACT", 0.5, op("MULTIPLY", seam, 0.5)),
+                                                          op("MULTIPLY", hatch, 0.4)), op("MULTIPLY", slots, 0.35)),
+                         op("ADD", op("MULTIPLY", rivet, 0.12), op("ADD", op("MULTIPLY", slotx, -0.45),
+                                                                    op("ADD", op("MULTIPLY", traces, 0.15), op("MULTIPLY", placard, 0.08)))))
+            w = op("POWER", op("ABSOLUTE", sn.outputs[ax]), 4.0)
+            for key, val in (("h", height), ("seam", op("MAXIMUM", seam, hatch)), ("slots", slots), ("rivet", rivet), ("edge", edge), ("slotx", slotx),
+                             ("board", board), ("traces", traces), ("placard", placard), ("ink", ink)):
+                term = op("MULTIPLY", val, w)
+                acc[key] = term if key not in acc else op("ADD", acc[key], term)
+            wsum = w if wsum is None else op("ADD", wsum, w)
+        ws = op("MAXIMUM", wsum, 1e-4)
+        m = {k: op("DIVIDE", v, ws) for k, v in acc.items()}
+        colour = mix_col(m["board"], colour, "#16301f")
+        colour = mix_col(op("MULTIPLY", m["traces"], 0.8), colour, "#9a7038")
+        colour = mix_col(m["placard"], colour, "#d6d0bd")
+        colour = mix_col(m["ink"], colour, "#161616")
+        colour = mix_col(op("MULTIPLY", m["seam"], 0.85), colour, "#070707")
+        colour = mix_col(op("MULTIPLY", m["slots"], 0.7), colour, "#0a0a0a")
+        colour = mix_col(op("MULTIPLY", m["edge"], 0.35), colour, "#8d949b")
+        colour = mix_col(op("MULTIPLY", m["rivet"], 0.85), colour, "#7c838b")      # brushed steel screw heads
+        colour = mix_col(m["slotx"], colour, "#0d0d0d")                           # their cross slots
+        # grime streaks running down the wall: noise stretched along the up axis, darkening
+        sm = N.new("ShaderNodeMapping")
+        sm.inputs["Scale"].default_value = (14.0, 14.0, 0.7)
+        L.new(tc.outputs["Object"], sm.inputs[0])
+        st = N.new("ShaderNodeTexNoise")
+        st.inputs["Scale"].default_value = 3.0
+        st.inputs["Detail"].default_value = 6.0
+        L.new(sm.outputs[0], st.inputs["Vector"])
+        streak = op("MULTIPLY", op("MAXIMUM", op("SUBTRACT", st.outputs["Fac"], 0.55), 0.0), 1.4 * P.get("streaks", 1.0))
+        colour = mix_col(streak, colour, "#1a1712")
+        add_bump(m["h"], 1.0, 0.0022)
     if spec.get("grain"):
         # a leather's pebbled grain
         gv = N.new("ShaderNodeTexVoronoi")

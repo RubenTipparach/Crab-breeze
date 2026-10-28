@@ -1,0 +1,23 @@
+// In the west storm's base (openspec/changes/ground-fog task 5.3): a new career, board, then on the jets straight up to
+// 650 m and through the scud and the low puffs under the storm's base, south-east toward the sun and back. Where
+// `storm-through` showed the view flashing white frame to frame on 2026-10-27 (docs/playtests/2026-10-27-sky-flicker.md).
+//
+//   ./target/release/crab-breeze --playtest storm-base
+(
+    name: "storm-base",
+    stuck_s: 20.0,
+    runs: [
+        (
+            play: "career-new",
+            beats: [
+                Wait(2.0),
+                Board,
+                Wait(2.0),
+                JetTo(-8500.0, -7000.0, 650.0),
+                JetTo(-3500.0, -2500.0, 650.0),
+                JetTo(-8000.0, -5000.0, 650.0),
+                Wait(3.0),
+            ],
+        ),
+    ],
+)

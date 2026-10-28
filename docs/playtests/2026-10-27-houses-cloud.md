@@ -68,3 +68,24 @@ a house and no more, the island's lots: count by zone, clear of water, roads and
 Brick, siding, planks and doors textured; interiors in muted paints with a warm grey ceiling (owner: "Pure white not
 good for interior. Hurts my eyes"); grass in the ground's olive and parched on dry biomes (`gpu-grass` design
 section 8). Log: `36 of 62 surfaces textured`; the dry beat found lot 76 (ranch_b) in Savanna.
+
+## Streets, drives and car parks (openspec change `lot-access`, same day)
+
+Owner: "driveways need to connect with roads for it to be realistic, same with businesses they need parking lots that
+connect with road", then "Do the driveways". Same cloud renderer, no frame times.
+
+| Still | Shows |
+| --- | --- |
+| `street.jpg` | A suburb street along a row, a ranch's drive and walk running down to it, the row's houses along it, the street meeting a highway in the distance |
+| `carpark.jpg` | A corner store in a sand town: its striped car park in front, the asphalt draped on the ground, parched grass round it |
+
+On seed 42: 1,281 suburb houses (1,570 before: the kits that gained a side drive are 3 m wider, and about 230 houses
+had a drive too steep or a street that could not be joined), 758 street pieces and connectors, 85 km; every house has
+a drive to a road, every street joins a city or a highway, every business has its curb cut (`cargo test -p cb-core
+small_buildings`). The cut onto the highway is behind the camera in `carpark.jpg`; a playtest walks it.
+
+## The roads' CC0 sets (2026-10-28)
+
+Owner: "26c suburban Streets 27c for downtown", chosen on the Road Surface Bench page. `street.jpg`, `carpark.jpg` and
+`town.jpg` show the suburb street and the car parks on ambientCG Asphalt026C; `downtown.jpg` a city street at the game's
+start on Asphalt027C, the highways too. Same cloud renderer, no frame times.

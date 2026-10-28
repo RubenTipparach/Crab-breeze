@@ -17,6 +17,12 @@ says so. `docs/analysis/source-repos.md` records what was taken from each, at wh
 > is no third-person camera, no chase camera, no external "mech view" and no cut to a menu or a
 > black screen between walking and piloting: boarding is walked and climbed. Every playtest shows
 > the game this way (section 9). It outranks every other rule, design and plan here.
+>
+> **One exception: driving a car is third person** (owner, 2026-10-26: "also driving should be in 3rd
+> person"). Behind the wheel the view is a chase camera behind and above the car that the mouse
+> orbits, at the on-foot field of view ("car driving should remain at 75"); getting in and out stay
+> first person and ease into and out of it with no cut (`openspec/changes/car-chase-camera`). On foot,
+> the mech and boarding stay first person.
 
 **This file is the only copy of these rules.** `AGENTS.md` is a pointer to it and must stay one.
 Write a rule here, never there. Two files that have to agree are two files that won't (Star Crew,
@@ -274,6 +280,16 @@ said out loud and kept in check, never guessed.
   p95 within 8.3 ms and p99 within 16.7 ms, in the cockpit, in the densest scene. **The target
   hardware is a high-end PC with an RTX 3070** (owner, 2026-10-24): triangle counts in the hundreds
   of thousands and 4096 px map sets are fine; budgets still exist and are still measured.
+- **Every frame above 60 fps in every perf run** (owner, 2026-10-26: "Let's focus on getting no frames
+  under 60fps, then we'll focus on 90", "ensure that when you run perf, everything is always above 60
+  fps"). After the loading screen's `GAME_READY`, no frame of a release build may take longer than
+  16.7 ms on the scripted perf routes (`streaming-route`, `free-roam-fight`). A frame over it is a bug
+  to find and fix, not a percentile to report past; a perf report lists every one with its cause. 90 fps
+  (11.1 ms) is the next target, once 60 holds.
+- **One game, bake or heavy build on a machine at a time.** On the Mac, agents take the lock
+  (`tools/perf/mac_lock.sh <who> <command>`, a `mkdir` lock at `~/.cb-mac-lock`) for every game
+  launch, Blender bake and release build; a perf run holds it for the whole run, so nothing else
+  spoils its frames.
 - **A claim is a measurement**: release build, real time, windowed, nothing else running, a scripted
   scene, old against new interleaved in one sitting, p50/p95/p99 and the spread reported. A
   difference smaller than the spread is not a result. Never call an unmeasured design a speedup
@@ -312,7 +328,10 @@ said out loud and kept in check, never guessed.
   in** (2026-10-24: "pause input for camera, and open up the cockpit, and place my character camera
   inside the cockpit pointed outwards"): after the player presses Use at the prompt, look input
   pauses while the view is carried into the seat and turned to face out of the cockpit, and the
-  mouse is the player's again the moment they are seated.
+  mouse is the player's again the moment they are seated. **Driving a car's chase camera** turns
+  with the car (owner, 2026-10-26: "also driving should be in 3rd person") and drifts back behind a
+  moving car after the mouse has been still 2 s; the mouse orbits it freely at any moment. The drift
+  is provisional (`car-chase-camera`, DC1).
 - **Ask with the survey, never in chat** (Star Crew, Pale Blue Dot, Tactical Airsuite). Open
   questions go into the survey page `docs/design/survey.html`, published as an HTML artifact whose
   database holds the answers, with options, a recommendation and a place to answer. The
@@ -349,8 +368,8 @@ said out loud and kept in check, never guessed.
 The owner's first priority. The `playtest` and `obs-record` skills are the method.
 - **A feature is done when a playtest shows it in the running game**, not when a test passes or a
   mockup looks right.
-- **A playtest is the game as it is played**: first person throughout, the walk to the mech and the
-  climb into the cockpit included, nothing cut together (the law; Star Crew 2026-10-12: a take
+- **A playtest is the game as it is played**: first person throughout (driving a car excepted, which
+  is third person by the law's one exception), the walk to the mech and the climb into the cockpit included, nothing cut together (the law; Star Crew 2026-10-12: a take
   that cuts between views "DOES NOT MEET MY REQUIREMENTS").
 - **The scripted pilot plays fair**: one scripted pilot sends the same input actions a player does,
   following beats in `data/playtests/<name>.ron`, and prints `PLAYTEST_START`, `PLAYTEST_RESULT`
@@ -508,7 +527,9 @@ Nothing is an exception until it is listed here with its reason.
   seamless by tiling 2 x 2, packed the glTF way (`orm`), loaded with a full mip chain
   (`crates/cb-app/src/pbr_set.rs`), and its folder carries a `SOURCE.md` with the URL, the licence
   and every change made to it. The ground's grass is ambientCG Grass001
-  (`assets/textures/ground/grass001/`).
+  (`assets/textures/ground/grass001/`). The roads are ambientCG Asphalt027C downtown and on the highways, Asphalt026C on
+  the suburb streets and car parks (owner, 2026-10-27: "26c suburban Streets 27c for downtown";
+  `assets/textures/roads/`).
 - **The Stratostacean's block-out is exported from its mockup, not built in Blender** (owner, 2026-10-25, on the Stratostacean
   Air Fortress mockup: "looks good, build it in game"). The block-out the owner approved is the three.js page, so
   `tools/mockups/export_fortress_glb.mjs` writes `assets/models/fortress_stratostacean.glb` from it, with its manifest and
