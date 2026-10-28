@@ -25,7 +25,7 @@ interior (`rooms_radius_m`: one building's rooms mesh was 7.3 MB) and its detail
 1. **Grass**: only the nearest level (within 25 m) casts shadows (`grass.ron` `shadow_lods: 1`, new; 3 is today's).
 2. **Cars**: each part gets a draw range, dithered out (`traffic.ron` `detail`: the cab's insides to 30 m, lamps and
    bumpers to 200 m, wheels to 400 m), and only the body and cabin cast shadows.
-3. **Building interiors and detail** nearer: `rooms_radius_m` and `dress_radius_m` chosen by measurement (design).
+3. **Building detail** nearer: `dress_radius_m` 250 to 150 m, measured; interiors stay at the owner's 250 m (design F2).
 4. **The sun's cascades**: `sun_shade.live_far_m` chosen by measurement; past it the baked shade carries the shadow.
 5. One helper for every draw range (`lod_fade`, from `lod-crossfade`).
 

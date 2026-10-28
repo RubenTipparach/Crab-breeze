@@ -421,8 +421,10 @@
         max_props: 10,
         prop_edge_m: 1.2,
         // Only buildings this near the player are dressed; farther ones stay plain boxes (owner,
-        // 2026-10-24: elements "only generate when a mech is near city or building").
-        dress_radius_m: 250.0,
+        // 2026-10-24: elements "only generate when a mech is near city or building"). 150 m, was 250 m: every dressed
+        // piece is drawn and casts the sun's shadow into three cascades, and the capital's towers between 150 and 250 m
+        // were most of the GPU's frame (110 to 190 ms; 8 to 24 ms at 150 m, openspec/changes/city-frame).
+        dress_radius_m: 150.0,
         // Rooms and furniture are drawn within 250 m of the pilot, hidden past 270 m, and cast no
         // shadows (openspec/changes/building-lod; owner, 2026-10-24: "I would prefer 250 m for
         // furniture").
