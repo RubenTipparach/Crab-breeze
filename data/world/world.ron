@@ -483,11 +483,14 @@
     // should be no physics sim"); farther they are a dust puff, and the cell simulation still
     // breaks the building. Bodies past 1.2 times the radius are made static where they are.
     // physics_radius_m: 0.0 switches debris physics off: every breaking piece is a dust puff.
+    // Fewer bodies (owner, 2026-10-27: "we need to reduce physics objects on houses"): 20 houses brought down had
+    // 600 bodies moving and physics 5 ms a step, run twice a frame when the frame was slow (city-frame). Was 400 m,
+    // 600 moving, 2 500 kept; past the radius a chunk is a dust puff, and the oldest moving bodies come to rest first.
     debris: (
-        physics_radius_m: 400.0,
+        physics_radius_m: 250.0,
         freeze_factor: 1.2,
-        max_dynamic: 600,
-        max_kept: 2500,
+        max_dynamic: 200,
+        max_kept: 800,
     ),
     // Air bases (openspec/changes/air-bases); the rest of their placement is the code default. Each has a runway
     // (survey W45, owner 2026-10-26: "Add a real runway, about 1.5 to 2 km, to each base"): tried in front of the
