@@ -59,6 +59,10 @@ def ws_config_path() -> Path:
     return obs_dir() / "plugin_config/obs-websocket/config.json"
 
 
+# The OBS executable on macOS (`/Applications/OBS.app/Contents/MacOS/OBS`) and Linux (`/usr/bin/obs`).
+OBS_PROCESS = r"(OBS\.app/Contents/MacOS/OBS|/obs$|^obs$)"
+
+
 def obs_running() -> bool:
     if sys.platform == "win32":
         # An OBS that has exited can linger in the process list with status
@@ -67,7 +71,9 @@ def obs_running() -> bool:
                               "/FI", "STATUS ne UNKNOWN"],
                              capture_output=True, text=True).stdout
         return "obs64.exe" in out
-    return subprocess.run(["pgrep", "-x", "obs"], capture_output=True).returncode == 0
+    # macOS names the process `OBS` (the app bundle's binary), Linux `obs`; match either, case and all, so a
+    # running OBS is always seen (only one OBS may run on a machine: the owner's global CLAUDE.md).
+    return subprocess.run(["pgrep", "-if", OBS_PROCESS], capture_output=True).returncode == 0
 
 
 def clear_stale_crash_markers():
@@ -89,7 +95,7 @@ def close_obs():
     cleanly; force it only as a last resort, then clear what that leaves."""
     polite, force = ((["taskkill", "/IM", "obs64.exe"], ["taskkill", "/F", "/IM", "obs64.exe"])
                      if sys.platform == "win32" else
-                     (["pkill", "-x", "obs"], ["pkill", "-9", "-x", "obs"]))
+                     (["pkill", "-if", OBS_PROCESS], ["pkill", "-9", "-if", OBS_PROCESS]))
     subprocess.run(polite, capture_output=True)
     for _ in range(40):
         if not obs_running():
@@ -227,10 +233,9 @@ class ObsSession:
             clear_stale_crash_markers()
             # A normal window, not --minimize-to-tray: a tray-only OBS cannot be
             # closed cleanly, and an unclean exit brings the Safe Mode prompt.
-            # --multi: an OBS that exited uncleanly can linger in the process
-            # list holding its single-instance lock, and a new one then stops at
-            # "OBS is already running". No running OBS was found above.
-            subprocess.Popen([str(exe), "--disable-shutdown-check", "--multi"], cwd=str(exe.parent))
+            # Never --multi: only one OBS may run on a machine (the owner, 2026-10-28: "only 1 obs instance
+            # allowed"; 22 were found left running). No running OBS was found above.
+            subprocess.Popen([str(exe), "--disable-shutdown-check"], cwd=str(exe.parent))
             self.started_obs = True
         for _ in range(180):
             try:
