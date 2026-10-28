@@ -202,7 +202,7 @@
   },
   "meshes": {
     "CONSOLE_front_front": {
-      "tris": 8700,
+      "tris": 8820,
       "group": "front",
       "node": "CONSOLE_front"
     },
@@ -262,7 +262,7 @@
       "node": "pod"
     },
     "pod_cabin": {
-      "tris": 16526,
+      "tris": 21570,
       "group": "cabin",
       "node": "pod"
     },
@@ -274,7 +274,8 @@
   },
   "vents": 6,
   "lights": 6,
-  "tris": 36276,
+  "style": "excavator",
+  "tris": 41440,
   "tri_budget": 600000,
   "draw_calls": 14,
   "atlases": {
@@ -318,5 +319,5 @@
     "wall_L",
     "wall_R"
   ],
-  "bytes": 16788430
+  "bytes": 17512064
 }
