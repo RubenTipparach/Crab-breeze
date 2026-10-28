@@ -1382,6 +1382,7 @@ fn show_trees(
     mut commands: Commands,
     live: Res<Live>,
     data: Res<Data>,
+    plan: Res<Plan>,
     camera: Single<&GlobalTransform, With<PilotCamera>>,
     trees: Option<ResMut<TreeEntities>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -1393,13 +1394,18 @@ fn show_trees(
     let _t = crate::perf_hud::slow("show_trees");
     let Some(mut trees) = trees else { return };
     let trees = &mut *trees;
-    let eye = camera.translation();
-    let eye = Vec2::new(eye.x, eye.z);
+    let eye3 = camera.translation();
+    let eye = Vec2::new(eye3.x, eye3.z);
+    // A tile's distance counts the eye's height over the ground: flown over at 1 km, a forest is 1 km away, its far
+    // trees drawn and casting no shadow (across the map the full trees and their shadows under the flight path were
+    // the slowest stretches, city-frame 2026-10-28).
+    let above = (eye3.y - plan.terrain.height_at(eye3.x, eye3.z)).max(0.0);
+    let away = |flat: f32| flat.hypot(above);
     let radius = data.0.world.trees.draw_radius_m;
     let grown: Vec<(f32, (u32, u32))> = live
         .forest
         .grown_tiles()
-        .map(|(k, _)| (live.forest.tile_rect(k).distance(eye), k))
+        .map(|(k, _)| (away(live.forest.tile_rect(k).distance(eye)), k))
         .collect();
     // On screen within the radius; taken off only past it by a margin, so a tile on the edge does
     // not come and go frame by frame.
@@ -1441,7 +1447,7 @@ fn show_trees(
         if !keep.contains(&key) {
             continue;
         }
-        let shadows = live.forest.tile_rect(key).distance(eye) <= TREE_SHADOW_RADIUS_M;
+        let shadows = away(live.forest.tile_rect(key).distance(eye)) <= TREE_SHADOW_RADIUS_M;
         // A tree that fell while the tile was being built leaves it dirty: built again next.
         let dirty = match trees.tiles.remove(&key) {
             Some(old) => {
@@ -1518,7 +1524,7 @@ fn show_trees(
     }
     // Shadows from the near tiles only; a tile changes over as a whole, rarely.
     for (key, tile) in trees.tiles.iter_mut() {
-        let near = live.forest.tile_rect(*key).distance(eye) <= TREE_SHADOW_RADIUS_M;
+        let near = away(live.forest.tile_rect(*key).distance(eye)) <= TREE_SHADOW_RADIUS_M;
         if near != tile.shadows {
             tile.shadows = near;
             for e in &tile.meshes {
