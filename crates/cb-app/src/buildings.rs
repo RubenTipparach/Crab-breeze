@@ -228,6 +228,7 @@ impl Materials {
                                 albedo: looks.arrays.albedo.clone(),
                                 normal: looks.arrays.normal.clone(),
                                 orm: looks.arrays.orm.clone(),
+                                windows: Vec4::ZERO,
                             },
                         })
                     })
@@ -1052,6 +1053,7 @@ fn bind_far_looks(
             albedo: a.albedo.clone(),
             normal: a.normal.clone(),
             orm: a.orm.clone(),
+            windows: Vec4::ZERO,
         },
     };
     if mats.far.is_none() {
@@ -1147,21 +1149,31 @@ fn show_massing(
     });
 }
 
-/// The windows for the hour (day-night-cycle): the share lit now into the one glass material, so
-/// every intact building's windows follow the clock (a damaged building's never light).
+/// The windows for the hour (day-night-cycle): the share lit now into the glass material and the far
+/// and massing walls' materials, so every intact building's windows follow the clock (a damaged
+/// building's glass never lights; its far walls are hidden once it is framed).
 fn light_windows(
     data: Res<crate::sim::Data>,
     light: Res<crate::day_night::Light>,
     shared: Res<Materials>,
+    far: Res<FarMaterials>,
     mut glasses: ResMut<Assets<BuildingMaterial>>,
+    mut arrays: ResMut<Assets<ArrayMaterial>>,
 ) {
-    let Some(handle) = shared.glass.as_ref() else { return };
     let w = &data.0.day_night.windows;
     let want = Vec4::new(w.lit_share(light.0.hour), w.cd_m2, data.0.world.storey_height_m, w.column_m);
-    if glasses.get(handle).is_some_and(|m| m.extension.windows != want)
+    if let Some(handle) = shared.glass.as_ref()
+        && glasses.get(handle).is_some_and(|m| m.extension.windows != want)
         && let Some(mut m) = glasses.get_mut(handle)
     {
         m.extension.windows = want;
+    }
+    for handle in [&far.far, &far.massing].into_iter().flatten() {
+        if arrays.get(handle).is_some_and(|m| m.extension.windows != want)
+            && let Some(mut m) = arrays.get_mut(handle)
+        {
+            m.extension.windows = want;
+        }
     }
 }
 

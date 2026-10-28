@@ -72,6 +72,14 @@ pub struct LampConfig {
     pub fade_m: f32,
     /// A lit head's brightness, cd/m2 (times the exposure on screen).
     pub head_cd_m2: f32,
+    /// A far lamp's glow at its heart, on screen (against white, 1), so a city reads from the air.
+    pub glow_brightness: f32,
+    /// The glow's least size on screen, pixels.
+    pub glow_px: f32,
+    /// Its size in the world, metres (it grows past `glow_px` nearer).
+    pub glow_m: f32,
+    /// The glow is fully in from this far, metres (from half that it fades in).
+    pub glow_from_m: f32,
 }
 
 impl Default for LampConfig {
@@ -93,6 +101,10 @@ impl Default for LampConfig {
             real_m: 250.0,
             fade_m: 50.0,
             head_cd_m2: 8.0,
+            glow_brightness: 1.2,
+            glow_px: 3.0,
+            glow_m: 2.5,
+            glow_from_m: 300.0,
         }
     }
 }
@@ -120,7 +132,11 @@ impl Validate for LampConfig {
         within("lamps.real_lamps", self.real_lamps as f32, 0.0, 512.0)?;
         within("lamps.real_m", self.real_m, 0.0, 5000.0)?;
         within("lamps.fade_m", self.fade_m, 0.01, 5000.0)?;
-        within("lamps.head_cd_m2", self.head_cd_m2, 0.0, 1.0e6)
+        within("lamps.head_cd_m2", self.head_cd_m2, 0.0, 1.0e6)?;
+        within("lamps.glow_brightness", self.glow_brightness, 0.0, 100.0)?;
+        within("lamps.glow_px", self.glow_px, 0.0, 64.0)?;
+        within("lamps.glow_m", self.glow_m, 0.0, 100.0)?;
+        within("lamps.glow_from_m", self.glow_from_m, 0.0, 10000.0)
     }
 }
 

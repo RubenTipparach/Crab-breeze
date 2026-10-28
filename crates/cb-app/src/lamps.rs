@@ -10,8 +10,13 @@ use crate::day_night::Light;
 use crate::sim::{Data, PresentSet};
 use crate::state::GameApp;
 use crate::world::Plan;
+use bevy::asset::RenderAssetUsages;
 use bevy::light::NotShadowCaster;
+use bevy::mesh::{Indices, MeshVertexBufferLayoutRef, PrimitiveTopology};
+use bevy::pbr::{Material, MaterialPipeline, MaterialPipelineKey, MaterialPlugin};
 use bevy::prelude::*;
+use bevy::render::render_resource::{AsBindGroup, RenderPipelineDescriptor, ShaderType, SpecializedMeshPipelineError};
+use bevy::shader::ShaderRef;
 use cb_core::world::lamps::{Lamp, place};
 use std::collections::HashMap;
 
@@ -22,6 +27,81 @@ const CELL_M: f32 = 64.0;
 /// How fast a newly given light fades in, seconds.
 const ADMIT_S: f32 = 0.5;
 
+const GLOW_SHADER: &str = "shaders/lamp_glow.wesl";
+
+/// `LampGlow` in `lamp_glow.wesl`.
+#[derive(Clone, Copy, Debug, Default, ShaderType)]
+pub struct LampGlowUniform {
+    /// rgb the glow at its heart, on screen; w unused.
+    pub colour: Vec4,
+    /// x the lamps' switch-on share; y the least size, pixels; z fully in from this far, m; w its
+    /// size in the world, m.
+    pub glow: Vec4,
+}
+
+/// The far lamps' glow (tier 3): every lamp a quad around its head, sized on screen.
+#[derive(Asset, TypePath, AsBindGroup, Clone, Debug)]
+pub struct LampGlowMaterial {
+    /// The look, rewritten as the lamps come on.
+    #[uniform(0)]
+    pub lamp: LampGlowUniform,
+}
+
+impl Material for LampGlowMaterial {
+    fn vertex_shader() -> ShaderRef {
+        GLOW_SHADER.into()
+    }
+
+    fn fragment_shader() -> ShaderRef {
+        GLOW_SHADER.into()
+    }
+
+    fn alpha_mode(&self) -> AlphaMode {
+        AlphaMode::Add
+    }
+
+    fn enable_prepass() -> bool {
+        false
+    }
+
+    fn enable_shadows() -> bool {
+        false
+    }
+
+    fn specialize(
+        _pipeline: &MaterialPipeline,
+        descriptor: &mut RenderPipelineDescriptor,
+        layout: &MeshVertexBufferLayoutRef,
+        _key: MaterialPipelineKey<Self>,
+    ) -> Result<(), SpecializedMeshPipelineError> {
+        descriptor.vertex.buffers = vec![layout.0.get_layout(&[
+            Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
+            Mesh::ATTRIBUTE_UV_0.at_shader_location(1),
+        ])?];
+        descriptor.primitive.cull_mode = None;
+        Ok(())
+    }
+}
+
+/// One tile's glows: four corners a lamp, each at its head (the shader spreads them on screen).
+fn glow_mesh(heads: &[Vec3]) -> Mesh {
+    let mut pos = Vec::with_capacity(heads.len() * 4);
+    let mut uv = Vec::with_capacity(heads.len() * 4);
+    let mut idx = Vec::with_capacity(heads.len() * 6);
+    for (i, h) in heads.iter().enumerate() {
+        let b = (i * 4) as u32;
+        for c in [[-1.0f32, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]] {
+            pos.push(h.to_array());
+            uv.push(c);
+        }
+        idx.extend_from_slice(&[b, b + 1, b + 2, b, b + 2, b + 3]);
+    }
+    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, pos)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uv)
+        .with_inserted_indices(Indices::U32(idx))
+}
+
 /// Every lamp, and an index of them by cell.
 #[derive(Resource)]
 pub struct Lamps {
@@ -30,6 +110,8 @@ pub struct Lamps {
     cells: HashMap<(i32, i32), Vec<u32>>,
     /// The lit heads' material, brightened at dusk.
     heads: Handle<StandardMaterial>,
+    /// The far glow's material.
+    glow: Handle<LampGlowMaterial>,
 }
 
 /// One light of the pool: the lamp it lights now and how far it has faded in.
@@ -44,7 +126,8 @@ pub struct LampsPlugin;
 
 impl Plugin for LampsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_world_spawn(spawn_lamps)
+        app.add_plugins(MaterialPlugin::<LampGlowMaterial>::default())
+            .add_world_spawn(spawn_lamps)
             .add_game_systems(Update, light_lamps.in_set(PresentSet::Pose));
     }
 }
@@ -76,15 +159,18 @@ fn spawn_lamps(
     plan: Res<Plan>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut glows: ResMut<Assets<LampGlowMaterial>>,
 ) {
     let cfg = &data.0.day_night.lamps;
     let started = std::time::Instant::now();
     let list = place(&plan.0, cfg);
     let mut cells: HashMap<(i32, i32), Vec<u32>> = HashMap::new();
     let mut tiles: HashMap<(i32, i32), (Mesh, Mesh)> = HashMap::new();
+    let mut tile_heads: HashMap<(i32, i32), Vec<Vec3>> = HashMap::new();
     for (id, l) in list.iter().enumerate() {
         cells.entry(cell_of(l.head)).or_default().push(id as u32);
         let tile = ((l.base.x / TILE_M).floor() as i32, (l.base.z / TILE_M).floor() as i32);
+        tile_heads.entry(tile).or_default().push(l.head);
         let (metal, head) = lamp_meshes(l);
         match tiles.get_mut(&tile) {
             Some((m, h)) => {
@@ -109,10 +195,20 @@ fn spawn_lamps(
         perceptual_roughness: 0.4,
         ..default()
     });
+    let glow = glows.add(LampGlowMaterial {
+        lamp: LampGlowUniform::default(),
+    });
     let mut keys: Vec<_> = tiles.keys().copied().collect();
     keys.sort();
     for key in keys {
         let (m, h) = tiles.remove(&key).expect("a tile listed");
+        let g = glow_mesh(&tile_heads[&key]);
+        commands.spawn((
+            Name::new("lamp glow"),
+            Mesh3d(meshes.add(g)),
+            MeshMaterial3d(glow.clone()),
+            NotShadowCaster,
+        ));
         commands.spawn((Name::new("lamp poles"), Mesh3d(meshes.add(m)), MeshMaterial3d(metal.clone())));
         commands.spawn((
             Name::new("lamp heads"),
@@ -145,7 +241,7 @@ fn spawn_lamps(
         cells.len(),
         started.elapsed().as_secs_f64() * 1000.0
     );
-    commands.insert_resource(Lamps { list, cells, heads });
+    commands.insert_resource(Lamps { list, cells, heads, glow });
 }
 
 /// The nearest lamps to `eye` within `reach_m`, nearest first (ties by id), at most `n`.
@@ -176,6 +272,7 @@ fn light_lamps(
     lamps: Option<Res<Lamps>>,
     eye: Option<Single<&Transform, (With<crate::pilot::PilotCamera>, Without<PoolLight>)>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut glows: ResMut<Assets<LampGlowMaterial>>,
     mut pool: Query<(&mut PoolLight, &mut SpotLight, &mut Transform, &mut Visibility)>,
 ) {
     let (Some(lamps), Some(eye)) = (lamps, eye) else { return };
@@ -188,6 +285,18 @@ fn light_lamps(
         if heads.emissive != want {
             heads.emissive = want;
         }
+    }
+    let [r, g, b] = cfg.colour;
+    let want = LampGlowUniform {
+        colour: (Vec3::new(r, g, b) * cfg.glow_brightness).extend(0.0),
+        glow: Vec4::new(on, cfg.glow_px, cfg.glow_from_m, cfg.glow_m),
+    };
+    if glows
+        .get(&lamps.glow)
+        .is_some_and(|m| m.lamp.colour != want.colour || m.lamp.glow != want.glow)
+        && let Some(mut m) = glows.get_mut(&lamps.glow)
+    {
+        m.lamp = want;
     }
     let near = if on > 0.0 {
         nearest(&lamps, eye.translation, cfg.real_m, cfg.real_lamps as usize)

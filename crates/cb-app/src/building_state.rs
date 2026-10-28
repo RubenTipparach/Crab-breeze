@@ -55,6 +55,10 @@ pub struct ArrayState {
     /// Occlusion-roughness-metal layers.
     #[texture(104, dimension = "2d_array")]
     pub orm: Handle<Image>,
+    /// The windows at night on far and massing walls (`building_windows.wesl`); zero on the near
+    /// walls, whose windows are glass.
+    #[uniform(105)]
+    pub windows: Vec4,
 }
 
 impl MaterialExtension for ArrayState {
