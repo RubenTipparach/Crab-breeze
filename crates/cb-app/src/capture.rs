@@ -853,7 +853,81 @@ impl Plugin for FxStillsPlugin {
             soil: None,
             done: Vec::new(),
         })
-        .add_game_systems(Update, (run_fx_script, run_depth_bench));
+        .add_game_systems(Update, (run_fx_script, run_depth_bench, run_tower_corner));
+    }
+}
+
+/// The tower corner stills (`CB_STILLS_FX=tower`, owner, 2026-10-28: "Glass towers aren't joining at the
+/// corners", "screenshots of fix"): the pilot stands on the ground off a corner of the glass tower (15
+/// storeys and up) nearest their mech, on the diagonal, and looks up the corner from three distances:
+/// `tower-near.png` (12 m), `tower-mid.png` (25 m), `tower-far.png` (60 m). A measurement instrument: it
+/// writes the stills and exits.
+fn run_tower_corner(
+    mut commands: Commands,
+    script: Res<FxScript>,
+    mut pilot: ResMut<PilotSim>,
+    access: Res<MechAccessNow>,
+    time: Res<Time>,
+    plan: Res<crate::world::Plan>,
+    mut exit: MessageWriter<AppExit>,
+    mut state: Local<Option<(f32, Vec3, Vec2, Vec<&'static str>)>>,
+) {
+    use cb_core::world::Ground;
+    if script.beat != usize::MAX - 1 {
+        return;
+    }
+    let now = time.elapsed_secs();
+    let Some(home) = access.0.map(|a| a.ladder_base) else { return };
+    if state.is_none() {
+        let clear = |p: Vec2| plan.collision.push_out_at(p, 2.0, plan.height_at(p.x, p.y)).distance(p) < 1e-3;
+        let mut towers: Vec<_> = plan.buildings.iter().filter(|b| b.storeys >= 15).collect();
+        towers.sort_by(|a, b| {
+            let d = |r: &cb_core::world::Building| r.footprint.min.distance(home.xz());
+            d(a).total_cmp(&d(b)).then(a.id.cmp(&b.id))
+        });
+        for b in towers {
+            let (lo, hi) = (b.footprint.min, b.footprint.max);
+            for c in [lo, Vec2::new(hi.x, lo.y), Vec2::new(lo.x, hi.y), hi] {
+                let out = (c - (lo + hi) * 0.5).signum() * std::f32::consts::FRAC_1_SQRT_2;
+                if [12.0, 25.0, 60.0].iter().all(|m| clear(c + out * *m)) {
+                    info!("tower corner: building {} ({} storeys) corner {c:?}", b.id, b.storeys);
+                    *state = Some((now, Vec3::new(c.x, plan.height_at(c.x, c.y), c.y), out, Vec::new()));
+                    break;
+                }
+            }
+            if state.is_some() {
+                break;
+            }
+        }
+        if state.is_none() {
+            eprintln!("tower corner: no glass tower with an open corner");
+            exit.write(AppExit::error());
+            return;
+        }
+    }
+    let Some((start_s, corner, out, done)) = state.as_mut() else {
+        return;
+    };
+    let t = now - *start_s;
+    let shots = [
+        ("tower-near.png", 12.0, 0.0),
+        ("tower-mid.png", 25.0, 4.0),
+        ("tower-far.png", 60.0, 8.0),
+    ];
+    let Some(&(_, dist, _)) = shots.iter().rev().find(|s| t >= s.2) else {
+        return;
+    };
+    let p = corner.xz() + *out * dist;
+    let feet = Vec3::new(p.x, plan.height_at(p.x, p.y), p.y);
+    stand_looking(&mut pilot, feet, *corner + Vec3::Y * (6.0 + dist * 0.3));
+    for (name, _, at) in shots {
+        if t > at + 3.0 && !done.contains(&name) {
+            done.push(name);
+            shoot(&mut commands, &script.dir, name);
+        }
+    }
+    if t > 12.0 {
+        exit.write(AppExit::Success);
     }
 }
 
@@ -1049,6 +1123,11 @@ fn run_fx_script(
             // `CB_STILLS_FX=soil` stages the blasts on soil alone, with a still every half second.
             if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "soil") {
                 script.beat = 2;
+            }
+            // `CB_STILLS_FX=tower` looks at the corner of the nearest glass tower (`run_tower_corner`) alone.
+            if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "tower") {
+                script.beat = usize::MAX - 1;
+                return;
             }
             // `CB_STILLS_FX=depth` is the particle depth bench (`run_depth_bench`) alone.
             if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "depth") {
