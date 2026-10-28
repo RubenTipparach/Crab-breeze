@@ -58,6 +58,9 @@
     draw: (
         near_m: 60.0,
         near_max: 200,
+        // Only people within 20 m cast the sun's shadow (owner, 2026-10-28: "I wouldnt even bother giving them
+        // shadows more than 20m awway").
+        shadow_m: 20.0,
         crossfade_s: 0.25,
         wave_s: 2.0,
         cadence: (0.5, 1.8),

@@ -67,6 +67,8 @@ struct Pilot {
     service_seen: f32,
     /// When the skates were last toggled (real seconds): one press, then wait for it to take.
     toggled_s: f32,
+    /// The beat wanted the throttle at zero last frame: X is pressed once, as a player taps it, not every frame.
+    zero_held: bool,
     /// When the track was last logged.
     logged_s: f32,
     /// When the world was first seen ready (a Continue is restored on the frame after).
@@ -125,6 +127,7 @@ impl Plugin for PlaytestPlugin {
             brain: None,
             service_seen: 0.0,
             toggled_s: 0.0,
+            zero_held: false,
             logged_s: 0.0,
             ready_s: None,
             failures: Vec::new(),
@@ -1336,7 +1339,11 @@ fn play(
                 let flat = Vec2::new(goal.x - p.feet.x, goal.z - p.feet.z).length();
                 let left: f32 = flat + t.route.windows(2).skip(t.route_i).map(|w| w[0].distance(w[1])).sum::<f32>();
                 dist = Some(left);
-                if flat < 0.6 {
+                // A house's last point is the middle of its front room, where furniture may stand: within 1.5 m of it
+                // the pilot is in the room (the second suburb run stopped 1 m short of it, past the door).
+                let last = t.route_i + 1 == t.route.len();
+                let reach_m = if last && matches!(beat, Beat::WalkIntoHouse(_)) { 1.5 } else { 0.6 };
+                if flat < reach_m {
                     t.route_i += 1;
                     if t.route_i == t.route.len() {
                         info!("playtest: route walked, feet at {:.1} m (started at the door)", p.feet.y);
@@ -1928,6 +1935,11 @@ fn play(
     } else {
         t.progress_game_s = game_s;
     }
+    // A player taps X once to zero the throttle; the beats ask for it every frame they want it at zero, which played
+    // the cockpit's switch click every step (owner, 2026-10-28: "Its the mfd click", "So the bot was causing that").
+    let zero = act.throttle_zero;
+    act.throttle_zero = zero && !t.zero_held;
+    t.zero_held = zero;
     acc.script = Some(act);
     if done {
         info!("playtest: beat {} {beat:?} done in {in_beat:.1} s", t.beat);

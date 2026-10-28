@@ -247,7 +247,14 @@ impl Plugin for SoundPlugin {
 
 fn load_library(mut lib: ResMut<Library>, assets: Res<AssetServer>, data: Res<Data>, mut volume: ResMut<GlobalVolume>) {
     let cfg = &data.0.audio.cues;
-    *volume = GlobalVolume::new(Volume::Linear(db_to_gain(cfg.master_db)));
+    // `CB_MUTE=1` silences the game alone for test runs on the owner's desktop (owner, 2026-10-28: "make sure to mute
+    // audio for future game tests", "just game audio").
+    let gain = if crate::cli::switched_off("CB_MUTE") {
+        0.0
+    } else {
+        db_to_gain(cfg.master_db)
+    };
+    *volume = GlobalVolume::new(Volume::Linear(gain));
     for cue in ASKED.iter().filter(|c| !cfg.cues.contains_key(**c)) {
         error!("sound `{cue}` is asked for by the game but is not in data/audio/cues.ron");
     }

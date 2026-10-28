@@ -651,6 +651,12 @@ fn show_parts(
         }
     }
     for (k, mesh) in parts {
+        // Measurement instrument (`city-frame` section 5): what a building's redraw sends to the GPU, by look.
+        crate::probe_event!(
+            "mesh sent: {name} {k:?} {} vertices, {:.2} MB",
+            mesh.count_vertices(),
+            crate::perf_probe::mesh_bytes(&mesh).unwrap_or(0) as f32 / 1e6
+        );
         let m = material(k);
         let d = match drawn.get(&k) {
             Some(d) => {

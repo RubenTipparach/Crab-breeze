@@ -169,6 +169,7 @@ impl Plugin for FxPlugin {
                     attach_streams,
                     switch_streams,
                     warm_up,
+                    warm_up_streams,
                 ),
             );
     }
@@ -209,6 +210,59 @@ fn warm_up(
         data.0.fx.recipes.len()
     );
 }
+
+/// A stream warmed behind the loading screen, gone when the game is ready.
+#[derive(Component)]
+struct WarmStream;
+
+/// Plays every stream recipe (`FxConfig::stream_per_s`) behind the loading screen as `warm_up` plays the bursts: a
+/// stream is an effect of its own (a steady spawner, its own capacity), so its pipelines were built the first time
+/// one started in play, the jets' flame and trail at boarding (owner, 2026-10-28: "a large spike when boarding the
+/// mech, seemingly caused by the cockpit shader compilation").
+fn warm_up_streams(
+    mut commands: Commands,
+    ready: Res<crate::loading::GameReady>,
+    data: Res<Data>,
+    camera: Query<&GlobalTransform, With<PilotCamera>>,
+    warm: Query<Entity, With<WarmStream>>,
+    mut done: Local<bool>,
+) {
+    if ready.0 {
+        for e in &warm {
+            commands.entity(e).despawn();
+        }
+        return;
+    }
+    if *done {
+        return;
+    }
+    let Ok(eye) = camera.single() else { return };
+    *done = true;
+    // Where `warm_up` plays the bursts: in the view, under the ground.
+    let at = eye.translation() + eye.forward().with_y(0.0).normalize_or(Vec3::NEG_Z) * 200.0 - Vec3::Y * 100.0;
+    let mut n = 0;
+    for name in data.0.fx.stream_per_s.keys() {
+        let Some(&recipe) = cb_core::fx::RECIPES.iter().chain(STREAM_ONLY.iter()).find(|r| **r == name.as_str()) else {
+            continue;
+        };
+        commands.spawn((
+            Name::new(format!("fx warm stream {recipe}")),
+            WarmStream,
+            Transform::from_translation(at),
+            FxStream {
+                recipe,
+                dir: Vec3::NEG_Y,
+                on: true,
+                density: 1.0,
+            },
+        ));
+        n += 1;
+    }
+    info!("fx: warming {n} streams behind the loading screen");
+}
+
+/// Stream recipes that are not in `cb_core::fx::RECIPES` (played only as streams).
+const STREAM_ONLY: [&str; 1] = ["jet_trail"];
 
 /// A body that plays a recipe as a continuous stream (`FxConfig::stream_per_s`): one emitter per
 /// burst layer, children of this entity, emitting while `on`. `dir` is the way the layers marked

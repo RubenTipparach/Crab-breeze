@@ -21,7 +21,7 @@ use serde::Deserialize;
 
 /// How far each kind of a car's parts is drawn, metres, each dithering out over the last `fade_share` of its range
 /// (city-frame): the cab's insides, then the lamps and bumpers, then the wheels; the body and cabin to the traffic's
-/// edge. Only the body and cabin cast the sun's shadow. A car is 16 meshes up close and 2 past `wheels_m`.
+/// edge. Only the body and cabin cast the sun's shadow, and only within `shadow_m`. A car is 16 meshes up close and 2 past `wheels_m`.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct CarDetail {
@@ -31,6 +31,9 @@ pub struct CarDetail {
     pub trim_m: f32,
     /// The wheels, metres.
     pub wheels_m: f32,
+    /// The body and cabin cast the sun's shadow only within this, metres (owner, 2026-10-28: "cars and people dont
+    /// need shadows at a distance", "I wouldnt even bother giving them shadows more than 20m awway").
+    pub shadow_m: f32,
     /// The share of each range, at its far end, over which the parts dither out.
     pub fade_share: f32,
 }
@@ -41,6 +44,7 @@ impl Default for CarDetail {
             interior_m: 30.0,
             trim_m: 200.0,
             wheels_m: 400.0,
+            shadow_m: 20.0,
             fade_share: 0.15,
         }
     }
@@ -52,6 +56,7 @@ impl CarDetail {
             ("interior_m", self.interior_m),
             ("trim_m", self.trim_m),
             ("wheels_m", self.wheels_m),
+            ("shadow_m", self.shadow_m),
         ] {
             if !(v.is_finite() && v > 0.0) {
                 return Err(format!("`{k}` must be above 0, got {v}"));

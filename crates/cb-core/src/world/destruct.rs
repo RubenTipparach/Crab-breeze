@@ -142,6 +142,7 @@ impl Structures {
 
     /// Every building of a plan, whole, with the shipped tuning (`structure:` and the crater rule).
     pub fn with_config(plan: &WorldPlan, cfg: StructureConfig, radius_m_per_cbrt_mj: f32) -> Self {
+        let chunking = super::small_buildings::damage::Chunking::of(&cfg);
         let buildings = plan
             .buildings
             .iter()
@@ -172,7 +173,10 @@ impl Structures {
             falls: Vec::new(),
             landings: Vec::new(),
             moments: Vec::new(),
-            houses: Default::default(),
+            houses: super::small_buildings::Houses {
+                states: Default::default(),
+                chunking,
+            },
         }
     }
 

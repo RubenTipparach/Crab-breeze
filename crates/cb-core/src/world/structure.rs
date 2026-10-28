@@ -141,6 +141,12 @@ pub struct StructureConfig {
     pub max_rubble_m: f32,
     /// How far past a fallen part's footprint its heap spreads.
     pub rubble_spread_m: f32,
+    /// A house's broken wall, floor or roof box is cut into chunks about this across (`small_buildings::damage`)...
+    pub house_chunk_m: f32,
+    /// ...and about this in a collapse.
+    pub house_collapse_chunk_m: f32,
+    /// A house's piece whose volume is under this turns to dust rather than a chunk, cubic metres.
+    pub house_dust_m3: f32,
 }
 
 impl Default for StructureConfig {
@@ -169,6 +175,9 @@ impl Default for StructureConfig {
             repose_slope: 0.75,
             max_rubble_m: 18.0,
             rubble_spread_m: 4.0,
+            house_chunk_m: 1.5,
+            house_collapse_chunk_m: 2.2,
+            house_dust_m3: 0.0,
         }
     }
 }
@@ -189,6 +198,7 @@ impl crate::data::Validate for StructureConfig {
             within(name, v, 0.0, 1.0)?;
         }
         within("structure.rubble_fines", self.rubble_fines, 0.0, 1.0)?;
+        within("structure.house_dust_m3", self.house_dust_m3, 0.0, 10.0)?;
         for (name, v) in [
             ("structure.column_hp_mj", self.column_hp_mj),
             ("structure.slab_hp_mj", self.slab_hp_mj),
@@ -198,6 +208,8 @@ impl crate::data::Validate for StructureConfig {
             ("structure.wall_kg_m2", self.wall_kg_m2),
             ("structure.slab_m", self.slab_m),
             ("structure.column_m", self.column_m),
+            ("structure.house_chunk_m", self.house_chunk_m),
+            ("structure.house_collapse_chunk_m", self.house_collapse_chunk_m),
             ("structure.wall_m", self.wall_m),
             ("structure.impact_factor", self.impact_factor),
             ("structure.rubble_bulking", self.rubble_bulking),

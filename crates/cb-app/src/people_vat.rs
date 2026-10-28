@@ -203,7 +203,13 @@ fn palette_table(p: &Palette) -> [Vec4; 56] {
     t
 }
 
-/// One (body, level)'s run of slots.
+/// The sets of slots each body is drawn in: the near level within `shadow_m` (casting the sun's shadow), the near
+/// level beyond it (owner, 2026-10-28: "I wouldnt even bother giving them shadows more than 20m awway"), the crowd.
+const SETS: usize = 3;
+/// Each set's level of detail in the bake.
+const SET_LEVEL: [usize; SETS] = [0, 0, 1];
+
+/// One (body, set)'s run of slots.
 #[derive(Clone, Copy, Debug)]
 struct Section {
     /// Its first slot.
@@ -212,10 +218,11 @@ struct Section {
     capacity: usize,
 }
 
-/// The chunk entity drawing slots `base..base + CHUNK` of section `section`.
+/// The chunk entity drawing slots `base..base + CHUNK` of body `body`'s section `set`.
 #[derive(Component)]
 struct Chunk {
-    section: usize,
+    body: usize,
+    set: usize,
     index: usize,
 }
 
@@ -225,8 +232,8 @@ pub struct PeopleDraw {
     tables: Vec<ClipTable>,
     heights: Vec<f32>,
     hair_styles: Vec<HairStyles>,
-    /// `[body][level]` sections; level 0 near, 1 crowd.
-    sections: Vec<[Section; 2]>,
+    /// `[body][set]` sections (`SETS`): near and casting the sun's shadow, near, crowd.
+    sections: Vec<[Section; SETS]>,
     /// Every slot, written each frame.
     slots: Vec<PersonGpu>,
     /// The buffer the materials read.
@@ -294,17 +301,13 @@ fn spawn_people(
     let mut sections = Vec::new();
     let mut total = 0;
     for _ in &b.manifest.bodies {
-        let near = Section {
-            base: total,
-            capacity: near_cap,
-        };
-        total += near_cap;
-        let crowd = Section {
-            base: total,
-            capacity: crowd_cap,
-        };
-        total += crowd_cap;
-        sections.push([near, crowd]);
+        let mut secs = [Section { base: 0, capacity: 0 }; SETS];
+        for (set, s) in secs.iter_mut().enumerate() {
+            let capacity = if SET_LEVEL[set] == 0 { near_cap } else { crowd_cap };
+            *s = Section { base: total, capacity };
+            total += capacity;
+        }
+        sections.push(secs);
     }
     let buffer = buffers.add(ShaderBuffer::new(vec![[0u32; 4]; total * 3], RenderAssetUsages::RENDER_WORLD));
     let palette = palette_table(&cfg.draw.palette);
@@ -333,25 +336,30 @@ fn spawn_people(
                     people: buffer.clone(),
                 },
             });
-            let s = sections[bi][li];
-            for k in 0..s.capacity / CHUNK {
-                let mut e = commands.spawn((
-                    Name::new(format!("people {} {} chunk {k}", body.id, level.name)),
-                    Chunk {
-                        section: bi * 2 + li,
-                        index: k,
-                    },
-                    Mesh3d(mesh.clone()),
-                    MeshMaterial3d(material.clone()),
-                    MeshTag::new((s.base + k * CHUNK) as u32),
-                    Transform::IDENTITY,
-                    Visibility::Hidden,
-                    NoFrustumCulling,
-                ));
-                if li > 0 {
-                    e.insert(NotShadowCaster);
+            for set in (0..SETS).filter(|&set| SET_LEVEL[set] == li) {
+                let s = sections[bi][set];
+                let casting = set == 0;
+                for k in 0..s.capacity / CHUNK {
+                    let mut e = commands.spawn((
+                        Name::new(format!(
+                            "people {} {}{} chunk {k}",
+                            body.id,
+                            level.name,
+                            if casting { " shadow" } else { "" }
+                        )),
+                        Chunk { body: bi, set, index: k },
+                        Mesh3d(mesh.clone()),
+                        MeshMaterial3d(material.clone()),
+                        MeshTag::new((s.base + k * CHUNK) as u32),
+                        Transform::IDENTITY,
+                        Visibility::Hidden,
+                        NoFrustumCulling,
+                    ));
+                    if !casting {
+                        e.insert(NotShadowCaster);
+                    }
+                    chunks += 1;
                 }
-                chunks += 1;
             }
         }
     }
@@ -445,9 +453,10 @@ fn draw_people(
     let dt = time.delta_secs();
     let figs = figures(crowd.as_deref(), traffic.as_deref(), &plan, &data);
     let bodies = draw.tables.len();
-    let mut used = vec![[0usize; 2]; bodies];
+    let mut used = vec![[0usize; SETS]; bodies];
     let mut near_left = dc.near_max;
     let near2 = dc.near_m * dc.near_m;
+    let shadow2 = dc.shadow_m * dc.shadow_m;
     let mut seen = Vec::with_capacity(figs.len());
     for f in &figs {
         let outfit = Outfit::of(f.look, &draw.hair_styles, &dc.palette, dc.min_top_bottom_contrast);
@@ -461,18 +470,19 @@ fn draw_people(
         let anim = draw.anims.entry(f.key).or_insert_with(|| Anim::start(f.clip, f.key as u32, table));
         anim.step(f.clip, rate, dt, dc.crossfade_s, table);
         seen.push(f.key);
-        let level = if near_left > 0 && f.feet.distance_squared(eye) <= near2 {
+        let d2 = f.feet.distance_squared(eye);
+        let set = if near_left > 0 && d2 <= near2 {
             near_left -= 1;
-            0
+            if d2 <= shadow2 { 0 } else { 1 }
         } else {
-            1
+            2
         };
-        let s = draw.sections[outfit.body][level];
-        let k = used[outfit.body][level];
+        let s = draw.sections[outfit.body][set];
+        let k = used[outfit.body][set];
         if k >= s.capacity {
             continue;
         }
-        used[outfit.body][level] += 1;
+        used[outfit.body][set] += 1;
         let clip_word = |c: Clip| {
             let t = table.get(c);
             t.row | t.frames << 16
@@ -518,8 +528,7 @@ fn draw_people(
         }
     }
     for (c, mut vis) in &mut chunks {
-        let (bi, li) = (c.section / 2, c.section % 2);
-        let want = if c.index * CHUNK < used[bi][li] {
+        let want = if c.index * CHUNK < used[c.body][c.set] {
             Visibility::Inherited
         } else {
             Visibility::Hidden

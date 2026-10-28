@@ -32,7 +32,7 @@
 <div class="cb">
   <header style="display:grid;gap:var(--cds-gap-sm)">
     <h1 id="top">City benchmark, RTX 3070</h1>
-    <p class="lede">Crab Breeze on the owner's desktop, the night of 27 to 28 October 2026. Standing in the capital in the cockpit, the median frame fell from <span class="num" data-draw="cell" data-source="city" data-field="p50_ms" data-where="run=stand-old1">—</span> to <span class="num" data-draw="cell" data-source="city" data-field="p50_ms" data-where="run=stand-new1">—</span>, five to nine times faster, and still short of 60 fps (16.7 ms). What holds it back now is video memory: the game no longer fits on the card beside the desktop's other programs.</p>
+    <p class="lede">Crab Breeze on the owner's desktop, the night of 27 to 28 October 2026. Standing in the capital in the cockpit, the median frame fell from <span class="num" data-draw="cell" data-source="city" data-field="p50_ms" data-where="run=stand-old1">-</span> to <span class="num" data-draw="cell" data-source="city" data-field="p50_ms" data-where="run=stand-new1">-</span>, five to nine times faster, and still short of 60 fps (16.7 ms). What holds it back now is video memory: the game no longer fits on the card beside the desktop's other programs.</p>
   </header>
 
   <section id="city">
@@ -131,7 +131,7 @@
   dash.draw('cell', (el) => {
     const rows = rowsOf(el.getAttribute('data-source'));
     const row = rows && rows.find(where(el));
-    el.textContent = row ? fmtMs(num(row[el.getAttribute('data-field')])) : '—';
+    el.textContent = row ? fmtMs(num(row[el.getAttribute('data-field')])) : '-';
   });
 
   function tooltip(box) {

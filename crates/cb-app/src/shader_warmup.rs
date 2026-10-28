@@ -7,6 +7,11 @@
 //! skin and in glass (the frame and window shaders a hit building swaps in), so every camera builds them there. The
 //! loading screen waits for steady frames, so the compiles lengthen the load rather than a played frame. The zoo goes
 //! the frame the game is ready.
+//!
+//! The boxes wear one plain material, and a pipeline is built per material key too (its maps, emission, cut-outs,
+//! two-sidedness): the world's own surfaces still compiled in the first seconds of play (27 to 54 pipelines,
+//! `perf_gate`). So every surface in the world while loading, by (vertex layout, material key, blend), also gets a
+//! copy in the zoo, shrunk to a few centimetres: its own mesh in its own material.
 
 use crate::pilot::PilotCamera;
 use bevy::prelude::*;
@@ -31,7 +36,7 @@ pub struct ShaderWarmupPlugin;
 
 impl Plugin for ShaderWarmupPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (show_boxes, show_pieces, clear_zoo));
+        app.add_systems(Update, (show_boxes, show_pieces, show_world, clear_zoo));
     }
 }
 
@@ -96,6 +101,68 @@ fn show_pieces(
     }
     *done = true;
     place(&mut commands, eye, pieces, 0.04);
+}
+
+/// One copy of every kind of surface in the world, as it streams in while loading: a pipeline is built per vertex
+/// layout, material key and blend, so a kind first seen in play compiled there.
+#[allow(clippy::type_complexity)]
+fn show_world(
+    mut commands: Commands,
+    ready: Res<crate::loading::GameReady>,
+    eye: Query<Entity, With<PilotCamera>>,
+    meshes: Res<Assets<Mesh>>,
+    materials: Res<Assets<StandardMaterial>>,
+    surfaces: Query<(&Mesh3d, &MeshMaterial3d<StandardMaterial>, &bevy::camera::primitives::Aabb), Without<Zoo>>,
+    mut seen: Local<std::collections::HashSet<(String, u64, String)>>,
+    mut looked: Local<std::collections::HashSet<(AssetId<Mesh>, AssetId<StandardMaterial>)>>,
+    mut placed: Local<usize>,
+) {
+    if ready.0 {
+        return;
+    }
+    let Ok(eye) = eye.single() else { return };
+    let before = *placed;
+    for (mesh, material, aabb) in &surfaces {
+        // Each pair of assets is keyed once, when both are in (thousands of entities share a few hundred pairs).
+        let pair = (mesh.0.id(), material.0.id());
+        if looked.contains(&pair) {
+            continue;
+        }
+        let (Some(m), Some(mat)) = (meshes.get(&mesh.0), materials.get(&material.0)) else {
+            continue;
+        };
+        looked.insert(pair);
+        // The layout: its attributes and topology (a mesh whose data has gone to the render world keys by its topology).
+        let layout = match m.try_attributes() {
+            Ok(a) => format!("{:?} {:?}", a.map(|(a, _)| a.id).collect::<Vec<_>>(), m.primitive_topology()),
+            Err(_) => format!("{:?}", m.primitive_topology()),
+        };
+        let key = (
+            layout,
+            bevy::pbr::StandardMaterialKey::from(mat).bits(),
+            format!("{:?}", mat.alpha_mode),
+        );
+        if !seen.insert(key) {
+            continue;
+        }
+        // Shrunk to 3 cm across, centred, in a grid of rows 2 m ahead and under the eye line.
+        let span = (aabb.half_extents.max_element() * 2.0).max(1e-3);
+        let k = 0.03 / span;
+        let i = *placed;
+        let at = Vec3::new((i % 40) as f32 * 0.04 - 0.8, -0.1 - (i / 40) as f32 * 0.04, -2.0);
+        commands.spawn((
+            Name::new("zoo surface"),
+            Zoo,
+            Mesh3d(mesh.0.clone()),
+            MeshMaterial3d(material.0.clone()),
+            ChildOf(eye),
+            Transform::from_translation(at - Vec3::from(aabb.center) * k).with_scale(Vec3::splat(k)),
+        ));
+        *placed += 1;
+    }
+    if *placed > before {
+        info!("shader warm-up: {} kinds of surface in the zoo", *placed);
+    }
 }
 
 /// Two metres ahead of the eye, a few centimetres across, side by side in a row at `y` m: in every camera's view and

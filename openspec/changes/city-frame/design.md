@@ -94,6 +94,48 @@ done, then the swap happens in one frame as now. The state buffer is written at 
 delayed, only its look on a building's first hit, by the few frames the build takes. Cost: one task a newly hit
 building, the same work off the main thread.
 
+## 6. The suburb, boarding and the first seconds (2026-10-28, afternoon)
+
+The owner, watching: "it runs way worse in the subrban area than big city area", "the frame rate seemed low before any
+destruction happend", "a large spike when boarding the mech, seemingly caused by the cockpit shader compilation",
+"we had it over 60 fps before people and cars were added", "cars and people dont need shadows at a distance", "I
+wouldnt even bother giving them shadows more than 20m awway".
+
+**Measured** (`suburb-house` and `city-destruction`, probe build, release, card memory free): in the suburb most slow
+frames wait on the GPU (`render_system` in 560 to 900 of the slow frames of each 20 s window). In view there: lawn
+grass 1.1 to 1.4 million triangles (0.5 to 0.7 million casting), trees 0.4 million; in the shadow pass people's near
+chunks about 2 million triangles (drawn with no frustum culling: a chunk holds 32 people anywhere) and every car's
+body and cabin. The scene holds 78 000 to 92 000 entities, 32 000 of them the 1 073 cars' parts. The late pipelines
+(`perf_gate`): 94 in the suburb run, 45 of them at boarding, 38 of those the particle effects' compute and render
+pipelines; 88 in the city run, 83 of them in the first seconds after `GAME_READY`, standard PBR in material keys the
+warm-up's one plain material did not have.
+
+**Changed:**
+- **Shadows of cars and people within 20 m only** (owner). `traffic.detail.shadow_m` and `people.draw.shadow_m`, 20 m:
+  a car's body and cabin cast only while the car is within it (`traffic::car_shadows`); people within it are drawn in
+  their own near chunks that cast, the near ones beyond it in near chunks that do not (`people_vat`, three sets).
+- **Streams warmed** behind the loading screen as the bursts are (`fx::warm_up_streams`): every `stream_per_s` recipe
+  plays once under the ground in view, so the jets' flame and trail no longer build their effects at boarding.
+- **Every kind of world surface warmed**: `shader_warmup::show_world` puts one 3 cm copy of each (vertex layout,
+  material key, blend) in the world while loading in front of the eye, its own mesh in its own material.
+- **The house walk** ends within 1.5 m of the front room's middle (furniture may stand there).
+- **Half the chunks a house breaks into** (owner: "the houses in suburban area has too many destruction peices",
+  "divide house by 50% blocks"). `damage::chunk_census` brought down each of the 22 shipped types that collapse: 355
+  chunks a house on average (66 to 895), each a physics body within 250 m. The sizes moved into data
+  (`structure.house_chunk_m`, `house_collapse_chunk_m`, `house_dust_m3`) and changed to 4 m blocks in a collapse
+  (was 2.2 m) with pieces under 0.25 m3 turned to dust: 174 on average (36 to 482). 3 m with the same dust gave 191;
+  4 m with 0.5 m3 gave 150.
+- **The bot taps X once** to zero the throttle, as a player does; asked every frame, it clicked the cockpit's switch
+  every step (owner: "Its the mfd click", "So the bot was causing that").
+- **`CB_MUTE=1`** silences the game alone (its master volume) for test runs (owner: "make sure to mute audio for
+  future game tests", "just game audio").
+
+**Measurement instruments:** `mesh sent` probe events (each building redraw's meshes by look, vertices and MB) and
+`small_buildings::damage::chunk_census` (the chunks each house type gives when it comes down).
+
+**Next:** the A/B of these in release builds; then a house's chunks (the owner: "the houses in suburban area has too
+many destruction peices"), sized from the census; then a building's first-hit upload (section 5).
+
 ## Open questions
 
 | Id | Question | Recommendation (built while open) |

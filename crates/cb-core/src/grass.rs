@@ -1113,6 +1113,7 @@ mod tests {
                 segments: 2,
                 width_scale: 1.0,
             }],
+            shadow_lods: 1,
             ..Default::default()
         };
         cfg.validate().unwrap();

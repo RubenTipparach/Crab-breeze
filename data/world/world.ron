@@ -410,6 +410,13 @@
         repose_slope: 0.75,
         max_rubble_m: 18.0,
         rubble_spread_m: 4.0,
+        // A house's broken pieces as chunks, each a physics body near the pilot: cut 1.5 m for a hole, 4 m in a
+        // collapse, and a piece under 0.25 m3 (trim, sills, slats) turns to dust. Half the chunks a house gave at
+        // 2.2 m with no dust, 355 to 174 on average over the 22 types that collapse (owner, 2026-10-28: "the houses
+        // in suburban area has too many destruction peices", "divide house by 50% blocks"; `damage::chunk_census`).
+        house_chunk_m: 1.5,
+        house_collapse_chunk_m: 4.0,
+        house_dust_m3: 0.25,
     ),
     // Building skins and roofs (openspec/changes/building-generation): the mockup's facade modules,
     // parapet and coping, roof props; only within dress_radius_m of the player.

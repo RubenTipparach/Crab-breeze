@@ -138,6 +138,7 @@ impl Plugin for TrafficPlugin {
                     turn_dash,
                     find_wheels,
                     range_car_parts,
+                    car_shadows,
                     spin_wheels,
                     // drivers on foot are people (`people_vat`); the capsule only when people are left out
                     draw_runners.run_if(not(resource_exists::<crate::people_vat::PeopleDraw>)),
@@ -506,9 +507,17 @@ fn turn_dash(sim: Res<TrafficSim>, data: Res<Data>, dashes: Query<(&CarDraw, &Da
 #[derive(Component)]
 struct PartsRanged;
 
+/// A car's body and cabin, the parts that cast the sun's shadow, and whether they cast it now (`car_shadows`).
+#[derive(Component)]
+struct Casters {
+    parts: Vec<Entity>,
+    casting: bool,
+}
+
 /// Once a car's scene has spawned, gives each part its draw range (`CarDetail`, dithered out by `lod_fade`) and lets
 /// only the body and cabin cast the sun's shadow: 16 meshes and casters a car became 2 casters, and 2 meshes past the
-/// wheels' range (city-frame: the capital's 1 100 cars were most of its 20 000 meshes in view).
+/// wheels' range (city-frame: the capital's 1 100 cars were most of its 20 000 meshes in view). The body and cabin
+/// start casting nothing; `car_shadows` lets them cast within `shadow_m`.
 fn range_car_parts(
     mut commands: Commands,
     data: Res<Data>,
@@ -521,6 +530,7 @@ fn range_car_parts(
     let d = &data.0.traffic.cfg.detail;
     for root in &cars {
         let mut any = false;
+        let mut casters = Vec::new();
         for e in children.iter_descendants(root) {
             if meshes.get(e).is_err() {
                 continue;
@@ -544,10 +554,46 @@ fn range_car_parts(
                 commands
                     .entity(e)
                     .insert((crate::lod_fade::out_to(far_m, d.fade_share), bevy::light::NotShadowCaster));
+            } else {
+                commands.entity(e).insert(bevy::light::NotShadowCaster);
+                casters.push(e);
             }
         }
         if any {
-            commands.entity(root).insert(PartsRanged);
+            commands.entity(root).insert((
+                PartsRanged,
+                Casters {
+                    parts: casters,
+                    casting: false,
+                },
+            ));
+        }
+    }
+}
+
+/// Lets a car's body and cabin cast the sun's shadow within `CarDetail::shadow_m` of the eye, and not beyond (owner,
+/// 2026-10-28: "cars and people dont need shadows at a distance", "I wouldnt even bother giving them shadows more than
+/// 20m awway"): the capital's thousand cars had cast into all three cascades.
+fn car_shadows(
+    mut commands: Commands,
+    data: Res<Data>,
+    eye: Single<&GlobalTransform, With<crate::pilot::PilotCamera>>,
+    mut cars: Query<(&GlobalTransform, &mut Casters)>,
+) {
+    let r2 = data.0.traffic.cfg.detail.shadow_m.powi(2);
+    let eye = eye.translation();
+    for (at, mut c) in &mut cars {
+        let want = at.translation().distance_squared(eye) <= r2;
+        if want == c.casting {
+            continue;
+        }
+        c.casting = want;
+        for &e in &c.parts {
+            if want {
+                commands.entity(e).try_remove::<bevy::light::NotShadowCaster>();
+            } else {
+                commands.entity(e).try_insert(bevy::light::NotShadowCaster);
+            }
         }
     }
 }
