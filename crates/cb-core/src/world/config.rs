@@ -632,15 +632,22 @@ impl Validate for ViewConfig {
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct RoadSurfaceConfig {
-    /// Metres per tile of the clean asphalt on city streets (Asphalt023L's photo is 2.5 m across).
+    /// Metres per tile of downtown's asphalt on the cities' streets, arterials and highways (Asphalt027C, owner
+    /// 2026-10-27: "27c for downtown").
     pub street_tile_m: f32,
-    /// Metres per tile of the worn asphalt on arterials, highways and runways (Asphalt022's is 1.85 m).
+    /// Metres per tile of the suburbs' asphalt on their streets and car parks (Asphalt026C: "26c suburban Streets").
+    pub suburb_tile_m: f32,
+    /// Metres per tile of the worn asphalt on patch repairs and runways (Asphalt022's photo is 1.85 m across).
     pub worn_tile_m: f32,
     /// Metres per tile of the pavement's slabs (four slabs a tile).
     pub paving_tile_m: f32,
-    /// Linear tone (r, g, b) of a city street's clean asphalt: a warm grey-black.
+    /// Linear tone (r, g, b) a city street or highway multiplies its asphalt by (the set carries its own colour).
     pub street_tone: [f32; 3],
-    /// Linear tone of the worn asphalt on arterials and highways: lighter, as worn asphalt is.
+    /// The tone of an arterial: its asphalt a little darker than a street's.
+    pub arterial_tone: [f32; 3],
+    /// The tone of a suburb's streets and car parks.
+    pub suburb_tone: [f32; 3],
+    /// Linear tone of the worn asphalt (a packed set: its colour map averages one grey) on patches and runways.
     pub worn_tone: [f32; 3],
     /// The road meshes are cut into cells this long, each corner carrying the tint below.
     pub tint_cell_m: f32,
@@ -665,10 +672,13 @@ pub struct RoadSurfaceConfig {
 impl Default for RoadSurfaceConfig {
     fn default() -> Self {
         Self {
-            street_tile_m: 2.5,
+            street_tile_m: 4.0,
+            suburb_tile_m: 4.0,
             worn_tile_m: 1.85,
             paving_tile_m: 2.4,
-            street_tone: [0.2, 0.19, 0.175],
+            street_tone: [1.0, 1.0, 1.0],
+            arterial_tone: [0.84, 0.84, 0.86],
+            suburb_tone: [1.0, 1.0, 1.0],
             worn_tone: [0.25, 0.24, 0.22],
             tint_cell_m: 8.0,
             tint_scale_m: 45.0,
@@ -749,10 +759,13 @@ impl RoadSurfaceConfig {
 impl Validate for RoadSurfaceConfig {
     fn validate(&self) -> Result<(), String> {
         positive("road_surfaces.street_tile_m", self.street_tile_m)?;
+        positive("road_surfaces.suburb_tile_m", self.suburb_tile_m)?;
         positive("road_surfaces.worn_tile_m", self.worn_tile_m)?;
         positive("road_surfaces.paving_tile_m", self.paving_tile_m)?;
         for (field, tone) in [
             ("road_surfaces.street_tone", self.street_tone),
+            ("road_surfaces.arterial_tone", self.arterial_tone),
+            ("road_surfaces.suburb_tone", self.suburb_tone),
             ("road_surfaces.worn_tone", self.worn_tone),
         ] {
             for c in tone {

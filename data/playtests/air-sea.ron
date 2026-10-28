@@ -1,0 +1,37 @@
+// The air and the sea (openspec changes civil-air-traffic, harbours; survey W33, W45 to W49, HB): from the capital
+// in free roam, board, look up at the light planes and helicopters over the city, skate to the nearest air base's
+// runway and watch the airliners and freighters there, cycle targets with civil aircraft in view (they are boxed
+// as neutral and never selected or locked, W47), then on to the nearest harbour: its quays, cranes and office, the
+// boats on the sea lanes and the ferry. First person throughout; the PLAYTEST_SURVEY lines are the counts.
+//
+//   ./target/release/crab-breeze --playtest air-sea
+(
+    name: "air-sea",
+    stuck_s: 20.0,
+    runs: [
+        (
+            play: "free",
+            beats: [
+                Wait(2.0),
+                Board,
+                Wait(2.0),
+                Survey(3000.0),
+                LookAtNearest("aircraft", 8.0),
+                CycleTargets(3),
+                SkateToNearest("runway", 300.0),
+                Survey(3000.0),
+                LookAtNearest("aircraft", 10.0),
+                CycleTargets(4),
+                Survey(3000.0),
+                LookAtNearest("aircraft", 8.0),
+                SkateToNearest("harbour", 120.0),
+                Survey(2000.0),
+                LookAtNearest("harbour", 6.0),
+                LookAtNearest("boat", 8.0),
+                Survey(2000.0),
+                LookAround(6.0),
+                LookAtNearest("boat", 6.0),
+            ],
+        ),
+    ],
+)
