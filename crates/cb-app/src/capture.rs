@@ -853,7 +853,86 @@ impl Plugin for FxStillsPlugin {
             soil: None,
             done: Vec::new(),
         })
-        .add_game_systems(Update, (run_fx_script, run_depth_bench, run_tower_corner));
+        .add_game_systems(Update, (run_fx_script, run_depth_bench, run_tower_corner, run_site_tour));
+    }
+}
+
+/// The site tour (`CB_STILLS_FX=base` or `=harbour`, owner, 2026-10-28: "We should also improve airports. They don't
+/// look much like airports"): the eye is carried round the air base or harbour nearest the pilot's mech and looks at
+/// it from four sides high up (`site-high-<n>.png`, 260 m out and 90 m up) and two at head height (`site-low-<n>.png`,
+/// 70 m out), dwelling 6 s at each so the place streams in first. A measurement instrument: it writes the stills and
+/// exits.
+#[allow(clippy::too_many_arguments)]
+fn run_site_tour(
+    mut commands: Commands,
+    script: Res<FxScript>,
+    mut pilot: ResMut<PilotSim>,
+    access: Res<MechAccessNow>,
+    time: Res<Time>,
+    plan: Res<crate::world::Plan>,
+    boats: Option<Res<crate::boats::Boats>>,
+    mut exit: MessageWriter<AppExit>,
+    mut state: Local<Option<(f32, Vec3, Vec2, Vec<String>)>>,
+) {
+    use cb_core::world::Ground;
+    if script.beat != usize::MAX - 2 {
+        return;
+    }
+    let now = time.elapsed_secs();
+    let Some(home) = access.0.map(|a| a.ladder_base.xz()) else { return };
+    if state.is_none() {
+        let harbour = std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "harbour");
+        // The site's centre, and the way it faces (from the land toward the water for a harbour, along the runway for
+        // a base).
+        let site = if harbour {
+            boats.as_ref().and_then(|b| {
+                b.traffic
+                    .harbours
+                    .iter()
+                    .min_by(|a, b| a.shore.distance(home).total_cmp(&b.shore.distance(home)))
+                    .map(|h| (h.shore, (h.out).normalize_or(Vec2::X)))
+            })
+        } else {
+            plan.bases
+                .iter()
+                .min_by(|a, b| a.centre.distance(home).total_cmp(&b.centre.distance(home)))
+                .map(|b| (b.centre, (b.runway.b - b.runway.a).normalize_or(Vec2::X)))
+        };
+        let Some((c, facing)) = site else {
+            eprintln!("site tour: no site");
+            exit.write(AppExit::error());
+            return;
+        };
+        info!("site tour: {} at {c:?}", if harbour { "harbour" } else { "base" });
+        *state = Some((now, Vec3::new(c.x, plan.height_at(c.x, c.y), c.y), facing, Vec::new()));
+    }
+    let Some((start_s, centre, facing, done)) = state.as_mut() else {
+        return;
+    };
+    let t = now - *start_s;
+    const DWELL_S: f32 = 6.0;
+    let k = (t / DWELL_S) as usize;
+    let side = Vec2::new(-facing.y, facing.x);
+    let views: [(Vec2, f32, &str); 6] = [
+        (-*facing, 90.0, "site-high-1"),
+        (side, 90.0, "site-high-2"),
+        (*facing, 90.0, "site-high-3"),
+        (-side, 90.0, "site-high-4"),
+        ((-*facing + side).normalize(), 0.0, "site-low-1"),
+        ((*facing - side).normalize(), 0.0, "site-low-2"),
+    ];
+    let Some(&(dir, up, name)) = views.get(k) else {
+        exit.write(AppExit::Success);
+        return;
+    };
+    let out = if up > 0.0 { 260.0 } else { 70.0 };
+    let p = centre.xz() + dir * out;
+    let ground = plan.height_at(p.x, p.y);
+    let feet = Vec3::new(p.x, ground + up, p.y);
+    stand_looking(&mut pilot, feet, *centre + Vec3::Y * if up > 0.0 { 0.0 } else { 8.0 });
+    if t - k as f32 * DWELL_S > DWELL_S - 1.0 && !done.iter().any(|d| d == name) {
+        done.push(name.to_string());
+        shoot(&mut commands, &script.dir, &format!("{name}.png"));
     }
 }
 
@@ -1123,6 +1202,11 @@ fn run_fx_script(
             // `CB_STILLS_FX=soil` stages the blasts on soil alone, with a still every half second.
             if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "soil") {
                 script.beat = 2;
+            }
+            // `CB_STILLS_FX=base` and `=harbour` tour the nearest air base or harbour (`run_site_tour`) alone.
+            if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "base" || v == "harbour") {
+                script.beat = usize::MAX - 2;
+                return;
             }
             // `CB_STILLS_FX=tower` looks at the corner of the nearest glass tower (`run_tower_corner`) alone.
             if next && std::env::var("CB_STILLS_FX").is_ok_and(|v| v == "tower") {
