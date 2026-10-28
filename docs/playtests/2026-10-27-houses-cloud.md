@@ -83,3 +83,9 @@ On seed 42: 1,281 suburb houses (1,570 before: the kits that gained a side drive
 had a drive too steep or a street that could not be joined), 758 street pieces and connectors, 85 km; every house has
 a drive to a road, every street joins a city or a highway, every business has its curb cut (`cargo test -p cb-core
 small_buildings`). The cut onto the highway is behind the camera in `carpark.jpg`; a playtest walks it.
+
+## The roads' CC0 sets (2026-10-28)
+
+Owner: "26c suburban Streets 27c for downtown", chosen on the Road Surface Bench page. `street.jpg`, `carpark.jpg` and
+`town.jpg` show the suburb street and the car parks on ambientCG Asphalt026C; `downtown.jpg` a city street at the game's
+start on Asphalt027C, the highways too. Same cloud renderer, no frame times.
