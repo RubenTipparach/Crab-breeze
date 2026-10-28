@@ -132,8 +132,46 @@ fn run(
             }
             next = t > 8.0;
         }
-        // At the front door, which swings open as the pilot reaches it.
+        // From the street up a house's drive to its car (lot-access): where the drive meets the street.
         3 => {
+            if script.once("drive")
+                && let cb_core::world::small_buildings::kit::Access::Drive { x_m, .. } = kit.access
+            {
+                let feet = on_ground(&plan, ranch, x_m + 3.0, kit.hi.z + 6.5);
+                stand_looking(&mut pilot, feet, on_ground(&plan, ranch, x_m, kit.hi.z - 7.0) + Vec3::Y * 0.8);
+            }
+            if t > 6.0 && script.once("drive shot") {
+                shoot(&mut commands, &script.dir, "houses-drive.png");
+            }
+            next = t > 8.0;
+        }
+        // Along a connector, the side street that joins a row's street to the next one in or to the city.
+        4 => {
+            let connector = plan
+                .small
+                .paving
+                .streets
+                .iter()
+                .find(|s| s.path.len() == 2 && s.path[0].distance(s.path[1]) > 40.0);
+            if script.once("connector") {
+                match connector {
+                    Some(c) => {
+                        let (a, b) = (c.path[0], c.path[1]);
+                        let from = a + (a - b).normalize_or_zero() * 6.0;
+                        let feet = Vec3::new(from.x + 2.0, plan.height_at(from.x + 2.0, from.y), from.y);
+                        stand_looking(&mut pilot, feet, Vec3::new(b.x, plan.height_at(b.x, b.y) + 1.5, b.y));
+                        println!("STILLS houses: connector {:.0} m long", a.distance(b));
+                    }
+                    None => println!("STILLS houses: no connector over 40 m"),
+                }
+            }
+            if t > 6.0 && script.once("connector shot") {
+                shoot(&mut commands, &script.dir, "houses-connector.png");
+            }
+            next = t > 8.0;
+        }
+        // At the front door, which swings open as the pilot reaches it.
+        5 => {
             let leaf = &kit.leaves[0];
             let mid = Vec2::new(leaf.hinge.x, leaf.hinge.z) + leaf.shut * (leaf.width_m * 0.5);
             if script.once("door") {
@@ -148,7 +186,7 @@ fn run(
             next = t > 6.0;
         }
         // Inside, among the modelled furniture.
-        4 => {
+        6 => {
             let leaf = &kit.leaves[0];
             let mid = Vec2::new(leaf.hinge.x, leaf.hinge.z) + leaf.shut * (leaf.width_m * 0.5);
             if script.once("inside") {
@@ -168,7 +206,7 @@ fn run(
             next = t > 8.0;
         }
         // A town's main street, from the highway.
-        5 => {
+        7 => {
             let Some((town_id, town)) = find(&plan, Zone::Town, "") else {
                 script.beat += 1;
                 script.beat_started_s = now;
@@ -185,7 +223,7 @@ fn run(
             next = t > 8.0;
         }
         // A business's car park (lot-access): its stalls, its curb cut onto the highway.
-        6 => {
+        8 => {
             let Some((biz_id, biz)) = plan.small.lots.iter().enumerate().find(|(i, l)| {
                 l.zone == Zone::Town && plan.small.kit(*i as u32).kind == cb_core::world::small_buildings::kit::Kind::Business
             }) else {
@@ -209,7 +247,7 @@ fn run(
             next = t > 8.0;
         }
         // A house on sand or dry ground, where the grass is parched (grass `biome_dryness`).
-        7 => {
+        9 => {
             let dry = plan.small.lots.iter().enumerate().find(|(_, l)| {
                 let at = l.to_world(Vec2::ZERO);
                 let b = plan.biomes.dominant(at, plan.height_at(at.x, at.y), 0.0);
@@ -235,7 +273,7 @@ fn run(
             next = t > 8.0;
         }
         // Downtown: a city street at the game's start, its asphalt the downtown road set.
-        8 => {
+        10 => {
             if script.once("downtown") {
                 let p = plan.start.pilot_xz;
                 let feet = Vec3::new(p.x + 3.0, plan.height_at(p.x + 3.0, p.y), p.y);
@@ -248,7 +286,7 @@ fn run(
             next = t > 8.0;
         }
         // An autocannon burst's worth (1 MJ) on the front wall, seen from the street.
-        9 => {
+        11 => {
             if script.once("hit") {
                 let feet = on_ground(&plan, ranch, kit.hi.x + 4.0, kit.hi.z + 4.0);
                 stand_looking(&mut pilot, feet, on_ground(&plan, ranch, 0.0, 0.0) + Vec3::Y * 2.0);
