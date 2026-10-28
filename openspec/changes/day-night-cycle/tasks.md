@@ -34,6 +34,7 @@ where the owner chose real moon phases. Building from 2026-10-28.
 ## 4. Windows and vehicles
 
 - [x] 4.1 Lit windows in the glass shader (`building_surface.wesl`): each window a cell one storey high and 2.5 m wide, lit when its hash falls under the share of the hour (`WindowLights::lit_share`, tested); a damaged building, drawn by its frame with its own element slots, never lights (owner: "If the building is damaged all of its lights turn off"). Left: far facades' night layer (2.3) and lit interiors behind lit windows
+- [ ] 4.5 The houses and small businesses (`small_buildings`, lot-access) light their windows by the same rule; their glass materials hold zero for now
 - [ ] 4.2 Cars' emissive lights at dusk; the nearest 12 cars' headlights as pooled spot lights
 - [ ] 4.3 The player's vehicle lamps with shadows, on a bindable control
 - [ ] 4.4 Read Bevy 0.20's source on whether a light's `RenderLayers` limit its shadow casters (needed only if the
