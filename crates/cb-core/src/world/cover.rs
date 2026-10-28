@@ -97,7 +97,9 @@ impl WorldPlan {
                 .bridges
                 .iter()
                 .any(|b| b.centre.distance(p) < b.length_m * clear.bridge_share);
-        if road || self.collision.overlaps(p, clear.building_m) {
+        // A suburb street, a drive or a car park is paving like a highway (openspec change `lot-access`).
+        let paved = self.small.paving.paved(p, clear.road_m);
+        if road || paved || self.collision.overlaps(p, clear.building_m) || self.small.overlaps(p, clear.building_m) {
             Cover::Bare
         } else {
             cover

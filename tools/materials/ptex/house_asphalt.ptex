@@ -1,0 +1,337 @@
+{
+ "connections": [
+  {
+   "from": "fbm2_0",
+   "from_port": 0,
+   "to": "shader_5",
+   "to_port": 0
+  },
+  {
+   "from": "fbm2_1",
+   "from_port": 0,
+   "to": "shader_5",
+   "to_port": 1
+  },
+  {
+   "from": "voronoi_0",
+   "from_port": 1,
+   "to": "shader_5",
+   "to_port": 2
+  },
+  {
+   "from": "voronoi_0",
+   "from_port": 2,
+   "to": "shader_5",
+   "to_port": 3
+  },
+  {
+   "from": "fbm2_2",
+   "from_port": 0,
+   "to": "shader_5",
+   "to_port": 4
+  },
+  {
+   "from": "voronoi_1",
+   "from_port": 1,
+   "to": "shader_5",
+   "to_port": 5
+  },
+  {
+   "from": "shader_5",
+   "from_port": 0,
+   "to": "normal_map_0",
+   "to_port": 0
+  },
+  {
+   "from": "shader_5",
+   "from_port": 0,
+   "to": "occlusion2_0",
+   "to_port": 0
+  },
+  {
+   "from": "shader_5",
+   "from_port": 1,
+   "to": "Material",
+   "to_port": 0
+  },
+  {
+   "from": "shader_5",
+   "from_port": 3,
+   "to": "Material",
+   "to_port": 1
+  },
+  {
+   "from": "shader_5",
+   "from_port": 2,
+   "to": "Material",
+   "to_port": 2
+  },
+  {
+   "from": "normal_map_0",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 4
+  },
+  {
+   "from": "occlusion2_0",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 5
+  },
+  {
+   "from": "shader_5",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 6
+  }
+ ],
+ "label": "House Asphalt",
+ "name": "Material",
+ "node_position": {
+  "x": 0,
+  "y": 0
+ },
+ "nodes": [
+  {
+   "name": "voronoi_0",
+   "node_position": {
+    "x": 220,
+    "y": 0
+   },
+   "parameters": {
+    "intensity": 1.0,
+    "randomness": 1.0,
+    "scale_x": 160,
+    "scale_y": 160,
+    "stretch_x": 1,
+    "stretch_y": 1
+   },
+   "type": "voronoi"
+  },
+  {
+   "name": "voronoi_1",
+   "node_position": {
+    "x": 440,
+    "y": 0
+   },
+   "parameters": {
+    "intensity": 1.0,
+    "randomness": 0.9,
+    "scale_x": 4,
+    "scale_y": 4,
+    "stretch_x": 1,
+    "stretch_y": 1
+   },
+   "type": "voronoi"
+  },
+  {
+   "name": "fbm2_0",
+   "node_position": {
+    "x": 660,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 5,
+    "noise": 2,
+    "offset": 0.0,
+    "persistence": 0.6,
+    "scale_x": 4,
+    "scale_y": 4
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "fbm2_1",
+   "node_position": {
+    "x": 880,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 4,
+    "noise": 2,
+    "offset": 0.5,
+    "persistence": 0.55,
+    "scale_x": 24,
+    "scale_y": 24
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "fbm2_2",
+   "node_position": {
+    "x": 1100,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 3,
+    "noise": 2,
+    "offset": 0.3,
+    "persistence": 0.55,
+    "scale_x": 384,
+    "scale_y": 384
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "shader_5",
+   "node_position": {
+    "x": 1320,
+    "y": 0
+   },
+   "parameters": {},
+   "seed_int": 0,
+   "shader_model": {
+    "code": "",
+    "global": "",
+    "inputs": [
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "lo",
+      "longdesc": "lo",
+      "name": "lo",
+      "shortdesc": "lo",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "mid",
+      "longdesc": "mid",
+      "name": "mid",
+      "shortdesc": "mid",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "st",
+      "longdesc": "st",
+      "name": "st",
+      "shortdesc": "st",
+      "type": "f"
+     },
+     {
+      "default": "vec3(0.0)",
+      "function": true,
+      "label": "stc",
+      "longdesc": "stc",
+      "name": "stc",
+      "shortdesc": "stc",
+      "type": "rgb"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "fine",
+      "longdesc": "fine",
+      "name": "fine",
+      "shortdesc": "fine",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "crack",
+      "longdesc": "crack",
+      "name": "crack",
+      "shortdesc": "crack",
+      "type": "f"
+     }
+    ],
+    "instance": "\nfloat hs_$name(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }\nfloat sat_$name(float x) { return clamp(x, 0.0, 1.0); }\n\nfloat stone_$name(vec2 uv) { return smoothstep(0.05, 0.22, $st(uv)) * step(0.45, $stc(uv).g); }\nfloat crack_$name(vec2 uv) {\n\tfloat w = 1.0 - smoothstep(0.0, 0.01, $crack(uv + 0.015 * vec2($mid(uv) - 0.5, $mid(uv + vec2(0.5)) - 0.5)));\n\treturn w * smoothstep(0.58, 0.7, $lo(uv + vec2(0.6, 0.2)));\n}\nfloat height_$name(vec2 uv) {\n\treturn 0.42 + 0.3 * sqrt(stone_$name(uv)) + 0.15 * ($fine(uv) - 0.5) - 0.35 * crack_$name(uv);\n}\nvec3 albedo_$name(vec2 uv) {\n\tvec3 bind = vec3(0.24, 0.24, 0.245) * (0.85 + 0.3 * $fine(uv));\n\tvec3 st = mix(vec3(0.42, 0.41, 0.4), vec3(0.6, 0.58, 0.55), $stc(uv).r);\n\tvec3 c = mix(bind, st, 0.8 * stone_$name(uv));\n\tc *= 0.9 + 0.16 * $lo(uv) + 0.06 * ($mid(uv) - 0.5);\n\treturn c * (1.0 - 0.55 * crack_$name(uv));\n}\nfloat rough_$name(vec2 uv) { return 0.93 - 0.08 * stone_$name(uv) + 0.04 * $fine(uv); }\nfloat metal_$name(vec2 uv) { return 0.0; }\n",
+    "longdesc": "house asphalt",
+    "name": "house asphalt",
+    "outputs": [
+     {
+      "f": "sat_$name(height_$name($uv))",
+      "longdesc": "out0",
+      "shortdesc": "out0",
+      "type": "f"
+     },
+     {
+      "longdesc": "out1",
+      "rgba": "vec4(clamp(albedo_$name($uv), vec3(0.0), vec3(1.0)), 1.0)",
+      "shortdesc": "out1",
+      "type": "rgba"
+     },
+     {
+      "f": "sat_$name(rough_$name($uv))",
+      "longdesc": "out2",
+      "shortdesc": "out2",
+      "type": "f"
+     },
+     {
+      "f": "sat_$name(metal_$name($uv))",
+      "longdesc": "out3",
+      "shortdesc": "out3",
+      "type": "f"
+     }
+    ],
+    "parameters": [],
+    "shortdesc": "house asphalt"
+   },
+   "type": "shader"
+  },
+  {
+   "name": "normal_map_0",
+   "node_position": {
+    "x": 1540,
+    "y": 0
+   },
+   "parameters": {
+    "param0": 11,
+    "param1": 0.072,
+    "param2": 0,
+    "param4": 1
+   },
+   "type": "normal_map"
+  },
+  {
+   "name": "occlusion2_0",
+   "node_position": {
+    "x": 0,
+    "y": 160
+   },
+   "parameters": {
+    "param0": 11,
+    "param1": 6,
+    "param2": 2.64,
+    "param3": 1
+   },
+   "type": "occlusion2"
+  },
+  {
+   "export_paths": {},
+   "name": "Material",
+   "node_position": {
+    "x": 220,
+    "y": 160
+   },
+   "parameters": {
+    "albedo_color": {
+     "a": 1.0,
+     "b": 1,
+     "g": 1,
+     "r": 1,
+     "type": "Color"
+    },
+    "ao": 1.0,
+    "depth_scale": 0.0,
+    "emission_energy": 1.0,
+    "flags_transparent": false,
+    "metallic": 1.0,
+    "normal": 1.0,
+    "roughness": 1.0,
+    "size": 11,
+    "sss": 0.0
+   },
+   "type": "material"
+  }
+ ],
+ "parameters": {},
+ "type": "graph"
+}

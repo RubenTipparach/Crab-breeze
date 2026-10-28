@@ -71,6 +71,7 @@ fn watch(
     rig: Query<(), (With<Piloted>, With<MechRig>)>,
     access: Res<MechAccessNow>,
     sky: Res<crate::sky_light::SkyLight>,
+    houses: Res<crate::small_buildings::HouseKits>,
     screen: Query<Entity, With<LoadingScreen>>,
 ) {
     let dt = time.delta_secs();
@@ -93,7 +94,7 @@ fn watch(
         }
         return;
     }
-    let loaded = !rig.is_empty() && access.0.is_some() && sky.ready;
+    let loaded = !rig.is_empty() && access.0.is_some() && sky.ready && houses.ready;
     *steady_s = if loaded && dt < HITCH_S { *steady_s + dt } else { 0.0 };
     *log_in_s -= dt;
     if *log_in_s <= 0.0 {

@@ -695,6 +695,13 @@ pub enum Struck {
     },
     /// A building's standing cell.
     Building(u32),
+    /// A house's or small business's standing piece (openspec change `small-buildings`).
+    House {
+        /// The lot.
+        lot: u32,
+        /// The piece.
+        piece: u32,
+    },
     /// A tree trunk.
     Tree(u32),
     /// The water.
@@ -747,6 +754,11 @@ fn structure_at(p: Vec3, scene: &Scene, structures: &Structures, forest: &Forest
     for b in scene.plan.collision.candidates(p2, 0.5) {
         if structures.buildings[b as usize].solid_at(p) {
             return Some(Struck::Building(b));
+        }
+    }
+    for lot in scene.plan.small.candidates(p2, 0.0) {
+        if let Some(piece) = structures.houses.solid_at(&scene.plan.small, lot, p) {
+            return Some(Struck::House { lot, piece });
         }
     }
     for id in forest.near(p2, 1.5) {

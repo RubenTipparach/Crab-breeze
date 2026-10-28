@@ -1,0 +1,260 @@
+{
+ "connections": [
+  {
+   "from": "fbm2_0",
+   "from_port": 0,
+   "to": "shader_3",
+   "to_port": 0
+  },
+  {
+   "from": "fbm2_1",
+   "from_port": 0,
+   "to": "shader_3",
+   "to_port": 1
+  },
+  {
+   "from": "fbm2_2",
+   "from_port": 0,
+   "to": "shader_3",
+   "to_port": 2
+  },
+  {
+   "from": "shader_3",
+   "from_port": 0,
+   "to": "normal_map_0",
+   "to_port": 0
+  },
+  {
+   "from": "shader_3",
+   "from_port": 0,
+   "to": "occlusion2_0",
+   "to_port": 0
+  },
+  {
+   "from": "shader_3",
+   "from_port": 1,
+   "to": "Material",
+   "to_port": 0
+  },
+  {
+   "from": "shader_3",
+   "from_port": 3,
+   "to": "Material",
+   "to_port": 1
+  },
+  {
+   "from": "shader_3",
+   "from_port": 2,
+   "to": "Material",
+   "to_port": 2
+  },
+  {
+   "from": "normal_map_0",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 4
+  },
+  {
+   "from": "occlusion2_0",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 5
+  },
+  {
+   "from": "shader_3",
+   "from_port": 0,
+   "to": "Material",
+   "to_port": 6
+  }
+ ],
+ "label": "House Pine",
+ "name": "Material",
+ "node_position": {
+  "x": 0,
+  "y": 0
+ },
+ "nodes": [
+  {
+   "name": "fbm2_0",
+   "node_position": {
+    "x": 220,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 3,
+    "noise": 2,
+    "offset": 0.7,
+    "persistence": 0.5,
+    "scale_x": 2,
+    "scale_y": 1
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "fbm2_1",
+   "node_position": {
+    "x": 440,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 3,
+    "noise": 2,
+    "offset": 0.2,
+    "persistence": 0.5,
+    "scale_x": 384,
+    "scale_y": 8
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "fbm2_2",
+   "node_position": {
+    "x": 660,
+    "y": 0
+   },
+   "parameters": {
+    "folds": 0,
+    "iterations": 4,
+    "noise": 2,
+    "offset": 0.0,
+    "persistence": 0.55,
+    "scale_x": 4,
+    "scale_y": 4
+   },
+   "type": "fbm2"
+  },
+  {
+   "name": "shader_3",
+   "node_position": {
+    "x": 880,
+    "y": 0
+   },
+   "parameters": {},
+   "seed_int": 0,
+   "shader_model": {
+    "code": "",
+    "global": "",
+    "inputs": [
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "warp",
+      "longdesc": "warp",
+      "name": "warp",
+      "shortdesc": "warp",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "fibre",
+      "longdesc": "fibre",
+      "name": "fibre",
+      "shortdesc": "fibre",
+      "type": "f"
+     },
+     {
+      "default": "0.0",
+      "function": true,
+      "label": "lo",
+      "longdesc": "lo",
+      "name": "lo",
+      "shortdesc": "lo",
+      "type": "f"
+     }
+    ],
+    "instance": "\nfloat hs_$name(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }\nfloat sat_$name(float x) { return clamp(x, 0.0, 1.0); }\n\nfloat k_$name(vec2 uv) { return mod(floor(uv.x * 6.0), 6.0); }\nfloat vd_$name(vec2 uv) { float xs = fract(uv.x * 6.0) / 6.0; return min(xs, 1.0 / 6.0 - xs); }\n// Distance to this board's knot, in metres (an ellipse, longer along the board).\nfloat knot_$name(vec2 uv) {\n\tfloat k = k_$name(uv);\n\tvec2 c = vec2((k + 0.3 + 0.4 * hs_$name(vec2(k, 4.0))) / 6.0, hs_$name(vec2(k, 5.0)));\n\tvec2 d = uv - c;\n\td.y = abs(fract(d.y + 0.5) - 0.5);\n\tfloat r = 0.008 + 0.012 * hs_$name(vec2(k, 6.0));\n\treturn length(d * vec2(1.0, 0.55)) / r;\n}\nfloat late_$name(vec2 uv) {\n\tfloat kn = knot_$name(uv);\n\tfloat swirl = 0.6 * exp(-kn * 0.35);\n\tfloat ring = fract(uv.x * 36.0 + 1.5 * $warp(uv) + 0.2 * $warp(uv * 4.0 + vec2(0.6)) + swirl * 3.0 + 4.0 * hs_$name(vec2(k_$name(uv), 1.0)));\n\treturn smoothstep(0.62, 0.86, ring) * (1.0 - smoothstep(0.9, 1.0, ring));\n}\nfloat height_$name(vec2 uv) {\n\tfloat v = smoothstep(0.0, 0.004, vd_$name(uv));\n\treturn 0.25 + 0.6 * v + 0.04 * late_$name(uv) + 0.03 * $fibre(uv) - 0.05 * (1.0 - smoothstep(0.8, 1.0, knot_$name(uv)));\n}\nvec3 albedo_$name(vec2 uv) {\n\tvec3 c = vec3(0.87, 0.765, 0.61) * (0.94 + 0.1 * hs_$name(vec2(k_$name(uv), 2.0)));\n\tc *= 1.0 - 0.17 * late_$name(uv);\n\tc *= 0.94 + 0.08 * $fibre(uv) + 0.05 * ($lo(uv) - 0.5);\n\tfloat kn = knot_$name(uv);\n\tc = mix(c, vec3(0.42, 0.25, 0.12), 1.0 - smoothstep(0.7, 1.15, kn));\n\tc = mix(c, vec3(0.62, 0.45, 0.28), 0.5 * (1.0 - smoothstep(1.0, 1.9, kn)) * smoothstep(0.7, 1.0, kn));\n\treturn mix(c * 0.55, c, smoothstep(0.0, 0.0035, vd_$name(uv)));\n}\nfloat rough_$name(vec2 uv) { return 0.52 + 0.08 * $fibre(uv); }\nfloat metal_$name(vec2 uv) { return 0.0; }\n",
+    "longdesc": "house pine",
+    "name": "house pine",
+    "outputs": [
+     {
+      "f": "sat_$name(height_$name($uv))",
+      "longdesc": "out0",
+      "shortdesc": "out0",
+      "type": "f"
+     },
+     {
+      "longdesc": "out1",
+      "rgba": "vec4(clamp(albedo_$name($uv), vec3(0.0), vec3(1.0)), 1.0)",
+      "shortdesc": "out1",
+      "type": "rgba"
+     },
+     {
+      "f": "sat_$name(rough_$name($uv))",
+      "longdesc": "out2",
+      "shortdesc": "out2",
+      "type": "f"
+     },
+     {
+      "f": "sat_$name(metal_$name($uv))",
+      "longdesc": "out3",
+      "shortdesc": "out3",
+      "type": "f"
+     }
+    ],
+    "parameters": [],
+    "shortdesc": "house pine"
+   },
+   "type": "shader"
+  },
+  {
+   "name": "normal_map_0",
+   "node_position": {
+    "x": 1100,
+    "y": 0
+   },
+   "parameters": {
+    "param0": 11,
+    "param1": 0.096,
+    "param2": 0,
+    "param4": 1
+   },
+   "type": "normal_map"
+  },
+  {
+   "name": "occlusion2_0",
+   "node_position": {
+    "x": 1320,
+    "y": 0
+   },
+   "parameters": {
+    "param0": 11,
+    "param1": 8,
+    "param2": 2.2,
+    "param3": 1
+   },
+   "type": "occlusion2"
+  },
+  {
+   "export_paths": {},
+   "name": "Material",
+   "node_position": {
+    "x": 1540,
+    "y": 0
+   },
+   "parameters": {
+    "albedo_color": {
+     "a": 1.0,
+     "b": 1,
+     "g": 1,
+     "r": 1,
+     "type": "Color"
+    },
+    "ao": 1.0,
+    "depth_scale": 0.0,
+    "emission_energy": 1.0,
+    "flags_transparent": false,
+    "metallic": 1.0,
+    "normal": 1.0,
+    "roughness": 1.0,
+    "size": 11,
+    "sss": 0.0
+   },
+   "type": "material"
+  }
+ ],
+ "parameters": {},
+ "type": "graph"
+}

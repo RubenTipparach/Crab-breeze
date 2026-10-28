@@ -62,6 +62,7 @@ pub struct GrassUniform {
     tile: Vec4,
     grid: UVec4,
     fade: Vec4,
+    parched: Vec4,
     lods: [Vec4; MAX_LODS],
     next: [Vec4; MAX_LODS],
 }
@@ -104,6 +105,7 @@ impl GrassUniform {
                 layout.words_per_slot,
             ),
             fade: Vec4::new(cfg.radius_m, cfg.fade_m, cfg.clump_m, cfg.clump_strength),
+            parched: Vec3::from_array(cfg.parched_colour).extend(0.0),
             lods,
             next,
         }

@@ -115,7 +115,13 @@ impl GameData {
     /// Loads every data file under `root` (the `data/` directory), with the mech file `mech`
     /// (relative to `root`) and its boarding timeline beside it (`mechs/<name>/boarding.ron`). The first failure is returned, naming its file and field.
     pub fn load(root: &Path, mech: &str) -> Result<Self, data::DataError> {
-        let world: world::WorldConfig = data::load_ron(&root.join("world/world.ron"))?;
+        let mut world: world::WorldConfig = data::load_ron(&root.join("world/world.ron"))?;
+        // The houses' and small businesses' kits, read from the exported assets beside `data/`.
+        let kits_dir = root.join("../assets/models/small_buildings");
+        world.small_kits = std::sync::Arc::new(world::small_buildings::Kits::load(&kits_dir).map_err(|reason| data::DataError {
+            path: kits_dir.join("manifest.json"),
+            reason,
+        })?);
         let audio = audio::AudioData {
             cues: data::load_ron(&root.join("audio/cues.ron"))?,
             music: data::load_ron(&root.join("audio/music.ron"))?,

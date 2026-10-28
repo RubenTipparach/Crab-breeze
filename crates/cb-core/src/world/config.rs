@@ -737,6 +737,12 @@ pub struct WorldConfig {
     pub interiors: super::interior::InteriorConfig,
     /// Physics debris (openspec change `debris-physics`).
     pub debris: DebrisConfig,
+    /// Where the houses and small businesses stand (openspec change `small-buildings`).
+    pub small_buildings: super::small_buildings::SmallBuildingsConfig,
+    /// The houses' and small businesses' kits, read from `assets/models/small_buildings/` by
+    /// `GameData::load` (never from `world.ron`); with none, no lots are placed.
+    #[serde(skip)]
+    pub small_kits: std::sync::Arc<super::small_buildings::Kits>,
 }
 
 /// Physics debris: where chunks become rigid bodies, and how many (openspec change
@@ -844,6 +850,8 @@ impl Default for WorldConfig {
             structure: super::structure::StructureConfig::default(),
             dressing: super::dressing::DressingConfig::default(),
             interiors: super::interior::InteriorConfig::default(),
+            small_buildings: super::small_buildings::SmallBuildingsConfig::default(),
+            small_kits: Default::default(),
             debris: DebrisConfig::default(),
         }
     }
@@ -942,6 +950,7 @@ impl Validate for WorldConfig {
         self.structure.validate()?;
         self.dressing.validate()?;
         self.interiors.validate()?;
+        self.small_buildings.validate()?;
         self.debris.validate()?;
         Ok(())
     }
