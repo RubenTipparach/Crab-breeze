@@ -1730,8 +1730,17 @@ fn city_view(plan: &crate::world::Plan, air: bool) -> ([f32; 3], [f32; 3]) {
 /// 22 m off the house lot nearest the largest city's middle, at eye height, looking at its middle 3 m up: close enough
 /// that its rooms and furniture are drawn (`small_buildings`, within 150 m).
 fn house_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
-    let c = plan.cities.iter().max_by(|a, b| a.half_size_m.total_cmp(&b.half_size_m)).map_or(Vec2::ZERO, |c| c.centre);
-    let Some(lot) = plan.small.lots.iter().min_by(|a, b| a.centre.distance(c).total_cmp(&b.centre.distance(c)).then(a.kit.cmp(&b.kit))) else {
+    let c = plan
+        .cities
+        .iter()
+        .max_by(|a, b| a.half_size_m.total_cmp(&b.half_size_m))
+        .map_or(Vec2::ZERO, |c| c.centre);
+    let Some(lot) = plan
+        .small
+        .lots
+        .iter()
+        .min_by(|a, b| a.centre.distance(c).total_cmp(&b.centre.distance(c)).then(a.kit.cmp(&b.kit)))
+    else {
         return ([c.x, 2.0, c.y], [c.x + 100.0, 2.0, c.y]);
     };
     let front = Vec2::new(lot.heading_rad.sin(), lot.heading_rad.cos());
