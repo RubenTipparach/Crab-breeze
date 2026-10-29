@@ -52,9 +52,12 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
 }
     out.color = main_pass_post_lighting_processing(pbr, out.color);
 @if(VERTEX_UVS_B) {
-    // A window pane's inner face (its second UV's y -1): clear from inside, at `windows.z`.
+    // A window pane's inner face (its second UV's y -1): clear from inside, at `windows.z`, and taking no light of its
+    // own. The reflection probe is the sky outside, and the pane's coating mirrors only outward: lit, the inner face
+    // laid the outside sky over the view through it (owner, 2026-10-29: "interior windows i think shouldnt have been
+    // shaded with reflection probe"). Premultiplied, colour 0 only dims what is behind it by `windows.z`.
     if (no_ssao == 1u && in.uv_b.y < -0.5) {
-        out.color = vec4<f32>(out.color.rgb, windows.z);
+        out.color = vec4<f32>(vec3<f32>(0.0), windows.z);
     }
 }
     return out;
