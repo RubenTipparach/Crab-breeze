@@ -1,44 +1,50 @@
-# Design: mech arms clear of their legs, by pose
+# Design: mech arms clear of their legs when kneeling
 
 ## The measurement
 
-`MOCKUP.clearance(id)` on the Mechs page poses a mech with the pose layer the game mirrors (`tools/mockups/mech_pose.js`),
-arm hold included:
-- standing (rest and idle);
-- 16 phases of the walk and of the turn;
-- skating;
-- two crouches as deep as the game's leg solver goes (skating and landing).
+A measuring run on the Mechs page poses a mech through its kneel (the page's `sitPose` at 25, 50, 75 and 100%, blended
+with the standing idle as the page blends them) and takes every arm mesh (under `shoulder_L` and `shoulder_R`) against
+every leg mesh (under `thigh_L` and `thigh_R`) with three-mesh-bvh, loaded into the page by the run only. A pair that
+intersects is a hit; otherwise the nearest distance is the gap.
 
-At each pose it takes every arm mesh (under `shoulder_L` and `shoulder_R`) against every leg mesh (under `thigh_L` and
-`thigh_R`) with three-mesh-bvh, which the measuring run loads into the page. A pair that intersects counts as a hit;
-otherwise the nearest distance is the gap. It reports the least gap, in metres, and where. `MOCKUP.setHold(id, h)` tries
-a hold.
-
-A box test was tried first and misled: a bone's parts are merged per material, so a thigh's decals on both its faces make
-one box as wide as the thigh.
-
-## The holds
-
-`armHold` adds to the shoulders `(fwd, 0, out)` (the right shoulder `-out`) and to the elbows `elb`, radians. Each forearm's
-lower edge met the top of its thigh's armour. Turning the arm out keeps a forward-pointing weapon pointing ahead; a
-forward swing tips it up unless the elbow takes it back, and combined with a turn out it swings the weapon sideways, so the
-Harrow and the Roustabout use the turn alone.
-
-| Mech | Before | Hold | After |
+| Mech | Standing | 75% kneel | 100% kneel |
 |---|---|---|---|
-| Harrow | intersecting standing (634 hits) | out 0.8 | 0.38 m, mid-stride |
-| Roustabout | intersecting standing (380 hits) | out 0.55 | 0.71 m, mid-stride |
-| Mule | intersecting standing (833 hits) | out 0.6, fwd -0.3 (fists up in a guard) | 0.53 m, standing |
-| Foreman, Ironhorse, Driller, Picket, Sapper | 0.22 to 1.5 m | none | unchanged |
+| Foreman | 0.36 m | intersecting | intersecting |
+| Harrow | intersecting | intersecting | intersecting |
+| Roustabout | intersecting | intersecting | intersecting |
+| Mule | intersecting | intersecting | intersecting |
+| Driller | 0.94 m | 0.84 m | 0.66 m |
+| Ironhorse | 1.40 m | 0.82 m | 0.35 m |
+| Picket, Sapper | 1.2 m or more | 1.5 m or more | 1.5 m or more |
+
+The Harrow, Roustabout and Mule already touch standing: a forearm's lower edge rests on the top of its thigh armour.
+That is left as it is, as the owner asked; the kneel is what drives the forearms deep into the thighs, as in the owner's
+screenshot.
+
+## The kneel offset
+
+The kneel already swings both shoulders forward 0.5 rad and bends the elbows 0.6 rad while the thighs fold up toward the
+chest. `KNEEL_ARMS` adds, per mech, `fwd` to the shoulders' swing, `out` to their turn outward (the right shoulder
+`-out`) and `elb` to the elbows (negative bends further), all times the kneel's own ease, so standing is untouched and the
+offset is whole when sat. A grid search took the smallest change that leaves at least 0.2 m at 75% and 100%:
+
+| Mech | Offset | Gap at 75% and 100% | What it looks like |
+|---|---|---|---|
+| Foreman | elb -0.3 | 0.73 m | the elbows fold a little more, the tools lift off the knees |
+| Harrow | elb -0.6 | 0.23 m | the elbows fold, the guns rise and point ahead |
+| Roustabout | out 0.6, fwd -0.25 | 0.37 m | the arms brace out past the knees |
+| Mule | out 0.6, fwd -0.5 | 0.30 m | the fists brace out past the knees |
 
 ## In the game (after approval)
 
-The game drives the legs with its own solver (`cb_core::mech::gait`) and leaves the arms at their rest, except during a
-melee swing (`melee::arm_rotations`). The hold becomes a per-mech arm rest in `data/mechs/<id>.ron`, applied to the
-shoulder and forearm bones under the walk, and the melee swing adds to it rather than replacing it.
+The game's kneel is `SitPose` (`cb_core::boarding`), blended by the leg solver (`cb_core::mech::gait::pose`, `sit_amount`);
+it moves the legs and bows the torso and leaves the arms at rest. It gains three angles, `arm_out_deg`, `arm_forward_deg`
+and `elbow_deg` (default 0), written per mech by `tools/mechs/gen_mech_data.py` into `data/mechs/<id>/boarding.ron` from the
+same table, and applied to the shoulder and forearm bones times `sit_amount`. Cost: three multiplies per arm bone per frame
+while kneeling.
 
 ## Open questions
 
 | Id | Question | Provisional |
 |---|---|---|
-| AC1 | Foreman keeps 0.22 m mid-stride; hold it out too? | No: it does not touch |
+| AC1 | Harrow, Roustabout and Mule touch their thighs standing too; leave it? | Yes, as the owner asked: only the kneel changes |

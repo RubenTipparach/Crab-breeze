@@ -1,20 +1,21 @@
-# Mech arms clear of their legs, by pose
+# Mech arms clear of their legs when kneeling
 
 ## Why
 
-Owner, 2026-10-29, with a screenshot of the Harrow in the game: "mech poses need to be updated so their arms don't go
-into their legs. Update mech artifact first so I can verify". Then, when the first attempt changed the models: "You
-weren't supposed to modify the model. This is why I asked for a mockup".
+Owner, 2026-10-29, with a screenshot of the Harrow kneeling in the game: "mech poses need to be updated so their arms
+don't go into their legs. Update mech artifact first so I can verify". The first two attempts were wrong and are
+undone: one changed the models ("You weren't supposed to modify the model"), the next held the arms out in every pose
+("I asked top change only the pose when kneeling, but you modified all poses! and you modified all mech models! ...
+ONLY MODDIFYING THE KNEELING POSE").
 
-Measured on the Crab Breeze Mechs page (`MOCKUP.clearance`, triangle against triangle), three of the eight detailed
-mechs put an arm into a leg: the Harrow, the Roustabout and the Mule. The other five keep a gap.
+Measured on the Crab Breeze Mechs page, triangle against triangle at 75% and 100% kneel: the Foreman, the Harrow, the
+Roustabout and the Mule drive a forearm into a thigh as they kneel. The Driller (0.66 m), Ironhorse (0.35 m), Picket and
+Sapper stay clear.
 
 ## What changes
 
-- The models do not change.
-- The pose layer gains an arm hold (`armHold` in `tools/mockups/mech_pose.js`): per mech, the shoulders turned out from
-  the body and, where needed, swung forward with the elbows bent back to keep a weapon pointing ahead. It is laid over
-  every move.
-- The Mechs page shows it, with the holds in `ARM_HOLD` (`tools/mockups/gen_mech_designs.py`) and the measuring
-  instrument `MOCKUP.clearance`.
-- Once the owner approves, the game holds the arms the same way, the numbers in each mech's data.
+- Only the kneel. Standing, walking, turning, skating, the melee swing and every model stay as they are.
+- The kneel gains a per mech arm offset (`KNEEL_ARMS` in `tools/mockups/mech_pose.js`), radians on top of the kneel's own
+  arm pose and scaled by the kneel, so it is zero standing and full when sat.
+- Once the owner approves, the game's kneel (`SitPose` in `cb_core::boarding`) carries the same three numbers, written per
+  mech into `data/mechs/<id>/boarding.ron`.
