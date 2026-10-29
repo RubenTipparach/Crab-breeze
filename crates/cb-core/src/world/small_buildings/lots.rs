@@ -376,7 +376,11 @@ impl Lots {
     /// The pads the ground is levelled to: each lot's footprint and height (`Flats::with_pads` grows them by
     /// a terrain cell, so the ground's lattice is flat right across the footprint; the nearest pad wins).
     pub fn pads(&self) -> Vec<(Rect, f32)> {
-        self.lots.iter().filter(|l| !l.zone.is_site()).map(|l| (l.rect, l.ground_m)).collect()
+        self.lots
+            .iter()
+            .filter(|l| !l.zone.is_site())
+            .map(|l| (l.rect, l.ground_m))
+            .collect()
     }
 }
 

@@ -173,7 +173,9 @@ impl SiteTemplate {
     pub fn footprint(&self) -> (Vec2, Vec2) {
         self.pads
             .iter()
-            .fold((Vec2::splat(f32::MAX), Vec2::splat(f32::MIN)), |(lo, hi), p| (lo.min(p.lo), hi.max(p.hi)))
+            .fold((Vec2::splat(f32::MAX), Vec2::splat(f32::MIN)), |(lo, hi), p| {
+                (lo.min(p.lo), hi.max(p.hi))
+            })
     }
 }
 
@@ -294,7 +296,10 @@ fn load_site(dir: &Path, name: &str, kind: SiteKind, kits: &mut Kits) -> Result<
         .iter()
         .map(|s| (Vec3::from(s.lo), Vec3::from(s.hi)))
         .collect::<Vec<_>>();
-    if solids.iter().any(|(lo, hi)| !lo.is_finite() || !hi.is_finite() || lo.cmpgt(*hi).any()) {
+    if solids
+        .iter()
+        .any(|(lo, hi)| !lo.is_finite() || !hi.is_finite() || lo.cmpgt(*hi).any())
+    {
         return Err(format!("{what}: a solid is not a finite box"));
     }
     for s in &j.ground.surfaces {
@@ -378,7 +383,10 @@ impl PlacedSite {
     pub fn rect_to_world(&self, lo: Vec2, hi: Vec2) -> Rect {
         let a = self.to_world(lo);
         let b = self.to_world(hi);
-        Rect { min: a.min(b), max: a.max(b) }
+        Rect {
+            min: a.min(b),
+            max: a.max(b),
+        }
     }
 
     /// A mark of its template in the world (x, z), if it has one.
@@ -439,7 +447,13 @@ impl PlacedSite {
                     centre,
                     ground_m: self.ground_m + p.base_m,
                     heading_rad,
-                    rect: super::small_buildings::lots::footprint(Vec2::new(k.lo.x, k.lo.z), Vec2::new(k.hi.x, k.hi.z), centre, heading_rad, 0.0),
+                    rect: super::small_buildings::lots::footprint(
+                        Vec2::new(k.lo.x, k.lo.z),
+                        Vec2::new(k.hi.x, k.hi.z),
+                        centre,
+                        heading_rad,
+                        0.0,
+                    ),
                     zone,
                 }
             })
@@ -476,7 +490,10 @@ pub struct Clear<'a> {
 /// Sample points `step_m` apart over `r`, edges included.
 fn samples(r: &Rect, step_m: f32) -> Vec<Vec2> {
     let size = r.max - r.min;
-    let (nx, nz) = ((size.x / step_m).ceil().max(1.0) as usize, (size.y / step_m).ceil().max(1.0) as usize);
+    let (nx, nz) = (
+        (size.x / step_m).ceil().max(1.0) as usize,
+        (size.y / step_m).ceil().max(1.0) as usize,
+    );
     let mut out = Vec::with_capacity((nx + 1) * (nz + 1));
     for i in 0..=nx {
         for j in 0..=nz {
@@ -514,7 +531,10 @@ pub fn place_airport_counted(shape: &Shape, tpl: &Arc<SiteTemplate>, clear: &Cle
     let (lo, hi) = tpl.footprint();
     let half_diag = (hi - lo).length() * 0.5;
     let mid = (lo + hi) * 0.5;
-    let roads = KeepClear { courses: &[], ..*clear.keep };
+    let roads = KeepClear {
+        courses: &[],
+        ..*clear.keep
+    };
     for city in clear.cities {
         let half = city.rect().size().max_element() * 0.5;
         let mut ring = half + cfg.airport_city_clear_m + half_diag * 0.5;
@@ -551,7 +571,9 @@ pub fn place_airport_counted(shape: &Shape, tpl: &Arc<SiteTemplate>, clear: &Cle
                         why[2] += 1;
                         continue;
                     }
-                    let (a, z) = hs.iter().fold((f32::INFINITY, f32::NEG_INFINITY), |(a, b), h| (a.min(*h), b.max(*h)));
+                    let (a, z) = hs
+                        .iter()
+                        .fold((f32::INFINITY, f32::NEG_INFINITY), |(a, b), h| (a.min(*h), b.max(*h)));
                     if z - a > cfg.airport_max_rise_m {
                         why[3] += 1;
                         continue;
@@ -580,7 +602,13 @@ pub fn place_airport_counted(shape: &Shape, tpl: &Arc<SiteTemplate>, clear: &Cle
 /// The seaport: on the coast of the largest city with a fitting shore (cities in their order), its frame's z = 0 on
 /// the shoreline and its +z out to sea, turned the quarter turn nearest the way out, slid along the shore; the one whose
 /// land is most land and whose basin most sea. Its ground (y = 0) is the sea's level. `airport` is kept clear of.
-pub fn place_seaport(shape: &Shape, tpl: &Arc<SiteTemplate>, clear: &Clear, airport: Option<&Rect>, cfg: &SitesConfig) -> Option<PlacedSite> {
+pub fn place_seaport(
+    shape: &Shape,
+    tpl: &Arc<SiteTemplate>,
+    clear: &Clear,
+    airport: Option<&Rect>,
+    cfg: &SitesConfig,
+) -> Option<PlacedSite> {
     let sea = clear.sea_level_m;
     for city in clear.cities {
         let mut best: Option<(f32, PlacedSite)> = None;
@@ -714,7 +742,12 @@ mod tests {
     fn the_seaport_has_its_ships_and_the_airport_its_terminals() {
         let (kits, sites) = shipped();
         let sea = sites.seaport.unwrap();
-        let ships: Vec<&str> = sea.placements.iter().filter(|p| p.ship).map(|p| kits.kits[p.kit].id.as_str()).collect();
+        let ships: Vec<&str> = sea
+            .placements
+            .iter()
+            .filter(|p| p.ship)
+            .map(|p| kits.kits[p.kit].id.as_str())
+            .collect();
         for s in ["freighter", "tanker", "ferry", "tug", "gunboat"] {
             assert!(ships.contains(&s), "the port has a {s}: {ships:?}");
         }

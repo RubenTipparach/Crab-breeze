@@ -28,10 +28,10 @@ use bevy::light::NotShadowCaster;
 use bevy::mesh::{Indices, PrimitiveTopology, VertexAttributeValues};
 use bevy::prelude::*;
 use bevy::render::storage::ShaderBuffer;
+use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use cb_core::pilot::PilotMode;
 use cb_core::world::small_buildings::kit::Node;
 use cb_core::world::small_buildings::{HOUSE_CHUNK_BASE, Kits, Lot};
-use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -168,7 +168,16 @@ impl Plugin for SmallBuildingsPlugin {
             .add_game_systems(FixedUpdate, sink_ships.in_set(crate::sim::SimSet::World))
             .add_game_systems(
                 Update,
-                (spawn_lots, follow_state, redraw_damaged, dress, furnish, finish_jobs, swing_leaves, pose_sinking)
+                (
+                    spawn_lots,
+                    follow_state,
+                    redraw_damaged,
+                    dress,
+                    furnish,
+                    finish_jobs,
+                    swing_leaves,
+                    pose_sinking,
+                )
                     .chain()
                     .in_set(crate::sim::PresentSet::Pose)
                     .run_if(|k: Res<HouseKits>| k.ready),
@@ -584,7 +593,10 @@ fn pose_sinking(plan: Res<Plan>, live: Res<Live>, houses: Res<Houses>, mut roots
         if st.sinking.is_none() {
             continue;
         }
-        let (Some(&root), Some(m)) = (houses.roots.get(lot as usize), live.structures.houses.sink_transform(&plan.small, lot)) else {
+        let (Some(&root), Some(m)) = (
+            houses.roots.get(lot as usize),
+            live.structures.houses.sink_transform(&plan.small, lot),
+        ) else {
             continue;
         };
         if let Ok(mut t) = roots.get_mut(root) {
@@ -604,10 +616,15 @@ fn reach_of(kit: &cb_core::world::small_buildings::Kit) -> f32 {
     if !kit.kind.is_site() {
         return 0.0;
     }
-    [kit.lo, kit.hi, Vec3::new(kit.lo.x, 0.0, kit.hi.z), Vec3::new(kit.hi.x, 0.0, kit.lo.z)]
-        .iter()
-        .map(|c| Vec2::new(c.x, c.z).length())
-        .fold(0.0, f32::max)
+    [
+        kit.lo,
+        kit.hi,
+        Vec3::new(kit.lo.x, 0.0, kit.hi.z),
+        Vec3::new(kit.hi.x, 0.0, kit.lo.z),
+    ]
+    .iter()
+    .map(|c| Vec2::new(c.x, c.z).length())
+    .fold(0.0, f32::max)
 }
 
 /// A visibility range from `start` to `end` past `reach` (`reach_of`).
@@ -659,7 +676,10 @@ fn spawn_lots(mut commands: Commands, plan: Res<Plan>, kits: Res<HouseKits>, mut
         let root = commands
             .spawn((lot_transform(l), Visibility::Visible))
             .with_children(|c| {
-                for (prims, r) in [(&draw.lod1, range_past(LOD0_M, LOD1_M, reach)), (&draw.lod2, range_past(LOD1_M, LOD2_M, reach))] {
+                for (prims, r) in [
+                    (&draw.lod1, range_past(LOD0_M, LOD1_M, reach)),
+                    (&draw.lod2, range_past(LOD1_M, LOD2_M, reach)),
+                ] {
                     for p in prims {
                         let Some(m) = kits.plain.get(&p.surface) else { continue };
                         let mut e = c.spawn((Mesh3d(p.mesh.clone()), MeshMaterial3d(m.clone()), Transform::IDENTITY, r.clone()));
@@ -1112,7 +1132,12 @@ fn finish_jobs(
         }
         for (surface, mesh) in built {
             let Some(m) = kits.state.get(&surface) else { continue };
-            let mut e = commands.spawn((Mesh3d(meshes.add(mesh)), MeshMaterial3d(m.clone()), Transform::IDENTITY, ChildOf(root)));
+            let mut e = commands.spawn((
+                Mesh3d(meshes.add(mesh)),
+                MeshMaterial3d(m.clone()),
+                Transform::IDENTITY,
+                ChildOf(root),
+            ));
             if NO_SHADOW.contains(&surface.as_str()) {
                 e.insert(NotShadowCaster);
             }
