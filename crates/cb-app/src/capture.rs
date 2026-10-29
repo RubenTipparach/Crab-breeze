@@ -1489,6 +1489,20 @@ const VIEWS: &[View] = &[
         at: [0.0, 0.0, 0.0],
         above_ground: false,
     },
+    // A rain shaft from the ground 5 km and 15 km off, looking at its middle (placed from the plan:
+    // `rain_view`; the shaft look the owner called "blocky, very transparent", 2026-10-28).
+    View {
+        name: "rain-near",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
+    View {
+        name: "rain-far",
+        eye: [0.0, 0.0, 0.0],
+        at: [0.0, 0.0, 0.0],
+        above_ground: false,
+    },
     // Under the storm, in its rain, 40 m up, facing away from the sun.
     View {
         name: "under-the-storm",
@@ -1636,6 +1650,40 @@ fn storm_ahead_view(plan: &crate::world::Plan) -> ([f32; 3], [f32; 3]) {
     )
 }
 
+/// A rain shaft seen from `off_m` away, 60 m over dry low ground (under 300 m) clear of cloud, with
+/// nothing on the line to the shaft's foot or its middle, looking at its middle: of every shaft
+/// (where the wind has carried it by `now_s`) and every bearing, the first such eye.
+fn rain_view(plan: &crate::world::Plan, now_s: f32, off_m: f32) -> ([f32; 3], [f32; 3]) {
+    use cb_core::world::Ground;
+    let drift = plan.clouds.drift(now_s);
+    let clear = |a: Vec3, b: Vec3| {
+        (1..64).all(|i| {
+            let p = a.lerp(b, i as f32 / 64.0);
+            plan.height_at(p.x, p.z) < p.y && plan.clouds.density_at(p, now_s) <= 0.0
+        })
+    };
+    for s in &plan.clouds.shafts {
+        let c = s.centre + drift;
+        for b in 0..32 {
+            let at = c + Vec2::from_angle(b as f32 * std::f32::consts::TAU / 32.0) * off_m;
+            let h = plan.height_at(at.x, at.y);
+            let eye = Vec3::new(at.x, h + 60.0, at.y);
+            let foot = Vec3::new(c.x, plan.height_at(c.x, c.y).max(0.0) + 40.0, c.y);
+            let middle = Vec3::new(c.x, s.top_m * 0.4, c.y);
+            if h > plan.waters.sea_level_m + 5.0
+                && h < 300.0
+                && plan.clouds.density_at(eye, now_s) <= 0.0
+                && clear(eye, foot)
+                && clear(eye, middle)
+            {
+                info!("rain view: shaft at {c} radius {:.0} m top {:.0} m from {eye}", s.radius_m, s.top_m);
+                return (eye.to_array(), [c.x, s.top_m * 0.4, c.y]);
+            }
+        }
+    }
+    ([0.0, 400.0, 0.0], [0.0, 0.0, 100.0])
+}
+
 /// Over open sea in the clear south-east, `up_m` up, looking toward the sun's bearing (`toward`)
 /// or away from it, at the sea 15 eye heights ahead (a few degrees down).
 fn sea_view(toward: bool, up_m: f32) -> ([f32; 3], [f32; 3]) {
@@ -1748,6 +1796,9 @@ struct WeatherScript {
     /// `CB_STILLS_OFFSCREEN=1`: the eye drawn into an offscreen image, so a locked screen or a window behind another
     /// does not save black.
     offscreen: Option<Handle<Image>>,
+    /// The current view's eye and target, placed once when its beat starts and held through its burst: a view
+    /// placed from the drifting sky moved as it drifted, and a clip jumped between bearings mid-burst.
+    placed: Option<(usize, [f32; 3], [f32; 3])>,
 }
 
 /// `CB_STILLS_OFFSCREEN=1`: the weather stills draw the pilot's eye and the cockpit pass offscreen (`draw_offscreen`).
@@ -1774,9 +1825,22 @@ impl Plugin for WeatherStillsPlugin {
             frames: 0,
             shots: Vec::new(),
             offscreen: None,
+            placed: None,
         })
         .add_after_world_spawn(offscreen_for_weather)
         .add_game_systems(Update, run_weather_script);
+        // `CB_STILLS_FRAME_S=<s>`: every frame advances the game's clock by exactly this, whatever it took to
+        // draw, so a burst is a clip at 1/s frames a second however slow the renderer (lavapipe draws about
+        // one a second; owner, 2026-10-28: "render about 2-3 seconds of it so I can see in motion").
+        if let Some(dt) = std::env::var("CB_STILLS_FRAME_S")
+            .ok()
+            .and_then(|v| v.parse::<f64>().ok())
+            .filter(|v| v.is_finite() && *v > 0.0)
+        {
+            app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(
+                dt,
+            )));
+        }
     }
 }
 
@@ -1802,7 +1866,8 @@ fn run_weather_script(
             script.beat += 1;
             return;
         }
-        let (v_eye, v_at) = match v.name {
+        let held = script.placed.filter(|p| p.0 == script.beat).map(|p| (p.1, p.2));
+        let (v_eye, v_at) = held.unwrap_or_else(|| match v.name {
             "river" => river_view(&plan),
             "river-steep" => steep_river_view(&plan, 700.0, 150.0, false),
             "river-steep-far" => steep_river_view(&plan, 3000.0, 400.0, false),
@@ -1826,8 +1891,11 @@ fn run_weather_script(
             "city-in-cloud" => city_in_cloud_view(&plan, now),
             "puff-pass" => puff_pass_view(&plan, now),
             "storm-ahead" => storm_ahead_view(&plan),
+            "rain-near" => rain_view(&plan, now, 5000.0),
+            "rain-far" => rain_view(&plan, now, 15000.0),
             _ => (v.eye, v.at),
-        };
+        });
+        script.placed = Some((script.beat, v_eye, v_at));
         let v = View {
             name: v.name,
             eye: v_eye,

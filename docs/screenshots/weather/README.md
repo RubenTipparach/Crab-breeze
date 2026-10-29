@@ -53,3 +53,34 @@ the bottom, and they seem to not sort correctly".
 - Rain shafts show only as a faint grey band at the horizon; they need a look on the owner's
   machine.
 - The ambient light does not darken under a storm, only the sun.
+
+## Rain shafts, 2026-10-28
+
+The owner, looking at the game: "background rain shadow kinda sucks, it looks blocky very
+transparent, doesnt quite look like rain". The shafts were redrawn (`cloud-weather` design
+section 2b):
+- gradient-noise streaks falling at rain's 9 m/s (value noise drew blocks);
+- ragged wandering sides, a frayed foot and a ragged top lost under the cloud's base (the sheet
+  had straight top and bottom edges);
+- the core 0.9 opaque in a darker slate, and half the aerial haze a cloud takes, so a shaft reads
+  dark against the horizon from far off.
+
+Same lavapipe setup as above, `CB_STILLS_ONLY=rain-near,rain-far`: a shaft from 60 m over low
+ground 5 km and 15 km off, picked from the plan with a clear line to it (`rain_view` in
+`capture.rs`).
+
+| Before | After |
+| --- | --- |
+| `rain-near-before.png`: from 5 km, a faint grey haze along the horizon | `rain-near-after.png`: a dark streaked curtain under the storm's base |
+| `rain-far-before.png`: from 15 km, nothing to see under the two storms | `rain-far-after.png`: a curtain of falling streaks under each storm base |
+
+The view is placed from where the wind has carried the shaft at the moment of the still, so the
+near view's angle differs a little between before and after. Motion (the streaks falling) and frame time need the owner's machine.
+
+**In motion** (owner, 2026-10-28: "render about 2-3 seconds of it so I can see in motion"):
+`rain-near-motion.mp4` (the 5 km view, 2.5 s at 30 fps) and `rain-near-motion-zoom.mp4` (a 2x
+crop on the shaft). Each frame advances the game's clock by exactly 1/30 s, however long lavapipe
+took to draw it: `CB_STILLS_FRAME_S=0.0333333 CB_STILLS_BURST=75 CB_STILLS_ONLY=rain-near`, then
+`ffmpeg -framerate 30`. A placed view is now placed once when its beat starts and held through
+its burst (it had followed the drifting shaft and jumped bearing mid-clip). The streaks fall at
+rain's 9 m/s, which from 5 km is slow on screen, as real rain at that distance is.

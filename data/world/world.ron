@@ -237,6 +237,10 @@
         look_near_fade_m: 140.0,
         look_erode: 0.62,
         look_soft_m: 60.0,
+        // Rain shafts (cloud-weather design section 2b; owner, 2026-10-28: "blocky very transparent, doesnt
+        // quite look like rain"): streaks falling at rain's 9 m/s, straight down, the core 0.9 opaque.
+        look_rain_fall_m_s: 9.0,
+        look_rain_opacity: 0.9,
     ),
 
     // The weather (openspec/changes/cloud-weather/design.md section 2), ported from the island
