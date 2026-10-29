@@ -1,5 +1,35 @@
 # Design: airport layout
 
+## 0. Second pass: a whole airport (2026-10-29)
+
+The owner on the first mockup: "That airfield looks kinda simple. What about more complex runway structures. Airplane
+hangars, landing pads for helicopters, boarding tunnels. Multiple terminals support. Look at pictures of actual airports,
+look at the references I gave you". The Crab Breeze Airport page (`docs/mockups/airport.html`) now lays out a whole
+airfield, 2.3 x 1.35 km, after the references. Sections 1 to 5 below are the first pass, kept for the single-site
+numbers they still hold (markings, PAPI, approach lights, holds).
+
+| Area | What | Size |
+|---|---|---|
+| Runways | Main 09/27, and a secondary 14/32 crossing it (the RAF airfield's pair) | 2000 x 45 m; 1170 x 30 m |
+| Taxiways | Parallel the main's length; three links with holding points; two rapid exits at 30 degrees | 23 m wide |
+| Terminal 1 | Linear, glazed to the apron, curbside canopy; four gates | 320 x 40 m, 16 m high |
+| Terminal 2 | A hall and a pier with gates both sides | hall 280 x 65 m, pier 200 x 30 m; six gates |
+| Jet bridges | One a gate: a rotunda on its column, a tunnel in three telescoping sections, a cab at the aircraft's front left door, a drive column with wheels | ten |
+| Stands | Lead-in line, stop bar, red safety line round the parked aircraft | per aircraft |
+| Cargo | A terminal with six doors, the freighter on its stand | 180 x 65 m |
+| De-icing pad | A stop ring and two spray booms, by the 27 end | 80 x 80 m |
+| Maintenance | Two arched hangars, doors slid back, an airliner and the freighter inside | 110 x 80 m, 30 m high |
+| Heliport | Three helipads (a dashed square, a ring, an H), a helicopter hangar, two helicopters | pads 30 m |
+| General aviation | Two rows of 24 T-hangars, six light planes | 290 x 24 m a row |
+| Tower | A shaft over an operations block, an eight-sided glazed cab, the aerodrome beacon turning green and white | 71 m to the beacon |
+| Navigation | PAPI and approach lights at every runway end, an ILS localiser array and a glide path mast, windsocks, a surveillance radar | |
+| Military side | The mech base as the game draws it (hangars, pads, a glazed base tower), its link and hold, four dispersal hard standings, the operational readiness platform, arrester gear at both ends of the main | the 700 x 500 m site |
+| Services | A midfield fire station with four bays, a fuel farm of four tanks in a bund | |
+| Landside | The road, curbs, a four-deck car park and a surface car park; the fence runs inside the road | |
+
+The game's base today is one 700 x 500 m site, so this layout cannot sit at every base: AP1.
+
+
 References: `docs/design/references/airports/` (owner, 2026-10-28). Metres throughout; x and z are the ground plane.
 
 ## 1. The airfield's frame
@@ -84,8 +114,10 @@ Foreman and a pilot. Approved before any game code is written (CLAUDE.md section
 
 ## Open questions
 
+In the survey, section AP (`docs/design/survey.html`). Built on the recommendations while open (provisional).
+
 | Id | Question | Provisional |
 |---|---|---|
-| AP1 | Gap of 100 m (taxiway 62 m off the runway) against ICAO's 168 m | 100 m, said in section 1 |
-| AP2 | Colliders for the new buildings (a mech walks through them today, as through the tower) | Not in this change; with the hangar doors (`air-bases` 2.2) |
-| AP3 | Parked aircraft in the hit list and the standing rule | Not in this change |
+| AP1 | The airport (2.3 x 1.35 km) cannot be every base: which bases become what? | One airport by the largest city, four military airfields |
+| AP2 | Colliders for the new buildings | Later, with the hangar doors |
+| AP3 | Parked aircraft and jet bridges shootable | Later, with the civil standing rules |

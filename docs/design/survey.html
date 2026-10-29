@@ -191,6 +191,22 @@ const SECTIONS = [
         rec: 0,
         why: 'In the stills it reads as a morning haze that burns off, not a whiteout: the land at 4.5 km is as clear as at noon and only the sea under the eye greys. Built as is while open (provisional).' },
     ] },
+  { tag: 'AP', name: 'The airport',
+    lead: 'Added on 2026-10-29, with the second airport mockup (Crab Breeze Airport page; openspec/changes/airport-layout). Your words: "That airfield looks kinda simple. What about more complex runway structures. Airplane hangars, landing pads for helicopters, boarding tunnels. Multiple terminals". Nothing is built in the game until you have looked at the page.',
+    qs: [
+      { id: 'AP1', q: 'The airport on the page is 2.3 by 1.35 km; a base today is a 700 by 500 m site with one runway. The island cannot hold five airports that size. Which bases become what?',
+        options: ['One airport like the page by the largest city; the other four become military airfields (two runways, the mech base, dispersal, a small tower)', 'Every base a full airport, fewer bases (two or three)', 'Two airports by the two largest cities, three military airfields', 'Every base keeps its small site, only the runway and taxiways improve'],
+        rec: 0,
+        why: 'One real airport gives the civil traffic a hub and a set piece to fight over (Ace Combat\'s big targets, G4), while the military fields keep the mech bases spread over the island as today.' },
+      { id: 'AP2', q: 'Are the new airport buildings solid to a mech (terminals, hangars, tower, jet bridges)?',
+        options: ['Later, with the hangar doors (air-bases task 2.2): a mech walks through them for now, as through the tower today', 'Now, as part of building the airport'],
+        rec: 0,
+        why: 'Colliders for buildings come with the destructible buildings and the hangar doors; adding them twice costs more than waiting.' },
+      { id: 'AP3', q: 'Can the parked aircraft and the jet bridges be shot and wrecked?',
+        options: ['Later, with the civil standing rules: they stand as scenery for now', 'Yes, from the start: a parked airliner burns as a flying one does'],
+        rec: 0,
+        why: 'Wrecking a parked airliner should cost you standing with the city, which the civil standing rules decide; scenery first.' },
+    ] },
 ];
 
 // Answered, and being built. Each moves to DECIDED (Done) once its answer is in the game.

@@ -3,14 +3,14 @@
 ## Survey
 
 Open questions for the owner live in the survey page, never in chat (CLAUDE.md section 8):
-https://claude.ai/artifact/EbeWFXQeCbcM7ok3tsp64h (source: `docs/design/survey.html`; answers in
-its `answers` collection, read with `ArtifactData`). Keep editing this one rather than starting
-another. It replaced https://claude.ai/artifact/KndrEC5xE7wBmAd8WM4aTP on 2026-10-25 (owner: "make a new one"),
-which was published from an account the cloud sessions cannot open; every answer given there is
-written into the page's Answered section, so nothing was lost. Its new database started empty.
+https://claude.ai/artifact/KndrEC5xE7wBmAd8WM4aTP (source: `docs/design/survey.html`; answers in its `answers`
+collection, read with `ArtifactData`). Keep editing this one rather than starting another. From 2026-10-25 to 2026-10-29
+the survey was published at https://claude.ai/artifact/EbeWFXQeCbcM7ok3tsp64h from an account the cloud sessions cannot
+open; on 2026-10-29 it moved back here, the page this account owns, so its answers can be read. Answers given only on
+that page are not in this database.
 
 Question id prefixes: `G` game and feel, `M` the mech, `C` the cockpit, `W` world (cities,
-buildings, people), `T` tech and tools, `P` playtesting, `A` audio and music.
+buildings, people), `T` tech and tools, `P` playtesting, `A` audio and music, `AP` the airport.
 
 ## Changes
 
