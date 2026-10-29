@@ -16,12 +16,13 @@ from gen_civil_aircraft import ROOT, aircraft, yardstick
 SRC = os.path.join(ROOT, "tools", "mockups", "airport_src.html")
 OUT = os.path.join(ROOT, "docs", "mockups", "airport.html")
 KIT = os.path.join(ROOT, "docs", "mockups", "small_buildings_kit.js")
+SITE_KIT = os.path.join(ROOT, "tools", "mockups", "site_kit.js")
 
 
 def main():
     with open(SRC) as f:
         page = f.read()
-    for marker in ("__AIRCRAFT__", "__YARDSTICK__", "__KIT__"):
+    for marker in ("__AIRCRAFT__", "__YARDSTICK__", "__KIT__", "__SITE_KIT__"):
         if marker not in page:
             raise SystemExit(f"{SRC}: no {marker} marker")
     table = aircraft()
@@ -34,6 +35,9 @@ def main():
     # The small-buildings kit's support rule decides what stands once a building is hit: one implementation of it.
     with open(KIT) as f:
         page = page.replace("__KIT__", f.read())
+    # The site kit: the shapes and the breakable buildings, shared with the seaport page.
+    with open(SITE_KIT) as f:
+        page = page.replace("__SITE_KIT__", f.read())
     with open(OUT, "w") as f:
         f.write(page)
     print(f"wrote {os.path.relpath(OUT, ROOT)} ({len(page) / 1e6:.2f} MB)")

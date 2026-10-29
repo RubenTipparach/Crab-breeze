@@ -1,0 +1,559 @@
+<title>Crab Breeze Seaport</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Source of docs/mockups/seaport.html: python3 tools/mockups/gen_seaport.py inlines __BOATS__ (the harbours change's
+     boat and crane models, assets/models/boats, with their manifest), __YARDSTICK__ (the Foreman block-out), __KIT__ (the
+     small-buildings kit) and __SITE_KIT__ (the shapes and breakable buildings shared with the airport page). Presents
+     openspec/changes/seaport-layout for approval before any game code is written (CLAUDE.md section 4). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg: #e9ebef; --panel: #f7f8fa; --edge: #c4cad3; --ink: #12161c; --muted: #56606d;
+  --accent: #1d5f8a; --accent-soft: #d9e9f4; --warn: #a3271f; --stage: #1a2230;
+  --display: "Saira Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+    --accent: #6cc4ff; --accent-soft: #13283a; --warn: #ff8f80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+  --accent: #6cc4ff; --accent-soft: #13283a; --warn: #ff8f80; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 32px; }
+header { display: grid; gap: 4px; margin: 0 auto 14px; max-width: 1440px; }
+.eyebrow { font: 500 12px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 700 34px/1 var(--display); letter-spacing: 0.03em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 80ch; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; max-width: 1440px; margin: 0 auto; }
+@media (max-width: 1040px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+.bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.bar .lbl { font: 500 12px var(--mono); color: var(--muted); min-width: 7ch; }
+.bar .stat { font: 12px var(--mono); color: var(--muted); }
+button { font: 700 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 9px 12px; cursor: pointer; min-height: 38px; }
+button:hover { border-color: var(--muted); }
+button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+button:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--edge); border-radius: 4px; overflow: hidden; touch-action: none; }
+canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 16 / 10; }
+@media (max-width: 600px) { canvas { aspect-ratio: 1 / 1.15; } }
+.tag { position: absolute; transform: translate(-50%, -100%); pointer-events: none; font: 500 11px var(--mono);
+  color: #e6ebf1; background: rgba(12, 16, 24, 0.82); border: 1px solid #3a4456; padding: 2px 6px; white-space: nowrap; }
+.tag.standin { border-color: #c9a03a; color: #ffe2a0; }
+.tag.today { border-color: #ff8f80; color: #ffd2cc; }
+.hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+aside { display: grid; gap: 12px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.card h2 { font: 700 22px/1 var(--display); letter-spacing: 0.05em; text-transform: uppercase; margin: 0; }
+.card p { margin: 0; font-size: 14px; }
+.pill { font: 700 13px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 8px; border-radius: 3px;
+  border: 1px solid var(--warn); color: var(--warn); justify-self: start; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: left; padding: 4px 6px 4px 0; border-bottom: 1px solid var(--edge); vertical-align: top; }
+th { font: 500 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+td.n { font-family: var(--mono); white-space: nowrap; }
+#ready { display: none; }
+</style>
+
+<header>
+  <span class="eyebrow">openspec/changes/seaport-layout &middot; mockup for approval</span>
+  <h1>Crab Breeze seaport</h1>
+  <p class="lede">A 1980s port at true size beside the 24 m Foreman and a 1.8 m pilot. Two breakwaters shelter the basin, with a
+    lit entrance and a buoyed channel. Inside are a container terminal with ship-to-shore gantries, a general cargo pier, a
+    ferry terminal, a tanker jetty with its tank farm, a dry dock, a fishing harbour and a coast guard quay with a slipway a
+    mech can wade down. The ships are the game's own models. Switch to Today to see the harbour as the game draws it now.
+    Nothing here is in the game yet.</p>
+</header>
+
+<div class="wrap">
+  <main>
+    <div class="bar"><span class="lbl">Port</span>
+      <button data-show="today">Today</button><button data-show="proposed" aria-pressed="true">Proposed</button>
+    </div>
+    <div class="bar"><span class="lbl">View</span>
+      <button data-view="overview">Overview</button><button data-view="entrance">Coming in</button>
+      <button data-view="container">Containers</button><button data-view="cargo">Cargo pier</button>
+      <button data-view="ferry">Ferry</button><button data-view="tanker">Tanker jetty</button>
+      <button data-view="drydock">Dry dock</button><button data-view="fishing">Fishing</button>
+      <button data-view="coastguard">Coast guard</button><button data-view="tower">Port control</button>
+      <button data-view="cockpit">From the cockpit</button><button data-view="foot">On foot</button>
+    </div>
+    <div class="bar"><span class="lbl">Fire</span>
+      <button data-gun="5" aria-pressed="true">Cannon, 5 m</button><button data-gun="14">Missile, 14 m</button>
+      <button id="repair">Repair all</button><span class="stat" id="shotstat"></span>
+    </div>
+    <div class="stage">
+      <canvas id="view" tabindex="0" aria-label="Orbitable 3D view of the seaport"></canvas>
+      <div id="tags"></div>
+    </div>
+    <p class="hint">Drag to orbit, right-drag to pan, scroll or pinch to zoom; arrow keys orbit and + and - zoom. Labels with a gold
+      edge are block-out stand-ins. Click a building or crane to fire at it (cannon or missile above); Repair all puts everything back.</p>
+    <span id="ready">ready</span>
+  </main>
+  <aside>
+    <div class="card">
+      <span class="pill">Awaiting approval</span>
+      <h2>A port, not a pier</h2>
+      <p>Today a harbour is one pier on piles with three cranes and three sheds. A real port of the 1980s puts each trade at
+        its own berth: boxes at a straight quay under gantries, break-bulk at a finger pier under luffing cranes, oil at a jetty
+        well away from everything else, the ferry stern-in at a linkspan, the trawlers in their own inner basin. Breakwaters make
+        the calm water all of it needs, and a buoyed channel brings ships in through a lit entrance.</p>
+    </div>
+    <div class="card">
+      <h2>Pieces</h2>
+      <div class="tbl"><table id="pieces"><thead><tr><th>Piece</th><th>Size</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="card">
+      <h2>Every building breaks</h2>
+      <p>As at the airport: each building, gantry and tank is made of pieces, and the small-buildings kit's support rule decides
+        what stands after a hit. Take the legs out from under a gantry and its boom comes down into the water.</p>
+    </div>
+    <div class="card">
+      <h2>Provisional</h2>
+      <p><b>SP1</b> Up to four harbours exist. Recommended: the full port at the largest coastal city, and the others a smaller
+        port (one breakwater, the cargo pier, fishing harbour and coast guard slipway).</p>
+      <p><b>SP2</b> Today nothing at a harbour is dug or flattened (HB3). A port needs its quays reclaimed and its breakwaters
+        built on the seabed. Recommended: the port shapes the ground and seabed inside its own footprint.</p>
+      <p><b>SP3</b> Recommended: the harbour traffic moors at these berths, and a few ships always lie alongside.</p>
+    </div>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script>
+__KIT__
+</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const BOATS = __BOATS__;
+const YARD = __YARDSTICK__;
+const T = THREE;
+try { self.createImageBitmap = undefined; } catch (e) {}
+const lin = hex => new T.Color(hex).convertSRGBToLinear();
+const PI = Math.PI;
+
+// Metres. x east, y up, z south. The original shore runs along z = 0 with the land to the north (-z) and the sea to the
+// south (+z). Still water is y = 0; land and quays stand at DECK (the harbours change's deck_m, 2.5 m).
+const DECK = 2.5, BED = -14;
+// Every flat layer has its own height, at least 3 cm from the next (CLAUDE.md section 10: no z-fighting).
+const TOP = { bed: BED, water: 0, deck: DECK, yard: DECK + 0.05, road: DECK + 0.08, paint: DECK + 0.11, rail: DECK + 0.16 };
+const ENTRANCE = [330, 520], HEAD_Z = 650;                       // the entrance between the breakwater heads
+const DOCK = { x0: 340, x1: 380, z0: -200, floor: -11 };          // the dry dock, cut into the land
+const FOREMAN = [870, -14];
+
+// ---------------------------------------------------------------- renderer
+const canvas = document.getElementById("view");
+const renderer = new T.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true, logarithmicDepthBuffer: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.outputEncoding = T.sRGBEncoding;
+renderer.toneMapping = T.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+const scene = new T.Scene();
+scene.background = lin(0xbfcdd9);
+scene.fog = new T.Fog(lin(0xbfcdd9), 2500, 9000);
+const camera = new T.PerspectiveCamera(40, 1.6, 0.3, 30000);
+const controls = new T.OrbitControls(camera, canvas);
+controls.enableDamping = true;
+Object.assign(controls, { minDistance: 3, maxDistance: 7000, maxPolarAngle: PI * 0.495 });
+scene.add(new T.HemisphereLight(0xbfd4ee, 0x4a4438, 0.85));
+const sun = new T.DirectionalLight(0xffe8cc, 2.2);
+sun.position.set(-700, 1200, 900); sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -1300, right: 1300, top: 1300, bottom: -1300, near: 10, far: 4000 });
+sun.shadow.bias = -0.0004;
+scene.add(sun);
+
+// ---------------------------------------------------------------- materials
+const mat = (hex, o = {}) => new T.MeshStandardMaterial(Object.assign({ color: lin(hex), roughness: 0.9 }, o));
+const M = {
+  ground: mat(0x5e6b3c, { roughness: 1 }), bed: mat(0x9b8f6e, { roughness: 1 }), quay: mat(0x9a978e), yard: mat(0x6c6a64),
+  asphalt: mat(0x2b2b2b), road: mat(0x303030), ballast: mat(0x5a5248), rail: mat(0x8c8c8c, { metalness: 0.6, roughness: 0.4 }),
+  rock: mat(0x6f6a62, { roughness: 1 }), crown: mat(0xa7a49b), fender: mat(0x1c1c1c), bollard: mat(0x2d2f33),
+  wall: mat(0xb8b8b2), roof: mat(0x80858a), terminal: mat(0xc8c5bc), clad: mat(0x9aa4ad, { roughness: 0.6, metalness: 0.3 }),
+  shed: mat(0x8d8a7c, { roughness: 0.7, metalness: 0.2 }), brick: mat(0x8b4a36),
+  white: mat(0xe8e8e2, { roughness: 0.7 }), yellow: mat(0xf2c02a, { roughness: 0.7 }), red: mat(0xb8160f), orange: mat(0xf06a12),
+  green: mat(0x1e7a3a), blue: mat(0x2c5d9c), dark: mat(0x2a2d31), steel: mat(0x6b7178, { metalness: 0.5, roughness: 0.5 }),
+  glass: new T.MeshStandardMaterial({ color: lin(0x46606f), roughness: 0.15, metalness: 0, emissive: lin(0x0c1a24) }),
+  tank: mat(0xdcdcd2, { roughness: 0.5 }), fence: mat(0x8a8f92, { roughness: 0.6 }), pilot: mat(0x2f6fd0),
+  water: new T.MeshStandardMaterial({ color: lin(0x1f4f6e), roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.82 }),
+  lamp: new T.MeshStandardMaterial({ color: 0xffffff, emissive: lin(0xfff2cc), emissiveIntensity: 2 }),
+  lampRed: new T.MeshStandardMaterial({ color: 0x661010, emissive: lin(0xff2a1a), emissiveIntensity: 2 }),
+  lampGreen: new T.MeshStandardMaterial({ color: 0x106610, emissive: lin(0x2aff4a), emissiveIntensity: 2 }),
+  // container liners' colours of the 1980s, faded
+  boxes: [0x2f5f8f, 0xa8322a, 0x3f6e3a, 0x8a8a84, 0xc0682a, 0x6b4a2e, 0x2a6a72, 0xb59a3a].map(h => mat(h, { roughness: 0.8 })),
+};
+
+__SITE_KIT__
+
+// ---------------------------------------------------------------- the ground and the water
+// A breakwater: a rubble mound from the seabed (50 m wide) to a 12 m crest 6 m over the water, with a concrete crown wall
+// on its seaward side (sea on the left of p -> q when `seaLeft`).
+function mound(g, p, q, seaLeft) {
+  const sh = new T.Shape([new T.Vector2(-25, BED), new T.Vector2(25, BED), new T.Vector2(6, 6), new T.Vector2(-6, 6)]);
+  const len = Math.hypot(q[0] - p[0], q[1] - p[1]);
+  const mesh = new T.Mesh(new T.ExtrudeGeometry(sh, { depth: len, bevelEnabled: false }), M.rock);
+  mesh.position.set(p[0], 0, p[1]); mesh.rotation.y = Math.atan2(q[0] - p[0], q[1] - p[1]);
+  mesh.castShadow = mesh.receiveShadow = true; g.add(mesh);
+  const d = [(q[0] - p[0]) / len, (q[1] - p[1]) / len], left = [d[1], -d[0]], s = seaLeft ? 1 : -1;
+  beam(g, [p[0] + left[0] * 4 * s, 7.5, p[1] + left[1] * 4 * s], [q[0] + left[0] * 4 * s, 7.5, q[1] + left[1] * 4 * s], 3, 3, M.crown);
+}
+function land(g, dock) {
+  const L = (x0, z0, x1, z1) => box(g, [x0, BED, z0], [x1, DECK, z1], M.ground, false);
+  if (dock) { L(-8000, -8000, DOCK.x0, 0); L(DOCK.x1, -8000, 8000, 0); L(DOCK.x0, -8000, DOCK.x1, DOCK.z0); }
+  else L(-8000, -8000, 8000, 0);
+  const bed = new T.Mesh(new T.PlaneGeometry(16000, 16000), M.bed); bed.rotation.x = -PI / 2; bed.position.set(0, BED, 0); bed.receiveShadow = true; g.add(bed);
+  // the water, with the dry dock left out of it (pumped dry)
+  const W = 8000, sh = new T.Shape([new T.Vector2(-W, -W), new T.Vector2(W, -W), new T.Vector2(W, W), new T.Vector2(-W, W)]);
+  if (dock) sh.holes.push(new T.Path([new T.Vector2(DOCK.x0, 0), new T.Vector2(DOCK.x1, 0), new T.Vector2(DOCK.x1, -DOCK.z0), new T.Vector2(DOCK.x0, -DOCK.z0)]));
+  const water = new T.Mesh(new T.ShapeGeometry(sh), M.water); water.rotation.x = -PI / 2; water.position.y = TOP.water; water.receiveShadow = true;
+  water.renderOrder = 1; g.add(water);
+}
+// A quay: reclaimed ground out to its wall, from the seabed to the deck, with fenders and bollards along its sea faces.
+function quay(g, x0, z0, x1, z1, faces = "s") {
+  box(g, [x0, BED, z0], [x1, DECK, z1], M.quay, false);
+  const edge = (p, q, out) => {
+    const len = Math.hypot(q[0] - p[0], q[1] - p[1]), d = [(q[0] - p[0]) / len, (q[1] - p[1]) / len];
+    for (let s = 6; s < len - 3; s += 12) {
+      const c = [p[0] + d[0] * s + out[0] * 0.4, p[1] + d[1] * s + out[1] * 0.4];
+      box(g, [c[0] - 0.4 - Math.abs(d[0]) * 1.2, -1.5, c[1] - 0.4 - Math.abs(d[1]) * 1.2], [c[0] + 0.4 + Math.abs(d[0]) * 1.2, DECK - 0.3, c[1] + 0.4 + Math.abs(d[1]) * 1.2], M.fender);
+      if ((s / 12 | 0) % 2 === 0) cyl(g, [p[0] + d[0] * s - out[0] * 1.2, p[1] + d[1] * s - out[1] * 1.2], 0.35, DECK, 0.8, M.bollard, 10);
+    }
+    strokeAt(g, [p[0] - out[0] * 2.5, p[1] - out[1] * 2.5], [q[0] - out[0] * 2.5, q[1] - out[1] * 2.5], 0.2, TOP.yard + 0.03, M.yellow);
+  };
+  if (faces.includes("s")) edge([x0, z1], [x1, z1], [0, 1]);
+  if (faces.includes("w")) edge([x0, 0], [x0, z1], [-1, 0]);
+  if (faces.includes("e")) edge([x1, 0], [x1, z1], [1, 0]);
+}
+function rails(g, p, q) {   // a track: ballast, two rails at standard gauge, flush in the deck
+  beam(g, [p[0], TOP.yard - 0.025, p[1]], [q[0], TOP.yard - 0.025, q[1]], 3.2, 0.05, M.ballast, false);
+  const len = Math.hypot(q[0] - p[0], q[1] - p[1]), n = [-(q[1] - p[1]) / len, (q[0] - p[0]) / len];
+  for (const s of [-0.72, 0.72]) beam(g, [p[0] + n[0] * s, TOP.rail - 0.05, p[1] + n[1] * s], [q[0] + n[0] * s, TOP.rail - 0.05, q[1] + n[1] * s], 0.08, 0.1, M.rail, false);
+}
+
+// ---------------------------------------------------------------- ships and the glb models
+const loader = new T.GLTFLoader();
+const glbBytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
+let pending = 1;
+const loaded = () => { if (--pending <= 0) document.getElementById("ready").style.display = "inline"; };
+// A model from the harbours change, its bow along `heading` ([x, z]); `y` lifts it (the waterline is its origin).
+function model(g, id, c, heading, y = 0, after) {
+  const B = BOATS[id]; if (!B) return;
+  const root = new T.Group(); root.position.set(c[0], y, c[1]); root.rotation.y = Math.atan2(heading[0], heading[1]); g.add(root);
+  pending++;
+  loader.parse(glbBytes(B.glb), "", gltf => {
+    gltf.scene.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
+    root.add(gltf.scene); if (after) after(root); loaded();
+  }, loaded);
+  return root;
+}
+// A luffing crane (the harbours change's model), its jib out over the water along `out`, breakable as one piece.
+function luffing(g, c, out) {
+  model(g, "crane", c, [-out[0], -out[1]], DECK, root => { if (!built.children.includes(g) && g !== built) return; building("Luffing crane", () => addPiece(root), DECK); });
+}
+// A tug: a block-out stand-in (no model yet), 28 x 9 m.
+function tug(g, c, heading, labels, name) {
+  const root = new T.Group(); root.position.set(c[0], 0, c[1]); root.rotation.y = Math.atan2(heading[0], heading[1]); g.add(root);
+  box(root, [-4.5, -3.5, -14], [4.5, 2.2, 14], M.dark); box(root, [-4.6, 2.2, -14], [4.6, 2.6, 14], M.red);
+  box(root, [-3.5, 2.6, -2], [3.5, 7.5, 6], M.white); box(root, [-3.6, 6, -2.1], [3.6, 7, 6.1], M.glass);
+  cyl(root, [0, -4], 0.9, 2.6, 7, M.orange, 12);
+  if (name) labels.push([name, c, 10, "standin"]);
+}
+
+// ---------------------------------------------------------------- buildings
+function shed(g, name, x0, z0, x1, z1, h, m, labels, label) {
+  building(name, () => { box(g, [x0, DECK, z0], [x1, DECK + h, z1], m); box(g, [x0 - 1, DECK + h, z0 - 1], [x1 + 1, DECK + h + 1, z1 + 1], M.roof); }, DECK);
+  if (label) labels.push([label, [(x0 + x1) / 2, (z0 + z1) / 2], h + 6]);
+}
+// A ship-to-shore gantry of the 1980s: legs on two rails 30 m apart, its girder 42 m up running out over the ship as the
+// boom, the machinery house on the back reach, the A-frame and its stays, the trolley and its cab.
+function gantry(g, x, zLand, zSea, labels, name) {
+  building("Container gantry", () => {
+    for (const z of [zLand, zSea]) for (const s of [-1, 1]) box(g, [x + s * 9 - 1, DECK, z - 1], [x + s * 9 + 1, DECK + 40, z + 1], M.orange);
+    for (const z of [zLand, zSea]) box(g, [x - 10, DECK + 40, z - 1.5], [x + 10, DECK + 43, z + 1.5], M.orange);
+    for (const s of [-1, 1]) box(g, [x + s * 9 - 1, DECK + 10, zLand], [x + s * 9 + 1, DECK + 12, zSea], M.orange);
+    for (const s of [-1, 1]) beam(g, [x + s * 4, DECK + 44.5, zLand - 25], [x + s * 4, DECK + 44.5, zSea + 55], 2.2, 3, M.orange);
+    box(g, [x - 6, DECK + 46, zLand - 24], [x + 6, DECK + 53, zLand - 8], M.white);
+    for (const s of [-1, 1]) { beam(g, [x + s * 4, DECK + 46, zLand], [x, DECK + 70, (zLand + zSea) / 2], 1.2, 1.2, M.orange);
+      beam(g, [x + s * 4, DECK + 46, zSea], [x, DECK + 70, (zLand + zSea) / 2], 1.2, 1.2, M.orange);
+      beam(g, [x, DECK + 70, (zLand + zSea) / 2], [x + s * 4, DECK + 46, zSea + 50], 0.5, 0.5, M.steel); }
+    // the cab hangs from the boom on its hanger, which spans both boom beams (one 6 m piece, held beside them)
+    box(g, [x - 2.92, DECK + 40, zSea + 20.6], [x + 2.92, DECK + 46, zSea + 21.4], M.steel);
+    box(g, [x - 3, DECK + 38, zSea + 18], [x + 3, DECK + 43, zSea + 20.6], M.white); box(g, [x - 3, DECK + 38, zSea + 21.4], [x + 3, DECK + 43, zSea + 24], M.white);
+  }, DECK);
+  if (name) labels.push([name, [x, zSea + 20], 74]);
+}
+// A straddle carrier: four legs and a frame over one row of containers, 14 m tall.
+function straddle(g, c) {
+  building("Straddle carrier", () => {
+    for (const sx of [-1.9, 1.9]) for (const sz of [-4.5, 4.5]) box(g, [c[0] + sx - 0.3, DECK, c[1] + sz - 0.3], [c[0] + sx + 0.3, DECK + 13, c[1] + sz + 0.3], M.yellow);
+    box(g, [c[0] - 2.2, DECK + 13, c[1] - 5], [c[0] + 2.2, DECK + 14.2, c[1] + 5], M.yellow);
+    box(g, [c[0] - 1.2, DECK + 14.2, c[1] - 4.5], [c[0] + 1.2, DECK + 16.4, c[1] - 1.5], M.glass);
+  }, DECK);
+}
+// A stack block in the container yard: `cols` x `rows` stacks of 40 ft boxes, 1 to 4 high, colours and heights seeded.
+function stackBlock(g, x0, z0, cols, rows, rnd) {
+  building("Container stack", () => {
+    for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+      const h = 1 + Math.floor(rnd() * 4), x = x0 + i * 12.6, z = z0 + j * 2.9;
+      for (let k = 0; k < h; k++) box(g, [x, DECK + k * 2.6 + 0.05, z], [x + 12.2, DECK + (k + 1) * 2.6 + 0.05, z + 2.6], M.boxes[Math.floor(rnd() * M.boxes.length)]);
+    }
+  }, DECK + 0.05);
+}
+function lightTower(g, c, lamp, name, labels) {
+  building(name, () => { cyl(g, c, 2.5, 6, 12, M.white, 12); cyl(g, c, 2.6, 9, 3, lamp === M.lampRed ? M.red : M.green, 12);
+    cyl(g, c, 1.4, 18, 2, lamp, 12); }, 6);
+  labels.push([name, c, 24]);
+}
+function buoy(g, c, red) {
+  const b = new T.Group(); b.position.set(c[0], 0, c[1]); g.add(b);
+  const body = new T.Mesh(new T.CylinderGeometry(1.2, 1.6, 3, 10), red ? M.red : M.green); body.position.y = 0.5; b.add(body);
+  const top = new T.Mesh(red ? new T.CylinderGeometry(0.6, 0.6, 1.2, 8) : new T.ConeGeometry(0.8, 1.4, 8), red ? M.red : M.green); top.position.y = 2.7; b.add(top);
+  const l = new T.Mesh(new T.SphereGeometry(0.35, 8, 6), red ? M.lampRed : M.lampGreen); l.position.y = 3.6; b.add(l);
+}
+function tankFarm(g, labels) {
+  for (const [x, z] of [[150, -230], [210, -230], [270, -230], [150, -150], [210, -150], [270, -150]]) building("Oil tank", () => cyl(g, [x, z], 22, DECK, 18, M.tank, 32), DECK);
+  for (const z of [-270, -190, -110]) { box(g, [115, DECK, z - 0.6], [305, DECK + 1.8, z + 0.6], M.crown); }
+  for (const x of [115, 305]) box(g, [x - 0.6, DECK, -270], [x + 0.6, DECK + 1.8, -110], M.crown);
+  labels.push(["Tank farm", [210, -190], 26]);
+}
+
+// ---------------------------------------------------------------- the proposed port
+function buildProposed(g, labels) {
+  land(g, true);
+  const rnd = K.mulberry(1985);
+  // ---- shelter: the breakwaters, their lights, the channel and its buoys, the leading lights
+  mound(g, [-1000, -10], [-1000, HEAD_Z], false); mound(g, [-1000, HEAD_Z], [ENTRANCE[0], HEAD_Z], false);
+  mound(g, [1000, -10], [1000, HEAD_Z], true); mound(g, [1000, HEAD_Z], [ENTRANCE[1], HEAD_Z], true);
+  lightTower(g, [ENTRANCE[0], HEAD_Z], M.lampRed, "Breakwater light, red", labels);
+  lightTower(g, [ENTRANCE[1], HEAD_Z], M.lampGreen, "Breakwater light, green", labels);
+  labels.push(["West breakwater", [-500, HEAD_Z], 10]); labels.push(["Entrance, 190 m", [(ENTRANCE[0] + ENTRANCE[1]) / 2, HEAD_Z], 4]);
+  for (let z = 800; z <= 1700; z += 300) { buoy(g, [365, z], true); buoy(g, [485, z], false); }
+  labels.push(["Channel buoys", [425, 1100], 8]);
+  for (const [z, h] of [[-60, 18], [-260, 32]]) building("Leading light", () => { box(g, [424, DECK, z - 1], [426, DECK + h, z + 1], M.white);
+    box(g, [423, DECK + h, z - 2], [427, DECK + h + 3, z + 2], M.orange); }, DECK);
+  labels.push(["Leading lights", [425, -160], 40]);
+
+  // ---- the container terminal
+  quay(g, -900, 0, -420, 160, "swe");
+  slab(g, rect(-895, 4, -425, 122), TOP.yard - 0.1, TOP.yard, M.yard);
+  for (let b = 0; b < 5; b++) for (let r = 0; r < 3; r++) stackBlock(g, -890 + b * 92, 12 + r * 36, 6, 6, rnd);
+  for (const x of [-840, -700, -560]) straddle(g, [x, 116]);
+  for (const z of [128, 156]) rails(g, [-898, z], [-422, z]);
+  [-760, -660, -560].forEach((x, i) => gantry(g, x, 128, 156, labels, i === 1 ? "Ship-to-shore gantries" : null));
+  model(g, "freighter", [-660, 170], [1, 0]);
+  labels.push(["Container terminal", [-660, 60], 18]); labels.push(["container ship", [-600, 170], 24, "standin"]);
+  rails(g, [-430, -40], [-880, -40]); rails(g, [-430, -40], [-200, -300]);
+
+  // ---- the general cargo pier: transit shed on the pier, luffing cranes and rail along both faces, a freighter each side
+  quay(g, -360, 0, -280, 300, "swe");
+  shed(g, "Transit shed", -342, 30, -298, 270, 12, M.shed, labels, "Transit shed");
+  for (const x of [-353, -287]) rails(g, [x, 10], [x, 290]);
+  for (const z of [90, 200]) { luffing(g, [-350, z], [-1, 0]); luffing(g, [-290, z], [1, 0]); }
+  model(g, "freighter", [-370, 160], [0, 1]); model(g, "freighter", [-270, 170], [0, -1]);
+  labels.push(["General cargo pier", [-320, 290], 8]); labels.push(["luffing cranes", [-290, 200], 58, "standin"]);
+
+  // ---- the ferry terminal: quay, linkspan, terminal, marshalling lanes
+  quay(g, -200, 0, -40, 120, "s");
+  building("Ferry terminal", () => { box(g, [-190, DECK, 8], [-110, DECK + 10, 40], M.terminal); box(g, [-192, DECK + 10, 6], [-108, DECK + 11, 42], M.roof);
+    box(g, [-189, DECK + 3, 40], [-111, DECK + 9, 40.1], M.glass, false); }, DECK);
+  for (let k = 0; k < 6; k++) { strokeAt(g, [-100 + k * 10, 50], [-100 + k * 10, 108], 0.25, TOP.paint, M.white);
+    for (let c = 0; c < 6; c++) box(g, [-97 + k * 10, DECK, 55 + c * 9], [-93 + k * 10, DECK + 1.5, 59.5 + c * 9], M.boxes[(k + c) % 8], true); }
+  beam(g, [-120, DECK + 0.3, 112], [-120, DECK - 0.6, 131], 14, 0.6, M.steel);        // the linkspan, down to the stern door
+  for (const s of [-1, 1]) cyl(g, [-120 + s * 12, 128], 1.5, BED, DECK - BED + 2, M.dark, 12);
+  model(g, "ferry", [-120, 160], [0, 1]);
+  labels.push(["Ferry terminal", [-150, 24], 16]); labels.push(["Linkspan", [-120, 120], 6]); labels.push(["Marshalling lanes", [-75, 80], 5]);
+
+  // ---- the harbour office (the jobs terminal, as today), port control, the pilot station and the tugs
+  quay(g, -40, 0, 120, 100, "s");
+  shed(g, "Harbour office", 10, 20, 26, 32, 9, M.brick, labels, "Harbour office, jobs terminal");
+  building("Port control tower", () => { box(g, [70, DECK, 30], [86, DECK + 32, 46], M.terminal);
+    box(g, [67, DECK + 32, 27], [89, DECK + 38, 49], M.glass); box(g, [66, DECK + 38, 26], [90, DECK + 39.5, 50], M.roof);
+    box(g, [77.5, DECK + 39.5, 37.5], [78.5, DECK + 48, 38.5], M.white); }, DECK);
+  labels.push(["Port control", [78, 38], 54]);
+  shed(g, "Pilot station", 96, 60, 112, 72, 6, M.white, labels, "Pilot station");
+  tug(g, [20, 116], [1, 0], labels, "tugs"); tug(g, [70, 116], [1, 0]);
+
+  // ---- the tanker jetty and the tank farm
+  for (let z = 0; z <= 420; z += 20) for (const x of [196, 204]) cyl(g, [x, z], 0.6, BED, 3 - BED, M.dark, 8);
+  box(g, [195, 3, -2], [205, 4, 420], M.quay, false);
+  box(g, [140, 3, 420], [260, 5.5, 440], M.quay, false);
+  for (let z = 4; z < 418; z += 8) box(g, [201.5, 4, z], [202.5, 5, z + 0.6], M.steel);
+  for (const s of [-1, 1]) beam(g, [202 + s * 0.6, 5.4, 0], [202 + s * 0.6, 5.4, 420], 0.8, 0.8, s < 0 ? M.yellow : M.steel);
+  building("Loading arms", () => { for (const x of [175, 195, 215, 235]) { box(g, [x - 1, 5.5, 432], [x + 1, 16, 434], M.steel);
+    beam(g, [x, 16, 433], [x, 9, 444], 0.8, 0.8, M.steel); } box(g, [150, 5.5, 422], [166, 10, 432], M.white); }, 5.5);
+  model(g, "tanker", [200, 454], [1, 0]);
+  tankFarm(g, labels);
+  labels.push(["Tanker jetty", [200, 430], 20]); labels.push(["tanker", [260, 454], 26, "standin"]);
+
+  // ---- the dry dock: walls are the land's own, the floor, keel blocks, the gate, a goliath crane
+  box(g, [DOCK.x0, BED, DOCK.z0], [DOCK.x1, DOCK.floor, 0], M.quay, false);
+  // its concrete lining (on the land's own faces, inside the dock) and the coping round its rim
+  box(g, [DOCK.x0, DOCK.floor, DOCK.z0], [DOCK.x0 + 0.4, DECK, 0], M.quay, false); box(g, [DOCK.x1 - 0.4, DOCK.floor, DOCK.z0], [DOCK.x1, DECK, 0], M.quay, false);
+  box(g, [DOCK.x0 + 0.4, DOCK.floor, DOCK.z0], [DOCK.x1 - 0.4, DECK, DOCK.z0 + 0.4], M.quay, false);
+  for (const [a, b] of [[DOCK.x0 - 3, DOCK.x0], [DOCK.x1, DOCK.x1 + 3]]) box(g, [a, DECK, DOCK.z0 - 3], [b, DECK + 0.05, 0], M.quay, false);
+  box(g, [DOCK.x0, DECK, DOCK.z0 - 3], [DOCK.x1, DECK + 0.05, DOCK.z0], M.quay, false);
+  for (let z = DOCK.z0 + 30; z < -30; z += 12) box(g, [358, DOCK.floor, z], [362, DOCK.floor + 1.5, z + 3], M.dark);
+  box(g, [DOCK.x0 - 4, BED, 0], [DOCK.x1 + 4, DECK, 4], M.steel);   // the caisson gate
+  model(g, "freighter", [360, -100], [0, 1], DOCK.floor + 1.5 + 7);
+  building("Goliath crane", () => { for (const x of [326, 394]) for (const z of [-118, -102]) box(g, [x - 1, DECK, z - 1], [x + 1, DECK + 52, z + 1], M.yellow);
+    for (const x of [326, 394]) box(g, [x - 1.5, DECK + 52, -120], [x + 1.5, DECK + 55, -100], M.yellow);
+    box(g, [322, DECK + 55, -114], [398, DECK + 60, -106], M.yellow); box(g, [354, DECK + 60, -114], [366, DECK + 65, -106], M.white); }, DECK);   // its crab rides on top
+  labels.push(["Dry dock", [360, -170], 6]); labels.push(["Goliath crane", [360, -110], 64]);
+  shed(g, "Shipyard shop", 400, -260, 470, -150, 18, M.clad, labels, "Shipyard shop");
+
+  // ---- the fishing harbour: its mole, pontoons, trawlers, the fish market and a slipway
+  quay(g, 440, 0, 455, 220, "swe");
+  for (const x of [500, 560, 620]) { box(g, [x - 1.5, -0.6, 10], [x + 1.5, 0.45, 150], M.crown);
+    for (let z = 20; z < 150; z += 14) for (const s of [-1, 1]) box(g, [x + s * 1.5, -0.6, z], [x + s * 9, 0.45, z + 1.4], M.crown); }
+  [[530, 40], [530, 96], [590, 68], [650, 40]].forEach(([x, z], i) => model(g, "fishing_boat", [x, z], [0, i % 2 ? 1 : -1]));
+  [[506, 30], [566, 120], [626, 100]].forEach(([x, z]) => model(g, "launch", [x + 5, z], [0, 1]));
+  shed(g, "Fish market", 470, -70, 560, -20, 8, M.shed, labels, "Fish market");
+  beam(g, [675, DECK - 1, -12], [675, -4, 40], 20, 2, M.quay, false);   // the slipway, down into the water
+  labels.push(["Fishing harbour", [570, 160], 6]); labels.push(["trawlers", [530, 40], 12, "standin"]);
+
+  // ---- the coast guard quay, its boathouse, and the mech slipway
+  quay(g, 740, 0, 840, 100, "sw");
+  model(g, "gunboat", [790, 106], [1, 0]);
+  shed(g, "Coast guard boathouse", 760, 20, 820, 70, 12, M.clad, labels, "Coast guard");
+  // the slipway: 60 m wide, from the deck down to 6 m under the water at 1 in 8
+  const ramp = new T.Mesh(new T.BoxGeometry(60, 2, Math.hypot(8.5, 68)), M.crown);
+  ramp.position.set(870, (DECK - 6) / 2 - 1, 34); ramp.rotation.x = Math.atan2(8.5, 68); ramp.receiveShadow = true; g.add(ramp);
+  for (const s of [-1, 1]) beam(g, [870 + s * 31, DECK + 0.6, 0], [870 + s * 31, -5.4, 68], 1.2, 1.2, M.yellow);
+  model(g, "gunboat", [870, 140], [0, 1]);
+  labels.push(["Mech slipway", [870, 30], 8]); labels.push(["gunboats", [790, 106], 10, "standin"]);
+
+  // ---- landside: the port road, the main line, warehouses, customs, the car park
+  pave(g, [-1200, -330], [1200, -330], 14, M.road); strokeAt(g, [-1200, -330], [1200, -330], 0.25, TOP.paint, M.white);
+  rails(g, [-1200, -305], [1200, -305]);
+  for (const x of [-860, -740, -620]) shed(g, "Warehouse", x, -230, x + 90, -180, 12, M.shed, labels, x === -740 ? "Warehouses" : null);
+  shed(g, "Customs house", -60, -160, -10, -120, 10, M.brick, labels, "Customs");
+  const lot = rect(-200, -230, -90, -120); slab(g, lot, TOP.yard - 0.1, TOP.yard, M.asphalt);
+  for (let x = -198; x <= -92; x += 2.6) for (const [z0, z1] of [[-228, -223], [-127, -122]]) strokeAt(g, [x, z0], [x, z1], 0.12, TOP.paint, M.white);
+  labels.push(["Car park", [-145, -175], 3]);
+}
+const pave = (g, p, q, w, m) => beam(g, [p[0], TOP.road - 0.05, p[1]], [q[0], TOP.road - 0.05, q[1]], w, 0.1, m, false);
+
+// ---------------------------------------------------------------- the harbour as the game draws it now
+// openspec/changes/harbours, data/world/ships.ron: a 40 m apron along the shore, a 30 m pier out to a 220 m head on piles,
+// three luffing cranes on the head, three 50 x 24 x 12 m warehouses and the 16 x 12 x 9 m office.
+function buildToday(g, labels) {
+  land(g, false);
+  slab(g, rect(-130, -40, 130, 0), DECK - 0.1, DECK + 0.05, M.quay);
+  for (let z = 0; z <= 230; z += 15) for (const x of [-12, 12]) cyl(g, [x, z], 0.6, BED, DECK - BED - 0.6, M.dark, 8);
+  box(g, [-15, DECK - 0.6, 0], [15, DECK, 200], M.quay, false);
+  for (let x = -105; x <= 105; x += 15) for (const z of [204, 226]) cyl(g, [x, z], 0.6, BED, DECK - BED - 0.6, M.dark, 8);
+  box(g, [-110, DECK - 0.6, 200], [110, DECK, 230], M.quay, false);
+  for (const x of [-70, 0, 70]) luffing(g, [x, 215], [0, 1]);
+  for (const x of [-105, -25, 55]) shed(g, "Warehouse", x, -95, x + 50, -71, 12, M.shed, labels, null);
+  shed(g, "Harbour office", 100, -30, 116, -18, 9, M.brick, labels, "Harbour office");
+  model(g, "freighter", [0, 900], [1, 0.3]);
+  labels.push(["Pier and head on piles", [0, 215], 6, "today"]); labels.push(["Warehouses", [0, -83], 18, "today"]);
+}
+
+// ---------------------------------------------------------------- yardsticks: the Foreman and a pilot
+const yardG = new T.Group(); scene.add(yardG);
+pending++;
+loader.parse(glbBytes(YARD.glb), "", gltf => {
+  gltf.scene.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
+  gltf.scene.position.set(FOREMAN[0], DECK, FOREMAN[1]);   // facing +z, out to sea down the slipway
+  yardG.add(gltf.scene); loaded();
+}, loaded);
+box(yardG, [FOREMAN[0] - 18.5, DECK, FOREMAN[1] - 0.25], [FOREMAN[0] - 18, DECK + 1.8, FOREMAN[1] + 0.25], M.pilot);
+
+// ---------------------------------------------------------------- scene state, labels, views
+let show = "proposed", built = null, labels = [], labelReach = null, gun = 5;
+const statEl = document.getElementById("shotstat");
+controls.addEventListener("start", () => { labelReach = null; });
+const tagsEl = document.getElementById("tags");
+function rebuild() {
+  if (built) { scene.remove(built); built.traverse(o => { if (o.geometry && o.geometry !== UNIT) o.geometry.dispose(); }); }
+  built = new T.Group(); scene.add(built); labels = []; tagsEl.innerHTML = "";
+  BUILDINGS = []; targets = []; fallers = []; bits = []; statEl.textContent = "";
+  if (show === "today") buildToday(built, labels); else buildProposed(built, labels);
+  labels.push(["Foreman, 24 m", FOREMAN, 28]);
+  for (const l of labels) { const el = document.createElement("div"); el.className = "tag " + (l[3] || ""); el.textContent = l[0]; tagsEl.appendChild(el); l.el = el; }
+  document.querySelectorAll("[data-show]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.show === show)));
+}
+const V = (x, y, z) => new T.Vector3(x, y, z);
+function view(name) {
+  labelReach = null;
+  const set = (eye, look) => { camera.position.copy(eye); controls.target.copy(look); controls.update(); };
+  ({
+    overview: () => set(V(-1500, 1250, 2000), V(0, 0, 150)),
+    entrance: () => { labelReach = 2500; set(V(425, 26, 1500), V(425, 6, 300)); },
+    container: () => set(V(-480, 80, 360), V(-660, 20, 100)),
+    cargo: () => set(V(-170, 50, 400), V(-320, 10, 150)),
+    ferry: () => set(V(-10, 32, 260), V(-120, 5, 100)),
+    tanker: () => set(V(340, 50, 600), V(200, 5, 400)),
+    drydock: () => set(V(470, 75, -10), V(360, -5, -110)),
+    fishing: () => set(V(660, 45, 320), V(570, 0, 80)),
+    coastguard: () => set(V(1000, 35, 220), V(860, 0, 50)),
+    tower: () => { labelReach = 2000; set(V(78, DECK + 35, 49), V(425, 0, 650)); },
+    cockpit: () => set(V(FOREMAN[0], DECK + 21, FOREMAN[1] + 14), V(870, -1, 26)),
+    foot: () => set(V(FOREMAN[0] - 19, DECK + 1.7, FOREMAN[1] + 2), V(860, -2, 120)),
+  })[name]();
+}
+document.querySelectorAll("[data-show]").forEach(b => b.onclick = () => { show = b.dataset.show; rebuild(); });
+document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => view(b.dataset.view));
+document.querySelectorAll("[data-gun]").forEach(b => b.onclick = () => { gun = +b.dataset.gun;
+  document.querySelectorAll("[data-gun]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
+document.getElementById("repair").onclick = () => rebuild();
+bindFire(canvas, camera, () => gun);
+window.MOCKUP = { view, blast: (x, y, z, r) => blast(V(x, y, z), r), repair: rebuild, show: s => { show = s; rebuild(); },
+  buildings: () => BUILDINGS.map(B => ({ name: B.name, pieces: B.pieces.length, standing: B.alive.filter(Boolean).length, anchored: B.anchored })) };
+canvas.addEventListener("keydown", e => {
+  const s = 0.05, sph = new T.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+  if (e.key === "ArrowLeft") sph.theta -= s; else if (e.key === "ArrowRight") sph.theta += s;
+  else if (e.key === "ArrowUp") sph.phi = Math.max(0.05, sph.phi - s); else if (e.key === "ArrowDown") sph.phi = Math.min(PI * 0.495, sph.phi + s);
+  else if (e.key === "+" || e.key === "=") sph.radius *= 0.85; else if (e.key === "-") sph.radius /= 0.85; else return;
+  e.preventDefault(); camera.position.copy(controls.target).add(new T.Vector3().setFromSpherical(sph));
+});
+document.querySelector("#pieces tbody").innerHTML = [
+  ["Breakwaters", "2, rubble mounds, 2.1 km each, crest 6 m over the water, crown walls"],
+  ["Entrance", "190 m wide, red and green lights on the heads"], ["Channel", "buoyed to 1.7 km, leading lights ashore"],
+  ["Container terminal", "480 m quay, 3 gantries 70 m tall, 15 stack blocks, straddle carriers"],
+  ["General cargo pier", "300 x 80 m, transit shed, 4 luffing cranes, rail both faces"],
+  ["Ferry terminal", "linkspan, terminal, 6 marshalling lanes"], ["Tanker jetty", "420 m trestle, 120 m head, 4 loading arms"],
+  ["Tank farm", "6 tanks, 44 m across, in bunds"], ["Dry dock", "200 x 40 m, 13.5 m deep, gate, goliath crane"],
+  ["Fishing harbour", "mole, 3 pontoons, trawlers and launches, fish market, slipway"],
+  ["Coast guard", "quay, boathouse, gunboats, a 60 m mech slipway at 1 in 8"],
+  ["Port control", "tower, harbour office and its jobs terminal, pilot station, 2 tugs"],
+  ["Landside", "port road, main line and sidings, warehouses, customs, car park"],
+].map(r => `<tr><td>${r[0]}</td><td class="n">${r[1]}</td></tr>`).join("");
+
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio())) {
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+}
+const tmp = new T.Vector3();
+let last = 0;
+function frame(ms) {
+  const dt = Math.min(0.05, (ms - last) / 1000 || 0); last = ms;
+  stepBreakage(dt);
+  resize(); controls.update(); renderer.render(scene, camera);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const reach = labelReach ?? Math.max(400, 2.2 * camera.position.distanceTo(controls.target));
+  for (const l of labels) {
+    tmp.set(l[1][0], l[2], l[1][1]).project(camera);
+    const vis = tmp.z < 1 && Math.abs(tmp.x) < 1.05 && Math.abs(tmp.y) < 1.05 && camera.position.distanceTo(V(l[1][0], l[2], l[1][1])) < reach;
+    l.el.style.display = vis ? "block" : "none";
+    if (vis) { l.el.style.left = ((tmp.x + 1) / 2 * w) + "px"; l.el.style.top = ((1 - tmp.y) / 2 * h) + "px"; }
+  }
+  requestAnimationFrame(frame);
+}
+rebuild();
+const start = (location.hash || "").slice(1);
+view(["overview", "entrance", "container", "cargo", "ferry", "tanker", "drydock", "fishing", "coastguard", "tower", "cockpit", "foot"].includes(start) ? start : "overview");
+loaded();
+requestAnimationFrame(frame);
+</script>

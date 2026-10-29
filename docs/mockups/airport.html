@@ -1455,6 +1455,10 @@ const M = {
   hangar: mat(0x8f979c, { roughness: 0.55, metalness: 0.35, side: T.DoubleSide }), pilot: mat(0x2f6fd0),
   pad: mat(0x5c5c56), heli: mat(0x3c6e3c),
 };
+// The site kit for Crab Breeze's 3D site mockups (the airport, the seaport): the shapes they are built from and the
+// breakable buildings, one implementation inlined into each page by its generator (gen_airport.py, gen_seaport.py).
+// The page loads SmallBuildings (the small-buildings kit) first and defines T (three.js), PI, `built` (the group rebuilt
+// on Repair) and statEl (where a shot's result is written) before using any of it. Metres; x east, y up, z south.
 function box(g, lo, hi, m, shadow = true) {
   if (BLD) return addBox(g, lo, hi, m, shadow);
   const mesh = new T.Mesh(new T.BoxGeometry(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]), m);
@@ -1472,8 +1476,6 @@ function beam(g, P, Q, w, h, m, shadow = true) {
   mesh.castShadow = shadow; mesh.receiveShadow = true; g.add(mesh); if (BLD) addPiece(mesh); return mesh;
 }
 const stroke = (g, p, q, w, y, m) => strokeAt(g, p, q, w, y, m);
-// Paving from p to q ([x, z]), w wide, flush with the runway.
-const pave = (g, p, q, w, m, top = TOP.taxi) => beam(g, [p[0], top - 0.31, p[1]], [q[0], top - 0.31, q[1]], w, 0.62, m, false);
 function strokeAt(g, p, q, w, y, m) {
   const dx = q[0] - p[0], dz = q[1] - p[1], len = Math.hypot(dx, dz) || 1;
   const mesh = new T.Mesh(new T.PlaneGeometry(len + w, w), m);
@@ -1592,6 +1594,21 @@ function stepBreakage(dt) {
     else if (b.o.position.y > 0.3) { b.v.y -= 9.81 * dt; b.o.position.addScaledVector(b.v, dt); b.o.rotation.x += dt * 3; }
     if (b.life <= 0) { built.remove(b.o); bits.splice(i, 1); } }
 }
+// A click that does not drag fires at the building under it, with the blast radius radius() gives.
+function bindFire(canvas, camera, radius) {
+  let downAt = null;
+  canvas.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY]; });
+  canvas.addEventListener("pointerup", e => {
+    if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+    const r = canvas.getBoundingClientRect(), rc = new T.Raycaster();
+    rc.setFromCamera(new T.Vector2((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+    const h = rc.intersectObjects(targets, true).find(i => { for (let o = i.object; o; o = o.parent) if (!o.visible) return false; return true; });
+    if (h) blast(h.point, radius());
+  });
+}
+
+// Paving from p to q ([x, z]), w wide, flush with the runway.
+const pave = (g, p, q, w, m, top = TOP.taxi) => beam(g, [p[0], top - 0.31, p[1]], [q[0], top - 0.31, q[1]], w, 0.62, m, false);
 // Every flat layer has its own height, at least 3 cm from the next, so no two surfaces share a plane (CLAUDE.md
 // section 10: no z-fighting). Grass -0.3; strips -0.15 and -0.05; aprons 0.05; taxiways 0.12; the secondary runway
 // 0.18 and the main 0.24 (it crosses over); paint on aprons and taxiways 0.2, on a runway 3 and 6 cm over it.
@@ -2013,16 +2030,7 @@ document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => view(b.d
 document.querySelectorAll("[data-gun]").forEach(b => b.onclick = () => { gun = +b.dataset.gun;
   document.querySelectorAll("[data-gun]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
 document.getElementById("repair").onclick = () => rebuild();
-// a click that does not drag fires at the building under it
-let downAt = null;
-canvas.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY]; });
-canvas.addEventListener("pointerup", e => {
-  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
-  const r = canvas.getBoundingClientRect(), rc = new T.Raycaster();
-  rc.setFromCamera(new T.Vector2((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
-  const h = rc.intersectObjects(targets, true).find(i => { for (let o = i.object; o; o = o.parent) if (!o.visible) return false; return true; });
-  if (h) blast(h.point, gun);
-});
+bindFire(canvas, camera, () => gun);
 window.MOCKUP = { view, blast: (x, y, z, r) => blast(V(x, y, z), r), repair: rebuild,
   buildings: () => BUILDINGS.map(B => ({ name: B.name, pieces: B.pieces.length, standing: B.alive.filter(Boolean).length, anchored: B.anchored })) };
 canvas.addEventListener("keydown", e => {

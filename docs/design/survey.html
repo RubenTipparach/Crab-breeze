@@ -203,6 +203,22 @@ const SECTIONS = [
         rec: 0,
         why: 'Wrecking a parked airliner should cost you standing with the city, which the civil standing rules decide; scenery first.' },
     ] },
+  { tag: 'SP', name: 'The seaport',
+    lead: 'Added on 2026-10-29, with the seaport mockup (Crab Breeze Seaport page; openspec/changes/seaport-layout). Your words: "we also need seaports". Nothing is built in the game until you have looked at the page.',
+    qs: [
+      { id: 'SP1', q: 'The island has up to four harbours (one by each coastal city). The port on the page is 2 km of breakwater and nine kinds of berth. Does every harbour become one?',
+        options: ['The full port at the largest coastal city; the others a small port: one breakwater, the cargo pier, the fishing harbour and the coast guard slipway', 'Every harbour a full port', 'One full port, and the others stay as they are today'],
+        rec: 0,
+        why: 'One big port is a set piece to fight over (Ace Combat\'s big targets, G4); small ports keep every coast city a working harbour without four copies of the same place.' },
+      { id: 'SP2', q: 'Today nothing at a harbour is dug or flattened: the pier stands on piles (HB3). A port needs reclaimed quays, breakwaters on the seabed and a dry dock cut into the land. May the port shape the ground and the seabed inside its own footprint?',
+        options: ['Yes, inside its own footprint', 'No: build it all on piles over the ground as it is'],
+        rec: 0,
+        why: 'Quays on piles across 2 km look like a pier, not a port; the shaping stays inside the port, so nothing else in the world moves.' },
+      { id: 'SP3', q: 'Which ships are in the port?',
+        options: ['The harbour traffic moors at these berths, and a few ships always lie alongside (the container ship, the ship in the dry dock)', 'Only the traffic: berths stand empty between arrivals', 'Only ships lying alongside, the traffic stays at anchor'],
+        rec: 0,
+        why: 'Ships that come and go make the port alive; a few that always lie alongside mean it never looks empty when you arrive.' },
+    ] },
 ];
 
 // Answered, and being built. Each moves to DECIDED (Done) once its answer is in the game.
