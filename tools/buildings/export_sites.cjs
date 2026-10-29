@@ -88,7 +88,7 @@ function runPage(file, exportFlags) {
   sandbox.THREE.GLTFLoader = function () { return S; };
   const code = scripts.filter((m) => !m[1]).map((m) => m[2]).join('\n;\n') + '\n;globalThis.__BUILT__ = built; globalThis.__M__ = M;';
   vm.runInContext(code, sandbox, { filename: path.basename(file) });
-  return { taken, built: sandbox.__BUILT__, M: sandbox.__M__, THREE: sandbox.THREE, pads: sandbox.SITE_EXPORT.pads || [], marks: sandbox.SITE_EXPORT.marks || {}, lights: sandbox.SITE_EXPORT.lights || { masts: [], dots: [], runways: [] } };
+  return { taken, built: sandbox.__BUILT__, M: sandbox.__M__, THREE: sandbox.THREE, pads: sandbox.SITE_EXPORT.pads || [], marks: sandbox.SITE_EXPORT.marks || {}, lights: sandbox.SITE_EXPORT.lights || { masts: [], dots: [], runways: [] }, parked: sandbox.SITE_EXPORT.parked || [] };
 }
 
 // ---------------------------------------------------------------- the ground: the page's group, by material
@@ -153,7 +153,7 @@ function exportSite(site, page, flags) {
   fs.mkdirSync(dir, { recursive: true });
   for (const f of fs.readdirSync(dir)) fs.unlinkSync(path.join(dir, f));
   const t0 = Date.now();
-  const { taken, built, M, THREE, pads, marks, lights } = runPage(page, flags);
+  const { taken, built, M, THREE, pads, marks, lights, parked } = runPage(page, flags);
   // Identical buildings share one kit: the same name and the same geometry.
   const kits = new Map(); const placements = []; const named = new Map(); let failed = false;
   const manifest = [];
@@ -208,6 +208,9 @@ function exportSite(site, page, flags) {
       dots: lights.dots.map((d) => Object.assign({ at: d.slice(0, 3).map(r3), colour: d[3] }, d[4] != null ? { lot: d[4] } : {})),
       runways: lights.runways.map((r) => ({ a: r.a.map(r3), b: r.b.map(r3), w: r3(r.w), y: r3(r.y) })),
     },
+    // The aircraft the page parks at its stands: the game puts the civil traffic's model of each kind there, its
+    // wheels at y, its nose along its heading (radians about y, the page's).
+    parked: parked.map((a) => ({ kind: a.kind, at: [r3(a.x), r3(a.y), r3(a.z)], heading: r3(a.heading) })),
     bounds_m: { lo: [r3(Math.min(lo[0], ...pads.map((p) => p[0]))), 0, r3(Math.min(lo[2], ...pads.map((p) => p[1])))], hi: [r3(Math.max(hi[0], ...pads.map((p) => p[2]))), 0, r3(Math.max(hi[2], ...pads.map((p) => p[3])))] },
   };
   fs.writeFileSync(path.join(dir, 'site.json'), JSON.stringify(table, null, 1) + '\n');

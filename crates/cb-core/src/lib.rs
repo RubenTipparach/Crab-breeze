@@ -140,6 +140,17 @@ impl GameData {
             }
         }
         world.small_kits = std::sync::Arc::new(kits);
+        // The aircraft the airport parks at its stands are the civil traffic's kinds.
+        let air_path = root.join("world/air_traffic.ron");
+        let air_traffic: air_traffic::AirTrafficConfig = data::load_ron(&air_path)?;
+        for t in [&world.site_templates.airport, &world.site_templates.seaport].into_iter().flatten() {
+            if let Some(a) = t.parked.iter().find(|a| !air_traffic.kinds.contains_key(&a.kind)) {
+                return Err(data::DataError {
+                    path: sites_dir.clone(),
+                    reason: format!("{} parks a `{}`, which is not a kind in {}", t.folder, a.kind, air_path.display()),
+                });
+            }
+        }
         let audio = audio::AudioData {
             cues: data::load_ron(&root.join("audio/cues.ron"))?,
             music: data::load_ron(&root.join("audio/music.ron"))?,
@@ -223,7 +234,7 @@ impl GameData {
             battle_fx: data::load_ron(&root.join("fx/battle_fx.ron"))?,
             sun: data::load_ron(&root.join("world/sun_flare.ron"))?,
             units,
-            air_traffic: data::load_ron(&root.join("world/air_traffic.ron"))?,
+            air_traffic,
             skins,
             fortress,
             missions: data::load_ron(&root.join("missions/mail.ron"))?,

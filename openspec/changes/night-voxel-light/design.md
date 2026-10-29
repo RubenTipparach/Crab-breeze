@@ -226,8 +226,8 @@ is damaged. Site kits bake every room `ALWAYS_LIT` and a control tower's top 5 m
 (`small_buildings::RoomCells`); the shader lights them from the glass's night share and `rooms.w` (`cab_gain`).
 - The site kits carry no far window panes (`glassFar`), so a terminal seen past its LOD0 distance shows no lit rooms;
   its masts and dots still show. Open.
-- The airport's pad stands at y -0.3 m in the shipped table while the page writes 0: after this export the table's
-  -0.3 was put back by hand, so the ground did not move. The page and the table should agree; which is right is open.
+- The airport's pad stood at y -0.3 m in the shipped table while the page wrote 0; the page now writes the table's
+  -0.3 (the ground just under the paving), so an export no longer moves it.
 
 **Mockup first** (CLAUDE.md section 4, owner 2026-10-28: "Please make mockups before editing game code"):
 `docs/mockups/airport.html` (Night), the approved airport page; the first stand-in, `docs/mockups/runway_lights.html`, is superseded by it. A 2,000 m runway at night with every light group, the taxiway, a terminal

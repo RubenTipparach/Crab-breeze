@@ -213,6 +213,17 @@ pub struct SiteLights {
     pub runways: Vec<SiteRunway>,
 }
 
+/// An aircraft its page parks at a stand: the game parks the civil traffic's model of its kind there.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ParkedAircraft {
+    /// Its kind, a key of `air_traffic.ron`'s `kinds`.
+    pub kind: String,
+    /// Where its wheels stand (x, y, z) in the site's frame.
+    pub at: Vec3,
+    /// Its nose's heading about the vertical, radians (`Quat::from_rotation_y`), in the site's frame.
+    pub heading_rad: f32,
+}
+
 /// One site as its page laid it out.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SiteTemplate {
@@ -230,6 +241,8 @@ pub struct SiteTemplate {
     pub marks: BTreeMap<String, Vec2>,
     /// Its night lights.
     pub lights: SiteLights,
+    /// The aircraft parked at its stands.
+    pub parked: Vec<ParkedAircraft>,
 }
 
 impl SiteTemplate {
@@ -262,6 +275,16 @@ struct SiteJson {
     ground: GroundJson,
     #[serde(default)]
     lights: LightsJson,
+    #[serde(default)]
+    parked: Vec<ParkedJson>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ParkedJson {
+    kind: String,
+    at: [f32; 3],
+    heading: f32,
 }
 
 #[derive(Deserialize, Default)]
@@ -421,6 +444,17 @@ fn load_site(dir: &Path, name: &str, kind: SiteKind, kits: &mut Kits) -> Result<
         return Err(format!("{what}: a mark is not a finite point"));
     }
     let lights = lights_of(&j.lights, placements.len()).map_err(|e| format!("{what}: {e}"))?;
+    let mut parked = Vec::with_capacity(j.parked.len());
+    for a in &j.parked {
+        if !a.at.iter().all(|v| v.is_finite()) || !a.heading.is_finite() || a.kind.is_empty() {
+            return Err(format!("{what}: a parked `{}` is not a kind at a finite point and heading", a.kind));
+        }
+        parked.push(ParkedAircraft {
+            kind: a.kind.clone(),
+            at: Vec3::from(a.at),
+            heading_rad: a.heading,
+        });
+    }
     if kind == SiteKind::Seaport {
         for m in ["terminal", "berth", "mouth"] {
             if !marks.contains_key(m) {
@@ -441,6 +475,7 @@ fn load_site(dir: &Path, name: &str, kind: SiteKind, kits: &mut Kits) -> Result<
         },
         marks,
         lights,
+        parked,
     })
 }
 

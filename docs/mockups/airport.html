@@ -3386,6 +3386,9 @@ const KIND = id => AIR.kinds.find(k => k.id === id);
 // An aircraft parked at c ([x, z]), its nose along n ([x, z], unit): its model where it has one, else its block-out.
 function aircraft(g, k, c, n) {
   if (!k) return;
+  // The game parks the civil traffic's own model of this kind here (tools/buildings/export_sites.cjs: `parked`), its
+  // wheels on the apron's surface, its nose along n.
+  if (window.SITE_EXPORT) { (window.SITE_EXPORT.parked = window.SITE_EXPORT.parked || []).push({ kind: k.id, x: c[0], y: 0.12, z: c[1], heading: Math.atan2(-n[0], -n[1]) }); return; }
   const root = new T.Group();
   root.position.set(c[0], 0.12 + k.rest_m, c[1]); root.rotation.y = Math.atan2(-n[0], -n[1]); g.add(root);
   root.userData.skip = true;   // parked aircraft are the civil traffic's own models in the game, not part of the site
@@ -3472,7 +3475,8 @@ function buildProposed(g, labels) {
   // here (tools/buildings/export_sites.cjs writes this pad, [x0, z0, x1, z1, y], into the site's table): the fence's
   // outline, the approach lights, the landside road and the car parks. The page's grass strips under the paving are
   // then under the ground.
-  if (window.SITE_EXPORT) window.SITE_EXPORT.pads = [[-1310, -860, 1310, 660, 0]];
+  // The game's ground stands 0.3 m under the paving it carries, so the two never share a plane (as shipped).
+  if (window.SITE_EXPORT) window.SITE_EXPORT.pads = [[-1310, -860, 1310, 660, -0.3]];
   const main = runway(MAIN), cross = runway(CROSS);
   // the flattened strips round the runways
   beam(g, [MAIN.a[0] - 90, TOP.stripMain - 0.15, 0], [MAIN.b[0] + 90, TOP.stripMain - 0.15, 0], 150, 0.3, mat(0x6a7046), false);

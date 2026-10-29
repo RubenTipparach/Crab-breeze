@@ -6187,6 +6187,197 @@
    }
   ]
  },
+ "parked": [
+  {
+   "kind": "airliner",
+   "at": [
+    40,
+    0.12,
+    402
+   ],
+   "heading": -3.142
+  },
+  {
+   "kind": "airliner",
+   "at": [
+    120,
+    0.12,
+    402
+   ],
+   "heading": -3.142
+  },
+  {
+   "kind": "airliner",
+   "at": [
+    200,
+    0.12,
+    402
+   ],
+   "heading": -3.142
+  },
+  {
+   "kind": "airliner",
+   "at": [
+    280,
+    0.12,
+    402
+   ],
+   "heading": -3.142
+  },
+  {
+   "kind": "airliner",
+   "at": [
+    517,
+    0.12,
+    280
+   ],
+   "heading": -1.571
+  },
+  {
+   "kind": "airliner",
+   "at": [
+    603,
+    0.12,
+    280
+   ],
+   "heading": 1.571
+  },
+  {
+   "kind": "airliner",
+   "at": [
+    517,
+    0.12,
+    340
+   ],
+   "heading": -1.571
+  },
+  {
+   "kind": "airliner",
+   "at": [
+    603,
+    0.12,
+    340
+   ],
+   "heading": 1.571
+  },
+  {
+   "kind": "airliner",
+   "at": [
+    517,
+    0.12,
+    400
+   ],
+   "heading": -1.571
+  },
+  {
+   "kind": "airliner",
+   "at": [
+    603,
+    0.12,
+    400
+   ],
+   "heading": 1.571
+  },
+  {
+   "kind": "freighter",
+   "at": [
+    810,
+    0.12,
+    292
+   ],
+   "heading": -3.142
+  },
+  {
+   "kind": "airliner",
+   "at": [
+    -570,
+    0.12,
+    268
+   ],
+   "heading": -3.142
+  },
+  {
+   "kind": "freighter",
+   "at": [
+    -445,
+    0.12,
+    268
+   ],
+   "heading": -3.142
+  },
+  {
+   "kind": "helicopter",
+   "at": [
+    -330,
+    0.12,
+    232
+   ],
+   "heading": 0
+  },
+  {
+   "kind": "helicopter",
+   "at": [
+    -230,
+    0.12,
+    232
+   ],
+   "heading": 0
+  },
+  {
+   "kind": "light_plane",
+   "at": [
+    -960,
+    0.12,
+    225
+   ],
+   "heading": -3.142
+  },
+  {
+   "kind": "light_plane",
+   "at": [
+    -915,
+    0.12,
+    225
+   ],
+   "heading": -3.142
+  },
+  {
+   "kind": "light_plane",
+   "at": [
+    -870,
+    0.12,
+    225
+   ],
+   "heading": -3.142
+  },
+  {
+   "kind": "light_plane",
+   "at": [
+    -825,
+    0.12,
+    225
+   ],
+   "heading": -3.142
+  },
+  {
+   "kind": "light_plane",
+   "at": [
+    -780,
+    0.12,
+    225
+   ],
+   "heading": -3.142
+  },
+  {
+   "kind": "light_plane",
+   "at": [
+    -735,
+    0.12,
+    225
+   ],
+   "heading": -3.142
+  }
+ ],
  "bounds_m": {
   "lo": [
    -1310,

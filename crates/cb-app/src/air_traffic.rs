@@ -4,7 +4,8 @@
 //! tallied per base and sent as `CivilAirHit` for the career loop. A kind with a model (the freighter, survey D8) is
 //! drawn from its glb, its three levels of detail switched by distance and its gear shown only near the ground; the
 //! others as labelled block-out stand-ins at true size (`cb_core::air_traffic::shape`). Each plays its engine loop.
-//! `Neutrals` lists them for targeting and the cockpit, which show them as neutral.
+//! `Neutrals` lists them for targeting and the cockpit, which show them as neutral. The aircraft the airport's page
+//! parks at its stands stand there in the same models (`park_aircraft`).
 
 use crate::audio::{Ear, Loop, SoundAt};
 use crate::blast::Explosion;
@@ -160,6 +161,7 @@ impl Plugin for AirTrafficPlugin {
             .init_resource::<KindLooks>()
             .add_message::<CivilAirHit>()
             .add_world_spawn(start)
+            .add_world_spawn(park_aircraft)
             .add_game_systems(FixedUpdate, list_neutrals.in_set(SimSet::Input).after(crate::units::list_hostiles))
             .add_game_systems(
                 FixedUpdate,
@@ -175,6 +177,40 @@ impl Plugin for AirTrafficPlugin {
 
 fn start(mut commands: Commands, plan: Res<Plan>) {
     commands.insert_resource(AirTraffic(Traffic::new(plan.seed)));
+}
+
+/// Parks the aircraft each site's page parks at its stands (airport-layout: "parked aircraft are the civil traffic's own
+/// models in the game"): each kind's model, its wheels on the apron, its nose as the page turns it.
+fn park_aircraft(
+    mut commands: Commands,
+    plan: Res<Plan>,
+    data: Res<Data>,
+    assets: Res<AssetServer>,
+    mut looks: ResMut<KindLooks>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    for site in &plan.sites {
+        for a in &site.template.parked {
+            // `GameData::load` has checked every parked kind is one.
+            let Some(spec) = data.0.air_traffic.kinds.get(&a.kind) else {
+                continue;
+            };
+            let at = site.point_to_world(a.at) + Vec3::Y * rest_m(spec);
+            spawn_aircraft(
+                &mut commands,
+                &mut looks,
+                &mut meshes,
+                &mut materials,
+                &assets,
+                &a.kind,
+                spec,
+                format!("parked {}", a.kind),
+                Transform::from_translation(at).with_rotation(Quat::from_rotation_y(a.heading_rad + site.heading_rad())),
+                true,
+            );
+        }
+    }
 }
 
 /// The civil aircraft in the air, for targeting and the cockpit.
