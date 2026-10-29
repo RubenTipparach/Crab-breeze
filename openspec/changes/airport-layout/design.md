@@ -146,6 +146,29 @@ or through at most `MAX_SIDE` (3) pieces beside it. A piece lost from under othe
 - **In the game** each building becomes a breakable kit set (the small buildings' path: `kit.rs` pieces, `damage.rs`),
   with its colliders from the same pieces, so AP2 is answered: solid and breakable from the start.
 
+## 7. The game build (2026-10-29, owner: "Dope, implement all that")
+
+The game takes the approved page itself, never a second copy of it (CLAUDE.md section 6.1):
+
+- **Export.** `tools/buildings/export_sites.cjs` runs the page's own script in node (its DOM, renderer and controls
+  stubbed, its geometry real three.js r147), takes every building from the page's `put` and the paving, paint, lights
+  and fence from the group the page builds. Each distinct building is written as a breakable kit by the houses' own
+  writer (`tools/buildings/kit_export.cjs`, shared with `export_small_buildings.cjs`), the ground as one static
+  `ground.glb`, and `assets/models/sites/airport/site.json` lists every placement, the ground's solids and the pad the
+  airfield is flattened to. The civil export leaves out the page's military side: the air bases are the military
+  airfields (AP1).
+- **Placing.** `cb_core::world::sites::place_airport` tries the airfield on rings round each city, largest first, at
+  16 bearings and every quarter turn, on dry land that rises at most 45 m across it, clear of the cities (300 m), the
+  bases and their runways (600 m), the highways and the rivers (`sites:` in `data/world/world.ron`). Its pad levels the
+  ground to its buildings' floor (the paving lies 5 to 24 cm over it), the houses keep off it.
+- **Drawing and breaking.** Every placement is a lot of the `Airport` zone: drawn, dressed, furnished and broken
+  exactly as a house (`cb-app::small_buildings`, `small_buildings::damage`), its glb read from its kit's folder. A
+  building hundreds of metres long has its level-of-detail distances measured from its edge, not its middle.
+- **Measured** (block-out art, no GPU here): 24 kits for 30 buildings. Terminal 2 draws 96 134 triangles of shell
+  and 350 724 of block furniture within 100 m; Terminal 1 84 758 and about 300 000. Each kit's budget is its
+  measurement, with the reason, in the exporter; the site's files are 120 MB. The ground: 16 666 triangles in 17
+  surfaces. Not measured on a GPU: the cloud session has none.
+
 ## Mockup
 
 `docs/mockups/airport.html` (`python3 tools/mockups/gen_airport.py`): the base today against the proposed airfield,

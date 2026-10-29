@@ -2517,7 +2517,7 @@ td.n { font-family: var(--mono); white-space: nowrap; }
       for (const sx of [-0.65, 0.65]) {
         if (hash(k * 7 + lv, sx > 0 ? 3 : 1) < 0.18) continue;
         const h = 0.7 + hash(k, lv * 5 + (sx > 0 ? 2 : 0)) * 0.8, c = GOODS[Math.floor(hash(k + lv, sx * 10) * GOODS.length)];
-        it.push(['wood', sx - 0.55, y, -0.45, sx + 0.55, y + 0.14, 0.45, 0x9a7a52], ['board', sx - 0.52, y + 0.14, -0.42, sx + 0.52, y + 0.14 + h, 0.42, c]);
+        it.push(['wood', sx - 0.55, y, -0.45, sx + 0.55, y + 0.14, 0.45, 0x9a7a52], ['product', sx - 0.52, y + 0.14, -0.42, sx + 0.52, y + 0.14 + h, 0.42, c]);
       }
     }
     return it;
@@ -2528,7 +2528,7 @@ td.n { font-family: var(--mono); white-space: nowrap; }
     ['metal', -0.55, 1.2, -0.7, -0.5, 2.3, -0.65, 0x3a3a3a], ['metal', 0.5, 1.2, -0.7, 0.55, 2.3, -0.65, 0x3a3a3a], ['metal', -0.55, 1.2, 0.55, -0.5, 2.3, 0.6, 0x3a3a3a], ['metal', 0.5, 1.2, 0.55, 0.55, 2.3, 0.6, 0x3a3a3a], ['metal', -0.58, 2.3, -0.72, 0.58, 2.36, 0.62, 0x3a3a3a],
     ['rubber', -0.6, 0, 0.3, -0.45, 0.5, 0.8, 0x1c1c1c], ['rubber', 0.45, 0, 0.3, 0.6, 0.5, 0.8, 0x1c1c1c], ['rubber', -0.6, 0, -1.2, -0.45, 0.45, -0.75, 0x1c1c1c], ['rubber', 0.45, 0, -1.2, 0.6, 0.45, -0.75, 0x1c1c1c]];
   // A loaded pallet on the floor, k picks its load.
-  const pallet = (k) => { const h = 0.6 + hash(k, 9) * 1.0, c = GOODS[Math.floor(hash(k, 4) * GOODS.length)]; return [['wood', -0.6, 0, -0.5, 0.6, 0.14, 0.5, 0x9a7a52], ['board', -0.57, 0.14, -0.47, 0.57, 0.14 + h, 0.47, c]]; };
+  const pallet = (k) => { const h = 0.6 + hash(k, 9) * 1.0, c = GOODS[Math.floor(hash(k, 4) * GOODS.length)]; return [['wood', -0.6, 0, -0.5, 0.6, 0.14, 0.5, 0x9a7a52], ['product', -0.57, 0.14, -0.47, 0.57, 0.14 + h, 0.47, c]]; };
   // A fish market's stand: a table of crates on ice.
   const fishStand = () => { const it = [['metal', -1.5, 0, -0.5, 1.5, 0.85, 0.5, 0xd8dcde], ['stainless', -1.5, 0.85, -0.5, 1.5, 0.9, 0.5, 0xe8eef0]];
     for (const x of [-1.05, 0, 1.05]) it.push(['paint', x - 0.45, 0.9, -0.35, x + 0.45, 1.15, 0.35, 0x2f6f9f], ['paint', x - 0.4, 1.12, -0.3, x + 0.4, 1.16, 0.3, 0xd8e6ea]); return it; };
@@ -2595,7 +2595,7 @@ td.n { font-family: var(--mono); white-space: nowrap; }
       place(B, x, u, z1 - 4, 2, FURN.counter(0xc23b30)); place(B, x + 4, u, z1 - 4, 2, FURN.cooler());
       for (let k = 0; k < 2; k++) place(B, x + 2, u, z1 - 9 - k * 1.6, 0, FURN.aisle(() => hash(x | 0, k + 3)));
     }
-    for (let x = x0 + 10; x < x1 - 10; x += 40) place(B, x, u, (z0 + z1) / 2, 0, [['metal', -0.1, 0, -0.1, 0.1, 2.4, 0.1, 0x3a3a3a], ['metal', -1.5, 2.4, -0.15, 1.5, 3.4, 0.15, 0x1c1c1c], ['screen', -1.4, 2.5, 0.15, 1.4, 3.3, 0.16, 0xf2c02a]]);
+    for (let x = x0 + 10; x < x1 - 10; x += 40) place(B, x, u, (z0 + z1) / 2, 0, [['metal', -0.1, 0, -0.1, 0.1, 2.4, 0.1, 0x3a3a3a], ['metal', -1.5, 2.4, -0.15, 1.5, 3.4, 0.15, 0x1c1c1c], ['lamp', -1.4, 2.5, 0.15, 1.4, 3.3, 0.16, 0xf2c02a]]);
   }
   // An office building's floors fitted out by its use (owner, 2026-10-29: "jobs and customs are empty", "port control
   // pilot station too"). Ground floor (door to +z): 'jobs' the jobs terminal (a counter, notice boards, benches),
@@ -3247,12 +3247,15 @@ const E = BuildingEngine({ THREE: T, K: window.SmallBuildings, scene, ground: ()
 // the building's own (maxSide: a machine's longer reach).
 function put(name, draw, x = 0, z = 0, turn = 0, y = 0, info = {}) {
   const B = new SmallBuildings.Builder(); draw(B);
+  // tools/buildings/export_sites.cjs runs this page's layout to write the game's kits: it takes each building here.
+  if (window.SITE_EXPORT) return window.SITE_EXPORT.put(name, B, { x, y, z, turn }, Object.assign({ base: y }, info));
   const id = E.building(Object.assign({ name, base: y }, info)); E.add(B, { x, y, z, turn, bld: id }); return id;
 }
 // A turning thing (a radar antenna) on top of a building: shown while the piece under it stands.
 let spinners = [];
 function spinOn(id, obj, rate) { spinners.push({ id, obj, rate, pid: null }); }
 function seatSpinners() {
+  if (window.SITE_EXPORT) return;   // no buildings are added when the page is exported
   for (const s of spinners) {
     if (s.id == null) continue;
     const p = s.obj.position; let best = null;
@@ -3382,6 +3385,7 @@ function aircraft(g, k, c, n) {
   if (!k) return;
   const root = new T.Group();
   root.position.set(c[0], 0.12 + k.rest_m, c[1]); root.rotation.y = Math.atan2(-n[0], -n[1]); g.add(root);
+  root.userData.skip = true;   // parked aircraft are the civil traffic's own models in the game, not part of the site
   if (k.model && k.model.glb) {
     pending++;
     loader.parse(glbBytes(k.model.glb), "", gltf => {
@@ -3460,6 +3464,10 @@ function mechBase(g, today, labels) {
 
 // ---------------------------------------------------------------- the proposed airport
 function buildProposed(g, labels) {
+  // The game flattens the airfield's ground to the mockup's grass, 0.3 m under the paving (tools/buildings/export_sites.cjs
+  // writes this pad, [x0, z0, x1, z1, y], into the site's table): the fence's outline, the approach lights, the
+  // landside road and the car parks.
+  if (window.SITE_EXPORT) window.SITE_EXPORT.pads = [[-1310, -860, 1310, 660, -0.3]];
   const main = runway(MAIN), cross = runway(CROSS);
   // the flattened strips round the runways
   beam(g, [MAIN.a[0] - 90, TOP.stripMain - 0.15, 0], [MAIN.b[0] + 90, TOP.stripMain - 0.15, 0], 150, 0.3, mat(0x6a7046), false);
@@ -3548,12 +3556,16 @@ function buildProposed(g, labels) {
   radar.add(new T.Mesh(new T.CylinderGeometry(0.6, 0.6, 1.2, 10), M.dark)); spinOn(radarId, radar, 1.2);
   labels.push(["Surveillance radar", [-100, 600], 28]);
 
-  // ---- the military side: the mech base, its link and hold, dispersal pans, the readiness platform, the fire station
-  mechBase(g, false, labels);
-  link(g, [500, -main.w2], [500, MIL.z1], [1, 0], null); hold(g, [500, -main.w2 - 50], [0, -1]);
-  for (const z of [-400, -480, -560, -640]) { taxi(g, [MIL.x1, z], [1060, z], 18); slab(g, rect(1040, z - 22, 1100, z + 22), -0.5, TOP.apron, M.mil); }
-  taxi(g, [1060, -380], [1060, -660], 18);
-  labels.push(["Dispersal hard standings", [1070, -520], 6]);
+  // ---- the military side: the mech base, its link and hold, dispersal pans, the readiness platform, the fire station.
+  // The game's civil airport leaves it out: the air bases are the military airfields (survey AP1).
+  const military = !(window.SITE_EXPORT && window.SITE_EXPORT.civil);
+  if (military) mechBase(g, false, labels);
+  if (military) {
+    link(g, [500, -main.w2], [500, MIL.z1], [1, 0], null); hold(g, [500, -main.w2 - 50], [0, -1]);
+    for (const z of [-400, -480, -560, -640]) { taxi(g, [MIL.x1, z], [1060, z], 18); slab(g, rect(1040, z - 22, 1100, z + 22), -0.5, TOP.apron, M.mil); }
+    taxi(g, [1060, -380], [1060, -660], 18);
+    labels.push(["Dispersal hard standings", [1070, -520], 6]);
+  }
   slab(g, rect(880, -125, 990, -45), -0.5, TOP.apron, M.mil); link(g, [960, -main.w2], [960, -45], [1, 0], null);
   labels.push(["Operational readiness platform", [935, -85], 5]);
   put("Fire station", B => S.fireStation(B, E.M), -22, -145);

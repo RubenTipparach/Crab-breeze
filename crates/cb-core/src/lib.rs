@@ -120,10 +120,17 @@ impl GameData {
         let mut world: world::WorldConfig = data::load_ron(&root.join("world/world.ron"))?;
         // The houses' and small businesses' kits, read from the exported assets beside `data/`.
         let kits_dir = root.join("../assets/models/small_buildings");
-        world.small_kits = std::sync::Arc::new(world::small_buildings::Kits::load(&kits_dir).map_err(|reason| data::DataError {
+        let mut kits = world::small_buildings::Kits::load(&kits_dir).map_err(|reason| data::DataError {
             path: kits_dir.join("manifest.json"),
             reason,
-        })?);
+        })?;
+        // The airport's and the seaport's kits and layouts (airport-layout, seaport-layout), beside the houses'.
+        let sites_dir = root.join("../assets/models/sites");
+        world.site_templates = world::sites::SiteTemplates::load(&sites_dir, &mut kits).map_err(|reason| data::DataError {
+            path: sites_dir.clone(),
+            reason,
+        })?;
+        world.small_kits = std::sync::Arc::new(kits);
         let audio = audio::AudioData {
             cues: data::load_ron(&root.join("audio/cues.ron"))?,
             music: data::load_ron(&root.join("audio/music.ron"))?,

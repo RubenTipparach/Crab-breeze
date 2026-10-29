@@ -127,6 +127,7 @@ impl Traffic {
                 bases: plan.bases.iter().map(|b| b.rect()).collect(),
                 road_dist: &road_dist,
                 road_m,
+                ports: harbour::ports_of(plan, &cfg.harbours),
             },
             lakes: &plan.waters.lakes.list,
             islets: plan.terrain.shape().island().islets().collect(),
@@ -682,6 +683,7 @@ mod tests {
                 bases: vec![],
                 road_dist: &|_| f32::INFINITY,
                 road_m: 0.0,
+                ports: Vec::new(),
             },
             lakes,
             // A beach islet to the south, 6 km out.

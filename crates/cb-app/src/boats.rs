@@ -270,6 +270,31 @@ fn spawn_harbours(
     });
     let crane = assets.load(GltfAssetLabel::Scene(0).from_asset("models/boats/crane.glb"));
     for h in &traffic.harbours {
+        if h.port {
+            // The seaport (seaport-layout): its buildings, cranes and quays are the site's lots and ground
+            // (`small_buildings`); its quays' tops are walked on as fixed platforms in the world's frame.
+            if let Some(site) = plan.sites.iter().find(|s| s.city == h.city) {
+                let slabs = site
+                    .solids
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (lo, hi))| Slab {
+                        name: format!("{FIXED_PREFIX}port_quay_{}_{i}", h.id),
+                        min: Vec2::new(lo.x, lo.z),
+                        max: Vec2::new(hi.x, hi.z),
+                        centre: Vec2::new(lo.x + hi.x, lo.z + hi.z) * 0.5,
+                        top_m: hi.y,
+                        slope: Vec2::ZERO,
+                    })
+                    .collect();
+                live.platforms.push(Platform {
+                    slabs,
+                    pose: bevy::math::Affine3A::IDENTITY,
+                    was: bevy::math::Affine3A::IDENTITY,
+                });
+            }
+            continue;
+        }
         let frame = harbour_frame(h);
         live.platforms.push(Platform {
             slabs: quay_slabs(h),

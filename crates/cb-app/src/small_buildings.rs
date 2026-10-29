@@ -75,6 +75,8 @@ fn state_key(lot: u32) -> u32 {
 struct Loading {
     kits: Vec<Handle<Gltf>>,
     furniture: Vec<(String, Handle<Gltf>)>,
+    /// Each placed site's ground (airport-layout, seaport-layout).
+    grounds: Vec<Handle<Gltf>>,
 }
 
 /// One primitive of a kit's node: its mesh and its surface.
@@ -112,6 +114,8 @@ pub struct HouseKits {
     standing: Option<Handle<ShaderBuffer>>,
     /// The surfaces drawn with a texture set (their meshes need tangents).
     textured: Vec<String>,
+    /// Each placed site's ground: its primitives and their materials (the page's stand-in looks).
+    grounds: Vec<Vec<(Handle<Mesh>, Handle<StandardMaterial>)>>,
 }
 
 /// Which furniture a building draws.
@@ -148,9 +152,10 @@ impl Plugin for SmallBuildingsPlugin {
             .init_resource::<Houses>()
             .add_systems(Startup, start_loading)
             .add_systems(Update, bind.run_if(|k: Res<HouseKits>| !k.ready))
+            .add_game_systems(FixedUpdate, sink_ships.in_set(crate::sim::SimSet::World))
             .add_game_systems(
                 Update,
-                (spawn_lots, follow_state, redraw_damaged, dress, furnish, swing_leaves)
+                (spawn_lots, follow_state, redraw_damaged, dress, furnish, swing_leaves, pose_sinking)
                     .chain()
                     .in_set(crate::sim::PresentSet::Pose)
                     .run_if(|k: Res<HouseKits>| k.ready),
@@ -164,7 +169,12 @@ fn start_loading(mut commands: Commands, plan: Res<Plan>, server: Res<AssetServe
         kits: kits
             .kits
             .iter()
-            .map(|k| server.load(format!("models/small_buildings/{}.glb", k.id)))
+            .map(|k| server.load(format!("models/{}/{}.glb", k.folder, k.id)))
+            .collect(),
+        grounds: plan
+            .sites
+            .iter()
+            .map(|s| server.load(format!("models/{}", s.template.ground.glb)))
             .collect(),
         furniture: kits
             .furniture
@@ -272,7 +282,9 @@ fn mean_roughness_metal(orm: &Image) -> (f32, f32) {
 /// Once every glb is in: each kit's meshes by node, a plain and a state material per surface (the glb's stand-in
 /// colours), and the furniture material on the atlas.
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 fn bind(
+    plan: Res<Plan>,
     loading: Option<Res<Loading>>,
     server: Res<AssetServer>,
     gltfs: Res<Assets<Gltf>>,
@@ -287,7 +299,11 @@ fn bind(
     states: Res<BuildingStates>,
 ) {
     let Some(loading) = loading else { return };
-    let all = loading.kits.iter().chain(loading.furniture.iter().map(|(_, h)| h));
+    let all = loading
+        .kits
+        .iter()
+        .chain(loading.furniture.iter().map(|(_, h)| h))
+        .chain(loading.grounds.iter());
     if !all.clone().all(|h| server.is_loaded_with_dependencies(h)) {
         return;
     }
@@ -466,6 +482,34 @@ fn bind(
             kits.furniture.insert(name.clone(), mesh.mesh.clone());
         }
     }
+    // Each site's ground: its one mesh's primitives in the look its table gives each surface.
+    let mut grounds = Vec::with_capacity(loading.grounds.len());
+    for (site, h) in plan.sites.iter().zip(&loading.grounds) {
+        let Some(g) = gltfs.get(h) else { return };
+        let Some(mesh) = g.meshes.first().and_then(|m| gltf_meshes.get(m)) else {
+            grounds.push(Vec::new());
+            continue;
+        };
+        let mut prims = Vec::with_capacity(mesh.primitives.len());
+        for p in &mesh.primitives {
+            let surface = surface_of(p);
+            let Some(look) = site.template.ground.materials.get(&surface) else {
+                continue;
+            };
+            let [r, g, b] = look.colour;
+            let [er, eg, eb] = look.emissive;
+            let m = plain.add(StandardMaterial {
+                base_color: Color::linear_rgb(r, g, b),
+                perceptual_roughness: look.roughness,
+                metallic: look.metallic,
+                emissive: LinearRgba::rgb(er, eg, eb) * 4.0,
+                ..default()
+            });
+            prims.push((p.mesh.clone(), m));
+        }
+        grounds.push(prims);
+    }
+    kits.grounds = grounds;
     kits.kits = draws;
     kits.standing = Some(states.handle.clone());
     kits.ready = true;
@@ -490,8 +534,66 @@ fn follow_state(mut kits: ResMut<HouseKits>, states: Res<BuildingStates>, mut ma
     }
 }
 
+/// Takes the sinking ships down a fixed step (`small_buildings::damage::Sinking`, seaport-layout section 2): a ship that
+/// is gone under the seabed is redrawn with every piece down.
+fn sink_ships(plan: Res<Plan>, mut live: ResMut<Live>, time: Res<Time>) {
+    if live.structures.houses.states.values().all(|s| s.sinking.is_none()) {
+        return;
+    }
+    let live = &mut *live;
+    let dug = &live.dug;
+    let seabed = |p: Vec2| plan.terrain.height_at(p.x, p.y) + dug.delta_at(p);
+    let (_, gone) = live.structures.houses.step_sinking(&plan.small, time.delta_secs(), &seabed);
+    live.dirty_houses.extend(gone);
+}
+
+/// Poses each sinking ship's root where it has gone down to.
+fn pose_sinking(plan: Res<Plan>, live: Res<Live>, houses: Res<Houses>, mut roots: Query<&mut Transform>) {
+    for (&lot, st) in &live.structures.houses.states {
+        if st.sinking.is_none() {
+            continue;
+        }
+        let (Some(&root), Some(m)) = (houses.roots.get(lot as usize), live.structures.houses.sink_transform(&plan.small, lot)) else {
+            continue;
+        };
+        if let Ok(mut t) = roots.get_mut(root) {
+            let base = lot_transform(&plan.small.lots[lot as usize]).to_matrix();
+            *t = Transform::from_matrix(base * Mat4::from(m));
+        }
+    }
+}
+
 fn lot_transform(l: &Lot) -> Transform {
     Transform::from_translation(Vec3::new(l.centre.x, l.ground_m, l.centre.y)).with_rotation(Quat::from_rotation_y(l.heading_rad))
+}
+
+/// How far a site's kit reaches from its origin (x, z), so its LOD distances, measured from the origin, are the
+/// houses' measured from its edge; a house's is none.
+fn reach_of(kit: &cb_core::world::small_buildings::Kit) -> f32 {
+    if !kit.kind.is_site() {
+        return 0.0;
+    }
+    [kit.lo, kit.hi, Vec3::new(kit.lo.x, 0.0, kit.hi.z), Vec3::new(kit.hi.x, 0.0, kit.lo.z)]
+        .iter()
+        .map(|c| Vec2::new(c.x, c.z).length())
+        .fold(0.0, f32::max)
+}
+
+/// A visibility range from `start` to `end` past `reach` (`reach_of`).
+fn range_past(start: f32, end: f32, reach: f32) -> VisibilityRange {
+    if reach <= 0.0 {
+        return range(start, end);
+    }
+    let r = range(start, end);
+    VisibilityRange {
+        start_margin: if start > 0.0 {
+            (r.start_margin.start + reach)..(r.start_margin.end + reach)
+        } else {
+            0.0..0.0
+        },
+        end_margin: (r.end_margin.start + reach)..(r.end_margin.end + reach),
+        use_aabb: false,
+    }
 }
 
 fn range(start: f32, end: f32) -> VisibilityRange {
@@ -509,13 +611,24 @@ fn spawn_lots(mut commands: Commands, plan: Res<Plan>, kits: Res<HouseKits>, mut
         return;
     }
     let _t = crate::perf_hud::slow("small buildings: spawn");
+    // Each site's ground, in its frame (airport-layout, seaport-layout).
+    for (site, prims) in plan.sites.iter().zip(&kits.grounds) {
+        let at = Transform::from_translation(Vec3::new(site.origin.x, site.ground_m, site.origin.y))
+            .with_rotation(Quat::from_rotation_y(site.heading_rad()));
+        commands.spawn((at, Visibility::Visible)).with_children(|c| {
+            for (mesh, m) in prims {
+                c.spawn((Mesh3d(mesh.clone()), MeshMaterial3d(m.clone()), Transform::IDENTITY));
+            }
+        });
+    }
     for l in &plan.small.lots {
         let draw = &kits.kits[l.kit as usize];
+        let reach = reach_of(&plan.small.kits.kits[l.kit as usize]);
         let mut far = Vec::new();
         let root = commands
             .spawn((lot_transform(l), Visibility::Visible))
             .with_children(|c| {
-                for (prims, r) in [(&draw.lod1, range(LOD0_M, LOD1_M)), (&draw.lod2, range(LOD1_M, LOD2_M))] {
+                for (prims, r) in [(&draw.lod1, range_past(LOD0_M, LOD1_M, reach)), (&draw.lod2, range_past(LOD1_M, LOD2_M, reach))] {
                     for p in prims {
                         let Some(m) = kits.plain.get(&p.surface) else { continue };
                         let mut e = c.spawn((Mesh3d(p.mesh.clone()), MeshMaterial3d(m.clone()), Transform::IDENTITY, r.clone()));
@@ -832,6 +945,7 @@ fn dress(
         let l = &lots.lots[lot as usize];
         let kit = lots.kit(lot);
         let draw = &kits.kits[l.kit as usize];
+        let reach = reach_of(kit);
         let root = houses.roots[lot as usize];
         let mut d = Dressed {
             lod0: Vec::new(),
@@ -846,7 +960,7 @@ fn dress(
                 Mesh3d(p.mesh.clone()),
                 MeshMaterial3d(m.clone()),
                 Transform::IDENTITY,
-                range(0.0, LOD0_M),
+                range_past(0.0, LOD0_M, reach),
                 ChildOf(root),
             ));
             if NO_SHADOW.contains(&p.surface.as_str()) {
@@ -862,7 +976,7 @@ fn dress(
                 .spawn((
                     Transform::from_translation(leaf.hinge),
                     if shown { Visibility::Inherited } else { Visibility::Hidden },
-                    range(0.0, LOD0_M),
+                    range_past(0.0, LOD0_M, reach),
                     ChildOf(root),
                 ))
                 .with_children(|c| {
@@ -872,7 +986,7 @@ fn dress(
                                 Mesh3d(p.mesh.clone()),
                                 MeshMaterial3d(m.clone()),
                                 Transform::IDENTITY,
-                                range(0.0, LOD0_M),
+                                range_past(0.0, LOD0_M, reach),
                             ));
                         }
                     }

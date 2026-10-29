@@ -242,6 +242,17 @@ pub enum Zone {
     Town,
     /// A roadside stop.
     Roadside,
+    /// The airport's (`sites`): its own ground, never a pad of its own.
+    Airport,
+    /// The seaport's (`sites`).
+    Seaport,
+}
+
+impl Zone {
+    /// True for a site's lots, which stand on their site's ground rather than levelling their own.
+    pub fn is_site(self) -> bool {
+        matches!(self, Zone::Airport | Zone::Seaport)
+    }
 }
 
 /// One building on its lot.
@@ -296,7 +307,7 @@ impl Lot {
 }
 
 /// The footprint of a kit's bounds turned by `heading_rad` about `centre`, grown by `margin_m`.
-fn footprint(lo: Vec2, hi: Vec2, centre: Vec2, heading_rad: f32, margin_m: f32) -> Rect {
+pub(crate) fn footprint(lo: Vec2, hi: Vec2, centre: Vec2, heading_rad: f32, margin_m: f32) -> Rect {
     let (s, c) = heading_rad.sin_cos();
     let mut min = Vec2::splat(f32::MAX);
     let mut max = Vec2::splat(f32::MIN);
@@ -365,7 +376,7 @@ impl Lots {
     /// The pads the ground is levelled to: each lot's footprint and height (`Flats::with_pads` grows them by
     /// a terrain cell, so the ground's lattice is flat right across the footprint; the nearest pad wins).
     pub fn pads(&self) -> Vec<(Rect, f32)> {
-        self.lots.iter().map(|l| (l.rect, l.ground_m)).collect()
+        self.lots.iter().filter(|l| !l.zone.is_site()).map(|l| (l.rect, l.ground_m)).collect()
     }
 }
 
@@ -904,6 +915,8 @@ fn reach_the_highway(placer: &mut Placer, id: usize) -> bool {
                 Some(d) => placer.slabs.extend(d),
                 None => return false,
             },
+            // A site lays out its own paving; its kits are never placed here.
+            Access::Site => return true,
             Access::Lot { z_m, stalls } => {
                 let (x0, x1, front) = (k.lo.x, k.hi.x, k.hi.z);
                 let far = front + cfg.parking_depth_m;

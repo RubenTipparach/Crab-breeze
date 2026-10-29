@@ -65,6 +65,20 @@ sizes in `data/world/ships.ron` under a new `port:` section, checked on load; `c
 and crane a breakable kit set. The harbour traffic moors at its own berths (task 1.2). The ground and the seabed inside
 the port's footprint are shaped to it (SP2): quays and breakwaters stand on the seabed, the dry dock is cut into the land.
 
+## 3b. The game build (2026-10-29, owner: "Dope, implement all that")
+
+As the airport (`airport-layout` section 7): `tools/buildings/export_sites.cjs` runs the approved page and writes
+`assets/models/sites/seaport/`: 69 kits for 101 placements (the ships among them, built on the kit as the page builds
+them), the breakwaters, quays and paint as `ground.glb`, the quays as solids, and the pads the port shapes the ground
+to: its land at the deck (2.5 m) round the dry dock, the dock's floor (-11 m), and the basin's seabed (-14 m) inside the
+breakwaters (SP2). `cb_core::world::sites::place_seaport` walks out from each city, largest first, at 32 bearings to
+the first water, turns the port the quarter turn nearest the way out and slides it along the shore; it keeps the place
+whose land is most dry land (at least 70%, at most 30 m over the sea) and whose basin most open water (at least 60%),
+clear of the cities, the bases, the airport, the highways and the rivers (SP1: the full port at the largest coastal
+city that fits). Every placement is a lot of the `Seaport` zone, drawn and broken as a house; a quay is stood on from
+its deck and is a wall from the water (`Scene::support_at`, `push_out_at`), and stops a shot (`WorldPlan::solid_at`).
+The ships lie in the port as lots for now; sinking them in the game (section 2) is task 2.4.
+
 ## 4. Cost
 
 Per full port, as the mockup draws it: about 18 000 breakable pieces in 30 merged draws (one a material), about 579 000

@@ -78,6 +78,9 @@ pub struct Harbour {
     pub office: Footprint,
     /// The office's terminal (x, z).
     pub terminal: Vec2,
+    /// True for the seaport (openspec change `seaport-layout`): its quays, buildings and cranes are the site's, so the
+    /// harbour draws none of its own and its decks are the site's solids.
+    pub port: bool,
 }
 
 impl Harbour {
@@ -96,9 +99,58 @@ impl Harbour {
         self.anchorage + self.side() * ((k as f32 - (n as f32 - 1.0) * 0.5) * 300.0)
     }
 
-    /// The walkable tops of the quay: the apron, the pier and the head, all at the deck's height.
-    pub fn decks(&self) -> [Footprint; 3] {
-        [self.apron, self.pier, self.head]
+    /// The walkable tops of the quay: the apron, the pier and the head, all at the deck's height (none for the
+    /// seaport, whose quays are its site's solids).
+    pub fn decks(&self) -> Vec<Footprint> {
+        if self.port {
+            return Vec::new();
+        }
+        vec![self.apron, self.pier, self.head]
+    }
+
+    /// The harbour the seaport is (openspec change `seaport-layout` section 3b): its berth, mouth and terminal the
+    /// site's marks, its office the site's harbour office, its deck the site's quay deck; it draws nothing of its own.
+    pub fn of_port(site: &crate::world::sites::PlacedSite, kits: &crate::world::small_buildings::Kits, cfg: &HarbourConfig) -> Option<Self> {
+        let out = site.out();
+        let side = out.perp();
+        let (berth, mouth, terminal) = (site.mark("berth")?, site.mark("mouth")?, site.mark("terminal")?);
+        let office = site
+            .template
+            .placements
+            .iter()
+            .find(|p| kits.kits[p.kit].id == "harbour_office")
+            .map(|p| {
+                let k = &kits.kits[p.kit];
+                let c = Vec2::new((k.lo.x + k.hi.x) * 0.5, (k.lo.z + k.hi.z) * 0.5);
+                Footprint {
+                    centre: site.to_world(p.at + c),
+                    along: side,
+                    half: Vec2::new((k.hi.x - k.lo.x) * 0.5, (k.hi.z - k.lo.z) * 0.5),
+                }
+            })?;
+        let none = Footprint {
+            centre: site.origin,
+            along: side,
+            half: Vec2::ZERO,
+        };
+        Some(Self {
+            id: 0,
+            city: site.city,
+            out,
+            shore: site.origin,
+            berth,
+            mouth,
+            anchorage: mouth + out * cfg.anchorage_m,
+            deck_y: site.ground_m + cfg.deck_m,
+            apron: none,
+            pier: none,
+            head: none,
+            cranes: Vec::new(),
+            warehouses: Vec::new(),
+            office,
+            terminal,
+            port: true,
+        })
     }
 }
 
@@ -112,6 +164,17 @@ pub struct Sites<'a> {
     pub road_dist: &'a dyn Fn(Vec2) -> f32,
     /// What is built keeps this far from a highway's centre line, metres.
     pub road_m: f32,
+    /// The seaports' harbours (`Harbour::of_port`): placed first, and their cities get no other.
+    pub ports: Vec<Harbour>,
+}
+
+/// The seaports of `plan` as harbours.
+pub fn ports_of(plan: &WorldPlan, cfg: &HarbourConfig) -> Vec<Harbour> {
+    plan.sites
+        .iter()
+        .filter(|s| s.template.kind == crate::world::sites::SiteKind::Seaport)
+        .filter_map(|s| Harbour::of_port(s, &plan.small.kits, cfg))
+        .collect()
 }
 
 /// Bearings tried round a city.
@@ -129,6 +192,7 @@ pub fn place_in(plan: &WorldPlan, cfg: &HarbourConfig, road_m: f32) -> Vec<Harbo
         bases: plan.bases.iter().map(|b| b.rect()).collect(),
         road_dist: &road_dist,
         road_m,
+        ports: ports_of(plan, cfg),
     };
     let sea = Sea {
         ground: plan,
@@ -141,9 +205,17 @@ pub fn place_in(plan: &WorldPlan, cfg: &HarbourConfig, road_m: f32) -> Vec<Harbo
 /// already placed, until `most` stand.
 pub fn place(sites: &Sites, sea: &Sea, cfg: &HarbourConfig) -> Vec<Harbour> {
     let mut out: Vec<Harbour> = Vec::new();
+    for p in &sites.ports {
+        if out.len() < cfg.most {
+            out.push(Harbour { id: out.len() as u32, ..p.clone() });
+        }
+    }
     for &(city, rect) in &sites.cities {
         if out.len() >= cfg.most {
             break;
+        }
+        if sites.ports.iter().any(|p| p.city == city) {
+            continue;
         }
         let Some(h) = best_bearing(city, &rect, sites, sea, cfg) else {
             continue;
@@ -295,6 +367,7 @@ fn lay_out(city: u32, shore: Vec2, out: Vec2, pier_m: f32, sea: &Sea, cfg: &Harb
         warehouses,
         office,
         terminal,
+        port: false,
     }
 }
 
@@ -365,6 +438,7 @@ pub(crate) mod tests {
             bases: vec![],
             road_dist: &|_| f32::INFINITY,
             road_m: 0.0,
+            ports: Vec::new(),
         }
     }
 

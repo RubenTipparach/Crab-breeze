@@ -218,6 +218,8 @@ const E = BuildingEngine({ THREE: T, K: window.SmallBuildings, scene, ground: gr
 // overrides the building's own (base: where its ground floor stands, else y; anchorBuilt; collapse).
 function put(name, draw, x = 0, z = 0, turn = 0, y = DECK, info = {}) {
   const B = new SmallBuildings.Builder(); draw(B);
+  // tools/buildings/export_sites.cjs runs this page's layout to write the game's kits: it takes each building here.
+  if (window.SITE_EXPORT) return window.SITE_EXPORT.put(name, B, { x, y, z, turn }, Object.assign({ base: y }, info));
   const id = E.building(Object.assign({ name, base: y }, info)); E.add(B, { x, y, z, turn, bld: id }); return id;
 }
 // A ship is a hollow hull: once holed at or under its waterline (a piece reaching below 1.5 m over the water) it goes down at once, whole, slowly for its size, and
@@ -238,15 +240,16 @@ function mound(g, p, q, seaLeft) {
   put("Crown wall", B => { B.color(0xa7a49b); S.run(B, "concrete", Math.min(a[0], b[0]) - 1.5, 6, Math.min(a[1], b[1]) - 1.5, Math.max(a[0], b[0]) + 1.5, 9, Math.max(a[1], b[1]) + 1.5, 10); }, 0, 0, 0, 0, { base: 6 });
 }
 function land(g, dock) {
-  const L = (x0, z0, x1, z1) => box(g, [x0, BED, z0], [x1, DECK, z1], M.ground, false);
+  // The land, the seabed and the water are the game's own terrain and sea: tools/buildings/export_sites.cjs skips them.
+  const L = (x0, z0, x1, z1) => { box(g, [x0, BED, z0], [x1, DECK, z1], M.ground, false); g.children[g.children.length - 1].userData.skip = true; };
   if (dock) { L(-8000, -8000, DOCK.x0, 0); L(DOCK.x1, -8000, 8000, 0); L(DOCK.x0, -8000, DOCK.x1, DOCK.z0); }
   else L(-8000, -8000, 8000, 0);
-  const bed = new T.Mesh(new T.PlaneGeometry(16000, 16000), M.bed); bed.rotation.x = -PI / 2; bed.position.set(0, BED, 0); bed.receiveShadow = true; g.add(bed);
+  const bed = new T.Mesh(new T.PlaneGeometry(16000, 16000), M.bed); bed.rotation.x = -PI / 2; bed.position.set(0, BED, 0); bed.receiveShadow = true; bed.userData.skip = true; g.add(bed);
   // the water, with the dry dock left out of it (pumped dry)
   const W = 8000, sh = new T.Shape([new T.Vector2(-W, -W), new T.Vector2(W, -W), new T.Vector2(W, W), new T.Vector2(-W, W)]);
   if (dock) sh.holes.push(new T.Path([new T.Vector2(DOCK.x0, 0), new T.Vector2(DOCK.x1, 0), new T.Vector2(DOCK.x1, -DOCK.z0), new T.Vector2(DOCK.x0, -DOCK.z0)]));
   const water = new T.Mesh(new T.ShapeGeometry(sh), M.water); water.rotation.x = -PI / 2; water.position.y = TOP.water; water.receiveShadow = true;
-  water.renderOrder = 1; g.add(water);
+  water.renderOrder = 1; water.userData.skip = true; g.add(water);
 }
 // A quay: reclaimed ground out to its wall, from the seabed to the deck, with fenders and bollards along its sea faces.
 function quay(g, x0, z0, x1, z1, faces = "s") {
@@ -339,6 +342,13 @@ function tankFarm(g, labels) {
 // ---------------------------------------------------------------- the proposed port
 function buildProposed(g, labels) {
   land(g, true);
+  // The game shapes its own ground to the port (survey SP2, inside the port's footprint): tools/buildings/export_sites.cjs
+  // writes these pads, [x0, z0, x1, z1, y], into the site's table. The land at the deck round the dry dock, the dock's
+  // floor, and the basin's seabed inside the breakwaters.
+  if (window.SITE_EXPORT) window.SITE_EXPORT.pads = [
+    [-1005, -280, DOCK.x0, 0, DECK], [DOCK.x1, -280, 1005, 0, DECK], [DOCK.x0, -280, DOCK.x1, DOCK.z0, DECK],
+    [DOCK.x0, DOCK.z0, DOCK.x1, 0, DOCK.floor], [-1000, 0, 1000, HEAD_Z, BED],
+  ];
   const rnd = K.mulberry(1985);
   // ---- shelter: the breakwaters, their lights, the channel and its buoys, the leading lights
   mound(g, [-1000, -10], [-1000, HEAD_Z], false); mound(g, [-1000, HEAD_Z], [ENTRANCE[0], HEAD_Z], false);
@@ -387,6 +397,10 @@ function buildProposed(g, labels) {
   // ---- the harbour office (the jobs terminal, as today), port control, the pilot station and the tugs
   quay(g, -40, 0, 120, 100, "s");
   shed(g, "Harbour office", 10, 20, 26, 32, 9, M.brick, labels, "Harbour office, jobs terminal");
+  // What the game's harbour traffic and jobs read off the port (tools/buildings/export_sites.cjs writes these into the
+  // site's table): the terminal 3 m out from the office's front, the free length of the container quay's face where a
+  // timetabled ship comes alongside, and the entrance between the breakwater heads where ships turn in.
+  if (window.SITE_EXPORT) window.SITE_EXPORT.marks = { terminal: [18, 35], berth: [-510, 160], mouth: [(ENTRANCE[0] + ENTRANCE[1]) / 2, HEAD_Z] };
   put("Port control tower", B => S.baseTower(B, E.M, { h: 32 }), 78, 38);
   labels.push(["Port control", [78, 38], 54]);
   shed(g, "Pilot station", 96, 60, 112, 72, 6, M.white, labels, "Pilot station");

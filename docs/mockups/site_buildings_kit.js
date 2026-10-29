@@ -167,7 +167,7 @@
       for (const sx of [-0.65, 0.65]) {
         if (hash(k * 7 + lv, sx > 0 ? 3 : 1) < 0.18) continue;
         const h = 0.7 + hash(k, lv * 5 + (sx > 0 ? 2 : 0)) * 0.8, c = GOODS[Math.floor(hash(k + lv, sx * 10) * GOODS.length)];
-        it.push(['wood', sx - 0.55, y, -0.45, sx + 0.55, y + 0.14, 0.45, 0x9a7a52], ['board', sx - 0.52, y + 0.14, -0.42, sx + 0.52, y + 0.14 + h, 0.42, c]);
+        it.push(['wood', sx - 0.55, y, -0.45, sx + 0.55, y + 0.14, 0.45, 0x9a7a52], ['product', sx - 0.52, y + 0.14, -0.42, sx + 0.52, y + 0.14 + h, 0.42, c]);
       }
     }
     return it;
@@ -178,7 +178,7 @@
     ['metal', -0.55, 1.2, -0.7, -0.5, 2.3, -0.65, 0x3a3a3a], ['metal', 0.5, 1.2, -0.7, 0.55, 2.3, -0.65, 0x3a3a3a], ['metal', -0.55, 1.2, 0.55, -0.5, 2.3, 0.6, 0x3a3a3a], ['metal', 0.5, 1.2, 0.55, 0.55, 2.3, 0.6, 0x3a3a3a], ['metal', -0.58, 2.3, -0.72, 0.58, 2.36, 0.62, 0x3a3a3a],
     ['rubber', -0.6, 0, 0.3, -0.45, 0.5, 0.8, 0x1c1c1c], ['rubber', 0.45, 0, 0.3, 0.6, 0.5, 0.8, 0x1c1c1c], ['rubber', -0.6, 0, -1.2, -0.45, 0.45, -0.75, 0x1c1c1c], ['rubber', 0.45, 0, -1.2, 0.6, 0.45, -0.75, 0x1c1c1c]];
   // A loaded pallet on the floor, k picks its load.
-  const pallet = (k) => { const h = 0.6 + hash(k, 9) * 1.0, c = GOODS[Math.floor(hash(k, 4) * GOODS.length)]; return [['wood', -0.6, 0, -0.5, 0.6, 0.14, 0.5, 0x9a7a52], ['board', -0.57, 0.14, -0.47, 0.57, 0.14 + h, 0.47, c]]; };
+  const pallet = (k) => { const h = 0.6 + hash(k, 9) * 1.0, c = GOODS[Math.floor(hash(k, 4) * GOODS.length)]; return [['wood', -0.6, 0, -0.5, 0.6, 0.14, 0.5, 0x9a7a52], ['product', -0.57, 0.14, -0.47, 0.57, 0.14 + h, 0.47, c]]; };
   // A fish market's stand: a table of crates on ice.
   const fishStand = () => { const it = [['metal', -1.5, 0, -0.5, 1.5, 0.85, 0.5, 0xd8dcde], ['stainless', -1.5, 0.85, -0.5, 1.5, 0.9, 0.5, 0xe8eef0]];
     for (const x of [-1.05, 0, 1.05]) it.push(['paint', x - 0.45, 0.9, -0.35, x + 0.45, 1.15, 0.35, 0x2f6f9f], ['paint', x - 0.4, 1.12, -0.3, x + 0.4, 1.16, 0.3, 0xd8e6ea]); return it; };
@@ -245,7 +245,7 @@
       place(B, x, u, z1 - 4, 2, FURN.counter(0xc23b30)); place(B, x + 4, u, z1 - 4, 2, FURN.cooler());
       for (let k = 0; k < 2; k++) place(B, x + 2, u, z1 - 9 - k * 1.6, 0, FURN.aisle(() => hash(x | 0, k + 3)));
     }
-    for (let x = x0 + 10; x < x1 - 10; x += 40) place(B, x, u, (z0 + z1) / 2, 0, [['metal', -0.1, 0, -0.1, 0.1, 2.4, 0.1, 0x3a3a3a], ['metal', -1.5, 2.4, -0.15, 1.5, 3.4, 0.15, 0x1c1c1c], ['screen', -1.4, 2.5, 0.15, 1.4, 3.3, 0.16, 0xf2c02a]]);
+    for (let x = x0 + 10; x < x1 - 10; x += 40) place(B, x, u, (z0 + z1) / 2, 0, [['metal', -0.1, 0, -0.1, 0.1, 2.4, 0.1, 0x3a3a3a], ['metal', -1.5, 2.4, -0.15, 1.5, 3.4, 0.15, 0x1c1c1c], ['lamp', -1.4, 2.5, 0.15, 1.4, 3.3, 0.16, 0xf2c02a]]);
   }
   // An office building's floors fitted out by its use (owner, 2026-10-29: "jobs and customs are empty", "port control
   // pilot station too"). Ground floor (door to +z): 'jobs' the jobs terminal (a counter, notice boards, benches),

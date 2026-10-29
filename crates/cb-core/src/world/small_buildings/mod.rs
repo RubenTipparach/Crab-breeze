@@ -52,9 +52,11 @@ mod tests {
     fn lots_keep_clear_of_water_roads_and_each_other() {
         let plan = island();
         let lots = &plan.small.lots;
-        for (i, a) in lots.iter().enumerate() {
+        // A site's buildings stand on its own ground, beside each other (a jet bridge at its terminal) and over its
+        // water (a jetty, a ship): `the_island_has_an_airport_and_a_seaport` checks them.
+        for (i, a) in lots.iter().enumerate().filter(|(_, l)| !l.zone.is_site()) {
             for j in plan.small.candidates(a.rect.centre(), a.rect.size().max_element()) {
-                if j as usize != i {
+                if j as usize != i && !lots[j as usize].zone.is_site() {
                     assert!(!a.rect.overlaps(&lots[j as usize].rect), "lots {i} and {j} overlap");
                 }
             }
@@ -69,7 +71,7 @@ mod tests {
     #[test]
     fn every_lot_is_flat() {
         let plan = island();
-        for (i, l) in plan.small.lots.iter().enumerate() {
+        for (i, l) in plan.small.lots.iter().enumerate().filter(|(_, l)| !l.zone.is_site()) {
             let kit = plan.small.kit(i as u32);
             for (x, z) in [
                 (kit.lo.x, kit.lo.z),
@@ -86,7 +88,7 @@ mod tests {
                     .small
                     .candidates(p, 20.0)
                     .into_iter()
-                    .filter(|&j| j as usize != i)
+                    .filter(|&j| j as usize != i && !plan.small.lots[j as usize].zone.is_site())
                     .map(|j| {
                         (
                             j,
@@ -102,6 +104,41 @@ mod tests {
                     kit.id,
                     l.ground_m
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn the_island_has_an_airport_and_a_seaport() {
+        let plan = island();
+        let kinds: Vec<_> = plan.sites.iter().map(|s| s.template.kind).collect();
+        eprintln!(
+            "sites: {:?}",
+            plan.sites.iter().map(|s| (s.template.kind, s.origin, s.turn, s.ground_m, s.city)).collect::<Vec<_>>()
+        );
+        assert!(kinds.contains(&crate::world::sites::SiteKind::Airport), "an airport: {kinds:?}");
+        assert!(kinds.contains(&crate::world::sites::SiteKind::Seaport), "a seaport: {kinds:?}");
+        for s in &plan.sites {
+            // Every building of the site is a lot of its zone.
+            let zone = match s.template.kind {
+                crate::world::sites::SiteKind::Airport => Zone::Airport,
+                crate::world::sites::SiteKind::Seaport => Zone::Seaport,
+            };
+            let n = plan.small.lots.iter().filter(|l| l.zone == zone).count();
+            assert_eq!(n, s.template.placements.len(), "{:?}'s lots", s.template.kind);
+            // The ground is shaped to every pad: flat at its height a cell inside its edges.
+            for (r, y) in s.pads() {
+                let m = Vec2::splat(30.0);
+                let inner = crate::world::layout::Rect { min: r.min + m, max: r.max - m };
+                for p in [inner.min, inner.max, inner.centre(), Vec2::new(inner.min.x, inner.max.y)] {
+                    let h = plan.height_at(p.x, p.y);
+                    assert!((h - y).abs() < 0.3, "{:?} pad at {p}: ground {h}, pad {y}", s.template.kind);
+                }
+            }
+            // No house stands on a site.
+            let foot = s.footprint();
+            for l in plan.small.lots.iter().filter(|l| !l.zone.is_site()) {
+                assert!(!l.rect.overlaps(&foot), "a house on the {:?}", s.template.kind);
             }
         }
     }

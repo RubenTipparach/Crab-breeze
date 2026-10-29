@@ -29,6 +29,7 @@ pub mod mist;
 pub mod platform;
 pub mod roads;
 pub mod rocks;
+pub mod sites;
 pub mod small_buildings;
 pub mod structure;
 pub mod sun_shade;
@@ -88,6 +89,10 @@ const STOOP_REACH_M: f32 = 2.0;
 /// Trees push a body whose feet are no higher than this over the ground under it.
 const TREE_REACH_M: f32 = 30.0;
 
+/// A site's solid (a quay) rising more than this over a body's feet is a wall to it (a quay's face from the water); its
+/// top is stood on as a fixed platform (`cb-app::boats`).
+const SITE_STEP_M: f32 = 1.5;
+
 /// The world as it is now: the generated plan plus the ground dug since, and optionally the trees
 /// standing now (as walls). The one `Ground` the game's bodies walk on.
 pub struct Scene<'a> {
@@ -125,6 +130,25 @@ impl Scene<'_> {
         for l in self.plan.small.candidates(p, radius_m) {
             if let Some((w, _)) = i.houses.get(&l) {
                 p = small_buildings::walk::push_out(w, &self.plan.small.lots[l as usize], p, radius_m, feet_y, &i.cfg);
+            }
+        }
+        p
+    }
+
+    /// Pushes a body out of a site's solids that rise more than `SITE_STEP_M` over its feet (a quay's wall from the
+    /// water).
+    fn push_out_sites(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
+        let start = p;
+        let mut p = p;
+        for s in self.plan.sites.iter().filter(|s| s.footprint().distance(start) <= radius_m) {
+            for (lo, hi) in &s.solids {
+                if hi.y > feet_y + SITE_STEP_M && lo.y < feet_y + 12.0 {
+                    let r = Rect {
+                        min: Vec2::new(lo.x, lo.z),
+                        max: Vec2::new(hi.x, hi.z),
+                    };
+                    p = collision::push_out_of_rect(p, radius_m, &r);
+                }
             }
         }
         p
@@ -225,6 +249,7 @@ impl Ground for Scene<'_> {
     fn push_out_at(&self, p: Vec2, radius_m: f32, feet_y: f32) -> Vec2 {
         let p = self.push_out_buildings(p, radius_m, feet_y);
         let p = self.push_out_houses(p, radius_m, feet_y);
+        let p = self.push_out_sites(p, radius_m, feet_y);
         let p = rocks::push_out(&self.plan.rocks, p, radius_m, feet_y);
         // trunks stand on the ground: a body far above it (on a deck, a roof) passes over them
         match self.trees {
@@ -245,6 +270,10 @@ impl WorldPlan {
                 let bd = &self.buildings[b as usize];
                 bd.footprint.distance(q2) == 0.0 && q.y < ground + bd.height_m
             })
+            || self
+                .sites
+                .iter()
+                .any(|s| s.solids.iter().any(|(lo, hi)| q.cmpge(*lo).all() && q.cmple(*hi).all()))
     }
 
     /// The drawn road's surface at `p` (x, z), if a road is there: a city's street at the city's ground plus
@@ -420,8 +449,13 @@ pub struct WorldPlan {
     pub road_lift_m: f32,
     /// How far a city block's pavement is drawn over the city's ground, metres (`WorldConfig::kerb_height_m`).
     pub kerb_height_m: f32,
-    /// The houses and small businesses on their lots (openspec change `small-buildings`).
+    /// The houses and small businesses on their lots (openspec change `small-buildings`), and the airport's and the
+    /// seaport's buildings as lots of their own zones.
     pub small: small_buildings::Lots,
+    /// The airport and the seaport (openspec changes `airport-layout`, `seaport-layout`).
+    pub sites: Vec<sites::PlacedSite>,
+    /// How many airport candidates each placing rule turned down (`sites::Rejections`), for `cb-tools sites`.
+    pub airport_rejections: sites::Rejections,
 }
 
 impl WorldPlan {
@@ -573,7 +607,33 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         .chain(bases.iter().map(|b| (b.runway.rect(), b.ground_m)))
         .chain(bases.iter().map(|b| (b.runway.taxiway(&b.rect()), b.ground_m)))
         .collect();
-    let keep_out: Vec<layout::Rect> = plateaus.iter().map(|p| p.0).collect();
+    // The civil airport and the seaport (airport-layout, seaport-layout): their footprints keep the houses and the
+    // rivers out, and their pads shape the ground with the lots'.
+    let site_water = |lo: Vec2, hi: Vec2| drainage.water_near(lo, hi, cfg.water.river_city_clearance_m);
+    let site_clear = sites::Clear {
+        cities: &cities,
+        bases: &bases,
+        keep: &clear,
+        water_near: &site_water,
+        min_ground_m: sea_level_m + cfg.water.city_freeboard_m,
+        sea_level_m,
+    };
+    let (airport, airport_rejections) = cfg
+        .site_templates
+        .airport
+        .as_ref()
+        .map_or((None, [0; 6]), |t| sites::place_airport_counted(&shape, t, &site_clear, &cfg.sites));
+    let seaport = cfg
+        .site_templates
+        .seaport
+        .as_ref()
+        .and_then(|t| sites::place_seaport(&shape, t, &site_clear, airport.as_ref().map(|a| a.footprint()).as_ref(), &cfg.sites));
+    let placed_sites: Vec<sites::PlacedSite> = airport.into_iter().chain(seaport).collect();
+    let keep_out: Vec<layout::Rect> = plateaus
+        .iter()
+        .map(|p| p.0)
+        .chain(placed_sites.iter().map(|s| s.footprint()))
+        .collect();
     // Houses and small businesses on their lots (openspec change `small-buildings`), placed on the ground
     // as the cities and roads level it, each lot then levelled by its own pad.
     let small = {
@@ -596,11 +656,14 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
             shoulder_m: cfg.highway_width_m * 0.5 + cfg.highway_flat_margin_m,
             cell_m: cfg.terrain_cell_m,
         };
-        let placed = small_buildings::lots::place(&root.fork("small_buildings"), &cfg.small_buildings, &cfg.small_kits, &ground);
+        let mut placed = small_buildings::lots::place(&root.fork("small_buildings"), &cfg.small_buildings, &cfg.small_kits, &ground);
+        for s in &placed_sites {
+            placed.lots.extend(s.lots(&cfg.small_kits));
+        }
         small_buildings::Lots::new(cfg.small_kits.clone(), placed, cfg.world_size_m)
     };
     let flats = Flats::new(&plateaus, &highways, cfg).with_pads(
-        small.pads(),
+        small.pads().into_iter().chain(placed_sites.iter().flat_map(|s| s.pads())).collect(),
         cfg.terrain_cell_m,
         cfg.small_buildings.pad_blend_m,
         cfg.world_size_m,
@@ -690,6 +753,8 @@ pub fn generate(seed: u64, cfg: &WorldConfig) -> WorldPlan {
         road_lift_m: cfg.road_lift_m,
         kerb_height_m: cfg.kerb_height_m,
         small,
+        sites: placed_sites,
+        airport_rejections,
     }
 }
 
