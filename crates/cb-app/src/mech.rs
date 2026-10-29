@@ -61,6 +61,10 @@ pub struct MechSim {
     pub strikes_prev: cb_core::mech::Strikes,
     /// The arms' strikes at the latest step.
     pub strikes: cb_core::mech::Strikes,
+    /// Its stance at the step before, for drawing the knockdown between steps.
+    pub stance_prev: cb_core::mech::Stance,
+    /// Its stance: worn down by blows, it is knocked down when it breaks (close-combat 2b).
+    pub stance: cb_core::mech::Stance,
     /// The torso is gone: the mech is a wreck.
     pub dead: bool,
     /// It took a hit since its last step (its AI evades).
@@ -542,6 +546,8 @@ fn spawn_mech_entity(
                 close: Default::default(),
                 strikes_prev: Default::default(),
                 strikes: Default::default(),
+                stance_prev: Default::default(),
+                stance: Default::default(),
                 dead: false,
                 took_hit: false,
             },
@@ -934,15 +940,18 @@ fn drive_mech(
         let s = lerp_state(&sim.prev, &sim.curr, alpha);
         let tl = &data.0.boarding;
         let t = sim.hatch_prev.t_s + (sim.hatch.t_s - sim.hatch_prev.t_s) * alpha;
+        // Knocked down: the body carried over about its heels, its legs folded by the kneel (close-combat 2b).
+        let knock = knock_pose(&sim.stance_prev, &sim.stance, &spec.melee, alpha);
+        let (carry, carried) = knock.carry(cb_core::mech::forward(s.heading_rad), spec.melee.knockdown_heel_back_m);
         if let Ok(mut t) = transforms.get_mut(root)
             && !wrecks.contains(root)
         {
-            t.translation = s.pos;
-            t.rotation = Quat::from_rotation_y(s.heading_rad);
+            t.translation = s.pos + carried;
+            t.rotation = carry * Quat::from_rotation_y(s.heading_rad);
         }
         let Some(mut rig) = rig else { continue };
         // No legs left: it sits (mech-damage design section 2).
-        let sit_amount = if s.legs_lost == [true, true] { 1.0 } else { tl.sit_amount(t) };
+        let sit_amount = if s.legs_lost == [true, true] { 1.0 } else { tl.sit_amount(t) }.max(knock.sit);
         let p = pose(&s, &spec.gait, &rig.rest, &tl.sit, sit_amount);
         for n in &rig.hatch_nodes {
             let stage = &tl.stages[n.stage];
@@ -970,8 +979,14 @@ fn drive_mech(
             let own = rotations.iter().find(|(n, _)| *n == spec.name).map(|(_, q)| *q);
             d[i] = own.unwrap_or(inherited);
             let bind = &rig.bones[i];
-            // The kneel's arm offset is a turn in the bone's own rest axes (mech-arm-clearance).
-            if let Some((_, off)) = p.arms.iter().find(|(n, q)| *n == spec.name && *q != Quat::IDENTITY) {
+            // The kneel's arm offset is a turn in the bone's own rest axes (mech-arm-clearance), and so is a
+            // knockdown's (close-combat 2b).
+            for (_, off) in p
+                .arms
+                .iter()
+                .chain(knock.turns.iter())
+                .filter(|(n, q)| *n == spec.name && *q != Quat::IDENTITY)
+            {
                 d[i] = d[i] * bind.rest_model_rot * *off * bind.rest_model_rot.inverse();
             }
             if rig.cut[i] {
@@ -995,6 +1010,32 @@ fn drive_mech(
             }
         }
         rig.walk_local = walk_local;
+    }
+}
+
+/// The knockdown pose between two steps: the stance at each, `alpha` of the way from the first. Within one phase
+/// the angles and turns are blended; across a change of phase the later step's pose is drawn.
+fn knock_pose(
+    prev: &cb_core::mech::Stance,
+    curr: &cb_core::mech::Stance,
+    melee: &cb_core::mech::MeleeConfig,
+    alpha: f32,
+) -> cb_core::mech::KnockPose {
+    let (a, b) = (prev.pose(melee), curr.pose(melee));
+    let same = prev.knock.map(|k| k.phase) == curr.knock.map(|k| k.phase);
+    if !same || a.turns.len() != b.turns.len() {
+        return b;
+    }
+    cb_core::mech::KnockPose {
+        tilt_rad: a.tilt_rad + (b.tilt_rad - a.tilt_rad) * alpha,
+        roll_rad: a.roll_rad + (b.roll_rad - a.roll_rad) * alpha,
+        sit: a.sit + (b.sit - a.sit) * alpha,
+        turns: a
+            .turns
+            .iter()
+            .zip(&b.turns)
+            .map(|((n, qa), (_, qb))| (*n, qa.slerp(*qb, alpha)))
+            .collect(),
     }
 }
 
@@ -1354,6 +1395,23 @@ pub fn step_mech(
             MechControls::default()
         };
 
+        // Knocked down (close-combat 2b): it does not walk, turn, fire or strike until it has got up, and the
+        // breaking blow slides it back. The player's mech too: the pilot stays seated and the cabin goes over.
+        sim.stance_prev = sim.stance;
+        let slide = sim.stance.step(&cfg.melee, dt);
+        let controls = if sim.stance.down() {
+            fire = [false; 4];
+            strike = [false; 2];
+            MechControls::default()
+        } else {
+            controls
+        };
+        if sim.stance.landed {
+            let at = sim.curr.pos;
+            fx.write(Fx::new("landing_dirt", at).scaled(2.5));
+            fx.write(Fx::new("fall_dust", at + cb_core::mech::forward(sim.curr.heading_rad) * -8.0));
+        }
+
         let ground = Scene {
             plan: &plan,
             dug: &live.dug,
@@ -1368,6 +1426,8 @@ pub fn step_mech(
             let _span = crate::perf_hud::section("mech_step");
             sim.curr.step(&controls, cfg, &ground, dt);
         }
+        sim.curr.pos.x += slide.x;
+        sim.curr.pos.z += slide.y;
         // A deck guard keeps to its deck: walking out over the edge stops it there (survey H6).
         if keep_aboard && let Some(back) = cb_core::world::platform::keep_on(&live.platforms, was_at, sim.curr.pos) {
             sim.curr.pos = back;
@@ -1433,6 +1493,7 @@ pub fn step_mech(
                 to: from + dir * cfg.melee.reach_m,
                 penetration_mm: cfg.melee.penetration_mm,
                 damage: cfg.melee.damage,
+                stance: cfg.melee.strike_stance,
             });
         }
         // Guns: fire from the muzzle toward the aim point; a lost arm's gun is gone.

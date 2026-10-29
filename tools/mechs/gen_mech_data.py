@@ -262,6 +262,23 @@ MOBILITY = {
 }
 
 
+# Each mech's weight class, for how many blows break its stance (openspec change close-combat section 2b; owner,
+# 2026-10-29: "lets adjust 2,3,4 light mech, mid, heavy"). Light: the Gundam-built Picket and the lightest by mass,
+# the Ironhorse; heavy: the Foreman (heaviest by mass), the Sapper in bolt-on armour and the Mule on the heaviest
+# slabs. The arms lab (tools/mockups/gen_melee_lab.py) reads this table too.
+MECH_CLASS = dict(picket="light", ironhorse="light", harrow="mid", roustabout="mid", driller="mid",
+                  foreman="heavy", sapper="heavy", mule="heavy")
+STANCE_BREAK_BY_CLASS = dict(light=2.0, mid=3.0, heavy=4.0)
+
+
+def melee_ron(mid):
+    """The mech's `melee:` block: its stance by class; the rest inherits the code defaults."""
+    return f"""    melee: (
+        stance_break_at: {f(STANCE_BREAK_BY_CLASS[MECH_CLASS[mid]], 1)},
+    ),
+"""
+
+
 def mobility_ron(mid):
     """The mech's `jet:` and `skate:` blocks, from MOBILITY."""
     (thrust, climb, jburn, jre), (top, accel, grip, turn, sburn, sre) = MOBILITY[mid]["jet"], MOBILITY[mid]["skate"]
@@ -343,7 +360,7 @@ def mech_ron(mid, name, size, cockpit):
         smash_height_m: {f(5.0 * k)},
         cut_box_m: ({f(1.6 * k)}, {f(3.0 * k)}, {f(1.6 * k)}),
     ),
-{mobility_ron(mid)})
+{mobility_ron(mid)}{melee_ron(mid)})
 """
 
 

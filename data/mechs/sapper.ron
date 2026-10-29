@@ -67,4 +67,7 @@
         burn_s: 35.0,
         recharge_s: 12.0,
     ),
+    melee: (
+        stance_break_at: 4.0,
+    ),
 )

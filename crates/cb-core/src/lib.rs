@@ -363,6 +363,22 @@ mod tests {
             .collect()
     }
 
+    /// A roster mech's stance breaks in 2, 3 or 4 blows by its class (close-combat 2b; owner, 2026-10-29: "2,3,4
+    /// light mech, mid, heavy"): the light Picket and Ironhorse in 2, the heavy Foreman, Sapper and Mule in 4.
+    #[test]
+    fn light_mechs_fall_in_two_blows_mid_in_three_and_heavy_in_four() {
+        let mechs = roster_configs();
+        assert_eq!(mechs.len(), 8);
+        for (file, cfg) in &mechs {
+            let want = match file.trim_start_matches("mechs/").trim_end_matches(".ron") {
+                "picket" | "ironhorse" => 2.0,
+                "foreman" | "sapper" | "mule" => 4.0,
+                _ => 3.0,
+            };
+            assert_eq!(cfg.melee.stance_break_at, want, "{file}");
+        }
+    }
+
     /// Every roster mech has rockets and skates, each with stats of its own (survey C15, owner, 2026-10-26: "every
     /// mech has dash/skate, just diferent stats for them").
     #[test]

@@ -3,6 +3,7 @@
 pub mod config;
 pub mod damage;
 pub mod gait;
+pub mod knockdown;
 pub mod locomotion;
 pub mod melee;
 pub mod rig;
@@ -11,5 +12,6 @@ pub mod walk;
 pub use config::{BoxSpec, GaitConfig, JetConfig, LocomotionConfig, MechConfig, NodeSpec, RamConfig, SkateConfig};
 pub use damage::{Damage, Hit, PartKind, PartSpec, default_parts};
 pub use gait::{LegPose, LegRest, MechPose, RigRest, foot_strikes, pose, solve_leg, stance_lead_m};
+pub use knockdown::{KnockPhase, KnockPose, Knockdown, Stance, StanceHit};
 pub use locomotion::{Budget, BudgetUse, LocomotionMode, MechControls, MechState, OnWater, forward};
 pub use melee::{CloseCombat, MeleeConfig, Strikes, arm_rotations};

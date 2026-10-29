@@ -10,16 +10,15 @@ tools/mockups/mech_melee.js, posed by tools/mockups/mech_pose.js, edited on the 
 import json
 import os
 import shutil
+import sys
 
 import gen_mech_designs as designs
 
 ROOT = designs.ROOT
 SITE = os.path.join(ROOT, "output", "melee_site")
-# Each mech's weight class for its stance (owner, 2026-10-29: "2,3,4 light mech, mid, heavy"); the same table is
-# melee.stance_break_at in data/mechs/<id>.ron. Light: the Gundam-built Picket and the lightest by mass, the Ironhorse;
-# heavy: the Foreman (heaviest by mass), the bolt-on armoured Sapper and the Mule on the heaviest slabs.
-MECH_CLASS = dict(picket="light", ironhorse="light", harrow="mid", roustabout="mid", driller="mid",
-                  foreman="heavy", sapper="heavy", mule="heavy")
+# Each mech's weight class for its stance: the one table, in the mech data generator.
+sys.path.insert(0, os.path.join(ROOT, "tools", "mechs"))
+from gen_mech_data import MECH_CLASS  # noqa: E402
 
 PAGE = r"""<title>Mech Arms Lab</title>
 <meta name="claude:viewport-fit-sides" content="cover">

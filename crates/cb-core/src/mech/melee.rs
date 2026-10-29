@@ -25,6 +25,35 @@ pub struct MeleeConfig {
     pub penetration_mm: f32,
     /// Structure points it takes from a part it beats.
     pub damage: f32,
+    /// How much of a struck mech's stance a strike breaks, in blows (the game's one strike is the jab: 1).
+    pub strike_stance: f32,
+    /// Stance damage that breaks this mech's stance and knocks it down, in blows: light 2, mid 3, heavy 4
+    /// (close-combat 2b; owner, 2026-10-29: "2,3,4 light mech, mid, heavy").
+    pub stance_break_at: f32,
+    /// Untouched this long, the stance starts to mend.
+    pub stance_recover_delay_s: f32,
+    /// How fast it mends, blows a second.
+    pub stance_recover_per_s: f32,
+    /// The first part of the fall, a stumble back.
+    pub knockdown_stumble_s: f32,
+    /// The stumble and the fall to the ground.
+    pub knockdown_fall_s: f32,
+    /// Lying on the ground.
+    pub knockdown_down_s: f32,
+    /// Getting up through a kneel.
+    pub knockdown_getup_s: f32,
+    /// How far over it goes, radians.
+    pub knockdown_lie_rad: f32,
+    /// How far it rolls toward the side it was struck from, radians.
+    pub knockdown_roll_rad: f32,
+    /// The heel line it tips over about, this far behind its feet.
+    pub knockdown_heel_back_m: f32,
+    /// The speed the breaking blow drives it back at.
+    pub knockdown_speed_m_s: f32,
+    /// How fast that speed dies while it falls, per second.
+    pub knockdown_drag_per_s: f32,
+    /// How fast it stops skidding once it is down.
+    pub knockdown_skid_m_s2: f32,
 }
 
 impl Default for MeleeConfig {
@@ -38,6 +67,20 @@ impl Default for MeleeConfig {
             recover_s: 0.4,
             penetration_mm: 300.0,
             damage: 60.0,
+            strike_stance: 1.0,
+            stance_break_at: 3.0,
+            stance_recover_delay_s: 3.0,
+            stance_recover_per_s: 0.5,
+            knockdown_stumble_s: 0.35,
+            knockdown_fall_s: 1.0,
+            knockdown_down_s: 1.6,
+            knockdown_getup_s: 1.3,
+            knockdown_lie_rad: 1.45,
+            knockdown_roll_rad: 0.22,
+            knockdown_heel_back_m: 2.5,
+            knockdown_speed_m_s: 8.0,
+            knockdown_drag_per_s: 1.4,
+            knockdown_skid_m_s2: 9.0,
         }
     }
 }
@@ -52,8 +95,25 @@ impl Validate for MeleeConfig {
             ("melee.recover_s", self.recover_s),
             ("melee.penetration_mm", self.penetration_mm),
             ("melee.damage", self.damage),
+            ("melee.strike_stance", self.strike_stance),
+            ("melee.stance_break_at", self.stance_break_at),
+            ("melee.stance_recover_delay_s", self.stance_recover_delay_s),
+            ("melee.stance_recover_per_s", self.stance_recover_per_s),
+            ("melee.knockdown_stumble_s", self.knockdown_stumble_s),
+            ("melee.knockdown_fall_s", self.knockdown_fall_s),
+            ("melee.knockdown_down_s", self.knockdown_down_s),
+            ("melee.knockdown_getup_s", self.knockdown_getup_s),
+            ("melee.knockdown_lie_rad", self.knockdown_lie_rad),
+            ("melee.knockdown_heel_back_m", self.knockdown_heel_back_m),
+            ("melee.knockdown_speed_m_s", self.knockdown_speed_m_s),
+            ("melee.knockdown_drag_per_s", self.knockdown_drag_per_s),
+            ("melee.knockdown_skid_m_s2", self.knockdown_skid_m_s2),
         ] {
             positive(k, v)?;
+        }
+        crate::data::finite("melee.knockdown_roll_rad", self.knockdown_roll_rad)?;
+        if self.knockdown_stumble_s >= self.knockdown_fall_s {
+            return Err("melee.knockdown_stumble_s must be shorter than melee.knockdown_fall_s".into());
         }
         Ok(())
     }
