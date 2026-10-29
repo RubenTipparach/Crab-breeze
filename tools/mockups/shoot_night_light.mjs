@@ -14,11 +14,17 @@ page.on("console", m => console.log("console:", m.text()));
 page.on("pageerror", e => console.log("pageerror:", e.message));
 await page.goto("file://" + path.resolve(page_));
 await page.waitForFunction(() => window.MOCKUP_READY, null, { timeout: 240000 });
-for (const view of ["street", "close", "across", "high"]) for (const mode of ["a", "b", "c"]) {
-  await page.evaluate(([m, v]) => { window.MOCKUP.setMode(m); window.MOCKUP.setView(v); }, [mode, view]);
+// Every option with the game's glass (8 % see-through), then C again with 25 %.
+const runs = [];
+for (const view of ["street", "close", "across", "high"]) {
+  for (const mode of ["a", "b", "c"]) runs.push([view, mode, 0.92, `${view}-${mode}`]);
+  runs.push([view, "c", 0.75, `${view}-c25`]);
+}
+for (const [view, mode, glass, name] of runs) {
+  await page.evaluate(([m, v, g]) => { window.MOCKUP.setGlass(g); window.MOCKUP.setMode(m); window.MOCKUP.setView(v); }, [mode, view, glass]);
   await page.waitForTimeout(1200);
   const box = await page.locator(".stage").boundingBox();
-  await page.screenshot({ path: path.join(outDir, `${view}-${mode}.png`), clip: box, timeout: 180000 });
-  console.log("shot", view, mode);
+  await page.screenshot({ path: path.join(outDir, `${name}.png`), clip: box, timeout: 180000 });
+  console.log("shot", name);
 }
 await browser.close();

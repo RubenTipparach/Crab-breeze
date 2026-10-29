@@ -19,7 +19,23 @@ Owner: "I dont want the glass itself to glow, I want to see the room lits". So:
 
 **The glass**
 - The window glass loses its night emission (`window_light` in `building_array.wesl` and
-  `building_surface.wesl`). It stays the plain reflective, see-through glass it is by day.
+  `building_surface.wesl`). Otherwise it stays the daytime glass (`glass-reflections`): mirror-coated, tinted
+  per building, premultiplied alpha.
+- **A night reflection map** (owner, 2026-10-29: "cant we just put a night time reflectioon map on that?").
+  - Today the eye camera's one environment map is the cached day sky, only dimmed at night
+    (`day_night.rs`, `sky.intensity = day_sky_intensity * sky_light_scale`).
+  - A second cube is baked the same way (`tools/textures/gen_sky_cube.py`) from a CC0 night HDRI. Below its
+    horizon it carries the lamp-lit street's warm tone.
+  - The two cubes crossfade by the sun's height: the same curve as `sky_light_scale`, a mix uniform, two
+    texture reads a reflecting pixel.
+  - The street lamps' highlights in the glass come from the real lamp lights near the eye (N9).
+- **How much of a lit room shows through.**
+  - The day glass lets 8 % of what is behind it through (alpha 0.92), chosen so unlit interiors read dark by
+    day. At night that leaves a lit room faint.
+  - The glass's alpha follows the clock: 0.92 by day, 0.75 at night (25 % through), over the same curve.
+    Provisional, survey N12.
+  - In the mockup a lit office reads clearly at 25 % and faintly at 8 %
+    (`docs/screenshots/night-light/*-c.png` against `*-c25.png`).
 
 **What lights up**
 - What lights up is the room behind a window. A lit room has:
@@ -193,5 +209,6 @@ measured (task 4.2) before it is called a speedup.
 | --- | --- | --- | --- |
 | N9 | What lights moving things (cars, people, the mech) at night? | Keep 32 real lamps within 120 m | open (survey) |
 | N10 | Does a lit room's light spill out of its window onto the street and the facing buildings? | Yes | open (survey) |
-| N12 | A far window (past 250 m, no room geometry): an interior-mapped lit room, or the glass glowing as today? | Interior-mapped room | owner, 2026-10-29: "I dont want the glass itself to glow, I want to see the room lits" (provisional on the far tier) |
+| N12 | How much of a lit room shows through the glass at night: 8 % as by day, or 25 %? | 25 % at night | open (survey) |
+| N13 | A far window (past 250 m, no room geometry): an interior-mapped lit room, or the glass glowing as today? | Interior-mapped room | owner, 2026-10-29: "I dont want the glass itself to glow, I want to see the room lits" (provisional on the far tier) |
 | N11 | Lamp pools everywhere, seen from the air too (replaces N4's "pools only within 250 m")? | Everywhere | open (survey) |

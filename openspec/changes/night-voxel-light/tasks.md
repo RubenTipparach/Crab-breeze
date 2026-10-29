@@ -46,6 +46,7 @@ glass lighting?"). Survey N9-N11 open, built on the recommendations while open.
   vertex brightened by its distance from its room's light point when the room mesh is built (owner: "brighten
   them by distance from a point"), gated by its room slot through `WindowLights` (tests: a dark room's vertices
   get no light at any hour; the light falls with distance from the fitting; rooms of one flat switch together)
+- [ ] 3.10 A night reflection cube from a CC0 night HDRI, crossfaded with the day sky by the sun's height; the glass's alpha 0.92 by day, 0.75 at night (N12)
 - [ ] 3.8 Past 250 m the glass draws an interior-mapped room per window cell, lit by the same rule
 - [ ] 3.9 Glass is air to light in the voxels, so a room spills out of its window (test: the street in front of
   a lit room's window is lit, the street in front of a solid wall is not)

@@ -70,6 +70,10 @@ aside dd { margin: 0; }
         <button id="view-across" data-view="across">From across, 6th floor</button>
         <button id="view-high" data-view="high">From above</button>
       </div>
+      <div class="views" role="group" aria-label="Glass">
+        <button id="glass-92" data-glass="0.92">Game glass: 8 % see-through</button>
+        <button id="glass-75" data-glass="0.75">Night glass: 25 % see-through</button>
+      </div>
       <p class="note">Drag to orbit, scroll to zoom. 45 % of rooms lit (one hash per two-bay office). Dark rooms stay dark in C.</p>
     </aside>
   </div>
@@ -206,7 +210,7 @@ function bake() {
 
 // ---------- vertex colours per option ----------
 const LAMPC = [1.0, 0.55, 0.2], ROOMC = [1.0, 0.82, 0.55], MOON = [0.32, 0.38, 0.55], MOONDIR = new THREE.Vector3(-0.3, 0.8, 0.5).normalize();
-const GAIN = { lamp: 2.6, room: 3.5, pane: 0.45, roomPoint: 3.0 }, ROOM_R0 = 2.6;
+const GAIN = { lamp: 2.6, room: 3.5, pane: 0.45, roomPoint: 9.0 }, ROOM_R0 = 2.6;
 function lightAt(mode, x, y, z, n, kind) {
   const ox = x + n[0] * 0.3, oy = y + n[1] * 0.3, oz = z + n[2] * 0.3;
   const moon = Math.max(0, n[0] * MOONDIR.x + n[1] * MOONDIR.y + n[2] * MOONDIR.z) * 0.06 + 0.012;
@@ -230,7 +234,9 @@ function lightAt(mode, x, y, z, n, kind) {
   if (mode === "b") r = sample(PANE, ox, oy, oz) * GAIN.pane;
   return [0, 1, 2].map(c => MOON[c] * moon + LAMPC[c] * l + ROOMC[c] * r);
 }
-const tone = v => v / (1 + v);
+// The scene is drawn in HDR (a half-float target) and tone-mapped once at the end, as Bevy does, so the glass
+// blends over a lit room's real brightness rather than a value already squeezed to the screen's white.
+const tone = v => v;
 // The room a point is in (storey, office), or null outside tower A's offices: a dark room's own surfaces get no
 // room light, the per-room gate the game's shader applies by the room slot.
 function roomAt(x, y, z) {
@@ -239,18 +245,22 @@ function roomAt(x, y, z) {
 }
 
 function buildScene(mode) {
-  const pos = [], nor = [], col = [], gpos = [], gcol = [];
+  const pos = [], nor = [], col = [], gpos = [], gnor = [], gcol = [];
   const glowPane = [1.0, 0.85, 0.55].map(v => v * 0.9);
   for (const p of parts) {
     const isGlass = p.kind === "glass";
-    if (isGlass && mode === "c") { // clear glass: a faint, dark, see-through pane
-      pushBox(p, gpos, null, gcol, () => [0.05, 0.07, 0.09]); continue;
+    // Glass that is not glowing (every pane in C, the dark panes in A and B) is the game's glass, with
+    // `seeThrough` of what is behind it showing. Only its outer face is drawn, as a window seen from the street;
+    // a slight tint per pane makes each read as a sheet.
+    if (isGlass && (mode === "c" || !p.lit)) {
+      const tint = 0.85 + 0.3 * hash(Math.round(p.min[0] * 3), Math.round(p.min[1] * 3));
+      pushBox({ ...p, min: [p.min[0], p.min[1], p.max[2] - 0.001] }, gpos, gnor, gcol, () => [tint, tint, tint]); continue;
     }
     pushBox(p, pos, nor, col, (x, y, z, n) => {
       let e = null;
       if (p.kind === "lamphead") e = [3.5, 2.4, 1.2];
       else if (p.kind === "glass") e = p.lit ? glowPane : [0.02, 0.025, 0.03];
-      else if (p.kind === "fitting" && mode === "c" && p.lit && n[1] < 0) e = [1.6, 1.4, 1.1];
+      else if (p.kind === "fitting" && mode === "c" && p.lit && n[1] < 0) e = [8, 7, 5.5];
       if (e) return e.map(tone);
       const L = lightAt(mode, x, y, z, n, p.kind);
       return L.map((v, c) => tone(v * p.albedo[c]));
@@ -265,10 +275,46 @@ function buildScene(mode) {
     const gg = new THREE.BufferGeometry();
     gg.setAttribute("position", new THREE.Float32BufferAttribute(gpos, 3));
     gg.setAttribute("color", new THREE.Float32BufferAttribute(gcol, 3));
-    group.add(new THREE.Mesh(gg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.22, depthWrite: false })));
+    gg.setAttribute("normal", new THREE.Float32BufferAttribute(gnor, 3));
+    group.add(new THREE.Mesh(gg, GLASS));
   }
   return group;
 }
+// The game's glass (openspec/changes/glass-reflections): premultiplied alpha, so the reflection is added whole
+// and what is behind is dimmed to 1 - alpha; a coating that reflects about 30 % head on and is a mirror at
+// grazing angles, roughness near 0. At night it reflects a night map: a dark sky with the city's warm glow low
+// on the horizon and a few stars, and the lamp-lit street below the horizon; the street lamps show as highlights.
+const GLASS = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, vertexColors: true,
+  blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+  uniforms: { lamps: { value: lamps.map(([x, y, z]) => new THREE.Vector3(x, y + 0.15, z)) }, alpha: { value: 0.92 } },
+  vertexShader: `
+    varying vec3 vN; varying vec3 vW; varying vec3 vC;
+    void main() { vN = normal; vW = position; vC = color; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform vec3 lamps[8]; uniform float alpha;
+    varying vec3 vN; varying vec3 vW; varying vec3 vC;
+    float h(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453); }
+    vec3 nightMap(vec3 R) {
+      if (R.y >= 0.0) {
+        vec3 c = mix(vec3(0.075, 0.055, 0.04), vec3(0.010, 0.014, 0.028), smoothstep(0.0, 0.35, R.y));
+        vec3 q = floor(normalize(R) * 260.0);
+        if (h(q) > 0.997 && R.y > 0.15) c += vec3(0.5) * h(q + 1.0);
+        return c;
+      }
+      return mix(vec3(0.07, 0.04, 0.018), vec3(0.025, 0.016, 0.01), smoothstep(-0.05, -0.6, R.y));
+    }
+    void main() {
+      vec3 N = normalize(vN), V = normalize(cameraPosition - vW);
+      if (dot(N, V) < 0.0) N = -N;
+      float c = clamp(dot(N, V), 0.0, 1.0), F = mix(0.30, 1.0, pow(1.0 - c, 5.0));
+      vec3 R = reflect(-V, N);
+      vec3 spec = vec3(0.0);
+      for (int i = 0; i < 8; i++) spec += vec3(1.0, 0.62, 0.28) * pow(max(dot(R, normalize(lamps[i] - vW)), 0.0), 1500.0) * 5.0;
+      vec3 refl = (nightMap(R) * F + spec) * vec3(0.78, 0.86, 0.92) * vC;
+      gl_FragColor = vec4(refl, alpha);
+    }`,
+});
 function pushBox(p, pos, nor, col, colour) {
   const [a, b] = [p.min, p.max];
   const faces = [ // [axis, sign]
@@ -335,6 +381,13 @@ stage.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x05070d);
 const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.1, 500);
+const hdr = new THREE.WebGLRenderTarget(16, 16, { type: THREE.HalfFloatType, depthBuffer: true });
+const post = new THREE.Scene(), postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+post.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+  uniforms: { src: { value: hdr.texture } }, depthTest: false, depthWrite: false,
+  vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }",
+  fragmentShader: "uniform sampler2D src; varying vec2 vUv; void main() { vec3 c = max(texture2D(src, vUv).rgb, 0.0); gl_FragColor = vec4(c / (1.0 + c), 1.0); }",
+})));
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 const VIEWS = {
   street: { eye: [14, 1.7, 6.5], at: [28, 7, -8], label: "street, eye 1.7 m on the far pavement" },
@@ -366,11 +419,17 @@ function setView(v) {
   document.querySelectorAll("[data-view]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.view === v)));
   tagLine();
 }
-function tagLine() { document.getElementById("tag").textContent = `${mode.toUpperCase()} · ${VIEWS[view].label} · 22:00`; }
-function resize() { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+function tagLine() { document.getElementById("tag").textContent = `${mode.toUpperCase()} · ${VIEWS[view].label} · glass ${Math.round((1 - GLASS.uniforms.alpha.value) * 100)} % see-through · 22:00`; }
+function resize() { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false); const pr = renderer.getPixelRatio(); hdr.setSize(Math.round(w * pr), Math.round(h * pr)); camera.aspect = w / h; camera.updateProjectionMatrix(); }
 new ResizeObserver(resize).observe(stage);
 document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
 document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
+function setGlass(a) {
+  GLASS.uniforms.alpha.value = a;
+  document.querySelectorAll("[data-glass]").forEach(b => b.setAttribute("aria-pressed", String(Number(b.dataset.glass) === a)));
+  tagLine();
+}
+document.querySelectorAll("[data-glass]").forEach(b => b.addEventListener("click", () => setGlass(Number(b.dataset.glass))));
 setTimeout(() => {
   const ms = bake();
   document.getElementById("busy").hidden = true;
@@ -380,8 +439,8 @@ setTimeout(() => {
   console.log("room: floor of lit room", probe(ROOM, AX0 + 3, 3.8, -11), "street at facade", probe(ROOM, 20, 0.3, -6), "tower B face 3m", probe(ROOM, 20, 3, 7.7));
   console.log("pane: street at facade", probe(PANE, 20, 0.3, -6), "tower B face 3m", probe(PANE, 20, 3, 7.7));
   let lit = []; for (let s = 0; s < 3; s++) for (let r = 0; r < 8; r++) if (roomLit(s, r)) lit.push(s + ":" + r); console.log("lit rooms low", lit.join(" "));
-  setMode("c"); setView("street"); resize();
-  (function loop() { renderer.render(scene, camera); requestAnimationFrame(loop); })();
-  window.MOCKUP = { setMode, setView, bench }; window.MOCKUP_READY = true;
+  setGlass(0.92); setMode("c"); setView("street"); resize();
+  (function loop() { renderer.setRenderTarget(hdr); renderer.render(scene, camera); renderer.setRenderTarget(null); renderer.render(post, postCam); requestAnimationFrame(loop); })();
+  window.MOCKUP = { setMode, setView, setGlass, bench }; window.MOCKUP_READY = true;
 }, 30);
 </script>
