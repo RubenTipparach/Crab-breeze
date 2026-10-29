@@ -759,6 +759,54 @@ mod tests {
     }
 
     #[test]
+    fn a_freighter_holed_at_its_waterline_sinks_whole_breaks_on_the_way_down_and_is_gone_under_the_seabed() {
+        use super::super::small_buildings::{Houses, Lots, Placed};
+        let (kits, sites) = shipped();
+        let sea = sites.seaport.unwrap();
+        let p = sea.placements.iter().find(|p| p.ship && kits.kits[p.kit].id == "freighter").unwrap();
+        let k = kits.kits[p.kit].clone();
+        let draft = k.waterline_m.expect("a ship has its waterline");
+        // The freighter afloat on still water at y = 0 over a seabed 14 m down.
+        let lot = Lot {
+            kit: p.kit as u16,
+            centre: Vec2::ZERO,
+            ground_m: -draft,
+            heading_rad: 0.0,
+            rect: super::super::small_buildings::lots::footprint(Vec2::new(k.lo.x, k.lo.z), Vec2::new(k.hi.x, k.hi.z), Vec2::ZERO, 0.0, 0.0),
+            zone: Zone::Seaport,
+        };
+        let lots = Lots::new(Arc::new(kits), Placed { lots: vec![lot], ..Default::default() }, 4096.0);
+        let mut h = Houses::default();
+        // A shell into its side, at the waterline.
+        let side = Vec3::new(k.hi.x, 0.0, (k.lo.z + k.hi.z) * 0.5);
+        let first = h.break_sphere(&lots, 0, side, 2.0);
+        assert!(!first.pieces.is_empty());
+        assert!(h.states[&0].sinking.is_some(), "holed at the waterline, it goes down");
+        let seabed = |_: Vec2| -14.0;
+        for _ in 0..600 {
+            h.step_sinking(&lots, 1.0 / 60.0, &seabed);
+        }
+        let s = h.states[&0].sinking.unwrap();
+        assert!(s.drop_m > 1.0, "ten seconds on it has gone {} m down", s.drop_m);
+        let alive = h.alive(0).unwrap().iter().filter(|a| **a).count();
+        assert!(alive > first.pieces.len(), "it goes down whole, not in pieces");
+        // Shot as it goes down: the hit lands on the ship where it is now.
+        let deck = Vec3::new((k.lo.x + k.hi.x) * 0.5, k.hi.y * 0.5 - draft - s.drop_m, (k.lo.z + k.hi.z) * 0.5);
+        let again = h.break_sphere(&lots, 0, deck, 3.0);
+        assert!(!again.pieces.is_empty(), "a sinking ship still breaks piece by piece");
+        let mut gone = false;
+        for _ in 0..(60 * 60 * 10) {
+            let (_, g) = h.step_sinking(&lots, 1.0 / 60.0, &seabed);
+            if !g.is_empty() {
+                gone = true;
+                break;
+            }
+        }
+        assert!(gone, "under the seabed it is gone");
+        assert!(h.alive(0).unwrap().iter().all(|a| !a));
+    }
+
+    #[test]
     fn a_quarter_turn_takes_the_frame_s_z_to_the_world_s_x() {
         assert_eq!(turn_by(Vec2::Y, 1), Vec2::X);
         for t in 0..4 {
