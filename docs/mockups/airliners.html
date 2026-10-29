@@ -1,0 +1,532 @@
+<title>Airliners: Propliner, 720, TriStar</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Source of docs/mockups/airliners.html: python3 tools/mockups/gen_airliners.py inlines [{"id":"propliner","manifest":{"_":"One of the three airliners (openspec change airliner-models), built by tools/blender/build_airliners.py: written by the build, never by hand. Frame: glTF metres, +Y up, nose toward -Z, +X the right wing, origin on the fuselage's centre line half way along it. Meshes are <part>.L<level> under ZONE_* nodes or RIG_* pivots; level 0 carries the interior (int_*).","after":"Douglas DC-3","blender":"4.4.3","blueprint":"docs/reference/airliner-blueprints/douglas-c47-dc3.png","bounds_m":{"x":[-14.575,14.575],"y":[-3.38,2.45],"z":[-9.85,10.002]},"bytes":1728484,"cabin_lights":[[0.0,1.5,-4.084],[0.0,1.5,-2.02],[0.0,1.5,0.044]],"cabin_view":{"aisle":[0.23,0.865,1.46],"aisle_look":[0.23,0.615,-7.6],"deck":[-0.5,0.9,-7.15],"deck_look":[-0.5,1.0,-19.15]},"csg_steps":113,"file":"propliner.glb","gear_sequence_s":8.0,"generator":"tools/blender/build_airliners.py","id":"propliner","interior":["int_aft_wall_cabin_aft.L0","int_deck_frames_nose.L0","int_deck_panel_nose.L0","int_deck_seats_nose.L0","int_deck_wall_centre.L0","int_galleys_cabin_aft.L0","int_galleys_centre.L0","int_seat_frames_cabin_aft.L0","int_seat_frames_centre.L0","int_seats_cabin_aft.L0","int_seats_centre.L0"],"lamps":[{"at":[-14.45,0.1517,0.0254],"colour":"red","node":"LAMP_nav_left","pattern":"steady","zone":"wing_outer_l"},{"at":[14.45,0.1517,0.0254],"colour":"green","node":"LAMP_nav_right","pattern":"steady","zone":"wing_outer_r"},{"at":[-14.45,0.1517,0.6871],"colour":"white","node":"LAMP_strobe_left","pattern":"strobe","zone":"wing_outer_l"},{"at":[14.45,0.1517,0.6871],"colour":"white","node":"LAMP_strobe_right","pattern":"strobe","zone":"wing_outer_r"},{"at":[0.0,0.5161,9.9],"colour":"white","node":"LAMP_nav_tail","pattern":"steady","zone":"tail"},{"at":[0.0,1.375,-2.12],"colour":"red","node":"LAMP_beacon_top","pattern":"beacon","zone":"centre"},{"at":[0.0,-1.375,-0.12],"colour":"red","node":"LAMP_beacon_bottom","pattern":"beacon","zone":"centre"},{"at":[-5.2,-0.6532,-2.7395],"colour":"white","node":"LAMP_landing_l","pattern":"landing","zone":"wing_inner_l"},{"at":[5.2,-0.6532,-2.7395],"colour":"white","node":"LAMP_landing_r","pattern":"landing","zone":"wing_inner_r"}],"light_patterns":{"beacon":{"on_s":0.1,"period_s":1.0},"landing":{"below_agl_m":600},"steady":{},"strobe":{"flashes":2,"gap_s":0.15,"on_s":0.05,"period_s":1.2}},"lods":[{"budget_triangles":30000,"lod":0,"triangles":10103,"within_m":250},{"budget_triangles":6000,"lod":1,"triangles":3700,"within_m":1500},{"budget_triangles":2000,"lod":2,"triangles":1552,"within_m":null}],"materials":["propliner_crown","propliner_line","propliner_belly","propliner_wing","propliner_fin","propliner_nacelle","propliner_metal","propliner_dark","propliner_rubber","propliner_glass","propliner_torn","propliner_cabin_wall","propliner_seat","propliner_carpet","propliner_trim","propliner_panel","propliner_nav_red","propliner_nav_green","propliner_nav_white","propliner_beacon","propliner_strobe","propliner_landing"],"measured_m":{"height_at_rest":5.534,"length":19.852,"span":29.15},"rest_m":2.569,"rest_pitch_deg":13.69,"rig":[{"at":[-11.3,-0.1195,0.3459],"axis":[0.99076,-0.08668,-0.10433],"node":"RIG_aileron_l","range_deg":20.0,"role":"aileron","zone":"wing_outer_l"},{"at":[-4.7495,-0.616,-0.4125],"axis":[0.99194,-0.06538,-0.10849],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_l","role":"flap","zone":"wing_inner_l"},{"at":[11.3,-0.1195,0.3459],"axis":[0.99076,0.08668,0.10433],"node":"RIG_aileron_r","range_deg":20.0,"role":"aileron","zone":"wing_outer_r"},{"at":[4.7495,-0.616,-0.4125],"axis":[0.99194,0.06538,0.10849],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_r","role":"flap","zone":"wing_inner_r"},{"at":[0.0,1.7795,8.7859],"axis":[0.0,0.99916,0.04089],"node":"RIG_rudder","range_deg":25.0,"role":"rudder","zone":"tail"},{"at":[-2.1036,0.6472,8.4911],"axis":[0.99996,-0.0,0.00896],"node":"RIG_elevator_l","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[2.1036,0.6472,8.4911],"axis":[0.99996,0.0,-0.00896],"node":"RIG_elevator_r","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[-2.85,-0.8,-6.0408],"axis":[0.0,0.0,1.0],"node":"RIG_prop_1","role":"prop","rpm":1200.0,"zone":"engine_1"},{"at":[2.85,-0.8,-6.0408],"axis":[0.0,0.0,1.0],"node":"RIG_prop_2","role":"prop","rpm":1200.0,"zone":"engine_2"},{"angle_deg":90.0,"at":[-2.85,-1.25,-3.0208],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"engine_1"},{"angle_deg":90.0,"at":[2.85,-1.25,-3.0208],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"engine_2"},{"at":[-11.3,-0.1195,0.3459],"axis":[0.99076,-0.08668,-0.10433],"node":"RIG_aileron_l","range_deg":20.0,"role":"aileron","zone":"wing_outer_l"},{"at":[-4.7495,-0.616,-0.4125],"axis":[0.99194,-0.06538,-0.10849],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_l","role":"flap","zone":"wing_inner_l"},{"at":[11.3,-0.1195,0.3459],"axis":[0.99076,0.08668,0.10433],"node":"RIG_aileron_r","range_deg":20.0,"role":"aileron","zone":"wing_outer_r"},{"at":[4.7495,-0.616,-0.4125],"axis":[0.99194,0.06538,0.10849],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_r","role":"flap","zone":"wing_inner_r"},{"at":[0.0,1.7795,8.7859],"axis":[0.0,0.99916,0.04089],"node":"RIG_rudder","range_deg":25.0,"role":"rudder","zone":"tail"},{"at":[-2.1036,0.6472,8.4911],"axis":[0.99996,-0.0,0.00896],"node":"RIG_elevator_l","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[2.1036,0.6472,8.4911],"axis":[0.99996,0.0,-0.00896],"node":"RIG_elevator_r","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[-2.85,-0.8,-6.0408],"axis":[0.0,0.0,1.0],"node":"RIG_prop_1","role":"prop","rpm":1200.0,"zone":"engine_1"},{"at":[2.85,-0.8,-6.0408],"axis":[0.0,0.0,1.0],"node":"RIG_prop_2","role":"prop","rpm":1200.0,"zone":"engine_2"},{"angle_deg":90.0,"at":[-2.85,-1.25,-3.0208],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"engine_1"},{"angle_deg":90.0,"at":[2.85,-1.25,-3.0208],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"engine_2"},{"at":[-2.85,-0.8,-6.0408],"axis":[0.0,0.0,1.0],"node":"RIG_prop_1","role":"prop","rpm":1200.0,"zone":"engine_1"},{"at":[2.85,-0.8,-6.0408],"axis":[0.0,0.0,1.0],"node":"RIG_prop_2","role":"prop","rpm":1200.0,"zone":"engine_2"},{"angle_deg":90.0,"at":[-2.85,-1.25,-3.0208],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"engine_1"},{"angle_deg":90.0,"at":[2.85,-1.25,-3.0208],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"engine_2"}],"seats":21,"sha256":"01c5661a5e5cb9db26869bf41126c9ae20d0ccb2a38d445b805deaf10c7fd8fe","size_m":{"fuselage":2.35,"height":5.16,"length":19.7,"span":29.0},"zones":[{"capsules":[{"a":[-0.0,0.176,-4.839],"b":[-0.0,-0.037,-1.03],"radius_m":1.417}],"name":"centre","node":"ZONE_centre","parent":null,"share":0.3},{"capsules":[{"a":[0.002,-0.169,-8.619],"b":[0.003,-0.06,-7.324],"radius_m":1.229}],"name":"nose","node":"ZONE_nose","parent":"centre","share":0.1},{"capsules":[{"a":[-0.002,-0.118,0.899],"b":[-0.005,-0.128,2.087],"radius_m":1.319}],"name":"cabin_aft","node":"ZONE_cabin_aft","parent":"centre","share":0.15},{"capsules":[{"a":[1.974,0.083,5.466],"b":[1.975,0.48,7.758],"radius_m":2.225},{"a":[-1.977,0.024,5.439],"b":[-1.975,0.431,7.796],"radius_m":2.18}],"name":"tail","node":"ZONE_tail","parent":"cabin_aft","share":0.12},{"capsules":[{"a":[-7.51,-0.425,1.205],"b":[-1.362,-0.844,-0.24],"radius_m":0.663},{"a":[-8.094,-0.366,-0.066],"b":[-1.495,-0.816,-1.618],"radius_m":0.677},{"a":[-8.037,-0.405,-1.489],"b":[-1.339,-0.862,-3.064],"radius_m":0.66}],"name":"wing_inner_l","node":"ZONE_wing_inner_l","parent":"centre","share":0.14},{"capsules":[{"a":[-14.086,0.119,0.994],"b":[-8.992,-0.309,0.358],"radius_m":0.421},{"a":[-14.248,0.189,0.131],"b":[-8.885,-0.262,-0.538],"radius_m":0.302},{"a":[-14.12,0.118,-0.769],"b":[-8.976,-0.314,-1.411],"radius_m":0.433}],"name":"wing_outer_l","node":"ZONE_wing_outer_l","parent":"wing_inner_l","share":0.08},{"capsules":[{"a":[7.51,-0.425,1.205],"b":[1.362,-0.844,-0.24],"radius_m":0.663},{"a":[8.094,-0.366,-0.066],"b":[1.495,-0.816,-1.618],"radius_m":0.677},{"a":[8.032,-0.407,-1.49],"b":[1.344,-0.863,-3.062],"radius_m":0.665}],"name":"wing_inner_r","node":"ZONE_wing_inner_r","parent":"centre","share":0.14},{"capsules":[{"a":[14.101,0.119,0.958],"b":[8.982,-0.307,0.354],"radius_m":0.41},{"a":[14.301,0.191,0.1],"b":[8.848,-0.263,-0.544],"radius_m":0.265},{"a":[14.12,0.131,-0.806],"b":[8.978,-0.297,-1.413],"radius_m":0.434}],"name":"wing_outer_r","node":"ZONE_wing_outer_r","parent":"wing_inner_r","share":0.08},{"capsules":[{"a":[-2.85,-1.967,-1.667],"b":[-2.85,-1.14,-5.021],"radius_m":1.611}],"name":"engine_1","node":"ZONE_engine_1","parent":"wing_inner_l","share":0.06},{"capsules":[{"a":[2.85,-1.967,-1.667],"b":[2.85,-1.14,-5.021],"radius_m":1.611}],"name":"engine_2","node":"ZONE_engine_2","parent":"wing_inner_r","share":0.06}]},"url":"airliners/propliner.gltf.json"},{"id":"airliner","manifest":{"_":"One of the three airliners (openspec change airliner-models), built by tools/blender/build_airliners.py: written by the build, never by hand. Frame: glTF metres, +Y up, nose toward -Z, +X the right wing, origin on the fuselage's centre line half way along it. Meshes are <part>.L<level> under ZONE_* nodes or RIG_* pivots; level 0 carries the interior (int_*).","after":"Boeing 720","blender":"4.4.3","blueprint":"docs/reference/airliner-blueprints/boeing-720.png","bounds_m":{"x":[-20.025,20.025],"y":[-3.571,8.9],"z":[-20.65,20.802]},"bytes":2480428,"cabin_lights":[[0.0,1.4,-11.152],[0.0,1.4,-3.76],[0.0,1.4,3.632]],"cabin_view":{"aisle":[0.0,1.05,6.38],"aisle_look":[0.0,0.8,-16.0],"deck":[-0.5,0.8,-17.8],"deck_look":[-0.5,0.9,-29.8]},"csg_steps":151,"file":"airliner.glb","gear_sequence_s":8.0,"generator":"tools/blender/build_airliners.py","id":"airliner","interior":["int_aft_wall_cabin_aft.L0","int_bins_cabin_aft.L0","int_bins_cabin_fwd.L0","int_bins_centre.L0","int_deck_frames_nose.L0","int_deck_panel_nose.L0","int_deck_seats_nose.L0","int_deck_wall_cabin_fwd.L0","int_galleys_cabin_aft.L0","int_galleys_cabin_fwd.L0","int_seat_frames_cabin_aft.L0","int_seat_frames_cabin_fwd.L0","int_seat_frames_centre.L0","int_seats_cabin_aft.L0","int_seats_cabin_fwd.L0","int_seats_centre.L0"],"lamps":[{"at":[-19.9,0.934,9.3072],"colour":"red","node":"LAMP_nav_left","pattern":"steady","zone":"wing_outer_l"},{"at":[19.9,0.934,9.3072],"colour":"green","node":"LAMP_nav_right","pattern":"steady","zone":"wing_outer_r"},{"at":[-19.9,0.934,10.3559],"colour":"white","node":"LAMP_strobe_left","pattern":"strobe","zone":"wing_outer_l"},{"at":[19.9,0.934,10.3559],"colour":"white","node":"LAMP_strobe_right","pattern":"strobe","zone":"wing_outer_r"},{"at":[0.0,1.0928,20.7],"colour":"white","node":"LAMP_nav_tail","pattern":"steady","zone":"tail"},{"at":[0.0,2.15,-1.85],"colour":"red","node":"LAMP_beacon_top","pattern":"beacon","zone":"centre"},{"at":[0.0,-2.15,0.15],"colour":"red","node":"LAMP_beacon_bottom","pattern":"beacon","zone":"centre"},{"at":[0.0,1.2428,20.67],"colour":"white","node":"LAMP_strobe_tail","pattern":"strobe","zone":"tail"},{"at":[-2.4351,-1.2043,-4.465],"colour":"white","node":"LAMP_landing_l","pattern":"landing","zone":"wing_inner_l"},{"at":[2.4351,-1.2043,-4.465],"colour":"white","node":"LAMP_landing_r","pattern":"landing","zone":"wing_inner_r"}],"light_patterns":{"beacon":{"on_s":0.1,"period_s":1.0},"landing":{"below_agl_m":600},"steady":{},"strobe":{"flashes":2,"gap_s":0.15,"on_s":0.05,"period_s":1.2}},"lods":[{"budget_triangles":60000,"lod":0,"triangles":20644,"within_m":250},{"budget_triangles":10000,"lod":1,"triangles":5642,"within_m":1500},{"budget_triangles":2500,"lod":2,"triangles":2468,"within_m":null}],"materials":["airliner_crown","airliner_line","airliner_belly","airliner_wing","airliner_fin","airliner_nacelle","airliner_metal","airliner_dark","airliner_rubber","airliner_glass","airliner_torn","airliner_cabin_wall","airliner_seat","airliner_carpet","airliner_trim","airliner_panel","airliner_nav_red","airliner_nav_green","airliner_nav_white","airliner_beacon","airliner_strobe","airliner_landing"],"measured_m":{"height_at_rest":12.471,"length":41.452,"span":40.05},"rest_m":3.571,"rest_pitch_deg":0.0,"rig":[{"angle_deg":-85.0,"at":[-0.45,-1.956,-17.175],"axis":[0.0,0.0,1.0],"keys":[[0.0,1.0],[0.8,1.0],[1.0,0.0]],"node":"RIG_door_nose_l","role":"gear_door","zone":"nose"},{"angle_deg":85.0,"at":[0.45,-1.956,-17.175],"axis":[0.0,0.0,1.0],"keys":[[0.0,1.0],[0.8,1.0],[1.0,0.0]],"node":"RIG_door_nose_r","role":"gear_door","zone":"nose"},{"angle_deg":85.0,"at":[-0.45,-1.7072,0.0593],"axis":[0.0,0.0,1.0],"keys":[[0.0,1.0],[0.8,1.0],[1.0,0.0]],"node":"RIG_door_main_l","role":"gear_door","zone":"centre"},{"at":[-14.475,0.274,7.5989],"axis":[0.88709,-0.10892,-0.44857],"node":"RIG_aileron_l","range_deg":20.0,"role":"aileron","zone":"wing_outer_l"},{"at":[-5.4926,-0.8218,3.322],"axis":[0.91843,-0.11102,-0.37969],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_l","role":"flap","zone":"wing_inner_l"},{"angle_deg":-85.0,"at":[0.45,-1.7072,0.0593],"axis":[0.0,0.0,1.0],"keys":[[0.0,1.0],[0.8,1.0],[1.0,0.0]],"node":"RIG_door_main_r","role":"gear_door","zone":"centre"},{"at":[14.475,0.274,7.5989],"axis":[0.88709,0.10892,0.44857],"node":"RIG_aileron_r","range_deg":20.0,"role":"aileron","zone":"wing_outer_r"},{"at":[5.4926,-0.8218,3.322],"axis":[0.91843,0.11102,0.37969],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_r","role":"flap","zone":"wing_inner_r"},{"at":[0.0,5.5125,17.4961],"axis":[0.0,0.93832,0.34578],"node":"RIG_rudder","range_deg":25.0,"role":"rudder","zone":"tail"},{"at":[-3.6791,1.433,18.4387],"axis":[0.93598,-0.09838,-0.33802],"node":"RIG_elevator_l","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[3.6791,1.433,18.4387],"axis":[0.93598,0.09838,0.33802],"node":"RIG_elevator_r","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[-12.4,-1.2808,0.3704],"axis":[0.0,0.0,1.0],"node":"RIG_fan_1","role":"fan","rpm":3000.0,"zone":"engine_1"},{"at":[-6.8,-1.9684,-3.8495],"axis":[0.0,0.0,1.0],"node":"RIG_fan_2","role":"fan","rpm":3000.0,"zone":"engine_2"},{"at":[6.8,-1.9684,-3.8495],"axis":[0.0,0.0,1.0],"node":"RIG_fan_3","role":"fan","rpm":3000.0,"zone":"engine_3"},{"at":[12.4,-1.2808,0.3704],"axis":[0.0,0.0,1.0],"node":"RIG_fan_4","role":"fan","rpm":3000.0,"zone":"engine_4"},{"angle_deg":90.0,"at":[-3.36,-0.9907,0.0593],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"centre"},{"angle_deg":-90.0,"at":[3.36,-0.9907,0.0593],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"centre"},{"angle_deg":90.0,"at":[0.0,-1.256,-16.05],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_nose","role":"gear_leg","zone":"nose"},{"at":[-14.475,0.274,7.5989],"axis":[0.88709,-0.10892,-0.44857],"node":"RIG_aileron_l","range_deg":20.0,"role":"aileron","zone":"wing_outer_l"},{"at":[-5.4926,-0.8218,3.322],"axis":[0.91843,-0.11102,-0.37969],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_l","role":"flap","zone":"wing_inner_l"},{"at":[14.475,0.274,7.5989],"axis":[0.88709,0.10892,0.44857],"node":"RIG_aileron_r","range_deg":20.0,"role":"aileron","zone":"wing_outer_r"},{"at":[5.4926,-0.8218,3.322],"axis":[0.91843,0.11102,0.37969],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_r","role":"flap","zone":"wing_inner_r"},{"at":[0.0,5.5125,17.4961],"axis":[0.0,0.93832,0.34578],"node":"RIG_rudder","range_deg":25.0,"role":"rudder","zone":"tail"},{"at":[-3.6791,1.433,18.4387],"axis":[0.93598,-0.09838,-0.33802],"node":"RIG_elevator_l","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[3.6791,1.433,18.4387],"axis":[0.93598,0.09838,0.33802],"node":"RIG_elevator_r","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[-12.4,-1.2808,0.3704],"axis":[0.0,0.0,1.0],"node":"RIG_fan_1","role":"fan","rpm":3000.0,"zone":"engine_1"},{"at":[-6.8,-1.9684,-3.8495],"axis":[0.0,0.0,1.0],"node":"RIG_fan_2","role":"fan","rpm":3000.0,"zone":"engine_2"},{"at":[6.8,-1.9684,-3.8495],"axis":[0.0,0.0,1.0],"node":"RIG_fan_3","role":"fan","rpm":3000.0,"zone":"engine_3"},{"at":[12.4,-1.2808,0.3704],"axis":[0.0,0.0,1.0],"node":"RIG_fan_4","role":"fan","rpm":3000.0,"zone":"engine_4"},{"angle_deg":90.0,"at":[-3.36,-0.9907,0.0593],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"centre"},{"angle_deg":-90.0,"at":[3.36,-0.9907,0.0593],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"centre"},{"angle_deg":90.0,"at":[0.0,-1.256,-16.05],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_nose","role":"gear_leg","zone":"nose"},{"at":[-12.4,-1.2808,0.3704],"axis":[0.0,0.0,1.0],"node":"RIG_fan_1","role":"fan","rpm":3000.0,"zone":"engine_1"},{"at":[-6.8,-1.9684,-3.8495],"axis":[0.0,0.0,1.0],"node":"RIG_fan_2","role":"fan","rpm":3000.0,"zone":"engine_2"},{"at":[6.8,-1.9684,-3.8495],"axis":[0.0,0.0,1.0],"node":"RIG_fan_3","role":"fan","rpm":3000.0,"zone":"engine_3"},{"at":[12.4,-1.2808,0.3704],"axis":[0.0,0.0,1.0],"node":"RIG_fan_4","role":"fan","rpm":3000.0,"zone":"engine_4"},{"angle_deg":90.0,"at":[-3.36,-0.9907,0.0593],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"centre"},{"angle_deg":-90.0,"at":[3.36,-0.9907,0.0593],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"centre"},{"angle_deg":90.0,"at":[0.0,-1.256,-16.05],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_nose","role":"gear_leg","zone":"nose"}],"seats":138,"sha256":"1a9d34a1a9606f84a6342e8d7c873fb74df7ce1f842fee467be8a173fa1373d1","size_m":{"fuselage":3.76,"height":12.65,"length":41.3,"span":39.9},"zones":[{"capsules":[{"a":[0.0,-1.973,-1.791],"b":[0.0,-1.973,-1.791],"radius_m":4.052}],"name":"centre","node":"ZONE_centre","parent":null,"share":0.3},{"capsules":[{"a":[0.0,0.375,-7.745],"b":[0.0,0.264,-13.308],"radius_m":2.235}],"name":"cabin_fwd","node":"ZONE_cabin_fwd","parent":"centre","share":0.15},{"capsules":[{"a":[0.007,-0.678,-16.811],"b":[0.008,-0.546,-16.942],"radius_m":2.708}],"name":"nose","node":"ZONE_nose","parent":"cabin_fwd","share":0.1},{"capsules":[{"a":[0.0,0.146,8.475],"b":[0.0,0.313,3.316],"radius_m":2.187}],"name":"cabin_aft","node":"ZONE_cabin_aft","parent":"centre","share":0.15},{"capsules":[{"a":[0.001,0.704,16.027],"b":[0.001,0.704,16.027],"radius_m":6.403}],"name":"tail","node":"ZONE_tail","parent":"cabin_aft","share":0.12},{"capsules":[{"a":[-1.818,-1.249,2.717],"b":[-1.884,-1.241,2.785],"radius_m":1.216},{"a":[-1.917,-1.234,-1.069],"b":[-8.652,-0.429,5.779],"radius_m":1.188},{"a":[-2.466,-1.176,-4.399],"b":[-9.41,-0.346,2.662],"radius_m":1.344}],"name":"wing_inner_l","node":"ZONE_wing_inner_l","parent":"centre","share":0.14},{"capsules":[{"a":[-11.819,-0.046,7.145],"b":[-9.792,-0.29,5.831],"radius_m":0.735},{"a":[-19.681,0.917,10.311],"b":[-9.586,-0.302,3.766],"radius_m":0.592},{"a":[-19.752,0.906,8.423],"b":[-9.679,-0.31,1.892],"radius_m":0.736}],"name":"wing_outer_l","node":"ZONE_wing_outer_l","parent":"wing_inner_l","share":0.08},{"capsules":[{"a":[1.818,-1.249,2.717],"b":[1.884,-1.241,2.785],"radius_m":1.216},{"a":[1.917,-1.234,-1.069],"b":[8.652,-0.429,5.779],"radius_m":1.188},{"a":[2.466,-1.176,-4.399],"b":[9.41,-0.346,2.662],"radius_m":1.344}],"name":"wing_inner_r","node":"ZONE_wing_inner_r","parent":"centre","share":0.14},{"capsules":[{"a":[11.819,-0.046,7.145],"b":[9.792,-0.29,5.831],"radius_m":0.735},{"a":[19.681,0.917,10.311],"b":[9.586,-0.302,3.766],"radius_m":0.592},{"a":[19.741,0.904,8.416],"b":[9.679,-0.31,1.892],"radius_m":0.736}],"name":"wing_outer_r","node":"ZONE_wing_outer_r","parent":"wing_inner_r","share":0.08},{"capsules":[{"a":[-12.4,-1.0,0.691],"b":[-12.4,-0.868,5.292],"radius_m":0.952}],"name":"engine_1","node":"ZONE_engine_1","parent":"wing_outer_l","share":0.06},{"capsules":[{"a":[-6.8,-1.698,-3.529],"b":[-6.8,-1.491,2.75],"radius_m":0.956}],"name":"engine_2","node":"ZONE_engine_2","parent":"wing_inner_l","share":0.06},{"capsules":[{"a":[6.8,-1.698,-3.529],"b":[6.8,-1.491,2.75],"radius_m":0.956}],"name":"engine_3","node":"ZONE_engine_3","parent":"wing_inner_r","share":0.06},{"capsules":[{"a":[12.4,-1.0,0.691],"b":[12.4,-0.868,5.292],"radius_m":0.952}],"name":"engine_4","node":"ZONE_engine_4","parent":"wing_outer_r","share":0.06}]},"url":"airliners/airliner.gltf.json"},{"id":"widebody","manifest":{"_":"One of the three airliners (openspec change airliner-models), built by tools/blender/build_airliners.py: written by the build, never by hand. Frame: glTF metres, +Y up, nose toward -Z, +X the right wing, origin on the fuselage's centre line half way along it. Meshes are <part>.L<level> under ZONE_* nodes or RIG_* pivots; level 0 carries the interior (int_*).","after":"Lockheed L-1011 TriStar","blender":"4.4.3","blueprint":"docs/reference/airliner-blueprints/lockheed-l1011-tristar.png","bounds_m":{"x":[-23.75,23.75],"y":[-4.084,12.1],"z":[-27.1,27.252]},"bytes":2878896,"cabin_lights":[[0.0,1.25,-15.927],[0.0,1.25,-5.235],[0.0,1.25,5.457]],"cabin_view":{"aisle":[1.497,0.9,9.03],"aisle_look":[1.497,0.65,-21.6],"deck":[-0.5,0.65,-25.25],"deck_look":[-0.5,0.75,-37.25]},"csg_steps":145,"file":"widebody.glb","gear_sequence_s":8.0,"generator":"tools/blender/build_airliners.py","id":"widebody","interior":["int_aft_wall_cabin_aft.L0","int_bins_cabin_aft.L0","int_bins_cabin_fwd.L0","int_bins_centre.L0","int_deck_frames_nose.L0","int_deck_panel_nose.L0","int_deck_seats_nose.L0","int_deck_wall_cabin_fwd.L0","int_galleys_cabin_aft.L0","int_galleys_cabin_fwd.L0","int_seat_frames_cabin_aft.L0","int_seat_frames_cabin_fwd.L0","int_seat_frames_centre.L0","int_seats_cabin_aft.L0","int_seats_cabin_fwd.L0","int_seats_centre.L0"],"lamps":[{"at":[-23.625,1.2219,12.043],"colour":"red","node":"LAMP_nav_left","pattern":"steady","zone":"wing_outer_l"},{"at":[23.625,1.2219,12.043],"colour":"green","node":"LAMP_nav_right","pattern":"steady","zone":"wing_outer_r"},{"at":[-23.625,1.2219,13.3599],"colour":"white","node":"LAMP_strobe_left","pattern":"strobe","zone":"wing_outer_l"},{"at":[23.625,1.2219,13.3599],"colour":"white","node":"LAMP_strobe_right","pattern":"strobe","zone":"wing_outer_r"},{"at":[0.0,1.1201,27.15],"colour":"white","node":"LAMP_nav_tail","pattern":"steady","zone":"tail"},{"at":[0.0,3.1,-1.425],"colour":"red","node":"LAMP_beacon_top","pattern":"beacon","zone":"centre"},{"at":[0.0,-3.1,0.575],"colour":"red","node":"LAMP_beacon_bottom","pattern":"beacon","zone":"centre"},{"at":[0.0,1.2701,27.12],"colour":"white","node":"LAMP_strobe_tail","pattern":"strobe","zone":"tail"},{"at":[-3.5485,-1.4146,-3.876],"colour":"white","node":"LAMP_landing_l","pattern":"landing","zone":"wing_inner_l"},{"at":[3.5485,-1.4146,-3.876],"colour":"white","node":"LAMP_landing_r","pattern":"landing","zone":"wing_inner_r"}],"light_patterns":{"beacon":{"on_s":0.1,"period_s":1.0},"landing":{"below_agl_m":600},"steady":{},"strobe":{"flashes":2,"gap_s":0.15,"on_s":0.05,"period_s":1.2}},"lods":[{"budget_triangles":90000,"lod":0,"triangles":26582,"within_m":250},{"budget_triangles":14000,"lod":1,"triangles":5234,"within_m":1500},{"budget_triangles":3000,"lod":2,"triangles":2270,"within_m":null}],"materials":["widebody_crown","widebody_line","widebody_belly","widebody_wing","widebody_fin","widebody_nacelle","widebody_metal","widebody_dark","widebody_rubber","widebody_glass","widebody_torn","widebody_cabin_wall","widebody_seat","widebody_carpet","widebody_trim","widebody_panel","widebody_nav_red","widebody_nav_green","widebody_nav_white","widebody_beacon","widebody_strobe","widebody_landing"],"measured_m":{"height_at_rest":16.184,"length":54.352,"span":47.5},"rest_m":4.084,"rest_pitch_deg":0.0,"rig":[{"angle_deg":-85.0,"at":[-0.45,-2.95,-22.125],"axis":[0.0,0.0,1.0],"keys":[[0.0,1.0],[0.8,1.0],[1.0,0.0]],"node":"RIG_door_nose_l","role":"gear_door","zone":"cabin_fwd"},{"angle_deg":85.0,"at":[0.45,-2.95,-22.125],"axis":[0.0,0.0,1.0],"keys":[[0.0,1.0],[0.8,1.0],[1.0,0.0]],"node":"RIG_door_nose_r","role":"gear_door","zone":"cabin_fwd"},{"angle_deg":85.0,"at":[-0.45,-2.0136,1.6344],"axis":[0.0,0.0,1.0],"keys":[[0.0,1.0],[0.8,1.0],[1.0,0.0]],"node":"RIG_door_main_l","role":"gear_door","zone":"centre"},{"at":[-18.8375,0.5982,10.7803],"axis":[0.87589,-0.11531,-0.46854],"node":"RIG_aileron_l","range_deg":20.0,"role":"aileron","zone":"wing_outer_l"},{"at":[-8.51,-0.7562,5.8378],"axis":[0.91575,-0.11971,-0.3835],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_l","role":"flap","zone":"wing_inner_l"},{"angle_deg":-85.0,"at":[0.45,-2.0136,1.6344],"axis":[0.0,0.0,1.0],"keys":[[0.0,1.0],[0.8,1.0],[1.0,0.0]],"node":"RIG_door_main_r","role":"gear_door","zone":"centre"},{"at":[18.8375,0.5982,10.7803],"axis":[0.87589,0.11531,0.46854],"node":"RIG_aileron_r","range_deg":20.0,"role":"aileron","zone":"wing_outer_r"},{"at":[8.51,-0.7562,5.8378],"axis":[0.91575,0.11971,0.3835],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_r","role":"flap","zone":"wing_inner_r"},{"at":[0.0,8.3665,22.8043],"axis":[0.0,0.95775,0.28761],"node":"RIG_rudder","range_deg":25.0,"role":"rudder","zone":"tail"},{"at":[-6.4465,1.1783,23.9837],"axis":[0.91957,-0.04819,-0.38995],"node":"RIG_elevator_l","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[6.4465,1.1783,23.9837],"axis":[0.91957,0.04819,0.38995],"node":"RIG_elevator_r","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[-9.6,-2.5179,-2.0986],"axis":[0.0,0.0,1.0],"node":"RIG_fan_1","role":"fan","rpm":3000.0,"zone":"engine_1"},{"at":[0.0,3.41,13.2],"axis":[0.0,0.0,1.0],"node":"RIG_fan_2","role":"fan","rpm":3000.0,"zone":"engine_2"},{"at":[9.6,-2.5179,-2.0986],"axis":[0.0,0.0,1.0],"node":"RIG_fan_3","role":"fan","rpm":3000.0,"zone":"engine_3"},{"angle_deg":90.0,"at":[-5.45,-1.0643,1.6344],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"centre"},{"angle_deg":-90.0,"at":[5.45,-1.0643,1.6344],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"centre"},{"angle_deg":90.0,"at":[0.0,-2.25,-20.8],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_nose","role":"gear_leg","zone":"cabin_fwd"},{"at":[-18.8375,0.5982,10.7803],"axis":[0.87589,-0.11531,-0.46854],"node":"RIG_aileron_l","range_deg":20.0,"role":"aileron","zone":"wing_outer_l"},{"at":[-8.51,-0.7562,5.8378],"axis":[0.91575,-0.11971,-0.3835],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_l","role":"flap","zone":"wing_inner_l"},{"at":[18.8375,0.5982,10.7803],"axis":[0.87589,0.11531,0.46854],"node":"RIG_aileron_r","range_deg":20.0,"role":"aileron","zone":"wing_outer_r"},{"at":[8.51,-0.7562,5.8378],"axis":[0.91575,0.11971,0.3835],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_r","role":"flap","zone":"wing_inner_r"},{"at":[0.0,8.3665,22.8043],"axis":[0.0,0.95775,0.28761],"node":"RIG_rudder","range_deg":25.0,"role":"rudder","zone":"tail"},{"at":[-6.4465,1.1783,23.9837],"axis":[0.91957,-0.04819,-0.38995],"node":"RIG_elevator_l","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[6.4465,1.1783,23.9837],"axis":[0.91957,0.04819,0.38995],"node":"RIG_elevator_r","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[-9.6,-2.5179,-2.0986],"axis":[0.0,0.0,1.0],"node":"RIG_fan_1","role":"fan","rpm":3000.0,"zone":"engine_1"},{"at":[0.0,3.41,13.2],"axis":[0.0,0.0,1.0],"node":"RIG_fan_2","role":"fan","rpm":3000.0,"zone":"engine_2"},{"at":[9.6,-2.5179,-2.0986],"axis":[0.0,0.0,1.0],"node":"RIG_fan_3","role":"fan","rpm":3000.0,"zone":"engine_3"},{"angle_deg":90.0,"at":[-5.45,-1.0643,1.6344],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"centre"},{"angle_deg":-90.0,"at":[5.45,-1.0643,1.6344],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"centre"},{"angle_deg":90.0,"at":[0.0,-2.25,-20.8],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_nose","role":"gear_leg","zone":"cabin_fwd"},{"at":[-9.6,-2.5179,-2.0986],"axis":[0.0,0.0,1.0],"node":"RIG_fan_1","role":"fan","rpm":3000.0,"zone":"engine_1"},{"at":[0.0,3.41,13.2],"axis":[0.0,0.0,1.0],"node":"RIG_fan_2","role":"fan","rpm":3000.0,"zone":"engine_2"},{"at":[9.6,-2.5179,-2.0986],"axis":[0.0,0.0,1.0],"node":"RIG_fan_3","role":"fan","rpm":3000.0,"zone":"engine_3"},{"angle_deg":90.0,"at":[-5.45,-1.0643,1.6344],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"centre"},{"angle_deg":-90.0,"at":[5.45,-1.0643,1.6344],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"centre"},{"angle_deg":90.0,"at":[0.0,-2.25,-20.8],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_nose","role":"gear_leg","zone":"cabin_fwd"}],"seats":306,"sha256":"038af5b144f29f3197235c7f9a2df9200d3cfeec9daf28f011d78ec2a10b6590","size_m":{"fuselage":5.97,"height":16.87,"length":54.2,"span":47.35},"zones":[{"capsules":[{"a":[0.568,-2.055,-2.257],"b":[-0.568,-2.055,-2.257],"radius_m":5.382}],"name":"centre","node":"ZONE_centre","parent":null,"share":0.3},{"capsules":[{"a":[0.0,-0.841,-18.057],"b":[0.0,0.747,-12.382],"radius_m":3.865}],"name":"cabin_fwd","node":"ZONE_cabin_fwd","parent":"centre","share":0.15},{"capsules":[{"a":[0.105,0.419,-24.039],"b":[0.105,0.419,-24.039],"radius_m":3.238}],"name":"nose","node":"ZONE_nose","parent":"cabin_fwd","share":0.1},{"capsules":[{"a":[0.0,0.215,5.385],"b":[0.0,0.051,10.792],"radius_m":3.091}],"name":"cabin_aft","node":"ZONE_cabin_aft","parent":"centre","share":0.15},{"capsules":[{"a":[0.009,0.917,19.587],"b":[0.009,0.917,19.587],"radius_m":10.654}],"name":"tail","node":"ZONE_tail","parent":"cabin_aft","share":0.12},{"capsules":[{"a":[-3.013,-1.455,4.796],"b":[-7.533,-0.873,8.464],"radius_m":1.48},{"a":[-2.844,-1.465,0.743],"b":[-13.236,-0.127,9.176],"radius_m":1.462},{"a":[-3.017,-1.451,-3.033],"b":[-14.253,-0.004,6.084],"radius_m":1.397}],"name":"wing_inner_l","node":"ZONE_wing_inner_l","parent":"centre","share":0.14},{"capsules":[{"a":[-23.523,1.207,10.986],"b":[-14.711,0.07,5.395],"radius_m":0.749},{"a":[-23.405,1.169,12.775],"b":[-14.774,0.056,7.299],"radius_m":0.741},{"a":[-22.759,1.109,14.233],"b":[-14.811,0.084,9.191],"radius_m":0.733}],"name":"wing_outer_l","node":"ZONE_wing_outer_l","parent":"wing_inner_l","share":0.08},{"capsules":[{"a":[3.013,-1.455,4.796],"b":[7.533,-0.873,8.464],"radius_m":1.48},{"a":[2.844,-1.465,0.743],"b":[13.236,-0.127,9.176],"radius_m":1.462},{"a":[3.017,-1.451,-3.033],"b":[14.253,-0.004,6.084],"radius_m":1.397}],"name":"wing_inner_r","node":"ZONE_wing_inner_r","parent":"centre","share":0.14},{"capsules":[{"a":[23.474,1.211,10.887],"b":[14.738,0.092,5.412],"radius_m":0.778},{"a":[23.438,1.207,12.73],"b":[14.763,0.096,7.294],"radius_m":0.73},{"a":[22.754,1.1,14.166],"b":[14.852,0.088,9.214],"radius_m":0.777}],"name":"wing_outer_r","node":"ZONE_wing_outer_r","parent":"wing_inner_r","share":0.08},{"capsules":[{"a":[-9.6,-2.216,-1.454],"b":[-9.6,-2.003,4.541],"radius_m":1.467}],"name":"engine_1","node":"ZONE_engine_1","parent":"wing_inner_l","share":0.06},{"capsules":[{"a":[0.0,1.175,26.358],"b":[0.0,3.281,13.852],"radius_m":0.983}],"name":"engine_2","node":"ZONE_engine_2","parent":"tail","share":0.06},{"capsules":[{"a":[9.6,-2.216,-1.454],"b":[9.6,-2.003,4.541],"radius_m":1.467}],"name":"engine_3","node":"ZONE_engine_3","parent":"wing_inner_r","share":0.06}]},"url":"airliners/widebody.gltf.json"}] (each airliner's
+     manifest, written by tools/blender/build_airliners.py: the files the game will draw) and {"id":"foreman","name":"Foreman","height_m":23.62,"width_m":11.97,"length_m":13.31,"url":"airliners/foreman.gltf.json"} (the Foreman
+     block-out). Presents openspec/changes/airliner-models. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg: #e9ebef; --panel: #f7f8fa; --edge: #c4cad3; --ink: #12161c; --muted: #56606d;
+  --accent: #4f7a12; --accent-soft: #e3efd2; --warn: #a3271f; --stage: #1a2230;
+  --display: "Saira Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+    --accent: #9cf04a; --accent-soft: #1f2c14; --warn: #ff8f80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+  --accent: #9cf04a; --accent-soft: #1f2c14; --warn: #ff8f80; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 32px; }
+header { display: grid; gap: 4px; margin: 0 auto 14px; max-width: 1440px; }
+.eyebrow { font: 500 12px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 700 34px/1 var(--display); letter-spacing: 0.03em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 80ch; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; max-width: 1440px; margin: 0 auto; }
+@media (max-width: 1040px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+.bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.bar .lbl { font: 500 12px var(--mono); color: var(--muted); min-width: 6ch; }
+button { font: 700 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 9px 12px; cursor: pointer; min-height: 38px; }
+button:hover { border-color: var(--muted); }
+button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+button:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--edge); border-radius: 4px; overflow: hidden; touch-action: none; }
+canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 16 / 10; }
+@media (max-width: 600px) { canvas { aspect-ratio: 1 / 1.15; } }
+.tag { position: absolute; transform: translate(-50%, -100%); pointer-events: none; font: 500 11px var(--mono);
+  color: #e6ebf1; background: rgba(12, 16, 24, 0.82); border: 1px solid #3a4456; padding: 2px 6px; white-space: nowrap; }
+.tag.standin { border-color: #c9a03a; color: #ffe2a0; }
+.tag.rail { border-color: #6fa8ff; color: #cfe2ff; }
+.hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+aside { display: grid; gap: 12px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.card h2 { font: 700 22px/1 var(--display); letter-spacing: 0.05em; text-transform: uppercase; margin: 0; }
+.pill { font: 700 13px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 8px; border-radius: 3px;
+  border: 1px solid var(--warn); color: var(--warn); justify-self: start; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: left; padding: 4px 6px 4px 0; border-bottom: 1px solid var(--edge); vertical-align: top; }
+th { font: 500 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.note { font-size: 13px; color: var(--muted); margin: 0; }
+.foot { max-width: 1440px; margin: 16px auto 0; font-size: 13px; color: var(--muted); }
+.foot code { font: 12px var(--mono); overflow-wrap: anywhere; }
+.stage.night { background: #04060a; }
+.seg { display: inline-flex; gap: 0; }
+.seg button { border-radius: 0; margin-left: -1px; }
+.seg button:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
+.seg button:last-child { border-radius: 0 4px 4px 0; }
+input[type=range] { accent-color: var(--accent); width: min(220px, 50vw); }
+.stat { font: 500 12px var(--mono); color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+<header>
+  <div class="eyebrow">Crab Breeze · openspec/changes/airliner-models · from NASA public-domain three-views · built in Blender</div>
+  <h1>Three airliners, rigged, lit and breakable</h1>
+  <p class="lede">The propliner (after the DC-3), the four-jet airliner (after the Boeing 720) and the wide-body (after the L-1011 TriStar),
+  the very files the game will load, at true size beside a 1.8 m pilot and the 24 m Foreman. Raise and lower the gear, spin the props and
+  fans, work the controls, switch to night for the navigation lights, beacons and strobes, cut the fuselage open or walk the aisle to see
+  the cabins, and pull the damage zones apart or click a part to shoot it off.</p>
+</header>
+<div class="wrap">
+  <section>
+    <div class="bar" role="group" aria-label="Aircraft">
+      <span class="lbl">Show</span>
+      <span class="seg" id="pick"></span>
+      <button id="reset" type="button">Reset view</button>
+    </div>
+    <div class="bar" role="group" aria-label="Rig">
+      <span class="lbl">Rig</span>
+      <button id="gear" type="button" aria-pressed="false">Gear: down</button>
+      <button id="spin" type="button" aria-pressed="true">Props and fans</button>
+      <button id="realspin" type="button" aria-pressed="false">Real rpm</button>
+      <button id="controls" type="button" aria-pressed="false">Work the controls</button>
+      <button id="flaps" type="button">Flaps 0</button>
+    </div>
+    <div class="bar" role="group" aria-label="Light and view">
+      <span class="lbl">View</span>
+      <button id="night" type="button" aria-pressed="false">Night</button>
+      <button id="cut" type="button" aria-pressed="false">Cut away</button>
+      <button id="cabin" type="button" aria-pressed="false">Walk the aisle</button>
+      <button id="deck" type="button" aria-pressed="false">Flight deck</button>
+      <span class="seg" id="lods"></span>
+    </div>
+    <div class="bar" role="group" aria-label="Damage">
+      <span class="lbl">Damage</span>
+      <label class="stat" for="explode">Pull apart</label><input id="explode" type="range" min="0" max="100" value="0">
+      <button id="caps" type="button" aria-pressed="false">Hit capsules</button>
+      <button id="repair" type="button">Repair</button>
+    </div>
+    <div class="stage" id="stage">
+      <canvas id="view" tabindex="0" aria-label="3D view of the three airliners at true size beside the Foreman and a pilot"></canvas>
+      <div id="tags"></div>
+    </div>
+    <p class="hint">Drag to orbit, scroll or pinch to zoom. Click a part of an aircraft to shoot it off (its zone breaks away with the parts that hang from it). Keys: arrows orbit, + and - zoom, R resets. The grid is 10 m.</p>
+  </section>
+  <aside>
+    <div class="card">
+      <span class="pill">Built, not yet in the game</span>
+      <h2>Measured</h2>
+      <div class="tbl"><table id="sizes"><thead><tr><th>Aircraft</th><th>Length</th><th>Span</th><th>Height</th><th>Seats</th></tr></thead><tbody></tbody></table></div>
+      <p class="note">Measured off each glb by its build (<code>tools/blender/build_airliners.py</code>) against the real aircraft; the
+      propliner sits tail down, as the DC-3 does.</p>
+    </div>
+    <div class="card">
+      <h2>Levels of detail</h2>
+      <div class="tbl"><table id="lodtbl"><thead><tr><th>Aircraft</th><th>Near (cabin)</th><th>Mid</th><th>Far</th></tr></thead><tbody></tbody></table></div>
+      <p class="note">Triangles against each level's budget. The nearest level (within 250 m) carries the cabin; the build refuses a level over budget.</p>
+    </div>
+    <div class="card">
+      <h2>Damage zones</h2>
+      <p class="note">Each aircraft is cut at its airframe's joints into zones: its own meshes, its own hit capsules (measured off the mesh),
+      a parent in a part tree and a share of the aircraft's health. A cut is capped in scorched torn metal; a broken fuselage shows its
+      wall and the cabin. Click one to shoot it off.</p>
+      <div class="tbl"><table id="zonetbl"><thead><tr><th>Zone</th><th>Hangs from</th><th>Health</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="card">
+      <h2>Lights</h2>
+      <p class="note">Red on the left tip, green on the right, white on the tail, steady. Red beacons top and bottom flash once a second.
+      White strobes on the tips double-flash every 1.2 s. Landing lights in the wing roots. Switch to Night to see them.</p>
+    </div>
+  </aside>
+</div>
+<p class="foot">Built by <code>python3 tools/mockups/gen_airliners.py</code> from <code>tools/mockups/airliners_src.html</code>. Blueprints: <code>docs/reference/airliner-blueprints/</code>.</p>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const PLANES = [{"id":"propliner","manifest":{"_":"One of the three airliners (openspec change airliner-models), built by tools/blender/build_airliners.py: written by the build, never by hand. Frame: glTF metres, +Y up, nose toward -Z, +X the right wing, origin on the fuselage's centre line half way along it. Meshes are <part>.L<level> under ZONE_* nodes or RIG_* pivots; level 0 carries the interior (int_*).","after":"Douglas DC-3","blender":"4.4.3","blueprint":"docs/reference/airliner-blueprints/douglas-c47-dc3.png","bounds_m":{"x":[-14.575,14.575],"y":[-3.38,2.45],"z":[-9.85,10.002]},"bytes":1728484,"cabin_lights":[[0.0,1.5,-4.084],[0.0,1.5,-2.02],[0.0,1.5,0.044]],"cabin_view":{"aisle":[0.23,0.865,1.46],"aisle_look":[0.23,0.615,-7.6],"deck":[-0.5,0.9,-7.15],"deck_look":[-0.5,1.0,-19.15]},"csg_steps":113,"file":"propliner.glb","gear_sequence_s":8.0,"generator":"tools/blender/build_airliners.py","id":"propliner","interior":["int_aft_wall_cabin_aft.L0","int_deck_frames_nose.L0","int_deck_panel_nose.L0","int_deck_seats_nose.L0","int_deck_wall_centre.L0","int_galleys_cabin_aft.L0","int_galleys_centre.L0","int_seat_frames_cabin_aft.L0","int_seat_frames_centre.L0","int_seats_cabin_aft.L0","int_seats_centre.L0"],"lamps":[{"at":[-14.45,0.1517,0.0254],"colour":"red","node":"LAMP_nav_left","pattern":"steady","zone":"wing_outer_l"},{"at":[14.45,0.1517,0.0254],"colour":"green","node":"LAMP_nav_right","pattern":"steady","zone":"wing_outer_r"},{"at":[-14.45,0.1517,0.6871],"colour":"white","node":"LAMP_strobe_left","pattern":"strobe","zone":"wing_outer_l"},{"at":[14.45,0.1517,0.6871],"colour":"white","node":"LAMP_strobe_right","pattern":"strobe","zone":"wing_outer_r"},{"at":[0.0,0.5161,9.9],"colour":"white","node":"LAMP_nav_tail","pattern":"steady","zone":"tail"},{"at":[0.0,1.375,-2.12],"colour":"red","node":"LAMP_beacon_top","pattern":"beacon","zone":"centre"},{"at":[0.0,-1.375,-0.12],"colour":"red","node":"LAMP_beacon_bottom","pattern":"beacon","zone":"centre"},{"at":[-5.2,-0.6532,-2.7395],"colour":"white","node":"LAMP_landing_l","pattern":"landing","zone":"wing_inner_l"},{"at":[5.2,-0.6532,-2.7395],"colour":"white","node":"LAMP_landing_r","pattern":"landing","zone":"wing_inner_r"}],"light_patterns":{"beacon":{"on_s":0.1,"period_s":1.0},"landing":{"below_agl_m":600},"steady":{},"strobe":{"flashes":2,"gap_s":0.15,"on_s":0.05,"period_s":1.2}},"lods":[{"budget_triangles":30000,"lod":0,"triangles":10103,"within_m":250},{"budget_triangles":6000,"lod":1,"triangles":3700,"within_m":1500},{"budget_triangles":2000,"lod":2,"triangles":1552,"within_m":null}],"materials":["propliner_crown","propliner_line","propliner_belly","propliner_wing","propliner_fin","propliner_nacelle","propliner_metal","propliner_dark","propliner_rubber","propliner_glass","propliner_torn","propliner_cabin_wall","propliner_seat","propliner_carpet","propliner_trim","propliner_panel","propliner_nav_red","propliner_nav_green","propliner_nav_white","propliner_beacon","propliner_strobe","propliner_landing"],"measured_m":{"height_at_rest":5.534,"length":19.852,"span":29.15},"rest_m":2.569,"rest_pitch_deg":13.69,"rig":[{"at":[-11.3,-0.1195,0.3459],"axis":[0.99076,-0.08668,-0.10433],"node":"RIG_aileron_l","range_deg":20.0,"role":"aileron","zone":"wing_outer_l"},{"at":[-4.7495,-0.616,-0.4125],"axis":[0.99194,-0.06538,-0.10849],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_l","role":"flap","zone":"wing_inner_l"},{"at":[11.3,-0.1195,0.3459],"axis":[0.99076,0.08668,0.10433],"node":"RIG_aileron_r","range_deg":20.0,"role":"aileron","zone":"wing_outer_r"},{"at":[4.7495,-0.616,-0.4125],"axis":[0.99194,0.06538,0.10849],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_r","role":"flap","zone":"wing_inner_r"},{"at":[0.0,1.7795,8.7859],"axis":[0.0,0.99916,0.04089],"node":"RIG_rudder","range_deg":25.0,"role":"rudder","zone":"tail"},{"at":[-2.1036,0.6472,8.4911],"axis":[0.99996,-0.0,0.00896],"node":"RIG_elevator_l","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[2.1036,0.6472,8.4911],"axis":[0.99996,0.0,-0.00896],"node":"RIG_elevator_r","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[-2.85,-0.8,-6.0408],"axis":[0.0,0.0,1.0],"node":"RIG_prop_1","role":"prop","rpm":1200.0,"zone":"engine_1"},{"at":[2.85,-0.8,-6.0408],"axis":[0.0,0.0,1.0],"node":"RIG_prop_2","role":"prop","rpm":1200.0,"zone":"engine_2"},{"angle_deg":90.0,"at":[-2.85,-1.25,-3.0208],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"engine_1"},{"angle_deg":90.0,"at":[2.85,-1.25,-3.0208],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"engine_2"},{"at":[-11.3,-0.1195,0.3459],"axis":[0.99076,-0.08668,-0.10433],"node":"RIG_aileron_l","range_deg":20.0,"role":"aileron","zone":"wing_outer_l"},{"at":[-4.7495,-0.616,-0.4125],"axis":[0.99194,-0.06538,-0.10849],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_l","role":"flap","zone":"wing_inner_l"},{"at":[11.3,-0.1195,0.3459],"axis":[0.99076,0.08668,0.10433],"node":"RIG_aileron_r","range_deg":20.0,"role":"aileron","zone":"wing_outer_r"},{"at":[4.7495,-0.616,-0.4125],"axis":[0.99194,0.06538,0.10849],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_r","role":"flap","zone":"wing_inner_r"},{"at":[0.0,1.7795,8.7859],"axis":[0.0,0.99916,0.04089],"node":"RIG_rudder","range_deg":25.0,"role":"rudder","zone":"tail"},{"at":[-2.1036,0.6472,8.4911],"axis":[0.99996,-0.0,0.00896],"node":"RIG_elevator_l","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[2.1036,0.6472,8.4911],"axis":[0.99996,0.0,-0.00896],"node":"RIG_elevator_r","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[-2.85,-0.8,-6.0408],"axis":[0.0,0.0,1.0],"node":"RIG_prop_1","role":"prop","rpm":1200.0,"zone":"engine_1"},{"at":[2.85,-0.8,-6.0408],"axis":[0.0,0.0,1.0],"node":"RIG_prop_2","role":"prop","rpm":1200.0,"zone":"engine_2"},{"angle_deg":90.0,"at":[-2.85,-1.25,-3.0208],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"engine_1"},{"angle_deg":90.0,"at":[2.85,-1.25,-3.0208],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"engine_2"},{"at":[-2.85,-0.8,-6.0408],"axis":[0.0,0.0,1.0],"node":"RIG_prop_1","role":"prop","rpm":1200.0,"zone":"engine_1"},{"at":[2.85,-0.8,-6.0408],"axis":[0.0,0.0,1.0],"node":"RIG_prop_2","role":"prop","rpm":1200.0,"zone":"engine_2"},{"angle_deg":90.0,"at":[-2.85,-1.25,-3.0208],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"engine_1"},{"angle_deg":90.0,"at":[2.85,-1.25,-3.0208],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"engine_2"}],"seats":21,"sha256":"01c5661a5e5cb9db26869bf41126c9ae20d0ccb2a38d445b805deaf10c7fd8fe","size_m":{"fuselage":2.35,"height":5.16,"length":19.7,"span":29.0},"zones":[{"capsules":[{"a":[-0.0,0.176,-4.839],"b":[-0.0,-0.037,-1.03],"radius_m":1.417}],"name":"centre","node":"ZONE_centre","parent":null,"share":0.3},{"capsules":[{"a":[0.002,-0.169,-8.619],"b":[0.003,-0.06,-7.324],"radius_m":1.229}],"name":"nose","node":"ZONE_nose","parent":"centre","share":0.1},{"capsules":[{"a":[-0.002,-0.118,0.899],"b":[-0.005,-0.128,2.087],"radius_m":1.319}],"name":"cabin_aft","node":"ZONE_cabin_aft","parent":"centre","share":0.15},{"capsules":[{"a":[1.974,0.083,5.466],"b":[1.975,0.48,7.758],"radius_m":2.225},{"a":[-1.977,0.024,5.439],"b":[-1.975,0.431,7.796],"radius_m":2.18}],"name":"tail","node":"ZONE_tail","parent":"cabin_aft","share":0.12},{"capsules":[{"a":[-7.51,-0.425,1.205],"b":[-1.362,-0.844,-0.24],"radius_m":0.663},{"a":[-8.094,-0.366,-0.066],"b":[-1.495,-0.816,-1.618],"radius_m":0.677},{"a":[-8.037,-0.405,-1.489],"b":[-1.339,-0.862,-3.064],"radius_m":0.66}],"name":"wing_inner_l","node":"ZONE_wing_inner_l","parent":"centre","share":0.14},{"capsules":[{"a":[-14.086,0.119,0.994],"b":[-8.992,-0.309,0.358],"radius_m":0.421},{"a":[-14.248,0.189,0.131],"b":[-8.885,-0.262,-0.538],"radius_m":0.302},{"a":[-14.12,0.118,-0.769],"b":[-8.976,-0.314,-1.411],"radius_m":0.433}],"name":"wing_outer_l","node":"ZONE_wing_outer_l","parent":"wing_inner_l","share":0.08},{"capsules":[{"a":[7.51,-0.425,1.205],"b":[1.362,-0.844,-0.24],"radius_m":0.663},{"a":[8.094,-0.366,-0.066],"b":[1.495,-0.816,-1.618],"radius_m":0.677},{"a":[8.032,-0.407,-1.49],"b":[1.344,-0.863,-3.062],"radius_m":0.665}],"name":"wing_inner_r","node":"ZONE_wing_inner_r","parent":"centre","share":0.14},{"capsules":[{"a":[14.101,0.119,0.958],"b":[8.982,-0.307,0.354],"radius_m":0.41},{"a":[14.301,0.191,0.1],"b":[8.848,-0.263,-0.544],"radius_m":0.265},{"a":[14.12,0.131,-0.806],"b":[8.978,-0.297,-1.413],"radius_m":0.434}],"name":"wing_outer_r","node":"ZONE_wing_outer_r","parent":"wing_inner_r","share":0.08},{"capsules":[{"a":[-2.85,-1.967,-1.667],"b":[-2.85,-1.14,-5.021],"radius_m":1.611}],"name":"engine_1","node":"ZONE_engine_1","parent":"wing_inner_l","share":0.06},{"capsules":[{"a":[2.85,-1.967,-1.667],"b":[2.85,-1.14,-5.021],"radius_m":1.611}],"name":"engine_2","node":"ZONE_engine_2","parent":"wing_inner_r","share":0.06}]},"url":"airliners/propliner.gltf.json"},{"id":"airliner","manifest":{"_":"One of the three airliners (openspec change airliner-models), built by tools/blender/build_airliners.py: written by the build, never by hand. Frame: glTF metres, +Y up, nose toward -Z, +X the right wing, origin on the fuselage's centre line half way along it. Meshes are <part>.L<level> under ZONE_* nodes or RIG_* pivots; level 0 carries the interior (int_*).","after":"Boeing 720","blender":"4.4.3","blueprint":"docs/reference/airliner-blueprints/boeing-720.png","bounds_m":{"x":[-20.025,20.025],"y":[-3.571,8.9],"z":[-20.65,20.802]},"bytes":2480428,"cabin_lights":[[0.0,1.4,-11.152],[0.0,1.4,-3.76],[0.0,1.4,3.632]],"cabin_view":{"aisle":[0.0,1.05,6.38],"aisle_look":[0.0,0.8,-16.0],"deck":[-0.5,0.8,-17.8],"deck_look":[-0.5,0.9,-29.8]},"csg_steps":151,"file":"airliner.glb","gear_sequence_s":8.0,"generator":"tools/blender/build_airliners.py","id":"airliner","interior":["int_aft_wall_cabin_aft.L0","int_bins_cabin_aft.L0","int_bins_cabin_fwd.L0","int_bins_centre.L0","int_deck_frames_nose.L0","int_deck_panel_nose.L0","int_deck_seats_nose.L0","int_deck_wall_cabin_fwd.L0","int_galleys_cabin_aft.L0","int_galleys_cabin_fwd.L0","int_seat_frames_cabin_aft.L0","int_seat_frames_cabin_fwd.L0","int_seat_frames_centre.L0","int_seats_cabin_aft.L0","int_seats_cabin_fwd.L0","int_seats_centre.L0"],"lamps":[{"at":[-19.9,0.934,9.3072],"colour":"red","node":"LAMP_nav_left","pattern":"steady","zone":"wing_outer_l"},{"at":[19.9,0.934,9.3072],"colour":"green","node":"LAMP_nav_right","pattern":"steady","zone":"wing_outer_r"},{"at":[-19.9,0.934,10.3559],"colour":"white","node":"LAMP_strobe_left","pattern":"strobe","zone":"wing_outer_l"},{"at":[19.9,0.934,10.3559],"colour":"white","node":"LAMP_strobe_right","pattern":"strobe","zone":"wing_outer_r"},{"at":[0.0,1.0928,20.7],"colour":"white","node":"LAMP_nav_tail","pattern":"steady","zone":"tail"},{"at":[0.0,2.15,-1.85],"colour":"red","node":"LAMP_beacon_top","pattern":"beacon","zone":"centre"},{"at":[0.0,-2.15,0.15],"colour":"red","node":"LAMP_beacon_bottom","pattern":"beacon","zone":"centre"},{"at":[0.0,1.2428,20.67],"colour":"white","node":"LAMP_strobe_tail","pattern":"strobe","zone":"tail"},{"at":[-2.4351,-1.2043,-4.465],"colour":"white","node":"LAMP_landing_l","pattern":"landing","zone":"wing_inner_l"},{"at":[2.4351,-1.2043,-4.465],"colour":"white","node":"LAMP_landing_r","pattern":"landing","zone":"wing_inner_r"}],"light_patterns":{"beacon":{"on_s":0.1,"period_s":1.0},"landing":{"below_agl_m":600},"steady":{},"strobe":{"flashes":2,"gap_s":0.15,"on_s":0.05,"period_s":1.2}},"lods":[{"budget_triangles":60000,"lod":0,"triangles":20644,"within_m":250},{"budget_triangles":10000,"lod":1,"triangles":5642,"within_m":1500},{"budget_triangles":2500,"lod":2,"triangles":2468,"within_m":null}],"materials":["airliner_crown","airliner_line","airliner_belly","airliner_wing","airliner_fin","airliner_nacelle","airliner_metal","airliner_dark","airliner_rubber","airliner_glass","airliner_torn","airliner_cabin_wall","airliner_seat","airliner_carpet","airliner_trim","airliner_panel","airliner_nav_red","airliner_nav_green","airliner_nav_white","airliner_beacon","airliner_strobe","airliner_landing"],"measured_m":{"height_at_rest":12.471,"length":41.452,"span":40.05},"rest_m":3.571,"rest_pitch_deg":0.0,"rig":[{"angle_deg":-85.0,"at":[-0.45,-1.956,-17.175],"axis":[0.0,0.0,1.0],"keys":[[0.0,1.0],[0.8,1.0],[1.0,0.0]],"node":"RIG_door_nose_l","role":"gear_door","zone":"nose"},{"angle_deg":85.0,"at":[0.45,-1.956,-17.175],"axis":[0.0,0.0,1.0],"keys":[[0.0,1.0],[0.8,1.0],[1.0,0.0]],"node":"RIG_door_nose_r","role":"gear_door","zone":"nose"},{"angle_deg":85.0,"at":[-0.45,-1.7072,0.0593],"axis":[0.0,0.0,1.0],"keys":[[0.0,1.0],[0.8,1.0],[1.0,0.0]],"node":"RIG_door_main_l","role":"gear_door","zone":"centre"},{"at":[-14.475,0.274,7.5989],"axis":[0.88709,-0.10892,-0.44857],"node":"RIG_aileron_l","range_deg":20.0,"role":"aileron","zone":"wing_outer_l"},{"at":[-5.4926,-0.8218,3.322],"axis":[0.91843,-0.11102,-0.37969],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_l","role":"flap","zone":"wing_inner_l"},{"angle_deg":-85.0,"at":[0.45,-1.7072,0.0593],"axis":[0.0,0.0,1.0],"keys":[[0.0,1.0],[0.8,1.0],[1.0,0.0]],"node":"RIG_door_main_r","role":"gear_door","zone":"centre"},{"at":[14.475,0.274,7.5989],"axis":[0.88709,0.10892,0.44857],"node":"RIG_aileron_r","range_deg":20.0,"role":"aileron","zone":"wing_outer_r"},{"at":[5.4926,-0.8218,3.322],"axis":[0.91843,0.11102,0.37969],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_r","role":"flap","zone":"wing_inner_r"},{"at":[0.0,5.5125,17.4961],"axis":[0.0,0.93832,0.34578],"node":"RIG_rudder","range_deg":25.0,"role":"rudder","zone":"tail"},{"at":[-3.6791,1.433,18.4387],"axis":[0.93598,-0.09838,-0.33802],"node":"RIG_elevator_l","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[3.6791,1.433,18.4387],"axis":[0.93598,0.09838,0.33802],"node":"RIG_elevator_r","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[-12.4,-1.2808,0.3704],"axis":[0.0,0.0,1.0],"node":"RIG_fan_1","role":"fan","rpm":3000.0,"zone":"engine_1"},{"at":[-6.8,-1.9684,-3.8495],"axis":[0.0,0.0,1.0],"node":"RIG_fan_2","role":"fan","rpm":3000.0,"zone":"engine_2"},{"at":[6.8,-1.9684,-3.8495],"axis":[0.0,0.0,1.0],"node":"RIG_fan_3","role":"fan","rpm":3000.0,"zone":"engine_3"},{"at":[12.4,-1.2808,0.3704],"axis":[0.0,0.0,1.0],"node":"RIG_fan_4","role":"fan","rpm":3000.0,"zone":"engine_4"},{"angle_deg":90.0,"at":[-3.36,-0.9907,0.0593],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"centre"},{"angle_deg":-90.0,"at":[3.36,-0.9907,0.0593],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"centre"},{"angle_deg":90.0,"at":[0.0,-1.256,-16.05],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_nose","role":"gear_leg","zone":"nose"},{"at":[-14.475,0.274,7.5989],"axis":[0.88709,-0.10892,-0.44857],"node":"RIG_aileron_l","range_deg":20.0,"role":"aileron","zone":"wing_outer_l"},{"at":[-5.4926,-0.8218,3.322],"axis":[0.91843,-0.11102,-0.37969],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_l","role":"flap","zone":"wing_inner_l"},{"at":[14.475,0.274,7.5989],"axis":[0.88709,0.10892,0.44857],"node":"RIG_aileron_r","range_deg":20.0,"role":"aileron","zone":"wing_outer_r"},{"at":[5.4926,-0.8218,3.322],"axis":[0.91843,0.11102,0.37969],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_r","role":"flap","zone":"wing_inner_r"},{"at":[0.0,5.5125,17.4961],"axis":[0.0,0.93832,0.34578],"node":"RIG_rudder","range_deg":25.0,"role":"rudder","zone":"tail"},{"at":[-3.6791,1.433,18.4387],"axis":[0.93598,-0.09838,-0.33802],"node":"RIG_elevator_l","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[3.6791,1.433,18.4387],"axis":[0.93598,0.09838,0.33802],"node":"RIG_elevator_r","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[-12.4,-1.2808,0.3704],"axis":[0.0,0.0,1.0],"node":"RIG_fan_1","role":"fan","rpm":3000.0,"zone":"engine_1"},{"at":[-6.8,-1.9684,-3.8495],"axis":[0.0,0.0,1.0],"node":"RIG_fan_2","role":"fan","rpm":3000.0,"zone":"engine_2"},{"at":[6.8,-1.9684,-3.8495],"axis":[0.0,0.0,1.0],"node":"RIG_fan_3","role":"fan","rpm":3000.0,"zone":"engine_3"},{"at":[12.4,-1.2808,0.3704],"axis":[0.0,0.0,1.0],"node":"RIG_fan_4","role":"fan","rpm":3000.0,"zone":"engine_4"},{"angle_deg":90.0,"at":[-3.36,-0.9907,0.0593],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"centre"},{"angle_deg":-90.0,"at":[3.36,-0.9907,0.0593],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"centre"},{"angle_deg":90.0,"at":[0.0,-1.256,-16.05],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_nose","role":"gear_leg","zone":"nose"},{"at":[-12.4,-1.2808,0.3704],"axis":[0.0,0.0,1.0],"node":"RIG_fan_1","role":"fan","rpm":3000.0,"zone":"engine_1"},{"at":[-6.8,-1.9684,-3.8495],"axis":[0.0,0.0,1.0],"node":"RIG_fan_2","role":"fan","rpm":3000.0,"zone":"engine_2"},{"at":[6.8,-1.9684,-3.8495],"axis":[0.0,0.0,1.0],"node":"RIG_fan_3","role":"fan","rpm":3000.0,"zone":"engine_3"},{"at":[12.4,-1.2808,0.3704],"axis":[0.0,0.0,1.0],"node":"RIG_fan_4","role":"fan","rpm":3000.0,"zone":"engine_4"},{"angle_deg":90.0,"at":[-3.36,-0.9907,0.0593],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"centre"},{"angle_deg":-90.0,"at":[3.36,-0.9907,0.0593],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"centre"},{"angle_deg":90.0,"at":[0.0,-1.256,-16.05],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_nose","role":"gear_leg","zone":"nose"}],"seats":138,"sha256":"1a9d34a1a9606f84a6342e8d7c873fb74df7ce1f842fee467be8a173fa1373d1","size_m":{"fuselage":3.76,"height":12.65,"length":41.3,"span":39.9},"zones":[{"capsules":[{"a":[0.0,-1.973,-1.791],"b":[0.0,-1.973,-1.791],"radius_m":4.052}],"name":"centre","node":"ZONE_centre","parent":null,"share":0.3},{"capsules":[{"a":[0.0,0.375,-7.745],"b":[0.0,0.264,-13.308],"radius_m":2.235}],"name":"cabin_fwd","node":"ZONE_cabin_fwd","parent":"centre","share":0.15},{"capsules":[{"a":[0.007,-0.678,-16.811],"b":[0.008,-0.546,-16.942],"radius_m":2.708}],"name":"nose","node":"ZONE_nose","parent":"cabin_fwd","share":0.1},{"capsules":[{"a":[0.0,0.146,8.475],"b":[0.0,0.313,3.316],"radius_m":2.187}],"name":"cabin_aft","node":"ZONE_cabin_aft","parent":"centre","share":0.15},{"capsules":[{"a":[0.001,0.704,16.027],"b":[0.001,0.704,16.027],"radius_m":6.403}],"name":"tail","node":"ZONE_tail","parent":"cabin_aft","share":0.12},{"capsules":[{"a":[-1.818,-1.249,2.717],"b":[-1.884,-1.241,2.785],"radius_m":1.216},{"a":[-1.917,-1.234,-1.069],"b":[-8.652,-0.429,5.779],"radius_m":1.188},{"a":[-2.466,-1.176,-4.399],"b":[-9.41,-0.346,2.662],"radius_m":1.344}],"name":"wing_inner_l","node":"ZONE_wing_inner_l","parent":"centre","share":0.14},{"capsules":[{"a":[-11.819,-0.046,7.145],"b":[-9.792,-0.29,5.831],"radius_m":0.735},{"a":[-19.681,0.917,10.311],"b":[-9.586,-0.302,3.766],"radius_m":0.592},{"a":[-19.752,0.906,8.423],"b":[-9.679,-0.31,1.892],"radius_m":0.736}],"name":"wing_outer_l","node":"ZONE_wing_outer_l","parent":"wing_inner_l","share":0.08},{"capsules":[{"a":[1.818,-1.249,2.717],"b":[1.884,-1.241,2.785],"radius_m":1.216},{"a":[1.917,-1.234,-1.069],"b":[8.652,-0.429,5.779],"radius_m":1.188},{"a":[2.466,-1.176,-4.399],"b":[9.41,-0.346,2.662],"radius_m":1.344}],"name":"wing_inner_r","node":"ZONE_wing_inner_r","parent":"centre","share":0.14},{"capsules":[{"a":[11.819,-0.046,7.145],"b":[9.792,-0.29,5.831],"radius_m":0.735},{"a":[19.681,0.917,10.311],"b":[9.586,-0.302,3.766],"radius_m":0.592},{"a":[19.741,0.904,8.416],"b":[9.679,-0.31,1.892],"radius_m":0.736}],"name":"wing_outer_r","node":"ZONE_wing_outer_r","parent":"wing_inner_r","share":0.08},{"capsules":[{"a":[-12.4,-1.0,0.691],"b":[-12.4,-0.868,5.292],"radius_m":0.952}],"name":"engine_1","node":"ZONE_engine_1","parent":"wing_outer_l","share":0.06},{"capsules":[{"a":[-6.8,-1.698,-3.529],"b":[-6.8,-1.491,2.75],"radius_m":0.956}],"name":"engine_2","node":"ZONE_engine_2","parent":"wing_inner_l","share":0.06},{"capsules":[{"a":[6.8,-1.698,-3.529],"b":[6.8,-1.491,2.75],"radius_m":0.956}],"name":"engine_3","node":"ZONE_engine_3","parent":"wing_inner_r","share":0.06},{"capsules":[{"a":[12.4,-1.0,0.691],"b":[12.4,-0.868,5.292],"radius_m":0.952}],"name":"engine_4","node":"ZONE_engine_4","parent":"wing_outer_r","share":0.06}]},"url":"airliners/airliner.gltf.json"},{"id":"widebody","manifest":{"_":"One of the three airliners (openspec change airliner-models), built by tools/blender/build_airliners.py: written by the build, never by hand. Frame: glTF metres, +Y up, nose toward -Z, +X the right wing, origin on the fuselage's centre line half way along it. Meshes are <part>.L<level> under ZONE_* nodes or RIG_* pivots; level 0 carries the interior (int_*).","after":"Lockheed L-1011 TriStar","blender":"4.4.3","blueprint":"docs/reference/airliner-blueprints/lockheed-l1011-tristar.png","bounds_m":{"x":[-23.75,23.75],"y":[-4.084,12.1],"z":[-27.1,27.252]},"bytes":2878896,"cabin_lights":[[0.0,1.25,-15.927],[0.0,1.25,-5.235],[0.0,1.25,5.457]],"cabin_view":{"aisle":[1.497,0.9,9.03],"aisle_look":[1.497,0.65,-21.6],"deck":[-0.5,0.65,-25.25],"deck_look":[-0.5,0.75,-37.25]},"csg_steps":145,"file":"widebody.glb","gear_sequence_s":8.0,"generator":"tools/blender/build_airliners.py","id":"widebody","interior":["int_aft_wall_cabin_aft.L0","int_bins_cabin_aft.L0","int_bins_cabin_fwd.L0","int_bins_centre.L0","int_deck_frames_nose.L0","int_deck_panel_nose.L0","int_deck_seats_nose.L0","int_deck_wall_cabin_fwd.L0","int_galleys_cabin_aft.L0","int_galleys_cabin_fwd.L0","int_seat_frames_cabin_aft.L0","int_seat_frames_cabin_fwd.L0","int_seat_frames_centre.L0","int_seats_cabin_aft.L0","int_seats_cabin_fwd.L0","int_seats_centre.L0"],"lamps":[{"at":[-23.625,1.2219,12.043],"colour":"red","node":"LAMP_nav_left","pattern":"steady","zone":"wing_outer_l"},{"at":[23.625,1.2219,12.043],"colour":"green","node":"LAMP_nav_right","pattern":"steady","zone":"wing_outer_r"},{"at":[-23.625,1.2219,13.3599],"colour":"white","node":"LAMP_strobe_left","pattern":"strobe","zone":"wing_outer_l"},{"at":[23.625,1.2219,13.3599],"colour":"white","node":"LAMP_strobe_right","pattern":"strobe","zone":"wing_outer_r"},{"at":[0.0,1.1201,27.15],"colour":"white","node":"LAMP_nav_tail","pattern":"steady","zone":"tail"},{"at":[0.0,3.1,-1.425],"colour":"red","node":"LAMP_beacon_top","pattern":"beacon","zone":"centre"},{"at":[0.0,-3.1,0.575],"colour":"red","node":"LAMP_beacon_bottom","pattern":"beacon","zone":"centre"},{"at":[0.0,1.2701,27.12],"colour":"white","node":"LAMP_strobe_tail","pattern":"strobe","zone":"tail"},{"at":[-3.5485,-1.4146,-3.876],"colour":"white","node":"LAMP_landing_l","pattern":"landing","zone":"wing_inner_l"},{"at":[3.5485,-1.4146,-3.876],"colour":"white","node":"LAMP_landing_r","pattern":"landing","zone":"wing_inner_r"}],"light_patterns":{"beacon":{"on_s":0.1,"period_s":1.0},"landing":{"below_agl_m":600},"steady":{},"strobe":{"flashes":2,"gap_s":0.15,"on_s":0.05,"period_s":1.2}},"lods":[{"budget_triangles":90000,"lod":0,"triangles":26582,"within_m":250},{"budget_triangles":14000,"lod":1,"triangles":5234,"within_m":1500},{"budget_triangles":3000,"lod":2,"triangles":2270,"within_m":null}],"materials":["widebody_crown","widebody_line","widebody_belly","widebody_wing","widebody_fin","widebody_nacelle","widebody_metal","widebody_dark","widebody_rubber","widebody_glass","widebody_torn","widebody_cabin_wall","widebody_seat","widebody_carpet","widebody_trim","widebody_panel","widebody_nav_red","widebody_nav_green","widebody_nav_white","widebody_beacon","widebody_strobe","widebody_landing"],"measured_m":{"height_at_rest":16.184,"length":54.352,"span":47.5},"rest_m":4.084,"rest_pitch_deg":0.0,"rig":[{"angle_deg":-85.0,"at":[-0.45,-2.95,-22.125],"axis":[0.0,0.0,1.0],"keys":[[0.0,1.0],[0.8,1.0],[1.0,0.0]],"node":"RIG_door_nose_l","role":"gear_door","zone":"cabin_fwd"},{"angle_deg":85.0,"at":[0.45,-2.95,-22.125],"axis":[0.0,0.0,1.0],"keys":[[0.0,1.0],[0.8,1.0],[1.0,0.0]],"node":"RIG_door_nose_r","role":"gear_door","zone":"cabin_fwd"},{"angle_deg":85.0,"at":[-0.45,-2.0136,1.6344],"axis":[0.0,0.0,1.0],"keys":[[0.0,1.0],[0.8,1.0],[1.0,0.0]],"node":"RIG_door_main_l","role":"gear_door","zone":"centre"},{"at":[-18.8375,0.5982,10.7803],"axis":[0.87589,-0.11531,-0.46854],"node":"RIG_aileron_l","range_deg":20.0,"role":"aileron","zone":"wing_outer_l"},{"at":[-8.51,-0.7562,5.8378],"axis":[0.91575,-0.11971,-0.3835],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_l","role":"flap","zone":"wing_inner_l"},{"angle_deg":-85.0,"at":[0.45,-2.0136,1.6344],"axis":[0.0,0.0,1.0],"keys":[[0.0,1.0],[0.8,1.0],[1.0,0.0]],"node":"RIG_door_main_r","role":"gear_door","zone":"centre"},{"at":[18.8375,0.5982,10.7803],"axis":[0.87589,0.11531,0.46854],"node":"RIG_aileron_r","range_deg":20.0,"role":"aileron","zone":"wing_outer_r"},{"at":[8.51,-0.7562,5.8378],"axis":[0.91575,0.11971,0.3835],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_r","role":"flap","zone":"wing_inner_r"},{"at":[0.0,8.3665,22.8043],"axis":[0.0,0.95775,0.28761],"node":"RIG_rudder","range_deg":25.0,"role":"rudder","zone":"tail"},{"at":[-6.4465,1.1783,23.9837],"axis":[0.91957,-0.04819,-0.38995],"node":"RIG_elevator_l","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[6.4465,1.1783,23.9837],"axis":[0.91957,0.04819,0.38995],"node":"RIG_elevator_r","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[-9.6,-2.5179,-2.0986],"axis":[0.0,0.0,1.0],"node":"RIG_fan_1","role":"fan","rpm":3000.0,"zone":"engine_1"},{"at":[0.0,3.41,13.2],"axis":[0.0,0.0,1.0],"node":"RIG_fan_2","role":"fan","rpm":3000.0,"zone":"engine_2"},{"at":[9.6,-2.5179,-2.0986],"axis":[0.0,0.0,1.0],"node":"RIG_fan_3","role":"fan","rpm":3000.0,"zone":"engine_3"},{"angle_deg":90.0,"at":[-5.45,-1.0643,1.6344],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"centre"},{"angle_deg":-90.0,"at":[5.45,-1.0643,1.6344],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"centre"},{"angle_deg":90.0,"at":[0.0,-2.25,-20.8],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_nose","role":"gear_leg","zone":"cabin_fwd"},{"at":[-18.8375,0.5982,10.7803],"axis":[0.87589,-0.11531,-0.46854],"node":"RIG_aileron_l","range_deg":20.0,"role":"aileron","zone":"wing_outer_l"},{"at":[-8.51,-0.7562,5.8378],"axis":[0.91575,-0.11971,-0.3835],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_l","role":"flap","zone":"wing_inner_l"},{"at":[18.8375,0.5982,10.7803],"axis":[0.87589,0.11531,0.46854],"node":"RIG_aileron_r","range_deg":20.0,"role":"aileron","zone":"wing_outer_r"},{"at":[8.51,-0.7562,5.8378],"axis":[0.91575,0.11971,0.3835],"detents_deg":[0.0,15.0,30.0],"node":"RIG_flap_r","role":"flap","zone":"wing_inner_r"},{"at":[0.0,8.3665,22.8043],"axis":[0.0,0.95775,0.28761],"node":"RIG_rudder","range_deg":25.0,"role":"rudder","zone":"tail"},{"at":[-6.4465,1.1783,23.9837],"axis":[0.91957,-0.04819,-0.38995],"node":"RIG_elevator_l","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[6.4465,1.1783,23.9837],"axis":[0.91957,0.04819,0.38995],"node":"RIG_elevator_r","range_deg":20.0,"role":"elevator","zone":"tail"},{"at":[-9.6,-2.5179,-2.0986],"axis":[0.0,0.0,1.0],"node":"RIG_fan_1","role":"fan","rpm":3000.0,"zone":"engine_1"},{"at":[0.0,3.41,13.2],"axis":[0.0,0.0,1.0],"node":"RIG_fan_2","role":"fan","rpm":3000.0,"zone":"engine_2"},{"at":[9.6,-2.5179,-2.0986],"axis":[0.0,0.0,1.0],"node":"RIG_fan_3","role":"fan","rpm":3000.0,"zone":"engine_3"},{"angle_deg":90.0,"at":[-5.45,-1.0643,1.6344],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"centre"},{"angle_deg":-90.0,"at":[5.45,-1.0643,1.6344],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"centre"},{"angle_deg":90.0,"at":[0.0,-2.25,-20.8],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_nose","role":"gear_leg","zone":"cabin_fwd"},{"at":[-9.6,-2.5179,-2.0986],"axis":[0.0,0.0,1.0],"node":"RIG_fan_1","role":"fan","rpm":3000.0,"zone":"engine_1"},{"at":[0.0,3.41,13.2],"axis":[0.0,0.0,1.0],"node":"RIG_fan_2","role":"fan","rpm":3000.0,"zone":"engine_2"},{"at":[9.6,-2.5179,-2.0986],"axis":[0.0,0.0,1.0],"node":"RIG_fan_3","role":"fan","rpm":3000.0,"zone":"engine_3"},{"angle_deg":90.0,"at":[-5.45,-1.0643,1.6344],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_l","role":"gear_leg","zone":"centre"},{"angle_deg":-90.0,"at":[5.45,-1.0643,1.6344],"axis":[0.0,0.0,1.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_main_r","role":"gear_leg","zone":"centre"},{"angle_deg":90.0,"at":[0.0,-2.25,-20.8],"axis":[1.0,0.0,0.0],"keys":[[0.0,0.0],[0.12,0.0],[0.8,1.0],[1.0,1.0]],"node":"RIG_gear_nose","role":"gear_leg","zone":"cabin_fwd"}],"seats":306,"sha256":"038af5b144f29f3197235c7f9a2df9200d3cfeec9daf28f011d78ec2a10b6590","size_m":{"fuselage":5.97,"height":16.87,"length":54.2,"span":47.35},"zones":[{"capsules":[{"a":[0.568,-2.055,-2.257],"b":[-0.568,-2.055,-2.257],"radius_m":5.382}],"name":"centre","node":"ZONE_centre","parent":null,"share":0.3},{"capsules":[{"a":[0.0,-0.841,-18.057],"b":[0.0,0.747,-12.382],"radius_m":3.865}],"name":"cabin_fwd","node":"ZONE_cabin_fwd","parent":"centre","share":0.15},{"capsules":[{"a":[0.105,0.419,-24.039],"b":[0.105,0.419,-24.039],"radius_m":3.238}],"name":"nose","node":"ZONE_nose","parent":"cabin_fwd","share":0.1},{"capsules":[{"a":[0.0,0.215,5.385],"b":[0.0,0.051,10.792],"radius_m":3.091}],"name":"cabin_aft","node":"ZONE_cabin_aft","parent":"centre","share":0.15},{"capsules":[{"a":[0.009,0.917,19.587],"b":[0.009,0.917,19.587],"radius_m":10.654}],"name":"tail","node":"ZONE_tail","parent":"cabin_aft","share":0.12},{"capsules":[{"a":[-3.013,-1.455,4.796],"b":[-7.533,-0.873,8.464],"radius_m":1.48},{"a":[-2.844,-1.465,0.743],"b":[-13.236,-0.127,9.176],"radius_m":1.462},{"a":[-3.017,-1.451,-3.033],"b":[-14.253,-0.004,6.084],"radius_m":1.397}],"name":"wing_inner_l","node":"ZONE_wing_inner_l","parent":"centre","share":0.14},{"capsules":[{"a":[-23.523,1.207,10.986],"b":[-14.711,0.07,5.395],"radius_m":0.749},{"a":[-23.405,1.169,12.775],"b":[-14.774,0.056,7.299],"radius_m":0.741},{"a":[-22.759,1.109,14.233],"b":[-14.811,0.084,9.191],"radius_m":0.733}],"name":"wing_outer_l","node":"ZONE_wing_outer_l","parent":"wing_inner_l","share":0.08},{"capsules":[{"a":[3.013,-1.455,4.796],"b":[7.533,-0.873,8.464],"radius_m":1.48},{"a":[2.844,-1.465,0.743],"b":[13.236,-0.127,9.176],"radius_m":1.462},{"a":[3.017,-1.451,-3.033],"b":[14.253,-0.004,6.084],"radius_m":1.397}],"name":"wing_inner_r","node":"ZONE_wing_inner_r","parent":"centre","share":0.14},{"capsules":[{"a":[23.474,1.211,10.887],"b":[14.738,0.092,5.412],"radius_m":0.778},{"a":[23.438,1.207,12.73],"b":[14.763,0.096,7.294],"radius_m":0.73},{"a":[22.754,1.1,14.166],"b":[14.852,0.088,9.214],"radius_m":0.777}],"name":"wing_outer_r","node":"ZONE_wing_outer_r","parent":"wing_inner_r","share":0.08},{"capsules":[{"a":[-9.6,-2.216,-1.454],"b":[-9.6,-2.003,4.541],"radius_m":1.467}],"name":"engine_1","node":"ZONE_engine_1","parent":"wing_inner_l","share":0.06},{"capsules":[{"a":[0.0,1.175,26.358],"b":[0.0,3.281,13.852],"radius_m":0.983}],"name":"engine_2","node":"ZONE_engine_2","parent":"tail","share":0.06},{"capsules":[{"a":[9.6,-2.216,-1.454],"b":[9.6,-2.003,4.541],"radius_m":1.467}],"name":"engine_3","node":"ZONE_engine_3","parent":"wing_inner_r","share":0.06}]},"url":"airliners/widebody.gltf.json"}];
+const YARD = {"id":"foreman","name":"Foreman","height_m":23.62,"width_m":11.97,"length_m":13.31,"url":"airliners/foreman.gltf.json"};
+const T = THREE;
+try { self.createImageBitmap = undefined; } catch (e) {}
+const lin = hex => new T.Color(hex).convertSRGBToLinear();
+const m1 = v => String(+Number(v).toFixed(1));
+const NAME = { propliner: "Propliner", airliner: "Four-jet airliner", widebody: "Wide-body" };
+
+const canvas = document.getElementById("view");
+const stage = document.getElementById("stage");
+const renderer = new T.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.outputEncoding = T.sRGBEncoding;
+renderer.toneMapping = T.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+renderer.localClippingEnabled = true;
+const scene = new T.Scene();
+const DAY_SKY = lin(0xc9d3dc), NIGHT_SKY = lin(0x070a12);
+scene.background = DAY_SKY.clone();
+scene.fog = new T.Fog(DAY_SKY.clone(), 300, 1500);
+const camera = new T.PerspectiveCamera(40, 1.6, 0.05, 5000);
+const controls = new T.OrbitControls(camera, canvas);
+controls.enableDamping = true;
+Object.assign(controls, { minDistance: 0.2, maxDistance: 600, maxPolarAngle: Math.PI * 0.495 });
+const hemi = new T.HemisphereLight(0xbfd4ee, 0x4a4438, 0.8); scene.add(hemi);
+const sun = new T.DirectionalLight(0xffe8cc, 2.2);
+sun.position.set(-120, 200, -90); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -130, right: 130, top: 130, bottom: -130, near: 10, far: 600 });
+scene.add(sun);
+const moon = new T.DirectionalLight(0x8fa6d6, 0.0); moon.position.set(80, 120, 60); scene.add(moon);
+const ground = new T.Mesh(new T.PlaneGeometry(2000, 2000), new T.MeshStandardMaterial({ color: lin(0x55554f), roughness: 0.95 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+const grid = new T.GridHelper(400, 40, 0x8a8a80, 0x6c6c64); grid.position.y = 0.02; scene.add(grid);
+
+const tagsEl = document.getElementById("tags");
+const tags = [];
+function tag(text, cls, obj, at) {
+  const el = document.createElement("div"); el.className = "tag " + cls; el.textContent = text; tagsEl.appendChild(el);
+  tags.push({ el, obj, at });
+}
+// glTF JSON for the artifact pages: the models sit beside the page as .gltf.json with their buffer embedded
+// (the host serves .json but not .glb, .gltf or .bin). Inlined by tools/mockups/gen_mech_designs.py and
+// gen_cockpit_page.py:   const loader = gltfJsonLoader(THREE);   loader.loadAsync(url).then(gltf => ...)
+// Without createImageBitmap, GLTFLoader decodes textures through <img> elements rather than fetch(): the
+// host refuses fetch() of blob: URLs as it does data: URLs, but draws images from either.
+try { self.createImageBitmap = undefined; } catch (e) {}
+// The artifact host refuses fetch() of data: URLs, so a glTF JSON whose buffer is a data URI cannot load
+// its buffer. Fetch the JSON (a file beside the page), decode the buffer here and hand the loader a binary
+// glTF built in memory: nothing is fetched but the JSON and the texture files beside it.
+function gltfJsonLoader(T) {
+  const loader = new T.GLTFLoader();
+  loader.loadAsync = url => fetch(url).then(r => { if (!r.ok) throw new Error(url + ": " + r.status); return r.json(); }).then(js => {
+    const b = js.buffers[0], m = /^data:[^,]*;base64,(.*)$/.exec(b.uri || "");
+    if (!m) throw new Error(url + ": buffer is not embedded");
+    const bin = Uint8Array.from(atob(m[1]), c => c.charCodeAt(0));
+    delete b.uri;
+    b.byteLength = bin.length;
+    const enc = new TextEncoder(), pad4 = n => (n + 3) & ~3;
+    let jb = enc.encode(JSON.stringify(js));
+    const jl = pad4(jb.length), bl = pad4(bin.length), glb = new Uint8Array(12 + 8 + jl + 8 + bl);
+    const dv = new DataView(glb.buffer);
+    dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, glb.length, true);
+    dv.setUint32(12, jl, true); dv.setUint32(16, 0x4E4F534A, true);
+    glb.fill(0x20, 20, 20 + jl); glb.set(jb, 20);
+    dv.setUint32(20 + jl, bl, true); dv.setUint32(24 + jl, 0x004E4942, true);
+    glb.set(bin, 28 + jl);
+    const base = url.includes("/") ? url.slice(0, url.lastIndexOf("/") + 1) : "";
+    return new Promise((ok, no) => loader.parse(glb.buffer, base, ok, no));
+  });
+  return loader;
+}
+
+const loader = gltfJsonLoader(T);
+const lodOf = o => { const m = /\.?L([012])$/.exec(o.name || ""); return m ? +m[1] : null; };
+const zoneOf = o => { for (let n = o; n; n = n.parent) if ((n.name || "").startsWith("ZONE_")) return n; return null; };
+const CLIP = new T.Plane(new T.Vector3(-1, 0, 0), 0);
+const CLIP_MATS = /_(crown|line|belly|cabin_wall|glass|torn|trim)$/;
+
+const planes = {};   // id -> state
+let pending = PLANES.length + 1;
+const loaded = () => { if (--pending <= 0) markReady(); };
+let x = 0;
+const ORDER = ["propliner", "airliner", "widebody"];
+const spacing = { propliner: 0, airliner: 0, widebody: 0 };
+const list = ORDER.map(id => PLANES.find(p => p.id === id)).filter(Boolean);
+// side by side across x, a span and 12 m apart
+let cursor = 0;
+list.forEach((p, i) => { const s = p.manifest.size_m.span; if (i) cursor += s * 0.5; spacing[p.id] = cursor; cursor += s * 0.5 + 12; });
+const mid = cursor / 2;
+
+list.forEach(p => {
+  const man = p.manifest;
+  const holder = new T.Group();
+  holder.position.set(spacing[p.id] - mid, man.rest_m, 0);
+  holder.rotation.x = man.rest_pitch_deg * Math.PI / 180;
+  scene.add(holder);
+  const st = planes[p.id] = { p, man, holder, rig: [], lamps: [], zones: {}, flying: [], meshes: [], capsules: [], cabinLights: [] };
+  loader.loadAsync(p.url).then(gltf => {
+    const root = gltf.scene;
+    holder.add(root);
+    root.traverse(o => {
+      if (o.isMesh) {
+        o.castShadow = true; o.receiveShadow = true; st.meshes.push(o);
+        const ms = Array.isArray(o.material) ? o.material : [o.material];
+        for (const m of ms) if (CLIP_MATS.test(m.name || "")) m.userData.clip = true;
+      }
+    });
+    for (const r of man.rig) {
+      const node = root.getObjectByName(r.node);
+      if (!node) continue;
+      st.rig.push({ r, node, base: node.quaternion.clone(), axis: new T.Vector3(...r.axis).normalize() });
+    }
+    for (const z of man.zones) {
+      const node = root.getObjectByName(z.node);
+      if (!node) continue;
+      let c = new T.Vector3(); let n = 0;
+      for (const cap of z.capsules) { c.add(new T.Vector3(...cap.a)).add(new T.Vector3(...cap.b)); n += 2; }
+      if (n) c.multiplyScalar(1 / n);
+      st.zones[z.name] = { z, node, centre: c, base: node.position.clone(), baseQ: node.quaternion.clone() };
+    }
+    // the lamps: a glow sprite each, and a point light for the landing lights and beacons
+    for (const l of man.lamps) {
+      const node = root.getObjectByName(l.node);
+      if (!node) continue;
+      const col = { red: 0xff2a14, green: 0x2cff5a, white: 0xffffff }[l.colour];
+      const spr = new T.Sprite(new T.SpriteMaterial({ map: glowTex(), color: col, transparent: true, blending: T.AdditiveBlending, depthWrite: false }));
+      const big = l.pattern === "landing" ? 3.0 : l.pattern === "strobe" ? 2.4 : 1.6;
+      spr.scale.set(big, big, 1); spr.visible = false; node.add(spr);
+      let light = null;
+      if (l.pattern === "landing" || l.pattern === "beacon") {
+        light = new T.PointLight(col, 0, l.pattern === "landing" ? 45 : 20, 2); node.add(light);
+      }
+      st.lamps.push({ l, spr, light, big });
+    }
+    // three warm lights down the cabin, for the cabin at night (lit live, not baked)
+    const c = man.cabin_lights || [];
+    for (const at of c) { const pl = new T.PointLight(0xffe6c0, 0, 9, 2); pl.position.set(...at); root.add(pl); st.cabinLights.push(pl); }
+    for (const z of man.zones) for (const cap of z.capsules) {
+      const a = new T.Vector3(...cap.a), b = new T.Vector3(...cap.b);
+      const len = a.distanceTo(b);
+      const g = new T.CapsuleGeometry(cap.radius_m, len, 4, 10);
+      const mesh = new T.Mesh(g, new T.MeshBasicMaterial({ color: 0xffb02e, wireframe: true, transparent: true, opacity: 0.45 }));
+      mesh.position.copy(a).add(b).multiplyScalar(0.5);
+      if (len > 1e-4) mesh.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+      mesh.visible = false;
+      const zn = st.zones[z.name];
+      if (zn) { mesh.position.sub(new T.Vector3()); zn.node.add(mesh); }
+      st.capsules.push(mesh);
+    }
+    tag(NAME[p.id] + " (" + man.after + ")", "", holder, new T.Vector3(0, man.bounds_m.y[1] + 2, 0));
+    applyLod(); applyClip(); loaded();
+  }).catch(err => { console.error(err); loaded(); });
+});
+
+// the yardsticks: a 1.8 m pilot beside the nose of the first aircraft, the Foreman beyond the last
+const pilot = new T.Group();
+const body = new T.Mesh(new T.CapsuleGeometry(0.22, 1.36, 4, 10), new T.MeshStandardMaterial({ color: lin(0xd76b2a), roughness: 0.7 }));
+body.position.y = 0.9; body.castShadow = true; pilot.add(body);
+pilot.position.set(-mid - 4, 0, -14); scene.add(pilot);
+tag("Pilot 1.8 m", "rail", pilot, new T.Vector3(0, 2.1, 0));
+loader.loadAsync(YARD.url).then(gltf => {
+  gltf.scene.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  gltf.scene.position.set(cursor - mid + 6, 0, -6); gltf.scene.rotation.y = Math.PI;
+  scene.add(gltf.scene);
+  tag("Foreman " + m1(YARD.height_m) + " m", "rail", gltf.scene, new T.Vector3(0, YARD.height_m + 1, 0));
+  loaded();
+}).catch(loaded);
+
+let glowTexCache = null;
+function glowTex() {
+  if (glowTexCache) return glowTexCache;
+  const c = document.createElement("canvas"); c.width = c.height = 64;
+  const g = c.getContext("2d"), r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, "rgba(255,255,255,1)"); r.addColorStop(0.25, "rgba(255,255,255,0.6)"); r.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+  return glowTexCache = new T.CanvasTexture(c);
+}
+
+// --- tables
+const sizes = document.querySelector("#sizes tbody"), lodtbl = document.querySelector("#lodtbl tbody"), zonetbl = document.querySelector("#zonetbl tbody");
+for (const p of list) {
+  const m = p.manifest;
+  sizes.insertAdjacentHTML("beforeend", `<tr><td>${NAME[p.id]}<br><span class="stat">after the ${m.after}</span></td><td class="n">${m1(m.measured_m.length)} m</td><td class="n">${m1(m.measured_m.span)} m</td><td class="n">${m1(m.measured_m.height_at_rest)} m</td><td class="n">${m.seats}</td></tr>`);
+  lodtbl.insertAdjacentHTML("beforeend", `<tr><td>${NAME[p.id]}</td>` + m.lods.map(l => `<td class="n">${l.triangles.toLocaleString()} / ${l.budget_triangles.toLocaleString()}</td>`).join("") + "</tr>");
+}
+const wb = list.find(p => p.id === "airliner") || list[0];
+for (const z of wb.manifest.zones) zonetbl.insertAdjacentHTML("beforeend", `<tr><td>${z.name.replace(/_/g, " ")}</td><td>${(z.parent || "(the main box)").replace(/_/g, " ")}</td><td class="n">${Math.round(z.share * 100)} %</td></tr>`);
+
+// --- controls
+let show = "all";
+const pick = document.getElementById("pick");
+for (const id of ["all", ...ORDER]) {
+  const b = document.createElement("button"); b.type = "button"; b.textContent = id === "all" ? "All three" : NAME[id];
+  b.onclick = () => { show = id; for (const [k, s] of Object.entries(planes)) s.holder.visible = id === "all" || id === k; home(); press(pick, b); };
+  pick.appendChild(b); if (id === "all") b.setAttribute("aria-pressed", "true");
+}
+function press(group, btn) { group.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === btn))); }
+let lod = 0;
+const lods = document.getElementById("lods");
+["Near", "Mid", "Far"].forEach((t, i) => {
+  const b = document.createElement("button"); b.type = "button"; b.textContent = t;
+  b.onclick = () => { lod = i; applyLod(); press(lods, b); };
+  lods.appendChild(b); if (!i) b.setAttribute("aria-pressed", "true");
+});
+function applyLod() { for (const s of Object.values(planes)) for (const o of s.meshes) { const l = lodOf(o) ?? lodOf(o.parent || {}); o.visible = l === null || l === lod; } }
+
+let gearT = 0, gearTarget = 0;
+const gearBtn = document.getElementById("gear");
+gearBtn.onclick = () => { gearTarget = gearTarget ? 0 : 1; gearBtn.setAttribute("aria-pressed", String(!!gearTarget)); gearBtn.textContent = gearTarget ? "Gear: up" : "Gear: down"; };
+let spinning = true, realRpm = false, working = false, flapStep = 0, night = false, cut = false;
+toggle("spin", v => spinning = v);
+toggle("realspin", v => realRpm = v);
+toggle("controls", v => working = v);
+toggle("night", v => { night = v; applyNight(); });
+toggle("cut", v => { cut = v; applyClip(); });
+toggle("caps", v => { for (const s of Object.values(planes)) for (const c of s.capsules) c.visible = v; });
+document.getElementById("flaps").onclick = e => { flapStep = (flapStep + 1) % 3; e.target.textContent = "Flaps " + [0, 15, 30][flapStep]; };
+function toggle(id, f) { const b = document.getElementById(id); b.onclick = () => { const v = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", String(v)); f(v); }; }
+function applyNight() {
+  stage.classList.toggle("night", night);
+  scene.background.copy(night ? NIGHT_SKY : DAY_SKY); scene.fog.color.copy(scene.background);
+  sun.intensity = night ? 0 : 2.2; hemi.intensity = night ? 0.06 : 0.8; moon.intensity = night ? 0.25 : 0;
+  ground.material.color.copy(lin(night ? 0x2a2a28 : 0x55554f));
+  for (const s of Object.values(planes)) for (const pl of s.cabinLights) pl.intensity = night ? 6 : 0;
+}
+function applyClip() {
+  for (const s of Object.values(planes)) for (const o of s.meshes) {
+    const ms = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of ms) if (m.userData.clip) { m.clippingPlanes = cut ? [CLIP] : null; m.clipShadows = true; m.side = cut ? T.DoubleSide : T.FrontSide; m.needsUpdate = true; }
+  }
+}
+// the cut is through each aircraft's own centre line: one clipping plane per aircraft would need its own materials, so
+// the plane follows the aircraft nearest the camera's target
+function updateClip() {
+  let best = null, bd = 1e9;
+  for (const s of Object.values(planes)) { if (!s.holder.visible) continue; const d = Math.abs(s.holder.position.x - controls.target.x); if (d < bd) { bd = d; best = s; } }
+  if (best) CLIP.constant = best.holder.position.x;
+}
+
+const explode = document.getElementById("explode");
+document.getElementById("repair").onclick = () => {
+  explode.value = 0;
+  for (const s of Object.values(planes)) { s.flying = []; for (const z of Object.values(s.zones)) { z.node.position.copy(z.base); z.node.quaternion.copy(z.baseQ); z.node.visible = true; } }
+};
+
+// click a part: its zone breaks off and falls, with every zone that hangs from it
+const ray = new T.Raycaster(), ndc = new T.Vector2();
+let downAt = null;
+canvas.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY]; });
+canvas.addEventListener("pointerup", e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const all = Object.values(planes).flatMap(s => s.meshes.filter(o => o.visible && s.holder.visible));
+  const hit = ray.intersectObjects(all, false)[0];
+  if (!hit) return;
+  const zn = zoneOf(hit.object);
+  if (!zn) return;
+  for (const s of Object.values(planes)) {
+    const z = Object.values(s.zones).find(q => q.node === zn);
+    if (!z || !z.z.parent) continue;  // the main box holds the rest; it falls with the aircraft
+    const out = z.centre.clone().normalize();
+    s.flying.push({ z, v: new T.Vector3(out.x * 6, 4, out.z * 3), w: new T.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(1.6), t: 0 });
+  }
+});
+
+const sph = new T.Spherical(), off = new T.Vector3();
+let mode = "orbit";
+function home() {
+  mode = "orbit"; controls.minDistance = 2; controls.maxPolarAngle = Math.PI * 0.495;
+  document.getElementById("cabin").setAttribute("aria-pressed", "false"); document.getElementById("deck").setAttribute("aria-pressed", "false");
+  const s = show === "all" ? null : planes[show];
+  const L = s ? Math.max(s.man.size_m.length, s.man.size_m.span) : cursor;
+  const cx = s ? s.holder.position.x : 0;
+  controls.target.set(cx, 4, 0);
+  camera.position.set(cx - L * 0.55, L * 0.32, -L * 0.75);
+  controls.update();
+}
+function inside(which) {
+  const s = show === "all" ? planes.airliner || Object.values(planes)[0] : planes[show];
+  if (!s) return;
+  if (show === "all") { show = s.p.id; for (const [k, q] of Object.entries(planes)) q.holder.visible = k === show; press(pick, [...pick.children][ORDER.indexOf(show) + 1]); }
+  const cab = s.man.cabin_view;
+  const at = which === "deck" ? cab.deck : cab.aisle;
+  const look = which === "deck" ? cab.deck_look : cab.aisle_look;
+  const p0 = s.holder.localToWorld(new T.Vector3(...at)), p1 = s.holder.localToWorld(new T.Vector3(...look));
+  // inside, the view may look up the propliner's sloping floor: no ground clamp
+  mode = which; controls.minDistance = 0.05; controls.maxPolarAngle = Math.PI;
+  camera.position.copy(p0); controls.target.copy(p1); controls.update();
+  document.getElementById("cabin").setAttribute("aria-pressed", String(which === "aisle"));
+  document.getElementById("deck").setAttribute("aria-pressed", String(which === "deck"));
+}
+document.getElementById("cabin").onclick = () => inside("aisle");
+document.getElementById("deck").onclick = () => inside("deck");
+document.getElementById("reset").onclick = home;
+home();
+canvas.addEventListener("keydown", e => {
+  off.copy(camera.position).sub(controls.target); sph.setFromVector3(off);
+  if (e.key === "ArrowLeft") sph.theta -= 0.08; else if (e.key === "ArrowRight") sph.theta += 0.08;
+  else if (e.key === "ArrowUp") sph.phi = Math.max(0.1, sph.phi - 0.06); else if (e.key === "ArrowDown") sph.phi = Math.min(1.5, sph.phi + 0.06);
+  else if (e.key === "+" || e.key === "=") sph.radius *= 0.9; else if (e.key === "-") sph.radius *= 1.1;
+  else if (e.key === "r" || e.key === "R") { home(); return; } else return;
+  e.preventDefault(); camera.position.copy(controls.target).add(off.setFromSpherical(sph)); controls.update();
+});
+
+// the gear sequence and the light patterns: the manifest's own numbers
+function keyed(keys, t) {
+  if (t <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) if (t <= keys[i][0]) {
+    const [t0, v0] = keys[i - 1], [t1, v1] = keys[i], u = (t - t0) / Math.max(t1 - t0, 1e-6);
+    return v0 + (v1 - v0) * (u * u * (3 - 2 * u));
+  }
+  return keys[keys.length - 1][1];
+}
+function lampOn(pat, t, man) {
+  const P = man.light_patterns[pat] || {};
+  if (pat === "beacon") return (t % P.period_s) < P.on_s;
+  if (pat === "strobe") { const u = t % P.period_s; return u < P.on_s || (u > P.gap_s && u < P.gap_s + P.on_s); }
+  return true;
+}
+const q = new T.Quaternion();
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== Math.floor(w * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+}
+const v = new T.Vector3();
+let last = performance.now(), clock = 0, spinAngle = 0;
+let ready = false;
+function markReady() { ready = true; }
+window.MOCKUP_SCENE = scene;
+window.MOCKUP_API = { planes, setGear: t => { gearT = gearTarget = t; }, night: v => { night = v; applyNight(); }, cut: v => { cut = v; applyClip(); }, inside, home,
+  explode: v => { explode.value = v; }, show: id => { [...pick.children][["all", ...ORDER].indexOf(id)].click(); }, caps: v => { for (const s of Object.values(planes)) for (const c of s.capsules) c.visible = v; },
+  cam: (p, t) => { camera.position.set(...p); controls.target.set(...t); controls.update(); },
+  camOn: (id, p, t) => { const h = planes[id].holder; camera.position.copy(h.localToWorld(new T.Vector3(...p))); controls.target.copy(h.localToWorld(new T.Vector3(...t))); controls.update(); }, lod: n => { [...lods.children][n].click(); } };
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; clock += dt;
+  resize(); controls.update(); updateClip();
+  const seq = 8.0;
+  if (gearT < gearTarget) gearT = Math.min(gearTarget, gearT + dt / seq); else if (gearT > gearTarget) gearT = Math.max(gearTarget, gearT - dt / seq);
+  const ex = explode.value / 100;
+  const flapDeg = [0, 15, 30][flapStep];
+  for (const s of Object.values(planes)) {
+    for (const g of s.rig) {
+      const r = g.r; let a = 0;
+      if (r.role === "gear_leg" || r.role === "gear_door") a = r.angle_deg * keyed(r.keys, gearT) * Math.PI / 180;
+      else if (r.role === "prop" || r.role === "fan") { if (spinning) g.spin = (g.spin || 0) + dt * (realRpm ? r.rpm / 60 * Math.PI * 2 : (r.role === "prop" ? 9 : 6)); a = g.spin || 0; }
+      else if (r.role === "aileron") a = working ? Math.sin(clock * 1.3) * r.range_deg * Math.PI / 180 * (g.node.name.endsWith("_l") ? 1 : -1) : 0;
+      else if (r.role === "elevator" || r.role === "rudder") a = working ? Math.sin(clock * (r.role === "rudder" ? 0.9 : 1.1)) * r.range_deg * Math.PI / 180 : 0;
+      else if (r.role === "flap") a = flapDeg * Math.PI / 180;
+      g.node.quaternion.copy(g.base).multiply(q.setFromAxisAngle(g.axis, a));
+    }
+    for (const z of Object.values(s.zones)) {
+      if (s.flying.some(f => f.z === z)) continue;
+      const parent = s.zones[z.z.parent];
+      const d = parent ? z.centre.clone().sub(parent.centre) : new T.Vector3();
+      z.node.position.copy(z.base).addScaledVector(d, ex * 0.45);
+    }
+    for (const f of s.flying) {
+      f.t += dt;
+      if (f.z.node.position.y + s.holder.position.y > -40) {
+        f.v.y -= 9.81 * dt;
+        f.z.node.position.addScaledVector(f.v, dt);
+        f.z.node.rotateOnAxis(f.w.clone().normalize(), f.w.length() * dt);
+      } else f.z.node.visible = false;
+    }
+    for (const L of s.lamps) {
+      const on = night && lampOn(L.l.pattern, clock + (s.p.id.length * 0.37), s.man) && (L.l.pattern !== "landing" || gearT < 0.5);
+      L.spr.visible = on;
+      if (L.light) L.light.intensity = on ? (L.l.pattern === "landing" ? 6 : 3) : 0;
+    }
+  }
+  renderer.render(scene, camera);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  for (const t of tags) {
+    t.obj.updateMatrixWorld(); t.obj.localToWorld(v.copy(t.at)); v.project(camera);
+    const vis = v.z < 1 && t.obj.visible && mode === "orbit";
+    t.el.style.display = vis ? "" : "none";
+    t.el.style.left = ((v.x + 1) / 2 * w) + "px"; t.el.style.top = ((1 - v.y) / 2 * h) + "px";
+  }
+  if (ready) window.MOCKUP_READY = true;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>

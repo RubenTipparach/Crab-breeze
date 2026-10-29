@@ -1,0 +1,501 @@
+<title>Airliners: Propliner, 720, TriStar</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Source of docs/mockups/airliners.html: python3 tools/mockups/gen_airliners.py inlines __PLANES__ (each airliner's
+     manifest, written by tools/blender/build_airliners.py: the files the game will draw) and __YARDSTICK__ (the Foreman
+     block-out). Presents openspec/changes/airliner-models. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg: #e9ebef; --panel: #f7f8fa; --edge: #c4cad3; --ink: #12161c; --muted: #56606d;
+  --accent: #4f7a12; --accent-soft: #e3efd2; --warn: #a3271f; --stage: #1a2230;
+  --display: "Saira Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+    --accent: #9cf04a; --accent-soft: #1f2c14; --warn: #ff8f80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1015; --panel: #151a21; --edge: #2a323d; --ink: #e6ebf1; --muted: #94a0ad;
+  --accent: #9cf04a; --accent-soft: #1f2c14; --warn: #ff8f80; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 32px; }
+header { display: grid; gap: 4px; margin: 0 auto 14px; max-width: 1440px; }
+.eyebrow { font: 500 12px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 700 34px/1 var(--display); letter-spacing: 0.03em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 80ch; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; max-width: 1440px; margin: 0 auto; }
+@media (max-width: 1040px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+.bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.bar .lbl { font: 500 12px var(--mono); color: var(--muted); min-width: 6ch; }
+button { font: 700 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 9px 12px; cursor: pointer; min-height: 38px; }
+button:hover { border-color: var(--muted); }
+button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+button:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--edge); border-radius: 4px; overflow: hidden; touch-action: none; }
+canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 16 / 10; }
+@media (max-width: 600px) { canvas { aspect-ratio: 1 / 1.15; } }
+.tag { position: absolute; transform: translate(-50%, -100%); pointer-events: none; font: 500 11px var(--mono);
+  color: #e6ebf1; background: rgba(12, 16, 24, 0.82); border: 1px solid #3a4456; padding: 2px 6px; white-space: nowrap; }
+.tag.standin { border-color: #c9a03a; color: #ffe2a0; }
+.tag.rail { border-color: #6fa8ff; color: #cfe2ff; }
+.hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+aside { display: grid; gap: 12px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.card h2 { font: 700 22px/1 var(--display); letter-spacing: 0.05em; text-transform: uppercase; margin: 0; }
+.pill { font: 700 13px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 8px; border-radius: 3px;
+  border: 1px solid var(--warn); color: var(--warn); justify-self: start; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: left; padding: 4px 6px 4px 0; border-bottom: 1px solid var(--edge); vertical-align: top; }
+th { font: 500 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.note { font-size: 13px; color: var(--muted); margin: 0; }
+.foot { max-width: 1440px; margin: 16px auto 0; font-size: 13px; color: var(--muted); }
+.foot code { font: 12px var(--mono); overflow-wrap: anywhere; }
+.stage.night { background: #04060a; }
+.seg { display: inline-flex; gap: 0; }
+.seg button { border-radius: 0; margin-left: -1px; }
+.seg button:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
+.seg button:last-child { border-radius: 0 4px 4px 0; }
+input[type=range] { accent-color: var(--accent); width: min(220px, 50vw); }
+.stat { font: 500 12px var(--mono); color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+<header>
+  <div class="eyebrow">Crab Breeze · openspec/changes/airliner-models · from NASA public-domain three-views · built in Blender</div>
+  <h1>Three airliners, rigged, lit and breakable</h1>
+  <p class="lede">The propliner (after the DC-3), the four-jet airliner (after the Boeing 720) and the wide-body (after the L-1011 TriStar),
+  the very files the game will load, at true size beside a 1.8 m pilot and the 24 m Foreman. Raise and lower the gear, spin the props and
+  fans, work the controls, switch to night for the navigation lights, beacons and strobes, cut the fuselage open or walk the aisle to see
+  the cabins, and pull the damage zones apart or click a part to shoot it off.</p>
+</header>
+<div class="wrap">
+  <section>
+    <div class="bar" role="group" aria-label="Aircraft">
+      <span class="lbl">Show</span>
+      <span class="seg" id="pick"></span>
+      <button id="reset" type="button">Reset view</button>
+    </div>
+    <div class="bar" role="group" aria-label="Rig">
+      <span class="lbl">Rig</span>
+      <button id="gear" type="button" aria-pressed="false">Gear: down</button>
+      <button id="spin" type="button" aria-pressed="true">Props and fans</button>
+      <button id="realspin" type="button" aria-pressed="false">Real rpm</button>
+      <button id="controls" type="button" aria-pressed="false">Work the controls</button>
+      <button id="flaps" type="button">Flaps 0</button>
+    </div>
+    <div class="bar" role="group" aria-label="Light and view">
+      <span class="lbl">View</span>
+      <button id="night" type="button" aria-pressed="false">Night</button>
+      <button id="cut" type="button" aria-pressed="false">Cut away</button>
+      <button id="cabin" type="button" aria-pressed="false">Walk the aisle</button>
+      <button id="deck" type="button" aria-pressed="false">Flight deck</button>
+      <span class="seg" id="lods"></span>
+    </div>
+    <div class="bar" role="group" aria-label="Damage">
+      <span class="lbl">Damage</span>
+      <label class="stat" for="explode">Pull apart</label><input id="explode" type="range" min="0" max="100" value="0">
+      <button id="caps" type="button" aria-pressed="false">Hit capsules</button>
+      <button id="repair" type="button">Repair</button>
+    </div>
+    <div class="stage" id="stage">
+      <canvas id="view" tabindex="0" aria-label="3D view of the three airliners at true size beside the Foreman and a pilot"></canvas>
+      <div id="tags"></div>
+    </div>
+    <p class="hint">Drag to orbit, scroll or pinch to zoom. Click a part of an aircraft to shoot it off (its zone breaks away with the parts that hang from it). Keys: arrows orbit, + and - zoom, R resets. The grid is 10 m.</p>
+  </section>
+  <aside>
+    <div class="card">
+      <span class="pill">Built, not yet in the game</span>
+      <h2>Measured</h2>
+      <div class="tbl"><table id="sizes"><thead><tr><th>Aircraft</th><th>Length</th><th>Span</th><th>Height</th><th>Seats</th></tr></thead><tbody></tbody></table></div>
+      <p class="note">Measured off each glb by its build (<code>tools/blender/build_airliners.py</code>) against the real aircraft; the
+      propliner sits tail down, as the DC-3 does.</p>
+    </div>
+    <div class="card">
+      <h2>Levels of detail</h2>
+      <div class="tbl"><table id="lodtbl"><thead><tr><th>Aircraft</th><th>Near (cabin)</th><th>Mid</th><th>Far</th></tr></thead><tbody></tbody></table></div>
+      <p class="note">Triangles against each level's budget. The nearest level (within 250 m) carries the cabin; the build refuses a level over budget.</p>
+    </div>
+    <div class="card">
+      <h2>Damage zones</h2>
+      <p class="note">Each aircraft is cut at its airframe's joints into zones: its own meshes, its own hit capsules (measured off the mesh),
+      a parent in a part tree and a share of the aircraft's health. A cut is capped in scorched torn metal; a broken fuselage shows its
+      wall and the cabin. Click one to shoot it off.</p>
+      <div class="tbl"><table id="zonetbl"><thead><tr><th>Zone</th><th>Hangs from</th><th>Health</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="card">
+      <h2>Lights</h2>
+      <p class="note">Red on the left tip, green on the right, white on the tail, steady. Red beacons top and bottom flash once a second.
+      White strobes on the tips double-flash every 1.2 s. Landing lights in the wing roots. Switch to Night to see them.</p>
+    </div>
+  </aside>
+</div>
+<p class="foot">Built by <code>python3 tools/mockups/gen_airliners.py</code> from <code>tools/mockups/airliners_src.html</code>. Blueprints: <code>docs/reference/airliner-blueprints/</code>.</p>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const PLANES = __PLANES__;
+const YARD = __YARDSTICK__;
+const T = THREE;
+try { self.createImageBitmap = undefined; } catch (e) {}
+const lin = hex => new T.Color(hex).convertSRGBToLinear();
+const m1 = v => String(+Number(v).toFixed(1));
+const NAME = { propliner: "Propliner", airliner: "Four-jet airliner", widebody: "Wide-body" };
+
+const canvas = document.getElementById("view");
+const stage = document.getElementById("stage");
+const renderer = new T.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.outputEncoding = T.sRGBEncoding;
+renderer.toneMapping = T.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+renderer.localClippingEnabled = true;
+const scene = new T.Scene();
+const DAY_SKY = lin(0xc9d3dc), NIGHT_SKY = lin(0x070a12);
+scene.background = DAY_SKY.clone();
+scene.fog = new T.Fog(DAY_SKY.clone(), 300, 1500);
+const camera = new T.PerspectiveCamera(40, 1.6, 0.05, 5000);
+const controls = new T.OrbitControls(camera, canvas);
+controls.enableDamping = true;
+Object.assign(controls, { minDistance: 0.2, maxDistance: 600, maxPolarAngle: Math.PI * 0.495 });
+const hemi = new T.HemisphereLight(0xbfd4ee, 0x4a4438, 0.8); scene.add(hemi);
+const sun = new T.DirectionalLight(0xffe8cc, 2.2);
+sun.position.set(-120, 200, -90); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -130, right: 130, top: 130, bottom: -130, near: 10, far: 600 });
+scene.add(sun);
+const moon = new T.DirectionalLight(0x8fa6d6, 0.0); moon.position.set(80, 120, 60); scene.add(moon);
+const ground = new T.Mesh(new T.PlaneGeometry(2000, 2000), new T.MeshStandardMaterial({ color: lin(0x55554f), roughness: 0.95 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+const grid = new T.GridHelper(400, 40, 0x8a8a80, 0x6c6c64); grid.position.y = 0.02; scene.add(grid);
+
+const tagsEl = document.getElementById("tags");
+const tags = [];
+function tag(text, cls, obj, at) {
+  const el = document.createElement("div"); el.className = "tag " + cls; el.textContent = text; tagsEl.appendChild(el);
+  tags.push({ el, obj, at });
+}
+__LOADER__
+const loader = gltfJsonLoader(T);
+const lodOf = o => { const m = /\.?L([012])$/.exec(o.name || ""); return m ? +m[1] : null; };
+const zoneOf = o => { for (let n = o; n; n = n.parent) if ((n.name || "").startsWith("ZONE_")) return n; return null; };
+const CLIP = new T.Plane(new T.Vector3(-1, 0, 0), 0);
+const CLIP_MATS = /_(crown|line|belly|cabin_wall|glass|torn|trim)$/;
+
+const planes = {};   // id -> state
+let pending = PLANES.length + 1;
+const loaded = () => { if (--pending <= 0) markReady(); };
+let x = 0;
+const ORDER = ["propliner", "airliner", "widebody"];
+const spacing = { propliner: 0, airliner: 0, widebody: 0 };
+const list = ORDER.map(id => PLANES.find(p => p.id === id)).filter(Boolean);
+// side by side across x, a span and 12 m apart
+let cursor = 0;
+list.forEach((p, i) => { const s = p.manifest.size_m.span; if (i) cursor += s * 0.5; spacing[p.id] = cursor; cursor += s * 0.5 + 12; });
+const mid = cursor / 2;
+
+list.forEach(p => {
+  const man = p.manifest;
+  const holder = new T.Group();
+  holder.position.set(spacing[p.id] - mid, man.rest_m, 0);
+  holder.rotation.x = man.rest_pitch_deg * Math.PI / 180;
+  scene.add(holder);
+  const st = planes[p.id] = { p, man, holder, rig: [], lamps: [], zones: {}, flying: [], meshes: [], capsules: [], cabinLights: [] };
+  loader.loadAsync(p.url).then(gltf => {
+    const root = gltf.scene;
+    holder.add(root);
+    root.traverse(o => {
+      if (o.isMesh) {
+        o.castShadow = true; o.receiveShadow = true; st.meshes.push(o);
+        const ms = Array.isArray(o.material) ? o.material : [o.material];
+        for (const m of ms) if (CLIP_MATS.test(m.name || "")) m.userData.clip = true;
+      }
+    });
+    for (const r of man.rig) {
+      const node = root.getObjectByName(r.node);
+      if (!node) continue;
+      st.rig.push({ r, node, base: node.quaternion.clone(), axis: new T.Vector3(...r.axis).normalize() });
+    }
+    for (const z of man.zones) {
+      const node = root.getObjectByName(z.node);
+      if (!node) continue;
+      let c = new T.Vector3(); let n = 0;
+      for (const cap of z.capsules) { c.add(new T.Vector3(...cap.a)).add(new T.Vector3(...cap.b)); n += 2; }
+      if (n) c.multiplyScalar(1 / n);
+      st.zones[z.name] = { z, node, centre: c, base: node.position.clone(), baseQ: node.quaternion.clone() };
+    }
+    // the lamps: a glow sprite each, and a point light for the landing lights and beacons
+    for (const l of man.lamps) {
+      const node = root.getObjectByName(l.node);
+      if (!node) continue;
+      const col = { red: 0xff2a14, green: 0x2cff5a, white: 0xffffff }[l.colour];
+      const spr = new T.Sprite(new T.SpriteMaterial({ map: glowTex(), color: col, transparent: true, blending: T.AdditiveBlending, depthWrite: false }));
+      const big = l.pattern === "landing" ? 3.0 : l.pattern === "strobe" ? 2.4 : 1.6;
+      spr.scale.set(big, big, 1); spr.visible = false; node.add(spr);
+      let light = null;
+      if (l.pattern === "landing" || l.pattern === "beacon") {
+        light = new T.PointLight(col, 0, l.pattern === "landing" ? 45 : 20, 2); node.add(light);
+      }
+      st.lamps.push({ l, spr, light, big });
+    }
+    // three warm lights down the cabin, for the cabin at night (lit live, not baked)
+    const c = man.cabin_lights || [];
+    for (const at of c) { const pl = new T.PointLight(0xffe6c0, 0, 9, 2); pl.position.set(...at); root.add(pl); st.cabinLights.push(pl); }
+    for (const z of man.zones) for (const cap of z.capsules) {
+      const a = new T.Vector3(...cap.a), b = new T.Vector3(...cap.b);
+      const len = a.distanceTo(b);
+      const g = new T.CapsuleGeometry(cap.radius_m, len, 4, 10);
+      const mesh = new T.Mesh(g, new T.MeshBasicMaterial({ color: 0xffb02e, wireframe: true, transparent: true, opacity: 0.45 }));
+      mesh.position.copy(a).add(b).multiplyScalar(0.5);
+      if (len > 1e-4) mesh.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+      mesh.visible = false;
+      const zn = st.zones[z.name];
+      if (zn) { mesh.position.sub(new T.Vector3()); zn.node.add(mesh); }
+      st.capsules.push(mesh);
+    }
+    tag(NAME[p.id] + " (" + man.after + ")", "", holder, new T.Vector3(0, man.bounds_m.y[1] + 2, 0));
+    applyLod(); applyClip(); loaded();
+  }).catch(err => { console.error(err); loaded(); });
+});
+
+// the yardsticks: a 1.8 m pilot beside the nose of the first aircraft, the Foreman beyond the last
+const pilot = new T.Group();
+const body = new T.Mesh(new T.CapsuleGeometry(0.22, 1.36, 4, 10), new T.MeshStandardMaterial({ color: lin(0xd76b2a), roughness: 0.7 }));
+body.position.y = 0.9; body.castShadow = true; pilot.add(body);
+pilot.position.set(-mid - 4, 0, -14); scene.add(pilot);
+tag("Pilot 1.8 m", "rail", pilot, new T.Vector3(0, 2.1, 0));
+loader.loadAsync(YARD.url).then(gltf => {
+  gltf.scene.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  gltf.scene.position.set(cursor - mid + 6, 0, -6); gltf.scene.rotation.y = Math.PI;
+  scene.add(gltf.scene);
+  tag("Foreman " + m1(YARD.height_m) + " m", "rail", gltf.scene, new T.Vector3(0, YARD.height_m + 1, 0));
+  loaded();
+}).catch(loaded);
+
+let glowTexCache = null;
+function glowTex() {
+  if (glowTexCache) return glowTexCache;
+  const c = document.createElement("canvas"); c.width = c.height = 64;
+  const g = c.getContext("2d"), r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, "rgba(255,255,255,1)"); r.addColorStop(0.25, "rgba(255,255,255,0.6)"); r.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+  return glowTexCache = new T.CanvasTexture(c);
+}
+
+// --- tables
+const sizes = document.querySelector("#sizes tbody"), lodtbl = document.querySelector("#lodtbl tbody"), zonetbl = document.querySelector("#zonetbl tbody");
+for (const p of list) {
+  const m = p.manifest;
+  sizes.insertAdjacentHTML("beforeend", `<tr><td>${NAME[p.id]}<br><span class="stat">after the ${m.after}</span></td><td class="n">${m1(m.measured_m.length)} m</td><td class="n">${m1(m.measured_m.span)} m</td><td class="n">${m1(m.measured_m.height_at_rest)} m</td><td class="n">${m.seats}</td></tr>`);
+  lodtbl.insertAdjacentHTML("beforeend", `<tr><td>${NAME[p.id]}</td>` + m.lods.map(l => `<td class="n">${l.triangles.toLocaleString()} / ${l.budget_triangles.toLocaleString()}</td>`).join("") + "</tr>");
+}
+const wb = list.find(p => p.id === "airliner") || list[0];
+for (const z of wb.manifest.zones) zonetbl.insertAdjacentHTML("beforeend", `<tr><td>${z.name.replace(/_/g, " ")}</td><td>${(z.parent || "(the main box)").replace(/_/g, " ")}</td><td class="n">${Math.round(z.share * 100)} %</td></tr>`);
+
+// --- controls
+let show = "all";
+const pick = document.getElementById("pick");
+for (const id of ["all", ...ORDER]) {
+  const b = document.createElement("button"); b.type = "button"; b.textContent = id === "all" ? "All three" : NAME[id];
+  b.onclick = () => { show = id; for (const [k, s] of Object.entries(planes)) s.holder.visible = id === "all" || id === k; home(); press(pick, b); };
+  pick.appendChild(b); if (id === "all") b.setAttribute("aria-pressed", "true");
+}
+function press(group, btn) { group.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === btn))); }
+let lod = 0;
+const lods = document.getElementById("lods");
+["Near", "Mid", "Far"].forEach((t, i) => {
+  const b = document.createElement("button"); b.type = "button"; b.textContent = t;
+  b.onclick = () => { lod = i; applyLod(); press(lods, b); };
+  lods.appendChild(b); if (!i) b.setAttribute("aria-pressed", "true");
+});
+function applyLod() { for (const s of Object.values(planes)) for (const o of s.meshes) { const l = lodOf(o) ?? lodOf(o.parent || {}); o.visible = l === null || l === lod; } }
+
+let gearT = 0, gearTarget = 0;
+const gearBtn = document.getElementById("gear");
+gearBtn.onclick = () => { gearTarget = gearTarget ? 0 : 1; gearBtn.setAttribute("aria-pressed", String(!!gearTarget)); gearBtn.textContent = gearTarget ? "Gear: up" : "Gear: down"; };
+let spinning = true, realRpm = false, working = false, flapStep = 0, night = false, cut = false;
+toggle("spin", v => spinning = v);
+toggle("realspin", v => realRpm = v);
+toggle("controls", v => working = v);
+toggle("night", v => { night = v; applyNight(); });
+toggle("cut", v => { cut = v; applyClip(); });
+toggle("caps", v => { for (const s of Object.values(planes)) for (const c of s.capsules) c.visible = v; });
+document.getElementById("flaps").onclick = e => { flapStep = (flapStep + 1) % 3; e.target.textContent = "Flaps " + [0, 15, 30][flapStep]; };
+function toggle(id, f) { const b = document.getElementById(id); b.onclick = () => { const v = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", String(v)); f(v); }; }
+function applyNight() {
+  stage.classList.toggle("night", night);
+  scene.background.copy(night ? NIGHT_SKY : DAY_SKY); scene.fog.color.copy(scene.background);
+  sun.intensity = night ? 0 : 2.2; hemi.intensity = night ? 0.06 : 0.8; moon.intensity = night ? 0.25 : 0;
+  ground.material.color.copy(lin(night ? 0x2a2a28 : 0x55554f));
+  for (const s of Object.values(planes)) for (const pl of s.cabinLights) pl.intensity = night ? 6 : 0;
+}
+function applyClip() {
+  for (const s of Object.values(planes)) for (const o of s.meshes) {
+    const ms = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of ms) if (m.userData.clip) { m.clippingPlanes = cut ? [CLIP] : null; m.clipShadows = true; m.side = cut ? T.DoubleSide : T.FrontSide; m.needsUpdate = true; }
+  }
+}
+// the cut is through each aircraft's own centre line: one clipping plane per aircraft would need its own materials, so
+// the plane follows the aircraft nearest the camera's target
+function updateClip() {
+  let best = null, bd = 1e9;
+  for (const s of Object.values(planes)) { if (!s.holder.visible) continue; const d = Math.abs(s.holder.position.x - controls.target.x); if (d < bd) { bd = d; best = s; } }
+  if (best) CLIP.constant = best.holder.position.x;
+}
+
+const explode = document.getElementById("explode");
+document.getElementById("repair").onclick = () => {
+  explode.value = 0;
+  for (const s of Object.values(planes)) { s.flying = []; for (const z of Object.values(s.zones)) { z.node.position.copy(z.base); z.node.quaternion.copy(z.baseQ); z.node.visible = true; } }
+};
+
+// click a part: its zone breaks off and falls, with every zone that hangs from it
+const ray = new T.Raycaster(), ndc = new T.Vector2();
+let downAt = null;
+canvas.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY]; });
+canvas.addEventListener("pointerup", e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const all = Object.values(planes).flatMap(s => s.meshes.filter(o => o.visible && s.holder.visible));
+  const hit = ray.intersectObjects(all, false)[0];
+  if (!hit) return;
+  const zn = zoneOf(hit.object);
+  if (!zn) return;
+  for (const s of Object.values(planes)) {
+    const z = Object.values(s.zones).find(q => q.node === zn);
+    if (!z || !z.z.parent) continue;  // the main box holds the rest; it falls with the aircraft
+    const out = z.centre.clone().normalize();
+    s.flying.push({ z, v: new T.Vector3(out.x * 6, 4, out.z * 3), w: new T.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(1.6), t: 0 });
+  }
+});
+
+const sph = new T.Spherical(), off = new T.Vector3();
+let mode = "orbit";
+function home() {
+  mode = "orbit"; controls.minDistance = 2; controls.maxPolarAngle = Math.PI * 0.495;
+  document.getElementById("cabin").setAttribute("aria-pressed", "false"); document.getElementById("deck").setAttribute("aria-pressed", "false");
+  const s = show === "all" ? null : planes[show];
+  const L = s ? Math.max(s.man.size_m.length, s.man.size_m.span) : cursor;
+  const cx = s ? s.holder.position.x : 0;
+  controls.target.set(cx, 4, 0);
+  camera.position.set(cx - L * 0.55, L * 0.32, -L * 0.75);
+  controls.update();
+}
+function inside(which) {
+  const s = show === "all" ? planes.airliner || Object.values(planes)[0] : planes[show];
+  if (!s) return;
+  if (show === "all") { show = s.p.id; for (const [k, q] of Object.entries(planes)) q.holder.visible = k === show; press(pick, [...pick.children][ORDER.indexOf(show) + 1]); }
+  const cab = s.man.cabin_view;
+  const at = which === "deck" ? cab.deck : cab.aisle;
+  const look = which === "deck" ? cab.deck_look : cab.aisle_look;
+  const p0 = s.holder.localToWorld(new T.Vector3(...at)), p1 = s.holder.localToWorld(new T.Vector3(...look));
+  // inside, the view may look up the propliner's sloping floor: no ground clamp
+  mode = which; controls.minDistance = 0.05; controls.maxPolarAngle = Math.PI;
+  camera.position.copy(p0); controls.target.copy(p1); controls.update();
+  document.getElementById("cabin").setAttribute("aria-pressed", String(which === "aisle"));
+  document.getElementById("deck").setAttribute("aria-pressed", String(which === "deck"));
+}
+document.getElementById("cabin").onclick = () => inside("aisle");
+document.getElementById("deck").onclick = () => inside("deck");
+document.getElementById("reset").onclick = home;
+home();
+canvas.addEventListener("keydown", e => {
+  off.copy(camera.position).sub(controls.target); sph.setFromVector3(off);
+  if (e.key === "ArrowLeft") sph.theta -= 0.08; else if (e.key === "ArrowRight") sph.theta += 0.08;
+  else if (e.key === "ArrowUp") sph.phi = Math.max(0.1, sph.phi - 0.06); else if (e.key === "ArrowDown") sph.phi = Math.min(1.5, sph.phi + 0.06);
+  else if (e.key === "+" || e.key === "=") sph.radius *= 0.9; else if (e.key === "-") sph.radius *= 1.1;
+  else if (e.key === "r" || e.key === "R") { home(); return; } else return;
+  e.preventDefault(); camera.position.copy(controls.target).add(off.setFromSpherical(sph)); controls.update();
+});
+
+// the gear sequence and the light patterns: the manifest's own numbers
+function keyed(keys, t) {
+  if (t <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) if (t <= keys[i][0]) {
+    const [t0, v0] = keys[i - 1], [t1, v1] = keys[i], u = (t - t0) / Math.max(t1 - t0, 1e-6);
+    return v0 + (v1 - v0) * (u * u * (3 - 2 * u));
+  }
+  return keys[keys.length - 1][1];
+}
+function lampOn(pat, t, man) {
+  const P = man.light_patterns[pat] || {};
+  if (pat === "beacon") return (t % P.period_s) < P.on_s;
+  if (pat === "strobe") { const u = t % P.period_s; return u < P.on_s || (u > P.gap_s && u < P.gap_s + P.on_s); }
+  return true;
+}
+const q = new T.Quaternion();
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== Math.floor(w * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+}
+const v = new T.Vector3();
+let last = performance.now(), clock = 0, spinAngle = 0;
+let ready = false;
+function markReady() { ready = true; }
+window.MOCKUP_SCENE = scene;
+window.MOCKUP_API = { planes, setGear: t => { gearT = gearTarget = t; }, night: v => { night = v; applyNight(); }, cut: v => { cut = v; applyClip(); }, inside, home,
+  explode: v => { explode.value = v; }, show: id => { [...pick.children][["all", ...ORDER].indexOf(id)].click(); }, caps: v => { for (const s of Object.values(planes)) for (const c of s.capsules) c.visible = v; },
+  cam: (p, t) => { camera.position.set(...p); controls.target.set(...t); controls.update(); },
+  camOn: (id, p, t) => { const h = planes[id].holder; camera.position.copy(h.localToWorld(new T.Vector3(...p))); controls.target.copy(h.localToWorld(new T.Vector3(...t))); controls.update(); }, lod: n => { [...lods.children][n].click(); } };
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; clock += dt;
+  resize(); controls.update(); updateClip();
+  const seq = 8.0;
+  if (gearT < gearTarget) gearT = Math.min(gearTarget, gearT + dt / seq); else if (gearT > gearTarget) gearT = Math.max(gearTarget, gearT - dt / seq);
+  const ex = explode.value / 100;
+  const flapDeg = [0, 15, 30][flapStep];
+  for (const s of Object.values(planes)) {
+    for (const g of s.rig) {
+      const r = g.r; let a = 0;
+      if (r.role === "gear_leg" || r.role === "gear_door") a = r.angle_deg * keyed(r.keys, gearT) * Math.PI / 180;
+      else if (r.role === "prop" || r.role === "fan") { if (spinning) g.spin = (g.spin || 0) + dt * (realRpm ? r.rpm / 60 * Math.PI * 2 : (r.role === "prop" ? 9 : 6)); a = g.spin || 0; }
+      else if (r.role === "aileron") a = working ? Math.sin(clock * 1.3) * r.range_deg * Math.PI / 180 * (g.node.name.endsWith("_l") ? 1 : -1) : 0;
+      else if (r.role === "elevator" || r.role === "rudder") a = working ? Math.sin(clock * (r.role === "rudder" ? 0.9 : 1.1)) * r.range_deg * Math.PI / 180 : 0;
+      else if (r.role === "flap") a = flapDeg * Math.PI / 180;
+      g.node.quaternion.copy(g.base).multiply(q.setFromAxisAngle(g.axis, a));
+    }
+    for (const z of Object.values(s.zones)) {
+      if (s.flying.some(f => f.z === z)) continue;
+      const parent = s.zones[z.z.parent];
+      const d = parent ? z.centre.clone().sub(parent.centre) : new T.Vector3();
+      z.node.position.copy(z.base).addScaledVector(d, ex * 0.45);
+    }
+    for (const f of s.flying) {
+      f.t += dt;
+      if (f.z.node.position.y + s.holder.position.y > -40) {
+        f.v.y -= 9.81 * dt;
+        f.z.node.position.addScaledVector(f.v, dt);
+        f.z.node.rotateOnAxis(f.w.clone().normalize(), f.w.length() * dt);
+      } else f.z.node.visible = false;
+    }
+    for (const L of s.lamps) {
+      const on = night && lampOn(L.l.pattern, clock + (s.p.id.length * 0.37), s.man) && (L.l.pattern !== "landing" || gearT < 0.5);
+      L.spr.visible = on;
+      if (L.light) L.light.intensity = on ? (L.l.pattern === "landing" ? 6 : 3) : 0;
+    }
+  }
+  renderer.render(scene, camera);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  for (const t of tags) {
+    t.obj.updateMatrixWorld(); t.obj.localToWorld(v.copy(t.at)); v.project(camera);
+    const vis = v.z < 1 && t.obj.visible && mode === "orbit";
+    t.el.style.display = vis ? "" : "none";
+    t.el.style.left = ((v.x + 1) / 2 * w) + "px"; t.el.style.top = ((1 - v.y) / 2 * h) + "px";
+  }
+  if (ready) window.MOCKUP_READY = true;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
