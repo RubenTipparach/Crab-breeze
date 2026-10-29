@@ -16,7 +16,7 @@ import gen_mech_designs as designs
 ROOT = designs.ROOT
 SITE = os.path.join(ROOT, "output", "melee_site")
 
-PAGE = r"""<title>Mech Melee Lab</title>
+PAGE = r"""<title>Mech Arms Lab</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -66,15 +66,32 @@ canvas { display: block; width: 100%; aspect-ratio: 16 / 9; }
 .hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
 select { font: 500 13px var(--mono); background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 3px; padding: 6px; min-height: 34px; }
 [hidden] { display: none !important; }
+.aim { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 10px 12px; margin-bottom: 8px; display: grid; gap: 8px; }
+.aim .sl { display: grid; grid-template-columns: 9ch 1fr 8ch; gap: 8px; align-items: center; flex: 1 1 260px; min-width: 0; }
+.aim .sl span { font: 500 12px var(--mono); color: var(--muted); }
+.aim .sl input { min-width: 0; accent-color: var(--accent); }
+.aim .sl output { font: 500 12px var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.aim .row { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+.readout { font: 500 13px var(--mono); font-variant-numeric: tabular-nums; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.readout b { font-weight: 500; color: var(--muted); }
+.ok { color: #2e9a5a; } .far { color: var(--warn); }
+.doc { max-width: 78ch; margin-top: 22px; }
+.doc h2 { font: 700 24px/1.1 var(--display); letter-spacing: 0.04em; text-transform: uppercase; margin: 22px 0 6px; }
+.doc h3 { font: 700 17px var(--display); letter-spacing: 0.05em; text-transform: uppercase; margin: 16px 0 4px; }
+.doc table { border-collapse: collapse; font-size: 14px; display: block; overflow-x: auto; }
+.doc th, .doc td { text-align: left; padding: 4px 10px; border-bottom: 1px solid var(--edge); vertical-align: top; }
+.doc code { font: 13px var(--mono); }
 __LAB_CSS__
 </style>
 
 <div class="wrap">
   <div class="eyebrow">Crab Breeze · close combat</div>
-  <h1>Mech Melee Lab</h1>
-  <p class="lede">Shape the mechs' punches, kicks and gun recoil. Pick a move and press Play: your mech swings, and the
-  copy facing it takes the hit when the blow lands. Edit keys pauses on a key so you can pose it bone by bone; Save
-  keeps the move for everyone, and Claude reads it back into the game's design.</p>
+  <h1>Mech Arms Lab</h1>
+  <p class="lede">The mech's arms: aiming their guns at the point you aim at, and the melee moves and gun recoil.
+  Move the target: the shoulders and elbows turn so each barrel points at it, as near as the joints allow, and the
+  readout says how far each barrel is off. The write-up for the game is below the viewer. For melee, pick a move and
+  press Play: the copy facing your mech takes the hit when the blow lands; Edit keys poses a move bone by bone, and
+  Save keeps it.</p>
   <div class="bar" role="group" aria-label="Mech">
     <span class="lbl">Mech</span>
 __MECH_BUTTONS__
@@ -89,13 +106,31 @@ __MECH_BUTTONS__
     <button data-view="front">Front</button>
     <button data-view="eye">Pilot's eye</button>
   </div>
+  <div class="aim" role="group" aria-label="Aim">
+    <div class="row">
+      <span style="font:500 12px var(--mono);color:var(--muted)">Aim</span>
+      <button id="aim-on" aria-pressed="true">Arms aim</button>
+      <button id="aim-torso" aria-pressed="true">Torso follows</button>
+      <button id="aim-sweep" aria-pressed="false">Sweep target</button>
+      <button id="aim-place" aria-pressed="false">Click ground to place</button>
+      <button id="aim-close">Close target</button>
+      <button id="aim-far">Far target</button>
+    </div>
+    <div class="row">
+      <label class="sl"><span>Range</span><input type="range" id="aim-r" min="12" max="600" step="1" value="120"><output id="aim-ro">120 m</output></label>
+      <label class="sl"><span>Bearing</span><input type="range" id="aim-b" min="-120" max="120" step="1" value="0"><output id="aim-bo">0 deg</output></label>
+      <label class="sl"><span>Height</span><input type="range" id="aim-h" min="0" max="120" step="0.5" value="14"><output id="aim-ho">14 m</output></label>
+    </div>
+    <div class="readout" id="aim-read" aria-live="polite"></div>
+  </div>
 __LAB_HTML__
   <div class="stage">
     <canvas id="view" tabindex="0" aria-label="3D view of the mech and its sparring partner"></canvas>
     <div class="mode" id="mode">Side</div>
     <div class="load" id="load">Loading the mech</div>
   </div>
-  <p class="hint">Drag to orbit, scroll or pinch to zoom. Turns are radians, slides metres. On a bone, rx below zero swings it forward and up; ry above zero turns it toward the mech's left; a shoulder's rz lifts the arm out to the side (below zero on the right, above zero on the left).</p>
+  <p class="hint">Yellow is where each barrel points, dashed blue where its shot flies. Drag to orbit, scroll or pinch to zoom. Turns are radians, slides metres. On a bone, rx below zero swings it forward and up; ry above zero turns it toward the mech's left; a shoulder's rz lifts the arm out to the side (below zero on the right, above zero on the left).</p>
+__DOC__
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
@@ -107,6 +142,7 @@ const ORDER = __ORDER__;
 __MECH_POSE__
 __MECH_MELEE__
 __GLTF_JSON__
+__ARM_AIM__
 const parseX = v => (typeof v === "string" ? JSON.parse(v) : v);
 
 const canvas = document.getElementById("view");
@@ -132,6 +168,29 @@ const ground = new T.Mesh(new T.PlaneGeometry(500, 500), new T.MeshStandardMater
 ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 const grid = new T.GridHelper(160, 40, 0x4a4552, 0x3a3640); grid.position.y = 0.01; scene.add(grid);
 
+// ---------- the aim target and the lines drawn from each muzzle ----------
+const aimT = { on: true, torso: true, sweep: false, place: false, r: 120, b: 0, h: 14, pos: new T.Vector3() };
+const marker = new T.Group();
+marker.add(new T.Mesh(new T.SphereGeometry(0.9, 20, 14), new T.MeshBasicMaterial({ color: 0xff5a3c, toneMapped: false })));
+marker.add(new T.Mesh(new T.TorusGeometry(2.2, 0.12, 8, 40), new T.MeshBasicMaterial({ color: 0xff5a3c, toneMapped: false })));
+scene.add(marker);
+const pole = new T.Mesh(new T.CylinderGeometry(0.08, 0.08, 1, 6), new T.MeshBasicMaterial({ color: 0xff5a3c, transparent: true, opacity: 0.5 }));
+scene.add(pole);
+function mkLine(col, dashed) {
+  const g = new T.BufferGeometry().setFromPoints([new T.Vector3(), new T.Vector3(0, 0, 1)]);
+  const m = dashed ? new T.LineDashedMaterial({ color: col, dashSize: 2, gapSize: 1.5, toneMapped: false }) : new T.LineBasicMaterial({ color: col, toneMapped: false });
+  const l = new T.Line(g, m); l.frustumCulled = false; scene.add(l); return l;
+}
+// yellow: where the barrel points; dashed blue: where the shot flies (muzzle to target)
+const lines = { L: { barrel: mkLine(0xffd23c, false), shot: mkLine(0x5ad1ff, true) }, R: { barrel: mkLine(0xffd23c, false), shot: mkLine(0x5ad1ff, true) } };
+function setLine(l, a, c) { const p = l.geometry.attributes.position; p.setXYZ(0, a.x, a.y, a.z); p.setXYZ(1, c.x, c.y, c.z); p.needsUpdate = true; l.computeLineDistances(); l.visible = true; }
+function placeTarget() {
+  const br = aimT.b * Math.PI / 180;
+  aimT.pos.set(Math.sin(br) * aimT.r, aimT.h, Math.cos(br) * aimT.r);
+  marker.position.copy(aimT.pos); marker.visible = aimT.on;
+  pole.position.set(aimT.pos.x, aimT.h / 2, aimT.pos.z); pole.scale.set(1, Math.max(0.01, aimT.h), 1); pole.visible = aimT.on;
+}
+
 // ---------- the two mechs: ours at the origin facing +z, the partner a copy of it facing back ----------
 const loader = gltfJsonLoader(T);
 const cache = {};
@@ -144,7 +203,8 @@ function makeMech(g, id, seed) {
   // the chest's open-and-close rig is not driven here: everything boarding-only stays at its rest
   const x = (nodes.root && nodes.root.userData) || {};
   const b = { id, root, nodes, seed, ph: 0, t: seed, scale: x.scale || 0.13, legSegs: parseX(x.legSegs), footH: x.footH,
-    walk: parseX(x.walk), idleP: parseX(x.idle), hitT: 9, hitSide: 1, wWalk: 0, rest: {}, yaw0: 0 };
+    walk: parseX(x.walk), idleP: parseX(x.idle), hitT: 9, hitSide: 1, wWalk: 0, rest: {}, yaw0: 0,
+    aim: aimState(), tw: 0, twRate: 0, pitch: 0, armW: { L: 1, R: 1 } };
   for (const n in nodes) if (MAPPED.has(n) || MELEE_BONES.includes(n) || n === "hand_L" || n === "hand_R") {
     const o = nodes[n]; b.rest[n] = { e: new T.Euler().setFromQuaternion(o.quaternion, "XYZ"), p: o.position.clone() }; }
   scene.add(root);
@@ -158,6 +218,7 @@ function setMech(id) {
     if (current !== id) return;
     for (const m of [me, foe]) if (m) scene.remove(m.root);
     me = makeMech(g, id, 3); foe = makeMech(g, id, 11);
+    me.root.updateMatrixWorld(true); me.eyeRest = (me.nodes.EYE_pilot || me.nodes.cockpit || me.root).getWorldPosition(new T.Vector3());
     layout(); setView(view); ld.hidden = true; window.LAB_READY = true;
   }).catch(e => { ld.textContent = "Could not load: " + e; });
 }
@@ -198,13 +259,92 @@ function animate(b, dt, isMe) {
   P.w = 1 - b.wWalk; idleGeneric(P, b.t, b);
   if (b.walk) { P.w = b.wWalk; walkGeneric(P, b.t, b); }
   if (b.hitT < 0.9) { P.w = 1; hitGeneric(P, b.hitT, b); }
-  if (isMe && mel.id && MELEE_MOVES[mel.id]) { P.w = 1; meleePose(P, b, MELEE_MOVES[mel.id], mel.t); }
+  const mv = isMe && mel.id && MELEE_MOVES[mel.id];
+  if (mv) { P.w = 1; meleePose(P, b, mv, mel.t); }
+  if (isMe) torsoFollow(b, P, dt);
   applyPose(b, P);
   b.root.rotation.y = b.yaw0;
   b.root.updateMatrixWorld(true);
+  if (!isMe) return;
+  // an arm that is striking lets go of its aim and takes it back after (a gun's recoil keeps it)
+  const striking = mv && !mv.fire && mel.t > 0 && mel.t < meleeEnd(mv);
+  for (const S of ["L", "R"]) {
+    const free = !(striking && (mv.arm === S || mv.arm === "both"));
+    b.armW[S] += ((free ? 1 : 0) - b.armW[S]) * Math.min(1, dt * (free ? 3 : 10));
+  }
+  const err = aimStep(b, b.aim, aimT.on ? aimT.pos : null, dt, b.armW);
+  drawAim(b, err);
+}
+// The torso turns to the aim as the game's does (cb-core locomotion, MechConfig defaults): twist toward the target's
+// bearing at up to 70 deg/s with 600 deg/s^2 of ease, inside 100 deg; pitch toward its elevation from the eye at
+// 40 deg/s, inside -20 to +25 deg.
+const TORSO = { twist_rate: 70, twist_accel: 600, pitch_rate: 40, pitch_lo: -20, pitch_hi: 25, twist_max: 100 };
+function torsoFollow(b, P, dt) {
+  let wantT = 0, wantP = 0;
+  if (aimT.on && aimT.torso) {
+    const e = b.eyeRest || new T.Vector3(0, 18, 1);
+    wantT = Math.atan2(aimT.pos.x, aimT.pos.z);
+    wantT = Math.max(-TORSO.twist_max, Math.min(TORSO.twist_max, wantT * 180 / Math.PI)) * Math.PI / 180;
+    wantP = Math.atan2(aimT.pos.y - e.y, Math.hypot(aimT.pos.x - e.x, aimT.pos.z - e.z));
+    wantP = Math.max(TORSO.pitch_lo, Math.min(TORSO.pitch_hi, wantP * 180 / Math.PI)) * Math.PI / 180;
+  }
+  const vmax = TORSO.twist_rate * Math.PI / 180, amax = TORSO.twist_accel * Math.PI / 180, err = wantT - b.tw;
+  const vwant = Math.sign(err) * Math.min(vmax, Math.sqrt(2 * amax * Math.abs(err)));
+  b.twRate += Math.max(-amax * dt, Math.min(amax * dt, vwant - b.twRate));
+  b.tw += b.twRate * dt;
+  const pm = TORSO.pitch_rate * Math.PI / 180 * dt; b.pitch += Math.max(-pm, Math.min(pm, wantP - b.pitch));
+  P.w = 1; P.add("torso_twist", 0, b.tw, 0); P.add("torso", -b.pitch, 0, 0);
+}
+const readEl = document.getElementById("aim-read");
+let readN = 0;
+function drawAim(b, err) {
+  for (const S of ["L", "R"]) {
+    const br = aimT.on && b.aim.gun[S] ? aimBarrel(b, S) : null;
+    if (!br) { lines[S].barrel.visible = lines[S].shot.visible = false; continue; }
+    setLine(lines[S].barrel, br.from, br.from.clone().addScaledVector(br.dir, br.from.distanceTo(aimT.pos)));
+    setLine(lines[S].shot, br.from, aimT.pos);
+  }
+  if ((readN += 1) % 6) return;
+  const f = S => { const e = err[S], n = S === "L" ? "Left" : "Right"; if (e == null) return `<span><b>${n} arm</b> ${b.nodes["MUZZLE_" + S] ? "a launcher, not aimed" : "no gun"}</span>`;
+    const cls = e < 1 ? "ok" : e > 5 ? "far" : ""; return `<span><b>${n} gun off by</b> <span class="${cls}">${e.toFixed(1)} deg</span></span>`; };
+  const q = b.aim, deg = x => (x * 180 / Math.PI).toFixed(0);
+  readEl.innerHTML = aimT.on ? f("L") + f("R") +
+    `<span><b>Torso</b> twist ${deg(b.tw)}, pitch ${deg(b.pitch)} deg</span>` +
+    `<span><b>Right arm</b> shoulder ${deg(-q.R[0])} up, ${deg(q.R[1])} in, elbow ${deg(-q.R[2])} up</span>` +
+    `<span><b>Left arm</b> shoulder ${deg(-q.L[0])} up, ${deg(-q.L[1])} in, elbow ${deg(-q.L[2])} up</span>` : "Aim is off: the arms hang at their pose.";
 }
 
 __LAB_JS__
+// ---------- the aim widget ----------
+const aimIn = { r: document.getElementById("aim-r"), b: document.getElementById("aim-b"), h: document.getElementById("aim-h") };
+const aimOut = { r: document.getElementById("aim-ro"), b: document.getElementById("aim-bo"), h: document.getElementById("aim-ho") };
+function syncAim() {
+  for (const k of ["r", "b", "h"]) { aimIn[k].value = aimT[k]; aimOut[k].textContent = (+aimT[k]).toFixed(k === "h" ? 1 : 0) + (k === "b" ? " deg" : " m"); }
+  placeTarget();
+}
+function setPressed(id, on) { document.getElementById(id).setAttribute("aria-pressed", String(on)); return on; }
+for (const k of ["r", "b", "h"]) aimIn[k].addEventListener("input", () => { aimT[k] = +aimIn[k].value; if (k === "b") aimT.sweep = setPressed("aim-sweep", false); syncAim(); });
+document.getElementById("aim-on").addEventListener("click", () => { aimT.on = setPressed("aim-on", !aimT.on); placeTarget(); });
+document.getElementById("aim-torso").addEventListener("click", () => { aimT.torso = setPressed("aim-torso", !aimT.torso); });
+document.getElementById("aim-sweep").addEventListener("click", () => { aimT.sweep = setPressed("aim-sweep", !aimT.sweep); });
+document.getElementById("aim-place").addEventListener("click", () => { aimT.place = setPressed("aim-place", !aimT.place); });
+document.getElementById("aim-close").addEventListener("click", () => { Object.assign(aimT, { r: 22, b: 8, h: 10 }); syncAim(); });
+document.getElementById("aim-far").addEventListener("click", () => { Object.assign(aimT, { r: 400, b: -12, h: 30 }); syncAim(); });
+// a click on the ground (not a drag) moves the target there, at its height
+const rc = new T.Raycaster(), ndc = new T.Vector2();
+let downAt = null;
+canvas.addEventListener("pointerdown", ev => { downAt = [ev.clientX, ev.clientY]; });
+canvas.addEventListener("pointerup", ev => {
+  if (!aimT.place || ev.button !== 0 || !downAt || Math.hypot(ev.clientX - downAt[0], ev.clientY - downAt[1]) > 5) return;
+  const r = canvas.getBoundingClientRect(); ndc.set((ev.clientX - r.left) / r.width * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  rc.setFromCamera(ndc, camera); const h = rc.intersectObject(ground)[0]; if (!h) return;
+  aimT.r = Math.round(Math.max(12, Math.min(600, Math.hypot(h.point.x, h.point.z))));
+  aimT.b = Math.round(Math.max(-120, Math.min(120, Math.atan2(h.point.x, h.point.z) * 180 / Math.PI)));
+  syncAim();
+});
+let sweepT = 0;
+function stepAim(dt) { if (!aimT.sweep) return; sweepT += dt; aimT.b = Math.round(55 * Math.sin(sweepT * 0.5)); syncAim(); }
+syncAim();
 
 let last = 0;
 function loop(ms) {
@@ -212,6 +352,7 @@ function loop(ms) {
   const w = canvas.clientWidth, h = canvas.clientHeight;
   if (canvas.width !== Math.round(w * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
   if (me) {
+    stepAim(dt);
     stepMelee(dt);
     animate(me, dt, true);
     if (foe.root.visible) animate(foe, dt, false);
@@ -223,7 +364,7 @@ function loop(ms) {
 }
 requestAnimationFrame(loop);
 setMech(ORDER[0]);
-window.LAB = { setMech, setView, melee(id, t) { pickMove(id); if (t !== undefined) { mel.playing = false; mel.t = t; drawMelee(); } } };
+window.LAB = { setMech, setView, aim(r, b, h) { Object.assign(aimT, { r, b, h }); syncAim(); }, state: () => ({ err: me && me.aim.err, tw: me && me.tw, q: me && me.aim }), melee(id, t) { pickMove(id); if (t !== undefined) { mel.playing = false; mel.t = t; drawMelee(); } } };
 </script>
 """
 
@@ -231,9 +372,9 @@ window.LAB = { setMech, setView, melee(id, t) { pickMove(id); if (t !== undefine
 def main():
     meta = json.load(open(os.path.join(designs.MODELS, "mechs.json")))
     rd = lambda n: open(os.path.join(ROOT, "tools", "mockups", n)).read()
-    html = (PAGE.replace("__LAB_CSS__", rd("melee_lab.css")).replace("__LAB_HTML__", rd("melee_lab.html"))
+    html = (PAGE.replace("__DOC__", rd("arm_aim_doc.html")).replace("__LAB_CSS__", rd("melee_lab.css")).replace("__LAB_HTML__", rd("melee_lab.html"))
             .replace("__LAB_JS__", rd("melee_lab.js")).replace("__MECH_POSE__", rd("mech_pose.js"))
-            .replace("__MECH_MELEE__", rd("mech_melee.js")).replace("__GLTF_JSON__", rd("gltf_json_loader.js"))
+            .replace("__MECH_MELEE__", rd("mech_melee.js")).replace("__ARM_AIM__", rd("arm_aim.js")).replace("__GLTF_JSON__", rd("gltf_json_loader.js"))
             .replace("__ORDER__", json.dumps(designs.ORDER))
             .replace("__MECH_BUTTONS__", "\n".join(f'    <button data-mech="{k}">{meta[k]["name"]}</button>' for k in designs.ORDER)))
     shutil.rmtree(SITE, ignore_errors=True)
