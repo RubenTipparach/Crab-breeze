@@ -295,7 +295,6 @@ fn mean_roughness_metal(orm: &Image) -> (f32, f32) {
 /// Once every glb is in: each kit's meshes by node, a plain and a state material per surface (the glb's stand-in
 /// colours), and the furniture material on the atlas.
 #[allow(clippy::too_many_arguments)]
-#[allow(clippy::too_many_arguments)]
 fn bind(
     plan: Res<Plan>,
     loading: Option<Res<Loading>>,

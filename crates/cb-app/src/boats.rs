@@ -1016,6 +1016,7 @@ mod tests {
             warehouses: vec![],
             office: f(Vec2::new(80.0, 0.0)),
             terminal: Vec2::new(90.0, 0.0),
+            port: false,
         }
     }
 
